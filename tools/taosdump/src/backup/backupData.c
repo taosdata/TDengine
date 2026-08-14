@@ -208,12 +208,14 @@ static void* backDataThread(void *arg) {
                 break;
             attempt++;
             logInfo("retry query child table names: %s.%s, attempt: %d", thread->dbInfo->dbName, thread->stbInfo->stbName, attempt);
-            resetConnectionPool();
-            conn = getConnection(&thread->code);
-            if (!conn) {
-                taosMemoryFree(thread->writeBuf);
-                thread->writeBuf = NULL;
-                return NULL;
+            if (bckConnLevelError(thread->code)) {
+                resetConnectionPool();
+                conn = getConnection(&thread->code);
+                if (!conn) {
+                    taosMemoryFree(thread->writeBuf);
+                    thread->writeBuf = NULL;
+                    return NULL;
+                }
             }
             sleepMs(retrySleepMs);
         }
@@ -262,12 +264,15 @@ static void* backDataThread(void *arg) {
                 break;
             }
             else if (errorCodeCanRetry(code)) {
-                // can retry — rebuild the pool so the next getConnection()
-                // creates a fresh handle (with back-off) after a restart
-                resetConnectionPool();
-                thread->conn = getConnection(&code);
-                if (!thread->conn) {
-                    break;
+                // only a connection-level failure needs a rebuilt pool (with
+                // back-off after a restart); transient server-side errors keep
+                // the healthy connection and just retry
+                if (bckConnLevelError(code)) {
+                    resetConnectionPool();
+                    thread->conn = getConnection(&code);
+                    if (!thread->conn) {
+                        break;
+                    }
                 }
                 n += 1;
                 logInfo("retry backup child table data: %s, times: %d", childTableName, n);
@@ -590,9 +595,11 @@ static void* backNtbDataThread(void *arg) {
             }
             attempt++;
             logInfo("retry query normal table names: %s, attempt: %d", dbName, attempt);
-            resetConnectionPool();
-            conn = getConnection(&thread->code);
-            if (!conn) return NULL;
+            if (bckConnLevelError(qcode)) {
+                resetConnectionPool();
+                conn = getConnection(&thread->code);
+                if (!conn) return NULL;
+            }
             sleepMs(retrySleepMs);
         }
     }
@@ -633,12 +640,15 @@ static void* backNtbDataThread(void *arg) {
                 atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
                 break;
             } else if (errorCodeCanRetry(thread->code)) {
-                // rebuild the pool so the next getConnection() creates a fresh
-                // handle (with back-off) after a restart
-                resetConnectionPool();
-                thread->conn = getConnection(&thread->code);
-                if (!thread->conn) {
-                    break;
+                // only a connection-level failure needs a rebuilt pool (with
+                // back-off after a restart); transient server-side errors keep
+                // the healthy connection and just retry
+                if (bckConnLevelError(thread->code)) {
+                    resetConnectionPool();
+                    thread->conn = getConnection(&thread->code);
+                    if (!thread->conn) {
+                        break;
+                    }
                 }
                 n++;
                 logInfo("retry backup normal table data: %s, times: %d", tableName, n);

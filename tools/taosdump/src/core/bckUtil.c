@@ -104,6 +104,31 @@ bool errorCodeCanRetry(int code) {
     }
 }
 
+// True only when the pooled connection itself is dead (server restart / network
+// drop) and must be rebuilt.  Transient server-side errors (VND_QUERY_BUSY,
+// SYN_NOT_LEADER, ...) leave the connection healthy, so the caller should retry
+// on the same handle instead of forcing a reconnect.
+bool bckConnLevelError(int code) {
+    switch (code & 0x7FFFFFFF) {
+        case TSDB_CODE_WS_CLOSED:
+        case TSDB_CODE_WS_SEND_TIMEOUT:
+        case TSDB_CODE_WS_RECV_TIMEOUT:
+            return true;
+        default:
+            break;
+    }
+    switch (code) {
+        // RPC / network layer errors - the link is broken
+        case TSDB_CODE_RPC_NETWORK_ERROR:
+        case TSDB_CODE_RPC_NETWORK_BUSY:
+        case TSDB_CODE_RPC_TIMEOUT:
+        case TSDB_CODE_RPC_BROKEN_LINK:
+            return true;
+        default:
+            return false;
+    }
+}
+
 unsigned int getCrc(const char *name) {
     unsigned int crc = 0xFFFFFFFF;
     while (*name) {
