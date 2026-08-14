@@ -4019,27 +4019,32 @@ static int32_t processTsOutPutAllGroups(SStreamTriggerReaderInfo* sStreamReaderI
   tsRsp->tsInfo = taosArrayInit(qStreamGetTableListGroupNum(sStreamReaderInfo), sizeof(STsInfo));
   STREAM_CHECK_NULL_GOTO(tsRsp->tsInfo, terrno);
   while (true) {
-    int32_t        pNum = 0;
-    int64_t        gId = 0;
+    int32_t pNum = 0;
+    int64_t gId = 0;
     STREAM_CHECK_RET_GOTO(qStreamIterTableList(&tableInfo, &pList, &pNum, &gId));
-    if(pNum == 0) break;
-    STsInfo* tsInfo = taosArrayReserve(tsRsp->tsInfo, 1);
-    STREAM_CHECK_NULL_GOTO(tsInfo, terrno)
-    if (order == TSDB_ORDER_ASC) {
-      tsInfo->ts = INT64_MAX;
-    } else {
-      tsInfo->ts = INT64_MIN;
-    }
+    if (pNum == 0) break;
+
+    int64_t ts = (order == TSDB_ORDER_ASC) ? INT64_MAX : INT64_MIN;
+    bool    hasTs = false;
     for (int32_t i = 0; i < pNum; i++) {
-      int64_t uid = pList[i].uid;
-      int64_t *ts = tSimpleHashGet(uidTsHash, &uid, LONG_BYTES);
-      STREAM_CHECK_NULL_GOTO(ts, terrno);
-      if (order == TSDB_ORDER_ASC && *ts < tsInfo->ts) {
-        tsInfo->ts = *ts;
-      } else if (order == TSDB_ORDER_DESC && *ts > tsInfo->ts) {
-        tsInfo->ts = *ts;
+      int64_t  uid = pList[i].uid;
+      int64_t* rowTs = tSimpleHashGet(uidTsHash, &uid, LONG_BYTES);
+      if (rowTs == NULL) {
+        continue;
+      }
+      if (!hasTs || (order == TSDB_ORDER_ASC && *rowTs < ts) || (order == TSDB_ORDER_DESC && *rowTs > ts)) {
+        ts = *rowTs;
+        hasTs = true;
       }
     }
+    if (!hasTs) {
+      taosMemoryFreeClear(pList);
+      continue;
+    }
+
+    STsInfo* tsInfo = taosArrayReserve(tsRsp->tsInfo, 1);
+    STREAM_CHECK_NULL_GOTO(tsInfo, terrno);
+    tsInfo->ts = ts;
     tsInfo->gId = gId;
     ST_TASK_DLOG("%s get ts:%" PRId64 ", gId:%" PRIu64 ", ver:%" PRId64, __func__, tsInfo->ts, tsInfo->gId, tsRsp->ver);
     taosMemoryFreeClear(pList);
