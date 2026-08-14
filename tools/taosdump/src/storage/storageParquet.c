@@ -60,8 +60,9 @@ int resultToFileParquet(TAOS_RES *res, const char *fileName, int64_t *outRows, v
     int     blockRows  = 0;
     void   *block      = NULL;
     int64_t totalRows  = 0;
+    int     fetchCode  = TSDB_CODE_SUCCESS;
 
-    while (taos_fetch_raw_block(res, &blockRows, &block) == TSDB_CODE_SUCCESS) {
+    while ((fetchCode = taos_fetch_raw_block(res, &blockRows, &block)) == TSDB_CODE_SUCCESS) {
         if (g_interrupted) {
             parquetWriterClose(pw);
             return TSDB_CODE_BCK_USER_CANCEL;
@@ -77,6 +78,16 @@ int resultToFileParquet(TAOS_RES *res, const char *fileName, int64_t *outRows, v
             parquetWriterClose(pw);
             return code;
         }
+    }
+
+    // Loop exits with non-SUCCESS when the connection broke mid-fetch (e.g.
+    // server killed during backup).  Without this check the partial output
+    // would be treated as a complete backup file, silently losing rows.
+    if (fetchCode != TSDB_CODE_SUCCESS) {
+        logError("resultToFileParquet: fetch raw block failed(0x%08X, %s): %s",
+                 fetchCode, taos_errstr(res), fileName);
+        parquetWriterClose(pw);
+        return fetchCode;
     }
 
     if (outRows) *outRows = totalRows;

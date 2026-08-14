@@ -30,6 +30,11 @@ void freePtr(void *ptr);
 
 bool errorCodeCanRetry(int code);
 
+// True for connection-level failures (server restart / network drop) where the
+// pooled handle is stale and must be rebuilt; false for transient server-side
+// errors that can be retried on the same connection.
+bool bckConnLevelError(int code);
+
 // taosdump error code to string
 const char* bckErrStr(int code);
 
