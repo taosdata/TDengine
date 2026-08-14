@@ -821,6 +821,42 @@ static int32_t qExplainIOAnalyze(const SExplainResNode *pResNode,
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t qExplainAppendAnalysisFuncRow(SExplainResNode *pResNode, SExplainCtx *ctx,
+                                             int32_t level, const char* funcName,
+                                             const SDataBlockDescNode* pOutputDesc) {
+  int32_t tlen = 0;
+  char   *tbuf = ctx->tbuf;
+  bool    isVerboseLine = false;
+  bool    verbose = ctx->verbose;
+  double  filterEfficiency = 100;
+  bool    hasEfficiency = ctx->mode == EXPLAIN_MODE_ANALYZE && pResNode->pExecInfo;
+
+  EXPLAIN_ROW_NEW(level, "%s", funcName);
+  EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
+  if (pResNode->pExecInfo) {
+    QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+  }
+
+  EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pOutputDesc->totalRowSize);
+  EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
+  EXPLAIN_ROW_END();
+  QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
+
+  if (verbose) {
+    EXPLAIN_ROW_NEW(level + 1, EXPLAIN_OUTPUT_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT,
+                       nodesGetOutputNumFromSlotList(pOutputDesc->pSlots));
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pOutputDesc->outputRowSize);
+    EXPLAIN_ROW_END();
+    QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+    QRY_ERR_RET(qExplainExecAnalyze(pResNode, ctx, level));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, int32_t *pLevel) {
   int32_t     tlen = 0;
   bool        isVerboseLine = false;
@@ -2669,27 +2705,21 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
     }
     case QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER: {
       SDistinctFilterPhysiNode *pDistFilter = (SDistinctFilterPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, "Distinct Filter");
-      EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
-      if (pResNode->pExecInfo) {
-        QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
-        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-      }
-      EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pDistFilter->node.pOutputDataBlockDesc->totalRowSize);
-      EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
-      EXPLAIN_ROW_END();
-      QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
+      QRY_ERR_RET(qExplainAppendAnalysisFuncRow(pResNode, ctx, level, "Distinct Filter",
+                                                pDistFilter->node.pOutputDataBlockDesc));
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC: {
+      SGenericAnalysisPhysiNode *pAnalysisNode = (SGenericAnalysisPhysiNode *)pNode;
+      QRY_ERR_RET(qExplainAppendAnalysisFuncRow(pResNode, ctx, level, "Generic Analysis",
+                                                pAnalysisNode->node.pOutputDataBlockDesc));
+      break;
+    }
 
-      if (verbose) {
-        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_OUTPUT_FORMAT);
-        EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT,
-                           nodesGetOutputNumFromSlotList(pDistFilter->node.pOutputDataBlockDesc->pSlots));
-        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-        EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pDistFilter->node.pOutputDataBlockDesc->outputRowSize);
-        EXPLAIN_ROW_END();
-        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
-        QRY_ERR_RET(qExplainExecAnalyze(pResNode, ctx, level));
-      }
+    case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC: {
+      SForecastFuncPhysiNode *pForecastNode = (SForecastFuncPhysiNode *)pNode;
+      QRY_ERR_RET(qExplainAppendAnalysisFuncRow(pResNode, ctx, level, "Forecast",
+                                                pForecastNode->node.pOutputDataBlockDesc));
       break;
     }
     default:

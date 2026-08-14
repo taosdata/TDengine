@@ -240,6 +240,7 @@ static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SAnalysisOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*         pTaskInfo = pOperator->pTaskInfo;
   SOptrBasicInfo*        pBInfo = &pInfo->binfo;
+  SExprSupp*             pScalarSupp = &pInfo->scalarSup;
   SSDataBlock*           pRes = pInfo->binfo.pRes;
   int64_t                st = taosGetTimestampUs();
   const char*            idstr = GET_TASKID(pTaskInfo);
@@ -255,6 +256,14 @@ static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
       break;
+    }
+
+    if (pScalarSupp->pExprInfo != NULL) {
+      code = projectApplyFunctions(pScalarSupp->pExprInfo, pBlock, pBlock, pScalarSupp->pCtx, pScalarSupp->numOfExprs,
+                                   NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        T_LONG_JMP(pTaskInfo->env, code);
+      }
     }
 
     if (pSupp->groupId == 0 || pSupp->groupId == pBlock->info.id.groupId) {
@@ -589,6 +598,7 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
       }
     }
 
+    resCurRow = pBlock->info.rows;
     if (pResTargetCol->info.type == TSDB_DATA_TYPE_DOUBLE) {
       for (int32_t i = 0; i < rows; ++i) {
         SJson* targetJson = tjsonGetArrayItem(pTarget, i);
@@ -732,18 +742,6 @@ static int32_t doAnalysis(SAnalysisOperatorInfo* pInfo, SExecTaskInfo* pTaskInfo
 
   code = finishBuildRequest(pInfo, pSupp, id);
   QUERY_CHECK_CODE(code, lino, _end);
-
-  //   if (pBlock->info.rows < pBlock->info.capacity) {
-  //   return TSDB_CODE_SUCCESS;
-  // }
-
-  // code = blockDataEnsureCapacity(pRes, newRowsNum);
-  // if (code != TSDB_CODE_SUCCESS) {
-  //   qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-  //   return code;
-  // }
-
-  // QUERY_CHECK_CODE(code, lino, _end);
 
   code = doAnalysisImpl(pInfo, pSupp, pRes, id);
   QUERY_CHECK_CODE(code, lino, _end);
