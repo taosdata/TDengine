@@ -94,6 +94,7 @@ typedef struct TdDirEntry *TdDirEntryPtr;
 #define TAOS_DIRNAME(name) ((void)taosDirName(name))
 
 void    taosRemoveDir(const char *dirname);
+void    taosClearDir(const char *dirname);
 bool    taosDirExist(const char *dirname);
 int32_t taosMkDir(const char *dirname);
 int32_t taosMulMkDir(const char *dirname);

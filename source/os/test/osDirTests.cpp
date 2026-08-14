@@ -81,6 +81,43 @@ TEST(osDirTests, taosRemoveDir) {
   taosRemoveDir(testDir);
 }
 
+TEST(osDirTests, taosClearDir) {
+  char testDir[PATH_MAX];
+  char testFile[PATH_MAX];
+  char testSubDir[PATH_MAX];
+  char testFile2[PATH_MAX];
+
+  buildTestPath(testDir, sizeof(testDir), "clear-dir");
+  buildTestPath(testFile, sizeof(testFile), "clear-dir/clear-file");
+  buildTestPath(testSubDir, sizeof(testSubDir), "clear-dir/subdir");
+  buildTestPath(testFile2, sizeof(testFile2), "clear-dir/subdir/clear-file2");
+
+  taosRemoveDir(testDir);
+
+  int32_t ret = taosMulMkDir(testDir);
+  EXPECT_EQ(ret, 0);
+
+  TdFilePtr f1 = taosCreateFile(testFile, TD_FILE_CREATE);
+  EXPECT_NE(f1, nullptr);
+  EXPECT_EQ(taosCloseFile(&f1), 0);
+
+  ret = taosMkDir(testSubDir);
+  EXPECT_EQ(ret, 0);
+  TdFilePtr f2 = taosCreateFile(testFile2, TD_FILE_CREATE);
+  EXPECT_NE(f2, nullptr);
+  EXPECT_EQ(taosCloseFile(&f2), 0);
+
+  // clear the directory: contents removed, directory itself kept
+  taosClearDir(testDir);
+
+  EXPECT_EQ(taosDirExist(testDir), true);
+  EXPECT_EQ(taosCheckExistFile(testFile), false);
+  EXPECT_EQ(taosDirExist(testSubDir), false);
+  EXPECT_EQ(taosCheckExistFile(testFile2), false);
+
+  taosRemoveDir(testDir);
+}
+
 TEST(osDirTests, taosDirExist) {
   const char* dir1 = NULL;
   bool        exist = taosDirExist(dir1);
