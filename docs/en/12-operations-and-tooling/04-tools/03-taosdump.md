@@ -71,6 +71,7 @@ Usage: taosdump [OPTION...] dbname [tbname ...] -o outpath
 | `-i, --inpath=INPATH` | Input path containing backup files for restore operations |
 | `-D, --databases=DATABASES` | Databases to back up or restore. Separate multiple databases with commas. If omitted, all user databases are processed |
 | `-F, --format=FORMAT` | Backup storage format. Supported values: `binary` (default) or `parquet` |
+| `-M, --content=CONTENT` | Content to back up or restore. Effective for both backup and restore. Supported values:<br />`basic` (default) — basic data: super tables, child tables, normal tables, tags and time-series data;<br />`ext-meta` — extended metadata: virtual tables, streams and topics;<br />`all` — `basic` + `ext-meta`. See [Content Selection](#content-selection) |
 | `-s, --schemaonly` | Flag. Back up only table schemas and tag data, without time-series data |
 | `-S, --start-time=START_TIME` | Start time for backup data. Supports millisecond timestamps or ISO8601 format such as `2017-10-01T00:00:00.000+0800`. Effective only for backup |
 | `-E, --end-time=END_TIME` | End time for backup data. Supports millisecond timestamps or ISO8601 format. Effective only for backup |
@@ -83,10 +84,86 @@ Usage: taosdump [OPTION...] dbname [tbname ...] -o outpath
 | `-k, --retry-count=VALUE` | Number of retries after a connection or query failure. Default: `3` |
 | `-z, --retry-sleep-ms=VALUE` | Wait time between retries in milliseconds. Default: `1000` |
 | `-X, --dsn=DSN` | DSN for connecting to a cloud service, for example `https://host?token=<TOKEN>`. You can also set it through the `TDENGINE_CLOUD_DSN` environment variable. The command-line parameter takes precedence |
-| `-Z, --driver=DRIVER` | Connection driver. Supported values: `Native` or `WebSocket`. Default: `Native`. When a DSN is set, the default automatically switches to `WebSocket` |
+| `-Z, --driver=DRIVER` | Connection driver. Supported values: `Native` (port 6030, faster, `0` also accepted, default) or `WebSocket` (port 6041, no client driver install needed, better compatibility, `1` also accepted). When a DSN is set, the default automatically switches to `WebSocket` |
 | `-g, --debug` | Flag. Enable debug output. Disabled by default |
 | `-V, --version` | Show version information and exit |
 | `--help` | Show help information and exit |
+
+## Content Selection
+
+Starting from `v3.4.2.5`, taosdump supports selecting the content to back up or restore with
+the `-M, --content` parameter.
+
+| Value | Content | Backup files |
+| --- | --- | --- |
+| `basic` (default) | Super tables, child tables, normal tables, tags and time-series data | `db.sql`, `stb.sql`, `{stbname}.csv`, `tags/`, `ntb.sql`, `{stbname}_data{N}/`, `_ntb_data{N}/` |
+| `ext-meta` | Virtual tables, streams, topics | `vtb.sql`, `vtags/`, `stream.sql`, `topic.sql` |
+| `all` | `basic` + `ext-meta` | All of the above |
+
+### Why the Split
+
+Each column of a virtual table can be sourced from any table in any database (for example, a
+virtual table in `db2` referencing a physical table in `db1`).  If the restore processed one
+database completely at a time, `CREATE VTABLE` would fail whenever the database holding the
+virtual tables was restored before the database it references.  The restore therefore runs in
+two stages:
+
+1. **Stage 1**: create the physical tables and import the time-series data for **all**
+   databases (`basic`)
+2. **Stage 2**: once every database is in place, apply the virtual table, stream and topic DDL
+   for all databases (`ext-meta`)
+
+Cross-database references then resolve correctly no matter what order the databases are listed in.
+
+### Typical Usage
+
+```bash
+# Back up everything (basic data + extended metadata)
+taosdump --content=all -D db1,db2 -o /root/backup/
+
+# Back up basic data only (the default, same as omitting --content)
+taosdump -D db1,db2 -o /root/backup/
+
+# Restore: import the basic data first, then the extended metadata
+taosdump --content=basic   -i /root/backup/
+taosdump --content=ext-meta -i /root/backup/
+```
+
+Splitting the restore means a failure on an individual stream, virtual table or topic does not
+affect the basic data that has already been imported: after fixing the problem you only rerun
+`--content=ext-meta` instead of re-importing all the time-series data.
+
+:::note
+
+- When restoring with `--content=ext-meta`, a missing target database is created by executing
+  `db.sql` first, which is why `ext-meta` backups also contain `db.sql`.
+- The DDL of a virtual super table is stored in `stb.sql` and belongs to the `basic` content.
+  It carries no cross-database reference of its own (the column-to-source mapping lives on the
+  virtual child / virtual normal tables), so a `basic` backup contains a virtual super table
+  structure without its virtual child tables.
+- Backup directories in the old avro format contain no `vtb.sql` / `stream.sql` / `topic.sql`;
+  their virtual tables are handled inside stage 1 and the `ext-meta` stage skips them with a
+  warning.
+- When renaming databases with `-W/--rename`, virtual table, stream and topic database
+  references are rewritten as follows (verified empirically). `-W` can carry several
+  old-db → new-db pairs at once, and the restore applies **every** configured pair to the
+  DDL text, not just the pair for the database currently being restored — so a virtual
+  table's cross-database source is rewritten too, as long as that source database is also
+  part of the `-W` mapping.
+  - **Virtual table columns**, whether sourced from their own database or a different one:
+    rewritten to the new name whenever the referenced database appears in the `-W` mapping.
+    A referenced database that is not being renamed is left unchanged, so the virtual table
+    keeps pointing at it under its original name.
+  - **Streams**: all database references in the DDL (source and target databases) and the
+    stream name's database prefix are rewritten under the same rule.
+  - **Topics**: topics are cluster-level objects, so the topic **name itself is not
+    affected** by `-W/--rename`, but database references inside its query are rewritten.
+    Restoring into the same cluster hits "already exists" for the topic name, which is
+    treated as success.
+- Topic and stream DDL is read from the `sql` column of `information_schema.ins_topics` /
+  `ins_streams`.  That column is capped at 2048 bytes, so longer DDL is truncated by the server.
+
+:::
 
 ## Backup File Structure
 
@@ -95,20 +172,27 @@ Under the backup output directory, each database has its own subdirectory contai
 ```bash
 {outpath}/
 └── {dbname}/
-    ├── db.sql             # CREATE DATABASE SQL
+    ├── db.sql                        # CREATE DATABASE SQL
+    ├── stb.sql                       # All super table DDL, one per line (incl. virtual super tables)
+    ├── ntb.sql                       # All normal table DDL
+    ├── {stbname}.csv                 # Super table column/tag schema (DESCRIBE output)
     ├── tags/
-    │   ├── {stbname}.sql  # CREATE STABLE SQL
-    │   └── {stbname}_data{N}.{ext}  # Tag data (CSV format)
-    ├── data/
-    │   └── {stbname}/
-    │       └── {stbname}_data{N}.{ext}  # Time-series data files (binary or parquet format)
-    └── _ntb/
-        ├── {tbname}.sql   # CREATE TABLE SQL
-        └── {tbname}/
-            └── {tbname}_data{N}.{ext}  # Normal table time-series data files
+    │   └── {stbname}_data{N}.{ext}   # Child table tag data
+    ├── {stbname}_data{dirIndex}/
+    │   └── {ctbname}.{ext}           # Child table time-series data files
+    ├── _ntb_data{dirIndex}/
+    │   └── {ntbname}.{ext}           # Normal table time-series data files
+    ├── vtb.sql                       # Virtual table DDL (ext-meta)
+    ├── vtags/
+    │   └── {vstbname}_data{N}.{ext}  # Virtual child table tag data (ext-meta)
+    ├── stream.sql                    # Stream DDL (ext-meta)
+    ├── topic.sql                     # Topic DDL (ext-meta)
+    └── backup_complete.flag          # Backup completion marker
 ```
 
-The file extension is `.bin` for `binary` format and `.par` for `parquet` format.
+The file extension is `.dat` for `binary` format and `.par` for `parquet` format.
+`vtb.sql`, `vtags/`, `stream.sql` and `topic.sql` are produced only when `--content` is
+`ext-meta` or `all`.
 
 ## Output Metrics
 
@@ -124,6 +208,7 @@ At the start of backup or restore, taosdump prints a summary of the current runt
   Server       : my-server:6030
   User         : root
   Output Path  : /root/backup/
+  Content      : basic
   Databases    : test
   Data Threads : 8
   Tag Threads  : 2
@@ -148,24 +233,29 @@ After backup or restore completes, taosdump prints the final statistics summary:
 
 ```bash
 ===========================================================================
-  Result       : SUCCESS
+  Result       : SUCCESS (BACKUP)
 ---------------------------------------------------------------------------
   Databases    : total=1, success=1, failed=0
   Super Tables : 10
   Child Tables : 5000 (data exported)
   Normal Tables: 2
   Total Rows   : 50000000
+  Ext Meta     : vtable=8, stream=2, topic=1
   Elapsed      : 45 s
 ===========================================================================
 ```
 
 Field descriptions:
 
+- **Result**: `SUCCESS`/`FAILED`/`CANCELLED BY USER`, with the action (`BACKUP` or `RESTORE`)
+  in parentheses.
 - **Databases**: Total number of processed databases, and the numbers of successful and failed databases.
 - **Super Tables**: Number of processed super tables.
 - **Child Tables**: Number of child tables whose data was exported or restored.
 - **Normal Tables**: Number of processed normal tables.
 - **Total Rows**: Total number of backed-up or restored rows.
+- **Ext Meta**: Number of processed virtual tables, streams and topics. Printed only when
+  `--content` is `ext-meta` or `all`.
 - **Elapsed**: Total elapsed time in seconds.
 
 :::tip
@@ -197,13 +287,14 @@ taosdump -h my-server -D db1,db2 -o /root/backup/
 
 Back up only the `db1` and `db2` databases.
 
-#### Back Up Specific Super Tables or Normal Tables in a Database
+#### Back Up Specific Tables
 
 ```bash
-taosdump -h my-server -o /root/backup/ mydb meters d1 d2
+taosdump -h my-server -o /root/backup/ test meters t1 t2
 ```
 
-Back up the super table `meters` and the normal tables `d1` and `d2` in the `mydb` database. The first positional argument is the database name. The remaining positional arguments are table names or super table names in that database, separated by spaces.
+Back up the super table `meters` and the normal tables `t1` and `t2` in the `test` database. The first positional argument is the database name, and the remaining positional arguments are one or more super table, child table, or normal table names in that database, separated by spaces.
+Note: only one database name can be specified; multiple databases are not supported.
 
 #### Back Up by Time Range
 
@@ -220,6 +311,16 @@ taosdump -h my-server -D test -s -o /root/backup/
 ```
 
 Back up only the schema and tag information of the `test` database, without time-series data. This is suitable for fast schema migration.
+
+#### Back Up Virtual Tables, Streams and Topics
+
+```bash
+taosdump -h my-server -D test --content=all -o /root/backup/
+```
+
+The default `basic` mode backs up basic data only. Use `--content=all` to include virtual
+tables, streams and topics, or `--content=ext-meta` to back up only those three object types.
+See [Content Selection](#content-selection).
 
 #### Back Up in Parquet Format
 
@@ -270,6 +371,14 @@ taosdump -h my-server -i /root/backup/ -W "db1->db1_restored|db2->db2_restored"
 
 Restore `db1` in the backup as `db1_restored` and `db2` as `db2_restored`. This is useful for testing, validation, or parallel environments.
 
+#### Restore Specific Tables
+
+```bash
+taosdump -h my-server -i /root/backup/ test t1
+```
+
+Restore only the normal table `t1` in the `test` database. The first positional argument is the database name, and the remaining positional arguments are one or more super table, child table, or normal table names in that database, separated by spaces.
+
 #### Resumable Restore
 
 ```bash
@@ -277,6 +386,32 @@ taosdump -h my-server -i /root/backup/ -C
 ```
 
 Restore also supports resumable execution. When rerun, it automatically skips data files that have already been restored successfully.
+
+#### Restore Virtual Tables, Streams and Topics in Two Stages
+
+```bash
+# Step 1: restore physical tables and time-series data
+taosdump -h my-server --content=basic -i /root/backup/
+
+# Step 2: restore virtual tables, streams and topics
+taosdump -h my-server --content=ext-meta -i /root/backup/
+```
+
+This is equivalent to a single `--content=all` restore but runs the extended metadata
+separately. It suits the case where an individual object in the extended metadata fails to
+import: the basic data is already fully imported and unaffected, and after fixing the problem
+only step 2 needs to be rerun.
+
+#### Restore Cross-Database Virtual Tables
+
+Columns of a virtual table can come from any database. During restore taosdump first completes
+the physical tables and data of **all** databases and only then applies the virtual table DDL,
+so the order of databases in `-D` does not matter:
+
+```bash
+# db2's virtual tables reference db1's physical tables; restoring db2 first still works
+taosdump -h my-server --content=all -D db2,db1 -i /root/backup/
+```
 
 #### Restore When the Schema Has Changed
 
@@ -362,5 +497,10 @@ taosdump -u root -p -D test -o /root/backup/
 - Restore only specified databases
 - Brand-new display interface
 - Optimized backup/restore performance for multi-table low-frequency scenarios
+- Content selection (`-M/--content`) to back up or restore only the basic data or only the
+  extended metadata
+- Backup and restore of topics
+- The restore runs in two stages, fixing cross-database virtual table failures caused by
+  database restore ordering
 
 The new version supports the vast majority of old version command-line parameters (with a few exceptions).

@@ -19,6 +19,7 @@
 #include "bckPool.h"
 #include "bckDb.h"
 #include "bckSchemaChange.h"
+#include "bckUtil.h"
 #include "decimal.h"
 #include "ttypes.h"
 #include "osString.h"
@@ -74,7 +75,7 @@ static int stmtPrepareInsert(StmtRestoreCtx *ctx) {
 
     int ret = taos_stmt_prepare(ctx->stmt, stmtBuf, 0);
     if (ret != 0) {
-        logError("taos_stmt_prepare failed: %s, sql: %s", taos_stmt_errstr(ctx->stmt), stmtBuf);
+        logError("taos_stmt_prepare failed(0x%08X, %s): %s", ret, taos_stmt_errstr(ctx->stmt), stmtBuf);
         taosMemoryFree(stmtBuf);
         return ret;
     }
@@ -87,7 +88,7 @@ static int stmtPrepareInsert(StmtRestoreCtx *ctx) {
     snprintf(fqn, sizeof(fqn), "`%s`", ctx->tbName);
     ret = taos_stmt_set_tbname(ctx->stmt, fqn);
     if (ret != 0) {
-        logError("taos_stmt_set_tbname (initial) failed (%s): %s", fqn, taos_stmt_errstr(ctx->stmt));
+        logError("taos_stmt_set_tbname (initial) failed(0x%08X, %s): %s", ret, taos_stmt_errstr(ctx->stmt), fqn);
         return ret;
     }
 
@@ -107,7 +108,7 @@ static int stmtSwitchTable(StmtRestoreCtx *ctx, const char *tbName) {
     snprintf(fqn, sizeof(fqn), "`%s`", tbName);
     int ret = taos_stmt_set_tbname(ctx->stmt, fqn);
     if (ret != 0) {
-        logError("taos_stmt_set_tbname failed (%s): %s", fqn, taos_stmt_errstr(ctx->stmt));
+        logError("taos_stmt_set_tbname failed(0x%08X, %s): %s", ret, taos_stmt_errstr(ctx->stmt), fqn);
         return ret;
     }
     strncpy(ctx->tbName, tbName, TSDB_TABLE_NAME_LEN - 1);
@@ -178,7 +179,7 @@ static int bindBlockData(StmtRestoreCtx *ctx,
     BlockReader reader;
     int32_t code = initBlockReader(&reader, blockData);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("init block reader failed: %d", code);
+        logError("init block reader failed(0x%08X, %s)", code, bckErrMsg(code));
         return code;
     }
 
@@ -481,22 +482,22 @@ static int dataBlockCallback(void *userData,
     // Build bind array from block data (column-batch mode)
     code = bindBlockData(ctx, blockData, blockRows, fieldInfos, numFields, ctx->bindArray);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("bind block data failed: %d", code);
+        logError("bind block data failed(0x%08X)", code);
         return code;
     }
 
     // Bind parameters
     code = taos_stmt_bind_param_batch(ctx->stmt, ctx->bindArray);
     if (code != 0) {
-        logError("taos_stmt_bind_param_batch failed: %s, table: %s",
-                 taos_stmt_errstr(ctx->stmt), ctx->tbName);
+        logError("taos_stmt_bind_param_batch failed(0x%08X, %s): table: %s",
+                 code, taos_stmt_errstr(ctx->stmt), ctx->tbName);
         return code;
     }
 
     // Add batch
     code = taos_stmt_add_batch(ctx->stmt);
     if (code != 0) {
-        logError("taos_stmt_add_batch failed: %s", taos_stmt_errstr(ctx->stmt));
+        logError("taos_stmt_add_batch failed(0x%08X, %s)", code, taos_stmt_errstr(ctx->stmt));
         return code;
     }
 
@@ -511,8 +512,8 @@ static int dataBlockCallback(void *userData,
     if (ctx->pendingRows >= batchThreshold) {
         code = taos_stmt_execute(ctx->stmt);
         if (code != 0) {
-            logError("taos_stmt_execute failed: %s, table: %s.%s, batchRows: %" PRId64,
-                     taos_stmt_errstr(ctx->stmt), ctx->dbName, ctx->tbName, ctx->batchRows);
+            logError("taos_stmt_execute failed(0x%08X, %s): table: %s.%s, batchRows: %" PRId64,
+                     code, taos_stmt_errstr(ctx->stmt), ctx->dbName, ctx->tbName, ctx->batchRows);
             return code;
         }
         ctx->batchRows   = 0;
@@ -548,7 +549,7 @@ int restoreOneParquetFile(TAOS_STMT **stmtPtr, TAOS *conn, const char *dbName,
     // Open reader to discover schema (stored in file metadata)
     ParquetReader *pr = parquetReaderOpen(filePath, &code);
     if (pr == NULL) {
-        logError("open parquet file failed(%d): %s", code, filePath);
+        logError("open parquet file failed(0x%08X, %s): %s", code, bckErrMsg(code), filePath);
         return code;
     }
 
@@ -589,7 +590,7 @@ int restoreOneParquetFile(TAOS_STMT **stmtPtr, TAOS *conn, const char *dbName,
     int ret = taos_stmt_prepare(stmt, stmtBuf, 0);
     taosMemoryFree(stmtBuf);
     if (ret != 0) {
-        logError("taos_stmt_prepare failed: %s", taos_stmt_errstr(stmt));
+        logError("taos_stmt_prepare failed for parquet(0x%08X, %s)", ret, taos_stmt_errstr(stmt));
         // Invalidate handle so next file gets a fresh one
         taos_stmt_close(stmt);
         *stmtPtr = NULL;
@@ -604,7 +605,7 @@ int restoreOneParquetFile(TAOS_STMT **stmtPtr, TAOS *conn, const char *dbName,
     int64_t rows = 0;
     code = fileParquetToStmt(stmt, filePath, &rows);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("restore parquet failed(%d): %s -> %s.%s",
+        logError("restore parquet failed(0x%08X): %s -> %s.%s",
                  code, filePath, dbName, tbName);
     } else {
         logDebug("restore parquet done: %s.%s rows: %" PRId64, dbName, tbName, rows);
@@ -637,7 +638,7 @@ int restoreOneDataFile(StmtRestoreCtx *ctx,
     // Open .dat file
     TaosFile *taosFile = openTaosFileForRead(filePath, &code);
     if (taosFile == NULL) {
-        logError("open data file failed(%d): %s", code, filePath);
+        logError("open data file failed(0x%08X): %s", code, filePath);
         return code;
     }
 
@@ -677,7 +678,7 @@ int restoreOneDataFile(StmtRestoreCtx *ctx,
     // Read blocks and write via STMT
     code = readTaosFileBlocks(taosFile, dataBlockCallback, ctx);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("restore data blocks failed(%d): %s -> %s.%s",
+        logError("restore data blocks failed(0x%08X): %s -> %s.%s",
                  code, filePath, ctx->dbName, tbName);
     } else {
         // Rows are flushed by the cross-file pendingRows threshold in dataBlockCallback.

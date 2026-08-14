@@ -746,7 +746,7 @@ cleanup:
     if (ret == 0) {
         logInfo("avro: restore of %s completed successfully", dbPath);
     } else {
-        logError("avro: restore of %s failed (code=%d)", dbPath, ret);
+        logError("avro: restore of %s failed (code=0x%08X)", dbPath, ret);
     }
 
     if (extractedName) taosMemoryFree(extractedName);
