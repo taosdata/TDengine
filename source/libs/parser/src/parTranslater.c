@@ -31595,7 +31595,9 @@ static int32_t buildCreateTagsSTag(STranslateContext* pCxt, const SNodeList* pTa
     SSchema*    pS = pSchemaTag->pSchema + vIdx;
     const char* tagStr = ((SValueNode*)pTagDef->pTagVal)->literal;
     SToken      token = {0};
-    char        tokenBuf[TSDB_MAX_TAGS_LEN];
+    // TSDB_MAX_BYTES_PER_ROW: checkAndTrimValue/trimString may write up to that many bytes
+    // regardless of the caller's buffer size (dlen is hardcoded to TSDB_MAX_BYTES_PER_ROW).
+    char tokenBuf[TSDB_MAX_BYTES_PER_ROW];
     NEXT_TOKEN_WITH_PREV(tagStr, token);
     code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pS->type);
     if (TSDB_CODE_SUCCESS == code && TK_NK_VARIABLE == token.type) {
@@ -32259,7 +32261,8 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SNodeList* pSpecif
   SNode *     pTagNode = NULL, *pNode = NULL;
   uint8_t     precision = pSuperTableMeta->tableInfo.precision;
   SToken      token;
-  char        tokenBuf[TSDB_MAX_TAGS_LEN];
+  // sized for checkAndTrimValue, which trims up to TSDB_MAX_BYTES_PER_ROW bytes into this buffer
+  char tokenBuf[TSDB_MAX_BYTES_PER_ROW];
   const char* tagStr = NULL;
   FORBOTH(pTagNode, pSpecificTags, pNode, pValsOfTags) {
     tagStr = ((SValueNode*)pNode)->literal;
@@ -32329,7 +32332,8 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SNodeList* pValsOfT
   uint8_t     precision = pSuperTableMeta->tableInfo.precision;
   SSchema*    pTagSchema = getTableTagSchema(pSuperTableMeta);
   SToken      token;
-  char        tokenBuf[TSDB_MAX_TAGS_LEN];
+  // sized for checkAndTrimValue, which trims up to TSDB_MAX_BYTES_PER_ROW bytes into this buffer
+  char tokenBuf[TSDB_MAX_BYTES_PER_ROW];
   const char* tagStr = NULL;
   FOREACH(pNode, pValsOfTags) {
     tagStr = ((SValueNode*)pNode)->literal;
@@ -33504,7 +33508,8 @@ static int32_t buildUpdateTagValReqImpl(STranslateContext* pCxt, const char* tag
 
   STag*  pTag = NULL;
   SToken token;
-  char   tokenBuf[TSDB_MAX_TAGS_LEN];
+  // sized for checkAndTrimValue, which trims up to TSDB_MAX_BYTES_PER_ROW bytes into this buffer
+  char tokenBuf[TSDB_MAX_BYTES_PER_ROW];
   NEXT_TOKEN_WITH_PREV(tagStr, token);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pSchema->type);
