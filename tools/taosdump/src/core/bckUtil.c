@@ -13,6 +13,15 @@
 #include "bckUtil.h"
 #include "bckArgs.h"
 
+// WebSocket driver error codes (libtaosws), surfaced through taos_errno.
+// A closed/broken WebSocket connection (e.g. taosadapter restarted) must be
+// treated as retryable, just like the native RPC_BROKEN_LINK case.  They can
+// appear both bare (0xE002, from taos_fetch_raw_block) and flag-wrapped
+// (0x8000E002, from taos_errno), so errorCodeCanRetry strips the flag bit.
+#define TSDB_CODE_WS_CLOSED       0xE002  // connection closed
+#define TSDB_CODE_WS_SEND_TIMEOUT 0xE003  // send timed out
+#define TSDB_CODE_WS_RECV_TIMEOUT 0xE004  // receive timed out
+
 void sleepMs(int ms) {
     taosMsleep(ms);
 }
@@ -65,6 +74,18 @@ const char* bckErrMsg(int code) {
 }
 
 bool errorCodeCanRetry(int code) {
+    // WebSocket driver reports the same error both bare (0xE002, returned by
+    // taos_fetch_raw_block) and flag-wrapped (0x8000E002, returned by
+    // taos_errno after taos_query).  Strip the 0x80000000 flag bit so both
+    // forms are treated as the same retryable condition.
+    switch (code & 0x7FFFFFFF) {
+        case TSDB_CODE_WS_CLOSED:
+        case TSDB_CODE_WS_SEND_TIMEOUT:
+        case TSDB_CODE_WS_RECV_TIMEOUT:
+            return true;
+        default:
+            break;
+    }
     switch (code) {
         // RPC / network layer errors
         case TSDB_CODE_RPC_NETWORK_ERROR:
@@ -77,6 +98,31 @@ bool errorCodeCanRetry(int code) {
         case TSDB_CODE_SYN_TIMEOUT:
         // Vnode temporarily busy (compaction, split, etc.)
         case TSDB_CODE_VND_QUERY_BUSY:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// True only when the pooled connection itself is dead (server restart / network
+// drop) and must be rebuilt.  Transient server-side errors (VND_QUERY_BUSY,
+// SYN_NOT_LEADER, ...) leave the connection healthy, so the caller should retry
+// on the same handle instead of forcing a reconnect.
+bool bckConnLevelError(int code) {
+    switch (code & 0x7FFFFFFF) {
+        case TSDB_CODE_WS_CLOSED:
+        case TSDB_CODE_WS_SEND_TIMEOUT:
+        case TSDB_CODE_WS_RECV_TIMEOUT:
+            return true;
+        default:
+            break;
+    }
+    switch (code) {
+        // RPC / network layer errors - the link is broken
+        case TSDB_CODE_RPC_NETWORK_ERROR:
+        case TSDB_CODE_RPC_NETWORK_BUSY:
+        case TSDB_CODE_RPC_TIMEOUT:
+        case TSDB_CODE_RPC_BROKEN_LINK:
             return true;
         default:
             return false;

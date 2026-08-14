@@ -212,33 +212,37 @@ static void* restoreDataThread(void *arg) {
             if (code == TSDB_CODE_SUCCESS) break;
             if (!errorCodeCanRetry(code) || attempt >= retryCount || g_interrupted || g_fatalError) break;
 
-            // Transient error: replace the broken connection and reset STMT state
+            // Only a connection-level failure requires a fresh connection and
+            // STMT reset; transient server-side errors keep the healthy
+            // connection and just retry.
             attempt++;
             logInfo("restore thread %d: retry file (attempt %d): %s (code=0x%08X)",
                     thread->index, attempt, filePath, code);
-            releaseConnectionBad(thread->conn);
-            thread->conn = getConnection(&code);
-            if (!thread->conn) break;
+            if (bckConnLevelError(code)) {
+                resetConnectionPool();
+                thread->conn = getConnection(&code);
+                if (!thread->conn) break;
 
-            // Propagate new connection into both STMT contexts
-            s2Ctx.conn = thread->conn;
-            bCtx.conn  = thread->conn;
+                // Propagate new connection into both STMT contexts
+                s2Ctx.conn = thread->conn;
+                bCtx.conn  = thread->conn;
 
-            // Reset STMT handles bound to the old connection
-            if (!isPar) {
-                if (stmtVer == STMT_VERSION_2) stmt2ResetOnError(&s2Ctx);
-                else {
-                    if (!stmtResetOnError(&bCtx)) {
-                        logError("restore thread %d: cannot recover STMT1 after retry", thread->index);
-                        break;
+                // Reset STMT handles bound to the old connection
+                if (!isPar) {
+                    if (stmtVer == STMT_VERSION_2) stmt2ResetOnError(&s2Ctx);
+                    else {
+                        if (!stmtResetOnError(&bCtx)) {
+                            logError("restore thread %d: cannot recover STMT1 after retry", thread->index);
+                            break;
+                        }
+                        /* Re-select the target database on the new connection after
+                         * reinitialising the STMT1 handle (matching benchInsert.c pattern:
+                         * initStmt first, then taos_select_db). */
+                        int selRet = taos_select_db(thread->conn, bCtx.dbName);
+                        if (selRet != 0)
+                            logWarn("restore thread %d: retry taos_select_db('%s') failed(0x%08X, %s)",
+                                    thread->index, bCtx.dbName, selRet, taos_errstr(NULL));
                     }
-                    /* Re-select the target database on the new connection after
-                     * reinitialising the STMT1 handle (matching benchInsert.c pattern:
-                     * initStmt first, then taos_select_db). */
-                    int selRet = taos_select_db(thread->conn, bCtx.dbName);
-                    if (selRet != 0)
-                        logWarn("restore thread %d: retry taos_select_db('%s') failed(0x%08X, %s)",
-                                thread->index, bCtx.dbName, selRet, taos_errstr(NULL));
                 }
             }
             sleepMs(retrySleepMs);

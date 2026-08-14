@@ -71,6 +71,31 @@ void destroyConnectionPool() {
     taosThreadMutexDestroy(&g_pool.mutex);
 }
 
+// Close and evict every pooled connection so the next getConnection() rebuilds
+// from scratch (with exponential back-off) instead of handing out stale handles
+// after the server was restarted.  Safe to call from any thread on retryable
+// connection-level errors: any in-flight query on a pooled handle will simply
+// fail and be retried by its own caller.
+void resetConnectionPool(void) {
+    taosThreadMutexLock(&g_pool.mutex);
+
+    for (int i = 0; i < g_pool.count; i++) {
+        // Deliberately drop the reference WITHOUT taos_close: on WebSocket the
+        // close handshake blocks when the server just died (no response to the
+        // close frame), hanging the whole backup.  These are broken handles
+        // after a restart; for a single-shot CLI the OS reclaims resources on
+        // exit, so leaking a few stale handles on the retry path is acceptable.
+        g_pool.pool[i] = NULL;
+        g_pool.state[i] = CONN_EMPTY;
+    }
+    g_pool.count = 0;
+
+    // wake any thread blocked in getConnection waiting for an idle slot
+    taosThreadCondBroadcast(&g_pool.cond);
+
+    taosThreadMutexUnlock(&g_pool.mutex);
+}
+
 // Helper: reserve a slot and mark it CONNECTING (must hold lock)
 // Returns slot index or -1 if pool is full
 static int reserveSlot() {
