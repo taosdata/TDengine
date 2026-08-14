@@ -28,5 +28,11 @@ void releaseConnection(TAOS* conn);
 // Close and evict a stale/broken connection from the pool.
 void releaseConnectionBad(TAOS* conn);
 
+// Close and evict every pooled connection so the next getConnection() rebuilds
+// from scratch (with exponential back-off) instead of handing out stale
+// handles after the server was restarted.  Call on retryable connection-level
+// errors.
+void resetConnectionPool(void);
+
 
 #endif  // INC_BCKPOOL_H_
