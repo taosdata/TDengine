@@ -48,18 +48,40 @@ extern "C" {
 
 #define STREAM_CALC_REQ_MAX_WIN_NUM 40960
 
+typedef struct SStreamTaskStats SStreamTaskStats;
+
 typedef struct SStreamReaderTask {
-  SStreamTask task;
-  int8_t      triggerReader;
-  void*       info;
+  SStreamTask       task;
+  SStreamTaskStats *pStats;
+  int8_t            triggerReader;
+  void             *info;
 } SStreamReaderTask;
 
+typedef struct SStreamReaderResponseStats {
+  int64_t  requestStartMonoUs;
+  uint64_t dataRows;
+  uint64_t dataBlocks;
+  int64_t  lastReturnedWalVer;
+  int64_t  activeScanContexts;
+  int64_t  tableCount;
+  bool     lastReturnedWalVerValid;
+  bool     activeScanContextsValid;
+  bool     tableCountValid;
+} SStreamReaderResponseStats;
+
+int64_t streamTaskGetMonotonicUs(void);
+int32_t stmMaybeRotateTaskStats(SStreamTask *pTask, SStreamTaskStats *pStats, int64_t nowMonoUs, bool debugEnabled);
+void    stReaderResponseStatsSetWalData(SStreamReaderResponseStats *pResponse, const SSTriggerWalNewRsp *pWalResponse);
+void stReaderTaskRecordPullResult(SStreamReaderTask *pTask, const SStreamReaderResponseStats *pResponse, int32_t code,
+                                  int64_t nowMonoUs, int64_t nowWallMs);
 
 typedef struct SSTriggerAHandle {
   int64_t streamId;
   int64_t taskId;
   int64_t sessionId;
   void*   param;
+  uint64_t progressStepId;
+  uint64_t progressRequestToken;
 } SSTriggerAHandle;
 
 typedef enum sinkHandleInitState {
@@ -114,6 +136,7 @@ typedef struct SStreamTagInfo {
 
 typedef struct SStreamRunnerTask {
   SStreamTask                   task;
+  SStreamTaskStats             *pStats;
   SStreamRunnerTaskExecMgr      execMgr;
   SStreamRunnerTaskOutput       output;
   SStreamRunnerTaskNotification notification;
