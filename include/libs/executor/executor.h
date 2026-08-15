@@ -101,6 +101,9 @@ typedef struct SStreamVtableDeployInfo {
   SArray*  addedVgInfo;  // deploy response,SArray<SStreamTaskAddr>
 } SStreamVtableDeployInfo;
 
+typedef void (*FStreamInputStats)(void* param, uint64_t rows, uint64_t blocks);
+typedef void (*FStreamBlockingStats)(void* param, bool blocking);
+
 typedef struct {
   SStreamRuntimeFuncInfo funcInfo;
   int32_t                 execId;
@@ -109,6 +112,10 @@ typedef struct {
   SStreamInserterParam    inserterParams;
   SStreamVtableDeployInfo vtableDeployInfo;
   int8_t*                 vtableDeployGot;
+  void*                   pInputStatsParam;
+  FStreamInputStats       inputStatsFp;
+  void*                   pBlockingStatsParam;
+  FStreamBlockingStats    blockingStatsFp;
 } SStreamRuntimeInfo;
 
 #define GET_STM_RTINFO(_t) (((_t)->pStreamRuntimeInfo) ? (&(_t)->pStreamRuntimeInfo->funcInfo) : NULL)

@@ -13,6 +13,109 @@
 #include "tcommon.h"
 #include "tmsg.h"
 
+#define STREAM_READER_PERIOD_LOG_BUFFER_SIZE 2048
+// Six int64 values, one int32, the longest status, eight uint64 values, two rates, nine optional values, and a bool.
+#define STREAM_READER_PERIOD_LOG_VALUE_BYTES (6 * 21 + 11 + 10 + 8 * 20 + 2 * 32 + 9 * 32 + 5)
+#define STREAM_READER_PERIOD_LOG_FORMAT                                                                              \
+  "record=task_period stream_id=%" PRId64 " task_id=%" PRId64 " serious_id=%" PRId64                                 \
+  " node_id=%d task_type=reader status=%s stats_start_at=%" PRId64 " uptime_ms=%" PRId64 " stats_window_ms=%" PRId64 \
+  " pull_count=%" PRIu64 " success_count=%" PRIu64 " no_data_count=%" PRIu64 " no_context_count=%" PRIu64            \
+  " failure_count=%" PRIu64 " data_rows=%" PRIu64 " data_blocks=%" PRIu64                                            \
+  " data_rows_per_sec=%.3f data_blocks_per_sec=%.3f"                                                                 \
+  " scan_duration_samples=%" PRIu64                                                                                  \
+  " scan_duration_avg_ms=%s scan_duration_max_ms=%s scan_duration_lifetime_max_ms=%s"                                \
+  " scan_duration_lifetime_max_at=%s last_returned_wal_ver=%s last_success_at=%s"                                    \
+  " active_scan_contexts=%s table_count=%s cache_entries=%s stats_overflow=%s"
+
+enum {
+  STREAM_READER_PERIOD_LOG_BUFFER_CHECK =
+      1 / (int)(sizeof(STREAM_READER_PERIOD_LOG_FORMAT) + STREAM_READER_PERIOD_LOG_VALUE_BYTES <=
+                STREAM_READER_PERIOD_LOG_BUFFER_SIZE)
+};
+
+static int32_t stReaderFormatOptionalI64(char* pBuffer, int32_t bufferSize, bool valid, int64_t value) {
+  int32_t len = valid ? snprintf(pBuffer, bufferSize, "%" PRId64, value) : snprintf(pBuffer, bufferSize, "NA");
+  return len < 0 || len >= bufferSize ? TSDB_CODE_OUT_OF_BUFFER : TSDB_CODE_SUCCESS;
+}
+
+static int32_t stReaderFormatOptionalMs(char* pBuffer, int32_t bufferSize, bool valid, double valueMs) {
+  int32_t len = valid ? snprintf(pBuffer, bufferSize, "%.3f", valueMs) : snprintf(pBuffer, bufferSize, "NA");
+  return len < 0 || len >= bufferSize ? TSDB_CODE_OUT_OF_BUFFER : TSDB_CODE_SUCCESS;
+}
+
+int32_t stReaderTaskLogStats(SStreamTask* pTask, const SStreamTaskPeriodSnapshot* pSnapshot) {
+  if (pTask == NULL || pSnapshot == NULL || pTask->type != STREAM_READER_TASK ||
+      pSnapshot->taskType != STREAM_READER_TASK || pSnapshot->statsWindowMs <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  const SStreamReaderPeriodStats*   pPeriod = &pSnapshot->period.reader;
+  const SStreamReaderPeriodStats*   pCumulative = &pSnapshot->cumulative.reader;
+  const SStreamReaderGaugeSnapshot* pGauges = &pSnapshot->readerGauges;
+  char                              scanAvgMs[32] = {0};
+  char                              scanMaxMs[32] = {0};
+  char                              scanLifetimeMaxMs[32] = {0};
+  char                              scanLifetimeMaxAt[32] = {0};
+  char                              lastReturnedWalVer[32] = {0};
+  char                              lastSuccessAt[32] = {0};
+  char                              activeScanContexts[32] = {0};
+  char                              tableCount[32] = {0};
+  char                              cacheEntries[32] = {0};
+
+  int32_t code = stReaderFormatOptionalMs(
+      scanAvgMs, sizeof(scanAvgMs), pPeriod->scanDuration.samples > 0,
+      pPeriod->scanDuration.samples > 0
+          ? (double)pPeriod->scanDuration.totalUs / (double)pPeriod->scanDuration.samples / 1000.0
+          : 0.0);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = stReaderFormatOptionalMs(scanMaxMs, sizeof(scanMaxMs), pPeriod->scanDuration.samples > 0,
+                                  (double)pPeriod->scanDuration.maxUs / 1000.0);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = stReaderFormatOptionalMs(scanLifetimeMaxMs, sizeof(scanLifetimeMaxMs), pCumulative->scanDuration.samples > 0,
+                                  (double)pCumulative->scanDuration.maxUs / 1000.0);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = stReaderFormatOptionalI64(scanLifetimeMaxAt, sizeof(scanLifetimeMaxAt), pCumulative->scanDuration.samples > 0,
+                                   pCumulative->scanDuration.maxAtMs);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code =
+      stReaderFormatOptionalI64(lastReturnedWalVer, sizeof(lastReturnedWalVer),
+                                (pGauges->validMask & STREAM_READER_GAUGE_LAST_WAL) != 0, pGauges->lastReturnedWalVer);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code =
+      stReaderFormatOptionalI64(lastSuccessAt, sizeof(lastSuccessAt),
+                                (pGauges->validMask & STREAM_READER_GAUGE_LAST_SUCCESS) != 0, pGauges->lastSuccessAtMs);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = stReaderFormatOptionalI64(activeScanContexts, sizeof(activeScanContexts),
+                                   (pGauges->validMask & STREAM_READER_GAUGE_ACTIVE_CONTEXTS) != 0,
+                                   pGauges->activeScanContexts);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = stReaderFormatOptionalI64(tableCount, sizeof(tableCount),
+                                   (pGauges->validMask & STREAM_READER_GAUGE_TABLE_COUNT) != 0, pGauges->tableCount);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code =
+      stReaderFormatOptionalI64(cacheEntries, sizeof(cacheEntries),
+                                (pGauges->validMask & STREAM_READER_GAUGE_CACHE_ENTRIES) != 0, pGauges->cacheEntries);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  const double rowsPerSec = (double)pPeriod->dataRows * 1000.0 / (double)pSnapshot->statsWindowMs;
+  const double blocksPerSec = (double)pPeriod->dataBlocks * 1000.0 / (double)pSnapshot->statsWindowMs;
+  const char*  pStatus = pTask->status >= STREAM_STATUS_UNDEPLOYED && pTask->status <= STREAM_STATUS_DROPPING
+                             ? gStreamStatusStr[pTask->status]
+                             : "Unknown";
+  char         line[STREAM_READER_PERIOD_LOG_BUFFER_SIZE] = {0};
+  int32_t      len = snprintf(line, sizeof(line), STREAM_READER_PERIOD_LOG_FORMAT, pTask->streamId, pTask->taskId,
+                              pTask->seriousId, pTask->nodeId, pStatus, pSnapshot->statsStartAtMs, pSnapshot->uptimeMs,
+                              pSnapshot->statsWindowMs, pPeriod->pullCount, pPeriod->successCount, pPeriod->noDataCount,
+                              pPeriod->noContextCount, pPeriod->failureCount, pPeriod->dataRows, pPeriod->dataBlocks,
+                              rowsPerSec, blocksPerSec, pPeriod->scanDuration.samples, scanAvgMs, scanMaxMs,
+                              scanLifetimeMaxMs, scanLifetimeMaxAt, lastReturnedWalVer, lastSuccessAt, activeScanContexts,
+                              tableCount, cacheEntries, pSnapshot->statsOverflow ? "true" : "false");
+  if (len < 0 || len >= sizeof(line)) return TSDB_CODE_OUT_OF_BUFFER;
+
+  ST_TASK_DLOG("%s", line);
+  return TSDB_CODE_SUCCESS;
+}
+
 static void freeUidMapElementList(void* pData) {
   if (pData == NULL) return;
   SArray* elements = *(SArray**)pData;
@@ -1293,6 +1396,7 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
   bool    pPlanMoved = false;
   STREAM_CHECK_NULL_GOTO(pTask, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_NULL_GOTO(pMsg, TSDB_CODE_INVALID_PARA);
+  TAOS_CHECK_GOTO(streamTaskStatsInit(&pTask->task, &pTask->pStats), &lino, end);
 
   pTask->triggerReader = pMsg->triggerReader;
   if (pMsg->triggerReader == 1) {
@@ -1387,6 +1491,7 @@ end:
   STREAM_PRINT_LOG_END(code, lino);
 
   if (code) {
+    streamTaskStatsHandleLifecycle(&pTask->pStats, STREAM_TASK_STATS_DEPLOY_FAILED);
     if (!pPlanMoved) {
       nodesDestroyNode(pPlan);
     }
@@ -1426,6 +1531,7 @@ int32_t stReaderTaskUndeployImpl(SStreamReaderTask** ppTask, const SStreamUndepl
     }
   }
   (*ppTask)->info = NULL;
+  streamTaskStatsHandleLifecycle(&(*ppTask)->pStats, STREAM_TASK_STATS_UNDEPLOYED);
 
 end:
   STREAM_PRINT_LOG_END(code, lino);

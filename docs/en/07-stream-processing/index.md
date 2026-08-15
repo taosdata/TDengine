@@ -22,4 +22,4 @@ TDengine TSDB’s stream processing engine also offers additional usability bene
 
 **Note:** The new stream processing feature is supported starting from v3.3.7.0.
 
-This chapter next covers [Stream Syntax](./01-syntax.md), [Operations and Limits](./02-instructions.md), and [Deployment and Design](./03-best-practices.md).
+This chapter next covers [Stream Syntax](./01-syntax.md), [Operations and Limits](./02-instructions.md), [Deployment and Design](./03-best-practices.md), and [Observability and Troubleshooting](./04-observability.md).

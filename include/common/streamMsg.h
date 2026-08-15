@@ -566,6 +566,57 @@ typedef struct SSTriggerRuntimeStatus {
 
 typedef SStreamTask SStmTaskStatusMsg;
 
+#define STREAM_HB_OBSERVABILITY_VERSION_V1 1
+
+typedef enum EStreamTaskMetric {
+  STREAM_METRIC_PHYSICAL_INPUT = 1ULL << 0,
+  STREAM_METRIC_LOGICAL_INPUT = 1ULL << 1,
+  STREAM_METRIC_DELIVERED_OUTPUT = 1ULL << 2,
+  STREAM_METRIC_RESULT_LATENCY = 1ULL << 3,
+  STREAM_METRIC_REALTIME_LAG = 1ULL << 4,
+  STREAM_METRIC_HISTORY_PROGRESS = 1ULL << 5,
+  STREAM_METRIC_RECALCULATES = 1ULL << 6,
+} EStreamTaskMetric;
+
+typedef struct SStreamTaskMetricsSnapshot {
+  uint64_t applicableMask;
+  uint64_t validMask;
+  bool     windowReady;
+  uint64_t physicalInputRows1m;
+  uint64_t logicalInputRows1m;
+  uint64_t deliveredOutputRows1m;
+  uint64_t resultLatencyUs1m;
+  uint64_t resultLatencySamples1m;
+  int64_t  realtimeLagMs;
+  bool     historyProgressValid;
+  int32_t  historyProgressPct;
+  SArray*  pRecalculates;
+} SStreamTaskMetricsSnapshot;
+
+typedef enum EStreamRecalcStatus {
+  STREAM_RECALC_STATUS_PENDING = 0,
+  STREAM_RECALC_STATUS_RUNNING = 1,
+  STREAM_RECALC_STATUS_FINISHED = 2,
+  STREAM_RECALC_STATUS_FAILED = 3,
+} EStreamRecalcStatus;
+
+typedef struct SStreamRecalcSnapshot {
+  int64_t             recalcId;
+  TSKEY               start;
+  TSKEY               end;
+  int32_t             progressPct;
+  EStreamRecalcStatus status;
+} SStreamRecalcSnapshot;
+
+typedef struct SStreamTaskMetricsEntry {
+  int32_t                    taskStatusIndex;
+  int64_t                    streamId;
+  int64_t                    taskId;
+  int64_t                    seriousId;
+  int32_t                    decodeCode;
+  SStreamTaskMetricsSnapshot snapshot;
+} SStreamTaskMetricsEntry;
+
 typedef struct SStreamHbMsg {
   int32_t dnodeId;
   int32_t streamGId;
@@ -575,6 +626,8 @@ typedef struct SStreamHbMsg {
   SArray* pStreamStatus;  // SArray<SStmTaskStatusMsg>
   SArray* pStreamReq;     // SArray<int32_t>, task index in pStreamStatus
   SArray* pTriggerStatus; // SArray<SSTriggerRuntimeStatus>
+  int32_t observabilityVersion;
+  SArray* pTaskMetrics;  // SArray<SStreamTaskMetricsEntry>
 } SStreamHbMsg;
 
 int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq);
@@ -878,6 +931,8 @@ typedef struct SSTriggerPullRequest {
   int64_t           readerTaskId;
   int64_t           sessionId;
   int64_t           triggerTaskId;  // does not serialize
+  uint64_t          progressStepId;        // does not serialize
+  uint64_t          progressRequestToken;  // does not serialize
 } SSTriggerPullRequest;
 
 typedef struct SSTriggerSetTableRequest {
@@ -1266,6 +1321,8 @@ typedef struct SSTriggerCalcRequest {
   int32_t execId;     // no serialize
   int32_t curWinIdx;  // no serialize
   void*   pOutBlock;  // no serialize
+  uint64_t progressStepId;        // no serialize
+  uint64_t progressRequestToken;  // no serialize
 } SSTriggerCalcRequest;
 
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq);

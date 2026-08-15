@@ -652,6 +652,14 @@ Provides stream-processing task names, databases, status, `snode` distribution, 
 | 7   | `snodeLeader`  | INT            | Leader `snode` |
 | 8   | `snodeReplica` | INT            | Replica `snode` |
 | 9   | `message`      | VARCHAR(256)   | Status or error information |
+| 10  | `external_sources` | INT        | Number of external data sources referenced by the stream |
+| 11  | `realtime_lag_ms` | BIGINT       | Real-time processing lag of the slowest valid entry Reader, in milliseconds |
+| 12  | `input_rows_per_sec_1m` | DOUBLE | Logical input rate accepted by the stream during the latest complete 60-second window, in rows per second |
+| 13  | `output_rows_per_sec_1m` | DOUBLE | Final result rate successfully delivered during the latest complete 60-second window, in rows per second |
+| 14  | `runner_result_latency_avg_1m_ms` | DOUBLE | Average time for Runners to form results during the latest complete 60-second window, in milliseconds |
+| 15  | `history_progress_pct` | INT      | Historical-data processing progress, from 0 to 100 |
+
+The one-minute metrics are `NULL` until a task has produced its first complete 60-second window. A stream that references an external data source has no WAL progress, so `realtime_lag_ms` is `NULL`. If historical-data processing is not enabled, `history_progress_pct` is `NULL`. For interpretation and troubleshooting guidance, see [Observability and Troubleshooting](../../07-stream-processing/04-observability.md).
 
 ## INS_STREAM_RECALCULATES
 
@@ -662,9 +670,12 @@ Provides the time range, progress, and IDs of stream recalculation tasks.
 | 1   | `stream_name` | VARCHAR(192) | Stream name |
 | 2   | `stream_id`   | VARCHAR(19)  | Stream ID |
 | 3   | `recalc_id`   | VARCHAR(19)  | Recalculation ID |
-| 4   | `start`       | TIMESTAMP    | start |
-| 5   | `end`         | TIMESTAMP    | end |
-| 6   | `progress`    | VARCHAR(20)  | Progress |
+| 4   | `start`       | TIMESTAMP    | Start of the recalculation time range |
+| 5   | `end`         | TIMESTAMP    | End of the recalculation time range |
+| 6   | `progress`    | VARCHAR(20)  | Recalculation progress, for example `42%` |
+| 7   | `status`      | VARCHAR(16)  | Recalculation status: `Pending`, `Running`, `Finished`, or `Failed` |
+
+Terminal recalculation records are retained for one hour from the time the mnode first observes the terminal state, with a maximum of 100 terminal records per stream. `Pending` and `Running` records do not count toward this limit. Records are held in memory and are not guaranteed to survive a process restart.
 
 ## INS_STREAM_TASKS
 
@@ -686,6 +697,11 @@ Provides deployment locations, types, status, and most recent update times for i
 | 12  | `last_update` | TIMESTAMP    | Most recent update time |
 | 13  | `extra_info`  | VARCHAR(64)  | extra_info |
 | 14  | `message`     | VARCHAR(256) | Information |
+| 15  | `input_rows_per_sec_1m` | DOUBLE | Physical input rate processed by an entry Reader during the latest complete 60-second window, in rows per second |
+| 16  | `output_rows_per_sec_1m` | DOUBLE | Result rate successfully delivered by a final-result Runner during the latest complete 60-second window, in rows per second |
+| 17  | `runner_result_latency_avg_1m_ms` | DOUBLE | Average time for a final-result Runner to form results during the latest complete 60-second window, in milliseconds |
+
+A metric is `NULL` when it does not apply to the task type, the task has not produced its first complete 60-second window, or there is no valid sample. Use `status` and `last_update` to evaluate task health and metric freshness.
 
 ## INS_SUBSCRIPTIONS
 
