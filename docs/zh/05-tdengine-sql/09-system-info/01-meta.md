@@ -652,6 +652,14 @@ SELECT `vgroups` FROM information_schema.ins_databases WHERE name = 'test';
 | 7   | `snodeLeader`  | INT            | Leader `snode` |
 | 8   | `snodeReplica` | INT            | 副本 `snode` |
 | 9   | `message`      | VARCHAR(256)   | 状态或错误信息 |
+| 10  | `external_sources` | INT        | 流引用的外部数据源数量 |
+| 11  | `realtime_lag_ms` | BIGINT       | 最慢有效入口 Reader 的实时处理延迟，单位为毫秒 |
+| 12  | `input_rows_per_sec_1m` | DOUBLE | 最近一个完整 60 秒窗口内，流接纳的逻辑输入速率，单位为行/秒 |
+| 13  | `output_rows_per_sec_1m` | DOUBLE | 最近一个完整 60 秒窗口内，成功交付的最终结果速率，单位为行/秒 |
+| 14  | `runner_result_latency_avg_1m_ms` | DOUBLE | 最近一个完整 60 秒窗口内，Runner 形成结果的平均延迟，单位为毫秒 |
+| 15  | `history_progress_pct` | INT      | 历史数据计算进度，取值为 0 到 100 |
+
+一分钟指标在任务尚未形成首个完整 60 秒窗口时为 `NULL`。引用外部数据源的流没有 WAL 实时进度，因此 `realtime_lag_ms` 为 `NULL`。未启用历史数据计算时，`history_progress_pct` 为 `NULL`。详细解释和诊断方法见[可观测性与故障诊断](../../07-stream-processing/04-observability.md)。
 
 ## INS_STREAM_RECALCULATES
 
@@ -662,9 +670,12 @@ SELECT `vgroups` FROM information_schema.ins_databases WHERE name = 'test';
 | 1   | `stream_name` | VARCHAR(192) | 流名称 |
 | 2   | `stream_id`   | VARCHAR(19)  | 流 ID |
 | 3   | `recalc_id`   | VARCHAR(19)  | 重算 ID |
-| 4   | `start`       | TIMESTAMP    | start |
-| 5   | `end`         | TIMESTAMP    | end |
-| 6   | `progress`    | VARCHAR(20)  | 进度 |
+| 4   | `start`       | TIMESTAMP    | 重算时间范围的开始时间 |
+| 5   | `end`         | TIMESTAMP    | 重算时间范围的结束时间 |
+| 6   | `progress`    | VARCHAR(20)  | 重算进度百分比，例如 `42%` |
+| 7   | `status`      | VARCHAR(16)  | 重算状态：`Pending`、`Running`、`Finished` 或 `Failed` |
+
+已结束的重算记录从 mnode 首次观察到终态开始保留 1 小时，每个流最多保留 100 条。`Pending` 和 `Running` 记录不受该数量上限影响。记录仅保存在内存中，不保证跨进程重启保留。
 
 ## INS_STREAM_TASKS
 
@@ -686,6 +697,11 @@ SELECT `vgroups` FROM information_schema.ins_databases WHERE name = 'test';
 | 12  | `last_update` | TIMESTAMP    | 最近更新时间 |
 | 13  | `extra_info`  | VARCHAR(64)  | extra_info |
 | 14  | `message`     | VARCHAR(256) | 信息 |
+| 15  | `input_rows_per_sec_1m` | DOUBLE | 入口 Reader 最近一个完整 60 秒窗口内处理的物理输入速率，单位为行/秒 |
+| 16  | `output_rows_per_sec_1m` | DOUBLE | 最终结果 Runner 最近一个完整 60 秒窗口内成功交付的结果速率，单位为行/秒 |
+| 17  | `runner_result_latency_avg_1m_ms` | DOUBLE | 最终结果 Runner 最近一个完整 60 秒窗口内形成结果的平均延迟，单位为毫秒 |
+
+指标不适用于当前任务类型、任务尚未形成首个完整 60 秒窗口或没有有效样本时，对应列为 `NULL`。可结合 `status` 和 `last_update` 判断任务状态及指标是否新鲜。
 
 ## INS_SUBSCRIPTIONS
 
