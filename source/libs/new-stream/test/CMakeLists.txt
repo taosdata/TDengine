@@ -91,4 +91,39 @@ add_test(
     NAME streamTriggerTaskTest
     COMMAND streamTriggerTaskTest
 )
+
+ADD_EXECUTABLE(streamTaskStatsTest streamTaskStatsTest.cpp)
+DEP_ext_gtest(streamTaskStatsTest)
+DEP_ext_cppstub(streamTaskStatsTest)
+TARGET_INCLUDE_DIRECTORIES(
+  streamTaskStatsTest
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/qcom"
+  PUBLIC "${TD_SOURCE_DIR}/include/common"
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+TARGET_LINK_LIBRARIES(streamTaskStatsTest PUBLIC taos os common executor function index new-stream)
+add_test(NAME streamTaskStatsTest COMMAND streamTaskStatsTest)
+
+ADD_EXECUTABLE(streamRecalcTrackerTest streamRecalcTrackerTest.cpp)
+DEP_ext_gtest(streamRecalcTrackerTest)
+TARGET_INCLUDE_DIRECTORIES(
+  streamRecalcTrackerTest
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+TARGET_LINK_LIBRARIES(streamRecalcTrackerTest PUBLIC taos os common new-stream)
+add_test(NAME streamRecalcTrackerTest COMMAND streamRecalcTrackerTest)
+
+ADD_EXECUTABLE(streamRecalcTrackerFallbackTest streamRecalcTrackerTest.cpp ../src/streamRecalcTracker.c)
+TARGET_COMPILE_DEFINITIONS(streamRecalcTrackerFallbackTest PRIVATE STREAM_RECALC_FORCE_WIDE_FALLBACK)
+DEP_ext_gtest(streamRecalcTrackerFallbackTest)
+TARGET_INCLUDE_DIRECTORIES(
+  streamRecalcTrackerFallbackTest
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+TARGET_LINK_LIBRARIES(streamRecalcTrackerFallbackTest PUBLIC taos os common new-stream)
+add_test(NAME streamRecalcTrackerFallbackTest COMMAND streamRecalcTrackerFallbackTest)
 endif(NOT ${TD_WINDOWS})
