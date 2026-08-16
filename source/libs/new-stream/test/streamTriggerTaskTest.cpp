@@ -1977,6 +1977,131 @@ TEST_F(StreamTriggerRecalcOwnershipTest, UserRecalcSnapshotsGroupsAndKeepsOrigin
   DestroyRecalcRequest(&second);
 }
 
+TEST_F(StreamTriggerRecalcOwnershipTest, UserRecalcSessionScanRangeIsNotClippedByRuntimeBounds) {
+  task_.triggerType = STREAM_TRIGGER_SESSION;
+  const TSKEY historyCutoff = 150;
+  for (auto* group : groups_) {
+    group->newThreshold = 175;
+    ASSERT_EQ(tSimpleHashPut(task_.pHistoryCutoffTime, &group->gid, sizeof(group->gid), &historyCutoff,
+                             sizeof(historyCutoff)),
+              TSDB_CODE_SUCCESS);
+  }
+
+  ASSERT_EQ(DriveUserRecalc(42, 100, 200), TSDB_CODE_SUCCESS);
+
+  for (size_t i = 0; i < groups_.size(); ++i) {
+    SSTriggerRecalcRequest* request = nullptr;
+    ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&task_, &request), TSDB_CODE_SUCCESS);
+    ASSERT_NE(request, nullptr);
+    EXPECT_EQ(request->scanRange.skey, 100);
+    EXPECT_EQ(request->scanRange.ekey, 199);
+    EXPECT_EQ(request->calcRange.skey, 100);
+    EXPECT_EQ(request->calcRange.ekey, 199);
+    DestroyRecalcRequest(&request);
+  }
+}
+
+TEST_F(StreamTriggerRecalcOwnershipTest, UserRecalcCountScanRangeStopsAtCurrentProgress) {
+  const TSKEY historyCutoff = 49;
+  for (auto* group : groups_) {
+    group->newThreshold = 175;
+    ASSERT_EQ(tSimpleHashPut(task_.pHistoryCutoffTime, &group->gid, sizeof(group->gid), &historyCutoff,
+                             sizeof(historyCutoff)),
+              TSDB_CODE_SUCCESS);
+  }
+
+  ASSERT_EQ(DriveUserRecalc(43, 100, 200), TSDB_CODE_SUCCESS);
+
+  for (size_t i = 0; i < groups_.size(); ++i) {
+    SSTriggerRecalcRequest* request = nullptr;
+    ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&task_, &request), TSDB_CODE_SUCCESS);
+    ASSERT_NE(request, nullptr);
+    EXPECT_EQ(request->scanRange.skey, 100);
+    EXPECT_EQ(request->scanRange.ekey, 175);
+    EXPECT_EQ(request->calcRange.skey, 100);
+    EXPECT_EQ(request->calcRange.ekey, 199);
+    DestroyRecalcRequest(&request);
+  }
+}
+
+TEST_F(StreamTriggerRecalcOwnershipTest, UserRecalcWithoutEndStopsAtCurrentProgress) {
+  task_.triggerType = STREAM_TRIGGER_SESSION;
+  const TSKEY historyCutoff = 150;
+  for (auto* group : groups_) {
+    group->newThreshold = 175;
+    ASSERT_EQ(tSimpleHashPut(task_.pHistoryCutoffTime, &group->gid, sizeof(group->gid), &historyCutoff,
+                             sizeof(historyCutoff)),
+              TSDB_CODE_SUCCESS);
+  }
+
+  ASSERT_EQ(DriveUserRecalc(43, 100, TSKEY_MAX), TSDB_CODE_SUCCESS);
+
+  for (size_t i = 0; i < groups_.size(); ++i) {
+    SSTriggerRecalcRequest* request = nullptr;
+    ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&task_, &request), TSDB_CODE_SUCCESS);
+    ASSERT_NE(request, nullptr);
+    EXPECT_EQ(request->scanRange.skey, 100);
+    EXPECT_EQ(request->scanRange.ekey, 175);
+    EXPECT_EQ(request->calcRange.skey, 100);
+    EXPECT_EQ(request->calcRange.ekey, TSKEY_MAX - 1);
+    DestroyRecalcRequest(&request);
+  }
+}
+
+TEST_F(StreamTriggerRecalcOwnershipTest, UserRecalcSessionScanRangeKeepsRequiredRuntimeContext) {
+  task_.triggerType = STREAM_TRIGGER_SESSION;
+  const TSKEY historyCutoff = 49;
+  for (auto* group : groups_) {
+    group->newThreshold = 250;
+    ASSERT_EQ(tSimpleHashPut(task_.pHistoryCutoffTime, &group->gid, sizeof(group->gid), &historyCutoff,
+                             sizeof(historyCutoff)),
+              TSDB_CODE_SUCCESS);
+  }
+
+  ASSERT_EQ(DriveUserRecalc(44, 100, 200), TSDB_CODE_SUCCESS);
+
+  for (size_t i = 0; i < groups_.size(); ++i) {
+    SSTriggerRecalcRequest* request = nullptr;
+    ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&task_, &request), TSDB_CODE_SUCCESS);
+    ASSERT_NE(request, nullptr);
+    EXPECT_EQ(request->scanRange.skey, 50);
+    EXPECT_EQ(request->scanRange.ekey, 250);
+    EXPECT_EQ(request->calcRange.skey, 100);
+    EXPECT_EQ(request->calcRange.ekey, 199);
+    DestroyRecalcRequest(&request);
+  }
+}
+
+TEST_F(StreamTriggerRecalcOwnershipTest, UserRecalcSlidingScanRangeUsesOnlyNecessaryWindowContext) {
+  task_.triggerType = STREAM_TRIGGER_SLIDING;
+  task_.interval.intervalUnit = 'a';
+  task_.interval.slidingUnit = 'a';
+  task_.interval.offsetUnit = 'a';
+  task_.interval.precision = TSDB_TIME_PRECISION_MILLI;
+  task_.interval.interval = 10;
+  task_.interval.sliding = 10;
+  const TSKEY historyCutoff = 49;
+  for (auto* group : groups_) {
+    group->newThreshold = 250;
+    ASSERT_EQ(tSimpleHashPut(task_.pHistoryCutoffTime, &group->gid, sizeof(group->gid), &historyCutoff,
+                             sizeof(historyCutoff)),
+              TSDB_CODE_SUCCESS);
+  }
+
+  ASSERT_EQ(DriveUserRecalc(45, 105, 115), TSDB_CODE_SUCCESS);
+
+  for (size_t i = 0; i < groups_.size(); ++i) {
+    SSTriggerRecalcRequest* request = nullptr;
+    ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&task_, &request), TSDB_CODE_SUCCESS);
+    ASSERT_NE(request, nullptr);
+    EXPECT_EQ(request->scanRange.skey, 100);
+    EXPECT_EQ(request->scanRange.ekey, 119);
+    EXPECT_EQ(request->calcRange.skey, 105);
+    EXPECT_EQ(request->calcRange.ekey, 114);
+    DestroyRecalcRequest(&request);
+  }
+}
+
 TEST_F(StreamTriggerRecalcOwnershipTest, PendingMergeKeepsDistinctContributors) {
   SArray* groups = taosArrayInit(1, sizeof(int64_t));
   ASSERT_NE(groups, nullptr);
