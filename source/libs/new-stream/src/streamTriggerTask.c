@@ -2770,12 +2770,31 @@ static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTr
       pReq->scanRange.skey = ((px == NULL) ? INT64_MIN : *(int64_t *)px) + 1;
     }
     pReq->scanRange.ekey = pGroup->newThreshold;
+    // FROM without TO becomes the closed upper bound TSKEY_MAX - 1 and still ends at the current stream progress.
+    bool openEndedUserRecalc = isUserRecalc && pCalcRange->ekey == TSKEY_MAX - 1;
+    if (isUserRecalc) {
+      if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+        pReq->scanRange = *pCalcRange;
+        if (openEndedUserRecalc) {
+          pReq->scanRange.ekey = pGroup->newThreshold;
+        }
+      } else if (pTask->triggerType == STREAM_TRIGGER_COUNT) {
+        pReq->scanRange.skey = pCalcRange->skey;
+        pReq->scanRange.ekey = TMIN(pReq->scanRange.ekey, pCalcRange->ekey);
+      } else {
+        pReq->scanRange.skey = TMIN(pReq->scanRange.skey, pCalcRange->skey);
+      }
+      if (!openEndedUserRecalc && pTask->triggerType != STREAM_TRIGGER_SLIDING &&
+          pTask->triggerType != STREAM_TRIGGER_COUNT) {
+        pReq->scanRange.ekey = TMAX(pReq->scanRange.ekey, pCalcRange->ekey);
+      }
+    }
     if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
       if (pCalcRange->skey != INT64_MIN) {
         STimeWindow win = stTriggerTaskGetTimeWindow(pTask, pCalcRange->skey);
-        pReq->scanRange.skey = TMAX(pReq->scanRange.skey, win.skey);
+        pReq->scanRange.skey = isUserRecalc ? win.skey : TMAX(pReq->scanRange.skey, win.skey);
       }
-      if (pCalcRange->ekey != INT64_MAX) {
+      if (pCalcRange->ekey != INT64_MAX && !openEndedUserRecalc) {
         STimeWindow win = stTriggerTaskGetTimeWindow(pTask, pCalcRange->ekey);
         while (pTask->interval.interval > pTask->interval.sliding) {
           STimeWindow nextWin = win;
@@ -2785,7 +2804,7 @@ static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTr
           }
           win = nextWin;
         }
-        pReq->scanRange.ekey = TMIN(pReq->scanRange.ekey, win.ekey);
+        pReq->scanRange.ekey = isUserRecalc ? win.ekey : TMIN(pReq->scanRange.ekey, win.ekey);
       }
     } else if (!isUserRecalc && pTask->fillHistoryStartTime > 0 && pCalcRange->skey != INT64_MIN) {
       pReq->scanRange.skey = TMAX(pReq->scanRange.skey, pCalcRange->skey - pTask->historyStep);
