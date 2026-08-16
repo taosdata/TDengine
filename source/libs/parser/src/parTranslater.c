@@ -2598,6 +2598,19 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
   return code;
 }
 
+static bool preferExplicitAliasOverImplicitFunction(SExprNode** ppFoundExpr, SExprNode* pExpr) {
+  SExprNode* pFoundExpr = *ppFoundExpr;
+  bool foundExprIsImplicitFunc = QUERY_NODE_FUNCTION == nodeType((SNode*)pFoundExpr) && !pFoundExpr->asAlias;
+  bool exprIsImplicitFunc = QUERY_NODE_FUNCTION == nodeType((SNode*)pExpr) && !pExpr->asAlias;
+  if (!((pFoundExpr->asAlias && exprIsImplicitFunc) || (foundExprIsImplicitFunc && pExpr->asAlias))) {
+    return false;
+  }
+  if (pExpr->asAlias) {
+    *ppFoundExpr = pExpr;
+  }
+  return true;
+}
+
 static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** pColRef, STableNode* pTable,
                                          bool* pFound) {
   int32_t         code = TSDB_CODE_SUCCESS;
@@ -2612,6 +2625,9 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
     SExprNode* pExpr = (SExprNode*)pNode;
     if (0 == strcmp(pCol->colName, pExpr->aliasName)) {
       if (*pFound) {
+        if (pFoundExpr && preferExplicitAliasOverImplicitFunction(&pFoundExpr, pExpr)) {
+          continue;
+        }
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, pCol->colName);
       }
       pFoundExpr = pExpr;
@@ -2864,6 +2880,11 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
     if (0 == strcmp((*pCol)->colName, pExpr->userAlias)) {
       if (true == *pFound) {
         if (nodesEqualNode(pFoundNode, pNode)) {
+          continue;
+        }
+        SExprNode* pFoundExpr = (SExprNode*)pFoundNode;
+        if (preferExplicitAliasOverImplicitFunction(&pFoundExpr, pExpr)) {
+          pFoundNode = (SNode*)pFoundExpr;
           continue;
         }
         pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ORDERBY_AMBIGUOUS, (*pCol)->colName);
@@ -3160,6 +3181,54 @@ static bool clauseSupportAlias(ESqlClause clause) {
   return SQL_CLAUSE_GROUP_BY == clause || SQL_CLAUSE_PARTITION_BY == clause || SQL_CLAUSE_ORDER_BY == clause;
 }
 
+static EDealRes translateNonColumnAliasInGroupByClause(STranslateContext* pCxt, SNode** ppNode,
+                                                       bool* translateAsAlias) {
+  if ('\0' != ((SColumnNode*)*ppNode)->tableAlias[0] || ((SColumnNode*)*ppNode)->node.asParam) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SNodeList* pProjectionList = getProjectListFromCurrStmt(pCxt->pCurrStmt);
+  if (NULL == pProjectionList) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SNode* pFoundNode = NULL;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pProjectionList) {
+    SExprNode* pExpr = (SExprNode*)pNode;
+    if (0 != strcmp(((SColumnNode*)*ppNode)->colName, pExpr->userAlias)) {
+      continue;
+    }
+    if (NULL != pFoundNode && !nodesEqualNode(pFoundNode, pNode)) {
+      SExprNode* pFoundExpr = (SExprNode*)pFoundNode;
+      if (preferExplicitAliasOverImplicitFunction(&pFoundExpr, pExpr)) {
+        pFoundNode = (SNode*)pFoundExpr;
+        continue;
+      }
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ORDERBY_AMBIGUOUS,
+                                           ((SColumnNode*)*ppNode)->colName);
+      return DEAL_RES_ERROR;
+    }
+    pFoundNode = pNode;
+  }
+
+  if (NULL == pFoundNode || QUERY_NODE_COLUMN == nodeType(pFoundNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SNode*  pNew = NULL;
+  int32_t code = nodesCloneNode(pFoundNode, &pNew);
+  if (NULL == pNew) {
+    pCxt->errCode = code;
+    return DEAL_RES_ERROR;
+  }
+
+  nodesDestroyNode(*ppNode);
+  *ppNode = pNew;
+  *translateAsAlias = true;
+  return DEAL_RES_CONTINUE;
+}
+
 static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnNode** pCol, bool* translateAsAlias) {
   *translateAsAlias = false;
   // count(*)/first(*)/last(*) and so on
@@ -3185,6 +3254,10 @@ static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnN
     // Source columns take precedence over projection aliases in grouping clauses.
     res = translateColumnWithoutPrefix(pCxt, pCol, &found);
     if (!found && !(*pCol)->node.asParam) {
+      res = translateNonColumnAliasInGroupByClause(pCxt, (SNode**)pCol, translateAsAlias);
+      if (DEAL_RES_ERROR == res || *translateAsAlias) {
+        return res;
+      }
       res = translateColumnUseAlias(pCxt, pCol, &found);
       *translateAsAlias = true;
     }

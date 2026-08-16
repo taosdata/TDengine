@@ -347,6 +347,7 @@ TEST_F(ParserSelectTest, groupBy) {
   run("SELECT COUNT(*), c1 + 10 cc1 FROM t1 GROUP BY cc1");
 
   run("SELECT c1 AS new_c1, COUNT(c1) AS c1 FROM t1 GROUP BY c1");
+  run("SELECT c1 new_id, COUNT(c1) c1 FROM t1 GROUP BY c1 ORDER BY new_id");
 }
 
 TEST_F(ParserSelectTest, groupBySemanticCheck) {
@@ -593,6 +594,12 @@ TEST_F(ParserSelectTest, semanticCheck) {
   run("SELECT c2 FROM t1 tt1, t1 tt2 WHERE tt1.c1 = tt2.c1", TSDB_CODE_PAR_AMBIGUOUS_COLUMN);
 
   run("SELECT c2 FROM (SELECT c1 c2, c2 FROM t1)", TSDB_CODE_PAR_AMBIGUOUS_COLUMN);
+
+  bool keepColumnName = tsKeepColumnName;
+  tsKeepColumnName = true;
+  run("SELECT c1 FROM (SELECT COUNT(c1) c1, FIRST(c1) FROM t1)");
+  run("SELECT LAST(c1) c1, FIRST(c1) FROM t1 ORDER BY c1");
+  tsKeepColumnName = keepColumnName;
 
   // TSDB_CODE_PAR_WRONG_VALUE_TYPE
   run("SELECT timestamp '2010a' FROM t1", TSDB_CODE_PAR_WRONG_VALUE_TYPE);
