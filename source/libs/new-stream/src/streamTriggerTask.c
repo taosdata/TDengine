@@ -8353,6 +8353,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
   int64_t             checkStartMonoUs = streamTaskGetMonotonicUs();
+  int64_t             checkEndMonoUs = 0;
   int64_t             now = taosGetTimestampNs();
 
   if (listNEles(&pContext->retryPullReqs) > 0) {
@@ -8899,7 +8900,7 @@ _check:
   }
 
 _end:
-  int64_t checkEndMonoUs = streamTaskGetMonotonicUs();
+  checkEndMonoUs = streamTaskGetMonotonicUs();
   stTaskStatsRecordTriggerCheck(pTask->pStats, false,
                                 checkEndMonoUs >= checkStartMonoUs ? (uint64_t)(checkEndMonoUs - checkStartMonoUs) : 0,
                                 checkEndMonoUs, taosGetTimestampMs());
@@ -11296,6 +11297,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
   int64_t             checkStartMonoUs = streamTaskGetMonotonicUs();
+  int64_t             checkEndMonoUs = 0;
   bool                retryPath = false;
   bool                acceptedRecalcRequest = false;
 
@@ -11755,7 +11757,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
   }
 
 _end:
-  int64_t checkEndMonoUs = streamTaskGetMonotonicUs();
+  checkEndMonoUs = streamTaskGetMonotonicUs();
   stTaskStatsRecordTriggerCheck(pTask->pStats, true,
                                 checkEndMonoUs >= checkStartMonoUs ? (uint64_t)(checkEndMonoUs - checkStartMonoUs) : 0,
                                 checkEndMonoUs, taosGetTimestampMs());
