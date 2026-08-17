@@ -772,13 +772,19 @@ static int32_t metaBuildCreateNormalTableRsp(SMeta *pMeta, SMetaEntry *pEntry, S
 // ncid is int32_t in SMetaEntry; keep nextCid int32_t too. With 32767 columns the next
 // cid is 32768, which overflows int16_t to a negative value and would silently bypass the
 // INT16_MAX upper-bound checks in metaAddTableColumn/metaAddTableTag.
-static int32_t metaNtbNextCid(const SVCreateTbReq *pReq) {
+// schemaRow.nCols >= 1 is guaranteed by the parser in the normal path; reject a malformed
+// request with an empty column schema instead of indexing pSchema[-1].
+static int32_t metaNtbNextCid(const SVCreateTbReq *pReq, int32_t *pNextCid) {
+  if (pReq->ntb.schemaRow.nCols <= 0 || pReq->ntb.schemaRow.pSchema == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   int32_t nextCid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1;
   if (pReq->ntb.schemaTag.nCols > 0 && pReq->ntb.schemaTag.pSchema != NULL) {
     int32_t lastTagCid = pReq->ntb.schemaTag.pSchema[pReq->ntb.schemaTag.nCols - 1].colId + 1;
     if (lastTagCid > nextCid) nextCid = lastTagCid;
   }
-  return nextCid;
+  *pNextCid = nextCid;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMetaRsp **ppRsp) {
@@ -817,7 +823,13 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
     }
   }
 
-  int32_t nextCid = metaNtbNextCid(pReq);
+  int32_t nextCid = 0;
+  code = metaNtbNextCid(pReq, &nextCid);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " name:%s", TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, tstrerror(code), version, pReq->name);
+    TAOS_RETURN(code);
+  }
 
   SMetaEntry entry = {
       .version = version,
@@ -934,7 +946,13 @@ static int32_t metaCreateVirtualNormalTable(SMeta *pMeta, int64_t version, SVCre
     TAOS_RETURN(code);
   }
 
-  int32_t nextCid = metaNtbNextCid(pReq);
+  int32_t nextCid = 0;
+  code = metaNtbNextCid(pReq, &nextCid);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " name:%s", TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, tstrerror(code), version, pReq->name);
+    TAOS_RETURN(code);
+  }
 
   SMetaEntry entry = {.version = version,
                       .type = TSDB_VIRTUAL_NORMAL_TABLE,

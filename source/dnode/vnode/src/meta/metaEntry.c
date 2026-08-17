@@ -763,6 +763,13 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
 
   // Normal/virtual-normal owned tags: decode schemaTag + pTags when bit 5 was set.
   if (hasNtbTag) {
+    // The encoder only sets the bit for normal/virtual-normal tables; any other type
+    // carrying bit 5 means corrupted data — decoding the trailer into ntbEntry would
+    // write through the union and corrupt the entry. Mirror the encoder's type guard.
+    if (pME->type != TSDB_NORMAL_TABLE && pME->type != TSDB_VIRTUAL_NORMAL_TABLE) {
+      metaError("meta/entry: NTB_TAG bit set on unexpected table type: %" PRId8 " decode failed.", pME->type);
+      return TSDB_CODE_INVALID_PARA;
+    }
     TAOS_CHECK_RETURN(tDecodeSSchemaWrapperEx(pCoder, &pME->ntbEntry.schemaTag));
     TAOS_CHECK_RETURN(tDecodeTag(pCoder, (STag **)&pME->ntbEntry.pTags));
   }
