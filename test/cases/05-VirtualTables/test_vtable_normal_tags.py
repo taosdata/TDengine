@@ -2443,7 +2443,6 @@ class TestVtableNormalTags:
         tdSql.execute(f"USE {DB};")
         # owned tag value (v_own.loc = 5) survives — DISTINCT collapses the per-row constant to 1 row
         self._check_values("SELECT DISTINCT loc FROM v_own;", [(5,)], "restart: owned tag value")
-        self._check_values("SELECT DISTINCT loc FROM v_own;", [(5,)], "restart: owned tag value")
         # tag-ref still resolves to the source (v_ref.rcity -> src0.city = 'beijing')
         self._check_values("SELECT DISTINCT rcity FROM v_ref;", [('beijing',)], "restart: tag-ref follows source")
         # schema re-decoded from the trailer: DESC still shows the tags
