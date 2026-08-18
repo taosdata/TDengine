@@ -2245,6 +2245,11 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator,
       }
       pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pBasicParam->vgId, sizeof(pBasicParam->vgId));
       QUERY_CHECK_NULL(pIdx, code, lino, _return, TSDB_CODE_INVALID_PARA);
+    } else if (pBasicParam->type == EX_SRC_TYPE_VSTB_SCAN) {
+      qDebug("%s vgroup:%d is missing from the query plan, "
+             "request metadata refresh",
+             GET_TASKID(pOperator->pTaskInfo), pBasicParam->vgId);
+      return TSDB_CODE_SCH_DATA_SRC_EP_MISS;
     } else if (pBasicParam->type == EX_SRC_TYPE_VSTB_TS_SCAN || pBasicParam->type == EX_SRC_TYPE_VSTB_PART_INTERVAL_SCAN ||
                pBasicParam->type == EX_SRC_TYPE_VSTB_SYS_SCAN) {
       // Multi-exchange virtual table paths build each exchange param from the full vg map.
