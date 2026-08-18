@@ -14951,6 +14951,18 @@ typedef struct SEqCondTbNameTableInfo {
   SArray*         aTbnames;
 } SEqCondTbNameTableInfo;
 
+static char* getTbnameValue(SValueNode* pValueNode) {
+  if (pValueNode->placeholderNo <= 0) {
+    return pValueNode->literal;
+  }
+
+  if (TSDB_DATA_TYPE_VARCHAR != pValueNode->node.resType.type || NULL == pValueNode->datum.p) {
+    return NULL;
+  }
+
+  return varDataVal(pValueNode->datum.p);
+}
+
 //[tableAlias.]tbname = tbNamVal
 static int32_t isOperatorEqTbnameCond(STranslateContext* pCxt, SOperatorNode* pOperator, char** ppTableAlias,
                                       SArray** ppTabNames, bool* pRet) {
@@ -14987,26 +14999,17 @@ static int32_t isOperatorEqTbnameCond(STranslateContext* pCxt, SOperatorNode* pO
     *pRet = false;
     return TSDB_CODE_SUCCESS;
   }
+
+  char* tbname = getTbnameValue(pValueNode);
+  if (NULL == tbname) {
+    *pRet = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
   SArray* pTabNames = NULL;
   pTabNames = taosArrayInit(1, sizeof(void*));
   if (!pTabNames) {
     return terrno;
-  }
-
-  char* tbname = NULL;
-  if (pValueNode->placeholderNo != 0) {
-    if (NULL == pValueNode->datum.p) {
-      taosArrayDestroy(pTabNames);
-      return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
-    }
-    if (IS_VAR_DATA_TYPE(pValueNode->node.resType.type)) {
-      tbname = varDataVal(pValueNode->datum.p);
-    } else {
-      taosArrayDestroy(pTabNames);
-      return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
-    }
-  } else {
-    tbname = pValueNode->literal;
   }
 
   if (NULL == taosArrayPush(pTabNames, &tbname)) {
@@ -15022,7 +15025,10 @@ static int32_t isOperatorEqTbnameCond(STranslateContext* pCxt, SOperatorNode* pO
 //[tableAlias.]tbname in (value1, value2, ...)
 static int32_t isOperatorTbnameInCond(STranslateContext* pCxt, SOperatorNode* pOperator, char** ppTableAlias,
                                       SArray** ppTbNames, bool* pRet) {
-  if (pOperator->opType != OP_TYPE_IN) return false;
+  if (pOperator->opType != OP_TYPE_IN) {
+    *pRet = false;
+    return TSDB_CODE_SUCCESS;
+  }
   if (nodeType(pOperator->pLeft) != QUERY_NODE_FUNCTION ||
       ((SFunctionNode*)(pOperator->pLeft))->funcType != FUNCTION_TYPE_TBNAME ||
       nodeType(pOperator->pRight) != QUERY_NODE_NODE_LIST) {
@@ -15049,10 +15055,19 @@ static int32_t isOperatorTbnameInCond(STranslateContext* pCxt, SOperatorNode* pO
   SNode*     pValNode = NULL;
   FOREACH(pValNode, pValueNodeList) {
     if (nodeType(pValNode) != QUERY_NODE_VALUE) {
+      taosArrayDestroy(*ppTbNames);
+      *ppTbNames = NULL;
       *pRet = false;
       return TSDB_CODE_SUCCESS;
     }
-    if (NULL == taosArrayPush(*ppTbNames, &((SValueNode*)pValNode)->literal)) {
+    char* tbname = getTbnameValue((SValueNode*)pValNode);
+    if (NULL == tbname) {
+      taosArrayDestroy(*ppTbNames);
+      *ppTbNames = NULL;
+      *pRet = false;
+      return TSDB_CODE_SUCCESS;
+    }
+    if (NULL == taosArrayPush(*ppTbNames, &tbname)) {
       taosArrayDestroy(*ppTbNames);
       *ppTbNames = NULL;
       return terrno;
