@@ -3051,6 +3051,10 @@ static int32_t metaUpdateNtbTagValueImpl(SMeta *pMeta, SMetaEntry *pTable, SSche
         for (int32_t r = 0; r < pTable->colRef.nTagRefs; r++) {
           if (pTable->colRef.pTagRef[r].hasRef && pTable->colRef.pTagRef[r].id == colId) {
             pTable->colRef.pTagRef[r].hasRef = false;
+            // Free the owned tag-cond JSON before clearing the ref, same as metaDropTableTag,
+            // otherwise a ref carrying a tag condition leaks it on every such conversion.
+            taosMemoryFreeClear(pTable->colRef.pTagRef[r].tagCondJson);
+            pTable->colRef.pTagRef[r].tagCondLen = 0;
             memset(pTable->colRef.pTagRef[r].refDbName, 0, TSDB_DB_NAME_LEN);
             memset(pTable->colRef.pTagRef[r].refTableName, 0, TSDB_TABLE_NAME_LEN);
             memset(pTable->colRef.pTagRef[r].refColName, 0, TSDB_COL_NAME_LEN);
