@@ -7279,6 +7279,7 @@ int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_
     }
   } else if (mr.me.type == TSDB_NORMAL_TABLE || mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
     // normal/virtual-normal tables may own tags (ntbEntry.schemaTag); expose them to the catalog
+    *pTagSchema = NULL;
     if (mr.me.ntbEntry.schemaTag.nCols > 0) {
       *pTagSchema = tCloneSSchemaWrapper(&mr.me.ntbEntry.schemaTag);
       if (NULL == *pTagSchema) {
