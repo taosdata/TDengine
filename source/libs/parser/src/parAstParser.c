@@ -625,9 +625,8 @@ static int32_t collectMetaKeyFromCreateTable(SCollectMetaKeyCxt* pCxt, SCreateTa
   // rewrite gate in parTranslater.c so the table vgroup is pre-fetched for the normal-table
   // path; otherwise the async meta cache misses and translate yields PAR_INTERNAL_ERROR.
   // CREATE STABLE never takes the normal-table path, whatever the tag values are.
-  bool vnodePath = (NULL == pStmt->pTags) && !pStmt->stableKeyword;
-  if (!vnodePath && !pStmt->stableKeyword && pStmt->pTags != NULL) {
-    vnodePath = true;
+  bool vnodePath = !pStmt->stableKeyword;
+  if (vnodePath && pStmt->pTags != NULL) {
     SNode* pTag = NULL;
     FOREACH(pTag, pStmt->pTags) {
       if (((SColumnDefNode*)pTag)->pTagVal == NULL) {
