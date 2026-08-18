@@ -147,6 +147,10 @@ int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, cons
 int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
                                 int64_t groupId, const SArray* pNotifyAddrUrls, int32_t addOptions,
                                 const SSTriggerCalcParam* pParams, int32_t nParam);
+int32_t streamSendNotifyContentWithResult(SStreamTask* pTask, const char* streamName, const char* tableName,
+                                          int32_t triggerType, int64_t groupId, const SArray* pNotifyAddrUrls,
+                                          int32_t addOptions, const SSTriggerCalcParam* pParams, int32_t nParam,
+                                          bool* pAttempted, bool* pDelivered);
 
 int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int64_t groupId, TSKEY start,
                             TSKEY end, void*** pppIter);

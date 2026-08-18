@@ -432,8 +432,8 @@ int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
 
                     TAOS_RES *res = taos_query(ctx->conn, execSql);
                     if (taos_errno(res) != 0) {
-                        logWarn("avro tbtags: query failed: %s, reason: %s",
-                                execSql, taos_errstr(res));
+                        logWarn("avro tbtags: query failed(0x%08X): %s, reason: %s",
+                                taos_errno(res), execSql, taos_errstr(res));
                         failed++;
                     } else {
                         success++;
@@ -569,8 +569,8 @@ int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
         // Execute
         TAOS_RES *res = taos_query(ctx->conn, sqlstr);
         if (taos_errno(res) != 0) {
-            logWarn("avro tbtags: create child table failed: %s, reason: %s",
-                    sqlstr, taos_errstr(res));
+            logWarn("avro tbtags: create child table failed(0x%08X): %s, reason: %s",
+                    taos_errno(res), sqlstr, taos_errstr(res));
             failed++;
         } else {
             success++;

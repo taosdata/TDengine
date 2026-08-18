@@ -13,6 +13,15 @@
 #include "bckUtil.h"
 #include "bckArgs.h"
 
+// WebSocket driver error codes (libtaosws), surfaced through taos_errno.
+// A closed/broken WebSocket connection (e.g. taosadapter restarted) must be
+// treated as retryable, just like the native RPC_BROKEN_LINK case.  They can
+// appear both bare (0xE002, from taos_fetch_raw_block) and flag-wrapped
+// (0x8000E002, from taos_errno), so errorCodeCanRetry strips the flag bit.
+#define TSDB_CODE_WS_CLOSED       0xE002  // connection closed
+#define TSDB_CODE_WS_SEND_TIMEOUT 0xE003  // send timed out
+#define TSDB_CODE_WS_RECV_TIMEOUT 0xE004  // receive timed out
+
 void sleepMs(int ms) {
     taosMsleep(ms);
 }
@@ -34,7 +43,49 @@ void freePtr(void *ptr) {
     }
 }
 
+const char* bckErrStr(int code) {
+    switch (code) {
+        case TSDB_CODE_BCK_INVALID_PARAM:        return "invalid parameter";
+        case TSDB_CODE_BCK_MALLOC_FAILED:        return "memory allocation failed";
+        case TSDB_CODE_BCK_CREATE_THREAD_FAILED: return "create thread failed";
+        case TSDB_CODE_BCK_CREATE_FILE_FAILED:   return "create file failed";
+        case TSDB_CODE_BCK_NO_FIELDS:            return "query result has no fields";
+        case TSDB_CODE_BCK_FETCH_FIELDS_FAILED:  return "fetch fields failed";
+        case TSDB_CODE_BCK_COMPRESS_FAILED:      return "compress failed";
+        case TSDB_CODE_BCK_WRITE_FILE_FAILED:    return "write file failed";
+        case TSDB_CODE_BCK_CONN_POOL_EXHAUSTED:  return "connection pool exhausted";
+        case TSDB_CODE_BCK_READ_FILE_FAILED:     return "read file failed";
+        case TSDB_CODE_BCK_INVALID_FILE:         return "invalid backup file";
+        case TSDB_CODE_BCK_STMT_FAILED:          return "stmt bind/execute failed";
+        case TSDB_CODE_BCK_DECOMPRESS_FAILED:    return "decompress failed";
+        case TSDB_CODE_BCK_OPEN_DIR_FAILED:      return "open directory failed";
+        case TSDB_CODE_BCK_EXEC_SQL_FAILED:      return "execute sql failed";
+        case TSDB_CODE_BCK_USER_CANCEL:          return "cancelled by user";
+        case TSDB_CODE_BCK_SPEC_TABLE_NOT_FOUND: return "specified database/table not found";
+        case TSDB_CODE_BCK_INVALID_COMBINATION:  return "invalid option combination";
+        default:                                 return NULL;
+    }
+}
+
+const char* bckErrMsg(int code) {
+    const char *msg = bckErrStr(code);
+    if (!msg) msg = tstrerror(code);
+    return msg;
+}
+
 bool errorCodeCanRetry(int code) {
+    // WebSocket driver reports the same error both bare (0xE002, returned by
+    // taos_fetch_raw_block) and flag-wrapped (0x8000E002, returned by
+    // taos_errno after taos_query).  Strip the 0x80000000 flag bit so both
+    // forms are treated as the same retryable condition.
+    switch (code & 0x7FFFFFFF) {
+        case TSDB_CODE_WS_CLOSED:
+        case TSDB_CODE_WS_SEND_TIMEOUT:
+        case TSDB_CODE_WS_RECV_TIMEOUT:
+            return true;
+        default:
+            break;
+    }
     switch (code) {
         // RPC / network layer errors
         case TSDB_CODE_RPC_NETWORK_ERROR:
@@ -47,6 +98,31 @@ bool errorCodeCanRetry(int code) {
         case TSDB_CODE_SYN_TIMEOUT:
         // Vnode temporarily busy (compaction, split, etc.)
         case TSDB_CODE_VND_QUERY_BUSY:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// True only when the pooled connection itself is dead (server restart / network
+// drop) and must be rebuilt.  Transient server-side errors (VND_QUERY_BUSY,
+// SYN_NOT_LEADER, ...) leave the connection healthy, so the caller should retry
+// on the same handle instead of forcing a reconnect.
+bool bckConnLevelError(int code) {
+    switch (code & 0x7FFFFFFF) {
+        case TSDB_CODE_WS_CLOSED:
+        case TSDB_CODE_WS_SEND_TIMEOUT:
+        case TSDB_CODE_WS_RECV_TIMEOUT:
+            return true;
+        default:
+            break;
+    }
+    switch (code) {
+        // RPC / network layer errors - the link is broken
+        case TSDB_CODE_RPC_NETWORK_ERROR:
+        case TSDB_CODE_RPC_NETWORK_BUSY:
+        case TSDB_CODE_RPC_TIMEOUT:
+        case TSDB_CODE_RPC_BROKEN_LINK:
             return true;
         default:
             return false;
@@ -121,6 +197,9 @@ int obtainFileName(BackFileType fileType,
         break;
     case BACK_FILE_STREAMSQL:
         snprintf(fileName, len, "%s/%s/stream.sql", outPath, dbName);
+        break;
+    case BACK_FILE_TOPICSQL:
+        snprintf(fileName, len, "%s/%s/topic.sql", outPath, dbName);
         break;
     default:
         return TSDB_CODE_INVALID_PARA;

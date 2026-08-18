@@ -179,6 +179,56 @@ static int32_t pstCountExternalWindowNodes(const SQueryPlan* pPlan) {
   return count;
 }
 
+static int32_t pstCountHashExternalWindowNodes(const SPhysiNode* pNode) {
+  if (nullptr == pNode) {
+    return 0;
+  }
+
+  int32_t count = (QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL == nodeType((const SNode*)pNode)) ? 1 : 0;
+
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) { count += pstCountHashExternalWindowNodes((const SPhysiNode*)pChild); }
+
+  return count;
+}
+
+static int32_t pstCountHashExternalWindowNodes(const SQueryPlan* pPlan) {
+  if (nullptr == pPlan) {
+    return 0;
+  }
+
+  int32_t count = 0;
+  SNode*  pLevelNode = nullptr;
+  FOREACH(pLevelNode, pPlan->pSubplans) {
+    SNodeListNode* pLevel = (SNodeListNode*)pLevelNode;
+    SNode*         pSubplanNode = nullptr;
+    FOREACH(pSubplanNode, pLevel->pNodeList) {
+      const SSubplan* pSubplan = (const SSubplan*)pSubplanNode;
+      count += pstCountHashExternalWindowNodes(pSubplan->pNode);
+    }
+  }
+
+  return count;
+}
+
+static void pstCheckCalcPlanHashExternalWindowCount(const SQuery* pQuery, ParserStage stage, int32_t expectedCount) {
+  ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+  ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+  SCMCreateStreamReq req = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+  unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+  ASSERT_NE(req.calcPlan, nullptr);
+
+  SNode* pPlanNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)req.calcPlan, &pPlanNode));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlanNode, nodesDestroyNode);
+  ASSERT_NE(pPlanNode, nullptr);
+
+  int32_t count = pstCountHashExternalWindowNodes((const SQueryPlan*)pPlanNode);
+  EXPECT_EQ(count, expectedCount);
+}
+
 static int32_t pstCountExternalWindowNodesNeedCalcTimeRange(const SPhysiNode* pNode) {
   if (nullptr == pNode) {
     return 0;
@@ -2626,6 +2676,21 @@ TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinAggSubqueries) {
       "join "
       "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 where ts >= _twstart and ts < _twend) b "
       "on a.ts = b.ts");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDerivedAggFilterUsesPhysiExternalWindow) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanHashExternalWindowCount(pQuery, stage, 1); });
+
+  run("create stream stream_streamdb.s1 interval(10s) sliding(1s) from stream_triggerdb.st1 "
+      "partition by tbname stream_options(ignore_nodata_trigger) "
+      "into stream_outdb.stream_out output_subtable('alarm_rl') (ts, cnt) as "
+      "select ts, cnt from (select _twstart ts, count(*) cnt from %%tbname "
+      "where ts >= _twstart and ts < _twend and c1 >= 11 and c2 = 0) "
+      "where cnt >= 5");
 }
 
 TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinExprSubqueryDisabled) {

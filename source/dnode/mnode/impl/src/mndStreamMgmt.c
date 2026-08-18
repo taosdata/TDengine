@@ -4040,17 +4040,12 @@ void msmChkHandleTriggerOperations(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask, S
   }
 
   if (pTask->detailStatus >= 0 && pCtx->pReq->pTriggerStatus) {
-    (void)mstWaitLock(&pStatus->detailStatusLock, false);
-    if (NULL == pStatus->detailStatus) {
-      pStatus->detailStatus = taosMemoryCalloc(1, sizeof(SSTriggerRuntimeStatus));
-      if (NULL == pStatus->detailStatus) {
-        taosWUnLockLatch(&pStatus->detailStatusLock);
-        TSDB_CHECK_NULL(pStatus->detailStatus, code, lino, _exit, terrno);
-      }
+    SSTriggerRuntimeStatus* pTrigger = taosArrayGet(pCtx->pReq->pTriggerStatus, pTask->detailStatus);
+    if (pTrigger == NULL) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
     }
-    
-    memcpy(pStatus->detailStatus, taosArrayGet(pCtx->pReq->pTriggerStatus, pTask->detailStatus), sizeof(SSTriggerRuntimeStatus));
-    taosWUnLockLatch(&pStatus->detailStatusLock);
+
+    TAOS_CHECK_EXIT(mstCopyTriggerRuntimeStatus(pStatus, pTrigger));
   }
 
 _exit:
@@ -4059,6 +4054,91 @@ _exit:
     // IGNORE STOP STREAM BY ERROR
     msttError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
+}
+
+static bool msmTaskStatusAcceptsHeartbeatMetrics(EStreamStatus status) {
+  return status == STREAM_STATUS_RUNNING || status == STREAM_STATUS_INIT;
+}
+
+static SStmTaskStatus* msmGetHeartbeatTaskStatus(const SStmTaskStatusMsg* pTask) {
+  if (!msmTaskStatusAcceptsHeartbeatMetrics(pTask->status)) {
+    return NULL;
+  }
+
+  SStmTaskStatus** ppStatus =
+      taosHashGet(mStreamMgmt.taskMap, &pTask->streamId, sizeof(pTask->streamId) + sizeof(pTask->taskId));
+  if (ppStatus == NULL || *ppStatus == NULL) {
+    return NULL;
+  }
+
+  SStmStatus* pStream = (SStmStatus*)(*ppStatus)->pStream;
+  if (pStream == NULL || atomic_load_8(&pStream->stopped) || pTask->seriousId != (*ppStatus)->id.seriousId ||
+      pTask->nodeId != (*ppStatus)->id.nodeId) {
+    return NULL;
+  }
+
+  return *ppStatus;
+}
+
+static void msmApplyHeartbeatTaskMetrics(SStmGrpCtx* pCtx) {
+  int32_t statusNum = taosArrayGetSize(pCtx->pReq->pStreamStatus);
+  for (int32_t i = 0; i < statusNum; ++i) {
+    SStmTaskStatusMsg* pTask = taosArrayGet(pCtx->pReq->pStreamStatus, i);
+    SStmTaskStatus*    pStatus = pTask == NULL ? NULL : msmGetHeartbeatTaskStatus(pTask);
+    if (pStatus != NULL) {
+      mstInvalidateTaskMetrics(pStatus);
+    }
+  }
+
+  if (pCtx->pReq->observabilityVersion != STREAM_HB_OBSERVABILITY_VERSION_V1) {
+    return;
+  }
+
+  int32_t entryNum = taosArrayGetSize(pCtx->pReq->pTaskMetrics);
+  if (entryNum <= 0 || statusNum <= 0) {
+    return;
+  }
+
+  uint8_t* pIndexCounts = taosMemoryCalloc(statusNum, sizeof(*pIndexCounts));
+  if (pIndexCounts == NULL) {
+    mstError("failed to allocate stream task metric index counts, error:%s", tstrerror(terrno));
+    return;
+  }
+
+  for (int32_t i = 0; i < entryNum; ++i) {
+    SStreamTaskMetricsEntry* pEntry = taosArrayGet(pCtx->pReq->pTaskMetrics, i);
+    if (pEntry != NULL && pEntry->taskStatusIndex >= 0 && pEntry->taskStatusIndex < statusNum &&
+        pIndexCounts[pEntry->taskStatusIndex] < UINT8_MAX) {
+      ++pIndexCounts[pEntry->taskStatusIndex];
+    }
+  }
+
+  for (int32_t i = 0; i < entryNum; ++i) {
+    SStreamTaskMetricsEntry* pEntry = taosArrayGet(pCtx->pReq->pTaskMetrics, i);
+    if (pEntry == NULL || pEntry->taskStatusIndex < 0 || pEntry->taskStatusIndex >= statusNum ||
+        pIndexCounts[pEntry->taskStatusIndex] != 1) {
+      mstError("invalid or duplicate stream task metric index:%d", pEntry == NULL ? -1 : pEntry->taskStatusIndex);
+      continue;
+    }
+
+    SStmTaskStatusMsg* pTask = taosArrayGet(pCtx->pReq->pStreamStatus, pEntry->taskStatusIndex);
+    if (pTask != NULL && !msmTaskStatusAcceptsHeartbeatMetrics(pTask->status)) {
+      continue;
+    }
+
+    SStmTaskStatus* pStatus = pTask == NULL ? NULL : msmGetHeartbeatTaskStatus(pTask);
+    if (pStatus == NULL) {
+      mstError("failed to resolve stream task metric index:%d", pEntry->taskStatusIndex);
+      continue;
+    }
+
+    int32_t code = mstApplyTaskMetrics(pStatus, pEntry->taskStatusIndex, pTask->streamId, pEntry);
+    if (code != TSDB_CODE_SUCCESS) {
+      mstError("failed to apply stream task metrics, code:%s", tstrerror(code));
+    }
+  }
+
+  taosMemoryFree(pIndexCounts);
 }
 
 int32_t msmNormalHandleStatusUpdate(SStmGrpCtx* pCtx) {
@@ -4089,9 +4169,9 @@ int32_t msmNormalHandleStatusUpdate(SStmGrpCtx* pCtx) {
     }
 
     if ((pTask->seriousId != (*ppStatus)->id.seriousId) || (pTask->nodeId != (*ppStatus)->id.nodeId)) {
-      msttInfo("task mismatch with it in taskMap, will try to rm it, current seriousId:%" PRId64 ", nodeId:%d", 
-          (*ppStatus)->id.seriousId, (*ppStatus)->id.nodeId);
-          
+      msttInfo("task mismatch with it in taskMap, will try to rm it, current seriousId:%" PRId64 ", nodeId:%d",
+               (*ppStatus)->id.seriousId, (*ppStatus)->id.nodeId);
+
       msmHandleStreamTaskErr(pCtx, STM_ERR_TASK_NOT_EXISTS, pTask);
       continue;
     }
@@ -4125,6 +4205,8 @@ int32_t msmNormalHandleStatusUpdate(SStmGrpCtx* pCtx) {
       msmChkHandleTriggerOperations(pCtx, pTask, *ppStatus);
     }
   }
+
+  msmApplyHeartbeatTaskMetrics(pCtx);
 
 _exit:
 
@@ -5541,7 +5623,7 @@ void msmCheckTaskListStatus(int64_t streamId, SStmTaskStatus** pList, int32_t ta
     mstsInfo("%s TASK:%" PRIx64 " status not updated for %" PRId64 "ms, will try to redeploy it", 
         gStreamTaskTypeStr[pTask->type], pTask->id.taskId, noUpTs);
 
-    int64_t newSid = atomic_add_fetch_64(&pTask->id.seriousId, 1);
+    int64_t newSid = mstBumpTaskSeriousId(pTask);
     mstsDebug("task %" PRIx64 " SID updated to %" PRIx64, pTask->id.taskId, newSid);
 
     SStmTaskAction task = {0};
@@ -5662,7 +5744,7 @@ void msmHandleRunnerRedeploy(int64_t streamId, SStmSnodeStreamStatus* pStream, i
           return;
         }
 
-        int64_t newSid = atomic_add_fetch_64(&pTask->id.seriousId, 1);
+        int64_t newSid = mstBumpTaskSeriousId(pTask);
         mstsDebug("task %" PRIx64 " SID updated to %" PRIx64, pTask->id.taskId, newSid);
       }
       

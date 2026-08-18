@@ -12,28 +12,65 @@
 #include "bckArgs.h"
 #include "bckLog.h"
 #include "bckDb.h"
+#include "bckPool.h"
+#include "bckUtil.h"
+
+// Run a query with automatic reconnect+retry on connection-level errors (e.g.
+// taosadapter/taosd restarted mid-backup).  On success stores the connection
+// in *outConn and returns the result; the caller must taos_free_result and
+// releaseConnection.  Returns NULL on unrecoverable error with *code set.
+static TAOS_RES* queryWithRetry(const char *sql, TAOS **outConn, int *code) {
+    int retry = argRetryCount();
+    int attempt = 0;
+    while (1) {
+        TAOS *conn = getConnection(code);
+        if (conn == NULL) return NULL;
+        TAOS_RES *res = taos_query(conn, sql);
+        int qcode;
+        if (res == NULL) {
+            // A NULL result is always a failure - never mask it as success even
+            // if the thread-local errno happened to be reset to 0 meanwhile.
+            int e = taos_errno(NULL);
+            qcode = (e != TSDB_CODE_SUCCESS) ? e : TSDB_CODE_BCK_EXEC_SQL_FAILED;
+        } else {
+            qcode = taos_errno(res);
+        }
+        if (qcode == TSDB_CODE_SUCCESS) {
+            *code = TSDB_CODE_SUCCESS;
+            *outConn = conn;
+            return res;
+        }
+        const char *estr = (res == NULL) ? taos_errstr(NULL) : taos_errstr(res);
+        if (res) taos_free_result(res);
+        if (!errorCodeCanRetry(qcode) || attempt >= retry || g_interrupted || g_fatalError) {
+            logError("query failed(0x%08X %s): %s", qcode, estr, sql);
+            releaseConnection(conn);
+            *code = qcode;
+            return NULL;
+        }
+        if (bckConnLevelError(qcode)) {
+            // connection dead - rebuild the pool; the next getConnection()
+            // backs off until the server (taosadapter/taosd) is back up
+            resetConnectionPool();
+        } else {
+            // transient server-side error - the connection is still healthy
+            releaseConnection(conn);
+        }
+        attempt++;
+        logInfo("retry query(0x%08X): %s, attempt: %d", qcode, sql, attempt);
+        sleepMs(argRetrySleepMs());
+    }
+}
 
 char ** getDBSuperTableNames(const char *dbName, int *code) {
     *code = TSDB_CODE_FAILED;
-    
-    // get connection
-    TAOS *conn = getConnection(code);
-    if (!conn) {
-        logError("get connection failed");
-        return NULL;
-    }
 
     // query stables
     char sql[256];
     snprintf(sql, sizeof(sql), "SHOW `%s`.STABLES", dbName);
-    TAOS_RES *res = taos_query(conn, sql);
-    *code = taos_errno(res);
-    if (!res || *code) {
-        logError("query stables failed(0x%08X %s): %s", *code, taos_errstr(res), sql);
-        if (res) taos_free_result(res);
-        releaseConnection(conn);
-        return NULL;
-    }
+    TAOS *conn = NULL;
+    TAOS_RES *res = queryWithRetry(sql, &conn, code);
+    if (res == NULL) return NULL;
 
     // count rows
     int count = 0;
@@ -74,12 +111,6 @@ char ** getDBSuperTableNames(const char *dbName, int *code) {
 
 char ** getDBNormalTableNames(const char *dbName, int *code) {
     *code = TSDB_CODE_FAILED;
-    
-    TAOS *conn = getConnection(code);
-    if (!conn) {
-        logError("get connection failed");
-        return NULL;
-    }
 
     char sql[1024];
     char specFilter[512] = "";
@@ -92,14 +123,9 @@ char ** getDBNormalTableNames(const char *dbName, int *code) {
              "SELECT table_name FROM information_schema.ins_tables "
              "WHERE db_name='%s' AND stable_name IS NULL"
              " AND type NOT LIKE 'VIRTUAL%%'%s ORDER BY table_name", dbName, specFilter);
-    TAOS_RES *res = taos_query(conn, sql);
-    *code = taos_errno(res);
-    if (!res || *code) {
-        logError("query normal tables failed(0x%08X %s): %s", *code, taos_errstr(res), sql);
-        if (res) taos_free_result(res);
-        releaseConnection(conn);
-        return NULL;
-    }
+    TAOS *conn = NULL;
+    TAOS_RES *res = queryWithRetry(sql, &conn, code);
+    if (res == NULL) return NULL;
 
     int count = 0;
     int capacity = 16;
@@ -139,25 +165,14 @@ char ** getDBNormalTableNames(const char *dbName, int *code) {
 char ** getDBVirtualTableNames(const char *dbName, int *code) {
     *code = TSDB_CODE_FAILED;
 
-    TAOS *conn = getConnection(code);
-    if (!conn) {
-        logError("get connection failed");
-        return NULL;
-    }
-
     char sql[512];
     snprintf(sql, sizeof(sql),
              "SELECT table_name FROM information_schema.ins_tables "
              "WHERE db_name='%s' AND (type='VIRTUAL_NORMAL_TABLE' OR type='VIRTUAL_CHILD_TABLE') "
              "ORDER BY table_name", dbName);
-    TAOS_RES *res = taos_query(conn, sql);
-    if (!res || taos_errno(res)) {
-        *code = taos_errno(res);
-        logError("query virtual tables failed: %s", taos_errstr(res));
-        if (res) taos_free_result(res);
-        releaseConnection(conn);
-        return NULL;
-    }
+    TAOS *conn = NULL;
+    TAOS_RES *res = queryWithRetry(sql, &conn, code);
+    if (res == NULL) return NULL;
 
     int count = 0;
     int capacity = 16;
@@ -210,17 +225,10 @@ int getDBNormalTableCount(const char *dbName, int32_t *outCount) {
 }
 
 int queryValueInt(const char *sql, int col, int32_t *outValue) {
-    int connCode = TSDB_CODE_FAILED;
-    TAOS* conn = getConnection(&connCode);
-    if (conn == NULL) {
-        return connCode;
-    }
-    TAOS_RES *res = taos_query(conn, sql);
-    int code = taos_errno(res);
-    if (code != TSDB_CODE_SUCCESS) {
-        logError("query failed(0x%08X %s): %s", code, taos_errstr(res), sql);
-        if (res) taos_free_result(res);
-        releaseConnection(conn);
+    int code = TSDB_CODE_FAILED;
+    TAOS *conn = NULL;
+    TAOS_RES *res = queryWithRetry(sql, &conn, &code);
+    if (res == NULL) {
         return code;
     }
     TAOS_ROW row = taos_fetch_row(res);

@@ -38,4 +38,17 @@ typedef struct {
 // restore database meta: create db, create stb, create child tables with tags
 int restoreDatabaseMeta(const char *dbName);
 
+// restore database extended meta: virtual tables, streams, topics.
+// Must be called only after every database's physical tables exist, because a
+// virtual table may reference tables in other databases.
+// needCreateDb: true when the basic stage did not run for this database
+//               (--content=ext-meta), so the database must be created first.
+int restoreDatabaseExtMeta(const char *dbName, bool needCreateDb);
+
+// Validate that every user-specified table name (positional args) exists in
+// the backup files for the given database.  Must be called BEFORE any restore
+// work begins.  Returns TSDB_CODE_SUCCESS if all tables are found, or
+// TSDB_CODE_BCK_SPEC_TABLE_NOT_FOUND listing every missing name.
+int validateSpecTablesForRestore(const char *dbName);
+
 #endif  // INC_RESTOREMETA_H_
