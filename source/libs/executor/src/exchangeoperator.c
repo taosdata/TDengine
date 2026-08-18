@@ -73,7 +73,8 @@ static int32_t seqLoadRemoteData(SOperatorInfo* pOperator);
 static int32_t prepareLoadRemoteData(SOperatorInfo* pOperator);
 static int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock,
                                  bool holdDataInBuf);
-static int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDataInfo);
+static int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDataInfo,
+                                     SStreamRuntimeInfo* pStreamRuntimeInfo);
 
 static int32_t exchangeWait(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo);
 
@@ -227,7 +228,7 @@ static void streamSequenciallyLoadRemoteData(SOperatorInfo* pOperator,
       continue;
     }
 
-    code = doExtractResultBlocks(pExchangeInfo, pDataInfo);
+    code = doExtractResultBlocks(pExchangeInfo, pDataInfo, pTaskInfo->pStreamRuntimeInfo);
     TAOS_CHECK_EXIT(code);
 
     SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
@@ -346,7 +347,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
         break;
       }
 
-      TAOS_CHECK_EXIT(doExtractResultBlocks(pExchangeInfo, pDataInfo));
+      TAOS_CHECK_EXIT(doExtractResultBlocks(pExchangeInfo, pDataInfo, pTaskInfo->pStreamRuntimeInfo));
 
       SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
       updateLoadRemoteInfo(pLoadInfo, pRetrieveRsp->numOfRows, pRetrieveRsp->compLen, pDataInfo->startTime, pOperator);
@@ -1855,7 +1856,8 @@ void storeNotifyInfo(SOperatorInfo* pOperator) {
   }
 }
 
-int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDataInfo) {
+int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDataInfo,
+                              SStreamRuntimeInfo* pStreamRuntimeInfo) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
@@ -1921,6 +1923,9 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
     void* tmp = taosArrayPush(pExchangeInfo->pResultBlockList, &pb);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
     qDebug("%dth block added to resultBlockList, rows:%" PRId64, index, pb->info.rows);
+    if (pStreamRuntimeInfo != NULL && pStreamRuntimeInfo->inputStatsFp != NULL) {
+      pStreamRuntimeInfo->inputStatsFp(pStreamRuntimeInfo->pInputStatsParam, pb->info.rows, 1);
+    }
     pb = NULL;
   }
 
@@ -2031,7 +2036,7 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
       continue;
     }
 
-    code = doExtractResultBlocks(pExchangeInfo, pDataInfo);
+    code = doExtractResultBlocks(pExchangeInfo, pDataInfo, pTaskInfo->pStreamRuntimeInfo);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -2621,6 +2626,8 @@ int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDa
 static int32_t exchangeWait(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo) {
   SExecTaskInfo* pTask = pOperator->pTaskInfo;
   int32_t        code = TSDB_CODE_SUCCESS;
+  void*                pBlockingStatsParam = NULL;
+  FStreamBlockingStats blockingStatsFp = NULL;
   if (pTask->pWorkerCb) {
     code = pTask->pWorkerCb->beforeBlocking(pTask->pWorkerCb->pPool);
     if (code != TSDB_CODE_SUCCESS) {
@@ -2629,7 +2636,17 @@ static int32_t exchangeWait(SOperatorInfo* pOperator, SExchangeInfo* pExchangeIn
     }
   }
 
+  if (pTask->pStreamRuntimeInfo != NULL) {
+    pBlockingStatsParam = pTask->pStreamRuntimeInfo->pBlockingStatsParam;
+    blockingStatsFp = pTask->pStreamRuntimeInfo->blockingStatsFp;
+  }
+  if (blockingStatsFp != NULL) {
+    blockingStatsFp(pBlockingStatsParam, true);
+  }
   code = tsem_wait(&pExchangeInfo->ready);
+  if (blockingStatsFp != NULL) {
+    blockingStatsFp(pBlockingStatsParam, false);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     pTask->code = code;

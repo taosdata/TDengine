@@ -15,6 +15,7 @@
 #include "decimal.h"       /* decimalToStr — for STMT2 DECIMAL string conversion  */
 #include "ttypes.h"        /* IS_DECIMAL_TYPE                                      */
 #include "bckLog.h"
+#include "bckUtil.h"
 #include <taoserror.h>
 #include <taos.h>
 
@@ -36,14 +37,14 @@ int resultToFileParquet(TAOS_RES *res, const char *fileName, int64_t *outRows, v
 
     int numFields = taos_num_fields(res);
     if (numFields <= 0) {
-        logError("resultToFileParquet: no fields, errstr: %s", taos_errstr(res));
+        logError("resultToFileParquet: no fields(0x%08X, %s)", taos_errno(res), taos_errstr(res));
         return TSDB_CODE_BCK_NO_FIELDS;
     }
 
     TAOS_FIELD *fields = taos_fetch_fields(res);
     if (fields == NULL) {
-        logError("resultToFileParquet: fetch fields failed, errstr: %s",
-                 taos_errstr(res));
+        logError("resultToFileParquet: fetch fields failed(0x%08X, %s)",
+                 taos_errno(res), taos_errstr(res));
         return TSDB_CODE_BCK_FETCH_FIELDS_FAILED;
     }
 
@@ -59,8 +60,9 @@ int resultToFileParquet(TAOS_RES *res, const char *fileName, int64_t *outRows, v
     int     blockRows  = 0;
     void   *block      = NULL;
     int64_t totalRows  = 0;
+    int     fetchCode  = TSDB_CODE_SUCCESS;
 
-    while (taos_fetch_raw_block(res, &blockRows, &block) == TSDB_CODE_SUCCESS) {
+    while ((fetchCode = taos_fetch_raw_block(res, &blockRows, &block)) == TSDB_CODE_SUCCESS) {
         if (g_interrupted) {
             parquetWriterClose(pw);
             return TSDB_CODE_BCK_USER_CANCEL;
@@ -71,11 +73,21 @@ int resultToFileParquet(TAOS_RES *res, const char *fileName, int64_t *outRows, v
 
         code = parquetWriterWriteBlock(pw, block, blockRows);
         if (code != TSDB_CODE_SUCCESS) {
-            logError("resultToFileParquet: write block failed(%d): %s",
-                     code, fileName);
+            logError("resultToFileParquet: write block failed(0x%08X, %s): %s",
+                     code, bckErrMsg(code), fileName);
             parquetWriterClose(pw);
             return code;
         }
+    }
+
+    // Loop exits with non-SUCCESS when the connection broke mid-fetch (e.g.
+    // server killed during backup).  Without this check the partial output
+    // would be treated as a complete backup file, silently losing rows.
+    if (fetchCode != TSDB_CODE_SUCCESS) {
+        logError("resultToFileParquet: fetch raw block failed(0x%08X, %s): %s",
+                 fetchCode, taos_errstr(res), fileName);
+        parquetWriterClose(pw);
+        return fetchCode;
     }
 
     if (outRows) *outRows = totalRows;
@@ -117,15 +129,15 @@ static int parStmtCallback(void          *userData,
 
     int ret = taos_stmt_bind_param_batch(ctx->stmt, bindArray);
     if (ret != 0) {
-        logError("fileParquetToStmt: bind_param_batch failed: %s table=%s",
-                 taos_stmt_errstr(ctx->stmt), ctx->tbName);
+        logError("fileParquetToStmt: bind_param_batch failed(0x%08X, %s) table=%s",
+                 ret, taos_stmt_errstr(ctx->stmt), ctx->tbName);
         return ret;
     }
 
     ret = taos_stmt_add_batch(ctx->stmt);
     if (ret != 0) {
-        logError("fileParquetToStmt: add_batch failed: %s table=%s",
-                 taos_stmt_errstr(ctx->stmt), ctx->tbName);
+        logError("fileParquetToStmt: add_batch failed(0x%08X, %s) table=%s",
+                 ret, taos_stmt_errstr(ctx->stmt), ctx->tbName);
         return ret;
     }
 
@@ -135,8 +147,8 @@ static int parStmtCallback(void          *userData,
     if (ctx->batchRows >= PAR_STMT_BATCH_THRESHOLD) {
         ret = taos_stmt_execute(ctx->stmt);
         if (ret != 0) {
-            logError("fileParquetToStmt: execute failed: %s table=%s batchRows=%" PRId64,
-                     taos_stmt_errstr(ctx->stmt), ctx->tbName, ctx->batchRows);
+            logError("fileParquetToStmt: execute failed(0x%08X, %s) table=%s batchRows=%" PRId64,
+                     ret, taos_stmt_errstr(ctx->stmt), ctx->tbName, ctx->batchRows);
             return ret;
         }
         ctx->batchRows = 0;
@@ -163,7 +175,7 @@ int fileParquetToStmt(TAOS_STMT  *stmt,
     int code = TSDB_CODE_FAILED;
     ParquetReader *pr = parquetReaderOpen(fileName, &code);
     if (pr == NULL) {
-        logError("fileParquetToStmt: open '%s' failed(%d)", fileName, code);
+        logError("fileParquetToStmt: open '%s' failed(0x%08X, %s)", fileName, code, bckErrMsg(code));
         return code;
     }
 
@@ -182,8 +194,8 @@ int fileParquetToStmt(TAOS_STMT  *stmt,
         /* flush final partial batch */
         int ret = taos_stmt_execute(stmt);
         if (ret != 0) {
-            logError("fileParquetToStmt: final execute failed: %s file=%s",
-                     taos_stmt_errstr(stmt), fileName);
+            logError("fileParquetToStmt: final execute failed(0x%08X, %s) file=%s",
+                     ret, taos_stmt_errstr(stmt), fileName);
             code = ret;
         }
     }
@@ -352,8 +364,8 @@ static int parStmt2Callback(void           *userData,
 
         ret = taos_stmt2_bind_param(ctx->stmt2, &bv, -1);
         if (ret != 0) {
-            logError("fileParquetToStmt2: bind_param failed: %s table=%s",
-                     taos_stmt2_error(ctx->stmt2), ctx->tbName);
+            logError("fileParquetToStmt2: bind_param failed(0x%08X, %s) table=%s",
+                     ret, taos_stmt2_error(ctx->stmt2), ctx->tbName);
         }
     } else {
         ret = retCode;
@@ -373,8 +385,8 @@ static int parStmt2Callback(void           *userData,
     int affectedRows = 0;
     ret = taos_stmt2_exec(ctx->stmt2, &affectedRows);
     if (ret != 0) {
-        logError("fileParquetToStmt2: exec failed: %s table=%s",
-                 taos_stmt2_error(ctx->stmt2), ctx->tbName);
+        logError("fileParquetToStmt2: exec failed(0x%08X, %s) table=%s",
+                 ret, taos_stmt2_error(ctx->stmt2), ctx->tbName);
         return ret;
     }
 
@@ -391,7 +403,7 @@ int fileParquetToStmt2(TAOS_STMT2 *stmt2, const char *fileName, int64_t *outRows
     int code = TSDB_CODE_FAILED;
     ParquetReader *pr = parquetReaderOpen(fileName, &code);
     if (!pr) {
-        logError("fileParquetToStmt2: open '%s' failed(%d)", fileName, code);
+        logError("fileParquetToStmt2: open '%s' failed(0x%08X, %s)", fileName, code, bckErrMsg(code));
         return code;
     }
 

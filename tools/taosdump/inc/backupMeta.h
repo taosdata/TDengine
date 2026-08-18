@@ -40,7 +40,12 @@ typedef struct TagThread {
 //
 // ---------------- interfalce ----------------
 //
+// Basic metadata: db.sql, stb.sql, {stb}.csv, tags/, ntb.sql
 int  backDatabaseMeta(DBInfo *dbInfo);
+// Extended metadata: vtb.sql, vtags/, stream.sql, topic.sql.
+// These are pure DDL (no data files) and may reference objects in other
+// databases, which is why they are backed up / restored as a separate stage.
+int  backDatabaseExtMeta(DBInfo *dbInfo);
 bool isVirtualSuperTable(const char *dbName, const char *stbName);
 
 //

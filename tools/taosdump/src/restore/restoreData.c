@@ -21,6 +21,7 @@
 #include "bckPool.h"
 #include "bckDb.h"
 #include "bckSchemaChange.h"
+#include "bckUtil.h"
 #include "decimal.h"
 #include "ttypes.h"
 #include "osString.h"
@@ -123,9 +124,10 @@ static void* restoreDataThread(void *arg) {
          * resolve the table schema for "INSERT INTO ? VALUES(...)".
          * Use the plain (unquoted) name here — taos_select_db builds
          * "USE <name>" internally and the server accepts plain identifiers. */
-        if (taos_select_db(thread->conn, targetDb) != 0) {
-            logError("restore thread %d: taos_select_db('%s') failed: %s",
-                     thread->index, targetDb, taos_errstr(NULL));
+        int selRet = taos_select_db(thread->conn, targetDb);
+        if (selRet != 0) {
+            logError("restore thread %d: taos_select_db('%s') failed(0x%08X, %s)",
+                     thread->index, targetDb, selRet, taos_errstr(NULL));
             taos_stmt_close(s1);
             thread->code = TSDB_CODE_BCK_STMT_FAILED;
             return NULL;
@@ -153,10 +155,11 @@ static void* restoreDataThread(void *arg) {
 
     /* ----- per-file restore loop ----- */
     for (int i = 0; i < thread->fileCnt; i++) {
-        if (g_interrupted) {
-            // Flush checkpoint buffer on interrupt
+        if (g_interrupted || g_fatalError) {
+            // Flush checkpoint buffer on interrupt / fatal server error
             flushCkptBuffer();
-            if (thread->code == TSDB_CODE_SUCCESS) thread->code = TSDB_CODE_BCK_USER_CANCEL;
+            if (thread->code == TSDB_CODE_SUCCESS)
+                thread->code = g_fatalError ? g_fatalCode : TSDB_CODE_BCK_USER_CANCEL;
             break;
         }
 
@@ -207,34 +210,39 @@ static void* restoreDataThread(void *arg) {
             }
 
             if (code == TSDB_CODE_SUCCESS) break;
-            if (!errorCodeCanRetry(code) || attempt >= retryCount || g_interrupted) break;
+            if (!errorCodeCanRetry(code) || attempt >= retryCount || g_interrupted || g_fatalError) break;
 
-            // Transient error: replace the broken connection and reset STMT state
+            // Only a connection-level failure requires a fresh connection and
+            // STMT reset; transient server-side errors keep the healthy
+            // connection and just retry.
             attempt++;
             logInfo("restore thread %d: retry file (attempt %d): %s (code=0x%08X)",
                     thread->index, attempt, filePath, code);
-            releaseConnectionBad(thread->conn);
-            thread->conn = getConnection(&code);
-            if (!thread->conn) break;
+            if (bckConnLevelError(code)) {
+                resetConnectionPool();
+                thread->conn = getConnection(&code);
+                if (!thread->conn) break;
 
-            // Propagate new connection into both STMT contexts
-            s2Ctx.conn = thread->conn;
-            bCtx.conn  = thread->conn;
+                // Propagate new connection into both STMT contexts
+                s2Ctx.conn = thread->conn;
+                bCtx.conn  = thread->conn;
 
-            // Reset STMT handles bound to the old connection
-            if (!isPar) {
-                if (stmtVer == STMT_VERSION_2) stmt2ResetOnError(&s2Ctx);
-                else {
-                    if (!stmtResetOnError(&bCtx)) {
-                        logError("restore thread %d: cannot recover STMT1 after retry", thread->index);
-                        break;
+                // Reset STMT handles bound to the old connection
+                if (!isPar) {
+                    if (stmtVer == STMT_VERSION_2) stmt2ResetOnError(&s2Ctx);
+                    else {
+                        if (!stmtResetOnError(&bCtx)) {
+                            logError("restore thread %d: cannot recover STMT1 after retry", thread->index);
+                            break;
+                        }
+                        /* Re-select the target database on the new connection after
+                         * reinitialising the STMT1 handle (matching benchInsert.c pattern:
+                         * initStmt first, then taos_select_db). */
+                        int selRet = taos_select_db(thread->conn, bCtx.dbName);
+                        if (selRet != 0)
+                            logWarn("restore thread %d: retry taos_select_db('%s') failed(0x%08X, %s)",
+                                    thread->index, bCtx.dbName, selRet, taos_errstr(NULL));
                     }
-                    /* Re-select the target database on the new connection after
-                     * reinitialising the STMT1 handle (matching benchInsert.c pattern:
-                     * initStmt first, then taos_select_db). */
-                    if (taos_select_db(thread->conn, bCtx.dbName) != 0)
-                        logWarn("restore thread %d: retry taos_select_db('%s') failed: %s",
-                                thread->index, bCtx.dbName, taos_errstr(NULL));
                 }
             }
             sleepMs(retrySleepMs);
@@ -247,19 +255,17 @@ static void* restoreDataThread(void *arg) {
             if (thread->code == TSDB_CODE_SUCCESS) {
                 thread->code = code;  // capture first error
             }
-            // After a binary STMT failure the stmt may be in an error state.
-            // Reset it so subsequent files can still be attempted.
-            if (!isPar) {
-                if (stmtVer == STMT_VERSION_2) {
-                    stmt2ResetOnError(&s2Ctx);
-                } else {
-                    if (!stmtResetOnError(&bCtx)) {
-                        logError("restore thread %d: cannot recover STMT1, aborting", thread->index);
-                        break;
-                    }
-                }
+            // Error-handling policy: a non-retryable error aborts immediately; a
+            // retryable error was already retried `retryCount` times above.  Either
+            // way the run cannot proceed, so abort instead of continuing
+            // file-by-file (which could otherwise "succeed" with files missing).
+            if (g_interrupted) {
+                thread->code = TSDB_CODE_BCK_USER_CANCEL;
+            } else {
+                g_fatalError = 1;
+                g_fatalCode = code;
             }
-            // continue with next file (best effort)
+            break;
         } else {
             // ---- Checkpoint handling ----
             // STMT2 multi-table mode: data may still be in pending slots (not yet
@@ -406,6 +412,12 @@ static char** findDataFiles(const char *dbName, const char *stbName, int *totalC
     snprintf(prefix, sizeof(prefix), "%s_data", stbName);
     int prefixLen = strlen(prefix);
 
+    // If the STB itself is named in the spec-tables list (or this is the NTB
+    // pseudo-STB, which spec-tables addresses by individual table name only),
+    // every one of its children is wanted — same rule the backup side uses
+    // when deciding which tables' data to export.
+    bool wholeStbRequested = argStbNameInSpecTables(stbName);
+
     int capacity = 64;
     char **files = (char **)taosMemoryCalloc(capacity + 1, sizeof(char *));
     if (!files) {
@@ -441,6 +453,19 @@ static char** findDataFiles(const char *dbName, const char *stbName, int *totalC
             bool isDat = (nameLen > 4 && strcmp(subEntryName + nameLen - 4, ".dat") == 0);
             bool isPar = (nameLen > 4 && strcmp(subEntryName + nameLen - 4, ".par") == 0);
             if (!isDat && !isPar) continue;
+
+            // Each data file is named exactly {tbname}.{ext}, so positional
+            // table args (taosdump dbname tb1 tb2 ...) filter here by simply
+            // checking the file's basename — same selection the backup side
+            // already applied when it decided which tables to export.
+            if (argSpecTables() && !wholeStbRequested) {
+                char tbName[TSDB_TABLE_NAME_LEN] = {0};
+                int  stemLen = nameLen - 4;  // strip ".dat" / ".par"
+                if (stemLen >= TSDB_TABLE_NAME_LEN) stemLen = TSDB_TABLE_NAME_LEN - 1;
+                memcpy(tbName, subEntryName, stemLen);
+                tbName[stemLen] = '\0';
+                if (!argTableInSpecTables(tbName)) continue;
+            }
 
             if (*totalCount >= capacity) {
                 capacity *= 2;

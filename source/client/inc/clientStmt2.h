@@ -198,6 +198,7 @@ typedef struct {
   bool           asyncResultAvailable;
   SStmtStatInfo  stat;
   SArray*        pVgDataBlocksForRetry;  // SArray<SVgDataBlocks*> saved serialized data for NEED_CLIENT_HANDLE_ERROR retry
+  SHashObj*      pRetryTagHash;  // table name -> deep-copied tag binds used only by TABLE_NOT_EXIST retry
 
   char                      msgBuf[128];
   SStmt2LiteralCtx          ctx;
@@ -287,6 +288,7 @@ int         stmtSetTbName2(TAOS_STMT2 *stmt, const char *tbName);
 int         stmtSetTbTags2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *tags, SVCreateTbReq **pCreateTbReq);
 int         stmtCheckTags2(TAOS_STMT2 *stmt, SVCreateTbReq **pCreateTbReq);
 bool        stmt2TableExistsInCache(TAOS_STMT2 *stmt);
+int         stmt2CacheRetryTags(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *tags, bool fixedTags);
 int         stmtBindBatch2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *bind, int32_t colIdx, SVCreateTbReq *pCreateTbReq);
 int         stmtGetStbColFields2(TAOS_STMT2 *stmt, int *nums, TAOS_FIELD_ALL **fields);
 int         stmtEnsureColumnFieldCache2(TAOS_STMT2 *stmt);

@@ -489,3 +489,77 @@ TEST(execUtilTest, handleRemoteRowResNoDoubleFreeOnExtractFailure) {
   execUtilTestResetHandleRemoteRowResState();
   taosArrayDestroy(ctx.subResNodes);
 }
+
+TEST(execUtilTest, externalWindowReusableBlockGrowsToRequestedRows) {
+  SSDataBlock *pBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData col = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(pBlock, &col), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(pBlock, 4096), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(pBlock->info.capacity, 4096);
+
+  SArray *pIdx = taosArrayInit(1, sizeof(int64_t));
+  ASSERT_NE(pIdx, nullptr);
+
+  SList *pFreeBlocks = tdListNew(POINTER_BYTES * 2);
+  SList *pTargetBlocks = tdListNew(POINTER_BYTES * 2);
+  ASSERT_NE(pFreeBlocks, nullptr);
+  ASSERT_NE(pTargetBlocks, nullptr);
+
+  void *reusable[2] = {pBlock, pIdx};
+  ASSERT_EQ(tdListAppend(pFreeBlocks, reusable), TSDB_CODE_SUCCESS);
+
+  SSDataBlock *pReusedBlock = nullptr;
+  SArray      *pReusedIdx = nullptr;
+  ASSERT_EQ(extWinTestTakeReusableBlock(pFreeBlocks, pTargetBlocks, 4097, &pReusedBlock, &pReusedIdx),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pReusedBlock, pBlock);
+  EXPECT_EQ(pReusedIdx, pIdx);
+  EXPECT_GE(pReusedBlock->info.capacity, 4097);
+  EXPECT_EQ(listNEles(pFreeBlocks), 0);
+  EXPECT_EQ(listNEles(pTargetBlocks), 1);
+
+  SListNode *pNode = listTail(pTargetBlocks);
+  ASSERT_NE(pNode, nullptr);
+  int32_t overlapCol = -1;
+  EXPECT_TRUE(extWinTestBlockNodeInvariantHolds(pTargetBlocks, pNode, pNode->dl_prev_, pReusedBlock, pReusedIdx, 0,
+                                                &overlapCol));
+  EXPECT_EQ(overlapCol, -1);
+
+  SColumnInfoData *pCol = static_cast<SColumnInfoData *>(taosArrayGet(pReusedBlock->pDataBlock, 0));
+  ASSERT_NE(pCol, nullptr);
+  char *pOriginalData = pCol->pData;
+  pCol->pData = reinterpret_cast<char *>(pNode);
+  EXPECT_FALSE(extWinTestBlockNodeInvariantHolds(pTargetBlocks, pNode, pNode->dl_prev_, pReusedBlock, pReusedIdx, 0,
+                                                 &overlapCol));
+  EXPECT_EQ(overlapCol, 0);
+  pCol->pData = pOriginalData;
+
+  pNode = tdListPopHead(pTargetBlocks);
+  ASSERT_NE(pNode, nullptr);
+  blockDataDestroy(*(SSDataBlock **)pNode->data);
+  taosArrayDestroy(*(SArray **)((SSDataBlock **)pNode->data + 1));
+  taosMemoryFree(pNode);
+  tdListFree(pFreeBlocks);
+  tdListFree(pTargetBlocks);
+}
+
+TEST(execUtilTest, externalWindowReusableBlockRejectsEmptyFreeListAsInternalError) {
+  SList *pFreeBlocks = tdListNew(POINTER_BYTES * 2);
+  SList *pTargetBlocks = tdListNew(POINTER_BYTES * 2);
+  ASSERT_NE(pFreeBlocks, nullptr);
+  ASSERT_NE(pTargetBlocks, nullptr);
+
+  SSDataBlock *pBlock = nullptr;
+  SArray      *pIdx = nullptr;
+  EXPECT_EQ(extWinTestTakeReusableBlock(pFreeBlocks, pTargetBlocks, 1, &pBlock, &pIdx),
+            TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  EXPECT_EQ(pBlock, nullptr);
+  EXPECT_EQ(pIdx, nullptr);
+  EXPECT_EQ(listNEles(pFreeBlocks), 0);
+  EXPECT_EQ(listNEles(pTargetBlocks), 0);
+
+  tdListFree(pFreeBlocks);
+  tdListFree(pTargetBlocks);
+}

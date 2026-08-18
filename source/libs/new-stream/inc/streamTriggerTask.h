@@ -17,6 +17,8 @@
 #define TDENGINE_TSTREAM_H
 
 #include "common/tmsg.h"
+#include "streamRecalcTracker.h"
+#include "streamTaskStats.h"
 #include "streamTriggerMerger.h"
 #include "tcompare.h"
 #include "theap.h"
@@ -195,6 +197,110 @@ typedef struct SSTriggerWalProgress {
   SSDataBlock              *pCalcBlock;
 } SSTriggerWalProgress;
 
+typedef struct SStreamReaderProgressSnapshot {
+  int64_t taskId;
+  int32_t nodeId;
+  int64_t startVer;
+  int64_t savedVer;
+  int64_t doneVer;
+  int64_t lastScanVer;
+  int64_t verTime;
+  int64_t lastInvalidVerTime;
+  bool    externalSource;
+} SStreamReaderProgressSnapshot;
+
+typedef enum EStreamTriggerDebugGauge {
+  STREAM_TRIGGER_GAUGE_REALTIME_SESSION = 1ULL << 0,
+  STREAM_TRIGGER_GAUGE_HISTORY_SESSION = 1ULL << 1,
+  STREAM_TRIGGER_GAUGE_ACTIVE_RECALC = 1ULL << 2,
+  STREAM_TRIGGER_GAUGE_HISTORY_PROGRESS = 1ULL << 3,
+  STREAM_TRIGGER_GAUGE_PENDING_PULL_RETRY = 1ULL << 4,
+  STREAM_TRIGGER_GAUGE_PENDING_CALC_RETRY = 1ULL << 5,
+  STREAM_TRIGGER_GAUGE_PENDING_RECALC_REQUEST = 1ULL << 6,
+  STREAM_TRIGGER_GAUGE_LAST_CHECKPOINT = 1ULL << 7,
+  STREAM_TRIGGER_GAUGE_CHECKPOINT_LOADED = 1ULL << 8,
+  STREAM_TRIGGER_GAUGE_RECOVERING = 1ULL << 9,
+  STREAM_TRIGGER_GAUGE_REALTIME_GROUP = 1ULL << 10,
+  STREAM_TRIGGER_GAUGE_HISTORY_GROUP = 1ULL << 11,
+  STREAM_TRIGGER_GAUGE_PENDING_NOTIFY = 1ULL << 12,
+  STREAM_TRIGGER_GAUGE_META_POOL = 1ULL << 13,
+  STREAM_TRIGGER_GAUGE_TABLE_UID_POOL = 1ULL << 14,
+  STREAM_TRIGGER_GAUGE_WINDOW_POOL = 1ULL << 15,
+  STREAM_TRIGGER_GAUGE_CALC_PARAM_POOL = 1ULL << 16,
+} EStreamTriggerDebugGauge;
+
+typedef struct SStreamTriggerDebugGauges {
+  int64_t  realtimeSessionCount;
+  int64_t  historySessionCount;
+  int64_t  activeRecalcCount;
+  int64_t  pendingPullRetryCount;
+  int64_t  pendingCalcRetryCount;
+  int64_t  pendingRecalcRequestCount;
+  int64_t  lastCheckpointAtMs;
+  bool     checkpointLoaded;
+  bool     recovering;
+  int64_t  realtimeGroupCount;
+  int64_t  historyGroupCount;
+  int64_t  pendingNotifyCount;
+  int64_t  metaPoolUsed;
+  int64_t  metaPoolCapacity;
+  int64_t  metaPoolBytes;
+  int64_t  tableUidPoolUsed;
+  int64_t  tableUidPoolCapacity;
+  int64_t  tableUidPoolBytes;
+  int64_t  windowPoolUsed;
+  int64_t  windowPoolCapacity;
+  int64_t  windowPoolBytes;
+  int64_t  calcParamPoolUsed;
+  int64_t  calcParamPoolCapacity;
+  int64_t  calcParamPoolBytes;
+  int32_t  historyProgressPct;
+  uint64_t validMask;
+} SStreamTriggerDebugGauges;
+
+typedef struct SStreamTriggerCommonDebugGauges {
+  int64_t  activeRecalcCount;
+  int64_t  pendingRecalcRequestCount;
+  int32_t  historyProgressPct;
+  uint64_t validMask;
+} SStreamTriggerCommonDebugGauges;
+
+typedef struct SStreamTriggerRealtimeDebugGauges {
+  bool     present;
+  int64_t  pendingPullRetryCount;
+  int64_t  pendingCalcRetryCount;
+  int64_t  lastCheckpointAtMs;
+  bool     checkpointLoaded;
+  bool     recovering;
+  int64_t  realtimeGroupCount;
+  int64_t  pendingNotifyCount;
+  int64_t  metaPoolUsed;
+  int64_t  metaPoolCapacity;
+  int64_t  metaPoolBytes;
+  int64_t  tableUidPoolUsed;
+  int64_t  tableUidPoolCapacity;
+  int64_t  tableUidPoolBytes;
+  int64_t  windowPoolUsed;
+  int64_t  windowPoolCapacity;
+  int64_t  windowPoolBytes;
+  int64_t  calcParamPoolUsed;
+  int64_t  calcParamPoolCapacity;
+  int64_t  calcParamPoolBytes;
+  uint64_t validMask;
+} SStreamTriggerRealtimeDebugGauges;
+
+typedef struct SStreamTriggerHistoryDebugGauges {
+  bool     present;
+  int64_t  pendingPullRetryCount;
+  int64_t  pendingCalcRetryCount;
+  int64_t  historyGroupCount;
+  int64_t  pendingNotifyCount;
+  int64_t  calcParamPoolUsed;
+  int64_t  calcParamPoolCapacity;
+  int64_t  calcParamPoolBytes;
+  uint64_t validMask;
+} SStreamTriggerHistoryDebugGauges;
+
 /* Per (trigger task, EXT reader task) progress maintained by the trigger
  * driver. Sibling of SSTriggerWalProgress; lives in SSTriggerRealtimeContext
  * .pReaderExtProgress as SSHashObj<int64_t taskId, SSTriggerExtProgress*>.
@@ -339,7 +445,6 @@ typedef struct SSTriggerRealtimeContext {
   bool    boundDetermined;
   bool    recovering;
   int64_t lastCheckpointTime;
-  int64_t lastReportTime;
 
   // LAST_TS create-table: need groupInfo before send create-table req; pull GROUP_COL_VALUE first
   SArray *pPendingCreateTableGids;  // SArray<SSTriggerPendingCreateTableEntry>, (gid, pProgress) per reader
@@ -358,14 +463,20 @@ typedef struct SSTriggerHistoryContext {
   int64_t                    sessionId;
   ESTriggerContextStatus     status;
 
-  int64_t     gid;
-  STimeWindow scanRange;
-  STimeWindow calcRange;
-  STimeWindow stepRange;
-  bool        isHistory;
-  bool        needTsdbMeta;
-  bool        finishCheck;
-  bool        pendingToFinish;
+  int64_t              gid;
+  STimeWindow          scanRange;
+  STimeWindow          calcRange;
+  STimeWindow          stepRange;
+  bool                 isHistory;
+  bool                 needTsdbMeta;
+  bool                 finishCheck;
+  bool                 pendingToFinish;
+  SArray              *pContributors;  // SArray<SStreamRecalcContributor>
+  uint64_t             progressStepId;
+  uint64_t             nextProgressRequestToken;
+  SStreamProgressRange historyProgressStepRange;
+  bool                 historyProgressTriggerDone;
+  bool                 historyProgressReaderCompleting;
 
   SSHashObj *pReaderTsdbProgress;  // SSHashObj<vgId, SSTriggerTsdbProgress>
   int32_t    curReaderIdx;
@@ -409,7 +520,6 @@ typedef struct SSTriggerHistoryContext {
   SList retryPullReqs;  // SList<SSTriggerPullRequest*>
   SList retryCalcReqs;  // SList<SSTriggerCalcRequest*>
 
-  int64_t lastReportTime;
 } SSTriggerHistoryContext;
 
 typedef enum ESTriggerEventType {
@@ -436,6 +546,7 @@ typedef struct SSTriggerRecalcRequest {
   STimeWindow scanRange;
   STimeWindow calcRange;
   SSHashObj  *pTsdbVersions;
+  SArray     *pContributors;  // SArray<SStreamRecalcContributor>
   bool        isHistory;
   TD_DLIST_NODE(SSTriggerRecalcRequest);
 } SSTriggerRecalcRequest;
@@ -448,7 +559,14 @@ typedef struct SSTriggerGroupPendingRecalc {
 } SSTriggerGroupPendingRecalc;
 
 typedef struct SStreamTriggerTask {
-  SStreamTask task;
+  SStreamTask                       task;
+  SStreamTaskStats                 *pStats;
+  SRWLatch                          readerProgressLock;
+  SArray                           *pReaderProgressSnapshots;
+  SRWLatch                          debugGaugesLock;
+  SStreamTriggerCommonDebugGauges   commonDebugGauges;
+  SStreamTriggerRealtimeDebugGauges realtimeDebugGauges;
+  SStreamTriggerHistoryDebugGauges  historyDebugGauges;
 
   // trigger options
   EStreamTriggerType triggerType;
@@ -550,7 +668,9 @@ typedef struct SStreamTriggerTask {
   SSHashObj *pOrigTableCols;    // SSHashObj<dbname, SSHashObj<tbname, SSTriggerOrigColumnInfo>*>
 
   // boundary between realtime and history
-  SSHashObj *pHistoryCutoffTime;
+  SSHashObj           *pHistoryCutoffTime;
+  SStreamProgressRange historyOriginalRange;
+  bool                 historyOriginalRangeValid;
 
   // calc request pool
   SRWLatch   calcPoolLock;
@@ -565,6 +685,7 @@ typedef struct SStreamTriggerTask {
 
   SRWLatch userRecalcRequestLock;
   SArray  *pUserRecalcRequests;  // SArray<SStreamRecalcReq>
+  SStreamRecalcTracker *pRecalcTracker;
 
   // runtime status
   volatile int8_t           isCheckpointReady;
@@ -589,7 +710,8 @@ int32_t stTriggerTaskCheckCreate(SStreamTriggerTask *pTask, SSTriggerCalcRequest
                                  int64_t gid);
 
 int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
-                                      STimeWindow *pCalcRange, bool isHistory, bool isUserRecalc, bool isDetermined);
+                                      STimeWindow *pCalcRange, bool isHistory, bool isUserRecalc, bool isDetermined,
+                                      int64_t recalcId);
 int32_t stTriggerTaskReadyRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup);
 int32_t stTriggerTaskFetchRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRecalcRequest **ppReq);
 
@@ -597,6 +719,24 @@ int32_t stTriggerTaskFetchRecalcRequest(SStreamTriggerTask *pTask, SSTriggerReca
 int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *pMsg);
 int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, bool force);
 int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg);
+int32_t stTriggerTaskCopyReaderProgress(SStreamTriggerTask *pTask, SArray **ppSnapshots);
+int32_t stTriggerTaskRefreshRealtimeLag(SStreamTriggerTask *pTask, int64_t nowMs);
+int32_t stTriggerTaskGetMetrics(SStreamTriggerTask *pTask, SStreamTaskMetricsSnapshot *pSnapshot);
+/** A NULL snapshot drains terminal recalculation events only. */
+int32_t stTriggerTaskLogStats(SStreamTriggerTask *pTask, const SStreamTaskPeriodSnapshot *pSnapshot);
+void    stTriggerTaskRefreshCommonDebugGauges(SStreamTriggerTask *pTask);
+void    stTriggerTaskPublishRealtimeDebugGauges(SStreamTriggerTask *pTask, SSTriggerRealtimeContext *pContext);
+void    stTriggerTaskUpdateRealtimeDebugGauges(SStreamTriggerTask *pTask, SSTriggerRealtimeContext *pContext);
+void    stTriggerTaskPublishHistoryDebugGauges(SStreamTriggerTask *pTask, SSTriggerHistoryContext *pContext);
+void    stTriggerTaskUpdateHistoryDebugGauges(SStreamTriggerTask *pTask, SSTriggerHistoryContext *pContext);
+void    stTriggerTaskClearRealtimeDebugGauges(SStreamTriggerTask *pTask);
+void    stTriggerTaskClearHistoryDebugGauges(SStreamTriggerTask *pTask);
+
+uint64_t           streamTaskMetricMask(const SStreamTask *pTask);
+SStreamTaskStats **streamTaskGetStatsSlot(SStreamTask *pTask);
+SStreamTaskStats  *streamTaskGetStats(SStreamTask *pTask);
+int32_t            streamTaskStatsInit(SStreamTask *pTask, SStreamTaskStats **ppStats);
+int64_t            streamTaskGetMonotonicUs(void);
 
 // helper function in trigger task
 // check whether the state data equals to the zeroth state
@@ -604,6 +744,7 @@ int32_t     stIsStateEqualZeroth(void *pStateData, void *pZeroth, bool *pIsEqual
 STimeWindow stTriggerTaskGetTimeWindow(SStreamTriggerTask *pTask, int64_t ts);
 void        stTriggerTaskPrevTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow);
 void        stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow);
+SStreamProgressRange stTriggerTaskProgressRangeFromClosed(STimeWindow range);
 
 #ifdef __cplusplus
 }

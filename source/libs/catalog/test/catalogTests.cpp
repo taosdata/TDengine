@@ -36,6 +36,7 @@
 #include "os.h"
 #include "stub.h"
 #include "taos.h"
+#include "tcompare.h"
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
@@ -1545,6 +1546,8 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, 0);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
+
+  taosMemoryFree(tableMeta);
 
   ctgTestWaitExpiredMeta(pCtg, 1, 0);
 
@@ -3232,6 +3235,8 @@ TEST(apiTest, catalogGetQnodeList_test) {
     ASSERT_EQ(pLoad->addr.nodeId, i);
   }
 
+  taosArrayDestroy(qnodeList);
+
   catalogDestroy();
 }
 
@@ -3289,6 +3294,8 @@ TEST(apiTest, catalogGetServerVersion_test) {
   code = catalogGetServerVersion(pCtg, mockPointer, &ver);
   ASSERT_EQ(code, 0);
   ASSERT_TRUE(0 == strcmp(ver, "1.0"));
+
+  taosMemoryFree(ver);
 
   catalogDestroy();
 }
@@ -3488,7 +3495,10 @@ TEST(intTest, autoCreateTableTest) {
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::UnitTest::GetInstance()->listeners().Append(new CatalogCleanupListener);
-  return RUN_ALL_TESTS();
+  int32_t code = RUN_ALL_TESTS();
+  DestoryThreadLocalRegComp();
+  DestroyRegexCache();
+  return code;
 }
 
 #pragma GCC diagnostic pop

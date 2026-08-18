@@ -14,6 +14,27 @@
 #define STMT_ASYNC_BIND_QUEUE_CAPACITY 256
 #define STMT_DEQUEUE_SPIN_ROUNDS       10
 
+typedef struct SStmt2RetryTags {
+  bool            fixedTags;
+  int32_t         numOfTags;
+  TAOS_STMT2_BIND binds[];
+} SStmt2RetryTags;
+
+static void stmtDestroyRetryTags(SStmt2RetryTags* pTags) {
+  taosMemoryFree(pTags);
+}
+
+static void stmtFreeRetryTags(void* value) {
+  SStmt2RetryTags* pTags = *(SStmt2RetryTags**)value;
+  stmtDestroyRetryTags(pTags);
+}
+
+static void stmtClearRetryTags(STscStmt2* pStmt) {
+  if (pStmt->pRetryTagHash != NULL) {
+    taosHashClear(pStmt->pRetryTagHash);
+  }
+}
+
 char* gStmt2StatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                            "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
 
@@ -685,6 +706,7 @@ static void stmtResetQueueTableBuf(STableBufInfo* pTblBuf, SStmtQueue* pQueue) {
 }
 
 static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClean) {
+  stmtClearRetryTags(pStmt);
   if (pStmt->sql.stbInterlaceMode) {
     if (deepClean) {
       taosHashCleanup(pStmt->exec.pBlockHash);
@@ -1269,7 +1291,7 @@ static bool stmtRetryTbMetaIsSuperTable(const STableMeta* pMeta) {
 }
 
 static int32_t stmtFetchOneRetryTbMetaPatch(STscStmt2* pStmt, SRequestObj* pRequest, SSubmitTbData* pTb, int32_t tbIdx,
-                                            int32_t nSubmitTb, SStmtRetryTbPatch* pPatch) {
+                                            int32_t nSubmitTb, SStmtRetryTbPatch* pPatch, char* retryTbName) {
   if (NULL == pStmt->pCatalog) {
     int32_t c = catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &pStmt->pCatalog);
     if (c != TSDB_CODE_SUCCESS) {
@@ -1301,6 +1323,9 @@ static int32_t stmtFetchOneRetryTbMetaPatch(STscStmt2* pStmt, SRequestObj* pRequ
       }
       char nameBuf[TSDB_TABLE_NAME_LEN] = {0};
       (void)memcpy(nameBuf, tbName, keyLen);
+      if (retryTbName != NULL) {
+        (void)memcpy(retryTbName, nameBuf, keyLen + 1);
+      }
       SName       nm = {0};
       const char* dbname = (pRequest->pDb != NULL) ? pRequest->pDb : pStmt->taos->db;
       int32_t     nc = qCreateSName2(&nm, nameBuf, pStmt->taos->acctId, (char*)dbname, NULL, 0);
@@ -1487,6 +1512,62 @@ static int32_t stmtFetchOneRetryTbMetaPatch(STscStmt2* pStmt, SRequestObj* pRequ
   return TSDB_CODE_TDB_TABLE_NOT_EXIST;
 }
 
+static int32_t stmtBuildRetryCreateTbReq(STscStmt2* pStmt, SRequestObj* pRequest, const char* tbName,
+                                          SSubmitTbData* pTb) {
+  if (pStmt->pRetryTagHash == NULL || tbName == NULL || tbName[0] == '\0') {
+    return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+  }
+
+  SStmt2RetryTags** ppRetryTags =
+      taosHashGet(pStmt->pRetryTagHash, tbName, strlen(tbName));
+  if (ppRetryTags == NULL || *ppRetryTags == NULL) {
+    return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+  }
+
+  SStmt2RetryTags* pRetryTags = *ppRetryTags;
+  SVCreateTbReq*   pCreateTbReq = NULL;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  if (pRetryTags->fixedTags) {
+    if (!pStmt->sql.fixValueTags || pStmt->sql.fixValueTbReq == NULL) {
+      return TSDB_CODE_TSC_STMT_CACHE_ERROR;
+    }
+    code = cloneSVreateTbReq(pStmt->sql.fixValueTbReq, &pCreateTbReq);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    taosMemoryFree(pCreateTbReq->name);
+    pCreateTbReq->name = taosStrdup(tbName);
+    if (pCreateTbReq->name == NULL) {
+      tdDestroySVCreateTbReq(pCreateTbReq);
+      taosMemoryFree(pCreateTbReq);
+      return terrno;
+    }
+  } else {
+    if (pStmt->sql.siInfo.pDataCtx == NULL || pStmt->sql.siInfo.boundTags == NULL) {
+      return TSDB_CODE_TSC_STMT_CACHE_ERROR;
+    }
+    pCreateTbReq = taosMemoryCalloc(1, sizeof(*pCreateTbReq));
+    if (pCreateTbReq == NULL) {
+      return terrno;
+    }
+    code = qBindStmtTagsValue2(pStmt->sql.siInfo.pDataCtx, pStmt->sql.siInfo.boundTags, pTb->suid,
+                               pStmt->bInfo.stbFName, (char*)tbName, pRetryTags->binds, pRequest->msgBuf,
+                               pRequest->msgBufLen, pStmt->taos->optionInfo.charsetCxt, pCreateTbReq);
+    if (code != TSDB_CODE_SUCCESS) {
+      tdDestroySVCreateTbReq(pCreateTbReq);
+      taosMemoryFree(pCreateTbReq);
+      return code;
+    }
+  }
+
+  pCreateTbReq->uid = 0;
+  pTb->uid = 0;
+  pTb->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
+  pTb->pCreateTbReq = pCreateTbReq;
+  STMT2_DLOG("retry table %s with cached tags and auto-create request", tbName);
+  return TSDB_CODE_SUCCESS;
+}
+
 // TSDB_CODE_TDB_TABLE_NOT_EXIST: refresh child table uid/suid/sver in serialized submit from catalog.
 static int32_t stmtUpdateVgDataBlocksTbMetaFromCatalog(STscStmt2* pStmt, SRequestObj* pRequest) {
   if (pStmt->pVgDataBlocksForRetry == NULL || taosArrayGetSize(pStmt->pVgDataBlocksForRetry) == 0) {
@@ -1522,12 +1603,20 @@ static int32_t stmtUpdateVgDataBlocksTbMetaFromCatalog(STscStmt2* pStmt, SReques
     int32_t nTb = (int32_t)taosArrayGetSize(req.aSubmitTbData);
     for (int32_t t = 0; t < nTb; ++t) {
       SStmtRetryTbPatch patch = {0};
-      code = stmtFetchOneRetryTbMetaPatch(pStmt, pRequest, taosArrayGet(req.aSubmitTbData, t), t, nTb, &patch);
+      char              retryTbName[TSDB_TABLE_NAME_LEN] = {0};
+      SSubmitTbData*    pRow = taosArrayGet(req.aSubmitTbData, t);
+      code = stmtFetchOneRetryTbMetaPatch(pStmt, pRequest, pRow, t, nTb, &patch, retryTbName);
+      if ((code == TSDB_CODE_TDB_TABLE_NOT_EXIST || code == TSDB_CODE_PAR_TABLE_NOT_EXIST) &&
+          retryTbName[0] != '\0') {
+        code = stmtBuildRetryCreateTbReq(pStmt, pRequest, retryTbName, pRow);
+        if (code == TSDB_CODE_SUCCESS) {
+          continue;
+        }
+      }
       if (code != TSDB_CODE_SUCCESS) {
         tDestroySubmitReq(&req, TSDB_MSG_FLG_DECODE);
         return code;
       }
-      SSubmitTbData* pRow = taosArrayGet(req.aSubmitTbData, t);
       pRow->uid = (int64_t)patch.uid;
       pRow->suid = (int64_t)patch.suid;
       pRow->sver = patch.sver;
@@ -1614,6 +1703,8 @@ static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
   taosArrayDestroy(pStmt->sql.nodeList);
   taosHashCleanup(pStmt->sql.pVgHash);
   pStmt->sql.pVgHash = NULL;
+  taosHashCleanup(pStmt->pRetryTagHash);
+  pStmt->pRetryTagHash = NULL;
   if (pStmt->sql.fixValueTags) {
     pStmt->sql.fixValueTags = false;
     tdDestroySVCreateTbReq(pStmt->sql.fixValueTbReq);
@@ -2643,6 +2734,108 @@ bool stmt2TableExistsInCache(TAOS_STMT2* stmt) {
   return exists;
 }
 
+int stmt2CacheRetryTags(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags, bool fixedTags) {
+  STscStmt2* pStmt = (STscStmt2*)stmt;
+  if (pStmt == NULL || !pStmt->sql.stbInterlaceMode || pStmt->bInfo.tbName[0] == '\0') {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SStmt2RetryTags* pRetryTags = NULL;
+
+  if (fixedTags) {
+    pRetryTags = taosMemoryCalloc(1, sizeof(*pRetryTags));
+    if (pRetryTags == NULL) {
+      return terrno;
+    }
+    pRetryTags->fixedTags = true;
+  } else {
+    SBoundColInfo* pBoundTags = (SBoundColInfo*)pStmt->sql.siInfo.boundTags;
+    if (pBoundTags == NULL || tags == NULL) {
+      return TSDB_CODE_TSC_STMT_CACHE_ERROR;
+    }
+
+    int32_t numOfTags = pBoundTags->numOfBound;
+    if (pBoundTags->parseredTags != NULL) {
+      numOfTags -= pBoundTags->parseredTags->numOfTags;
+    }
+    if (numOfTags < 0) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    size_t payloadSize = 0;
+    for (int32_t i = 0; i < numOfTags; ++i) {
+      TAOS_STMT2_BIND* pSrc = &tags[i];
+      // Tag binding consumes one value at index 0 and historically permits num == 0.
+      if (IS_INVALID_TYPE(pSrc->buffer_type)) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      if (pSrc->is_null != NULL && pSrc->is_null[0]) {
+        continue;
+      }
+      int32_t len = tDataTypes[pSrc->buffer_type].bytes;
+      if (IS_VAR_DATA_TYPE(pSrc->buffer_type)) {
+        if (pSrc->length == NULL || pSrc->length[0] < 0) {
+          return TSDB_CODE_INVALID_PARA;
+        }
+        len = pSrc->length[0];
+      }
+      if (len > 0 && pSrc->buffer == NULL) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      payloadSize += len;
+    }
+
+    size_t bindSize = sizeof(TAOS_STMT2_BIND) * numOfTags;
+    size_t dataOffset = sizeof(*pRetryTags) + bindSize + sizeof(int32_t) * numOfTags + sizeof(char) * numOfTags;
+    dataOffset = (dataOffset + sizeof(int64_t) - 1) & ~(sizeof(int64_t) - 1);
+    pRetryTags = taosMemoryCalloc(1, dataOffset + payloadSize);
+    if (pRetryTags == NULL) {
+      return terrno;
+    }
+    pRetryTags->numOfTags = numOfTags;
+
+    int32_t* lengths = (int32_t*)((char*)pRetryTags->binds + bindSize);
+    char*    nulls = (char*)(lengths + numOfTags);
+    char*    payload = (char*)pRetryTags + dataOffset;
+    for (int32_t i = 0; i < numOfTags; ++i) {
+      TAOS_STMT2_BIND* pSrc = &tags[i];
+      TAOS_STMT2_BIND* pDst = &pRetryTags->binds[i];
+      *pDst = (TAOS_STMT2_BIND){.buffer_type = pSrc->buffer_type,
+                                .length = &lengths[i],
+                                .is_null = &nulls[i],
+                                .num = 1};
+      nulls[i] = (pSrc->is_null != NULL) ? pSrc->is_null[0] : 0;
+      if (nulls[i]) {
+        continue;
+      }
+      lengths[i] = IS_VAR_DATA_TYPE(pSrc->buffer_type) ? pSrc->length[0] : tDataTypes[pSrc->buffer_type].bytes;
+      if (lengths[i] > 0) {
+        pDst->buffer = payload;
+        (void)memcpy(payload, pSrc->buffer, lengths[i]);
+        payload += lengths[i];
+      }
+    }
+  }
+
+  if (pStmt->pRetryTagHash == NULL) {
+    pStmt->pRetryTagHash =
+        taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    if (pStmt->pRetryTagHash == NULL) {
+      stmtDestroyRetryTags(pRetryTags);
+      return terrno;
+    }
+    taosHashSetFreeFp(pStmt->pRetryTagHash, stmtFreeRetryTags);
+  }
+
+  int32_t code = taosHashPut(pStmt->pRetryTagHash, pStmt->bInfo.tbName, strlen(pStmt->bInfo.tbName), &pRetryTags,
+                             POINTER_BYTES);
+  if (code != TSDB_CODE_SUCCESS) {
+    stmtDestroyRetryTags(pRetryTags);
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int stmtCheckTags2(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
@@ -2697,15 +2890,27 @@ int stmtCheckTags2(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
   }
 
   if (!((*pDataBlock)->pData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE)) {
-    STMT2_DLOG_E("don't need to create, will not check tags");
+    if ((pStmt->bInfo.tbNameFlag & IS_FIXED_TAG) && !pStmt->sql.fixValueTags) {
+      *pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+      if (*pCreateTbReq == NULL) {
+        return terrno;
+      }
+      STMT_ERR_RET(qBindStmtTagsValue2(*pDataBlock, pStmt->sql.siInfo.boundTags, pStmt->bInfo.tbSuid,
+                                       pStmt->bInfo.stbFName, pStmt->bInfo.sname.tname, NULL,
+                                       pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen,
+                                       pStmt->taos->optionInfo.charsetCxt, *pCreateTbReq));
+      STMT_ERR_RET(cloneSVreateTbReq(*pCreateTbReq, &pStmt->sql.fixValueTbReq));
+      pStmt->sql.fixValueTags = true;
+    }
+    STMT2_DLOG_E("table exists; keep only the fixed-tag retry template");
     return TSDB_CODE_SUCCESS;
   }
 
 
   if ((*pDataBlock)->pData->pCreateTbReq) {
     STMT2_TLOG_E("tags are fixed, set createTbReq first time");
-    pStmt->sql.fixValueTags = true;
     STMT_ERR_RET(cloneSVreateTbReq((*pDataBlock)->pData->pCreateTbReq, &pStmt->sql.fixValueTbReq));
+    pStmt->sql.fixValueTags = true;
     STMT_ERR_RET(cloneSVreateTbReq(pStmt->sql.fixValueTbReq, pCreateTbReq));
     (*pCreateTbReq)->uid = (*pDataBlock)->pMeta->vgId;
 
@@ -3634,12 +3839,13 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
 
     // Try to retry internally; completion uses asyncQueryCb so user fp runs once with the final result.
     int32_t retryCode = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest);
-    if (retryCode == TSDB_CODE_SUCCESS) {
-      if (origExecCode == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+    if (origExecCode == TSDB_CODE_TDB_TABLE_NOT_EXIST || origExecCode == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      if (retryCode == TSDB_CODE_SUCCESS || retryCode == TSDB_CODE_PAR_TABLE_NOT_EXIST ||
+          retryCode == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
         retryCode = stmtUpdateVgDataBlocksTbMetaFromCatalog(pStmt, pStmt->exec.pRequest);
-      } else if (stmtIsSchemaVersionRetryError(origExecCode)) {
-        retryCode = stmtUpdateVgDataBlocksSchemaVer(pStmt, pStmt->exec.pRequest);
       }
+    } else if (retryCode == TSDB_CODE_SUCCESS && stmtIsSchemaVersionRetryError(origExecCode)) {
+      retryCode = stmtUpdateVgDataBlocksSchemaVer(pStmt, pStmt->exec.pRequest);
     }
     stmtInvalidateStbInterlaceTableUidCache(pStmt);
     if (retryCode == TSDB_CODE_SUCCESS) {
@@ -3839,12 +4045,15 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
       int32_t origExecCode = pStmt->exec.pRequest->code;
       STMT2_WLOG_E("exec failed errorcode:NEED_CLIENT_HANDLE_ERROR, refresh meta and retry internally");
       code = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest);
-      if (code == TSDB_CODE_SUCCESS && pStmt->pVgDataBlocksForRetry != NULL) {
-        if (origExecCode == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+      if (pStmt->pVgDataBlocksForRetry != NULL &&
+          (origExecCode == TSDB_CODE_TDB_TABLE_NOT_EXIST || origExecCode == TSDB_CODE_PAR_TABLE_NOT_EXIST)) {
+        if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_PAR_TABLE_NOT_EXIST ||
+            code == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
           code = stmtUpdateVgDataBlocksTbMetaFromCatalog(pStmt, pStmt->exec.pRequest);
-        } else if (stmtIsSchemaVersionRetryError(origExecCode)) {
-          code = stmtUpdateVgDataBlocksSchemaVer(pStmt, pStmt->exec.pRequest);
         }
+      } else if (code == TSDB_CODE_SUCCESS && pStmt->pVgDataBlocksForRetry != NULL &&
+                 stmtIsSchemaVersionRetryError(origExecCode)) {
+        code = stmtUpdateVgDataBlocksSchemaVer(pStmt, pStmt->exec.pRequest);
       }
       stmtInvalidateStbInterlaceTableUidCache(pStmt);
       if (code == TSDB_CODE_SUCCESS && pStmt->pVgDataBlocksForRetry != NULL) {
@@ -3902,6 +4111,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
 
 _return:
   if (code) {
+    stmtClearRetryTags(pStmt);
     STMT2_ELOG("exec failed, error:%s", tstrerror(code));
   }
   pStmt->stat.execUseUs += taosGetTimestampUs() - startUs;

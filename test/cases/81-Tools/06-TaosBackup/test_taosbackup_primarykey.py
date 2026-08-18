@@ -84,11 +84,11 @@ class TestTaosBackupPrimaryKey:
         for sql in sqls:
             tdSql.execute(sql)
 
-    def dumpOut(self, taosbackup, db, outdir):
-        self.exec(f"{taosbackup} -D {db} -o {outdir}")
+    def dumpOut(self, db, outdir):
+        etool.taosdump(f"-D {db} -o {outdir}")
 
-    def dumpIn(self, taosbackup, db, newdb, indir):
-        self.exec(f'{taosbackup} -W "{db}={newdb}" -i {indir}')
+    def dumpIn(self, db, newdb, indir):
+        etool.taosdump(f'-W "{db}={newdb}" -i {indir}')
 
     def check_same(self, db, newdb, stb, aggfun):
         sql = f"select {aggfun} from {db}.{stb}"
@@ -138,8 +138,8 @@ class TestTaosBackupPrimaryKey:
 
         self.insertData(benchmark, jsonFile, db)
         tdSql.execute(f"drop database if exists {newdb}")
-        self.dumpOut(taosbackup, db, tmpdir)
-        self.dumpIn(taosbackup, db, newdb, tmpdir)
+        self.dumpOut(db, tmpdir)
+        self.dumpIn(db, newdb, tmpdir)
         self.verifyResult(db, newdb, jsonFile)
 
         tdLog.info("test_taosbackup_primarykey ................... [passed]")
