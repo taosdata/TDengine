@@ -297,6 +297,17 @@ int32_t mmDispatchStreamHbMsg(struct SDispatchWorkerPool* pPool, void* pParam, i
   return TSDB_CODE_SUCCESS;
 }
 
+static void mmAddReaderResponseBlocks(SStreamReaderResponseStats *pRspStats, const SArray *pBlocks) {
+  if (pRspStats == NULL || pBlocks == NULL) return;
+
+  for (int32_t i = 0; i < taosArrayGetSize(pBlocks); ++i) {
+    const SSDataBlock *pBlock = taosArrayGetP(pBlocks, i);
+    if (pBlock == NULL || pBlock->info.rows <= 0) continue;
+    pRspStats->dataRows += (uint64_t)pBlock->info.rows;
+    ++pRspStats->dataBlocks;
+  }
+}
+
 static int32_t mmProcessStreamFetchMsg(SMnodeMgmt *pMgmt, SRpcMsg* pMsg) {
   int32_t            code = 0;
   int32_t            lino = 0;
@@ -305,17 +316,21 @@ static int32_t mmProcessStreamFetchMsg(SMnodeMgmt *pMgmt, SRpcMsg* pMsg) {
   SSDataBlock*       pBlock = NULL;
   void*              taskAddr = NULL;
   SArray*            pResList = NULL;
-  
+  SArray                    *calcInfoList = NULL;
+  SStreamReaderTask         *pReaderTask = NULL;
+  SStreamReaderResponseStats rspStats = {.requestStartMonoUs = streamTaskGetMonotonicUs()};
+
   SResFetchReq req = {0};
   STREAM_CHECK_CONDITION_GOTO(tDeserializeSResFetchReq(pMsg->pCont, pMsg->contLen, &req) < 0,
                               TSDB_CODE_QRY_INVALID_INPUT);
-  SArray* calcInfoList = (SArray*)qStreamGetReaderInfo(req.queryId, req.taskId, &taskAddr);
+  calcInfoList = (SArray *)qStreamGetReaderInfo(req.queryId, req.taskId, &taskAddr);
   STREAM_CHECK_NULL_GOTO(calcInfoList, terrno);
 
   STREAM_CHECK_CONDITION_GOTO(req.execId < 0, TSDB_CODE_INVALID_PARA);
   SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo = taosArrayGetP(calcInfoList, req.execId);
   STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo, terrno);
-  void* pTask = sStreamReaderCalcInfo->pTask;
+  pReaderTask = (SStreamReaderTask *)sStreamReaderCalcInfo->pTask;
+  void *pTask = pReaderTask;
   ST_TASK_DLOG("mnode %s start", __func__);
 
   if (req.reset || sStreamReaderCalcInfo->pTaskInfo == NULL) {
@@ -375,9 +390,16 @@ static int32_t mmProcessStreamFetchMsg(SMnodeMgmt *pMgmt, SRpcMsg* pMsg) {
   }
 
   STREAM_CHECK_RET_GOTO(streamBuildFetchRsp(pResList, hasNext, &buf, &size, TSDB_TIME_PRECISION_MILLI));
+  mmAddReaderResponseBlocks(&rspStats, pResList);
   ST_TASK_DLOG("%s end:", __func__);
 
 end:
+  if (pReaderTask != NULL) {
+    rspStats.activeScanContexts = taosArrayGetSize(calcInfoList);
+    rspStats.activeScanContextsValid = true;
+    int64_t nowMonoUs = streamTaskGetMonotonicUs();
+    stReaderTaskRecordPullResult(pReaderTask, &rspStats, code, nowMonoUs, taosGetTimestampMs());
+  }
   taosArrayDestroy(pResList);
   streamReleaseTask(taskAddr);
 

@@ -13,6 +13,7 @@
 
 from new_test_framework.utils import tdLog, tdSql, etool, sc
 import copy
+import glob
 import json
 import os
 import resource
@@ -79,6 +80,53 @@ def stopTaosdTask(stopEvent, presleep, pausetime):
         tdLog.info("pauseTaosdTask: taosd restarted")
 
 
+def watchBackupProgressTask(stopEvent, tmpdir, pausetime, poll=0.005, timeout=120):
+    """Stop taosd exactly while taosdump is mid-write of a child table.
+
+    taosdump writes each table to a ``<name>.tmp`` file and renames it to
+    ``<name>.dat`` only on success.  A zero-size .tmp is just a fresh
+    header/schema — interrupting there discards the file (no partial data), so
+    we wait until a .tmp already contains rows (size > 0).  With large tables
+    the write window is ~20-100ms, so hitting mid-write here is reliable,
+    unlike a fixed sleep that can land before or after the window.
+
+    Falls back to a plain stop after *timeout* so the test never hangs.
+    sc.dnodeStart is called via try/finally so taosd is always restarted.
+    """
+    tdLog.info(f"watchBackupProgressTask: watching {tmpdir} for a non-empty .tmp ...")
+    deadline = time.time() + timeout
+    hit = None
+    while not stopEvent.is_set() and time.time() < deadline:
+        tmps = glob.glob(os.path.join(tmpdir, "**", "*.tmp"), recursive=True)
+        for t in tmps:
+            try:
+                if os.path.getsize(t) > 0:
+                    hit = t
+                    break
+            except OSError:
+                continue  # renamed away between glob and stat
+        if hit:
+            tdLog.info(f"watchBackupProgressTask: detected non-empty .tmp: {hit}")
+            break
+        time.sleep(poll)
+
+    if stopEvent.is_set():
+        # Cancelled by the caller (e.g. backup already finished) - do nothing.
+        tdLog.info("watchBackupProgressTask: cancelled, skipping stop")
+        return
+
+    tdLog.info("watchBackupProgressTask: sc.dnodeStop(1)")
+    sc.dnodeStop(1)
+
+    try:
+        tdLog.info(f"watchBackupProgressTask: taosd stopped, holding {pausetime}s")
+        time.sleep(pausetime)
+    finally:
+        tdLog.info("watchBackupProgressTask: sc.dnodeStart(1)")
+        sc.dnodeStart(1)
+        tdLog.info("watchBackupProgressTask: taosd restarted")
+
+
 # ---------------------------------------------------------------------------
 # Single test class - all exception / retry scenarios in one place so the
 # test framework runs a single deploy/destroy lifecycle for the whole file.
@@ -100,7 +148,7 @@ class TestTaosBackupExcept:
     _SRV_DB_DST        = "srv_dst"
     _SRV_STB           = "meters"
     _SRV_CHILD_TABLES  = 20
-    _SRV_INSERT_ROWS   = 50000      # 1 M rows - keeps backup busy
+    _SRV_INSERT_ROWS   = 400000     # 8 M rows - ~200ms per-table .tmp window
     _SRV_PRESLEEP_BCK  = 3          # seconds after backup starts → sc.dnodeStop
     _SRV_PRESLEEP_RST  = 3          # seconds after restore starts → sc.dnodeStop
     _SRV_PAUSETIME     = 6          # seconds taosd is held stopped
@@ -323,6 +371,21 @@ class TestTaosBackupExcept:
         )
         self.stop_thread.start()
 
+    def _start_pause_thread_on_progress(self, tmpdir):
+        """Stop taosd exactly while a backup is mid-write of a child table.
+
+        Polls *tmpdir* for an in-flight ``*.tmp`` file (written before the
+        rename to ``.dat``), which reliably interrupts a partial block write
+        instead of relying on a fixed sleep that may miss the window.
+        """
+        self._pause_stop_evt = Event()
+        self.stop_thread = Thread(
+            target=watchBackupProgressTask,
+            args=(self._pause_stop_evt, tmpdir, self._SRV_PAUSETIME),
+            daemon=True,
+        )
+        self.stop_thread.start()
+
     def _restart_taosd(self):
         """Wait for the pause thread to finish — its try/finally guarantees
         sc.dnodeStart is called, so taosd is restarted before this returns."""
@@ -446,7 +509,9 @@ class TestTaosBackupExcept:
             tdLog.exit("source table is empty - taosBenchmark may have failed")
 
         tdLog.info("=== step 3: backup with taosd stopped mid-flight ===")
-        self._start_pause_thread(presleep=self._SRV_PRESLEEP_BCK)
+        # Stop taosd while a table is mid-write (.tmp with data), so the
+        # backup is interrupted during a partial table write.
+        self._start_pause_thread_on_progress(tmpdir)
 
         cmd = f"-T 2 -D {self._SRV_DB_SRC} -o {tmpdir}"
         etool.taosdump(cmd, checkRun=False)
@@ -457,6 +522,15 @@ class TestTaosBackupExcept:
 
         # Continue backup with checkpoint
         etool.taosdump(f"-C {cmd}")
+
+        # Every child table must have a complete .dat after the resume
+        dat_dir = os.path.join(tmpdir, self._SRV_DB_SRC, f"{self._SRV_STB}_data0")
+        dats = glob.glob(os.path.join(dat_dir, "*.dat"))
+        tdLog.info(f"backup complete: {len(dats)}/{self._SRV_CHILD_TABLES} .dat files")
+        if len(dats) != self._SRV_CHILD_TABLES:
+            tdLog.exit(
+                f"incomplete backup: expected {self._SRV_CHILD_TABLES} .dat files, got {len(dats)}"
+            )
 
         tdLog.info("=== step 4: restore ===")
         cmd = f" -T 2 -k 5 -z 2000 -W \"{self._SRV_DB_SRC}->{self._SRV_DB_DST}\" -i {tmpdir}"        

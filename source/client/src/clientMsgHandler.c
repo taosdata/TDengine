@@ -410,6 +410,14 @@ int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       if (catalogRefreshDBVgInfo(pCatalog, &conn, dbFName) != 0) {
         tscError("QID:0x%" PRIx64 ", failed to refresh db vg info", pRequest->requestId);
       }
+
+      // The creator is granted ownership of the new db on mnode immediately, but the local
+      // user-auth cache only learns about it via the next heartbeat round trip. Force a refresh
+      // now so a create-db statement immediately followed by DML on the new db (e.g. in a script)
+      // doesn't spuriously fail with "Permission denied to use database".
+      if (catalogRefreshUserAuth(pCatalog, &conn, pTscObj->user) != 0) {
+        tscError("QID:0x%" PRIx64 ", failed to refresh user auth at line %d", pRequest->requestId, __LINE__);
+      }
     }
   }
 
@@ -662,6 +670,14 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       (void)snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_PERFORMANCE_SCHEMA_DB);
       if (catalogRefreshDBVgInfo(pCatalog, &conn, dbFName) != 0) {
         tscError("QID:0x%" PRIx64 ", failed to refresh db vg info, db:%s", pRequest->requestId, dbFName);
+      }
+
+      // Dropping the db also revokes the dropper's (and other users') privileges on it at mnode.
+      // Refresh this session's user-auth cache now instead of waiting for the next heartbeat, so a
+      // stale ownedDbs entry can't be mistaken for ownership of a same-named db recreated by someone
+      // else in the meantime.
+      if (catalogRefreshUserAuth(pCatalog, &conn, pTscObj->user) != 0) {
+        tscError("QID:0x%" PRIx64 ", failed to refresh user auth at line %d", pRequest->requestId, __LINE__);
       }
     }
   }
