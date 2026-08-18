@@ -34474,22 +34474,18 @@ static int32_t buildAlterTableRemoveSeries(STranslateContext* pCxt, SAlterTableS
 }
 
 
-static int32_t buildAddTagReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
-                              SVAlterTbReq* pReq) {
-  // Owned tags are added on normal and virtual normal tables via the vnode-alter path.
-  // Super tables add tags through mnd (TDMT_MND_ALTER_STB); child tables inherit tags from
-  // their super table.
-  if (TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType && TSDB_NORMAL_TABLE != pTableMeta->tableType) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
-  }
-
+// Shared validation for ADD TAG (owned tag) and ADD TAG ... FROM (tag reference): JSON tag
+// exclusivity, duplicate tag name, tag/column name collision, decimal rejection, per-tag length
+// caps, max tag count and total tag length.
+static int32_t checkAddTagDef(STranslateContext* pCxt, const char* pColName, SDataType dataType,
+                              const STableMeta* pTableMeta) {
   int32_t  numOfTags = getNumOfTags(pTableMeta);
   SSchema* pTagSchema = getTableTagSchema(pTableMeta);
 
   // JSON tags must stand alone (mirrors checkCreateTags / the super-table alter path): a JSON
   // tag cannot be added via ALTER, and no further tag may be added to a table that already has
   // a JSON tag.
-  if (TSDB_DATA_TYPE_JSON == pStmt->dataType.type) {
+  if (TSDB_DATA_TYPE_JSON == dataType.type) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
   }
   for (int32_t i = 0; i < numOfTags; ++i) {
@@ -34500,7 +34496,7 @@ static int32_t buildAddTagReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
 
   // duplicate tag name
   for (int32_t i = 0; i < numOfTags; ++i) {
-    if (0 == strcmp(pTagSchema[i].name, pStmt->colName)) {
+    if (0 == strcmp(pTagSchema[i].name, pColName)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
     }
   }
@@ -34508,18 +34504,18 @@ static int32_t buildAddTagReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
   int32_t  numOfCols = getNumOfColumns(pTableMeta);
   SSchema* pColSchema = getTableColumnSchema(pTableMeta);
   for (int32_t i = 0; i < numOfCols; ++i) {
-    if (0 == strcmp(pColSchema[i].name, pStmt->colName)) {
+    if (0 == strcmp(pColSchema[i].name, pColName)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
     }
   }
 
-  if (IS_DECIMAL_TYPE(pStmt->dataType.type)) {
+  if (IS_DECIMAL_TYPE(dataType.type)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, "Decimal type is not allowed for tag");
   }
 
-  if ((TSDB_DATA_TYPE_VARCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
-      (TSDB_DATA_TYPE_VARBINARY == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
-      (TSDB_DATA_TYPE_NCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_NCHAR_LEN)) {
+  if ((TSDB_DATA_TYPE_VARCHAR == dataType.type && calcTypeBytes(dataType) > TSDB_MAX_BINARY_LEN) ||
+      (TSDB_DATA_TYPE_VARBINARY == dataType.type && calcTypeBytes(dataType) > TSDB_MAX_BINARY_LEN) ||
+      (TSDB_DATA_TYPE_NCHAR == dataType.type && calcTypeBytes(dataType) > TSDB_MAX_NCHAR_LEN)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
   }
 
@@ -34527,13 +34523,28 @@ static int32_t buildAddTagReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_NUM);
   }
 
+  // tag-refs occupy a schemaTag entry too — enforce the total tag length cap for both paths
   int32_t tagsLen = 0;
   for (int32_t i = 0; i < numOfTags; ++i) {
     tagsLen += pTagSchema[i].bytes;
   }
-  if (tagsLen + calcTypeBytes(pStmt->dataType) > TSDB_MAX_TAGS_LEN) {
+  if (tagsLen + calcTypeBytes(dataType) > TSDB_MAX_TAGS_LEN) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_LENGTH, TSDB_MAX_TAGS_LEN);
   }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t buildAddTagReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+                              SVAlterTbReq* pReq) {
+  // Owned tags are added on normal and virtual normal tables via the vnode-alter path.
+  // Super tables add tags through mnd (TDMT_MND_ALTER_STB); child tables inherit tags from
+  // their super table.
+  if (TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType && TSDB_NORMAL_TABLE != pTableMeta->tableType) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  }
+
+  PAR_ERR_RET(checkAddTagDef(pCxt, pStmt->colName, pStmt->dataType, pTableMeta));
 
   pReq->colName = taosStrdup(pStmt->colName);
   if (NULL == pReq->colName) {
@@ -34546,61 +34557,16 @@ static int32_t buildAddTagReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
   return TSDB_CODE_SUCCESS;
 }
 
-// ADD TAG name TYPE FROM db.tb.tag — add a tag reference. Mirror of buildAddTagReq's validation
-// plus the source-tag existence/type check and ref fields (as ADD_COLUMN_WITH_COLUMN_REF does).
+// ADD TAG name TYPE FROM db.tb.tag — add a tag reference. Reuses checkAddTagDef for the shared
+// validation, plus the source-tag existence/type check and ref fields (as
+// ADD_COLUMN_WITH_COLUMN_REF does).
 static int32_t buildAddTagRefReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                  SVAlterTbReq* pReq) {
   if (TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   }
 
-  int32_t  numOfTags = getNumOfTags(pTableMeta);
-  SSchema* pTagSchema = getTableTagSchema(pTableMeta);
-
-  // JSON tags must stand alone: a JSON tag-ref is not allowed, and no further tag may be added
-  // to a table that already has a JSON tag (mirrors buildAddTagReq / checkCreateTags).
-  if (TSDB_DATA_TYPE_JSON == pStmt->dataType.type) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
-  }
-  for (int32_t i = 0; i < numOfTags; ++i) {
-    if (TSDB_DATA_TYPE_JSON == pTagSchema[i].type) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
-    }
-  }
-
-  for (int32_t i = 0; i < numOfTags; ++i) {
-    if (0 == strcmp(pTagSchema[i].name, pStmt->colName)) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
-    }
-  }
-  // tag name must not collide with a column name (tags and columns share the cid/name space)
-  int32_t  numOfCols = getNumOfColumns(pTableMeta);
-  SSchema* pColSchema = getTableColumnSchema(pTableMeta);
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    if (0 == strcmp(pColSchema[i].name, pStmt->colName)) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
-    }
-  }
-  if (IS_DECIMAL_TYPE(pStmt->dataType.type)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, "Decimal type is not allowed for tag");
-  }
-  if ((TSDB_DATA_TYPE_VARCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
-      (TSDB_DATA_TYPE_VARBINARY == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
-      (TSDB_DATA_TYPE_NCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_NCHAR_LEN)) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
-  }
-  if (TSDB_MAX_TAGS == numOfTags) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_NUM);
-  }
-
-  // tag-refs occupy a schemaTag entry too — enforce the total tag length cap like buildAddTagReq
-  int32_t tagsLen = 0;
-  for (int32_t i = 0; i < numOfTags; ++i) {
-    tagsLen += pTagSchema[i].bytes;
-  }
-  if (tagsLen + calcTypeBytes(pStmt->dataType) > TSDB_MAX_TAGS_LEN) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_LENGTH, TSDB_MAX_TAGS_LEN);
-  }
+  PAR_ERR_RET(checkAddTagDef(pCxt, pStmt->colName, pStmt->dataType, pTableMeta));
 
   // external source tag references are not supported (tag-ref resolution requires a TDengine
   // source table); reject the 4-segment form explicitly instead of treating it as internal
