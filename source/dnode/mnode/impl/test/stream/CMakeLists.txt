@@ -2,6 +2,7 @@ SET(CMAKE_CXX_STANDARD 11)
 
 add_executable(streamTest "stream.cpp")
 DEP_ext_gtest(streamTest)
+DEP_ext_cppstub(streamTest)
 target_link_libraries(
         streamTest
         PRIVATE mnode

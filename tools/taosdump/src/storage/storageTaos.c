@@ -11,6 +11,7 @@
 
 #include "storageTaos.h"
 #include "bckLog.h"
+#include "bckUtil.h"
 #include <taoserror.h>
 #include "colCompress.h"
 #include "tbuffer.h"
@@ -206,7 +207,7 @@ int writeBlockToTaosFile(TaosFile*  taosFile,
                                              &taosFile->compressBufCap,
                                              &code);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("compress block failed: %d", code);
+        logError("compress block failed(0x%08X, %s)", code, bckErrMsg(code));
         return code;
     }
 
@@ -219,7 +220,7 @@ int writeBlockToTaosFile(TaosFile*  taosFile,
     int32_t uncompressLen = 0;
     code = decompressBlock(compBlock, fieldInfos, numFields, &uncompressBlock, &uncompressLen, &decompressBuf);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("decompress block failed: %d", code);
+        logError("decompress block failed(0x%08X, %s)", code, bckErrMsg(code));
         freeCompressData(compBlock);
         tBufferDestroy(&decompressBuf);
         return code;
@@ -263,12 +264,12 @@ int resultToFileTaos(TAOS_RES *res, const char *fileName, char *writeBuf, int32_
 
     int numFields = taos_num_fields(res);
     if (numFields <= 0) {
-        logError("fields num is zero. errstr: %s", taos_errstr(res));
+        logError("fields num is zero(0x%08X, %s)", taos_errno(res), taos_errstr(res));
         return TSDB_CODE_BCK_NO_FIELDS;
     }
     TAOS_FIELD_E* fields = taos_fetch_fields_e(res);
     if (fields == NULL) {
-        logError("fetch fields failed! errstr: %s", taos_errstr(res));
+        logError("fetch fields failed(0x%08X, %s)", taos_errno(res), taos_errstr(res));
         return TSDB_CODE_BCK_FETCH_FIELDS_FAILED;
     }
 
@@ -333,7 +334,8 @@ int resultToFileTaos(TAOS_RES *res, const char *fileName, char *writeBuf, int32_
     // while fetch data
     int blockRows = 0;
     void *block = NULL;
-    while (taos_fetch_raw_block(res, &blockRows, &block) == TSDB_CODE_SUCCESS) {
+    int fetchCode = TSDB_CODE_SUCCESS;
+    while ((fetchCode = taos_fetch_raw_block(res, &blockRows, &block)) == TSDB_CODE_SUCCESS) {
         if (g_interrupted) {
             code = TSDB_CODE_BCK_USER_CANCEL;
             tBufferDestroy(&assist);
@@ -342,7 +344,7 @@ int resultToFileTaos(TAOS_RES *res, const char *fileName, char *writeBuf, int32_
         }
 
         if (blockRows == 0 || block == NULL) {
-            // no data
+            // no data (normal end of result set)
             break;
         }
         // write block to file
@@ -353,7 +355,7 @@ int resultToFileTaos(TAOS_RES *res, const char *fileName, char *writeBuf, int32_
                                     &assist,
                                     numFields);
         if (code != TSDB_CODE_SUCCESS) {
-            logError("write data block to file failed(%d): %s", code, fileName);
+            logError("write data block to file failed(0x%08X, %s): %s", code, bckErrMsg(code), fileName);
             tBufferDestroy(&assist);
             closeTaosFile(taosFile);
             return code;
@@ -364,6 +366,16 @@ int resultToFileTaos(TAOS_RES *res, const char *fileName, char *writeBuf, int32_
         if (progressCtr) atomic_add_fetch_64(progressCtr, blockRows);
     }
 
+    // Loop exits with non-SUCCESS when the connection broke mid-fetch (e.g.
+    // server killed during backup).  Without this check the partial .tmp file
+    // would be renamed to .dat as if complete, silently losing rows.
+    if (fetchCode != TSDB_CODE_SUCCESS) {
+        logError("fetch raw block failed(0x%08X, %s): %s", fetchCode, taos_errstr(res), fileName);
+        tBufferDestroy(&assist);
+        closeTaosFile(taosFile);
+        return fetchCode;
+    }
+
     // cleanup buffer
     tBufferDestroy(&assist);
 
@@ -372,7 +384,7 @@ int resultToFileTaos(TAOS_RES *res, const char *fileName, char *writeBuf, int32_
     // close file
     code = closeTaosFile(taosFile);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("close Taos file failed(%d): %s", code, fileName);
+        logError("close Taos file failed(0x%08X, %s): %s", code, bckErrMsg(code), fileName);
         return code;
     }
 
@@ -526,7 +538,7 @@ int readTaosFileBlocks(TaosFile *taosFile, BlockCallback callback, void *userDat
         code = decompressBlock(readBuf, fieldInfos, numFields, &rawBlock, &rawLen, &assist);
 
         if (code != TSDB_CODE_SUCCESS) {
-            logError("decompress block failed at block %u, code: %d", b, code);
+            logError("decompress block failed at block %u (0x%08X, %s)", b, code, bckErrMsg(code));
             // rawBlock was freed inside decompressBlock on error (set to NULL)
             taosMemoryFree(readBuf);
             tBufferDestroy(&assist);
@@ -539,7 +551,7 @@ int readTaosFileBlocks(TaosFile *taosFile, BlockCallback callback, void *userDat
         code = callback(userData, fieldInfos, numFields, rawBlock, rawLen, blockRows);
 
         if (code != TSDB_CODE_SUCCESS) {
-            logError("block callback failed at block %u, code: 0x%08X", b, code);
+            logError("block callback failed at block %u, code: 0x%08X (%s)", b, code, bckErrMsg(code));
             taosMemoryFree(rawBlock);
             taosMemoryFree(readBuf);
             tBufferDestroy(&assist);

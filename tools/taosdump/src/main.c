@@ -18,6 +18,10 @@
 // global interrupt flag
 volatile sig_atomic_t g_interrupted = 0;
 
+// fatal-error abort flag (server unreachable) and the triggering error code
+volatile int g_fatalError = 0;
+volatile int g_fatalCode = 0;
+
 // global statistics
 BckStats g_stats = {0};
 
@@ -76,29 +80,57 @@ static bool fetchServerVersion(char *outVersion, int len) {
     return ok;
 }
 
+// Print the invoking command line with -p/--password and -X/--dsn values
+// redacted, so credentials never land in backup.log/restore.log in cleartext.
+static void logRedactedCommand(int argc, char *argv[]) {
+    logTee("  Command      :");
+    for (int i = 0; i < argc; i++) {
+        const char *arg = argv[i];
+        if (strcmp(arg, "-p") == 0 || strcmp(arg, "--password") == 0) {
+            logTee(" %s", arg);
+        } else if (strncmp(arg, "-p", 2) == 0 && strlen(arg) > 2) {
+            logTee(" -p****");
+        } else if (strncmp(arg, "--password=", strlen("--password=")) == 0) {
+            logTee(" --password=****");
+        } else if (strcmp(arg, "-X") == 0 || strcmp(arg, "--dsn") == 0) {
+            logTee(" %s", arg);
+            if (i + 1 < argc) {
+                logTee(" ****");
+                i++;
+            }
+        } else if (strncmp(arg, "--dsn=", strlen("--dsn=")) == 0) {
+            logTee(" --dsn=****");
+        } else {
+            logTee(" %s", arg);
+        }
+    }
+    logTee("\n");
+}
+
 //
 // print startup summary
 //
-static void printStartSummary(enum ActionType action, const char *serverVersion, int64_t startMs) {
+static void printStartSummary(int argc, char *argv[], enum ActionType action,
+                               const char *serverVersion, int64_t startMs) {
     bool wsMode = (argDriver() == CONN_MODE_WEBSOCKET) ||
                   (argDriver() == CONN_MODE_INVALID && argIsDsn());
     logTee("\n");
     logTee("===========================================================================\n");
     logTee("  taosdump - %s\n", action == ACTION_BACKUP ? "BACKUP" : "RESTORE");
     logTee("===========================================================================\n");
+
+    // ── Group 1: data scope ──
     logTee("  Connect Mode : %s\n", wsMode ? "WebSocket" : "Native");
-    logTee("  Config Dir   : %s\n", argConfigDir());
+    logTee("  Server       : %s:%d\n", argHost() ? argHost() : "(firstEp from cfg)", argPort());
     if (argIsDsn()) {
         logTee("  DSN          : %s\n", argDsn());
     }
-    logTee("  Server       : %s:%d\n", argHost() ? argHost() : "(firstEp from cfg)", argPort());
-    logTee("  Server Ver.  : %s\n", (serverVersion && serverVersion[0]) ? serverVersion : "(unknown)");
-    logTee("  User         : %s\n", argUser());
-    logTee("  Output Path  : %s\n", argOutPath());
     {
-        char dtBuf[32];
-        formatDateTime(startMs, dtBuf, sizeof(dtBuf));
-        logTee("  Start Time   : %s\n", dtBuf);
+        // cfg dir is optional, so only print if set
+        const char * cfgDir = argConfigDir();
+        if (cfgDir && cfgDir[0]) {
+            logTee("  Config Dir   : %s\n", cfgDir);
+        }
     }
     {
         char **dbs = argBackDB();
@@ -112,41 +144,58 @@ static void printStartSummary(enum ActionType action, const char *serverVersion,
             logTee("  Databases    : ALL %s\n", action == ACTION_BACKUP ? "(system databases excluded)" : "");
         }
     }
+    logTee("  Content      : %s\n", argContentName());
+    if (action == ACTION_BACKUP) {
+        const char *ts = argStartTime();
+        const char *te = argEndTime();
+        if (ts && te) {
+            logTee("  Time Range   : %s ~ %s\n", ts, te);
+        } else if (ts) {
+            logTee("  Time Range   : %s ~\n", ts);
+        } else if (te) {
+            logTee("  Time Range   : ~ %s\n", te);
+        } else {
+            logTee("  Time Range   : ALL\n");
+        }
+    }
+    {
+        char **specTbs = argSpecTables();
+        if (specTbs) {
+            logTee("  Tables       :");
+            for (int i = 0; specTbs[i]; i++) {
+                logTee(" %s", specTbs[i]);
+            }
+            logTee("\n");
+        }
+    }
+    logTee("  Output Path  : %s\n", argOutPath());
+
+    // ── Group 2: tuning ──
+    logTee("\n");
     logTee("  Data Threads : %d\n", argDataThread());
     logTee("  Tag Threads  : %d\n", argTagThread());
     if (action == ACTION_BACKUP) {
         logTee("  Format       : %s\n", argStorageFormat() == BINARY_TAOS ? "binary" : "parquet");
-        logTee("  Schema Only  : %s\n", argSchemaOnly() ? "yes" : "no");
-        {
-            const char *ts = argStartTime();
-            const char *te = argEndTime();
-            if (ts && te) {
-                logTee("  Time Range   : %s ~ %s\n", ts, te);
-            } else if (ts) {
-                logTee("  Time Range   : %s ~\n", ts);
-            } else if (te) {
-                logTee("  Time Range   : ~ %s\n", te);
-            } else {
-                logTee("  Time Range   : ALL\n");
-            }
-        }
-        {
-            char **specTbs = argSpecTables();
-            if (specTbs) {
-                logTee("  Tables       :");
-                for (int i = 0; specTbs[i]; i++) {
-                    logTee(" %s", specTbs[i]);
-                }
-                logTee("\n");
-            }
-        }
         logTee("  Check Point  : %s\n", argCheckpoint() ? "yes" : "no");
+        logTee("  Schema Only  : %s\n", argSchemaOnly() ? "yes" : "no");
     }
     if (action == ACTION_RESTORE) {
         logTee("  Check Point  : %s\n", argCheckpoint() ? "yes" : "no");
         const char *rl = argRenameList();
         if (rl) logTee("  Rename DB    : %s\n", rl);
     }
+
+    // ── Group 3: meta ──
+    logTee("\n");
+    logRedactedCommand(argc, argv);
+    logTee("  Server Ver.  : %s\n", (serverVersion && serverVersion[0]) ? serverVersion : "(unknown)");
+    logTee("  User         : %s\n", argUser());
+    {
+        char dtBuf[32];
+        formatDateTime(startMs, dtBuf, sizeof(dtBuf));
+        logTee("  Start Time   : %s\n", dtBuf);
+    }
+
     logTee("===========================================================================\n");
     logTee("\n");
 }
@@ -157,12 +206,14 @@ static void printStartSummary(enum ActionType action, const char *serverVersion,
 static void printEndSummary(enum ActionType action, int code, double elapsed, int64_t endMs) {
     logTee("\n");
     logTee("===========================================================================\n");
+    const char *actionName = (action == ACTION_BACKUP) ? "BACKUP" : "RESTORE";
     if (code == TSDB_CODE_SUCCESS) {
-        logTee("  Result       : SUCCESS\n");
+        logTee("  Result       : SUCCESS (%s)\n", actionName);
     } else if (code == TSDB_CODE_BCK_USER_CANCEL) {
-        logTee("  Result       : CANCELLED BY USER (code: 0x%08X)\n", code);
+        logTee("  Result       : CANCELLED BY USER (%s, code: 0x%08X)\n", actionName, code);
     } else {
-        logTee("  Result       : FAILED (code: 0x%08X, %s)\n", code, tstrerror(code));
+        const char *msg = bckErrMsg(code);
+        logTee("  Result       : FAILED (%s, code: 0x%08X, %s)\n", actionName, code, msg);
     }
     logTee("---------------------------------------------------------------------------\n");
     logTee("  Databases    : total=%" PRId64 ", success=%" PRId64 ", failed=%" PRId64 "\n",
@@ -176,6 +227,10 @@ static void printEndSummary(enum ActionType action, int code, double elapsed, in
     }
     logTee("  Total Rows   : %" PRId64 "\n", g_stats.totalRows);
     logTee("  Normal Tables: %" PRId64 "\n", g_stats.ntbTotal);
+    if (argContentExtMeta()) {
+        logTee("  Ext Meta     : vtable=%" PRId64 ", stream=%" PRId64 ", topic=%" PRId64 "\n",
+               g_stats.vtbTotal, g_stats.streamTotal, g_stats.topicTotal);
+    }
     if (action == ACTION_BACKUP) {
         logTee("  Data Files   : total=%" PRId64 ", skipped(resume)=%" PRId64 ", failed=%" PRId64 "\n",
                g_stats.dataFilesTotal, g_stats.dataFilesSkipped, g_stats.dataFilesFailed);
@@ -250,14 +305,16 @@ int main(int argc, char *argv[]) {
 
     // Open the on-disk mirror log as early as possible so it captures
     // everything from the version banner onward.
-    //   backup  -> <outPath>/backup.log,  truncated on each run
+    //   backup  -> <outPath>/backup.log,  truncated on each run, except when
+    //              -C resumes a prior checkpointed run, which must append so
+    //              the earlier attempt's log lines aren't lost
     //   restore -> <cwd>/restore.log,     appended across runs
     enum ActionType action = argAction();
     if (action == ACTION_BACKUP) {
         taosMulMkDir(argOutPath());
         char logPath[MAX_PATH_LEN];
         snprintf(logPath, sizeof(logPath), "%s/backup.log", argOutPath());
-        logFileOpen(logPath, true);
+        logFileOpen(logPath, !argCheckpoint());
     } else if (action == ACTION_RESTORE) {
         char cwd[MAX_PATH_LEN];
         taosGetCwd(cwd, sizeof(cwd));
@@ -276,7 +333,7 @@ int main(int argc, char *argv[]) {
         const char *drvName = useWs ? "websocket" : "native";
         int rc = taos_options(TSDB_OPTION_DRIVER, drvName);
         if (rc != 0) {
-            logError("failed to set driver '%s': %s", drvName, taos_errstr(NULL));
+            logError("failed to set driver '%s'(0x%08X, %s)", drvName, rc, taos_errstr(NULL));
             argsDestroy();
             return -1;
         }
@@ -308,7 +365,7 @@ int main(int argc, char *argv[]) {
     char serverVersion[64] = {0};
     fetchServerVersion(serverVersion, sizeof(serverVersion));
 
-    printStartSummary(action, serverVersion, startMs);
+    printStartSummary(argc, argv, action, serverVersion, startMs);
 
     // start progress display thread
     if (action == ACTION_BACKUP || action == ACTION_RESTORE) {

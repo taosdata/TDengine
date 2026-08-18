@@ -983,6 +983,13 @@ void    resetBasicOperatorState(SOptrBasicInfo* pBasicInfo);
 
 int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size);
 
+#if defined(BUILD_TEST)
+int32_t extWinTestTakeReusableBlock(SList* pFreeBlocks, SList* pTargetBlocks, int32_t rows, SSDataBlock** ppBlock,
+                                    SArray** ppIdx);
+bool    extWinTestBlockNodeInvariantHolds(SList* pList, SListNode* pNode, SListNode* pExpectedPrev, SSDataBlock* pBlock,
+                                          SArray* pIdx, int32_t appendRows, int32_t* pOverlapCol);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

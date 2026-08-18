@@ -46,9 +46,470 @@ int32_t mstSetExtraErrMsg(char** ppMsg, const char* msg) {
   return *ppMsg == NULL ? terrno : TSDB_CODE_SUCCESS;
 }
 
+static void mstClearTaskMetricsImpl(SStmTaskStatus* pStatus) {
+  taosArrayDestroy(pStatus->metrics.pRecalculates);
+  memset(&pStatus->metrics, 0, sizeof(pStatus->metrics));
+  pStatus->metricsValid = false;
+}
+
+static void mstFreeTriggerRuntimeStatus(SSTriggerRuntimeStatus* pTrigger);
+
+static bool mstRecalcStatusTerminal(EStreamRecalcStatus status) {
+  return status == STREAM_RECALC_STATUS_FINISHED || status == STREAM_RECALC_STATUS_FAILED;
+}
+
+static bool mstRecalcSnapshotValid(const SStreamRecalcSnapshot* pSnapshot) {
+  if (pSnapshot == NULL || pSnapshot->progressPct < 0 || pSnapshot->progressPct > 100 ||
+      pSnapshot->status < STREAM_RECALC_STATUS_PENDING || pSnapshot->status > STREAM_RECALC_STATUS_FAILED) {
+    return false;
+  }
+  if (pSnapshot->status == STREAM_RECALC_STATUS_PENDING) return pSnapshot->progressPct == 0;
+  if (pSnapshot->status == STREAM_RECALC_STATUS_RUNNING) return pSnapshot->progressPct < 100;
+  if (pSnapshot->status == STREAM_RECALC_STATUS_FINISHED) return pSnapshot->progressPct == 100;
+  return pSnapshot->progressPct < 100;
+}
+
+static int32_t mstFindRecalcRecord(const SArray* pRecords, int64_t recalcId) {
+  for (int32_t i = 0; i < taosArrayGetSize(pRecords); ++i) {
+    const SStmRecalcRecord* pRecord = taosArrayGet(pRecords, i);
+    if (pRecord->snapshot.recalcId == recalcId) return i;
+  }
+  return -1;
+}
+
+static int32_t mstBuildRecalcRecordIndex(const SArray* pRecords, SHashObj** ppIndex) {
+  const size_t recordCount = taosArrayGetSize(pRecords);
+  *ppIndex = taosHashInit(TMAX(recordCount, 4), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  if (*ppIndex == NULL) {
+    return terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  for (int32_t i = 0; i < recordCount; ++i) {
+    const SStmRecalcRecord* pRecord = taosArrayGet(pRecords, i);
+    int32_t                 code =
+        taosHashPut(*ppIndex, &pRecord->snapshot.recalcId, sizeof(pRecord->snapshot.recalcId), &i, sizeof(i));
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mstGetRecalcRecordIndex(SHashObj* pIndex, int64_t recalcId) {
+  const int32_t* pRecordIndex = taosHashGet(pIndex, &recalcId, sizeof(recalcId));
+  return pRecordIndex == NULL ? -1 : *pRecordIndex;
+}
+
+typedef struct SStmTerminalRef {
+  int32_t index;
+  int64_t terminalObservedAtMs;
+  int64_t recalcId;
+} SStmTerminalRef;
+
+static int32_t mstCompareTerminalRef(const void* pLeft, const void* pRight) {
+  const SStmTerminalRef* pLhs = pLeft;
+  const SStmTerminalRef* pRhs = pRight;
+  if (pLhs->terminalObservedAtMs != pRhs->terminalObservedAtMs) {
+    return pLhs->terminalObservedAtMs < pRhs->terminalObservedAtMs ? -1 : 1;
+  }
+  if (pLhs->recalcId == pRhs->recalcId) return 0;
+  return pLhs->recalcId < pRhs->recalcId ? -1 : 1;
+}
+
+static int32_t mstPruneRecalcRecordsLocked(SArray* pRecords, int64_t nowMs) {
+  for (int32_t i = 0; i < taosArrayGetSize(pRecords); ++i) {
+    SStmRecalcRecord* pRecord = taosArrayGet(pRecords, i);
+    if (pRecord->terminalObservedAtMs > 0 && nowMs >= pRecord->terminalObservedAtMs &&
+        nowMs - pRecord->terminalObservedAtMs >= 3600000) {
+      pRecord->hidden = true;
+    }
+  }
+
+  int32_t terminalCount = 0;
+  for (int32_t i = 0; i < taosArrayGetSize(pRecords); ++i) {
+    const SStmRecalcRecord* pRecord = taosArrayGet(pRecords, i);
+    if (!pRecord->hidden && mstRecalcStatusTerminal(pRecord->snapshot.status)) ++terminalCount;
+  }
+  if (terminalCount <= 100) return TSDB_CODE_SUCCESS;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray* pTerminals = taosArrayInit(terminalCount, sizeof(SStmTerminalRef));
+  if (pTerminals == NULL) {
+    code = terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pRecords); ++i) {
+    const SStmRecalcRecord* pRecord = taosArrayGet(pRecords, i);
+    if (pRecord->hidden || !mstRecalcStatusTerminal(pRecord->snapshot.status)) continue;
+    const SStmTerminalRef ref = {
+        .index = i,
+        .terminalObservedAtMs = pRecord->terminalObservedAtMs,
+        .recalcId = pRecord->snapshot.recalcId,
+    };
+    if (taosArrayPush(pTerminals, &ref) == NULL) {
+      code = terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+  }
+  taosArraySort(pTerminals, mstCompareTerminalRef);
+  for (int32_t i = 0; i < terminalCount - 100; ++i) {
+    const SStmTerminalRef* pRef = taosArrayGet(pTerminals, i);
+    SStmRecalcRecord*      pRecord = taosArrayGet(pRecords, pRef->index);
+    pRecord->hidden = true;
+  }
+
+_exit:
+  taosArrayDestroy(pTerminals);
+  return code;
+}
+
+static bool mstRecalcSnapshotContains(const SArray* pSnapshots, int64_t recalcId) {
+  for (int32_t i = 0; i < taosArrayGetSize(pSnapshots); ++i) {
+    const SStreamRecalcSnapshot* pSnapshot = taosArrayGet(pSnapshots, i);
+    if (pSnapshot->recalcId == recalcId) return true;
+  }
+  return false;
+}
+
+static void mstRemoveAbsentRecalcTombstones(SArray* pRecords, const SArray* pSnapshots) {
+  for (int32_t i = taosArrayGetSize(pRecords) - 1; i >= 0; --i) {
+    const SStmRecalcRecord* pRecord = taosArrayGet(pRecords, i);
+    if (pRecord->hidden && !mstRecalcSnapshotContains(pSnapshots, pRecord->snapshot.recalcId)) {
+      taosArrayRemove(pRecords, i);
+    }
+  }
+}
+
+static bool mstRecalcTransitionValid(const SStmRecalcRecord* pOld, const SStreamRecalcSnapshot* pNew) {
+  if (pOld->snapshot.start != pNew->start || pOld->snapshot.end != pNew->end ||
+      pNew->progressPct < pOld->snapshot.progressPct) {
+    return false;
+  }
+  if (mstRecalcStatusTerminal(pOld->snapshot.status)) {
+    return pOld->snapshot.status == pNew->status && pOld->snapshot.progressPct == pNew->progressPct;
+  }
+  if (pOld->snapshot.status == STREAM_RECALC_STATUS_RUNNING && pNew->status == STREAM_RECALC_STATUS_PENDING) {
+    return false;
+  }
+  return true;
+}
+
+static int32_t mstCloneTaskMetrics(const SStreamTaskMetricsSnapshot* pSource, SStreamTaskMetricsSnapshot* pTarget) {
+  *pTarget = *pSource;
+  pTarget->pRecalculates = NULL;
+  if (pSource->pRecalculates == NULL) return TSDB_CODE_SUCCESS;
+
+  pTarget->pRecalculates = taosArrayDup(pSource->pRecalculates, NULL);
+  return pTarget->pRecalculates == NULL ? (terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY)
+                                        : TSDB_CODE_SUCCESS;
+}
+
+static int32_t mstApplyTriggerTaskMetrics(SStmTaskStatus* pStatus, const SStreamTaskMetricsEntry* pEntry,
+                                          int64_t nowMs) {
+  SStmStatus*   pStream = pStatus->pStream;
+  const SArray* pSnapshots = pEntry->snapshot.pRecalculates;
+  if (pStream == NULL || (pSnapshots != NULL && pSnapshots->elemSize != sizeof(SStreamRecalcSnapshot))) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  SArray*                    pRecords = NULL;
+  SHashObj*                  pRecordIndex = NULL;
+  SStreamTaskMetricsSnapshot metrics = {0};
+  code = mstCloneTaskMetrics(&pEntry->snapshot, &metrics);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+
+  taosWLockLatch(&pStream->userRecalcLock);
+  (void)mstWaitLock(&pStatus->detailStatusLock, false);
+  if (pEntry->taskId != pStatus->id.taskId || pEntry->seriousId != pStatus->id.seriousId) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _unlock;
+  }
+  pRecords = pStream->recalcRecords == NULL ? taosArrayInit(taosArrayGetSize(pSnapshots), sizeof(SStmRecalcRecord))
+                                            : taosArrayDup(pStream->recalcRecords, NULL);
+  if (pRecords == NULL) {
+    code = terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    goto _unlock;
+  }
+  mstRemoveAbsentRecalcTombstones(pRecords, pSnapshots);
+  code = mstPruneRecalcRecordsLocked(pRecords, nowMs);
+  if (code != TSDB_CODE_SUCCESS) goto _unlock;
+  if (taosArrayGetSize(pSnapshots) > 1) {
+    code = mstBuildRecalcRecordIndex(pRecords, &pRecordIndex);
+    if (code != TSDB_CODE_SUCCESS) goto _unlock;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pSnapshots); ++i) {
+    const SStreamRecalcSnapshot* pSnapshot = taosArrayGet(pSnapshots, i);
+    if (!mstRecalcSnapshotValid(pSnapshot)) {
+      code = TSDB_CODE_INVALID_PARA;
+      goto _unlock;
+    }
+    const int32_t index = pRecordIndex == NULL ? mstFindRecalcRecord(pRecords, pSnapshot->recalcId)
+                                               : mstGetRecalcRecordIndex(pRecordIndex, pSnapshot->recalcId);
+    if (index < 0) {
+      SStmRecalcRecord record = {
+          .snapshot = *pSnapshot,
+          .terminalObservedAtMs = mstRecalcStatusTerminal(pSnapshot->status) ? nowMs : 0,
+          .typedStatusKnown = true,
+      };
+      if (taosArrayPush(pRecords, &record) == NULL) {
+        code = terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+        goto _unlock;
+      }
+      if (pRecordIndex != NULL) {
+        const int32_t newIndex = taosArrayGetSize(pRecords) - 1;
+        code =
+            taosHashPut(pRecordIndex, &pSnapshot->recalcId, sizeof(pSnapshot->recalcId), &newIndex, sizeof(newIndex));
+        if (code != TSDB_CODE_SUCCESS) goto _unlock;
+      }
+      continue;
+    }
+
+    SStmRecalcRecord* pRecord = taosArrayGet(pRecords, index);
+    if (!mstRecalcTransitionValid(pRecord, pSnapshot)) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _unlock;
+    }
+    const bool becameTerminal =
+        !mstRecalcStatusTerminal(pRecord->snapshot.status) && mstRecalcStatusTerminal(pSnapshot->status);
+    pRecord->snapshot = *pSnapshot;
+    pRecord->typedStatusKnown = true;
+    if (becameTerminal) pRecord->terminalObservedAtMs = nowMs;
+  }
+  code = mstPruneRecalcRecordsLocked(pRecords, nowMs);
+  if (code != TSDB_CODE_SUCCESS) goto _unlock;
+
+  TSWAP(pStream->recalcRecords, pRecords);
+  mstClearTaskMetricsImpl(pStatus);
+  pStatus->metrics = metrics;
+  pStatus->metricsValid = true;
+  metrics.pRecalculates = NULL;
+
+_unlock:
+  taosWUnLockLatch(&pStatus->detailStatusLock);
+  taosWUnLockLatch(&pStream->userRecalcLock);
+
+_exit:
+  taosHashCleanup(pRecordIndex);
+  taosArrayDestroy(pRecords);
+  taosArrayDestroy(metrics.pRecalculates);
+  return code;
+}
+
+void mstInvalidateTaskMetrics(SStmTaskStatus* pStatus) {
+  if (pStatus == NULL) {
+    return;
+  }
+
+  (void)mstWaitLock(&pStatus->detailStatusLock, false);
+  pStatus->metricsValid = false;
+  taosWUnLockLatch(&pStatus->detailStatusLock);
+}
+
+void mstClearTaskMetrics(SStmTaskStatus* pStatus) {
+  if (pStatus == NULL) {
+    return;
+  }
+
+  (void)mstWaitLock(&pStatus->detailStatusLock, false);
+  mstClearTaskMetricsImpl(pStatus);
+  taosWUnLockLatch(&pStatus->detailStatusLock);
+}
+
+int64_t mstBumpTaskSeriousId(SStmTaskStatus* pStatus) {
+  SStmStatus* pStream = pStatus != NULL && pStatus->type == STREAM_TRIGGER_TASK ? pStatus->pStream : NULL;
+  if (pStream != NULL) taosWLockLatch(&pStream->userRecalcLock);
+  (void)mstWaitLock(&pStatus->detailStatusLock, false);
+  int64_t seriousId = atomic_add_fetch_64(&pStatus->id.seriousId, 1);
+  mstClearTaskMetricsImpl(pStatus);
+  if (pStream != NULL) {
+    mstFreeTriggerRuntimeStatus(pStatus->detailStatus);
+    pStatus->detailStatus = NULL;
+    taosArrayClear(pStream->recalcRecords);
+  }
+  taosWUnLockLatch(&pStatus->detailStatusLock);
+  if (pStream != NULL) taosWUnLockLatch(&pStream->userRecalcLock);
+  return seriousId;
+}
+
+int32_t mstCopyTaskMetrics(SStmTaskStatus* pStatus, const SStreamTaskMetricsSnapshot* pMetrics) {
+  if (pStatus == NULL || pMetrics == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SStreamTaskMetricsSnapshot metrics = {0};
+  int32_t                    code = mstCloneTaskMetrics(pMetrics, &metrics);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  (void)mstWaitLock(&pStatus->detailStatusLock, false);
+  mstClearTaskMetricsImpl(pStatus);
+  pStatus->metrics = metrics;
+  pStatus->metricsValid = true;
+  taosWUnLockLatch(&pStatus->detailStatusLock);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mstApplyTaskMetrics(SStmTaskStatus* pStatus, int32_t expectedIndex, int64_t expectedStreamId,
+                            const SStreamTaskMetricsEntry* pEntry) {
+  if (pStatus == NULL || pEntry == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pEntry->decodeCode != TSDB_CODE_SUCCESS || pEntry->taskStatusIndex != expectedIndex ||
+      pEntry->streamId != expectedStreamId || pEntry->taskId != pStatus->id.taskId ||
+      pEntry->seriousId != pStatus->id.seriousId) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  if (pStatus->type == STREAM_TRIGGER_TASK && (pEntry->snapshot.validMask & STREAM_METRIC_RECALCULATES) != 0) {
+    return mstApplyTriggerTaskMetrics(pStatus, pEntry, taosGetTimestampMs());
+  }
+  return mstCopyTaskMetrics(pStatus, &pEntry->snapshot);
+}
+
+static void mstReadTaskMetrics(SStmTaskStatus* pTask, bool* pValid, SStreamTaskMetricsSnapshot* pMetrics) {
+  (void)mstWaitLock(&pTask->detailStatusLock, true);
+  *pValid = pTask->metricsValid;
+  *pMetrics = pTask->metrics;
+  taosRUnLockLatch(&pTask->detailStatusLock);
+}
+
+static void mstReadHistoryProgress(const SStmStatus* pStatus, SStreamMetricView* pView) {
+  SStmTaskStatus* pTask = pStatus->triggerTask;
+  if (pTask == NULL) return;
+
+  (void)mstWaitLock(&pTask->detailStatusLock, true);
+  const bool typedApplicable = (pTask->metrics.applicableMask & STREAM_METRIC_HISTORY_PROGRESS) != 0;
+  if (typedApplicable) {
+    pView->historyProgressValid = pTask->metricsValid &&
+                                  (pTask->metrics.validMask & STREAM_METRIC_HISTORY_PROGRESS) != 0 &&
+                                  pTask->metrics.historyProgressValid && pTask->metrics.historyProgressPct >= 0 &&
+                                  pTask->metrics.historyProgressPct <= 100;
+    if (pView->historyProgressValid) pView->historyProgressPct = pTask->metrics.historyProgressPct;
+  } else if (pStatus->pCreate != NULL && pStatus->pCreate->fillHistory && pTask->detailStatus != NULL) {
+    const SSTriggerRuntimeStatus* pLegacy = pTask->detailStatus;
+    pView->historyProgressValid = pLegacy->histroyProgress >= 0 && pLegacy->histroyProgress <= 100;
+    if (pView->historyProgressValid) pView->historyProgressPct = pLegacy->histroyProgress;
+  }
+  taosRUnLockLatch(&pTask->detailStatusLock);
+}
+
+int32_t mstBuildStreamMetricView(const SStmStatus* pStatus, SStreamMetricView* pView) {
+  if (pStatus == NULL || pView == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  memset(pView, 0, sizeof(*pView));
+  if (pStatus->triggerTask != NULL) {
+    bool                       metricsValid = false;
+    SStreamTaskMetricsSnapshot metrics = {0};
+    mstReadTaskMetrics(pStatus->triggerTask, &metricsValid, &metrics);
+    pView->inputRateValid = metricsValid && (metrics.validMask & STREAM_METRIC_LOGICAL_INPUT) != 0;
+    if (pView->inputRateValid) {
+      pView->inputRowsPerSec1m = (double)metrics.logicalInputRows1m / 60.0;
+    }
+    pView->realtimeLagValid = metricsValid && (metrics.validMask & STREAM_METRIC_REALTIME_LAG) != 0;
+    if (pView->realtimeLagValid) {
+      pView->realtimeLagMs = metrics.realtimeLagMs;
+    }
+    mstReadHistoryProgress(pStatus, pView);
+  }
+
+  bool        hasFinalRunner = false;
+  bool        outputValid = true;
+  bool        latencyValid = true;
+  long double outputRows = 0;
+  long double latencyUs = 0;
+  long double latencySamples = 0;
+  for (int32_t deploy = 0; deploy < pStatus->runnerDeploys; ++deploy) {
+    SArray*         pRunners = pStatus->runners[deploy];
+    SStmTaskStatus* pRunner = pRunners != NULL ? taosArrayGetLast(pRunners) : NULL;
+    if (pRunner == NULL || pRunner->type != STREAM_RUNNER_TASK) {
+      outputValid = false;
+      latencyValid = false;
+      continue;
+    }
+
+    hasFinalRunner = true;
+    bool                       metricsValid = false;
+    SStreamTaskMetricsSnapshot metrics = {0};
+    mstReadTaskMetrics(pRunner, &metricsValid, &metrics);
+    bool windowValid = metricsValid && metrics.windowReady;
+    if (windowValid && (metrics.validMask & STREAM_METRIC_DELIVERED_OUTPUT) != 0) {
+      outputRows += metrics.deliveredOutputRows1m;
+    } else {
+      outputValid = false;
+    }
+    if (windowValid && (metrics.validMask & STREAM_METRIC_RESULT_LATENCY) != 0) {
+      latencyUs += metrics.resultLatencyUs1m;
+      latencySamples += metrics.resultLatencySamples1m;
+    } else {
+      latencyValid = false;
+    }
+  }
+
+  pView->outputRateValid = hasFinalRunner && outputValid;
+  if (pView->outputRateValid) {
+    pView->outputRowsPerSec1m = (double)(outputRows / 60.0L);
+  }
+  pView->resultLatencyValid = hasFinalRunner && latencyValid && latencySamples != 0;
+  if (pView->resultLatencyValid) {
+    pView->resultLatencyAvg1mMs = (double)(latencyUs / latencySamples / 1000.0L);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void mstFreeTriggerRuntimeStatus(SSTriggerRuntimeStatus* pTrigger) {
+  if (pTrigger == NULL) {
+    return;
+  }
+
+  taosArrayDestroy(pTrigger->userRecalcs);
+  pTrigger->userRecalcs = NULL;
+  taosMemoryFree(pTrigger);
+}
+
+int32_t mstCopyTriggerRuntimeStatus(SStmTaskStatus* pStatus, const SSTriggerRuntimeStatus* pTrigger) {
+  if (pStatus == NULL || pTrigger == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SSTriggerRuntimeStatus* pNew = taosMemoryCalloc(1, sizeof(*pNew));
+  if (pNew == NULL) {
+    return terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  *pNew = *pTrigger;
+  pNew->userRecalcs = NULL;
+  if (pTrigger->userRecalcs != NULL) {
+    pNew->userRecalcs = taosArrayDup(pTrigger->userRecalcs, NULL);
+    if (pNew->userRecalcs == NULL) {
+      int32_t code = terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      mstFreeTriggerRuntimeStatus(pNew);
+      return code;
+    }
+  }
+
+  (void)mstWaitLock(&pStatus->detailStatusLock, false);
+  mstFreeTriggerRuntimeStatus(pStatus->detailStatus);
+  pStatus->detailStatus = pNew;
+  taosWUnLockLatch(&pStatus->detailStatusLock);
+  return TSDB_CODE_SUCCESS;
+}
+
 void mstDestroySStmTaskStatus(void* param) {
   SStmTaskStatus* pTask = (SStmTaskStatus*)param;
   if (pTask != NULL) {
+    SStmStatus* pStream = pTask->type == STREAM_TRIGGER_TASK ? pTask->pStream : NULL;
+    if (pStream != NULL) {
+      taosWLockLatch(&pStream->userRecalcLock);
+      taosArrayClear(pStream->recalcRecords);
+      taosWUnLockLatch(&pStream->userRecalcLock);
+    }
+    (void)mstWaitLock(&pTask->detailStatusLock, false);
+    mstClearTaskMetricsImpl(pTask);
+    mstFreeTriggerRuntimeStatus(pTask->detailStatus);
+    pTask->detailStatus = NULL;
+    taosWUnLockLatch(&pTask->detailStatusLock);
     taosMemoryFreeClear(pTask->extraErrMsg);
   }
 }
@@ -195,9 +656,6 @@ void mstResetSStmStatus(SStmStatus* pStatus) {
   tdListFreeP(pStatus->calcReaders, mstDestroySStmTaskStatus);
   pStatus->calcReaders = NULL;
   if (pStatus->triggerTask) {
-    (void)mstWaitLock(&pStatus->triggerTask->detailStatusLock, false);
-    taosMemoryFreeClear(pStatus->triggerTask->detailStatus);
-    taosWUnLockLatch(&pStatus->triggerTask->detailStatusLock);
     mstDestroySStmTaskStatus(pStatus->triggerTask);
   }
   taosMemoryFreeClear(pStatus->triggerTask);
@@ -219,6 +677,9 @@ void mstDestroySStmStatus(void* param) {
 
   taosWLockLatch(&pStatus->userRecalcLock);
   taosArrayDestroy(pStatus->userRecalcList);
+  pStatus->userRecalcList = NULL;
+  taosArrayDestroy(pStatus->recalcRecords);
+  pStatus->recalcRecords = NULL;
   taosWUnLockLatch(&pStatus->userRecalcLock);
 
   tFreeSCMCreateStreamReq(pStatus->pCreate);
@@ -1020,6 +1481,45 @@ int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj* pStream, SSDataBloc
   code = colDataSetVal(pColInfo, numOfRows, (const char*)&pStream->pCreate->numOfExtSpecs, false);
   TSDB_CHECK_CODE(code, lino, _end);
 
+  SStreamMetricView metricView = {0};
+  (void)mstWaitLock(&mStreamMgmt.runtimeLock, true);
+  int64_t     streamIdValue = pStream->pCreate->streamId;
+  SStmStatus* pStatus = taosHashGet(mStreamMgmt.streamMap, &streamIdValue, sizeof(streamIdValue));
+  if (pStatus != NULL) {
+    (void)mstWaitLock(&pStatus->resetLock, true);
+    code = mstBuildStreamMetricView(pStatus, &metricView);
+    taosRUnLockLatch(&pStatus->resetLock);
+  }
+  taosRUnLockLatch(&mStreamMgmt.runtimeLock);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&metricView.realtimeLagMs, !metricView.realtimeLagValid);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&metricView.inputRowsPerSec1m, !metricView.inputRateValid);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&metricView.outputRowsPerSec1m, !metricView.outputRateValid);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code =
+      colDataSetVal(pColInfo, numOfRows, (const char*)&metricView.resultLatencyAvg1mMs, !metricView.resultLatencyValid);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code =
+      colDataSetVal(pColInfo, numOfRows, (const char*)&metricView.historyProgressPct, !metricView.historyProgressValid);
+  TSDB_CHECK_CODE(code, lino, _end);
+
 _end:
   if (code) {
     mError("error happens when build stream attr result block, lino:%d, code:%s", lino, tstrerror(code));
@@ -1083,6 +1583,22 @@ int32_t mstGetTaskExtraStr(SStmTaskStatus* pTask, char* extraStr, int32_t extraS
   return TSDB_CODE_SUCCESS;
 }
 
+static bool mstIsFinalRunner(const SStreamObj* pStream, const SStmTaskStatus* pTask) {
+  if (pTask->type != STREAM_RUNNER_TASK || pStream == NULL || pStream->pCreate == NULL ||
+      mStreamMgmt.streamMap == NULL) {
+    return false;
+  }
+
+  int64_t           streamId = pStream->pCreate->streamId;
+  const SStmStatus* pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+  if (pStatus == NULL || pTask->id.deployId < 0 || pTask->id.deployId >= pStatus->runnerDeploys) {
+    return false;
+  }
+
+  const SStmTaskStatus* pFinal = taosArrayGetLast(pStatus->runners[pTask->id.deployId]);
+  return pFinal == pTask ||
+         (pFinal != NULL && pFinal->id.taskId == pTask->id.taskId && pFinal->id.seriousId == pTask->id.seriousId);
+}
 
 int32_t mstSetStreamTaskResBlock(SStreamObj* pStream, SStmTaskStatus* pTask, SSDataBlock* pBlock, int32_t numOfRows) {
   int32_t code = 0;
@@ -1202,6 +1718,38 @@ int32_t mstSetStreamTaskResBlock(SStreamObj* pStream, SStmTaskStatus* pTask, SSD
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
   code = colDataSetVal(pColInfo, numOfRows, (const char*)msg, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  bool                       metricsValid = false;
+  SStreamTaskMetricsSnapshot metrics = {0};
+  mstReadTaskMetrics(pTask, &metricsValid, &metrics);
+  bool windowValid = metricsValid && metrics.windowReady;
+  bool finalRunner = mstIsFinalRunner(pStream, pTask);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  bool inputValid = pTask->type == STREAM_READER_TASK && STREAM_IS_TRIGGER_READER(pTask->flags) && windowValid &&
+                    (metrics.validMask & STREAM_METRIC_PHYSICAL_INPUT) != 0;
+  double inputRate = (double)metrics.physicalInputRows1m / 60.0;
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&inputRate, !inputValid);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  bool   outputValid = finalRunner && windowValid && (metrics.validMask & STREAM_METRIC_DELIVERED_OUTPUT) != 0;
+  double outputRate = (double)metrics.deliveredOutputRows1m / 60.0;
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&outputRate, !outputValid);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  bool latencyValid = finalRunner && windowValid && (metrics.validMask & STREAM_METRIC_RESULT_LATENCY) != 0 &&
+                      metrics.resultLatencySamples1m != 0;
+  double latencyAvgMs = metrics.resultLatencySamples1m == 0
+                            ? 0
+                            : (double)metrics.resultLatencyUs1m / (double)metrics.resultLatencySamples1m / 1000.0;
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&latencyAvgMs, !latencyValid);
+  TSDB_CHECK_CODE(code, lino, _end);
 
 _end:
   if (code) {
@@ -1330,37 +1878,53 @@ int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWind
   int32_t lino = 0;
   bool    locked = false;
   SArray* userRecalcList = NULL;
+  SArray* recalcRecords = NULL;
 
   SStreamRecalcReq req = {.recalcId = 0, .start = pRange->skey, .end = pRange->ekey};
   TAOS_CHECK_EXIT(taosGetSystemUUIDU64(&req.recalcId));
-  
+  SStmRecalcRecord record = {
+      .snapshot =
+          {
+              .recalcId = req.recalcId,
+              .start = req.start,
+              .end = req.end,
+              .progressPct = 0,
+              .status = STREAM_RECALC_STATUS_PENDING,
+          },
+      .typedStatusKnown = true,
+  };
+
   taosWLockLatch(&pStream->userRecalcLock);
   locked = true;
-  
-  if (NULL == pStream->userRecalcList) {
-    userRecalcList = taosArrayInit(2, sizeof(SStreamRecalcReq));
-    if (NULL == userRecalcList) {
-      TAOS_CHECK_EXIT(terrno);
-    }
 
-    TSDB_CHECK_NULL(taosArrayPush(userRecalcList, &req), code, lino, _exit, terrno);
+  userRecalcList = pStream->userRecalcList == NULL ? taosArrayInit(2, sizeof(SStreamRecalcReq))
+                                                   : taosArrayDup(pStream->userRecalcList, NULL);
+  TSDB_CHECK_NULL(userRecalcList, code, lino, _exit, terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY);
+  recalcRecords = pStream->recalcRecords == NULL ? taosArrayInit(2, sizeof(SStmRecalcRecord))
+                                                 : taosArrayDup(pStream->recalcRecords, NULL);
+  TSDB_CHECK_NULL(recalcRecords, code, lino, _exit, terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(taosArrayPush(userRecalcList, &req), code, lino, _exit,
+                  terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(taosArrayPush(recalcRecords, &record), code, lino, _exit,
+                  terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY);
 
-    atomic_store_ptr(&pStream->userRecalcList, userRecalcList);
-    userRecalcList = NULL;    
-  } else {
-    TSDB_CHECK_NULL(taosArrayPush(pStream->userRecalcList, &req), code, lino, _exit, terrno);
-  }
-  
-  mstsInfo("stream recalc ID:%" PRIx64 " range:%" PRId64 " - %" PRId64 " added", req.recalcId, pRange->skey, pRange->ekey);
+  SArray* oldUserRecalcList = pStream->userRecalcList;
+  atomic_store_ptr(&pStream->userRecalcList, userRecalcList);
+  userRecalcList = oldUserRecalcList;
+  TSWAP(pStream->recalcRecords, recalcRecords);
+
+  mstsInfo("stream recalc ID:%" PRIx64 " range:%" PRId64 " - %" PRId64 " added", req.recalcId, pRange->skey,
+           pRange->ekey);
 
 _exit:
 
   taosArrayDestroy(userRecalcList);
+  taosArrayDestroy(recalcRecords);
 
   if (locked) {
     taosWUnLockLatch(&pStream->userRecalcLock);
   }
-  
+
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
@@ -1368,12 +1932,83 @@ _exit:
   return code;
 }
 
+static const char* mstRecalcStatusName(EStreamRecalcStatus status) {
+  switch (status) {
+    case STREAM_RECALC_STATUS_PENDING:
+      return "Pending";
+    case STREAM_RECALC_STATUS_RUNNING:
+      return "Running";
+    case STREAM_RECALC_STATUS_FINISHED:
+      return "Finished";
+    case STREAM_RECALC_STATUS_FAILED:
+      return "Failed";
+  }
+  return NULL;
+}
 
+static int32_t mstCopyRecalcViewLocked(SStmStatus* pStatus, SArray** ppRecords) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray* pRecords = NULL;
 
-int32_t mstSetStreamRecalculateResBlock(SStreamObj* pStream, SSTriggerRecalcProgress* pProgress, SSDataBlock* pBlock, int32_t numOfRows) {
-  int32_t code = 0;
-  int32_t cols = 0;
-  int32_t lino = 0;
+  taosWLockLatch(&pStatus->userRecalcLock);
+  if (pStatus->recalcRecords == NULL) {
+    pStatus->recalcRecords = taosArrayInit(0, sizeof(SStmRecalcRecord));
+    if (pStatus->recalcRecords == NULL) {
+      code = terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      goto _unlock_records;
+    }
+  }
+  code = mstPruneRecalcRecordsLocked(pStatus->recalcRecords, taosGetTimestampMs());
+  if (code != TSDB_CODE_SUCCESS) goto _unlock_records;
+  pRecords = taosArrayDup(pStatus->recalcRecords, NULL);
+  if (pRecords == NULL) {
+    code = terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    goto _unlock_records;
+  }
+
+_unlock_records:
+  taosWUnLockLatch(&pStatus->userRecalcLock);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+
+  if (pStatus->triggerTask != NULL) {
+    (void)mstWaitLock(&pStatus->triggerTask->detailStatusLock, true);
+    const SSTriggerRuntimeStatus* pLegacy = pStatus->triggerTask->detailStatus;
+    for (int32_t i = 0; pLegacy != NULL && i < taosArrayGetSize(pLegacy->userRecalcs); ++i) {
+      const SSTriggerRecalcProgress* pProgress = taosArrayGet(pLegacy->userRecalcs, i);
+      if (mstFindRecalcRecord(pRecords, pProgress->recalcId) >= 0) continue;
+      const SStmRecalcRecord record = {
+          .snapshot =
+              {
+                  .recalcId = pProgress->recalcId,
+                  .start = pProgress->start,
+                  .end = pProgress->end,
+                  .progressPct = pProgress->progress,
+              },
+          .typedStatusKnown = false,
+      };
+      if (taosArrayPush(pRecords, &record) == NULL) {
+        code = terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+        break;
+      }
+    }
+    taosRUnLockLatch(&pStatus->triggerTask->detailStatusLock);
+  }
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+
+  *ppRecords = pRecords;
+  pRecords = NULL;
+
+_exit:
+  taosArrayDestroy(pRecords);
+  return code;
+}
+
+static int32_t mstSetStreamRecalculateResBlock(SStreamObj* pStream, const SStmRecalcRecord* pRecord,
+                                               SSDataBlock* pBlock, int32_t numOfRows) {
+  int32_t                      code = 0;
+  int32_t                      cols = 0;
+  int32_t                      lino = 0;
+  const SStreamRecalcSnapshot* pProgress = &pRecord->snapshot;
 
   // stream_name
   char streamName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -1387,7 +2022,7 @@ int32_t mstSetStreamRecalculateResBlock(SStreamObj* pStream, SSTriggerRecalcProg
   // stream id
   char idstr[19 + VARSTR_HEADER_SIZE] = {0};
   snprintf(&idstr[VARSTR_HEADER_SIZE], sizeof(idstr) - VARSTR_HEADER_SIZE, "%" PRIx64, pStream->pCreate->streamId);
-  varDataSetLen(idstr, strlen(&idstr[VARSTR_HEADER_SIZE]) + VARSTR_HEADER_SIZE); 
+  varDataSetLen(idstr, strlen(&idstr[VARSTR_HEADER_SIZE]));
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
   code = colDataSetVal(pColInfo, numOfRows, (const char*)idstr, false);
@@ -1395,7 +2030,7 @@ int32_t mstSetStreamRecalculateResBlock(SStreamObj* pStream, SSTriggerRecalcProg
 
   // recalc id
   snprintf(&idstr[VARSTR_HEADER_SIZE], sizeof(idstr) - VARSTR_HEADER_SIZE, "%" PRIx64, pProgress->recalcId);
-  varDataSetLen(idstr, strlen(&idstr[VARSTR_HEADER_SIZE]) + VARSTR_HEADER_SIZE);
+  varDataSetLen(idstr, strlen(&idstr[VARSTR_HEADER_SIZE]));
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
   code = colDataSetVal(pColInfo, numOfRows, (const char*)idstr, false);
@@ -1415,11 +2050,19 @@ int32_t mstSetStreamRecalculateResBlock(SStreamObj* pStream, SSTriggerRecalcProg
 
   // progress
   char progress[20 + VARSTR_HEADER_SIZE] = {0};
-  snprintf(&progress[VARSTR_HEADER_SIZE], sizeof(progress) - VARSTR_HEADER_SIZE, "%d%%", pProgress->progress);
-  varDataSetLen(progress, strlen(&progress[VARSTR_HEADER_SIZE]) + VARSTR_HEADER_SIZE);
+  snprintf(&progress[VARSTR_HEADER_SIZE], sizeof(progress) - VARSTR_HEADER_SIZE, "%d%%", pProgress->progressPct);
+  varDataSetLen(progress, strlen(&progress[VARSTR_HEADER_SIZE]));
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
   code = colDataSetVal(pColInfo, numOfRows, (const char*)progress, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  char        status[16 + VARSTR_HEADER_SIZE] = {0};
+  const char* pStatus = pRecord->typedStatusKnown ? mstRecalcStatusName(pProgress->status) : NULL;
+  if (pStatus != NULL) STR_WITH_MAXSIZE_TO_VARSTR(status, pStatus, sizeof(status));
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, status, pStatus == NULL);
   TSDB_CHECK_CODE(code, lino, _end);
 
 _end:
@@ -1429,11 +2072,11 @@ _end:
   return code;
 }
 
-
 int32_t mstSetStreamRecalculatesResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t* numOfRows, int32_t rowsCapacity) {
   int32_t code = 0;
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
+  SArray* pRecords = NULL;
 
   (void)mstWaitLock(&mStreamMgmt.runtimeLock, true);
 
@@ -1449,51 +2092,38 @@ int32_t mstSetStreamRecalculatesResBlock(SStreamObj* pStream, SSDataBlock* pBloc
     goto _exit;
   }
 
-  if (NULL == pStatus->triggerTask) {
-    mstsDebug("no trigger task now, deployTimes:%" PRId64 ", ignore it", pStatus->deployTimes);
-    goto _exit;
-  }
-
-  (void)mstWaitLock(&pStatus->triggerTask->detailStatusLock, true);
-  if (NULL == pStatus->triggerTask->detailStatus) {
-    mstsDebug("no trigger task now, deployTimes:%" PRId64 ", ignore it", pStatus->deployTimes);
-    taosRUnLockLatch(&pStatus->triggerTask->detailStatusLock);
-    goto _exit;
-  }
-
-  SSTriggerRuntimeStatus* pTrigger = (SSTriggerRuntimeStatus*)pStatus->triggerTask->detailStatus;
-  int32_t count = taosArrayGetSize(pTrigger->userRecalcs);
+  TAOS_CHECK_EXIT(mstCopyRecalcViewLocked(pStatus, &pRecords));
+  int32_t count = taosArrayGetSize(pRecords);
 
   if (*numOfRows + count > rowsCapacity) {
     code = blockDataEnsureCapacity(pBlock, *numOfRows + count);
     if (code) {
       mstError("failed to prepare the result block buffer, rows:%d", *numOfRows + count);
-      taosRUnLockLatch(&pStatus->triggerTask->detailStatusLock);
       TAOS_CHECK_EXIT(code);
     }
   }
 
   for (int32_t i = 0; i < count; ++i) {
-    SSTriggerRecalcProgress* pProgress = taosArrayGet(pTrigger->userRecalcs, i);
-  
-    code = mstSetStreamRecalculateResBlock(pStream, pProgress, pBlock, *numOfRows);
+    const SStmRecalcRecord* pRecord = taosArrayGet(pRecords, i);
+    if (pRecord->hidden) continue;
+
+    code = mstSetStreamRecalculateResBlock(pStream, pRecord, pBlock, *numOfRows);
     if (code == TSDB_CODE_SUCCESS) {
       (*numOfRows)++;
     }
   }
 
-  taosRUnLockLatch(&pStatus->triggerTask->detailStatusLock);
-  
   pBlock->info.rows = *numOfRows;
 
 _exit:
-  
+
   taosRUnLockLatch(&mStreamMgmt.runtimeLock);
+  taosArrayDestroy(pRecords);
 
   if (code) {
     mError("error happens when build stream recalculates result block, lino:%d, code:%s", lino, tstrerror(code));
   }
-  
+
   return code;
 }
 

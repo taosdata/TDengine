@@ -71,6 +71,31 @@ void destroyConnectionPool() {
     taosThreadMutexDestroy(&g_pool.mutex);
 }
 
+// Close and evict every pooled connection so the next getConnection() rebuilds
+// from scratch (with exponential back-off) instead of handing out stale handles
+// after the server was restarted.  Safe to call from any thread on retryable
+// connection-level errors: any in-flight query on a pooled handle will simply
+// fail and be retried by its own caller.
+void resetConnectionPool(void) {
+    taosThreadMutexLock(&g_pool.mutex);
+
+    for (int i = 0; i < g_pool.count; i++) {
+        // Deliberately drop the reference WITHOUT taos_close: on WebSocket the
+        // close handshake blocks when the server just died (no response to the
+        // close frame), hanging the whole backup.  These are broken handles
+        // after a restart; for a single-shot CLI the OS reclaims resources on
+        // exit, so leaking a few stale handles on the retry path is acceptable.
+        g_pool.pool[i] = NULL;
+        g_pool.state[i] = CONN_EMPTY;
+    }
+    g_pool.count = 0;
+
+    // wake any thread blocked in getConnection waiting for an idle slot
+    taosThreadCondBroadcast(&g_pool.cond);
+
+    taosThreadMutexUnlock(&g_pool.mutex);
+}
+
 // Helper: reserve a slot and mark it CONNECTING (must hold lock)
 // Returns slot index or -1 if pool is full
 static int reserveSlot() {
@@ -110,6 +135,10 @@ static void rollbackSlot(int idx) {
 //   initial wait 1 s → doubles each attempt → capped at 30 s.
 #define BCK_RECONNECT_INIT_MS   1000   // first wait: 1 s
 #define BCK_RECONNECT_MAX_MS   30000   // ceiling:   30 s
+// Give up reconnecting (and abort the whole run) after the server has been
+// unreachable this long, instead of retrying forever — otherwise a dead server
+// makes every file fail and the process never exits.
+#define BCK_RECONNECT_TOTAL_MAX_MS  60000
 
 TAOS* getConnection(int *code) {
     taosThreadMutexLock(&g_pool.mutex);
@@ -118,12 +147,13 @@ TAOS* getConnection(int *code) {
     // Reset to initial value each time getConnection() is entered so that
     // a successful call never carries stale back-off state to the next call.
     int reconnectWaitMs = BCK_RECONNECT_INIT_MS;
+    int64_t connFailStart = 0;   // first failed connect timestamp (0 = none yet)
 
     while (1) {
-        // check if interrupted
-        if (g_interrupted) {
+        // check if interrupted or a fatal error already aborted the run
+        if (g_interrupted || g_fatalError) {
             taosThreadMutexUnlock(&g_pool.mutex);
-            *code = TSDB_CODE_BCK_USER_CANCEL;
+            *code = g_fatalError ? g_fatalCode : TSDB_CODE_BCK_USER_CANCEL;
             return NULL;
         }
 
@@ -202,6 +232,20 @@ TAOS* getConnection(int *code) {
                 reconnectWaitMs *= 2;
                 if (reconnectWaitMs > BCK_RECONNECT_MAX_MS)
                     reconnectWaitMs = BCK_RECONNECT_MAX_MS;
+
+                // Give up after the server has been unreachable for too long
+                // instead of retrying forever, otherwise the whole run hangs.
+                if (connFailStart == 0) connFailStart = taosGetTimestampMs();
+                if (taosGetTimestampMs() - connFailStart >= BCK_RECONNECT_TOTAL_MAX_MS) {
+                    g_fatalError = 1;
+                    g_fatalCode = errCode;
+                    logError("server %s:%d unreachable for %" PRId64 " ms — aborting (0x%08X, %s)",
+                             argHost() ? argHost() : "(firstEp)", argPort(),
+                             taosGetTimestampMs() - connFailStart, errCode, errStr);
+                    taosThreadMutexUnlock(&g_pool.mutex);
+                    *code = errCode;
+                    return NULL;
+                }
 
                 continue;  // retry from the top of the while(1) loop
             }

@@ -32,7 +32,6 @@ Part 3 - MEDIUMBLOB type backup/restore round-trip.
 """
 
 import os
-import subprocess
 
 from new_test_framework.utils import tdLog, tdSql, etool
 
@@ -70,23 +69,6 @@ class TestTaosBackupMaxcols:
     STB_COLUMNS = MAX_COL_TAG - MAX_TAGS  # 3968
     NTB_COLUMNS = MAX_COL_TAG  # 4096
     COL_NAME_MAX = 64
-
-    def exec(self, command):
-        """Run a shell command, stream output, and fail the test on non-zero exit code."""
-        tdLog.info(command)
-        env = os.environ.copy()
-        env.pop("LD_PRELOAD", None)
-        result = subprocess.run(
-            command, shell=True, text=True,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            env=env
-        )
-        if result.stdout:
-            for line in result.stdout.splitlines():
-                tdLog.info(line)
-        if result.returncode != 0:
-            tdLog.exit(f"Command failed (rc={result.returncode}): {command}")
-        return result.returncode
 
     def makeDir(self, path):
         if not os.path.exists(path):
@@ -169,7 +151,7 @@ class TestTaosBackupMaxcols:
         dumpdir = os.path.abspath(self.tmpdir + "/maxcol_export")
         self.makeDir(dumpdir)
 
-        self.exec("%s -D %s -o %s -T 1" % (binPath, dbName, dumpdir))
+        etool.taosdump("-D %s -o %s -T 1" % (dbName, dumpdir))
 
         # 5. Verify backup directory is not empty
         backup_files = []
@@ -308,7 +290,7 @@ class TestTaosBackupMaxcols:
         dumpdir = os.path.abspath(self.tmpdir + "/allcol_roundtrip")
         self.makeDir(dumpdir)
 
-        self.exec("%s -D %s -o %s -T 1" % (binPath, dbName, dumpdir))
+        etool.taosdump("-D %s -o %s -T 1" % (dbName, dumpdir))
 
         backup_files = []
         for root, dirs, files in os.walk(dumpdir):
@@ -320,7 +302,7 @@ class TestTaosBackupMaxcols:
         # -- Drop + restore --
         tdSql.execute("DROP DATABASE %s" % dbName)
 
-        self.exec("%s -i %s -T 1" % (binPath, dumpdir))
+        etool.taosdump("-i %s -T 1" % dumpdir)
 
         # -- Verify --
         tdSql.execute("USE %s" % dbName)
@@ -506,11 +488,11 @@ class TestTaosBackupMaxcols:
         # Export
         dumpdir = os.path.abspath(self.tmpdir + "/blob_roundtrip")
         self.makeDir(dumpdir)
-        self.exec("%s -D %s -o %s -T 1" % (binPath, dbName, dumpdir))
+        etool.taosdump("-D %s -o %s -T 1" % (dbName, dumpdir))
 
         # Drop and restore
         tdSql.execute("DROP DATABASE %s" % dbName)
-        self.exec("%s -i %s -T 1" % (binPath, dumpdir))
+        etool.taosdump("-i %s -T 1" % dumpdir)
 
         # Verify
         tdSql.execute("USE %s" % dbName)

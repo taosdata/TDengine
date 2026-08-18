@@ -200,6 +200,11 @@ static const SSysDbTableSchema streamSchema[] = {
     {.name = "snodeReplica", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "message", .bytes = TSDB_RESERVE_VALUE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "external_sources", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "realtime_lag_ms", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "input_rows_per_sec_1m", .bytes = 8, .type = TSDB_DATA_TYPE_DOUBLE, .sysInfo = false},
+    {.name = "output_rows_per_sec_1m", .bytes = 8, .type = TSDB_DATA_TYPE_DOUBLE, .sysInfo = false},
+    {.name = "runner_result_latency_avg_1m_ms", .bytes = 8, .type = TSDB_DATA_TYPE_DOUBLE, .sysInfo = false},
+    {.name = "history_progress_pct", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
 };
 
 static const SSysDbTableSchema streamTaskSchema[] = {
@@ -217,6 +222,9 @@ static const SSysDbTableSchema streamTaskSchema[] = {
     {.name = "last_update", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "extra_info", .bytes = 64 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "message", .bytes = TSDB_RESERVE_VALUE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "input_rows_per_sec_1m", .bytes = 8, .type = TSDB_DATA_TYPE_DOUBLE, .sysInfo = false},
+    {.name = "output_rows_per_sec_1m", .bytes = 8, .type = TSDB_DATA_TYPE_DOUBLE, .sysInfo = false},
+    {.name = "runner_result_latency_avg_1m_ms", .bytes = 8, .type = TSDB_DATA_TYPE_DOUBLE, .sysInfo = false},
 };
 
 static const SSysDbTableSchema streamRecalculateSchema[] = {
@@ -226,6 +234,7 @@ static const SSysDbTableSchema streamRecalculateSchema[] = {
     {.name = "start", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "end", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "progress", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "status", .bytes = 16 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
 };
 
 

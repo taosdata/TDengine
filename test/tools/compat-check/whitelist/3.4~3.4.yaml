@@ -90,6 +90,19 @@ modified_tables:
     after: VARCHAR(49152)
   added_columns:
   - external_sources
+  - realtime_lag_ms
+  - input_rows_per_sec_1m
+  - output_rows_per_sec_1m
+  - runner_result_latency_avg_1m_ms
+  - history_progress_pct
+- table: INS_STREAM_RECALCULATES
+  added_columns:
+  - status
+- table: INS_STREAM_TASKS
+  added_columns:
+  - input_rows_per_sec_1m
+  - output_rows_per_sec_1m
+  - runner_result_latency_avg_1m_ms
 - table: INS_STABLES
   added_columns:
   - sec_level

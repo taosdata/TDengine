@@ -35,6 +35,12 @@
 // global interrupt flag (set by SIGINT/SIGTERM handler)
 extern volatile sig_atomic_t g_interrupted;
 
+// Fatal-error abort.  Set when the server becomes unreachable so the run stops
+// quickly instead of grinding through every remaining file (e.g. each file
+// failing with TSDB_CODE_RPC_NETWORK_UNAVAIL while the server is down).
+extern volatile int g_fatalError;
+extern volatile int g_fatalCode;
+
 // global statistics counters
 typedef struct {
     volatile int64_t  dbTotal;          // total databases to process
@@ -48,6 +54,10 @@ typedef struct {
     volatile int64_t  childTablesTotal; // child tables with data exported
     volatile int64_t  totalRows;        // total rows backed up / restored
     volatile int64_t  dataFilesSizeBytes; // cumulative size of successfully processed data files (restore only)
+    // extended metadata counters (-M ext-meta / all)
+    volatile int64_t  vtbTotal;         // virtual tables processed
+    volatile int64_t  streamTotal;      // streams processed
+    volatile int64_t  topicTotal;       // topics processed
 } BckStats;
 
 extern BckStats g_stats;

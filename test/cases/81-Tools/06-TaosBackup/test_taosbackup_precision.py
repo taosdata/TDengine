@@ -103,37 +103,35 @@ class TestTaosBackupPrecision:
         d3 = f"{base}/{precision}_dumptmp3"
         self._make_dirs(d1, d2, d3)
 
-        binPath = self.binPath
-
         # Dump all data
-        os.system(f"{binPath} -g --databases timedb1 -o {d1}")
+        etool.taosdump(f"-g --databases timedb1 -o {d1}")
         # Dump with start and end time filter
-        os.system(f"{binPath} -g --databases timedb1 -S {s_time} -E {e_time} -o {d2}")
+        etool.taosdump(f"-g --databases timedb1 -S {s_time} -E {e_time} -o {d2}")
         # Dump with start time only
-        os.system(f"{binPath} -g --databases timedb1 -S {s_time} -o {d3}")
+        etool.taosdump(f"-g --databases timedb1 -S {s_time} -o {d3}")
 
         # Import dumptmp2 → 51 rows per table * 10 tables = 510
         tdSql.execute("drop database timedb1")
-        os.system(f"{binPath} -i {d2}")
+        etool.taosdump(f"-i {d2}")
         tdSql.query("select count(*) from timedb1.st")
         tdSql.checkData(0, 0, 510)
 
         # Import dumptmp3 → 90 rows per table * 10 tables = 900
         tdSql.execute("drop database timedb1")
-        os.system(f"{binPath} -i {d3}")
+        etool.taosdump(f"-i {d3}")
         tdSql.query("select count(*) from timedb1.st")
         tdSql.checkData(0, 0, 900)
 
         # Import dumptmp1 → all 1000 rows
         tdSql.execute("drop database timedb1")
-        os.system(f"{binPath} -i {d1}")
+        etool.taosdump(f"-i {d1}")
         tdSql.query("select count(*) from timedb1.st")
         tdSql.checkData(0, 0, 1000)
 
         # Verify data integrity: re-import all and compare row-by-row
         origin_res = tdSql.getResult("select * from timedb1.st")
         tdSql.execute("drop database timedb1")
-        os.system(f"{binPath} -i {d1}")
+        etool.taosdump(f"-i {d1}")
         dump_res = tdSql.getResult("select * from timedb1.st")
         if origin_res == dump_res:
             tdLog.info(f"  {precision} precision: data integrity check passed.")

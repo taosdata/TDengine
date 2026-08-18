@@ -205,6 +205,8 @@ typedef struct SStmTaskStatus {
   EStreamStatus   status;
   SRWLatch        detailStatusLock;
   void*           detailStatus;     // SSTriggerRuntimeStatus*, only for trigger task now
+  bool                       metricsValid;
+  SStreamTaskMetricsSnapshot metrics;
   int32_t         errCode;
   char*           extraErrMsg;
   int64_t         runningStartTs;
@@ -263,6 +265,15 @@ typedef struct SStmStat {
   
 } SStmStat;
 
+// Hidden terminal records are retention tombstones. Recalc IDs are
+// UUID-derived and never reused.
+typedef struct SStmRecalcRecord {
+  SStreamRecalcSnapshot snapshot;
+  int64_t               terminalObservedAtMs;
+  bool                  typedStatusKnown;
+  bool                  hidden;
+} SStmRecalcRecord;
+
 typedef struct SStmStatus {
   // static part
   char*               streamName;
@@ -296,11 +307,25 @@ typedef struct SStmStatus {
   
   SRWLatch          userRecalcLock;
   SArray*           userRecalcList; // SArray<SStreamRecalcReq>
+  SArray*           recalcRecords;  // SArray<SStmRecalcRecord>
 
   int64_t           lastTrigMgmtReqId;
 
   SStmStat          stat;
 } SStmStatus;
+
+typedef struct SStreamMetricView {
+  bool    realtimeLagValid;
+  int64_t realtimeLagMs;
+  bool    inputRateValid;
+  double  inputRowsPerSec1m;
+  bool    outputRateValid;
+  double  outputRowsPerSec1m;
+  bool    resultLatencyValid;
+  double  resultLatencyAvg1mMs;
+  bool    historyProgressValid;
+  int32_t historyProgressPct;
+} SStreamMetricView;
 
 #define MST_IS_USER_STOPPED(_s) (2 == (_s) || 3 == (_s))
 #define MST_IS_ERROR_STOPPED(_s) (1 == (_s))
@@ -511,11 +536,25 @@ int32_t mndStreamCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq,
 int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);
 int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t* numOfRows, int32_t rowsCapacity);
 int32_t mstSetStreamRecalculatesResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t* numOfRows, int32_t rowsCapacity);
+/**
+ * Build a stream metrics view from the current task topology.
+ *
+ * The caller must hold mStreamMgmt.runtimeLock and pStatus->resetLock. Task
+ * metric snapshots are copied under each task's detailStatusLock.
+ */
+int32_t mstBuildStreamMetricView(const SStmStatus* pStatus, SStreamMetricView* pView);
 int32_t mstGetScanUidFromPlan(int64_t streamId, void* scanPlan, int64_t* uid);
 int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWindow* pRange);
 int32_t mstCheckSnodeExists(SMnode *pMnode);
 int32_t mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg);
 int32_t mstSetExtraErrMsg(char** ppMsg, const char* msg);
+void    mstInvalidateTaskMetrics(SStmTaskStatus* pStatus);
+int32_t mstCopyTaskMetrics(SStmTaskStatus* pStatus, const SStreamTaskMetricsSnapshot* pMetrics);
+int32_t mstApplyTaskMetrics(SStmTaskStatus* pStatus, int32_t expectedIndex, int64_t expectedStreamId,
+                            const SStreamTaskMetricsEntry* pEntry);
+void    mstClearTaskMetrics(SStmTaskStatus* pStatus);
+int64_t mstBumpTaskSeriousId(SStmTaskStatus* pStatus);
+int32_t mstCopyTriggerRuntimeStatus(SStmTaskStatus* pStatus, const SSTriggerRuntimeStatus* pTrigger);
 void    mstDestroySStmTaskStatus(void* param);
 void msmClearStreamToDeployMaps(SStreamHbMsg* pHb);
 void msmCleanStreamGrpCtx(SStreamHbMsg* pHb);
