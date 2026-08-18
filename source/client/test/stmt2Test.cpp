@@ -2246,7 +2246,7 @@ void asyncExec(void* param, TAOS_RES* res, int code) {
 TEST(stmt2Case, query) {
   TAOS* taos = connectTaosOrExit("localhost", "root", "taosdata", "", 0);
   do_query(taos, "drop database if exists stmt2_testdb_7");
-  do_query(taos, "create database IF NOT EXISTS stmt2_testdb_7");
+  do_query(taos, "create database IF NOT EXISTS stmt2_testdb_7 vgroups 4");
   do_query(taos, "create stable stmt2_testdb_7.stb (ts timestamp, b binary(10)) tags(t1 int, t2 binary(10))");
   do_query(taos,
            "insert into stmt2_testdb_7.tb1 using stmt2_testdb_7.stb tags(1,'abc') values(1591060628000, "
@@ -2381,7 +2381,7 @@ TEST(stmt2Case, query) {
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
     checkError(stmt, code, __FILE__, __LINE__);
 
-    taos_stmt2_exec(stmt, NULL);
+    code = taos_stmt2_exec(stmt, NULL);
     checkError(stmt, code, __FILE__, __LINE__);
 
     TAOS_RES* pRes = taos_stmt2_result(stmt);
@@ -2424,6 +2424,25 @@ TEST(stmt2Case, query) {
     ASSERT_EQ(strncmp((char*)row[0], "tb1", 3), 0);
     ASSERT_EQ(strncmp((char*)row[1], "abc", 3), 0);
     ASSERT_EQ(strncmp((char*)row[2], "abc", 3), 0);
+    ASSERT_EQ(taos_fetch_row(pRes), nullptr);
+
+    code = taos_stmt2_prepare(stmt, "select tbname,t2,b from stmt2_testdb_7.stb where ts = ? and tbname in (?)", 0);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    code = taos_stmt2_bind_param(stmt, &bindv2, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    code = taos_stmt2_exec(stmt, NULL);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    pRes = taos_stmt2_result(stmt);
+    ASSERT_NE(pRes, nullptr);
+    row = taos_fetch_row(pRes);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(strncmp((char*)row[0], "tb1", 3), 0);
+    ASSERT_EQ(strncmp((char*)row[1], "abc", 3), 0);
+    ASSERT_EQ(strncmp((char*)row[2], "abc", 3), 0);
+    ASSERT_EQ(taos_fetch_row(pRes), nullptr);
 
     code = taos_stmt2_prepare(stmt, "select tbname,t2,b from stmt2_testdb_7.stb where ts = ? and tbname = 'tb2'", 0);
     checkError(stmt, code, __FILE__, __LINE__);
@@ -2434,7 +2453,7 @@ TEST(stmt2Case, query) {
     code = taos_stmt2_bind_param(stmt, &bindv3, -1);
     checkError(stmt, code, __FILE__, __LINE__);
 
-    taos_stmt2_exec(stmt, NULL);
+    code = taos_stmt2_exec(stmt, NULL);
     checkError(stmt, code, __FILE__, __LINE__);
     pRes = taos_stmt2_result(stmt);
     ASSERT_NE(pRes, nullptr);
