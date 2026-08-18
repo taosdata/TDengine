@@ -55,10 +55,16 @@ algo=expr1
 |rows|Number of forecast rows to return.|10|
 |timeout|Maximum time to wait for the forecast request, supported since `v3.3.6.5`. The range is 1 to 1200 seconds.|60 seconds|
 
-- Three pseudocolumns are used in forecasting:
-  - `_FROWTS`: the timestamp of the forecast data
-  - `_FLOW`: the lower threshold of the confidence interval
-  - `_FHIGH`: the upper threshold of the confidence interval. For algorithms that do not include a confidence interval, the `_FLOW` and `_FHIGH` pseudocolumns contain the forecast results.
+### Forecast-Related Pseudo-columns
+
+Forecast queries introduce three pseudo-columns related to the returned results:
+
+- `_FROWTS`: the timestamp of the forecast data
+- `_FLOW`: the lower threshold of the confidence interval
+- `_FHIGH`: the upper threshold of the confidence interval
+
+For forecasting algorithms that do not support providing confidence intervals for forecast results, the upper and lower thresholds are the same as the forecast results. For usage examples of these pseudo-columns, see the Examples section below.
+
 - You can specify the `START` parameter to modify the starting time of forecast results. This does not affect the forecast values, only the time range.
 - The `EVERY` parameter can be lesser than or equal to the sampling period of the input data. However, it cannot be greater than the sampling period of the input data.
 - If you specify a confidence interval for an algorithm that does not use it, the upper and lower thresholds of the confidence interval regress to a single point.
@@ -151,13 +157,13 @@ select _frowts, forecast(val, past_co_val, future_co_val, "algo=moirai,rows=4, d
 
 ## Built-In Forecasting Algorithms
 
-- [ARIMA](01-arima.md)
-- [HoltWinters](02-holtwinters.md)
-- [Prophet](03-prophet.md)
-- [Time-Series Foundation Model](04-tsfm.md)
-- [Complex exponential smoothing (CES)](05-ces.md)
-- [Theta](06-theta.md)
-- [ETS (Error, Trend, Seasonal)](07-ets.md)
+- [ARIMA](./arima)
+- [HoltWinters](./holtwinters)
+- [Prophet](./prophet)
+- [Complex exponential smoothing (CES)](./ces)
+- [Theta](./theta)
+- [ETS (Error, Trend, Seasonal)](./ets)
+- [Time-Series Foundation Model](./tsfm)
 - XGBoost
 - LightGBM
 - Multiple Seasonal-Trend decomposition using LOESS (MSTL)
