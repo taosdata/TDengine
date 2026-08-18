@@ -5041,14 +5041,17 @@ private:
         int                      pathname_pos;
         char                    *pathname;
         size_t                   pathname_len;
-        int                      match;
+        int                      match = 0;
         regex_t   pathname_regex;
+        bool      ret = false;
 
-        regcomp(&pathname_regex, pathname_regex_str.c_str(), 0);
+        if (0 != regcomp(&pathname_regex, pathname_regex_str.c_str(), 0)) {
+            return false;
+        }
 
         if(NULL == (fp = fopen("/proc/self/maps", "r")))
         {
-            return false;
+            goto _exit;
         }
 
         while(fgets(line, sizeof(line), fp))
@@ -5097,13 +5100,16 @@ private:
         fclose(fp);
         if(0 == match)
         {
-            return false;
+            goto _exit;
         }
         else
         {
-            return true;
+            ret = true;
         }
 
+_exit:
+        regfree(&pathname_regex);
+        return ret;
     }
 
     int get_func_addr(unsigned int ttype, unsigned int stype, std::string& func_name_regex_str, std::map<std::string,void*>& result)
@@ -5112,20 +5118,24 @@ private:
         ELFIO::elfio reader;
         int count = 0;
         regex_t   pathname_regex;
+        int       ret = -1;
+        ELFIO::Elf_Half sec_num = 0;
 
         if(!m_init)
         {
             return -1;
         }
 
-        regcomp(&pathname_regex, func_name_regex_str.c_str(), 0);
+        if (0 != regcomp(&pathname_regex, func_name_regex_str.c_str(), 0)) {
+            return -1;
+        }
         // Load ELF data
         if(!reader.load(m_fullname.c_str()))
         {
-            return -1;
+            goto _exit;
         }
         
-        ELFIO::Elf_Half sec_num = reader.sections.size();
+        sec_num = reader.sections.size();
         for(int i = 0; i < sec_num; ++i)
         {
             ELFIO::section* psec = reader.sections[i];
@@ -5170,8 +5180,11 @@ private:
                 break;
             }
         }
-        
-        return count;
+
+        ret = count;
+_exit:
+        regfree(&pathname_regex);
+        return ret;
     }
 private:
     bool m_init;

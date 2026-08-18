@@ -101,7 +101,9 @@ static bool taosDirEntryIsReparsePoint(TdDirEntryPtr pDirEntry) {
 }
 #endif
 
-void taosRemoveDir(const char *dirname) {
+// Remove all files and sub-directories under *dirname*, but keep the directory
+// itself.  Nothing happens (no error) if the directory does not exist.
+void taosClearDir(const char *dirname) {
   TdDirPtr pDir = taosOpenDir(dirname);
   if (pDir == NULL) return;
 
@@ -125,6 +127,13 @@ void taosRemoveDir(const char *dirname) {
   }
 
   TAOS_UNUSED(taosCloseDir(&pDir));
+  return;
+}
+
+// Remove a directory and everything under it: clear the contents first, then
+// remove the directory itself.
+void taosRemoveDir(const char *dirname) {
+  taosClearDir(dirname);
   TAOS_UNUSED(rmdir(dirname));
 
   // printf("dir:%s is removed\n", dirname);
