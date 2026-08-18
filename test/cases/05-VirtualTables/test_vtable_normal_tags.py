@@ -123,9 +123,6 @@ class TestVtableNormalTags:
         assert int(actual) == expected_count, f"{desc}: expected {expected_count}, got {actual}"
         tdLog.info(f"  PASS: {desc} (count={expected_count})")
 
-    def _distinct(self, sql):
-        return sorted(self._rows(sql))
-
     # ==================================================================
     # 1. DATA QUERIES (column references: val, ts)
     # ==================================================================
