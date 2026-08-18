@@ -1976,6 +1976,20 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
         if (isChild) pAPI->metaReaderFn.clearReader(&smrSuperTable);
         break;
       }
+
+      // All relocated rows were filtered out; this table's tag rows alone may exceed the
+      // block capacity (colDataSetVal does no bounds check on rowIndex), so grow the buffer
+      // before the fill below.
+      code = blockDataEnsureCapacity(dataBlock, nTagCols);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        if (isChild) pAPI->metaReaderFn.clearReader(&smrSuperTable);
+        pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+        pInfo->pCur = NULL;
+        blockDataDestroy(dataBlock);
+        dataBlock = NULL;
+        T_LONG_JMP(pTaskInfo->env, code);
+      }
     }
 
     // if pInfo->pRes->info.rows == 0, also need to add the meta to pDataBlock
