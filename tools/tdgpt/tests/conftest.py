@@ -79,10 +79,10 @@ def mock_config(temp_dir):
     config.app_log = os.path.join(config.log_dir, "taosanode.app.log")
     config.model_dir = os.path.join(config.data_dir, "model")
     config.venv_dir = os.path.join(temp_dir, "venvs", "venv")
-    config.timesfm_venv = os.path.join(temp_dir, "venvs", "timesfm_venv")
-    config.moirai_venv = os.path.join(temp_dir, "venvs", "moirai_venv")
-    config.chronos_venv = os.path.join(temp_dir, "venvs", "chronos_venv")
-    config.moment_venv = os.path.join(temp_dir, "venvs", "momentfm_venv")
+    config.timesfm_venv = config.venv_dir
+    config.moirai_venv = config.venv_dir
+    config.chronos_venv = config.venv_dir
+    config.moment_venv = config.venv_dir
     config.bind = "0.0.0.0:6035"
     config.workers = 2
 
