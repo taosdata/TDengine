@@ -764,14 +764,21 @@ static int32_t authDropStable(SAuthCxt* pCxt, SDropSuperTableStmt* pStmt) {
 }
 
 static int32_t authDropVtable(SAuthCxt* pCxt, SDropVirtualTableStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if (pStmt->withOpt && !pCxt->pParseCxt->isSuperUser) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
-  PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
-  if (!pStmt->withOpt) {
-    PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_DROP, PRIV_OBJ_TBL, NULL, NULL));
+  SNode* pNode = NULL;
+  FOREACH(pNode, pStmt->pTables) {
+    SDropTableClause* pClause = (SDropTableClause*)pNode;
+    code = checkDbUseAuth(pCxt, pClause->dbName);
+    if (TSDB_CODE_SUCCESS != code) break;
+    if (!pStmt->withOpt) {
+      code = checkAuth(pCxt, pClause->dbName, pClause->tableName, PRIV_CM_DROP, PRIV_OBJ_TBL, NULL, NULL);
+      if (TSDB_CODE_SUCCESS != code) break;
+    }
   }
-  return 0;
+  return code;
 }
 
 static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
