@@ -32,6 +32,8 @@
 #include "cmdnodes.h"
 #include "mndExtSource.h"
 
+#include "monitor.h"
+
 void msmDestroyActionQ() {
   SStmQNode* pQNode = NULL;
 
@@ -133,6 +135,7 @@ void msmStopStreamByError(int64_t streamId, SStmStatus* pStatus, int32_t errCode
     
   if (0 == atomic_val_compare_exchange_8(&pStatus->stopped, 0, 1)) {
     MND_STREAM_SET_LAST_TS(STM_EVENT_STM_TERR, currTs);
+    monReportStreamFailure(currTs, streamId, pStatus->streamName, errCode);
   }
 
 _exit:

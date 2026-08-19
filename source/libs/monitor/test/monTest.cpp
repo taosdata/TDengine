@@ -10,10 +10,136 @@
  */
 
 #include <gtest/gtest.h>
+
+#include <chrono>
+#include <condition_variable>
+#include <memory>
+#include <mutex>
+#include <string>
+
 #include "os.h"
 
 #include "monitor.h"
+#include "stub.h"
+#include "taoserror.h"
 #include "tglobal.h"
+#include "thttp.h"
+#include "tjson.h"
+#include "tlog.h"
+
+namespace {
+
+struct CapturedHttpReport {
+  int32_t     calls = 0;
+  std::string uri;
+  std::string body;
+};
+
+CapturedHttpReport gCapturedHttpReport;
+
+int32_t captureHttpReport(const char *, const char *uri, uint16_t, char *pCont, int32_t contLen, EHttpCompFlag,
+                          const char *) {
+  ++gCapturedHttpReport.calls;
+  gCapturedHttpReport.uri = uri;
+  gCapturedHttpReport.body.assign(pCont, contLen);
+  return TSDB_CODE_SUCCESS;
+}
+
+class HttpReportStubGuard {
+ public:
+  HttpReportStubGuard() {
+    gCapturedHttpReport = {};
+    stub_.set(taosSendHttpReportWithQID, captureHttpReport);
+  }
+
+  ~HttpReportStubGuard() { stub_.reset(taosSendHttpReportWithQID); }
+
+ private:
+  Stub stub_;
+};
+
+struct HttpResolveLogState {
+  std::mutex              mutex;
+  std::condition_variable changed;
+  int32_t                 resolveFailures = 0;
+  bool                    firstFailureBlocked = false;
+  bool                    releaseFirstFailure = false;
+};
+
+HttpResolveLogState gHttpResolveLogState;
+
+void captureBlockingHttpResolveLog(const char *, int32_t, int32_t, const char *format, ...) {
+  if (strstr(format, "failed to resolving domain names") == nullptr) return;
+
+  std::unique_lock<std::mutex> lock(gHttpResolveLogState.mutex);
+  ++gHttpResolveLogState.resolveFailures;
+  if (gHttpResolveLogState.resolveFailures == 1) {
+    gHttpResolveLogState.firstFailureBlocked = true;
+    gHttpResolveLogState.changed.notify_all();
+    gHttpResolveLogState.changed.wait(lock, [] { return gHttpResolveLogState.releaseFirstFailure; });
+  }
+  gHttpResolveLogState.changed.notify_all();
+}
+
+class HttpBurstHarness {
+ public:
+  HttpBurstHarness() : savedRpcDebugFlag_(rpcDebugFlag) {
+    {
+      std::lock_guard<std::mutex> lock(gHttpResolveLogState.mutex);
+      gHttpResolveLogState.resolveFailures = 0;
+      gHttpResolveLogState.firstFailureBlocked = false;
+      gHttpResolveLogState.releaseFirstFailure = false;
+    }
+    stub_.set(taosPrintLog, captureBlockingHttpResolveLog);
+    rpcDebugFlag |= DEBUG_ERROR | DEBUG_FILE;
+    channelId_ = taosInitHttpChan();
+  }
+
+  ~HttpBurstHarness() {
+    releaseFirstFailure();
+    taosDestroyHttpChan(channelId_);
+    rpcDebugFlag = savedRpcDebugFlag_;
+    stub_.reset(taosPrintLog);
+  }
+
+  int64_t channelId() const { return channelId_; }
+
+  bool waitForFirstFailure() {
+    std::unique_lock<std::mutex> lock(gHttpResolveLogState.mutex);
+    return gHttpResolveLogState.changed.wait_for(lock, std::chrono::seconds(5),
+                                                 [] { return gHttpResolveLogState.firstFailureBlocked; });
+  }
+
+  void releaseFirstFailure() {
+    std::lock_guard<std::mutex> lock(gHttpResolveLogState.mutex);
+    gHttpResolveLogState.releaseFirstFailure = true;
+    gHttpResolveLogState.changed.notify_all();
+  }
+
+  bool waitForFailures(int32_t expected) {
+    std::unique_lock<std::mutex> lock(gHttpResolveLogState.mutex);
+    return gHttpResolveLogState.changed.wait_for(
+        lock, std::chrono::seconds(5), [expected] { return gHttpResolveLogState.resolveFailures == expected; });
+  }
+
+  int32_t resolveFailures() const {
+    std::lock_guard<std::mutex> lock(gHttpResolveLogState.mutex);
+    return gHttpResolveLogState.resolveFailures;
+  }
+
+ private:
+  Stub    stub_;
+  int32_t savedRpcDebugFlag_ = 0;
+  int64_t channelId_ = -1;
+};
+
+struct JsonDeleter {
+  void operator()(SJson *pJson) const { tjsonDelete(pJson); }
+};
+
+using JsonPtr = std::unique_ptr<SJson, JsonDeleter>;
+
+}  // namespace
 
 class MonitorTest : public ::testing::Test {
  protected:
@@ -32,8 +158,21 @@ class MonitorTest : public ::testing::Test {
   }
 
  public:
-  void SetUp() override {}
-  void TearDown() override {}
+  void SetUp() override {
+    savedEnableMonitor_ = tsEnableMonitor;
+    savedMonitorPort_ = tsMonitorPort;
+    tstrncpy(savedMonitorFqdn_, tsMonitorFqdn, TSDB_FQDN_LEN);
+
+    tsEnableMonitor = true;
+    tsMonitorPort = 80;
+    tstrncpy(tsMonitorFqdn, "localhost", TSDB_FQDN_LEN);
+  }
+
+  void TearDown() override {
+    tsEnableMonitor = savedEnableMonitor_;
+    tsMonitorPort = savedMonitorPort_;
+    tstrncpy(tsMonitorFqdn, savedMonitorFqdn_, TSDB_FQDN_LEN);
+  }
 
   void GetBasicInfo(SMonBasicInfo *pInfo);
   void GetDnodeInfo(SMonDnodeInfo *pInfo);
@@ -50,7 +189,45 @@ class MonitorTest : public ::testing::Test {
 
   void AddLogInfo1();
   void AddLogInfo2();
+
+  bool     savedEnableMonitor_ = false;
+  uint16_t savedMonitorPort_ = 0;
+  char     savedMonitorFqdn_[TSDB_FQDN_LEN] = {0};
 };
+
+TEST(HttpReportTest, RejectsInvalidMessageWithoutDereferencingNullMessage) {
+  char content[] = "{}";
+
+  EXPECT_EQ(taosSendHttpReportWithQID(NULL, "/report", 80, content, sizeof(content) - 1, HTTP_FLAT, NULL),
+            TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(taosSendRecvHttpReportWithQID(NULL, "/report", 80, content, sizeof(content) - 1, HTTP_FLAT, NULL, 0),
+            TSDB_CODE_INVALID_PARA);
+}
+
+TEST(HttpReportTest, BurstLargerThanBatchDrainsWithoutAnotherSend) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of transport logging is unreliable in Windows release builds";
+#endif
+  constexpr int32_t kReportCount = 41;
+  char              content[] = "{}";
+  HttpBurstHarness  harness;
+  ASSERT_GT(harness.channelId(), 0);
+
+  ASSERT_EQ(taosSendHttpReportByChan("", "/report", 80, content, sizeof(content) - 1, HTTP_FLAT, harness.channelId(),
+                                     nullptr),
+            TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(harness.waitForFirstFailure());
+
+  for (int32_t i = 1; i < kReportCount; ++i) {
+    ASSERT_EQ(taosSendHttpReportByChan("", "/report", 80, content, sizeof(content) - 1, HTTP_FLAT, harness.channelId(),
+                                       nullptr),
+              TSDB_CODE_SUCCESS);
+  }
+  harness.releaseFirstFailure();
+
+  EXPECT_TRUE(harness.waitForFailures(kReportCount));
+  EXPECT_EQ(harness.resolveFailures(), kReportCount);
+}
 
 void MonitorTest::GetBasicInfo(SMonBasicInfo *pInfo) {
   pInfo->dnode_id = 1;
@@ -292,4 +469,97 @@ TEST_F(MonitorTest, 01_Full) {
 TEST_F(MonitorTest, 02_Log) {
   AddLogInfo2();
   monGenAndSendReport();
+}
+
+TEST_F(MonitorTest, StreamFailureUsesGeneralMetricProtocol) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of HTTP transport is unreliable in Windows release builds";
+#endif
+  constexpr int64_t kClusterId = 6980428120398645172;
+  constexpr int64_t kStreamId = 9223372036854775000;
+  constexpr int64_t kTimestamp = 1787068800123;
+  constexpr int32_t kErrorCode = -2147454964;
+  const char       *streamName = "1.db.stream_\"quoted\\name";
+
+  SMonDmInfo dmInfo = {};
+  dmInfo.basic.cluster_id = kClusterId;
+  monSetDmInfo(&dmInfo);
+
+  HttpReportStubGuard guard;
+  monGenAndSendReport();
+  ASSERT_GT(gCapturedHttpReport.calls, 0);
+  gCapturedHttpReport = {};
+
+  monReportStreamFailure(kTimestamp, kStreamId, streamName, kErrorCode);
+
+  ASSERT_EQ(gCapturedHttpReport.calls, 1);
+  EXPECT_EQ(gCapturedHttpReport.uri, "/general-metric");
+
+  JsonPtr root(tjsonParse(gCapturedHttpReport.body.c_str()));
+  ASSERT_NE(root.get(), nullptr);
+  ASSERT_TRUE(tjsonIsArray(root.get()));
+  ASSERT_EQ(tjsonGetArraySize(root.get()), 1);
+
+  SJson *report = tjsonGetArrayItem(root.get(), 0);
+  ASSERT_NE(report, nullptr);
+  EXPECT_STREQ(tjsonGetStringPointer(report, "ts"), "1787068800123");
+
+  double protocol = 0;
+  ASSERT_EQ(tjsonGetDoubleValue(report, "protocol", &protocol), TSDB_CODE_SUCCESS);
+  EXPECT_DOUBLE_EQ(protocol, 2);
+
+  SJson *tables = tjsonGetObjectItem(report, "tables");
+  ASSERT_TRUE(tjsonIsArray(tables));
+  ASSERT_EQ(tjsonGetArraySize(tables), 1);
+  SJson *table = tjsonGetArrayItem(tables, 0);
+  ASSERT_NE(table, nullptr);
+  EXPECT_STREQ(tjsonGetStringPointer(table, "name"), "taosd_stream_failure");
+
+  SJson *groups = tjsonGetObjectItem(table, "metric_groups");
+  ASSERT_TRUE(tjsonIsArray(groups));
+  ASSERT_EQ(tjsonGetArraySize(groups), 1);
+  SJson *group = tjsonGetArrayItem(groups, 0);
+  ASSERT_NE(group, nullptr);
+
+  SJson *tags = tjsonGetObjectItem(group, "tags");
+  ASSERT_TRUE(tjsonIsArray(tags));
+  ASSERT_EQ(tjsonGetArraySize(tags), 3);
+  const char *expectedTagNames[] = {"cluster_id", "stream_id", "stream_name"};
+  const char *expectedTagValues[] = {"6980428120398645172", "9223372036854775000", streamName};
+  for (int32_t i = 0; i < 3; ++i) {
+    SJson *tag = tjsonGetArrayItem(tags, i);
+    ASSERT_NE(tag, nullptr);
+    EXPECT_STREQ(tjsonGetStringPointer(tag, "name"), expectedTagNames[i]);
+    EXPECT_STREQ(tjsonGetStringPointer(tag, "value"), expectedTagValues[i]);
+  }
+
+  SJson *metrics = tjsonGetObjectItem(group, "metrics");
+  ASSERT_TRUE(tjsonIsArray(metrics));
+  ASSERT_EQ(tjsonGetArraySize(metrics), 1);
+  SJson *metric = tjsonGetArrayItem(metrics, 0);
+  ASSERT_NE(metric, nullptr);
+  EXPECT_STREQ(tjsonGetStringPointer(metric, "name"), "error_code");
+  double errorCode = 0;
+  ASSERT_EQ(tjsonGetDoubleValue(metric, "value", &errorCode), TSDB_CODE_SUCCESS);
+  EXPECT_DOUBLE_EQ(errorCode, static_cast<double>(kErrorCode));
+}
+
+TEST_F(MonitorTest, StreamFailureSkipsUnavailableMonitorIdentity) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of HTTP transport is unreliable in Windows release builds";
+#endif
+  SMonDmInfo dmInfo = {};
+  dmInfo.basic.cluster_id = 1;
+  monSetDmInfo(&dmInfo);
+
+  HttpReportStubGuard guard;
+  tsEnableMonitor = false;
+  monReportStreamFailure(1, 2, "1.db.stream", -1);
+  EXPECT_EQ(gCapturedHttpReport.calls, 0);
+
+  tsEnableMonitor = true;
+  dmInfo = {};
+  monSetDmInfo(&dmInfo);
+  monReportStreamFailure(1, 2, "1.db.stream", -1);
+  EXPECT_EQ(gCapturedHttpReport.calls, 0);
 }
