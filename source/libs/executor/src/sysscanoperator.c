@@ -1883,6 +1883,21 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
       }
     }
 
+    // A single table whose tag count exceeds the block capacity would overflow the fill below
+    // (colDataSetVal does no bounds check on rowIndex) — grow the buffer first, same guard as
+    // the full-scan loop below.
+    int32_t nTagCols = isChild ? smrSuperTable.me.stbEntry.schemaTag.nCols
+                               : smrChildTable.me.ntbEntry.schemaTag.nCols;
+    code = blockDataEnsureCapacity(dataBlock, nTagCols);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      if (isChild) pAPI->metaReaderFn.clearReader(&smrSuperTable);
+      pAPI->metaReaderFn.clearReader(&smrChildTable);
+      blockDataDestroy(dataBlock);
+      pInfo->loadInfo.totalRows = 0;
+      return NULL;
+    }
+
     // Release smrChildTable's meta read lock before the call: ref-tag resolution
     // inside (sysTagsResolveRefTagVal) opens nested LOCK readers and may fire
     // cross-vnode RPCs — both must not happen while this reader holds the meta
