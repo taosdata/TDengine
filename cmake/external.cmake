@@ -2479,6 +2479,14 @@ function(td_prepare_arrow_external arrow_build_profile)
             -P "${CMAKE_CURRENT_LIST_DIR}/arrow-absl-gcc13-stdint-fix.cmake"
     )
 
+    if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+        list(APPEND _arrow_patch_commands
+            COMMAND "${CMAKE_COMMAND}"
+                -DARROW_SOURCE_DIR=<SOURCE_DIR>
+                -P "${CMAKE_CURRENT_LIST_DIR}/arrow-macos-libtool-fix.cmake"
+        )
+    endif()
+
     if(_arrow_patch_commands)
         # The Arrow sub-build may already have generated vendored dependency
         # download scripts (snappy_ep, thrift_ep, ...).  After patching
