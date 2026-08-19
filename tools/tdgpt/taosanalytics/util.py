@@ -2,7 +2,10 @@
 
 import argparse
 import math
+import os
 import re
+import shutil
+from pathlib import Path
 
 import numpy as np
 from statsmodels.stats.diagnostic import acorr_ljungbox
@@ -250,3 +253,48 @@ def parse_args():
         help="path to configuration file",
     )
     return parser.parse_args()
+
+
+def safely_remove_file(file_path, model_name, file_type="file"):
+    """Safely remove a file with consistent error handling and logging."""
+    try:
+        if Path(file_path).exists():
+            os.remove(file_path)
+            AppLogger.info("Model %s %s removed successfully", model_name, file_type)
+    except FileNotFoundError:
+        pass
+    except Exception as cleanup_error:
+        AppLogger.warning(
+            "Error removing %s for model %s: %s",
+            file_type,
+            model_name,
+            str(cleanup_error),
+        )
+
+
+def safely_remove_directory(dir_path, model_name):
+    """Safely remove a directory with consistent error handling and logging.
+
+    Args:
+        dir_path: Path to the directory to remove
+        model_name: Model name for logging
+
+    Returns:
+        True if removed successfully, False otherwise (not found, permission denied, etc.)
+    """
+    try:
+        shutil.rmtree(dir_path)
+        AppLogger.info("Model %s directory removed successfully", model_name)
+        return True
+    except FileNotFoundError:
+        AppLogger.info(
+            "Model %s directory was already removed by another worker", model_name
+        )
+        return False
+    except Exception as cleanup_error:
+        AppLogger.warning(
+            "Error removing model %s directory: %s",
+            model_name,
+            str(cleanup_error),
+        )
+        return False

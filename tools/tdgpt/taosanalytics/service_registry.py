@@ -12,6 +12,7 @@ from pathlib import Path
 
 from taosanalytics.base import (
     AbstractAnomalyDetectionService,
+    AbstractClassificationService,
     AbstractCorrelationService,
     AbstractForecastService,
     AbstractImputationService,
@@ -21,10 +22,12 @@ from taosanalytics.conf import Configure
 from taosanalytics.exception import NotFoundDynamicModelError
 from taosanalytics.handlers import (
     DynamicAnomalyService,
+    DynamicClassificationService,
     DynamicForecastService,
     DynamicRegressionService,
 )
 from taosanalytics.log import AppLogger
+from taosanalytics.util import safely_remove_file
 
 
 class ServiceRegistry:
@@ -40,6 +43,10 @@ class ServiceRegistry:
         "svr",
         "polynomial_regression",
     ]
+    _classification_models = [
+        "logistic_regression",
+        "decision_tree",
+    ]
 
     _base_class_name = [
         AbstractAnomalyDetectionService.__name__,
@@ -47,6 +54,7 @@ class ServiceRegistry:
         AbstractImputationService.__name__,
         AbstractCorrelationService.__name__,
         AbstractRegressionService.__name__,
+        AbstractClassificationService.__name__,
     ]
 
     def __init__(self):
@@ -66,7 +74,15 @@ class ServiceRegistry:
             dynamic_service_names = [
                 name
                 for name, service in self.services.items()
-                if isinstance(service, (DynamicForecastService, DynamicAnomalyService))
+                if isinstance(
+                    service,
+                    (
+                        DynamicForecastService,
+                        DynamicAnomalyService,
+                        DynamicRegressionService,
+                        DynamicClassificationService,
+                    ),
+                )
             ]
 
             for name in dynamic_service_names:
@@ -86,44 +102,84 @@ class ServiceRegistry:
             if not dyn_dir.exists() or not dyn_dir.is_dir():
                 return
 
-            for config_path in dyn_dir.iterdir():
-                if not config_path.is_file() or config_path.suffix != ".json":
-                    continue
+            # Support both old format (model_name.json in root) and new format (model_name/model_name.json)
+            for item_path in dyn_dir.iterdir():
+                if item_path.is_file() and item_path.suffix == ".json":
+                    # Old format: direct json file in root directory
+                    model_name = item_path.stem
+                    if model_name in self.services:
+                        continue
 
-                model_name = config_path.stem
-                if model_name in self.services:
-                    continue
-
-                try:
-                    self.register_service_from_file(str(config_path))
-                except Exception as e:
-                    AppLogger.error(
-                        "failed to sync dynamic model from file %s: %s, skipping",
-                        str(config_path),
-                        str(e),
-                    )
-
-            # Check for orphaned pkl files (config deleted but pkl still exists)
-            for pkl_path in dyn_dir.iterdir():
-                if not pkl_path.is_file() or pkl_path.suffix != ".pkl":
-                    continue
-
-                model_name = pkl_path.stem
-                config_path = dyn_dir / f"{model_name}.json"
-
-                if not config_path.exists():
                     try:
-                        pkl_path.unlink()
-                        AppLogger.info(
-                            "removed orphaned pkl file '%s' because corresponding config file is gone",
-                            pkl_path.name,
-                        )
+                        self.register_service_from_file(str(item_path))
                     except Exception as e:
-                        AppLogger.warning(
-                            "failed to remove orphaned pkl file '%s': %s",
-                            pkl_path.name,
+                        AppLogger.error(
+                            "failed to sync dynamic model from file %s: %s, skipping",
+                            str(item_path),
                             str(e),
                         )
+                elif item_path.is_dir():
+                    # New format: model_name subdirectory
+                    model_name = item_path.name
+                    if model_name in self.services:
+                        continue
+
+                    config_file_name = f"{model_name}.json"
+                    config_path = os.path.join(item_path, config_file_name)
+
+                    if not config_path.exists():
+                        AppLogger.debug(
+                            "model subdirectory '%s' found but config file '%s' not found, skipping",
+                            model_name,
+                            config_file_name,
+                        )
+                        continue
+
+                    try:
+                        self.register_service_from_file(str(config_path))
+                    except Exception as e:
+                        AppLogger.error(
+                            "failed to sync dynamic model from file %s: %s, skipping",
+                            str(config_path),
+                            str(e),
+                        )
+
+            # Check for orphaned pkl files (config deleted but pkl still exists)
+            for item_path in dyn_dir.iterdir():
+                if item_path.is_dir():
+                    # New format: check pkl in subdirectory
+                    model_name = item_path.name
+                    config_file_name = f"{model_name}.json"
+                    config_path = item_path / config_file_name
+
+                    if not config_path.exists():
+                        pkl_file_name = f"{model_name}.pkl"
+                        pkl_path = item_path / pkl_file_name
+
+                        if pkl_path.exists():
+                            safely_remove_file(str(pkl_path), model_name, "orphaned pkl file")
+
+                        # Remove empty directory after orphaned pkl is deleted
+                        try:
+                            if item_path.exists() and not any(item_path.iterdir()):
+                                item_path.rmdir()
+                                AppLogger.info(
+                                    "removed empty orphaned directory '%s'",
+                                    model_name,
+                                )
+                        except Exception as e:
+                            AppLogger.debug(
+                                "failed to remove empty directory '%s': %s",
+                                model_name,
+                                str(e),
+                            )
+                elif item_path.is_file() and item_path.suffix == ".pkl":
+                    # Old format: check pkl in root directory
+                    model_name = item_path.stem
+                    config_path = dyn_dir / f"{model_name}.json"
+
+                    if not config_path.exists():
+                        safely_remove_file(str(item_path), model_name, "orphaned pkl file")
 
     def get_typed_services(self, type_str: str) -> list:
         """get specified type service"""
@@ -165,6 +221,7 @@ class ServiceRegistry:
                 self.get_imputation_algo_list(),
                 self.get_corr_algo_list(),
                 self.get_regression_algo_list(),
+                self.get_classification_algo_list(),
             ],
         }
 
@@ -191,6 +248,12 @@ class ServiceRegistry:
     def get_regression_algo_list(self):
         return {"type": "regression", "algo": self.get_typed_services("regression")}
 
+    def get_classification_algo_list(self):
+        return {
+            "type": "classification",
+            "algo": self.get_typed_services("classification"),
+        }
+
     def register_service_from_file(self, config_file: str):
         """Load and register algorithms from a single json file.
         which is a algorithm parameter file that defines the algorithm name, description, parameters, and other metadata.
@@ -205,11 +268,29 @@ class ServiceRegistry:
                 msg = f"not a json file: {config_file}"
                 raise ValueError(msg)
 
-            config_file_name = Path(config_file).name
-            model_name = config_file_name.replace(os.sep, ".")[:-5]  # strip .json
+            config_path = Path(config_file)
+            # Derive model_name consistently as the single source of truth.
+            # Strategy: use parent directory name when in a subdirectory (new format),
+            # otherwise use config file stem (old format at root).
+            # This ensures {model_name}/{model_name}.json always registers as model_name,
+            # matching the orphaned cleanup logic which searches for {dirname}.pkl.
+            parent_name = config_path.parent.name
+            config_stem = config_path.stem
+
+            # If parent and stem match, this is the new format (model/model.json) or old format (root/model.json)
+            # If they don't match, this is either old root format (root/something.json) or
+            # misnamed new format (model/different_name.json)
+            # For robustness: prefer parent name if they differ AND parent is not a generic name
+            if parent_name == config_stem:
+                # Standard case: either model/model.json or root/model.json → use the name
+                model_name = config_stem
+            else:
+                # Names differ: use parent directory as the source of truth (new format, any name)
+                # This handles model/custom_name.json → register as "model", matching orphan cleanup
+                model_name = parent_name
 
             AppLogger.info(
-                "loading algorithm/model from file: %s (module: %s)",
+                "loading algorithm/model from file: %s (model: %s)",
                 config_file,
                 model_name,
             )
@@ -254,6 +335,13 @@ class ServiceRegistry:
                         algo=algo_name,
                         path=config_file,
                     )
+                elif algo_name.lower() in ServiceRegistry._classification_models:
+                    serv = DynamicClassificationService(
+                        name=model_name,
+                        desc=f"dynamic generated classification from {algo_name}",
+                        algo=algo_name,
+                        path=config_file,
+                    )
                 else:
                     msg = f"unsupported algorithm '{algo_name}' in dynamic model configuration file: {config_file}"
                     raise ValueError(msg)
@@ -290,6 +378,7 @@ class ServiceRegistry:
                         DynamicForecastService,
                         DynamicAnomalyService,
                         DynamicRegressionService,
+                        DynamicClassificationService,
                     ),
                 ):
                     raise RuntimeError(
@@ -451,17 +540,34 @@ class ServiceRegistry:
         dyn_dir = Configure.get_instance().get_dynamic_model_directory()
 
         if Path(dyn_dir).exists() and os.path.isdir(dyn_dir):
-            for item in os.listdir(dyn_dir):
-                if item.endswith(".json"):
+            dyn_dir_path = Path(dyn_dir)
+            # Support both old format (root json) and new format (subdir/model_name.json)
+            for item_path in dyn_dir_path.iterdir():
+                if item_path.is_file() and item_path.suffix == ".json":
+                    # Old format: direct json file in root directory
                     try:
-                        self.register_service_from_file(os.path.join(dyn_dir, item))
+                        self.register_service_from_file(str(item_path))
                     except Exception as e:
                         AppLogger.error(
                             "failed to register dynamic model from file %s: %s, skipping",
-                            item,
+                            item_path.name,
                             str(e),
                         )
-                        continue
+                elif item_path.is_dir():
+                    # New format: model_name subdirectory
+                    model_name = item_path.name
+                    config_file_name = f"{model_name}.json"
+                    config_path = item_path / config_file_name
+
+                    if config_path.exists():
+                        try:
+                            self.register_service_from_file(str(config_path))
+                        except Exception as e:
+                            AppLogger.error(
+                                "failed to register dynamic model from file %s: %s, skipping",
+                                config_file_name,
+                                str(e),
+                            )
         else:
             AppLogger.debug(
                 "dynamic model directory '%s' does not exist or is not a directory, "
