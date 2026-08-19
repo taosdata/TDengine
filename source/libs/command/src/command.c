@@ -825,6 +825,12 @@ static void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
 // Appends a JSON tag blob as a single-quoted string ('...'), escaping embedded single
 // quotes by doubling them so the output stays replayable as a SQL literal.
 static int32_t appendJsonTagValue(char* buf, int32_t* len, STag* pTag, void* charsetCxt) {
+  // guard the write space up front: once *len exceeds the bound, the size argument of the
+  // snprintf below would go negative and be read as SIZE_MAX, overflowing buf
+  if (*len >= SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE) {
+    qError("no enough space to store json tag value, len:%d", *len);
+    return TSDB_CODE_APP_ERROR;
+  }
   char* pJson = NULL;
   parseTagDatatoJson(pTag, &pJson, charsetCxt);
   if (NULL == pJson) {
@@ -872,6 +878,13 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* c
   int32_t num = 0;
   int32_t j = 0;
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
+    // guard the write space up front: once *len exceeds the bound, the size argument of the
+    // snprintf calls below would go negative and be read as SIZE_MAX, overflowing buf
+    if (*len >= SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE) {
+      qError("no enough space to store tag value, len:%d", *len);
+      code = TSDB_CODE_APP_ERROR;
+      TAOS_CHECK_ERRNO(code);
+    }
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
     if (i > 0) {
       *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
@@ -970,6 +983,13 @@ static int32_t appendInlineTagFields(char* buf, int32_t* len, STableCfg* pCfg, v
   int32_t j = 0;
 
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
+    // guard the write space up front: once *len exceeds the bound, the size argument of the
+    // snprintf calls below would go negative and be read as SIZE_MAX, overflowing buf
+    if (*len >= SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE) {
+      qError("no enough space to build inline tags clause, len:%d", *len);
+      code = TSDB_CODE_APP_ERROR;
+      TAOS_CHECK_ERRNO(code);
+    }
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
 
     if (i > 0) {
