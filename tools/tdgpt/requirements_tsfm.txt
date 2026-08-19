@@ -1,0 +1,39 @@
+# Unified Python 3.12 runtime for supported TSFM services.
+# Keep these shared versions aligned across TDTSFM, TimeMoE, Moirai, Chronos,
+# TimesFM, and MOMENT. Model-specific requirements must not downgrade them.
+
+--find-links https://download.pytorch.org/whl/torch/
+# x86/x64平台
+torch==2.4.1+cpu ; platform_machine == "x86_64"
+# ARM平台 (aarch64)
+torch==2.4.1 ; platform_machine == "aarch64"
+
+transformers==4.40.1
+accelerate==0.34.2
+huggingface-hub==0.36.2
+fsspec==2023.10.0
+numpy==1.26.4
+pandas==2.1.4
+scipy==1.11.4
+scikit-learn==1.5.2
+flask==3.0.3
+matplotlib==3.9.2
+
+# Moirai / Moirai 2.0
+uni2ts==2.0
+jax==0.6.1
+jaxlib==0.6.1
+gluonts==0.14.4
+pytorch-lightning==2.6.5
+
+# Chronos. Newer chronos-forecasting releases require transformers >= 4.48.
+chronos-forecasting==1.4.1
+
+# TimesFM 2.x imports require a newer huggingface-hub than transformers does,
+# but still stay below the transformers 4.40 upper bound.
+timesfm==2.0.2
+
+# MOMENT is installed separately from the patched TDgpt wheel with --no-deps.
+# The upstream momentfm package pins older numpy/pandas/transformers versions.
+# Install via: pip install --no-deps momentfm==0.1.4
+# momentfm==0.1.4

@@ -98,18 +98,31 @@ if [ -n "$PIP_INDEX_URL" ]; then
   pip_extra_args+=(-i "$PIP_INDEX_URL")
 fi
 
+function resolve_requirement_file() {
+  local req_name="$1"
+  if [ -f "${script_dir}/${req_name}" ]; then
+    echo "${script_dir}/${req_name}"
+  elif [ -f "${script_dir}/../${req_name}" ]; then
+    echo "${script_dir}/../${req_name}"
+  else
+    echo -e "${RED}Error: Requirements file not found: ${req_name}${NC}"
+    echo -e "${RED}Searched in:${NC}"
+    echo -e "${RED}  - ${script_dir}/${req_name}${NC}"
+    echo -e "${RED}  - ${script_dir}/../${req_name}${NC}"
+    return 1
+  fi
+}
+
+function run_venv_pip() {
+  local -a pip_cmd=("${venvDir}/bin/python" -m pip)
+  if [ -n "${csudo}" ]; then
+    pip_cmd=(sudo "${pip_cmd[@]}")
+  fi
+  "${pip_cmd[@]}" "$@"
+}
+
 #install main path
 install_main_dir=${installDir}
-# timesfm venv:transformers==4.40.0
-timesfm_venv_dir="${dataDir}/timesfm_venv"
-# moirai venv:transformers==4.40.0
-moirai_venv_dir="${dataDir}/moirai_venv"
-# chronos-forecasting venv:transformers==4.55.0
-chronos_venv_dir="${dataDir}/chronos_venv"
-# momentfm venv:transformers==4.33.0
-momentfm_venv_dir="${dataDir}/momentfm_venv"
-
-
 service_config_dir="/etc/systemd/system"
 
 # Color setting
@@ -117,6 +130,7 @@ RED='\033[0;31m'
 GREEN='\033[1;32m'
 GREEN_DARK='\033[0;32m'
 GREEN_UNDERLINE='\033[4;32m'
+YELLOW='\033[1;33m'
 NC='\033[0m'
 
 csudo=""
@@ -376,7 +390,8 @@ function install_anode_venv() {
     source ${venvDir}/bin/activate
     # Install default virtualenv dependencies; requirements_ess.txt pins transformers==4.40.0
     echo -e "install the required packages by pip3, this may take a while depending on the network condition"
-   ${csudo}${venvDir}/bin/pip3 install -r "${script_dir}/requirements_ess.txt" "${pip_extra_args[@]}"
+    req_file=$(resolve_requirement_file requirements_ess.txt) || return 1
+    run_venv_pip install -r "${req_file}" "${pip_extra_args[@]}"
 
     echo -e "Install python library for venv completed!"
   else
@@ -385,60 +400,25 @@ function install_anode_venv() {
 }
 
 function install_extra_venvs() {
-  # timesfm venv
-  echo -e "${GREEN}Creating timesfm venv at ${timesfm_venv_dir}${NC}"
-  if [ -d "${timesfm_venv_dir}" ] && [ ${offline_mode} -ne 1 ]; then
-    echo "Removing existing timesfm venv..."
-    rm -rf "${timesfm_venv_dir}"
+  if [ ! -f "${venvDir}/bin/pip3" ]; then
+    echo -e "${RED}Error: Virtual environment not found at ${venvDir}. Cannot proceed with TSFM dependencies installation.${NC}"
+    return 1
   fi
-  "python3.${python_minor_ver}" -m venv "${timesfm_venv_dir}"
-  echo "Activating timesfm venv and installing dependencies..."
-  source "${timesfm_venv_dir}/bin/activate"
-  "${timesfm_venv_dir}/bin/pip3" install torch==2.3.1+cpu jax timesfm flask==3.0.3 \
-      -f https://download.pytorch.org/whl/torch_stable.html "${pip_extra_args[@]}"
-  deactivate
 
-  # moirai venv
-  echo -e "${GREEN}Creating moirai venv at ${moirai_venv_dir}${NC}"
-  if [ -d "${moirai_venv_dir}" ] && [ ${offline_mode} -ne 1 ]; then
-    echo "Removing existing moirai venv..."
-    rm -rf "${moirai_venv_dir}"
+  echo -e "${GREEN}Installing TSFM dependencies into unified venv at ${venvDir}${NC}"
+  req_file=$(resolve_requirement_file requirements_tsfm.txt) || return 1
+  run_venv_pip install -r "${req_file}" "${pip_extra_args[@]}"
+
+  echo -e "${GREEN}Installing momentfm with --no-deps${NC}"
+  run_venv_pip install --no-deps momentfm==0.1.4 "${pip_extra_args[@]}"
+
+  if ! pip_check_output=$(run_venv_pip check 2>&1); then
+    echo -e "${RED}Error: pip dependency check reported issues:${NC}"
+    echo "${pip_check_output}"
+    echo -e "${RED}Error: Python dependencies are inconsistent; installation cannot continue.${NC}"
+    return 1
   fi
-  "python3.${python_minor_ver}" -m venv "${moirai_venv_dir}"
-  echo "Activating moirai venv and installing dependencies..."
-  source "${moirai_venv_dir}/bin/activate"
-  "${moirai_venv_dir}/bin/pip3" install torch==2.3.1+cpu uni2ts flask \
-   -f https://download.pytorch.org/whl/torch_stable.html "${pip_extra_args[@]}"
-  deactivate
-
-  # chronos venv
-  echo -e "${GREEN}Creating chronos venv at ${chronos_venv_dir}${NC}"
-  if [ -d "${chronos_venv_dir}" ] && [ ${offline_mode} -ne 1 ]; then
-    echo "Removing existing chronos venv..."
-    rm -rf "${chronos_venv_dir}"
-  fi
-  "python3.${python_minor_ver}" -m venv "${chronos_venv_dir}"
-  echo "Activating chronos venv and installing dependencies..."
-  source "${chronos_venv_dir}/bin/activate"
-  "${chronos_venv_dir}/bin/pip3" install torch==2.3.1+cpu chronos-forecasting flask \
-    -f https://download.pytorch.org/whl/torch_stable.html  "${pip_extra_args[@]}"
-  deactivate
-
-  # momentfm venv
-  echo -e "${GREEN}Creating momentfm venv at ${momentfm_venv_dir}${NC}"
-  if [ -d "${momentfm_venv_dir}" ] && [ ${offline_mode} -ne 1 ]; then
-    echo "Removing existing momentfm venv..."
-    rm -rf "${momentfm_venv_dir}"
-  fi
-  "python3.${python_minor_ver}" -m venv "${momentfm_venv_dir}"
-  echo "Activating momentfm venv and installing dependencies..."
-  source "${momentfm_venv_dir}/bin/activate"
-  "${momentfm_venv_dir}/bin/pip3" install torch==2.3.1+cpu transformers==4.33.3 numpy==1.25.2 \
-    matplotlib pandas==1.5 scikit-learn flask==3.0.3 momentfm \
-    -f https://download.pytorch.org/whl/torch_stable.html "${pip_extra_args[@]}"
-  deactivate
-
-  echo -e "${GREEN}All extra venvs created and dependencies installed.${NC}"
+  echo -e "${GREEN}Unified TSFM dependencies installed.${NC}"
 }
 
 function clean_service_on_sysvinit() {
@@ -572,7 +552,7 @@ function installProduct() {
   install_anode_venv
 
   if [ ${all_venv} -eq 1 ]; then
-    echo -e "\033[44;32;1mStart to create extra venvs for chronos-forecasting and momentfm${NC}"
+    echo -e "\033[44;32;1mStart to install optional TSFM dependencies into unified venv${NC}"
     install_extra_venvs
   fi
 }
@@ -604,7 +584,7 @@ check_python3_env() {
     then
       python_minor_ver=11
       echo -e "\033[32mPython3.11 has been found.\033[0m"
-    elif command -v python3.12 &> /dev/nul
+    elif command -v python3.12 &> /dev/null
     then
       python_minor_ver=12
       echo -e "\033[32mPython3.12 has been found.\033[0m"
