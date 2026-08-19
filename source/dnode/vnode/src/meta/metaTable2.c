@@ -1996,12 +1996,15 @@ int32_t metaAddTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STabl
   }
 
   // response: full meta (columns + colRef + owned-tag schema) so the client catalog does not
-  // cache a tag-less/stale meta after ALTER ADD TAG.
-  int32_t rspCode = metaFillNtbTableMetaRsp(pEntry, pReq->tbName, pRsp);
-  if (rspCode) {
-    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
-              __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName, version);
-    if (code == TSDB_CODE_SUCCESS) code = rspCode;
+  // cache a tag-less/stale meta after ALTER ADD TAG. Only build it after a successful persist —
+  // otherwise pRsp would describe changes that were not actually persisted.
+  if (code == TSDB_CODE_SUCCESS) {
+    int32_t rspCode = metaFillNtbTableMetaRsp(pEntry, pReq->tbName, pRsp);
+    if (rspCode) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+                __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName, version);
+      code = rspCode;
+    }
   }
 
   metaFetchEntryFree(&pEntry);
@@ -2149,12 +2152,15 @@ int32_t metaDropTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STab
   }
 
   // response: full meta (columns + colRef + owned-tag schema) so the client catalog does not
-  // cache a stale meta after ALTER DROP TAG.
-  int32_t rspCode = metaFillNtbTableMetaRsp(pEntry, pReq->tbName, pRsp);
-  if (rspCode) {
-    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
-              __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName, version);
-    if (code == TSDB_CODE_SUCCESS) code = rspCode;
+  // cache a stale meta after ALTER DROP TAG. Only build it after a successful persist —
+  // otherwise pRsp would describe changes that were not actually persisted.
+  if (code == TSDB_CODE_SUCCESS) {
+    int32_t rspCode = metaFillNtbTableMetaRsp(pEntry, pReq->tbName, pRsp);
+    if (rspCode) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+                __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName, version);
+      code = rspCode;
+    }
   }
 
   metaFetchEntryFree(&pEntry);
