@@ -1450,6 +1450,40 @@ class TestJoin:
         tdSql.execute("use db")
         print("do asof join right ts pushdown ........ [passed]")
 
+    def do_join_truncate_tz_case_insensitive(self):
+        """ASOF JOIN ON timetruncate(): the UTC prefix is case-insensitive.
+
+        A case-sensitive prefix check in the join operator would silently fall
+        back to the session timezone (Asia/Shanghai here) and shift the
+        derived truncation boundary by 16 hours.
+        """
+        tdSql.execute("create database if not exists db_join_tz")
+        tdSql.execute("use db_join_tz")
+        tdSql.execute("create table ta (ts timestamp, v int)")
+        tdSql.execute("create table tb (ts timestamp, v int)")
+        # 2026-01-01T00:00:00Z. Truncating it to 1d lands 16h earlier under
+        # POSIX 'UTC8' (west 8) but only 8h earlier under Asia/Shanghai.
+        tdSql.execute("insert into tb values(1767225600000, 1)")
+        tdSql.execute("insert into ta values(1767168000000, 1)(1767196800000, 2)")
+
+        def matched(tz):
+            tdSql.query(
+                "select a.ts, b.ts from ta a left asof join tb b "
+                f"on a.ts >= timetruncate(b.ts, 1d, '{tz}')"
+            )
+            return sum(1 for row in tdSql.queryResult if row[1] is not None)
+
+        assert matched("utc8") == matched("UTC8")
+        assert matched("utc+8") == matched("UTC+8")
+        assert matched("utc8") != matched("Asia/Shanghai"), (
+            "'utc8' fell back to the session timezone"
+        )
+
+        tdSql.execute("drop database db_join_tz")
+        # Restore DB context for subsequent tests that rely on the default 'db'.
+        tdSql.execute("use db")
+        print("do join truncate tz case insensitive ........ [passed]")
+
     def do_join_hint(self):
         tdSql.query(f"select /*+ batch_scan() */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
         tdSql.checkRows(3)
@@ -1519,6 +1553,7 @@ class TestJoin:
         self.init_data()
         self.do_stbJoin()
         self.do_asof_join_right_ts_pushdown()
+        self.do_join_truncate_tz_case_insensitive()
         self.do_join_hint()
 
     

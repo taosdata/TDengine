@@ -41,6 +41,97 @@ char    *tsMonSlowLogUri = "/slow-sql-detail-batch";
 char    *tsMonFwBasicUri = "/taosd-cluster-basic";
 taos_counter_t *tsInsertCounter = NULL;
 
+static int32_t monAddStringNameValue(SJson *pArray, const char *name, const char *value) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SJson  *pItem = tjsonCreateObject();
+  if (pItem == NULL) return terrno;
+
+  code = tjsonAddStringToObject(pItem, "name", name);
+  if (code == TSDB_CODE_SUCCESS) code = tjsonAddStringToObject(pItem, "value", value);
+  if (code == TSDB_CODE_SUCCESS) code = tjsonAddItemToArray(pArray, pItem);
+  if (code != TSDB_CODE_SUCCESS) tjsonDelete(pItem);
+  return code;
+}
+
+static int32_t monAddDoubleNameValue(SJson *pArray, const char *name, double value) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SJson  *pItem = tjsonCreateObject();
+  if (pItem == NULL) return terrno;
+
+  code = tjsonAddStringToObject(pItem, "name", name);
+  if (code == TSDB_CODE_SUCCESS) code = tjsonAddDoubleToObject(pItem, "value", value);
+  if (code == TSDB_CODE_SUCCESS) code = tjsonAddItemToArray(pArray, pItem);
+  if (code != TSDB_CODE_SUCCESS) tjsonDelete(pItem);
+  return code;
+}
+
+static int32_t monBuildStreamFailureContent(int64_t clusterId, int64_t ts, int64_t streamId, const char *streamName,
+                                            int32_t errorCode, char **ppCont) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  char    tsBuf[32] = {0};
+  char    clusterIdBuf[32] = {0};
+  char    streamIdBuf[32] = {0};
+  SJson  *pRoot = NULL;
+  SJson  *pReport = NULL;
+  SJson  *pTable = NULL;
+  SJson  *pGroup = NULL;
+
+  *ppCont = NULL;
+  (void)snprintf(tsBuf, sizeof(tsBuf), "%" PRId64, ts);
+  (void)snprintf(clusterIdBuf, sizeof(clusterIdBuf), "%" PRId64, clusterId);
+  (void)snprintf(streamIdBuf, sizeof(streamIdBuf), "%" PRId64, streamId);
+
+  pRoot = tjsonCreateArray();
+  TSDB_CHECK_NULL(pRoot, code, lino, _exit, terrno);
+  pReport = tjsonCreateObject();
+  TSDB_CHECK_NULL(pReport, code, lino, _exit, terrno);
+  TAOS_CHECK_EXIT(tjsonAddStringToObject(pReport, "ts", tsBuf));
+  TAOS_CHECK_EXIT(tjsonAddDoubleToObject(pReport, "protocol", 2));
+
+  SJson *pTables = tjsonAddArrayToObject(pReport, "tables");
+  TSDB_CHECK_NULL(pTables, code, lino, _exit, terrno);
+  pTable = tjsonCreateObject();
+  TSDB_CHECK_NULL(pTable, code, lino, _exit, terrno);
+  TAOS_CHECK_EXIT(tjsonAddStringToObject(pTable, "name", "taosd_stream_failure"));
+
+  SJson *pGroups = tjsonAddArrayToObject(pTable, "metric_groups");
+  TSDB_CHECK_NULL(pGroups, code, lino, _exit, terrno);
+  pGroup = tjsonCreateObject();
+  TSDB_CHECK_NULL(pGroup, code, lino, _exit, terrno);
+
+  SJson *pTags = tjsonAddArrayToObject(pGroup, "tags");
+  TSDB_CHECK_NULL(pTags, code, lino, _exit, terrno);
+  TAOS_CHECK_EXIT(monAddStringNameValue(pTags, "cluster_id", clusterIdBuf));
+  TAOS_CHECK_EXIT(monAddStringNameValue(pTags, "stream_id", streamIdBuf));
+  TAOS_CHECK_EXIT(monAddStringNameValue(pTags, "stream_name", streamName));
+
+  SJson *pMetrics = tjsonAddArrayToObject(pGroup, "metrics");
+  TSDB_CHECK_NULL(pMetrics, code, lino, _exit, terrno);
+  TAOS_CHECK_EXIT(monAddDoubleNameValue(pMetrics, "error_code", (double)errorCode));
+
+  TAOS_CHECK_EXIT(tjsonAddItemToArray(pGroups, pGroup));
+  pGroup = NULL;
+  TAOS_CHECK_EXIT(tjsonAddItemToArray(pTables, pTable));
+  pTable = NULL;
+  TAOS_CHECK_EXIT(tjsonAddItemToArray(pRoot, pReport));
+  pReport = NULL;
+
+  *ppCont = tjsonToUnformattedString(pRoot);
+  TSDB_CHECK_NULL(*ppCont, code, lino, _exit, terrno);
+
+_exit:
+  tjsonDelete(pGroup);
+  tjsonDelete(pTable);
+  tjsonDelete(pReport);
+  tjsonDelete(pRoot);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFreeClear(*ppCont);
+    uError("failed to build stream failure report at line %d since %s", lino, tstrerror(code));
+  }
+  return code;
+}
+
 void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
   (void)taosThreadMutexLock(&tsMonitor.lock);
   int32_t size = taosArrayGetSize(tsMonitor.logs);
@@ -76,6 +167,7 @@ int32_t monGetLogs(SMonLogs *logs) {
 void monSetDmInfo(SMonDmInfo *pInfo) {
   (void)taosThreadMutexLock(&tsMonitor.lock);
   memcpy(&tsMonitor.dmInfo, pInfo, sizeof(SMonDmInfo));
+  tsMonitor.clusterId = pInfo->basic.cluster_id;
   (void)taosThreadMutexUnlock(&tsMonitor.lock);
   memset(pInfo, 0, sizeof(SMonDmInfo));
 }
@@ -125,6 +217,7 @@ int32_t monInit(const SMonCfg *pCfg) {
   tsLogFp = monRecordLog;
   tsMonitor.lastTime = taosGetTimestampMs();
   (void)taosThreadMutexInit(&tsMonitor.lock, NULL);
+  tsMonitor.clusterId = 0;
 
   monInitMonitorFW();
 
@@ -706,4 +799,25 @@ void monSendContent(char *pCont, const char *uri) {
       uError("failed to send monitor msg");
     }
   }
+}
+
+void monReportStreamFailure(int64_t ts, int64_t streamId, const char *streamName, int32_t errorCode) {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
+
+  int64_t clusterId = 0;
+  (void)taosThreadMutexLock(&tsMonitor.lock);
+  clusterId = tsMonitor.clusterId;
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
+
+  if (clusterId == 0) {
+    uDebug("skip stream failure report since cluster id is not initialized");
+    return;
+  }
+
+  char   *pCont = NULL;
+  int32_t code = monBuildStreamFailureContent(clusterId, ts, streamId, streamName, errorCode, &pCont);
+  if (code != TSDB_CODE_SUCCESS) return;
+
+  monSendContent(pCont, tsMonFwUri);
+  taosMemoryFree(pCont);
 }

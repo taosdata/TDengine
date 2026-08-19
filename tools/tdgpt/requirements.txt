@@ -1,7 +1,7 @@
 -r requirements_ess.txt
 
 absl-py==2.1.0
-click==8.4.1
+click==8.4.2
 contourpy==1.3.3 ; python_version >= "3.11"
 cycler==0.12.1
 fonttools==4.63.0
@@ -9,16 +9,16 @@ fsspec==2024.2.0
 itsdangerous==2.2.0
 Jinja2==3.1.6
 joblib==1.5.3
-kiwisolver==1.4.7
+kiwisolver==1.5.0
 markdown-it-py==3.0.0
-MarkupSafe==3.0.1
+MarkupSafe==3.0.3
 mdurl==0.1.2
 mpmath==1.3.0
 namex==0.0.8
-pillow==12.2.0
+pillow==12.3.0
 python-dateutil==2.9.0.post0
-pytz==2024.2
+pytz==2026.3.post1
 rstl==0.1.3
-six==1.16.0
+six==1.17.0
 sympy==1.13.1
 Flask-Testing==0.8.1

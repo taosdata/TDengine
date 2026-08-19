@@ -160,20 +160,20 @@ class TestModelService:
 
     def test_get_model_venv(self, model_service, mock_config):
         """Test getting model virtual environment path"""
-        venv = model_service._get_model_venv("timesfm")
-        assert venv == mock_config.timesfm_venv
+        venv = model_service._get_model_venv()
+        assert venv == mock_config.venv_dir
 
-        venv = model_service._get_model_venv("moirai")
-        assert venv == mock_config.moirai_venv
+        venv = model_service._get_model_venv()
+        assert venv == mock_config.venv_dir
 
-        venv = model_service._get_model_venv("chronos")
-        assert venv == mock_config.chronos_venv
+        venv = model_service._get_model_venv()
+        assert venv == mock_config.venv_dir
 
-        venv = model_service._get_model_venv("moment")
-        assert venv == mock_config.moment_venv
+        venv = model_service._get_model_venv()
+        assert venv == mock_config.venv_dir
 
-        # Default venv for unknown models
-        venv = model_service._get_model_venv("tdtsfm")
+        # All supported model servers use the unified venv.
+        venv = model_service._get_model_venv()
         assert venv == mock_config.venv_dir
 
     def test_build_model_args(self, model_service):

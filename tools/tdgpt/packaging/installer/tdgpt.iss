@@ -1091,7 +1091,7 @@ begin
   if SelectTimemoe then Result := Result + 'TimeMoE 200M, ';
   if SelectMoirai then Result := Result + 'Moirai Small, ';
   if SelectChronos then Result := Result + 'Chronos Bolt Base, ';
-  if SelectTimesfm then Result := Result + 'TimesFM 2.0 500M, ';
+  if SelectTimesfm then Result := Result + 'TimesFM 2.5 200M, ';
   if SelectMoment then Result := Result + 'MOMENT Base, ';
   if Result <> '' then
     Delete(Result, Length(Result) - 1, 2)
@@ -1366,7 +1366,7 @@ begin
   ModelSelectionPage.Add('TimeMoE 200M (~865 MB download)');
   ModelSelectionPage.Add('Moirai Small (~447 MB download, default)');
   ModelSelectionPage.Add('Chronos Bolt Base (~783 MB download)');
-  ModelSelectionPage.Add('TimesFM 2.0 500M (~1.90 GB download)');
+  ModelSelectionPage.Add('TimesFM 2.5 200M (~850 MB download)');
   ModelSelectionPage.Add('MOMENT Base (~433 MB download, default)');
   ModelSelectionPage.Values[2] := True;
   ModelSelectionPage.Values[5] := True;

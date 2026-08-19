@@ -201,10 +201,10 @@ class Config:
         self.venv_dir = os.path.join(self.install_dir, "venvs", "venv")
         self.bind = "0.0.0.0:6035"
         self.workers = 2
-        self.timesfm_venv = os.path.join(self.install_dir, "venvs", "timesfm_venv")
-        self.moirai_venv = os.path.join(self.install_dir, "venvs", "moirai_venv")
-        self.chronos_venv = os.path.join(self.install_dir, "venvs", "chronos_venv")
-        self.moment_venv = os.path.join(self.install_dir, "venvs", "momentfm_venv")
+        self.timesfm_venv = self.venv_dir
+        self.moirai_venv = self.venv_dir
+        self.chronos_venv = self.venv_dir
+        self.moment_venv = self.venv_dir
         self.models = self._get_default_models()
         self.enabled_models = None
 
@@ -259,27 +259,11 @@ class Config:
             else:
                 self.workers = 2
 
-            # Model venv paths from config
-            self.timesfm_venv = getattr(
-                config_module,
-                "timesfm_venv",
-                os.path.join(self.install_dir, "venvs", "timesfm_venv"),
-            )
-            self.moirai_venv = getattr(
-                config_module,
-                "moirai_venv",
-                os.path.join(self.install_dir, "venvs", "moirai_venv"),
-            )
-            self.chronos_venv = getattr(
-                config_module,
-                "chronos_venv",
-                os.path.join(self.install_dir, "venvs", "chronos_venv"),
-            )
-            self.moment_venv = getattr(
-                config_module,
-                "momentfm_venv",
-                os.path.join(self.install_dir, "venvs", "momentfm_venv"),
-            )
+            # Model venv paths from config. Optional TSFM services share the main venv.
+            self.timesfm_venv = getattr(config_module, "timesfm_venv", self.venv_dir)
+            self.moirai_venv = getattr(config_module, "moirai_venv", self.venv_dir)
+            self.chronos_venv = getattr(config_module, "chronos_venv", self.venv_dir)
+            self.moment_venv = getattr(config_module, "momentfm_venv", self.venv_dir)
 
             # Load model configurations from config file
             if hasattr(config_module, "models"):
@@ -346,7 +330,7 @@ class Config:
             },
             "timesfm": {
                 "script": "timesfm-server.py",
-                "default_model": "google/timesfm-2.0-500m-pytorch",
+                "default_model": "google/timesfm-2.5-200m-pytorch",
                 "port": 6065,
                 "endpoint": "/ds_predict",
                 "required": False,
@@ -1553,18 +1537,9 @@ class ModelService:
             "ModelService", os.path.join(config.log_dir, "taosanode-service.log")
         )
 
-    def _get_model_venv(self, model_name: str) -> str:
-        """Get virtual environment path for a model"""
-        if model_name == "timesfm":
-            return self.config.timesfm_venv
-        elif model_name == "moirai":
-            return self.config.moirai_venv
-        elif model_name == "chronos":
-            return self.config.chronos_venv
-        elif model_name == "moment":
-            return self.config.moment_venv
-        else:
-            return self.config.venv_dir
+    def _get_model_venv(self) -> str:
+        """Get virtual environment path for models"""
+        return self.config.venv_dir
 
     def _ordered_model_names(self) -> List[str]:
         return [name for name in DEFAULT_MODEL_ORDER if name in self.config.models]
@@ -1622,7 +1597,7 @@ class ModelService:
         self.logger.info(f"Starting model service: {model_name}")
 
         # Get configuration
-        venv_dir = self._get_model_venv(model_name)
+        venv_dir = self._get_model_venv()
         python_exe = self.process_mgr._get_pythonw_exe(venv_dir)
         model_config = self.config.models[model_name]
 
