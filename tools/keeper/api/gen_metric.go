@@ -590,6 +590,10 @@ func get_sub_table_name(stbName string, tagMap map[string]string) string {
 		if checkKeysExist(tagMap, "cluster_id", "dnode_id") {
 			return fmt.Sprintf("dstatus_%s_cluster_%s", tagMap["dnode_id"], tagMap["cluster_id"])
 		}
+	case "taosd_stream_failure":
+		if checkKeysExist(tagMap, "cluster_id", "stream_id") {
+			return fmt.Sprintf("stream_failure_%s_cluster_%s", tagMap["stream_id"], tagMap["cluster_id"])
+		}
 	case "taosd_dnodes_log_dirs":
 		if checkKeysExist(tagMap, "cluster_id", "dnode_id", "data_dir_name") {
 			subTableName := fmt.Sprintf("dlog_%s_%s_cluster_%s", tagMap["dnode_id"], tagMap["data_dir_name"], tagMap["cluster_id"])
