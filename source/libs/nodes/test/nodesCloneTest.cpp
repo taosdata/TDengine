@@ -201,6 +201,89 @@ TEST_F(NodesCloneTest, fill) {
   }());
 }
 
+// The view expansion path clones an untranslated SELECT statement, so the
+// clone must carry every field the parser has already filled in. RANGE /
+// EVERY / FILL are set while building the AST, dropping them makes an INTERP
+// view fail with "Missing RANGE clause, EVERY clause or FILL clause".
+TEST_F(NodesCloneTest, selectStmtKeepsInterpClauses) {
+  registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
+    ASSERT_EQ(nodeType(pSrc), nodeType(pDst));
+    SSelectStmt* pSrcNode = (SSelectStmt*)pSrc;
+    SSelectStmt* pDstNode = (SSelectStmt*)pDst;
+    // Non-fatal assertions: every clause has to report on its own, a fatal
+    // one would hide the clauses checked after the first missing field.
+    EXPECT_NE(pDstNode->pRange, nullptr);
+    EXPECT_NE(pDstNode->pRangeAround, nullptr);
+    EXPECT_NE(pDstNode->pEvery, nullptr);
+    EXPECT_NE(pDstNode->pFill, nullptr);
+    if (NULL != pDstNode->pRange) {
+      EXPECT_EQ(nodeType(pSrcNode->pRange), nodeType(pDstNode->pRange));
+    }
+    if (NULL != pDstNode->pRangeAround) {
+      EXPECT_EQ(nodeType(pSrcNode->pRangeAround),
+                nodeType(pDstNode->pRangeAround));
+    }
+    if (NULL != pDstNode->pEvery) {
+      EXPECT_EQ(nodeType(pSrcNode->pEvery), nodeType(pDstNode->pEvery));
+    }
+    if (NULL != pDstNode->pFill) {
+      EXPECT_EQ(nodeType(pSrcNode->pFill), nodeType(pDstNode->pFill));
+    }
+  });
+
+  std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
+  {
+    SNode* pNew = NULL;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_SELECT_STMT, &pNew));
+    srcNode.reset(pNew);
+    SSelectStmt* pNode = (SSelectStmt*)srcNode.get();
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMakeNode(QUERY_NODE_OPERATOR, &pNode->pRange));
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMakeNode(QUERY_NODE_RANGE_AROUND, &pNode->pRangeAround));
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMakeNode(QUERY_NODE_VALUE, &pNode->pEvery));
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMakeNode(QUERY_NODE_FILL, &pNode->pFill));
+  }
+  run(srcNode.get());
+}
+
+// The parser initializes several fields to something else than the calloc
+// default: lastProcessByRowFuncId to -1 ("no process-by-row function seen
+// yet"), timeRange to TSWINDOW_INITIALIZER. A clone leaving them at zero
+// makes lastProcessByRowFuncId point at builtin function id 0 (count),
+// which the parser then rejects as an illegal function combination.
+TEST_F(NodesCloneTest, selectStmtKeepsParseTimeDefaults) {
+  registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
+    ASSERT_EQ(nodeType(pSrc), nodeType(pDst));
+    SSelectStmt* pSrcNode = (SSelectStmt*)pSrc;
+    SSelectStmt* pDstNode = (SSelectStmt*)pDst;
+    EXPECT_EQ(pSrcNode->lastProcessByRowFuncId,
+              pDstNode->lastProcessByRowFuncId);
+    EXPECT_EQ(pSrcNode->onlyHasKeepOrderFunc, pDstNode->onlyHasKeepOrderFunc);
+    EXPECT_EQ(pSrcNode->tagScan, pDstNode->tagScan);
+    EXPECT_EQ(pSrcNode->timeRange.skey, pDstNode->timeRange.skey);
+    EXPECT_EQ(pSrcNode->timeRange.ekey, pDstNode->timeRange.ekey);
+  });
+
+  std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
+  {
+    SNode* pNew = NULL;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_SELECT_STMT, &pNew));
+    srcNode.reset(pNew);
+    SSelectStmt* pNode = (SSelectStmt*)srcNode.get();
+    pNode->lastProcessByRowFuncId = -1;
+    pNode->onlyHasKeepOrderFunc = true;
+    pNode->tagScan = true;
+    // TSWINDOW_INITIALIZER is a C compound literal, which MSVC rejects in
+    // C++ (C4576), so spell the same value out here.
+    STimeWindow initRange = {INT64_MIN, INT64_MAX};
+    TAOS_SET_OBJ_ALIGNED(&pNode->timeRange, initRange);
+  }
+  run(srcNode.get());
+}
+
 TEST_F(NodesCloneTest, logicSubplan) {
   registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
     ASSERT_EQ(nodeType(pSrc), nodeType(pDst));
