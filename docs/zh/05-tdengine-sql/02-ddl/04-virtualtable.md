@@ -30,6 +30,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
         ts_col_name timestamp,
         create_definition[ ,create_definition] ...
     )
+    [TAGS (vtag_def [, vtag_def] ...)]
 
   create_definition:
     vtb_col_name column_definition
@@ -37,7 +38,13 @@ CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
   column_definition:
     type_name [FROM [db_name.]table_name.col_name]
 
+  vtag_def:
+    tag_name type_name = const_value
+    | tag_name type_name FROM [db_name.]table_name.tag_name
+
 ```
+
+创建虚拟普通表时可以通过 `TAGS` 子句声明标签，详见下方“虚拟普通表标签”章节。
 
 ### 创建虚拟子表
 
@@ -81,6 +88,46 @@ CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
 13. 创建虚拟子表和虚拟普通表时，使用 `FROM` 指定某一列的数据来源时，该列支持来源于普通表、普通子表以及已有虚拟表；不支持来源于超级表、视图，也不支持来源于有复合主键的表。
 14. 创建虚拟子表时，`TAGS (...)` 中的标签既可以使用常量值，也可以使用标签引用（语法见上方 `tag_value` 定义）。跨库时可写成 `db_name.table.tag`。
 15. 引用相关的限制和行为详见下方“当前支持的引用能力”章节。
+16. 虚拟普通表的标签（`TAGS` 子句）规则详见下方“虚拟普通表标签”章节。
+
+### 虚拟普通表标签
+
+虚拟普通表的标签与列类似，也有两种形态，二者可以混用于同一张表：
+
+- **自有标签（owned tag）**：表自有的标签，值在创建时内联指定（`tag_name type_name = const_value`，`= NULL` 表示 NULL 值）或创建后经 `SET TAG` 写入，存储于本表。自有标签是表级常量：投影时对每行返回该常量，用于 `WHERE` 过滤时按常量语义求值。
+- **标签引用（tag-ref）**：`tag_name type_name FROM [db_name.]table_name.tag_name`，引用底层真实表的某个标签，查询时实时解析为源标签的当前值；用于 `WHERE` 过滤时，谓词下推到源表的标签索引，只扫描匹配的子表。
+
+**示例**
+
+以智能电表场景为例，底层超级表 `meters` 的子表作为标签引用的数据源：
+
+```sql
+CREATE STABLE meters (ts TIMESTAMP, v INT) TAGS (region VARCHAR(16), gid INT);
+CREATE TABLE d0 USING meters TAGS ('us-east', 1);
+
+-- 创建虚拟普通表，同时声明自有标签与标签引用
+CREATE VTABLE vntb (
+    ts TIMESTAMP,
+    v  INT FROM db.d0.v                    -- 列引用
+) TAGS (
+    owner  VARCHAR(16) = 'alice',          -- 自有标签
+    level  INT = 0,                        -- 自有标签
+    region VARCHAR(16) FROM db.d0.region   -- 标签引用，值随 d0.region
+);
+
+SELECT owner, level FROM vntb;             -- 自有标签，投影本表值
+SELECT region FROM vntb;                   -- 标签引用，取源表 region 值
+SELECT * FROM vntb WHERE region = 'us-east';  -- 过滤条件下推到源表标签索引
+```
+
+**使用说明**
+
+1. `TAGS` 子句中每个标签必须带显式值：自有标签写 `= const_value`（`= NULL` 是合法的显式值），标签引用写 `FROM [db_name.]table_name.tag_name`；裸 `tag_name type_name`（既无 `=` 也无 `FROM`）会报错。
+2. 标签引用的源对象必须是 TDengine 表（子表或虚拟子表）的标签列，不能是数据列；声明的类型必须与源标签类型一致；不支持引用外部数据源。
+3. 标签引用与列引用遵循同一套权限规则：创建或修改标签引用时，需要对源表有 `READ` 权限。
+4. 标签类型不支持 `DECIMAL`；标签数量与总长度限制与其他表一致，见 [一般限制](../11-appendix/02-limit.md#一般限制)。
+5. `JSON` 类型标签只允许在建表时声明，且必须是表中唯一的标签；不能通过 `ALTER` 追加 `JSON` 标签。
+6. 标签定义不支持 `PRIMARY KEY`、`ENCODE`、`COMPRESS`、`COMMENT` 等列选项。
 
 ### 虚拟表引用能力
 
@@ -386,6 +433,9 @@ alter_table_clause: {
   | ALTER COLUMN vtb_col_name SET {table_name.col_name | NULL }
   | MODIFY COLUMN col_name column_type
   | RENAME COLUMN old_col_name new_col_name
+  | ADD TAG tag_name tag_type [FROM [db_name.]table_name.tag_name]
+  | SET TAG tag_name = {new_tag_value | [db_name.]table_name.tag_name}
+  | DROP TAG tag_name
 }
 ```
 
@@ -398,6 +448,9 @@ alter_table_clause: {
 3. `MODIFY COLUMN`：修改列定义。如果数据列是可变长类型，可以使用此指令修改宽度，只能改大，不能改小。如果虚拟表该列已指定数据源，修改列宽会因为修改后的列宽与数据源列宽不匹配而报错，可以先将数据源置为空后再修改列宽。
 4. `RENAME COLUMN`：修改列名称。
 5. `ALTER COLUMN ... SET`：修改列的数据源。`SET NULL` 表示将虚拟表某列的数据源置为空。
+6. `ADD TAG`：添加标签。不带 `FROM` 时添加自有标签（初值为 `NULL`）；带 `FROM` 时添加标签引用。
+7. `SET TAG`：修改标签。设置为字面量（含 `NULL`）时，如果该标签原本是标签引用，则引用被清除并转为自有标签；设置为 `[db_name.]table_name.tag_name` 时，将自有标签转为标签引用，或将已有标签引用重指向其他源标签。源标签不存在、类型不一致或目标是数据列时报错。
+8. `DROP TAG`：删除标签，自有标签与标签引用均可删除。
 
 ### 增加列
 
@@ -427,6 +480,34 @@ ALTER VTABLE vtb_name RENAME COLUMN old_col_name new_col_name
 
 ```sql
 ALTER VTABLE vtb_name ALTER COLUMN vtb_col_name SET {[db_name.]table_name.col_name | NULL}
+```
+
+### 增加标签
+
+```sql
+-- 添加自有标签（初值为 NULL）
+ALTER VTABLE vtb_name ADD TAG tag_name tag_type;
+
+-- 添加标签引用
+ALTER VTABLE vtb_name ADD TAG tag_name tag_type FROM [db_name.]table_name.tag_name;
+```
+
+### 修改标签
+
+```sql
+-- 设置自有标签的值；对标签引用则清除引用并转为自有标签
+ALTER VTABLE vtb_name SET TAG tag_name = new_tag_value;
+
+-- 将自有标签转为标签引用，或将标签引用重指向其他源标签
+ALTER VTABLE vtb_name SET TAG tag_name = [db_name.]table_name.tag_name;
+```
+
+`SET TAG` 的互转语义与虚拟子表一致，详见下方“修改虚拟子表”章节。
+
+### 删除标签
+
+```sql
+ALTER VTABLE vtb_name DROP TAG tag_name;
 ```
 
 ## 修改虚拟子表
@@ -522,6 +603,7 @@ SHOW CREATE VTABLE [db_name.]vtable_name;
 
 显示 `vtable_name` 指定的虚拟表的创建语句。支持虚拟普通表和虚拟子表。常用于数据库迁移。对一个已经存在的虚拟表，返回其创建语句；在另一个集群中执行该语句，就能得到一个结构完全相同的虚拟表。
 对于使用标签引用创建的虚拟子表，返回结果会保留对应的标签引用定义。
+对于带标签的虚拟普通表，返回结果包含 `TAGS(...)` 子句：自有标签内联输出 `= value`（`NULL` 值输出 `= NULL`），标签引用输出 `FROM db_name.table_name.tag_name`，单条语句即可完整重建该虚拟表。
 
 ### 获取虚拟表结构信息
 
@@ -529,7 +611,7 @@ SHOW CREATE VTABLE [db_name.]vtable_name;
 DESCRIBE [db_name.]vtb_name;
 ```
 
-`DESCRIBE` 会展示虚拟表的列与标签结构；对于标签引用和列引用，结果中会包含对应的引用来源信息。
+`DESCRIBE` 会展示虚拟表的列与标签结构；对于标签引用和列引用，结果中会包含对应的引用来源信息。虚拟普通表的标签行带 `TAG` 标记。
 
 ### 查看虚拟子表当前标签值
 
@@ -538,7 +620,7 @@ SHOW TAGS FROM child_table_name [FROM db_name];
 SHOW TAGS FROM [db_name.]child_table_name;
 ```
 
-对于使用标签引用的虚拟子表，`SHOW TAGS` 返回的是当前解析后的标签值。
+对于使用标签引用的虚拟子表，`SHOW TAGS` 返回的是当前解析后的标签值。`SHOW TAGS` 同样支持虚拟普通表：自有标签返回本表的值，标签引用返回解析后的源表值。
 
 ### 校验虚拟表引用关系
 
