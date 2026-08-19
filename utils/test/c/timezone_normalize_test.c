@@ -83,6 +83,16 @@ int main(void) {
   EXPECT_OK("UTC-8", "UTC-8");         /* east 8 */
   EXPECT_OK("UTC+10", "UTC+10");       /* west 10 */
   EXPECT_OK("UTC-0", "UTC-0");
+  EXPECT_OK("UTC0", "UTC+0");
+  EXPECT_OK("UTC8", "UTC+8");
+  EXPECT_OK("UTC8:30", "UTC+8:30");
+
+  /* --- UTC prefix is case-insensitive, output is always uppercase --- */
+  EXPECT_OK("utc8", "UTC+8");
+  EXPECT_OK("UtC8:30", "UTC+8:30");
+  EXPECT_OK("utc+8", "UTC+8");
+  EXPECT_OK("uTc-8", "UTC-8");
+  EXPECT_OK("utc+08:00", "UTC+8");
 
   /* --- UTC± long form (sign preserved, format simplified) --- */
   EXPECT_OK("UTC+08:00", "UTC+8");     /* west 8 */
@@ -121,9 +131,12 @@ int main(void) {
   EXPECT_FAIL("ABC/DEF");  /* nonexistent IANA */
 
   /* --- Edge cases --- */
-  EXPECT_OK("+14:00", "UTC-14");       /* max valid offset */
+  EXPECT_OK("+14:00", "UTC+14");       /* max valid offset, sign preserved */
   EXPECT_FAIL("+15:00");               /* beyond max */
   EXPECT_FAIL("+08:60");               /* invalid minutes */
+  EXPECT_FAIL("UTC15");
+  EXPECT_FAIL("UTC14:01");
+  EXPECT_FAIL("UTC8:60");
 
   printf("\n=== timezone_normalize_test: %d passed, %d failed ===\n", passed, failed);
 
