@@ -1719,15 +1719,17 @@ static void streamNotifyWorkerPoolPrepareShutdown(SStreamNotifyWorkerPool* pPool
 
     SStreamNotifyQueue* pQueue = *(SStreamNotifyQueue**)pIter;
     int64_t             streamId = 0;
+    bool                hasStreamId = false;
     void*               pKey = taosHashGetKey(pIter, NULL);
     if (pKey != NULL) {
       streamId = *(int64_t*)pKey;
+      hasStreamId = true;
     }
     taosHashCancelIterate(pPool->queueMap, pIter);
 
     streamNotifyWorkerPoolMarkQueueDestroy(pPool, pQueue);
 
-    if (streamId != 0) {
+    if (hasStreamId) {
       if (taosHashRemove(pPool->queueMap, &streamId, sizeof(streamId)) != TSDB_CODE_SUCCESS) {
         stError("[notify] streamId:%" PRIx64 " not found in queue map during shutdown", streamId);
       }
@@ -1768,13 +1770,15 @@ static void streamNotifyWorkerPoolPurgeQueues(SStreamNotifyWorkerPool* pPool) {
 
     SStreamNotifyQueue* pQueue = *(SStreamNotifyQueue**)pIter;
     int64_t             streamId = 0;
+    bool                hasStreamId = false;
     void*               pKey = taosHashGetKey(pIter, NULL);
     if (pKey != NULL) {
       streamId = *(int64_t*)pKey;
+      hasStreamId = true;
     }
     taosHashCancelIterate(pPool->queueMap, pIter);
 
-    if (streamId != 0) {
+    if (hasStreamId) {
       if (taosHashRemove(pPool->queueMap, &streamId, sizeof(streamId)) != TSDB_CODE_SUCCESS) {
         stError("[notify] streamId:%" PRIx64 " not found in queue map", streamId);
       }
@@ -1829,6 +1833,7 @@ static bool streamNotifyParamPoolTryReclaim(SStreamNotifyWorkerPool* pWorkerPool
         streamNotifyQueueAdjustPendingBytes(pQueue, itemBytes);
         reclaimed = true;
         taosThreadMutexUnlock(&pQueue->lock);
+        taosHashCancelIterate(pWorkerPool->queueMap, pIter);
         break;
       }
       taosThreadMutexUnlock(&pQueue->lock);
@@ -1970,18 +1975,8 @@ static bool streamNotifyQueueDestroyIfReady(SStreamNotifyQueue* pQueue) {
   return true;
 }
 
-// taosHash freeFp receives the hash node's data slot (stores SStreamNotifyQueue*), not the queue itself.
-static void streamNotifyQueueHashFree(void* pHashData) {
-  if (pHashData == NULL) {
-    return;
-  }
-  SStreamNotifyQueue* pQueue = *(SStreamNotifyQueue**)pHashData;
-  if (pQueue == NULL || pQueue->pendingDestroy || pQueue->refCount > 0) {
-    // pendingDestroy queues are finalized by the last worker; active workers still hold refCount.
-    return;
-  }
-  streamNotifyQueueDestroy(pQueue);
-}
+// queueMap stores borrowed queue pointers. pendingDestroy and refCount own queue lifetime.
+static void streamNotifyQueueHashFree(void* pHashData) { (void)pHashData; }
 
 static SArray* streamNotifyUrlsDeepCopy(const SArray* pNotifyAddrUrls) {
   int32_t urlCount = (int32_t)taosArrayGetSize(pNotifyAddrUrls);
@@ -2514,6 +2509,7 @@ static SStreamNotifyQueue* streamWorkerPopGlobalQueue(SStreamNotifyWorkerPool* p
   taosThreadMutexLock(&pPool->mapLock);
   pQueue = TD_DLIST_HEAD(&pPool->globalQueueList);
   if (pQueue != NULL) {
+    (void)taosThreadMutexLock(&pQueue->lock);
     TD_DLIST_POP_WITH_FIELD(&pPool->globalQueueList, pQueue, STREAM_NOTIFY_QUEUE_DLIST_FIELD);
     pQueue->inGlobalList = false;
     pQueue->consuming = true;
@@ -2525,7 +2521,6 @@ static SStreamNotifyQueue* streamWorkerPopGlobalQueue(SStreamNotifyWorkerPool* p
     return NULL;
   }
 
-  (void)taosThreadMutexLock(&pQueue->lock);
   return pQueue;
 }
 

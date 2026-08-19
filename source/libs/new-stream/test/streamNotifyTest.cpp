@@ -11,9 +11,12 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -57,6 +60,16 @@ struct TcurlSendState {
 TcurlSendState gTcurlSendState;
 int32_t        gCurlWsSendCalls = 0;
 
+struct BlockingTcurlState {
+  std::mutex              mutex;
+  std::condition_variable entered;
+  std::condition_variable released;
+  bool                    workerEntered = false;
+  bool                    workerReleased = false;
+};
+
+BlockingTcurlState gBlockingTcurlState;
+
 CURLcode FailCurlWsSend(CURL*, const void*, size_t, size_t* sent, curl_off_t, unsigned int) {
   ++gCurlWsSendCalls;
   *sent = 0;
@@ -70,6 +83,15 @@ int32_t MockTcurlConnect(CURL** ppConn, const char*) {
 }
 
 int32_t RejectDirectTcurlConnect(CURL**, const char*) { return TSDB_CODE_FAILED; }
+
+int32_t BlockTcurlGetConnection(const char*, SCURL** ppConn) {
+  *ppConn = nullptr;
+  std::unique_lock<std::mutex> lock(gBlockingTcurlState.mutex);
+  gBlockingTcurlState.workerEntered = true;
+  gBlockingTcurlState.entered.notify_one();
+  gBlockingTcurlState.released.wait(lock, [] { return gBlockingTcurlState.workerReleased; });
+  return TSDB_CODE_RPC_NETWORK_BUSY;
+}
 
 int32_t MockTcurlSend(SCURL*, const void* buffer, size_t buflen, size_t* sent, curl_off_t fragsize,
                       unsigned int flags) {
@@ -388,6 +410,76 @@ class StreamNotifyAsyncTest : public StreamNotifyTest {
   }
 };
 
+class StreamNotifyBlockedWorkerTest : public StreamNotifyTest {
+ protected:
+  void SetUp() override {
+    StreamNotifyTest::SetUp();
+    originalParamPoolSizeKb_ = tsStreamNotifyParamPoolSize;
+    tsStreamNotifyParamPoolSize = 1;
+    {
+      std::lock_guard<std::mutex> lock(gBlockingTcurlState.mutex);
+      gBlockingTcurlState.workerEntered = false;
+      gBlockingTcurlState.workerReleased = false;
+    }
+    stub_.reset(new Stub());
+    stub_->set(tcurlGetConnection, BlockTcurlGetConnection);
+    ASSERT_EQ(streamNotifyWorkerPoolInit(&gStreamMgmt.notifyWorkerPool, 1), TSDB_CODE_SUCCESS);
+    poolInited_ = true;
+  }
+
+  void TearDown() override {
+    DestroyPool();
+    stub_.reset();
+    tsStreamNotifyParamPoolSize = originalParamPoolSizeKb_;
+    StreamNotifyTest::TearDown();
+  }
+
+  int32_t Enqueue(int64_t streamId) {
+    const char*                           url = "ws://unused/block-worker";
+    std::unique_ptr<SArray, ArrayDeleter> urls(taosArrayInit(1, sizeof(char*)));
+    if (urls == nullptr) {
+      return terrno;
+    }
+    char* urlPtr = const_cast<char*>(url);
+    if (taosArrayPush(urls.get(), &urlPtr) == nullptr) {
+      return terrno;
+    }
+
+    SStreamTask task = {};
+    task.type = STREAM_TRIGGER_TASK;
+    task.streamId = streamId;
+    task.taskId = streamId + 1;
+
+    SSTriggerCalcParam param = {};
+    param.notifyType = STRIGGER_EVENT_WINDOW_OPEN;
+    return streamSendNotifyContent(&task, "1.notify_blocked_worker_test", "result_table", STREAM_TRIGGER_SESSION, 42,
+                                   TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1);
+  }
+
+  bool WaitForBlockedWorker() {
+    std::unique_lock<std::mutex> lock(gBlockingTcurlState.mutex);
+    return gBlockingTcurlState.entered.wait_for(lock, std::chrono::seconds(5),
+                                                [] { return gBlockingTcurlState.workerEntered; });
+  }
+
+  void DestroyPool() {
+    {
+      std::lock_guard<std::mutex> lock(gBlockingTcurlState.mutex);
+      gBlockingTcurlState.workerReleased = true;
+    }
+    gBlockingTcurlState.released.notify_all();
+    if (poolInited_) {
+      streamNotifyWorkerPoolDestroy(&gStreamMgmt.notifyWorkerPool);
+      poolInited_ = false;
+    }
+  }
+
+ private:
+  std::unique_ptr<Stub> stub_;
+  int32_t               originalParamPoolSizeKb_ = 0;
+  bool                  poolInited_ = false;
+};
+
 TEST(TcurlSendTest, SendFailureKeepsConnectionForMessageLevelRecovery) {
   Stub stub;
   stub.set(curl_ws_send, FailCurlWsSend);
@@ -700,6 +792,71 @@ TEST_F(StreamNotifyAsyncTest, DropResultReportsQueueAcceptanceBeforeNetworkDeliv
       TSDB_CODE_SUCCESS);
   EXPECT_TRUE(attempted);
   EXPECT_TRUE(accepted);
+}
+
+TEST_F(StreamNotifyAsyncTest, DestroyingQueueWithZeroStreamIdDoesNotCrash) {
+  Stub stub;
+  stub.set(tcurlConnect, MockTcurlConnect);
+  stub.set(tcurlSend, MockTcurlSend);
+  gTcurlSendState = {};
+
+  std::string                           url = "ws://unused/zero-stream-id";
+  std::unique_ptr<SArray, ArrayDeleter> urls(taosArrayInit(1, sizeof(char*)));
+  ASSERT_NE(urls, nullptr);
+  char* urlPtr = const_cast<char*>(url.c_str());
+  ASSERT_NE(taosArrayPush(urls.get(), &urlPtr), nullptr);
+
+  SStreamTask task = {};
+  task.type = STREAM_TRIGGER_TASK;
+  task.streamId = 0;
+  task.taskId = 0x5678;
+
+  SSTriggerCalcParam param = {};
+  param.wstart = 1000;
+  param.wend = 2000;
+  param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+  param.extraNotifyContent = const_cast<char*>("{\"payload\":\"zero-stream-id\"}");
+
+  ASSERT_EQ(streamSendNotifyContent(&task, "0.notify_zero_stream_id_test", "result_table", STREAM_TRIGGER_COUNT, 42,
+                                    TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1),
+            TSDB_CODE_SUCCESS);
+}
+
+TEST_F(StreamNotifyBlockedWorkerTest, BorrowedHashNodeDoesNotAccessUnregisteredQueueDuringShutdown) {
+  constexpr int64_t streamId = 0x1234;
+  ASSERT_EQ(Enqueue(streamId), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(WaitForBlockedWorker());
+
+  SStreamNotifyWorkerPool* pPool = &gStreamMgmt.notifyWorkerPool;
+  taosThreadMutexLock(&pPool->mapLock);
+  void* pIter = taosHashIterate(pPool->queueMap, nullptr);
+  taosThreadMutexUnlock(&pPool->mapLock);
+  ASSERT_NE(pIter, nullptr);
+
+  streamNotifyQueueUnregister(streamId);
+  EXPECT_EQ(taosHashGetSize(pPool->queueMap), 1);
+  DestroyPool();
+}
+
+TEST_F(StreamNotifyBlockedWorkerTest, ReclaimingParamReleasesQueueMapIterator) {
+  constexpr int64_t blockedStreamId = 0x2000;
+  ASSERT_EQ(Enqueue(blockedStreamId), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(WaitForBlockedWorker());
+
+  SStreamNotifyWorkerPool* pPool = &gStreamMgmt.notifyWorkerPool;
+  const int64_t            poolCapacity = pPool->paramPool.capacity;
+  ASSERT_GE(poolCapacity, 4);
+
+  for (int64_t i = 1; i <= poolCapacity; ++i) {
+    ASSERT_EQ(Enqueue(blockedStreamId + i), TSDB_CODE_SUCCESS);
+  }
+  for (int64_t i = 1; i <= poolCapacity; ++i) {
+    streamNotifyQueueUnregister(blockedStreamId + i);
+  }
+
+  EXPECT_EQ(taosHashGetSize(pPool->queueMap), 1);
+  streamNotifyQueueUnregister(blockedStreamId);
+  DestroyPool();
 }
 
 }  // namespace
