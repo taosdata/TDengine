@@ -80,6 +80,25 @@ func TestSafeSubstring(t *testing.T) {
 	assert.Equal(t, "hello", res)
 }
 
+func TestEscapeInfluxProtocolPreservesTagValueBytes(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "delimiters", in: "a,b=c d", want: `a\,b\=c\ d`},
+		{name: "quote", in: `a"b`, want: `a"b`},
+		{name: "trailing backslash", in: `tail\`, want: `tail\\`},
+		{name: "backslash next to delimiters", in: `a\,b\=c\ d`, want: `a\\\,b\\\=c\\\ d`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, EscapeInfluxProtocol(tt.in))
+		})
+	}
+}
+
 func TestGetQidOwn_CounterWraps_ResetsToOne(t *testing.T) {
 	const boundary = 0x00ffffffffffffff
 
