@@ -4336,19 +4336,16 @@ _err:
   return NULL;
 }
 
-SNode* createDropVirtualTableStmt(SAstCreateContext* pCxt, bool withOpt, bool ignoreNotExists, SNode* pRealTable) {
+SNode* createDropVirtualTableStmt(SAstCreateContext* pCxt, bool withOpt, SNodeList* pTables) {
   CHECK_PARSER_STATUS(pCxt);
   SDropVirtualTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_VIRTUAL_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
-  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
-  pStmt->ignoreNotExists = ignoreNotExists;
+  pStmt->pTables = pTables;
   pStmt->withOpt = withOpt;
-  nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 _err:
-  nodesDestroyNode(pRealTable);
+  nodesDestroyList(pTables);
   return NULL;
 }
 

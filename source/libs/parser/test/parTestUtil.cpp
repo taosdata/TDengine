@@ -133,6 +133,25 @@ class ParserTestBaseImpl {
     runAsyncApis(sql, expect, checkStage);
   }
 
+  // Pure parse check: builds the AST via parse() only — no authenticate, no
+  // translate, no catalog access. Use to validate grammar/AST shape for statements
+  // whose later stages can't be exercised under the unit-test mock catalog.
+  void runParseOnly(const string& sql, int32_t expect) {
+    reset(expect, PARSER_STAGE_PARSE, TEST_INTERFACE_INTERNAL);
+    try {
+      SParseContext cxt = {0};
+      setParseContext(sql, &cxt);
+      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
+      doParse(&cxt, query.get());
+    } catch (const TerminateFlag& e) {
+      // success and terminate
+      return;
+    } catch (...) {
+      dump();
+      throw;
+    }
+  }
+
  private:
   struct caseEnv {
     string  acctId_;
@@ -593,6 +612,10 @@ void ParserTestBase::useDb(const std::string& acctId, const std::string& db) { i
 
 void ParserTestBase::run(const std::string& sql, int32_t expect, ParserStage checkStage) {
   return impl_->run(sql, expect, checkStage);
+}
+
+void ParserTestBase::runParseOnly(const std::string& sql, int32_t expect) {
+  return impl_->runParseOnly(sql, expect);
 }
 
 void ParserTestBase::runAsyncOnly(const std::string& sql, int32_t expect, ParserStage checkStage) {
