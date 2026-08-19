@@ -48,6 +48,12 @@ class ParserTestBase : public testing::Test {
   // the SParseMetaCache (which is where mock EXT source/table meta lives).
   void runAsyncOnly(const std::string& sql, int32_t expect = TSDB_CODE_SUCCESS,
                     ParserStage checkStage = PARSER_STAGE_TRANSLATE);
+  // Translates a CLONE of the parsed AST instead of the AST itself. Both the
+  // view expansion path (clientView.c) and the prepared statement bind path
+  // (qStmtBindParams) do exactly this, so a clone that loses parse time
+  // fields turns a valid statement into a translate failure there.
+  void runClonedAst(const std::string& sql, int32_t expect = TSDB_CODE_SUCCESS,
+                    ParserStage checkStage = PARSER_STAGE_TRANSLATE);
 
   virtual void checkDdl(const SQuery* pQuery, ParserStage stage);
 
