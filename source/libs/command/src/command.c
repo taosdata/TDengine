@@ -822,6 +822,37 @@ static void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
   }
 }
 
+// Appends a JSON tag blob as a single-quoted string ('...'), escaping embedded single
+// quotes by doubling them so the output stays replayable as a SQL literal.
+static int32_t appendJsonTagValue(char* buf, int32_t* len, STag* pTag, void* charsetCxt) {
+  char* pJson = NULL;
+  parseTagDatatoJson(pTag, &pJson, charsetCxt);
+  if (NULL == pJson) {
+    qError("failed to parse tag to json, pJson is NULL");
+    return terrno;
+  }
+  char* escapedJson = taosMemCalloc(sizeof(char), strlen(pJson) * 2 + 1);
+  if (NULL == escapedJson) {
+    taosMemoryFree(pJson);
+    return terrno;
+  }
+  char* writer = escapedJson;
+  for (char* reader = pJson; *reader; ++reader) {
+    if (*reader == '\'') {
+      *writer++ = '\'';  // Escape single quote by doubling it
+    }
+    *writer++ = *reader;
+  }
+  *writer = '\0';
+
+  *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                   "'%s'", escapedJson);
+  taosMemoryFree(escapedJson);
+  taosMemoryFree(pJson);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* charsetCxt) {
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* pTagVals = NULL;
@@ -833,33 +864,7 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* c
   }
 
   if (tTagIsJson(pTag)) {
-    char* pJson = NULL;
-    parseTagDatatoJson(pTag, &pJson, charsetCxt);
-    if (NULL == pJson) {
-      qError("failed to parse tag to json, pJson is NULL");
-      return terrno;
-    }
-    char* escapedJson = taosMemCalloc(sizeof(char), strlen(pJson) * 2 + 1);  // taosMemoryAlloc(strlen(pJson) * 2 + 1);
-    if (escapedJson) {
-      char* writer = escapedJson;
-      for (char* reader = pJson; *reader; ++reader) {
-        if (*reader == '\'') {
-          *writer++ = '\'';  // Escape single quote by doubling it
-        }
-        *writer++ = *reader;
-      }
-      *writer = '\0';
-
-      *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                       "'%s'", escapedJson);
-      taosMemoryFree(escapedJson);
-    } else {
-      taosMemoryFree(pJson);
-      return terrno;
-    }
-    taosMemoryFree(pJson);
-
-    return TSDB_CODE_SUCCESS;
+    return appendJsonTagValue(buf, len, pTag, charsetCxt);
   }
 
   QRY_ERR_RET(tTagToValArray((const STag*)pCfg->pTags, &pTagVals));
@@ -994,6 +999,22 @@ static int32_t appendInlineTagFields(char* buf, int32_t* len, STableCfg* pCfg, v
                        " FROM `%s`.`%s`.`%s`", expandIdentifier(pTagRef->refDbName, expandName),
                        expandIdentifier(pTagRef->refTableName, expandRefTable),
                        expandIdentifier(pTagRef->refColName, expandRefCol));
+      continue;
+    }
+
+    // JSON owned tag: its value lives in the JSON STag blob (skipped by tTagToValArray
+    // above), so render it from the blob directly, with the same quote escaping as
+    // appendTagValues; without a blob the tag is NULL.
+    if (TSDB_DATA_TYPE_JSON == pSchema->type) {
+      if (pTag != NULL && tTagIsJson(pTag)) {
+        *len += snprintf(buf + VARSTR_HEADER_SIZE + *len,
+                         SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len), " = ");
+        code = appendJsonTagValue(buf, len, pTag, charsetCxt);
+        TAOS_CHECK_ERRNO(code);
+      } else {
+        *len += snprintf(buf + VARSTR_HEADER_SIZE + *len,
+                         SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len), " = NULL");
+      }
       continue;
     }
 

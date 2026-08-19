@@ -1092,6 +1092,17 @@ static int32_t collectMetaKeyFromAlterTable(SCollectMetaKeyCxt* pCxt, SAlterTabl
        pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF ||
        pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF)) {
     code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->refDbName, pStmt->refTableName, pCxt->pMetaCache);
+    // The auth phase (authAlterTable) also requires USE on the source db and SELECT on the
+    // source table for reference alters; pre-fetch both like collectMetaKeyFromAlterVtable
+    // does, otherwise the cached-auth check always fails for non-root users.
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->refDbName, NULL,
+                                    PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->refDbName,
+                                    pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache);
+    }
   }
 #ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code && tsFederatedQueryEnable && pStmt->dbName[0] != '\0') {

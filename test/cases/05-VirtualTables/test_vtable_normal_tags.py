@@ -562,6 +562,45 @@ class TestVtableNormalTags:
         self._check_values("SELECT DISTINCT loc FROM vctb_null;", [(None,)],
                            "vtable: = NULL survives round-trip")
 
+    def test_show_create_json_owned(self):
+        """SHOW CREATE: a JSON owned tag emits its actual content (not `= NULL`) and the
+        output round-trips, including a single quote inside the JSON string (escaped by
+        doubling).
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, metadata, show_create, owned_tag, json
+
+        Jira: None
+
+        History:
+            - 2026-08-19 Created — covers JSON owned-tag SHOW CREATE round-trip.
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE VTABLE vctb_json_sc (ts TIMESTAMP, val INT FROM src0.val) "
+                      "TAGS (j JSON = '{\"k\":\"it''s\"}');")
+        tdSql.query("SHOW CREATE TABLE vctb_json_sc;")
+        tdSql.checkRows(1)
+        create_sql = str(tdSql.getData(0, 1))
+        assert "j" in create_sql and "JSON" in create_sql.upper(), \
+            f"JSON tag missing from SHOW CREATE: {create_sql}"
+        assert '"k"' in create_sql and "it''s" in create_sql, \
+            f"JSON content lost in SHOW CREATE (must not be = NULL): {create_sql}"
+        assert "= NULL" not in create_sql, \
+            f"JSON owned tag must not render as = NULL: {create_sql}"
+        # round-trip: the emitted DDL re-creates an equivalent table
+        tdSql.execute("DROP TABLE vctb_json_sc;")
+        tdSql.execute(create_sql)
+        tdSql.query("SHOW CREATE TABLE vctb_json_sc;")
+        tdSql.checkRows(1)
+        replayed_sql = str(tdSql.getData(0, 1))
+        assert '"k"' in replayed_sql and "it''s" in replayed_sql, \
+            f"JSON content lost after round-trip: {replayed_sql}"
+        tdSql.execute("DROP TABLE vctb_json_sc;")
+
     def test_show_create_tagless_omits_tags(self):
         """SHOW CREATE on a tag-less table omits the TAGS clause entirely (no empty `TAGS()`),
         for both normal and virtual-normal tables.
@@ -2488,8 +2527,9 @@ class TestVtableNormalTags:
 
     def test_auth_tag_ref_source_select(self):
         """Privilege gate: a user without SELECT on the source db is denied CREATE VTABLE
-        tag/col refs and ALTER ADD TAG ... FROM; granting READ on the source db lets both
-        through (covers authColDefRefs + the authAlterTable ref-alter branch).
+        tag/col refs, ALTER ADD TAG ... FROM, and ALTER SET TAG x = db.tb.tag; granting
+        READ on the source db lets them through, and revoking it denies them again
+        (covers authColDefRefs + the authAlterTable ref-alter branch).
 
         Catalog:
             - VirtualTable
@@ -2508,11 +2548,18 @@ class TestVtableNormalTags:
         try:
             tdSql.execute(f"DROP DATABASE IF EXISTS {DB_PRIV};")
             tdSql.execute(f"DROP USER IF EXISTS {USER};")
-            # target-db privileges only: no READ on {DB} where src0/src1 live
+            # Grant set verified against enterprise RBAC (each GRANT targets a single object
+            # level — mixing levels in one statement is rejected): db-level USE + CREATE TABLE
+            # on the target db, table-level ALL on its tables, and USE on the source db (ref
+            # alters run checkDbUseAuth on the source db). READ on the source db is NOT granted
+            # here — it is the privilege under test, toggled per step below.
             tdSql.execute(f"CREATE USER {USER} PASS 'Taosdata_123';")
             tdSql.execute(f"CREATE DATABASE {DB_PRIV};")
             try:
-                tdSql.execute(f"GRANT READ, WRITE, CREATE TABLE, ALTER TABLE ON {DB_PRIV} TO {USER};")
+                tdSql.execute(f"GRANT USE ON DATABASE {DB_PRIV} TO {USER};")
+                tdSql.execute(f"GRANT CREATE TABLE ON DATABASE {DB_PRIV} TO {USER};")
+                tdSql.execute(f"GRANT ALL ON {DB_PRIV}.* TO {USER};")
+                tdSql.execute(f"GRANT USE ON DATABASE {DB} TO {USER};")
             except Exception as e:
                 # GRANT is enterprise-only; without it a non-root user cannot be given the
                 # target-db privileges this test needs, so the deny/grant paths are untestable
@@ -2533,21 +2580,31 @@ class TestVtableNormalTags:
             tdSql.execute("CREATE VTABLE vctb_auth (ts TIMESTAMP, val INT FROM td_vntb_tags.src0.val) "
                           "TAGS (r INT FROM td_vntb_tags.src0.code);")
 
-            # deny again: ALTER TABLE ADD TAG ... FROM after READ is revoked
+            # deny again: ALTER ADD TAG ... FROM and SET TAG x = db.tb.tag after READ is revoked
             tdSql.connect(user="root", password="taosdata")
             tdSql.execute(f"REVOKE READ ON {DB} FROM {USER};")
             tdSql.connect(user=USER, password='Taosdata_123')
             tdSql.execute(f"USE {DB_PRIV};")
             tdSql.error(f"ALTER TABLE vctb_auth ADD TAG r2 INT FROM {DB}.src1.code;")
+            # SET TAG x = db.tb.tag (assigning a tag-ref to an existing tag) is gated the same way
+            tdSql.error(f"ALTER TABLE vctb_auth SET TAG r = {DB}.src1.code;")
 
-            # re-grant and clean up as the user, then drop as root
+            # re-grant: both ADD TAG ... FROM and SET TAG x = db.tb.tag pass
             tdSql.connect(user="root", password="taosdata")
             tdSql.execute(f"GRANT READ ON {DB} TO {USER};")
             tdSql.connect(user=USER, password='Taosdata_123')
             tdSql.execute(f"USE {DB_PRIV};")
             tdSql.execute(f"ALTER TABLE vctb_auth ADD TAG r2 INT FROM {DB}.src1.code;")
+            tdSql.execute(f"ALTER TABLE vctb_auth SET TAG r = {DB}.src1.code;")
+
+            # revoke once more: SET TAG x = db.tb.tag is denied again
+            tdSql.connect(user="root", password="taosdata")
+            tdSql.execute(f"REVOKE READ ON {DB} FROM {USER};")
+            tdSql.connect(user=USER, password='Taosdata_123')
+            tdSql.execute(f"USE {DB_PRIV};")
+            tdSql.error(f"ALTER TABLE vctb_auth SET TAG r2 = {DB}.src1.code;")
             tdSql.execute("DROP TABLE vctb_auth;")
-            tdLog.info("  PASS: tag-ref source SELECT privilege gate (deny -> grant -> deny -> grant)")
+            tdLog.info("  PASS: tag-ref source SELECT privilege gate (CREATE/ADD TAG/SET TAG: deny -> grant -> deny)")
         finally:
             tdSql.connect(user="root", password="taosdata")
             tdSql.execute(f"DROP DATABASE IF EXISTS {DB_PRIV};")
