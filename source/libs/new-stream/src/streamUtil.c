@@ -1375,6 +1375,11 @@ _end:
   return code;
 }
 
+static int32_t streamNotifyEnqueueParams(int64_t streamId, const char* streamName, const char* tableName,
+                                         int8_t precision, int32_t triggerType, int64_t groupId, int32_t addOptions,
+                                         const SArray* pNotifyAddrUrls, const SSTriggerCalcParam* pParams,
+                                         int32_t nParam, bool* pAccepted);
+
 // Send a pre-built JSON message to all URLs synchronously.
 // When NOTIFY_ON_FAILURE_PAUSE is set in addOptions, retries on failure.
 // Otherwise, failures are logged and ignored.
@@ -1471,39 +1476,54 @@ _end:
   return code;
 }
 
+// DROP mode reports queue acceptance without waiting for network delivery.
 int32_t streamSendNotifyContentWithResult(SStreamTask* pTask, const char* streamName, const char* tableName,
                                           int32_t triggerType, int64_t groupId, int8_t precision,
                                           const SArray* pNotifyAddrUrls, int32_t addOptions,
                                           const SSTriggerCalcParam* pParams, int32_t nParam, bool* pAttempted,
-                                          bool* pDelivered) {
+                                          bool* pAccepted) {
+  int64_t t0 = taosGetTimestampNs();
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   char*   msg = NULL;
   size_t  msgLen = 0;
-
-  if (pAttempted != NULL) *pAttempted = false;
-  if (pDelivered != NULL) *pDelivered = false;
+  bool    attempted = false;
+  bool    accepted = false;
 
   if (nParam <= 0 || taosArrayGetSize(pNotifyAddrUrls) <= 0) {
     goto _end;
   }
 
-  char* pos = strstr(streamName, TS_PATH_DELIMITER);
-  if (pos != NULL) {
-    streamName = ++pos;
-  }
-  code = streamBuildNotifyMsgInternal(streamName, tableName, triggerType, groupId, precision, pParams, nParam, &msg,
-                                      &msgLen);
-  QUERY_CHECK_CODE(code, lino, _end);
-  if (msg != NULL) {
-    code = streamSendNotifyMsgToUrls(msg, msgLen, pNotifyAddrUrls, addOptions, pTask->streamId, pAttempted, pDelivered);
+  if (addOptions & NOTIFY_ON_FAILURE_PAUSE) {
+    char* pos = strstr(streamName, TS_PATH_DELIMITER);
+    if (pos != NULL) {
+      streamName = ++pos;
+    }
+    code = streamBuildNotifyMsgInternal(streamName, tableName, triggerType, groupId, precision, pParams, nParam, &msg,
+                                        &msgLen);
     QUERY_CHECK_CODE(code, lino, _end);
+    if (msg != NULL) {
+      code =
+          streamSendNotifyMsgToUrls(msg, msgLen, pNotifyAddrUrls, addOptions, pTask->streamId, &attempted, &accepted);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  } else {
+    code = streamNotifyEnqueueParams(pTask->streamId, streamName, tableName, precision, triggerType, groupId,
+                                     addOptions, pNotifyAddrUrls, pParams, nParam, &accepted);
+    QUERY_CHECK_CODE(code, lino, _end);
+    attempted = accepted;
   }
 
 _end:
+  if (pAttempted != NULL) *pAttempted = attempted;
+  if (pAccepted != NULL) *pAccepted = accepted;
   taosMemoryFree(msg);
   if (code != TSDB_CODE_SUCCESS) {
     stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  } else if (nParam > 0 && taosArrayGetSize(pNotifyAddrUrls) > 0) {
+    stTrace("[notify_trace] streamId:%" PRIx64 " gid:%" PRId64 " total_us:%" PRId64 " nParam:%d async:%d",
+            pTask->streamId, groupId, (taosGetTimestampNs() - t0) / 1000, nParam,
+            !(addOptions & NOTIFY_ON_FAILURE_PAUSE));
   }
   return code;
 }
@@ -2193,11 +2213,15 @@ void streamNotifyQueueUnregister(int64_t streamId) {
 static int32_t streamNotifyEnqueueParams(int64_t streamId, const char* streamName, const char* tableName,
                                          int8_t precision, int32_t triggerType, int64_t groupId, int32_t addOptions,
                                          const SArray* pNotifyAddrUrls, const SSTriggerCalcParam* pParams,
-                                         int32_t nParam) {
+                                         int32_t nParam, bool* pAccepted) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   bool    shouldNotify = false;
   int32_t enqueued = 0;
+
+  if (pAccepted != NULL) {
+    *pAccepted = false;
+  }
 
   for (int32_t i = 0; i < nParam; ++i) {
     if (pParams[i].notifyType != STRIGGER_EVENT_WINDOW_NONE) {
@@ -2241,6 +2265,9 @@ static int32_t streamNotifyEnqueueParams(int64_t streamId, const char* streamNam
       lino = __LINE__;
       goto _end;
     }
+    if (pAccepted != NULL) {
+      *pAccepted = true;
+    }
     streamNotifyWakeWorkers(pPool);
   }
 
@@ -2260,44 +2287,8 @@ _end:
 int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
                                 int64_t groupId, int8_t precision, const SArray* pNotifyAddrUrls, int32_t addOptions,
                                 const SSTriggerCalcParam* pParams, int32_t nParam) {
-  int64_t t0 = taosGetTimestampNs();
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  char*   msg = NULL;
-  size_t  msgLen = 0;
-
-  if (nParam <= 0 || taosArrayGetSize(pNotifyAddrUrls) <= 0) {
-    goto _end;
-  }
-
-  if (addOptions & NOTIFY_ON_FAILURE_PAUSE) {
-    char* pos = strstr(streamName, TS_PATH_DELIMITER);
-    if (pos != NULL) {
-      streamName = ++pos;
-    }
-    code = streamBuildNotifyMsgInternal(streamName, tableName, triggerType, groupId, precision, pParams, nParam, &msg,
-                                        &msgLen);
-    QUERY_CHECK_CODE(code, lino, _end);
-    if (msg != NULL) {
-      code = streamSendNotifyMsgToUrls(msg, msgLen, pNotifyAddrUrls, addOptions, pTask->streamId, NULL, NULL);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-  } else {
-    code = streamNotifyEnqueueParams(pTask->streamId, streamName, tableName, precision, triggerType, groupId,
-                                     addOptions, pNotifyAddrUrls, pParams, nParam);
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
-
-_end:
-  taosMemoryFree(msg);
-  if (code != TSDB_CODE_SUCCESS) {
-    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  } else if (nParam > 0 && taosArrayGetSize(pNotifyAddrUrls) > 0) {
-    stTrace("[notify_trace] streamId:%" PRIx64 " gid:%" PRId64 " total_us:%" PRId64 " nParam:%d async:%d",
-            pTask->streamId, groupId, (taosGetTimestampNs() - t0) / 1000, nParam,
-            !(addOptions & NOTIFY_ON_FAILURE_PAUSE));
-  }
-  return code;
+  return streamSendNotifyContentWithResult(pTask, streamName, tableName, triggerType, groupId, precision,
+                                           pNotifyAddrUrls, addOptions, pParams, nParam, NULL, NULL);
 }
 
 // Low-level: send a buffer to one URL on the thread-local persistent connection.

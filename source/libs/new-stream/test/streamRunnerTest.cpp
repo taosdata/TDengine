@@ -19,8 +19,6 @@
 #include "tdatablock.h"
 
 extern "C" {
-#include "tcurl.h"
-
 int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg *pMsg, SStreamTask *pTask, SStreamTaskStats *pStats);
 }
 
@@ -158,24 +156,12 @@ int32_t mockStreamSendNotifyContent(SStreamTask *, const char *, const char *, i
 
 int32_t mockStreamSendNotifyContentWithResult(SStreamTask *, const char *, const char *, int32_t, int64_t, int8_t,
                                               const SArray *pNotifyAddrUrls, int32_t, const SSTriggerCalcParam *,
-                                              int32_t, bool *pAttempted, bool *pDelivered) {
+                                              int32_t, bool *pAttempted, bool *pAccepted) {
   ++gCalls.notifyCalls;
   gCalls.notifyTargets = static_cast<int32_t>(taosArrayGetSize(pNotifyAddrUrls));
-  *pAttempted = true;
-  *pDelivered = gCalls.notifyCode == TSDB_CODE_SUCCESS;
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t mockTcurlConnectFailure(CURL **, const char *) { return TSDB_CODE_FAILED; }
-
-int32_t mockTcurlConnectSuccess(CURL **ppConn, const char *) {
-  *ppConn = nullptr;
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t mockTcurlSendFailure(SCURL *, const void *, size_t, size_t *pSent, curl_off_t, unsigned int) {
-  *pSent = 0;
-  return TSDB_CODE_FAILED;
+  *pAttempted = gCalls.notifyCode == TSDB_CODE_SUCCESS;
+  *pAccepted = *pAttempted;
+  return gCalls.notifyCode;
 }
 
 int32_t mockStreamBuildBlockResultNotifyContent(const SStreamRunnerTask *, const SSDataBlock *, char **ppContent,
@@ -698,7 +684,7 @@ TEST_F(StreamRunnerTest, RunnerCalcFailureBeforeReadyDoesNotAdvanceResultGauge) 
   EXPECT_EQ(snapshot.runnerGauges.lastOutputAtMs, 0);
 }
 
-TEST_F(StreamRunnerTest, RunnerNotifyFailureDoesNotAdvanceOutputGauge) {
+TEST_F(StreamRunnerTest, RunnerNotifyQueueFailureDoesNotAdvanceOutputGauge) {
   SetWindows(1);
   gCalls.executeBlocks = {NewBlock(7)};
   gCalls.executeReadyTimes = {6000};
@@ -948,7 +934,7 @@ TEST_F(StreamRunnerTest, SuccessfulTopSinkAndNotificationCountLogicalOutputOnce)
   EXPECT_EQ(stats.outputBlocks, 1);
 }
 
-TEST_F(StreamRunnerTest, DroppedNotificationFailureCountsFailureButNotOutput) {
+TEST_F(StreamRunnerTest, DroppedNotificationQueueFailureCountsFailureButNotOutput) {
   SetWindows(1);
   gCalls.executeBlocks = {NewBlock(7)};
   gCalls.executeReadyTimes = {6000};
@@ -963,7 +949,7 @@ TEST_F(StreamRunnerTest, DroppedNotificationFailureCountsFailureButNotOutput) {
   EXPECT_EQ(stats.calcFailureCount, 0);
 }
 
-TEST_F(StreamRunnerTest, DroppedNotifyFailureDoesNotHideLaterCalcFailure) {
+TEST_F(StreamRunnerTest, DroppedNotifyQueueFailureDoesNotHideLaterCalcFailure) {
   SetWindows(2);
   gCalls.executeBlocks = {NewBlock(7), nullptr};
   gCalls.executeCodes = {TSDB_CODE_SUCCESS, TSDB_CODE_INVALID_PARA};
@@ -1099,39 +1085,6 @@ TEST_F(StreamRunnerTest, RuntimeInputCallbackRecordsRemoteAndFilteredLocalRows) 
   const SStreamRunnerPeriodStats stats = RotateRunnerStats();
   EXPECT_EQ(stats.inputRows, 14);
   EXPECT_EQ(stats.inputBlocks, 2);
-}
-
-TEST_F(StreamRunnerTest, DropNotificationReportsRawTargetFailureWithoutChangingBusinessCode) {
-  stub_.reset(streamSendNotifyContentWithResult);
-  stub_.set(tcurlConnect, mockTcurlConnectFailure);
-  SSTriggerCalcParam param = {};
-  param.notifyType = STRIGGER_EVENT_WINDOW_OPEN;
-  bool attempted = false;
-  bool delivered = true;
-
-  EXPECT_EQ(streamSendNotifyContentWithResult(&task_.task, "db.stream", "out", STREAM_TRIGGER_SESSION, 42,
-                                              TSDB_TIME_PRECISION_MILLI, task_.notification.pNotifyAddrUrls, 0, &param,
-                                              1, &attempted, &delivered),
-            TSDB_CODE_SUCCESS);
-  EXPECT_TRUE(attempted);
-  EXPECT_FALSE(delivered);
-}
-
-TEST_F(StreamRunnerTest, DropNotificationReportsRawSendFailureWithoutChangingBusinessCode) {
-  stub_.reset(streamSendNotifyContentWithResult);
-  stub_.set(tcurlConnect, mockTcurlConnectSuccess);
-  stub_.set(tcurlSend, mockTcurlSendFailure);
-  SSTriggerCalcParam param = {};
-  param.notifyType = STRIGGER_EVENT_WINDOW_OPEN;
-  bool attempted = false;
-  bool delivered = true;
-
-  EXPECT_EQ(streamSendNotifyContentWithResult(&task_.task, "db.stream", "out", STREAM_TRIGGER_SESSION, 42,
-                                              TSDB_TIME_PRECISION_MILLI, task_.notification.pNotifyAddrUrls, 0, &param,
-                                              1, &attempted, &delivered),
-            TSDB_CODE_SUCCESS);
-  EXPECT_TRUE(attempted);
-  EXPECT_FALSE(delivered);
 }
 
 }  // namespace
