@@ -201,7 +201,7 @@ int32_t streamSendNotifyContentWithResult(SStreamTask* pTask, const char* stream
                                           int32_t triggerType, int64_t groupId, int8_t precision,
                                           const SArray* pNotifyAddrUrls, int32_t addOptions,
                                           const SSTriggerCalcParam* pParams, int32_t nParam, bool* pAttempted,
-                                          bool* pDelivered);
+                                          bool* pAccepted);
 int32_t streamNotifyWorkerPoolInit(SStreamNotifyWorkerPool* pPool, int32_t numWorkers);
 void    streamNotifyWorkerPoolDestroy(SStreamNotifyWorkerPool* pPool);
 void    streamNotifyQueueUnregister(int64_t streamId);

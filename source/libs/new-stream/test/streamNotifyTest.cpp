@@ -69,6 +69,8 @@ int32_t MockTcurlConnect(CURL** ppConn, const char*) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t RejectDirectTcurlConnect(CURL**, const char*) { return TSDB_CODE_FAILED; }
+
 int32_t MockTcurlSend(SCURL*, const void* buffer, size_t buflen, size_t* sent, curl_off_t fragsize,
                       unsigned int flags) {
   size_t accepted = buflen;
@@ -670,6 +672,34 @@ TEST_F(StreamNotifyAsyncTest, LargeNotificationIsFragmentedWithoutChangingMessag
   cJSON* receivedPayload = cJSON_GetObjectItemCaseSensitive(event, "payload");
   ASSERT_TRUE(cJSON_IsString(receivedPayload));
   EXPECT_EQ(std::string(receivedPayload->valuestring), payload);
+}
+
+TEST_F(StreamNotifyAsyncTest, DropResultReportsQueueAcceptanceBeforeNetworkDelivery) {
+  Stub stub;
+  stub.set(tcurlConnect, RejectDirectTcurlConnect);
+
+  std::string                           url = "ws://unused/queue-acceptance";
+  std::unique_ptr<SArray, ArrayDeleter> urls(taosArrayInit(1, sizeof(char*)));
+  ASSERT_NE(urls, nullptr);
+  char* urlPtr = const_cast<char*>(url.c_str());
+  ASSERT_NE(taosArrayPush(urls.get(), &urlPtr), nullptr);
+
+  SStreamTask task = {};
+  task.type = STREAM_TRIGGER_TASK;
+  task.streamId = 0xa123;
+  task.taskId = 0xb456;
+
+  SSTriggerCalcParam param = {};
+  param.notifyType = STRIGGER_EVENT_WINDOW_OPEN;
+
+  bool attempted = false;
+  bool accepted = false;
+  EXPECT_EQ(
+      streamSendNotifyContentWithResult(&task, "1.notify_queue_acceptance_test", "result_table", STREAM_TRIGGER_SESSION,
+                                        42, TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1, &attempted, &accepted),
+      TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(attempted);
+  EXPECT_TRUE(accepted);
 }
 
 }  // namespace

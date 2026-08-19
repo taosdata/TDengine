@@ -828,7 +828,7 @@ static int32_t streamDoNotificationCurrentWins(SStreamRunnerTask* pTask, SStream
   int32_t             nParam = 0;
   SSTriggerCalcParam* params = NULL;
   bool                attempted = false;
-  bool                delivered = false;
+  bool                accepted = false;
   if (pTask->notification.pNotifyAddrUrls == NULL || pTask->notification.pNotifyAddrUrls->size == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -860,11 +860,11 @@ static int32_t streamDoNotificationCurrentWins(SStreamRunnerTask* pTask, SStream
   code = streamSendNotifyContentWithResult(&pTask->task, pTask->streamName, tbname,
                                            pExec->runtimeInfo.funcInfo.triggerType, pExec->runtimeInfo.funcInfo.groupId,
                                            pExec->runtimeInfo.funcInfo.precision, pTask->notification.pNotifyAddrUrls,
-                                           pTask->addOptions, params, nParam, &attempted, &delivered);
+                                           pTask->addOptions, params, nParam, &attempted, &accepted);
   TAOS_CHECK_EXIT(code);
 
 _exit:
-  if (code != TSDB_CODE_SUCCESS || (attempted && !delivered)) {
+  if (code != TSDB_CODE_SUCCESS || (attempted && !accepted)) {
     bool* pClassified =
         code != TSDB_CODE_SUCCESS && (pTask->addOptions & NOTIFY_ON_FAILURE_PAUSE) != 0 ? pFailureClassified : NULL;
     stRunnerRecordFailure(pTask, STREAM_RUNNER_FAILURE_NOTIFY, pClassified);
@@ -876,7 +876,7 @@ _exit:
     }
   } else {
     ST_TASK_DLOG("send notification for task:%" PRIx64 ", win count:%d", pTask->task.streamId, nParam);
-    if (pTask->notification.calcNotifyOnly && delivered && notifyRows > 0) {
+    if (pTask->notification.calcNotifyOnly && accepted && notifyRows > 0) {
       stRunnerRecordOutput(pTask, notifyRows, 1);
     }
   }
@@ -896,7 +896,7 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   int32_t             nParam = endWinIdx - startWinIdx;
   SSTriggerCalcParam* params = NULL;
   bool                attempted = false;
-  bool                delivered = false;
+  bool                accepted = false;
   if (pTask->notification.pNotifyAddrUrls == NULL || pTask->notification.pNotifyAddrUrls->size == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -930,10 +930,10 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   code = streamSendNotifyContentWithResult(&pTask->task, pTask->streamName, tbname,
                                            pExec->runtimeInfo.funcInfo.triggerType, pExec->runtimeInfo.funcInfo.groupId,
                                            pExec->runtimeInfo.funcInfo.precision, pTask->notification.pNotifyAddrUrls,
-                                           pTask->addOptions, params, nParam, &attempted, &delivered);
+                                           pTask->addOptions, params, nParam, &attempted, &accepted);
 
 _exit:
-  if (code != TSDB_CODE_SUCCESS || (attempted && !delivered)) {
+  if (code != TSDB_CODE_SUCCESS || (attempted && !accepted)) {
     bool* pClassified =
         code != TSDB_CODE_SUCCESS && (pTask->addOptions & NOTIFY_ON_FAILURE_PAUSE) != 0 ? pFailureClassified : NULL;
     stRunnerRecordFailure(pTask, STREAM_RUNNER_FAILURE_NOTIFY, pClassified);
@@ -944,7 +944,7 @@ _exit:
     }
   } else {
     ST_TASK_DLOG("send notification for task:%" PRIx64 ", win count:%d", pTask->task.streamId, nParam);
-    if (pTask->notification.calcNotifyOnly && delivered && notifyRows > 0) {
+    if (pTask->notification.calcNotifyOnly && accepted && notifyRows > 0) {
       stRunnerRecordOutput(pTask, notifyRows, 1);
     }
   }
@@ -968,7 +968,7 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
   char* pContent = NULL;
   bool  hasNotifyRows = false;
   bool  attempted = false;
-  bool  delivered = false;
+  bool  accepted = false;
   code = streamBuildBlockResultNotifyContent(pTask, pBlock, &pContent, pTask->output.outCols, 0,
                                              empty ? 0 : pBlock->info.rows - 1, &hasNotifyRows);
   if (code == 0 && hasNotifyRows) {
@@ -987,13 +987,13 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
     code = streamSendNotifyContentWithResult(
         &pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
         pExec->runtimeInfo.funcInfo.groupId, pExec->runtimeInfo.funcInfo.precision, pTask->notification.pNotifyAddrUrls,
-        pTask->addOptions, pTriggerCalcParams, 1, &attempted, &delivered);
+        pTask->addOptions, pTriggerCalcParams, 1, &attempted, &accepted);
     clearNotifyParamHeapFields(pTriggerCalcParams);
   } else if (code == 0) {
     taosMemoryFreeClear(pContent);
   }
 _exit:
-  if (code != TSDB_CODE_SUCCESS || (attempted && !delivered)) {
+  if (code != TSDB_CODE_SUCCESS || (attempted && !accepted)) {
     bool* pClassified =
         code != TSDB_CODE_SUCCESS && (pTask->addOptions & NOTIFY_ON_FAILURE_PAUSE) != 0 ? pFailureClassified : NULL;
     stRunnerRecordFailure(pTask, STREAM_RUNNER_FAILURE_NOTIFY, pClassified);
@@ -1002,7 +1002,7 @@ _exit:
     } else {
       ST_TASK_ELOG("notification delivery failed for task:%" PRIx64, pTask->task.streamId);
     }
-  } else if (pTask->notification.calcNotifyOnly && delivered && hasNotifyRows) {
+  } else if (pTask->notification.calcNotifyOnly && accepted && hasNotifyRows) {
     uint64_t rows = stRunnerCountNotificationRows(pTask, pBlock, 0, empty ? 0 : (int32_t)pBlock->info.rows - 1);
     if (rows > 0) {
       stRunnerRecordOutput(pTask, rows, 1);
