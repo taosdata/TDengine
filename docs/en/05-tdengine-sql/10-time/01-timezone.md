@@ -29,7 +29,8 @@ Recommended. Examples: `'Asia/Shanghai'`, `'America/New_York'`.
 
 #### POSIX Fixed Offset
 
-Examples: `'+08:00'`, `'-0500'`, `'Z'`, `'+10'`, `'UTC+08:00'`.
+Examples: `'+08:00'`, `'-0500'`, `'Z'`, `'+10'`, `'UTC+08:00'`, and
+`'UTC8'`.
 
 - **DST aware**: No. A constant offset is used year-round.
 - **Supported range**: `-14:00` to `+14:00`.
@@ -51,7 +52,13 @@ where `STD` is the standard-time abbreviation, `offset` is the offset from UTC, 
 UTC offset
 ```
 
-**`offset` field format**: `offset` represents the offset from UTC, in the format `[+|-] hh [ : mm [ : ss ] ]`, where `hh` can be one or two digits, and `mm` and `ss` (if used) must be two digits. A compact form without colons is also accepted (e.g., `+0800`, `-0530`). The special value `Z` is equivalent to `+00:00`.
+**`offset` field format**: With the `UTC` prefix, the hour can contain one or
+two digits, and the minutes, if present, must contain two digits. The plus sign
+for a westward offset can be omitted: `UTC8` is equivalent to `UTC+8`, and
+`UTC8:30` is equivalent to `UTC+8:30`. Without the `UTC` prefix, the sign is
+required; the accepted forms are `±HH`, `±HHMM`, and `±HH:MM`. Offsets have
+minute-level precision. The `UTC` prefix is case-insensitive, so `utc+8` and
+`UTC+8` are equivalent. The special value `Z` is equivalent to `+00:00`.
 
 **POSIX sign convention**: The POSIX standard defines the relationship between local time and UTC as:
 
@@ -69,7 +76,9 @@ Therefore: a positive `+` sign means **west of UTC** (western timezone, local ti
 | `'-05:30'` or `'UTC-05:30'` | 5.5 hours east of UTC | Near `Asia/Kolkata` (India) |
 | `'Z'` | UTC itself | `Etc/UTC` |
 
-When the `UTC` prefix is omitted (e.g., `'+08:00'`), TDengine still parses the offset using POSIX rules, identical to the prefixed form.
+When the `UTC` prefix is omitted (e.g., `'+08:00'`), TDengine still parses the
+offset using POSIX rules, identical to the prefixed form. In this case, the
+sign cannot be omitted.
 
 **Supported range**: The valid offset range is `-14:00` to `+14:00` (corresponding to 14 hours east of UTC to 14 hours west of UTC).
 
@@ -135,10 +144,16 @@ Configure the global timezone in `taos.cfg`:
 ```text
 timezone Asia/Shanghai
 timezone UTC-8
+timezone UTC8
 timezone +08:00
 ```
 
-Accepts IANA names, Windows standard timezone names (e.g., `China Standard Time`), and fixed-offset forms `Z`, `±HH`, `±HHMM`, `±HH:MM`, `UTC±H[:MM]`, `UTC±HH[:MM]`. `GMT` / `GMT±...` is not supported. If not configured, the timezone is detected from the operating system.
+Accepts IANA names, Windows standard timezone names (e.g.,
+`China Standard Time`), and fixed-offset forms `Z`, `±HH`, `±HHMM`,
+`±HH:MM`, `UTCH[:MM]`, `UTC+H[:MM]`, and `UTC-H[:MM]`, where `H` contains
+one or two digits and the `UTC` prefix is case-insensitive. `GMT` / `GMT±...`
+is not supported. If not configured, the timezone is detected from the
+operating system.
 
 - **Server-side** `taos.cfg`: used as the fallback for server-side calculations when the connection timezone is not set through `SET TIMEZONE`.
 - **Client-side** `taos.cfg`: affects only client-side local time formatting (e.g., `SELECT ts` output), not server-side calculations.

@@ -4720,9 +4720,7 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   if (useCurrentTz && isFixedOffsetTimezoneLiteral(timezoneStr)) {
     hasFixedOffsetTz = true;
     fixedOffset = offsetFromTimezoneLiteral(timezoneStr, TSDB_TICK_PER_SECOND(timePrec));
-  } else if (useCurrentTz && (strchr(timezoneStr, '/') != NULL ||
-                              strncmp(timezoneStr, "UTC", 3) == 0 ||
-                              strncmp(timezoneStr, "GMT", 3) == 0)) {
+  } else if (useCurrentTz && taosIsNamedTimezoneLiteral(timezoneStr)) {
     int32_t tzCode = taosValidateTimezone(timezoneStr, &explicitTz);
     if (tzCode == TSDB_CODE_SUCCESS) {
       hasStringTz = true;
