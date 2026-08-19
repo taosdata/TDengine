@@ -29,6 +29,9 @@
 #define IS_SLASH_LETTER_IN_TAG_FIELD_KEY(sql) \
   (*((sql)-1) == SLASH && (*(sql) == COMMA || *(sql) == SPACE || *(sql) == EQUAL || *(sql) == SLASH))
 
+#define IS_NON_OVERLAPPING_SLASH_LETTER_IN_TAG_FIELD_KEY(sql, escapeChar) \
+  (IS_SLASH_LETTER_IN_TAG_FIELD_KEY(sql) && ((sql) - 1 != escapeChar))
+
 #define PROCESS_SLASH_IN_FIELD_VALUE(key, keyLen)  \
   for (int i = 1; i < keyLen; ++i) {               \
     if (IS_SLASH_LETTER_IN_FIELD_VALUE(key + i)) { \
@@ -37,13 +40,18 @@
     }                                              \
   }
 
-#define PROCESS_SLASH_IN_TAG_FIELD_KEY(key, keyLen)  \
-  for (int i = 1; i < keyLen; ++i) {                 \
-    if (IS_SLASH_LETTER_IN_TAG_FIELD_KEY(key + i)) { \
-      MOVE_FORWARD_ONE(key + i, keyLen - i);         \
-      keyLen--;                                      \
-    }                                                \
-  }
+#define PROCESS_SLASH_IN_TAG_FIELD_KEY(key, keyLen)                                                         \
+  do {                                                                                                      \
+    size_t in = 0, out = 0;                                                                                 \
+    while (in < keyLen) {                                                                                   \
+      if (key[in] == SLASH && in + 1 < keyLen &&                                                            \
+          (key[in + 1] == COMMA || key[in + 1] == SPACE || key[in + 1] == EQUAL || key[in + 1] == SLASH)) { \
+        ++in;                                                                                               \
+      }                                                                                                     \
+      key[out++] = key[in++];                                                                               \
+    }                                                                                                       \
+    keyLen = out;                                                                                           \
+  } while (0)
 
 #define BINARY_ADD_LEN (sizeof("\"\"")-1)    // "binary"   2 means length of ("")
 #define NCHAR_ADD_LEN  (sizeof("L\"\"")-1)   // L"nchar"   3 means length of (L"")
@@ -227,7 +235,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
         (*sql)++;
         break;
       }
-      if (IS_SLASH_LETTER_IN_TAG_FIELD_KEY(*sql)) {
+      if (IS_NON_OVERLAPPING_SLASH_LETTER_IN_TAG_FIELD_KEY(*sql, escapeChar)) {
         escapeChar = *sql;
         keyLenEscaped++;
         keyEscaped = true;
@@ -254,7 +262,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
         return TSDB_CODE_SML_INVALID_DATA;
       }
 
-      if (IS_SLASH_LETTER_IN_TAG_FIELD_KEY(*sql)) {
+      if (IS_NON_OVERLAPPING_SLASH_LETTER_IN_TAG_FIELD_KEY(*sql, escapeChar)) {
         escapeChar = *sql;
         valueLenEscaped++;
         valueEscaped = true;
@@ -359,7 +367,7 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
         (*sql)++;
         break;
       }
-      if (IS_SLASH_LETTER_IN_TAG_FIELD_KEY(*sql)) {
+      if (IS_NON_OVERLAPPING_SLASH_LETTER_IN_TAG_FIELD_KEY(*sql, escapeChar)) {
         escapeChar = *sql;
         keyLenEscaped++;
         keyEscaped = true;
@@ -513,7 +521,7 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
     if (unlikely(IS_SPACE(tmp,escapeChar))) {
       break;
     }
-    if(unlikely(IS_SLASH_LETTER_IN_TAG_FIELD_KEY(tmp))){
+    if (unlikely(IS_NON_OVERLAPPING_SLASH_LETTER_IN_TAG_FIELD_KEY(tmp, escapeChar))) {
       escapeChar = tmp;
     }
     tmp++;
