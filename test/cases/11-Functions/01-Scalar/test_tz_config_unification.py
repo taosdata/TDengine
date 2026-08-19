@@ -69,10 +69,18 @@ class _AlterLocalTimezoneMixin:
         """UTC±N POSIX style should be accepted."""
         valid_utc = [
             'UTC',
+            'UTC0',
+            'UTC8',
+            'UTC8:30',
             'UTC-8',
             'UTC+10',
             'UTC-0',
             'UTC+0',
+            # The UTC prefix is case-insensitive.
+            'utc8',
+            'UtC8:30',
+            'utc+10',
+            'uTc-8',
         ]
         for tz in valid_utc:
             tdSql.execute(f"ALTER LOCAL 'timezone {tz}'")
@@ -158,6 +166,9 @@ class _AlterLocalTimezoneMixin:
         original_global = _get_global_timezone()
 
         cases = [
+            ('UTC8', ['-08:00', '-0800']),
+            ('utc8', ['-08:00', '-0800']),
+            ('utc+08:00', ['-08:00', '-0800']),
             ('+08:00', ['-08:00', '-0800']),
             ('UTC+08:00', ['-08:00', '-0800']),
             ('-05:30', ['+05:30', '+0530']),
