@@ -577,6 +577,8 @@ void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, ES
       SStreamTask* pTask = (SStreamTask*)listNode->data;
       if (pTask->taskId == *taskId && pTask->seriousId == *seriousId) {
         SListNode* tmp = tdListPopNode(pTaskList, listNode);
+        // The caller holds pStream->lock, excluding heartbeat snapshots while the owner is removed.
+        streamTaskStatsHandleLifecycle(streamTaskGetStatsSlot(pTask), STREAM_TASK_STATS_REMOVED);
         ST_TASK_DLOG("task %p removed from stream taskList, remain:%d", pTask, TD_DLIST_NELES(pTaskList));
         taosMemoryFreeClear(pTask->extraErrMsg);
         taosMemoryFreeClear(tmp);

@@ -25,7 +25,7 @@ static int32_t streamHbSendRequestMsg(SStreamHbMsg* pMsg, SEpSet* pEpset) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t tlen = 0;
-  SEncoder encoder;
+  SEncoder encoder = {0};
 
   tEncodeSize(tEncodeStreamHbMsg, pMsg, tlen, code);
   TAOS_CHECK_EXIT(code);

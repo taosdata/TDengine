@@ -5304,10 +5304,26 @@ static int32_t translateForecastFunc(STranslateContext* pCxt, SFunctionNode* pFu
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct {
+  const char* funcName;
+  bool        found;
+} SFindFuncContext;
+
+static EDealRes findSpecificFuncWalker(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode*     pFunc = (SFunctionNode*)pNode;
+    SFindFuncContext*  pCtx = (SFindFuncContext*)pContext;
+    if (strcasecmp(pFunc->functionName, pCtx->funcName) == 0) {
+      pCtx->found = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 static int32_t translateAnalysisPseudoColumnFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRewriteToColumn) {
   SFunctionNode* pFunc = (SFunctionNode*)(*ppNode);
   SSelectStmt*   pSelect = (SSelectStmt*)pCxt->pCurrStmt;
-  SNode*         pNode = NULL;
   bool           bFound = false;
   int32_t        funcType = pFunc->funcType;
 
@@ -5325,28 +5341,17 @@ static int32_t translateAnalysisPseudoColumnFunc(STranslateContext* pCxt, SNode*
                                    "Function '%s' is not allowed in where clause", pFunc->functionName);
   }
 
-  FOREACH(pNode, pSelect->pProjectionList) {
-    if (nodeType(pNode) != QUERY_NODE_FUNCTION) {
-      continue;
-    }
-
-    if ((funcType == FUNCTION_TYPE_FORECAST_ROWTS || funcType == FUNCTION_TYPE_FORECAST_HIGH ||
-         funcType == FUNCTION_TYPE_FORECAST_LOW) &&
-        strcasecmp(((SFunctionNode*)pNode)->functionName, "forecast") == 0) {
-      bFound = true;
-      break;
-    }
-
-    if ((funcType == FUNCTION_TYPE_IMPUTATION_ROWTS || funcType == FUNCTION_TYPE_IMPUTATION_MARK) &&
-        strcasecmp(((SFunctionNode*)pNode)->functionName, "imputation") == 0) {
-      bFound = true;
-      break;
-    }
-
-    if (funcType == FUNCTION_TYPE_ANOMALY_MARK && pSelect->pWindow->type == QUERY_NODE_ANOMALY_WINDOW) {
-      bFound = true;
-      break;
-    }
+  if (funcType == FUNCTION_TYPE_FORECAST_ROWTS || funcType == FUNCTION_TYPE_FORECAST_HIGH ||
+      funcType == FUNCTION_TYPE_FORECAST_LOW) {
+    SFindFuncContext ctx = {.funcName = "forecast", .found = false};
+    nodesWalkExprs(pSelect->pProjectionList, findSpecificFuncWalker, &ctx);
+    bFound = ctx.found;
+  } else if (funcType == FUNCTION_TYPE_IMPUTATION_ROWTS || funcType == FUNCTION_TYPE_IMPUTATION_MARK) {
+    SFindFuncContext ctx = {.funcName = "imputation", .found = false};
+    nodesWalkExprs(pSelect->pProjectionList, findSpecificFuncWalker, &ctx);
+    bFound = ctx.found;
+  } else if (funcType == FUNCTION_TYPE_ANOMALY_MARK && NULL != pSelect->pWindow) {
+    bFound = (pSelect->pWindow->type == QUERY_NODE_ANOMALY_WINDOW);
   }
 
   if (!bFound) {
@@ -15751,6 +15756,18 @@ typedef struct SEqCondTbNameTableInfo {
   SArray*         aTbnames;
 } SEqCondTbNameTableInfo;
 
+static char* getTbnameValue(SValueNode* pValueNode) {
+  if (pValueNode->placeholderNo <= 0) {
+    return pValueNode->literal;
+  }
+
+  if (TSDB_DATA_TYPE_VARCHAR != pValueNode->node.resType.type || NULL == pValueNode->datum.p) {
+    return NULL;
+  }
+
+  return varDataVal(pValueNode->datum.p);
+}
+
 //[tableAlias.]tbname = tbNamVal
 static int32_t isOperatorEqTbnameCond(STranslateContext* pCxt, SOperatorNode* pOperator, char** ppTableAlias,
                                       SArray** ppTabNames, bool* pRet) {
@@ -15787,26 +15804,17 @@ static int32_t isOperatorEqTbnameCond(STranslateContext* pCxt, SOperatorNode* pO
     *pRet = false;
     return TSDB_CODE_SUCCESS;
   }
+
+  char* tbname = getTbnameValue(pValueNode);
+  if (NULL == tbname) {
+    *pRet = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
   SArray* pTabNames = NULL;
   pTabNames = taosArrayInit(1, sizeof(void*));
   if (!pTabNames) {
     return terrno;
-  }
-
-  char* tbname = NULL;
-  if (pValueNode->placeholderNo != 0) {
-    if (NULL == pValueNode->datum.p) {
-      taosArrayDestroy(pTabNames);
-      return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
-    }
-    if (IS_VAR_DATA_TYPE(pValueNode->node.resType.type)) {
-      tbname = varDataVal(pValueNode->datum.p);
-    } else {
-      taosArrayDestroy(pTabNames);
-      return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
-    }
-  } else {
-    tbname = pValueNode->literal;
   }
 
   if (NULL == taosArrayPush(pTabNames, &tbname)) {
@@ -15822,7 +15830,10 @@ static int32_t isOperatorEqTbnameCond(STranslateContext* pCxt, SOperatorNode* pO
 //[tableAlias.]tbname in (value1, value2, ...)
 static int32_t isOperatorTbnameInCond(STranslateContext* pCxt, SOperatorNode* pOperator, char** ppTableAlias,
                                       SArray** ppTbNames, bool* pRet) {
-  if (pOperator->opType != OP_TYPE_IN) return false;
+  if (pOperator->opType != OP_TYPE_IN) {
+    *pRet = false;
+    return TSDB_CODE_SUCCESS;
+  }
   if (nodeType(pOperator->pLeft) != QUERY_NODE_FUNCTION ||
       ((SFunctionNode*)(pOperator->pLeft))->funcType != FUNCTION_TYPE_TBNAME ||
       nodeType(pOperator->pRight) != QUERY_NODE_NODE_LIST) {
@@ -15849,10 +15860,19 @@ static int32_t isOperatorTbnameInCond(STranslateContext* pCxt, SOperatorNode* pO
   SNode*     pValNode = NULL;
   FOREACH(pValNode, pValueNodeList) {
     if (nodeType(pValNode) != QUERY_NODE_VALUE) {
+      taosArrayDestroy(*ppTbNames);
+      *ppTbNames = NULL;
       *pRet = false;
       return TSDB_CODE_SUCCESS;
     }
-    if (NULL == taosArrayPush(*ppTbNames, &((SValueNode*)pValNode)->literal)) {
+    char* tbname = getTbnameValue((SValueNode*)pValNode);
+    if (NULL == tbname) {
+      taosArrayDestroy(*ppTbNames);
+      *ppTbNames = NULL;
+      *pRet = false;
+      return TSDB_CODE_SUCCESS;
+    }
+    if (NULL == taosArrayPush(*ppTbNames, &tbname)) {
       taosArrayDestroy(*ppTbNames);
       *ppTbNames = NULL;
       return terrno;
@@ -26470,6 +26490,32 @@ static EDealRes streamExprSubqueryRefWalker(SNode* pNode, void* pContext) {
 
 static bool streamTableTreeHasExprSubqueryRef(SNode* pTable);
 
+static bool streamSelectHasExprSubqueryRefOutsideFrom(SSelectStmt* pSelect) {
+  bool hasExprSubquery = false;
+
+  nodesWalkExpr(pSelect->pWhere, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExprs(pSelect->pPartitionByList, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExpr(pSelect->pWindow, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExpr(pSelect->pFill, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExprs(pSelect->pWindowList, streamExprSubqueryRefWalker, &hasExprSubquery);
+  if (NULL != pSelect->pWindow) {
+    if (QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
+      nodesWalkExpr(((SExternalWindowNode*)pSelect->pWindow)->pSubquery, streamExprSubqueryRefWalker, &hasExprSubquery);
+    } else if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
+      nodesWalkExpr(((SIntervalWindowNode*)pSelect->pWindow)->pFill, streamExprSubqueryRefWalker, &hasExprSubquery);
+    } else if (QUERY_NODE_COUNT_WINDOW == nodeType(pSelect->pWindow)) {
+      nodesWalkExprs(((SCountWindowNode*)pSelect->pWindow)->pColList, streamExprSubqueryRefWalker, &hasExprSubquery);
+    }
+  }
+  nodesWalkExprs(pSelect->pGroupByList, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExpr(pSelect->pHaving, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExprs(pSelect->pOrderByList, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExprs(pSelect->pProjectionList, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExprs(pSelect->pProjectionBindList, streamExprSubqueryRefWalker, &hasExprSubquery);
+
+  return hasExprSubquery;
+}
+
 static bool streamQueryHasExprSubqueryRef(SNode* pQuery) {
   if (NULL == pQuery) {
     return false;
@@ -26478,12 +26524,16 @@ static bool streamQueryHasExprSubqueryRef(SNode* pQuery) {
   switch (nodeType(pQuery)) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pSelect = (SSelectStmt*)pQuery;
-      if (LIST_LENGTH(pSelect->pSubQueries) > 0) {
+      bool hasExprSubquery = streamSelectHasExprSubqueryRefOutsideFrom(pSelect);
+      if (hasExprSubquery) {
+        parserDebug("stream external window disabled: expression subquery reference found outside table source");
         return true;
       }
-      bool hasExprSubquery = false;
-      nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, streamExprSubqueryRefWalker, &hasExprSubquery);
-      return hasExprSubquery || streamTableTreeHasExprSubqueryRef(pSelect->pFromTable);
+      bool hasTableExprSubquery = streamTableTreeHasExprSubqueryRef(pSelect->pFromTable);
+      if (hasTableExprSubquery) {
+        parserDebug("stream external window disabled: expression subquery reference found in nested table source");
+      }
+      return hasTableExprSubquery;
     }
     case QUERY_NODE_SET_OPERATOR:
       return LIST_LENGTH(((SSetOperator*)pQuery)->pSubQueries) > 0;
@@ -26502,7 +26552,13 @@ static bool streamTableTreeHasExprSubqueryRef(SNode* pTable) {
       return streamQueryHasExprSubqueryRef(((STempTableNode*)pTable)->pSubquery);
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
-      return streamTableTreeHasExprSubqueryRef(pJoin->pLeft) || streamTableTreeHasExprSubqueryRef(pJoin->pRight);
+      bool hasOnExprSubquery = false;
+      nodesWalkExpr(pJoin->pOnCond, streamExprSubqueryRefWalker, &hasOnExprSubquery);
+      if (hasOnExprSubquery) {
+        parserDebug("stream external window disabled: expression subquery reference found in join on condition");
+      }
+      return hasOnExprSubquery || streamTableTreeHasExprSubqueryRef(pJoin->pLeft) ||
+             streamTableTreeHasExprSubqueryRef(pJoin->pRight);
     }
     default:
       return false;
@@ -26594,7 +26650,6 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
                           .streamCxt.triggerScanList = NULL,
                           .streamCxt.hasNotify = taosArrayGetSize(pReq->pNotifyAddrUrls) > 0,
                           .streamCxt.hasForceOutput = taosArrayGetSize(pReq->forceOutCols) > 0};
-
   if (nodeType(pTriggerWindow) == QUERY_NODE_INTERVAL_WINDOW) {
     SIntervalWindowNode* pIntervalWindow = (SIntervalWindowNode*)pTriggerWindow;
     if (!pIntervalWindow->pInterval) {
@@ -34160,16 +34215,18 @@ over:
   return code;
 }
 
-static int32_t buildDropVirtualTableVgroupHashmap(STranslateContext* pCxt, SDropVirtualTableStmt* pStmt,
-                                                  const SName* name, int8_t* tableType, SHashObj* pVgroupHashmap) {
+static int32_t buildDropVirtualTableVgroupHashmap(STranslateContext* pCxt, SDropTableClause* pClause,
+                                                  const SName* name, SHashObj* pVgroupHashmap) {
   STableMeta* pTableMeta = NULL;
   int32_t     code = getTargetMeta(pCxt, name, &pTableMeta, false);
   if (TSDB_CODE_SUCCESS == code) {
     code = collectUseTable(name, pCxt->pTargetTables);
-    *tableType = pTableMeta->tableType;
   }
 
-  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && pStmt->ignoreNotExists) {
+  // getTargetMeta reports a missing virtual table as either the PAR or the TDB
+  // not-exist code depending on which layer answered; IF EXISTS tolerates both.
+  if (pClause->ignoreNotExists &&
+      (TSDB_CODE_PAR_TABLE_NOT_EXIST == code || TSDB_CODE_TDB_TABLE_NOT_EXIST == code)) {
     PAR_RET(TSDB_CODE_SUCCESS);
   }
   PAR_ERR_JRET(code);
@@ -34178,19 +34235,27 @@ static int32_t buildDropVirtualTableVgroupHashmap(STranslateContext* pCxt, SDrop
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DROP_VTABLE,
                                          "Cannot drop non-virtual table using DROP VTABLE"););
   }
+  // Reject the virtual super table itself at translate time so a batch
+  // containing one fails atomically (same error code the vnode used to return
+  // at exec time). Note: virtual CHILD tables also carry the virtualStb flag
+  // (inherited from the parent), so discriminate on tableType.
+  if (TSDB_SUPER_TABLE == pTableMeta->tableType) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_PARA,
+                                         "Cannot drop virtual super table using DROP VTABLE"););
+  }
 
   SVgroupInfo info = {0};
-  PAR_ERR_JRET(getTableHashVgroup(pCxt, pStmt->dbName, pStmt->tableName, &info));
+  PAR_ERR_JRET(getTableHashVgroup(pCxt, pClause->dbName, pClause->tableName, &info));
 
-  SVDropTbReq req = {.suid = pTableMeta->suid, .igNotExists = pStmt->ignoreNotExists, .isVirtual = true};
+  SVDropTbReq req = {.suid = pTableMeta->suid, .igNotExists = pClause->ignoreNotExists, .isVirtual = true};
   req.txnId = pCxt->pParseCxt->txnId;
-  req.name = pStmt->tableName;
+  req.name = pClause->tableName;
   PAR_ERR_JRET(addDropTbReqIntoVgroup(pVgroupHashmap, &info, &req));
 
   // Batch meta txn: remove dropped table from txn cache so it's no longer visible
   if (TSDB_CODE_SUCCESS == code && pCxt->pParseCxt->txnId != 0 && pCxt->pParseCxt->pTxnTableMeta) {
     SName dropName = {0};
-    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &dropName);
+    toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &dropName);
     char fullName[TSDB_TABLE_FNAME_LEN];
     if (tNameExtractFullName(&dropName, fullName) == 0) {
       STableMeta** ppCached = (STableMeta**)taosHashGet(pCxt->pParseCxt->pTxnTableMeta, fullName, strlen(fullName));
@@ -34281,6 +34346,32 @@ int32_t serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap, SArray** pOut) 
   return code;
 }
 
+// WITH-form replay: each clause's tableName is a numeric table uid at this
+// point — validate it and rewrite it to the real table name. Shared by the
+// DROP TABLE and DROP VTABLE with-opt paths.
+static int32_t rewriteDropClauseUidToName(STranslateContext* pCxt, SDropTableClause* pClause) {
+  for (int32_t i = 0; i < TSDB_TABLE_NAME_LEN; i++) {
+    if (pClause->tableName[i] == '\0') {
+      break;
+    }
+    if (!isdigit((unsigned char)pClause->tableName[i])) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, "Table does not exist: `%s`.`%s`",
+                                     pClause->dbName, pClause->tableName);
+    }
+  }
+
+  SName name = {0};
+  toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &name);
+  char pTableName[TSDB_TABLE_NAME_LEN] = {0};
+  int32_t code = getTargetName(pCxt, &name, pTableName);
+  if (TSDB_CODE_SUCCESS != code) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "%s: db:`%s`, tbuid:`%s`", tstrerror(code), pClause->dbName,
+                                   pClause->tableName);
+  }
+  tstrncpy(pClause->tableName, pTableName, TSDB_TABLE_NAME_LEN);  // rewrite table uid to table name
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t rewriteDropTableWithOpt(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t         code = TSDB_CODE_SUCCESS;
   SDropTableStmt* pStmt = (SDropTableStmt*)pQuery->pRoot;
@@ -34288,26 +34379,11 @@ static int32_t rewriteDropTableWithOpt(STranslateContext* pCxt, SQuery* pQuery) 
   pCxt->withOpt = true;
 
   SNode* pNode = NULL;
-  char   pTableName[TSDB_TABLE_NAME_LEN] = {0};
   FOREACH(pNode, pStmt->pTables) {
-    SDropTableClause* pClause = (SDropTableClause*)pNode;
-    for (int32_t i = 0; i < TSDB_TABLE_NAME_LEN; i++) {
-      if (pClause->tableName[i] == '\0') {
-        break;
-      }
-      if (!isdigit(pClause->tableName[i])) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, "Table does not exist: `%s`.`%s`",
-                                       pClause->dbName, pClause->tableName);
-      }
-    }
-    SName name = {0};
-    toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &name);
-    code = getTargetName(pCxt, &name, pTableName);
+    code = rewriteDropClauseUidToName(pCxt, (SDropTableClause*)pNode);
     if (TSDB_CODE_SUCCESS != code) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "%s: db:`%s`, tbuid:`%s`", tstrerror(code), pClause->dbName,
-                                     pClause->tableName);
+      return code;
     }
-    tstrncpy(pClause->tableName, pTableName, TSDB_TABLE_NAME_LEN);  // rewrite table uid to table name
   }
 
   code = rewriteDropTableWithMetaCache(pCxt);
@@ -34428,35 +34504,24 @@ static int32_t rewriteDropVirtualTableWithOpt(STranslateContext* pCxt, SQuery* p
   if (!pStmt->withOpt) {
     PAR_RET(code);
   }
+  pCxt->withOpt = true;  // same as rewriteDropTableWithOpt/rewriteDropSuperTablewithOpt: switch vgroup cache variant
 
   SNode* pNode = NULL;
-  char   pTableName[TSDB_TABLE_NAME_LEN] = {0};
-
-  for (int32_t i = 0; i < TSDB_TABLE_NAME_LEN; i++) {
-    if (pStmt->tableName[i] == '\0') {
-      break;
-    }
-    if (!isdigit(pStmt->tableName[i])) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, "Table does not exist: `%s`.`%s`",
-                                     pStmt->dbName, pStmt->tableName);
+  FOREACH(pNode, pStmt->pTables) {
+    code = rewriteDropClauseUidToName(pCxt, (SDropTableClause*)pNode);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
     }
   }
-
-  SName name = {0};
-  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
-  PAR_ERR_RET(getTargetName(pCxt, &name, pTableName));
-  tstrncpy(pStmt->tableName, pTableName, TSDB_TABLE_NAME_LEN);  // rewrite table uid to table name
 
   PAR_RET(rewriteDropTableWithMetaCache(pCxt));
 }
 
 static int32_t rewriteDropVirtualTable(STranslateContext* pCxt, SQuery* pQuery) {
   SDropVirtualTableStmt* pStmt = (SDropVirtualTableStmt*)pQuery->pRoot;
-  int8_t                 tableType;
   SNode*                 pNode;
   SArray*                pBufArray = NULL;
   int32_t                code = TSDB_CODE_SUCCESS;
-  SName                  name = {0};
   SHashObj*              pVgroupHashmap = NULL;
 
   PAR_ERR_JRET(rewriteDropVirtualTableWithOpt(pCxt, pQuery));
@@ -34468,8 +34533,13 @@ static int32_t rewriteDropVirtualTable(STranslateContext* pCxt, SQuery* pQuery) 
 
   taosHashSetFreeFp(pVgroupHashmap, destroyDropTbReqBatch);
 
-  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
-  PAR_ERR_JRET(buildDropVirtualTableVgroupHashmap(pCxt, pStmt, &name, &tableType, pVgroupHashmap));
+  FOREACH(pNode, pStmt->pTables) {
+    SDropTableClause* pClause = (SDropTableClause*)pNode;
+    SName             name = {0};
+    toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &name);
+    code = buildDropVirtualTableVgroupHashmap(pCxt, pClause, &name, pVgroupHashmap);
+    PAR_ERR_JRET(code);
+  }
   if (0 == taosHashGetSize(pVgroupHashmap)) {
     taosHashCleanup(pVgroupHashmap);
     return TSDB_CODE_SUCCESS;

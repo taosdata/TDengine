@@ -40,6 +40,7 @@ class TestStreamRecalcWithOptions:
 
         Labels: common,ci,integration,functional
         Jira: None
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7073750299
 
         History:
             - 2025-07-23 Beryl Created
@@ -292,7 +293,7 @@ class TestStreamRecalcWithOptions:
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_expired_interval",
                 func=lambda: (
-                    tdSql.getRows() == 4
+                    tdSql.getRows() == 5
                     and tdSql.compareData(0, 0, "2025-01-01 02:04:00")
                     and tdSql.compareData(0, 1, 400)
                     and tdSql.compareData(0, 2, 249.5)
@@ -305,6 +306,9 @@ class TestStreamRecalcWithOptions:
                     and tdSql.compareData(3, 0, "2025-01-01 02:10:00")
                     and tdSql.compareData(3, 1, 400)
                     and tdSql.compareData(3, 2, 261.5)
+                    and tdSql.compareData(4, 0, "2025-01-01 02:12:00")
+                    and tdSql.compareData(4, 1, 400)
+                    and tdSql.compareData(4, 2, 265.5)
                 )
             )
 
@@ -335,13 +339,16 @@ class TestStreamRecalcWithOptions:
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_disorder_interval",
                 func=lambda: (
-                    tdSql.getRows() == 2
+                    tdSql.getRows() == 3
                     and tdSql.compareData(0, 0, "2025-01-01 02:18:00")
                     and tdSql.compareData(0, 1, 400)
                     and tdSql.compareData(0, 2, 277.5)
                     and tdSql.compareData(1, 0, "2025-01-01 02:20:00")
                     and tdSql.compareData(1, 1, 400)
                     and tdSql.compareData(1, 2, 281.5)
+                    and tdSql.compareData(2, 0, "2025-01-01 02:22:00")
+                    and tdSql.compareData(2, 1, 400)
+                    and tdSql.compareData(2, 2, 285.5)
                 )
             )
         time.sleep(2)
@@ -369,12 +376,15 @@ class TestStreamRecalcWithOptions:
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_delete_interval",
                 func=lambda: (
-                    tdSql.getRows() == 2
+                    tdSql.getRows() == 3
                     and tdSql.compareData(0, 0, "2025-01-01 02:30:00")
                     and tdSql.compareData(0, 1, 0)
                     and tdSql.compareData(0, 2, None)
                     and tdSql.compareData(1, 0, "2025-01-01 02:31:00")
                     and tdSql.compareData(1, 1, 0)
                     and tdSql.compareData(1, 2, None)
+                    and tdSql.compareData(2, 0, "2025-01-01 02:31:50")
+                    and tdSql.compareData(2, 1, 100)
+                    and tdSql.compareData(2, 2, 304.0)
                 )
             )

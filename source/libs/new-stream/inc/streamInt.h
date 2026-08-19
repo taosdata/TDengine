@@ -197,6 +197,11 @@ int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, cons
 int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
                                 int64_t groupId, int8_t precision, const SArray* pNotifyAddrUrls, int32_t addOptions,
                                 const SSTriggerCalcParam* pParams, int32_t nParam);
+int32_t streamSendNotifyContentWithResult(SStreamTask* pTask, const char* streamName, const char* tableName,
+                                          int32_t triggerType, int64_t groupId, int8_t precision,
+                                          const SArray* pNotifyAddrUrls, int32_t addOptions,
+                                          const SSTriggerCalcParam* pParams, int32_t nParam, bool* pAttempted,
+                                          bool* pDelivered);
 int32_t streamNotifyWorkerPoolInit(SStreamNotifyWorkerPool* pPool, int32_t numWorkers);
 void    streamNotifyWorkerPoolDestroy(SStreamNotifyWorkerPool* pPool);
 void    streamNotifyQueueUnregister(int64_t streamId);

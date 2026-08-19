@@ -44,9 +44,19 @@ class ParserTestBase : public testing::Test {
   void login(const std::string& user);
   void useDb(const std::string& acctId, const std::string& db);
   void run(const std::string& sql, int32_t expect = TSDB_CODE_SUCCESS, ParserStage checkStage = PARSER_STAGE_TRANSLATE);
+  // Parse-only check (no translate/catalog). For grammar that cannot be
+  // exercise through the full translate path in the unit-test mock catalog
+  // (e.g. virtual tables), or when only the parse tree is of interest.
+  void runParseOnly(const std::string& sql, int32_t expect = TSDB_CODE_SUCCESS);
   // EXT tests need async-only mode because the sync translate path never consults
   // the SParseMetaCache (which is where mock EXT source/table meta lives).
   void runAsyncOnly(const std::string& sql, int32_t expect = TSDB_CODE_SUCCESS,
+                    ParserStage checkStage = PARSER_STAGE_TRANSLATE);
+  // Translates a CLONE of the parsed AST instead of the AST itself. Both the
+  // view expansion path (clientView.c) and the prepared statement bind path
+  // (qStmtBindParams) do exactly this, so a clone that loses parse time
+  // fields turns a valid statement into a translate failure there.
+  void runClonedAst(const std::string& sql, int32_t expect = TSDB_CODE_SUCCESS,
                     ParserStage checkStage = PARSER_STAGE_TRANSLATE);
 
   virtual void checkDdl(const SQuery* pQuery, ParserStage stage);

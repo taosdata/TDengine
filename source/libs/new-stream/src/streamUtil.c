@@ -27,6 +27,66 @@
 
 int32_t streamGetThreadIdx(int32_t threadNum, int64_t streamGId) { return threadNum ? (streamGId % threadNum) : 0; }
 
+int64_t streamTaskGetMonotonicUs(void) {
+  struct timespec now = {0};
+  (void)taosClockGetTime(CLOCK_MONOTONIC, &now);
+  return (int64_t)now.tv_sec * 1000000LL + (int64_t)now.tv_nsec / 1000;
+}
+
+uint64_t streamTaskMetricMask(const SStreamTask* pTask) {
+  if (pTask == NULL) return 0;
+
+  switch (pTask->type) {
+    case STREAM_READER_TASK:
+      return STREAM_METRIC_PHYSICAL_INPUT;
+    case STREAM_TRIGGER_TASK:
+      return STREAM_METRIC_LOGICAL_INPUT | STREAM_METRIC_REALTIME_LAG | STREAM_METRIC_HISTORY_PROGRESS |
+             STREAM_METRIC_RECALCULATES;
+    case STREAM_RUNNER_TASK:
+      return ((const SStreamRunnerTask*)pTask)->topTask ? STREAM_METRIC_DELIVERED_OUTPUT | STREAM_METRIC_RESULT_LATENCY
+                                                        : 0;
+  }
+  return 0;
+}
+
+SStreamTaskStats** streamTaskGetStatsSlot(SStreamTask* pTask) {
+  if (pTask == NULL) return NULL;
+
+  switch (pTask->type) {
+    case STREAM_READER_TASK:
+      return &((SStreamReaderTask*)pTask)->pStats;
+    case STREAM_TRIGGER_TASK:
+      return &((SStreamTriggerTask*)pTask)->pStats;
+    case STREAM_RUNNER_TASK:
+      return &((SStreamRunnerTask*)pTask)->pStats;
+  }
+  return NULL;
+}
+
+SStreamTaskStats* streamTaskGetStats(SStreamTask* pTask) {
+  SStreamTaskStats** ppStats = streamTaskGetStatsSlot(pTask);
+  return ppStats == NULL ? NULL : *ppStats;
+}
+
+int32_t streamTaskStatsInit(SStreamTask* pTask, SStreamTaskStats** ppStats) {
+  if (pTask == NULL || ppStats == NULL || *ppStats != NULL) return TSDB_CODE_INVALID_PARA;
+
+  return stTaskStatsCreate(pTask->type, streamTaskMetricMask(pTask), streamTaskGetMonotonicUs(), taosGetTimestampMs(),
+                           ppStats);
+}
+
+void streamTaskStatsHandleLifecycle(SStreamTaskStats** ppStats, EStreamTaskStatsLifecycle event) {
+  switch (event) {
+    case STREAM_TASK_STATS_UNDEPLOYED:
+      return;
+    case STREAM_TASK_STATS_DEPLOY_FAILED:
+    case STREAM_TASK_STATS_REMOVED:
+    case STREAM_TASK_STATS_OWNER_DESTROYED:
+      stTaskStatsDestroy(ppStats);
+      return;
+  }
+}
+
 int32_t stmAddFetchStreamGid(void) {
   if (++gStreamMgmt.stmGrpIdx >= STREAM_MAX_GROUP_NUM) {
     gStreamMgmt.stmGrpIdx = 0;
@@ -63,8 +123,86 @@ static int32_t stmCloneTaskExtraErrMsg(SStreamTask* pTask, SStmTaskStatusMsg* pS
   return pStatus->extraErrMsg == NULL ? terrno : TSDB_CODE_SUCCESS;
 }
 
-static int32_t stmPushTaskStatus(SStreamHbMsg* pMsg, SStreamTask* pTask) {
+static int32_t stmInitTaskMetrics(SStreamHbMsg* pMsg, int32_t capacity) {
+  if (pMsg == NULL || capacity < 0) return TSDB_CODE_INVALID_PARA;
+
+  pMsg->observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  if (pMsg->pTaskMetrics != NULL) return TSDB_CODE_SUCCESS;
+
+  pMsg->pTaskMetrics = taosArrayInit(capacity, sizeof(SStreamTaskMetricsEntry));
+  return pMsg->pTaskMetrics == NULL ? terrno : TSDB_CODE_SUCCESS;
+}
+
+static int32_t stmAppendTaskMetrics(SStreamHbMsg* pMsg, SStreamTask* pTask, SStreamTaskStats* pStats,
+                                    int32_t taskStatusIndex) {
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  SStreamTaskMetricsEntry entry = {
+      .taskStatusIndex = taskStatusIndex,
+      .streamId = pTask->streamId,
+      .taskId = pTask->taskId,
+      .seriousId = pTask->seriousId,
+      .decodeCode = TSDB_CODE_SUCCESS,
+  };
+
+  code = stmInitTaskMetrics(pMsg, taosArrayGetSize(pMsg->pStreamStatus));
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  if (pStats != NULL) {
+    if (pTask->type == STREAM_TRIGGER_TASK) {
+      code = stTriggerTaskGetMetrics((SStreamTriggerTask*)pTask, &entry.snapshot);
+    } else {
+      code = stTaskStatsSnapshot1m(pStats, streamTaskGetMonotonicUs(), &entry.snapshot);
+    }
+    if (code != TSDB_CODE_SUCCESS) goto _exit;
+  }
+
+  if (taosArrayPush(pMsg->pTaskMetrics, &entry) == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  entry.snapshot.pRecalculates = NULL;
+
+_exit:
+  taosArrayDestroy(entry.snapshot.pRecalculates);
+  return code;
+}
+
+static int32_t streamTaskLogPeriod(SStreamTask* pTask, const SStreamTaskPeriodSnapshot* pSnapshot) {
+  switch (pTask->type) {
+    case STREAM_READER_TASK:
+      return stReaderTaskLogStats(pTask, pSnapshot);
+    case STREAM_TRIGGER_TASK:
+      return stTriggerTaskLogStats((SStreamTriggerTask*)pTask, pSnapshot);
+    case STREAM_RUNNER_TASK:
+      return stRunnerTaskLogStats((SStreamRunnerTask*)pTask, pSnapshot);
+  }
+  return TSDB_CODE_INVALID_PARA;
+}
+
+int32_t stmMaybeRotateTaskStats(SStreamTask* pTask, SStreamTaskStats* pStats, int64_t nowMonoUs, bool debugEnabled) {
+  if (pTask == NULL) return TSDB_CODE_INVALID_PARA;
+  if (pStats == NULL) return TSDB_CODE_SUCCESS;
+
+  SStreamTaskPeriodSnapshot snapshot = {0};
+  bool                      rotated = false;
+  int32_t                   code = stTaskStatsRotatePeriod(pStats, nowMonoUs, &snapshot, &rotated);
+  if (code != TSDB_CODE_SUCCESS || !debugEnabled) return code;
+  if (pTask->type == STREAM_TRIGGER_TASK) {
+    return streamTaskLogPeriod(pTask, rotated ? &snapshot : NULL);
+  }
+  if (!rotated) return TSDB_CODE_SUCCESS;
+
+  return streamTaskLogPeriod(pTask, &snapshot);
+}
+
+static int32_t stmPushTaskStatus(SStreamHbMsg* pMsg, SStreamTask* pTask, SStreamTaskStats* pStats) {
   int32_t code = TSDB_CODE_SUCCESS;
+
+  int32_t statsCode =
+      stmMaybeRotateTaskStats(pTask, pStats, streamTaskGetMonotonicUs(), (stDebugFlag & DEBUG_DEBUG) != 0);
+  if (statsCode != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("failed to rotate or log task statistics: %s", tstrerror(statsCode));
+  }
 
   if (taosArrayPush(pMsg->pStreamStatus, pTask) == NULL) {
     return terrno;
@@ -74,28 +212,37 @@ static int32_t stmPushTaskStatus(SStreamHbMsg* pMsg, SStreamTask* pTask) {
   code = stmCloneTaskExtraErrMsg(pTask, pStatus);
   if (code != TSDB_CODE_SUCCESS) {
     TARRAY_SIZE(pMsg->pStreamStatus)--;
+    return code;
   }
 
-  return code;
+  int32_t metricCode = stmAppendTaskMetrics(pMsg, pTask, pStats, taosArrayGetSize(pMsg->pStreamStatus) - 1);
+  if (metricCode != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("failed to append task metrics to heartbeat: %s", tstrerror(metricCode));
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t stmAddPeriodReport(int64_t streamId, SArray** ppReport, SStreamTriggerTask* triggerTask) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
+  int32_t                code = TSDB_CODE_SUCCESS;
+  int32_t                lino = 0;
+  SSTriggerRuntimeStatus status = {0};
 
   if (NULL == *ppReport) {
     *ppReport = taosArrayInit(5, sizeof(SSTriggerRuntimeStatus));
     TSDB_CHECK_NULL(*ppReport, code, lino, _exit, terrno);
   }
 
-  SSTriggerRuntimeStatus status = {0};
   TAOS_CHECK_EXIT(stTriggerTaskGetStatus((SStreamTask*)triggerTask, &status));
 
   TSDB_CHECK_NULL(taosArrayPush(*ppReport, &status), code, lino, _exit, terrno);
+  status.userRecalcs = NULL;
 
   stsDebug("trigger task period report added, recalcNum:%d", (int32_t)taosArrayGetSize(status.userRecalcs));
 
 _exit:
+
+  taosArrayDestroy(status.userRecalcs);
 
   if (code) {
     stsError("%s failed at line %d since %s", __FUNCTION__, lino, tstrerror(code));
@@ -118,19 +265,19 @@ void stmHandleStreamRemovedTasks(SStreamInfo* pStream, int64_t streamId, int32_t
   }
 }
 
-int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg* pMsg, SStreamTask* pTask) {
+int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg* pMsg, SStreamTask* pTask, SStreamTaskStats* pStats) {
   int32_t code = 0, lino = 0;
 
   taosWLockLatch(&pTask->mgmtReqLock);
   SStreamMgmtReq* pMgmtReq = pTask->pMgmtReq;
   if (pMgmtReq) {
-    TAOS_CHECK_EXIT(stmPushTaskStatus(pMsg, pTask));
+    TAOS_CHECK_EXIT(stmPushTaskStatus(pMsg, pTask, pStats));
     SStmTaskStatusMsg* pStatus = taosArrayGetLast(pMsg->pStreamStatus);
     pStatus->pMgmtReq = NULL;
     TAOS_CHECK_EXIT(tCloneSStreamMgmtReq(pMgmtReq, &pStatus->pMgmtReq));
     TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
   } else {
-    TAOS_CHECK_EXIT(stmPushTaskStatus(pMsg, pTask));
+    TAOS_CHECK_EXIT(stmPushTaskStatus(pMsg, pTask, pStats));
   }
 
 _exit:
@@ -172,10 +319,10 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
     while ((listNode = tdListNext(&iter)) != NULL) {
       SStreamReaderTask* pReader = (SStreamReaderTask*)listNode->data;
       pTask = (SStreamTask*)pReader;
-      TAOS_CHECK_EXIT(stmPushTaskStatus(pMsg, &pReader->task));
-      // if (pReader->task.pMgmtReq) {
-      //   TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
-      // }
+      TAOS_CHECK_EXIT(stmPushTaskStatus(pMsg, &pReader->task, pReader->pStats));
+      //if (pReader->task.pMgmtReq) {
+      //  TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
+      //}
       ST_TASK_DLOG("task status added to hb %s mgmtReq", pReader->task.pMgmtReq ? "with" : "without");
     }
 
@@ -192,7 +339,8 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
       pTask->detailStatus = -1;
     }
 
-    TAOS_CHECK_EXIT(stmHbAddTaskStatus(streamId, pMsg, pTask));
+    SStreamTriggerTask* pTrigger = (SStreamTriggerTask*)pTask;
+    TAOS_CHECK_EXIT(stmHbAddTaskStatus(streamId, pMsg, pTask, pTrigger->pStats));
 
     ST_TASK_DLOG("task status added to hb %s mgmtReq", pTask->pMgmtReq ? "with" : "without");
     stsDebug("%d trigger tasks status added to hb", 1);
@@ -207,9 +355,9 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
       pTask = (SStreamTask*)pRunner;
       if (atomic_val_compare_exchange_8(&pRunner->vtableDeployGot, 1, 0)) {
         TAOS_CHECK_EXIT(stRunnerBuildTaskMgmtReq(pRunner));
-        TAOS_CHECK_EXIT(stmHbAddTaskStatus(streamId, pMsg, pTask));
+        TAOS_CHECK_EXIT(stmHbAddTaskStatus(streamId, pMsg, pTask, pRunner->pStats));
       } else {
-        TAOS_CHECK_EXIT(stmPushTaskStatus(pMsg, &pRunner->task));
+        TAOS_CHECK_EXIT(stmPushTaskStatus(pMsg, &pRunner->task, pRunner->pStats));
       }
       ST_TASK_DLOG("task status added to hb %s mgmtReq", pRunner->task.pMgmtReq ? "with" : "without");
     }
@@ -233,6 +381,11 @@ _exit:
 
 int32_t stmBuildHbStreamsStatusReq(SStreamHbMsg* pMsg) {
   static bool reportPeriod = true;
+
+  int32_t metricCode = stmInitTaskMetrics(pMsg, 0);
+  if (metricCode != TSDB_CODE_SUCCESS) {
+    stError("failed to initialize task metrics in heartbeat: %s", tstrerror(metricCode));
+  }
 
   if (0 == pMsg->streamGId) {
     reportPeriod = !reportPeriod;
@@ -282,6 +435,7 @@ void stmDestroySStreamInfo(void* param) {
   tdListInitIter(p->readerList, &iter, TD_LIST_FORWARD);
   while ((listNode = tdListNext(&iter)) != NULL) {
     SStreamTask* pTask = (SStreamTask*)listNode->data;
+    streamTaskStatsHandleLifecycle(streamTaskGetStatsSlot(pTask), STREAM_TASK_STATS_OWNER_DESTROYED);
     stmClearTaskExtraErrMsg(pTask);
     SListNode* tmp = tdListPopNode(p->readerList, listNode);
     ST_TASK_DLOG("task removed from stream readerList, remain:%d, listNode:%p", TD_DLIST_NELES(p->readerList), tmp);
@@ -293,6 +447,7 @@ void stmDestroySStreamInfo(void* param) {
   tdListInitIter(p->triggerList, &iter, TD_LIST_FORWARD);
   while ((listNode = tdListNext(&iter)) != NULL) {
     SStreamTask* pTask = (SStreamTask*)listNode->data;
+    streamTaskStatsHandleLifecycle(streamTaskGetStatsSlot(pTask), STREAM_TASK_STATS_OWNER_DESTROYED);
     stmClearTaskExtraErrMsg(pTask);
     SListNode* tmp = tdListPopNode(p->triggerList, listNode);
     ST_TASK_DLOG("task removed from stream triggerList, remain:%d", TD_DLIST_NELES(p->triggerList));
@@ -304,6 +459,7 @@ void stmDestroySStreamInfo(void* param) {
   tdListInitIter(p->runnerList, &iter, TD_LIST_FORWARD);
   while ((listNode = tdListNext(&iter)) != NULL) {
     SStreamTask* pTask = (SStreamTask*)listNode->data;
+    streamTaskStatsHandleLifecycle(streamTaskGetStatsSlot(pTask), STREAM_TASK_STATS_OWNER_DESTROYED);
     stmClearTaskExtraErrMsg(pTask);
     SListNode* tmp = tdListPopNode(p->runnerList, listNode);
     ST_TASK_DLOG("task removed from stream runnerList, remain:%d", TD_DLIST_NELES(p->runnerList));
@@ -1222,22 +1378,30 @@ _end:
 // Send a pre-built JSON message to all URLs synchronously.
 // When NOTIFY_ON_FAILURE_PAUSE is set in addOptions, retries on failure.
 // Otherwise, failures are logged and ignored.
-static void streamSendNotifyMsgToUrls(const char* msg, size_t msgLen, const SArray* pNotifyAddrUrls, int32_t addOptions,
-                                      int64_t streamId) {
-  SCURL conn = {0};
+static int32_t streamSendNotifyMsgToUrls(const char* msg, size_t msgLen, const SArray* pNotifyAddrUrls,
+                                         int32_t addOptions, int64_t streamId, bool* pAttempted, bool* pDelivered) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SCURL   conn = {0};
+  bool    attempted = false;
+  bool    allTargetsDelivered = true;
+
+  if (pAttempted != NULL) *pAttempted = false;
+  if (pDelivered != NULL) *pDelivered = false;
 
   for (int32_t i = 0; i < TARRAY_SIZE(pNotifyAddrUrls); ++i) {
     char** pUrl = TARRAY_GET_ELEM(pNotifyAddrUrls, i);
     if (*pUrl == NULL) {
       continue;
     }
+    attempted = true;
 
     conn.url = taosStrdup(*pUrl);
     if (!conn.url) {
       stError("streamId:%" PRIx64 " failed to dup notify URL", streamId);
-      continue;
+      code = terrno;
+      goto _end;
     }
-    int32_t code = tcurlConnect(&conn.pConn, *pUrl);
+    code = tcurlConnect(&conn.pConn, *pUrl);
     if (code != TSDB_CODE_SUCCESS) {
       stError("streamId:%" PRIx64 " failed to connect notify URL %s", streamId, *pUrl);
       tcurlClose(&conn);
@@ -1246,6 +1410,8 @@ static void streamSendNotifyMsgToUrls(const char* msg, size_t msgLen, const SArr
         --i;
         continue;
       } else {
+        allTargetsDelivered = false;
+        code = TSDB_CODE_SUCCESS;
         continue;
       }
     }
@@ -1290,13 +1456,56 @@ static void streamSendNotifyMsgToUrls(const char* msg, size_t msgLen, const SArr
       if (addOptions & NOTIFY_ON_FAILURE_PAUSE) {
         taosMsleep(STREAM_EVENT_NOTIFY_RETRY_MS);
         --i;
+      } else {
+        allTargetsDelivered = false;
       }
     } else {
       stDebug("streamId:%" PRIx64 " notify sent to %s successfully", streamId, *pUrl);
     }
   }
 
+_end:
+  if (pAttempted != NULL) *pAttempted = attempted;
+  if (pDelivered != NULL) *pDelivered = attempted && allTargetsDelivered && code == TSDB_CODE_SUCCESS;
   tcurlClose(&conn);
+  return code;
+}
+
+int32_t streamSendNotifyContentWithResult(SStreamTask* pTask, const char* streamName, const char* tableName,
+                                          int32_t triggerType, int64_t groupId, int8_t precision,
+                                          const SArray* pNotifyAddrUrls, int32_t addOptions,
+                                          const SSTriggerCalcParam* pParams, int32_t nParam, bool* pAttempted,
+                                          bool* pDelivered) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  char*   msg = NULL;
+  size_t  msgLen = 0;
+
+  if (pAttempted != NULL) *pAttempted = false;
+  if (pDelivered != NULL) *pDelivered = false;
+
+  if (nParam <= 0 || taosArrayGetSize(pNotifyAddrUrls) <= 0) {
+    goto _end;
+  }
+
+  char* pos = strstr(streamName, TS_PATH_DELIMITER);
+  if (pos != NULL) {
+    streamName = ++pos;
+  }
+  code = streamBuildNotifyMsgInternal(streamName, tableName, triggerType, groupId, precision, pParams, nParam, &msg,
+                                      &msgLen);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (msg != NULL) {
+    code = streamSendNotifyMsgToUrls(msg, msgLen, pNotifyAddrUrls, addOptions, pTask->streamId, pAttempted, pDelivered);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  taosMemoryFree(msg);
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 // ---------------------------------------------------------------------------
@@ -2070,7 +2279,8 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
                                         &msgLen);
     QUERY_CHECK_CODE(code, lino, _end);
     if (msg != NULL) {
-      streamSendNotifyMsgToUrls(msg, msgLen, pNotifyAddrUrls, addOptions, pTask->streamId);
+      code = streamSendNotifyMsgToUrls(msg, msgLen, pNotifyAddrUrls, addOptions, pTask->streamId, NULL, NULL);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
   } else {
     code = streamNotifyEnqueueParams(pTask->streamId, streamName, tableName, precision, triggerType, groupId,
