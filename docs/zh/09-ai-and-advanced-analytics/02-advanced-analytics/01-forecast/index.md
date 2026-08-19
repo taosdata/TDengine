@@ -63,15 +63,21 @@ algo=expr1
 | `rows`    | 预测结果的记录数 | 10 |
 | `timeout` | 预测分析等待的最长时间，超时以后自动返回错误；自 `v3.3.6.5` 起支持 | 60（秒），最大值为 1200（秒） |
 
-- 预测查询结果新增三个伪列，具体如下。
-  - `_FROWTS`：预测结果的时间戳
-  - `_FLOW`：置信区间下界
-  - `_FHIGH`：置信区间上界；对于没有置信区间的预测算法，其上下界与预测结果相同
 - 更改参数 `start`：返回预测结果的起始时间，改变起始时间不会影响返回的预测数值，只影响起始时间。
 - `every`：可以与输入数据的采样频率不同。采样频率只能低于或等于输入数据采样频率，不能 **高于** 输入数据的采样频率。
 - 对于某些不需要计算置信区间的算法，即使指定了置信区间，返回结果中的上下界也会退化成一个点。
 - `rows` 的最大输出值是 1024，即最多预测 1024 个值。超过上限将返回错误。
 - 预测分析需要至少 10 行数据作为预测依据，最多允许 40000 行数据作为预测依据；部分分析模型接受的输入数据行数更少。
+
+### 预测相关伪列
+
+预测查询新增三个与返回结果相关的伪列，具体如下。
+
+- `_FROWTS`：预测结果的对应的时间戳
+- `_FLOW`：预测结果对应点的置信区间下界
+- `_FHIGH`：预测结果对应点的置信区间上界
+
+对于不支持提供预测结果置信区间的预测算法，其上下界与预测结果相同。使用上述伪列的调用见示例部分。
 
 ### CES、Theta 和 ETS 选型建议
 
@@ -154,13 +160,13 @@ SELECT _frowts, forecast(val, past_co_val, future_co_val, "algo=moirai,rows=4, d
 - [ARIMA](./arima)
 - [HoltWinters](./holtwinters)
 - [Prophet](./prophet)
-- [Time Series Foundation Model](./tsfm)
 - [CES](./ces)
 - [Theta](./theta)
+- [ETS](./ets)
+- [Time Series Foundation Model](./tsfm)
 - XGBoost
 - LightGBM
 - Multiple Seasonal-Trend decomposition using LOESS (MSTL)
-- [ETS](./ets)
 - Long Short-Term Memory (LSTM)
 - Multilayer Perceptron (MLP)
 - DeepAR

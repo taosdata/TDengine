@@ -334,7 +334,8 @@ int resultToFileTaos(TAOS_RES *res, const char *fileName, char *writeBuf, int32_
     // while fetch data
     int blockRows = 0;
     void *block = NULL;
-    while (taos_fetch_raw_block(res, &blockRows, &block) == TSDB_CODE_SUCCESS) {
+    int fetchCode = TSDB_CODE_SUCCESS;
+    while ((fetchCode = taos_fetch_raw_block(res, &blockRows, &block)) == TSDB_CODE_SUCCESS) {
         if (g_interrupted) {
             code = TSDB_CODE_BCK_USER_CANCEL;
             tBufferDestroy(&assist);
@@ -343,7 +344,7 @@ int resultToFileTaos(TAOS_RES *res, const char *fileName, char *writeBuf, int32_
         }
 
         if (blockRows == 0 || block == NULL) {
-            // no data
+            // no data (normal end of result set)
             break;
         }
         // write block to file
@@ -363,6 +364,16 @@ int resultToFileTaos(TAOS_RES *res, const char *fileName, char *writeBuf, int32_
         taosFile->header.nBlocks ++;
         taosFile->header.numRows += blockRows;
         if (progressCtr) atomic_add_fetch_64(progressCtr, blockRows);
+    }
+
+    // Loop exits with non-SUCCESS when the connection broke mid-fetch (e.g.
+    // server killed during backup).  Without this check the partial .tmp file
+    // would be renamed to .dat as if complete, silently losing rows.
+    if (fetchCode != TSDB_CODE_SUCCESS) {
+        logError("fetch raw block failed(0x%08X, %s): %s", fetchCode, taos_errstr(res), fileName);
+        tBufferDestroy(&assist);
+        closeTaosFile(taosFile);
+        return fetchCode;
     }
 
     // cleanup buffer

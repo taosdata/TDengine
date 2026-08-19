@@ -2033,6 +2033,10 @@ _fetchNext:
       printDataBlock(pBlock, "FQ-Filtered", GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
     }
 
+    SStreamRuntimeInfo* pStreamRuntimeInfo = pTaskInfo->pStreamRuntimeInfo;
+    if (pStreamRuntimeInfo != NULL && pStreamRuntimeInfo->inputStatsFp != NULL) {
+      pStreamRuntimeInfo->inputStatsFp(pStreamRuntimeInfo->pInputStatsParam, pBlock->info.rows, 1);
+    }
     *ppRes = pBlock;
   }
 

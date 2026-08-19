@@ -48,11 +48,8 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   code = tDecodeStreamHbMsg(&decoder, &req);
   if (code < 0) {
     mstError("failed to decode stream hb msg, error:%s", tstrerror(terrno));
-    tCleanupStreamHbMsg(&req, true);
-    tDecoderClear(&decoder);
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
-  tDecoderClear(&decoder);
 
   mstDebug("start to process grp %d stream-hb from dnode:%d, snodeId:%d, vgLeaders:%d, streamStatus:%d", 
       req.streamGId, req.dnodeId, req.snodeId, (int32_t)taosArrayGetSize(req.pVgLeaders), (int32_t)taosArrayGetSize(req.pStreamStatus));
@@ -66,6 +63,7 @@ _exit:
   }
   
   mndStreamHbSendRsp(&pReq->info, &rspMsg);
+  tDecoderClear(&decoder);
   tCleanupStreamHbMsg(&req, true);
   tFreeSMStreamHbRspMsg(&rsp);
 

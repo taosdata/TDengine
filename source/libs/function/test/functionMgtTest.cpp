@@ -17,6 +17,74 @@
 
 #include "functionMgt.h"
 #include "nodes.h"
+#include "osEnv.h"
+
+namespace {
+
+class ScopedTimezoneDisplay {
+ public:
+  explicit ScopedTimezoneDisplay(const char* display) {
+    tstrncpy(original_, tsTimezoneStr, sizeof(original_));
+    tstrncpy(tsTimezoneStr, display, TD_TIMEZONE_LEN);
+  }
+
+  ~ScopedTimezoneDisplay() { tstrncpy(tsTimezoneStr, original_, TD_TIMEZONE_LEN); }
+
+ private:
+  char original_[TD_TIMEZONE_LEN] = {0};
+};
+
+SFunctionNode* createFunctionNode(const char* functionName, const int8_t* parameterTypes, int32_t parameterCount) {
+  SFunctionNode* pFunc = nullptr;
+  if (nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc) != TSDB_CODE_SUCCESS) {
+    return nullptr;
+  }
+  tstrncpy(pFunc->functionName, functionName, TSDB_FUNC_NAME_LEN);
+
+  for (int32_t i = 0; i < parameterCount; ++i) {
+    SValueNode* pValue = nullptr;
+    if (nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pValue) != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode((SNode*)pFunc);
+      return nullptr;
+    }
+    pValue->node.resType.type = parameterTypes[i];
+    if (nodesListMakeAppend(&pFunc->pParameterList, (SNode*)pValue) != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode((SNode*)pValue);
+      nodesDestroyNode((SNode*)pFunc);
+      return nullptr;
+    }
+  }
+
+  return pFunc;
+}
+
+/* timetruncate(ts, 1d): the unit parameter must be a duration value node,
+ * otherwise validateParam() rejects the call before timezone injection. */
+SFunctionNode* createTimeTruncateNode() {
+  const int8_t parameterTypes[] = {
+      TSDB_DATA_TYPE_TIMESTAMP,
+      TSDB_DATA_TYPE_BIGINT,
+  };
+  SFunctionNode* pFunc = createFunctionNode("timetruncate", parameterTypes, 2);
+  if (pFunc == nullptr) {
+    return nullptr;
+  }
+
+  SValueNode* pUnit = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+  pUnit->literal = taosStrdup("1d");
+  if (pUnit->literal == nullptr) {
+    nodesDestroyNode((SNode*)pFunc);
+    return nullptr;
+  }
+  pUnit->flag |= VALUE_FLAG_IS_DURATION;
+  pUnit->unit = 'd';
+  pUnit->translate = true;
+  pUnit->datum.i = 86400000;
+
+  return pFunc;
+}
+
+}  // namespace
 
 TEST(FunctionMgtTest, identifiesSqlWindowFunctions) {
   ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
@@ -70,4 +138,135 @@ TEST(FunctionMgtTest, rejectsUnexpectedArgumentsForZeroArgSqlWindowFunctions) {
   EXPECT_EQ(TSDB_CODE_FUNC_FUNTION_PARA_NUM, fmGetFuncInfo(pFunc, msg, sizeof(msg)));
 
   nodesDestroyNode((SNode*)pFunc);
+}
+
+TEST(FunctionMgtTest, injectsPosixTimezoneOffsetForToCharFallback) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+
+  const int8_t parameterTypes[] = {
+      TSDB_DATA_TYPE_TIMESTAMP,
+      TSDB_DATA_TYPE_BINARY,
+  };
+  struct {
+    const char* display;
+    const char* expected;
+  } testCases[] = {
+      {"System (UTC, +0800)", "-0800"},
+      {"System (UTC, -0500)", "+0500"},
+      {"System (UTC, +0000)", "-0000"},
+  };
+
+  for (const auto& testCase : testCases) {
+    SCOPED_TRACE(testCase.display);
+    ScopedTimezoneDisplay timezoneDisplay(testCase.display);
+    SFunctionNode*        pFunc = createFunctionNode("to_char", parameterTypes, 2);
+    ASSERT_NE(nullptr, pFunc);
+
+    char message[128] = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, fmGetFuncInfo(pFunc, message, sizeof(message)));
+    ASSERT_EQ(3, LIST_LENGTH(pFunc->pParameterList));
+
+    SValueNode* pTimezone = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    ASSERT_NE(nullptr, pTimezone);
+    EXPECT_STREQ(testCase.expected, pTimezone->literal);
+
+    nodesDestroyNode((SNode*)pFunc);
+  }
+}
+
+TEST(FunctionMgtTest, keepsIsoTimezoneOffsetForToIso8601Fallback) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+
+  const int8_t parameterTypes[] = {TSDB_DATA_TYPE_TIMESTAMP};
+  struct {
+    const char* display;
+    const char* expected;
+  } testCases[] = {
+      {"System (UTC, +0800)", "+0800"},
+      {"System (UTC, -0500)", "-0500"},
+      {"System (UTC, +0000)", "+0000"},
+  };
+
+  for (const auto& testCase : testCases) {
+    SCOPED_TRACE(testCase.display);
+    ScopedTimezoneDisplay timezoneDisplay(testCase.display);
+    SFunctionNode*        pFunc = createFunctionNode("to_iso8601", parameterTypes, 1);
+    ASSERT_NE(nullptr, pFunc);
+
+    char message[128] = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, fmGetFuncInfo(pFunc, message, sizeof(message)));
+    ASSERT_EQ(2, LIST_LENGTH(pFunc->pParameterList));
+
+    SValueNode* pTimezone = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+    ASSERT_NE(nullptr, pTimezone);
+    EXPECT_STREQ(testCase.expected, pTimezone->literal);
+
+    nodesDestroyNode((SNode*)pFunc);
+  }
+}
+
+TEST(FunctionMgtTest, injectsPosixTimezoneOffsetForTimetruncateFallback) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+
+  struct {
+    const char* display;
+    const char* expected;
+  } testCases[] = {
+      {"System (UTC, +0800)", "-0800"},
+      {"System (UTC, -0500)", "+0500"},
+      {"System (UTC, +0000)", "-0000"},
+  };
+
+  for (const auto& testCase : testCases) {
+    SCOPED_TRACE(testCase.display);
+    ScopedTimezoneDisplay timezoneDisplay(testCase.display);
+    SFunctionNode*        pFunc = createTimeTruncateNode();
+    ASSERT_NE(nullptr, pFunc);
+
+    char message[128] = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, fmGetFuncInfo(pFunc, message, sizeof(message)));
+    /* ts, unit, use_curr_tz, precision, tz_name, fdow, unitCh */
+    ASSERT_EQ(7, LIST_LENGTH(pFunc->pParameterList));
+
+    SValueNode* pTimezone = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 4);
+    ASSERT_NE(nullptr, pTimezone);
+    EXPECT_STREQ(testCase.expected, pTimezone->literal);
+
+    nodesDestroyNode((SNode*)pFunc);
+  }
+}
+
+/* No "(ABBR, ±HHMM)" suffix: offset extraction fails, so the leading token is
+ * injected verbatim and no sign flipping happens. */
+TEST(FunctionMgtTest, fallsBackToTimezoneNameWhenOffsetIsMissing) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+
+  const int8_t parameterTypes[] = {
+      TSDB_DATA_TYPE_TIMESTAMP,
+      TSDB_DATA_TYPE_BINARY,
+  };
+  struct {
+    const char* display;
+    const char* expected;
+  } testCases[] = {
+      {"Asia/Shanghai (CST)", "Asia/Shanghai"},
+      {"Asia/Shanghai", "Asia/Shanghai"},
+  };
+
+  for (const auto& testCase : testCases) {
+    SCOPED_TRACE(testCase.display);
+    ScopedTimezoneDisplay timezoneDisplay(testCase.display);
+    SFunctionNode*        pFunc = createFunctionNode("to_char", parameterTypes, 2);
+    ASSERT_NE(nullptr, pFunc);
+
+    char message[128] = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, fmGetFuncInfo(pFunc, message, sizeof(message)));
+    ASSERT_EQ(3, LIST_LENGTH(pFunc->pParameterList));
+
+    SValueNode* pTimezone = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    ASSERT_NE(nullptr, pTimezone);
+    EXPECT_STREQ(testCase.expected, pTimezone->literal);
+
+    nodesDestroyNode((SNode*)pFunc);
+  }
 }
