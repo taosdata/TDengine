@@ -10104,21 +10104,13 @@ static int32_t jsonToDropStableStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
-static const char* jkDropVirtualTableStmtDbName = "DbName";
-static const char* jkDropVirtualTableStmtTableName = "TableName";
-static const char* jkDropVirtualTableStmtIgnoreNotExists = "IgnoreNotExists";
+static const char* jkDropVirtualTableStmtTables = "Tables";
 static const char* jkDropVirtualTableStmtwithOpt = "withOpt";
 
 static int32_t dropVtableStmtToJson(const void* pObj, SJson* pJson) {
   const SDropVirtualTableStmt* pNode = (const SDropVirtualTableStmt*)pObj;
 
-  int32_t code = tjsonAddStringToObject(pJson, jkDropVirtualTableStmtDbName, pNode->dbName);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddStringToObject(pJson, jkDropVirtualTableStmtTableName, pNode->tableName);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddBoolToObject(pJson, jkDropVirtualTableStmtIgnoreNotExists, pNode->ignoreNotExists);
-  }
+  int32_t code = nodeListToJson(pJson, jkDropVirtualTableStmtTables, pNode->pTables);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkDropVirtualTableStmtwithOpt, pNode->withOpt);
   }
@@ -10129,12 +10121,9 @@ static int32_t dropVtableStmtToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToDropVtableStmt(const SJson* pJson, void* pObj) {
   SDropVirtualTableStmt* pNode = (SDropVirtualTableStmt*)pObj;
 
-  int32_t code = tjsonGetStringValue1(pJson, jkDropSuperTableStmtDbName, pNode->dbName, sizeof(pNode->dbName));
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetStringValue1(pJson, jkDropVirtualTableStmtTableName, pNode->tableName, sizeof(pNode->tableName));
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBoolValue(pJson, jkDropVirtualTableStmtIgnoreNotExists, &pNode->ignoreNotExists);
+  int32_t code = jsonToNodeList(pJson, jkDropVirtualTableStmtTables, &pNode->pTables);
+  if (TSDB_CODE_SUCCESS == code && NULL == pNode->pTables) {
+    code = TSDB_CODE_PAR_SYNTAX_ERROR;  // reject malformed stmt: at least one table is required
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkDropVirtualTableStmtwithOpt, &pNode->withOpt);
