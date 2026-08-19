@@ -337,7 +337,9 @@ static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISO
             memmove(buf + 3, buf, slen + 1);
             memcpy(buf, "UTC", 3);
           }
-        } else if (strncmp(buf, "UTC", 3) != 0 && strncmp(buf, "GMT", 3) != 0) {
+        } else if (!taosIsNamedTimezoneLiteral(buf)) {
+          /* buf has no '/' here (guarded by !isIANATimezoneName above), so
+           * this reduces to "neither UTC- nor GMT-prefixed". */
           char offsetBuf[8] = {0};
           if (extractUtcOffsetFromTzDisplay(tzName, offsetBuf, sizeof(offsetBuf))) {
             flipTimezoneOffsetSign(offsetBuf);
