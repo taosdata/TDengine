@@ -553,7 +553,7 @@ SHOW TAGS FROM child_table_name [FROM db_name];
 SHOW TAGS FROM [db_name.]child_table_name;
 ```
 
-显示子表的标签信息。对使用 tag-ref 的虚拟子表，结果为当前解析后的标签值。更完整字段见 [`INS_TAGS`](./01-meta.md#ins_tags)。
+显示子表的标签信息，也支持带标签的普通表和虚拟普通表。对使用 tag-ref 的虚拟子表或虚拟普通表，结果为当前解析后的标签值；普通表和虚拟普通表的自有标签显示本表的值。更完整字段见 [`INS_TAGS`](./01-meta.md#ins_tags)。
 
 ## SHOW TOKENS
 
