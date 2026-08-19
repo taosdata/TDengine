@@ -4422,6 +4422,7 @@ SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, 
   pStmt->dataType = dataType;
   return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
 _err:
+  nodesDestroyNode((SNode*)pStmt);
   nodesDestroyNode(pRealTable);
   return NULL;
 }
@@ -4446,6 +4447,7 @@ SNode* createAlterTableAddTagRef(SAstCreateContext* pCxt, SNode* pRealTable, int
   nodesDestroyNode(pRef);
   return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
 _err:
+  nodesDestroyNode((SNode*)pStmt);
   nodesDestroyNode(pRealTable);
   nodesDestroyNode(pRef);
   return NULL;
