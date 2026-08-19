@@ -214,8 +214,9 @@ class Configure:
             for model_name, model_cfg in models.items():
                 port = model_cfg.get("port")
                 endpoint = model_cfg.get("endpoint", "/ds_predict")
+                ip = model_cfg.get("ip", "127.0.0.1")
                 if port:
                     # Use algo_name as config key if specified (for SQL-visible names
                     # like tdtsfm_1, timemoe-fc), otherwise use the model key.
                     conf_key = model_cfg.get("algo_name", model_name)
-                    self._conf[conf_key] = f"http://127.0.0.1:{port}{endpoint}"
+                    self._conf[conf_key] = f"http://{ip}:{port}{endpoint}"

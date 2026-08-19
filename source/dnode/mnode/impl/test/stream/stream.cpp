@@ -20,6 +20,7 @@
 #include <cstring>
 #include <iostream>
 #include <limits>
+#include <string>
 #include <thread>
 #include "nodes.h"
 #include "planner.h"
@@ -39,12 +40,119 @@
 
 extern "C" int32_t msmBuildTriggerDeployInfo(SMnode *pMnode, SStmStatus *pInfo, SStmTaskDeploy *pDeploy,
                                              SStreamObj *pStream);
+extern "C" void    msmStopStreamByError(int64_t streamId, SStmStatus *pStatus, int32_t errCode, int64_t currTs);
 extern "C" int32_t msmNormalHandleHbMsg(SStmGrpCtx *pCtx);
 extern "C" int32_t msmNormalHandleStatusUpdate(SStmGrpCtx *pCtx);
 extern "C" int32_t mstSetStreamTaskResBlock(SStreamObj *pStream, SStmTaskStatus *pTask, SSDataBlock *pBlock,
                                             int32_t numOfRows);
+extern "C" void    monReportStreamFailure(int64_t ts, int64_t streamId, const char *streamName, int32_t errorCode);
 
 namespace {
+
+struct CapturedStreamFailure {
+  int32_t     calls = 0;
+  int64_t     ts = 0;
+  int64_t     streamId = 0;
+  std::string streamName;
+  int32_t     errorCode = 0;
+};
+
+CapturedStreamFailure gCapturedStreamFailure;
+
+void captureStreamFailure(int64_t ts, int64_t streamId, const char *streamName, int32_t errorCode) {
+  ++gCapturedStreamFailure.calls;
+  gCapturedStreamFailure.ts = ts;
+  gCapturedStreamFailure.streamId = streamId;
+  gCapturedStreamFailure.streamName = streamName;
+  gCapturedStreamFailure.errorCode = errorCode;
+}
+
+class StreamFailureStubGuard {
+ public:
+  StreamFailureStubGuard() {
+    gCapturedStreamFailure = {};
+    stub_.set(monReportStreamFailure, captureStreamFailure);
+  }
+
+  ~StreamFailureStubGuard() { stub_.reset(monReportStreamFailure); }
+
+ private:
+  Stub stub_;
+};
+
+int8_t *gExpectedStopped = nullptr;
+int32_t gStoppedCompareExchangeCalls = 0;
+
+int8_t failStoppedCompareExchange(int8_t volatile *ptr, int8_t oldval, int8_t newval) {
+  if (ptr == gExpectedStopped) {
+    ++gStoppedCompareExchangeCalls;
+    return 1;
+  }
+  return oldval;
+}
+
+class StoppedCompareExchangeFailureGuard {
+ public:
+  explicit StoppedCompareExchangeFailureGuard(int8_t *stopped) {
+    gExpectedStopped = stopped;
+    gStoppedCompareExchangeCalls = 0;
+    stub_.set(atomic_val_compare_exchange_8, failStoppedCompareExchange);
+  }
+
+  ~StoppedCompareExchangeFailureGuard() {
+    stub_.reset(atomic_val_compare_exchange_8);
+    gExpectedStopped = nullptr;
+  }
+
+ private:
+  Stub stub_;
+};
+
+TEST(MndStreamFailureReportTest, ReportsOnceUntilRedeployResetsStoppedState) {
+  constexpr int64_t kStreamId = 0x1234;
+  constexpr int64_t kFirstTs = 1787068800123;
+  constexpr int64_t kSecondTs = 1787068810123;
+  char              streamName[] = "1.db.stream_a";
+  SStmStatus        status = {};
+  status.streamName = streamName;
+
+  StreamFailureStubGuard guard;
+
+  msmStopStreamByError(kStreamId, &status, TSDB_CODE_MND_STREAM_TASK_LOST, kFirstTs);
+  EXPECT_EQ(atomic_load_8(&status.stopped), 1);
+  EXPECT_EQ(gCapturedStreamFailure.calls, 1);
+  EXPECT_EQ(gCapturedStreamFailure.ts, kFirstTs);
+  EXPECT_EQ(gCapturedStreamFailure.streamId, kStreamId);
+  EXPECT_EQ(gCapturedStreamFailure.streamName, streamName);
+  EXPECT_EQ(gCapturedStreamFailure.errorCode, TSDB_CODE_MND_STREAM_TASK_LOST);
+
+  msmStopStreamByError(kStreamId, &status, TSDB_CODE_MND_STREAM_VGROUP_LOST, kFirstTs + 1);
+  EXPECT_EQ(gCapturedStreamFailure.calls, 1);
+  EXPECT_EQ(gCapturedStreamFailure.errorCode, TSDB_CODE_MND_STREAM_TASK_LOST);
+
+  atomic_store_8(&status.stopped, 0);
+  msmStopStreamByError(kStreamId, &status, TSDB_CODE_MND_STREAM_VGROUP_LOST, kSecondTs);
+  EXPECT_EQ(gCapturedStreamFailure.calls, 2);
+  EXPECT_EQ(gCapturedStreamFailure.ts, kSecondTs);
+  EXPECT_EQ(gCapturedStreamFailure.errorCode, TSDB_CODE_MND_STREAM_VGROUP_LOST);
+}
+
+TEST(MndStreamFailureReportTest, DoesNotReportWhenStoppedCompareExchangeFails) {
+  constexpr int64_t kStreamId = 0x5678;
+  char              streamName[] = "1.db.stream_cas_failure";
+  SStmStatus        status = {};
+  status.streamName = streamName;
+
+  EXPECT_EQ(atomic_load_8(&status.stopped), 0);
+  StreamFailureStubGuard             reportGuard;
+  StoppedCompareExchangeFailureGuard compareExchangeGuard(&status.stopped);
+
+  msmStopStreamByError(kStreamId, &status, TSDB_CODE_MND_STREAM_TASK_LOST, 1787068820123);
+
+  EXPECT_EQ(gStoppedCompareExchangeCalls, 1);
+  EXPECT_EQ(atomic_load_8(&status.stopped), 0);
+  EXPECT_EQ(gCapturedStreamFailure.calls, 0);
+}
 
 STrans *createTestTrans() {
   STrans *pTrans = (STrans *)taosMemoryCalloc(1, sizeof(STrans));

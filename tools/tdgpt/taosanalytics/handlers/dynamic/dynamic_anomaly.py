@@ -7,7 +7,6 @@ from taosanalytics.algo.dynamic.detector import (
 from taosanalytics.base import AbstractAnomalyDetectionService
 from taosanalytics.log import AppLogger
 
-_SUPPORTED_ALGOS = {"iforest", "svm"}
 _DETECTOR_CLASSES = {
     "iforest": IsolationForestModelDetector,
     "svm": SVMModelDetector,
@@ -38,14 +37,11 @@ class DynamicAnomalyService(AbstractAnomalyDetectionService):
             "execute dynamic anomaly service:%s, algo:%s", self.name, algo_name
         )
 
-        if algo_name not in _SUPPORTED_ALGOS:
+        detector_class = _DETECTOR_CLASSES.get(algo_name)
+        if detector_class is None:
             raise ValueError(
                 f"unsupported algorithm '{algo_name}' in dynamic anomaly service"
             )
-
-        detector_class = _DETECTOR_CLASSES.get(algo_name)
-        if detector_class is None:
-            raise ValueError(f"no detector class found for algorithm '{algo_name}'")
 
         detector = detector_class(
             path=self.config_file_path,
