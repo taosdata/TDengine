@@ -4412,9 +4412,9 @@ _err:
 
 SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
                                     SDataType dataType) {
+  SAlterTableStmt* pStmt = NULL;  // declared before the CHECK macros so the _err path is always NULL-safe
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkColumnName(pCxt, pColName));
-  SAlterTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->alterType = alterType;
@@ -4430,9 +4430,9 @@ _err:
 // ADD TAG name TYPE FROM db.tb.tag — add a tag reference to a virtual normal table.
 SNode* createAlterTableAddTagRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
                                  SDataType dataType, SNode* pRef) {
+  SAlterTableStmt* pStmt = NULL;  // declared before the CHECK macros so the _err path is always NULL-safe
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkColumnName(pCxt, pColName));
-  SAlterTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->alterType = alterType;
