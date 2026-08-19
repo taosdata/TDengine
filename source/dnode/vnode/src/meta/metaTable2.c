@@ -1902,6 +1902,13 @@ int32_t metaAddTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STabl
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(TSDB_CODE_PAR_INVALID_TAGS_LENGTH);
   }
+  // validate the column-id budget up front, before mutating the schema
+  if (pEntry->ntbEntry.ncid > INT16_MAX) {
+    metaError("vgId:%d, %s failed at %s:%d since column id %d exceeds max column id %d, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pEntry->ntbEntry.ncid, INT16_MAX, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_EXCEED_MAX_COL_ID);
+  }
 
   // append the new tag to schemaTag
   SSchema *pNewSchema = taosMemoryRealloc(pTagSchema->pSchema, sizeof(SSchema) * (pTagSchema->nCols + 1));
@@ -1916,12 +1923,6 @@ int32_t metaAddTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STabl
   pNewTag->bytes = pReq->bytes;
   pNewTag->type = pReq->type;
   pNewTag->flags = pReq->flags;
-  if (pEntry->ntbEntry.ncid > INT16_MAX) {
-    metaError("vgId:%d, %s failed at %s:%d since column id %d exceeds max column id %d, version:%" PRId64,
-              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pEntry->ntbEntry.ncid, INT16_MAX, version);
-    metaFetchEntryFree(&pEntry);
-    TAOS_RETURN(TSDB_CODE_VND_EXCEED_MAX_COL_ID);
-  }
   pNewTag->colId = pEntry->ntbEntry.ncid++;
   tstrncpy(pNewTag->name, pReq->colName, TSDB_COL_NAME_LEN);
 
