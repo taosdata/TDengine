@@ -2576,6 +2576,9 @@ class TestVtableNormalTags:
             tdSql.connect(user="root", password="taosdata")
             tdSql.execute(f"GRANT READ ON {DB} TO {USER};")
             tdSql.connect(user=USER, password='Taosdata_123')
+            # flush the client catalog cache so the just-changed privileges are re-fetched
+            # (a stale cached auth would make the allow/deny assertions below unreliable)
+            tdSql.execute("reset query cache")
             tdSql.execute(f"USE {DB_PRIV};")
             tdSql.execute("CREATE VTABLE vctb_auth (ts TIMESTAMP, val INT FROM td_vntb_tags.src0.val) "
                           "TAGS (r INT FROM td_vntb_tags.src0.code);")
@@ -2584,6 +2587,7 @@ class TestVtableNormalTags:
             tdSql.connect(user="root", password="taosdata")
             tdSql.execute(f"REVOKE READ ON {DB} FROM {USER};")
             tdSql.connect(user=USER, password='Taosdata_123')
+            tdSql.execute("reset query cache")
             tdSql.execute(f"USE {DB_PRIV};")
             tdSql.error(f"ALTER TABLE vctb_auth ADD TAG r2 INT FROM {DB}.src1.code;")
             # SET TAG x = db.tb.tag (assigning a tag-ref to an existing tag) is gated the same way
@@ -2593,6 +2597,7 @@ class TestVtableNormalTags:
             tdSql.connect(user="root", password="taosdata")
             tdSql.execute(f"GRANT READ ON {DB} TO {USER};")
             tdSql.connect(user=USER, password='Taosdata_123')
+            tdSql.execute("reset query cache")
             tdSql.execute(f"USE {DB_PRIV};")
             tdSql.execute(f"ALTER TABLE vctb_auth ADD TAG r2 INT FROM {DB}.src1.code;")
             tdSql.execute(f"ALTER TABLE vctb_auth SET TAG r = {DB}.src1.code;")
@@ -2601,6 +2606,7 @@ class TestVtableNormalTags:
             tdSql.connect(user="root", password="taosdata")
             tdSql.execute(f"REVOKE READ ON {DB} FROM {USER};")
             tdSql.connect(user=USER, password='Taosdata_123')
+            tdSql.execute("reset query cache")
             tdSql.execute(f"USE {DB_PRIV};")
             tdSql.error(f"ALTER TABLE vctb_auth SET TAG r2 = {DB}.src1.code;")
             tdSql.execute("DROP TABLE vctb_auth;")
