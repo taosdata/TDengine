@@ -1563,12 +1563,25 @@ static int32_t downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstre
   return TSDB_CODE_SUCCESS;
 }
 
+// NOTE: every field of SSelectStmt is copied by hand below, and a field
+// added to SSelectStmt MUST be added here as well. The destination node
+// comes from calloc, so a field left out does not keep its initial value,
+// it becomes zero - and the parser sets several fields to something else
+// than zero (lastProcessByRowFuncId to -1, onlyHasKeepOrderFunc to true,
+// timeRange to TSWINDOW_INITIALIZER, ...). Forgetting one is silent: the
+// compiler accepts it and it surfaces far away as a statement that runs
+// fine on its own but misbehaves once it reaches translate through a
+// clone, which is what view expansion (clientView.c) and prepared
+// statement bind (qStmtBindParams) do. Fields translate derives are zero
+// at parse time, so copying them is harmless and keeps this list complete.
+// See NodesCloneTest.selectStmtKeeps* for the regression tests.
 static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_SCALAR_FIELD(subQType);
   COPY_SCALAR_FIELD(quantify);
   COPY_SCALAR_FIELD(isDistinct);
   CLONE_NODE_LIST_FIELD(pProjectionList);
+  CLONE_NODE_LIST_FIELD(pProjectionBindList);
   CLONE_NODE_FIELD(pFromTable);
   CLONE_NODE_FIELD(pWhere);
   CLONE_NODE_LIST_FIELD(pPartitionByList);
@@ -1576,16 +1589,29 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   CLONE_NODE_LIST_FIELD(pWindowList);
   CLONE_NODE_LIST_FIELD(pGroupByList);
   CLONE_NODE_FIELD(pHaving);
+  CLONE_NODE_FIELD(pRange);
+  CLONE_NODE_FIELD(pRangeAround);
+  CLONE_NODE_FIELD(pEvery);
+  CLONE_NODE_FIELD(pFill);
   CLONE_NODE_LIST_FIELD(pOrderByList);
   CLONE_NODE_FIELD_EX(pLimit, SLimitNode*);
   CLONE_NODE_FIELD_EX(pSlimit, SLimitNode*);
   COPY_CHAR_ARRAY_FIELD(stmtName);
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(isSubquery);
+  COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  CLONE_NODE_FIELD(pTimeRange);
+  CLONE_NODE_LIST_FIELD(pSubQueries);
+  COPY_SCALAR_FIELD(selectFuncNum);
+  COPY_SCALAR_FIELD(returnRows);
+  COPY_SCALAR_FIELD(multiRowsFuncKParam);
+  COPY_SCALAR_FIELD(hasNonLocalSubQ);
+  COPY_SCALAR_FIELD(hasGenericAnalysisFunc);
   COPY_SCALAR_FIELD(isEmptyResult);
   COPY_SCALAR_FIELD(timeLineResMode);
   COPY_SCALAR_FIELD(timeLineFromOrderBy);
   COPY_SCALAR_FIELD(timeLineCurMode);
+  COPY_SCALAR_FIELD(lastProcessByRowFuncId);
   COPY_SCALAR_FIELD(windowMode);
   COPY_SCALAR_FIELD(hasAggFuncs);
   COPY_SCALAR_FIELD(hasRepeatScanFuncs);
