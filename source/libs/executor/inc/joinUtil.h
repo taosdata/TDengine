@@ -93,8 +93,7 @@ static inline int32_t joinResolveTruncateTimezone(SValueNode* pCurrTz, SValueNod
     return TSDB_CODE_SUCCESS;
   }
 
-  if (strchr(tzStr, '/') != NULL || strncmp(tzStr, "UTC", 3) == 0 ||
-      strncmp(tzStr, "GMT", 3) == 0) {
+  if (taosIsNamedTimezoneLiteral(tzStr)) {
     timezone_t tz = NULL;
     if (taosValidateTimezone(tzStr, &tz) == TSDB_CODE_SUCCESS) {
       *pTz = tz;

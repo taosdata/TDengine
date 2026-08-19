@@ -241,10 +241,73 @@ static bool normalizeOffsetTzCommon(const char *val, char *buf, int32_t bufLen) 
   return true;
 }
 
+// Normalize an unsigned POSIX UTC offset, such as UTC0 or UTC8:30, to the
+// signed form already accepted by all platform backends.
+static bool normalizeUnsignedUtcOffset(const char *val, char *buf,
+                                       int32_t bufLen) {
+  if (val == NULL || strncasecmp(val, "UTC", 3) != 0) {
+    return false;
+  }
+
+  const char *p = val + 3;
+  int32_t     hours = 0;
+  int32_t     digits = 0;
+  while (*p >= '0' && *p <= '9' && digits < 2) {
+    hours = hours * 10 + (*p - '0');
+    p++;
+    digits++;
+  }
+  if (digits == 0 || (*p >= '0' && *p <= '9')) {
+    return false;
+  }
+
+  int32_t minutes = 0;
+  if (*p == ':') {
+    p++;
+    if (p[0] < '0' || p[0] > '9' || p[1] < '0' || p[1] > '9' ||
+        p[2] != '\0') {
+      return false;
+    }
+    minutes = (p[0] - '0') * 10 + (p[1] - '0');
+  } else if (*p != '\0') {
+    return false;
+  }
+
+  if (hours > 14 || minutes > 59 || (hours == 14 && minutes != 0)) {
+    return false;
+  }
+
+  int32_t written;
+  if (minutes == 0) {
+    written = snprintf(buf, bufLen, "UTC+%d", hours);
+  } else {
+    written = snprintf(buf, bufLen, "UTC+%d:%02d", hours, minutes);
+  }
+  return written >= 0 && written < bufLen;
+}
+
+// Rewrite the leading "UTC" of a UTC-prefixed literal in uppercase, keeping
+// the offset suffix untouched, so tzalloc() and the normalized config value
+// never carry a lowercase abbreviation.
+static void canonicalizeUtcPrefix(const char *val, char *buf, int32_t bufLen) {
+  (void)snprintf(buf, bufLen, "UTC%s", val + 3);
+}
+
+bool taosIsNamedTimezoneLiteral(const char *tzStr) {
+  return tzStr != NULL && (strchr(tzStr, '/') != NULL ||
+                           strncasecmp(tzStr, "UTC", 3) == 0 ||
+                           strncasecmp(tzStr, "GMT", 3) == 0);
+}
+
 int32_t taosValidateTimezone(const char *tzStr, timezone_t *pTz) {
   if (tzStr == NULL || tzStr[0] == '\0') {
     TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
   }
+
+  char posixBuf[TD_TIMEZONE_LEN] = {0};
+  bool isUnsignedUtc =
+      normalizeUnsignedUtcOffset(tzStr, posixBuf, sizeof(posixBuf));
+  bool isUtcOnly = strcasecmp(tzStr, "UTC") == 0;
 
   /* Reject ambiguous abbreviations: 2-6 uppercase letters, no slash, not UTC */
   {
@@ -258,12 +321,14 @@ int32_t taosValidateTimezone(const char *tzStr, timezone_t *pTz) {
       p++;
       len++;
     }
-    if (allUpper && len >= 2 && strcmp(tzStr, "UTC") != 0) {
+    if (allUpper && len >= 2 && !isUtcOnly) {
       TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
     }
     if (!hasSlash && tzStr[0] != '+' && tzStr[0] != '-'
-        && strcmp(tzStr, "UTC") != 0
-        && strncmp(tzStr, "UTC+", 4) != 0 && strncmp(tzStr, "UTC-", 4) != 0
+        && !isUtcOnly
+        && strncasecmp(tzStr, "UTC+", 4) != 0
+        && strncasecmp(tzStr, "UTC-", 4) != 0
+        && !isUnsignedUtc
         && !(tzStr[0] == 'Z' && tzStr[1] == '\0')
         && !(tzStr[0] == 'z' && tzStr[1] == '\0')) {
       TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
@@ -271,17 +336,20 @@ int32_t taosValidateTimezone(const char *tzStr, timezone_t *pTz) {
   }
 
   /* Normalize fixed-offset for tzalloc */
-  char        posixBuf[TD_TIMEZONE_LEN] = {0};
   const char *tzName = tzStr;
-  if (tzStr[0] == '+' || tzStr[0] == '-') {
+  if (isUtcOnly) {
+    // Canonicalize the case so tzalloc() always sees "UTC".
+    tzName = "UTC";
+  } else if (tzStr[0] == '+' || tzStr[0] == '-') {
     if (!normalizeOffsetTzCommon(tzStr, posixBuf, sizeof(posixBuf))) {
       TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
     }
     tzName = posixBuf;
-  } else if (strncmp(tzStr, "UTC+", 4) == 0 || strncmp(tzStr, "UTC-", 4) == 0) {
+  } else if (strncasecmp(tzStr, "UTC+", 4) == 0 ||
+             strncasecmp(tzStr, "UTC-", 4) == 0) {
     /*
      * All UTC± formats use POSIX sign convention (+ = west, - = east).
-     *  - "UTC+8", "UTC-10"  → short form, pass directly to tzalloc.
+     *  - "UTC+8", "UTC-10"  → short form, only the prefix case is normalized.
      *  - "UTC+08:00", "UTC+0530" → long form, strip "UTC" prefix
      *    and convert to angle-bracket format (sign preserved).
      */
@@ -304,8 +372,13 @@ int32_t taosValidateTimezone(const char *tzStr, timezone_t *pTz) {
         TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
       }
       tzName = posixBuf;
+    } else {
+      // Pure POSIX "UTC+8" / "UTC-10": the offset is already canonical.
+      canonicalizeUtcPrefix(tzStr, posixBuf, sizeof(posixBuf));
+      tzName = posixBuf;
     }
-    /* else: pure POSIX "UTC+8" / "UTC-10", keep tzName = tzStr */
+  } else if (isUnsignedUtc) {
+    tzName = posixBuf;
   } else if (normalizeOffsetTzCommon(tzStr, posixBuf, sizeof(posixBuf))) {
     tzName = posixBuf;
   }
@@ -387,6 +460,11 @@ int32_t taosValidateAndNormalizeTimezone(const char *tzStr,
     goto validate;
   }
 
+  // Unsigned POSIX form: UTC0, UTC8, UTC8:30.
+  if (normalizeUnsignedUtcOffset(tzStr, normBuf, normBufLen)) {
+    goto validate;
+  }
+
   /* UTC± prefix: all formats use POSIX sign convention (+ = west, - = east) */
   if (strncasecmp(tzStr, "UTC", 3) == 0 && (tzStr[3] == '+' || tzStr[3] == '-')) {
     const char *off = tzStr + 4;
@@ -410,8 +488,8 @@ int32_t taosValidateAndNormalizeTimezone(const char *tzStr,
         TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
       }
     } else {
-      /* Short form: UTC-8, UTC+10 — keep as-is */
-      tstrncpy(normBuf, tzStr, normBufLen);
+      /* Short form: UTC-8, UTC+10 — keep the offset, canonicalize the case */
+      canonicalizeUtcPrefix(tzStr, normBuf, normBufLen);
     }
     goto validate;
   }
