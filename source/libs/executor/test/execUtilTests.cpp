@@ -563,3 +563,58 @@ TEST(execUtilTest, externalWindowReusableBlockRejectsEmptyFreeListAsInternalErro
   tdListFree(pFreeBlocks);
   tdListFree(pTargetBlocks);
 }
+
+static void checkExternalWindowOutputAliasLifecycle(bool reset) {
+  SList *pFreeBlocks = tdListNew(POINTER_BYTES * 2);
+  SList *pOutputBlocks = tdListNew(POINTER_BYTES * 2);
+  ASSERT_NE(pFreeBlocks, nullptr);
+  ASSERT_NE(pOutputBlocks, nullptr);
+
+  SSDataBlock *pBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+  SArray *pIdx = taosArrayInit(1, sizeof(int64_t));
+  ASSERT_NE(pIdx, nullptr);
+
+  void *outputBlock[2] = {pBlock, pIdx};
+  ASSERT_EQ(tdListAppend(pOutputBlocks, outputBlock), TSDB_CODE_SUCCESS);
+
+  bool aliasEstablished = false;
+  bool aliasCleared = false;
+  EXPECT_EQ(extWinTestOutputAliasLifecycle(pOutputBlocks, pFreeBlocks, reset, &aliasEstablished, &aliasCleared),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(aliasEstablished);
+  EXPECT_TRUE(aliasCleared);
+  EXPECT_EQ(listNEles(pOutputBlocks), 0);
+  EXPECT_EQ(listNEles(pFreeBlocks), 1);
+
+  SListNode *pNode = tdListPopHead(pFreeBlocks);
+  ASSERT_NE(pNode, nullptr);
+  blockDataDestroy(*(SSDataBlock **)pNode->data);
+  taosArrayDestroy(*(SArray **)((SSDataBlock **)pNode->data + 1));
+  taosMemoryFree(pNode);
+
+  tdListFree(pOutputBlocks);
+  tdListFree(pFreeBlocks);
+}
+
+TEST(execUtilTest, externalWindowNextClearsBorrowedIndexBeforeRecycle) {
+  checkExternalWindowOutputAliasLifecycle(false);
+}
+
+TEST(execUtilTest, externalWindowResetClearsBorrowedIndexBeforeRecycle) {
+  checkExternalWindowOutputAliasLifecycle(true);
+}
+
+TEST(execUtilTest, externalWindowLastClosedRejectsMissingIndexArray) {
+  SList *pOutputBlocks = tdListNew(POINTER_BYTES * 2);
+  ASSERT_NE(pOutputBlocks, nullptr);
+
+  void *outputBlock[2] = {nullptr, nullptr};
+  ASSERT_EQ(tdListAppend(pOutputBlocks, outputBlock), TSDB_CODE_SUCCESS);
+
+  bool closed = true;
+  EXPECT_EQ(extWinTestLastWinClosed(pOutputBlocks, &closed), TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  EXPECT_FALSE(closed);
+
+  tdListFree(pOutputBlocks);
+}
