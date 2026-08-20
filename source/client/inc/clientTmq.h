@@ -137,6 +137,7 @@ struct tmq_t {
   int8_t  pollFlag;
 
   // timer
+  int64_t     lastHbReportTimeMs;
   tmr_h       hbLiveTimer;
   tmr_h       epTimer;
   tmr_h       commitTimer;
@@ -368,6 +369,7 @@ void            tmqFreeRspWrapper(SMqRspWrapper* rspWrapper);
 void            tmqFreeImpl(void* handle);
 void            tmqClearUnhandleMsg(tmq_t* tmq);
 void            tmqMgmtInit(void);
+bool            tmqTryClaimSupplementalHb(tmq_t* tmq, int64_t now);
 int32_t         checkWalRange(SVgOffsetInfo* offset, int64_t value);
 bool            isInSnapshotMode(int8_t type, bool useSnapshot);
 
