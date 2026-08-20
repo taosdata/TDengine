@@ -16907,6 +16907,15 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
     TAOS_CHECK_EXIT(tEncodeSSeriesWrapper(pCoder, &pReq->series));
     TAOS_CHECK_EXIT(tEncodeSColRefWrapperTail(pCoder, &pReq->colRef));
   }
+  // owned tag schema/values: trailing field so old peers can still decode the prefix (they stop at
+  // tDecodeIsEnd before this point); ntb.schemaTag.nCols==0 for tag-less tables (encoded as an
+  // empty wrapper, matching the decode side).
+  if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
+    TAOS_CHECK_EXIT(tEncodeSSchemaWrapper(pCoder, &pReq->ntb.schemaTag));
+    if (pReq->ntb.schemaTag.nCols > 0) {
+      TAOS_CHECK_EXIT(tEncodeTag(pCoder, (const STag *)pReq->ntb.pTags));
+    }
+  }
 
   tEndEncode(pCoder);
 _exit:
@@ -16956,6 +16965,10 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     }
   } else if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     TAOS_CHECK_EXIT(tDecodeSSchemaWrapper(pCoder, &pReq->ntb.schemaRow));
+    // NOTE: owned-tag schema (ntb.schemaTag) is NOT read here. On the encode side the ntb branch
+    // only writes schemaRow; schemaTag is written as a trailing field near tEndEncode (gated by
+    // tDecodeIsEnd on decode). Reading schemaTag at this position consumed sqlLen's bytes, advanced
+    // pos by 2, and misaligned every subsequent field -> TSDB_CODE_OUT_OF_RANGE (0x80000112).
   } else {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
@@ -17016,6 +17029,24 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
       TAOS_CHECK_EXIT(tDecodeSColRefWrapperTail(pCoder, &pReq->colRef));
     }
   }
+  // owned tag schema/values: trailing field gated by tDecodeIsEnd, so messages from peers built
+  // before this field existed still decode (ntb.schemaTag stays zeroed -> tag-less).
+  // NOTE: use the non-Ex tDecodeSSchemaWrapper (taosMemoryCalloc) here, NOT the Ex variant
+  // (tDecoderMalloc). The Ex pointer is owned by the decode buffer and must not be freed, but
+  // tdDestroySVCreateTbReq() unconditionally calls taosMemoryFreeClear(ntb.schemaTag.pSchema) on
+  // every path that owns the SVCreateTbReq (e.g. the auto-create pCreateTbReq carried in submit).
+  // Using calloc keeps pSchema free-able and avoids free()-of-buffer-pointer crashes.
+  if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
+    if (!tDecodeIsEnd(pCoder)) {
+      TAOS_CHECK_EXIT(tDecodeSSchemaWrapper(pCoder, &pReq->ntb.schemaTag));
+      if (pReq->ntb.schemaTag.nCols > 0) {
+        // use the Alloc variant (taosMemoryMalloc) like ctb.pTag does, so tdDestroySVCreateTbReq's
+        // taosMemoryFreeClear(ntb.pTags) is valid. tDecodeTag/tDecodeBinary returns a pointer into
+        // the decode buffer (tDecoderMalloc) which must NOT be freed.
+        TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(pCoder, (void **)&pReq->ntb.pTags, NULL));
+      }
+    }
+  }
 
   tEndDecode(pCoder);
 _exit:
@@ -17040,6 +17071,8 @@ void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
     req->ctb.tagName = NULL;
   } else if (req->type == TSDB_NORMAL_TABLE || req->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
+    taosMemoryFreeClear(req->ntb.schemaTag.pSchema);
+    taosMemoryFreeClear(req->ntb.pTags);
   }
   taosMemoryFreeClear(req->colCmpr.pColCmpr);
   taosMemoryFreeClear(req->pExtSchemas);
@@ -17478,6 +17511,24 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
     case TSDB_ALTER_TABLE_REMOVE_SERIES:
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->seriesAlias));
       break;
+    case TSDB_ALTER_TABLE_ADD_TAG:
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->type));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->flags));
+      TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pReq->bytes));
+      break;
+    case TSDB_ALTER_TABLE_DROP_TAG:
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
+      break;
+    case TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF:
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->type));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->flags));
+      TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pReq->bytes));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->refDbName));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->refTbName));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->refColName));
+      break;
     default:
       break;
   }
@@ -17793,6 +17844,24 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       break;
     case TSDB_ALTER_TABLE_REMOVE_SERIES:
       TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pReq->seriesAlias));
+      break;
+    case TSDB_ALTER_TABLE_ADD_TAG:
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->type));
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->flags));
+      TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pReq->bytes));
+      break;
+    case TSDB_ALTER_TABLE_DROP_TAG:
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
+      break;
+    case TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF:
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->type));
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->flags));
+      TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pReq->bytes));
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refDbName));
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refTbName));
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refColName));
       break;
     default:
       break;

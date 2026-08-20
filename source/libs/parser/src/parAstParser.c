@@ -620,8 +620,23 @@ static int32_t collectMetaKeyFromCreateTable(SCollectMetaKeyCxt* pCxt, SCreateTa
     reserveExtSourceInCache(pStmt->dbName, pCxt->pMetaCache);
   }
 #endif
+  // CREATE TABLE with TAGS goes down the vnode normal-table path when every tag carries an
+  // inline `= literal` value (valueless TAGS keeps the mnode super-table path) — mirror the
+  // rewrite gate in parTranslater.c so the table vgroup is pre-fetched for the normal-table
+  // path; otherwise the async meta cache misses and translate yields PAR_INTERNAL_ERROR.
+  // CREATE STABLE never takes the normal-table path, whatever the tag values are.
+  bool vnodePath = !pStmt->stableKeyword;
+  if (vnodePath && pStmt->pTags != NULL) {
+    SNode* pTag = NULL;
+    FOREACH(pTag, pStmt->pTags) {
+      if (((SColumnDefNode*)pTag)->pTagVal == NULL) {
+        vnodePath = false;
+        break;
+      }
+    }
+  }
   int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
-  if (TSDB_CODE_SUCCESS == code && NULL == pStmt->pTags) {
+  if (TSDB_CODE_SUCCESS == code && vnodePath) {
     code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -703,6 +718,40 @@ static int32_t collectMetaKeyFromCreateVTable(SCollectMetaKeyCxt* pCxt, SCreateV
   }
   // Reserve ext source/table metadata for each SERIES declaration
   PAR_ERR_RET(collectMetaKeyFromSeriesList(pCxt, pStmt->pSeriesList));
+  // tag-ref source tables must be pre-fetched too (symmetric with column refs above):
+  // TAGS(name TYPE FROM src.tag) references a source child table whose meta is read in the
+  // translate phase via getTableMetaFromCache. Without pre-fetch, a tag-ref whose source differs
+  // from any column-ref source misses the async meta cache and yields PAR_INTERNAL_ERROR.
+  if (TSDB_CODE_SUCCESS == code && pStmt->pTags != NULL) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, pStmt->pTags) {
+      SColumnDefNode* pTag = (SColumnDefNode*)pNode;
+      if (NULL == pTag) {
+        code = TSDB_CODE_PAR_INVALID_COLUMN;
+        break;
+      }
+      SColumnOptions* pTagOptions = (SColumnOptions*)pTag->pOptions;
+      if (pTagOptions && pTagOptions->hasRef) {
+        code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pTagOptions->refDb, pTagOptions->refTable,
+                                       pCxt->pMetaCache);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = reserveVStbRefDbsInCache(pCxt->pParseCxt->acctId, pTagOptions->refDb, pTagOptions->refTable,
+                                          pCxt->pMetaCache);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pTagOptions->refDb, pTagOptions->refTable,
+                                           pCxt->pMetaCache);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pTagOptions->refDb,
+                                        pTagOptions->refTable, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache);
+        }
+        if (TSDB_CODE_SUCCESS != code) {
+          break;
+        }
+      }
+    }
+  }
   return code;
 }
 
@@ -1042,8 +1091,20 @@ static int32_t collectMetaKeyFromAlterTable(SCollectMetaKeyCxt* pCxt, SAlterTabl
   if (TSDB_CODE_SUCCESS == code &&
       (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
        pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
-       pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF)) {
+       pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF ||
+       pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF)) {
     code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->refDbName, pStmt->refTableName, pCxt->pMetaCache);
+    // The auth phase (authAlterTable) also requires USE on the source db and SELECT on the
+    // source table for reference alters; pre-fetch both like collectMetaKeyFromAlterVtable
+    // does, otherwise the cached-auth check always fails for non-root users.
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->refDbName, NULL,
+                                    PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->refDbName,
+                                    pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache);
+    }
   }
 #ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code && tsFederatedQueryEnable && pStmt->dbName[0] != '\0') {
@@ -1113,13 +1174,15 @@ static int32_t collectMetaKeyFromAlterVtable(SCollectMetaKeyCxt* pCxt, SAlterTab
 
   if (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
       pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
-      pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF) {
+      pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF ||
+      pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF) {
     if (pStmt->refType == 1) {
       // External reference: pre-fetch ext source info and ext table meta
       PAR_ERR_RET(reserveExtSourceInCache(pStmt->refSourceName, pCxt->pMetaCache));
       PAR_ERR_RET(reserveExtTableMetaInCache(pStmt->refSourceName, pStmt->refDbName, "",
                                              pStmt->refTableName, pCxt->pMetaCache));
-    } else if (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF) {
+    } else if (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF ||
+               pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF) {
       // Tag ref always points to a concrete table; reserve its metadata.
       PAR_ERR_RET(
           reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->refDbName, pStmt->refTableName, pCxt->pMetaCache));

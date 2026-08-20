@@ -4062,6 +4062,30 @@ _err:
   return NULL;
 }
 
+// Like createColumnDefNode, but carries an inline tag value for `TAGS(name TYPE = value)`.
+SNode* createColumnDefNodeWithTagVal(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, SNode* pNode,
+                                     SNode* pTagVal) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkColumnName(pCxt, pColName));
+  if (IS_VAR_DATA_TYPE(dataType.type) && dataType.bytes == 0) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
+    CHECK_PARSER_STATUS(pCxt);
+  }
+  SColumnDefNode* pCol = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN_DEF, (SNode**)&pCol);
+  CHECK_MAKE_NODE(pCol);
+  COPY_STRING_FORM_ID_TOKEN(pCol->colName, pColName);
+  pCol->dataType = dataType;
+  pCol->pOptions = pNode;
+  pCol->sma = true;
+  pCol->pTagVal = pTagVal;
+  return (SNode*)pCol;
+_err:
+  nodesDestroyNode(pNode);
+  nodesDestroyNode(pTagVal);
+  return NULL;
+}
+
 SDataType createDataType(uint8_t type) {
   SDataType dt = {.type = type, .precision = 0, .scale = 0, .bytes = tDataTypes[type].bytes};
   return dt;
@@ -4085,7 +4109,7 @@ SDataType createDecimalDataType(uint8_t type, const SToken* pPrecisionToken, con
 }
 
 SNode* createCreateVTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
-                              SNodeList* pCols, SNodeList* pSeriesList) {
+                              SNodeList* pCols, SNodeList* pSeriesList, SNodeList* pTags) {
   SCreateVTableStmt* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT, (SNode**)&pStmt);
@@ -4095,12 +4119,14 @@ SNode* createCreateVTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode*
   pStmt->ignoreExists = ignoreExists;
   pStmt->pCols = pCols;
   pStmt->pSeriesList = pSeriesList;
+  pStmt->pTags = pTags;
   nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pRealTable);
   nodesDestroyList(pCols);
   nodesDestroyList(pSeriesList);
+  nodesDestroyList(pTags);
   return NULL;
 }
 
@@ -4146,8 +4172,9 @@ _err:
   return NULL;
 }
 
-SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols,
-                             SNodeList* pTags, SNode* pOptions) {
+
+SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, bool stableKeyword, SNode* pRealTable,
+                             SNodeList* pCols, SNodeList* pTags, SNode* pOptions) {
   CHECK_PARSER_STATUS(pCxt);
 #ifdef TD_ENTERPRISE
   if (((SRealTableNode*)pRealTable)->numPathSegments >= 3) {
@@ -4165,6 +4192,7 @@ SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* 
   tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
   tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   pStmt->ignoreExists = ignoreExists;
+  pStmt->stableKeyword = stableKeyword;
   pStmt->pCols = pCols;
   pStmt->pTags = pTags;
   pStmt->pOptions = (STableOptions*)pOptions;
@@ -4188,6 +4216,7 @@ SNode* createCreateInheritedStableStmt(SAstCreateContext* pCxt, bool ignoreExist
   tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
   tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   pStmt->ignoreExists = ignoreExists;
+  pStmt->stableKeyword = true;  // CREATE STABLE ... BASE ON
   pStmt->pCols = pCols;
   pStmt->pTags = pTags;
   pStmt->pOptions = (STableOptions*)pOptions;
@@ -4380,9 +4409,9 @@ _err:
 
 SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
                                     SDataType dataType) {
+  SAlterTableStmt* pStmt = NULL;  // declared before the CHECK macros so the _err path is always NULL-safe
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkColumnName(pCxt, pColName));
-  SAlterTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->alterType = alterType;
@@ -4390,7 +4419,34 @@ SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, 
   pStmt->dataType = dataType;
   return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
 _err:
+  nodesDestroyNode((SNode*)pStmt);
   nodesDestroyNode(pRealTable);
+  return NULL;
+}
+
+// ADD TAG name TYPE FROM db.tb.tag — add a tag reference to a virtual normal table.
+SNode* createAlterTableAddTagRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
+                                 SDataType dataType, SNode* pRef) {
+  SAlterTableStmt* pStmt = NULL;  // declared before the CHECK macros so the _err path is always NULL-safe
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkColumnName(pCxt, pColName));
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->alterType = alterType;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
+  pStmt->dataType = dataType;
+  SColumnRefNode* pColRef = (SColumnRefNode*)pRef;
+  pStmt->refType = pColRef->refType;  // external source refs (refType==1) must carry their source name
+  tstrncpy(pStmt->refSourceName, pColRef->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  tstrncpy(pStmt->refDbName, pColRef->refDbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pStmt->refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
+  nodesDestroyNode(pRef);
+  return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  nodesDestroyNode(pRealTable);
+  nodesDestroyNode(pRef);
   return NULL;
 }
 
