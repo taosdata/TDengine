@@ -641,7 +641,8 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
   (*pRequest)->phaseStartTime = 0;
 
   (*pRequest)->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
-  (*pRequest)->body.resInfo.charsetCxt = pTscObj->optionInfo.charsetCxt;
+  (*pRequest)->body.resInfo.charsetCxt =
+      taosResolveCharsetCxt(pTscObj->optionInfo.charsetCxt);
   (*pRequest)->body.resInfo.timezone = (void *)pTscObj->optionInfo.timezone;
   (*pRequest)->type = type;
   (*pRequest)->allocatorRefId = -1;

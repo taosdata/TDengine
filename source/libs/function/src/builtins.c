@@ -1462,6 +1462,13 @@ static int32_t translateSleep(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
   return TSDB_CODE_SUCCESS;
 }
 
+static bool isAsciiPattern(const char* pattern, int32_t len) {
+  for (int32_t i = 0; i < len; ++i) {
+    if ((uint8_t)pattern[i] >= 0x80) return false;
+  }
+  return true;
+}
+
 static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
@@ -1479,42 +1486,35 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
   // For prepared-statement placeholders, literal may contain the placeholder
   // token (for example "?") instead of the bound pattern. Prefer the
   // materialized datum when available, and otherwise defer validation to
-  // runtime for placeholders. For NCHAR patterns datum.p holds UCS-4 vardata;
-  // convert it to UTF-8 to match the runtime path in regexpExtractFunction.
+  // runtime for placeholders. NCHAR validation is also deferred because
+  // regcomp() consumes bytes under the executing process locale: the client
+  // translator cannot reliably validate the pattern for a remote server's
+  // charset. regexpExtractFunction performs the authoritative validation.
   SValueNode* pPatVal = (SValueNode*)pPatNode;
   {
+    // NULL intentionally skips client-side validation; the pattern remains on
+    // the value node and is validated under the server locale at runtime.
     const char* regPattern = NULL;
-    char*       utf8Pat = NULL;
-    bool        freeUtf8Pat = false;
-    bool        deferValidation = (pPatVal->placeholderNo != 0 && pPatVal->datum.p == NULL);
+    char*       patternBuf = NULL;
+    bool        deferValidation = pPatVal->node.resType.type == TSDB_DATA_TYPE_NCHAR ||
+                                  (pPatVal->placeholderNo != 0 && pPatVal->datum.p == NULL);
 
     if (!deferValidation) {
-      if (pPatVal->node.resType.type == TSDB_DATA_TYPE_NCHAR && pPatVal->datum.p != NULL) {
-        int32_t ncharBytes = varDataLen(pPatVal->datum.p);
-        utf8Pat = taosMemoryCalloc(ncharBytes + 1, 1);
-        if (utf8Pat == NULL) return terrno;
-        int32_t utf8Len = taosUcs4ToMbs((TdUcs4*)varDataVal(pPatVal->datum.p), ncharBytes,
-                                        utf8Pat, pPatVal->charsetCxt);
-        if (utf8Len < 0) {
-          taosMemoryFree(utf8Pat);
-          return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,
-                                 "regexp_extract: failed to convert NCHAR pattern to UTF-8");
-        }
-        utf8Pat[utf8Len] = '\0';
-        regPattern = utf8Pat;
-        freeUtf8Pat = true;
-      } else if (pPatVal->datum.p != NULL) {
+      if (pPatVal->datum.p != NULL) {
         // datum.p is a length-prefixed vardata buffer — not NUL-terminated.
         // Build a NUL-terminated copy for regcomp().
         int32_t patBytes = varDataLen(pPatVal->datum.p);
-        utf8Pat = taosMemoryMalloc(patBytes + 1);
-        if (utf8Pat == NULL) return terrno;
-        (void)memcpy(utf8Pat, varDataVal(pPatVal->datum.p), patBytes);
-        utf8Pat[patBytes] = '\0';
-        regPattern  = utf8Pat;
-        freeUtf8Pat = true;
-      } else {
-        regPattern = pPatVal->literal;
+        patternBuf = taosMemoryMalloc(patBytes + 1);
+        if (patternBuf == NULL) return terrno;
+        (void)memcpy(patternBuf, varDataVal(pPatVal->datum.p), patBytes);
+        patternBuf[patBytes] = '\0';
+        // Non-ASCII VARCHAR bytes are interpreted under the process locale;
+        // defer those patterns to the authoritative server-side validation.
+        if (isAsciiPattern(patternBuf, patBytes)) regPattern = patternBuf;
+      } else if (pPatVal->literal != NULL) {
+        int32_t patBytes = strlen(pPatVal->literal);
+        if (isAsciiPattern(pPatVal->literal, patBytes))
+            regPattern = pPatVal->literal;
       }
     }
 
@@ -1525,13 +1525,13 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
         char msgbuf[256] = {0};
         (void)regerror(ret, NULL, msgbuf, sizeof(msgbuf));
         // do not call regfree — regcomp failed, re is partially initialised (POSIX)
-        if (freeUtf8Pat) taosMemoryFree(utf8Pat);
+        taosMemoryFree(patternBuf);
         return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,
                                "Invalid regex pattern for regexp_extract: %s", msgbuf);
       }
       regfree(&re);  // only reached when regcomp succeeded
     }
-    if (freeUtf8Pat) taosMemoryFree(utf8Pat);
+    taosMemoryFree(patternBuf);
   }
 
   // param[2]: group_idx (optional) must be a non-negative integer constant.

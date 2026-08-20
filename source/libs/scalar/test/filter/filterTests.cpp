@@ -1823,8 +1823,14 @@ void doCompareWithValueRange_OnlyLeftType(__compar_fn_t fp, int32_t rType) {
 
 int main(int argc, char **argv) {
   taosSeedRand(taosGetTimestampSec());
+  // MATCH/NMATCH go through the process-wide regex cache, which taosd and the
+  // client set up during init. Without it every regex compare fails with
+  // TSDB_CODE_INVALID_PTR, so a match test would pass only vacuously.
+  (void)InitRegexCache();
   testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+  int32_t ret = RUN_ALL_TESTS();
+  DestroyRegexCache();
+  return ret;
 }
 
 #pragma GCC diagnostic pop

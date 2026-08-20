@@ -41,6 +41,8 @@ typedef struct SVgroupDataCxt {
 } SVgroupDataCxt;
 
 int32_t insCreateSName(SName *pName, struct SToken *pTableName, int32_t acctId, const char *dbName, SMsgBuf *pMsgBuf);
+int32_t insBuildNcharConvErrMsg(SMsgBuf *pMsgBuf, const char *source,
+                                const void *charsetCxt);
 int32_t insBuildCreateTbReq(SVCreateTbReq *pTbReq, const char *tname, STag *pTag, int64_t suid, const char *sname,
                             SArray *tagName, uint8_t tagNum, int32_t ttl);
 int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo *pInfo);

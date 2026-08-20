@@ -126,6 +126,8 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80000148 | User security level is too high to write (No-Write-Down) | 用户最低安全等级高于对象等级（NWD 违规） | 使用最低安全等级更低的用户，或提升对象安全等级 |
 | 0x80000149 | Security level conflicts with user's role constraints | 指定的安全等级范围不满足用户角色的最低等级要求 | 调整安全等级以满足角色约束（如 SYSSEC 要求 min >= 4） |
 | 0x8000014A | Cannot enable MAC: preflight check failed | 持有安全策略权限的用户安全等级不足以激活 MAC | 先升级用户的 security_level 再启用 MAC |
+| 0x8000014B | Charset conversion failed | 输入内容无法在源字符集与目标字符集之间转换 | 检查字符集设置是否与输入编码一致 |
+| 0x8000014C | Charset conversion cache is full | 进程已达到缓存字符集转换上下文的数量上限 | 减少不同字符集的数量，或在活动转换完成后重启进程 |
 
 #### tsc
 
@@ -690,7 +692,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 错误码     | 错误描述                                                     | 可能的出错场景或者可能的原因                                 | 建议用户采取的措施                         |
 | ---------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------ |
 | 0x80003250 | Operation not supported between data types                   | 给定的数据类型之间不支持该运算或比较                         | 检查并修正 SQL 语句                        |
-| 0x80003251 | Failed to convert NCHAR value, possibly due to invalid character encoding or charset mismatch | NCHAR 值与字符串相互转换失败，通常是由于存储的值与配置的字符集不匹配或包含非法的字符编码 | 检查服务端/客户端字符集是否正确，确认 NCHAR 值是否合法 |
+| 0x80003251 | Failed to convert between VARCHAR and NCHAR                    | NCHAR 值与字符串相互转换失败，通常是由于存储的值与配置的字符集不匹配或包含非法的字符编码 | 检查服务端/客户端字符集是否正确，确认 NCHAR 值是否合法 |
 
 #### tmq
 

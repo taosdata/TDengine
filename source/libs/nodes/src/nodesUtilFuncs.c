@@ -23,7 +23,9 @@
 #include "querynodes.h"
 #include "taos.h"
 #include "taoserror.h"
+#include "tconv.h"
 #include "tdatablock.h"
+#include "tglobal.h"
 #include "thash.h"
 #include "tmsg.h"
 #include "tref.h"
@@ -85,6 +87,38 @@ int32_t nodesDecodeTimezoneNameInPlace(const char* pTimezoneName,
   *pOwnsTimezone = true;
   return TSDB_CODE_SUCCESS;
 }
+
+const char* nodesGetCharsetName(const void* pCharsetCxt) {
+  return taosConvCharset(pCharsetCxt);
+}
+
+int32_t nodesDecodeCharsetName(const char* pCharsetName, void** pCharsetCxt) {
+  if (pCharsetName == NULL || pCharsetName[0] == '\0') {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Same as the process default: leave *pCharsetCxt untouched — NULL already
+  // means tsCharset at every conversion site — and skip the conv registry.
+  // taosConvInit is itself a process-wide cache keyed by name, so it is the
+  // single source of truth; do not add a second cache layer here (a thread-
+  // local memo would dangle across taosConvDestroy / taos_cleanup).
+  if (strcasecmp(pCharsetName, tsCharset) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  void* pCxt = taosConvInit(pCharsetName);
+  if (pCxt == NULL) {
+    int32_t code =
+        (terrno != TSDB_CODE_SUCCESS) ? terrno : TSDB_CODE_TSC_INVALID_VALUE;
+    nodesError("failed to init charset context for charset:%s, code:0x%x",
+               pCharsetName, code);
+    return code;
+  }
+
+  *pCharsetCxt = pCxt;
+  return TSDB_CODE_SUCCESS;
+}
+
 char* getJoinTypeString(EJoinType type) {
   static char* joinType[] = {"", "INNER", "LEFT", "RIGHT", "FULL"};
   return joinType[type];

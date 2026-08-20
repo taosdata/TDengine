@@ -1197,6 +1197,80 @@ void delete_all_specified_fields(cJSON* node, const char* const* fieldNames, int
   }
 }
 
+// Stream snapshots exercise plan structure, while charset codec behavior is
+// covered by NodesCharsetCodecTest. Remove CharsetName only from the four
+// expression node bodies that gained it, preserving same-named fields on
+// other nodes such as system-table scans.
+void delete_expression_charset_name_fields(cJSON* node) {
+  if (!node) return;
+
+  if (cJSON_IsObject(node)) {
+    cJSON*      typeItem = cJSON_GetObjectItemCaseSensitive(node, "NodeType");
+    ENodeType   type = static_cast<ENodeType>(0);
+    const char* bodyName = nullptr;
+    if (cJSON_IsString(typeItem)) {
+      type = static_cast<ENodeType>(atoi(typeItem->valuestring));
+    } else if (cJSON_IsNumber(typeItem)) {
+      type = static_cast<ENodeType>(typeItem->valueint);
+    }
+    switch (type) {
+      case QUERY_NODE_VALUE:
+        bodyName = "Value";
+        break;
+      case QUERY_NODE_OPERATOR:
+        bodyName = "Operator";
+        break;
+      case QUERY_NODE_FUNCTION:
+        bodyName = "Function";
+        break;
+      case QUERY_NODE_CASE_WHEN:
+        bodyName = "CaseWhen";
+        break;
+      default:
+        break;
+    }
+    if (bodyName != nullptr) {
+      cJSON* expression = cJSON_GetObjectItemCaseSensitive(node, bodyName);
+      if (cJSON_IsObject(expression)) cJSON_DeleteItemFromObjectCaseSensitive(expression, "CharsetName");
+    }
+
+    for (cJSON* item = node->child; item != nullptr; item = item->next) {
+      delete_expression_charset_name_fields(item);
+    }
+  } else if (cJSON_IsArray(node)) {
+    int32_t size = cJSON_GetArraySize(node);
+    for (int32_t i = 0; i < size; ++i) {
+      delete_expression_charset_name_fields(cJSON_GetArrayItem(node, i));
+    }
+  }
+}
+
+TEST(ParserStreamJsonTest, DeleteExpressionCharsetNameFieldsPreservesOtherNodes) {
+  const char* jsonText =
+      R"([{"NodeType":"2","Value":{"CharsetName":"UTF-8"}},{"NodeType":"3","Operator":{"CharsetName":"GBK"}},{"NodeType":"5","Function":{"CharsetName":"UTF-8"}},{"NodeType":"30","CaseWhen":{"CharsetName":"GBK"}},{"NodeType":"2","Operator":{"CharsetName":"keep"}},{"NodeType":"200","PhysiSystemTableScan":{"CharsetName":"GBK"}}])";
+  unique_ptr<cJSON, decltype(&cJSON_Delete)> root(cJSON_Parse(jsonText), cJSON_Delete);
+  ASSERT_NE(root, nullptr);
+
+  delete_expression_charset_name_fields(root.get());
+
+  const char* const expressionFields[] = {"Value", "Operator", "Function", "CaseWhen"};
+  for (int32_t i = 0; i < 4; ++i) {
+    cJSON* expression = cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(root.get(), i), expressionFields[i]);
+    ASSERT_TRUE(cJSON_IsObject(expression));
+    EXPECT_EQ(cJSON_GetObjectItemCaseSensitive(expression, "CharsetName"), nullptr);
+  }
+
+  cJSON* misleading = cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(root.get(), 4), "Operator");
+  ASSERT_TRUE(cJSON_IsObject(misleading));
+  EXPECT_STREQ(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(misleading, "CharsetName")), "keep");
+
+  cJSON* scan = cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(root.get(), 5), "PhysiSystemTableScan");
+  ASSERT_TRUE(cJSON_IsObject(scan));
+  cJSON* charsetName = cJSON_GetObjectItemCaseSensitive(scan, "CharsetName");
+  ASSERT_TRUE(cJSON_IsString(charsetName));
+  EXPECT_STREQ(charsetName->valuestring, "GBK");
+}
+
 // Strips only the "Id" field of Function nodes (identified by the sibling "UdfBufSize" field
 // that is unique to SFunctionNode's JSON encoding), leaving other "Id" fields (e.g. Subplan/
 // QueryNodeAddr Id) untouched.
@@ -1242,6 +1316,8 @@ void checkJsonStringEqual(const char* pExpect, const char* pActual, const char* 
 
   delete_all_specified_fields(expect, pIgnoredFields, numOfIgnoredFields);
   delete_all_specified_fields(actual, pIgnoredFields, numOfIgnoredFields);
+  delete_expression_charset_name_fields(expect);
+  delete_expression_charset_name_fields(actual);
 
   std::string expectStr = printJsonUnformatted(expect);
   std::string actualStr = printJsonUnformatted(actual);
@@ -1272,6 +1348,8 @@ void checkCreateStreamTriggerScanPlan(SCMCreateStreamReq *expect, SCMCreateStrea
                                        "OutputTsPrecision"};
   delete_all_specified_fields(j1, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   delete_all_specified_fields(j2, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
+  delete_expression_charset_name_fields(j1);
+  delete_expression_charset_name_fields(j2);
 
   std::string expectTriggerScanStr = printJsonUnformatted(j1);
   std::string reqTriggerScanStr = printJsonUnformatted(j2);
@@ -1297,6 +1375,8 @@ void checkCreateStreamCalcPlan(SCMCreateStreamReq *expect, SCMCreateStreamReq *r
                                        "OutputTsPrecision"};
   delete_all_specified_fields(j1, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   delete_all_specified_fields(j2, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
+  delete_expression_charset_name_fields(j1);
+  delete_expression_charset_name_fields(j2);
   // Function.Id is an auto-incrementing counter assigned during translation; it drifts with
   // execution order/global state and carries no semantic meaning, unlike other "Id" fields
   // (e.g. Subplan/QueryNodeAddr Id) which reflect real plan structure and must still match.

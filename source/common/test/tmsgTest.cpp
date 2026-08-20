@@ -368,7 +368,6 @@ TEST(td_msg_test, delete_req_codec_backward_compat_without_secure_delete) {
   taosMemoryFree(out.msg);
 }
 
-
 // Encode an SVCreateStbReq the "old" way: stop after ownTagStart, i.e. without the
 // appended parentStbFNames[] suffix. Used to prove the decoder is backward compatible
 // with WAL entries written before the parent-name suffix existed.
@@ -538,7 +537,6 @@ TEST(td_msg_test, create_stb_req_codec_rejects_overflow_num_parents) {
   ASSERT_NE(tDecodeSVCreateStbReq(&decoder, &out), 0);
   tDecoderClear(&decoder);
 }
-
 
 void processCommandArgs(int argc, char** argv) {
   for (int i = 1; i < argc; ++i) {

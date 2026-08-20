@@ -43,6 +43,7 @@
 #include "sclInt.h"
 #include "stub.h"
 #include "taos.h"
+#include "tconv.h"
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
@@ -395,6 +396,428 @@ int32_t scltMakeTargetNode(SNode **pNode, int64_t dataBlockId, int16_t slotId, S
   SCL_RET(TSDB_CODE_SUCCESS);
 }
 }  // namespace
+
+TEST(constantTest, ncharComparisonKeepsLiteralUntouched) {
+  char ncharValue[VARSTR_HEADER_SIZE + 2 * TSDB_NCHAR_SIZE] = {0};
+  varDataSetLen(ncharValue, 2 * TSDB_NCHAR_SIZE);
+  TdUcs4 expected[] = {0x4e2d, 0x6587};
+  memcpy(varDataVal(ncharValue), expected, sizeof(expected));
+
+  char gbkValue[VARSTR_HEADER_SIZE + 4] = {0};
+  varDataSetLen(gbkValue, 4);
+  memcpy(varDataVal(gbkValue), "\xd6\xd0\xce\xc4", 4);
+
+  SSDataBlock *block = NULL;
+  SNode *left = NULL, *right = NULL, *op = NULL;
+  ASSERT_EQ(scltMakeColumnNode(&left, &block, TSDB_DATA_TYPE_NCHAR,
+                               sizeof(ncharValue), 1, ncharValue),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&right, TSDB_DATA_TYPE_VARCHAR, gbkValue),
+            TSDB_CODE_SUCCESS);
+  ((SValueNode *)right)->charsetCxt = taosConvInit("GBK");
+  ASSERT_NE(((SValueNode *)right)->charsetCxt, nullptr);
+  ASSERT_EQ(scltMakeOpNode(&op, OP_TYPE_EQUAL, TSDB_DATA_TYPE_BOOL, left,
+                           right),
+            TSDB_CODE_SUCCESS);
+
+  SNode *rewritten = NULL;
+  ASSERT_EQ(scalarCalculateConstants(op, &rewritten), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(rewritten, op);
+  SValueNode *value = (SValueNode *)((SOperatorNode *)rewritten)->pRight;
+  ASSERT_EQ(value->node.resType.type, TSDB_DATA_TYPE_VARCHAR);
+  ASSERT_EQ(varDataLen(value->datum.p), 4);
+  ASSERT_EQ(memcmp(varDataVal(value->datum.p), "\xd6\xd0\xce\xc4", 4), 0);
+
+  SArray *blocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(blocks, nullptr);
+  ASSERT_NE(taosArrayPush(blocks, &block), nullptr);
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_BOOL,
+                                         sizeof(bool));
+  int16_t dataBlockId = 0, slotId = 0;
+  ASSERT_EQ(scltAppendReservedSlot(blocks, &dataBlockId, &slotId, true, 1,
+                                   &colInfo),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeTargetNode(&rewritten, dataBlockId, slotId, rewritten),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scalarCalculate(rewritten, blocks, NULL, NULL),
+            TSDB_CODE_SUCCESS);
+
+  // The coercion happens at the parameter level: the comparison matches
+  // (GBK bytes decode to the column's UCS-4 value) while the literal node
+  // keeps its original VARCHAR type and bytes.
+  SSDataBlock     *resBlock = *(SSDataBlock **)taosArrayGetLast(blocks);
+  SColumnInfoData *resCol =
+      (SColumnInfoData *)taosArrayGetLast(resBlock->pDataBlock);
+  EXPECT_TRUE(*(bool *)colDataGetData(resCol, 0));
+  ASSERT_EQ(value->node.resType.type, TSDB_DATA_TYPE_VARCHAR);
+  ASSERT_EQ(varDataLen(value->datum.p), 4);
+  ASSERT_EQ(memcmp(varDataVal(value->datum.p), "\xd6\xd0\xce\xc4", 4), 0);
+
+  // A second execution sees the same untouched literal and still matches.
+  ASSERT_EQ(scalarCalculate(rewritten, blocks, NULL, NULL),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(*(bool *)colDataGetData(resCol, 0));
+  ASSERT_EQ(value->node.resType.type, TSDB_DATA_TYPE_VARCHAR);
+  ASSERT_EQ(memcmp(varDataVal(value->datum.p), "\xd6\xd0\xce\xc4", 4), 0);
+
+  taosArrayDestroyEx(blocks, scltFreeDataBlock);
+  nodesDestroyNode(rewritten);
+}
+
+TEST(constantTest, pureNcharComparisonStillFolds) {
+  char ncharValue[VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE] = {0};
+  varDataSetLen(ncharValue, TSDB_NCHAR_SIZE);
+  *(TdUcs4 *)varDataVal(ncharValue) = 0x4e2d;
+  char gbkValue[VARSTR_HEADER_SIZE + 2] = {0};
+  varDataSetLen(gbkValue, 2);
+  memcpy(varDataVal(gbkValue), "\xd6\xd0", 2);
+
+  SNode *left = NULL, *right = NULL, *op = NULL;
+  ASSERT_EQ(scltMakeValueNode(&left, TSDB_DATA_TYPE_NCHAR, ncharValue),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&right, TSDB_DATA_TYPE_VARCHAR, gbkValue),
+            TSDB_CODE_SUCCESS);
+  ((SValueNode *)right)->charsetCxt = taosConvInit("GBK");
+  ASSERT_EQ(scltMakeOpNode(&op, OP_TYPE_EQUAL, TSDB_DATA_TYPE_BOOL, left,
+                           right),
+            TSDB_CODE_SUCCESS);
+
+  SNode *result = NULL;
+  ASSERT_EQ(scalarCalculateConstants(op, &result), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodeType(result), QUERY_NODE_VALUE);
+  EXPECT_TRUE(((SValueNode *)result)->datum.b);
+  nodesDestroyNode(result);
+}
+
+TEST(constantTest, simpleCaseKeepsLiteralUntouched) {
+  char ncharValue[VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE] = {0};
+  varDataSetLen(ncharValue, TSDB_NCHAR_SIZE);
+  *(TdUcs4 *)varDataVal(ncharValue) = 0x4e2d;
+  char gbkValue[VARSTR_HEADER_SIZE + 2] = {0};
+  varDataSetLen(gbkValue, 2);
+  memcpy(varDataVal(gbkValue), "\xd6\xd0", 2);
+  int32_t one = 1, zero = 0;
+
+  SSDataBlock *block = NULL;
+  SNode *caseExpr = NULL, *whenValue = NULL, *thenValue = NULL,
+        *elseValue = NULL, *whenThenNode = NULL, *caseNode = NULL;
+  ASSERT_EQ(scltMakeColumnNode(&caseExpr, &block, TSDB_DATA_TYPE_NCHAR,
+                               sizeof(ncharValue), 1, ncharValue),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&whenValue, TSDB_DATA_TYPE_VARCHAR, gbkValue),
+            TSDB_CODE_SUCCESS);
+  ((SValueNode *)whenValue)->charsetCxt = taosConvInit("GBK");
+  ASSERT_EQ(scltMakeValueNode(&thenValue, TSDB_DATA_TYPE_INT, &one),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&elseValue, TSDB_DATA_TYPE_INT, &zero),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &whenThenNode),
+            TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)whenThenNode)->pWhen = whenValue;
+  ((SWhenThenNode *)whenThenNode)->pThen = thenValue;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CASE_WHEN, &caseNode),
+            TSDB_CODE_SUCCESS);
+  SCaseWhenNode *caseWhen = (SCaseWhenNode *)caseNode;
+  caseWhen->node.resType.type = TSDB_DATA_TYPE_INT;
+  caseWhen->node.resType.bytes = sizeof(int32_t);
+  caseWhen->charsetCxt = taosConvInit("GBK");
+  caseWhen->pCase = caseExpr;
+  caseWhen->pElse = elseValue;
+  ASSERT_EQ(nodesMakeList(&caseWhen->pWhenThenList), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListAppend(caseWhen->pWhenThenList, whenThenNode),
+            TSDB_CODE_SUCCESS);
+
+  SNode *rewritten = NULL;
+  ASSERT_EQ(scalarCalculateConstants(caseNode, &rewritten),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(((SValueNode *)whenValue)->node.resType.type,
+            TSDB_DATA_TYPE_VARCHAR);
+
+  SArray *blocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(blocks, nullptr);
+  ASSERT_NE(taosArrayPush(blocks, &block), nullptr);
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT,
+                                         sizeof(int32_t));
+  int16_t dataBlockId = 0, slotId = 0;
+  ASSERT_EQ(scltAppendReservedSlot(blocks, &dataBlockId, &slotId, true, 1,
+                                   &colInfo),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeTargetNode(&rewritten, dataBlockId, slotId, rewritten),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scalarCalculate(rewritten, blocks, NULL, NULL),
+            TSDB_CODE_SUCCESS);
+
+  // The comparison uses the CASE charset context while the literal keeps
+  // its original VARCHAR type and bytes.
+  SSDataBlock     *resBlock = *(SSDataBlock **)taosArrayGetLast(blocks);
+  SColumnInfoData *resCol =
+      (SColumnInfoData *)taosArrayGetLast(resBlock->pDataBlock);
+  EXPECT_EQ(*(int32_t *)colDataGetData(resCol, 0), one);
+  EXPECT_EQ(((SValueNode *)whenValue)->node.resType.type,
+            TSDB_DATA_TYPE_VARCHAR);
+  EXPECT_EQ(memcmp(varDataVal(((SValueNode *)whenValue)->datum.p),
+                   "\xd6\xd0", 2),
+            0);
+
+  taosArrayDestroyEx(blocks, scltFreeDataBlock);
+  nodesDestroyNode(rewritten);
+}
+
+TEST(constantTest, simpleCaseEvaluatesLaterColumnAfterMiss) {
+  int32_t caseValue = 5;
+  int32_t firstWhenValue = 0;
+  int32_t secondWhenValue = 5;
+  int32_t one = 1;
+  int32_t two = 2;
+  int32_t elseValue = 99;
+
+  SSDataBlock *block = NULL;
+  SNode *caseExpr = NULL;
+  SNode *firstWhen = NULL;
+  SNode *secondWhen = NULL;
+  SNode *thenOne = NULL;
+  SNode *thenTwo = NULL;
+  SNode *elseNode = NULL;
+  SNode *firstBranch = NULL;
+  SNode *secondBranch = NULL;
+  SNode *caseNode = NULL;
+
+  ASSERT_EQ(scltMakeColumnNode(&caseExpr, &block, TSDB_DATA_TYPE_INT,
+                               sizeof(int32_t), 1, &caseValue),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeColumnNode(&firstWhen, &block, TSDB_DATA_TYPE_INT,
+                               sizeof(int32_t), 1, &firstWhenValue),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeColumnNode(&secondWhen, &block,
+                               TSDB_DATA_TYPE_INT, sizeof(int32_t), 1,
+                               &secondWhenValue),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&thenOne, TSDB_DATA_TYPE_INT, &one),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&thenTwo, TSDB_DATA_TYPE_INT, &two),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&elseNode, TSDB_DATA_TYPE_INT, &elseValue),
+            TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &firstBranch),
+            TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)firstBranch)->pWhen = firstWhen;
+  ((SWhenThenNode *)firstBranch)->pThen = thenOne;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &secondBranch),
+            TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)secondBranch)->pWhen = secondWhen;
+  ((SWhenThenNode *)secondBranch)->pThen = thenTwo;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CASE_WHEN, &caseNode),
+            TSDB_CODE_SUCCESS);
+  SCaseWhenNode *caseWhen = (SCaseWhenNode *)caseNode;
+  caseWhen->node.resType.type = TSDB_DATA_TYPE_INT;
+  caseWhen->node.resType.bytes = sizeof(int32_t);
+  caseWhen->pCase = caseExpr;
+  caseWhen->pElse = elseNode;
+  ASSERT_EQ(nodesMakeList(&caseWhen->pWhenThenList), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListAppend(caseWhen->pWhenThenList, firstBranch),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListAppend(caseWhen->pWhenThenList, secondBranch),
+            TSDB_CODE_SUCCESS);
+
+  SArray *blocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(blocks, nullptr);
+  ASSERT_NE(taosArrayPush(blocks, &block), nullptr);
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT,
+                                         sizeof(int32_t));
+  int16_t dataBlockId = 0;
+  int16_t slotId = 0;
+  ASSERT_EQ(scltAppendReservedSlot(blocks, &dataBlockId, &slotId, true, 1,
+                                   &colInfo),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeTargetNode(&caseNode, dataBlockId, slotId, caseNode),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scalarCalculate(caseNode, blocks, NULL, NULL),
+            TSDB_CODE_SUCCESS);
+
+  SSDataBlock *resultBlock =
+      *(SSDataBlock **)taosArrayGetLast(blocks);
+  SColumnInfoData *resultColumn =
+      (SColumnInfoData *)taosArrayGetLast(resultBlock->pDataBlock);
+  EXPECT_EQ(*(int32_t *)colDataGetData(resultColumn, 0), two);
+
+  taosArrayDestroyEx(blocks, scltFreeDataBlock);
+  nodesDestroyNode(caseNode);
+}
+
+TEST(constantTest, simpleCaseMixedWhenCharsetsUseCaseContext) {
+  char gbkCase[VARSTR_HEADER_SIZE + 2] = {0};
+  varDataSetLen(gbkCase, 2);
+  memcpy(varDataVal(gbkCase), "\xd6\xd0", 2);
+  char asciiWhen[VARSTR_HEADER_SIZE + 1] = {0};
+  varDataSetLen(asciiWhen, 1);
+  *varDataVal(asciiWhen) = 'x';
+  char ncharWhen[VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE] = {0};
+  varDataSetLen(ncharWhen, TSDB_NCHAR_SIZE);
+  *(TdUcs4 *)varDataVal(ncharWhen) = 0x4e2d;
+  int32_t one = 1, two = 2, zero = 0;
+
+  SNode *caseValue = NULL, *whenVarchar = NULL, *thenOne = NULL;
+  SNode *whenNchar = NULL, *thenTwo = NULL, *elseValue = NULL;
+  SNode *firstBranch = NULL, *secondBranch = NULL, *caseNode = NULL;
+  ASSERT_EQ(scltMakeValueNode(&caseValue, TSDB_DATA_TYPE_VARCHAR, gbkCase), TSDB_CODE_SUCCESS);
+  ((SValueNode *)caseValue)->charsetCxt = taosConvInit("GBK");
+  ASSERT_EQ(scltMakeValueNode(&whenVarchar, TSDB_DATA_TYPE_VARCHAR, asciiWhen), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&thenOne, TSDB_DATA_TYPE_INT, &one), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&whenNchar, TSDB_DATA_TYPE_NCHAR, ncharWhen), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&thenTwo, TSDB_DATA_TYPE_INT, &two), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&elseValue, TSDB_DATA_TYPE_INT, &zero), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &firstBranch), TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)firstBranch)->pWhen = whenVarchar;
+  ((SWhenThenNode *)firstBranch)->pThen = thenOne;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &secondBranch), TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)secondBranch)->pWhen = whenNchar;
+  ((SWhenThenNode *)secondBranch)->pThen = thenTwo;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CASE_WHEN, &caseNode), TSDB_CODE_SUCCESS);
+  SCaseWhenNode *caseWhen = (SCaseWhenNode *)caseNode;
+  caseWhen->node.resType.type = TSDB_DATA_TYPE_INT;
+  caseWhen->node.resType.bytes = sizeof(int32_t);
+  caseWhen->charsetCxt = taosConvInit("GBK");
+  caseWhen->pCase = caseValue;
+  caseWhen->pElse = elseValue;
+  ASSERT_EQ(nodesMakeList(&caseWhen->pWhenThenList), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListAppend(caseWhen->pWhenThenList, firstBranch), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListAppend(caseWhen->pWhenThenList, secondBranch), TSDB_CODE_SUCCESS);
+
+  SNode *result = NULL;
+  ASSERT_EQ(scalarCalculateConstants(caseNode, &result), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodeType(result), QUERY_NODE_VALUE);
+  EXPECT_EQ(((SValueNode *)result)->datum.i, two);
+  nodesDestroyNode(result);
+}
+
+TEST(constantTest, simpleCaseVarcharColumnKeepsOriginalComparisonType) {
+  char gbkCase[VARSTR_HEADER_SIZE + 2] = {0};
+  varDataSetLen(gbkCase, 2);
+  memcpy(varDataVal(gbkCase), "\xd6\xd0", 2);
+  char utf8Column[VARSTR_HEADER_SIZE + 3] = {0};
+  varDataSetLen(utf8Column, 3);
+  memcpy(varDataVal(utf8Column), "\xe4\xb8\xad", 3);
+  char ncharWhen[VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE] = {0};
+  varDataSetLen(ncharWhen, TSDB_NCHAR_SIZE);
+  *(TdUcs4 *)varDataVal(ncharWhen) = 0x4e2d;
+  int32_t one = 1, two = 2, zero = 0;
+
+  SSDataBlock *block = NULL;
+  SNode *caseValue = NULL, *whenVarchar = NULL, *thenOne = NULL;
+  SNode *whenNchar = NULL, *thenTwo = NULL, *elseValue = NULL;
+  SNode *firstBranch = NULL, *secondBranch = NULL, *caseNode = NULL;
+  ASSERT_EQ(scltMakeValueNode(&caseValue, TSDB_DATA_TYPE_VARCHAR,
+                              gbkCase),
+            TSDB_CODE_SUCCESS);
+  ((SValueNode *)caseValue)->charsetCxt = taosConvInit("GBK");
+  ASSERT_EQ(scltMakeColumnNode(&whenVarchar, &block,
+                               TSDB_DATA_TYPE_VARCHAR,
+                               sizeof(utf8Column), 1, utf8Column),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&thenOne, TSDB_DATA_TYPE_INT, &one),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&whenNchar, TSDB_DATA_TYPE_NCHAR,
+                              ncharWhen),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&thenTwo, TSDB_DATA_TYPE_INT, &two),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&elseValue, TSDB_DATA_TYPE_INT, &zero),
+            TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &firstBranch),
+            TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)firstBranch)->pWhen = whenVarchar;
+  ((SWhenThenNode *)firstBranch)->pThen = thenOne;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &secondBranch),
+            TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)secondBranch)->pWhen = whenNchar;
+  ((SWhenThenNode *)secondBranch)->pThen = thenTwo;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CASE_WHEN, &caseNode),
+            TSDB_CODE_SUCCESS);
+  SCaseWhenNode *caseWhen = (SCaseWhenNode *)caseNode;
+  caseWhen->node.resType.type = TSDB_DATA_TYPE_INT;
+  caseWhen->node.resType.bytes = sizeof(int32_t);
+  caseWhen->charsetCxt = taosConvInit("GBK");
+  caseWhen->pCase = caseValue;
+  caseWhen->pElse = elseValue;
+  ASSERT_EQ(nodesMakeList(&caseWhen->pWhenThenList), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListAppend(caseWhen->pWhenThenList, firstBranch),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListAppend(caseWhen->pWhenThenList, secondBranch),
+            TSDB_CODE_SUCCESS);
+
+  SArray *blocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(blocks, nullptr);
+  ASSERT_NE(taosArrayPush(blocks, &block), nullptr);
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT,
+                                         sizeof(int32_t));
+  int16_t dataBlockId = 0, slotId = 0;
+  ASSERT_EQ(scltAppendReservedSlot(blocks, &dataBlockId, &slotId, true, 1,
+                                   &colInfo),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeTargetNode(&caseNode, dataBlockId, slotId, caseNode),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scalarCalculate(caseNode, blocks, NULL, NULL),
+            TSDB_CODE_SUCCESS);
+
+  SSDataBlock *resultBlock = *(SSDataBlock **)taosArrayGetLast(blocks);
+  SColumnInfoData *resultColumn =
+      (SColumnInfoData *)taosArrayGetLast(resultBlock->pDataBlock);
+  EXPECT_EQ(*(int32_t *)colDataGetData(resultColumn, 0), two);
+
+  taosArrayDestroyEx(blocks, scltFreeDataBlock);
+  nodesDestroyNode(caseNode);
+}
+
+TEST(constantTest, simpleCaseNcharMissThenVarcharMatchUsesOriginalCaseParam) {
+  char gbkCase[VARSTR_HEADER_SIZE + 2] = {0};
+  varDataSetLen(gbkCase, 2);
+  memcpy(varDataVal(gbkCase), "\xd6\xd0", 2);
+  char ncharMiss[VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE] = {0};
+  varDataSetLen(ncharMiss, TSDB_NCHAR_SIZE);
+  *(TdUcs4 *)varDataVal(ncharMiss) = 0x4e16;
+  char gbkMatch[VARSTR_HEADER_SIZE + 2] = {0};
+  varDataSetLen(gbkMatch, 2);
+  memcpy(varDataVal(gbkMatch), "\xd6\xd0", 2);
+  int32_t one = 1, two = 2, zero = 0;
+
+  SNode *caseValue = NULL, *whenNchar = NULL, *thenOne = NULL;
+  SNode *whenVarchar = NULL, *thenTwo = NULL, *elseValue = NULL;
+  SNode *firstBranch = NULL, *secondBranch = NULL, *caseNode = NULL;
+  ASSERT_EQ(scltMakeValueNode(&caseValue, TSDB_DATA_TYPE_VARCHAR, gbkCase), TSDB_CODE_SUCCESS);
+  ((SValueNode *)caseValue)->charsetCxt = taosConvInit("GBK");
+  ASSERT_EQ(scltMakeValueNode(&whenNchar, TSDB_DATA_TYPE_NCHAR, ncharMiss), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&thenOne, TSDB_DATA_TYPE_INT, &one), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&whenVarchar, TSDB_DATA_TYPE_VARCHAR, gbkMatch), TSDB_CODE_SUCCESS);
+  ((SValueNode *)whenVarchar)->charsetCxt = taosConvInit("GBK");
+  ASSERT_EQ(scltMakeValueNode(&thenTwo, TSDB_DATA_TYPE_INT, &two), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&elseValue, TSDB_DATA_TYPE_INT, &zero), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &firstBranch), TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)firstBranch)->pWhen = whenNchar;
+  ((SWhenThenNode *)firstBranch)->pThen = thenOne;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &secondBranch), TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)secondBranch)->pWhen = whenVarchar;
+  ((SWhenThenNode *)secondBranch)->pThen = thenTwo;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CASE_WHEN, &caseNode), TSDB_CODE_SUCCESS);
+  SCaseWhenNode *caseWhen = (SCaseWhenNode *)caseNode;
+  caseWhen->node.resType.type = TSDB_DATA_TYPE_INT;
+  caseWhen->node.resType.bytes = sizeof(int32_t);
+  caseWhen->charsetCxt = taosConvInit("GBK");
+  caseWhen->pCase = caseValue;
+  caseWhen->pElse = elseValue;
+  ASSERT_EQ(nodesMakeList(&caseWhen->pWhenThenList), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListAppend(caseWhen->pWhenThenList, firstBranch), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListAppend(caseWhen->pWhenThenList, secondBranch), TSDB_CODE_SUCCESS);
+
+  SNode *result = NULL;
+  ASSERT_EQ(scalarCalculateConstants(caseNode, &result), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodeType(result), QUERY_NODE_VALUE);
+  EXPECT_EQ(((SValueNode *)result)->datum.i, two);
+  nodesDestroyNode(result);
+}
 
 TEST(constantTest, bigint_add_bigint) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
@@ -2690,6 +3113,288 @@ void scltDestroyDataBlock(SScalarParam *pInput) {
   taosMemoryFree(pInput);
 }
 
+extern "C" int32_t regexpInSetFunction(SScalarParam *pInput,
+                                       int32_t inputNum,
+                                       SScalarParam *pOutput);
+
+// Build a 1-row string SScalarParam holding bytes in the parameter's charset.
+static void scltMakeRawStringParam(SScalarParam *pParam, int32_t type,
+                                   const void *bytes, int32_t len) {
+  char *buf = (char *)taosMemoryCalloc(1, VARSTR_HEADER_SIZE + len);
+  ASSERT_NE(buf, nullptr);
+  varDataSetLen(buf, len);
+  if (len > 0) memcpy(varDataVal(buf), bytes, len);
+
+  pParam->columnData =
+      (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(pParam->columnData, nullptr);
+  pParam->columnData->info =
+      createColumnInfo(0, type, VARSTR_HEADER_SIZE + len);
+  ASSERT_EQ(colInfoDataEnsureCapacity(pParam->columnData, 1, true),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataSetVal(pParam->columnData, 0, buf, false),
+            TSDB_CODE_SUCCESS);
+  pParam->numOfRows = 1;
+  taosMemoryFree(buf);
+}
+
+static void scltMakeRawStringRows(SScalarParam *pParam, int32_t type,
+                                  const char *const *values,
+                                  const int32_t *lengths, int32_t rows) {
+  pParam->columnData =
+      (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(pParam->columnData, nullptr);
+  pParam->columnData->info =
+      createColumnInfo(0, type, VARSTR_HEADER_SIZE + 64);
+  ASSERT_EQ(colInfoDataEnsureCapacity(pParam->columnData, rows, true),
+            TSDB_CODE_SUCCESS);
+
+  for (int32_t i = 0; i < rows; ++i) {
+    char *buf =
+        (char *)taosMemoryCalloc(1, VARSTR_HEADER_SIZE + lengths[i]);
+    ASSERT_NE(buf, nullptr);
+    varDataSetLen(buf, lengths[i]);
+    memcpy(varDataVal(buf), values[i], lengths[i]);
+    ASSERT_EQ(colDataSetVal(pParam->columnData, i, buf, false),
+              TSDB_CODE_SUCCESS);
+    taosMemoryFree(buf);
+  }
+  pParam->numOfRows = rows;
+}
+
+// Temporarily overrides the process-global tsCharsetCxt and guarantees it is
+// restored on every path (early return, fatal ASSERT, or normal exit), unlike
+// a hand-rolled save/set/restore that skips the restore on any early exit.
+struct CharsetCxtGuard {
+  explicit CharsetCxtGuard(void *cxt) : saved_(tsCharsetCxt) {
+    tsCharsetCxt = cxt;
+  }
+  ~CharsetCxtGuard() { tsCharsetCxt = saved_; }
+  void *saved_;
+};
+
+// GBK character 0x81 0x5C contains the ASCII backslash separator byte as its
+// trail byte. Character-aware splitting must ignore that byte and split only
+// at the following standalone backslash.
+TEST(ScalarFunctionTest, regexpInSetDoesNotSplitInsideGbkCharacter) {
+  const char setBytes[] = {(char)0x81, (char)0x5C, '\\', 'x'};
+  const char sepBytes[] = {'\\'};
+
+  SScalarParam pInput[3] = {0};
+  scltMakeRawStringParam(&pInput[0], TSDB_DATA_TYPE_VARCHAR, "x", 1);
+  scltMakeRawStringParam(&pInput[1], TSDB_DATA_TYPE_VARCHAR, setBytes,
+                         sizeof(setBytes));
+  scltMakeRawStringParam(&pInput[2], TSDB_DATA_TYPE_VARCHAR, sepBytes,
+                         sizeof(sepBytes));
+
+  // Make the server UTF-8 and the set argument's connection GBK.
+  void *utf8Cxt = taosConvInit("UTF-8");
+  void *gbkCxt = taosConvInit("GBK");
+  ASSERT_NE(utf8Cxt, nullptr);
+  ASSERT_NE(gbkCxt, nullptr);
+  pInput[1].charsetCxt = gbkCxt;
+
+  SScalarParam output = {0};
+  output.columnData =
+      (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(output.columnData, nullptr);
+  output.columnData->info =
+      createColumnInfo(0, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+  ASSERT_EQ(colInfoDataEnsureCapacity(output.columnData, 1, true),
+            TSDB_CODE_SUCCESS);
+
+  int32_t code;
+  int64_t result;
+  {
+    CharsetCxtGuard guard(utf8Cxt);
+    code = regexpInSetFunction(pInput, 3, &output);
+    result = code == TSDB_CODE_SUCCESS
+                 ? *(int64_t *)colDataGetData(output.columnData, 0)
+                 : 0;
+  }
+
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(result, 2)
+      << "the GBK trail byte must not be mistaken for a separator";
+
+  colDataDestroy(pInput[0].columnData);
+  taosMemoryFree(pInput[0].columnData);
+  colDataDestroy(pInput[1].columnData);
+  taosMemoryFree(pInput[1].columnData);
+  colDataDestroy(pInput[2].columnData);
+  taosMemoryFree(pInput[2].columnData);
+  colDataDestroy(output.columnData);
+  taosMemoryFree(output.columnData);
+}
+
+// NCHAR operands already have code-point boundaries and are split in UCS-4.
+TEST(ScalarFunctionTest, regexpInSetNcharUsesConvertedServerCharset) {
+  const TdUcs4 setChars[] = {0x0080, ',', 'x'};
+  const char   sepBytes[] = {','};
+
+  SScalarParam pInput[3] = {0};
+  scltMakeRawStringParam(&pInput[0], TSDB_DATA_TYPE_VARCHAR, "x", 1);
+  scltMakeRawStringParam(&pInput[1], TSDB_DATA_TYPE_NCHAR, setChars,
+                         sizeof(setChars));
+  scltMakeRawStringParam(&pInput[2], TSDB_DATA_TYPE_VARCHAR, sepBytes,
+                         sizeof(sepBytes));
+
+  void *utf8Cxt = taosConvInit("UTF-8");
+  void *gbkCxt = taosConvInit("GBK");
+  ASSERT_NE(utf8Cxt, nullptr);
+  ASSERT_NE(gbkCxt, nullptr);
+  pInput[1].charsetCxt = gbkCxt;
+
+  SScalarParam output = {0};
+  output.columnData =
+      (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(output.columnData, nullptr);
+  output.columnData->info =
+      createColumnInfo(0, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+  ASSERT_EQ(colInfoDataEnsureCapacity(output.columnData, 1, true),
+            TSDB_CODE_SUCCESS);
+
+  int32_t code;
+  int64_t result;
+  {
+    CharsetCxtGuard guard(utf8Cxt);
+    code = regexpInSetFunction(pInput, 3, &output);
+    result = code == TSDB_CODE_SUCCESS
+                 ? *(int64_t *)colDataGetData(output.columnData, 0)
+                 : 0;
+  }
+
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(result, 2);
+
+  colDataDestroy(pInput[0].columnData);
+  taosMemoryFree(pInput[0].columnData);
+  colDataDestroy(pInput[1].columnData);
+  taosMemoryFree(pInput[1].columnData);
+  colDataDestroy(pInput[2].columnData);
+  taosMemoryFree(pInput[2].columnData);
+  colDataDestroy(output.columnData);
+  taosMemoryFree(output.columnData);
+}
+
+TEST(ScalarFunctionTest, regexpInSetAcceptsUtf8Alias) {
+  const char setBytes[] = {"\xE4\xB8\xAD,x"};
+
+  SScalarParam pInput[3] = {0};
+  scltMakeRawStringParam(&pInput[0], TSDB_DATA_TYPE_VARCHAR, "x", 1);
+  scltMakeRawStringParam(&pInput[1], TSDB_DATA_TYPE_VARCHAR, setBytes,
+                         sizeof(setBytes) - 1);
+  scltMakeRawStringParam(&pInput[2], TSDB_DATA_TYPE_VARCHAR, ",", 1);
+
+  void *utf8AliasCxt = taosConvInit("UTF8");
+  ASSERT_NE(utf8AliasCxt, nullptr);
+  pInput[1].charsetCxt = utf8AliasCxt;
+
+  SScalarParam output = {0};
+  output.columnData =
+      (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(output.columnData, nullptr);
+  output.columnData->info =
+      createColumnInfo(0, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+  ASSERT_EQ(colInfoDataEnsureCapacity(output.columnData, 1, true),
+            TSDB_CODE_SUCCESS);
+
+  int32_t code = regexpInSetFunction(pInput, 3, &output);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(*(int64_t *)colDataGetData(output.columnData, 0), 2);
+
+  for (auto &param : pInput) {
+    colDataDestroy(param.columnData);
+    taosMemoryFree(param.columnData);
+  }
+  colDataDestroy(output.columnData);
+  taosMemoryFree(output.columnData);
+}
+
+TEST(ScalarFunctionTest, regexpInSetReusesBroadcastGbkTokensAcrossRows) {
+  const char *patterns[] = {"x", "^no$", "x"};
+  const int32_t patternLens[] = {1, 4, 1};
+  const char setBytes[] = {(char)0x81, (char)0x5C, '\\', 'x'};
+
+  SScalarParam pInput[3] = {0};
+  scltMakeRawStringRows(&pInput[0], TSDB_DATA_TYPE_VARCHAR, patterns,
+                        patternLens, 3);
+  scltMakeRawStringParam(&pInput[1], TSDB_DATA_TYPE_VARCHAR, setBytes,
+                         sizeof(setBytes));
+  scltMakeRawStringParam(&pInput[2], TSDB_DATA_TYPE_VARCHAR, "\\", 1);
+
+  void *gbkCxt = taosConvInit("GBK");
+  ASSERT_NE(gbkCxt, nullptr);
+  pInput[1].charsetCxt = gbkCxt;
+
+  SScalarParam output = {0};
+  output.columnData =
+      (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(output.columnData, nullptr);
+  output.columnData->info =
+      createColumnInfo(0, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+  ASSERT_EQ(colInfoDataEnsureCapacity(output.columnData, 3, true),
+            TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(regexpInSetFunction(pInput, 3, &output), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(*(int64_t *)colDataGetData(output.columnData, 0), 2);
+  EXPECT_EQ(*(int64_t *)colDataGetData(output.columnData, 1), 0);
+  EXPECT_EQ(*(int64_t *)colDataGetData(output.columnData, 2), 2);
+
+  for (auto &param : pInput) {
+    colDataDestroy(param.columnData);
+    taosMemoryFree(param.columnData);
+  }
+  colDataDestroy(output.columnData);
+  taosMemoryFree(output.columnData);
+}
+
+TEST(ScalarFunctionTest, regexpInSetHandlesNonBroadcastCharsetSafeSets) {
+  const char set0[] = {(char)0x81, (char)0x5C, '\\', 'x'};
+  const char set1[] = {'a', ':', ':', ':', ':', 'x'};
+  const char* sets[] = {set0, set1};
+  const int32_t setLens[] = {sizeof(set0), sizeof(set1)};
+  const char* seps[] = {"\\", "::"};
+  const int32_t sepLens[] = {1, 2};
+
+  SScalarParam pInput[3] = {0};
+  scltMakeRawStringParam(&pInput[0], TSDB_DATA_TYPE_VARCHAR, "x", 1);
+  scltMakeRawStringRows(&pInput[1], TSDB_DATA_TYPE_VARCHAR, sets, setLens, 2);
+  scltMakeRawStringRows(&pInput[2], TSDB_DATA_TYPE_VARCHAR, seps, sepLens, 2);
+
+  void* utf8Cxt = taosConvInit("UTF-8");
+  void* gbkCxt = taosConvInit("GBK");
+  ASSERT_NE(utf8Cxt, nullptr);
+  ASSERT_NE(gbkCxt, nullptr);
+  pInput[1].charsetCxt = gbkCxt;
+
+  SScalarParam output = {0};
+  output.columnData =
+      (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(output.columnData, nullptr);
+  output.columnData->info =
+      createColumnInfo(0, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+  ASSERT_EQ(colInfoDataEnsureCapacity(output.columnData, 2, true),
+            TSDB_CODE_SUCCESS);
+
+  int32_t code;
+  {
+    CharsetCxtGuard guard(utf8Cxt);
+    code = regexpInSetFunction(pInput, 3, &output);
+  }
+
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(*(int64_t *)colDataGetData(output.columnData, 0), 2);
+  EXPECT_EQ(*(int64_t *)colDataGetData(output.columnData, 1), 3);
+
+  for (auto& param : pInput) {
+    colDataDestroy(param.columnData);
+    taosMemoryFree(param.columnData);
+  }
+  colDataDestroy(output.columnData);
+  taosMemoryFree(output.columnData);
+}
+
 TEST(ScalarFunctionTest, castToJsonShouldReturnConvertError) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SScalarParam input = {0};
@@ -2715,6 +3420,33 @@ TEST(ScalarFunctionTest, castToJsonShouldReturnConvertError) {
 
   code = castFunction(&input, 1, &output);
   ASSERT_EQ(code, TSDB_CODE_SCALAR_CONVERT_ERROR);
+
+  colDataDestroy(input.columnData);
+  taosMemoryFree(input.columnData);
+  colDataDestroy(output.columnData);
+  taosMemoryFree(output.columnData);
+}
+
+TEST(ScalarFunctionTest,
+     castNcharUnencodableInQueryCharsetReturnsNcharConvertError) {
+  const TdUcs4 emoji = 0x1F600;
+
+  SScalarParam input = {0};
+  scltMakeRawStringParam(&input, TSDB_DATA_TYPE_NCHAR, &emoji, sizeof(emoji));
+  input.charsetCxt = taosConvInit("GBK");
+  ASSERT_NE(input.charsetCxt, nullptr);
+
+  SScalarParam output = {0};
+  output.columnData =
+      (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(output.columnData, nullptr);
+  output.columnData->info = createColumnInfo(
+      0, TSDB_DATA_TYPE_VARCHAR, VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
+  ASSERT_EQ(colInfoDataEnsureCapacity(output.columnData, 1, true),
+            TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(castFunction(&input, 1, &output),
+            TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
 
   colDataDestroy(input.columnData);
   taosMemoryFree(input.columnData);

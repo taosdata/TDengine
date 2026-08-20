@@ -16,6 +16,7 @@
 #include "parInsertUtil.h"
 
 #include "catalog.h"
+#include "osString.h"
 #include "parInt.h"
 #include "parUtil.h"
 #include "querynodes.h"
@@ -26,6 +27,14 @@
 #include "tdataformat.h"
 #include "tmisce.h"
 #include "ttypes.h"
+
+int32_t insBuildNcharConvErrMsg(SMsgBuf *pMsgBuf, const char *source,
+                                const void *charsetCxt) {
+  char buf[512] = {0};
+  (void)snprintf(buf, sizeof(buf), "VARCHAR->NCHAR conversion failed, "
+                 "charset:%s", taosConvCharset(charsetCxt));
+  return buildSyntaxErrMsg(pMsgBuf, buf, source);
+}
 
 static char* tableNameGetPosition(SToken* pToken, char target) {
   bool inEscape = false;

@@ -4199,7 +4199,9 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
   }
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
-    code = qStmtBindParams2(pStmt->sql.pQuery, bind, colIdx, pStmt->taos->optionInfo.charsetCxt);
+    void* charsetCxt =
+        taosResolveCharsetCxt(pStmt->taos->optionInfo.charsetCxt);
+    code = qStmtBindParams2(pStmt->sql.pQuery, bind, colIdx, charsetCxt);
     if (code != TSDB_CODE_SUCCESS) {
       goto cleanup_root;
     }
@@ -4223,7 +4225,7 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
                          .pStmtCb = NULL,
                          .pUser = pStmt->taos->user,
                          .timezone = pStmt->taos->optionInfo.timezone,
-                         .charsetCxt = pStmt->taos->optionInfo.charsetCxt,
+                         .charsetCxt = charsetCxt,
                          .firstDayOfWeek = pStmt->taos->optionInfo.firstDayOfWeek,
                          .stmtBindVersion = pStmt->exec.pRequest->stmtBindVersion};
     tstrncpy(ctx.timezoneName, pStmt->taos->optionInfo.timezoneName, sizeof(ctx.timezoneName));
@@ -4568,6 +4570,8 @@ static int32_t createParseContext(const SRequestObj* pRequest, SParseContext** p
     return terrno;
   }
 
+  void* charsetCxt = taosResolveCharsetCxt(pTscObj->optionInfo.charsetCxt);
+
   **pCxt = (SParseContext){.requestId = pRequest->requestId,
                            .requestRid = pRequest->self,
                            .acctId = pTscObj->acctId,
@@ -4591,7 +4595,8 @@ static int32_t createParseContext(const SRequestObj* pRequest, SParseContext** p
                            .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
                            .allocatorId = pRequest->allocatorRefId,
                            .parseSqlFp = clientParseSql,
-                           .parseSqlParam = pWrapper};
+                           .parseSqlParam = pWrapper,
+                           .charsetCxt = charsetCxt};
   int8_t biMode = atomic_load_8(&((STscObj*)pTscObj)->biMode);
   (*pCxt)->biMode = biMode;
   return TSDB_CODE_SUCCESS;

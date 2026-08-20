@@ -646,7 +646,7 @@ static int32_t convVarcharToNchar(char *input, char **output, int32_t inputLen, 
   bool ret = taosMbsToUcs4(input, inputLen, (TdUcs4 *)*output, inputLen * TSDB_NCHAR_SIZE, outputLen, charsetCxt);
   if (!ret) {
     taosMemoryFreeClear(*output);
-    return TSDB_CODE_SCALAR_CONVERT_ERROR;
+    return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -659,7 +659,21 @@ static int32_t convNcharToVarchar(char *input, char **output, int32_t inputLen, 
   *outputLen = taosUcs4ToMbs((TdUcs4 *)input, inputLen, *output, charsetCxt);
   if (*outputLen < 0) {
     taosMemoryFree(*output);
-    return TSDB_CODE_SCALAR_CONVERT_ERROR;
+    return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t convNcharToVarcharCharsetInsensitive(char *input, char **output, int32_t inputLen,
+                                                     int32_t *outputLen) {
+  *output = taosMemoryCalloc(inputLen > 0 ? inputLen : 1, 1);
+  if (NULL == *output) {
+    return terrno;
+  }
+  *outputLen = taosUcs4ToMbsCharsetInsensitive((TdUcs4 *)input, inputLen, *output);
+  if (*outputLen < 0) {
+    taosMemoryFreeClear(*output);
+    return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -854,7 +868,7 @@ static int32_t concatCopyHelper(const char *input, char *output, bool hasNchar, 
         taosMbsToUcs4(varDataVal(input), len, newBuf, (varDataLen(input) + 1) * TSDB_NCHAR_SIZE, &len, charsetCxt);
     if (!ret) {
       taosMemoryFree(newBuf);
-      return TSDB_CODE_SCALAR_CONVERT_ERROR;
+      return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
     }
     (void)memcpy(varDataVal(output) + *dataLen, newBuf, len);
     *dataLen += len;
@@ -1431,7 +1445,8 @@ static int32_t matchInSetFunction(SScalarParam *pInput, int32_t inputNum, SScala
     }
   }
 
-  bool utf8 = strcasecmp(pInput[1].charsetCxt ? pInput[1].charsetCxt : tsCharset, "UTF-8") == 0;
+  bool utf8 = strcasecmp(taosConvCharset(pInput[1].charsetCxt),
+                         DEFAULT_MBS_ENCODEC) == 0;
 
   for (int32_t i = 0; i < numOfRows; ++i) {
     int64_t offset = 0;
@@ -1622,175 +1637,224 @@ _return:
   return ret == 0;
 }
 
+static int32_t regexpInSetToUcs4(const SScalarParam *pParam, int32_t row,
+                                 char **ppUcs4, int32_t *pUcs4Len) {
+  *ppUcs4 = NULL;
+  *pUcs4Len = 0;
+  char   *value = colDataGetData(pParam->columnData, row);
+  char   *input = varDataVal(value);
+  int32_t inputLen = varDataLen(value);
+  int32_t cap = GET_PARAM_TYPE(pParam) == TSDB_DATA_TYPE_NCHAR
+                    ? inputLen
+                    : inputLen * TSDB_NCHAR_SIZE;
+
+  *ppUcs4 = taosMemoryCalloc(cap > 0 ? cap : 1, 1);
+  if (*ppUcs4 == NULL) {
+    return terrno;
+  }
+
+  if (GET_PARAM_TYPE(pParam) == TSDB_DATA_TYPE_NCHAR) {
+    if (inputLen % TSDB_NCHAR_SIZE != 0) {
+      taosMemoryFreeClear(*ppUcs4);
+      return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
+    }
+    memcpy(*ppUcs4, input, inputLen);
+    *pUcs4Len = inputLen;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (!taosMbsToUcs4(input, inputLen, (TdUcs4 *)*ppUcs4, cap, pUcs4Len,
+                     pParam->charsetCxt)) {
+    taosMemoryFreeClear(*ppUcs4);
+    return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t regexpInSetUcs4ToMbs(const char *pUcs4, int32_t ucs4Len,
+                                    char **ppMbs, int32_t *pMbsLen) {
+  *ppMbs = taosMemoryCalloc(ucs4Len > 0 ? ucs4Len : 1, 1);
+  if (*ppMbs == NULL) {
+    return terrno;
+  }
+  *pMbsLen = taosUcs4ToMbsCharsetInsensitive((TdUcs4 *)pUcs4, ucs4Len,
+                                              *ppMbs);
+  if (*pMbsLen < 0) {
+    taosMemoryFreeClear(*ppMbs);
+    return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool regexpInSetNextToken(const char* setUcs4, int32_t setLen,
+                                 const char* sepUcs4, int32_t sepLen,
+                                 int32_t* pNext, const char** ppToken,
+                                 int32_t* pTokenLen) {
+  if (*pNext < 0) {
+    return false;
+  }
+  if (setLen == 0 && sepLen != 0) {
+    return false;
+  }
+  if (setLen != 0 && *pNext == setLen) {
+    return false;
+  }
+
+  *ppToken = setUcs4 + *pNext;
+  int32_t end = *pNext;
+  if (sepLen == 0) {
+    end = setLen;
+  } else {
+    while (end + sepLen <= setLen &&
+           memcmp(setUcs4 + end, sepUcs4, sepLen) != 0) {
+      end += TSDB_NCHAR_SIZE;
+    }
+    if (end + sepLen > setLen) {
+      end = setLen;
+    }
+  }
+
+  *pTokenLen = end - *pNext;
+  *pNext = sepLen == 0 || end == setLen ? -1 : end + sepLen;
+  return true;
+}
+
+// Match one row after converting it once. Separators are first compacted to
+// NUL UCS-4 code points, which remain safe MBS token boundaries after iconv.
+static int32_t regexpInSetMatchUcs4Tokens(const char* patMbs, int32_t patMbsLen,
+                                          char* setUcs4, int32_t setLen,
+                                          const char* sepUcs4, int32_t sepLen,
+                                          int64_t* pOffset) {
+  *pOffset = 0;
+  if (sepLen != 0) {
+    int32_t next = 0;
+    int32_t write = 0;
+    const char* tokenUcs4 = NULL;
+    int32_t tokenLen = 0;
+
+    while (regexpInSetNextToken(setUcs4, setLen, sepUcs4, sepLen, &next,
+                                &tokenUcs4, &tokenLen)) {
+      memmove(setUcs4 + write, tokenUcs4, tokenLen);
+      write += tokenLen;
+      if (next >= 0) {
+        memset(setUcs4 + write, 0, TSDB_NCHAR_SIZE);
+        write += TSDB_NCHAR_SIZE;
+      }
+    }
+    setLen = write;
+  }
+
+  char* setMbs = NULL;
+  int32_t setMbsLen = 0;
+  int32_t code = regexpInSetUcs4ToMbs(setUcs4, setLen, &setMbs, &setMbsLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (sepLen == 0) {
+    *pOffset = regexpInSetCompare(patMbs, patMbsLen, setMbs, setMbsLen) ? 1 : 0;
+  } else {
+    int32_t start = 0;
+    int32_t tokenIndex = 0;
+    while (start < setMbsLen) {
+      int32_t end = start;
+      while (end < setMbsLen && setMbs[end] != '\0') {
+        ++end;
+      }
+      if (regexpInSetCompare(patMbs, patMbsLen, setMbs + start, end - start)) {
+        *pOffset = tokenIndex + 1;
+        break;
+      }
+      ++tokenIndex;
+      start = end + 1;
+    }
+  }
+
+  taosMemoryFree(setMbs);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  SColumnInfoData *pats = pInput[0].columnData, *sets = pInput[1].columnData, *seps = NULL;
-  char            *patstr = NULL, *setstr = NULL, *sepstr = ",";  // "," is the default seperator
-  int32_t          patLen = 0, setLen = 0, sepLen = 1;
-  int32_t          patNum = pInput[0].numOfRows, setNum = pInput[1].numOfRows, sepNum = 0;
-  bool             needFreePat = false, needFreeSet = false, needFreeSep = false;
-
-  if (inputNum == 3) {
-    sepNum = pInput[2].numOfRows;
-    seps = pInput[2].columnData;
-  }
+  SColumnInfoData *pats = pInput[0].columnData;
+  SColumnInfoData *sets = pInput[1].columnData;
+  SColumnInfoData *seps = inputNum == 3 ? pInput[2].columnData : NULL;
+  int32_t patNum = pInput[0].numOfRows;
+  int32_t setNum = pInput[1].numOfRows;
+  int32_t sepNum = inputNum == 3 ? pInput[2].numOfRows : 0;
   int32_t numOfRows = TMAX(TMAX(patNum, setNum), sepNum);
 
-  if ((IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])) ||
-       (patNum == 1 && colDataIsNull_s(pats, 0)) || (setNum == 1 && colDataIsNull_s(sets, 0)))) {
+  if (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
+      IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1]))) {
     colDataSetNNULL(pOutput->columnData, 0, numOfRows);
     pOutput->numOfRows = numOfRows;
     return code;
   }
 
-  // if there's only one pat/set/sep, get it now to improve performance
-  if (patNum == 1) {
-    patLen = varDataLen(colDataGetData(pats, 0));
-    patstr = varDataVal(colDataGetData(pats, 0));
-    if (patLen > 0 && GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) {
-      SCL_ERR_RET(convNcharToVarchar(patstr, &patstr, patLen, &patLen, pInput[0].charsetCxt));
-      needFreePat = true;
-    }
-  }
-
-  if (setNum == 1) {
-    setLen = varDataLen(colDataGetData(sets, 0));
-    setstr = varDataVal(colDataGetData(sets, 0));
-    if (setLen > 0 && GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
-      SCL_ERR_RET(convNcharToVarchar(setstr, &setstr, setLen, &setLen, pInput[1].charsetCxt));
-      needFreeSet = true;
-    }
-  }
-
-  if (sepNum != 1) {
-    // do nothing in this case
-  } else if (colDataIsNull_s(seps, 0)) {
-    // treat null seperator as empty
-    sepstr = NULL;
-    sepLen = 0;
-  } else {
-    sepLen = varDataLen(colDataGetData(seps, 0));
-    sepstr = varDataVal(colDataGetData(seps, 0));
-    if (sepLen > 0 && GET_PARAM_TYPE(&pInput[2]) == TSDB_DATA_TYPE_NCHAR) {
-      SCL_ERR_RET(convNcharToVarchar(sepstr, &sepstr, sepLen, &sepLen, pInput[2].charsetCxt));
-      needFreeSep = true;
-    }
-  }
-
-  bool utf8 = strcasecmp(tsCharset, "UTF-8") == 0;
+  TdUcs4 defaultSep = ',';
 
   for (int32_t i = 0; i < numOfRows; ++i) {
+    int32_t patRow = patNum == 1 ? 0 : i;
+    int32_t setRow = setNum == 1 ? 0 : i;
+    int32_t sepRow = sepNum == 1 ? 0 : i;
     int64_t offset = 0;
+    char   *patUcs4 = NULL;
+    char   *setUcs4 = NULL;
+    char   *sepUcs4 = inputNum == 3 ? NULL : (char *)&defaultSep;
+    char   *patMbs = NULL;
+    int32_t patLen = 0;
+    int32_t setLen = 0;
+    int32_t sepLen = inputNum == 3 ? 0 : TSDB_NCHAR_SIZE;
+    int32_t patMbsLen = 0;
 
-    if (patNum > 1) {
-      if (colDataIsNull_s(pats, i)) {
-        colDataSetNULL(pOutput->columnData, i);
-        continue;
-      }
-      if (needFreePat) {
-        taosMemoryFree(patstr);
-        needFreePat = false;
-      }
-      patstr = varDataVal(colDataGetData(pats, i));
-      patLen = varDataLen(colDataGetData(pats, i));
-      if (patLen > 0 && GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) {
-        SCL_ERR_RET(convNcharToVarchar(patstr, &patstr, patLen, &patLen, pInput[0].charsetCxt));
-        needFreePat = true;
-      }
-    }
-
-    if (setNum > 1) {
-      if (colDataIsNull_s(sets, i)) {
-        colDataSetNULL(pOutput->columnData, i);
-        continue;
-      }
-      if (needFreeSet) {
-        taosMemoryFree(setstr);
-        needFreeSet = false;
-      }
-      setstr = varDataVal(colDataGetData(sets, i));
-      setLen = varDataLen(colDataGetData(sets, i));
-      if (setLen > 0 && GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
-        SCL_ERR_RET(convNcharToVarchar(setstr, &setstr, setLen, &setLen, pInput[1].charsetCxt));
-        needFreeSet = true;
-      }
-    }
-
-    if (sepNum > 1) {
-      if (needFreeSep) {
-        taosMemoryFree(sepstr);
-        needFreeSep = false;
-      }
-      if (colDataIsNull_s(seps, i)) {
-        sepstr = NULL;
-        sepLen = 0;
-      } else {
-        sepLen = varDataLen(colDataGetData(seps, i));
-        sepstr = varDataVal(colDataGetData(seps, i));
-        if (sepLen > 0 && GET_PARAM_TYPE(&pInput[2]) == TSDB_DATA_TYPE_NCHAR) {
-          SCL_ERR_RET(convNcharToVarchar(sepstr, &sepstr, sepLen, &sepLen, pInput[2].charsetCxt));
-          needFreeSep = true;
-        }
-      }
-    }
-
-    // match pat & set directly when seperator is empty
-    if (sepLen == 0) {
-      if (regexpInSetCompare(patstr, patLen, setstr, setLen)) {
-        offset = 1;
-      }
-      colDataSetInt64(pOutput->columnData, i, &offset);
+    if (colDataIsNull_s(pats, patRow) || colDataIsNull_s(sets, setRow)) {
+      colDataSetNULL(pOutput->columnData, i);
       continue;
     }
 
-    char *start = setstr;
-    for (int32_t j = 0; start < setstr + setLen; j++) {
-      char *end = start;
-
-      while (true) {
-        // set [end] to the end of [setstr] if not enough characters for a seperator
-        if (end + sepLen > setstr + setLen) {
-          end = setstr + setLen;
-          break;
-        }
-        // a seperator is found
-        if (memcmp(end, sepstr, sepLen) == 0) {
-          break;
-        }
-        // not a seperator, advance one character
-        if (utf8) {
-          for (end++; end - setstr < setLen && ((*end & 0xC0) == 0x80); end++)
-            ;
-        } else {
-          end++;
-        }
-      }
-
-      if (regexpInSetCompare(patstr, patLen, start, end - start)) {
-        offset = j + 1;
-        break;
-      }
-
-      start = end + sepLen;
+    code = regexpInSetToUcs4(&pInput[0], patRow, &patUcs4, &patLen);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _row_return;
+    }
+    code = regexpInSetUcs4ToMbs(patUcs4, patLen, &patMbs, &patMbsLen);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _row_return;
+    }
+    code = regexpInSetToUcs4(&pInput[1], setRow, &setUcs4, &setLen);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _row_return;
     }
 
-    colDataSetInt64(pOutput->columnData, i, &offset);
+    if (inputNum == 3 && !colDataIsNull_s(seps, sepRow)) {
+      code = regexpInSetToUcs4(&pInput[2], sepRow, &sepUcs4, &sepLen);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _row_return;
+      }
+    }
+
+    // setUcs4 is private to this row, so token compaction cannot affect a
+    // broadcast value used by another row.
+    code = regexpInSetMatchUcs4Tokens(patMbs, patMbsLen, setUcs4, setLen,
+                                      sepUcs4, sepLen, &offset);
+
+    if (code == TSDB_CODE_SUCCESS) {
+      colDataSetInt64(pOutput->columnData, i, &offset);
+    }
+
+_row_return:
+    taosMemoryFree(patUcs4);
+    taosMemoryFree(patMbs);
+    taosMemoryFree(setUcs4);
+    if (sepUcs4 != (char *)&defaultSep) {
+      taosMemoryFree(sepUcs4);
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
   }
 
   pOutput->numOfRows = numOfRows;
-
-_return:
-  if (needFreePat) {
-    taosMemoryFree(patstr);
-  }
-  if (needFreeSet) {
-    taosMemoryFree(setstr);
-  }
-  if (needFreeSep) {
-    taosMemoryFree(sepstr);
-  }
-
   return code;
 }
 
@@ -1866,7 +1930,8 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   }
   int32_t groupIdx = (int32_t)groupIdxRaw;
 
-  // Build null-terminated UTF-8 pattern string (pattern is a constant, always 1 row)
+  // Build a null-terminated pattern in the process charset. regcomp() consumes
+  // bytes under the process locale, so the query client's charset is irrelevant.
   char    patBuf[512];
   char   *patStr     = patBuf;
   int32_t patLen     = 0;
@@ -1880,12 +1945,12 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
         patStr = patBuf;
         patStr[0] = '\0';
       } else {
-        patStr = NULL;  // ensure convNcharToVarchar always mallocs a fresh heap buffer
-        code = convNcharToVarchar(rawPat, &patStr, rawPatLen, &patLen, pInput[1].charsetCxt);
+        patStr = NULL;  // ensure the conversion helper always mallocs a fresh heap buffer
+        code = convNcharToVarcharCharsetInsensitive(rawPat, &patStr, rawPatLen, &patLen);
         if (code != TSDB_CODE_SUCCESS) goto _exit;
         needFreePat = true;
-        // convNcharToVarchar allocates rawPatLen bytes (no +1 for NUL); when the
-        // UTF-8 output fills the buffer entirely there is no room for a terminator.
+        // The conversion helper allocates rawPatLen bytes (no +1 for NUL); when the
+        // MBS output fills the buffer entirely there is no room for a terminator.
         // threadGetRegComp requires a NUL-terminated string — grow by one byte.
         char *tmp = taosMemoryRealloc(patStr, patLen + 1);
         if (tmp == NULL) {
@@ -1959,7 +2024,7 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     int32_t strLen = varDataLen(strRaw);
 
     // Grow the null-termination buffer only when the current row needs more space.
-    // For NCHAR: UTF-8 output is at most strLen bytes (UCS-4 byte count >= UTF-8 byte count),
+    // For NCHAR: MBS output is at most strLen bytes (UCS-4 byte count >= MBS byte count),
     // so strLen + 1 is a safe upper bound for both NCHAR and VARCHAR paths.
     if (strLen + 1 > strNtCap) {
       char *tmp = taosMemoryRealloc(strNt, strLen + 1);
@@ -1971,22 +2036,22 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
       strNtCap = strLen + 1;
     }
 
-    // Convert input into the NUL-terminated UTF-8 scratch buffer.
+    // Convert input into a NUL-terminated scratch buffer in the process charset.
     // For NCHAR: convert UCS-4 directly into strNt — avoids per-row malloc/free.
-    // For VARCHAR: data is already UTF-8, just copy it.
-    int32_t strUtf8Len;
+    // For VARCHAR: preserve its raw byte semantics and just copy it.
+    int32_t strMbsLen;
     if (isNchar) {
-      strUtf8Len = taosUcs4ToMbs((TdUcs4 *)strVal, strLen, strNt, pInput[0].charsetCxt);
-      if (strUtf8Len < 0) {
-        code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+      strMbsLen = taosUcs4ToMbsCharsetInsensitive((TdUcs4 *)strVal, strLen, strNt);
+      if (strMbsLen < 0) {
+        code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
         terrno = code;
         break;
       }
     } else {
       (void)memcpy(strNt, strVal, strLen);
-      strUtf8Len = strLen;
+      strMbsLen = strLen;
     }
-    strNt[strUtf8Len] = '\0';
+    strNt[strMbsLen] = '\0';
 
     int ret = regexec(regex, strNt, nmatch, pmatch, 0);
     if (ret == REG_NOMATCH || (ret == 0 && pmatch[groupIdx].rm_so == -1)) {
@@ -2005,17 +2070,17 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
       int32_t matchLen   = pmatch[groupIdx].rm_eo - pmatch[groupIdx].rm_so;
 
       if (isNchar) {
-        // Convert matched UTF-8 bytes back to NCHAR (UCS-4) directly into outBuf
+        // Convert matched process-charset bytes back to NCHAR (UCS-4) directly into outBuf
         // to avoid a per-row malloc/free cycle.
         // outBuf data capacity (outBufLen - VARSTR_HEADER_SIZE) >= N*TSDB_NCHAR_SIZE
         // which is always >= matchedCodepoints*TSDB_NCHAR_SIZE.
         int32_t matchedNcharLen = 0;
-        bool    ok = taosMbsToUcs4(strNt + matchStart, matchLen,
-                                   (TdUcs4 *)(outBuf + VARSTR_HEADER_SIZE),
-                                   outBufLen - VARSTR_HEADER_SIZE,
-                                   &matchedNcharLen, pInput[0].charsetCxt);
+        bool    ok = taosMbsToUcs4CharsetInsensitive(strNt + matchStart, matchLen,
+                                                      (TdUcs4 *)(outBuf + VARSTR_HEADER_SIZE),
+                                                      outBufLen - VARSTR_HEADER_SIZE,
+                                                      &matchedNcharLen);
         if (!ok) {
-          code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+          code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
           terrno = code;
           break;
         }
@@ -2434,7 +2499,7 @@ int32_t charFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
                           varDataLen(colDataGetData(pInput[j].columnData, colIdx)), convBuf, pInput->charsetCxt);
         if (len < 0) {
           taosMemoryFree(convBuf);
-          code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+          code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
           goto _return;
         }
         convBuf[len] = 0;
@@ -3557,7 +3622,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
 
@@ -3582,7 +3647,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -3606,7 +3671,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
 
@@ -3631,7 +3696,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -3655,7 +3720,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -3679,7 +3744,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -3703,7 +3768,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -3727,7 +3792,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
 
@@ -3752,7 +3817,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -3776,7 +3841,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -3800,7 +3865,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -3850,7 +3915,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           len = TMIN(len, outputLen - VARSTR_HEADER_SIZE);
@@ -3900,7 +3965,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           bool ret = taosMbsToUcs4(tmp, len, (TdUcs4 *)varDataVal(output), outputLen - VARSTR_HEADER_SIZE, &len,
                                    pInput->charsetCxt);
           if (!ret) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
 
@@ -3910,7 +3975,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           bool ret = taosMbsToUcs4(input + VARSTR_HEADER_SIZE, len, (TdUcs4 *)varDataVal(output),
                                    outputLen - VARSTR_HEADER_SIZE, &len, pInput->charsetCxt);
           if (!ret) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           varDataSetLen(output, len);
@@ -3920,7 +3985,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           bool ret = taosMbsToUcs4(blobDataVal(input), len, (TdUcs4 *)varDataVal(output),
                                    outputLen - VARSTR_HEADER_SIZE, &len, pInput->charsetCxt);
           if (!ret) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           varDataSetLen(output, len);
@@ -3941,7 +4006,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           bool ret = taosMbsToUcs4(buf, len, (TdUcs4 *)varDataVal(output), outputLen - VARSTR_HEADER_SIZE, &len,
                                    pInput->charsetCxt);
           if (!ret) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           varDataSetLen(output, len);
@@ -3960,7 +4025,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)(varDataVal(input)), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -4380,8 +4445,7 @@ int32_t toTimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
       // NCHAR data is UCS-4; convert to UTF-8 so taosChar2Ts can parse the string.
       int32_t mbsLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(tsData), varDataLen(tsData), tsStr, pInput->charsetCxt);
       if (mbsLen < 0) {
-        qError("func to_timestamp: UCS-4 to multibyte conversion failed");
-        SCL_ERR_JRET(TSDB_CODE_FAILED);
+        SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
       }
       len = TMIN(TS_FORMAT_MAX_LEN - 1, mbsLen);
       tsStr[len] = '\0';

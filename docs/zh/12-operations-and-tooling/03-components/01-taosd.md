@@ -1061,6 +1061,8 @@ locale zh_CN.UTF-8
 
 charset 的有效值是 UTF-8。
 
+4. 上述编码设置不仅用于写入，同样决定字符集敏感的查询转换。即使客户端与服务端 charset 不同，NCHAR 与字符串常量、VARCHAR 之间的比较、函数及 CAST 也会在服务端按客户端 charset 正确转换，因此客户端 charset 应与数据编码保持一致。
+
 :::
 
 ### 存储相关

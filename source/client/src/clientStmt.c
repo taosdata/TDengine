@@ -1372,7 +1372,9 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
   }
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
-    STMT_ERR_RET(qStmtBindParams(pStmt->sql.pQuery, bind, colIdx, pStmt->taos->optionInfo.charsetCxt));
+    void* charsetCxt =
+        taosResolveCharsetCxt(pStmt->taos->optionInfo.charsetCxt);
+    STMT_ERR_RET(qStmtBindParams(pStmt->sql.pQuery, bind, colIdx, charsetCxt));
 
     SParseContext ctx = {.requestId = pStmt->exec.pRequest->requestId,
                          .acctId = pStmt->taos->acctId,
@@ -1390,6 +1392,7 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
                          .pStmtCb = NULL,
                          .pUser = pStmt->taos->user,
                          .setQueryFp = setQueryRequest,
+                         .charsetCxt = charsetCxt,
                          .stmtBindVersion = pStmt->exec.pRequest->stmtBindVersion};
 
     ctx.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
