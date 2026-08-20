@@ -495,9 +495,18 @@ ALTER VTABLE vtb_name ALTER COLUMN vtb_col_name SET {[db_name.]table_name.col_na
 
 ## Drop Virtual Tables
 
+You can drop one or more virtual tables (virtual regular tables or virtual subtables) in a single SQL statement. The tables can belong to different databases.
+
 ```sql
-DROP VTABLE [IF EXISTS] [dbname].vtb_name;
+DROP VTABLE [IF EXISTS] [dbname].vtb_name [, [IF EXISTS] [dbname].vtb_name] ...;
 ```
+
+**Notes**
+
+- When dropping multiple tables, all tables in the list are validated first (whether each table exists, is a virtual table, and is not a virtual supertable). If any table fails validation, the entire statement fails and no tables are dropped.
+- `IF EXISTS` only applies to the single table it precedes. For example, in `DROP VTABLE IF EXISTS vtb1, vtb2`, a missing `vtb1` is skipped, but a missing `vtb2` still returns an error.
+- If the same table name appears multiple times in the list, the first occurrence is dropped and subsequent occurrences return an error because the table no longer exists (consistent with `DROP TABLE`).
+- A virtual supertable cannot be dropped with `DROP VTABLE`; use `DROP STABLE` instead.
 
 ## View Virtual Table Information
 
