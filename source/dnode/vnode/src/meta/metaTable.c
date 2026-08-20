@@ -367,7 +367,9 @@ int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchem
         if (val == NULL) {
           TAOS_CHECK_GOTO(terrno, NULL, _exception);
         }
-        int32_t len = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE, NULL);
+        // Index terms are persisted in the server charset; query charset must not change them.
+        int32_t len =
+            taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE, tsCharsetCxt);
         if (len < 0) {
           TAOS_CHECK_GOTO(len, NULL, _exception);
         }
@@ -452,7 +454,9 @@ int32_t code = 0;
         if (val == NULL) {
           TAOS_CHECK_GOTO(terrno, NULL, _exception);
         }
-        int32_t len = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE, NULL);
+        // Use the same server charset as index insertion so deletion addresses the same term.
+        int32_t len =
+            taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE, tsCharsetCxt);
         if (len < 0) {
           TAOS_CHECK_GOTO(len, NULL, _exception);
         }

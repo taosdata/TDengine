@@ -4743,7 +4743,8 @@ SNode* createAlterTagValueNodeWithExpression(SAstCreateContext* pCxt, SToken* pT
 
   int32_t code = checkRegexPattern(pNode->regexp);
   if (code != 0) {
-    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "'%s' is not a valid regular expression", pNode->regexp);
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, code,
+                                            "'%s' is not a valid regular expression", pNode->regexp);
     goto _err;
   }
 

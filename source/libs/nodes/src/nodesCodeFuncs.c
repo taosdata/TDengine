@@ -3678,6 +3678,7 @@ static const char* jkSysTableScanPhysiPlanShowRewrite = "ShowRewrite";
 static const char* jkSysTableScanPhysiPlanAccountId = "AccountId";
 static const char* jkSysTableScanPhysiPlanSysInfo = "SysInfo";
 static const char* jkSysTableScanPhysiPlanPrivInfo = "PrivInfo";
+static const char* jkSysTableScanPhysiPlanCharsetName = "CharsetName";
 
 static int32_t physiSysTableScanNodeToJson(const void* pObj, SJson* pJson) {
   const SSystemTableScanPhysiNode* pNode = (const SSystemTableScanPhysiNode*)pObj;
@@ -3697,6 +3698,11 @@ static int32_t physiSysTableScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkSysTableScanPhysiPlanPrivInfo, pNode->privInfo);
+  }
+  // Unconditional (empty string = server default charset).
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkSysTableScanPhysiPlanCharsetName,
+                                  pNode->charsetName);
   }
 
   return code;
@@ -3720,6 +3726,11 @@ static int32_t jsonToPhysiSysTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetUSmallIntValue(pJson, jkSysTableScanPhysiPlanPrivInfo, &pNode->privInfo);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue1(pJson, jkSysTableScanPhysiPlanCharsetName,
+                                pNode->charsetName,
+                                sizeof(pNode->charsetName));
   }
 
   return code;
@@ -7240,6 +7251,29 @@ static int32_t jsonToColumnNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+// See nodesGetCharsetName/nodesDecodeCharsetName for fallback and error
+// semantics.
+static int32_t charsetCxtToJson(SJson* pJson, const char* pKey,
+                                const void* pCharsetCxt) {
+  return tjsonAddStringToObject(pJson, pKey, nodesGetCharsetName(pCharsetCxt));
+}
+
+static int32_t jsonToCharsetCxt(const SJson* pJson, const char* pKey,
+                                void** pCharsetCxt) {
+  // Absent key (older peer) leaves the buffer empty, which decodes as a no-op.
+  char    name[TD_CHARSET_LEN] = {0};
+  int32_t code = tjsonGetStringValue1(pJson, pKey, name, sizeof(name));
+  if (TSDB_CODE_OUT_OF_MEMORY == code) {
+    // tjsonGetStringValue1 uses OUT_OF_MEMORY for a destination buffer that is
+    // too small; at the codec boundary this is an invalid encoded length.
+    code = TSDB_CODE_INVALID_MSG_LEN;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesDecodeCharsetName(name, pCharsetCxt);
+  }
+  return code;
+}
+
 static const char* jkValueLiteralSize = "LiteralSize";
 static const char* jkValueLiteral = "Literal";
 static const char* jkValueFlag = "Flag";
@@ -7248,6 +7282,7 @@ static const char* jkValueNotReserved = "NotReserved";
 static const char* jkValueIsNull = "IsNull";
 static const char* jkValueUnit = "Unit";
 static const char* jkValueDatum = "Datum";
+static const char* jkValueCharsetName = "CharsetName";
 
 static int32_t datumToJson(const void* pObj, SJson* pJson) {
   const SValueNode* pNode = (const SValueNode*)pObj;
@@ -7350,6 +7385,9 @@ static int32_t valueNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code && pNode->translate && !pNode->isNull) {
     code = datumToJson(pNode, pJson);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = charsetCxtToJson(pJson, jkValueCharsetName, pNode->charsetCxt);
   }
 
   return code;
@@ -7522,6 +7560,9 @@ static int32_t jsonToValueNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code && pNode->translate && !pNode->isNull) {
     code = jsonToDatum(pJson, pNode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToCharsetCxt(pJson, jkValueCharsetName, &pNode->charsetCxt);
   }
 
   return code;
@@ -7823,6 +7864,7 @@ static const char* jkOperatorFlag = "OpFlag";
 static const char* jkOperatorLeft = "Left";
 static const char* jkOperatorRight = "Right";
 static const char* jkOperatorTimezoneName = "TimezoneName";
+static const char* jkOperatorCharsetName = "CharsetName";
 
 static int32_t operatorNodeToJson(const void* pObj, SJson* pJson) {
   const SOperatorNode* pNode = (const SOperatorNode*)pObj;
@@ -7843,6 +7885,9 @@ static int32_t operatorNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
     code = tjsonAddStringToObject(pJson, jkOperatorTimezoneName,
                                   pNode->timezoneName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = charsetCxtToJson(pJson, jkOperatorCharsetName, pNode->charsetCxt);
   }
 
   return code;
@@ -7874,6 +7919,9 @@ static int32_t jsonToOperatorNode(const SJson* pJson, void* pObj) {
                                             (void**)&pNode->tz,
                                             &pNode->ownsTimezone);
     }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToCharsetCxt(pJson, jkOperatorCharsetName, &pNode->charsetCxt);
   }
 
   return code;
@@ -7924,6 +7972,7 @@ static const char* jkFunctionTrimType = "TrimType";
 static const char* jkFunctionSrcFuncInputDT = "SrcFuncInputDataType";
 static const char* jkFunctionIsDistinct = "IsDistinct";
 static const char* jkFunctionTzName = "TzName";
+static const char* jkFunctionCharsetName = "CharsetName";
 
 static int32_t functionNodeToJson(const void* pObj, SJson* pJson) {
   const SFunctionNode* pNode = (const SFunctionNode*)pObj;
@@ -7970,6 +8019,9 @@ static int32_t functionNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code && pNode->tzName[0] != '\0') {
     code = tjsonAddStringToObject(pJson, jkFunctionTzName, pNode->tzName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = charsetCxtToJson(pJson, jkFunctionCharsetName, pNode->charsetCxt);
   }
   return code;
 }
@@ -8020,6 +8072,9 @@ static int32_t jsonToFunctionNode(const SJson* pJson, void* pObj) {
   // tzName is optional (absent for non-timezone functions or old plans)
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue1(pJson, jkFunctionTzName, pNode->tzName, sizeof(pNode->tzName));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToCharsetCxt(pJson, jkFunctionCharsetName, &pNode->charsetCxt);
   }
 
   return code;
@@ -9882,6 +9937,8 @@ static const char* jkCaseWhenCase = "Case";
 static const char* jkCaseWhenWhenThenList = "WhenThenList";
 static const char* jkCaseWhenElse = "Else";
 
+static const char* jkCaseWhenCharsetName = "CharsetName";
+
 static int32_t caseWhenNodeToJson(const void* pObj, SJson* pJson) {
   const SCaseWhenNode* pNode = (const SCaseWhenNode*)pObj;
 
@@ -9894,6 +9951,9 @@ static int32_t caseWhenNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkCaseWhenElse, nodeToJson, pNode->pElse);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = charsetCxtToJson(pJson, jkCaseWhenCharsetName, pNode->charsetCxt);
   }
 
   return code;
@@ -9911,6 +9971,9 @@ static int32_t jsonToCaseWhenNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkCaseWhenElse, &pNode->pElse);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToCharsetCxt(pJson, jkCaseWhenCharsetName, &pNode->charsetCxt);
   }
 
   return code;

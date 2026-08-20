@@ -172,6 +172,7 @@ int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
   COPY_SCALAR_FIELD(typeData);
   COPY_SCALAR_FIELD(unit);
   COPY_SCALAR_FIELD(tz);
+  COPY_SCALAR_FIELD(charsetCxt);
   if (!pSrc->translate || pSrc->isNull) {
     return TSDB_CODE_SUCCESS;
   }
@@ -261,6 +262,7 @@ static int32_t operatorNodeCopy(const SOperatorNode* pSrc, SOperatorNode* pDst) 
   } else {
     pDst->tz = pSrc->tz;
   }
+  COPY_SCALAR_FIELD(charsetCxt);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -290,6 +292,7 @@ static int32_t functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) 
   COPY_CHAR_ARRAY_FIELD(tzName);
   pDst->tz = NULL;
   pDst->tzAllocated = false;
+  COPY_SCALAR_FIELD(charsetCxt);
   if (pSrc->tzName[0] != '\0') {
     int32_t code = nodesDecodeTimezoneNameInPlace(pSrc->tzName, (void**)&pDst->tz, &pDst->tzAllocated);
     if (TSDB_CODE_SUCCESS != code) {
@@ -592,6 +595,7 @@ static int32_t caseWhenNodeCopy(const SCaseWhenNode* pSrc, SCaseWhenNode* pDst) 
   CLONE_NODE_FIELD(pElse);
   CLONE_NODE_LIST_FIELD(pWhenThenList);
   COPY_SCALAR_FIELD(tz);
+  COPY_SCALAR_FIELD(charsetCxt);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1437,6 +1441,7 @@ static int32_t physiSysTableScanCopy(const SSystemTableScanPhysiNode* pSrc, SSys
   COPY_SCALAR_FIELD(accountId);
   COPY_SCALAR_FIELD(sysInfo);
   COPY_SCALAR_FIELD(privInfo);
+  COPY_CHAR_ARRAY_FIELD(charsetName);
   return TSDB_CODE_SUCCESS;
 }
 

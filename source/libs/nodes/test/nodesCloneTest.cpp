@@ -15,9 +15,14 @@
 
 #include <gtest/gtest.h>
 
+#include <string>
+#include <vector>
+
 #include "nodes.h"
+#include "os.h"
 #include "plannodes.h"
 #include "querynodes.h"
+#include "tconv.h"
 
 extern "C" void nodesTestSetStrictAppendFailOnce(void);
 
@@ -506,6 +511,9 @@ TEST_F(NodesCloneTest, physiSystemTableScan) {
     ASSERT_EQ(pSrcNode->showRewrite, pDstNode->showRewrite);
     ASSERT_EQ(pSrcNode->accountId, pDstNode->accountId);
     ASSERT_EQ(pSrcNode->sysInfo, pDstNode->sysInfo);
+    // The client charset name must survive clone (plain char[] field copied by
+    // physiSysTableScanCopy); without it a cloned/pushed-down plan loses it.
+    ASSERT_STREQ(pSrcNode->charsetName, pDstNode->charsetName);
   });
 
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
@@ -515,6 +523,7 @@ TEST_F(NodesCloneTest, physiSystemTableScan) {
       int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, &pNew);
     srcNode.reset(pNew);
     SSystemTableScanPhysiNode* pNode = (SSystemTableScanPhysiNode*)srcNode.get();
+    tstrncpy(pNode->charsetName, "GBK", TD_CHARSET_LEN);
     return srcNode.get();
   }());
 }
@@ -619,4 +628,343 @@ TEST_F(NodesCloneTest, functionWithOverSpec) {
     ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_SQL_WINDOW_SPEC, &func->pOver));
   }
   run(srcNode.get());
+}
+
+// ---- per-node charset propagation (feat/charset) ----
+//
+// value/operator/function/case-when nodes carry a charsetCxt stamped at parse
+// time; it drives NCHAR<->MBS conversion for the querying client. It is a bare
+// void* into the process-wide conv registry, propagated as a scalar on clone
+// and serialized by charset NAME in both codecs (rebuilt via taosConvInit on
+// decode). If any path drops it, a remote vnode silently falls back to the
+// server charset and a non-UTF-8 client gets wrong results. These tests pin
+// clone + the JSON and TLV round-trips for all four bearer types.
+
+namespace {
+
+// The four expression node types that carry charsetCxt.
+const ENodeType kCharsetBearingTypes[] = {
+    QUERY_NODE_VALUE,
+    QUERY_NODE_OPERATOR,
+    QUERY_NODE_FUNCTION,
+    QUERY_NODE_CASE_WHEN,
+};
+
+SNode* makeCharsetStampedNode(ENodeType type, void* charsetCxt) {
+  SNode*  pNode = nullptr;
+  int32_t code = nodesMakeNode(type, &pNode);
+  EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_NE(pNode, nullptr);
+  if (pNode == nullptr) return nullptr;
+  switch (type) {
+    case QUERY_NODE_VALUE: {
+      SValueNode* value = (SValueNode*)pNode;
+      value->charsetCxt = charsetCxt;
+      value->translate = true;
+      value->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+      value->node.resType.bytes = VARSTR_HEADER_SIZE + 4;
+      value->datum.p = (char*)taosMemoryCalloc(1, value->node.resType.bytes);
+      EXPECT_NE(value->datum.p, nullptr);
+      if (value->datum.p == nullptr) return pNode;
+      varDataSetLen(value->datum.p, 4);
+      memcpy(varDataVal(value->datum.p), "\xd6\xd0\xce\xc4", 4);
+      value->literal = taosStrdup("\xd6\xd0\xce\xc4");
+      EXPECT_NE(value->literal, nullptr);
+      break;
+    }
+    case QUERY_NODE_OPERATOR:
+      ((SOperatorNode*)pNode)->charsetCxt = charsetCxt;
+      break;
+    case QUERY_NODE_FUNCTION:
+      ((SFunctionNode*)pNode)->charsetCxt = charsetCxt;
+      break;
+    case QUERY_NODE_CASE_WHEN:
+      ((SCaseWhenNode*)pNode)->charsetCxt = charsetCxt;
+      break;
+    default:
+      break;
+  }
+  return pNode;
+}
+
+void checkRawGbkValuePreserved(const SNode* pNode) {
+  const SValueNode* value = (const SValueNode*)pNode;
+  ASSERT_EQ(value->node.resType.type, TSDB_DATA_TYPE_VARCHAR);
+  ASSERT_NE(value->datum.p, nullptr);
+  EXPECT_EQ(varDataLen(value->datum.p), 4);
+  EXPECT_EQ(memcmp(varDataVal(value->datum.p), "\xd6\xd0\xce\xc4", 4), 0);
+  ASSERT_NE(value->literal, nullptr);
+  EXPECT_EQ(memcmp(value->literal, "\xd6\xd0\xce\xc4", 4), 0);
+}
+
+const void* getExprCharsetCxt(const SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_VALUE:
+      return ((const SValueNode*)pNode)->charsetCxt;
+    case QUERY_NODE_OPERATOR:
+      return ((const SOperatorNode*)pNode)->charsetCxt;
+    case QUERY_NODE_FUNCTION:
+      return ((const SFunctionNode*)pNode)->charsetCxt;
+    case QUERY_NODE_CASE_WHEN:
+      return ((const SCaseWhenNode*)pNode)->charsetCxt;
+    default:
+      return nullptr;
+  }
+}
+
+#pragma pack(push, 1)
+struct TestTlvHeader {
+  int16_t type;
+  int32_t len;
+};
+#pragma pack(pop)
+
+}  // namespace
+
+TEST(NodesCharsetTest, cloneCarriesCharsetCxt) {
+  void* gbk = taosConvInit("GBK");
+  ASSERT_NE(gbk, nullptr);
+
+  for (ENodeType type : kCharsetBearingTypes) {
+    std::unique_ptr<SNode, void (*)(SNode*)> src(
+        makeCharsetStampedNode(type, gbk), nodesDestroyNode);
+    ASSERT_NE(src.get(), nullptr);
+    ASSERT_EQ(getExprCharsetCxt(src.get()), gbk);
+
+    SNode*  pClone = nullptr;
+    int32_t code = nodesCloneNode(src.get(), &pClone);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> dst(pClone, nodesDestroyNode);
+
+    // The fix copies charsetCxt as a scalar field; without it the clone keeps
+    // the zero-initialized NULL and loses the connection charset.
+    EXPECT_EQ(getExprCharsetCxt(dst.get()), gbk)
+        << "charsetCxt not cloned for node type " << type;
+    if (type == QUERY_NODE_VALUE) checkRawGbkValuePreserved(dst.get());
+  }
+}
+
+class NodesCharsetCodecTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    // A dropped charset decodes to NULL, whose effective name is tsCharset;
+    // decode also collapses a stamped name equal to tsCharset back to NULL.
+    // Pin tsCharset to something other than the stamped charset so a codec
+    // regression is observable (NULL -> "UTF-8" != "GBK").
+    tstrncpy(savedCharset_, tsCharset, sizeof(savedCharset_));
+    tstrncpy(tsCharset, "UTF-8", TD_CHARSET_LEN);
+  }
+  void TearDown() override {
+    tstrncpy(tsCharset, savedCharset_, TD_CHARSET_LEN);
+  }
+
+  static void checkCharsetPreserved(const SNode* pOut) {
+    const void* outCxt = getExprCharsetCxt(pOut);
+    ASSERT_NE(outCxt, nullptr);
+    EXPECT_STREQ(((const SConvInfo*)outCxt)->charset, "GBK");
+  }
+
+  char savedCharset_[TD_CHARSET_LEN] = {0};
+};
+
+TEST_F(NodesCharsetCodecTest, jsonRoundTripPreservesCharset) {
+  void* gbk = taosConvInit("GBK");
+  ASSERT_NE(gbk, nullptr);
+  ASSERT_STREQ(((const SConvInfo*)gbk)->charset, "GBK");
+
+  for (ENodeType type : kCharsetBearingTypes) {
+    std::unique_ptr<SNode, void (*)(SNode*)> src(
+        makeCharsetStampedNode(type, gbk), nodesDestroyNode);
+    ASSERT_NE(src.get(), nullptr);
+
+    char*   pStr = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(nodesNodeToString(src.get(), false, &pStr, &len),
+              TSDB_CODE_SUCCESS);
+    ASSERT_NE(pStr, nullptr);
+
+    SNode*  pOut = nullptr;
+    int32_t code = nodesStringToNode(pStr, &pOut);
+    taosMemoryFreeClear(pStr);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> out(pOut, nodesDestroyNode);
+
+    SCOPED_TRACE("json node type " + std::to_string((int)type));
+    checkCharsetPreserved(out.get());
+    if (type == QUERY_NODE_VALUE) checkRawGbkValuePreserved(out.get());
+  }
+}
+
+TEST_F(NodesCharsetCodecTest, jsonRejectsOverlongCharsetNameWithMessageLengthError) {
+  void* gbk = taosConvInit("GBK");
+  ASSERT_NE(gbk, nullptr);
+  std::unique_ptr<SNode, void (*)(SNode*)> src(
+      makeCharsetStampedNode(QUERY_NODE_VALUE, gbk), nodesDestroyNode);
+
+  char*   pStr = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(nodesNodeToString(src.get(), false, &pStr, &len),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(pStr, nullptr);
+  std::string json(pStr);
+  taosMemoryFreeClear(pStr);
+
+  const std::string original = "\"CharsetName\":\"GBK\"";
+  size_t            pos = json.find(original);
+  ASSERT_NE(pos, std::string::npos);
+  json.replace(pos, original.size(),
+               "\"CharsetName\":\"" + std::string(TD_CHARSET_LEN, 'A') + "\"");
+
+  SNode* pOut = nullptr;
+  EXPECT_EQ(nodesStringToNode(json.c_str(), &pOut),
+            TSDB_CODE_INVALID_MSG_LEN);
+  EXPECT_EQ(pOut, nullptr);
+}
+
+TEST_F(NodesCharsetCodecTest, msgRoundTripPreservesCharset) {
+  void* gbk = taosConvInit("GBK");
+  ASSERT_NE(gbk, nullptr);
+
+  for (ENodeType type : kCharsetBearingTypes) {
+    std::unique_ptr<SNode, void (*)(SNode*)> src(
+        makeCharsetStampedNode(type, gbk), nodesDestroyNode);
+    ASSERT_NE(src.get(), nullptr);
+
+    char*   pMsg = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(nodesNodeToMsg(src.get(), &pMsg, &len), TSDB_CODE_SUCCESS);
+    ASSERT_NE(pMsg, nullptr);
+
+    SNode*  pOut = nullptr;
+    int32_t code = nodesMsgToNode(pMsg, len, &pOut);
+    taosMemoryFreeClear(pMsg);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> out(pOut, nodesDestroyNode);
+
+    SCOPED_TRACE("msg node type " + std::to_string((int)type));
+    checkCharsetPreserved(out.get());
+    if (type == QUERY_NODE_VALUE) checkRawGbkValuePreserved(out.get());
+  }
+}
+
+TEST_F(NodesCharsetCodecTest, msgRejectsOverlongCharsetNameWithMessageLengthError) {
+  void* gbk = taosConvInit("GBK");
+  ASSERT_NE(gbk, nullptr);
+  std::unique_ptr<SNode, void (*)(SNode*)> src(
+      makeCharsetStampedNode(QUERY_NODE_VALUE, gbk), nodesDestroyNode);
+
+  char*   pMsg = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(nodesNodeToMsg(src.get(), &pMsg, &len), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pMsg, nullptr);
+
+  auto* root = (TestTlvHeader*)pMsg;
+  ASSERT_EQ((int32_t)sizeof(TestTlvHeader) + ntohl(root->len), len);
+  int32_t fieldOffset = sizeof(TestTlvHeader);
+  int32_t lastOffset = -1;
+  while (fieldOffset < len) {
+    auto* field = (TestTlvHeader*)(pMsg + fieldOffset);
+    int32_t fieldLen = ntohl(field->len);
+    ASSERT_GE(fieldLen, 0);
+    ASSERT_LE(fieldOffset + (int32_t)sizeof(TestTlvHeader) + fieldLen, len);
+    lastOffset = fieldOffset;
+    fieldOffset += sizeof(TestTlvHeader) + fieldLen;
+  }
+  ASSERT_EQ(fieldOffset, len);
+  ASSERT_GE(lastOffset, 0);
+
+  auto* charsetField = (TestTlvHeader*)(pMsg + lastOffset);
+  ASSERT_EQ(ntohl(charsetField->len), 3);
+  ASSERT_EQ(memcmp(pMsg + lastOffset + sizeof(TestTlvHeader), "GBK", 3), 0);
+
+  int32_t delta = TD_CHARSET_LEN - 3;
+  std::vector<char> malformed(len + delta);
+  memcpy(malformed.data(), pMsg, lastOffset + sizeof(TestTlvHeader));
+  memset(malformed.data() + lastOffset + sizeof(TestTlvHeader), 'A', TD_CHARSET_LEN);
+  taosMemoryFreeClear(pMsg);
+
+  root = (TestTlvHeader*)malformed.data();
+  root->len = htonl(ntohl(root->len) + delta);
+  charsetField = (TestTlvHeader*)(malformed.data() + lastOffset);
+  charsetField->len = htonl(TD_CHARSET_LEN);
+
+  SNode* pOut = nullptr;
+  EXPECT_EQ(nodesMsgToNode(malformed.data(), (int32_t)malformed.size(), &pOut),
+            TSDB_CODE_INVALID_MSG_LEN);
+  EXPECT_EQ(pOut, nullptr);
+}
+
+// The system-table scan physical node carries the query charset as a NAME
+// (SSystemTableScanPhysiNode.charsetName), serialized directly (not decoded to a
+// charsetCxt) in both codecs; the sysscan operator restores it via taosConvInit
+// to render NCHAR/JSON tag values in the client charset. These pin the TLV and
+// JSON round-trips, including the absent-field (old plan) empty-name fallback.
+namespace {
+
+SSystemTableScanPhysiNode* makeSysScanNode(const char* charsetName) {
+  SNode*  pNode = nullptr;
+  int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, &pNode);
+  EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_NE(pNode, nullptr);
+  if (pNode == nullptr) return nullptr;
+  SSystemTableScanPhysiNode* pScan = (SSystemTableScanPhysiNode*)pNode;
+  tstrncpy(pScan->charsetName, charsetName, TD_CHARSET_LEN);
+  return pScan;
+}
+
+}  // namespace
+
+TEST(NodesSysScanCharsetTest, msgRoundTripPreservesCharsetName) {
+  std::unique_ptr<SNode, void (*)(SNode*)> src((SNode*)makeSysScanNode("GBK"),
+                                               nodesDestroyNode);
+  ASSERT_NE(src.get(), nullptr);
+
+  char*   pMsg = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(nodesNodeToMsg(src.get(), &pMsg, &len), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pMsg, nullptr);
+
+  SNode*  pOut = nullptr;
+  int32_t code = nodesMsgToNode(pMsg, len, &pOut);
+  taosMemoryFreeClear(pMsg);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> out(pOut, nodesDestroyNode);
+  EXPECT_STREQ(((SSystemTableScanPhysiNode*)out.get())->charsetName, "GBK");
+}
+
+TEST(NodesSysScanCharsetTest, jsonRoundTripPreservesCharsetName) {
+  std::unique_ptr<SNode, void (*)(SNode*)> src((SNode*)makeSysScanNode("GBK"),
+                                               nodesDestroyNode);
+  ASSERT_NE(src.get(), nullptr);
+
+  char*   pStr = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(nodesNodeToString(src.get(), false, &pStr, &len), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pStr, nullptr);
+
+  SNode*  pOut = nullptr;
+  int32_t code = nodesStringToNode(pStr, &pOut);
+  taosMemoryFreeClear(pStr);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> out(pOut, nodesDestroyNode);
+  EXPECT_STREQ(((SSystemTableScanPhysiNode*)out.get())->charsetName, "GBK");
+}
+
+TEST(NodesSysScanCharsetTest, emptyCharsetNameRoundTrips) {
+  // Old plans carry no charset (empty name); it must round-trip to empty, which
+  // the operator maps to the server default tsCharsetCxt.
+  std::unique_ptr<SNode, void (*)(SNode*)> src((SNode*)makeSysScanNode(""),
+                                               nodesDestroyNode);
+  ASSERT_NE(src.get(), nullptr);
+
+  char*   pMsg = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(nodesNodeToMsg(src.get(), &pMsg, &len), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pMsg, nullptr);
+  SNode*  pOut = nullptr;
+  int32_t code = nodesMsgToNode(pMsg, len, &pOut);
+  taosMemoryFreeClear(pMsg);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> out(pOut, nodesDestroyNode);
+  EXPECT_STREQ(((SSystemTableScanPhysiNode*)out.get())->charsetName, "");
 }

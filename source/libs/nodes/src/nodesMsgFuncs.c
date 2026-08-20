@@ -947,7 +947,8 @@ enum {
   VALUE_CODE_NOT_RESERVED,
   VALUE_CODE_IS_NULL,
   VALUE_CODE_DATUM,
-  VALUE_CODE_PLACEHOLDER_NO
+  VALUE_CODE_PLACEHOLDER_NO,
+  VALUE_CODE_CHARSET_NAME
 };
 
 static int32_t datumToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -1011,6 +1012,26 @@ static int32_t datumToMsg(const void* pObj, STlvEncoder* pEncoder) {
   return code;
 }
 
+// See nodesGetCharsetName/nodesDecodeCharsetName for fallback and error
+// semantics.
+static int32_t charsetCxtToMsg(const void* pCharsetCxt, int16_t type,
+                               STlvEncoder* pEncoder) {
+  return tlvEncodeCStr(pEncoder, type, nodesGetCharsetName(pCharsetCxt));
+}
+
+static int32_t msgToCharsetCxt(STlv* pTlv, void** pCharsetCxt) {
+  char name[TD_CHARSET_LEN] = {0};
+
+  if (pTlv->len >= TD_CHARSET_LEN) {
+    return TSDB_CODE_INVALID_MSG_LEN;
+  }
+  int32_t code = tlvDecodeCStr(pTlv, name, sizeof(name));
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesDecodeCharsetName(name, pCharsetCxt);
+  }
+  return code;
+}
+
 static int32_t valueNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SValueNode* pNode = (const SValueNode*)pObj;
 
@@ -1035,6 +1056,10 @@ static int32_t valueNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI16(pEncoder, VALUE_CODE_PLACEHOLDER_NO, pNode->placeholderNo);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = charsetCxtToMsg(pNode->charsetCxt, VALUE_CODE_CHARSET_NAME,
+                           pEncoder);
   }
 
   return code;
@@ -1187,6 +1212,9 @@ static int32_t msgToValueNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case VALUE_CODE_PLACEHOLDER_NO:
         code = tlvDecodeI16(pTlv, &pNode->placeholderNo);
+        break;
+      case VALUE_CODE_CHARSET_NAME:
+        code = msgToCharsetCxt(pTlv, &pNode->charsetCxt);
         break;
       default:
         break;
@@ -1470,7 +1498,8 @@ static int32_t msgToRemoteTableNode(STlvDecoder* pDecoder, void* pObj) {
 
 
 enum { OPERATOR_CODE_EXPR_BASE = 1, OPERATOR_CODE_OP_TYPE, OPERATOR_CODE_LEFT,
-  OPERATOR_CODE_RIGHT, OPERATOR_CODE_FLAG, OPERATOR_CODE_TIMEZONE_NAME };
+  OPERATOR_CODE_RIGHT, OPERATOR_CODE_FLAG, OPERATOR_CODE_TIMEZONE_NAME,
+  OPERATOR_CODE_CHARSET_NAME };
 
 static int32_t operatorNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SOperatorNode* pNode = (const SOperatorNode*)pObj;
@@ -1491,6 +1520,10 @@ static int32_t operatorNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
     code = tlvEncodeCStr(pEncoder, OPERATOR_CODE_TIMEZONE_NAME,
                          pNode->timezoneName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = charsetCxtToMsg(pNode->charsetCxt, OPERATOR_CODE_CHARSET_NAME,
+                           pEncoder);
   }
 
   return code;
@@ -1526,6 +1559,9 @@ static int32_t msgToOperatorNode(STlvDecoder* pDecoder, void* pObj) {
                                                 (void**)&pNode->tz,
                                                 &pNode->ownsTimezone);
         }
+        break;
+      case OPERATOR_CODE_CHARSET_NAME:
+        code = msgToCharsetCxt(pTlv, &pNode->charsetCxt);
         break;
       default:
         break;
@@ -1591,6 +1627,7 @@ enum {
   FUNCTION_CODE_IS_DISTINCT,
   FUNCTION_CODE_OVER,
   FUNCTION_CODE_TZ_NAME,
+  FUNCTION_CODE_CHARSET_NAME,
 };
 
 static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -1638,6 +1675,10 @@ static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code && pNode->tzName[0] != '\0') {
     code = tlvEncodeCStr(pEncoder, FUNCTION_CODE_TZ_NAME, pNode->tzName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = charsetCxtToMsg(pNode->charsetCxt, FUNCTION_CODE_CHARSET_NAME,
+                           pEncoder);
   }
 
   return code;
@@ -1694,6 +1735,9 @@ static int32_t msgToFunctionNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case FUNCTION_CODE_TZ_NAME:
         code = tlvDecodeCStr(pTlv, pNode->tzName, sizeof(pNode->tzName));
+        break;
+      case FUNCTION_CODE_CHARSET_NAME:
+        code = msgToCharsetCxt(pTlv, &pNode->charsetCxt);
         break;
       default:
         break;
@@ -2510,7 +2554,8 @@ static int32_t msgToWhenThenNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { CASE_WHEN_CODE_EXPR_BASE = 1, CASE_WHEN_CODE_CASE, CASE_WHEN_CODE_ELSE, CASE_WHEN_CODE_WHEN_THEN_LIST };
+enum { CASE_WHEN_CODE_EXPR_BASE = 1, CASE_WHEN_CODE_CASE, CASE_WHEN_CODE_ELSE,
+       CASE_WHEN_CODE_WHEN_THEN_LIST, CASE_WHEN_CODE_CHARSET_NAME };
 
 static int32_t caseWhenNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SCaseWhenNode* pNode = (const SCaseWhenNode*)pObj;
@@ -2524,6 +2569,10 @@ static int32_t caseWhenNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, CASE_WHEN_CODE_WHEN_THEN_LIST, nodeListToMsg, pNode->pWhenThenList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = charsetCxtToMsg(pNode->charsetCxt, CASE_WHEN_CODE_CHARSET_NAME,
+                           pEncoder);
   }
 
   return code;
@@ -2547,6 +2596,9 @@ static int32_t msgToCaseWhenNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case CASE_WHEN_CODE_WHEN_THEN_LIST:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pWhenThenList);
+        break;
+      case CASE_WHEN_CODE_CHARSET_NAME:
+        code = msgToCharsetCxt(pTlv, &pNode->charsetCxt);
         break;
       default:
         break;
@@ -3867,6 +3919,7 @@ enum {
   PHY_SYSTABLE_SCAN_CODE_ACCOUNT_ID,
   PHY_SYSTABLE_SCAN_CODE_SYS_INFO,
   PHY_SYSTABLE_SCAN_CODE_PRIV_INFO,
+  PHY_SYSTABLE_SCAN_CODE_CHARSET_NAME,
 };
 
 static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3887,6 +3940,12 @@ static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncode
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeU16(pEncoder, PHY_SYSTABLE_SCAN_CODE_PRIV_INFO, pNode->privInfo);
+  }
+  // Encoded unconditionally (empty string = server default charset), matching
+  // the always-on encoding of the other fields in this node.
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, PHY_SYSTABLE_SCAN_CODE_CHARSET_NAME,
+                         pNode->charsetName);
   }
 
   return code;
@@ -3916,6 +3975,11 @@ static int32_t msgToPhysiSysTableScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_SYSTABLE_SCAN_CODE_PRIV_INFO:
         code = tlvDecodeU16(pTlv, &pNode->privInfo);
+        break;
+      case PHY_SYSTABLE_SCAN_CODE_CHARSET_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->charsetName,
+                             sizeof(pNode->charsetName));
+        break;
       default:
         break;
     }

@@ -275,6 +275,9 @@ class TestFunRegexpExtract:
         # RXE-ERR-006: invalid regex (unmatched parenthesis)
         tdSql.error("SELECT REGEXP_EXTRACT('abc', '(b', 1)")
 
+        # RXE-ERR-006b: non-ASCII patterns defer validation to the server
+        tdSql.error("SELECT REGEXP_EXTRACT('abc', '中[', 1)")
+
         # RXE-ERR-007: group_idx exceeds maximum (512)
         tdSql.error("SELECT REGEXP_EXTRACT('abc', '(b)', 513)")
 

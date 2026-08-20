@@ -223,7 +223,6 @@ typedef struct SFltTreeStat {
   int32_t      code;
   int8_t       precision;
   bool         scalarMode;
-  SArray      *nodeList;
   SFilterInfo *info;
 } SFltTreeStat;
 

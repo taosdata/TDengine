@@ -743,6 +743,10 @@ typedef struct SSystemTableScanPhysiNode {
       uint16_t reserved : 3;
     };
   };
+  // Client charset name for rendering NCHAR/JSON system-table tag values; empty
+  // string means "use the server default charset" (tsCharsetCxt). Serialized in
+  // TLV/JSON; restored to an SConvInfo* in the sysscan operator via taosConvInit.
+  char charsetName[TD_CHARSET_LEN];
 } SSystemTableScanPhysiNode;
 
 typedef struct STableScanPhysiNode {

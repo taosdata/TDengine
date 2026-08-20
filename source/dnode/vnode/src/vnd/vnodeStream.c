@@ -857,7 +857,9 @@ static int32_t readRollupTagPath(SStreamTriggerReaderInfo* sStreamReaderInfo, SM
       code = terrno;
       goto end;
     }
-    int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(pData), tagLen, path, NULL);
+    // Rollup paths are server-internal and must use the same server charset in both directions.
+    int32_t len = taosUcs4ToMbsCharsetInsensitive((TdUcs4*)varDataVal(pData),
+                                                  tagLen, path);
     if (len < 0) {
       code = len;
       goto end;
@@ -898,7 +900,9 @@ static int32_t setRollupGroupValue(SStreamGroupValue* pValue, const char* path, 
     if (pValue->data.pData == NULL) {
       return terrno;
     }
-    if (!taosMbsToUcs4(path, pathLen, (TdUcs4*)pValue->data.pData, ucs4Cap, &pValue->data.nData, NULL)) {
+    if (!taosMbsToUcs4CharsetInsensitive(path, pathLen,
+                                         (TdUcs4*)pValue->data.pData, ucs4Cap,
+                                         &pValue->data.nData)) {
       taosMemoryFreeClear(pValue->data.pData);
       return terrno;
     }
@@ -936,7 +940,8 @@ static void formatRollupGroupPath(SArray* gInfo, char* buf, int32_t bufLen) {
       return;
     }
 
-    int32_t len = taosUcs4ToMbs((TdUcs4*)pValue->data.pData, pValue->data.nData, buf, NULL);
+    int32_t len = taosUcs4ToMbsCharsetInsensitive((TdUcs4*)pValue->data.pData,
+                                                  pValue->data.nData, buf);
     if (len < 0 || len >= bufLen) {
       buf[0] = '\0';
     } else {
@@ -1024,7 +1029,8 @@ static int32_t setRollupPrefixColData(SColumnInfoData* pColData, const char* pre
 
     ucs4 = taosMemoryCalloc(1, ucs4Cap);
     STREAM_CHECK_NULL_GOTO(ucs4, terrno);
-    if (!taosMbsToUcs4(prefix, prefixLen, (TdUcs4*)ucs4, ucs4Cap, &ucs4Len, NULL)) {
+    if (!taosMbsToUcs4CharsetInsensitive(prefix, prefixLen, (TdUcs4*)ucs4,
+                                         ucs4Cap, &ucs4Len)) {
       code = streamRollupErrno();
       goto end;
     }

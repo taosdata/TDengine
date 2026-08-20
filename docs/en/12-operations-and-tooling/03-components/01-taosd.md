@@ -357,6 +357,8 @@ locale zh_CN.UTF-8
 
 The effective value of charset is UTF-8.
 
+1. The encoding settings above apply not only to writing but also govern charset-sensitive query conversions. Even when the client and server charsets differ, comparisons, functions, and CAST between NCHAR and string constants or VARCHAR are converted on the server under the client charset, so the client charset should match the data encoding.
+
 :::
 
 ### Storage Related

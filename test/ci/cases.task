@@ -702,6 +702,9 @@
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_18_source_specific.py
 100,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py
 
+## 20-Charset
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/20-Charset/test_query_client_charset.py
+
 
 # 10-Operators
 
@@ -1122,6 +1125,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_window_true_for.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_period_natural_units.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_true_for_start_end.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_stream_tmq_client_charset.py
 ## 04-Options
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_abnormal_data_table.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_abnormal_data_vtable.py
