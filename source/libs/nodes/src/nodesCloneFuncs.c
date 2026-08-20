@@ -158,6 +158,7 @@ static int32_t columnDefNodeCopy(const SColumnDefNode* pSrc, SColumnDefNode* pDs
   COPY_OBJECT_FIELD(dataType, sizeof(SDataType));
   COPY_SCALAR_FIELD(sma);;
   CLONE_NODE_FIELD(pOptions);
+  CLONE_NODE_FIELD(pTagVal);
   return TSDB_CODE_SUCCESS;
 }
 
