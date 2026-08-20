@@ -769,7 +769,7 @@ SELECT `vgroups` FROM information_schema.ins_databases WHERE name = 'test';
 
 ## INS_TAGS
 
-提供表的标签名、类型与取值，便于按标签检索与核对元数据。也可以使用 [`SHOW TAGS`](./03-show.md#show-tags) 查询。
+提供表的标签名、类型与取值，便于按标签检索与核对元数据。除子表外，也包含带标签的普通表与虚拟普通表的标签，此时 `stable_name` 列为 `NULL`。也可以使用 [`SHOW TAGS`](./03-show.md#show-tags) 查询。
 
 | #   | **列名** | **数据类型** | **说明** |
 | --- | ------------- | -------------- | --- |
