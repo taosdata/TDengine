@@ -1747,6 +1747,7 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_COLUMN_DEF:
       nodesDestroyNode(((SColumnDefNode*)pNode)->pOptions);
+      nodesDestroyNode(((SColumnDefNode*)pNode)->pTagVal);
       break;
     case QUERY_NODE_DOWNSTREAM_SOURCE:  // no pointer field
       break;
@@ -2036,6 +2037,7 @@ void nodesDestroyNode(SNode* pNode) {
       SCreateVTableStmt* pStmt = (SCreateVTableStmt*)pNode;
       nodesDestroyList(pStmt->pCols);
       nodesDestroyList(pStmt->pSeriesList);
+      nodesDestroyList(pStmt->pTags);
       break;
     }
     case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT: {

@@ -103,13 +103,20 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
         ts_col_name timestamp,
         create_definition[ ,create_definition] ...
     )
+    [TAGS (vtag_def [, vtag_def] ...)]
 
   create_definition:
     vtb_col_name column_definition
 
   column_definition:
     type_name [FROM [db_name.]table_name.col_name]
+
+  vtag_def:
+    tag_name type_name = const_value
+    | tag_name type_name FROM [db_name.]table_name.tag_name
 ```
+
+When creating a virtual basic table, you can declare tags with the `TAGS` clause; see the "Virtual Basic Table Tags" section below.
 
 ### Create Virtual Subtable
 
@@ -154,6 +161,46 @@ Usage Notes:
 13. When creating virtual subtables or virtual basic tables, `FROM` columns can come from regular tables, subtables, or existing virtual tables. Supertables and views are not supported as direct sources, and tables with composite primary keys are not supported.
 14. In `TAGS (...)` for a virtual subtable, each tag can be a literal value or a tag-ref. Supported tag-ref forms are `table.tag`, `FROM table.tag`, and `tag_name FROM table.tag`. Use `db_name.table.tag` for cross-database references.
 15. Reference-related limits and behaviors are described in the "Virtual-Table Reference Capabilities" section below.
+16. Rules for virtual basic table tags (the `TAGS` clause) are described in the "Virtual Basic Table Tags" section below.
+
+### Virtual Basic Table Tags
+
+Like its columns, a virtual basic table's tags come in two forms, which can be mixed in the same table:
+
+- **Owned tag**: A tag owned by the table itself. Its value is specified inline at creation (`tag_name type_name = const_value`, where `= NULL` means a NULL value) or written later with `SET TAG`, and is stored in the table. An owned tag is a table-level constant: projecting it returns that constant for every row, and using it in a `WHERE` filter is evaluated with constant semantics.
+- **Tag reference (tag-ref)**: `tag_name type_name FROM [db_name.]table_name.tag_name` references a tag of an underlying physical table and is resolved to the source tag's current value at query time. When used in a `WHERE` filter, the predicate is pushed down to the source table's tag index so that only matching subtables are scanned.
+
+**Example**
+
+In a smart-meter scenario, the subtables of the supertable `meters` serve as tag-ref sources:
+
+```sql
+CREATE STABLE meters (ts TIMESTAMP, v INT) TAGS (region VARCHAR(16), gid INT);
+CREATE TABLE d0 USING meters TAGS ('us-east', 1);
+
+-- Create a virtual basic table with both an owned tag and a tag-ref
+CREATE VTABLE vntb (
+    ts TIMESTAMP,
+    v  INT FROM db.d0.v                    -- column reference
+) TAGS (
+    owner  VARCHAR(16) = 'alice',          -- owned tag
+    level  INT = 0,                        -- owned tag
+    region VARCHAR(16) FROM db.d0.region   -- tag-ref, value follows d0.region
+);
+
+SELECT owner, level FROM vntb;             -- owned tags, projected from the table itself
+SELECT region FROM vntb;                   -- tag-ref, resolved from the source table
+SELECT * FROM vntb WHERE region = 'us-east';  -- filter pushed down to the source tag index
+```
+
+Usage Notes:
+
+1. Every tag in the `TAGS` clause must carry an explicit value: use `= const_value` for an owned tag (`= NULL` is a valid explicit value) or `FROM [db_name.]table_name.tag_name` for a tag-ref. A bare `tag_name type_name` (neither `=` nor `FROM`) is rejected.
+2. A tag-ref must point to a tag column of a TDengine table (a subtable or virtual subtable), not a data column; the declared type must match the source tag type; external data sources are not supported.
+3. Tag-refs follow the same permission rules as column references: creating or modifying a tag-ref requires `READ` permission on the source table.
+4. The `DECIMAL` type is not supported for tags; tag count and total length limits are the same as for other tables — see [General Restrictions](../11-appendix/02-limit.md#general-restrictions).
+5. A `JSON` tag can only be declared at table creation and must be the only tag of the table; `JSON` tags cannot be added later with `ALTER`.
+6. Tag definitions do not support column options such as `PRIMARY KEY`, `ENCODE`, `COMPRESS`, or `COMMENT`.
 
 ### Virtual-Table Reference Capabilities
 
@@ -386,6 +433,9 @@ alter_table_clause: {
   | ALTER COLUMN vtb_col_name SET {table_name.col_name | NULL }
   | MODIFY COLUMN col_name column_type
   | RENAME COLUMN old_col_name new_col_name
+  | ADD TAG tag_name tag_type [FROM [db_name.]table_name.tag_name]
+  | SET TAG tag_name = {new_tag_value | [db_name.]table_name.tag_name}
+  | DROP TAG tag_name
 }
 ```
 
@@ -398,6 +448,9 @@ For virtual basic tables, the following modifications are supported:
 3. `MODIFY COLUMN`: Modify the column definition. For variable-length data types, this can be used only to increase the width, not decrease it. If the virtual-table column already has a source column, widening the column fails because the new width no longer matches the source-column width. Clear the source first with `ALTER COLUMN ... SET NULL`, then modify the width.
 4. `RENAME COLUMN`: Rename a column.
 5. `ALTER COLUMN ... SET`: Change the source of a column. `SET NULL` clears the source of the virtual-table column.
+6. `ADD TAG`: Add a tag. Without `FROM` it adds an owned tag (initial value `NULL`); with `FROM` it adds a tag-ref.
+7. `SET TAG`: Modify a tag. Setting it to a literal (including `NULL`) clears any existing tag-ref and converts the tag to an owned tag; setting it to `[db_name.]table_name.tag_name` converts an owned tag to a tag-ref or repoints an existing tag-ref to another source tag. An error is returned if the source tag does not exist, the types do not match, or the target is a data column.
+8. `DROP TAG`: Drop a tag; both owned tags and tag-refs can be dropped.
 
 ### Add Column
 
@@ -427,6 +480,34 @@ ALTER VTABLE vtb_name RENAME COLUMN old_col_name new_col_name
 
 ```sql
 ALTER VTABLE vtb_name ALTER COLUMN vtb_col_name SET {[db_name.]table_name.col_name | NULL}
+```
+
+### Add Tag
+
+```sql
+-- Add an owned tag (initial value NULL)
+ALTER VTABLE vtb_name ADD TAG tag_name tag_type;
+
+-- Add a tag-ref
+ALTER VTABLE vtb_name ADD TAG tag_name tag_type FROM [db_name.]table_name.tag_name;
+```
+
+### Modify Tag
+
+```sql
+-- Set an owned tag value; on a tag-ref this clears the reference and converts it to an owned tag
+ALTER VTABLE vtb_name SET TAG tag_name = new_tag_value;
+
+-- Convert an owned tag to a tag-ref, or repoint a tag-ref to another source tag
+ALTER VTABLE vtb_name SET TAG tag_name = [db_name.]table_name.tag_name;
+```
+
+The conversion semantics of `SET TAG` are the same as for virtual subtables; see the "Modify Virtual Subtables" section below.
+
+### Drop Tag
+
+```sql
+ALTER VTABLE vtb_name DROP TAG tag_name;
 ```
 
 ## Modify Virtual Subtables
@@ -528,6 +609,7 @@ SHOW CREATE VTABLE [db_name.]vtable_name;
 ```
 
 Displays the creation statement for the specified virtual table. For virtual subtables created with tag-ref, the returned statement preserves the tag-ref definition.
+For a virtual basic table with tags, the returned statement includes the `TAGS(...)` clause: owned tags are inlined as `= value` (a NULL value is emitted as `= NULL`) and tag-refs as `FROM db_name.table_name.tag_name`, so a single statement fully recreates the virtual table.
 
 ### Describe Structure
 
@@ -535,7 +617,7 @@ Displays the creation statement for the specified virtual table. For virtual sub
 DESCRIBE [db_name.]vtb_name;
 ```
 
-`DESCRIBE` shows the virtual table's columns and tags. For tag-ref or col-ref entries, the result also shows the reference source.
+`DESCRIBE` shows the virtual table's columns and tags. For tag-ref or col-ref entries, the result also shows the reference source. Tag rows of a virtual basic table are marked `TAG`.
 
 ### Show Current Tag Values of a Virtual Child Table
 
@@ -544,7 +626,7 @@ SHOW TAGS FROM child_table_name [FROM db_name];
 SHOW TAGS FROM [db_name.]child_table_name;
 ```
 
-For tag-ref virtual subtables, `SHOW TAGS` returns the currently resolved tag values.
+For tag-ref virtual subtables, `SHOW TAGS` returns the currently resolved tag values. `SHOW TAGS` also supports virtual basic tables: owned tags return the table's own value, and tag-refs return the resolved source value.
 
 ### Validate Virtual-Table References
 

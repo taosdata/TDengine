@@ -422,6 +422,16 @@ struct SVnodeCfg {
 #define TABLE_TYPE_SET_TXN(T) ((int8_t)((T) | TABLE_TYPE_TXN_BIT))
 #define TABLE_TYPE_CLR_TXN(T) ((int8_t)((T) & ~TABLE_TYPE_TXN_BIT))
 
+// Bit 5 (0x20) of the encoded type byte marks a normal/virtual-normal table entry
+// carrying its own tag schema + tag values (ntbEntry.schemaTag / ntbEntry.pTags) as a
+// trailing trailer. Only set when the table actually has tags (numOfTags > 0).
+// Tables without tags and old records pay zero disk overhead. Newer than the txn bit,
+// so it must be bit-signaled (isEnd alone cannot distinguish it from the txn trailer).
+#define TABLE_TYPE_NTB_TAG_BIT    ((int8_t)0x20)
+#define TABLE_TYPE_HAS_NTB_TAG(T) ((T) > 0 && ((T) & TABLE_TYPE_NTB_TAG_BIT))
+#define TABLE_TYPE_SET_NTB_TAG(T) ((int8_t)((T) | TABLE_TYPE_NTB_TAG_BIT))
+#define TABLE_TYPE_CLR_NTB_TAG(T) ((int8_t)((T) & ~TABLE_TYPE_NTB_TAG_BIT))
+
 struct SFileSetReader;
 int32_t tsdbFileSetReaderOpen(void *pVnode, struct SFileSetReader **ppReader);
 int32_t tsdbFileSetReaderNext(struct SFileSetReader *pReader);

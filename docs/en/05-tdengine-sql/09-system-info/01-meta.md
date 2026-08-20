@@ -769,7 +769,7 @@ Provides statistics about table data-block distribution and compression for anal
 
 ## INS_TAGS
 
-Provides table tag names, types, and values for tag-based retrieval and metadata verification. The same information can also be queried using [`SHOW TAGS`](./03-show.md#show-tags).
+Provides table tag names, types, and values for tag-based retrieval and metadata verification. In addition to subtables, tags of basic tables and virtual basic tables are also included, in which case the `stable_name` column is `NULL`. The same information can also be queried using [`SHOW TAGS`](./03-show.md#show-tags).
 
 | #   | **Column Name** | **Data Type** | **Description** |
 | --- | ------------- | -------------- | --- |

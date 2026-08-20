@@ -553,7 +553,7 @@ SHOW TAGS FROM child_table_name [FROM db_name];
 SHOW TAGS FROM [db_name.]child_table_name;
 ```
 
-Displays tag information for a subtable. For a virtual subtable that uses tag references, the result contains the currently resolved tag values. For the complete set of fields, see [`INS_TAGS`](./01-meta.md#ins_tags).
+Displays tag information for a subtable; basic tables and virtual basic tables with tags are also supported. For a virtual subtable or virtual basic table that uses tag references, the result contains the currently resolved tag values; owned tags of basic tables and virtual basic tables show the table's own value. For the complete set of fields, see [`INS_TAGS`](./01-meta.md#ins_tags).
 
 ## SHOW TOKENS
 

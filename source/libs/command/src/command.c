@@ -822,6 +822,43 @@ static void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
   }
 }
 
+// Appends a JSON tag blob as a single-quoted string ('...'), escaping embedded single
+// quotes by doubling them so the output stays replayable as a SQL literal.
+static int32_t appendJsonTagValue(char* buf, int32_t* len, STag* pTag, void* charsetCxt) {
+  // guard the write space up front: once *len exceeds the bound, the size argument of the
+  // snprintf below would go negative and be read as SIZE_MAX, overflowing buf
+  if (*len >= SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE) {
+    qError("no enough space to store json tag value, len:%d", *len);
+    return TSDB_CODE_APP_ERROR;
+  }
+  char* pJson = NULL;
+  parseTagDatatoJson(pTag, &pJson, charsetCxt);
+  if (NULL == pJson) {
+    qError("failed to parse tag to json, pJson is NULL");
+    return terrno;
+  }
+  char* escapedJson = taosMemCalloc(sizeof(char), strlen(pJson) * 2 + 1);
+  if (NULL == escapedJson) {
+    taosMemoryFree(pJson);
+    return terrno;
+  }
+  char* writer = escapedJson;
+  for (char* reader = pJson; *reader; ++reader) {
+    if (*reader == '\'') {
+      *writer++ = '\'';  // Escape single quote by doubling it
+    }
+    *writer++ = *reader;
+  }
+  *writer = '\0';
+
+  *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                   "'%s'", escapedJson);
+  taosMemoryFree(escapedJson);
+  taosMemoryFree(pJson);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* charsetCxt) {
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* pTagVals = NULL;
@@ -833,33 +870,7 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* c
   }
 
   if (tTagIsJson(pTag)) {
-    char* pJson = NULL;
-    parseTagDatatoJson(pTag, &pJson, charsetCxt);
-    if (NULL == pJson) {
-      qError("failed to parse tag to json, pJson is NULL");
-      return terrno;
-    }
-    char* escapedJson = taosMemCalloc(sizeof(char), strlen(pJson) * 2 + 1);  // taosMemoryAlloc(strlen(pJson) * 2 + 1);
-    if (escapedJson) {
-      char* writer = escapedJson;
-      for (char* reader = pJson; *reader; ++reader) {
-        if (*reader == '\'') {
-          *writer++ = '\'';  // Escape single quote by doubling it
-        }
-        *writer++ = *reader;
-      }
-      *writer = '\0';
-
-      *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                       "'%s'", escapedJson);
-      taosMemoryFree(escapedJson);
-    } else {
-      taosMemoryFree(pJson);
-      return terrno;
-    }
-    taosMemoryFree(pJson);
-
-    return TSDB_CODE_SUCCESS;
+    return appendJsonTagValue(buf, len, pTag, charsetCxt);
   }
 
   QRY_ERR_RET(tTagToValArray((const STag*)pCfg->pTags, &pTagVals));
@@ -867,6 +878,13 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* c
   int32_t num = 0;
   int32_t j = 0;
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
+    // guard the write space up front: once *len exceeds the bound, the size argument of the
+    // snprintf calls below would go negative and be read as SIZE_MAX, overflowing buf
+    if (*len >= SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE) {
+      qError("no enough space to store tag value, len:%d", *len);
+      code = TSDB_CODE_APP_ERROR;
+      TAOS_CHECK_ERRNO(code);
+    }
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
     if (i > 0) {
       *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
@@ -941,6 +959,124 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* c
 _exit:
   taosArrayDestroy(pTagVals);
 
+  return code;
+}
+
+// Inline TAGS clause for SHOW CREATE round-trip (virtual-normal AND normal tables): emits
+// `name TYPE`, plus ` FROM db.tb.tag` for tag-refs and ` = value` for owned tags. A NULL-
+// valued owned tag renders ` = NULL` (not omitted) because the inline CREATE form requires
+// an explicit tag value — a bare `name TYPE` would be rejected on replay. Normal tables have
+// no tag-refs, so only the owned branch applies there.
+static int32_t appendInlineTagFields(char* buf, int32_t* len, STableCfg* pCfg, void* charsetCxt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray* pTagVals = NULL;
+  char    expandName[(TSDB_COL_NAME_LEN << 1) + 1] = {0};
+  char    expandRefTable[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
+  char    expandRefCol[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
+
+  STag* pTag = (STag*)pCfg->pTags;
+  if (pTag != NULL && !tTagIsJson(pTag)) {
+    code = tTagToValArray((const STag*)pCfg->pTags, &pTagVals);
+    TAOS_CHECK_ERRNO(code);
+  }
+  int32_t valueNum = pTagVals ? taosArrayGetSize(pTagVals) : 0;
+  int32_t j = 0;
+
+  for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
+    // guard the write space up front: once *len exceeds the bound, the size argument of the
+    // snprintf calls below would go negative and be read as SIZE_MAX, overflowing buf
+    if (*len >= SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE) {
+      qError("no enough space to build inline tags clause, len:%d", *len);
+      code = TSDB_CODE_APP_ERROR;
+      TAOS_CHECK_ERRNO(code);
+    }
+    SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
+
+    if (i > 0) {
+      *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                       ", ");
+    }
+
+    char type[64];
+    snprintf(type, sizeof(type), "%s", tDataTypes[pSchema->type].name);
+    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_VARBINARY == pSchema->type ||
+        TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
+      snprintf(type + strlen(type), sizeof(type) - strlen(type), "(%d)",
+               (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
+    } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
+      snprintf(type + strlen(type), sizeof(type) - strlen(type), "(%d)",
+               (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+    }
+
+    *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                     "`%s` %s", expandIdentifier(pSchema->name, expandName), type);
+
+    const SColRef* pTagRef = pCfg->pTagRefs
+                                 ? findTagRefByColId(pCfg->pTagRefs, pCfg->numOfTagRefs, pSchema->colId)
+                                 : NULL;
+    if (pTagRef && pTagRef->hasRef) {
+      *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                       " FROM `%s`.`%s`.`%s`", expandIdentifier(pTagRef->refDbName, expandName),
+                       expandIdentifier(pTagRef->refTableName, expandRefTable),
+                       expandIdentifier(pTagRef->refColName, expandRefCol));
+      continue;
+    }
+
+    // JSON owned tag: its value lives in the JSON STag blob (skipped by tTagToValArray
+    // above), so render it from the blob directly, with the same quote escaping as
+    // appendTagValues; without a blob the tag is NULL.
+    if (TSDB_DATA_TYPE_JSON == pSchema->type) {
+      if (pTag != NULL && tTagIsJson(pTag)) {
+        *len += snprintf(buf + VARSTR_HEADER_SIZE + *len,
+                         SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len), " = ");
+        code = appendJsonTagValue(buf, len, pTag, charsetCxt);
+        TAOS_CHECK_ERRNO(code);
+      } else {
+        *len += snprintf(buf + VARSTR_HEADER_SIZE + *len,
+                         SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len), " = NULL");
+      }
+      continue;
+    }
+
+    // owned tag: append ` = value` when a value is present; otherwise ` = NULL`. pTagVals is
+    // sorted by cid and holds only set (non-NULL) values, so a NULL-owned tag is absent and
+    // falls through to the ` = NULL` fallback below.
+    bool valueEmitted = false;
+    while (j < valueNum) {
+      STagVal* v = (STagVal*)taosArrayGet(pTagVals, j);
+      if (v->cid < pSchema->colId) {
+        j++;
+        continue;
+      }
+      if (v->cid > pSchema->colId) break;  // no value for this tag (NULL)
+      *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                       " = ");
+      int32_t tlen = 0;
+      int64_t leftSize = SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len);
+      if (leftSize <= 0) {
+        code = TSDB_CODE_APP_ERROR;
+        TAOS_CHECK_ERRNO(code);
+      }
+      if (IS_VAR_DATA_TYPE(v->type)) {
+        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, leftSize, v->type, v->pData, v->nData, &tlen);
+      } else {
+        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, leftSize, v->type, &v->i64, tDataTypes[v->type].bytes,
+                               &tlen);
+      }
+      TAOS_CHECK_ERRNO(code);
+      *len += tlen;
+      j++;
+      valueEmitted = true;
+      break;
+    }
+    if (!valueEmitted) {
+      *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                       " = NULL");
+    }
+  }
+
+_exit:
+  taosArrayDestroy(pTagVals);
   return code;
 }
 
@@ -1106,8 +1242,20 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     len += snprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
                     "CREATE TABLE `%s` (", expandIdentifier(tbName, buf1));
     appendColumnFields(buf2, &len, pCfg);
-    len +=
-        snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
+    if (pCfg->numOfTags > 0) {
+      // SHOW CREATE emits the table's final form: an inline TAGS clause. Every owned tag
+      // carries `= value` (NULL renders `= NULL`); all tags valued selects the normal-table
+      // path on replay, not the all-valueless super-table path.
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      ") TAGS (");
+      code = appendInlineTagFields(buf2, &len, pCfg, charsetCxt);
+      TAOS_CHECK_ERRNO(code);
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      ")");
+    } else {
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      ")");
+    }
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
   } else if (TSDB_VIRTUAL_NORMAL_TABLE == pCfg->tableType) {
     len += snprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
@@ -1134,6 +1282,14 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
           }
         }
       }
+    }
+    if (pCfg->numOfTags > 0) {
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      " TAGS (");
+      code = appendInlineTagFields(buf2, &len, pCfg, charsetCxt);
+      TAOS_CHECK_ERRNO(code);
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      ")");
     }
   } else if (TSDB_VIRTUAL_CHILD_TABLE == pCfg->tableType) {
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
