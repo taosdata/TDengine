@@ -86,6 +86,9 @@ typedef struct SExternalWindowOperator {
   int32_t            orgTableVgId;
   tb_uid_t           orgTableUid;
   STimeWindow        orgTableTimeRange;
+#if defined(BUILD_TEST)
+  bool testAliasClearedOnOpen;
+#endif
 } SExternalWindowOperator;
 
 typedef struct SExtWinBlockSnapshot {
@@ -179,7 +182,7 @@ static void extWinLogBlockInvariantFailure(SOperatorInfo* pOperator, const SExtW
 
   qError("%s external window block invariant failed at %s, win:[%" PRId64 ",%" PRId64
          "], resWinIdx:%d, outWinIdx:%d, outputWinId:%d, blkWinStartIdx:%d, blkWinIdx:%d, startPos:%d, "
-         "projectRows:%d, list:%p, listBlocks:%d, freeBlocks:%d, node:%p, prev:%p, expectedPrev:%p, next:%p, "
+         "inputRows:%d, list:%p, listBlocks:%d, freeBlocks:%d, node:%p, prev:%p, expectedPrev:%p, next:%p, "
          "block:%p, nodeBlock:%p, idx:%p, nodeIdx:%p, beforeRows:%" PRId64 ", beforeCapacity:%u, rows:%" PRId64
          ", capacity:%u, overlapCol:%d, created:%" PRId64 ", destroyed:%" PRId64 ", recycled:%" PRId64
          ", reused:%" PRId64 ", appended:%" PRId64,
@@ -321,6 +324,17 @@ static void extWinRecycleBlkNode(SExternalWindowOperator* pExtW, SListNode** ppN
   tdListPrependNode(pExtW->pFreeBlocks, *ppNode);
   *ppNode = NULL;
   pExtW->stat.resBlockRecycled++;
+}
+
+static void extWinRecycleOutputBlkNode(SExternalWindowOperator* pExtW, SArray** ppRuntimeIdx, SListNode** ppNode) {
+  if (NULL != ppRuntimeIdx && NULL != ppNode && NULL != *ppNode) {
+    SArray* pIdx = *(SArray**)((SArray**)(*ppNode)->data + 1);
+    if (*ppRuntimeIdx == pIdx) {
+      *ppRuntimeIdx = NULL;
+    }
+  }
+
+  extWinRecycleBlkNode(pExtW, ppNode);
 }
 
 static void extWinRecycleBlockList(SExternalWindowOperator* pExtW, void* p) {
@@ -980,7 +994,11 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   pExtW->outputWinNum = 0;
   pExtW->blkScanFlag = -1;
   taosArrayClear(pExtW->pWins);
-  extWinRecycleBlkNode(pExtW, &pExtW->pLastBlkNode);
+  SArray** ppRuntimeIdx = NULL;
+  if (NULL != pTaskInfo->pStreamRuntimeInfo) {
+    ppRuntimeIdx = &pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamBlkWinIdx;
+  }
+  extWinRecycleOutputBlkNode(pExtW, ppRuntimeIdx, &pExtW->pLastBlkNode);
 
 /*
   int32_t code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
@@ -1577,39 +1595,90 @@ static int32_t extWinAggDo(SOperatorInfo* pOperator, int32_t startPos, int32_t f
 
 }
 
-static bool extWinLastWinClosed(SExternalWindowOperator* pExtW) {
+static int32_t extWinLastWinClosed(SExternalWindowOperator* pExtW, const char* pTaskId, bool* pClosed) {
+  *pClosed = false;
+
   if (pExtW->outWinIdx <= 0 || (pExtW->multiTableMode && !pExtW->inputHasOrder)) {
-    return false;
+    return TSDB_CODE_SUCCESS;
   }
 
   if (NULL == pExtW->timeRangeExpr || !pExtW->timeRangeExpr->needCalc) {
-    return true;
+    *pClosed = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t outputBlocks = NULL == pExtW->pOutputBlocks ? 0 : taosArrayGetSize(pExtW->pOutputBlocks);
+  if (pExtW->outWinIdx > outputBlocks) {
+    qError("%s external window last output index is invalid, outWinIdx:%d, outputBlocks:%d, blkWinStartIdx:%d", pTaskId,
+           pExtW->outWinIdx, outputBlocks, pExtW->blkWinStartIdx);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
   SList* pList = taosArrayGetP(pExtW->pOutputBlocks, pExtW->outWinIdx - 1);
+  if (NULL == pList) {
+    qError("%s external window last output list is null, outWinIdx:%d, outputBlocks:%d, blkWinStartIdx:%d", pTaskId,
+           pExtW->outWinIdx, outputBlocks, pExtW->blkWinStartIdx);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
   if (0 == listNEles(pList)) {
-    return true;
+    *pClosed = true;
+    return TSDB_CODE_SUCCESS;
   }
 
   SListNode* pNode = listTail(pList);
-  SArray* pBlkWinIdx = *((SArray**)pNode->data + 1);
-  int64_t* pIdx = taosArrayGetLast(pBlkWinIdx);
-  if (pIdx && *(int32_t*)pIdx < pExtW->blkWinStartIdx) {
-    return true;
+  SArray*    pBlkWinIdx = NULL == pNode ? NULL : *((SArray**)pNode->data + 1);
+  if (NULL == pNode || NULL == pBlkWinIdx) {
+    qError(
+        "%s external window last output block is invalid, outWinIdx:%d, outputBlocks:%d, list:%p, "
+        "listBlocks:%d, node:%p, idx:%p, blkWinStartIdx:%d",
+        pTaskId, pExtW->outWinIdx, outputBlocks, pList, listNEles(pList), pNode, pBlkWinIdx, pExtW->blkWinStartIdx);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
-  return false;
+  int64_t* pIdx = taosArrayGetLast(pBlkWinIdx);
+  if (pIdx && *(int32_t*)pIdx < pExtW->blkWinStartIdx) {
+    *pClosed = true;
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
+
+#if defined(BUILD_TEST)
+int32_t extWinTestLastWinClosed(SList* pOutputBlocks, bool* pClosed) {
+  SExternalWindowOperator extW = {0};
+  STimeRangeNode          timeRange = {0};
+  SArray*                 pLists = taosArrayInit(1, sizeof(SList*));
+  if (NULL == pLists) {
+    return terrno;
+  }
+
+  timeRange.needCalc = true;
+  extW.outWinIdx = 1;
+  extW.timeRangeExpr = &timeRange;
+  extW.pOutputBlocks = pLists;
+  if (NULL == taosArrayPush(pLists, &pOutputBlocks)) {
+    taosArrayDestroy(pLists);
+    return terrno;
+  }
+
+  int32_t code = extWinLastWinClosed(&extW, "test", pClosed);
+  taosArrayDestroy(pLists);
+  return code;
+}
+#endif
 
 static int32_t extWinGetWinResBlock(SOperatorInfo* pOperator, int32_t rows, SExtWinTimeWindow* pWin, SSDataBlock** ppRes, SArray** ppIdx) {
   SExternalWindowOperator* pExtW = pOperator->info;
   SList*                   pList = NULL;
   int32_t                  code = TSDB_CODE_SUCCESS, lino = 0;
-  
+  bool                     lastWinClosed = false;
+
   if (pWin->resWinIdx >= 0) {
     pList = taosArrayGetP(pExtW->pOutputBlocks, pWin->resWinIdx);
   } else {
-    if (extWinLastWinClosed(pExtW)) {
+    TAOS_CHECK_EXIT(extWinLastWinClosed(pExtW, pOperator->pTaskInfo->id.str, &lastWinClosed));
+    if (lastWinClosed) {
       pWin->resWinIdx = pExtW->outWinIdx - 1;
       pList = taosArrayGetP(pExtW->pOutputBlocks, pWin->resWinIdx);
     } else {
@@ -1800,12 +1869,14 @@ static int32_t extWinGetSetWinResBlockBuf(SOperatorInfo* pOperator, int32_t rows
   SExternalWindowOperator* pExtW = pOperator->info;
   SList*                   pList = NULL;
   int32_t                  code = TSDB_CODE_SUCCESS, lino = 0;
-  
+  bool                     lastWinClosed = false;
+
   if (pWin->resWinIdx >= 0) {
     pList = taosArrayGetP(pExtW->pOutputBlocks, pWin->resWinIdx);
     TAOS_CHECK_EXIT(extWinIndefRowsSetWinOutputBuf(pExtW, pWin, &pOperator->exprSupp, &pExtW->aggSup, pOperator->pTaskInfo, false));
   } else {
-    if (extWinLastWinClosed(pExtW)) {
+    TAOS_CHECK_EXIT(extWinLastWinClosed(pExtW, pOperator->pTaskInfo->id.str, &lastWinClosed));
+    if (lastWinClosed) {
       pWin->resWinIdx = pExtW->outWinIdx - 1;
       pList = taosArrayGetP(pExtW->pOutputBlocks, pWin->resWinIdx);
     } else {
@@ -1835,10 +1906,28 @@ static int32_t extWinIndefRowsDo(SOperatorInfo* pOperator, SSDataBlock* pInputBl
   SExternalWindowOperator* pExtW = pOperator->info;
   SSDataBlock*             pResBlock = NULL;
   SArray*                  pIdx = NULL;
+  SExtWinBlockSnapshot     snapshot = {0};
   int64_t                  rowsBefore = 0;
+  int32_t                  overlapCol = -1;
   int32_t                  code = TSDB_CODE_SUCCESS, lino = 0;
   
   TAOS_CHECK_EXIT(extWinGetSetWinResBlockBuf(pOperator, rows, pWin, &pResBlock, &pIdx));
+
+  snapshot.pList = taosArrayGetP(pExtW->pOutputBlocks, pWin->resWinIdx);
+  snapshot.pNode = NULL == snapshot.pList ? NULL : listTail(snapshot.pList);
+  snapshot.pPrev = NULL == snapshot.pNode ? NULL : snapshot.pNode->dl_prev_;
+  snapshot.pBlock = pResBlock;
+  snapshot.pIdx = pIdx;
+  snapshot.blockRows = pResBlock->info.rows;
+  snapshot.blockCapacity = pResBlock->info.capacity;
+  if (!extWinBlockNodeInvariantHolds(snapshot.pList, snapshot.pNode, snapshot.pPrev, pResBlock, pIdx, rows,
+                                     &overlapCol)) {
+    extWinLogBlockInvariantFailure(pOperator, &snapshot, pWin, startPos, rows, overlapCol, "before-indef-rows");
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    lino = __LINE__;
+    goto _exit;
+  }
+
   rowsBefore = pResBlock->info.rows;
   
   if (!pExtW->pTmpBlock) {
@@ -1851,6 +1940,13 @@ static int32_t extWinIndefRowsDo(SOperatorInfo* pOperator, SSDataBlock* pInputBl
 
   TAOS_CHECK_EXIT(blockDataMergeNRows(pExtW->pTmpBlock, pInputBlock, startPos, rows));
   TAOS_CHECK_EXIT(extWinIndefRowsDoImpl(pOperator, pResBlock, pExtW->pTmpBlock));
+
+  if (!extWinBlockNodeInvariantHolds(snapshot.pList, snapshot.pNode, snapshot.pPrev, pResBlock, pIdx, 0, &overlapCol)) {
+    extWinLogBlockInvariantFailure(pOperator, &snapshot, pWin, startPos, rows, overlapCol, "after-indef-rows");
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    lino = __LINE__;
+    goto _exit;
+  }
 
   TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pIdx, pResBlock,
                                      extWinGetCurWinIdx(pOperator->pTaskInfo),
@@ -2459,7 +2555,11 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     }
   }
 
-  extWinRecycleBlkNode(pExtW, &pExtW->pLastBlkNode);
+  SArray** ppRuntimeIdx = NULL;
+  if (NULL != pTaskInfo->pStreamRuntimeInfo) {
+    ppRuntimeIdx = &pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamBlkWinIdx;
+  }
+  extWinRecycleOutputBlkNode(pExtW, ppRuntimeIdx, &pExtW->pLastBlkNode);
 
   if (pOperator->status == OP_NOT_OPENED) {
     TAOS_CHECK_EXIT(pOperator->fpSet._openFn(pOperator));
@@ -2520,6 +2620,72 @@ _exit:
 
   return code;
 }
+
+#if defined(BUILD_TEST)
+static int32_t extWinTestObserveAliasOnOpen(SOperatorInfo* pOperator) {
+  SExternalWindowOperator* pExtW = pOperator->info;
+  SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
+
+  pExtW->testAliasClearedOnOpen = NULL == pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamBlkWinIdx;
+  OPTR_SET_OPENED(pOperator);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t extWinTestOutputAliasLifecycle(SList* pOutputList, SList* pFreeBlocks, bool reset, bool* pAliasEstablished,
+                                       bool* pAliasCleared) {
+  SExternalWindowOperator  extW = {0};
+  SOperatorInfo            operatorInfo = {0};
+  SExecTaskInfo            taskInfo = {0};
+  SStreamRuntimeInfo       runtimeInfo = {0};
+  SExternalWindowPhysiNode physiNode = {0};
+  SSDataBlock*             pRes = NULL;
+  SArray*                  pOutputBlocks = taosArrayInit(1, sizeof(SList*));
+  SArray*                  pWins = taosArrayInit(1, sizeof(SExtWinTimeWindow));
+  int32_t                  code = TSDB_CODE_SUCCESS;
+
+  if (NULL == pOutputBlocks || NULL == pWins || NULL == taosArrayPush(pOutputBlocks, &pOutputList)) {
+    code = terrno;
+    goto _exit;
+  }
+
+  SListNode* pNode = listHead(pOutputList);
+  SArray*    pIdx = NULL == pNode ? NULL : *(SArray**)((SArray**)pNode->data + 1);
+
+  extW.mode = EEXT_MODE_SCALAR;
+  extW.outWinIdx = 1;
+  extW.pOutputBlocks = pOutputBlocks;
+  extW.pFreeBlocks = pFreeBlocks;
+  extW.pWins = pWins;
+
+  taskInfo.pStreamRuntimeInfo = &runtimeInfo;
+  operatorInfo.info = &extW;
+  operatorInfo.pTaskInfo = &taskInfo;
+  operatorInfo.pPhyNode = &physiNode;
+
+  code = extWinNonAggOutputRes(&operatorInfo, &pRes);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _exit;
+  }
+
+  *pAliasEstablished = runtimeInfo.funcInfo.pStreamBlkWinIdx == pIdx && NULL != extW.pLastBlkNode;
+  if (reset) {
+    code = resetExternalWindowOperator(&operatorInfo);
+    *pAliasCleared = NULL == runtimeInfo.funcInfo.pStreamBlkWinIdx && NULL == extW.pLastBlkNode;
+  } else {
+    operatorInfo.status = OP_NOT_OPENED;
+    operatorInfo.fpSet._openFn = extWinTestObserveAliasOnOpen;
+    code = extWinNext(&operatorInfo, &pRes);
+    *pAliasCleared = extW.testAliasClearedOnOpen && NULL == extW.pLastBlkNode;
+  }
+
+_exit:
+  cleanupExprSuppWithoutFilter(&extW.scalarSupp);
+  colDataDestroy(&extW.twAggSup.timeWindowData);
+  taosArrayDestroy(pWins);
+  taosArrayDestroy(pOutputBlocks);
+  return code;
+}
+#endif
 
 int32_t createStreamExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNode, SExecTaskInfo* pTaskInfo,
                                            SOperatorInfo** pOptrOut) {
