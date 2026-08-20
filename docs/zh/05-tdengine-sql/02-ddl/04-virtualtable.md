@@ -495,9 +495,18 @@ ALTER VTABLE vtb_name ALTER COLUMN vtb_col_name SET {[db_name.]table_name.col_na
 
 ## 删除虚拟表
 
+可以在一条 SQL 语句中删除一个或多个虚拟表（虚拟普通表或虚拟子表），各表可以分属不同的数据库。
+
 ```sql
-DROP VTABLE [IF EXISTS] [db_name.]vtb_name;
+DROP VTABLE [IF EXISTS] [db_name.]vtb_name [, [IF EXISTS] [db_name.]vtb_name] ...;
 ```
+
+**说明**
+
+- 批量删除时，语句会先对列表中的所有表完成校验（表是否存在、是否为虚拟表、是否为虚拟超级表），任一表校验失败则整条语句失败，不会删除任何表。
+- `IF EXISTS` 只保护其标注的单个表。例如 `DROP VTABLE IF EXISTS vtb1, vtb2` 中，`vtb1` 不存在会被跳过，`vtb2` 不存在仍会报错。
+- 列表中出现重复表名时，第一次出现正常删除，其后出现会因表不存在而报错（与 `DROP TABLE` 的行为一致）。
+- 虚拟超级表不能通过 `DROP VTABLE` 删除，请使用 `DROP STABLE`。
 
 ## 查看虚拟表的信息
 
