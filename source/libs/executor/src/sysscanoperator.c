@@ -84,6 +84,9 @@ typedef struct SSysTableScanInfo {
   SReadHandle            readHandle;
   const char*            pUser;
   int32_t                accountId;
+  // Borrowed query charset (SConvInfo*) restored from the physical node's
+  // charsetName; NULL means "use the server default" (tsCharsetCxt). Never freed.
+  void*                  charsetCxt;
   bool                   sysInfo;
   bool                   showRewrite;
   bool                   restore;
@@ -1962,7 +1965,8 @@ _end:
   }
 }
 
-int32_t convertTagDataToStr(char* str, int32_t strBuffLen, int type, void* buf, int32_t bufSize, int32_t* len) {
+int32_t convertTagDataToStr(char* str, int32_t strBuffLen, int type, void* buf, int32_t bufSize, int32_t* len,
+                            void* charsetCxt) {
   int32_t n = 0;
 
   switch (type) {
@@ -2014,7 +2018,10 @@ int32_t convertTagDataToStr(char* str, int32_t strBuffLen, int type, void* buf, 
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
 
-      int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize, str, NULL);
+      // Render NCHAR tag values in the query charset when the plan carried one;
+      // fall back to the server default (tsCharsetCxt) for old plans / no charset.
+      int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize, str,
+                                     taosResolveCharsetCxt(charsetCxt));
       if (length <= 0) {
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
@@ -2438,7 +2445,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
 
       if (tagType == TSDB_DATA_TYPE_JSON) {
         char* tagJson = NULL;
-        parseTagDatatoJson(tagData, &tagJson, NULL);
+        parseTagDatatoJson(tagData, &tagJson, pInfo->charsetCxt);
         if (tagJson == NULL) {
           code = terrno;
           if (tagDataFromRemote) taosMemoryFreeClear(tagData);
@@ -2456,7 +2463,9 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
         QUERY_CHECK_NULL(tagVarChar, code, lino, _end, terrno);
         int32_t len = -1;
         if (tagLen > 0)
-          convertTagDataToStr(varDataVal(tagVarChar), bufSize + 1 - VARSTR_HEADER_SIZE, tagType, tagData, tagLen, &len);
+          convertTagDataToStr(varDataVal(tagVarChar),
+                              bufSize + 1 - VARSTR_HEADER_SIZE, tagType,
+                              tagData, tagLen, &len, pInfo->charsetCxt);
         else
           len = 0;
         varDataSetLen(tagVarChar, len);
@@ -6836,6 +6845,11 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   pInfo->privInfo = pScanPhyNode->privInfo;
   pInfo->sysInfo = pScanPhyNode->sysInfo;
   pInfo->showRewrite = pScanPhyNode->showRewrite;
+  // Restore the borrowed query charset from the serialized name; an empty name
+  // (old plans or the server-default charset) leaves it NULL, which the tag
+  // renderers below map to the server default tsCharsetCxt.
+  code = nodesDecodeCharsetName(pScanPhyNode->charsetName, &pInfo->charsetCxt);
+  QUERY_CHECK_CODE(code, lino, _error);
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
 

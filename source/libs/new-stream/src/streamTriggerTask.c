@@ -93,7 +93,9 @@ static void stTriggerTaskFormatGroupPath(SArray *groupColVals, char *buf, int32_
       return;
     }
 
-    int32_t len = taosUcs4ToMbs((TdUcs4 *)pValue->data.pData, pValue->data.nData, buf, NULL);
+    // Trigger diagnostics have no client query context; use the server charset.
+    int32_t len = taosUcs4ToMbsCharsetInsensitive((TdUcs4 *)pValue->data.pData,
+                                                  pValue->data.nData, buf);
     if (len < 0 || len >= bufLen) {
       buf[0] = '\0';
     } else {

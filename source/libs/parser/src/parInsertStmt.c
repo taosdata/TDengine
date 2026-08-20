@@ -241,10 +241,8 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
             code = generateSyntaxErrMsg(&pBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pTagSchema->name);
             goto end;
           }
-          char buf[512] = {0};
-          snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(terrno));
           taosMemoryFree(p);
-          code = buildSyntaxErrMsg(&pBuf, buf, bind[c].buffer);
+          code = insBuildNcharConvErrMsg(&pBuf, bind[c].buffer, charsetCxt);
           goto end;
         }
         val.pData = p;
@@ -335,9 +333,7 @@ int32_t convertStmtNcharCol(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_MULTI_BIND*
       if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
-      char buf[512] = {0};
-      snprintf(buf, tListLen(buf), "%s", strerror(terrno));
-      return buildSyntaxErrMsg(pMsgBuf, buf, NULL);
+      return insBuildNcharConvErrMsg(pMsgBuf, NULL, charsetCxt);
     }
 
     dst->length[i] = output;
@@ -724,10 +720,8 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
               code = generateSyntaxErrMsg(&pBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pTagSchema->name);
               goto end;
             }
-            char buf[512] = {0};
-            snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(terrno));
             taosMemoryFree(p);
-            code = buildSyntaxErrMsg(&pBuf, buf, bindData.buffer);
+            code = insBuildNcharConvErrMsg(&pBuf, bindData.buffer, charsetCxt);
             goto end;
           }
         }
@@ -832,9 +826,7 @@ static int32_t convertStmtStbNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_
       if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
-      char buf[512] = {0};
-      snprintf(buf, tListLen(buf), "%s", strerror(terrno));
-      return buildSyntaxErrMsg(pMsgBuf, buf, NULL);
+      return insBuildNcharConvErrMsg(pMsgBuf, NULL, charsetCxt);
     }
 
     dst->length[i] = output;
@@ -1027,9 +1019,7 @@ static int32_t convertStmtNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STM
       if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
-      char buf[512] = {0};
-      snprintf(buf, tListLen(buf), "%s", strerror(terrno));
-      return buildSyntaxErrMsg(pMsgBuf, buf, NULL);
+      return insBuildNcharConvErrMsg(pMsgBuf, NULL, charsetCxt);
     }
 
     dst->length[i] = output;

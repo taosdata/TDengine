@@ -66,6 +66,11 @@ int32_t nodesDecodeTimezoneName(const char* pTimezoneName, char* pTimezoneBuf, i
  */
 int32_t nodesDecodeTimezoneNameInPlace(const char* pTimezoneName,
                                        void** pTimezone, bool* pOwnsTimezone);
+
+// Charset name of a charset context (SConvInfo*), falling back to the
+// process-wide charset (tsCharset) when the context is absent. Never NULL.
+const char* nodesGetCharsetName(const void* pCharsetCxt);
+
 #ifdef __cplusplus
 }
 #endif

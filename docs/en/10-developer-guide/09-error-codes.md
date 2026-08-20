@@ -125,6 +125,8 @@ Below are the business error codes for each module.
 | 0x80000148 | User security level is too high to write (No-Write-Down) | User's minimum security level is higher than the object's level (NWD violation) | Use a user account with a lower minimum security level, or raise the object's security level |
 | 0x80000149 | Security level conflicts with user's role constraints | The specified security level range does not meet the minimum floor required by the user's assigned roles | Adjust the security level to satisfy role constraints (e.g., SYSSEC requires min >= 4) |
 | 0x8000014A | Cannot enable MAC: preflight check failed | A user with a security policy role has an insufficient security level for MAC activation | Upgrade the user's security_level before enabling MAC |
+| 0x8000014B | Charset conversion failed | Input cannot be converted between the source and target character sets | Check that the charset settings match the input encoding |
+| 0x8000014C | Charset conversion cache is full | The process has reached its limit for cached charset conversion contexts | Reduce the number of distinct charsets, or restart the process after active conversions have completed |
 
 #### tsc
 
@@ -689,7 +691,7 @@ Below are the business error codes for each module.
 | Error Code | Description                                                  | Possible Error Scenarios or Reasons                          | Recommended Actions for Users                      |
 | ---------- | ----------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------- |
 | 0x80003250 | Operation not supported between data types                  | The operation or comparison is not supported between the given data types | Check and correct the SQL statement |
-| 0x80003251 | Failed to convert NCHAR value, possibly due to invalid character encoding or charset mismatch | When an NCHAR column/tag is compared with a string, the NCHAR value fails to be converted to/from a string, usually because the stored value does not match the configured charset or contains an invalid character encoding | Check that the server/client charset is correct and that the NCHAR value is valid |
+| 0x80003251 | Failed to convert between VARCHAR and NCHAR | When an NCHAR column/tag is compared with a string, the NCHAR value fails to be converted to/from a string, usually because the stored value does not match the configured charset or contains an invalid character encoding | Check that the server/client charset is correct and that the NCHAR value is valid |
 
 #### tmq
 

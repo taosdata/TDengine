@@ -2039,7 +2039,6 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
 
   SMetaEntry oStbEntry = {0};
   int32_t    code = 0;
-  char      *buf = NULL;
   void      *pData = NULL;
   int        nData = 0;
 
@@ -2098,7 +2097,6 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
     TAOS_CHECK_GOTO(terrno, NULL, END);
   }
 
-  int32_t maxSize = 0;
   int32_t nTagData = 0;
   void   *tagData = NULL;
 
@@ -2107,23 +2105,10 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
     goto END;
   } else {
     if (IS_VAR_DATA_TYPE(param->type)) {
+      // NCHAR probe constants are converted to UCS-4 by index execution before
+      // parameter initialization; the tag-index key uses the same encoding.
       tagData = varDataVal(param->val);
       nTagData = varDataLen(param->val);
-
-      if (param->type == TSDB_DATA_TYPE_NCHAR) {
-        maxSize = 4 * nTagData + 1;
-        buf = taosMemoryCalloc(1, maxSize);
-        if (buf == NULL) {
-          TAOS_CHECK_GOTO(terrno, NULL, END);
-        }
-
-        if (false == taosMbsToUcs4(tagData, nTagData, (TdUcs4 *)buf, maxSize, &maxSize, NULL)) {
-          TAOS_CHECK_GOTO(terrno, NULL, END);
-        }
-
-        tagData = buf;
-        nTagData = maxSize;
-      }
     } else {
       tagData = param->val;
       nTagData = tDataTypes[param->type].bytes;
@@ -2213,7 +2198,6 @@ END:
   tDecoderClear(&dc);
   tdbFree(pData);
 
-  taosMemoryFree(buf);
   taosMemoryFree(pKey);
 
   taosMemoryFree(pCursor);

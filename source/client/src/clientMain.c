@@ -2257,6 +2257,8 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
     return terrno;
   }
 
+  void *charsetCxt = taosResolveCharsetCxt(pTscObj->optionInfo.charsetCxt);
+
   **pCxt = (SParseContext){.requestId = pRequest->requestId,
                            .requestRid = pRequest->self,
                            .acctId = pTscObj->acctId,
@@ -2283,7 +2285,7 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .parseSqlParam = pWrapper,
                            .setQueryFp = setQueryRequest,
                            .timezone = pTscObj->optionInfo.timezone,
-                           .charsetCxt = pTscObj->optionInfo.charsetCxt,
+                           .charsetCxt = charsetCxt,
                            .txnId = pTscObj->txnId,
                            .pTxnVgSet = pTscObj->pTxnVgSet,
                            .pTxnTableMeta = pTscObj->pTxnTableMeta,

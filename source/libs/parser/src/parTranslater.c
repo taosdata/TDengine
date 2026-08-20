@@ -24893,7 +24893,9 @@ static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSe
   SScanPhysiNode*     pScanNode = NULL;
   SNode*              pNode = NULL;
   SDataBlockDescNode* pScanTuple = NULL;
-  SPlanContext        cxt = {.pAstRoot = (SNode*)pTriggerSelect, .streamCxt.isTrigger = true};
+  SPlanContext        cxt = {.pAstRoot = (SNode*)pTriggerSelect,
+                             .streamCxt.isTrigger = true,
+                             .charsetCxt = pCxt->pParseCxt->charsetCxt};
   SNode*              pTriggerFilter = NULL;
 
   SNodeList* pTriggerCols = NULL;
@@ -26649,7 +26651,9 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
                           .streamCxt.calcScanPlanArray = pScanPlanArray,
                           .streamCxt.triggerScanList = NULL,
                           .streamCxt.hasNotify = taosArrayGetSize(pReq->pNotifyAddrUrls) > 0,
-                          .streamCxt.hasForceOutput = taosArrayGetSize(pReq->forceOutCols) > 0};
+                          .streamCxt.hasForceOutput = taosArrayGetSize(pReq->forceOutCols) > 0,
+                          .charsetCxt = pCxt->pParseCxt->charsetCxt};
+
   if (nodeType(pTriggerWindow) == QUERY_NODE_INTERVAL_WINDOW) {
     SIntervalWindowNode* pIntervalWindow = (SIntervalWindowNode*)pTriggerWindow;
     if (!pIntervalWindow->pInterval) {

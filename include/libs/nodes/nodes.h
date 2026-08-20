@@ -178,6 +178,12 @@ int32_t nodesStringToList(const char* pStr, SNodeList** pList);
 int32_t nodesNodeToMsg(const SNode* pNode, char** pMsg, int32_t* pLen);
 int32_t nodesMsgToNode(const char* pStr, int32_t len, SNode** pNode);
 
+// Restore a borrowed charset context (SConvInfo*, process-cached, never freed by
+// the caller) from a serialized charset name. An empty name, or a name equal to
+// the server charset, leaves *pCharsetCxt untouched (callers must pre-init it to
+// NULL, which every conversion site treats as the server default tsCharsetCxt).
+int32_t nodesDecodeCharsetName(const char* pCharsetName, void** pCharsetCxt);
+
 int32_t nodesNodeToSQL(SNode* pNode, char* buf, int32_t bufSize, int32_t* len);
 int32_t nodesNodeToSQLFormat(SNode* pNode, char* buf, int32_t bufSize, int32_t* len, bool longFormat);
 char*   nodesGetNameFromColumnNode(SNode* pNode);

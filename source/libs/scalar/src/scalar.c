@@ -627,6 +627,16 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       SNode   *nodeItem = NULL;
       FOREACH(nodeItem, nodeList->pNodeList) {
         SValueNode *valueNode = (SValueNode *)nodeItem;
+        // A VARCHAR element probed against an NCHAR expression keeps the set
+        // type NCHAR: scalarGenerateSetFromList below converts the element
+        // to UCS-4 by its charsetCxt, so the element node is never rewritten
+        // (the tree may be shared, e.g. with a pushed-down condition). Keyed
+        // on the RUNNING type on purpose: once a numeric element widened it,
+        // later VARCHAR elements must keep widening the set type as before.
+        if (type == TSDB_DATA_TYPE_NCHAR &&
+            valueNode->node.resType.type == TSDB_DATA_TYPE_VARCHAR) {
+          continue;
+        }
         int32_t     tmp = vectorGetConvertType(type, valueNode->node.resType.type);
         if (tmp < 0) {
           sclError("%s not supported convertion between %d and %d", __func__, type, valueNode->node.resType.type);
@@ -1459,23 +1469,98 @@ int32_t sclGetNodeRes(SNode *node, SScalarCtx *ctx, SScalarParam **res) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell *pCell, SScalarParam *pCase,
-                            SScalarParam *pElse, SScalarParam *pComp, SScalarParam *output, int32_t rowIdx,
-                            int32_t totalRows, bool *complete) {
+static int32_t sclConvertVarcharParamToNchar(SScalarParam *input,
+                                             SScalarParam *output) {
+  SDataType type = {.type = TSDB_DATA_TYPE_NCHAR};
+  type.bytes = input->columnData->info.bytes * TSDB_NCHAR_SIZE +
+               VARSTR_HEADER_SIZE;
+  int32_t code = sclCreateColumnInfoData(&type, input->numOfRows, output);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  setTzCharset(output, input->tz, input->charsetCxt);
+  code = vectorConvertSingleColImpl(input, output, NULL, -1, -1);
+  if (code != TSDB_CODE_SUCCESS) {
+    sclFreeParam(output);
+  }
+  return code;
+}
+
+static int32_t sclRebuildVarParamAsNchar(SValueNode *valueNode,
+                                         SScalarParam *param) {
+  if (valueNode->node.resType.type != TSDB_DATA_TYPE_VARCHAR) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SScalarParam converted = {0};
+  setTzCharset(param, valueNode->tz, valueNode->charsetCxt);
+  int32_t code = sclConvertVarcharParamToNchar(param, &converted);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  sclFreeParam(param);
+  *param = converted;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sclCompareCaseWhen(SNode *caseNode, SScalarParam *caseParam,
+                                  SNode *whenNode, SScalarParam *whenParam,
+                                  SScalarParam *comp, int32_t startIndex,
+                                  int32_t numOfRows) {
+  SScalarParam  caseNchar = {0};
+  SScalarParam  whenNchar = {0};
+  SScalarParam *left = caseParam;
+  SScalarParam *right = whenParam;
+  int32_t       code = TSDB_CODE_SUCCESS;
+
+  if (caseNode != NULL && nodeType(caseNode) == QUERY_NODE_VALUE &&
+      ((SValueNode *)caseNode)->node.resType.type ==
+          TSDB_DATA_TYPE_VARCHAR &&
+      GET_PARAM_TYPE(whenParam) == TSDB_DATA_TYPE_NCHAR) {
+    SCL_ERR_JRET(sclConvertVarcharParamToNchar(caseParam, &caseNchar));
+    left = &caseNchar;
+  } else if (whenNode != NULL && nodeType(whenNode) == QUERY_NODE_VALUE &&
+             ((SValueNode *)whenNode)->node.resType.type ==
+                 TSDB_DATA_TYPE_VARCHAR &&
+             GET_PARAM_TYPE(caseParam) == TSDB_DATA_TYPE_NCHAR) {
+    SCL_ERR_JRET(sclConvertVarcharParamToNchar(whenParam, &whenNchar));
+    right = &whenNchar;
+  }
+
+  code = vectorCompareImpl(left, right, comp, startIndex, numOfRows,
+                           OP_TYPE_EQUAL);
+
+_return:
+  sclFreeParam(&caseNchar);
+  sclFreeParam(&whenNchar);
+  SCL_RET(code);
+}
+
+int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList,
+                            struct SListCell *pCell, SNode *caseNode,
+                            SScalarParam *pCase, SScalarParam *pElse,
+                            SScalarParam *pComp, SScalarParam *output,
+                            int32_t rowIdx, int32_t totalRows,
+                            bool *complete) {
   SNode         *node = NULL;
   SWhenThenNode *pWhenThen = NULL;
   SScalarParam  *pWhen = NULL;
   SScalarParam  *pThen = NULL;
   int32_t        code = 0;
 
+  // Resolve every WHEN for the current row. A WHEN may reference a column,
+  // so it is recomputed fresh on every row rather than cached.
   for (SListCell *cell = pCell; (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false));
        cell = cell->pNext) {
     pWhenThen = (SWhenThenNode *)node;
 
     SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pWhen, ctx, &pWhen));
     SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pThen, ctx, &pThen));
+    setTzCharset(pWhen, pCase->tz, pCase->charsetCxt);
+    setTzCharset(pThen, pCase->tz, pCase->charsetCxt);
 
-    SCL_ERR_JRET(vectorCompareImpl(pCase, pWhen, pComp, rowIdx, 1, OP_TYPE_EQUAL));
+    SCL_ERR_JRET(sclCompareCaseWhen(caseNode, pCase, pWhenThen->pWhen,
+                                    pWhen, pComp, rowIdx, 1));
 
     bool *equal = (bool *)colDataGetData(pComp->columnData, rowIdx);
     if (*equal) {
@@ -1517,12 +1602,10 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell 
   }
 
 _return:
-
   sclFreeParam(pWhen);
   sclFreeParam(pThen);
   taosMemoryFreeClear(pWhen);
   taosMemoryFreeClear(pThen);
-
   SCL_RET(code);
 }
 
@@ -1557,7 +1640,6 @@ int32_t sclWalkWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell *pCe
 
       goto _return;
     }
-
     sclFreeParam(pWhen);
     sclFreeParam(pThen);
     taosMemoryFreeClear(pWhen);
@@ -1585,12 +1667,10 @@ int32_t sclWalkWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell *pCe
   }
 
 _return:
-
   sclFreeParam(pWhen);
   sclFreeParam(pThen);
   taosMemoryFree(pWhen);
   taosMemoryFree(pThen);
-
   SCL_RET(code);
 }
 
@@ -1990,6 +2070,26 @@ static int32_t sclCalcStreamExtWinsTimeRange(SScalarCtx *ctx,          SOperator
 }
 
 
+// Convert only a VARCHAR constant parameter. Column/expression comparison
+// behavior remains unchanged.
+static int32_t sclConvertOpParamsNchar(SOperatorNode *node,
+                                       SScalarParam *params, int32_t paramNum) {
+  if (!nodesIsComparisonOp(node) || paramNum < 2) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (node->pLeft && SCL_IS_VAR_VALUE_NODE(node->pLeft) && node->pRight &&
+      TSDB_DATA_TYPE_NCHAR == ((SExprNode *)node->pRight)->resType.type) {
+    SCL_ERR_RET(sclRebuildVarParamAsNchar((SValueNode *)node->pLeft,
+                                          &params[0]));
+  }
+  if (node->pRight && SCL_IS_VAR_VALUE_NODE(node->pRight) && node->pLeft &&
+      TSDB_DATA_TYPE_NCHAR == ((SExprNode *)node->pLeft)->resType.type) {
+    SCL_ERR_RET(sclRebuildVarParamAsNchar((SValueNode *)node->pRight,
+                                          &params[1]));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *output) {
   SScalarParam *params = NULL;
   int32_t       rowNum = 0;
@@ -2006,6 +2106,7 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   }
 
   SCL_ERR_JRET(sclInitOperatorParams(&params, node, ctx, &rowNum));
+  SCL_ERR_JRET(sclConvertOpParamsNchar(node, params, paramNum));
   
   if (ctx->stream.streamTsRange != NULL && sclIsStreamRangeReq(node)) {
     code = sclCalcStreamCurrWinTimeRange(ctx, ctx->stream.streamTsRange, node, params);
@@ -2076,25 +2177,29 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
 
   SCL_ERR_JRET(sclCreateColumnInfoData(&compType, rowNum, &comp));
 
-  SNode         *tnode = NULL;
-  SWhenThenNode *pWhenThen = (SWhenThenNode *)node->pWhenThenList->pHead->pNode;
-
-  SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pWhen, ctx, &pWhen));
-  SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pThen, ctx, &pThen));
-  if (NULL == pWhen || NULL == pThen) {
-    sclError("invalid when/then in whenThen list, pWhen:%p pThen:%p whenNode:%p(type:%d) thenNode:%p(type:%d)",
-             (void*)pWhen, (void*)pThen,
-             (void*)pWhenThen->pWhen, pWhenThen->pWhen ? nodeType(pWhenThen->pWhen) : -1,
-             (void*)pWhenThen->pThen, pWhenThen->pThen ? nodeType(pWhenThen->pThen) : -1);
-    SCL_ERR_JRET(TSDB_CODE_INVALID_PARA);
-  }
   setTzCharset(pCase, node->tz, node->charsetCxt);
-  setTzCharset(pWhen, node->tz, node->charsetCxt);
-  setTzCharset(pThen, node->tz, node->charsetCxt);
   setTzCharset(pElse, node->tz, node->charsetCxt);
   setTzCharset(output, node->tz, node->charsetCxt);
+
+  SWhenThenNode *pWhenThen =
+      (SWhenThenNode *)node->pWhenThenList->pHead->pNode;
+  SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pWhen, ctx, &pWhen));
+  SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pThen, ctx, &pThen));
+  if (pWhen == NULL || pThen == NULL) {
+    sclError("invalid when/then in whenThen list, "
+             "whenNode:%p(type:%d) thenNode:%p(type:%d)",
+             (void *)pWhenThen->pWhen,
+             pWhenThen->pWhen ? nodeType(pWhenThen->pWhen) : -1,
+             (void *)pWhenThen->pThen,
+             pWhenThen->pThen ? nodeType(pWhenThen->pThen) : -1);
+    SCL_ERR_JRET(TSDB_CODE_INVALID_PARA);
+  }
+  setTzCharset(pWhen, node->tz, node->charsetCxt);
+  setTzCharset(pThen, node->tz, node->charsetCxt);
+
   if (pCase) {
-    SCL_ERR_JRET(vectorCompare(pCase, pWhen, &comp, TSDB_ORDER_ASC, OP_TYPE_EQUAL));
+    SCL_ERR_JRET(sclCompareCaseWhen(node->pCase, pCase,
+                                    pWhenThen->pWhen, pWhen, &comp, -1, -1));
 
     for (int32_t i = 0; i < rowNum; ++i) {
       bool *equal = (bool *)colDataGetData(comp.columnData, (comp.numOfRows > 1 ? i : 0));
@@ -2107,8 +2212,10 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
           break;
         }
       } else {
-        SCL_ERR_JRET(sclWalkCaseWhenList(ctx, node->pWhenThenList, node->pWhenThenList->pHead->pNext, pCase, pElse,
-                                         &comp, output, i, rowNum, &complete));
+        SCL_ERR_JRET(sclWalkCaseWhenList(
+            ctx, node->pWhenThenList,
+            node->pWhenThenList->pHead->pNext, node->pCase, pCase, pElse,
+            &comp, output, i, rowNum, &complete));
         if (complete) {
           break;
         }
@@ -2146,7 +2253,6 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
   taosMemoryFree(pElse);
   taosMemoryFree(pWhen);
   taosMemoryFree(pThen);
-
   return TSDB_CODE_SUCCESS;
 
 _return:
@@ -2161,7 +2267,6 @@ _return:
   taosMemoryFree(pElse);
   taosMemoryFree(pWhen);
   taosMemoryFree(pThen);
-
   SCL_RET(code);
 }
 
@@ -2425,6 +2530,12 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
     }
   }
 
+  // Preserve the source charset so a folded var-data constant keeps probing the
+  // JSON tag index with its client encoding instead of falling back to server.
+  if (IS_VAR_DATA_TYPE(res->node.resType.type)) {
+    res->charsetCxt = node->charsetCxt;
+  }
+
   nodesDestroyNode(*pNode);
   *pNode = (SNode *)res;
 
@@ -2577,6 +2688,12 @@ EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
     }
   }
 
+  // Preserve the source charset so a folded var-data constant keeps probing the
+  // JSON tag index with its client encoding instead of falling back to server.
+  if (IS_VAR_DATA_TYPE(res->node.resType.type)) {
+    res->charsetCxt = node->charsetCxt;
+  }
+
   nodesDestroyNode(*pNode);
   *pNode = (SNode *)res;
 
@@ -2660,6 +2777,12 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
         return DEAL_RES_ERROR;
       }
     }
+  }
+
+  // Preserve the source charset so a folded var-data constant keeps probing the
+  // JSON tag index with its client encoding instead of falling back to server.
+  if (IS_VAR_DATA_TYPE(res->node.resType.type)) {
+    res->charsetCxt = node->charsetCxt;
   }
 
   nodesDestroyNode(*pNode);

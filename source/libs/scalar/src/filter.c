@@ -2308,6 +2308,9 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
 
     if (unit->compare.optr == OP_TYPE_IN) {
       // QUERY_NODE_NODE_LIST
+      // Materialize the set during filter initialization. In particular, an
+      // NCHAR column's VARCHAR literals are converted here once per literal,
+      // never once per input row.
       FLT_ERR_RET(scalarGenerateSetFromList((void **)&fi->data, fi->desc, type, 0, 0));
       if (fi->data == NULL) {
         fltError("failed to convert in param");
@@ -2338,6 +2341,9 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       }
       assignVal(fi->data, nodesGetValueFromNode(var), dType->bytes, type);
     } else {
+      // The comparison type is the left column type. Convert and cache the
+      // constant now so row evaluation never performs charset conversion for
+      // `NCHAR column op VARCHAR literal`.
       SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
       if (out.columnData == NULL) {
         FLT_ERR_RET(terrno);
@@ -2366,6 +2372,8 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
 
       fi->data = taosMemoryCalloc(1, bufBytes);
       if (fi->data == NULL) {
+        colDataDestroy(out.columnData);
+        taosMemoryFree(out.columnData);
         FLT_ERR_RET(terrno);
       }
 
@@ -4946,85 +4954,6 @@ _return:
   FLT_RET(code);
 }
 
-int32_t filterConverNcharColumns(SFilterInfo *info, int32_t rows, bool *gotNchar) {
-  if (FILTER_EMPTY_RES(info) || FILTER_ALL_RES(info)) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  for (uint32_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
-    SFilterField *fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
-    int32_t       type = FILTER_GET_COL_FIELD_TYPE(fi);
-    if (type == TSDB_DATA_TYPE_NCHAR) {
-      SFilterField nfi = {0};
-      nfi.desc = fi->desc;
-      int32_t bytes = FILTER_GET_COL_FIELD_SIZE(fi);
-      nfi.data = taosMemoryMalloc(rows * bytes);
-      if (nfi.data == NULL) {
-        FLT_ERR_RET(terrno);
-      }
-      int32_t bufSize = bytes - VARSTR_HEADER_SIZE;
-      for (int32_t j = 0; j < rows; ++j) {
-        char   *src = FILTER_GET_COL_FIELD_DATA(fi, j);
-        char   *dst = FILTER_GET_COL_FIELD_DATA(&nfi, j);
-        int32_t len = 0;
-        char   *varSrc = varDataVal(src);
-        size_t  k = 0, varSrcLen = varDataLen(src);
-        while (k < varSrcLen && varSrc[k++] == -1) {
-        }
-        if (k == varSrcLen) {
-          /* NULL */
-          varDataLen(dst) = (VarDataLenT)varSrcLen;
-          varDataCopy(dst, src);
-          continue;
-        }
-        bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), (TdUcs4 *)varDataVal(dst), bufSize, &len, NULL);
-        if (!ret) {
-          qError("%s failed to convert NCHAR column value, srcLen:%d", __func__, (int32_t)varDataLen(src));
-          return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
-        }
-        varDataLen(dst) = len;
-      }
-
-      fi->data = nfi.data;
-
-      *gotNchar = true;
-    }
-  }
-
-  if (*gotNchar) {
-    FLT_ERR_RET(filterUpdateComUnits(info));
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t filterFreeNcharColumns(SFilterInfo *info) {
-  for (uint32_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
-    SFilterField *fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
-    int32_t       type = FILTER_GET_COL_FIELD_TYPE(fi);
-    if (type == TSDB_DATA_TYPE_NCHAR) {
-      taosMemoryFreeClear(fi->data);
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t fltAddValueNodeToConverList(SFltTreeStat *stat, SValueNode *pNode) {
-  if (NULL == stat->nodeList) {
-    stat->nodeList = taosArrayInit(10, POINTER_BYTES);
-    if (NULL == stat->nodeList) {
-      FLT_ERR_RET(terrno);
-    }
-  }
-
-  if (NULL == taosArrayPush(stat->nodeList, &pNode)) {
-    FLT_ERR_RET(terrno);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
   SFltTreeStat *stat = (SFltTreeStat *)pContext;
 
@@ -5276,8 +5205,6 @@ int32_t fltReviseNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat) {
   FLT_ERR_JRET(pStat->code);
 
 _return:
-
-  taosArrayDestroy(pStat->nodeList);
   FLT_RET(code);
 }
 

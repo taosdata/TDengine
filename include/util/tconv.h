@@ -20,12 +20,15 @@
 extern "C" {
 #endif
 
-//#include "osString.h"
-//
 //bool    taosValidateEncodec(const char *encodec);
 //int32_t taosUcs4len(TdUcs4 *ucs4);
 void*   taosConvInit(const char* charset);
+// Destroys the process-wide converter cache. Shutdown-only: stop new
+// conversions and wait for all conversion users and owners of contexts returned
+// by taosConvInit before calling this function. All returned contexts become
+// invalid after it returns.
 void    taosConvDestroy();
+
 //iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt);
 //void    taosReleaseConv(int32_t idx, iconv_t conv, ConvType type, void* charsetCxt);
 //int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, void* charsetCxt);

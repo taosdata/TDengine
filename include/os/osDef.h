@@ -154,6 +154,9 @@ char *strsep(char **stringp, const char *delim);
 #endif
 
 #define DEFAULT_UNICODE_ENCODEC "UCS-4LE"
+// Multibyte charset assumed when no charset context is configured. Paired
+// with DEFAULT_UNICODE_ENCODEC as the two sides of the default conversion.
+#define DEFAULT_MBS_ENCODEC "UTF-8"
 
 #define DEFAULT_COMP(x, y)       \
   do {                           \
