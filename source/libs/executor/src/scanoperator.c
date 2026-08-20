@@ -586,9 +586,17 @@ static int32_t createTableCacheVal(const SMetaReader* pMetaReader, STableCachedV
   pVal->pName = taosStrdup(pMetaReader->me.name);
   QUERY_CHECK_NULL(pVal->pName, code, lino, _end, terrno);
 
-  // only child table has tag value
+  // only child table has tag value in ctbEntry; normal/virtual-normal tables keep owned tags in
+  // ntbEntry.pTags (same union — reading ctbEntry.pTags there is garbage)
   if (pMetaReader->me.type == TSDB_CHILD_TABLE || pMetaReader->me.type == TSDB_VIRTUAL_CHILD_TABLE) {
     STag* pTag = (STag*)pMetaReader->me.ctbEntry.pTags;
+    if (pTag != NULL) {
+      pVal->pTags = taosMemoryMalloc(pTag->len);
+      QUERY_CHECK_NULL(pVal->pTags, code, lino, _end, terrno);
+      memcpy(pVal->pTags, pTag, pTag->len);
+    }
+  } else if (pMetaReader->me.type == TSDB_NORMAL_TABLE || pMetaReader->me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
+    STag* pTag = (STag*)pMetaReader->me.ntbEntry.pTags;
     if (pTag != NULL) {
       pVal->pTags = taosMemoryMalloc(pTag->len);
       QUERY_CHECK_NULL(pVal->pTags, code, lino, _end, terrno);
@@ -669,7 +677,13 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
     }
 
     val.pName = mr.me.name;
-    val.pTags = (STag*)mr.me.ctbEntry.pTags;
+    // ctbEntry/ntbEntry share a union: child tables carry tags in ctbEntry.pTags, normal and
+    // virtual-normal tables carry owned tags in ntbEntry.pTags — pick by entry type.
+    if (mr.me.type == TSDB_NORMAL_TABLE || mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
+      val.pTags = (STag*)mr.me.ntbEntry.pTags;
+    } else {
+      val.pTags = (STag*)mr.me.ctbEntry.pTags;
+    }
 
     freeReader = true;
   } else {

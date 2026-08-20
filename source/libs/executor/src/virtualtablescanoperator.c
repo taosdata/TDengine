@@ -19,6 +19,10 @@
 #include "querytask.h"
 #include "tdatablock.h"
 #include "tcompare.h"
+#include "tmsg.h"
+#include "tname.h"
+#include "trpc.h"
+#include "ttime.h"
 #include "virtualtablescan.h"
 
 typedef struct SVirtualTableScanInfo {
@@ -46,6 +50,8 @@ typedef struct SVirtualTableScanInfo {
   SNodeList*     pRefTagCols;
   tb_uid_t       vtableUid;  // virtual table uid, used to identify the vtable scan operator
   char           vtableName[TSDB_TABLE_NAME_LEN];
+  SArray*        pOwnedResolvedTags;  // owned-tag values for child scans without a DynQueryCtrl parent
+  bool           ownedTagsFetched;    // whether owned tags have been resolved already
 } SVirtualTableScanInfo;
 
 typedef struct SVirtualScanMergeOperatorInfo {
@@ -126,23 +132,179 @@ static STagRefSavedBlock* findSavedTagRefBlock(const SVirtualTableScanInfo* pInf
 }
 
 static const STagVal* findResolvedTagVal(const SOperatorInfo* pOperator, col_id_t colId) {
-  if (pOperator == NULL || pOperator->pOperatorGetParam == NULL) {
-    return NULL;
-  }
-
-  SVTableScanOperatorParam* pParam = pOperator->pOperatorGetParam->value;
-  if (pParam == NULL || pParam->pResolvedTags == NULL) {
-    return NULL;
-  }
-
-  for (int32_t i = 0; i < taosArrayGetSize(pParam->pResolvedTags); ++i) {
-    const STagVal* pTagVal = taosArrayGet(pParam->pResolvedTags, i);
-    if (pTagVal != NULL && pTagVal->cid == colId) {
-      return pTagVal;
+  // 1) tags injected by the DynQueryCtrl parent (super-table / stream path)
+  if (pOperator != NULL && pOperator->pOperatorGetParam != NULL) {
+    const SVTableScanOperatorParam* pParam = pOperator->pOperatorGetParam->value;
+    if (pParam != NULL && pParam->pResolvedTags != NULL) {
+      for (int32_t i = 0; i < taosArrayGetSize(pParam->pResolvedTags); ++i) {
+        const STagVal* pTagVal = taosArrayGet(pParam->pResolvedTags, i);
+        if (pTagVal != NULL && pTagVal->cid == colId) {
+          return pTagVal;
+        }
+      }
     }
   }
-
+  // 2) owned tags resolved by this operator itself (child scan without DynQueryCtrl)
+  if (pOperator != NULL && pOperator->info != NULL) {
+    const SVirtualTableScanInfo* pVScan =
+        &((const SVirtualScanMergeOperatorInfo*)pOperator->info)->virtualScanInfo;
+    if (pVScan->pOwnedResolvedTags != NULL) {
+      for (int32_t i = 0; i < taosArrayGetSize(pVScan->pOwnedResolvedTags); ++i) {
+        const STagVal* pTagVal = taosArrayGet(pVScan->pOwnedResolvedTags, i);
+        if (pTagVal != NULL && pTagVal->cid == colId) {
+          return pTagVal;
+        }
+      }
+    }
+  }
   return NULL;
+}
+
+// Free the owned-tag value array, including any deep-copied var-data payloads.
+static void destroyOwnedResolvedTags(SVirtualTableScanInfo* pVScan) {
+  if (pVScan->pOwnedResolvedTags != NULL) {
+    for (int32_t i = 0; i < taosArrayGetSize(pVScan->pOwnedResolvedTags); ++i) {
+      STagVal* pVal = taosArrayGet(pVScan->pOwnedResolvedTags, i);
+      if (IS_VAR_DATA_TYPE(pVal->type)) {
+        taosMemoryFreeClear(pVal->pData);
+      }
+    }
+    taosArrayDestroy(pVScan->pOwnedResolvedTags);
+    pVScan->pOwnedResolvedTags = NULL;
+  }
+}
+
+// For a virtual normal/child-table scan that runs WITHOUT a DynQueryCtrl parent (the static
+// createOperator path), pResolvedTags is never injected, so owned-tag values would be NULL.
+// Fetch the table config from the owning vnode once and cache the owned-tag values so that
+// findResolvedTagVal() can resolve them. Tag-refs are skipped (resolved from source blocks).
+static int32_t ensureOwnedTagsResolved(SOperatorInfo* pOperator) {
+  int32_t                        code = TSDB_CODE_SUCCESS;
+  int32_t                        lino = 0;
+  SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;
+  SVirtualTableScanInfo*         pVScan = &pInfo->virtualScanInfo;
+  SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
+  // Declared upfront: the early error exits below jump to _return, which frees cfgRsp —
+  // declaring it after a goto target would leave it uninitialized on those paths.
+  STableCfgRsp                   cfgRsp = {0};
+
+  if (pVScan->ownedTagsFetched) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Only the static path (no DynQueryCtrl param) needs self-resolution.
+  if (pOperator->pOperatorGetParam != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  // pTaskInfo/pMsgCb/clientRpc are guaranteed non-NULL by the executor framework for a running
+  // scan operator; a NULL here is an internal bug, not a condition to silently degrade from.
+  if (pTaskInfo == NULL || pTaskInfo->pSubplan == NULL || pTaskInfo->pMsgCb == NULL ||
+      pTaskInfo->pMsgCb->clientRpc == NULL) {
+    qError("ensureOwnedTagsResolved: contract violated (pTaskInfo/pMsgCb/clientRpc NULL)");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SVirtualScanPhysiNode* pPhy = (SVirtualScanPhysiNode*)pOperator->pPhyNode;
+  if (pPhy == NULL) {
+    qError("ensureOwnedTagsResolved: pPhyNode NULL");
+    return TSDB_CODE_INVALID_PARA;
+  }
+  // No owned local tags: a genuine no-op, not a degrade.
+  if (!pPhy->hasLocalTag) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SQueryNodeAddr* pExecNode = &pTaskInfo->pSubplan->execNode;
+  if (pExecNode->nodeId <= 0) {
+    qError("ensureOwnedTagsResolved: execNode nodeId<=0");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  STableCfgReq req = {0};
+  char         dbFName[TSDB_DB_FNAME_LEN] = {0};
+  req.header.vgId = pExecNode->nodeId;
+  tNameGetFullDbName(&pPhy->scan.tableName, dbFName);
+  tstrncpy(req.dbFName, dbFName, sizeof(req.dbFName));
+  tstrncpy(req.tbName, pPhy->scan.tableName.tname, sizeof(req.tbName));
+  req.txnId = pTaskInfo->txnId;
+
+  int32_t contLen = tSerializeSTableCfgReq(NULL, 0, &req);
+  char*   buf = rpcMallocCont(contLen);
+  TSDB_CHECK_NULL(buf, code, lino, _return, terrno);
+  if (tSerializeSTableCfgReq(buf, contLen, &req) < 0) {
+    rpcFreeCont(buf);
+    TSDB_CHECK_CODE(terrno, lino, _return);
+  }
+
+  // ahandle is an opaque RPC sentinel; sync rpcSendRecv never uses the ahandle callback, but RPC
+  // requires a non-NULL pointer with notFreeAhandle=1. 0x9526 mirrors fetchRemoteTableCfg's
+  // convention for sync table-cfg fetches.
+  SRpcMsg rpcMsg = {.msgType = TDMT_VND_TABLE_CFG,
+                    .pCont = buf,
+                    .contLen = contLen,
+                    .info.ahandle = (void*)0x9526,
+                    .info.notFreeAhandle = 1};
+  SRpcMsg rpcRsp = {0};
+  code = rpcSendRecv(pTaskInfo->pMsgCb->clientRpc, &pExecNode->epSet, &rpcMsg, &rpcRsp);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("ensureOwnedTagsResolved: rpcSendRecv failed for %s.%s, code=%s", dbFName, req.tbName, tstrerror(code));
+    return code;
+  }
+  if (rpcRsp.code != TSDB_CODE_SUCCESS || rpcRsp.pCont == NULL || rpcRsp.contLen <= 0) {
+    rpcFreeCont(rpcRsp.pCont);
+    return rpcRsp.code != TSDB_CODE_SUCCESS ? rpcRsp.code : TSDB_CODE_FAILED;
+  }
+
+  code = tDeserializeSTableCfgRsp(rpcRsp.pCont, rpcRsp.contLen, &cfgRsp);
+  rpcFreeCont(rpcRsp.pCont);
+  TSDB_CHECK_CODE(code, lino, _return);
+
+  // hasLocalTag can be true for non-tag pseudo-columns (e.g. TBNAME) projected from a tag-less
+  // table — those are resolved by their own paths, not by this owned-tag fetch. A tag-less cfg
+  // therefore means there are simply no owned-tag values to resolve, NOT a meta/cfg mismatch.
+  // Erroring here broke `SELECT tbname FROM <vntb>` (and partition-by-tbname) on tag-less virtual
+  // normal tables. Succeed with an empty resolved set instead.
+  if (cfgRsp.pTags == NULL || cfgRsp.pSchemas == NULL || cfgRsp.numOfTags <= 0) {
+    tFreeSTableCfgRsp(&cfgRsp);
+    pVScan->ownedTagsFetched = true;  // nothing to fetch; don't retry the RPC on every GetNext
+    qDebug("ensureOwnedTagsResolved: %s.%s has no owned tags (pseudo-col/tbname scan)", dbFName, req.tbName);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pVScan->pOwnedResolvedTags = taosArrayInit(cfgRsp.numOfTags, sizeof(STagVal));
+  TSDB_CHECK_NULL(pVScan->pOwnedResolvedTags, code, lino, _return, terrno);
+
+  for (int32_t tagIdx = 0; tagIdx < cfgRsp.numOfTags; ++tagIdx) {
+    SSchema* pSchema = &cfgRsp.pSchemas[cfgRsp.numOfColumns + tagIdx];
+    // skip tag-refs: their values come from source data blocks, not this table's cfg
+    bool hasRef = false;
+    if (cfgRsp.pTagRefs != NULL) {
+      for (int32_t r = 0; r < cfgRsp.numOfTagRefs; ++r) {
+        if (cfgRsp.pTagRefs[r].hasRef && cfgRsp.pTagRefs[r].id == pSchema->colId) {
+          hasRef = true;
+          break;
+        }
+      }
+    }
+    if (hasRef) {
+      continue;
+    }
+    code = appendResolvedTagVal(pVScan->pOwnedResolvedTags, pSchema->colId, pSchema, (const STag*)cfgRsp.pTags);
+    TSDB_CHECK_CODE(code, lino, _return);
+  }
+
+  tFreeSTableCfgRsp(&cfgRsp);
+  qDebug("ensureOwnedTagsResolved: fetched %d owned tag(s) for %s.%s",
+         pVScan->pOwnedResolvedTags ? (int32_t)taosArrayGetSize(pVScan->pOwnedResolvedTags) : 0, dbFName, req.tbName);
+  pVScan->ownedTagsFetched = true;  // only mark after a fully successful fetch (transient RPC errors stay retryable)
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  tFreeSTableCfgRsp(&cfgRsp);
+  // fetch stays retryable (ownedTagsFetched is only set on full success), so drop any partially
+  // filled array here — the next attempt must not leak it by overwriting the pointer.
+  destroyOwnedResolvedTags(pVScan);
+  return code;
 }
 
 static int32_t setTagValueToColumn(SColumnInfoData* pDstCol, const STagVal* pTagVal, int32_t rows) {
@@ -1418,6 +1580,9 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     }
   }
 
+  // Child scans without a DynQueryCtrl parent resolve owned-tag values themselves.
+  VTS_ERR_JRET(ensureOwnedTagsResolved(pOperator));
+
   while (1) {
     VTS_ERR_JRET(doVirtualTableMerge(pOperator, pResBlock));
     if (*pResBlock == NULL) {
@@ -1439,7 +1604,8 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     bool needMetadataFill =
         (pInfo->pSavedTagBlock != NULL && !tagAllNull) ||
         pVirtualScanInfo->pSavedTagRefBlocks != NULL ||
-        pOperator->pOperatorGetParam != NULL;
+        pOperator->pOperatorGetParam != NULL ||
+        pVirtualScanInfo->pOwnedResolvedTags != NULL;
     if (needMetadataFill) {
       VTS_ERR_JRET(doSetTagColumnData(pOperator, pVirtualScanInfo, pInfo->pSavedTagBlock, (*pResBlock),
                                       (*pResBlock)->info.rows));
@@ -1534,6 +1700,7 @@ void destroyVirtualTableScanOperatorInfo(void* param) {
     taosArrayDestroy(pInfo->pSortCtxList);
     pInfo->pSortCtxList = NULL;
   }
+  destroyOwnedResolvedTags(pInfo);
   taosMemoryFreeClear(param);
 }
 
