@@ -7411,8 +7411,7 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
       int32_t parserCapacity = pVal->n - 2;
       pOptions->parser = taosMemoryCalloc(1, parserCapacity + 1);
       CHECK_OUT_OF_MEM(pOptions->parser);
-      (void)trimString(pVal->z, pVal->n, pOptions->parser, parserCapacity + 1);
-      pOptions->parserLen = strlen(pOptions->parser);
+      pOptions->parserLen = trimString(pVal->z, pVal->n, pOptions->parser, parserCapacity + 1);
       if (pOptions->parserLen > TSDB_XNODE_TASK_PARSER_MAX_LEN) {
         pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_TASK_PARSER_TOO_LONG,
                                                 "Option parser must be string with length <= %d",
