@@ -4,7 +4,7 @@ title: Tables
 
 ## Create Table
 
-The `CREATE TABLE` statement is used to create basic tables and subtables using a supertable as a template.
+The `CREATE TABLE` statement is used to create basic tables and subtables using a supertable as a template. You can also create a supertable by specifying the `TAGS` clause, or create a basic table with owned tags.
 
 ```sql
 CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definition] ...) [table_options]
@@ -12,7 +12,7 @@ CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_defi
 CREATE TABLE create_subtable_clause
 
 CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definition] ...)
-    [TAGS (create_definition [, create_definition] ...)]
+    [TAGS (tag_def [, tag_def] ...)]
     [table_options]
 
 create_subtable_clause: {
@@ -25,6 +25,9 @@ create_definition:
 
 column_definition:
     type_name [COMPOSITE KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']
+
+tag_def:
+    tag_name type_name [= const_value]
 
 table_options:
     table_option ...
@@ -46,6 +49,7 @@ Usage Notes:
 5. The maximum row length of a table cannot exceed 64 KB. Each `BINARY`, `VARCHAR`, `NCHAR`, `GEOMETRY`, and `VARBINARY` column also occupies an additional 2 bytes of storage space.
 6. When using `BINARY`, `VARCHAR`, `VARBINARY`, or `GEOMETRY`, specify the maximum number of bytes. For example, `VARCHAR(20)` indicates up to 20 single-byte characters. When using `NCHAR`, specify the maximum number of characters. For example, `NCHAR(10)` indicates up to 10 `NCHAR` characters.
 7. For the use of `ENCODE` and `COMPRESS`, please refer to [Column Compression](../03-data-write/03-compress.md)
+8. The semantics of the `TAGS` clause depend on whether the tags carry values: when no tag has a value, a supertable is created; when every tag has an explicit `= const_value`, a basic table with owned tags is created (`= NULL` is a valid explicit value); mixing valued and valueless tags is rejected. Owned tags of a basic table only support literal values, not `FROM` references; the `DECIMAL` type is not supported for tags, and a `JSON` tag can only be declared at table creation and must be the only tag. For how to query and maintain basic-table tags, see "Create a Basic Table with Tags" and "Modify basic tables" below.
 
 Parameter Description:
 
@@ -58,6 +62,21 @@ Parameter Description:
 ```sql
 CREATE TABLE [IF NOT EXISTS] tb_name (create_definition [, create_definition] ...);
 ```
+
+### Create a Basic Table with Tags
+
+```sql
+CREATE TABLE [IF NOT EXISTS] tb_name (create_definition [, create_definition] ...)
+    TAGS (tag_name1 tag_type1 = const_value1 [, ...]);
+```
+
+When every tag in the `TAGS` clause carries an explicit `= const_value`, the statement creates a basic table with owned tags, for example:
+
+```sql
+CREATE TABLE ntb (ts TIMESTAMP, v INT) TAGS (loc INT = 5, dept VARCHAR(16) = 'rd');
+```
+
+An owned tag of a basic table is a table-level constant: projecting it returns that constant for every row, and using it in a `WHERE` filter is evaluated with constant semantics; tag rows are marked `TAG` in the `DESC` output. `SHOW CREATE TABLE` returns a single `CREATE TABLE ... TAGS(...)` statement in which owned tags are inlined as `= value` (a NULL value is emitted as `= NULL`), ready for replay.
 
 ## Create Subtable
 
@@ -106,6 +125,9 @@ alter_table_clause: {
   | DROP COLUMN col_name
   | MODIFY COLUMN col_name column_type
   | RENAME COLUMN old_col_name new_col_name
+  | ADD TAG tag_name tag_type
+  | SET TAG tag_name = new_tag_value
+  | DROP TAG tag_name
 }
 
 alter_table_options:
@@ -128,6 +150,10 @@ The following modifications can be made to basic tables:
 4. After `MODIFY COLUMN`, you can also specify column compression options such as `ENCODE`, `COMPRESS`, and `LEVEL`. See [Column Compression](../03-data-write/03-compress.md).
 5. RENAME COLUMN: Change the column name.
 6. The primary key columns of basic tables cannot be modified, nor can they be added or removed through `ADD COLUMN` or `DROP COLUMN`.
+7. `ADD TAG`: Add an owned tag with an initial value of `NULL`; assign a value later with `SET TAG`.
+8. `SET TAG`: Set the value of an owned tag.
+9. `DROP TAG`: Drop a tag.
+10. Basic tables do not support tag references: `ADD TAG ... FROM ...` and `SET TAG ... = db_name.table_name.tag_name` are both rejected; `JSON` tags cannot be added with `ADD TAG`.
 
 Parameter Description:
 
@@ -156,6 +182,24 @@ ALTER TABLE tb_name MODIFY COLUMN field_name data_type(length);
 
 ```sql
 ALTER TABLE tb_name RENAME COLUMN old_col_name new_col_name;
+```
+
+### Add Tag
+
+```sql
+ALTER TABLE tb_name ADD TAG tag_name tag_type;
+```
+
+### Set Tag Value
+
+```sql
+ALTER TABLE tb_name SET TAG tag_name = new_tag_value;
+```
+
+### Drop Tag
+
+```sql
+ALTER TABLE tb_name DROP TAG tag_name;
 ```
 
 ### Modify table lifespan

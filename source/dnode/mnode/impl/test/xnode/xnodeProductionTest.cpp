@@ -479,6 +479,23 @@ TEST_F(XnodeProductionTest, XnodeJobObj_RealEncodeDecode_MaxConfig) {
   sdbFreeRaw(pRaw);
 }
 
+TEST_F(XnodeProductionTest, XnodeBlobColumn_TrimsLegacyTrailingNuls) {
+  SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_BLOB, 64, 1);
+  ASSERT_EQ(colInfoDataEnsureCapacity(&column, 2, true), TSDB_CODE_SUCCESS);
+
+  const char legacyParser[] = {'{', '"', 'p', '"', ':', '1', '}', '\0', '\0', '\0'};
+  ASSERT_EQ(mndSetXnodeBlobColumn(&column, 0, legacyParser, sizeof(legacyParser)), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(blobDataLen(colDataGetData(&column, 0)), 7);
+  EXPECT_EQ(memcmp(blobDataVal(colDataGetData(&column, 0)), legacyParser, 7), 0);
+
+  const char embeddedNul[] = {'a', '\0', 'b', '\0', '\0'};
+  ASSERT_EQ(mndSetXnodeBlobColumn(&column, 1, embeddedNul, sizeof(embeddedNul)), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(blobDataLen(colDataGetData(&column, 1)), 3);
+  EXPECT_EQ(memcmp(blobDataVal(colDataGetData(&column, 1)), embeddedNul, 3), 0);
+
+  colDataDestroy(&column);
+}
+
 // ========== SXnodeUserPassObj Production Tests ==========
 
 TEST_F(XnodeProductionTest, XnodeUserPassObj_RealEncodeDecode_Complete) {

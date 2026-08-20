@@ -178,6 +178,50 @@ END:
   return code;
 }
 
+bool tmqTryClaimSupplementalHb(tmq_t* tmq, int64_t now) {
+  int32_t heartBeatIntervalMs = tmq->heartBeatIntervalMs;
+  if (heartBeatIntervalMs <= 0) {
+    return false;
+  }
+
+  int64_t lastReportTimeMs = atomic_load_64(&tmq->lastHbReportTimeMs);
+  if (lastReportTimeMs <= 0) {
+    return atomic_val_compare_exchange_64(&tmq->lastHbReportTimeMs,
+                                           lastReportTimeMs,
+                                           now) == lastReportTimeMs;
+  }
+
+  int64_t elapsedMs = now - lastReportTimeMs;
+  if (elapsedMs < 0) {
+    atomic_store_64(&tmq->lastHbReportTimeMs, now);
+    tqWarnC("consumer:0x%" PRIx64 " reset heartbeat report time after clock rollback, last:%" PRId64 ", now:%" PRId64,
+            tmq->consumerId, lastReportTimeMs, now);
+    return false;
+  }
+
+  int64_t maxSilentTimeMs = (int64_t)heartBeatIntervalMs * 2;
+  if (elapsedMs <= maxSilentTimeMs) {
+    return false;
+  }
+
+  bool claimed = atomic_val_compare_exchange_64(&tmq->lastHbReportTimeMs,
+                                                lastReportTimeMs,
+                                                now) == lastReportTimeMs;
+  if (claimed) {
+    tqWarnC("consumer:0x%" PRIx64 " heartbeat report is stale, elapsed:%" PRId64 "ms, interval:%dms",
+            tmq->consumerId, elapsedMs, heartBeatIntervalMs);
+  }
+  return claimed;
+}
+
+static void tmqSendSupplementalHbReq(tmq_t* tmq, int64_t now) {
+  if (!tmqTryClaimSupplementalHb(tmq, now)) {
+    return;
+  }
+
+  tmqSendHbReq((void*)tmq->refId, NULL);
+}
+
 static void buildVgHeartbeatData(tmq_t* tmq, SMqHbReq* req) {
   if (tmq == NULL || req == NULL) return;
   tmqRlock(tmq);
@@ -226,11 +270,15 @@ void tmqSendHbReq(void* param, void* tmrId) {
     return;
   }
 
+  int64_t reportTimeMs = taosGetTimestampMs();
+  atomic_store_64(&tmq->lastHbReportTimeMs, reportTimeMs);
+
   SMqHbReq req = {0};
   req.consumerId = tmq->consumerId;
   req.epoch = atomic_load_32(&tmq->epoch);
   req.pollFlag = atomic_load_8(&tmq->pollFlag);
-  tqDebugC("consumer:0x%" PRIx64 " send heartbeat, pollFlag:%d", tmq->consumerId, req.pollFlag);
+  tqDebugC("consumer:0x%" PRIx64 " send heartbeat, pollFlag:%d, reportTime:%" PRId64,
+           tmq->consumerId, req.pollFlag, reportTimeMs);
   req.topics = taosArrayInit(taosArrayGetSize(tmq->clientTopics), sizeof(TopicOffsetRows));
   if (req.topics == NULL) {
     goto END;
@@ -942,6 +990,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
     goto _failed;
   }
 
+  atomic_store_64(&pTmq->lastHbReportTimeMs, taosGetTimestampMs());
   pTmq->hbLiveTimer = taosTmrStart(tmqSendHbReq, pTmq->heartBeatIntervalMs, (void*)pTmq->refId, tmqMgmt.timer);
   if (pTmq->hbLiveTimer == NULL) {
     SET_ERROR_MSG_TMQ("start heartbeat timer failed")
@@ -1781,6 +1830,8 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
   (void)atomic_val_compare_exchange_8(&tmq->pollFlag, 0, 1);
 
   while (1) {
+    tmqSendSupplementalHbReq(tmq, taosGetTimestampMs());
+
     code = tmqHandleAllDelayedTask(tmq);
     TSDB_CHECK_CODE(code, lino, END);
 

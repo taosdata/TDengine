@@ -6,7 +6,7 @@ description: 对表的各种管理操作
 
 ## 创建表
 
-`CREATE TABLE` 语句用于创建普通表和以超级表为模板创建子表。也可以通过指定 `TAGS` 子句创建超级表。
+`CREATE TABLE` 语句用于创建普通表和以超级表为模板创建子表。也可以通过指定 `TAGS` 子句创建超级表，或创建带自有标签的普通表。
 
 ```sql
 CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definition] ...) [table_options]
@@ -14,7 +14,7 @@ CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_defi
 CREATE TABLE create_subtable_clause
 
 CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definition] ...)
-    [TAGS (create_definition [, create_definition] ...)]
+    [TAGS (tag_def [, tag_def] ...)]
     [table_options]
 
 create_subtable_clause: {
@@ -27,6 +27,9 @@ create_definition:
 
 column_definition:
     type_name [COMPOSITE KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']
+
+tag_def:
+    tag_name type_name [= const_value]
 
 table_options:
     table_option ...
@@ -48,6 +51,7 @@ table_option: {
 5. 表的每行长度不能超过 64 KB。每个 `BINARY`、`VARCHAR`、`NCHAR`、`GEOMETRY`、`VARBINARY` 类型的列还会额外占用 2 个字节的存储位置。
 6. 使用 `BINARY`、`VARCHAR`、`VARBINARY`、`GEOMETRY` 类型时，需要指定最长字节数，如 `VARCHAR(20)` 表示最多存储 20 个单字节字符；使用 `NCHAR` 时，需要指定字符长度，如 `NCHAR(10)` 表示最多存储 10 个 `NCHAR` 字符。
 7. 关于 `ENCODE` 和 `COMPRESS` 的使用，参见 [按列压缩](../03-data-write/03-compress.md)。
+8. `TAGS` 子句的语义取决于标签是否带值：全部标签不带值时创建超级表；全部标签带 `= const_value` 显式值时创建带自有标签的普通表（`= NULL` 是合法的显式值）；部分带值会报错。普通表的自有标签只支持字面量值，不支持 `FROM` 引用；标签类型不支持 `DECIMAL`，`JSON` 类型标签只允许在建表时声明且必须是唯一的标签。普通表标签的查询与维护方式见下方“创建带标签的普通表”和“修改普通表”章节。
 
 **参数说明**
 
@@ -60,6 +64,21 @@ table_option: {
 ```sql
 CREATE TABLE [IF NOT EXISTS] tb_name (create_definition [, create_definition] ...);
 ```
+
+### 创建带标签的普通表
+
+```sql
+CREATE TABLE [IF NOT EXISTS] tb_name (create_definition [, create_definition] ...)
+    TAGS (tag_name1 tag_type1 = const_value1 [, ...]);
+```
+
+`TAGS` 子句中全部标签都带 `= const_value` 显式值时，创建的是带自有标签的普通表，例如：
+
+```sql
+CREATE TABLE ntb (ts TIMESTAMP, v INT) TAGS (loc INT = 5, dept VARCHAR(16) = 'rd');
+```
+
+普通表的自有标签是表级常量：投影时对每行返回该常量，用于 `WHERE` 过滤时按常量语义求值；`DESC` 输出中标签行带 `TAG` 标记。`SHOW CREATE TABLE` 输出单条 `CREATE TABLE ... TAGS(...)` 语句，自有标签内联输出 `= value`（`NULL` 值输出 `= NULL`），可直接回放重建。
 
 ### 创建子表
 
@@ -108,6 +127,9 @@ alter_table_clause: {
   | DROP COLUMN col_name
   | MODIFY COLUMN col_name column_type
   | RENAME COLUMN old_col_name new_col_name
+  | ADD TAG tag_name tag_type
+  | SET TAG tag_name = new_tag_value
+  | DROP TAG tag_name
 }
 
 alter_table_options:
@@ -130,6 +152,10 @@ alter_table_option: {
 4. `MODIFY COLUMN` 后也可指定 `ENCODE`、`COMPRESS`、`LEVEL` 等列压缩选项，参见 [按列压缩](../03-data-write/03-compress.md)。
 5. `RENAME COLUMN`：修改列名称。
 6. 普通表的主键列不能被修改，也不能通过 `ADD COLUMN`/`DROP COLUMN` 来添加或删除主键列。
+7. `ADD TAG`：添加自有标签，初值为 `NULL`，可再经 `SET TAG` 赋值。
+8. `SET TAG`：设置自有标签的值。
+9. `DROP TAG`：删除标签。
+10. 普通表不支持标签引用：`ADD TAG ... FROM ...` 和 `SET TAG ... = db_name.table_name.tag_name` 均报错；`JSON` 类型标签不能通过 `ADD TAG` 追加。
 
 **参数说明**
 
@@ -158,6 +184,24 @@ ALTER TABLE tb_name MODIFY COLUMN field_name data_type(length);
 
 ```sql
 ALTER TABLE tb_name RENAME COLUMN old_col_name new_col_name;
+```
+
+#### 增加标签
+
+```sql
+ALTER TABLE tb_name ADD TAG tag_name tag_type;
+```
+
+#### 设置标签值
+
+```sql
+ALTER TABLE tb_name SET TAG tag_name = new_tag_value;
+```
+
+#### 删除标签
+
+```sql
+ALTER TABLE tb_name DROP TAG tag_name;
 ```
 
 #### 修改表生命周期
