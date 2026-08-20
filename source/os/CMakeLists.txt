@@ -102,6 +102,7 @@ if(BUILD_JEMALLOC)
 endif()
 
 if(BUILD_TEST)
+    target_compile_definitions(os PRIVATE BUILD_TEST)
     add_subdirectory(test)
 endif()
 

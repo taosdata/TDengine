@@ -28,6 +28,7 @@
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
 #include "os.h"
+#include "tconv.h"
 #include "tlog.h"
 
 #ifdef WINDOWS
@@ -792,4 +793,196 @@ TEST(osStringTests, truncateTimezoneStringRemovesAllLeadingSlashes) {
   truncateTimezoneString(tz);
 
   EXPECT_STREQ(tz, "Asia/Shanghai");
+}
+
+// taosUcs4ToMbsCharsetInsensitive is a thin pass-through of taosUcs4ToMbs with
+// a NULL charset context, sanctioned for ASCII-only content and for symmetric
+// process-locale regex conversion. For codepoints 0-127 every supported
+// charset is an ASCII superset, so the output bytes are the ASCII bytes
+// regardless of the (absent) charset. Pin both: the ASCII bytes come out
+// verbatim, and the wrapper is byte-for-byte identical to the NULL-context
+// conversion it documents.
+TEST(osStringTests, ucs4ToMbsCharsetInsensitiveAsciiMatchesNullContext) {
+  TdUcs4 ascii[] = {'P', 'O', 'I', 'N', 'T', '(', '1', ' ', '2', ')', 0};
+
+  char    viaWrapper[64] = {0};
+  int32_t nWrapper =
+      taosUcs4ToMbsCharsetInsensitive(ascii, sizeof(ascii), viaWrapper);
+  ASSERT_GT(nWrapper, 0);
+  EXPECT_STREQ(viaWrapper, "POINT(1 2)");
+
+  char    viaNull[64] = {0};
+  int32_t nNull = taosUcs4ToMbs(ascii, sizeof(ascii), viaNull, NULL);
+  EXPECT_EQ(nWrapper, nNull);
+  EXPECT_EQ(0, memcmp(viaWrapper, viaNull, nWrapper));
+}
+
+TEST(osStringTests, ucs4ToMbsCharsetInsensitiveNumericLiteral) {
+  TdUcs4 digits[] = {'-', '3', '.', '1', '4', 0};
+
+  char    out[32] = {0};
+  int32_t n = taosUcs4ToMbsCharsetInsensitive(digits, sizeof(digits), out);
+  ASSERT_GT(n, 0);
+  EXPECT_STREQ(out, "-3.14");
+}
+
+TEST(osStringTests, mbsToUcs4CharsetInsensitiveAsciiMatchesNullContext) {
+  const char ascii[] = "POINT(1 2)";
+
+  TdUcs4 viaWrapper[32] = {0};
+  int32_t wrapperLen = 0;
+  ASSERT_TRUE(taosMbsToUcs4CharsetInsensitive(ascii, strlen(ascii), viaWrapper,
+                                              sizeof(viaWrapper), &wrapperLen));
+
+  TdUcs4 viaNull[32] = {0};
+  int32_t nullLen = 0;
+  ASSERT_TRUE(taosMbsToUcs4(ascii, strlen(ascii), viaNull, sizeof(viaNull),
+                             &nullLen, NULL));
+
+  EXPECT_EQ(wrapperLen, nullLen);
+  EXPECT_EQ(0, memcmp(viaWrapper, viaNull, wrapperLen));
+}
+
+namespace {
+
+class ConvCacheGuard {
+ public:
+  ConvCacheGuard() = default;
+  ConvCacheGuard(const ConvCacheGuard&) = delete;
+  ConvCacheGuard& operator=(const ConvCacheGuard&) = delete;
+  ~ConvCacheGuard() { taosConvDestroy(); }
+};
+
+class TsCharsetCxtGuard {
+ public:
+  TsCharsetCxtGuard() : previous_(tsCharsetCxt) {}
+  TsCharsetCxtGuard(const TsCharsetCxtGuard&) = delete;
+  TsCharsetCxtGuard& operator=(const TsCharsetCxtGuard&) = delete;
+  ~TsCharsetCxtGuard() { tsCharsetCxt = previous_; }
+
+ private:
+  void* previous_;
+};
+
+}  // namespace
+
+TEST(osStringTests, mbsToMbsConvertsBetweenCharsetContexts) {
+  ConvCacheGuard guard;
+  void          *gbk = taosConvInit("GBK");
+  if (gbk == nullptr) {
+    GTEST_SKIP() << "GBK is not supported by this iconv";
+  }
+  void          *utf8 = taosConvInit("UTF-8");
+  ASSERT_NE(utf8, nullptr);
+
+  const char gbkText[] = "\xd6\xd0\xce\xc4";
+  char      *utf8Text = nullptr;
+  int32_t    utf8Len = 0;
+  ASSERT_EQ(taosMbsToMbs(gbkText, sizeof(gbkText) - 1, gbk, utf8,
+                         &utf8Text, &utf8Len),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(utf8Text, nullptr);
+  EXPECT_EQ(utf8Len, 6);
+  EXPECT_EQ(memcmp(utf8Text, "中文", utf8Len), 0);
+  EXPECT_EQ(utf8Text[utf8Len], '\0');
+  taosMemoryFree(utf8Text);
+}
+
+TEST(osStringTests, mbsToMbsRejectsCharsetOverFourBytesPerCodePoint) {
+  ConvCacheGuard guard;
+  void          *utf8 = taosConvInit("UTF-8");
+  void          *iso2022Jp = taosConvInit("ISO-2022-JP");
+  ASSERT_NE(utf8, nullptr);
+  if (iso2022Jp == nullptr) {
+    GTEST_SKIP() << "ISO-2022-JP is not supported by this iconv";
+  }
+
+  char   *output = nullptr;
+  int32_t outputLen = -1;
+  terrno = TSDB_CODE_SUCCESS;
+  EXPECT_EQ(taosMbsToMbs("日", strlen("日"), utf8, iso2022Jp, &output,
+                         &outputLen),
+            TSDB_CODE_CHARSET_CONVERT_ERROR);
+  EXPECT_EQ(output, nullptr);
+  EXPECT_EQ(outputLen, 0);
+  EXPECT_EQ(terrno, TSDB_CODE_CHARSET_CONVERT_ERROR);
+}
+
+TEST(osStringTests, convCharsetMirrorsAcquireConvFallbackChain) {
+  SConvInfo explicitCxt = {0};
+  tstrncpy(explicitCxt.charset, "GB18030", sizeof(explicitCxt.charset));
+  EXPECT_STREQ(taosConvCharset(&explicitCxt), "GB18030");
+
+  SConvInfo globalCxt = {0};
+  tstrncpy(globalCxt.charset, "GBK", sizeof(globalCxt.charset));
+  TsCharsetCxtGuard guard;
+  tsCharsetCxt = &globalCxt;
+  EXPECT_STREQ(taosConvCharset(NULL), "GBK");
+
+  tsCharsetCxt = NULL;
+  EXPECT_STREQ(taosConvCharset(NULL), "UTF-8");
+}
+
+// taosResolveCharsetCxt is the sole owner of the explicit-then-process
+// fallback; callers outside this file (the executor's system-table scan, the
+// client's request/parse/plan contexts) resolve through it rather than
+// re-deriving the rule, so its three cases are pinned here.
+TEST(osStringTests, resolveCharsetCxtPrefersExplicitThenProcess) {
+  SConvInfo explicitCxt = {0};
+  SConvInfo globalCxt = {0};
+  TsCharsetCxtGuard guard;
+
+  tsCharsetCxt = &globalCxt;
+  EXPECT_EQ(&explicitCxt, taosResolveCharsetCxt(&explicitCxt));
+  EXPECT_EQ(&globalCxt, taosResolveCharsetCxt(NULL));
+
+  // Neither set: stays NULL so conversion sites fall through to
+  // DEFAULT_MBS_ENCODEC rather than dereferencing a missing context.
+  tsCharsetCxt = NULL;
+  EXPECT_EQ(nullptr, taosResolveCharsetCxt(NULL));
+}
+
+TEST(osStringTests, acquireConvRejectsInvalidSlotAndReleasesBorrow) {
+  SConv     slots[1] = {0};
+  SConvInfo info = {0};
+  int32_t   idx = -1;
+
+  info.gConv[M2C] = slots;
+  info.gConvMaxNum[M2C] = 1;
+  terrno = TSDB_CODE_SUCCESS;
+
+  EXPECT_EQ((iconv_t)-1, taosAcquireConv(&idx, M2C, &info));
+  EXPECT_EQ(idx, -1);
+  EXPECT_EQ(info.convUsed[M2C], 0);
+  EXPECT_EQ(slots[0].inUse, 0);
+  EXPECT_EQ(terrno, TSDB_CODE_APP_ERROR);
+
+  slots[0].conv = (iconv_t)-1;
+  terrno = TSDB_CODE_SUCCESS;
+  EXPECT_EQ((iconv_t)-1, taosAcquireConv(&idx, M2C, &info));
+  EXPECT_EQ(idx, -1);
+  EXPECT_EQ(info.convUsed[M2C], 0);
+  EXPECT_EQ(slots[0].inUse, 0);
+  EXPECT_EQ(terrno, TSDB_CODE_APP_ERROR);
+}
+
+// Verify the non-ASCII NCHAR-to-GBK conversion used by query-charset-sensitive
+// server paths. '中'=U+4E2D and '文'=U+6587 encode as GBK D6D0 CEC4.
+TEST(osStringTests, ucs4ToMbsGbkNonAscii) {
+  TdUcs4 input[] = {0x4E2D, 0x6587};
+  char   output[32] = {0};
+  ConvCacheGuard guard;
+  void          *gbk = taosConvInit("GBK");
+  if (gbk == nullptr) {
+    GTEST_SKIP() << "GBK is not supported by this iconv";
+  }
+  terrno = TSDB_CODE_SUCCESS;
+
+  int32_t n = taosUcs4ToMbs(input, sizeof(input), output, gbk);
+  EXPECT_EQ(n, 4)
+      << "GBK of 中文 is 4 bytes; got n=" << n << " terrno=" << terrno;
+  EXPECT_EQ((unsigned char)output[0], 0xD6);
+  EXPECT_EQ((unsigned char)output[1], 0xD0);
+  EXPECT_EQ((unsigned char)output[2], 0xCE);
+  EXPECT_EQ((unsigned char)output[3], 0xC4);
 }

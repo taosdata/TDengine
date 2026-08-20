@@ -1600,7 +1600,7 @@ static int32_t gconcatHelper(const char* input, char* output, bool hasNchar, int
         taosMbsToUcs4(varDataVal(input), len, newBuf, (varDataLen(input) + 1) * TSDB_NCHAR_SIZE, &len, charsetCxt);
     if (!ret) {
       taosMemoryFree(newBuf);
-      return TSDB_CODE_SCALAR_CONVERT_ERROR;
+      return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
     }
     (void)memcpy(varDataVal(output) + *dataLen, newBuf, len);
     *dataLen += len;
@@ -4223,7 +4223,10 @@ int32_t setLagLeadDefaultValueToCol(SColumnInfoData* pOutput, int32_t pos, SFunc
             break;
           }
 
-          int32_t cvtLen = taosUcs4ToMbs((TdUcs4*)varDataVal(pDefault->pz), charLen, inputWkt, NULL);
+          // WKT geometry default is ASCII, so charset-insensitive.
+          int32_t cvtLen =
+              taosUcs4ToMbsCharsetInsensitive((TdUcs4*)varDataVal(pDefault->pz),
+                                              charLen, inputWkt);
           if (cvtLen < 0) {
             taosMemoryFree(inputWkt);
             retCode = TSDB_CODE_FAILED;

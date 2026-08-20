@@ -411,7 +411,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .stmtBindVersion = pRequest->stmtBindVersion,
       .setQueryFp = setQueryRequest,
       .timezone = pTscObj->optionInfo.timezone,
-      .charsetCxt = pTscObj->optionInfo.charsetCxt,
+      .charsetCxt = taosResolveCharsetCxt(pTscObj->optionInfo.charsetCxt),
       .txnId = pTscObj->txnId,
       .pTxnVgSet = pTscObj->pTxnVgSet,
       .pTxnTableMeta = pTscObj->pTxnTableMeta,
@@ -1283,6 +1283,8 @@ static int32_t syncQnodeListIfEmpty(SRequestObj* pRequest, SArray** pQnodeList) 
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList) {
   pRequest->type = pQuery->msgType;
   SAppInstInfo* pAppInfo = getAppInfo(pRequest);
+  void*         charsetCxt =
+      taosResolveCharsetCxt(pRequest->pTscObj->optionInfo.charsetCxt);
 
   SPlanContext cxt = {.queryId = pRequest->requestId,
                       .acctId = pRequest->pTscObj->acctId,
@@ -1298,6 +1300,7 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .pExtPushdownAttempt = &pRequest->extPushdownAttemptCount,
                       .timezone = pRequest->pTscObj->optionInfo.timezone,
                       .timezoneExplicit = pRequest->pTscObj->optionInfo.timezoneExplicit,
+                      .charsetCxt = charsetCxt,
                       .sysInfo = pRequest->pTscObj->sysInfo,
                       .userAppId = pRequest->pTscObj->optionInfo.userAppId,
                       .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
@@ -3131,6 +3134,8 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
     if (NULL == pMnodeList) {
       code = terrno;
     }
+    void* charsetCxt =
+        taosResolveCharsetCxt(pRequest->pTscObj->optionInfo.charsetCxt);
     SPlanContext cxt = {.queryId = pRequest->requestId,
                         .acctId = pRequest->pTscObj->acctId,
                         .mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
@@ -3150,6 +3155,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .userAppId = pRequest->pTscObj->optionInfo.userAppId,
                         .timezone = pRequest->pTscObj->optionInfo.timezone,
                         .timezoneExplicit = pRequest->pTscObj->optionInfo.timezoneExplicit,
+                        .charsetCxt = charsetCxt,
                         .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
                         .allocatorId = pRequest->stmtBindVersion > 0 ? 0 : pRequest->allocatorRefId};
     tstrncpy(cxt.timezoneName, pRequest->pTscObj->optionInfo.timezoneName, sizeof(cxt.timezoneName));
@@ -4521,15 +4527,12 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
           int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData), varDataVal(tmp),
                                          pResultInfo->charsetCxt);
           if (length <= 0) {
-            tscError("charset:%s to %s. convert failed.", DEFAULT_UNICODE_ENCODEC,
-                     pResultInfo->charsetCxt != NULL ? ((SConvInfo*)(pResultInfo->charsetCxt))->charset : tsCharset);
             length = 0;
           }
           int32_t escapeLength = escapeToPrinted(varDataVal(dst) + CHAR_BYTES, TSDB_MAX_JSON_TAG_LEN - CHAR_BYTES * 2,
                                                  varDataVal(tmp), length);
           varDataSetLen(dst, escapeLength + CHAR_BYTES * 2);
           *(char*)POINTER_SHIFT(varDataVal(dst), escapeLength + CHAR_BYTES) = '\"';
-          tscError("value:%s.", varDataVal(dst));
         } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
           double jsonVd = *(double*)(jsonInnerData);
           (void)snprintf(varDataVal(dst), TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE, "%.9lf", jsonVd);

@@ -118,7 +118,9 @@ int32_t convertNcharToDouble(const void *inData, void *outData) {
   if (NULL == tmp) {
     SCL_ERR_RET(terrno);
   }
-  int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData), varDataLen(inData), tmp, NULL);
+  // NCHAR -> number: only ASCII digits are meaningful, so charset-insensitive.
+  int len = taosUcs4ToMbsCharsetInsensitive((TdUcs4 *)varDataVal(inData),
+                                            varDataLen(inData), tmp);
   if (len < 0) {
     sclError("%s taosUcs4ToMbs failed to convert NCHAR value,"
              " len:%d", __func__, (int32_t)varDataLen(inData));
@@ -669,15 +671,10 @@ int32_t ncharTobinary(void *buf, void **out, void *charsetCxt) {  // todo need t
 
   *out = taosMemoryCalloc(1, inputLen);
   if (NULL == *out) {
-    sclError("charset:%s to %s. val:%s convert ncharTobinary failed, since memory alloc failed.",
-             DEFAULT_UNICODE_ENCODEC, charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset,
-             (char *)varDataVal(buf));
     SCL_ERR_RET(terrno);
   }
   int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(*out), charsetCxt);
   if (len < 0) {
-    sclError("charset:%s to %s. val:%s convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC,
-             charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset, (char *)varDataVal(buf));
     taosMemoryFree(*out);
     SCL_ERR_RET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
   }
@@ -1140,6 +1137,12 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
   return TSDB_CODE_SUCCESS;
 }
 
+// Runtime mixed VARCHAR/NCHAR expressions intentionally use VARCHAR as their
+// common type (the VARC/NCHA entry below is VARCHAR). NCHAR is encoded with the
+// query charset, then equality and range operators use VARCHAR byte ordering.
+// This preserves legacy VARCHAR semantics and avoids decoding arbitrary stored
+// VARCHAR bytes. Column-to-literal filters are different: fltInitValFieldData()
+// converts the literal once to the column type before rows are evaluated.
 int8_t gConvertTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
     /*      NUL BOO TIN  SMA INT BIG FLO DOU VAR TIM NCH UTI USM UIN UBI JSO VAR DEC BLO MED GEO DEC64*/
     /*NULL*/ 0,  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,

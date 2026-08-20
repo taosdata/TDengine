@@ -14,6 +14,7 @@
  */
 
 #include "meta.h"
+#include "osString.h"
 #include "scalar.h"
 #include "tarray.h"
 #include "tdatablock.h"
@@ -2887,7 +2888,8 @@ static int32_t computeNewTagValViaRegexReplace(const STag* pOldTag, SUpdatedTagV
     if (oldStr == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    int32_t ret = taosUcs4ToMbs((TdUcs4*)oldTagVal.pData, oldTagVal.nData, oldStr, NULL);
+    // POSIX regex runs in the server locale, so both legs use the server charset.
+    int32_t ret = taosUcs4ToMbs((TdUcs4*)oldTagVal.pData, oldTagVal.nData, oldStr, tsCharsetCxt);
     if (ret < 0) {
       taosMemoryFree(oldStr);
       return ret;
@@ -2921,7 +2923,7 @@ static int32_t computeNewTagValViaRegexReplace(const STag* pOldTag, SUpdatedTagV
     }
 
     int32_t ucs4Len = 0;
-    bool    cvtOk = taosMbsToUcs4(newStr, newStrLen, (TdUcs4*)ucs4Buf, ucs4BufLen, &ucs4Len, NULL);
+    bool    cvtOk = taosMbsToUcs4(newStr, newStrLen, (TdUcs4*)ucs4Buf, ucs4BufLen, &ucs4Len, tsCharsetCxt);
     taosMemoryFree(newStr);
     if (!cvtOk) {
       taosMemoryFree(ucs4Buf);
@@ -2942,7 +2944,8 @@ static int32_t computeNewTagValViaRegexReplace(const STag* pOldTag, SUpdatedTagV
 
 
 
-static int32_t metaUpdateTableTagValueImpl(SMeta* pMeta, SMetaEntry* pTable, SSchemaWrapper* pTagSchema, SHashObj* pUpdatedTagVals) {
+static int32_t metaUpdateTableTagValueImpl(SMeta* pMeta, SMetaEntry* pTable,
+                                           SSchemaWrapper* pTagSchema, SHashObj* pUpdatedTagVals) {
   if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
     return metaUpdateTableJsonTagValue(pMeta, pTable, pTagSchema, pUpdatedTagVals);
   }

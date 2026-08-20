@@ -135,6 +135,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MAC_INVALID_LEVEL,            "Security level out of
 TAOS_DEFINE_ERROR(TSDB_CODE_MAC_NO_WRITE_DOWN,            "User security level is too high to write (No-Write-Down)")
 TAOS_DEFINE_ERROR(TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE, "Security level is below the minimum required by user's current roles")
 TAOS_DEFINE_ERROR(TSDB_CODE_MAC_PRECHECK_FAILED,          "Cannot enable MAC: user has insufficient security level")
+TAOS_DEFINE_ERROR(TSDB_CODE_CHARSET_CONVERT_ERROR,        "Charset conversion failed")
+TAOS_DEFINE_ERROR(TSDB_CODE_CHARSET_CONVERT_CACHE_FULL,   "Charset conversion cache is full")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
@@ -1064,7 +1066,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_INVALID_FILE,             "Index file is inval
 
 //scalar
 TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_ERROR,           "Operation not supported between data types")
-TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR,     "Failed to convert NCHAR value, possibly due to invalid character encoding or charset mismatch")
+TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR,     "Failed to convert between VARCHAR and NCHAR")
 
 //utxn
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_ALREADY_IN_PROGRESS,        "Transaction already in progress, please COMMIT or ROLLBACK first")

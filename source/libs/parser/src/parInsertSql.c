@@ -1591,10 +1591,8 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
           taosMemoryFree(p);
           return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
         }
-        char buf[512] = {0};
-        snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s %d %d", strerror(terrno), ERRNO, EILSEQ);
         taosMemoryFree(p);
-        return buildSyntaxErrMsg(pMsgBuf, buf, pToken->z);
+        return insBuildNcharConvErrMsg(pMsgBuf, pToken->z, charsetCxt);
       }
       val->pData = p;
       val->nData = output;
@@ -2852,9 +2850,8 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
         if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
           return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
         }
-        char buf[512] = {0};
-        snprintf(buf, tListLen(buf), "%s", strerror(terrno));
-        return buildSyntaxErrMsg(&pCxt->msg, buf, pToken->z);
+        return insBuildNcharConvErrMsg(&pCxt->msg, pToken->z,
+                                       pCxt->pComCxt->charsetCxt);
       }
       pVal->value.pData = pUcs4;
       pVal->value.nData = len;

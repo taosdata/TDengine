@@ -591,9 +591,6 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
       }
       val.type = TSDB_DATA_TYPE_NCHAR;
       if (valLen > 0 && !taosMbsToUcs4(jsonValue, valLen, (TdUcs4*)tmp, (int32_t)(valLen * TSDB_NCHAR_SIZE), &valLen, charsetCxt)) {
-        uError("charset:%s to %s. val:%s, errno:%s, convert failed.", DEFAULT_UNICODE_ENCODEC,
-               charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset, jsonValue,
-               strerror(terrno));
         retCode = buildSyntaxErrMsg(pMsgBuf, "charset convert json error", jsonValue);
         taosMemoryFree(tmp);
         goto end;
@@ -678,7 +675,7 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
       if (NULL == tmp) {
         return terrno;
       }
-      int32_t output = taosUcs4ToMbs((TdUcs4*)varDataVal(pVal->datum.p), ucs4Len, tmp, NULL);
+      int32_t output = taosUcs4ToMbs((TdUcs4*)varDataVal(pVal->datum.p), ucs4Len, tmp, pVal->charsetCxt);
       if (output < 0) {
         taosMemoryFree(tmp);
         return terrno;

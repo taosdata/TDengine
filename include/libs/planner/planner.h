@@ -90,6 +90,10 @@ typedef struct SPlanContext {
   char               timezoneName[TD_TIMEZONE_LEN]; /* IANA/POSIX name of client timezone for serialization and federated scan */
   bool               timezoneExplicit;              /* set by SET TIMEZONE / connection option */
   int8_t             firstDayOfWeek;  /* resolved: 0-6 */
+  // Connection charset context (SConvInfo*) bound to this query; borrowed, not
+  // owned. Threaded to the system-table physical scan so NCHAR/JSON tag values
+  // render in the client charset instead of the server default tsCharsetCxt.
+  void*              charsetCxt;
   SPlanStreamContext streamCxt;
 } SPlanContext;
 

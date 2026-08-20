@@ -27,6 +27,15 @@ add_test(
     COMMAND arrayTest
 )
 
+# tconvTest
+add_executable(tconvTest "tconvTest.cpp")
+DEP_ext_gtest(tconvTest)
+target_link_libraries(tconvTest PRIVATE os util)
+add_test(
+    NAME tconvTest
+    COMMAND tconvTest
+)
+
 # # freelistTest
 # add_executable(freelistTest "")
 # target_sources(freelistTest

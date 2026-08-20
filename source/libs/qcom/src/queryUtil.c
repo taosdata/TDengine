@@ -562,7 +562,10 @@ int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_
       }
 
       *str = '"';
-      int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize, str + 1, NULL);
+      // dataConverToStr has no query context; render with the process/server
+      // charset.
+      int32_t length = taosUcs4ToMbsCharsetInsensitive((TdUcs4*)buf, bufSize,
+                                                       str + 1);
       if (length < 0) {
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
@@ -636,14 +639,17 @@ void parseTagDatatoJson(void* p, char** jsonStr, void* charsetCxt) {
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
       cJSON* value = NULL;
       if (pTagVal->nData > 0) {
-        char* tagJsonValue = taosMemoryCalloc(pTagVal->nData, 1);
+        char* tagJsonValue = taosMemoryCalloc(pTagVal->nData + 1, 1);
         if (tagJsonValue == NULL) {
           goto end;
         }
         int32_t length = taosUcs4ToMbs((TdUcs4*)pTagVal->pData, pTagVal->nData, tagJsonValue, charsetCxt);
         if (length < 0) {
-          qError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC,
-                 charsetCxt != NULL ? ((SConvInfo*)(charsetCxt))->charset : tsCharset, pTagVal->pData);
+          qError("charset:%s to %s convert json value failed",
+                 DEFAULT_UNICODE_ENCODEC,
+                 charsetCxt != NULL
+                     ? ((SConvInfo*)charsetCxt)->charset
+                     : tsCharset);
           taosMemoryFree(tagJsonValue);
           goto end;
         }

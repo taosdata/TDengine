@@ -1760,6 +1760,14 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   pScan->accountId = pCxt->pPlanCxt->acctId;
   pScan->sysInfo = pCxt->pPlanCxt->sysInfo;
   pScan->privInfo = pCxt->pPlanCxt->privInfo;
+  // Bind the connection's effective charset so the executor renders NCHAR/JSON
+  // system-table tag values in the client charset. taosConvCharset resolves a
+  // NULL context to the local process default (client-side plans carry the
+  // client charset; server-built plans carry the server charset), so serialize
+  // it unconditionally; only genuinely old plans lack the field and fall back to
+  // the server default at decode.
+  tstrncpy(pScan->charsetName, taosConvCharset(pCxt->pPlanCxt->charsetCxt),
+           TD_CHARSET_LEN);
   if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TABLES) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TAGS) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_COLS) ||

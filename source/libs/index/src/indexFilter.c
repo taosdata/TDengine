@@ -19,8 +19,8 @@
 #include "indexInt.h"
 #include "indexUtil.h"
 #include "nodes.h"
+#include "osString.h"
 #include "querynodes.h"
-#include "scalar.h"
 #include "taos.h"
 #include "tdatablock.h"
 #include "ttypes.h"
@@ -72,6 +72,7 @@ typedef struct SIFParam {
   SHashObj *pFilter;
   SArray   *result;
   char     *condValue;
+  void     *charsetCxt;  // borrowed client charset (restored on vnode); not freed
 
   SIdxFltStatus status;
   uint8_t       colValType;
@@ -219,6 +220,27 @@ typedef struct SInFilterValue {
   int32_t valLen;   // Length of the value
   char    data[0];  // Variable length data
 } SInFilterValue;
+
+static int32_t sifVarcharToNchar(const char *varchar, void *charsetCxt,
+                                char **nchar) {
+  int32_t mbsLen = varDataLen(varchar);
+  int32_t bufLen = (mbsLen + 1) * TSDB_NCHAR_SIZE;
+  char   *buf = taosMemoryCalloc(1, bufLen + VARSTR_HEADER_SIZE);
+  if (buf == NULL) {
+    return terrno;
+  }
+
+  int32_t ucs4Len = 0;
+  if (!taosMbsToUcs4(varDataVal(varchar), mbsLen,
+                     (TdUcs4 *)varDataVal(buf), bufLen, &ucs4Len,
+                     charsetCxt)) {
+    taosMemoryFree(buf);
+    return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
+  }
+  varDataSetLen(buf, ucs4Len);
+  *nchar = buf;
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t sifCreateHashFromNodeList(SNode *node, SHashObj **pFilter) {
   SNodeListNode *nl = (SNodeListNode *)node;
@@ -387,6 +409,9 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
       SIF_ERR_RET(sifGetValueFromNode(node, &param->condValue));
       param->colId = -1;
       param->colValType = (uint8_t)(vn->node.resType.type);
+      // The value node's charsetCxt is serialized as "CharsetName" and restored
+      // on the vnode; it is NULL when client==server or on an old plan.
+      param->charsetCxt = vn->charsetCxt;
       if (vn->literal != NULL && strlen(vn->literal) <= sizeof(param->colName)) {
         memcpy(param->colName, vn->literal, strlen(vn->literal));
       } else {
@@ -474,6 +499,16 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
 
     if (nParam > 1) {
       SIF_ERR_JRET(sifInitParam(node->pRight, &paramList[1], ctx));
+      if (paramList[0].colValType == TSDB_DATA_TYPE_NCHAR &&
+          nodeType(node->pRight) == QUERY_NODE_VALUE &&
+          paramList[1].colValType == TSDB_DATA_TYPE_VARCHAR) {
+        char *nchar = NULL;
+        SIF_ERR_JRET(sifVarcharToNchar(paramList[1].condValue,
+                                       paramList[1].charsetCxt, &nchar));
+        taosMemoryFree(paramList[1].condValue);
+        paramList[1].condValue = nchar;
+        paramList[1].colValType = TSDB_DATA_TYPE_NCHAR;
+      }
     }
     *params = paramList;
     return TSDB_CODE_SUCCESS;
@@ -740,6 +775,12 @@ static int8_t sifShouldUseIndexBasedOnType(SIFParam *left, SIFParam *right) {
 
   if (IS_VAR_DATA_TYPE(left->colValType)) {
     if (!IS_VAR_DATA_TYPE(right->colValType)) return 0;
+    // NCHAR tag-index probes must be UCS-4. Actual execution converts string
+    // constants before parameter initialization; hint-only walks do not.
+    if (left->colValType == TSDB_DATA_TYPE_NCHAR &&
+        right->colValType != TSDB_DATA_TYPE_NCHAR) {
+      return 0;
+    }
   } else if (IS_NUMERIC_TYPE(left->colValType)) {
     if (IS_SIGNED_NUMERIC_TYPE(left->colValType) && IS_SIGNED_NUMERIC_TYPE(right->colValType)) {
       if (left->colValType >= right->colValType) {
@@ -784,6 +825,12 @@ static int8_t sifShouldUseIndexForInOperator(SIFParam *left, SIFParam *right) {
       if (!IS_VAR_DATA_TYPE(valueType)) {
         return 0;  // Incompatible: column is var type but value is not
       }
+      // NCHAR tag-index probes must be UCS-4 (see
+      // sifShouldUseIndexBasedOnType).
+      if (left->colValType == TSDB_DATA_TYPE_NCHAR &&
+          valueType != TSDB_DATA_TYPE_NCHAR) {
+        return 0;
+      }
     } else if (IS_NUMERIC_TYPE(left->colValType)) {
       // For IN operations, be more permissive with numeric type compatibility
       // This addresses the issue where parser assigns different types to values in IN vs == operations
@@ -803,6 +850,79 @@ static int8_t sifShouldUseIndexForInOperator(SIFParam *left, SIFParam *right) {
   }
 
   return 1;  // All values are compatible with column type
+}
+
+// Normalize a JSON tag inverted-index equality probe constant to the same
+// canonical server-charset VARCHAR var-data the writer persists (metaTable.c:
+// NCHAR UCS-4 -> tsCharsetCxt MBS, VARSTR header, type VARCHAR). The RHS payload
+// arrives either as client-charset MBS (VARCHAR) or as UCS-4 (NCHAR); the index
+// term is stored in the server charset, so probing with the raw client bytes can
+// silently miss rows when the client charset differs from the server charset.
+// right->charsetCxt is the borrowed client charset, NULL when client==server or
+// on an old plan -- there the stored bytes already equal the client bytes, so no
+// conversion is done. On success right->condValue is atomically replaced (old
+// buffer freed exactly once) with a VARCHAR var-data and right->colValType is set
+// to VARCHAR; on failure right is left untouched and the error is returned so the
+// caller never probes with the wrong bytes. Numeric/bool/null are left unchanged.
+static int32_t sifJsonNormalizeProbeVal(SIFParam *right) {
+  if (right->condValue == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int8_t rtype = right->colValType;
+  if (rtype != TSDB_DATA_TYPE_VARCHAR && rtype != TSDB_DATA_TYPE_NCHAR) {
+    return TSDB_CODE_SUCCESS;
+  }
+  // A VARCHAR probe with no client charset (client==server or an old plan)
+  // already holds server-charset bytes. NCHAR (UCS-4), however, must always be
+  // folded down to the persisted server-charset VARCHAR term regardless of
+  // charsetCxt, since the writer stored the JSON string as server MBS.
+  if (rtype == TSDB_DATA_TYPE_VARCHAR && right->charsetCxt == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (rtype == TSDB_DATA_TYPE_VARCHAR) {
+    char   *serverMbs = NULL;
+    int32_t serverMbsLen = 0;
+    int32_t code = taosMbsToMbs(varDataVal(right->condValue),
+                                varDataLen(right->condValue),
+                                right->charsetCxt, tsCharsetCxt, &serverMbs,
+                                &serverMbsLen);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    char *outBuf = taosMemoryMalloc(serverMbsLen + VARSTR_HEADER_SIZE);
+    if (outBuf == NULL) {
+      taosMemoryFree(serverMbs);
+      return terrno;
+    }
+    varDataSetLen(outBuf, serverMbsLen);
+    memcpy(varDataVal(outBuf), serverMbs, serverMbsLen);
+    taosMemoryFree(serverMbs);
+
+    taosMemoryFree(right->condValue);
+    right->condValue = outBuf;
+  } else {
+    // NCHAR RHS payload is already UCS-4. Fold it down to the persisted
+    // server-charset VARCHAR term.
+    int32_t ucs4Len = varDataLen(right->condValue);
+    char   *outBuf = taosMemoryMalloc(ucs4Len + VARSTR_HEADER_SIZE);
+    if (outBuf == NULL) {
+      return terrno;
+    }
+    int32_t mbsLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(right->condValue),
+                                   ucs4Len, varDataVal(outBuf), tsCharsetCxt);
+    if (mbsLen < 0) {
+      taosMemoryFree(outBuf);
+      return mbsLen;
+    }
+    varDataSetLen(outBuf, mbsLen);
+
+    taosMemoryFree(right->condValue);
+    right->condValue = outBuf;
+  }
+  right->colValType = TSDB_DATA_TYPE_VARCHAR;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
@@ -868,6 +988,10 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
   }
 
   if (left->colValType == TSDB_DATA_TYPE_JSON) {
+    // Convert the probe constant to the persisted server-charset encoding before
+    // building the term; on failure fail the probe rather than use raw bytes.
+    SIF_ERR_RET(sifJsonNormalizeProbeVal(right));
+
     SIndexTerm *tm = indexTermCreate(arg->suid, DEFAULT, right->colValType, left->colName, strlen(left->colName),
                                      right->condValue, strlen(right->condValue));
     if (tm == NULL) {
