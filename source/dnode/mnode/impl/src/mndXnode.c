@@ -2276,7 +2276,12 @@ int32_t mndSetXnodeBlobColumn(SColumnInfoData *pColInfo, int32_t row, const char
     return 0;
   }
 
-  return varColSetVarData(pColInfo, row, data, storedLen - 1, false);
+  int32_t contentLen = storedLen - 1;
+  while (contentLen > 0 && data[contentLen - 1] == '\0') {
+    --contentLen;
+  }
+
+  return varColSetVarData(pColInfo, row, data, contentLen, false);
 }
 
 static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
