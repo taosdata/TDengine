@@ -84,6 +84,7 @@ class ParserDdlTest : public ParserTestBase {
 extern bool g_dump;
 
 extern void    setAsyncFlag(const char* pArg);
+extern bool    getAsyncFlag();
 extern void    setLogLevel(const char* pArg);
 extern int32_t getLogLevel();
 extern void    setSkipSqlNum(const char* pArg);

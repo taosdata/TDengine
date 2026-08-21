@@ -22,7 +22,22 @@ trigger_type: {
   | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
-  | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
+  | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
+  | WINDOW(named_nonleaf_window [, named_nonleaf_window ...], leaf_window)
+}
+
+named_nonleaf_window: nested_window_type AS layer_name
+
+leaf_window: nested_window_type [AS layer_name]
+
+nested_window_type: {
+    SLIDING(sliding_val[, offset_time])
+  | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time])
+  | SESSION(ts_col, session_val)
+  | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
+  | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 }
 
 true_for_expr:
@@ -41,7 +56,7 @@ limit_expr: {
   | duration_time OR COUNT count_val
 }
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time)}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE}
 
 notification_definition:
     NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
@@ -314,6 +329,59 @@ COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 - 需要根据某些列特定值进行处理的场景，例如异常值写入场景。
 - 需要批量处理数据的场景，例如每写入 1000 条电压数据求平均值场景。
 
+##### 嵌套窗口触发
+
+```sql
+WINDOW (
+  nested_window_type AS outer_layer,
+  ...,
+  nested_window_type [AS leaf_layer]
+)
+```
+
+嵌套窗口触发将 2 至 8 个窗口按从最外层到最内层的顺序组成窗口链。根层和中间层只建立作用域，只有最内层（叶层）产生计算和通知事件。祖先作用域结束时，会先处理该作用域内的叶层实例，再重置子层并接收下一个作用域的数据。
+
+所有非叶层必须命名，叶层名称可选。所有非空层名按 ASCII 字母大小写不敏感规则唯一，并且不能与计算查询中可见的表名、显式表别名或派生表别名冲突。
+
+在计算查询中，未限定的触发占位符引用叶层。命名层可以通过层名限定占位符：
+
+- `SLIDING` 层可使用 `layer_name._tprev_ts`、`layer_name._tcurrent_ts` 和 `layer_name._tnext_ts`。
+- 其他受支持的窗口层可使用 `layer_name._twstart`、`layer_name._twend`、`layer_name._twduration` 和 `layer_name._twrownum`。
+- `%%trows` 表示当前叶层事件中已被所有祖先层接纳的叶层触发数据集，并沿用普通 `%%trows` 的使用限制。
+
+业务示例：按充电订单计算相邻采样的 SOC 变化
+
+充电桩会持续上报电池荷电状态（SOC）。业务通常需要比较同一订单内相邻两次采样，计算 SOC 变化。单独使用 `COUNT_WINDOW(2, 1)` 会连续配对数据，订单切换时可能把上一订单的最后一次采样与下一订单的第一次采样配成一组。下面的示例先按 `order_id` 划分订单，再在每个订单内生成相邻采样对：
+
+```sql
+CREATE STREAM order_pairs
+  WINDOW (
+    STATE_WINDOW(order_id) EXTEND(1) AS order_scope,
+    COUNT_WINDOW(2, 1) AS pair
+  )
+  FROM orders
+  STREAM_OPTIONS(EVENT_TYPE(WINDOW_CLOSE))
+  INTO order_pair_results
+  AS
+    SELECT _twstart AS ts,
+           _twend AS window_end,
+           order_scope._twstart AS order_start,
+           FIRST(soc) AS previous_soc,
+           LAST(soc) AS current_soc,
+           LAST(soc) - FIRST(soc) AS soc_delta
+    FROM %%trows;
+```
+
+外层 `STATE_WINDOW` 定义订单边界。`order_id` 变化时，内层窗口会重置，因此 `COUNT_WINDOW` 只会配对同一订单内的数据。下游可以直接使用 `soc_delta` 判断 SOC 跳变或统计充电进度。类似的结构也适用于在线会话内的相邻采样分析，以及生产批次内的定量质量检查：外层定义业务边界，叶层定义计算粒度。
+
+使用说明：
+
+- 嵌套窗口必须显式指定触发表，不支持外部触发表，也不支持具有复合主键的触发表。
+- 层类型支持 `SLIDING`、`INTERVAL`、`SESSION`、`STATE_WINDOW`、`EVENT_WINDOW` 和 `COUNT_WINDOW`。层内不支持 `PERIOD` 或另一个嵌套 `WINDOW (...)`。
+- 非叶 `INTERVAL` 窗口不能重叠；非叶 `STATE_WINDOW` 必须指定 `EXTEND(1)`，且不能指定 `ZEROTH_STATE` 或 `TRUE_FOR`；非叶 `COUNT_WINDOW` 不能重叠；非叶 `EVENT_WINDOW` 只支持一个 `START WITH` 条件，且不能指定 `TRUE_FOR`。
+- 触发表为超级表时，只要窗口链包含 `STATE_WINDOW`、`EVENT_WINDOW` 或 `COUNT_WINDOW`，就必须使用 `PARTITION BY tbname`。只有所有层均为 `SLIDING`、`INTERVAL` 或 `SESSION` 时才支持 `ROLLUP BY`。
+- 整条窗口链只声明一份流选项。`WATERMARK`、`EXPIRED_TIME` 和 `IGNORE_DISORDER` 等输入策略在数据进入根层前应用；事件、计算和输出策略作用于叶层事件。
+
 #### 触发动作
 
 触发后可以根据需要执行不同的动作，比如发送[事件通知](#流式计算的通知机制)、[执行计算](#流式计算的计算任务)或者两者同时进行。
@@ -434,13 +502,14 @@ tag_definition:
 - %%rollup_tag：只在使用 `ROLLUP BY` 时可用，可以用于 `OUTPUT_SUBTABLE`、`TAGS`、`AS subquery` 中现有触发占位符允许的位置。
 - _trollup_tbcount：只在使用 `ROLLUP BY` 时可用，只能用于 `AS subquery`，不能用于 `OUTPUT_SUBTABLE` 或 `TAGS`。
 - 其他占位符：只能用于 SELECT 和 WHERE 子句。
+- 嵌套窗口中，未限定的触发占位符引用叶层；层名限定占位符只在计算查询及其子查询中可见。
 
 ### 流式计算的控制选项
 
 ```sql
 [STREAM_OPTIONS(stream_option [|...])]
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time)}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE}
 ```
 
 控制选项用于控制触发和计算行为，可以多选，同一个选项不可以多次指定。包括：
@@ -467,6 +536,7 @@ stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISOR
   - 时间窗口触发：如果窗口内触发表没有数据则忽略该次触发。
   - 未指定时：不忽略无输入数据时的触发。
 - IDLE_TIMEOUT(duration_time)：开启分组空闲检测，指定空闲超时时长。当某个分组超过该时长未收到任何新数据时，视为进入空闲状态并触发 IDLE 事件；当空闲分组重新收到数据时触发 RESUME 事件。需与 `EVENT_TYPE(IDLE)` 和（或）`EVENT_TYPE(RESUME)` 配合使用。`duration_time` 支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)，有效范围为 `[1s, 10d]`。空闲检测基于 processing time（数据到达并被处理的时间），使用单调时钟计算间隔，不受系统时钟跳变影响。
+- FLUSH_ON_OUTER_CLOSE：只适用于嵌套窗口。默认情况下，祖先窗口关闭时会丢弃尚未完成的叶层窗口。启用该选项后，仅当 `EVENT_TYPE` 包含 `WINDOW_CLOSE` 时，才使用即将关闭的祖先上下文提前关闭每个未完成的叶层窗口。该选项不会增加事件类型，也不会绕过叶层的 `TRUE_FOR` 条件；仅启用 `WINDOW_OPEN` 时该选项不生效。
 
 ### 流式计算的通知机制
 
@@ -618,7 +688,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 这部分是所有 event 对象所共有的字段。
 
 - tableName：字符串类型，是对应目标子表的表名，当没有输出的时候，该字段不存在。
-- eventType：字符串类型，表示事件类型，支持 ON_TIME、WINDOW_OPEN、WINDOW_CLOSE、WINDOW_INVALIDATION、IDLE、RESUME 六种类型。
+- eventType：字符串类型，表示事件类型，支持 ON_TIME、WINDOW_OPEN、WINDOW_CLOSE、IDLE、RESUME 五种类型。
 - eventTime：长整型时间戳，表示事件生成时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
 - triggerId：字符串类型，触发事件的唯一标识符，确保打开和关闭事件（如果有的话）的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一事件的 triggerId 保持不变。
 - triggerType：字符串类型，表示触发类型，支持 Period、SLIDING 两种非窗口触发类型以及 INTERVAL、State、Session、Event、Count 五种窗口类型。
@@ -718,15 +788,6 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
   - idleDurationMs：长整型，从空闲开始到恢复的持续时长（毫秒），使用单调时钟计算。
 
 同一分组的一次空闲周期内，IDLE 与对应的 RESUME 事件具有相同的 `triggerId`，便于外部系统关联两个事件。
-
-##### 窗口失效相关字段
-
-因为流式计算过程中会遇到数据乱序、更新、删除等情况，可能造成已生成的窗口被删除，或者结果需要重新计算。此时会向通知地址发送一条 WINDOW_INVALIDATION 的通知，说明哪些窗口已经被删除。
-
-这部分是 eventType 为 WINDOW_INVALIDATION 时，event 对象才有的字段。
-
-- windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
-- windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
 
 ## 删除流式计算
 

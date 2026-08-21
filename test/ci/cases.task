@@ -1101,6 +1101,11 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_event.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_fill_history.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_interval_const_filter_twstart.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_nested_window.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_nested_window_context.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_nested_window_boundaries.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_nested_window_create.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_nested_window_options.py
 ,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_period_1.py
 ,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_sliding.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_sliding_trigger_check_again.py
@@ -1122,6 +1127,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_options_us.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_options_vtable.py
 ## 05-Notify
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/05-Notify/test_nested_window_notify.py
 ,,n,.,pytest cases/18-StreamProcessing/05-Notify/test_stream_notify_state.py
 #100,,n,.,pytest cases/18-StreamProcessing/05-Notify/test_notify.py
 ## 06-ResultSaved
@@ -1149,6 +1155,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_manual_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_stream_observability_progress.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_manual_with_options.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_nested_window_recalc.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_nested_window_history.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_nested_window_recalc_matrix.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_nested_window_recovery.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_watermark.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/recalc_bug_13.py
 
@@ -1238,6 +1248,7 @@
 100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_006_event_window_trows
 100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_007_count_window
 100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_007_count_window_trows
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_nested_external_trigger_rejected
 
 100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_03_options_matrix.py
 100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_04_ts_column.py

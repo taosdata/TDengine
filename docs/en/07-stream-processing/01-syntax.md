@@ -22,7 +22,22 @@ trigger_type: {
   | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
-  | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
+  | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
+  | WINDOW(named_nonleaf_window [, named_nonleaf_window ...], leaf_window)
+}
+
+named_nonleaf_window: nested_window_type AS layer_name
+
+leaf_window: nested_window_type [AS layer_name]
+
+nested_window_type: {
+    SLIDING(sliding_val[, offset_time])
+  | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time])
+  | SESSION(ts_col, session_val)
+  | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
+  | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 }
 
 true_for_expr:
@@ -41,7 +56,7 @@ limit_expr: {
   | duration_time OR COUNT count_val
 }
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time)}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE}
 
 notification_definition:
     NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
@@ -314,6 +329,59 @@ Applicable Scenarios:
 - When processing is required based on specific values in certain columns, such as abnormal value writes
 - When data needs to be processed in batches, for example, calculating the average voltage for every 1,000 rows of voltage data.
 
+##### Nested Window Trigger
+
+```sql
+WINDOW (
+  nested_window_type AS outer_layer,
+  ...,
+  nested_window_type [AS leaf_layer]
+)
+```
+
+A nested window trigger organizes two to eight windows into a chain ordered from the outermost layer to the innermost layer. The outer and intermediate layers define scopes. Only the innermost, or leaf, layer generates computation and notification events. When an outer scope closes, its child layers are reset before rows from the next scope are processed.
+
+All non-leaf layers must have names. Naming the leaf layer is optional. Non-empty layer names must be unique without regard to ASCII letter case and must not conflict with a table name, explicit table alias, or derived-table alias visible in the computation query.
+
+In the computation query, an unqualified trigger placeholder refers to the leaf layer. A named layer can be referenced with a qualified placeholder:
+
+- For a `SLIDING` layer, use `layer_name._tprev_ts`, `layer_name._tcurrent_ts`, or `layer_name._tnext_ts`.
+- For other supported window layers, use `layer_name._twstart`, `layer_name._twend`, `layer_name._twduration`, or `layer_name._twrownum`.
+- `%%trows` refers to the leaf trigger dataset accepted by every ancestor layer for the current leaf event. It retains the normal `%%trows` usage restrictions.
+
+Business example: calculate SOC changes within each charging order
+
+Charging piles continuously report battery state of charge (SOC). Applications often need to compare adjacent samples from the same charging order. A standalone `COUNT_WINDOW(2, 1)` pairs rows continuously, so the last sample of one order could be paired with the first sample of the next order. The following example first scopes rows by `order_id`, then creates adjacent sample pairs within each order:
+
+```sql
+CREATE STREAM order_pairs
+  WINDOW (
+    STATE_WINDOW(order_id) EXTEND(1) AS order_scope,
+    COUNT_WINDOW(2, 1) AS pair
+  )
+  FROM orders
+  STREAM_OPTIONS(EVENT_TYPE(WINDOW_CLOSE))
+  INTO order_pair_results
+  AS
+    SELECT _twstart AS ts,
+           _twend AS window_end,
+           order_scope._twstart AS order_start,
+           FIRST(soc) AS previous_soc,
+           LAST(soc) AS current_soc,
+           LAST(soc) - FIRST(soc) AS soc_delta
+    FROM %%trows;
+```
+
+The outer `STATE_WINDOW` defines the order boundary. When `order_id` changes, the inner window is reset, so `COUNT_WINDOW` pairs only samples from the same order. Downstream applications can use `soc_delta` to detect SOC jumps or track charging progress. The same structure also applies to adjacent-sample analysis within an online session and fixed-size quality checks within a production batch: the outer layer defines the business boundary, while the leaf layer defines the computation granularity.
+
+Usage Notes:
+
+- Nested plans require an explicit trigger table and do not support external trigger tables or trigger tables with a composite primary key.
+- Supported layer types are `SLIDING`, `INTERVAL`, `SESSION`, `STATE_WINDOW`, `EVENT_WINDOW`, and `COUNT_WINDOW`. `PERIOD` and another nested `WINDOW (...)` are not supported as layers.
+- A non-leaf `INTERVAL` window cannot overlap. A non-leaf `STATE_WINDOW` must specify `EXTEND(1)` and cannot specify `ZEROTH_STATE` or `TRUE_FOR`. A non-leaf `COUNT_WINDOW` cannot overlap. A non-leaf `EVENT_WINDOW` supports only one `START WITH` condition and cannot specify `TRUE_FOR`.
+- With a supertable, a plan containing `STATE_WINDOW`, `EVENT_WINDOW`, or `COUNT_WINDOW` must use `PARTITION BY tbname`. `ROLLUP BY` is supported only when every layer is `SLIDING`, `INTERVAL`, or `SESSION`.
+- Stream options are declared once for the whole chain. Input policies such as `WATERMARK`, `EXPIRED_TIME`, and `IGNORE_DISORDER` apply before the root layer; event, calculation, and output policies apply to leaf events.
+
 #### Trigger Actions
 
 After a trigger is activated, different actions can be performed as needed, such as sending an event notification, executing a computation task, or performing both simultaneously.
@@ -434,13 +502,14 @@ Usage Restrictions:
 - %%rollup_tag: Available only with `ROLLUP BY`. It can be used in `OUTPUT_SUBTABLE`, `TAGS`, and positions in `AS subquery` where existing trigger placeholders are allowed.
 - _trollup_tbcount: Available only with `ROLLUP BY`. It can be used only in `AS subquery`; it cannot be used in `OUTPUT_SUBTABLE` or `TAGS`.
 - Other placeholders: Can only be used in the SELECT and WHERE clauses.
+- In a nested window plan, unqualified trigger placeholders refer to the leaf layer. Qualified layer placeholders are visible only in the computation query and its subqueries.
 
 ### Stream Processing Control Options
 
 ```sql
 [STREAM_OPTIONS(stream_option [|...])]
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time)}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE}
 ```
 
 Control options are used to manage trigger and computation behavior. Multiple options can be specified, but the same option cannot be specified more than once. The available options include:
@@ -467,6 +536,7 @@ Control options are used to manage trigger and computation behavior. Multiple op
   - Time window triggers: If no data exists in the window, the trigger is ignored.
   - Default: If not specified, triggers will occur even when no input data is present.
 - IDLE_TIMEOUT(duration_time) enables group idle detection and specifies the idle timeout duration. When a group has not received any new data for longer than this duration, it is considered idle and an IDLE event is triggered; when the idle group receives new data again, a RESUME event is triggered. Must be used together with `EVENT_TYPE(IDLE)` and/or `EVENT_TYPE(RESUME)`. Supported time units: milliseconds (a), seconds (s), minutes (m), hours (h), days (d). Valid range: `[1s, 10d]`. Idle detection is based on processing time (the time data arrives and is processed by the stream), using a monotonic clock to avoid being affected by system clock adjustments.
+- FLUSH_ON_OUTER_CLOSE applies only to nested window plans. By default, unfinished leaf windows are discarded when an ancestor closes. With this option, each unfinished leaf window is closed early using the closing ancestor context, but only when `EVENT_TYPE` includes `WINDOW_CLOSE`. The option does not add event types or bypass the leaf window's `TRUE_FOR` condition; it has no effect when only `WINDOW_OPEN` is enabled.
 
 ### Notification Mechanism in Stream Processing
 
@@ -618,7 +688,7 @@ The following sections describe each field in the notification message.
 These fields are shared by all event objects:
 
 - tableName: String. The name of the target child table associated with the event. When there is no output, this field does not exist.
-- eventType: String. The type of event. Supported values are ON_TIME, WINDOW_OPEN, WINDOW_CLOSE, WINDOW_INVALIDATION, IDLE, and RESUME.
+- eventType: String. The type of event. Supported values are ON_TIME, WINDOW_OPEN, WINDOW_CLOSE, IDLE, and RESUME.
 - eventTime: Long integer. The time the event was generated, in milliseconds since 00:00, Jan 1 1970 UTC.
 - triggerId: String. A unique identifier for the trigger event. Ensures that open and close events (if both exist) share the same ID, allowing external systems to correlate them. If taosd crashes and restarts, some events may be resent, but the same event will always retain the same triggerId.
 - triggerType: String. The type of trigger. Supported values include the two non-window types Period and SLIDING, as well as the five window types INTERVAL, State, Session, Event, and Count.
@@ -718,15 +788,6 @@ These fields apply only when eventType is IDLE or RESUME.
   - idleDurationMs: Long integer. The total duration from idle start to resume in milliseconds, calculated using the monotonic clock.
 
 The IDLE and RESUME events of the same idle cycle for a group share the same `triggerId`, allowing external systems to correlate the two events.
-
-##### Fields for Window Invalidation
-
-During stream processing, out-of-order data, updates, or deletions may cause an already generated window to be removed or require its results to be recalculated. In such cases, a WINDOW_INVALIDATION notification is sent to the target address to indicate which windows have been deleted.
-
-These fields apply only when eventType is WINDOW_INVALIDATION.
-
-- windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
-- windowEnd: Long integer timestamp indicating the window’s end time. Precision matches the time precision of the result table.
 
 ## Delete a Stream
 
