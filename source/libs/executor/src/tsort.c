@@ -3008,7 +3008,10 @@ void     tsortGetGroupId(STupleHandle* pVHandle, uint64_t* gid, uint64_t* baseGi
   *baseGid = pVHandle->pBlock->info.id.baseGId; 
 }
 int64_t tsortGetBlockId(STupleHandle* pVHandle) { return pVHandle->pBlock->info.id.blockId; }
-void     tsortGetBlockInfo(STupleHandle* pVHandle, SDataBlockInfo* pBlockInfo) { *pBlockInfo = pVHandle->pBlock->info; }
+void tsortGetBlockInfo(STupleHandle* pVHandle, SDataBlockInfo* pBlockInfo) {
+  *pBlockInfo = pVHandle->pBlock->info;
+  pBlockInfo->pBlockAgg = NULL;
+}
 
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {
   SSortExecInfo info = {0};
