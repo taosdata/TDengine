@@ -361,6 +361,10 @@ int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
       taosFreeQitem(pMsg);
       return code;
   }
+  if (code != TSDB_CODE_SUCCESS) {
+    rpcFreeCont(pMsg->pCont);
+    taosFreeQitem(pMsg);
+  }
   return code;
 }
 

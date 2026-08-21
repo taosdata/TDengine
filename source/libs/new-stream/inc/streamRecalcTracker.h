@@ -80,6 +80,8 @@ int32_t stRecalcTrackerFailJob(SStreamRecalcTracker *pTracker, int64_t recalcId,
 int32_t stRecalcContributorsAdd(SStreamRecalcTracker *pTracker, SArray **ppContributors, int64_t recalcId,
                                 SStreamProgressRange requestedRange);
 int32_t stRecalcContributorsMerge(SArray **ppDst, const SArray *pSrc);
+int32_t stRecalcTrackerConfirmGroupPrefix(SStreamRecalcTracker *pTracker, int64_t gid, TSKEY confirmedThrough,
+                                          const SArray *pContributors);
 int32_t stRecalcTrackerBeginStep(SStreamRecalcTracker *pTracker, int64_t gid, SStreamProgressRange stepRange,
                                  const SArray *pContributors, uint64_t *pStepId);
 int32_t stRecalcTrackerAddReader(SStreamRecalcTracker *pTracker, uint64_t stepId, uint64_t requestToken);

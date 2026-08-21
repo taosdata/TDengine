@@ -24,6 +24,8 @@
 static threadlocal SHashObj* tNotificationConnHash = NULL;  // key: url, value: CURL*
 static threadlocal bool      tInitialized = false;
 
+#define NOTIFICATION_SEND_TIMEOUT_SECONDS 10L
+
 int32_t tcurlConnect(CURL** ppConn, const char* url) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
@@ -39,7 +41,7 @@ int32_t tcurlConnect(CURL** ppConn, const char* url) {
   res = curl_easy_setopt(pConn, CURLOPT_SSL_VERIFYHOST, 0L);
   TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
 
-  res = curl_easy_setopt(pConn, CURLOPT_TIMEOUT, 0L);  
+  res = curl_easy_setopt(pConn, CURLOPT_TIMEOUT, NOTIFICATION_SEND_TIMEOUT_SECONDS);
   TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
   res = curl_easy_setopt(pConn, CURLOPT_CONNECTTIMEOUT, 3L);
   TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);

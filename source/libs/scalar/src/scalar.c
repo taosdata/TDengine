@@ -952,7 +952,6 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
 int32_t sclSetStreamExtWinParam(int32_t funcId, SNodeList* pParamNodes, SScalarParam* res, SScalarCtx *pCtx) {
   int32_t code = 0;
 
-  int32_t t = fmGetFuncTypeFromId(funcId);
   const SStreamRuntimeFuncInfo* pInfo = pCtx->stream.pStreamRuntimeFuncInfo;
 
   SNode* pFirstParam = nodesListGetNode(pParamNodes, 0);
@@ -961,61 +960,25 @@ int32_t sclSetStreamExtWinParam(int32_t funcId, SNodeList* pParamNodes, SScalarP
     return TSDB_CODE_INTERNAL_ERROR;
   }
 
-  SCL_ERR_RET(sclCreateColumnInfoData(&((SValueNode*)pFirstParam)->node.resType, pInfo->pStreamPesudoFuncVals->size, res));
-
-  if (LIST_LENGTH(pParamNodes) != 1) {
-    uError("invalid placeholder paran num:%d, function type: %d in ext win range expr", LIST_LENGTH(pParamNodes), t);
+  if (LIST_LENGTH(pParamNodes) != 1 && LIST_LENGTH(pParamNodes) != 2) {
+    uError("invalid placeholder param num:%d, function id:%d in ext win range expr", LIST_LENGTH(pParamNodes), funcId);
     return TSDB_CODE_INTERNAL_ERROR;
   }
-  
+
+  SCL_ERR_RET(
+      sclCreateColumnInfoData(&((SValueNode *)pFirstParam)->node.resType, pInfo->pStreamPesudoFuncVals->size, res));
+
   for (int32_t i = 0; i < pInfo->pStreamPesudoFuncVals->size; ++i) {
-    SSTriggerCalcParam *pParams = taosArrayGet(pInfo->pStreamPesudoFuncVals, i);
-    switch (t) {
-      case FUNCTION_TYPE_TPREV_TS:
-        ((int64_t*)res->columnData->pData)[i] = pParams->prevTs;
-        break;
-      case FUNCTION_TYPE_TCURRENT_TS:
-        ((int64_t*)res->columnData->pData)[i] = pParams->currentTs;
-        break;
-      case FUNCTION_TYPE_TNEXT_TS:
-        ((int64_t*)res->columnData->pData)[i] = pParams->nextTs;
-        break;
-      case FUNCTION_TYPE_TWSTART:
-        ((int64_t*)res->columnData->pData)[i] = pParams->wstart;
-        break;
-      case FUNCTION_TYPE_TWEND:
-        ((int64_t*)res->columnData->pData)[i] = pParams->wend;
-        break;
-      case FUNCTION_TYPE_TWDURATION:
-        ((int64_t*)res->columnData->pData)[i] = pParams->wduration;
-        break;
-      case FUNCTION_TYPE_TWROWNUM:
-        ((int64_t*)res->columnData->pData)[i] = pParams->wrownum;
-        break;        
-      case FUNCTION_TYPE_TPREV_LOCALTIME:
-        ((int64_t*)res->columnData->pData)[i] = pParams->prevLocalTime;
-        break;
-      case FUNCTION_TYPE_TLOCALTIME:
-        ((int64_t*)res->columnData->pData)[i] = pParams->triggerTime;
-        break;
-      case FUNCTION_TYPE_TNEXT_LOCALTIME:
-        ((int64_t*)res->columnData->pData)[i] = pParams->nextLocalTime;
-        break;
-      case FUNCTION_TYPE_TGRPID:
-        ((int64_t*)res->columnData->pData)[i] = pInfo->groupId;
-        break;
-      case FUNCTION_TYPE_TIDLESTART:
-        ((int64_t*)res->columnData->pData)[i] = pParams->idlestart;
-        break;
-      case FUNCTION_TYPE_TIDLEEND:
-        ((int64_t*)res->columnData->pData)[i] = pParams->idleend;
-        break;
-      default:
-        uError("invalid placeholder function type: %d in ext win range expr", t);
-        return TSDB_CODE_INTERNAL_ERROR;
+    SStreamRuntimeFuncInfo rowInfo = *pInfo;
+    rowInfo.curIdx = i;
+    code = fmSetStreamPseudoFuncParamVal(funcId, pParamNodes, &rowInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      sclFreeParam(res);
+      return code;
     }
+    ((int64_t *)res->columnData->pData)[i] = ((SValueNode *)pFirstParam)->datum.i;
   }
-  
+
   return code;
 }
 
@@ -1884,8 +1847,13 @@ static int32_t sclCalcStreamExtWinsTimeRange(SScalarCtx *ctx,          SOperator
   if (1 == ctx->stream.extWinType) {
     if (node->opType == OP_TYPE_GREATER_THAN) {
       for (int32_t i = 0; i < winNum; ++i) {
-        int64_t tsVal = pTsValList[(tsValRows == 1) ? 0 : i];
-        ctx->stream.pWins[i].tw.skey = (-1 == ctx->stream.pWins[i].resWinIdx) ? TMAX(tsVal + 1, ctx->stream.pWins[i].tw.skey) : (tsVal + 1);
+        int64_t             tsVal = pTsValList[(tsValRows == 1) ? 0 : i];
+        SSTriggerCalcParam *pParam = taosArrayGet(ctx->stream.pStreamRuntimeFuncInfo->pStreamPesudoFuncVals, i);
+        int64_t skey = (node->flag & OPERATOR_FLAG_STREAM_EXT_JOIN_AUTO_RANGE) && pParam->wstart == pParam->wend
+                           ? tsVal
+                           : tsVal + 1;
+        ctx->stream.pWins[i].tw.skey =
+            (-1 == ctx->stream.pWins[i].resWinIdx) ? TMAX(skey, ctx->stream.pWins[i].tw.skey) : skey;
         ctx->stream.pWins[i].resWinIdx = -1;
       }
     } else if (node->opType == OP_TYPE_GREATER_EQUAL) {
@@ -1899,7 +1867,7 @@ static int32_t sclCalcStreamExtWinsTimeRange(SScalarCtx *ctx,          SOperator
       return TSDB_CODE_STREAM_INTERNAL_ERROR;
     }
   }
-  
+
   if (2 == ctx->stream.extWinType) {
     //if (ctx->stream.pStreamRuntimeFuncInfo->triggerType != STREAM_TRIGGER_SLIDING) {
       // consider triggerType and keep the ekey exclude

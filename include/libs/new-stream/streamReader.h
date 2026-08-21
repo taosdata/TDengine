@@ -156,10 +156,14 @@ typedef struct SStreamTriggerReaderCalcInfo {
   STargetNode* pTargetNodeTs;
   char*       calcScanPlan;
   bool        hasPlaceHolder;
+  bool                   requiresContextPolicy;
   qTaskInfo_t pTaskInfo;
   SStreamRuntimeInfo rtInfo;
   SStreamRuntimeFuncInfo tmpRtFuncInfo;
 } SStreamTriggerReaderCalcInfo;
+
+int32_t stProjectReaderCalcContext(const SStreamRuntimeFuncInfo* pSource, int32_t actualNodeId, int32_t readInfoIndex,
+                                   int32_t sourceParamIndex, SStreamRuntimeFuncInfo* pTarget);
 
 // typedef enum { STREAM_SCAN_GROUP_ONE_BY_ONE, STREAM_SCAN_ALL } EScanMode;
 

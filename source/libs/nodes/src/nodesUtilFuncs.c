@@ -528,6 +528,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_STREAM_TRIGGER_OPTIONS:
       code = makeNode(type, sizeof(SStreamTriggerOptions), &pNode);
       break;
+    case QUERY_NODE_STREAM_WINDOW_PLAN:
+      code = makeNode(type, sizeof(SStreamWindowPlanNode), &pNode);
+      break;
+    case QUERY_NODE_STREAM_WINDOW_LAYER:
+      code = makeNode(type, sizeof(SStreamWindowLayerNode), &pNode);
+      break;
     case QUERY_NODE_LEFT_VALUE:
       code = makeNode(type, sizeof(SLeftValueNode), &pNode);
       break;
@@ -1800,6 +1806,12 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pTrigger->pRollupTagList);
       break;
     }
+    case QUERY_NODE_STREAM_WINDOW_PLAN:
+      nodesDestroyList(((SStreamWindowPlanNode*)pNode)->pLayers);
+      break;
+    case QUERY_NODE_STREAM_WINDOW_LAYER:
+      nodesDestroyNode(((SStreamWindowLayerNode*)pNode)->pWindow);
+      break;
     case QUERY_NODE_STREAM_CALC_RANGE: {
       SStreamCalcRangeNode* pRange = (SStreamCalcRangeNode*)pNode;
       nodesDestroyNode(pRange->pStart);

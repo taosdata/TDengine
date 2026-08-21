@@ -7,3 +7,7 @@ target_include_directories(
 target_link_libraries(
     mgmt_mnode node_util
 )
+
+if(BUILD_TEST AND TD_LINUX)
+    add_subdirectory(test)
+endif()

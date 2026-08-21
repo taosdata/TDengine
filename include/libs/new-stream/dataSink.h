@@ -22,6 +22,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "osThread.h"
+#include "streamMsg.h"
 #include "tarray.h"
 #include "tcommon.h"
 #include "tdef.h"
@@ -74,7 +76,9 @@ typedef struct SDataSinkManager2 {
   int64_t   usedMemSize;
   int64_t   fileBlockSize;
   int64_t   readDataFromFileTimes;
-  SHashObj* dsStreamTaskList;  // hash <streamId + taskId, SSlidingTaskDSMgr/SAlignTaskDSMgr>
+  SHashObj*     dsStreamTaskList;  // hash <streamId + taskId + sessionId, SStreamDataCacheRegistration>
+  TdThreadMutex registrationLock;
+  bool          registrationLockInited;
 } SDataSinkManager2;
 extern SDataSinkManager2 g_pDataSinkManager;
 
@@ -110,6 +114,11 @@ typedef struct STaskDSMgr {
 
 typedef struct SAlignTaskDSMgr {
   int8_t            cleanMode;  // 1 - immediate, 2 - expired
+  void*             pScopedStore;
+  int32_t           leaseCount;
+  int32_t           refCount;
+  bool              retired;
+  bool              detached;
   int64_t           streamId;
   int64_t           taskId;
   int64_t           sessionId;  // sessionId is used to distinguish different sessions in the same task
@@ -120,6 +129,11 @@ typedef struct SAlignTaskDSMgr {
 
 typedef struct SSlidingTaskDSMgr {
   int8_t            cleanMode;  // 1 - immediate, 2 - expired
+  void*             pScopedStore;
+  int32_t           leaseCount;
+  int32_t           refCount;
+  bool              retired;
+  bool              detached;
   int64_t           streamId;
   int64_t           taskId;
   int64_t           sessionId;  // sessionId is used to distinguish different sessions in the same task
@@ -163,6 +177,8 @@ typedef enum {
   DATA_SINK_PART_TMP,  // part in tmp file, part in other position
 } SDataSinkPos;
 
+typedef struct SStreamDataCacheLease SStreamDataCacheLease;
+
 typedef struct SResultIter {
   SCleanMode        cleanMode;    // 1 - immediate, 2 - expired
   void*             groupData;    // SAlignGrpMgr(data in mem) or SSlidingGrpMgr(data in file)
@@ -176,6 +192,8 @@ typedef struct SResultIter {
   int64_t      groupId;
   int64_t      reqStartTime;
   int64_t      reqEndTime;
+  bool                   scopedResult;
+  SStreamDataCacheLease* pLease;
 } SResultIter;
 
 typedef enum {
@@ -213,6 +231,36 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock);
 
 // Clean cache data for a group.
 int32_t cleanStreamDataCache(void* pCache, int64_t groupId);
+
+int32_t putStreamDataCacheScoped(void* pCache, const SStreamCacheScope* pScope, TSKEY wstart, TSKEY wend,
+                                 SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
+int32_t getStreamDataCacheScoped(void* pCache, const SStreamCacheScope* pScope, TSKEY start, TSKEY end, void** ppIter);
+int32_t cleanStreamDataCacheScope(void* pCache, const SStreamCacheScope* pScope);
+int32_t cleanStreamDataCacheGroup(void* pCache, int64_t gid);
+
+typedef struct SStreamDataCacheWriteBatch SStreamDataCacheWriteBatch;
+typedef struct {
+  int32_t sourceSlotId;
+  int32_t targetSlotId;
+} SStreamDataCacheColumnProjection;
+
+int32_t beginStreamDataCacheWriteBatch(void* pCache, SStreamDataCacheWriteBatch** ppBatch);
+int32_t stageStreamDataCacheRowScoped(SStreamDataCacheWriteBatch* pBatch, const SStreamCacheScope* pScope,
+                                      const SSDataBlock* pBlock, int32_t rowIndex);
+int32_t stageStreamDataCacheProjectedRowScoped(SStreamDataCacheWriteBatch* pBatch, const SStreamCacheScope* pScope,
+                                               const SSDataBlock* pSourceBlock, int32_t sourceRowIndex,
+                                               const SSDataBlock* pPayloadTemplate, const SArray* pProjection);
+void    commitStreamDataCacheWriteBatch(SStreamDataCacheWriteBatch** ppBatch);
+void    abortStreamDataCacheWriteBatch(SStreamDataCacheWriteBatch** ppBatch);
+
+int32_t createDetachedStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t cleanMode,
+                                      int32_t tsSlotId, void** ppCache);
+int32_t replaceStreamDataCacheRegistration(int64_t streamId, int64_t taskId, int64_t sessionId, void* pExpectedOld,
+                                           void* pNew, void** ppRetired);
+int32_t acquireStreamDataCacheLease(int64_t streamId, int64_t taskId, int64_t sessionId,
+                                    SStreamDataCacheLease** ppLease, void** ppCache);
+void    releaseStreamDataCacheLease(SStreamDataCacheLease** ppLease);
+void    retireStreamDataCache(void** ppCache);
 
 // Cancel iterator traversal early.
 void cancelStreamDataCacheIterate(void** pIter);
