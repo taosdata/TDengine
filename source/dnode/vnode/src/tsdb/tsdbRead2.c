@@ -6723,8 +6723,11 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
     goto _end;
   }
 
-  // there is no statistics data for composed block
-  if (pReader->status.composedDataBlock || (!pReader->suppInfo.smaValid)) {
+  // These modes synthesize an all-NULL aggregate for columns absent from a block SMA.
+  // Other modes require every requested column to have block SMA enabled.
+  if (pReader->status.composedDataBlock ||
+      (!pReader->suppInfo.smaValid && pReader->suppInfo.blockSmaMode != TSD_READER_BLOCK_SMA_MODE_MAX_ONLY &&
+       pReader->suppInfo.blockSmaMode != TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY)) {
     goto _end;
   }
 
@@ -6751,8 +6754,10 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
   }
 
   *allHave = true;
-  synthesizeAllNullSma =
-      (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY && pSup->colAggArray.size <= 0);
+  synthesizeAllNullSma = (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY) ||
+                         (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_MAX_ONLY) ||
+                         (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY &&
+                          pSup->colAggArray.size <= 0);
   if (pSup->colAggArray.size <= 0 && !synthesizeAllNullSma) {
     *allHave = false;
     goto _end;
@@ -7452,7 +7457,9 @@ int32_t tsdbReaderSetBlockSmaMode(void* p, ETsdReaderBlockSmaMode mode) {
   STsdbReader* pReader = (STsdbReader*)p;
 
   TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  TSDB_CHECK_CONDITION(mode == TSD_READER_BLOCK_SMA_MODE_NORMAL || mode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY,
+  TSDB_CHECK_CONDITION(mode == TSD_READER_BLOCK_SMA_MODE_NORMAL || mode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY ||
+                           mode == TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY ||
+                           mode == TSD_READER_BLOCK_SMA_MODE_MAX_ONLY,
                        code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   pReader->suppInfo.blockSmaMode = mode;

@@ -2003,6 +2003,7 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
   int32_t code = 0;
 
   dst->info = src->info;
+  dst->info.pBlockAgg = NULL;
   dst->info.pks[0].pData = NULL;
   dst->info.pks[1].pData = NULL;
   dst->info.rows = 0;
@@ -2042,6 +2043,7 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
 
   uint32_t cap = dst->info.capacity;
   dst->info = src->info;
+  dst->info.pBlockAgg = NULL;
   dst->info.pks[0].pData = NULL;
   dst->info.pks[1].pData = NULL;
   dst->info.capacity = cap;
@@ -2083,6 +2085,7 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc) {
   }
 
   pDst->info = pSrc->info;
+  pDst->info.pBlockAgg = NULL;
   code = copyPkVal(&pDst->info, &pSrc->info);
   if (code != TSDB_CODE_SUCCESS) {
     uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -2107,6 +2110,7 @@ int32_t blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx, SSDataBlo
   }
 
   pBlock->info = pDataBlock->info;
+  pBlock->info.pBlockAgg = NULL;
   pBlock->info.pks[0].pData = NULL;
   pBlock->info.pks[1].pData = NULL;
   pBlock->info.rows = 0;
@@ -2202,6 +2206,7 @@ int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataB
   TAOS_CHECK_EXIT(createDataBlock(&pDstBlock));
 
   pDstBlock->info = pDataBlock->info;
+  pDstBlock->info.pBlockAgg = NULL;
   pDstBlock->info.pks[0].pData = NULL;
   pDstBlock->info.pks[1].pData = NULL;
 
@@ -2286,6 +2291,7 @@ int32_t createOneDataBlockWithColArray(const SSDataBlock* pDataBlock, SArray* pC
   QUERY_CHECK_CODE(createDataBlock(&pDstBlock), lino, _return);
 
   pDstBlock->info = pDataBlock->info;
+  pDstBlock->info.pBlockAgg = NULL;
   pDstBlock->info.pks[0].pData = NULL;
   pDstBlock->info.pks[1].pData = NULL;
 
