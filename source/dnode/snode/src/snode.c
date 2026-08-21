@@ -53,6 +53,7 @@ static int32_t handleTriggerCalcReq(SSnode* pSnode, void* pWorkerCb, SRpcMsg* pR
   SStreamRunnerTask* pTask = NULL;
   void* taskAddr = NULL;
   int32_t code = 0, lino = 0;
+  int64_t requestStartMonoUs = streamTaskGetMonotonicUs();
   TAOS_CHECK_EXIT(tDeserializeSTriggerCalcRequest(POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead), &req));
   TAOS_CHECK_EXIT(streamAcquireTask(req.streamId, req.runnerTaskId, (SStreamTask**)&pTask, &taskAddr));
 
@@ -62,7 +63,7 @@ static int32_t handleTriggerCalcReq(SSnode* pSnode, void* pWorkerCb, SRpcMsg* pR
   //pTask->pMsgCb = &pSnode->msgCb;
   pTask->pWorkerCb = pWorkerCb;
   req.curWinIdx = 0;
-  TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &req));
+  TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &req, requestStartMonoUs));
 
 _exit:
 
@@ -215,6 +216,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   SStreamRunnerTask* pTask = NULL;
   void* buf = NULL;
   size_t size = 0;
+  int64_t requestStartMonoUs = streamTaskGetMonotonicUs();
 
   stDebug("handleStreamFetchData, msgType:%s, contLen:%d 0x%" PRIx64 ":0x%" PRIx64, 
       TMSG_INFO(pRpcMsg->msgType), pRpcMsg->contLen, TRACE_GET_ROOTID(&pRpcMsg->info.traceId), TRACE_GET_MSGID(&pRpcMsg->info.traceId));
@@ -251,7 +253,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   //pTask->pMsgCb = &pSnode->msgCb;
   pTask->pWorkerCb = pWorkerCb;
   
-  TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &calcReq));
+  TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &calcReq, requestStartMonoUs));
 
   TAOS_CHECK_EXIT(buildStreamFetchRsp(calcReq.pOutBlock, &buf, &size, 0, req.forceFetchCompleted));
 

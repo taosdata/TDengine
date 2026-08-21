@@ -63,6 +63,13 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
 
   // decode the entry
   tFreeSSeriesWrapper(&pReader->me.series);
+  // The bit-5 tag trailer is optional: a record without it must leave the tag fields
+  // zeroed. Otherwise the reader keeps stale decoder-pool pointers from the previously
+  // decoded entry, and cursor reuse shows phantom tags on tag-less tables.
+  pReader->me.ntbEntry.schemaTag.nCols = 0;
+  pReader->me.ntbEntry.schemaTag.version = 0;
+  pReader->me.ntbEntry.schemaTag.pSchema = NULL;
+  pReader->me.ntbEntry.pTags = NULL;
   tDecoderClear(&pReader->coder);
   tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
 
@@ -2235,13 +2242,23 @@ static int32_t metaGetTableTagByUidVersion(SMeta *pMeta, int64_t suid, int64_t u
 
     ret = metaGetTableEntryByVersion(&mr, version, uid);
     if (ret == 0) {
-      val = mr.me.ctbEntry.pTags;
-      len = ((STag *)(mr.me.ctbEntry.pTags))->len;
-      *tag = taosMemoryMalloc(len);
-      if (*tag) {
-        memcpy(*tag, val, len);
+      // ctbEntry/ntbEntry share a union: child tables carry tags in ctbEntry.pTags, normal and
+      // virtual-normal tables carry owned tags in ntbEntry.pTags (NULL when tag-less).
+      const STag *pTags = NULL;
+      if (mr.me.type == TSDB_NORMAL_TABLE || mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
+        pTags = (const STag *)mr.me.ntbEntry.pTags;
       } else {
-        ret = terrno;
+        pTags = (const STag *)mr.me.ctbEntry.pTags;
+      }
+      if (pTags != NULL) {
+        val = (void *)pTags;
+        len = pTags->len;
+        *tag = taosMemoryMalloc(len);
+        if (*tag) {
+          memcpy(*tag, val, len);
+        } else {
+          ret = terrno;
+        }
       }
     }
     metaReaderClear(&mr);
@@ -2256,6 +2273,32 @@ static int32_t metaGetTableTagByUidVersion(SMeta *pMeta, int64_t suid, int64_t u
         ret = terrno;
       }
       tdbFree(val);
+    } else {
+      // normal / virtual-normal tables are not indexed in pCtbIdx; fetch the entry directly and
+      // copy the owned tags so tag-cond pruning sees them (NULL when tag-less).
+      SMetaEntry *pEntry = NULL;
+      ret = 0;
+      if (metaFetchEntryByUid(pMeta, uid, &pEntry) == 0 && pEntry != NULL) {
+        if (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
+          if (pEntry->ntbEntry.pTags != NULL) {
+            const STag *pTags = (const STag *)pEntry->ntbEntry.pTags;
+            *tag = taosMemoryMalloc(pTags->len);
+            if (*tag) {
+              memcpy(*tag, pTags, pTags->len);
+            } else {
+              ret = terrno;
+            }
+          }
+          metaFetchEntryFree(&pEntry);
+        } else {
+          // a non-ntb entry (e.g. a child table) missing from pCtbIdx is an index inconsistency —
+          // surface the original lookup failure instead of silently treating it as tag-less.
+          int32_t type = pEntry->type;
+          metaFetchEntryFree(&pEntry);
+          ret = TSDB_CODE_INTERNAL_ERROR;
+          metaError("vgId:%d, table uid:%" PRId64 " type:%d missing from ctbIdx", TD_VID(pMeta->pVnode), uid, type);
+        }
+      }
     }
   }
 
@@ -2297,14 +2340,21 @@ static void *metaGetOldTagIfPreAlter(SMeta *pMeta, tb_uid_t uid, int32_t *pOutLe
   SMetaEntry me = {0};
   tDecoderInit(&dc, pOldBuf, oldLen);
   void *result = NULL;
-  if (metaDecodeEntry(&dc, &me) == 0 &&
-      (me.type == TSDB_CHILD_TABLE || me.type == TSDB_VIRTUAL_CHILD_TABLE) &&
-      me.ctbEntry.pTags != NULL) {
-    const STag *pOldTags = (const STag *)me.ctbEntry.pTags;
-    result = taosMemoryMalloc(pOldTags->len);
-    if (result != NULL) {
-      memcpy(result, pOldTags, pOldTags->len);
-      *pOutLen = pOldTags->len;
+  if (metaDecodeEntry(&dc, &me) == 0) {
+    // ctbEntry/ntbEntry share a union: child tables carry tags in ctbEntry.pTags, normal and
+    // virtual-normal tables carry owned tags in ntbEntry.pTags.
+    const STag *pOldTags = NULL;
+    if (me.type == TSDB_CHILD_TABLE || me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+      pOldTags = (const STag *)me.ctbEntry.pTags;
+    } else if (me.type == TSDB_NORMAL_TABLE || me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
+      pOldTags = (const STag *)me.ntbEntry.pTags;
+    }
+    if (pOldTags != NULL) {
+      result = taosMemoryMalloc(pOldTags->len);
+      if (result != NULL) {
+        memcpy(result, pOldTags, pOldTags->len);
+        *pOutLen = pOldTags->len;
+      }
     }
   }
   tDecoderClear(&dc);

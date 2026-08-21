@@ -340,3 +340,49 @@ class AbstractRegressionService(AbstractAnalyticsService, ABC):
         Returns:
             list[float]: Predicted values, one per input sample
         """
+
+
+class AbstractClassificationService(AbstractAnalyticsService, ABC):
+    """
+    Abstract classification service, all classification algorithms should inherit from this base class.
+
+    Mirrors the structure of AbstractRegressionService:
+      - set_input_data()  ←→  set_input_data()
+      - set_params()      ←→  set_params()
+      - execute()         ←→  execute()
+
+    Responsibilities:
+      - Load and manage input feature data
+      - Execute classification analysis
+      - Return predicted class labels as list[int] or list[str]
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.type = "classification"
+        self.input_data = None  # Feature matrix: list of sample rows
+        self.schema = None  # Column schema metadata
+
+    def set_input_data(self, input_data: list, schema: list = None):
+        """Set the input feature data for classification.
+
+        Args:
+            input_data: Feature matrix (list of sample rows, each row is a list of feature values)
+            schema: Optional schema describing the columns
+        """
+        self.input_data = input_data
+        self.schema = schema
+
+    def set_params(self, params: dict) -> None:
+        """Set classification parameters. Override in subclass if needed."""
+
+    def get_params(self):
+        return {"dummy": "dummy"}
+
+    @abstractmethod
+    def execute(self):
+        """Execute classification and return predicted class labels.
+
+        Returns:
+            list[int] or list[str]: Predicted class labels, one per input sample
+        """

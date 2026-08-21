@@ -33,6 +33,12 @@ from taosanalytics.util import (
 )
 
 
+def _prepare_tmp_dir(service_name: str):
+    temp_dir = tempfile.mkdtemp()
+    temp_dir = os.path.join(temp_dir, service_name)
+    os.makedirs(temp_dir, exist_ok=True)
+    return temp_dir
+
 class UtilTest(unittest.TestCase):
     """utility test cases"""
 
@@ -358,7 +364,7 @@ class ServiceTest(unittest.TestCase):
 
     def test_get_all_algos(self):
         service_list = loader.get_service_list()
-        self.assertEqual(len(service_list["details"]), 5)
+        self.assertEqual(len(service_list["details"]), 6)
 
         version = sys.version_info
 
@@ -369,20 +375,19 @@ class ServiceTest(unittest.TestCase):
                     self.assertEqual(len(builtins), 4)
                 else:
                     self.assertEqual(len(builtins), 5)
-
             elif item["type"] == "forecast":
                 builtins = [i for i in item["algo"] if i.get("builtins") == True]
                 builtin_names = {i["name"] for i in builtins}
                 self.assertTrue({"ces", "theta", "ets"}.issubset(builtin_names))
                 self.assertEqual(len(builtins), 11)
-
             elif item["type"] == "correlation":
                 self.assertEqual(len(item["algo"]), 2)
-
             elif item["type"] == "regression":
                 self.assertEqual(len(item["algo"]), 0)
-            else:
+            elif item["type"] == "imputation":
                 self.assertEqual(len(item["algo"]), 1)
+            elif item["type"] == "classification":
+                self.assertEqual(len(item["algo"]), 0)
 
     def test_dynamic_load_service(self):
         """test dynamic load service by name"""
@@ -410,8 +415,10 @@ class ServiceTest(unittest.TestCase):
 
     def test_dynamic_load_service_success(self):
         """test dynamic load service with valid config file"""
-        config_path = os.path.join(tempfile.gettempdir(), "arima_model_config.json")
         service_name = "arima_model_config"
+        temp_dir = _prepare_tmp_dir(service_name)
+
+        config_path = os.path.join(temp_dir, "arima_model_config.json")
         conf_file_content = """
         {
           "algo": "arima",
@@ -445,7 +452,9 @@ class ServiceTest(unittest.TestCase):
         from taosanalytics.conf import Configure
 
         service_name = "sync_dynamic_service"
-        config_path = os.path.join(tempfile.mkdtemp(), service_name + ".json")
+        temp_dir = _prepare_tmp_dir(service_name)
+
+        config_path = os.path.join(temp_dir, service_name + ".json")
         conf_file_content = """
         {
           "algo": "arima",
@@ -492,7 +501,7 @@ class ServiceTest(unittest.TestCase):
         from taosanalytics.conf import Configure
 
         service_name = "sync_deleted_dynamic_service"
-        temp_dir = tempfile.mkdtemp()
+        temp_dir = _prepare_tmp_dir(service_name)
         config_path = os.path.join(temp_dir, service_name + ".json")
         conf_file_content = """
         {
@@ -539,7 +548,7 @@ class ServiceTest(unittest.TestCase):
         from taosanalytics.conf import Configure
 
         service_name = "sync_dynamic_lookup_service"
-        temp_dir = tempfile.mkdtemp()
+        temp_dir = _prepare_tmp_dir(service_name)
         config_path = os.path.join(temp_dir, service_name + ".json")
         conf_file_content = """
         {
@@ -580,7 +589,7 @@ class ServiceTest(unittest.TestCase):
         from taosanalytics.conf import Configure
 
         service_name = "sync_deleted_lookup_service"
-        temp_dir = tempfile.mkdtemp()
+        temp_dir = _prepare_tmp_dir(service_name)
         config_path = os.path.join(temp_dir, service_name + ".json")
         conf_file_content = """
         {
@@ -711,11 +720,11 @@ class ServiceTest(unittest.TestCase):
                 os.remove(config_path)
 
     def _register_dynamic_service_for_algo(self, algo_name):
-
-        config_path = os.path.join(
-            tempfile.gettempdir(), f"{algo_name}_model_config.json"
-        )
         service_name = f"{algo_name}_model_config"
+
+        temp_dir = _prepare_tmp_dir(service_name)
+        config_path = os.path.join(temp_dir, f"{algo_name}_model_config.json")
+
         conf_file_content = f"""
         {{
           "algo": "{algo_name}",
@@ -743,10 +752,10 @@ class ServiceTest(unittest.TestCase):
         service_name = None
         config_path = None
         try:
-            config_path = os.path.join(
-                tempfile.gettempdir(), "prophet_model_config.json"
-            )
             service_name = "prophet_model_config"
+            temp_dir = _prepare_tmp_dir(service_name)
+
+            config_path = os.path.join(temp_dir, "prophet_model_config.json")
             conf_file_content = json.dumps(
                 {
                     "algo": "prophet",
@@ -929,8 +938,10 @@ class ServiceTest(unittest.TestCase):
 
     def test_dynamic_load_iforest_service_success(self):
         """Registering a valid iforest config must create a DynamicAnomalyService."""
-        config_path = os.path.join(tempfile.gettempdir(), "iforest_model_config.json")
         service_name = "iforest_model_config"
+
+        temp_dir = _prepare_tmp_dir(service_name)
+        config_path = os.path.join(temp_dir, "iforest_model_config.json")
         try:
             with open(config_path, "w", encoding="utf-8") as handle:
                 handle.write(self._iforest_config_content())
@@ -952,7 +963,8 @@ class ServiceTest(unittest.TestCase):
         from taosanalytics.conf import Configure
 
         service_name = "sync_iforest_service"
-        temp_dir = tempfile.mkdtemp()
+        temp_dir = _prepare_tmp_dir(service_name)
+
         config_path = os.path.join(temp_dir, service_name + ".json")
         try:
             with open(config_path, "w", encoding="utf-8") as handle:
@@ -988,7 +1000,7 @@ class ServiceTest(unittest.TestCase):
         from taosanalytics.conf import Configure
 
         service_name = "sync_deleted_iforest_service"
-        temp_dir = tempfile.mkdtemp()
+        temp_dir = _prepare_tmp_dir(service_name)
         config_path = os.path.join(temp_dir, service_name + ".json")
         try:
             with open(config_path, "w", encoding="utf-8") as handle:
@@ -1026,7 +1038,7 @@ class ServiceTest(unittest.TestCase):
         from taosanalytics.conf import Configure
 
         service_name = "sync_iforest_lookup_service"
-        temp_dir = tempfile.mkdtemp()
+        temp_dir = _prepare_tmp_dir(service_name)
         config_path = os.path.join(temp_dir, service_name + ".json")
         try:
             with open(config_path, "w", encoding="utf-8") as handle:
@@ -1056,7 +1068,7 @@ class ServiceTest(unittest.TestCase):
         from taosanalytics.conf import Configure
 
         service_name = "sync_deleted_iforest_lookup_service"
-        temp_dir = tempfile.mkdtemp()
+        temp_dir = _prepare_tmp_dir(service_name)
         config_path = os.path.join(temp_dir, service_name + ".json")
         try:
             with open(config_path, "w", encoding="utf-8") as handle:
@@ -1088,8 +1100,9 @@ class ServiceTest(unittest.TestCase):
         input_data = list(range(n_points))
         expected_codes = [1] * n_points
 
-        config_path = os.path.join(tempfile.gettempdir(), "iforest_exec_test.json")
         service_name = "iforest_exec_test"
+        temp_dir = _prepare_tmp_dir(service_name)
+        config_path = os.path.join(temp_dir, "iforest_exec_test.json")
         try:
             with open(config_path, "w", encoding="utf-8") as handle:
                 handle.write(self._iforest_config_content())
@@ -1124,7 +1137,9 @@ class ServiceTest(unittest.TestCase):
         normal[14] = 1000.0
         normal[15] = 1000.0
 
-        temp_dir = tempfile.mkdtemp()
+        service_name = "iforest_detector_real_test"
+
+        temp_dir = _prepare_tmp_dir(service_name)
         config_path = os.path.join(temp_dir, "iforest_detector_real_test.json")
         pkl_path = os.path.join(temp_dir, "iforest_detector_real_test.pkl")
 
@@ -1577,8 +1592,11 @@ class ServiceTest(unittest.TestCase):
 
     def test_dynamic_load_svm_service_success(self):
         """Registering a valid SVM config must create a DynamicAnomalyService."""
-        config_path = os.path.join(tempfile.gettempdir(), "svm_model_config.json")
+
         service_name = "svm_model_config"
+        temp_dir = _prepare_tmp_dir(service_name)
+
+        config_path = os.path.join(temp_dir, "svm_model_config.json")
         try:
             with open(config_path, "w", encoding="utf-8") as handle:
                 handle.write(self._svm_config_content())
@@ -1679,8 +1697,11 @@ class ServiceTest(unittest.TestCase):
         import numpy as np
         from sklearn.linear_model import LinearRegression
 
-        pkl_path = os.path.join(tempfile.gettempdir(), "lr_pipeline_test.pkl")
-        config_path = os.path.join(tempfile.gettempdir(), "lr_pipeline_test.json")
+        service_name = "lr_pipeline_test"
+        temp_dir = _prepare_tmp_dir(service_name)
+
+        pkl_path = os.path.join(temp_dir, "lr_pipeline_test.pkl")
+        config_path = os.path.join(temp_dir, "lr_pipeline_test.json")
         try:
             # Train on standardized data
             X_raw = np.array(
@@ -1722,10 +1743,11 @@ class ServiceTest(unittest.TestCase):
     def test_dynamic_load_linear_regression_service_success(self):
         """Registering a valid linear regression config creates a DynamicRegressionService."""
         from taosanalytics.handlers.dynamic import DynamicRegressionService
-
-        pkl_path = os.path.join(tempfile.gettempdir(), "lr_service_test.pkl")
-        config_path = os.path.join(tempfile.gettempdir(), "lr_service_test.json")
         service_name = "lr_service_test"
+        temp_dir = _prepare_tmp_dir(service_name)
+
+        pkl_path = os.path.join(temp_dir, "lr_service_test.pkl")
+        config_path = os.path.join(temp_dir, "lr_service_test.json")
         try:
             self._make_linear_pkl(pkl_path, n_features=2)
 

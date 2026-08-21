@@ -4967,10 +4967,26 @@ static int32_t translateForecastFunc(STranslateContext* pCxt, SFunctionNode* pFu
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct {
+  const char* funcName;
+  bool        found;
+} SFindFuncContext;
+
+static EDealRes findSpecificFuncWalker(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode*     pFunc = (SFunctionNode*)pNode;
+    SFindFuncContext*  pCtx = (SFindFuncContext*)pContext;
+    if (strcasecmp(pFunc->functionName, pCtx->funcName) == 0) {
+      pCtx->found = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 static int32_t translateAnalysisPseudoColumnFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRewriteToColumn) {
   SFunctionNode* pFunc = (SFunctionNode*)(*ppNode);
   SSelectStmt*   pSelect = (SSelectStmt*)pCxt->pCurrStmt;
-  SNode*         pNode = NULL;
   bool           bFound = false;
   int32_t        funcType = pFunc->funcType;
 
@@ -4988,28 +5004,17 @@ static int32_t translateAnalysisPseudoColumnFunc(STranslateContext* pCxt, SNode*
                                    "Function '%s' is not allowed in where clause", pFunc->functionName);
   }
 
-  FOREACH(pNode, pSelect->pProjectionList) {
-    if (nodeType(pNode) != QUERY_NODE_FUNCTION) {
-      continue;
-    }
-
-    if ((funcType == FUNCTION_TYPE_FORECAST_ROWTS || funcType == FUNCTION_TYPE_FORECAST_HIGH ||
-         funcType == FUNCTION_TYPE_FORECAST_LOW) &&
-        strcasecmp(((SFunctionNode*)pNode)->functionName, "forecast") == 0) {
-      bFound = true;
-      break;
-    }
-
-    if ((funcType == FUNCTION_TYPE_IMPUTATION_ROWTS || funcType == FUNCTION_TYPE_IMPUTATION_MARK) &&
-        strcasecmp(((SFunctionNode*)pNode)->functionName, "imputation") == 0) {
-      bFound = true;
-      break;
-    }
-
-    if (funcType == FUNCTION_TYPE_ANOMALY_MARK && pSelect->pWindow->type == QUERY_NODE_ANOMALY_WINDOW) {
-      bFound = true;
-      break;
-    }
+  if (funcType == FUNCTION_TYPE_FORECAST_ROWTS || funcType == FUNCTION_TYPE_FORECAST_HIGH ||
+      funcType == FUNCTION_TYPE_FORECAST_LOW) {
+    SFindFuncContext ctx = {.funcName = "forecast", .found = false};
+    nodesWalkExprs(pSelect->pProjectionList, findSpecificFuncWalker, &ctx);
+    bFound = ctx.found;
+  } else if (funcType == FUNCTION_TYPE_IMPUTATION_ROWTS || funcType == FUNCTION_TYPE_IMPUTATION_MARK) {
+    SFindFuncContext ctx = {.funcName = "imputation", .found = false};
+    nodesWalkExprs(pSelect->pProjectionList, findSpecificFuncWalker, &ctx);
+    bFound = ctx.found;
+  } else if (funcType == FUNCTION_TYPE_ANOMALY_MARK && NULL != pSelect->pWindow) {
+    bFound = (pSelect->pWindow->type == QUERY_NODE_ANOMALY_WINDOW);
   }
 
   if (!bFound) {
@@ -14946,6 +14951,18 @@ typedef struct SEqCondTbNameTableInfo {
   SArray*         aTbnames;
 } SEqCondTbNameTableInfo;
 
+static char* getTbnameValue(SValueNode* pValueNode) {
+  if (pValueNode->placeholderNo <= 0) {
+    return pValueNode->literal;
+  }
+
+  if (TSDB_DATA_TYPE_VARCHAR != pValueNode->node.resType.type || NULL == pValueNode->datum.p) {
+    return NULL;
+  }
+
+  return varDataVal(pValueNode->datum.p);
+}
+
 //[tableAlias.]tbname = tbNamVal
 static int32_t isOperatorEqTbnameCond(STranslateContext* pCxt, SOperatorNode* pOperator, char** ppTableAlias,
                                       SArray** ppTabNames, bool* pRet) {
@@ -14982,26 +14999,17 @@ static int32_t isOperatorEqTbnameCond(STranslateContext* pCxt, SOperatorNode* pO
     *pRet = false;
     return TSDB_CODE_SUCCESS;
   }
+
+  char* tbname = getTbnameValue(pValueNode);
+  if (NULL == tbname) {
+    *pRet = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
   SArray* pTabNames = NULL;
   pTabNames = taosArrayInit(1, sizeof(void*));
   if (!pTabNames) {
     return terrno;
-  }
-
-  char* tbname = NULL;
-  if (pValueNode->placeholderNo != 0) {
-    if (NULL == pValueNode->datum.p) {
-      taosArrayDestroy(pTabNames);
-      return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
-    }
-    if (IS_VAR_DATA_TYPE(pValueNode->node.resType.type)) {
-      tbname = varDataVal(pValueNode->datum.p);
-    } else {
-      taosArrayDestroy(pTabNames);
-      return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
-    }
-  } else {
-    tbname = pValueNode->literal;
   }
 
   if (NULL == taosArrayPush(pTabNames, &tbname)) {
@@ -15017,7 +15025,10 @@ static int32_t isOperatorEqTbnameCond(STranslateContext* pCxt, SOperatorNode* pO
 //[tableAlias.]tbname in (value1, value2, ...)
 static int32_t isOperatorTbnameInCond(STranslateContext* pCxt, SOperatorNode* pOperator, char** ppTableAlias,
                                       SArray** ppTbNames, bool* pRet) {
-  if (pOperator->opType != OP_TYPE_IN) return false;
+  if (pOperator->opType != OP_TYPE_IN) {
+    *pRet = false;
+    return TSDB_CODE_SUCCESS;
+  }
   if (nodeType(pOperator->pLeft) != QUERY_NODE_FUNCTION ||
       ((SFunctionNode*)(pOperator->pLeft))->funcType != FUNCTION_TYPE_TBNAME ||
       nodeType(pOperator->pRight) != QUERY_NODE_NODE_LIST) {
@@ -15044,10 +15055,19 @@ static int32_t isOperatorTbnameInCond(STranslateContext* pCxt, SOperatorNode* pO
   SNode*     pValNode = NULL;
   FOREACH(pValNode, pValueNodeList) {
     if (nodeType(pValNode) != QUERY_NODE_VALUE) {
+      taosArrayDestroy(*ppTbNames);
+      *ppTbNames = NULL;
       *pRet = false;
       return TSDB_CODE_SUCCESS;
     }
-    if (NULL == taosArrayPush(*ppTbNames, &((SValueNode*)pValNode)->literal)) {
+    char* tbname = getTbnameValue((SValueNode*)pValNode);
+    if (NULL == tbname) {
+      taosArrayDestroy(*ppTbNames);
+      *ppTbNames = NULL;
+      *pRet = false;
+      return TSDB_CODE_SUCCESS;
+    }
+    if (NULL == taosArrayPush(*ppTbNames, &tbname)) {
       taosArrayDestroy(*ppTbNames);
       *ppTbNames = NULL;
       return terrno;
@@ -19116,6 +19136,21 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
     code = checkColumnType(pStmt->pCols, 0);
   }
 
+  if (TSDB_CODE_SUCCESS == code && createStable) {
+    // A tag carrying an inline `= literal` value means normal-table creation; the rewrite
+    // gate routes those away from the super-table path. Reject defensively whatever still
+    // reaches here (e.g. inline tag values combined with BASE ON).
+    SNode* pTag = NULL;
+    FOREACH(pTag, pStmt->pTags) {
+      if (((SColumnDefNode*)pTag)->pTagVal != NULL) {
+        code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                       "Tag '%s' cannot carry an inline value on super table creation",
+                                       ((SColumnDefNode*)pTag)->colName);
+        break;
+      }
+    }
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableKeepOption(pCxt, pStmt->pOptions, createStable, dbCfg.daysToKeep2);
   }
@@ -19723,6 +19758,12 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
   STypeMod typeMod = calcTypeMod(&pStmt->dataType);
 
   switch (pStmt->alterType) {
+    case TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF:
+      // tag-ref is virtual-normal-table only (buildAddTagRefReq gates it); reject on super tables.
+      // MUST sit before TSDB_ALTER_TABLE_ADD_COLUMN: ADD_COLUMN falls through (see "// fall through"
+      // below) into the ADD_TAG/DROP_COLUMN SField block. A reject case placed between them
+      // intercepted that fall-through and broke ADD COLUMN on super tables.
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
     case TSDB_ALTER_TABLE_ADD_COLUMN:
       if (NULL == taosArrayPush(pAlterReq->pTypeMods, &typeMod)) {
         return terrno;
@@ -25236,6 +25277,32 @@ static EDealRes streamExprSubqueryRefWalker(SNode* pNode, void* pContext) {
 
 static bool streamTableTreeHasExprSubqueryRef(SNode* pTable);
 
+static bool streamSelectHasExprSubqueryRefOutsideFrom(SSelectStmt* pSelect) {
+  bool hasExprSubquery = false;
+
+  nodesWalkExpr(pSelect->pWhere, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExprs(pSelect->pPartitionByList, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExpr(pSelect->pWindow, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExpr(pSelect->pFill, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExprs(pSelect->pWindowList, streamExprSubqueryRefWalker, &hasExprSubquery);
+  if (NULL != pSelect->pWindow) {
+    if (QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
+      nodesWalkExpr(((SExternalWindowNode*)pSelect->pWindow)->pSubquery, streamExprSubqueryRefWalker, &hasExprSubquery);
+    } else if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
+      nodesWalkExpr(((SIntervalWindowNode*)pSelect->pWindow)->pFill, streamExprSubqueryRefWalker, &hasExprSubquery);
+    } else if (QUERY_NODE_COUNT_WINDOW == nodeType(pSelect->pWindow)) {
+      nodesWalkExprs(((SCountWindowNode*)pSelect->pWindow)->pColList, streamExprSubqueryRefWalker, &hasExprSubquery);
+    }
+  }
+  nodesWalkExprs(pSelect->pGroupByList, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExpr(pSelect->pHaving, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExprs(pSelect->pOrderByList, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExprs(pSelect->pProjectionList, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExprs(pSelect->pProjectionBindList, streamExprSubqueryRefWalker, &hasExprSubquery);
+
+  return hasExprSubquery;
+}
+
 static bool streamQueryHasExprSubqueryRef(SNode* pQuery) {
   if (NULL == pQuery) {
     return false;
@@ -25244,12 +25311,16 @@ static bool streamQueryHasExprSubqueryRef(SNode* pQuery) {
   switch (nodeType(pQuery)) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pSelect = (SSelectStmt*)pQuery;
-      if (LIST_LENGTH(pSelect->pSubQueries) > 0) {
+      bool hasExprSubquery = streamSelectHasExprSubqueryRefOutsideFrom(pSelect);
+      if (hasExprSubquery) {
+        parserDebug("stream external window disabled: expression subquery reference found outside table source");
         return true;
       }
-      bool hasExprSubquery = false;
-      nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, streamExprSubqueryRefWalker, &hasExprSubquery);
-      return hasExprSubquery || streamTableTreeHasExprSubqueryRef(pSelect->pFromTable);
+      bool hasTableExprSubquery = streamTableTreeHasExprSubqueryRef(pSelect->pFromTable);
+      if (hasTableExprSubquery) {
+        parserDebug("stream external window disabled: expression subquery reference found in nested table source");
+      }
+      return hasTableExprSubquery;
     }
     case QUERY_NODE_SET_OPERATOR:
       return LIST_LENGTH(((SSetOperator*)pQuery)->pSubQueries) > 0;
@@ -25268,7 +25339,13 @@ static bool streamTableTreeHasExprSubqueryRef(SNode* pTable) {
       return streamQueryHasExprSubqueryRef(((STempTableNode*)pTable)->pSubquery);
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
-      return streamTableTreeHasExprSubqueryRef(pJoin->pLeft) || streamTableTreeHasExprSubqueryRef(pJoin->pRight);
+      bool hasOnExprSubquery = false;
+      nodesWalkExpr(pJoin->pOnCond, streamExprSubqueryRefWalker, &hasOnExprSubquery);
+      if (hasOnExprSubquery) {
+        parserDebug("stream external window disabled: expression subquery reference found in join on condition");
+      }
+      return hasOnExprSubquery || streamTableTreeHasExprSubqueryRef(pJoin->pLeft) ||
+             streamTableTreeHasExprSubqueryRef(pJoin->pRight);
     }
     default:
       return false;
@@ -25360,7 +25437,6 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
                           .streamCxt.triggerScanList = NULL,
                           .streamCxt.hasNotify = taosArrayGetSize(pReq->pNotifyAddrUrls) > 0,
                           .streamCxt.hasForceOutput = taosArrayGetSize(pReq->forceOutCols) > 0};
-
   if (nodeType(pTriggerWindow) == QUERY_NODE_INTERVAL_WINDOW) {
     SIntervalWindowNode* pIntervalWindow = (SIntervalWindowNode*)pTriggerWindow;
     if (!pIntervalWindow->pInterval) {
@@ -31101,7 +31177,8 @@ static int32_t checkShowTags(STranslateContext* pCxt, const SShowStmt* pShow) {
     code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
     goto _exit;
   }
-  if ((TSDB_SUPER_TABLE != pTableMeta->tableType && TSDB_CHILD_TABLE != pTableMeta->tableType) &&
+  if ((TSDB_SUPER_TABLE != pTableMeta->tableType && TSDB_CHILD_TABLE != pTableMeta->tableType &&
+       TSDB_NORMAL_TABLE != pTableMeta->tableType && TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType) &&
       (pTableMeta->virtualStb != 1 && pTableMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE)) {
     code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_PC,
                                 "The _TAGS pseudo column can only be used for child table and super table queries");
@@ -31452,9 +31529,165 @@ typedef struct SVgroupCreateTableBatch {
 } SVgroupCreateTableBatch;
 
 static int32_t setExternalRefSchemaName(STranslateContext* pCxt, SColRef* pColRef);
+// Validate a CREATE-time tags list for normal / virtual-normal tables. Mirrors buildAddTagReq on the
+// ALTER path: tag count cap, decimal rejection, VARCHAR/VARBINARY/NCHAR length cap, total tag length
+// cap. Also rejects duplicate tag names within the list and tag names colliding with a column name
+// (tags and columns share both the cid space and the name lookup space). Pure check — allocates
+// nothing, returns an error code.
+static int32_t checkCreateTags(const SNodeList* pTags, const SNodeList* pCols, SMsgBuf* pMsgBuf) {
+  int32_t nTags = LIST_LENGTH(pTags);
+  if (nTags > TSDB_MAX_TAGS) {
+    return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_TAGS_NUM);
+  }
+  // JSON tags cannot coexist with other tags: parseTagValue writes a JSON tag directly to pTags
+  // and sets isJson=true, which then skips tTagNew — any non-JSON tag value in the same list
+  // would be silently lost.
+  if (nTags > 1) {
+    bool   hasJson = false;
+    SNode* pScan = NULL;
+    FOREACH(pScan, pTags) {
+      if (TSDB_DATA_TYPE_JSON == ((SColumnDefNode*)pScan)->dataType.type) {
+        hasJson = true;
+        break;
+      }
+    }
+    if (hasJson) {
+      return generateSyntaxErrMsgExt(pMsgBuf, TSDB_CODE_PAR_INVALID_COLUMN, "JSON tag cannot coexist with other tags");
+    }
+  }
+  int32_t tagsLen = 0;
+  SNode*  pTagCheck = NULL;
+  FOREACH(pTagCheck, pTags) {
+    SColumnDefNode* pTagDef = (SColumnDefNode*)pTagCheck;
+    // only `FROM db.tb.tag` (hasRef) is a valid tag option; everything else that column_options
+    // accepts (PRIMARY KEY / ENCODE / COMPRESS / COMMENT) is meaningless on a tag — reject it
+    // explicitly instead of silently dropping it
+    SColumnOptions* pTagOptions = (SColumnOptions*)pTagDef->pOptions;
+    if (pTagOptions != NULL &&
+        (!pTagOptions->commentNull || pTagOptions->bPrimaryKey || 0 != strcmp(pTagOptions->compress, "") ||
+         0 != strcmp(pTagOptions->encode, "") || 0 != strcmp(pTagOptions->compressLevel, ""))) {
+      return generateSyntaxErrMsgExt(pMsgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                     "Tag '%s' only supports the FROM reference option", pTagDef->colName);
+    }
+    // A CREATE-time tag must carry an explicit value: `= literal` for an owned tag or
+    // `FROM db.tb.tag` for a tag-ref. Bare `name TYPE` stays valid only on ALTER ... ADD TAG.
+    if (pTagDef->pTagVal == NULL && (pTagOptions == NULL || !pTagOptions->hasRef)) {
+      return generateSyntaxErrMsgExt(pMsgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                     "Tag '%s' needs an explicit value (= literal) or a FROM reference",
+                                     pTagDef->colName);
+    }
+    if (IS_DECIMAL_TYPE(pTagDef->dataType.type)) {
+      return generateSyntaxErrMsgExt(pMsgBuf, TSDB_CODE_PAR_INVALID_COLUMN, "Decimal type is not allowed for tag");
+    }
+    if ((TSDB_DATA_TYPE_VARCHAR == pTagDef->dataType.type && calcTypeBytes(pTagDef->dataType) > TSDB_MAX_BINARY_LEN) ||
+        (TSDB_DATA_TYPE_VARBINARY == pTagDef->dataType.type && calcTypeBytes(pTagDef->dataType) > TSDB_MAX_BINARY_LEN) ||
+        (TSDB_DATA_TYPE_NCHAR == pTagDef->dataType.type && calcTypeBytes(pTagDef->dataType) > TSDB_MAX_NCHAR_LEN)) {
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
+    }
+    tagsLen += calcTypeBytes(pTagDef->dataType);
+    // duplicate tag name within the tags list (compare only against earlier entries)
+    SNode* pTagPrev = NULL;
+    FOREACH(pTagPrev, pTags) {
+      if (pTagPrev == pTagCheck) break;
+      if (0 == strcmp(((SColumnDefNode*)pTagPrev)->colName, pTagDef->colName)) {
+        return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
+      }
+    }
+    // tag name must not collide with a column name
+    SNode* pColName = NULL;
+    FOREACH(pColName, pCols) {
+      if (0 == strcmp(((SColumnDefNode*)pColName)->colName, pTagDef->colName)) {
+        return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
+      }
+    }
+  }
+  if (tagsLen > TSDB_MAX_TAGS_LEN) {
+    return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_TAGS_LENGTH, TSDB_MAX_TAGS_LEN);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// CREATE TABLE ... TAGS distinguishes super-table creation from normal-table creation with
+// owned tags: no tag carries an inline value -> super table (historical semantics); every tag
+// carries `= literal` -> normal table with owned tags; a mix of the two is rejected.
+#define CREATE_TAGS_VAL_NONE  0
+#define CREATE_TAGS_VAL_ALL   1
+#define CREATE_TAGS_VAL_MIXED 2
+static int32_t createTagsValState(const SNodeList* pTags) {
+  int32_t nValued = 0;
+  SNode*  pTag = NULL;
+  FOREACH(pTag, pTags) {
+    if (((SColumnDefNode*)pTag)->pTagVal != NULL) {
+      ++nValued;
+    }
+  }
+  if (0 == nValued) {
+    return CREATE_TAGS_VAL_NONE;
+  }
+  return (nValued == LIST_LENGTH(pTags)) ? CREATE_TAGS_VAL_ALL : CREATE_TAGS_VAL_MIXED;
+}
+
+// Parse CREATE-time inline tag values (`= literal`) into an STag. Tags without a value
+// (tag-refs, whose value follows the source table) stay absent; valueless owned tags never
+// reach here (checkCreateTags rejects them). The result is always a valid STag so the
+// entry's tag trailer stays encodable. Shared by the virtual-normal and normal table paths.
+static int32_t buildCreateTagsSTag(STranslateContext* pCxt, const SNodeList* pTags, SSchemaWrapper* pSchemaTag,
+                                   uint8_t precision, STag** ppTag) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray* pTagArray = taosArrayInit(LIST_LENGTH(pTags), sizeof(STagVal));
+  if (NULL == pTagArray) {
+    return terrno;
+  }
+  bool    isJson = false;
+  int32_t vIdx = 0;
+  SNode*  pTag = NULL;
+  FOREACH(pTag, pTags) {
+    SColumnDefNode* pTagDef = (SColumnDefNode*)pTag;
+    if (pTagDef->pTagVal == NULL) {
+      ++vIdx;
+      continue;
+    }
+    SSchema*    pS = pSchemaTag->pSchema + vIdx;
+    const char* tagStr = ((SValueNode*)pTagDef->pTagVal)->literal;
+    SToken      token = {0};
+    // TSDB_MAX_BYTES_PER_ROW: checkAndTrimValue/trimString may write up to that many bytes
+    // regardless of the caller's buffer size (dlen is hardcoded to TSDB_MAX_BYTES_PER_ROW).
+    char tokenBuf[TSDB_MAX_BYTES_PER_ROW];
+    NEXT_TOKEN_WITH_PREV(tagStr, token);
+    code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pS->type);
+    if (TSDB_CODE_SUCCESS == code && TK_NK_VARIABLE == token.type) {
+      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      if (pS->type == TSDB_DATA_TYPE_JSON) isJson = true;
+      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pS, &token, NULL, pTagArray, ppTag,
+                           pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      NEXT_VALID_TOKEN(tagStr, token);
+      if (token.n != 0) {
+        code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+      }
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+    ++vIdx;
+  }
+  if (TSDB_CODE_SUCCESS == code && !isJson) {
+    code = tTagNew(pTagArray, 1, false, ppTag);
+  }
+  for (int32_t k = 0; k < taosArrayGetSize(pTagArray); ++k) {
+    STagVal* p = (STagVal*)taosArrayGet(pTagArray, k);
+    if (IS_VAR_DATA_TYPE(p->type)) taosMemoryFreeClear(p->pData);
+  }
+  taosArrayDestroy(pTagArray);
+  return code;
+}
 
 static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateVTableStmt* pStmt,
-                                         const SVgroupInfo* pVgroupInfo, SVgroupCreateTableBatch* pBatch) {
+                                         const SVgroupInfo* pVgroupInfo, SVgroupCreateTableBatch* pBatch,
+                                         uint8_t precision) {
   int32_t       code = TSDB_CODE_SUCCESS;
   SVCreateTbReq req = {0};
   SNode*        pCol;
@@ -31528,6 +31761,43 @@ static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateV
       }
       si++;
     }
+  }
+  // Virtual normal table tags: owned tags go into ntb.schemaTag + ntb.pTags (empty STag — values
+  // are set later via SET TAG); tag-refs go into colRef.pTagRef (value follows source table).
+  // All tags register in schemaTag (uniform schema for DESC/SHOW CREATE/projection), mirroring how
+  // columns all live in schemaRow and ref columns additionally in colRef.pColRef. Tags share the
+  // column cid space; their cids continue right after the columns (matches metaAddTableTag's ncid).
+  if (pStmt->pTags != NULL) {
+    PAR_ERR_JRET(checkCreateTags(pStmt->pTags, pStmt->pCols, &pCxt->msgBuf));
+    int32_t nTags = LIST_LENGTH(pStmt->pTags);
+    req.ntb.schemaTag.nCols = nTags;
+    req.ntb.schemaTag.version = 1;
+    req.ntb.schemaTag.pSchema = taosMemoryCalloc(nTags, sizeof(SSchema));
+    if (NULL == req.ntb.schemaTag.pSchema) {
+      PAR_ERR_JRET(terrno);
+    }
+    // one pTagRef slot per tag (hasRef stays false for owned tags)
+    PAR_ERR_JRET(tInitDefaultSColRefWrapperByTags(&req.colRef, nTags, (col_id_t)(req.ntb.schemaRow.nCols + 1)));
+    col_id_t baseCid = (col_id_t)req.ntb.schemaRow.nCols;
+    int32_t  tIdx = 0;
+    SNode*   pTag = NULL;
+    FOREACH(pTag, pStmt->pTags) {
+      SColumnDefNode* pTagDef = (SColumnDefNode*)pTag;
+      SSchema*        pS = req.ntb.schemaTag.pSchema + tIdx;
+      toSchema(pTagDef, baseCid + tIdx + 1, pS);
+      if (pTagDef->pOptions && ((SColumnOptions*)pTagDef->pOptions)->hasRef) {
+        SColumnOptions* pTagOptions = (SColumnOptions*)pTagDef->pOptions;
+        PAR_ERR_JRET(setColRef(&req.colRef.pTagRef[tIdx], pS->colId, pS->name, pTagOptions->refColumn,
+                               pTagOptions->refTable, pTagOptions->refDb, pTagOptions->refType,
+                               pTagOptions->refSourceName, NULL, 0));
+        PAR_ERR_JRET(setExternalRefSchemaName(pCxt, &req.colRef.pTagRef[tIdx]));
+      }
+      ++tIdx;
+    }
+    // owned tags: parse inline values (`= literal`) into the STag; tag-refs carry no value
+    // here — their value follows the source table. Valueless owned tags were already rejected
+    // by checkCreateTags above.
+    PAR_ERR_JRET(buildCreateTagsSTag(pCxt, pStmt->pTags, &req.ntb.schemaTag, precision, (STag**)&req.ntb.pTags));
   }
 
   pBatch->info = *pVgroupInfo;
@@ -31777,6 +32047,42 @@ static int32_t buildNormalTableBatchReq(STranslateContext* pCxt, const SCreateTa
     }
     ++index;
   }
+  // Normal-table owned tags: CREATE TABLE ntb (...) TAGS(name TYPE = literal, ...). Tags share
+  // the column cid space, so their cids continue right after the columns (matching
+  // metaAddTableTag, which bumps the same ncid counter). Only reached when every tag carries
+  // an inline `= literal` value — the rewrite gate keeps valueless TAGS on the historical
+  // super-table path and rejects a mix of valued/valueless tags.
+  if (pStmt->pTags != NULL) {
+    int32_t vcode = checkCreateTags(pStmt->pTags, pStmt->pCols, &pCxt->msgBuf);
+    if (TSDB_CODE_SUCCESS != vcode) {
+      tdDestroySVCreateTbReq(&req);
+      return vcode;
+    }
+    int32_t nTags = LIST_LENGTH(pStmt->pTags);
+    req.ntb.schemaTag.nCols = nTags;
+    req.ntb.schemaTag.version = 1;
+    req.ntb.schemaTag.pSchema = taosMemoryCalloc(nTags, sizeof(SSchema));
+    if (NULL == req.ntb.schemaTag.pSchema) {
+      tdDestroySVCreateTbReq(&req);
+      return terrno;
+    }
+    col_id_t baseCid = (col_id_t)req.ntb.schemaRow.nCols;
+    int32_t  tIdx = 0;
+    SNode*   pTag = NULL;
+    FOREACH(pTag, pStmt->pTags) {
+      toSchema((SColumnDefNode*)pTag, baseCid + tIdx + 1, req.ntb.schemaTag.pSchema + tIdx);
+      ++tIdx;
+    }
+    SDbCfgInfo dbCfg = {0};
+    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = buildCreateTagsSTag(pCxt, pStmt->pTags, &req.ntb.schemaTag, dbCfg.precision, (STag**)&req.ntb.pTags);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      tdDestroySVCreateTbReq(&req);
+      return code;
+    }
+  }
   pBatch->info = *pVgroupInfo;
   tstrncpy(pBatch->dbName, pStmt->dbName, TSDB_DB_NAME_LEN);
   pBatch->req.pArray = taosArrayInit(1, sizeof(struct SVCreateTbReq));
@@ -32010,7 +32316,8 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SNodeList* pSpecif
   SNode *     pTagNode = NULL, *pNode = NULL;
   uint8_t     precision = pSuperTableMeta->tableInfo.precision;
   SToken      token;
-  char        tokenBuf[TSDB_MAX_TAGS_LEN];
+  // sized for checkAndTrimValue, which trims up to TSDB_MAX_BYTES_PER_ROW bytes into this buffer
+  char tokenBuf[TSDB_MAX_BYTES_PER_ROW];
   const char* tagStr = NULL;
   FORBOTH(pTagNode, pSpecificTags, pNode, pValsOfTags) {
     tagStr = ((SValueNode*)pNode)->literal;
@@ -32080,7 +32387,8 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SNodeList* pValsOfT
   uint8_t     precision = pSuperTableMeta->tableInfo.precision;
   SSchema*    pTagSchema = getTableTagSchema(pSuperTableMeta);
   SToken      token;
-  char        tokenBuf[TSDB_MAX_TAGS_LEN];
+  // sized for checkAndTrimValue, which trims up to TSDB_MAX_BYTES_PER_ROW bytes into this buffer
+  char tokenBuf[TSDB_MAX_BYTES_PER_ROW];
   const char* tagStr = NULL;
   FOREACH(pNode, pValsOfTags) {
     tagStr = ((SValueNode*)pNode)->literal;
@@ -32853,16 +33161,18 @@ over:
   return code;
 }
 
-static int32_t buildDropVirtualTableVgroupHashmap(STranslateContext* pCxt, SDropVirtualTableStmt* pStmt,
-                                                  const SName* name, int8_t* tableType, SHashObj* pVgroupHashmap) {
+static int32_t buildDropVirtualTableVgroupHashmap(STranslateContext* pCxt, SDropTableClause* pClause,
+                                                  const SName* name, SHashObj* pVgroupHashmap) {
   STableMeta* pTableMeta = NULL;
   int32_t     code = getTargetMeta(pCxt, name, &pTableMeta, false);
   if (TSDB_CODE_SUCCESS == code) {
     code = collectUseTable(name, pCxt->pTargetTables);
-    *tableType = pTableMeta->tableType;
   }
 
-  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && pStmt->ignoreNotExists) {
+  // getTargetMeta reports a missing virtual table as either the PAR or the TDB
+  // not-exist code depending on which layer answered; IF EXISTS tolerates both.
+  if (pClause->ignoreNotExists &&
+      (TSDB_CODE_PAR_TABLE_NOT_EXIST == code || TSDB_CODE_TDB_TABLE_NOT_EXIST == code)) {
     PAR_RET(TSDB_CODE_SUCCESS);
   }
   PAR_ERR_JRET(code);
@@ -32871,19 +33181,27 @@ static int32_t buildDropVirtualTableVgroupHashmap(STranslateContext* pCxt, SDrop
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DROP_VTABLE,
                                          "Cannot drop non-virtual table using DROP VTABLE"););
   }
+  // Reject the virtual super table itself at translate time so a batch
+  // containing one fails atomically (same error code the vnode used to return
+  // at exec time). Note: virtual CHILD tables also carry the virtualStb flag
+  // (inherited from the parent), so discriminate on tableType.
+  if (TSDB_SUPER_TABLE == pTableMeta->tableType) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_PARA,
+                                         "Cannot drop virtual super table using DROP VTABLE"););
+  }
 
   SVgroupInfo info = {0};
-  PAR_ERR_JRET(getTableHashVgroup(pCxt, pStmt->dbName, pStmt->tableName, &info));
+  PAR_ERR_JRET(getTableHashVgroup(pCxt, pClause->dbName, pClause->tableName, &info));
 
-  SVDropTbReq req = {.suid = pTableMeta->suid, .igNotExists = pStmt->ignoreNotExists, .isVirtual = true};
+  SVDropTbReq req = {.suid = pTableMeta->suid, .igNotExists = pClause->ignoreNotExists, .isVirtual = true};
   req.txnId = pCxt->pParseCxt->txnId;
-  req.name = pStmt->tableName;
+  req.name = pClause->tableName;
   PAR_ERR_JRET(addDropTbReqIntoVgroup(pVgroupHashmap, &info, &req));
 
   // Batch meta txn: remove dropped table from txn cache so it's no longer visible
   if (TSDB_CODE_SUCCESS == code && pCxt->pParseCxt->txnId != 0 && pCxt->pParseCxt->pTxnTableMeta) {
     SName dropName = {0};
-    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &dropName);
+    toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &dropName);
     char fullName[TSDB_TABLE_FNAME_LEN];
     if (tNameExtractFullName(&dropName, fullName) == 0) {
       STableMeta** ppCached = (STableMeta**)taosHashGet(pCxt->pParseCxt->pTxnTableMeta, fullName, strlen(fullName));
@@ -32974,6 +33292,32 @@ int32_t serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap, SArray** pOut) 
   return code;
 }
 
+// WITH-form replay: each clause's tableName is a numeric table uid at this
+// point — validate it and rewrite it to the real table name. Shared by the
+// DROP TABLE and DROP VTABLE with-opt paths.
+static int32_t rewriteDropClauseUidToName(STranslateContext* pCxt, SDropTableClause* pClause) {
+  for (int32_t i = 0; i < TSDB_TABLE_NAME_LEN; i++) {
+    if (pClause->tableName[i] == '\0') {
+      break;
+    }
+    if (!isdigit((unsigned char)pClause->tableName[i])) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, "Table does not exist: `%s`.`%s`",
+                                     pClause->dbName, pClause->tableName);
+    }
+  }
+
+  SName name = {0};
+  toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &name);
+  char pTableName[TSDB_TABLE_NAME_LEN] = {0};
+  int32_t code = getTargetName(pCxt, &name, pTableName);
+  if (TSDB_CODE_SUCCESS != code) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "%s: db:`%s`, tbuid:`%s`", tstrerror(code), pClause->dbName,
+                                   pClause->tableName);
+  }
+  tstrncpy(pClause->tableName, pTableName, TSDB_TABLE_NAME_LEN);  // rewrite table uid to table name
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t rewriteDropTableWithOpt(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t         code = TSDB_CODE_SUCCESS;
   SDropTableStmt* pStmt = (SDropTableStmt*)pQuery->pRoot;
@@ -32981,26 +33325,11 @@ static int32_t rewriteDropTableWithOpt(STranslateContext* pCxt, SQuery* pQuery) 
   pCxt->withOpt = true;
 
   SNode* pNode = NULL;
-  char   pTableName[TSDB_TABLE_NAME_LEN] = {0};
   FOREACH(pNode, pStmt->pTables) {
-    SDropTableClause* pClause = (SDropTableClause*)pNode;
-    for (int32_t i = 0; i < TSDB_TABLE_NAME_LEN; i++) {
-      if (pClause->tableName[i] == '\0') {
-        break;
-      }
-      if (!isdigit(pClause->tableName[i])) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, "Table does not exist: `%s`.`%s`",
-                                       pClause->dbName, pClause->tableName);
-      }
-    }
-    SName name = {0};
-    toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &name);
-    code = getTargetName(pCxt, &name, pTableName);
+    code = rewriteDropClauseUidToName(pCxt, (SDropTableClause*)pNode);
     if (TSDB_CODE_SUCCESS != code) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "%s: db:`%s`, tbuid:`%s`", tstrerror(code), pClause->dbName,
-                                     pClause->tableName);
+      return code;
     }
-    tstrncpy(pClause->tableName, pTableName, TSDB_TABLE_NAME_LEN);  // rewrite table uid to table name
   }
 
   code = rewriteDropTableWithMetaCache(pCxt);
@@ -33121,35 +33450,24 @@ static int32_t rewriteDropVirtualTableWithOpt(STranslateContext* pCxt, SQuery* p
   if (!pStmt->withOpt) {
     PAR_RET(code);
   }
+  pCxt->withOpt = true;  // same as rewriteDropTableWithOpt/rewriteDropSuperTablewithOpt: switch vgroup cache variant
 
   SNode* pNode = NULL;
-  char   pTableName[TSDB_TABLE_NAME_LEN] = {0};
-
-  for (int32_t i = 0; i < TSDB_TABLE_NAME_LEN; i++) {
-    if (pStmt->tableName[i] == '\0') {
-      break;
-    }
-    if (!isdigit(pStmt->tableName[i])) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, "Table does not exist: `%s`.`%s`",
-                                     pStmt->dbName, pStmt->tableName);
+  FOREACH(pNode, pStmt->pTables) {
+    code = rewriteDropClauseUidToName(pCxt, (SDropTableClause*)pNode);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
     }
   }
-
-  SName name = {0};
-  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
-  PAR_ERR_RET(getTargetName(pCxt, &name, pTableName));
-  tstrncpy(pStmt->tableName, pTableName, TSDB_TABLE_NAME_LEN);  // rewrite table uid to table name
 
   PAR_RET(rewriteDropTableWithMetaCache(pCxt));
 }
 
 static int32_t rewriteDropVirtualTable(STranslateContext* pCxt, SQuery* pQuery) {
   SDropVirtualTableStmt* pStmt = (SDropVirtualTableStmt*)pQuery->pRoot;
-  int8_t                 tableType;
   SNode*                 pNode;
   SArray*                pBufArray = NULL;
   int32_t                code = TSDB_CODE_SUCCESS;
-  SName                  name = {0};
   SHashObj*              pVgroupHashmap = NULL;
 
   PAR_ERR_JRET(rewriteDropVirtualTableWithOpt(pCxt, pQuery));
@@ -33161,8 +33479,13 @@ static int32_t rewriteDropVirtualTable(STranslateContext* pCxt, SQuery* pQuery) 
 
   taosHashSetFreeFp(pVgroupHashmap, destroyDropTbReqBatch);
 
-  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
-  PAR_ERR_JRET(buildDropVirtualTableVgroupHashmap(pCxt, pStmt, &name, &tableType, pVgroupHashmap));
+  FOREACH(pNode, pStmt->pTables) {
+    SDropTableClause* pClause = (SDropTableClause*)pNode;
+    SName             name = {0};
+    toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &name);
+    code = buildDropVirtualTableVgroupHashmap(pCxt, pClause, &name, pVgroupHashmap);
+    PAR_ERR_JRET(code);
+  }
   if (0 == taosHashGetSize(pVgroupHashmap)) {
     taosHashCleanup(pVgroupHashmap);
     return TSDB_CODE_SUCCESS;
@@ -33255,7 +33578,8 @@ static int32_t buildUpdateTagValReqImpl(STranslateContext* pCxt, const char* tag
 
   STag*  pTag = NULL;
   SToken token;
-  char   tokenBuf[TSDB_MAX_TAGS_LEN];
+  // sized for checkAndTrimValue, which trims up to TSDB_MAX_BYTES_PER_ROW bytes into this buffer
+  char tokenBuf[TSDB_MAX_BYTES_PER_ROW];
   NEXT_TOKEN_WITH_PREV(tagStr, token);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pSchema->type);
@@ -33720,7 +34044,6 @@ static int32_t checkTagRef(STranslateContext* pCxt, const char* pSrcDbName, cons
                            char* pRefColName, SDataType type) {
   STableMeta* pRefTableMeta = NULL;
   int32_t     code = TSDB_CODE_SUCCESS;
-
   PAR_ERR_JRET(getTableMeta(pCxt, pRefDbName, pRefTableName, &pRefTableMeta));
 
   // referenced table must be child table (which has tags)
@@ -34157,6 +34480,12 @@ static int32_t buildAlterTableTagRef(STranslateContext* pCxt, SAlterTableStmt* p
   if (!isVirtualTable(pTableMeta)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   }
+  // external source tag references are not supported (tag-ref resolution requires a TDengine
+  // source table); reject the 4-segment form explicitly instead of treating it as internal
+  if (pStmt->refType == 1) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_TAG_REF_NOT_ALLOWED,
+                                   "external source tag reference is not supported for tag '%s'", pStmt->colName);
+  }
   int32_t        code = TSDB_CODE_SUCCESS;
   const SSchema* pSchema = getTagSchema(pTableMeta, pStmt->colName);
   if (NULL == pSchema) {
@@ -34214,6 +34543,162 @@ static int32_t buildAlterTableRemoveSeries(STranslateContext* pCxt, SAlterTableS
   return TSDB_CODE_SUCCESS;
 }
 
+
+// Shared validation for ADD TAG (owned tag) and ADD TAG ... FROM (tag reference): JSON tag
+// exclusivity, duplicate tag name, tag/column name collision, decimal rejection, per-tag length
+// caps, max tag count and total tag length.
+static int32_t checkAddTagDef(STranslateContext* pCxt, const char* pColName, SDataType dataType,
+                              const STableMeta* pTableMeta) {
+  int32_t  numOfTags = getNumOfTags(pTableMeta);
+  SSchema* pTagSchema = getTableTagSchema(pTableMeta);
+
+  // JSON tags must stand alone (mirrors checkCreateTags / the super-table alter path): a JSON
+  // tag cannot be added via ALTER, and no further tag may be added to a table that already has
+  // a JSON tag.
+  if (TSDB_DATA_TYPE_JSON == dataType.type) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
+  }
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    if (TSDB_DATA_TYPE_JSON == pTagSchema[i].type) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
+    }
+  }
+
+  // duplicate tag name
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    if (0 == strcmp(pTagSchema[i].name, pColName)) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
+    }
+  }
+  // tag name must not collide with a column name (tags and columns share the cid/name space)
+  int32_t  numOfCols = getNumOfColumns(pTableMeta);
+  SSchema* pColSchema = getTableColumnSchema(pTableMeta);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    if (0 == strcmp(pColSchema[i].name, pColName)) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
+    }
+  }
+
+  if (IS_DECIMAL_TYPE(dataType.type)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, "Decimal type is not allowed for tag");
+  }
+
+  if ((TSDB_DATA_TYPE_VARCHAR == dataType.type && calcTypeBytes(dataType) > TSDB_MAX_BINARY_LEN) ||
+      (TSDB_DATA_TYPE_VARBINARY == dataType.type && calcTypeBytes(dataType) > TSDB_MAX_BINARY_LEN) ||
+      (TSDB_DATA_TYPE_NCHAR == dataType.type && calcTypeBytes(dataType) > TSDB_MAX_NCHAR_LEN)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
+  }
+
+  if (TSDB_MAX_TAGS == numOfTags) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_NUM);
+  }
+
+  // tag-refs occupy a schemaTag entry too — enforce the total tag length cap for both paths
+  int32_t tagsLen = 0;
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    tagsLen += pTagSchema[i].bytes;
+  }
+  if (tagsLen + calcTypeBytes(dataType) > TSDB_MAX_TAGS_LEN) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_LENGTH, TSDB_MAX_TAGS_LEN);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t buildAddTagReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+                              SVAlterTbReq* pReq) {
+  // Owned tags are added on normal and virtual normal tables via the vnode-alter path.
+  // Super tables add tags through mnd (TDMT_MND_ALTER_STB); child tables inherit tags from
+  // their super table.
+  if (TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType && TSDB_NORMAL_TABLE != pTableMeta->tableType) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  }
+
+  PAR_ERR_RET(checkAddTagDef(pCxt, pStmt->colName, pStmt->dataType, pTableMeta));
+
+  pReq->colName = taosStrdup(pStmt->colName);
+  if (NULL == pReq->colName) {
+    return terrno;
+  }
+  pReq->type = pStmt->dataType.type;
+  pReq->flags = COL_SMA_ON;
+  pReq->bytes = calcTypeBytes(pStmt->dataType);
+  pReq->typeMod = 0;
+  return TSDB_CODE_SUCCESS;
+}
+
+// ADD TAG name TYPE FROM db.tb.tag — add a tag reference. Reuses checkAddTagDef for the shared
+// validation, plus the source-tag existence/type check and ref fields (as
+// ADD_COLUMN_WITH_COLUMN_REF does).
+static int32_t buildAddTagRefReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+                                 SVAlterTbReq* pReq) {
+  if (TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  }
+
+  PAR_ERR_RET(checkAddTagDef(pCxt, pStmt->colName, pStmt->dataType, pTableMeta));
+
+  // external source tag references are not supported (tag-ref resolution requires a TDengine
+  // source table); reject the 4-segment form explicitly instead of treating it as internal
+  if (pStmt->refType == 1) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_TAG_REF_NOT_ALLOWED,
+                                   "external source tag reference is not supported for tag '%s'", pStmt->colName);
+  }
+
+  SDataType tagType = pStmt->dataType;
+  tagType.bytes = calcTypeBytes(tagType);
+  PAR_ERR_RET(checkTagRef(pCxt, pStmt->dbName, pStmt->tableName, pStmt->colName, pStmt->refDbName,
+                          pStmt->refTableName, pStmt->refColName, tagType));
+
+  pReq->colName = taosStrdup(pStmt->colName);
+  pReq->refDbName = taosStrdup(pStmt->refDbName);
+  pReq->refColName = taosStrdup(pStmt->refColName);
+  pReq->refTbName = taosStrdup(pStmt->refTableName);
+  if (NULL == pReq->colName || NULL == pReq->refDbName || NULL == pReq->refColName || NULL == pReq->refTbName) {
+    return terrno;
+  }
+  pReq->type = pStmt->dataType.type;
+  pReq->flags = COL_SMA_ON;
+  pReq->bytes = calcTypeBytes(pStmt->dataType);
+  pReq->typeMod = 0;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t buildDropTagReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, const STableMeta* pTableMeta,
+                               SVAlterTbReq* pReq) {
+  // Only normal and virtual normal tables own tags; child tables inherit tags from the super
+  // table and super tables drop tags through mnd.
+  if (TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType && TSDB_NORMAL_TABLE != pTableMeta->tableType) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  }
+
+  // find the tag by name in the tag schema (colId resolved by the vnode if catalog lacks tags)
+  int32_t         numOfTags = getNumOfTags(pTableMeta);
+  const SSchema*  pTagSchema = getTableTagSchema(pTableMeta);
+  const SSchema*  pTag = NULL;
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    if (0 == strcmp(pTagSchema[i].name, pStmt->colName)) {
+      pTag = &pTagSchema[i];
+      break;
+    }
+  }
+  if (pTag == NULL) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, pStmt->colName);
+  }
+
+  // A tag referenced by a stream must not be dropped (mirrors the super-table guard).
+  if (pTag->flags & COL_REF_BY_STM) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_TAG_REF_BY_STM);
+  }
+
+  pReq->colName = taosStrdup(pStmt->colName);
+  if (NULL == pReq->colName) {
+    return terrno;
+  }
+  pReq->colId = pTag->colId;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                SVAlterTbReq* pReq) {
   pReq->tbName = taosStrdup(pStmt->tableName);
@@ -34224,7 +34709,11 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
 
   switch (pStmt->alterType) {
     case TSDB_ALTER_TABLE_ADD_TAG:
+      return buildAddTagReq(pCxt, pStmt, pTableMeta, pReq);
+    case TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF:
+      return buildAddTagRefReq(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_DROP_TAG:
+      return buildDropTagReq(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
@@ -34505,12 +34994,6 @@ static int32_t doRewriteAlterMultiTableTagVal(STranslateContext* pCxt, SQuery* p
     if (pTableMeta->tableType == TSDB_SUPER_TABLE) {
       code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
                                      "Cannot alter super table: `%s`.`%s`", pClause->dbName, pClause->tableName);
-      goto _error;
-    }
-
-    if (pTableMeta->tableType != TSDB_CHILD_TABLE && pTableMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
-      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
-                                     "Cannot alter non-child table: `%s`.`%s`", pClause->dbName, pClause->tableName);
       goto _error;
     }
 
@@ -35074,10 +35557,10 @@ static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery, bool i
 }
 
 static int32_t buildCreateVTableDataBlock(STranslateContext* pCxt, const SCreateVTableStmt* pStmt,
-                                          const SVgroupInfo* pInfo, SArray* pBufArray) {
+                                          const SVgroupInfo* pInfo, SArray* pBufArray, uint8_t precision) {
   SVgroupCreateTableBatch tbatch = {0};
   int32_t                 code = TSDB_CODE_SUCCESS;
-  PAR_ERR_JRET(buildVirtualTableBatchReq(pCxt, pStmt, pInfo, &tbatch));
+  PAR_ERR_JRET(buildVirtualTableBatchReq(pCxt, pStmt, pInfo, &tbatch, precision));
   PAR_ERR_JRET(serializeVgroupCreateTableBatch(&tbatch, pBufArray));
 
 _return:
@@ -35488,10 +35971,33 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
     index++;
   }
 
+  // validate tag-refs: owned tags need no source check; a tag with FROM must reference an
+  // existing source table tag of a matching type (same rule as column refs above).
+  if (pStmt->pTags != NULL) {
+    FOREACH(pNode, pStmt->pTags) {
+      SColumnDefNode* pTagNode = (SColumnDefNode*)pNode;
+      SColumnOptions* pTagOptions = (SColumnOptions*)pTagNode->pOptions;
+      if (pTagOptions != NULL && pTagOptions->hasRef) {
+        // external source tag references are not supported (tag-ref resolution requires a
+        // TDengine source table; reject the 4-segment form explicitly instead of misrouting it
+        // to the internal path)
+        if (pTagOptions->refType == 1) {
+          PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_TAG_REF_NOT_ALLOWED,
+                                               "external source tag reference is not supported for tag '%s'",
+                                               pTagNode->colName));
+        }
+        SDataType tagType = pTagNode->dataType;
+        tagType.bytes = calcTypeBytes(tagType);
+        PAR_ERR_JRET(checkTagRef(pCxt, pStmt->dbName, pStmt->tableName, pTagNode->colName, pTagOptions->refDb,
+                                 pTagOptions->refTable, pTagOptions->refColumn, tagType));
+      }
+    }
+  }
+
   PAR_ERR_JRET(getTableHashVgroupImpl(pCxt, &name, &info));
   PAR_ERR_JRET(collectUseTable(&name, pCxt->pTargetTables));
 
-  PAR_ERR_JRET(buildCreateVTableDataBlock(pCxt, pStmt, &info, pBufArray));
+  PAR_ERR_JRET(buildCreateVTableDataBlock(pCxt, pStmt, &info, pBufArray, dbCfg.precision));
   PAR_ERR_JRET(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
 
   return code;
@@ -36755,8 +37261,23 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       SCreateTableStmt* pCreate = (SCreateTableStmt*)pQuery->pRoot;
       // Skip NTB rewrite when BASE ON is present: inherited VSTB with no own tags
       // must go through translateCreateSuperTable (mnode STB path), not vnode NTB path.
-      if (NULL == pCreate->pTags && NULL == pCreate->pBaseOnList) {
-        code = rewriteCreateTable(pCxt, pQuery);
+      // TAGS without inline values keeps the historical super-table semantics; TAGS where
+      // every tag carries `= literal` creates a normal table with owned tags instead.
+      if (NULL == pCreate->pBaseOnList && !pCreate->stableKeyword) {
+        if (NULL == pCreate->pTags) {
+          code = rewriteCreateTable(pCxt, pQuery);
+        } else {
+          // Evaluate the tag-value state once: ALL -> normal table with owned tags,
+          // MIXED -> reject, NONE (valueless) falls through to the historical super-table path.
+          int32_t tagValState = createTagsValState(pCreate->pTags);
+          if (CREATE_TAGS_VAL_ALL == tagValState) {
+            code = rewriteCreateTable(pCxt, pQuery);
+          } else if (CREATE_TAGS_VAL_MIXED == tagValState) {
+            code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                        "tags must all carry explicit values (= literal) to create a normal table "
+                                        "with tags; valueless tags create a super table");
+          }
+        }
       }
       break;
     }

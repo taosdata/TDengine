@@ -2899,6 +2899,8 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const 
       SSchema *pSchema = &pNew->pColumns[pOld->numOfColumns + i];
       pSchema->bytes = pField->bytes;
       pSchema->type = pField->type;
+      // ALTER STB does not carry field flags on the wire; added columns use block SMA by default.
+      pSchema->flags = pField->flags | COL_SMA_ON;
       memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
       if (pNew->nextColId > INT16_MAX) {
         code = TSDB_CODE_MND_EXCEED_MAX_COL_ID;
@@ -2930,6 +2932,8 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const 
       SSchema *pSchema = &pNew->pColumns[pOld->numOfColumns + i];
       pSchema->bytes = pField->bytes;
       pSchema->type = pField->type;
+      // ALTER STB does not carry field flags on the wire; added columns use block SMA by default.
+      pSchema->flags = pField->flags | COL_SMA_ON;
       memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
       if (pNew->nextColId > INT16_MAX) {
         code = TSDB_CODE_MND_EXCEED_MAX_COL_ID;

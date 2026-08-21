@@ -2525,6 +2525,59 @@ static int32_t comparePkDataWithSValue(int8_t pkType, char* pkData, SValue* pVal
   return fn(pkData, blockData);
 }
 
+EFuncDataRequired maxDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
+  SResultRowEntryInfo* pEntry = (SResultRowEntryInfo*)pRes;
+  if (NULL == pEntry || NULL == pBlockInfo || NULL == pBlockInfo->pBlockAgg ||
+      pBlockInfo->pBlockAgg->colId == -1) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+
+  const SColumnDataAgg* pAgg = pBlockInfo->pBlockAgg;
+  SMinmaxResInfo* pResult = GET_ROWCELL_INTERBUF(pEntry);
+  if (pBlockInfo->rows > 0 && pAgg->numOfNull == pBlockInfo->rows) {
+    return FUNC_DATA_REQUIRED_NOT_LOAD;
+  }
+  if (!pResult->assign) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+
+  switch (pResult->type) {
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      return pResult->v >= pAgg->max ? FUNC_DATA_REQUIRED_NOT_LOAD : FUNC_DATA_REQUIRED_DATA_LOAD;
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+      return (uint64_t)pResult->v >= (uint64_t)pAgg->max ? FUNC_DATA_REQUIRED_NOT_LOAD
+                                                        : FUNC_DATA_REQUIRED_DATA_LOAD;
+    case TSDB_DATA_TYPE_FLOAT:
+      return GET_FLOAT_VAL(&pResult->v) >= GET_DOUBLE_VAL(&pAgg->max) ? FUNC_DATA_REQUIRED_NOT_LOAD
+                                                                      : FUNC_DATA_REQUIRED_DATA_LOAD;
+    case TSDB_DATA_TYPE_DOUBLE:
+      return GET_DOUBLE_VAL(&pResult->v) >= GET_DOUBLE_VAL(&pAgg->max) ? FUNC_DATA_REQUIRED_NOT_LOAD
+                                                                       : FUNC_DATA_REQUIRED_DATA_LOAD;
+    case TSDB_DATA_TYPE_DECIMAL64: {
+      const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
+      return !pOps->lt(&pResult->v, pAgg->decimal128Max, DECIMAL_WORD_NUM(Decimal64))
+                 ? FUNC_DATA_REQUIRED_NOT_LOAD
+                 : FUNC_DATA_REQUIRED_DATA_LOAD;
+    }
+    case TSDB_DATA_TYPE_DECIMAL: {
+      const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+      return !pOps->lt(pResult->dec, pAgg->decimal128Max, DECIMAL_WORD_NUM(Decimal128))
+                 ? FUNC_DATA_REQUIRED_NOT_LOAD
+                 : FUNC_DATA_REQUIRED_DATA_LOAD;
+    }
+    default:
+      return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+}
+
 EFuncDataRequired firstDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
   SResultRowEntryInfo* pEntry = (SResultRowEntryInfo*)pRes;
 

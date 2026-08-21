@@ -1648,7 +1648,7 @@ int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
   if (patNum == 1) {
     patLen = varDataLen(colDataGetData(pats, 0));
     patstr = varDataVal(colDataGetData(pats, 0));
-    if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) {
+    if (patLen > 0 && GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) {
       SCL_ERR_RET(convNcharToVarchar(patstr, &patstr, patLen, &patLen, pInput[0].charsetCxt));
       needFreePat = true;
     }
@@ -1657,7 +1657,7 @@ int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
   if (setNum == 1) {
     setLen = varDataLen(colDataGetData(sets, 0));
     setstr = varDataVal(colDataGetData(sets, 0));
-    if (GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
+    if (setLen > 0 && GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
       SCL_ERR_RET(convNcharToVarchar(setstr, &setstr, setLen, &setLen, pInput[1].charsetCxt));
       needFreeSet = true;
     }
@@ -1728,7 +1728,7 @@ int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
       } else {
         sepLen = varDataLen(colDataGetData(seps, i));
         sepstr = varDataVal(colDataGetData(seps, i));
-        if (sepLen > 0 && GET_PARAM_TYPE(&pInput[2]) != TSDB_DATA_TYPE_NCHAR) {
+        if (sepLen > 0 && GET_PARAM_TYPE(&pInput[2]) == TSDB_DATA_TYPE_NCHAR) {
           SCL_ERR_RET(convNcharToVarchar(sepstr, &sepstr, sepLen, &sepLen, pInput[2].charsetCxt));
           needFreeSep = true;
         }
@@ -4720,9 +4720,7 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   if (useCurrentTz && isFixedOffsetTimezoneLiteral(timezoneStr)) {
     hasFixedOffsetTz = true;
     fixedOffset = offsetFromTimezoneLiteral(timezoneStr, TSDB_TICK_PER_SECOND(timePrec));
-  } else if (useCurrentTz && (strchr(timezoneStr, '/') != NULL ||
-                              strncmp(timezoneStr, "UTC", 3) == 0 ||
-                              strncmp(timezoneStr, "GMT", 3) == 0)) {
+  } else if (useCurrentTz && taosIsNamedTimezoneLiteral(timezoneStr)) {
     int32_t tzCode = taosValidateTimezone(timezoneStr, &explicitTz);
     if (tzCode == TSDB_CODE_SUCCESS) {
       hasStringTz = true;

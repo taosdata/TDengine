@@ -497,25 +497,38 @@ _return:
   return code;
 }
 
-static int32_t appendResolvedTagVal(SArray* pResolvedTags, col_id_t dstColId, const SSchema* pSchema, const STag* pTagData) {
+int32_t appendResolvedTagVal(SArray* pResolvedTags, col_id_t dstColId, const SSchema* pSchema, const STag* pTagData) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   STagVal srcVal = {.cid = pSchema->colId};
   STagVal dstVal = {.cid = dstColId, .type = pSchema->type};
 
-  if (!tTagGet(pTagData, &srcVal)) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (IS_VAR_DATA_TYPE(pSchema->type)) {
-    if (srcVal.pData != NULL && srcVal.nData > 0) {
-      dstVal.nData = srcVal.nData;
-      dstVal.pData = taosMemoryMalloc(dstVal.nData);
-      QUERY_CHECK_NULL(dstVal.pData, code, lino, _return, terrno)
-      memcpy(dstVal.pData, srcVal.pData, dstVal.nData);
+  // JSON tag: the value is the whole STag blob (same convention as metaGetTableTagVal), so it
+  // cannot be looked up with tTagGet — that binary-searches a JSON blob by key and would
+  // dereference the unset srcVal.pKey. Copy the blob outright; a JSON-null blob means NULL.
+  if (pSchema->type == TSDB_DATA_TYPE_JSON) {
+    if (pTagData == NULL || !tTagIsJson(pTagData) || tTagIsJsonNull((void*)pTagData)) {
+      return TSDB_CODE_SUCCESS;  // no JSON value: leave the tag NULL
     }
+    dstVal.nData = pTagData->len;
+    dstVal.pData = taosMemoryMalloc(dstVal.nData);
+    QUERY_CHECK_NULL(dstVal.pData, code, lino, _return, terrno)
+    memcpy(dstVal.pData, pTagData, dstVal.nData);
   } else {
-    dstVal.i64 = srcVal.i64;
+    if (!tTagGet(pTagData, &srcVal)) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (IS_VAR_DATA_TYPE(pSchema->type)) {
+      if (srcVal.pData != NULL && srcVal.nData > 0) {
+        dstVal.nData = srcVal.nData;
+        dstVal.pData = taosMemoryMalloc(dstVal.nData);
+        QUERY_CHECK_NULL(dstVal.pData, code, lino, _return, terrno)
+        memcpy(dstVal.pData, srcVal.pData, dstVal.nData);
+      }
+    } else {
+      dstVal.i64 = srcVal.i64;
+    }
   }
 
   // Replace existing entry with same cid if present

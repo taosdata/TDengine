@@ -104,6 +104,7 @@ models = {
     "tdtsfm": {
         "script": "tdtsfm-server.py",
         "default_model": None,
+        "ip": "127.0.0.1",
         "port": 6061,
         "endpoint": "/tdtsfm",
         "algo_name": "tdtsfm_1",
@@ -112,6 +113,7 @@ models = {
     "timemoe": {
         "script": "timemoe-server.py",
         "default_model": "Maple728/TimeMoE-200M",
+        "ip": "127.0.0.1",
         "port": 6062,
         "endpoint": "/ds_predict",
         "algo_name": "timemoe-fc",
@@ -120,6 +122,7 @@ models = {
     "moirai": {
         "script": "moirai-server.py",
         "default_model": "Salesforce/moirai-moe-1.0-R-small",
+        "ip": "127.0.0.1",
         "port": 6064,
         "endpoint": "/ds_predict",
         "required": False,  # Optional
@@ -127,13 +130,15 @@ models = {
     "chronos": {
         "script": "chronos-server.py",
         "default_model": "amazon/chronos-bolt-base",
+        "ip": "127.0.0.1",
         "port": 6063,
         "endpoint": "/ds_predict",
         "required": False,  # Optional
     },
     "timesfm": {
         "script": "timesfm-server.py",
-        "default_model": "google/timesfm-2.0-500m-pytorch",
+        "default_model": "google/timesfm-2.5-200m-pytorch",
+        "ip": "127.0.0.1",
         "port": 6065,
         "endpoint": "/ds_predict",
         "required": False,  # Optional
@@ -141,32 +146,17 @@ models = {
     "moment": {
         "script": "moment-server.py",
         "default_model": "AutonLab/MOMENT-1-base",
+        "ip": "127.0.0.1",
         "port": 6066,
         "endpoint": "/imputation",
         "required": False,  # Optional
     },
 }
 
-timesfm_venv = (
-    _os.path.join(_install_dir, "venvs", "timesfm_venv").replace("\\", "/")
-    if (on_windows or on_github_actions)
-    else "/var/lib/taos/taosanode/timesfm_venv"
-)
-moirai_venv = (
-    _os.path.join(_install_dir, "venvs", "moirai_venv").replace("\\", "/")
-    if (on_windows or on_github_actions)
-    else "/var/lib/taos/taosanode/moirai_venv"
-)
-chronos_venv = (
-    _os.path.join(_install_dir, "venvs", "chronos_venv").replace("\\", "/")
-    if (on_windows or on_github_actions)
-    else "/var/lib/taos/taosanode/chronos_venv"
-)
-momentfm_venv = (
-    _os.path.join(_install_dir, "venvs", "momentfm_venv").replace("\\", "/")
-    if (on_windows or on_github_actions)
-    else "/var/lib/taos/taosanode/momentfm_venv"
-)
+timesfm_venv = virtualenv
+moirai_venv = virtualenv
+chronos_venv = virtualenv
+momentfm_venv = virtualenv
 
 # Windows下waitress服务器配置（仅在Windows系统上使用）
 waitress_config = {

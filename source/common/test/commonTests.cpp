@@ -587,6 +587,75 @@ TEST(timeTest, timestamp2tm) {
                                0 /* hour start from 0*/, 0, 0, 000000000L);
 }
 
+TEST(timeTest, validateUnsignedPosixUtcTimezone) {
+  const struct {
+    const char* input;
+    const char* normalized;
+    int64_t     offsetSeconds;
+  } validCases[] = {
+      {"UTC0", "UTC+0", 0},
+      {"UTC8", "UTC+8", -8 * 3600},
+      {"UTC8:30", "UTC+8:30", -(8 * 3600 + 30 * 60)},
+      {"UTC13:59", "UTC+13:59", -(13 * 3600 + 59 * 60)},
+      {"UTC14", "UTC+14", -14 * 3600},
+      // The UTC prefix is case-insensitive on every validation path.
+      {"utc8", "UTC+8", -8 * 3600},
+      {"UtC8:30", "UTC+8:30", -(8 * 3600 + 30 * 60)},
+      {"utc+8", "UTC+8", -8 * 3600},
+      {"uTc-8", "UTC-8", 8 * 3600},
+      {"utc+08:00", "UTC+8", -8 * 3600},
+      {"utc", "UTC", 0},
+  };
+
+  for (const auto& test : validCases) {
+    char       normalized[TD_TIMEZONE_LEN] = {0};
+    timezone_t normalizedTz = NULL;
+    ASSERT_EQ(taosValidateAndNormalizeTimezone(
+                  test.input, normalized, sizeof(normalized), &normalizedTz),
+              TSDB_CODE_SUCCESS)
+        << test.input;
+    EXPECT_STREQ(normalized, test.normalized);
+
+    int64_t offsetSeconds = 0;
+    ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(0, normalizedTz,
+                                             &offsetSeconds),
+              TSDB_CODE_SUCCESS);
+    EXPECT_EQ(offsetSeconds, test.offsetSeconds) << test.input;
+    tzfree(normalizedTz);
+
+    timezone_t directTz = NULL;
+    ASSERT_EQ(taosValidateTimezone(test.input, &directTz),
+              TSDB_CODE_SUCCESS)
+        << test.input;
+    ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(0, directTz, &offsetSeconds),
+              TSDB_CODE_SUCCESS);
+    EXPECT_EQ(offsetSeconds, test.offsetSeconds) << test.input;
+    tzfree(directTz);
+  }
+
+  char tooSmall[sizeof("UTC+13:59") - 1] = {0};
+  EXPECT_EQ(taosValidateAndNormalizeTimezone(
+                "UTC13:59", tooSmall, sizeof(tooSmall), NULL),
+            TSDB_CODE_PAR_INVALID_TIMEZONE);
+
+  const char* const invalidCases[] = {
+      "UTC15",
+      "UTC14:01",
+      "UTC8:60",
+      "UTC8EDT",
+  };
+  for (const char* input : invalidCases) {
+    char normalized[TD_TIMEZONE_LEN] = {0};
+    EXPECT_EQ(taosValidateAndNormalizeTimezone(
+                  input, normalized, sizeof(normalized), NULL),
+              TSDB_CODE_PAR_INVALID_TIMEZONE)
+        << input;
+    EXPECT_EQ(taosValidateTimezone(input, NULL),
+              TSDB_CODE_PAR_INVALID_TIMEZONE)
+        << input;
+  }
+}
+
 void test_ts2char(int64_t ts, const char* format, int32_t precison, const char* expected) {
   char    buf[256] = {0};
   int32_t code = TEST_ts2char(format, ts, precison, buf, 256);

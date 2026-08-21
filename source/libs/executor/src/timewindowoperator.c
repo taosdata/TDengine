@@ -2553,6 +2553,13 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
   setOperatorInfo(pOperator, "TimeIntervalAggOperator", QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
 
+  if (downstream != NULL && downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    STableScanInfo* pTableScanInfo = downstream->info;
+    pTableScanInfo->base.pdInfo.interval = pInfo->interval;
+    pTableScanInfo->base.pdInfo.pExprSup = &pOperator->exprSupp;
+    pTableScanInfo->base.pdInfo.pAggSup = &pInfo->aggSup;
+  }
+
   pOperator->fpSet = createOperatorFpSet(doOpenIntervalAgg, doBuildIntervalResultNext, NULL, destroyIntervalOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorResetStateFn(pOperator, resetIntervalOperState);

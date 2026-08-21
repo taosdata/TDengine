@@ -1058,12 +1058,12 @@ end_opt(A) ::= END WITH TIMESTAMP NK_STRING(B).                                 
 
 /************************************************ create/drop table/stable ********************************************/
 cmd ::= CREATE TABLE not_exists_opt(A) full_table_name(B)
-  NK_LP column_def_list(C) NK_RP tags_def_opt(D) table_options(E).                { pCxt->pRootNode = createCreateTableStmt(pCxt, A, B, C, D, E); }
+  NK_LP column_def_list(C) NK_RP tags_def_opt(D) table_options(E).                { pCxt->pRootNode = createCreateTableStmt(pCxt, A, false, B, C, D, E); }
 cmd ::= CREATE TABLE multi_create_clause(A).                                      { pCxt->pRootNode = createCreateMultiTableStmt(pCxt, A); }
 cmd ::= CREATE TABLE not_exists_opt(B) USING full_table_name(C)
   NK_LP tag_list_opt(D) NK_RP FILE NK_STRING(E).                                  { pCxt->pRootNode = createCreateSubTableFromFileClause(pCxt, B, C, D, &E); }
 cmd ::= CREATE STABLE not_exists_opt(A) full_table_name(B)
-  NK_LP column_def_list(C) NK_RP tags_def(D) table_options(E).                    { pCxt->pRootNode = createCreateTableStmt(pCxt, A, B, C, D, E); }
+  NK_LP column_def_list(C) NK_RP tags_def(D) table_options(E).                    { pCxt->pRootNode = createCreateTableStmt(pCxt, A, true, B, C, D, E); }
 cmd ::= CREATE STABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_def_list(C) NK_RP tags_def(D) BASE ON base_on_list(F) table_options(E).
                                                                                    { pCxt->pRootNode = createCreateInheritedStableStmt(pCxt, A, B, C, D, F, E); }
@@ -1071,7 +1071,7 @@ cmd ::= CREATE STABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_def_list(C) NK_RP BASE ON base_on_list(F) table_options(E).
                                                                                    { pCxt->pRootNode = createCreateInheritedStableStmt(pCxt, A, B, C, NULL, F, E); }
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
-  NK_LP column_def_list(C) NK_RP series_clause_opt(D).                            { pCxt->pRootNode = createCreateVTableStmt(pCxt, A, B, C, D); }
+  NK_LP column_def_list(C) NK_RP series_clause_opt(S) vtags_def_opt(T).           { pCxt->pRootNode = createCreateVTableStmt(pCxt, A, B, C, S, T); }
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
   NK_LP specific_column_ref_list(C) NK_RP USING full_table_name(D)
   specific_cols_opt(E) TAGS NK_LP vtags_literal_list(F) NK_RP
@@ -1085,7 +1085,7 @@ cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B) USING full_table_name
   series_clause_opt(F).                                                           { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, NULL, NULL, C, D, E, NULL, NULL, F); }
 cmd ::= DROP TABLE with_opt(A) multi_drop_clause(B).                              { pCxt->pRootNode = createDropTableStmt(pCxt, A, B); }
 cmd ::= DROP STABLE with_opt(A) exists_opt(B) full_table_name(C).                 { pCxt->pRootNode = createDropSuperTableStmt(pCxt, A, B, C); }
-cmd ::= DROP VTABLE with_opt(A) exists_opt(B) full_table_name(C).                 { pCxt->pRootNode = createDropVirtualTableStmt(pCxt, A, B, C); }
+cmd ::= DROP VTABLE with_opt(A) multi_drop_clause(B).                            { pCxt->pRootNode = createDropVirtualTableStmt(pCxt, A, B); }
 
 cmd ::= ALTER TABLE alter_table_clause(A).                                        { pCxt->pRootNode = A; }
 cmd ::= ALTER STABLE alter_table_clause(A).                                       { pCxt->pRootNode = setAlterSuperTableType(A); }
@@ -1104,6 +1104,8 @@ alter_table_clause(A) ::=
   full_table_name(B) RENAME COLUMN column_name(C) column_name(D).                 { A = createAlterTableRenameCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, &C, &D); }
 alter_table_clause(A) ::=
   full_table_name(B) ADD TAG column_name(C) type_name(D).                         { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_ADD_TAG, &C, D); }
+alter_table_clause(A) ::=
+  full_table_name(B) ADD TAG column_name(C) type_name(D) FROM column_ref(E).      { A = createAlterTableAddTagRef(pCxt, B, TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF, &C, D, E); }
 alter_table_clause(A) ::= full_table_name(B) DROP TAG column_name(C).             { A = createAlterTableDropCol(pCxt, B, TSDB_ALTER_TABLE_DROP_TAG, &C); }
 alter_table_clause(A) ::=
   full_table_name(B) MODIFY TAG column_name(C) type_name(D).                      { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_TAG_BYTES, &C, D); }
@@ -1207,6 +1209,26 @@ full_table_name(A) ::= db_name(B) NK_DOT db_name(C) NK_DOT table_name(D).
 tag_def_list(A) ::= tag_def(B).                                                   { A = createNodeList(pCxt, B); }
 tag_def_list(A) ::= tag_def_list(B) NK_COMMA tag_def(C).                          { A = addNodeToList(pCxt, B, C); }
 tag_def(A) ::= column_name(B) type_name(C).                                       { A = createColumnDefNode(pCxt, &B, C, NULL); }
+// `name TYPE = literal` marks CREATE TABLE as normal-table creation with owned tags
+// (valueless TAGS keeps the historical super-table semantics).
+tag_def(A) ::= column_name(B) type_name(C) NK_EQ tags_literal(E).                 { A = createColumnDefNodeWithTagVal(pCxt, &B, C, NULL, E); }
+
+// Virtual normal table tags: owned tag and tag-ref. Reuses column_options so that
+// `name TYPE FROM db.tb.tag` yields a tag-ref (hasRef) exactly like a column reference.
+%type vtags_def_opt                                                               { SNodeList* }
+%destructor vtags_def_opt                                                         { nodesDestroyList($$); }
+vtags_def_opt(A) ::= .                                                            { A = NULL; }
+vtags_def_opt(A) ::= TAGS NK_LP vtag_def_list(B) NK_RP.                           { A = B; }
+
+%type vtag_def_list                                                               { SNodeList* }
+%destructor vtag_def_list                                                         { nodesDestroyList($$); }
+vtag_def_list(A) ::= vtag_def(B).                                                 { A = createNodeList(pCxt, B); }
+vtag_def_list(A) ::= vtag_def_list(B) NK_COMMA vtag_def(C).                       { A = addNodeToList(pCxt, B, C); }
+
+%type vtag_def                                                                    { SNode* }
+%destructor vtag_def                                                              { nodesDestroyNode($$); }
+vtag_def(A) ::= column_name(B) type_name(C) column_options(D).                    { A = createColumnDefNode(pCxt, &B, C, D); }
+vtag_def(A) ::= column_name(B) type_name(C) NK_EQ tags_literal(E).                { A = createColumnDefNodeWithTagVal(pCxt, &B, C, NULL, E); }
 
 %type column_def_list                                                             { SNodeList* }
 %destructor column_def_list                                                       { nodesDestroyList($$); }

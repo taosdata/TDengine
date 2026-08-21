@@ -13,6 +13,7 @@
 #include "restoreMeta.h"
 #include "restoreData.h"
 #include "bckProgress.h"
+#include "bckUtil.h"
 
 #ifdef COMPAT_AVRO_ENABLED
 #include "compatAvro.h"
@@ -28,17 +29,26 @@
 // ------------------- main ---------------------
 //
 
+#ifdef COMPAT_AVRO_ENABLED
+// Build the per-database path and report whether it holds an old taosdump
+// AVRO-format backup, which is restored by a self-contained code path.
+static bool isAvroDb(const char *dbName, char *outPath, int outLen) {
+    snprintf(outPath, outLen, "%s/%s", argOutPath(), dbName);
+    return isAvroBackupDir(outPath);
+}
+#endif
+
 //
-// restore database: meta first, then data
+// restore one database's basic content: meta (schemas + tags) first, then data
 //
-static int restoreDatabase(const char *dbName) {
+static int restoreDatabaseBasic(const char *dbName) {
     int code = TSDB_CODE_FAILED;
 
 #ifdef COMPAT_AVRO_ENABLED
-    // Check if this is a taosdump AVRO backup directory
+    // AVRO backups carry their own layout and restore order (including a second
+    // pass for virtual tables), so the whole database is handled here.
     char avroDbPath[MAX_PATH_LEN];
-    snprintf(avroDbPath, sizeof(avroDbPath), "%s/%s", argOutPath(), dbName);
-    if (isAvroBackupDir(avroDbPath)) {
+    if (isAvroDb(dbName, avroDbPath, sizeof(avroDbPath))) {
         logInfo("detected taosdump AVRO format for db: %s", dbName);
         code = restoreAvroDatabase(avroDbPath);
         if (code != 0) {
@@ -66,6 +76,31 @@ static int restoreDatabase(const char *dbName) {
     }
 
     return code;
+}
+
+//
+// restore one database's extended metadata: virtual tables, streams, topics
+//
+static int restoreDatabaseExtMetaOne(const char *dbName, bool needCreateDb) {
+#ifdef COMPAT_AVRO_ENABLED
+    // AVRO backups have no vtb.sql / stream.sql / topic.sql; their virtual
+    // tables were already handled inside restoreAvroDatabase() during stage 1.
+    char avroDbPath[MAX_PATH_LEN];
+    if (isAvroDb(dbName, avroDbPath, sizeof(avroDbPath))) {
+        if (needCreateDb) {
+            // needCreateDb means stage 1 (which does the AVRO restore) never
+            // ran for this db, i.e. --content=ext-meta was used alone. There
+            // is nothing this stage can restore for an AVRO backup in that mode.
+            logError("db %s is a taosdump AVRO backup: --content=ext-meta cannot "
+                      "restore it standalone, run without --content or with basic+ext-meta", dbName);
+            return TSDB_CODE_BCK_INVALID_COMBINATION;
+        }
+        logWarn("db %s is a taosdump AVRO backup, ext meta stage skipped", dbName);
+        return TSDB_CODE_SUCCESS;
+    }
+#endif
+
+    return restoreDatabaseExtMeta(dbName, needCreateDb);
 }
 
 //
@@ -159,31 +194,100 @@ int restoreMain() {
     }
     g_progress.dbTotal = g_stats.dbTotal;
 
-    // loop restore each database (serial)
-    for (int i = 0; backDB[i] != NULL; i++) {
-        g_progress.dbIndex = i + 1;
-        snprintf(g_progress.dbName, sizeof(g_progress.dbName), "%s", backDB[i]);
-        // reset per-DB progress fields for each database
-        g_progress.stbTotal = 0;
-        g_progress.stbIndex = 0;
-        g_progress.stbName[0] = '\0';
-        atomic_store_64(&g_progress.ctbTotalAll, 0);
-        atomic_store_64(&g_progress.ctbDoneAll, 0);
-        atomic_store_64(&g_progress.ctbDoneCur, 0);
-        g_progress.ctbTotalCur = 0;
-        const char *targetDb = argRenameDb(backDB[i]);
-        if (strcmp(targetDb, backDB[i]) != 0) {
-            logInfo("[%d/%d] db: %s -> %s  restore start",
-                    i + 1, (int)g_stats.dbTotal, backDB[i], targetDb);
+    // Validate user-specified table names (positional args) exist in the backup
+    // files before starting any restore work.
+    if (argSpecTables()) {
+        for (int i = 0; backDB[i] != NULL; i++) {
+            code = validateSpecTablesForRestore(backDB[i]);
+            if (code != TSDB_CODE_SUCCESS) {
+                logError("spec-table validation failed for database '%s'", backDB[i]);
+                if (allDBs) freeArrayPtr(allDBs);
+                return code;
+            }
         }
+    }
 
-        // restore: meta + data
-        code = restoreDatabase(backDB[i]);
-        if (code == TSDB_CODE_SUCCESS) {
-            g_stats.dbSuccess++;
-        } else {
-            g_stats.dbFailed++;
-            break;
+    code = TSDB_CODE_SUCCESS;
+
+    //
+    // Stage 1: basic content (physical tables + data) for ALL databases.
+    //
+    // This must finish across every database before any extended metadata runs,
+    // because a virtual table in one database can reference tables in another.
+    //
+    if (argContentBasic()) {
+        for (int i = 0; backDB[i] != NULL; i++) {
+            g_progress.dbIndex = i + 1;
+            snprintf(g_progress.dbName, sizeof(g_progress.dbName), "%s", backDB[i]);
+            // reset per-DB progress fields for each database
+            g_progress.stbTotal = 0;
+            g_progress.stbIndex = 0;
+            g_progress.stbName[0] = '\0';
+            atomic_store_64(&g_progress.ctbTotalAll, 0);
+            atomic_store_64(&g_progress.ctbDoneAll, 0);
+            atomic_store_64(&g_progress.ctbDoneCur, 0);
+            g_progress.ctbTotalCur = 0;
+            const char *targetDb = argRenameDb(backDB[i]);
+            if (strcmp(targetDb, backDB[i]) != 0) {
+                logInfo("[%d/%d] db: %s -> %s  restore start",
+                        i + 1, (int)g_stats.dbTotal, backDB[i], targetDb);
+            }
+
+            // restore: meta + data
+            code = restoreDatabaseBasic(backDB[i]);
+            if (code == TSDB_CODE_SUCCESS) {
+                g_stats.dbSuccess++;
+            } else {
+                g_stats.dbFailed++;
+                break;
+            }
+        }
+    }
+
+    //
+    // Stage 2: extended metadata (virtual tables, streams, topics) for ALL databases.
+    //
+    // Every database's physical tables now exist, so cross-database references
+    // resolve regardless of the order the databases are listed in.
+    //
+    if (argContentExtMeta() && code == TSDB_CODE_SUCCESS && !g_interrupted) {
+        // With --content=ext-meta the basic stage never ran, so each database
+        // must be created here and counted here (stage 1 does the counting
+        // otherwise, and double-counting would corrupt the end summary).
+        bool extMetaOnly = !argContentBasic();
+
+        for (int i = 0; backDB[i] != NULL; i++) {
+            g_progress.dbIndex = i + 1;
+            snprintf(g_progress.dbName, sizeof(g_progress.dbName), "%s", backDB[i]);
+            g_progress.stbTotal   = 0;
+            g_progress.stbIndex   = 0;
+            g_progress.stbName[0] = '\0';
+            // Clear the CTB counters left over from the previous database (or
+            // stage 1).  The progress thread goes quiet once ctbDoneCur >=
+            // ctbTotalCur, so stale "complete" counters would suppress the
+            // whole ext-meta phase display for this database.
+            atomic_store_64(&g_progress.ctbTotalAll, 0);
+            atomic_store_64(&g_progress.ctbDoneAll, 0);
+            atomic_store_64(&g_progress.ctbDoneCur, 0);
+            g_progress.ctbTotalCur = 0;
+
+            logInfo("[%d/%d] db: %s  ext meta restore start",
+                    i + 1, (int)g_stats.dbTotal, backDB[i]);
+
+            code = restoreDatabaseExtMetaOne(backDB[i], extMetaOnly);
+            if (code == TSDB_CODE_SUCCESS) {
+                if (extMetaOnly) g_stats.dbSuccess++;
+            } else {
+                if (extMetaOnly) {
+                    g_stats.dbFailed++;
+                } else {
+                    // stage 1 already counted this db as dbSuccess; reverse
+                    // that now that stage 2 failed for it.
+                    g_stats.dbSuccess--;
+                    g_stats.dbFailed++;
+                }
+                break;
+            }
         }
     }
 
