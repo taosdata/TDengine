@@ -706,6 +706,8 @@ static void *tQueryAutoQWorkerThreadFp(SQueryAutoQWorker *worker) {
 
     if (pool->stopNoWaitQueue && pool->exit) {
       uInfo("worker:%s:%d exit, thread:%08" PRId64, pool->name, worker->id, worker->pid);
+      taosFreeQueueItem(qinfo.queue, msg);
+      taosUpdateItemSize(qinfo.queue, 1);
       break;
     }
 

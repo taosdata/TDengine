@@ -145,6 +145,9 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
         res = walkExpr(pInterval->pSliding, order, walker, pContext);
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pInterval->pSOffset, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pInterval->pFill, order, walker, pContext);
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
@@ -265,6 +268,12 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       }
       break;
     }
+    case QUERY_NODE_STREAM_WINDOW_PLAN:
+      res = walkExprs(((SStreamWindowPlanNode*)pNode)->pLayers, order, walker, pContext);
+      break;
+    case QUERY_NODE_STREAM_WINDOW_LAYER:
+      res = walkExpr(((SStreamWindowLayerNode*)pNode)->pWindow, order, walker, pContext);
+      break;
     case QUERY_NODE_STREAM_TRIGGER_OPTIONS: {
       SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pNode;
       res = walkExpr(pOptions->pPreFilter, order, walker, pContext);
@@ -484,6 +493,12 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       }
       break;
     }
+    case QUERY_NODE_STREAM_WINDOW_PLAN:
+      res = rewriteExprs(((SStreamWindowPlanNode*)pNode)->pLayers, order, rewriter, pContext);
+      break;
+    case QUERY_NODE_STREAM_WINDOW_LAYER:
+      res = rewriteExpr(&((SStreamWindowLayerNode*)pNode)->pWindow, order, rewriter, pContext);
+      break;
     case QUERY_NODE_NODE_LIST:
       res = rewriteExprs(((SNodeListNode*)pNode)->pNodeList, order, rewriter, pContext);
       break;

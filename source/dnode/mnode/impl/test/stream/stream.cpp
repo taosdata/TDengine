@@ -16,12 +16,18 @@
 #include <gtest/gtest.h>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <iostream>
 #include <limits>
+#include <mutex>
 #include <string>
 #include <thread>
+#include <utility>
+#include <vector>
+#include "functionMgt.h"
 #include "nodes.h"
 #include "planner.h"
 #include "stub.h"
@@ -35,8 +41,14 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
 #include <libs/transport/trpc.h>
+#include "../../inc/mndDb.h"
+#include "../../inc/mndExtSource.h"
+#include "../../inc/mndPrivilege.h"
 #include "../../inc/mndSnode.h"
+#include "../../inc/mndStb.h"
 #include "../../inc/mndStream.h"
+#include "../../inc/mndUser.h"
+#include "../../inc/mndVgroup.h"
 
 extern "C" int32_t msmBuildTriggerDeployInfo(SMnode *pMnode, SStmStatus *pInfo, SStmTaskDeploy *pDeploy,
                                              SStreamObj *pStream);
@@ -152,6 +164,43 @@ TEST(MndStreamFailureReportTest, DoesNotReportWhenStoppedCompareExchangeFails) {
   EXPECT_EQ(gStoppedCompareExchangeCalls, 1);
   EXPECT_EQ(atomic_load_8(&status.stopped), 0);
   EXPECT_EQ(gCapturedStreamFailure.calls, 0);
+}
+
+class StreamTest : public ::testing::Test {
+ protected:
+  static SStreamWindowPlan* makeSessionPlan() {
+    auto* pPlan = static_cast<SStreamWindowPlan*>(taosMemoryCalloc(1, sizeof(SStreamWindowPlan)));
+    if (pPlan == nullptr) return nullptr;
+    pPlan->version = STREAM_WINDOW_PLAN_VERSION;
+    pPlan->pLayers = taosArrayInit(2, sizeof(SStreamWindowLayerSpec));
+    if (pPlan->pLayers == nullptr) {
+      tDestroyStreamWindowPlan(&pPlan);
+      return nullptr;
+    }
+
+    SStreamWindowLayerSpec outer = {};
+    tstrncpy(outer.name, "outer", sizeof(outer.name));
+    outer.triggerType = WINDOW_TYPE_SESSION;
+    outer.trigger.session.sessionVal = 20;
+    if (taosArrayPush(pPlan->pLayers, &outer) == nullptr) {
+      tDestroyStreamWindowPlan(&pPlan);
+      return nullptr;
+    }
+
+    SStreamWindowLayerSpec leaf = {};
+    leaf.triggerType = WINDOW_TYPE_SESSION;
+    leaf.trigger.session.sessionVal = 10;
+    if (taosArrayPush(pPlan->pLayers, &leaf) == nullptr) {
+      tDestroyStreamWindowPlan(&pPlan);
+      return nullptr;
+    }
+    return pPlan;
+  }
+};
+
+int32_t failWindowPlanClone(const SStreamWindowPlan*, SStreamWindowPlan** ppPlan) {
+  *ppPlan = nullptr;
+  return TSDB_CODE_OUT_OF_MEMORY;
 }
 
 STrans *createTestTrans() {
@@ -2073,6 +2122,147 @@ TEST_F(MndStreamTest, TaskRemovalCleansMetricsAndTriggerRuntimeStatus) {
   mstDestroySStmTaskStatus(&status);
 }
 
+TEST_F(StreamTest, StreamDeployWindowPlanDeepOwnsPersistedPlan) {
+  SCMCreateStreamReq create = {};
+  create.streamId = 42;
+  create.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  create.pWindowPlan = makeSessionPlan();
+  ASSERT_NE(nullptr, create.pWindowPlan);
+
+  SStmStatus status = {};
+  status.pCreate = &create;
+  SStreamObj stream = {};
+  stream.pCreate = &create;
+  SStmTaskDeploy deploy = {};
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, msmBuildTriggerDeployInfo(nullptr, &status, &deploy, &stream));
+  ASSERT_NE(nullptr, deploy.msg.trigger.pWindowPlan);
+  EXPECT_NE(create.pWindowPlan, deploy.msg.trigger.pWindowPlan);
+  EXPECT_NE(create.pWindowPlan->pLayers, deploy.msg.trigger.pWindowPlan->pLayers);
+
+  auto* pSourceOuter = static_cast<SStreamWindowLayerSpec*>(taosArrayGet(create.pWindowPlan->pLayers, 0));
+  auto* pDeployOuter = static_cast<SStreamWindowLayerSpec*>(taosArrayGet(deploy.msg.trigger.pWindowPlan->pLayers, 0));
+  pSourceOuter->trigger.session.sessionVal = 99;
+  EXPECT_EQ(20, pDeployOuter->trigger.session.sessionVal);
+
+  tDestroyStreamWindowPlan(&create.pWindowPlan);
+  EXPECT_EQ(20, pDeployOuter->trigger.session.sessionVal);
+  tDestroyStreamWindowPlan(&deploy.msg.trigger.pWindowPlan);
+}
+
+TEST_F(StreamTest, StreamDeployWindowPlanPropagatesRunnerCapability) {
+  SCMCreateStreamReq create = {};
+  create.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN | STREAM_OPTION_FLUSH_ON_OUTER_CLOSE;
+
+  SStmStatus status = {};
+  status.pCreate = &create;
+  atomic_store_32(&status.runnerReplica, 1);
+  SStreamObj stream = {};
+  stream.pCreate = &create;
+  SStmTaskDeploy deploy = {};
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, msmBuildRunnerDeployInfo(&deploy, nullptr, &stream, &status, true));
+  EXPECT_TRUE(BIT_FLAG_TEST_MASK(deploy.msg.runner.addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN));
+  EXPECT_TRUE(BIT_FLAG_TEST_MASK(deploy.msg.runner.addOptions, STREAM_OPTION_FLUSH_ON_OUTER_CLOSE));
+}
+
+TEST_F(StreamTest, StreamDeployNonVirtualNestedTrowsPropagatesCacheScanPlans) {
+  SCMCreateStreamReq create = {};
+  create.streamId = 42;
+  create.triggerTblType = TSDB_SUPER_TABLE;
+  create.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  create.placeHolderBitmap = PLACE_HOLDER_PARTITION_ROWS;
+  create.pWindowPlan = makeSessionPlan();
+  create.triggerScanPlan = const_cast<char*>("trigger-plan");
+  create.calcScanPlanList = taosArrayInit(1, sizeof(SStreamCalcScan));
+  ASSERT_NE(nullptr, create.pWindowPlan);
+  ASSERT_NE(nullptr, create.calcScanPlanList);
+  SStreamCalcScan calcScan = {};
+  calcScan.readFromCache = true;
+  calcScan.scanPlan = const_cast<char *>("calc-plan");
+  ASSERT_NE(nullptr, taosArrayPush(create.calcScanPlanList, &calcScan));
+
+  SStmStatus status = {};
+  status.pCreate = &create;
+  SStreamObj stream = {};
+  stream.pCreate = &create;
+  SStmTaskDeploy deploy = {};
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, msmBuildTriggerDeployInfo(nullptr, &status, &deploy, &stream));
+  EXPECT_STREQ("trigger-plan", static_cast<const char*>(deploy.msg.trigger.triggerScanPlan));
+  EXPECT_STREQ("calc-plan", static_cast<const char*>(deploy.msg.trigger.calcCacheScanPlan));
+
+  tDestroyStreamWindowPlan(&deploy.msg.trigger.pWindowPlan);
+  tDestroyStreamWindowPlan(&create.pWindowPlan);
+  taosArrayDestroy(create.calcScanPlanList);
+}
+
+TEST_F(StreamTest, LocalTriggerWithExternalCalcSourceKeepsNestedCacheScanPlans) {
+  SCMCreateStreamReq create = {};
+  create.streamId = 42;
+  create.triggerTblType = TSDB_SUPER_TABLE;
+  create.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  create.placeHolderBitmap = PLACE_HOLDER_PARTITION_ROWS;
+  create.pWindowPlan = makeSessionPlan();
+  create.triggerScanPlan = const_cast<char *>("trigger-plan");
+  create.calcScanPlanList = taosArrayInit(1, sizeof(SStreamCalcScan));
+  ASSERT_NE(nullptr, create.pWindowPlan);
+  ASSERT_NE(nullptr, create.calcScanPlanList);
+  SStreamCalcScan calcScan = {};
+  calcScan.readFromCache = true;
+  calcScan.scanPlan = const_cast<char *>("calc-plan");
+  ASSERT_NE(nullptr, taosArrayPush(create.calcScanPlanList, &calcScan));
+
+  SStmStatus status = {};
+  status.pCreate = &create;
+  SStreamObj stream = {};
+  stream.flags = STREAM_FLAG_REF_EXT_SOURCE;
+  stream.pCreate = &create;
+  SStmTaskDeploy deploy = {};
+  deploy.task.flags = 0;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, msmBuildTriggerDeployInfo(nullptr, &status, &deploy, &stream));
+  EXPECT_STREQ("trigger-plan", static_cast<const char *>(deploy.msg.trigger.triggerScanPlan));
+  EXPECT_STREQ("calc-plan", static_cast<const char *>(deploy.msg.trigger.calcCacheScanPlan));
+
+  tDestroyStreamWindowPlan(&deploy.msg.trigger.pWindowPlan);
+  tDestroyStreamWindowPlan(&create.pWindowPlan);
+  taosArrayDestroy(create.calcScanPlanList);
+}
+
+TEST_F(StreamTest, StreamDeployWindowPlanCloneFailureKeepsPersistedPlan) {
+  SCMCreateStreamReq create = {};
+  create.streamId = 42;
+  create.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  create.pWindowPlan = makeSessionPlan();
+  ASSERT_NE(nullptr, create.pWindowPlan);
+  SStreamWindowPlan* pPersistedPlan = create.pWindowPlan;
+
+  SStmStatus status = {};
+  status.pCreate = &create;
+  SStreamObj stream = {};
+  stream.pCreate = &create;
+  SStmTaskDeploy deploy = {};
+  Stub           stub;
+  stub.set(tCloneStreamWindowPlan, failWindowPlanClone);
+
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, msmBuildTriggerDeployInfo(nullptr, &status, &deploy, &stream));
+  EXPECT_EQ(pPersistedPlan, create.pWindowPlan);
+  EXPECT_EQ(nullptr, deploy.msg.trigger.pWindowPlan);
+
+  tDestroyStreamWindowPlan(&create.pWindowPlan);
+}
+
+TEST_F(StreamTest, StreamDeployWindowPlanUndeployedOwnerCleanup) {
+  SStmTaskToDeployExt pending = {};
+  pending.deploy.task.type = STREAM_TRIGGER_TASK;
+  pending.deploy.msg.trigger.pWindowPlan = makeSessionPlan();
+  ASSERT_NE(nullptr, pending.deploy.msg.trigger.pWindowPlan);
+
+  mstDestroySStmTaskToDeployExt(&pending);
+  EXPECT_EQ(nullptr, pending.deploy.msg.trigger.pWindowPlan);
+}
+
 TEST(MndStreamTransTest, AppendFailureDoesNotDropCallerOwnedTrans) {
   STrans *pTrans = createTestTrans();
   ASSERT_NE(pTrans, nullptr);
@@ -2519,6 +2709,1657 @@ void initNodeInfo() {
 }
 }  // namespace
 
+*/
+// clang-format on
+
+namespace {
+
+class MndStreamCreateMetadataTest;
+
+MndStreamCreateMetadataTest* gCreateMetadataTest = nullptr;
+
+int32_t testSdbSetTable(SSdb*, SSdbTable) { return TSDB_CODE_SUCCESS; }
+
+int32_t testGrantCheck(EGrantType) { return TSDB_CODE_SUCCESS; }
+
+int32_t testAssignSnode(SMnode*, int64_t) { return 1; }
+
+void testBecomeNotLeader(SMnode*) {}
+
+class MndStreamCreateMetadataTest : public testing::Test {
+ public:
+  static int32_t acquireStream(SMnode*, char*, SStreamObj** ppStream) {
+    *ppStream = nullptr;
+    return TSDB_CODE_MND_STREAM_NOT_EXIST;
+  }
+
+  static int32_t acquireUser(SMnode*, const char*, SUserObj** ppUser) {
+    *ppUser = &gCreateMetadataTest->user_;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  static void releaseUser(SMnode*, SUserObj*) {}
+
+  static int32_t checkDbPrivilege(SMnode*, const char*, const char*, EOperType, const char*, bool) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  static int32_t getSdbSize(SSdb*, ESdbType) { return 0; }
+
+  static SDbObj* acquireDb(SMnode*, const char*) {
+    return gCreateMetadataTest->returnDb_ ? &gCreateMetadataTest->db_ : nullptr;
+  }
+
+  static void releaseDb(SMnode*, SDbObj*) {}
+
+  static SStbObj* acquireStb(SMnode*, char*) {
+    if (gCreateMetadataTest->blockStbLookup_) {
+      std::unique_lock<std::mutex> lock(gCreateMetadataTest->stbLookupMutex_);
+      gCreateMetadataTest->stbLookupEntered_ = true;
+      gCreateMetadataTest->stbLookupCv_.notify_all();
+      if (!gCreateMetadataTest->stbLookupCv_.wait_for(lock, std::chrono::seconds(5),
+                                                      [] { return gCreateMetadataTest->releaseStbLookup_; })) {
+        gCreateMetadataTest->stbLookupTimedOut_ = true;
+      }
+    }
+    return gCreateMetadataTest->returnStb_ ? &gCreateMetadataTest->stb_ : nullptr;
+  }
+
+  static void releaseStb(SMnode*, SStbObj*) {}
+
+  static SExtSourceObj* acquireExtSource(SMnode*, const char* sourceName) {
+    gCreateMetadataTest->acquiredExtSources_.emplace_back(sourceName == nullptr ? "" : sourceName);
+    return gCreateMetadataTest->returnExtSource_ ? &gCreateMetadataTest->extSource_ : nullptr;
+  }
+
+  static void releaseExtSource(SMnode*, SExtSourceObj*) {}
+
+  static int32_t buildDbVgroups(SMnode*, SSHashObj** ppVgroups) {
+    if (gCreateMetadataTest->blockVgroupLookup_) {
+      std::unique_lock<std::mutex> lock(gCreateMetadataTest->vgroupLookupMutex_);
+      gCreateMetadataTest->vgroupLookupEntered_ = true;
+      gCreateMetadataTest->vgroupLookupCv_.notify_all();
+      if (!gCreateMetadataTest->vgroupLookupCv_.wait_for(lock, std::chrono::seconds(5),
+                                                         [] { return gCreateMetadataTest->releaseVgroupLookup_; })) {
+        gCreateMetadataTest->vgroupLookupTimedOut_ = true;
+      }
+    }
+    *ppVgroups = reinterpret_cast<SSHashObj*>(static_cast<uintptr_t>(0x2001));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  static void destroyDbVgroups(SSHashObj*) {}
+
+  static int32_t getTableVgId(SSHashObj*, char*, char*, int32_t* pVgId) {
+    *pVgId = gCreateMetadataTest->vgroup_.vgId;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  static SVgObj* acquireVgroup(SMnode*, int32_t vgId) {
+    return vgId == gCreateMetadataTest->vgroup_.vgId ? &gCreateMetadataTest->vgroup_ : nullptr;
+  }
+
+  static void releaseVgroup(SMnode*, SVgObj*) {}
+
+  static SEpSet getVgroupEpset(SMnode*, const SVgObj*) { return gCreateMetadataTest->epSet_; }
+
+  static int32_t createTrans(SMnode*, SStreamObj* pStream, SRpcMsg* pReq, ETrnConflct, const char*, STrans** ppTrans) {
+    ++gCreateMetadataTest->createTransCalls_;
+    gCreateMetadataTest->transactionOrigin_ = pReq->msgType;
+    if (pStream != nullptr && pStream->pCreate != nullptr) {
+      gCreateMetadataTest->transactionTableType_ = pStream->pCreate->triggerTblType;
+      gCreateMetadataTest->transactionTableUid_ = pStream->pCreate->triggerTblUid;
+      gCreateMetadataTest->transactionTableSuid_ = pStream->pCreate->triggerTblSuid;
+      gCreateMetadataTest->transactionVgId_ = pStream->pCreate->triggerTblVgId;
+      gCreateMetadataTest->transactionPrecision_ = pStream->pCreate->triggerPrec;
+      gCreateMetadataTest->transactionFlags_ = pStream->pCreate->flags;
+      SNodeList* pPartition = nullptr;
+      if (pStream->pCreate->partitionCols != nullptr &&
+          nodesStringToList(static_cast<const char*>(pStream->pCreate->partitionCols), &pPartition) ==
+              TSDB_CODE_SUCCESS &&
+          LIST_LENGTH(pPartition) == 1 && nodeType(nodesListGetNode(pPartition, 0)) == QUERY_NODE_COLUMN) {
+        auto* pColumn = reinterpret_cast<SColumnNode*>(nodesListGetNode(pPartition, 0));
+        gCreateMetadataTest->transactionPartitionColType_ = pColumn->colType;
+        gCreateMetadataTest->transactionPartitionDataType_ = pColumn->node.resType.type;
+        gCreateMetadataTest->transactionPartitionBytes_ = pColumn->node.resType.bytes;
+      }
+      nodesDestroyList(pPartition);
+    }
+    *ppTrans = nullptr;
+    return TSDB_CODE_ACTION_IN_PROGRESS;
+  }
+
+  static int32_t sendAsync(void*, SEpSet*, int64_t* pTransporterId, SMsgSendInfo* pSendInfo) {
+    ++gCreateMetadataTest->asyncSendCalls_;
+    if (gCreateMetadataTest->sendCode_ != TSDB_CODE_SUCCESS) {
+      const int32_t code = gCreateMetadataTest->sendCode_;
+      destroySendMsgInfo(pSendInfo);
+      return code;
+    }
+
+    if (gCreateMetadataTest->callbackBeforeSendReturn_) {
+      SDataBuf response = gCreateMetadataTest->makeCallbackResponse();
+      pSendInfo->fp(pSendInfo->param, &response, gCreateMetadataTest->callbackCode_);
+      destroySendMsgInfo(pSendInfo);
+      *pTransporterId = gCreateMetadataTest->transporterId_;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    *pTransporterId = gCreateMetadataTest->transporterId_;
+    gCreateMetadataTest->pendingSend_ = pSendInfo;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  static int32_t freeConnection(void*, int64_t transporterId) {
+    ++gCreateMetadataTest->freeConnectionCalls_;
+    gCreateMetadataTest->freedTransporterIds_.push_back(transporterId);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  static int32_t putToQueue(void*, EQueueType qtype, SRpcMsg* pMsg) {
+    EXPECT_EQ(WRITE_QUEUE, qtype);
+    ++gCreateMetadataTest->queueCalls_;
+    if (gCreateMetadataTest->blockQueue_) {
+      std::unique_lock<std::mutex> lock(gCreateMetadataTest->queueMutex_);
+      gCreateMetadataTest->queueEntered_ = true;
+      gCreateMetadataTest->queueCv_.notify_all();
+      if (!gCreateMetadataTest->queueCv_.wait_for(lock, std::chrono::seconds(5),
+                                                  [] { return gCreateMetadataTest->releaseQueue_; })) {
+        gCreateMetadataTest->queueTimedOut_ = true;
+      }
+    }
+    if (gCreateMetadataTest->queueCode_ != TSDB_CODE_SUCCESS) return gCreateMetadataTest->queueCode_;
+    if (gCreateMetadataTest->processQueueInline_) {
+      MndMsgFp continuation = gCreateMetadataTest->mnode_.msgFp[TMSG_INDEX(TDMT_MND_UNUSED1)];
+      EXPECT_NE(nullptr, continuation);
+      if (continuation == nullptr) return TSDB_CODE_INTERNAL_ERROR;
+      pMsg->info.node = &gCreateMetadataTest->mnode_;
+      EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, continuation(pMsg));
+      rpcFreeCont(pMsg->pCont);
+      pMsg->pCont = nullptr;
+      return TSDB_CODE_SUCCESS;
+    }
+    EXPECT_EQ(nullptr, gCreateMetadataTest->queuedMsg_.pCont);
+    gCreateMetadataTest->queuedMsg_ = *pMsg;
+    pMsg->pCont = nullptr;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  static int32_t sendResponse(const SRpcMsg* pRsp) {
+    ++gCreateMetadataTest->responseCalls_;
+    gCreateMetadataTest->lastResponseCode_ = pRsp->code;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  static void* failRpcMallocCont(int64_t) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return nullptr;
+  }
+
+  static void* timerInit(int32_t, int32_t, int32_t, const char*) {
+    return reinterpret_cast<void*>(static_cast<uintptr_t>(0x4001));
+  }
+
+  static void timerCleanup(void*) {}
+
+  static tmr_h timerStart(TAOS_TMR_CALLBACK callback, int32_t delayMs, void* param, void*) {
+    ++gCreateMetadataTest->timerStartCalls_;
+    gCreateMetadataTest->timerDelayMs_ = delayMs;
+    gCreateMetadataTest->timerCallback_ = callback;
+    gCreateMetadataTest->timerParam_ = param;
+    if (gCreateMetadataTest->blockTimerStart_) {
+      std::unique_lock<std::mutex> lock(gCreateMetadataTest->timerStartMutex_);
+      gCreateMetadataTest->timerStartEntered_ = true;
+      gCreateMetadataTest->timerStartCv_.notify_all();
+      if (!gCreateMetadataTest->timerStartCv_.wait_for(lock, std::chrono::seconds(5),
+                                                       [] { return gCreateMetadataTest->releaseTimerStart_; })) {
+        gCreateMetadataTest->timerStartTimedOut_ = true;
+      }
+    }
+    return reinterpret_cast<tmr_h>(static_cast<uintptr_t>(0x4002));
+  }
+
+  static bool timerStopA(tmr_h* pTimer) {
+    ++gCreateMetadataTest->timerStopCalls_;
+    *pTimer = nullptr;
+    return gCreateMetadataTest->timerCanStop_;
+  }
+
+ protected:
+  void SetUp() override {
+    gCreateMetadataTest = this;
+    savedDisableStream_ = tsDisableStream;
+    tsDisableStream = false;
+#ifdef TD_ENTERPRISE
+    savedFederatedQueryEnable_ = tsFederatedQueryEnable;
+    tsFederatedQueryEnable = true;
+#endif
+
+    tstrncpy(user_.name, "root", sizeof(user_.name));
+    tstrncpy(db_.name, "0.test", sizeof(db_.name));
+    db_.uid = 700;
+    db_.cfg.precision = TSDB_TIME_PRECISION_MILLI;
+    vgroup_.vgId = 10;
+    epSet_.numOfEps = 1;
+    tstrncpy(epSet_.eps[0].fqdn, "localhost", sizeof(epSet_.eps[0].fqdn));
+    epSet_.eps[0].port = 6030;
+    extSource_.type = EXT_SOURCE_MYSQL;
+
+    tstrncpy(stb_.name, "0.test.meters", sizeof(stb_.name));
+    tstrncpy(stb_.db, "0.test", sizeof(stb_.db));
+    stb_.uid = 900;
+    stb_.dbUid = db_.uid;
+    stb_.numOfColumns = 2;
+    stb_.numOfTags = 1;
+    stbColumns_[0] = {};
+    stbColumns_[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+    stbColumns_[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+    stbColumns_[0].bytes = 8;
+    stbColumns_[1] = {};
+    stbColumns_[1].type = TSDB_DATA_TYPE_INT;
+    stbColumns_[1].colId = 2;
+    stbColumns_[1].bytes = 4;
+    stbTags_[0] = {};
+    stbTags_[0].type = TSDB_DATA_TYPE_VARCHAR;
+    stbTags_[0].colId = 3;
+    stbTags_[0].bytes = 16;
+    tstrncpy(stbColumns_[0].name, "ts", sizeof(stbColumns_[0].name));
+    tstrncpy(stbColumns_[1].name, "value", sizeof(stbColumns_[1].name));
+    tstrncpy(stbTags_[0].name, "tag_a", sizeof(stbTags_[0].name));
+    stbCmpr_[0].id = stbColumns_[0].colId;
+    stbCmpr_[1].id = stbColumns_[1].colId;
+    stb_.pColumns = stbColumns_;
+    stb_.pTags = stbTags_;
+    stb_.pCmpr = stbCmpr_;
+    taosInitRWLatch(&stb_.lock);
+
+    stub_.set(sdbSetTable, testSdbSetTable);
+    stub_.set(grantCheck, testGrantCheck);
+    stub_.set(msmAssignRandomSnodeId, testAssignSnode);
+    stub_.set(msmHandleBecomeNotLeader, testBecomeNotLeader);
+    stub_.set(mndAcquireStream, acquireStream);
+    stub_.set(mndAcquireUser, acquireUser);
+    stub_.set(mndReleaseUser, releaseUser);
+    stub_.set(mndCheckDbPrivilegeByName, checkDbPrivilege);
+    stub_.set(sdbGetSize, getSdbSize);
+    stub_.set(mndAcquireDb, acquireDb);
+    stub_.set(mndReleaseDb, releaseDb);
+    stub_.set(mndAcquireStb, acquireStb);
+    stub_.set(mndReleaseStb, releaseStb);
+    stub_.set(mndAcquireExtSource, acquireExtSource);
+    stub_.set(mndReleaseExtSource, releaseExtSource);
+    stub_.set(mstBuildDBVgroupsMap, buildDbVgroups);
+    stub_.set(mstDestroyDbVgroupsHash, destroyDbVgroups);
+    stub_.set(mstGetTableVgId, getTableVgId);
+    stub_.set(mndAcquireVgroup, acquireVgroup);
+    stub_.set(mndReleaseVgroup, releaseVgroup);
+    stub_.set(mndGetVgroupEpset, getVgroupEpset);
+    stub_.set(mndStreamCreateTrans, createTrans);
+    stub_.set(asyncSendMsgToServer, sendAsync);
+    stub_.set(asyncFreeConnById, freeConnection);
+    stub_.set(rpcSendResponse, sendResponse);
+    stub_.set(taosTmrInit, timerInit);
+    stub_.set(taosTmrCleanUp, timerCleanup);
+    stub_.set(taosTmrStart, timerStart);
+    stub_.set(taosTmrStopA, timerStopA);
+
+    mnode_.pSdb = &sdb_;
+    mnode_.msgCb.clientRpc = reinterpret_cast<void*>(static_cast<uintptr_t>(0x3001));
+    mnode_.msgCb.mgmt = this;
+    mnode_.msgCb.putToQueueFp = putToQueue;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, mndInitStream(&mnode_));
+    streamInitialized_ = true;
+    handler_ = mnode_.msgFp[TMSG_INDEX(TDMT_MND_CREATE_STREAM)];
+    ASSERT_NE(nullptr, handler_);
+  }
+
+  void TearDown() override {
+    if (pendingSend_ != nullptr) {
+      destroySendMsgInfo(pendingSend_);
+      pendingSend_ = nullptr;
+    }
+    if (queuedMsg_.pCont != nullptr) {
+      rpcFreeCont(queuedMsg_.pCont);
+      queuedMsg_.pCont = nullptr;
+    }
+    if (streamInitialized_) mndCleanupStream(&mnode_);
+    tsDisableStream = savedDisableStream_;
+#ifdef TD_ENTERPRISE
+    tsFederatedQueryEnable = savedFederatedQueryEnable_;
+#endif
+    gCreateMetadataTest = nullptr;
+  }
+
+  SStreamWindowPlan* makeSessionPlan() {
+    SStreamWindowPlan* plan = static_cast<SStreamWindowPlan*>(taosMemoryCalloc(1, sizeof(*plan)));
+    if (plan == nullptr) return nullptr;
+    plan->version = STREAM_WINDOW_PLAN_VERSION;
+    plan->pLayers = taosArrayInit(2, sizeof(SStreamWindowLayerSpec));
+    if (plan->pLayers == nullptr) {
+      tDestroyStreamWindowPlan(&plan);
+      return nullptr;
+    }
+
+    SStreamWindowLayerSpec outer = {};
+    outer.triggerType = WINDOW_TYPE_SESSION;
+    tstrncpy(outer.name, "outer", sizeof(outer.name));
+    outer.trigger.session.slotId = 0;
+    outer.trigger.session.sessionVal = 10;
+    if (taosArrayPush(plan->pLayers, &outer) == nullptr) {
+      tDestroyStreamWindowPlan(&plan);
+      return nullptr;
+    }
+
+    SStreamWindowLayerSpec leaf = {};
+    leaf.triggerType = WINDOW_TYPE_SESSION;
+    leaf.trigger.session.slotId = 1;
+    leaf.trigger.session.sessionVal = 5;
+    if (taosArrayPush(plan->pLayers, &leaf) == nullptr) {
+      tDestroyStreamWindowPlan(&plan);
+      return nullptr;
+    }
+    return plan;
+  }
+
+  SCMCreateStreamReq makeRequest() {
+    SCMCreateStreamReq req = {};
+    req.name = const_cast<char*>("0.test.nested_stream");
+    req.streamId = 42;
+    req.sql = const_cast<char*>("create stream nested_stream");
+    req.streamDB = const_cast<char*>("0.test");
+    req.triggerDB = const_cast<char*>("0.test");
+    req.outDB = const_cast<char*>("0.test");
+    req.triggerTblName = const_cast<char*>("meters");
+    req.outTblName = const_cast<char*>("out");
+    req.triggerType = WINDOW_TYPE_SESSION;
+    req.trigger.session.slotId = 1;
+    req.trigger.session.sessionVal = 5;
+    req.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+    req.triggerTblType = TSDB_SUPER_TABLE;
+    req.triggerTblUid = 111;
+    req.triggerTblSuid = 222;
+    req.triggerTblVgId = 333;
+    req.triggerPrec = TSDB_TIME_PRECISION_NANO;
+    req.calcTsSlotId = -1;
+    req.triTsSlotId = -1;
+    req.calcPkSlotId = -1;
+    req.triPkSlotId = -1;
+    req.pWindowPlan = makeSessionPlan();
+    return req;
+  }
+
+  int32_t runCreate(SCMCreateStreamReq* pCreate) {
+    const int32_t len = tSerializeSCMCreateStreamReq(nullptr, 0, pCreate);
+    EXPECT_GT(len, 0);
+    if (len <= 0) return len;
+    std::vector<uint8_t> bytes(len);
+    EXPECT_EQ(len, tSerializeSCMCreateStreamReq(bytes.data(), len, pCreate));
+
+    SRpcMsg msg = {};
+    msg.msgType = TDMT_MND_CREATE_STREAM;
+    msg.pCont = bytes.data();
+    msg.contLen = len;
+    msg.info.node = &mnode_;
+    msg.info.handle = reinterpret_cast<void*>(static_cast<uintptr_t>(0x1111));
+    tstrncpy(msg.info.conn.user, "root", sizeof(msg.info.conn.user));
+    return handler_(&msg);
+  }
+
+  std::vector<uint8_t> serializeMeta(const STableMetaRsp& source) {
+    STableMetaRsp meta = source;
+    const int32_t len = tSerializeSTableMetaRsp(nullptr, 0, &meta);
+    EXPECT_GT(len, 0);
+    if (len <= 0) return {};
+    std::vector<uint8_t> bytes(len);
+    EXPECT_EQ(len, tSerializeSTableMetaRsp(bytes.data(), len, &meta));
+    return bytes;
+  }
+
+  STableMetaRsp makeNormalMeta() {
+    STableMetaRsp meta = {};
+    tstrncpy(meta.tbName, "meters", sizeof(meta.tbName));
+    tstrncpy(meta.dbFName, "0.test", sizeof(meta.dbFName));
+    meta.dbId = db_.uid;
+    meta.numOfColumns = 2;
+    meta.precision = TSDB_TIME_PRECISION_MILLI;
+    meta.tableType = TSDB_NORMAL_TABLE;
+    meta.tuid = 901;
+    meta.vgId = vgroup_.vgId;
+    meta.pSchemas = stbColumns_;
+    meta.pSchemaExt = metaSchemaExt_;
+    metaSchemaExt_[0].colId = stbColumns_[0].colId;
+    metaSchemaExt_[1].colId = stbColumns_[1].colId;
+    return meta;
+  }
+
+  SDataBuf makeCallbackResponse() {
+    SDataBuf response = {};
+    if (!callbackBytes_.empty()) {
+      response.pData = taosMemoryMalloc(callbackBytes_.size());
+      EXPECT_NE(nullptr, response.pData);
+      if (response.pData != nullptr) memcpy(response.pData, callbackBytes_.data(), callbackBytes_.size());
+      response.len = callbackBytes_.size();
+    }
+    return response;
+  }
+
+  void invokeCallback(int32_t code, const std::vector<uint8_t>& bytes, bool destroySend = true) {
+    ASSERT_NE(nullptr, pendingSend_);
+    SMsgSendInfo* send = pendingSend_;
+    callbackBytes_ = bytes;
+    SDataBuf response = makeCallbackResponse();
+    send->fp(send->param, &response, code);
+    if (destroySend) {
+      destroySendMsgInfo(send);
+      pendingSend_ = nullptr;
+    }
+  }
+
+  int32_t runQueuedContinuation() {
+    EXPECT_NE(nullptr, queuedMsg_.pCont);
+    MndMsgFp continuation = mnode_.msgFp[TMSG_INDEX(TDMT_MND_UNUSED1)];
+    EXPECT_NE(nullptr, continuation);
+    if (queuedMsg_.pCont == nullptr || continuation == nullptr) return TSDB_CODE_INVALID_PARA;
+    queuedMsg_.info.node = &mnode_;
+    const int32_t code = continuation(&queuedMsg_);
+    rpcFreeCont(queuedMsg_.pCont);
+    queuedMsg_.pCont = nullptr;
+    return code;
+  }
+
+  int32_t runContinuationBytes(const std::vector<uint8_t>& bytes) {
+    MndMsgFp continuation = mnode_.msgFp[TMSG_INDEX(TDMT_MND_UNUSED1)];
+    EXPECT_NE(nullptr, continuation);
+    if (bytes.empty() || continuation == nullptr) return TSDB_CODE_INVALID_PARA;
+    SRpcMsg msg = {};
+    msg.msgType = TDMT_MND_UNUSED1;
+    msg.pCont = const_cast<uint8_t*>(bytes.data());
+    msg.contLen = static_cast<int32_t>(bytes.size());
+    msg.info.node = &mnode_;
+    return continuation(&msg);
+  }
+
+  void queueNormalContinuation(STableMetaRsp meta) {
+    SCMCreateStreamReq req = makeRequest();
+    ASSERT_NE(nullptr, req.pWindowPlan);
+    ASSERT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+    ASSERT_NE(nullptr, pendingSend_);
+    invokeCallback(TSDB_CODE_SUCCESS, serializeMeta(meta));
+    ASSERT_NE(nullptr, queuedMsg_.pCont);
+    freeRequestFixture(&req);
+  }
+
+  void fireTimer() {
+    ASSERT_NE(nullptr, timerCallback_);
+    TAOS_TMR_CALLBACK callback = timerCallback_;
+    void*             param = timerParam_;
+    timerCallback_ = nullptr;
+    timerParam_ = nullptr;
+    callback(param, reinterpret_cast<void*>(static_cast<uintptr_t>(0x4002)));
+  }
+
+  void addExtSpec(SCMCreateStreamReq* pReq, const char* sourceName, const char* extTable, const char* tsColumn) {
+    if (pReq->extSpecs == nullptr) pReq->extSpecs = taosArrayInit(1, POINTER_BYTES);
+    ASSERT_NE(nullptr, pReq->extSpecs);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosMemoryCalloc(1, sizeof(SStreamExtTriggerSpec)));
+    ASSERT_NE(nullptr, spec);
+    tstrncpy(spec->sourceName, sourceName, sizeof(spec->sourceName));
+    tstrncpy(spec->extTable, extTable, sizeof(spec->extTable));
+    tstrncpy(spec->tsColumn, tsColumn, sizeof(spec->tsColumn));
+    spec->sourceType = EXT_SOURCE_MYSQL;
+    ASSERT_NE(nullptr, taosArrayPush(pReq->extSpecs, &spec));
+    pReq->numOfExtSpecs = taosArrayGetSize(pReq->extSpecs);
+  }
+
+  void setColumnList(SCMCreateStreamReq* pReq, bool rollup, col_id_t colId, const char* colName, EColumnType colType,
+                     int8_t dataType) {
+    SNodeList* pList = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeList(&pList));
+    SNode* pNode = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &pNode));
+    auto* pCol = reinterpret_cast<SColumnNode*>(pNode);
+    pCol->colId = colId;
+    pCol->colType = colType;
+    pCol->node.resType.type = dataType;
+    tstrncpy(pCol->colName, colName, sizeof(pCol->colName));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListAppend(pList, pNode));
+    char*   serialized = nullptr;
+    int32_t serializedLen = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListToString(pList, false, &serialized, &serializedLen));
+    nodesDestroyList(pList);
+    if (rollup) {
+      pReq->rollupTagCols = serialized;
+    } else {
+      pReq->partitionCols = serialized;
+    }
+  }
+
+  void setPartitionFunction(SCMCreateStreamReq* pReq, const char* functionName, int32_t funcId, int32_t funcType) {
+    SNodeList* pList = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeList(&pList));
+    SNode* pNode = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_FUNCTION, &pNode));
+    auto* pFunction = reinterpret_cast<SFunctionNode*>(pNode);
+    tstrncpy(pFunction->functionName, functionName, sizeof(pFunction->functionName));
+    pFunction->funcId = funcId;
+    pFunction->funcType = funcType;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListAppend(pList, pNode));
+    char*   serialized = nullptr;
+    int32_t serializedLen = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListToString(pList, false, &serialized, &serializedLen));
+    nodesDestroyList(pList);
+    pReq->partitionCols = serialized;
+  }
+
+  SNode* makeFunction(const char* functionName, const std::vector<SNode*>& parameters = {}) {
+    SNodeList* pParameterList = nullptr;
+    EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeList(&pParameterList));
+    if (pParameterList == nullptr) return nullptr;
+    for (SNode* pParameter : parameters) {
+      if (nodesListStrictAppend(pParameterList, pParameter) != TSDB_CODE_SUCCESS) {
+        nodesDestroyList(pParameterList);
+        return nullptr;
+      }
+    }
+    SFunctionNode* pFunction = nullptr;
+    const int32_t  code = ::createFunction(functionName, pParameterList, &pFunction);
+    EXPECT_EQ(TSDB_CODE_SUCCESS, code);
+    if (code != TSDB_CODE_SUCCESS) nodesDestroyList(pParameterList);
+    return reinterpret_cast<SNode*>(pFunction);
+  }
+
+  void setWrappedTbnamePartition(SCMCreateStreamReq* pReq, const char* wrapperName) {
+    SNode* pTbname = makeFunction("tbname");
+    ASSERT_NE(nullptr, pTbname);
+    std::vector<SNode*> parameters = {pTbname};
+    if (strcmp(wrapperName, "substr") == 0) {
+      SNode* pStart = nullptr;
+      SNode* pLength = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeValueNodeFromInt32(1, &pStart));
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeValueNodeFromInt32(1, &pLength));
+      parameters.push_back(pStart);
+      parameters.push_back(pLength);
+    }
+    SNode* pWrapper = makeFunction(wrapperName, parameters);
+    ASSERT_NE(nullptr, pWrapper);
+    SNodeList* pList = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&pList, pWrapper));
+    char*   serialized = nullptr;
+    int32_t serializedLen = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListToString(pList, false, &serialized, &serializedLen));
+    nodesDestroyList(pList);
+    pReq->partitionCols = serialized;
+  }
+
+  void setTbnameTagPartition(SCMCreateStreamReq* pReq) {
+    SNodeList* pList = nullptr;
+    SNode*     pTbname = makeFunction("tbname");
+    ASSERT_NE(nullptr, pTbname);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&pList, pTbname));
+    SNode* pTagNode = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &pTagNode));
+    auto* pTag = reinterpret_cast<SColumnNode*>(pTagNode);
+    pTag->colId = stbTags_[0].colId;
+    pTag->colType = COLUMN_TYPE_COLUMN;
+    pTag->node.resType.type = TSDB_DATA_TYPE_INT;
+    tstrncpy(pTag->colName, stbTags_[0].name, sizeof(pTag->colName));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&pList, pTagNode));
+    char*   serialized = nullptr;
+    int32_t serializedLen = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListToString(pList, false, &serialized, &serializedLen));
+    nodesDestroyList(pList);
+    pReq->partitionCols = serialized;
+  }
+
+  void useCountWindowPlan(SCMCreateStreamReq* pReq) {
+    for (int32_t i = 0; i < taosArrayGetSize(pReq->pWindowPlan->pLayers); ++i) {
+      auto* pLayer = static_cast<SStreamWindowLayerSpec*>(taosArrayGet(pReq->pWindowPlan->pLayers, i));
+      pLayer->triggerType = WINDOW_TYPE_COUNT;
+      pLayer->trigger = {};
+      pLayer->trigger.count.countVal = 1;
+      pLayer->trigger.count.sliding = 1;
+    }
+    pReq->triggerType = WINDOW_TYPE_COUNT;
+    pReq->trigger = {};
+    pReq->trigger.count.countVal = 1;
+    pReq->trigger.count.sliding = 1;
+  }
+
+  void freeRequestFixture(SCMCreateStreamReq* pReq) {
+    tDestroyStreamWindowPlan(&pReq->pWindowPlan);
+    taosMemoryFreeClear(pReq->partitionCols);
+    taosMemoryFreeClear(pReq->rollupTagCols);
+    if (pReq->extSpecs != nullptr) {
+      for (int32_t i = 0; i < taosArrayGetSize(pReq->extSpecs); ++i) {
+        taosMemoryFree(*static_cast<SStreamExtTriggerSpec**>(taosArrayGet(pReq->extSpecs, i)));
+      }
+      taosArrayDestroy(pReq->extSpecs);
+      pReq->extSpecs = nullptr;
+    }
+  }
+
+  Stub                    stub_;
+  SSdb                    sdb_ = {};
+  SMnode                  mnode_ = {};
+  SUserObj                user_ = {};
+  SDbObj                  db_ = {};
+  SStbObj                 stb_ = {};
+  SVgObj                  vgroup_ = {};
+  SEpSet                  epSet_ = {};
+  SSchema                 stbColumns_[2] = {};
+  SSchema                 stbTags_[1] = {};
+  SColCmpr                stbCmpr_[2] = {};
+  SSchemaExt              metaSchemaExt_[2] = {};
+  SExtSourceObj           extSource_ = {};
+  MndMsgFp                handler_ = nullptr;
+  SMsgSendInfo*           pendingSend_ = nullptr;
+  SRpcMsg                 queuedMsg_ = {};
+  std::vector<uint8_t>    callbackBytes_;
+  bool                    returnStb_ = false;
+  bool                    returnDb_ = true;
+  bool                    returnExtSource_ = true;
+  bool                    savedDisableStream_ = false;
+  bool                    streamInitialized_ = false;
+  bool                    callbackBeforeSendReturn_ = false;
+  bool                    timerCanStop_ = true;
+  bool                    blockTimerStart_ = false;
+  bool                    timerStartEntered_ = false;
+  bool                    releaseTimerStart_ = false;
+  bool                    timerStartTimedOut_ = false;
+  std::mutex              timerStartMutex_;
+  std::condition_variable timerStartCv_;
+  bool                    blockVgroupLookup_ = false;
+  bool                    vgroupLookupEntered_ = false;
+  bool                    releaseVgroupLookup_ = false;
+  bool                    vgroupLookupTimedOut_ = false;
+  std::mutex              vgroupLookupMutex_;
+  std::condition_variable vgroupLookupCv_;
+  bool                    blockStbLookup_ = false;
+  bool                    stbLookupEntered_ = false;
+  bool                    releaseStbLookup_ = false;
+  bool                    stbLookupTimedOut_ = false;
+  std::mutex              stbLookupMutex_;
+  std::condition_variable stbLookupCv_;
+  bool                    blockQueue_ = false;
+  bool                    processQueueInline_ = false;
+  bool                    queueEntered_ = false;
+  bool                    releaseQueue_ = false;
+  bool                    queueTimedOut_ = false;
+  std::mutex              queueMutex_;
+  std::condition_variable queueCv_;
+#ifdef TD_ENTERPRISE
+  bool savedFederatedQueryEnable_ = false;
+#endif
+  int32_t                  sendCode_ = TSDB_CODE_SUCCESS;
+  int32_t                  callbackCode_ = TSDB_CODE_SUCCESS;
+  int32_t                  queueCode_ = TSDB_CODE_SUCCESS;
+  int64_t                  transporterId_ = 55;
+  int32_t                  timerDelayMs_ = 0;
+  int32_t                  timerStartCalls_ = 0;
+  int32_t                  timerStopCalls_ = 0;
+  TAOS_TMR_CALLBACK        timerCallback_ = nullptr;
+  void*                    timerParam_ = nullptr;
+  int32_t                  asyncSendCalls_ = 0;
+  int32_t                  freeConnectionCalls_ = 0;
+  int32_t                  queueCalls_ = 0;
+  int32_t                  responseCalls_ = 0;
+  int32_t                  lastResponseCode_ = TSDB_CODE_SUCCESS;
+  int32_t                  createTransCalls_ = 0;
+  int32_t                  transactionOrigin_ = 0;
+  int8_t                   transactionTableType_ = 0;
+  uint64_t                 transactionTableUid_ = 0;
+  uint64_t                 transactionTableSuid_ = 0;
+  int32_t                  transactionVgId_ = 0;
+  int8_t                   transactionPrecision_ = 0;
+  int64_t                  transactionFlags_ = 0;
+  int32_t                  transactionPartitionColType_ = -1;
+  int32_t                  transactionPartitionDataType_ = -1;
+  int32_t                  transactionPartitionBytes_ = -1;
+  std::vector<std::string> acquiredExtSources_;
+  std::vector<int64_t>     freedTransporterIds_;
+};
+
+TEST_F(MndStreamCreateMetadataTest, NormalTableUsesVnodePreflightBeforeTransaction) {
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  req.enableMultiGroupCalc = 1;
+
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  EXPECT_EQ(1, asyncSendCalls_);
+  EXPECT_EQ(0, createTransCalls_);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, ExtCandidateUsesAuthoritativeSourceIdentity) {
+  for (const auto& fixture : {std::pair<const char*, const char*>("0.ext_source", ""),
+                              std::pair<const char*, const char*>("cluster.0.ext_source", "0.wrong")}) {
+    SCOPED_TRACE(fixture.first);
+    acquiredExtSources_.clear();
+    asyncSendCalls_ = 0;
+    createTransCalls_ = 0;
+
+    SCMCreateStreamReq req = makeRequest();
+    ASSERT_NE(nullptr, req.pWindowPlan);
+    req.triggerDB = const_cast<char*>(fixture.second);
+    addExtSpec(&req, fixture.first, "remote_meters", "ts");
+
+    EXPECT_NE(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+    ASSERT_EQ(1U, acquiredExtSources_.size());
+    EXPECT_EQ(fixture.first, acquiredExtSources_[0]);
+    EXPECT_EQ(0, asyncSendCalls_);
+    EXPECT_EQ(0, createTransCalls_);
+
+    freeRequestFixture(&req);
+  }
+}
+
+TEST_F(MndStreamCreateMetadataTest, ExtCandidateRequiresExistingAuthoritativeSourceType) {
+  for (const bool sourceExists : {false, true}) {
+    SCOPED_TRACE(sourceExists);
+    returnExtSource_ = sourceExists;
+    extSource_.type = sourceExists ? EXT_SOURCE_TDENGINE : EXT_SOURCE_MYSQL;
+    SCMCreateStreamReq req = makeRequest();
+    ASSERT_NE(nullptr, req.pWindowPlan);
+    addExtSpec(&req, "cluster.0.ext_source", "remote_meters", "ts");
+
+    EXPECT_NE(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+    EXPECT_EQ(0, asyncSendCalls_);
+    EXPECT_EQ(0, createTransCalls_);
+    freeRequestFixture(&req);
+  }
+}
+
+TEST_F(MndStreamCreateMetadataTest, CalcOnlyExtSpecStillUsesLocalPreflight) {
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  addExtSpec(&req, "0.calc_source", "", "");
+
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  EXPECT_EQ(1, asyncSendCalls_);
+  EXPECT_EQ(0, createTransCalls_);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, RejectsMalformedAndAmbiguousExtCandidates) {
+  struct Fixture {
+    const char* firstSource;
+    const char* firstTable;
+    const char* firstTs;
+    const char* secondSource;
+    const char* secondTable;
+    const char* secondTs;
+  };
+  const Fixture fixtures[] = {
+      {"", "remote", "ts", nullptr, nullptr, nullptr},        {"0.src", "remote", "", nullptr, nullptr, nullptr},
+      {"0.src", "", "ts", nullptr, nullptr, nullptr},         {"", "", "", nullptr, nullptr, nullptr},
+      {"0.src1", "remote1", "ts", "0.src2", "remote2", "ts"},
+  };
+
+  for (const auto& fixture : fixtures) {
+    asyncSendCalls_ = 0;
+    createTransCalls_ = 0;
+    SCMCreateStreamReq req = makeRequest();
+    ASSERT_NE(nullptr, req.pWindowPlan);
+    addExtSpec(&req, fixture.firstSource, fixture.firstTable, fixture.firstTs);
+    if (fixture.secondSource != nullptr) {
+      addExtSpec(&req, fixture.secondSource, fixture.secondTable, fixture.secondTs);
+    }
+
+    EXPECT_NE(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+    EXPECT_EQ(0, asyncSendCalls_);
+    EXPECT_EQ(0, createTransCalls_);
+    freeRequestFixture(&req);
+  }
+}
+
+TEST_F(MndStreamCreateMetadataTest, SuperTableMetadataNormalizesIdentityBeforeTransaction) {
+  returnStb_ = true;
+  stb_.virtualStb = 1;
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  EXPECT_EQ(1, queueCalls_);
+  EXPECT_EQ(0, asyncSendCalls_);
+  EXPECT_EQ(0, createTransCalls_);
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runQueuedContinuation());
+  EXPECT_EQ(1, createTransCalls_);
+  EXPECT_EQ(TDMT_MND_CREATE_STREAM, transactionOrigin_);
+  EXPECT_EQ(TSDB_SUPER_TABLE, transactionTableType_);
+  EXPECT_EQ(stb_.uid, transactionTableUid_);
+  EXPECT_EQ(stb_.uid, transactionTableSuid_);
+  EXPECT_EQ(0, transactionVgId_);
+  EXPECT_EQ(TSDB_TIME_PRECISION_MILLI, transactionPrecision_);
+  EXPECT_NE(0, transactionFlags_ & CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, SuperTablePayloadAllocationFailureRetainsHandlerResponseOwnership) {
+  returnStb_ = true;
+  stub_.set(rpcMallocCont, failRpcMallocCont);
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, runCreate(&req));
+  EXPECT_EQ(0, queueCalls_);
+  EXPECT_EQ(0, responseCalls_);
+  EXPECT_EQ(0, createTransCalls_);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, SuperTableQueueFailureOwnsResponseAndPayload) {
+  returnStb_ = true;
+  queueCode_ = TSDB_CODE_APP_IS_STOPPING;
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  EXPECT_EQ(1, queueCalls_);
+  EXPECT_EQ(1, responseCalls_);
+  EXPECT_EQ(queueCode_, lastResponseCode_);
+  EXPECT_EQ(0, createTransCalls_);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, AuthoritativeCompositePrimaryKeyRejectsForgedColumnFlags) {
+  returnStb_ = true;
+  stbColumns_[1].flags = COL_IS_KEY;
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  ASSERT_EQ(1, queueCalls_);
+  EXPECT_NE(TSDB_CODE_ACTION_IN_PROGRESS, runQueuedContinuation());
+  EXPECT_EQ(0, createTransCalls_);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, PartitionColumnsResolveAgainstAuthoritativeTagSchema) {
+  returnStb_ = true;
+  for (const bool authoritativeTag : {true, false}) {
+    SCOPED_TRACE(authoritativeTag);
+    queueCalls_ = 0;
+    createTransCalls_ = 0;
+    SCMCreateStreamReq req = makeRequest();
+    ASSERT_NE(nullptr, req.pWindowPlan);
+    setColumnList(&req, false, authoritativeTag ? stbTags_[0].colId : stbColumns_[1].colId,
+                  authoritativeTag ? stbTags_[0].name : stbColumns_[1].name, COLUMN_TYPE_TAG, TSDB_DATA_TYPE_VARCHAR);
+
+    EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+    ASSERT_EQ(1, queueCalls_);
+    const int32_t code = runQueuedContinuation();
+    if (authoritativeTag) {
+      EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, code);
+      EXPECT_EQ(1, createTransCalls_);
+    } else {
+      EXPECT_NE(TSDB_CODE_ACTION_IN_PROGRESS, code);
+      EXPECT_EQ(0, createTransCalls_);
+    }
+    freeRequestFixture(&req);
+  }
+}
+
+TEST_F(MndStreamCreateMetadataTest, AuthoritativeTagTypeIsPersistedInPartitionAst) {
+  returnStb_ = true;
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  setColumnList(&req, false, stbTags_[0].colId, stbTags_[0].name, COLUMN_TYPE_COLUMN, TSDB_DATA_TYPE_INT);
+
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  ASSERT_EQ(1, queueCalls_);
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runQueuedContinuation());
+  EXPECT_EQ(1, createTransCalls_);
+  EXPECT_EQ(COLUMN_TYPE_TAG, transactionPartitionColType_);
+  EXPECT_EQ(stbTags_[0].type, transactionPartitionDataType_);
+  EXPECT_EQ(stbTags_[0].bytes, transactionPartitionBytes_);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, PartitionTbnameFactUsesCanonicalFunctionIdentity) {
+  returnStb_ = true;
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  useCountWindowPlan(&req);
+  setPartitionFunction(&req, "timezone", fmGetFuncId("timezone"), FUNCTION_TYPE_TBNAME);
+
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  ASSERT_EQ(1, queueCalls_);
+  EXPECT_NE(TSDB_CODE_ACTION_IN_PROGRESS, runQueuedContinuation());
+  EXPECT_EQ(0, createTransCalls_);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, WrappedTbnameDoesNotSatisfySuperTableDataDrivenPartitionRequirement) {
+  returnStb_ = true;
+  for (const char* wrapperName : {"length", "substr"}) {
+    queueCalls_ = 0;
+    createTransCalls_ = 0;
+    SCMCreateStreamReq req = makeRequest();
+    ASSERT_NE(nullptr, req.pWindowPlan);
+    useCountWindowPlan(&req);
+    setWrappedTbnamePartition(&req, wrapperName);
+
+    EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+    EXPECT_EQ(1, queueCalls_);
+    EXPECT_NE(TSDB_CODE_ACTION_IN_PROGRESS, runQueuedContinuation());
+    EXPECT_EQ(0, createTransCalls_);
+
+    freeRequestFixture(&req);
+  }
+}
+
+TEST_F(MndStreamCreateMetadataTest, BareTbnameWithTagSatisfiesSuperTableDataDrivenPartitionRequirement) {
+  returnStb_ = true;
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  useCountWindowPlan(&req);
+  setTbnameTagPartition(&req);
+
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  EXPECT_EQ(1, queueCalls_);
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runQueuedContinuation());
+  EXPECT_EQ(1, createTransCalls_);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, CanonicalTbnameSatisfiesSuperTableCountPartitionRequirement) {
+  returnStb_ = true;
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  useCountWindowPlan(&req);
+  const int32_t tbnameId = fmGetFuncId("tbname");
+  setPartitionFunction(&req, "tbname", tbnameId, fmGetFuncTypeFromId(tbnameId));
+
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  ASSERT_EQ(1, queueCalls_);
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runQueuedContinuation());
+  EXPECT_EQ(1, createTransCalls_);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, PartitionCaseWhenScalarExpressionUsesAuthoritativeTags) {
+  returnStb_ = true;
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+
+  SNodeList* pList = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeList(&pList));
+  SNode* pCaseNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_CASE_WHEN, &pCaseNode));
+  auto* pCase = reinterpret_cast<SCaseWhenNode*>(pCaseNode);
+  pCase->node.resType.type = stbTags_[0].type;
+  pCase->node.resType.bytes = stbTags_[0].bytes;
+
+  SNode* pWhenThenNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_WHEN_THEN, &pWhenThenNode));
+  auto* pWhenThen = reinterpret_cast<SWhenThenNode*>(pWhenThenNode);
+  pWhenThen->node.resType = pCase->node.resType;
+  SValueNode* pWhen = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeValueNodeFromBool(true, &pWhen));
+  pWhenThen->pWhen = reinterpret_cast<SNode*>(pWhen);
+
+  SNode* pTagNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &pTagNode));
+  auto* pTag = reinterpret_cast<SColumnNode*>(pTagNode);
+  pTag->colId = stbTags_[0].colId;
+  pTag->colType = COLUMN_TYPE_COLUMN;
+  pTag->node.resType.type = TSDB_DATA_TYPE_INT;
+  tstrncpy(pTag->colName, stbTags_[0].name, sizeof(pTag->colName));
+  pWhenThen->pThen = pTagNode;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&pCase->pWhenThenList, pWhenThenNode));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListAppend(pList, pCaseNode));
+
+  char*   serialized = nullptr;
+  int32_t serializedLen = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListToString(pList, false, &serialized, &serializedLen));
+  nodesDestroyList(pList);
+  req.partitionCols = serialized;
+
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  ASSERT_EQ(1, queueCalls_);
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runQueuedContinuation());
+  EXPECT_EQ(1, createTransCalls_);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, PartitionInListScalarExpressionUsesAuthoritativeTags) {
+  returnStb_ = true;
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+
+  SNodeList* pList = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeList(&pList));
+  SNode* pOperatorNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_OPERATOR, &pOperatorNode));
+  auto* pOperator = reinterpret_cast<SOperatorNode*>(pOperatorNode);
+  pOperator->opType = OP_TYPE_IN;
+  pOperator->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pOperator->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+
+  SNode* pTagNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &pTagNode));
+  auto* pTag = reinterpret_cast<SColumnNode*>(pTagNode);
+  pTag->colId = stbTags_[0].colId;
+  pTag->colType = COLUMN_TYPE_COLUMN;
+  pTag->node.resType.type = TSDB_DATA_TYPE_INT;
+  tstrncpy(pTag->colName, stbTags_[0].name, sizeof(pTag->colName));
+  pOperator->pLeft = pTagNode;
+
+  SNode* pValuesNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_NODE_LIST, &pValuesNode));
+  auto*       pValues = reinterpret_cast<SNodeListNode*>(pValuesNode);
+  char        literal[] = "x";
+  SValueNode* pValue = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeValueNodeFromString(literal, &pValue));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&pValues->pNodeList, reinterpret_cast<SNode*>(pValue)));
+  pOperator->pRight = pValuesNode;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListAppend(pList, pOperatorNode));
+
+  char*   serialized = nullptr;
+  int32_t serializedLen = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListToString(pList, false, &serialized, &serializedLen));
+  nodesDestroyList(pList);
+  req.partitionCols = serialized;
+
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  ASSERT_EQ(1, queueCalls_);
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runQueuedContinuation());
+  EXPECT_EQ(1, createTransCalls_);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, RollupRequiresAuthoritativeStringTag) {
+  returnStb_ = true;
+  for (const bool authoritativeStringTag : {true, false}) {
+    SCOPED_TRACE(authoritativeStringTag);
+    queueCalls_ = 0;
+    createTransCalls_ = 0;
+    SCMCreateStreamReq req = makeRequest();
+    ASSERT_NE(nullptr, req.pWindowPlan);
+    const SSchema& schema = authoritativeStringTag ? stbTags_[0] : stbColumns_[1];
+    setColumnList(&req, true, schema.colId, schema.name, COLUMN_TYPE_TAG, TSDB_DATA_TYPE_VARCHAR);
+
+    EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+    ASSERT_EQ(1, queueCalls_);
+    const int32_t code = runQueuedContinuation();
+    if (authoritativeStringTag) {
+      EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, code);
+      EXPECT_EQ(1, createTransCalls_);
+    } else {
+      EXPECT_NE(TSDB_CODE_ACTION_IN_PROGRESS, code);
+      EXPECT_EQ(0, createTransCalls_);
+    }
+    freeRequestFixture(&req);
+  }
+}
+
+TEST_F(MndStreamCreateMetadataTest, ColumnListsRejectMissingMismatchedAmbiguousAndMalformedEntries) {
+  returnStb_ = true;
+  enum class Fixture { missing, mismatched, ambiguous, malformed };
+  for (const Fixture fixture : {Fixture::missing, Fixture::mismatched, Fixture::ambiguous, Fixture::malformed}) {
+    SCOPED_TRACE(static_cast<int32_t>(fixture));
+    queueCalls_ = 0;
+    createTransCalls_ = 0;
+    SCMCreateStreamReq req = makeRequest();
+    ASSERT_NE(nullptr, req.pWindowPlan);
+    if (fixture == Fixture::missing) {
+      setColumnList(&req, false, 99, "missing", COLUMN_TYPE_TAG, TSDB_DATA_TYPE_VARCHAR);
+    } else if (fixture == Fixture::mismatched) {
+      setColumnList(&req, false, stbTags_[0].colId, stbColumns_[1].name, COLUMN_TYPE_TAG, TSDB_DATA_TYPE_VARCHAR);
+    } else if (fixture == Fixture::ambiguous) {
+      tstrncpy(stbColumns_[1].name, stbTags_[0].name, sizeof(stbColumns_[1].name));
+      setColumnList(&req, false, stbTags_[0].colId, stbTags_[0].name, COLUMN_TYPE_TAG, TSDB_DATA_TYPE_VARCHAR);
+    } else {
+      req.partitionCols = taosStrdup("{");
+      ASSERT_NE(nullptr, req.partitionCols);
+    }
+
+    EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+    ASSERT_EQ(1, queueCalls_);
+    EXPECT_NE(TSDB_CODE_ACTION_IN_PROGRESS, runQueuedContinuation());
+    EXPECT_EQ(0, createTransCalls_);
+    tstrncpy(stbColumns_[1].name, "value", sizeof(stbColumns_[1].name));
+    freeRequestFixture(&req);
+  }
+}
+
+TEST_F(MndStreamCreateMetadataTest, ChildMetadataNormalizesIdentityWithoutRejectingMultiGroupCreate) {
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  req.enableMultiGroupCalc = 1;
+  STableMetaRsp meta = makeNormalMeta();
+  meta.tableType = TSDB_CHILD_TABLE;
+  meta.suid = 800;
+  tstrncpy(meta.stbName, "meters_stb", sizeof(meta.stbName));
+
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  invokeCallback(TSDB_CODE_SUCCESS, serializeMeta(meta));
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runQueuedContinuation());
+  EXPECT_EQ(1, createTransCalls_);
+  EXPECT_EQ(TSDB_CHILD_TABLE, transactionTableType_);
+  EXPECT_EQ(meta.tuid, transactionTableUid_);
+  EXPECT_EQ(meta.suid, transactionTableSuid_);
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, VnodeMetadataMustMatchRequestedTableAndAuthoritativeRoute) {
+  enum class Fixture {
+    tableName,
+    databaseName,
+    vgroup,
+    tableType,
+    normalSuid,
+    normalStbName,
+    childSameUid,
+    precision,
+  };
+  for (const Fixture fixture :
+       {Fixture::tableName, Fixture::databaseName, Fixture::vgroup, Fixture::tableType, Fixture::normalSuid,
+        Fixture::normalStbName, Fixture::childSameUid, Fixture::precision}) {
+    SCOPED_TRACE(static_cast<int32_t>(fixture));
+    queueCalls_ = 0;
+    createTransCalls_ = 0;
+    SCMCreateStreamReq req = makeRequest();
+    ASSERT_NE(nullptr, req.pWindowPlan);
+    STableMetaRsp meta = makeNormalMeta();
+    if (fixture == Fixture::tableName) tstrncpy(meta.tbName, "other", sizeof(meta.tbName));
+    if (fixture == Fixture::databaseName) tstrncpy(meta.dbFName, "0.other", sizeof(meta.dbFName));
+    if (fixture == Fixture::vgroup) meta.vgId = vgroup_.vgId + 1;
+    if (fixture == Fixture::tableType) meta.tableType = TSDB_SUPER_TABLE;
+    if (fixture == Fixture::normalSuid) meta.suid = 800;
+    if (fixture == Fixture::normalStbName) tstrncpy(meta.stbName, "meters_stb", sizeof(meta.stbName));
+    if (fixture == Fixture::childSameUid) {
+      meta.tableType = TSDB_CHILD_TABLE;
+      meta.suid = meta.tuid;
+      tstrncpy(meta.stbName, "meters_stb", sizeof(meta.stbName));
+    }
+    if (fixture == Fixture::precision) meta.precision = TSDB_TIME_PRECISION_MICRO;
+
+    EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+    invokeCallback(TSDB_CODE_SUCCESS, serializeMeta(meta));
+    EXPECT_NE(TSDB_CODE_ACTION_IN_PROGRESS, runQueuedContinuation());
+    EXPECT_EQ(0, createTransCalls_);
+    freeRequestFixture(&req);
+  }
+}
+
+TEST_F(MndStreamCreateMetadataTest, SuccessfulVnodeResponseHandsOffOneContinuation) {
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  ASSERT_NE(nullptr, pendingSend_);
+
+  const std::vector<uint8_t> metaBytes = serializeMeta(makeNormalMeta());
+  invokeCallback(TSDB_CODE_SUCCESS, metaBytes, false);
+  EXPECT_EQ(1, queueCalls_);
+  EXPECT_EQ(0, responseCalls_);
+  invokeCallback(TSDB_CODE_SUCCESS, metaBytes);
+  EXPECT_EQ(1, queueCalls_);
+  EXPECT_EQ(0, responseCalls_);
+  EXPECT_EQ(1, freeConnectionCalls_);
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runQueuedContinuation());
+  EXPECT_EQ(1, createTransCalls_);
+  EXPECT_EQ(TDMT_MND_CREATE_STREAM, transactionOrigin_);
+  EXPECT_EQ(TSDB_NORMAL_TABLE, transactionTableType_);
+  EXPECT_EQ(901U, transactionTableUid_);
+  EXPECT_EQ(0U, transactionTableSuid_);
+  EXPECT_EQ(vgroup_.vgId, transactionVgId_);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, ContinuationCanClaimWhileQueuePublicationIsReturning) {
+  processQueueInline_ = true;
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+
+  ASSERT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  ASSERT_NE(nullptr, pendingSend_);
+  invokeCallback(TSDB_CODE_SUCCESS, serializeMeta(makeNormalMeta()));
+
+  EXPECT_EQ(1, queueCalls_);
+  EXPECT_EQ(1, createTransCalls_);
+  EXPECT_EQ(nullptr, queuedMsg_.pCont);
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, ContinuationTokenIsSingleUse) {
+  queueNormalContinuation(makeNormalMeta());
+  const auto*          pBytes = static_cast<const uint8_t*>(queuedMsg_.pCont);
+  std::vector<uint8_t> continuation(pBytes, pBytes + queuedMsg_.contLen);
+
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runQueuedContinuation());
+  EXPECT_EQ(1, createTransCalls_);
+  EXPECT_NE(TSDB_CODE_ACTION_IN_PROGRESS, runContinuationBytes(continuation));
+  EXPECT_EQ(1, createTransCalls_);
+}
+
+TEST_F(MndStreamCreateMetadataTest, RpcErrorRepliesOnceWithoutContinuation) {
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  ASSERT_NE(nullptr, pendingSend_);
+
+  invokeCallback(TSDB_CODE_RPC_TIMEOUT, {});
+  EXPECT_EQ(1, responseCalls_);
+  EXPECT_EQ(TSDB_CODE_RPC_TIMEOUT, lastResponseCode_);
+  EXPECT_EQ(0, queueCalls_);
+  EXPECT_EQ(0, createTransCalls_);
+  EXPECT_EQ(1, freeConnectionCalls_);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, ApplicationTimeoutRepliesOnceAndReleasesTransporter) {
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  ASSERT_NE(nullptr, pendingSend_);
+  ASSERT_NE(nullptr, timerCallback_);
+  EXPECT_EQ(tsStatusSRTimeoutMs, timerDelayMs_);
+
+  fireTimer();
+  EXPECT_EQ(1, responseCalls_);
+  EXPECT_EQ(0, queueCalls_);
+  EXPECT_EQ(0, createTransCalls_);
+  EXPECT_EQ(1, freeConnectionCalls_);
+
+  destroySendMsgInfo(pendingSend_);
+  pendingSend_ = nullptr;
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, TimeoutAndCallbackRaceHasOneTerminalOwner) {
+  timerCanStop_ = false;
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  ASSERT_NE(nullptr, pendingSend_);
+  ASSERT_NE(nullptr, timerCallback_);
+
+  SMsgSendInfo* send = pendingSend_;
+  const auto    metaBytes = serializeMeta(makeNormalMeta());
+  callbackBytes_ = metaBytes;
+  SDataBuf          response = makeCallbackResponse();
+  TAOS_TMR_CALLBACK timerCallback = timerCallback_;
+  void*             timerParam = timerParam_;
+  timerCallback_ = nullptr;
+  timerParam_ = nullptr;
+
+  std::mutex              raceMutex;
+  std::condition_variable raceCv;
+  int32_t                 ready = 0;
+  bool                    start = false;
+  std::atomic<bool>       startWaitTimedOut{false};
+  auto                    waitForStart = [&] {
+    std::unique_lock<std::mutex> lock(raceMutex);
+    ++ready;
+    raceCv.notify_all();
+    if (!raceCv.wait_for(lock, std::chrono::seconds(5), [&] { return start; })) startWaitTimedOut.store(true);
+  };
+  std::thread callbackThread([&] {
+    waitForStart();
+    send->fp(send->param, &response, TSDB_CODE_SUCCESS);
+  });
+  std::thread timeoutThread([&] {
+    waitForStart();
+    timerCallback(timerParam, reinterpret_cast<void*>(static_cast<uintptr_t>(0x4002)));
+  });
+  bool        readyReached = false;
+  {
+    std::unique_lock<std::mutex> lock(raceMutex);
+    readyReached = raceCv.wait_for(lock, std::chrono::seconds(5), [&] { return ready == 2; });
+    start = true;
+  }
+  raceCv.notify_all();
+  callbackThread.join();
+  timeoutThread.join();
+  ASSERT_TRUE(readyReached);
+  EXPECT_FALSE(startWaitTimedOut.load());
+  destroySendMsgInfo(send);
+  pendingSend_ = nullptr;
+
+  EXPECT_EQ(1, responseCalls_ + queueCalls_);
+  EXPECT_EQ(1, freeConnectionCalls_);
+  if (queueCalls_ == 1) {
+    EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runQueuedContinuation());
+    EXPECT_EQ(1, createTransCalls_);
+  } else {
+    EXPECT_EQ(0, createTransCalls_);
+  }
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, ImmediateSendFailureRepliesOnce) {
+  sendCode_ = TSDB_CODE_RPC_BROKEN_LINK;
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  EXPECT_EQ(1, asyncSendCalls_);
+  EXPECT_EQ(1, responseCalls_);
+  EXPECT_EQ(sendCode_, lastResponseCode_);
+  EXPECT_EQ(0, queueCalls_);
+  EXPECT_EQ(0, createTransCalls_);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, QueueFailureOwnsReplyAndPayload) {
+  queueCode_ = TSDB_CODE_APP_IS_STOPPING;
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  ASSERT_NE(nullptr, pendingSend_);
+
+  invokeCallback(TSDB_CODE_SUCCESS, serializeMeta(makeNormalMeta()));
+  EXPECT_EQ(1, queueCalls_);
+  EXPECT_EQ(1, responseCalls_);
+  EXPECT_EQ(queueCode_, lastResponseCode_);
+  EXPECT_EQ(0, createTransCalls_);
+  EXPECT_EQ(1, freeConnectionCalls_);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, MalformedMetadataFailsInContinuation) {
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  ASSERT_NE(nullptr, pendingSend_);
+
+  invokeCallback(TSDB_CODE_SUCCESS, {1, 2, 3, 4});
+  ASSERT_EQ(1, queueCalls_);
+  EXPECT_NE(TSDB_CODE_ACTION_IN_PROGRESS, runQueuedContinuation());
+  EXPECT_EQ(0, createTransCalls_);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, ContinuationTokenRejectsInvalidReferenceNonceAndLength) {
+  enum class Fixture { zero, invalidRefSet, invalidNonce, truncated, trailing };
+  for (const Fixture fixture :
+       {Fixture::zero, Fixture::invalidRefSet, Fixture::invalidNonce, Fixture::truncated, Fixture::trailing}) {
+    SCOPED_TRACE(static_cast<int32_t>(fixture));
+    queueCalls_ = 0;
+    createTransCalls_ = 0;
+    queueNormalContinuation(makeNormalMeta());
+    ASSERT_GE(queuedMsg_.contLen, 8);
+    auto* bytes = static_cast<uint8_t*>(queuedMsg_.pCont);
+    if (fixture == Fixture::zero) memset(bytes, 0, queuedMsg_.contLen);
+    if (fixture == Fixture::invalidRefSet) memset(bytes, 0xff, sizeof(int32_t));
+    if (fixture == Fixture::invalidNonce) bytes[queuedMsg_.contLen - 1] ^= 0xff;
+    if (fixture == Fixture::truncated) --queuedMsg_.contLen;
+    if (fixture == Fixture::trailing) {
+      void* expanded = rpcMallocCont(queuedMsg_.contLen + 1);
+      ASSERT_NE(nullptr, expanded);
+      memcpy(expanded, queuedMsg_.pCont, queuedMsg_.contLen);
+      static_cast<uint8_t*>(expanded)[queuedMsg_.contLen] = 0;
+      rpcFreeCont(queuedMsg_.pCont);
+      queuedMsg_.pCont = expanded;
+      ++queuedMsg_.contLen;
+    }
+
+    EXPECT_NE(TSDB_CODE_ACTION_IN_PROGRESS, runQueuedContinuation());
+    EXPECT_EQ(0, createTransCalls_);
+  }
+}
+
+TEST_F(MndStreamCreateMetadataTest, CleanupRejectsCreateAlreadyPastInitialStoppingCheck) {
+  blockVgroupLookup_ = true;
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+
+  std::atomic<int32_t> createCode{TSDB_CODE_SUCCESS};
+  std::thread          createThread([&] { createCode.store(runCreate(&req)); });
+
+  bool lookupEntered = false;
+  {
+    std::unique_lock<std::mutex> lock(vgroupLookupMutex_);
+    lookupEntered = vgroupLookupCv_.wait_for(lock, std::chrono::seconds(5), [&] { return vgroupLookupEntered_; });
+  }
+  if (lookupEntered) {
+    mndCleanupStream(&mnode_);
+    streamInitialized_ = false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(vgroupLookupMutex_);
+    releaseVgroupLookup_ = true;
+  }
+  vgroupLookupCv_.notify_all();
+  createThread.join();
+
+  ASSERT_TRUE(lookupEntered);
+  EXPECT_FALSE(vgroupLookupTimedOut_);
+  EXPECT_EQ(TSDB_CODE_APP_IS_STOPPING, createCode.load());
+  EXPECT_EQ(0, asyncSendCalls_);
+  EXPECT_EQ(0, responseCalls_);
+  EXPECT_EQ(0, queueCalls_);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, CleanupWaitsForAdmittedPreflightInitialization) {
+  blockTimerStart_ = true;
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+
+  std::atomic<int32_t> createCode{TSDB_CODE_SUCCESS};
+  std::thread          createThread([&] { createCode.store(runCreate(&req)); });
+
+  bool timerStartEntered = false;
+  {
+    std::unique_lock<std::mutex> lock(timerStartMutex_);
+    timerStartEntered = timerStartCv_.wait_for(lock, std::chrono::seconds(5), [&] { return timerStartEntered_; });
+  }
+
+  std::mutex              cleanupMutex;
+  std::condition_variable cleanupCv;
+  bool                    cleanupDone = false;
+  std::thread             cleanupThread;
+  if (timerStartEntered) {
+    cleanupThread = std::thread([&] {
+      mndCleanupStream(&mnode_);
+      {
+        std::lock_guard<std::mutex> lock(cleanupMutex);
+        cleanupDone = true;
+      }
+      cleanupCv.notify_all();
+    });
+    std::unique_lock<std::mutex> lock(cleanupMutex);
+    EXPECT_FALSE(cleanupCv.wait_for(lock, std::chrono::milliseconds(100), [&] { return cleanupDone; }));
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(timerStartMutex_);
+    releaseTimerStart_ = true;
+  }
+  timerStartCv_.notify_all();
+  createThread.join();
+  if (cleanupThread.joinable()) cleanupThread.join();
+
+  ASSERT_TRUE(timerStartEntered);
+  streamInitialized_ = false;
+  EXPECT_FALSE(timerStartTimedOut_);
+  EXPECT_TRUE(cleanupDone);
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, createCode.load());
+  EXPECT_EQ(1, asyncSendCalls_);
+  EXPECT_EQ(1, responseCalls_);
+  EXPECT_EQ(1, freeConnectionCalls_);
+
+  if (pendingSend_ != nullptr) {
+    destroySendMsgInfo(pendingSend_);
+    pendingSend_ = nullptr;
+  }
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, CleanupRejectsSuperTableBeforeContinuationHandoff) {
+  returnStb_ = true;
+  blockStbLookup_ = true;
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+
+  std::atomic<int32_t> createCode{TSDB_CODE_SUCCESS};
+  std::thread          createThread([&] { createCode.store(runCreate(&req)); });
+
+  bool lookupEntered = false;
+  {
+    std::unique_lock<std::mutex> lock(stbLookupMutex_);
+    lookupEntered = stbLookupCv_.wait_for(lock, std::chrono::seconds(5), [&] { return stbLookupEntered_; });
+  }
+  if (lookupEntered) {
+    mndCleanupStream(&mnode_);
+    streamInitialized_ = false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(stbLookupMutex_);
+    releaseStbLookup_ = true;
+  }
+  stbLookupCv_.notify_all();
+  createThread.join();
+
+  ASSERT_TRUE(lookupEntered);
+  EXPECT_FALSE(stbLookupTimedOut_);
+  EXPECT_EQ(TSDB_CODE_APP_IS_STOPPING, createCode.load());
+  EXPECT_EQ(0, queueCalls_);
+  EXPECT_EQ(0, responseCalls_);
+  EXPECT_EQ(0, createTransCalls_);
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, CleanupTerminatesPendingPreflightOnce) {
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  ASSERT_NE(nullptr, pendingSend_);
+
+  mndCleanupStream(&mnode_);
+  streamInitialized_ = false;
+  EXPECT_EQ(1, responseCalls_);
+  EXPECT_EQ(0, queueCalls_);
+  EXPECT_EQ(0, createTransCalls_);
+  EXPECT_EQ(1, freeConnectionCalls_);
+  destroySendMsgInfo(pendingSend_);
+  pendingSend_ = nullptr;
+
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, LateCallbackAfterCleanupCannotReplyOrEnqueueAgain) {
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  ASSERT_NE(nullptr, pendingSend_);
+  SMsgSendInfo* send = pendingSend_;
+
+  mndCleanupStream(&mnode_);
+  streamInitialized_ = false;
+  EXPECT_EQ(1, responseCalls_);
+  SDataBuf response = {};
+  callbackBytes_ = serializeMeta(makeNormalMeta());
+  response = makeCallbackResponse();
+  send->fp(send->param, &response, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(1, responseCalls_);
+  EXPECT_EQ(0, queueCalls_);
+  EXPECT_EQ(0, createTransCalls_);
+  EXPECT_EQ(1, freeConnectionCalls_);
+
+  destroySendMsgInfo(send);
+  pendingSend_ = nullptr;
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, CleanupWaitsForEnqueueingCallbackTerminalCleanup) {
+  blockQueue_ = true;
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  ASSERT_NE(nullptr, pendingSend_);
+  SMsgSendInfo* send = pendingSend_;
+
+  callbackBytes_ = serializeMeta(makeNormalMeta());
+  SDataBuf    response = makeCallbackResponse();
+  std::thread callbackThread([&] { send->fp(send->param, &response, TSDB_CODE_SUCCESS); });
+
+  bool queueEntered = false;
+  {
+    std::unique_lock<std::mutex> lock(queueMutex_);
+    queueEntered = queueCv_.wait_for(lock, std::chrono::seconds(5), [&] { return queueEntered_; });
+  }
+
+  std::mutex              cleanupMutex;
+  std::condition_variable cleanupCv;
+  bool                    cleanupDone = false;
+  std::thread             cleanupThread;
+  if (queueEntered) {
+    cleanupThread = std::thread([&] {
+      mndCleanupStream(&mnode_);
+      {
+        std::lock_guard<std::mutex> lock(cleanupMutex);
+        cleanupDone = true;
+      }
+      cleanupCv.notify_all();
+    });
+    std::unique_lock<std::mutex> lock(cleanupMutex);
+    EXPECT_FALSE(cleanupCv.wait_for(lock, std::chrono::milliseconds(100), [&] { return cleanupDone; }));
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(queueMutex_);
+    releaseQueue_ = true;
+  }
+  queueCv_.notify_all();
+  callbackThread.join();
+  if (cleanupThread.joinable()) cleanupThread.join();
+  ASSERT_TRUE(queueEntered);
+  streamInitialized_ = false;
+  EXPECT_FALSE(queueTimedOut_);
+  EXPECT_TRUE(cleanupDone);
+  EXPECT_EQ(1, queueCalls_);
+  EXPECT_EQ(0, responseCalls_);
+  EXPECT_EQ(1, freeConnectionCalls_);
+
+  destroySendMsgInfo(send);
+  pendingSend_ = nullptr;
+  freeRequestFixture(&req);
+}
+
+TEST_F(MndStreamCreateMetadataTest, CallbackBeforeSendReturnReleasesPublishedTransporter) {
+  callbackBeforeSendReturn_ = true;
+  callbackBytes_ = serializeMeta(makeNormalMeta());
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runCreate(&req));
+  EXPECT_EQ(1, asyncSendCalls_);
+  EXPECT_EQ(1, queueCalls_);
+  EXPECT_EQ(1, freeConnectionCalls_);
+  ASSERT_EQ(1U, freedTransporterIds_.size());
+  EXPECT_EQ(transporterId_, freedTransporterIds_[0]);
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, runQueuedContinuation());
+  EXPECT_EQ(1, createTransCalls_);
+
+  freeRequestFixture(&req);
+}
+
+}  // namespace
+
+// clang-format off
+/*
 class StreamTest : public testing::Test { // 继承了 testing::Test
  protected:
 

@@ -130,6 +130,55 @@ TEST(StreamRecalcTrackerTest, TwoGroupsUseWeightedProgress) {
   EXPECT_EQ(finished->status, STREAM_RECALC_STATUS_FINISHED);
 }
 
+TEST(StreamRecalcTrackerTest, ConfirmedEmptyPrefixLetsLaterGroupFinish) {
+  auto tracker = MakeTracker();
+  ASSERT_NE(tracker, nullptr);
+  auto groups = MakeGroups({10, 20});
+  ASSERT_NE(groups, nullptr);
+  ASSERT_EQ(stRecalcTrackerRegisterJob(tracker.get(), 700, {100, 200}, groups.get()), TSDB_CODE_SUCCESS);
+  auto contributors = MakeContributors(tracker.get(), {{700, 0, {100, 200}}});
+  ASSERT_NE(contributors, nullptr);
+
+  uint64_t stepId = 0;
+  ASSERT_EQ(stRecalcTrackerBeginStep(tracker.get(), 10, {100, 200}, contributors.get(), &stepId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerSetTriggerDone(tracker.get(), stepId, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerConfirmGroupPrefix(tracker.get(), 20, 120, contributors.get()), TSDB_CODE_SUCCESS);
+
+  auto snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  const auto *prefix = FindSnapshot(snapshots.get(), 700);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->progressPct, 60);
+  EXPECT_EQ(prefix->status, STREAM_RECALC_STATUS_RUNNING);
+
+  ASSERT_EQ(stRecalcTrackerBeginStep(tracker.get(), 20, {120, 200}, contributors.get(), &stepId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerSetTriggerDone(tracker.get(), stepId, 0), TSDB_CODE_SUCCESS);
+  snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  const auto *finished = FindSnapshot(snapshots.get(), 700);
+  ASSERT_NE(finished, nullptr);
+  EXPECT_EQ(finished->progressPct, 100);
+  EXPECT_EQ(finished->status, STREAM_RECALC_STATUS_FINISHED);
+}
+
+TEST(StreamRecalcTrackerTest, ConfirmedNoDataGroupFinishesWithoutStep) {
+  auto tracker = MakeTracker();
+  ASSERT_NE(tracker, nullptr);
+  auto groups = MakeGroups({10});
+  ASSERT_NE(groups, nullptr);
+  ASSERT_EQ(stRecalcTrackerRegisterJob(tracker.get(), 701, {100, 200}, groups.get()), TSDB_CODE_SUCCESS);
+  auto contributors = MakeContributors(tracker.get(), {{701, 0, {100, 200}}});
+  ASSERT_NE(contributors, nullptr);
+
+  ASSERT_EQ(stRecalcTrackerConfirmGroupPrefix(tracker.get(), 10, 200, contributors.get()), TSDB_CODE_SUCCESS);
+  auto snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  const auto *finished = FindSnapshot(snapshots.get(), 701);
+  ASSERT_NE(finished, nullptr);
+  EXPECT_EQ(finished->progressPct, 100);
+  EXPECT_EQ(finished->status, STREAM_RECALC_STATUS_FINISHED);
+}
+
 TEST(StreamRecalcTrackerTest, EmptyGroupSnapshotFinishesImmediately) {
   auto tracker = MakeTracker();
   ASSERT_NE(tracker, nullptr);

@@ -157,6 +157,16 @@ EFunctionType fmGetFuncTypeFromId(int32_t funcId) {
   return FUNCTION_TYPE_UDF;
 }
 
+bool fmIsCanonicalTbnameFunction(const SNode* pNode) {
+  if (pNode == NULL || nodeType(pNode) != QUERY_NODE_FUNCTION) return false;
+
+  const SFunctionNode* pFunction = (const SFunctionNode*)pNode;
+  const int32_t        canonicalId = fmGetFuncId(pFunction->functionName);
+  return canonicalId >= 0 && canonicalId == pFunction->funcId &&
+         fmGetFuncTypeFromId(canonicalId) == FUNCTION_TYPE_TBNAME &&
+         fmGetFuncTypeFromId(pFunction->funcId) == FUNCTION_TYPE_TBNAME;
+}
+
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
   if (fmIsUserDefinedFunc(pFunc->funcId) || pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
     return FUNC_DATA_REQUIRED_DATA_LOAD;
@@ -928,6 +938,107 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
   return NULL;
 }
 
+static int32_t fmGetWindowPlaceholderValue(int32_t funcId, const SStreamRuntimeFuncInfo* pInfo, int32_t layerIndex,
+                                           const void** ppValue) {
+  if (ppValue == NULL) return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  *ppValue = NULL;
+  if (pInfo == NULL || funcId < 0 || funcId >= funcMgtBuiltinsNum || layerIndex < 0) {
+    return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  }
+
+  int64_t requiredMask = 0;
+  bool    sliding = false;
+  switch (funcMgtBuiltins[funcId].type) {
+    case FUNCTION_TYPE_TPREV_TS:
+      requiredMask = PLACE_HOLDER_PREV_TS;
+      sliding = true;
+      break;
+    case FUNCTION_TYPE_TCURRENT_TS:
+      requiredMask = PLACE_HOLDER_CURRENT_TS;
+      sliding = true;
+      break;
+    case FUNCTION_TYPE_TNEXT_TS:
+      requiredMask = PLACE_HOLDER_NEXT_TS;
+      sliding = true;
+      break;
+    case FUNCTION_TYPE_TWSTART:
+      requiredMask = PLACE_HOLDER_WSTART;
+      break;
+    case FUNCTION_TYPE_TWEND:
+      requiredMask = PLACE_HOLDER_WEND;
+      break;
+    case FUNCTION_TYPE_TWDURATION:
+      requiredMask = PLACE_HOLDER_WDURATION;
+      break;
+    case FUNCTION_TYPE_TWROWNUM:
+      requiredMask = PLACE_HOLDER_WROWNUM;
+      break;
+    default:
+      return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  }
+
+  const SStreamAncestorParamContext* pMatch = NULL;
+  const int32_t                      contextCount =
+      taosArrayGetSize(pInfo->pAncestorContext == NULL ? NULL : pInfo->pAncestorContext->pParamContexts);
+  for (int32_t i = 0; i < contextCount; ++i) {
+    const SStreamAncestorParamContext* pParam = taosArrayGet(pInfo->pAncestorContext->pParamContexts, i);
+    if (pParam != NULL && pParam->leafIdentity.gid == pInfo->groupId && pParam->paramIndex == pInfo->curIdx) {
+      if (pMatch != NULL) return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+      pMatch = pParam;
+    }
+  }
+  if (pMatch == NULL || pMatch->pSnapshots == NULL || pMatch->pSnapshots->elemSize != sizeof(SWindowAncestorSnapshot)) {
+    return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  }
+
+  const int32_t snapshotCount = taosArrayGetSize(pMatch->pSnapshots);
+  if (layerIndex > snapshotCount) return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  if (layerIndex == snapshotCount) {
+    *ppValue = fmGetStreamPesudoFuncVal(funcId, pInfo);
+    return *ppValue == NULL ? TSDB_CODE_STREAM_INVALID_PLACE_HOLDER : TSDB_CODE_SUCCESS;
+  }
+
+  const SWindowAncestorSnapshot* pSnapshot = taosArrayGet(pMatch->pSnapshots, layerIndex);
+  if (pSnapshot == NULL || pSnapshot->layerIndex != layerIndex ||
+      !BIT_FLAG_TEST_MASK(pSnapshot->placeholderMask, requiredMask)) {
+    return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  }
+  if (sliding) {
+    if (pSnapshot->triggerType != WINDOW_TYPE_INTERVAL) return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  } else if (pSnapshot->triggerType != WINDOW_TYPE_INTERVAL && pSnapshot->triggerType != WINDOW_TYPE_SESSION &&
+             pSnapshot->triggerType != WINDOW_TYPE_STATE && pSnapshot->triggerType != WINDOW_TYPE_EVENT &&
+             pSnapshot->triggerType != WINDOW_TYPE_COUNT) {
+    return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  }
+
+  switch (funcMgtBuiltins[funcId].type) {
+    case FUNCTION_TYPE_TPREV_TS:
+      *ppValue = &pSnapshot->values.sliding.prevTs;
+      break;
+    case FUNCTION_TYPE_TCURRENT_TS:
+      *ppValue = &pSnapshot->values.sliding.currentTs;
+      break;
+    case FUNCTION_TYPE_TNEXT_TS:
+      *ppValue = &pSnapshot->values.sliding.nextTs;
+      break;
+    case FUNCTION_TYPE_TWSTART:
+      *ppValue = &pSnapshot->values.window.start;
+      break;
+    case FUNCTION_TYPE_TWEND:
+      *ppValue = &pSnapshot->values.window.end;
+      break;
+    case FUNCTION_TYPE_TWDURATION:
+      *ppValue = &pSnapshot->values.window.duration;
+      break;
+    case FUNCTION_TYPE_TWROWNUM:
+      *ppValue = &pSnapshot->values.window.rownum;
+      break;
+    default:
+      return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t fmSetRollupTagValue(SValueNode* pNode, SArray* pVals) {
   SStreamGroupValue* pValue = taosArrayGet(pVals, 0);
   if (pValue == NULL) {
@@ -1145,6 +1256,20 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
     }
     code = nodesSetValueNodeValue((SValueNode*)pFirstParam, (void*)pVal);
     if (code != 0) {
+      uError("failed to set value node value: %s", tstrerror(code));
+      return code;
+    }
+  } else if (LIST_LENGTH(pParamNodes) == 2) {
+    SNode* pSecondParam = nodesListGetNode(pParamNodes, 1);
+    if (pSecondParam == NULL || nodeType(pSecondParam) != QUERY_NODE_VALUE ||
+        ((SValueNode*)pSecondParam)->node.resType.type != TSDB_DATA_TYPE_INT) {
+      return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+    }
+    const void* pVal = NULL;
+    code = fmGetWindowPlaceholderValue(funcId, pStreamRuntimeInfo, ((SValueNode*)pSecondParam)->datum.i, &pVal);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    code = nodesSetValueNodeValue((SValueNode*)pFirstParam, (void*)pVal);
+    if (code != TSDB_CODE_SUCCESS) {
       uError("failed to set value node value: %s", tstrerror(code));
       return code;
     }

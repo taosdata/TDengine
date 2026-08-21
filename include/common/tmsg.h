@@ -492,6 +492,8 @@ typedef enum ENodeType {
   QUERY_NODE_EXTERNAL_TABLE,    // SExtTableNode: external table reference in FROM clause
   QUERY_NODE_EXT_OPTION,        // helper: single OPTIONS key='val' pair node
   QUERY_NODE_EXT_ALTER_CLAUSE,  // helper: one SET clause in ALTER EXTERNAL SOURCE
+  QUERY_NODE_STREAM_WINDOW_PLAN,
+  QUERY_NODE_STREAM_WINDOW_LAYER,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,

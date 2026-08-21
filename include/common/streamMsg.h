@@ -53,6 +53,20 @@ typedef struct STokenBucket       STokenBucket;
 #define BIT_FLAG_UNSET_MASK(val, mask) ((val) &= ~(mask))
 #define BIT_FLAG_TEST_MASK(val, mask)  (((val) & (mask)) != 0)
 
+#define STREAM_WINDOW_PLAN_VERSION         1
+#define STREAM_WINDOW_PLAN_FRAME_VERSION   1
+#define STREAM_CONTEXT_POLICY_VERSION       1
+#define STREAM_CONTEXT_POLICY_FRAME_VERSION 1
+#define STREAM_ANCESTOR_CONTEXT_VERSION     2
+#define STREAM_ANCESTOR_FRAME_VERSION      1
+#define STREAM_WINDOW_MAX_LAYERS           8
+#define STREAM_NESTED_TRIGGER_ID_LEN       33
+#define STREAM_WINDOW_PLAN_FRAME_MAGIC     UINT32_C(0x4e57504c)
+#define STREAM_CONTEXT_POLICY_FRAME_MAGIC   UINT32_C(0x4e574350)
+#define STREAM_ANCESTOR_FRAME_MAGIC        UINT32_C(0x4e574354)
+#define STREAM_OPTION_FLUSH_ON_OUTER_CLOSE BIT_FLAG_MASK(4)
+#define STREAM_OPTION_NESTED_WINDOW_PLAN   BIT_FLAG_MASK(5)
+
 #define PLACE_HOLDER_NONE             0
 #define PLACE_HOLDER_PREV_TS          BIT_FLAG_MASK(0)
 #define PLACE_HOLDER_CURRENT_TS       BIT_FLAG_MASK(1)
@@ -174,6 +188,117 @@ typedef union {
 } SStreamTrigger;
 
 typedef struct {
+  int16_t tsSlotId;
+  int16_t pkSlotId;
+  int16_t eventStartSlotId;
+  int16_t eventEndSlotId;
+  SArray* pConditionSlotIds;
+} SStreamWindowLayerInputSpec;
+
+typedef struct {
+  int8_t                      triggerType;
+  char                        name[TSDB_TABLE_NAME_LEN];
+  int64_t                     placeholderMask;
+  SStreamWindowLayerInputSpec input;
+  SStreamTrigger              trigger;
+} SStreamWindowLayerSpec;
+
+typedef struct {
+  int32_t version;
+  SArray* pLayers;
+} SStreamWindowPlan;
+
+typedef struct {
+  int32_t layerIndex;
+  int8_t  triggerType;
+  TSKEY   openingTs;
+  int64_t nativeDiscriminator;
+} SScopeInstanceId;
+
+typedef struct {
+  SArray* pScopes;
+} SWindowLineage;
+
+typedef struct {
+  int64_t        gid;
+  SWindowLineage lineage;
+} SStreamCacheScope;
+
+typedef struct {
+  int64_t        gid;
+  SWindowLineage lineage;
+  int8_t         triggerType;
+  TSKEY          openingTs;
+  int64_t        nativeDiscriminator;
+} SLeafInstanceId;
+
+typedef union {
+  struct {
+    TSKEY prevTs;
+    TSKEY currentTs;
+    TSKEY nextTs;
+  } sliding;
+  struct {
+    TSKEY   start;
+    TSKEY   end;
+    int64_t duration;
+    int64_t rownum;
+  } window;
+} SWindowAncestorValues;
+
+typedef struct {
+  int32_t               layerIndex;
+  int8_t                triggerType;
+  int64_t               placeholderMask;
+  SWindowAncestorValues values;
+} SWindowAncestorSnapshot;
+
+typedef struct {
+  int32_t         paramIndex;
+  SLeafInstanceId leafIdentity;
+  SArray*         pSnapshots;
+} SStreamAncestorParamContext;
+
+typedef struct {
+  int32_t           vgId;
+  int32_t           readInfoIndex;
+  SStreamCacheScope scope;
+} SStreamReadScopeBinding;
+
+typedef struct {
+  SArray* pParamContexts;
+  SArray* pReadScopeBindings;
+} SStreamAncestorContext;
+
+typedef enum {
+  STREAM_CONTEXT_POLICY_NONE = 0,
+  STREAM_CONTEXT_POLICY_ANCESTOR = 1,
+} EStreamContextPolicy;
+
+typedef struct {
+  int64_t gid;
+  int32_t paramIndex;
+  int8_t  contextPolicy;
+} SStreamContextPolicyEntry;
+
+typedef struct {
+  SArray* pEntries;
+} SStreamContextPolicy;
+
+typedef struct {
+  bool    isExtTrigger;
+  bool    hasCompositePrimaryKey;
+  bool    isSuperTable;
+  bool    partitionByTbname;
+  bool    partitionByTag;
+  bool    hasRollup;
+  bool    deleteRecalc;
+  bool    ignoreNoDataTrigger;
+  bool    flushOnOuterClose;
+  int64_t eventTypes;
+} SStreamWindowPlanValidationCtx;
+
+typedef struct {
   SArray* vgList;  // vgId, SArray<int32>
   int8_t  readFromCache;
   void*   scanPlan;
@@ -281,6 +406,7 @@ typedef struct {
   // (P1 B6 / Pt A6); old mnodes safely skip the trailing unknown TLV.
   int32_t numOfExtSpecs;
   SArray* extSpecs;
+  SStreamWindowPlan* pWindowPlan;
 } SCMCreateStreamReq;
 
 typedef enum SStreamMsgType {
@@ -714,6 +840,7 @@ typedef struct {
   int32_t notifyEventTypes;
   int32_t addOptions;
   int8_t  notifyHistory;
+  SStreamWindowPlan* pWindowPlan;
 
   int64_t        maxDelay;              // precision is ms
   int64_t        fillHistoryStartTime;  // precision same with triggerDB, INT64_MIN for no value specified
@@ -729,8 +856,8 @@ typedef struct {
   int16_t calcPkSlotId;  // only used when using %%trows
   int16_t triPkSlotId;
   void*   triggerPrevFilter;
-  void*   triggerScanPlan;    // only used for virtual tables
-  void*   calcCacheScanPlan;  // only used for virtual tables
+  void*   triggerScanPlan;    // virtual tables or non-external nested streams using %%trows
+  void*   calcCacheScanPlan;  // virtual tables or non-external nested streams using %%trows
 
   SArray* readerList;  // SArray<SStreamTaskAddr>
   SArray* runnerList;  // SArray<SStreamRunnerTarget>
@@ -884,6 +1011,39 @@ int32_t tDeserializeSCMCreateStreamReq(void* buf, int32_t bufLen, SCMCreateStrea
 void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
 int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStreamReq** ppDst);
 
+int32_t tCloneStreamWindowPlan(const SStreamWindowPlan* pSrc, SStreamWindowPlan** ppDst);
+void    tDestroyStreamWindowPlan(SStreamWindowPlan** ppPlan);
+int32_t tValidateStreamWindowPlan(const SStreamWindowPlan* pPlan, const SStreamWindowPlanValidationCtx* pCtx);
+int32_t tValidateStreamWindowPlanLeafProjection(const SStreamWindowPlan* pPlan, int8_t leafWindowType,
+                                                const SStreamTrigger* pLeafTrigger);
+int32_t tEncodeStreamWindowPlan(SEncoder* pEncoder, const SStreamWindowPlan* pPlan);
+int32_t tDecodeStreamWindowPlan(SDecoder* pDecoder, SStreamWindowPlan** ppPlan);
+int32_t tCloneStreamAncestorContext(const SStreamAncestorContext* pSrc, SStreamAncestorContext** ppDst);
+void    tDestroyStreamAncestorContext(SStreamAncestorContext** ppContext);
+int32_t tEncodeStreamAncestorContext(SEncoder* pEncoder, const SStreamAncestorContext* pContext);
+int32_t tDecodeStreamAncestorContext(SDecoder* pDecoder, SStreamAncestorContext** ppContext);
+int32_t tCloneStreamContextPolicy(const SStreamContextPolicy* pSrc, SStreamContextPolicy** ppDst);
+void    tDestroyStreamContextPolicy(SStreamContextPolicy** ppPolicy);
+int32_t tEncodeStreamContextPolicy(SEncoder* pEncoder, const SStreamContextPolicy* pPolicy);
+int32_t tDecodeStreamContextPolicy(SDecoder* pDecoder, SStreamContextPolicy** ppPolicy);
+int32_t tAdmitStreamContext(const SStreamContextPolicy* pPolicy, const SStreamAncestorContext* pContext,
+                            bool requiresContextPolicy);
+int32_t tProjectStreamAncestorContext(const SStreamAncestorContext* pSrc, int64_t gid, int32_t srcParamIndex,
+                                      int32_t dstParamIndex, SStreamAncestorContext** ppDst);
+
+typedef struct {
+  uint32_t magic;
+  uint16_t version;
+  uint16_t flags;
+  uint32_t payloadLength;
+  SDecoder payloadDecoder;
+} SStreamTailFrameDecoder;
+
+int32_t tStartEncodeStreamTailFrame(SEncoder* pEncoder, uint32_t magic, uint16_t version, uint16_t flags);
+void    tEndEncodeStreamTailFrame(SEncoder* pEncoder);
+int32_t tDecodeNextStreamTailFrame(SDecoder* pParent, SStreamTailFrameDecoder* pFrame);
+int32_t tFinishDecodeStreamTailFrame(SStreamTailFrameDecoder* pFrame, bool requirePayloadEnd);
+
 int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStreamReq* pReq);
 int32_t tDeserializeSCMCreateStreamReqImplOld(
   SDecoder *pDecoder, SCMCreateStreamReq *pReq, int32_t leftBytes);
@@ -1036,6 +1196,7 @@ typedef struct SSTriggerWalDataNewRequest {
 typedef struct SSTriggerWalMetaDataNewRequest {
   SSTriggerPullRequest base;
   int64_t              lastVer;
+  int64_t              endVer;  // exclusive upper bound; 0 means unbounded
 } SSTriggerWalMetaDataNewRequest;
 
 typedef struct SSTriggerGroupColValueRequest {
@@ -1315,6 +1476,8 @@ typedef struct SSTriggerCalcRequest {
   SSHashObj* pGroupCalcInfos;  // SSHashObj<gid int64_t, info SSTriggerGroupCalcInfo>, valid when isMultiGroupCalc is true
   // pGroupReadInfos may be NULL if trigger table and calc table are not the same
   SSHashObj* pGroupReadInfos;  // SSHashObj<vgId int32_t, pInfos SArray<SSTriggerGroupReadInfo>*>
+  SStreamContextPolicy*   pContextPolicy;
+  SStreamAncestorContext* pAncestorContext;
 
   // The following fields are not serialized and only used by the runner task
   bool    brandNew;   // no serialize
@@ -1327,6 +1490,7 @@ typedef struct SSTriggerCalcRequest {
 
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq);
 int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq);
+int32_t tValidateSTriggerCalcRequestAncestorContext(const SSTriggerCalcRequest* pReq, bool nested);
 void    tDestroySSTriggerCalcParam(void* ptr);
 void    tDestroySSTriggerGroupCalcInfo(void* ptr);
 void    tDestroySSTriggerGroupReadInfo(void* ptr);
@@ -1392,6 +1556,8 @@ typedef struct SStreamRuntimeFuncInfo {
   int32_t triggerType;
   int32_t addOptions;
   bool    hasPlaceHolder;
+  SStreamContextPolicy*   pContextPolicy;
+  SStreamAncestorContext* pAncestorContext;
   int8_t* createTable;
   char*   outNormalTable;
 } SStreamRuntimeFuncInfo;
@@ -1399,6 +1565,9 @@ typedef struct SStreamRuntimeFuncInfo {
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo, bool needStreamGrpInfo);
 int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
 void    tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo);
+int32_t tProjectStreamCalcContextForFetch(const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo,
+                                          bool effectiveNeedStreamGrpInfo, SStreamContextPolicy** ppPolicy,
+                                          SStreamAncestorContext** ppContext);
 typedef struct STsInfo {
   int64_t gId;
   int64_t  ts;

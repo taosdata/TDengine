@@ -364,7 +364,7 @@ _exit4:
   rpcMsg.pCont = pRsp;
   rpcMsg.contLen = rspLen;
   rpcMsg.code = code;
-  rpcMsg.msgType = pMsg->msgType;
+  rpcMsg.msgType = direct ? pMsg->msgType + 1 : pMsg->msgType;
 
   if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST && autoCreateCtb == 1) {
     code = TSDB_CODE_SUCCESS;
