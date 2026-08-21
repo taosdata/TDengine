@@ -19,7 +19,7 @@ TARGET_INCLUDE_DIRECTORIES(
 
 TARGET_LINK_LIBRARIES(
   streamRunnerTest
-  PUBLIC taos os common executor function index new-stream
+  PUBLIC ${TAOS_NATIVE_LIB_STATIC} os common executor function index new-stream snode
 )
 
 add_test(
@@ -50,8 +50,25 @@ add_test(
   COMMAND streamNotifyTest
 )
 
+ADD_EXECUTABLE(streamReaderTest streamReaderTest.cpp)
+DEP_ext_gtest(streamReaderTest)
+DEP_ext_cppstub(streamReaderTest)
+TARGET_INCLUDE_DIRECTORIES(
+  streamReaderTest
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/qcom"
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+TARGET_LINK_LIBRARIES(
+  streamReaderTest
+  PUBLIC taos os common executor function index new-stream
+)
+add_test(NAME streamReaderTest COMMAND streamReaderTest)
+
 ADD_EXECUTABLE(dataSinkTest dataSinkTest.cpp)
 DEP_ext_gtest(dataSinkTest)
+DEP_ext_cppstub(dataSinkTest)
 TARGET_LINK_LIBRARIES(dataSinkTest PRIVATE os util ${TAOS_NATIVE_LIB_STATIC} common pthread new-stream)
 
 add_test(
@@ -85,7 +102,7 @@ TARGET_INCLUDE_DIRECTORIES(
   PUBLIC "${TD_SOURCE_DIR}/include/common"
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
-TARGET_LINK_LIBRARIES(streamTriggerTaskTest PUBLIC taos os common executor function index new-stream)
+TARGET_LINK_LIBRARIES(streamTriggerTaskTest PUBLIC ${TAOS_NATIVE_LIB_STATIC} os common executor function index new-stream)
 
 add_test(
     NAME streamTriggerTaskTest
@@ -126,4 +143,36 @@ TARGET_INCLUDE_DIRECTORIES(
 )
 TARGET_LINK_LIBRARIES(streamRecalcTrackerFallbackTest PUBLIC taos os common new-stream)
 add_test(NAME streamRecalcTrackerFallbackTest COMMAND streamRecalcTrackerFallbackTest)
+
+ADD_EXECUTABLE(streamWindowChainTest streamWindowChainTest.cpp)
+DEP_ext_gtest(streamWindowChainTest)
+DEP_ext_cppstub(streamWindowChainTest)
+TARGET_INCLUDE_DIRECTORIES(
+  streamWindowChainTest
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/qcom"
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+TARGET_LINK_LIBRARIES(
+  streamWindowChainTest
+  PUBLIC taos os common executor function index new-stream
+)
+add_test(NAME streamWindowChainTest COMMAND streamWindowChainTest)
+
+ADD_EXECUTABLE(streamTriggerMergerTest streamTriggerMergerTest.cpp)
+DEP_ext_gtest(streamTriggerMergerTest)
+DEP_ext_cppstub(streamTriggerMergerTest)
+TARGET_INCLUDE_DIRECTORIES(
+  streamTriggerMergerTest
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/qcom"
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+TARGET_LINK_LIBRARIES(
+  streamTriggerMergerTest
+  PUBLIC taos os common executor function index new-stream
+)
+add_test(NAME streamTriggerMergerTest COMMAND streamTriggerMergerTest)
 endif(NOT ${TD_WINDOWS})

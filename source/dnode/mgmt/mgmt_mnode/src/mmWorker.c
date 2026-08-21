@@ -330,6 +330,9 @@ static int32_t mmProcessStreamFetchMsg(SMnodeMgmt *pMgmt, SRpcMsg* pMsg) {
   SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo = taosArrayGetP(calcInfoList, req.execId);
   STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo, terrno);
   pReaderTask = (SStreamReaderTask *)sStreamReaderCalcInfo->pTask;
+  STREAM_CHECK_RET_GOTO(tAdmitStreamContext(req.pStRtFuncInfo == NULL ? NULL : req.pStRtFuncInfo->pContextPolicy,
+                                            req.pStRtFuncInfo == NULL ? NULL : req.pStRtFuncInfo->pAncestorContext,
+                                            sStreamReaderCalcInfo->requiresContextPolicy));
   void *pTask = pReaderTask;
   ST_TASK_DLOG("mnode %s start", __func__);
 

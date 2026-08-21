@@ -54,6 +54,7 @@ int32_t g_skipSql = 0;
 int32_t g_limitSql = 0;
 
 void setAsyncFlag(const char* pArg) { g_testAsyncApis = stoi(pArg) > 0 ? true : false; }
+bool getAsyncFlag() { return g_testAsyncApis; }
 void setSkipSqlNum(const char* pArg) { g_skipSql = stoi(pArg); }
 void setLimitSqlNum(const char* pArg) { g_limitSql = stoi(pArg); }
 

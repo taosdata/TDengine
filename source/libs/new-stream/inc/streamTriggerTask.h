@@ -20,6 +20,7 @@
 #include "streamRecalcTracker.h"
 #include "streamTaskStats.h"
 #include "streamTriggerMerger.h"
+#include "streamWindowChain.h"
 #include "tcompare.h"
 #include "theap.h"
 #include "tobjpool.h"
@@ -29,6 +30,103 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct SWindowChainState          SWindowChainState;
+typedef struct SStreamTriggerPeerMerger   SStreamTriggerPeerMerger;
+typedef struct SStreamTriggerNoticeBatch  SStreamTriggerNoticeBatch;
+typedef struct SSTriggerNestedRecovery    SSTriggerNestedRecovery;
+typedef struct SSTriggerRealtimeContext   SSTriggerRealtimeContext;
+typedef struct SStagedNestedLeafEffects   SStagedNestedLeafEffects;
+
+typedef struct {
+  SSTriggerRealtimeContext *pContext;
+} SSTriggerRealtimeBundle;
+
+typedef enum {
+  STRIGGER_NESTED_RECOVERY_VALIDATE = 1,
+  STRIGGER_NESTED_RECOVERY_REPLAY_PENDING,
+  STRIGGER_NESTED_RECOVERY_REPLAY,
+  STRIGGER_NESTED_RECOVERY_REPLAY_DRAINED,
+} ESTriggerNestedRecoveryPhase;
+
+typedef enum {
+  STRIGGER_NESTED_RECOVERY_ACTIVE = 1,
+  STRIGGER_NESTED_RECOVERY_STALE,
+} ESTriggerNestedRecoveryLifecycle;
+
+typedef struct {
+  uint64_t                     generation;
+  ESTriggerNestedRecoveryPhase phase;
+  int32_t                      vgId;
+  int64_t                      taskId;
+  SEpSet                       endpoint;
+  uint32_t                     pageSeq;
+  int64_t                      requestCursor;
+} SSTriggerNestedWalToken;
+
+typedef struct {
+  int64_t requestCursor;
+  int64_t endpoint;
+} SSTriggerNestedWalPage;
+
+typedef struct {
+  SStreamTaskAddr         addr;
+  int64_t                 startVer;
+  int64_t                 savedVer;
+  int64_t                 cursor;
+  uint32_t                nextPageSeq;
+  uint64_t                activeAttemptSerial;
+  bool                    completed;
+  bool                    expectedValid;
+  bool                    roundParticipant;
+  bool                    roundResponded;
+  int64_t                 roundEndpoint;
+  SSTriggerNestedWalToken expected;
+  SArray                 *pValidateLedger;  // SArray<SSTriggerNestedWalPage>
+} SSTriggerNestedWalReader;
+
+struct SSTriggerNestedRecovery {
+  volatile int32_t         refCount;
+  volatile int32_t         inFlight;
+  uint64_t                 generation;
+  uint64_t                 nextAttemptSerial;
+  uint64_t                 replayRoundSeq;
+  volatile int8_t          lifecycle;
+  int8_t                   phase;
+  int32_t                  replayWalPending;
+  volatile int32_t         replayPseudoInFlight;
+  bool                     replayRoundActive;
+  SArray                  *pReaders;     // immutable SArray<SStreamTaskAddr>
+  SArray                  *pWalReaders;  // SArray<SSTriggerNestedWalReader>
+  SSTriggerRealtimeBundle *pShadowBundle;
+  SSTriggerNestedRecovery *pNextRetired;
+};
+
+typedef struct {
+  SSTriggerNestedRecovery  *pRecovery;
+  SSTriggerNestedWalToken   token;
+  SSTriggerPullRequestUnion request;
+  uint8_t                  *pRequestPayload;
+  int32_t                   requestPayloadLen;
+  int32_t                   readerIndex;
+  uint64_t                  attemptSerial;
+  bool                      handled;
+} SSTriggerNestedWalAttempt;
+
+typedef struct {
+  SSTriggerNestedRecovery          *pRecovery;
+  uint64_t                          recoveryGeneration;
+  ESTriggerNestedRecoveryPhase      recoveryPhase;
+  uint64_t                          replayRoundSeq;
+  SStreamNestedInputRoute           route;
+  SSTriggerVirTablePseudoColRequest request;
+  uint8_t                          *pRequestPayload;
+  int32_t                           requestPayloadLen;
+  SEpSet                            endpoint;
+  int32_t                           readerIndex;
+  uint64_t                          attemptSerial;
+  bool                              handled;
+} SSTriggerNestedPseudoAttempt;
 
 // #define SKIP_SEND_CALC_REQUEST
 
@@ -86,13 +184,55 @@ typedef struct SStateDeferredState {
   bool    hasPendingPartialNull;
 } SStateDeferredState;
 
+typedef struct SSTriggerNestedPeerSource {
+  int64_t tableUid;
+  int64_t readerTaskId;
+  int32_t sourceIndex;
+  int32_t subSourceIndex;
+
+  const SSDataBlock        *pSliceBlock;
+  SSDataBlock              *pOutputBlock;  // borrowed alias to pVtableMerger output
+  SSTriggerNewVtableMerger *pVtableMerger;
+  SArray                   *pTrigColRefs;  // owned SArray<SSTriggerTableColRef>
+  int32_t                   rowIndex;
+  int32_t                   endRowIndex;
+  int32_t                   eventTsIndex;
+  int32_t                   errorCode;
+
+  SSTriggerVirTablePseudoColRequest request;
+  bool                              needsInput;
+  bool                              inFlight;
+  bool                              dataBound;
+  bool                              eof;
+  bool                              failed;
+} SSTriggerNestedPeerSource;
+
+typedef struct SSTriggerNestedInputRetry {
+  SStreamNestedInputRoute           route;
+  SSTriggerVirTablePseudoColRequest request;
+} SSTriggerNestedInputRetry;
 
 typedef struct SSTriggerRealtimeGroup {
   struct SSTriggerRealtimeContext *pContext;
+  SWindowChainState               *pWindowChain;
+  SStreamTriggerPeerMerger        *pPeerMerger;
+  const SWindowChainPeerGroup     *pNestedPeerGroup;           // borrowed until explicitly released before merger reset
+  SArray                          *pNestedPeerSources;         // SArray<SSTriggerNestedPeerSource>
+  SList                            nestedInputRetries;         // SList<SSTriggerNestedInputRetry>
+  SList                            pendingNestedEvents;        // SList<SStreamNestedPendingCalcEvent>
+  SList                            pendingNestedParWinEvents;  // SList<SStreamNestedPendingCalcEvent>
+  SSHashObj                       *pNestedCacheScopes;         // SSHashObj<scope key, SStreamCacheScope>
+  uint64_t                         nestedInputGeneration;
+  bool                             nestedInputRegistered;
+  bool                             nestedInputFailed;
+  bool                             nestedInputCancelled;
+  bool                             nestedPeerGroupPinned;
   int64_t                          gid;
   int32_t                          vgId;
   int32_t                          activeVtableCount;
   bool                             recalcNextWindow;
+  bool                             repairCountDisorder;
+  STimeWindow                      countDisorderRange;
   // For EXT/federated groups only (vgId == 0): the taskId of the SSTriggerExtProgress
   // that owns this group, so group-col-value pulls can be routed to the right reader.
   int64_t                          extReaderTaskId;
@@ -128,6 +268,10 @@ typedef struct SSTriggerRealtimeGroup {
 
   int64_t  nextExecTime;  // used for max delay and batch window mode
   HeapNode heapNode;      // used for max delay and batch window mode
+  int64_t  nestedCalcDeadline;
+  int64_t  nestedPendingParamCount;
+  bool     nestedCalcIndexed;
+  HeapNode nestedCalcHeapNode;
 
   // Idle trigger fields
   int64_t lastRecvTimeMono;                        // last receive time (monotonic clock ms)
@@ -159,6 +303,12 @@ typedef struct SSTriggerHistoryGroup {
 
   SObjList           pPendingParWinCalcParams;  // SObjList<SSTriggerCalcParam>
   SObjList           pPendingCalcParams;        // SObjList<SSTriggerCalcParam>
+  SWindowChainState        *pWindowChain;
+  SStreamTriggerPeerMerger *pPeerMerger;
+  SArray                   *pNestedPeerSources;
+  SList                     pendingNestedEvents;
+  SList                     pendingNestedParWinEvents;
+  SSHashObj                *pNestedCacheScopes;        // SSHashObj<scope key, SStreamCacheScope>
   int64_t            prevParentWinStart;        // for event window trigger with parent windows
   bool               pendingWinOpen;            // for event window trigger and state window trigger
   SSTriggerCalcParam pendingWinParam;           // for event window trigger and state window trigger
@@ -373,9 +523,14 @@ typedef struct SSTriggerVTablePatchContext {
   SSHashObj *pOrigTableCols;       // SSHashObj<dbname, SSHashObj<tbname, SSTriggerOrigColumnInfo>*>
 } SSTriggerVTablePatchContext;
 
-typedef struct SSTriggerRealtimeContext {
+struct SSTriggerRealtimeContext {
   struct SStreamTriggerTask *pTask;
+  SSTriggerNestedRecovery   *pRecovery;
+  EStreamTriggerType         triggerType;
+  bool                       nestedWindowPlan;
+  bool                       suppressOutput;
   int64_t                    sessionId;
+  uint64_t                   nextNestedInputGeneration;
   ESTriggerWalMode           walMode;
   ESTriggerContextStatus     status;
 
@@ -396,6 +551,8 @@ typedef struct SSTriggerRealtimeContext {
   TD_DLIST(SSTriggerRealtimeGroup) groupsToCheck;
   TD_DLIST(SSTriggerRealtimeGroup) groupsToCheckIdle;  // groups to check for idle timeout
   Heap                   *pMaxDelayHeap;
+  Heap                   *pNestedCalcHeap;
+  int64_t                 nestedPendingParamCount;
   SSTriggerRealtimeGroup *pMinGroup;
   SArray                 *groupsToDelete;
   SSHashObj              *pGroupColVals;  // SSHashObj<gid, SArray<SStreamGroupValue>*>
@@ -422,6 +579,7 @@ typedef struct SSTriggerRealtimeContext {
   SObjList                     pCalcTableUids;     // SObjList<{uid, vgId}>
   SSTriggerNewTimestampSorter *pCalcSorter;
   SSTriggerNewVtableMerger    *pCalcMerger;
+  void                        *pNestedCalcBatch;  // SStagedNestedCalcBatch, owned while %%trows pull is in flight
   // these fields are shared by all groups and do not need to reset for each group
   STimeWindow           periodWindow;  // for period trigger
   SSTriggerCalcRequest *pCalcReq;
@@ -448,7 +606,7 @@ typedef struct SSTriggerRealtimeContext {
 
   // LAST_TS create-table: need groupInfo before send create-table req; pull GROUP_COL_VALUE first
   SArray *pPendingCreateTableGids;  // SArray<SSTriggerPendingCreateTableEntry>, (gid, pProgress) per reader
-} SSTriggerRealtimeContext;
+};
 
 typedef struct SSTriggerTsdbProgress {
   SStreamTaskAddr          *pTaskAddr;  // reader task address
@@ -477,6 +635,7 @@ typedef struct SSTriggerHistoryContext {
   SStreamProgressRange historyProgressStepRange;
   bool                 historyProgressTriggerDone;
   bool                 historyProgressReaderCompleting;
+  TD_DLIST(SStagedNestedLeafEffects) pendingNestedLeafEffects;
 
   SSHashObj *pReaderTsdbProgress;  // SSHashObj<vgId, SSTriggerTsdbProgress>
   int32_t    curReaderIdx;
@@ -504,6 +663,7 @@ typedef struct SSTriggerHistoryContext {
   SSTriggerMetaData      *pMetaToFetch;
   SSTriggerTableColRef   *pColRefToFetch;
   SSTriggerCalcParam     *pParamToFetch;
+  STimeWindow             paramCalcRange;
   SSTriggerCalcRequest   *pCalcReq;
   int64_t                 lastSentWinEnd;
   // these fields are shared by all groups and need to be destroyed
@@ -531,6 +691,23 @@ typedef enum ESTriggerEventType {
   STRIGGER_EVENT_ON_TIME = 1 << 15,
 } ESTriggerEventType;
 
+typedef struct {
+  int32_t vgId;
+  int64_t version;
+} SStreamNestedReaderVersion;
+
+typedef struct {
+  SSTriggerCalcParam calcParam;
+  int8_t             contextPolicy;
+  SLeafInstanceId    leafIdentity;
+  SArray            *pSnapshots;
+  STimeWindow        calcDataRange;
+  SArray            *pReaderVersions;  // SArray<SStreamNestedReaderVersion>
+} SStreamNestedPendingCalcEvent;
+
+int32_t stAllocNestedPendingCalcNode(const SStreamNestedPendingCalcEvent *pSrc, SListNode **ppNode);
+void    stDestroyNestedPendingCalcNode(SListNode **ppNode);
+
 typedef struct SSTriggerCalcSlot {
   SSTriggerCalcRequest req;  // keep in the first place
   TD_DLIST_NODE(SSTriggerCalcSlot);
@@ -548,6 +725,7 @@ typedef struct SSTriggerRecalcRequest {
   SSHashObj  *pTsdbVersions;
   SArray     *pContributors;  // SArray<SStreamRecalcContributor>
   bool        isHistory;
+  SRecalcImpactDomain impactDomain;
   TD_DLIST_NODE(SSTriggerRecalcRequest);
 } SSTriggerRecalcRequest;
 
@@ -604,6 +782,7 @@ typedef struct SStreamTriggerTask {
   int64_t expiredTime;
   int64_t idleTimeoutMs;  // idle timeout in milliseconds (0 = disabled)
   bool    ignoreDisorder;
+  bool               countStepForcesOrderedInput;
   bool    fillHistory;
   bool    fillHistoryFirst;
   bool    lowLatencyCalc;
@@ -619,6 +798,9 @@ typedef struct SStreamTriggerTask {
   bool    multiGroupBatch;
   int64_t placeHolderBitmap;
   SNode  *triggerFilter;
+  SStreamWindowPlan *pWindowPlan;
+  SArray            *pNestedInputProjections;
+  bool               flushOnOuterClose;
   // trigger options: old version, to be removed
   int32_t    histTrigTsIndex;
   int32_t    histCalcTsIndex;
@@ -659,6 +841,8 @@ typedef struct SStreamTriggerTask {
   col_id_t     trigTsSlotId;
   col_id_t     calcTsSlotId;
   bool         virScanTsOnly;  // whether the trigger and calc data only contains timestamp column
+  SSDataBlock *pNestedCalcCacheBlock;
+  SArray      *pNestedCalcCacheProjection;  // SArray<SStreamDataCacheColumnProjection>
   SRWLatch     virTableInfoLock;
   SSHashObj   *pVirtTableInfos;  // SSHashObj<vtbUid, SSTriggerVirtTableInfo>
   SSHashObj   *pOrigTableInfos;  // SSHashObj<otbUid, SSTriggerOrigTableInfo>
@@ -674,6 +858,7 @@ typedef struct SStreamTriggerTask {
 
   // calc request pool
   SRWLatch   calcPoolLock;
+  SRWLatch   calcDataCacheIterLock;
   SArray    *pCalcNodes;       // SArray<SSTriggerCalcNode>
   SSHashObj *pGroupRunning;    // SSHashObj<gid, bool[]>
   SSHashObj *pSessionRunning;  // SSHashObj<sessionId, cnt>
@@ -684,7 +869,9 @@ typedef struct SStreamTriggerTask {
   SSHashObj *pGroupPendingRecalcs;  // SSHashObj<gid, SSTriggerGroupPendingRecalc>
 
   SRWLatch userRecalcRequestLock;
-  SArray  *pUserRecalcRequests;  // SArray<SStreamRecalcReq>
+  SArray  *pUserRecalcRequests;        // SArray<SStreamRecalcReq>
+  SArray  *pUserRecalcConversionGids;  // SArray<int64_t>, frozen groups for the head raw request
+  int32_t  userRecalcConversionIndex;
   SStreamRecalcTracker *pRecalcTracker;
 
   // runtime status
@@ -696,7 +883,13 @@ typedef struct SStreamTriggerTask {
   volatile int64_t          waitingMgmtReqId;
   volatile int64_t          latestVersionTime;
   bool                      historyCalcStarted;
+  bool                      pendingPeriodicCheckpoint;
   char                     *streamName;
+  uint64_t                  nestedRecoveryGeneration;
+  int32_t                   nestedRecoveryError;
+  SSTriggerNestedRecovery  *pNestedRecovery;
+  SSTriggerNestedRecovery  *pRetiredNestedRecoveries;
+  SSTriggerRealtimeBundle  *pRealtimeBundle;
   SSTriggerRealtimeContext *pRealtimeContext;
   SSTriggerHistoryContext  *pHistoryContext;
 } SStreamTriggerTask;
@@ -712,8 +905,11 @@ int32_t stTriggerTaskCheckCreate(SStreamTriggerTask *pTask, SSTriggerCalcRequest
 int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
                                       STimeWindow *pCalcRange, bool isHistory, bool isUserRecalc, bool isDetermined,
                                       int64_t recalcId);
+int32_t stTriggerTaskTryAddNextWindowRecalc(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
+                                            const STimeWindow *pRecalcRange);
 int32_t stTriggerTaskReadyRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup);
 int32_t stTriggerTaskFetchRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRecalcRequest **ppReq);
+void    stTriggerTaskDestroyRecalcRequest(SSTriggerRecalcRequest **ppReq);
 
 // interfaces called by stream mgmt thread
 int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *pMsg);
