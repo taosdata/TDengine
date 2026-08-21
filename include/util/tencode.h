@@ -412,7 +412,7 @@ static int32_t tDecodeBool(SDecoder* pCoder, bool* val) {
 }
 
 static FORCE_INLINE int32_t tDecodeBinaryWithSize(SDecoder* pCoder, uint32_t size, uint8_t** val) {
-  if (pCoder->pos + size > pCoder->size) {
+  if (size > pCoder->size - pCoder->pos) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
@@ -444,7 +444,7 @@ static FORCE_INLINE int32_t tDecodeBinaryTo(SDecoder* pCoder, uint8_t* val, uint
     TAOS_RETURN(TSDB_CODE_INVALID_MSG);
   }
 
-  if (pCoder->pos + len > pCoder->size) {
+  if (len > pCoder->size - pCoder->pos) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
@@ -484,7 +484,7 @@ static FORCE_INLINE int32_t tDecodeBinaryAlloc(SDecoder* pCoder, void** val, uin
   if (length) {
     if (len) *len = length;
 
-    if (pCoder->pos + length > pCoder->size) {
+    if (length > pCoder->size - pCoder->pos) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
     }
 
@@ -508,7 +508,7 @@ static FORCE_INLINE int32_t tDecodeBinaryAlloc32(SDecoder* pCoder, void** val, u
   if (length) {
     if (len) *len = length;
 
-    if (pCoder->pos + length > pCoder->size) {
+    if (length > pCoder->size - pCoder->pos) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
     }
     *val = taosMemoryMalloc(length);
