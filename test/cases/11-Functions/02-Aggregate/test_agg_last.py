@@ -179,6 +179,36 @@ class Test_Last:
                 tdSql.checkData(row, 0, max(added_values))
                 tdSql.checkData(row, 1, max(added_column_values))
 
+        # Each 200-row block crosses 90-second interval boundaries. The values
+        # must come from data blocks, without a redundant SMA dynamic-prune read.
+        all_values = values + added_values
+        tdSql.query("select max(c_value), max(c_all_null) from stb partition by grp interval(90s)")
+        tdSql.checkRows(9)
+        for row in range(9):
+            start = row * 90
+            end = min(start + 90, len(all_values))
+            tdSql.checkData(row, 0, max(all_values[start:end]))
+
+            if end <= 600:
+                tdSql.checkData(row, 1, None)
+            else:
+                added_start = max(start, 600) - 600
+                added_end = end - 600
+                tdSql.checkData(row, 1, max(added_column_values[added_start:added_end]))
+
+        tdSql.query(
+            "explain analyze verbose true select max(c_value), max(c_all_null) "
+            "from stb partition by grp interval(90s)"
+        )
+        plan = "".join(
+            str(tdSql.getData(row, col)).lower()
+            for row in range(tdSql.queryRows)
+            for col in range(tdSql.queryCols)
+        )
+        assert "sma_load_blocks=0" in plan, (
+            "interval-crossing MAX blocks must not load SMA for dynamic pruning"
+        )
+
         tdSql.query("select max(c_value), min(c_value) from stb partition by grp interval(200s)")
         tdSql.checkRows(4)
         for row in range(4):

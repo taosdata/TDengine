@@ -156,6 +156,7 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t ninput, co
                                char *const output, const char type);
 int32_t tsDecompressFloatImpAvx2(const char *input, int32_t nelements, char *output);
 int32_t tsDecompressDoubleImpAvx2(const char *input, int32_t nelements, char *output);
+int32_t tsDecodeDoubleBssAvx2(const char *input, int32_t nelements, char *output);
 int32_t tsDecompressTimestampAvx2(const char *input, int32_t nelements, char *output, bool bigEndian);
 int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output,
                                     bool bigEndian);
