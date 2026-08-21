@@ -21,15 +21,14 @@ FROM foo
 ANOMALY_WINDOW(foo.i32, foo.i64, foo.f32, "algo=lof")
 ```
 
-后续待添加基于数据挖掘检测算法
+HBOS：Histogram-based Outlier Score，基于直方图离群分数的检测算法。该算法分别为每个特征构建直方图，并根据数据点所在分箱的密度计算离群分数；数据点所在分箱的密度越低，离群程度越高。HBOS 适用于需要高效处理数据的场景，但通常假设各个特征相互独立。参数 `contamination` 用于指定预期异常点比例，默认值为 `0.1`；参数 `n_bins` 用于指定直方图分箱数量，默认值为 `10`，且必须至少为 `2`。
 
-- DBSCAN (Density-Based Spatial Clustering of Applications with Noise)
-- K-Nearest Neighbors (KNN)
-- Principal Component Analysis (PCA)
-
-第三方异常检测算法库
-
-- PyOD
+```SQL
+--- 使用 HBOS 进行多变量异常检测
+SELECT count(*)
+FROM foo
+ANOMALY_WINDOW(foo.i32, foo.i64, "algo=hbos,contamination=0.1,n_bins=10")
+```
 
 ### 参考文献
 

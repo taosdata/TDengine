@@ -7,3 +7,5 @@ torch==2.4.1+cpu
 h5py>=3.10,<3.13
 keras==3.12.0
 accelerate==0.34.2
+# install using --no-deps option to avoid depends on numba and llvmlite library
+pyod==2.0.5
