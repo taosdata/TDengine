@@ -46,6 +46,7 @@ class TestStreamRecalcCountWindowSlide1:
         self.check_default_count_window_ignores_disorder()
         self.check_default_one_count_window_recalc()
         self.check_slide2_count_window_ignores_disorder()
+        self.check_delete_recalc_after_first_window_closes()
         self.check_delete_recalc_rejections()
 
     def create_snode(self):
@@ -73,6 +74,7 @@ class TestStreamRecalcCountWindowSlide1:
         tdSql.execute("create table tdb.cw_default using tdb.cw_slide1 tags(3)")
         tdSql.execute("create table tdb.cw_slide2 using tdb.cw_slide1 tags(4)")
         tdSql.execute("create table tdb.cw_default_one using tdb.cw_slide1 tags(5)")
+        tdSql.execute("create table tdb.cw_delete_active using tdb.cw_slide1 tags(6)")
 
     def create_streams(self):
         tdSql.execute(
@@ -103,6 +105,13 @@ class TestStreamRecalcCountWindowSlide1:
         tdSql.execute(
             "create stream rdb.s_cw_default_one count_window(1) "
             "from tdb.cw_slide1 partition by tbname into rdb.r_cw_default_one "
+            "as select _twstart ts, count(*) cnt, avg(cint) avg_val "
+            "from qdb.meters where cts >= _twstart and cts < _twend;"
+        )
+        tdSql.execute(
+            "create stream rdb.s_cw_delete_active count_window(3, 1) "
+            "from tdb.cw_slide1 partition by tbname stream_options(delete_recalc) "
+            "into rdb.r_cw_delete_active "
             "as select _twstart ts, count(*) cnt, avg(cint) avg_val "
             "from qdb.meters where cts >= _twstart and cts < _twend;"
         )
@@ -226,6 +235,50 @@ class TestStreamRecalcCountWindowSlide1:
             "cw_slide2",
             before_rows,
             "COUNT_WINDOW(3,2) should ignore disorder data by default",
+        )
+
+    def check_delete_recalc_after_first_window_closes(self):
+        self.assert_rows_stable(
+            "rdb.r_cw_delete_active",
+            "cw_delete_active",
+            [],
+            "incomplete COUNT_WINDOW(3,1) must start without output",
+        )
+        tdSql.executes(
+            [
+                "insert into tdb.cw_delete_active values ('2025-01-01 02:00:00', 10, 'normal');",
+                "insert into tdb.cw_delete_active values ('2025-01-01 02:00:30', 30, 'normal');",
+            ]
+        )
+        self.assert_rows_stable(
+            "rdb.r_cw_delete_active",
+            "cw_delete_active",
+            [],
+            "incomplete COUNT_WINDOW(3,1) must not emit before it closes",
+        )
+        tdSql.execute("delete from tdb.cw_delete_active where ts = '2025-01-01 02:00:00';")
+        tdSql.execute("insert into tdb.cw_delete_active values ('2025-01-01 02:00:15', 20, 'late');")
+        self.assert_rows_stable(
+            "rdb.r_cw_delete_active",
+            "cw_delete_active",
+            [],
+            "incomplete COUNT_WINDOW(3,1) must stay empty after delete and disorder",
+        )
+        tdSql.executes(
+            [
+                "insert into tdb.cw_delete_active values ('2025-01-01 02:00:45', 40, 'normal');",
+                "insert into tdb.cw_delete_active values ('2025-01-01 02:01:00', 50, 'normal');",
+            ]
+        )
+        expected_rows = [
+            ("2025-01-01 02:00:00", 200, 240.5),
+            ("2025-01-01 02:00:15", 100, 241.0),
+            ("2025-01-01 02:00:30", 100, 241.0),
+        ]
+        tdSql.checkResultsByFunc(
+            sql=self.result_sql("rdb.r_cw_delete_active", "cw_delete_active"),
+            func=lambda: self.current_result_rows() == expected_rows,
+            retry=self.RECALC_RETRY,
         )
 
     def check_delete_recalc_rejections(self):

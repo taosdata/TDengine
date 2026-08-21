@@ -519,6 +519,8 @@ static int32_t msmTDAddTriggerToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj* pS
       }    
 
       taosArrayDestroy(snode.triggerList);
+      snode.triggerList = NULL;
+      code = TSDB_CODE_SUCCESS;
       continue;
     }
     
@@ -545,6 +547,14 @@ static int32_t msmTDAddTriggerToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj* pS
   }
   
 _return:
+
+  if (code != TSDB_CODE_SUCCESS && snode.triggerList != NULL) {
+    taosArrayDestroy(snode.triggerList);
+    snode.triggerList = NULL;
+  }
+  if (code == TSDB_CODE_SUCCESS && pDeploy->task.type == STREAM_TRIGGER_TASK) {
+    pDeploy->msg.trigger.pWindowPlan = NULL;
+  }
 
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -957,6 +967,14 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->notifyEventTypes = pStream->pCreate->notifyEventTypes;
   pMsg->addOptions = pStream->pCreate->addOptions;
   pMsg->notifyHistory = pStream->pCreate->notifyHistory;
+  if (BIT_FLAG_TEST_MASK(pMsg->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) {
+    if (pStream->pCreate->pWindowPlan == NULL) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
+    }
+    TAOS_CHECK_EXIT(tCloneStreamWindowPlan(pStream->pCreate->pWindowPlan, &pMsg->pWindowPlan));
+  } else if (pStream->pCreate->pWindowPlan != NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
+  }
 
   pMsg->maxDelay = pStream->pCreate->maxDelay;
   pMsg->fillHistoryStartTime = pStream->pCreate->fillHistoryStartTime;
@@ -972,7 +990,11 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->calcPkSlotId = pStream->pCreate->calcPkSlotId;
   pMsg->triPkSlotId = pStream->pCreate->triPkSlotId;
   pMsg->triggerPrevFilter = pInfo->pCreate->triggerPrevFilter;
-  if (STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags)) {
+  bool nestedCacheRows = !STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags) &&
+                         !STREAM_IS_REF_EXT_SOURCE(pDeploy->task.flags) &&
+                         BIT_FLAG_TEST_MASK(pStream->pCreate->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN) &&
+                         BIT_FLAG_TEST_MASK(pStream->pCreate->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS);
+  if (STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags) || nestedCacheRows) {
     pMsg->triggerScanPlan = pInfo->pCreate->triggerScanPlan;
     pMsg->calcCacheScanPlan = msmSearchCalcCacheScanPlan(pInfo->pCreate->calcScanPlanList);
   }
@@ -1021,6 +1043,7 @@ _exit:
     pMsg->readerList = NULL;
     taosArrayDestroy(pMsg->runnerList);
     pMsg->runnerList = NULL;
+    tDestroyStreamWindowPlan(&pMsg->pWindowPlan);
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
     mstsDebug("trigger deploy info built, readerNum:%d, runnerNum:%d", (int32_t)taosArrayGetSize(pMsg->readerList), (int32_t)taosArrayGetSize(pMsg->runnerList));
@@ -1380,6 +1403,8 @@ static int32_t msmBuildTriggerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStream
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
+  bool           deployOwned = false;
+  SStmTaskDeploy info = {0};
 
   pInfo->triggerTask = taosMemoryCalloc(1, sizeof(SStmTaskStatus));
   TSDB_CHECK_NULL(pInfo->triggerTask, code, lino, _exit, terrno);
@@ -1393,7 +1418,6 @@ static int32_t msmBuildTriggerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStream
   pInfo->triggerTask->lastUpTs = pCtx->currTs;
   pInfo->triggerTask->pStream = pInfo;
 
-  SStmTaskDeploy info = {0};
   info.task.type = pInfo->triggerTask->type;
   info.task.streamId = streamId;
   info.task.taskId =  pInfo->triggerTask->id.taskId;
@@ -1416,9 +1440,11 @@ static int32_t msmBuildTriggerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStream
   } else if (STREAM_IS_REF_EXT_SOURCE(pStream->flags)) {
     mDebug("stream:%s keeps WAL trigger path with external calc readers", pStream->name);
   }
+  deployOwned = true;
   TAOS_CHECK_EXIT(msmBuildTriggerDeployInfo(pCtx->pMnode, pInfo, &info, pStream));
   TAOS_CHECK_EXIT(msmTDAddTriggerToSnodeMap(&info, pStream));
-  
+  deployOwned = false;
+
   (void)atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
 
   TAOS_CHECK_EXIT(msmSTAddToTaskMap(pCtx, streamId, NULL, NULL, pInfo->triggerTask));
@@ -1427,6 +1453,10 @@ static int32_t msmBuildTriggerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStream
 _exit:
 
   if (code) {
+    if (deployOwned) {
+      SStmTaskToDeployExt ext = {.deploy = info};
+      mstDestroySStmTaskToDeployExt(&ext);
+    }
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
@@ -3355,6 +3385,13 @@ _exit:
   return code;
 }
 
+static void msmDetachAliasedTriggerDeploy(SStmStreamDeploy* pStream) {
+  if (pStream->triggerTask == NULL) return;
+  pStream->triggerTask->msg.trigger.readerList = NULL;
+  pStream->triggerTask->msg.trigger.runnerList = NULL;
+  pStream->triggerTask->msg.trigger.pWindowPlan = NULL;
+}
+
 static int32_t msmGrpAddDeployTask(SHashObj* pHash, SStmTaskDeploy* pDeploy) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -3369,19 +3406,30 @@ static int32_t msmGrpAddDeployTask(SHashObj* pHash, SStmTaskDeploy* pDeploy) {
       TAOS_CHECK_EXIT(msmInitStreamDeploy(&streamDeploy, pDeploy));
       code = taosHashPut(pHash, &streamId, sizeof(streamId), &streamDeploy, sizeof(streamDeploy));
       if (TSDB_CODE_SUCCESS == code) {
+        if (pDeploy->task.type == STREAM_TRIGGER_TASK) {
+          pDeploy->msg.trigger.pWindowPlan = NULL;
+        }
         goto _exit;
       }
 
       if (TSDB_CODE_DUP_KEY != code) {
+        if (pDeploy->task.type == STREAM_TRIGGER_TASK) {
+          msmDetachAliasedTriggerDeploy(&streamDeploy);
+          tFreeSStmStreamDeploy(&streamDeploy);
+        }
         goto _exit;
-      }    
+      }
 
+      msmDetachAliasedTriggerDeploy(&streamDeploy);
       tFreeSStmStreamDeploy(&streamDeploy);
       continue;
     }
 
     TAOS_CHECK_EXIT(msmInitStreamDeploy(pStream, pDeploy));
-    
+    if (pDeploy->task.type == STREAM_TRIGGER_TASK) {
+      pDeploy->msg.trigger.pWindowPlan = NULL;
+    }
+
     break;
   }
   

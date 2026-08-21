@@ -1669,10 +1669,31 @@ stream_outtable_opt(A) ::= .                                                    
 stream_outtable_opt(A) ::= INTO full_table_name(B) nodelay_create_subtable_opt(F) output_subtable_opt(C) column_name_opt(D) stream_tags_def_opt(E).        { A = createStreamOutTableNode(pCxt, B, C, D, E, F); }
 
 /********** stream_trigger **********/
-stream_trigger(A) ::= trigger_type(B) trigger_table_opt(C) stream_partition_by_opt(D) stream_rollup_by_opt(E)
+stream_trigger(A) ::= stream_trigger_window(B) trigger_table_opt(C) stream_partition_by_opt(D) stream_rollup_by_opt(E)
                       trigger_options_opt(F) notification_opt(G).                                                           { A = createStreamTriggerNode(pCxt, B, C, D, E, F, G); }
 
 /***** trigger type *****/
+
+stream_trigger_window(A) ::= trigger_type(B).                                                                                { A = B; }
+stream_trigger_window(A) ::= WINDOW NK_LP nested_window_layers(B) NK_RP.                                                     { A = createStreamWindowPlanNode(pCxt, B); }
+
+%type nested_window_layers                                                                                                   { SNodeList* }
+%destructor nested_window_layers                                                                                             { nodesDestroyList($$); }
+nested_window_layers(A) ::= named_nonleaf_window_layers(B) NK_COMMA nested_window_leaf(C).                                  { A = B; if (TSDB_CODE_SUCCESS == pCxt->errCode) { pCxt->errCode = nodesListStrictAppend(A, C); } else { nodesDestroyNode(C); } }
+
+%type named_nonleaf_window_layers                                                                                            { SNodeList* }
+%destructor named_nonleaf_window_layers                                                                                      { nodesDestroyList($$); }
+named_nonleaf_window_layers(A) ::= named_nonleaf_window(B).                                                                  { A = NULL; if (TSDB_CODE_SUCCESS == pCxt->errCode) { pCxt->errCode = nodesListMakeStrictAppend(&A, B); } else { nodesDestroyNode(B); } }
+named_nonleaf_window_layers(A) ::= named_nonleaf_window_layers(B) NK_COMMA named_nonleaf_window(C).                         { A = B; if (TSDB_CODE_SUCCESS == pCxt->errCode) { pCxt->errCode = nodesListStrictAppend(A, C); } else { nodesDestroyNode(C); } }
+
+%type named_nonleaf_window                                                                                                   { SNode* }
+%destructor named_nonleaf_window                                                                                             { nodesDestroyNode($$); }
+named_nonleaf_window(A) ::= trigger_type(B) AS table_alias(C).                                                              { A = createStreamWindowLayerNode(pCxt, B, &C); }
+
+%type nested_window_leaf                                                                                                     { SNode* }
+%destructor nested_window_leaf                                                                                               { nodesDestroyNode($$); }
+nested_window_leaf(A) ::= trigger_type(B).                                                                                   { A = createStreamWindowLayerNode(pCxt, B, NULL); }
+nested_window_leaf(A) ::= trigger_type(B) AS table_alias(C).                                                                { A = createStreamWindowLayerNode(pCxt, B, &C); }
 
 trigger_type(A) ::= SESSION NK_LP column_reference(B) NK_COMMA interval_sliding_duration_literal(C) NK_RP.                  { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
 trigger_type(A) ::= STATE_WINDOW NK_LP state_window_expr_list(B) NK_RP state_window_opt(C) true_for_opt(D).                 { A = createStateWindowNode(pCxt, B, C, D); }
@@ -1757,6 +1778,7 @@ trigger_option(A) ::= WATERMARK NK_LP duration_literal(B) NK_RP.                
 trigger_option(A) ::= EVENT_TYPE NK_LP event_type_list(B) NK_RP.                   { A.type = STREAM_TRIGGER_OPTION_EVENT_TYPE; A.flag = B; A.pNode = NULL; }
 trigger_option(A) ::= IGNORE_NODATA_TRIGGER.                                       { A.type = STREAM_TRIGGER_OPTION_IGNORE_NODATA_TRIGGER; A.pNode = NULL; }
 trigger_option(A) ::= IDLE_TIMEOUT NK_LP duration_literal(B) NK_RP.                { A.type = STREAM_TRIGGER_OPTION_IDLE_TIMEOUT; A.pNode = releaseRawExprNode(pCxt, B); }
+trigger_option(A) ::= FLUSH_ON_OUTER_CLOSE.                                        { A.type = STREAM_TRIGGER_OPTION_FLUSH_ON_OUTER_CLOSE; A.pNode = NULL; }
 
 /***** notification_opt *****/
 notification_opt(A) ::= .                                                         { A = NULL; }
@@ -2331,6 +2353,13 @@ expression_list(A) ::= expression_list(B) NK_COMMA expr_or_subquery(C).         
 
 column_reference(A) ::= column_name(B).                                           { A = createRawExprNode(pCxt, &B, createColumnNode(pCxt, NULL, &B)); }
 column_reference(A) ::= table_name(B) NK_DOT column_name(C).                      { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= table_name(B) NK_DOT TWSTART(C).                          { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= table_name(B) NK_DOT TWEND(C).                            { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= table_name(B) NK_DOT TWDURATION(C).                       { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= table_name(B) NK_DOT TWROWNUM(C).                         { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= table_name(B) NK_DOT TPREV_TS(C).                         { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= table_name(B) NK_DOT TCURRENT_TS(C).                      { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= table_name(B) NK_DOT TNEXT_TS(C).                         { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 column_reference(A) ::= NK_ALIAS(B).                                              { A = createRawExprNode(pCxt, &B, createColumnNode(pCxt, NULL, &B)); }
 column_reference(A) ::= table_name(B) NK_DOT NK_ALIAS(C).                         { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 

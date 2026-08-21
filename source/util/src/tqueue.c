@@ -213,6 +213,14 @@ void taosFreeQitem(void *pItem) {
   taosMemoryFree(pNode);
 }
 
+void taosFreeQueueItem(STaosQueue *queue, void *pItem) {
+  if (pItem == NULL) return;
+  if (queue != NULL && queue->freeFp != NULL) {
+    queue->freeFp(pItem);
+  }
+  taosFreeQitem(pItem);
+}
+
 int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
   int32_t     code = 0;
   STaosQnode *pNode = (STaosQnode *)(((char *)pItem) - sizeof(STaosQnode));

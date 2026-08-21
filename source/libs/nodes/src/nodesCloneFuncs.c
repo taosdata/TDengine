@@ -377,6 +377,7 @@ static int32_t realTableNodeCopy(const SRealTableNode* pSrc, SRealTableNode* pDs
 static int32_t tempTableNodeCopy(const STempTableNode* pSrc, STempTableNode* pDst) {
   COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
   CLONE_NODE_FIELD(pSubquery);
+  COPY_SCALAR_FIELD(hasExplicitAlias);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -548,8 +549,26 @@ static int32_t intervalWindowNodeCopy(const SIntervalWindowNode* pSrc, SInterval
   CLONE_NODE_FIELD(pInterval);
   CLONE_NODE_FIELD(pOffset);
   CLONE_NODE_FIELD(pSliding);
+  CLONE_NODE_FIELD(pSOffset);
   CLONE_NODE_FIELD(pFill);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t periodWindowNodeCopy(const SPeriodWindowNode* pSrc, SPeriodWindowNode* pDst) {
+  CLONE_NODE_FIELD(pPeroid);
+  CLONE_NODE_FIELD(pOffset);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t streamWindowPlanNodeCopy(const SStreamWindowPlanNode* pSrc, SStreamWindowPlanNode* pDst) {
+  CLONE_NODE_LIST_FIELD(pLayers);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t streamWindowLayerNodeCopy(const SStreamWindowLayerNode* pSrc, SStreamWindowLayerNode* pDst) {
+  COPY_CHAR_ARRAY_FIELD(name);
+  CLONE_NODE_FIELD(pWindow);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1529,6 +1548,7 @@ static int32_t physiSubplanCopy(const SSubplan* pSrc, SSubplan* pDst) {
   COPY_SCALAR_FIELD(dynamicRowThreshold);
   COPY_SCALAR_FIELD(rowsThreshold);
   COPY_SCALAR_FIELD(processOneBlock);
+  COPY_SCALAR_FIELD(requiresAncestorContext);
   COPY_SCALAR_FIELD(dynTbname);
   COPY_SCALAR_FIELD(userAppId);
   return TSDB_CODE_SUCCESS;
@@ -1755,6 +1775,15 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_INTERVAL_WINDOW:
       code = intervalWindowNodeCopy((const SIntervalWindowNode*)pNode, (SIntervalWindowNode*)pDst);
+      break;
+    case QUERY_NODE_PERIOD_WINDOW:
+      code = periodWindowNodeCopy((const SPeriodWindowNode*)pNode, (SPeriodWindowNode*)pDst);
+      break;
+    case QUERY_NODE_STREAM_WINDOW_PLAN:
+      code = streamWindowPlanNodeCopy((const SStreamWindowPlanNode*)pNode, (SStreamWindowPlanNode*)pDst);
+      break;
+    case QUERY_NODE_STREAM_WINDOW_LAYER:
+      code = streamWindowLayerNodeCopy((const SStreamWindowLayerNode*)pNode, (SStreamWindowLayerNode*)pDst);
       break;
     case QUERY_NODE_NODE_LIST:
       code = nodeListNodeCopy((const SNodeListNode*)pNode, (SNodeListNode*)pDst);

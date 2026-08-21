@@ -37,18 +37,19 @@
 #include "os.h"
 
 #include "filterInt.h"
+#include "functionMgt.h"
 #include "nodes.h"
 #include "parUtil.h"
 #include "scalar.h"
 #include "sclInt.h"
 #include "stub.h"
 #include "taos.h"
+#include "tcompare.h"
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
 #include "tlog.h"
 #include "tvariant.h"
-#include "tcompare.h"
 
 #define _DEBUG_PRINT_ 0
 
@@ -187,6 +188,65 @@ int32_t scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
 
   *pNode = (SNode *)vnode;
   SCL_RET(TSDB_CODE_SUCCESS);
+}
+
+SStreamAncestorContext *scltMakeAncestorContext(int64_t gid, int32_t paramIndex) {
+  auto *context = static_cast<SStreamAncestorContext *>(taosMemoryCalloc(1, sizeof(SStreamAncestorContext)));
+  EXPECT_NE(context, nullptr);
+  if (context == nullptr) return nullptr;
+  context->pParamContexts = taosArrayInit(1, sizeof(SStreamAncestorParamContext));
+  EXPECT_NE(context->pParamContexts, nullptr);
+  if (context->pParamContexts == nullptr) return context;
+
+  SStreamAncestorParamContext param = {};
+  param.paramIndex = paramIndex;
+  param.leafIdentity.gid = gid;
+  param.leafIdentity.triggerType = WINDOW_TYPE_COUNT;
+  param.leafIdentity.lineage.pScopes = taosArrayInit(2, sizeof(SScopeInstanceId));
+  EXPECT_NE(param.leafIdentity.lineage.pScopes, nullptr);
+  SScopeInstanceId root = {};
+  root.layerIndex = 0;
+  root.triggerType = WINDOW_TYPE_SESSION;
+  root.openingTs = 100;
+  root.nativeDiscriminator = 1;
+  SScopeInstanceId parent = {};
+  parent.layerIndex = 1;
+  parent.triggerType = WINDOW_TYPE_COUNT;
+  parent.openingTs = 200;
+  parent.nativeDiscriminator = 2;
+  EXPECT_NE(taosArrayPush(param.leafIdentity.lineage.pScopes, &root), nullptr);
+  EXPECT_NE(taosArrayPush(param.leafIdentity.lineage.pScopes, &parent), nullptr);
+  param.pSnapshots = taosArrayInit(2, sizeof(SWindowAncestorSnapshot));
+  EXPECT_NE(param.pSnapshots, nullptr);
+  SWindowAncestorSnapshot rootSnapshot = {};
+  rootSnapshot.layerIndex = 0;
+  rootSnapshot.triggerType = WINDOW_TYPE_SESSION;
+  rootSnapshot.placeholderMask = PLACE_HOLDER_WSTART;
+  rootSnapshot.values.window.start = 100;
+  SWindowAncestorSnapshot parentSnapshot = {};
+  parentSnapshot.layerIndex = 1;
+  parentSnapshot.triggerType = WINDOW_TYPE_COUNT;
+  parentSnapshot.placeholderMask = PLACE_HOLDER_WSTART;
+  parentSnapshot.values.window.start = 200;
+  EXPECT_NE(taosArrayPush(param.pSnapshots, &rootSnapshot), nullptr);
+  EXPECT_NE(taosArrayPush(param.pSnapshots, &parentSnapshot), nullptr);
+  EXPECT_NE(taosArrayPush(context->pParamContexts, &param), nullptr);
+  return context;
+}
+
+SStreamContextPolicy *scltMakeAncestorPolicy(int64_t gid, int32_t paramIndex) {
+  auto *policy = static_cast<SStreamContextPolicy *>(taosMemoryCalloc(1, sizeof(SStreamContextPolicy)));
+  EXPECT_NE(policy, nullptr);
+  if (policy == nullptr) return nullptr;
+  policy->pEntries = taosArrayInit(1, sizeof(SStreamContextPolicyEntry));
+  EXPECT_NE(policy->pEntries, nullptr);
+  if (policy->pEntries == nullptr) return policy;
+  SStreamContextPolicyEntry entry = {};
+  entry.gid = gid;
+  entry.paramIndex = paramIndex;
+  entry.contextPolicy = STREAM_CONTEXT_POLICY_ANCESTOR;
+  EXPECT_NE(taosArrayPush(policy->pEntries, &entry), nullptr);
+  return policy;
 }
 
 int32_t scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t rowNum,
@@ -4501,6 +4561,255 @@ TEST(ScalarFunctionTest, powFunction_column) {
   scltDestroyDataBlock(input[1]);
   scltDestroyDataBlock(pOutput);
   taosMemoryFree(pInput);
+}
+
+TEST(ScalarStreamPlaceholderTest, readsQualifiedAncestorByLayerIndex) {
+  const int32_t funcId = fmGetFuncId("_twstart");
+  ASSERT_GE(funcId, 0);
+
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.groupId = 101;
+  runtime.curIdx = 0;
+  runtime.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam leaf = {};
+  leaf.wstart = 300;
+  leaf.wend = 399;
+  leaf.notifyType = BIT_FLAG_MASK(0);
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &leaf), nullptr);
+  runtime.pContextPolicy = scltMakeAncestorPolicy(runtime.groupId, runtime.curIdx);
+  runtime.pAncestorContext = scltMakeAncestorContext(runtime.groupId, runtime.curIdx);
+
+  auto evaluate = [&](int32_t targetFuncId, int32_t layerIndex, int64_t *value) {
+    SNodeList  *params = nullptr;
+    SValueNode *result = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode **>(&result)), TSDB_CODE_SUCCESS);
+    result->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    result->node.resType.bytes = sizeof(int64_t);
+    EXPECT_EQ(nodesListMakeStrictAppend(&params, reinterpret_cast<SNode *>(result)), TSDB_CODE_SUCCESS);
+    SValueNode *layer = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode **>(&layer)), TSDB_CODE_SUCCESS);
+    layer->node.resType.type = TSDB_DATA_TYPE_INT;
+    layer->node.resType.bytes = sizeof(int32_t);
+    layer->datum.i = layerIndex;
+    EXPECT_EQ(nodesListMakeStrictAppend(&params, reinterpret_cast<SNode *>(layer)), TSDB_CODE_SUCCESS);
+
+    const int32_t code = fmSetStreamPseudoFuncParamVal(targetFuncId, params, &runtime);
+    if (code == TSDB_CODE_SUCCESS) *value = result->datum.i;
+    nodesDestroyList(params);
+    return code;
+  };
+
+  int64_t value = 0;
+  ASSERT_EQ(evaluate(funcId, 0, &value), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(value, 100);
+  ASSERT_EQ(evaluate(funcId, 2, &value), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(value, 300);
+  ASSERT_EQ(evaluate(fmGetFuncId("_tprev_ts"), 2, &value), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(value, 300);
+  EXPECT_EQ(evaluate(funcId, 3, &value), TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  auto *param = static_cast<SStreamAncestorParamContext *>(taosArrayGet(runtime.pAncestorContext->pParamContexts, 0));
+  ASSERT_NE(param, nullptr);
+  auto *rootScope = static_cast<SScopeInstanceId *>(taosArrayGet(param->leafIdentity.lineage.pScopes, 0));
+  auto *rootSnapshot = static_cast<SWindowAncestorSnapshot *>(taosArrayGet(param->pSnapshots, 0));
+  ASSERT_NE(rootScope, nullptr);
+  ASSERT_NE(rootSnapshot, nullptr);
+  rootScope->triggerType = WINDOW_TYPE_INTERVAL;
+  rootSnapshot->triggerType = WINDOW_TYPE_INTERVAL;
+  rootSnapshot->placeholderMask = PLACE_HOLDER_PREV_TS;
+  rootSnapshot->values.sliding.prevTs = 50;
+  ASSERT_EQ(evaluate(fmGetFuncId("_tprev_ts"), 0, &value), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(value, 50);
+  EXPECT_EQ(evaluate(fmGetFuncId("_twend"), 0, &value), TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  rootSnapshot->triggerType = WINDOW_TYPE_PERIOD;
+  EXPECT_EQ(evaluate(fmGetFuncId("_tprev_ts"), 0, &value), TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+  rootSnapshot->triggerType = WINDOW_TYPE_INTERVAL;
+  param->paramIndex = 1;
+  EXPECT_EQ(evaluate(funcId, 0, &value), TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+  param->paramIndex = runtime.curIdx;
+  ASSERT_NE(taosArrayPush(runtime.pAncestorContext->pParamContexts, param), nullptr);
+  EXPECT_EQ(evaluate(funcId, 0, &value), TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+  ASSERT_NE(taosArrayPop(runtime.pAncestorContext->pParamContexts), nullptr);
+
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(ScalarStreamPlaceholderTest, externalWindowRangeReadsQualifiedAncestor) {
+  const int32_t funcId = fmGetFuncId("_twstart");
+  ASSERT_GE(funcId, 0);
+
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.groupId = 101;
+  runtime.curIdx = 0;
+  runtime.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam leaf = {};
+  leaf.wstart = 300;
+  leaf.wend = 399;
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &leaf), nullptr);
+  SSTriggerCalcParam secondLeaf = {};
+  secondLeaf.wstart = 600;
+  secondLeaf.wend = 699;
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &secondLeaf), nullptr);
+  runtime.pAncestorContext = scltMakeAncestorContext(runtime.groupId, runtime.curIdx);
+  SStreamAncestorContext *secondContext = scltMakeAncestorContext(runtime.groupId, 1);
+  ASSERT_NE(secondContext, nullptr);
+  auto *secondParam = static_cast<SStreamAncestorParamContext *>(taosArrayGet(secondContext->pParamContexts, 0));
+  ASSERT_NE(secondParam, nullptr);
+  auto *secondRoot = static_cast<SWindowAncestorSnapshot *>(taosArrayGet(secondParam->pSnapshots, 0));
+  ASSERT_NE(secondRoot, nullptr);
+  secondRoot->values.window.start = 400;
+  ASSERT_NE(taosArrayPush(runtime.pAncestorContext->pParamContexts, secondParam), nullptr);
+  ASSERT_NE(taosArrayPop(secondContext->pParamContexts), nullptr);
+  tDestroyStreamAncestorContext(&secondContext);
+
+  auto makePlaceholder = [&]() -> SNode * {
+    SFunctionNode *func = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_FUNCTION, reinterpret_cast<SNode **>(&func)), TSDB_CODE_SUCCESS);
+    if (func == nullptr) return nullptr;
+    func->funcId = funcId;
+    func->funcType = fmGetFuncTypeFromId(funcId);
+    func->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    func->node.resType.bytes = sizeof(int64_t);
+
+    SValueNode *result = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode **>(&result)), TSDB_CODE_SUCCESS);
+    if (result == nullptr) {
+      nodesDestroyNode(reinterpret_cast<SNode *>(func));
+      return nullptr;
+    }
+    result->node.resType = func->node.resType;
+    EXPECT_EQ(nodesListMakeStrictAppend(&func->pParameterList, reinterpret_cast<SNode *>(result)), TSDB_CODE_SUCCESS);
+
+    SValueNode *layer = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode **>(&layer)), TSDB_CODE_SUCCESS);
+    if (layer == nullptr) {
+      nodesDestroyNode(reinterpret_cast<SNode *>(func));
+      return nullptr;
+    }
+    layer->node.resType.type = TSDB_DATA_TYPE_INT;
+    layer->node.resType.bytes = sizeof(int32_t);
+    layer->datum.i = 0;
+    EXPECT_EQ(nodesListMakeStrictAppend(&func->pParameterList, reinterpret_cast<SNode *>(layer)), TSDB_CODE_SUCCESS);
+    return reinterpret_cast<SNode *>(func);
+  };
+
+  auto makePrimaryTs = []() -> SNode * {
+    SColumnNode *column = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, reinterpret_cast<SNode **>(&column)), TSDB_CODE_SUCCESS);
+    if (column == nullptr) return nullptr;
+    column->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    column->node.resType.bytes = sizeof(int64_t);
+    column->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+    return reinterpret_cast<SNode *>(column);
+  };
+
+  SNode *start = nullptr;
+  SNode *end = nullptr;
+  ASSERT_EQ(scltMakeOpNode(&start, OP_TYPE_GREATER_EQUAL, TSDB_DATA_TYPE_BOOL, makePrimaryTs(), makePlaceholder()),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeOpNode(&end, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, makePrimaryTs(), makePlaceholder()),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(start, nullptr);
+  ASSERT_NE(end, nullptr);
+
+  STimeRangeNode range = {};
+  range.type = QUERY_NODE_TIME_RANGE;
+  range.pStart = start;
+  range.pEnd = end;
+  range.needCalc = true;
+  SExtWinTimeWindow wins[2] = {};
+  ASSERT_EQ(scalarCalculateExtWinsTimeRange(&range, &runtime, wins), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(wins[0].tw.skey, 100);
+  EXPECT_EQ(wins[0].tw.ekey, 101);
+  EXPECT_EQ(wins[1].tw.skey, 400);
+  EXPECT_EQ(wins[1].tw.ekey, 401);
+
+  nodesDestroyNode(start);
+  nodesDestroyNode(end);
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(ScalarStreamPlaceholderTest, autoTwendJoinRangeIncludesOnlyDegenerateStart) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.pStreamPesudoFuncVals = taosArrayInit(2, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam degenerate = {};
+  degenerate.wstart = 100;
+  degenerate.wend = 100;
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &degenerate), nullptr);
+  SSTriggerCalcParam nondegenerate = {};
+  nondegenerate.wstart = 200;
+  nondegenerate.wend = 201;
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &nondegenerate), nullptr);
+
+  auto makePlaceholder = [](const char *name) -> SNode * {
+    const int32_t funcId = fmGetFuncId(name);
+    EXPECT_GE(funcId, 0);
+
+    SFunctionNode *func = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_FUNCTION, reinterpret_cast<SNode **>(&func)), TSDB_CODE_SUCCESS);
+    if (func == nullptr) return nullptr;
+    func->funcId = funcId;
+    func->funcType = fmGetFuncTypeFromId(funcId);
+    func->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    func->node.resType.bytes = sizeof(int64_t);
+
+    SValueNode *result = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode **>(&result)), TSDB_CODE_SUCCESS);
+    if (result == nullptr) {
+      nodesDestroyNode(reinterpret_cast<SNode *>(func));
+      return nullptr;
+    }
+    result->node.resType = func->node.resType;
+    EXPECT_EQ(nodesListMakeStrictAppend(&func->pParameterList, reinterpret_cast<SNode *>(result)), TSDB_CODE_SUCCESS);
+    return reinterpret_cast<SNode *>(func);
+  };
+
+  auto makePrimaryTs = []() -> SNode * {
+    SColumnNode *column = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, reinterpret_cast<SNode **>(&column)), TSDB_CODE_SUCCESS);
+    if (column == nullptr) return nullptr;
+    column->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    column->node.resType.bytes = sizeof(int64_t);
+    column->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+    return reinterpret_cast<SNode *>(column);
+  };
+
+  SNode *start = nullptr;
+  SNode *end = nullptr;
+  ASSERT_EQ(
+      scltMakeOpNode(&start, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, makePrimaryTs(), makePlaceholder("_twstart")),
+      TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeOpNode(&end, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, makePrimaryTs(), makePlaceholder("_twend")),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(start, nullptr);
+  ASSERT_NE(end, nullptr);
+
+  reinterpret_cast<SOperatorNode *>(start)->flag = OPERATOR_FLAG_STREAM_EXT_JOIN_AUTO_RANGE;
+  STimeRangeNode range = {};
+  range.type = QUERY_NODE_TIME_RANGE;
+  range.pStart = start;
+  range.pEnd = end;
+  range.needCalc = true;
+  SExtWinTimeWindow autoWins[2] = {};
+  ASSERT_EQ(scalarCalculateExtWinsTimeRange(&range, &runtime, autoWins), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(autoWins[0].tw.skey, 100);
+  EXPECT_EQ(autoWins[0].tw.ekey, 101);
+  EXPECT_EQ(autoWins[1].tw.skey, 201);
+  EXPECT_EQ(autoWins[1].tw.ekey, 202);
+
+  reinterpret_cast<SOperatorNode *>(start)->flag = 0;
+  SExtWinTimeWindow explicitWins[2] = {};
+  ASSERT_EQ(scalarCalculateExtWinsTimeRange(&range, &runtime, explicitWins), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(explicitWins[0].tw.skey, 101);
+  EXPECT_EQ(explicitWins[0].tw.ekey, 101);
+
+  nodesDestroyNode(start);
+  nodesDestroyNode(end);
+  tDestroyStRtFuncInfo(&runtime);
 }
 
 int main(int argc, char **argv) {

@@ -692,6 +692,11 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
       SInputData              input = {.pData = pBlock, .pStreamDataInserterInfo = &d, .pTask = pTask};
       bool                    cont = false;
       code = dsPutDataBlock(pExec->pSinkHandle, &input, &cont);
+      if (!*createTb && code == TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND &&
+          pTask->output.outTblType == TSDB_NORMAL_TABLE) {
+        d.isAutoCreateTable = true;
+        code = dsPutDataBlock(pExec->pSinkHandle, &input, &cont);
+      }
       ST_TASK_DLOG("runner output block to sink code:0x%0x, rows: %" PRId64 ", tbname: %s, createTb: %d, gid: %" PRId64,
                     code, (pBlock != NULL ? pBlock->info.rows : 0), pExec->tbname, *createTb, pExec->runtimeInfo.funcInfo.groupId);
       printDataBlock(pBlock, "output block to sink", "runner", pTask->task.streamId);
@@ -807,6 +812,59 @@ static void clearNotifyContent(SStreamRunnerTaskExecution* pExec, int32_t startW
   }
 }
 
+static bool stRunnerNotifyUsesNestedLeafId(int32_t notifyType) {
+  return notifyType == STRIGGER_EVENT_WINDOW_OPEN || notifyType == STRIGGER_EVENT_WINDOW_CLOSE ||
+         notifyType == STRIGGER_EVENT_ON_TIME;
+}
+
+static int32_t stRunnerBuildResultTriggerId(const SStreamRunnerTask* pTask, const SStreamRunnerTaskExecution* pExec,
+                                            int32_t paramIndex, char triggerId[STREAM_NESTED_TRIGGER_ID_LEN]) {
+  if (pTask == NULL || pExec == NULL || triggerId == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  triggerId[0] = '\0';
+  if (!BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  const SArray* pParams = pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals;
+  if (paramIndex < 0 || pParams == NULL || pParams->elemSize != sizeof(SSTriggerCalcParam) ||
+      paramIndex >= taosArrayGetSize(pParams)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  const SSTriggerCalcParam* pCalcParam = taosArrayGet(pParams, paramIndex);
+  if (pCalcParam == NULL || !stRunnerNotifyUsesNestedLeafId(pCalcParam->notifyType)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  const SStreamAncestorContext* pAncestorContext = pExec->runtimeInfo.funcInfo.pAncestorContext;
+  if (pAncestorContext == NULL || pAncestorContext->pParamContexts == NULL ||
+      pAncestorContext->pParamContexts->elemSize != sizeof(SStreamAncestorParamContext)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  const int64_t                      gid = pExec->runtimeInfo.funcInfo.groupId;
+  const SStreamAncestorParamContext* pMatch = NULL;
+  int32_t                            matchCount = 0;
+  for (int32_t i = 0; i < taosArrayGetSize(pAncestorContext->pParamContexts); ++i) {
+    const SStreamAncestorParamContext* pParam = taosArrayGet(pAncestorContext->pParamContexts, i);
+    if (pParam != NULL && pParam->leafIdentity.gid == gid && pParam->paramIndex == paramIndex) {
+      pMatch = pParam;
+      ++matchCount;
+    }
+  }
+  if (matchCount != 1) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t windowIndex = -1;
+  int32_t code = stResolveNestedLeafWindowIndex(pExec->runtimeInfo.funcInfo.triggerType, &pMatch->leafIdentity,
+                                                pCalcParam->notifyType, pCalcParam->extraNotifyContent, &windowIndex);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  return stBuildNestedTriggerId(pMatch->leafIdentity.gid, &pMatch->leafIdentity.lineage, pMatch->leafIdentity.openingTs,
+                                windowIndex, triggerId);
+}
+
 static int32_t streamDoNotificationCurrentWins(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
                                                const char* tbname, uint64_t notifyRows, bool* pFailureClassified) {
   int32_t             code = 0;
@@ -816,6 +874,9 @@ static int32_t streamDoNotificationCurrentWins(SStreamRunnerTask* pTask, SStream
   SSTriggerCalcParam* params = NULL;
   bool                attempted = false;
   bool                delivered = false;
+  char*               pTriggerIdStorage = NULL;
+  const char**        pTriggerIds = NULL;
+  const bool          nested = BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
   if (pTask->notification.pNotifyAddrUrls == NULL || pTask->notification.pNotifyAddrUrls->size == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -825,10 +886,22 @@ static int32_t streamDoNotificationCurrentWins(SStreamRunnerTask* pTask, SStream
   }
 
   winSize = pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size;
-  params = taosMemCalloc(winSize, sizeof(SSTriggerCalcParam));
+  params = taosMemoryCalloc(winSize, sizeof(SSTriggerCalcParam));
   if (!params) {
     ST_TASK_ELOG("failed to init stream pesudo func vals array, size:%d", winSize);
     TAOS_CHECK_EXIT(terrno);
+  }
+  if (nested) {
+    pTriggerIdStorage = taosMemoryCalloc(winSize, STREAM_NESTED_TRIGGER_ID_LEN);
+    if (pTriggerIdStorage == NULL) {
+      ST_TASK_ELOG("failed to init nested trigger id storage, size:%d", winSize);
+      TAOS_CHECK_EXIT(terrno);
+    }
+    pTriggerIds = taosMemoryCalloc(winSize, sizeof(*pTriggerIds));
+    if (pTriggerIds == NULL) {
+      ST_TASK_ELOG("failed to init nested trigger id array, size:%d", winSize);
+      TAOS_CHECK_EXIT(terrno);
+    }
   }
 
   for (int i = 0; i < winSize; ++i) {
@@ -840,14 +913,28 @@ static int32_t streamDoNotificationCurrentWins(SStreamRunnerTask* pTask, SStream
       ST_TASK_DLOG("%s no notify content for index:%d", __FUNCTION__, i);
       continue;
     }
+    if (nested && stRunnerNotifyUsesNestedLeafId(pTriggerCalcParams->notifyType)) {
+      char* pTriggerId = pTriggerIdStorage + (size_t)nParam * STREAM_NESTED_TRIGGER_ID_LEN;
+      TAOS_CHECK_EXIT(stRunnerBuildResultTriggerId(pTask, pExec, i, pTriggerId));
+      pTriggerIds[nParam] = pTriggerId;
+    }
     params[nParam] = *pTriggerCalcParams;
     ++nParam;
   }
 
-  code = streamSendNotifyContentWithResult(&pTask->task, pTask->streamName, tbname,
-                                           pExec->runtimeInfo.funcInfo.triggerType, pExec->runtimeInfo.funcInfo.groupId,
-                                           pTask->notification.pNotifyAddrUrls, pTask->addOptions, params, nParam,
-                                           &attempted, &delivered);
+  if (nested) {
+    attempted = nParam > 0;
+    code = streamSendNestedResultNotifyContent(&pTask->task, pTask->streamName, tbname,
+                                               pExec->runtimeInfo.funcInfo.triggerType,
+                                               pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
+                                               pTask->addOptions, params, pTriggerIds, nParam);
+    delivered = attempted && code == TSDB_CODE_SUCCESS;
+  } else {
+    code = streamSendNotifyContentWithResult(
+        &pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
+        pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls, pTask->addOptions, params, nParam,
+        &attempted, &delivered);
+  }
   TAOS_CHECK_EXIT(code);
 
 _exit:
@@ -867,10 +954,12 @@ _exit:
       stRunnerRecordOutput(pTask, notifyRows, 1);
     }
   }
-  if ((pTask->addOptions & NOTIFY_ON_FAILURE_PAUSE) == 0) {
+  if (!nested && (pTask->addOptions & NOTIFY_ON_FAILURE_PAUSE) == 0) {
     code = TSDB_CODE_SUCCESS;  // if notify error handle is 0, then ignore the error
   }
   clearNotifyContent(pExec, 0, winSize);
+  taosMemoryFreeClear(pTriggerIds);
+  taosMemoryFreeClear(pTriggerIdStorage);
   taosMemoryFreeClear(params);
   return code;
 }
@@ -884,6 +973,9 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   SSTriggerCalcParam* params = NULL;
   bool                attempted = false;
   bool                delivered = false;
+  char*               pTriggerIdStorage = NULL;
+  const char**        pTriggerIds = NULL;
+  const bool          nested = BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
   if (pTask->notification.pNotifyAddrUrls == NULL || pTask->notification.pNotifyAddrUrls->size == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -892,10 +984,22 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
     TAOS_CHECK_EXIT(stRunnerGetNotifyTbName(pTask, pExec, &tbname));
   }
 
-  params = taosMemCalloc(nParam, sizeof(SSTriggerCalcParam));
+  params = taosMemoryCalloc(nParam, sizeof(SSTriggerCalcParam));
   if (!params) {
     ST_TASK_ELOG("failed to init stream pesudo func vals array, size:%d", nParam);
     TAOS_CHECK_EXIT(terrno);
+  }
+  if (nested) {
+    pTriggerIdStorage = taosMemoryCalloc(nParam, STREAM_NESTED_TRIGGER_ID_LEN);
+    if (pTriggerIdStorage == NULL) {
+      ST_TASK_ELOG("failed to init nested trigger id storage, size:%d", nParam);
+      TAOS_CHECK_EXIT(terrno);
+    }
+    pTriggerIds = taosMemoryCalloc(nParam, sizeof(*pTriggerIds));
+    if (pTriggerIds == NULL) {
+      ST_TASK_ELOG("failed to init nested trigger id array, size:%d", nParam);
+      TAOS_CHECK_EXIT(terrno);
+    }
   }
 
   nParam = 0;
@@ -910,14 +1014,28 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
       ST_TASK_DLOG("%s no notify content for index:%d", __FUNCTION__, i);
       continue;
     }
+    if (nested && stRunnerNotifyUsesNestedLeafId(pTriggerCalcParams->notifyType)) {
+      char* pTriggerId = pTriggerIdStorage + (size_t)nParam * STREAM_NESTED_TRIGGER_ID_LEN;
+      TAOS_CHECK_EXIT(stRunnerBuildResultTriggerId(pTask, pExec, i, pTriggerId));
+      pTriggerIds[nParam] = pTriggerId;
+    }
     params[nParam] = *pTriggerCalcParams;
     ++nParam;
   }
 
-  code = streamSendNotifyContentWithResult(&pTask->task, pTask->streamName, tbname,
-                                           pExec->runtimeInfo.funcInfo.triggerType, pExec->runtimeInfo.funcInfo.groupId,
-                                           pTask->notification.pNotifyAddrUrls, pTask->addOptions, params, nParam,
-                                           &attempted, &delivered);
+  if (nested) {
+    attempted = nParam > 0;
+    code = streamSendNestedResultNotifyContent(&pTask->task, pTask->streamName, tbname,
+                                               pExec->runtimeInfo.funcInfo.triggerType,
+                                               pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
+                                               pTask->addOptions, params, pTriggerIds, nParam);
+    delivered = attempted && code == TSDB_CODE_SUCCESS;
+  } else {
+    code = streamSendNotifyContentWithResult(
+        &pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
+        pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls, pTask->addOptions, params, nParam,
+        &attempted, &delivered);
+  }
 
 _exit:
   if (code != TSDB_CODE_SUCCESS || (attempted && !delivered)) {
@@ -935,18 +1053,21 @@ _exit:
       stRunnerRecordOutput(pTask, notifyRows, 1);
     }
   }
-  if ((pTask->addOptions & NOTIFY_ON_FAILURE_PAUSE) == 0) {
+  if (!nested && (pTask->addOptions & NOTIFY_ON_FAILURE_PAUSE) == 0) {
     code = TSDB_CODE_SUCCESS;  // if notify error handle is 0, then ignore the error
   }
   clearNotifyContent(pExec, startWinIdx, endWinIdx);
+  taosMemoryFreeClear(pTriggerIds);
+  taosMemoryFreeClear(pTriggerIdStorage);
   taosMemoryFreeClear(params);
   return code;
 }
 
 static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
                                          const SSDataBlock* pBlock, const char* tbname, bool* pFailureClassified) {
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  const bool nested = BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
 
   if (tbname[0] == '\0') {
     TAOS_CHECK_GOTO(stRunnerGetNotifyTbName(pTask, pExec, &tbname), &lino, _exit);
@@ -971,10 +1092,28 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
       goto _exit;
     }
     pTriggerCalcParams->resultNotifyContent = pContent;
-    code = streamSendNotifyContentWithResult(&pTask->task, pTask->streamName, tbname,
-                                             pExec->runtimeInfo.funcInfo.triggerType,
-                                             pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
-                                             pTask->addOptions, pTriggerCalcParams, 1, &attempted, &delivered);
+
+    if (nested) {
+      char        triggerId[STREAM_NESTED_TRIGGER_ID_LEN] = {0};
+      const char* pTriggerIds[1] = {NULL};
+      if (stRunnerNotifyUsesNestedLeafId(pTriggerCalcParams->notifyType)) {
+        code = stRunnerBuildResultTriggerId(pTask, pExec, index, triggerId);
+        pTriggerIds[0] = triggerId;
+      }
+      if (code == TSDB_CODE_SUCCESS) {
+        attempted = pTriggerCalcParams->notifyType != STRIGGER_EVENT_WINDOW_NONE;
+        code = streamSendNestedResultNotifyContent(
+            &pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
+            pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls, pTask->addOptions,
+            pTriggerCalcParams, pTriggerIds, 1);
+        delivered = attempted && code == TSDB_CODE_SUCCESS;
+      }
+    } else {
+      code = streamSendNotifyContentWithResult(
+          &pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
+          pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls, pTask->addOptions,
+          pTriggerCalcParams, 1, &attempted, &delivered);
+    }
     taosMemoryFreeClear(pTriggerCalcParams->resultNotifyContent);
   } else if (code == 0) {
     taosMemoryFreeClear(pContent);
@@ -1007,7 +1146,8 @@ static int32_t stRunnerHandleSingleWinResultBlock(SStreamRunnerTask* pTask, SStr
     if (code != TSDB_CODE_SUCCESS) {
       ST_TASK_ELOG("failed to send notification for block, code:%s", tstrerror(code));
     }
-    if ((pTask->addOptions & NOTIFY_ON_FAILURE_PAUSE) == 0) {
+    if (!BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN) &&
+        (pTask->addOptions & NOTIFY_ON_FAILURE_PAUSE) == 0) {
       code = TSDB_CODE_SUCCESS;  // ignore the notify error
     }
   }
@@ -1307,6 +1447,11 @@ static uint64_t stRunnerCountRequestWindows(const SSTriggerCalcRequest* pReq) {
   return windows;
 }
 
+static int32_t stRunnerValidateContextPolicy(const SStreamRunnerTask* pTask, const SSTriggerCalcRequest* pReq) {
+  const bool nested = BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
+  return tValidateSTriggerCalcRequestAncestorContext(pReq, nested);
+}
+
 int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq, int64_t requestStartMonoUs) {
   int32_t                     code = 0;
   int32_t                     lino = 0;
@@ -1317,6 +1462,9 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   SSDataBlock*                pForceOutBlock = NULL;
   SStreamRunnerTaskExecution* pExec = NULL;
   ST_TASK_DLOG("[runner calc]start, gid:%" PRId64 ", topTask: %d, brandNew:%d", pReq->gid, pTask->topTask, pReq->brandNew);
+
+  code = stRunnerValidateContextPolicy(pTask, pReq);
+  if (code != TSDB_CODE_SUCCESS) return code;
 
   stTaskStatsRecordRunnerRequest(pTask->pStats, stRunnerCountRequestWindows(pReq), requestStartMonoUs,
                                  taosGetTimestampMs());
@@ -1335,6 +1483,10 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   pExec->runtimeInfo.inputStatsFp = stRunnerRecordInput;
   pTask->task.status = STREAM_STATUS_RUNNING;
   pTask->task.sessionId = pReq->sessionId;
+  tDestroyStreamContextPolicy(&pExec->runtimeInfo.funcInfo.pContextPolicy);
+  tDestroyStreamAncestorContext(&pExec->runtimeInfo.funcInfo.pAncestorContext);
+  TSWAP(pExec->runtimeInfo.funcInfo.pContextPolicy, pReq->pContextPolicy);
+  TSWAP(pExec->runtimeInfo.funcInfo.pAncestorContext, pReq->pAncestorContext);
   // Empty arrays decode as NULL. A new request must still replace state left by a reused exec.
   if (pReq->groupColVals || pReq->brandNew) {
     TSWAP(pExec->runtimeInfo.funcInfo.pStreamPartColVals, pReq->groupColVals);
@@ -1569,24 +1721,93 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
   return code;
 }
 
+void stClearStreamCacheReadScope(SStreamCacheReadInfo* pReadInfo) {
+  if (pReadInfo == NULL) {
+    return;
+  }
+  taosArrayDestroy(pReadInfo->cacheScope.lineage.pScopes);
+  pReadInfo->cacheScope = (SStreamCacheScope){0};
+  pReadInfo->readInfoIndex = -1;
+  pReadInfo->hasCacheScope = false;
+  pReadInfo->pRuntime = NULL;
+}
+
+static int32_t stCopyStreamCacheReadScope(const SStreamCacheScope* pSource, int32_t readInfoIndex,
+                                          SStreamCacheReadInfo* pReadInfo) {
+  SArray* pScopes = NULL;
+  if (taosArrayGetSize(pSource->lineage.pScopes) > 0) {
+    pScopes = taosArrayDup(pSource->lineage.pScopes, NULL);
+    if (pScopes == NULL) {
+      return terrno;
+    }
+  }
+  pReadInfo->cacheScope.gid = pSource->gid;
+  pReadInfo->cacheScope.lineage.pScopes = pScopes;
+  pReadInfo->readInfoIndex = readInfoIndex;
+  pReadInfo->hasCacheScope = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t stBindStreamCacheReadScopeForTask(const SStreamRuntimeFuncInfo* pRuntime, bool nested, int32_t expectedNodeId,
+                                          SStreamCacheReadInfo* pReadInfo) {
+  if (pRuntime == NULL || pReadInfo == NULL || pReadInfo->hasCacheScope) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (!nested) {
+    SStreamCacheScope legacyScope = {.gid = pRuntime->groupId};
+    return stCopyStreamCacheReadScope(&legacyScope, -1, pReadInfo);
+  }
+  if (pRuntime->pAncestorContext == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pRuntime->isMultiGroupCalc) {
+    if (taosArrayGetSize(pRuntime->pAncestorContext->pReadScopeBindings) != 1) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    const SStreamReadScopeBinding* pBinding = taosArrayGet(pRuntime->pAncestorContext->pReadScopeBindings, 0);
+    if (pBinding == NULL || pBinding->vgId != expectedNodeId || pBinding->scope.gid != pRuntime->groupId) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    return stCopyStreamCacheReadScope(&pBinding->scope, pBinding->readInfoIndex, pReadInfo);
+  }
+
+  const SStreamAncestorParamContext* pMatch = NULL;
+  int32_t                            count = 0;
+  for (int32_t i = 0; i < taosArrayGetSize(pRuntime->pAncestorContext->pParamContexts); ++i) {
+    const SStreamAncestorParamContext* pParam = taosArrayGet(pRuntime->pAncestorContext->pParamContexts, i);
+    if (pParam != NULL && pParam->leafIdentity.gid == pRuntime->groupId && pParam->paramIndex == pRuntime->curIdx) {
+      pMatch = pParam;
+      ++count;
+    }
+  }
+  if (count != 1) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SStreamCacheScope scope = {.gid = pMatch->leafIdentity.gid, .lineage = pMatch->leafIdentity.lineage};
+  return stCopyStreamCacheReadScope(&scope, -1, pReadInfo);
+}
+
+int32_t stBindStreamCacheReadScope(const SStreamRuntimeFuncInfo* pRuntime, SStreamCacheReadInfo* pReadInfo) {
+  if (pRuntime == NULL || pReadInfo == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  const bool nested = BIT_FLAG_TEST_MASK(pRuntime->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
+  if (nested) {
+    int32_t code = tAdmitStreamContext(pRuntime->pContextPolicy, pRuntime->pAncestorContext, true);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  return stBindStreamCacheReadScopeForTask(pRuntime, nested, pRuntime->curNodeId, pReadInfo);
+}
+
 int32_t stRunnerFetchDataFromCache(SStreamCacheReadInfo* pInfo, bool* finished) {
-  int32_t code = 0, lino = 0;
-  void**  ppIter = NULL;
-  int64_t streamId = pInfo->taskInfo.streamId;
-  TAOS_CHECK_EXIT(readStreamDataCache(pInfo->taskInfo.streamId, pInfo->taskInfo.taskId, pInfo->taskInfo.sessionId,
-                                     pInfo->gid, pInfo->start, pInfo->end, &ppIter));
-  if (*ppIter != NULL) {
-    TAOS_CHECK_EXIT(getNextStreamDataCache(ppIter, &pInfo->pBlock));
-  }
-  
-  *finished = (*ppIter == NULL) ? true : false;
-
-_exit:
-
+  int64_t streamId = pInfo == NULL ? 0 : pInfo->taskInfo.streamId;
+  int32_t code = readStreamDataCache(pInfo, finished);
   if (code) {
-    stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+    stsError("%s failed, error:%s", __FUNCTION__, tstrerror(code));
   }
-  
   return code;
 }
 

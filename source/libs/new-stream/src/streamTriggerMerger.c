@@ -1238,6 +1238,305 @@ _end:
   return code;
 }
 
+typedef struct {
+  int64_t                        tableUid;
+  SStreamTriggerPeerSourceOps    ops;
+  void                          *pSource;
+  SStreamTriggerPeerHead         head;
+  EStreamTriggerPeerSourceStatus status;
+  bool                           headKnown;
+} SStreamTriggerPeerSource;
+
+struct SStreamTriggerPeerMerger {
+  int64_t               gid;
+  SArray               *pSources;
+  SSHashObj            *pSourceUids;
+  SArray               *pRows;
+  SArray               *pHeap;
+  SArray               *pOutstandingSources;
+  SWindowChainPeerGroup group;
+  int32_t               primeIndex;
+  int32_t               refreshIndex;
+  bool                  initialized;
+  bool                  started;
+  bool                  outstanding;
+  bool                  retryOutstanding;
+  bool                  failed;
+};
+
+int32_t stTriggerMergerPeerCreate(int64_t gid, SStreamTriggerPeerMerger **ppMerger) {
+  if (ppMerger == NULL || *ppMerger != NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SStreamTriggerPeerMerger *pMerger = taosMemoryCalloc(1, sizeof(SStreamTriggerPeerMerger));
+  if (pMerger == NULL) {
+    return terrno;
+  }
+  pMerger->pSources = taosArrayInit(4, sizeof(SStreamTriggerPeerSource));
+  pMerger->pSourceUids = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  pMerger->pRows = taosArrayInit(4, sizeof(SWindowChainRowRef));
+  pMerger->pHeap = taosArrayInit(4, sizeof(int32_t));
+  pMerger->pOutstandingSources = taosArrayInit(4, sizeof(int32_t));
+  if (pMerger->pSources == NULL || pMerger->pSourceUids == NULL || pMerger->pRows == NULL || pMerger->pHeap == NULL ||
+      pMerger->pOutstandingSources == NULL) {
+    taosArrayDestroy(pMerger->pSources);
+    tSimpleHashCleanup(pMerger->pSourceUids);
+    taosArrayDestroy(pMerger->pRows);
+    taosArrayDestroy(pMerger->pHeap);
+    taosArrayDestroy(pMerger->pOutstandingSources);
+    taosMemoryFree(pMerger);
+    return terrno;
+  }
+  pMerger->gid = gid;
+  pMerger->group.gid = gid;
+  pMerger->group.pRows = pMerger->pRows;
+  *ppMerger = pMerger;
+  return TSDB_CODE_SUCCESS;
+}
+
+void stTriggerMergerPeerReset(SStreamTriggerPeerMerger *pMerger, int64_t gid) {
+  if (pMerger == NULL) {
+    return;
+  }
+  taosArrayClear(pMerger->pSources);
+  tSimpleHashClear(pMerger->pSourceUids);
+  taosArrayClear(pMerger->pRows);
+  taosArrayClear(pMerger->pHeap);
+  taosArrayClear(pMerger->pOutstandingSources);
+  pMerger->gid = gid;
+  pMerger->group = (SWindowChainPeerGroup){.gid = gid, .pRows = pMerger->pRows};
+  pMerger->primeIndex = 0;
+  pMerger->refreshIndex = 0;
+  pMerger->initialized = false;
+  pMerger->started = false;
+  pMerger->outstanding = false;
+  pMerger->retryOutstanding = false;
+  pMerger->failed = false;
+}
+
+int32_t stTriggerMergerPeerAddSource(SStreamTriggerPeerMerger *pMerger, int64_t tableUid,
+                                     const SStreamTriggerPeerSourceOps *pOps, void *pSource) {
+  if (pMerger == NULL || pOps == NULL || pOps->peek == NULL || pOps->consume == NULL || pSource == NULL ||
+      pMerger->started || pMerger->failed) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (tSimpleHashGet(pMerger->pSourceUids, &tableUid, sizeof(tableUid)) != NULL) return TSDB_CODE_INVALID_PARA;
+  SStreamTriggerPeerSource source = {.tableUid = tableUid, .ops = *pOps, .pSource = pSource};
+  if (taosArrayPush(pMerger->pSources, &source) == NULL) {
+    return terrno;
+  }
+  const bool registered = true;
+  int32_t    code = tSimpleHashPut(pMerger->pSourceUids, &tableUid, sizeof(tableUid), &registered, sizeof(registered));
+  if (code != TSDB_CODE_SUCCESS) {
+    taosArrayPop(pMerger->pSources);
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool stTriggerMergerPeerHeapLess(const SStreamTriggerPeerMerger *pMerger, int32_t leftIndex,
+                                        int32_t rightIndex) {
+  const SStreamTriggerPeerSource *pLeft = taosArrayGet(pMerger->pSources, leftIndex);
+  const SStreamTriggerPeerSource *pRight = taosArrayGet(pMerger->pSources, rightIndex);
+  if (pLeft->head.eventTs != pRight->head.eventTs) return pLeft->head.eventTs < pRight->head.eventTs;
+  if (pLeft->tableUid != pRight->tableUid) return pLeft->tableUid < pRight->tableUid;
+  return leftIndex < rightIndex;
+}
+
+static void stTriggerMergerPeerHeapSwap(SArray *pHeap, int32_t left, int32_t right) {
+  int32_t *pLeft = taosArrayGet(pHeap, left);
+  int32_t *pRight = taosArrayGet(pHeap, right);
+  int32_t  value = *pLeft;
+  *pLeft = *pRight;
+  *pRight = value;
+}
+
+static int32_t stTriggerMergerPeerHeapPush(SStreamTriggerPeerMerger *pMerger, int32_t sourceIndex) {
+  if (taosArrayPush(pMerger->pHeap, &sourceIndex) == NULL) return terrno;
+  int32_t child = taosArrayGetSize(pMerger->pHeap) - 1;
+  while (child > 0) {
+    int32_t parent = (child - 1) / 2;
+    int32_t childSource = *(int32_t *)taosArrayGet(pMerger->pHeap, child);
+    int32_t parentSource = *(int32_t *)taosArrayGet(pMerger->pHeap, parent);
+    if (!stTriggerMergerPeerHeapLess(pMerger, childSource, parentSource)) break;
+    stTriggerMergerPeerHeapSwap(pMerger->pHeap, child, parent);
+    child = parent;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stTriggerMergerPeerHeapTop(const SStreamTriggerPeerMerger *pMerger) {
+  return *(int32_t *)taosArrayGet(pMerger->pHeap, 0);
+}
+
+static int32_t stTriggerMergerPeerHeapPop(SStreamTriggerPeerMerger *pMerger) {
+  int32_t result = stTriggerMergerPeerHeapTop(pMerger);
+  int32_t last = *(int32_t *)taosArrayGetLast(pMerger->pHeap);
+  taosArrayPop(pMerger->pHeap);
+  int32_t heapSize = taosArrayGetSize(pMerger->pHeap);
+  if (heapSize == 0) return result;
+  *(int32_t *)taosArrayGet(pMerger->pHeap, 0) = last;
+  int32_t parent = 0;
+  while (true) {
+    int32_t left = parent * 2 + 1;
+    if (left >= heapSize) break;
+    int32_t right = left + 1;
+    int32_t child = left;
+    if (right < heapSize) {
+      int32_t leftSource = *(int32_t *)taosArrayGet(pMerger->pHeap, left);
+      int32_t rightSource = *(int32_t *)taosArrayGet(pMerger->pHeap, right);
+      if (stTriggerMergerPeerHeapLess(pMerger, rightSource, leftSource)) child = right;
+    }
+    int32_t childSource = *(int32_t *)taosArrayGet(pMerger->pHeap, child);
+    int32_t parentSource = *(int32_t *)taosArrayGet(pMerger->pHeap, parent);
+    if (!stTriggerMergerPeerHeapLess(pMerger, childSource, parentSource)) break;
+    stTriggerMergerPeerHeapSwap(pMerger->pHeap, child, parent);
+    parent = child;
+  }
+  return result;
+}
+
+static int32_t stTriggerMergerPeerLoadSource(SStreamTriggerPeerMerger *pMerger, int32_t sourceIndex, bool *pNeedInput) {
+  SStreamTriggerPeerSource *pSource = taosArrayGet(pMerger->pSources, sourceIndex);
+  int32_t                   code = pSource->ops.peek(pSource->pSource, &pSource->head, &pSource->status);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (pSource->status == STREAM_TRIGGER_PEER_SOURCE_NEED_INPUT) {
+    *pNeedInput = true;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pSource->status != STREAM_TRIGGER_PEER_SOURCE_ROW && pSource->status != STREAM_TRIGGER_PEER_SOURCE_EOF) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pSource->status == STREAM_TRIGGER_PEER_SOURCE_ROW &&
+      (pSource->head.row.pBlock == NULL || pSource->head.row.rowIndex < 0 ||
+       pSource->head.row.rowIndex >= pSource->head.row.pBlock->info.rows ||
+       pSource->head.row.tableUid != pSource->tableUid)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  pSource->headKnown = true;
+  return pSource->status == STREAM_TRIGGER_PEER_SOURCE_ROW ? stTriggerMergerPeerHeapPush(pMerger, sourceIndex)
+                                                           : TSDB_CODE_SUCCESS;
+}
+
+static void stTriggerMergerConsumeOutstanding(SStreamTriggerPeerMerger *pMerger) {
+  if (!pMerger->outstanding) {
+    return;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pMerger->pOutstandingSources); ++i) {
+    int32_t                   sourceIndex = *(int32_t *)taosArrayGet(pMerger->pOutstandingSources, i);
+    SStreamTriggerPeerSource *pSource = taosArrayGet(pMerger->pSources, sourceIndex);
+    pSource->ops.consume(pSource->pSource);
+    pSource->headKnown = false;
+  }
+  pMerger->outstanding = false;
+  pMerger->refreshIndex = 0;
+  taosArrayClear(pMerger->pRows);
+}
+
+int32_t stTriggerMergerNextPeerGroup(SStreamTriggerPeerMerger *pMerger, EStreamTriggerPeerGroupStatus *pStatus,
+                                     int32_t *pNeedSourceIndex, const SWindowChainPeerGroup **ppGroup) {
+  if (pMerger == NULL || pStatus == NULL || pNeedSourceIndex == NULL || ppGroup == NULL || pMerger->failed) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *pNeedSourceIndex = -1;
+  *ppGroup = NULL;
+  pMerger->started = true;
+  if (pMerger->retryOutstanding) {
+    pMerger->retryOutstanding = false;
+    *pStatus = STREAM_TRIGGER_PEER_GROUP_READY;
+    *ppGroup = &pMerger->group;
+    return TSDB_CODE_SUCCESS;
+  }
+  stTriggerMergerConsumeOutstanding(pMerger);
+
+  int32_t numSources = taosArrayGetSize(pMerger->pSources);
+  while (!pMerger->initialized && pMerger->primeIndex < numSources) {
+    bool    needInput = false;
+    int32_t code = stTriggerMergerPeerLoadSource(pMerger, pMerger->primeIndex, &needInput);
+    if (code != TSDB_CODE_SUCCESS) {
+      pMerger->failed = true;
+      return code;
+    }
+    if (needInput) {
+      *pStatus = STREAM_TRIGGER_PEER_GROUP_NEED_INPUT;
+      *pNeedSourceIndex = pMerger->primeIndex;
+      return TSDB_CODE_SUCCESS;
+    }
+    ++pMerger->primeIndex;
+  }
+  pMerger->initialized = true;
+
+  while (pMerger->refreshIndex < taosArrayGetSize(pMerger->pOutstandingSources)) {
+    int32_t sourceIndex = *(int32_t *)taosArrayGet(pMerger->pOutstandingSources, pMerger->refreshIndex);
+    bool    needInput = false;
+    int32_t code = stTriggerMergerPeerLoadSource(pMerger, sourceIndex, &needInput);
+    if (code != TSDB_CODE_SUCCESS) {
+      pMerger->failed = true;
+      return code;
+    }
+    if (needInput) {
+      *pStatus = STREAM_TRIGGER_PEER_GROUP_NEED_INPUT;
+      *pNeedSourceIndex = sourceIndex;
+      return TSDB_CODE_SUCCESS;
+    }
+    ++pMerger->refreshIndex;
+  }
+  taosArrayClear(pMerger->pOutstandingSources);
+  pMerger->refreshIndex = 0;
+
+  if (taosArrayGetSize(pMerger->pHeap) == 0) {
+    *pStatus = STREAM_TRIGGER_PEER_GROUP_EOF;
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code = taosArrayEnsureCap(pMerger->pRows, numSources);
+  if (code == TSDB_CODE_SUCCESS) code = taosArrayEnsureCap(pMerger->pOutstandingSources, numSources);
+  if (code != TSDB_CODE_SUCCESS) {
+    pMerger->failed = true;
+    return code;
+  }
+  int32_t firstSourceIndex = stTriggerMergerPeerHeapTop(pMerger);
+  TSKEY   minTs = ((SStreamTriggerPeerSource *)taosArrayGet(pMerger->pSources, firstSourceIndex))->head.eventTs;
+  while (taosArrayGetSize(pMerger->pHeap) > 0) {
+    int32_t                   sourceIndex = stTriggerMergerPeerHeapTop(pMerger);
+    SStreamTriggerPeerSource *pSource = taosArrayGet(pMerger->pSources, sourceIndex);
+    if (pSource->head.eventTs != minTs) break;
+    sourceIndex = stTriggerMergerPeerHeapPop(pMerger);
+    pSource = taosArrayGet(pMerger->pSources, sourceIndex);
+    if (taosArrayPush(pMerger->pRows, &pSource->head.row) == NULL ||
+        taosArrayPush(pMerger->pOutstandingSources, &sourceIndex) == NULL) {
+      pMerger->failed = true;
+      return terrno;
+    }
+  }
+
+  pMerger->group.ts = minTs;
+  pMerger->outstanding = true;
+  *pStatus = STREAM_TRIGGER_PEER_GROUP_READY;
+  *ppGroup = &pMerger->group;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t stTriggerMergerPeerRetryOutstanding(SStreamTriggerPeerMerger *pMerger) {
+  if (pMerger == NULL || !pMerger->outstanding || pMerger->failed) return TSDB_CODE_INVALID_PARA;
+  pMerger->retryOutstanding = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+void stTriggerMergerPeerDestroy(SStreamTriggerPeerMerger **ppMerger) {
+  if (ppMerger == NULL || *ppMerger == NULL) {
+    return;
+  }
+  SStreamTriggerPeerMerger *pMerger = *ppMerger;
+  taosArrayDestroy(pMerger->pSources);
+  tSimpleHashCleanup(pMerger->pSourceUids);
+  taosArrayDestroy(pMerger->pRows);
+  taosArrayDestroy(pMerger->pHeap);
+  taosArrayDestroy(pMerger->pOutstandingSources);
+  taosMemoryFree(pMerger);
+  *ppMerger = NULL;
+}
+
 int32_t stVtableMergerGetMetaToFetch(SSTriggerVtableMerger *pMerger, SSTriggerMetaData **ppMeta,
                                      SSTriggerTableColRef **ppColRef) {
   int32_t             code = TSDB_CODE_SUCCESS;
@@ -1407,7 +1706,7 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter) {
 
 int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_t tbUid, int32_t tsSlotId,
                                     int32_t pkSlotId, STimeWindow *pReadRange, SObjList *pMetas,
-                                    SSTriggerDataSlice *pSlice) {
+                                    SSTriggerDataSlice *pSlice, bool orderedInput) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pSorter->pTask;
@@ -1459,8 +1758,7 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
         continue;
       }
     }
-    while (pTask->ignoreDisorder && i < pSlice->endIdx && lastTs != INT64_MIN &&
-           pTsData[i] <= lastTs - pTask->watermark) {
+    while (orderedInput && i < pSlice->endIdx && lastTs != INT64_MIN && pTsData[i] <= lastTs - pTask->watermark) {
       i++;
     }
     int64_t skey = TMAX(pMeta->skey, pReadRange->skey);
@@ -1809,7 +2107,7 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger) {
 
 int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId, int32_t pkSlotId,
                                  STimeWindow *pReadRange, SObjList *pTableUids, SArray *pTableColRefs,
-                                 SSHashObj *pMetas, SSHashObj *pSlices) {
+                                 SSHashObj *pMetas, SSHashObj *pSlices, bool orderedInput) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pMerger->pTask;
@@ -1858,7 +2156,7 @@ int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbU
     SObjList *pMeta = tSimpleHashGet(pMetas, &pColRef->otbVgId, sizeof(int32_t));
     QUERY_CHECK_NULL(pMeta, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     code = stNewTimestampSorterSetData(pReaderInfo->pReader, pColRef->otbUid, tsSlotId, pkSlotId, pReadRange, pMeta,
-                                       pSlice);
+                                       pSlice, orderedInput);
     QUERY_CHECK_CODE(code, lino, _end);
     pReaderInfo->pColRef = pColRef;
     code = stNewTimestampSorterNextDataBlock(pReaderInfo->pReader, NULL, &pReaderInfo->startIdx, &pReaderInfo->endIdx);

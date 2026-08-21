@@ -5249,9 +5249,11 @@ int32_t buildStreamRunnerFetchRtInfo(const SStreamRuntimeFuncInfo* pSrc, SStream
 
   *pDst = *pSrc;
   pDst->pStreamPesudoFuncVals = NULL;
+  pDst->pContextPolicy = NULL;
+  pDst->pAncestorContext = NULL;
 
   if (pSrc->isMultiGroupCalc) {
-    return TSDB_CODE_SUCCESS;
+    return tProjectStreamCalcContextForFetch(pSrc, true, false, &pDst->pContextPolicy, &pDst->pAncestorContext);
   }
 
   int32_t winNum = taosArrayGetSize(pSrc->pStreamPesudoFuncVals);
@@ -5272,6 +5274,20 @@ int32_t buildStreamRunnerFetchRtInfo(const SStreamRuntimeFuncInfo* pSrc, SStream
   TAOS_MEMCPY(pDstParam, pSrcParam, plainFieldSize);
   pDst->curIdx = 0;
   pDst->curOutIdx = 0;
+  TAOS_CHECK_EXIT(
+      tProjectStreamCalcContextForFetch(pSrc, false, false, &pDst->pContextPolicy, &pDst->pAncestorContext));
+  if (pDst->pContextPolicy != NULL) {
+    SStreamContextPolicyEntry* pEntry = taosArrayGet(pDst->pContextPolicy->pEntries, 0);
+    QUERY_CHECK_NULL(pEntry, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+    pEntry->paramIndex = 0;
+  }
+  if (pDst->pAncestorContext != NULL) {
+    SStreamAncestorParamContext* pParam = taosArrayGet(pDst->pAncestorContext->pParamContexts, 0);
+    QUERY_CHECK_NULL(pParam, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+    pParam->paramIndex = 0;
+  }
+  TAOS_CHECK_EXIT(tAdmitStreamContext(pDst->pContextPolicy, pDst->pAncestorContext,
+                                      pDst->pContextPolicy != NULL || pDst->pAncestorContext != NULL));
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
@@ -5287,6 +5303,8 @@ void cleanupStreamRunnerFetchRtInfo(SStreamRuntimeFuncInfo* pInfo) {
 
   taosArrayDestroy(pInfo->pStreamPesudoFuncVals);
   pInfo->pStreamPesudoFuncVals = NULL;
+  tDestroyStreamContextPolicy(&pInfo->pContextPolicy);
+  tDestroyStreamAncestorContext(&pInfo->pAncestorContext);
 }
 
 int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes, bool reset) {
