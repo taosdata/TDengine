@@ -218,6 +218,7 @@ typedef struct SDataBlockInfo {
   uint8_t     scanFlag;
   bool        blankFill;
   SValue      pks[2];
+  SColumnDataAgg* pBlockAgg;  // borrowed block SMA for dynamic aggregate pruning; do not serialize or copy
 
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization

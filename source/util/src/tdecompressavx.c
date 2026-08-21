@@ -346,6 +346,49 @@ int32_t tsDecompressDoubleImpAvx2(const char *input, const int32_t nelements, ch
 #endif
 }
 
+int32_t tsDecodeDoubleBssAvx2(const char *const input, const int32_t nelements, char *const output) {
+#ifdef __AVX2__
+  const int32_t batchElements = nelements - nelements % DOUBLE_BYTES;
+  const char   *in[DOUBLE_BYTES];
+
+  for (int32_t byte = 0; byte < DOUBLE_BYTES; ++byte) {
+    in[byte] = input + byte * nelements;
+  }
+
+  for (int32_t i = 0; i < batchElements; i += DOUBLE_BYTES) {
+    __m128i p0 = _mm_loadl_epi64((const __m128i *)(in[0] + i));
+    __m128i p1 = _mm_loadl_epi64((const __m128i *)(in[1] + i));
+    __m128i p2 = _mm_loadl_epi64((const __m128i *)(in[2] + i));
+    __m128i p3 = _mm_loadl_epi64((const __m128i *)(in[3] + i));
+    __m128i p4 = _mm_loadl_epi64((const __m128i *)(in[4] + i));
+    __m128i p5 = _mm_loadl_epi64((const __m128i *)(in[5] + i));
+    __m128i p6 = _mm_loadl_epi64((const __m128i *)(in[6] + i));
+    __m128i p7 = _mm_loadl_epi64((const __m128i *)(in[7] + i));
+
+    // Transpose eight byte streams into eight consecutive DOUBLE values.
+    __m128i t0 = _mm_unpacklo_epi8(p0, p1);
+    __m128i t1 = _mm_unpacklo_epi8(p2, p3);
+    __m128i t2 = _mm_unpacklo_epi8(p4, p5);
+    __m128i t3 = _mm_unpacklo_epi8(p6, p7);
+    __m128i u0 = _mm_unpacklo_epi16(t0, t1);
+    __m128i u1 = _mm_unpackhi_epi16(t0, t1);
+    __m128i u2 = _mm_unpacklo_epi16(t2, t3);
+    __m128i u3 = _mm_unpackhi_epi16(t2, t3);
+
+    char *out = output + i * DOUBLE_BYTES;
+    _mm_storeu_si128((__m128i *)out, _mm_unpacklo_epi32(u0, u2));
+    _mm_storeu_si128((__m128i *)(out + sizeof(__m128i)), _mm_unpackhi_epi32(u0, u2));
+    _mm_storeu_si128((__m128i *)(out + 2 * sizeof(__m128i)), _mm_unpacklo_epi32(u1, u3));
+    _mm_storeu_si128((__m128i *)(out + 3 * sizeof(__m128i)), _mm_unpackhi_epi32(u1, u3));
+  }
+
+  return batchElements * DOUBLE_BYTES;
+#else
+  uError("unable run %s without avx2 instructions", __func__);
+  return -1;
+#endif
+}
+
 int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelements, char *const output,
                                   bool bigEndian) {
 #ifdef __AVX512VL__

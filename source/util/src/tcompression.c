@@ -743,6 +743,18 @@ static int32_t tsDecodeDouble(const char *const input, int32_t inputSize, const 
   if (TSDB_DATA_TYPE_FLOAT == type) {
     return tsDecodeDoubleImpl(input, inputSize, output, nelements * sizeof(float), sizeof(float));
   } else if (TSDB_DATA_TYPE_DOUBLE == type) {
+    if (NULL != input && NULL != output && inputSize > 0 && inputSize % DOUBLE_BYTES == 0 &&
+        inputSize / DOUBLE_BYTES == nelements && nelements >= DOUBLE_BYTES && tsSIMDEnable && tsAVX2Supported) {
+      int32_t cnt = tsDecodeDoubleBssAvx2(input, nelements, output);
+      if (cnt >= 0) {
+        for (int32_t i = cnt / DOUBLE_BYTES; i < nelements; ++i) {
+          for (int32_t j = 0; j < DOUBLE_BYTES; ++j) {
+            output[i * DOUBLE_BYTES + j] = input[i + j * nelements];
+          }
+        }
+        return nelements * DOUBLE_BYTES;
+      }
+    }
     return tsDecodeDoubleImpl(input, inputSize, output, nelements * sizeof(double), sizeof(double));
   }
   return TSDB_CODE_THIRDPARTY_ERROR;
