@@ -640,7 +640,9 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     }
   }
 
-  if (!maxInterval && !smaLoadAttempted &&
+  // A block crossing interval boundaries must be read as data. Its SMA cannot
+  // prune the per-window aggregation, so avoid a redundant SMA read.
+  if (!overlap && !maxInterval && !smaLoadAttempted &&
       (needsLastNullSmaForDynamicPrune(pOperator, pBlock) || needsMaxSmaForDynamicPrune(pOperator))) {
     bool success = false;
     taosMemoryFreeClear(pBlock->pBlockAgg);
