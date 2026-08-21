@@ -551,6 +551,7 @@ static int32_t buildGroupCacheBaseBlock(SSDataBlock** ppDst, SSDataBlock* pSrc) 
     return terrno;
   }
   TAOS_MEMCPY(&(*ppDst)->info, &pSrc->info, sizeof(pSrc->info));
+  (*ppDst)->info.pBlockAgg = NULL;
   blockDataDeepClear(*ppDst);
   
   return TSDB_CODE_SUCCESS;

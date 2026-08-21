@@ -218,6 +218,7 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         int32_t offset   = 0;
         uint8_t gen      = GEN_RANDOM;
         bool    fillNull = true;
+        bool    allNull  = false;
         char*   encode   = NULL;
         char*   compress = NULL;
         char*   level    = NULL;
@@ -397,6 +398,11 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             }
         }
 
+        tools_cJSON *dataAllNull = tools_cJSON_GetObjectItem(column, "all_null");
+        if (tools_cJSON_IsTrue(dataAllNull)) {
+            allNull = true;
+        }
+
         // encode
         tools_cJSON *dataEncode = tools_cJSON_GetObjectItem(column, "encode");
         if (tools_cJSON_IsString(dataEncode)) {
@@ -449,7 +455,7 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             col = benchArrayGet(stbInfo->cols, stbInfo->cols->size - 1);
             col->type = type;
             col->length = length;
-            if (length == 0) {
+            if (allNull || length == 0) {
                 col->null = true;
             }
             col->sma = sma;
