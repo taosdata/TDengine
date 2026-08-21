@@ -3022,6 +3022,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_STRING_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE | FUNC_PARAM_SUPPORT_BOOL_TYPE | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
     .translateFunc = translateMinMax,
     .dataRequiredFunc = statisDataRequired,
+    .dynDataRequiredFunc = maxDynDataReq,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = minmaxFunctionSetup,
     .processFunc  = maxFunction,

@@ -214,6 +214,8 @@ typedef void (*TsdReaderNotifyCbFn)(ETsdReaderNotifyType type, STsdReaderNotifyI
 typedef enum {
   TSD_READER_BLOCK_SMA_MODE_NORMAL = 0,
   TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY = 1,
+  TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY = 2,
+  TSD_READER_BLOCK_SMA_MODE_MAX_ONLY = 3,
 } ETsdReaderBlockSmaMode;
 
 struct SFileSetReader;
