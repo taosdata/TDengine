@@ -88,6 +88,7 @@ add_test(
 # ---------------------------------------------------------------------------
 ADD_EXECUTABLE(metaTxnAlterStbTest metaTxnAlterStbTest.cpp)
 DEP_ext_gtest(metaTxnAlterStbTest)
+DEP_ext_cppstub(metaTxnAlterStbTest)
 TARGET_LINK_LIBRARIES(
          metaTxnAlterStbTest
          PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode

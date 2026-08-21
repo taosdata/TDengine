@@ -1273,6 +1273,7 @@ typedef struct SSubplan {
   bool           dynamicRowThreshold;
   int32_t        rowsThreshold;
   bool           processOneBlock;
+  bool           requiresAncestorContext;
   bool           dynTbname;
   int16_t        userAppId;  // encoded from client user_app, propagated for server-side use
 } SSubplan;

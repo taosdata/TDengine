@@ -5845,8 +5845,9 @@ static int32_t buildStreamExtJoinTwendTimeRange(SSelectStmt* pSelect) {
 
   PLAN_ERR_JRET(makeStreamExtWindowTimeRangeOp(OP_TYPE_GREATER_THAN, "_twstart", FUNCTION_TYPE_TWSTART,
                                                fmGetTwstartFuncId(), pSelect->precision, &pStartOp));
-  PLAN_ERR_JRET(makeStreamExtWindowTimeRangeOp(OP_TYPE_LOWER_EQUAL, "_twend", FUNCTION_TYPE_TWEND,
-                                               fmGetTwendFuncId(), pSelect->precision, &pEndOp));
+  ((SOperatorNode*)pStartOp)->flag |= OPERATOR_FLAG_STREAM_EXT_JOIN_AUTO_RANGE;
+  PLAN_ERR_JRET(makeStreamExtWindowTimeRangeOp(OP_TYPE_LOWER_EQUAL, "_twend", FUNCTION_TYPE_TWEND, fmGetTwendFuncId(),
+                                               pSelect->precision, &pEndOp));
 
   pTimeRange->pStart = pStartOp;
   pTimeRange->pEnd = pEndOp;

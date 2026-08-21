@@ -542,6 +542,36 @@ int32_t stRecalcContributorsMerge(SArray **ppDst, const SArray *pSrc) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t stRecalcTrackerConfirmGroupPrefix(SStreamRecalcTracker *pTracker, int64_t gid, TSKEY confirmedThrough,
+                                          const SArray *pContributors) {
+  if (pTracker == NULL || (pContributors != NULL && pContributors->elemSize != sizeof(SStreamRecalcContributor))) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  taosWLockLatch(&pTracker->lock);
+  for (size_t i = 0; i < taosArrayGetSize(pContributors); ++i) {
+    const SStreamRecalcContributor *pContributor = taosArrayGet(pContributors, i);
+    SStreamRecalcJob               *pJob = stGetJob(pTracker, pContributor->recalcId);
+    if (pJob == NULL || !stRangeEquals(pJob->requestedRange, pContributor->requestedRange) ||
+        pJob->generation != pContributor->jobToken || stGetGroupProgress(pJob, gid) == NULL) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+  }
+
+  for (size_t i = 0; i < taosArrayGetSize(pContributors); ++i) {
+    const SStreamRecalcContributor *pContributor = taosArrayGet(pContributors, i);
+    SStreamRecalcJob               *pJob = stGetJob(pTracker, pContributor->recalcId);
+    stAdvanceJob(pTracker, pJob, gid, (SStreamProgressRange){pContributor->requestedRange.start, confirmedThrough},
+                 pContributor->requestedRange);
+  }
+
+_exit:
+  taosWUnLockLatch(&pTracker->lock);
+  return code;
+}
+
 int32_t stRecalcTrackerBeginStep(SStreamRecalcTracker *pTracker, int64_t gid, SStreamProgressRange stepRange,
                                  const SArray *pContributors, uint64_t *pStepId) {
   if (pTracker == NULL || pStepId == NULL ||

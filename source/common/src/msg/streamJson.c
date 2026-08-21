@@ -541,6 +541,19 @@ static const char* jkCreateStreamReqCalcPlan             = "calcPlan";
 static const char* jkCreateStreamReqSubTblNameExpr       = "subTblNameExpr";
 static const char* jkCreateStreamReqTagValueExpr         = "tagValueExpr";
 static const char* jkCreateStreamReqForceOutCols         = "forceOutCols";
+static const char* jkCreateStreamReqWindowPlan = "WindowPlan";
+static const char* jkStreamWindowPlanVersion = "Version";
+static const char* jkStreamWindowPlanLayers = "Layers";
+static const char* jkStreamWindowLayerName = "name";
+static const char* jkStreamWindowLayerTriggerType = "triggerType";
+static const char* jkStreamWindowLayerPlaceholderMask = "placeholderMask";
+static const char* jkStreamWindowLayerInput = "input";
+static const char* jkStreamWindowLayerTrigger = "trigger";
+static const char* jkStreamWindowLayerInputTsSlotId = "tsSlotId";
+static const char* jkStreamWindowLayerInputPkSlotId = "pkSlotId";
+static const char* jkStreamWindowLayerInputEventStartSlotId = "eventStartSlotId";
+static const char* jkStreamWindowLayerInputEventEndSlotId = "eventEndSlotId";
+static const char* jkStreamWindowLayerInputConditionSlotIds = "conditionSlotIds";
 
 static const char* jkCreateStreamReqColCids = "colCids";
 static const char* jkCreateStreamReqTagCids = "tagCids";
@@ -749,6 +762,182 @@ static int32_t jsonToExtTriggerSpec(const SJson* pJson, void* pObj) {
 
 _err:
   tFreeSStreamExtTriggerSpec(pSpec);
+  return code;
+}
+
+static int32_t streamWindowLayerInputToJson(const void* pObj, SJson* pJson) {
+  const SStreamWindowLayerInputSpec* pInput = (const SStreamWindowLayerInputSpec*)pObj;
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkStreamWindowLayerInputTsSlotId, pInput->tsSlotId));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkStreamWindowLayerInputPkSlotId, pInput->pkSlotId));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkStreamWindowLayerInputEventStartSlotId, pInput->eventStartSlotId));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkStreamWindowLayerInputEventEndSlotId, pInput->eventEndSlotId));
+  if (taosArrayGetSize(pInput->pConditionSlotIds) == 0) {
+    return tjsonAddArrayToObject(pJson, jkStreamWindowLayerInputConditionSlotIds) == NULL ? terrno : TSDB_CODE_SUCCESS;
+  }
+  TAOS_CHECK_RETURN(
+      tjsonAddTArray(pJson, jkStreamWindowLayerInputConditionSlotIds, int16ToJson, pInput->pConditionSlotIds));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t jsonToStreamWindowLayerInput(const SJson* pJson, void* pObj) {
+  SStreamWindowLayerInputSpec* pInput = (SStreamWindowLayerInputSpec*)pObj;
+  int32_t                      code = TSDB_CODE_SUCCESS;
+  if (tjsonGetObjectItem(pJson, jkStreamWindowLayerInputTsSlotId) == NULL ||
+      tjsonGetObjectItem(pJson, jkStreamWindowLayerInputPkSlotId) == NULL ||
+      tjsonGetObjectItem(pJson, jkStreamWindowLayerInputEventStartSlotId) == NULL ||
+      tjsonGetObjectItem(pJson, jkStreamWindowLayerInputEventEndSlotId) == NULL ||
+      tjsonGetObjectItem(pJson, jkStreamWindowLayerInputConditionSlotIds) == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  TAOS_CHECK_RETURN(tjsonGetSmallIntValue(pJson, jkStreamWindowLayerInputTsSlotId, &pInput->tsSlotId));
+  TAOS_CHECK_RETURN(tjsonGetSmallIntValue(pJson, jkStreamWindowLayerInputPkSlotId, &pInput->pkSlotId));
+  TAOS_CHECK_RETURN(tjsonGetSmallIntValue(pJson, jkStreamWindowLayerInputEventStartSlotId, &pInput->eventStartSlotId));
+  TAOS_CHECK_RETURN(tjsonGetSmallIntValue(pJson, jkStreamWindowLayerInputEventEndSlotId, &pInput->eventEndSlotId));
+  code = tjsonToTArray(pJson, jkStreamWindowLayerInputConditionSlotIds, jsonToInt16, &pInput->pConditionSlotIds,
+                       sizeof(int16_t));
+  if (code == TSDB_CODE_SUCCESS && pInput->pConditionSlotIds == NULL) {
+    pInput->pConditionSlotIds = taosArrayInit(0, sizeof(int16_t));
+    if (pInput->pConditionSlotIds == NULL) code = terrno;
+  }
+  return code;
+}
+
+static int32_t streamWindowLayerTriggerToJson(const SStreamWindowLayerSpec* pLayer, SJson* pJson) {
+  switch (pLayer->triggerType) {
+    case WINDOW_TYPE_SESSION:
+      return tjsonAddObject(pJson, jkStreamWindowLayerTrigger, sessionTriggerToJson, &pLayer->trigger);
+    case WINDOW_TYPE_STATE:
+      return tjsonAddObject(pJson, jkStreamWindowLayerTrigger, stateTriggerToJson, &pLayer->trigger);
+    case WINDOW_TYPE_INTERVAL:
+      return tjsonAddObject(pJson, jkStreamWindowLayerTrigger, slidingTriggerToJson, &pLayer->trigger);
+    case WINDOW_TYPE_EVENT:
+      return tjsonAddObject(pJson, jkStreamWindowLayerTrigger, eventTriggerToJson, &pLayer->trigger);
+    case WINDOW_TYPE_COUNT:
+      return tjsonAddObject(pJson, jkStreamWindowLayerTrigger, countTriggerToJson, &pLayer->trigger);
+    case WINDOW_TYPE_PERIOD:
+      return tjsonAddObject(pJson, jkStreamWindowLayerTrigger, periodTriggerToJson, &pLayer->trigger);
+    default:
+      return TSDB_CODE_STREAM_INVALID_TRIGGER;
+  }
+}
+
+static int32_t jsonToStreamWindowLayerTrigger(const SJson* pJson, SStreamWindowLayerSpec* pLayer) {
+  SJson* pTrigger = tjsonGetObjectItem(pJson, jkStreamWindowLayerTrigger);
+  if (pTrigger == NULL) return TSDB_CODE_INVALID_PARA;
+  switch (pLayer->triggerType) {
+    case WINDOW_TYPE_SESSION:
+      return jsonToSessionTrigger(pTrigger, &pLayer->trigger);
+    case WINDOW_TYPE_STATE:
+      return jsonToStateTrigger(pTrigger, &pLayer->trigger);
+    case WINDOW_TYPE_INTERVAL:
+      return jsonToSlidingTrigger(pTrigger, &pLayer->trigger);
+    case WINDOW_TYPE_EVENT:
+      return jsonToEventTrigger(pTrigger, &pLayer->trigger);
+    case WINDOW_TYPE_COUNT:
+      return jsonToCountTrigger(pTrigger, &pLayer->trigger);
+    case WINDOW_TYPE_PERIOD:
+      return jsonToPeriodTrigger(pTrigger, &pLayer->trigger);
+    default:
+      return TSDB_CODE_STREAM_INVALID_TRIGGER;
+  }
+}
+
+static int32_t streamWindowLayerToJson(const void* pObj, SJson* pJson) {
+  const SStreamWindowLayerSpec* pLayer = (const SStreamWindowLayerSpec*)pObj;
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkStreamWindowLayerName, pLayer->name));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkStreamWindowLayerTriggerType, pLayer->triggerType));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkStreamWindowLayerPlaceholderMask, pLayer->placeholderMask));
+  TAOS_CHECK_RETURN(tjsonAddObject(pJson, jkStreamWindowLayerInput, streamWindowLayerInputToJson, &pLayer->input));
+  return streamWindowLayerTriggerToJson(pLayer, pJson);
+}
+
+static int32_t jsonToStreamWindowLayer(const SJson* pJson, void* pObj) {
+  SStreamWindowLayerSpec* pLayer = (SStreamWindowLayerSpec*)pObj;
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  SJson*                  pInput = tjsonGetObjectItem(pJson, jkStreamWindowLayerInput);
+  if (tjsonGetObjectItem(pJson, jkStreamWindowLayerName) == NULL ||
+      tjsonGetObjectItem(pJson, jkStreamWindowLayerTriggerType) == NULL ||
+      tjsonGetObjectItem(pJson, jkStreamWindowLayerPlaceholderMask) == NULL || pInput == NULL ||
+      tjsonGetObjectItem(pJson, jkStreamWindowLayerTrigger) == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if ((code = tjsonGetStringValue1(pJson, jkStreamWindowLayerName, pLayer->name, sizeof(pLayer->name))) != 0) {
+    goto _exit;
+  }
+  if ((code = tjsonGetTinyIntValue(pJson, jkStreamWindowLayerTriggerType, &pLayer->triggerType)) != 0) goto _exit;
+  if ((code = tjsonGetBigIntValue(pJson, jkStreamWindowLayerPlaceholderMask, &pLayer->placeholderMask)) != 0) {
+    goto _exit;
+  }
+  if ((code = jsonToStreamWindowLayerInput(pInput, &pLayer->input)) != 0) goto _exit;
+  if ((code = jsonToStreamWindowLayerTrigger(pJson, pLayer)) != 0) goto _exit;
+  return TSDB_CODE_SUCCESS;
+
+_exit:
+  return code;
+}
+
+static int32_t streamWindowPlanToJson(const void* pObj, SJson* pJson) {
+  const SStreamWindowPlan* pPlan = (const SStreamWindowPlan*)pObj;
+  if (pPlan->pLayers == NULL || pPlan->pLayers->elemSize != sizeof(SStreamWindowLayerSpec)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkStreamWindowPlanVersion, pPlan->version));
+  return tjsonAddTArray(pJson, jkStreamWindowPlanLayers, streamWindowLayerToJson, pPlan->pLayers);
+}
+
+static int32_t jsonToStreamWindowPlan(const SJson* pJson, SCMCreateStreamReq* pReq) {
+  SJson*     pPlanJson = tjsonGetObjectItem(pJson, jkCreateStreamReqWindowPlan);
+  const bool nested = BIT_FLAG_TEST_MASK(pReq->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
+  const bool flushOnOuterClose = BIT_FLAG_TEST_MASK(pReq->addOptions, STREAM_OPTION_FLUSH_ON_OUTER_CLOSE);
+  int32_t    code = TSDB_CODE_SUCCESS;
+  int32_t    numLayers = 0;
+  if (pReq->pWindowPlan != NULL) return TSDB_CODE_INVALID_PARA;
+  if (pPlanJson == NULL) return nested || flushOnOuterClose ? TSDB_CODE_INVALID_PARA : TSDB_CODE_SUCCESS;
+  if (!nested || tjsonGetObjectItem(pPlanJson, jkStreamWindowPlanVersion) == NULL ||
+      tjsonGetObjectItem(pPlanJson, jkStreamWindowPlanLayers) == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SJson* pLayers = tjsonGetObjectItem(pPlanJson, jkStreamWindowPlanLayers);
+  if (!tjsonIsArray(pLayers) || (numLayers = tjsonGetArraySize(pLayers)) < 2 || numLayers > STREAM_WINDOW_MAX_LAYERS) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SStreamWindowPlan* pPlan = taosMemoryCalloc(1, sizeof(*pPlan));
+  if (pPlan == NULL) return terrno;
+  if ((code = tjsonGetIntValue(pPlanJson, jkStreamWindowPlanVersion, &pPlan->version)) != 0) goto _exit;
+  pPlan->pLayers = taosArrayInit(numLayers, sizeof(SStreamWindowLayerSpec));
+  if (pPlan->pLayers == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  for (int32_t i = 0; i < numLayers; ++i) {
+    SStreamWindowLayerSpec emptyLayer = {};
+    SJson*                 pLayerJson = tjsonGetArrayItem(pLayers, i);
+    if (pLayerJson == NULL) {
+      code = TSDB_CODE_INVALID_PARA;
+      goto _exit;
+    }
+    SStreamWindowLayerSpec* pLayer = taosArrayPush(pPlan->pLayers, &emptyLayer);
+    if (pLayer == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+    if ((code = jsonToStreamWindowLayer(pLayerJson, pLayer)) != 0) goto _exit;
+  }
+
+  SStreamWindowPlanValidationCtx intrinsicCtx = {0};
+  intrinsicCtx.deleteRecalc = pReq->deleteReCalc;
+  intrinsicCtx.ignoreNoDataTrigger = pReq->igNoDataTrigger;
+  intrinsicCtx.flushOnOuterClose = flushOnOuterClose;
+  intrinsicCtx.eventTypes = pReq->eventTypes;
+  if ((code = tValidateStreamWindowPlan(pPlan, &intrinsicCtx)) != 0) goto _exit;
+  if ((code = tValidateStreamWindowPlanLeafProjection(pPlan, pReq->triggerType, &pReq->trigger)) != 0) goto _exit;
+
+  pReq->pWindowPlan = pPlan;
+  return TSDB_CODE_SUCCESS;
+
+_exit:
+  tDestroyStreamWindowPlan(&pPlan);
   return code;
 }
 
@@ -992,6 +1181,10 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
       pReq->tagCids ? pReq->tagCids->size : 0));
   TAOS_CHECK_RETURN(
       tjsonAddIntegerToObject(pJson, jkCreateStreamReqNodelayCreateSubtable, pReq->nodelayCreateSubtable));
+
+  if (pReq->pWindowPlan != NULL) {
+    TAOS_CHECK_RETURN(tjsonAddObject(pJson, jkCreateStreamReqWindowPlan, streamWindowPlanToJson, pReq->pWindowPlan));
+  }
 
   /* Pt A6: federated query extSpecs. Encode as a JSON array of spec objects.
    * Each element is SStreamExtTriggerSpec*; iterate and tjsonAddItemToArray.
@@ -1263,6 +1456,8 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
       pReq->numOfExtSpecs = (int32_t)taosArrayGetSize(pReq->extSpecs);
     }
   }
+
+  TAOS_CHECK_RETURN(jsonToStreamWindowPlan(pJson, pReq));
 
   return TSDB_CODE_SUCCESS;
 }

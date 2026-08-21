@@ -323,6 +323,7 @@ EFuncReturnRows fmGetFuncReturnRows(SFunctionNode* pFunc);
 bool          fmIsBuiltinFunc(const char* pFunc);
 EFunctionType fmGetFuncType(const char* pFunc);
 EFunctionType fmGetFuncTypeFromId(int32_t funcId);
+bool          fmIsCanonicalTbnameFunction(const SNode* pNode);
 
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);

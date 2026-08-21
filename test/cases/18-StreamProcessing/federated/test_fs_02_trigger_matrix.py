@@ -29,6 +29,7 @@ sys.path.insert(0, "cases/09-DataQuerying/19-FederatedQuery")
 from federated_query_common import (  # noqa: E402
     ExtSrcEnv,
     FederatedQueryTestMixin,
+    TSDB_CODE_INVALID_PARA,
     _STD_ROWS,
 )
 
@@ -105,6 +106,42 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
             ]
             ExtSrcEnv.influx_write_cfg(self._influx_cfg(), db_or_bucket, lines)
             tdLog.info(f"[{src_name}] wrote {len(rows)} InfluxDB trigger points")
+
+    def test_nested_external_trigger_rejected(self):
+        """Nested WINDOW: a real external trigger catalog is rejected.
+
+        Catalog:
+            - Streams:Federated:TriggerMatrix
+        Since: v3.4.2.0
+        Labels: common,ci,integration,functional,negative
+        Feishu: None
+        History:
+            - 2026-08-16 Codex Added P0 external nested-trigger rejection
+        """
+        prefix = "nwext"
+
+        def body(src_name: str):
+            mid = f"{prefix}_{src_name[-1]}db"
+            stream = f"s_{src_name}_nested"
+            sink = f"{self.DB}.sink_{src_name}_nested"
+            tdSql.execute(f"USE {self.DB}")
+            tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
+            tdSql.execute(f"DROP TABLE IF EXISTS {sink}")
+            try:
+                tdSql.error(
+                    f"CREATE STREAM {stream} WINDOW ("
+                    "INTERVAL(1m) SLIDING(1m) AS w_outer, COUNT_WINDOW(2,1)) "
+                    f"FROM {src_name}.{mid}.src_t "
+                    f"INTO {sink} AS SELECT _twstart, count(*) FROM %%trows",
+                    expectedErrno=TSDB_CODE_INVALID_PARA,
+                )
+            finally:
+                tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
+                tdSql.execute(f"DROP TABLE IF EXISTS {sink}")
+
+        self._with_std_sources(
+            prefix, body, skip_pg=True, skip_influx=True
+        )
 
     # ------------------------------------------------------------------
     # Helper: run one CREATE STREAM with given trigger header, verify
