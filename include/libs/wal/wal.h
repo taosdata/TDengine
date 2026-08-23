@@ -19,6 +19,7 @@
 #include "os.h"
 #include "tarray.h"
 #include "tdef.h"
+#include "tfs.h"
 #include "tlog.h"
 #include "tmsg.h"
 #include "ttrace.h"
@@ -72,6 +73,14 @@ typedef struct {
   SEncryptData encryptData;
   int8_t   clearFiles;
   int8_t   enableTxnFile;  // write .txn files alongside .log (vnode WAL only)
+  // Multi-mount-point write (level 0 only). Must be set here, BEFORE calling walOpen(),
+  // not via a post-open walSetTfs() call: walOpen() itself performs a one-time repair
+  // pass (walCheckAndRepairMeta/walCheckAndRepairIdx) over historical segments, and that
+  // pass needs pTfs/relDir already bound so it can find segments that live on non-primary
+  // disks -- otherwise it will treat them as missing and drop them from the WAL. NULL
+  // pTfs keeps WAL behavior exactly as before this feature existed.
+  STfs *pTfs;
+  char  relDir[WAL_PATH_LEN];  // wal dir path relative to a tfs mount point root (e.g. "vnode/vnode2/wal")
 } SWalCfg;
 
 typedef struct {
@@ -172,6 +181,13 @@ typedef struct SWal {
   // path
   char path[WAL_PATH_LEN];
 
+  // tiered storage (multi-mount-point write at level 0)
+  STfs *pTfs;               // dnode-level shared tfs handle; NULL = unbound/feature disabled
+  char  relDir[WAL_PATH_LEN];  // wal dir path relative to a tfs mount point root (e.g. "vnode/vnode2/wal"),
+                                // used to rebuild this vnode's wal directory on another disk. Must be unique
+                                // per vnode -- callers must NOT pass a bare constant like "wal" here, or
+                                // every vnode on the dnode would collide on the same directory/file names.
+
   stopDnodeFn stopDnode;
 
   // txn file support (vnode only, cfg.enableTxnFile == true)
@@ -212,6 +228,10 @@ SWal   *walOpen(const char *path, SWalCfg *pCfg);
 int32_t walAlter(SWal *, SWalCfg *pCfg);
 int32_t walPersist(SWal *);
 void    walClose(SWal *);
+// Bind a dnode-level shared tfs handle to an already-opened WAL so that subsequent
+// segment rolls may spread across the tfs level-0 mount points (see walRollImpl).
+// Not calling this leaves pWal->pTfs == NULL and WAL behavior is unchanged.
+int32_t walSetTfs(SWal *pWal, STfs *pTfs, const char *relDir);
 int32_t walClearCorruption(SWal *, int64_t commitIndex);
 
 // write interfaces
