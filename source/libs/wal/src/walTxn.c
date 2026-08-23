@@ -521,27 +521,48 @@ void walTxnFilesTrim(SWal *pWal) {
   int64_t       oldestLogCreateTs = pOldest->createTs;  // seconds
   int64_t       cutoffTs = oldestLogCreateTs - (int64_t)WAL_TXN_TRIM_EXTRA_HOURS * 3600;
 
-  // Scan walDir for .txn files.
-  TdDirPtr pDir = taosOpenDir(pWal->path);
-  if (pDir == NULL) return;
-
-  // Collect .txn file firstVers, sorted ascending.
+  // Scan for .txn files. When pWal->pTfs is bound, a .txn file may live on any level-0
+  // mount point (same reason as walScanActualLogFiles in walMeta.c) -- scanning only
+  // pWal->path here would make trim under-count txnCount, so files on non-primary disks
+  // would never be discovered and never trimmed (a slow disk-space leak, not silent data
+  // loss like the walCheckAndRepairMeta bug, but still wrong).
   SArray *txnFirstVers = taosArrayInit(16, sizeof(int64_t));
-  if (txnFirstVers == NULL) {
-    (void)taosCloseDir(&pDir);
-    return;
-  }
+  if (txnFirstVers == NULL) return;
 
-  TdDirEntryPtr pEntry;
-  while ((pEntry = taosReadDir(pDir)) != NULL) {
-    const char *name = taosGetDirEntryName(pEntry);
-    if (taosDirEntryIsDir(pEntry)) continue;
-    int64_t firstVer = -1;
-    if (sscanf(name, "%" PRId64 "." WAL_TXN_SUFFIX, &firstVer) != 1) continue;
-    if (firstVer < 0) continue;
-    if (taosArrayPush(txnFirstVers, &firstVer) == NULL) continue;
+  if (pWal->pTfs == NULL) {
+    TdDirPtr pDir = taosOpenDir(pWal->path);
+    if (pDir == NULL) {
+      taosArrayDestroy(txnFirstVers);
+      return;
+    }
+    TdDirEntryPtr pEntry;
+    while ((pEntry = taosReadDir(pDir)) != NULL) {
+      const char *name = taosGetDirEntryName(pEntry);
+      if (taosDirEntryIsDir(pEntry)) continue;
+      int64_t firstVer = -1;
+      if (sscanf(name, "%" PRId64 "." WAL_TXN_SUFFIX, &firstVer) != 1) continue;
+      if (firstVer < 0) continue;
+      if (taosArrayPush(txnFirstVers, &firstVer) == NULL) continue;
+    }
+    (void)taosCloseDir(&pDir);
+  } else {
+    STfsDir *pTDir = NULL;
+    if (tfsOpendir(pWal->pTfs, pWal->relDir, &pTDir) != TSDB_CODE_SUCCESS) {
+      taosArrayDestroy(txnFirstVers);
+      return;
+    }
+    char bname[TSDB_FILENAME_LEN];
+    for (const STfsFile *pFile = NULL; (pFile = tfsReaddir(pTDir)) != NULL;) {
+      if (taosIsDir(pFile->aname)) continue;
+      tstrncpy(bname, pFile->aname, sizeof(bname));
+      char   *name = taosDirEntryBaseName(bname);
+      int64_t firstVer = -1;
+      if (sscanf(name, "%" PRId64 "." WAL_TXN_SUFFIX, &firstVer) != 1) continue;
+      if (firstVer < 0) continue;
+      if (taosArrayPush(txnFirstVers, &firstVer) == NULL) continue;
+    }
+    tfsClosedir(pTDir);
   }
-  (void)taosCloseDir(&pDir);
 
   taosArraySort(txnFirstVers, compareInt64Val);
   int32_t txnCount = (int32_t)taosArrayGetSize(txnFirstVers);
