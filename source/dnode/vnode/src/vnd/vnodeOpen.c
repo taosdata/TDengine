@@ -528,6 +528,21 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
 
   vInfo("vgId:%d, start to open vnode wal", TD_VID(pVnode));
   pVnode->config.walCfg.enableTxnFile = 1;  // vnode WAL: enable .txn files for CDC lazy load
+  // Bind the dnode-shared tfs handle *before* walOpen() so its one-time repair pass
+  // (walCheckAndRepairMeta/walCheckAndRepairIdx) already knows about every mount point a
+  // historical segment might live on -- binding after walOpen() returns is too late: that
+  // pass would only look under tdir (the primary mount) and drop every segment it can't
+  // find there, permanently losing WAL data on the next walSaveMeta(). No-op when
+  // pVnode->pTfs is NULL (single mount point).
+  // relDir must be the wal directory's path *relative to a mount point root*, i.e.
+  // "<path>/wal" (e.g. "vnode/vnode2/wal") -- NOT just VNODE_WAL_DIR ("wal") on its own,
+  // otherwise every vnode on this dnode would collide on the same "<mount>/wal/" directory
+  // and reuse the same version-numbered segment file names.
+  pVnode->config.walCfg.pTfs = pVnode->pTfs;
+  if (pVnode->pTfs != NULL) {
+    (void)snprintf(pVnode->config.walCfg.relDir, sizeof(pVnode->config.walCfg.relDir), "%s%s%s", path, TD_DIRSEP,
+                   VNODE_WAL_DIR);
+  }
   pVnode->pWal = walOpen(tdir, &(pVnode->config.walCfg));
   if (pVnode->pWal == NULL) {
     vError("vgId:%d, failed to open vnode wal since %s. wal:%s", TD_VID(pVnode), tstrerror(terrno), tdir);
