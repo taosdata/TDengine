@@ -32608,10 +32608,9 @@ static int32_t setExternalRefSchemaName(STranslateContext* pCxt, SColRef* pColRe
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t buildVirtualSubTableBatchReq(STranslateContext* pCxt, const SCreateVSubTableStmt* pStmt,
-                                            STableMeta* pStbMeta, SArray* tagName, uint8_t tagNum, const STag* pTag,
-                                            const SVgroupInfo* pVgroupInfo, SVgroupCreateTableBatch* pBatch,
-                                            SNodeList* pTagRefNodes, int64_t txnId) {
+static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSubTableStmt* pStmt, STableMeta* pStbMeta,
+                                       SArray* tagName, uint8_t tagNum, const STag* pTag, SNodeList* pTagRefNodes,
+                                       int64_t txnId, SVCreateTbReq* pReq) {
   int32_t       code = TSDB_CODE_SUCCESS;
   SVCreateTbReq req = {0};
   SNode*        pCol;
@@ -32634,7 +32633,7 @@ static int32_t buildVirtualSubTableBatchReq(STranslateContext* pCxt, const SCrea
     PAR_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  PAR_ERR_RET(tInitDefaultSColRefWrapperByCols(&req.colRef, pStbMeta->tableInfo.numOfColumns));
+  PAR_ERR_JRET(tInitDefaultSColRefWrapperByCols(&req.colRef, pStbMeta->tableInfo.numOfColumns));
 
   const SSchema* pColSchemas = getTableColumnSchema(pStbMeta);
   for (int32_t i = 0; i < pStbMeta->tableInfo.numOfColumns; ++i) {
@@ -32735,17 +32734,10 @@ static int32_t buildVirtualSubTableBatchReq(STranslateContext* pCxt, const SCrea
     }
   }
 
-  pBatch->info = *pVgroupInfo;
-  tstrncpy(pBatch->dbName, pStmt->dbName, sizeof(pBatch->dbName));
-  pBatch->req.pArray = taosArrayInit(1, sizeof(struct SVCreateTbReq));
-  if (NULL == pBatch->req.pArray || NULL == taosArrayPush(pBatch->req.pArray, &req)) {
-    PAR_ERR_JRET(terrno);
-  }
-
+  *pReq = req;
   return code;
 _return:
   tdDestroySVCreateTbReq(&req);
-  taosArrayDestroy(pBatch->req.pArray);
   return code;
 }
 
@@ -33005,11 +32997,45 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
+static int32_t addCreateReqIntoVgroup(SHashObj* pVgroupHashmap, const char* dbName, const SVgroupInfo* pVgInfo,
+                                      SVCreateTbReq* pReq) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  SVgroupCreateTableBatch* pTableBatch = taosHashGet(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId));
+  if (pTableBatch == NULL) {
+    SVgroupCreateTableBatch tBatch = {0};
+    tBatch.info = *pVgInfo;
+    tstrncpy(tBatch.dbName, dbName, TSDB_DB_NAME_LEN);
+
+    tBatch.req.pArray = taosArrayInit(4, sizeof(struct SVCreateTbReq));
+    if (!tBatch.req.pArray) {
+      code = terrno;
+    } else if (NULL == taosArrayPush(tBatch.req.pArray, pReq)) {
+      taosArrayDestroy(tBatch.req.pArray);
+      code = terrno;
+    } else {
+      code = taosHashPut(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId), &tBatch, sizeof(tBatch));
+      if (TSDB_CODE_SUCCESS != code) {
+        taosArrayDestroy(tBatch.req.pArray);
+      }
+    }
+  } else {  // add to the correct vgroup
+    if (NULL == taosArrayPush(pTableBatch->req.pArray, pReq)) {
+      code = terrno;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    tdDestroySVCreateTbReq(pReq);
+  }
+
+  return code;
+}
+
 static int32_t addCreateTbReqIntoVgroup(SHashObj* pVgroupHashmap, const char* dbName, uint64_t suid,
                                         const char* sTableName, const char* tableName, SArray* tagName, uint8_t tagNum,
                                         const STag* pTag, int32_t ttl, const char* comment, bool ignoreExists,
                                         SVgroupInfo* pVgInfo, int64_t txnId) {
-  struct SVCreateTbReq req = {0};
+  SVCreateTbReq req = {0};
   req.type = TD_CHILD_TABLE;
   req.txnId = txnId;
   req.name = taosStrdup(tableName);
@@ -33034,36 +33060,7 @@ static int32_t addCreateTbReqIntoVgroup(SHashObj* pVgroupHashmap, const char* db
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  int32_t                  code = TSDB_CODE_SUCCESS;
-  SVgroupCreateTableBatch* pTableBatch = taosHashGet(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId));
-  if (pTableBatch == NULL) {
-    SVgroupCreateTableBatch tBatch = {0};
-    tBatch.info = *pVgInfo;
-    tstrncpy(tBatch.dbName, dbName, TSDB_DB_NAME_LEN);
-
-    tBatch.req.pArray = taosArrayInit(4, sizeof(struct SVCreateTbReq));
-    if (!tBatch.req.pArray) {
-      code = terrno;
-    } else if (NULL == taosArrayPush(tBatch.req.pArray, &req)) {
-      taosArrayDestroy(tBatch.req.pArray);
-      code = terrno;
-    } else {
-      code = taosHashPut(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId), &tBatch, sizeof(tBatch));
-      if (TSDB_CODE_SUCCESS != code) {
-        taosArrayDestroy(tBatch.req.pArray);
-      }
-    }
-  } else {  // add to the correct vgroup
-    if (NULL == taosArrayPush(pTableBatch->req.pArray, &req)) {
-      code = terrno;
-    }
-  }
-
-  if (TSDB_CODE_SUCCESS != code) {
-    tdDestroySVCreateTbReq(&req);
-  }
-
-  return code;
+  return addCreateReqIntoVgroup(pVgroupHashmap, dbName, pVgInfo, &req);
 }
 
 static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SNodeList* pSpecificTags, SNodeList* pValsOfTags,
@@ -33727,13 +33724,16 @@ int32_t serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap, SArray** pOut
   } while (true);
 
   if (TSDB_CODE_SUCCESS != code) {
-    taosArrayDestroy(pBufArray);
+    destroyCreateTbReqArray(pBufArray);
   } else {
     *pOut = pBufArray;
   }
 
   return code;
 }
+
+static int32_t rewriteCreateVirtualSubTableClause(STranslateContext* pCxt, SCreateVSubTableStmt* pStmt,
+                                                  SHashObj* pVgroupHashmap);
 
 static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) {
   SCreateMultiTablesStmt* pStmt = (SCreateMultiTablesStmt*)pQuery->pRoot;
@@ -33747,8 +33747,17 @@ static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) 
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode;
   FOREACH(pNode, pStmt->pSubTables) {
-    SCreateSubTableClause* pClause = (SCreateSubTableClause*)pNode;
-    code = rewriteCreateSubTable(pCxt, pClause, pVgroupHashmap);
+    switch (nodeType(pNode)) {
+      case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
+        code = rewriteCreateSubTable(pCxt, (SCreateSubTableClause*)pNode, pVgroupHashmap);
+        break;
+      case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
+        code = rewriteCreateVirtualSubTableClause(pCxt, (SCreateVSubTableStmt*)pNode, pVgroupHashmap);
+        break;
+      default:
+        code = TSDB_CODE_PAR_INTERNAL_ERROR;
+        break;
+    }
     if (TSDB_CODE_SUCCESS != code) {
       taosHashCleanup(pVgroupHashmap);
       return code;
@@ -33762,7 +33771,11 @@ static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) 
     return code;
   }
 
-  return rewriteToVnodeModifyOpStmt(pQuery, pBufArray);
+  code = rewriteToVnodeModifyOpStmt(pQuery, pBufArray);
+  if (TSDB_CODE_SUCCESS != code) {
+    destroyCreateTbReqArray(pBufArray);
+  }
+  return code;
 }
 
 static int32_t rewriteCreateTableFromFile(STranslateContext* pCxt, SQuery* pQuery) {
@@ -36336,21 +36349,6 @@ _return:
   return code;
 }
 
-static int32_t buildCreateVSubTableDataBlock(STranslateContext* pCxt, const SCreateVSubTableStmt* pStmt,
-                                             const SVgroupInfo* pInfo, SArray* pBufArray, STableMeta* pStbMeta,
-                                             SArray* tagName, uint8_t tagNum, const STag* pTag,
-                                             SNodeList* pTagRefNodes, int64_t txnId) {
-  SVgroupCreateTableBatch tbatch = {0};
-  int32_t                 code = TSDB_CODE_SUCCESS;
-  PAR_ERR_JRET(buildVirtualSubTableBatchReq(pCxt, pStmt, pStbMeta, tagName, tagNum, pTag, pInfo, &tbatch,
-                                            pTagRefNodes, txnId));
-  PAR_ERR_JRET(serializeVgroupCreateTableBatch(&tbatch, pBufArray));
-
-_return:
-  destroyCreateTbReqBatch(&tbatch);
-  return code;
-}
-
 static int32_t translateExtSeriesTagCond(STranslateContext* pCxt, SNode* pTagCond);
 
 // Match pTagCond conditions against influx metadata tags: exact 1:1, no duplicates, no missing.
@@ -36877,25 +36875,23 @@ _return:
   return code;
 }
 
-static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQuery) {
-  int32_t               code = TSDB_CODE_SUCCESS;
-  SCreateVSubTableStmt* pStmt = (SCreateVSubTableStmt*)pQuery->pRoot;
-  SVgroupInfo           info = {0};
-  SName                 name = {0};
-  SArray*               pBufArray = NULL;
-  STableMeta*           pSuperTableMeta = NULL;
-  STag*                 pTag = NULL;
-  SArray*               tagName = NULL;
-  SNode*                pCol = NULL;
-  SNodeList*            pTagRefNodes = NULL;
+static int32_t rewriteCreateVirtualSubTableClause(STranslateContext* pCxt, SCreateVSubTableStmt* pStmt,
+                                                  SHashObj* pVgroupHashmap) {
+  int32_t       code = TSDB_CODE_SUCCESS;
+  int32_t       lino = 0;
+  SVgroupInfo   info = {0};
+  SName         name = {0};
+  STableMeta*   pSuperTableMeta = NULL;
+  STag*         pTag = NULL;
+  SArray*       tagName = NULL;
+  SNode*        pCol = NULL;
+  SNodeList*    pTagRefNodes = NULL;
+  SVCreateTbReq req = {0};
 
   PAR_ERR_JRET(checkCreateVSubTable(pCxt, pStmt));
 
-  pBufArray = taosArrayInit(1, POINTER_BYTES);
   tagName = taosArrayInit(8, TSDB_COL_NAME_LEN + sizeof(col_id_t));
-  if (NULL == pBufArray || NULL == tagName) {
-    PAR_ERR_JRET(terrno);
-  }
+  QUERY_CHECK_NULL(tagName, code, lino, _return, terrno);
 
   PAR_ERR_JRET(refreshGetTableMeta(pCxt, pStmt->useDbName, pStmt->useTableName, &pSuperTableMeta));
 
@@ -36990,10 +36986,9 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
     PAR_ERR_JRET(buildKVRowForAllTags(pCxt, pStmt->pValsOfTags, pSuperTableMeta, &pTag, tagName));
   }
 
-  PAR_ERR_JRET(buildCreateVSubTableDataBlock(pCxt, pStmt, &info, pBufArray, pSuperTableMeta, tagName,
-                                             taosArrayGetSize(tagName), pTag, pTagRefNodes,
-                                             pCxt->pParseCxt->txnId));
-  PAR_ERR_JRET(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
+  PAR_ERR_JRET(buildVirtualSubTableReq(pCxt, pStmt, pSuperTableMeta, tagName, taosArrayGetSize(tagName), pTag,
+                                       pTagRefNodes, pCxt->pParseCxt->txnId, &req));
+  PAR_ERR_JRET(addCreateReqIntoVgroup(pVgroupHashmap, pStmt->dbName, &info, &req));
 
   nodesDestroyList(pTagRefNodes);
   taosMemoryFreeClear(pSuperTableMeta);
@@ -37001,9 +36996,32 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
   return code;
 _return:
   nodesDestroyList(pTagRefNodes);
-  destroyCreateTbReqArray(pBufArray);
   taosArrayDestroy(tagName);
   taosMemoryFreeClear(pSuperTableMeta);
+  return code;
+}
+
+static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQuery) {
+  int32_t               code = TSDB_CODE_SUCCESS;
+  int32_t               lino = 0;
+  SCreateVSubTableStmt* pStmt = (SCreateVSubTableStmt*)pQuery->pRoot;
+  SHashObj*             pVgroupHashmap = NULL;
+  SArray*               pBufArray = NULL;
+
+  pVgroupHashmap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  QUERY_CHECK_NULL(pVgroupHashmap, code, lino, _return, terrno);
+
+  taosHashSetFreeFp(pVgroupHashmap, destroyCreateTbReqBatch);
+  PAR_ERR_JRET(rewriteCreateVirtualSubTableClause(pCxt, pStmt, pVgroupHashmap));
+  PAR_ERR_JRET(serializeVgroupsCreateTableBatch(pVgroupHashmap, &pBufArray));
+  PAR_ERR_JRET(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
+
+_return:
+  if (code) {
+    parserError("%s failed since %d", __FUNCTION__ , code);
+    destroyCreateTbReqArray(pBufArray);
+  }
+  taosHashCleanup(pVgroupHashmap);
   return code;
 }
 
