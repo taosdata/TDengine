@@ -13,24 +13,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "mndStream.h"
-#include "mndDb.h"
+#include "cmdnodes.h"
 #include "libs/new-stream/stream.h"
+#include "mndDb.h"
+#include "mndDnode.h"
+#include "mndExtSource.h"
+#include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
+#include "mndSnode.h"
 #include "mndStb.h"
+#include "mndStream.h"
+#include "mndStreamRecalc.h"
 #include "mndTrans.h"
+#include "mndVgroup.h"
 #include "osMemory.h"
 #include "parser.h"
 #include "taoserror.h"
 #include "tmisce.h"
 #include "tname.h"
-#include "mndDnode.h"
-#include "mndVgroup.h"
-#include "mndSnode.h"
-#include "mndMnode.h"
-#include "cmdnodes.h"
-#include "mndExtSource.h"
 
 #include "monitor.h"
 
@@ -2608,6 +2609,10 @@ static int32_t msmInitStmStatus(SStmGrpCtx* pCtx, SStmStatus* pStatus, SStreamOb
 
   pStatus->lastActionTs = INT64_MIN;
 
+  if (!pStatus->recalcPersistOpsInitialized) {
+    mndStreamRecalcInitStatus(pStatus);
+  }
+
   if (NULL == pStatus->streamName) {
     pStatus->streamName = taosStrdup(pStream->name);
     TSDB_CHECK_NULL(pStatus->streamName, code, lino, _exit, terrno);
@@ -2659,6 +2664,9 @@ static int32_t msmDeployStreamTasks(SStmGrpCtx* pCtx, SStreamObj* pStream, SStmS
   }
 
   TAOS_CHECK_EXIT(msmBuildStreamTasks(pCtx, pStatus, pStream));
+  TSDB_CHECK_NULL(pStatus->triggerTask, code, lino, _exit, TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+  TAOS_CHECK_EXIT(
+      mndStreamRecalcRestore(pStream, pStatus, pStatus->triggerTask->id.taskId, pStatus->triggerTask->id.seriousId));
 
   mstLogSStmStatus("stream deployed", streamId, pStatus);
 
@@ -3248,9 +3256,10 @@ _exit:
   return;
 }
 
-int32_t msmRecalcStream(SMnode* pMnode, int64_t streamId, STimeWindow* timeRange) {
+int32_t msmRecalcStream(SMnode* pMnode, SStreamObj* pStreamObj, const STimeWindow* pRange, const SRpcMsg* pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  int64_t streamId = pStreamObj->pCreate->streamId;
 
   int8_t active = atomic_load_8(&mStreamMgmt.active), state = atomic_load_8(&mStreamMgmt.state);
   if (0 == active || MND_STM_STATE_NORMAL != state) {
@@ -3265,7 +3274,7 @@ int32_t msmRecalcStream(SMnode* pMnode, int64_t streamId, STimeWindow* timeRange
     goto _exit;
   }
 
-  TAOS_CHECK_EXIT(mstAppendNewRecalcRange(streamId, pStream, timeRange));
+  TAOS_CHECK_EXIT(mndStreamRecalcAccept(pMnode, pStreamObj, pStream, pRange, pReq));
 
 _exit:
 
@@ -3304,6 +3313,37 @@ _exit:
   if (code) {
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
+}
+
+void mndStreamLifecycleTransStopped(SMnode* pMnode, void* param, int32_t paramLen) {
+  if (pMnode == NULL || param == NULL || paramLen != sizeof(SStreamLifecycleTransParam)) return;
+
+  const SStreamLifecycleTransParam* pParam = param;
+  if (pParam->action == MND_STREAM_LIFECYCLE_DROP) {
+    SStreamObj* pStream = NULL;
+    if (mndAcquireStreamById(pMnode, pParam->streamId, &pStream) == TSDB_CODE_SUCCESS && pStream != NULL) {
+      mndReleaseStream(pMnode, pStream);
+      return;
+    }
+  } else {
+    SStreamObj* pStream = NULL;
+    if (mndAcquireStreamById(pMnode, pParam->streamId, &pStream) != TSDB_CODE_SUCCESS || pStream == NULL) return;
+    bool committed = atomic_load_8(&pStream->userStopped) == pParam->expectedUserStopped;
+    mndReleaseStream(pMnode, pStream);
+    if (!committed) return;
+  }
+
+  taosRLockLatch(&mStreamMgmt.runtimeLock);
+  if (pParam->action == MND_STREAM_LIFECYCLE_START) {
+    if (atomic_load_8(&mStreamMgmt.active) != 0 && mStreamMgmt.actionQ != NULL) {
+      mstPostStreamAction(mStreamMgmt.actionQ, pParam->streamId, (char*)pParam->streamName, NULL, true,
+                          STREAM_ACT_DEPLOY);
+    }
+  } else if ((pParam->action == MND_STREAM_LIFECYCLE_STOP || pParam->action == MND_STREAM_LIFECYCLE_DROP) &&
+             atomic_load_8(&mStreamMgmt.active) != 0 && mStreamMgmt.streamMap != NULL) {
+    msmUndeployStream(pMnode, pParam->streamId, (char*)pParam->streamName);
+  }
+  taosRUnLockLatch(&mStreamMgmt.runtimeLock);
 }
 
 void msmStopAllStreamsByGrant(int32_t errCode) {
@@ -3905,6 +3945,7 @@ int32_t msmGrpAddActionRecalc(SStmGrpCtx* pCtx, int64_t streamId, SArray* recalc
   
   SStmAction *pAction = taosHashGet(pCtx->actionStm, &streamId, sizeof(streamId));
   if (pAction) {
+    taosArrayDestroy(pAction->recalc.recalcList);
     pAction->actions |= action;
     pAction->recalc.recalcList = recalcList;
 
@@ -3914,13 +3955,15 @@ int32_t msmGrpAddActionRecalc(SStmGrpCtx* pCtx, int64_t streamId, SArray* recalc
     newAction.recalc.recalcList = recalcList;
     
     TAOS_CHECK_EXIT(taosHashPut(pCtx->actionStm, &streamId, sizeof(streamId), &newAction, sizeof(newAction)));
-    
+    newAction.recalc.recalcList = NULL;
+
     mstsDebug("stream add recalc action, listSize:%d", (int32_t)taosArrayGetSize(recalcList));
   }
 
 _exit:
 
   if (code) {
+    newAction.recalc.recalcList = NULL;
     mstDestroySStmAction(&newAction);
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
@@ -4071,23 +4114,16 @@ void msmChkHandleTriggerOperations(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask, S
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SStmStatus* pStream = (SStmStatus*)pStatus->pStream;
+  SArray*     pRecalcList = NULL;
+
+  TAOS_CHECK_EXIT(mndStreamRecalcBuildDispatch(pStream, &pRecalcList));
+  if (taosArrayGetSize(pRecalcList) > 0) {
+    TAOS_CHECK_EXIT(msmGrpAddActionRecalc(pCtx, pTask->streamId, pRecalcList));
+    pRecalcList = NULL;
+  }
 
   if (1 == atomic_val_compare_exchange_8(&pStream->triggerNeedUpdate, 1, 0)) {
     TAOS_CHECK_EXIT(msmGrpAddActionUpdateTrigger(pCtx->actionStm, pTask->streamId));
-  }
-  
-  SArray* userRecalcList = NULL;
-  if (atomic_load_ptr(&pStream->userRecalcList)) {
-    taosWLockLatch(&pStream->userRecalcLock);
-    if (pStream->userRecalcList) {
-      userRecalcList = pStream->userRecalcList;
-      pStream->userRecalcList = NULL;
-    }
-    taosWUnLockLatch(&pStream->userRecalcLock);
-    
-    if (userRecalcList) {
-      TAOS_CHECK_EXIT(msmGrpAddActionRecalc(pCtx, pTask->streamId, userRecalcList));
-    }
   }
 
   if (pTask->detailStatus >= 0 && pCtx->pReq->pTriggerStatus) {
@@ -4100,6 +4136,8 @@ void msmChkHandleTriggerOperations(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask, S
   }
 
 _exit:
+
+  taosArrayDestroy(pRecalcList);
 
   if (code) {
     // IGNORE STOP STREAM BY ERROR
@@ -4131,7 +4169,30 @@ static SStmTaskStatus* msmGetHeartbeatTaskStatus(const SStmTaskStatusMsg* pTask)
   return *ppStatus;
 }
 
-static void msmApplyHeartbeatTaskMetrics(SStmGrpCtx* pCtx) {
+static void msmLatchHeartbeatRecalcCapability(SStmGrpCtx* pCtx) {
+  if (pCtx->pReq->observabilityVersion != STREAM_HB_OBSERVABILITY_VERSION_V1) {
+    return;
+  }
+
+  int32_t statusNum = taosArrayGetSize(pCtx->pReq->pStreamStatus);
+  for (int32_t i = 0; i < statusNum; ++i) {
+    SStmTaskStatusMsg* pTask = taosArrayGet(pCtx->pReq->pStreamStatus, i);
+    if (pTask == NULL || pTask->type != STREAM_TRIGGER_TASK) {
+      continue;
+    }
+
+    SStmTaskStatus* pStatus = msmGetHeartbeatTaskStatus(pTask);
+    if (pStatus == NULL || pStatus->type != STREAM_TRIGGER_TASK) {
+      continue;
+    }
+
+    (void)mstWaitLock(&pStatus->detailStatusLock, false);
+    pStatus->metrics.applicableMask |= STREAM_METRIC_RECALCULATES;
+    taosWUnLockLatch(&pStatus->detailStatusLock);
+  }
+}
+
+static void msmApplyHeartbeatTaskMetrics(SStmGrpCtx* pCtx, bool* pRecalcStartDeferred) {
   int32_t statusNum = taosArrayGetSize(pCtx->pReq->pStreamStatus);
   for (int32_t i = 0; i < statusNum; ++i) {
     SStmTaskStatusMsg* pTask = taosArrayGet(pCtx->pReq->pStreamStatus, i);
@@ -4186,18 +4247,45 @@ static void msmApplyHeartbeatTaskMetrics(SStmGrpCtx* pCtx) {
     int32_t code = mstApplyTaskMetrics(pStatus, pEntry->taskStatusIndex, pTask->streamId, pEntry);
     if (code != TSDB_CODE_SUCCESS) {
       mstError("failed to apply stream task metrics, code:%s", tstrerror(code));
+      bool fixedRecalcUsable = pEntry->decodeCode == TSDB_CODE_INVALID_MSG &&
+                               pEntry->recalcDetailState == STREAM_RECALC_DETAIL_INVALID &&
+                               pEntry->streamId == pTask->streamId && pEntry->taskId == pStatus->id.taskId &&
+                               pEntry->seriousId == pStatus->id.seriousId;
+      if (!fixedRecalcUsable) continue;
+    }
+
+    SStmStatus* pStream = pStatus->type == STREAM_TRIGGER_TASK ? pStatus->pStream : NULL;
+    if (pStream != NULL && (pEntry->snapshot.validMask & STREAM_METRIC_RECALCULATES) != 0) {
+      bool completeSnapshot = pEntry->decodeCode == TSDB_CODE_SUCCESS && pStream->triggerTask != NULL &&
+                              pEntry->taskId == pStream->triggerTask->id.taskId &&
+                              pEntry->seriousId == pStream->triggerTask->id.seriousId;
+      if (pRecalcStartDeferred == NULL) {
+        code = mndStreamRecalcApplySnapshot(pCtx->pMnode, pTask->streamId, pStream, pEntry->taskId, pEntry->seriousId,
+                                            completeSnapshot, pEntry->recalcDetailState, pEntry->snapshot.pRecalculates,
+                                            pEntry->snapshot.pRecalcDetails);
+      } else {
+        code = mndStreamRecalcApplySnapshotDeferred(pCtx->pMnode, pTask->streamId, pStream, pEntry->taskId,
+                                                    pEntry->seriousId, completeSnapshot, pEntry->recalcDetailState,
+                                                    pEntry->snapshot.pRecalculates, pEntry->snapshot.pRecalcDetails,
+                                                    pRecalcStartDeferred);
+      }
+      if (code != TSDB_CODE_SUCCESS) {
+        mstError("failed to apply stream recalculation metrics, code:%s", tstrerror(code));
+      }
     }
   }
 
   taosMemoryFree(pIndexCounts);
 }
 
-int32_t msmNormalHandleStatusUpdate(SStmGrpCtx* pCtx) {
+static int32_t msmNormalHandleStatusUpdateImpl(SStmGrpCtx* pCtx, bool* pRecalcStartDeferred) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t num = taosArrayGetSize(pCtx->pReq->pStreamStatus);
 
   mstDebug("NORMAL: start to handle stream group %d tasks status, taskNum:%d", pCtx->pReq->streamGId, num);
+
+  msmLatchHeartbeatRecalcCapability(pCtx);
 
   for (int32_t i = 0; i < num; ++i) {
     SStmTaskStatusMsg* pTask = taosArrayGet(pCtx->pReq->pStreamStatus, i);
@@ -4257,7 +4345,7 @@ int32_t msmNormalHandleStatusUpdate(SStmGrpCtx* pCtx) {
     }
   }
 
-  msmApplyHeartbeatTaskMetrics(pCtx);
+  msmApplyHeartbeatTaskMetrics(pCtx, pRecalcStartDeferred);
 
 _exit:
 
@@ -4267,6 +4355,8 @@ _exit:
 
   return code;
 }
+
+int32_t msmNormalHandleStatusUpdate(SStmGrpCtx* pCtx) { return msmNormalHandleStatusUpdateImpl(pCtx, NULL); }
 
 int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -4279,15 +4369,17 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
     SStmStatus status = {0};
     TAOS_CHECK_EXIT(mndAcquireStreamById(pCtx->pMnode, streamId, &pStream));
     TSDB_CHECK_NULL(pStream, code, lino, _exit, TSDB_CODE_MND_STREAM_NOT_EXIST);
-    if (STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags) || pStream->pCreate->vtableCalc) {
-      mndReleaseStream(pCtx->pMnode, pStream);
+    if (STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags) ||
+        pStream->pCreate->vtableCalc) {
       msttDebug("virtual table task ignored, triggerTblType:%d, vtableCalc:%dstatus:%s", 
           pStream->pCreate->triggerTblType, pStream->pCreate->vtableCalc, gStreamStatusStr[pTask->status]);
+      mndReleaseStream(pCtx->pMnode, pStream);
       return code;
     }
 
     TAOS_CHECK_EXIT(msmInitStmStatus(pCtx, &status, pStream, true));
     mndReleaseStream(pCtx->pMnode, pStream);
+    pStream = NULL;
 
     TAOS_CHECK_EXIT(taosHashPut(mStreamMgmt.streamMap, &streamId, sizeof(streamId), &status, sizeof(status)));
     pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
@@ -4346,6 +4438,13 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
 
       TAOS_CHECK_EXIT(msmSTAddToTaskMap(pCtx, streamId, NULL, NULL, pNewTask));
       TAOS_CHECK_EXIT(msmSTAddToSnodeMapImpl(streamId, pNewTask, 0));
+      if (pNewTask->id.taskId != 0 && pNewTask->id.seriousId != 0) {
+        TAOS_CHECK_EXIT(mndAcquireStreamById(pCtx->pMnode, streamId, &pStream));
+        TSDB_CHECK_NULL(pStream, code, lino, _exit, TSDB_CODE_MND_STREAM_NOT_EXIST);
+        TAOS_CHECK_EXIT(mndStreamRecalcRestore(pStream, pStatus, pNewTask->id.taskId, pNewTask->id.seriousId));
+        mndReleaseStream(pCtx->pMnode, pStream);
+        pStream = NULL;
+      }
       break;
     }
     case STREAM_RUNNER_TASK: {
@@ -4378,6 +4477,8 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   }
 
 _exit:
+
+  if (pStream != NULL) mndReleaseStream(pCtx->pMnode, pStream);
 
   if (code) {
     msttError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -4565,6 +4666,7 @@ void msmRspAddUserRecalc(SMnode * pMnode, int64_t streamId, SStmGrpCtx* pCtx, SS
 _exit:
 
   if (code) {
+    tFreeSStreamMgmtRsp(&rsp);
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
     mstsDebug("user recalc rsp added, recalcNum:%d", (int32_t)taosArrayGetSize(rsp.cont.recalcList));
@@ -5273,7 +5375,7 @@ _exit:
   return code;
 }
 
-int32_t msmNormalHandleHbMsg(SStmGrpCtx* pCtx) {
+static int32_t msmNormalHandleHbMsgImpl(SStmGrpCtx* pCtx, bool* pRecalcStartDeferred) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SStreamHbMsg* pReq = pCtx->pReq;
@@ -5324,7 +5426,7 @@ int32_t msmNormalHandleHbMsg(SStmGrpCtx* pCtx) {
   }
 
   if (taosArrayGetSize(pReq->pStreamStatus) > 0) {
-    TAOS_CHECK_EXIT(msmNormalHandleStatusUpdate(pCtx));
+    TAOS_CHECK_EXIT(msmNormalHandleStatusUpdateImpl(pCtx, pRecalcStartDeferred));
   }
 
   if (taosHashGetSize(pCtx->actionStm) > 0) {
@@ -5346,6 +5448,8 @@ _exit:
 
   return code;
 }
+
+int32_t msmNormalHandleHbMsg(SStmGrpCtx* pCtx) { return msmNormalHandleHbMsgImpl(pCtx, NULL); }
 
 void msmEncodeStreamHbRsp(int32_t code, SRpcHandleInfo *pRpcInfo, SMStreamHbRspMsg* pRsp, SRpcMsg* pMsg) {
   int32_t lino = 0;
@@ -5394,7 +5498,8 @@ _exit:
 
 
 int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, SRpcMsg *pReq, SRpcMsg* pRspMsg) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  bool             recalcStartDeferred = false;
   SMStreamHbRspMsg rsp = {0};
   rsp.streamGId = pHb->streamGId;
 
@@ -5421,7 +5526,7 @@ int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, 
       code = msmWatchHandleHbMsg(pCtx);
       break;
     case MND_STM_STATE_NORMAL:
-      code = msmNormalHandleHbMsg(pCtx);
+      code = msmNormalHandleHbMsgImpl(pCtx, &recalcStartDeferred);
       break;
     default:
       mstError("Invalid stream state: %d", mStreamMgmt.state);
@@ -5437,7 +5542,8 @@ _exit:
   msmClearStreamToDeployMaps(pHb);
 
   taosRUnLockLatch(&mStreamMgmt.runtimeLock);
-  
+  if (recalcStartDeferred) mndStreamRecalcSchedulePullupPostUnlock(pMnode);
+
   tFreeSMStreamHbRspMsg(&rsp);
 
   return code;
@@ -6063,6 +6169,8 @@ int32_t msmInitRuntimeInfo(SMnode *pMnode) {
   int32_t vnodeNum = sdbGetSize(pMnode->pSdb, SDB_VGROUP);
   int32_t snodeNum = sdbGetSize(pMnode->pSdb, SDB_SNODE);
   int32_t dnodeNum = sdbGetSize(pMnode->pSdb, SDB_DNODE);
+
+  atomic_store_8(&mStreamMgmt.recalcPullupPending, 0);
 
   MND_STREAM_SET_LAST_TS(STM_EVENT_ACTIVE_BEGIN, taosGetTimestampMs());
 

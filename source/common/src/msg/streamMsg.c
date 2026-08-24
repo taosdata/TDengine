@@ -376,6 +376,90 @@ _exit:
   (sizeof(uint64_t) * 7 + sizeof(int8_t) * 2 + sizeof(int64_t) + sizeof(int32_t) * 2)
 #define STREAM_HB_RECALC_WIRE_SIZE          (sizeof(int64_t) * 3 + sizeof(int32_t) * 2)
 #define STREAM_HB_METRICS_ENTRY_HEADER_SIZE (sizeof(int32_t) * 2 + sizeof(int64_t) * 3)
+#define STREAM_HB_RECALC_DETAIL_MIN_WIRE_SIZE (sizeof(int64_t) + sizeof(int32_t) * 2 + sizeof(uint8_t))
+
+static bool tStreamRecalcDetailValid(const SStreamRecalcDetail* pDetail) {
+  return pDetail != NULL && pDetail->recalcId != 0 && pDetail->retryOrdinal >= 0 &&
+         pDetail->retryOrdinal <= STREAM_RECALC_MAX_ATTEMPT_ORDINAL &&
+         !((pDetail->errorCode == 0 && pDetail->errorText != NULL && pDetail->errorText[0] != 0) ||
+           (pDetail->errorCode != 0 &&
+            (pDetail->errorText == NULL || strcmp(pDetail->errorText, tstrerror(pDetail->errorCode)) != 0)));
+}
+
+static int32_t tGetStreamRecalcDetailsSize(const SArray* pDetails, int32_t* pSize) {
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  size_t   detailNum = taosArrayGetSize(pDetails);
+  uint64_t detailSize = sizeof(int32_t);
+  if (detailNum > INT32_MAX ||
+      detailNum > (INT32_MAX - (int32_t)sizeof(int32_t)) / STREAM_HB_RECALC_DETAIL_MIN_WIRE_SIZE) {
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_RANGE);
+  }
+
+  for (int32_t i = 0; i < (int32_t)detailNum; ++i) {
+    const SStreamRecalcDetail* pDetail = taosArrayGet(pDetails, i);
+    if (!tStreamRecalcDetailValid(pDetail)) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    size_t errorTextLength = 0;
+    if (pDetail->errorText != NULL) {
+      errorTextLength = strlen(pDetail->errorText);
+    }
+    if (errorTextLength >= INT32_MAX) {
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_RANGE);
+    }
+    if (pDetail->errorText != NULL) ++errorTextLength;
+    uint32_t binaryLength = (uint32_t)errorTextLength;
+    uint32_t binaryPrefix = 1;
+    while (binaryLength >= 0x80) {
+      ++binaryPrefix;
+      binaryLength >>= 7;
+    }
+    detailSize += sizeof(int64_t) + sizeof(int32_t) * 2 + binaryPrefix + errorTextLength;
+    if (detailSize > INT32_MAX) {
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_RANGE);
+    }
+  }
+  *pSize = (int32_t)detailSize;
+
+_exit:
+  return code;
+}
+
+static int32_t tEncodeStreamRecalcDetails(SEncoder* pEncoder, const SArray* pDetails) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int32_t detailSize = 0;
+  size_t  detailNum = taosArrayGetSize(pDetails);
+  TAOS_CHECK_EXIT(tGetStreamRecalcDetailsSize(pDetails, &detailSize));
+
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, (int32_t)detailNum));
+  for (int32_t i = 0; i < (int32_t)detailNum; ++i) {
+    const SStreamRecalcDetail* pDetail = taosArrayGet(pDetails, i);
+    uint32_t errorTextLength = pDetail->errorText == NULL ? 0 : (uint32_t)strlen(pDetail->errorText) + 1;
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pDetail->recalcId));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pDetail->retryOrdinal));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pDetail->errorCode));
+    TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, (const uint8_t*)pDetail->errorText, errorTextLength));
+  }
+
+_exit:
+  return code;
+}
+
+static int32_t tEncodeStreamRecalcDetailsExtension(SEncoder* pEncoder, const SArray* pDetails) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int32_t detailLength = 0;
+
+  TAOS_CHECK_EXIT(tGetStreamRecalcDetailsSize(pDetails, &detailLength));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, STREAM_HB_RECALC_DETAIL_VERSION_V1));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, detailLength));
+  TAOS_CHECK_EXIT(tEncodeStreamRecalcDetails(pEncoder, pDetails));
+
+_exit:
+  return code;
+}
 
 static int32_t tEncodeStreamTaskMetricsPayload(SEncoder* pEncoder, const SStreamTaskMetricsEntry* pEntry) {
   int32_t code = 0;
@@ -408,6 +492,9 @@ static int32_t tEncodeStreamTaskMetricsPayload(SEncoder* pEncoder, const SStream
     TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pRecalc->end));
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRecalc->progressPct));
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRecalc->status));
+  }
+  if (pEntry->snapshot.pRecalcDetails != NULL) {
+    TAOS_CHECK_EXIT(tEncodeStreamRecalcDetailsExtension(pEncoder, pEntry->snapshot.pRecalcDetails));
   }
 
 _exit:
@@ -498,11 +585,18 @@ _exit:
   return code;
 }
 
+static void tFreeSStreamRecalcDetail(void* param);
+
 static int32_t tDecodeStreamTaskMetricsPayload(SDecoder* pDecoder, SStreamTaskMetricsEntry* pEntry) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  int8_t  windowReady = 0;
-  int8_t  historyProgressValid = 0;
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  int8_t     windowReady = 0;
+  int8_t     historyProgressValid = 0;
+  int8_t     present = 1;
+  SSHashObj* pRecalcIds = NULL;
+  SSHashObj* pDetailIds = NULL;
+  pEntry->recalcDetailState = STREAM_RECALC_DETAIL_ABSENT;
+  pEntry->snapshot.pRecalcDetails = NULL;
 
   if (tDecodeU64(pDecoder, &pEntry->snapshot.applicableMask) != 0 ||
       tDecodeU64(pDecoder, &pEntry->snapshot.validMask) != 0 || tDecodeI8(pDecoder, &windowReady) != 0 ||
@@ -546,8 +640,129 @@ static int32_t tDecodeStreamTaskMetricsPayload(SDecoder* pDecoder, SStreamTaskMe
     }
   }
 
+  if (pDecoder->pos == pDecoder->size) {
+    goto _exit;
+  }
+
+  uint32_t entryEnd = pDecoder->size;
+  int32_t  detailVersion = 0;
+  int32_t  detailLength = 0;
+  if (tDecodeI32(pDecoder, &detailVersion) != 0 || tDecodeI32(pDecoder, &detailLength) != 0 || detailLength < 0 ||
+      (uint32_t)detailLength > TD_CODER_REMAIN_CAPACITY(pDecoder)) {
+    pEntry->recalcDetailState = STREAM_RECALC_DETAIL_INVALID;
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  uint32_t detailEnd = pDecoder->pos + (uint32_t)detailLength;
+  if (detailVersion != STREAM_HB_RECALC_DETAIL_VERSION_V1) {
+    pEntry->recalcDetailState = STREAM_RECALC_DETAIL_UNKNOWN_VERSION;
+    pDecoder->pos = detailEnd;
+    goto _exit;
+  }
+
+  if (detailEnd != entryEnd) {
+    pEntry->recalcDetailState = STREAM_RECALC_DETAIL_INVALID;
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  pDecoder->size = detailEnd;
+  int32_t detailNum = 0;
+  if (tDecodeI32(pDecoder, &detailNum) != 0 || detailNum < 0 ||
+      (uint32_t)detailNum > TD_CODER_REMAIN_CAPACITY(pDecoder) / STREAM_HB_RECALC_DETAIL_MIN_WIRE_SIZE) {
+    goto _detail_invalid;
+  }
+  pRecalcIds = tSimpleHashInit(recalcNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (pRecalcIds == NULL) {
+    code = terrno;
+    goto _detail_fatal;
+  }
+  for (int32_t i = 0; i < recalcNum; ++i) {
+    const SStreamRecalcSnapshot* pRecalc = taosArrayGet(pEntry->snapshot.pRecalculates, i);
+    code = tSimpleHashPut(pRecalcIds, &pRecalc->recalcId, sizeof(pRecalc->recalcId), &present, sizeof(present));
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _detail_fatal;
+    }
+  }
+  if (detailNum > 0) {
+    pEntry->snapshot.pRecalcDetails = taosArrayInit(detailNum, sizeof(SStreamRecalcDetail));
+    if (pEntry->snapshot.pRecalcDetails == NULL) {
+      code = terrno;
+      goto _detail_fatal;
+    }
+  }
+  pDetailIds = tSimpleHashInit(detailNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (pDetailIds == NULL) {
+    code = terrno;
+    goto _detail_fatal;
+  }
+  for (int32_t i = 0; i < detailNum; ++i) {
+    SStreamRecalcDetail detail = {0};
+    uint64_t            errorTextLength = 0;
+    if (tDecodeI64(pDecoder, &detail.recalcId) != 0 || tDecodeI32(pDecoder, &detail.retryOrdinal) != 0 ||
+        tDecodeI32(pDecoder, &detail.errorCode) != 0) {
+      goto _detail_invalid;
+    }
+    code = tDecodeBinaryAlloc(pDecoder, (void**)&detail.errorText, &errorTextLength);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFreeClear(detail.errorText);
+      if (code == TSDB_CODE_INVALID_MSG) goto _detail_invalid;
+      goto _detail_fatal;
+    }
+    if ((detail.errorText != NULL && (errorTextLength == 0 || detail.errorText[errorTextLength - 1] != '\0' ||
+                                      errorTextLength != strlen(detail.errorText) + 1)) ||
+        !tStreamRecalcDetailValid(&detail)) {
+      taosMemoryFreeClear(detail.errorText);
+      goto _detail_invalid;
+    }
+    if (tSimpleHashGet(pRecalcIds, &detail.recalcId, sizeof(detail.recalcId)) == NULL) {
+      taosMemoryFreeClear(detail.errorText);
+      goto _detail_invalid;
+    }
+    if (tSimpleHashGet(pDetailIds, &detail.recalcId, sizeof(detail.recalcId)) != NULL) {
+      taosMemoryFreeClear(detail.errorText);
+      goto _detail_invalid;
+    }
+    code = tSimpleHashPut(pDetailIds, &detail.recalcId, sizeof(detail.recalcId), &present, sizeof(present));
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFreeClear(detail.errorText);
+      goto _detail_fatal;
+    }
+    if (taosArrayPush(pEntry->snapshot.pRecalcDetails, &detail) == NULL) {
+      taosMemoryFreeClear(detail.errorText);
+      code = terrno;
+      goto _detail_fatal;
+    }
+  }
+  if (pDecoder->pos != detailEnd) {
+    goto _detail_invalid;
+  }
+  pEntry->recalcDetailState = STREAM_RECALC_DETAIL_RECOGNIZED_VALID;
+  pDecoder->size = entryEnd;
+  goto _exit;
+
+_detail_invalid:
+  pDecoder->size = entryEnd;
+  taosArrayDestroyEx(pEntry->snapshot.pRecalcDetails, tFreeSStreamRecalcDetail);
+  pEntry->snapshot.pRecalcDetails = NULL;
+  pEntry->recalcDetailState = STREAM_RECALC_DETAIL_INVALID;
+  code = TSDB_CODE_INVALID_MSG;
+  goto _exit;
+
+_detail_fatal:
+  pDecoder->size = entryEnd;
+  taosArrayDestroyEx(pEntry->snapshot.pRecalcDetails, tFreeSStreamRecalcDetail);
+  pEntry->snapshot.pRecalcDetails = NULL;
+
 _exit:
+  tSimpleHashCleanup(pRecalcIds);
+  tSimpleHashCleanup(pDetailIds);
   return code;
+}
+
+static void tFreeSStreamRecalcDetail(void* param) {
+  SStreamRecalcDetail* pDetail = param;
+  if (pDetail == NULL) return;
+  taosMemoryFreeClear(pDetail->errorText);
 }
 
 static void tFreeSStreamTaskMetricsEntry(void* param) {
@@ -557,6 +772,8 @@ static void tFreeSStreamTaskMetricsEntry(void* param) {
   }
   taosArrayDestroy(pEntry->snapshot.pRecalculates);
   pEntry->snapshot.pRecalculates = NULL;
+  taosArrayDestroyEx(pEntry->snapshot.pRecalcDetails, tFreeSStreamRecalcDetail);
+  pEntry->snapshot.pRecalcDetails = NULL;
 }
 
 static int32_t tDecodeStreamHbObservabilityTail(SDecoder* pDecoder, SStreamHbMsg* pReq) {
@@ -591,8 +808,10 @@ static int32_t tDecodeStreamHbObservabilityTail(SDecoder* pDecoder, SStreamHbMsg
     pDecoder->size = tailEnd;
     pDecoder->pos = entryEnd;
     if (entry.decodeCode != TSDB_CODE_SUCCESS) {
-      tFreeSStreamTaskMetricsEntry(&entry);
-      memset(&entry.snapshot, 0, sizeof(entry.snapshot));
+      if (entry.recalcDetailState != STREAM_RECALC_DETAIL_INVALID) {
+        tFreeSStreamTaskMetricsEntry(&entry);
+        memset(&entry.snapshot, 0, sizeof(entry.snapshot));
+      }
       if (entry.decodeCode != TSDB_CODE_INVALID_MSG) {
         code = entry.decodeCode;
         goto _exit;
@@ -605,6 +824,7 @@ static int32_t tDecodeStreamHbObservabilityTail(SDecoder* pDecoder, SStreamHbMsg
       goto _exit;
     }
     entry.snapshot.pRecalculates = NULL;
+    entry.snapshot.pRecalcDetails = NULL;
   }
 
 _exit:
