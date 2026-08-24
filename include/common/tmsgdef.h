@@ -546,6 +546,7 @@
   TD_DEF_MSG_TYPE(TDMT_MND_REFRESH_EXT_SOURCE, "refresh-ext-source", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_GET_EXT_SOURCE,     "get-ext-source",     NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_AUTH_SASL, "auth-sasl", NULL, NULL)  // SCRAM-SHA-256 handshake round
+  TD_DEF_MSG_TYPE(TDMT_MND_FLUSH_MNODE, "flush-mnode", NULL, NULL)  // moved from TDMT_MND_MSG: that segment is full (see "mnode msg overload" note above)
   TD_CLOSE_MSG_SEG(TDMT_MND_EXT_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MND_XNODE_MSG)  //10 << 8
