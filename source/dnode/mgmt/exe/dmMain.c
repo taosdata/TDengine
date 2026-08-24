@@ -125,6 +125,7 @@ static struct {
   bool deleteTrans;
   bool modifySdb;
   char sdbJsonFile[PATH_MAX];
+  bool flushMnode;
   bool generateGrant;
   bool memDbg;
 
@@ -996,6 +997,8 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       global.dumpSdb = true;
     } else if (strcmp(argv[i], "-dTxn") == 0) {
       global.deleteTrans = true;
+    } else if (strcmp(argv[i], "-fMnode") == 0) {
+      global.flushMnode = true;
     } else if (strcmp(argv[i], "-mSdb") == 0) {
       global.modifySdb = true;
       if (i < argc - 1) {
@@ -1468,6 +1471,22 @@ int mainWindows(int argc, char **argv) {
     }
 
     TAOS_CHECK_RETURN(mndModifySdb(global.sdbJsonFile));
+    taosCleanupCfg();
+    taosCloseLog();
+    taosCleanupArgs();
+    taosConvDestroy();
+    return 0;
+  }
+
+  if (global.flushMnode) {
+    int32_t   code = 0;
+    TdFilePtr pFile;
+    if ((code = dmCheckRunning(tsDataDir, &pFile)) != 0) {
+      printf("failed to flush mnode since taosd is running, please stop it first, reason:%s", tstrerror(code));
+      return code;
+    }
+
+    TAOS_CHECK_RETURN(mndFlushMnode());
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();

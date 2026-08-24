@@ -28035,6 +28035,13 @@ static int32_t translateBalanceVgroup(STranslateContext* pCxt, SBalanceVgroupStm
   return code;
 }
 
+static int32_t translateFlushMnode(STranslateContext* pCxt, SFlushMnodeStmt* pStmt) {
+  SFlushMnodeReq req = {0};
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_FLUSH_MNODE, (FSerializeFunc)tSerializeSFlushMnodeReq, &req);
+  tFreeSFlushMnodeReq(&req);
+  return code;
+}
+
 static int32_t translateAssignLeader(STranslateContext* pCxt, SAssignLeaderStmt* pStmt) {
   SAssignLeaderReq req = {0};
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_ARB_ASSIGN_LEADER, (FSerializeFunc)tSerializeSAssignLeaderReq, &req);
@@ -30399,6 +30406,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       code = translateBalanceVgroup(pCxt, (SBalanceVgroupStmt*)pNode);
+      break;
+    case QUERY_NODE_FLUSH_MNODE_STMT:
+      code = translateFlushMnode(pCxt, (SFlushMnodeStmt*)pNode);
       break;
     case QUERY_NODE_ASSIGN_LEADER_STMT:
       code = translateAssignLeader(pCxt, (SAssignLeaderStmt*)pNode);
