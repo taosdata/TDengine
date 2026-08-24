@@ -36,6 +36,7 @@ static int32_t  mndMnodeActionUpdate(SSdb *pSdb, SMnodeObj *pOld, SMnodeObj *pNe
 static int32_t  mndProcessCreateMnodeReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterMnodeReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropMnodeReq(SRpcMsg *pReq);
+static int32_t  mndProcessFlushMnodeReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextMnode(SMnode *pMnode, void *pIter);
 static void     mndReloadSyncConfig(SMnode *pMnode);
@@ -59,6 +60,7 @@ int32_t mndInitMnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_MNODE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_MNODE, mndProcessDropMnodeReq);
   mndSetMsgHandle(pMnode, TDMT_DND_DROP_MNODE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_FLUSH_MNODE, mndProcessFlushMnodeReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_MNODE, mndRetrieveMnodes);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_MNODE, mndCancelGetNextMnode);
@@ -931,6 +933,47 @@ _OVER:
 
   mndReleaseMnode(pMnode, pObj);
   tFreeSMCreateQnodeReq(&dropReq);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessFlushMnodeReq(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  int32_t code = 0;
+
+  // Leader is guaranteed by mndCheckMnodeState (non-leaders are auto-redirected
+  // with the leader epset). No manual leader check / user-facing not-leader error.
+
+  // Per FS §4.1/§6: FLUSH MNODE requires sysinfo privilege (gated directly on the
+  // sysInfo flag, not a dedicated RBAC priv object like COMPACT DATABASE's
+  // PRIV_DB_COMPACT) since it force-truncates the WAL and snapshots the mnode
+  // leader; an unprivileged caller must not be able to trigger this.
+  code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_FLUSH_MNODE);
+  if (code != 0) {
+    mError("FLUSH MNODE rejected for user:%s since %s", RPC_MSG_USER(pReq), tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  (void)taosThreadMutexLock(&pSdb->filelock);
+  if (pSdb->pWal != NULL && pSdb->sync > 0) {
+    code = syncBeginSnapshot(pSdb->sync, pSdb->applyIndex);
+  }
+  if (code == 0) {
+    code = sdbWriteFileForDump(pSdb, -1);
+  }
+  if (code == 0 && pSdb->pWal != NULL && pSdb->sync > 0) {
+    code = syncEndSnapshot(pSdb->sync, true);  // forceTrim
+  }
+  (void)taosThreadMutexUnlock(&pSdb->filelock);
+
+  if (code == 0) {
+    mInfo("FLUSH MNODE success, applyIndex:%" PRId64, pSdb->applyIndex);
+    pReq->info.rsp = NULL;
+    pReq->info.rspLen = 0;
+  } else {
+    mError("FLUSH MNODE failed since %s", tstrerror(code));
+  }
+  // taosd keeps running; do NOT trigger exit.
   TAOS_RETURN(code);
 }
 

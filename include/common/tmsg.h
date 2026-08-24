@@ -544,6 +544,7 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_STREAM_STMT,
   QUERY_NODE_DROP_STREAM_STMT,
   QUERY_NODE_BALANCE_VGROUP_STMT,
+  QUERY_NODE_FLUSH_MNODE_STMT,
   QUERY_NODE_MERGE_VGROUP_STMT,
   QUERY_NODE_REDISTRIBUTE_VGROUP_STMT,
   QUERY_NODE_SPLIT_VGROUP_STMT,
@@ -4694,6 +4695,14 @@ typedef struct {
 int32_t tSerializeSBalanceVgroupReq(void* buf, int32_t bufLen, SBalanceVgroupReq* pReq);
 int32_t tDeserializeSBalanceVgroupReq(void* buf, int32_t bufLen, SBalanceVgroupReq* pReq);
 void    tFreeSBalanceVgroupReq(SBalanceVgroupReq* pReq);
+
+typedef struct {
+  int32_t useless;  // reserved; empty request
+} SFlushMnodeReq;
+
+int32_t tSerializeSFlushMnodeReq(void* buf, int32_t bufLen, SFlushMnodeReq* pReq);
+int32_t tDeserializeSFlushMnodeReq(void* buf, int32_t bufLen, SFlushMnodeReq* pReq);
+void    tFreeSFlushMnodeReq(SFlushMnodeReq* pReq);
 
 typedef struct {
   int32_t useless;  // useless
