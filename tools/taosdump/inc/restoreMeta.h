@@ -39,11 +39,18 @@ typedef struct {
 int restoreDatabaseMeta(const char *dbName);
 
 // restore database extended meta: virtual tables, streams, topics.
-// Must be called only after every database's physical tables exist, because a
-// virtual table may reference tables in other databases.
-// needCreateDb: true when the basic stage did not run for this database
-//               (--content=ext-meta), so the database must be created first.
-int restoreDatabaseExtMeta(const char *dbName, bool needCreateDb);
+// Must be called only after every database's physical tables (and, for
+// --content=ext-meta, the databases themselves) exist, because a virtual table
+// or a stream's INTO target may reference another database.
+//
+// Split into a "prepare" phase and an "apply" phase so restoreMain() can
+// create EVERY database (prepare) before applying ANY DDL (apply).  Applying
+// DDL per-database in discovery order fails with "Database not exist" whenever
+// a cross-database stream/virtual table is restored before the database it
+// references — and the discovery order comes from raw readdir() and is
+// filesystem-dependent.
+int restoreDatabaseExtMetaPrepare(const char *dbName);
+int restoreDatabaseExtMetaApply(const char *dbName);
 
 // Validate that every user-specified table name (positional args) exists in
 // the backup files for the given database.  Must be called BEFORE any restore

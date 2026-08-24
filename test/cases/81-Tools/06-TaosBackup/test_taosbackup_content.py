@@ -327,6 +327,18 @@ class TestTaosbackupContent:
         tdSql.execute(f"drop database if exists {self.DB_V}")
         self.dump(f"--content=ext-meta -i {backdir}")
         self.checkExtMetaRestored()
+
+        # Deterministic ordering guard: restore again with an explicit -D list
+        # that puts the referencing database (DB_P, whose stream targets DB_V)
+        # FIRST.  This is the exact order that previously failed with
+        # "Database not exist" — the two-pass split must create every database
+        # (Prepare) before applying any DDL (Apply), so it must succeed no
+        # matter which order raw readdir() (used by -i discovery) produces.
+        tdSql.execute(f"drop topic if exists {self.TOPIC}")
+        tdSql.execute(f"drop stream if exists {self.STREAM}")
+        tdSql.execute(f"drop database if exists {self.DB_V}")
+        self.dump(f"--content=ext-meta -D {self.DB_P},{self.DB_V} -i {backdir}")
+        self.checkExtMetaRestored()
         tdLog.info("ext-meta-only backup and restore ........ [passed]")
 
     def do_invalid_content(self, tmpdir):
