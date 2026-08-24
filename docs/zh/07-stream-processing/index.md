@@ -22,4 +22,4 @@ TDengine 的流式计算引擎还提供了其他使用上的便利。针对结�
 
 **说明**：新的流式计算功能从 `v3.3.7.0` 开始支持。
 
-本章后续分别说明 [建流语法](./01-syntax.md)、[运维与限制](./02-instructions.md) 与 [部署与设计](./03-best-practices.md)。
+本章后续分别说明 [建流语法](./01-syntax.md)、[运维与限制](./02-instructions.md)、[部署与设计](./03-best-practices.md) 与 [可观测性与故障诊断](./04-observability.md)。

@@ -1747,6 +1747,7 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_COLUMN_DEF:
       nodesDestroyNode(((SColumnDefNode*)pNode)->pOptions);
+      nodesDestroyNode(((SColumnDefNode*)pNode)->pTagVal);
       break;
     case QUERY_NODE_DOWNSTREAM_SOURCE:  // no pointer field
       break;
@@ -2036,6 +2037,7 @@ void nodesDestroyNode(SNode* pNode) {
       SCreateVTableStmt* pStmt = (SCreateVTableStmt*)pNode;
       nodesDestroyList(pStmt->pCols);
       nodesDestroyList(pStmt->pSeriesList);
+      nodesDestroyList(pStmt->pTags);
       break;
     }
     case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT: {
@@ -2070,8 +2072,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_DROP_TABLE_STMT:
       nodesDestroyList(((SDropTableStmt*)pNode)->pTables);
       break;
-    case QUERY_NODE_DROP_SUPER_TABLE_STMT:
-    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:  // no pointer field
+    case QUERY_NODE_DROP_SUPER_TABLE_STMT:  // no pointer field
+      break;
+    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
+      nodesDestroyList(((SDropVirtualTableStmt*)pNode)->pTables);
       break;
     case QUERY_NODE_ALTER_TABLE_STMT:
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT:

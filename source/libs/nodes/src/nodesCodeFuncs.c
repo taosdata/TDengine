@@ -8493,6 +8493,7 @@ static const char* jkColumnDefDataType = "DataType";
 static const char* jkColumnDefComments = "Comments";
 static const char* jkColumnDefSma = "Sma";
 static const char* jkColumnDefOptions = "ColumnOptions";
+static const char* jkColumnDefTagVal = "TagVal";
 
 static int32_t columnDefNodeToJson(const void* pObj, SJson* pJson) {
   const SColumnDefNode* pNode = (const SColumnDefNode*)pObj;
@@ -8506,6 +8507,9 @@ static int32_t columnDefNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkColumnDefOptions, nodeToJson, pNode->pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkColumnDefTagVal, nodeToJson, pNode->pTagVal);
   }
 
   return code;
@@ -8523,6 +8527,9 @@ static int32_t jsonToColumnDefNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkColumnDefOptions, (SNode**)&pNode->pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkColumnDefTagVal, (SNode**)&pNode->pTagVal);
   }
   return code;
 }
@@ -9759,6 +9766,7 @@ static int32_t jsonToDropMountStmt(const SJson* pJson, void* pObj) {
 static const char* jkCreateTableStmtDbName = "DbName";
 static const char* jkCreateTableStmtTableName = "TableName";
 static const char* jkCreateTableStmtIgnoreExists = "IgnoreExists";
+static const char* jkCreateTableStmtStableKeyword = "StableKeyword";
 static const char* jkCreateTableStmtCols = "Cols";
 static const char* jkCreateTableStmtTags = "Tags";
 static const char* jkCreateTableStmtOptions = "Options";
@@ -9773,6 +9781,9 @@ static int32_t createTableStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkCreateTableStmtIgnoreExists, pNode->ignoreExists);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkCreateTableStmtStableKeyword, pNode->stableKeyword);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkCreateTableStmtCols, pNode->pCols);
@@ -9799,6 +9810,9 @@ static int32_t jsonToCreateTableStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkCreateTableStmtIgnoreExists, &pNode->ignoreExists);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkCreateTableStmtStableKeyword, &pNode->stableKeyword);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkCreateTableStmtCols, &pNode->pCols);
@@ -9900,6 +9914,7 @@ static const char* jkCreateVTableStmtDbName = "DbName";
 static const char* jkCreateVTableStmtTableName = "TableName";
 static const char* jkCreateVTableStmtIgnoreExists = "IgnoreExists";
 static const char* jkCreateVTableStmtCols = "Cols";
+static const char* jkCreateVTableStmtTags = "Tags";
 
 static int32_t createVTableStmtToJson(const void* pObj, SJson* pJson) {
   const SCreateVTableStmt* pNode = (const SCreateVTableStmt*)pObj;
@@ -9913,6 +9928,9 @@ static int32_t createVTableStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkCreateVTableStmtCols, pNode->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkCreateVTableStmtTags, pNode->pTags);
   }
   return code;
 }
@@ -9929,6 +9947,9 @@ static int32_t jsonToCreateVTableStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkCreateTableStmtCols, &pNode->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkCreateVTableStmtTags, &pNode->pTags);
   }
   return code;
 }
@@ -10104,21 +10125,13 @@ static int32_t jsonToDropStableStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
-static const char* jkDropVirtualTableStmtDbName = "DbName";
-static const char* jkDropVirtualTableStmtTableName = "TableName";
-static const char* jkDropVirtualTableStmtIgnoreNotExists = "IgnoreNotExists";
+static const char* jkDropVirtualTableStmtTables = "Tables";
 static const char* jkDropVirtualTableStmtwithOpt = "withOpt";
 
 static int32_t dropVtableStmtToJson(const void* pObj, SJson* pJson) {
   const SDropVirtualTableStmt* pNode = (const SDropVirtualTableStmt*)pObj;
 
-  int32_t code = tjsonAddStringToObject(pJson, jkDropVirtualTableStmtDbName, pNode->dbName);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddStringToObject(pJson, jkDropVirtualTableStmtTableName, pNode->tableName);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddBoolToObject(pJson, jkDropVirtualTableStmtIgnoreNotExists, pNode->ignoreNotExists);
-  }
+  int32_t code = nodeListToJson(pJson, jkDropVirtualTableStmtTables, pNode->pTables);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkDropVirtualTableStmtwithOpt, pNode->withOpt);
   }
@@ -10129,12 +10142,9 @@ static int32_t dropVtableStmtToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToDropVtableStmt(const SJson* pJson, void* pObj) {
   SDropVirtualTableStmt* pNode = (SDropVirtualTableStmt*)pObj;
 
-  int32_t code = tjsonGetStringValue1(pJson, jkDropSuperTableStmtDbName, pNode->dbName, sizeof(pNode->dbName));
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetStringValue1(pJson, jkDropVirtualTableStmtTableName, pNode->tableName, sizeof(pNode->tableName));
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBoolValue(pJson, jkDropVirtualTableStmtIgnoreNotExists, &pNode->ignoreNotExists);
+  int32_t code = jsonToNodeList(pJson, jkDropVirtualTableStmtTables, &pNode->pTables);
+  if (TSDB_CODE_SUCCESS == code && NULL == pNode->pTables) {
+    code = TSDB_CODE_PAR_SYNTAX_ERROR;  // reject malformed stmt: at least one table is required
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkDropVirtualTableStmtwithOpt, &pNode->withOpt);

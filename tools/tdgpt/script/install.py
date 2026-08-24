@@ -63,6 +63,7 @@ VC_RUNTIME_DOWNLOAD_URL = "https://aka.ms/vc14/vc_redist.x64.exe"
 
 DEFAULT_ONLINE_MODELS = ["moirai", "moment"]
 ALL_MODELS = ["tdtsfm", "timemoe", "moirai", "chronos", "timesfm", "moment"]
+UNIFIED_PY312_REQUIREMENTS = "requirements_tsfm.txt"
 ENABLED_MODELS_FILE = INSTALL_DIR / "cfg" / "enabled_models.txt"
 
 
@@ -140,7 +141,7 @@ MODEL_SPECS: Dict[str, Dict[str, object]] = {
         "display": "Moirai Small",
         "default_model": "Salesforce/moirai-moe-1.0-R-small",
         "flag_files": ["model.safetensors", "config.json"],
-        "venv": "moirai_venv",
+        "venv": "venv",
         "online_supported": True,
         "archive_names": ["moirai.zip", "moirai.tar", "moirai.tar.gz", "moirai.tgz"],
         "download_size": "~447 MB",
@@ -150,7 +151,7 @@ MODEL_SPECS: Dict[str, Dict[str, object]] = {
         "display": "Chronos Bolt Base",
         "default_model": "amazon/chronos-bolt-base",
         "flag_files": ["model.safetensors", "config.json"],
-        "venv": "chronos_venv",
+        "venv": "venv",
         "online_supported": True,
         "archive_names": [
             "chronos.zip",
@@ -162,10 +163,10 @@ MODEL_SPECS: Dict[str, Dict[str, object]] = {
         "disk_size": "~850 MB",
     },
     "timesfm": {
-        "display": "TimesFM 2.0 500M",
-        "default_model": "google/timesfm-2.0-500m-pytorch",
-        "flag_files": ["model.safetensors", "config.json", "torch_model.ckpt"],
-        "venv": "timesfm_venv",
+        "display": "TimesFM 2.5 200M",
+        "default_model": "google/timesfm-2.5-200m-pytorch",
+        "flag_files": ["model.safetensors", "config.json"],
+        "venv": "venv",
         "online_supported": True,
         "archive_names": [
             "timesfm.zip",
@@ -173,14 +174,14 @@ MODEL_SPECS: Dict[str, Dict[str, object]] = {
             "timesfm.tar.gz",
             "timesfm.tgz",
         ],
-        "download_size": "~1.90 GB",
-        "disk_size": "~2.0 GB",
+        "download_size": "~850 MB",
+        "disk_size": "~900 MB",
     },
     "moment": {
         "display": "MOMENT Base",
         "default_model": "AutonLab/MOMENT-1-base",
         "flag_files": ["model.safetensors", "config.json"],
-        "venv": "momentfm_venv",
+        "venv": "venv",
         "online_supported": True,
         "archive_names": [
             "moment.zip",
@@ -206,22 +207,6 @@ VENV_CONFIGS: Dict[str, Dict[str, str]] = {
         "requirements": "requirements_windows_core.txt",
         "description": "Main virtual environment",
         "validation_imports": "numpy,flask,waitress",
-    },
-    "moirai_venv": {
-        "requirements": "requirements_moirai.txt",
-        "description": "Moirai virtual environment",
-    },
-    "chronos_venv": {
-        "requirements": "requirements_chronos.txt",
-        "description": "Chronos virtual environment",
-    },
-    "timesfm_venv": {
-        "requirements": "requirements_timesfm.txt",
-        "description": "TimesFM virtual environment",
-    },
-    "momentfm_venv": {
-        "requirements": "requirements_moment.txt",
-        "description": "MOMENT virtual environment",
     },
 }
 
@@ -872,7 +857,7 @@ class WindowsInstaller:
 
     def prepare_existing_runtime_reuse(self) -> bool:
         main_venv_python = self.get_venv_python("venv")
-        core_req = self.requirements_dir / VENV_CONFIGS["venv"]["requirements"]
+        core_req = self.resolve_requirements_file(VENV_CONFIGS["venv"]["requirements"])
         core_stamp = self.get_requirements_stamp_path(
             "venv", VENV_CONFIGS["venv"]["requirements"]
         )
@@ -2055,6 +2040,15 @@ class WindowsInstaller:
         stamp_path.parent.mkdir(parents=True, exist_ok=True)
         stamp_path.write_text(self.build_requirements_stamp(req_file), encoding="utf-8")
 
+    def resolve_requirements_file(self, req_name: str) -> Path:
+        packaged_path = self.requirements_dir / req_name
+        if packaged_path.exists():
+            return packaged_path
+        source_tree_path = INSTALL_DIR.parent / req_name
+        if source_tree_path.exists():
+            return source_tree_path
+        return packaged_path
+
     def install_req_file(
         self,
         venv_name: str,
@@ -2063,7 +2057,7 @@ class WindowsInstaller:
         end_percent: int,
         title: str,
     ) -> bool:
-        req_file = self.requirements_dir / req_name
+        req_file = self.resolve_requirements_file(req_name)
         if not req_file.exists():
             self.print_warning(f"Requirements file not found: {req_file}")
             return True
@@ -2169,6 +2163,50 @@ class WindowsInstaller:
             return False
         return False
 
+    def install_moment_compat_wheel(
+        self, start_percent: int, end_percent: int
+    ) -> bool:
+        install = [
+            str(self.get_venv_python("venv")),
+            "-m",
+            "pip",
+            "install",
+            "--no-deps",
+            "momentfm==0.1.4",
+            "--progress-bar",
+            "on",
+        ]
+        self.add_pip_options(install)
+        install_timer = self.start_phase_timer("venv: install momentfm with --no-deps")
+        if not self.run_stream(
+            install,
+            "Installing momentfm==0.1.4 with --no-deps",
+            1800,
+            start_percent,
+            end_percent,
+            "Installing unified TSFM dependencies",
+        ):
+            return False
+        self.finish_phase_timer("venv: install momentfm with --no-deps", install_timer)
+        return True
+
+    def run_pip_check(
+        self, venv_name: str, start_percent: int, end_percent: int
+    ) -> bool:
+        check = [str(self.get_venv_python(venv_name)), "-m", "pip", "check"]
+        check_timer = self.start_phase_timer(f"{venv_name}: pip check")
+        if not self.run_stream(
+            check,
+            f"Checking package compatibility in {venv_name}",
+            600,
+            start_percent,
+            end_percent,
+            "Validating Python environment",
+        ):
+            return False
+        self.finish_phase_timer(f"{venv_name}: pip check", check_timer)
+        return True
+
     def install_venvs(self) -> bool:
         if self.offline:
             return self.prepare_external_offline_runtime()
@@ -2202,6 +2240,30 @@ class WindowsInstaller:
                 "TensorFlow CPU support was skipped",
             )
 
+        selected_tsfm_models = set(ALL_MODELS).intersection(self.selected_models)
+        if selected_tsfm_models:
+            req_file = self.resolve_requirements_file(UNIFIED_PY312_REQUIREMENTS)
+            if not req_file.exists():
+                self.print_error(
+                    f"Critical: Unified TSFM requirements file not found: {req_file}\n"
+                    f"Cannot proceed with TSFM model installation without core dependencies."
+                )
+                return False
+            if not self.install_req_file(
+                "venv",
+                UNIFIED_PY312_REQUIREMENTS,
+                60,
+                74,
+                "Installing unified TSFM dependencies",
+            ):
+                return False
+            if "moment" in self.selected_models and not self.install_moment_compat_wheel(
+                74, 78
+            ):
+                return False
+            if not self.run_pip_check("venv", 78, 82):
+                return False
+
         extra_venvs: List[str] = []
         for model_name in self.selected_models:
             venv_name = str(MODEL_SPECS[model_name]["venv"])
@@ -2211,9 +2273,9 @@ class WindowsInstaller:
             extra_venvs = []
         if not extra_venvs:
             self.set_progress(
-                70,
+                82,
                 "Preparing Python environments",
-                "No extra model virtual environments were requested",
+                "All selected models use the unified virtual environment",
             )
             return True
 

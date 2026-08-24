@@ -100,14 +100,15 @@ TEST_F(ParserInitialCTest, xnodeTaskParserPresence) {
   login("root");
 
   ENodeType expectedType = QUERY_NODE_CREATE_XNODE_TASK_STMT;
-  const char* expectedParser = nullptr;
+  bool        hasExpectedParser = false;
+  std::string expectedParser;
   auto checkParser = [&](const CowStr& parser) {
-    if (expectedParser == nullptr) {
+    if (!hasExpectedParser) {
       ASSERT_EQ(parser.ptr, nullptr);
     } else {
       ASSERT_NE(parser.ptr, nullptr);
-      ASSERT_EQ(parser.len, strlen(expectedParser));
-      ASSERT_EQ(std::string(parser.ptr, parser.len), std::string(expectedParser));
+      ASSERT_EQ(parser.len, expectedParser.size());
+      ASSERT_EQ(std::string(parser.ptr, parser.len), expectedParser);
     }
   };
 
@@ -132,22 +133,56 @@ TEST_F(ParserInitialCTest, xnodeTaskParserPresence) {
 
   run("CREATE XNODE TASK 'task' FROM 'f1' TO 't1' WITH status 'created'");
 
+  hasExpectedParser = true;
   expectedParser = "";
   run("CREATE XNODE TASK 'task' FROM 'f1' TO 't1' WITH parser ''");
 
   expectedParser = "json";
   run("CREATE XNODE TASK 'task' FROM 'f1' TO 't1' WITH parser 'json'");
 
+  expectedParser = R"({"parser":{"value":"{\"x\":\"y\"}"}})";
+  run(R"(CREATE XNODE TASK 'task' FROM 'f1' TO 't1' WITH parser '{\"parser\":{\"value\":\"{\\\"x\\\":\\\"y\\\"}\"}}')");
+
   expectedType = QUERY_NODE_UPDATE_XNODE_TASK_STMT;
 
-  expectedParser = nullptr;
+  hasExpectedParser = false;
   run("ALTER XNODE TASK 'task' WITH status 'running'");
 
+  hasExpectedParser = true;
   expectedParser = "";
   run("ALTER XNODE TASK 'task' WITH parser ''");
 
   expectedParser = "json";
   run("ALTER XNODE TASK 'task' WITH parser 'json'");
+
+  expectedParser = R"({"parser":{"value":"{\"x\":\"y\"}"}})";
+  run(R"(ALTER XNODE TASK 'task' WITH parser '{\"parser\":{\"value\":\"{\\\"x\\\":\\\"y\\\"}\"}}')");
+}
+
+TEST_F(ParserInitialCTest, xnodeTaskParserBinaryLength) {
+  SAstCreateContext context = {0};
+  char              parserKey[] = "parser";
+  char              parserLiteral[] = {'\'', 'a', 'b', '\0', 'c', 'd', '\''};
+  SToken            key = {0};
+  key.n = 6;
+  key.type = TK_NK_ID;
+  key.z = parserKey;
+  SToken value = {0};
+  value.n = sizeof(parserLiteral);
+  value.type = TK_NK_STRING;
+  value.z = parserLiteral;
+
+  SNode* options = createDefaultXnodeTaskOptions(&context);
+  ASSERT_NE(options, nullptr);
+  options = setXnodeTaskOption(&context, options, &key, &value);
+  ASSERT_NE(options, nullptr);
+
+  const auto* xnodeOptions = reinterpret_cast<const SXnodeTaskOptions*>(options);
+  ASSERT_NE(xnodeOptions->parser, nullptr);
+  ASSERT_EQ(xnodeOptions->parserLen, 5);
+  ASSERT_EQ(std::string(xnodeOptions->parser, xnodeOptions->parserLen), std::string("ab\0cd", 5));
+
+  nodesDestroyNode(options);
 }
 
 /*

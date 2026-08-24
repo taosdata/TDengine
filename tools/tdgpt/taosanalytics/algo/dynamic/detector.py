@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
+from taosanalytics.algo.dynamic.model_loader import ModelLoader
 from taosanalytics.log import AppLogger
 
 
@@ -106,79 +107,21 @@ class BaseModelAnomalyDetector(ABC):
         """Return model parameters for logging / introspection."""
 
     @staticmethod
+    @staticmethod
     def _load_pkl_model(model_path: str, expected_type) -> tuple:
         """Load pkl file and extract model + pipeline_state.
 
         Returns:
             (model, pipeline_state) tuple, or (None, None) on failure
         """
-        import joblib
-
-        try:
-            AppLogger.info(f"start to load model from {model_path}")
-            data = joblib.load(model_path)
-
-            # Handle both formats: direct model or dict with 'model' key
-            if isinstance(data, dict) and "model" in data:
-                model = data["model"]
-                pipeline_state = data.get("pipeline", {})
-                if not isinstance(model, expected_type):
-                    AppLogger.error(
-                        "loaded model from dict is not %s instance, got type: %s",
-                        expected_type.__name__,
-                        type(model).__name__,
-                    )
-                    return None, None
-                return model, pipeline_state
-            elif isinstance(data, expected_type):
-                return data, {}
-            else:
-                AppLogger.error(
-                    "loaded data is not %s instance or valid dict format, got type: %s",
-                    expected_type.__name__,
-                    type(data).__name__,
-                )
-                return None, None
-        except FileNotFoundError:
-            AppLogger.error("model pkl file not found at %s", model_path)
-            return None, None
-        except Exception as e:
-            AppLogger.error(
-                "failed to load model from pkl file %s: %s", model_path, str(e)
-            )
-            return None, None
+        return ModelLoader.load_pkl_model(model_path, expected_type)
 
     @staticmethod
     def _apply_pipeline_preprocessing(
         X: np.ndarray, pipeline_state: dict
     ) -> np.ndarray:
-        """Apply preprocessing from pipeline state (normalization, fillna, etc.).
-
-        Pipeline state may contain:
-        - fill_values: dict mapping column index to fill value for NaN
-        - center/scale: for standardization
-        """
-        X = np.array(X, dtype=float, copy=True)
-
-        # Handle missing values
-        fill_values = pipeline_state.get("fill_values", {})
-        if fill_values:
-            for col_idx, fill_val in fill_values.items():
-                if isinstance(col_idx, int) and col_idx < X.shape[1]:
-                    col_mask = np.isnan(X[:, col_idx])
-                    if col_mask.any():
-                        X[col_mask, col_idx] = fill_val
-
-        # Handle standardization (center and scale)
-        center = pipeline_state.get("center")
-        scale = pipeline_state.get("scale")
-        if center is not None and scale is not None:
-            center = np.array(center, dtype=float)
-            scale = np.array(scale, dtype=float)
-            if center.shape[0] == X.shape[1] and scale.shape[0] == X.shape[1]:
-                X = (X - center) / np.where(scale != 0, scale, 1.0)
-
-        return X
+        """Apply preprocessing from pipeline state (normalization, fillna, etc.)."""
+        return ModelLoader.apply_pipeline_preprocessing(X, pipeline_state)
 
 
 class IsolationForestModelDetector(BaseModelAnomalyDetector):

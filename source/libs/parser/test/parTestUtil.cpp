@@ -116,6 +116,20 @@ class ParserTestBaseImpl {
     }
   }
 
+  void runClonedAst(const string& sql, int32_t expect, ParserStage checkStage) {
+    ++sqlNo_;
+    if (caseEnv_.numOfSkipSql_ > 0) {
+      --(caseEnv_.numOfSkipSql_);
+      return;
+    }
+    if (caseEnv_.numOfLimitSql_ > 0 && caseEnv_.numOfLimitSql_ == sqlNum_) {
+      return;
+    }
+    ++sqlNum_;
+
+    runClonedAstInternalFuncs(sql, expect, checkStage);
+  }
+
   // Skips the two sync interfaces (which can never see the SParseMetaCache
   // populated by MockCatalogService.catalogGetAllMeta).  Used by tests that
   // rely on EXT source / EXT table metadata being routed through the cache.
@@ -131,6 +145,25 @@ class ParserTestBaseImpl {
     ++sqlNum_;
     runAsyncInternalFuncs(sql, expect, checkStage);
     runAsyncApis(sql, expect, checkStage);
+  }
+
+  // Pure parse check: builds the AST via parse() only — no authenticate, no
+  // translate, no catalog access. Use to validate grammar/AST shape for statements
+  // whose later stages can't be exercised under the unit-test mock catalog.
+  void runParseOnly(const string& sql, int32_t expect) {
+    reset(expect, PARSER_STAGE_PARSE, TEST_INTERFACE_INTERNAL);
+    try {
+      SParseContext cxt = {0};
+      setParseContext(sql, &cxt);
+      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
+      doParse(&cxt, query.get());
+    } catch (const TerminateFlag& e) {
+      // success and terminate
+      return;
+    } catch (...) {
+      dump();
+      throw;
+    }
   }
 
  private:
@@ -385,6 +418,46 @@ class ParserTestBaseImpl {
     }
   }
 
+  void doCloneRoot(SQuery* pQuery) {
+    SNode* pClone = NULL;
+    DO_WITH_THROW(nodesCloneNode, pQuery->pRoot, &pClone);
+    ASSERT_NE(pClone, nullptr);
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = pClone;
+  }
+
+  // Same pipeline as runInternalFuncs, with the clone step the view and the
+  // prepared statement paths insert between parse and translate.
+  void runClonedAstInternalFuncs(const string& sql, int32_t expect, ParserStage checkStage) {
+    reset(expect, checkStage, TEST_INTERFACE_INTERNAL);
+    try {
+      SParseContext cxt = {0};
+      setParseContext(sql, &cxt);
+
+      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
+      doParse(&cxt, query.get());
+      SQuery* pQuery = *(query.get());
+
+      doCloneRoot(pQuery);
+
+      doAuthenticate(&cxt, pQuery, nullptr);
+
+      doTranslate(&cxt, pQuery, nullptr);
+
+      doCalculateConstant(&cxt, pQuery);
+
+      if (g_dump) {
+        dump();
+      }
+    } catch (const TerminateFlag& e) {
+      // success and terminate
+      return;
+    } catch (...) {
+      dump();
+      throw;
+    }
+  }
+
   void runApis(const string& sql, int32_t expect, ParserStage checkStage) {
     reset(expect, checkStage, TEST_INTERFACE_API);
     try {
@@ -595,8 +668,16 @@ void ParserTestBase::run(const std::string& sql, int32_t expect, ParserStage che
   return impl_->run(sql, expect, checkStage);
 }
 
+void ParserTestBase::runParseOnly(const std::string& sql, int32_t expect) {
+  return impl_->runParseOnly(sql, expect);
+}
+
 void ParserTestBase::runAsyncOnly(const std::string& sql, int32_t expect, ParserStage checkStage) {
   return impl_->runAsyncOnly(sql, expect, checkStage);
+}
+
+void ParserTestBase::runClonedAst(const std::string& sql, int32_t expect, ParserStage checkStage) {
+  return impl_->runClonedAst(sql, expect, checkStage);
 }
 
 void ParserTestBase::checkDdl(const SQuery* pQuery, ParserStage stage) { return; }

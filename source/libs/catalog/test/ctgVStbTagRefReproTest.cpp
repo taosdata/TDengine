@@ -55,13 +55,15 @@ SVSubTablesRsp makeVgRsp(int32_t vgId, uint64_t uid, SRefColInfo* tagRefs, int32
   rsp.vgId = vgId;
   rsp.pTables = taosArrayInit(1, sizeof(SVCTableRefCols*));
 
-  SVCTableRefCols* pTb = (SVCTableRefCols*)taosMemoryCalloc(1, sizeof(SVCTableRefCols));
+  int32_t totalRefs = numTagRefs;
+  SVCTableRefCols* pTb =
+      (SVCTableRefCols*)taosMemoryCalloc(1, sizeof(SVCTableRefCols) + totalRefs * sizeof(SRefColInfo));
   pTb->uid = uid;
   pTb->numOfColRefs = 0;
   pTb->refCols = NULL;
   pTb->numOfTagRefs = numTagRefs;
   if (numTagRefs > 0) {
-    pTb->tagRefCols = (SRefColInfo*)taosMemoryCalloc(numTagRefs, sizeof(SRefColInfo));
+    pTb->tagRefCols = (SRefColInfo*)(pTb + 1);
     memcpy(pTb->tagRefCols, tagRefs, numTagRefs * sizeof(SRefColInfo));
   } else {
     pTb->tagRefCols = NULL;
@@ -105,6 +107,13 @@ void runMergeAndResolve(bool literalChildFirst, int32_t* pCode, int32_t* pNumOfT
 
   *pCode = code;
   *pNumOfTagRefs = numOfTagRefs;
+
+  taosArrayDestroy(pLayerRefs);
+  taosHashCleanup(pRefDbs);
+  taosHashCleanup(pRefExtSources);
+  taosMemoryFree(pColRefCols);
+  taosMemoryFree(pTagRefCols);
+  taosArrayDestroyEx(pSubTablesList, tDestroySVSubTablesRsp);
 }
 
 }  // namespace

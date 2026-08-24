@@ -58,7 +58,6 @@ the source DB and the restored DB.  COUNT(*) total is also verified.
 
 import os
 import random
-import subprocess
 
 from new_test_framework.utils import tdLog, tdSql, etool
 
@@ -112,19 +111,6 @@ class TestTaosBackupAllNull:
     # ──────────────────────────────────────────────────────────────────────────
     # Low-level helpers
     # ──────────────────────────────────────────────────────────────────────────
-
-    def exec(self, command: str):
-        """Run a shell command; fail the test on non-zero exit."""
-        tdLog.info(command)
-        result = subprocess.run(
-            command, shell=True, text=True,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        )
-        if result.stdout:
-            for line in result.stdout.splitlines():
-                tdLog.info(line)
-        if result.returncode != 0:
-            tdLog.exit(f"Command failed (rc={result.returncode}): {command}")
 
     def mkdir(self, path: str):
         if os.path.exists(path):
@@ -330,10 +316,6 @@ class TestTaosBackupAllNull:
         4. Binary backup → restore to DST DB.
         5. Snapshot DST aggregates and compare with source – must match exactly.
         """
-        binPath = etool.taosDumpFile()
-        if not binPath:
-            tdLog.exit("taosBackup binary not found")
-
         outdir = "./taosbackuptest/allnull_alltype"
         self.mkdir(outdir)
 
@@ -365,11 +347,11 @@ class TestTaosBackupAllNull:
         )
 
         # ── 4. backup ────────────────────────────────────────────────────────
-        self.exec(f"{binPath} -D {SRC} -F binary -o {outdir} -T 4")
+        etool.taosdump(f"-D {SRC} -F binary -o {outdir} -T 4")
 
         # ── 5. restore ───────────────────────────────────────────────────────
         tdSql.execute(f"DROP DATABASE IF EXISTS {DST}")
-        self.exec(f"{binPath} -i {outdir} -W {SRC}={DST} -T 4")
+        etool.taosdump(f"-i {outdir} -W {SRC}={DST} -T 4")
 
         # ── 6. compare ───────────────────────────────────────────────────────
         snap_dst = self.snapshot(DST)

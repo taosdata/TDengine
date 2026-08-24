@@ -95,6 +95,8 @@ typedef struct SMetaEntry {
       int32_t        ncid;  // next column id
       int64_t        ownerId;
       SSchemaWrapper schemaRow;
+      SSchemaWrapper schemaTag;  // owned tag schema (normal/virtual-normal table with tags); nCols==0 when no tags
+      uint8_t*       pTags;      // owned tag values, STag container (NULL when no tags)
     } ntbEntry;
     struct {
       STSma* tsma;
@@ -212,6 +214,8 @@ typedef void (*TsdReaderNotifyCbFn)(ETsdReaderNotifyType type, STsdReaderNotifyI
 typedef enum {
   TSD_READER_BLOCK_SMA_MODE_NORMAL = 0,
   TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY = 1,
+  TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY = 2,
+  TSD_READER_BLOCK_SMA_MODE_MAX_ONLY = 3,
 } ETsdReaderBlockSmaMode;
 
 struct SFileSetReader;

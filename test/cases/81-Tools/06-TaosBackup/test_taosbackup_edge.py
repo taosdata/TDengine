@@ -90,13 +90,12 @@ class TestTaosBackupEdge:
             f"insert into {digit_db}.{digit_tbl} values(1640000000000, 99)"
         )
 
-        bin = etool.taosDumpFile()
-        os.system(f"{bin} --databases {long_db},{short_db},{digit_db} -o {tmpdir}")
+        etool.taosdump(f"--databases {long_db},{short_db},{digit_db} -o {tmpdir}")
 
         for db in (long_db, short_db, digit_db):
             tdSql.execute(f"drop database {db}")
 
-        os.system(f"{bin} -i {tmpdir}")
+        etool.taosdump(f"-i {tmpdir}")
 
         # Case A: long DB name
         assert self.isDbFound(long_db), f"Long DB name '{long_db}' not found after restore"
@@ -134,15 +133,13 @@ class TestTaosBackupEdge:
         tdSql.execute("insert into pathdb.nt values(1640000000000, 1)")
         tdSql.execute("insert into pathdb.nt values(1640000001000, 2)")
 
-        bin = etool.taosDumpFile()
-
         # Case A: directory name containing spaces  (must be pre-created;
         # taosBackup does not auto-create output directories)
         space_path = "./taosbackuptest/path with spaces"
         self.makeDir(space_path)
-        os.system(f'{bin} -D pathdb -o "{space_path}" -T 1')
+        etool.taosdump(f'-D pathdb -o "{space_path}" -T 1')
         tdSql.execute("drop database pathdb")
-        os.system(f'{bin} -i "{space_path}" -T 1')
+        etool.taosdump(f'-i "{space_path}" -T 1')
         tdSql.query("select count(*) from pathdb.nt")
         tdSql.checkData(0, 0, 2)
         tdLog.info("  outpath with spaces ......................... [passed]")
@@ -152,9 +149,9 @@ class TestTaosBackupEdge:
         abs_path = os.path.join(tempfile.gettempdir(), "taosbackup_abs_test")
         self.makeDir(abs_path)
         tdSql.execute("insert into pathdb.nt values(1640000002000, 3)")
-        os.system(f"{bin} -D pathdb -o {abs_path} -T 1")
+        etool.taosdump(f"-D pathdb -o {abs_path} -T 1")
         tdSql.execute("drop database pathdb")
-        os.system(f"{bin} -i {abs_path} -T 1")
+        etool.taosdump(f"-i {abs_path} -T 1")
         tdSql.query("select count(*) from pathdb.nt")
         tdSql.checkData(0, 0, 3)
         os.system(f"rm -rf {abs_path}")
@@ -188,8 +185,6 @@ class TestTaosBackupEdge:
             )
         tdSql.execute("create table nt(ts timestamp, v int)")
         tdSql.execute("insert into nt values(1640000000000, 100)")
-
-        bin = etool.taosDumpFile()
 
         # Backup without -g (normal mode)
         rlist_norm = etool.taosdump(f"-D debugdb -o {tmpdir_norm} -T 1")
@@ -310,8 +305,6 @@ class TestTaosBackupEdge:
             sql += f"({1640000000000 + i * 1000}, {i})"
         tdSql.execute(sql)
 
-        bin = etool.taosDumpFile()
-
         # Build a writer script: inserts rows using the taos CLI in a tight loop.
         # Each row uses now() for the timestamp to avoid collisions with pre-rows.
         writer_script = (
@@ -327,7 +320,7 @@ class TestTaosBackupEdge:
         time.sleep(0.3)
 
         # Run the backup while the writer is active
-        os.system(f"{bin} -D hotdb -o {tmpdir} -T 2")
+        etool.taosdump(f"-D hotdb -o {tmpdir} -T 2")
 
         # Stop the writer (if still running)
         writer_proc.terminate()
@@ -345,7 +338,7 @@ class TestTaosBackupEdge:
 
         # Restore and verify the consistency lower bound
         tdSql.execute("drop database hotdb")
-        os.system(f"{bin} -i {tmpdir} -T 2")
+        etool.taosdump(f"-i {tmpdir} -T 2")
 
         tdSql.query("select count(*) from hotdb.nt")
         restored_rows = tdSql.getData(0, 0)

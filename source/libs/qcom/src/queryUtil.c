@@ -989,6 +989,22 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
       }
       (*pDst)->ntb.userId = pSrc->ntb.userId;
     }
+    // Owned tags: deep-copy tag schema and STag values, mirroring the ctb.pTag copy above —
+    // a cloned request must not silently lose its tags.
+    (*pDst)->ntb.schemaTag.nCols = pSrc->ntb.schemaTag.nCols;
+    (*pDst)->ntb.schemaTag.version = pSrc->ntb.schemaTag.version;
+    if (pSrc->ntb.schemaTag.nCols > 0 && pSrc->ntb.schemaTag.pSchema) {
+      (*pDst)->ntb.schemaTag.pSchema = taosMemoryMalloc(pSrc->ntb.schemaTag.nCols * sizeof(SSchema));
+      if (NULL == (*pDst)->ntb.schemaTag.pSchema) goto _exit;
+      memcpy((*pDst)->ntb.schemaTag.pSchema, pSrc->ntb.schemaTag.pSchema,
+             pSrc->ntb.schemaTag.nCols * sizeof(SSchema));
+    }
+    STag* pNtbTags = (STag*)pSrc->ntb.pTags;
+    if (pNtbTags) {
+      (*pDst)->ntb.pTags = taosMemoryMalloc(pNtbTags->len);
+      if (NULL == (*pDst)->ntb.pTags) goto _exit;
+      memcpy((*pDst)->ntb.pTags, pNtbTags, pNtbTags->len);
+    }
   }
   (*pDst)->txnId = pSrc->txnId;
   (*pDst)->txnStatus = pSrc->txnStatus;
