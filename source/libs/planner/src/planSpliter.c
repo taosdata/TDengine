@@ -218,7 +218,11 @@ static int32_t splCreateExchangeNodeForSubplan(SSplitContext* pCxt, SLogicSubpla
   PLAN_ERR_JRET(splCreateExchangeNode(pCxt, pSplitNode, &pExchange));
 
   pExchange->dynTbname = nodeType(pSplitNode) == QUERY_NODE_LOGIC_PLAN_SCAN ? ((SScanLogicNode*)pSplitNode)->phTbnameScan : false;
-  pExchange->seqRecvData = seqScan || splAggHasLeastSquares(pSplitNode);
+  // Only force sequential receive for static (non-dynamic) exchanges. Dynamic
+  // exchanges (virtual-table, federated, stream, ...) discover their sources at
+  // runtime; forcing seqRecvData there drops or misorders rows. See
+  // splAggHasLeastSquares().
+  pExchange->seqRecvData = seqScan || (splAggHasLeastSquares(pSplitNode) && !pExchange->node.dynamicOp);
 
   PLAN_ERR_JRET(replaceLogicNode(pSubplan, pSplitNode, (SLogicNode*)pExchange));
   pSubplan->subplanType = subplanType;
@@ -874,7 +878,9 @@ static int32_t stbSplCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pParent
     // Cross-vgroup aggregate: when the parent aggregate contains LEASTSQUARES,
     // the partial results must reach the merge aggregate in a fixed order or the
     // slope/intercept is non-deterministic. See splAggHasLeastSquares().
-    pExchange->seqRecvData = splAggHasLeastSquares(pParent);
+    // Only static exchanges: dynamic ones (virtual-table, ...) rely on runtime
+    // source discovery and must keep concurrent receive (seqRecvData=false).
+    pExchange->seqRecvData = splAggHasLeastSquares(pParent) && !pExchange->node.dynamicOp;
     pExchange->node.pParent = pParent;
     code = nodesListMakeAppend(&pParent->pChildren, (SNode*)pExchange);
   }
