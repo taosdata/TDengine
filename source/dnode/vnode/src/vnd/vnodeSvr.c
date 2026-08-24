@@ -1057,6 +1057,10 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_COMMIT:
       needCommit = true;
       break;
+    case TDMT_VND_SYNC_COMMIT:
+      code = vnodeProcessSyncCommitReq(pVnode, pMsg);
+      TSDB_CHECK_CODE(code, lino, _err);
+      break;
     case TDMT_VND_CREATE_INDEX:
       vnodeProcessCreateIndexReq(pVnode, ver, pReq, len, pRsp);
       break;

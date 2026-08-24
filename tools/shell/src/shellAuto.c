@@ -120,6 +120,8 @@ SWords shellCommands[] = {
     {"compact database <db_name>", 0, 0, NULL},
     {"compact vgroups in( <anyword>", 0, 0, NULL},
     {"create mount <mount_name> on dnode <dnode_id> from <path>;", 0, 0, NULL},
+    {"create full backup on dnode <dnode_id> to ", 0, 0, NULL},
+    // {"create incremental backup on dnode <dnode_id> to ", 0, 0, NULL}, // not implemented yet
     {"create token <anyword> from user <user_name> <token_opt> <anyword> <token_opt> <anyword> <token_opt> <anyword> <token_opt> <anyword> ;", 0, 0, NULL},
     {"create totp_secret for user <user_name>;", 0, 0, NULL},
     {"create user <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword>", 0, 0, NULL},
@@ -160,6 +162,7 @@ SWords shellCommands[] = {
     {"kill query ", 0, 0, NULL},
     {"kill transaction ", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
+    {"kill backup <anyword>;", 0, 0, NULL},
     {"merge vgroup <vgroup_id> <vgroup_id>;", 0, 0, NULL},
     {"drop token <token_name>;", 0, 0, NULL},
     {"drop totp_secret from user <user_name>;", 0, 0, NULL},
@@ -205,6 +208,7 @@ SWords shellCommands[] = {
     {"show create view <all_table> \\G;", 0, 0, NULL},
     {"show compact", 0, 0, NULL},
     {"show compacts;", 0, 0, NULL},
+    {"show backups;", 0, 0, NULL},
 #endif
     {"show connections;", 0, 0, NULL},
     {"show cluster;", 0, 0, NULL},
@@ -765,6 +769,7 @@ void showHelp() {
     show query <query_id> ;\n\
     show qnodes;\n\
     show bnodes;\n\
+    show backups;\n\
     show retentions;\n\
     show retention <retention_id>;\n\
     show scans;\n\
@@ -825,15 +830,18 @@ void showHelp() {
     compact vgroups in (vgroupId,vgroupId, ...); \n\
     create view <view_name> as select ...\n\
     create mount <mount_name> on dnode <dnode_id> from <path>;\n\
+    create full backup on dnode <dnode_id> to <path> [with password '<password>'];\n\
     create token <token_name> from user <user_name> [token options];\n\
     create totp_secret for user <user_name>;\n\
     drop mount <mount_name>;\n\
     drop token <token_name>;\n\
     drop totp_secret from user <user_name>;\n\
+    kill backup <backup_id>;\n\
     redistribute vgroup <vgroup_id> dnode <dnode_id> ;\n\
     split vgroup <vgroup_id>;\n\
     ssmigrate database <db_name>;\n\
     show arbgroups;\n\
+    show backups;\n\
     show compacts;\n\
     show compact \n\
     show tokens;\n\

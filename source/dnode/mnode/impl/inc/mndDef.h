@@ -133,7 +133,8 @@ typedef enum {
   MND_OPER_COMMIT_TXN,
   MND_OPER_ROLLBACK_TXN,
   MND_OPER_ALLOC_TXN_SEQ,
-  MND_OPER_MAX  // the max operation type
+  MND_OPER_BACKUP,  // cluster-level CREATE/KILL BACKUP
+  MND_OPER_MAX      // the max operation type
 } EOperType;
 
 typedef enum {
@@ -1458,6 +1459,28 @@ typedef struct {
   int64_t startTime;
   SArray* scanDetail;
 } SScanObj;
+
+// Cluster-level backup record persisted in SDB (drives SHOW BACKUPS history).
+// A record is keyed by backupId; chainId groups backups in the same chain.
+// code/bytesDone are updated by the backup progress timer; code holds the
+// final agent-side result once the backup finishes (0 = success).
+typedef struct {
+  int64_t chainId;        // backup chain id
+  int64_t backupId;       // backup id (SDB key)
+  int32_t dnodeId;        // dnode that owns backupRoot and runs the agent
+  char    backupRoot[TSDB_MOUNT_PATH_LEN];
+  char    dbName[TSDB_DB_FNAME_LEN];  // empty means whole cluster
+  int64_t startTime;
+  int64_t lastUpdateTime;  // most recent dnode progress report time
+  int64_t endTime;        // backup finish time; 0 while still running
+  int64_t totalSize;      // bytes written so far
+  int8_t  isFull;         // 1 = full, 0 = incremental
+  int8_t  encrypted;      // 1 when the backup request included a password
+  int32_t code;           // final result code when endTime != 0; 0 = success
+  int32_t totalVgroups;   // total number of vgroups to back up
+  int32_t finishedVgroups;// number of vgroups already backed up
+  int32_t currentVgId;    // vgroup currently being processed; 0 = none
+} SBackupObj;
 
 typedef SCompactObj       SRetentionObj;        // reuse compact obj for retention
 typedef SCompactDetailObj SRetentionDetailObj;  // reuse compact detail obj for retention

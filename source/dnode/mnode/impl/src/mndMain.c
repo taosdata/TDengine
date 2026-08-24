@@ -17,6 +17,7 @@
 #include "mndAcct.h"
 #include "mndAnode.h"
 #include "mndArbGroup.h"
+#include "mndBackup.h"
 #include "mndBnode.h"
 #include "mndCluster.h"
 #include "mndCompact.h"
@@ -162,6 +163,19 @@ static void mndPullupCompacts(SMnode *pMnode) {
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_COMPACT_TIMER, .pCont = pReq, .contLen = contLen};
+    // TODO check return value
+    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+    }
+  }
+}
+
+static void mndPullupBackups(SMnode *pMnode) {
+  mTrace("pullup backup timer msg");
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_BACKUP_TIMER, .pCont = pReq, .contLen = contLen};
     // TODO check return value
     if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
       mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
@@ -455,6 +469,7 @@ static int32_t minCronTime() {
   min = TMIN(min, tsSsAutoMigrateIntervalSec);
   min = TMIN(min, tsTransPullupInterval);
   min = TMIN(min, tsCompactPullupInterval);
+  min = TMIN(min, tsBackupPullupInterval);
   min = TMIN(min, tsSnapSendPullupInterval);
   min = TMIN(min, tsMqRebalanceInterval);
 
@@ -522,6 +537,10 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
 
   if (sec % tsCompactPullupInterval == 0) {
     mndPullupCompacts(pMnode);
+  }
+
+  if (sec % tsBackupPullupInterval == 0) {
+    mndPullupBackups(pMnode);
   }
 
   if (sec % tsSnapSendPullupInterval == 0) {
@@ -889,6 +908,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-scan-detail", mndInitScanDetail, mndCleanupScanDetail));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-retention-detail", mndInitRetentionDetail, mndCleanupRetentionDetail));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-ssmigrate", mndInitSsMigrate, mndCleanupSsMigrate));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-backup", mndInitBackup, mndCleanupBackup));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-txnSeq", mndInitTxnSeq, mndCleanupTxnSeq));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-txn", mndInitTxn, mndCleanupTxn));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sdb", mndOpenSdb, NULL));

@@ -134,6 +134,8 @@ int32_t vnodeGetVStbRefDbs(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeProcessCheckHasCtbReq(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeProcessVTableRefResolveReq(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeGetVTbTagCond(SVnode *pVnode, SRpcMsg *pMsg, bool direct);
+int32_t vnodeProcessSyncCommitReq(SVnode *pVnode, SRpcMsg *pMsg);
+int32_t vnodeProcessBackupSnapReq(SVnode *pVnode, SRpcMsg *pMsg);
 
 // vnodeCommit.c
 int32_t vnodeBegin(SVnode* pVnode);

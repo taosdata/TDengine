@@ -19,6 +19,7 @@
 #include "streamReaderExt.h"
 #include "streamRunner.h"
 #include "tdatablock.h"
+#include "tencrypt.h"
 #include "tuuid.h"
 
 // clang-format off
@@ -159,6 +160,110 @@ static int32_t handleSyncWriteCheckPointRsp(SSnode* pSnode, SRpcMsg* pRpcMsg) {
     (void)streamWriteCheckPoint(streamId, data, dataLen);
   }
   return streamCheckpointSetReady(streamId);
+}
+
+static int32_t handleBackupSnodeReq(SSnode *pSnode, SRpcMsg *pRpcMsg) {
+  SBackupSnodeReq req = {0};
+  SBackupSnodeRsp rsp = {0};
+  SRpcMsg         rpcRsp = {.info = pRpcMsg->info, .msgType = TDMT_DND_BACKUP_SNODE};
+  int32_t         code = 0;
+  int32_t         lino = 0;
+  TAOS_UNUSED(pSnode);
+
+  TAOS_CHECK_GOTO(tDeserializeSBackupSnodeReq(pRpcMsg->pCont, pRpcMsg->contLen, &req), &lino, _exit);
+  int32_t numOfStreams = req.streamIds == NULL ? 0 : taosArrayGetSize(req.streamIds);
+  rsp.files = taosArrayInit(numOfStreams + 1, sizeof(SBackupFile));
+  if (rsp.files == NULL) {
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
+  }
+
+  char        configPath[PATH_MAX] = {0};
+  char       *config = NULL;
+  int32_t     configLen = 0;
+  SBackupFile configFile = {0};
+
+  snprintf(configPath, sizeof(configPath), "%s%ssnode%ssnode%d%ssnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP, req.dnodeId, TD_DIRSEP);
+  code = taosReadCfgFile(configPath, &config, &configLen);
+  if (code != 0) {
+    sndError("failed to read snode config for backup:%s since %s", configPath, tstrerror(code));
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+  }
+  if (configLen <= 0) {
+    taosMemoryFree(config);
+    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_DATA_FMT, &lino, _exit);
+  }
+  tstrncpy(configFile.relPath, "snode.json", sizeof(configFile.relPath));
+  configFile.dataLen = configLen;
+  configFile.data = config;
+  if (taosArrayPush(rsp.files, &configFile) == NULL) {
+    taosMemoryFree(config);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
+  }
+
+  for (int32_t i = 0; i < numOfStreams; ++i) {
+    int64_t      streamId = *(int64_t *)taosArrayGet(req.streamIds, i);
+    void        *data = NULL;
+    int64_t      dataLen = 0;
+    SBackupFile  file = {0};
+
+    code = streamReadCheckPoint(streamId, &data, &dataLen);
+    if (code != 0) {
+      sndError("failed to read checkpoint for backup, streamId:%" PRId64 " since %s", streamId, tstrerror(code));
+      taosMemoryFree(data);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
+    }
+    if (errorIsFileNotExist(terrno)) {
+      sndDebug("backup skips streamId:%" PRId64 " without a checkpoint", streamId);
+      taosMemoryFree(data);
+      code = 0;
+      continue;
+    }
+    if (data == NULL || dataLen == 0) {
+      sndDebug("backup skips streamId:%" PRId64 " without a checkpoint", streamId);
+      taosMemoryFree(data);
+      continue;
+    }
+    if (dataLen > INT32_MAX) {
+      taosMemoryFree(data);
+      TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _exit);
+    }
+
+    (void)snprintf(file.relPath, sizeof(file.relPath), "checkpoint/%" PRIx64 ".ck", streamId);
+    file.dataLen = (int32_t)dataLen;
+    file.data = data;
+    if (taosArrayPush(rsp.files, &file) == NULL) {
+      taosMemoryFree(data);
+      TAOS_CHECK_GOTO(terrno, &lino, _exit);
+    }
+    data = NULL;
+  }
+
+  int32_t tlen = tSerializeSBackupSnodeRsp(NULL, 0, &rsp);
+  if (tlen < 0) {
+    TAOS_CHECK_GOTO(tlen, &lino, _exit);
+  }
+  rpcRsp.contLen = tlen;
+  rpcRsp.pCont = rpcMallocCont(rpcRsp.contLen);
+  if (rpcRsp.pCont == NULL) {
+    rpcRsp.contLen = 0;
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
+  }
+  if (tSerializeSBackupSnodeRsp(rpcRsp.pCont, rpcRsp.contLen, &rsp) < 0) {
+    rpcFreeCont(rpcRsp.pCont);
+    rpcRsp.pCont = NULL;
+    rpcRsp.contLen = 0;
+    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _exit);
+  }
+
+_exit:
+  rpcRsp.code = code;
+  tFreeSBackupSnodeReq(&req);
+  tFreeSBackupSnodeRsp(&rsp);
+  tmsgSendRsp(&rpcRsp);
+  if (code != 0) {
+    sndError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t buildStreamFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8_t precision, bool finished) {
@@ -645,6 +750,9 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, void *pWorkerCb, SRpcMsg *pMsg) {
       break;
     case TDMT_STREAM_SYNC_CHECKPOINT_RSP:
       TAOS_CHECK_EXIT(handleSyncWriteCheckPointRsp(pSnode, pMsg));
+      break;
+    case TDMT_DND_BACKUP_SNODE:
+      TAOS_CHECK_EXIT(handleBackupSnodeReq(pSnode, pMsg));
       break;
     case TDMT_STREAM_FETCH_FROM_RUNNER:
       TAOS_CHECK_EXIT(handleStreamFetchData(pSnode, pWorkerCb, pMsg));
