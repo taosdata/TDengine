@@ -333,6 +333,8 @@ SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart
                          bool force);
 SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,
                                 SNode* pEnd, bool metaOnly, bool force);
+SNode* createBackupStmt(SAstCreateContext* pCxt, bool isFull, SToken* pDnodeId, SToken* pBackupRoot,
+                        SToken* pBackupChainId, SToken* pDbName, SToken* pPassword);
 SNode* createDefaultTableOptions(SAstCreateContext* pCxt);
 SNode* createAlterTableOptions(SAstCreateContext* pCxt);
 SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, void* pVal);
@@ -559,6 +561,7 @@ SNode* createRecalcStreamStmt(SAstCreateContext* pCxt, SNode* pStream, SNode* pR
 SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId);
 SNode* createKillTransStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId);
 SNode* createKillCompactStmt(SAstCreateContext* pCxt, const SToken* pId, bool force);
+SNode* createKillBackupStmt(SAstCreateContext* pCxt, const SToken* pId);
 SNode* createKillQueryStmt(SAstCreateContext* pCxt, const SToken* pQueryId);
 SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt);
 SNode* createAssignLeaderStmt(SAstCreateContext* pCxt);
@@ -582,6 +585,7 @@ SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pVie
 SNode* createDropViewStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pView);
 SNode* createShowCompactDetailsStmt(SAstCreateContext* pCxt, SNode* pCompactIdNode);
 SNode* createShowCompactsStmt(SAstCreateContext* pCxt, ENodeType type);
+SNode* createShowBackupsStmt(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowSsMigratesStmt(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowTokensStmt(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowTransactionDetailsStmt(SAstCreateContext* pCxt, SNode* pTransactionIdNode);

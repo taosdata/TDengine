@@ -175,6 +175,22 @@
   // DND 版本的 alter key expiration 消息：与 alter encrypt key 同理，mnode 收到 client 的
   // TDMT_MND_ALTER_KEY_EXPIRATION 后，通过该 DND 消息广播到所有 dnode 执行本地更新。
   TD_DEF_MSG_TYPE(TDMT_DND_ALTER_KEY_EXPIRATION, "dnode-alter-key-expiration", NULL, NULL)
+  // Cluster-level backup/restore messages (mnode msg overload segment).
+  // client -> mnode: start a backup / kill a backup chain
+  TD_DEF_MSG_TYPE(TDMT_MND_BACKUP, "backup", SBackupReq, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_KILL_BACKUP, "kill-backup", SKillBackupReq, NULL)
+  // mnode internal timer for polling backup progress
+  TD_DEF_MSG_TYPE(TDMT_MND_BACKUP_TIMER, "backup-tmr", NULL, NULL)
+  // dnode backup agent -> mnode: pull mnode metadata (sdb.data + mnode.json + sync/)
+  TD_DEF_MSG_TYPE(TDMT_MND_BACKUP_META, "backup-meta", SBackupMetaReq, SBackupMetaRsp)
+  // mnode -> dnode: dispatch backup job to the target dnode agent
+  TD_DEF_MSG_TYPE(TDMT_DND_BACKUP, "dnode-backup", SBackupDnodeReq, NULL)
+  // mnode -> dnode: query backup progress from the agent
+  TD_DEF_MSG_TYPE(TDMT_DND_BACKUP_PROGRESS, "dnode-backup-progress", SBackupProgressReq, SBackupProgressRsp)
+  // mnode -> dnode: cancel an active backup agent task
+  TD_DEF_MSG_TYPE(TDMT_DND_KILL_BACKUP, "dnode-kill-backup", SBackupProgressReq, NULL)
+  // dnode backup agent -> SNode dnode: package requested stream checkpoints
+  TD_DEF_MSG_TYPE(TDMT_DND_BACKUP_SNODE, "dnode-backup-snode", SBackupSnodeReq, SBackupSnodeRsp)
   TD_CLOSE_MSG_SEG(TDMT_DND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MND_MSG)  // 1<<8
@@ -275,7 +291,9 @@
   TD_DEF_MSG_TYPE(TDMT_MND_STOP_STREAM, "stop-stream", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_START_STREAM, "start-stream", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_RECALC_STREAM, "recalculate-stream", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MND_UNUSED4, "mnd-unused4", NULL, NULL)
+  // dnode backup agent -> mnode: resolve the current leader for one vgroup
+  TD_DEF_MSG_TYPE(TDMT_MND_BACKUP_VGROUP_LEADER, "backup-vgroup-leader", SBackupVgroupLeaderReq,
+                  SBackupVgroupLeaderRsp)
   TD_DEF_MSG_TYPE(TDMT_MND_UNUSED5, "mnd-unused5", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_UNUSED6, "mnd-unused6", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_TRIM_DB_TIMER, "trim-db-tmr", NULL, NULL)
@@ -384,6 +402,10 @@
   TD_DEF_MSG_TYPE(TDMT_VND_TXN_COMMIT, "vnode-txn-commit", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_TXN_ROLLBACK, "vnode-txn-rollback", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_VTB_TAG_COND, "vnode-vtable-tag-cond", NULL, NULL)
+  // dnode backup agent -> vnode leader: manage a vnode snapshot for backup
+  TD_DEF_MSG_TYPE(TDMT_VND_BACKUP_SNAP, "vnode-backup-snap", SBackupVnodeSnapReq, SBackupVnodeSnapRsp)
+  // vnode leader write queue: establish a committed boundary
+  TD_DEF_MSG_TYPE(TDMT_VND_SYNC_COMMIT, "vnode-sync-commit", SVnodeSyncCommitReq, NULL)
   TD_CLOSE_MSG_SEG(TDMT_VND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_SCH_MSG)  // 3<<8

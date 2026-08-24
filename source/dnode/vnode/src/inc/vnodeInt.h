@@ -576,6 +576,13 @@ struct SVnode {
   SVATaskID     vacuumTask;     // async vacuum task on SCAN_TASK_ASYNC pool
   int8_t        vacuumRunning;  // atomic flag: 1 = a txn vacuum task is queued or running
   int32_t txnPendingCount;  // atomic: total entries in pTxnHash + pTxnMetaCache; 0 → no visibility filtering needed
+
+  TdThreadMutex backupSnapMutex;
+  SVSnapReader *pBackupSnapReader;
+  int64_t       backupSnapChainId;
+  int64_t       backupSnapBackupId;
+  int64_t       backupSnapIndex;
+  int64_t       backupSnapLastActivityMs;
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)

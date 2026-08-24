@@ -536,6 +536,12 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NO_VALID_SYSSEC,     "No enabled non-root u
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NO_VALID_SYSAUDIT,   "No enabled non-root user with SYSAUDIT role found to satisfy SoD policy")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SOD_RESTRICTED,           "Operation not allowed in current SoD status")
 
+// backup/restore
+TAOS_DEFINE_ERROR(TSDB_CODE_BACKUP_ALREADY_EXIST,         "Backup chain or backup directory already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_BACKUP_IN_PROGRESS,           "A backup is already in progress")
+TAOS_DEFINE_ERROR(TSDB_CODE_BACKUP_CANCELLED,             "Backup cancelled")
+TAOS_DEFINE_ERROR(TSDB_CODE_RESTORE_CANCELLED,            "Restore cancelled")
+
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_NOT_FOUND,              "Mnode not found")

@@ -224,6 +224,16 @@ typedef struct SCompactDatabaseStmt {
   bool      force;
 } SCompactDatabaseStmt;
 
+typedef struct SCreateBackupStmt {
+  ENodeType type;
+  int32_t   dnodeId;
+  bool      isFull;
+  char      backupRoot[TSDB_FILENAME_LEN];
+  int64_t   backupChainId;              // target chain for incremental; 0 = latest
+  char      dbName[TSDB_DB_NAME_LEN];  // empty means whole cluster
+  char      password[TSDB_USER_PASSWORD_LONGLEN];
+} SCreateBackupStmt;
+
 typedef struct SRollupDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
@@ -966,6 +976,10 @@ typedef struct SShowCompactsStmt {
   ENodeType type;
 } SShowCompactsStmt;
 
+typedef struct SShowBackupsStmt {
+  ENodeType type;
+} SShowBackupsStmt;
+
 typedef struct SShowScansStmt {
   ENodeType type;
 } SShowScansStmt;
@@ -1150,6 +1164,11 @@ typedef struct SKillStmt {
   int32_t   targetId;
   bool      force;
 } SKillStmt;
+
+typedef struct SKillBackupStmt {
+  ENodeType type;
+  int64_t   targetId;  // backup id
+} SKillBackupStmt;
 
 typedef struct SKillTransStmt {
   ENodeType type;

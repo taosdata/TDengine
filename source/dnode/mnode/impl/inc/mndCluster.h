@@ -28,6 +28,7 @@ int32_t mndGetClusterName(SMnode *pMnode, char *clusterName, int32_t len);
 int64_t mndGetClusterId(SMnode *pMnode);
 int64_t mndGetClusterCreateTime(SMnode *pMnode);
 int64_t mndGetClusterUpTime(SMnode *pMnode);
+int32_t mndRestoreClusterId(SMnode *pMnode, int64_t clusterId);
 
 #ifdef __cplusplus
 }

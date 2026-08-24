@@ -841,6 +841,15 @@ Below are the business error codes for each module.
 | 0x80008024 | No privilege to access xnode                          | No privilege to create/alter/drop/show xnode                | Check whether the current user has permission to operate xnode |
 | 0x80008025 | No privilege to access xnode task                     | No privilege to create/alter/drop/show xnode task           | Check whether the current user has permission to operate xnode tasks |
 
+#### backup/restore
+
+| Error Code | Error Description | Possible Error Scenarios or Reasons | Recommended Actions for Users |
+| ---------- | ----------------- | ----------------------------------- | ----------------------------- |
+| 0x80001100 | Backup already exists | A backup chain or backup directory already exists at the requested location | Choose a different backup location or remove the existing backup |
+| 0x80001101 | Backup in progress | A backup is already running | Wait for the active backup to finish or cancel it before starting another |
+| 0x80001102 | Backup cancelled | The backup was cancelled | Run the backup again when ready |
+| 0x80001103 | Restore cancelled | The user declined a restore confirmation prompt | Run the restore again and confirm when prompted |
+
 ## Connectors
 
 Below are the error codes specific to connectors for various programming languages. In addition to returning their own error codes, connectors also return the TSDB error codes mentioned above.
