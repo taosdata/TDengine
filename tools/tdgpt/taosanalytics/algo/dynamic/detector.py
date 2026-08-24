@@ -107,7 +107,6 @@ class BaseModelAnomalyDetector(ABC):
         """Return model parameters for logging / introspection."""
 
     @staticmethod
-    @staticmethod
     def _load_pkl_model(model_path: str, expected_type) -> tuple:
         """Load pkl file and extract model + pipeline_state.
 
@@ -117,7 +116,7 @@ class BaseModelAnomalyDetector(ABC):
         return ModelLoader.load_pkl_model(model_path, expected_type)
 
     @staticmethod
-    def _apply_pipeline_preprocessing(
+    def _apply_preprocessing(
         X: np.ndarray, pipeline_state: dict
     ) -> np.ndarray:
         """Apply preprocessing from pipeline state (normalization, fillna, etc.)."""
@@ -218,12 +217,12 @@ class IsolationForestModelDetector(BaseModelAnomalyDetector):
 
     def _predict(self, model) -> list:
         pipeline_state = self.model_info.get("_pipeline_state")
-        inference_mode = self._get_inference_mode(self.model_info)
+        inference_mode = self._get_inference_mode(pipeline_state)
 
         if inference_mode == "point":
-            return self._predict_point_level(model, pipeline_state)
+            return self._predict_point_level(model)
         else:
-            return self._predict_window_level(model, pipeline_state)
+            return self._predict_window_level(model)
 
     def _get_inference_mode(self, pipeline_state) -> str:
         """Determine inference mode: 'point' or 'window' (default)."""
@@ -233,7 +232,7 @@ class IsolationForestModelDetector(BaseModelAnomalyDetector):
             params = self.model_info.get("best_params", {})
             return params.get("mode", "window")
 
-    def _predict_point_level(self, model, pipeline_state) -> list:
+    def _predict_point_level(self, model) -> list:
         """Point-level anomaly detection without windowing.
 
         Treats each time point independently, evaluates raw values or simple per-point features.
@@ -250,8 +249,9 @@ class IsolationForestModelDetector(BaseModelAnomalyDetector):
             raise ValueError("input_data_lists shape mismatch")
 
         # Apply pipeline preprocessing if available (normalization, fillna, etc.)
+        pipeline_state = self.model_info.get("_pipeline_state")
         if pipeline_state:
-            X = BaseModelAnomalyDetector._apply_pipeline_preprocessing(
+            X = BaseModelAnomalyDetector._apply_preprocessing(
                 X, pipeline_state
             )
             raw_preds = model.predict(X)
@@ -261,11 +261,12 @@ class IsolationForestModelDetector(BaseModelAnomalyDetector):
         point_codes = [self.valid_code if pred == 1 else -1 for pred in raw_preds]
         return point_codes
 
-    def _predict_window_level(self, model, pipeline_state) -> list:
+    def _predict_window_level(self, model) -> list:
         """Window-based anomaly detection with sliding window and feature extraction.
 
         Builds a feature matrix from sliding windows, then maps window predictions back to points.
         """
+        pipeline_state = self.model_info.get("_pipeline_state")
         if pipeline_state:
             feature_fns = pipeline_state.get("feature_fns", [])
             window_size = int(pipeline_state.get("window_size", 100))
@@ -390,7 +391,6 @@ class SVMModelDetector(BaseModelAnomalyDetector):
         """Point-level anomaly detection without windowing.
         Each point is evaluated independently as a multi-dimensional vector.
         """
-        pipeline_state = self.model_info.get("_pipeline_state")
         n = len(self.input_list)
 
         X = np.array(self.input_data_lists, dtype=float).T
@@ -404,8 +404,9 @@ class SVMModelDetector(BaseModelAnomalyDetector):
             raise ValueError("input_data_lists shape mismatch")
 
         # Apply pipeline preprocessing if available
+        pipeline_state = self.model_info.get("_pipeline_state")
         if pipeline_state:
-            X = IsolationForestModelDetector._apply_pipeline_preprocessing(
+            X = BaseModelAnomalyDetector._apply_preprocessing(
                 X, pipeline_state
             )
 
@@ -417,77 +418,3 @@ class SVMModelDetector(BaseModelAnomalyDetector):
         info = self.model_info or {}
         pipeline_state = info.get("_pipeline_state", {})
         return dict(pipeline_state)
-
-
-class BaseModelRegressionDetector(ABC):
-    """
-    Dynamic loader for regression models driven by a JSON config file.
-
-    Responsibilities:
-      - Load and validate the config file
-      - Confirm the config describes the expected algorithm
-      - Load/build the model via _build_model()
-      - Return predicted values via predict() → list[float]
-
-    Expected input: Feature matrix (n_samples, n_features)
-    Expected output: Prediction values (n_samples,)
-    """
-
-    target_algo: str = ""
-
-    def __init__(self, path: str, input_data: list, schema: list = None):
-        self.path = path
-        self.input_data = input_data  # Feature matrix: list of lists
-        self.schema = schema  # Column metadata
-        self.model_info: dict | None = None
-        self._model = None
-
-    def build(self):
-        self.model_info = self._load_config()
-        if not self.model_info:
-            return None
-
-        if not self._is_expected_algo():
-            AppLogger.error(
-                "config does not describe a %s model (got algo=%s), skipping",
-                self.target_algo,
-                self.model_info.get("algo"),
-            )
-            return None
-
-        self._model = self._build_model()
-        return self._model
-
-    def predict(self) -> list:
-        """Run regression and return predicted values."""
-        model = self._model or self.build()
-        if model is None:
-            AppLogger.error("model unavailable for regression: %s", self.path)
-            raise RuntimeError(f"regression model unavailable: {self.path}")
-        return self._predict(model)
-
-    def _load_config(self) -> dict | None:
-        try:
-            with open(self.path, "r", encoding="utf-8") as handle:
-                return json.load(handle)
-        except FileNotFoundError:
-            AppLogger.error("model config not found: %s", self.path)
-        except Exception as e:
-            AppLogger.error("failed to load model config %s: %s", self.path, e)
-        return None
-
-    def _is_expected_algo(self) -> bool:
-        algo = (self.model_info.get("algo") or "").upper().replace("-", "_")
-        return algo == self.target_algo.upper().replace("-", "_")
-
-    @abstractmethod
-    def _build_model(self):
-        """Load the model from pkl file."""
-
-    @abstractmethod
-    def _predict(self, model) -> list:
-        """Run inference and return predicted values."""
-
-    @abstractmethod
-    def get_param(self) -> dict:
-        """Return model parameters for logging / introspection."""
