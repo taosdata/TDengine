@@ -132,6 +132,8 @@ int32_t mndDeleteTrans();
 
 int32_t mndModifySdb(char *path);
 
+int32_t mndFlushMnode();
+
 #ifdef __cplusplus
 }
 #endif

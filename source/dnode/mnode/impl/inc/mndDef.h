@@ -133,6 +133,7 @@ typedef enum {
   MND_OPER_COMMIT_TXN,
   MND_OPER_ROLLBACK_TXN,
   MND_OPER_ALLOC_TXN_SEQ,
+  MND_OPER_FLUSH_MNODE,
   MND_OPER_MAX  // the max operation type
 } EOperType;
 

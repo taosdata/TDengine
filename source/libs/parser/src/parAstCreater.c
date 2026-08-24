@@ -8644,6 +8644,16 @@ _err:
   return NULL;
 }
 
+SNode* createFlushMnodeStmt(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SFlushMnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FLUSH_MNODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createAssignLeaderStmt(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   SAssignLeaderStmt* pStmt = NULL;

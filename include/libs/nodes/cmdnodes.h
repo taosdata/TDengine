@@ -1257,6 +1257,10 @@ typedef struct SBalanceVgroupStmt {
   ENodeType type;
 } SBalanceVgroupStmt;
 
+typedef struct SFlushMnodeStmt {
+  ENodeType type;
+} SFlushMnodeStmt;
+
 typedef struct SAssignLeaderStmt {
   ENodeType type;
 } SAssignLeaderStmt;
