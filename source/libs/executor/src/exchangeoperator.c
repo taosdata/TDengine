@@ -648,7 +648,11 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
   }
 
   // Deterministic vgroup consumption order: see cmpExchangeSourceByNodeId().
-  if (numOfSources > 1) {
+  // Only applies to static exchanges. Dynamic exchanges (virtual-table, federated,
+  // stream, ...) look sources up by nodeId via pHashSources, which is keyed by the
+  // pre-sort index, so reordering pSources there would break the nodeId->source
+  // mapping and return wrong/missing data.
+  if (numOfSources > 1 && !pInfo->dynamicOp) {
     taosArraySort(pInfo->pSources, cmpExchangeSourceByNodeId);
   }
 
