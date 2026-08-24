@@ -1072,17 +1072,29 @@ cmd ::= CREATE STABLE not_exists_opt(A) full_table_name(B)
                                                                                    { pCxt->pRootNode = createCreateInheritedStableStmt(pCxt, A, B, C, NULL, F, E); }
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_def_list(C) NK_RP series_clause_opt(S) vtags_def_opt(T).           { pCxt->pRootNode = createCreateVTableStmt(pCxt, A, B, C, S, T); }
-cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
-  NK_LP specific_column_ref_list(C) NK_RP USING full_table_name(D)
+cmd ::= CREATE VTABLE create_vsubtable_clause(A).                                { pCxt->pRootNode = A; }
+cmd ::= CREATE VTABLE multi_create_vsubtable_clause(A).                          { pCxt->pRootNode = createCreateMultiTableStmt(pCxt, A); }
+
+%type create_vsubtable_clause                                                    { SNode* }
+%destructor create_vsubtable_clause                                              { nodesDestroyNode($$); }
+create_vsubtable_clause(A) ::= not_exists_opt(B) full_table_name(C)
+  NK_LP specific_column_ref_list(D) NK_RP USING full_table_name(E)
+  specific_cols_opt(F) TAGS NK_LP vtags_literal_list(G) NK_RP
+  series_clause_opt(H).                                                           { A = createCreateVSubTableStmt(pCxt, B, C, D, NULL, E, F, G, NULL, NULL, H); }
+create_vsubtable_clause(A) ::= not_exists_opt(B) full_table_name(C)
+  NK_LP column_ref_list(D) NK_RP USING full_table_name(E)
+  specific_cols_opt(F) TAGS NK_LP vtags_literal_list(G) NK_RP
+  series_clause_opt(H).                                                           { A = createCreateVSubTableStmt(pCxt, B, C, NULL, D, E, F, G, NULL, NULL, H); }
+create_vsubtable_clause(A) ::= not_exists_opt(B) full_table_name(C) USING full_table_name(D)
   specific_cols_opt(E) TAGS NK_LP vtags_literal_list(F) NK_RP
-  series_clause_opt(G).                                                           { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, C, NULL, D, E, F, NULL, NULL, G); }
-cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
-  NK_LP column_ref_list(C) NK_RP USING full_table_name(D)
-  specific_cols_opt(E) TAGS NK_LP vtags_literal_list(F) NK_RP
-  series_clause_opt(G).                                                           { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, NULL, C, D, E, F, NULL, NULL, G); }
-cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B) USING full_table_name(C)
-  specific_cols_opt(D) TAGS NK_LP vtags_literal_list(E) NK_RP
-  series_clause_opt(F).                                                           { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, NULL, NULL, C, D, E, NULL, NULL, F); }
+  series_clause_opt(G).                                                           { A = createCreateVSubTableStmt(pCxt, B, C, NULL, NULL, D, E, F, NULL, NULL, G); }
+
+%type multi_create_vsubtable_clause                                              { SNodeList* }
+%destructor multi_create_vsubtable_clause                                        { nodesDestroyList($$); }
+multi_create_vsubtable_clause(A) ::= create_vsubtable_clause(B) create_vsubtable_clause(C).
+                                                                                  { A = addNodeToList(pCxt, createNodeList(pCxt, B), C); }
+multi_create_vsubtable_clause(A) ::= multi_create_vsubtable_clause(B) create_vsubtable_clause(C).
+                                                                                  { A = addNodeToList(pCxt, B, C); }
 cmd ::= DROP TABLE with_opt(A) multi_drop_clause(B).                              { pCxt->pRootNode = createDropTableStmt(pCxt, A, B); }
 cmd ::= DROP STABLE with_opt(A) exists_opt(B) full_table_name(C).                 { pCxt->pRootNode = createDropSuperTableStmt(pCxt, A, B, C); }
 cmd ::= DROP VTABLE with_opt(A) multi_drop_clause(B).                            { pCxt->pRootNode = createDropVirtualTableStmt(pCxt, A, B); }
