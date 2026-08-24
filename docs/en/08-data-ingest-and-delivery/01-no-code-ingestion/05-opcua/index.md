@@ -223,6 +223,14 @@ The configuration above defines four tags:
 
 Placeholders may be freely combined with static text, e.g. `prefix_{id#/.}_suffix`, `{BrowseName}({Description})`, `ns{ns}_{id}`.
 
+To append an extra level to the OPC UA path, add static text after the placeholder:
+
+```text
+VARCHAR(1024)::Path::{Path}.Value
+```
+
+If the original path is `Objects.UAT.BP.AIT260002`, the stored tag value becomes `Objects.UAT.BP.AIT260002.Value`. This can be useful for downstream applications, such as TDengine IDMP, when an additional path level is needed for data modeling.
+
 #### Upload CSV Configuration File
 
 You can download the CSV blank template and configure the point information according to the template, then upload the CSV configuration file to configure points; or download data points according to the configured filter conditions, and download in the format specified by the CSV template.
