@@ -87,7 +87,9 @@ SELECT stream_name,
        start,
        end,
        progress,
-       status
+       status,
+       request_time,
+       message
 FROM information_schema.ins_stream_recalculates
 WHERE stream_name = 'your_stream_name'
 ORDER BY start, recalc_id;
@@ -102,7 +104,11 @@ ORDER BY start, recalc_id;
 
 During a rolling upgrade, `status` may be `NULL` when an older task can report recalculation progress but not the typed status. The `progress` field remains available.
 
+A successful `RECALCULATE STREAM` response means that the request was accepted, not that execution finished. Recalculation runs in the background. Unfinished requests are restored after a service or stream-task restart or redeployment, and transient execution failures are retried automatically. Use `recalc_id` to track one request and avoid submitting duplicates while it is `Pending` or `Running`. `request_time` is the time the mnode accepted the request; `message` contains the status or error text when available.
+
 Terminal recalculation records are retained for one hour from the time the mnode first observes the terminal state, with a maximum of 100 terminal records per stream. `Pending` and `Running` records do not count toward this limit. Records are held only in memory and may disappear after a process restart.
+
+This retention policy applies to terminal records; it is separate from persistence of unfinished requests.
 
 ## Understand `NULL` and Zero Values
 

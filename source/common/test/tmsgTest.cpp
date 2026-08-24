@@ -1,20 +1,22 @@
-#include <iostream>
-#include <iomanip>
+#include <arpa/inet.h>
+#include <gtest/gtest.h>
+#include <limits.h>
+#include <stub.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <algorithm>
+#include <cstring>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
 #include <sstream>
 #include <string>
-#include <vector>
-#include <cstring>
-#include <unistd.h>
-#include <limits.h>
-#include <sys/stat.h>
-#include <arpa/inet.h>
-#include <algorithm>
 #include <unordered_map>
-#include <gtest/gtest.h>
+#include <vector>
 
 #include "streamMsg.h"
 #include "tmsg.h"
+#include "tsimplehash.h"
 
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
@@ -1795,6 +1797,258 @@ static void writeI32(std::vector<char>* bytes, uint32_t offset, int32_t value) {
   memcpy(bytes->data() + offset, &value, sizeof(value));
 }
 
+static uint32_t recalcDetailOffset(const std::vector<char>& bytes, uint32_t tailOffset, int32_t recalcCount) {
+  return tailOffset + 3 * sizeof(int32_t) + sizeof(int32_t) + 3 * sizeof(int64_t) + sizeof(int32_t) +
+         7 * sizeof(uint64_t) + 2 * sizeof(int8_t) + sizeof(int64_t) + 2 * sizeof(int32_t) +
+         recalcCount * (3 * sizeof(int64_t) + 2 * sizeof(int32_t));
+}
+
+static void addRecalcDetail(SStreamTaskMetricsEntry* entry, int64_t recalcId, int32_t retryOrdinal, int32_t errorCode) {
+  ASSERT_NE(entry, nullptr);
+  if (entry->snapshot.pRecalcDetails == nullptr) {
+    entry->snapshot.pRecalcDetails = taosArrayInit(1, sizeof(SStreamRecalcDetail));
+    ASSERT_NE(entry->snapshot.pRecalcDetails, nullptr);
+  }
+  SStreamRecalcDetail detail = {};
+  detail.recalcId = recalcId;
+  detail.retryOrdinal = retryOrdinal;
+  detail.errorCode = errorCode;
+  detail.errorText = errorCode == 0 ? nullptr : taosStrdup(tstrerror(errorCode));
+  ASSERT_TRUE(errorCode == 0 || detail.errorText != nullptr);
+  ASSERT_NE(taosArrayPush(entry->snapshot.pRecalcDetails, &detail), nullptr);
+}
+
+static SStreamHbMsg buildHeartbeatWithOneRecalcDetail() {
+  SStreamHbMsg input = {};
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pVgLeaders = taosArrayInit(0, sizeof(int32_t));
+  input.pStreamStatus = taosArrayInit(0, sizeof(SStmTaskStatusMsg));
+  input.pStreamReq = taosArrayInit(0, sizeof(int32_t));
+  input.pTriggerStatus = taosArrayInit(0, sizeof(SSTriggerRuntimeStatus));
+  input.pTaskMetrics = taosArrayInit(1, sizeof(SStreamTaskMetricsEntry));
+  EXPECT_NE(input.pVgLeaders, nullptr);
+  EXPECT_NE(input.pStreamStatus, nullptr);
+  EXPECT_NE(input.pStreamReq, nullptr);
+  EXPECT_NE(input.pTriggerStatus, nullptr);
+  EXPECT_NE(input.pTaskMetrics, nullptr);
+  SStreamTaskMetricsEntry entry = buildTriggerMetricEntry(0, 101, 201, 301);
+  entry.snapshot.pRecalculates = taosArrayInit(1, sizeof(SStreamRecalcSnapshot));
+  SStreamRecalcSnapshot recalc = {.recalcId = 401};
+  EXPECT_NE(entry.snapshot.pRecalculates, nullptr);
+  EXPECT_NE(taosArrayPush(entry.snapshot.pRecalculates, &recalc), nullptr);
+  addRecalcDetail(&entry, 401, 1, TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_NE(taosArrayPush(input.pTaskMetrics, &entry), nullptr);
+  return input;
+}
+
+static int32_t gRecalcDetailMallocCalls = 0;
+
+static void* failRecalcDetailTextMalloc(int64_t size) {
+  if (++gRecalcDetailMallocCalls == 4) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return nullptr;
+  }
+  return taosMemCalloc(1, size);
+}
+
+class RecalcDetailTextMallocFailureGuard {
+ public:
+  RecalcDetailTextMallocFailureGuard() {
+    gRecalcDetailMallocCalls = 0;
+    stub_.set(taosMemMalloc, failRecalcDetailTextMalloc);
+  }
+  ~RecalcDetailTextMallocFailureGuard() { stub_.reset(taosMemMalloc); }
+
+ private:
+  Stub stub_;
+};
+
+static int64_t gSnapshotArrayGetCalls = 0;
+static int64_t gDetailArrayGetCalls = 0;
+
+static void* countRecalcDecodeArrayGet(const SArray* pArray, size_t index) {
+  if (pArray == nullptr || index >= pArray->size) return nullptr;
+  if (pArray->elemSize == sizeof(SStreamRecalcSnapshot)) ++gSnapshotArrayGetCalls;
+  if (pArray->elemSize == sizeof(SStreamRecalcDetail)) ++gDetailArrayGetCalls;
+  return TARRAY_GET_ELEM(pArray, index);
+}
+
+class RecalcDecodeArrayGetGuard {
+ public:
+  RecalcDecodeArrayGetGuard() {
+    gSnapshotArrayGetCalls = 0;
+    gDetailArrayGetCalls = 0;
+    stub_.set(taosArrayGet, countRecalcDecodeArrayGet);
+  }
+  ~RecalcDecodeArrayGetGuard() { stub_.reset(taosArrayGet); }
+
+ private:
+  Stub stub_;
+};
+
+static SSHashObj* failRecalcSnapshotHashInit(size_t capacity, _hash_fn_t fn) {
+  (void)capacity;
+  (void)fn;
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+class RecalcSnapshotHashInitFailureGuard {
+ public:
+  RecalcSnapshotHashInitFailureGuard() { stub_.set(tSimpleHashInit, failRecalcSnapshotHashInit); }
+  ~RecalcSnapshotHashInitFailureGuard() { stub_.reset(tSimpleHashInit); }
+
+ private:
+  Stub stub_;
+};
+
+static Stub*   gRecalcDetailHashStub = nullptr;
+static int32_t gRecalcDetailHashPutCalls = 0;
+static int32_t gRecalcDetailHashCleanupCalls = 0;
+
+static int32_t failRecalcDetailHashPut(SSHashObj* pHashObj, const void* key, size_t keyLen, const void* data,
+                                       size_t dataLen) {
+  if (++gRecalcDetailHashPutCalls == 2) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  gRecalcDetailHashStub->reset(tSimpleHashPut);
+  int32_t code = tSimpleHashPut(pHashObj, key, keyLen, data, dataLen);
+  gRecalcDetailHashStub->set(tSimpleHashPut, failRecalcDetailHashPut);
+  return code;
+}
+
+static void countRecalcDetailHashCleanup(SSHashObj* pHashObj) {
+  ++gRecalcDetailHashCleanupCalls;
+  gRecalcDetailHashStub->reset(tSimpleHashCleanup);
+  tSimpleHashCleanup(pHashObj);
+  gRecalcDetailHashStub->set(tSimpleHashCleanup, countRecalcDetailHashCleanup);
+}
+
+class RecalcDetailHashPutFailureGuard {
+ public:
+  RecalcDetailHashPutFailureGuard() {
+    gRecalcDetailHashPutCalls = 0;
+    gRecalcDetailHashCleanupCalls = 0;
+    gRecalcDetailHashStub = &stub_;
+    stub_.set(tSimpleHashPut, failRecalcDetailHashPut);
+    stub_.set(tSimpleHashCleanup, countRecalcDetailHashCleanup);
+  }
+  ~RecalcDetailHashPutFailureGuard() {
+    stub_.reset(tSimpleHashPut);
+    stub_.reset(tSimpleHashCleanup);
+    gRecalcDetailHashStub = nullptr;
+  }
+
+ private:
+  Stub stub_;
+};
+
+static SStreamHbMsg buildHeartbeatWithReverseRecalcDetails(int32_t count) {
+  SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pTaskMetrics = taosArrayInit(1, sizeof(SStreamTaskMetricsEntry));
+  EXPECT_NE(input.pTaskMetrics, nullptr);
+  SStreamTaskMetricsEntry entry = buildTriggerMetricEntry(0, 101, 201, 301);
+  entry.snapshot.pRecalculates = taosArrayInit(count, sizeof(SStreamRecalcSnapshot));
+  EXPECT_NE(entry.snapshot.pRecalculates, nullptr);
+  for (int32_t i = 0; i < count; ++i) {
+    SStreamRecalcSnapshot snapshot = {.recalcId = 10000 + i};
+    EXPECT_NE(taosArrayPush(entry.snapshot.pRecalculates, &snapshot), nullptr);
+  }
+  for (int32_t i = count - 1; i >= 0; --i) {
+    addRecalcDetail(&entry, 10000 + i, i % 4, TSDB_CODE_OUT_OF_MEMORY);
+  }
+  EXPECT_NE(taosArrayPush(input.pTaskMetrics, &entry), nullptr);
+  return input;
+}
+
+TEST(StreamMsgTest, RecalcDetailDecodeUsesLinearArrayAccesses) {
+  constexpr int32_t kCount = 1024;
+  SStreamHbMsg      input = buildHeartbeatWithReverseRecalcDetails(kCount);
+  std::vector<char> bytes = encodeHeartbeat(input);
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  int32_t      decodeCode = TSDB_CODE_SUCCESS;
+  int64_t      arrayGetCalls = 0;
+  {
+    RecalcDecodeArrayGetGuard guard;
+    tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+    decodeCode = tDecodeStreamHbMsg(&decoder, &output);
+    arrayGetCalls = gSnapshotArrayGetCalls + gDetailArrayGetCalls;
+  }
+  EXPECT_EQ(decodeCode, TSDB_CODE_SUCCESS);
+  EXPECT_LE(arrayGetCalls, 3 * kCount);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, RecalcDetailSnapshotIndexAllocationFailurePropagates) {
+  SStreamHbMsg      input = buildHeartbeatWithOneRecalcDetail();
+  std::vector<char> bytes = encodeHeartbeat(input);
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  int32_t decodeCode = TSDB_CODE_SUCCESS;
+  {
+    RecalcSnapshotHashInitFailureGuard guard;
+    decodeCode = tDecodeStreamHbMsg(&decoder, &output);
+  }
+  EXPECT_EQ(decodeCode, TSDB_CODE_OUT_OF_MEMORY);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, RecalcDetailIndexInsertFailurePropagates) {
+  SStreamHbMsg      input = buildHeartbeatWithOneRecalcDetail();
+  std::vector<char> bytes = encodeHeartbeat(input);
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  int32_t decodeCode = TSDB_CODE_SUCCESS;
+  {
+    RecalcDetailHashPutFailureGuard guard;
+    decodeCode = tDecodeStreamHbMsg(&decoder, &output);
+  }
+  EXPECT_EQ(decodeCode, TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(gRecalcDetailHashPutCalls, 2);
+  EXPECT_EQ(gRecalcDetailHashCleanupCalls, 2);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, RecalcDetailLargeReverseOrderRoundTrips) {
+  constexpr int32_t kCount = 1024;
+  SStreamHbMsg      input = buildHeartbeatWithReverseRecalcDetails(kCount);
+
+  std::vector<char> bytes = encodeHeartbeat(input);
+  SStreamHbMsg      output = {};
+  SDecoder          decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &output), TSDB_CODE_SUCCESS);
+  tDecoderClear(&decoder);
+  const auto* decodedEntry = static_cast<const SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0));
+  ASSERT_NE(decodedEntry, nullptr);
+  ASSERT_EQ(taosArrayGetSize(decodedEntry->snapshot.pRecalculates), kCount);
+  ASSERT_EQ(taosArrayGetSize(decodedEntry->snapshot.pRecalcDetails), kCount);
+  const auto* firstDetail =
+      static_cast<const SStreamRecalcDetail*>(taosArrayGet(decodedEntry->snapshot.pRecalcDetails, 0));
+  const auto* lastDetail =
+      static_cast<const SStreamRecalcDetail*>(taosArrayGet(decodedEntry->snapshot.pRecalcDetails, kCount - 1));
+  ASSERT_NE(firstDetail, nullptr);
+  ASSERT_NE(lastDetail, nullptr);
+  EXPECT_EQ(firstDetail->recalcId, 10000 + kCount - 1);
+  EXPECT_EQ(lastDetail->recalcId, 10000);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
 TEST(StreamMsgTest, HeartbeatObservabilityTailV1RoundTrips) {
   SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
   input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
@@ -1851,6 +2105,308 @@ TEST(StreamMsgTest, HeartbeatObservabilityTailV1RoundTrips) {
   EXPECT_EQ(decodedEmpty->seriousId, 302);
   EXPECT_EQ(decodedEmpty->snapshot.applicableMask, 0);
   EXPECT_EQ(decodedEmpty->snapshot.pRecalculates, nullptr);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, RecalcDetailV1RoundTripsWithoutMovingFixedSnapshots) {
+  SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pTaskMetrics = taosArrayInit(1, sizeof(SStreamTaskMetricsEntry));
+  SStreamTaskMetricsEntry entry = buildTriggerMetricEntry(0, 101, 201, 301);
+  entry.snapshot.pRecalculates = taosArrayInit(2, sizeof(SStreamRecalcSnapshot));
+  ASSERT_NE(entry.snapshot.pRecalculates, nullptr);
+  SStreamRecalcSnapshot first = {.recalcId = 401};
+  SStreamRecalcSnapshot second = {.recalcId = 402};
+  ASSERT_NE(taosArrayPush(entry.snapshot.pRecalculates, &first), nullptr);
+  ASSERT_NE(taosArrayPush(entry.snapshot.pRecalculates, &second), nullptr);
+  addRecalcDetail(&entry, 401, 2, TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &entry), nullptr);
+
+  SStreamHbMsg output = roundTripHeartbeat(input);
+  const auto*  decodedEntry = static_cast<const SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0));
+  ASSERT_NE(decodedEntry, nullptr);
+  ASSERT_EQ(taosArrayGetSize(decodedEntry->snapshot.pRecalculates), 2);
+  ASSERT_EQ(taosArrayGetSize(decodedEntry->snapshot.pRecalcDetails), 1);
+  const auto* decodedDetail =
+      static_cast<const SStreamRecalcDetail*>(taosArrayGet(decodedEntry->snapshot.pRecalcDetails, 0));
+  ASSERT_NE(decodedDetail, nullptr);
+  EXPECT_EQ(decodedDetail->recalcId, 401);
+  EXPECT_EQ(decodedDetail->retryOrdinal, 2);
+  EXPECT_EQ(decodedDetail->errorCode, TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_STREQ(decodedDetail->errorText, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, MissingRecalcDetailLeavesRetryInformationUnavailable) {
+  SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pTaskMetrics = taosArrayInit(1, sizeof(SStreamTaskMetricsEntry));
+  SStreamTaskMetricsEntry entry = buildTriggerMetricEntry(0, 101, 201, 301);
+  entry.snapshot.pRecalculates = taosArrayInit(1, sizeof(SStreamRecalcSnapshot));
+  ASSERT_NE(entry.snapshot.pRecalculates, nullptr);
+  SStreamRecalcSnapshot recalc = {.recalcId = 401};
+  ASSERT_NE(taosArrayPush(entry.snapshot.pRecalculates, &recalc), nullptr);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &entry), nullptr);
+
+  SStreamHbMsg output = roundTripHeartbeat(input);
+  const auto*  decodedEntry = static_cast<const SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0));
+  ASSERT_NE(decodedEntry, nullptr);
+  EXPECT_EQ(decodedEntry->decodeCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decodedEntry->snapshot.pRecalcDetails, nullptr);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, UnknownRecalcDetailVersionSkipsItsDeclaredLength) {
+  SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pTaskMetrics = taosArrayInit(1, sizeof(SStreamTaskMetricsEntry));
+  SStreamTaskMetricsEntry entry = buildTriggerMetricEntry(0, 101, 201, 301);
+  entry.snapshot.pRecalculates = taosArrayInit(1, sizeof(SStreamRecalcSnapshot));
+  ASSERT_NE(entry.snapshot.pRecalculates, nullptr);
+  SStreamRecalcSnapshot recalc = {.recalcId = 401};
+  ASSERT_NE(taosArrayPush(entry.snapshot.pRecalculates, &recalc), nullptr);
+  addRecalcDetail(&entry, 401, 1, TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &entry), nullptr);
+  std::vector<char> bytes = encodeHeartbeat(input);
+  uint32_t          tailOffset = locateHeartbeatTail(bytes);
+  writeI32(&bytes, recalcDetailOffset(bytes, tailOffset, 1), 99);
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &output), TSDB_CODE_SUCCESS);
+  const auto* decodedEntry = static_cast<const SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0));
+  ASSERT_NE(decodedEntry, nullptr);
+  EXPECT_EQ(decodedEntry->decodeCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decodedEntry->snapshot.pRecalcDetails, nullptr);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, DuplicateRecalcDetailIdInvalidatesOnlyTheMetricsEntry) {
+  SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pTaskMetrics = taosArrayInit(2, sizeof(SStreamTaskMetricsEntry));
+  SStreamTaskMetricsEntry first = buildTriggerMetricEntry(0, 101, 201, 301);
+  first.snapshot.pRecalculates = taosArrayInit(2, sizeof(SStreamRecalcSnapshot));
+  ASSERT_NE(first.snapshot.pRecalculates, nullptr);
+  SStreamRecalcSnapshot recalc1 = {.recalcId = 401};
+  SStreamRecalcSnapshot recalc2 = {.recalcId = 402};
+  ASSERT_NE(taosArrayPush(first.snapshot.pRecalculates, &recalc1), nullptr);
+  ASSERT_NE(taosArrayPush(first.snapshot.pRecalculates, &recalc2), nullptr);
+  addRecalcDetail(&first, 401, 1, TSDB_CODE_OUT_OF_MEMORY);
+  addRecalcDetail(&first, 402, 2, TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &first), nullptr);
+  SStreamTaskMetricsEntry second = buildEmptyMetricEntry(1, 101, 202, 302);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &second), nullptr);
+  std::vector<char> bytes = encodeHeartbeat(input);
+  uint32_t          tailOffset = locateHeartbeatTail(bytes);
+  uint32_t          detailOffset = recalcDetailOffset(bytes, tailOffset, 2);
+  uint32_t          secondDetailId = detailOffset + 3 * sizeof(int32_t) + sizeof(int64_t) + 2 * sizeof(int32_t) +
+                            sizeof(uint8_t) + strlen(tstrerror(TSDB_CODE_OUT_OF_MEMORY)) + 1;
+  int64_t duplicateId = 401;
+  memcpy(bytes.data() + secondDetailId, &duplicateId, sizeof(duplicateId));
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &output), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0))->decodeCode,
+            TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 1))->decodeCode, TSDB_CODE_SUCCESS);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, OrphanRecalcDetailIdInvalidatesOnlyTheMetricsEntry) {
+  SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pTaskMetrics = taosArrayInit(2, sizeof(SStreamTaskMetricsEntry));
+  SStreamTaskMetricsEntry first = buildTriggerMetricEntry(0, 101, 201, 301);
+  first.snapshot.pRecalculates = taosArrayInit(1, sizeof(SStreamRecalcSnapshot));
+  ASSERT_NE(first.snapshot.pRecalculates, nullptr);
+  SStreamRecalcSnapshot recalc = {.recalcId = 401};
+  ASSERT_NE(taosArrayPush(first.snapshot.pRecalculates, &recalc), nullptr);
+  addRecalcDetail(&first, 401, 1, TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &first), nullptr);
+  SStreamTaskMetricsEntry second = buildEmptyMetricEntry(1, 101, 202, 302);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &second), nullptr);
+  std::vector<char> bytes = encodeHeartbeat(input);
+  uint32_t          tailOffset = locateHeartbeatTail(bytes);
+  uint32_t          detailOffset = recalcDetailOffset(bytes, tailOffset, 1);
+  int64_t           orphanId = 999;
+  memcpy(bytes.data() + detailOffset + 3 * sizeof(int32_t), &orphanId, sizeof(orphanId));
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &output), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0))->decodeCode,
+            TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 1))->decodeCode, TSDB_CODE_SUCCESS);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, InvalidRecalcDetailErrorPairInvalidatesOnlyTheMetricsEntry) {
+  SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pTaskMetrics = taosArrayInit(2, sizeof(SStreamTaskMetricsEntry));
+  SStreamTaskMetricsEntry first = buildTriggerMetricEntry(0, 101, 201, 301);
+  first.snapshot.pRecalculates = taosArrayInit(1, sizeof(SStreamRecalcSnapshot));
+  ASSERT_NE(first.snapshot.pRecalculates, nullptr);
+  SStreamRecalcSnapshot recalc = {.recalcId = 401};
+  ASSERT_NE(taosArrayPush(first.snapshot.pRecalculates, &recalc), nullptr);
+  addRecalcDetail(&first, 401, 1, TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &first), nullptr);
+  SStreamTaskMetricsEntry second = buildEmptyMetricEntry(1, 101, 202, 302);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &second), nullptr);
+  std::vector<char> bytes = encodeHeartbeat(input);
+  uint32_t          tailOffset = locateHeartbeatTail(bytes);
+  uint32_t          detailOffset = recalcDetailOffset(bytes, tailOffset, 1);
+  writeI32(&bytes, detailOffset + 3 * sizeof(int32_t) + sizeof(int64_t) + sizeof(int32_t), 0);
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &output), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0))->decodeCode,
+            TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 1))->decodeCode, TSDB_CODE_SUCCESS);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, RecalcDetailLengthAndCountCannotOverflowEntryBoundary) {
+  SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pTaskMetrics = taosArrayInit(2, sizeof(SStreamTaskMetricsEntry));
+  SStreamTaskMetricsEntry first = buildTriggerMetricEntry(0, 101, 201, 301);
+  first.snapshot.pRecalculates = taosArrayInit(1, sizeof(SStreamRecalcSnapshot));
+  ASSERT_NE(first.snapshot.pRecalculates, nullptr);
+  SStreamRecalcSnapshot recalc = {.recalcId = 401};
+  ASSERT_NE(taosArrayPush(first.snapshot.pRecalculates, &recalc), nullptr);
+  addRecalcDetail(&first, 401, 1, TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &first), nullptr);
+  SStreamTaskMetricsEntry second = buildEmptyMetricEntry(1, 101, 202, 302);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &second), nullptr);
+  std::vector<char> bytes = encodeHeartbeat(input);
+  uint32_t          tailOffset = locateHeartbeatTail(bytes);
+  uint32_t          detailOffset = recalcDetailOffset(bytes, tailOffset, 1);
+  writeI32(&bytes, detailOffset + sizeof(int32_t), INT32_MAX);
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &output), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0))->decodeCode,
+            TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 1))->decodeCode, TSDB_CODE_SUCCESS);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&output, true);
+
+  bytes = encodeHeartbeat(input);
+  tailOffset = locateHeartbeatTail(bytes);
+  detailOffset = recalcDetailOffset(bytes, tailOffset, 1);
+  writeI32(&bytes, detailOffset + 2 * sizeof(int32_t), INT32_MAX);
+  SStreamHbMsg countOutput = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &countOutput), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(countOutput.pTaskMetrics, 0))->decodeCode,
+            TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(countOutput.pTaskMetrics, 1))->decodeCode,
+            TSDB_CODE_SUCCESS);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&countOutput, true);
+}
+
+TEST(StreamMsgTest, CleanupFreesRecalcDetailStrings) {
+  SStreamHbMsg msg = buildHeartbeatWithTwoTaskStatuses();
+  msg.pTaskMetrics = taosArrayInit(1, sizeof(SStreamTaskMetricsEntry));
+  SStreamTaskMetricsEntry entry = buildTriggerMetricEntry(0, 101, 201, 301);
+  entry.snapshot.pRecalculates = taosArrayInit(1, sizeof(SStreamRecalcSnapshot));
+  ASSERT_NE(entry.snapshot.pRecalculates, nullptr);
+  SStreamRecalcSnapshot recalc = {.recalcId = 401};
+  ASSERT_NE(taosArrayPush(entry.snapshot.pRecalculates, &recalc), nullptr);
+  addRecalcDetail(&entry, 401, 1, TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_NE(taosArrayPush(msg.pTaskMetrics, &entry), nullptr);
+
+  tCleanupStreamHbMsg(&msg, true);
+  EXPECT_EQ(msg.pTaskMetrics, nullptr);
+  tCleanupStreamHbMsg(&msg, true);
+}
+
+TEST(StreamMsgTest, RecalcDetailRejectsEmbeddedNulAndTrailingBytes) {
+  SStreamHbMsg      input = buildHeartbeatWithOneRecalcDetail();
+  std::vector<char> bytes = encodeHeartbeat(input);
+  uint32_t          tailOffset = locateHeartbeatTail(bytes);
+  uint32_t          detailOffset = recalcDetailOffset(bytes, tailOffset, 1);
+  uint32_t          entryLengthOffset = tailOffset + 3 * sizeof(int32_t) + sizeof(int32_t) + 3 * sizeof(int64_t);
+  uint32_t          errorTextLengthOffset = detailOffset + 3 * sizeof(int32_t) + sizeof(int64_t) + 2 * sizeof(int32_t);
+  uint32_t          errorTextOffset = errorTextLengthOffset + sizeof(uint8_t);
+  const char*       errorText = tstrerror(TSDB_CODE_OUT_OF_MEMORY);
+  const char        trailing[] = {'j', 'u', 'n', 'k', '\0'};
+  ASSERT_LT(errorTextOffset + strlen(errorText), bytes.size());
+  ASSERT_LT(bytes[errorTextLengthOffset], 128);
+  bytes.insert(bytes.begin() + errorTextOffset + strlen(errorText) + 1, std::begin(trailing), std::end(trailing));
+  bytes[errorTextLengthOffset] += sizeof(trailing);
+  writeI32(&bytes, detailOffset + sizeof(int32_t), readI32(bytes, detailOffset + sizeof(int32_t)) + sizeof(trailing));
+  writeI32(&bytes, entryLengthOffset, readI32(bytes, entryLengthOffset) + sizeof(trailing));
+  writeI32(&bytes, tailOffset + sizeof(int32_t), readI32(bytes, tailOffset + sizeof(int32_t)) + sizeof(trailing));
+  writeI32(&bytes, 0, static_cast<int32_t>(bytes.size() - sizeof(int32_t)));
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &output), TSDB_CODE_SUCCESS);
+  const auto* decoded = static_cast<const SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0));
+  ASSERT_NE(decoded, nullptr);
+  EXPECT_EQ(decoded->decodeCode, TSDB_CODE_INVALID_MSG);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, RecalcDetailRejectsUnconsumedEntryBytes) {
+  SStreamHbMsg      input = buildHeartbeatWithOneRecalcDetail();
+  std::vector<char> bytes = encodeHeartbeat(input);
+  uint32_t          tailOffset = locateHeartbeatTail(bytes);
+  uint32_t          detailOffset = recalcDetailOffset(bytes, tailOffset, 1);
+  writeI32(&bytes, detailOffset + sizeof(int32_t), sizeof(int32_t));
+  writeI32(&bytes, detailOffset + 2 * sizeof(int32_t), 0);
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &output), TSDB_CODE_SUCCESS);
+  const auto* decoded = static_cast<const SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0));
+  ASSERT_NE(decoded, nullptr);
+  EXPECT_EQ(decoded->decodeCode, TSDB_CODE_INVALID_MSG);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, RecalcDetailAllocationFailurePropagates) {
+  SStreamHbMsg      input = buildHeartbeatWithOneRecalcDetail();
+  std::vector<char> bytes = encodeHeartbeat(input);
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  {
+    RecalcDetailTextMallocFailureGuard guard;
+    EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &output), TSDB_CODE_OUT_OF_MEMORY);
+  }
+  tDecoderClear(&decoder);
   tCleanupStreamHbMsg(&input, true);
   tCleanupStreamHbMsg(&output, true);
 }

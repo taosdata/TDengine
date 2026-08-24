@@ -37,6 +37,23 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   // and is carried by the tSerializeSCMCreateStreamReqImpl call above (JSON).
   TAOS_CHECK_RETURN(tEncodeU64(pEncoder, pObj->flags));
 
+  TAOS_CHECK_RETURN(tEncodeU64(pEncoder, pObj->recalcRevision));
+  size_t recalcNum = taosArrayGetSize(pObj->pIncompleteRecalcs);
+  if (recalcNum > INT32_MAX) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, (int32_t)recalcNum));
+  for (int32_t i = 0; i < (int32_t)recalcNum; ++i) {
+    const SStreamRecalcPersistReq *pReq = taosArrayGet(pObj->pIncompleteRecalcs, i);
+    if (pReq == NULL || pReq->recalcId == 0 || pReq->end <= pReq->start || pReq->requestTimeMs <= 0) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+    TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pReq->recalcId));
+    TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pReq->start));
+    TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pReq->end));
+    TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pReq->requestTimeMs));
+  }
+
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
@@ -75,6 +92,32 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
     TAOS_CHECK_RETURN(tDecodeU64(pDecoder, &pObj->flags));
   }
 
+  pObj->recalcRevision = 0;
+  pObj->pIncompleteRecalcs = NULL;
+  if (!tDecodeIsEnd(pDecoder)) {
+    int32_t recalcNum = 0;
+    TAOS_CHECK_RETURN(tDecodeU64(pDecoder, &pObj->recalcRevision));
+    TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &recalcNum));
+    if (recalcNum < 0 || (uint32_t)recalcNum > TD_CODER_REMAIN_CAPACITY(pDecoder) / (4 * sizeof(int64_t))) {
+      TAOS_CHECK_RETURN(TSDB_CODE_INVALID_MSG);
+    }
+    if (recalcNum > 0) {
+      pObj->pIncompleteRecalcs = taosArrayInit(recalcNum, sizeof(SStreamRecalcPersistReq));
+      TSDB_CHECK_NULL(pObj->pIncompleteRecalcs, code, lino, _exit, terrno);
+    }
+    for (int32_t i = 0; i < recalcNum; ++i) {
+      SStreamRecalcPersistReq req = {0};
+      TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &req.recalcId));
+      TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &req.start));
+      TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &req.end));
+      TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &req.requestTimeMs));
+      if (req.recalcId == 0 || req.end <= req.start || req.requestTimeMs <= 0 ||
+          taosArrayPush(pObj->pIncompleteRecalcs, &req) == NULL) {
+        TAOS_CHECK_RETURN(terrno == TSDB_CODE_SUCCESS ? TSDB_CODE_INVALID_MSG : terrno);
+      }
+    }
+  }
+
 _exit:
 
   tEndDecode(pDecoder);
@@ -84,6 +127,8 @@ _exit:
 }
 
 void tFreeStreamObj(SStreamObj *pStream) {
+  taosArrayDestroy(pStream->pIncompleteRecalcs);
+  pStream->pIncompleteRecalcs = NULL;
   // tFreeSCMCreateStreamReq frees pCreate->extSpecs (each spec's
   // triggerColumns/pColMappings/calcColumns/pCalcMappings/prefilter/
   // triggerPrefilter/partitionTagCols included) since that is now the only

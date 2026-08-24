@@ -62,6 +62,7 @@ extern "C" {
 #include "ttime.h"
 
 int32_t stmAddPeriodReport(int64_t streamId, SArray** ppReport, SStreamTriggerTask* triggerTask);
+int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg* pMsg, SStreamTask* pTask, SStreamTaskStats* pStats);
 void    tFreeSSTriggerRuntimeStatus(void* param);
 }
 
@@ -9079,25 +9080,22 @@ struct UserRecalcConversionProbe {
 
 static UserRecalcConversionProbe* gUserRecalcConversionProbe = nullptr;
 
-static int32_t captureUserRecalcConversion(SStreamTriggerTask* pTask, SSTriggerRealtimeGroup* pGroup,
-                                           STimeWindow* pCalcRange, bool isHistory, bool isUserRecalc,
-                                           bool isDetermined, int64_t recalcId) {
+static int32_t captureUserRecalcConversion(size_t contributorCapacity, SStreamRecalcAttemptState** ppAttempt) {
   UserRecalcConversionProbe* pProbe = gUserRecalcConversionProbe;
   ++pProbe->callCount;
   if (pProbe->callCount == pProbe->failCall) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  pProbe->stub.reset(stTriggerTaskAddRecalcRequest);
-  int32_t code =
-      stTriggerTaskAddRecalcRequest(pTask, pGroup, pCalcRange, isHistory, isUserRecalc, isDetermined, recalcId);
-  pProbe->stub.set(stTriggerTaskAddRecalcRequest, captureUserRecalcConversion);
+  pProbe->stub.reset(stRecalcAttemptCreate);
+  int32_t code = stRecalcAttemptCreate(contributorCapacity, ppAttempt);
+  pProbe->stub.set(stRecalcAttemptCreate, captureUserRecalcConversion);
   return code;
 }
 
 static void installUserRecalcConversionProbe(UserRecalcConversionProbe* pProbe) {
   ASSERT_EQ(nullptr, gUserRecalcConversionProbe);
   gUserRecalcConversionProbe = pProbe;
-  pProbe->stub.set(stTriggerTaskAddRecalcRequest, captureUserRecalcConversion);
+  pProbe->stub.set(stRecalcAttemptCreate, captureUserRecalcConversion);
 }
 
 UserRecalcConversionProbe::~UserRecalcConversionProbe() {
@@ -10003,6 +10001,16 @@ TEST_F(StreamNestedRecoveryTest, UserRecalcDuringRecoveryDefersAndConvertsExactl
   EXPECT_EQ(2, taosArrayGetSize(harness.task()->pUserRecalcConversionGids));
   EXPECT_EQ(1, harness.task()->userRecalcConversionIndex);
   EXPECT_EQ(1, listNEles(harness.task()->pRecalcRequests));
+  SListNode* pFirstReadyNode = tdListGetHead(harness.task()->pRecalcRequests);
+  ASSERT_NE(nullptr, pFirstReadyNode);
+  auto* pFirstReady = *reinterpret_cast<SSTriggerRecalcRequest**>(pFirstReadyNode->data);
+  ASSERT_NE(nullptr, pFirstReady);
+  EXPECT_TRUE(pFirstReady->frozen);
+  EXPECT_NE(0, pFirstReady->attempt.chainId);
+  EXPECT_EQ(0, pFirstReady->attempt.executionOrdinal);
+  EXPECT_EQ(nullptr, pFirstReady->pPreparedAttempt);
+  EXPECT_NE(nullptr, pFirstReady->pRetryWaitNode);
+  EXPECT_NE(nullptr, pFirstReady->impactDomain.pRootExtents);
 
   conversionProbe.failCall = 0;
   ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedRealtimeStartCode());
@@ -10011,6 +10019,30 @@ TEST_F(StreamNestedRecoveryTest, UserRecalcDuringRecoveryDefersAndConvertsExactl
   EXPECT_EQ(nullptr, harness.task()->pUserRecalcConversionGids);
   EXPECT_EQ(0, harness.task()->userRecalcConversionIndex);
   EXPECT_EQ(2, listNEles(harness.task()->pRecalcRequests));
+  std::unordered_set<uint64_t> chainIds;
+  std::unordered_set<int64_t>  gids;
+  SListIter                    readyIter = {};
+  tdListInitIter(harness.task()->pRecalcRequests, &readyIter, TD_LIST_FORWARD);
+  SListNode* pReadyNode = nullptr;
+  while ((pReadyNode = tdListNext(&readyIter)) != nullptr) {
+    auto* pReady = *reinterpret_cast<SSTriggerRecalcRequest**>(pReadyNode->data);
+    ASSERT_NE(nullptr, pReady);
+    EXPECT_TRUE(pReady->frozen);
+    EXPECT_NE(0, pReady->attempt.chainId);
+    EXPECT_EQ(0, pReady->attempt.executionOrdinal);
+    EXPECT_EQ(nullptr, pReady->pPreparedAttempt);
+    EXPECT_NE(nullptr, pReady->pRetryWaitNode);
+    EXPECT_NE(nullptr, pReady->impactDomain.pRootExtents);
+    ASSERT_NE(nullptr, pReady->pContributors);
+    ASSERT_EQ(1, taosArrayGetSize(pReady->pContributors));
+    const auto* pContributor = static_cast<const SStreamRecalcContributor*>(taosArrayGet(pReady->pContributors, 0));
+    ASSERT_NE(nullptr, pContributor);
+    EXPECT_EQ(8, pContributor->recalcId);
+    EXPECT_TRUE(chainIds.insert(pReady->attempt.chainId).second);
+    EXPECT_TRUE(gids.insert(pReady->gid).second);
+  }
+  EXPECT_EQ(2, chainIds.size());
+  EXPECT_EQ(2, gids.size());
 }
 
 TEST_F(StreamNestedRecoveryTest, NestedRouteRetryPeerDrainAndHistoryOwnerBlockCutover) {
@@ -20927,6 +20959,15 @@ TEST_F(StreamTriggerTaskTest, MultiPeriodYearAlignment) {
 
 namespace {
 
+void DestroyRecalcDetails(SArray* details) {
+  if (details == nullptr) return;
+  for (int32_t i = 0; i < taosArrayGetSize(details); ++i) {
+    auto* detail = static_cast<SStreamRecalcDetail*>(taosArrayGet(details, i));
+    taosMemoryFreeClear(detail->errorText);
+  }
+  taosArrayDestroy(details);
+}
+
 constexpr int64_t kRealtimeSessionId = 1;
 constexpr int64_t kHistorySessionId = 2;
 constexpr int64_t kCreateTableGroupId = 42;
@@ -21047,6 +21088,8 @@ class StreamTriggerObservabilityTest : public ::testing::Test {
 };
 
 SArray* gFailedTriggerStatusArray = nullptr;
+int32_t gDestroyedRecalcDetailArrays = 0;
+int32_t gDestroyedRecalcErrorTexts = 0;
 
 void* failTriggerStatusArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles) {
   if (pArray == gFailedTriggerStatusArray) {
@@ -21061,6 +21104,22 @@ void* failTriggerStatusArrayAddBatch(SArray* pArray, const void* pData, int32_t 
   std::memcpy(pTarget, pData, pArray->elemSize * nEles);
   pArray->size += nEles;
   return pTarget;
+}
+
+void trackRecalcDetailArrayDestroy(SArray* pArray, FDelete destroyElem) {
+  if (pArray != nullptr && pArray->elemSize == sizeof(SStreamRecalcDetail)) {
+    ++gDestroyedRecalcDetailArrays;
+    for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
+      auto* detail = static_cast<SStreamRecalcDetail*>(taosArrayGet(pArray, i));
+      if (detail->errorText != nullptr) ++gDestroyedRecalcErrorTexts;
+    }
+  }
+  if (pArray != nullptr && destroyElem != nullptr) {
+    for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
+      destroyElem(taosArrayGet(pArray, i));
+    }
+  }
+  taosArrayDestroy(pArray);
 }
 
 class TriggerStatusPushFailureGuard {
@@ -21155,6 +21214,7 @@ TEST_F(StreamTriggerObservabilityTest, MetricsGetterRefreshesRealtimeLagFromCurr
   EXPECT_GE(metrics.realtimeLagMs, 3000);
   EXPECT_LT(metrics.realtimeLagMs, 10000);
   taosArrayDestroy(metrics.pRecalculates);
+  DestroyRecalcDetails(metrics.pRecalcDetails);
 }
 
 TEST_F(StreamTriggerObservabilityTest, LegacyAndTypedSnapshotsShareProgressButOwnTheirArrays) {
@@ -21194,6 +21254,51 @@ TEST_F(StreamTriggerObservabilityTest, LegacyAndTypedSnapshotsShareProgressButOw
 
   taosArrayDestroy(legacy.userRecalcs);
   taosArrayDestroy(typed.pRecalculates);
+  DestroyRecalcDetails(typed.pRecalcDetails);
+}
+
+TEST_F(StreamTriggerObservabilityTest, HeartbeatMetricsPushFailureDestroysDeepRecalcDetails) {
+  task_.task.streamId = 0x701;
+  task_.task.taskId = 0x702;
+  taosInitRWLatch(&task_.task.mgmtReqLock);
+  SArray* groups = taosArrayInit(1, sizeof(int64_t));
+  ASSERT_NE(groups, nullptr);
+  int64_t gid = 7;
+  ASSERT_NE(taosArrayPush(groups, &gid), nullptr);
+  ASSERT_EQ(stRecalcTrackerRegisterJob(task_.pRecalcTracker, 43, {100, 200}, groups), TSDB_CODE_SUCCESS);
+  taosArrayDestroy(groups);
+  SArray* contributors = nullptr;
+  ASSERT_EQ(stRecalcContributorsAdd(task_.pRecalcTracker, &contributors, 43, {100, 200}), TSDB_CODE_SUCCESS);
+  SStreamRecalcAttemptState* prepared = nullptr;
+  ASSERT_EQ(stRecalcAttemptCreate(1, &prepared), TSDB_CODE_SUCCESS);
+  SStreamRecalcAttemptRef attempt = {};
+  ASSERT_EQ(stRecalcTrackerActivateAttempt(task_.pRecalcTracker, &prepared, gid, {100, 200}, {100, 200}, contributors,
+                                           &attempt),
+            TSDB_CODE_SUCCESS);
+  taosArrayDestroy(contributors);
+  SStreamRecalcAttemptOutcome outcome = {};
+  ASSERT_EQ(stRecalcTrackerRecordAttemptFailure(task_.pRecalcTracker, attempt, TSDB_CODE_RPC_TIMEOUT, &outcome),
+            TSDB_CODE_SUCCESS);
+
+  SStreamHbMsg heartbeat = {};
+  heartbeat.pStreamStatus = taosArrayInit(1, sizeof(SStmTaskStatusMsg));
+  heartbeat.pTaskMetrics = taosArrayInit(1, sizeof(SStreamTaskMetricsEntry));
+  ASSERT_NE(heartbeat.pStreamStatus, nullptr);
+  ASSERT_NE(heartbeat.pTaskMetrics, nullptr);
+
+  gDestroyedRecalcDetailArrays = 0;
+  gDestroyedRecalcErrorTexts = 0;
+  {
+    Stub destroyStub;
+    destroyStub.set(taosArrayDestroyEx, trackRecalcDetailArrayDestroy);
+    TriggerStatusPushFailureGuard pushFailure(heartbeat.pTaskMetrics);
+    EXPECT_EQ(stmHbAddTaskStatus(task_.task.streamId, &heartbeat, &task_.task, task_.pStats), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(taosArrayGetSize(heartbeat.pTaskMetrics), 0);
+    EXPECT_EQ(gDestroyedRecalcDetailArrays, 1);
+    EXPECT_EQ(gDestroyedRecalcErrorTexts, 1);
+  }
+
+  tCleanupStreamHbMsg(&heartbeat, false);
 }
 
 TEST_F(StreamTriggerObservabilityTest, PeriodReportPushFailureDestroysOwnedLegacySnapshot) {
@@ -22190,6 +22295,8 @@ SStreamRecalcSnapshot CopyRecalcSnapshot(SStreamRecalcTracker* tracker, int64_t 
 
 void DestroyRecalcRequest(SSTriggerRecalcRequest** ppRequest) {
   if (ppRequest == nullptr || *ppRequest == nullptr) return;
+  stRecalcAttemptDestroy(&(*ppRequest)->pPreparedAttempt);
+  taosMemoryFreeClear((*ppRequest)->pRetryWaitNode);
   tSimpleHashCleanup((*ppRequest)->pTsdbVersions);
   taosArrayDestroy((*ppRequest)->pContributors);
   taosMemoryFreeClear(*ppRequest);
@@ -22203,6 +22310,7 @@ class StreamTriggerRecalcOwnershipTest : public ::testing::Test {
     task_.historyCalcStarted = true;
     atomic_store_8(&task_.realtimeStarted, 1);
     task_.pRecalcRequests = tdListNew(POINTER_BYTES);
+    TD_DLIST_INIT(&task_.backoffRecalcRequests);
     task_.pRecalcRequestMap = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
     task_.pGroupPendingRecalcs = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
     task_.pUserRecalcRequests = taosArrayInit(0, sizeof(SStreamRecalcReq));
@@ -22324,7 +22432,7 @@ TEST_F(StreamTriggerRecalcOwnershipTest, UserRecalcSnapshotsGroupsAndKeepsOrigin
   EXPECT_EQ(snapshot.start, 100);
   EXPECT_EQ(snapshot.end, 200);
   EXPECT_EQ(snapshot.progressPct, 0);
-  EXPECT_EQ(snapshot.status, STREAM_RECALC_STATUS_PENDING);
+  EXPECT_EQ(snapshot.status, STREAM_RECALC_STATUS_RUNNING);
 
   SSTriggerRecalcRequest* first = nullptr;
   SSTriggerRecalcRequest* second = nullptr;
@@ -22681,6 +22789,120 @@ struct RecalcBarrierSendState {
 RecalcBarrierSendState gRecalcBarrierSendState;
 uint8_t                gRecalcBarrierCheckpoint[128];
 int64_t                gRecalcBarrierCheckpointLen = 0;
+int32_t                gManualStreamErrorCalls = 0;
+TAOS_TMR_CALLBACK      gManualWaitCallback = nullptr;
+SStreamTask*           gManualAcquiredTask = nullptr;
+int32_t                gManualTriggerStartCalls = 0;
+int32_t                gManualRetryAllocCalls = 0;
+SRpcMsg                gManualQueuedCtrl = {};
+SStreamTriggerTask*    gManualCalcPoolTask = nullptr;
+int32_t                gManualCalcParamPushFailures = 0;
+SStreamTriggerTask*    gManualUndeployDuringAcquire = nullptr;
+int32_t                gManualUndeployCode = TSDB_CODE_SUCCESS;
+int32_t                gManualMissingAcquireCalls = 0;
+SListNode*             gManualTerminalWaitNode = nullptr;
+int32_t                gManualTerminalRequeueCalls = 0;
+
+struct ManualWaitInfoView {
+  int64_t  streamId;
+  int64_t  taskId;
+  int64_t  sessionId;
+  int64_t  resumeTime;
+  int32_t  reason;
+  bool     queued;
+  uint8_t  padding[3];
+  uint64_t manualRecalcChainId;
+  uint64_t controlMsgId;
+};
+
+void countManualStreamTaskError(int64_t, int64_t, int32_t) { ++gManualStreamErrorCalls; }
+
+void detachUndeployedTriggerTask(void* ptr) { *static_cast<SStreamTriggerTask**>(ptr) = nullptr; }
+
+void captureManualWaitTimer(TAOS_TMR_CALLBACK fp, int32_t, void*, void*, tmr_h*, const char*) {
+  gManualWaitCallback = fp;
+}
+
+void ignoreManualTimerStop(tmr_h) {}
+
+int32_t captureManualTriggerStart(void*, EQueueType, SRpcMsg* pMsg) {
+  ++gManualTriggerStartCalls;
+  rpcFreeCont(gManualQueuedCtrl.pCont);
+  gManualQueuedCtrl = *pMsg;
+  pMsg->pCont = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t failManualTriggerStart(void*, EQueueType, SRpcMsg* pMsg) {
+  ++gManualTriggerStartCalls;
+  rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = nullptr;
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
+
+int32_t acquireManualTriggerTask(int64_t, int64_t, SStreamTask** ppTask, void** ppAddr) {
+  *ppTask = gManualAcquiredTask;
+  *ppAddr = gManualAcquiredTask;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t undeployManualTriggerTaskThenFailAcquire(int64_t, int64_t, SStreamTask** ppTask, void** ppAddr) {
+  ++gManualMissingAcquireCalls;
+  *ppTask = nullptr;
+  *ppAddr = nullptr;
+  if (gManualUndeployDuringAcquire != nullptr) {
+    SStreamTriggerTask* rawTask = gManualUndeployDuringAcquire;
+    gManualUndeployCode = stTriggerTaskUndeploy(&gManualUndeployDuringAcquire, true);
+    taosMemoryFree(rawTask);
+  }
+  return TSDB_CODE_STREAM_TASK_NOT_EXIST;
+}
+
+void captureManualTerminalWaitRequeue(SList* pList, SListNode* pNode) {
+  if (pNode == gManualTerminalWaitNode) {
+    ++gManualTerminalRequeueCalls;
+    taosMemoryFree(pNode);
+    return;
+  }
+  TD_DLIST_APPEND(pList, pNode);
+}
+
+void releaseManualTriggerTask(void*) {}
+
+void* failManualRetryAllocation(int64_t num, int64_t size) {
+  if (size == sizeof(SSTriggerHistoryContext)) {
+    ++gManualRetryAllocCalls;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return nullptr;
+  }
+  void* p = taosMemMalloc(num * size);
+  if (p != nullptr) std::memset(p, 0, num * size);
+  return p;
+}
+
+void* failManualCalcParamPush(SArray* pArray, const void* pData, int32_t nEles) {
+  if (gManualCalcPoolTask != nullptr && gManualCalcParamPushFailures == 0) {
+    for (int32_t nodeIdx = 0; nodeIdx < TARRAY_SIZE(gManualCalcPoolTask->pCalcNodes); ++nodeIdx) {
+      auto* node = static_cast<SSTriggerCalcNode*>(taosArrayGet(gManualCalcPoolTask->pCalcNodes, nodeIdx));
+      for (int32_t slotIdx = 0; slotIdx < TARRAY_SIZE(node->pSlots); ++slotIdx) {
+        auto* slot = static_cast<SSTriggerCalcSlot*>(taosArrayGet(node->pSlots, slotIdx));
+        if (slot->req.params == pArray) {
+          ++gManualCalcParamPushFailures;
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          return nullptr;
+        }
+      }
+    }
+  }
+  if (pArray == nullptr || pData == nullptr || nEles < 0 ||
+      taosArrayEnsureCap(pArray, pArray->size + nEles) != TSDB_CODE_SUCCESS) {
+    return nullptr;
+  }
+  void* pTarget = TARRAY_GET_ELEM(pArray, pArray->size);
+  std::memcpy(pTarget, pData, pArray->elemSize * nEles);
+  pArray->size += nEles;
+  return pTarget;
+}
 
 int32_t captureRecalcBarrierRetry(const SEpSet*, SRpcMsg* pMsg) {
   ++gRecalcBarrierSendState.sendCalls;
@@ -22726,6 +22948,22 @@ int32_t compareRecalcBarrierHistoryGroups(const HeapNode* a, const HeapNode* b) 
   auto* groupB = reinterpret_cast<const SSTriggerHistoryGroup*>(reinterpret_cast<const char*>(b) -
                                                                 offsetof(SSTriggerHistoryGroup, heapNode));
   return groupA->pPendingCalcParams.neles > groupB->pPendingCalcParams.neles;
+}
+
+void destroyPipelinedManualHistoryGroup(void* ptr) {
+  auto** ppGroup = static_cast<SSTriggerHistoryGroup**>(ptr);
+  if (ppGroup == nullptr || *ppGroup == nullptr) return;
+
+  SSTriggerHistoryGroup* group = *ppGroup;
+  if (group->inMaxDelayHeap) {
+    heapRemove(group->pContext->pMaxDelayHeap, &group->heapNode);
+  }
+  tSimpleHashCleanup(group->pTableMetas);
+  TRINGBUF_DESTROY(&group->winBuf);
+  taosObjListClearEx(&group->pPendingParWinCalcParams, tDestroySSTriggerCalcParam);
+  taosObjListClearEx(&group->pPendingCalcParams, tDestroySSTriggerCalcParam);
+  tDestroySSTriggerCalcParam(&group->pendingWinParam);
+  taosMemoryFreeClear(*ppGroup);
 }
 
 class StreamTriggerRecalcBarrierTest : public ::testing::Test {
@@ -22845,6 +23083,29 @@ class StreamTriggerRecalcBarrierTest : public ::testing::Test {
       destroyAhandle(gRecalcBarrierSendState.pullAhandle);
       gRecalcBarrierSendState.pullAhandle = nullptr;
     }
+    if (pipelinedManualFlowInitialized_) {
+      tSimpleHashCleanup(context_.pGroups);
+      context_.pGroups = nullptr;
+      heapDestroy(context_.pMaxDelayHeap);
+      context_.pMaxDelayHeap = nullptr;
+      taosArrayDestroyP(context_.pCalcDataBlocks, reinterpret_cast<FDelete>(blockDataDestroy));
+      context_.pCalcDataBlocks = nullptr;
+      stTimestampSorterDestroy(&context_.pSorter);
+      taosObjPoolDestroy(&context_.calcParamPool);
+      if (task_.pCalcNodes != nullptr) {
+        for (int32_t nodeIdx = 0; nodeIdx < TARRAY_SIZE(task_.pCalcNodes); ++nodeIdx) {
+          auto* node = static_cast<SSTriggerCalcNode*>(taosArrayGet(task_.pCalcNodes, nodeIdx));
+          for (int32_t slotIdx = 0; slotIdx < TARRAY_SIZE(node->pSlots); ++slotIdx) {
+            auto* slot = static_cast<SSTriggerCalcSlot*>(taosArrayGet(node->pSlots, slotIdx));
+            tDestroySTriggerCalcRequest(&slot->req);
+          }
+          taosArrayDestroy(node->pSlots);
+          node->pSlots = nullptr;
+        }
+        taosArrayDestroy(task_.pCalcNodes);
+        task_.pCalcNodes = nullptr;
+      }
+    }
     if (historyGroupInitialized_) {
       if (historyGroup_.inMaxDelayHeap) heapRemove(context_.pMaxDelayHeap, &historyGroup_.heapNode);
       taosObjListClear(&historyGroup_.pPendingParWinCalcParams);
@@ -22853,6 +23114,7 @@ class StreamTriggerRecalcBarrierTest : public ::testing::Test {
     }
     if (historyHeapInitialized_) heapDestroy(context_.pMaxDelayHeap);
     context_.pMaxDelayHeap = nullptr;
+    DestroyRecalcRequest(&context_.pManualRecalcRequest);
     taosArrayDestroy(context_.pContributors);
     context_.pContributors = nullptr;
     tDestroySTriggerCalcRequest(&calcRequest_);
@@ -22899,6 +23161,10 @@ class StreamTriggerRecalcBarrierTest : public ::testing::Test {
     tSimpleHashCleanup(task_.pGroupPendingRecalcs);
     tSimpleHashCleanup(task_.pRecalcRequestMap);
     task_.pRecalcRequests = static_cast<SList*>(tdListFree(task_.pRecalcRequests));
+    while ((request = TD_DLIST_HEAD(&task_.backoffRecalcRequests)) != nullptr) {
+      TD_DLIST_POP(&task_.backoffRecalcRequests, request);
+      DestroyRecalcRequest(&request);
+    }
     stRecalcTrackerDestroy(&task_.pRecalcTracker);
   }
 
@@ -22938,6 +23204,15 @@ class StreamTriggerRecalcBarrierTest : public ::testing::Test {
         DestroyRecalcRequest(&queued);
         taosArrayDestroy(contributors);
         return nullptr;
+      }
+      if (queued->attempt.chainId != 0) {
+        SStreamRecalcAttemptOutcome outcome = {};
+        if (stRecalcTrackerCompleteAttempt(task_.pRecalcTracker, queued->attempt, &outcome) != TSDB_CODE_SUCCESS ||
+            outcome.decision != STREAM_RECALC_ATTEMPT_NONE) {
+          DestroyRecalcRequest(&queued);
+          taosArrayDestroy(contributors);
+          return nullptr;
+        }
       }
       DestroyRecalcRequest(&queued);
     }
@@ -23170,9 +23445,1166 @@ class StreamTriggerRecalcBarrierTest : public ::testing::Test {
   SSTriggerHistoryGroup    historyGroup_ = {};
   bool                     historyGroupInitialized_ = false;
   bool                     historyHeapInitialized_ = false;
+  bool                     pipelinedManualFlowInitialized_ = false;
   SSTriggerTsdbProgress*   progress_ = nullptr;
   SSTriggerCalcRequest     calcRequest_ = {};
 };
+
+class StreamTriggerTaskManualRetryTest : public StreamTriggerRecalcBarrierTest {
+ protected:
+  void SetUp() override {
+    StreamTriggerRecalcBarrierTest::SetUp();
+    gManualStreamErrorCalls = 0;
+    gManualTriggerStartCalls = 0;
+    gManualRetryAllocCalls = 0;
+    rpcFreeCont(gManualQueuedCtrl.pCont);
+    gManualQueuedCtrl = {};
+    gManualCalcPoolTask = nullptr;
+    gManualCalcParamPushFailures = 0;
+    gManualUndeployDuringAcquire = nullptr;
+    gManualUndeployCode = TSDB_CODE_SUCCESS;
+    gManualMissingAcquireCalls = 0;
+    gManualTerminalWaitNode = nullptr;
+    gManualTerminalRequeueCalls = 0;
+    stub_.set(streamTmrStart, captureManualWaitTimer);
+    stub_.set(streamTmrStop, ignoreManualTimerStop);
+    stub_.set(streamHandleTaskError, countManualStreamTaskError);
+    atomic_store_8(&gStreamMgmt.tmrStopped, 0);
+    ASSERT_EQ(stTriggerTaskEnvInit(), TSDB_CODE_SUCCESS);
+    if (gManualWaitCallback == nullptr) gManualWaitCallback = gRealtimePipelineWaitTimerCallback;
+    ASSERT_NE(gManualWaitCallback, nullptr);
+  }
+
+  void TearDown() override {
+    rpcFreeCont(gManualQueuedCtrl.pCont);
+    gManualQueuedCtrl = {};
+    gManualCalcPoolTask = nullptr;
+    if (gManualUndeployDuringAcquire != nullptr) {
+      SStreamTriggerTask* rawTask = gManualUndeployDuringAcquire;
+      stTriggerTaskUndeploy(&gManualUndeployDuringAcquire, true);
+      taosMemoryFree(rawTask);
+    }
+    stTriggerTaskEnvCleanup();
+    atomic_store_8(&gStreamMgmt.tmrStopped, 1);
+    StreamTriggerRecalcBarrierTest::TearDown();
+  }
+
+  int32_t QueueManualRecalc(int64_t recalcId, TSKEY start = 100, TSKEY end = 200) {
+    SStreamRecalcReq recalc = {.recalcId = recalcId, .start = start, .end = end};
+    if (taosArrayPush(task_.pUserRecalcRequests, &recalc) == nullptr) return terrno;
+    const int32_t readerCount = TARRAY_SIZE(task_.readerList);
+    TARRAY_SIZE(task_.readerList) = 0;
+    const int32_t code = ProcessRealtimeStart();
+    TARRAY_SIZE(task_.readerList) = readerCount;
+    return code;
+  }
+
+  SSTriggerRecalcRequest* FetchReadyRecalc() {
+    SSTriggerRecalcRequest* request = nullptr;
+    EXPECT_EQ(stTriggerTaskFetchRecalcRequest(&task_, &request), TSDB_CODE_SUCCESS);
+    return request;
+  }
+
+  uint64_t AttachManualRequest(SSTriggerRecalcRequest* request, uint64_t readerToken, uint64_t runnerToken) {
+    context_.pManualRecalcRequest = request;
+    context_.gid = request->gid;
+    context_.scanRange = request->scanRange;
+    context_.calcRange = request->calcRange;
+    context_.stepRange = request->calcRange;
+    taosArrayDestroy(context_.pContributors);
+    context_.pContributors = taosArrayDup(request->pContributors, nullptr);
+    EXPECT_NE(context_.pContributors, nullptr);
+
+    uint64_t stepId = 0;
+    EXPECT_EQ(stRecalcTrackerBeginAttemptStep(task_.pRecalcTracker, request->attempt, request->gid,
+                                              stTriggerTaskProgressRangeFromClosed(request->calcRange),
+                                              request->pContributors, &stepId),
+              TSDB_CODE_SUCCESS);
+    if (readerToken != 0) {
+      EXPECT_EQ(stRecalcTrackerAddAttemptReader(task_.pRecalcTracker, request->attempt, stepId, readerToken),
+                TSDB_CODE_SUCCESS);
+    }
+    if (runnerToken != 0) {
+      EXPECT_EQ(stRecalcTrackerAddAttemptRunner(task_.pRecalcTracker, request->attempt, stepId, runnerToken),
+                TSDB_CODE_SUCCESS);
+    }
+    SStreamRecalcAttemptOutcome outcome = {};
+    EXPECT_EQ(stRecalcTrackerSetAttemptTriggerDone(task_.pRecalcTracker, request->attempt, stepId, 0, TSDB_CODE_SUCCESS,
+                                                   &outcome),
+              TSDB_CODE_SUCCESS);
+    EXPECT_EQ(outcome.decision, STREAM_RECALC_ATTEMPT_NONE);
+    context_.progressStepId = stepId;
+    return stepId;
+  }
+
+  int32_t ProcessManualReaderResponse(SSTriggerRecalcRequest* request, uint64_t stepId, uint64_t token,
+                                      int32_t responseCode) {
+    progress_->pullReq.base.type = STRIGGER_PULL_TSDB_META;
+    progress_->pullReq.base.progressStepId = stepId;
+    progress_->pullReq.base.progressRequestToken = token;
+    progress_->pullReq.base.manualAttempt = {request->attempt.chainId, request->attempt.executionOrdinal};
+    SSTriggerAHandle ahandle = {.streamId = task_.task.streamId,
+                                .taskId = task_.task.taskId,
+                                .sessionId = kHistorySessionId,
+                                .param = &progress_->pullReq.base,
+                                .progressStepId = stepId,
+                                .progressRequestToken = token,
+                                .manualAttempt = progress_->pullReq.base.manualAttempt};
+    SMsgSendInfo     sendInfo = {};
+    sendInfo.param = &ahandle;
+    SRpcMsg response = {.msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .code = responseCode};
+    response.info.ahandle = &sendInfo;
+    int64_t errorTaskId = 0;
+    return stTriggerTaskProcessRsp(&task_.task, &response, &errorTaskId);
+  }
+
+  SSTriggerRecalcRequest* BuildFrozenManualRequest(std::initializer_list<int64_t> recalcIds) {
+    SArray* groups = taosArrayInit(1, sizeof(int64_t));
+    if (groups == nullptr) return nullptr;
+    const int64_t gid = 11;
+    if (taosArrayPush(groups, &gid) == nullptr) {
+      taosArrayDestroy(groups);
+      return nullptr;
+    }
+
+    SArray* contributors = nullptr;
+    for (int64_t recalcId : recalcIds) {
+      if (stRecalcTrackerRegisterJob(task_.pRecalcTracker, recalcId, {100, 200}, groups) != TSDB_CODE_SUCCESS ||
+          stRecalcContributorsAdd(task_.pRecalcTracker, &contributors, recalcId, {100, 200}) != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(contributors);
+        taosArrayDestroy(groups);
+        return nullptr;
+      }
+    }
+    taosArrayDestroy(groups);
+
+    auto* request = static_cast<SSTriggerRecalcRequest*>(taosMemoryCalloc(1, sizeof(SSTriggerRecalcRequest)));
+    if (request == nullptr) {
+      taosArrayDestroy(contributors);
+      return nullptr;
+    }
+    request->gid = gid;
+    request->scanRange = {.skey = 100, .ekey = 199};
+    request->calcRange = request->scanRange;
+    request->pContributors = contributors;
+    request->pTsdbVersions = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+    request->pRetryWaitNode =
+        static_cast<SListNode*>(taosMemoryCalloc(1, sizeof(SListNode) + sizeof(ManualWaitInfoView)));
+    const int32_t          readerNodeId = 7;
+    const int64_t          readerVersion = 1;
+    SSTriggerRecalcReqList requestList = {};
+    if (request->pTsdbVersions == nullptr ||
+        tSimpleHashPut(request->pTsdbVersions, &readerNodeId, sizeof(readerNodeId), &readerVersion,
+                       sizeof(readerVersion)) != TSDB_CODE_SUCCESS ||
+        tSimpleHashPut(task_.pRecalcRequestMap, &gid, sizeof(gid), &requestList, sizeof(requestList)) !=
+            TSDB_CODE_SUCCESS ||
+        request->pRetryWaitNode == nullptr ||
+        stRecalcAttemptCreate(recalcIds.size(), &request->pPreparedAttempt) != TSDB_CODE_SUCCESS ||
+        stRecalcTrackerActivateAttempt(task_.pRecalcTracker, &request->pPreparedAttempt, request->gid, {100, 200},
+                                       {100, 200}, request->pContributors, &request->attempt) != TSDB_CODE_SUCCESS) {
+      DestroyRecalcRequest(&request);
+      return nullptr;
+    }
+    request->frozen = true;
+    task_.historyStep = 100;
+    return request;
+  }
+
+  void RegisterPendingJob(int64_t recalcId, TSKEY start, TSKEY end) {
+    SArray* groups = taosArrayInit(1, sizeof(int64_t));
+    ASSERT_NE(groups, nullptr);
+    const int64_t gid = 22;
+    ASSERT_NE(taosArrayPush(groups, &gid), nullptr);
+    ASSERT_EQ(stRecalcTrackerRegisterJob(task_.pRecalcTracker, recalcId, {start, end}, groups), TSDB_CODE_SUCCESS);
+    taosArrayDestroy(groups);
+  }
+
+  int32_t ProcessManualRunnerResponse(SSTriggerRecalcRequest* request, uint64_t stepId, uint64_t token,
+                                      int32_t responseCode) {
+    calcRequest_.progressStepId = stepId;
+    calcRequest_.progressRequestToken = token;
+    calcRequest_.manualAttempt = {request->attempt.chainId, request->attempt.executionOrdinal};
+    SSTriggerAHandle ahandle = {.streamId = task_.task.streamId,
+                                .taskId = task_.task.taskId,
+                                .sessionId = kHistorySessionId,
+                                .param = &calcRequest_,
+                                .progressStepId = stepId,
+                                .progressRequestToken = token,
+                                .manualAttempt = calcRequest_.manualAttempt};
+    SMsgSendInfo     sendInfo = {};
+    sendInfo.param = &ahandle;
+    SRpcMsg response = {.msgType = TDMT_STREAM_TRIGGER_CALC_RSP, .code = responseCode};
+    response.info.ahandle = &sendInfo;
+    int64_t errorTaskId = 0;
+    return stTriggerTaskProcessRsp(&task_.task, &response, &errorTaskId);
+  }
+
+  void* EncodeCountTriggerPage(int64_t gid, std::initializer_list<TSKEY> timestamps, int32_t* pLen) {
+    SSDataBlock* block = nullptr;
+    if (createDataBlock(&block) != TSDB_CODE_SUCCESS) return nullptr;
+    SColumnInfoData tsCol = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(TSKEY), 1);
+    if (blockDataAppendColInfo(block, &tsCol) != TSDB_CODE_SUCCESS ||
+        blockDataEnsureCapacity(block, timestamps.size()) != TSDB_CODE_SUCCESS) {
+      blockDataDestroy(block);
+      return nullptr;
+    }
+    int32_t row = 0;
+    for (TSKEY ts : timestamps) {
+      if (colDataSetVal(static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0)), row++,
+                        reinterpret_cast<const char*>(&ts), false) != TSDB_CODE_SUCCESS) {
+        blockDataDestroy(block);
+        return nullptr;
+      }
+    }
+    block->info.id.groupId = gid;
+    block->info.rows = timestamps.size();
+
+    const int32_t encodedSize = blockGetEncodeSize(block);
+    void*         payload = rpcMallocCont(sizeof(int32_t) + encodedSize);
+    if (payload == nullptr) {
+      blockDataDestroy(block);
+      return nullptr;
+    }
+    *static_cast<int32_t*>(payload) = 1;
+    const int32_t encoded = blockEncode(block, static_cast<char*>(payload) + sizeof(int32_t), encodedSize, 1);
+    blockDataDestroy(block);
+    if (encoded < 0) {
+      rpcFreeCont(payload);
+      return nullptr;
+    }
+    *pLen = sizeof(int32_t) + encoded;
+    return payload;
+  }
+
+  int32_t ProcessCapturedPullResponse(int32_t responseCode, int64_t* pErrorTaskId = nullptr, void* pCont = nullptr,
+                                      int32_t contLen = 0) {
+    SMsgSendInfo* sendInfo = gRecalcBarrierSendState.pullAhandle;
+    if (sendInfo == nullptr) return TSDB_CODE_INVALID_STATE;
+    gRecalcBarrierSendState.pullAhandle = nullptr;
+    SRpcMsg response = {
+        .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .pCont = pCont, .contLen = contLen, .code = responseCode};
+    response.info.ahandle = sendInfo;
+    int64_t localErrorTaskId = 0;
+    int32_t code =
+        stTriggerTaskProcessRsp(&task_.task, &response, pErrorTaskId == nullptr ? &localErrorTaskId : pErrorTaskId);
+    destroyAhandle(sendInfo);
+    return code;
+  }
+
+  int32_t ProcessCapturedCalcResponse(int32_t responseCode) {
+    SMsgSendInfo* sendInfo = gRecalcBarrierSendState.retryAhandle;
+    if (sendInfo == nullptr) return TSDB_CODE_INVALID_STATE;
+    gRecalcBarrierSendState.retryAhandle = nullptr;
+    SRpcMsg response = {.msgType = TDMT_STREAM_TRIGGER_CALC_RSP, .code = responseCode};
+    response.info.ahandle = sendInfo;
+    int64_t errorTaskId = 0;
+    int32_t code = stTriggerTaskProcessRsp(&task_.task, &response, &errorTaskId);
+    destroyAhandle(sendInfo);
+    return code;
+  }
+
+  void ResumeManualRetryThroughTimer(SListNode* retryWaitNode) {
+    ASSERT_NE(retryWaitNode, nullptr);
+    ASSERT_NE(gManualWaitCallback, nullptr);
+
+    if (task_.pHistoryContext == &context_) {
+      auto* idleContext = static_cast<SSTriggerHistoryContext*>(taosMemoryCalloc(1, sizeof(SSTriggerHistoryContext)));
+      ASSERT_NE(idleContext, nullptr);
+      idleContext->pTask = &task_;
+      task_.pHistoryContext = idleContext;
+    }
+
+    gManualAcquiredTask = &task_.task;
+    stub_.set(streamAcquireTask, acquireManualTriggerTask);
+    stub_.set(streamReleaseTask, releaseManualTriggerTask);
+    PutToQueueFp previousPutToQueue = gStreamMgmt.msgCb.putToQueueFp;
+    gStreamMgmt.msgCb.putToQueueFp = captureManualTriggerStart;
+    reinterpret_cast<ManualWaitInfoView*>(retryWaitNode->data)->resumeTime = 0;
+    gManualWaitCallback(nullptr, nullptr);
+    gStreamMgmt.msgCb.putToQueueFp = previousPutToQueue;
+    gManualAcquiredTask = nullptr;
+
+    ASSERT_NE(gManualQueuedCtrl.pCont, nullptr);
+    ASSERT_EQ(ProcessQueuedManualCtrl(), TSDB_CODE_SUCCESS);
+  }
+
+  void ExpectNoManualRecalcJobs() {
+    bool    historyValid = false;
+    int32_t historyProgress = 0;
+    SArray* snapshots = nullptr;
+    SArray* details = nullptr;
+    ASSERT_EQ(stRecalcTrackerCopySnapshotWithDetails(task_.pRecalcTracker, &historyValid, &historyProgress, &snapshots,
+                                                     &details),
+              TSDB_CODE_SUCCESS);
+    EXPECT_TRUE(snapshots == nullptr || taosArrayGetSize(snapshots) == 0);
+    EXPECT_TRUE(details == nullptr || taosArrayGetSize(details) == 0);
+    taosArrayDestroy(snapshots);
+    DestroyRecalcDetails(details);
+  }
+
+  bool HasRecalcDetail(int64_t recalcId) {
+    bool    historyValid = false;
+    int32_t historyProgress = 0;
+    SArray* snapshots = nullptr;
+    SArray* details = nullptr;
+    EXPECT_EQ(stRecalcTrackerCopySnapshotWithDetails(task_.pRecalcTracker, &historyValid, &historyProgress, &snapshots,
+                                                     &details),
+              TSDB_CODE_SUCCESS);
+    bool found = false;
+    for (int32_t i = 0; details != nullptr && i < taosArrayGetSize(details); ++i) {
+      auto* detail = static_cast<SStreamRecalcDetail*>(taosArrayGet(details, i));
+      if (detail->recalcId == recalcId) found = true;
+    }
+    taosArrayDestroy(snapshots);
+    DestroyRecalcDetails(details);
+    return found;
+  }
+
+  int32_t ProcessQueuedManualCtrl() {
+    if (gManualQueuedCtrl.pCont == nullptr) return TSDB_CODE_INVALID_STATE;
+    int64_t errorTaskId = 0;
+    int32_t code = stTriggerTaskProcessRsp(&task_.task, &gManualQueuedCtrl, &errorTaskId);
+    rpcFreeCont(gManualQueuedCtrl.pCont);
+    gManualQueuedCtrl = {};
+    return code;
+  }
+
+  void DestroyTimerHistoryContext(SSTriggerHistoryContext* timerContext) {
+    auto* cleanupTask = static_cast<SStreamTriggerTask*>(taosMemoryCalloc(1, sizeof(SStreamTriggerTask)));
+    ASSERT_NE(cleanupTask, nullptr);
+    cleanupTask->task.streamId = task_.task.streamId;
+    cleanupTask->task.taskId = task_.task.taskId;
+    cleanupTask->task.undeployCb = detachUndeployedTriggerTask;
+    cleanupTask->pHistoryContext = timerContext;
+    SStreamTriggerTask* rawTask = cleanupTask;
+    ASSERT_EQ(stTriggerTaskUndeploy(&cleanupTask, true), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(cleanupTask, nullptr);
+    taosMemoryFree(rawTask);
+  }
+};
+
+class StreamTriggerTaskManualRetryIntegrationTest : public StreamTriggerTaskManualRetryTest {};
+
+TEST_F(StreamTriggerTaskManualRetryIntegrationTest, ReaderTimeoutDrainsAndRetriesFrozenRequestToSuccess) {
+  constexpr int64_t       firstRecalcId = 301;
+  constexpr int64_t       secondRecalcId = 302;
+  SSTriggerRecalcRequest* request = BuildFrozenManualRequest({firstRecalcId, secondRecalcId});
+  ASSERT_NE(request, nullptr);
+  ASSERT_TRUE(request->frozen);
+  ASSERT_EQ(taosArrayGetSize(request->pContributors), 2);
+  ASSERT_EQ(request->attempt.executionOrdinal, 0U);
+  const uint64_t chainId = request->attempt.chainId;
+
+  stub_.reset(stTriggerTaskReleaseRequest);
+  pipelinedManualFlowInitialized_ = true;
+  task_.calcEventType = STRIGGER_EVENT_WINDOW_CLOSE;
+  task_.windowCount = 1;
+  task_.windowSliding = 1;
+  task_.histTrigTsIndex = 0;
+  context_.pCalcDataBlocks = taosArrayInit(0, POINTER_BYTES);
+  context_.pMaxDelayHeap = heapCreate(compareRecalcBarrierHistoryGroups);
+  context_.pSorter = static_cast<SSTriggerTimestampSorter*>(taosMemoryCalloc(1, sizeof(SSTriggerTimestampSorter)));
+  ASSERT_NE(context_.pCalcDataBlocks, nullptr);
+  ASSERT_NE(context_.pMaxDelayHeap, nullptr);
+  ASSERT_NE(context_.pSorter, nullptr);
+  ASSERT_EQ(stTimestampSorterInit(context_.pSorter, &task_), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taosObjPoolInit(&context_.calcParamPool, 8, sizeof(SSTriggerCalcParam)), TSDB_CODE_SUCCESS);
+  tSimpleHashSetFreeFp(context_.pGroups, destroyPipelinedManualHistoryGroup);
+  TD_DLIST_INIT(&context_.groupsToCheck);
+  TD_DLIST_INIT(&context_.groupsForceClose);
+
+  task_.pCalcNodes = taosArrayInit_s(sizeof(SSTriggerCalcNode), 1);
+  ASSERT_NE(task_.pCalcNodes, nullptr);
+  auto* calcNode = static_cast<SSTriggerCalcNode*>(taosArrayGet(task_.pCalcNodes, 0));
+  calcNode->pSlots = taosArrayInit_s(sizeof(SSTriggerCalcSlot), 2);
+  ASSERT_NE(calcNode->pSlots, nullptr);
+  for (int32_t i = 0; i < TARRAY_SIZE(calcNode->pSlots); ++i) {
+    auto* slot = static_cast<SSTriggerCalcSlot*>(taosArrayGet(calcNode->pSlots, i));
+    TD_DLIST_APPEND(&calcNode->idleSlots, slot);
+  }
+
+  auto* requestList = static_cast<SSTriggerRecalcReqList*>(
+      tSimpleHashGet(task_.pRecalcRequestMap, &request->gid, sizeof(request->gid)));
+  ASSERT_NE(requestList, nullptr);
+  TD_DLIST_APPEND(requestList, request);
+  ASSERT_EQ(tdListAppend(task_.pRecalcRequests, &request), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(ProcessHistoryStart(), TSDB_CODE_SUCCESS);
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* initialReaderAhandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  auto* initialReaderRequest = static_cast<SSTriggerPullRequest*>(initialReaderAhandle->param);
+  ASSERT_EQ(initialReaderRequest->type, STRIGGER_PULL_FIRST_TS);
+  EXPECT_EQ(initialReaderAhandle->manualAttempt.chainId, chainId);
+  EXPECT_EQ(initialReaderAhandle->manualAttempt.executionOrdinal, 0U);
+  EXPECT_EQ(initialReaderAhandle->sessionId, kHistorySessionId);
+  EXPECT_NE(initialReaderAhandle->progressStepId, 0U);
+  EXPECT_NE(initialReaderAhandle->progressRequestToken, 0U);
+  EXPECT_EQ(initialReaderRequest->manualAttempt.chainId, initialReaderAhandle->manualAttempt.chainId);
+  EXPECT_EQ(initialReaderRequest->manualAttempt.executionOrdinal, initialReaderAhandle->manualAttempt.executionOrdinal);
+  EXPECT_EQ(initialReaderRequest->progressStepId, initialReaderAhandle->progressStepId);
+  EXPECT_EQ(initialReaderRequest->progressRequestToken, initialReaderAhandle->progressRequestToken);
+  ASSERT_EQ(task_.pHistoryContext->pManualRecalcRequest, request);
+  EXPECT_EQ(task_.pHistoryContext->progressStepId, initialReaderAhandle->progressStepId);
+  const uint64_t initialStepId = initialReaderAhandle->progressStepId;
+  const uint64_t initialReaderToken = initialReaderAhandle->progressRequestToken;
+
+  auto* initialFirstTsRequest = reinterpret_cast<SSTriggerFirstTsRequest*>(initialReaderRequest);
+  EXPECT_EQ(initialFirstTsRequest->gid, request->gid);
+  SStreamTsResponse firstTs = {.ver = 1, .tsInfo = taosArrayInit(1, sizeof(STsInfo))};
+  ASSERT_NE(firstTs.tsInfo, nullptr);
+  STsInfo firstTsEntry = {.gId = request->gid, .ts = 100};
+  ASSERT_NE(taosArrayPush(firstTs.tsInfo, &firstTsEntry), nullptr);
+  const int32_t firstTsLen = tSerializeSStreamTsResponse(nullptr, 0, &firstTs);
+  ASSERT_GT(firstTsLen, 0);
+  void* firstTsPayload = rpcMallocCont(firstTsLen);
+  ASSERT_NE(firstTsPayload, nullptr);
+  ASSERT_EQ(tSerializeSStreamTsResponse(firstTsPayload, firstTsLen, &firstTs), firstTsLen);
+  ASSERT_EQ(ProcessCapturedPullResponse(TSDB_CODE_SUCCESS, nullptr, firstTsPayload, firstTsLen), TSDB_CODE_SUCCESS);
+  rpcFreeCont(firstTsPayload);
+  taosArrayDestroy(firstTs.tsInfo);
+
+  ASSERT_EQ(tSimpleHashGetSize(context_.pGroups), 1);
+  auto** groupEntry =
+      static_cast<SSTriggerHistoryGroup**>(tSimpleHashGet(context_.pGroups, &request->gid, sizeof(request->gid)));
+  ASSERT_NE(groupEntry, nullptr);
+  ASSERT_NE(*groupEntry, nullptr);
+  EXPECT_EQ((*groupEntry)->gid, request->gid);
+  EXPECT_EQ((*groupEntry)->pContext, &context_);
+
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* triggerDataAhandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  auto* triggerDataRequest = static_cast<SSTriggerTsdbTriggerDataRequest*>(triggerDataAhandle->param);
+  ASSERT_EQ(triggerDataRequest->base.type, STRIGGER_PULL_TSDB_TRIGGER_DATA);
+  EXPECT_EQ(triggerDataRequest->gid, request->gid);
+  EXPECT_EQ(triggerDataAhandle->manualAttempt.chainId, chainId);
+  EXPECT_EQ(triggerDataAhandle->manualAttempt.executionOrdinal, 0U);
+  EXPECT_EQ(triggerDataAhandle->sessionId, kHistorySessionId);
+  EXPECT_EQ(triggerDataAhandle->progressStepId, initialStepId);
+  EXPECT_NE(triggerDataAhandle->progressRequestToken, 0U);
+  EXPECT_NE(triggerDataAhandle->progressRequestToken, initialReaderToken);
+  const uint64_t triggerDataToken = triggerDataAhandle->progressRequestToken;
+
+  int32_t triggerDataLen = 0;
+  void*   triggerDataPayload = EncodeCountTriggerPage(request->gid, {100}, &triggerDataLen);
+  ASSERT_NE(triggerDataPayload, nullptr);
+  ASSERT_GT(triggerDataLen, 0);
+  ASSERT_EQ(ProcessCapturedPullResponse(TSDB_CODE_SUCCESS, nullptr, triggerDataPayload, triggerDataLen),
+            TSDB_CODE_SUCCESS);
+  rpcFreeCont(triggerDataPayload);
+
+  ASSERT_NE(gRecalcBarrierSendState.retryAhandle, nullptr);
+  auto* initialRunnerAhandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.retryAhandle->param);
+  auto* initialRunnerRequest = static_cast<SSTriggerCalcRequest*>(initialRunnerAhandle->param);
+  EXPECT_EQ(initialRunnerAhandle->manualAttempt.chainId, chainId);
+  EXPECT_EQ(initialRunnerAhandle->manualAttempt.executionOrdinal, 0U);
+  EXPECT_EQ(initialRunnerAhandle->sessionId, kHistorySessionId);
+  EXPECT_EQ(initialRunnerAhandle->progressStepId, initialStepId);
+  EXPECT_NE(initialRunnerAhandle->progressRequestToken, 0U);
+  EXPECT_NE(initialRunnerAhandle->progressRequestToken, initialReaderToken);
+  EXPECT_NE(initialRunnerAhandle->progressRequestToken, triggerDataToken);
+  EXPECT_EQ(initialRunnerRequest->manualAttempt.chainId, initialRunnerAhandle->manualAttempt.chainId);
+  EXPECT_EQ(initialRunnerRequest->manualAttempt.executionOrdinal, initialRunnerAhandle->manualAttempt.executionOrdinal);
+  EXPECT_EQ(initialRunnerRequest->progressStepId, initialRunnerAhandle->progressStepId);
+  EXPECT_EQ(initialRunnerRequest->progressRequestToken, initialRunnerAhandle->progressRequestToken);
+  EXPECT_EQ(initialRunnerRequest->gid, request->gid);
+  ASSERT_EQ(task_.pHistoryContext->pManualRecalcRequest, request);
+
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* nextReaderAhandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  auto* nextReaderRequest = static_cast<SSTriggerTsdbTriggerDataRequest*>(nextReaderAhandle->param);
+  ASSERT_EQ(nextReaderRequest->base.type, STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT);
+  EXPECT_EQ(nextReaderRequest->gid, request->gid);
+  EXPECT_EQ(nextReaderAhandle->manualAttempt.chainId, chainId);
+  EXPECT_EQ(nextReaderAhandle->manualAttempt.executionOrdinal, 0U);
+  EXPECT_EQ(nextReaderAhandle->sessionId, kHistorySessionId);
+  EXPECT_NE(nextReaderAhandle->progressStepId, 0U);
+  EXPECT_NE(nextReaderAhandle->progressStepId, initialRunnerAhandle->progressStepId);
+  EXPECT_NE(nextReaderAhandle->progressRequestToken, 0U);
+  EXPECT_NE(nextReaderAhandle->progressRequestToken, initialReaderToken);
+  EXPECT_NE(nextReaderAhandle->progressRequestToken, triggerDataToken);
+  EXPECT_NE(nextReaderAhandle->progressRequestToken, initialRunnerAhandle->progressRequestToken);
+  EXPECT_EQ(task_.pHistoryContext->progressStepId, nextReaderAhandle->progressStepId);
+  SListNode* retryWaitNode = request->pRetryWaitNode;
+
+  ASSERT_EQ(ProcessCapturedPullResponse(TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(TD_DLIST_NELES(&task_.backoffRecalcRequests), 0);
+  EXPECT_TRUE(request->retryScheduled);
+  EXPECT_EQ(task_.pHistoryContext->pManualRecalcRequest, request);
+  ASSERT_NE(gRecalcBarrierSendState.retryAhandle, nullptr);
+  EXPECT_EQ(static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.retryAhandle->param), initialRunnerAhandle);
+  ASSERT_EQ(ProcessCapturedCalcResponse(TSDB_CODE_SUCCESS), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+  EXPECT_EQ(context_.pManualRecalcRequest, nullptr);
+  EXPECT_EQ(context_.status, STRIGGER_CONTEXT_WAIT_RECALC_REQ);
+  EXPECT_EQ(TD_DLIST_NELES(&calcNode->idleSlots), 2);
+
+  ResumeManualRetryThroughTimer(retryWaitNode);
+  EXPECT_EQ(gManualTriggerStartCalls, 1);
+  EXPECT_TRUE(request->noMerge);
+  EXPECT_EQ(request->attempt.executionOrdinal, 1U);
+  ASSERT_NE(task_.pHistoryContext, &context_);
+  ASSERT_EQ(task_.pHistoryContext->pManualRecalcRequest, request);
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* retryAhandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  EXPECT_EQ(retryAhandle->manualAttempt.chainId, chainId);
+  EXPECT_EQ(retryAhandle->manualAttempt.executionOrdinal, 1U);
+  EXPECT_NE(retryAhandle->progressStepId, 0U);
+  EXPECT_NE(retryAhandle->progressRequestToken, 0U);
+
+  for (int32_t responseCount = 0; responseCount < 3; ++responseCount) {
+    ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+    auto* ahandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+    EXPECT_EQ(ahandle->manualAttempt.chainId, chainId);
+    EXPECT_EQ(ahandle->manualAttempt.executionOrdinal, 1U);
+    ASSERT_EQ(ProcessCapturedPullResponse(TSDB_CODE_STREAM_NO_DATA), TSDB_CODE_SUCCESS);
+    if (CopyRecalcSnapshot(task_.pRecalcTracker, firstRecalcId).status == STREAM_RECALC_STATUS_FINISHED) break;
+  }
+
+  bool    historyValid = false;
+  int32_t historyProgress = 0;
+  SArray* snapshots = nullptr;
+  SArray* details = nullptr;
+  ASSERT_EQ(stRecalcTrackerCopySnapshotWithDetails(task_.pRecalcTracker, &historyValid, &historyProgress, &snapshots,
+                                                   &details),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(snapshots, nullptr);
+  EXPECT_EQ(CopyRecalcSnapshot(task_.pRecalcTracker, firstRecalcId).status, STREAM_RECALC_STATUS_FINISHED);
+  EXPECT_EQ(CopyRecalcSnapshot(task_.pRecalcTracker, secondRecalcId).status, STREAM_RECALC_STATUS_FINISHED);
+  EXPECT_TRUE(details == nullptr || taosArrayGetSize(details) == 0);
+  EXPECT_EQ(gManualStreamErrorCalls, 0);
+
+  taosArrayDestroy(snapshots);
+  DestroyRecalcDetails(details);
+  SSTriggerHistoryContext* retryContext = task_.pHistoryContext;
+  task_.pHistoryContext = &context_;
+  DestroyTimerHistoryContext(retryContext);
+  for (int32_t i = 0; i < TARRAY_SIZE(calcNode->pSlots); ++i) {
+    auto* slot = static_cast<SSTriggerCalcSlot*>(taosArrayGet(calcNode->pSlots, i));
+    tDestroySTriggerCalcRequest(&slot->req);
+  }
+  taosArrayDestroy(calcNode->pSlots);
+  calcNode->pSlots = nullptr;
+  taosArrayDestroy(task_.pCalcNodes);
+  task_.pCalcNodes = nullptr;
+}
+
+TEST_F(StreamTriggerTaskManualRetryIntegrationTest, FourFailedAttemptsFailOnlyDependentJobs) {
+  constexpr int64_t       mergedJobA = 311;
+  constexpr int64_t       mergedJobB = 312;
+  constexpr int64_t       unrelatedJob = 313;
+  SSTriggerRecalcRequest* request = BuildFrozenManualRequest({mergedJobA, mergedJobB});
+  ASSERT_NE(request, nullptr);
+  auto* requestList = static_cast<SSTriggerRecalcReqList*>(
+      tSimpleHashGet(task_.pRecalcRequestMap, &request->gid, sizeof(request->gid)));
+  ASSERT_NE(requestList, nullptr);
+  TD_DLIST_APPEND(requestList, request);
+  ASSERT_EQ(tdListAppend(task_.pRecalcRequests, &request), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(ProcessHistoryStart(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(task_.pHistoryContext->pManualRecalcRequest, request);
+  ASSERT_TRUE(request->frozen);
+  ASSERT_EQ(taosArrayGetSize(request->pContributors), 2);
+  ASSERT_EQ(request->attempt.executionOrdinal, 0U);
+  const uint64_t chainId = request->attempt.chainId;
+  RegisterPendingJob(unrelatedJob, 300, 400);
+  const SStreamRecalcSnapshot unrelatedBefore = CopyRecalcSnapshot(task_.pRecalcTracker, unrelatedJob);
+  ASSERT_EQ(unrelatedBefore.status, STREAM_RECALC_STATUS_PENDING);
+  ASSERT_EQ(unrelatedBefore.progressPct, 0);
+  const bool unrelatedDetailBefore = HasRecalcDetail(unrelatedJob);
+  ASSERT_FALSE(unrelatedDetailBefore);
+
+  constexpr uint32_t maxAttemptOrdinal = 3;
+  for (uint32_t ordinal = 0; ordinal <= maxAttemptOrdinal; ++ordinal) {
+    ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+    auto* retryAhandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+    EXPECT_EQ(retryAhandle->manualAttempt.chainId, chainId);
+    EXPECT_EQ(retryAhandle->manualAttempt.executionOrdinal, ordinal);
+    EXPECT_NE(retryAhandle->progressStepId, 0U);
+    EXPECT_NE(retryAhandle->progressRequestToken, 0U);
+    ASSERT_EQ(task_.pHistoryContext->pManualRecalcRequest, request);
+    EXPECT_TRUE(request->frozen);
+    EXPECT_EQ(request->noMerge, ordinal > 0);
+    EXPECT_EQ(request->attempt.executionOrdinal, ordinal);
+    SListNode* retryWaitNode = request->pRetryWaitNode;
+    ASSERT_EQ(ProcessCapturedPullResponse(TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
+    if (ordinal < maxAttemptOrdinal) {
+      ASSERT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+      ResumeManualRetryThroughTimer(retryWaitNode);
+    }
+  }
+
+  EXPECT_EQ(CopyRecalcSnapshot(task_.pRecalcTracker, mergedJobA).status, STREAM_RECALC_STATUS_FAILED);
+  EXPECT_EQ(CopyRecalcSnapshot(task_.pRecalcTracker, mergedJobB).status, STREAM_RECALC_STATUS_FAILED);
+  const SStreamRecalcSnapshot unrelatedAfter = CopyRecalcSnapshot(task_.pRecalcTracker, unrelatedJob);
+  EXPECT_EQ(unrelatedAfter.recalcId, unrelatedBefore.recalcId);
+  EXPECT_EQ(unrelatedAfter.start, unrelatedBefore.start);
+  EXPECT_EQ(unrelatedAfter.end, unrelatedBefore.end);
+  EXPECT_EQ(unrelatedAfter.progressPct, unrelatedBefore.progressPct);
+  EXPECT_EQ(unrelatedAfter.status, unrelatedBefore.status);
+  EXPECT_EQ(HasRecalcDetail(unrelatedJob), unrelatedDetailBefore);
+  EXPECT_EQ(gManualTriggerStartCalls, 3);
+  EXPECT_EQ(gManualStreamErrorCalls, 0);
+  SSTriggerHistoryContext* retryContext = task_.pHistoryContext;
+  task_.pHistoryContext = &context_;
+  DestroyTimerHistoryContext(retryContext);
+}
+
+TEST_F(StreamTriggerTaskManualRetryIntegrationTest, RealtimeReaderErrorKeepsLegacyRetryPath) {
+  ExpectNoManualRecalcJobs();
+  ASSERT_EQ(ProcessRealtimeStart(), TSDB_CODE_SUCCESS);
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* ahandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  auto* request = static_cast<SSTriggerPullRequest*>(ahandle->param);
+  EXPECT_EQ(ahandle->sessionId, kRealtimeSessionId);
+  EXPECT_EQ(ahandle->manualAttempt.chainId, 0U);
+  const int64_t readerTaskId = request->readerTaskId;
+  int64_t       errorTaskId = 0;
+  EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_RPC_TIMEOUT, &errorTaskId), TSDB_CODE_RPC_TIMEOUT);
+  EXPECT_EQ(errorTaskId, readerTaskId);
+  EXPECT_EQ(listNEles(&realtime_.retryPullReqs), 1);
+  EXPECT_EQ(TD_DLIST_NELES(&task_.backoffRecalcRequests), 0);
+  EXPECT_EQ(gManualStreamErrorCalls, 0);
+  ExpectNoManualRecalcJobs();
+  tdListEmpty(&realtime_.retryPullReqs);
+}
+
+TEST_F(StreamTriggerTaskManualRetryIntegrationTest, AutomaticRecalcReaderErrorKeepsLegacyRetryPath) {
+  STimeWindow range = {.skey = 100, .ekey = 199};
+  ExpectNoManualRecalcJobs();
+  ASSERT_EQ(stTriggerTaskAddRecalcRequest(&task_, &group_, &range, false, false, false, 0), TSDB_CODE_SUCCESS);
+  group_.oldThreshold = range.ekey;
+  ASSERT_EQ(stTriggerTaskReadyRecalcRequest(&task_, &group_), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(ProcessHistoryStart(), TSDB_CODE_SUCCESS);
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* ahandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  auto* request = static_cast<SSTriggerPullRequest*>(ahandle->param);
+  EXPECT_EQ(ahandle->sessionId, kHistorySessionId);
+  EXPECT_EQ(ahandle->manualAttempt.chainId, 0U);
+  EXPECT_FALSE(context_.isHistory);
+  const int64_t readerTaskId = request->readerTaskId;
+  int64_t       errorTaskId = 0;
+  EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_RPC_TIMEOUT, &errorTaskId), TSDB_CODE_RPC_TIMEOUT);
+  EXPECT_EQ(errorTaskId, readerTaskId);
+  EXPECT_EQ(listNEles(&context_.retryPullReqs), 1);
+  EXPECT_EQ(TD_DLIST_NELES(&task_.backoffRecalcRequests), 0);
+  EXPECT_EQ(gManualStreamErrorCalls, 0);
+  ExpectNoManualRecalcJobs();
+  tdListEmpty(&context_.retryPullReqs);
+}
+
+TEST_F(StreamTriggerTaskManualRetryIntegrationTest, FillHistoryReaderErrorKeepsLegacyRetryPath) {
+  ExpectNoManualRecalcJobs();
+  ASSERT_EQ(QueueFillHistory(100, 200), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(ProcessHistoryStart(), TSDB_CODE_SUCCESS);
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* ahandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  auto* request = static_cast<SSTriggerPullRequest*>(ahandle->param);
+  EXPECT_EQ(ahandle->sessionId, kHistorySessionId);
+  EXPECT_EQ(ahandle->manualAttempt.chainId, 0U);
+  EXPECT_TRUE(context_.isHistory);
+  const int64_t readerTaskId = request->readerTaskId;
+  int64_t       errorTaskId = 0;
+  EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_RPC_TIMEOUT, &errorTaskId), TSDB_CODE_RPC_TIMEOUT);
+  EXPECT_EQ(errorTaskId, readerTaskId);
+  EXPECT_EQ(listNEles(&context_.retryPullReqs), 1);
+  EXPECT_EQ(TD_DLIST_NELES(&task_.backoffRecalcRequests), 0);
+  EXPECT_EQ(gManualStreamErrorCalls, 0);
+  ExpectNoManualRecalcJobs();
+  tdListEmpty(&context_.retryPullReqs);
+}
+
+TEST_F(StreamTriggerTaskManualRetryTest, InitialReadyRequestsStillMerge) {
+  STimeWindow first = {.skey = 100, .ekey = 149};
+  STimeWindow second = {.skey = 150, .ekey = 199};
+  ASSERT_EQ(stTriggerTaskAddRecalcRequest(&task_, &group_, &first, false, true, false, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stTriggerTaskAddRecalcRequest(&task_, &group_, &second, false, true, false, 0), TSDB_CODE_SUCCESS);
+
+  SSTriggerRecalcRequest* request = FetchReadyRecalc();
+  ASSERT_NE(request, nullptr);
+  EXPECT_FALSE(request->frozen);
+  EXPECT_EQ(request->calcRange.skey, 100);
+  EXPECT_EQ(request->calcRange.ekey, 199);
+  DestroyRecalcRequest(&request);
+  EXPECT_EQ(FetchReadyRecalc(), nullptr);
+
+  ASSERT_EQ(stTriggerTaskAddRecalcRequest(&task_, &group_, &first, false, true, false, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(QueueManualRecalc(200, 150, 200), TSDB_CODE_SUCCESS);
+  request = FetchReadyRecalc();
+  ASSERT_NE(request, nullptr);
+  EXPECT_TRUE(request->frozen);
+  EXPECT_EQ(request->calcRange.skey, 100);
+  EXPECT_EQ(request->calcRange.ekey, 199);
+  ASSERT_EQ(taosArrayGetSize(request->pContributors), 1);
+  EXPECT_EQ(static_cast<SStreamRecalcContributor*>(taosArrayGet(request->pContributors, 0))->recalcId, 200);
+  DestroyRecalcRequest(&request);
+  EXPECT_EQ(FetchReadyRecalc(), nullptr);
+}
+
+TEST_F(StreamTriggerTaskManualRetryTest, FrozenRetryKeepsGroupRangesAndContributors) {
+  ASSERT_EQ(QueueManualRecalc(201), TSDB_CODE_SUCCESS);
+  SSTriggerRecalcRequest* request = FetchReadyRecalc();
+  ASSERT_NE(request, nullptr);
+  ASSERT_TRUE(request->frozen);
+  const int64_t     gid = request->gid;
+  const STimeWindow scanRange = request->scanRange;
+  const STimeWindow calcRange = request->calcRange;
+  ASSERT_EQ(taosArrayGetSize(request->pContributors), 1);
+  const SStreamRecalcContributor contributor =
+      *static_cast<SStreamRecalcContributor*>(taosArrayGet(request->pContributors, 0));
+
+  SListNode*     retryWaitNode = request->pRetryWaitNode;
+  const uint64_t stepId = AttachManualRequest(request, 1, 0);
+  ASSERT_EQ(ProcessManualReaderResponse(request, stepId, 1, TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+  EXPECT_EQ(context_.pManualRecalcRequest, nullptr);
+  EXPECT_TRUE(request->retryScheduled);
+  EXPECT_EQ(request->gid, gid);
+  EXPECT_EQ(request->scanRange.skey, scanRange.skey);
+  EXPECT_EQ(request->scanRange.ekey, scanRange.ekey);
+  EXPECT_EQ(request->calcRange.skey, calcRange.skey);
+  EXPECT_EQ(request->calcRange.ekey, calcRange.ekey);
+  ASSERT_EQ(taosArrayGetSize(request->pContributors), 1);
+  const auto* retryContributor = static_cast<const SStreamRecalcContributor*>(taosArrayGet(request->pContributors, 0));
+  EXPECT_EQ(retryContributor->recalcId, contributor.recalcId);
+  EXPECT_EQ(retryContributor->jobToken, contributor.jobToken);
+
+  auto* idleContext = static_cast<SSTriggerHistoryContext*>(taosMemoryCalloc(1, sizeof(SSTriggerHistoryContext)));
+  ASSERT_NE(idleContext, nullptr);
+  idleContext->pTask = &task_;
+  task_.pHistoryContext = idleContext;
+  gManualAcquiredTask = &task_.task;
+  stub_.set(streamAcquireTask, acquireManualTriggerTask);
+  stub_.set(streamReleaseTask, releaseManualTriggerTask);
+  PutToQueueFp previousPutToQueue = gStreamMgmt.msgCb.putToQueueFp;
+  gStreamMgmt.msgCb.putToQueueFp = captureManualTriggerStart;
+  reinterpret_cast<ManualWaitInfoView*>(retryWaitNode->data)->resumeTime = 0;
+  gManualWaitCallback(nullptr, nullptr);
+  gStreamMgmt.msgCb.putToQueueFp = previousPutToQueue;
+  gManualAcquiredTask = nullptr;
+
+  ASSERT_NE(gManualQueuedCtrl.pCont, nullptr);
+  ASSERT_EQ(ProcessQueuedManualCtrl(), TSDB_CODE_SUCCESS);
+  SSTriggerHistoryContext* timerContext = task_.pHistoryContext;
+  ASSERT_NE(timerContext, idleContext);
+  EXPECT_EQ(gManualTriggerStartCalls, 1);
+  SSTriggerRecalcRequest* retry = timerContext->pManualRecalcRequest;
+  ASSERT_EQ(retry, request);
+  EXPECT_TRUE(retry->frozen);
+  EXPECT_TRUE(retry->noMerge);
+  EXPECT_FALSE(retry->retryScheduled);
+  EXPECT_EQ(retry->attempt.executionOrdinal, 1U);
+  EXPECT_EQ(retry->gid, gid);
+  EXPECT_EQ(retry->scanRange.skey, scanRange.skey);
+  EXPECT_EQ(retry->scanRange.ekey, scanRange.ekey);
+  EXPECT_EQ(retry->calcRange.skey, calcRange.skey);
+  EXPECT_EQ(retry->calcRange.ekey, calcRange.ekey);
+  ASSERT_EQ(taosArrayGetSize(retry->pContributors), 1);
+  retryContributor = static_cast<const SStreamRecalcContributor*>(taosArrayGet(retry->pContributors, 0));
+  EXPECT_EQ(retryContributor->recalcId, contributor.recalcId);
+  EXPECT_EQ(retryContributor->jobToken, contributor.jobToken);
+  ASSERT_EQ(ProcessCapturedPullResponse(TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
+  task_.pHistoryContext = &context_;
+  DestroyTimerHistoryContext(timerContext);
+}
+
+TEST_F(StreamTriggerTaskManualRetryTest, TimerQueueFailureKeepsBackoffBeforeRetryStarts) {
+  ASSERT_EQ(QueueManualRecalc(211), TSDB_CODE_SUCCESS);
+  SSTriggerRecalcRequest* request = FetchReadyRecalc();
+  ASSERT_NE(request, nullptr);
+  SListNode*     retryWaitNode = request->pRetryWaitNode;
+  const uint64_t stepId = AttachManualRequest(request, 1, 0);
+  ASSERT_EQ(ProcessManualReaderResponse(request, stepId, 1, TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+
+  auto* idleContext = static_cast<SSTriggerHistoryContext*>(taosMemoryCalloc(1, sizeof(SSTriggerHistoryContext)));
+  ASSERT_NE(idleContext, nullptr);
+  idleContext->pTask = &task_;
+  task_.pHistoryContext = idleContext;
+  gManualAcquiredTask = &task_.task;
+  stub_.set(streamAcquireTask, acquireManualTriggerTask);
+  stub_.set(streamReleaseTask, releaseManualTriggerTask);
+  PutToQueueFp previousPutToQueue = gStreamMgmt.msgCb.putToQueueFp;
+  gStreamMgmt.msgCb.putToQueueFp = failManualTriggerStart;
+  reinterpret_cast<ManualWaitInfoView*>(retryWaitNode->data)->resumeTime = 0;
+  gManualWaitCallback(nullptr, nullptr);
+  gStreamMgmt.msgCb.putToQueueFp = previousPutToQueue;
+  gManualAcquiredTask = nullptr;
+
+  EXPECT_EQ(gManualTriggerStartCalls, 1);
+  EXPECT_EQ(task_.pHistoryContext, idleContext);
+  EXPECT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+  EXPECT_EQ(request->attempt.executionOrdinal, 0U);
+  EXPECT_EQ(listNEles(task_.pRecalcRequests), 0);
+  auto* waitInfo = reinterpret_cast<ManualWaitInfoView*>(retryWaitNode->data);
+  EXPECT_EQ(waitInfo->manualRecalcChainId, request->attempt.chainId);
+  EXPECT_EQ(waitInfo->controlMsgId, 0U);
+  EXPECT_GT(waitInfo->resumeTime, 0);
+
+  gManualAcquiredTask = &task_.task;
+  gStreamMgmt.msgCb.putToQueueFp = captureManualTriggerStart;
+  waitInfo->resumeTime = 0;
+  gManualWaitCallback(nullptr, nullptr);
+  gStreamMgmt.msgCb.putToQueueFp = previousPutToQueue;
+  gManualAcquiredTask = nullptr;
+  EXPECT_EQ(gManualTriggerStartCalls, 2);
+  EXPECT_NE(gManualQueuedCtrl.pCont, nullptr);
+  EXPECT_NE(waitInfo->controlMsgId, 0U);
+
+  SSTriggerHistoryContext* ownedContext = task_.pHistoryContext;
+  task_.pHistoryContext = &context_;
+  DestroyTimerHistoryContext(ownedContext);
+}
+
+TEST_F(StreamTriggerTaskManualRetryTest, TimerPopThenUndeployDoesNotRequeueMissingTask) {
+  ASSERT_EQ(QueueManualRecalc(214), TSDB_CODE_SUCCESS);
+  SSTriggerRecalcRequest* request = FetchReadyRecalc();
+  ASSERT_NE(request, nullptr);
+  SListNode*     retryWaitNode = request->pRetryWaitNode;
+  const uint64_t stepId = AttachManualRequest(request, 1, 0);
+  ASSERT_EQ(ProcessManualReaderResponse(request, stepId, 1, TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+
+  gManualUndeployDuringAcquire = static_cast<SStreamTriggerTask*>(taosMemoryCalloc(1, sizeof(SStreamTriggerTask)));
+  ASSERT_NE(gManualUndeployDuringAcquire, nullptr);
+  gManualUndeployDuringAcquire->task.streamId = task_.task.streamId;
+  gManualUndeployDuringAcquire->task.taskId = task_.task.taskId;
+  gManualUndeployDuringAcquire->task.undeployCb = detachUndeployedTriggerTask;
+  taosInitRWLatch(&gManualUndeployDuringAcquire->readerProgressLock);
+
+  stub_.set(streamAcquireTask, undeployManualTriggerTaskThenFailAcquire);
+  gManualTerminalWaitNode = retryWaitNode;
+  stub_.set(tdListAppendNode, captureManualTerminalWaitRequeue);
+  reinterpret_cast<ManualWaitInfoView*>(retryWaitNode->data)->resumeTime = 0;
+  gManualWaitCallback(nullptr, nullptr);
+  EXPECT_EQ(gManualUndeployCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gManualUndeployDuringAcquire, nullptr);
+  EXPECT_EQ(gManualMissingAcquireCalls, 1);
+  EXPECT_EQ(gManualTerminalRequeueCalls, 0);
+  EXPECT_EQ(gManualTriggerStartCalls, 0);
+}
+
+TEST_F(StreamTriggerTaskManualRetryTest, ProductionHistoryCtrlSendAndResponsePreserveRetryHandoff) {
+  ASSERT_EQ(QueueManualRecalc(212), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(ProcessHistoryStart(), TSDB_CODE_SUCCESS);
+  SSTriggerRecalcRequest* request = context_.pManualRecalcRequest;
+  ASSERT_NE(request, nullptr);
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* firstAhandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  EXPECT_EQ(firstAhandle->manualAttempt.chainId, request->attempt.chainId);
+  EXPECT_EQ(firstAhandle->manualAttempt.executionOrdinal, 0U);
+  SListNode* retryWaitNode = request->pRetryWaitNode;
+
+  ASSERT_EQ(ProcessCapturedPullResponse(TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(context_.pManualRecalcRequest, nullptr);
+  ASSERT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+
+  auto* idleContext = static_cast<SSTriggerHistoryContext*>(taosMemoryCalloc(1, sizeof(SSTriggerHistoryContext)));
+  ASSERT_NE(idleContext, nullptr);
+  idleContext->pTask = &task_;
+  task_.pHistoryContext = idleContext;
+  gManualAcquiredTask = &task_.task;
+  stub_.set(streamAcquireTask, acquireManualTriggerTask);
+  stub_.set(streamReleaseTask, releaseManualTriggerTask);
+  PutToQueueFp previousPutToQueue = gStreamMgmt.msgCb.putToQueueFp;
+  gStreamMgmt.msgCb.putToQueueFp = captureManualTriggerStart;
+  reinterpret_cast<ManualWaitInfoView*>(retryWaitNode->data)->resumeTime = 0;
+  gManualWaitCallback(nullptr, nullptr);
+  gStreamMgmt.msgCb.putToQueueFp = previousPutToQueue;
+  gManualAcquiredTask = nullptr;
+
+  ASSERT_NE(gManualQueuedCtrl.pCont, nullptr);
+  EXPECT_EQ(task_.pHistoryContext, idleContext);
+  EXPECT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+  EXPECT_EQ(request->attempt.executionOrdinal, 0U);
+  EXPECT_EQ(listNEles(task_.pRecalcRequests), 0);
+
+  ASSERT_EQ(ProcessQueuedManualCtrl(), TSDB_CODE_SUCCESS);
+  ASSERT_NE(task_.pHistoryContext, idleContext);
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* retryAhandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  EXPECT_EQ(retryAhandle->manualAttempt.chainId, request->attempt.chainId);
+  EXPECT_EQ(retryAhandle->manualAttempt.executionOrdinal, 1U);
+  ASSERT_EQ(ProcessCapturedPullResponse(TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+
+  SSTriggerHistoryContext* retryContext = task_.pHistoryContext;
+  task_.pHistoryContext = &context_;
+  DestroyTimerHistoryContext(retryContext);
+}
+
+TEST_F(StreamTriggerTaskManualRetryTest, NewRequestCannotMergeIntoFrozenRetry) {
+  ASSERT_EQ(QueueManualRecalc(202), TSDB_CODE_SUCCESS);
+  STimeWindow overlap = {.skey = 125, .ekey = 175};
+  ASSERT_EQ(stTriggerTaskAddRecalcRequest(&task_, &group_, &overlap, false, true, false, 0), TSDB_CODE_SUCCESS);
+  SSTriggerRecalcRequest* frozen = FetchReadyRecalc();
+  SSTriggerRecalcRequest* next = FetchReadyRecalc();
+  ASSERT_NE(frozen, nullptr);
+  ASSERT_NE(next, nullptr);
+  EXPECT_TRUE(frozen->frozen);
+  EXPECT_EQ(taosArrayGetSize(frozen->pContributors), 1);
+  EXPECT_EQ(next->pContributors, nullptr);
+  DestroyRecalcRequest(&frozen);
+  DestroyRecalcRequest(&next);
+}
+
+TEST_F(StreamTriggerTaskManualRetryTest, RetryRequestIsNotSplitBackIntoJobs) {
+  ASSERT_EQ(QueueManualRecalc(203), TSDB_CODE_SUCCESS);
+  SSTriggerRecalcRequest* request = FetchReadyRecalc();
+  ASSERT_NE(request, nullptr);
+  const uint64_t chainId = request->attempt.chainId;
+  const uint64_t stepId = AttachManualRequest(request, 1, 0);
+  ASSERT_EQ(ProcessManualReaderResponse(request, stepId, 1, TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(request->frozen);
+  EXPECT_EQ(taosArrayGetSize(request->pContributors), 1);
+  EXPECT_EQ(request->attempt.chainId, chainId);
+  EXPECT_EQ(TD_DLIST_NELES(&task_.backoffRecalcRequests), 1);
+  EXPECT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+  EXPECT_EQ(FetchReadyRecalc(), nullptr);
+}
+
+TEST_F(StreamTriggerTaskManualRetryTest, PreparedRetryNodeSurvivesAllocationFailureAfterActivation) {
+  ASSERT_EQ(QueueManualRecalc(204), TSDB_CODE_SUCCESS);
+  SSTriggerRecalcRequest* request = FetchReadyRecalc();
+  ASSERT_NE(request, nullptr);
+  EXPECT_TRUE(request->frozen);
+  EXPECT_EQ(request->pPreparedAttempt, nullptr);
+  EXPECT_NE(request->pRetryWaitNode, nullptr);
+
+  SListNode*     retryWaitNode = request->pRetryWaitNode;
+  const uint64_t stepId = AttachManualRequest(request, 1, 0);
+  ASSERT_EQ(ProcessManualReaderResponse(request, stepId, 1, TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+  EXPECT_EQ(request->pRetryWaitNode, nullptr);
+
+  gManualAcquiredTask = &task_.task;
+  stub_.set(streamAcquireTask, acquireManualTriggerTask);
+  stub_.set(streamReleaseTask, releaseManualTriggerTask);
+  PutToQueueFp previousPutToQueue = gStreamMgmt.msgCb.putToQueueFp;
+  gStreamMgmt.msgCb.putToQueueFp = captureManualTriggerStart;
+  reinterpret_cast<ManualWaitInfoView*>(retryWaitNode->data)->resumeTime = 0;
+  gManualWaitCallback(nullptr, nullptr);
+  gStreamMgmt.msgCb.putToQueueFp = previousPutToQueue;
+  gManualAcquiredTask = nullptr;
+
+  ASSERT_NE(gManualQueuedCtrl.pCont, nullptr);
+  stub_.set(taosMemCalloc, failManualRetryAllocation);
+  ASSERT_EQ(ProcessQueuedManualCtrl(), TSDB_CODE_SUCCESS);
+  stub_.reset(taosMemCalloc);
+
+  EXPECT_GT(gManualRetryAllocCalls, 0);
+  const auto* retryWaitInfo = reinterpret_cast<const ManualWaitInfoView*>(retryWaitNode->data);
+  EXPECT_EQ(retryWaitInfo->manualRecalcChainId, request->attempt.chainId);
+  EXPECT_GT(retryWaitInfo->resumeTime, 0);
+  EXPECT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+  EXPECT_EQ(request->pRetryWaitNode, nullptr);
+  EXPECT_TRUE(request->frozen);
+  EXPECT_EQ(request->attempt.executionOrdinal, 0U);
+}
+
+TEST_F(StreamTriggerTaskManualRetryTest, ReaderErrorBypassesRpcRetryQueueAndTaskError) {
+  ASSERT_EQ(QueueManualRecalc(205), TSDB_CODE_SUCCESS);
+  SSTriggerRecalcRequest* request = FetchReadyRecalc();
+  ASSERT_NE(request, nullptr);
+  const uint64_t stepId = AttachManualRequest(request, 1, 2);
+  ASSERT_EQ(ProcessManualReaderResponse(request, stepId, 1, TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(request->retryScheduled);
+  EXPECT_EQ(listNEles(&context_.retryPullReqs), 0);
+  EXPECT_EQ(gManualStreamErrorCalls, 0);
+}
+
+TEST_F(StreamTriggerTaskManualRetryTest, RunnerTimeoutBypassesRpcRetryQueueAndTaskError) {
+  ASSERT_EQ(QueueManualRecalc(206), TSDB_CODE_SUCCESS);
+  SSTriggerRecalcRequest* request = FetchReadyRecalc();
+  ASSERT_NE(request, nullptr);
+  const uint64_t stepId = AttachManualRequest(request, 8, 7);
+  ASSERT_EQ(ProcessManualRunnerResponse(request, stepId, 7, TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(request->retryScheduled);
+  EXPECT_EQ(listNEles(&context_.retryCalcReqs), 0);
+  EXPECT_EQ(gManualStreamErrorCalls, 0);
+}
+
+TEST_F(StreamTriggerTaskManualRetryTest, LocalFailureAfterCalcAcquireReturnsPoolSlotBeforeBackoff) {
+  stub_.reset(stTriggerTaskReleaseRequest);
+  task_.pCalcNodes = taosArrayInit_s(sizeof(SSTriggerCalcNode), 1);
+  ASSERT_NE(task_.pCalcNodes, nullptr);
+  auto* calcNode = static_cast<SSTriggerCalcNode*>(taosArrayGet(task_.pCalcNodes, 0));
+  calcNode->pSlots = taosArrayInit_s(sizeof(SSTriggerCalcSlot), 2);
+  ASSERT_NE(calcNode->pSlots, nullptr);
+  for (int32_t i = 0; i < TARRAY_SIZE(calcNode->pSlots); ++i) {
+    auto* slot = static_cast<SSTriggerCalcSlot*>(taosArrayGet(calcNode->pSlots, i));
+    TD_DLIST_APPEND(&calcNode->idleSlots, slot);
+  }
+
+  ASSERT_EQ(QueueManualRecalc(213), TSDB_CODE_SUCCESS);
+  SSTriggerRecalcRequest* request = FetchReadyRecalc();
+  ASSERT_NE(request, nullptr);
+  AttachManualRequest(request, 0, 0);
+  context_.status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
+  context_.needTsdbMeta = true;
+  context_.finishCheck = false;
+  task_.calcEventType = STRIGGER_EVENT_WINDOW_CLOSE;
+  ASSERT_EQ(taosObjPoolInit(&context_.calcParamPool, 2, sizeof(SSTriggerCalcParam)), TSDB_CODE_SUCCESS);
+  historyGroup_.pContext = &context_;
+  historyGroup_.gid = request->gid;
+  ASSERT_EQ(taosObjListInit(&historyGroup_.pPendingParWinCalcParams, &context_.calcParamPool), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taosObjListInit(&historyGroup_.pPendingCalcParams, &context_.calcParamPool), TSDB_CODE_SUCCESS);
+  SSTriggerCalcParam calcParam = {.wstart = 100, .wend = 110};
+  ASSERT_EQ(taosObjListAppend(&historyGroup_.pPendingCalcParams, &calcParam), TSDB_CODE_SUCCESS);
+  context_.pMaxDelayHeap = heapCreate(compareRecalcBarrierHistoryGroups);
+  ASSERT_NE(context_.pMaxDelayHeap, nullptr);
+  heapInsert(context_.pMaxDelayHeap, &historyGroup_.heapNode);
+  historyGroup_.inMaxDelayHeap = true;
+  context_.pMinGroup = &historyGroup_;
+  historyGroupInitialized_ = true;
+  historyHeapInitialized_ = true;
+
+  gManualCalcPoolTask = &task_;
+  stub_.set(taosArrayAddBatch, failManualCalcParamPush);
+  ASSERT_EQ(ProcessHistoryStart(), TSDB_CODE_SUCCESS);
+  stub_.reset(taosArrayAddBatch);
+  gManualCalcPoolTask = nullptr;
+
+  EXPECT_EQ(gManualCalcParamPushFailures, 1);
+  EXPECT_EQ(context_.pCalcReq, nullptr);
+  EXPECT_EQ(TD_DLIST_NELES(&calcNode->idleSlots), 2);
+  int64_t* running =
+      static_cast<int64_t*>(tSimpleHashGet(task_.pSessionRunning, &context_.sessionId, sizeof(context_.sessionId)));
+  ASSERT_NE(running, nullptr);
+  EXPECT_EQ(*running, 0);
+  int64_t runningKey[2] = {context_.sessionId, request->gid};
+  bool*   groupRunning = static_cast<bool*>(tSimpleHashGet(task_.pGroupRunning, runningKey, sizeof(runningKey)));
+  ASSERT_NE(groupRunning, nullptr);
+  EXPECT_FALSE(groupRunning[0]);
+  EXPECT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+
+  if (context_.pCalcReq != nullptr) {
+    ASSERT_EQ(stTriggerTaskReleaseRequest(&task_, &context_.pCalcReq, false), TSDB_CODE_SUCCESS);
+  }
+  for (int32_t i = 0; i < TARRAY_SIZE(calcNode->pSlots); ++i) {
+    auto* slot = static_cast<SSTriggerCalcSlot*>(taosArrayGet(calcNode->pSlots, i));
+    tDestroySTriggerCalcRequest(&slot->req);
+  }
+  taosArrayDestroy(calcNode->pSlots);
+  calcNode->pSlots = nullptr;
+  taosArrayDestroy(task_.pCalcNodes);
+  task_.pCalcNodes = nullptr;
+}
+
+TEST_F(StreamTriggerTaskManualRetryTest, FirstErrorStopsNewReaderAndRunnerCreation) {
+  ASSERT_EQ(QueueManualRecalc(207), TSDB_CODE_SUCCESS);
+  SSTriggerRecalcRequest* request = FetchReadyRecalc();
+  ASSERT_NE(request, nullptr);
+  const uint64_t stepId = AttachManualRequest(request, 1, 2);
+  ASSERT_EQ(ProcessManualReaderResponse(request, stepId, 1, TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
+  uint64_t nextStep = 0;
+  EXPECT_EQ(stRecalcTrackerBeginAttemptStep(task_.pRecalcTracker, request->attempt, request->gid,
+                                            stTriggerTaskProgressRangeFromClosed(request->calcRange),
+                                            request->pContributors, &nextStep),
+            TSDB_CODE_INVALID_STATE);
+  EXPECT_EQ(gManualStreamErrorCalls, 0);
+}
+
+TEST_F(StreamTriggerTaskManualRetryTest, RetryWaitsForAllIssuedReaderAndRunnerResponses) {
+  ASSERT_EQ(QueueManualRecalc(208), TSDB_CODE_SUCCESS);
+  SSTriggerRecalcRequest* request = FetchReadyRecalc();
+  ASSERT_NE(request, nullptr);
+  const uint64_t stepId = AttachManualRequest(request, 1, 2);
+  ASSERT_EQ(ProcessManualReaderResponse(request, stepId, 1, TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(TD_DLIST_NELES(&task_.backoffRecalcRequests), 0);
+  EXPECT_EQ(context_.pManualRecalcRequest, request);
+  ASSERT_EQ(ProcessManualRunnerResponse(request, stepId, 2, TSDB_CODE_SUCCESS), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(TD_DLIST_NELES(&task_.backoffRecalcRequests), 1);
+  EXPECT_EQ(context_.pManualRecalcRequest, nullptr);
+  EXPECT_EQ(gManualStreamErrorCalls, 0);
+}
+
+TEST_F(StreamTriggerTaskManualRetryTest, FourthFailureReportsFailedWithoutTaskFailure) {
+  ASSERT_EQ(QueueManualRecalc(209), TSDB_CODE_SUCCESS);
+  SSTriggerRecalcRequest* request = FetchReadyRecalc();
+  ASSERT_NE(request, nullptr);
+  constexpr uint32_t maxAttemptOrdinal = 3;
+  for (uint32_t ordinal = 0; ordinal <= maxAttemptOrdinal; ++ordinal) {
+    const uint64_t token = ordinal + 1;
+    const uint64_t stepId = AttachManualRequest(request, token, 0);
+    ASSERT_EQ(ProcessManualReaderResponse(request, stepId, token, TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
+    if (ordinal == maxAttemptOrdinal) break;
+
+    ASSERT_EQ(context_.pManualRecalcRequest, nullptr);
+    ASSERT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+    TD_DLIST_POP(&task_.backoffRecalcRequests, request);
+    request->pRetryWaitNode =
+        static_cast<SListNode*>(taosMemoryCalloc(1, sizeof(SListNode) + sizeof(ManualWaitInfoView)));
+    ASSERT_NE(request->pRetryWaitNode, nullptr);
+    ASSERT_EQ(stRecalcTrackerStartRetry(task_.pRecalcTracker, request->attempt.chainId, &request->attempt),
+              TSDB_CODE_SUCCESS);
+  }
+  EXPECT_EQ(CopyRecalcSnapshot(task_.pRecalcTracker, 209).status, STREAM_RECALC_STATUS_FAILED);
+  EXPECT_EQ(context_.pManualRecalcRequest, nullptr);
+  EXPECT_EQ(TD_DLIST_NELES(&task_.backoffRecalcRequests), 0);
+  EXPECT_EQ(gManualStreamErrorCalls, 0);
+}
+
+TEST_F(StreamTriggerTaskManualRetryTest, NonmanualPullErrorKeepsExistingRetryAndTaskErrorBehavior) {
+  SSTriggerPullRequest request = {.type = STRIGGER_PULL_TSDB_META,
+                                  .streamId = task_.task.streamId,
+                                  .readerTaskId = 0x902,
+                                  .sessionId = kHistorySessionId};
+  SSTriggerAHandle     ahandle = {
+          .streamId = task_.task.streamId, .taskId = task_.task.taskId, .sessionId = kHistorySessionId, .param = &request};
+  SMsgSendInfo sendInfo = {};
+  sendInfo.param = &ahandle;
+  SRpcMsg response = {.msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .code = TSDB_CODE_RPC_TIMEOUT};
+  response.info.ahandle = &sendInfo;
+  SSTriggerPullRequest* existing = &request;
+  ASSERT_EQ(tdListAppend(&context_.retryPullReqs, &existing), TSDB_CODE_SUCCESS);
+  int64_t errorTaskId = 0;
+  EXPECT_EQ(stTriggerTaskProcessRsp(&task_.task, &response, &errorTaskId), TSDB_CODE_RPC_TIMEOUT);
+  EXPECT_EQ(listNEles(&context_.retryPullReqs), 2);
+  tdListEmpty(&context_.retryPullReqs);
+}
+
+TEST_F(StreamTriggerTaskManualRetryTest, TaskDestructionCancelsFrozenRetryOwnership) {
+  ASSERT_EQ(QueueManualRecalc(210), TSDB_CODE_SUCCESS);
+  SSTriggerRecalcRequest* request = FetchReadyRecalc();
+  ASSERT_NE(request, nullptr);
+  const uint64_t stepId = AttachManualRequest(request, 1, 0);
+  ASSERT_EQ(ProcessManualReaderResponse(request, stepId, 1, TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(context_.pManualRecalcRequest, nullptr);
+  ASSERT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+  TD_DLIST_POP(&task_.backoffRecalcRequests, request);
+
+  auto* destroyTask = static_cast<SStreamTriggerTask*>(taosMemoryCalloc(1, sizeof(SStreamTriggerTask)));
+  ASSERT_NE(destroyTask, nullptr);
+  destroyTask->task.streamId = task_.task.streamId;
+  destroyTask->task.taskId = task_.task.taskId;
+  TD_DLIST_INIT(&destroyTask->backoffRecalcRequests);
+  TD_DLIST_APPEND(&destroyTask->backoffRecalcRequests, request);
+
+  destroyTask->pRecalcRequests = tdListNew(POINTER_BYTES);
+  ASSERT_NE(destroyTask->pRecalcRequests, nullptr);
+  auto* prepared = static_cast<SSTriggerRecalcRequest*>(taosMemoryCalloc(1, sizeof(SSTriggerRecalcRequest)));
+  ASSERT_NE(prepared, nullptr);
+  prepared->pRetryWaitNode =
+      static_cast<SListNode*>(taosMemoryCalloc(1, sizeof(SListNode) + sizeof(ManualWaitInfoView)));
+  ASSERT_NE(prepared->pRetryWaitNode, nullptr);
+  ASSERT_EQ(stRecalcAttemptCreate(1, &prepared->pPreparedAttempt), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tdListAppend(destroyTask->pRecalcRequests, &prepared), TSDB_CODE_SUCCESS);
+
+  destroyTask->pHistoryContext =
+      static_cast<SSTriggerHistoryContext*>(taosMemoryCalloc(1, sizeof(SSTriggerHistoryContext)));
+  ASSERT_NE(destroyTask->pHistoryContext, nullptr);
+  destroyTask->pHistoryContext->pTask = destroyTask;
+  destroyTask->pHistoryContext->pManualRecalcRequest =
+      static_cast<SSTriggerRecalcRequest*>(taosMemoryCalloc(1, sizeof(SSTriggerRecalcRequest)));
+  ASSERT_NE(destroyTask->pHistoryContext->pManualRecalcRequest, nullptr);
+  destroyTask->pHistoryContext->pManualRecalcRequest->pRetryWaitNode =
+      static_cast<SListNode*>(taosMemoryCalloc(1, sizeof(SListNode) + sizeof(ManualWaitInfoView)));
+  ASSERT_NE(destroyTask->pHistoryContext->pManualRecalcRequest->pRetryWaitNode, nullptr);
+
+  destroyTask->task.undeployCb = detachUndeployedTriggerTask;
+  SStreamTriggerTask* rawTask = destroyTask;
+  ASSERT_EQ(stTriggerTaskUndeploy(&destroyTask, true), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(destroyTask, nullptr);
+  taosMemoryFree(rawTask);
+}
 
 TEST_F(StreamTriggerRecalcBarrierTest, NoDataReaderStepCommitsWithoutRunner) {
   const uint64_t stepId = BeginReaderStep(81);
@@ -23619,18 +25051,24 @@ TEST(StreamTriggerRecalcTokenTest, CalcPoolReleaseAndReuseClearRuntimeTokens) {
   ASSERT_NE(request, nullptr);
   request->progressStepId = 11;
   request->progressRequestToken = 12;
+  request->manualAttempt = {13, 1};
   ASSERT_EQ(stTriggerTaskReleaseRequest(&task, &request, true), TSDB_CODE_SUCCESS);
   ASSERT_EQ(stTriggerTaskAcquireRequest(&task, 2, 3, &request), TSDB_CODE_SUCCESS);
   ASSERT_NE(request, nullptr);
   EXPECT_EQ(request->progressStepId, 0U);
   EXPECT_EQ(request->progressRequestToken, 0U);
+  EXPECT_EQ(request->manualAttempt.chainId, 0U);
+  EXPECT_EQ(request->manualAttempt.executionOrdinal, 0U);
   request->progressStepId = 21;
   request->progressRequestToken = 22;
+  request->manualAttempt = {23, 2};
   ASSERT_EQ(stTriggerTaskReleaseRequest(&task, &request, true), TSDB_CODE_SUCCESS);
   ASSERT_EQ(stTriggerTaskAcquireRequest(&task, 2, 3, &request), TSDB_CODE_SUCCESS);
   ASSERT_NE(request, nullptr);
   EXPECT_EQ(request->progressStepId, 0U);
   EXPECT_EQ(request->progressRequestToken, 0U);
+  EXPECT_EQ(request->manualAttempt.chainId, 0U);
+  EXPECT_EQ(request->manualAttempt.executionOrdinal, 0U);
   ASSERT_EQ(stTriggerTaskReleaseRequest(&task, &request, true), TSDB_CODE_SUCCESS);
 
   for (int32_t i = 0; i < 2; ++i) {
@@ -23653,12 +25091,14 @@ TEST(StreamTriggerRecalcTokenTest, RuntimeTokensAreNotSerialized) {
   source.groupColVals = taosArrayInit(0, sizeof(SStreamGroupValue));
   source.progressStepId = 101;
   source.progressRequestToken = 202;
+  source.manualAttempt = {303, 2};
   ASSERT_NE(source.params, nullptr);
   ASSERT_NE(source.groupColVals, nullptr);
   const int32_t        len = tSerializeSTriggerCalcRequest(nullptr, 0, &source);
   SSTriggerCalcRequest withoutTokens = source;
   withoutTokens.progressStepId = 0;
   withoutTokens.progressRequestToken = 0;
+  withoutTokens.manualAttempt = {};
   EXPECT_EQ(tSerializeSTriggerCalcRequest(nullptr, 0, &withoutTokens), len);
   ASSERT_GT(len, 0);
   void* data = taosMemoryMalloc(len);
@@ -23667,18 +25107,26 @@ TEST(StreamTriggerRecalcTokenTest, RuntimeTokensAreNotSerialized) {
   SSTriggerCalcRequest decoded = {};
   decoded.progressStepId = 303;
   decoded.progressRequestToken = 404;
+  decoded.manualAttempt = {405, 3};
   ASSERT_EQ(tDeserializeSTriggerCalcRequest(data, len, &decoded), TSDB_CODE_SUCCESS);
   EXPECT_EQ(decoded.progressStepId, 0U);
   EXPECT_EQ(decoded.progressRequestToken, 0U);
+  EXPECT_EQ(decoded.manualAttempt.chainId, 405U);
+  EXPECT_EQ(decoded.manualAttempt.executionOrdinal, 3U);
   taosMemoryFree(data);
   decoded.progressStepId = 303;
   decoded.progressRequestToken = 404;
+  decoded.manualAttempt = {405, 3};
   tDestroySTriggerCalcRequest(&decoded);
   EXPECT_EQ(decoded.progressStepId, 0U);
   EXPECT_EQ(decoded.progressRequestToken, 0U);
+  EXPECT_EQ(decoded.manualAttempt.chainId, 405U);
+  EXPECT_EQ(decoded.manualAttempt.executionOrdinal, 3U);
   tDestroySTriggerCalcRequest(&source);
   EXPECT_EQ(source.progressStepId, 0U);
   EXPECT_EQ(source.progressRequestToken, 0U);
+  EXPECT_EQ(source.manualAttempt.chainId, 303U);
+  EXPECT_EQ(source.manualAttempt.executionOrdinal, 2U);
 
   SSTriggerPullRequestUnion pull = {};
   pull.firstTsReq.base.type = STRIGGER_PULL_FIRST_TS;
@@ -23687,6 +25135,7 @@ TEST(StreamTriggerRecalcTokenTest, RuntimeTokensAreNotSerialized) {
   pull.firstTsReq.base.sessionId = 3;
   pull.firstTsReq.base.progressStepId = 505;
   pull.firstTsReq.base.progressRequestToken = 606;
+  pull.firstTsReq.base.manualAttempt = {607, 1};
   pull.firstTsReq.gid = 7;
   pull.firstTsReq.startTime = 8;
   pull.firstTsReq.ver = 9;
@@ -23694,24 +25143,32 @@ TEST(StreamTriggerRecalcTokenTest, RuntimeTokensAreNotSerialized) {
   ASSERT_GT(pullLen, 0);
   pull.firstTsReq.base.progressStepId = 0;
   pull.firstTsReq.base.progressRequestToken = 0;
+  pull.firstTsReq.base.manualAttempt = {};
   EXPECT_EQ(tSerializeSTriggerPullRequest(nullptr, 0, &pull.base), pullLen);
   pull.firstTsReq.base.progressStepId = 505;
   pull.firstTsReq.base.progressRequestToken = 606;
+  pull.firstTsReq.base.manualAttempt = {607, 1};
   data = taosMemoryMalloc(pullLen);
   ASSERT_NE(data, nullptr);
   ASSERT_EQ(tSerializeSTriggerPullRequest(data, pullLen, &pull.base), pullLen);
   SSTriggerPullRequestUnion decodedPull = {};
   decodedPull.base.progressStepId = 707;
   decodedPull.base.progressRequestToken = 808;
+  decodedPull.base.manualAttempt = {809, 3};
   ASSERT_EQ(tDeserializeSTriggerPullRequest(data, pullLen, &decodedPull), TSDB_CODE_SUCCESS);
   EXPECT_EQ(decodedPull.base.progressStepId, 0U);
   EXPECT_EQ(decodedPull.base.progressRequestToken, 0U);
+  EXPECT_EQ(decodedPull.base.manualAttempt.chainId, 809U);
+  EXPECT_EQ(decodedPull.base.manualAttempt.executionOrdinal, 3U);
   taosMemoryFree(data);
   decodedPull.base.progressStepId = 707;
   decodedPull.base.progressRequestToken = 808;
+  decodedPull.base.manualAttempt = {809, 3};
   tDestroySTriggerPullRequest(&decodedPull);
   EXPECT_EQ(decodedPull.base.progressStepId, 0U);
   EXPECT_EQ(decodedPull.base.progressRequestToken, 0U);
+  EXPECT_EQ(decodedPull.base.manualAttempt.chainId, 809U);
+  EXPECT_EQ(decodedPull.base.manualAttempt.executionOrdinal, 3U);
 }
 
 static std::vector<std::string> gTriggerDebugLogs;

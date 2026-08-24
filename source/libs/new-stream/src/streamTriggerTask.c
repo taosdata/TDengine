@@ -417,6 +417,8 @@ static int32_t stRealtimeContextFinishExtCalcUidWindow(SSTriggerExtProgress *pPr
 static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTriggerTask *pTask);
 static void    stHistoryContextDestroy(void *ptr);
 static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext, bool consumeCalcRetry);
+static int32_t stTriggerTaskHandleManualAttemptOutcome(SStreamTriggerTask *pTask, SSTriggerRecalcRequest *pReq,
+                                                       const SStreamRecalcAttemptOutcome *pOutcome);
 static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SRpcMsg *pRsp,
                                            bool *pFailureRecordedByChild);
 static int32_t stHistoryContextProcCalcRsp(SSTriggerHistoryContext *pContext, SRpcMsg *pRsp, bool completed);
@@ -467,6 +469,8 @@ typedef struct StreamTriggerWaitInfo {
   int64_t                  resumeTime;
   EStreamTriggerWaitReason reason;
   bool                     queued;
+  uint64_t                 manualRecalcChainId;
+  uint64_t                 controlMsgId;  // nonzero while this node owns a queued manual CTRL handoff
 } StreamTriggerWaitInfo;
 
 static EDealRes nodeRewriteSlotid(SNode *pNode, void *pContext) {
@@ -1419,6 +1423,110 @@ static bool stTriggerTaskClaimCalcRetryWake(SStreamTriggerTask *pTask, int64_t s
   return claimed;
 }
 
+static SSTriggerRecalcRequest *stTriggerTaskFindBackoffRecalc(SStreamTriggerTask *pTask, uint64_t chainId) {
+  for (SSTriggerRecalcRequest *pReq = TD_DLIST_HEAD(&pTask->backoffRecalcRequests); pReq != NULL;
+       pReq = TD_DLIST_NODE_NEXT(pReq)) {
+    if (pReq->attempt.chainId == chainId) return pReq;
+  }
+  return NULL;
+}
+
+static void stTriggerTaskRequeueManualWaitNode(SListNode *pWaitNode, int64_t now, bool append) {
+  StreamTriggerWaitInfo *pInfo = (StreamTriggerWaitInfo *)pWaitNode->data;
+  taosWLockLatch(&gStreamTriggerWaitLatch);
+  pInfo->resumeTime = now + STREAM_MANUAL_RECALC_RETRY_BACKOFF_MS * NANOSECOND_PER_MSEC;
+  pInfo->controlMsgId = 0;
+  if (append) tdListAppendNode(&gStreamTriggerWaitList, pWaitNode);
+  taosWUnLockLatch(&gStreamTriggerWaitLatch);
+}
+
+static SListNode *stTriggerTaskTakeManualWaitNode(SStreamTriggerTask *pTask, uint64_t controlMsgId) {
+  if (controlMsgId == 0) return NULL;
+
+  SListIter  iter = {0};
+  SListNode *pNode = NULL;
+
+  taosWLockLatch(&gStreamTriggerWaitLatch);
+  tdListInitIter(&gStreamTriggerWaitList, &iter, TD_LIST_FORWARD);
+  while ((pNode = tdListNext(&iter)) != NULL) {
+    StreamTriggerWaitInfo *pInfo = (StreamTriggerWaitInfo *)pNode->data;
+    if (pInfo->streamId == pTask->task.streamId && pInfo->taskId == pTask->task.taskId &&
+        pInfo->sessionId == STREAM_TRIGGER_HISTORY_SESSIONID && pInfo->manualRecalcChainId != 0 &&
+        pInfo->controlMsgId == controlMsgId) {
+      TD_DLIST_POP(&gStreamTriggerWaitList, pNode);
+      break;
+    }
+  }
+  taosWUnLockLatch(&gStreamTriggerWaitLatch);
+  return pNode;
+}
+
+static int32_t stTriggerTaskResumeManualRecalc(SStreamTriggerTask *pTask, uint64_t chainId, SListNode *pWaitNode,
+                                               bool *pRetryWait, bool *pResumed) {
+  *pRetryWait = false;
+  *pResumed = false;
+  SListNode               *pNextWaitNode = taosMemoryCalloc(1, sizeof(SListNode) + sizeof(StreamTriggerWaitInfo));
+  SListNode               *pReadyNode = taosMemoryCalloc(1, sizeof(SListNode) + POINTER_BYTES);
+  SSTriggerHistoryContext *pNewContext = taosMemoryCalloc(1, sizeof(*pNewContext));
+  int32_t code = pNextWaitNode == NULL || pReadyNode == NULL || pNewContext == NULL ? terrno : TSDB_CODE_SUCCESS;
+  if (code == TSDB_CODE_SUCCESS) code = stHistoryContextInit(pNewContext, pTask);
+  if (code != TSDB_CODE_SUCCESS) {
+    stHistoryContextDestroy(&pNewContext);
+    taosMemoryFree(pReadyNode);
+    taosMemoryFree(pNextWaitNode);
+    *pRetryWait = true;
+    return code;
+  }
+
+  taosWLockLatch(&pTask->recalcRequestLock);
+  SSTriggerRecalcRequest *pReq = stTriggerTaskFindBackoffRecalc(pTask, chainId);
+  if (pReq == NULL) {
+    taosWUnLockLatch(&pTask->recalcRequestLock);
+    stHistoryContextDestroy(&pNewContext);
+    taosMemoryFree(pReadyNode);
+    taosMemoryFree(pNextWaitNode);
+    taosMemoryFree(pWaitNode);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSTriggerRecalcReqList *pList = tSimpleHashGet(pTask->pRecalcRequestMap, &pReq->gid, sizeof(pReq->gid));
+  if (pList == NULL) {
+    taosWUnLockLatch(&pTask->recalcRequestLock);
+    stHistoryContextDestroy(&pNewContext);
+    taosMemoryFree(pReadyNode);
+    taosMemoryFree(pNextWaitNode);
+    *pRetryWait = true;
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  SStreamRecalcAttemptRef nextAttempt = {0};
+  code = stRecalcTrackerStartRetry(pTask->pRecalcTracker, chainId, &nextAttempt);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosWUnLockLatch(&pTask->recalcRequestLock);
+    stHistoryContextDestroy(&pNewContext);
+    taosMemoryFree(pReadyNode);
+    taosMemoryFree(pNextWaitNode);
+    *pRetryWait = true;
+    return code;
+  }
+
+  TD_DLIST_POP(&pTask->backoffRecalcRequests, pReq);
+  pReq->attempt = nextAttempt;
+  pReq->pRetryWaitNode = pNextWaitNode;
+  pReq->retryScheduled = false;
+  pReq->noMerge = true;
+  *(SSTriggerRecalcRequest **)pReadyNode->data = pReq;
+  tdListAppendNode(pTask->pRecalcRequests, pReadyNode);
+  TD_DLIST_APPEND(pList, pReq);
+  taosWUnLockLatch(&pTask->recalcRequestLock);
+
+  stHistoryContextDestroy(&pTask->pHistoryContext);
+  pTask->pHistoryContext = pNewContext;
+  taosMemoryFree(pWaitNode);
+  *pResumed = true;
+  return TSDB_CODE_SUCCESS;
+}
+
 static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
   int64_t    now = taosGetTimestampNs();
   SListIter  iter = {0};
@@ -1432,7 +1540,7 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
   tdListInitIter(&gStreamTriggerWaitList, &iter, TD_LIST_FORWARD);
   while ((pNode = tdListNext(&iter)) != NULL) {
     StreamTriggerWaitInfo *pInfo = (StreamTriggerWaitInfo *)pNode->data;
-    if (!pInfo->queued && pInfo->resumeTime <= now) {
+    if (!pInfo->queued && pInfo->controlMsgId == 0 && pInfo->resumeTime <= now) {
       if (pInfo->reason == STREAM_TRIGGER_WAIT_CALC_RETRY) {
         if (tdListAdd(&readylist, pInfo) == NULL) {
           pInfo->resumeTime = now + STREAM_TRIGGER_NOTICE_RETRY_NS;
@@ -1466,12 +1574,18 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
       TD_DLIST_POP(&readylist, pNode);
       if (pInfo->reason == STREAM_TRIGGER_WAIT_CALC_RETRY) {
         stTriggerTaskResetCalcRetryWait(pInfo, now + STREAM_TRIGGER_NOTICE_RETRY_NS);
+        taosMemoryFreeClear(pNode);
+      } else if (pInfo->manualRecalcChainId != 0 && code != TSDB_CODE_STREAM_TASK_NOT_EXIST) {
+        stTriggerTaskRequeueManualWaitNode(pNode, now, true);
+      } else {
+        taosMemoryFreeClear(pNode);
       }
-      taosMemoryFreeClear(pNode);
       continue;
     }
 
     bool                 queued = false;
+    bool                 manual = pInfo->manualRecalcChainId != 0;
+    bool                 manualPending = false;
     SSTriggerCtrlRequest req = {.type = STRIGGER_CTRL_START,
                                 .streamId = pInfo->streamId,
                                 .taskId = pInfo->taskId,
@@ -1485,11 +1599,27 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
         if (tlen == msg.contLen) {
           TRACE_SET_ROOTID(&msg.info.traceId, pInfo->streamId);
           TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
+          if (manual) {
+            // Publish the exact handoff owner before queueing.  The worker may
+            // take and free this node as soon as putToQueueFp succeeds.
+            TD_DLIST_POP(&readylist, pNode);
+            pInfo->controlMsgId = TRACE_GET_MSGID(&msg.info.traceId);
+            taosWLockLatch(&gStreamTriggerWaitLatch);
+            tdListAppendNode(&gStreamTriggerWaitList, pNode);
+            taosWUnLockLatch(&gStreamTriggerWaitLatch);
+            manualPending = true;
+          }
           SMsgCb *pCb = &gStreamMgmt.msgCb;
-          int32_t code = pCb->putToQueueFp(pCb->mgmt, STREAM_TRIGGER_QUEUE, &msg);
+          code = pCb->putToQueueFp(pCb->mgmt, STREAM_TRIGGER_QUEUE, &msg);
           if (code != TSDB_CODE_SUCCESS) {
             stError("failed to send trigger start request stream:%" PRIx64 ", task:%" PRIx64 ", session:%" PRIx64,
                     pInfo->streamId, pInfo->taskId, pInfo->sessionId);
+            if (manual) {
+              stTriggerTaskRequeueManualWaitNode(pNode, now, false);
+            }
+          } else if (manual) {
+            streamReleaseTask(pTaskAddr);
+            continue;
           } else {
             queued = true;
           }
@@ -1505,7 +1635,15 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
       stError("failed to get length of trigger start request stream:%" PRIx64 ", task:%" PRIx64 ", session:%" PRIx64,
               pInfo->streamId, pInfo->taskId, pInfo->sessionId);
     }
-
+    if (manual) {
+      rpcFreeCont(msg.pCont);
+      if (!manualPending) {
+        TD_DLIST_POP(&readylist, pNode);
+        stTriggerTaskRequeueManualWaitNode(pNode, now, true);
+      }
+      streamReleaseTask(pTaskAddr);
+      continue;
+    }
     TD_DLIST_POP(&readylist, pNode);
     if (pInfo->reason == STREAM_TRIGGER_WAIT_CALC_RETRY) {
       if (!queued) {
@@ -1570,6 +1708,7 @@ static void stTriggerTaskFreeAhandleParam(void *param) {
   SSTriggerAHandle *pAhandle = param;
   pAhandle->progressStepId = 0;
   pAhandle->progressRequestToken = 0;
+  pAhandle->manualAttempt = (SStreamManualRecalcAttemptId){0};
   taosMemoryFree(pAhandle);
 }
 
@@ -1594,6 +1733,11 @@ static int32_t stTriggerTaskAllocAhandle(SStreamTriggerTask *pTask, int64_t sess
   pRes->param = param;
   pRes->progressStepId = progressStepId;
   pRes->progressRequestToken = progressRequestToken;
+  if (sessionId == STREAM_TRIGGER_HISTORY_SESSIONID && pTask->pHistoryContext != NULL &&
+      pTask->pHistoryContext->pManualRecalcRequest != NULL) {
+    pRes->manualAttempt.chainId = pTask->pHistoryContext->pManualRecalcRequest->attempt.chainId;
+    pRes->manualAttempt.executionOrdinal = pTask->pHistoryContext->pManualRecalcRequest->attempt.executionOrdinal;
+  }
 
   *ppAhandle = pInfo;
 
@@ -1609,6 +1753,10 @@ _exit:
 
 SStreamProgressRange stTriggerTaskProgressRangeFromClosed(STimeWindow range) {
   return (SStreamProgressRange){.start = range.skey, .end = range.ekey == TSKEY_MAX ? TSKEY_MAX : range.ekey + 1};
+}
+
+static SStreamProgressRange stRecalcProgressRangeFromWindow(STimeWindow range) {
+  return stTriggerTaskProgressRangeFromClosed(range);
 }
 
 static TSKEY stTriggerTaskGetHistoryCutoff(const SStreamTriggerTask *pTask) {
@@ -4036,6 +4184,7 @@ static int32_t stTriggerTaskAcquireRequests(SStreamTriggerTask *pTask, int64_t s
   pReq->progressRequestToken = 0;
   QUERY_CHECK_CONDITION(pReq->pContextPolicy == NULL && pReq->pAncestorContext == NULL, code, lino, _end,
                         TSDB_CODE_INTERNAL_ERROR);
+  pReq->manualAttempt = (SStreamManualRecalcAttemptId){0};
   int32_t               idx = TARRAY_ELEM_IDX(pTask->pCalcNodes, pNode);
   SStreamRunnerTarget  *pRunner = taosArrayGet(pTask->runnerList, idx);
   QUERY_CHECK_NULL(pRunner, code, lino, _end, terrno);
@@ -4149,6 +4298,7 @@ static int32_t stTriggerTaskReleaseRequests(SStreamTriggerTask *pTask, SSTrigger
   }
   tDestroyStreamContextPolicy(&pReq->pContextPolicy);
   tDestroyStreamAncestorContext(&pReq->pAncestorContext);
+  pReq->manualAttempt = (SStreamManualRecalcAttemptId){0};
   taosArrayClearEx(pReq->params, tDestroySSTriggerCalcParam);
   taosArrayClearEx(pReq->groupColVals, tDestroySStreamGroupValue);
   tSimpleHashClear(pReq->pGroupCalcInfos);
@@ -4360,6 +4510,65 @@ int32_t stTriggerTaskReleaseDropTableRequest(SStreamTriggerTask *pTask, SSTrigge
   return code;
 }
 
+static void stHistoryContextResetManualExecution(SSTriggerHistoryContext *pContext) {
+  pContext->status = STRIGGER_CONTEXT_WAIT_RECALC_REQ;
+  pContext->progressStepId = 0;
+  pContext->nextProgressRequestToken = 0;
+  pContext->pendingToFinish = false;
+  pContext->finishCheck = false;
+  pContext->pMinGroup = NULL;
+  pContext->curReaderIdx = 0;
+  taosArrayDestroy(pContext->pContributors);
+  pContext->pContributors = NULL;
+  if (pContext->pFirstTsMap != NULL) tSimpleHashClear(pContext->pFirstTsMap);
+  if (pContext->pTrigDataBlocks != NULL) taosArrayClearP(pContext->pTrigDataBlocks, (FDelete)blockDataDestroy);
+  if (pContext->pCalcDataBlocks != NULL) taosArrayClearP(pContext->pCalcDataBlocks, (FDelete)blockDataDestroy);
+}
+
+static int32_t stTriggerTaskHandleManualAttemptOutcome(SStreamTriggerTask *pTask, SSTriggerRecalcRequest *pReq,
+                                                       const SStreamRecalcAttemptOutcome *pOutcome) {
+  if (pOutcome == NULL || pOutcome->decision == STREAM_RECALC_ATTEMPT_NONE) return TSDB_CODE_SUCCESS;
+  if (pTask == NULL || pReq == NULL || pTask->pHistoryContext == NULL ||
+      pTask->pHistoryContext->pManualRecalcRequest != pReq || pReq->pRetryWaitNode == NULL ||
+      pOutcome->attempt.chainId != pReq->attempt.chainId ||
+      pOutcome->attempt.executionOrdinal != pReq->attempt.executionOrdinal) {
+    return TSDB_CODE_INVALID_STATE;
+  }
+
+  SSTriggerHistoryContext *pContext = pTask->pHistoryContext;
+  if (pContext->pCalcReq != NULL) {
+    int32_t code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq, false);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  pContext->pManualRecalcRequest = NULL;
+  stHistoryContextResetManualExecution(pContext);
+
+  SListNode             *pWaitNode = pReq->pRetryWaitNode;
+  StreamTriggerWaitInfo *pInfo = (StreamTriggerWaitInfo *)pWaitNode->data;
+  *pInfo = (StreamTriggerWaitInfo){
+      .streamId = pTask->task.streamId,
+      .taskId = pTask->task.taskId,
+      .sessionId = STREAM_TRIGGER_HISTORY_SESSIONID,
+      .resumeTime = taosGetTimestampNs() + STREAM_MANUAL_RECALC_RETRY_BACKOFF_MS * NANOSECOND_PER_MSEC,
+      .manualRecalcChainId = pOutcome->decision == STREAM_RECALC_ATTEMPT_RETRY ? pReq->attempt.chainId : 0,
+  };
+
+  if (pOutcome->decision == STREAM_RECALC_ATTEMPT_RETRY) {
+    taosWLockLatch(&pTask->recalcRequestLock);
+    pReq->retryScheduled = true;
+    TD_DLIST_APPEND(&pTask->backoffRecalcRequests, pReq);
+    taosWUnLockLatch(&pTask->recalcRequestLock);
+  }
+  taosWLockLatch(&gStreamTriggerWaitLatch);
+  tdListAppendNode(&gStreamTriggerWaitList, pWaitNode);
+  taosWUnLockLatch(&gStreamTriggerWaitLatch);
+  pReq->pRetryWaitNode = NULL;
+
+  if (pOutcome->decision == STREAM_RECALC_ATTEMPT_EXHAUSTED) {
+    stTriggerTaskDestroyRecalcRequest(&pReq);
+  }
+  return TSDB_CODE_SUCCESS;
+}
 typedef struct SSTriggerRecalcMutation {
   SSTriggerRecalcRequest *pReq;
   STimeWindow             oldScanRange;
@@ -4370,12 +4579,15 @@ typedef struct SSTriggerRecalcMutation {
   bool                    oldContributorsNull;
   bool                    impactDomainReplaced;
   bool                    inserted;
+  bool                    addedManualOwnership;
 } SSTriggerRecalcMutation;
 
 void stTriggerTaskDestroyRecalcRequest(SSTriggerRecalcRequest **ppReq) {
   if (ppReq == NULL || *ppReq == NULL) return;
   SSTriggerRecalcRequest *pReq = *ppReq;
   *ppReq = NULL;
+  stRecalcAttemptDestroy(&pReq->pPreparedAttempt);
+  taosMemoryFreeClear(pReq->pRetryWaitNode);
   tSimpleHashCleanup(pReq->pTsdbVersions);
   taosArrayDestroy(pReq->pContributors);
   stDestroyRecalcImpactDomain(&pReq->impactDomain);
@@ -4432,6 +4644,63 @@ static int32_t stTriggerTaskMergeRecalcRequest(SSTriggerRecalcRequest *pTarget,
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t stTriggerTaskRefreshRecalcVersions(SStreamTriggerTask *pTask, SSTriggerRecalcRequest *pReq) {
+  if (pReq->pTsdbVersions != NULL) {
+    tSimpleHashCleanup(pReq->pTsdbVersions);
+  }
+  pReq->pTsdbVersions = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  if (pReq->pTsdbVersions == NULL) return terrno;
+
+  int32_t               iter = 0;
+  SSHashObj            *pWalProgress = pTask->pRealtimeContext ? pTask->pRealtimeContext->pReaderWalProgress : NULL;
+  SSTriggerWalProgress *pProgress = tSimpleHashIterate(pWalProgress, NULL, &iter);
+  while (pProgress != NULL) {
+    int32_t vgId = *(int32_t *)tSimpleHashGetKey(pProgress, NULL);
+    int32_t code =
+        tSimpleHashPut(pReq->pTsdbVersions, &vgId, sizeof(int32_t), &pProgress->lastScanVer, sizeof(int64_t));
+    if (code != TSDB_CODE_SUCCESS) return code;
+    pProgress = tSimpleHashIterate(pWalProgress, pProgress, &iter);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stTriggerTaskPrepareManualRecalcRequest(SStreamTriggerTask *pTask, int64_t gid, STimeWindow calcRange,
+                                                       SSTriggerRecalcRequest **ppReq) {
+  *ppReq = NULL;
+  size_t                  contributorCapacity = 1;
+  SSTriggerRecalcReqList *pList = tSimpleHashGet(pTask->pRecalcRequestMap, &gid, sizeof(gid));
+  if (pList != NULL) {
+    for (SSTriggerRecalcRequest *pExisting = TD_DLIST_HEAD(pList); pExisting != NULL;
+         pExisting = TD_DLIST_NODE_NEXT(pExisting)) {
+      if (pExisting->isHistory || pExisting->frozen || pExisting->noMerge ||
+          stTriggerTaskRecalcMergeEnd(pExisting->calcRange.ekey) < calcRange.skey ||
+          stTriggerTaskRecalcMergeEnd(calcRange.ekey) < pExisting->calcRange.skey) {
+        continue;
+      }
+      if (pExisting->pContributors != NULL) {
+        contributorCapacity += TARRAY_SIZE(pExisting->pContributors);
+        int32_t code = taosArrayEnsureCap(pExisting->pContributors, contributorCapacity);
+        if (code != TSDB_CODE_SUCCESS) return code;
+      }
+      break;
+    }
+  }
+
+  SSTriggerRecalcRequest *pReq = taosMemoryCalloc(1, sizeof(*pReq));
+  if (pReq == NULL) return terrno;
+  pReq->pRetryWaitNode = taosMemoryCalloc(1, sizeof(SListNode) + sizeof(StreamTriggerWaitInfo));
+  pReq->pContributors = taosArrayInit(1, sizeof(SStreamRecalcContributor));
+  int32_t code = pReq->pRetryWaitNode == NULL || pReq->pContributors == NULL ? terrno : TSDB_CODE_SUCCESS;
+  if (code == TSDB_CODE_SUCCESS) code = stTriggerTaskRefreshRecalcVersions(pTask, pReq);
+  if (code == TSDB_CODE_SUCCESS) code = stRecalcAttemptCreate(contributorCapacity, &pReq->pPreparedAttempt);
+  if (code != TSDB_CODE_SUCCESS) {
+    stTriggerTaskDestroyRecalcRequest(&pReq);
+    return code;
+  }
+  *ppReq = pReq;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t stTriggerTaskAddReadyRecalcImpl(SStreamTriggerTask *pTask, SSTriggerRecalcRequest **ppReq,
                                                bool lockRequests, SArray *pMutations) {
   int32_t                 code = TSDB_CODE_SUCCESS;
@@ -4446,17 +4715,9 @@ static int32_t stTriggerTaskAddReadyRecalcImpl(SStreamTriggerTask *pTask, SSTrig
   }
 
   pReq = *ppReq;
-  tSimpleHashCleanup(pReq->pTsdbVersions);
-  pReq->pTsdbVersions = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
-  QUERY_CHECK_NULL(pReq->pTsdbVersions, code, lino, _end, terrno);
-  int32_t               iter = 0;
-  SSHashObj            *pWalProgress = pTask->pRealtimeContext ? pTask->pRealtimeContext->pReaderWalProgress : NULL;
-  SSTriggerWalProgress *pProgress = tSimpleHashIterate(pWalProgress, NULL, &iter);
-  while (pProgress != NULL) {
-    int32_t vgId = *(int32_t *)tSimpleHashGetKey(pProgress, NULL);
-    code = tSimpleHashPut(pReq->pTsdbVersions, &vgId, sizeof(int32_t), &pProgress->lastScanVer, sizeof(int64_t));
+  if (pReq->pPreparedAttempt == NULL && !pReq->frozen) {
+    code = stTriggerTaskRefreshRecalcVersions(pTask, pReq);
     QUERY_CHECK_CODE(code, lino, _end);
-    pProgress = tSimpleHashIterate(pWalProgress, pProgress, &iter);
   }
 
   if (lockRequests) {
@@ -4473,10 +4734,11 @@ static int32_t stTriggerTaskAddReadyRecalcImpl(SStreamTriggerTask *pTask, SSTrig
     QUERY_CHECK_NULL(pList, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   }
 
-  if (!pReq->isHistory) {
+  if (!pReq->isHistory && !pReq->frozen && !pReq->noMerge) {
     // try to merge with existing requests if their calc ranges are very close
     for (pTmpReq = TD_DLIST_HEAD(pList); pTmpReq != NULL; pTmpReq = TD_DLIST_NODE_NEXT(pTmpReq)) {
-      if (!pTmpReq->isHistory && stTriggerTaskRecalcMergeEnd(pTmpReq->calcRange.ekey) >= pReq->calcRange.skey &&
+      if (!pTmpReq->isHistory && !pTmpReq->frozen && !pTmpReq->noMerge &&
+          stTriggerTaskRecalcMergeEnd(pTmpReq->calcRange.ekey) >= pReq->calcRange.skey &&
           stTriggerTaskRecalcMergeEnd(pReq->calcRange.ekey) >= pTmpReq->calcRange.skey) {
         break;
       }
@@ -4512,6 +4774,13 @@ static int32_t stTriggerTaskAddReadyRecalcImpl(SStreamTriggerTask *pTask, SSTrig
     QUERY_CHECK_CODE(code, lino, _end);
     TSWAP(pTmpReq->pTsdbVersions, pReq->pTsdbVersions);
     if (pMutations != NULL) pReq->pTsdbVersions = NULL;
+    if (pReq->pPreparedAttempt != NULL) {
+      QUERY_CHECK_CONDITION(pTmpReq->pPreparedAttempt == NULL && pTmpReq->pRetryWaitNode == NULL, code, lino, _end,
+                            TSDB_CODE_INVALID_STATE);
+      TSWAP(pTmpReq->pPreparedAttempt, pReq->pPreparedAttempt);
+      TSWAP(pTmpReq->pRetryWaitNode, pReq->pRetryWaitNode);
+      if (pMutation != NULL) pMutation->addedManualOwnership = true;
+    }
     stTriggerTaskDestroyRecalcRequest(&pReq);
     *ppReq = NULL;
   } else {
@@ -4579,6 +4848,10 @@ static void stTriggerTaskFinishRecalcMutations(SStreamTriggerTask *pTask, SArray
       }
       continue;
     }
+    if (pMutation->addedManualOwnership) {
+      stRecalcAttemptDestroy(&pReq->pPreparedAttempt);
+      taosMemoryFreeClear(pReq->pRetryWaitNode);
+    }
     pReq->scanRange = pMutation->oldScanRange;
     pReq->calcRange = pMutation->oldCalcRange;
     while (pReq->pContributors != NULL && TARRAY_SIZE(pReq->pContributors) > pMutation->oldContributorCount) {
@@ -4603,7 +4876,8 @@ static void stTriggerTaskFinishRecalcMutations(SStreamTriggerTask *pTask, SArray
 static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
                                                  STimeWindow *pCalcRange, bool isHistory, bool isUserRecalc,
                                                  bool isDetermined, int64_t recalcId, bool requestsLocked,
-                                                 SArray *pMutations, bool repairCountDisorder) {
+                                                 SArray *pMutations, bool repairCountDisorder,
+                                                 SSTriggerRecalcRequest **ppPreparedReq) {
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;
   bool                         ready = false;
@@ -4655,7 +4929,12 @@ static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTr
     }
   }
 
-  pReq = taosMemoryCalloc(1, sizeof(SSTriggerRecalcRequest));
+  if (ppPreparedReq != NULL) {
+    pReq = *ppPreparedReq;
+    *ppPreparedReq = NULL;
+  } else {
+    pReq = taosMemoryCalloc(1, sizeof(SSTriggerRecalcRequest));
+  }
   QUERY_CHECK_NULL(pReq, code, lino, _end, terrno);
 
   if (isHistory) {
@@ -4834,12 +5113,12 @@ int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealti
                                       STimeWindow *pCalcRange, bool isHistory, bool isUserRecalc, bool isDetermined,
                                       int64_t recalcId) {
   return stTriggerTaskAddRecalcRequestImpl(pTask, pGroup, pCalcRange, isHistory, isUserRecalc, isDetermined, recalcId,
-                                           false, NULL, false);
+                                           false, NULL, false, NULL);
 }
 
 static int32_t stTriggerTaskAddDisorderRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
                                                      STimeWindow *pCalcRange) {
-  return stTriggerTaskAddRecalcRequestImpl(pTask, pGroup, pCalcRange, false, false, false, 0, false, NULL, true);
+  return stTriggerTaskAddRecalcRequestImpl(pTask, pGroup, pCalcRange, false, false, false, 0, false, NULL, true, NULL);
 }
 
 int32_t stTriggerTaskTryAddNextWindowRecalc(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
@@ -6269,6 +6548,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   QUERY_CHECK_CODE(code, lino, _end);
 
   taosInitRWLatch(&pTask->recalcRequestLock);
+  TD_DLIST_INIT(&pTask->backoffRecalcRequests);
   pTask->pRecalcRequests = tdListNew(POINTER_BYTES);
   QUERY_CHECK_NULL(pTask->pRecalcRequests, code, lino, _end, terrno);
   pTask->pRecalcRequestMap = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
@@ -6351,7 +6631,7 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     SListNode *pCurNode = pNode;
     pNode = TD_DLIST_NODE_NEXT(pCurNode);
     StreamTriggerWaitInfo *pInfo = (StreamTriggerWaitInfo *)pCurNode->data;
-    if (pInfo != NULL && pInfo->streamId == pTask->task.streamId) {
+    if (pInfo != NULL && pInfo->streamId == pTask->task.streamId && pInfo->taskId == pTask->task.taskId) {
       TD_DLIST_POP(&gStreamTriggerWaitList, pCurNode);
       taosMemoryFreeClear(pCurNode);
     }
@@ -6548,6 +6828,11 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
       stTriggerTaskDestroyRecalcRequest(&pReq);
     }
     pTask->pRecalcRequests = tdListFree(pTask->pRecalcRequests);
+  }
+  SSTriggerRecalcRequest *pBackoffReq = NULL;
+  while ((pBackoffReq = TD_DLIST_HEAD(&pTask->backoffRecalcRequests)) != NULL) {
+    TD_DLIST_POP(&pTask->backoffRecalcRequests, pBackoffReq);
+    stTriggerTaskDestroyRecalcRequest(&pBackoffReq);
   }
   if (pTask->pRecalcRequestMap != NULL) {
     tSimpleHashCleanup(pTask->pRecalcRequestMap);
@@ -9356,6 +9641,55 @@ _abort:
   return code;
 }
 
+static int32_t stTriggerTaskDrainManualResponse(SStreamTriggerTask *pTask, SSTriggerAHandle *pAhandle, bool reader,
+                                                int32_t errorCode) {
+  SStreamRecalcAttemptRef attempt = {.chainId = pAhandle->manualAttempt.chainId,
+                                     .executionOrdinal = pAhandle->manualAttempt.executionOrdinal};
+  SSTriggerRecalcRequest *pReq = pTask->pHistoryContext == NULL ? NULL : pTask->pHistoryContext->pManualRecalcRequest;
+  if (pReq != NULL && pReq->attempt.chainId == attempt.chainId &&
+      pReq->attempt.executionOrdinal == attempt.executionOrdinal && errorCode != TSDB_CODE_SUCCESS) {
+    pReq->retryScheduled = true;
+  }
+
+  SStreamRecalcAttemptOutcome outcome = {0};
+  int32_t code = reader ? stRecalcTrackerCompleteAttemptReader(pTask->pRecalcTracker, attempt, pAhandle->progressStepId,
+                                                               pAhandle->progressRequestToken, errorCode, &outcome)
+                        : stRecalcTrackerCompleteAttemptRunner(pTask->pRecalcTracker, attempt, pAhandle->progressStepId,
+                                                               pAhandle->progressRequestToken, errorCode, &outcome);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  if (errorCode != TSDB_CODE_SUCCESS && outcome.decision == STREAM_RECALC_ATTEMPT_NONE) {
+    code = stRecalcTrackerSetAttemptTriggerDone(pTask->pRecalcTracker, attempt, pAhandle->progressStepId, 0,
+                                                TSDB_CODE_SUCCESS, &outcome);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  return stTriggerTaskHandleManualAttemptOutcome(pTask, pReq, &outcome);
+}
+
+static bool stTriggerTaskIsCurrentManualResponse(const SStreamTriggerTask *pTask, const SSTriggerAHandle *pAhandle) {
+  const SSTriggerRecalcRequest *pReq =
+      pTask->pHistoryContext == NULL ? NULL : pTask->pHistoryContext->pManualRecalcRequest;
+  return pReq != NULL && pReq->attempt.chainId == pAhandle->manualAttempt.chainId &&
+         pReq->attempt.executionOrdinal == pAhandle->manualAttempt.executionOrdinal;
+}
+
+static int32_t stTriggerTaskRecordManualCallbackFailure(SStreamTriggerTask *pTask, SSTriggerAHandle *pAhandle,
+                                                        int32_t errorCode) {
+  SStreamRecalcAttemptRef attempt = {.chainId = pAhandle->manualAttempt.chainId,
+                                     .executionOrdinal = pAhandle->manualAttempt.executionOrdinal};
+  SSTriggerRecalcRequest *pReq = pTask->pHistoryContext == NULL ? NULL : pTask->pHistoryContext->pManualRecalcRequest;
+  if (stTriggerTaskIsCurrentManualResponse(pTask, pAhandle)) pReq->retryScheduled = true;
+
+  SStreamRecalcAttemptOutcome outcome = {0};
+  int32_t code = stRecalcTrackerRecordAttemptFailure(pTask->pRecalcTracker, attempt, errorCode, &outcome);
+  if (code == TSDB_CODE_SUCCESS && outcome.decision == STREAM_RECALC_ATTEMPT_NONE && pAhandle->progressStepId != 0) {
+    code = stRecalcTrackerSetAttemptTriggerDone(pTask->pRecalcTracker, attempt, pAhandle->progressStepId, 0,
+                                                TSDB_CODE_SUCCESS, &outcome);
+  }
+  if (code != TSDB_CODE_SUCCESS) return code;
+  return stTriggerTaskHandleManualAttemptOutcome(pTask, pReq, &outcome);
+}
+
 int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t *pErrTaskId) {
   int32_t             code = 0;
   int32_t             lino = 0;
@@ -9398,6 +9732,20 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
                           TSDB_CODE_INVALID_MSG);
     SSTriggerPullRequest *pReq = pAhandle->param;
     debugSessionId = pReq->sessionId;
+    if (pAhandle->manualAttempt.chainId != 0) {
+      bool                    current = stTriggerTaskIsCurrentManualResponse(pTask, pAhandle);
+      SSTriggerRecalcRequest *pManualReq = current ? pTask->pHistoryContext->pManualRecalcRequest : NULL;
+      bool                    draining = current && pManualReq->retryScheduled;
+      bool                    failed = pRsp->code != TSDB_CODE_SUCCESS && pRsp->code != TSDB_CODE_STREAM_NO_DATA &&
+                    pRsp->code != TSDB_CODE_STREAM_NO_CONTEXT;
+      if (!current || failed || draining) {
+        code = stTriggerTaskDrainManualResponse(pTask, pAhandle, true, failed ? pRsp->code : TSDB_CODE_SUCCESS);
+        QUERY_CHECK_CODE(code, lino, _end);
+        goto _end;
+      }
+      code = stTriggerTaskDrainManualResponse(pTask, pAhandle, true, TSDB_CODE_SUCCESS);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     switch (pRsp->code) {
       case TSDB_CODE_SUCCESS:
       case TSDB_CODE_STREAM_NO_DATA:
@@ -9490,6 +9838,17 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
       taosArrayClearEx(pReq->params, tDestroySSTriggerCalcParam);
       pRsp->code = TSDB_CODE_SUCCESS;
     }
+    if (pAhandle->manualAttempt.chainId != 0) {
+      bool                    current = stTriggerTaskIsCurrentManualResponse(pTask, pAhandle);
+      SSTriggerRecalcRequest *pManualReq = current ? pTask->pHistoryContext->pManualRecalcRequest : NULL;
+      bool                    draining = current && pManualReq->retryScheduled;
+      if (!current || pRsp->code != TSDB_CODE_SUCCESS || draining) {
+        code = stTriggerTaskDrainManualResponse(pTask, pAhandle, false, pRsp->code);
+        if (code == TSDB_CODE_SUCCESS && current) code = stTriggerTaskReleaseRequest(pTask, &pReq, completed);
+        QUERY_CHECK_CODE(code, lino, _end);
+        goto _end;
+      }
+    }
     switch (pRsp->code) {
       case TSDB_CODE_SUCCESS:
       case TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER:
@@ -9550,7 +9909,23 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
           code = stRealtimeContextCheck(pTask->pRealtimeContext);
           QUERY_CHECK_CODE(code, lino, _end);
         } else if (req.sessionId == STREAM_TRIGGER_HISTORY_SESSIONID) {
-          code = stHistoryContextCheck(pTask->pHistoryContext, true);
+          SListNode *pWaitNode = stTriggerTaskTakeManualWaitNode(pTask, TRACE_GET_MSGID(&pRsp->info.traceId));
+          if (pWaitNode != NULL) {
+            StreamTriggerWaitInfo *pInfo = (StreamTriggerWaitInfo *)pWaitNode->data;
+            bool                   retryWait = false;
+            bool                   resumed = false;
+            code = stTriggerTaskResumeManualRecalc(pTask, pInfo->manualRecalcChainId, pWaitNode, &retryWait, &resumed);
+            if (retryWait) {
+              stTriggerTaskRequeueManualWaitNode(pWaitNode, taosGetTimestampNs(), true);
+              code = TSDB_CODE_SUCCESS;
+              break;
+            }
+            QUERY_CHECK_CODE(code, lino, _end);
+            if (!resumed) break;
+            code = stHistoryContextCheck(pTask->pHistoryContext, false);
+          } else {
+            code = stHistoryContextCheck(pTask->pHistoryContext, true);
+          }
           QUERY_CHECK_CODE(code, lino, _end);
         }
         break;
@@ -9587,18 +9962,35 @@ _end:
         pRsp->info.ahandle != NULL) {
       SMsgSendInfo     *pSendInfo = pRsp->info.ahandle;
       SSTriggerAHandle *pAhandle = pSendInfo->param;
-      if (pAhandle != NULL && pAhandle->progressStepId != 0) {
-        int32_t trackerCode = stRecalcTrackerFailStep(pTask->pRecalcTracker, pAhandle->progressStepId, code);
-        if (trackerCode != TSDB_CODE_SUCCESS) {
-          ST_TASK_ELOG("failed to mark recalculation step %" PRIu64 " as failed since %s", pAhandle->progressStepId,
-                       tstrerror(trackerCode));
+      if (pAhandle != NULL && pAhandle->manualAttempt.chainId != 0) {
+        int32_t trackerCode = stTriggerTaskRecordManualCallbackFailure(pTask, pAhandle, code);
+        if (trackerCode == TSDB_CODE_SUCCESS) {
+          code = TSDB_CODE_SUCCESS;
+          localFailure = false;
+        } else {
+          code = trackerCode;
         }
       }
     }
-    if (localFailure) {
-      stTaskStatsRecordTriggerEvent(pTask->pStats, STREAM_TRIGGER_EVENT_FAILURE, 1, streamTaskGetMonotonicUs());
+    if (code != TSDB_CODE_SUCCESS) {
+      if (!retryScheduled && !failureRecordedByChild &&
+          (pRsp->msgType == TDMT_STREAM_TRIGGER_PULL_RSP || pRsp->msgType == TDMT_STREAM_TRIGGER_CALC_RSP) &&
+          pRsp->info.ahandle != NULL) {
+        SMsgSendInfo     *pSendInfo = pRsp->info.ahandle;
+        SSTriggerAHandle *pAhandle = pSendInfo->param;
+        if (pAhandle != NULL && pAhandle->manualAttempt.chainId == 0 && pAhandle->progressStepId != 0) {
+          int32_t trackerCode = stRecalcTrackerFailStep(pTask->pRecalcTracker, pAhandle->progressStepId, code);
+          if (trackerCode != TSDB_CODE_SUCCESS) {
+            ST_TASK_ELOG("failed to mark recalculation step %" PRIu64 " as failed since %s", pAhandle->progressStepId,
+                         tstrerror(trackerCode));
+          }
+        }
+      }
+      if (localFailure) {
+        stTaskStatsRecordTriggerEvent(pTask->pStats, STREAM_TRIGGER_EVENT_FAILURE, 1, streamTaskGetMonotonicUs());
+      }
+      ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     }
-    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   stTriggerTaskRefreshCommonDebugGauges(pTask);
   if (debugSessionId == STREAM_TRIGGER_REALTIME_SESSIONID && pTask->pRealtimeContext != NULL) {
@@ -10059,8 +10451,9 @@ int32_t stTriggerTaskGetMetrics(SStreamTriggerTask *pTask, SStreamTaskMetricsSna
                                             : TSDB_CODE_SUCCESS;
   }
 
-  code = stRecalcTrackerCopySnapshot(pTask->pRecalcTracker, &pSnapshot->historyProgressValid,
-                                     &pSnapshot->historyProgressPct, &pSnapshot->pRecalculates);
+  code = stRecalcTrackerCopySnapshotWithDetails(pTask->pRecalcTracker, &pSnapshot->historyProgressValid,
+                                                &pSnapshot->historyProgressPct, &pSnapshot->pRecalculates,
+                                                &pSnapshot->pRecalcDetails);
   if (code != TSDB_CODE_SUCCESS) return code;
   pSnapshot->validMask |= STREAM_METRIC_RECALCULATES;
   if (pSnapshot->historyProgressValid) {
@@ -14148,10 +14541,12 @@ static int32_t stRealtimeContextAddUserRecalcTransactional(SSTriggerRealtimeCont
     SStreamRecalcReq *pReq = TARRAY_GET_ELEM(pTask->pUserRecalcRequests, i);
     SArray           *pGroupIds = taosArrayInit(tSimpleHashGetSize(pContext->pGroups), sizeof(int64_t));
     SArray *pMutations = taosArrayInit(tSimpleHashGetSize(pContext->pGroups), sizeof(SSTriggerRecalcMutation));
-    QUERY_CHECK_NULL(pGroupIds, code, lino, _end, terrno);
-    if (pMutations == NULL) {
+    SArray *pPreparedReqs = taosArrayInit_s(sizeof(SSTriggerRecalcRequest *), tSimpleHashGetSize(pContext->pGroups));
+    if (pGroupIds == NULL || pMutations == NULL || pPreparedReqs == NULL) {
       code = terrno;
       taosArrayDestroy(pGroupIds);
+      taosArrayDestroy(pMutations);
+      taosArrayDestroy(pPreparedReqs);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -14165,9 +14560,25 @@ static int32_t stRealtimeContextAddUserRecalcTransactional(SSTriggerRealtimeCont
       }
       px = tSimpleHashIterate(pContext->pGroups, px, &iter);
     }
+    taosWLockLatch(&pTask->recalcRequestLock);
+    for (int32_t j = 0; code == TSDB_CODE_SUCCESS && j < TARRAY_SIZE(pPreparedReqs); ++j) {
+      int64_t    *pGid = TARRAY_GET_ELEM(pGroupIds, j);
+      STimeWindow range = {
+          .skey = pReq->start,
+          .ekey = pReq->end == TSKEY_MIN ? TSKEY_MIN : pReq->end - 1,
+      };
+      SSTriggerRecalcRequest **ppPrepared = TARRAY_GET_ELEM(pPreparedReqs, j);
+      code = stTriggerTaskPrepareManualRecalcRequest(pTask, *pGid, range, ppPrepared);
+    }
     if (code != TSDB_CODE_SUCCESS) {
+      for (int32_t j = 0; j < TARRAY_SIZE(pPreparedReqs); ++j) {
+        SSTriggerRecalcRequest **ppPrepared = TARRAY_GET_ELEM(pPreparedReqs, j);
+        stTriggerTaskDestroyRecalcRequest(ppPrepared);
+      }
+      taosArrayDestroy(pPreparedReqs);
       taosArrayDestroy(pMutations);
       taosArrayDestroy(pGroupIds);
+      taosWUnLockLatch(&pTask->recalcRequestLock);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -14176,7 +14587,6 @@ static int32_t stRealtimeContextAddUserRecalcTransactional(SSTriggerRealtimeCont
     bool    historyValid = false;
     int32_t historyProgress = 0;
     SArray *pSnapshots = NULL;
-    taosWLockLatch(&pTask->recalcRequestLock);
     code = stRecalcTrackerCopySnapshot(pTask->pRecalcTracker, &historyValid, &historyProgress, &pSnapshots);
     if (code == TSDB_CODE_SUCCESS) {
       for (int32_t j = 0; j < TARRAY_SIZE(pSnapshots); ++j) {
@@ -14206,9 +14616,23 @@ static int32_t stRealtimeContextAddUserRecalcTransactional(SSTriggerRealtimeCont
         }
         SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)pGroupValue;
         STimeWindow             range = {.skey = pReq->start, .ekey = pReq->end - 1};
+        SSTriggerRecalcRequest **ppPrepared = TARRAY_GET_ELEM(pPreparedReqs, j);
         code = stTriggerTaskAddRecalcRequestImpl(pTask, pGroup, &range, false, true, false, pReq->recalcId, true,
-                                                 pMutations, false);
+                                                 pMutations, false, ppPrepared);
         if (code != TSDB_CODE_SUCCESS) break;
+      }
+    }
+    if (code == TSDB_CODE_SUCCESS && !existing) {
+      for (int32_t j = 0; j < TARRAY_SIZE(pMutations); ++j) {
+        SSTriggerRecalcMutation *pMutation = TARRAY_GET_ELEM(pMutations, j);
+        SSTriggerRecalcRequest  *pManualReq = pMutation->pReq;
+        if (pManualReq->pPreparedAttempt == NULL) continue;
+        code = stRecalcTrackerActivateAttempt(pTask->pRecalcTracker, &pManualReq->pPreparedAttempt, pManualReq->gid,
+                                              stRecalcProgressRangeFromWindow(pManualReq->scanRange),
+                                              stRecalcProgressRangeFromWindow(pManualReq->calcRange),
+                                              pManualReq->pContributors, &pManualReq->attempt);
+        if (code != TSDB_CODE_SUCCESS) break;
+        pManualReq->frozen = true;
       }
     }
     stTriggerTaskFinishRecalcMutations(pTask, pMutations, code != TSDB_CODE_SUCCESS);
@@ -14222,6 +14646,11 @@ static int32_t stRealtimeContextAddUserRecalcTransactional(SSTriggerRealtimeCont
       code = originalCode;
     }
     taosWUnLockLatch(&pTask->recalcRequestLock);
+    for (int32_t j = 0; j < TARRAY_SIZE(pPreparedReqs); ++j) {
+      SSTriggerRecalcRequest **ppPrepared = TARRAY_GET_ELEM(pPreparedReqs, j);
+      stTriggerTaskDestroyRecalcRequest(ppPrepared);
+    }
+    taosArrayDestroy(pPreparedReqs);
     taosArrayDestroy(pMutations);
     taosArrayDestroy(pGroupIds);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -14314,7 +14743,36 @@ static int32_t stRealtimeContextAddUserRecalc(SSTriggerRealtimeContext *pContext
       QUERY_CHECK_NULL(ppGroup, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerRealtimeGroup *pGroup = *ppGroup;
       STimeWindow             range = {.skey = pReq->start, .ekey = pReq->end - 1};
-      code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, false, true, false, pReq->recalcId);
+      SArray                 *pMutations = taosArrayInit(1, sizeof(SSTriggerRecalcMutation));
+      QUERY_CHECK_NULL(pMutations, code, lino, _end, terrno);
+      SSTriggerRecalcRequest *pPrepared = NULL;
+      taosWLockLatch(&pTask->recalcRequestLock);
+      code = stTriggerTaskPrepareManualRecalcRequest(pTask, *pGid, range, &pPrepared);
+      if (code == TSDB_CODE_SUCCESS) {
+        code = stTriggerTaskAddRecalcRequestImpl(pTask, pGroup, &range, false, true, false, pReq->recalcId, true,
+                                                 pMutations, false, &pPrepared);
+      }
+      if (code == TSDB_CODE_SUCCESS) {
+        if (TARRAY_SIZE(pMutations) != 1) {
+          code = TSDB_CODE_INTERNAL_ERROR;
+        } else {
+          SSTriggerRecalcMutation *pMutation = taosArrayGetLast(pMutations);
+          SSTriggerRecalcRequest  *pManualReq = pMutation->pReq;
+          if (pManualReq == NULL || pManualReq->pPreparedAttempt == NULL) {
+            code = TSDB_CODE_INTERNAL_ERROR;
+          } else {
+            code = stRecalcTrackerActivateAttempt(pTask->pRecalcTracker, &pManualReq->pPreparedAttempt, pManualReq->gid,
+                                                  stRecalcProgressRangeFromWindow(pManualReq->scanRange),
+                                                  stRecalcProgressRangeFromWindow(pManualReq->calcRange),
+                                                  pManualReq->pContributors, &pManualReq->attempt);
+            if (code == TSDB_CODE_SUCCESS) pManualReq->frozen = true;
+          }
+        }
+      }
+      stTriggerTaskFinishRecalcMutations(pTask, pMutations, code != TSDB_CODE_SUCCESS);
+      taosWUnLockLatch(&pTask->recalcRequestLock);
+      stTriggerTaskDestroyRecalcRequest(&pPrepared);
+      taosArrayDestroy(pMutations);
       QUERY_CHECK_CODE(code, lino, _end);
       ++pTask->userRecalcConversionIndex;
     }
@@ -17034,10 +17492,18 @@ _end:
   return code;
 }
 
-static int32_t stHistoryContextHandleRequest(SSTriggerHistoryContext *pContext, SSTriggerRecalcRequest *pReq) {
+static int32_t stHistoryContextHandleRequest(SSTriggerHistoryContext *pContext, SSTriggerRecalcRequest **ppReq) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
+  SSTriggerRecalcRequest *pReq = ppReq == NULL ? NULL : *ppReq;
+  QUERY_CHECK_NULL(pReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  bool manual = pReq->attempt.chainId != 0;
+  if (manual) {
+    QUERY_CHECK_CONDITION(pContext->pManualRecalcRequest == NULL, code, lino, _end, TSDB_CODE_INVALID_STATE);
+    pContext->pManualRecalcRequest = pReq;
+    *ppReq = NULL;
+  }
   pContext->gid = pReq->gid;
   pContext->scanRange = pReq->scanRange;
   pContext->calcRange = pReq->calcRange;
@@ -17045,7 +17511,12 @@ static int32_t stHistoryContextHandleRequest(SSTriggerHistoryContext *pContext, 
   pContext->isHistory = pReq->isHistory;
   taosArrayDestroy(pContext->pContributors);
   pContext->pContributors = NULL;
-  TSWAP(pContext->pContributors, pReq->pContributors);
+  if (manual) {
+    pContext->pContributors = taosArrayDup(pReq->pContributors, NULL);
+    QUERY_CHECK_NULL(pContext->pContributors, code, lino, _end, terrno);
+  } else {
+    TSWAP(pContext->pContributors, pReq->pContributors);
+  }
   pContext->progressStepId = 0;
   pContext->historyProgressStepRange = (SStreamProgressRange){0};
   pContext->historyProgressTriggerDone = false;
@@ -17076,6 +17547,7 @@ static void stHistoryContextDestroy(void *ptr) {
 
   SSTriggerHistoryContext *pContext = *ppContext;
   SStreamTriggerTask      *pTask = pContext->pTask;
+  stTriggerTaskDestroyRecalcRequest(&pContext->pManualRecalcRequest);
   stTriggerTaskClearHistoryDebugGauges(pTask);
   stHistoryContextAbortNestedLeafEffects(pContext);
   if (pContext->pReaderTsdbProgress != NULL) {
@@ -17209,8 +17681,14 @@ static int32_t stHistoryContextBeginProgressStep(SSTriggerHistoryContext *pConte
   }
   SStreamProgressRange progressRange = stTriggerTaskProgressRangeFromClosed(progressWindow);
   const SArray        *pContributors = pContext->isHistory ? NULL : pContext->pContributors;
-  int32_t code = stRecalcTrackerBeginStep(pContext->pTask->pRecalcTracker, pContext->gid, progressRange, pContributors,
-                                          &pContext->progressStepId);
+  int32_t              code = TSDB_CODE_SUCCESS;
+  if (pContext->pManualRecalcRequest != NULL) {
+    code = stRecalcTrackerBeginAttemptStep(pContext->pTask->pRecalcTracker, pContext->pManualRecalcRequest->attempt,
+                                           pContext->gid, progressRange, pContributors, &pContext->progressStepId);
+  } else {
+    code = stRecalcTrackerBeginStep(pContext->pTask->pRecalcTracker, pContext->gid, progressRange, pContributors,
+                                    &pContext->progressStepId);
+  }
   if (code == TSDB_CODE_SUCCESS && pContext->isHistory) {
     pContext->historyProgressStepRange = progressRange;
     pContext->historyProgressTriggerDone = false;
@@ -17222,7 +17700,19 @@ static int32_t stHistoryContextFinishProgressStep(SSTriggerHistoryContext *pCont
   if (pContext->progressStepId == 0) return TSDB_CODE_SUCCESS;
   if (pContext->isHistory && pContext->historyProgressTriggerDone) return TSDB_CODE_SUCCESS;
 
-  int32_t code = stRecalcTrackerSetTriggerDone(pContext->pTask->pRecalcTracker, pContext->progressStepId, 0);
+  const bool manual = pContext->pManualRecalcRequest != NULL;
+  int32_t    code = TSDB_CODE_SUCCESS;
+  if (manual) {
+    SStreamRecalcAttemptOutcome outcome = {0};
+    code =
+        stRecalcTrackerSetAttemptTriggerDone(pContext->pTask->pRecalcTracker, pContext->pManualRecalcRequest->attempt,
+                                             pContext->progressStepId, 0, TSDB_CODE_SUCCESS, &outcome);
+    if (code == TSDB_CODE_SUCCESS) {
+      code = stTriggerTaskHandleManualAttemptOutcome(pContext->pTask, pContext->pManualRecalcRequest, &outcome);
+    }
+  } else {
+    code = stRecalcTrackerSetTriggerDone(pContext->pTask->pRecalcTracker, pContext->progressStepId, 0);
+  }
   if (code == TSDB_CODE_SUCCESS) {
     if (pContext->isHistory) {
       pContext->historyProgressTriggerDone = true;
@@ -17336,6 +17826,20 @@ static SSTriggerHistoryPeerSource *stHistoryContextFindNestedSourceByRequest(SST
     px = tSimpleHashIterate(pContext->pGroups, px, &iter);
   }
   return NULL;
+}
+
+static int32_t stHistoryContextCompleteManualRequest(SSTriggerHistoryContext *pContext) {
+  SSTriggerRecalcRequest *pReq = pContext->pManualRecalcRequest;
+  if (pReq == NULL) return TSDB_CODE_SUCCESS;
+
+  SStreamRecalcAttemptOutcome outcome = {0};
+  int32_t code = stRecalcTrackerCompleteAttempt(pContext->pTask->pRecalcTracker, pReq->attempt, &outcome);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = stTriggerTaskHandleManualAttemptOutcome(pContext->pTask, pReq, &outcome);
+  if (code != TSDB_CODE_SUCCESS || outcome.decision != STREAM_RECALC_ATTEMPT_NONE) return code;
+  pContext->pManualRecalcRequest = NULL;
+  stTriggerTaskDestroyRecalcRequest(&pReq);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ESTriggerPullType type) {
@@ -17577,10 +18081,20 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
   pReq->readerTaskId = pReader->taskId;
   pReq->progressStepId = 0;
   pReq->progressRequestToken = 0;
+  pReq->manualAttempt = (SStreamManualRecalcAttemptId){0};
   if (pContext->progressStepId != 0) {
     QUERY_CHECK_CONDITION(pContext->nextProgressRequestToken != UINT64_MAX, code, lino, _end, TSDB_CODE_OUT_OF_RANGE);
     pReq->progressStepId = pContext->progressStepId;
     pReq->progressRequestToken = ++pContext->nextProgressRequestToken;
+    if (pContext->pManualRecalcRequest != NULL) {
+      pReq->manualAttempt.chainId = pContext->pManualRecalcRequest->attempt.chainId;
+      pReq->manualAttempt.executionOrdinal = pContext->pManualRecalcRequest->attempt.executionOrdinal;
+      code = stRecalcTrackerAddAttemptReader(pTask->pRecalcTracker, pContext->pManualRecalcRequest->attempt,
+                                             pReq->progressStepId, pReq->progressRequestToken);
+    } else {
+      code = stRecalcTrackerAddReader(pTask->pRecalcTracker, pReq->progressStepId, pReq->progressRequestToken);
+    }
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   // serialize and send request
@@ -17603,10 +18117,6 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
   TRACE_SET_ROOTID(&msg.info.traceId, pTask->task.streamId);
   TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
 
-  if (pReq->progressStepId != 0) {
-    code = stRecalcTrackerAddReader(pTask->pRecalcTracker, pReq->progressStepId, pReq->progressRequestToken);
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
   code = tmsgSendReq(&pReader->epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
   if (pNestedSource != NULL) pNestedSource->inFlight = true;
@@ -17616,6 +18126,17 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    if (pReq != NULL && pReq->manualAttempt.chainId != 0 && pReq->progressStepId != 0 &&
+        pReq->progressRequestToken != 0) {
+      SStreamRecalcAttemptOutcome outcome = {0};
+      SStreamRecalcAttemptRef     attempt = {.chainId = pReq->manualAttempt.chainId,
+                                             .executionOrdinal = pReq->manualAttempt.executionOrdinal};
+      int32_t trackerCode = stRecalcTrackerCompleteAttemptReader(pTask->pRecalcTracker, attempt, pReq->progressStepId,
+                                                                 pReq->progressRequestToken, code, &outcome);
+      if (trackerCode != TSDB_CODE_SUCCESS) {
+        code = trackerCode;
+      }
+    }
     destroyAhandle(msg.info.ahandle);
     ST_TASK_ELOG("%s failed at line %d since %s, type: %d", __func__, lino, tstrerror(code), type);
   }
@@ -17841,6 +18362,15 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext, bo
     QUERY_CHECK_CONDITION(pContext->nextProgressRequestToken != UINT64_MAX, code, lino, _end, TSDB_CODE_OUT_OF_RANGE);
     pCalcReq->progressStepId = pContext->progressStepId;
     pCalcReq->progressRequestToken = ++pContext->nextProgressRequestToken;
+    if (pContext->pManualRecalcRequest != NULL) {
+      pCalcReq->manualAttempt.chainId = pContext->pManualRecalcRequest->attempt.chainId;
+      pCalcReq->manualAttempt.executionOrdinal = pContext->pManualRecalcRequest->attempt.executionOrdinal;
+      code = stRecalcTrackerAddAttemptRunner(pTask->pRecalcTracker, pContext->pManualRecalcRequest->attempt,
+                                             pCalcReq->progressStepId, pCalcReq->progressRequestToken);
+    } else {
+      code = stRecalcTrackerAddRunner(pTask->pRecalcTracker, pCalcReq->progressStepId, pCalcReq->progressRequestToken);
+    }
+    QUERY_CHECK_CODE(code, lino, _end);
   }
   code = stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pCalcReq, pCalcReq->progressStepId,
                                    pCalcReq->progressRequestToken, &msg.info.ahandle);
@@ -17862,12 +18392,6 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext, bo
   TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
 
   if (addProgressRunner) {
-    code = stRecalcTrackerAddRunner(pTask->pRecalcTracker, pCalcReq->progressStepId, pCalcReq->progressRequestToken);
-    if (code != TSDB_CODE_SUCCESS) {
-      pCalcReq->progressStepId = 0;
-      pCalcReq->progressRequestToken = 0;
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
     progressRunnerAdded = true;
   }
   code = tmsgSendReq(&pCalcRunner->addr.epset, &msg);
@@ -17907,6 +18431,23 @@ _end:
     blockDataDestroy(pCalcDataBlock);
   }
   if (code != TSDB_CODE_SUCCESS) {
+    if (pCalcReq != NULL && pCalcReq->manualAttempt.chainId != 0 && pCalcReq->progressStepId != 0 &&
+        pCalcReq->progressRequestToken != 0) {
+      SStreamRecalcAttemptOutcome outcome = {0};
+      SStreamRecalcAttemptRef     attempt = {.chainId = pCalcReq->manualAttempt.chainId,
+                                             .executionOrdinal = pCalcReq->manualAttempt.executionOrdinal};
+      int32_t                     trackerCode = stRecalcTrackerCompleteAttemptRunner(
+          pTask->pRecalcTracker, attempt, pCalcReq->progressStepId, pCalcReq->progressRequestToken, code, &outcome);
+      if (trackerCode != TSDB_CODE_SUCCESS) {
+        code = trackerCode;
+      }
+    }
+    if (pContext->pManualRecalcRequest != NULL && pContext->pCalcReq == pCalcReq) {
+      int32_t releaseCode = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq, false);
+      if (releaseCode != TSDB_CODE_SUCCESS) {
+        ST_TASK_ELOG("failed to release unsent manual calc request since %s", tstrerror(releaseCode));
+      }
+    }
     destroyAhandle(msg.info.ahandle);
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -18169,6 +18710,9 @@ static int32_t stHistoryContextTryFinish(SSTriggerHistoryContext *pContext) {
     code = stHistoryContextCommitTerminalProgress(pContext);
     if (code != TSDB_CODE_SUCCESS) return code;
     atomic_store_8(&pTask->historyFinished, 1);
+  } else {
+    code = stHistoryContextCompleteManualRequest(pContext);
+    if (code != TSDB_CODE_SUCCESS) return code;
   }
   stHistoryContextDestroy(&pTask->pHistoryContext);
   pTask->pHistoryContext = taosMemoryCalloc(1, sizeof(SSTriggerHistoryContext));
@@ -18245,9 +18789,13 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext, bool con
       goto _end;
     }
     acceptedRecalcRequest = true;
-    code = stHistoryContextHandleRequest(pContext, pReq);
+    code = stHistoryContextHandleRequest(pContext, &pReq);
     stTriggerTaskDestroyRecalcRequest(&pReq);
     QUERY_CHECK_CODE(code, lino, _end);
+    if (pContext->pManualRecalcRequest != NULL) {
+      code = stHistoryContextBeginProgressStep(pContext);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     pContext->status = STRIGGER_CONTEXT_IDLE;
   }
 
@@ -18685,8 +19233,27 @@ _end:
                                 checkEndMonoUs, taosGetTimestampMs());
   if (code != TSDB_CODE_SUCCESS) {
     bool retryableNestedFailure = nested && code == TSDB_CODE_OUT_OF_MEMORY;
-    if (!retryPath && !retryableNestedFailure && acceptedRecalcRequest && pContext->progressStepId == 0 &&
-        pContext->pContributors != NULL && TARRAY_SIZE(pContext->pContributors) > 0) {
+    if (pContext->pManualRecalcRequest != NULL) {
+      SSTriggerRecalcRequest     *pManualReq = pContext->pManualRecalcRequest;
+      SStreamRecalcAttemptOutcome outcome = {0};
+      pManualReq->retryScheduled = true;
+      int32_t trackerCode =
+          stRecalcTrackerRecordAttemptFailure(pTask->pRecalcTracker, pManualReq->attempt, code, &outcome);
+      if (trackerCode == TSDB_CODE_SUCCESS && outcome.decision == STREAM_RECALC_ATTEMPT_NONE &&
+          pContext->progressStepId != 0) {
+        trackerCode = stRecalcTrackerSetAttemptTriggerDone(pTask->pRecalcTracker, pManualReq->attempt,
+                                                           pContext->progressStepId, 0, TSDB_CODE_SUCCESS, &outcome);
+      }
+      if (trackerCode == TSDB_CODE_SUCCESS) {
+        trackerCode = stTriggerTaskHandleManualAttemptOutcome(pTask, pManualReq, &outcome);
+      }
+      if (trackerCode == TSDB_CODE_SUCCESS) {
+        code = TSDB_CODE_SUCCESS;
+      } else {
+        code = trackerCode;
+      }
+    } else if (!retryPath && !retryableNestedFailure && acceptedRecalcRequest && pContext->progressStepId == 0 &&
+               pContext->pContributors != NULL && TARRAY_SIZE(pContext->pContributors) > 0) {
       int32_t trackerCode = stRecalcTrackerBeginStep(pTask->pRecalcTracker, pContext->gid,
                                                      stTriggerTaskProgressRangeFromClosed(pContext->calcRange),
                                                      pContext->pContributors, &pContext->progressStepId);
@@ -18694,15 +19261,18 @@ _end:
         ST_TASK_ELOG("failed to begin fatal recalculation step since %s", tstrerror(trackerCode));
       }
     }
-    if (!retryPath && !retryableNestedFailure && pContext->progressStepId != 0) {
-      int32_t trackerCode = stRecalcTrackerFailStep(pTask->pRecalcTracker, pContext->progressStepId, code);
-      if (trackerCode != TSDB_CODE_SUCCESS) {
-        ST_TASK_ELOG("failed to mark recalculation step %" PRIu64 " as failed since %s", pContext->progressStepId,
-                     tstrerror(trackerCode));
+    if (code != TSDB_CODE_SUCCESS) {
+      if (pContext->pManualRecalcRequest == NULL && !retryPath && !retryableNestedFailure &&
+          pContext->progressStepId != 0) {
+        int32_t trackerCode = stRecalcTrackerFailStep(pTask->pRecalcTracker, pContext->progressStepId, code);
+        if (trackerCode != TSDB_CODE_SUCCESS) {
+          ST_TASK_ELOG("failed to mark recalculation step %" PRIu64 " as failed since %s", pContext->progressStepId,
+                       tstrerror(trackerCode));
+        }
       }
+      stTaskStatsRecordTriggerEvent(pTask->pStats, STREAM_TRIGGER_EVENT_FAILURE, 1, checkEndMonoUs);
+      ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     }
-    stTaskStatsRecordTriggerEvent(pTask->pStats, STREAM_TRIGGER_EVENT_FAILURE, 1, checkEndMonoUs);
-    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -19256,7 +19826,8 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
   }
 
 _end:
-  if ((code == TSDB_CODE_SUCCESS || *pFailureRecordedByChild) && pAhandle != NULL && pAhandle->progressStepId != 0) {
+  if ((code == TSDB_CODE_SUCCESS || *pFailureRecordedByChild) && pAhandle != NULL &&
+      pAhandle->manualAttempt.chainId == 0 && pAhandle->progressStepId != 0) {
     int32_t trackerCode =
         stRecalcTrackerCompleteReader(pTask->pRecalcTracker, pAhandle->progressStepId, pAhandle->progressRequestToken);
     if (trackerCode != TSDB_CODE_SUCCESS) {
@@ -19302,8 +19873,18 @@ static int32_t stHistoryContextProcCalcRsp(SSTriggerHistoryContext *pContext, SR
 
   if (pRsp->code == TSDB_CODE_SUCCESS) {
     if (pAhandle->progressStepId != 0) {
-      code = stRecalcTrackerCompleteRunner(pTask->pRecalcTracker, pAhandle->progressStepId,
-                                           pAhandle->progressRequestToken);
+      if (pAhandle->manualAttempt.chainId != 0) {
+        SStreamRecalcAttemptOutcome outcome = {0};
+        SStreamRecalcAttemptRef     attempt = {.chainId = pAhandle->manualAttempt.chainId,
+                                               .executionOrdinal = pAhandle->manualAttempt.executionOrdinal};
+        code = stRecalcTrackerCompleteAttemptRunner(pTask->pRecalcTracker, attempt, pAhandle->progressStepId,
+                                                    pAhandle->progressRequestToken, TSDB_CODE_SUCCESS, &outcome);
+        QUERY_CHECK_CODE(code, lino, _end);
+        code = stTriggerTaskHandleManualAttemptOutcome(pTask, pContext->pManualRecalcRequest, &outcome);
+      } else {
+        code = stRecalcTrackerCompleteRunner(pTask->pRecalcTracker, pAhandle->progressStepId,
+                                             pAhandle->progressRequestToken);
+      }
       QUERY_CHECK_CODE(code, lino, _end);
     }
     code = stTriggerTaskReleaseRequest(pTask, &pReq, completed);

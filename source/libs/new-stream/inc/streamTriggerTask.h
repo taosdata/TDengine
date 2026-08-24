@@ -128,6 +128,8 @@ typedef struct {
   bool                              handled;
 } SSTriggerNestedPseudoAttempt;
 
+#define STREAM_MANUAL_RECALC_RETRY_BACKOFF_MS 100
+
 // #define SKIP_SEND_CALC_REQUEST
 
 typedef struct SSTriggerVirtTableInfo {
@@ -630,6 +632,7 @@ typedef struct SSTriggerHistoryContext {
   bool                 finishCheck;
   bool                 pendingToFinish;
   SArray              *pContributors;  // SArray<SStreamRecalcContributor>
+  struct SSTriggerRecalcRequest *pManualRecalcRequest;
   uint64_t             progressStepId;
   uint64_t             nextProgressRequestToken;
   SStreamProgressRange historyProgressStepRange;
@@ -725,7 +728,13 @@ typedef struct SSTriggerRecalcRequest {
   SSHashObj  *pTsdbVersions;
   SArray     *pContributors;  // SArray<SStreamRecalcContributor>
   bool        isHistory;
-  SRecalcImpactDomain impactDomain;
+  SRecalcImpactDomain        impactDomain;
+  bool                       frozen;
+  bool                       noMerge;
+  bool                       retryScheduled;
+  SStreamRecalcAttemptState *pPreparedAttempt;
+  SStreamRecalcAttemptRef    attempt;
+  SListNode                 *pRetryWaitNode;
   TD_DLIST_NODE(SSTriggerRecalcRequest);
 } SSTriggerRecalcRequest;
 
@@ -867,6 +876,7 @@ typedef struct SStreamTriggerTask {
   SList     *pRecalcRequests;       // SList<SSTriggerRecalcRequest>
   SSHashObj *pRecalcRequestMap;     // SSHashObj<gid, SSTriggerRecalcRequestList>
   SSHashObj *pGroupPendingRecalcs;  // SSHashObj<gid, SSTriggerGroupPendingRecalc>
+  SSTriggerRecalcReqList backoffRecalcRequests;
 
   SRWLatch userRecalcRequestLock;
   SArray  *pUserRecalcRequests;        // SArray<SStreamRecalcReq>

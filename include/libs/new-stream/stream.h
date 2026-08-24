@@ -90,6 +90,7 @@ typedef struct SSTriggerAHandle {
   void   *param;
   uint64_t progressStepId;
   uint64_t progressRequestToken;
+  SStreamManualRecalcAttemptId manualAttempt;
 } SSTriggerAHandle;
 
 typedef enum {

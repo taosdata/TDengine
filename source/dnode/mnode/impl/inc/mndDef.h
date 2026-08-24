@@ -195,6 +195,12 @@ typedef enum {
 } ETrnKillMode;
 
 typedef enum {
+  TRANS_STOP_CB_PENDING = 0,
+  TRANS_STOP_CB_RUNNING,
+  TRANS_STOP_CB_DONE,
+} ETransStopCbState;
+
+typedef enum {
   DND_REASON_ONLINE = 0,
   DND_REASON_STATUS_MSG_TIMEOUT,
   DND_REASON_STATUS_NOT_RECEIVED,
@@ -257,6 +263,7 @@ typedef struct {
   SHashObj*     arbGroupIds;
   int32_t       startFunc;
   int32_t       stopFunc;
+  int8_t        stopCbState;
   int32_t       paramLen;
   void*         param;
   char          opername[TSDB_TRANS_OPER_LEN];
@@ -1239,6 +1246,13 @@ typedef struct {
   bool             isReload;
 } SMqRebOutputObj;
 
+typedef struct SStreamRecalcPersistReq {
+  int64_t recalcId;
+  TSKEY   start;
+  TSKEY   end;
+  int64_t requestTimeMs;
+} SStreamRecalcPersistReq;
+
 typedef struct {
   char                name[TSDB_STREAM_FNAME_LEN];
   char                createUser[TSDB_USER_LEN];
@@ -1256,6 +1270,9 @@ typedef struct {
   // only STREAM_FLAG_REF_EXT_SOURCE (bit 3) is consumed; lifted from
   // SCMCreateStreamReq.flags by mndStreamBuildObj.
   uint64_t flags;
+  uint64_t recalcRevision;
+  SArray*  pIncompleteRecalcs;  // SArray<SStreamRecalcPersistReq>
+  int8_t   sdbRawUpdateKind;    // EStreamRawUpdateKind; not business-serialized
   // External source trigger specs live in pCreate->extSpecs
   // (SCMCreateStreamReq.extSpecs), which is JSON-serialized as part of
   // pCreate and persists for the whole lifetime of the stream object; there

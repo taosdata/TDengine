@@ -134,6 +134,11 @@ static int32_t stmInitTaskMetrics(SStreamHbMsg* pMsg, int32_t capacity) {
   return pMsg->pTaskMetrics == NULL ? terrno : TSDB_CODE_SUCCESS;
 }
 
+static void stmDestroyRecalcDetail(void* param) {
+  SStreamRecalcDetail* pDetail = param;
+  taosMemoryFreeClear(pDetail->errorText);
+}
+
 static int32_t stmAppendTaskMetrics(SStreamHbMsg* pMsg, SStreamTask* pTask, SStreamTaskStats* pStats,
                                     int32_t taskStatusIndex) {
   int32_t                 code = TSDB_CODE_SUCCESS;
@@ -162,9 +167,11 @@ static int32_t stmAppendTaskMetrics(SStreamHbMsg* pMsg, SStreamTask* pTask, SStr
     goto _exit;
   }
   entry.snapshot.pRecalculates = NULL;
+  entry.snapshot.pRecalcDetails = NULL;
 
 _exit:
   taosArrayDestroy(entry.snapshot.pRecalculates);
+  taosArrayDestroyEx(entry.snapshot.pRecalcDetails, stmDestroyRecalcDetail);
   return code;
 }
 
