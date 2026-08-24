@@ -159,7 +159,11 @@ class TestCompositePrimaryKeyCreate:
             tdSql.error(f"alter table {table_name} modify column pk {date_type[1].value}", show=SHOW_LOG)
 
         tdSql.error(f"alter table {table_name} modify column pk varchar(300)", show=SHOW_LOG)
-        tdSql.error(f"alter table {table_name} rename column pk new_pk", show=SHOW_LOG)
+        # renaming the composite primary key column is allowed: key semantics come from the
+        # COL_IS_KEY flag and the colId, not from the column name. Rename back so the checks
+        # below still address the column as "pk".
+        tdSql.execute(f"alter table {table_name} rename column pk new_pk", show=SHOW_LOG)
+        tdSql.execute(f"alter table {table_name} rename column new_pk pk", show=SHOW_LOG)
         tdSql.error(f"alter table {table_name} drop column pk", show=SHOW_LOG)
 
     def test_primary_key_create(self):

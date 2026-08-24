@@ -26,7 +26,7 @@ class TestBatchMetaTxnDdlVisibility:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.execute("drop database if exists txn_vis_db")
-        tdSql.execute("create database txn_vis_db vgroups 2 keep 36500")
+        tdSql.execute("create database txn_vis_db vgroups 2 keep 36500 replica 3")
 
     # ---- helpers ----
 
@@ -204,6 +204,45 @@ class TestBatchMetaTxnDdlVisibility:
         assert 'c2' in self._cols("stb")
         tdSql.query("select c2 from ct1")
         tdSql.checkData(0, 0, 2.5)
+
+    def check_a7_rename_column_stb_ntb(self):
+        """ALTER STB/NTB rename column: isolation + rollback."""
+        self._reset()
+        tdLog.info("======== test_a7_rename_column_stb_ntb")
+
+        tdSql.execute("create table stb (ts timestamp, c1 int, c2 float) tags (t1 int)")
+        tdSql.execute("create table ntb1 (ts timestamp, c1 int, c2 float)")
+        tdSql.execute("create table ct1 using stb tags(1)")
+        tdSql.execute("insert into ct1 values(now, 1, 2.5)")
+
+        # --- RENAME COLUMN isolation ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table stb rename column c2 c2_new")
+        tdSql.execute("alter table ntb1 rename column c2 c2_new")
+        tdSql.error("alter table ct1 rename column c1 c1_new", expectErrInfo="Invalid alter table statement")
+
+        s2 = self._other()
+        assert 'c2_new' not in self._cols("stb", s2)
+        assert 'c2_new' in self._cols("stb")
+        assert 'c2_new' not in self._cols("ct1", s2)
+        assert 'c2_new' in self._cols("ct1")
+
+        assert 'c2_new' not in self._cols("ntb1", s2)
+        assert 'c2_new' in self._cols("ntb1")
+
+        tdSql.execute("COMMIT")
+        assert 'c2_new' in self._cols("ct1", s2)
+        assert 'c2_new' in self._cols("stb", s2)
+        assert 'c2_new' in self._cols("ntb1", s2)
+        s2.close()
+        # --- RENAME COLUMN rollback ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table stb rename column c1 c1_new")
+        tdSql.execute("alter table ntb1 rename column c1 c1_new")
+        tdSql.execute("ROLLBACK")
+        assert 'c1' in self._cols("stb")
+        assert 'c1' in self._cols("ct1")
+        assert 'c1' in self._cols("ntb1")
 
     # =========================================================================
     # Section B: DROP child table
@@ -481,7 +520,7 @@ class TestBatchMetaTxnDdlVisibility:
         tdSql.checkData(0, 0, 10)
 
     def check_e4_alter_virtual_stb_column(self):
-        """ALTER virtual STB add/drop column: isolation + rollback."""
+        """ALTER virtual STB add/drop/rename column: isolation + rollback."""
         self._reset()
         tdLog.info("======== test_e4_alter_virtual_stb_column")
 
@@ -499,13 +538,32 @@ class TestBatchMetaTxnDdlVisibility:
 
         tdSql.execute("COMMIT")
         assert 'c3' in self._cols("vct1", s2)
-        s2.close()
 
         # --- DROP COLUMN rollback ---
         tdSql.execute("BEGIN")
         tdSql.execute("alter table vstb drop column c2")
         tdSql.execute("ROLLBACK")
         assert 'c2' in self._cols("vstb")
+
+        # --- RENAME COLUMN isolation ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table vstb rename column c3 c3_new")
+
+        assert 'c3_new' not in self._cols("vstb", s2)
+        assert 'c3_new' in self._cols("vstb")
+        assert 'c3_new' not in self._cols("vct1", s2)
+        assert 'c3_new' in self._cols("vct1")
+
+        tdSql.execute("COMMIT")
+        assert 'c3_new' in self._cols("vct1", s2)
+        assert 'c3_new' in self._cols("vstb", s2)
+        s2.close()
+        # --- RENAME COLUMN rollback ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table vstb rename column c1 c1_new")
+        tdSql.execute("ROLLBACK")
+        assert 'c1' in self._cols("vstb")
+        assert 'c1' in self._cols("vct1")
 
     def check_e5_virtual_normal_table_drop(self):
         """DROP virtual normal table: isolation + COMMIT + ROLLBACK."""
@@ -769,6 +827,36 @@ class TestBatchMetaTxnDdlVisibility:
         """TAG set/add/drop isolation on virtual STB."""
         tdLog.info("======== test_i2_tag_ops_virtual")
         self._do_tag_isolation_test(is_virtual=True)
+
+    def check_i3_rename_tag_stb(self):
+        """ALTER STB rename tag: isolation + rollback."""
+        self._reset()
+        tdLog.info("======== test_i3_rename_tag_stb")
+
+        tdSql.execute("create table stb (ts timestamp, c1 int, c2 float) tags (t1 int)")
+        tdSql.execute("create table ct1 using stb tags(1)")
+        tdSql.execute("insert into ct1 values(now, 1, 2.5)")
+
+        # --- RENAME TAG isolation ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table stb rename tag t1 t1_new")
+
+        s2 = self._other()
+        assert 't1_new' not in self._cols("stb", s2)
+        assert 't1_new' in self._cols("stb")
+        assert 't1_new' not in self._cols("ct1", s2)
+        assert 't1_new' in self._cols("ct1")
+
+        tdSql.execute("COMMIT")
+        assert 't1_new' in self._cols("ct1", s2)
+        assert 't1_new' in self._cols("stb", s2)
+        s2.close()
+        # --- RENAME TAG rollback ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table stb rename tag t1_new t1")
+        tdSql.execute("ROLLBACK")
+        assert 't1_new' in self._cols("stb")
+        assert 't1_new' in self._cols("ct1")
 
     # =========================================================================
     # Section K: Drop source table that virtual table depends on
@@ -1092,6 +1180,7 @@ class TestBatchMetaTxnDdlVisibility:
         self.check_a4_drop_column_rollback()
         self.check_a5_add_column_stb_isolation()
         self.check_a6_drop_column_stb_rollback()
+        self.check_a7_rename_column_stb_ntb()
 
         # Section B
         self.check_b1_drop_child_table_isolation()
@@ -1126,6 +1215,7 @@ class TestBatchMetaTxnDdlVisibility:
         # Section I (non-virtual + virtual tag ops)
         self.check_i1_tag_ops_non_virtual()
         self.check_i2_tag_ops_virtual()
+        self.check_i3_rename_tag_stb()
 
         # Section J (DDL lock conflict)
         self.check_j1_ddl_lock_normal_table()

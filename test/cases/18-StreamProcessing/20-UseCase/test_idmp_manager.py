@@ -215,7 +215,7 @@ class Test_IDMP_Meters:
         sqls = [
             # operator
             # DB error: Rename column only available for normal table [0x80002649]
-            "alter table test.st rename column ic renameic;",
+            # "alter table test.st rename column ic renameic;", # rename stb column supported since 3.4.3.0 
             # DB error: Col/Tag referenced by stream [0x80002691]
             "alter table test.t1 set tag gid=10;",
             # DB error: Virtual table stream exists, use FORCE when ensure no impact [0x8000700F]

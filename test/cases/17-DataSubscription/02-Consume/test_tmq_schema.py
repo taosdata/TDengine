@@ -213,7 +213,10 @@ class TestCase:
         tdSql.execute("alter table %s.%s modify column c2 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.execute("alter table %s.%s modify tag t2 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tdSql.error("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
+        # Renaming a column that IS part of the topic is allowed: the topic binds by colId, which the
+        # rename preserves. This matches both the tag rename on the next line and the normal-table
+        # path further down, which has always allowed the same statement.
+        tdSql.execute("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.execute("alter table %s.%s rename tag t2 t2new"%(parameterDict['dbName'], parameterDict['stbName']))
 
         # alter actions allowed: drop column/tag, modify column/tag type, rename column/tag not included in topic
@@ -321,22 +324,25 @@ class TestCase:
         tdSql.query("alter table %s.%s modify tag t4 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s modify tag t5 nchar(40)"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tdSql.error("alter table %s.%s rename column c1 c1new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c3 c3new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c4 c4new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c5 c5new"%(parameterDict['dbName'], parameterDict['stbName']))
+        # RENAME COLUMN on a super table is supported since 3.4.3.0, and a topic binds its columns
+        # by colId (which a rename preserves), so these are allowed just like the tag renames below.
+        tdSql.query("alter table %s.%s rename column c1 c1new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename column c3 c3new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename column c4 c4new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename column c5 c5new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t1 t1new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t2 t2new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t3 t3new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t4 t4new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t5 t5new"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tdSql.query("alter table %s.%s drop column c1"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c2"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c3"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c4"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c5"%(parameterDict['dbName'], parameterDict['stbName']))
+        # the columns were renamed just above, so drop them under their new names
+        tdSql.query("alter table %s.%s drop column c1new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c2new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c3new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c4new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c5new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t1new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t2new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t3new"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -392,22 +398,25 @@ class TestCase:
         tdSql.query("alter table %s.%s modify tag t4 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s modify tag t5 nchar(40)"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tdSql.error("alter table %s.%s rename column c1 c1new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c3 c3new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c4 c4new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c5 c5new"%(parameterDict['dbName'], parameterDict['stbName']))
+        # RENAME COLUMN on a super table is supported since 3.4.3.0, and a topic binds its columns
+        # by colId (which a rename preserves), so these are allowed just like the tag renames below.
+        tdSql.query("alter table %s.%s rename column c1 c1new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename column c3 c3new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename column c4 c4new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename column c5 c5new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t1 t1new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t2 t2new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t3 t3new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t4 t4new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t5 t5new"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tdSql.query("alter table %s.%s drop column c1"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c2"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c3"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c4"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c5"%(parameterDict['dbName'], parameterDict['stbName']))
+        # the columns were renamed just above, so drop them under their new names
+        tdSql.query("alter table %s.%s drop column c1new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c2new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c3new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c4new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c5new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t1new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t2new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t3new"%(parameterDict['dbName'], parameterDict['stbName']))
