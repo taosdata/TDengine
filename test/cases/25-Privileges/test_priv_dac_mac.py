@@ -204,6 +204,7 @@ class TestCase:
         self.do_check_mac_user_security_level()
         self.do_check_mac_db_nru()
         self.do_check_mac_select_nru()
+        self.do_check_mac_vtable_tag_ref_nru()
         self.do_check_mac_insert_nwd()  # includes do_check_mac_insert_nwd_fresh_conn
         self.do_check_mac_insert_file_nwd()
         self.do_check_mac_insert_into_select()
@@ -619,6 +620,49 @@ class TestCase:
         tdSql.connect(user="u_mac_low", password=self.test_pass)
         tdSql.error("select * from d_mac2.ctb_d2",
                      expectErrInfo="Insufficient", fullMatched=False)
+
+    def do_check_mac_vtable_tag_ref_nru(self):
+        """Test that virtual-table tag references preserve MAC NRU errors."""
+        db = "d_mac_vtag"
+        user = "u_mac_vtag"
+
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"drop user if exists {user}")
+        try:
+            tdSql.execute(f"create database {db} keep 36500")
+            tdSql.execute(
+                f"create stable {db}.src_stb (ts timestamp, v int) "
+                "tags (source_tag int)"
+            )
+            tdSql.execute(f"create table {db}.src using {db}.src_stb tags (1)")
+            tdSql.execute(
+                f"create stable {db}.vst (ts timestamp, v int) "
+                "tags (source_tag int) virtual 1"
+            )
+            tdSql.execute(f"create user {user} pass '{self.test_pass}'")
+
+            tdSql.connect(user="u2", password=self.test_pass)
+            tdSql.execute(f"alter user {user} security_level 0,1")
+            tdSql.execute(f"alter database {db} security_level 0")
+            tdSql.execute(f"alter table {db}.src_stb security_level 2")
+            tdSql.execute(f"grant use database on database {db} to {user}")
+            tdSql.execute(f"grant create table on database {db} to {user}")
+            tdSql.execute(f"grant select on table {db}.src_stb to {user}")
+
+            tdSql.connect(user=user, password=self.test_pass)
+            tdSql.error(
+                f"create vtable {db}.vt using {db}.vst tags "
+                f"(source_tag from {db}.src.source_tag)",
+                expectErrInfo="Insufficient user security level",
+                fullMatched=False,
+            )
+        finally:
+            tdSql.connect(user="u_dba2", password=self.test_pass)
+            tdSql.execute(f"drop database if exists {db}")
+            tdSql.execute(f"drop user if exists {user}")
+
+        tdLog.info("MAC virtual-table tag-reference NRU error verified")
 
     def do_check_mac_insert_nwd(self):
         """Test NWD+NRU for INSERT: user.min <= table.secLvl <= user.max"""
