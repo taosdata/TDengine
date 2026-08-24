@@ -252,6 +252,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_overall.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_write_data.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_rename_column.py
 ## 04-Query
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_column_datatypes.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_column_filter.py
@@ -1272,6 +1273,7 @@
 90,,y,.,./ci/pytest.sh pytest cases/20-RSMAs/test_rsma.py
 
 # 21-MetaData
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_rename_column_concurrent.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_bugs.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_change.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_information_schema.py
@@ -1281,7 +1283,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_basic_c.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_advanced.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_alter_tag.py
-,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_ddl_visibility.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_ddl_visibility.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_stress.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_stress2.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_cluster_basic.py -N 3 -M 3

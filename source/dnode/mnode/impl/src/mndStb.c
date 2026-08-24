@@ -2724,6 +2724,8 @@ static int32_t mndDropSuperTableTag(SMnode *pMnode, const SStbObj *pOld, SStbObj
   TAOS_RETURN(code);
 }
 
+static int32_t mndCheckColRefByPriv(SMnode *pMnode, const char *tbFName, col_id_t colId, const char *colName);
+
 static int32_t mndAlterStbTagName(SMnode *pMnode, const SStbObj *pOld, SStbObj *pNew, SArray *pFields) {
   int32_t code = 0;
   if ((int32_t)taosArrayGetSize(pFields) != 2) {
@@ -2743,6 +2745,9 @@ static int32_t mndAlterStbTagName(SMnode *pMnode, const SStbObj *pOld, SStbObj *
     TAOS_RETURN(code);
   }
 
+  // Renaming a tag referenced by a stream is intentionally not restricted: streams bind
+  // partition/rollup tags by colId, which a rename does not change, so this is safe (see the
+  // parser-side note in checkAlterSuperTableBySchema for the full rationale).
   col_id_t colId = pOld->pTags[tag].colId;
   TAOS_CHECK_RETURN(mndCheckAlterColForTSma(pMnode, pOld->name, pOld->uid, colId, true));
 
@@ -2756,6 +2761,14 @@ static int32_t mndAlterStbTagName(SMnode *pMnode, const SStbObj *pOld, SStbObj *
     TAOS_RETURN(code);
   }
 
+  // RESTRICT dependency detection (mirrors the column path): reject rename when the tag is
+  // referenced by a privilege — either a column-list grant (by colId) or a row-level tag
+  // condition (the tag name is embedded in the serialized condition). Stream references to
+  // tags are handled in the parser via COL_REF_BY_STM (see note above). Views are intentionally
+  // NOT checked, consistent with DROP COLUMN/TAG: a view carries no source-column dependency
+  // list, so it is a weak reference that fails at query time if the source column changes.
+  TAOS_CHECK_RETURN(mndCheckColRefByPriv(pMnode, pOld->name, colId, oldTagName));
+
   TAOS_CHECK_RETURN(mndAllocStbSchemas(pOld, pNew));
 
   SSchema *pSchema = (SSchema *)(pNew->pTags + tag);
@@ -2763,6 +2776,160 @@ static int32_t mndAlterStbTagName(SMnode *pMnode, const SStbObj *pOld, SStbObj *
 
   pNew->tagVer++;
   mInfo("stb:%s, start to modify tag %s to %s", pNew->name, oldTagName, newTagName);
+  TAOS_RETURN(code);
+}
+
+// Return true if any policy in pTbs (keyed by table full name) references colId/colName of tbFName.
+static bool mndPrivTbsRefCol(SHashObj *pTbs, const char *tbFName, col_id_t colId, const char *colName) {
+  if (pTbs == NULL) return false;
+  // RBAC policy hashes are keyed by "<objType>.<acctId>.<db>.<table>" (see privObjKey in tpriv.c),
+  // where the stb full name (tbFName) is already "<acctId>.<db>.<table>". Prepend the table object
+  // type prefix to match the stored key. The buffer must be TSDB_PRIV_MAX_KEY_LEN: tbFName is a
+  // TSDB_TABLE_FNAME_LEN string, so a smaller buffer silently truncates long table names and makes
+  // this check never fire (keyLen is snprintf's would-be length, not the truncated one).
+  char    policyKey[TSDB_PRIV_MAX_KEY_LEN] = {0};
+  int32_t keyLen = snprintf(policyKey, sizeof(policyKey), "%d.%s", PRIV_OBJ_TBL, tbFName) + 1;
+  SPrivTblPolicies *pPolicies = taosHashGet(pTbs, policyKey, keyLen);
+  if (pPolicies == NULL || pPolicies->policy == NULL) return false;
+  int32_t nPolicy = (int32_t)taosArrayGetSize(pPolicies->policy);
+  for (int32_t i = 0; i < nPolicy; ++i) {
+    SPrivTblPolicy *pPolicy = (SPrivTblPolicy *)taosArrayGet(pPolicies->policy, i);
+    if (pPolicy == NULL) continue;
+    // Column-level grant: cols == NULL means "all columns" (no explicit column ref). colId is
+    // filled from the table meta at GRANT time and survives encode/decode, and colIds are unique
+    // within a stb (tags and columns share nextColId), so matching by colId alone is exact.
+    int32_t nCols = (int32_t)taosArrayGetSize(pPolicy->cols);
+    for (int32_t j = 0; j < nCols; ++j) {
+      SColNameFlag *pcf = (SColNameFlag *)taosArrayGet(pPolicy->cols, j);
+      if (pcf == NULL) continue;
+      if (pcf->colId == colId) {
+        return true;
+      }
+    }
+    // Row/tag condition: a serialized AST (JSON text) that may embed the column name. Matched by
+    // substring, which is deliberately conservative - it can reject a rename whose column is not
+    // actually referenced (e.g. the name is a substring of another column, or collides with a JSON
+    // key such as "ColName"), but it never misses a real reference. Erring toward rejection keeps
+    // authorization from silently desynchronizing; see the known limitation in the FS.
+    if (pPolicy->cond != NULL && pPolicy->condLen > 0 && strstr(pPolicy->cond, colName) != NULL) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool mndPrivSetRefCol(SHashObj *pSelectTbs, SHashObj *pInsertTbs, SHashObj *pUpdateTbs, SHashObj *pDeleteTbs,
+                             const char *tbFName, col_id_t colId, const char *colName) {
+  return mndPrivTbsRefCol(pSelectTbs, tbFName, colId, colName) ||
+         mndPrivTbsRefCol(pInsertTbs, tbFName, colId, colName) ||
+         mndPrivTbsRefCol(pUpdateTbs, tbFName, colId, colName) ||
+         mndPrivTbsRefCol(pDeleteTbs, tbFName, colId, colName);
+}
+
+// RESTRICT: reject rename if any principal's table-level privilege references (tbFName, colId).
+// Both users and roles must be scanned: SRoleObj carries the same four table-policy hashes as
+// SUserObj and the privilege check treats them identically, so scanning only SDB_USER would let
+// a column-level grant made through a role bypass this check entirely.
+static int32_t mndCheckColRefByPriv(SMnode *pMnode, const char *tbFName, col_id_t colId, const char *colName) {
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  int32_t code = 0;
+
+  SUserObj *pUser = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
+    if (pIter == NULL) break;
+    bool hit = mndPrivSetRefCol(pUser->selectTbs, pUser->insertTbs, pUser->updateTbs, pUser->deleteTbs, tbFName, colId,
+                                colName);
+    if (hit) {
+      mError("stb:%s, col:%s referenced by privilege of user:%s, cannot rename", tbFName, colName, pUser->user);
+      code = TSDB_CODE_MND_COL_REF_BY_USER_PRIV;
+      sdbRelease(pSdb, pUser);
+      sdbCancelFetch(pSdb, pIter);
+      TAOS_RETURN(code);
+    }
+    sdbRelease(pSdb, pUser);
+  }
+
+  pIter = NULL;
+  SRoleObj *pRole = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_ROLE, pIter, (void **)&pRole);
+    if (pIter == NULL) break;
+    if (pRole->sys) {
+      sdbRelease(pSdb, pRole);
+      continue;
+    }
+    bool hit = mndPrivSetRefCol(pRole->selectTbs, pRole->insertTbs, pRole->updateTbs, pRole->deleteTbs, tbFName, colId,
+                                colName);
+    if (hit) {
+      mError("stb:%s, col:%s referenced by privilege of role:%s, cannot rename", tbFName, colName, pRole->name);
+      code = TSDB_CODE_MND_COL_REF_BY_ROLE_PRIV;
+      sdbRelease(pSdb, pRole);
+      sdbCancelFetch(pSdb, pIter);
+      TAOS_RETURN(code);
+    }
+    sdbRelease(pSdb, pRole);
+  }
+
+  TAOS_RETURN(code);
+}
+
+static int32_t mndAlterStbColumnName(SMnode *pMnode, const SStbObj *pOld, SStbObj *pNew, SArray *pFields) {
+  int32_t code = 0;
+  if ((int32_t)taosArrayGetSize(pFields) != 2) {
+    code = TSDB_CODE_MND_INVALID_STB_OPTION;
+    TAOS_RETURN(code);
+  }
+
+  SField *pField0 = taosArrayGet(pFields, 0);
+  SField *pField1 = taosArrayGet(pFields, 1);
+
+  const char *oldColName = pField0->name;
+  const char *newColName = pField1->name;
+
+  int32_t col = mndFindSuperTableColumnIndex(pOld, oldColName);
+  if (col < 0) {
+    code = TSDB_CODE_MND_COLUMN_NOT_EXIST;
+    TAOS_RETURN(code);
+  }
+
+  // Neither the composite primary key column (COL_IS_KEY) nor the timestamp column is restricted
+  // here: "being a key" is carried by the COL_IS_KEY flag and the stable colId, never by the column
+  // name. Write encoding/validation, tsdb read and cache, planner (SColumnNode::isPk), stream reader
+  // and tmq scan all derive it from flags, and DESCRIBE / SHOW CREATE TABLE render "COMPOSITE KEY"
+  // from flags too, so a rename leaves key semantics untouched. DROP COLUMN and MODIFY COLUMN stay
+  // rejected for COL_IS_KEY columns - those destroy the key or change its encoded width.
+  col_id_t colId = pOld->pColumns[col].colId;
+  TAOS_CHECK_RETURN(mndCheckAlterColForTSma(pMnode, pOld->name, pOld->uid, colId, false));
+
+  if (mndFindSuperTableColumnIndex(pOld, newColName) >= 0) {
+    code = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
+    TAOS_RETURN(code);
+  }
+
+  // A column may not take the name of an existing tag either; report the same error as a column
+  // name collision so callers see one consistent code for "new name already in use".
+  if (mndFindSuperTableTagIndex(pOld, newColName) >= 0) {
+    code = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
+    TAOS_RETURN(code);
+  }
+
+  // RESTRICT dependency detection: reject rename when the column is referenced by a privilege
+  // (precise, by colId). Stream/topic/RSMA bind by stable colId and are rename-safe. Views are
+  // intentionally NOT checked, consistent with DROP COLUMN: a view carries no source-column
+  // dependency list (only free-text querySql), so it is a weak reference that fails at query
+  // time if the source column changes. Virtual-table colRef lives in vnode meta and cannot be
+  // enumerated here (tracked as a known limitation for a later phase).
+  TAOS_CHECK_RETURN(mndCheckColRefByPriv(pMnode, pOld->name, colId, oldColName));
+
+  TAOS_CHECK_RETURN(mndAllocStbSchemas(pOld, pNew));
+
+  SSchema *pSchema = (SSchema *)(pNew->pColumns + col);
+  memcpy(pSchema->name, newColName, TSDB_COL_NAME_LEN);
+
+  pNew->colVer++;
+  mInfo("stb:%s, start to modify column %s to %s", pNew->name, oldColName, newColName);
   TAOS_RETURN(code);
 }
 
@@ -4330,6 +4497,14 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
       pField0 = taosArrayGet(pAlter->pFields, 0);
       code = mndAlterStbColumnBytes(pMnode, pOld, &stbObj, pField0);
       break;
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+      if (pOld->virtualStb && mndStbHasChildren(pMnode, pOld)) {
+        code = TSDB_CODE_MND_VST_HAS_CHILDREN;
+        mError("stb:%s, cannot rename column: virtual stable has child inheritors", pOld->name);
+        break;
+      }
+      code = mndAlterStbColumnName(pMnode, pOld, &stbObj, pAlter->pFields);
+      break;
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       needRsp = false;
       code = mndUpdateTableOptions(pOld, &stbObj, pAlter->comment, pAlter->commentLen, pAlter->ttl, pAlter->keep,
@@ -4573,6 +4748,9 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
             case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
               rc = mndAlterStbTagName(pMnode, &virtualStb, &nextStb, priorReq.pFields);
               break;
+            case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+              rc = mndAlterStbColumnName(pMnode, &virtualStb, &nextStb, priorReq.pFields);
+              break;
             case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
               rc = mndAddSuperTableColumn(&virtualStb, &nextStb, &priorReq, priorReq.numOfFields, 1);
               break;
@@ -4633,6 +4811,9 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
         case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
           pField0 = taosArrayGet(alterReq.pFields, 0);
           valCode = mndAlterStbColumnBytes(pMnode, pBase, &tmpStb, pField0);
+          break;
+        case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+          valCode = mndAlterStbColumnName(pMnode, pBase, &tmpStb, alterReq.pFields);
           break;
         case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
           valCode = mndUpdateSuperTableColumnCompress(pMnode, pBase, &tmpStb, alterReq.pFields, alterReq.numOfFields);
@@ -5215,6 +5396,9 @@ int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData,
       pField0 = taosArrayGet(alterReq.pFields, 0);
       code = mndAlterStbColumnBytes(pMnode, pOld, &stbObj, pField0);
       break;
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+      code = mndAlterStbColumnName(pMnode, pOld, &stbObj, alterReq.pFields);
+      break;
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       code = mndUpdateTableOptions(pOld, &stbObj, alterReq.comment, alterReq.commentLen, alterReq.ttl, alterReq.keep,
                                    alterReq.secureDelete, alterReq.securityLevel);
@@ -5494,6 +5678,9 @@ static int32_t mndApplyTxnAlterOpsToSchema(SMnode *pMnode, SArray *pAlterOps, SD
       case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
         pField0 = taosArrayGet(alterReq.pFields, 0);
         code = mndAlterStbColumnBytes(pMnode, &current, &next, pField0);
+        break;
+      case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+        code = mndAlterStbColumnName(pMnode, &current, &next, alterReq.pFields);
         break;
       case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
         code = mndUpdateTableOptions(&current, &next, alterReq.comment, alterReq.commentLen, alterReq.ttl,

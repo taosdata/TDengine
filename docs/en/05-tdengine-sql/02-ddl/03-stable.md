@@ -184,6 +184,7 @@ alter_table_clause: {
   | ADD COLUMN col_name column_type
   | DROP COLUMN col_name
   | MODIFY COLUMN col_name column_type
+  | RENAME COLUMN old_col_name new_col_name
   | ADD TAG tag_name tag_type
   | DROP TAG tag_name
   | MODIFY TAG tag_name tag_type
@@ -212,6 +213,7 @@ You can perform the following actions:
 - `MODIFY COLUMN`: Extend the length of a metric column of a variable-length type such as `BINARY`, `VARCHAR`, or `NCHAR`.
   - You cannot modify metric columns of other types.
   - You cannot modify the length of a column to be shorter.
+- `RENAME COLUMN`: Change the name of a metric column in the supertable. Note that this action affects all subtables within the supertable. Supported since version 3.4.3.0.
 - `ADD TAG`: Add a tag column to the supertable.
 - `DROP TAG`: Delete a tag column from the supertable. Note that this action deletes the tag column from all subtables within the supertable.
 - `MODIFY TAG`: Extend the length of a tag column of a variable-length type such as `BINARY`, `VARCHAR`, or `NCHAR`.
@@ -252,6 +254,16 @@ ALTER STABLE stb_name MODIFY COLUMN col_name data_type(length);
 
 - The specified column must be of a variable-length type such as `BINARY`, `VARCHAR`, or `NCHAR`.
 - The new length must be greater than the existing length. You cannot make a column shorter.
+
+### Rename a Column
+
+The following statement changes the name of a specified metric column in the supertable:
+
+```sql
+ALTER STABLE stb_name RENAME COLUMN old_col_name new_col_name;
+```
+
+Note that this action affects all subtables within the supertable. Supported since version 3.4.3.0.
 
 ### Add a Tag
 
