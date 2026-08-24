@@ -44,6 +44,11 @@ typedef enum EStreamTriggerType {
   STREAM_TRIGGER_EVENT,
 } EStreamTriggerType;
 
+typedef struct SStreamManualRecalcAttemptId {
+  uint64_t chainId;
+  uint32_t executionOrdinal;
+} SStreamManualRecalcAttemptId;
+
 typedef struct STokenBucket       STokenBucket;
 
 #define COPY_STR(_p) ((_p) ? (taosStrdup(_p)) : NULL)
@@ -704,6 +709,23 @@ typedef enum EStreamTaskMetric {
   STREAM_METRIC_RECALCULATES = 1ULL << 6,
 } EStreamTaskMetric;
 
+#define STREAM_HB_RECALC_DETAIL_VERSION_V1 1
+#define STREAM_RECALC_MAX_ATTEMPT_ORDINAL 3
+
+typedef enum EStreamRecalcDetailState {
+  STREAM_RECALC_DETAIL_ABSENT = 0,
+  STREAM_RECALC_DETAIL_RECOGNIZED_VALID = 1,
+  STREAM_RECALC_DETAIL_UNKNOWN_VERSION = 2,
+  STREAM_RECALC_DETAIL_INVALID = 3,
+} EStreamRecalcDetailState;
+
+typedef struct SStreamRecalcDetail {
+  int64_t recalcId;
+  int32_t retryOrdinal;
+  int32_t errorCode;
+  char*   errorText;
+} SStreamRecalcDetail;
+
 typedef struct SStreamTaskMetricsSnapshot {
   uint64_t applicableMask;
   uint64_t validMask;
@@ -717,6 +739,7 @@ typedef struct SStreamTaskMetricsSnapshot {
   bool     historyProgressValid;
   int32_t  historyProgressPct;
   SArray*  pRecalculates;
+  SArray*  pRecalcDetails;
 } SStreamTaskMetricsSnapshot;
 
 typedef enum EStreamRecalcStatus {
@@ -740,6 +763,7 @@ typedef struct SStreamTaskMetricsEntry {
   int64_t                    taskId;
   int64_t                    seriousId;
   int32_t                    decodeCode;
+  EStreamRecalcDetailState   recalcDetailState;
   SStreamTaskMetricsSnapshot snapshot;
 } SStreamTaskMetricsEntry;
 
@@ -1093,6 +1117,7 @@ typedef struct SSTriggerPullRequest {
   int64_t           triggerTaskId;  // does not serialize
   uint64_t          progressStepId;        // does not serialize
   uint64_t          progressRequestToken;  // does not serialize
+  SStreamManualRecalcAttemptId manualAttempt;         // does not serialize
 } SSTriggerPullRequest;
 
 typedef struct SSTriggerSetTableRequest {
@@ -1486,6 +1511,7 @@ typedef struct SSTriggerCalcRequest {
   void*   pOutBlock;  // no serialize
   uint64_t progressStepId;        // no serialize
   uint64_t progressRequestToken;  // no serialize
+  SStreamManualRecalcAttemptId manualAttempt;         // no serialize
 } SSTriggerCalcRequest;
 
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq);

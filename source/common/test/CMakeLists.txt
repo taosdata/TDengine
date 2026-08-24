@@ -100,6 +100,7 @@ if(TD_LINUX)
     # tmsg test
     add_executable(tmsgTest "")
     DEP_ext_gtest(tmsgTest)
+    DEP_ext_cppstub(tmsgTest)
     target_sources(tmsgTest
         PRIVATE
         "tmsgTest.cpp"

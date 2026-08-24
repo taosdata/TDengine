@@ -119,7 +119,13 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 #define MND_STREAM_START_NAME        "stream-start"
 #define MND_STREAM_DROP_NAME         "stream-drop"
 #define MND_STREAM_STOP_NAME         "stream-stop"
-#define MND_STREAM_RECALC_NAME       "stream-recalc"
+#define MND_STREAM_RECALC_NAME        "stream-recalc"
+#define MND_STREAM_RECALC_MESSAGE_LEN 256
+
+typedef enum EStreamRawUpdateKind {
+  MND_STREAM_RAW_UPDATE_FULL = 0,
+  MND_STREAM_RAW_UPDATE_RECALC_PATCH = 1,
+} EStreamRawUpdateKind;
 
 #define GOT_SNODE(_snodeId) ((_snodeId) != 0)
 #define STREAM_IS_RUNNING(_ss) ((_ss)->triggerTask && STREAM_STATUS_RUNNING == (_ss)->triggerTask->status)
@@ -269,9 +275,20 @@ typedef struct SStmStat {
 // UUID-derived and never reused.
 typedef struct SStmRecalcRecord {
   SStreamRecalcSnapshot snapshot;
+  SStreamRecalcSnapshot terminalCandidate;
+  int64_t               requestTimeMs;  // > 0 marks mnode coordinator ownership; task metrics leave it 0
   int64_t               terminalObservedAtMs;
+  int64_t               triggerTaskId;
+  int64_t               triggerSeriousId;
+  int32_t               retryOrdinal;
+  int32_t               errorCode;
+  char                  errorText[MND_STREAM_RECALC_MESSAGE_LEN];
   bool                  typedStatusKnown;
   bool                  hidden;
+  bool                  visible;
+  bool                  dispatchConfirmed;
+  bool                  terminalPersisting;
+  bool                  terminalCandidateValid;
 } SStmRecalcRecord;
 
 typedef struct SStmStatus {
@@ -304,10 +321,12 @@ typedef struct SStmStatus {
   SArray*           runners[MND_STREAM_RUNNER_DEPLOY_NUM];  // SArray<SStmTaskStatus>
 
   int8_t            triggerNeedUpdate;
-  
+
   SRWLatch          userRecalcLock;
-  SArray*           userRecalcList; // SArray<SStreamRecalcReq>
   SArray*           recalcRecords;  // SArray<SStmRecalcRecord>
+  SList             recalcPersistOps;
+  bool              recalcPersistOpsInitialized;
+  bool              recalcTransActive;
 
   int64_t           lastTrigMgmtReqId;
 
@@ -456,6 +475,19 @@ typedef struct SStmLastTs {
   bool    handled;
 } SStmLastTs;
 
+typedef enum EStreamLifecycleAction {
+  MND_STREAM_LIFECYCLE_START = 1,
+  MND_STREAM_LIFECYCLE_STOP = 2,
+  MND_STREAM_LIFECYCLE_DROP = 3,
+} EStreamLifecycleAction;
+
+typedef struct SStreamLifecycleTransParam {
+  int64_t streamId;
+  int8_t  action;
+  int8_t  expectedUserStopped;
+  char    streamName[TSDB_STREAM_FNAME_LEN];
+} SStreamLifecycleTransParam;
+
 #define MND_STREAM_SET_LAST_TS(_op, _ts) do {        \
   mStreamMgmt.lastTs[(_op)].ts = (_ts);         \
   mStreamMgmt.lastTs[(_op)].handled = false;    \
@@ -469,6 +501,7 @@ typedef struct SStmLastTs {
 typedef struct SStmRuntime {
   int8_t           active;
   int8_t           grantExpired;
+  int8_t           recalcPullupPending;
   SRWLatch         runtimeLock;
 
   SStmLastTs       lastTs[STM_EVENT_MAX_VALUE];
@@ -532,7 +565,12 @@ int32_t mndStreamSetStopStreamTasksActions(SMnode* pMnode, STrans *pTrans, uint6
 
 int32_t msmInitRuntimeInfo(SMnode *pMnode);
 int32_t mndStreamTransAppend(SStreamObj *pStream, STrans *pTrans, int32_t status);
+int32_t mndStreamTransAppendLifecycleUpdate(SStreamObj* pStream, int8_t userStopped, int64_t updateTime,
+                                            STrans* pTrans);
+int32_t mndStreamTransAppendRecalcUpdate(SStreamObj* pStream, uint64_t revision, SArray* pRequests, STrans* pTrans,
+                                         int32_t status);
 int32_t mndStreamCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name, STrans **ppTrans);
+void    mndStreamLifecycleTransStopped(SMnode* pMnode, void* param, int32_t paramLen);
 int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);
 int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t* numOfRows, int32_t rowsCapacity);
 int32_t mstSetStreamRecalculatesResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t* numOfRows, int32_t rowsCapacity);
@@ -544,7 +582,8 @@ int32_t mstSetStreamRecalculatesResBlock(SStreamObj* pStream, SSDataBlock* pBloc
  */
 int32_t mstBuildStreamMetricView(const SStmStatus* pStatus, SStreamMetricView* pView);
 int32_t mstGetScanUidFromPlan(int64_t streamId, void* scanPlan, int64_t* uid);
-int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWindow* pRange);
+void    mstConvertRecalcRangePrecision(STimeWindow* pRange, int32_t fromPrecision, int32_t toPrecision);
+int32_t mstPruneRecalcRecordsLocked(SArray* pRecords, int64_t nowMs);
 int32_t mstCheckSnodeExists(SMnode *pMnode);
 int32_t mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg);
 int32_t mstSetExtraErrMsg(char** ppMsg, const char* msg);
@@ -565,7 +604,7 @@ bool mndStreamActionDequeue(SStmActionQ* pQueue, SStmQNode **param);
 void msmHandleBecomeLeader(SMnode *pMnode);
 void msmHandleBecomeNotLeader(SMnode *pMnode);
 void msmUndeployStream(SMnode* pMnode, int64_t streamId, char* streamName);
-int32_t msmRecalcStream(SMnode* pMnode, int64_t streamId, STimeWindow* timeRange);
+int32_t msmRecalcStream(SMnode* pMnode, SStreamObj* pStream, const STimeWindow* pRange, const SRpcMsg* pReq);
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped);
 bool mstWaitLock(SRWLatch* pLock, bool readLock);
 void msmHealthCheck(SMnode *pMnode);
