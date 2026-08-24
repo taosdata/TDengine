@@ -1895,6 +1895,8 @@ cmd ::= KILL SSMIGRATE NK_INTEGER(A).                                           
 /************************************************ merge/redistribute/ vgroup ******************************************/
 cmd ::= BALANCE VGROUP.                                                           { pCxt->pRootNode = createBalanceVgroupStmt(pCxt); }
 
+cmd ::= FLUSH MNODE.                                                              { pCxt->pRootNode = createFlushMnodeStmt(pCxt); }
+
 cmd ::= ASSIGN LEADER FORCE.                                                      { pCxt->pRootNode = createAssignLeaderStmt(pCxt); }
 
 cmd ::= BALANCE VGROUP LEADER on_vgroup_id(A).                                    { pCxt->pRootNode = createBalanceVgroupLeaderStmt(pCxt, &A); }
