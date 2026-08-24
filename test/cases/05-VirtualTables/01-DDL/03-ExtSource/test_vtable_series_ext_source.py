@@ -7,7 +7,7 @@
 
 Covers what the sibling ext-source DDL files do NOT:
   A. CREATE VTABLE ... SERIES (normal vtable, single / multi series alias)
-  B. CREATE VTABLE ... USING vstb ... SERIES (child vtable)
+  B. CREATE VTABLE ... USING vstb ... SERIES (single and batch child vtables)
   C. ALTER VTABLE ADD SERIES / REMOVE SERIES
   D. ALTER COLUMN col SET alias.col  (colref <-> series)
   E. Negative paths (non-influx source, tag-match violations, unknown alias)
@@ -262,6 +262,25 @@ class TestVtableSeriesExtSource:
         _check_count("SELECT count(*) FROM vc_b4", 3)
         tdSql.execute("DROP VTABLE vc_b4")
         tdSql.execute("DROP STABLE stb_b4")
+
+    def test_batch_create_child_vtable_series_using_vstb(self):
+        """Batch-create child vtables with independent SERIES declarations."""
+        self._fresh_vstb("stb_b_batch")
+        tdSql.execute(
+            "CREATE VTABLE "
+            "vc_b_batch_d1 (value FROM s1.value) "
+            "USING stb_b_batch TAGS ('siteD1') "
+            "SERIES s1 AS vseries_inf_src.vseries_inf.shared_m (device='d1') "
+            "vc_b_batch_d2 (value FROM s2.value) "
+            "USING stb_b_batch TAGS ('siteD2') "
+            "SERIES s2 AS vseries_inf_src.vseries_inf.shared_m (device='d2')"
+        )
+        _check_count("SELECT count(*) FROM vc_b_batch_d1", 3)
+        _check_count("SELECT count(*) FROM vc_b_batch_d2", 2)
+        _check_count("SELECT count(*) FROM stb_b_batch", 5)
+        tdSql.execute("DROP VTABLE vc_b_batch_d1")
+        tdSql.execute("DROP VTABLE vc_b_batch_d2")
+        tdSql.execute("DROP STABLE stb_b_batch")
 
     # ===================================================================
     # C. ALTER VTABLE ADD SERIES / REMOVE SERIES

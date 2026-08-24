@@ -126,6 +126,8 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
     USING [db_name.]stb_name
     [(tag_name [, tag_name] ...)]
     TAGS (tag_value [, tag_value] ...)
+    [SERIES series_alias AS ext_source_name.db_name.measurement_name
+        (tag_name = 'tag_value' [, tag_name = 'tag_value'] ...) ...]
 
   create_definition:
      [stb_col_name FROM] [db_name.]table_name.col_name
@@ -135,6 +137,32 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
      | FROM [db_name.]table_name.tag_name
      | tag_name FROM [db_name.]table_name.tag_name
 ```
+
+#### Batch Creation of Virtual Subtables
+
+A single `CREATE VTABLE` statement can contain multiple virtual-subtable clauses. Do not separate clauses with commas. Each clause can independently specify `IF NOT EXISTS`, a virtual supertable, column references, tag values, tag references, and `SERIES` declarations.
+
+```sql
+CREATE VTABLE
+    IF NOT EXISTS meter_v1 (
+        voltage FROM source_meter_1.voltage,
+        current FROM source_meter_1.current
+    ) USING meters_vst TAGS ('beijing', 1)
+    IF NOT EXISTS meter_v2 (
+        voltage FROM s2.voltage,
+        current FROM s2.current
+    ) USING meters_vst TAGS ('shanghai', 2)
+    SERIES s2 AS influx_src.metrics.meters (site='shanghai');
+```
+
+The following rules apply to batch creation:
+
+- `IF NOT EXISTS` applies only to the virtual subtable immediately following it.
+- Each target virtual subtable must be in the same database as the virtual supertable named by its `USING` clause. Different clauses can use different databases, virtual supertables, or vgroups.
+- TDengine validates every clause before sending create-table requests. If any clause has a syntax, metadata, permission, or reference error, no virtual subtable is created.
+- After requests reach the server, the batch is not guaranteed to be atomic. If an error occurs after some virtual subtables have been created, those tables are not rolled back. Specify `IF NOT EXISTS` for every clause to make retries safe.
+- A clause cannot reference another virtual subtable created by the same batch statement. Every reference source must exist before the statement is executed.
+- Virtual basic tables and virtual supertables cannot be created in batches. A statement also cannot mix regular subtables, virtual basic tables, and virtual subtables.
 
 **`tag_value` Syntax Notes**
 
