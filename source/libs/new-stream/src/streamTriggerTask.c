@@ -1650,7 +1650,7 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
         rpcFreeCont(msg.pCont);
         stTriggerTaskResetCalcRetryWait(pInfo, now + STREAM_TRIGGER_NOTICE_RETRY_NS);
         stWarn("retry trigger start request stream:%" PRIx64 ", task:%" PRIx64 ", session:%" PRIx64 " at:%" PRId64,
-               pInfo->streamId, pInfo->taskId, pInfo->sessionId, now + STREAM_TRIGGER_NOTICE_RETRY_NS);
+               pInfo->streamId, pInfo->taskId, pInfo->sessionId, (int64_t)(now + STREAM_TRIGGER_NOTICE_RETRY_NS));
       }
       taosMemoryFreeClear(pNode);
     } else {
@@ -21951,7 +21951,7 @@ static int32_t stRealtimeGroupUpdateExecTime(SSTriggerRealtimeGroup *pGroup, int
       heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
     }
     if (nested) {
-      ST_TASK_DLOG("group %" PRId64 " holds %" PRId64 " nested params and %" PRId64
+      ST_TASK_DLOG("group %" PRId64 " holds %" PRId32 " nested params and %" PRId32
                    " nested parwin params, expecting to exec at %" PRId64,
                    pGroup->gid, listNEles(&pGroup->pendingNestedEvents), listNEles(&pGroup->pendingNestedParWinEvents),
                    pGroup->nextExecTime);

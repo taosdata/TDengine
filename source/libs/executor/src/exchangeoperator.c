@@ -78,6 +78,20 @@ static int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataIn
 
 static int32_t exchangeWait(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo);
 
+// Order the exchange sources (vgroups) by nodeId so that a multi-vgroup exchange
+// always consumes data from the vgroups in a fixed order. The source list order
+// otherwise varies between runs (depends on how the per-vgroup execution nodes are
+// scheduled), which makes order-sensitive aggregates such as LEASTSQUARES return
+// non-deterministic results even when sequential receive mode is enabled.
+static int32_t cmpExchangeSourceByNodeId(const void* pLeft, const void* pRight) {
+  const SDownstreamSourceNode* pL = (const SDownstreamSourceNode*)pLeft;
+  const SDownstreamSourceNode* pR = (const SDownstreamSourceNode*)pRight;
+  if (pL->addr.nodeId == pR->addr.nodeId) {
+    return 0;
+  }
+  return (pL->addr.nodeId < pR->addr.nodeId) ? -1 : 1;
+}
+
 static bool isVstbScan(SSourceDataInfo* pDataInfo) {return pDataInfo->type == EX_SRC_TYPE_VSTB_SCAN; }
 static bool isVstbWinScan(SSourceDataInfo* pDataInfo) { return pDataInfo->type == EX_SRC_TYPE_VSTB_WIN_SCAN; }
 static bool isVstbAggScan(SSourceDataInfo* pDataInfo) { return pDataInfo->type == EX_SRC_TYPE_VSTB_AGG_SCAN; }
@@ -631,6 +645,11 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
     return code;
   } else {
     pInfo->self = refId;
+  }
+
+  // Deterministic vgroup consumption order: see cmpExchangeSourceByNodeId().
+  if (numOfSources > 1) {
+    taosArraySort(pInfo->pSources, cmpExchangeSourceByNodeId);
   }
 
   return initDataSource(numOfSources, pInfo, id);
