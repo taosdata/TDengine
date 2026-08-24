@@ -93,7 +93,7 @@ extern const char* const __builtinRoles[TSDB_BUILTIN_ROLE_NUM];
 #define TSDB_WORD_VARIABLES   "variables"
 #define TSDB_WORD_INFORMATION "information"
 
-#define PRIV_INFO_TABLE_VERSION 6  // N.B. increase this version for any update of privInfoTable
+#define PRIV_INFO_TABLE_VERSION 7  // N.B. increase this version for any update of privInfoTable
 
 #define IS_WILDCARD_OBJ(objName) ((objName)[0] == '*' && (objName)[1] == '\0')
 #define IS_SPECIFIC_OBJ(objName) ((objName)[0] != '\0' && !IS_WILDCARD_OBJ(objName))
@@ -139,6 +139,7 @@ typedef enum {
   PRIV_SHOW_RETENTIONS,   // SHOW RETENTIONS
   PRIV_SHOW_SCANS,        // SHOW SCANS
   PRIV_SHOW_SSMIGRATES,   // SHOW SSMIGRATES
+  PRIV_SHOW_BACKUPS,      // SHOW BACKUPS
 
   // ==================== Table Privileges(50-69)  ================
   PRIV_TBL_CREATE = 70,  // CREATE TABLE
@@ -159,6 +160,9 @@ typedef enum {
   // view management
   PRIV_VIEW_CREATE = 88,  // CREATE VIEW
   PRIV_VIEW_SELECT,       // SELECT VIEW
+
+  // backup management
+  PRIV_BACKUP_CREATE = 90,// CREATE BACKUP
 
   // SMA management
   PRIV_RSMA_CREATE = 95,  // CREATE RSMA

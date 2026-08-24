@@ -21,6 +21,7 @@ EXPECTED_INFO_TABLES = {
     "ins_anodes",
     "ins_anodes_full",
     "ins_arbgroups",
+    "ins_backups",
     "ins_bnodes",
     "ins_cluster",
     "ins_columns",

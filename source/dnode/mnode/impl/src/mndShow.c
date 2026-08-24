@@ -209,6 +209,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_VSTABLE_INHERITS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_EXT_SOURCES, len) == 0) {
     type = TSDB_MGMT_TABLE_EXT_SOURCES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_BACKUPS, len) == 0) {
+    type = TSDB_MGMT_TABLE_BACKUP;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }

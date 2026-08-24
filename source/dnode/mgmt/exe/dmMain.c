@@ -15,6 +15,7 @@
 #define _DEFAULT_SOURCE
 
 #include "dmMgmt.h"
+#include "dmInt.h"
 #include "dmUtil.h"
 #include "mnode.h"
 #include "osEnv.h"
@@ -23,6 +24,7 @@
 #include "tconfig.h"
 #include "tconv.h"
 #include "tglobal.h"
+#include "tmisce.h"
 #include "tss.h"
 #include "version.h"
 
@@ -48,6 +50,7 @@
 #define DM_MEM_DBG       "Enable memory debug"
 #define DM_SET_ENCRYPTKEY  "Set encrypt key. such as: -y 1234567890abcdef, the length should be less or equal to 16."
 #define DM_REPAIR_MODE   "Start repair mode."
+#define DM_RESTORE        "Restore from a backup chain."
 
 typedef enum {
   DM_REPAIR_TARGET_META = 0,
@@ -114,6 +117,7 @@ typedef struct {
   // SRepairMnodeOpt mnodeOpt;
   // SRepairSnodeOpt snodeOpt;
 } SDmRepairOption;
+
 // clang-format on
 
 static struct {
@@ -146,10 +150,12 @@ static struct {
   bool            runCopyMode;
   char            encryptKey[ENCRYPT_KEY_LEN + 1];
   SDmRepairOption repairOpt;
+  SDmRestoreOption restoreOpt;
 } global = {0};
 
 extern int32_t cryptLoadProviders();
 static int32_t dmFinalizeRepairOption(void);
+static int32_t dmFinalizeRestoreOption(void);
 static int32_t dmParseArgs(int32_t argc, char const *argv[]);
 static void    dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { (void)taosSetGlobalDebugFlag(143); }
 static void    dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert = 1; }
@@ -307,6 +313,143 @@ static int32_t dmParseLongOptionValue(int32_t argc, char const *argv[], int32_t 
   }
 
   tstrncpy(buf, val, bufLen);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t dmParseRestoreIdOption(int32_t argc, char const *argv[], int32_t *pIndex, const char *opt,
+                                      int64_t *pValue, bool *pMatched) {
+  char    value[32] = {0};
+  int32_t code = dmParseLongOptionValue(argc, argv, pIndex, opt, value, sizeof(value), pMatched);
+  if (code != 0 || !*pMatched) {
+    return code;
+  }
+
+  char   *end = NULL;
+  int64_t parsed = taosStr2Int64(value, &end, 10);
+  if (end == NULL || *end != '\0' || parsed <= 0) {
+    printf("invalid value for '%s': %s\n", opt, value);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *pValue = parsed;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t dmParseRestoreOption(int32_t argc, char const *argv[], int32_t *pIndex, bool *pParsed) {
+  SDmRestoreOption *pOpt = &global.restoreOpt;
+  int32_t           index = *pIndex;
+  bool              matched = false;
+
+  *pParsed = false;
+  if (strcmp(argv[index], "--restore") == 0 || strncmp(argv[index], "--restore=", strlen("--restore=")) == 0) {
+    if (pOpt->enabled) {
+      printf("--restore specified more than once\n");
+      return TSDB_CODE_INVALID_PARA;
+    }
+    int32_t code = dmParseLongOptionValue(argc, argv, &index, "--restore", pOpt->backupChainPath,
+                                           sizeof(pOpt->backupChainPath), &matched);
+    if (code != 0) {
+      return code;
+    }
+    pOpt->enabled = matched;
+    matched = true;
+  }
+
+  if (!matched) {
+    char    verify[2] = {0};
+    bool    optMatched = false;
+    int32_t code = dmParseLongOptionValue(argc, argv, &index, "--verify", verify, sizeof(verify), &optMatched);
+    if (code != 0) {
+      return code;
+    }
+    if (optMatched) {
+      if (pOpt->hasVerify) {
+        printf("--verify specified more than once\n");
+        return TSDB_CODE_INVALID_PARA;
+      }
+      if (verify[0] < '0' || verify[0] > '2' || verify[1] != '\0') {
+        printf("invalid value for '--verify': %s, expected 0, 1, or 2\n", verify);
+        return TSDB_CODE_INVALID_PARA;
+      }
+      pOpt->verify = verify[0] - '0';
+      pOpt->hasVerify = true;
+      matched = true;
+    }
+  }
+
+  if (!matched) {
+    const char *value = NULL;
+    if (dmMatchLongOption(argv[index], "--verbose", &value)) {
+      if (value != NULL) {
+        printf("--verbose does not accept a value\n");
+        return TSDB_CODE_INVALID_PARA;
+      }
+      if (pOpt->verbose) {
+        printf("--verbose specified more than once\n");
+        return TSDB_CODE_INVALID_PARA;
+      }
+      pOpt->verbose = true;
+      matched = true;
+    }
+  }
+
+  if (!matched) {
+    int64_t lastBackupId = 0;
+    bool    optMatched = false;
+    int32_t code = dmParseRestoreIdOption(argc, argv, &index, "--last-backup", &lastBackupId, &optMatched);
+    if (code != 0) {
+      return code;
+    }
+    if (optMatched) {
+      if (pOpt->lastBackupId != 0) {
+        printf("--last-backup specified more than once\n");
+        return TSDB_CODE_INVALID_PARA;
+      }
+      pOpt->lastBackupId = lastBackupId;
+      matched = true;
+    }
+  }
+
+  if (!matched) {
+    char    dbName[TSDB_DB_NAME_LEN] = {0};
+    bool    optMatched = false;
+    int32_t code = dmParseLongOptionValue(argc, argv, &index, "--database", dbName, sizeof(dbName), &optMatched);
+    if (code != 0) {
+      return code;
+    }
+    if (optMatched) {
+      if (pOpt->dbName[0] != '\0') {
+        printf("--database specified more than once\n");
+        return TSDB_CODE_INVALID_PARA;
+      }
+      tstrncpy(pOpt->dbName, dbName, sizeof(pOpt->dbName));
+      matched = true;
+    }
+  }
+
+  if (!matched) {
+    char    password[TSDB_PASSWORD_MAX_LEN + 1] = {0};
+    bool    optMatched = false;
+    int32_t code = dmParseLongOptionValue(argc, argv, &index, "--password", password, sizeof(password), &optMatched);
+    if (code != 0) {
+      return code;
+    }
+    if (optMatched) {
+      if (pOpt->hasPassword) {
+        printf("--password specified more than once\n");
+        return TSDB_CODE_INVALID_PARA;
+      }
+      taosEncryptPass_c((uint8_t *)password, strlen(password), pOpt->password);
+      pOpt->password[sizeof(pOpt->password) - 1] = '\0';
+      pOpt->hasPassword = true;
+      matched = true;
+    }
+  }
+
+  if (matched) {
+    *pParsed = true;
+    *pIndex = index;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -948,9 +1091,34 @@ bool dmRepairNeedWalRepair(int32_t vnodeId) {
   return taosHashGet(global.repairOpt.vnodeOpt.walOpt.pByVnode, &vnodeId, sizeof(vnodeId)) != NULL;
 }
 
+static int32_t dmFinalizeRestoreOption(void) {
+  SDmRestoreOption *pOpt = &global.restoreOpt;
+  bool hasRestoreArgs = pOpt->backupChainPath[0] != '\0' || pOpt->lastBackupId != 0 || pOpt->dbName[0] != '\0' ||
+                         pOpt->hasVerify || pOpt->verbose || pOpt->hasPassword;
+
+  if (hasRestoreArgs && !pOpt->enabled) {
+    printf("restore options must be used with '--restore'\n");
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (!pOpt->enabled || global.printHelp) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (global.repairOpt.withR) {
+    printf("--restore cannot be used with '-r'\n");
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pOpt->backupChainPath[0] == '\0') {
+    printf("--restore requires a backup chain path\n");
+    return TSDB_CODE_INVALID_PARA;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   global.startTime = taosGetTimestampMs();
   memset(&global.repairOpt, 0, sizeof(global.repairOpt));
+  memset(&global.restoreOpt, 0, sizeof(global.restoreOpt));
+  global.restoreOpt.verify = 1;
 
   int32_t cmdEnvIndex = 0;
   if (argc < 2) return 0;
@@ -961,8 +1129,17 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   }
   memset(global.envCmd, 0, (argc - 1) * sizeof(char *));
   for (int32_t i = 1; i < argc; ++i) {
+    bool    parsedRestoreOpt = false;
     bool    parsedRepairOpt = false;
-    int32_t code = dmParseRepairOption(argc, argv, &i, &parsedRepairOpt);
+    int32_t code = dmParseRestoreOption(argc, argv, &i, &parsedRestoreOpt);
+    if (code != 0) {
+      return code;
+    }
+    if (parsedRestoreOpt) {
+      continue;
+    }
+
+    code = dmParseRepairOption(argc, argv, &i, &parsedRepairOpt);
     if (code != 0) {
       return code;
     }
@@ -1101,6 +1278,10 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
     }
   }
 
+  int32_t code = dmFinalizeRestoreOption();
+  if (code != 0) {
+    return code;
+  }
   return dmFinalizeRepairOption();
 }
 
@@ -1141,6 +1322,7 @@ static void dmPrintHelp() {
   printf("%s%s%s%s\n", indent, "-e,", indent, DM_ENV_CMD);
   printf("%s%s%s%s\n", indent, "-E,", indent, DM_ENV_FILE);
   printf("%s%s%s%s\n", indent, "-r,", indent, DM_REPAIR_MODE);
+  printf("%s%s%s%s\n", indent, "--restore PATH [--password PASSWORD] [--verify=0|1|2]", indent, DM_RESTORE);
   printf("%s%s%s%s\n", indent, "-k,", indent, DM_MACHINE_CODE);
 #if defined(LINUX)
   printf("%s%s%s%s\n", indent, "-o, --log-output=OUTPUT", indent, DM_LOG_OUTPUT);
@@ -1233,6 +1415,14 @@ static int32_t dmCheckSs() {
 static int32_t dmInitLog() {
   const char *logName = CUS_PROMPT "dlog";
 
+  if (global.restoreOpt.enabled && !global.restoreOpt.verbose) {
+    taosMemoryFreeClear(tsLogOutput);
+    tsLogOutput = taosStrdup("/dev/null");
+    if (tsLogOutput == NULL) {
+      return terrno;
+    }
+  }
+
   TAOS_CHECK_RETURN(taosInitLogOutput(&logName));
 
   return taosCreateLog(logName, 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0);
@@ -1266,6 +1456,7 @@ void    dmTestResetState(void) {
   global.runRepairFlow = false;
   global.printHelp = false;
   global.printRepairHelp = false;
+  memset(&global.restoreOpt, 0, sizeof(global.restoreOpt));
 }
 #endif
 
@@ -1473,6 +1664,21 @@ int mainWindows(int argc, char **argv) {
     taosCleanupArgs();
     taosConvDestroy();
     return 0;
+  }
+
+  if (global.restoreOpt.enabled) {
+    TdFilePtr pFile = NULL;
+    if ((code = dmCheckRunning(tsDataDir, &pFile)) != 0) {
+      printf("failed to restore because taosd is running, please stop it first, reason:%s\n", tstrerror(code));
+    } else {
+      (void)taosCloseFile(&pFile);
+      code = dmRestoreFromBackupChain(&global.restoreOpt);
+    }
+    taosCleanupCfg();
+    taosCloseLog();
+    taosCleanupArgs();
+    taosConvDestroy();
+    return code;
   }
 
   if (global.runCopyMode) {

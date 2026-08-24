@@ -14,6 +14,7 @@
  */
 
 #include "bse.h"
+#include "sync.h"
 #include "tencrypt.h"
 #include "tsdb.h"
 #include "vnd.h"
@@ -185,6 +186,8 @@ _out:
   return code;
 }
 
+void vnodeSnapReaderClose(SVSnapReader *pReader);
+
 int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader **ppReader) {
   int32_t       code = 0;
   int64_t       sver = pParam->start;
@@ -228,12 +231,25 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
 _exit:
   if (code) {
     vError("vgId:%d, vnode snapshot reader open failed since %s", TD_VID(pVnode), tstrerror(code));
+    if (pReader != NULL) vnodeSnapReaderClose(pReader);
     *ppReader = NULL;
   } else {
     vInfo("vgId:%d, vnode snapshot reader opened, sver:%" PRId64 " ever:%" PRId64, TD_VID(pVnode), sver, ever);
     *ppReader = pReader;
   }
   return code;
+}
+
+static int32_t vnodeBackupSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, bool isFull,
+                                         SVSnapReader **ppReader) {
+  int32_t code = vnodeSnapReaderOpen(pVnode, pParam, ppReader);
+  if (code != 0) return code;
+
+  // Full backup uses RAW data; incremental backup uses normal logical TSDB data. Neither uses MEDIUM.
+  (*ppReader)->tsdbDone = isFull;
+  (*ppReader)->tsdbRAWDone = !isFull;
+  (*ppReader)->tsdbMEDIUMDone = true;
+  return 0;
 }
 
 static void vnodeSnapReaderDestroyTsdbRanges(SVSnapReader *pReader) {
@@ -288,6 +304,164 @@ void vnodeSnapReaderClose(SVSnapReader *pReader) {
     bseSnapReaderClose(&pReader->pBseReader);
   }
   taosMemoryFree(pReader);
+}
+
+static void vnodeCloseBackupSnapLocked(SVnode *pVnode) {
+  if (pVnode->pBackupSnapReader != NULL) {
+    vnodeSnapReaderClose(pVnode->pBackupSnapReader);
+    pVnode->pBackupSnapReader = NULL;
+  }
+  pVnode->backupSnapChainId = 0;
+  pVnode->backupSnapBackupId = 0;
+  pVnode->backupSnapIndex = 0;
+  pVnode->backupSnapLastActivityMs = 0;
+}
+
+static bool vnodeBackupSnapTimedOut(const SVnode *pVnode, int64_t nowMs) {
+  if (pVnode->backupSnapLastActivityMs == 0) {
+    return true;
+  }
+  // Guard against a backwards wall-clock jump (e.g. NTP adjustment): a
+  // negative delta must not be treated as "no time elapsed" forever.
+  int64_t elapsedMs = nowMs - pVnode->backupSnapLastActivityMs;
+  return elapsedMs < 0 || elapsedMs > SYNC_SNAP_TIMEOUT_MS;
+}
+
+void vnodeCloseBackupSnap(SVnode *pVnode) {
+  (void)taosThreadMutexLock(&pVnode->backupSnapMutex);
+  vnodeCloseBackupSnapLocked(pVnode);
+  (void)taosThreadMutexUnlock(&pVnode->backupSnapMutex);
+}
+
+void vnodeCheckBackupSnapTimeout(SVnode *pVnode) {
+  int64_t nowMs = taosGetTimestampMs();
+
+  (void)taosThreadMutexLock(&pVnode->backupSnapMutex);
+  if (pVnode->pBackupSnapReader != NULL && vnodeBackupSnapTimedOut(pVnode, nowMs)) {
+    vWarn("vgId:%d, backup snapshot session timed out, last activity:%" PRId64, TD_VID(pVnode),
+          pVnode->backupSnapLastActivityMs);
+    vnodeCloseBackupSnapLocked(pVnode);
+  }
+  (void)taosThreadMutexUnlock(&pVnode->backupSnapMutex);
+}
+
+static int32_t vnodeBuildBackupSnapRsp(SRpcMsg *pMsg, const SBackupVnodeSnapRsp *pRsp) {
+  int32_t contLen = tSerializeSBackupVnodeSnapRsp(NULL, 0, (SBackupVnodeSnapRsp *)pRsp);
+  if (contLen < 0) return contLen;
+
+  pMsg->info.rsp = rpcMallocCont(contLen);
+  if (pMsg->info.rsp == NULL) return terrno;
+
+  pMsg->info.rspLen = tSerializeSBackupVnodeSnapRsp(pMsg->info.rsp, contLen, (SBackupVnodeSnapRsp *)pRsp);
+  if (pMsg->info.rspLen < 0) {
+    int32_t code = pMsg->info.rspLen;
+    rpcFreeCont(pMsg->info.rsp);
+    pMsg->info.rsp = NULL;
+    return code;
+  }
+  return 0;
+}
+
+static bool vnodeBackupSnapOwnerMatches(const SVnode *pVnode, const SBackupVnodeSnapReq *pReq) {
+  return pVnode->backupSnapChainId == pReq->chainId && pVnode->backupSnapBackupId == pReq->backupId;
+}
+
+int32_t vnodeProcessBackupSnapReq(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t             code = 0;
+  SBackupVnodeSnapReq req = {0};
+  SBackupVnodeSnapRsp rsp = {0};
+  SSnapshot           snapshot = {0};
+  SSnapshotParam      param = {0};
+  uint8_t            *pData = NULL;
+  uint32_t            dataLen = 0;
+  int64_t             nowMs = 0;
+  bool                snapOpened = false;
+
+  if (pMsg->contLen < sizeof(SMsgHead) ||
+      tDeserializeSBackupVnodeSnapReq((char *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead),
+                                       &req) != 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (req.vgId != TD_VID(pVnode) || req.op < BACKUP_VNODE_SNAP_BEGIN || req.op > BACKUP_VNODE_SNAP_RELEASE) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  (void)taosThreadMutexLock(&pVnode->backupSnapMutex);
+  rsp.vgId = req.vgId;
+  nowMs = taosGetTimestampMs();
+  if (pVnode->pBackupSnapReader != NULL && vnodeBackupSnapTimedOut(pVnode, nowMs)) {
+    vWarn("vgId:%d, discard timed-out backup snapshot session before %s", TD_VID(pVnode),
+          req.op == BACKUP_VNODE_SNAP_BEGIN ? "begin" : "request");
+    vnodeCloseBackupSnapLocked(pVnode);
+  }
+
+  switch (req.op) {
+    case BACKUP_VNODE_SNAP_BEGIN:
+      if (pVnode->pBackupSnapReader != NULL) {
+        code = TSDB_CODE_BACKUP_IN_PROGRESS;
+        goto _exit;
+      }
+      code = vnodeGetSnapshot(pVnode, &snapshot);
+      if (code != 0) goto _exit;
+      param.start = 0;
+      param.end = snapshot.lastApplyIndex;
+      code = vnodeBackupSnapReaderOpen(pVnode, &param, req.isFull, &pVnode->pBackupSnapReader);
+      if (code != 0) goto _exit;
+      snapOpened = true;
+
+      pVnode->backupSnapChainId = req.chainId;
+      pVnode->backupSnapBackupId = req.backupId;
+      pVnode->backupSnapIndex = snapshot.lastApplyIndex;
+      pVnode->backupSnapLastActivityMs = nowMs;
+      rsp.snapshotIndex = snapshot.lastApplyIndex;
+      break;
+
+    case BACKUP_VNODE_SNAP_FETCH:
+      if (pVnode->pBackupSnapReader == NULL) {
+        code = TSDB_CODE_NOT_FOUND;
+        goto _exit;
+      }
+      if (!vnodeBackupSnapOwnerMatches(pVnode, &req)) {
+        // A stale or different backup coordinator must not tear down the
+        // legitimate active session owned by another coordinator.
+        taosMemoryFree(pData);
+        (void)taosThreadMutexUnlock(&pVnode->backupSnapMutex);
+        return TSDB_CODE_NOT_FOUND;
+      }
+      code = vnodeSnapRead(pVnode->pBackupSnapReader, &pData, &dataLen);
+      if (code != 0) {
+        goto _exit;
+      }
+      rsp.snapshotIndex = pVnode->backupSnapIndex;
+      rsp.eof = pData == NULL;
+      rsp.data = pData;
+      rsp.dataLen = (int32_t)dataLen;
+      pVnode->backupSnapLastActivityMs = nowMs;
+      break;
+
+    case BACKUP_VNODE_SNAP_RELEASE:
+      if (!vnodeBackupSnapOwnerMatches(pVnode, &req)) {
+        taosMemoryFree(pData);
+        (void)taosThreadMutexUnlock(&pVnode->backupSnapMutex);
+        return TSDB_CODE_NOT_FOUND;
+      }
+      rsp.snapshotIndex = pVnode->backupSnapIndex;
+      rsp.eof = 1;
+      vnodeCloseBackupSnapLocked(pVnode);
+      break;
+  }
+
+  code = vnodeBuildBackupSnapRsp(pMsg, &rsp);
+
+_exit:
+  taosMemoryFree(pData);
+  if (code != 0 && req.op == BACKUP_VNODE_SNAP_FETCH && pVnode->pBackupSnapReader != NULL) {
+    vnodeCloseBackupSnapLocked(pVnode);
+  } else if (code != 0 && snapOpened) {
+    vnodeCloseBackupSnapLocked(pVnode);
+  }
+  (void)taosThreadMutexUnlock(&pVnode->backupSnapMutex);
+  return code;
 }
 
 int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) {
@@ -548,6 +722,8 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
 
 _exit:
   if (code) {
+    *ppData = NULL;
+    *nData = 0;
     vError("vgId:%d, vnode snapshot read failed at %s:%d since %s", vgId, __FILE__, lino, tstrerror(code));
   } else {
     if (*ppData) {

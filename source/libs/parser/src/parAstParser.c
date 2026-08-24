@@ -1841,6 +1841,12 @@ static int32_t collectMetaKeyFromShowScans(SCollectMetaKeyCxt* pCxt, SShowStmt* 
   return code;
 }
 
+static int32_t collectMetaKeyFromShowBackups(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_BACKUPS,
+                                         pCxt->pMetaCache);
+  return code;
+}
+
 static int32_t collectMetaKeyFromShowCompactDetails(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB,
                                          TSDB_INS_TABLE_COMPACT_DETAILS, pCxt->pMetaCache);
@@ -2738,6 +2744,9 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       break;
     case QUERY_NODE_SHOW_COMPACTS_STMT:
       code = collectMetaKeyFromShowCompacts(pCxt, (SShowStmt*)pStmt);
+      break;
+    case QUERY_NODE_SHOW_BACKUPS_STMT:
+      code = collectMetaKeyFromShowBackups(pCxt, (SShowStmt*)pStmt);
       break;
     case QUERY_NODE_SHOW_SCANS_STMT:
       code = collectMetaKeyFromShowScans(pCxt, (SShowStmt*)pStmt);

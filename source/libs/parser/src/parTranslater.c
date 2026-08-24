@@ -574,6 +574,13 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  {
+    .showType = QUERY_NODE_SHOW_BACKUPS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_BACKUPS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -22837,6 +22844,53 @@ static int32_t translateTimeRange(STranslateContext* pCxt, const char* dbName, S
   return code;
 }
 
+static int32_t translateBackup(STranslateContext* pCxt, SCreateBackupStmt* pStmt) {
+  // Phase 1: only cluster-level FULL backup is accepted; incremental and
+  // database-level backups are reserved for a later phase.
+  // A target backup chain id only applies to incremental backup, so specifying
+  // it together with FULL (or without incremental) is rejected here as well.
+  if (!pStmt->isFull) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                   "INCREMENTAL backup is not supported yet");
+  }
+  if (0 != pStmt->backupChainId) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                   "specifying a backup chain id is not supported yet");
+  }
+  if ('\0' != pStmt->dbName[0]) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                   "database-level backup is not supported yet");
+  }
+
+  // Build the TDMT_MND_BACKUP request and route it to the mnode. The mnode
+  // enforces the backupRestore grant and orchestrates the job (enterprise
+  // edition); the community edition mnode replies TSDB_CODE_OPS_NOT_SUPPORT.
+  SBackupReq backupReq = {0};
+  backupReq.dnodeId = pStmt->dnodeId;
+  backupReq.isFull = pStmt->isFull;
+  backupReq.backupChainId = pStmt->backupChainId;
+  tstrncpy(backupReq.backupRoot, pStmt->backupRoot, sizeof(backupReq.backupRoot));
+  tstrncpy(backupReq.dbName, pStmt->dbName, sizeof(backupReq.dbName));
+  backupReq.hasPassword = pStmt->password[0] != '\0';
+  if (backupReq.hasPassword) {
+    taosEncryptPass_c((uint8_t *)pStmt->password, strlen(pStmt->password), backupReq.password);
+    backupReq.password[sizeof(backupReq.password) - 1] = '\0';
+  }
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_BACKUP, (FSerializeFunc)tSerializeSBackupReq, &backupReq);
+  tFreeSBackupReq(&backupReq);
+  return code;
+}
+
+static int32_t translateKillBackup(STranslateContext* pCxt, SKillBackupStmt* pStmt) {
+  SKillBackupReq killReq = {0};
+  killReq.backupId = pStmt->targetId;
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_KILL_BACKUP, (FSerializeFunc)tSerializeSKillBackupReq, &killReq);
+  tFreeSKillBackupReq(&killReq);
+  return code;
+}
+
 static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt) {
   SCompactDbReq compactReq = {
       .metaOnly = pStmt->metaOnly,
@@ -30670,6 +30724,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       code = translateCompactDb(pCxt, (SCompactDatabaseStmt*)pNode);
       break;
+    case QUERY_NODE_CREATE_BACKUP_STMT:
+      code = translateBackup(pCxt, (SCreateBackupStmt*)pNode);
+      break;
     case QUERY_NODE_ROLLUP_DATABASE_STMT:
       code = translateRollupDb(pCxt, (SRollupDatabaseStmt*)pNode);
       break;
@@ -30699,6 +30756,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_KILL_COMPACT_STMT:
       code = translateKillCompact(pCxt, (SKillStmt*)pNode);
+      break;
+    case QUERY_NODE_KILL_BACKUP_STMT:
+      code = translateKillBackup(pCxt, (SKillBackupStmt*)pNode);
       break;
     case QUERY_NODE_KILL_RETENTION_STMT:
       code = translateKillRetention(pCxt, (SKillStmt*)pNode);
@@ -37057,6 +37117,19 @@ static int32_t rewriteShowCompacts(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
+static int32_t rewriteShowBackups(STranslateContext* pCxt, SQuery* pQuery) {
+  SShowBackupsStmt* pShow = (SShowBackupsStmt*)(pQuery->pRoot);
+  SSelectStmt*      pStmt = NULL;
+  int32_t           code = createSelectStmtForShow(QUERY_NODE_SHOW_BACKUPS_STMT, &pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    pCxt->showRewrite = true;
+    pQuery->showRewrite = true;
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pStmt;
+  }
+  return code;
+}
+
 static int32_t rewriteShowScans(STranslateContext* pCxt, SQuery* pQuery) {
   SShowScansStmt* pShow = (SShowScansStmt*)(pQuery->pRoot);
   SSelectStmt*    pStmt = NULL;
@@ -38072,6 +38145,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_SHOW_COMPACTS_STMT:
       code = rewriteShowCompacts(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_BACKUPS_STMT:
+      code = rewriteShowBackups(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_SCANS_STMT:
       code = rewriteShowScans(pCxt, pQuery);

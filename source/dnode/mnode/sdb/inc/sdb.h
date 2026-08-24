@@ -198,7 +198,8 @@ typedef enum {
   SDB_TXN_LOG = 50,  // compact persistent log of terminal (COMMITTED/ROLLEDBACK/ZOMBIE) non-replicated txns
   SDB_TXN_SEQ = 51,
   SDB_EXT_SOURCE = 52,  // federated query: external data source metadata
-  SDB_MAX = 53
+  SDB_BACKUP = 53,      // cluster-level backup records (SHOW BACKUPS history)
+  SDB_MAX = 54
 } ESdbType;
 
 typedef struct SSdbRaw {
