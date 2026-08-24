@@ -434,6 +434,32 @@ class TestStableAlterTag:
         tdSql.checkData(4, 1, "VARCHAR")
         tdSql.checkData(4, 2, 4)
 
+        tdLog.info(f"========== step3 rename tag exception cases")
+        # a child table does not own the tag schema, so it cannot rename tags
+        tdSql.error(
+            f"alter table db.ctb rename tag t3 t4",
+            expectErrInfo="Invalid alter table statement",
+            fullMatched=False,
+        )
+        # renaming a tag that does not exist
+        tdSql.error(f"alter table db.stb rename tag no_such_tag t9")
+        # the new tag name must not collide with an existing tag or column
+        tdSql.error(f"alter table db.stb rename tag t3 t2")
+        tdSql.error(f"alter table db.stb rename tag t3 c1")
+        # illegal new tag names
+        tdSql.error(f"alter table db.stb rename tag t3 {'x' * 200}")
+        tdSql.error(f"alter table db.stb rename tag t3 select")
+        tdSql.error(f"alter table db.stb rename tag t3")
+        # ALTER STABLE is an equivalent spelling and behaves the same
+        tdSql.execute(f"alter stable db.stb rename tag t3 t1")
+        tdSql.query(f"describe db.stb")
+        tdSql.checkData(3, 0, "t1")
+        # renaming back and forth leaves the tag values intact
+        tdSql.query(f"select * from db.stb")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 3, 101)
+        tdSql.checkData(0, 4, 123)
+
     def TagAdd(self):
         tdLog.info(f"======================== dnode1 start")
 

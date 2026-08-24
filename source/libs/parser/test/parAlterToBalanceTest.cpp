@@ -516,12 +516,17 @@ TEST_F(ParserInitialATest, alterSTable) {
   setAlterStbReq("st1", TSDB_ALTER_TABLE_UPDATE_TAG_NAME, 2, "tag1", 0, 0, "tag11");
   run("ALTER STABLE st1 RENAME TAG tag1 tag11");
   clearAlterStbReq();
+
+  // super table column rename is now supported (routes to mnode as UPDATE_COLUMN_NAME,
+  // carrying old/new names in pFields[0]/[1], same shape as tag rename)
+  setAlterStbReq("st1", TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, 2, "c1", 0, 0, "cc1");
+  run("ALTER STABLE st1 RENAME COLUMN c1 cc1");
+  clearAlterStbReq();
 }
 
 TEST_F(ParserInitialATest, alterSTableSemanticCheck) {
   useDb("root", "test");
 
-  run("ALTER STABLE st1 RENAME COLUMN c1 cc1", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   run("ALTER STABLE st1 MODIFY COLUMN c2 NCHAR(10)", TSDB_CODE_PAR_INVALID_MODIFY_COL);
   run("ALTER STABLE st1 MODIFY TAG tag2 NCHAR(10)", TSDB_CODE_PAR_INVALID_MODIFY_COL);
   run("ALTER STABLE st1 SET TAG tag1 = 10", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
@@ -796,6 +801,11 @@ TEST_F(ParserInitialATest, alterTable) {
 
     setAlterStbReq("st1", TSDB_ALTER_TABLE_UPDATE_TAG_NAME, 2, "tag1", 0, 0, "tag11");
     run("ALTER TABLE st1 RENAME TAG tag1 tag11");
+    clearAlterStbReq();
+
+    // super table column rename via ALTER TABLE (non-STABLE) syntax also routes to mnode
+    setAlterStbReq("st1", TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, 2, "c1", 0, 0, "cc1");
+    run("ALTER TABLE st1 RENAME COLUMN c1 cc1");
     clearAlterStbReq();
   }
 }
