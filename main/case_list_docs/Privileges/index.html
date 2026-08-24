@@ -3178,6 +3178,28 @@
         
   
     <li class="md-nav__item">
+      <a href="#25-Privileges.test_priv_upgrade.TestRBACUpgrade.test_rbac_upgrade" class="md-nav__link">
+        RBAC builtin roles and user privileges upgrade from 3.3.x to 3.4.x 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#25-Privileges.test_priv_upgrade_regression.TestRBACUpgrade3424Regression.test_rbac_upgrade_3424_bug" class="md-nav__link">
+        RBAC roles and privileges invisible on 3.4.2.0-3.4.2.4, restored by a later upgrade 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#25-Privileges.test_priv_dac_mac.TestCase.test_priv_dac_mac" class="md-nav__link">
         Test basic privileges of Discretionary Access Control and Mandatory Access Control 
       </a>
@@ -3946,6 +3968,28 @@
         
   
     <li class="md-nav__item">
+      <a href="#25-Privileges.test_priv_upgrade.TestRBACUpgrade.test_rbac_upgrade" class="md-nav__link">
+        RBAC builtin roles and user privileges upgrade from 3.3.x to 3.4.x 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#25-Privileges.test_priv_upgrade_regression.TestRBACUpgrade3424Regression.test_rbac_upgrade_3424_bug" class="md-nav__link">
+        RBAC roles and privileges invisible on 3.4.2.0-3.4.2.4, restored by a later upgrade 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#25-Privileges.test_priv_dac_mac.TestCase.test_priv_dac_mac" class="md-nav__link">
         Test basic privileges of Discretionary Access Control and Mandatory Access Control 
       </a>
@@ -4241,6 +4285,118 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/25-Privileges/test_priv_subscribe.py" target="_blank">
                       cases/25-Privileges/test_priv_subscribe.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="25-Privileges.test_priv_upgrade.TestRBACUpgrade.test_rbac_upgrade" class="doc doc-heading">
+
+<a href="#25-Privileges.test_priv_upgrade.TestRBACUpgrade.test_rbac_upgrade" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>RBAC builtin roles and user privileges upgrade from 3.3.x to 3.4.x</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Stop all dnodes and install base version 3.3.6.0 with clean data.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create cluster with the parametrized topology (1 or 3 dnodes).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Create mnode with the parametrized replica count (1, 2 or 3) and verify.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Create database test_rbac with matching replica and insert data.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Create user_with_perms and grant READ/WRITE on test_rbac.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Create user_no_perms without granting any privilege.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Capture baseline state on old version before upgrade.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Cold upgrade all dnodes to the new version.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Wait for the upgraded cluster to accept connections and reconnect.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Verify all 6 builtin roles exist after upgrade.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Verify root user owns SYSDBA, SYSSEC and SYSAUDIT.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. Verify SYSDBA role carries privileges.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">13. Verify user_with_perms keeps its privileges and can read test_rbac.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">14. Verify user_no_perms still has no privileges and is denied access.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/25-Privileges/test_priv_upgrade.py" target="_blank">
+                      cases/25-Privileges/test_priv_upgrade.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="25-Privileges.test_priv_upgrade_regression.TestRBACUpgrade3424Regression.test_rbac_upgrade_3424_bug" class="doc doc-heading">
+
+<a href="#25-Privileges.test_priv_upgrade_regression.TestRBACUpgrade3424Regression.test_rbac_upgrade_3424_bug" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>RBAC roles and privileges invisible on 3.4.2.0-3.4.2.4, restored by a later upgrade</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Download the 3.4.2.4 enterprise package, reusing the cached copy if present.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Stop every dnode and install base version 3.3.6.0 with clean data.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Create a 3-node cluster and a 3-replica mnode, then verify the mnode list.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Create database test_rbac_regress with replica 3 and a super table.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Create user test_user_regress and grant it READ and WRITE on that database.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Capture the baseline privilege count on 3.3.6.0 before upgrading, along with</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   the baseline server_version and the cluster&#39;s identity (id + create_time from</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   SHOW CLUSTER, both assigned once at creation and stable across upgrades).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Cold upgrade all dnodes to 3.4.2.4, the version carrying the defect.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Before checking the defect, prove this stage is genuinely 3.4.2.4 running on</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   the same cluster/data as the baseline — not a dnode that reports &#34;ready&#34; while</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   still running old binaries (e.g. a failed restart left the previous process</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   alive), and not a freshly created cluster that would trivially have every</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   privilege intact:</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    8.1 server_version() equals buggyVersion.</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    8.2 SHOW CLUSTER&#39;s (id, create_time) match the 3.3.6.0 baseline exactly.</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   Then check for the defect, querying through the 3.4.2.4 CLI because the</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   3.4.2.4 server rejects the newer client with an invalid signature error.</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   3.4.2.4 never runs the RBAC upgrade, so if no mnode leader with already-</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   converted data was elected yet, the records stay in the 3.3.x layout and</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   this version simply cannot display them. This is a race, not a guaranteed</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   defect, so the assertion is not &#34;always empty&#34;: root&#39;s roles, the builtin</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   SYS% roles and test_user_regress&#39;s privileges must all agree on the same</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   empty-or-not-empty state (8.3-8.5 below), whichever it is. A mix — e.g.</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   roles gone but privileges still present — fails the test regardless.</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    8.3 The roles column of root is empty, or not — but consistently with 8.4/8.5.</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    8.4 The builtin SYS% role count is 0, or 6 — but consistently with 8.3/8.5.</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    8.5 The privilege count of test_user_regress is 0, or non-zero — but</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        consistently with 8.3/8.4.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Cold upgrade all dnodes again to the current build, which runs the upgrade</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   that 3.4.2.4 skipped.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Again prove this stage is genuinely the current build on the same</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    cluster/data carried through 3.3.6.0 -&gt; 3.4.2.4, then verify the builtin</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    roles are restored but the user privileges stay lost:</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    10.1 server_version() differs from both baseVersion and buggyVersion.</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    10.2 SHOW CLUSTER&#39;s (id, create_time) still match the 3.3.6.0 baseline.</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    10.3 root owns SYSDBA, SYSSEC and SYSAUDIT again.</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    10.4 The builtin SYS% role count is back to 6.</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    10.5 The privilege count of test_user_regress is still 0. Going through</div>
+                          <div style="margin-left: 7.2em; white-space: pre-wrap;">         3.4.2.4 already rewrote SUserObj in the new encoding and destroyed the</div>
+                          <div style="margin-left: 7.2em; white-space: pre-wrap;">         3.3.x legacyPrivs, so there is nothing left for the current build&#39;s</div>
+                          <div style="margin-left: 7.2em; white-space: pre-wrap;">         upgrade to convert.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/25-Privileges/test_priv_upgrade_regression.py" target="_blank">
+                      cases/25-Privileges/test_priv_upgrade_regression.py
                     </a>
                   </div>
         </div>

@@ -841,6 +841,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    05-Virtual Tables
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -857,6 +875,983 @@
   
 
       </a>
+      
+        
+
+
+<style>
+  .md-nav--secondary {
+    max-width: none !important;
+    width: auto !important;
+    margin-right: 0 !important;
+    padding-right: 0 !important;
+  }
+  
+  .md-nav--secondary .md-nav__list {
+    max-width: none !important;
+    width: auto !important;
+  }
+  
+  .md-nav--secondary .md-nav__item {
+    white-space: nowrap;
+    overflow: visible;
+  }
+</style>
+
+
+
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_alter_lifecycle" class="md-nav__link">
+        ALTER ADD/SET/DROP TAG is visible in ins_tags (and SHOW TAGS) on the same 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_create_tag_value_required" class="md-nav__link">
+        Create rules: CREATE VTABLE tags must carry an explicit value — `= literal` 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_aggregates" class="md-nav__link">
+        Data: COUNT/SUM/AVG/MIN/MAX over the data column. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_group_by_value" class="md-nav__link">
+        Data: GROUP BY the data column. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_limit" class="md-nav__link">
+        Data: LIMIT N returns the first N rows. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_order_by_ts_asc" class="md-nav__link">
+        Data: ORDER BY ts ASC returns rows in ascending time order. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_order_by_ts_desc" class="md-nav__link">
+        Data: ORDER BY ts DESC returns rows in descending time order. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_select_primary_ts" class="md-nav__link">
+        Data: SELECT ts (primary timestamp) returns each row's timestamp. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_select_columns" class="md-nav__link">
+        Data: SELECT ts, val returns all rows with values from the source. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_select_data_column" class="md-nav__link">
+        Data: SELECT val returns the source column values. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_combined_filter" class="md-nav__link">
+        Data: WHERE data AND time combined filter. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_time_range_filter" class="md-nav__link">
+        Data: WHERE ts filters by time range. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_filter_eq" class="md-nav__link">
+        Data: WHERE val = const filters rows. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_filter_range" class="md-nav__link">
+        Data: WHERE val > N / val BETWEEN filters rows. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_desc_full_schema" class="md-nav__link">
+        DESC: lists all columns and tags with correct types. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_desc_tag_ref_refcolumn" class="md-nav__link">
+        DESC: the data column's ref column (val FROM src0.val) is shown. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_json_tag_mixed" class="md-nav__link">
+        Error: a JSON tag coexisting with other tags is rejected (a JSON tag is the whole 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_tag_col_collision" class="md-nav__link">
+        Error: a tag name colliding with a column name is rejected. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_tag_ref_type_mismatch" class="md-nav__link">
+        Error: a tag-ref whose declared type differs from the source tag type is rejected 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_varchar_tag_over_length" class="md-nav__link">
+        Error: a VARCHAR tag longer than TSDB_MAX_BINARY_LEN is rejected at CREATE. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_alter_tag_col_collision" class="md-nav__link">
+        Error: ALTER ADD TAG whose name collides with a column is rejected (tags/columns share name space). 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_nchar_tag_over_length" class="md-nav__link">
+        Error: an NCHAR tag longer than TSDB_MAX_NCHAR_LEN is rejected at CREATE 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_decimal_rejected" class="md-nav__link">
+        Error: DECIMAL tags are rejected at CREATE. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_dup_tag_name" class="md-nav__link">
+        Error: duplicate tag names within TAGS(...) are rejected. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_ext_json_option_rules" class="md-nav__link">
+        Error: external-source tag-ref, ALTER-time JSON tags, and column options on tags 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_ref_data_column" class="md-nav__link">
+        Error: tag-ref must reference a tag column, not a data column. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_nonexistent_ref_tag" class="md-nav__link">
+        Error: tag-ref pointing to a non-existent source tag is rejected. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_tag_bytes_exceed_max_tags_len" class="md-nav__link">
+        Error: total tag bytes exceeding TSDB_MAX_TAGS_LEN (16384) is rejected at CREATE 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_and_show_tags" class="md-nav__link">
+        ins_tags and SHOW TAGS expose owned tags and tag-refs of normal and 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_cursor_path_full_scan" class="md-nav__link">
+        ins_tags full-DB scan (no table_name equality) walks the meta cursor path: 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_type_rendering" class="md-nav__link">
+        ins_tags renders tag_type (with length suffix for var types) and tag_value 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_multi_db_isolation" class="md-nav__link">
+        ins_tags rows are isolated by db_name: same-named tables with different tag 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_add_tag_same_conn_select" class="md-nav__link">
+        Lifecycle: after ALTER ADD TAG on a persistent connection, the new tag is immediately 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_add_tag" class="md-nav__link">
+        Lifecycle: ALTER ADD TAG adds an owned tag (visible in DESC). 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_add_tag_ref" class="md-nav__link">
+        Lifecycle: ALTER ADD TAG name TYPE FROM src.tag adds a tag reference. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_drop_tag" class="md-nav__link">
+        Lifecycle: ALTER DROP TAG removes the tag from schema. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_drop_recreate" class="md-nav__link">
+        Lifecycle: drop and recreate with different tags. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_set_tag" class="md-nav__link">
+        Lifecycle: SET TAG updates an owned tag value, readable via SELECT. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_add_set_query" class="md-nav__link">
+        Normal table: ADD TAG + SET TAG, projection and WHERE filter on owned tags. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_create_with_literal_tags" class="md-nav__link">
+        Normal table: CREATE TABLE ... TAGS where every tag carries `= literal` creates a 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_desc_show_create" class="md-nav__link">
+        Normal table: DESC marks owned tags; SHOW CREATE emits the table's FINAL form — 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_drop_position_variants" class="md-nav__link">
+        Normal table: drop first / middle / last tag; survivors keep their values. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_alter_drop_tag" class="md-nav__link">
+        Normal table: DROP TAG removes the tag; same connection sees it immediately. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_drop_readd_same_name" class="md-nav__link">
+        Normal table: DROP TAG then ADD TAG with the same name — old value must not 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_drop_readd_diff_type" class="md-nav__link">
+        Normal table: DROP TAG then re-add the same name with a different type/length. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_drop_negative" class="md-nav__link">
+        Normal table: drop twice, select a dropped tag, stale SET on a dropped tag. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_error_cases" class="md-nav__link">
+        Normal table: dup tag, tag/col collision, decimal, tag-ref FROM, bad SET/DROP. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_group_distinct_agg" class="md-nav__link">
+        Normal table: GROUP BY / DISTINCT on owned tags, agg with tag filter. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_add_drop_cycles" class="md-nav__link">
+        Normal table: repeated ADD/DROP TAG cycles on the same name stay consistent. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_create_tag_explicit_null_roundtrip" class="md-nav__link">
+        Normal table: SHOW CREATE emits the table's FINAL form — a single CREATE TABLE 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_max_tags_cap" class="md-nav__link">
+        Normal table: tag count cap (TSDB_MAX_TAGS=128); dropping one frees a slot. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_auth_tag_ref_source_select" class="md-nav__link">
+        Privilege gate: a user without SELECT on the source db is denied CREATE VTABLE 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_restart_drop_all_tags_then_readd" class="md-nav__link">
+        Restart: after dropping every tag (schemaTag.nCols=0, version stays monotonic, empty 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_restart_owned_tag_and_ref_persist" class="md-nav__link">
+        Restart: owned tag values + tag-ref resolution survive a taosd restart — the on-disk 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_set_on_tag_ref_converts_to_owned" class="md-nav__link">
+        SET TAG on a tag-ref converts it to an owned tag (ref -> literal): the reference 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_ref_set_converts_to_owned" class="md-nav__link">
+        SET TAG on a vntb tag-ref converts it to an owned tag: ins_tags then serves 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_tagless_omits_tags" class="md-nav__link">
+        SHOW CREATE on a tag-less table omits the TAGS clause entirely (no empty `TAGS()`), 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_json_owned" class="md-nav__link">
+        SHOW CREATE: a JSON owned tag emits its actual content (not `= NULL`) and the 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_roundtrip_null_owned" class="md-nav__link">
+        SHOW CREATE: a NULL owned tag (`= NULL`) round-trips. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_mixed" class="md-nav__link">
+        SHOW CREATE: emits both owned and tag-ref in one TAGS clause. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_owned" class="md-nav__link">
+        SHOW CREATE: emits TAGS with the owned inline value. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_tag_ref" class="md-nav__link">
+        SHOW CREATE: emits the tag-ref FROM clause. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_roundtrip" class="md-nav__link">
+        SHOW CREATE: output re-creates an equivalent table (values survive). 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_stable_name_semantics" class="md-nav__link">
+        stable_name is NULL for normal/virtual-normal tables and filters behave 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_ref_follow_source" class="md-nav__link">
+        Tag: a tag-ref dynamically follows the source tag after SET TAG. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_agg_with_owned_filter" class="md-nav__link">
+        Tag: aggregate with an owned-tag filter. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_distinct_tag_ref" class="md-nav__link">
+        Tag: DISTINCT collapses tag-ref values. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_distinct_owned" class="md-nav__link">
+        Tag: DISTINCT collapses the constant owned tag value. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_group_by_tag_ref" class="md-nav__link">
+        Tag: GROUP BY a tag-ref. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_group_by_owned" class="md-nav__link">
+        Tag: GROUP BY an owned tag. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_with_data" class="md-nav__link">
+        Tag: owned tag projected together with the data column. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_ref_value" class="md-nav__link">
+        Tag: SELECT a tag-ref returns the source tag value. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_value" class="md-nav__link">
+        Tag: SELECT an owned INT tag returns the constant value per row. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_nchar_value" class="md-nav__link">
+        Tag: SELECT an owned NCHAR tag returns the string value. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_multiple" class="md-nav__link">
+        Tag: SELECT multiple owned tags together. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_mixed_owned_ref" class="md-nav__link">
+        Tag: SELECT owned + tag-ref tags together with data. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_multi_source_ref" class="md-nav__link">
+        Tag: tag-refs pulling from different source child tables. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_ref_filter" class="md-nav__link">
+        Tag: WHERE on a tag-ref filters rows. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_filter_eq" class="md-nav__link">
+        Tag: WHERE owned_tag = const filters rows. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_filter_range" class="md-nav__link">
+        Tag: WHERE owned_tag > N / < N filters rows. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_filter_combined" class="md-nav__link">
+        Tag: WHERE owned_tag AND data column combined. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_vtag_conv_cycles" class="md-nav__link">
+        Virtual normal table: literal -> ref -> literal -> ref cycles stay consistent. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_vtag_conv_literal_to_ref" class="md-nav__link">
+        Virtual normal table: SET TAG <owned> = db.tb.tag turns an owned tag into a ref. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_vtag_conv_ref_to_literal" class="md-nav__link">
+        Virtual normal table: SET TAG <ref> = value clears the ref (ref -> literal). 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_vtag_conv_ref_to_ref" class="md-nav__link">
+        Virtual normal table: SET TAG re-points a tag-ref to another source tag. 
+      </a>
+      
+    </li>
+  
+
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -3756,6 +4751,949 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_alter_lifecycle" class="md-nav__link">
+        ALTER ADD/SET/DROP TAG is visible in ins_tags (and SHOW TAGS) on the same 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_create_tag_value_required" class="md-nav__link">
+        Create rules: CREATE VTABLE tags must carry an explicit value — `= literal` 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_aggregates" class="md-nav__link">
+        Data: COUNT/SUM/AVG/MIN/MAX over the data column. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_group_by_value" class="md-nav__link">
+        Data: GROUP BY the data column. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_limit" class="md-nav__link">
+        Data: LIMIT N returns the first N rows. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_order_by_ts_asc" class="md-nav__link">
+        Data: ORDER BY ts ASC returns rows in ascending time order. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_order_by_ts_desc" class="md-nav__link">
+        Data: ORDER BY ts DESC returns rows in descending time order. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_select_primary_ts" class="md-nav__link">
+        Data: SELECT ts (primary timestamp) returns each row's timestamp. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_select_columns" class="md-nav__link">
+        Data: SELECT ts, val returns all rows with values from the source. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_select_data_column" class="md-nav__link">
+        Data: SELECT val returns the source column values. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_combined_filter" class="md-nav__link">
+        Data: WHERE data AND time combined filter. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_time_range_filter" class="md-nav__link">
+        Data: WHERE ts filters by time range. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_filter_eq" class="md-nav__link">
+        Data: WHERE val = const filters rows. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_filter_range" class="md-nav__link">
+        Data: WHERE val > N / val BETWEEN filters rows. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_desc_full_schema" class="md-nav__link">
+        DESC: lists all columns and tags with correct types. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_desc_tag_ref_refcolumn" class="md-nav__link">
+        DESC: the data column's ref column (val FROM src0.val) is shown. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_json_tag_mixed" class="md-nav__link">
+        Error: a JSON tag coexisting with other tags is rejected (a JSON tag is the whole 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_tag_col_collision" class="md-nav__link">
+        Error: a tag name colliding with a column name is rejected. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_tag_ref_type_mismatch" class="md-nav__link">
+        Error: a tag-ref whose declared type differs from the source tag type is rejected 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_varchar_tag_over_length" class="md-nav__link">
+        Error: a VARCHAR tag longer than TSDB_MAX_BINARY_LEN is rejected at CREATE. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_alter_tag_col_collision" class="md-nav__link">
+        Error: ALTER ADD TAG whose name collides with a column is rejected (tags/columns share name space). 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_nchar_tag_over_length" class="md-nav__link">
+        Error: an NCHAR tag longer than TSDB_MAX_NCHAR_LEN is rejected at CREATE 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_decimal_rejected" class="md-nav__link">
+        Error: DECIMAL tags are rejected at CREATE. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_dup_tag_name" class="md-nav__link">
+        Error: duplicate tag names within TAGS(...) are rejected. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_ext_json_option_rules" class="md-nav__link">
+        Error: external-source tag-ref, ALTER-time JSON tags, and column options on tags 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_ref_data_column" class="md-nav__link">
+        Error: tag-ref must reference a tag column, not a data column. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_nonexistent_ref_tag" class="md-nav__link">
+        Error: tag-ref pointing to a non-existent source tag is rejected. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_tag_bytes_exceed_max_tags_len" class="md-nav__link">
+        Error: total tag bytes exceeding TSDB_MAX_TAGS_LEN (16384) is rejected at CREATE 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_and_show_tags" class="md-nav__link">
+        ins_tags and SHOW TAGS expose owned tags and tag-refs of normal and 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_cursor_path_full_scan" class="md-nav__link">
+        ins_tags full-DB scan (no table_name equality) walks the meta cursor path: 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_type_rendering" class="md-nav__link">
+        ins_tags renders tag_type (with length suffix for var types) and tag_value 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_multi_db_isolation" class="md-nav__link">
+        ins_tags rows are isolated by db_name: same-named tables with different tag 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_add_tag_same_conn_select" class="md-nav__link">
+        Lifecycle: after ALTER ADD TAG on a persistent connection, the new tag is immediately 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_add_tag" class="md-nav__link">
+        Lifecycle: ALTER ADD TAG adds an owned tag (visible in DESC). 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_add_tag_ref" class="md-nav__link">
+        Lifecycle: ALTER ADD TAG name TYPE FROM src.tag adds a tag reference. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_drop_tag" class="md-nav__link">
+        Lifecycle: ALTER DROP TAG removes the tag from schema. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_drop_recreate" class="md-nav__link">
+        Lifecycle: drop and recreate with different tags. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_set_tag" class="md-nav__link">
+        Lifecycle: SET TAG updates an owned tag value, readable via SELECT. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_add_set_query" class="md-nav__link">
+        Normal table: ADD TAG + SET TAG, projection and WHERE filter on owned tags. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_create_with_literal_tags" class="md-nav__link">
+        Normal table: CREATE TABLE ... TAGS where every tag carries `= literal` creates a 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_desc_show_create" class="md-nav__link">
+        Normal table: DESC marks owned tags; SHOW CREATE emits the table's FINAL form — 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_drop_position_variants" class="md-nav__link">
+        Normal table: drop first / middle / last tag; survivors keep their values. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_alter_drop_tag" class="md-nav__link">
+        Normal table: DROP TAG removes the tag; same connection sees it immediately. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_drop_readd_same_name" class="md-nav__link">
+        Normal table: DROP TAG then ADD TAG with the same name — old value must not 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_drop_readd_diff_type" class="md-nav__link">
+        Normal table: DROP TAG then re-add the same name with a different type/length. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_drop_negative" class="md-nav__link">
+        Normal table: drop twice, select a dropped tag, stale SET on a dropped tag. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_error_cases" class="md-nav__link">
+        Normal table: dup tag, tag/col collision, decimal, tag-ref FROM, bad SET/DROP. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_group_distinct_agg" class="md-nav__link">
+        Normal table: GROUP BY / DISTINCT on owned tags, agg with tag filter. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_add_drop_cycles" class="md-nav__link">
+        Normal table: repeated ADD/DROP TAG cycles on the same name stay consistent. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_create_tag_explicit_null_roundtrip" class="md-nav__link">
+        Normal table: SHOW CREATE emits the table's FINAL form — a single CREATE TABLE 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_max_tags_cap" class="md-nav__link">
+        Normal table: tag count cap (TSDB_MAX_TAGS=128); dropping one frees a slot. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_auth_tag_ref_source_select" class="md-nav__link">
+        Privilege gate: a user without SELECT on the source db is denied CREATE VTABLE 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_restart_drop_all_tags_then_readd" class="md-nav__link">
+        Restart: after dropping every tag (schemaTag.nCols=0, version stays monotonic, empty 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_restart_owned_tag_and_ref_persist" class="md-nav__link">
+        Restart: owned tag values + tag-ref resolution survive a taosd restart — the on-disk 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_set_on_tag_ref_converts_to_owned" class="md-nav__link">
+        SET TAG on a tag-ref converts it to an owned tag (ref -> literal): the reference 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_ref_set_converts_to_owned" class="md-nav__link">
+        SET TAG on a vntb tag-ref converts it to an owned tag: ins_tags then serves 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_tagless_omits_tags" class="md-nav__link">
+        SHOW CREATE on a tag-less table omits the TAGS clause entirely (no empty `TAGS()`), 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_json_owned" class="md-nav__link">
+        SHOW CREATE: a JSON owned tag emits its actual content (not `= NULL`) and the 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_roundtrip_null_owned" class="md-nav__link">
+        SHOW CREATE: a NULL owned tag (`= NULL`) round-trips. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_mixed" class="md-nav__link">
+        SHOW CREATE: emits both owned and tag-ref in one TAGS clause. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_owned" class="md-nav__link">
+        SHOW CREATE: emits TAGS with the owned inline value. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_tag_ref" class="md-nav__link">
+        SHOW CREATE: emits the tag-ref FROM clause. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_roundtrip" class="md-nav__link">
+        SHOW CREATE: output re-creates an equivalent table (values survive). 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_stable_name_semantics" class="md-nav__link">
+        stable_name is NULL for normal/virtual-normal tables and filters behave 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_ref_follow_source" class="md-nav__link">
+        Tag: a tag-ref dynamically follows the source tag after SET TAG. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_agg_with_owned_filter" class="md-nav__link">
+        Tag: aggregate with an owned-tag filter. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_distinct_tag_ref" class="md-nav__link">
+        Tag: DISTINCT collapses tag-ref values. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_distinct_owned" class="md-nav__link">
+        Tag: DISTINCT collapses the constant owned tag value. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_group_by_tag_ref" class="md-nav__link">
+        Tag: GROUP BY a tag-ref. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_group_by_owned" class="md-nav__link">
+        Tag: GROUP BY an owned tag. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_with_data" class="md-nav__link">
+        Tag: owned tag projected together with the data column. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_ref_value" class="md-nav__link">
+        Tag: SELECT a tag-ref returns the source tag value. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_value" class="md-nav__link">
+        Tag: SELECT an owned INT tag returns the constant value per row. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_nchar_value" class="md-nav__link">
+        Tag: SELECT an owned NCHAR tag returns the string value. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_multiple" class="md-nav__link">
+        Tag: SELECT multiple owned tags together. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_mixed_owned_ref" class="md-nav__link">
+        Tag: SELECT owned + tag-ref tags together with data. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_multi_source_ref" class="md-nav__link">
+        Tag: tag-refs pulling from different source child tables. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_ref_filter" class="md-nav__link">
+        Tag: WHERE on a tag-ref filters rows. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_filter_eq" class="md-nav__link">
+        Tag: WHERE owned_tag = const filters rows. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_filter_range" class="md-nav__link">
+        Tag: WHERE owned_tag > N / < N filters rows. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_filter_combined" class="md-nav__link">
+        Tag: WHERE owned_tag AND data column combined. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_vtag_conv_cycles" class="md-nav__link">
+        Virtual normal table: literal -> ref -> literal -> ref cycles stay consistent. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_vtag_conv_literal_to_ref" class="md-nav__link">
+        Virtual normal table: SET TAG <owned> = db.tb.tag turns an owned tag into a ref. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_vtag_conv_ref_to_literal" class="md-nav__link">
+        Virtual normal table: SET TAG <ref> = value clears the ref (ref -> literal). 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_vtag_conv_ref_to_ref" class="md-nav__link">
+        Virtual normal table: SET TAG re-points a tag-ref to another source tag. 
+      </a>
+      
+    </li>
+  
+
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -3772,6 +5710,2103 @@
 
 
 <h1 id="05-virtual-tables">05-Virtual Tables<a class="headerlink" href="#05-virtual-tables" title="Permanent link">&para;</a></h1>
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_select_columns" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_select_columns" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Data: SELECT ts, val returns all rows with values from the source.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_select_primary_ts" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_select_primary_ts" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Data: SELECT ts (primary timestamp) returns each row's timestamp.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_select_data_column" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_select_data_column" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Data: SELECT val returns the source column values.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_filter_eq" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_filter_eq" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Data: WHERE val = const filters rows.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_filter_range" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_filter_range" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Data: WHERE val > N / val BETWEEN filters rows.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_time_range_filter" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_time_range_filter" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Data: WHERE ts filters by time range.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_order_by_ts_asc" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_order_by_ts_asc" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Data: ORDER BY ts ASC returns rows in ascending time order.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_order_by_ts_desc" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_order_by_ts_desc" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Data: ORDER BY ts DESC returns rows in descending time order.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_limit" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_limit" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Data: LIMIT N returns the first N rows.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_aggregates" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_aggregates" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Data: COUNT/SUM/AVG/MIN/MAX over the data column.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_group_by_value" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_group_by_value" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Data: GROUP BY the data column.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_combined_filter" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_data_combined_filter" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Data: WHERE data AND time combined filter.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_desc_full_schema" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_desc_full_schema" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>DESC: lists all columns and tags with correct types.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_desc_tag_ref_refcolumn" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_desc_tag_ref_refcolumn" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>DESC: the data column's ref column (val FROM src0.val) is shown.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_owned" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_owned" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SHOW CREATE: emits TAGS with the owned inline value.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_tag_ref" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_tag_ref" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SHOW CREATE: emits the tag-ref FROM clause.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_mixed" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_mixed" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SHOW CREATE: emits both owned and tag-ref in one TAGS clause.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_roundtrip" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_roundtrip" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SHOW CREATE: output re-creates an equivalent table (values survive).</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_roundtrip_null_owned" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_roundtrip_null_owned" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SHOW CREATE: a NULL owned tag (`= NULL`) round-trips.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">`= NULL` is an explicit value (accepted at CREATE VTABLE). CREATE VTABLE rejects a</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">bare `loc INT`, so the emitted DDL must preserve `= NULL` — otherwise replay fails.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Regression cover for the SHOW CREATE NULL-owned-tag round-trip gap.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_json_owned" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_json_owned" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SHOW CREATE: a JSON owned tag emits its actual content (not `= NULL`) and the</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">doubling).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_tagless_omits_tags" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_tagless_omits_tags" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SHOW CREATE on a tag-less table omits the TAGS clause entirely (no empty `TAGS()`),</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_value" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_value" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Tag: SELECT an owned INT tag returns the constant value per row.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_nchar_value" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_nchar_value" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Tag: SELECT an owned NCHAR tag returns the string value.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_multiple" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_multiple" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Tag: SELECT multiple owned tags together.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_ref_value" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_ref_value" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Tag: SELECT a tag-ref returns the source tag value.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_ref_follow_source" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_ref_follow_source" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Tag: a tag-ref dynamically follows the source tag after SET TAG.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_mixed_owned_ref" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_mixed_owned_ref" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Tag: SELECT owned + tag-ref tags together with data.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_multi_source_ref" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_multi_source_ref" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Tag: tag-refs pulling from different source child tables.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_with_data" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_with_data" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Tag: owned tag projected together with the data column.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_filter_eq" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_filter_eq" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Tag: WHERE owned_tag = const filters rows.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_filter_range" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_filter_range" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Tag: WHERE owned_tag > N / < N filters rows.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_filter_combined" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_owned_filter_combined" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Tag: WHERE owned_tag AND data column combined.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_ref_filter" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_ref_filter" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Tag: WHERE on a tag-ref filters rows.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_group_by_owned" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_group_by_owned" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Tag: GROUP BY an owned tag.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_group_by_tag_ref" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_group_by_tag_ref" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Tag: GROUP BY a tag-ref.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_distinct_owned" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_distinct_owned" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Tag: DISTINCT collapses the constant owned tag value.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_distinct_tag_ref" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_distinct_tag_ref" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Tag: DISTINCT collapses tag-ref values.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_agg_with_owned_filter" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_tag_agg_with_owned_filter" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Tag: aggregate with an owned-tag filter.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_add_tag" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_add_tag" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Lifecycle: ALTER ADD TAG adds an owned tag (visible in DESC).</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_add_tag_same_conn_select" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_add_tag_same_conn_select" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Lifecycle: after ALTER ADD TAG on a persistent connection, the new tag is immediately</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_set_tag" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_set_tag" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Lifecycle: SET TAG updates an owned tag value, readable via SELECT.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_drop_tag" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_drop_tag" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Lifecycle: ALTER DROP TAG removes the tag from schema.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_add_tag_ref" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_add_tag_ref" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Lifecycle: ALTER ADD TAG name TYPE FROM src.tag adds a tag reference.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_drop_recreate" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_drop_recreate" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Lifecycle: drop and recreate with different tags.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_decimal_rejected" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_decimal_rejected" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Error: DECIMAL tags are rejected at CREATE.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_dup_tag_name" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_dup_tag_name" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Error: duplicate tag names within TAGS(...) are rejected.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_tag_col_collision" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_tag_col_collision" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Error: a tag name colliding with a column name is rejected.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_alter_tag_col_collision" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_alter_tag_col_collision" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Error: ALTER ADD TAG whose name collides with a column is rejected (tags/columns share name space).</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_json_tag_mixed" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_json_tag_mixed" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Error: a JSON tag coexisting with other tags is rejected (a JSON tag is the whole</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_nonexistent_ref_tag" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_nonexistent_ref_tag" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Error: tag-ref pointing to a non-existent source tag is rejected.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_ref_data_column" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_ref_data_column" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Error: tag-ref must reference a tag column, not a data column.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_add_set_query" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_add_set_query" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table: ADD TAG + SET TAG, projection and WHERE filter on owned tags.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_alter_drop_tag" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_alter_drop_tag" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table: DROP TAG removes the tag; same connection sees it immediately.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_desc_show_create" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_desc_show_create" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table: DESC marks owned tags; SHOW CREATE emits the table's FINAL form —</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">-&gt; `= value`), not a CREATE + ALTER ADD/SET TAG sequence.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_create_tag_explicit_null_roundtrip" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_create_tag_explicit_null_roundtrip" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table: SHOW CREATE emits the table's FINAL form — a single CREATE TABLE</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">owned tag renders inline as `= NULL` (a valid explicit value), which round-trips.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_group_distinct_agg" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_group_distinct_agg" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table: GROUP BY / DISTINCT on owned tags, agg with tag filter.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_error_cases" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_error_cases" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table: dup tag, tag/col collision, decimal, tag-ref FROM, bad SET/DROP.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_drop_readd_same_name" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_drop_readd_same_name" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table: DROP TAG then ADD TAG with the same name — old value must not</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_drop_readd_diff_type" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_drop_readd_diff_type" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table: DROP TAG then re-add the same name with a different type/length.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_drop_position_variants" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_drop_position_variants" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table: drop first / middle / last tag; survivors keep their values.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_add_drop_cycles" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_add_drop_cycles" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table: repeated ADD/DROP TAG cycles on the same name stay consistent.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_drop_negative" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_drop_negative" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table: drop twice, select a dropped tag, stale SET on a dropped tag.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_max_tags_cap" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_max_tags_cap" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table: tag count cap (TSDB_MAX_TAGS=128); dropping one frees a slot.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_vtag_conv_ref_to_ref" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_vtag_conv_ref_to_ref" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Virtual normal table: SET TAG re-points a tag-ref to another source tag.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_vtag_conv_ref_to_literal" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_vtag_conv_ref_to_literal" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Virtual normal table: SET TAG <ref> = value clears the ref (ref -> literal).</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_vtag_conv_literal_to_ref" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_vtag_conv_literal_to_ref" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Virtual normal table: SET TAG <owned> = db.tb.tag turns an owned tag into a ref.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_vtag_conv_cycles" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_vtag_conv_cycles" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Virtual normal table: literal -> ref -> literal -> ref cycles stay consistent.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_create_tag_value_required" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_create_tag_value_required" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Create rules: CREATE VTABLE tags must carry an explicit value — `= literal`</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">mix of FROM and valueless tags; literal + FROM mixed stays legal.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_create_with_literal_tags" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_create_with_literal_tags" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table: CREATE TABLE ... TAGS where every tag carries `= literal` creates a</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">semantics — the inline values are how CREATE TABLE tells the two apart.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_and_show_tags" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_and_show_tags" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>ins_tags and SHOW TAGS expose owned tags and tag-refs of normal and</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_cursor_path_full_scan" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_cursor_path_full_scan" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>ins_tags full-DB scan (no table_name equality) walks the meta cursor path:</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">(sysTableUserTagsFillNtbRefTagsRow), child-table tags carrying stable_name, and</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">tag-less tables producing no rows (phantom-tag decoder regression).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_stable_name_semantics" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_stable_name_semantics" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>stable_name is NULL for normal/virtual-normal tables and filters behave</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_alter_lifecycle" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_alter_lifecycle" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>ALTER ADD/SET/DROP TAG is visible in ins_tags (and SHOW TAGS) on the same</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">ADD exposes the tag with a NULL value, SET fills it, DROP removes the row.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_type_rendering" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_type_rendering" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>ins_tags renders tag_type (with length suffix for var types) and tag_value</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_ref_set_converts_to_owned" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_ref_set_converts_to_owned" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SET TAG on a vntb tag-ref converts it to an owned tag: ins_tags then serves</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">(table_name equality) and the cursor path (full scan).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_multi_db_isolation" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_multi_db_isolation" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>ins_tags rows are isolated by db_name: same-named tables with different tag</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_set_on_tag_ref_converts_to_owned" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_set_on_tag_ref_converts_to_owned" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SET TAG on a tag-ref converts it to an owned tag (ref -> literal): the reference</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_ext_json_option_rules" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_ext_json_option_rules" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Error: external-source tag-ref, ALTER-time JSON tags, and column options on tags</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_tag_bytes_exceed_max_tags_len" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_tag_bytes_exceed_max_tags_len" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Error: total tag bytes exceeding TSDB_MAX_TAGS_LEN (16384) is rejected at CREATE</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">the per-column cap, so this specifically exercises the total-bytes guard.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_varchar_tag_over_length" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_varchar_tag_over_length" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Error: a VARCHAR tag longer than TSDB_MAX_BINARY_LEN is rejected at CREATE.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_nchar_tag_over_length" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_nchar_tag_over_length" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Error: an NCHAR tag longer than TSDB_MAX_NCHAR_LEN is rejected at CREATE</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_tag_ref_type_mismatch" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_tag_ref_type_mismatch" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Error: a tag-ref whose declared type differs from the source tag type is rejected</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_restart_owned_tag_and_ref_persist" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_restart_owned_tag_and_ref_persist" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Restart: owned tag values + tag-ref resolution survive a taosd restart — the on-disk</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_restart_drop_all_tags_then_readd" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_restart_drop_all_tags_then_readd" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Restart: after dropping every tag (schemaTag.nCols=0, version stays monotonic, empty</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">case where the empty-schema trailer must re-decode and the version must stay monotonic.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_auth_tag_ref_source_select" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_auth_tag_ref_source_select" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Privilege gate: a user without SELECT on the source db is denied CREATE VTABLE</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">READ on the source db lets them through, and revoking it denies them again</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">(covers authColDefRefs + the authAlterTable ref-alter branch).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_normal_tags.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
 
 
 

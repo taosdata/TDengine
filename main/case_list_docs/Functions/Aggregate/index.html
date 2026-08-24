@@ -2009,6 +2009,28 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_interval_max_and_last_with_historical_added_null_column" class="md-nav__link">
+        Agg: interval MAX and LAST with an added all-NULL column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last_with_all_null_column_in_newest_block" class="md-nav__link">
+        Agg: LAST with an all-NULL column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last_tag" class="md-nav__link">
         Agg: last/last_row with tag 
       </a>
@@ -4707,6 +4729,28 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_interval_max_and_last_with_historical_added_null_column" class="md-nav__link">
+        Agg: interval MAX and LAST with an added all-NULL column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last_with_all_null_column_in_newest_block" class="md-nav__link">
+        Agg: LAST with an all-NULL column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last_tag" class="md-nav__link">
         Agg: last/last_row with tag 
       </a>
@@ -6581,6 +6625,68 @@
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">Test the LAST function</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_last.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_last.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last_with_all_null_column_in_newest_block" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last_with_all_null_column_in_newest_block" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Agg: LAST with an all-NULL column</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Verify LAST retains the latest non-NULL value from an older block.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify an all-NULL LAST input remains NULL with tag grouping.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify the same result with a value filter that preloads block SMA.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_last.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_last.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_last.Test_Last.test_interval_max_and_last_with_historical_added_null_column" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_interval_max_and_last_with_historical_added_null_column" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Agg: interval MAX and LAST with an added all-NULL column</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Verify interval MAX reads correct values and NULLs for historical blocks after a column is added.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify a block written after the ALTER retains its non-NULL added-column values.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify LAST and mixed MAX/MIN aggregation on existing columns keep their result semantics.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
