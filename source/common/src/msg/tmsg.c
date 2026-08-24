@@ -13595,6 +13595,37 @@ _exit:
 
 void tFreeSBalanceVgroupReq(SBalanceVgroupReq *pReq) { FREESQL(); }
 
+int32_t tSerializeSFlushMnodeReq(void *buf, int32_t bufLen, SFlushMnodeReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0, lino, tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->useless));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSFlushMnodeReq(void *buf, int32_t bufLen, SFlushMnodeReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0, lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->useless));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSFlushMnodeReq(SFlushMnodeReq *pReq) { (void)pReq; }
+
 int32_t tSerializeSAssignLeaderReq(void *buf, int32_t bufLen, SAssignLeaderReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;

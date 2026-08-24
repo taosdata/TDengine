@@ -560,6 +560,7 @@ SNode* createKillTransStmt(SAstCreateContext* pCxt, ENodeType type, const SToken
 SNode* createKillCompactStmt(SAstCreateContext* pCxt, const SToken* pId, bool force);
 SNode* createKillQueryStmt(SAstCreateContext* pCxt, const SToken* pQueryId);
 SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt);
+SNode* createFlushMnodeStmt(SAstCreateContext* pCxt);
 SNode* createAssignLeaderStmt(SAstCreateContext* pCxt);
 SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt, const SToken* pVgId);
 SNode* createBalanceVgroupLeaderDBNameStmt(SAstCreateContext* pCxt, SToken* pDbName);

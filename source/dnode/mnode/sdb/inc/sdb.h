@@ -343,6 +343,13 @@ int32_t sdbEnsureDefaultData(SSdb *pSdb);
 int32_t sdbReadFile(SSdb *pSdb);
 
 /**
+ * @brief Reset sdb, clearing all in-memory rows and header state.
+ *
+ * @param pSdb The sdb object.
+ */
+void sdbResetData(SSdb *pSdb);
+
+/**
  * @brief Write sdb file.
  *
  * @param pSdb The sdb object.
