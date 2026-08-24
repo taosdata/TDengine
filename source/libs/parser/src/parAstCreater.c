@@ -3696,6 +3696,42 @@ _err:
   return NULL;
 }
 
+SNode* createBackupStmt(SAstCreateContext* pCxt, bool isFull, SToken* pDnodeId, SToken* pBackupRoot,
+                        SToken* pBackupChainId, SToken* pDbName, SToken* pPassword) {
+  SCreateBackupStmt* pStmt = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL != pDbName) {
+    CHECK_NAME(checkDbName(pCxt, pDbName, false));
+  }
+  if (pPassword != NULL && pPassword->z != NULL && pPassword->n <= 2) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY);
+    goto _err;
+  }
+  if (pPassword != NULL && pPassword->z != NULL && pPassword->n >= sizeof(pStmt->password) + 2) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
+    goto _err;
+  }
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_BACKUP_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->isFull = isFull;
+  pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
+  COPY_STRING_FORM_STR_TOKEN(pStmt->backupRoot, pBackupRoot);
+  // Optional target backup chain id (only meaningful for incremental backup;
+  // 0 means "use the latest chain"). Reserved until incremental is implemented.
+  if (NULL != pBackupChainId) {
+    pStmt->backupChainId = taosStr2Int64(pBackupChainId->z, NULL, 10);
+  }
+  if (NULL != pDbName) {
+    COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  }
+  if (pPassword != NULL && pPassword->z != NULL) {
+    COPY_STRING_FORM_STR_TOKEN(pStmt->password, pPassword);
+  }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   STableOptions* pOptions = NULL;
@@ -5008,6 +5044,16 @@ _err:
 SNode* createShowCompactsStmt(SAstCreateContext* pCxt, ENodeType type) {
   CHECK_PARSER_STATUS(pCxt);
   SShowCompactsStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createShowBackupsStmt(SAstCreateContext* pCxt, ENodeType type) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowBackupsStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   return (SNode*)pStmt;
@@ -8707,6 +8753,17 @@ SNode* createKillCompactStmt(SAstCreateContext* pCxt, const SToken* pId, bool fo
   CHECK_MAKE_NODE(pStmt);
   pStmt->targetId = taosStr2Int32(pId->z, NULL, 10);
   pStmt->force = force;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createKillBackupStmt(SAstCreateContext* pCxt, const SToken* pId) {
+  CHECK_PARSER_STATUS(pCxt);
+  SKillBackupStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_KILL_BACKUP_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->targetId = taosStr2Int64(pId->z, NULL, 10);
   return (SNode*)pStmt;
 _err:
   return NULL;

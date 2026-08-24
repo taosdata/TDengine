@@ -31,6 +31,15 @@ extern "C" {
 typedef struct SMnode SMnode;
 
 typedef struct {
+  int32_t sourceId;
+  int32_t id;
+  int64_t clusterId;
+  SEp     ep;
+} SMnodeRestoreDnode;
+
+int32_t mndRestoreMapDnodeId(const SArray *pDnodes, int32_t sourceId);
+
+typedef struct {
   int32_t  dnodeId;
   bool     deploy;
   int32_t  version;
@@ -131,6 +140,7 @@ int32_t mndDumpSdb();
 int32_t mndDeleteTrans();
 
 int32_t mndModifySdb(char *path);
+int32_t mndRestoreUpdateMetadata(const SArray *pDnodes);
 
 #ifdef __cplusplus
 }

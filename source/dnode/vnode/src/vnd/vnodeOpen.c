@@ -460,6 +460,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   pVnode->disableWrite = false;
   pVnode->closing = 0;
   pVnode->vacuumRunning = 0;
+  (void)taosThreadMutexInit(&pVnode->backupSnapMutex, NULL);
 
   if (tsem_init(&pVnode->syncSem, 0, 0) != 0) {
     vError("vgId:%d, failed to init semaphore", TD_VID(pVnode));
@@ -540,11 +541,13 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   TAOS_UNUSED(ret);
 
   // open query
-  vInfo("vgId:%d, start to open vnode query", TD_VID(pVnode));
-  if (vnodeQueryOpen(pVnode)) {
-    vError("vgId:%d, failed to open vnode query since %s", TD_VID(pVnode), tstrerror(terrno));
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+  if (pVnode->msgCb.mgmt != NULL) {
+    vInfo("vgId:%d, start to open vnode query", TD_VID(pVnode));
+    if (vnodeQueryOpen(pVnode)) {
+      vError("vgId:%d, failed to open vnode query since %s", TD_VID(pVnode), tstrerror(terrno));
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
   }
 
   // sma required the tq is initialized before the vnode open
@@ -602,10 +605,12 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   }
 
   // open sync
-  vInfo("vgId:%d, start to open sync, changeVersion:%d", TD_VID(pVnode), info.config.syncCfg.changeVersion);
-  if (vnodeSyncOpen(pVnode, dir, info.config.syncCfg.changeVersion)) {
-    vError("vgId:%d, failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
+  if (pVnode->msgCb.mgmt != NULL) {
+    vInfo("vgId:%d, start to open sync, changeVersion:%d", TD_VID(pVnode), info.config.syncCfg.changeVersion);
+    if (vnodeSyncOpen(pVnode, dir, info.config.syncCfg.changeVersion)) {
+      vError("vgId:%d, failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
+      goto _err;
+    }
   }
 
   if (rollback) {
@@ -642,6 +647,7 @@ _err:
 
 void vnodePreClose(SVnode *pVnode) {
   streamRemoveVnodeLeader(pVnode->config.vgId);
+  vnodeCloseBackupSnap(pVnode);
   vnodeSyncPreClose(pVnode);
   vnodeQueryPreClose(pVnode);
 }
@@ -664,7 +670,9 @@ void vnodeClose(SVnode *pVnode) {
     if (atomic_load_8(&pVnode->vacuumRunning)) {
       vnodeAWait(&pVnode->vacuumTask);
     }
-    vnodeSyncClose(pVnode);
+    if (pVnode->sync != 0) {
+      vnodeSyncClose(pVnode);
+    }
     vnodeQueryClose(pVnode);
     tqClose(pVnode->pTq);
     if (pVnode->pTxnWalMgr) {
@@ -686,6 +694,7 @@ void vnodeClose(SVnode *pVnode) {
       vError("vgId:%d, failed to destroy semaphore", TD_VID(pVnode));
     }
     (void)taosThreadCondDestroy(&pVnode->poolNotEmpty);
+    (void)taosThreadMutexDestroy(&pVnode->backupSnapMutex);
     (void)taosThreadMutexDestroy(&pVnode->mutex);
     (void)taosThreadMutexDestroy(&pVnode->lock);
     taosMemoryFree(pVnode);

@@ -851,6 +851,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       code = makeNode(type, sizeof(SCompactDatabaseStmt), &pNode);
       break;
+    case QUERY_NODE_CREATE_BACKUP_STMT:
+      code = makeNode(type, sizeof(SCreateBackupStmt), &pNode);
+      break;
     case QUERY_NODE_ROLLUP_DATABASE_STMT:
       code = makeNode(type, sizeof(SRollupDatabaseStmt), &pNode);
       break;
@@ -1041,6 +1044,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_COMPACTS_STMT:
       code = makeNode(type, sizeof(SShowCompactsStmt), &pNode);
       break;
+    case QUERY_NODE_SHOW_BACKUPS_STMT:
+      code = makeNode(type, sizeof(SShowBackupsStmt), &pNode);
+      break;
     case QUERY_NODE_SHOW_SCANS_STMT:
       code = makeNode(type, sizeof(SShowScansStmt), &pNode);
       break;
@@ -1067,6 +1073,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_KILL_TRANSACTION_STMT:
       code = makeNode(type, sizeof(SKillTransStmt), &pNode);
+      break;
+    case QUERY_NODE_KILL_BACKUP_STMT:
+      code = makeNode(type, sizeof(SKillBackupStmt), &pNode);
       break;
     case QUERY_NODE_KILL_CONNECTION_STMT:
     case QUERY_NODE_KILL_COMPACT_STMT:
@@ -2277,6 +2286,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pEnd);
       break;
     }
+    case QUERY_NODE_CREATE_BACKUP_STMT:  // no pointer field
+      break;
     case QUERY_NODE_ROLLUP_DATABASE_STMT: {
       SRollupDatabaseStmt* pStmt = (SRollupDatabaseStmt*)pNode;
       nodesDestroyNode(pStmt->pStart);
@@ -2436,6 +2447,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pLikePattern);
       break;
     case QUERY_NODE_SHOW_COMPACTS_STMT:
+    case QUERY_NODE_SHOW_BACKUPS_STMT:
     case QUERY_NODE_SHOW_SCANS_STMT:
       break;
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
@@ -2473,6 +2485,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_KILL_QUERY_STMT:              // no pointer field
     case QUERY_NODE_KILL_TRANSACTION_STMT:        // no pointer field
     case QUERY_NODE_KILL_COMPACT_STMT:            // no pointer field
+    case QUERY_NODE_KILL_BACKUP_STMT:             // no pointer field
     case QUERY_NODE_KILL_RETENTION_STMT:          // no pointer field
     case QUERY_NODE_KILL_SCAN_STMT:
     case QUERY_NODE_KILL_SSMIGRATE_STMT:  // no pointer field

@@ -1351,6 +1351,9 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
     case QUERY_NODE_SHOW_SCANS_STMT:
     case QUERY_NODE_SHOW_SSMIGRATES_STMT:
+    case QUERY_NODE_SHOW_BACKUPS_STMT:
+    case QUERY_NODE_CREATE_BACKUP_STMT:  // cluster-level, enforced in mnode via backupRestore grant
+    case QUERY_NODE_KILL_BACKUP_STMT:
       return TSDB_CODE_SUCCESS;
     default:
       break;

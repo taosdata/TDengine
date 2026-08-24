@@ -115,7 +115,7 @@ static inline bool tmsgIsValid(tmsg_t type) {
 static inline bool vnodeIsMsgBlock(tmsg_t type) {
   return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
          (type == TDMT_VND_UPDATE_TAG_VAL) || (type == TDMT_VND_ALTER_CONFIRM) || (type == TDMT_VND_COMMIT) ||
-         (type == TDMT_SYNC_CONFIG_CHANGE);
+         (type == TDMT_SYNC_CONFIG_CHANGE) || (type == TDMT_VND_SYNC_COMMIT);
 }
 
 static inline bool syncUtilUserCommit(tmsg_t msgType) {
@@ -230,6 +230,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_TXN_LOG,
   TSDB_MGMT_TABLE_TXN_ORPHANS,
   TSDB_MGMT_TABLE_VSTABLE_INHERITS,
+  TSDB_MGMT_TABLE_BACKUP,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -872,6 +873,7 @@ typedef enum ENodeType {
   QUERY_NODE_ALTER_KEY_EXPIRATION_STMT,
   QUERY_NODE_SET_TIMEZONE_STMT,
   QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT,
+  QUERY_NODE_CREATE_BACKUP_STMT,
 
   // show statement nodes
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
@@ -924,6 +926,7 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT,
   QUERY_NODE_DROP_ENCRYPT_ALGR_STMT,
   QUERY_NODE_SHOW_CREATE_STREAM_STMT,
+  QUERY_NODE_KILL_BACKUP_STMT,
 
   // DDL statement nodes for federated query (external source) — 240-249 reserved
   QUERY_NODE_CREATE_EXT_SOURCE_STMT   = 240,
@@ -1013,6 +1016,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_TRANSACTION_ORPHANS_STMT,
   // VST inheritance (BASE ON): appended at the end to preserve existing enum values.
   QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT,
+  QUERY_NODE_SHOW_BACKUPS_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -3293,6 +3297,207 @@ typedef struct {
 int32_t tSerializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
 int32_t tDeserializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
 void    tFreeSKillCompactReq(SKillCompactReq* pReq);
+
+// ==================== Cluster-level backup/restore ====================
+// client -> mnode: start a backup. Phase 2 only wires cluster-level FULL backup;
+// isFull and dbName are reserved for later phases.
+typedef struct {
+  int32_t dnodeId;                     // dnode that owns backupRoot and runs the agent
+  char    backupRoot[TSDB_MOUNT_PATH_LEN];
+  int8_t  isFull;                      // reserved: 1 = full, 0 = incremental
+  int64_t backupChainId;               // reserved: target chain for incremental; 0 = latest
+  char    dbName[TSDB_DB_FNAME_LEN];   // reserved: empty = whole cluster
+  int8_t  hasPassword;
+  char    password[TSDB_PASSWORD_LEN];
+  int32_t sqlLen;
+  char*   sql;
+} SBackupReq;
+
+int32_t tSerializeSBackupReq(void* buf, int32_t bufLen, SBackupReq* pReq);
+int32_t tDeserializeSBackupReq(void* buf, int32_t bufLen, SBackupReq* pReq);
+void    tFreeSBackupReq(SBackupReq* pReq);
+
+typedef struct {
+  int64_t chainId;   // backup chain id assigned by mnode
+  int64_t backupId;  // individual backup id within the chain
+  int8_t  bAccepted;
+} SBackupRsp;
+
+int32_t tSerializeSBackupRsp(void* buf, int32_t bufLen, SBackupRsp* pRsp);
+int32_t tDeserializeSBackupRsp(void* buf, int32_t bufLen, SBackupRsp* pRsp);
+
+typedef struct {
+  int64_t backupId;
+  int32_t sqlLen;
+  char*   sql;
+} SKillBackupReq;
+
+int32_t tSerializeSKillBackupReq(void* buf, int32_t bufLen, SKillBackupReq* pReq);
+int32_t tDeserializeSKillBackupReq(void* buf, int32_t bufLen, SKillBackupReq* pReq);
+void    tFreeSKillBackupReq(SKillBackupReq* pReq);
+
+typedef struct {
+  int32_t vgId;
+  int64_t dbUid;
+  char    dbName[TSDB_DB_FNAME_LEN];
+  int8_t  numOfDnodes;
+  int32_t dnodeIds[TSDB_MAX_REPLICA];
+} SBackupVgroupInfo;
+
+typedef struct {
+  int64_t streamId;
+  int32_t snodeDnodeId;
+} SBackupStreamSnodeInfo;
+
+typedef struct {
+  int32_t id;
+  int8_t  isSnode;
+  int8_t  isMnode;
+} SBackupDnodeInfo;
+
+// mnode -> target dnode agent: dispatch a backup job
+typedef struct {
+  int64_t chainId;  // resolved chain id assigned/selected by mnode
+  int64_t backupId;
+  int32_t dnodeId;
+  char    backupRoot[TSDB_MOUNT_PATH_LEN];
+  int8_t  isFull;
+  char    dbName[TSDB_DB_FNAME_LEN];  // reserved: empty = whole cluster
+  int8_t  hasPassword;
+  char    password[TSDB_PASSWORD_LEN];
+  SArray *dnodes;                      // SBackupDnodeInfo, sorted ascending by id
+  SArray *streamSnodes;                 // SBackupStreamSnodeInfo
+  SArray *vgroups;                     // SBackupVgroupInfo
+} SBackupDnodeReq;
+
+int32_t tSerializeSBackupDnodeReq(void* buf, int32_t bufLen, SBackupDnodeReq* pReq);
+int32_t tDeserializeSBackupDnodeReq(void* buf, int32_t bufLen, SBackupDnodeReq* pReq);
+void    tFreeSBackupDnodeReq(SBackupDnodeReq* pReq);
+
+// mnode <-> dnode agent: query backup progress
+typedef struct {
+  int64_t chainId;
+  int64_t backupId;
+} SBackupProgressReq;
+
+int32_t tSerializeSBackupProgressReq(void* buf, int32_t bufLen, SBackupProgressReq* pReq);
+int32_t tDeserializeSBackupProgressReq(void* buf, int32_t bufLen, SBackupProgressReq* pReq);
+
+typedef struct {
+  int64_t chainId;
+  int64_t backupId;
+  int8_t  finished;  // 1 = the agent-side task has finished (success or failure)
+  int64_t totalSize; // bytes written so far
+  int32_t totalVgroups;
+  int32_t finishedVgroups;
+  int32_t currentVgId;  // 0 when no vnode is being processed
+  int32_t code;       // agent-side result code; 0 = success
+} SBackupProgressRsp;
+
+int32_t tSerializeSBackupProgressRsp(void* buf, int32_t bufLen, SBackupProgressRsp* pRsp);
+int32_t tDeserializeSBackupProgressRsp(void* buf, int32_t bufLen, SBackupProgressRsp* pRsp);
+
+// dnode agent -> mnode: pull mnode metadata for backup
+typedef struct {
+  int64_t chainId;
+  int64_t backupId;
+} SBackupMetaReq;
+
+int32_t tSerializeSBackupMetaReq(void* buf, int32_t bufLen, SBackupMetaReq* pReq);
+int32_t tDeserializeSBackupMetaReq(void* buf, int32_t bufLen, SBackupMetaReq* pReq);
+
+// One packaged file within a backup unit. relPath is relative to the unit's
+// directory (e.g. "sdb.data", "mnode.json", "sync/raft_config.json"), so the
+// agent can recreate the exact tree. Reusable across mnode/vnode/snode units.
+typedef struct {
+  char    relPath[TSDB_FILENAME_LEN];
+  int32_t dataLen;
+  void*   data;
+} SBackupFile;
+
+typedef struct {
+  int64_t     sdbEndVersion;  // sdb.data end version at snapshot time
+  int32_t     numOfFiles;     // number of valid entries in files[]
+  SBackupFile files[4];       // sdb.data + mnode.json + sync raft config/store
+} SBackupMetaRsp;
+
+int32_t tSerializeSBackupMetaRsp(void* buf, int32_t bufLen, SBackupMetaRsp* pRsp);
+int32_t tDeserializeSBackupMetaRsp(void* buf, int32_t bufLen, SBackupMetaRsp* pRsp);
+void    tFreeSBackupMetaRsp(SBackupMetaRsp* pRsp);
+
+// dnode backup agent -> mnode: resolve the current leader immediately before
+// starting this vgroup's snapshot. The returned endpoint is the sole source
+// for that snapshot session.
+typedef struct {
+  int64_t chainId;
+  int64_t backupId;
+  int32_t vgId;
+} SBackupVgroupLeaderReq;
+
+typedef struct {
+  int32_t vgId;
+  int32_t leaderDnodeId;
+  SEpSet  leaderEpSet;
+} SBackupVgroupLeaderRsp;
+
+int32_t tSerializeSBackupVgroupLeaderReq(void* buf, int32_t bufLen, SBackupVgroupLeaderReq* pReq);
+int32_t tDeserializeSBackupVgroupLeaderReq(void* buf, int32_t bufLen, SBackupVgroupLeaderReq* pReq);
+int32_t tSerializeSBackupVgroupLeaderRsp(void* buf, int32_t bufLen, SBackupVgroupLeaderRsp* pRsp);
+int32_t tDeserializeSBackupVgroupLeaderRsp(void* buf, int32_t bufLen, SBackupVgroupLeaderRsp* pRsp);
+
+// dnode backup agent -> SNode dnode: package the requested stream checkpoints.
+typedef struct {
+  int32_t dnodeId;
+  SArray* streamIds;  // int64_t
+} SBackupSnodeReq;
+
+typedef struct {
+  SArray* files;  // SBackupFile
+} SBackupSnodeRsp;
+
+int32_t tSerializeSBackupSnodeReq(void* buf, int32_t bufLen, SBackupSnodeReq* pReq);
+int32_t tDeserializeSBackupSnodeReq(void* buf, int32_t bufLen, SBackupSnodeReq* pReq);
+void    tFreeSBackupSnodeReq(SBackupSnodeReq* pReq);
+int32_t tSerializeSBackupSnodeRsp(void* buf, int32_t bufLen, SBackupSnodeRsp* pRsp);
+int32_t tDeserializeSBackupSnodeRsp(void* buf, int32_t bufLen, SBackupSnodeRsp* pRsp);
+void    tFreeSBackupSnodeRsp(SBackupSnodeRsp* pRsp);
+
+typedef enum {
+  BACKUP_VNODE_SNAP_BEGIN = 1,
+  BACKUP_VNODE_SNAP_FETCH = 2,
+  BACKUP_VNODE_SNAP_RELEASE = 3,
+} EBackupVnodeSnapOp;
+
+// vnode write queue: establish a committed boundary after all preceding writes
+typedef struct {
+  int32_t vgId;
+} SVnodeSyncCommitReq;
+
+int32_t tSerializeSVnodeSyncCommitReq(void* buf, int32_t bufLen, SVnodeSyncCommitReq* pReq);
+int32_t tDeserializeSVnodeSyncCommitReq(void* buf, int32_t bufLen, SVnodeSyncCommitReq* pReq);
+
+// dnode agent -> vnode leader: manage one backup snapshot session
+typedef struct {
+  int32_t vgId;
+  int64_t chainId;
+  int64_t backupId;
+  int8_t  isFull;
+  int8_t  op;
+} SBackupVnodeSnapReq;
+
+typedef struct {
+  int32_t vgId;
+  int64_t snapshotIndex;
+  int8_t  eof;
+  int32_t dataLen;
+  void*   data;
+} SBackupVnodeSnapRsp;
+
+int32_t tSerializeSBackupVnodeSnapReq(void* buf, int32_t bufLen, SBackupVnodeSnapReq* pReq);
+int32_t tDeserializeSBackupVnodeSnapReq(void* buf, int32_t bufLen, SBackupVnodeSnapReq* pReq);
+int32_t tSerializeSBackupVnodeSnapRsp(void* buf, int32_t bufLen, SBackupVnodeSnapRsp* pRsp);
+int32_t tDeserializeSBackupVnodeSnapRsp(void* buf, int32_t bufLen, SBackupVnodeSnapRsp* pRsp);
+void    tFreeSBackupVnodeSnapRsp(SBackupVnodeSnapRsp* pRsp);
 
 typedef SCompactDbRsp   STrimDbRsp;         // reuse structs
 typedef SKillCompactReq SKillRetentionReq;  // reuse structs

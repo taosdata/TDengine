@@ -501,6 +501,10 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal,
         taosQueueGetThreadId(pVnode->pFetchQ));
   while (!taosQueueEmpty(pVnode->pFetchQ)) taosMsleep(10);
 
+    dInfo("vgId:%d, wait for vnode backup queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pBackupQ,
+      taosQueueGetThreadId(pVnode->pBackupQ));
+    while (!taosQueueEmpty(pVnode->pBackupQ)) taosMsleep(10);
+
   dInfo("vgId:%d, wait for vnode query queue:%p is empty", pVnode->vgId, pVnode->pQueryQ);
   while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
 
@@ -1016,7 +1020,7 @@ static void vmCleanup(SVnodeMgmt *pMgmt) {
   taosMemoryFree(pMgmt);
 }
 
-static void vmCheckSyncTimeout(SVnodeMgmt *pMgmt) {
+static void vmCheckVnodeTimeouts(SVnodeMgmt *pMgmt) {
   int32_t     code = 0;
   int32_t     numOfVnodes = 0;
   SVnodeObj **ppVnodes = NULL;
@@ -1031,6 +1035,7 @@ static void vmCheckSyncTimeout(SVnodeMgmt *pMgmt) {
       SVnodeObj *pVnode = ppVnodes[i];
       if (!pVnode->failed) {
         vnodeSyncCheckTimeout(pVnode->pImpl);
+        vnodeCheckBackupSnapTimeout(pVnode->pImpl);
       }
       vmReleaseVnode(pMgmt, pVnode);
     }
@@ -1052,7 +1057,7 @@ static void *vmThreadFp(void *param) {
 
     int64_t sec = lastTime / 10;
     if (sec % (VNODE_TIMEOUT_SEC / 2) == 0) {
-      vmCheckSyncTimeout(pMgmt);
+      vmCheckVnodeTimeouts(pMgmt);
     }
   }
 

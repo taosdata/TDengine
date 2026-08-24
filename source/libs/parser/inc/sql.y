@@ -596,6 +596,9 @@ priv_type(A) ::= SHOW GRANTS.                                                   
 priv_type(A) ::= SHOW CLUSTER.                                                    { A = PRIV_SET_TYPE(PRIV_CLUSTER_SHOW); }
 priv_type(A) ::= SHOW APPS.                                                       { A = PRIV_SET_TYPE(PRIV_APPS_SHOW); }
 
+priv_type(A) ::= CREATE BACKUP.                                                   { A = PRIV_SET_TYPE(PRIV_BACKUP_CREATE); }
+priv_type(A) ::= SHOW BACKUPS.                                                    { A = PRIV_SET_TYPE(PRIV_SHOW_BACKUPS); }
+
 %type create_xnode_obj {EPrivType}
 priv_type(A) ::= CREATE XNODE create_xnode_obj(B).                                {
   memset(&A, 0, sizeof(A));
@@ -889,6 +892,22 @@ cmd ::= COMPACT DATABASE db_name(A) start_opt(B) end_opt(C) meta_only(D) force_o
 cmd ::= COMPACT db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D) meta_only(E) force_opt(F).   { pCxt->pRootNode = createCompactVgroupsStmt(pCxt, A, B, C, D, E, F); }
 cmd ::= SCAN DATABASE db_name(A) start_opt(B) end_opt(C).                                          { pCxt->pRootNode = createScanStmt(pCxt, &A, B, C); }
 cmd ::= SCAN db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D).   { pCxt->pRootNode = createScanVgroupsStmt(pCxt, A, B, C, D); }
+
+/************************************************ create backup ***********************************************/
+cmd ::= CREATE backup_mode(A) BACKUP ON DNODE NK_INTEGER(B) TO NK_STRING(C) backup_password_opt(D).                                        { pCxt->pRootNode = createBackupStmt(pCxt, A, &B, &C, NULL, NULL, &D); }
+cmd ::= CREATE backup_mode(A) BACKUP ON DNODE NK_INTEGER(B) TO NK_STRING(C) NK_INTEGER(E) backup_password_opt(D).                          { pCxt->pRootNode = createBackupStmt(pCxt, A, &B, &C, &E, NULL, &D); }
+cmd ::= CREATE backup_mode(A) BACKUP ON DNODE NK_INTEGER(B) TO NK_STRING(C) FOR DATABASE db_name(D) backup_password_opt(E).                { pCxt->pRootNode = createBackupStmt(pCxt, A, &B, &C, NULL, &D, &E); }
+cmd ::= CREATE backup_mode(A) BACKUP ON DNODE NK_INTEGER(B) TO NK_STRING(C) NK_INTEGER(E) FOR DATABASE db_name(D) backup_password_opt(F).  { pCxt->pRootNode = createBackupStmt(pCxt, A, &B, &C, &E, &D, &F); }
+
+%type backup_mode                                                                { bool }
+%destructor backup_mode                                                          { }
+backup_mode(A) ::= FULL.                                                          { A = true; }
+backup_mode(A) ::= INCREMENTAL.                                                   { A = false; }
+
+%type backup_password_opt                                                        { SToken }
+%destructor backup_password_opt                                                  { }
+backup_password_opt(A) ::= .                                                     { A = nil_token; }
+backup_password_opt(A) ::= WITH PASSWORD NK_STRING(B).                          { A = B; }
 
 %type meta_only                                                                  { bool }
 %destructor meta_only                                                            { }
@@ -1453,6 +1472,7 @@ cmd ::= SHOW db_name_cond_opt(A) VIEWS like_pattern_opt(B).                     
 cmd ::= SHOW CREATE VIEW full_table_name(A).                                      { pCxt->pRootNode = createShowCreateViewStmt(pCxt, QUERY_NODE_SHOW_CREATE_VIEW_STMT, A); }
 cmd ::= SHOW COMPACTS.                                                            { pCxt->pRootNode = createShowCompactsStmt(pCxt, QUERY_NODE_SHOW_COMPACTS_STMT); }
 cmd ::= SHOW COMPACT NK_INTEGER(A).                                               { pCxt->pRootNode = createShowCompactDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
+cmd ::= SHOW BACKUPS.                                                             { pCxt->pRootNode = createShowBackupsStmt(pCxt, QUERY_NODE_SHOW_BACKUPS_STMT); }
 cmd ::= SHOW db_name_cond_opt(A) DISK_INFO.                                       { pCxt->pRootNode = createShowDiskUsageStmt(pCxt, A,    QUERY_NODE_SHOW_USAGE_STMT); }
 cmd ::= SHOW SCANS.                                                               { pCxt->pRootNode = createShowScansStmt(pCxt, QUERY_NODE_SHOW_SCANS_STMT); }
 cmd ::= SHOW SCAN NK_INTEGER(A).                                                  { pCxt->pRootNode = createShowScanDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
@@ -1881,6 +1901,7 @@ cmd ::= KILL QUERY NK_STRING(A).                                                
 cmd ::= KILL TRANSACTION NK_INTEGER(A).                                           { pCxt->pRootNode = createKillTransStmt(pCxt, QUERY_NODE_KILL_TRANSACTION_STMT, &A); }
 cmd ::= KILL COMPACT NK_INTEGER(A).                                               { pCxt->pRootNode = createKillCompactStmt(pCxt, &A, false); }
 cmd ::= KILL COMPACT NK_INTEGER(A) FORCE.                                         { pCxt->pRootNode = createKillCompactStmt(pCxt, &A, true); }
+cmd ::= KILL BACKUP NK_INTEGER(A).                                                { pCxt->pRootNode = createKillBackupStmt(pCxt, &A); }
 cmd ::= KILL RETENTION NK_INTEGER(A).                                             { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_RETENTION_STMT, &A); }
 cmd ::= KILL SCAN NK_INTEGER(A).                                                  { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_SCAN_STMT, &A); }
 cmd ::= KILL SSMIGRATE NK_INTEGER(A).                                             { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_SSMIGRATE_STMT, &A); }

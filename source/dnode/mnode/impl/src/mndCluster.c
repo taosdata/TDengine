@@ -110,6 +110,52 @@ int64_t mndGetClusterId(SMnode *pMnode) {
   return clusterId;
 }
 
+int32_t mndRestoreClusterId(SMnode *pMnode, int64_t clusterId) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  void        *pIter = NULL;
+  SClusterObj *pOld = NULL;
+  SClusterObj  oldCluster = {0};
+  SClusterObj  newCluster = {0};
+  SSdbRaw     *pRaw = NULL;
+
+  if (pMnode == NULL || clusterId <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  pOld = mndAcquireCluster(pMnode, &pIter);
+  if (pOld == NULL) {
+    return terrno;
+  }
+  oldCluster = *pOld;
+  mndReleaseCluster(pMnode, pOld, pIter);
+  if (oldCluster.id == clusterId) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  newCluster = oldCluster;
+  newCluster.id = clusterId;
+  pRaw = mndClusterActionEncode(&newCluster);
+  if (pRaw == NULL) {
+    return terrno;
+  }
+  if ((code = sdbSetRawStatus(pRaw, SDB_STATUS_READY)) != 0) {
+    sdbFreeRaw(pRaw);
+    return code;
+  }
+  if ((code = sdbWrite(pMnode->pSdb, pRaw)) != 0) {
+    return code;
+  }
+
+  pRaw = mndClusterActionEncode(&oldCluster);
+  if (pRaw == NULL) {
+    return terrno;
+  }
+  if ((code = sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED)) != 0) {
+    sdbFreeRaw(pRaw);
+    return code;
+  }
+  return sdbWrite(pMnode->pSdb, pRaw);
+}
+
 int64_t mndGetClusterCreateTime(SMnode *pMnode) {
   int64_t      createTime = 0;
   void        *pIter = NULL;

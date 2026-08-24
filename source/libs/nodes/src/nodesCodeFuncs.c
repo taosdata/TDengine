@@ -281,6 +281,10 @@ const char* nodesNodeName(ENodeType type) {
       return "DescribeStmt";
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return "CompactDatabaseStmt";
+    case QUERY_NODE_CREATE_BACKUP_STMT:
+      return "CreateBackupStmt";
+    case QUERY_NODE_KILL_BACKUP_STMT:
+      return "KillBackupStmt";
     case QUERY_NODE_ROLLUP_DATABASE_STMT:
       return "RollupDatabaseStmt";
     case QUERY_NODE_SCAN_DATABASE_STMT:
@@ -447,6 +451,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowTableTagsStmt";
     case QUERY_NODE_SHOW_COMPACTS_STMT:
       return "ShowCompactsStmt";
+    case QUERY_NODE_SHOW_BACKUPS_STMT:
+      return "ShowBackupsStmt";
     case QUERY_NODE_SHOW_SCANS_STMT:
       return "ShowScansStmt";
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:

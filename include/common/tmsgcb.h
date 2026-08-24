@@ -44,6 +44,7 @@ typedef enum {
   STREAM_READER_QUEUE,
   STREAM_TRIGGER_QUEUE,
   AUDIT_QUEUE,
+  BACKUP_QUEUE,
   QUEUE_MAX,
 } EQueueType;
 
