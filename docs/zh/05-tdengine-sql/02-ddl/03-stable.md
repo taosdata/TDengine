@@ -147,6 +147,7 @@ alter_table_clause: {
   | ADD COLUMN col_name column_type
   | DROP COLUMN col_name
   | MODIFY COLUMN col_name column_type
+  | RENAME COLUMN old_col_name new_col_name
   | ADD TAG tag_name tag_type
   | DROP TAG tag_name
   | MODIFY TAG tag_name tag_type
@@ -172,6 +173,7 @@ alter_table_option: {
 - `ADD COLUMN`：添加数据列。
 - `DROP COLUMN`：删除数据列。
 - `MODIFY COLUMN`：修改数据列宽度。数据列类型必须是可变长类型，如 `BINARY`、`VARCHAR` 或 `NCHAR`；列宽只能改大，不能改小。
+- `RENAME COLUMN`：修改数据列名称。从超级表修改某个列名后，该超级表下的所有子表也会自动更新该列名。自 3.4.3.0 版本开始支持。
 - `ADD TAG`：添加标签。
 - `DROP TAG`：删除标签。从超级表删除某个标签后，该超级表下的所有子表也会自动删除该标签。
 - `MODIFY TAG`：修改标签列宽度。标签类型必须是可变长类型，如 `BINARY`、`VARCHAR` 或 `NCHAR`；列宽只能改大，不能改小。
@@ -198,6 +200,14 @@ ALTER STABLE stb_name MODIFY COLUMN col_name data_type(length);
 ```
 
 如果数据列的类型是可变长类型（如 `BINARY`、`VARCHAR` 或 `NCHAR`），可以使用此语句修改其宽度。列宽只能改大，不能改小。
+
+### 修改列名
+
+```sql
+ALTER STABLE stb_name RENAME COLUMN old_col_name new_col_name;
+```
+
+修改超级表的数据列名称，从超级表修改某个列名后，该超级表下的所有子表也会自动更新该列名。自 3.4.3.0 版本开始支持。
 
 ### 添加标签
 

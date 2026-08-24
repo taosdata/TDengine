@@ -378,6 +378,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_CONFLICT_WITH_TSMA, "Field used by tsma")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_IN_CREATING,        "Dnode in creating status")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_IN_DROPPING,        "Dnode in dropping status")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_EXCEED_MAX_COL_ID,        "Exceed max column id")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_COL_REF_BY_USER_PRIV,     "Column referenced by user privilege")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_COL_REF_BY_ROLE_PRIV,     "Column referenced by role privilege")
 
 // mnode-trans
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_ALREADY_EXIST,      "Transaction already exists")

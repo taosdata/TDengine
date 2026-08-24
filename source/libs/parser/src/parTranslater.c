@@ -20933,8 +20933,7 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
     }
     if (hasPkInTable(pTableMeta) && (pSchema->flags & COL_IS_KEY)) {
       if (TSDB_ALTER_TABLE_DROP_COLUMN == pStmt->alterType ||
-          TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType ||
-          TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME == pStmt->alterType) {
+          TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PK_OP, pStmt->colName);
       }
     }
@@ -21046,10 +21045,12 @@ static int32_t checkAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt* pS
                                    "alter tag reference only available for virtual child table");
   }
 
+#if 0 // rename column of stb is supported since 3.4.3.0 
   if (TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME == pStmt->alterType) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
                                    "Rename column only available for normal table");
   }
+#endif
 
   if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_OPTIONS && -1 != pStmt->pOptions->ttl) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
@@ -36793,10 +36794,14 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
                                    "only super table can alter keep duration");
   }
 
+  // Only DROP COLUMN and MODIFY COLUMN are rejected on a composite primary key column: the former
+  // destroys the key, the latter changes its encoded width. RENAME COLUMN is allowed - key semantics
+  // ride on the COL_IS_KEY flag and the colId, never on the column name (see mndAlterStbColumnName
+  // for the full survey of binding sites), so it is as safe as renaming any other column.
   const SSchema* pSchema = getNormalColSchema(pTableMeta, pStmt->colName);
   if (hasPkInTable(pTableMeta) && pSchema && (pSchema->flags & COL_IS_KEY) &&
-      (TSDB_ALTER_TABLE_DROP_COLUMN == pStmt->alterType || TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType ||
-       TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME == pStmt->alterType)) {
+      (TSDB_ALTER_TABLE_DROP_COLUMN == pStmt->alterType ||
+       TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PK_OP);
   }
 
