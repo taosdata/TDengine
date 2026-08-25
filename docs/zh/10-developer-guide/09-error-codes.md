@@ -735,6 +735,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000620C | Virtual table reference depth exceeds limit                                | 虚拟表查询在递归解析引用链时，引用层级超过了执行器支持的最大深度              | 检查虚拟表引用链，缩短引用层级或联系开发处理  |
 | 0x8000620D | Virtual table query cannot resolve ref column                              | 虚拟表查询在递归解析引用列时，找不到合法的下一跳引用或最终引用列               | 检查虚拟表引用链和元数据定义，必要时联系开发处理 |
 | 0x8000620E | Virtual table circular reference detected                                  | 虚拟表查询在递归解析引用链时，检测到循环引用（A→B→...→A）                | 检查虚拟表引用链，消除循环依赖             |
+| 0x8000620F | No valid epSet for virtual super table data source node                    | 虚拟超级表查询使用了过期的数据源 vgroup 路由，执行器找不到对应 endpoint       | 客户端会刷新相关数据库元数据并自动重试；若持续失败，请检查集群状态和客户端日志 |
 
 #### federated query
 

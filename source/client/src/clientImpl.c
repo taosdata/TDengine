@@ -41,6 +41,7 @@
 static int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo, int32_t totpCode,
                                const char* saslToken);
+static int32_t removeQueryDbMeta(STscObj* pTscObj, SArray* dbList);
 
 void setQueryRequest(int64_t rId) {
   SRequestObj* pReq = acquireRequest(rId);
@@ -2094,8 +2095,17 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
       pRequest->stmtBindVersion == 0) {
     tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%s, tryCount:%d, QID:0x%" PRIx64,
              pRequest->self, tstrerror(code), pRequest->retry, pRequest->requestId);
-    if (TSDB_CODE_SUCCESS != removeMeta(pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type))) {
-      tscError("req:0x%" PRIx64 ", remove meta failed, QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
+    int32_t metaCode = TSDB_CODE_SUCCESS;
+    if (code == TSDB_CODE_VTABLE_DATA_SRC_EP_MISS) {
+      // Virtual table sources are discovered indirectly. Drop every referenced DB cache so table metadata and
+      // vgroup routes are refreshed together before rebuilding the plan.
+      metaCode = removeQueryDbMeta(pTscObj, pRequest->dbList);
+    } else {
+      metaCode = removeMeta(pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type));
+    }
+    if (metaCode != TSDB_CODE_SUCCESS) {
+      tscError("req:0x%" PRIx64 ", remove meta failed, code:%s, QID:0x%" PRIx64, pRequest->self,
+               tstrerror(metaCode), pRequest->requestId);
     }
     restartAsyncQuery(pRequest, code);
     return;
@@ -2734,6 +2744,30 @@ int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
   }
 
   return code;
+}
+
+static int32_t removeQueryDbMeta(STscObj* pTscObj, SArray* dbList) {
+  SCatalog* pCatalog = NULL;
+  int32_t   code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  int32_t firstCode = TSDB_CODE_SUCCESS;
+  int32_t dbNum = taosArrayGetSize(dbList);
+  for (int32_t i = 0; i < dbNum; ++i) {
+    char* dbFName = taosArrayGet(dbList, i);
+    if (dbFName == NULL) {
+      continue;
+    }
+
+    code = catalogRemoveDB(pCatalog, dbFName, 0);
+    if (code != TSDB_CODE_SUCCESS && firstCode == TSDB_CODE_SUCCESS) {
+      firstCode = code;
+    }
+  }
+
+  return firstCode;
 }
 
 int32_t removeMeta(STscObj* pTscObj, SArray* tbList, bool isView) {
