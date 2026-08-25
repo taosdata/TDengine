@@ -18640,6 +18640,7 @@ static int32_t buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStm
   pReq->replications = pStmt->pOptions->replica;
   pReq->sstTrigger = pStmt->pOptions->sstTrigger;
   pReq->minRows = pStmt->pOptions->minRowsPerBlock;
+  pReq->maxRows = pStmt->pOptions->maxRowsPerBlock;
   pReq->walRetentionPeriod = pStmt->pOptions->walRetentionPeriod;
   pReq->walRetentionSize = pStmt->pOptions->walRetentionSize;
   pReq->ssKeepLocal = pStmt->pOptions->ssKeepLocal;
