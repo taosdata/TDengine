@@ -158,13 +158,13 @@ There are also line charts for the above categories.
 
 ### Automatic import of preconfigured alert rules
 
-After summarizing user experience, 14 commonly used alert rules are sorted out. These alert rules can monitor key indicators of the TDengine cluster and report alerts, such as abnormal and exceeded indicators.  
-Starting from TDengine-Server 3.3.4.3 (TDengine-datasource 3.6.3), TDengine Datasource supports automatic import of preconfigured alert rules. You can import 14 alert rules to Grafana (**version 11 or later**) with one click.  
-In the TDengine-datasource setting interface, turn on the "Load TDengine Alert" switch, click the "Save & test" button, the plugin will automatically load the mentioned 14 alert rules. The rules will be placed in the Grafana alerts directory. If not required, turn off the "Load TDengine Alert" switch, and click the button next to "Clear TDengine Alert" to clear all the alert rules imported into this data source.
+After summarizing user experience, 16 commonly used alert rules are sorted out. These alert rules can monitor key indicators of the TDengine cluster and report alerts, such as abnormal and exceeded indicators.  
+Starting from TDengine-Server 3.3.4.3 (TDengine-datasource 3.6.3), TDengine Datasource supports automatic import of preconfigured alert rules. You can import 16 alert rules to Grafana (**version 11 or later**) with one click.  
+In the TDengine-datasource setting interface, turn on the "Load TDengine Alert" switch, click the "Save & test" button, the plugin will automatically load the mentioned 16 alert rules. The rules will be placed in the Grafana alerts directory. If not required, turn off the "Load TDengine Alert" switch, and click the button next to "Clear TDengine Alert" to clear all the alert rules imported into this data source.
 
 After importing, click on "Alert rules" on the left side of the Grafana interface to view all current alert rules. By configuring contact points, users can receive alert notifications.
 
-The specific configuration of the 14 alert rules is as follows:  
+The specific configuration of the 16 alert rules is as follows:  
 
 | alert rule                                                   | Rule threshold                       | Behavior when no data | Data scanning interval | Duration    | SQL                                                          |
 | ------------------------------------------------------------ | ------------------------------------ | --------------------- | ---------------------- | ----------- | ------------------------------------------------------------ |
@@ -182,6 +182,12 @@ The specific configuration of the 14 alert rules is as follows:
 | Adapter WebSocket request fail                               | > 5                                  | Do not trigger alert  | 30 seconds             | 0 seconds   | `select now(), sum(`fail`) as`Failed`from log.adapter_requests where req_type=1 and ts >= (now -30s) and ts < now` |
 | Dnode data reporting is missing                              | < 3                                  | Trigger alert         | 180 seconds            | 0 seconds   | `select now(),  cluster_id, count(*) as dnode_report  from log.taosd_cluster_info where _ts >= (now -180s) and _ts < now  partition by cluster_id  having timetruncate(first(_ts), 1h) > 0` |
 | Restart dnode                                                | max(update_time) > last(update_time) | Trigger alert         | 90 seconds             | 0 seconds   | `select now(), dnode_ep, max(uptime) - last(uptime) as dnode_report  from log.taosd_dnodes_info where _ts >= (now - 90s) and _ts < now partition by dnode_ep` |
+| Stream failed                                                | `error_code` != 0                    | Do not trigger alert  | 1 minute               | 0 seconds   | `select now(), cluster_id, stream_name, last(cast(error_code as bigint)) as error_code from log.taosd_stream_failure where _ts >= (now - 120s) and _ts < now partition by cluster_id, stream_name having first(_ts) > 0` |
+| Stream recalculation failed                                  | `Failed` recalc jobs > 0             | Do not trigger alert  | 1 minute               | 0 seconds   | `select now() as ts, stream_name, recalc_id, progress, message, count(*) as failed from information_schema.ins_stream_recalculates where status = 'Failed' partition by stream_name, recalc_id, progress, message` |
+
+**Note**: The Stream failed and Stream recalculation failed rules rely on the stream computing observability feature and are supported only on TDengine `v3.4.2.7` or later. On earlier versions, these two rules stay in a query error state and do not affect the other alert rules.
+
+**Upgrade note**: Data sources created with tdengine-datasource 4.0.1 or earlier do not automatically receive alert rules added in later releases. After upgrading to 4.0.2 or later, open the data source settings page and click "Save & test" again: the plugin appends the new "Stream failed" and "Stream recalculation failed" rules to the existing `alert_1m` rule group. Existing rules and their customizations (thresholds, labels, durations, etc.) as well as the group evaluation interval are preserved, and contact points and notification policies are not affected.
 
 TDengine users can modify and improve these alert rules according to their own business needs.
 
