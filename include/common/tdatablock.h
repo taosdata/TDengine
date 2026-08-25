@@ -194,7 +194,6 @@ static FORCE_INLINE void colDataSetDouble(SColumnInfoData* pColumnInfoData, uint
 }
 
 int32_t getJsonValueLen(const char* data);
-int32_t blockDataGetPagedColumnReservedBytes(const SColumnInfoData* pColumnInfoData);
 
 // For the VAR_DATA_TYPE type, new data is inserted strictly according to the position of SVarColAttr.length.
 // If the same row is inserted repeatedly, data holes will result.
@@ -221,6 +220,16 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
 int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex);
 int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, bool asc);
 
+// Recomputes hasNull from the column's null metadata - the offset array
+// for var-length types, the null bitmap otherwise. Any decoder that loads
+// that metadata from a serialized buffer must call this: the target block
+// is reused across blocks, so its hasNull is whatever the previous block
+// left (blockDataCleanup clears it), and a stale false makes
+// colDataIsNull_s report every row as non-NULL without ever reading the
+// metadata. Touches only the metadata, so it may be called before the
+// payload is allocated.
+void    colDataUpdateHasNull(SColumnInfoData* pColumnInfoData,
+                             int32_t numOfRows);
 int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows);
 
 int32_t colDataGetRowLength(const SColumnInfoData* pColumnInfoData, int32_t rowIdx);
@@ -236,10 +245,24 @@ void    blockDataShrinkNRows(SSDataBlock* pBlock, int32_t numOfRows);
 int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex,
                            int32_t pageSize);
 int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock);
+// Exact number of bytes blockDataToBuf writes for pBlock; sizing a buffer
+// with anything else risks drifting from the serialized layout.
+size_t blockDataGetBufSize(const SSDataBlock* pBlock);
+// Reads back the compact layout blockDataToBuf writes: a row count
+// followed by per-column regions packed to that row count with no slack.
+// Sizes pBlock itself.
 int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf);
 // Decode numOfCols blockDataToBuf columns while verifying that every read stays within capacity.
 int32_t blockDataFromBufWithCapacity(SSDataBlock* pBlock, const char* buf, size_t capacity, int32_t numOfCols);
-int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity);
+// Bounded variant for deserializing from untrusted storage (e.g. spill
+// files): validates the full serialized layout against bufSize before any
+// allocation or copy, returning TSDB_CODE_FILE_CORRUPTED on violations.
+// bufSize must be the exact serialized length; trailing bytes are rejected.
+// Schemas containing noData columns are rejected with TSDB_CODE_INVALID_PARA
+// (blockDataToBuf serializes them but blockDataFromBuf skips them, so no
+// consistent bounded parse exists).
+int32_t blockDataFromBufBounded(SSDataBlock* pBlock, const char* buf,
+                                int32_t bufSize);
 int32_t blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t rowCount, SSDataBlock** pResBlock);
 
 size_t blockDataGetSize(const SSDataBlock* pBlock);

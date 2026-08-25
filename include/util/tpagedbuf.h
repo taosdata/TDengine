@@ -77,6 +77,16 @@ SArray* getDataBufPagesIdList(SDiskbasedBuf* pBuf);
 void* getBufPage(SDiskbasedBuf* pBuf, int32_t id);
 
 /**
+ * Get the specified buffer page without refreshing its LRU position when it
+ * is already resident in memory. A page loaded from disk follows the normal
+ * LRU insertion policy and is registered at the front of the LRU list.
+ * @param pBuf
+ * @param id
+ * @return
+ */
+void* getBufPageNoLRU(SDiskbasedBuf* pBuf, int32_t id);
+
+/**
  * release the referenced buf pages
  * @param pBuf
  * @param page

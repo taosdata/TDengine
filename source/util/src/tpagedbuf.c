@@ -52,12 +52,9 @@ struct SDiskbasedBuf {
   bool                printStatis;  // Print statistics info when closing this buffer.
   SDiskbasedBufStatis statis;
 
-  // Symmetric encryption of spilled pages (SM4-CBC). Enabled iff encryptBuf is
-  // non-NULL. The key is randomly generated per buffer instance, kept only in
-  // memory and never persisted, so residual temp files are unreadable after a
-  // crash.
-  char  encryptKey[ENCRYPT_KEY_LEN + 1];
-  char* encryptBuf;  // staging buffer for encrypt/decrypt
+  // One context owns the memory-only key and work buffers for this spill file.
+  // Encryption is enabled iff the context is non-NULL.
+  SSpillCryptCtx* pCryptCtx;
 };
 
 static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
@@ -149,132 +146,67 @@ static uint64_t allocateNewPositionInFile(SDiskbasedBuf* pBuf, size_t size) {
 
 static FORCE_INLINE size_t getAllocPageSize(int32_t pageSize) { return pageSize + POINTER_BYTES + sizeof(SFilePage); }
 
-// On-disk layout of an encrypted page:
-//   [4-byte plaintext length][CBC ciphertext padded to 16 bytes].
-// The plaintext length is the post-compression size, needed to strip the
-// padding before decompression.
-#define PAGE_ENC_HDR_LEN ((int32_t)sizeof(int32_t))
-
-static FORCE_INLINE bool pageEncryptEnabled(void) {
-  return (tsiEncryptScope & DND_CS_QUERY_SPILL) != 0;
+// The encrypted page image layout and its size relation are owned by crypt
+// (taosSpillCryptEncodedLen); the stored plaintext length is the
+// post-compression size, needed to strip the padding before decompression.
+// Maximum encoded size of one encrypted page image; 0 for out-of-range
+// page sizes, which then rejects every positive on-disk length.
+static int32_t pageEncryptedDataCap(int32_t pageSize) {
+  int32_t encodedLen = 0;
+  if (taosSpillCryptEncodedLen((int32_t)getAllocPageSize(pageSize),
+                               &encodedLen) != TSDB_CODE_SUCCESS) {
+    return 0;
+  }
+  return encodedLen;
 }
 
-// Size of one 16-aligned page image, the unit of each encryptBuf region.
-static FORCE_INLINE int32_t pageAlignedCap(int32_t pageSize) {
-  return (int32_t)ALIGN_NUM(getAllocPageSize(pageSize), 16);
-}
-
-// Staging buffer holds
-//     [4B len][ciphertext region (alignCap)][plaintext region (alignCap)]
-// so that CBC source and result never overlap (matching the WAL/TDB usage of
-// CBC_Encrypt). Each region holds a 16-aligned page image.
-//   cap = PAGE_ENC_HDR_LEN + 2 * pageAlignedCap(pageSize)
-// e.g. pageSize=4096 -> alignCap=4112 -> cap = 4 + 2*4112 = 8228 bytes.
-static int32_t pageEncryptBufCap(int32_t pageSize) {
-  return PAGE_ENC_HDR_LEN + 2 * pageAlignedCap(pageSize);
-}
-
-static void genPageEncryptKey(char* key) {
-  // OS-native CSPRNG: /dev/urandom on Linux/macOS, CryptGenRandom on Windows.
-  taosSafeRandBytes((uint8_t*)key, ENCRYPT_KEY_LEN);
-  key[ENCRYPT_KEY_LEN] = 0;
-}
-
-static void pageInitCryptOpts(SDiskbasedBuf* pBuf, SCryptOpts* opts,
-                              int32_t len, char* source, char* result) {
-  opts->len = len;
-  opts->source = source;
-  opts->result = result;
-  opts->unitLen = 16;
-  opts->pOsslAlgrName = TSDB_ENCRYPT_ALGR_SM4_NAME;
-  // Binary key may contain 0x00, so copy all bytes; tstrncpy/strncpy would
-  // truncate at the first null and silently weaken the key.
-  memcpy(opts->key, pBuf->encryptKey, ENCRYPT_KEY_LEN);
-}
-
-// Encrypt `len` bytes from `src` into pBuf->encryptBuf. On success sets
+// Encrypt `len` bytes from `src` into the shared crypt context. On success sets
 // *ppOut/*pOutLen to the on-disk image ([hdr][cipher]).
 static int32_t pageEncrypt(SDiskbasedBuf* pBuf, const char* src, int32_t len,
                            char** ppOut, int32_t* pOutLen) {
-  int32_t alignCap = pageAlignedCap(pBuf->pageSize);
-  int32_t alignedLen = ENCRYPTED_LEN(len);  // pad to CBC block (== ALIGN_NUM 16)
+  int32_t alignCap = ENCRYPTED_LEN((int32_t)getAllocPageSize(pBuf->pageSize));
+  int32_t alignedLen = ENCRYPTED_LEN(len);  // pad to CBC block
 
-  // Each encryptBuf region is alignCap bytes. By construction len (the
-  // compressed size) never exceeds it; guard defensively so a future change
-  // can never overflow the staging buffer.
+  // By construction len (the compressed size) never exceeds one page image.
   if (len < 0 || alignedLen > alignCap) {
     uError("%s failed at line:%d, bad len:%d, alignedLen:%d, alignCap:%d, "
            "buf id:%s", __func__, __LINE__, len, alignedLen, alignCap, pBuf->id);
     return TSDB_CODE_INVALID_PARA;
   }
 
-  char* out = pBuf->encryptBuf + PAGE_ENC_HDR_LEN;               // ciphertext
-  char* stage = pBuf->encryptBuf + PAGE_ENC_HDR_LEN + alignCap;  // padded src
-  memcpy(stage, src, len);
-  if (alignedLen > len) {
-    memset(stage + len, 0, alignedLen - len);
-  }
-
-  SCryptOpts opts = {0};
-  pageInitCryptOpts(pBuf, &opts, alignedLen, stage, out);
-  int32_t encLen = CBC_Encrypt(&opts);
-  if (encLen != alignedLen) {
-    // CBC_Encrypt sets terrno on failure; fall back to a definite error so a
-    // length mismatch with terrno unset can never be reported as success.
-    int32_t code = (terrno != TSDB_CODE_SUCCESS) ? terrno :
-                                                   TSDB_CODE_INTERNAL_ERROR;
-    uError("%s failed at line:%d, CBC_Encrypt returned:%d expected:%d, "
-           "because %s, buf id:%s", __func__, __LINE__, encLen, alignedLen,
-           tstrerror(code), pBuf->id);
+  int32_t code =
+      taosEncryptSpillBlock(pBuf->pCryptCtx, src, len, ppOut, pOutLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError(
+        "%s failed at line:%d, encrypt spill block failed because %s, buf "
+        "id:%s",
+        __func__, __LINE__, tstrerror(code), pBuf->id);
     return code;
   }
 
-  *(int32_t*)pBuf->encryptBuf = len;  // store plaintext length in the header
-  *ppOut = pBuf->encryptBuf;
-  *pOutLen = PAGE_ENC_HDR_LEN + alignedLen;
   return TSDB_CODE_SUCCESS;
 }
 
-// Decrypt an on-disk image of `total` bytes already read into pBuf->encryptBuf;
-// writes the recovered plaintext into `dst` and returns its length.
-static int32_t pageDecrypt(SDiskbasedBuf* pBuf, void* dst, int32_t total,
-                           int32_t* pPlainLen) {
-  // total/plainLen are derived from the on-disk image, which may be truncated
-  // or corrupted; treat any inconsistency as file corruption rather than a
-  // caller-side bad parameter.
-  if (total <= PAGE_ENC_HDR_LEN) {
-    uError("%s failed at line:%d, on-disk image too short, total:%d hdr:%d, "
-           "buf id:%s", __func__, __LINE__, total, PAGE_ENC_HDR_LEN, pBuf->id);
-    return TSDB_CODE_FILE_CORRUPTED;
-  }
-  int32_t plainLen = *(int32_t*)pBuf->encryptBuf;
-  int32_t alignedLen = total - PAGE_ENC_HDR_LEN;
-  // plainLen comes from the untrusted on-disk header, so it must fit both the
-  // decrypted region (alignedLen) and the dst page payload capacity
-  // (pageSize + sizeof(SFilePage)). A corrupted/truncated header must never
-  // overflow dst: alignedLen may round up past dstCap (e.g. 4112 vs 4100).
+// Decrypt an on-disk image of `total` bytes at `pEncrypted`; writes the
+// recovered plaintext into `dst` and returns its length. Truncated or
+// corrupted images are rejected by taosDecryptSpillBlock.
+static int32_t pageDecrypt(SDiskbasedBuf* pBuf, const char* pEncrypted,
+                           void* dst, int32_t total, int32_t* pPlainLen) {
   int32_t dstCap = pBuf->pageSize + (int32_t)sizeof(SFilePage);
-  if (plainLen < 0 || plainLen > alignedLen || plainLen > dstCap) {
-    uError("%s failed at line:%d, bad plainLen:%d, alignedLen:%d, dstCap:%d, "
-           "total:%d, buf id:%s", __func__, __LINE__, plainLen, alignedLen, dstCap,
-           total, pBuf->id);
-    return TSDB_CODE_FILE_CORRUPTED;
+  char*   pPlain = NULL;
+  int32_t code = taosDecryptSpillBlock(pBuf->pCryptCtx, pEncrypted, total,
+                                       &pPlain, pPlainLen);
+  if (code != TSDB_CODE_SUCCESS || *pPlainLen > dstCap) {
+    uError(
+        "%s failed at line:%d, decrypt spill block failed because %s, buf "
+        "id:%s",
+        __func__, __LINE__,
+        tstrerror(code == TSDB_CODE_SUCCESS ? TSDB_CODE_FILE_CORRUPTED : code),
+        pBuf->id);
+    return code == TSDB_CODE_SUCCESS ? TSDB_CODE_FILE_CORRUPTED : code;
   }
 
-  char* cipher = pBuf->encryptBuf + PAGE_ENC_HDR_LEN;
-  char* stage = cipher + pageAlignedCap(pBuf->pageSize);
-
-  SCryptOpts opts = {0};
-  pageInitCryptOpts(pBuf, &opts, alignedLen, cipher, stage);
-  int32_t decLen = CBC_Decrypt(&opts);
-  if (decLen != alignedLen) {
-    uError("%s failed at line:%d, CBC_Decrypt returned:%d expected:%d, buf id:%s",
-           __func__, __LINE__, decLen, alignedLen, pBuf->id);
-    return TSDB_CODE_FILE_CORRUPTED;
-  }
-
-  memcpy(dst, stage, plainLen);
-  *pPlainLen = plainLen;
+  memcpy(dst, pPlain, *pPlainLen);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -323,7 +255,7 @@ static char* doFlushBufPage(SDiskbasedBuf* pBuf, SPageInfo* pg) {
 
   // Encrypt after compression (and only on the write path). The on-disk image
   // carries the plaintext length so the padding can be stripped on read.
-  if (pBuf->encryptBuf != NULL && t != NULL && pg->dirty) {
+  if (pBuf->pCryptCtx != NULL && t != NULL && pg->dirty) {
     char*   enc = NULL;
     int32_t encLen = 0;
     int32_t code = pageEncrypt(pBuf, t, size, &enc, &encLen);
@@ -416,14 +348,21 @@ static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   // When encrypted, read the on-disk image into the staging buffer; otherwise
   // read straight into the page payload.
   void* readDst = pPage;
-  if (pBuf->encryptBuf != NULL) {
-    // Reading into the staging buffer: pg->length must not exceed its capacity.
-    if (pg->length > pageEncryptBufCap(pBuf->pageSize)) {
-      uError("invalid on-disk page length at line:%d, length:%d cap:%d, buf id:%s",
-             __LINE__, pg->length, pageEncryptBufCap(pBuf->pageSize), pBuf->id);
+  if (pBuf->pCryptCtx != NULL) {
+    int32_t encryptedDataCap = pageEncryptedDataCap(pBuf->pageSize);
+    if (pg->length > encryptedDataCap) {
+      uError(
+          "invalid on-disk page length at line:%d, length:%d cap:%d, buf id:%s",
+          __LINE__, pg->length, encryptedDataCap, pBuf->id);
       return TSDB_CODE_FILE_CORRUPTED;
     }
-    readDst = (void*)pBuf->encryptBuf;
+    char*   pEncrypted = NULL;
+    int32_t code =
+        taosPrepareSpillBlockRead(pBuf->pCryptCtx, pg->length, &pEncrypted);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    readDst = pEncrypted;
   }
   ret = taosReadFile(pBuf->pFile, readDst, pg->length);
   if (ret != pg->length) {
@@ -433,8 +372,8 @@ static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
 
   // length of the (post-decrypt) data fed to decompression
   int32_t dataLen = pg->length;
-  if (pBuf->encryptBuf != NULL) {
-    int32_t code = pageDecrypt(pBuf, pPage, pg->length, &dataLen);
+  if (pBuf->pCryptCtx != NULL) {
+    int32_t code = pageDecrypt(pBuf, readDst, pPage, pg->length, &dataLen);
     if (code != TSDB_CODE_SUCCESS) {
       uError("failed to decrypt buf page from disk, offset:%" PRId64
              ", length:%d, buf id:%s", pg->offset, pg->length, pBuf->id);
@@ -494,6 +433,7 @@ static SListNode* getEldestUnrefedPage(SDiskbasedBuf* pBuf) {
 static char* evictBufPage(SDiskbasedBuf* pBuf) {
   SListNode* pn = getEldestUnrefedPage(pBuf);
   if (pn == NULL) {  // no available buffer pages now, return.
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -594,16 +534,13 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int64_t inMem
   //  qDebug("QInfo:0x%"PRIx64 ", create resBuf for output, page size:%d, inmem buf pages:%d, file:%s", qId,
   //  pPBuf->pageSize, pPBuf->inMemPages, pPBuf->path);
 
-  // Set up per-buffer symmetric encryption of spilled pages when enabled. The
-  // random key lives only in this struct and is wiped on destroy, making any
-  // residual temp file unreadable after a crash.
-  if (pageEncryptEnabled()) {
-    pPBuf->encryptBuf = taosMemoryMalloc(pageEncryptBufCap(pagesize));
-    if (pPBuf->encryptBuf == NULL) {
-      code = terrno;
+  // Preserve the existing eager allocation point for paged-buffer encryption.
+  if (taosSpillCryptEnabled()) {
+    code = taosCreateSpillCryptCtx(&pPBuf->pCryptCtx,
+                                   (int32_t)getAllocPageSize(pagesize));
+    if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
-    genPageEncryptKey(pPBuf->encryptKey);
   }
 
   *pBuf = pPBuf;
@@ -697,7 +634,8 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId) {
   return (void*)(GET_PAYLOAD_DATA(pi));
 }
 
-void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
+static void* getBufPageImpl(SDiskbasedBuf* pBuf, int32_t id,
+                            bool updateLru) {
   if (id < 0) {
     terrno = TSDB_CODE_INVALID_PARA;
     uError("invalid page id:%d, %s", id, pBuf->id);
@@ -720,14 +658,18 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
       return (void*)(GET_PAYLOAD_DATA(*pi));
     }
 
+    // The back-pointer check validates the buffer's own bookkeeping, so it
+    // runs for every accessor; only the LRU refresh is optional.
     SPageInfo** pInfo = (SPageInfo**)((*pi)->pn->data);
     if (*pInfo != *pi) {
       terrno = TSDB_CODE_APP_ERROR;
-      uError("inconsistently data in paged buffer, pInfo:%p, pi:%p, %s", *pInfo, *pi, pBuf->id);
+      uError("inconsistently data in paged buffer, pInfo:%p, pi:%p, %s",
+             *pInfo, *pi, pBuf->id);
       return NULL;
     }
-
-    lruListMoveToFront(pBuf->lruList, (*pi));
+    if (updateLru) {
+      lruListMoveToFront(pBuf->lruList, (*pi));
+    }
     (*pi)->used = true;
 
 #ifdef BUF_PAGE_DEBUG
@@ -770,6 +712,14 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
 #endif
     return (void*)(GET_PAYLOAD_DATA(*pi));
   }
+}
+
+void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
+  return getBufPageImpl(pBuf, id, true);
+}
+
+void* getBufPageNoLRU(SDiskbasedBuf* pBuf, int32_t id) {
+  return getBufPageImpl(pBuf, id, false);
 }
 
 void releaseBufPage(SDiskbasedBuf* pBuf, void* page) {
@@ -870,9 +820,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
 
   taosMemoryFreeClear(pBuf->id);
   taosMemoryFreeClear(pBuf->assistBuf);
-  // Wipe the encryption key before freeing so it never lingers in freed memory.
-  memset(pBuf->encryptKey, 0, sizeof(pBuf->encryptKey));
-  taosMemoryFreeClear(pBuf->encryptBuf);
+  taosDestroySpillCryptCtx(&pBuf->pCryptCtx);
   taosMemoryFreeClear(pBuf);
 }
 

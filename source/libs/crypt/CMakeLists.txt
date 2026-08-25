@@ -11,7 +11,7 @@ target_include_directories(
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-target_link_libraries(crypt PRIVATE common PRIVATE sm4)
+target_link_libraries(crypt PRIVATE common PRIVATE sm4 PRIVATE os)
 
 if (NOT ${TD_WINDOWS})
   DEP_ext_ssl(crypt)

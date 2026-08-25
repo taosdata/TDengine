@@ -60,6 +60,16 @@ target_link_libraries(
         PRIVATE os util nodes catalog function scalar planner geometry transport qcom decimal
 )
 
+# parser belongs to a cyclic static-archive group (parser/scalar/function/
+# catalog/extconnector/nodes/planner/index/geometry). CMake repeats the
+# whole group LINK_INTERFACE_MULTIPLICITY times on the link line; the
+# default of 2 is not enough for some consumers (clientMonitorTest needs
+# parseJsontoTagData from a libparser.a occurrence after the last
+# libscalar.a; bseTest and mnode tests need extConnector* after the last
+# libcatalog.a). CMake takes the max of this property across the cycle's
+# members, so setting it here covers every consumer of the group.
+set_property(TARGET parser PROPERTY LINK_INTERFACE_MULTIPLICITY 3)
+
 if(BUILD_TEST)
         ADD_SUBDIRECTORY(test)
 endif()
