@@ -70,6 +70,53 @@ If you have already created a single-replica database, you can change it into a 
 alter database <dbname> replica 2;
 ```
 
+### Viewing the Status of Vgroups
+
+Use the following SQL commands to view the status of each Vgroup in a dual-replica database:
+
+```sql
+show arbgroups;
+
+select * from information_schema.ins_arbgroups;
+
+ db_name | vgroup_id | v1_dnode | v2_dnode | is_sync | assigned_dnode |     assigned_token      |
+=================================================================================================
+ db      |         2 |        2 |        3 |       0 | NULL           | NULL                    |
+ db      |         3 |        1 |        2 |       0 |              1 | d1#g3#1714119404630#663 |
+ db      |         4 |        1 |        3 |       1 | NULL           | NULL                    |
+
+```
+
+is_sync has the following two values:
+
+- 0: Vgroup data has not achieved synchronization. In this state, if one Vnode in the Vgroup is inaccessible, the other Vnode cannot be designated as the `AssignedLeader` role, and the Vgroup will not be able to provide service.
+- 1: Vgroup data has achieved synchronization. In this state, if one Vnode in the Vgroup is inaccessible, the other Vnode can be designated as the `AssignedLeader` role, and the Vgroup can continue to provide service.
+
+assigned_dnode:
+
+- Identifies the DnodeId of the Vnode designated as AssignedLeader
+- Displays NULL when no AssignedLeader is specified
+
+assigned_token:
+
+- Identifies the Token of the Vnode designated as AssignedLeader
+- Displays NULL when no AssignedLeader is specified
+
+## Best Practices
+
+1. New Deployment
+
+The main value of dual replicas lies in saving storage costs while maintaining a certain level of high availability and reliability. In practice, the recommended configuration is:
+
+- N node cluster (where N>=3)
+- N-1 dnodes responsible for storing time-series data
+- The Nth dnode does not participate in the storage and retrieval of time-series data, i.e., it does not store replicas; this can be achieved by setting the `supportVnodes` parameter to 0
+- The dnode that does not store data replicas also has lower CPU/Memory resource usage, allowing the use of lower-specification servers
+
+2. Upgrading from Single Replica
+
+Assuming there is an existing single replica cluster with N nodes (N>=1), and you want to upgrade it to a dual replica cluster, ensure that N>=3 after the upgrade, and configure the `supportVnodes` parameter of a newly added node to 0. After completing the cluster upgrade, use the command `alter database replica 2` to change the replica count for a specific database.
+
 ## Failure Scenarios
 
 | Scenario | Result |

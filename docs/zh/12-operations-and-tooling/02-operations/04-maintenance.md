@@ -67,7 +67,7 @@ kill scan <scan_id>;
 
 - scan 为异步，执行 scan 命令后不会等 scan 结束就会返回。如果上一个 scan 没有完成则再发起一个 scan 任务，则会等上一个任务完成后再返回。
 
-## vgroup leader 再平衡
+## 虚拟组 Leader 再平衡
 
 当多副本集群中的一个或多个节点因为升级或其它原因而重启后，有可能出现集群中各个 dnode 负载不均衡的现象，极端情况下会出现所有 vgroup 的 leader 都位于同一个 dnode 的情况。为了解决这个问题，可以使用下面的命令，该命令在 3.0.4.0 版本中首次发布，建议尽可能使用最新版本。
 
@@ -159,53 +159,3 @@ split vgroup <vgroup_id>
 从 `v3.1.1.0` 开始，TDengine TSDB Enterprise 支持在线热更新 `supportVnodes` 这个很重要的 dnode 配置参数。这个参数的原始配置方式是在 `taos.cfg` 配置文件中，表示该 dnode 能够支持的最大的 vnode 数量。当创建一个数据库时需要分配新的 vnode，当删除一个数据库时其 vnode 都会被销毁。
 
 如果通过在线更新或配置文件方式设置的 `supportVnodes` 小于 dnode 当前已经实际存在的 vnode 数量，已经存在的 vnode 不会受影响。但当尝试创建新的 database 时，是否能够创建成功则仍然受实际生效的 `supportVnodes` 参数决定。
-
-## 双副本
-
-双副本是一种特殊的数据库高可用配置，本节对它的使用和维护操作进行特别说明。该功能在 3.3.0.0 版本中第一次发布，建议尽可能使用最新版本。
-
-### 查看 Vgroups 的状态
-
-通过以下 SQL 命令参看双副本数据库中各 vgroup 的状态：
-
-```sql
-show arbgroups;
-
-select * from information_schema.ins_arbgroups;
-            db_name             |  vgroup_id  | v1_dnode | v2_dnode | is_sync | assigned_dnode |         assigned_token         |
-=================================================================================================================================
- db                             |           2 |        2 |        3 |       0 | NULL           | NULL                           |
- db                             |           3 |        1 |        2 |       0 |              1 | d1#g3#1714119404630#663        |
- db                             |           4 |        1 |        3 |       1 | NULL           | NULL                           |
-
-```
-
-is_sync 有以下两种取值：
-
-- 0: vgroup 数据未达成同步。在此状态下，如果 vgroup 中的某一 vnode 不可访问，另一个 vnode 无法被指定为 `AssignedLeader` role，该 vgroup 将无法提供服务。
-- 1: vgroup 数据达成同步。在此状态下，如果 vgroup 中的某一 vnode 不可访问，另一个 vnode 可以被指定为 `AssignedLeader` role，该 vgroup 可以继续提供服务。
-
-assigned_dnode：
-
-- 标识被指定为 AssignedLeader 的 vnode 的 DnodeId
-- 未指定 AssignedLeader 时，该列显示 NULL
-
-assigned_token：
-
-- 标识被指定为 AssignedLeader 的 vnode 的 Token
-- 未指定 AssignedLeader 时，该列显示 NULL
-
-### 最佳实践
-
-1. 全新部署
-
-双副本的主要价值在于节省存储成本的同时能够有一定的高可用和高可靠能力。在实践中，推荐配置为：
-
-- N 节点集群（其中 N>=3）
-- 其中 N-1 个 dnode 负责存储时序数据
-- 第 N 个 dnode 不参与时序数据的存储和读取，即其上不保存副本；可以通过 `supportVnodes` 这个参数为 0 来实现这个目标
-- 不存储数据副本的 dnode 对 CPU/Memory 资源的占用也较低，可以使用较低配置服务器
-
-2. 从单副本升级
-
-假定已经有一个单副本集群，其结点数为 N (N>=1)，欲将其升级为双副本集群，升级后需要保证 N>=3，且新加入的某个节点的 `supportVnodes` 参数配置为 0。在集群升级完成后使用  `alter database replica 2` 的命令修改某个特定数据库的副本数。

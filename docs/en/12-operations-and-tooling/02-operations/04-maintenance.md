@@ -65,7 +65,7 @@ KILL SCAN <scan_id>;
 
 - SCAN is asynchronous; after executing the SCAN command, it returns without waiting for the SCAN to finish. If a previous SCAN has not completed, it will wait for the previous task to finish before returning.
 
-## Vgroup Leader Rebalancing
+## VGroup Leader Rebalancing
 
 When one or more nodes in a multi-replica cluster restart due to upgrades or other reasons, it may lead to an imbalance in the load among the various dnodes in the cluster. In extreme cases, all vgroup leaders may be located on the same dnode. To solve this problem, you can use the following commands, which were first released in version 3.0.4.0. It is recommended to use the latest version as much as possible.
 
@@ -159,53 +159,3 @@ Starting from version 3.1.1.0, TDengine Enterprise supports online hot updates o
 However, online updates of `supportVnodes` do not persist, and after a system restart, the maximum number of vnodes allowed will still be determined by the `supportVnodes` configured in taos.cfg.
 
 If the `supportVnodes` set through online updates or configuration files is less than the current actual number of vnodes on the dnode, the existing vnodes will not be affected. However, whether a new database can be successfully created will still depend on the actual effective `supportVnodes` parameter.
-
-## Dual Replicas
-
-Dual replicas are a special high-availability configuration for databases. This section provides special instructions for their use and maintenance. This feature was first released in version 3.3.0.0, and it is recommended to use the latest version whenever possible.
-
-### Viewing the Status of Vgroups
-
-Use the following SQL commands to view the status of each Vgroup in a dual-replica database:
-
-```sql
-show arbgroups;
-
-select * from information_schema.ins_arbgroups;
-            db_name             |  vgroup_id  | v1_dnode | v2_dnode | is_sync | assigned_dnode |         assigned_token         |
-=================================================================================================================================
- db                             |           2 |        2 |        3 |       0 | NULL           | NULL                           |
- db                             |           3 |        1 |        2 |       0 |              1 | d1#g3#1714119404630#663        |
- db                             |           4 |        1 |        3 |       1 | NULL           | NULL                           |
-
-```
-
-is_sync has the following two values:
-
-- 0: Vgroup data has not achieved synchronization. In this state, if one Vnode in the Vgroup is inaccessible, the other Vnode cannot be designated as the `AssignedLeader` role, and the Vgroup will not be able to provide service.
-- 1: Vgroup data has achieved synchronization. In this state, if one Vnode in the Vgroup is inaccessible, the other Vnode can be designated as the `AssignedLeader` role, and the Vgroup can continue to provide service.
-
-assigned_dnode:
-
-- Identifies the DnodeId of the Vnode designated as AssignedLeader
-- Displays NULL when no AssignedLeader is specified
-
-assigned_token:
-
-- Identifies the Token of the Vnode designated as AssignedLeader
-- Displays NULL when no AssignedLeader is specified
-
-### Best Practices
-
-1. New Deployment
-
-The main value of dual replicas lies in saving storage costs while maintaining a certain level of high availability and reliability. In practice, the recommended configuration is:
-
-- N node cluster (where N>=3)
-- N-1 dnodes responsible for storing time-series data
-- The Nth dnode does not participate in the storage and retrieval of time-series data, i.e., it does not store replicas; this can be achieved by setting the `supportVnodes` parameter to 0
-- The dnode that does not store data replicas also has lower CPU/Memory resource usage, allowing the use of lower-specification servers
-
-1. Upgrading from Single Replica
-
-Assuming there is an existing single replica cluster with N nodes (N>=1), and you want to upgrade it to a dual replica cluster, ensure that N>=3 after the upgrade, and configure the `supportVnodes` parameter of a newly added node to 0. After completing the cluster upgrade, use the command `alter database replica 2` to change the replica count for a specific database.
