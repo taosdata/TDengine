@@ -13,7 +13,7 @@ IF(NOT TD_DARWIN)
     TARGET_INCLUDE_DIRECTORIES(
         nodesTest
         PUBLIC "${TD_SOURCE_DIR}/include/nodes/"
-        PRIVATE "${TD_SOURCE_DIR}/source/nodes/inc"
+        PRIVATE "${TD_SOURCE_DIR}/source/libs/nodes/inc"
     )
     
     TARGET_LINK_LIBRARIES(
