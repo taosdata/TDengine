@@ -33,6 +33,23 @@ SKIP_WINDOWS_SET_TIMEZONE = pytest.mark.skipif(
     reason='Windows does not support SET TIMEZONE cases in this suite',
 )
 
+
+def _check_invalid_timezone_detail(sql, tz):
+    """Assert the error names the rejected timezone instead of a placeholder.
+
+    tdSql strips single quotes from the error info, so the expected detail is
+    matched without the quotes that the server actually emits.
+    """
+    err = tdSql.error(
+        sql,
+        expectedErrno=ERR_INVALID_TIMEZONE,
+        fullMatched=False,
+    )
+    assert f"Invalid timezone: {tz}" in err, (
+        f"sql:{sql}, expected rejected timezone '{tz}' in error info: {err}"
+    )
+    assert "%s" not in err, f"sql:{sql}, raw placeholder leaked: {err}"
+
 class _ToIso8601IanaMixin:
     """TO_ISO8601 IANA timezone parameter and DST-aware output."""
 
@@ -92,12 +109,11 @@ class _ToIso8601IanaMixin:
             assert '+08:00' in row[0] or '+0800' in row[0]
 
     def check_to_iso8601_invalid_tz(self):
-        """Invalid timezone params should fail."""
+        """Invalid timezone params should fail and name the rejected value."""
         self._prepare_to_iso8601_iana_data()
-        for tz in ["'Invalid/Zone'", "'CST'", "'+8'"]:
-            tdSql.error(
-                f"select to_iso8601(ts, {tz}) from {self.ntbname}",
-                expectedErrno=ERR_INVALID_TIMEZONE,
+        for tz in ['Invalid/Zone', 'CST', '+8']:
+            _check_invalid_timezone_detail(
+                f"select to_iso8601(ts, '{tz}') from {self.ntbname}", tz
             )
 
     def check_to_iso8601_no_param_uses_l2(self):
@@ -203,13 +219,12 @@ class _ToCharTimezoneMixin:
                 f"tz={tz}, c1={c1}: expected {expected_time} in {tdSql.queryResult[0][0]}"
 
     def check_to_char_invalid_tz(self):
-        """Invalid timezone params should fail."""
+        """Invalid timezone params should fail and name the rejected value."""
         self._prepare_to_char_timezone_data()
         fmt = 'YYYY-MM-DD HH24:MI:SS'
-        for tz in ["'Invalid/Zone'", "'CST'"]:
-            tdSql.error(
-                f"select to_char(ts, '{fmt}', {tz}) from {self.ntbname}",
-                expectedErrno=ERR_INVALID_TIMEZONE,
+        for tz in ['Invalid/Zone', 'CST']:
+            _check_invalid_timezone_detail(
+                f"select to_char(ts, '{fmt}', '{tz}') from {self.ntbname}", tz
             )
 
     def check_to_char_no_param_uses_l2(self):
@@ -301,12 +316,11 @@ class _TimetruncateTzMixin:
             assert tdSql.queryResult[0][0] is not None
 
     def check_timetruncate_invalid_tz(self):
-        """Invalid timezone string should fail."""
+        """Invalid timezone string should fail and name the rejected value."""
         self._prepare_timetruncate_tz_data()
-        for tz in ["'Invalid/Zone'", "'CST'"]:
-            tdSql.error(
-                f"select timetruncate(ts, 1d, {tz}) from {self.ntbname}",
-                expectedErrno=ERR_INVALID_TIMEZONE,
+        for tz in ['Invalid/Zone', 'CST']:
+            _check_invalid_timezone_detail(
+                f"select timetruncate(ts, 1d, '{tz}') from {self.ntbname}", tz
             )
 
     def check_timetruncate_l1_overrides_l2(self):
