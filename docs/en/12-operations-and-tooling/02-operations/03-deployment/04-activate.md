@@ -7,8 +7,6 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import { Enterprise } from '../../resources/_resources.mdx';
 
-<Enterprise/>
-
 This document describes how to activate a TDengine TSDB-Enterprise license with an activation code.
 
 You can also manage multi-instance quotas through License Center (ELS + CLS). Use the activation-code flow below for a single cluster. For unified entitlement and slots across multiple TSDB / IDMP instances, see [License Center Reference](../../03-components/09-license-center/index.md) and [Quotas and Slots](../../03-components/09-license-center/02-quota-and-slots.md).
