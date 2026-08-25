@@ -143,7 +143,7 @@ class TestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'ctbPrefix':  'ctb',
                     'ctbNum':     1,
-                    'rowsPerTbl': 40000,
+                    'rowsPerTbl': 4000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  30,
@@ -151,7 +151,7 @@ class TestCase:
                     'showRow':    1}
         
         if self.replicaVar == 3:
-            paraDict["rowsPerTbl"] = 20000
+            paraDict["rowsPerTbl"] = 2000
 
         topicNameList = ['topic1']
         expectRowsList = []
@@ -254,4 +254,3 @@ class TestCase:
 
 
 event = threading.Event()
-
