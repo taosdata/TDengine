@@ -674,6 +674,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/15-Explain/test_query_explain.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/15-Explain/test_explain_case_when.py
 ## 16-PartitionBy
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_partition_compact_spill.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_query_partitionby_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_query_partitionby_tsbs.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_table_merge_scan_stt_reuse.py -N 3

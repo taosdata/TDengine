@@ -505,19 +505,6 @@ enum {
   PROJECT_RETRIEVE_DONE = 0x2,
 };
 
-typedef struct SPartitionBySupporter {
-  SArray* pGroupCols;     // group by columns, SArray<SColumn>
-  SArray* pGroupColVals;  // current group column values, SArray<SGroupKeys>
-  char*   keyBuf;         // group by keys for hash
-  bool    needCalc;       // partition by column
-} SPartitionBySupporter;
-
-typedef struct SPartitionDataInfo {
-  uint64_t groupId;
-  char*    tbname;
-  SArray*  rowIds;
-} SPartitionDataInfo;
-
 typedef struct STimeWindowAggSupp {
   TSKEY           maxTs;
   TSKEY           minTs;
@@ -657,14 +644,6 @@ typedef struct SOpCheckPointInfo {
   uint16_t  checkPointId;
   SHashObj* children;  // key:child id
 } SOpCheckPointInfo;
-
-typedef struct SDataGroupInfo {
-  uint64_t groupId;
-  int64_t  numOfRows;
-  SArray*  pPageList;
-  SArray*  blockForNotLoaded;   // SSDataBlock that data is not loaded
-  int32_t  offsetForNotLoaded;  // read offset for SSDataBlock that data is not loaded
-} SDataGroupInfo;
 
 typedef struct SWindowRowsSup {
   STimeWindow win;
@@ -897,8 +876,6 @@ bool isInTimeWindow(STimeWindow* pWin, TSKEY ts, int64_t gap);
 bool functionNeedToExecute(SqlFunctionCtx* pCtx);
 bool isOverdue(TSKEY ts, STimeWindowAggSupp* pSup);
 bool isCloseWindow(STimeWindow* pWin, STimeWindowAggSupp* pSup);
-
-uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId);
 
 void finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
                         SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);

@@ -22,6 +22,46 @@
 
 #define MALLOC_ALIGN_BYTES 32
 
+void colDataUpdateHasNull(SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
+  pColumnInfoData->hasNull = false;
+  if (numOfRows <= 0) {
+    return;
+  }
+
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    if (pColumnInfoData->varmeta.offset == NULL) {
+      return;
+    }
+    for (int32_t i = 0; i < numOfRows; ++i) {
+      if (pColumnInfoData->varmeta.offset[i] == -1) {
+        pColumnInfoData->hasNull = true;
+        return;
+      }
+    }
+    return;
+  }
+
+  if (pColumnInfoData->nullbitmap == NULL) {
+    return;
+  }
+
+  // Whole bytes first, then the bits of the trailing partial byte: the
+  // padding bits past numOfRows are not guaranteed to be zero.
+  int32_t numOfFullBytes = numOfRows >> NBIT;
+  for (int32_t i = 0; i < numOfFullBytes; ++i) {
+    if (pColumnInfoData->nullbitmap[i] != 0) {
+      pColumnInfoData->hasNull = true;
+      return;
+    }
+  }
+  for (int32_t r = numOfFullBytes << NBIT; r < numOfRows; ++r) {
+    if (BMIsNull(pColumnInfoData->nullbitmap, r)) {
+      pColumnInfoData->hasNull = true;
+      return;
+    }
+  }
+}
+
 int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     if (pColumnInfoData->reassigned) {
@@ -102,10 +142,6 @@ static int32_t getDataLen(int32_t type, const char* pData) {
 }
 
 int32_t calcStrBytesByType(int8_t type, char* data) { return getDataLen(type, data); }
-
-int32_t blockDataGetPagedColumnReservedBytes(const SColumnInfoData* pColumnInfoData) {
-  return pColumnInfoData->info.bytes;
-}
 
 static int32_t checkAllocLen(SColumnInfoData* pColumnInfoData, char** pData, int32_t dataLen){
   SVarColAttr* pAttr = &pColumnInfoData->varmeta;
@@ -1066,6 +1102,15 @@ int32_t blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t r
   return code;
 }
 
+// Exactly the bytes blockDataToBuf (below) writes: the rows header, then
+// per column precision(1) + scale(1), the meta and data counted by
+// blockDataGetSize, and a 4-byte length. Keep in sync with the layout.
+size_t blockDataGetBufSize(const SSDataBlock* pBlock) {
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  return sizeof(uint32_t) + blockDataGetSize(pBlock) +
+         numOfCols * (sizeof(int32_t) + 2 * sizeof(uint8_t));
+}
+
 /**
  *
  * +------------------+---------------------------------------------+
@@ -1134,6 +1179,153 @@ int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock) {
   return 0;
 }
 
+// Returns the total serialized length of one var-type record, or a
+// non-positive value when the record header cannot be read within avail
+// bytes or the JSON type byte is invalid. Only the header bounds are
+// checked here; the length rules for JSON and varchar are owned by
+// calcStrBytesByType (getJsonValueLen returns 0 for an invalid JSON type).
+static int64_t blockDataVarRecordLen(int8_t colType, const char* pRec,
+                                     int64_t avail) {
+  if (IS_STR_DATA_BLOB(colType)) {
+    if (avail < (int64_t)BLOBSTR_HEADER_SIZE) {
+      return -1;
+    }
+    // Blob lengths are uint32 and may exceed INT32_MAX in a corrupt
+    // header; calcStrBytesByType returns int32 and would truncate such a
+    // value into an in-bounds one. Widen each operand before the addition:
+    // blobDataTLen's size_t arithmetic would already wrap on 32-bit
+    // targets before any cast could preserve the value.
+    return (int64_t)BLOBSTR_HEADER_SIZE + (int64_t)blobDataLen(pRec);
+  }
+  if (colType == TSDB_DATA_TYPE_JSON) {
+    if (avail < (int64_t)CHAR_BYTES) {
+      return -1;
+    }
+    if (*pRec == TSDB_DATA_TYPE_NCHAR &&
+        avail < (int64_t)(CHAR_BYTES + VARSTR_HEADER_SIZE)) {
+      return -1;
+    }
+    if (*pRec != TSDB_DATA_TYPE_NULL && *pRec != TSDB_DATA_TYPE_NCHAR &&
+        *pRec != TSDB_DATA_TYPE_DOUBLE && *pRec != TSDB_DATA_TYPE_BOOL &&
+        avail < (int64_t)sizeof(STag)) {
+      return -1;
+    }
+  } else if (avail < (int64_t)VARSTR_HEADER_SIZE) {
+    return -1;
+  }
+  return calcStrBytesByType(colType, (char*)pRec);
+}
+
+// Read-only walk over a blockDataToBuf-serialized buffer, checking every
+// field against bufSize and the target schema before blockDataFromBuf may
+// allocate from or copy the in-buffer sizes. Column order and skip rules
+// mirror blockDataFromBuf exactly.
+static int32_t blockDataValidateSerialized(const SSDataBlock* pBlock,
+                                           const char* buf, int64_t bufSize) {
+  if (bufSize < (int64_t)sizeof(uint32_t)) {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  int32_t numOfRows = 0;
+  memcpy(&numOfRows, buf, sizeof(numOfRows));
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  if (numOfRows <= 0 || numOfCols == 0) {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  int64_t cursor = sizeof(uint32_t);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (pCol == NULL) {
+      continue;
+    }
+    if (pCol->info.noData) {
+      // No consistent bounded parse exists for noData columns:
+      // blockDataToBuf serializes them but blockDataFromBuf skips them,
+      // which would misalign every following column. Reject the schema.
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    // Both branches widen to int64 before any arithmetic: BitmapLen's
+    // int32 (_n)+7 would overflow for row counts near INT32_MAX.
+    bool    isVarType = IS_VAR_DATA_TYPE(pCol->info.type);
+    int64_t metaSize = isVarType ? (int64_t)numOfRows * sizeof(int32_t)
+                                 : (((int64_t)numOfRows + 7) >> 3);
+    // Each column starts with precision(1) + scale(1); they are read
+    // unconditionally by blockDataFromBuf, before its noData skip.
+    int64_t colHeadSize = 2 * (int64_t)sizeof(uint8_t);
+    if (cursor + colHeadSize + metaSize + (int64_t)sizeof(int32_t) >
+        bufSize) {
+      return TSDB_CODE_FILE_CORRUPTED;
+    }
+    cursor += colHeadSize;
+    const char* pMeta = buf + cursor;
+    cursor += metaSize;
+
+    int32_t colLength = 0;
+    memcpy(&colLength, buf + cursor, sizeof(colLength));
+    cursor += sizeof(colLength);
+    if (colLength < 0 || cursor + colLength > bufSize) {
+      return TSDB_CODE_FILE_CORRUPTED;
+    }
+
+    if (isVarType) {
+      // Offsets are consumed by row readers after deserialization; each
+      // record (length header and payload) must lie fully inside the
+      // column payload, and -1 marks NULL. An offset merely starting
+      // in-bounds is not enough: its length header could cross the end.
+      const char* pPayload = buf + cursor;
+      for (int32_t r = 0; r < numOfRows; ++r) {
+        int32_t offset = 0;
+        memcpy(&offset, pMeta + (int64_t)r * sizeof(offset), sizeof(offset));
+        if (offset == -1) {
+          continue;
+        }
+        if (offset < 0 || offset >= colLength) {
+          return TSDB_CODE_FILE_CORRUPTED;
+        }
+        int64_t recLen = blockDataVarRecordLen(pCol->info.type,
+                                               pPayload + offset,
+                                               (int64_t)colLength - offset);
+        if (recLen <= 0 || offset + recLen > colLength) {
+          return TSDB_CODE_FILE_CORRUPTED;
+        }
+      }
+    } else {
+      // Exactly what blockDataToBuf writes (colDataGetLength): 0 only for
+      // NULL-type columns. Accepting a zeroed colLength for other fixed
+      // columns would skip the copy and silently surface stale target data.
+      int64_t expected = pCol->info.type == TSDB_DATA_TYPE_NULL
+                             ? 0
+                             : (int64_t)numOfRows * pCol->info.bytes;
+      if (colLength != expected) {
+        return TSDB_CODE_FILE_CORRUPTED;
+      }
+    }
+    cursor += colLength;
+  }
+
+  // The writer produces exactly this many bytes; trailing bytes mean the
+  // buffer does not match the serialized block.
+  if (cursor != bufSize) {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t blockDataFromBufBounded(SSDataBlock* pBlock, const char* buf,
+                                int32_t bufSize) {
+  if (pBlock == NULL || buf == NULL || bufSize < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t code = blockDataValidateSerialized(pBlock, buf, bufSize);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  return blockDataFromBuf(pBlock, buf);
+}
+
 int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
   int32_t numOfRows = *(int32_t*)buf;
   if (numOfRows == 0) {
@@ -1160,6 +1352,8 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
     pStart += sizeof(uint8_t);
 
     if (pCol->info.noData) {
+      // Nothing was serialized for this column, so there is no metadata to
+      // derive hasNull from; it keeps whatever the caller left.
       continue;
     }
 
@@ -1171,6 +1365,7 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
       memcpy(pCol->nullbitmap, pStart, BitmapLen(pBlock->info.rows));
       pStart += BitmapLen(pBlock->info.rows);
     }
+    colDataUpdateHasNull(pCol, pBlock->info.rows);
 
     int32_t colLength = *(int32_t*)pStart;
     pStart += sizeof(int32_t);
@@ -1325,88 +1520,6 @@ int32_t blockDataFromBufWithCapacity(SSDataBlock* pBlock, const char* buf, size_
     uError("block data decode has trailing bytes:%zu", (size_t)(pEnd - pStart));
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
-  return TSDB_CODE_SUCCESS;
-}
-
-static bool colDataIsNNull(const SColumnInfoData* pColumnInfoData, int32_t startIndex, uint32_t nRows) {
-  if (!pColumnInfoData->hasNull) {
-    return false;
-  }
-
-  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
-    for (int32_t i = startIndex; i < nRows; ++i) {
-      if (!colDataIsNull_var(pColumnInfoData, i)) {
-        return false;
-      }
-    }
-  } else {
-    if (pColumnInfoData->nullbitmap == NULL) {
-      return false;
-    }
-
-    for (int32_t i = startIndex; i < nRows; ++i) {
-      if (!colDataIsNull_f(pColumnInfoData, i)) {
-        return false;
-      }
-    }
-  }
-
-  return true;
-}
-
-// todo remove this
-int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity) {
-  pBlock->info.rows = *(int32_t*)buf;
-  pBlock->info.id.groupId = *(uint64_t*)(buf + sizeof(int32_t));
-
-  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
-
-  const char* pStart = buf + sizeof(uint32_t) + sizeof(uint64_t);
-
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
-    if (pCol == NULL) {
-      continue;
-    }
-
-    pCol->hasNull = true;
-
-    if (IS_VAR_DATA_TYPE(pCol->info.type)) {
-      size_t metaSize = capacity * sizeof(int32_t);
-      memcpy(pCol->varmeta.offset, pStart, metaSize);
-      pStart += metaSize;
-    } else {
-      memcpy(pCol->nullbitmap, pStart, BitmapLen(capacity));
-      pStart += BitmapLen(capacity);
-    }
-
-    int32_t colLength = *(int32_t*)pStart;
-    pStart += sizeof(int32_t);
-
-    if (IS_VAR_DATA_TYPE(pCol->info.type)) {
-      if (pCol->varmeta.allocLen < colLength) {
-        char* tmp = taosMemoryRealloc(pCol->pData, colLength);
-        if (tmp == NULL) {
-          return terrno;
-        }
-
-        pCol->pData = tmp;
-        pCol->varmeta.allocLen = colLength;
-      }
-
-      pCol->varmeta.length = colLength;
-      if (pCol->varmeta.length > pCol->varmeta.allocLen) {
-        return TSDB_CODE_FAILED;
-      }
-    }
-
-    if (colLength != 0 && !colDataIsNNull(pCol, 0, pBlock->info.rows)) {
-      memcpy(pCol->pData, pStart, colLength);
-    }
-
-    pStart += blockDataGetPagedColumnReservedBytes(pCol) * capacity;
-  }
-
   return TSDB_CODE_SUCCESS;
 }
 

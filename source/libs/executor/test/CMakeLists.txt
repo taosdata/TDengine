@@ -53,9 +53,7 @@ TARGET_INCLUDE_DIRECTORIES(
 
 ADD_EXECUTABLE(execUtilTests execUtilTests.cpp)
 DEP_ext_gtest(execUtilTests)
-if(BUILD_TEST)
-        target_compile_definitions(execUtilTests PRIVATE BUILD_TEST)
-endif()
+target_compile_definitions(execUtilTests PRIVATE BUILD_TEST)
 TARGET_LINK_LIBRARIES(
         execUtilTests
         PRIVATE PRIVATE os util common executor qcom function planner scalar nodes vnode
@@ -80,3 +78,20 @@ TARGET_INCLUDE_DIRECTORIES(
         PUBLIC "${TD_SOURCE_DIR}/include/common"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+
+ADD_EXECUTABLE(partitionSpillTests partitionSpillTests.cpp)
+DEP_ext_gtest(partitionSpillTests)
+target_compile_definitions(partitionSpillTests PRIVATE BUILD_TEST)
+TARGET_LINK_LIBRARIES(
+        partitionSpillTests
+        PRIVATE os util common executor qcom function planner scalar nodes vnode
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        partitionSpillTests
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
+)
+
+add_test(NAME partitionSpillTests COMMAND partitionSpillTests)
