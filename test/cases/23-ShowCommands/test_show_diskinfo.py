@@ -263,6 +263,65 @@ class TestShowDiskInfo:
 
         print("do sim show disk_info ............. [passed]")
 
+    def do_equal_min_max_rows(self):
+        """minrows equal to maxrows must not crash taosd(7080177860).
+
+        bucketRange = ceil((maxRows - minRows) / 20) becomes 0 when both are
+        equal, which used to divide by zero in getBucketIndex().
+        """
+        tdLog.info("============== start minrows == maxrows test")
+        db = "eq_rows_db"
+        tdSql.execute(f"drop database if exists {db}")
+        # 200 is TSDB_MIN_MAXROWS_FBLOCK, the smallest legal maxrows.
+        # stt_trigger 1 makes flush write data blocks directly, so
+        # getBucketIndex() is reached without needing a compact.
+        tdSql.execute(f"create database {db} vgroups 2 minrows 200 maxrows 200 stt_trigger 1")
+        tdSql.execute(f"use {db}")
+
+        tdSql.execute(f"create table st (ts timestamp, v int) tags (t int)")
+        tdSql.execute(f"create table ct_0 using st tags(0)")
+        tdSql.execute(f"create table nt (ts timestamp, v int)")
+
+        # exactly one full block per table
+        rows = 210
+        for tb in ("ct_0", "nt"):
+            sql = f"insert into {tb} values "
+            for j in range(rows):
+                sql += f"(now+{j+1}s, {j})"
+            tdSql.execute(sql)
+
+        tdSql.execute(f"flush database {db}")
+        time.sleep(1)
+
+        # all three statements share getBucketIndex(), each used to crash taosd
+        tdSql.query(f"show disk_info")
+        tdSql.checkNotEqual(tdSql.getRows(), 0)
+
+        tdSql.query(f"select * from information_schema.ins_disk_usage where db_name='{db}'")
+        tdSql.checkNotEqual(tdSql.getRows(), 0)
+
+        for tb in ("st", "ct_0", "nt"):
+            tdSql.query(f"show table distributed {tb}")
+            tdSql.checkNotEqual(tdSql.getRows(), 0)
+
+        tdSql.query(f"select * from information_schema.ins_table_fixed_distributed "
+                    f"where db_name='{db}' and table_name='nt'")
+        tdSql.checkRows(1)
+        # with minrows == maxrows every block holds the same number of rows,
+        # so the histogram degenerates to a single bucket but must stay consistent
+        row = tdSql.queryResult[0]
+        total_blocks = row[2]
+        hist_sum = sum(row[15:23])
+        assert hist_sum == total_blocks, \
+            f"histogram sum ({hist_sum}) != total_blocks ({total_blocks})"
+
+        # server must still be alive and serving queries
+        tdSql.query(f"select count(*) from nt")
+        tdSql.checkData(0, 0, rows)
+
+        tdSql.execute(f"drop database {db}")
+        print("do equal minrows maxrows .............. [passed]")
+
     #
     # ------------------- main ----------------
     #
@@ -288,4 +347,5 @@ class TestShowDiskInfo:
 
         """
         self.do_sim_show_disk_info()
-        self.do_show_disk_usage_multilevel()       
+        self.do_show_disk_usage_multilevel()
+        self.do_equal_min_max_rows()
