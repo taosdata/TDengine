@@ -22,6 +22,7 @@
 #define _BSD_SOURCE
 #define _DEFAULT_SOURCE
 #include "ttime.h"
+#include "taoserror.h"
 #include "tcommon.h"
 #include "tlog.h"
 
@@ -36,6 +37,35 @@ static int32_t parseLocaltimeDst(char* timestr, int32_t len, int64_t* utime, int
 static char*   forwardToTimeStringEnd(char* str);
 static bool    checkTzPresent(const char* str, int32_t len);
 static int32_t parseTimezone(char* str, int64_t* tzOffset);
+
+static int32_t tzallocErrorCode(void) {
+  int32_t errnoCode = ERRNO;
+  switch (errnoCode) {
+    case 0:
+    case ENOENT:  // ENOENT means the requested zoneinfo file does not exist
+      return TSDB_CODE_PAR_INVALID_TIMEZONE;
+    case EMFILE:  // EMFILE means this process reached its file descriptor limit
+    case ENFILE:  // ENFILE means the system-wide file table is exhausted
+    default:
+      return TAOS_SYSTEM_ERROR(errnoCode);
+  }
+}
+
+// Build the user-visible detail for a rejected timezone and log the failure.
+static void tzReportError(const char *func, int32_t lino, int32_t code,
+                          const char *tzStr) {
+  if (code == TSDB_CODE_PAR_INVALID_TIMEZONE) {
+    SET_ERROR_MSG("Invalid timezone: '%s'", tzStr == NULL ? "" : tzStr);
+    uError("%s failed at line %d since %s", func, lino, terrMsg);
+    return;
+  }
+  uError("%s failed at line %d since %s", func, lino, tstrerror(code));
+}
+
+// Reject the input when `cond` holds, keeping the guard wording readable.
+#define TZ_REJECT_IF(cond)                        \
+  TSDB_CHECK_CONDITION(!(cond), code, lino, _end, \
+                       TSDB_CODE_PAR_INVALID_TIMEZONE)
 
 int32_t taosParseTime(const char* timestr, int64_t* utime, int32_t len, int32_t timePrec, timezone_t tz) {
   /* parse datatime string in with tz */
@@ -300,9 +330,10 @@ bool taosIsNamedTimezoneLiteral(const char *tzStr) {
 }
 
 int32_t taosValidateTimezone(const char *tzStr, timezone_t *pTz) {
-  if (tzStr == NULL || tzStr[0] == '\0') {
-    TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
-  }
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  TZ_REJECT_IF(tzStr == NULL || tzStr[0] == '\0');
 
   char posixBuf[TD_TIMEZONE_LEN] = {0};
   bool isUnsignedUtc =
@@ -321,18 +352,14 @@ int32_t taosValidateTimezone(const char *tzStr, timezone_t *pTz) {
       p++;
       len++;
     }
-    if (allUpper && len >= 2 && !isUtcOnly) {
-      TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
-    }
-    if (!hasSlash && tzStr[0] != '+' && tzStr[0] != '-'
-        && !isUtcOnly
-        && strncasecmp(tzStr, "UTC+", 4) != 0
-        && strncasecmp(tzStr, "UTC-", 4) != 0
-        && !isUnsignedUtc
-        && !(tzStr[0] == 'Z' && tzStr[1] == '\0')
-        && !(tzStr[0] == 'z' && tzStr[1] == '\0')) {
-      TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
-    }
+    TZ_REJECT_IF(allUpper && len >= 2 && !isUtcOnly);
+    TZ_REJECT_IF(!hasSlash && tzStr[0] != '+' && tzStr[0] != '-'
+                 && !isUtcOnly
+                 && strncasecmp(tzStr, "UTC+", 4) != 0
+                 && strncasecmp(tzStr, "UTC-", 4) != 0
+                 && !isUnsignedUtc
+                 && !(tzStr[0] == 'Z' && tzStr[1] == '\0')
+                 && !(tzStr[0] == 'z' && tzStr[1] == '\0'));
   }
 
   /* Normalize fixed-offset for tzalloc */
@@ -341,9 +368,7 @@ int32_t taosValidateTimezone(const char *tzStr, timezone_t *pTz) {
     // Canonicalize the case so tzalloc() always sees "UTC".
     tzName = "UTC";
   } else if (tzStr[0] == '+' || tzStr[0] == '-') {
-    if (!normalizeOffsetTzCommon(tzStr, posixBuf, sizeof(posixBuf))) {
-      TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
-    }
+    TZ_REJECT_IF(!normalizeOffsetTzCommon(tzStr, posixBuf, sizeof(posixBuf)));
     tzName = posixBuf;
   } else if (strncasecmp(tzStr, "UTC+", 4) == 0 ||
              strncasecmp(tzStr, "UTC-", 4) == 0) {
@@ -368,9 +393,7 @@ int32_t taosValidateTimezone(const char *tzStr, timezone_t *pTz) {
         snprintf(padded, sizeof(padded), "%c0%s", src[0], src + 1);
         src = padded;
       }
-      if (!normalizeOffsetTzCommon(src, posixBuf, sizeof(posixBuf))) {
-        TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
-      }
+      TZ_REJECT_IF(!normalizeOffsetTzCommon(src, posixBuf, sizeof(posixBuf)));
       tzName = posixBuf;
     } else {
       // Pure POSIX "UTC+8" / "UTC-10": the offset is already canonical.
@@ -384,16 +407,19 @@ int32_t taosValidateTimezone(const char *tzStr, timezone_t *pTz) {
   }
 
   timezone_t tz = tzalloc(tzName);
-  if (tz == NULL) {
-    TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
-  }
+  TSDB_CHECK_NULL(tz, code, lino, _end, tzallocErrorCode());
 
   if (pTz != NULL) {
     *pTz = tz;
   } else {
     tzfree(tz);
   }
-  TAOS_RETURN(TSDB_CODE_SUCCESS);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    tzReportError(__func__, lino, code, tzStr);
+  }
+  TAOS_RETURN(code);
 }
 
 /*
@@ -437,9 +463,10 @@ static bool normalizeOffsetToPosixUtc(const char *val, char *buf, int32_t bufLen
 int32_t taosValidateAndNormalizeTimezone(const char *tzStr,
                                          char *normBuf, int32_t normBufLen,
                                          timezone_t *pTz) {
-  if (tzStr == NULL || tzStr[0] == '\0' || normBufLen < 8) {
-    TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
-  }
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  TZ_REJECT_IF(tzStr == NULL || tzStr[0] == '\0' || normBufLen < 8);
 
   /* Z/z -> UTC */
   if ((tzStr[0] == 'Z' || tzStr[0] == 'z') && tzStr[1] == '\0') {
@@ -448,11 +475,8 @@ int32_t taosValidateAndNormalizeTimezone(const char *tzStr,
   }
 
   /* Reject GMT series explicitly */
-  if (strncasecmp(tzStr, "GMT", 3) == 0) {
-    if (tzStr[3] == '\0' || tzStr[3] == '+' || tzStr[3] == '-') {
-      TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
-    }
-  }
+  TZ_REJECT_IF(strncasecmp(tzStr, "GMT", 3) == 0
+               && (tzStr[3] == '\0' || tzStr[3] == '+' || tzStr[3] == '-'));
 
   /* UTC alone */
   if (strcasecmp(tzStr, "UTC") == 0) {
@@ -484,9 +508,7 @@ int32_t taosValidateAndNormalizeTimezone(const char *tzStr,
         snprintf(padded, sizeof(padded), "%c0%s", src[0], src + 1);
         src = padded;
       }
-      if (!normalizeOffsetToPosixUtc(src, normBuf, normBufLen)) {
-        TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
-      }
+      TZ_REJECT_IF(!normalizeOffsetToPosixUtc(src, normBuf, normBufLen));
     } else {
       /* Short form: UTC-8, UTC+10 — keep the offset, canonicalize the case */
       canonicalizeUtcPrefix(tzStr, normBuf, normBufLen);
@@ -497,12 +519,9 @@ int32_t taosValidateAndNormalizeTimezone(const char *tzStr,
   /* Bare fixed-offset: +08:00, +0800, +08, -05:30 etc. -> POSIX UTC±h[:mm] */
   if (tzStr[0] == '+' || tzStr[0] == '-') {
     /* Require 2-digit hours */
-    if (!(tzStr[1] >= '0' && tzStr[1] <= '9') || !(tzStr[2] >= '0' && tzStr[2] <= '9')) {
-      TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
-    }
-    if (!normalizeOffsetToPosixUtc(tzStr, normBuf, normBufLen)) {
-      TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
-    }
+    TZ_REJECT_IF(!(tzStr[1] >= '0' && tzStr[1] <= '9')
+                 || !(tzStr[2] >= '0' && tzStr[2] <= '9'));
+    TZ_REJECT_IF(!normalizeOffsetToPosixUtc(tzStr, normBuf, normBufLen));
     goto validate;
   }
 
@@ -530,22 +549,29 @@ int32_t taosValidateAndNormalizeTimezone(const char *tzStr,
   }
 
   /* Reject ambiguous abbreviations and anything else without a slash */
-  TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+  code = TSDB_CODE_PAR_INVALID_TIMEZONE;
+  lino = __LINE__;
+  goto _end;
 
 validate:
   {
     timezone_t tz = tzalloc(normBuf);
-    if (tz == NULL) {
-      TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
-    }
+    TSDB_CHECK_NULL(tz, code, lino, _end, tzallocErrorCode());
     if (pTz != NULL) {
       *pTz = tz;
     } else {
       tzfree(tz);
     }
   }
-  TAOS_RETURN(TSDB_CODE_SUCCESS);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    tzReportError(__func__, lino, code, tzStr);
+  }
+  TAOS_RETURN(code);
 }
+
+#undef TZ_REJECT_IF
 
 /*
  * rfc3339 format:
