@@ -8187,7 +8187,7 @@ int32_t blockDBUsageFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   double   compressRatio = 0;
   if (rawDataSize != 0) {
     compressRatio = totalDiskSize * 100 / (double)rawDataSize;
-    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_ratio=[%.2f%]", compressRatio);
+    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_ratio=[%.2f%%]", compressRatio);
   } else {
     len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_ratio=[NULL]");
   }
