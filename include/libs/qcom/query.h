@@ -539,8 +539,11 @@ void* getTaskPoolWorkerCb();
    (_code) == TSDB_CODE_PAR_INVALID_DROP_COL || ((_code) == TSDB_CODE_TDB_INVALID_TABLE_ID))
 #define NEED_CLIENT_REFRESH_VG_ERROR(_code) \
   ((_code) == TSDB_CODE_VND_HASH_MISMATCH || (_code) == TSDB_CODE_VND_INVALID_VGROUP_ID)
-#define NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code) \
-  ((_code) == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER || (_code) == TSDB_CODE_MND_INVALID_SCHEMA_VER || (_code) == TSDB_CODE_SCH_DATA_SRC_EP_MISS)
+#define NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code)                  \
+  ((_code) == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER ||           \
+   (_code) == TSDB_CODE_MND_INVALID_SCHEMA_VER ||                  \
+   (_code) == TSDB_CODE_SCH_DATA_SRC_EP_MISS ||                    \
+   (_code) == TSDB_CODE_VTABLE_DATA_SRC_EP_MISS)
 #define NEED_CLIENT_HANDLE_ERROR(_code)                                          \
   (NEED_CLIENT_RM_TBLMETA_ERROR(_code) || NEED_CLIENT_REFRESH_VG_ERROR(_code) || \
    NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code))
