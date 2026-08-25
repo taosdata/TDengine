@@ -15,7 +15,10 @@
 
 #include <gtest/gtest.h>
 
+#include "nodesUtil.h"
 #include "querynodes.h"
+#include "taoserror.h"
+#include "ttime.h"
 
 using namespace std;
 
@@ -206,6 +209,95 @@ TEST(NodesTest, match) {
   
   nodesDestroyNode(pLogicCondition);
   nodesDestroyNode(pLogicConditionClone);
+}
+
+// Both validators must reject the name and quote it back in terrMsg.
+static void expectTimezoneRejected(const char* tzStr, const char* expectedMsg) {
+  const char* label = (tzStr == nullptr) ? "<null>" : tzStr;
+
+  taosClearErrMsg();
+  EXPECT_EQ(TSDB_CODE_PAR_INVALID_TIMEZONE,
+            taosValidateTimezone(tzStr, nullptr))
+      << "taosValidateTimezone accepted " << label;
+  EXPECT_STREQ(expectedMsg, terrMsg) << "input: " << label;
+
+  char normalized[TD_TIMEZONE_LEN] = {0};
+  taosClearErrMsg();
+  EXPECT_EQ(TSDB_CODE_PAR_INVALID_TIMEZONE,
+            taosValidateAndNormalizeTimezone(tzStr, normalized,
+                                             sizeof(normalized), nullptr))
+      << "taosValidateAndNormalizeTimezone accepted " << label;
+  EXPECT_STREQ(expectedMsg, terrMsg) << "input: " << label;
+}
+
+TEST(NodesTest, invalidTimezoneErrorContainsName) {
+  // The nodes layer delegates to taosValidateTimezone and must leave the
+  // detailed message intact.
+  const char* timezoneName = "UTC+2000";
+  void*       timezone = nullptr;
+  bool        ownsTimezone = false;
+
+  taosClearErrMsg();
+  int32_t code = nodesDecodeTimezoneNameInPlace(
+      timezoneName, &timezone, &ownsTimezone);
+
+  EXPECT_EQ(TSDB_CODE_PAR_INVALID_TIMEZONE, code);
+  EXPECT_STREQ("Invalid timezone: 'UTC+2000'", terrMsg);
+  EXPECT_EQ(nullptr, timezone);
+  EXPECT_FALSE(ownsTimezone);
+}
+
+TEST(NodesTest, invalidTimezoneRejectPathsReportName) {
+  // Missing name: reported as an empty quoted name.
+  expectTimezoneRejected(nullptr, "Invalid timezone: ''");
+  expectTimezoneRejected("", "Invalid timezone: ''");
+
+  // Ambiguous uppercase abbreviations.
+  expectTimezoneRejected("CST", "Invalid timezone: 'CST'");
+  expectTimezoneRejected("EST", "Invalid timezone: 'EST'");
+
+  // GMT series, in either case, bare or with an offset.
+  expectTimezoneRejected("GMT", "Invalid timezone: 'GMT'");
+  expectTimezoneRejected("GMT+8", "Invalid timezone: 'GMT+8'");
+  expectTimezoneRejected("gmt-5", "Invalid timezone: 'gmt-5'");
+
+  // Unknown name carrying no slash.
+  expectTimezoneRejected("foobar", "Invalid timezone: 'foobar'");
+
+  // Offset hours out of range.
+  expectTimezoneRejected("UTC+2000", "Invalid timezone: 'UTC+2000'");
+  expectTimezoneRejected("+2000", "Invalid timezone: '+2000'");
+
+  // Offset hours that are not two digits.
+  expectTimezoneRejected("+8:00", "Invalid timezone: '+8:00'");
+  expectTimezoneRejected("+8", "Invalid timezone: '+8'");
+}
+
+TEST(NodesTest, timezoneNormalizeRejectsUndersizedBuffer) {
+  char normalized[4] = {0};
+
+  taosClearErrMsg();
+  int32_t code = taosValidateAndNormalizeTimezone(
+      "UTC", normalized, sizeof(normalized), nullptr);
+
+  EXPECT_EQ(TSDB_CODE_PAR_INVALID_TIMEZONE, code);
+  EXPECT_STREQ("Invalid timezone: 'UTC'", terrMsg);
+}
+
+TEST(NodesTest, validTimezonesAreStillAccepted) {
+  // Guards the reject conditions above against an inverted sense.
+  // The IANA name needs system tzdata, as elsewhere in the test suite.
+  const char* accepted[] = {"UTC", "Z", "+08:00", "Asia/Shanghai"};
+
+  for (const char* tzStr : accepted) {
+    char normalized[TD_TIMEZONE_LEN] = {0};
+    EXPECT_EQ(TSDB_CODE_SUCCESS, taosValidateTimezone(tzStr, nullptr))
+        << "taosValidateTimezone rejected " << tzStr;
+    EXPECT_EQ(TSDB_CODE_SUCCESS,
+              taosValidateAndNormalizeTimezone(tzStr, normalized,
+                                               sizeof(normalized), nullptr))
+        << "taosValidateAndNormalizeTimezone rejected " << tzStr;
+  }
 }
 
 int main(int argc, char* argv[]) {

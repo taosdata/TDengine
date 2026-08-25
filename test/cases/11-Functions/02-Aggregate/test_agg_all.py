@@ -27,6 +27,8 @@ class TestAggFunction:
         tdLog.info(f"insert data.")
         datafile = etool.getFilePath(os.path.dirname(__file__), "resource", "data", "d1001.data")
 
+        # drop the leftover database so every run starts from the same dataset
+        tdSql.execute("drop database if exists ts_4893;")
         tdSql.execute("create database ts_4893;")
         tdSql.execute("use ts_4893;")
         tdSql.execute("select database();")
@@ -271,7 +273,9 @@ class TestAggFunction:
 
     def run_error(self):
         tdSql.error("select * from (select to_iso8601(ts, timezone()), timezone() from ts_4893.meters \
-            order by ts desc) limit 1000;", expectErrInfo="Invalid timezone format") # TS-5340
+            order by ts desc) limit 1000;",
+            # the message quotes the rejected timezone, which varies per host
+            expectErrInfo="Invalid timezone", fullMatched=False) # TS-5340
         tdSql.error("select * from ts_4893.meters where ts between(timetruncate(now, 1h) - 10y) and timetruncate(now(), 10y) partition by voltage;",
                     expectErrInfo="Invalid time unit : timetruncate") #
 
@@ -498,7 +502,9 @@ class TestAggFunction:
         self.do_min_max_timestamp_bool()        
 
     def initdabase(self):
-        tdSql.execute('create database if not exists db_test vgroups 2  buffer 10')
+        # drop the leftover database so every run starts from the same dataset
+        tdSql.execute('drop database if exists db_test')
+        tdSql.execute('create database db_test vgroups 2  buffer 10')
         tdSql.execute('use db_test')
         tdSql.execute('create stable stb(ts timestamp, delay int) tags(groupid int)')
         sql = 'create table '

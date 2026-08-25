@@ -4050,12 +4050,16 @@ _end:
 
 static int32_t extractTimezoneParamString(SScalarParam *pInput, int32_t idx, char *tzBuf, int32_t bufLen) {
   if (bufLen <= 0) {
-    return TSDB_CODE_PAR_INVALID_TIMEZONE;
+    sclError("%s failed at line %d, timezone buffer is unavailable, idx:%d, "
+             "bufLen:%d", __func__, __LINE__, idx, bufLen);
+    SCL_ERR_RET(TSDB_CODE_INTERNAL_ERROR);
   }
 
   int32_t tzLen = varDataLen(pInput[idx].columnData->pData);
   if (tzLen <= 0) {
-    return TSDB_CODE_PAR_INVALID_TIMEZONE;
+    sclError("%s failed at line %d, empty timezone parameter, idx:%d",
+             __func__, __LINE__, idx);
+    SCL_ERR_RET(TSDB_CODE_INTERNAL_ERROR);
   }
 
   int32_t cpLen = TMIN(tzLen, bufLen - 1);
