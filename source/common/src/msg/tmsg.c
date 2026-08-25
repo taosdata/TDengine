@@ -7823,6 +7823,7 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastShardBits));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->securityLevel));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->parallel));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->maxRows));
 
   tEndEncode(&encoder);
 
@@ -7939,6 +7940,12 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   pReq->parallel = 0;
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->parallel));
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->maxRows));
+  } else {
+    pReq->maxRows = -1;
   }
 
   tEndDecode(&decoder);
@@ -12949,6 +12956,7 @@ int32_t tSerializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeCon
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->secureDelete));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastShardBits));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->securityLevel));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->maxRows));
 
   tEndEncode(&encoder);
 
@@ -13033,6 +13041,12 @@ int32_t tDeserializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeC
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->securityLevel));
   } else {
     pReq->securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->maxRows));
+  } else {
+    pReq->maxRows = -1;
   }
 
   tEndDecode(&decoder);
