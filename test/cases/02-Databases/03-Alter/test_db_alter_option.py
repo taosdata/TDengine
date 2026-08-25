@@ -349,9 +349,21 @@ class TestDatabaseAlterOption:
         tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(2, 11, '231')
         tdSql.error("ALTER DATABASE test minrows 5000",expectErrInfo="Invalid database options", fullMatched=False)
-        
+
         tdSql.error("ALTER DATABASE test minrows 9",expectErrInfo="Invalid option", fullMatched=False)
         tdSql.error("ALTER DATABASE test minrows 1000001",expectErrInfo="Invalid option", fullMatched=False)
+
+    def check_alter_max_rows(self):
+        tdLog.info(f"check alter max rows")
+        tdSql.execute("ALTER DATABASE test maxrows 3000")
+        tdSql.query("select * from information_schema.ins_databases")
+        tdSql.checkData(2, 12, '3000')
+
+        # maxrows below the current minrows (231) triggers the minRows > maxRows cross-check
+        tdSql.error("ALTER DATABASE test maxrows 200",expectErrInfo="Invalid database options", fullMatched=False)
+
+        tdSql.error("ALTER DATABASE test maxrows 199",expectErrInfo="Invalid option", fullMatched=False)
+        tdSql.error("ALTER DATABASE test maxrows 10000001",expectErrInfo="Invalid option", fullMatched=False)
 
     def check_alter_pages(self):
         tdLog.info(f"check alter pages")
@@ -449,7 +461,6 @@ class TestDatabaseAlterOption:
         tdLog.info(f"check alter unsupport option")
         tdSql.error("ALTER DATABASE test COMP 1",expectErrInfo="syntax error", fullMatched=False)
         tdSql.error("ALTER DATABASE test DURATION 1",expectErrInfo="syntax error", fullMatched=False)
-        tdSql.error("ALTER DATABASE test maxrows 1",expectErrInfo="syntax error", fullMatched=False)
         tdSql.error("ALTER DATABASE test encrypt_algorithm 'SM4-CBC'",expectErrInfo="Encryption is not allowed to be changed after database is created", fullMatched=False)
         tdSql.error("ALTER DATABASE test vgroups 4",expectErrInfo="syntax error", fullMatched=False)
         tdSql.error("ALTER DATABASE test single_stable 1",expectErrInfo="syntax error", fullMatched=False)
@@ -481,7 +492,10 @@ class TestDatabaseAlterOption:
 
         # check alter min rows
         self.check_alter_min_rows()
-        
+
+        # check alter max rows
+        self.check_alter_max_rows()
+
         # check alter pages
         self.check_alter_pages()
         
@@ -530,18 +544,19 @@ class TestDatabaseAlterOption:
         5. Check alter cache model
         6. Check alter cache size
         7. Check alter min rows
-        8. Check alter pages
-        9. Check alter wal_level
-        10. Check alter wal_fsync_period
-        11. Check alter stt_trigger
-        12. Check alter wal_retention_period
-        13. Check alter wal_retention_size
-        14. Check alter ss_keeplocal
-        15. Check alter ss_compact
-        16. Check alter keep_time_offset
-        17. Check alter compact_interval
-        18. Check alter compact_time_offset
-        19. Check alter unsupport option
+        8. Check alter max rows
+        9. Check alter pages
+        10. Check alter wal_level
+        11. Check alter wal_fsync_period
+        12. Check alter stt_trigger
+        13. Check alter wal_retention_period
+        14. Check alter wal_retention_size
+        15. Check alter ss_keeplocal
+        16. Check alter ss_compact
+        17. Check alter keep_time_offset
+        18. Check alter compact_interval
+        19. Check alter compact_time_offset
+        20. Check alter unsupport option
 
         Since: v3.0.0.0
 
@@ -551,6 +566,7 @@ class TestDatabaseAlterOption:
         History:
             - 2025-10-20 Alex Duan Migrated from uncatalog/army/alter/test_alter_db_option.py
             - 2025-04-30 Simon Guan Migrated from tsim/db/alter_option.sim
+            - 2026-08-24 Claude Added check_alter_max_rows now that MAXROWS is alterable
 
         """
         self.do_sim_case()
