@@ -4291,6 +4291,10 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
     pVnode->config.tsdbCfg.minRows = req.minRows;
   }
 
+  if (req.maxRows != -1 && req.maxRows != pVnode->config.tsdbCfg.maxRows) {
+    pVnode->config.tsdbCfg.maxRows = req.maxRows;
+  }
+
   if (req.ssKeepLocal != -1 && req.ssKeepLocal != pVnode->config.ssKeepLocal) {
     pVnode->config.ssKeepLocal = req.ssKeepLocal;
   }

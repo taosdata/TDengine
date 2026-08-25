@@ -359,6 +359,7 @@ alter_database_option: {
   | WAL_RETENTION_PERIOD value
   | WAL_RETENTION_SIZE value
   | MINROWS value
+  | MAXROWS value
   | COMPACT_INTERVAL value
   | COMPACT_TIME_RANGE value
   | COMPACT_TIME_OFFSET value
