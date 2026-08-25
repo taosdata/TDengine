@@ -4532,14 +4532,18 @@ static int32_t mndXnodeCheckTaskObjPrivilege(SMnode *pMnode, const char *user, S
     goto _OVER;
   }
 
-  code = mndAcquireUser(pMnode, pTask->createdBy, &tUser);
-  if (code != 0) {
+  if (pTask->createdBy != NULL) {
+    code = mndAcquireUser(pMnode, pTask->createdBy, &tUser);
+  }
+  if (code != 0 && code != TSDB_CODE_MND_USER_NOT_EXIST) {
     goto _OVER;
   }
 
   char objName[32] = {0};
   snprintf(objName, sizeof(objName), "%d", pTask->id);
-  code = mndCheckObjPrivilegeRec(pMnode, curUser, priv, PRIV_OBJ_XTASK, tUser->uid, tUser->acctId, objName, NULL);
+  int64_t ownerId = tUser != NULL ? tUser->uid : 0;
+  int32_t acctId = tUser != NULL ? tUser->acctId : curUser->acctId;
+  code = mndCheckObjPrivilegeRec(pMnode, curUser, priv, PRIV_OBJ_XTASK, ownerId, acctId, objName, NULL);
 
 _OVER:
   mndReleaseUser(pMnode, curUser);

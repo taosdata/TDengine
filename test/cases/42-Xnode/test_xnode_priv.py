@@ -12,6 +12,8 @@ import time
 
 from new_test_framework.utils import tdLog, tdSql
 
+TSDB_CODE_MND_NO_RIGHTS = 0x0303
+
 
 class TestXnodePriv:
     """XNode Grant Privileges Test"""
@@ -1548,6 +1550,182 @@ class TestXnodePriv:
         tdSql.execute(f"DROP DATABASE {zgc_db}", queryTimes=1)
 
         tdLog.success("Test 5.7 passed: Creator always has permission")
+
+    def do_task_privileges_after_creator_deleted(self):
+        self._create_test_user()
+        self._cleanup_xnode_resources()
+        tdSql.execute(
+            "CREATE XNODE 'localhost:6055' USER root PASS 'taosdata'",
+            queryTimes=1,
+        )
+
+        source_db = f"deleted_owner_source_{self.suffix}"
+        target_db = f"deleted_owner_target_{self.suffix}"
+        privileged_task = f"deleted_owner_priv_task_{self.suffix}"
+        root_task = f"deleted_owner_root_task_{self.suffix}"
+        authorized_user = f"xna_{self.suffix}"
+        unauthorized_user = f"xnu_{self.suffix}"
+        tdSql.execute(f"CREATE DATABASE {source_db}", queryTimes=1)
+        tdSql.execute(f"CREATE DATABASE {target_db}", queryTimes=1)
+        tdSql.execute(
+            f"CREATE USER {authorized_user} PASS '{self.test_pass}'", queryTimes=1
+        )
+        tdSql.execute(
+            f"CREATE USER {unauthorized_user} PASS '{self.test_pass}'", queryTimes=1
+        )
+        xnode_id = self._get_xnode_id()
+
+        tdSql.execute(f"GRANT CREATE XNODE TASK TO {self.test_user}", queryTimes=1)
+        tdSql.connect(
+            host=self.host,
+            port=self.port,
+            user=self.test_user,
+            password=self.test_pass,
+        )
+        try:
+            for task_name in (privileged_task, root_task):
+                tdSql.execute(
+                    f"CREATE XNODE TASK '{task_name}' "
+                    f"FROM 'taos://root:taosdata@{self.host}:{self.port}/{source_db}' "
+                    f"TO 'taos://root:taosdata@{self.host}:{self.port}/{target_db}' "
+                    f"WITH STATUS 'created' xnode_id {xnode_id}",
+                    queryTimes=1,
+                )
+        finally:
+            tdSql.connect(
+                host=self.host,
+                port=self.port,
+                user=self.super_user,
+                password=self.super_pass,
+            )
+
+        rows = tdSql.query(
+            f"SHOW XNODE TASKS WHERE name = '{privileged_task}'", row_tag=True
+        )
+        privileged_task_id = rows[0][0]
+        tdSql.execute(
+            f"GRANT ALTER ON XNODE TASK `{privileged_task_id}` TO {authorized_user}",
+            queryTimes=1,
+        )
+        tdSql.execute(
+            f"GRANT DROP ON XNODE TASK `{privileged_task_id}` TO {authorized_user}",
+            queryTimes=1,
+        )
+        tdSql.execute(f"DROP USER {self.test_user}", queryTimes=1)
+
+        tdSql.connect(
+            host=self.host,
+            port=self.port,
+            user=unauthorized_user,
+            password=self.test_pass,
+        )
+        try:
+            tdSql.error(
+                f"ALTER XNODE TASK '{privileged_task}' "
+                "WITH parser 'unauthorized_parser'",
+                expectedErrno=TSDB_CODE_MND_NO_RIGHTS,
+            )
+            tdSql.error(
+                f"DROP XNODE TASK '{privileged_task}'",
+                expectedErrno=TSDB_CODE_MND_NO_RIGHTS,
+            )
+        finally:
+            tdSql.connect(
+                host=self.host,
+                port=self.port,
+                user=self.super_user,
+                password=self.super_pass,
+            )
+
+        tdSql.connect(
+            host=self.host,
+            port=self.port,
+            user=authorized_user,
+            password=self.test_pass,
+        )
+        try:
+            tdSql.execute(
+                f"ALTER XNODE TASK '{privileged_task}' "
+                "WITH parser 'authorized_parser'",
+                queryTimes=1,
+            )
+        finally:
+            tdSql.connect(
+                host=self.host,
+                port=self.port,
+                user=self.super_user,
+                password=self.super_pass,
+            )
+
+        tdSql.execute(
+            f"ALTER XNODE TASK '{root_task}' WITH parser 'root_parser'",
+            queryTimes=1,
+        )
+        for task_name, expected_parser in (
+            (privileged_task, "authorized_parser"),
+            (root_task, "root_parser"),
+        ):
+            rows = tdSql.query(
+                f"SHOW XNODE TASKS WHERE name = '{task_name}'", row_tag=True
+            )
+            parser = rows[0][4]
+            if isinstance(parser, bytes):
+                parser = parser.decode()
+            assert parser == expected_parser
+
+        tdSql.connect(
+            host=self.host,
+            port=self.port,
+            user=authorized_user,
+            password=self.test_pass,
+        )
+        try:
+            tdSql.execute(f"DROP XNODE TASK '{privileged_task}'", queryTimes=1)
+        finally:
+            tdSql.connect(
+                host=self.host,
+                port=self.port,
+                user=self.super_user,
+                password=self.super_pass,
+            )
+
+        tdSql.execute(f"DROP XNODE TASK '{root_task}'", queryTimes=1)
+        for task_name in (privileged_task, root_task):
+            rows = tdSql.query(
+                f"SHOW XNODE TASKS WHERE name = '{task_name}'", row_tag=True
+            )
+            assert len(rows) == 0
+
+        self._cleanup_xnode_resources()
+        tdSql.execute(f"DROP USER {authorized_user}", queryTimes=1)
+        tdSql.execute(f"DROP USER {unauthorized_user}", queryTimes=1)
+        tdSql.execute(f"DROP DATABASE {source_db}", queryTimes=1)
+        tdSql.execute(f"DROP DATABASE {target_db}", queryTimes=1)
+        tdLog.success("task privileges after creator deletion ........ [ passed ]")
+
+    def test_task_privileges_after_creator_deleted(self):
+        """Task privileges remain correct after the creator is deleted
+
+        1. Create xnode tasks as a non-root user
+        2. Grant one user ALTER and DROP on one task
+        3. Delete the task creator
+        4. Reject ALTER and DROP from an unauthorized user
+        5. Allow explicit privileges and root to manage orphaned tasks
+
+        Catalog:
+            - Xnode
+
+        Since: v3.4.1.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-08-24 Codex Created
+
+        """
+        self.do_task_privileges_after_creator_deleted()
 
     # =============================================================================
     # Section 6: Object-level Privileges - XNode Task DROP
