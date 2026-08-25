@@ -449,7 +449,8 @@ static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISO
 
 static int32_t validateTimezoneValueNode(const SValueNode* pValue, char* pErrBuf, int32_t len) {
   if (TSDB_DATA_TYPE_BINARY != pValue->node.resType.type) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_INVALID_TIMEZONE, "Invalid timezone format");
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_INVALID_TIMEZONE,
+                           "Invalid timezone format");
   }
 
   char*   tz = varDataVal(pValue->datum.p);
@@ -461,7 +462,12 @@ static int32_t validateTimezoneValueNode(const SValueNode* pValue, char* pErrBuf
 
   int32_t code = taosValidateTimezone(tzBuf, NULL);
   if (code != TSDB_CODE_SUCCESS) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_INVALID_TIMEZONE, "Invalid timezone format");
+    // Only a rejected name is the user's fault; a tzalloc() system failure
+    // such as EMFILE keeps its own code and message.
+    bool isInvalidTzName = (code == TSDB_CODE_PAR_INVALID_TIMEZONE);
+    return buildFuncErrMsg(pErrBuf, len, code,
+                           isInvalidTzName ? "Invalid timezone: '%s'" : "%s",
+                           isInvalidTzName ? tzBuf : tstrerror(code));
   }
   return TSDB_CODE_SUCCESS;
 }
