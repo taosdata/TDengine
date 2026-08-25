@@ -66,6 +66,53 @@ create database <dbname> replica 2 vgroups xx buffer xx ...
 alter database <dbname> replica 2|1
 ```
 
+### 查看 Vgroups 的状态
+
+通过以下 SQL 命令查看双副本数据库中各 vgroup 的状态：
+
+```sql
+show arbgroups;
+
+select * from information_schema.ins_arbgroups;
+
+ db_name | vgroup_id | v1_dnode | v2_dnode | is_sync | assigned_dnode |     assigned_token      |
+=================================================================================================
+ db      |         2 |        2 |        3 |       0 | NULL           | NULL                    |
+ db      |         3 |        1 |        2 |       0 |              1 | d1#g3#1714119404630#663 |
+ db      |         4 |        1 |        3 |       1 | NULL           | NULL                    |
+
+```
+
+is_sync 有以下两种取值：
+
+- 0: vgroup 数据未达成同步。在此状态下，如果 vgroup 中的某一 vnode 不可访问，另一个 vnode 无法被指定为 `AssignedLeader` role，该 vgroup 将无法提供服务。
+- 1: vgroup 数据达成同步。在此状态下，如果 vgroup 中的某一 vnode 不可访问，另一个 vnode 可以被指定为 `AssignedLeader` role，该 vgroup 可以继续提供服务。
+
+assigned_dnode：
+
+- 标识被指定为 AssignedLeader 的 vnode 的 DnodeId
+- 未指定 AssignedLeader 时，该列显示 NULL
+
+assigned_token：
+
+- 标识被指定为 AssignedLeader 的 vnode 的 Token
+- 未指定 AssignedLeader 时，该列显示 NULL
+
+## 最佳实践
+
+1. 全新部署
+
+双副本的主要价值在于节省存储成本的同时能够有一定的高可用和高可靠能力。在实践中，推荐配置为：
+
+- N 节点集群（其中 N>=3）
+- 其中 N-1 个 dnode 负责存储时序数据
+- 第 N 个 dnode 不参与时序数据的存储和读取，即其上不保存副本；可以通过 `supportVnodes` 这个参数为 0 来实现这个目标
+- 不存储数据副本的 dnode 对 CPU/Memory 资源的占用也较低，可以使用较低配置服务器
+
+2. 从单副本升级
+
+假定已经有一个单副本集群，其结点数为 N (N>=1)，欲将其升级为双副本集群，升级后需要保证 N>=3，且新加入的某个节点的 `supportVnodes` 参数配置为 0。在集群升级完成后使用 `alter database replica 2` 的命令修改某个特定数据库的副本数。
+
 ## 异常情况
 
 | 异常场景 | 集群状态 |
