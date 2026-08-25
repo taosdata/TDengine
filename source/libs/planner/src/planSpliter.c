@@ -180,6 +180,36 @@ _return:
   return code;
 }
 
+// LEASTSQUARES(expr, start_val, step_val) assigns its synthetic independent variable
+// (x = start_val + i*step_val for the i-th row) by row processing order, NOT by the
+// actual timestamp. When such an aggregate's input spans multiple vgroups through a
+// Data Exchange, the per-vgroup blocks arrive in a timing-dependent order and each
+// run can produce a different slope/intercept. Force the exchange to sequential
+// receive mode (consume the vgroups one at a time, in source order) so the result
+// is deterministic.
+static bool splAggHasLeastSquares(SLogicNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+
+  for (SLogicNode* pCur = pNode; pCur != NULL; pCur = pCur->pParent) {
+    if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pCur)) {
+      continue;
+    }
+
+    SAggLogicNode* pAgg = (SAggLogicNode*)pCur;
+    SNode*         pFunc = NULL;
+    FOREACH(pFunc, pAgg->pAggFuncs) {
+      if (QUERY_NODE_FUNCTION == nodeType(pFunc) &&
+          FUNCTION_TYPE_LEASTSQUARES == ((SFunctionNode*)pFunc)->funcType) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 static int32_t splCreateExchangeNodeForSubplan(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pSplitNode,
                                                ESubplanType subplanType, bool seqScan) {
   SExchangeLogicNode* pExchange = NULL;
@@ -188,7 +218,11 @@ static int32_t splCreateExchangeNodeForSubplan(SSplitContext* pCxt, SLogicSubpla
   PLAN_ERR_JRET(splCreateExchangeNode(pCxt, pSplitNode, &pExchange));
 
   pExchange->dynTbname = nodeType(pSplitNode) == QUERY_NODE_LOGIC_PLAN_SCAN ? ((SScanLogicNode*)pSplitNode)->phTbnameScan : false;
-  pExchange->seqRecvData = seqScan;
+  // Only force sequential receive for static (non-dynamic) exchanges. Dynamic
+  // exchanges (virtual-table, federated, stream, ...) discover their sources at
+  // runtime; forcing seqRecvData there drops or misorders rows. See
+  // splAggHasLeastSquares().
+  pExchange->seqRecvData = seqScan || (splAggHasLeastSquares(pSplitNode) && !pExchange->node.dynamicOp);
 
   PLAN_ERR_JRET(replaceLogicNode(pSubplan, pSplitNode, (SLogicNode*)pExchange));
   pSubplan->subplanType = subplanType;
@@ -841,6 +875,12 @@ static int32_t stbSplCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pParent
   SExchangeLogicNode* pExchange = NULL;
   int32_t             code = splCreateExchangeNode(pCxt, pPartChild, &pExchange);
   if (TSDB_CODE_SUCCESS == code) {
+    // Cross-vgroup aggregate: when the parent aggregate contains LEASTSQUARES,
+    // the partial results must reach the merge aggregate in a fixed order or the
+    // slope/intercept is non-deterministic. See splAggHasLeastSquares().
+    // Only static exchanges: dynamic ones (virtual-table, ...) rely on runtime
+    // source discovery and must keep concurrent receive (seqRecvData=false).
+    pExchange->seqRecvData = splAggHasLeastSquares(pParent) && !pExchange->node.dynamicOp;
     pExchange->node.pParent = pParent;
     code = nodesListMakeAppend(&pParent->pChildren, (SNode*)pExchange);
   }

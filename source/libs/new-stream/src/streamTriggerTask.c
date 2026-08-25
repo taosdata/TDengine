@@ -1650,7 +1650,7 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
         rpcFreeCont(msg.pCont);
         stTriggerTaskResetCalcRetryWait(pInfo, now + STREAM_TRIGGER_NOTICE_RETRY_NS);
         stWarn("retry trigger start request stream:%" PRIx64 ", task:%" PRIx64 ", session:%" PRIx64 " at:%" PRId64,
-               pInfo->streamId, pInfo->taskId, pInfo->sessionId, now + STREAM_TRIGGER_NOTICE_RETRY_NS);
+               pInfo->streamId, pInfo->taskId, pInfo->sessionId, (int64_t)(now + STREAM_TRIGGER_NOTICE_RETRY_NS));
       }
       taosMemoryFreeClear(pNode);
     } else {
