@@ -2596,6 +2596,7 @@ typedef struct {
   int8_t  secureDelete;  
   int8_t  securityLevel;
   int32_t parallel;       // group parallel concurrency limit for replica changes, 0 = unlimited
+  int32_t maxRows;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -3679,6 +3680,7 @@ typedef struct {
   int8_t  allowDrop;
   int8_t  secureDelete;
   int8_t  securityLevel;
+  int32_t maxRows;
 } SAlterVnodeConfigReq;
 
 int32_t tSerializeSAlterVnodeConfigReq(void* buf, int32_t bufLen, SAlterVnodeConfigReq* pReq);

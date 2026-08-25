@@ -989,6 +989,7 @@ alter_db_option(A) ::= PARALLEL NK_INTEGER(B).                                  
 alter_db_option(A) ::= WAL_LEVEL NK_INTEGER(B).                                   { A.type = DB_OPTION_WAL; A.val = B; }
 alter_db_option(A) ::= STT_TRIGGER NK_INTEGER(B).                                 { A.type = DB_OPTION_STT_TRIGGER; A.val = B; }
 alter_db_option(A) ::= MINROWS NK_INTEGER(B).                                     { A.type = DB_OPTION_MINROWS; A.val = B; }
+alter_db_option(A) ::= MAXROWS NK_INTEGER(B).                                     { A.type = DB_OPTION_MAXROWS; A.val = B; }
 alter_db_option(A) ::= WAL_RETENTION_PERIOD NK_INTEGER(B).                        { A.type = DB_OPTION_WAL_RETENTION_PERIOD; A.val = B; }
 alter_db_option(A) ::= WAL_RETENTION_PERIOD NK_MINUS(B) NK_INTEGER(C).            {
                                                                                     SToken t = B;
