@@ -1646,3 +1646,13 @@
 ## 02-Repair
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/02-Repair/test_copy_repair.py
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/02-Repair/test_copy_accuracy.py
+
+## 43-Backup
+100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_backup_syntax.py
+100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_backup_privilege.py
+100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_single_node_backup_restore.py
+100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore.py -N 3
+100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore_3mnode.py -N 3 -M 3
+100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_stream_backup_restore.py
+100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_stream_backup_restore_cluster.py -N 3
+100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_concurrent_write.py -N 3
