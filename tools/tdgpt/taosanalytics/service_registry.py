@@ -125,7 +125,7 @@ class ServiceRegistry:
                         continue
 
                     config_file_name = f"{model_name}.json"
-                    config_path = os.path.join(item_path, config_file_name)
+                    config_path = item_path / config_file_name
 
                     if not config_path.exists():
                         AppLogger.debug(
