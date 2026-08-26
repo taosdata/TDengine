@@ -196,7 +196,8 @@ static void vmProcessBackupQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t num
     int32_t code = vnodeProcessBackupSnapReq(pVnode->pImpl, pMsg);
     if (code == -1 && terrno != 0) code = terrno;
     if (code != 0) {
-      dGError("vgId:%d, msg:%p, failed to process backup snapshot since %s", pVnode->vgId, pMsg, tstrerror(code));
+      dGError("vgId:%d, msg:%p, failed to process backup snapshot since %s [vnodeProcessBackupSnapReq]",
+              pVnode->vgId, pMsg, tstrerror(code));
     }
     vmSendRsp(pMsg, code);
 

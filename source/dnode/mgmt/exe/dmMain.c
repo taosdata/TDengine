@@ -1129,21 +1129,23 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   }
   memset(global.envCmd, 0, (argc - 1) * sizeof(char *));
   for (int32_t i = 1; i < argc; ++i) {
-    bool    parsedRestoreOpt = false;
-    bool    parsedRepairOpt = false;
-    int32_t code = dmParseRestoreOption(argc, argv, &i, &parsedRestoreOpt);
+    bool    optionParsed = false;
+    int32_t code = 0;
+#ifdef TD_ENTERPRISE
+    code = dmParseRestoreOption(argc, argv, &i, &optionParsed);
     if (code != 0) {
       return code;
     }
-    if (parsedRestoreOpt) {
+    if (optionParsed) {
       continue;
     }
+#endif
 
-    code = dmParseRepairOption(argc, argv, &i, &parsedRepairOpt);
+    code = dmParseRepairOption(argc, argv, &i, &optionParsed);
     if (code != 0) {
       return code;
     }
-    if (parsedRepairOpt) {
+    if (optionParsed) {
       continue;
     }
 
@@ -1278,10 +1280,13 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
     }
   }
 
+#ifdef TD_ENTERPRISE
   int32_t code = dmFinalizeRestoreOption();
   if (code != 0) {
     return code;
   }
+#endif
+
   return dmFinalizeRepairOption();
 }
 
@@ -1322,7 +1327,9 @@ static void dmPrintHelp() {
   printf("%s%s%s%s\n", indent, "-e,", indent, DM_ENV_CMD);
   printf("%s%s%s%s\n", indent, "-E,", indent, DM_ENV_FILE);
   printf("%s%s%s%s\n", indent, "-r,", indent, DM_REPAIR_MODE);
+#ifdef TD_ENTERPRISE
   printf("%s%s%s%s\n", indent, "--restore PATH [--password PASSWORD] [--verify=0|1|2]", indent, DM_RESTORE);
+#endif
   printf("%s%s%s%s\n", indent, "-k,", indent, DM_MACHINE_CODE);
 #if defined(LINUX)
   printf("%s%s%s%s\n", indent, "-o, --log-output=OUTPUT", indent, DM_LOG_OUTPUT);
@@ -1666,6 +1673,7 @@ int mainWindows(int argc, char **argv) {
     return 0;
   }
 
+#ifdef TD_ENTERPRISE
   if (global.restoreOpt.enabled) {
     TdFilePtr pFile = NULL;
     if ((code = dmCheckRunning(tsDataDir, &pFile)) != 0) {
@@ -1680,6 +1688,7 @@ int mainWindows(int argc, char **argv) {
     taosConvDestroy();
     return code;
   }
+#endif
 
   if (global.runCopyMode) {
     code = dmRepairCopyMode(&global.repairOpt.copyOpt);
