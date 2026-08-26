@@ -731,6 +731,7 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_CONFIG_DNODE:
       code = dmProcessConfigReq(pMgmt, pMsg);
       break;
+#ifdef TD_ENTERPRISE
     case TDMT_DND_BACKUP:
       code = dmProcessBackupReq(pMgmt, pMsg);
       break;
@@ -740,6 +741,7 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_KILL_BACKUP:
       code = dmProcessKillBackupReq(pMgmt, pMsg);
       break;
+#endif
     case TDMT_MND_AUTH_RSP:
       code = dmProcessAuthRsp(pMgmt, pMsg);
       break;
@@ -846,6 +848,15 @@ static void dmProcessBackupQueue(SQueueInfo *pInfo, SBackupTaskItem *pTaskItem) 
     // Capture the task id fields while the mutex is still held
     chainId = pTask->req.chainId;
     backupId = pTask->req.backupId;
+
+    // Release the bulk data once the task finishes: the manifest was already
+    // written during execution and progress queries only read the scalar
+    // identity/counter fields, so the large request/artifact arrays are no
+    // longer needed. Free them under the mutex so no other path can observe
+    // them while they are torn down; the free functions are NULL-safe, and a
+    // later replacement/shutdown may free them again harmlessly.
+    tFreeSBackupDnodeReq(&pTask->req);
+    dmBackupFreeTaskArtifacts(pTask);
   }
   (void)taosThreadMutexUnlock(&pMgmt->backupMutex);
 
