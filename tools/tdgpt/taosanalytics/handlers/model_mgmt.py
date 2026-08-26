@@ -1,6 +1,8 @@
 import json
 import os
 import re
+import tarfile
+import tempfile
 from pathlib import Path
 
 import joblib
@@ -21,6 +23,103 @@ def _is_valid_model_name(model_name):
         and model_name not in {".", ".."}
         and bool(MODEL_NAME_PATTERN.fullmatch(model_name))
     )
+
+
+def _get_safe_tar_members(tar, max_total_bytes=2 * 1024 * 1024 * 1024):
+    """Validate and return safe members from a tar archive.
+
+    Raises ValueError for unsafe paths, symlinks, hardlinks, or oversized archives.
+    """
+    safe_members = []
+    for member in tar.getmembers():
+        if os.path.isabs(member.name) or ".." in member.name.split("/"):
+            raise ValueError("unsafe path in tar archive: %r" % member.name)
+        if member.issym() or member.islnk():
+            raise ValueError(
+                "symlink/hardlink in tar archive is not allowed: %r" % member.name
+            )
+        safe_members.append(member)
+    total = sum(m.size for m in safe_members)
+    if total > max_total_bytes:
+        raise ValueError("model archive too large to extract")
+    return safe_members
+
+
+def _extract_tar_gz_model(tar_gz_path: str, extract_dir: str) -> bool:
+    """Extract tar.gz model archive to pytorch/ subdirectory.
+
+    Args:
+        tar_gz_path: Path to .tar.gz file
+        extract_dir: Destination directory for model (e.g., model_dir/deepar_model1)
+
+    Returns:
+        True if extraction successful, False otherwise
+
+    Structure:
+        extract_dir/
+        └── pytorch/           (framework namespace)
+            ├── config.json    (GluonTS config)
+            ├── weights.pt     (PyTorch weights)
+            └── arch.json      (optional)
+    """
+    try:
+        import shutil
+
+        # Create pytorch/ subdirectory for model files
+        pytorch_dir = os.path.join(extract_dir, "pytorch")
+        os.makedirs(pytorch_dir, exist_ok=True)
+
+        with tempfile.TemporaryDirectory() as temp_extract:
+            # Extract to temporary directory
+            with tarfile.open(tar_gz_path, "r:gz") as tar:
+                # Guard against tar-slip (path traversal, symlink escape, hardlinks).
+                # filter='data' (Python 3.12+) is the safest option; it strips
+                # absolute paths, .., symlinks, and hardlinks automatically.
+                # Fall back to manual member filtering on older runtimes.
+                import sys
+                if sys.version_info >= (3, 12):
+                    tar.extractall(path=temp_extract, filter="data")
+                else:
+                    safe_members = _get_safe_tar_members(tar)
+                    tar.extractall(path=temp_extract, members=safe_members)
+
+            # Check for model files and promote to pytorch/ subdirectory
+            items = os.listdir(temp_extract)
+
+            # If single top-level directory, move its contents
+            if len(items) == 1:
+                item_path = os.path.join(temp_extract, items[0])
+                if os.path.isdir(item_path):
+                    # Promote contents from subdirectory to pytorch/
+                    for file in os.listdir(item_path):
+                        src = os.path.join(item_path, file)
+                        dst = os.path.join(pytorch_dir, file)
+                        shutil.move(src, dst)
+                    AppLogger.info(
+                        "Promoted files from %s to %s", items[0], pytorch_dir
+                    )
+                else:
+                    # Single file, copy to pytorch/
+                    shutil.copy2(item_path, pytorch_dir)
+            else:
+                # Multiple items at top level, move all to pytorch/
+                for item in items:
+                    src = os.path.join(temp_extract, item)
+                    dst = os.path.join(pytorch_dir, item)
+                    if os.path.isdir(src):
+                        shutil.copytree(src, dst)
+                    else:
+                        shutil.move(src, dst)
+
+            AppLogger.info("Extracted model to %s", pytorch_dir)
+            return True
+
+    except tarfile.TarError as e:
+        AppLogger.error("Failed to extract tar.gz model: %s", e)
+        return False
+    except Exception as e:
+        AppLogger.error("Unexpected error extracting tar.gz: %s", e)
+        return False
 
 
 def _extract_request_payload(request):
@@ -101,7 +200,7 @@ def _validate_and_prepare_model_directory(raw_model_name, request_addr):
     """Validate model name and prepare directory paths.
 
     Returns:
-        (model_subdir, config_file_path, pkl_file_path) or (None, None, None, error_response) on failure
+        (model_subdir, config_file_path, error_response) or (None, None, error_response) on failure
     """
     if not _is_valid_model_name(raw_model_name):
         AppLogger.error(
@@ -110,7 +209,6 @@ def _validate_and_prepare_model_directory(raw_model_name, request_addr):
             request_addr,
         )
         return (
-            None,
             None,
             None,
             (
@@ -130,7 +228,6 @@ def _validate_and_prepare_model_directory(raw_model_name, request_addr):
         return (
             None,
             None,
-            None,
             (
                 {
                     "status": "error",
@@ -146,28 +243,223 @@ def _validate_and_prepare_model_directory(raw_model_name, request_addr):
     config_file_name = raw_model_name + ".json"
     config_file_path = str(os.path.join(model_subdir, config_file_name))
 
-    pkl_file_path = None
-    return model_subdir, config_file_path, pkl_file_path, None
+    return model_subdir, config_file_path, None
+
+
+def _save_tar_gz_model(raw_model_name, model_dir, model_config, tar_gz_path):
+    """Handle tar.gz deep learning model extraction and validation.
+
+    Args:
+        raw_model_name: Model name for logging
+        model_dir: Directory to extract model into
+        model_config: Config dict to update with paths
+        tar_gz_path: Path to temporary tar.gz file
+
+    Returns:
+        error_response tuple if error, None if successful
+    """
+    try:
+        # Extract archive to model directory
+        if not _extract_tar_gz_model(tar_gz_path, model_dir):
+            AppLogger.error(
+                "Failed to extract tar.gz archive for model %s", raw_model_name
+            )
+            safely_remove_file(tar_gz_path, raw_model_name, "tar.gz archive")
+            return (
+                {
+                    "status": "error",
+                    "error": f"Failed to extract model archive for {raw_model_name}",
+                },
+                400,
+            )
+
+        # Clean up temporary tar.gz
+        try:
+            os.remove(tar_gz_path)
+        except Exception:
+            pass
+
+        AppLogger.info(
+            "Model %s archive extracted successfully to %s/pytorch/",
+            raw_model_name,
+            model_dir,
+        )
+
+        # Update config to point to pytorch subdirectory
+        pytorch_dir = os.path.join(model_dir, "pytorch")
+        pytorch_config_path = os.path.join(pytorch_dir, "config.json")
+        pytorch_weight_path = os.path.join(pytorch_dir, "weights.pt")
+
+        if not os.path.exists(pytorch_weight_path):
+            AppLogger.error(
+                "weights.pt not found in extracted archive for model %s", raw_model_name
+            )
+            safely_remove_directory(pytorch_dir, raw_model_name)
+            return (
+                {
+                    "status": "error",
+                    "error": f"Invalid model archive for {raw_model_name}: missing weights.pt",
+                },
+                400,
+            )
+
+        if not os.path.exists(pytorch_config_path):
+            AppLogger.error(
+                "config.json not found in extracted archive for model %s", raw_model_name
+            )
+            safely_remove_directory(pytorch_dir, raw_model_name)
+            return (
+                {
+                    "status": "error",
+                    "error": f"Invalid model archive for {raw_model_name}: missing config.json",
+                },
+                400,
+            )
+
+        model_config["model_path"] = pytorch_weight_path
+        model_config["config_path"] = pytorch_config_path
+
+        return None  # Success
+
+    except Exception as e:
+        AppLogger.error(
+            "Error handling tar.gz model for %s: %s", raw_model_name, str(e)
+        )
+        safely_remove_file(tar_gz_path, raw_model_name, "tar.gz archive")
+        # Clean up extracted files on error
+        try:
+            import shutil
+            pytorch_dir = os.path.join(model_dir, "pytorch")
+            if os.path.exists(pytorch_dir):
+                shutil.rmtree(pytorch_dir)
+                AppLogger.info("Cleaned up extracted pytorch directory on error")
+        except Exception as cleanup_error:
+            AppLogger.warning("Failed to cleanup pytorch directory: %s", cleanup_error)
+
+        return (
+            {
+                "status": "error",
+                "error": f"Error handling model archive: {e!s}",
+            },
+            500,
+        )
+
+
+def _save_pkl_model(raw_model_name, model_dir, config_file_path, model_config, model_file):
+    """Handle pkl sklearn model validation and storage.
+
+    Args:
+        raw_model_name: Model name for logging
+        model_dir: Directory to save model into
+        config_file_path: Path to config file for cleanup on error
+        model_config: Config dict to update with paths
+        model_file: FileStorage object
+
+    Returns:
+        error_response tuple if error, None if successful
+    """
+    pkl_file_name = raw_model_name + ".pkl"
+    pkl_file_path = str(os.path.join(model_dir, pkl_file_name))
+    model_config["model_path"] = pkl_file_path
+
+    # Save pkl file
+    try:
+        model_file.save(pkl_file_path)
+        AppLogger.info(
+            "Model %s pkl file saved to %s successfully",
+            raw_model_name,
+            pkl_file_path,
+        )
+    except Exception as e:
+        AppLogger.error(
+            "Error saving model %s pkl file: %s", raw_model_name, str(e)
+        )
+        safely_remove_file(config_file_path, raw_model_name, "config file")
+        safely_remove_file(pkl_file_path, raw_model_name, "pkl file")
+        return (
+            {
+                "status": "error",
+                "error": f"Error saving model {raw_model_name} pkl file: {e!s}",
+            },
+            500,
+        )
+
+    # Verify pkl file is readable and contains valid format
+    try:
+        data = joblib.load(pkl_file_path)
+
+        # Validate format: either direct model or dict with 'model' key
+        if isinstance(data, dict) and "model" in data:
+            model = data["model"]
+            # Accept any sklearn model (IsolationForest, OneClassSVM, etc.)
+            if not hasattr(model, "predict"):
+                raise ValueError(
+                    f"pkl file contains non-model object of type: {type(model).__name__}"
+                )
+        elif hasattr(data, "predict"):
+            # Direct model object
+            pass
+        else:
+            raise ValueError(
+                f"pkl file must contain a model or dict with 'model' key, got: {type(data).__name__}"
+            )
+
+        AppLogger.info("Model %s pkl file verified successfully", raw_model_name)
+        return None  # Success
+
+    except Exception as e:
+        AppLogger.error(
+            "Error verifying model %s pkl file: %s", raw_model_name, str(e)
+        )
+        safely_remove_file(config_file_path, raw_model_name, "config file")
+        safely_remove_file(pkl_file_path, raw_model_name, "pkl file")
+        return (
+            {"status": "error", "error": f"Invalid model pkl file: {e!s}"},
+            400,
+        )
 
 
 def _save_model_files_and_validate(
     raw_model_name, config_file_path, model_config, model_file
 ):
-    """Save configuration and pkl files, then validate pkl format.
+    """Save configuration and model files, then validate model format.
+
+    Dispatches to specialized handlers for different model types:
+    - pkl files (sklearn models)
+    - tar.gz archives (deep learning models)
 
     Returns:
         (error_response) where error_response is None on success
     """
-    pkl_file_path = None
     model_dir = os.path.dirname(config_file_path)
 
-    # Update model_path in config if pkl file is provided
+    # Handle model file if provided (may update model_config with model_path)
     if model_file:
-        pkl_file_name = raw_model_name + ".pkl"
-        pkl_file_path = str(os.path.join(model_dir, pkl_file_name))
-        model_config["model_path"] = pkl_file_path
+        filename = getattr(model_file, "filename", "")
+        error_response = None
 
-    # Save configuration file
+        # Detect file type and dispatch to appropriate handler
+        if filename.endswith(".tar.gz") or "application/gzip" in getattr(model_file, "content_type", ""):
+            # Handle tar.gz archive (deep learning models)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".tar.gz") as tmp:
+                model_file.save(tmp.name)
+                tar_gz_path = tmp.name
+
+            # _save_tar_gz_model() handles all cleanup on error
+            error_response = _save_tar_gz_model(
+                raw_model_name, model_dir, model_config, tar_gz_path
+            )
+
+        else:
+            # Handle pkl file (sklearn models)
+            error_response = _save_pkl_model(
+                raw_model_name, model_dir, config_file_path, model_config, model_file
+            )
+
+        if error_response:
+            return error_response
+
+    # Write config file once, after model_path has been set
     try:
         with open(config_file_path, "w", encoding="utf-8") as handle:
             handle.write(json.dumps(model_config))
@@ -188,61 +480,6 @@ def _save_model_files_and_validate(
             },
             500,
         )
-
-    # Save pkl file if provided
-    if model_file and pkl_file_path:
-        try:
-            model_file.save(pkl_file_path)
-            AppLogger.info(
-                "Model %s pkl file saved to %s successfully",
-                raw_model_name,
-                pkl_file_path,
-            )
-        except Exception as e:
-            AppLogger.error(
-                "Error saving model %s pkl file: %s", raw_model_name, str(e)
-            )
-            safely_remove_file(config_file_path, raw_model_name, "config file")
-            safely_remove_file(pkl_file_path, raw_model_name, "pkl file")
-            return (
-                {
-                    "status": "error",
-                    "error": f"Error saving model {raw_model_name} pkl file: {e!s}",
-                },
-                500,
-            )
-
-        # Verify pkl file is readable and contains valid format
-        try:
-            data = joblib.load(pkl_file_path)
-
-            # Validate format: either direct model or dict with 'model' key
-            if isinstance(data, dict) and "model" in data:
-                model = data["model"]
-                # Accept any sklearn model (IsolationForest, OneClassSVM, etc.)
-                if not hasattr(model, "predict"):
-                    raise ValueError(
-                        f"pkl file contains non-model object of type: {type(model).__name__}"
-                    )
-            elif hasattr(data, "predict"):
-                # Direct model object
-                pass
-            else:
-                raise ValueError(
-                    f"pkl file must contain a model or dict with 'model' key, got: {type(data).__name__}"
-                )
-
-            AppLogger.info("Model %s pkl file verified successfully", raw_model_name)
-        except Exception as e:
-            AppLogger.error(
-                "Error verifying model %s pkl file: %s", raw_model_name, str(e)
-            )
-            safely_remove_file(config_file_path, raw_model_name, "config file")
-            safely_remove_file(pkl_file_path, raw_model_name, "pkl file")
-            return (
-                {"status": "error", "error": f"Invalid model pkl file: {e!s}"},
-                400,
-            )
 
     return None
 
@@ -296,7 +533,7 @@ def do_deploy_dynamic_model(request):
     raw_model_name = payload.get("model_name")
 
     # Step 2: Validate model name and prepare directories
-    model_subdir, config_file_path, _, error_response = _validate_and_prepare_model_directory(
+    model_subdir, config_file_path, error_response = _validate_and_prepare_model_directory(
         raw_model_name, request.remote_addr
     )
     if error_response:
