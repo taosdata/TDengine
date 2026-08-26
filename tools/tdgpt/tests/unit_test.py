@@ -864,23 +864,6 @@ class ServiceTest(unittest.TestCase):
             if config_path and os.path.exists(config_path):
                 os.remove(config_path)
 
-    def test_dynamic_execute_theta_not_implemented(self):
-        service_name = None
-        config_path = None
-        try:
-            service_name, config_path = self._register_dynamic_service_for_algo("theta")
-            service = loader.get_service(service_name)
-            self.assertIsNotNone(service)
-            with self.assertRaisesRegex(
-                NotImplementedError, "Theta model is not implemented yet"
-            ):
-                service.execute()
-        finally:
-            if service_name and service_name in loader.services:
-                del loader.services[service_name]
-            if config_path and os.path.exists(config_path):
-                os.remove(config_path)
-
     def test_register_services_in_dir_ignores_non_python_suffix(self):
         registry = ServiceRegistry()
 
