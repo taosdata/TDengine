@@ -18,7 +18,7 @@ class ModelLoader:
         import joblib
 
         try:
-            AppLogger.info(f"start to load model from {model_path}")
+            AppLogger.info("start to load model from %s", model_path)
             data = joblib.load(model_path)
 
             # Handle both formats: direct model or dict with 'model' key
@@ -48,6 +48,36 @@ class ModelLoader:
         except Exception as e:
             AppLogger.error(
                 "failed to load model from pkl file %s: %s", model_path, str(e)
+            )
+            return None, None
+
+    @staticmethod
+    def load_pt_model(model_path: str) -> tuple:
+        """Load PyTorch model from .pth or .pt file.
+
+        Returns:
+            (state_dict, {}) tuple, or (None, None) on failure
+        """
+        import torch
+
+        try:
+            AppLogger.info("start to load PyTorch model from %s", model_path)
+            state_dict = torch.load(model_path, map_location="cpu", weights_only=True)
+
+            # Handle both formats: direct state_dict or wrapped in dict
+            if isinstance(state_dict, dict) and "model_state_dict" in state_dict:
+                state_dict = state_dict["model_state_dict"]
+            elif isinstance(state_dict, dict) and "state_dict" in state_dict:
+                state_dict = state_dict["state_dict"]
+
+            AppLogger.info("loaded PyTorch model state_dict with %d parameters", len(state_dict))
+            return state_dict, {}
+        except FileNotFoundError:
+            AppLogger.error("PyTorch model file not found at %s", model_path)
+            return None, None
+        except Exception as e:
+            AppLogger.error(
+                "failed to load PyTorch model from %s: %s", model_path, str(e)
             )
             return None, None
 
