@@ -11049,6 +11049,37 @@ TEST_F(StreamNestedRealtimeTest, NestedInputRetryClonesRoutePerAttempt) {
   EXPECT_GT(pReplacement->route.generation, generation);
 }
 
+TEST_F(StreamNestedRealtimeTest, NestedInputMissingTaskRetriesRoute) {
+  NestedRouteRuntimeFixture harness;
+  ASSERT_TRUE(harness.deployNestedVirtualPair());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startThroughPublicExecute());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveUntilNestedAttempts(2));
+
+  CapturedPullAttempt* pAttempt = harness.findNestedAttempt(0);
+  ASSERT_NE(nullptr, pAttempt);
+  const uint64_t                generation = pAttempt->route.generation;
+  const SStreamNestedInputRoute route = pAttempt->route;
+  NestedPullValue               request;
+  ASSERT_TRUE(captureNestedPullValue(*pAttempt, &request));
+  const int32_t       calcCountBeforeRetry = harness.calcSendCount();
+  const int32_t       noticeCountBeforeRetry = harness.noticeSendCount();
+  const EStreamStatus taskStatusBeforeRetry = harness.taskStatus();
+  const int32_t       taskErrorBeforeRetry = harness.taskErrorCode();
+
+  EXPECT_EQ(TSDB_CODE_SUCCESS, harness.respondError(*pAttempt, TSDB_CODE_STREAM_TASK_NOT_EXIST));
+  expectNoNestedRetrySideEffects(harness, calcCountBeforeRetry, noticeCountBeforeRetry, taskStatusBeforeRetry,
+                                 taskErrorBeforeRetry);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedRealtimeStart());
+  CapturedPullAttempt* pRetry = harness.findNestedAttempt(0, generation);
+  ASSERT_NE(nullptr, pRetry);
+  NestedPullValue retryRequest;
+  ASSERT_TRUE(captureNestedPullValue(*pRetry, &retryRequest));
+  expectNestedRouteEq(route, pRetry->route);
+  expectNestedPullValueEq(request, retryRequest);
+  EXPECT_EQ(2U, harness.nestedAttemptCountFor(0, generation));
+}
+
 enum class NestedHistoryPlan {
   SessionCount,
   SessionUnitCount,
@@ -24064,6 +24095,47 @@ TEST_F(StreamTriggerTaskManualRetryIntegrationTest, RealtimeReaderErrorKeepsLega
   EXPECT_EQ(gManualStreamErrorCalls, 0);
   ExpectNoManualRecalcJobs();
   tdListEmpty(&realtime_.retryPullReqs);
+}
+
+TEST_F(StreamTriggerTaskManualRetryIntegrationTest, RealtimeMissingTaskRetriesUntilBudgetThenFails) {
+  ExpectNoManualRecalcJobs();
+  ASSERT_EQ(ProcessRealtimeStart(), TSDB_CODE_SUCCESS);
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* ahandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  auto* request = static_cast<SSTriggerPullRequest*>(ahandle->param);
+  ASSERT_NE(nullptr, request);
+  EXPECT_EQ(ahandle->sessionId, kRealtimeSessionId);
+  EXPECT_EQ(ahandle->manualAttempt.chainId, 0U);
+  const int64_t readerTaskId = request->readerTaskId;
+  const uint32_t retryLimit = STREAM_PULL_TASK_NOT_EXIST_RETRY_LIMIT;
+
+  for (uint32_t i = 1; i <= retryLimit; ++i) {
+    int64_t errorTaskId = 0;
+    EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_STREAM_TASK_NOT_EXIST, &errorTaskId), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(errorTaskId, readerTaskId);
+    EXPECT_EQ(listNEles(&realtime_.retryPullReqs), 1);
+    EXPECT_EQ(TD_DLIST_NELES(&task_.backoffRecalcRequests), 0);
+    EXPECT_EQ(gManualStreamErrorCalls, 0);
+    ExpectNoManualRecalcJobs();
+
+    ASSERT_EQ(TSDB_CODE_SUCCESS, ProcessRealtimeStart());
+    ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+    ahandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+    request = static_cast<SSTriggerPullRequest*>(ahandle->param);
+    ASSERT_NE(nullptr, request);
+    EXPECT_EQ(ahandle->sessionId, kRealtimeSessionId);
+    EXPECT_EQ(ahandle->manualAttempt.chainId, 0U);
+    EXPECT_EQ(request->readerTaskId, readerTaskId);
+  }
+
+  int64_t errorTaskId = 0;
+  EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_STREAM_TASK_NOT_EXIST, &errorTaskId),
+            TSDB_CODE_STREAM_TASK_NOT_EXIST);
+  EXPECT_EQ(errorTaskId, readerTaskId);
+  EXPECT_EQ(listNEles(&realtime_.retryPullReqs), 0);
+  EXPECT_EQ(TD_DLIST_NELES(&task_.backoffRecalcRequests), 0);
+  EXPECT_EQ(gManualStreamErrorCalls, 0);
+  ExpectNoManualRecalcJobs();
 }
 
 TEST_F(StreamTriggerTaskManualRetryIntegrationTest, AutomaticRecalcReaderErrorKeepsLegacyRetryPath) {
