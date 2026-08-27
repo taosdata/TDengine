@@ -1656,6 +1656,7 @@ static int32_t scanAddCol(SLogicNode* pLogicNode, SColRef* colRef, STableNode* p
   SScanLogicNode *pLogicScan = (SScanLogicNode*)pLogicNode;
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pRefTableScanCol));
   if (colRef) {
+    tstrncpy(pRefTableScanCol->refSourceName, colRef->refSourceName, sizeof(pRefTableScanCol->refSourceName));
     tstrncpy(pRefTableScanCol->tableAlias, colRef->refTableName, sizeof(pRefTableScanCol->tableAlias));
     tstrncpy(pRefTableScanCol->dbName, colRef->refDbName, sizeof(pRefTableScanCol->dbName));
     tstrncpy(pRefTableScanCol->tableName, colRef->refTableName, sizeof(pRefTableScanCol->tableName));
@@ -1754,7 +1755,8 @@ static int32_t makeExtScanLogicNode(SLogicPlanContext* pCxt, SNode* pExtTableNod
                                     const char* dbName, const char* tableName,
                                     SScanLogicNode** ppScan) {
   SScanLogicNode* pScan = NULL;
-  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, (SNode**)&pScan);
+  SExtTableNode*  pExtNode = (SExtTableNode*)pExtTableNode;
+  int32_t         code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, (SNode**)&pScan);
   if (NULL == pScan) return code;
 
   pScan->scanType = SCAN_TYPE_EXTERNAL;
@@ -1767,6 +1769,9 @@ static int32_t makeExtScanLogicNode(SLogicPlanContext* pCxt, SNode* pExtTableNod
   pScan->fqPushdownFlags = 0;
   pScan->node.groupAction = GROUP_ACTION_NONE;
   pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+  if (NULL != pExtNode && NULL != pExtNode->pExtMeta) {
+    pScan->node.precision = pExtNode->pExtMeta->tsPrecision;
+  }
   TAOS_SET_OBJ_ALIGNED(&pScan->scanRange, TSWINDOW_INITIALIZER);
 
   pScan->tableName.type = TSDB_TABLE_NAME_T;
@@ -1989,6 +1994,7 @@ static int32_t addExtPrimaryTsCol(SScanLogicNode* pExtScan, SNodeList** pCols) {
   pTsCol->tableType = pExtScan->tableType;
   pTsCol->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
   pTsCol->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+  pTsCol->node.resType.precision = pExtScan->node.precision;
   pTsCol->colType = COLUMN_TYPE_COLUMN;
   pTsCol->isPrimTs = true;
   pTsCol->isPk = true;
@@ -2053,8 +2059,9 @@ static int32_t addExternalSubScanNodeByColRef(SLogicPlanContext* pCxt, SSelectSt
     PLAN_ERR_JRET(makeExtScanLogicNode(pCxt, (SNode*)pExtTableNode, pColRef->refDbName,
                                         pColRef->refTableName, &pExtScan));
     pExtScan->scanSeq[0] = pSelect->hasRepeatScanFuncs ? 2 : 1;
+    pExtScan->node.precision = pVirtualTable->pMeta->tableInfo.precision;
 
-    // Deserialize tag condition and set as pPushedConditions for remote WHERE clause.
+    // Deserialize the SERIES tag condition and merge it into the scan WHERE.
     // InfluxDB materializes missing tags as empty strings in SQL results, so when a
     // SERIES predates tag growth we pin every newly-appeared tag to ''.
     if (pColRef->tagCondLen > 0 && pColRef->tagCondJson) {
@@ -2064,7 +2071,7 @@ static int32_t addExternalSubScanNodeByColRef(SLogicPlanContext* pCxt, SSelectSt
         if (pExtTableNode->sourceType == EXT_SOURCE_INFLUXDB) {
           PLAN_ERR_JRET(extScanAugmentInfluxSeriesCond(&pTagCond, pExtTableNode->pExtMeta));
         }
-        pExtScan->pPushedConditions = pTagCond;
+        PLAN_ERR_JRET(nodesMergeNode(&pExtScan->node.pConditions, &pTagCond));
       }
     }
 
@@ -2221,6 +2228,7 @@ static int32_t makeVirtualScanLogicNode(SLogicPlanContext* pCxt, SVirtualTableNo
   pScan->tableId = pVirtualTable->pMeta->uid;
   pScan->stableId = pVirtualTable->pMeta->suid;
   pScan->tableType = pVirtualTable->pMeta->tableType;
+  pScan->node.precision = pVirtualTable->pMeta->tableInfo.precision;
   pScan->tableName.type = TSDB_TABLE_NAME_T;
   pScan->tableName.acctId = pCxt->pPlanCxt->acctId;
   tstrncpy(pScan->tableName.dbname, pVirtualTable->table.dbName, TSDB_DB_NAME_LEN);
@@ -2339,11 +2347,13 @@ static EDealRes syncVirtualTableColRefImpl(SNode* pNode, void* pContext) {
 
   if (NULL != pRef && pRef->hasRef) {
     pCol->hasRef = true;
+    tstrncpy(pCol->refSourceName, pRef->refSourceName, sizeof(pCol->refSourceName));
     tstrncpy(pCol->refDbName, pRef->refDbName, sizeof(pCol->refDbName));
     tstrncpy(pCol->refTableName, pRef->refTableName, sizeof(pCol->refTableName));
     tstrncpy(pCol->refColName, pRef->refColName, sizeof(pCol->refColName));
   } else {
     pCol->hasRef = false;
+    pCol->refSourceName[0] = '\0';
     pCol->refDbName[0] = '\0';
     pCol->refTableName[0] = '\0';
     pCol->refColName[0] = '\0';
@@ -2359,6 +2369,12 @@ static int32_t syncVirtualTableColRefs(SNodeList* pExprs, SVirtualTableNode* pVi
 
   SSyncVTableColRefCxt cxt = {.pVirtualTable = pVirtualTable};
   nodesWalkExprs(pExprs, syncVirtualTableColRefImpl, &cxt);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t syncVirtualTableStmtColRefs(SSelectStmt* pSelect, SVirtualTableNode* pVirtualTable) {
+  SSyncVTableColRefCxt cxt = {.pVirtualTable = pVirtualTable};
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, syncVirtualTableColRefImpl, &cxt);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3600,6 +3616,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   bool                    scanAllCols = true;
   SNode*                  pTagScan = NULL;
   SNodeList*              pTagRefCols = NULL;
+  SHashObj*               pRefTableNodeMap = NULL;  // For tagRef processing
 
   if (LIST_LENGTH(pVtableScan->pScanCols) == 0 && LIST_LENGTH(pVtableScan->pScanPseudoCols) == 0) {
     scanAllCols = false;
@@ -3648,8 +3665,6 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   // ====================================================================
   // Virtual super table can have tagRef in filter/order/group/projection clauses.
   // RefSource nodes are created to scan source tables for referenced tag values
-
-  SHashObj* pRefTableNodeMap = NULL;  // For tagRef processing
 
   // Initialize reference table node map for tagRef processing
   pRefTableNodeMap =
@@ -3823,6 +3838,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
       SScanLogicNode* pExtScan = NULL;
       PLAN_ERR_JRET(makeExtScanLogicNode(pCxt, (SNode*)pExtTableNode, NULL, NULL, &pExtScan));
       pExtScan->node.dynamicOp = true;
+      pExtScan->node.precision = pVtableScan->node.precision;
       pExtScan->virtualStableScan = true;
 
       pExtScan->node.pParent = (SLogicNode*)pVtableScan;
@@ -3848,6 +3864,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   // Dynamic query control node -> Virtual table scan node -> Real table scan node
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL, (SNode**)&pDynCtrl));
   pDynCtrl->qType = DYN_QTYPE_VTB_SCAN;
+  pDynCtrl->node.precision = pVtableScan->node.precision;
   pDynCtrl->vtbScan.scanAllCols = pVtableScan->scanAllCols;
   pDynCtrl->vtbScan.useTagScan = (pTagScan != NULL);
   if (pVtableScan->tableType == TSDB_SUPER_TABLE) {
@@ -4065,6 +4082,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   }
 
   PLAN_ERR_JRET(syncVirtualTablePrimaryTsRef(pVirtualTable));
+  PLAN_ERR_JRET(syncVirtualTableStmtColRefs(pSelect, pVirtualTable));
   PLAN_ERR_JRET(syncVirtualTableColRefs(pVtableScan->pScanCols, pVirtualTable));
   PLAN_ERR_JRET(syncVirtualTableColRefs(pVtableScan->pScanPseudoCols, pVirtualTable));
 
@@ -4324,6 +4342,10 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   SScanLogicNode* pOnlyRefScan = NULL;
   while ((pIter = taosHashIterate(pRefTablesMap, pIter))) {
     SScanLogicNode **pRefScanNode = (SScanLogicNode**)pIter;
+    if ((*pRefScanNode)->scanType != SCAN_TYPE_EXTERNAL &&
+        (*pRefScanNode)->node.precision != pVtableScan->node.precision) {
+      (*pRefScanNode)->outputTsPrecision = pVtableScan->node.precision;
+    }
     PLAN_ERR_JRET(createColumnByRewriteExprs((*pRefScanNode)->pScanCols, &(*pRefScanNode)->node.pTargets));
     PLAN_ERR_JRET(createColumnByRewriteExprs((*pRefScanNode)->pScanPseudoCols, &(*pRefScanNode)->node.pTargets));
     if (taosHashGetSize(pRefTablesMap) == 1) {
@@ -4340,7 +4362,8 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanCols, &pVtableScan->node.pTargets));
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanPseudoCols, &pVtableScan->node.pTargets));
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pRefTagCols, &pVtableScan->node.pTargets));
-  if (NULL != pOnlyRefScan && 1 == LIST_LENGTH(pVtableScan->node.pChildren) &&
+  if (NULL != pOnlyRefScan && SCAN_TYPE_EXTERNAL != pOnlyRefScan->scanType &&
+      1 == LIST_LENGTH(pVtableScan->node.pChildren) &&
       LIST_LENGTH(pOnlyRefScan->pScanCols) == LIST_LENGTH(pVtableScan->pScanCols) &&
       !hasUnrefCol &&
       pVirtualTable->pMeta->tableInfo.numOfColumns == LIST_LENGTH(pVtableScan->pScanCols) &&
@@ -5943,6 +5966,7 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
   pWindow->sliding = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->datum.i : pWindow->interval);
   pWindow->slidingUnit =
       (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
+  pWindow->hasFill = (NULL != pInterval->pFill);
   pWindow->firstDayOfWeek = (int8_t)pCxt->pPlanCxt->firstDayOfWeek;
   /* Non-owning alias — must not outlive the plan context. */
   pWindow->timezone = pCxt->pPlanCxt->timezone;

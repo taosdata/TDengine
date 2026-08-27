@@ -971,3 +971,31 @@ int32_t extTypeNameToTDengineType(EExtSourceType srcType, const char *extTypeNam
   }
   return code;
 }
+
+int8_t extTimestampTypePrecision(EExtSourceType srcType, const char *extTypeName,
+                                  int8_t fallbackPrecision) {
+  switch (srcType) {
+    case EXT_SOURCE_MYSQL:
+      if (extTypeName != NULL &&
+          (typeHasPrefix(extTypeName, "datetime") || typeHasPrefix(extTypeName, "timestamp") ||
+           typeHasPrefix(extTypeName, "date"))) {
+        return parseTypeLength(extTypeName) > 3 ? TSDB_TIME_PRECISION_MICRO : TSDB_TIME_PRECISION_MILLI;
+      }
+      break;
+    case EXT_SOURCE_POSTGRESQL:
+      if (extTypeName != NULL && typeHasPrefix(extTypeName, "timestamp")) {
+        const char* pParen = strchr(extTypeName, '(');
+        return pParen != NULL && parseTypeLength(extTypeName) <= 3 ? TSDB_TIME_PRECISION_MILLI
+                                                                   : TSDB_TIME_PRECISION_MICRO;
+      }
+      break;
+    case EXT_SOURCE_INFLUXDB:
+      return TSDB_TIME_PRECISION_NANO;
+    default:
+      break;
+  }
+
+  return fallbackPrecision >= TSDB_TIME_PRECISION_MILLI && fallbackPrecision <= TSDB_TIME_PRECISION_NANO
+             ? fallbackPrecision
+             : TSDB_TIME_PRECISION_MILLI;
+}

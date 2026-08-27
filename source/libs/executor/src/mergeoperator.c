@@ -18,10 +18,13 @@
 #include "operator.h"
 #include "querytask.h"
 #include "tdatablock.h"
+#include "tcompare.h"
 
 typedef struct SSortMergeInfo {
   SArray*        pSortInfo;
   SSortHandle*   pSortHandle;
+  SArray*        pSourceParams;
+  STimeWindow    inputTimeWindow;  // union of source block ranges, preserved across sort materialization
   STupleHandle*  prefetchedTuple;
   int32_t        bufPageSize;
   uint32_t       sortBufSize;  // max buffer size for in-memory sort
@@ -30,11 +33,17 @@ typedef struct SSortMergeInfo {
   SColMatchInfo  matchInfo;
 } SSortMergeInfo;
 
+typedef struct SSortMergeSourceParam {
+  SOperatorInfo* pOperator;
+  STimeWindow*   pInputTimeWindow;
+} SSortMergeSourceParam;
+
 typedef struct SNonSortMergeInfo {
   int32_t  lastSourceIdx;
   int32_t  sourceWorkIdx;
   int32_t  sourceNum;
   int32_t* pSourceStatus;
+  bool     detachParams;
 } SNonSortMergeInfo;
 
 typedef struct SColsMergeInfo {
@@ -61,19 +70,45 @@ typedef struct SMultiwayMergeOperatorInfo {
 static int32_t doSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 static int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 static int32_t doNonSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
+static int32_t resetMultiwayMergeOperState(SOperatorInfo* pOper);
 static int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 static int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock);
 
+static void destroySortMergeSourceParams(SSortMergeInfo* pInfo) {
+  if (pInfo->pSourceParams == NULL) {
+    return;
+  }
+
+  size_t numOfParams = taosArrayGetSize(pInfo->pSourceParams);
+  for (size_t i = 0; i < numOfParams; ++i) {
+    SSortMergeSourceParam** ppParam = taosArrayGet(pInfo->pSourceParams, i);
+    if (ppParam != NULL) {
+      taosMemoryFree(*ppParam);
+    }
+  }
+
+  taosArrayDestroy(pInfo->pSourceParams);
+  pInfo->pSourceParams = NULL;
+}
+
 int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
-  SOperatorInfo* pOperator = (SOperatorInfo*)param;
-  int32_t        code = TSDB_CODE_SUCCESS;
-  int32_t        lino = 0;
+  SSortMergeSourceParam* pSourceParam = param;
+  SOperatorInfo*         pOperator = pSourceParam->pOperator;
+  int32_t                code = TSDB_CODE_SUCCESS;
+  int32_t                lino = 0;
 
   code = pOperator->fpSet.getNextFn(pOperator, ppBlock);
   QUERY_CHECK_CODE(code, lino, _return);
 
   code = blockDataCheck(*ppBlock);
   QUERY_CHECK_CODE(code, lino, _return);
+
+  if (*ppBlock != NULL && (*ppBlock)->info.window.skey <= (*ppBlock)->info.window.ekey) {
+    pSourceParam->pInputTimeWindow->skey =
+        TMIN(pSourceParam->pInputTimeWindow->skey, (*ppBlock)->info.window.skey);
+    pSourceParam->pInputTimeWindow->ekey =
+        TMAX(pSourceParam->pInputTimeWindow->ekey, (*ppBlock)->info.window.ekey);
+  }
 
   return code;
 _return:
@@ -91,6 +126,10 @@ int32_t openSortMergeOperator(SOperatorInfo* pOperator) {
   int32_t                     numOfBufPage = (int32_t)pSortMergeInfo->sortBufSize / pSortMergeInfo->bufPageSize;
 
   pSortMergeInfo->pSortHandle = NULL;
+  pSortMergeInfo->inputTimeWindow = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN};
+  pSortMergeInfo->pSourceParams = taosArrayInit(pOperator->numOfDownstream, POINTER_BYTES);
+  QUERY_CHECK_NULL(pSortMergeInfo->pSourceParams, code, lino, _return, terrno);
+
   code = tsortCreateSortHandle(pSortMergeInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pSortMergeInfo->bufPageSize,
                                numOfBufPage, pSortMergeInfo->pInputBlock, pTaskInfo->id.str, 0, 0, 0, &pSortMergeInfo->pSortHandle);
   QUERY_CHECK_CODE(code, lino, _return);
@@ -100,6 +139,10 @@ int32_t openSortMergeOperator(SOperatorInfo* pOperator) {
 
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
     SOperatorInfo* pDownstream = pOperator->pDownstream[i];
+    if (NULL != pOperator->pOperatorGetParam && NULL != pOperator->pDownstreamGetParams &&
+        NULL == pOperator->pDownstreamGetParams[i]) {
+      continue;
+    }
     if (pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
       code = pDownstream->fpSet._openFn(pDownstream);
       QUERY_CHECK_CODE(code, lino, _return);
@@ -107,15 +150,33 @@ int32_t openSortMergeOperator(SOperatorInfo* pOperator) {
         pDownstream->pOperatorGetParam = pOperator->pDownstreamGetParams[i];
         pOperator->pDownstreamGetParams[i] = NULL;
       }
+    } else if (pOperator->pDownstreamGetParams && pOperator->pDownstreamGetParams[i]) {
+      code = setOperatorParams(pDownstream, pOperator->pDownstreamGetParams[i], OP_GET_PARAM);
+      QUERY_CHECK_CODE(code, lino, _return);
+      pOperator->pDownstreamGetParams[i] = NULL;
+    }
+
+    SSortMergeSourceParam* pSourceParam = taosMemoryCalloc(1, sizeof(SSortMergeSourceParam));
+    QUERY_CHECK_NULL(pSourceParam, code, lino, _return, terrno);
+    pSourceParam->pOperator = pDownstream;
+    pSourceParam->pInputTimeWindow = &pSortMergeInfo->inputTimeWindow;
+    if (taosArrayPush(pSortMergeInfo->pSourceParams, &pSourceParam) == NULL) {
+      taosMemoryFree(pSourceParam);
+      code = terrno;
+      lino = __LINE__;
+      goto _return;
     }
 
     SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
     QUERY_CHECK_NULL(ps, code, lino, _return, terrno);
 
-    ps->param = pDownstream;
+    ps->param = pSourceParam;
     ps->onlyRef = true;
 
     code = tsortAddSource(pSortMergeInfo->pSortHandle, ps);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(ps);
+    }
     QUERY_CHECK_CODE(code, lino, _return);
   }
 
@@ -293,6 +354,9 @@ int32_t doSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       pDataBlock->info.id.baseGId = p->info.id.baseGId;
     }
     pDataBlock->info.dataLoad = 1;
+    if (pSortMergeInfo->inputTimeWindow.skey <= pSortMergeInfo->inputTimeWindow.ekey) {
+      pDataBlock->info.window = pSortMergeInfo->inputTimeWindow;
+    }
   }
 
   qDebug("%s get sorted block, groupId:0x%" PRIx64 " rows:%" PRId64 , GET_TASKID(pTaskInfo), pDataBlock->info.id.groupId,
@@ -331,31 +395,56 @@ void destroySortMergeOperatorInfo(void* param) {
   taosArrayDestroy(pSortMergeInfo->matchInfo.pList);
 
   tsortDestroySortHandle(pSortMergeInfo->pSortHandle);
+  destroySortMergeSourceParams(pSortMergeInfo);
   taosArrayDestroy(pSortMergeInfo->pSortInfo);
 }
 
 #define NON_SORT_NEXT_SRC(_info, _idx) ((++(_idx) >= (_info)->sourceNum) ? ((_info)->sourceWorkIdx) : (_idx))
 
 int32_t openNonSortMergeOperator(SOperatorInfo* pOperator) {
+  int32_t                     code = TSDB_CODE_SUCCESS;
+  int32_t                     lino = 0;
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*              pTaskInfo = pOperator->pTaskInfo;
   SNonSortMergeInfo*          pNonSortMergeInfo = &pInfo->nsortMergeInfo;
 
   pNonSortMergeInfo->sourceWorkIdx = 0;
-  pNonSortMergeInfo->sourceNum = pOperator->numOfDownstream;
+  SMergeOperatorParam* pMergeParam =
+      NULL != pOperator->pOperatorGetParam ? pOperator->pOperatorGetParam->value : NULL;
+  bool dynamicParam = NULL != pMergeParam && pMergeParam->activeSourcesOnly;
+  pNonSortMergeInfo->detachParams = dynamicParam;
+  pNonSortMergeInfo->sourceNum = 0;
   pNonSortMergeInfo->lastSourceIdx = -1;
-  pNonSortMergeInfo->pSourceStatus =
-      taosMemoryCalloc(pOperator->numOfDownstream, sizeof(*pNonSortMergeInfo->pSourceStatus));
-  if (NULL == pNonSortMergeInfo->pSourceStatus) {
-    pTaskInfo->code = terrno;
-    return pTaskInfo->code;
+  int32_t activeSources = dynamicParam ? 0 : pOperator->numOfDownstream;
+  if (dynamicParam) {
+    for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+      if (NULL != pOperator->pDownstreamGetParams &&
+          NULL != pOperator->pDownstreamGetParams[i]) {
+        ++activeSources;
+      }
+    }
+  }
+  if (activeSources > 0) {
+    pNonSortMergeInfo->pSourceStatus =
+        taosMemoryCalloc(activeSources, sizeof(*pNonSortMergeInfo->pSourceStatus));
+    QUERY_CHECK_NULL(pNonSortMergeInfo->pSourceStatus, code, lino, _return, terrno);
   }
 
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
-    pNonSortMergeInfo->pSourceStatus[i] = i;
+    if (dynamicParam &&
+        (NULL == pOperator->pDownstreamGetParams ||
+         NULL == pOperator->pDownstreamGetParams[i])) {
+      continue;
+    }
+    pNonSortMergeInfo->pSourceStatus[pNonSortMergeInfo->sourceNum++] = i;
   }
 
-  return 0;
+  return code;
+
+_return:
+  qError("%s %s failed at line %d since %s", GET_TASKID(pTaskInfo), __func__, lino, tstrerror(code));
+  pTaskInfo->code = code;
+  return code;
 }
 
 int32_t doNonSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
@@ -372,7 +461,9 @@ int32_t doNonSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   int32_t idx = NON_SORT_NEXT_SRC(pNonSortMerge, pNonSortMerge->lastSourceIdx);
   while (idx < pNonSortMerge->sourceNum) {
-    pBlock = getNextBlockFromDownstream(pOperator, pNonSortMerge->pSourceStatus[idx]);
+    pBlock = pNonSortMerge->detachParams
+                 ? getNextBlockFromDownstreamRemainDetach(pOperator, pNonSortMerge->pSourceStatus[idx])
+                 : getNextBlockFromDownstream(pOperator, pNonSortMerge->pSourceStatus[idx]);
     if (NULL == pBlock) {
       TSWAP(pNonSortMerge->pSourceStatus[pNonSortMerge->sourceWorkIdx], pNonSortMerge->pSourceStatus[idx]);
       pNonSortMerge->sourceWorkIdx++;
@@ -407,6 +498,158 @@ int32_t openColsMergeOperator(SOperatorInfo* pOperator) {
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Dynamic external windows emit one partial row for every requested window,
+ * including a NULL placeholder when a source has no data in that window.
+ * Interleave those already-aligned rows by window so the merge ExternalWindow
+ * can consume all partial states for one window contiguously without a sort.
+ */
+static int32_t appendVtableAlignedPartialRows(SSDataBlock* pDst, SSDataBlock** pSources,
+                                              int32_t sourceNum, int32_t windowNum) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  QUERY_CHECK_NULL(pDst, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pSources, code, lino, _return, TSDB_CODE_INVALID_PARA);
+
+  int32_t activeSourceNum = 0;
+  size_t  outputColNum = taosArrayGetSize(pDst->pDataBlock);
+  for (int32_t sourceIdx = 0; sourceIdx < sourceNum; ++sourceIdx) {
+    SSDataBlock* pSource = pSources[sourceIdx];
+    if (pSource == NULL) {
+      continue;
+    }
+    QUERY_CHECK_CONDITION(pSource->info.rows == windowNum, code, lino, _return,
+                          TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    QUERY_CHECK_CONDITION(taosArrayGetSize(pSource->pDataBlock) == outputColNum,
+                          code, lino, _return, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    for (int32_t colIdx = 0; colIdx < outputColNum; ++colIdx) {
+      SColumnInfoData* pDstCol = taosArrayGet(pDst->pDataBlock, colIdx);
+      SColumnInfoData* pSrcCol = taosArrayGet(pSource->pDataBlock, colIdx);
+      QUERY_CHECK_NULL(pDstCol, code, lino, _return, terrno);
+      QUERY_CHECK_NULL(pSrcCol, code, lino, _return, terrno);
+      QUERY_CHECK_CONDITION(pDstCol->info.type == pSrcCol->info.type &&
+                                pDstCol->info.bytes == pSrcCol->info.bytes,
+                            code, lino, _return, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    }
+    ++activeSourceNum;
+  }
+
+  int64_t outputRowNum = (int64_t)windowNum * activeSourceNum;
+  QUERY_CHECK_CONDITION(outputRowNum <= INT32_MAX, code, lino, _return,
+                        TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  code = blockDataEnsureCapacity(pDst, (int32_t)outputRowNum);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  for (int32_t windowIdx = 0; windowIdx < windowNum; ++windowIdx) {
+    for (int32_t sourceIdx = 0; sourceIdx < sourceNum; ++sourceIdx) {
+      SSDataBlock* pSource = pSources[sourceIdx];
+      if (pSource == NULL) {
+        continue;
+      }
+      code = blockDataMergeNRows(pDst, pSource, windowIdx, 1);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+  }
+  return code;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+typedef struct SVtableFedPrefetchTask {
+  SOperatorInfo*  pOperator;
+  SOperatorParam* pParam;
+  TdThread        thread;
+  int32_t         code;
+  bool            started;
+} SVtableFedPrefetchTask;
+
+static bool getVtableFedPrefetchInput(SOperatorInfo* pExtWin, SOperatorParam* pExtParam,
+                                      SOperatorInfo** ppFedScan, SOperatorParam** ppFedParam) {
+  if (pExtWin == NULL || pExtParam == NULL || pExtWin->numOfDownstream != 1 ||
+      pExtWin->pDownstream[0] == NULL ||
+      pExtWin->pDownstream[0]->operatorType != QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN ||
+      pExtParam->pChildren == NULL || taosArrayGetSize(pExtParam->pChildren) != 1) {
+    return false;
+  }
+
+  SOperatorParam* pFedParam = taosArrayGetP(pExtParam->pChildren, 0);
+  if (pFedParam == NULL || pFedParam->opType != QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN ||
+      pFedParam->downstreamIdx == -1 || pFedParam->pChildren != NULL || pFedParam->value == NULL ||
+      ((SForeignScanOperatorParam*)pFedParam->value)->paramType != FOREIGN_SCAN_PARAM_BATCH) {
+    return false;
+  }
+
+  *ppFedScan = pExtWin->pDownstream[0];
+  *ppFedParam = pFedParam;
+  return true;
+}
+
+static void* vtableFedPrefetchThread(void* pData) {
+  SVtableFedPrefetchTask* pTask = pData;
+  pTask->code = federatedScanPrefetch(pTask->pOperator, pTask->pParam);
+  return NULL;
+}
+
+static int32_t prefetchVtableFederatedSources(SOperatorInfo* pOperator) {
+  SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
+  SColsMergeInfo*             pColsMerge = &pInfo->colsMergeInfo;
+  SVtableFedPrefetchTask*     pTasks = NULL;
+  int32_t                     code = TSDB_CODE_SUCCESS;
+  int32_t                     candidateNum = 0;
+
+  pTasks = taosMemoryCalloc(pColsMerge->sourceNum, sizeof(*pTasks));
+  if (pTasks == NULL) {
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < pColsMerge->sourceNum; ++i) {
+    if (pOperator->pDownstreamGetParams == NULL || pOperator->pDownstreamGetParams[i] == NULL) {
+      continue;
+    }
+    if (getVtableFedPrefetchInput(pOperator->pDownstream[i],
+                                  pOperator->pDownstreamGetParams[i],
+                                  &pTasks[i].pOperator, &pTasks[i].pParam)) {
+      ++candidateNum;
+    }
+  }
+
+  if (candidateNum <= 1) {
+    taosMemoryFree(pTasks);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < pColsMerge->sourceNum; ++i) {
+    if (pTasks[i].pOperator == NULL) {
+      continue;
+    }
+    pTasks[i].code = taosThreadCreate(&pTasks[i].thread, NULL, vtableFedPrefetchThread, &pTasks[i]);
+    if (pTasks[i].code != TSDB_CODE_SUCCESS) {
+      code = pTasks[i].code;
+      break;
+    }
+    pTasks[i].started = true;
+  }
+
+  for (int32_t i = 0; i < pColsMerge->sourceNum; ++i) {
+    if (!pTasks[i].started) {
+      continue;
+    }
+    int32_t joinCode = taosThreadJoin(pTasks[i].thread, NULL);
+    if (code == TSDB_CODE_SUCCESS && joinCode != TSDB_CODE_SUCCESS) {
+      code = joinCode;
+    }
+    if (code == TSDB_CODE_SUCCESS && pTasks[i].code != TSDB_CODE_SUCCESS) {
+      code = pTasks[i].code;
+      federatedScanPropagatePrefetchError(pTasks[i].pOperator, code);
+    }
+  }
+
+  taosMemoryFree(pTasks);
+  return code;
+}
+
 int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   QRY_PARAM_CHECK(pResBlock);
 
@@ -420,12 +663,16 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   STimeWindow                 timeWindow = {.skey = INT64_MAX, .ekey = INT64_MIN};
   bool                        allNull = true;
   bool                        isVtableMerge = false;
+  bool                        mergeSameCols = false;
+  SSDataBlock**               pSourceBlocks = NULL;
 
   if (pOperator->pOperatorGetParam) {
     if (pOperator->status == OP_EXEC_DONE) {
       pOperator->status = OP_OPENED;
     }
-    numOfRows = ((SMergeOperatorParam*)(pOperator->pOperatorGetParam)->value)->winNum;
+    SMergeOperatorParam* pParam = pOperator->pOperatorGetParam->value;
+    numOfRows = pParam->winNum;
+    mergeSameCols = pParam->mergeSameCols;
     freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
     pOperator->pOperatorGetParam = NULL;
     isVtableMerge = true;
@@ -436,11 +683,24 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   qDebug("start to merge columns, %s", GET_TASKID(pTaskInfo));
   blockDataCleanup(pInfo->binfo.pRes);
-  code = blockDataEnsureCapacity(pInfo->binfo.pRes, numOfRows);
+  int64_t maxOutputRows = mergeSameCols ? (int64_t)numOfRows * pColsMerge->sourceNum : numOfRows;
+  QUERY_CHECK_CONDITION(maxOutputRows <= INT32_MAX, code, lino, _return,
+                        TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  code = blockDataEnsureCapacity(pInfo->binfo.pRes, (int32_t)maxOutputRows);
   QUERY_CHECK_CODE(code, lino, _return);
+  if (mergeSameCols) {
+    pSourceBlocks = taosMemoryCalloc(pColsMerge->sourceNum, POINTER_BYTES);
+    QUERY_CHECK_NULL(pSourceBlocks, code, lino, _return, terrno);
+    code = prefetchVtableFederatedSources(pOperator);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
 
   for (int32_t i = 0; i < pColsMerge->sourceNum; ++i) {
+    pBlock = NULL;
     if (isVtableMerge) {
+      if (pOperator->pDownstreamGetParams != NULL && pOperator->pDownstreamGetParams[i] == NULL) {
+        continue;
+      }
       SOperatorInfo*  pExtWinOp = pOperator->pDownstream[i];
       SOperatorParam* pParam = pOperator->pDownstreamGetParams[i];
       code = pExtWinOp->fpSet.getNextExtFn(pExtWinOp, pParam, &pBlock);
@@ -449,14 +709,25 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       QUERY_CHECK_CODE(code, lino, _return);
       if (pBlock) {
         printDataBlock(pBlock, __func__, "colsMerge", pTaskInfo->id.queryId);
-        code = copyColumnsValue(pColsMerge->pTargets, pColsMerge->srcBlkIds[i], pInfo->binfo.pRes, pBlock, numOfRows);
-        QUERY_CHECK_CODE(code, lino, _return);
+        if (mergeSameCols) {
+          pSourceBlocks[i] = pBlock;
+        } else {
+          code = copyColumnsValue(pColsMerge->pTargets, pColsMerge->srcBlkIds[i],
+                                  pInfo->binfo.pRes, pBlock, numOfRows);
+          QUERY_CHECK_CODE(code, lino, _return);
+        }
 
         timeWindow.skey = TMIN(timeWindow.skey, pBlock->info.window.skey);
         timeWindow.ekey = TMAX(timeWindow.ekey, pBlock->info.window.ekey);
+        if (allNull) {
+          pInfo->binfo.pRes->info.id.groupId = pBlock->info.id.groupId;
+          pInfo->binfo.pRes->info.id.baseGId = pBlock->info.id.baseGId;
+          pInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
+        }
         allNull = false;
-      } else {
-        code = copyColumnsValue(pColsMerge->pTargets, pColsMerge->srcBlkIds[i], pInfo->binfo.pRes, pBlock, numOfRows);
+      } else if (!mergeSameCols) {
+        code = copyColumnsValue(pColsMerge->pTargets, pColsMerge->srcBlkIds[i],
+                                pInfo->binfo.pRes, NULL, numOfRows);
         QUERY_CHECK_CODE(code, lino, _return);
       }
     } else {
@@ -471,16 +742,27 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   setOperatorCompleted(pOperator);
   if (allNull) {
+    taosMemoryFree(pSourceBlocks);
     return code;
+  }
+
+  if (mergeSameCols) {
+    code = appendVtableAlignedPartialRows(pInfo->binfo.pRes, pSourceBlocks,
+                                          pColsMerge->sourceNum, numOfRows);
+    QUERY_CHECK_CODE(code, lino, _return);
+  } else {
+    pInfo->binfo.pRes->info.rows = numOfRows;
   }
 
   pInfo->binfo.pRes->info.window.skey = timeWindow.skey;
   pInfo->binfo.pRes->info.window.ekey = timeWindow.ekey;
-  pInfo->binfo.pRes->info.rows = numOfRows;
+  pInfo->binfo.pRes->info.dataLoad = 1;
   *pResBlock = pInfo->binfo.pRes;
+  taosMemoryFree(pSourceBlocks);
 
   return code;
 _return:
+  taosMemoryFree(pSourceBlocks);
   qError("failed to merge columns, line:%d code:%s", lino, tstrerror(code));
   return code;
 }
@@ -539,13 +821,27 @@ int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
+  SMergeOperatorParam* pMergeParam =
+      NULL != pOperator->pOperatorGetParam ? pOperator->pOperatorGetParam->value : NULL;
+  bool scopedRowMerge = MERGE_TYPE_NON_SORT == pInfo->type && NULL != pMergeParam &&
+                        pMergeParam->activeSourcesOnly;
+
+  if (scopedRowMerge && OPTR_IS_OPENED(pOperator)) {
+    code = resetMultiwayMergeOperState(pOperator);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
 
   code = pOperator->fpSet._openFn(pOperator);
-  QUERY_CHECK_CODE(code, lino, _end);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  if (scopedRowMerge) {
+    freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
+    pOperator->pOperatorGetParam = NULL;
+  }
 
   if (NULL != gMultiwayMergeFps[pInfo->type].getNextFn) {
     code = (*gMultiwayMergeFps[pInfo->type].getNextFn)(pOperator, pResBlock);
-    QUERY_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _return);
   }
 
   /*
@@ -572,14 +868,14 @@ int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   if ((*pResBlock) != NULL) {
     code = blockDataCheck(*pResBlock);
-    QUERY_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _return);
   } else {
     setOperatorCompleted(pOperator);
   }
 
-_end:
+_return:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s %s failed at line %d since %s", GET_TASKID(pTaskInfo), __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
@@ -632,6 +928,7 @@ static int32_t resetMultiwayMergeOperState(SOperatorInfo* pOper) {
 
       tsortDestroySortHandle(pSortMergeInfo->pSortHandle);
       pSortMergeInfo->pSortHandle = NULL;
+      destroySortMergeSourceParams(pSortMergeInfo);
       pSortMergeInfo->prefetchedTuple = NULL;
 
       pInfo->limitInfo = (SLimitInfo){0};
@@ -639,6 +936,7 @@ static int32_t resetMultiwayMergeOperState(SOperatorInfo* pOper) {
       break;
     }
     case MERGE_TYPE_NON_SORT: {
+      taosMemoryFree(pInfo->nsortMergeInfo.pSourceStatus);
       pInfo->nsortMergeInfo = (SNonSortMergeInfo){0};
       break;
     }

@@ -69,11 +69,15 @@ class _AlterLocalTimezoneMixin:
         """UTC±N POSIX style should be accepted."""
         valid_utc = [
             'UTC',
+            'utc',
+            'Utc',
             'UTC0',
             'UTC8',
             'UTC8:30',
             'UTC-8',
+            'utc-8',
             'UTC+10',
+            'Utc+10',
             'UTC-0',
             'UTC+0',
             # The UTC prefix is case-insensitive.

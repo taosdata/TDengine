@@ -51,10 +51,72 @@ prune_toolchain_runtime_libs() {
   done
 }
 
+resolve_darwin_dep() {
+  local dep=$1
+  local owner=$2
+  local owner_dir
+  local rpath
+  local candidate
+
+  case "${dep}" in
+    /*)
+      printf '%s\n' "${dep}"
+      return 0
+      ;;
+  esac
+
+  owner_dir="$(dirname "${owner}")"
+  case "${dep}" in
+    @loader_path/*)
+      candidate="${owner_dir}/${dep#@loader_path/}"
+      ;;
+    @rpath/*)
+      while IFS= read -r rpath; do
+        case "${rpath}" in
+          @loader_path)
+            rpath="${owner_dir}"
+            ;;
+          @loader_path/*)
+            rpath="${owner_dir}/${rpath#@loader_path/}"
+            ;;
+          /*)
+            ;;
+          *)
+            continue
+            ;;
+        esac
+
+        candidate="${rpath}/${dep#@rpath/}"
+        if [ -e "${candidate}" ]; then
+          printf '%s\n' "${candidate}"
+          return 0
+        fi
+      done < <(otool -l "${owner}" | awk '
+        $1 == "cmd" && $2 == "LC_RPATH" { in_rpath = 1; next }
+        in_rpath && $1 == "path" { print $2; in_rpath = 0 }
+      ')
+
+      candidate="${owner_dir}/${dep#@rpath/}"
+      if [ -e "${candidate}" ]; then
+        printf '%s\n' "${candidate}"
+        return 0
+      fi
+      return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  [ -e "${candidate}" ] || return 1
+  printf '%s\n' "${candidate}"
+}
+
 copy_ldd() {
   local src_lib=$1
   local dst_dir=$2
   local dep=""
+  local raw_dep=""
   local cur=""
   local seen=""
   local queue=("${src_lib}")
@@ -65,8 +127,9 @@ copy_ldd() {
       cur="${queue[0]}"
       queue=("${queue[@]:1}")
       otool -L "${cur}" >/dev/null 2>&1 || continue
-      while IFS= read -r dep; do
-        [ -n "${dep}" ] || continue
+      while IFS= read -r raw_dep; do
+        [ -n "${raw_dep}" ] || continue
+        dep="$(resolve_darwin_dep "${raw_dep}" "${cur}")" || continue
         [ "$(basename "${dep}")" = "$(basename "${cur}")" ] && continue
         should_skip_ldd_dep "${dep}" && continue
         [ -e "${dep}" ] || continue
@@ -76,7 +139,7 @@ copy_ldd() {
         seen="${seen}|${dep}|"
         copy_to_dir "${dep}" "${dst_dir}"
         queue+=("${dep}")
-      done < <(otool -L "${cur}" | awk 'NR > 1 && $1 ~ /^\// {print $1}' | sort -u)
+      done < <(otool -L "${cur}" | awk 'NR > 1 {print $1}' | sort -u)
     done
     prune_toolchain_runtime_libs "${dst_dir}"
     return 0

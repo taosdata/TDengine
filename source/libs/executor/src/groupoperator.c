@@ -2391,8 +2391,16 @@ STATIC_EXCEPT_TEST void doHashPartition(SOperatorInfo* pOperator,
             }
           }
 
-          QUERY_CHECK_CONDITION((contentLen <= reservedBytes), code, lino, _end,
-                                TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+          if (contentLen > reservedBytes) {
+            qError("%s variable column exceeds partition page width: row:%d expr:%d slot:%d srcType:%d "
+                   "srcBytes:%d dstType:%d dstBytes:%d content:%d reserved:%d",
+                   __func__, j, i, slotId, pSrcColInfoData->info.type,
+                   pSrcColInfoData->info.bytes, pDstColInfoData->info.type,
+                   pDstColInfoData->info.bytes, contentLen, reservedBytes);
+            code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+            lino = __LINE__;
+            goto _end;
+          }
           QUERY_CHECK_CONDITION(
               ((*columnLen) + contentLen <= reservedBytes * rowCapacity),
               code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);

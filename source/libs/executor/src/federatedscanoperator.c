@@ -23,6 +23,8 @@
 //   - Propagate errors (including remote error strings) to pTaskInfo->extErrMsg
 //   - Release all resources in close
 
+#include <ctype.h>
+
 #include "executorInt.h"
 #include "extTypeMap.h"
 #include "extError.h"
@@ -31,6 +33,7 @@
 #include "query.h"
 #include "querytask.h"
 #include "tdatablock.h"
+#include "tcompare.h"
 #include "tglobal.h"
 #include "ttime.h"
 #include "nodes.h"
@@ -38,6 +41,8 @@
 // ---------------------------------------------------------------------------
 // Static helpers
 // ---------------------------------------------------------------------------
+
+enum { FED_SCAN_RESULT_BLOCK_ROWS = 4096 };
 
 // Map EExtSourceType to a human-readable string for logging and EXPLAIN output.
 static const char* fedScanSourceTypeName(int8_t srcType) {
@@ -47,6 +52,179 @@ static const char* fedScanSourceTypeName(int8_t srcType) {
     case EXT_SOURCE_INFLUXDB:   return "influxdb";
     default:                    return "unknown";
   }
+}
+
+static int32_t fedScanFindVstbOutputIndex(const SFederatedScanPhysiNode* pScan, col_id_t colId,
+                                          bool primaryTs) {
+  int32_t index = 0;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pScan->pScanCols) {
+    const SNode* pExpr = pNode;
+    if (QUERY_NODE_TARGET == nodeType((SNode*)pExpr)) {
+      pExpr = ((STargetNode*)pExpr)->pExpr;
+    }
+    if (NULL != pExpr && QUERY_NODE_COLUMN == nodeType((SNode*)pExpr)) {
+      const SColumnNode* pCol = (const SColumnNode*)pExpr;
+      if ((primaryTs && (pCol->isPrimTs || PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId)) ||
+          (!primaryTs && pCol->colId == colId)) {
+        return index;
+      }
+    } else if (!primaryTs && 0 == colId && NULL != pExpr &&
+               QUERY_NODE_FUNCTION == nodeType((SNode*)pExpr) &&
+               FUNCTION_TYPE_TBNAME == ((const SFunctionNode*)pExpr)->funcType) {
+      // VStableAgg preserves TBNAME as a fixed pseudo-function scan slot,
+      // while the runtime tag payload addresses it with the logical cid 0.
+      return index;
+    }
+    ++index;
+  }
+  return -1;
+}
+
+static int32_t fedScanGetVstbOutputType(const SFederatedScanPhysiNode* pScan, col_id_t colId,
+                                        bool primaryTs, SDataType* pType) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  QUERY_CHECK_NULL(pScan, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pType, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pScan->node.pOutputDataBlockDesc, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pScan->node.pOutputDataBlockDesc->pSlots, code, lino, _return, TSDB_CODE_INVALID_PARA);
+
+  int32_t outputIdx = fedScanFindVstbOutputIndex(pScan, colId, primaryTs);
+  if (outputIdx < 0 && primaryTs && LIST_LENGTH(pScan->node.pOutputDataBlockDesc->pSlots) > 0) {
+    outputIdx = 0;
+  }
+  SSlotDescNode* pSlot = outputIdx >= 0
+                             ? (SSlotDescNode*)nodesListGetNode(pScan->node.pOutputDataBlockDesc->pSlots, outputIdx)
+                             : NULL;
+  QUERY_CHECK_NULL(pSlot, code, lino, _return, TSDB_CODE_PLAN_SLOT_NOT_FOUND);
+  *pType = pSlot->dataType;
+  return code;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+static int32_t fedScanNormalizeVstbBlock(SFederatedScanOperatorInfo* pInfo, SSDataBlock* pInput,
+                                         SSDataBlock** ppOutput) {
+  SForeignScanOperatorParam* pParam = pInfo->pActiveVStbParam;
+  if (NULL == pParam || NULL == pParam->colMap || NULL == pInfo->pFedScanNode->pScanCols ||
+      NULL == pInfo->pFedScanNode->node.pOutputDataBlockDesc) {
+    *ppOutput = pInput;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  int32_t      rows = (int32_t)pInput->info.rows;
+  char*        pVarValue = NULL;
+  SSDataBlock* pOutput = createDataBlockFromDescNode(pInfo->pFedScanNode->node.pOutputDataBlockDesc);
+  QUERY_CHECK_NULL(pOutput, code, lino, _return, terrno);
+  QUERY_CHECK_CODE(blockDataEnsureCapacity(pOutput, rows), lino, _return);
+
+  int32_t outputCols = (int32_t)taosArrayGetSize(pOutput->pDataBlock);
+  for (int32_t i = 0; i < outputCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pOutput->pDataBlock, i);
+    QUERY_CHECK_NULL(pCol, code, lino, _return, terrno);
+    colDataSetNItemsNull(pCol, 0, rows);
+  }
+
+  int32_t tsOutput = fedScanFindVstbOutputIndex(pInfo->pFedScanNode, PRIMARYKEY_TIMESTAMP_COL_ID, true);
+  if (tsOutput < 0 && outputCols > 0) {
+    tsOutput = 0;
+  }
+  if (tsOutput >= 0 && taosArrayGetSize(pInput->pDataBlock) > 0) {
+    SColumnInfoData* pSrc = taosArrayGet(pInput->pDataBlock, 0);
+    SColumnInfoData* pDst = taosArrayGet(pOutput->pDataBlock, tsOutput);
+    QUERY_CHECK_NULL(pSrc, code, lino, _return, terrno);
+    QUERY_CHECK_NULL(pDst, code, lino, _return, terrno);
+    QUERY_CHECK_CODE(colDataAssign(pDst, pSrc, rows, &pOutput->info), lino, _return);
+  }
+
+  int32_t mapSize = (int32_t)taosArrayGetSize(pParam->colMap);
+  int32_t inputCols = (int32_t)taosArrayGetSize(pInput->pDataBlock);
+  for (int32_t i = 0; i < mapSize && i + 1 < inputCols; ++i) {
+    SColIdNameKV* pMap = taosArrayGet(pParam->colMap, i);
+    QUERY_CHECK_NULL(pMap, code, lino, _return, terrno);
+    int32_t outputIdx = fedScanFindVstbOutputIndex(pInfo->pFedScanNode, pMap->colId, false);
+    if (outputIdx < 0 || outputIdx >= outputCols) {
+      qError("%s cannot map virtual column id %d for source %s table %s", __func__, pMap->colId,
+             pParam->sourceName, pParam->tableName);
+    }
+    QUERY_CHECK_CONDITION(outputIdx >= 0 && outputIdx < outputCols, code, lino, _return,
+                          TSDB_CODE_PLAN_SLOT_NOT_FOUND);
+    SColumnInfoData* pSrc = taosArrayGet(pInput->pDataBlock, i + 1);
+    SColumnInfoData* pDst = taosArrayGet(pOutput->pDataBlock, outputIdx);
+    QUERY_CHECK_NULL(pSrc, code, lino, _return, terrno);
+    QUERY_CHECK_NULL(pDst, code, lino, _return, terrno);
+    QUERY_CHECK_CODE(colDataAssign(pDst, pSrc, rows, &pOutput->info), lino, _return);
+  }
+
+  for (int32_t i = 0; NULL != pParam->pVtbTagList &&
+                      i < taosArrayGetSize(pParam->pVtbTagList);
+       ++i) {
+    STagVal* pTag = taosArrayGet(pParam->pVtbTagList, i);
+    QUERY_CHECK_NULL(pTag, code, lino, _return, terrno);
+    int32_t outputIdx = fedScanFindVstbOutputIndex(pInfo->pFedScanNode, pTag->cid, false);
+    if (outputIdx < 0 || outputIdx >= outputCols) {
+      qError("%s cannot map virtual tag column id %d for source %s table %s", __func__, pTag->cid,
+             pParam->sourceName, pParam->tableName);
+    }
+    QUERY_CHECK_CONDITION(outputIdx >= 0 && outputIdx < outputCols, code, lino, _return,
+                          TSDB_CODE_PLAN_SLOT_NOT_FOUND);
+    SColumnInfoData* pDst = taosArrayGet(pOutput->pDataBlock, outputIdx);
+    QUERY_CHECK_NULL(pDst, code, lino, _return, terrno);
+
+    const char* pValue = (const char*)&pTag->i64;
+    bool        isNull = !IS_VAR_DATA_TYPE(pTag->type) && pTag->nData == (uint32_t)-1;
+    if (IS_VAR_DATA_TYPE(pTag->type)) {
+      isNull = NULL == pTag->pData;
+      if (!isNull) {
+        pVarValue = taosMemoryMalloc(VARSTR_HEADER_SIZE + pTag->nData);
+        QUERY_CHECK_NULL(pVarValue, code, lino, _return, terrno);
+        varDataSetLen(pVarValue, pTag->nData);
+        memcpy(varDataVal(pVarValue), pTag->pData, pTag->nData);
+        pValue = pVarValue;
+      }
+    }
+    for (int32_t row = 0; row < rows; ++row) {
+      code = colDataSetVal(pDst, row, pValue, isNull);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+    taosMemoryFreeClear(pVarValue);
+  }
+
+  // The normalized block owns buffers sized by blockDataEnsureCapacity above.
+  // A connector block commonly advertises a much larger reusable capacity;
+  // copying that value would make the next blockDataCleanup clear past the
+  // normalized buffers and corrupt the heap.
+  uint32_t    outputCapacity = pOutput->info.capacity;
+  STimeWindow outputCalWin = pOutput->info.calWin;
+  pOutput->info = pInput->info;
+  pOutput->info.capacity = outputCapacity;
+  // Connector blocks are not created from the physical output descriptor and
+  // commonly leave calWin zero-initialized.  Keep the descriptor's full
+  // calculation range; otherwise a sliding interval stops after its first
+  // overlapping window because {0, 0} rejects every subsequent window.
+  pOutput->info.calWin = outputCalWin;
+  pOutput->info.id.blockId = pInfo->pFedScanNode->node.pOutputDataBlockDesc->dataBlockId;
+  if (pParam->hasVtbGroupId) {
+    pOutput->info.id.groupId = pParam->vtbGroupId;
+  } else if (pParam->groupId >= 0) {
+    pOutput->info.id.groupId = (uint64_t)pParam->groupId;
+  }
+  *ppOutput = pOutput;
+  return code;
+
+_return:
+  taosMemoryFree(pVarValue);
+  if (TSDB_CODE_SUCCESS != code) {
+    blockDataDestroy(pOutput);
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static void fedScanLogBlockSummary(const SFederatedScanPhysiNode* pFedScan, const SSDataBlock* pBlock,
@@ -1257,6 +1435,161 @@ static char* formatTimestampUTC(char* buf, int32_t cap, int64_t val, int precisi
   return buf;
 }
 
+static bool fedScanValidTimePrecision(int8_t precision) {
+  return precision >= TSDB_TIME_PRECISION_MILLI && precision <= TSDB_TIME_PRECISION_NANO;
+}
+
+static int8_t fedScanGetCondPrecision(EExtSourceType srcType, const SExtTableMeta* pMeta, int32_t tsIdx) {
+  if (pMeta == NULL || tsIdx < 0 || tsIdx >= pMeta->numOfCols) {
+    return TSDB_TIME_PRECISION_MILLI;
+  }
+  return extTimestampTypePrecision(srcType, pMeta->pCols[tsIdx].extTypeName, pMeta->tsPrecision);
+}
+
+static bool fedScanTypeStartsWith(const char* typeName, const char* prefix) {
+  if (typeName == NULL || prefix == NULL) {
+    return false;
+  }
+  return strncasecmp(typeName, prefix, strlen(prefix)) == 0;
+}
+
+static EExtTimestampTzClass fedScanClassifyTimestampType(
+    EExtSourceType srcType, const char* typeName) {
+  if (srcType == EXT_SOURCE_MYSQL) {
+    if (fedScanTypeStartsWith(typeName, "timestamp")) {
+      return EXT_TIMESTAMP_TZ_CLASS_AWARE;
+    }
+    if (fedScanTypeStartsWith(typeName, "datetime") ||
+        fedScanTypeStartsWith(typeName, "date")) {
+      return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+    }
+  } else if (srcType == EXT_SOURCE_POSTGRESQL) {
+    if (fedScanTypeStartsWith(typeName, "timestamptz") ||
+        taosStrCaseStr(typeName, "with time zone") != NULL) {
+      return EXT_TIMESTAMP_TZ_CLASS_AWARE;
+    }
+    if (fedScanTypeStartsWith(typeName, "timestamp") ||
+        fedScanTypeStartsWith(typeName, "date")) {
+      return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+    }
+  }
+  return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+}
+
+static const char* fedScanNormalizeMySqlTimezone(const char* timezone) {
+  if (timezone == NULL) {
+    return NULL;
+  }
+  if (strcasecmp(timezone, "UTC") == 0 ||
+      strcasecmp(timezone, "GMT") == 0 ||
+      strcasecmp(timezone, "Etc/UTC") == 0 ||
+      strcasecmp(timezone, "Etc/GMT") == 0) {
+    return "+00:00";
+  }
+  return timezone;
+}
+
+static bool fedScanIsSafeTimezone(const char* timezone) {
+  if (timezone == NULL || timezone[0] == '\0') {
+    return false;
+  }
+  for (const unsigned char* p = (const unsigned char*)timezone; *p != '\0';
+       ++p) {
+    if (!(isalnum(*p) || *p == '/' || *p == '_' || *p == '+' ||
+          *p == '-' || *p == ':' || *p == '.')) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool fedScanHasNaiveTimestampHint(
+    const SFederatedScanPhysiNode* pNode) {
+  if (pNode == NULL || pNode->pTimestampTypeHints == NULL) {
+    return false;
+  }
+  for (int32_t i = 0; i < pNode->numTimestampTypeHints; ++i) {
+    if (pNode->pTimestampTypeHints[i].tzClass ==
+        EXT_TIMESTAMP_TZ_CLASS_NAIVE) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static int32_t fedScanAppendTimestampProjection(
+    char* sql, int32_t sqlCapacity, int32_t* pOffset,
+    EExtSourceType srcType, const char* remoteName, const char* extTypeName,
+    const char* timezone,
+    bool timezoneConversionSupported) {
+  EExtTimestampTzClass tzClass =
+      fedScanClassifyTimestampType(srcType, extTypeName);
+  int32_t remaining = sqlCapacity - *pOffset;
+  int32_t written = 0;
+
+  if (srcType == EXT_SOURCE_MYSQL) {
+    if (tzClass == EXT_TIMESTAMP_TZ_CLASS_AWARE) {
+      written = snprintf(
+          sql + *pOffset, remaining,
+          "CAST(UNIX_TIMESTAMP(`%s`) * 1000000 AS SIGNED) AS `%s`",
+          remoteName, remoteName);
+    } else if (tzClass == EXT_TIMESTAMP_TZ_CLASS_NAIVE &&
+               timezoneConversionSupported) {
+      written = snprintf(
+          sql + *pOffset, remaining,
+          "CAST(TIMESTAMPDIFF(MICROSECOND, "
+          "'1970-01-01 00:00:00', CONVERT_TZ(`%s`, '%s', '+00:00')) "
+          "AS SIGNED) AS `%s`",
+          remoteName, timezone, remoteName);
+    } else {
+      written = snprintf(sql + *pOffset, remaining, "`%s`", remoteName);
+    }
+  } else if (srcType == EXT_SOURCE_POSTGRESQL) {
+    if (tzClass == EXT_TIMESTAMP_TZ_CLASS_AWARE) {
+      written = snprintf(
+          sql + *pOffset, remaining,
+          "CAST(EXTRACT(EPOCH FROM \"%s\") * 1000000 AS BIGINT) "
+          "AS \"%s\"",
+          remoteName, remoteName);
+    } else if (tzClass == EXT_TIMESTAMP_TZ_CLASS_NAIVE &&
+               timezoneConversionSupported) {
+      written = snprintf(
+          sql + *pOffset, remaining,
+          "CAST(EXTRACT(EPOCH FROM (CAST(\"%s\" AS TIMESTAMP) "
+          "AT TIME ZONE '%s')) * "
+          "1000000 AS BIGINT) AS \"%s\"",
+          remoteName, timezone, remoteName);
+    } else {
+      written = snprintf(sql + *pOffset, remaining, "\"%s\"", remoteName);
+    }
+  } else {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (written < 0 || written >= remaining) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  *pOffset += written;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int64_t fedScanConvertTimeBound(int64_t value, int8_t fromPrecision, int8_t toPrecision,
+                                       bool lowerBound) {
+  if (fromPrecision <= toPrecision) {
+    return convertTimePrecision(value, fromPrecision, toPrecision);
+  }
+
+  int64_t factor = TSDB_TICK_PER_SECOND(fromPrecision) / TSDB_TICK_PER_SECOND(toPrecision);
+  int64_t quotient = value / factor;
+  int64_t remainder = value % factor;
+  if (lowerBound && remainder > 0) {
+    ++quotient;
+  } else if (!lowerBound && remainder < 0) {
+    --quotient;
+  }
+  return quotient;
+}
+
 // Format a filled SExtConnectorError into pInfo->extErrMsg for later propagation.
 static void fedScanFormatError(SFederatedScanOperatorInfo* pInfo, int32_t code,
                                const SExtConnectorError* pErr,
@@ -1313,6 +1646,31 @@ static void fedScanFormatError(SFederatedScanOperatorInfo* pInfo, int32_t code,
 // Uses extConnectorGetTableSchema to resolve column types from the remote source.
 // Always includes the remote table's primary timestamp column as column 0
 // so the sort-merge in VTableScan can join on timestamp.
+static STimeWindow fedScanGetVStbScanRange(
+    const SFederatedScanOperatorInfo* pInfo,
+    const SFederatedScanPhysiNode* pFedNode, bool* pEmptyRange) {
+  STimeWindow scanRange = pFedNode->scanRange;
+  *pEmptyRange = false;
+
+  if (!pInfo->hasRuntimeTimeRange) {
+    return scanRange;
+  }
+
+  const STimeWindow* pRuntimeRange = &pInfo->runtimeTimeRange;
+  if (pRuntimeRange->skey >= pRuntimeRange->ekey) {
+    *pEmptyRange = true;
+    return scanRange;
+  }
+
+  scanRange.skey = TMAX(scanRange.skey, pRuntimeRange->skey);
+  if (pRuntimeRange->ekey != INT64_MAX) {
+    // Runtime windows are half-open, while scanRange uses an inclusive ekey.
+    scanRange.ekey = TMIN(scanRange.ekey, pRuntimeRange->ekey - 1);
+  }
+  *pEmptyRange = scanRange.skey > scanRange.ekey;
+  return scanRange;
+}
+
 static int32_t fedScanBuildVStbQueryAndMappings(
     SFederatedScanOperatorInfo* pInfo,
     SForeignScanOperatorParam*  pFsParam,
@@ -1354,12 +1712,27 @@ static int32_t fedScanBuildVStbQueryAndMappings(
     return code ? code : TSDB_CODE_EXT_TABLE_NOT_EXIST;
   }
 
-  int32_t numDataCols = (int32_t)taosArrayGetSize(pFsParam->colMap);
-  if (numDataCols <= 0) {
-    extConnectorFreeTableSchema(pMeta);
-    qError("FederatedScan VStb: empty colMap for %s.%s", pFsParam->dbName, pFsParam->tableName);
-    return TSDB_CODE_INVALID_PARA;
+  const char* clientTimezone =
+      pFedNode->timezone[0] != '\0' ? pFedNode->timezone : NULL;
+  const char* remoteTimezone = srcType == EXT_SOURCE_MYSQL
+                                   ? fedScanNormalizeMySqlTimezone(clientTimezone)
+                                   : clientTimezone;
+  bool timezoneConversionSupported = false;
+  if ((srcType == EXT_SOURCE_MYSQL || srcType == EXT_SOURCE_POSTGRESQL) &&
+      fedScanIsSafeTimezone(remoteTimezone)) {
+    int32_t probeCode = extConnectorSupportsTimezoneConversion(
+        pInfo->pConnHandle, remoteTimezone,
+        &timezoneConversionSupported);
+    if (probeCode != TSDB_CODE_SUCCESS) {
+      qWarn("FederatedScan VStb: remote timezone probe failed sourceType=%d "
+            "timezone=%s, "
+            "using local conversion, code=0x%x %s",
+            srcType, remoteTimezone, probeCode, tstrerror(probeCode));
+      timezoneConversionSupported = false;
+    }
   }
+
+  int32_t numDataCols = (int32_t)taosArrayGetSize(pFsParam->colMap);
 
   // Find the primary key (first timestamp) column in the remote schema.
   // This is needed because the VTableScan sort-merge uses ts as the merge key.
@@ -1462,7 +1835,12 @@ static int32_t fedScanBuildVStbQueryAndMappings(
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  int32_t sqlBufLen = 1024 + totalCols * (TSDB_COL_NAME_LEN + 4) + tagCondSqlLen + pushedCondSqlLen + 96;
+  int32_t projectionBytes = TSDB_COL_NAME_LEN + 4;
+  if (srcType == EXT_SOURCE_MYSQL || srcType == EXT_SOURCE_POSTGRESQL) {
+    projectionBytes = TSDB_COL_NAME_LEN * 2 + TD_TIMEZONE_LEN + 192;
+  }
+  int32_t sqlBufLen = 1024 + totalCols * projectionBytes + tagCondSqlLen +
+                      pushedCondSqlLen + 96;
   char* sqlBuf = taosMemoryCalloc(1, sqlBufLen);
   if (sqlBuf == NULL) {
     taosMemoryFree(tagCondSql);
@@ -1480,13 +1858,48 @@ static int32_t fedScanBuildVStbQueryAndMappings(
     SExtColumnDef* pTsCol = &pMeta->pCols[tsIdx];
     const char* remoteName = pTsCol->remoteColName[0] ? pTsCol->remoteColName : pTsCol->colName;
     tstrncpy(tsRemoteNameBuf, remoteName, sizeof(tsRemoteNameBuf));
-    offset += snprintf(sqlBuf + offset, sqlBufLen - offset, "%c%s%c", q, remoteName, q);
     tstrncpy(mappings[0].extTypeName, pTsCol->extTypeName, sizeof(mappings[0].extTypeName));
+    tstrncpy(mappings[0].colName, remoteName, sizeof(mappings[0].colName));
     code = extTypeNameToTDengineType(
         srcType, pTsCol->extTypeName, pTsCol->extCharsetName, &mappings[0].tdType);
     if (code != TSDB_CODE_SUCCESS) {
       qError("FederatedScan VStb: type mapping failed for ts col %s type %s, code=0x%x",
              pTsCol->colName, pTsCol->extTypeName, code);
+      taosMemoryFree(sqlBuf);
+      taosMemoryFree(mappings);
+      taosMemoryFree(tagCondSql);
+      taosMemoryFree(pushedCondSql);
+      extConnectorFreeTableSchema(pMeta);
+      return code;
+    }
+    code = fedScanGetVstbOutputType(pFedNode, PRIMARYKEY_TIMESTAMP_COL_ID, true, &mappings[0].tdType);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("FederatedScan VStb: output slot missing for primary timestamp, code=0x%x", code);
+      taosMemoryFree(sqlBuf);
+      taosMemoryFree(mappings);
+      taosMemoryFree(tagCondSql);
+      taosMemoryFree(pushedCondSql);
+      extConnectorFreeTableSchema(pMeta);
+      return code;
+    }
+    mappings[0].tsPrecision = fedScanGetCondPrecision(srcType, pMeta, tsIdx);
+    if (srcType == EXT_SOURCE_MYSQL || srcType == EXT_SOURCE_POSTGRESQL) {
+      code = fedScanAppendTimestampProjection(
+          sqlBuf, sqlBufLen, &offset, srcType, remoteName,
+          pTsCol->extTypeName, remoteTimezone,
+          timezoneConversionSupported);
+    } else {
+      int32_t written = snprintf(sqlBuf + offset, sqlBufLen - offset,
+                                 "%c%s%c", q, remoteName, q);
+      code = written < 0 || written >= sqlBufLen - offset
+                 ? TSDB_CODE_OUT_OF_RANGE
+                 : TSDB_CODE_SUCCESS;
+      if (code == TSDB_CODE_SUCCESS) {
+        offset += written;
+      }
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("FederatedScan VStb: timestamp projection exceeds SQL buffer");
       taosMemoryFree(sqlBuf);
       taosMemoryFree(mappings);
       taosMemoryFree(tagCondSql);
@@ -1506,15 +1919,57 @@ static int32_t fedScanBuildVStbQueryAndMappings(
       SExtColumnDef* pCol = &pMeta->pCols[j];
       if (strncasecmp(pCol->colName, pKV->colName, TSDB_COL_NAME_LEN) == 0) {
         const char* remoteName = pCol->remoteColName[0] ? pCol->remoteColName : pCol->colName;
-        offset += snprintf(sqlBuf + offset, sqlBufLen - offset, ", %c%s%c", q, remoteName, q);
-
         int32_t mIdx = 1 + i;
         tstrncpy(mappings[mIdx].extTypeName, pCol->extTypeName, sizeof(mappings[mIdx].extTypeName));
+        tstrncpy(mappings[mIdx].colName, remoteName, sizeof(mappings[mIdx].colName));
         code = extTypeNameToTDengineType(
             srcType, pCol->extTypeName, pCol->extCharsetName, &mappings[mIdx].tdType);
         if (code != TSDB_CODE_SUCCESS) {
           qError("FederatedScan VStb: type mapping failed for col %s type %s, code=0x%x",
                  pKV->colName, pCol->extTypeName, code);
+          taosMemoryFree(sqlBuf);
+          taosMemoryFree(mappings);
+          taosMemoryFree(tagCondSql);
+          taosMemoryFree(pushedCondSql);
+          extConnectorFreeTableSchema(pMeta);
+          return code;
+        }
+        code = fedScanGetVstbOutputType(pFedNode, pKV->colId, false, &mappings[mIdx].tdType);
+        if (code != TSDB_CODE_SUCCESS) {
+          qError("FederatedScan VStb: output slot missing for virtual column id %d, code=0x%x",
+                 pKV->colId, code);
+          taosMemoryFree(sqlBuf);
+          taosMemoryFree(mappings);
+          taosMemoryFree(tagCondSql);
+          taosMemoryFree(pushedCondSql);
+          extConnectorFreeTableSchema(pMeta);
+          return code;
+        }
+        int32_t written = snprintf(sqlBuf + offset, sqlBufLen - offset, ", ");
+        if (written < 0 || written >= sqlBufLen - offset) {
+          code = TSDB_CODE_OUT_OF_RANGE;
+        } else {
+          offset += written;
+          if ((srcType == EXT_SOURCE_MYSQL ||
+               srcType == EXT_SOURCE_POSTGRESQL) &&
+              mappings[mIdx].tdType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+            code = fedScanAppendTimestampProjection(
+                sqlBuf, sqlBufLen, &offset, srcType, remoteName,
+                pCol->extTypeName, remoteTimezone,
+                timezoneConversionSupported);
+          } else {
+            written = snprintf(sqlBuf + offset, sqlBufLen - offset,
+                               "%c%s%c", q, remoteName, q);
+            if (written < 0 || written >= sqlBufLen - offset) {
+              code = TSDB_CODE_OUT_OF_RANGE;
+            } else {
+              offset += written;
+            }
+          }
+        }
+        if (code != TSDB_CODE_SUCCESS) {
+          qError("FederatedScan VStb: column projection exceeds SQL buffer col=%s",
+                 pCol->colName);
           taosMemoryFree(sqlBuf);
           taosMemoryFree(mappings);
           taosMemoryFree(tagCondSql);
@@ -1566,18 +2021,41 @@ static int32_t fedScanBuildVStbQueryAndMappings(
     }
   }
 
-  // Add WHERE clause for time range pushdown (from optimizer scanRange)
-  if (pFedNode->scanRange.skey != INT64_MIN || pFedNode->scanRange.ekey != INT64_MAX) {
-    bool hasSkey = (pFedNode->scanRange.skey != INT64_MIN);
-    bool hasEkey = (pFedNode->scanRange.ekey != INT64_MAX);
+  bool        hasWhere = false;
+  bool        emptyTimeRange = false;
+  STimeWindow scanRange =
+      fedScanGetVStbScanRange(pInfo, pFedNode, &emptyTimeRange);
+
+  // Merge the optimizer range with the dynamic external-window batch range.
+  // The resulting inclusive bounds are converted to the source precision.
+  if (emptyTimeRange || scanRange.skey != INT64_MIN ||
+      scanRange.ekey != INT64_MAX) {
+    bool hasSkey = !emptyTimeRange && scanRange.skey != INT64_MIN;
+    bool hasEkey = !emptyTimeRange && scanRange.ekey != INT64_MAX;
+    int8_t rangePrecision = fedScanValidTimePrecision(pFsParam->dstPrecision)
+                                ? pFsParam->dstPrecision
+                                : TSDB_TIME_PRECISION_MILLI;
+    int8_t sourcePrecision = fedScanGetCondPrecision(srcType, pMeta, tsIdx);
+    int64_t skey = hasSkey ? fedScanConvertTimeBound(scanRange.skey, rangePrecision,
+                                                     sourcePrecision, true)
+                           : INT64_MIN;
+    int64_t ekey = hasEkey ? fedScanConvertTimeBound(scanRange.ekey, rangePrecision,
+                                                     sourcePrecision, false)
+                           : INT64_MAX;
 
     offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " WHERE ");
+    hasWhere = true;
+    if (emptyTimeRange || (hasSkey && hasEkey && skey > ekey)) {
+      offset += snprintf(sqlBuf + offset, sqlBufLen - offset, "1 = 0");
+      hasSkey = false;
+      hasEkey = false;
+    }
     if (hasSkey) {
       char skeyBuf[64];
       if (srcType == EXT_SOURCE_INFLUXDB)
-        formatTimestampUTC(skeyBuf, sizeof(skeyBuf), pFedNode->scanRange.skey, TSDB_TIME_PRECISION_MILLI);
+        formatTimestampUTC(skeyBuf, sizeof(skeyBuf), skey, sourcePrecision);
       else
-        formatTimestampLocal(skeyBuf, sizeof(skeyBuf), pFedNode->scanRange.skey, TSDB_TIME_PRECISION_MILLI);
+        formatTimestampLocal(skeyBuf, sizeof(skeyBuf), skey, sourcePrecision);
       offset += snprintf(sqlBuf + offset, sqlBufLen - offset, "%c%s%c >= '%s'", q, tsRemoteNameBuf, q, skeyBuf);
     }
     if (hasSkey && hasEkey) {
@@ -1586,14 +2064,12 @@ static int32_t fedScanBuildVStbQueryAndMappings(
     if (hasEkey) {
       char ekeyBuf[64];
       if (srcType == EXT_SOURCE_INFLUXDB)
-        formatTimestampUTC(ekeyBuf, sizeof(ekeyBuf), pFedNode->scanRange.ekey, TSDB_TIME_PRECISION_MILLI);
+        formatTimestampUTC(ekeyBuf, sizeof(ekeyBuf), ekey, sourcePrecision);
       else
-        formatTimestampLocal(ekeyBuf, sizeof(ekeyBuf), pFedNode->scanRange.ekey, TSDB_TIME_PRECISION_MILLI);
+        formatTimestampLocal(ekeyBuf, sizeof(ekeyBuf), ekey, sourcePrecision);
       offset += snprintf(sqlBuf + offset, sqlBufLen - offset, "%c%s%c <= '%s'", q, tsRemoteNameBuf, q, ekeyBuf);
     }
   }
-
-  bool hasWhere = (pFedNode->scanRange.skey != INT64_MIN || pFedNode->scanRange.ekey != INT64_MAX);
 
   // Append VStb data filter fragments that are safe for this foreign source.
   bool hasPushedDataCond = (pushedCondSql != NULL && pushedCondSqlLen > 0);
@@ -1638,14 +2114,22 @@ static int32_t fedScanBuildVStbQueryAndMappings(
 // ---------------------------------------------------------------------------
 
 void fedScanReleaseFetchedBlock(SFederatedScanOperatorInfo* pInfo) {
-  if (pInfo == NULL || pInfo->pFetchedBlock == NULL) {
+  if (pInfo == NULL) {
     return;
   }
 
+  if (pInfo->prefetchReady && pInfo->pPrefetchedBlock == pInfo->pFetchedBlock) {
+    pInfo->pPrefetchParam = NULL;
+    pInfo->pPrefetchedBlock = NULL;
+    pInfo->prefetchReady = false;
+  }
+  if (pInfo->pFetchedBlock == NULL) {
+    return;
+  }
   blockDataDestroy(pInfo->pFetchedBlock);
   pInfo->pFetchedBlock = NULL;
 }
-static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+static int32_t federatedScanGetNextSingle(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   QRY_PARAM_CHECK(ppRes);
 
   SFederatedScanOperatorInfo* pInfo     = pOperator->info;
@@ -1672,9 +2156,13 @@ _restart:  // Entry point for phase-2 re-execution in twoPassMode
     // Clear any previous value first so early failures never leave a stale SQL
     // string behind in EXPLAIN or later diagnostics.
     pInfo->remoteSql[0] = '\0';
+    pInfo->extErrMsg[0] = '\0';
+    pInfo->hasPrefetchDiag = false;
     // 1.1 Build connection config from physi node (no Catalog access in taosd)
     SExtSourceCfg cfg = {0};
-    if (pExtTable != NULL) {
+    if (pInfo->pActiveVStbParam != NULL) {
+      tstrncpy(cfg.source_name, pInfo->pActiveVStbParam->sourceName, sizeof(cfg.source_name));
+    } else if (pExtTable != NULL) {
       tstrncpy(cfg.source_name, pExtTable->sourceName, sizeof(cfg.source_name));
     }
     cfg.source_type = (EExtSourceType)pFedNode->sourceType;
@@ -1685,14 +2173,14 @@ _restart:  // Entry point for phase-2 re-execution in twoPassMode
     tstrncpy(cfg.default_database, pFedNode->srcDatabase, sizeof(cfg.default_database));
     tstrncpy(cfg.default_schema,   pFedNode->srcSchema,   sizeof(cfg.default_schema));
     tstrncpy(cfg.options,          pFedNode->srcOptions,  sizeof(cfg.options));
-    cfg.meta_version = pFedNode->metaVersion;
+    cfg.meta_version = pInfo->pActiveVStbParam != NULL && pInfo->pActiveVStbParam->sourceMetaVersion != 0
+                           ? pInfo->pActiveVStbParam->sourceMetaVersion
+                           : pFedNode->metaVersion;
     cfg.query_timeout_ms = tsFederatedQueryQueryTimeoutMs;
 
     qDebug("FederatedScan: connecting source=%s host=%s:%d user=%s type=%s",
            cfg.source_name, cfg.host, cfg.port, cfg.user,
            fedScanSourceTypeName(pFedNode->sourceType));
-    qError("FederatedScan: source=%s options=%s", cfg.source_name,
-           cfg.options[0] ? cfg.options : "<empty>");
 
     // 1.2 Open connection
     code = extConnectorOpen(&cfg, &pInfo->pConnHandle);
@@ -1727,6 +2215,31 @@ _restart:  // Entry point for phase-2 re-execution in twoPassMode
              cfg.source_name);
       pInfo->remoteSql[0] = '\0';
     } else {
+      EExtSourceType sourceType = (EExtSourceType)pFedNode->sourceType;
+      const char* clientTimezone =
+          pFedNode->timezone[0] != '\0' ? pFedNode->timezone : NULL;
+      const char* remoteTimezone = sourceType == EXT_SOURCE_MYSQL
+                                       ? fedScanNormalizeMySqlTimezone(
+                                             clientTimezone)
+                                       : clientTimezone;
+      bool timezoneConversionSupported = false;
+      if ((sourceType == EXT_SOURCE_MYSQL ||
+           sourceType == EXT_SOURCE_POSTGRESQL) &&
+          fedScanHasNaiveTimestampHint(pFedNode) &&
+          fedScanIsSafeTimezone(remoteTimezone)) {
+        int32_t probeCode = extConnectorSupportsTimezoneConversion(
+            pInfo->pConnHandle, remoteTimezone,
+            &timezoneConversionSupported);
+        if (probeCode != TSDB_CODE_SUCCESS) {
+          qWarn("FederatedScan: remote timezone probe failed sourceType=%d "
+                "timezone=%s, "
+                "using local conversion, code=0x%x %s",
+                sourceType, remoteTimezone, probeCode,
+                tstrerror(probeCode));
+          timezoneConversionSupported = false;
+        }
+      }
+
       // Build resolve context from the thread-local scalar extra info so that
       // nodesRemotePlanToSQL can expand REMOTE_VALUE_LIST nodes (IN subquery pushdown).
       SNodesRemoteSQLCtx sqlCtx = {
@@ -1736,7 +2249,13 @@ _restart:  // Entry point for phase-2 re-execution in twoPassMode
         .numTimestampTypeHints = pFedNode->numTimestampTypeHints,
         // DS §5.2.6: pass client timezone so timestamp filter values in WHERE
         // are formatted using the client TZ instead of the server-side global TZ.
-        .tzName = (pFedNode->timezone[0] != '\0') ? pFedNode->timezone : NULL,
+        .tzName = remoteTimezone,
+        .convertTimestampOutputToEpoch =
+            sourceType == EXT_SOURCE_MYSQL ||
+            sourceType == EXT_SOURCE_POSTGRESQL,
+        .timezoneConversionSupported =
+            timezoneConversionSupported,
+        .pRuntimeTimeRange = pInfo->hasRuntimeTimeRange ? &pInfo->runtimeTimeRange : NULL,
       };
       code = nodesRemotePlanToSQL((const SLogicNode*)pFedNode->pRemotePlan, pFedNode->sourceType,
                                   &sqlCtx, &remoteSql);
@@ -1762,13 +2281,19 @@ _restart:  // Entry point for phase-2 re-execution in twoPassMode
     if (code) {
       SExtPushdownDiagnostic diag = {0};
       (void)extBuildPushdownDiagnostic(code, &extErr, remoteSql, &diag);
-      pTaskInfo->hasExtPushdownDiag = true;
-      pTaskInfo->extPushdownDiag = diag;
+      pInfo->hasPrefetchDiag = true;
+      pInfo->prefetchDiag = diag;
+      if (!pInfo->parallelPrefetch) {
+        pTaskInfo->hasExtPushdownDiag = true;
+        pTaskInfo->extPushdownDiag = diag;
+      }
       if (pFedNode->pRemotePlan != NULL) {
         code = extMapDiagnosticToCode(code, &diag);
       }
       fedScanFormatError(pInfo, code, &extErr, &diag);
-      tstrncpy(pTaskInfo->extErrMsg, pInfo->extErrMsg, sizeof(pTaskInfo->extErrMsg));
+      if (!pInfo->parallelPrefetch) {
+        tstrncpy(pTaskInfo->extErrMsg, pInfo->extErrMsg, sizeof(pTaskInfo->extErrMsg));
+      }
       qError("FederatedScan: ext error detail source=%s tdCode=0x%x remoteCode=%d sqlstate=%s httpStatus=%d remoteMessage=%s sql=%s",
              cfg.source_name, extErr.tdCode, extErr.remoteCode,
              extErr.remoteSqlstate[0] != '\0' ? extErr.remoteSqlstate : "(empty)",
@@ -1818,13 +2343,19 @@ _fetchNext:
     if (code) {
       SExtPushdownDiagnostic diag = {0};
       (void)extBuildPushdownDiagnostic(code, &fetchErr, NULL, &diag);
-      pTaskInfo->hasExtPushdownDiag = true;
-      pTaskInfo->extPushdownDiag = diag;
+      pInfo->hasPrefetchDiag = true;
+      pInfo->prefetchDiag = diag;
+      if (!pInfo->parallelPrefetch) {
+        pTaskInfo->hasExtPushdownDiag = true;
+        pTaskInfo->extPushdownDiag = diag;
+      }
       if (pInfo->pFedScanNode->pRemotePlan != NULL) {
         code = extMapDiagnosticToCode(code, &diag);
       }
       fedScanFormatError(pInfo, code, &fetchErr, &diag);
-      tstrncpy(pTaskInfo->extErrMsg, pInfo->extErrMsg, sizeof(pTaskInfo->extErrMsg));
+      if (!pInfo->parallelPrefetch) {
+        tstrncpy(pTaskInfo->extErrMsg, pInfo->extErrMsg, sizeof(pTaskInfo->extErrMsg));
+      }
       qError("FederatedScan: fetch failed, code=0x%x %s", code,
              pInfo->extErrMsg[0] ? pInfo->extErrMsg : tstrerror(code));
       QUERY_CHECK_CODE(code, lino, _return);
@@ -1886,6 +2417,22 @@ _fetchNext:
       if (pInfo->pActiveVStbParam != NULL) {
         vstbDstPrec = pInfo->pActiveVStbParam->dstPrecision;
       }
+      int8_t staticVtableDstPrec = -1;
+      if (pInfo->pActiveVStbParam == NULL) {
+        for (int32_t c = 0; c < numConvMappings; ++c) {
+          if (pConvMappings[c].tdType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+            staticVtableDstPrec = pConvMappings[c].tdType.precision;
+            break;
+          }
+        }
+        if (staticVtableDstPrec != TSDB_TIME_PRECISION_MILLI &&
+            staticVtableDstPrec != TSDB_TIME_PRECISION_MICRO &&
+            staticVtableDstPrec != TSDB_TIME_PRECISION_NANO &&
+            pInfo->pFedScanNode->node.pOutputDataBlockDesc != NULL) {
+          staticVtableDstPrec =
+              pInfo->pFedScanNode->node.pOutputDataBlockDesc->precision;
+        }
+      }
       int32_t numCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
       for (int32_t c = 0; c < numCols; c++) {
         SColumnInfoData* pColData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, c);
@@ -1898,6 +2445,10 @@ _fetchNext:
             vstbDstPrec == TSDB_TIME_PRECISION_MICRO ||
             vstbDstPrec == TSDB_TIME_PRECISION_NANO) {
           dstPrec = vstbDstPrec;
+        } else if (staticVtableDstPrec == TSDB_TIME_PRECISION_MILLI ||
+                   staticVtableDstPrec == TSDB_TIME_PRECISION_MICRO ||
+                   staticVtableDstPrec == TSDB_TIME_PRECISION_NANO) {
+          dstPrec = staticVtableDstPrec;
         } else if (c < numConvMappings) {
           dstPrec = pConvMappings[c].tdType.precision;
         } else {
@@ -1922,6 +2473,16 @@ _fetchNext:
           *p = convertTimePrecision(*p, srcPrec, dstPrec);
         }
         pColData->info.precision = dstPrec;
+      }
+    }
+
+    if (pInfo->pActiveVStbParam != NULL) {
+      SSDataBlock* pFetchedBlock = pBlock;
+      code = fedScanNormalizeVstbBlock(pInfo, pBlock, &pBlock);
+      QUERY_CHECK_CODE(code, lino, _return);
+      if (pBlock != pFetchedBlock) {
+        blockDataDestroy(pFetchedBlock);
+        pInfo->pFetchedBlock = pBlock;
       }
     }
 
@@ -1951,12 +2512,17 @@ _fetchNext:
         // Pre-compute external table name for TBNAME pseudo-column fill.
         const char* extTableName = NULL;
         int32_t     extTableNameLen = 0;
-        SExtTableNode* pExtTbl = (SExtTableNode*)pInfo->pFedScanNode->pExtTable;
-        if (pExtTbl != NULL) {
+        if (pInfo->pActiveVStbParam != NULL && pInfo->pActiveVStbParam->tableName[0] != '\0') {
+          extTableName = pInfo->pActiveVStbParam->tableName;
+          extTableNameLen = (int32_t)strlen(extTableName);
+        } else {
+          SExtTableNode* pExtTbl = (SExtTableNode*)pInfo->pFedScanNode->pExtTable;
+          if (pExtTbl != NULL) {
           extTableName = (pExtTbl->remoteTableName[0] != '\0')
                            ? pExtTbl->remoteTableName
                            : pExtTbl->table.tableName;
           extTableNameLen = (int32_t)strlen(extTableName);
+          }
         }
 
         // Iterate over the extra slots in the descriptor and append empty columns
@@ -2045,7 +2611,9 @@ _fetchNext:
 _return:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    pTaskInfo->code = code;
+    if (!pInfo->parallelPrefetch) {
+      pTaskInfo->code = code;
+    }
   }
   return code;
 }
@@ -2055,9 +2623,10 @@ _return:
 // ---------------------------------------------------------------------------
 
 // Build a table key from SForeignScanOperatorParam for context lookup.
-static void fedScanBuildTableKey(const SForeignScanOperatorParam* pFsParam, char* buf, int32_t bufLen) {
+static int32_t fedScanBuildTableKey(const SForeignScanOperatorParam* pFsParam, char* buf, int32_t bufLen) {
   uint32_t tagCondHash = 0;
   uint32_t pushedCondHash = 0;
+  uint32_t colMapHash = 0;
 
   if (pFsParam->tagCond != NULL && pFsParam->tagCondLen > 0) {
     tagCondHash = MurmurHash3_32(pFsParam->tagCond, (uint32_t)pFsParam->tagCondLen);
@@ -2072,8 +2641,21 @@ static void fedScanBuildTableKey(const SForeignScanOperatorParam* pFsParam, char
     }
   }
 
-  snprintf(buf, bufLen, "%s.%s.%s.%u.%u.%" PRId64, pFsParam->sourceName, pFsParam->dbName, pFsParam->tableName,
-           tagCondHash, pushedCondHash, pFsParam->rowLimit > 0 ? pFsParam->rowLimit : 0);
+  if (pFsParam->colMap != NULL && taosArrayGetSize(pFsParam->colMap) > 0) {
+    colMapHash = MurmurHash3_32(pFsParam->colMap->pData,
+                                (uint32_t)(taosArrayGetSize(pFsParam->colMap) * sizeof(SColIdNameKV)));
+  }
+
+  int32_t len = snprintf(buf, bufLen,
+                         "%s.%s.%s.%" PRId64 ".%u.%u.%u.%d.%" PRId64 ".%" PRIu64 ".%" PRId64 ".%" PRId64
+                         ".%" PRIu64,
+                         pFsParam->sourceName, pFsParam->dbName, pFsParam->tableName,
+                         pFsParam->sourceMetaVersion, colMapHash, tagCondHash, pushedCondHash,
+                         pFsParam->dstPrecision, pFsParam->rowLimit > 0 ? pFsParam->rowLimit : 0,
+                         pFsParam->hasVtbGroupId ? pFsParam->vtbGroupId
+                                                 : (uint64_t)(uint32_t)pFsParam->groupId,
+                         pFsParam->window.skey, pFsParam->window.ekey, pFsParam->virtualChildUid);
+  return len >= 0 && len < bufLen ? TSDB_CODE_SUCCESS : TSDB_CODE_OUT_OF_RANGE;
 }
 
 #define FED_SCAN_TABLE_CTX_MAX_SIZE 64
@@ -2120,6 +2702,171 @@ static void fedScanCloseActiveHandles(SFederatedScanOperatorInfo* pInfo) {
   pInfo->numDynColMappings = 0;
 }
 
+static void fedScanDestroyBatchTable(void* pData) {
+  SForeignTableInfo* pTable = pData;
+  if (pTable == NULL) {
+    return;
+  }
+  taosArrayDestroy(pTable->colMap);
+  taosMemoryFreeClear(pTable->tagCond);
+  taosMemoryFreeClear(pTable->pPushedCondJson);
+  nodesDestroyNode(pTable->pPushedCond);
+  taosArrayDestroyEx(pTable->pVtbTagList, destroyTagVal);
+}
+
+static int32_t fedScanCloneTagList(const SArray* pSrc, SArray** ppDst) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SArray* pDst = NULL;
+
+  QUERY_CHECK_NULL(ppDst, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  *ppDst = NULL;
+  if (NULL == pSrc) {
+    return TSDB_CODE_SUCCESS;
+  }
+  pDst = taosArrayInit(TMAX(1, taosArrayGetSize(pSrc)), sizeof(STagVal));
+  QUERY_CHECK_NULL(pDst, code, lino, _return, terrno);
+  for (int32_t i = 0; i < taosArrayGetSize(pSrc); ++i) {
+    STagVal* pSrcTag = taosArrayGet(pSrc, i);
+    QUERY_CHECK_NULL(pSrcTag, code, lino, _return, terrno);
+    STagVal dstTag = *pSrcTag;
+    if (IS_VAR_DATA_TYPE(dstTag.type)) {
+      dstTag.pData = NULL;
+      if (NULL != pSrcTag->pData) {
+        dstTag.pData = taosMemoryMalloc(TMAX(1, pSrcTag->nData));
+        QUERY_CHECK_NULL(dstTag.pData, code, lino, _return, terrno);
+        if (pSrcTag->nData > 0) {
+          memcpy(dstTag.pData, pSrcTag->pData, pSrcTag->nData);
+        }
+      }
+    }
+    if (NULL == taosArrayPush(pDst, &dstTag)) {
+      destroyTagVal(&dstTag);
+      code = terrno;
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+  }
+  *ppDst = pDst;
+  return code;
+
+_return:
+  taosArrayDestroyEx(pDst, destroyTagVal);
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+static void fedScanDestroyBatchParam(SForeignScanOperatorParam* pBatch) {
+  if (pBatch == NULL) {
+    return;
+  }
+  taosArrayDestroy(pBatch->colMap);
+  taosMemoryFreeClear(pBatch->tagCond);
+  nodesDestroyNode(pBatch->pPushedCond);
+  taosArrayDestroyEx(pBatch->pBatchTables, fedScanDestroyBatchTable);
+  taosMemoryFree(pBatch);
+}
+
+static int32_t fedScanCloneBatchTable(const SForeignTableInfo* pSrc, SForeignTableInfo* pDst) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  QUERY_CHECK_NULL(pSrc, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pDst, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  *pDst = *pSrc;
+  pDst->colMap = NULL;
+  pDst->tagCond = NULL;
+  pDst->pPushedCondJson = NULL;
+  pDst->pPushedCond = NULL;
+  pDst->pVtbTagList = NULL;
+
+  if (pSrc->colMap != NULL) {
+    pDst->colMap = taosArrayDup(pSrc->colMap, NULL);
+    QUERY_CHECK_NULL(pDst->colMap, code, lino, _return, terrno);
+  }
+  if (pSrc->tagCond != NULL) {
+    pDst->tagCond = taosStrdup(pSrc->tagCond);
+    QUERY_CHECK_NULL(pDst->tagCond, code, lino, _return, terrno);
+  }
+  if (pSrc->pPushedCondJson != NULL) {
+    pDst->pPushedCondJson = taosStrdup(pSrc->pPushedCondJson);
+    QUERY_CHECK_NULL(pDst->pPushedCondJson, code, lino, _return, terrno);
+  }
+  if (pSrc->pPushedCond != NULL) {
+    code = nodesCloneNode(pSrc->pPushedCond, &pDst->pPushedCond);
+    QUERY_CHECK_CODE(code, lino, _return);
+  } else if (pSrc->pPushedCondJson != NULL && pSrc->pPushedCondJson[0] != '\0') {
+    code = nodesStringToNode(pSrc->pPushedCondJson, &pDst->pPushedCond);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+  code = fedScanCloneTagList(pSrc->pVtbTagList, &pDst->pVtbTagList);
+  QUERY_CHECK_CODE(code, lino, _return);
+  return code;
+
+_return:
+  if (NULL != pDst) {
+    fedScanDestroyBatchTable(pDst);
+  }
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+static int32_t fedScanCloneBatchParam(const SForeignScanOperatorParam* pSrc,
+                                      SForeignScanOperatorParam** ppDst) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    lino = 0;
+  SForeignScanOperatorParam* pDst = NULL;
+
+  QUERY_CHECK_NULL(pSrc, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(ppDst, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  *ppDst = NULL;
+  pDst = taosMemoryCalloc(1, sizeof(*pDst));
+  QUERY_CHECK_NULL(pDst, code, lino, _return, terrno);
+
+  *pDst = *pSrc;
+  pDst->colMap = NULL;
+  pDst->tagCond = NULL;
+  pDst->pPushedCond = NULL;
+  pDst->pBatchTables = NULL;
+  pDst->isNewParam = false;
+
+  if (pSrc->colMap != NULL) {
+    pDst->colMap = taosArrayDup(pSrc->colMap, NULL);
+    QUERY_CHECK_NULL(pDst->colMap, code, lino, _return, terrno);
+  }
+  if (pSrc->tagCond != NULL) {
+    pDst->tagCond = taosStrdup(pSrc->tagCond);
+    QUERY_CHECK_NULL(pDst->tagCond, code, lino, _return, terrno);
+  }
+  if (pSrc->pPushedCond != NULL) {
+    code = nodesCloneNode(pSrc->pPushedCond, &pDst->pPushedCond);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  int32_t tableNum = taosArrayGetSize(pSrc->pBatchTables);
+  pDst->pBatchTables = taosArrayInit(TMAX(1, tableNum), sizeof(SForeignTableInfo));
+  QUERY_CHECK_NULL(pDst->pBatchTables, code, lino, _return, terrno);
+  for (int32_t i = 0; i < tableNum; ++i) {
+    SForeignTableInfo* pSrcTable = taosArrayGet(pSrc->pBatchTables, i);
+    SForeignTableInfo  dstTable = {0};
+    QUERY_CHECK_NULL(pSrcTable, code, lino, _return, TSDB_CODE_INVALID_PARA);
+    code = fedScanCloneBatchTable(pSrcTable, &dstTable);
+    QUERY_CHECK_CODE(code, lino, _return);
+    if (taosArrayPush(pDst->pBatchTables, &dstTable) == NULL) {
+      fedScanDestroyBatchTable(&dstTable);
+      code = terrno;
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+  }
+
+  *ppDst = pDst;
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  fedScanDestroyBatchParam(pDst);
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
 // Evict one entry from pTableCtxMap (closes its connections) to stay within limit.
 static int32_t fedScanEvictOneCtx(SFederatedScanOperatorInfo* pInfo) {
   if (pInfo->pTableCtxMap == NULL) return TSDB_CODE_SUCCESS;
@@ -2161,7 +2908,9 @@ int32_t fedScanSaveActiveCtx(SFederatedScanOperatorInfo* pInfo) {
   };
 
   // Evict if at capacity and this is a new entry
-  if (pOld == NULL && taosHashGetSize(pInfo->pTableCtxMap) >= FED_SCAN_TABLE_CTX_MAX_SIZE) {
+  bool keepAllBatchMergeContexts = pInfo->pBatchMergeHandle != NULL;
+  if (pOld == NULL && !keepAllBatchMergeContexts &&
+      taosHashGetSize(pInfo->pTableCtxMap) >= FED_SCAN_TABLE_CTX_MAX_SIZE) {
     int32_t code = fedScanEvictOneCtx(pInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -2213,6 +2962,523 @@ static void fedScanRestoreCtx(SFederatedScanOperatorInfo* pInfo, const char* tab
   }
   tstrncpy(pInfo->activeTableKey, tableKey, sizeof(pInfo->activeTableKey));
 }
+
+/*
+ * Activate one single-table parameter and restore its cached connector context.
+ *
+ * @param pInfo FederatedScan runtime state.
+ * @param pFsParam Borrowed single-table parameter to activate.
+ *
+ * @return TSDB_CODE_SUCCESS on success, otherwise an error code.
+ */
+static int32_t fedScanActivateTableParam(SFederatedScanOperatorInfo* pInfo,
+                                         SForeignScanOperatorParam* pFsParam) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  char tableKey[FED_SCAN_TABLE_KEY_LEN] = {0};
+
+  QUERY_CHECK_NULL(pInfo, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pFsParam, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CODE(fedScanBuildTableKey(pFsParam, tableKey, sizeof(tableKey)), lino, _return);
+
+  if (pInfo->pTableCtxMap == NULL) {
+    pInfo->pTableCtxMap =
+        taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    QUERY_CHECK_NULL(pInfo->pTableCtxMap, code, lino, _return, terrno);
+  }
+
+  if (strcmp(pInfo->activeTableKey, tableKey) != 0) {
+    code = fedScanSaveActiveCtx(pInfo);
+    QUERY_CHECK_CODE(code, lino, _return);
+    fedScanRestoreCtx(pInfo, tableKey);
+  }
+
+  pInfo->pActiveVStbParam = pFsParam;
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+/*
+ * Build the borrowed single-table view used by the existing VStb SQL path.
+ *
+ * @param pInfo FederatedScan runtime state receiving the shallow view.
+ * @param pBatch Borrowed batch parameter.
+ * @param pTable Borrowed table entry inside pBatch.
+ *
+ * @return Pointer to the stable shallow view owned by pInfo.
+ */
+static SForeignScanOperatorParam* fedScanBuildBatchTableViewImpl(
+    SForeignScanOperatorParam* pView, SFederatedScanOperatorInfo* pInfo,
+    SForeignScanOperatorParam* pBatch, SForeignTableInfo* pTable) {
+  memset(pView, 0, sizeof(*pView));
+  pView->paramType = FOREIGN_SCAN_PARAM_SINGLE;
+  tstrncpy(pView->sourceName, pBatch->sourceName, sizeof(pView->sourceName));
+  pView->sourceMetaVersion = pBatch->sourceMetaVersion != 0
+                                 ? pBatch->sourceMetaVersion
+                                 : pInfo->pFedScanNode->metaVersion;
+  tstrncpy(pView->dbName, pTable->dbName, sizeof(pView->dbName));
+  tstrncpy(pView->tableName, pTable->tableName, sizeof(pView->tableName));
+  pView->colMap = pTable->colMap;
+  pView->dstPrecision = (pTable->dstPrecision >= TSDB_TIME_PRECISION_MILLI &&
+                         pTable->dstPrecision <= TSDB_TIME_PRECISION_NANO)
+                            ? pTable->dstPrecision
+                            : pBatch->dstPrecision;
+  pView->tagCond = pTable->tagCond;
+  pView->tagCondLen = pTable->tagCondLen;
+  pView->rowLimit = pTable->rowLimit;
+  pView->pPushedCond = pTable->pPushedCond;
+  pView->groupId = pBatch->groupId;
+  pView->hasVtbGroupId = pBatch->hasVtbGroupId;
+  pView->vtbGroupId = pBatch->vtbGroupId;
+  pView->pVtbTagList = pTable->pVtbTagList;
+  pView->window = pBatch->window;
+  pView->virtualChildUid = pTable->virtualChildUid;
+  return pView;
+}
+
+static SForeignScanOperatorParam* fedScanBuildBatchTableView(SFederatedScanOperatorInfo* pInfo,
+                                                             SForeignScanOperatorParam* pBatch,
+                                                             SForeignTableInfo* pTable) {
+  return fedScanBuildBatchTableViewImpl(&pInfo->activeBatchTableParam, pInfo, pBatch, pTable);
+}
+
+typedef struct SFedBatchMergeSourceParam {
+  SOperatorInfo*            pOperator;
+  int32_t                   tableIndex;
+  SForeignScanOperatorParam tableParam;
+} SFedBatchMergeSourceParam;
+
+static int32_t fedScanBatchMergeComparFn(const void* pLeft, const void* pRight,
+                                         void* pParam) {
+  int32_t             leftIdx = *(const int32_t*)pLeft;
+  int32_t             rightIdx = *(const int32_t*)pRight;
+  SMsortComparParam*   pCompar = pParam;
+  SSortSource*         pLeftSource = pCompar->pSources[leftIdx];
+  SSortSource*         pRightSource = pCompar->pSources[rightIdx];
+
+  if (pLeftSource->src.rowIndex == -1) {
+    return 1;
+  }
+  if (pRightSource->src.rowIndex == -1) {
+    return -1;
+  }
+
+  SBlockOrderInfo* pOrder = taosArrayGet(pCompar->orderInfo, 0);
+  SColumnInfoData* pLeftTsCol =
+      taosArrayGet(pLeftSource->src.pBlock->pDataBlock, pOrder->slotId);
+  SColumnInfoData* pRightTsCol =
+      taosArrayGet(pRightSource->src.pBlock->pDataBlock, pOrder->slotId);
+  int64_t* pLeftTs =
+      (int64_t*)pLeftTsCol->pData + pLeftSource->src.rowIndex;
+  int64_t* pRightTs =
+      (int64_t*)pRightTsCol->pData + pRightSource->src.rowIndex;
+  __compar_fn_t compFn = pOrder->compFn;
+  int32_t       comp = compFn(pLeftTs, pRightTs);
+  if (0 != comp) {
+    return comp;
+  }
+
+  SFedBatchMergeSourceParam* pLeftParam = pLeftSource->param;
+  SFedBatchMergeSourceParam* pRightParam = pRightSource->param;
+  if (pLeftParam->tableIndex < pRightParam->tableIndex) {
+    return -1;
+  }
+  return pLeftParam->tableIndex > pRightParam->tableIndex;
+}
+
+static void fedScanDestroyBatchMerge(SFederatedScanOperatorInfo* pInfo) {
+  if (NULL == pInfo) {
+    return;
+  }
+
+  tsortDestroySortHandle(pInfo->pBatchMergeHandle);
+  pInfo->pBatchMergeHandle = NULL;
+  taosArrayDestroy(pInfo->pBatchMergeSortInfo);
+  pInfo->pBatchMergeSortInfo = NULL;
+
+  if (pInfo->prefetchReady &&
+      pInfo->pPrefetchedBlock == pInfo->pBatchMergeOutput) {
+    pInfo->pPrefetchParam = NULL;
+    pInfo->pPrefetchedBlock = NULL;
+    pInfo->prefetchReady = false;
+  }
+  blockDataDestroy(pInfo->pBatchMergeOutput);
+  pInfo->pBatchMergeOutput = NULL;
+
+  for (int32_t i = 0;
+       NULL != pInfo->pBatchMergeSourceParams &&
+       i < taosArrayGetSize(pInfo->pBatchMergeSourceParams);
+       ++i) {
+    SFedBatchMergeSourceParam** ppParam =
+        taosArrayGet(pInfo->pBatchMergeSourceParams, i);
+    if (NULL != ppParam) {
+      taosMemoryFree(*ppParam);
+    }
+  }
+  taosArrayDestroy(pInfo->pBatchMergeSourceParams);
+  pInfo->pBatchMergeSourceParams = NULL;
+  pInfo->batchMergeTsSlot = -1;
+}
+
+/*
+ * Fetch one timestamp-ordered block for a single source of the batch merge.
+ * The table context retains block ownership until this source asks for its
+ * next block, so tsort can safely reference one current block per source.
+ */
+static int32_t fedScanLoadBatchMergeBlock(void* param, SSDataBlock** ppBlock) {
+  int32_t                     code = TSDB_CODE_SUCCESS;
+  int32_t                     lino = 0;
+  SFedBatchMergeSourceParam*  pSource = param;
+  SFederatedScanOperatorInfo* pInfo = NULL;
+  SForeignScanOperatorParam*  pBatch = NULL;
+
+  QUERY_CHECK_NULL(pSource, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(ppBlock, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pSource->pOperator, code, lino, _return,
+                   TSDB_CODE_INVALID_PARA);
+  pInfo = pSource->pOperator->info;
+  QUERY_CHECK_NULL(pInfo, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  pBatch = pInfo->pActiveBatchParam;
+  QUERY_CHECK_NULL(pBatch, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(
+      NULL != pBatch->pBatchTables && pSource->tableIndex >= 0 &&
+          pSource->tableIndex < taosArrayGetSize(pBatch->pBatchTables),
+      code, lino, _return, TSDB_CODE_INVALID_PARA);
+
+  SForeignTableInfo* pTable =
+      taosArrayGet(pBatch->pBatchTables, pSource->tableIndex);
+  QUERY_CHECK_NULL(pTable, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  SForeignScanOperatorParam* pTableParam = fedScanBuildBatchTableViewImpl(
+      &pSource->tableParam, pInfo, pBatch, pTable);
+  code = fedScanActivateTableParam(pInfo, pTableParam);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  // A single table EOF must not complete the whole batch operator.
+  pSource->pOperator->status = OP_NOT_OPENED;
+  code = federatedScanGetNextSingle(pSource->pOperator, ppBlock);
+  pSource->pOperator->status = OP_NOT_OPENED;
+  QUERY_CHECK_CODE(code, lino, _return);
+  return code;
+
+_return:
+  if (NULL != ppBlock) {
+    *ppBlock = NULL;
+  }
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+static int32_t fedScanCreateBatchMerge(SOperatorInfo* pOperator,
+                                       SForeignScanOperatorParam* pBatch) {
+  int32_t                     code = TSDB_CODE_SUCCESS;
+  int32_t                     lino = 0;
+  SFederatedScanOperatorInfo* pInfo = NULL;
+  SSDataBlock*                pTemplate = NULL;
+  SSortSource*                pSortSource = NULL;
+  SFedBatchMergeSourceParam*  pSourceParam = NULL;
+
+  QUERY_CHECK_NULL(pOperator, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pBatch, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  pInfo = pOperator->info;
+  QUERY_CHECK_NULL(pInfo, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pBatch->pBatchTables, code, lino, _return,
+                   TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pInfo->pFedScanNode->node.pOutputDataBlockDesc, code, lino,
+                   _return, TSDB_CODE_PLAN_INTERNAL_ERROR);
+
+  int32_t tableNum = (int32_t)taosArrayGetSize(pBatch->pBatchTables);
+  QUERY_CHECK_CONDITION(tableNum > 1, code, lino, _return,
+                        TSDB_CODE_INVALID_PARA);
+  pInfo->batchMergeTsSlot = fedScanFindVstbOutputIndex(
+      pInfo->pFedScanNode, PRIMARYKEY_TIMESTAMP_COL_ID, true);
+  QUERY_CHECK_CONDITION(pInfo->batchMergeTsSlot >= 0, code, lino, _return,
+                        TSDB_CODE_PLAN_SLOT_NOT_FOUND);
+
+  pTemplate = createDataBlockFromDescNode(
+      pInfo->pFedScanNode->node.pOutputDataBlockDesc);
+  QUERY_CHECK_NULL(pTemplate, code, lino, _return, terrno);
+  SColumnInfoData* pTsCol =
+      taosArrayGet(pTemplate->pDataBlock, pInfo->batchMergeTsSlot);
+  QUERY_CHECK_NULL(pTsCol, code, lino, _return, TSDB_CODE_PLAN_SLOT_NOT_FOUND);
+
+  pInfo->pBatchMergeSortInfo =
+      taosArrayInit(1, sizeof(SBlockOrderInfo));
+  QUERY_CHECK_NULL(pInfo->pBatchMergeSortInfo, code, lino, _return, terrno);
+  SBlockOrderInfo order = {
+      .nullFirst = true,
+      .order = TSDB_ORDER_ASC,
+      .slotId = pInfo->batchMergeTsSlot,
+      .compFn = getKeyComparFunc(pTsCol->info.type, TSDB_ORDER_ASC),
+  };
+  QUERY_CHECK_NULL(taosArrayPush(pInfo->pBatchMergeSortInfo, &order), code,
+                   lino, _return, terrno);
+
+  int32_t pageSize = getProperSortPageSize(
+      blockDataGetRowSize(pTemplate),
+      (uint32_t)taosArrayGetSize(pTemplate->pDataBlock));
+  code = tsortCreateSortHandle(
+      pInfo->pBatchMergeSortInfo, SORT_MULTISOURCE_TS_MERGE, pageSize,
+      tableNum + 1,
+      pTemplate, pOperator->pTaskInfo->id.str, 0, 0, 0,
+      &pInfo->pBatchMergeHandle);
+  QUERY_CHECK_CODE(code, lino, _return);
+  tsortSetFetchRawDataFp(pInfo->pBatchMergeHandle,
+                         fedScanLoadBatchMergeBlock, NULL, NULL);
+  tsortSetComparFp(pInfo->pBatchMergeHandle,
+                   fedScanBatchMergeComparFn);
+
+  code = tsortGetSortedDataBlock(pInfo->pBatchMergeHandle,
+                                 &pInfo->pBatchMergeOutput);
+  QUERY_CHECK_CODE(code, lino, _return);
+  QUERY_CHECK_NULL(pInfo->pBatchMergeOutput, code, lino, _return, terrno);
+  pInfo->pBatchMergeSourceParams =
+      taosArrayInit(tableNum, POINTER_BYTES);
+  QUERY_CHECK_NULL(pInfo->pBatchMergeSourceParams, code, lino, _return,
+                   terrno);
+
+  for (int32_t i = 0; i < tableNum; ++i) {
+    pSourceParam = taosMemoryCalloc(1, sizeof(*pSourceParam));
+    QUERY_CHECK_NULL(pSourceParam, code, lino, _return, terrno);
+    pSourceParam->pOperator = pOperator;
+    pSourceParam->tableIndex = i;
+
+    pSortSource = taosMemoryCalloc(1, sizeof(*pSortSource));
+    QUERY_CHECK_NULL(pSortSource, code, lino, _return, terrno);
+    pSortSource->param = pSourceParam;
+    pSortSource->onlyRef = true;
+    QUERY_CHECK_NULL(
+        taosArrayPush(pInfo->pBatchMergeSourceParams, &pSourceParam), code,
+        lino, _return, terrno);
+    pSourceParam = NULL;
+    code = tsortAddSource(pInfo->pBatchMergeHandle, pSortSource);
+    QUERY_CHECK_CODE(code, lino, _return);
+    pSortSource = NULL;
+  }
+
+  code = tsortOpen(pInfo->pBatchMergeHandle);
+  QUERY_CHECK_CODE(code, lino, _return);
+  blockDataDestroy(pTemplate);
+  return code;
+
+_return:
+  taosMemoryFree(pSourceParam);
+  taosMemoryFree(pSortSource);
+  blockDataDestroy(pTemplate);
+  fedScanDestroyBatchMerge(pInfo);
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+static int32_t federatedScanContinueMergedBatch(
+    SOperatorInfo* pOperator, SForeignScanOperatorParam* pBatch,
+    SSDataBlock** ppRes) {
+  int32_t                     code = TSDB_CODE_SUCCESS;
+  int32_t                     lino = 0;
+  SFederatedScanOperatorInfo* pInfo = NULL;
+
+  QUERY_CHECK_NULL(pOperator, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pBatch, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(ppRes, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  pInfo = pOperator->info;
+  QUERY_CHECK_NULL(pInfo, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  *ppRes = NULL;
+
+  if (OP_EXEC_DONE == pOperator->status) {
+    return code;
+  }
+  if (NULL == pInfo->pBatchMergeHandle) {
+    code = fedScanCreateBatchMerge(pOperator, pBatch);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  blockDataCleanup(pInfo->pBatchMergeOutput);
+  int32_t capacity = TMAX(1, pOperator->resultInfo.capacity);
+  code = blockDataEnsureCapacity(pInfo->pBatchMergeOutput, capacity);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  while (pInfo->pBatchMergeOutput->info.rows < capacity) {
+    STupleHandle* pTuple = NULL;
+    code = tsortNextTuple(pInfo->pBatchMergeHandle, &pTuple);
+    QUERY_CHECK_CODE(code, lino, _return);
+    if (NULL == pTuple) {
+      break;
+    }
+    code = tsortAppendTupleToBlock(
+        pInfo->pBatchMergeHandle, pInfo->pBatchMergeOutput, pTuple);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  if (0 == pInfo->pBatchMergeOutput->info.rows) {
+    setOperatorCompleted(pOperator);
+    return code;
+  }
+
+  pInfo->pBatchMergeOutput->info.id.blockId = pOperator->resultDataBlockId;
+  if (pBatch->hasVtbGroupId) {
+    pInfo->pBatchMergeOutput->info.id.groupId = pBatch->vtbGroupId;
+  } else if (pBatch->groupId >= 0) {
+    pInfo->pBatchMergeOutput->info.id.groupId =
+        (uint64_t)pBatch->groupId;
+  }
+  code = blockDataUpdateTsWindow(pInfo->pBatchMergeOutput,
+                                 pInfo->batchMergeTsSlot);
+  QUERY_CHECK_CODE(code, lino, _return);
+  pOperator->status = OP_NOT_OPENED;
+  *ppRes = pInfo->pBatchMergeOutput;
+  return code;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+/*
+ * Consume all remote tables in a source batch without exposing per-table EOF.
+ *
+ * @param pOperator FederatedScan operator.
+ * @param pBatch Borrowed source batch parameter.
+ * @param ppRes Output data block.
+ *
+ * @return TSDB_CODE_SUCCESS on success, otherwise an error code.
+ */
+static int32_t federatedScanContinueBatch(SOperatorInfo* pOperator, SForeignScanOperatorParam* pBatch,
+                                          SSDataBlock** ppRes) {
+  int32_t                     code = TSDB_CODE_SUCCESS;
+  int32_t                     lino = 0;
+  SFederatedScanOperatorInfo* pInfo = NULL;
+  QUERY_CHECK_NULL(pOperator, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pBatch, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(ppRes, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  pInfo = pOperator->info;
+  QUERY_CHECK_NULL(pInfo, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  int32_t                     tableNum = (int32_t)taosArrayGetSize(pBatch->pBatchTables);
+
+  *ppRes = NULL;
+  if (pOperator->status == OP_EXEC_DONE) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  while (pInfo->currentBatchIdx < tableNum) {
+    SForeignTableInfo* pTable = taosArrayGet(pBatch->pBatchTables, pInfo->currentBatchIdx);
+    QUERY_CHECK_NULL(pTable, code, lino, _return, TSDB_CODE_INVALID_PARA);
+
+    SForeignScanOperatorParam* pTableParam = fedScanBuildBatchTableView(pInfo, pBatch, pTable);
+    code = fedScanActivateTableParam(pInfo, pTableParam);
+    QUERY_CHECK_CODE(code, lino, _return);
+
+    code = federatedScanGetNextSingle(pOperator, ppRes);
+    QUERY_CHECK_CODE(code, lino, _return);
+    if (*ppRes != NULL) {
+      return TSDB_CODE_SUCCESS;
+    }
+    if (!pInfo->queryFinished) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    ++pInfo->currentBatchIdx;
+    if (pInfo->currentBatchIdx < tableNum) {
+      pOperator->status = OP_NOT_OPENED;
+    }
+  }
+
+  setOperatorCompleted(pOperator);
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+static int32_t federatedScanGetNextBatch(SOperatorInfo* pOperator, SForeignScanOperatorParam* pInputBatch,
+                                         SSDataBlock** ppRes) {
+  int32_t                     code = TSDB_CODE_SUCCESS;
+  int32_t                     lino = 0;
+  SFederatedScanOperatorInfo* pInfo = NULL;
+  QUERY_CHECK_NULL(pOperator, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pInputBatch, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(ppRes, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  pInfo = pOperator->info;
+  QUERY_CHECK_NULL(pInfo, code, lino, _return, TSDB_CODE_INVALID_PARA);
+
+  if (pOperator->status == OP_EXEC_DONE && pInfo->batchMode && !pInputBatch->isNewParam &&
+      pInfo->pBatchInputIdentity == pInputBatch) {
+    *ppRes = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pInfo->pActiveBatchParam == NULL || pInfo->pBatchInputIdentity != pInputBatch ||
+      pInputBatch->isNewParam) {
+    federatedScanResetForNewChild(pOperator);
+    code = fedScanCloneBatchParam(pInputBatch, &pInfo->pActiveBatchParam);
+    QUERY_CHECK_CODE(code, lino, _return);
+    pInfo->pBatchInputIdentity = pInputBatch;
+    pInfo->currentBatchIdx = 0;
+    pInfo->activeBatchTableCount = taosArrayGetSize(pInfo->pActiveBatchParam->pBatchTables);
+    pInfo->batchMode = true;
+    pOperator->status = OP_NOT_OPENED;
+    tstrncpy(pInfo->activeBatchSourceName, pInfo->pActiveBatchParam->sourceName,
+             sizeof(pInfo->activeBatchSourceName));
+    pInputBatch->isNewParam = false;
+    pInfo->runtimeTimeRange = pInfo->pActiveBatchParam->window;
+    pInfo->hasRuntimeTimeRange = pInfo->runtimeTimeRange.skey <= pInfo->runtimeTimeRange.ekey;
+  }
+
+  if (pInfo->activeBatchTableCount > 1 &&
+      !pInfo->pActiveBatchParam->allowUnorderedBatch) {
+    code = federatedScanContinueMergedBatch(
+        pOperator, pInfo->pActiveBatchParam, ppRes);
+  } else {
+    code = federatedScanContinueBatch(
+        pOperator, pInfo->pActiveBatchParam, ppRes);
+  }
+  QUERY_CHECK_CODE(code, lino, _return);
+  return code;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  int32_t                     code = TSDB_CODE_SUCCESS;
+  int32_t                     lino = 0;
+  SFederatedScanOperatorInfo* pInfo = NULL;
+  QUERY_CHECK_NULL(pOperator, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(ppRes, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  pInfo = pOperator->info;
+  QUERY_CHECK_NULL(pInfo, code, lino, _return, TSDB_CODE_INVALID_PARA);
+
+  SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
+  if (NULL != pGetParam &&
+      QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN == pGetParam->opType &&
+      -1 != pGetParam->downstreamIdx && NULL == pGetParam->pChildren &&
+      NULL != pGetParam->value &&
+      FOREIGN_SCAN_PARAM_BATCH ==
+          ((SForeignScanOperatorParam*)pGetParam->value)->paramType) {
+    code = federatedScanGetNextBatch(
+        pOperator, (SForeignScanOperatorParam*)pGetParam->value, ppRes);
+  } else if (pInfo->batchMode && pInfo->pActiveBatchParam != NULL) {
+    if (pInfo->activeBatchTableCount > 1) {
+      code = federatedScanContinueMergedBatch(
+          pOperator, pInfo->pActiveBatchParam, ppRes);
+    } else {
+      code = federatedScanContinueBatch(
+          pOperator, pInfo->pActiveBatchParam, ppRes);
+    }
+  } else {
+    code = federatedScanGetNextSingle(pOperator, ppRes);
+  }
+  QUERY_CHECK_CODE(code, lino, _return);
+  return code;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
 static int32_t federatedScanGetNextExtFn(SOperatorInfo*  pOperator,
                                           SOperatorParam* pParam,
                                           SSDataBlock**   ppRes) {
@@ -2220,28 +3486,60 @@ static int32_t federatedScanGetNextExtFn(SOperatorInfo*  pOperator,
 
   SFederatedScanOperatorInfo* pInfo = pOperator->info;
 
-  if (pParam != NULL && pParam->opType == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
-    // Multi-table dispatch from VStb: use per-table context caching
-    SForeignScanOperatorParam* pFsParam = (SForeignScanOperatorParam*)pParam->value;
-    char tableKey[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 32] = {0};
-    fedScanBuildTableKey(pFsParam, tableKey, sizeof(tableKey));
-
-    if (pInfo->pTableCtxMap == NULL) {
-      pInfo->pTableCtxMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
-      if (pInfo->pTableCtxMap == NULL) return terrno;
+  if (pInfo->prefetchReady) {
+    if (pInfo->pPrefetchParam == pParam) {
+      SForeignScanOperatorParam* pFsParam = pParam->value;
+      bool windowUnchanged = pFsParam != NULL && pFsParam->paramType == FOREIGN_SCAN_PARAM_BATCH &&
+                             pFsParam->window.skey == pInfo->prefetchWindow.skey &&
+                             pFsParam->window.ekey == pInfo->prefetchWindow.ekey;
+      if (windowUnchanged) {
+        pFsParam->isNewParam = false;
+        *ppRes = pInfo->pPrefetchedBlock;
+        pInfo->pPrefetchParam = NULL;
+        pInfo->pPrefetchedBlock = NULL;
+        pInfo->prefetchReady = false;
+        return TSDB_CODE_SUCCESS;
+      }
     }
+    pInfo->pPrefetchParam = NULL;
+    pInfo->pPrefetchedBlock = NULL;
+    pInfo->prefetchReady = false;
+  }
 
-    if (strcmp(pInfo->activeTableKey, tableKey) != 0) {
-      // Switching tables: save current context, restore target context
-      int32_t code = fedScanSaveActiveCtx(pInfo);
+  if (pParam != NULL && pParam->opType == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN &&
+      pParam->downstreamIdx != -1 && pParam->pChildren == NULL && pParam->value != NULL &&
+      ((SForeignScanOperatorParam*)pParam->value)->paramType == FOREIGN_SCAN_PARAM_BATCH) {
+    SForeignScanOperatorParam* pBatch = pParam->value;
+    if (pBatch->pBatchTables == NULL || taosArrayGetSize(pBatch->pBatchTables) == 0) {
+      qError("%s received an empty federated scan batch for source %s", __func__, pBatch->sourceName);
+      return TSDB_CODE_INVALID_PARA;
+    }
+    return federatedScanGetNextBatch(pOperator, pBatch, ppRes);
+  }
+
+  if (pParam != NULL && pParam->opType == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN &&
+      (pParam->downstreamIdx == -1 || pParam->pChildren != NULL) &&
+      pParam->value != NULL) {
+    pInfo->runtimeTimeRange = ((SDynQueryCtrlOperatorParam*)pParam->value)->window;
+    pInfo->hasRuntimeTimeRange = true;
+    qDebug("FederatedScan: apply dynamic VtableWindow range [%" PRId64 ", %" PRId64 ")",
+           pInfo->runtimeTimeRange.skey, pInfo->runtimeTimeRange.ekey);
+  }
+
+  if (pParam != NULL && pParam->opType == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN &&
+      pParam->downstreamIdx != -1 && pParam->pChildren == NULL) {
+    // Multi-table dispatch from VStb: use per-table context caching
+    if (pOperator->pOperatorGetParam != pParam) {
+      int32_t code = setOperatorParams(pOperator, pParam, OP_GET_PARAM);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
-      fedScanRestoreCtx(pInfo, tableKey);
     }
-
-    // Store VStb param for dynamic SQL generation in getNext
-    pInfo->pActiveVStbParam = pFsParam;
+    SForeignScanOperatorParam* pFsParam = (SForeignScanOperatorParam*)pParam->value;
+    int32_t code = fedScanActivateTableParam(pInfo, pFsParam);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
 
     return federatedScanGetNext(pOperator, ppRes);
   }
@@ -2266,6 +3564,55 @@ static int32_t federatedScanGetNextExtFn(SOperatorInfo*  pOperator,
   return federatedScanGetNext(pOperator, ppRes);
 }
 
+int32_t federatedScanPrefetch(SOperatorInfo* pOperator, SOperatorParam* pParam) {
+  if (pOperator == NULL || pParam == NULL || pOperator->info == NULL ||
+      pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SFederatedScanOperatorInfo* pInfo = pOperator->info;
+  if (pInfo->prefetchReady) {
+    return pInfo->pPrefetchParam == pParam ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_PARA;
+  }
+
+  SForeignScanOperatorParam* pFsParam = pParam->value;
+  if (pParam->downstreamIdx == -1 || pParam->pChildren != NULL || pFsParam == NULL ||
+      pFsParam->paramType != FOREIGN_SCAN_PARAM_BATCH) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SSDataBlock* pBlock = NULL;
+  pInfo->parallelPrefetch = true;
+  int32_t code = pOperator->fpSet.getNextExtFn(pOperator, pParam, &pBlock);
+  pInfo->parallelPrefetch = false;
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  pInfo->pPrefetchParam = pParam;
+  pInfo->pPrefetchedBlock = pBlock;
+  pInfo->prefetchWindow = pFsParam->window;
+  pInfo->prefetchReady = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+void federatedScanPropagatePrefetchError(SOperatorInfo* pOperator, int32_t code) {
+  if (pOperator == NULL || pOperator->info == NULL || pOperator->pTaskInfo == NULL) {
+    return;
+  }
+
+  SFederatedScanOperatorInfo* pInfo = pOperator->info;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  pTaskInfo->code = code;
+  if (pInfo->hasPrefetchDiag) {
+    pTaskInfo->hasExtPushdownDiag = true;
+    pTaskInfo->extPushdownDiag = pInfo->prefetchDiag;
+  }
+  if (pInfo->extErrMsg[0] != '\0') {
+    tstrncpy(pTaskInfo->extErrMsg, pInfo->extErrMsg, sizeof(pTaskInfo->extErrMsg));
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Reset FederatedScan state for new VStb child — closes cached connections
 // ---------------------------------------------------------------------------
@@ -2273,6 +3620,8 @@ static int32_t federatedScanGetNextExtFn(SOperatorInfo*  pOperator,
 void federatedScanResetForNewChild(SOperatorInfo* pOperator) {
   SFederatedScanOperatorInfo* pInfo = (SFederatedScanOperatorInfo*)pOperator->info;
   if (!pInfo) return;
+
+  fedScanDestroyBatchMerge(pInfo);
 
   // Save the active context into the map first so all handles are in one place
   int32_t code = fedScanSaveActiveCtx(pInfo);
@@ -2298,6 +3647,17 @@ void federatedScanResetForNewChild(SOperatorInfo* pOperator) {
   pInfo->queryFinished = false;
   pInfo->activeTableKey[0] = '\0';
   pInfo->pActiveVStbParam = NULL;
+  fedScanDestroyBatchParam(pInfo->pActiveBatchParam);
+  pInfo->pActiveBatchParam = NULL;
+  pInfo->pBatchInputIdentity = NULL;
+  pInfo->currentBatchIdx = 0;
+  pInfo->activeBatchTableCount = 0;
+  pInfo->activeBatchSourceName[0] = '\0';
+  pInfo->batchMode = false;
+  pInfo->runtimeTimeRange =
+      (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
+  pInfo->hasRuntimeTimeRange = false;
+  memset(&pInfo->activeBatchTableParam, 0, sizeof(pInfo->activeBatchTableParam));
 }
 
 // ---------------------------------------------------------------------------
@@ -2307,6 +3667,8 @@ void federatedScanResetForNewChild(SOperatorInfo* pOperator) {
 static void federatedScanClose(void* param) {
   SFederatedScanOperatorInfo* pInfo = (SFederatedScanOperatorInfo*)param;
   if (!pInfo) return;
+
+  fedScanDestroyBatchMerge(pInfo);
 
   if (pInfo->pTableCtxMap) {
     // Save the currently-active context into the map so every handle is
@@ -2329,6 +3691,9 @@ static void federatedScanClose(void* param) {
   } else {
     fedScanCloseActiveHandles(pInfo);
   }
+  fedScanDestroyBatchParam(pInfo->pActiveBatchParam);
+  pInfo->pActiveBatchParam = NULL;
+  pInfo->pBatchInputIdentity = NULL;
   qDebug("FederatedScan closed: rows=%" PRId64 ", blocks=%" PRId64 ", elapsed=%" PRId64 "us",
          pInfo->fetchedRows, pInfo->fetchBlockCount, pInfo->elapsedTimeUs);
 
@@ -2355,6 +3720,13 @@ static int32_t federatedScanGetExplainInfo(SOperatorInfo* pOperator,
   pExInfo->fetchBlockCount = pInfo->fetchBlockCount;
   pExInfo->elapsedTimeUs   = pInfo->elapsedTimeUs;
   tstrncpy(pExInfo->remoteSql, pInfo->remoteSql, sizeof(pExInfo->remoteSql));
+  if (pInfo->batchMode) {
+    pExInfo->batchMode = true;
+    pExInfo->batchTables = pInfo->activeBatchTableCount;
+    tstrncpy(pExInfo->sourceName, pInfo->activeBatchSourceName, sizeof(pExInfo->sourceName));
+  } else if (pInfo->pActiveVStbParam != NULL) {
+    tstrncpy(pExInfo->sourceName, pInfo->pActiveVStbParam->sourceName, sizeof(pExInfo->sourceName));
+  }
 
   *ppOptrExplain = pExInfo;
   *pLen          = (uint32_t)sizeof(SFederatedScanExplainInfo);
@@ -2383,11 +3755,11 @@ int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
   QUERY_CHECK_NULL(pOperator, code, lino, _error, terrno);
 
   initOperatorCostInfo(pOperator);
+  initResultSizeInfo(&pOperator->resultInfo, FED_SCAN_RESULT_BLOCK_ROWS);
 
   // Store reference to physi node (not owned — lifetime managed by plan)
   pInfo->pFedScanNode = pFedScanNode;
   pInfo->underVTableScan = pFedScanNode->underVTableScan;
-
   if (pFedScanNode->pRemotePlan != NULL) {
     SLogicNode* pRemoteRoot = (SLogicNode*)pFedScanNode->pRemotePlan;
     if (pRemoteRoot->pTargets == NULL || LIST_LENGTH(pRemoteRoot->pTargets) == 0) {
@@ -2398,12 +3770,6 @@ int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
       goto _error;
     }
   }
-
-  qError("FqExec ENTRY: pColTypeMappings=%p, numColTypeMappings=%d, pRemotePlan=%p, pScanCols len=%d",
-         (void*)pFedScanNode->pColTypeMappings,
-         pFedScanNode->numColTypeMappings,
-         (void*)pFedScanNode->pRemotePlan,
-         pFedScanNode->pScanCols ? (int)LIST_LENGTH(pFedScanNode->pScanCols) : -1);
 
   // pColTypeMappings and pOutputDataBlockDesc are fully computed by the planner
   // and preserved through JSON serialization.  The executor uses them as-is.

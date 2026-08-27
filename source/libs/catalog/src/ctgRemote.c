@@ -2176,7 +2176,8 @@ int32_t ctgGetExtSourceFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const 
   };
   SRpcMsg rpcRsp = {0};
   CTG_ERR_RET(rpcSendRecv(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp));
-  CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, (char*)sourceName));
+  code = ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, (char*)sourceName);
   rpcFreeCont(rpcRsp.pCont);
+  CTG_ERR_RET(code);
   return TSDB_CODE_SUCCESS;
 }

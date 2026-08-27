@@ -453,7 +453,8 @@ int32_t appendSelectivityCols(SqlFunctionCtx* pCtx, SSDataBlock* pSrcBlock, int3
 bool funcInputGetNextRowIndex(SInputColumnInfoData* pInput, int32_t from, bool firstOccur, int32_t* pRowIndex,
                               int32_t* nextFrom);
 
-static bool firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst);
+static bool firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst,
+                                      bool preferNonNullOnTsTie);
 
 int32_t functionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
   if (pResultInfo->initialized) {
@@ -492,7 +493,7 @@ int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SFirstLastRes*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  pDBuf->hasResult = firstLastTransferInfoImpl(pSBuf, pDBuf, true);
+  pDBuf->hasResult = firstLastTransferInfoImpl(pSBuf, pDBuf, true, false);
 
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   pDResInfo->isNullRes &= pSResInfo->isNullRes;
@@ -1114,7 +1115,6 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
   int32_t               type = pInput->pData[0]->info.type;
 
   SStdRes* pStdRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  pStdRes->type = type;
 
   // computing based on the true data block
   SColumnInfoData* pCol = pInput->pData[0];
@@ -1126,6 +1126,7 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
     numOfElem = 0;
     goto _stddev_over;
   }
+  pStdRes->type = type;
 
   switch (type) {
     case TSDB_DATA_TYPE_TINYINT: {
@@ -2788,11 +2789,10 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
 
-  pInfo->bytes = pInputCol->info.bytes;
-
   if (IS_NULL_TYPE(pInputCol->info.type)) {
     return TSDB_CODE_SUCCESS;
   }
+  pInfo->bytes = pInputCol->info.bytes;
 
   SColumnInfoData* pkCol = pInput->pPrimaryKey;
   pInfo->pkType = -1;
@@ -3161,12 +3161,13 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-static bool firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst) {
+static bool firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst,
+                                      bool preferNonNullOnTsTie) {
   if (!pInput->hasResult) {
     return false;
   }
   __compar_fn_t pkCompareFn = NULL;
-  if (pInput->pkData) {
+  if (pInput->pkData && pOutput->pkData) {
     pkCompareFn = getKeyComparFunc(pInput->pkType, (isFirst) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC);
   }
   if (pOutput->hasResult) {
@@ -3180,15 +3181,20 @@ static bool firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOut
           (pInput->ts == pOutput->ts && (!pkCompareFn || pkCompareFn(pInput->pkData, pOutput->pkData) >= 0))) {
         return false;
       }
-    } else {
-      if (pInput->ts < pOutput->ts ||
-          (pInput->ts == pOutput->ts && pkCompareFn && pkCompareFn(pInput->pkData, pOutput->pkData) > 0)) {
+    } else if (pInput->ts < pOutput->ts) {
+      return false;
+    } else if (pInput->ts == pOutput->ts) {
+      int32_t pkCompare = NULL != pkCompareFn ? pkCompareFn(pInput->pkData, pOutput->pkData) : 0;
+      if ((NULL != pkCompareFn && pkCompare > 0) ||
+          (preferNonNullOnTsTie && (NULL == pkCompareFn || 0 == pkCompare) && pInput->isNull &&
+           !pOutput->isNull)) {
         return false;
       }
     }
   }
 
   pOutput->isNull = pInput->isNull;
+  pOutput->preferNonNullOnTsTie = pInput->preferNonNullOnTsTie;
   pOutput->hasTsOrder = pInput->hasTsOrder;
   pOutput->ts = pInput->ts;
   pOutput->bytes = pInput->bytes;
@@ -3206,8 +3212,8 @@ static bool firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOut
 }
 
 static int32_t firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst,
-                                     int32_t rowIndex) {
-  if (firstLastTransferInfoImpl(pInput, pOutput, isFirst)) {
+                                     bool preferNonNullOnTsTie, int32_t rowIndex) {
+  if (firstLastTransferInfoImpl(pInput, pOutput, isFirst, preferNonNullOnTsTie)) {
     int32_t code = firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pOutput, false);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
@@ -3247,7 +3253,8 @@ static int32_t firstLastFunctionMergeImpl(SqlFunctionCtx* pCtx, bool isFirstQuer
       pInputInfo->pkData = NULL;
     }
 
-    int32_t code = firstLastTransferInfo(pCtx, pInputInfo, pInfo, isFirstQuery, i);
+    int32_t code = firstLastTransferInfo(pCtx, pInputInfo, pInfo, isFirstQuery,
+                                         pInputInfo->preferNonNullOnTsTie, i);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -3354,7 +3361,7 @@ int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SFirstLastRes*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  pDBuf->hasResult = firstLastTransferInfoImpl(pSBuf, pDBuf, false);
+  pDBuf->hasResult = firstLastTransferInfoImpl(pSBuf, pDBuf, false, pSBuf->preferNonNullOnTsTie);
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   pDResInfo->isNullRes &= pSResInfo->isNullRes;
   return TSDB_CODE_SUCCESS;
@@ -3409,17 +3416,19 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SFirstLastRes*       pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pInfo->preferNonNullOnTsTie =
+      FUNC_RELATED_TO_VSTABLE_LAST_ROW_PARTIAL == pCtx->pExpr->pExpr->relatedTo;
 
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
 
   int32_t type = pInputCol->info.type;
   int32_t bytes = pInputCol->info.bytes;
-  pInfo->bytes = bytes;
 
   if (IS_NULL_TYPE(type)) {
     return TSDB_CODE_SUCCESS;
   }
+  pInfo->bytes = bytes;
   SColumnInfoData* pkCol = pInput->pPrimaryKey;
   pInfo->pkType = -1;
   __compar_fn_t pkCompareFn = NULL;
@@ -7649,9 +7658,11 @@ static double twa_get_area(SPoint1 s, SPoint1 e) {
     return (s.val + e.val) * (e.key - s.key) / 2;
   }
 
-  double x = (s.key * e.val - e.key * s.val) / (e.val - s.val);
-  double val = (s.val * (x - s.key) + e.val * (e.key - x)) / 2;
-  return val;
+  // Calculate the zero crossing relative to s.key. Using absolute epoch
+  // timestamps loses precision at nanosecond resolution.
+  double duration = (double)(e.key - s.key);
+  double zero_offset = -s.val * duration / (e.val - s.val);
+  return (s.val * zero_offset + e.val * (duration - zero_offset)) / 2;
 }
 
 // Generalized time-weighted area of the segment [s, e]. When locf is true the value is

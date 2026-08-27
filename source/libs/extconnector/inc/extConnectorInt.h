@@ -73,6 +73,11 @@ typedef struct SExtProvider {
 
   // Error mapping (DS §5.3.11): fills pOutErr from native driver state
   int32_t (*mapError)(void *pConn, SExtConnectorError *pOutErr);
+
+  // Return whether this connection can convert timezone-naive values using
+  // the supplied timezone name. NULL means unsupported.
+  int32_t (*supportsTimezoneConversion)(void *pConn, const char *timezone,
+                                        bool *pSupported);
 } SExtProvider;
 
 // EXT_SOURCE_TYPE_COUNT — must match the EExtSourceType enum in tmsg.h
@@ -107,6 +112,8 @@ typedef struct SExtPoolEntry {
   void                 *pConn;          // native connection handle
   int64_t               lastActiveTime; // ms timestamp of last use
   int64_t               generation;     // drainGeneration value at open() time
+  char                  timezoneConversionName[TD_TIMEZONE_LEN];
+  bool                  timezoneConversionSupported;
 } SExtPoolEntry;
 
 // ============================================================

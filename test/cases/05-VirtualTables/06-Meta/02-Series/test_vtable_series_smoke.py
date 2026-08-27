@@ -57,7 +57,7 @@ class TestVtableSeriesSmoke:
         time.sleep(2)
 
         tdSql.execute(f"DROP DATABASE IF EXISTS {DB_NAME}")
-        tdSql.execute(f"CREATE DATABASE {DB_NAME}")
+        tdSql.execute(f"CREATE DATABASE {DB_NAME} PRECISION 'ns'")
         tdSql.execute(f"USE {DB_NAME}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {EXT_SOURCE}")
         tdSql.execute(

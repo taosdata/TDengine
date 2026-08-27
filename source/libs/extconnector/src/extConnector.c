@@ -69,6 +69,17 @@ int32_t extConnectorGetCapabilities(SExtConnectorHandle *pHandle, const SExtTabl
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
+int32_t extConnectorSupportsTimezoneConversion(SExtConnectorHandle *pHandle,
+                                               const char *timezone,
+                                               bool *pSupported) {
+  (void)pHandle;
+  (void)timezone;
+  if (pSupported != NULL) {
+    *pSupported = false;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t extConnectorExecQuery(SExtConnectorHandle *pHandle, const SFederatedScanPhysiNode *pNode,
                               const char *pSQL,
                               SExtQueryHandle **ppQHandle, SExtConnectorError *pOutErr) {

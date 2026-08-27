@@ -1,0 +1,71 @@
+set max_binary_display_width 180;
+
+# no partition / no tag
+explain verbose true select sum(local_v), sum(mysql_a_v), sum(mysql_b_v), sum(postgres_v) from vt_window_federated_batch.vst_local_external;
+
+# no partition / tag
+explain verbose true select sum(mysql_v), max(scenario) from vt_window_federated_batch.vst_tag_federated;
+
+# partition / no tag
+explain verbose true select sum(local_v), sum(mysql_a_v), sum(mysql_b_v), sum(postgres_v) from vt_window_federated_batch.vst_local_external partition by scenario order by 1;
+
+# partition / tag
+explain verbose true select sum(mysql_v), max(scenario) from vt_window_federated_batch.vst_tag_federated partition by scenario order by 1;
+
+# external-only, multiple execution units
+explain verbose true select sum(mysql_a_v), sum(mysql_b_v), sum(postgres_v) from vt_window_federated_batch.vst_mixed_sources;
+
+# empty external branch
+explain verbose true select sum(local_v), sum(empty_v) from vt_window_federated_batch.vst_empty_branch;
+
+# external-only, one source
+explain verbose true select sum(source_v) from vt_window_federated_batch.vst_single_source;
+
+# external-only, multiple remote tables under one source
+explain verbose true select sum(primary_v), sum(aux_v) from vt_window_federated_batch.vst_same_source;
+
+# multiple external sources, another partial-state shape
+explain verbose true select avg(mysql_a_v), avg(mysql_b_v), avg(postgres_v) from vt_window_federated_batch.vst_mixed_sources;
+
+# partition, external-only multiple sources
+explain verbose true select sum(mysql_a_v), sum(mysql_b_v), sum(postgres_v) from vt_window_federated_batch.vst_mixed_sources partition by scenario order by 1;
+
+# distributable functions supported by the non-federated VStableAgg path
+explain verbose true select round(apercentile(mysql_a_v, 50)) from vt_window_federated_batch.vst_mixed_sources;
+explain verbose true select top(mysql_a_v, 2) from vt_window_federated_batch.vst_mixed_sources;
+explain verbose true select bottom(postgres_v, 2) from vt_window_federated_batch.vst_mixed_sources;
+explain verbose true select first(*) from vt_window_federated_batch.vst_mixed_sources;
+explain verbose true select last_row(*) from vt_window_federated_batch.vst_mixed_sources;
+explain verbose true select min(ts), max(ts) from vt_window_federated_batch.vst_mixed_sources;
+explain verbose true select hyperloglog(mysql_b_v) from vt_window_federated_batch.vst_mixed_sources;
+explain verbose true select corr(state_col, mysql_a_v) from vt_window_federated_batch.vst_mixed_sources;
+explain verbose true select std(mysql_a_v), stddev_samp(mysql_a_v), var_samp(mysql_a_v) from vt_window_federated_batch.vst_mixed_sources;
+explain verbose true select histogram(mysql_a_v, 'user_input', '[0,20,40,60]', 0) from vt_window_federated_batch.vst_mixed_sources;
+explain verbose true select group_concat(mysql_v, ','), group_concat(postgres_v, ',') from vt_window_federated_batch.vst_string_federated;
+
+# tag/data aggregate with single-UID dispatch
+explain verbose true select count(mysql_v), max(scenario) from vt_window_federated_batch.vst_tag_federated;
+
+# tag/data aggregate with groupId -> UID dispatch
+explain verbose true select count(mysql_v), max(scenario) from vt_window_federated_batch.vst_tag_federated partition by scenario order by 1;
+
+# TBNAME uses virtual child names, not external remote table names
+explain verbose true select sum(mysql_v), max(tbname) from vt_window_federated_batch.vst_tag_federated;
+
+# variable-width and NULL tags use the fixed virtual output slots
+explain verbose true select sum(mysql_v), max(label) from vt_window_federated_batch.vst_tag_types;
+
+# columns nested in an aggregate expression fall back even with one data owner
+explain verbose true select sum(mysql_v + scenario) from vt_window_federated_batch.vst_tag_federated;
+
+# unsupported cross-source expression falls back
+explain verbose true select sum(local_v + mysql_a_v) from vt_window_federated_batch.vst_local_external;
+
+# unsupported wildcard aggregate falls back
+explain verbose true select count(*) from vt_window_federated_batch.vst_local_external;
+
+# tag-only aggregates have an ambiguous cross-source timestamp-union row domain
+explain verbose true select sum(scenario) from vt_window_federated_batch.vst_tag_federated;
+
+# tag plus multiple ordinary data owners falls back
+explain verbose true select sum(scenario + local_v + mysql_v) from vt_window_federated_batch.vst_tag_federated;

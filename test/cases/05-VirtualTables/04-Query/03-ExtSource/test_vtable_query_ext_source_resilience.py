@@ -85,7 +85,7 @@ class TestVtableQueryExtSourceResilience:
         create_ext_source(_INF_SRC, "influxdb", _INF_DB)
 
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
-        tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ms'")
+        tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ns'")
         tdSql.execute(f"USE {_LOCAL_DB}")
         tdSql.execute(
             f"CREATE VTABLE v_pg_normal (ts timestamp, "

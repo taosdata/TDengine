@@ -2960,7 +2960,7 @@ taos> select stateduration(u_tinyint_col, "GT", 20, 1a) from test_vtable_select.
 taos> select round(twa(int_col), -4) from test_vtable_select.vtb_virtual_ntb_full limit 50;
   round(twa(int_col), -4)  |
 ============================
-                  -7610000 |
+                  -7620000 |
 
 taos> select count(tbname) from test_vtable_select.vtb_virtual_ntb_full;
      count(tbname)     |

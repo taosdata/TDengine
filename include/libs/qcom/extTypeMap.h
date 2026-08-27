@@ -61,6 +61,14 @@ extern "C" {
 int32_t extTypeNameToTDengineType(EExtSourceType srcType, const char *extTypeName,
                                    const char *extCharsetName, SDataType *pTdType);
 
+/**
+ * Return the precision accepted by an external timestamp column in predicates.
+ * MySQL DATETIME/TIMESTAMP fractional precision is derived from extTypeName;
+ * PostgreSQL and InfluxDB use their native microsecond/nanosecond precision.
+ */
+int8_t extTimestampTypePrecision(EExtSourceType srcType, const char *extTypeName,
+                                  int8_t fallbackPrecision);
+
 #ifdef __cplusplus
 }
 #endif

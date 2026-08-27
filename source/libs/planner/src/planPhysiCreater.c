@@ -307,7 +307,7 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
                               SLOT_KEY_TYPE_COLNAME);
     }
     if (pCol->hasRef) {
-      int32_t allocLen = TSDB_TABLE_FNAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 2 + extraBufLen;
+      int32_t allocLen = TSDB_EXT_SOURCE_NAME_LEN + TSDB_TABLE_FNAME_LEN + TSDB_COL_NAME_LEN * 2 + 5 + extraBufLen;
       *ppKey = taosMemoryCalloc(1, allocLen);
       if (!*ppKey) {
         return terrno;
@@ -317,6 +317,10 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
       if (pCol->colType == COLUMN_TYPE_TAG) {
         TAOS_STRNCAT(*ppKey, pCol->colName, TSDB_COL_NAME_LEN);
         TAOS_STRNCAT(*ppKey, ":", 2);
+      }
+      if ('\0' != pCol->refSourceName[0]) {
+        TAOS_STRNCAT(*ppKey, pCol->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+        TAOS_STRNCAT(*ppKey, ".", 2);
       }
       TAOS_STRNCAT(*ppKey, pCol->refDbName, TSDB_DB_NAME_LEN);
       TAOS_STRNCAT(*ppKey, ".", 2);
@@ -328,9 +332,14 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
       return code;
     }
     if (pCol->hasDep) {
-      *ppKey = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
+      int32_t allocLen = TSDB_EXT_SOURCE_NAME_LEN + TSDB_TABLE_FNAME_LEN + TSDB_COL_NAME_LEN + 4 + extraBufLen;
+      *ppKey = taosMemoryCalloc(1, allocLen);
       if (!*ppKey) {
         return terrno;
+      }
+      if ('\0' != pCol->refSourceName[0]) {
+        TAOS_STRNCAT(*ppKey, pCol->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+        TAOS_STRNCAT(*ppKey, ".", 2);
       }
       TAOS_STRNCAT(*ppKey, pCol->dbName, TSDB_DB_NAME_LEN);
       TAOS_STRNCAT(*ppKey, ".", 2);
@@ -338,8 +347,8 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
       TAOS_STRNCAT(*ppKey, ".", 2);
       TAOS_STRNCAT(*ppKey, pCol->colName, TSDB_COL_NAME_LEN);
       planDebug("getSlotKey hasDep: '%s' (len=%d)", *ppKey, (int)strlen(*ppKey));
-      *cap = TSDB_TABLE_FNAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen;
-      *pLen = taosHashBinary(*ppKey, strlen(*ppKey), TSDB_TABLE_FNAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
+      *cap = allocLen;
+      *pLen = taosHashBinary(*ppKey, strlen(*ppKey), allocLen);
       return code;
     }
     callocLen = TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen;
@@ -437,9 +446,14 @@ static int32_t putSlotToHashImpl(int64_t dataBlockId, int16_t slotId, const char
   }
   SSlotIdInfo info = {.slotId = slotId, .set = false};
   if (NULL == taosArrayPush(index.pSlotIdsInfo, &info)) {
+    taosArrayDestroy(index.pSlotIdsInfo);
     return terrno;
   }
-  return taosHashPut(pHash, pName, len, &index, sizeof(SSlotIndex));
+  int32_t code = taosHashPut(pHash, pName, len, &index, sizeof(SSlotIndex));
+  if (TSDB_CODE_SUCCESS != code) {
+    taosArrayDestroy(index.pSlotIdsInfo);
+  }
+  return code;
 }
 
 static int32_t putSlotToHash(const char* pName, int32_t len, int64_t dataBlockId, int16_t slotId, SNode* pNode,
@@ -565,6 +579,19 @@ static int32_t createDataBlockDesc(SPhysiPlanContext* pCxt, SNodeList* pList, SD
   return code;
 }
 
+static void destroySlotIndexHash(SHashObj* pHash) {
+  if (NULL == pHash) {
+    return;
+  }
+
+  SSlotIndex* pIndex = taosHashIterate(pHash, NULL);
+  while (NULL != pIndex) {
+    taosArrayDestroy(pIndex->pSlotIdsInfo);
+    pIndex = taosHashIterate(pHash, pIndex);
+  }
+  taosHashCleanup(pHash);
+}
+
 static void fqClearDataBlockDescHashes(SPhysiPlanContext* pCxt, int64_t dataBlockId) {
   if (NULL == pCxt) {
     return;
@@ -574,7 +601,7 @@ static void fqClearDataBlockDescHashes(SPhysiPlanContext* pCxt, int64_t dataBloc
     SHashObj* pHash = taosArrayGetP(pCxt->pLocationHelper, (size_t)dataBlockId);
     if (NULL != pHash) {
       SHashObj* pNull = NULL;
-      taosHashCleanup(pHash);
+      destroySlotIndexHash(pHash);
       taosArraySet(pCxt->pLocationHelper, (size_t)dataBlockId, &pNull);
     }
   }
@@ -583,7 +610,7 @@ static void fqClearDataBlockDescHashes(SPhysiPlanContext* pCxt, int64_t dataBloc
     SHashObj* pHash = taosArrayGetP(pCxt->pProjIdxLocHelper, (size_t)dataBlockId);
     if (NULL != pHash) {
       SHashObj* pNull = NULL;
-      taosHashCleanup(pHash);
+      destroySlotIndexHash(pHash);
       taosArraySet(pCxt->pProjIdxLocHelper, (size_t)dataBlockId, &pNull);
     }
   }
@@ -751,11 +778,13 @@ static int32_t pushdownDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList,
 }
 
 typedef struct SSetSlotIdCxt {
-  int32_t   errCode;
-  SHashObj* pLeftHash;
-  SHashObj* pLeftProjIdxHash;
-  SHashObj* pRightHash;
-  SHashObj* pRightProdIdxHash;
+  int32_t     errCode;
+  SHashObj*   pLeftHash;
+  SHashObj*   pLeftProjIdxHash;
+  SHashObj*   pRightHash;
+  SHashObj*   pRightProdIdxHash;
+  const char* pLeftTableAlias;
+  const char* pRightTableAlias;
 } SSetSlotIdCxt;
 
 typedef struct SMultiTableSetSlotIdCxt {
@@ -800,7 +829,7 @@ static int32_t fqBuildRefSlotKey(const SColumnNode* pCol, uint16_t extraBufLen, 
     return TSDB_CODE_INVALID_PARA;
   }
 
-  int32_t allocLen = TSDB_TABLE_FNAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 2 + extraBufLen;
+  int32_t allocLen = TSDB_EXT_SOURCE_NAME_LEN + TSDB_TABLE_FNAME_LEN + TSDB_COL_NAME_LEN * 2 + 5 + extraBufLen;
   *ppKey = taosMemoryCalloc(1, allocLen);
   if (NULL == *ppKey) {
     return terrno;
@@ -809,6 +838,10 @@ static int32_t fqBuildRefSlotKey(const SColumnNode* pCol, uint16_t extraBufLen, 
   if (COLUMN_TYPE_TAG == pCol->colType) {
     TAOS_STRNCAT(*ppKey, pCol->colName, TSDB_COL_NAME_LEN);
     TAOS_STRNCAT(*ppKey, ":", 2);
+  }
+  if ('\0' != pCol->refSourceName[0]) {
+    TAOS_STRNCAT(*ppKey, pCol->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+    TAOS_STRNCAT(*ppKey, ".", 2);
   }
   TAOS_STRNCAT(*ppKey, pCol->refDbName, TSDB_DB_NAME_LEN);
   TAOS_STRNCAT(*ppKey, ".", 2);
@@ -1015,6 +1048,15 @@ static void fqLogSlotLookupMiss(const char* pTag, const SColumnNode* pCol, const
 static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode) && 0 != strcmp(((SColumnNode*)pNode)->colName, "*")) {
     SSetSlotIdCxt* pCxt = (SSetSlotIdCxt*)pContext;
+    SColumnNode*   pCol = (SColumnNode*)pNode;
+    bool preferLeft = NULL != pCxt->pLeftTableAlias && '\0' != pCxt->pLeftTableAlias[0] &&
+                      0 == strcmp(pCol->tableAlias, pCxt->pLeftTableAlias);
+    bool preferRight = !preferLeft && NULL != pCxt->pRightTableAlias && '\0' != pCxt->pRightTableAlias[0] &&
+                       0 == strcmp(pCol->tableAlias, pCxt->pRightTableAlias);
+    SHashObj* pFirstHash = preferRight ? pCxt->pRightHash : pCxt->pLeftHash;
+    SHashObj* pSecondHash = preferRight ? pCxt->pLeftHash : pCxt->pRightHash;
+    SHashObj* pFirstProjIdxHash = preferRight ? pCxt->pRightProdIdxHash : pCxt->pLeftProjIdxHash;
+    SHashObj* pSecondProjIdxHash = preferRight ? pCxt->pLeftProjIdxHash : pCxt->pRightProdIdxHash;
     char*          name = NULL;
     char           rawLookupKey[TSDB_TABLE_FNAME_LEN + TSDB_COL_NAME_LEN + 96] = {0};
     char           projLookupKey[TSDB_TABLE_FNAME_LEN + TSDB_COL_NAME_LEN + 96] = {0};
@@ -1031,16 +1073,15 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     if (((SColumnNode*)pNode)->projRefIdx > 0) {
       snprintf(name + strlen(name), cap, "_%d", ((SColumnNode*)pNode)->projRefIdx);
       tstrncpy(projLookupKey, name, sizeof(projLookupKey));
-      pIndex = taosHashGet(pCxt->pLeftProjIdxHash, name, strlen(name));
+      pIndex = taosHashGet(pFirstProjIdxHash, name, strlen(name));
       if (!pIndex) {
-        pIndex = taosHashGet(pCxt->pRightProdIdxHash, name, strlen(name));
+        pIndex = taosHashGet(pSecondProjIdxHash, name, strlen(name));
       }
     }
     if (NULL == pIndex) {
-      SColumnNode* pCol = (SColumnNode*)pNode;
-      SSlotIndex*  pFullIdx = taosHashGet(pCxt->pLeftHash, name, len);
+      SSlotIndex* pFullIdx = taosHashGet(pFirstHash, name, len);
       if (NULL == pFullIdx) {
-        pFullIdx = taosHashGet(pCxt->pRightHash, name, len);
+        pFullIdx = taosHashGet(pSecondHash, name, len);
       }
       if (NULL != pFullIdx) {
         pIndex = pFullIdx;
@@ -1048,26 +1089,26 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
       if (NULL == pIndex && false == pCol->hasRef && false == pCol->hasDep) {
         int32_t colLen = (int32_t)strlen(pCol->colName);
         if (colLen > 0) {
-          pIndex = taosHashGet(pCxt->pLeftHash, pCol->colName, colLen);
+          pIndex = taosHashGet(pFirstHash, pCol->colName, colLen);
           if (NULL == pIndex) {
-            pIndex = taosHashGet(pCxt->pRightHash, pCol->colName, colLen);
+            pIndex = taosHashGet(pSecondHash, pCol->colName, colLen);
           }
         }
 
         if (NULL == pIndex && ((SExprNode*)pCol)->aliasName[0] != '\0') {
           int32_t aliasLen = (int32_t)strlen(((SExprNode*)pCol)->aliasName);
-          pIndex = taosHashGet(pCxt->pLeftHash, ((SExprNode*)pCol)->aliasName, aliasLen);
+          pIndex = taosHashGet(pFirstHash, ((SExprNode*)pCol)->aliasName, aliasLen);
           if (NULL == pIndex) {
-            pIndex = taosHashGet(pCxt->pRightHash, ((SExprNode*)pCol)->aliasName, aliasLen);
+            pIndex = taosHashGet(pSecondHash, ((SExprNode*)pCol)->aliasName, aliasLen);
           }
         }
       }
     }
     if (NULL == pIndex) {
       name[len] = 0;
-      pIndex = taosHashGet(pCxt->pLeftHash, name, len);
+      pIndex = taosHashGet(pFirstHash, name, len);
       if (NULL == pIndex) {
-        pIndex = taosHashGet(pCxt->pRightHash, name, len);
+        pIndex = taosHashGet(pSecondHash, name, len);
       }
     }
     // pIndex is definitely not NULL, otherwise it is a bug
@@ -1166,8 +1207,9 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t setNodeSlotId(SPhysiPlanContext* pCxt, int64_t leftDataBlockId, int64_t rightDataBlockId, SNode* pNode,
-                             SNode** pOutput) {
+static int32_t setNodeSlotIdImpl(SPhysiPlanContext* pCxt, int64_t leftDataBlockId, int64_t rightDataBlockId,
+                                 const char* pLeftTableAlias, const char* pRightTableAlias, SNode* pNode,
+                                 SNode** pOutput) {
   if (NULL == pNode) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1183,7 +1225,9 @@ static int32_t setNodeSlotId(SPhysiPlanContext* pCxt, int64_t leftDataBlockId, i
       .pLeftHash = taosArrayGetP(pCxt->pLocationHelper, leftDataBlockId),
       .pLeftProjIdxHash = taosArrayGetP(pCxt->pProjIdxLocHelper, leftDataBlockId),
       .pRightHash = (rightDataBlockId < 0 ? NULL : taosArrayGetP(pCxt->pLocationHelper, rightDataBlockId)),
-      .pRightProdIdxHash = (rightDataBlockId < 0 ? NULL : taosArrayGetP(pCxt->pProjIdxLocHelper, rightDataBlockId))};
+      .pRightProdIdxHash = (rightDataBlockId < 0 ? NULL : taosArrayGetP(pCxt->pProjIdxLocHelper, rightDataBlockId)),
+      .pLeftTableAlias = pLeftTableAlias,
+      .pRightTableAlias = pRightTableAlias};
   nodesWalkExpr(pRes, doSetSlotId, &cxt);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyNode(pRes);
@@ -1191,6 +1235,11 @@ static int32_t setNodeSlotId(SPhysiPlanContext* pCxt, int64_t leftDataBlockId, i
   }
   *pOutput = pRes;
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setNodeSlotId(SPhysiPlanContext* pCxt, int64_t leftDataBlockId, int64_t rightDataBlockId, SNode* pNode,
+                             SNode** pOutput) {
+  return setNodeSlotIdImpl(pCxt, leftDataBlockId, rightDataBlockId, NULL, NULL, pNode, pOutput);
 }
 
 static int32_t setListSlotId(SPhysiPlanContext* pCxt, int64_t leftDataBlockId, int64_t rightDataBlockId,
@@ -2755,78 +2804,85 @@ static int32_t fqEnsurePgExtSchemaNode(SExtTableNode* pExtNode) {
               pExtNode->table.tableName,
               '\0' != pExtNode->schemaName[0] ? pExtNode->schemaName : "(empty)",
               '\0' != pExtNode->srcSchema[0] ? pExtNode->srcSchema : "(empty)");
-    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    return TSDB_CODE_PLAN_INVALID_FEDERATED_SCAN;
   }
 
   return TSDB_CODE_SUCCESS;
 }
+
+static int32_t fqInitFederatedScanSource(SFederatedScanPhysiNode* pScan,
+                                         const SExtTableNode* pExtNode) {
+  PLAN_ERR_RET(nodesCloneNode((const SNode*)pExtNode, &pScan->pExtTable));
+  pScan->sourceType = pExtNode->sourceType;
+  tstrncpy(pScan->srcHost, pExtNode->srcHost, sizeof(pScan->srcHost));
+  pScan->srcPort = pExtNode->srcPort;
+  tstrncpy(pScan->srcUser, pExtNode->srcUser, sizeof(pScan->srcUser));
+  tstrncpy(pScan->srcPassword, pExtNode->srcPassword, sizeof(pScan->srcPassword));
+  tstrncpy(pScan->srcDatabase, pExtNode->srcDatabase, sizeof(pScan->srcDatabase));
+  tstrncpy(pScan->srcSchema, pExtNode->srcSchema, sizeof(pScan->srcSchema));
+  tstrncpy(pScan->srcOptions, pExtNode->srcOptions, sizeof(pScan->srcOptions));
+  pScan->metaVersion = pExtNode->metaVersion;
+  return TSDB_CODE_SUCCESS;
+}
+
 // createFederatedScanPhysiNode: builds SFederatedScanPhysiNode from a logic
 // node whose scanType == SCAN_TYPE_EXTERNAL.
 // ---------------------------------------------------------------------------
 static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan,
                                             SScanLogicNode* pScanLogicNode, SPhysiNode** pPhyNode) {
+  int32_t                     code = TSDB_CODE_SUCCESS;
+  SFederatedScanPhysiNode*    pScan = NULL;
+  SNodeList*                  pReordered = NULL;
+  SNodeList*                  pReserveSlotCols = NULL;
+  SNode*                      pRemoteRoot = NULL;
+
   if (NULL == pScanLogicNode->pExtTableNode) {
     planError("createFederatedScanPhysiNode: pExtTableNode is NULL");
-    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    PLAN_ERR_JRET(TSDB_CODE_PLAN_INVALID_FEDERATED_SCAN);
   }
-  if (NULL == pScanLogicNode->pScanCols || LIST_LENGTH(pScanLogicNode->pScanCols) == 0) {
+  bool isDynamicVstableScan = pScanLogicNode->virtualStableScan && pScanLogicNode->node.dynamicOp;
+  if (!isDynamicVstableScan &&
+      (NULL == pScanLogicNode->pScanCols || LIST_LENGTH(pScanLogicNode->pScanCols) == 0)) {
     planError("FQ-PHY: logic scan invariant violated, pScanCols empty source=%s table=%s remotePlan=%p",
               ((SExtTableNode*)pScanLogicNode->pExtTableNode)->sourceName,
               pScanLogicNode->tableName.tname,
               pScanLogicNode->pRemoteLogicPlan);
-    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    PLAN_ERR_JRET(TSDB_CODE_PLAN_INVALID_FEDERATED_SCAN);
   }
-  if (NULL == pScanLogicNode->node.pTargets || LIST_LENGTH(pScanLogicNode->node.pTargets) == 0) {
+  if (!isDynamicVstableScan &&
+      (NULL == pScanLogicNode->node.pTargets || LIST_LENGTH(pScanLogicNode->node.pTargets) == 0)) {
     planError("FQ-PHY: logic scan invariant violated, node targets empty source=%s table=%s scanCols=%d",
               ((SExtTableNode*)pScanLogicNode->pExtTableNode)->sourceName,
               pScanLogicNode->tableName.tname,
               (int)LIST_LENGTH(pScanLogicNode->pScanCols));
-    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    PLAN_ERR_JRET(TSDB_CODE_PLAN_INVALID_FEDERATED_SCAN);
   }
   SExtTableNode* pExtNode = (SExtTableNode*)pScanLogicNode->pExtTableNode;
-  int32_t code = fqEnsurePgExtSchemaNode(pExtNode);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
-  }
+  PLAN_ERR_JRET(fqEnsurePgExtSchemaNode(pExtNode));
   bool useRemoteLogicPlan =
       (NULL != pScanLogicNode->pRemoteLogicPlan) &&
       !fqShouldUseAnalyzeInfluxScalarAggFallback(pCxt, pScanLogicNode);
   // Stream %%trows readers materialize source rows and run their calc plan locally.
   bool useRemoteResultSchema = useRemoteLogicPlan && !inStreamCalcClause(pCxt->pPlanCxt);
 
-  SFederatedScanPhysiNode* pScan =
-      (SFederatedScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode,
-                                              QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN);
+  pScan = (SFederatedScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode,
+                                                  QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN);
   if (NULL == pScan) {
     planError("createFederatedScanPhysiNode: makePhysiNode OOM");
-    return terrno;
+    PLAN_ERR_JRET(terrno);
   }
-
-  code = TSDB_CODE_SUCCESS;
+  PLAN_ERR_JRET(fqInitFederatedScanSource(pScan, pExtNode));
 
   // dynamicOp external scan nodes (VStb path) have NULL pTargets/pScanCols;
-  // DynQueryCtrl fills them at runtime. Only clone pExtTable and connection info.
-  if (pScanLogicNode->node.dynamicOp &&
-      pScanLogicNode->node.pTargets == NULL && pScanLogicNode->pScanCols == NULL) {
-    code = nodesCloneNode(pScanLogicNode->pExtTableNode, &pScan->pExtTable);
-    if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyNode((SNode*)pScan);
-      return code;
-    }
-    pScan->sourceType = pExtNode->sourceType;
-    tstrncpy(pScan->srcHost,     pExtNode->srcHost,     sizeof(pScan->srcHost));
-    tstrncpy(pScan->srcUser,     pExtNode->srcUser,     TSDB_USER_LEN);
-    tstrncpy(pScan->srcPassword, pExtNode->srcPassword, TSDB_PASSWORD_LEN);
-    tstrncpy(pScan->srcDatabase, pExtNode->srcDatabase, TSDB_DB_NAME_LEN);
-    tstrncpy(pScan->srcSchema,   pExtNode->srcSchema,   TSDB_DB_NAME_LEN);
-    tstrncpy(pScan->srcOptions,  pExtNode->srcOptions,  sizeof(pScan->srcOptions));
-    pScan->srcPort = pExtNode->srcPort;
-    pScan->metaVersion = pExtNode->metaVersion;
+  // DynQueryCtrl fills them at runtime after the common source initialization.
+  if (isDynamicVstableScan) {
     pScan->scanRange = pScanLogicNode->scanRange;
+    PLAN_ERR_JRET(nodesCloneList(pScanLogicNode->pScanCols, &pScan->pScanCols));
     fqSetFederatedScanTimezone(pCxt, pScan);
     pCxt->hasFederatedScan = true;
     *pPhyNode = (SPhysiNode*)pScan;
-    return TSDB_CODE_SUCCESS;
+    pScan = NULL;
+    goto _return;
   }
 
   // When pRemoteLogicPlan is set, the remote connector executes the full
@@ -2835,13 +2891,6 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   // topmost node's pTargets (SSortPhysiNode.pTargets / SProjectPhysiNode.pProjections).
   // We do NOT rebuild pOutputDataBlockDesc here because it uses pCxt's
   // dataBlockId registry and downstream slot-ID resolution depends on it.
-
-  // Clone the SExtTableNode for the executor (carries remote metadata)
-  code = nodesCloneNode(pScanLogicNode->pExtTableNode, &pScan->pExtTable);
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode((SNode*)pScan);
-    return code;
-  }
 
   // Clone scan columns in pTargets order.
   // makePhysiNode() already built the output data block descriptor from
@@ -2855,7 +2904,6 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   // because the AST walker visits ORDER BY before PROJECTION.  Reorder the
   // clone to match pTargets.
   {
-    SNodeList* pReordered = NULL;
     bool       reorderOk  = true;
 
     if (pScanLogicNode->node.pTargets != NULL && pScanLogicNode->pScanCols != NULL) {
@@ -2867,31 +2915,28 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
           pTgtInner = ((const STargetNode*)pTgtInner)->pExpr;
         }
         if (NULL == pTgtInner || nodeType(pTgtInner) != QUERY_NODE_COLUMN) {
-          reorderOk = false; break;
+          reorderOk = false;
+          break;
         }
         const SColumnNode* pTgtCol = (const SColumnNode*)pTgtInner;
-        bool         found   = false;
-        SNode*       pScanCol = NULL;
+        bool               found   = false;
+        SNode*             pScanCol = NULL;
         FOREACH(pScanCol, pScanLogicNode->pScanCols) {
           SColumnNode* pSCol = (SColumnNode*)pScanCol;
           if ((pSCol->colId != 0 && pSCol->colId == pTgtCol->colId) ||
               (pSCol->colId == 0 && 0 == strcmp(pSCol->colName, pTgtCol->colName))) {
             SNode* pClone = NULL;
-            code = nodesCloneNode(pScanCol, &pClone);
-            if (TSDB_CODE_SUCCESS != code) { reorderOk = false; break; }
-            code = nodesListMakeStrictAppend(&pReordered, pClone);
-            if (TSDB_CODE_SUCCESS != code) { reorderOk = false; break; }
+            PLAN_ERR_JRET(nodesCloneNode(pScanCol, &pClone));
+            PLAN_ERR_JRET(nodesListMakeStrictAppend(&pReordered, pClone));
             found = true;
             break;
           }
         }
         if (!found || !reorderOk) { reorderOk = false; break; }
       }
-      if (!reorderOk ||
-          pReordered == NULL ||
+      if (!reorderOk || pReordered == NULL ||
           LIST_LENGTH(pReordered) != LIST_LENGTH(pScanLogicNode->node.pTargets)) {
-        nodesDestroyList(pReordered);
-        pReordered = NULL;
+        NODES_DESTORY_LIST(pReordered);
       } else {
         // Reorder succeeded. Append any extra pScanCols columns that are NOT in
         // pTargets (e.g. primary-key columns added for WINDOW JOIN addPrimEqCond
@@ -2916,10 +2961,8 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
           }
           if (!alreadyIn) {
             SNode* pClone = NULL;
-            code = nodesCloneNode(pSc, &pClone);
-            if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pReordered); pReordered = NULL; break; }
-            code = nodesListMakeStrictAppend(&pReordered, pClone);
-            if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode(pClone); nodesDestroyList(pReordered); pReordered = NULL; break; }
+            PLAN_ERR_JRET(nodesCloneNode(pSc, &pClone));
+            PLAN_ERR_JRET(nodesListMakeStrictAppend(&pReordered, pClone));
           }
         }
       }
@@ -2927,13 +2970,10 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
 
     if (pReordered != NULL) {
       pScan->pScanCols = pReordered;
+      pReordered = NULL;
     } else {
       // Fallback: clone in original pScanCols order
-      code = nodesCloneList(pScanLogicNode->pScanCols, &pScan->pScanCols);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
+      PLAN_ERR_JRET(nodesCloneList(pScanLogicNode->pScanCols, &pScan->pScanCols));
     }
   }
 
@@ -2947,21 +2987,9 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     SNodeList* pOutputCols = pScan->pScanCols;  // default: no pushed plan
     const char* pOutputColsSource = "pScanCols";
     if (useRemoteResultSchema) {
-      code = fqAlignRemotePassthroughOutputs(pScanLogicNode->pRemoteLogicPlan, pScan->pScanCols);
-      if (TSDB_CODE_SUCCESS != code) {
-        planError("FQ-ColMappings: align original remote passthrough outputs failed, remoteRootType=%d code:0x%x",
-                  (int)nodeType((SNode*)pScanLogicNode->pRemoteLogicPlan), code);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
-
-      code = fqRefreshRemoteOutputTargets(pScanLogicNode->pRemoteLogicPlan);
-      if (TSDB_CODE_SUCCESS != code) {
-        planError("FQ-ColMappings: refresh original remote output targets failed, remoteRootType=%d code:0x%x",
-                  (int)nodeType((SNode*)pScanLogicNode->pRemoteLogicPlan), code);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
+      PLAN_ERR_JRET(
+          fqAlignRemotePassthroughOutputs(pScanLogicNode->pRemoteLogicPlan, pScan->pScanCols));
+      PLAN_ERR_JRET(fqRefreshRemoteOutputTargets(pScanLogicNode->pRemoteLogicPlan));
 
       SNodeList* pRemoteTargets = fqGetRemoteOutputTargets(pScanLogicNode->pRemoteLogicPlan);
       planDebug("FQ-ColMappings: inspect top remote targets, remoteRootType=%d targets=%p len=%d",
@@ -2974,8 +3002,7 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
         planError("FQ-ColMappings: remote plan exists but top remote targets are empty, rootType=%d scanCols=%d",
                   (int)nodeType((SNode*)pScanLogicNode->pRemoteLogicPlan),
                   pScan->pScanCols ? LIST_LENGTH(pScan->pScanCols) : 0);
-        nodesDestroyNode((SNode*)pScan);
-        return TSDB_CODE_PLAN_INTERNAL_ERROR;
+        PLAN_ERR_JRET(TSDB_CODE_PLAN_INVALID_FEDERATED_SCAN);
       }
     }
 
@@ -2987,8 +3014,7 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
       if (NULL == pExpr) {
         planError("FQ-ColMappings: outputIdx=%d has NULL mapping expr, source=%s exprNodeType=%d",
                   outputIdx, pOutputColsSource, (int)nodeType(pExprNode));
-        nodesDestroyNode((SNode*)pScan);
-        return TSDB_CODE_PLAN_INTERNAL_ERROR;
+        PLAN_ERR_JRET(TSDB_CODE_PLAN_INVALID_FEDERATED_SCAN);
       }
       planDebug("FQ-ColMappings: count outputIdx=%d exprNodeType=%d exprType=%d includeInMappings=1",
                 outputIdx, (int)nodeType(pExprNode), (int)nodeType(pExpr));
@@ -3001,8 +3027,7 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
       pScan->pColTypeMappings =
           (SExtColTypeMapping*)taosMemoryCalloc(numCols, sizeof(SExtColTypeMapping));
       if (NULL == pScan->pColTypeMappings) {
-        nodesDestroyNode((SNode*)pScan);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        PLAN_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
       }
       pScan->numColTypeMappings = numCols;
 
@@ -3013,8 +3038,7 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
         if (NULL == pExpr) {
           planError("FQ-ColMappings: outputIdx=%d resolved NULL expr during fill, source=%s exprNodeType=%d",
                     outputIdx, pOutputColsSource, (int)nodeType(pExprNode));
-          nodesDestroyNode((SNode*)pScan);
-          return TSDB_CODE_PLAN_INTERNAL_ERROR;
+          PLAN_ERR_JRET(TSDB_CODE_PLAN_INVALID_FEDERATED_SCAN);
         }
 
         planDebug("FQ-ColMappings[%d]: outputIdx=%d exprNodeType=%d exprType=%d type=%d precision=%d scale=%d bytes=%d",
@@ -3038,29 +3062,12 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
       if (colIdx != numCols) {
         planError("FQ-ColMappings: filled mapping count mismatch, source=%s expected=%d actual=%d",
                   pOutputColsSource, numCols, colIdx);
-        nodesDestroyNode((SNode*)pScan);
-        return TSDB_CODE_PLAN_INTERNAL_ERROR;
+        PLAN_ERR_JRET(TSDB_CODE_PLAN_INVALID_FEDERATED_SCAN);
       }
     }
   }
 
-  // Copy connection info from SExtTableNode
-  pScan->sourceType = pExtNode->sourceType;
-  tstrncpy(pScan->srcHost,     pExtNode->srcHost,     sizeof(pScan->srcHost));
-  pScan->srcPort = pExtNode->srcPort;
-  tstrncpy(pScan->srcUser,     pExtNode->srcUser,     TSDB_USER_LEN);
-  tstrncpy(pScan->srcPassword, pExtNode->srcPassword, TSDB_PASSWORD_LEN);
-  tstrncpy(pScan->srcDatabase, pExtNode->srcDatabase, TSDB_DB_NAME_LEN);
-  tstrncpy(pScan->srcSchema,   pExtNode->srcSchema,   TSDB_DB_NAME_LEN);
-  tstrncpy(pScan->srcOptions,  pExtNode->srcOptions,  sizeof(pScan->srcOptions));
-  pScan->metaVersion = pExtNode->metaVersion;
-  code = fqBuildTimestampTypeHints(pScan, pExtNode);
-  if (TSDB_CODE_SUCCESS != code) {
-    planError("FQ-TsTypeHints: build failed source=%s code:0x%x",
-              pExtNode->sourceName, code);
-    nodesDestroyNode((SNode*)pScan);
-    return code;
-  }
+  PLAN_ERR_JRET(fqBuildTimestampTypeHints(pScan, pExtNode));
   // Propagate two-pass mode only when the repeat-scan aggregate still runs locally.
   // If the remote subtree already contains the repeat-scan AGG, FederatedScan must
   // return the final remote rows once, not PRE_SCAN + MAIN_SCAN duplicates.
@@ -3085,16 +3092,9 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   // scan, no pushdown) do we fall back to pScanCols.  A non-NULL remote plan with an
   // empty output list is a real inconsistency and must fail loudly.
   SNodeList* pSlotCols = pScan->pScanCols;  // default: no remote plan
-  SNodeList* pReserveSlotCols = NULL;
   {
     if (useRemoteResultSchema) {
-      code = fqRefreshRemoteOutputTargets(pScanLogicNode->pRemoteLogicPlan);
-      if (TSDB_CODE_SUCCESS != code) {
-        planError("FQ-Slots: refresh original remote output targets failed, remoteRootType=%d code:0x%x",
-                  (int)nodeType((SNode*)pScanLogicNode->pRemoteLogicPlan), code);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
+      PLAN_ERR_JRET(fqRefreshRemoteOutputTargets(pScanLogicNode->pRemoteLogicPlan));
 
       SNodeList* pRemoteTargets = fqGetRemoteOutputTargets(pScanLogicNode->pRemoteLogicPlan);
       planDebug("FQ-Slots: inspect top remote targets for FedScan output descriptor, type=%d len=%d",
@@ -3106,8 +3106,7 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
         planError("FQ-Slots: remote plan exists but top remote targets are empty, rootType=%d scanCols=%d",
                   (int)nodeType((SNode*)pScanLogicNode->pRemoteLogicPlan),
                   pScan->pScanCols ? LIST_LENGTH(pScan->pScanCols) : 0);
-        nodesDestroyNode((SNode*)pScan);
-        return TSDB_CODE_PLAN_INTERNAL_ERROR;
+        PLAN_ERR_JRET(TSDB_CODE_PLAN_INVALID_FEDERATED_SCAN);
       }
     }
     // When pRemoteLogicPlan is non-NULL, the FedScan output descriptor must be
@@ -3116,19 +3115,14 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     // descriptor leaks the local scan-target order into output slots and can
     // swap visible/hidden columns for partial-project pushdown.
     if (useRemoteLogicPlan && pSlotCols != pScan->pScanCols && pScan->pScanCols != NULL) {
-      code = nodesCloneList(pScan->pScanCols, &pReserveSlotCols);
-      if (TSDB_CODE_SUCCESS == code) {
-        planDebug("FQ-Slots: rebuilt FedScan descriptor from remote targets (len=%d) plus reserve scanCols (len=%d)",
-                  (int)LIST_LENGTH(pSlotCols), (int)LIST_LENGTH(pReserveSlotCols));
-        code = fqRebuildDataBlockDesc(pCxt, pScan->node.pOutputDataBlockDesc, pSlotCols, pReserveSlotCols);
-      }
+      PLAN_ERR_JRET(nodesCloneList(pScan->pScanCols, &pReserveSlotCols));
+      planDebug("FQ-Slots: rebuilt FedScan descriptor from remote targets (len=%d) plus reserve scanCols (len=%d)",
+                (int)LIST_LENGTH(pSlotCols), (int)LIST_LENGTH(pReserveSlotCols));
+      PLAN_ERR_JRET(
+          fqRebuildDataBlockDesc(pCxt, pScan->node.pOutputDataBlockDesc, pSlotCols, pReserveSlotCols));
     } else {
-      code = addDataBlockSlots(pCxt, pSlotCols, pScan->node.pOutputDataBlockDesc);
+      PLAN_ERR_JRET(addDataBlockSlots(pCxt, pSlotCols, pScan->node.pOutputDataBlockDesc));
     }
-  }
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode((SNode*)pScan);
-    return code;
   }
 
   // Add pseudo-column slots (e.g. TBNAME for PARTITION BY TBNAME on InfluxDB).
@@ -3136,12 +3130,9 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   // Without this, PARTITION BY TBNAME on a federated scan crashes: the partition
   // operator's group-key column references a slot that doesn't exist in the data
   // block, causing a type mismatch and buffer overflow in doHashPartition.
-  if (TSDB_CODE_SUCCESS == code && NULL != pScanLogicNode->pScanPseudoCols) {
-    code = addDataBlockSlots(pCxt, pScanLogicNode->pScanPseudoCols, pScan->node.pOutputDataBlockDesc);
-    if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyNode((SNode*)pScan);
-      return code;
-    }
+  if (NULL != pScanLogicNode->pScanPseudoCols) {
+    PLAN_ERR_JRET(
+        addDataBlockSlots(pCxt, pScanLogicNode->pScanPseudoCols, pScan->node.pOutputDataBlockDesc));
   }
 
   if (pReserveSlotCols != NULL) {
@@ -3152,20 +3143,10 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   // Only columns that are present in the output/reserve slot descriptor can be
   // resolved here; conditions pushed to the remote side are handled remotely.
   if (pScanLogicNode->node.pConditions != NULL) {
-    code = setNodeSlotId(pCxt, pScan->node.pOutputDataBlockDesc->dataBlockId, -1,
-                         pScanLogicNode->node.pConditions, &pScan->node.pConditions);
+    PLAN_ERR_JRET(setNodeSlotId(pCxt, pScan->node.pOutputDataBlockDesc->dataBlockId, -1,
+                                pScanLogicNode->node.pConditions, &pScan->node.pConditions));
     planDebug("FQ-PHY FedScan pConditions: setNodeSlotId code=0x%x pConditions=%p",
               code, pScan->node.pConditions);
-    if (TSDB_CODE_SUCCESS != code) {
-      // setNodeSlotId fails when condition columns are not in the output hash
-      // (e.g. conditions already pushed to remote SQL, referencing columns not
-      // in SELECT).  Clear pConditions — the remote source handles filtering.
-      // Only conditions whose columns ARE in the output (setNodeSlotId succeeds)
-      // will be kept for local doFilter evaluation in the executor.
-      planDebug("FQ-PHY FedScan pConditions: setNodeSlotId failed code=0x%x, clearing pConditions", code);
-      pScan->node.pConditions = NULL;
-      code = TSDB_CODE_SUCCESS;
-    }
   } else {
     planDebug("FQ-PHY FedScan pConditions: logic pConditions is NULL (already pushed or none)");
   }
@@ -3189,19 +3170,14 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   //       it already carries its own logic SCAN leaf (cloned by fqCommitPushChain).
   //   (b) pRemoteLogicPlan NULL: build a bare logic SCAN leaf carrying the remote
   //       FROM/SELECT/WHERE/LIMIT so the connector runs a flat "SELECT … FROM …".
-  SNode* pRemoteRoot = NULL;
   planDebug("FQ-PHY: pScanLogicNode=%p pRemoteLogicPlan=%p type=%d useRemoteLogicPlan=%d", pScanLogicNode,
             pScanLogicNode->pRemoteLogicPlan,
             pScanLogicNode->pRemoteLogicPlan ? (int)nodeType(pScanLogicNode->pRemoteLogicPlan) : -1,
             (int)useRemoteLogicPlan);
   if (useRemoteLogicPlan) {
-    code = nodesCloneNode(pScanLogicNode->pRemoteLogicPlan, &pRemoteRoot);
+    PLAN_ERR_JRET(nodesCloneNode(pScanLogicNode->pRemoteLogicPlan, &pRemoteRoot));
     planDebug("FQ-PHY: after clone pRemoteRoot=%p type=%d code=0x%x",
               pRemoteRoot, pRemoteRoot ? (int)nodeType(pRemoteRoot) : -1, code);
-    if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyNode((SNode*)pScan);
-      return code;
-    }
     if (pRemoteRoot != NULL) {
       SLogicNode* pRemoteLogicRoot = (SLogicNode*)pRemoteRoot;
       planDebug("FQ-PHY: cloned remote root detail type=%d nChildren=%d targets=%d limit=%p",
@@ -3222,12 +3198,7 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
                     ? ((SExtTableNode*)pRemoteLeaf->pExtTableNode)->table.tableName
                     : "(null)");
     }
-    code = fqAlignRemotePassthroughOutputs(pRemoteRoot, pScan->pScanCols);
-    if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyNode(pRemoteRoot);
-      nodesDestroyNode((SNode*)pScan);
-      return code;
-    }
+    PLAN_ERR_JRET(fqAlignRemotePassthroughOutputs(pRemoteRoot, pScan->pScanCols));
     if (pRemoteRoot != NULL) {
       SLogicNode* pRemoteLogicRoot = (SLogicNode*)pRemoteRoot;
       planDebug("FQ-PHY: aligned remote root detail type=%d nChildren=%d targets=%d limit=%p",
@@ -3236,12 +3207,7 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
                 pRemoteLogicRoot->pTargets ? LIST_LENGTH(pRemoteLogicRoot->pTargets) : 0,
                 pRemoteLogicRoot->pLimit);
     }
-    code = fqRefreshRemoteOutputTargets(pRemoteRoot);
-    if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyNode(pRemoteRoot);
-      nodesDestroyNode((SNode*)pScan);
-      return code;
-    }
+    PLAN_ERR_JRET(fqRefreshRemoteOutputTargets(pRemoteRoot));
     if (pRemoteRoot != NULL) {
       SLogicNode* pRemoteLogicRoot = (SLogicNode*)pRemoteRoot;
       planDebug("FQ-PHY: refreshed remote output targets detail type=%d nChildren=%d targets=%d limit=%p",
@@ -3263,16 +3229,11 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
                     : "(null)");
     }
   } else {
-    SScanLogicNode* pLeaf = NULL;
-    code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, (SNode**)&pLeaf);
-    if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyNode((SNode*)pScan);
-      return code;
-    }
+    PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, &pRemoteRoot));
+    SScanLogicNode* pLeaf = (SScanLogicNode*)pRemoteRoot;
     pLeaf->scanType = SCAN_TYPE_EXTERNAL;
     // FROM: clone the external table node (table identity for SQL generation).
-    code = nodesCloneNode(pScanLogicNode->pExtTableNode, &pLeaf->pExtTableNode);
-    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pLeaf); nodesDestroyNode((SNode*)pScan); return code; }
+    PLAN_ERR_JRET(nodesCloneNode(pScanLogicNode->pExtTableNode, &pLeaf->pExtTableNode));
     // SELECT: clone the de-duplicated column set the optimizer collected.
     // Use pScan->pScanCols (already reordered to pTargets order above), NOT the
     // raw pScanLogicNode->pScanCols.  The remote SQL SELECT list rendered from
@@ -3283,8 +3244,7 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     // ORDER BY columns before the projection, so the raw order diverges from
     // pTargets only when a WHERE subquery (REMOTE_*) is present — exactly the
     // failing case.
-    code = nodesCloneList(pScan->pScanCols, &pLeaf->pScanCols);
-    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pLeaf); nodesDestroyNode((SNode*)pScan); return code; }
+    PLAN_ERR_JRET(nodesCloneList(pScan->pScanCols, &pLeaf->pScanCols));
     // WHERE: the fallback flat leaf is built only when NOTHING was pushed into a
     // remote plan (pRemoteLogicPlan == NULL).  In that case the scan's WHERE is
     // non-pushable and stays local on the outer FedScan (node.pConditions), so the
@@ -3292,25 +3252,16 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     // remote SCAN leaf (a separate node owning its node.pConditions), never here.
     // LIMIT: makePhysiNode moved pScanLogicNode->pLimit to pScan->node.pLimit.
     if (pScan->node.pLimit != NULL) {
-      code = nodesCloneNode(pScan->node.pLimit, &pLeaf->node.pLimit);
-      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pLeaf); nodesDestroyNode((SNode*)pScan); return code; }
+      PLAN_ERR_JRET(nodesCloneNode(pScan->node.pLimit, &pLeaf->node.pLimit));
     }
     planDebug("FQ-PHY: built fallback bare remote scan leaf=%p scanCols=%d targets=%d hasCond=%d hasLimit=%d",
               pLeaf, pLeaf->pScanCols ? LIST_LENGTH(pLeaf->pScanCols) : 0,
               pLeaf->node.pTargets ? LIST_LENGTH(pLeaf->node.pTargets) : 0,
               NULL != pLeaf->node.pConditions, NULL != pLeaf->node.pLimit);
-    pRemoteRoot = (SNode*)pLeaf;
   }
 
   if (pRemoteRoot != NULL) {
-    code = fqRefreshRemoteOutputTargets(pRemoteRoot);
-    if (TSDB_CODE_SUCCESS != code) {
-      planError("FQ-PHY: refresh remote output targets failed after remote root build, rootType=%d code:0x%x",
-                (int)nodeType(pRemoteRoot), code);
-      nodesDestroyNode(pRemoteRoot);
-      nodesDestroyNode((SNode*)pScan);
-      return code;
-    }
+    PLAN_ERR_JRET(fqRefreshRemoteOutputTargets(pRemoteRoot));
 
     SLogicNode* pRemoteLogicRoot = (SLogicNode*)pRemoteRoot;
     planDebug("FQ-PHY: finalized remote root detail type=%d nChildren=%d targets=%d hasCond=%d limit=%p",
@@ -3333,20 +3284,31 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   }
 
   // Attach the inner pRemotePlan (logic) tree to the outer Mode-1 wrapper.
-  pScan->pRemotePlan   = (SNode*)pRemoteRoot;
+  pScan->pRemotePlan = pRemoteRoot;
+  pRemoteRoot = NULL;
 
   // Translate column names from TDengine schema names to remote source names.
   // This must run client-side (during planning) because pExtMeta is not serialized
   // to taosd.  pRemoteRoot is a LOGIC tree, so the translator walks logic nodes.
   if (pExtNode->pExtMeta) {
-    translateExtColNamesInRemotePlan((SLogicNode*)pRemoteRoot, pExtNode->pExtMeta);
+    translateExtColNamesInRemotePlan((SLogicNode*)pScan->pRemotePlan, pExtNode->pExtMeta);
   }
 
   planDebug("FQ-PHY: FedScan=%p pRemotePlan=%p type=%d",
             pScan, pScan->pRemotePlan,
             pScan->pRemotePlan ? (int)nodeType(pScan->pRemotePlan) : -1);
   *pPhyNode = (SPhysiNode*)pScan;
-  return TSDB_CODE_SUCCESS;
+  pScan = NULL;
+
+_return:
+  nodesDestroyList(pReordered);
+  nodesDestroyList(pReserveSlotCols);
+  nodesDestroyNode(pRemoteRoot);
+  nodesDestroyNode((SNode*)pScan);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("%s failed since %s", __func__, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
@@ -3677,6 +3639,50 @@ static int32_t appendPrimColToJoinTargets(SSortMergeJoinPhysiNode* pJoin, SColum
   return code;
 }
 
+static const char* getLogicNodeTableAlias(const SLogicNode* pLogicNode) {
+  if (NULL == pLogicNode) {
+    return NULL;
+  }
+
+  const SNodeList* pCols = NULL;
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pLogicNode)) {
+    pCols = ((const SScanLogicNode*)pLogicNode)->pScanCols;
+  } else if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pLogicNode)) {
+    pCols = ((const SVirtualScanLogicNode*)pLogicNode)->pScanCols;
+  }
+
+  const SNode* pNode = NULL;
+  FOREACH(pNode, pCols) {
+    if (QUERY_NODE_COLUMN == nodeType(pNode) && '\0' != ((const SColumnNode*)pNode)->tableAlias[0]) {
+      return ((const SColumnNode*)pNode)->tableAlias;
+    }
+  }
+  FOREACH(pNode, pLogicNode->pTargets) {
+    if (QUERY_NODE_COLUMN == nodeType(pNode) && '\0' != ((const SColumnNode*)pNode)->tableAlias[0]) {
+      return ((const SColumnNode*)pNode)->tableAlias;
+    }
+  }
+  return NULL;
+}
+
+static void getJoinChildTableAliases(const SJoinLogicNode* pJoinLogicNode, const char** ppLeftAlias,
+                                     const char** ppRightAlias) {
+  const SLogicNode* pLeftLogic =
+      (const SLogicNode*)nodesListGetNode(pJoinLogicNode->node.pChildren, 0);
+  const SLogicNode* pRightLogic =
+      (const SLogicNode*)nodesListGetNode(pJoinLogicNode->node.pChildren, 1);
+  *ppLeftAlias = getLogicNodeTableAlias(pLeftLogic);
+  *ppRightAlias = getLogicNodeTableAlias(pRightLogic);
+}
+
+static int32_t setJoinInputNodeSlotId(SPhysiPlanContext* pCxt, int64_t leftDataBlockId, int64_t rightDataBlockId,
+                                      const SJoinLogicNode* pJoinLogicNode, SNode* pNode, SNode** pOutput) {
+  const char* pLeftAlias = NULL;
+  const char* pRightAlias = NULL;
+  getJoinChildTableAliases(pJoinLogicNode, &pLeftAlias, &pRightAlias);
+  return setNodeSlotIdImpl(pCxt, leftDataBlockId, rightDataBlockId, pLeftAlias, pRightAlias, pNode, pOutput);
+}
+
 // Ensure columns referenced in pCond (e.g. addPrimEqCond) have slots in
 // pLeftDesc/pRightDesc so that setNodeSlotId can resolve them later.
 // Columns absent from the desc hash are added as non-output slots.
@@ -3686,48 +3692,9 @@ static int32_t ensureCondColSlotsInJoinDescs(SPhysiPlanContext* pCxt, SNode* pCo
                                               SDataBlockDescNode* pRightDesc) {
   if (NULL == pCond) return TSDB_CODE_SUCCESS;
 
-  // Determine left/right tableAlias from the logic plan children's pScanCols
   const char* leftAlias = NULL;
   const char* rightAlias = NULL;
-  SLogicNode* pLeftLogic  = (SLogicNode*)nodesListGetNode(pJoinLogicNode->node.pChildren, 0);
-  SLogicNode* pRightLogic = (SLogicNode*)nodesListGetNode(pJoinLogicNode->node.pChildren, 1);
-  if (pLeftLogic && QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pLeftLogic)) {
-    SScanLogicNode* pLS = (SScanLogicNode*)pLeftLogic;
-    if (pLS->pScanCols && LIST_LENGTH(pLS->pScanCols) > 0) {
-      SNode* pFirst = nodesListGetNode(pLS->pScanCols, 0);
-      if (pFirst && QUERY_NODE_COLUMN == nodeType(pFirst))
-        leftAlias = ((SColumnNode*)pFirst)->tableAlias;
-    }
-  }
-  if (pRightLogic && QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pRightLogic)) {
-    SScanLogicNode* pRS = (SScanLogicNode*)pRightLogic;
-    if (pRS->pScanCols && LIST_LENGTH(pRS->pScanCols) > 0) {
-      SNode* pFirst = nodesListGetNode(pRS->pScanCols, 0);
-      if (pFirst && QUERY_NODE_COLUMN == nodeType(pFirst))
-        rightAlias = ((SColumnNode*)pFirst)->tableAlias;
-    }
-  }
-
-  // FQ fallback: when child is Exchange (not Scan), alias is still NULL.
-  // Walk down via pTargets which every logic node carries with valid tableAlias.
-  if (NULL == leftAlias && pLeftLogic && pLeftLogic->pTargets) {
-    SNode* pNode = NULL;
-    FOREACH(pNode, pLeftLogic->pTargets) {
-      if (QUERY_NODE_COLUMN == nodeType(pNode) && '\0' != ((SColumnNode*)pNode)->tableAlias[0]) {
-        leftAlias = ((SColumnNode*)pNode)->tableAlias;
-        break;
-      }
-    }
-  }
-  if (NULL == rightAlias && pRightLogic && pRightLogic->pTargets) {
-    SNode* pNode = NULL;
-    FOREACH(pNode, pRightLogic->pTargets) {
-      if (QUERY_NODE_COLUMN == nodeType(pNode) && '\0' != ((SColumnNode*)pNode)->tableAlias[0]) {
-        rightAlias = ((SColumnNode*)pNode)->tableAlias;
-        break;
-      }
-    }
-  }
+  getJoinChildTableAliases(pJoinLogicNode, &leftAlias, &rightAlias);
 
   // Collect all column nodes referenced in pCond
   SNodeList* pCols = NULL;
@@ -3959,8 +3926,8 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pPrimKeyEqCond) {
-    code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pPrimKeyEqCond,
-                         &pJoin->pPrimKeyCond);
+    code = setJoinInputNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode,
+                                  pJoinLogicNode->pPrimKeyEqCond, &pJoin->pPrimKeyCond);
     if (TSDB_CODE_SUCCESS == code) {
       code = setMergeJoinPrimColEqCond(pJoin->pPrimKeyCond, pJoin->subType, pLeftDesc->dataBlockId,
                                        pRightDesc->dataBlockId, pJoin, pJoinLogicNode);
@@ -3979,8 +3946,8 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
     // in the left/right desc before setNodeSlotId tries to resolve them.
     code = ensureCondColSlotsInJoinDescs(pCxt, pJoinLogicNode->addPrimEqCond, pJoinLogicNode, pLeftDesc, pRightDesc);
     if (TSDB_CODE_SUCCESS == code) {
-      code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->addPrimEqCond,
-                         &pPrimKeyCond);
+      code = setJoinInputNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode,
+                                    pJoinLogicNode->addPrimEqCond, &pPrimKeyCond);
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = setMergeJoinPrimColEqCond(pPrimKeyCond, pJoin->subType, pLeftDesc->dataBlockId, pRightDesc->dataBlockId,
@@ -4547,8 +4514,8 @@ static int32_t createHashJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
   pJoin->timeRange.ekey = pJoinLogicNode->timeRange.ekey;
 
   if (NULL != pJoinLogicNode->pPrimKeyEqCond) {
-    code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pPrimKeyEqCond,
-                         &pJoin->pPrimKeyCond);
+    code = setJoinInputNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode,
+                                  pJoinLogicNode->pPrimKeyEqCond, &pJoin->pPrimKeyCond);
     if (TSDB_CODE_SUCCESS == code) {
       code = setHashJoinPrimColEqCond(pJoin->pPrimKeyCond, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoin);
     }
@@ -4641,6 +4608,172 @@ static int32_t createVirtualScanCols(SPhysiPlanContext* pCxt, SVirtualScanPhysiN
   return sortScanCols(pScanPhysiNode->scan.pScanCols);
 }
 
+static const SColumnNode* getFederatedScanColumn(const SNode* pNode) {
+  if (pNode != NULL && QUERY_NODE_TARGET == nodeType(pNode)) {
+    pNode = ((const STargetNode*)pNode)->pExpr;
+  }
+  return (pNode != NULL && QUERY_NODE_COLUMN == nodeType(pNode)) ? (const SColumnNode*)pNode : NULL;
+}
+
+static bool federatedOutputNameMatchesScanColumn(const char* pOutputName, const SColumnNode* pCol) {
+  if (pOutputName == NULL || pOutputName[0] == '\0' || pCol == NULL) {
+    return false;
+  }
+
+  const char* pRefName = pCol->hasRef && pCol->refColName[0] != '\0' ? pCol->refColName : pCol->colName;
+  return (pRefName[0] != '\0' && strcasecmp(pOutputName, pRefName) == 0) ||
+         (pCol->colName[0] != '\0' && strcasecmp(pOutputName, pCol->colName) == 0) ||
+         (pCol->node.aliasName[0] != '\0' && strcasecmp(pOutputName, pCol->node.aliasName) == 0) ||
+         (pCol->node.userAlias[0] != '\0' && strcasecmp(pOutputName, pCol->node.userAlias) == 0);
+}
+
+static int16_t getFederatedOutputSlot(const SFederatedScanPhysiNode* pScan, const SColumnNode* pCol,
+                                      int32_t outputIdx) {
+  if (pScan == NULL || pCol == NULL || pScan->pColTypeMappings == NULL ||
+      outputIdx < 0 || outputIdx >= pScan->numColTypeMappings || pScan->node.pOutputDataBlockDesc == NULL ||
+      pScan->node.pOutputDataBlockDesc->pSlots == NULL ||
+      outputIdx >= LIST_LENGTH(pScan->node.pOutputDataBlockDesc->pSlots)) {
+    return -1;
+  }
+
+  const SExtColTypeMapping* pMapping = &pScan->pColTypeMappings[outputIdx];
+  SSlotDescNode* pSlot = (SSlotDescNode*)nodesListGetNode(pScan->node.pOutputDataBlockDesc->pSlots, outputIdx);
+  if (pMapping->tdType.type != pCol->node.resType.type ||
+      !federatedOutputNameMatchesScanColumn(pMapping->colName, pCol) || pSlot == NULL || !pSlot->output ||
+      pSlot->reserve) {
+    return -1;
+  }
+  return pSlot->slotId;
+}
+
+static int32_t prioritizeFederatedOutputSlot(SSlotIndex* pIndex, int16_t outputSlotId) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pIndex == NULL || pIndex->pSlotIdsInfo == NULL || taosArrayGetSize(pIndex->pSlotIdsInfo) == 0) {
+    PLAN_ERR_JRET(TSDB_CODE_INVALID_PARA);
+  }
+
+  SSlotIdInfo* pFirst = taosArrayGet(pIndex->pSlotIdsInfo, 0);
+  if (pFirst->slotId == outputSlotId) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 1; i < taosArrayGetSize(pIndex->pSlotIdsInfo); ++i) {
+    SSlotIdInfo* pInfo = taosArrayGet(pIndex->pSlotIdsInfo, i);
+    if (pInfo->slotId == outputSlotId) {
+      SSlotIdInfo tmp = *pFirst;
+      *pFirst = *pInfo;
+      *pInfo = tmp;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  SSlotIdInfo oldFirst = *pFirst;
+  SSlotIdInfo outputInfo = {.slotId = outputSlotId, .set = false};
+  if (NULL == taosArrayPush(pIndex->pSlotIdsInfo, &oldFirst)) {
+    PLAN_ERR_JRET(terrno);
+  }
+  pFirst = taosArrayGet(pIndex->pSlotIdsInfo, 0);
+  *pFirst = outputInfo;
+  return code;
+
+_return:
+  planError("%s failed since %s", __func__, tstrerror(code));
+  return code;
+}
+
+static int32_t registerVtableFederatedOutputSlots(SPhysiPlanContext* pCxt, SFederatedScanPhysiNode* pScan) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  char*   pKey = NULL;
+
+  if (pCxt == NULL || pScan == NULL || pScan->pScanCols == NULL || pScan->node.pOutputDataBlockDesc == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SHashObj* pHash = taosArrayGetP(pCxt->pLocationHelper, pScan->node.pOutputDataBlockDesc->dataBlockId);
+  QUERY_CHECK_NULL(pHash, code, lino, _return, terrno);
+
+  // createFederatedScanPhysiNode keeps scan columns, type mappings, and output
+  // slots in the same order; reserve-only scan columns are appended last.
+  int32_t outputIdx = 0;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pScan->pScanCols) {
+    const SNode* pScanExpr = pNode;
+    if (NULL != pScanExpr && QUERY_NODE_TARGET == nodeType(pScanExpr)) {
+      pScanExpr = ((const STargetNode*)pScanExpr)->pExpr;
+    }
+    const SColumnNode* pCol = getFederatedScanColumn(pNode);
+    int16_t            outputSlotId = -1;
+    bool               mappedOutput = outputIdx < pScan->numColTypeMappings;
+    if (mappedOutput) {
+      outputSlotId = getFederatedOutputSlot(pScan, pCol, outputIdx);
+    } else {
+      SSlotDescNode* pSlot =
+          (SSlotDescNode*)nodesListGetNode(pScan->node.pOutputDataBlockDesc->pSlots, outputIdx);
+      outputSlotId = NULL != pSlot ? pSlot->slotId : -1;
+    }
+    ++outputIdx;
+    if (NULL == pScanExpr || outputSlotId < 0 || (mappedOutput && NULL == pCol)) {
+      planError("Invalid federated scan expression or output slot, expr=%p, outputSlotId=%d", pScanExpr,
+                outputSlotId);
+      PLAN_ERR_JRET(TSDB_CODE_INVALID_PARA);
+    }
+
+    int32_t keyLen = 0;
+    int32_t cap = 0;
+    PLAN_ERR_JRET(getSlotKey((SNode*)pScanExpr, NULL, &pKey, &keyLen, 0, &cap));
+
+    SSlotIndex* pIndex = taosHashGet(pHash, pKey, keyLen);
+    if (pIndex == NULL) {
+      code = putSlotToHashImpl(pScan->node.pOutputDataBlockDesc->dataBlockId, outputSlotId, pKey, keyLen, pHash);
+    } else {
+      code = prioritizeFederatedOutputSlot(pIndex, outputSlotId);
+    }
+    taosMemoryFreeClear(pKey);
+    PLAN_ERR_JRET(code);
+  }
+  return code;
+
+_return:
+  taosMemoryFree(pKey);
+  planError("%s failed since %s", __func__, tstrerror(code));
+  return code;
+}
+
+static int32_t initializeDynamicVtableFederatedOutput(SPhysiPlanContext* pCxt,
+                                                      const SVirtualScanLogicNode* pVirtualScan,
+                                                      SFederatedScanPhysiNode* pFederatedScan) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == pCxt || NULL == pVirtualScan || NULL == pFederatedScan ||
+      NULL == pFederatedScan->node.pOutputDataBlockDesc ||
+      (NULL != pFederatedScan->pScanCols && LIST_LENGTH(pFederatedScan->pScanCols) > 0)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  PLAN_ERR_JRET(nodesCloneList(pVirtualScan->pScanCols, &pFederatedScan->pScanCols));
+  if (NULL == pFederatedScan->pScanCols) {
+    PLAN_ERR_JRET(TSDB_CODE_PLAN_INVALID_FEDERATED_SCAN);
+  }
+
+  // A dynamic FederatedScan chooses its real table and SELECT list only after
+  // DynQueryCtrl supplies a batch.  Its physical template still needs the
+  // complete virtual-row schema, though: every table in the batch is
+  // normalized into this schema before it reaches VirtualScan.  Without this
+  // common shape, the second table in a source batch inherits the first
+  // table's slot mapping and writes values into the wrong virtual column.
+  PLAN_ERR_JRET(addDataBlockSlotsImpl(pCxt, pFederatedScan->pScanCols,
+                                      pFederatedScan->node.pOutputDataBlockDesc,
+                                      NULL, true, false));
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("%s failed since %s", __func__, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
                                                        SNodeList* pChild,
                                                        SVirtualScanLogicNode* pScanLogicNode,
@@ -4729,7 +4862,10 @@ static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
     FOREACH(pChildNode, pChild) {
       if (pChildNode != NULL &&
           nodeType(pChildNode) == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
-        ((SFederatedScanPhysiNode*)pChildNode)->underVTableScan = true;
+        SFederatedScanPhysiNode* pFedScan = (SFederatedScanPhysiNode*)pChildNode;
+        pFedScan->underVTableScan = true;
+        PLAN_ERR_JRET(initializeDynamicVtableFederatedOutput(pCxt, pScanLogicNode, pFedScan));
+        PLAN_ERR_JRET(registerVtableFederatedOutputSlots(pCxt, pFedScan));
       }
     }
   }
@@ -5009,27 +5145,86 @@ static int32_t updateDynQueryCtrlVtbWindowInfo(SPhysiPlanContext* pCxt, SNodeLis
   return code;
 }
 
+static int32_t markVtableFederatedScans(SPhysiPlanContext* pCxt, SPhysiNode* pNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == pNode) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN == nodeType((SNode*)pNode)) {
+    SFederatedScanPhysiNode* pScan = (SFederatedScanPhysiNode*)pNode;
+    pScan->underVTableScan = true;
+    PLAN_ERR_JRET(registerVtableFederatedOutputSlots(pCxt, pScan));
+    goto _return;
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    PLAN_ERR_JRET(markVtableFederatedScans(pCxt, (SPhysiNode*)pChild));
+  }
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("%s failed since %s", __func__, tstrerror(code));
+  }
+  return code;
+}
+
+static void markVtableWindowFederatedScansFlagOnly(SPhysiNode* pNode) {
+  if (NULL == pNode) {
+    return;
+  }
+  if (QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN == nodeType((SNode*)pNode)) {
+    ((SFederatedScanPhysiNode*)pNode)->underVTableScan = true;
+    return;
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    markVtableWindowFederatedScansFlagOnly((SPhysiNode*)pChild);
+  }
+}
+
 static int32_t createDynQueryCtrlPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                            SDynQueryCtrlLogicNode* pLogicNode, SPhysiNode** pPhyNode, SSubplan* pSubPlan) {
   int32_t                 code = TSDB_CODE_SUCCESS;
-  int32_t                 lino = 0;
+  SNode*                  pChild = NULL;
   SDynQueryCtrlPhysiNode* pDynCtrl =
       (SDynQueryCtrlPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pLogicNode, QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL);
-  QUERY_CHECK_NULL(pDynCtrl, code, lino, _return, terrno);
+  if (NULL == pDynCtrl) {
+    PLAN_ERR_JRET(terrno);
+  }
 
   switch (pLogicNode->qType) {
     case DYN_QTYPE_STB_HASH:
       PLAN_ERR_JRET(updateDynQueryCtrlStbJoinInfo(pCxt, pChildren, pLogicNode, pDynCtrl));
       break;
     case DYN_QTYPE_VTB_TS_SCAN:
+      PLAN_ERR_JRET(updateDynQueryCtrlVtbScanInfo(pCxt, pChildren, pLogicNode, pDynCtrl, pSubPlan));
+      FOREACH(pChild, pChildren) {
+        markVtableWindowFederatedScansFlagOnly((SPhysiNode*)pChild);
+      }
+      break;
     case DYN_QTYPE_VTB_SCAN:
+      PLAN_ERR_JRET(updateDynQueryCtrlVtbScanInfo(pCxt, pChildren, pLogicNode, pDynCtrl, pSubPlan));
+      break;
     case DYN_QTYPE_VTB_AGG:
+      PLAN_ERR_JRET(updateDynQueryCtrlVtbScanInfo(pCxt, pChildren, pLogicNode, pDynCtrl, pSubPlan));
+      FOREACH(pChild, pChildren) {
+        PLAN_ERR_JRET(markVtableFederatedScans(pCxt, (SPhysiNode*)pChild));
+      }
+      break;
     case DYN_QTYPE_VTB_INTERVAL:
       PLAN_ERR_JRET(updateDynQueryCtrlVtbScanInfo(pCxt, pChildren, pLogicNode, pDynCtrl, pSubPlan));
+      FOREACH(pChild, pChildren) {
+        PLAN_ERR_JRET(markVtableFederatedScans(pCxt, (SPhysiNode*)pChild));
+      }
       break;
     case DYN_QTYPE_VTB_WINDOW:
       PLAN_ERR_JRET(updateDynQueryCtrlVtbScanInfo(pCxt, pChildren, pLogicNode, pDynCtrl, pSubPlan));
       PLAN_ERR_JRET(updateDynQueryCtrlVtbWindowInfo(pCxt, pChildren, pLogicNode, pDynCtrl));
+      FOREACH(pChild, pChildren) {
+        PLAN_ERR_JRET(markVtableFederatedScans(pCxt, (SPhysiNode*)pChild));
+      }
       break;
     default:
       PLAN_ERR_JRET(TSDB_CODE_PLAN_INVALID_DYN_CTRL_TYPE);
@@ -5041,7 +5236,7 @@ static int32_t createDynQueryCtrlPhysiNode(SPhysiPlanContext* pCxt, SNodeList* p
 
   return code;
 _return:
-  planError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  planError("%s failed since %s", __func__, tstrerror(code));
   return code;
 }
 
@@ -7281,13 +7476,7 @@ static int32_t doCreatePhysiPlan(SPhysiPlanContext* pCxt, SQueryLogicPlan* pLogi
 }
 
 static void destoryLocationHash(void* p) {
-  SHashObj*   pHash = *(SHashObj**)p;
-  SSlotIndex* pIndex = taosHashIterate(pHash, NULL);
-  while (NULL != pIndex) {
-    taosArrayDestroy(pIndex->pSlotIdsInfo);
-    pIndex = taosHashIterate(pHash, pIndex);
-  }
-  taosHashCleanup(pHash);
+  destroySlotIndexHash(*(SHashObj**)p);
 }
 
 static void destoryPhysiPlanContext(SPhysiPlanContext* pCxt) {

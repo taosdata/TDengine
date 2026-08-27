@@ -14,6 +14,8 @@
  */
 
 // clang-format off
+#include <stddef.h>
+
 #include "commandInt.h"
 #include "plannodes.h"
 #include "query.h"
@@ -1052,11 +1054,18 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         bool emittedRuntimeRemoteSql = false;
         if (pResNode->pExecInfo && taosArrayGetSize(pResNode->pExecInfo) > 0) {
           const SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
-          if (execInfo != NULL && execInfo->verboseInfo != NULL) {
+          if (execInfo != NULL && execInfo->verboseInfo != NULL &&
+              execInfo->verboseLen >= offsetof(SFederatedScanExplainInfo, batchMode)) {
             qDebug("Explain FedScan: runtime exec chosen, source=%s table=%s execCount=%d vgId=%d",
                    extSrcName, extTblName, (int32_t)taosArrayGetSize(pResNode->pExecInfo), execInfo->vgId);
             const SFederatedScanExplainInfo *pFedInfo =
                 (const SFederatedScanExplainInfo *)execInfo->verboseInfo;
+            if (execInfo->verboseLen >= sizeof(SFederatedScanExplainInfo) && pFedInfo->batchMode) {
+              EXPLAIN_ROW_NEW(level + 1, "Batch: sourceName=%s, batchTables=%d, batchMode=true",
+                              pFedInfo->sourceName, pFedInfo->batchTables);
+              EXPLAIN_ROW_END();
+              QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+            }
             if (pFedInfo->remoteSql[0] != '\0') {
               char *displaySql = qExplainBuildRemoteSqlForDisplay(pFedInfo->remoteSql);
               qDebug("Explain FedScan: use runtime remote SQL, source=%s table=%s sql=%.512s",

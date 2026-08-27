@@ -806,13 +806,14 @@ void finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPositi
   const int32_t*  rowEntryOffset = pSup->rowEntryInfoOffset;
 
   doUpdateNumOfRows(pCtx, pRow, pSup->numOfExprs, rowEntryOffset);
-  if (pRow->numOfRows == 0) {
+  int32_t numOfRows = pRow->numOfRows;
+  if (numOfRows == 0) {
     releaseBufPage(pBuf, page);
     return;
   }
 
   int32_t size = pBlock->info.capacity;
-  while (pBlock->info.rows + pRow->numOfRows > size) {
+  while (pBlock->info.rows + numOfRows > size) {
     size = size * 1.25;
   }
 
@@ -831,7 +832,7 @@ void finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPositi
   }
 
   releaseBufPage(pBuf, page);
-  pBlock->info.rows += pRow->numOfRows;
+  pBlock->info.rows += numOfRows;
 }
 
 void doCopyToSDataBlockByHash(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
@@ -1991,6 +1992,7 @@ static void destroyRefColIdGroupParam(void* info) {
 void freeExternalWindowGetOperatorParam(SOperatorParam* pParam) {
   SExternalWindowOperatorParam *pExtParam = (SExternalWindowOperatorParam*)pParam->value;
   taosArrayDestroy(pExtParam->ExtWins);
+  taosArrayDestroy(pExtParam->pNullOutputSlots);
   for (int32_t i = 0; i < taosArrayGetSize(pParam->pChildren); i++) {
     SOperatorParam* pChild = *(SOperatorParam**)taosArrayGet(pParam->pChildren, i);
     pChild->reUse = false;
@@ -2068,11 +2070,29 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
       type == OP_GET_PARAM ? freeDynQueryCtrlGetOperatorParam(pParam) : freeDynQueryCtrlNotifyOperatorParam(pParam);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN: {
+      // External-window range dispatch stores SDynQueryCtrlOperatorParam in a
+      // childless sentinel whose downstreamIdx stays -1.  Other childless
+      // forms own SForeignScanOperatorParam deeply.
+      if (pParam->downstreamIdx == -1 || pParam->pChildren != NULL) {
+        freeOperatorParamImpl(pParam, type);
+        break;
+      }
       SForeignScanOperatorParam* pFsParam = (SForeignScanOperatorParam*)pParam->value;
       if (pFsParam) {
         taosArrayDestroy(pFsParam->colMap);
         taosMemoryFreeClear(pFsParam->tagCond);
         nodesDestroyNode(pFsParam->pPushedCond);
+        if (pFsParam->pBatchTables) {
+          for (int32_t i = 0; i < taosArrayGetSize(pFsParam->pBatchTables); ++i) {
+            SForeignTableInfo* pTable = taosArrayGet(pFsParam->pBatchTables, i);
+            taosArrayDestroy(pTable->colMap);
+            taosMemoryFreeClear(pTable->tagCond);
+            taosMemoryFreeClear(pTable->pPushedCondJson);
+            nodesDestroyNode(pTable->pPushedCond);
+            taosArrayDestroyEx(pTable->pVtbTagList, destroyTagVal);
+          }
+          taosArrayDestroy(pFsParam->pBatchTables);
+        }
       }
       freeOperatorParamImpl(pParam, type);
       break;

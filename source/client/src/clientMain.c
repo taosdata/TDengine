@@ -119,54 +119,170 @@ void tzCleanup() {
 #endif
 }
 
-#if !defined(WINDOWS) && !defined(TD_ASTRA)
-static timezone_t setConnectionTz(const char *val) {
-  timezone_t  tz = NULL;
-  timezone_t *tmp = taosHashGet(pTimezoneMap, val, strlen(val));
-  if (tmp != NULL && *tmp != NULL) {
-    tz = *tmp;
-    goto END;
+static void buildSessionTimezoneName(const char* inputName,
+                                     const char* normalizedName,
+                                     char* sessionName,
+                                     int32_t sessionNameLen) {
+  size_t inputLen = strlen(inputName);
+  bool isZulu = inputLen == 1 &&
+                (inputName[0] == 'Z' || inputName[0] == 'z');
+  bool isBareOffset = inputName[0] == '+' || inputName[0] == '-';
+  bool isIanaName = strchr(inputName, '/') != NULL;
+
+  if (isZulu || isBareOffset || isIanaName) {
+    tstrncpy(sessionName, inputName, sessionNameLen);
+    return;
   }
 
-  tscDebug("set timezone to %s", val);
+  bool isUtcName = strncasecmp(inputName, "UTC", 3) == 0 &&
+                   (inputLen == 3 ||
+                    (inputLen > 3 &&
+                     (inputName[3] == '+' || inputName[3] == '-')));
+  if (isUtcName) {
+    (void)snprintf(sessionName, sessionNameLen, "UTC%s", inputName + 3);
+    return;
+  }
 
-  /* Validate and allocate via the shared implementation in ttime.c.
-   * This covers: empty string rejection, ambiguous abbreviation rejection,
-   * fixed-offset normalization, and tzalloc. */
-  int32_t code = taosValidateTimezone(val, &tz);
+  tstrncpy(sessionName, normalizedName, sessionNameLen);
+}
+
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
+static timezone_t setConnectionTz(const char* val, char* sessionName,
+                                  int32_t sessionNameLen) {
+  char       normalizedName[TD_TIMEZONE_LEN] = {0};
+  timezone_t tz = NULL;
+  int32_t code = taosValidateAndNormalizeTimezone(
+      val, normalizedName, sizeof(normalizedName), NULL);
   if (code != TSDB_CODE_SUCCESS) {
     tscError("%s invalid timezone '%s', code:0x%x", __func__, val, code);
     terrno = code;
-    goto END;
+    return NULL;
   }
 
-  code = taosHashPut(pTimezoneMap, val, strlen(val), &tz, sizeof(timezone_t));
-  if (code != 0) {
+  buildSessionTimezoneName(val, normalizedName, sessionName, sessionNameLen);
+  timezone_t* tmp = taosHashGet(pTimezoneMap, sessionName,
+                                strlen(sessionName));
+  if (tmp != NULL && *tmp != NULL) {
+    return *tmp;
+  }
+
+  code = taosValidateTimezone(sessionName, &tz);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("%s failed to create timezone '%s', code:0x%x", __func__,
+             sessionName, code);
+    terrno = code;
+    return NULL;
+  }
+
+  tscDebug("set timezone to %s", sessionName);
+
+  code = taosHashPut(pTimezoneMap, sessionName, strlen(sessionName),
+                     &tz, sizeof(timezone_t));
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
     tscError("%s put timezone to tz map error:%d", __func__, code);
     tzfree(tz);
-    tz = NULL;
-    goto END;
+    terrno = code;
+    return NULL;
+  }
+  if (code == TSDB_CODE_DUP_KEY) {
+    tmp = taosHashGet(pTimezoneMap, sessionName, strlen(sessionName));
+    if (tmp == NULL || *tmp == NULL) {
+      tscError("%s failed to get concurrently cached timezone '%s'",
+               __func__, sessionName);
+      tzfree(tz);
+      terrno = TSDB_CODE_DUP_KEY;
+      return NULL;
+    }
+
+    timezone_t cachedTz = *tmp;
+    tzfree(tz);
+    tz = cachedTz;
   }
 
   time_t tx1 = taosGetTimestampSec();
   char   output[TD_TIMEZONE_LEN] = {0};
-  code = taosFormatTimezoneStr(tx1, val, tz, output);
+  code = taosFormatTimezoneStr(tx1, sessionName, tz, output);
   if (code == 0) {
-    code = taosHashPut(pTimezoneNameMap, &tz, sizeof(timezone_t), output, strlen(output) + 1);
+    code = taosHashPut(pTimezoneNameMap, &tz, sizeof(timezone_t), output,
+                       strlen(output) + 1);
   }
-  if (code != 0) {
-    tscError("failed to put timezone %s to map", val);
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
+    tscError("failed to put timezone %s to map", sessionName);
   }
 
-END:
   return tz;
 }
 #endif
 
+int32_t tscPrepareSessionTimezone(const char* timezoneName,
+                                  bool explicitTimezone,
+                                  SPreparedTimezone* pPrepared) {
+  if (pPrepared == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *pPrepared = (SPreparedTimezone){0};
+  if (timezoneName == NULL || timezoneName[0] == '\0') {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char sessionName[TD_TIMEZONE_LEN] = {0};
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
+  timezone_t timezone = setConnectionTz(timezoneName, sessionName,
+                                        sizeof(sessionName));
+  if (timezone == NULL) {
+    return terrno;
+  }
+
+  pPrepared->timezone = timezone;
+#else
+  char normalizedName[TD_TIMEZONE_LEN] = {0};
+  int32_t code = taosValidateAndNormalizeTimezone(
+      timezoneName, normalizedName, sizeof(normalizedName), NULL);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  buildSessionTimezoneName(timezoneName, normalizedName, sessionName,
+                           sizeof(sessionName));
+#endif
+  tstrncpy(pPrepared->timezoneName, sessionName,
+           sizeof(pPrepared->timezoneName));
+  pPrepared->timezoneExplicit = explicitTimezone;
+  return TSDB_CODE_SUCCESS;
+}
+
+void tscCommitSessionTimezone(STscObj* pObj, const SPreparedTimezone* pPrepared) {
+  if (pObj == NULL || pPrepared == NULL) {
+    return;
+  }
+
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
+  pObj->optionInfo.timezone = pPrepared->timezone;
+#endif
+  tstrncpy(pObj->optionInfo.timezoneName, pPrepared->timezoneName,
+           sizeof(pObj->optionInfo.timezoneName));
+  pObj->optionInfo.timezoneExplicit = pPrepared->timezoneExplicit;
+}
+
+int32_t tscSetSessionTimezone(STscObj* pObj, const char* timezoneName, bool explicitTimezone) {
+  if (pObj == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SPreparedTimezone prepared = {0};
+  int32_t code = tscPrepareSessionTimezone(timezoneName, explicitTimezone, &prepared);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  tscCommitSessionTimezone(pObj, &prepared);
+  return TSDB_CODE_SUCCESS;
+}
+
 /* Snapshot the current client-level timezone (tsTimezoneStr) into the
  * session-level timezone (pObj->optionInfo.timezone) when the connection is
- * established.  Later ALTER LOCAL timezone calls update the client-level
- * setting first, then execLocalCmd syncs the accepted value back here. */
+ * established. ALTER LOCAL prepares the validated session state before changing
+ * the client-level setting, then commits it after the change succeeds. */
 int32_t tscInitSessionTimezone(STscObj *pObj) {
 #if defined(WINDOWS) || defined(TD_ASTRA)
   (void)pObj;
@@ -189,18 +305,14 @@ int32_t tscInitSessionTimezone(STscObj *pObj) {
   }
   tstrncpy(tzName, tsTimezoneStr, nameLen + 1);
 
-  timezone_t tz = setConnectionTz(tzName);
-  if (tz == NULL) {
+  int32_t code = tscSetSessionTimezone(pObj, tzName, false);
+  if (code != TSDB_CODE_SUCCESS) {
     /* Non-fatal: session tz stays NULL; timestamp parsing falls back to
      * getGlobalDefaultTZ() at query time (live global tz, not a snapshot). */
     tscWarn("tscInitSessionTimezone: setConnectionTz failed for '%s', "
             "session-level timezone not snapshotted", tzName);
     return TSDB_CODE_SUCCESS;
   }
-
-  pObj->optionInfo.timezone = tz;
-  tstrncpy(pObj->optionInfo.timezoneName, tzName, sizeof(pObj->optionInfo.timezoneName));
-  pObj->optionInfo.timezoneExplicit = false;
   return TSDB_CODE_SUCCESS;
 #endif
 }
@@ -282,18 +394,12 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
       if (val[0] == 0) {
         val = "UTC";
       }
-      timezone_t tz = setConnectionTz(val);
-      if (tz == NULL) {
-        code = terrno;
+      code = tscSetSessionTimezone(pObj, val, true);
+      if (code != TSDB_CODE_SUCCESS) {
         goto END;
       }
-      pObj->optionInfo.timezone = tz;
-      tstrncpy(pObj->optionInfo.timezoneName, val, sizeof(pObj->optionInfo.timezoneName));
-      pObj->optionInfo.timezoneExplicit = true;
     } else {
-      pObj->optionInfo.timezone = NULL;
-      pObj->optionInfo.timezoneName[0] = '\0';
-      pObj->optionInfo.timezoneExplicit = false;
+      code = tscSetSessionTimezone(pObj, NULL, false);
     }
 #endif
   }

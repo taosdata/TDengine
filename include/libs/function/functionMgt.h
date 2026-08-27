@@ -26,6 +26,10 @@ extern "C" {
 #define FUNC_AGGREGATE_UDF_ID 5001
 #define FUNC_SCALAR_UDF_ID    5002
 
+// Internal marker carried by a federated virtual-stable LAST_ROW partial.
+// Positive relatedTo values are reserved for selectivity-expression binding.
+#define FUNC_RELATED_TO_VSTABLE_LAST_ROW_PARTIAL (-1)
+
 extern const int32_t funcMgtBuiltinsNum;
 
 typedef enum EFunctionType {

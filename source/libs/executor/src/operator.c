@@ -1126,11 +1126,17 @@ static FORCE_INLINE int32_t getNextBlockFromDownstreamRemainDetachImpl(struct SO
   if (pOperator->pDownstreamGetParams && pOperator->pDownstreamGetParams[idx]) {
     SOperatorParam* pGetParam = pOperator->pDownstreamGetParams[idx];
     pOperator->pDownstreamGetParams[idx] = NULL;
-    // Once detached from the parent operator, downstream must own/free this param.
+    // A detached param is one-shot. Federated scan only borrows it for this call;
+    // other downstream operators take ownership when reUse is false.
     pGetParam->reUse = false;
+    bool freeDetachedParam = pGetParam->opType == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN;
 
     qDebug("DynOp: op %s start to get block from downstream %s", pOperator->name, pOperator->pDownstream[idx]->name);
     code = pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx], pGetParam, pResBlock);
+    if (freeDetachedParam) {
+      freeOperatorParam(pGetParam, OP_GET_PARAM);
+      pGetParam = NULL;
+    }
     QUERY_CHECK_CODE(code, lino, _return);
   } else {
     code = pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx], pResBlock);

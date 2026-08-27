@@ -149,72 +149,28 @@ FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn
 }
 
 int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
-  int32_t midPos = -1;
-  int32_t numOfRows;
-
   if (num <= 0) {
     return -1;
   }
 
-  TSKEY*  keyList = (TSKEY*)pValue;
+  TSKEY* keyList = (TSKEY*)pValue;
   int32_t firstPos = 0;
-  int32_t lastPos = num - 1;
+  int32_t lastPos = num;
 
-  if (order == TSDB_ORDER_DESC) {
-    // find the first position which is smaller than the key
-    while (1) {
-      if (key >= keyList[firstPos]) return firstPos;
-      if (key == keyList[lastPos]) return lastPos;
-
-      if (key < keyList[lastPos]) {
-        lastPos += 1;
-        if (lastPos >= num) {
-          return -1;
-        } else {
-          return lastPos;
-        }
-      }
-
-      numOfRows = lastPos - firstPos + 1;
-      midPos = (numOfRows >> 1) + firstPos;
-
-      if (key < keyList[midPos]) {
-        firstPos = midPos + 1;
-      } else if (key > keyList[midPos]) {
-        lastPos = midPos - 1;
-      } else {
-        break;
-      }
-    }
-
-  } else {
-    // find the first position which is bigger than the key
-    while (1) {
-      if (key <= keyList[firstPos]) return firstPos;
-      if (key == keyList[lastPos]) return lastPos;
-
-      if (key > keyList[lastPos]) {
-        lastPos = lastPos + 1;
-        if (lastPos >= num)
-          return -1;
-        else
-          return lastPos;
-      }
-
-      numOfRows = lastPos - firstPos + 1;
-      midPos = (numOfRows >> 1u) + firstPos;
-
-      if (key < keyList[midPos]) {
-        lastPos = midPos - 1;
-      } else if (key > keyList[midPos]) {
-        firstPos = midPos + 1;
-      } else {
-        break;
-      }
+  // Return the leftmost qualifying position.  A timestamp block may contain
+  // duplicate keys after multiple ordered sources are merged; returning an
+  // arbitrary equal position would skip rows at a window boundary.
+  while (firstPos < lastPos) {
+    int32_t midPos = firstPos + ((lastPos - firstPos) >> 1);
+    bool beforeKey = order == TSDB_ORDER_DESC ? keyList[midPos] > key : keyList[midPos] < key;
+    if (beforeKey) {
+      firstPos = midPos + 1;
+    } else {
+      lastPos = midPos;
     }
   }
 
-  return midPos;
+  return firstPos < num ? firstPos : -1;
 }
 
 int32_t getNumOfRowsInTimeWindow(SDataBlockInfo* pDataBlockInfo, TSKEY* pPrimaryColumn, int32_t startPos, TSKEY ekey,

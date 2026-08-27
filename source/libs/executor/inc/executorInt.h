@@ -256,6 +256,12 @@ typedef struct SExchangeInfo {
 // SFederatedScanOperatorInfo — state for the FederatedScan operator (Module F)
 // ---------------------------------------------------------------------------
 
+// Separators and decimal forms of all fixed-width fields in the cache key.
+#define FED_SCAN_TABLE_KEY_SUFFIX_LEN 192
+#define FED_SCAN_TABLE_KEY_LEN \
+  (TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + \
+   FED_SCAN_TABLE_KEY_SUFFIX_LEN)
+
 // Per-table scan context for multi-table FederatedScan (VStb dynamic dispatch)
 typedef struct SFedScanTableCtx {
   SExtConnectorHandle*  pConnHandle;
@@ -283,9 +289,21 @@ typedef struct SFederatedScanOperatorInfo {
   char                      extErrMsg[512];     // formatted remote error message
   // Per-table context cache for VStb multi-table dispatch
   SHashObj*                 pTableCtxMap;       // key: source/db/table/filter hashes, value: SFedScanTableCtx
-  char                      activeTableKey[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 32];
+  char                      activeTableKey[FED_SCAN_TABLE_KEY_LEN];
   // VStb dynamic query: column type mappings built at runtime
   SForeignScanOperatorParam* pActiveVStbParam;  // borrowed ref to current VStb param (not owned)
+  SForeignScanOperatorParam* pActiveBatchParam;      // owned copy retained until batch reset/close
+  const SForeignScanOperatorParam* pBatchInputIdentity;  // non-owning identity token; never dereferenced
+  SForeignScanOperatorParam  activeBatchTableParam;  // shallow view of the current batch table
+  int32_t                    currentBatchIdx;        // current table index within pActiveBatchParam
+  SSortHandle*               pBatchMergeHandle;      // streaming merge for ordered remote table streams
+  SArray*                    pBatchMergeSortInfo;    // sort keys retained for the merge handle lifetime
+  SSDataBlock*               pBatchMergeOutput;      // owned output block reused by the streaming merge
+  SArray*                    pBatchMergeSourceParams;  // owned SFedBatchMergeSourceParam* entries
+  int32_t                    batchMergeTsSlot;       // timestamp slot in normalized federated blocks
+  int32_t                    activeBatchTableCount;  // copied table count retained for EXPLAIN
+  char                       activeBatchSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // copied source batch key
+  bool                       batchMode;              // true after this operator has consumed a batch parameter
   SExtColTypeMapping*       pDynColMappings;    // dynamically built column mappings
   int32_t                   numDynColMappings;
   // True when this federate scan feeds a virtual-table scan operator (either
@@ -293,10 +311,23 @@ typedef struct SFederatedScanOperatorInfo {
   // conversion to the consumer's declared precision so unrelated direct
   // external-table queries are unaffected.
   bool                      underVTableScan;
+  STimeWindow               runtimeTimeRange;
+  bool                      hasRuntimeTimeRange;
+  const SOperatorParam*     pPrefetchParam;      // borrowed while the dynamic parameter remains owned upstream
+  SSDataBlock*              pPrefetchedBlock;    // alias of pFetchedBlock; ownership stays with FederatedScan
+  STimeWindow               prefetchWindow;
+  bool                      prefetchReady;
+  bool                      parallelPrefetch;
+  bool                      hasPrefetchDiag;
+  SExtPushdownDiagnostic    prefetchDiag;
 } SFederatedScanOperatorInfo;
+
+struct SOperatorInfo;
 
 void fedScanReleaseFetchedBlock(SFederatedScanOperatorInfo* pInfo);
 int32_t fedScanSaveActiveCtx(SFederatedScanOperatorInfo* pInfo);
+int32_t federatedScanPrefetch(struct SOperatorInfo* pOperator, SOperatorParam* pParam);
+void federatedScanPropagatePrefetchError(struct SOperatorInfo* pOperator, int32_t code);
 typedef struct SScanInfo {
   int32_t numOfAsc;
   int32_t numOfDesc;
@@ -378,6 +409,7 @@ typedef struct STableScanInfo {
   bool            needCountEmptyTable;
   // for virtual super table scan
   SSDataBlock*    pOrgBlock;
+  SSDataBlock*    pVstbOutputBlock;
   bool            ignoreTag;
   bool            virtualStableScan;
   uint8_t         vtablePrecision;

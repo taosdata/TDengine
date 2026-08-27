@@ -42,6 +42,16 @@ SNode* makeColumn(const char* name) {
   return (SNode*)pCol;
 }
 
+SNode* makeTimestampColumn(const char* name) {
+  SColumnNode* pCol = (SColumnNode*)makeColumn(name);
+  pCol->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  pCol->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+  pCol->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+  pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  pCol->isPrimTs = true;
+  return (SNode*)pCol;
+}
+
 SNode* makeLimit(int64_t limit, int64_t offset) {
   SLimitNode* pLimit = NULL;
   EXPECT_EQ(nodesMakeNode(QUERY_NODE_LIMIT, (SNode**)&pLimit), TSDB_CODE_SUCCESS);
@@ -188,6 +198,48 @@ TEST_F(RemotePlanTlvTest, projectSortScanRoundTrip) {
   taosMemoryFree(pMsg);
   nodesDestroyNode(pBack);
   nodesDestroyNode(pTree);
+}
+
+TEST_F(RemotePlanTlvTest, runtimeTimeRangeIsRenderedWithoutMutatingRemotePlan) {
+  SScanLogicNode* pScan = NULL;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, (SNode**)&pScan), TSDB_CODE_SUCCESS);
+  pScan->scanType = SCAN_TYPE_EXTERNAL;
+  ASSERT_EQ(nodesListMakeStrictAppend(&pScan->pScanCols, makeTimestampColumn("ts")), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListMakeStrictAppend(&pScan->node.pTargets, makeTimestampColumn("ts")), TSDB_CODE_SUCCESS);
+  SColumnNode* pScanTs = (SColumnNode*)nodesListGetNode(pScan->pScanCols, 0);
+  SColumnNode* pTargetTs = (SColumnNode*)nodesListGetNode(pScan->node.pTargets, 0);
+  pScanTs->node.resType.precision = TSDB_TIME_PRECISION_NANO;
+  pTargetTs->node.resType.precision = TSDB_TIME_PRECISION_NANO;
+
+  SExtTableNode* pExt = NULL;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_EXTERNAL_TABLE, (SNode**)&pExt), TSDB_CODE_SUCCESS);
+  snprintf(pExt->sourceName, sizeof(pExt->sourceName), "%s", "mysrc");
+  snprintf(pExt->remoteTableName, sizeof(pExt->remoteTableName), "%s", "remote_t");
+  pExt->sourceType = EXT_SOURCE_MYSQL;
+  pScan->pExtTableNode = (SNode*)pExt;
+
+  STimeWindow range = {};
+  range.skey = 1123456789;
+  range.ekey = 2123456789;
+  SNodesRemoteSQLCtx ctx = {};
+  ctx.pRuntimeTimeRange = &range;
+  char* pSql = NULL;
+  ASSERT_EQ(nodesRemotePlanToSQL((SLogicNode*)pScan, EXT_SOURCE_MYSQL, &ctx, &pSql), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pSql, nullptr);
+  EXPECT_NE(strstr(pSql, "WHERE ("), nullptr);
+  EXPECT_NE(strstr(pSql, " >= "), nullptr);
+  EXPECT_NE(strstr(pSql, " <= "), nullptr);
+  EXPECT_EQ(strstr(pSql, " < "), nullptr);
+  EXPECT_NE(strstr(pSql, ".123456"), nullptr);
+  EXPECT_EQ(strstr(pSql, ".123456789"), nullptr);
+  taosMemoryFree(pSql);
+
+  pSql = NULL;
+  ASSERT_EQ(nodesRemotePlanToSQL((SLogicNode*)pScan, EXT_SOURCE_MYSQL, NULL, &pSql), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pSql, nullptr);
+  EXPECT_EQ(strstr(pSql, "WHERE ("), nullptr);
+  taosMemoryFree(pSql);
+  nodesDestroyNode((SNode*)pScan);
 }
 
 TEST_F(RemotePlanTlvTest, aggRoundTrip) {

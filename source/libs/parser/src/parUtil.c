@@ -410,6 +410,37 @@ int32_t getTableTypeFromTableNode(SNode* pTable) {
   return ((SRealTableNode*)pTable)->pMeta->tableType;
 }
 
+SExtSourceInfo* extSourceInfoDup(const SExtSourceInfo* pInfo) {
+  if (NULL == pInfo) {
+    return NULL;
+  }
+
+  SExtSourceInfo* pDup = taosMemoryCalloc(1, sizeof(SExtSourceInfo));
+  if (NULL == pDup) {
+    return NULL;
+  }
+
+  tstrncpy(pDup->source_name, pInfo->source_name, sizeof(pDup->source_name));
+  pDup->type = pInfo->type;
+  tstrncpy(pDup->host, pInfo->host, sizeof(pDup->host));
+  pDup->port = pInfo->port;
+  tstrncpy(pDup->user, pInfo->user, sizeof(pDup->user));
+  tstrncpy(pDup->password, pInfo->password, sizeof(pDup->password));
+  tstrncpy(pDup->database, pInfo->database, sizeof(pDup->database));
+  tstrncpy(pDup->schema_name, pInfo->schema_name, sizeof(pDup->schema_name));
+  tstrncpy(pDup->options, pInfo->options, sizeof(pDup->options));
+  pDup->meta_version = pInfo->meta_version;
+  pDup->create_time = pInfo->create_time;
+
+  int32_t code = extCapClone(&pInfo->capability, &pDup->capability);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosMemoryFree(pDup);
+    terrno = code;
+    return NULL;
+  }
+  return pDup;
+}
+
 STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   int32_t numOfFields = TABLE_TOTAL_COL_NUM(pTableMeta);
   if (numOfFields > TSDB_MAX_COLUMNS || numOfFields < TSDB_MIN_COLUMNS) {
@@ -1472,16 +1503,6 @@ int32_t reserveExtTableMetaInCache(const char* sourceName,
   return taosHashPut(pMetaCache->pExtTableMeta, key, keyLen, &req, sizeof(SExtTableMetaReq));
 }
 
-int32_t getExtSourceInfoFromCache(SParseMetaCache* pMetaCache, const char* sourceName,
-                                   SExtSourceInfo** ppInfo) {
-  *ppInfo = NULL;
-  if (NULL == pMetaCache || NULL == sourceName || sourceName[0] == '\0') {
-    return TSDB_CODE_EXT_SOURCE_NOT_FOUND;
-  }
-  if (NULL == pMetaCache->pExtSources) return TSDB_CODE_EXT_SOURCE_NOT_FOUND;
-  return getMetaDataFromHash(sourceName, strlen(sourceName), pMetaCache->pExtSources, (void**)ppInfo);
-}
-
 int32_t getExtTableMetaFromCache(SParseMetaCache* pMetaCache, const char* sourceName,
                                   const char* mid0, const char* mid1,
                                   const char* tableName, SExtTableMeta** ppMeta) {
@@ -1499,7 +1520,14 @@ int32_t getExtTableMetaFromCache(SParseMetaCache* pMetaCache, const char* source
                                         key, (int32_t)sizeof(key));
   parserDebug("getExtTableMetaFromCache: looking up key='%s' (hashSize=%d)", key,
               taosHashGetSize(pMetaCache->pExtTableMeta));
-  int32_t code = getMetaDataFromHash(key, keyLen, pMetaCache->pExtTableMeta, (void**)ppMeta);
+  SExtTableMeta* pCachedMeta = NULL;
+  int32_t code = getMetaDataFromHash(key, keyLen, pMetaCache->pExtTableMeta, (void**)&pCachedMeta);
+  if (TSDB_CODE_SUCCESS == code && NULL != pCachedMeta) {
+    *ppMeta = extConnectorCloneTableSchema(pCachedMeta);
+    if (NULL == *ppMeta) {
+      code = terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
   parserDebug("getExtTableMetaFromCache: result code=%d ppMeta=%p", code, (void*)*ppMeta);
   return code;
 }

@@ -27,6 +27,7 @@ backend adapter classes for the integration points.
 """
 
 import os
+import re
 import sys
 import time
 from datetime import datetime, timedelta
@@ -581,11 +582,13 @@ def _create_vtable_database(db_name):
     no local origin tables are needed, only the database itself.
     """
     tdSql.execute(f"drop database if exists {db_name};")
-    tdSql.execute(f"create database {db_name} vgroups 2;")
+    tdSql.execute(f"create database {db_name} vgroups 2 precision 'ns';")
     tdSql.execute(f"use {db_name};")
 
 
-def _prepare_one_origin_database(db_name, sma=False, debug_select_database=False):
+def _prepare_one_origin_database(
+    db_name, sma=False, debug_select_database=False, precision=None
+):
     """Build the standard 18-child / 18-normal origin schema in one TDengine DB.
 
     Loads CSV data/{1..9}.csv into tables 0..8 and replays them +3 days for
@@ -594,11 +597,14 @@ def _prepare_one_origin_database(db_name, sma=False, debug_select_database=False
     same-db behavior; harmless no-op).
     """
     tdSql.execute(f"drop database if exists {db_name};")
+    precision_clause = f" precision '{precision}'" if precision else ""
     if sma:
         tdSql.execute(f"create database {db_name} vgroups 2 minrows 10 "
-                      f"maxrows 200 stt_trigger 1;")
+                      f"maxrows 200 stt_trigger 1{precision_clause};")
     else:
-        tdSql.execute(f"create database {db_name} vgroups 2;")
+        tdSql.execute(
+            f"create database {db_name} vgroups 2{precision_clause};"
+        )
     tdSql.execute(f"use {db_name};")
     if debug_select_database:
         tdSql.execute("select database();")
@@ -1453,6 +1459,126 @@ class VtableQueryUtil:
     do not rename or change parameters.
     """
 
+    @staticmethod
+    def _normalize_window_duration_to_milliseconds(result_file):
+        """Normalize nanosecond time results for shared millisecond answers."""
+        integer_columns = set()
+        iso8601_columns = set()
+        normalized_lines = []
+        awaiting_header = False
+        timestamp_pattern = re.compile(
+            r"^(?P<date_time>\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2})"
+            r"\.(?P<fraction>\d+)(?P<offset>Z|[+-]\d{2}:?\d{2})?$"
+        )
+        truncated_iso8601_pattern = re.compile(
+            r"^(?P<date_time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})"
+            r"\.(?P<fraction>\d+)\.\.\.$"
+        )
+
+        def replace_value(field, value):
+            leading = len(field) - len(field.lstrip())
+            trailing = len(field) - len(field.rstrip())
+            suffix = field[len(field) - trailing:] if trailing else ""
+            return f"{field[:leading]}{value}{suffix}"
+
+        with open(result_file, "r", encoding="utf-8") as input_file:
+            for line in input_file:
+                is_query_line = line.startswith("taos>")
+                is_header_line = False
+                if is_query_line:
+                    integer_columns.clear()
+                    iso8601_columns.clear()
+                    awaiting_header = True
+                elif awaiting_header and "|" in line:
+                    fields = line.rstrip("\r\n").split("|")
+                    headers = [field.strip().lower() for field in fields]
+                    integer_columns.update(
+                        index
+                        for index, header in enumerate(headers)
+                        if header == "_wduration"
+                        or header.startswith("to_unixtimestamp(")
+                        or header.startswith("elapsed(")
+                    )
+                    iso8601_columns.update(
+                        index
+                        for index, header in enumerate(headers)
+                        if header.startswith("to_iso8601(")
+                    )
+                    awaiting_header = False
+                    is_header_line = True
+
+                if (
+                    not is_query_line
+                    and not is_header_line
+                    and "|" in line
+                    and not line.lstrip().startswith("=")
+                ):
+                    fields = line.rstrip("\r\n").split("|")
+                    for index, field in enumerate(fields):
+                        value = fields[index].strip()
+
+                        if (
+                            index in integer_columns
+                            and value.lstrip("+-").isdigit()
+                        ):
+                            normalized = str(int(value) // 1_000_000)
+                            fields[index] = replace_value(field, normalized)
+                            continue
+
+                        truncated_iso8601_match = (
+                            truncated_iso8601_pattern.fullmatch(value)
+                            if index in iso8601_columns
+                            else None
+                        )
+                        if truncated_iso8601_match:
+                            offset = datetime.strptime(
+                                truncated_iso8601_match["date_time"],
+                                "%Y-%m-%dT%H:%M:%S",
+                            ).astimezone().strftime("%z")
+                            normalized = (
+                                f"{truncated_iso8601_match['date_time']}."
+                                f"{truncated_iso8601_match['fraction'][:3]}{offset}"
+                            )
+                            fields[index] = replace_value(field, normalized)
+                            continue
+
+                        timestamp_match = timestamp_pattern.fullmatch(value)
+                        if timestamp_match and len(timestamp_match["fraction"]) > 3:
+                            offset = timestamp_match["offset"] or ""
+                            if index in iso8601_columns and not offset:
+                                offset = datetime.strptime(
+                                    timestamp_match["date_time"],
+                                    "%Y-%m-%dT%H:%M:%S",
+                                ).astimezone().strftime("%z")
+                            normalized = (
+                                f"{timestamp_match['date_time']}."
+                                f"{timestamp_match['fraction'][:3]}{offset}"
+                            )
+                            fields[index] = replace_value(field, normalized)
+
+                    line_ending = "\r\n" if line.endswith("\r\n") else "\n"
+                    line = "|".join(fields) + line_ending
+                normalized_lines.append(line)
+
+        with open(result_file, "w", encoding="utf-8", newline="") as output_file:
+            output_file.writelines(normalized_lines)
+
+    @classmethod
+    def compare_ext_source_testcase_result(cls, input_file, expected_file, test_case, float_tolerance=0.0):
+        """Compare an external-source case against answers shared with millisecond fixtures."""
+        result_file = tdCom.generate_query_result(input_file, test_case)
+        cls._normalize_window_duration_to_milliseconds(result_file)
+        if not tdCom.compare_result_files(expected_file, result_file, float_tolerance=float_tolerance):
+            tdLog.exit(
+                f"sqlfile:{input_file}, expect_file:{expected_file} != result_file:{result_file}"
+            )
+
+        tdLog.info("Test passed: Result files are identical.")
+        os.remove(result_file)
+        diff_file = os.path.splitext(result_file)[0] + ".diff"
+        if os.path.exists(diff_file):
+            os.remove(diff_file)
+
     VTABLE_DB_NAME = "test_vtable_select"
 
     # Class-level constants kept for backward compatibility with any external
@@ -1765,7 +1891,9 @@ class VtableQueryUtil:
     def _prepare_mixed_source_vtables(self, adapter, mode):
         """Shared body for prepare_mixed_source_vtables_*."""
         adapter.ensure_running()
-        _prepare_one_origin_database(self.VTABLE_DB_NAME, debug_select_database=True)
+        _prepare_one_origin_database(
+            self.VTABLE_DB_NAME, debug_select_database=True, precision="ns"
+        )
         adapter.prepare_origin_tables()
         tdSql.execute(f"use {self.VTABLE_DB_NAME};")
         adapter.create_external_source()
@@ -1797,7 +1925,9 @@ class VtableQueryUtil:
         for a in adapters:
             a.ensure_running()
 
-        _prepare_one_origin_database(self.VTABLE_DB_NAME, debug_select_database=True)
+        _prepare_one_origin_database(
+            self.VTABLE_DB_NAME, debug_select_database=True, precision="ns"
+        )
         for a in adapters:
             a.prepare_origin_tables()
 
@@ -1819,8 +1949,10 @@ class VtableQueryUtil:
     def _prepare_ext_source_virtual_ref_vtables(self, adapter, mode):
         """Shared body for vtable → vtable → ext/internal source chains."""
         adapter.ensure_running()
-        _prepare_one_origin_database(self.VTABLE_DB_NAME,
-                                     debug_select_database=True)
+        _prepare_one_origin_database(
+            self.VTABLE_DB_NAME, debug_select_database=True,
+            precision="ns"
+        )
         adapter.prepare_origin_tables()
         tdSql.execute(f"use {self.VTABLE_DB_NAME};")
         adapter.create_external_source()
@@ -2012,7 +2144,7 @@ class VtableQueryUtil:
         """
         tdLog.info("prepare origin tables for vtable ts pushdown test.")
         tdSql.execute("drop database if exists test_vtable_ts_pushdown_origin;")
-        tdSql.execute("create database test_vtable_ts_pushdown_origin;")
+        tdSql.execute("create database test_vtable_ts_pushdown_origin vgroups 2;")
         tdSql.execute("use test_vtable_ts_pushdown_origin;")
 
         base_ts = datetime(2020, 10, 10, 9, 59, 45)
@@ -2056,7 +2188,7 @@ class VtableQueryUtil:
 
         tdLog.info("prepare virtual tables for vtable ts pushdown test.")
         tdSql.execute("drop database if exists test_vtable_ts_pushdown_vtb;")
-        tdSql.execute("create database test_vtable_ts_pushdown_vtb;")
+        tdSql.execute("create database test_vtable_ts_pushdown_vtb vgroups 2;")
         tdSql.execute("use test_vtable_ts_pushdown_vtb;")
 
         tdSql.execute("create vtable ntb_0_vtb("

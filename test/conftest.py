@@ -144,6 +144,8 @@ def _is_federated_query_pytest_invocation():
 
     hints = (
         "19-FederatedQuery",
+        "05-VirtualTables",
+        "03-ExtSource",
         "FederatedQuery",
         "federated_query",
         "test_fq_",
@@ -164,7 +166,12 @@ def _iter_local_taos_lib_dirs():
             candidates.append(bin_path / "lib")
 
     taosd_name = "taosd.exe" if os.name == "nt" else "taosd"
-    libtaos_name = "taos.dll" if os.name == "nt" else "libtaos.so"
+    if os.name == "nt":
+        libtaos_name = "taos.dll"
+    elif sys.platform == "darwin":
+        libtaos_name = "libtaos.dylib"
+    else:
+        libtaos_name = "libtaos.so"
     for parent in Path(__file__).resolve().parents:
         build_dir = parent / "debug" / "build"
         bin_dir = build_dir / "bin"

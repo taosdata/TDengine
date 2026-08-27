@@ -399,7 +399,7 @@ class TestVtableCreateExtSource:
         create_remote_db("mysql", _MY_DB)
         create_remote_db("influxdb", _INF_DB)
         _ensure_sources()
-        _create_local_db()
+        _create_local_db("ns")
         # Provision the heterogeneous kpi_* remote tables once for §3 vstable
         # patent-core tests; they don't conflict with §2 vtable tests because
         # the latter create their own t_* remote tables under distinct names.
@@ -554,24 +554,29 @@ class TestVtableCreateExtSource:
         create_mysql_remote_table("ts_p", [("v", "INTEGER", "int")])
         create_influx_remote_table("ts_p_inf")
         backends = [
-            ("pg",  "int",    f"{_PG_SRC}.{_PG_DB}.ts_p.v"),
-            ("my",  "int",    f"{_MY_SRC}.{_MY_DB}.ts_p.v"),
-            ("inf", "bigint", f"{_INF_SRC}.{_INF_DB}.ts_p_inf.c_int"),
+            ("pg",  "us", "int",    f"{_PG_SRC}.{_PG_DB}.ts_p.v"),
+            ("my",  "ms", "int",    f"{_MY_SRC}.{_MY_DB}.ts_p.v"),
+            ("inf", "ns", "bigint", f"{_INF_SRC}.{_INF_DB}.ts_p_inf.c_int"),
         ]
+        precision_rank = {"ms": 0, "us": 1, "ns": 2}
         for prec in ("ms", "us", "ns"):
             db = f"vtcreate_p_{prec}"
             tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
             tdSql.execute(f"CREATE DATABASE {db} PRECISION '{prec}'")
             tdSql.execute(f"USE {db}")
-            for label, v_type, v_ref in backends:
+            for label, source_prec, v_type, v_ref in backends:
                 vname = f"v_ts_{label}_{prec}"
-                tdSql.execute(
+                sql = (
                     f"CREATE VTABLE {vname} ("
                     f"ts timestamp, "
                     f"v {v_type} FROM {v_ref})")
-                tdSql.query(f"DESCRIBE {vname}")
-                tdSql.checkData(0, 0, "ts")
-                tdSql.checkData(0, 1, "TIMESTAMP")
+                if precision_rank[prec] < precision_rank[source_prec]:
+                    tdSql.error(sql)
+                else:
+                    tdSql.execute(sql)
+                    tdSql.query(f"DESCRIBE {vname}")
+                    tdSql.checkData(0, 0, "ts")
+                    tdSql.checkData(0, 1, "TIMESTAMP")
             tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
         tdSql.execute(f"USE {_LOCAL_DB}")
 

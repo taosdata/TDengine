@@ -137,6 +137,7 @@ static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_SCALAR_FIELD(hasDep);
   COPY_SCALAR_FIELD(hasRef);
   COPY_SCALAR_FIELD(flags);
+  COPY_CHAR_ARRAY_FIELD(refSourceName);
   COPY_CHAR_ARRAY_FIELD(refDbName);
   COPY_CHAR_ARRAY_FIELD(refTableName);
   COPY_CHAR_ARRAY_FIELD(refColName);
@@ -291,15 +292,11 @@ static int32_t functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) 
   COPY_SCALAR_FIELD(tz);
   COPY_SCALAR_FIELD(isDistinct);
   COPY_CHAR_ARRAY_FIELD(tzName);
+  // Do not share the timezone handle. The clone initializes its own handle
+  // lazily when the function is evaluated.
   pDst->tz = NULL;
   pDst->tzAllocated = false;
   COPY_SCALAR_FIELD(charsetCxt);
-  if (pSrc->tzName[0] != '\0') {
-    int32_t code = nodesDecodeTimezoneNameInPlace(pSrc->tzName, (void**)&pDst->tz, &pDst->tzAllocated);
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
-    }
-  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1018,6 +1015,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(sliding);
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
+  COPY_SCALAR_FIELD(hasFill);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
   CLONE_NODE_FIELD(pTimeRange);
   COPY_SCALAR_FIELD(sessionGap);

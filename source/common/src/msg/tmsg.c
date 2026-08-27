@@ -17,7 +17,6 @@
 
 #include "tmsg.h"
 #include "tglobal.h"
-#include "nodes.h"
 
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
@@ -15758,6 +15757,106 @@ void tFreeSSubQueryMsg(SSubQueryMsg *pReq) {
   taosArrayDestroyP(pReq->subEndPoints, NULL);
 }
 
+/*
+ * Encode one foreign table entry used by a batch FederatedScan parameter.
+ *
+ * @param pEncoder Destination encoder.
+ * @param pTable Foreign table entry to encode.
+ *
+ * @return TSDB_CODE_SUCCESS on success, otherwise an error code.
+ */
+static int32_t tEncodeSForeignTableInfo(SEncoder* pEncoder, const SForeignTableInfo* pTable) {
+  TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pTable->dbName));
+  TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pTable->tableName));
+  size_t colSize = taosArrayGetSize(pTable->colMap);
+  if (colSize > TSDB_MAX_COLUMNS) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t colNum = (int32_t)colSize;
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, colNum));
+  for (int32_t i = 0; i < colNum; ++i) {
+    SColIdNameKV* pCol = taosArrayGet(pTable->colMap, i);
+    if (pCol == NULL) {
+      return terrno;
+    }
+    TAOS_CHECK_RETURN(tEncodeI16(pEncoder, pCol->colId));
+    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pCol->colName));
+  }
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pTable->dstPrecision));
+  TAOS_CHECK_RETURN(tEncodeBool(pEncoder, pTable->tagCond != NULL && pTable->tagCondLen > 0));
+  if (pTable->tagCond != NULL && pTable->tagCondLen > 0) {
+    TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pTable->tagCondLen));
+    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pTable->tagCond));
+  }
+  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pTable->rowLimit));
+  if (pTable->pPushedCond != NULL &&
+      (pTable->pPushedCondJson == NULL || pTable->pPushedCondJson[0] == '\0')) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pTable->pPushedCondJson != NULL ? pTable->pPushedCondJson : ""));
+  TAOS_CHECK_RETURN(tEncodeU64(pEncoder, pTable->virtualChildUid));
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * Decode one foreign table entry and initialize all owned members.
+ *
+ * @param pDecoder Source decoder.
+ * @param pTable Output foreign table entry.
+ *
+ * @return TSDB_CODE_SUCCESS on success, otherwise an error code.
+ */
+static int32_t tDecodeSForeignTableInfo(SDecoder* pDecoder, SForeignTableInfo* pTable) {
+  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pTable->dbName));
+  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pTable->tableName));
+  int32_t colNum = 0;
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &colNum));
+  if (colNum < 0 || colNum > TSDB_MAX_COLUMNS) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  pTable->colMap = taosArrayInit(colNum, sizeof(SColIdNameKV));
+  if (pTable->colMap == NULL) {
+    return terrno;
+  }
+  for (int32_t i = 0; i < colNum; ++i) {
+    SColIdNameKV col = {0};
+    TAOS_CHECK_RETURN(tDecodeI16(pDecoder, &col.colId));
+    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, col.colName));
+    if (taosArrayPush(pTable->colMap, &col) == NULL) {
+      return terrno;
+    }
+  }
+  TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pTable->dstPrecision));
+  bool hasTagCond = false;
+  TAOS_CHECK_RETURN(tDecodeBool(pDecoder, &hasTagCond));
+  if (hasTagCond) {
+    TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pTable->tagCondLen));
+    TAOS_CHECK_RETURN(tDecodeCStrAlloc(pDecoder, &pTable->tagCond));
+  }
+  TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pTable->rowLimit));
+  TAOS_CHECK_RETURN(tDecodeCStrAlloc(pDecoder, &pTable->pPushedCondJson));
+  TAOS_CHECK_RETURN(tDecodeU64(pDecoder, &pTable->virtualChildUid));
+  return TSDB_CODE_SUCCESS;
+}
+
+static void tDestroyDecodedSForeignTableInfo(void* pData) {
+  SForeignTableInfo* pTable = pData;
+  if (pTable == NULL) {
+    return;
+  }
+
+  taosArrayDestroy(pTable->colMap);
+  taosMemoryFree(pTable->tagCond);
+  taosMemoryFree(pTable->pPushedCondJson);
+}
+
+enum {
+  // Legacy payloads store colNum here. One past the valid column limit marks
+  // the explicit V2 header without colliding with a valid legacy message.
+  TMSG_FEDERATED_SCAN_CODEC_V2_MARKER = TSDB_MAX_COLUMNS + 1,
+  TMSG_MIN_FOREIGN_TABLE_WIRE_BYTES = 28,
+};
+
 int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pOpParam->opType));
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pOpParam->downstreamIdx));
@@ -15863,7 +15962,10 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
             TAOS_CHECK_RETURN(tEncodeI16(pEncoder, pTag->cid));
             TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pTag->type));
             if (IS_VAR_DATA_TYPE(pTag->type)) {
-              TAOS_CHECK_RETURN(tEncodeBinary(pEncoder, pTag->pData, pTag->nData));
+              // The existing decoder maps a zero-length binary to pData == NULL,
+              // which is the runtime representation of a NULL variable tag.
+              uint32_t len = pTag->pData == NULL ? 0 : pTag->nData;
+              TAOS_CHECK_RETURN(tEncodeBinary(pEncoder, pTag->pData, len));
             } else {
               TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pTag->i64));
             }
@@ -15889,7 +15991,44 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
       TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pFsParam->sourceName));
       TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pFsParam->dbName));
       TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pFsParam->tableName));
-      int32_t colNum = taosArrayGetSize(pFsParam->colMap);
+
+      size_t colSize = taosArrayGetSize(pFsParam->colMap);
+      size_t batchSize = taosArrayGetSize(pFsParam->pBatchTables);
+      if (colSize > TSDB_MAX_COLUMNS || batchSize > INT32_MAX) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      int32_t colNum = (int32_t)colSize;
+      int32_t batchNum = (int32_t)batchSize;
+
+      if (pFsParam->paramType == FOREIGN_SCAN_PARAM_BATCH) {
+        if (colNum != 0 || batchNum <= 0) {
+          return TSDB_CODE_INVALID_PARA;
+        }
+        TAOS_CHECK_RETURN(
+            tEncodeI32(pEncoder, TMSG_FEDERATED_SCAN_CODEC_V2_MARKER));
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pFsParam->paramType));
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, colNum));
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, batchNum));
+        TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pFsParam->sourceMetaVersion));
+        TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pFsParam->dstPrecision));
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pFsParam->groupId));
+        TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pFsParam->window.skey));
+        TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pFsParam->window.ekey));
+        TAOS_CHECK_RETURN(tEncodeBool(pEncoder, pFsParam->isNewParam));
+        for (int32_t i = 0; i < batchNum; ++i) {
+          SForeignTableInfo* pTable = taosArrayGet(pFsParam->pBatchTables, i);
+          if (pTable == NULL) {
+            return terrno;
+          }
+          TAOS_CHECK_RETURN(tEncodeSForeignTableInfo(pEncoder, pTable));
+        }
+        break;
+      }
+      if (pFsParam->paramType != FOREIGN_SCAN_PARAM_SINGLE || batchNum != 0) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+
+      // Keep the established single-table wire layout readable by older nodes.
       TAOS_CHECK_RETURN(tEncodeI32(pEncoder, colNum));
       for (int32_t i = 0; i < colNum; ++i) {
         SColIdNameKV *pColKV = taosArrayGet(pFsParam->colMap, i);
@@ -16009,7 +16148,7 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
           bool hasTbInfo = false;
           TAOS_CHECK_RETURN(tDecodeBool(pDecoder, &hasTbInfo));
           if (hasTbInfo) {
-            pScan->pOrgTbInfo = taosMemoryMalloc(sizeof(SOrgTbInfo));
+            pScan->pOrgTbInfo = taosMemoryCalloc(1, sizeof(SOrgTbInfo));
             if (NULL == pScan->pOrgTbInfo) {
               TAOS_CHECK_RETURN(terrno);
             }
@@ -16048,7 +16187,7 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
               TAOS_CHECK_RETURN(terrno);
             }
             for (int32_t m = 0; m < orgTbInfoNum; ++m) {
-              SOrgTbInfo info;
+              SOrgTbInfo info = {.srcPrecision = UINT8_MAX, .dstPrecision = UINT8_MAX};
               TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &info.vgId));
               TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, info.tbName));
               int32_t num = 0;
@@ -16123,11 +16262,73 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
         TAOS_CHECK_RETURN(terrno);
       }
       SForeignScanOperatorParam *pFsParam = pOpParam->value;
+      pFsParam->paramType = FOREIGN_SCAN_PARAM_SINGLE;
       TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pFsParam->sourceName));
       TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pFsParam->dbName));
       TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pFsParam->tableName));
+
+      int32_t wireHeader = 0;
+      int32_t paramType = FOREIGN_SCAN_PARAM_SINGLE;
       int32_t colNum = 0;
-      TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &colNum));
+      int32_t batchNum = 0;
+      TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &wireHeader));
+      if (wireHeader == TMSG_FEDERATED_SCAN_CODEC_V2_MARKER) {
+        TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &paramType));
+        TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &colNum));
+        TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &batchNum));
+      } else {
+        colNum = wireHeader;
+      }
+
+      if (paramType != FOREIGN_SCAN_PARAM_SINGLE && paramType != FOREIGN_SCAN_PARAM_BATCH) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+      if (colNum < 0 || colNum > TSDB_MAX_COLUMNS || batchNum < 0) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+      if ((paramType == FOREIGN_SCAN_PARAM_SINGLE && batchNum != 0) ||
+          (paramType == FOREIGN_SCAN_PARAM_BATCH && (colNum != 0 || batchNum == 0))) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+      if (paramType == FOREIGN_SCAN_PARAM_BATCH &&
+          (uint32_t)batchNum >
+              TD_CODER_REMAIN_CAPACITY(pDecoder) /
+                  TMSG_MIN_FOREIGN_TABLE_WIRE_BYTES) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+
+      pFsParam->paramType = (EForeignScanParamType)paramType;
+      if (pFsParam->paramType == FOREIGN_SCAN_PARAM_BATCH) {
+        TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pFsParam->sourceMetaVersion));
+        TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pFsParam->dstPrecision));
+        TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pFsParam->groupId));
+        TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pFsParam->window.skey));
+        TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pFsParam->window.ekey));
+        TAOS_CHECK_RETURN(tDecodeBool(pDecoder, &pFsParam->isNewParam));
+        SArray* pBatchTables = taosArrayInit(batchNum, sizeof(SForeignTableInfo));
+        if (pBatchTables == NULL) {
+          TAOS_CHECK_RETURN(terrno);
+        }
+        for (int32_t i = 0; i < batchNum; ++i) {
+          SForeignTableInfo table = {0};
+          int32_t code = tDecodeSForeignTableInfo(pDecoder, &table);
+          if (code != TSDB_CODE_SUCCESS) {
+            tDestroyDecodedSForeignTableInfo(&table);
+            taosArrayDestroyEx(pBatchTables,
+                               tDestroyDecodedSForeignTableInfo);
+            TAOS_CHECK_RETURN(code);
+          }
+          if (taosArrayPush(pBatchTables, &table) == NULL) {
+            code = terrno;
+            tDestroyDecodedSForeignTableInfo(&table);
+            taosArrayDestroyEx(pBatchTables,
+                               tDestroyDecodedSForeignTableInfo);
+            TAOS_CHECK_RETURN(code);
+          }
+        }
+        pFsParam->pBatchTables = pBatchTables;
+        break;
+      }
       pFsParam->colMap = taosArrayInit(colNum, sizeof(SColIdNameKV));
       if (NULL == pFsParam->colMap) {
         TAOS_CHECK_RETURN(terrno);

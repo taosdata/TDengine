@@ -194,8 +194,15 @@ typedef struct {
 } SWhiteListInfo;
 
 typedef struct {
+  timezone_t timezone;
+  char       timezoneName[TD_TIMEZONE_LEN];
+  bool       timezoneExplicit;
+} SPreparedTimezone;
+
+typedef struct {
   timezone_t    timezone;
-  char          timezoneName[TD_TIMEZONE_LEN]; /* original IANA/POSIX name used to create timezone */
+  /* Validated name; fixed offsets retain the accepted input format. */
+  char          timezoneName[TD_TIMEZONE_LEN];
   bool          timezoneExplicit;
   void         *charsetCxt;
   char          userApp[TSDB_APP_NAME_LEN];
@@ -451,6 +458,10 @@ int32_t  createTscObj(const char* user, const char* auth, const char* db, int32_
                       STscObj** p);
 void     destroyTscObj(void* pObj);
 int32_t  tscInitSessionTimezone(STscObj *pObj);
+int32_t  tscPrepareSessionTimezone(const char* timezoneName, bool explicitTimezone,
+                                   SPreparedTimezone* pPrepared);
+void     tscCommitSessionTimezone(STscObj* pObj, const SPreparedTimezone* pPrepared);
+int32_t  tscSetSessionTimezone(STscObj* pObj, const char* timezoneName, bool explicitTimezone);
 STscObj* acquireTscObj(int64_t rid);
 void     releaseTscObj(int64_t rid);
 void     destroyAppInst(void* pAppInfo);

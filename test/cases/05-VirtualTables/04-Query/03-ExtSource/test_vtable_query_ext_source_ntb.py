@@ -14,7 +14,7 @@ import os
 import sys
 import pytest
 
-from new_test_framework.utils import tdCom, tdLog
+from new_test_framework.utils import tdLog
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from vtable_util import VtableQueryUtil
@@ -37,7 +37,7 @@ class _ExtSourceNtbQueryBase:
         case_dir = os.path.dirname(os.path.dirname(__file__))
         sql_file = os.path.join(case_dir, "in", f"{test_case}.in")
         ans_file = os.path.join(case_dir, "ans", f"{test_case}.ans")
-        tdCom.compare_testcase_result(
+        VtableQueryUtil.compare_ext_source_testcase_result(
             sql_file, ans_file, test_case, float_tolerance=1e-1
         )
 

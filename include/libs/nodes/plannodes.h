@@ -467,6 +467,7 @@ typedef struct SWindowLogicNode {
   int64_t               sliding;
   int8_t                intervalUnit;
   int8_t                slidingUnit;
+  bool                  hasFill;
   int8_t                firstDayOfWeek;  /* 0-6, from connection; default 4 (Thu) */
   void*                 timezone;        /* timezone_t handle for calendar alignment */
   char                  timezoneName[TD_TIMEZONE_LEN]; /* IANA name for serialization */
@@ -1436,6 +1437,14 @@ typedef struct SNodesRemoteSQLCtx {
   // (MySQL DATETIME, PG TIMESTAMP WITHOUT TIME ZONE) receive correctly
   // formatted filter values that match the client's interpretation.
   const char*         tzName;
+  // Runtime-only output conversion controls. The executor enables these for
+  // MySQL and PostgreSQL timestamp results after probing the connection's
+  // timezone capability. They are not serialized as part of the physical plan.
+  bool                convertTimestampOutputToEpoch;
+  bool                timezoneConversionSupported;
+  // Optional runtime-only half-open time range [skey, ekey). FederatedScan
+  // supplies this for each VtableWindow batch; it is not persisted in pRemotePlan.
+  const STimeWindow*  pRuntimeTimeRange;
 } SNodesRemoteSQLCtx;
 
 typedef enum {

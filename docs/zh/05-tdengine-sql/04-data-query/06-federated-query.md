@@ -695,6 +695,51 @@ tag_value:
     const_value | table_name.tag_name
 ```
 
+### InfluxDB SERIES 列引用
+
+对于 InfluxDB，可在创建虚拟普通表或虚拟子表时使用 `SERIES` 声明，将一个别名绑定到由 Tag 条件确定的具体 Series：
+
+```sql
+SERIES series_alias AS source_name.database_name.measurement_name
+    (tag_name = 'tag_value' [, tag_name = 'tag_value'] ...)
+```
+
+该语法具有以下约束：
+
+- 仅支持 InfluxDB 外部数据源，不支持 MySQL 或 PostgreSQL。
+- `SERIES` 目标必须使用完整的三段式路径 `source_name.database_name.measurement_name`，不能省略外部源名称或数据库名称。
+- 必须指定至少一个 Tag 条件。条件仅支持 `tag_name = 'tag_value'`，并且在声明时必须完整且不重复地包含该 Measurement 的全部 Tag；缺少 Tag、包含未知 Tag 或重复指定同一 Tag 均会报错。
+- `series_alias.field_name` 表示该 Tag 条件所限定的 Measurement Field。别名在同一虚拟表中必须唯一，且不能通过别名引用 InfluxDB Tag。
+
+以下示例将 `s1` 绑定到 `device = 'd1'` 的 Series；`s1.value` 会展开为带有该 Tag 条件的 `influx_source.metrics.meters.value` 外部列引用：
+
+```sql
+CREATE VTABLE v_a1 (
+  ts TIMESTAMP,
+  value DOUBLE FROM s1.value
+)
+SERIES s1 AS influx_source.metrics.meters (device = 'd1');
+```
+
+可以使用 `ALTER VTABLE` 为已有虚拟表增加 `SERIES`、绑定列、解除绑定并删除 `SERIES`：
+
+```sql
+CREATE VTABLE v_a2 (
+  ts TIMESTAMP,
+  value DOUBLE
+);
+
+ALTER VTABLE v_a2
+  ADD SERIES s1 AS influx_source.metrics.meters (device = 'd1');
+
+ALTER VTABLE v_a2 ALTER COLUMN value SET s1.value;
+
+ALTER VTABLE v_a2 ALTER COLUMN value SET NULL;
+ALTER VTABLE v_a2 REMOVE SERIES s1;
+```
+
+`ADD SERIES` 与创建时的 `SERIES` 声明采用相同的目标路径和 Tag 条件约束。删除 `SERIES` 前，必须先通过 `ALTER COLUMN ... SET NULL` 或将列改为其他引用，确保没有虚拟表列继续引用该别名。
+
 ### 创建虚拟超级表
 
 虚拟超级表语法保持不变，仅定义 schema，不包含外部列引用：

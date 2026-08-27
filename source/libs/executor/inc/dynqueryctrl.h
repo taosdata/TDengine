@@ -87,6 +87,15 @@ typedef struct {
   int32_t  tagCondLen;
 } SColRefInfo;
 
+typedef struct SVtbAggDispatchScope {
+  bool      allChildren;
+  bool      hasGroup;
+  uint64_t  groupId;
+  bool      hasUid;
+  tb_uid_t  uid;
+  SArray*   pTagList;  // borrowed from the DynCtrl UID/tag maps
+} SVtbAggDispatchScope;
+
 typedef struct SVtbScanDynCtrlInfo {
   bool             batchProcessChild;
   bool             scanAllCols;
@@ -96,6 +105,8 @@ typedef struct SVtbScanDynCtrlInfo {
   bool             needRedeploy;
   bool             hasPartition;
   bool             genNewParam;
+  bool                 activeScopeValid;
+  SVtbAggDispatchScope activeAggScope;
   char*            dbName;
   char*            tbName;
   tsem_t           ready;
@@ -107,12 +118,14 @@ typedef struct SVtbScanDynCtrlInfo {
   uint64_t         dynTbUid;
   int32_t          rversion;
   int32_t          acctId;
+  int8_t           dstPrecision;
   int32_t          curTableIdx;
   int32_t          lastTableIdx;
   uint64_t         clientId; // current DynQueryCtrl task id, used as clientId when wiring a runtime-added org-vg agg reader into the merge exchange
   STimeWindow      window;
   SArray*          readColList;
   SHashObj*        readColSet; // key: col_id_t, value: NULL
+  SArray*          aggTagColIds; // runtime-only logical Tag/TBNAME col_id_t list for VTB_AGG payloads
   SArray*          refColGroups; // Array of <SRefColIdGroup> (slotId groups)
   SArray*          childTableList; // Array of <Array<SColRefInfo>> used for virtual super table
   SArray*          colRefInfo; // Array of <SColRefInfo> used for single virtual normal/child table

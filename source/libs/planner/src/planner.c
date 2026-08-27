@@ -997,7 +997,15 @@ static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId,
     }
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE == nodeType(pNode)) {
     SMergePhysiNode* pMerge = (SMergePhysiNode*)pNode;
-    if (pMerge->srcGroupId <= groupId && pMerge->srcEndGroupId >= groupId) {
+    bool onlyExchangeChildren = true;
+    SNode* pMergeChild = NULL;
+    FOREACH(pMergeChild, pMerge->node.pChildren) {
+      if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE != nodeType(pMergeChild)) {
+        onlyExchangeChildren = false;
+        break;
+      }
+    }
+    if (onlyExchangeChildren && pMerge->srcGroupId <= groupId && pMerge->srcEndGroupId >= groupId) {
       SExchangePhysiNode* pMergeExchange =
           (SExchangePhysiNode*)nodesListGetNode(pMerge->node.pChildren, pMerge->numOfChannels - 1);
       if (1 == pMerge->numOfChannels) {
@@ -1052,9 +1060,11 @@ static void clearSubplanExecutionNode(SPhysiNode* pNode) {
     pMerge->numOfChannels = LIST_LENGTH(pMerge->node.pChildren);
     SNode* pChild = NULL;
     FOREACH(pChild, pMerge->node.pChildren) {
-      NODES_DESTORY_LIST(((SExchangePhysiNode*)pChild)->pSrcEndPoints);
-      taosArrayDestroy(((SExchangePhysiNode*)pChild)->childrenVgIds);
-      ((SExchangePhysiNode*)pChild)->childrenVgIds = NULL;
+      if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pChild)) {
+        NODES_DESTORY_LIST(((SExchangePhysiNode*)pChild)->pSrcEndPoints);
+        taosArrayDestroy(((SExchangePhysiNode*)pChild)->childrenVgIds);
+        ((SExchangePhysiNode*)pChild)->childrenVgIds = NULL;
+      }
     }
   }
 

@@ -486,22 +486,43 @@ static int32_t dynAppendRemoteVarLiteral(SDynSQL* s, int32_t dataType, const voi
   return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
 }
 
-static void dynAppendTypedTimestampLiteral(SDynSQL* s, const char* tsText, EExtSQLDialect dialect) {
+static int32_t dynTimestampFractionDigits(int8_t precision) {
+  return precision == TSDB_TIME_PRECISION_NANO ? 9 :
+         precision == TSDB_TIME_PRECISION_MICRO ? 6 : 3;
+}
+
+enum { EXT_SQL_MAX_TIMESTAMP_FRACTION_DIGITS = 6 };
+
+static void dynAppendTypedTimestampLiteral(SDynSQL* s, const char* tsText, EExtSQLDialect dialect,
+                                           int8_t precision) {
   if (NULL == tsText) {
     dynSQLAppendStr(s, "NULL");
     qError("FQ-SQL: typed timestamp literal got NULL text dialect=%s", dialectName(dialect));
     return;
   }
 
+  char        normalizedTsText[64] = {0};
+  const char* pLiteralText = tsText;
+  if ((dialect == EXT_SQL_DIALECT_MYSQL || dialect == EXT_SQL_DIALECT_POSTGRES) &&
+      dynTimestampFractionDigits(precision) > EXT_SQL_MAX_TIMESTAMP_FRACTION_DIGITS) {
+    tstrncpy(normalizedTsText, tsText, sizeof(normalizedTsText));
+    char* pFraction = strrchr(normalizedTsText, '.');
+    if (pFraction != NULL && strlen(pFraction + 1) > EXT_SQL_MAX_TIMESTAMP_FRACTION_DIGITS) {
+      pFraction[EXT_SQL_MAX_TIMESTAMP_FRACTION_DIGITS + 1] = '\0';
+    }
+    pLiteralText = normalizedTsText;
+  }
+
   switch (dialect) {
     case EXT_SQL_DIALECT_MYSQL:
       dynSQLAppendStr(s, "CAST(");
-      dynAppendEscapedString(s, tsText, dialect);
-      dynSQLAppendStr(s, " AS DATETIME(3))");
+      dynAppendEscapedString(s, pLiteralText, dialect);
+      dynSQLAppendf(s, " AS DATETIME(%d))",
+                    TMIN(dynTimestampFractionDigits(precision), EXT_SQL_MAX_TIMESTAMP_FRACTION_DIGITS));
       break;
     case EXT_SQL_DIALECT_POSTGRES:
       dynSQLAppendStr(s, "TIMESTAMP ");
-      dynAppendEscapedString(s, tsText, dialect);
+      dynAppendEscapedString(s, pLiteralText, dialect);
       break;
     case EXT_SQL_DIALECT_INFLUXQL:
       // Flight SQL otherwise infers a VARCHAR literal.  Folded NOW()/TODAY()
@@ -516,7 +537,51 @@ static void dynAppendTypedTimestampLiteral(SDynSQL* s, const char* tsText, EExtS
       break;
   }
 
-  qDebug("FQ-SQL: typed timestamp literal dialect=%s text=%s", dialectName(dialect), tsText);
+  qDebug("FQ-SQL: typed timestamp literal dialect=%s text=%s", dialectName(dialect), pLiteralText);
+}
+
+static void dynAppendTimestampLiteral(SDynSQL* s, int64_t ts, int8_t precision,
+                                      EExtSQLDialect dialect) {
+  if (precision != TSDB_TIME_PRECISION_MILLI && precision != TSDB_TIME_PRECISION_MICRO &&
+      precision != TSDB_TIME_PRECISION_NANO) {
+    precision = TSDB_TIME_PRECISION_MILLI;
+  }
+
+  int64_t ticksPerSecond = TSDB_TICK_PER_SECOND(precision);
+  int64_t seconds = ts / ticksPerSecond;
+  int64_t fraction = ts % ticksPerSecond;
+  if (fraction < 0) {
+    fraction += ticksPerSecond;
+    --seconds;
+  }
+
+  time_t    sec = (time_t)seconds;
+  struct tm tmBuf = {0};
+  if (dialect == EXT_SQL_DIALECT_INFLUXQL) {
+    taosGmTimeR(&sec, &tmBuf);
+  } else {
+    timezone_t tz = NULL;
+    if (s->tzName != NULL && s->tzName[0] != '\0') {
+      int32_t code = taosValidateTimezone(s->tzName, &tz);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("FQ-SQL: invalid timezone name=%s since %s", s->tzName, tstrerror(code));
+        if (tz != NULL) tzfree(tz);
+        s->err = code;
+        return;
+      }
+    }
+    taosLocalTime(&sec, &tmBuf, NULL, 0, tz);
+    if (tz) tzfree(tz);
+  }
+
+  char tsText[64] = {0};
+  (void)snprintf(tsText, sizeof(tsText), "%04d-%02d-%02d %02d:%02d:%02d.%0*" PRId64,
+                 tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday,
+                 tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec,
+                 dynTimestampFractionDigits(precision), fraction);
+  dynAppendTypedTimestampLiteral(s, tsText, dialect, precision);
+  qDebug("FQ-SQL: ts->iso dialect=%s tz=%s epoch=%" PRId64 " prec=%d text=%s",
+         dialectName(dialect), s->tzName ? s->tzName : "(global)", ts, (int)precision, tsText);
 }
 
 static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDialect dialect) {
@@ -590,38 +655,7 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
       dynAppendEscapedString(s, pVal->literal ? pVal->literal : "", dialect);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP: {
-      // Convert TDengine ms/us/ns timestamp to ISO-8601 string literal.
-      // All external databases (MySQL, PG, InfluxDB) accept 'YYYY-MM-DD HH:MM:SS.fff'.
-      int64_t ts   = pVal->datum.i;
-      int64_t ms;
-      switch (pVal->node.resType.precision) {
-        case TSDB_TIME_PRECISION_MICRO: ms = ts / 1000LL;       break;
-        case TSDB_TIME_PRECISION_NANO:  ms = ts / 1000000LL;    break;
-        default:                        ms = ts;                 break;  // MILLI
-      }
-      time_t    sec  = (time_t)(ms / 1000LL);
-      int32_t   frac = (int32_t)(ms % 1000LL);
-      if (frac < 0) { frac += 1000; sec -= 1; }
-      struct tm tmBuf = {0};
-      // DS §5.2.6: MySQL DATETIME and PG TIMESTAMP (without tz) are timezone-naive;
-      // format the epoch using the client timezone so that filter values match the
-      // external DB's interpretation.  InfluxDB stores epoch UTC — always use UTC.
-      if (dialect == EXT_SQL_DIALECT_INFLUXQL) {
-        taosGmTimeR(&sec, &tmBuf);
-      } else {
-        // Use client timezone when available; fall back to server global default.
-        timezone_t tz = (s->tzName && s->tzName[0]) ? tzalloc(s->tzName) : NULL;
-        taosLocalTime(&sec, &tmBuf, NULL, 0, tz);
-        if (tz) tzfree(tz);
-      }
-      char tsText[64] = {0};
-      (void)snprintf(tsText, sizeof(tsText), "%04d-%02d-%02d %02d:%02d:%02d.%03d",
-                     tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday,
-                     tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec, frac);
-      dynAppendTypedTimestampLiteral(s, tsText, dialect);
-      qDebug("FQ-SQL: val ts->iso dialect=%s tz=%s epoch=%" PRId64 " prec=%d text=%s",
-             dialectName(dialect), s->tzName ? s->tzName : "(global)",
-             ts, (int)pVal->node.resType.precision, tsText);
+      dynAppendTimestampLiteral(s, pVal->datum.i, pVal->node.resType.precision, dialect);
       break;
     }
     default:
@@ -1199,7 +1233,14 @@ static int32_t dynTryRenderPgTemporalDiffLiteralOperand(SDynSQL* s, const SNode*
            epoch, (int)precision, pVal->literal ? pVal->literal : "(null)");
   } else if (pVal->node.resType.type == TSDB_DATA_TYPE_BINARY ||
              pVal->node.resType.type == TSDB_DATA_TYPE_NCHAR) {
-    timezone_t tz = (s->tzName != NULL && s->tzName[0] != '\0') ? tzalloc(s->tzName) : NULL;
+    timezone_t tz = NULL;
+    if (s->tzName != NULL && s->tzName[0] != '\0') {
+      int32_t code = taosValidateTimezone(s->tzName, &tz);
+      if (code != TSDB_CODE_SUCCESS) {
+        if (tz != NULL) tzfree(tz);
+        return code;
+      }
+    }
     int32_t code = convertStringToTimestamp(pVal->node.resType.type, pVal->datum.p, fallbackPrecision,
                                             &epoch, tz, pVal->charsetCxt);
     if (NULL != tz) {
@@ -1906,32 +1947,7 @@ static int32_t dynAppendFloatCoercedDivisionExpr(SDynSQL* s, const SOperatorNode
 // Used when an integer value is compared against a TIMESTAMP column in a WHERE clause.
 static void dynAppendIntAsTimestamp(SDynSQL* s, int64_t ts, int8_t precision,
                                    EExtSQLDialect dialect) {
-  int64_t ms;
-  switch (precision) {
-    case TSDB_TIME_PRECISION_MICRO: ms = ts / 1000LL;    break;
-    case TSDB_TIME_PRECISION_NANO:  ms = ts / 1000000LL; break;
-    default:                        ms = ts;             break;
-  }
-  time_t    sec  = (time_t)(ms / 1000LL);
-  int32_t   frac = (int32_t)(ms % 1000LL);
-  if (frac < 0) { frac += 1000; sec -= 1; }
-  struct tm tmBuf = {0};
-  // DS §5.2.6: same timezone logic as dynAppendValueLiteral TIMESTAMP case.
-  if (dialect == EXT_SQL_DIALECT_INFLUXQL) {
-    taosGmTimeR(&sec, &tmBuf);
-  } else {
-    timezone_t tz = (s->tzName && s->tzName[0]) ? tzalloc(s->tzName) : NULL;
-    taosLocalTime(&sec, &tmBuf, NULL, 0, tz);
-    if (tz) tzfree(tz);
-  }
-  char tsText[64] = {0};
-  (void)snprintf(tsText, sizeof(tsText), "%04d-%02d-%02d %02d:%02d:%02d.%03d",
-                 tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday,
-                 tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec, frac);
-  dynAppendTypedTimestampLiteral(s, tsText, dialect);
-  qDebug("FQ-SQL: int->ts dialect=%s tz=%s epoch=%" PRId64 " prec=%d text=%s",
-         dialectName(dialect), s->tzName ? s->tzName : "(global)",
-         ts, (int)precision, tsText);
+  dynAppendTimestampLiteral(s, ts, precision, dialect);
 }
 
 // Check if pNode is an integer value that should be rendered as ISO timestamp
@@ -5264,6 +5280,77 @@ static const char* fqPickDuplicateSafeColumnAlias(const SNodeList* pCols, int32_
   return NULL;
 }
 
+static EExtTimestampTzClass fqTimestampEpochOutputClass(
+    const SNode* pExpr, EExtSQLDialect dialect, const SExtTableMeta* pExtMeta,
+    const SNodesRemoteSQLCtx* pCtx) {
+  if ((dialect != EXT_SQL_DIALECT_MYSQL &&
+       dialect != EXT_SQL_DIALECT_POSTGRES) ||
+      pCtx == NULL ||
+      !pCtx->convertTimestampOutputToEpoch || pCtx->emitInternalAlias ||
+      pExpr == NULL || !nodesIsExprNode((SNode*)pExpr) ||
+      ((const SExprNode*)pExpr)->resType.type != TSDB_DATA_TYPE_TIMESTAMP) {
+    return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+  }
+
+  EExtTimestampTzClass tsClass = fqResolveExprTimestampClass(
+      pExpr, dialect, pExtMeta, pCtx, NULL, NULL);
+  if (tsClass == EXT_TIMESTAMP_TZ_CLASS_AWARE) {
+    return tsClass;
+  }
+  if (tsClass == EXT_TIMESTAMP_TZ_CLASS_NAIVE &&
+      pCtx->timezoneConversionSupported && pCtx->tzName != NULL &&
+      pCtx->tzName[0] != '\0') {
+    return tsClass;
+  }
+  return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+}
+
+static int32_t dynRenderTimestampEpochOutput(
+    SDynSQL* s, const SNode* pExpr, EExtSQLDialect dialect,
+    const SExtTableMeta* pExtMeta, const SNodesRemoteSQLCtx* pCtx,
+    EExtTimestampTzClass tsClass) {
+  if (dialect == EXT_SQL_DIALECT_MYSQL) {
+    if (tsClass == EXT_TIMESTAMP_TZ_CLASS_AWARE) {
+      dynSQLAppendStr(s, "CAST(UNIX_TIMESTAMP(");
+      int32_t code = dynAppendExpr(s, pExpr, dialect, pExtMeta, pCtx);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      dynSQLAppendStr(s, ") * 1000000 AS SIGNED)");
+      return s->err ? s->err : TSDB_CODE_SUCCESS;
+    }
+
+    dynSQLAppendStr(s,
+                    "CAST(TIMESTAMPDIFF(MICROSECOND, "
+                    "'1970-01-01 00:00:00', CONVERT_TZ(");
+    int32_t code = dynAppendExpr(s, pExpr, EXT_SQL_DIALECT_MYSQL,
+                                 pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    dynSQLAppendStr(s, ", ");
+    dynAppendEscapedString(s, pCtx->tzName, dialect);
+    dynSQLAppendStr(s, ", '+00:00')) AS SIGNED)");
+    return s->err ? s->err : TSDB_CODE_SUCCESS;
+  }
+
+  dynSQLAppendStr(s, "CAST(EXTRACT(EPOCH FROM ");
+  if (tsClass == EXT_TIMESTAMP_TZ_CLASS_NAIVE) {
+    dynSQLAppendStr(s, "(CAST(");
+  }
+  int32_t code = dynAppendExpr(s, pExpr, dialect, pExtMeta, pCtx);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (tsClass == EXT_TIMESTAMP_TZ_CLASS_NAIVE) {
+    dynSQLAppendStr(s, " AS TIMESTAMP) AT TIME ZONE ");
+    dynAppendEscapedString(s, pCtx->tzName, dialect);
+    dynSQLAppendChar(s, ')');
+  }
+  dynSQLAppendStr(s, ") * 1000000 AS BIGINT)");
+  return s->err ? s->err : TSDB_CODE_SUCCESS;
+}
+
 // Render SELECT column list from a SNodeList (pProjections or pScanCols).
 // pExtMeta is used for column name resolution (TDengine name → remote name).
 static void renderSelectList(SDynSQL* s, const SNodeList* pCols, EExtSQLDialect dialect,
@@ -5304,11 +5391,23 @@ static void renderSelectList(SDynSQL* s, const SNodeList* pCols, EExtSQLDialect 
     qDebug("FQ-SQL-SELECT: expr[%d] %s", exprIdx, exprDesc);
     if (!first) dynSQLAppendStr(s, ", ");
     first = false;
+    EExtTimestampTzClass epochOutputClass = fqTimestampEpochOutputClass(
+        pCol, dialect, pExtMeta, pSelectExprCtx);
+    bool renderedTimestampEpoch =
+        epochOutputClass != EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+    if (renderedTimestampEpoch) {
+      int32_t epochCode = dynRenderTimestampEpochOutput(
+          s, pCol, dialect, pExtMeta, pSelectExprCtx, epochOutputClass);
+      if (epochCode != TSDB_CODE_SUCCESS && !s->err) {
+        s->err = epochCode;
+      }
+    }
     bool renderedCurrentScopeColumn = false;
     bool renderedCurrentScopePseudo = false;
     const char* pCurrentScopeRef = NULL;
     const char* pCurrentScopeAlias = NULL;
-    if (nodeType(pCol) == QUERY_NODE_COLUMN && NULL == pExtMeta) {
+    if (!renderedTimestampEpoch && nodeType(pCol) == QUERY_NODE_COLUMN &&
+        NULL == pExtMeta) {
       const SColumnNode* pColNode = (const SColumnNode*)pCol;
       bool allowCurrentScopePseudo = (pSelectExprCtx == NULL || !pSelectExprCtx->inputSelectExprsFromChildSource ||
                                       fqColumnMatchesPseudoName(pColNode, "_wend") ||
@@ -5350,7 +5449,7 @@ static void renderSelectList(SDynSQL* s, const SNodeList* pCols, EExtSQLDialect 
     // uniform rendering.  dynAppendExpr handles the userAlias→colName resolution
     // for subquery-referencing columns (pExtMeta==NULL) so that every context
     // (SELECT, WHERE, HAVING, ORDER BY, GROUP BY, …) uses the same logic.
-    if (!renderedCurrentScopeColumn) {
+    if (!renderedTimestampEpoch && !renderedCurrentScopeColumn) {
       int32_t exprCode = dynAppendExpr(s, pCol, dialect, pExtMeta, pSelectExprCtx);
       if (exprCode != TSDB_CODE_SUCCESS && !s->err) s->err = exprCode;
     }
@@ -5375,7 +5474,7 @@ static void renderSelectList(SDynSQL* s, const SNodeList* pCols, EExtSQLDialect 
       } else if (pExtMeta) {
         const char* tdName  = pColNode->colName;
         const char* colName = resolveExtColName(pExtMeta, tdName);
-        if (strcasecmp(colName, tdName) != 0) {
+        if (renderedTimestampEpoch || strcasecmp(colName, tdName) != 0) {
           dynSQLAppendStr(s, " AS ");
           dynAppendQuotedId(s, tdName, dialect);
           qDebug("FQ-SQL-SELECT: expr[%d] emit remap alias td=%s remote=%s",
@@ -5398,7 +5497,9 @@ static void renderSelectList(SDynSQL* s, const SNodeList* pCols, EExtSQLDialect 
           }
         }
         if (alias != NULL && alias[0] != '\0' &&
-            ((pColNode->colName[0] != '\0' && 0 != strcmp(alias, pColNode->colName)) ||
+            (renderedTimestampEpoch ||
+             (pColNode->colName[0] != '\0' &&
+              0 != strcmp(alias, pColNode->colName)) ||
              forceCurrentSelectRename)) {
           dynSQLAppendStr(s, " AS ");
           dynAppendQuotedId(s, alias, dialect);
@@ -5437,11 +5538,11 @@ static void renderSelectList(SDynSQL* s, const SNodeList* pCols, EExtSQLDialect 
 }
 
 // Render WHERE clause from pConditions.
-static void renderWhere(SDynSQL* s, const SNode* pConditions, EExtSQLDialect dialect,
-                         const SExtTableMeta* pExtMeta, const SNodesRemoteSQLCtx* pCtx) {
+static bool renderWhere(SDynSQL* s, const SNode* pConditions, EExtSQLDialect dialect,
+                        const SExtTableMeta* pExtMeta, const SNodesRemoteSQLCtx* pCtx) {
   if (!pConditions) {
     qDebug("FQ-SQL-WHERE: skip empty WHERE dialect=%s meta=%p ctx=%p", dialectName(dialect), pExtMeta, pCtx);
-    return;
+    return false;
   }
   fqDebugLogRenderCtx("where", pExtMeta, pCtx);
   char condDesc[512] = {0};
@@ -5454,18 +5555,100 @@ static void renderWhere(SDynSQL* s, const SNode* pConditions, EExtSQLDialect dia
   if (code != TSDB_CODE_SUCCESS || cond.err) {
     if (!s->err) s->err = cond.err ? cond.err : code;
     dynSQLFree(&cond);
-    return;
+    return false;
   }
   if (cond.pos > 0) {
     qDebug("FQ-SQL-WHERE: emit WHERE len=%d dialect=%s meta=%p ctx=%p",
            cond.pos, dialectName(dialect), pExtMeta, pCtx);
     dynSQLAppendStr(s, " WHERE ");
     dynSQLAppendLen(s, cond.buf, cond.pos);
+    dynSQLFree(&cond);
+    return true;
   } else {
     qDebug("FQ-SQL-WHERE: rendered empty WHERE text dialect=%s meta=%p ctx=%p",
            dialectName(dialect), pExtMeta, pCtx);
   }
   dynSQLFree(&cond);
+  return false;
+}
+
+static const SColumnNode* findRuntimePrimaryTsCol(const SScanLogicNode* pScan) {
+  if (NULL == pScan) {
+    return NULL;
+  }
+  SNode* pCol = NULL;
+  FOREACH(pCol, pScan->pScanCols) {
+    if (QUERY_NODE_COLUMN == nodeType(pCol) &&
+        (((SColumnNode*)pCol)->isPrimTs || ((SColumnNode*)pCol)->colId == PRIMARYKEY_TIMESTAMP_COL_ID)) {
+      return (const SColumnNode*)pCol;
+    }
+  }
+  return NULL;
+}
+
+static int32_t renderRuntimeTimeRange(SDynSQL* s, const SScanLogicNode* pScan, bool wroteWhere,
+                                      EExtSQLDialect dialect, const SExtTableMeta* pExtMeta,
+                                      const SNodesRemoteSQLCtx* pCtx) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (NULL == pCtx || NULL == pCtx->pRuntimeTimeRange) {
+    return TSDB_CODE_SUCCESS;
+  }
+  const SColumnNode* pTsCol = findRuntimePrimaryTsCol(pScan);
+  QUERY_CHECK_NULL(pTsCol, code, lino, _return, TSDB_CODE_EXT_SQL_RENDER_ERROR);
+
+  const STimeWindow* pRange = pCtx->pRuntimeTimeRange;
+  bool hasSkey = pRange->skey != INT64_MIN;
+  bool hasEkey = pRange->ekey != INT64_MAX;
+  if (!hasSkey && !hasEkey) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (hasEkey && INT64_MIN == pRange->ekey) {
+    dynSQLAppendStr(s, wroteWhere ? " AND 1 = 0" : " WHERE 1 = 0");
+    return s->err ? s->err : TSDB_CODE_SUCCESS;
+  }
+
+  dynSQLAppendStr(s, wroteWhere ? " AND (" : " WHERE (");
+  bool wroteBound = false;
+  if (hasSkey) {
+    code = dynAppendExpr(s, (const SNode*)pTsCol, dialect, pExtMeta, pCtx);
+    QUERY_CHECK_CODE(code, lino, _return);
+    dynSQLAppendStr(s, " >= ");
+    SValueNode value = {0};
+    setNodeType(&value, QUERY_NODE_VALUE);
+    value.node.resType.type = TSDB_DATA_TYPE_BIGINT;
+    value.datum.i = pRange->skey;
+    code = dynAppendExprTS(s, (const SNode*)&value, (const SNode*)pTsCol, dialect, pExtMeta, pCtx);
+    QUERY_CHECK_CODE(code, lino, _return);
+    wroteBound = true;
+  }
+  if (hasEkey) {
+    if (wroteBound) {
+      dynSQLAppendStr(s, " AND ");
+    }
+    code = dynAppendExpr(s, (const SNode*)pTsCol, dialect, pExtMeta, pCtx);
+    QUERY_CHECK_CODE(code, lino, _return);
+    // pRuntimeTimeRange is half-open in the virtual table's precision.  Use
+    // the last included tick with an inclusive comparison so a source with a
+    // coarser timestamp precision does not truncate ekey back onto the final
+    // row and exclude it (for example, ns virtual time over MySQL DATETIME(6)).
+    dynSQLAppendStr(s, " <= ");
+    SValueNode value = {0};
+    setNodeType(&value, QUERY_NODE_VALUE);
+    value.node.resType.type = TSDB_DATA_TYPE_BIGINT;
+    value.datum.i = pRange->ekey - 1;
+    code = dynAppendExprTS(s, (const SNode*)&value, (const SNode*)pTsCol, dialect, pExtMeta, pCtx);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+  dynSQLAppendChar(s, ')');
+  code = s->err ? s->err : TSDB_CODE_SUCCESS;
+  QUERY_CHECK_CODE(code, lino, _return);
+  return code;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
 }
 
 static const SExprNode* fqFindSelectOutputByRefName(const char* pRefName,
@@ -5911,6 +6094,73 @@ static const SScanLogicNode* findLeafScan(const SLogicNode* pNode) {
 }
 
 static const char* fqSelectAlias(const SExprNode* pExpr, const SNodesRemoteSQLCtx* pCtx);
+static int32_t fqFindUniqueAggOutputTargetIndex(const SNode* pOutputExpr,
+                                                const SNodeList* pTargets,
+                                                int32_t* pTargetIdx);
+
+static const char* fqTargetOutputAlias(const SNode* pTarget,
+                                       const SNodesRemoteSQLCtx* pCtx) {
+  if (NULL != pTarget && QUERY_NODE_TARGET == nodeType((SNode*)pTarget)) {
+    pTarget = ((const STargetNode*)pTarget)->pExpr;
+  }
+  if (NULL != pTarget && QUERY_NODE_GROUPING_SET == nodeType((SNode*)pTarget)) {
+    pTarget = nodesListGetNode(((const SGroupingSetNode*)pTarget)->pParameterList, 0);
+  }
+  if (NULL == pTarget || !nodesIsExprNode((SNode*)pTarget)) {
+    return NULL;
+  }
+
+  const SExprNode* pTargetExpr = (const SExprNode*)pTarget;
+  if ('\0' != pTargetExpr->aliasName[0]) {
+    return pTargetExpr->aliasName;
+  }
+  if (QUERY_NODE_COLUMN == nodeType((SNode*)pTarget)) {
+    const SColumnNode* pTargetCol = (const SColumnNode*)pTarget;
+    if ('\0' != pTargetCol->colName[0]) {
+      return pTargetCol->colName;
+    }
+  }
+
+  return fqSelectAlias(pTargetExpr, pCtx);
+}
+
+static const char* fqGroupKeyOutputAlias(const SNode* pGroupKey,
+                                         const SNodeList* pTargets,
+                                         const SNodesRemoteSQLCtx* pCtx,
+                                         int32_t outputIdx) {
+  if (NULL != pCtx && NULL != pCtx->pOutputSelectExprs && outputIdx >= 0 &&
+      outputIdx < LIST_LENGTH(pCtx->pOutputSelectExprs)) {
+    const SNode* pOutput = nodesListGetNode((SNodeList*)pCtx->pOutputSelectExprs, outputIdx);
+    if (NULL != pOutput && QUERY_NODE_TARGET == nodeType((SNode*)pOutput)) {
+      pOutput = ((const STargetNode*)pOutput)->pExpr;
+    }
+    if (NULL != pOutput && QUERY_NODE_GROUPING_SET == nodeType((SNode*)pOutput)) {
+      pOutput = nodesListGetNode(((const SGroupingSetNode*)pOutput)->pParameterList, 0);
+    }
+    if (NULL != pOutput && nodesIsExprNode((SNode*)pOutput) &&
+        nodesEqualNode(pOutput, pGroupKey)) {
+      const char* pAlias = fqSelectAlias((const SExprNode*)pOutput, pCtx);
+      if (NULL != pAlias && '\0' != pAlias[0]) {
+        return pAlias;
+      }
+    }
+  }
+
+  int32_t targetIdx = -1;
+  if (NULL != pTargets &&
+      TSDB_CODE_SUCCESS ==
+          fqFindUniqueAggOutputTargetIndex(pGroupKey, pTargets, &targetIdx)) {
+    const SNode* pTarget = nodesListGetNode((SNodeList*)pTargets, targetIdx);
+    const char* pAlias = fqTargetOutputAlias(pTarget, pCtx);
+    if (NULL != pAlias && '\0' != pAlias[0]) {
+      return pAlias;
+    }
+  }
+
+  return (NULL != pGroupKey && nodesIsExprNode((SNode*)pGroupKey))
+             ? fqSelectAlias((const SExprNode*)pGroupKey, pCtx)
+             : NULL;
+}
 
 static int32_t renderCollectedKeyExprs(SDynSQL* s, const SNodeList* pExprs, int32_t count,
                                        EExtSQLDialect dialect, const SExtTableMeta* pExtMeta,
@@ -6209,8 +6459,30 @@ static int32_t renderGroupKeyExprs(SDynSQL* s, const SNodeList* pGroupKeys,
   FOREACH(pKey, pGroupKeys) {
     if (!first) dynSQLAppendStr(s, ", ");
     first = false;
-    int32_t code = dynAppendExpr(s, pKey, dialect, pExtMeta, pCtx);
-    if (code) return code;
+    const SNode* pExpr = pKey;
+    if (nodeType((SNode*)pExpr) == QUERY_NODE_GROUPING_SET) {
+      pExpr = nodesListGetNode(((const SGroupingSetNode*)pExpr)->pParameterList, 0);
+    }
+
+    bool renderedAlias = false;
+    if (!withAlias && dialect == EXT_SQL_DIALECT_MYSQL &&
+        pExpr != NULL && nodesIsExprNode((SNode*)pExpr) &&
+        fqTimestampEpochOutputClass(pExpr, dialect, pExtMeta, pCtx) !=
+            EXT_TIMESTAMP_TZ_CLASS_UNKNOWN) {
+      const char* pAlias = fqGroupKeyOutputAlias(pExpr, pTargetList, pCtx, idx);
+      if (pAlias != NULL && pAlias[0] != '\0') {
+        // MySQL's ONLY_FULL_GROUP_BY does not infer that the epoch transport
+        // expression in SELECT is functionally dependent on the raw timestamp
+        // bucket. Group by that SELECT alias so both clauses use one expression.
+        dynAppendQuotedId(s, pAlias, dialect);
+        renderedAlias = true;
+      }
+    }
+
+    if (!renderedAlias) {
+      int32_t code = dynAppendExpr(s, pKey, dialect, pExtMeta, pCtx);
+      if (code) return code;
+    }
     if (withAlias) {
       // The key may be wrapped in a GroupingSet (parser-built / partitionColsOpt);
       // unwrap to the real key expression so the alias is read from the column
@@ -6282,6 +6554,7 @@ static int32_t renderAggGroupKeyExprs(SDynSQL* s, const SAggLogicNode* pAgg,
 
   bool first = true;
   int32_t funcIdx = 0;
+  int32_t keyIdx = 0;
   SNode* pFuncNode = NULL;
   FOREACH(pFuncNode, pAgg->pAggFuncs) {
     const SNode* pInner = pFuncNode;
@@ -6313,11 +6586,26 @@ static int32_t renderAggGroupKeyExprs(SDynSQL* s, const SAggLogicNode* pAgg,
 
     qDebug("FQ-SQL: render derived agg group key agg=%p funcIdx=%d withAlias=%d",
            pAgg, funcIdx, withAlias ? 1 : 0);
-    int32_t code = dynAppendExpr(s, pKeyExpr, dialect, pExtMeta, pCtx);
-    if (code) {
-      return code;
+    bool renderedAlias = false;
+    if (!withAlias && dialect == EXT_SQL_DIALECT_MYSQL &&
+        nodesIsExprNode((SNode*)pKeyExpr) &&
+        fqTimestampEpochOutputClass(pKeyExpr, dialect, pExtMeta, pCtx) !=
+            EXT_TIMESTAMP_TZ_CLASS_UNKNOWN) {
+      const char* pAlias = fqGroupKeyOutputAlias(pKeyExpr, NULL, pCtx, keyIdx);
+      if (pAlias != NULL && pAlias[0] != '\0') {
+        dynAppendQuotedId(s, pAlias, dialect);
+        renderedAlias = true;
+      }
     }
 
+    if (!renderedAlias) {
+      int32_t code = dynAppendExpr(s, pKeyExpr, dialect, pExtMeta, pCtx);
+      if (code) {
+        return code;
+      }
+    }
+
+    ++keyIdx;
     ++funcIdx;
   }
 
@@ -8863,8 +9151,15 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
     dynSQLAppendStr(s, ") _sq");
   } else if (g.pFromSource != NULL && fqIsFromSource(g.pFromSource) &&
              nodeType(g.pFromSource) == QUERY_NODE_LOGIC_PLAN_PROJECT) {
+    // A set-op used as a FROM source is an internal derived table. Timestamp
+    // transport conversion belongs only to the enclosing, final SELECT;
+    // applying it to UNION branches as well makes the outer PG expression run
+    // EXTRACT(EPOCH) on an already-converted BIGINT.
+    SNodesRemoteSQLCtx subCtx = pCtx ? *pCtx : (SNodesRemoteSQLCtx){0};
+    subCtx.emitInternalAlias = true;
     dynSQLAppendStr(s, "(");
-    code = renderSetOpStatement((const SProjectLogicNode*)g.pFromSource, dialect, pCtx, s);
+    code = renderSetOpStatement((const SProjectLogicNode*)g.pFromSource,
+                                dialect, &subCtx, s);
     if (code) {
       nodesDestroyRemoteSelectOutputs(&inputOutputs);
       nodesDestroyRemoteSelectOutputs(&outputs);
@@ -8889,7 +9184,13 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
            nodesNodeName(nodeType(pNode)), g.pScanWhere, NULL != g.pScanWhere->node.pConditions,
            g.pScanWhere->pExtTableNode ? ((const SExtTableNode*)g.pScanWhere->pExtTableNode)->sourceName : "(null)",
            g.pScanWhere->pExtTableNode ? ((const SExtTableNode*)g.pScanWhere->pExtTableNode)->table.tableName : "(null)");
-    renderWhere(s, g.pScanWhere->node.pConditions, dialect, pMeta, selCtx);
+    bool wroteWhere = renderWhere(s, g.pScanWhere->node.pConditions, dialect, pMeta, selCtx);
+    code = renderRuntimeTimeRange(s, g.pScanWhere, wroteWhere, dialect, pMeta, selCtx);
+    if (code) {
+      nodesDestroyRemoteSelectOutputs(&inputOutputs);
+      nodesDestroyRemoteSelectOutputs(&outputs);
+      return code;
+    }
   } else if (joinInlineFrom) {
     SDynSQL tmp; dynSQLInit(&tmp); tmp.tzName = s->tzName;
     if (renderJoinLegWhere((const SJoinLogicNode*)g.pFromSource, dialect, selCtx, &tmp)) {
