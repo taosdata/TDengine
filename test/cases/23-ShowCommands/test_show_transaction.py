@@ -94,7 +94,7 @@ class TestShowTransactionDetail:
             #tdLog.info(f"show transaction {tranId2}, {oper2}")
         
             rows = tdSql.query(f"show transaction {tranId1}", queryTimes=1)
-            if rows != 120 and rows != 176:
+            if rows != 160 and rows != 176:
                 tdLog.exit(f"show transaction detial error, rows={rows}")
                 return False
 
@@ -107,7 +107,7 @@ class TestShowTransactionDetail:
         rows = tdSql.query(f"select * from information_schema.ins_transaction_details", queryTimes=1)
         tdLog.info(tdSql.queryResult)
 
-        if rows != 296 and rows != 176 and rows != 120:
+        if rows != 336 and rows != 176 and rows != 160:
             tdLog.exit(f"show transaction detial error, rows={rows}")
             return False
 
