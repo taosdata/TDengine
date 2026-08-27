@@ -47,17 +47,9 @@ Next, we continue to use smart meters as an example to demonstrate the efficient
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 
-There are two kinds of interfaces for parameter binding: one is the standard JDBC interface, and the other is an extended interface. The extended interface offers better performance.
-
 ```java
 {{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WSParameterBindingStdInterfaceDemo.java:para_bind}}
 ```
-
-```java
-{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WSParameterBindingExtendInterfaceDemo.java:para_bind}}
-```
-
-This is a [more detailed parameter binding example](https://github.com/taosdata/TDengine/blob/main/docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WSParameterBindingFullDemo.java)  
 
 </TabItem>
 <TabItem label="Python" value="python">

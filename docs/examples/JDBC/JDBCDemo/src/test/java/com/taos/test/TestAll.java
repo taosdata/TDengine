@@ -131,6 +131,11 @@ public class TestAll {
     }
 
     @Test
+    public void testWsStmtExtendFull() throws Exception {
+        WSParameterBindingExtendFullDemo.main(args);
+    }
+
+    @Test
     public void testConsumer() throws Exception {
         dropDB("power");
         SubscribeDemo.main(args);
