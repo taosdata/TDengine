@@ -27,7 +27,7 @@ _fq_runtime_should_enable() {
       *09-DataQuerying/19-FederatedQuery/*|*19-FederatedQuery/*)
         return 0
         ;;
-      *05-VirtualTables/*ExtSource*|*05-VirtualTables/06-Meta/test_vtable_series*)
+      *05-VirtualTables/*ExtSource*|*05-VirtualTables/*ext_source*|*05-VirtualTables/*federated*|*05-VirtualTables/06-Meta/test_vtable_series*)
         return 0
         ;;
     esac

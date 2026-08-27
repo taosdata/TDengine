@@ -1486,7 +1486,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=8)
       Output: columns=1 width=8
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT CAST('<NOW>' AS DATETIME(3)) AS `expr_1` FROM `fq_explain_m`.`sensor`
+      Remote SQL: SELECT CAST('<NOW>' AS DATETIME(6)) AS `expr_1` FROM `fq_explain_m`.`sensor`
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -2344,7 +2344,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(`time`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(`time`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -2356,7 +2356,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT("time") AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT("time") AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -2368,7 +2368,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -4735,7 +4735,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=6 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 221.0) UNION ALL SELECT `time` AS `_wstart`, CAST(`1673364247120603815` AS DOUBLE) AS `voltage` FROM (SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `time`, COUNT(`time`) AS `1673364247120603815` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)) _sq
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 221.0) UNION ALL SELECT `time` AS `_wstart`, CAST(`1673364247120603815` AS DOUBLE) AS `voltage` FROM (SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `time`, COUNT(`time`) AS `1673364247120603815` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)) _sq
       Remote rows=6, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -4747,7 +4747,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=6 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("voltage" > 221.0) UNION ALL SELECT "time" AS "_wstart", CAST("1673364247120603815" AS DOUBLE PRECISION) AS "voltage" FROM (SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "time", COUNT("time") AS "1673364247120603815" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')) _sq
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("voltage" > 221.0) UNION ALL SELECT "time" AS "_wstart", CAST("1673364247120603815" AS DOUBLE PRECISION) AS "voltage" FROM (SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "time", COUNT("time") AS "1673364247120603815" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')) _sq
       Remote rows=6, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -4759,7 +4759,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=6 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("voltage" > 221.0) UNION ALL SELECT "time" AS "_wstart", CAST("1673364247120603815" AS DOUBLE PRECISION) AS "voltage" FROM (SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "time", COUNT(*) AS "1673364247120603815" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')) _sq
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("voltage" > 221.0) UNION ALL SELECT "time" AS "_wstart", CAST("1673364247120603815" AS DOUBLE PRECISION) AS "voltage" FROM (SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "time", COUNT(*) AS "1673364247120603815" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')) _sq
       Remote rows=6, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -4771,7 +4771,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `_wstart`, COUNT(`time`) AS `1673364247120603815` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-01 01:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) UNION ALL SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `_wstart`, COUNT(`time`) AS `1673364247120603815` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 01:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `_wstart`, COUNT(`time`) AS `1673364247120603815` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-01 01:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) UNION ALL SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `_wstart`, COUNT(`time`) AS `1673364247120603815` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 01:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -4783,7 +4783,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=0 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "_wstart", COUNT("time") AS "1673364247120603815" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-01 01:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') UNION ALL SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "_wstart", COUNT("time") AS "1673364247120603815" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-02 00:00:00.000' AND TIMESTAMP '2024-01-02 01:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "_wstart", COUNT("time") AS "1673364247120603815" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-01 01:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') UNION ALL SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "_wstart", COUNT("time") AS "1673364247120603815" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-02 00:00:00.000000' AND TIMESTAMP '2024-01-02 01:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
       Remote rows=0, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -4795,7 +4795,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "_wstart", COUNT(*) AS "1673364247120603815" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-01 01:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') UNION ALL SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "_wstart", COUNT(*) AS "1673364247120603815" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 01:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "_wstart", COUNT(*) AS "1673364247120603815" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-01 01:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') UNION ALL SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "_wstart", COUNT(*) AS "1673364247120603815" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 01:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -4975,7 +4975,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=6 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 221.0) UNION SELECT `time` AS `_wstart`, CAST(`1673364247120603815` AS DOUBLE) AS `voltage` FROM (SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `time`, COUNT(`time`) AS `1673364247120603815` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)) _sq
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 221.0) UNION SELECT `time` AS `_wstart`, CAST(`1673364247120603815` AS DOUBLE) AS `voltage` FROM (SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `time`, COUNT(`time`) AS `1673364247120603815` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)) _sq
       Remote rows=6, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -4987,7 +4987,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=6 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("voltage" > 221.0) UNION SELECT "time" AS "_wstart", CAST("1673364247120603815" AS DOUBLE PRECISION) AS "voltage" FROM (SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "time", COUNT("time") AS "1673364247120603815" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')) _sq
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("voltage" > 221.0) UNION SELECT "time" AS "_wstart", CAST("1673364247120603815" AS DOUBLE PRECISION) AS "voltage" FROM (SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "time", COUNT("time") AS "1673364247120603815" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')) _sq
       Remote rows=6, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -4999,7 +4999,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=6 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("voltage" > 221.0) UNION SELECT "time" AS "_wstart", CAST("1673364247120603815" AS DOUBLE PRECISION) AS "voltage" FROM (SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "time", COUNT(*) AS "1673364247120603815" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')) _sq
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("voltage" > 221.0) UNION SELECT "time" AS "_wstart", CAST("1673364247120603815" AS DOUBLE PRECISION) AS "voltage" FROM (SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "time", COUNT(*) AS "1673364247120603815" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')) _sq
       Remote rows=6, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -5136,7 +5136,7 @@ RESULT
       -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
             Output: columns=2 width=16
             Source: 127.0.0.1:13306 user=root
-            Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) ORDER BY `time` ASC
+            Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) ORDER BY `time` ASC
             Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -5159,7 +5159,7 @@ RESULT
       -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
             Output: columns=2 width=16
             Source: 127.0.0.1:15434 user=postgres
-            Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' ORDER BY "time" ASC
+            Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' ORDER BY "time" ASC
             Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -5182,7 +5182,7 @@ RESULT
       -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
             Output: columns=2 width=16
             Source: 127.0.0.1:18086 user=u
-            Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) ORDER BY "time" ASC
+            Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) ORDER BY "time" ASC
             Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -5278,7 +5278,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=4 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`time` > CAST('2024-01-01 00:00:00.000' AS DATETIME(3)))
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`time` > CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)))
       Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -5290,7 +5290,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("time" > TIMESTAMP '2024-01-01 00:00:00.000')
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("time" > TIMESTAMP '2024-01-01 00:00:00.000000')
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -5302,7 +5302,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=4 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("time" > CAST('2024-01-01 00:00:00.000' AS TIMESTAMP))
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("time" > CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP))
       Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -5386,7 +5386,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=4 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`time` > CAST('2024-01-01 00:00:00.000' AS DATETIME(3))) ORDER BY ISNULL(`time`) DESC, `time` ASC LIMIT 10
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`time` > CAST('2024-01-01 00:00:00.000000' AS DATETIME(6))) ORDER BY ISNULL(`time`) DESC, `time` ASC LIMIT 10
       Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -5398,7 +5398,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("time" > TIMESTAMP '2024-01-01 00:00:00.000') ORDER BY "time" ASC NULLS FIRST LIMIT 10
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("time" > TIMESTAMP '2024-01-01 00:00:00.000000') ORDER BY "time" ASC NULLS FIRST LIMIT 10
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -5410,7 +5410,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=4 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("time" > CAST('2024-01-01 00:00:00.000' AS TIMESTAMP)) ORDER BY "time" ASC NULLS FIRST LIMIT 10
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("time" > CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP)) ORDER BY "time" ASC NULLS FIRST LIMIT 10
       Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -5746,7 +5746,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=3 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`time` >= CAST('2024-01-01 00:00:00.000' AS DATETIME(3))) ORDER BY ISNULL(`time`) DESC, `time` ASC LIMIT 3
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`time` >= CAST('2024-01-01 00:00:00.000000' AS DATETIME(6))) ORDER BY ISNULL(`time`) DESC, `time` ASC LIMIT 3
       Remote rows=3, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -5758,7 +5758,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=3 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("time" >= TIMESTAMP '2024-01-01 00:00:00.000') ORDER BY "time" ASC NULLS FIRST LIMIT 3
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("time" >= TIMESTAMP '2024-01-01 00:00:00.000000') ORDER BY "time" ASC NULLS FIRST LIMIT 3
       Remote rows=3, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -5770,7 +5770,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=3 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("time" >= CAST('2024-01-01 00:00:00.000' AS TIMESTAMP)) ORDER BY "time" ASC NULLS FIRST LIMIT 3
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("time" >= CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP)) ORDER BY "time" ASC NULLS FIRST LIMIT 3
       Remote rows=3, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -6443,7 +6443,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, AVG(`voltage`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, AVG(`voltage`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -6455,7 +6455,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", AVG("voltage") AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", AVG("voltage") AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -6467,7 +6467,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", AVG("voltage") AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", AVG("voltage") AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -6485,7 +6485,7 @@ RESULT
    -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
          Output: columns=2 width=16
          Source: 127.0.0.1:13306 user=root
-         Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) ORDER BY `time` ASC
+         Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) ORDER BY `time` ASC
          Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -6503,7 +6503,7 @@ RESULT
    -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
          Output: columns=2 width=16
          Source: 127.0.0.1:15434 user=postgres
-         Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' ORDER BY "time" ASC
+         Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' ORDER BY "time" ASC
          Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -6521,7 +6521,7 @@ RESULT
    -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
          Output: columns=2 width=16
          Source: 127.0.0.1:18086 user=u
-         Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) ORDER BY "time" ASC
+         Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) ORDER BY "time" ASC
          Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -6953,7 +6953,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=3 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, AVG(`voltage`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE ((`region` = 'north') AND (`time` >= CAST('2024-01-01 00:00:00.000' AS DATETIME(3))) AND (`time` <= CAST('2024-01-02 00:00:00.000' AS DATETIME(3)))) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, AVG(`voltage`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE ((`region` = 'north') AND (`time` >= CAST('2024-01-01 00:00:00.000000' AS DATETIME(6))) AND (`time` <= CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)))) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
       Remote rows=3, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -6965,7 +6965,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=3 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", AVG("voltage") AS "expr_2" FROM "public"."sensor" WHERE (("region" = 'north') AND ("time" >= TIMESTAMP '2024-01-01 00:00:00.000') AND ("time" <= TIMESTAMP '2024-01-02 00:00:00.000')) GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", AVG("voltage") AS "expr_2" FROM "public"."sensor" WHERE (("region" = 'north') AND ("time" >= TIMESTAMP '2024-01-01 00:00:00.000000') AND ("time" <= TIMESTAMP '2024-01-02 00:00:00.000000')) GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
       Remote rows=3, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -6977,7 +6977,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=3 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", AVG("voltage") AS "expr_2" FROM "sensor" WHERE (("region" = 'north') AND ("time" >= CAST('2024-01-01 00:00:00.000' AS TIMESTAMP)) AND ("time" <= CAST('2024-01-02 00:00:00.000' AS TIMESTAMP))) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", AVG("voltage") AS "expr_2" FROM "sensor" WHERE (("region" = 'north') AND ("time" >= CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP)) AND ("time" <= CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP))) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
       Remote rows=3, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -7251,7 +7251,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, AVG(`voltage`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) ORDER BY ISNULL(`expr_1`) DESC, `expr_1` ASC LIMIT 5
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, AVG(`voltage`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) ORDER BY ISNULL(`expr_1`) DESC, `expr_1` ASC LIMIT 5
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -7263,7 +7263,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", AVG("voltage") AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') ORDER BY "expr_1" ASC NULLS FIRST LIMIT 5
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", AVG("voltage") AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') ORDER BY "expr_1" ASC NULLS FIRST LIMIT 5
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -7275,7 +7275,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", AVG("voltage") AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') ORDER BY "expr_1" ASC NULLS FIRST LIMIT 5
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", AVG("voltage") AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') ORDER BY "expr_1" ASC NULLS FIRST LIMIT 5
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -7298,7 +7298,7 @@ RESULT
       -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
             Output: columns=2 width=16
             Source: 127.0.0.1:13306 user=root
-            Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) ORDER BY `time` ASC
+            Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) ORDER BY `time` ASC
             Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -7321,7 +7321,7 @@ RESULT
       -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
             Output: columns=2 width=16
             Source: 127.0.0.1:15434 user=postgres
-            Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' ORDER BY "time" ASC
+            Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' ORDER BY "time" ASC
             Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -7344,7 +7344,7 @@ RESULT
       -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
             Output: columns=2 width=16
             Source: 127.0.0.1:18086 user=u
-            Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) ORDER BY "time" ASC
+            Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) ORDER BY "time" ASC
             Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -7383,7 +7383,7 @@ RESULT
             -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=8)
                   Output: columns=1 width=8
                   Source: 127.0.0.1:13306 user=root
-                  Remote SQL: SELECT `time` FROM `fq_explain_m`.`sensor` WHERE ((`time` >= CAST('2024-01-01 00:00:00.000' AS DATETIME(3))) AND (`time` < CAST('2024-01-01 00:05:00.000' AS DATETIME(3)))) ORDER BY `time` ASC
+                  Remote SQL: SELECT `time` FROM `fq_explain_m`.`sensor` WHERE ((`time` >= CAST('2024-01-01 00:00:00.000000' AS DATETIME(6))) AND (`time` < CAST('2024-01-01 00:05:00.000000' AS DATETIME(6)))) ORDER BY `time` ASC
                   Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
                   Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -7422,7 +7422,7 @@ RESULT
             -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=0 width=8)
                   Output: columns=1 width=8
                   Source: 127.0.0.1:15434 user=postgres
-                  Remote SQL: SELECT "time" FROM "public"."sensor" WHERE (("time" >= TIMESTAMP '2024-01-01 00:00:00.000') AND ("time" < TIMESTAMP '2024-01-01 00:05:00.000')) ORDER BY "time" ASC
+                  Remote SQL: SELECT "time" FROM "public"."sensor" WHERE (("time" >= TIMESTAMP '2024-01-01 00:00:00.000000') AND ("time" < TIMESTAMP '2024-01-01 00:05:00.000000')) ORDER BY "time" ASC
                   Remote rows=0, blocks=<BLOCKS>, elapsed=<TIME>ms
                   Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -7461,7 +7461,7 @@ RESULT
             -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=8)
                   Output: columns=1 width=8
                   Source: 127.0.0.1:18086 user=u
-                  Remote SQL: SELECT "time" FROM "sensor" WHERE (("time" >= CAST('2024-01-01 00:00:00.000' AS TIMESTAMP)) AND ("time" < CAST('2024-01-01 00:05:00.000' AS TIMESTAMP))) ORDER BY "time" ASC
+                  Remote SQL: SELECT "time" FROM "sensor" WHERE (("time" >= CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP)) AND ("time" < CAST('2024-01-01 00:05:00.000000000' AS TIMESTAMP))) ORDER BY "time" ASC
                   Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
                   Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -7500,7 +7500,7 @@ RESULT
             -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=8)
                   Output: columns=1 width=8
                   Source: 127.0.0.1:13306 user=root
-                  Remote SQL: SELECT `time` FROM `fq_explain_m`.`sensor` WHERE ((`time` >= CAST('2024-01-01 00:00:00.000' AS DATETIME(3))) AND (`time` < CAST('2024-01-01 00:05:00.000' AS DATETIME(3)))) ORDER BY `time` ASC
+                  Remote SQL: SELECT `time` FROM `fq_explain_m`.`sensor` WHERE ((`time` >= CAST('2024-01-01 00:00:00.000000' AS DATETIME(6))) AND (`time` < CAST('2024-01-01 00:05:00.000000' AS DATETIME(6)))) ORDER BY `time` ASC
                   Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
                   Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -7539,7 +7539,7 @@ RESULT
             -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=0 width=8)
                   Output: columns=1 width=8
                   Source: 127.0.0.1:15434 user=postgres
-                  Remote SQL: SELECT "time" FROM "public"."sensor" WHERE (("time" >= TIMESTAMP '2024-01-01 00:00:00.000') AND ("time" < TIMESTAMP '2024-01-01 00:05:00.000')) ORDER BY "time" ASC
+                  Remote SQL: SELECT "time" FROM "public"."sensor" WHERE (("time" >= TIMESTAMP '2024-01-01 00:00:00.000000') AND ("time" < TIMESTAMP '2024-01-01 00:05:00.000000')) ORDER BY "time" ASC
                   Remote rows=0, blocks=<BLOCKS>, elapsed=<TIME>ms
                   Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -7578,7 +7578,7 @@ RESULT
             -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=8)
                   Output: columns=1 width=8
                   Source: 127.0.0.1:18086 user=u
-                  Remote SQL: SELECT "time" FROM "sensor" WHERE (("time" >= CAST('2024-01-01 00:00:00.000' AS TIMESTAMP)) AND ("time" < CAST('2024-01-01 00:05:00.000' AS TIMESTAMP))) ORDER BY "time" ASC
+                  Remote SQL: SELECT "time" FROM "sensor" WHERE (("time" >= CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP)) AND ("time" < CAST('2024-01-01 00:05:00.000000000' AS TIMESTAMP))) ORDER BY "time" ASC
                   Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
                   Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -7617,7 +7617,7 @@ RESULT
             -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=8)
                   Output: columns=1 width=8
                   Source: 127.0.0.1:13306 user=root
-                  Remote SQL: SELECT `time` FROM `fq_explain_m`.`sensor` WHERE ((`time` >= CAST('2024-01-01 00:00:00.000' AS DATETIME(3))) AND (`time` < CAST('2024-01-01 00:05:00.000' AS DATETIME(3)))) ORDER BY `time` ASC
+                  Remote SQL: SELECT `time` FROM `fq_explain_m`.`sensor` WHERE ((`time` >= CAST('2024-01-01 00:00:00.000000' AS DATETIME(6))) AND (`time` < CAST('2024-01-01 00:05:00.000000' AS DATETIME(6)))) ORDER BY `time` ASC
                   Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
                   Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -7656,7 +7656,7 @@ RESULT
             -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=0 width=8)
                   Output: columns=1 width=8
                   Source: 127.0.0.1:15434 user=postgres
-                  Remote SQL: SELECT "time" FROM "public"."sensor" WHERE (("time" >= TIMESTAMP '2024-01-01 00:00:00.000') AND ("time" < TIMESTAMP '2024-01-01 00:05:00.000')) ORDER BY "time" ASC
+                  Remote SQL: SELECT "time" FROM "public"."sensor" WHERE (("time" >= TIMESTAMP '2024-01-01 00:00:00.000000') AND ("time" < TIMESTAMP '2024-01-01 00:05:00.000000')) ORDER BY "time" ASC
                   Remote rows=0, blocks=<BLOCKS>, elapsed=<TIME>ms
                   Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -7695,7 +7695,7 @@ RESULT
             -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=8)
                   Output: columns=1 width=8
                   Source: 127.0.0.1:18086 user=u
-                  Remote SQL: SELECT "time" FROM "sensor" WHERE (("time" >= CAST('2024-01-01 00:00:00.000' AS TIMESTAMP)) AND ("time" < CAST('2024-01-01 00:05:00.000' AS TIMESTAMP))) ORDER BY "time" ASC
+                  Remote SQL: SELECT "time" FROM "sensor" WHERE (("time" >= CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP)) AND ("time" < CAST('2024-01-01 00:05:00.000000000' AS TIMESTAMP))) ORDER BY "time" ASC
                   Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
                   Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -8042,7 +8042,7 @@ RESULT
          -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=138)
                Output: columns=2 width=138
                Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) ORDER BY `time` ASC
+               Remote SQL: SELECT `time`, `region` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) ORDER BY `time` ASC
                Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
                Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -8068,7 +8068,7 @@ RESULT
          -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65527)
                Output: columns=2 width=65527
                Source: 127.0.0.1:15434 user=postgres
-               Remote SQL: SELECT "time", "region" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' ORDER BY "time" ASC
+               Remote SQL: SELECT "time", "region" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' ORDER BY "time" ASC
                Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
                Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -8094,7 +8094,7 @@ RESULT
          -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65527)
                Output: columns=2 width=65527
                Source: 127.0.0.1:18086 user=u
-               Remote SQL: SELECT "time", "region" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) ORDER BY "time" ASC
+               Remote SQL: SELECT "time", "region" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) ORDER BY "time" ASC
                Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
                Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -8447,7 +8447,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, AVG(ABS((`voltage` - 220.0))) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) ORDER BY ISNULL(`expr_1`) DESC, `expr_1` ASC LIMIT 5
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, AVG(ABS((`voltage` - 220.0))) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) ORDER BY ISNULL(`expr_1`) DESC, `expr_1` ASC LIMIT 5
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -8459,7 +8459,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", AVG(ABS(("voltage" - 220.0))) AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') ORDER BY "expr_1" ASC NULLS FIRST LIMIT 5
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", AVG(ABS(("voltage" - 220.0))) AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') ORDER BY "expr_1" ASC NULLS FIRST LIMIT 5
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -8471,7 +8471,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", AVG(ABS(("voltage" - 220.0))) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') ORDER BY "expr_1" ASC NULLS FIRST LIMIT 5
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", AVG(ABS(("voltage" - 220.0))) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') ORDER BY "expr_1" ASC NULLS FIRST LIMIT 5
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -8754,7 +8754,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
       Output: columns=3 width=146
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, `region`, AVG(ABS((`voltage` - 220.0))) AS `expr_3` FROM `fq_explain_m`.`sensor` WHERE (`region` IN ('north', 'south') AND (`time` >= CAST('2024-01-01 00:00:00.000' AS DATETIME(3))) AND (`time` <= CAST('2024-01-02 00:00:00.000' AS DATETIME(3)))) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000), `region` ORDER BY ISNULL(`expr_1`) DESC, `expr_1` ASC LIMIT 10
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, `region`, AVG(ABS((`voltage` - 220.0))) AS `expr_3` FROM `fq_explain_m`.`sensor` WHERE (`region` IN ('north', 'south') AND (`time` >= CAST('2024-01-01 00:00:00.000000' AS DATETIME(6))) AND (`time` <= CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)))) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000), `region` ORDER BY ISNULL(`expr_1`) DESC, `expr_1` ASC LIMIT 10
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -8766,7 +8766,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
       Output: columns=3 width=65535
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", "region", AVG(ABS(("voltage" - 220.0))) AS "expr_3" FROM "public"."sensor" WHERE ("region" IN ('north', 'south') AND ("time" >= TIMESTAMP '2024-01-01 00:00:00.000') AND ("time" <= TIMESTAMP '2024-01-02 00:00:00.000')) GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00'), "region" ORDER BY "expr_1" ASC NULLS FIRST LIMIT 10
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", "region", AVG(ABS(("voltage" - 220.0))) AS "expr_3" FROM "public"."sensor" WHERE ("region" IN ('north', 'south') AND ("time" >= TIMESTAMP '2024-01-01 00:00:00.000000') AND ("time" <= TIMESTAMP '2024-01-02 00:00:00.000000')) GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00'), "region" ORDER BY "expr_1" ASC NULLS FIRST LIMIT 10
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -8778,7 +8778,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
       Output: columns=3 width=65535
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", "region", AVG(ABS(("voltage" - 220.0))) AS "expr_3" FROM "sensor" WHERE ("region" IN ('north', 'south') AND ("time" >= CAST('2024-01-01 00:00:00.000' AS TIMESTAMP)) AND ("time" <= CAST('2024-01-02 00:00:00.000' AS TIMESTAMP))) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z'), "region" ORDER BY "expr_1" ASC NULLS FIRST LIMIT 10
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", "region", AVG(ABS(("voltage" - 220.0))) AS "expr_3" FROM "sensor" WHERE ("region" IN ('north', 'south') AND ("time" >= CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP)) AND ("time" <= CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP))) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z'), "region" ORDER BY "expr_1" ASC NULLS FIRST LIMIT 10
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -11853,7 +11853,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=8)
       Output: columns=1 width=8
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT CAST('<NOW>' AS DATETIME(3)) AS `expr_1` FROM `fq_explain_m`.`sensor`
+      Remote SQL: SELECT CAST('<NOW>' AS DATETIME(6)) AS `expr_1` FROM `fq_explain_m`.`sensor`
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -11889,7 +11889,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=8)
       Output: columns=1 width=8
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT CAST('<TODAY>' AS DATETIME(3)) AS `expr_1` FROM `fq_explain_m`.`sensor`
+      Remote SQL: SELECT CAST('<TODAY>' AS DATETIME(6)) AS `expr_1` FROM `fq_explain_m`.`sensor`
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -15293,7 +15293,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
       Output: columns=3 width=146
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, `region`, COUNT(`time`) AS `expr_3` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000), `region`
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, `region`, COUNT(`time`) AS `expr_3` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000), `region`
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -15305,7 +15305,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
       Output: columns=3 width=65535
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", "region", COUNT("time") AS "expr_3" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00'), "region"
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", "region", COUNT("time") AS "expr_3" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00'), "region"
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -15317,7 +15317,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
       Output: columns=3 width=65535
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", "region", COUNT(*) AS "expr_3" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z'), "region"
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", "region", COUNT(*) AS "expr_3" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z'), "region"
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -15329,7 +15329,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(`time`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(`time`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -15341,7 +15341,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT("time") AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT("time") AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -15353,7 +15353,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -15371,7 +15371,7 @@ RESULT
    -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=8)
          Output: columns=1 width=8
          Source: 127.0.0.1:13306 user=root
-         Remote SQL: SELECT `time` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) ORDER BY `time` ASC
+         Remote SQL: SELECT `time` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) ORDER BY `time` ASC
          Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -15389,7 +15389,7 @@ RESULT
    -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=8)
          Output: columns=1 width=8
          Source: 127.0.0.1:15434 user=postgres
-         Remote SQL: SELECT "time" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' ORDER BY "time" ASC
+         Remote SQL: SELECT "time" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' ORDER BY "time" ASC
          Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -15407,7 +15407,7 @@ RESULT
    -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=8)
          Output: columns=1 width=8
          Source: 127.0.0.1:18086 user=u
-         Remote SQL: SELECT "time" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) ORDER BY "time" ASC
+         Remote SQL: SELECT "time" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) ORDER BY "time" ASC
          Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -18055,7 +18055,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=2 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(`time`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE ((`time` >= CAST('2024-01-01 00:00:00.000' AS DATETIME(3))) AND (`time` <= CAST('2024-01-02 00:00:00.000' AS DATETIME(3))) AND (`voltage` > (SELECT AVG(`voltage`) AS `expr_1` FROM `fq_explain_m`.`sensor`))) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(`time`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE ((`time` >= CAST('2024-01-01 00:00:00.000000' AS DATETIME(6))) AND (`time` <= CAST('2024-01-02 00:00:00.000000' AS DATETIME(6))) AND (`voltage` > (SELECT AVG(`voltage`) AS `expr_1` FROM `fq_explain_m`.`sensor`))) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
       Remote rows=2, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -18067,7 +18067,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=2 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT("time") AS "expr_2" FROM "public"."sensor" WHERE (("time" >= TIMESTAMP '2024-01-01 00:00:00.000') AND ("time" <= TIMESTAMP '2024-01-02 00:00:00.000') AND ("voltage" > (SELECT AVG("voltage") AS "expr_1" FROM "public"."sensor"))) GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT("time") AS "expr_2" FROM "public"."sensor" WHERE (("time" >= TIMESTAMP '2024-01-01 00:00:00.000000') AND ("time" <= TIMESTAMP '2024-01-02 00:00:00.000000') AND ("voltage" > (SELECT AVG("voltage") AS "expr_1" FROM "public"."sensor"))) GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
       Remote rows=2, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -18079,7 +18079,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=2 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE (("time" >= CAST('2024-01-01 00:00:00.000' AS TIMESTAMP)) AND ("time" <= CAST('2024-01-02 00:00:00.000' AS TIMESTAMP)) AND ("voltage" > (SELECT AVG("voltage") AS "expr_1" FROM "sensor"))) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE (("time" >= CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP)) AND ("time" <= CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP)) AND ("voltage" > (SELECT AVG("voltage") AS "expr_1" FROM "sensor"))) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
       Remote rows=2, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -43714,7 +43714,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(`time`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) ORDER BY ISNULL(`expr_1`) DESC, `expr_1` ASC
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(`time`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) ORDER BY ISNULL(`expr_1`) DESC, `expr_1` ASC
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -43726,7 +43726,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT("time") AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') ORDER BY "expr_1" ASC NULLS FIRST
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT("time") AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') ORDER BY "expr_1" ASC NULLS FIRST
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -43738,7 +43738,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') ORDER BY "expr_1" ASC NULLS FIRST
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') ORDER BY "expr_1" ASC NULLS FIRST
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -43750,7 +43750,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(`time`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) LIMIT 5
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(`time`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) LIMIT 5
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -43762,7 +43762,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT("time") AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') LIMIT 5
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT("time") AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') LIMIT 5
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
@@ -43774,7 +43774,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') LIMIT 5
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') LIMIT 5
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms

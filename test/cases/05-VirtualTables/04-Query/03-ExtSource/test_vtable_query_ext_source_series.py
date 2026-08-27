@@ -118,7 +118,9 @@ class TestVTableQueryExtSourceSeries:
 
     def _setup_tdengine(self):
         """Create TDengine DB, external source, and virtual tables with SERIES."""
-        tdSql.execute(f"CREATE DATABASE IF NOT EXISTS {TDENGINE_DB}")
+        tdSql.execute(
+            f"CREATE DATABASE IF NOT EXISTS {TDENGINE_DB} PRECISION 'ns'"
+        )
         tdSql.execute(f"USE {TDENGINE_DB}")
 
         ExtSrcEnv.ensure_qnode()

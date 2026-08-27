@@ -142,6 +142,13 @@ int32_t extConnectorCheckNamespace(SExtConnectorHandle *pHandle,
                                    const char          *dbName,
                                    const char          *schemaName);
 
+// Check whether the current remote connection can apply the named timezone
+// while converting a timezone-naive value. Providers that do not implement
+// remote timezone conversion report false without failing the query.
+int32_t extConnectorSupportsTimezoneConversion(SExtConnectorHandle *pHandle,
+                                               const char          *timezone,
+                                               bool                *pSupported);
+
 // Query execution
 // pSQL is optional: when non-NULL the Connector uses it directly instead of
 // regenerating via nodesRemotePlanToSQL (which has no subquery resolve context).

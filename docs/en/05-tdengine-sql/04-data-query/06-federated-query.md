@@ -695,6 +695,51 @@ tag_value:
     const_value | table_name.tag_name
 ```
 
+### InfluxDB SERIES Column References
+
+For InfluxDB, a `SERIES` declaration can be appended when creating a virtual regular table or virtual subtable. It binds an alias to a specific series selected by tag conditions:
+
+```sql
+SERIES series_alias AS source_name.database_name.measurement_name
+    (tag_name = 'tag_value' [, tag_name = 'tag_value'] ...)
+```
+
+This syntax has the following constraints:
+
+- It is supported only for InfluxDB external data sources, not MySQL or PostgreSQL.
+- The `SERIES` target must use the complete three-part path `source_name.database_name.measurement_name`; the external source name and database name cannot be omitted.
+- At least one tag condition is required. Conditions support only `tag_name = 'tag_value'` and, at declaration time, must include every tag of the measurement exactly once. Missing, unknown, or duplicate tags cause an error.
+- `series_alias.field_name` represents a measurement field constrained by the declared tag conditions. An alias must be unique within the virtual table and cannot be used to reference an InfluxDB tag.
+
+The following example binds `s1` to the series where `device = 'd1'`. `s1.value` expands to an external `influx_source.metrics.meters.value` column reference with that tag condition:
+
+```sql
+CREATE VTABLE v_a1 (
+  ts TIMESTAMP,
+  value DOUBLE FROM s1.value
+)
+SERIES s1 AS influx_source.metrics.meters (device = 'd1');
+```
+
+Use `ALTER VTABLE` to add a `SERIES` to an existing virtual table, bind a column to it, remove the binding, and then remove the `SERIES`:
+
+```sql
+CREATE VTABLE v_a2 (
+  ts TIMESTAMP,
+  value DOUBLE
+);
+
+ALTER VTABLE v_a2
+  ADD SERIES s1 AS influx_source.metrics.meters (device = 'd1');
+
+ALTER VTABLE v_a2 ALTER COLUMN value SET s1.value;
+
+ALTER VTABLE v_a2 ALTER COLUMN value SET NULL;
+ALTER VTABLE v_a2 REMOVE SERIES s1;
+```
+
+`ADD SERIES` uses the same target-path and tag-condition constraints as a `SERIES` declaration at creation time. Before removing a `SERIES`, use `ALTER COLUMN ... SET NULL` or point the column to another reference so that no virtual table column still references the alias.
+
 ### Creating Virtual Supertables
 
 Virtual supertable syntax is unchanged; it defines schema only and does not include external column references:

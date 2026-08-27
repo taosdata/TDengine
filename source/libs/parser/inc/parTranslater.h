@@ -71,6 +71,8 @@ int32_t biCheckCreateTableTbnameCol(STranslateContext* pCxt, SNodeList* pTags, S
 int32_t findTable(STranslateContext* pCxt, const char* pTableAlias, STableNode** pOutput);
 int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta,
                           bool couldBeView);
+// On success, *pExtInfo is an independent heap copy owned by the caller.
+int32_t getExternalSourceInfo(STranslateContext* pCxt, const char* sourceName, SExtSourceInfo** pExtInfo);
 
 #ifdef TD_ENTERPRISE
 int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSelect);

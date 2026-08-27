@@ -422,6 +422,9 @@ typedef struct SFederatedScanExplainInfo {
   int64_t fetchBlockCount;
   int64_t elapsedTimeUs;
   char    remoteSql[TSDB_SHOW_SQL_LEN];
+  bool    batchMode;                                // true when runtime input is a source batch
+  int32_t batchTables;                              // number of remote tables in the active batch
+  char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];     // registered external source batch key
 } SFederatedScanExplainInfo;
 
 typedef struct STUidTagInfo {

@@ -307,7 +307,7 @@ class TestVtableQueryExtSourceRuntimeLibs:
         _create_influx_source(_INFLUX_HTTP_SRC, "http")
 
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
-        tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ms'")
+        tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ns'")
         tdSql.execute(f"USE {_LOCAL_DB}")
         tdSql.execute(
             f"CREATE VTABLE v_mysql (ts timestamp, v int FROM {_MYSQL_SRC}.{_MYSQL_DB}.r_mysql.v)"

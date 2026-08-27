@@ -989,6 +989,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_SLOT_NOT_FOUND,            "Planner slot key no
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INVALID_TABLE_TYPE,        "Planner invalid table type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INVALID_DYN_CTRL_TYPE,     "Planner invalid query control plan type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INVALID_WINDOW_TYPE,       "Planner invalid window type")
+TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_TSPK_NOT_FOUND,            "Planner primary timestamp column not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_DEP_TABLE_SCAN_NOT_FOUND,  "Planner dependent table scan not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INVALID_FEDERATED_SCAN,    "Planner invalid federated scan")
 
 //function
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_ERROR,            "Function internal error")

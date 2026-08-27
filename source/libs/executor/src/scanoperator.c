@@ -1260,28 +1260,22 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
     pOperator->cost.inputRows = pTableScanInfo->base.readRecorder.checkRows;
     pBlock->info.scanFlag = (uint8_t)pTableScanInfo->base.scanFlag;
 
-    // cross-precision: when the planner flagged this scan for vtable-precision
-    // output (vstableAggOptimize source scans), convert TIMESTAMP columns here so
-    // the partial Aggregate above runs in vtable precision — this makes the
-    // coordinator's cross-source first/last/min/max merge correct. Only this
-    // path; VirtualTableScan's convertBlockTsPrecision handles the DYN_QTYPE_VTB_SCAN
-    // path separately, and these scans never overlap (outputTsPrecision defaults to
-    // UINT8_MAX elsewhere), so there is no double conversion.
     if (pTableScanInfo->outputTsPrecision <= TSDB_TIME_PRECISION_NANO) {
-      uint8_t srcPrec = pTableScanInfo->srcPrecision;
-      uint8_t dstPrec = pTableScanInfo->outputTsPrecision;
-      if (srcPrec <= TSDB_TIME_PRECISION_NANO && srcPrec != dstPrec) {
-        for (int32_t c = 0; c < taosArrayGetSize(pBlock->pDataBlock); ++c) {
-          SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, c);
-          if (pCol && pCol->info.type == TSDB_DATA_TYPE_TIMESTAMP && pCol->pData) {
-            int64_t* tsArr = (int64_t*)pCol->pData;
-            for (int32_t r = 0; r < pBlock->info.rows; ++r) {
-              if (!colDataIsNull_s(pCol, r) && tsArr[r] != TSKEY_MIN && tsArr[r] != TSKEY_MAX) {
-                tsArr[r] = convertTimePrecision(tsArr[r], srcPrec, dstPrec);
-              }
-            }
-            pCol->info.precision = dstPrec;
+      uint8_t srcPrecision = pTableScanInfo->srcPrecision;
+      uint8_t dstPrecision = pTableScanInfo->outputTsPrecision;
+      if (srcPrecision <= TSDB_TIME_PRECISION_NANO && srcPrecision != dstPrecision) {
+        for (int32_t colIdx = 0; colIdx < taosArrayGetSize(pBlock->pDataBlock); ++colIdx) {
+          SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, colIdx);
+          if (NULL == pCol || TSDB_DATA_TYPE_TIMESTAMP != pCol->info.type || NULL == pCol->pData) {
+            continue;
           }
+          int64_t* pTimestamps = (int64_t*)pCol->pData;
+          for (int32_t row = 0; row < pBlock->info.rows; ++row) {
+            if (!colDataIsNull_s(pCol, row) && TSKEY_MIN != pTimestamps[row] && TSKEY_MAX != pTimestamps[row]) {
+              pTimestamps[row] = convertTimePrecision(pTimestamps[row], srcPrecision, dstPrecision);
+            }
+          }
+          pCol->info.precision = dstPrecision;
         }
       }
     }
@@ -1529,6 +1523,19 @@ int compareColIdSlotIdPair(const void* elem1, const void* elem2) {
   return node1->orgColId < node2->orgColId ? -1 : 1;
 }
 
+static int compareColIdSlotIdPairByOrgColIdAndSlotId(const void* elem1, const void* elem2) {
+  const SColIdSlotIdPair* node1 = (const SColIdSlotIdPair*)elem1;
+  const SColIdSlotIdPair* node2 = (const SColIdSlotIdPair*)elem2;
+
+  if (node1->orgColId != node2->orgColId) {
+    return node1->orgColId < node2->orgColId ? -1 : 1;
+  }
+  if (node1->vtbSlotId == node2->vtbSlotId) {
+    return 0;
+  }
+  return node1->vtbSlotId < node2->vtbSlotId ? -1 : 1;
+}
+
 static int compareColMatchItemByColId(const void* elem1, const void* elem2) {
   const SColMatchItem* node1 = (const SColMatchItem*)elem1;
   const SColMatchItem* node2 = (const SColMatchItem*)elem2;
@@ -1576,17 +1583,10 @@ static bool isNewScanParam(STableScanOperatorParam* pParam) {
   return pParam->isNewParam;
 }
 
-// Set srcPrecision/vtablePrecision on a virtual-table scan info directly from
-// the org table info — both ends are authoritative (src from catalog via
-// getDbPrecision, dst from the physical node output block desc). No fallback:
-// an unknown precision stays UINT8_MAX and the cross-precision guard skips
-// conversion rather than guessing.
-static void setVtableScanPrecisions(STableScanInfo* pInfo, const SOrgTbInfo* pOrgTbInfo, uint8_t srcPrec) {
-  pInfo->srcPrecision = srcPrec;
-  // dst (vtable) precision is authoritative from orgTbInfo (caller sets it from the
-  // physical node output block desc). No fallback: UINT8_MAX stays UINT8_MAX and the
-  // cross-precision guard (vtPrec <= NANO) simply skips conversion.
+static void setVtableScanPrecisions(STableScanInfo* pInfo, const SOrgTbInfo* pOrgTbInfo) {
+  pInfo->srcPrecision = pOrgTbInfo->srcPrecision;
   pInfo->vtablePrecision = pOrgTbInfo->dstPrecision;
+  pInfo->outputTsPrecision = pOrgTbInfo->dstPrecision;
 }
 
 static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
@@ -1690,7 +1690,7 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
 
     // virtual table's origin table scan do not has ts column.
     SColIdPair tsPair = {.vtbColId = PRIMARYKEY_TIMESTAMP_COL_ID,
-                         .orgColId = PRIMARYKEY_TIMESTAMP_COL_ID,
+                         .orgColId = (col_id_t)schema->pSchema[0].colId,
                          .type.type = TSDB_DATA_TYPE_TIMESTAMP,
                          .type.bytes = 8};
     QUERY_CHECK_NULL(taosArrayPush(pColArray, &tsPair), code, lino, _return, terrno);
@@ -1716,7 +1716,10 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
       SColIdPair* pPair = (SColIdPair*)taosArrayGet(pColArray, i);
       for (int32_t j = 0; j < taosArrayGetSize(pInfo->base.matchInfo.pList); j++) {
         SColMatchItem* pItem = taosArrayGet(pInfo->base.matchInfo.pList, j);
-        if (pItem->colId == pPair->vtbColId) {
+        bool match = pPair->vtbColId == PRIMARYKEY_TIMESTAMP_COL_ID
+                         ? pItem->dataType.type == TSDB_DATA_TYPE_TIMESTAMP
+                         : pItem->colId == pPair->vtbColId;
+        if (match) {
           if (pItem->dataType.type != pPair->type.type) {
             qError("column type does not match for vtable colId:%d, org colId:%d, org table name:%s",
                    pPair->vtbColId, pPair->orgColId, orgTable.me.name);
@@ -1748,16 +1751,14 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
     }
 
     taosArraySort(pColArray, compareColIdPair);
-    taosArraySort(pBlockColArray, compareColIdSlotIdPair);
+    taosArraySort(pBlockColArray, compareColIdSlotIdPairByOrgColIdAndSlotId);
+    taosArrayRemoveDuplicate(pColArray, compareColIdPair, NULL);
     if (pInfo->pBlockColMap) {
       taosArrayDestroy(pInfo->pBlockColMap);
       pInfo->pBlockColMap = NULL;
     }
     pInfo->pBlockColMap = taosArrayDup(pBlockColArray, NULL);
     QUERY_CHECK_NULL(pInfo->pBlockColMap, code, lino, _return, terrno)
-
-
-    taosArrayRemoveDuplicate(pColArray, compareColIdPair, NULL);
     taosArrayRemoveDuplicate(pBlockColArray, compareColIdSlotIdPair, NULL);
 
     if (pInfo->base.pdInfo.pExprSup) {
@@ -1826,13 +1827,17 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
   pInfo->currentGroupId = 0;
   pInfo->ignoreTag = true;
 
-  uint8_t srcPrec = pOrgTbInfo->srcPrecision;
-  setVtableScanPrecisions(pInfo, pOrgTbInfo, srcPrec);
-  uint8_t vtPrec = pInfo->vtablePrecision;
-  if (srcPrec <= TSDB_TIME_PRECISION_NANO && vtPrec <= TSDB_TIME_PRECISION_NANO && srcPrec != vtPrec) {
-    STimeWindow* w = &pInfo->base.cond.twindows;
-    if (w->skey != TSKEY_MIN && w->skey != TSKEY_MAX) w->skey = convertTimePrecision(w->skey, vtPrec, srcPrec);
-    if (w->ekey != TSKEY_MIN && w->ekey != TSKEY_MAX) w->ekey = convertTimePrecision(w->ekey, vtPrec, srcPrec);
+  setVtableScanPrecisions(pInfo, pOrgTbInfo);
+  if (pInfo->srcPrecision <= TSDB_TIME_PRECISION_NANO &&
+      pInfo->vtablePrecision <= TSDB_TIME_PRECISION_NANO &&
+      pInfo->srcPrecision != pInfo->vtablePrecision) {
+    STimeWindow* pWindow = &pInfo->base.cond.twindows;
+    if (TSKEY_MIN != pWindow->skey && TSKEY_MAX != pWindow->skey) {
+      pWindow->skey = convertTimePrecision(pWindow->skey, pInfo->vtablePrecision, pInfo->srcPrecision);
+    }
+    if (TSKEY_MIN != pWindow->ekey && TSKEY_MAX != pWindow->ekey) {
+      pWindow->ekey = convertTimePrecision(pWindow->ekey, pInfo->vtablePrecision, pInfo->srcPrecision);
+    }
   }
 
   code = createOneDataBlockWithColArray(pInfo->pOrgBlock, pBlockColArray, &pInfo->pResBlock);
@@ -1991,7 +1996,7 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
 
   // virtual table's origin table scan do not has ts column.
   SColIdPair tsPair = {.vtbColId = PRIMARYKEY_TIMESTAMP_COL_ID,
-                       .orgColId = PRIMARYKEY_TIMESTAMP_COL_ID,
+                       .orgColId = (col_id_t)schema->pSchema[0].colId,
                        .type.type = TSDB_DATA_TYPE_TIMESTAMP,
                        .type.bytes = 8};
   QUERY_CHECK_NULL(taosArrayPush(pColArray, &tsPair), code, lino, _return, terrno);
@@ -2067,10 +2072,20 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
     }
   }
 
-  // skip ts pair
   for (int32_t i = 0; i < taosArrayGetSize(pColArray); i++) {
     SColIdPair* pPair = (SColIdPair*)taosArrayGet(pColArray, i);
-    SColMatchItem* pItem = findMatchItemByColId(pMatchList, pPair->vtbColId);
+    SColMatchItem* pItem = NULL;
+    if (pPair->vtbColId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      for (int32_t j = 0; j < taosArrayGetSize(pMatchList); ++j) {
+        SColMatchItem* pCandidate = taosArrayGet(pMatchList, j);
+        if (pCandidate != NULL && pCandidate->dataType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+          pItem = pCandidate;
+          break;
+        }
+      }
+    } else {
+      pItem = findMatchItemByColId(pMatchList, pPair->vtbColId);
+    }
     if (pItem) {
       if (pItem->dataType.type != pPair->type.type) {
         qError("column type does not match for vtable colId:%d, org colId:%d, org table name:%s", pPair->vtbColId,
@@ -2094,15 +2109,13 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
       }
       SColIdSlotIdPair colIdSlotIdPair = {.orgColId = pPair->orgColId, .vtbSlotId = pItem->dstSlotId};
       QUERY_CHECK_NULL(taosArrayPush(pBlockColArray, &colIdSlotIdPair), code, lino, _return, terrno);
-      if (i > 0) {
-        QUERY_CHECK_NULL(taosArrayPush(pInfo->pBlockColMap, &colIdSlotIdPair), code, lino, _return, terrno);
-      }
+      QUERY_CHECK_NULL(taosArrayPush(pInfo->pBlockColMap, &colIdSlotIdPair), code, lino, _return, terrno);
     }
   }
 
   taosArraySort(pColArray, compareColIdPair);
-  taosArraySort(pBlockColArray, compareColIdSlotIdPair);
-  taosArraySort(pInfo->pBlockColMap, compareColIdSlotIdPair);
+  taosArraySort(pBlockColArray, compareColIdSlotIdPairByOrgColIdAndSlotId);
+  taosArraySort(pInfo->pBlockColMap, compareColIdSlotIdPairByOrgColIdAndSlotId);
 
   taosArrayRemoveDuplicate(pColArray, compareColIdPair, NULL);
   taosArrayRemoveDuplicate(pBlockColArray, compareColIdSlotIdPair, NULL);
@@ -2123,27 +2136,27 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
       pInfo->base.cond.twindows.skey = pParam->window.skey;
       pInfo->base.cond.twindows.ekey = pParam->window.ekey;
     }
-    uint8_t srcPrec = pOrgTbInfo->srcPrecision;
-    setVtableScanPrecisions(pInfo, pOrgTbInfo, srcPrec);
-    uint8_t vtPrec = pInfo->vtablePrecision;
-    if (srcPrec <= TSDB_TIME_PRECISION_NANO && vtPrec <= TSDB_TIME_PRECISION_NANO && srcPrec != vtPrec) {
-      STimeWindow* w = &pInfo->base.cond.twindows;
-      // Symmetric sentinel guard (matches createVTableScanInfoFromBatchParam):
-      // skip both TSKEY_MIN and TSKEY_MAX so a sentinel never feeds
-      // convertTimePrecision, which only guards positive overflow (a sentinel *
-      // factor on a widening path is signed-overflow UB). Decouples this site's
-      // safety from the upstream {skey=MAX,ekey=MIN} interception.
-      if (w->skey != TSKEY_MIN && w->skey != TSKEY_MAX) w->skey = convertTimePrecision(w->skey, vtPrec, srcPrec);
-      if (w->ekey != TSKEY_MIN && w->ekey != TSKEY_MAX) w->ekey = convertTimePrecision(w->ekey, vtPrec, srcPrec);
+    setVtableScanPrecisions(pInfo, pOrgTbInfo);
+    if (pInfo->srcPrecision <= TSDB_TIME_PRECISION_NANO &&
+        pInfo->vtablePrecision <= TSDB_TIME_PRECISION_NANO &&
+        pInfo->srcPrecision != pInfo->vtablePrecision) {
+      STimeWindow* pWindow = &pInfo->base.cond.twindows;
+      if (TSKEY_MIN != pWindow->skey && TSKEY_MAX != pWindow->skey) {
+        pWindow->skey = convertTimePrecision(pWindow->skey, pInfo->vtablePrecision, pInfo->srcPrecision);
+      }
+      if (TSKEY_MIN != pWindow->ekey && TSKEY_MAX != pWindow->ekey) {
+        pWindow->ekey = convertTimePrecision(pWindow->ekey, pInfo->vtablePrecision, pInfo->srcPrecision);
+      }
     }
   } else {
     pInfo->base.cond.twindows.skey = pParam->window.ekey + 1;
-    uint8_t srcPrec = pOrgTbInfo->srcPrecision;
-    setVtableScanPrecisions(pInfo, pOrgTbInfo, srcPrec);
-    uint8_t vtPrec = pInfo->vtablePrecision;
-    if (srcPrec <= TSDB_TIME_PRECISION_NANO && vtPrec <= TSDB_TIME_PRECISION_NANO && srcPrec != vtPrec &&
-        pInfo->base.cond.twindows.skey != TSKEY_MIN) {
-      pInfo->base.cond.twindows.skey = convertTimePrecision(pInfo->base.cond.twindows.skey, vtPrec, srcPrec);
+    setVtableScanPrecisions(pInfo, pOrgTbInfo);
+    if (pInfo->srcPrecision <= TSDB_TIME_PRECISION_NANO &&
+        pInfo->vtablePrecision <= TSDB_TIME_PRECISION_NANO &&
+        pInfo->srcPrecision != pInfo->vtablePrecision &&
+        TSKEY_MIN != pInfo->base.cond.twindows.skey && TSKEY_MAX != pInfo->base.cond.twindows.skey) {
+      pInfo->base.cond.twindows.skey =
+          convertTimePrecision(pInfo->base.cond.twindows.skey, pInfo->vtablePrecision, pInfo->srcPrecision);
     }
   }
   pInfo->base.cond.suid = (orgTable.me.type == TSDB_CHILD_TABLE || orgTable.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? superTable.me.uid : 0;
@@ -2402,13 +2415,29 @@ _end:
   return code;
 }
 
-static int32_t blockSetVstbSlotId(const SSDataBlock* pSrcBlock,SArray* pColMap) {
+static int32_t blockSetVstbSlotId(const SSDataBlock* pSrcBlock, SArray* pColMap) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   bool         found = false;
 
   QUERY_CHECK_NULL(pSrcBlock, code, lino, _return, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_NULL(pColMap, code, lino, _return, TSDB_CODE_INVALID_PARA);
+
+  // The dynamic reader block is created from the same sorted, deduplicated
+  // mapping array.  After a read, SColumnInfo's colId/slotId union may contain
+  // the reader output position rather than the physical column id, so matching
+  // that value as a colId can collide with another physical column.  Convert
+  // the reader schema to virtual slots by the authoritative positional map.
+  if (taosArrayGetSize(pSrcBlock->pDataBlock) == taosArrayGetSize(pColMap)) {
+    for (int32_t i = 0; i < taosArrayGetSize(pColMap); ++i) {
+      SColumnInfoData*  pSrcCol = taosArrayGet(pSrcBlock->pDataBlock, i);
+      SColIdSlotIdPair* pColPair = taosArrayGet(pColMap, i);
+      QUERY_CHECK_NULL(pSrcCol, code, lino, _return, terrno);
+      QUERY_CHECK_NULL(pColPair, code, lino, _return, terrno);
+      pSrcCol->info.slotId = (int16_t)pColPair->vtbSlotId;
+    }
+    return code;
+  }
 
   for (int32_t i = 0; i < taosArrayGetSize(pSrcBlock->pDataBlock); i++) {
     SColumnInfoData* pSrcCol = taosArrayGet(pSrcBlock->pDataBlock, i);
@@ -2424,9 +2453,20 @@ static int32_t blockSetVstbSlotId(const SSDataBlock* pSrcBlock,SArray* pColMap) 
       }
     }
     if (!found) {
-      if (pSrcCol->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      if (pSrcCol->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+        for (int32_t j = 0; j < taosArrayGetSize(pColMap); ++j) {
+          SColIdSlotIdPair* pColPair = taosArrayGet(pColMap, j);
+          if (pColPair != NULL && pColPair->orgColId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+            pSrcCol->info.colId = pColPair->orgColId;
+            pSrcCol->info.slotId = (int16_t)pColPair->vtbSlotId;
+            found = true;
+            break;
+          }
+        }
+      }
+      if (!found && pSrcCol->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         pSrcCol->info.slotId = -1;
-      } else {
+      } else if (!found) {
         qError("cannot find vstb slotId for org colId:%d (pColMap size:%d)", pSrcCol->info.colId,
                (int32_t)taosArrayGetSize(pColMap));
         code = TSDB_CODE_QRY_VSTB_SLOTID_NOT_FOUND;
@@ -2463,6 +2503,12 @@ static int32_t doVstbSingleDynamicTableScanNext(SOperatorInfo* pOperator, SSData
     return code;
   }
 
+  // The preceding result block is detached from the cached reader before it is
+  // returned to the parent.  A new dynamic parameter may reopen or reuse that
+  // reader, so always bind the freshly-created result block at the ownership
+  // boundary immediately before scanning.
+  pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, pInfo->pResBlock);
+
   if (pInfo->newReader) {
     code = startNextGroupScan(pOperator, &result);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -2473,27 +2519,28 @@ static int32_t doVstbSingleDynamicTableScanNext(SOperatorInfo* pOperator, SSData
 
   if (result) {
     SSDataBlock* res = NULL;
-    pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, NULL);
     pInfo->lastTimeWindow.skey = result->info.window.skey;
     pInfo->lastTimeWindow.ekey = result->info.window.ekey;
 
     code = blockSetVstbSlotId(result, pInfo->pBlockColMap);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    // For VStableAgg, tag pseudo columns need to be injected into the scan result.
-    // The pOrgBlock has all output columns (data + tag pseudo), while result only has
-    // data columns. When the Agg operator above needs tag values, create a full output
-    // block and fill tag pseudo columns from cachedTagList using positional matching.
-    if (pInfo->cachedTagList && taosArrayGetSize(pInfo->cachedTagList) > 0 &&
-        taosArrayGetSize(pInfo->pOrgBlock->pDataBlock) > taosArrayGetSize(result->pDataBlock)) {
+    // A dynamic source may provide only a sparse subset of the virtual columns.
+    // Rebuild the full template block whenever slots are missing so Exchange and
+    // VirtualScan see a stable schema; unmapped slots stay NULL.  This also covers
+    // the existing VStableAgg tag-pseudo-column case.
+    if (taosArrayGetSize(pInfo->pOrgBlock->pDataBlock) > taosArrayGetSize(result->pDataBlock)) {
+      blockDataDestroy(pInfo->pVstbOutputBlock);
+      pInfo->pVstbOutputBlock = NULL;
       code = createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, pInfo->pBlockColMap, &res);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      code = setTagValFromTagList(pOperator, res);
-      QUERY_CHECK_CODE(code, lino, _end);
+      if (pInfo->cachedTagList && taosArrayGetSize(pInfo->cachedTagList) > 0) {
+        code = setTagValFromTagList(pOperator, res);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
 
-      pInfo->pResBlock = res;
-      blockDataDestroy(result);
+      pInfo->pVstbOutputBlock = res;
       (*ppRes) = res;
     } else {
       if (pInfo->cachedTagList) {
@@ -2537,21 +2584,31 @@ static int32_t setTagValFromTagList(SOperatorInfo* pOperator, SSDataBlock* pRes)
   int32_t                  index = 0;
   char*                    tagVal = NULL;
 
-  // Positional matching: tag pseudo columns occupy the last N slots in pRes,
-  // where N = cachedTagList size. This matches the layout created by
-  // createOneDataBlockWithTwoBlock from the pOrgBlock template.
+  // Positional matching: ordinary dynamic scans place tag pseudo columns in
+  // the last N slots. VStableAgg appends _tbuid after those slots.
   int32_t totalCols = taosArrayGetSize(pRes->pDataBlock);
   int32_t tagCols = taosArrayGetSize(pInfo->cachedTagList);
-  if (totalCols < tagCols) {
-    qError("%s: pDataBlock cols %d < cachedTagList %d", __func__, totalCols, tagCols);
-    return TSDB_CODE_INVALID_PARA;
+  int32_t trailingCols = 0;
+  for (int32_t i = 0; i < pInfo->base.pseudoSup.numOfExprs; ++i) {
+    SExprInfo* pExpr = &pInfo->base.pseudoSup.pExprInfo[i];
+    if (FUNCTION_TYPE_TBUID == pExpr->pExpr->_function.functionType &&
+        totalCols - 1 == pExpr->base.resSchema.slotId) {
+      trailingCols = 1;
+      break;
+    }
   }
-  for (int32_t i = totalCols - tagCols; i < totalCols; i++) {
+  if (totalCols < tagCols + trailingCols) {
+    qError("%s %s found data block columns %d smaller than cached tag columns %d", GET_TASKID(pOperator->pTaskInfo),
+           __func__, totalCols, tagCols);
+  }
+  QUERY_CHECK_CONDITION(totalCols >= tagCols + trailingCols, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  int32_t firstTagSlot = totalCols - tagCols - trailingCols;
+  for (int32_t i = firstTagSlot; i < firstTagSlot + tagCols; i++) {
     SColumnInfoData* pTagCol = taosArrayGet(pRes->pDataBlock, i);
     STagVal*         pTagVal = taosArrayGet(pInfo->cachedTagList, index);
 
-    QUERY_CHECK_NULL(pTagVal, code, lino, _end, terrno);
-    QUERY_CHECK_NULL(pTagCol, code, lino, _end, terrno);
+    QUERY_CHECK_NULL(pTagVal, code, lino, _return, terrno);
+    QUERY_CHECK_NULL(pTagCol, code, lino, _return, terrno);
 
     for (int32_t j = 0; j < pRes->info.rows; j++) {
       if (IS_VAR_DATA_TYPE(pTagVal->type)) {
@@ -2562,27 +2619,27 @@ static int32_t setTagValFromTagList(SOperatorInfo* pOperator, SSDataBlock* pRes)
         // Build VARSTR once, then set for all rows
         if (tagVal == NULL) {
           tagVal = taosMemoryMalloc(pTagVal->nData + VARSTR_HEADER_SIZE + 1);
-          QUERY_CHECK_NULL(tagVal, code, lino, _end, terrno);
+          QUERY_CHECK_NULL(tagVal, code, lino, _return, terrno);
           varDataSetLen(tagVal, pTagVal->nData);
           memcpy(tagVal + VARSTR_HEADER_SIZE, pTagVal->pData, pTagVal->nData);
         }
         code = colDataSetVal(pTagCol, j, tagVal, false);
-        QUERY_CHECK_CODE(code, lino, _end);
+        QUERY_CHECK_CODE(code, lino, _return);
       } else {
         if (pTagVal->nData == -1) {
           colDataSetNULL(pTagCol, j);
           continue;
         }
         code = colDataSetVal(pTagCol, j, (const char*)&pTagVal->i64, false);
-        QUERY_CHECK_CODE(code, lino, _end);
+        QUERY_CHECK_CODE(code, lino, _return);
       }
     }
     taosMemoryFreeClear(tagVal);
     index++;
   }
   return code;
-_end:
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+_return:
+  qError("%s %s failed at line %d since %s", GET_TASKID(pOperator->pTaskInfo), __func__, lino, tstrerror(code));
   taosMemoryFreeClear(tagVal);
   return code;
 }
@@ -2640,6 +2697,10 @@ static int32_t doVstbBatchDynamicTableScanNext(SOperatorInfo* pOperator, SSDataB
     pOperator->pOperatorGetParam = NULL;
     QUERY_CHECK_CODE(code, lino, _end);
 
+    // See doVstbSingleDynamicTableScanNext(): every returned block is detached
+    // from the reader, including between tables in a runtime batch.
+    pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, pInfo->pResBlock);
+
     if (pInfo->newReader) {
       code = startNextGroupScan(pOperator, &result);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -2663,6 +2724,9 @@ static int32_t doVstbBatchDynamicTableScanNext(SOperatorInfo* pOperator, SSDataB
     pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, NULL);
     pInfo->lastTimeWindow.skey = result->info.window.skey;
     pInfo->lastTimeWindow.ekey = result->info.window.ekey;
+
+    code = blockSetVstbSlotId(result, pInfo->pBlockColMap);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     code = createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, pInfo->pBlockColMap, &res);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -2810,6 +2874,27 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   } else {  // scan table group by group sequentially
     code = groupSeqTableScan(pOperator, ppRes);
     QUERY_CHECK_CODE(code, lino, _end);
+
+    // The first block of a single dynamic virtual-table scan is normalized in
+    // doVstbSingleDynamicTableScanNext().  Later blocks arrive through this
+    // ordinary continuation path and must obey the same full-slot contract.
+    if (pOperator->dynamicTask && pInfo->virtualStableScan && NULL != *ppRes) {
+      code = blockSetVstbSlotId(*ppRes, pInfo->pBlockColMap);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (taosArrayGetSize(pInfo->pOrgBlock->pDataBlock) > taosArrayGetSize((*ppRes)->pDataBlock)) {
+        SSDataBlock* pDense = NULL;
+        blockDataDestroy(pInfo->pVstbOutputBlock);
+        pInfo->pVstbOutputBlock = NULL;
+        code = createOneDataBlockWithTwoBlock(*ppRes, pInfo->pOrgBlock, pInfo->pBlockColMap, &pDense);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (pInfo->cachedTagList && taosArrayGetSize(pInfo->cachedTagList) > 0) {
+          code = setTagValFromTagList(pOperator, pDense);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        pInfo->pVstbOutputBlock = pDense;
+        *ppRes = pDense;
+      }
+    }
   }
 
 _end:
@@ -2874,6 +2959,7 @@ static void destroyTableScanOperatorInfo(void* param) {
   clearVstbBatchDynamicTableScanInfo(pTableScanInfo);
   blockDataDestroy(pTableScanInfo->pResBlock);
   blockDataDestroy(pTableScanInfo->pOrgBlock);
+  blockDataDestroy(pTableScanInfo->pVstbOutputBlock);
   taosHashCleanup(pTableScanInfo->pIgnoreTables);
   if (pTableScanInfo->virtualStableScan && pTableScanInfo->readerCache) {
     cleanReaderForVTable(pTableScanInfo);
@@ -3021,17 +3107,13 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->virtualStableScan = pScanNode->virtualStableScan;
-  // Always set vtablePrecision for virtual table scans, regardless of dynamicOp
-  if (pScanNode->virtualStableScan) {
-    pInfo->vtablePrecision = pDescNode->precision;
-  }
-  // cross-precision scan-level conversion (vstableAggOptimize path): when the
-  // planner asks this scan to emit ts in a target precision, doTableScanImplNext
-  // converts each block. Resolve srcPrecision from the vnode config so the
-  // conversion has both ends.
+  pInfo->vtablePrecision = pScanNode->virtualStableScan ? pDescNode->precision : UINT8_MAX;
   pInfo->outputTsPrecision = pScanNode->outputTsPrecision;
-  if (pScanNode->outputTsPrecision <= TSDB_TIME_PRECISION_NANO && pTaskInfo->storageAPI.metaFn.getVnodePrecision) {
-    pInfo->srcPrecision = (uint8_t)pTaskInfo->storageAPI.metaFn.getVnodePrecision(pInfo->base.readHandle.vnode);
+  pInfo->srcPrecision = UINT8_MAX;
+  if (pScanNode->outputTsPrecision <= TSDB_TIME_PRECISION_NANO &&
+      NULL != pTaskInfo->storageAPI.metaFn.getVnodePrecision) {
+    pInfo->srcPrecision =
+        (uint8_t)pTaskInfo->storageAPI.metaFn.getVnodePrecision(pInfo->base.readHandle.vnode);
   }
   if (pScanNode->node.dynamicOp && pScanNode->virtualStableScan) {
     TSWAP(pInfo->pOrgBlock, pInfo->pResBlock);

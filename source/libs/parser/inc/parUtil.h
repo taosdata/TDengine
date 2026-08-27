@@ -128,6 +128,7 @@ int32_t       getNumOfColumns(const STableMeta* pTableMeta);
 int32_t       getNumOfTags(const STableMeta* pTableMeta);
 STableComInfo getTableInfo(const STableMeta* pTableMeta);
 STableMeta*   tableMetaDup(const STableMeta* pTableMeta);
+SExtSourceInfo* extSourceInfoDup(const SExtSourceInfo* pInfo);
 int32_t getTableTypeFromTableNode(SNode *pTable);
 
 int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen);
@@ -165,8 +166,12 @@ int32_t reserveExtSourceInCache(const char* sourceName, SParseMetaCache* pMetaCa
 int32_t reserveExtTableMetaInCache(const char* sourceName,
                                     const char* mid0, const char* mid1,
                                     const char* tableName, SParseMetaCache* pMetaCache);
-int32_t getExtSourceInfoFromCache(SParseMetaCache* pMetaCache, const char* sourceName,
-                                   SExtSourceInfo** ppInfo);
+static inline void freeExtSourceInfo(SExtSourceInfo* pInfo) {
+  if (NULL != pInfo) {
+    extCapDestroy(&pInfo->capability);
+    taosMemoryFree(pInfo);
+  }
+}
 int32_t getExtTableMetaFromCache(SParseMetaCache* pMetaCache, const char* sourceName,
                                   const char* mid0, const char* mid1,
                                   const char* tableName, SExtTableMeta** ppMeta);

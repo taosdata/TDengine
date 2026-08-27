@@ -88,7 +88,7 @@ class TestVtableDDLPersistence:
         _provision_remote()
         _ensure_sources()
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
-        tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ms'")
+        tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ns'")
         tdSql.execute(f"USE {_LOCAL_DB}")
 
         # Setup a fixed metadata fixture used by multiple persistence cases.

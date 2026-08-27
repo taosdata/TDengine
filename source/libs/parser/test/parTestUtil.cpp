@@ -593,7 +593,7 @@ class ParserTestBaseImpl {
     reset(expect, checkStage, TEST_INTERFACE_ASYNC_API);
     try {
       unique_ptr<SParseContext, function<void(SParseContext*)> > cxt(new SParseContext(), destoryParseContext);
-      setParseContext(sql, cxt.get());
+      setParseContext(sql, cxt.get(), true);
 
       unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
                                                                  MockCatalogService::destoryCatalogReq);

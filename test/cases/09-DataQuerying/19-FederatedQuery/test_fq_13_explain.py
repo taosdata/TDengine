@@ -15103,10 +15103,15 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
     # Setup / teardown
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _reset_td_session():
+    @classmethod
+    def _reset_td_session(cls):
         """Reconnect tdSql after external-env hard reset to clear stale client caches."""
-        tdSql.connect("root", "taosdata")
+        connect_args = {}
+        if getattr(cls, "host", None):
+            connect_args["host"] = cls.host
+        if getattr(cls, "port", None):
+            connect_args["port"] = cls.port
+        tdSql.connect("root", "taosdata", **connect_args)
         tdSql.execute('ALTER LOCAL "federatedQueryEnable" "1"')
         tdSql.execute('ALTER LOCAL "queryPlannerTrace" "1"')
         tdSql.execute('ALTER LOCAL "timezone" "UTC"')
@@ -15343,6 +15348,10 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
             t = _remote_tz_re.sub("'<TIMEZONE>'", t)
             t = _remote_version_re.sub("'<VERSION>'", t)
             t = _remote_expr_alias_re.sub('<REMOTE_EXPR>', t)
+            # Runtime converts final MySQL/PG timestamp outputs to epoch values
+            # for connector transport. Baselines compare the logical remote
+            # plan, so canonicalize that wrapper back to its timestamp expr.
+            t = self._canonicalize_timestamp_transport(t)
             t = ''.join(
                 _mask_current_user_block(block) if _curr_user_sql_re.search(block)
                 else _mask_version_block(block) if _version_sql_re.search(block)
@@ -15506,6 +15515,230 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         return " ".join(cls._get_remote_sql_lines(lines))
 
     @staticmethod
+    def _find_sql_call_end(sql, open_paren):
+        """Return the matching ')' while respecting SQL quoted strings."""
+        depth = 0
+        quote = None
+        i = open_paren
+        while i < len(sql):
+            ch = sql[i]
+            if quote is not None:
+                if ch == quote:
+                    if i + 1 < len(sql) and sql[i + 1] == quote:
+                        i += 2
+                        continue
+                    quote = None
+                elif ch == "\\" and quote == "'":
+                    i += 2
+                    continue
+            elif ch in ("'", '"', "`"):
+                quote = ch
+            elif ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth == 0:
+                    return i
+            i += 1
+        return -1
+
+    @classmethod
+    def _first_sql_arg(cls, args):
+        """Extract the first top-level function argument."""
+        wrapped = "(" + args + ")"
+        end = cls._find_sql_call_end(wrapped, 0)
+        if end < 0:
+            return None
+
+        depth = 0
+        quote = None
+        i = 1
+        while i < end:
+            ch = wrapped[i]
+            if quote is not None:
+                if ch == quote:
+                    if i + 1 < end and wrapped[i + 1] == quote:
+                        i += 2
+                        continue
+                    quote = None
+                elif ch == "\\" and quote == "'":
+                    i += 2
+                    continue
+            elif ch in ("'", '"', "`"):
+                quote = ch
+            elif ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+            elif ch == "," and depth == 0:
+                return wrapped[1:i].strip()
+            i += 1
+        return wrapped[1:end].strip()
+
+    @classmethod
+    def _canonicalize_timestamp_transport(cls, sql):
+        """Replace runtime epoch transport wrappers with their timestamp expr.
+
+        These wrappers are a connector transport detail, not scalar-function
+        pushdown. Keeping them out of semantic checks avoids treating MySQL's
+        TIMESTAMPDIFF or PG's EXTRACT as a pushed TDengine function.
+        """
+        mysql_prefix = (
+            "CAST(TIMESTAMPDIFF(MICROSECOND, "
+            "'1970-01-01 00:00:00', CONVERT_TZ("
+        )
+        mysql_aware_prefix = "CAST(UNIX_TIMESTAMP("
+        pg_prefix = "CAST(EXTRACT(EPOCH FROM "
+        prefixes = (mysql_prefix, mysql_aware_prefix, pg_prefix)
+
+        result = sql
+        search_from = 0
+        while search_from < len(result):
+            upper = result.upper()
+            matches = [
+                (upper.find(prefix, search_from), prefix)
+                for prefix in prefixes
+            ]
+            matches = [(pos, prefix) for pos, prefix in matches if pos >= 0]
+            if not matches:
+                break
+            start, prefix = min(matches, key=lambda item: item[0])
+            cast_open = result.find("(", start)
+            cast_end = cls._find_sql_call_end(result, cast_open)
+            if cast_end < 0:
+                search_from = start + 1
+                continue
+
+            alias_match = re.match(
+                r"\s+AS\s+(`[^`]+`|\"[^\"]+\"|[A-Za-z_][A-Za-z0-9_]*)",
+                result[cast_end + 1:], re.IGNORECASE)
+            alias = alias_match.group(1) if alias_match is not None else None
+            replace_end = (cast_end + 1 + alias_match.end()
+                           if alias_match is not None else cast_end + 1)
+
+            inner = None
+            if prefix == mysql_prefix:
+                convert_pos = upper.find("CONVERT_TZ(", start, cast_end)
+                if convert_pos >= 0:
+                    convert_open = result.find("(", convert_pos)
+                    convert_end = cls._find_sql_call_end(result, convert_open)
+                    if 0 <= convert_end <= cast_end:
+                        inner = cls._first_sql_arg(
+                            result[convert_open + 1:convert_end])
+            elif prefix == mysql_aware_prefix:
+                unix_pos = upper.find("UNIX_TIMESTAMP(", start, cast_end)
+                if unix_pos >= 0:
+                    unix_open = result.find("(", unix_pos)
+                    unix_end = cls._find_sql_call_end(result, unix_open)
+                    if 0 <= unix_end <= cast_end:
+                        inner = cls._first_sql_arg(
+                            result[unix_open + 1:unix_end])
+            else:
+                extract_pos = upper.find("EXTRACT(", start, cast_end)
+                if extract_pos >= 0:
+                    extract_open = result.find("(", extract_pos)
+                    extract_end = cls._find_sql_call_end(result, extract_open)
+                    epoch_from = extract_open + len("(EPOCH FROM ")
+                    if 0 <= extract_end <= cast_end:
+                        inner = result[epoch_from:extract_end].strip()
+
+            if not inner:
+                search_from = cast_end + 1
+                continue
+
+            def identifier_name(value):
+                identifier = (
+                    r'(?:`[^`]+`|"[^"]+"|[A-Za-z_][A-Za-z0-9_]*)'
+                )
+                match = re.fullmatch(
+                    rf'\s*(?:{identifier}\s*\.\s*)*'
+                    rf'({identifier})\s*', value)
+                if match is None:
+                    return None
+                name = match.group(1)
+                if name[0] in ('`', '"'):
+                    name = name[1:-1]
+                return name.lower()
+
+            replacement = inner
+            if (alias is not None and
+                    identifier_name(inner) != identifier_name(alias)):
+                replacement += " AS " + alias
+            result = result[:start] + replacement + result[replace_end:]
+            search_from = start + len(replacement)
+
+        return cls._canonicalize_mysql_epoch_group_alias(result)
+
+    @classmethod
+    def _canonicalize_mysql_epoch_group_alias(cls, sql):
+        """Restore logical interval expressions hidden by a MySQL alias.
+
+        Runtime epoch transport makes SELECT and GROUP BY use different
+        expressions under ONLY_FULL_GROUP_BY. The renderer therefore groups by
+        the emitted SELECT alias; baselines keep comparing the logical bucket
+        expression used before transport conversion.
+        """
+        result = sql
+        search_from = 0
+        marker = "Remote SQL: SELECT "
+        while True:
+            line_start = result.find(marker, search_from)
+            if line_start < 0:
+                break
+            line_end = result.find("\n", line_start)
+            if line_end < 0:
+                line_end = len(result)
+            line = result[line_start:line_end]
+            upper = line.upper()
+            group_pos = upper.find(" GROUP BY ")
+            bucket_pos = upper.find("FROM_UNIXTIME(")
+            if bucket_pos < 0 or group_pos < 0 or bucket_pos >= group_pos:
+                search_from = line_end + 1
+                continue
+
+            bucket_open = line.find("(", bucket_pos)
+            bucket_end = cls._find_sql_call_end(line, bucket_open)
+            if bucket_end < 0 or bucket_end >= group_pos:
+                search_from = line_end + 1
+                continue
+            alias_match = re.match(
+                r"\s+AS\s+(`[^`]+`|[A-Za-z_][A-Za-z0-9_]*)",
+                line[bucket_end + 1:], re.IGNORECASE)
+            if alias_match is None:
+                search_from = line_end + 1
+                continue
+
+            alias = alias_match.group(1)
+            group_value_start = group_pos + len(" GROUP BY ")
+            clause_end = len(line)
+            for suffix in (" HAVING ", " ORDER BY ", " LIMIT "):
+                pos = upper.find(suffix, group_value_start)
+                if 0 <= pos < clause_end:
+                    clause_end = pos
+            group_clause = line[group_value_start:clause_end]
+            if alias.startswith("`"):
+                alias_pattern = re.escape(alias)
+            else:
+                alias_pattern = (
+                    rf"(?<![A-Za-z0-9_]){re.escape(alias)}"
+                    r"(?![A-Za-z0-9_])"
+                )
+            bucket_expr = line[bucket_pos:bucket_end + 1]
+            group_clause, replacement_count = re.subn(
+                alias_pattern, lambda _: bucket_expr, group_clause,
+                flags=re.IGNORECASE)
+            if replacement_count == 0:
+                search_from = line_end + 1
+                continue
+
+            line = (line[:group_value_start] + group_clause +
+                    line[clause_end:])
+            result = result[:line_start] + line + result[line_end:]
+            search_from = line_start + len(line) + 1
+
+        return result
+
+    @staticmethod
     def _get_plan_operator_lines(lines):
         return [line.strip() for line in lines if re.match(r"^\s*->\s+", line)]
 
@@ -15656,8 +15889,11 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                         assert "generation failed" not in remote.lower(), \
                             (f"[{mode_label}] Remote SQL generation failed "
                              f"(cannot check remote_has): {remote}")
+                        logical_remote = self._canonicalize_timestamp_transport(
+                            remote)
                         for kw in args.get("remote_has", []):
-                            assert kw.upper() in remote.upper(), \
+                            assert (kw.upper() in remote.upper() or
+                                    kw.upper() in logical_remote.upper()), \
                                 (f"[{mode_label}] Remote SQL missing "
                                  f"'{kw}': {remote}")
 
@@ -15669,8 +15905,11 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                         assert "generation failed" not in remote_text.lower(), \
                             (f"[{mode_label}] Remote SQL generation failed "
                              f"(cannot check remote_any_has): {remote_text}")
+                        logical_remote = self._canonicalize_timestamp_transport(
+                            remote_text)
                         for kw in args.get("remote_any_has", []):
-                            assert kw.upper() in remote_text.upper(), \
+                            assert (kw.upper() in remote_text.upper() or
+                                    kw.upper() in logical_remote.upper()), \
                                 (f"[{mode_label}] Remote SQL(all) missing "
                                  f"'{kw}': {remote_text}")
 
@@ -15690,8 +15929,11 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                                 raise AssertionError(msg)
                             tdLog.info(f"SOFT SKIP: {case_id} {msg}")
                         else:
+                            logical_remote = \
+                                self._canonicalize_timestamp_transport(remote)
                             for kw in args.get("soft_remote_has", []):
-                                if kw.upper() not in remote.upper():
+                                if (kw.upper() not in remote.upper() and
+                                        kw.upper() not in logical_remote.upper()):
                                     msg = (
                                         f"[{mode_label}] Remote SQL "
                                         f"missing '{kw}' (SOFT): "
@@ -15709,8 +15951,10 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                         assert "generation failed" not in remote.lower(), \
                             (f"[{mode_label}] Remote SQL generation failed "
                              f"(cannot check remote_not_has): {remote}")
+                        semantic_remote = self._canonicalize_timestamp_transport(
+                            remote)
                         for kw in args.get("remote_not_has", []):
-                            assert kw.upper() not in remote.upper(), \
+                            assert kw.upper() not in semantic_remote.upper(), \
                                 (f"[{mode_label}] Remote SQL should NOT "
                                  f"contain '{kw}': {remote}")
 
@@ -15722,8 +15966,10 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                         assert "generation failed" not in remote_text.lower(), \
                             (f"[{mode_label}] Remote SQL generation failed "
                              f"(cannot check remote_any_not_has): {remote_text}")
+                        semantic_remote = self._canonicalize_timestamp_transport(
+                            remote_text)
                         for kw in args.get("remote_any_not_has", []):
-                            assert kw.upper() not in remote_text.upper(), \
+                            assert kw.upper() not in semantic_remote.upper(), \
                                 (f"[{mode_label}] Remote SQL(all) should NOT "
                                  f"contain '{kw}': {remote_text}")
 
@@ -15821,8 +16067,10 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                         remote = self._get_remote_sql_line(lines)
                         assert remote, \
                             f"[{mode_label}] 'Remote SQL:' line not found"
+                        semantic_remote = self._canonicalize_timestamp_transport(
+                            remote)
                         for kw in args.get("analyze_remote_not_has", []):
-                            assert kw.upper() not in remote.upper(), \
+                            assert kw.upper() not in semantic_remote.upper(), \
                                 (f"[{mode_label}] Remote SQL should NOT contain "
                                  f"'{kw}' (function-level fallback to local): {remote}")
 

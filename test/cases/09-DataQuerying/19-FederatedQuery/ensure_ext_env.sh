@@ -1885,6 +1885,19 @@ _mysql_setup_auth() {
 _mysql_ensure_timezone_tables() {
     local ver="$1" port="$2" base="$3"
     local tzinfo_bin="${base}/bin/mysql_tzinfo_to_sql"
+    if [[ ! -x "$tzinfo_bin" ]] && command -v mysql_tzinfo_to_sql >/dev/null 2>&1; then
+        tzinfo_bin="$(command -v mysql_tzinfo_to_sql)"
+    fi
+    if [[ ! -x "$tzinfo_bin" ]] && [[ "$OS" == "Darwin" ]] && command -v brew >/dev/null 2>&1; then
+        local mysql_pkg mysql_prefix
+        for mysql_pkg in "mysql@${ver}" mysql-client mysql; do
+            mysql_prefix="$(brew --prefix "$mysql_pkg" 2>/dev/null || true)"
+            if [[ -x "${mysql_prefix}/bin/mysql_tzinfo_to_sql" ]]; then
+                tzinfo_bin="${mysql_prefix}/bin/mysql_tzinfo_to_sql"
+                break
+            fi
+        done
+    fi
     if [[ ! -x "$tzinfo_bin" ]]; then
         err "MySQL ${ver}: timezone-table setup failed, mysql_tzinfo_to_sql missing: ${tzinfo_bin}"
         OVERALL_OK=1
@@ -2124,7 +2137,7 @@ _mysql_reset_env() {
 
     # 3a. Verify OUR mysqld is the process listening on the port (not Docker or other)
     local _listening_pid
-    _listening_pid=$(ss -tlnp "sport = :${port}" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | head -1)
+    _listening_pid=$(ss -tlnp "sport = :${port}" 2>/dev/null | sed -nE 's/.*pid=([0-9]+).*/\1/p' | head -1)
     if [[ -n "$_listening_pid" ]]; then
         local _listening_cmd
         _listening_cmd=$(tr '\0' ' ' < "/proc/${_listening_pid}/cmdline" 2>/dev/null || echo "")
@@ -3085,7 +3098,7 @@ _influx_ensure_token() {
     # Create admin token via influxdb3 CLI (bootstrap endpoint, no auth needed).
     local token_output token_value
     token_output="$("$influxd" create token --admin --host "http://127.0.0.1:${port}" 2>&1)"
-    token_value="$(echo "$token_output" | grep -oP 'apiv3_[A-Za-z0-9_\-]+' | head -1)"
+    token_value="$(echo "$token_output" | grep -Eo 'apiv3_[A-Za-z0-9_-]+' | head -1)"
     if [[ -z "$token_value" ]]; then
         err "InfluxDB ${ver}: failed to create admin token. Output: ${token_output}"
         OVERALL_OK=1; return 1
@@ -3169,7 +3182,7 @@ _influx_reset_env() {
             local dbs db
             dbs=$(curl -sf --max-time 5 \
                 "http://127.0.0.1:${port}/query?q=SHOW+DATABASES" 2>/dev/null | \
-                grep -oP '"values":\[\["\K[^"]+' || true)
+                sed -nE 's/.*"values":\[\["([^"]+)".*/\1/p' || true)
             for db in $dbs; do
                 [[ "$db" == "_internal" ]] && continue
                 curl -sf -X POST "http://127.0.0.1:${port}/query" \

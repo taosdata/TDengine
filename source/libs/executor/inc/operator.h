@@ -205,6 +205,8 @@ void           setOperatorInfo(SOperatorInfo* pOperator, const char* name, int32
 int32_t        optrDefaultBufFn(SOperatorInfo* pOperator);
 int32_t        optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam, SSDataBlock** pRes);
 int32_t        optrDefaultNotifyFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam);
+int32_t        setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInput,
+                                 SOperatorParamType type);
 SSDataBlock*   getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx);
 SSDataBlock*   getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, int32_t idx);
 SSDataBlock*   getNextBlockFromDownstreamRemainDetach(struct SOperatorInfo* pOperator, int32_t idx);

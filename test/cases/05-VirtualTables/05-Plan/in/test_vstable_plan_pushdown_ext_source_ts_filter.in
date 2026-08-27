@@ -1,0 +1,12 @@
+set max_binary_display_width 500;
+explain verbose true select ts, v from vtp_mysql_ms_ms.dense_vstable where ts = '2024-01-01T00:00:00.000+00:00';
+explain verbose true select ts, v from vtp_mysql_ms_us.dense_vstable where ts = '2024-01-01T00:00:00.000+00:00';
+explain verbose true select ts, v from vtp_mysql_ms_ns.dense_vstable where ts = '2024-01-01T00:00:00.000+00:00';
+explain verbose true select ts, v from vtp_mysql_us_us.dense_vstable where ts = '2024-01-01T00:00:00.000+00:00';
+explain verbose true select ts, v from vtp_mysql_us_ns.dense_vstable where ts = '2024-01-01T00:00:00.000+00:00';
+explain verbose true select ts, v from vtp_postgres_ms_ms.dense_vstable where ts = '2024-01-01T00:00:00.000+00:00';
+explain verbose true select ts, v from vtp_postgres_ms_us.dense_vstable where ts = '2024-01-01T00:00:00.000+00:00';
+explain verbose true select ts, v from vtp_postgres_ms_ns.dense_vstable where ts = '2024-01-01T00:00:00.000+00:00';
+explain verbose true select ts, v from vtp_postgres_us_us.dense_vstable where ts = '2024-01-01T00:00:00.000+00:00';
+explain verbose true select ts, v from vtp_postgres_us_ns.dense_vstable where ts = '2024-01-01T00:00:00.000+00:00';
+explain verbose true select ts, v from vtp_influx_ns_ns.dense_vstable where ts = '2024-01-01T00:00:00.000+00:00';

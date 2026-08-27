@@ -747,6 +747,7 @@ enum {
   COLUMN_CODE_ALIAS_NAME,
   COLUMN_CODE_USER_ALIAS,
   COLUMN_CODE_HAS_NULL,
+  COLUMN_CODE_REF_SOURCE_NAME,
 };
 
 static int32_t columnNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -831,6 +832,9 @@ static int32_t columnNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, COLUMN_CODE_HAS_NULL, pNode->node.hasNull);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, COLUMN_CODE_REF_SOURCE_NAME, pNode->refSourceName);
   }
 
   return code;
@@ -924,6 +928,9 @@ static int32_t msgToColumnNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case COLUMN_CODE_HAS_NULL:
         code = tlvDecodeBool(pTlv, &pNode->node.hasNull);
+        break;
+      case COLUMN_CODE_REF_SOURCE_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->refSourceName, sizeof(pNode->refSourceName));
         break;
       default:
         break;

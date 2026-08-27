@@ -2495,10 +2495,14 @@ int32_t catalogGetExtSourceInfo(SCatalog* pCtg, const char* sourceName, SExtSour
   tstrncpy(pInfo->options, pEntry->source.options, sizeof(pInfo->options));
   pInfo->meta_version = pEntry->source.meta_version;
   pInfo->create_time  = pEntry->source.create_time;
-  pInfo->capability   = pEntry->capability;
+  code = extCapClone(&pEntry->capability, &pInfo->capability);
   CTG_UNLOCK(CTG_READ, &pEntry->entryLock);
 
   ctgReleaseExtSource(pCtg, pHash, pHandle);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosMemoryFree(pInfo);
+    CTG_API_LEAVE(code);
+  }
   *ppInfo = pInfo;
 
 _return:
@@ -2553,6 +2557,7 @@ int32_t catalogSyncGetExtSourceInfo(SCatalog* pCtg, SRequestConnInfo* pConn, con
   pInfo->create_time  = rsp.create_time;
   code = extLoadDialectDefaults(pInfo->type, &pInfo->capability);
   if (TSDB_CODE_SUCCESS != code) {
+    extCapDestroy(&pInfo->capability);
     taosMemoryFree(pInfo);
     CTG_API_LEAVE(code);
   }

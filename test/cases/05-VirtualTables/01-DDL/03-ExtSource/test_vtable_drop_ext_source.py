@@ -54,7 +54,7 @@ class TestVtableDropExtSource:
         ExtSrcEnv.ensure_qnode()
         _ensure_env()
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
-        tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ms'")
+        tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ns'")
         tdSql.execute(f"USE {_LOCAL_DB}")
 
     @classmethod
@@ -154,7 +154,7 @@ class TestVtableDropExtSource:
         # Create a fresh DB with vtable/vstb on it and drop the whole DB.
         db = "vdrop_cascade"
         tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
-        tdSql.execute(f"CREATE DATABASE {db} PRECISION 'ms'")
+        tdSql.execute(f"CREATE DATABASE {db} PRECISION 'ns'")
         tdSql.execute(f"USE {db}")
         tdSql.execute(
             f"CREATE VTABLE v_casc (ts timestamp, "

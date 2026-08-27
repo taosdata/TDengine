@@ -5,6 +5,7 @@
 #include "functionMgt.h"
 #include "libs/new-stream/dataSink.h"
 #include "osMemory.h"
+#include "operator.h"
 #include "querytask.h"
 #include "querynodes.h"
 #include "tdatablock.h"
@@ -138,6 +139,21 @@ SNode *makeEqualCond(SNode *pLeft, SNode *pRight) {
 }
 
 }  // namespace
+
+TEST(execUtilTest, federatedScanInitializesResultBlockCapacity) {
+  SFederatedScanPhysiNode scanNode = {};
+  SExecTaskInfo           taskInfo = {};
+  SOperatorInfo*          pOperator = nullptr;
+
+  ASSERT_EQ(createFederatedScanOperatorInfo(nullptr, &scanNode, &taskInfo,
+                                             &pOperator),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(pOperator, nullptr);
+  EXPECT_EQ(pOperator->resultInfo.capacity, 4096);
+  EXPECT_EQ(pOperator->resultInfo.threshold, 3072);
+
+  destroyOperator(pOperator);
+}
 
 TEST(execUtilTest, resRowTest) {
   SDiskbasedBuf *pBuf = nullptr;

@@ -1001,7 +1001,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=8)
       Output: columns=1 width=8
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT CAST('<NOW>' AS DATETIME(3)) AS `expr_1` FROM `fq_explain_m`.`sensor`
+      Remote SQL: SELECT CAST('<NOW>' AS DATETIME(6)) AS `expr_1` FROM `fq_explain_m`.`sensor`
 ---
 ### EXP-func_time_now-01_pg POS
 SQL: select now() from fq_exp_pg.sensor
@@ -1581,7 +1581,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(*) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(*) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
 ---
 ### EXP-win_interval-01_pg POS
 SQL: select _wstart, count(*) from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
@@ -1589,7 +1589,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT(*) AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT(*) AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
 ---
 ### EXP-win_interval-01_influx POS
 SQL: select _wstart, count(*) from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
@@ -1597,7 +1597,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
 ---
 ### EXP-win_local_state-01_mysql POS
 SQL: select count(*), region from fq_exp_mysql.sensor state_window(region)
@@ -3230,7 +3230,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 221.0) UNION ALL SELECT `time` AS `_wstart`, CAST(`1673364247120603815` AS DOUBLE) AS `voltage` FROM (SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `time`, COUNT(*) AS `1673364247120603815` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)) _sq
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 221.0) UNION ALL SELECT `time` AS `_wstart`, CAST(`1673364247120603815` AS DOUBLE) AS `voltage` FROM (SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `time`, COUNT(*) AS `1673364247120603815` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)) _sq
 ---
 ### EXP-union_all_one_branch_local-01_pg POS
 SQL: select `time`, voltage from fq_exp_pg.sensor where voltage > 221.0 union all select _wstart, count(*) from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
@@ -3238,7 +3238,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("voltage" > 221.0) UNION ALL SELECT "time" AS "_wstart", CAST("1673364247120603815" AS DOUBLE PRECISION) AS "voltage" FROM (SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "time", COUNT(*) AS "1673364247120603815" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')) _sq
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("voltage" > 221.0) UNION ALL SELECT "time" AS "_wstart", CAST("1673364247120603815" AS DOUBLE PRECISION) AS "voltage" FROM (SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "time", COUNT(*) AS "1673364247120603815" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')) _sq
 ---
 ### EXP-union_all_one_branch_local-01_influx POS
 SQL: select `time`, voltage from fq_exp_influx.sensor where voltage > 221.0 union all select _wstart, count(*) from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
@@ -3246,7 +3246,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("voltage" > 221.0) UNION ALL SELECT "time" AS "_wstart", CAST("1673364247120603815" AS DOUBLE PRECISION) AS "voltage" FROM (SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "time", COUNT(*) AS "1673364247120603815" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')) _sq
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("voltage" > 221.0) UNION ALL SELECT "time" AS "_wstart", CAST("1673364247120603815" AS DOUBLE PRECISION) AS "voltage" FROM (SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "time", COUNT(*) AS "1673364247120603815" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')) _sq
 ---
 ### EXP-union_all_both_local-01_mysql POS
 SQL: select _wstart, count(*) from fq_exp_mysql.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-01 01:00:00' interval(1m) union all select _wstart, count(*) from fq_exp_mysql.sensor where `time` >= '2024-01-02' and `time` <= '2024-01-02 01:00:00' interval(1m)
@@ -3254,7 +3254,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `_wstart`, COUNT(*) AS `1673364247120603815` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-01 01:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) UNION ALL SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `_wstart`, COUNT(*) AS `1673364247120603815` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 01:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `_wstart`, COUNT(*) AS `1673364247120603815` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-01 01:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) UNION ALL SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `_wstart`, COUNT(*) AS `1673364247120603815` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 01:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
 ---
 ### EXP-union_all_both_local-01_pg POS
 SQL: select _wstart, count(*) from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-01 01:00:00' interval(1m) union all select _wstart, count(*) from fq_exp_pg.sensor where `time` >= '2024-01-02' and `time` <= '2024-01-02 01:00:00' interval(1m)
@@ -3262,7 +3262,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "_wstart", COUNT(*) AS "1673364247120603815" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-01 01:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') UNION ALL SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "_wstart", COUNT(*) AS "1673364247120603815" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-02 00:00:00.000' AND TIMESTAMP '2024-01-02 01:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "_wstart", COUNT(*) AS "1673364247120603815" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-01 01:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') UNION ALL SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "_wstart", COUNT(*) AS "1673364247120603815" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-02 00:00:00.000000' AND TIMESTAMP '2024-01-02 01:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
 ---
 ### EXP-union_all_both_local-01_influx POS
 SQL: select _wstart, count(*) from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-01 01:00:00' interval(1m) union all select _wstart, count(*) from fq_exp_influx.sensor where `time` >= '2024-01-02' and `time` <= '2024-01-02 01:00:00' interval(1m)
@@ -3270,7 +3270,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "_wstart", COUNT(*) AS "1673364247120603815" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-01 01:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') UNION ALL SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "_wstart", COUNT(*) AS "1673364247120603815" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 01:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "_wstart", COUNT(*) AS "1673364247120603815" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-01 01:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') UNION ALL SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "_wstart", COUNT(*) AS "1673364247120603815" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 01:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
 ---
 ### EXP-union_all_cross-01_mysql_pg POS
 SQL: select `time`, voltage from fq_exp_mysql.sensor union all select `time`, voltage from fq_exp_pg.sensor
@@ -3392,7 +3392,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 221.0) UNION SELECT `time` AS `_wstart`, CAST(`1673364247120603815` AS DOUBLE) AS `voltage` FROM (SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `time`, COUNT(*) AS `1673364247120603815` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)) _sq
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 221.0) UNION SELECT `time` AS `_wstart`, CAST(`1673364247120603815` AS DOUBLE) AS `voltage` FROM (SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `time`, COUNT(*) AS `1673364247120603815` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)) _sq
 ---
 ### EXP-union_dedup_one_branch_local-01_pg POS
 SQL: select `time`, voltage from fq_exp_pg.sensor where voltage > 221.0 union select _wstart, count(*) from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
@@ -3400,7 +3400,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("voltage" > 221.0) UNION SELECT "time" AS "_wstart", CAST("1673364247120603815" AS DOUBLE PRECISION) AS "voltage" FROM (SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "time", COUNT(*) AS "1673364247120603815" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')) _sq
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("voltage" > 221.0) UNION SELECT "time" AS "_wstart", CAST("1673364247120603815" AS DOUBLE PRECISION) AS "voltage" FROM (SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "time", COUNT(*) AS "1673364247120603815" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')) _sq
 ---
 ### EXP-union_dedup_one_branch_local-01_influx POS
 SQL: select `time`, voltage from fq_exp_influx.sensor where voltage > 221.0 union select _wstart, count(*) from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
@@ -3408,7 +3408,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("voltage" > 221.0) UNION SELECT "time" AS "_wstart", CAST("1673364247120603815" AS DOUBLE PRECISION) AS "voltage" FROM (SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "time", COUNT(*) AS "1673364247120603815" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')) _sq
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("voltage" > 221.0) UNION SELECT "time" AS "_wstart", CAST("1673364247120603815" AS DOUBLE PRECISION) AS "voltage" FROM (SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "time", COUNT(*) AS "1673364247120603815" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')) _sq
 ---
 ### EXP-union_dedup_cross-01_mysql_pg POS
 SQL: select region from fq_exp_mysql.sensor union select region from fq_exp_pg.sensor
@@ -3500,7 +3500,7 @@ RESULT
       -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
             Output: columns=2 width=16
             Source: 127.0.0.1:13306 user=root
-            Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) ORDER BY `time` ASC
+            Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) ORDER BY `time` ASC
 ---
 ### EXP-fill_local-01_pg POS
 SQL: select _wstart, avg(voltage) from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) fill(value, 0)
@@ -3517,7 +3517,7 @@ RESULT
       -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
             Output: columns=2 width=16
             Source: 127.0.0.1:15434 user=postgres
-            Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' ORDER BY "time" ASC
+            Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' ORDER BY "time" ASC
 ---
 ### EXP-fill_local-01_influx POS
 SQL: select _wstart, avg(voltage) from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) fill(value, 0)
@@ -3534,7 +3534,7 @@ RESULT
       -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
             Output: columns=2 width=16
             Source: 127.0.0.1:18086 user=u
-            Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) ORDER BY "time" ASC
+            Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) ORDER BY "time" ASC
 ---
 ### EXP-interp_local-01_mysql POS
 SQL: select interp(voltage) from fq_exp_mysql.sensor range('2024-01-01 00:00:00', '2024-01-01 00:05:00') every(1m) fill(linear)
@@ -3599,7 +3599,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`time` > CAST('2024-01-01 00:00:00.000' AS DATETIME(3)))
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`time` > CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)))
 ---
 ### EXP-basic-02_pg POS
 SQL: select `time`, voltage from fq_exp_pg.sensor where `time` > '2024-01-01'
@@ -3607,7 +3607,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("time" > TIMESTAMP '2024-01-01 00:00:00.000')
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("time" > TIMESTAMP '2024-01-01 00:00:00.000000')
 ---
 ### EXP-basic-02_influx POS
 SQL: select `time`, voltage from fq_exp_influx.sensor where `time` > '2024-01-01'
@@ -3615,7 +3615,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("time" > CAST('2024-01-01 00:00:00.000' AS TIMESTAMP))
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("time" > CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP))
 ---
 ### EXP-basic-03_mysql POS
 SQL: select * from fq_exp_mysql.sensor
@@ -3671,7 +3671,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`time` > CAST('2024-01-01 00:00:00.000' AS DATETIME(3))) ORDER BY ISNULL(`time`) DESC, `time` ASC LIMIT 10
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`time` > CAST('2024-01-01 00:00:00.000000' AS DATETIME(6))) ORDER BY ISNULL(`time`) DESC, `time` ASC LIMIT 10
 ---
 ### EXP-verbose-02_pg POS
 SQL: select `time`, voltage from fq_exp_pg.sensor where `time` > '2024-01-01' order by `time` limit 10
@@ -3679,7 +3679,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("time" > TIMESTAMP '2024-01-01 00:00:00.000') ORDER BY "time" ASC NULLS FIRST LIMIT 10
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("time" > TIMESTAMP '2024-01-01 00:00:00.000000') ORDER BY "time" ASC NULLS FIRST LIMIT 10
 ---
 ### EXP-verbose-02_influx POS
 SQL: select `time`, voltage from fq_exp_influx.sensor where `time` > '2024-01-01' order by `time` limit 10
@@ -3687,7 +3687,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("time" > CAST('2024-01-01 00:00:00.000' AS TIMESTAMP)) ORDER BY "time" ASC NULLS FIRST LIMIT 10
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("time" > CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP)) ORDER BY "time" ASC NULLS FIRST LIMIT 10
 ---
 ### EXP-verbose-03_mysql POS
 SQL: select `time`, voltage from fq_exp_mysql.sensor
@@ -3911,7 +3911,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`time` >= CAST('2024-01-01 00:00:00.000' AS DATETIME(3))) ORDER BY ISNULL(`time`) DESC, `time` ASC LIMIT 3
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`time` >= CAST('2024-01-01 00:00:00.000000' AS DATETIME(6))) ORDER BY ISNULL(`time`) DESC, `time` ASC LIMIT 3
 ---
 ### EXP-full_pushdown-02_pg POS
 SQL: select `time`, voltage from fq_exp_pg.sensor where `time` >= '2024-01-01' order by `time` limit 3
@@ -3919,7 +3919,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("time" >= TIMESTAMP '2024-01-01 00:00:00.000') ORDER BY "time" ASC NULLS FIRST LIMIT 3
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("time" >= TIMESTAMP '2024-01-01 00:00:00.000000') ORDER BY "time" ASC NULLS FIRST LIMIT 3
 ---
 ### EXP-full_pushdown-02_influx POS
 SQL: select `time`, voltage from fq_exp_influx.sensor where `time` >= '2024-01-01' order by `time` limit 3
@@ -3927,7 +3927,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("time" >= CAST('2024-01-01 00:00:00.000' AS TIMESTAMP)) ORDER BY "time" ASC NULLS FIRST LIMIT 3
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("time" >= CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP)) ORDER BY "time" ASC NULLS FIRST LIMIT 3
 ---
 ### EXP-where_only-01_mysql POS
 SQL: select `time`, voltage from fq_exp_mysql.sensor where voltage > 220.0
@@ -4394,7 +4394,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, AVG(`voltage`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, AVG(`voltage`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
 ---
 ### EXP-combo_FW_PP_pushfunc_intervalwin-01_pg POS
 SQL: select _wstart, avg(voltage) from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
@@ -4402,7 +4402,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", AVG("voltage") AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", AVG("voltage") AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
 ---
 ### EXP-combo_FW_PP_pushfunc_intervalwin-01_influx POS
 SQL: select _wstart, avg(voltage) from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
@@ -4410,7 +4410,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", AVG("voltage") AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", AVG("voltage") AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
 ---
 ### EXP-combo_FW_LP_localfunc_intervalwin-01_mysql POS
 SQL: select csum(voltage) from fq_exp_mysql.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
@@ -4423,7 +4423,7 @@ RESULT
    -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
          Output: columns=2 width=16
          Source: 127.0.0.1:13306 user=root
-         Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) ORDER BY `time` ASC
+         Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) ORDER BY `time` ASC
 ---
 ### EXP-combo_FW_LP_localfunc_intervalwin-01_pg POS
 SQL: select csum(voltage) from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
@@ -4436,7 +4436,7 @@ RESULT
    -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
          Output: columns=2 width=16
          Source: 127.0.0.1:15434 user=postgres
-         Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' ORDER BY "time" ASC
+         Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' ORDER BY "time" ASC
 ---
 ### EXP-combo_FW_LP_localfunc_intervalwin-01_influx POS
 SQL: select csum(voltage) from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
@@ -4449,7 +4449,7 @@ RESULT
    -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
          Output: columns=2 width=16
          Source: 127.0.0.1:18086 user=u
-         Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) ORDER BY "time" ASC
+         Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) ORDER BY "time" ASC
 ---
 ### EXP-combo_FW_PL_pushfunc_statewin-01_mysql POS
 SQL: select count(*), region from fq_exp_mysql.sensor state_window(region)
@@ -4739,7 +4739,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, AVG(`voltage`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE ((`region` = 'north') AND (`time` >= CAST('2024-01-01 00:00:00.000' AS DATETIME(3))) AND (`time` <= CAST('2024-01-02 00:00:00.000' AS DATETIME(3)))) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, AVG(`voltage`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE ((`region` = 'north') AND (`time` >= CAST('2024-01-01 00:00:00.000000' AS DATETIME(6))) AND (`time` <= CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)))) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
 ---
 ### EXP-combo_OW_PP_op_intervalwin-01_pg POS
 SQL: select _wstart, avg(voltage) from fq_exp_pg.sensor where region = 'north' and `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
@@ -4747,7 +4747,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", AVG("voltage") AS "expr_2" FROM "public"."sensor" WHERE (("region" = 'north') AND ("time" >= TIMESTAMP '2024-01-01 00:00:00.000') AND ("time" <= TIMESTAMP '2024-01-02 00:00:00.000')) GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", AVG("voltage") AS "expr_2" FROM "public"."sensor" WHERE (("region" = 'north') AND ("time" >= TIMESTAMP '2024-01-01 00:00:00.000000') AND ("time" <= TIMESTAMP '2024-01-02 00:00:00.000000')) GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
 ---
 ### EXP-combo_OW_PP_op_intervalwin-01_influx POS
 SQL: select _wstart, avg(voltage) from fq_exp_influx.sensor where region = 'north' and `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
@@ -4755,7 +4755,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", AVG("voltage") AS "expr_2" FROM "sensor" WHERE (("region" = 'north') AND ("time" >= CAST('2024-01-01 00:00:00.000' AS TIMESTAMP)) AND ("time" <= CAST('2024-01-02 00:00:00.000' AS TIMESTAMP))) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", AVG("voltage") AS "expr_2" FROM "sensor" WHERE (("region" = 'north') AND ("time" >= CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP)) AND ("time" <= CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP))) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
 ---
 ### EXP-combo_OW_PL_op_statewin-01_mysql POS
 SQL: select count(*), region from fq_exp_mysql.sensor where voltage > 219.0 state_window(region)
@@ -4941,7 +4941,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, AVG(`voltage`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) ORDER BY ISNULL(`expr_1`) DESC, `expr_1` ASC LIMIT 5
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, AVG(`voltage`) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) ORDER BY ISNULL(`expr_1`) DESC, `expr_1` ASC LIMIT 5
 ---
 ### EXP-combo_WC_PP_interval_orderby_limit-01_pg POS
 SQL: select _wstart, avg(voltage) from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) order by _wstart limit 5
@@ -4949,7 +4949,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", AVG("voltage") AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') ORDER BY "expr_1" ASC NULLS FIRST LIMIT 5
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", AVG("voltage") AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') ORDER BY "expr_1" ASC NULLS FIRST LIMIT 5
 ---
 ### EXP-combo_WC_PP_interval_orderby_limit-01_influx POS
 SQL: select _wstart, avg(voltage) from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) order by _wstart limit 5
@@ -4957,7 +4957,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", AVG("voltage") AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') ORDER BY "expr_1" ASC NULLS FIRST LIMIT 5
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", AVG("voltage") AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') ORDER BY "expr_1" ASC NULLS FIRST LIMIT 5
 ---
 ### EXP-combo_WC_PL_interval_fill-01_mysql POS
 SQL: select _wstart, avg(voltage) from fq_exp_mysql.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) fill(value, 0)
@@ -4974,7 +4974,7 @@ RESULT
       -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
             Output: columns=2 width=16
             Source: 127.0.0.1:13306 user=root
-            Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) ORDER BY `time` ASC
+            Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) ORDER BY `time` ASC
 ---
 ### EXP-combo_WC_PL_interval_fill-01_pg POS
 SQL: select _wstart, avg(voltage) from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) fill(value, 0)
@@ -4991,7 +4991,7 @@ RESULT
       -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
             Output: columns=2 width=16
             Source: 127.0.0.1:15434 user=postgres
-            Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' ORDER BY "time" ASC
+            Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' ORDER BY "time" ASC
 ---
 ### EXP-combo_WC_PL_interval_fill-01_influx POS
 SQL: select _wstart, avg(voltage) from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) fill(value, 0)
@@ -5008,7 +5008,7 @@ RESULT
       -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
             Output: columns=2 width=16
             Source: 127.0.0.1:18086 user=u
-            Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) ORDER BY "time" ASC
+            Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) ORDER BY "time" ASC
 ---
 ### EXP-combo_WC_PL_extwin_fill-01_mysql POS
 SQL: select _wstart, count(*), sum(voltage) from fq_exp_mysql.sensor external_window((select _wstart, _wend from fq_exp_mysql.sensor where `time` >= '2024-01-01' and `time` < '2024-01-01 00:05:00' interval(30s) fill(null)) w) fill(null) order by _wstart
@@ -5037,7 +5037,7 @@ RESULT
             -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=8)
                   Output: columns=1 width=8
                   Source: 127.0.0.1:13306 user=root
-                  Remote SQL: SELECT `time` FROM `fq_explain_m`.`sensor` WHERE ((`time` >= CAST('2024-01-01 00:00:00.000' AS DATETIME(3))) AND (`time` < CAST('2024-01-01 00:05:00.000' AS DATETIME(3)))) ORDER BY `time` ASC
+                  Remote SQL: SELECT `time` FROM `fq_explain_m`.`sensor` WHERE ((`time` >= CAST('2024-01-01 00:00:00.000000' AS DATETIME(6))) AND (`time` < CAST('2024-01-01 00:05:00.000000' AS DATETIME(6)))) ORDER BY `time` ASC
 ---
 ### EXP-combo_WC_PL_extwin_fill-01_pg POS
 SQL: select _wstart, count(*), sum(voltage) from fq_exp_pg.sensor external_window((select _wstart, _wend from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` < '2024-01-01 00:05:00' interval(30s) fill(null)) w) fill(null) order by _wstart
@@ -5066,7 +5066,7 @@ RESULT
             -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=8)
                   Output: columns=1 width=8
                   Source: 127.0.0.1:15434 user=postgres
-                  Remote SQL: SELECT "time" FROM "public"."sensor" WHERE (("time" >= TIMESTAMP '2024-01-01 00:00:00.000') AND ("time" < TIMESTAMP '2024-01-01 00:05:00.000')) ORDER BY "time" ASC
+                  Remote SQL: SELECT "time" FROM "public"."sensor" WHERE (("time" >= TIMESTAMP '2024-01-01 00:00:00.000000') AND ("time" < TIMESTAMP '2024-01-01 00:05:00.000000')) ORDER BY "time" ASC
 ---
 ### EXP-combo_WC_PL_extwin_fill-01_influx POS
 SQL: select _wstart, count(*), sum(voltage) from fq_exp_influx.sensor external_window((select _wstart, _wend from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` < '2024-01-01 00:05:00' interval(30s) fill(null)) w) fill(null) order by _wstart
@@ -5095,7 +5095,7 @@ RESULT
             -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=8)
                   Output: columns=1 width=8
                   Source: 127.0.0.1:18086 user=u
-                  Remote SQL: SELECT "time" FROM "sensor" WHERE (("time" >= CAST('2024-01-01 00:00:00.000' AS TIMESTAMP)) AND ("time" < CAST('2024-01-01 00:05:00.000' AS TIMESTAMP))) ORDER BY "time" ASC
+                  Remote SQL: SELECT "time" FROM "sensor" WHERE (("time" >= CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP)) AND ("time" < CAST('2024-01-01 00:05:00.000000000' AS TIMESTAMP))) ORDER BY "time" ASC
 ---
 ### EXP-combo_WC_PL_extwin_fill-02_mysql POS
 SQL: select _wstart, count(*), sum(voltage) from fq_exp_mysql.sensor external_window((select _wstart, _wend from fq_exp_mysql.sensor where `time` >= '2024-01-01' and `time` < '2024-01-01 00:05:00' interval(30s) fill(null)) w) fill(value, 0, 0) order by _wstart
@@ -5124,7 +5124,7 @@ RESULT
             -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=8)
                   Output: columns=1 width=8
                   Source: 127.0.0.1:13306 user=root
-                  Remote SQL: SELECT `time` FROM `fq_explain_m`.`sensor` WHERE ((`time` >= CAST('2024-01-01 00:00:00.000' AS DATETIME(3))) AND (`time` < CAST('2024-01-01 00:05:00.000' AS DATETIME(3)))) ORDER BY `time` ASC
+                  Remote SQL: SELECT `time` FROM `fq_explain_m`.`sensor` WHERE ((`time` >= CAST('2024-01-01 00:00:00.000000' AS DATETIME(6))) AND (`time` < CAST('2024-01-01 00:05:00.000000' AS DATETIME(6)))) ORDER BY `time` ASC
 ---
 ### EXP-combo_WC_PL_extwin_fill-02_pg POS
 SQL: select _wstart, count(*), sum(voltage) from fq_exp_pg.sensor external_window((select _wstart, _wend from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` < '2024-01-01 00:05:00' interval(30s) fill(null)) w) fill(value, 0, 0) order by _wstart
@@ -5153,7 +5153,7 @@ RESULT
             -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=8)
                   Output: columns=1 width=8
                   Source: 127.0.0.1:15434 user=postgres
-                  Remote SQL: SELECT "time" FROM "public"."sensor" WHERE (("time" >= TIMESTAMP '2024-01-01 00:00:00.000') AND ("time" < TIMESTAMP '2024-01-01 00:05:00.000')) ORDER BY "time" ASC
+                  Remote SQL: SELECT "time" FROM "public"."sensor" WHERE (("time" >= TIMESTAMP '2024-01-01 00:00:00.000000') AND ("time" < TIMESTAMP '2024-01-01 00:05:00.000000')) ORDER BY "time" ASC
 ---
 ### EXP-combo_WC_PL_extwin_fill-02_influx POS
 SQL: select _wstart, count(*), sum(voltage) from fq_exp_influx.sensor external_window((select _wstart, _wend from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` < '2024-01-01 00:05:00' interval(30s) fill(null)) w) fill(value, 0, 0) order by _wstart
@@ -5182,7 +5182,7 @@ RESULT
             -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=8)
                   Output: columns=1 width=8
                   Source: 127.0.0.1:18086 user=u
-                  Remote SQL: SELECT "time" FROM "sensor" WHERE (("time" >= CAST('2024-01-01 00:00:00.000' AS TIMESTAMP)) AND ("time" < CAST('2024-01-01 00:05:00.000' AS TIMESTAMP))) ORDER BY "time" ASC
+                  Remote SQL: SELECT "time" FROM "sensor" WHERE (("time" >= CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP)) AND ("time" < CAST('2024-01-01 00:05:00.000000000' AS TIMESTAMP))) ORDER BY "time" ASC
 ---
 ### EXP-combo_WC_PL_extwin_fill-03_mysql POS
 SQL: select _wstart, count(*), sum(voltage) from fq_exp_mysql.sensor external_window((select _wstart, _wend from fq_exp_mysql.sensor where `time` >= '2024-01-01' and `time` < '2024-01-01 00:05:00' interval(30s) fill(null)) w) fill(prev) order by _wstart
@@ -5211,7 +5211,7 @@ RESULT
             -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=8)
                   Output: columns=1 width=8
                   Source: 127.0.0.1:13306 user=root
-                  Remote SQL: SELECT `time` FROM `fq_explain_m`.`sensor` WHERE ((`time` >= CAST('2024-01-01 00:00:00.000' AS DATETIME(3))) AND (`time` < CAST('2024-01-01 00:05:00.000' AS DATETIME(3)))) ORDER BY `time` ASC
+                  Remote SQL: SELECT `time` FROM `fq_explain_m`.`sensor` WHERE ((`time` >= CAST('2024-01-01 00:00:00.000000' AS DATETIME(6))) AND (`time` < CAST('2024-01-01 00:05:00.000000' AS DATETIME(6)))) ORDER BY `time` ASC
 ---
 ### EXP-combo_WC_PL_extwin_fill-03_pg POS
 SQL: select _wstart, count(*), sum(voltage) from fq_exp_pg.sensor external_window((select _wstart, _wend from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` < '2024-01-01 00:05:00' interval(30s) fill(null)) w) fill(prev) order by _wstart
@@ -5240,7 +5240,7 @@ RESULT
             -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=8)
                   Output: columns=1 width=8
                   Source: 127.0.0.1:15434 user=postgres
-                  Remote SQL: SELECT "time" FROM "public"."sensor" WHERE (("time" >= TIMESTAMP '2024-01-01 00:00:00.000') AND ("time" < TIMESTAMP '2024-01-01 00:05:00.000')) ORDER BY "time" ASC
+                  Remote SQL: SELECT "time" FROM "public"."sensor" WHERE (("time" >= TIMESTAMP '2024-01-01 00:00:00.000000') AND ("time" < TIMESTAMP '2024-01-01 00:05:00.000000')) ORDER BY "time" ASC
 ---
 ### EXP-combo_WC_PL_extwin_fill-03_influx POS
 SQL: select _wstart, count(*), sum(voltage) from fq_exp_influx.sensor external_window((select _wstart, _wend from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` < '2024-01-01 00:05:00' interval(30s) fill(null)) w) fill(prev) order by _wstart
@@ -5269,7 +5269,7 @@ RESULT
             -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=8)
                   Output: columns=1 width=8
                   Source: 127.0.0.1:18086 user=u
-                  Remote SQL: SELECT "time" FROM "sensor" WHERE (("time" >= CAST('2024-01-01 00:00:00.000' AS TIMESTAMP)) AND ("time" < CAST('2024-01-01 00:05:00.000' AS TIMESTAMP))) ORDER BY "time" ASC
+                  Remote SQL: SELECT "time" FROM "sensor" WHERE (("time" >= CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP)) AND ("time" < CAST('2024-01-01 00:05:00.000000000' AS TIMESTAMP))) ORDER BY "time" ASC
 ---
 ### EXP-combo_WC_LP_statewin_orderby-01_mysql POS
 SQL: select count(*), region from fq_exp_mysql.sensor state_window(region) order by region
@@ -5501,7 +5501,7 @@ RESULT
          -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=138)
                Output: columns=2 width=138
                Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) ORDER BY `time` ASC
+               Remote SQL: SELECT `time`, `region` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) ORDER BY `time` ASC
 ---
 ### EXP-combo_CC_PL_groupby_fill-01_pg POS
 SQL: select _wstart, region, count(*) from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' partition by region interval(1m) fill(null)
@@ -5520,7 +5520,7 @@ RESULT
          -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65527)
                Output: columns=2 width=65527
                Source: 127.0.0.1:15434 user=postgres
-               Remote SQL: SELECT "time", "region" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' ORDER BY "time" ASC
+               Remote SQL: SELECT "time", "region" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' ORDER BY "time" ASC
 ---
 ### EXP-combo_CC_PL_groupby_fill-01_influx POS
 SQL: select _wstart, region, count(*) from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' partition by region interval(1m) fill(null)
@@ -5539,7 +5539,7 @@ RESULT
          -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65527)
                Output: columns=2 width=65527
                Source: 127.0.0.1:18086 user=u
-               Remote SQL: SELECT "time", "region" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) ORDER BY "time" ASC
+               Remote SQL: SELECT "time", "region" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) ORDER BY "time" ASC
 ---
 ### EXP-combo_S_PP_outer_pushP_inner_pushP-01_mysql POS
 SQL: select * from (select abs(voltage - 220.0) av from fq_exp_mysql.sensor where voltage > 219.0) t order by t.av limit 3
@@ -5779,7 +5779,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, AVG(ABS((`voltage` - 220.0))) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) ORDER BY ISNULL(`expr_1`) DESC, `expr_1` ASC LIMIT 5
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, AVG(ABS((`voltage` - 220.0))) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) ORDER BY ISNULL(`expr_1`) DESC, `expr_1` ASC LIMIT 5
 ---
 ### EXP-combo_3W_FWC_pushP-01_pg POS
 SQL: select _wstart, avg(abs(voltage - 220.0)) av from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) order by _wstart limit 5
@@ -5787,7 +5787,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", AVG(ABS(("voltage" - 220.0))) AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') ORDER BY "expr_1" ASC NULLS FIRST LIMIT 5
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", AVG(ABS(("voltage" - 220.0))) AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') ORDER BY "expr_1" ASC NULLS FIRST LIMIT 5
 ---
 ### EXP-combo_3W_FWC_pushP-01_influx POS
 SQL: select _wstart, avg(abs(voltage - 220.0)) av from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) order by _wstart limit 5
@@ -5795,7 +5795,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", AVG(ABS(("voltage" - 220.0))) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') ORDER BY "expr_1" ASC NULLS FIRST LIMIT 5
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", AVG(ABS(("voltage" - 220.0))) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') ORDER BY "expr_1" ASC NULLS FIRST LIMIT 5
 ---
 ### EXP-combo_3W_FWC_LLP-01_mysql POS
 SQL: select csum(voltage) from fq_exp_mysql.sensor where voltage > 219.0 state_window(region) order by voltage
@@ -5978,7 +5978,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
       Output: columns=3 width=146
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, `region`, AVG(ABS((`voltage` - 220.0))) AS `expr_3` FROM `fq_explain_m`.`sensor` WHERE (`region` IN ('north', 'south') AND (`time` >= CAST('2024-01-01 00:00:00.000' AS DATETIME(3))) AND (`time` <= CAST('2024-01-02 00:00:00.000' AS DATETIME(3)))) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000), `region` ORDER BY ISNULL(`expr_1`) DESC, `expr_1` ASC LIMIT 10
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, `region`, AVG(ABS((`voltage` - 220.0))) AS `expr_3` FROM `fq_explain_m`.`sensor` WHERE (`region` IN ('north', 'south') AND (`time` >= CAST('2024-01-01 00:00:00.000000' AS DATETIME(6))) AND (`time` <= CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)))) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000), `region` ORDER BY ISNULL(`expr_1`) DESC, `expr_1` ASC LIMIT 10
 ---
 ### EXP-combo_4W_FOWC_PPPP-01_pg POS
 SQL: select _wstart, region, avg(abs(voltage - 220.0)) av from fq_exp_pg.sensor where region in ('north', 'south') and `time` >= '2024-01-01' and `time` <= '2024-01-02' partition by region interval(1m) order by _wstart limit 10
@@ -5986,7 +5986,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
       Output: columns=3 width=65535
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", "region", AVG(ABS(("voltage" - 220.0))) AS "expr_3" FROM "public"."sensor" WHERE ("region" IN ('north', 'south') AND ("time" >= TIMESTAMP '2024-01-01 00:00:00.000') AND ("time" <= TIMESTAMP '2024-01-02 00:00:00.000')) GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00'), "region" ORDER BY "expr_1" ASC NULLS FIRST LIMIT 10
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", "region", AVG(ABS(("voltage" - 220.0))) AS "expr_3" FROM "public"."sensor" WHERE ("region" IN ('north', 'south') AND ("time" >= TIMESTAMP '2024-01-01 00:00:00.000000') AND ("time" <= TIMESTAMP '2024-01-02 00:00:00.000000')) GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00'), "region" ORDER BY "expr_1" ASC NULLS FIRST LIMIT 10
 ---
 ### EXP-combo_4W_FOWC_PPPP-01_influx POS
 SQL: select _wstart, region, avg(abs(voltage - 220.0)) av from fq_exp_influx.sensor where region in ('north', 'south') and `time` >= '2024-01-01' and `time` <= '2024-01-02' partition by region interval(1m) order by _wstart limit 10
@@ -5994,7 +5994,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
       Output: columns=3 width=65535
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", "region", AVG(ABS(("voltage" - 220.0))) AS "expr_3" FROM "sensor" WHERE ("region" IN ('north', 'south') AND ("time" >= CAST('2024-01-01 00:00:00.000' AS TIMESTAMP)) AND ("time" <= CAST('2024-01-02 00:00:00.000' AS TIMESTAMP))) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z'), "region" ORDER BY "expr_1" ASC NULLS FIRST LIMIT 10
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", "region", AVG(ABS(("voltage" - 220.0))) AS "expr_3" FROM "sensor" WHERE ("region" IN ('north', 'south') AND ("time" >= CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP)) AND ("time" <= CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP))) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z'), "region" ORDER BY "expr_1" ASC NULLS FIRST LIMIT 10
 ---
 ### EXP-combo_4W_FOWC_LLLL-01_mysql POS
 SQL: select twa(voltage) from fq_exp_mysql.sensor where (cast(voltage as bigint) & 1) = 1 partition by region session(`time`, 1m) slimit 1
@@ -8095,7 +8095,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=8)
       Output: columns=1 width=8
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT CAST('<NOW>' AS DATETIME(3)) AS `expr_1` FROM `fq_explain_m`.`sensor`
+      Remote SQL: SELECT CAST('<NOW>' AS DATETIME(6)) AS `expr_1` FROM `fq_explain_m`.`sensor`
 ---
 ### EXP-ds_time-01_pg POS
 SQL: select now() from fq_exp_pg.sensor
@@ -8119,7 +8119,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=8)
       Output: columns=1 width=8
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT CAST('<TODAY>' AS DATETIME(3)) AS `expr_1` FROM `fq_explain_m`.`sensor`
+      Remote SQL: SELECT CAST('<TODAY>' AS DATETIME(6)) AS `expr_1` FROM `fq_explain_m`.`sensor`
 ---
 ### EXP-ds_time-02_pg POS
 SQL: select today() from fq_exp_pg.sensor
@@ -10414,7 +10414,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
       Output: columns=3 width=146
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, `region`, COUNT(*) AS `expr_3` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000), `region`
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, `region`, COUNT(*) AS `expr_3` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000), `region`
 ---
 ### EXP-ds_window-02_pg POS
 SQL: select _wstart, region, count(*) from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' partition by region interval(1m)
@@ -10422,7 +10422,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
       Output: columns=3 width=65535
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", "region", COUNT(*) AS "expr_3" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00'), "region"
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", "region", COUNT(*) AS "expr_3" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00'), "region"
 ---
 ### EXP-ds_window-02_influx POS
 SQL: select _wstart, region, count(*) from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' partition by region interval(1m)
@@ -10430,7 +10430,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
       Output: columns=3 width=65535
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", "region", COUNT(*) AS "expr_3" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z'), "region"
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", "region", COUNT(*) AS "expr_3" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z'), "region"
 ---
 ### EXP-ds_window-03_mysql POS
 SQL: select _wstart, count(*) from fq_exp_mysql.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
@@ -10438,7 +10438,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(*) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(*) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
 ---
 ### EXP-ds_window-03_pg POS
 SQL: select _wstart, count(*) from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
@@ -10446,7 +10446,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT(*) AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT(*) AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
 ---
 ### EXP-ds_window-03_influx POS
 SQL: select _wstart, count(*) from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
@@ -10454,7 +10454,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
 ---
 ### EXP-ds_window-04_mysql POS
 SQL: select _wstart, count(*) from fq_exp_mysql.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(2m) sliding(1m)
@@ -10467,7 +10467,7 @@ RESULT
    -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=8)
          Output: columns=1 width=8
          Source: 127.0.0.1:13306 user=root
-         Remote SQL: SELECT `time` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) ORDER BY `time` ASC
+         Remote SQL: SELECT `time` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) ORDER BY `time` ASC
 ---
 ### EXP-ds_window-04_pg POS
 SQL: select _wstart, count(*) from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(2m) sliding(1m)
@@ -10480,7 +10480,7 @@ RESULT
    -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=8)
          Output: columns=1 width=8
          Source: 127.0.0.1:15434 user=postgres
-         Remote SQL: SELECT "time" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' ORDER BY "time" ASC
+         Remote SQL: SELECT "time" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' ORDER BY "time" ASC
 ---
 ### EXP-ds_window-04_influx POS
 SQL: select _wstart, count(*) from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(2m) sliding(1m)
@@ -10493,7 +10493,7 @@ RESULT
    -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=8)
          Output: columns=1 width=8
          Source: 127.0.0.1:18086 user=u
-         Remote SQL: SELECT "time" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) ORDER BY "time" ASC
+         Remote SQL: SELECT "time" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) ORDER BY "time" ASC
 ---
 ### EXP-ds_window-05_mysql POS
 SQL: select count(*), region from fq_exp_mysql.sensor state_window(region)
@@ -12317,7 +12317,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(*) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE ((`time` >= CAST('2024-01-01 00:00:00.000' AS DATETIME(3))) AND (`time` <= CAST('2024-01-02 00:00:00.000' AS DATETIME(3))) AND (`voltage` > (SELECT AVG(`voltage`) AS `expr_1` FROM `fq_explain_m`.`sensor`))) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(*) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE ((`time` >= CAST('2024-01-01 00:00:00.000000' AS DATETIME(6))) AND (`time` <= CAST('2024-01-02 00:00:00.000000' AS DATETIME(6))) AND (`voltage` > (SELECT AVG(`voltage`) AS `expr_1` FROM `fq_explain_m`.`sensor`))) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000)
 ---
 ### EXP-ds_subquery-49_pg POS
 SQL: select _wstart, count(*) from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' and voltage > (select avg(voltage) from fq_exp_pg.sensor) interval(1m)
@@ -12325,7 +12325,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT(*) AS "expr_2" FROM "public"."sensor" WHERE (("time" >= TIMESTAMP '2024-01-01 00:00:00.000') AND ("time" <= TIMESTAMP '2024-01-02 00:00:00.000') AND ("voltage" > (SELECT AVG("voltage") AS "expr_1" FROM "public"."sensor"))) GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT(*) AS "expr_2" FROM "public"."sensor" WHERE (("time" >= TIMESTAMP '2024-01-01 00:00:00.000000') AND ("time" <= TIMESTAMP '2024-01-02 00:00:00.000000') AND ("voltage" > (SELECT AVG("voltage") AS "expr_1" FROM "public"."sensor"))) GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00')
 ---
 ### EXP-ds_subquery-49_influx POS
 SQL: select _wstart, count(*) from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' and voltage > (select avg(voltage) from fq_exp_influx.sensor) interval(1m)
@@ -12333,7 +12333,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE (("time" >= CAST('2024-01-01 00:00:00.000' AS TIMESTAMP)) AND ("time" <= CAST('2024-01-02 00:00:00.000' AS TIMESTAMP)) AND ("voltage" > (SELECT AVG("voltage") AS "expr_1" FROM "sensor"))) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE (("time" >= CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP)) AND ("time" <= CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP)) AND ("voltage" > (SELECT AVG("voltage") AS "expr_1" FROM "sensor"))) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z')
 ---
 ### EXP-ds_subquery-50_mysql POS
 SQL: select count(*), region from fq_exp_mysql.sensor where voltage > (select avg(voltage) from fq_exp_mysql.sensor) state_window(region)
@@ -30988,7 +30988,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(*) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) ORDER BY ISNULL(`expr_1`) DESC, `expr_1` ASC
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(*) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) ORDER BY ISNULL(`expr_1`) DESC, `expr_1` ASC
 ---
 ### EXP-gen_W_C-01_pg POS
 SQL: select _wstart, count(*) from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) order by _wstart
@@ -30996,7 +30996,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT(*) AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') ORDER BY "expr_1" ASC NULLS FIRST
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT(*) AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') ORDER BY "expr_1" ASC NULLS FIRST
 ---
 ### EXP-gen_W_C-01_influx POS
 SQL: select _wstart, count(*) from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) order by _wstart
@@ -31004,7 +31004,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') ORDER BY "expr_1" ASC NULLS FIRST
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') ORDER BY "expr_1" ASC NULLS FIRST
 ---
 ### EXP-gen_W_C-02_mysql POS
 SQL: select _wstart, count(*) from fq_exp_mysql.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) limit 5
@@ -31012,7 +31012,7 @@ RESULT
 -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:13306 user=root
-      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(*) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000' AS DATETIME(3)) AND CAST('2024-01-02 00:00:00.000' AS DATETIME(3)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) LIMIT 5
+      Remote SQL: SELECT FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) AS `expr_1`, COUNT(*) AS `expr_2` FROM `fq_explain_m`.`sensor` WHERE `time` BETWEEN CAST('2024-01-01 00:00:00.000000' AS DATETIME(6)) AND CAST('2024-01-02 00:00:00.000000' AS DATETIME(6)) GROUP BY FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(`time`) * 1000000 - 0) / 60000000) * 60000000 + 0) / 1000000) LIMIT 5
 ---
 ### EXP-gen_W_C-02_pg POS
 SQL: select _wstart, count(*) from fq_exp_pg.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) limit 5
@@ -31020,7 +31020,7 @@ RESULT
 -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:15434 user=postgres
-      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT(*) AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000' AND TIMESTAMP '2024-01-02 00:00:00.000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') LIMIT 5
+      Remote SQL: SELECT DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') AS "expr_1", COUNT(*) AS "expr_2" FROM "public"."sensor" WHERE "time" BETWEEN TIMESTAMP '2024-01-01 00:00:00.000000' AND TIMESTAMP '2024-01-02 00:00:00.000000' GROUP BY DATE_BIN('60000000 microseconds', "time", TIMESTAMP '1970-01-01 00:00:00') LIMIT 5
 ---
 ### EXP-gen_W_C-02_influx POS
 SQL: select _wstart, count(*) from fq_exp_influx.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) limit 5
@@ -31028,7 +31028,7 @@ RESULT
 -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
       Output: columns=2 width=16
       Source: 127.0.0.1:18086 user=u
-      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') LIMIT 5
+      Remote SQL: SELECT DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') AS "expr_1", COUNT(*) AS "expr_2" FROM "sensor" WHERE "time" BETWEEN CAST('2024-01-01 00:00:00.000000000' AS TIMESTAMP) AND CAST('2024-01-02 00:00:00.000000000' AS TIMESTAMP) GROUP BY DATE_BIN(INTERVAL '60000000000 nanoseconds', "time", TIMESTAMP '1970-01-01T00:00:00Z') LIMIT 5
 ---
 ### EXP-gen_W_C-03_mysql POS
 SQL: select count(*), region from fq_exp_mysql.sensor state_window(region) order by region

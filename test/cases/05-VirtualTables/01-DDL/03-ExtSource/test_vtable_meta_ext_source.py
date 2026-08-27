@@ -68,7 +68,7 @@ class TestVtableMetaExtSource:
         ExtSrcEnv.ensure_qnode()
         _ensure_env()
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
-        tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ms'")
+        tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ns'")
         tdSql.execute(f"USE {_LOCAL_DB}")
 
         # One normal vtable + one vstb with one child for the whole class.

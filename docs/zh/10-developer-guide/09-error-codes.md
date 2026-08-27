@@ -621,6 +621,9 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80002705 | Planner invalid table type                                                                             | 计划器生成计划时得到了错误的表类型                      | 保留现场和日志，github 上报 issue      |
 | 0x80002706 | Planner invalid query control plan type                                                                | 计划器生成 dynamic query control 计划时得到的类型不正确 | 保留现场和日志，github 上报 issue      |
 | 0x80002707 | Planner invalid window type                                                                            | 计划器生成物理计划时得到了错误的窗口类型                | 保留现场和日志，github 上报 issue      |
+| 0x80002708 | Planner primary timestamp column not found                                                             | 计划器优化窗口时无法在扫描列中找到主时间戳列            | 保留现场和日志，github 上报 issue      |
+| 0x80002709 | Planner dependent table scan not found                                                                 | 计划器优化时无法为虚拟表引用列找到对应的源表扫描节点    | 保留现场和日志，github 上报 issue      |
+| 0x8000270A | Planner invalid federated scan                                                                          | 计划器发现联邦扫描结构、输出映射或远端结果模式无效      | 保留现场和日志，github 上报 issue      |
 
 #### function
 

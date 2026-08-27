@@ -5447,6 +5447,7 @@ typedef struct SForeignSourceInfo {
   int32_t tagCondLen;
   int64_t rowLimit;  // optional per-stream top-N limit for VStb remote SQL; <=0 means unset
   SNode*  pPushedCond;  // heap, owned; VStb local filter fragment safe to push to this foreign source
+  uint64_t virtualChildUid;  // virtual child whose row is reconstructed from this remote table
 } SForeignSourceInfo;
 
 void destroySOrgTbInfo(void *info);
@@ -5512,8 +5513,29 @@ typedef struct SSysTableScanOperatorParam {
   SArray* pVtbRefReqs;  // SArray<SSysTableScanVtbRefReq>
 } SSysTableScanOperatorParam;
 
+typedef enum EForeignScanParamType {
+  FOREIGN_SCAN_PARAM_SINGLE = 0,
+  FOREIGN_SCAN_PARAM_BATCH,
+} EForeignScanParamType;
+
+typedef struct SForeignTableInfo {
+  char    dbName[TSDB_DB_NAME_LEN];
+  char    tableName[TSDB_TABLE_NAME_LEN];
+  SArray* colMap;       // SArray<SColIdNameKV>
+  int8_t  dstPrecision;
+  char*   tagCond;      // heap, owned
+  int32_t tagCondLen;
+  int64_t rowLimit;
+  char*   pPushedCondJson;  // serialized SNode, heap owned
+  SNode*  pPushedCond;      // runtime-only SNode, heap owned
+  uint64_t virtualChildUid;  // virtual child whose row is reconstructed from this table
+  SArray* pVtbTagList;       // runtime-only SArray<STagVal>, owned by the batch table
+} SForeignTableInfo;
+
 typedef struct SForeignScanOperatorParam {
+  EForeignScanParamType paramType;
   char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  int64_t sourceMetaVersion;
   char    dbName[TSDB_DB_NAME_LEN];
   char    tableName[TSDB_TABLE_NAME_LEN];
   SArray* colMap;  // SArray<SColIdNameKV>
@@ -5525,9 +5547,21 @@ typedef struct SForeignScanOperatorParam {
   int32_t tagCondLen;
   int64_t rowLimit;  // optional per-stream top-N limit for VStb remote SQL; <=0 means unset
   SNode*  pPushedCond;  // heap, owned; optional VStb data filter pushed into the remote SQL
+  SArray* pBatchTables;  // SArray<SForeignTableInfo>, owned in batch mode
+  int32_t groupId;       // virtual-table group; zero when the query has no grouping
+  STimeWindow window;    // common half-open scan range applied to every table in the batch
+  bool isNewParam;       // true when FederatedScan must start this batch from its first table
+  uint64_t virtualChildUid;  // runtime-only discriminator for one table view inside a batch
+  bool      hasVtbGroupId;   // runtime-only full-width virtual-table group id discriminator
+  uint64_t  vtbGroupId;      // runtime-only; never encoded by the legacy batch codec
+  SArray*   pVtbTagList;     // runtime-only borrowed tag payload for the active table view
+  // Runtime-only: consumer accepts timestamp order changes between batch tables.
+  bool allowUnorderedBatch;
 } SForeignScanOperatorParam;
 typedef struct SMergeOperatorParam {
-  int32_t         winNum;
+  int32_t winNum;
+  bool    mergeSameCols;
+  bool    activeSourcesOnly;  // runtime-only scoped row-merge dispatch
 } SMergeOperatorParam;
 
 typedef struct SAggOperatorParam {
@@ -5535,7 +5569,8 @@ typedef struct SAggOperatorParam {
 } SAggOperatorParam;
 
 typedef struct SExternalWindowOperatorParam {
-  SArray*         ExtWins;  // SArray<SExtWinTimeWindow>
+  SArray*         ExtWins;          // SArray<SExtWinTimeWindow>
+  SArray*         pNullOutputSlots; // SArray<int32_t>, aggregate outputs not owned by this execution unit
 } SExternalWindowOperatorParam;
 
 typedef struct SDynQueryCtrlOperatorParam {

@@ -1,0 +1,28 @@
+set max_binary_display_width 280;
+
+# not optimized: one external source would be scanned twice
+explain verbose true select _wstart, _wend, sum(source_v) from vt_window_federated_batch.vst_single_source event_window start with state_col = 1 end with state_col = 2 order by _wstart;
+
+# not optimized: one sourceName is still one external execution unit
+explain verbose true select _wstart, _wend, sum(primary_v), sum(aux_v) from vt_window_federated_batch.vst_same_source event_window start with state_col = 1 end with state_col = 2 order by _wstart;
+
+# optimized: partial aggregates are calculated per source and merged after window alignment
+explain verbose true select _wstart, _wend, sum(mysql_a_v), sum(mysql_b_v), sum(postgres_v) from vt_window_federated_batch.vst_mixed_sources event_window start with state_col = 1 end with state_col = 2 order by _wstart;
+
+# optimized: local and external partial aggregates share the same merge path
+explain verbose true select _wstart, _wend, sum(local_v), sum(mysql_a_v), sum(mysql_b_v), sum(postgres_v) from vt_window_federated_batch.vst_local_external event_window start with state_col = 1 end with state_col = 2 order by _wstart;
+
+# optimized: AVG is calculated as partial state instead of combining finalized scalars
+explain verbose true select _wstart, _wend, avg(mysql_a_v), avg(mysql_b_v), avg(postgres_v) from vt_window_federated_batch.vst_mixed_sources event_window start with state_col = 1 end with state_col = 2 order by _wstart;
+
+# not optimized: event-window boundary conditions must not contain IS NULL
+explain verbose true select _wstart, _wend, sum(source_v) from vt_window_federated_batch.vst_single_source event_window start with state_col = 1 end with state_col is null order by _wstart;
+
+# not optimized: a row filter must not span execution units
+explain verbose true select _wstart, _wend, sum(mysql_a_v) from vt_window_federated_batch.vst_mixed_sources where mysql_a_v + postgres_v > 0 event_window start with state_col = 1 end with state_col = 2 order by _wstart;
+
+# not optimized: count(*) has no owning execution unit
+explain verbose true select _wstart, _wend, count(*) from vt_window_federated_batch.vst_mixed_sources event_window start with state_col = 1 end with state_col = 2 order by _wstart;
+
+# not optimized: one aggregate expression must not span execution units
+explain verbose true select _wstart, _wend, sum(mysql_a_v + postgres_v) from vt_window_federated_batch.vst_mixed_sources event_window start with state_col = 1 end with state_col = 2 order by _wstart;

@@ -7118,6 +7118,7 @@ static const char* jkColumnIsPk = "IsPk";
 static const char* jkColumnNumOfPKs = "NumOfPKs";
 static const char* jkColumnHasRef = "HasRef";
 static const char* jkColumnHasDep = "HasDep";
+static const char* jkColumnRefSource = "RefSource";
 static const char* jkColumnRefDb = "RefDb";
 static const char* jkColumnRefTable = "RefTable";
 static const char* jkColumnRefCol = "RefCol";
@@ -7174,6 +7175,9 @@ static int32_t columnNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkRefColHasRef, pNode->hasRef);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkColumnRefSource, pNode->refSourceName);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkColumnRefDb, pNode->refDbName);
@@ -7241,6 +7245,9 @@ static int32_t jsonToColumnNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkColumnHasRef, &pNode->hasRef);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue1(pJson, jkColumnRefSource, pNode->refSourceName, sizeof(pNode->refSourceName));
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue1(pJson, jkColumnRefDb, pNode->refDbName, sizeof(pNode->refDbName));

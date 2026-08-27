@@ -1047,23 +1047,41 @@ class ExtSrcEnv:
             ``pgrep -f`` can report its own short-lived command when the
             pattern is present in argv.  A missed server PID leaves the port
             open and turns a stop/restart test into a false timeout.  Inspect
-            the full process table instead and require both the server binary
-            and this instance's bind address or configured data directory.
+            Linux procfs or the portable process table and require both the
+            server binary and this instance's bind address or configured data
+            directory.
             """
+            def process_commands():
+                if os.path.isdir("/proc"):
+                    for proc in os.scandir("/proc"):
+                        if not proc.name.isdigit():
+                            continue
+                        try:
+                            with open(os.path.join(proc.path, "cmdline"), "rb") as cmdline:
+                                args = cmdline.read().replace(b"\0", b" ").decode(
+                                    errors="ignore").strip()
+                        except OSError:
+                            continue
+                        if args:
+                            yield int(proc.name), args
+                    return
+
+                result = subprocess.run(
+                    ["ps", "-ax", "-o", "pid=", "-o", "command="],
+                    capture_output=True,
+                    check=True,
+                    env=_fq_subprocess_env(),
+                    text=True,
+                    timeout=5,
+                )
+                for line in result.stdout.splitlines():
+                    fields = line.strip().split(None, 1)
+                    if len(fields) == 2 and fields[0].isdigit():
+                        yield int(fields[0]), fields[1]
+
             pids = set()
             bind_arg = f"--http-bind {cfg.host}:{cfg.port}"
-            for proc in os.scandir("/proc"):
-                if not proc.name.isdigit():
-                    continue
-                try:
-                    with open(os.path.join(proc.path, "cmdline"), "rb") as cmdline:
-                        args = cmdline.read().replace(b"\0", b" ").decode(
-                            errors="ignore").strip()
-                except OSError:
-                    continue
-                if not args:
-                    continue
-                pid = int(proc.name)
+            for pid, args in process_commands():
                 executable = os.path.basename(args.split(None, 1)[0])
                 if ver.startswith("1."):
                     is_server = executable == "influxd"

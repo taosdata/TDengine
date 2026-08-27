@@ -620,6 +620,9 @@ Below are the business error codes for each module.
 | 0x80002705 | Planner invalid table type                                                                             | Planner get invalid table type                                             | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002706 | Planner invalid query control plan type                                                                | Planner get invalid query control plan type during making physic plan      | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002707 | Planner invalid window type                                                                            | Planner get invalid window type during making physic plan                  | Preserve the scene and logs, report issue on GitHub          |
+| 0x80002708 | Planner primary timestamp column not found                                                             | Planner cannot find the primary timestamp column in scan columns when optimizing a window | Preserve the scene and logs, report issue on GitHub          |
+| 0x80002709 | Planner dependent table scan not found                                                                 | Planner cannot find the source table scan for a referenced virtual-table column during optimization | Preserve the scene and logs, report issue on GitHub          |
+| 0x8000270A | Planner invalid federated scan                                                                          | Planner finds an invalid federated-scan structure, output mapping, or remote-result schema | Preserve the scene and logs, report issue on GitHub          |
 
 #### function
 

@@ -399,7 +399,7 @@ static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SR
 
   // 2-segment path (source.table): dbName may actually be an ext source name rather
   // than a local db name. Speculatively reserve it too - if it isn't a real ext
-  // source, getExtSourceInfoFromCache reports not-found later and the local-table
+  // source, getExternalSourceInfo reports not-found later and the local-table
   // reservation already done above is used instead. This mirrors translateRealTable's
   // 2-seg precheck/fallback and createStreamReqBuildTriggerAst's EXT precheck, both
   // of which read this same cache entry but were never being fed data for nSeg==2.
@@ -419,6 +419,20 @@ static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SR
       parserDebug("collectMetaKeyFromRealTable reserve 2-seg ext table meta failed: source:%s table:%s code:0x%x",
                   sourceName, pRealTable->table.tableName, pCxt->errCode);
       return DEAL_RES_ERROR;
+    }
+
+    const SParseContext* pParCxt = pCxt->pComCxt->pParseCxt;
+    if (pParCxt->currentExtNs1[0] != '\0' &&
+        0 == strcasecmp(pParCxt->currentExtSource, sourceName)) {
+      pCxt->errCode = reserveExtTableMetaInCache(sourceName, pParCxt->currentExtNs1, "",
+                                                  pRealTable->table.tableName,
+                                                  pCxt->pComCxt->pMetaCache);
+      if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+        parserDebug("collectMetaKeyFromRealTable reserve 2-seg ext(use ctx) table meta failed: "
+                    "source:%s ns:%s table:%s code:0x%x",
+                    sourceName, pParCxt->currentExtNs1, pRealTable->table.tableName, pCxt->errCode);
+        return DEAL_RES_ERROR;
+      }
     }
   }
 #endif

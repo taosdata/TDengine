@@ -820,22 +820,45 @@ static bool execLocalSetCmd(SRequestObj* pRequest, SQuery* pQuery, int32_t* pCod
   }
 }
 
-static int32_t syncAlterLocalConnectionOption(SRequestObj* pRequest, SAlterLocalStmt* pStmt) {
-  if (pRequest == NULL || pStmt == NULL) {
+static int32_t prepareAlterLocalTimezone(SRequestObj* pRequest, SNode* pRoot,
+                                         SPreparedTimezone* pTimezone, bool* pPrepared) {
+  if (pRequest == NULL || pTimezone == NULL || pPrepared == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *pPrepared = false;
+  if (pRoot == NULL || nodeType(pRoot) != QUERY_NODE_ALTER_LOCAL_STMT) {
     return TSDB_CODE_SUCCESS;
   }
 
+  SAlterLocalStmt* pStmt = (SAlterLocalStmt*)pRoot;
   if (strcasecmp(pStmt->config, "timezone") == 0) {
-    int64_t rid = pRequest->pTscObj->id;
-    int32_t code = taos_options_connection((TAOS*)&rid, TSDB_OPTION_CONNECTION_TIMEZONE, pStmt->value);
-    if (code == TSDB_CODE_PAR_INVALID_TIMEZONE && pRequest->msgBuf != NULL && pRequest->msgBufLen > 0) {
+    int32_t code = tscPrepareSessionTimezone(pStmt->value, true, pTimezone);
+    if (code == TSDB_CODE_PAR_INVALID_TIMEZONE && pRequest->msgBuf != NULL &&
+        pRequest->msgBufLen > 0) {
       (void)snprintf(pRequest->msgBuf, pRequest->msgBufLen, "Invalid timezone: '%s'", pStmt->value);
     }
-    return code;
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    *pPrepared = true;
   }
 
   return TSDB_CODE_SUCCESS;
 }
+
+static void commitAlterLocalTimezone(SRequestObj* pRequest,
+                                     const SPreparedTimezone* pTimezone, bool prepared) {
+  if (!prepared) {
+    return;
+  }
+
+  tscCommitSessionTimezone(pRequest->pTscObj, pTimezone);
+  tscDebug("ALTER LOCAL timezone: updated connection timezoneName to '%s', explicit:%d",
+           pRequest->pTscObj->optionInfo.timezoneName,
+           (int)pRequest->pTscObj->optionInfo.timezoneExplicit);
+}
+
 int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   // Handle USE ext_source stmt: update session ext source context without mnode round-trip
   if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_USE_EXT_SOURCE_STMT) {
@@ -862,8 +885,16 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
   int8_t             biMode = atomic_load_8(&pRequest->pTscObj->biMode);
   int32_t            code = TSDB_CODE_SUCCESS;
+  SPreparedTimezone preparedTimezone = {0};
+  bool               timezonePrepared = false;
 
   if (execLocalSetCmd(pRequest, pQuery, &code)) {
+    return code;
+  }
+
+  code = prepareAlterLocalTimezone(pRequest, pQuery->pRoot, &preparedTimezone,
+                                   &timezonePrepared);
+  if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
@@ -875,27 +906,18 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
 #endif
   code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, showVarPrivMask, pQuery->pRoot, &pRsp,
                       biMode, pRequest->pTscObj->optionInfo.charsetCxt);
+  if (code == TSDB_CODE_SUCCESS) {
+    commitAlterLocalTimezone(pRequest, &preparedTimezone, timezonePrepared);
+  }
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4,
                                  pRequest->stmtBindVersion > 0);
   }
 
-  // DS §5.2.6: propagate ALTER LOCAL "timezone" to per-connection optionInfo so the
-  // timezone name flows planner → SFederatedScanPhysiNode → external connectors.
+#ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code && pQuery->pRoot != NULL &&
       nodeType(pQuery->pRoot) == QUERY_NODE_ALTER_LOCAL_STMT) {
     SAlterLocalStmt* pAlterStmt = (SAlterLocalStmt*)pQuery->pRoot;
-    if (strcasecmp(pAlterStmt->config, "timezone") == 0) {
-      if (pAlterStmt->value[0] != '\0') {
-        tstrncpy(pRequest->pTscObj->optionInfo.timezoneName, pAlterStmt->value,
-                 sizeof(pRequest->pTscObj->optionInfo.timezoneName));
-      } else {
-        pRequest->pTscObj->optionInfo.timezoneName[0] = '\0';
-      }
-      tscDebug("ALTER LOCAL timezone: updated connection timezoneName to '%s'",
-               pRequest->pTscObj->optionInfo.timezoneName);
-    }
-#ifdef TD_ENTERPRISE
     // Propagate federatedQuery* pool/timeout changes to the client-side ext connector module.
     if (strncasecmp(pAlterStmt->config, "federatedQuery", 14) == 0) {
       SExtConnectorModuleCfg extConnCfg = {
@@ -907,8 +929,8 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
       };
       extConnectorUpdateModuleCfg(&extConnCfg);
     }
-#endif
   }
+#endif
 
   return code;
 }
@@ -1027,6 +1049,8 @@ static SAppInstInfo* getAppInfo(SRequestObj* pRequest) { return pRequest->pTscOb
 void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
   int32_t            code = TSDB_CODE_SUCCESS;
+  SPreparedTimezone preparedTimezone = {0};
+  bool               timezonePrepared = false;
   if (pRequest->validateOnly) {
     doRequestCallback(pRequest, 0);
     return;
@@ -1067,6 +1091,15 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     doRequestCallback(pRequest, code);
     return;
   }
+
+  code = prepareAlterLocalTimezone(pRequest, pQuery->pRoot, &preparedTimezone,
+                                   &timezonePrepared);
+  if (code != TSDB_CODE_SUCCESS) {
+    pRequest->code = code;
+    doRequestCallback(pRequest, code);
+    return;
+  }
+
   uint8_t showVarPrivMask = SHOW_VAR_PRIV_ALL;
 #ifdef TD_ENTERPRISE
   if (pQuery->pRoot != NULL && nodeType(pQuery->pRoot) == QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT) {
@@ -1075,16 +1108,18 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
 #endif
   code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, showVarPrivMask, pQuery->pRoot, &pRsp,
                       atomic_load_8(&pRequest->pTscObj->biMode), pRequest->pTscObj->optionInfo.charsetCxt);
+  if (code == TSDB_CODE_SUCCESS) {
+    commitAlterLocalTimezone(pRequest, &preparedTimezone, timezonePrepared);
+  }
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4,
                                  pRequest->stmtBindVersion > 0);
   }
 
+#ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code && pQuery->pRoot != NULL &&
       nodeType(pQuery->pRoot) == QUERY_NODE_ALTER_LOCAL_STMT) {
     SAlterLocalStmt* pAlterStmt = (SAlterLocalStmt*)pQuery->pRoot;
-    code = syncAlterLocalConnectionOption(pRequest, pAlterStmt);
-#ifdef TD_ENTERPRISE
     // Propagate federatedQuery* pool/timeout changes to the client-side ext connector module.
     if (strncasecmp(pAlterStmt->config, "federatedQuery", 14) == 0) {
       SExtConnectorModuleCfg extConnCfg = {
@@ -1096,8 +1131,8 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
       };
       extConnectorUpdateModuleCfg(&extConnCfg);
     }
-#endif
   }
+#endif
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
   pRequest->code = code;
