@@ -1118,6 +1118,7 @@ typedef struct SSTriggerPullRequest {
   uint64_t          progressStepId;        // does not serialize
   uint64_t          progressRequestToken;  // does not serialize
   SStreamManualRecalcAttemptId manualAttempt;         // does not serialize
+  uint32_t          retryCount;  // does not serialize
 } SSTriggerPullRequest;
 
 typedef struct SSTriggerSetTableRequest {

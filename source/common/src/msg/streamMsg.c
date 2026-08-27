@@ -4471,6 +4471,7 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
   SSTriggerPullRequest* pBase = &(pReq->base);
   pBase->progressStepId = 0;
   pBase->progressRequestToken = 0;
+  pBase->retryCount = 0;
 
   tDecoderInit(&decoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
