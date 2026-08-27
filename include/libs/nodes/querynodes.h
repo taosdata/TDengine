@@ -897,6 +897,7 @@ typedef struct SSelectStmt {
   int32_t         timeLineFromOrderBy;
   bool            isEmptyResult;
   bool            isSubquery;
+  bool            implicitPartitionHaving;
   bool            hasAggFuncs;
   bool            hasRepeatScanFuncs;
   bool            hasIndefiniteRowsFunc;

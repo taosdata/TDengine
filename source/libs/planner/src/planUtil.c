@@ -1139,6 +1139,16 @@ bool keysHasCol(SNodeList* pKeys) {
   return hasCol;
 }
 
+bool planAggFuncsHasFirst(SNodeList* pFuncs) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pFuncs) {
+    if (FUNCTION_TYPE_FIRST == ((SFunctionNode*)pNode)->funcType) {
+      return true;
+    }
+  }
+  return false;
+}
+
 SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
   SFunctionNode* pFunc = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);

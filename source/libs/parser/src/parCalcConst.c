@@ -416,7 +416,16 @@ static int32_t calcConstGroupBy(SCalcConstContext* pCxt, SSelectStmt* pSelect) {
 }
 
 static int32_t calcConstSelectWithoutFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
-  return calcConstProjections(pCxt, pSelect, subquery);
+  int32_t code = calcConstProjections(pCxt, pSelect, subquery);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstStmtCondition(pCxt, &pSelect->pWhere,
+                                  &pSelect->isEmptyResult);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstStmtCondition(pCxt, &pSelect->pHaving,
+                                  &pSelect->isEmptyResult);
+  }
+  return code;
 }
 
 static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {

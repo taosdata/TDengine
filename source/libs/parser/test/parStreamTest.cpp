@@ -2856,6 +2856,25 @@ TEST_F(ParserStreamTest, TestStreamExternalWindowDerivedAggFilterUsesPhysiExtern
       "where cnt >= 5");
 }
 
+TEST_F(ParserStreamTest,
+       TestStreamImplicitHavingDisablesDerivedExternalWindow) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanHashExternalWindowCount(pQuery, stage, 0);
+  });
+
+  run("create stream stream_streamdb.s1 interval(10s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tbname "
+      "stream_options(ignore_nodata_trigger) "
+      "into stream_outdb.stream_out output_subtable('alarm_rl') "
+      "(ts, cnt) as select ts, cnt from "
+      "(select _twstart ts, count(*) cnt from %%tbname "
+      "where ts >= _twstart and ts < _twend and c1 >= 11 and c2 = 0) "
+      "having cnt >= 5");
+}
+
 TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinExprSubqueryDisabled) {
   setAsyncFlag("-1");
   useDb("root", "stream_streamdb");

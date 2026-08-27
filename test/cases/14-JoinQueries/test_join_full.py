@@ -1793,9 +1793,12 @@ class TestJoinFull:
         tdSql.error(
             f"select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts > b.ts and a.col1 = 1 jlimit 2 order by a.ts;"
         )
-        tdSql.error(
-            f"select a.t1, a.ts, b.ts from sta a left asof join sta b on a.ts <= b.ts and a.t1=b.t1 and a.col1=b.col1 jlimit 2 having(a.ts>0) order by a.t1, a.ts, b.ts;"
+        tdSql.query(
+            "select a.t1, a.ts, b.ts from sta a left asof join sta b "
+            "on a.ts <= b.ts and a.t1=b.t1 and a.col1=b.col1 "
+            "jlimit 2 having(a.ts>0) order by a.t1, a.ts, b.ts;"
         )
+        tdSql.checkRows(8)
         tdSql.error(
             f"select count(*) from sta a left asof join sta b on a.ts <= b.ts and a.t1=b.t1 and a.col1=b.col1 jlimit 2 where a.ts > '2023-11-17 16:29:00.000' slimit 1;"
         )

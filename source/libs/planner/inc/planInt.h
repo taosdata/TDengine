@@ -42,6 +42,8 @@ typedef struct SPhysiPlanContext {
 #define planDebugL(...) qDebugL("plan " __VA_ARGS__)
 #define planTrace(...)  qTrace ("plan " __VA_ARGS__)
 
+#define IMPLICIT_PARTITION_KEY_ALIAS "#implicit_partition"
+
 #define PLAN_ERR_RET(c)                \
   do {                                 \
     int32_t _code = c;                 \
@@ -113,6 +115,7 @@ int32_t     stbSplFindPkFromScan(SScanLogicNode* pScan, SNode** ppNode);
 int32_t     stbSplCreateMergeKeysByExpr(SNode* pExpr, EOrder order, SNodeList** pMergeKeys);
 bool        keysHasCol(SNodeList* pKeys);
 bool        keysHasTbname(SNodeList* pKeys);
+bool        planAggFuncsHasFirst(SNodeList* pFuncs);
 bool        projectCouldMergeUnsortDataBlock(SProjectLogicNode* pProject);
 SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol);
 int32_t getTimeRangeFromNode(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bool* pIsStrict);

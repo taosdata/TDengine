@@ -1294,6 +1294,12 @@ TEST_F(ParserInitialCTest, createTopic) {
                     "st1", 1);
   run("CREATE TOPIC IF NOT EXISTS tp1 WITH META AS STABLE st1 WHERE tag1 > 0");
   clearCreateTopicReq();
+
+  run("CREATE TOPIC tp1 AS SELECT ts, c1 FROM t1 HAVING c1 > 0",
+      TSDB_CODE_PAR_INVALID_TOPIC_QUERY);
+  run("CREATE TOPIC tp1 AS SELECT ts, c1 FROM t1 "
+      "PARTITION BY c1 HAVING c1 > 0",
+      TSDB_CODE_PAR_INVALID_TOPIC_QUERY);
 }
 
 /*
