@@ -4,6 +4,149 @@ title: Data Backup and Restoration
 
 You can back up the data in your TDengine cluster and restore it in the event that data is lost or damaged.
 
+## Full Cluster Backup and Restoration
+
+TDengine TSDB Enterprise supports full backup and restoration at the cluster level. Backups are performed online, while restoration is performed offline. This feature is suitable for restoring an entire cluster to the original cluster or to another cluster with the same topology.
+
+### Create a Full Backup
+
+Use the SQL command `CREATE FULL BACKUP` to create a full backup. The syntax is as follows:
+
+```sql
+CREATE FULL BACKUP ON DNODE <dnode_id> TO <backup_path> [WITH PASSWORD <password>] [PARALLEL <n>];
+```
+
+Here, `dnode_id` specifies the dnode that executes the backup task, and `backup_path` specifies the backup directory. To encrypt the backup data, use the `WITH PASSWORD` clause and provide a `password`.
+
+`PARALLEL <n>` specifies the number of vgroups to back up in parallel. The default value is `1` (serial backup), and the value must be greater than or equal to `1`. When the cluster has many vgroups, increasing this value can significantly shorten the backup time. However, a very high concurrency increases disk I/O pressure, so set it based on disk capabilities and system load.
+
+**Notes**
+
+1. Time-series data can be read and written during a backup. However, because a backup involves reading and writing a large amount of data, running backups during periods of low system activity is recommended.
+2. Metadata can be read during a backup, but do not add, delete, or modify metadata.
+3. Data encryption has a significant impact on backup and restoration performance. Choose whether to enable it based on your actual requirements. Keep the password secure, the data cannot be restored if it is lost.
+4. Only one backup task can be running at a time.
+
+For example, the following command creates a full backup on dnode `1`, saves the backup data to `/backup`, and encrypts the backup data with the password `Abcd1234`:
+
+```sql
+CREATE FULL BACKUP ON DNODE 1 TO '/backup' WITH PASSWORD 'Abcd1234';
+```
+
+The following command creates a full backup on dnode `1` and backs up the vgroups with 4 parallel tasks:
+
+```sql
+CREATE FULL BACKUP ON DNODE 1 TO '/backup' PARALLEL 4;
+```
+
+After the backup succeeds, a subdirectory is created under the backup directory based on the backup time. This subdirectory is the backup chain directory, such as `/backup/20260824094003`. Specify this backup chain directory when restoring data.
+
+### View Backup Status
+
+Use `SHOW BACKUPS` to view backup tasks and historical backup records:
+
+```sql
+SHOW BACKUPS;
+```
+
+For example:
+
+```shell
+taos> show backups;
+       id       |  status   |     chain      | database | full | encrypted |    size    | vgroups |       start_time        |      update_time        |
+=======================================================================================================================================================
+ 20260824094003 | succeeded | 20260824094003 | *        |    1 |         1 |  136760311 |   4/4   | 2026-08-24 09:40:03.324 | 2026-08-24 09:42:50.061 |
+ 20260819153410 | succeeded | 20260819153410 | *        |    1 |         0 |      11592 |   0/0   | 2026-08-19 15:34:10.340 | 2026-08-19 15:34:20.007 |
+ 20260819153420 | cancelled | 20260819153420 | *        |    1 |         0 |          0 |   0/0   | 2026-08-19 15:34:20.498 | 2026-08-19 15:34:20.498 |
+Query OK, 3 row(s) in set (0.007715s)
+```
+
+The columns are described below:
+
+| Column | Description |
+| --- | --- |
+| `id` | Backup ID. |
+| `status` | Backup status: `running`, `succeeded`, `failed`, or `cancelled`. |
+| `chain` | Backup chain ID. |
+| `database` | Database of the backup. `*` means the whole cluster. |
+| `full` | Whether this is a full backup. `1` means full backup. |
+| `encrypted` | Whether the backup is encrypted. `1` means encrypted. |
+| `size` | Total size of the backup files, in bytes. |
+| `vgroups` | Number of vgroups backed up and the total number to back up, in the format `<finished>/<total>`. |
+| `start_time` | Backup start time. |
+| `update_time` | Time when the backup record was last updated. |
+
+Only backups with the `succeeded` status can be used for restoration.
+
+### Cancel a Backup
+
+You can cancel a running backup with `KILL BACKUP`:
+
+```sql
+KILL BACKUP <backup_id>;
+```
+
+After cancellation, the backup record remains available and its status changes to `cancelled`.
+
+For example:
+
+```sql
+KILL BACKUP 20260824094003
+```
+
+### Restore Data
+
+Perform data restoration from an operating system terminal. The command syntax is as follows:
+
+```shell
+taosd --restore <backup_chain_path> [--password <password>] [--verify=0|1|2] [--parallel <n>] [--verbose]
+```
+
+Here:
+
+- `backup_chain_path` is the backup chain directory created during the backup. The backup chain path may differ between backup and restoration if the storage device is mounted at a different path.
+- `password` is the password used to encrypt the backup data. It is required only for encrypted backups.
+- `verify` specifies whether to verify backup data integrity before restoration. The default value is `1`, which enables verification. If you are certain that the backup data is complete, you can use `0` to skip verification and reduce restoration time. Specify `2` to verify data integrity without performing restoration.
+- `parallel` specifies the number of vnodes to restore in parallel. The default value is `1` (serial restoration), and the value must be greater than or equal to `1`. When there are many vnodes, increasing this value can significantly shorten the verification and restoration time.
+- Because restoration involves interactive prompts, only logs closely related to restoration are printed by default. If an error occurs, rerun the restoration with `verbose` to print more diagnostic information.
+
+**Notes**
+
+1. Data restoration is performed offline. Prevent other applications from accessing the cluster throughout the restoration process.
+2. Run the restoration once on each dnode in the target cluster.
+3. The number of dnodes in the target cluster must be the same as in the source cluster.
+4. If backup integrity verification fails, restoration is skipped and no existing data is modified. However, the existing data on a dnode is cleared when restoration begins. This data cannot be rolled back even if restoration subsequently fails.
+5. Restoration only restores mnode, vnode, and snode data. anode, bnode, qnode, and xnode are stateless nodes and must be handled manually after restoration.
+
+For example, the following command decrypts and restores the backup chain at `/backup/20260824094003`:
+
+```shell
+taosd --restore /backup/20260824094003 --password Abcd1234
+```
+
+Follow these steps to restore data:
+
+**Step 1:** Prepare the software and hardware environment for all dnodes in the target cluster. The number of target dnodes must be the same as in the source cluster.
+
+**Step 2:** Start all dnodes and use the `CREATE DNODE` command to add all dnodes to the cluster.
+
+**Step 3:** Stop all dnodes.
+
+**Step 4:** Run the restoration command separately on each dnode (this step can be executed parallelly on all dnodes to reduce overall restoration time).
+
+- **Step 4.1:** Start restoration with the appropriate options described above.
+- **Step 4.2:** `taosd` verifies the integrity of the backup data. If verification fails, restoration fails immediately and the remaining steps are skipped.
+- **Step 4.3:** `taosd` checks version compatibility. Using the same `taosd` version as the one used for the backup is recommended. If the version numbers differ, `taosd` asks whether to continue. You must enter `YES` in uppercase to continue; any other input exits the restoration.
+- **Step 4.4:** `taosd` informs you that the existing data on the dnode will be deleted and cannot be rolled back. You must enter `YES` in uppercase to continue; any other input exits the restoration.
+- **Step 4.5:** `taosd` restores the data and prints progress information. This step may take a long time depending on the amount of data. Wait for it to complete.
+- **Step 4.6:** After restoration completes, `taosd` prints `restore completed successfully`.
+
+**Step 5:** Start all dnodes and check that the cluster and its data are functioning correctly.
+
+**Step 6:** Manually restore anode, bnode, qnode, and xnode as needed.
+
+**Step 7:** After the cluster is restored, reconnect other applications and resume normal use.
+
 ## Data Backup and Restoration Using taosdump
 
 taosdump is an open-source tool that supports backing up data from a running TDengine cluster and restoring the backed-up data to the same or another running TDengine cluster. taosdump can back up the database as a logical data unit or back up data records within a specified time period in the database. When using taosdump, you can specify the directory path for data backup. If no directory path is specified, taosdump will default to backing up the data in the current directory.
@@ -30,7 +173,7 @@ taosdump -i /file/path -h localhost -P 6030
 
 After executing the above command, taosdump will connect to the TDengine cluster at localhost:6030 and restore the data files from /file/path to the TDengine cluster.
 
-## Data Backup and Restoration in TDengine Enterprise
+## Subscription based Backup and Restoration
 
 TDengine Enterprise implements incremental backup and recovery of data by using data subscription. The backup and recovery functions of TDengine Enterprise include the following concepts:
 
