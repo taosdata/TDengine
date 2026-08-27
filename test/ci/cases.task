@@ -1324,6 +1324,7 @@
 # 23-ShowCommands
 
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_alive.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_alive_slow_status.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_create_db.py
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_diskinfo.py

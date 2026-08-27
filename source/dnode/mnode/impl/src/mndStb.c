@@ -1848,7 +1848,9 @@ static int32_t mndSetCreateAuditStbRedoActions(SMnode *pMnode, STrans *pTrans, S
   action.msgType = TDMT_VND_CREATE_STB;
   action.acceptableCode = TSDB_CODE_TDB_STB_ALREADY_EXIST;
   action.retryCode = TSDB_CODE_TDB_STB_NOT_EXIST;
-  mInfo("trans:%d, add create stb to redo action", pTrans->id);
+  // create-db trans runs group-parallel, which requires a non-zero groupId.
+  action.groupId = pVgroup->vgId;
+  mInfo("trans:%d, vgId:%d, add create stb to redo action", pTrans->id, pVgroup->vgId);
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
     taosMemoryFree(pReq);
     TAOS_RETURN(code);
