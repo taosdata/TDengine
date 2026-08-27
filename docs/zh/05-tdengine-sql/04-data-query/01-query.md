@@ -10,12 +10,13 @@ description: SELECT 语句语法、常用子句与查询示例
 SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
 SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
-    from_clause
+    [from_clause]
     [WHERE condition]
     [partition_by_clause]
     [interp_clause]
     [window_clause]
     [group_by_clause]
+    [having_clause]
     [order_by_clause]
     [SLIMIT limit_val [SOFFSET offset_val]]
     [LIMIT limit_val [OFFSET offset_val]]
@@ -81,17 +82,20 @@ fill_mode_and_val:
   | PREV|NEXT|NEAR
   | LINEAR
 
-group_by_clause:
-    GROUP BY group_by_expr [, group_by_expr] ... HAVING condition
-
-group_by_expr:
-    {expr | position | c_alias}
-
 partition_by_clause:
     PARTITION BY partition_by_expr [, partition_by_expr] ...
 
 partition_by_expr:
     {expr | position | c_alias}
+
+group_by_clause:
+    GROUP BY group_by_expr [, group_by_expr] ...
+
+group_by_expr:
+    {expr | position | c_alias}
+
+having_clause:
+    HAVING condition
 
 order_by_clause:
     ORDER BY order_expr [, order_expr] ...
@@ -139,7 +143,7 @@ limit_expr: {
 - group_by_expr: 指定数据分组聚合规则，支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select ts, current from meters order by ts desc,2```，2 对应 current 列。
 - partition_by_expr: 指定数据切片条件，切片内的数据独立进行计算。支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select current from meters partition by 1```，1 对应 current 列。
 - order_expr: 指定输出数据排序规则，默认不排序。支持表达式、函数、位置、列、别名，可以在单列或者多列中每列使用不同的排序规则，可以指定空值排序在前或者在后。
-- SLIMIT: 指定输出分片数量，limit_val 指定输出数量，offset_val 指定偏移开始位置，offset_val 可选，limit_val 和 offset_val 均为正值，在 PARTITION BY、GROUP BY 子句中使用。使用 ORDER BY 子句时只输出一个分片。
+- SLIMIT: 指定输出分片数量，limit_val 指定输出数量，offset_val 指定偏移开始位置，offset_val 可选，二者均为正值。它与 `PARTITION BY`、`GROUP BY` 或由 `HAVING` 产生的隐式分区配合使用。使用 `ORDER BY` 子句时只输出一个分片。
 - LIMIT: 指定输出数据数量，limit_val 指定输出数量，offset_val 指定偏移开始位置，offset_val 可选，limit_val 和 offset_val 均为正值。使用 PARTITION BY 子句时控制的是每个分片的数量。
 
 ## Hints
@@ -664,6 +668,42 @@ GROUP BY 子句中在使用位置语法和结果集列名进行分组时，其�
 
 详见 [特色查询](04-distinguished.md)。
 
+## HAVING
+
+`HAVING` 子句用于在分组、分区或窗口计算后筛选结果。它可以和 `GROUP BY`、`PARTITION BY` 或窗口子句一起使用。当本查询层没有这些子句和窗口关联时，也可以使用 `HAVING`；此时 TDengine 将全部输入视为一个隐式分区，其语义等价于按照取值恒定的列执行 `PARTITION BY`。
+
+`WHERE` 在分组、分区或窗口计算前筛选输入行，而 `HAVING` 筛选这些计算产生的结果。`HAVING` 后的条件表达式可以使用普通列或聚合函数：普通列表达式按列值筛选，聚合表达式按聚合结果筛选。
+
+使用 `HAVING` 时需注意以下限制：
+
+1. 对于聚合查询和窗口查询，`HAVING` 中未聚合的普通列必须是分组键、分区键或窗口键，非键列不能用于筛选。这类查询包括 `GROUP BY` 查询，以及使用 `PARTITION BY` 或窗口子句执行聚合或窗口计算的查询。对于非聚合查询，即仅使用 `PARTITION BY` 切分数据、但不执行聚合或窗口计算的查询，分区内的行不会合并，因此 `HAVING` 可以引用任意普通列，包括非分区键列。
+2. 不使用 `GROUP BY`、`PARTITION BY`、窗口子句或窗口关联时，普通列表达式和聚合表达式可以分别使用，但不能在同一查询层混用。TDengine 会将全部输入视为一个隐式分区，其分区键是常量。例如，`SELECT current FROM meters HAVING COUNT(*) > 5` 中，`SELECT` 列表的普通列 `current` 与 `HAVING` 中的聚合表达式冲突；`SELECT COUNT(*) FROM meters HAVING COUNT(*) > 5 AND current > 10` 中，`HAVING` 的普通列表达式 `current > 10` 与聚合表达式冲突，这两条语句均非法。
+3. 窗口关联仅支持在 `HAVING` 中使用聚合函数筛选，不支持标量筛选。详细限制参见 [Left/Right Window Join](05-join.md#leftright-window-join)。
+
+以下示例分别展示聚合查询、非聚合查询和隐式分区查询中的合法用法：
+
+```sql
+-- 聚合查询：普通列 location 是分组键
+SELECT location, COUNT(*)
+FROM meters
+GROUP BY location
+HAVING location = 'California.SanFrancisco' AND COUNT(*) > 10;
+
+-- 非聚合 PARTITION BY 查询：current 不是分区键，也可以用于筛选
+SELECT ts, current
+FROM meters
+PARTITION BY location
+HAVING current > 10;
+
+-- 隐式分区查询：仅使用普通列表达式
+SELECT ts, current FROM meters HAVING current > 10;
+
+-- 隐式分区查询：仅使用聚合表达式
+SELECT COUNT(*), AVG(current)
+FROM meters
+HAVING COUNT(*) > 100;
+```
+
 ## ORDER BY
 
 ORDER BY 子句对结果集排序。如果没有指定 ORDER BY，无法保证同一语句多次查询的结果集返回顺序一致。
@@ -700,7 +740,7 @@ LIMIT 控制输出条数，OFFSET 指定从第几条之后开始输出。LIMIT/O
 
 ## SLIMIT
 
-SLIMIT 和 PARTITION BY/GROUP BY 子句一起使用，用来控制输出的分片的数量。`SLIMIT 5 SOFFSET 2` 可以简写为 SLIMIT `2, 5`，都表示输出第 3 个到第 7 个分片。
+SLIMIT 和 `PARTITION BY`、`GROUP BY` 子句一起使用，用于控制输出分片的数量。由 `HAVING` 产生的隐式分区也支持 SLIMIT。`SLIMIT 5 SOFFSET 2` 可以简写为 `SLIMIT 2, 5`，均表示输出第 3 个到第 7 个分片。
 
 需要注意，如果有 ORDER BY 子句，则输出只有一个分片。
 
@@ -737,9 +777,7 @@ WHERE ts >= '2024-01-01 00:00:00'
   AND ts < '2024-02-01 00:00:00';
 ```
 
-其中，[NOW()](03-function.md#now) 返回当前时间，[TODAY()](03-function.md#today) 返回当前日期零点，
-[TIMETRUNCATE()](03-function.md#timetruncate) 用于按指定时间单位截断时间戳。
-时间字符串的解析和显示受当前连接时区影响，详见[时区](../10-time/01-timezone.md)。
+其中，[NOW()](03-function.md#now) 返回当前时间，[TODAY()](03-function.md#today) 返回当前日期零点，[TIMETRUNCATE()](03-function.md#timetruncate) 用于按指定时间单位截断时间戳。时间字符串的解析和显示受当前连接时区影响，详见 [时区](../10-time/01-timezone.md)。
 
 ## 无 FROM 的特殊查询
 

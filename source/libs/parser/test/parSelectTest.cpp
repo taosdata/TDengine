@@ -23,6 +23,7 @@ using namespace std;
 namespace ParserTest {
 
 class ParserSelectTest : public ParserTestBase {};
+class ParserSelectDdlTest : public ParserDdlTest {};
 
 namespace {
 
@@ -45,6 +46,20 @@ void registerUnknownExternalColumn(const std::string& sourceName, int8_t sourceT
 
   g_mockCatalogService->createExtSource(sourceName, sourceType, "127.0.0.1", 1, "fake_user", "fake_db", "public");
   g_mockCatalogService->createExtTable(sourceName, "", "", "metrics", columns, TSDB_TIME_PRECISION_MILLI);
+}
+
+void registerExternalTimelineTable(const std::string& sourceName) {
+  std::vector<MockCatalogService::MockExtColDef> columns;
+  columns.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false,
+                     "remote_ts", "timestamp"});
+  columns.push_back({"id", TSDB_DATA_TYPE_BIGINT, false, true, false,
+                     "remote_id", "bigint"});
+
+  g_mockCatalogService->createExtSource(
+      sourceName, EXT_SOURCE_POSTGRESQL, "127.0.0.1", 1, "fake_user",
+      "fake_db", "public");
+  g_mockCatalogService->createExtTable(
+      sourceName, "", "", "metrics", columns, TSDB_TIME_PRECISION_MILLI);
 }
 
 }  // namespace
@@ -170,6 +185,107 @@ TEST_F(ParserSelectTest, timelineFunc) {
 
   run("select t1.* from st1s1 t1, (select _wstart as ts, count(*) from st1s2 partition by tbname interval(1d) order by ts) t2 WHERE t1.ts = t2.ts");
 
+}
+
+TEST_F(ParserSelectTest, implicitHavingMatchesExplicitPartitionTimeline) {
+  useDb("root", "test");
+
+  run("SELECT IRATE(c1) FROM "
+      "(SELECT ts, c1 FROM st1 PARTITION BY TRUE)",
+      TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  run("SELECT IRATE(c1) FROM "
+      "(SELECT ts, c1 FROM st1 HAVING c1 > 0)",
+      TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  run("SELECT IRATE(c1) FROM "
+      "(SELECT ts, c1 FROM st1 HAVING TRUE)",
+      TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  run("SELECT IRATE(c1) FROM "
+      "(SELECT ts, c1 FROM t1 PARTITION BY TRUE)",
+      TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  run("SELECT IRATE(c1) FROM "
+      "(SELECT ts, c1 FROM t1 HAVING c1 > 0)",
+      TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  run("SELECT IRATE(c1) FROM "
+      "(SELECT ts, c1 FROM st1s1 PARTITION BY TRUE)",
+      TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  run("SELECT IRATE(c1) FROM "
+      "(SELECT ts, c1 FROM st1s1 HAVING c1 > 0)",
+      TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+}
+
+TEST_F(ParserSelectDdlTest,
+       implicitHavingMatchesExplicitPartitionTimelineMode) {
+  useDb("root", "test");
+
+  ETimeLineMode expected = TIME_LINE_MULTI;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) {
+      return;
+    }
+    ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType(pQuery->pRoot));
+    const SSelectStmt* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    EXPECT_EQ(expected, pSelect->timeLineResMode);
+  });
+
+  run("SELECT ts, c1 FROM t1 PARTITION BY TRUE");
+  run("SELECT ts, c1 FROM t1 HAVING c1 > 0");
+  run("SELECT ts, c1 FROM (SELECT ts, c1 FROM t1) PARTITION BY TRUE");
+  run("SELECT ts, c1 FROM (SELECT ts, c1 FROM t1) HAVING c1 > 0");
+  run("SELECT a.ts, a.c1 FROM t1 a JOIN st1s1 b ON a.ts = b.ts "
+      "PARTITION BY TRUE");
+  run("SELECT a.ts, a.c1 FROM t1 a JOIN st1s1 b ON a.ts = b.ts "
+      "HAVING a.c1 > 0");
+
+  expected = TIME_LINE_GLOBAL;
+  run("SELECT 1 PARTITION BY TRUE");
+  run("SELECT 1 HAVING TRUE");
+}
+
+TEST_F(ParserSelectDdlTest, implicitHavingSurvivesCloneAndJsonRoundTrip) {
+  useDb("root", "test");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) {
+      return;
+    }
+
+    SNode* pClone = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesCloneNode(pQuery->pRoot, &pClone));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> cloneGuard(
+        pClone, nodesDestroyNode);
+    ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType(pClone));
+    EXPECT_TRUE(((SSelectStmt*)pClone)->implicitPartitionHaving);
+
+    char*   pJson = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesNodeToString(pQuery->pRoot, false, &pJson, &len));
+    SNode* pRoundTrip = nullptr;
+    int32_t code = nodesStringToNode(pJson, &pRoundTrip);
+    taosMemoryFreeClear(pJson);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> roundTripGuard(
+        pRoundTrip, nodesDestroyNode);
+    ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType(pRoundTrip));
+    EXPECT_TRUE(((SSelectStmt*)pRoundTrip)->implicitPartitionHaving);
+  });
+
+  run("SELECT c1 FROM t1 HAVING c1 > 0");
+}
+
+TEST_F(ParserSelectTest, implicitHavingDoesNotPreserveExternalTimeline) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "test");
+  FederatedFlagGuard guard;
+  registerExternalTimelineTable("ext_timeline");
+
+  runAsyncOnly("SELECT IRATE(id) FROM "
+               "(SELECT ts, id FROM ext_timeline.metrics HAVING id > 0)",
+               TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+#endif
 }
 
 TEST_F(ParserSelectTest, selectFunc) {
@@ -396,6 +512,29 @@ TEST_F(ParserSelectTest, limit) {
   run("SELECT c1, c2 FROM t1 LIMIT 10");
 
   run("(SELECT c1, c2 FROM t1 LIMIT 10)");
+}
+
+TEST_F(ParserSelectTest, slimitWithoutFromMatchesLegacyBehavior) {
+  useDb("root", "test");
+
+  run("SELECT 1 SLIMIT 1");
+  run("SELECT 1 WHERE TRUE SLIMIT 1 SOFFSET 1 LIMIT 1");
+  run("SELECT 1 HAVING TRUE SLIMIT 1");
+  run("SELECT c1 FROM t1 SLIMIT 1",
+      TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_GROUP_BY);
+}
+
+TEST_F(ParserSelectTest, orderByWithoutFromMatchesLegacyBehavior) {
+  useDb("root", "test");
+
+  run("SELECT COUNT(1) ORDER BY c1");
+  run("SELECT COUNT(1) HAVING COUNT(1) = 1 ORDER BY c1");
+}
+
+TEST_F(ParserSelectTest, implicitHavingWithOrdinaryColumns) {
+  useDb("root", "test");
+
+  run("SELECT c1, c2 FROM t1 HAVING c1 > 2 ORDER BY c1, c2");
 }
 
 TEST_F(ParserSelectTest, sqlWindowInlineRowsParse) {
@@ -638,7 +777,8 @@ TEST_F(ParserSelectTest, semanticCheck) {
   run("SELECT c2 FROM t1 order by 2", TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT);
 
   // TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION
-  run("SELECT COUNT(*) cnt FROM t1 having c1 > 0", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
+  run("SELECT COUNT(*) cnt FROM t1 having c1 > 0",
+      TSDB_CODE_PAR_INVALID_OPTR_USAGE);
 
   run("SELECT COUNT(*) cnt FROM t1 GROUP BY c2 having c1 > 0", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
 

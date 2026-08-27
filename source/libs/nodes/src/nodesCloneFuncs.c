@@ -1699,6 +1699,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_SCALAR_FIELD(hasNonLocalSubQ);
   COPY_SCALAR_FIELD(hasGenericAnalysisFunc);
   COPY_SCALAR_FIELD(isEmptyResult);
+  COPY_SCALAR_FIELD(implicitPartitionHaving);
   COPY_SCALAR_FIELD(timeLineResMode);
   COPY_SCALAR_FIELD(timeLineFromOrderBy);
   COPY_SCALAR_FIELD(timeLineCurMode);

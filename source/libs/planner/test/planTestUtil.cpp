@@ -142,6 +142,22 @@ class PlannerTestBaseImpl {
     return false;
   }
 
+  int32_t countRawLogicPlanNode(const string& nodeName) const {
+    return countPlanNodeIn(res_.rawLogicPlan_, nodeName);
+  }
+
+  bool rawLogicPlanContains(const string& text) const {
+    return res_.rawLogicPlan_.find(text) != string::npos;
+  }
+
+  bool rawLogicPlanHasPartTableAgg() const {
+    return res_.rawLogicPlanHasPartTableAgg_;
+  }
+
+  bool rawLogicPlanHasPartTagAgg() const {
+    return res_.rawLogicPlanHasPartTagAgg_;
+  }
+
   bool planNodeAppearsAbove(const string& upperNodeName, const string& lowerNodeName) const {
     if (planNodeAppearsAboveIn(res_.physiPlan_, upperNodeName, lowerNodeName)) {
       return true;
@@ -361,6 +377,8 @@ class PlannerTestBaseImpl {
     string         prepareAst_;
     string         boundAst_;
     string         rawLogicPlan_;
+    bool           rawLogicPlanHasPartTableAgg_;
+    bool           rawLogicPlanHasPartTagAgg_;
     string         optimizedLogicPlan_;
     string         splitLogicPlan_;
     string         scaledLogicPlan_;
@@ -384,6 +402,8 @@ class PlannerTestBaseImpl {
     res_.ast_.clear();
     res_.boundAst_.clear();
     res_.rawLogicPlan_.clear();
+    res_.rawLogicPlanHasPartTableAgg_ = false;
+    res_.rawLogicPlanHasPartTagAgg_ = false;
     res_.optimizedLogicPlan_.clear();
     res_.splitLogicPlan_.clear();
     res_.scaledLogicPlan_.clear();
@@ -496,6 +516,7 @@ class PlannerTestBaseImpl {
   void doCreateLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
     DO_WITH_THROW(createLogicPlan, pCxt, pLogicSubplan);
     res_.rawLogicPlan_ = toString((SNode*)(*pLogicSubplan));
+    collectRawLogicPlanAggFlags((*pLogicSubplan)->pNode);
   }
 
   void doOptimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
@@ -577,6 +598,21 @@ class PlannerTestBaseImpl {
       pos = plan.find(nameKey, nameEnd);
     }
     return count;
+  }
+
+  void collectRawLogicPlanAggFlags(SLogicNode* pNode) {
+    if (NULL == pNode) {
+      return;
+    }
+    if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode)) {
+      SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
+      res_.rawLogicPlanHasPartTableAgg_ |= isPartTableAgg(pAgg);
+      res_.rawLogicPlanHasPartTagAgg_ |= isPartTagAgg(pAgg);
+    }
+    SNode* pChild = NULL;
+    FOREACH(pChild, pNode->pChildren) {
+      collectRawLogicPlanAggFlags((SLogicNode*)pChild);
+    }
   }
 
   bool anySubplanReferencesSubplan(const string& subplan) const {
@@ -759,6 +795,23 @@ bool PlannerTestBase::findPlanNode(const std::string& nodeName) const { return i
 int32_t PlannerTestBase::countPlanNode(const std::string& nodeName) const { return impl_->countPlanNode(nodeName); }
 
 bool PlannerTestBase::planContains(const std::string& text) const { return impl_->planContains(text); }
+
+int32_t PlannerTestBase::countRawLogicPlanNode(
+    const std::string& nodeName) const {
+  return impl_->countRawLogicPlanNode(nodeName);
+}
+
+bool PlannerTestBase::rawLogicPlanContains(const std::string& text) const {
+  return impl_->rawLogicPlanContains(text);
+}
+
+bool PlannerTestBase::rawLogicPlanHasPartTableAgg() const {
+  return impl_->rawLogicPlanHasPartTableAgg();
+}
+
+bool PlannerTestBase::rawLogicPlanHasPartTagAgg() const {
+  return impl_->rawLogicPlanHasPartTagAgg();
+}
 
 bool PlannerTestBase::planNodeAppearsAbove(const std::string& upperNodeName, const std::string& lowerNodeName) const {
   return impl_->planNodeAppearsAbove(upperNodeName, lowerNodeName);

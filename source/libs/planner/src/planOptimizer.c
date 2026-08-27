@@ -5304,17 +5304,33 @@ static bool planOptNodeListHasTbname(SNodeList* pKeys) {
   return hasCol;
 }
 
+static bool isImplicitPartitionKeyList(SNodeList* pKeys);
+
 static bool partTagsIsOptimizableNode(SLogicNode* pNode) {
   bool ret = 1 == LIST_LENGTH(pNode->pChildren) &&
              QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(nodesListGetNode(pNode->pChildren, 0)) &&
              SCAN_TYPE_TAG != ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->scanType;
   if (!ret) return ret;
-  // FQ guard: external scan has no tag concept, tag-related optimization is not applicable.
+  // FQ guard: external scan has no tag concept, tag-related optimization is not
+  // applicable.
+  // This rejection is also what keeps partTagsOptimize() from dropping a
+  // filter: an external subtree is the only case where conditions stay on the
+  // node instead of being pushed into the scan. See the note there before
+  // relaxing this.
   if (SCAN_TYPE_EXTERNAL == ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->scanType) {
     return false;
   }
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_PARTITION: {
+      SPartitionLogicNode* pPartition = (SPartitionLogicNode*)pNode;
+      if (isImplicitPartitionKeyList(pPartition->pPartitionKeys) &&
+          pNode->pParent &&
+          QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode->pParent)) {
+        SAggLogicNode* pAgg = (SAggLogicNode*)pNode->pParent;
+        if (pAgg->hasLast || planAggFuncsHasFirst(pAgg->pAggFuncs)) {
+          return false;
+        }
+      }
       if (pNode->pParent) {
         if (nodeType(pNode->pParent) == QUERY_NODE_LOGIC_PLAN_WINDOW) {
           SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode->pParent;
@@ -5727,6 +5743,19 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   int32_t         code = TSDB_CODE_SUCCESS;
   SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0);
   if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
+    // The partition node is destroyed below without inspecting pConditions, so
+    // any filter still attached to it would be dropped silently. That is safe
+    // only because the two ways a condition can reach here are disjoint:
+    //   1. PushDownCondition runs far earlier in optimizeRuleSet[] and has
+    //      already moved conditions above a plain scan into the scan itself;
+    //   2. the only case that keeps conditions on the node is an external
+    //      subtree, and partTagsIsOptimizableNode rejects SCAN_TYPE_EXTERNAL.
+    // Implicit-HAVING FIRST/LAST partitions are rejected by
+    // partTagsIsOptimizableNode because folding them would lose their
+    // single-group identity.
+    // If a future scan type both skips condition pushdown and passes
+    // partTagsIsOptimizableNode, add a pConditions guard here (migrate the
+    // filter onto the scan) together with a regression case that reaches it.
     TSWAP(((SPartitionLogicNode*)pNode)->pPartitionKeys, pScan->pGroupTags);
     int32_t code = replaceLogicNode(pLogicSubplan, pNode, (SLogicNode*)pScan);
     if (TSDB_CODE_SUCCESS == code) {
@@ -13369,6 +13398,33 @@ static bool distinctAggFilterShouldOptimize(SLogicNode* pNode, void* pCtx) {
   return true;
 }
 
+static bool isImplicitPartitionKeyList(SNodeList* pKeys) {
+  if (1 != LIST_LENGTH(pKeys)) {
+    return false;
+  }
+  // The translator removes user-written constant keys before planning, so a
+  // value key with this reserved alias can only come from implicit HAVING.
+  SNode* pKey = nodesListGetNode(pKeys, 0);
+  return QUERY_NODE_VALUE == nodeType(pKey) &&
+         0 == strcmp(((SExprNode*)pKey)->aliasName,
+                     IMPLICIT_PARTITION_KEY_ALIAS);
+}
+
+static bool distinctAggHasImplicitPartition(const SLogicNode* pChild) {
+  if (NULL == pChild) {
+    return false;
+  }
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild)) {
+    return isImplicitPartitionKeyList(
+        ((const SScanLogicNode*)pChild)->pGroupTags);
+  }
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pChild)) {
+    return isImplicitPartitionKeyList(
+        ((const SPartitionLogicNode*)pChild)->pPartitionKeys);
+  }
+  return false;
+}
+
 static int32_t distinctAggFilterOptimizeImpl(SOptimizeContext* pCxt, SAggLogicNode* pAgg) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -13494,7 +13550,9 @@ static int32_t distinctAggFilterOptimizeImpl(SOptimizeContext* pCxt, SAggLogicNo
   }
 
   // If hasGroup but we couldn't determine group columns, abort optimization
-  if (pAgg->hasGroup && (pFilter->pGroupKeys == NULL || pFilter->pGroupKeys->length == 0)) {
+  if (pAgg->hasGroup &&
+      (pFilter->pGroupKeys == NULL || pFilter->pGroupKeys->length == 0) &&
+      !distinctAggHasImplicitPartition(pChild)) {
     qWarn("plan DistinctFilter: hasGroup=true but no group cols found");
     nodesDestroyNode((SNode*)pFilter);
     return TSDB_CODE_SUCCESS;
