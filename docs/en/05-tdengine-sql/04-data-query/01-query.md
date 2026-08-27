@@ -8,13 +8,14 @@ title: Data Querying
 SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
 SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
-    from_clause
+    [from_clause]
     [WHERE condition]
     [partition_by_clause]
     [interp_clause]
     [window_clause]
     [group_by_clause]
-    [order_by_clasue]
+    [having_clause]
+    [order_by_clause]
     [SLIMIT limit_val [SOFFSET offset_val]]
     [LIMIT limit_val [OFFSET offset_val]]
     [>> export_file]
@@ -79,19 +80,22 @@ fill_mode_and_val:
   | PREV|NEXT|NEAR
   | LINEAR
  
-group_by_clause:
-    GROUP BY group_by_expr [, group_by_expr] ... HAVING condition
-                                                    
-group_by_expr:
-    {expr | position | c_alias}
-
 partition_by_clause:
     PARTITION BY partition_by_expr [, partition_by_expr] ...
 
 partition_by_expr:
     {expr | position | c_alias}
 
-order_by_clasue:
+group_by_clause:
+    GROUP BY group_by_expr [, group_by_expr] ...
+
+group_by_expr:
+    {expr | position | c_alias}
+
+having_clause:
+    HAVING condition
+
+order_by_clause:
     ORDER BY order_expr [, order_expr] ...
 
 order_expr:
@@ -137,7 +141,7 @@ limit_expr: {
 - group_by_expr: Specify data grouping and aggregation rules. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as `select ts, current from meters order by ts desc, 2`, where 2 corresponds to the current column.
 - partition_by_expr: Specify the data slicing conditions, and calculate the data independently within the slice. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as `select current from meters partition by 1`, where 1 corresponds to the current column.
 - order_expr: Specify the sorting rule for the output data, which is not sorted by default. Supports expressions, functions, positions, columns, and aliases. Different sorting rules can be used for each column in a single or multiple columns, and null values can be specified to be sorted first or last.
-- SLIMIT: Specify the number of output shards, limit_val specifies the number of outputs, offset_val specifies the start position of the offset, offset_val is optional, limit_val and offset_val are both positive values, used in the PARTITION BY and GROUP BY clauses. Only output one shard when using the ORDER BY clause.
+- SLIMIT: Specify the number of output slices. `limit_val` specifies the number of outputs, and `offset_val` specifies the optional starting offset; both are positive values. Use it with `PARTITION BY`, `GROUP BY`, or an implicit partition created by `HAVING`. When `ORDER BY` is used, only one slice is output.
 - LIMIT: Specify the number of output data, limit_val specifies the number of outputs, offset_val specifies the start position of the offset, offset_val is optional, both limit_val and offset_val are positive values. When using the PARTITION BY clause, the number of shards per shard is controlled.
 
 ## Hints
@@ -629,6 +633,42 @@ Since PARTITION BY does not require returning a single row of aggregated data, i
 
 See [TDengine Distinctive Queries](./04-distinguished.md)
 
+## HAVING
+
+The `HAVING` clause filters results after grouping, partitioning, or window calculation. It can be used with `GROUP BY`, `PARTITION BY`, or a window clause, and it can also be used when the current query block has none of these clauses and no Window Join. In that case, TDengine treats all input as one implicit partition, which is equivalent to applying `PARTITION BY` to a column whose value is constant.
+
+`WHERE` filters input rows before grouping, partitioning, or window calculation, whereas `HAVING` filters the results produced by those calculations. The condition following `HAVING` can use ordinary columns or aggregate functions. An ordinary column expression filters by column value, while an aggregate expression filters by aggregate result.
+
+The following restrictions apply when using `HAVING`:
+
+1. In aggregate and window queries, every unaggregated ordinary column in `HAVING` must be a grouping, partition, or window key; a non-key column cannot be used for filtering. These queries include `GROUP BY` queries and queries that use `PARTITION BY` or a window clause to perform aggregation or window calculation. A non-aggregate query uses only `PARTITION BY` to partition data without aggregation or window calculation. It does not collapse rows within each partition, so `HAVING` can reference any ordinary column, including a non-partition-key column.
+2. When the query has no `GROUP BY`, `PARTITION BY`, window clause, or Window Join, ordinary column expressions and aggregate expressions are each valid on their own, but cannot be mixed in the same query block. TDengine treats all input as one implicit partition whose partition key is constant. In `SELECT current FROM meters HAVING COUNT(*) > 5`, the ordinary column `current` in the `SELECT` list conflicts with the aggregate expression in `HAVING`. In `SELECT COUNT(*) FROM meters HAVING COUNT(*) > 5 AND current > 10`, the ordinary column expression `current > 10` in `HAVING` conflicts with the aggregate expressions. Both statements are invalid.
+3. Window Join supports only aggregate filters in `HAVING`; scalar filters are not supported. For details, see [Left/Right Window Join](05-join.md#leftright-window-join).
+
+The following examples show valid usage in aggregate, non-aggregate, and implicit-partition queries:
+
+```sql
+-- Aggregate query: the ordinary column location is a grouping key
+SELECT location, COUNT(*)
+FROM meters
+GROUP BY location
+HAVING location = 'California.SanFrancisco' AND COUNT(*) > 10;
+
+-- Non-aggregate PARTITION BY: current need not be a partition key
+SELECT ts, current
+FROM meters
+PARTITION BY location
+HAVING current > 10;
+
+-- Implicit partition using only an ordinary column expression
+SELECT ts, current FROM meters HAVING current > 10;
+
+-- Implicit partition using only aggregate expressions
+SELECT COUNT(*), AVG(current)
+FROM meters
+HAVING COUNT(*) > 100;
+```
+
 ## ORDER BY
 
 The ORDER BY clause sorts the result set. If ORDER BY is not specified, the order of the result set returned by the same query multiple times cannot be guaranteed.
@@ -665,7 +705,7 @@ Starting from v3.4.2.0, `OFFSET N` can be used independently without `LIMIT`, wh
 
 ## SLIMIT
 
-SLIMIT is used with the PARTITION BY/GROUP BY clause to control the number of output slices. SLIMIT 5 SOFFSET 2 can be abbreviated as SLIMIT 2, 5, both indicating output from the 3rd to the 7th slice.
+SLIMIT is used with `PARTITION BY` or `GROUP BY` to control the number of output slices. It can also be used with an implicit partition created by `HAVING`. `SLIMIT 5 SOFFSET 2` can be abbreviated as `SLIMIT 2, 5`; both forms output the third through seventh slices.
 
 Note that if there is an ORDER BY clause, only one slice is output.
 

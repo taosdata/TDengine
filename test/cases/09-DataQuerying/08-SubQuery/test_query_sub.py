@@ -310,7 +310,12 @@ class TestQuerySub:
         #  return -1
         # endi
 
-        tdSql.error(f"select last_row(*) from (select * from nest_tb0) having c1 > 0")
+        tdSql.query(
+            "select last_row(*) from (select * from nest_tb0) "
+            "having c1 > 0"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 99)
 
         tdLog.info(f"===========>td-4805")
         tdSql.error(f"select tbname, i from (select * from nest_tb0) group by i;")

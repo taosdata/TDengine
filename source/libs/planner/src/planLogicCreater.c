@@ -73,6 +73,10 @@ typedef struct SRewriteExprCxt {
   SSelectStmt* pSelect;  // Used to get the current first order by expr after rewriting
 } SRewriteExprCxt;
 
+static bool hasEffectivePartition(const SSelectStmt* pSelect) {
+  return NULL != pSelect->pPartitionByList || pSelect->implicitPartitionHaving;
+}
+
 // Helper function to safely get the first order by expression after rewriting
 static SNode* getOrderByFirstExpr(SRewriteExprCxt* pCxt) {
   if (pCxt->pSelect && pCxt->pSelect->pOrderByList && pCxt->pSelect->pOrderByList->length > 0) {
@@ -242,7 +246,7 @@ static int32_t generatePlanErrMsg(SLogicPlanContext* pCxt, int32_t errCode, cons
 
 static int32_t rewriteExprForSelect(SNode* pExpr, SSelectStmt* pSelect, ESqlClause clause) {
   nodesWalkExpr(pExpr, doNameExpr, NULL);
-  bool isPartitionBy = (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? true : false;
+  bool isPartitionBy = hasEffectivePartition(pSelect);
   SNode*          pOrderByFirstExpr = (pSelect->pOrderByList && pSelect->pOrderByList->length > 0)
                                           ? ((SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, 0))->pExpr
                                           : NULL;
@@ -337,7 +341,7 @@ static bool logicNodeHasExternalScan(const SLogicNode* pLogicNode) {
 static int32_t rewriteExprsForSelect(SNodeList* pExprs, SSelectStmt* pSelect, ESqlClause clause,
                                      SNodeList** pRewriteExprs) {
   nodesWalkExprs(pExprs, doNameExpr, NULL);
-  bool isPartitionBy = (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? true : false;
+  bool isPartitionBy = hasEffectivePartition(pSelect);
   SNode*     pOrderByFirstExpr =
       (pSelect->pOrderByList && pSelect->pOrderByList->length > 0)
           ? ((SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, 0))->pExpr : NULL;
@@ -4629,7 +4633,8 @@ static int32_t createGroupingSetNode(SNode* pExpr, SNode** ppNode) {
 }
 
 static bool isWindowJoinStmt(SSelectStmt* pSelect) {
-  return (QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable) &&
+  return (NULL != pSelect->pFromTable &&
+          QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable) &&
           IS_WINDOW_JOIN(((SJoinTableNode*)pSelect->pFromTable)->subType));
 }
 
@@ -4640,7 +4645,9 @@ static EGroupAction getGroupAction(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 }
 
 static EDataOrderLevel getRequireDataOrder(bool needTimeline, SSelectStmt* pSelect) {
-  return needTimeline ? (NULL != pSelect->pPartitionByList ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
+  return needTimeline ? (hasEffectivePartition(pSelect)
+                             ? DATA_ORDER_LEVEL_IN_GROUP
+                             : DATA_ORDER_LEVEL_GLOBAL)
                       : DATA_ORDER_LEVEL_NONE;
 }
 
@@ -4849,9 +4856,25 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   }
   nodesDestroyList(pOutputGroupKeys);
 
+  if (TSDB_CODE_SUCCESS == code && pSelect->implicitPartitionHaving &&
+      (pSelect->hasLastFunc || planAggFuncsHasFirst(pAgg->pAggFuncs))) {
+    SNode* pKey = NULL;
+    SNode* pGroupKey = NULL;
+    code = nodesMakeValueNodeFromInt64(1, &pKey);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = createGroupingSetNode(pKey, &pGroupKey);
+    }
+    nodesDestroyNode(pKey);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListMakeStrictAppend(&pAgg->pGroupKeys, pGroupKey);
+    } else {
+      nodesDestroyNode(pGroupKey);
+    }
+  }
+
   pAgg->isGroupTb = pAgg->pGroupKeys ? keysHasTbname(pAgg->pGroupKeys) : 0;
   pAgg->isPartTb = pSelect->pPartitionByList ? keysHasTbname(pSelect->pPartitionByList) : 0;
-  pAgg->hasGroup = pAgg->pGroupKeys || pSelect->pPartitionByList;
+  pAgg->hasGroup = pAgg->pGroupKeys || hasEffectivePartition(pSelect);
 
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pAgg;
@@ -6565,7 +6588,8 @@ static int32_t streamDerivedWrapperSatisfyExternalWindow(SLogicPlanContext* pCxt
     return TSDB_CODE_SUCCESS;
   }
 
-  if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList ||
+  if (NULL != pSelect->pWindow || hasEffectivePartition(pSelect) ||
+      NULL != pSelect->pGroupByList ||
       !inStreamCalcClause(pCxt->pPlanCxt) || hasPlaceHolderCond || NULL != pSelect->pSlimit ||
       NULL != pSelect->pLimit || pCxt->pPlanCxt->streamCxt.disableExtWindow || pSelect->hasInterpFunc ||
       pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
@@ -6614,7 +6638,8 @@ static int32_t streamCurrentSelectSatisfyExternalWindow(SLogicPlanContext* pCxt,
     return TSDB_CODE_SUCCESS;
   }
 
-  if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList ||
+  if (NULL != pSelect->pWindow || hasEffectivePartition(pSelect) ||
+      NULL != pSelect->pGroupByList ||
       !inStreamCalcClause(pCxt->pPlanCxt) || hasPlaceHolderCond ||
       (QUERY_NODE_JOIN_TABLE == fromType && !safeExtJoin) || NULL != pSelect->pSlimit || NULL != pSelect->pLimit ||
       pCxt->pPlanCxt->streamCxt.disableExtWindow || pSelect->hasInterpFunc ||
@@ -7080,7 +7105,8 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
 
   TSWAP(pProject->node.pLimit, pSelect->pLimit);
   TSWAP(pProject->node.pSlimit, pSelect->pSlimit);
-  pProject->ignoreGroupId = pSelect->isSubquery ? true : (NULL == pSelect->pPartitionByList);
+  pProject->ignoreGroupId =
+      pSelect->isSubquery ? true : !hasEffectivePartition(pSelect);
   pProject->node.groupAction = (hasExternalWindowDerivedFromSubquery(pSelect) ||
                                 (inStreamCalcClause(pCxt->pPlanCxt) && pCxt->streamExtWindowTreeEnabled))
                                    ? GROUP_ACTION_KEEP
@@ -7201,7 +7227,7 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
 }
 
 static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (NULL == pSelect->pPartitionByList) {
+  if (!hasEffectivePartition(pSelect)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -7227,7 +7253,18 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
   PLAN_ERR_JRET(nodesCollectFuncs(pSelect, SQL_CLAUSE_PARTITION_BY, NULL, fmIsAggFunc, &pPartition->pAggFuncs));
 
   pPartition->pPartitionKeys = NULL;
-  PLAN_ERR_JRET(nodesCloneList(pSelect->pPartitionByList, &pPartition->pPartitionKeys));
+  if (pSelect->implicitPartitionHaving) {
+    SNode* pKey = NULL;
+    PLAN_ERR_JRET(nodesMakeValueNodeFromInt64(1, &pKey));
+    tstrncpy(((SExprNode*)pKey)->aliasName,
+             IMPLICIT_PARTITION_KEY_ALIAS, TSDB_COL_NAME_LEN);
+    tstrncpy(((SExprNode*)pKey)->userAlias,
+             IMPLICIT_PARTITION_KEY_ALIAS, TSDB_COL_NAME_LEN);
+    PLAN_ERR_JRET(nodesListMakeStrictAppend(&pPartition->pPartitionKeys, pKey));
+  } else {
+    PLAN_ERR_JRET(nodesCloneList(pSelect->pPartitionByList,
+                                 &pPartition->pPartitionKeys));
+  }
 
   if (keysHasCol(pPartition->pPartitionKeys) && pSelect->pWindow &&
       nodeType(pSelect->pWindow) == QUERY_NODE_INTERVAL_WINDOW) {
@@ -7307,7 +7344,54 @@ static int32_t createDistinctLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
 
 static int32_t createSelectWithoutFromLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
                                                 SLogicNode** pLogicNode) {
-  return createProjectLogicNode(pCxt, pSelect, pLogicNode);
+  if (NULL == pSelect->pWhere && NULL == pSelect->pHaving) {
+    return createProjectLogicNode(pCxt, pSelect, pLogicNode);
+  }
+
+  SProjectLogicNode* pInput = NULL;
+  SLogicNode*        pRoot = NULL;
+  int32_t code =
+      nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PROJECT, (SNode**)&pInput);
+  if (NULL == pInput) {
+    return code;
+  }
+  pRoot = (SLogicNode*)pInput;
+
+  SNode* pValue = NULL;
+  PLAN_ERR_JRET(nodesMakeValueNodeFromInt64(1, &pValue));
+  tstrncpy(((SExprNode*)pValue)->aliasName, "#implicit_input",
+           TSDB_COL_NAME_LEN);
+  tstrncpy(((SExprNode*)pValue)->userAlias, "#implicit_input",
+           TSDB_COL_NAME_LEN);
+  PLAN_ERR_JRET(nodesListMakeStrictAppend(&pInput->pProjections, pValue));
+  PLAN_ERR_JRET(createColumnByProjections(pCxt, pSelect->stmtName,
+                                          pInput->pProjections,
+                                          &pInput->node.pTargets));
+  PLAN_ERR_JRET(nodesCloneNode(pSelect->pWhere, &pInput->node.pConditions));
+
+  pInput->ignoreGroupId = true;
+  pInput->node.groupAction = GROUP_ACTION_CLEAR;
+  pInput->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  pInput->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+  pInput->node.precision = pSelect->precision;
+  tstrncpy(pInput->stmtName, pSelect->stmtName, TSDB_TABLE_NAME_LEN);
+  pCxt->pCurrRoot = pRoot;
+
+  PLAN_ERR_JRET(createSelectRootLogicNode(pCxt, pSelect,
+                                          createPartitionLogicNode, &pRoot));
+  PLAN_ERR_JRET(createSelectRootLogicNode(pCxt, pSelect,
+                                          createAggLogicNode, &pRoot));
+  PLAN_ERR_JRET(createSelectRootLogicNode(pCxt, pSelect,
+                                          createDistinctLogicNode, &pRoot));
+  PLAN_ERR_JRET(createSelectRootLogicNode(pCxt, pSelect,
+                                          createProjectLogicNode, &pRoot));
+
+  *pLogicNode = pRoot;
+  return code;
+
+_return:
+  nodesDestroyNode((SNode*)pRoot);
+  return code;
 }
 
 static int32_t createSelectFromLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {

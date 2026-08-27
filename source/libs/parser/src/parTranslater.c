@@ -614,7 +614,8 @@ static bool    stmtIsSingleTable(SNode* pStmt);
 static int32_t rewriteShowValidateVtable(STranslateContext* pCxt, SQuery* pQuery);
 
 static bool isWindowJoinStmt(SSelectStmt* pSelect) {
-  return (QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable)) &&
+  return NULL != pSelect->pFromTable &&
+         QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable) &&
          IS_WINDOW_JOIN(((SJoinTableNode*)pSelect->pFromTable)->subType);
 }
 
@@ -1785,9 +1786,14 @@ static bool hasTimestampProjection(const SNode* pStmt) {
   return hasTimestampInProjection(getProjectList(pStmt));
 }
 
+static bool hasEffectivePartition(const SSelectStmt* pSelect) {
+  return NULL != pSelect->pPartitionByList || pSelect->implicitPartitionHaving;
+}
+
 static bool hasGroupOrPartition(const SNode* pNode) {
   if (QUERY_NODE_SELECT_STMT == nodeType(pNode)) {
-    return ((SSelectStmt*)pNode)->pPartitionByList != NULL || ((SSelectStmt*)pNode)->pGroupByList != NULL;
+    SSelectStmt* pSelect = (SSelectStmt*)pNode;
+    return hasEffectivePartition(pSelect) || NULL != pSelect->pGroupByList;
   } else if (QUERY_NODE_SET_OPERATOR == nodeType(pNode)) {
     return false;
   }
@@ -5746,7 +5752,7 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
                                      "%s is only supported in single table query", pFunc->functionName);
     }
   }
-  if (NULL != pSelect->pPartitionByList) {
+  if (hasEffectivePartition(pSelect)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "Function '%s' is not supported in partition query", pFunc->functionName);
   }
@@ -7837,7 +7843,8 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   }
   CheckAggColCoexistCxt cxt = {.pTranslateCxt = pCxt, .existCol = false, .hasColFunc = false};
   nodesRewriteExprs(pSelect->pProjectionList, doCheckAggColCoexist, &cxt);
-  if (!pSelect->isDistinct) {
+  // ORDER BY is intentionally ignored for no-FROM queries for compatibility.
+  if (!pSelect->isDistinct && !pCxt->dual) {
     nodesRewriteExprs(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
   }
   if (((!cxt.existCol && 0 < pSelect->selectFuncNum) || (cxt.existCol && 1 == pSelect->selectFuncNum)) &&
@@ -7893,7 +7900,8 @@ static int32_t checkWinJoinAggColCoexist(STranslateContext* pCxt, SSelectStmt* p
 
 static int32_t checkHavingGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (NULL == getGroupByList(pCxt) && NULL == pSelect->pPartitionByList && NULL == pSelect->pWindow &&
+  if (NULL == getGroupByList(pCxt) && !hasEffectivePartition(pSelect) &&
+      NULL == pSelect->pWindow &&
       !isWindowJoinStmt(pSelect)) {
     return code;
   }
@@ -13490,9 +13498,15 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
 static int32_t translateHaving(STranslateContext* pCxt, SSelectStmt* pSelect) {
   int32_t code = TSDB_CODE_SUCCESS;
   PAR_ERR_RET(validateNoSqlWindowFunc(pCxt, pSelect->pHaving));
-  if (NULL == pSelect->pGroupByList && NULL == pSelect->pPartitionByList && NULL == pSelect->pWindow &&
-      !isWindowJoinStmt(pSelect) && NULL != pSelect->pHaving) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
+  if (NULL == pSelect->pGroupByList && NULL == pSelect->pPartitionByList &&
+      NULL == pSelect->pWindow && !isWindowJoinStmt(pSelect) &&
+      NULL != pSelect->pHaving) {
+    pSelect->implicitPartitionHaving = true;
+    // Match translatePartitionBy for a constant key; no-FROM queries do not
+    // enter that path and retain their original timeline mode.
+    if (NULL != pSelect->pFromTable) {
+      pSelect->timeLineResMode = TIME_LINE_MULTI;
+    }
   }
   pCxt->currClause = SQL_CLAUSE_HAVING;
   if (NULL != pSelect->pHaving) {
@@ -13506,7 +13520,8 @@ static int32_t translateHaving(STranslateContext* pCxt, SSelectStmt* pSelect) {
       bool hasFunc = false;
       nodesWalkExpr(pSelect->pHaving, searchAggFuncNode, &hasFunc);
       if (!hasFunc) {
-        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WJOIN_HAVING_EXPR);
+        return generateSyntaxErrMsg(&pCxt->msgBuf,
+                                    TSDB_CODE_PAR_INVALID_WJOIN_HAVING_EXPR);
       }
     }
   }
@@ -16315,9 +16330,12 @@ static int32_t checkLimit(STranslateContext* pCxt, SSelectStmt* pSelect) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OFFSET_LESS_ZERO);
   }
 
-  if ((TSDB_CODE_SUCCESS == code) && NULL != pSelect->pSlimit &&
-      (NULL == pSelect->pPartitionByList && NULL == pSelect->pGroupByList)) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_GROUP_BY);
+  // No-FROM queries have historically accepted SLIMIT without grouping.
+  if ((TSDB_CODE_SUCCESS == code) && NULL != pSelect->pFromTable &&
+      NULL != pSelect->pSlimit &&
+      (!hasEffectivePartition(pSelect) && NULL == pSelect->pGroupByList)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf,
+                                TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_GROUP_BY);
   }
 
   return code;
@@ -16641,10 +16659,31 @@ static int32_t replaceOrderByAliasForSelect(STranslateContext* pCxt, SSelectStmt
 
 static int32_t translateSelectWithoutFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrStmt = (SNode*)pSelect;
-  pCxt->currClause = SQL_CLAUSE_SELECT;
   pCxt->dual = true;
-  return translateExprList(pCxt, pSelect->pProjectionList);
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL != pSelect->pWhere) {
+    pCxt->currClause = SQL_CLAUSE_WHERE;
+    code = translateExpr(pCxt, &pSelect->pWhere);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateHaving(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateSelectList(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkHavingGroupBy(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkAggColCoexist(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkLimit(pCxt, pSelect);
+  }
+  return code;
 }
+
 typedef struct SCheckColsFuncCxt {
   bool        hasColsFunc;
   SNodeList** selectFuncList;
@@ -22756,7 +22795,8 @@ static int32_t checkCreateTopic(STranslateContext* pCxt, SCreateTopicStmt* pStmt
     if (!pSelect->isDistinct &&
         (NULL != pSelect->pFromTable && QUERY_NODE_REAL_TABLE == nodeType(pSelect->pFromTable)) &&
         NULL == pSelect->pGroupByList && NULL == pSelect->pLimit && NULL == pSelect->pSlimit &&
-        NULL == pSelect->pOrderByList && NULL == pSelect->pPartitionByList) {
+        NULL == pSelect->pOrderByList &&
+        NULL == pSelect->pPartitionByList && NULL == pSelect->pHaving) {
       return TSDB_CODE_SUCCESS;
     }
   }

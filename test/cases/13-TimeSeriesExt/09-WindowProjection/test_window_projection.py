@@ -210,7 +210,10 @@ class TestWindowProjection:
             "SELECT _wstart, ts, avg(current) FROM d1001 "
             "INTERVAL(3s) HAVING avg(current) > 1.0"
         )
-        tdSql.error("SELECT ts, current FROM d1001 HAVING current > 1.0")
+        tdSql.query(
+            "SELECT ts, current FROM d1001 HAVING current > 1.0"
+        )
+        tdSql.checkRows(9)
 
     # ==================================================================
     # in/ans validation tests — full output comparison
