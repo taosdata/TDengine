@@ -360,6 +360,15 @@ SVgObj *mndAcquireVgroup(SMnode *pMnode, int32_t vgId) {
   return pVgroup;
 }
 
+SVgObj *mndAcquireVgroupNotReady(SMnode *pMnode, int32_t vgId) {
+  SSdb   *pSdb = pMnode->pSdb;
+  SVgObj *pVgroup = sdbAcquireNotReadyObj(pSdb, SDB_VGROUP, &vgId);
+  if (pVgroup == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
+    terrno = TSDB_CODE_MND_VGROUP_NOT_EXIST;
+  }
+  return pVgroup;
+}
+
 void mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pVgroup);

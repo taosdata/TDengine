@@ -1146,7 +1146,14 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   for (int32_t v = 0; v < taosArrayGetSize(statusReq.pVloads); ++v) {
     SVnodeLoad *pVload = taosArrayGet(statusReq.pVloads, v);
 
-    SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVload->vgId);
+    // Must accept non-READY vgroups: during create-db the vgroups stay CREATING until commit, yet the
+    // transaction now waits for leader election before committing, so the syncState learned here is
+    // what lets that wait finish. Side effect: DROPPING/DROPPED vgroups also get updated, which is
+    // harmless because they are about to disappear and are already invisible to sdbFetch.
+    SVgObj *pVgroup = mndAcquireVgroupNotReady(pMnode, pVload->vgId);
+    if (pVgroup == NULL) {
+      mDebug("vgId:%d, not found while processing status req from dnode:%d", pVload->vgId, statusReq.dnodeId);
+    }
     if (pVgroup != NULL) {
       if (pVload->syncState == TAOS_SYNC_STATE_LEADER || pVload->syncState == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
         pVgroup->cacheUsage = pVload->cacheUsage;

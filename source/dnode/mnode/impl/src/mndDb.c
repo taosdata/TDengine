@@ -869,6 +869,11 @@ static int32_t mndSetCreateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
       TAOS_CHECK_RETURN(mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid));
     }
+
+    // TDMT_VND_ALTER_CONFIRM is a sync write, so it only succeeds once the vgroup has a leader.
+    // Without this action the trans reaches commit (CREATING -> READY, visible to sdbFetch) while
+    // some vgroups are still leaderless, so `show cluster alive` can transiently report 2.
+    TAOS_CHECK_RETURN(mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, pVgroup));
   }
 
   TAOS_RETURN(code);
@@ -1175,6 +1180,12 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   mInfo("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
 
   mndTransSetDbName(pTrans, dbObj.name, NULL);
+
+  // Group-parallel groups redo actions by groupId (= vgId) and runs each group's actions in order,
+  // so a vgroup's alter-confirm is only sent after its own create-vnode completes, while different
+  // vgroups still elect leaders concurrently.
+  mndTransSetGroupParallel(pTrans);
+
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
 
   void   *pIter = NULL;
