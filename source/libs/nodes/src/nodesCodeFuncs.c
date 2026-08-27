@@ -10138,6 +10138,8 @@ static const char* jkSelectStmtOrderBy = "OrderBy";
 static const char* jkSelectStmtLimit = "Limit";
 static const char* jkSelectStmtSlimit = "Slimit";
 static const char* jkSelectStmtStmtName = "StmtName";
+static const char* jkSelectStmtImplicitPartitionHaving =
+    "ImplicitPartitionHaving";
 static const char* jkSelectStmtHasAggFuncs = "HasAggFuncs";
 static const char* jkSelectStmtInterpFuncs = "HasInterpFuncs";
 static const char* jkSelectStmtInterpFill = "InterpFill";
@@ -10186,6 +10188,11 @@ static int32_t selectStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkSelectStmtStmtName, pNode->stmtName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson,
+                                jkSelectStmtImplicitPartitionHaving,
+                                pNode->implicitPartitionHaving);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkSelectStmtHasAggFuncs, pNode->hasAggFuncs);
@@ -10247,6 +10254,11 @@ static int32_t jsonToSelectStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue1(pJson, jkSelectStmtStmtName, pNode->stmtName, sizeof(pNode->stmtName));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson,
+                             jkSelectStmtImplicitPartitionHaving,
+                             &pNode->implicitPartitionHaving);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkSelectStmtHasAggFuncs, &pNode->hasAggFuncs);

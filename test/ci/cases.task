@@ -655,6 +655,7 @@
 ## 09-Having
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/09-Having/test_query_having_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/09-Having/test_query_having.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/09-Having/test_query_having_implicit_partition.py -N 3
 ## 10-Distinct
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/10-Distinct/test_query_distinct.py
 ## 11-PseudoColumn

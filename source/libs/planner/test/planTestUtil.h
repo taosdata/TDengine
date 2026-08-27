@@ -35,6 +35,10 @@ class PlannerTestBase : public testing::Test {
   bool    findPlanNode(const std::string& nodeName) const;
   int32_t countPlanNode(const std::string& nodeName) const;
   bool    planContains(const std::string& text) const;
+  int32_t countRawLogicPlanNode(const std::string& nodeName) const;
+  bool    rawLogicPlanContains(const std::string& text) const;
+  bool    rawLogicPlanHasPartTableAgg() const;
+  bool    rawLogicPlanHasPartTagAgg() const;
   bool    planNodeAppearsAbove(const std::string& upperNodeName, const std::string& lowerNodeName) const;
   bool    exchangeSubplansContain(const std::string& nodeName) const;
   bool    aggOutputsMatchFuncs() const;
