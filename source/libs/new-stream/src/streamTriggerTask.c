@@ -1853,6 +1853,14 @@ static void stTriggerTaskDestroyNestedInputRequest(SSTriggerVirTablePseudoColReq
   pRequest->cids = NULL;
 }
 
+static bool stTriggerTaskConsumeMissingTaskRetry(SSTriggerPullRequest *pReq) {
+  if (pReq == NULL || pReq->retryCount >= STREAM_PULL_TASK_NOT_EXIST_RETRY_LIMIT) {
+    return false;
+  }
+  ++pReq->retryCount;
+  return true;
+}
+
 static int32_t stTriggerTaskCloneNestedInputRequest(const SSTriggerVirTablePseudoColRequest *pSrc,
                                                     SSTriggerVirTablePseudoColRequest       *pDst) {
   if (pSrc == NULL || pDst == NULL || (pSrc->cids != NULL && pSrc->cids->elemSize != sizeof(col_id_t))) {
@@ -8666,9 +8674,26 @@ static int32_t stTriggerTaskProcNestedInputRspAt(SSTriggerRealtimeContext *pCont
     return owner == STREAM_NESTED_INPUT_REALTIME ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG;
   }
 
-  if (pRsp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+  if (pRsp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRsp->code == TSDB_CODE_STREAM_TASK_NOT_EXIST) {
     if (owner == STREAM_NESTED_INPUT_RECOVERY) {
       return pRsp->code;
+    }
+    if (pRsp->code == TSDB_CODE_STREAM_TASK_NOT_EXIST &&
+        !stTriggerTaskConsumeMissingTaskRetry(&pSource->request.base)) {
+      pSource->inFlight = false;
+      pSource->failed = true;
+      pSource->errorCode = pRsp->code;
+      ST_TASK_DLOG("nested input route exceeded missing reader task retry budget, readerTaskId:%" PRIx64
+                   ", retryCount:%u",
+                   pSource->request.base.readerTaskId, pSource->request.base.retryCount);
+      int32_t clearCode = stRealtimeGroupClearNestedInputOwner(pGroup, true, true, false);
+      return clearCode != TSDB_CODE_SUCCESS ? clearCode : pRsp->code;
+    }
+    if (pRsp->code == TSDB_CODE_STREAM_TASK_NOT_EXIST) {
+      ST_TASK_DLOG("retry nested input route due to missing reader task, readerTaskId:%" PRIx64 ", retryCount:%u",
+                   pSource->request.base.readerTaskId, pSource->request.base.retryCount);
+    } else {
+      ST_TASK_DLOG("retry nested input route since reader task transient error:%s", tstrerror(pRsp->code));
     }
     int32_t code = stRealtimeGroupAddNestedRetry(pGroup, pRoute, &pSource->request);
     if (code == TSDB_CODE_SUCCESS) {
@@ -9798,6 +9823,17 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
           code = pRsp->code;
           QUERY_CHECK_CODE(code, lino, _end);
         }
+        bool missingTask = pRsp->code == TSDB_CODE_STREAM_TASK_NOT_EXIST;
+        if (missingTask) {
+          *pErrTaskId = pReq->readerTaskId;
+        }
+        if (missingTask && !stTriggerTaskConsumeMissingTaskRetry(pReq)) {
+          code = pRsp->code;
+          ST_TASK_DLOG("retry pull request exceeded missing reader task retry budget, readerTaskId:%" PRIx64
+                       ", retryCount:%u",
+                       pReq->readerTaskId, pReq->retryCount);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
         bool addWait = false;
         if (pReq->sessionId == STREAM_TRIGGER_REALTIME_SESSIONID) {
           addWait = (listNEles(&pTask->pRealtimeContext->retryPullReqs) == 0);
@@ -9819,11 +9855,14 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
           QUERY_CHECK_CODE(code, lino, _end);
         }
         retryScheduled = true;
-        if (code != TSDB_CODE_STREAM_TASK_NOT_EXIST) {
-          *pErrTaskId = pReq->readerTaskId;
-          code = pRsp->code;
-          QUERY_CHECK_CODE(code, lino, _end);
+        if (missingTask) {
+          ST_TASK_DLOG("retry pull request due to missing reader task, readerTaskId:%" PRIx64 ", retryCount:%u",
+                       pReq->readerTaskId, pReq->retryCount);
+          break;
         }
+        *pErrTaskId = pReq->readerTaskId;
+        code = pRsp->code;
+        QUERY_CHECK_CODE(code, lino, _end);
       }
     }
   } else if (pRsp->msgType == TDMT_STREAM_TRIGGER_CALC_RSP) {

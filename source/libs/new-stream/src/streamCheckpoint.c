@@ -117,11 +117,11 @@ int32_t streamWriteCheckPoint(int64_t streamId, void* data, int64_t dataLen) {
     char filepathTmp[PATH_MAX] = {0};
     STREAM_CHECK_RET_GOTO(getFileNameTmp(filepathTmp, streamId));
     STREAM_CHECK_RET_GOTO(writeFile(filepathTmp, data, dataLen));
-    if (taosRenameFile(filepathTmp, filepath) != 0) {
-      stError("failed to rename checkpoint file from %s to %s for streamId:%" PRIx64, filepathTmp,
+    code = taosRenameFile(filepathTmp, filepath);
+    if (code != 0) {
+      int32_t ret = taosRemoveFile(filepathTmp);
+      stError("failed to rename checkpoint file, code:%d, ret:%d from %s to %s for streamId:%" PRIx64, code, ret, filepathTmp,
               filepath, streamId);
-      STREAM_CHECK_CONDITION_GOTO(taosRemoveFile(filepathTmp) != 0, terrno);
-      code = terrno;
       goto end;
     }
   } else {
