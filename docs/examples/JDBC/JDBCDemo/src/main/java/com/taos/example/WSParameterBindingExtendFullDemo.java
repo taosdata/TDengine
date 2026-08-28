@@ -29,6 +29,7 @@ public class WSParameterBindingExtendFullDemo {
             0x40, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x59, 0x40 };
     private static final String[] schemaList = {
+            "drop database if exists example_all_type_stmt",
             "CREATE DATABASE IF NOT EXISTS example_all_type_stmt",
             "USE example_all_type_stmt",
             "CREATE STABLE IF NOT EXISTS stb_json (" +
