@@ -12,11 +12,17 @@ class TestNestedWindowContext:
     def test_data_window_placeholders_at_three_levels(self):
         """Nested WINDOW: three data-window layers expose frozen snapshots.
 
+        Validate data window placeholders at three levels behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowContext
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 ancestor placeholder coverage
         """
@@ -25,11 +31,17 @@ class TestNestedWindowContext:
     def test_sliding_placeholders_and_named_leaf_match_unqualified(self):
         """Nested WINDOW: SLIDING ancestors and named leaf retain tick values.
 
+        Validate sliding placeholders and named leaf match unqualified behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowContext
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 sliding context coverage
         """
@@ -40,11 +52,17 @@ class TestNestedWindowContext:
     def test_recursive_subquery_sees_ancestor_context(self):
         """Nested WINDOW: recursive derived tables preserve ancestor values.
 
+        Validate recursive subquery sees ancestor context behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowContext
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 recursive context coverage
         """
@@ -53,11 +71,17 @@ class TestNestedWindowContext:
     def test_repeated_parent_value_uses_distinct_lineage(self):
         """Nested WINDOW: A-B-A parent scopes keep leaf rows lineage-local.
 
+        Validate repeated parent value uses distinct lineage behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowContext
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 lineage-scoped trows coverage
         """

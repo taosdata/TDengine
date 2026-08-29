@@ -28,11 +28,17 @@ class TestNestedWindowNotify:
     def test_same_leaf_range_in_different_lineage_has_distinct_trigger_id(self):
         """Nested notifications distinguish equal leaf ranges by lineage.
 
+        Validate same leaf range in different lineage has distinct trigger id behavior.
+
         Catalog:
             - Streams:05-Notify:NestedWindow
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 nested lineage notification coverage
         """
@@ -41,11 +47,17 @@ class TestNestedWindowNotify:
     def test_same_leaf_open_close_reuses_trigger_id(self):
         """Nested leaf OPEN and CLOSE reuse one trigger identifier.
 
+        Validate same leaf open close reuses trigger id behavior.
+
         Catalog:
             - Streams:05-Notify:NestedWindow
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 nested OPEN/CLOSE identity coverage
         """
@@ -54,11 +66,17 @@ class TestNestedWindowNotify:
     def test_nested_multi_start_event_preserves_parent_child_ids(self):
         """Nested multi-start EVENT notifications preserve child parent IDs.
 
+        Validate nested multi start event preserves parent child ids behavior.
+
         Catalog:
             - Streams:05-Notify:NestedWindow
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 nested multi-start EVENT coverage
         """
@@ -67,11 +85,17 @@ class TestNestedWindowNotify:
     def test_calc_notify_only_does_not_write_result(self):
         """Nested CALC_NOTIFY_ONLY notifies without writing a result table.
 
+        Validate calc notify only does not write result behavior.
+
         Catalog:
             - Streams:05-Notify:NestedWindow
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 nested notify-only coverage
         """

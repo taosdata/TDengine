@@ -161,6 +161,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -189,6 +190,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -225,6 +227,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -257,6 +260,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -290,6 +294,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -325,6 +330,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -363,6 +369,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -396,6 +403,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -432,6 +440,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -462,6 +471,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -501,6 +511,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -529,6 +540,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -567,6 +579,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -606,6 +619,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -643,6 +657,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -684,6 +699,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -733,6 +749,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -779,6 +796,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -841,6 +859,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -893,6 +912,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -949,6 +969,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1009,6 +1030,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1065,6 +1087,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1119,6 +1142,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1169,6 +1193,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1218,6 +1243,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1275,6 +1301,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1332,6 +1359,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1389,6 +1417,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1446,6 +1475,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1503,6 +1533,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1741,6 +1772,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1790,6 +1822,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1847,6 +1880,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1904,6 +1938,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1965,6 +2000,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2028,6 +2064,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2088,6 +2125,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2117,7 +2155,7 @@ class TestXnodePriv:
 
         # Get available xnode id
         xnode_id = self._get_xnode_id()
-        
+
         tdSql.execute(f"CREATE XNODE JOB ON {task_id} WITH CONFIG '{{\"test\":1}}' xnode_id {xnode_id}", queryTimes=1)
 
         rs = tdSql.query(f"SHOW XNODE JOBS WHERE task_id = {task_id}", row_tag=True)
@@ -2152,6 +2190,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2181,7 +2220,7 @@ class TestXnodePriv:
 
         # Get available xnode id
         xnode_id = self._get_xnode_id()
-        
+
         tdSql.execute(f"CREATE XNODE JOB ON {task_id} WITH CONFIG '{{\"test\":1}}' xnode_id {xnode_id}", queryTimes=1)
 
         rs = tdSql.query(f"SHOW XNODE JOBS WHERE task_id = {task_id}", row_tag=True)
@@ -2216,6 +2255,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2245,7 +2285,7 @@ class TestXnodePriv:
 
         # Get available xnode id
         xnode_id = self._get_xnode_id()
-        
+
         tdSql.execute(f"CREATE XNODE JOB ON {task_id} WITH CONFIG '{{\"test\":1}}' xnode_id {xnode_id}", queryTimes=1)
 
         rs = tdSql.query(f"SHOW XNODE JOBS WHERE task_id = {task_id}", row_tag=True)
@@ -2280,6 +2320,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2309,7 +2350,7 @@ class TestXnodePriv:
 
         # Get available xnode id
         xnode_id = self._get_xnode_id()
-        
+
         tdSql.execute(f"CREATE XNODE JOB ON {task_id} WITH CONFIG '{{\"test\":1}}' xnode_id {xnode_id}", queryTimes=1)
 
         rs = tdSql.query(f"SHOW XNODE JOBS WHERE task_id = {task_id}", row_tag=True)
@@ -2344,6 +2385,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2372,7 +2414,7 @@ class TestXnodePriv:
 
         # Get available xnode id
         xnode_id = self._get_xnode_id()
-        
+
         tdSql.execute(f"CREATE XNODE JOB ON {task_id} WITH CONFIG '{{\"test\":1}}' xnode_id {xnode_id}", queryTimes=1)
 
         # Note: This test documents expected behavior; actual implementation may vary
@@ -2396,6 +2438,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2431,7 +2474,7 @@ class TestXnodePriv:
         # Create jobs for both tasks
         # Get available xnode id
         xnode_id = self._get_xnode_id()
-        
+
         tdSql.execute(f"CREATE XNODE JOB ON {task1_id} WITH CONFIG '{{\"task\":1}}' xnode_id {xnode_id}", queryTimes=1)
 
         # Grant SHOW on only one task
@@ -2465,6 +2508,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2495,7 +2539,7 @@ class TestXnodePriv:
         # Create job
         # Get available xnode id
         xnode_id = self._get_xnode_id()
-        
+
         tdSql.execute(f"CREATE XNODE JOB ON {task_id} WITH CONFIG '{{\"test\":1}}' xnode_id {xnode_id}", queryTimes=1)
 
         # Grant DROP on task
@@ -2527,6 +2571,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2557,7 +2602,7 @@ class TestXnodePriv:
         # Create job
         # Get available xnode id
         xnode_id = self._get_xnode_id()
-        
+
         tdSql.execute(f"CREATE XNODE JOB ON {task_id} WITH CONFIG '{{\"test\":1}}' xnode_id {xnode_id}", queryTimes=1)
 
         # Grant ALTER on task
@@ -2591,6 +2636,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2616,6 +2662,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2641,6 +2688,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2666,6 +2714,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2691,6 +2740,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2716,6 +2766,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2741,6 +2792,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2765,6 +2817,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2790,6 +2843,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2815,6 +2869,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2842,6 +2897,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2872,6 +2928,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2918,6 +2975,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2945,6 +3003,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -3005,6 +3064,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -3031,7 +3091,7 @@ class TestXnodePriv:
 
         rs = tdSql.query(f"SHOW XNODE TASKS WHERE name = 'task_{self.suffix}'", row_tag=True)
         task_id = rs[0][0] if rs else 1
-        
+
         tdSql.execute(f"CREATE XNODE JOB ON {task_id} WITH CONFIG '{{\"test\":1}}' xnode_id {xnode_id}", queryTimes=1)
 
         # Try job operation without task permission
@@ -3060,6 +3120,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -3106,6 +3167,7 @@ class TestXnodePriv:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

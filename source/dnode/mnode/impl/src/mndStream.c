@@ -1225,6 +1225,7 @@ static int32_t mndStreamClassifyExtTrigger(const SCMCreateStreamReq *pCreate, co
 
 static int32_t mndStreamRejectAuthoritativeExtTrigger(SMnode *pMnode, const SCMCreateStreamReq *pCreate,
                                                       const char *pSourceName, int8_t sourceType) {
+#ifdef TD_ENTERPRISE
   SExtSourceObj *pSource = mndAcquireExtSource(pMnode, pSourceName);
   if (pSource == NULL) return TSDB_CODE_EXT_SOURCE_NOT_FOUND;
   const bool typeMatches = pSource->type == sourceType;
@@ -1239,6 +1240,13 @@ static int32_t mndStreamRejectAuthoritativeExtTrigger(SMnode *pMnode, const SCMC
       .eventTypes = pCreate->eventTypes,
   };
   return tValidateStreamWindowPlan(pCreate->pWindowPlan, &ctx);
+#else
+  (void)pMnode;
+  (void)pCreate;
+  (void)pSourceName;
+  (void)sourceType;
+  return TSDB_CODE_EXT_SOURCE_NOT_FOUND;
+#endif
 }
 
 static int32_t mndStreamBuildStbMetaSnapshot(SMnode *pMnode, const SCMCreateStreamReq *pCreate, SDbObj *pDb,

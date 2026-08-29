@@ -634,6 +634,7 @@ class TestTaosBackupCheckpoint:
 
     def test_backup_checkpoint_skip_whole_db(self):
         """taosBackup -C skips an entire database when backup_complete.flag
+
         already exists.
 
         Deterministic verification of the whole-DB skip branch in
@@ -881,6 +882,7 @@ class TestTaosBackupCheckpoint:
 
     def test_restore_checkpoint_path_normalization(self):
         """restore -C must still skip files when the -i path spelling differs
+
         between runs (e.g. trailing '/' vs no trailing '/').
 
         bckArgs.c normalizes g_outPath (collapse '//', strip trailing '/').
@@ -1204,6 +1206,7 @@ class TestTaosBackupCheckpoint:
 
     def test_backup_checkpoint_format_change_rejected(self):
         """taosBackup -C resume must refuse to start when the data format
+
         differs from the previous backup.
 
         bckArgs.c reads the previous run's format from {outPath}/backup.log

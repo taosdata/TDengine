@@ -12,11 +12,17 @@ class TestNestedWindowBoundaries:
     def test_state_boundary_row_starts_new_scope(self):
         """Nested WINDOW: a STATE boundary row starts a new child scope.
 
+        Validate state boundary row starts new scope behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowBoundaries
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Added P0 state boundary coverage
         """
@@ -25,11 +31,17 @@ class TestNestedWindowBoundaries:
     def test_session_boundary_row_starts_new_scope(self):
         """Nested WINDOW: a SESSION boundary row starts a new child scope.
 
+        Validate session boundary row starts new scope behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowBoundaries
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Added P0 session boundary coverage
         """
@@ -38,11 +50,17 @@ class TestNestedWindowBoundaries:
     def test_count_end_row_finishes_old_scope(self):
         """Nested WINDOW: a COUNT completion row finishes the old child scope.
 
+        Validate count end row finishes old scope behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowBoundaries
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Added P0 count boundary coverage
         """
@@ -51,11 +69,17 @@ class TestNestedWindowBoundaries:
     def test_event_end_row_finishes_old_scope(self):
         """Nested WINDOW: an EVENT end row finishes the old child scope.
 
+        Validate event end row finishes old scope behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowBoundaries
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Added P0 event boundary coverage
         """
@@ -64,11 +88,17 @@ class TestNestedWindowBoundaries:
     def test_sliding_tick_row_finishes_old_scope(self):
         """Nested WINDOW: an outer SLIDING tick row closes its old scope.
 
+        Validate sliding tick row finishes old scope behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowBoundaries
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Added P0 sliding tick boundary coverage
         """
@@ -77,11 +107,17 @@ class TestNestedWindowBoundaries:
     def test_interval_parent_gap_does_not_route(self):
         """Nested WINDOW: an INTERVAL parent gap does not reach the leaf.
 
+        Validate interval parent gap does not route behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowBoundaries
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Added P0 interval gap coverage
         """
@@ -90,11 +126,17 @@ class TestNestedWindowBoundaries:
     def test_count_parent_gap_does_not_route(self):
         """Nested WINDOW: a COUNT parent gap does not reach the leaf.
 
+        Validate count parent gap does not route behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowBoundaries
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Added P0 count gap coverage
         """
@@ -103,11 +145,17 @@ class TestNestedWindowBoundaries:
     def test_unopened_event_does_not_route(self):
         """Nested WINDOW: unopened EVENT input does not reach the leaf.
 
+        Validate unopened event does not route behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowBoundaries
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Added P0 unopened event coverage
         """
@@ -116,11 +164,17 @@ class TestNestedWindowBoundaries:
     def test_overlapping_interval_leaf_emits_all_instances(self):
         """Nested WINDOW: an overlapping INTERVAL leaf keeps every instance.
 
+        Validate overlapping interval leaf emits all instances behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowBoundaries
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Added P0 interval overlap coverage
         """
@@ -129,11 +183,17 @@ class TestNestedWindowBoundaries:
     def test_overlapping_count_leaf_emits_all_instances(self):
         """Nested WINDOW: an overlapping COUNT leaf keeps every instance.
 
+        Validate overlapping count leaf emits all instances behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowBoundaries
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Added P0 count overlap coverage
         """
@@ -142,11 +202,17 @@ class TestNestedWindowBoundaries:
     def test_three_layer_reset_cascade(self):
         """Nested WINDOW: a three-layer reset cascade isolates ancestors.
 
+        Validate three layer reset cascade behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowBoundaries
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Added P0 three-layer cascade coverage
         """
@@ -155,11 +221,17 @@ class TestNestedWindowBoundaries:
     def test_eight_layer_reset_cascade(self):
         """Nested WINDOW: an eight-layer reset cascade isolates ancestors.
 
+        Validate eight layer reset cascade behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowBoundaries
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Added P0 eight-layer cascade coverage
         """

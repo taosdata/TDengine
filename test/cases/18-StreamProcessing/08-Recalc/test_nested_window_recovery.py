@@ -38,11 +38,17 @@ class TestNestedWindowRecovery:
     def test_restart_with_ancestor_open_only(self):
         """Nested recovery: restart with only the ancestor scope open.
 
+        Validate restart with ancestor open only behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindowRecovery
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 ancestor-only recovery cut
         """
@@ -51,11 +57,17 @@ class TestNestedWindowRecovery:
     def test_restart_with_active_leaf(self):
         """Nested recovery: restart with an active COUNT leaf.
 
+        Validate restart with active leaf behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindowRecovery
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 active-leaf recovery cut
         """
@@ -64,11 +76,17 @@ class TestNestedWindowRecovery:
     def test_restart_with_completed_and_active_leaves(self):
         """Nested recovery: restart after one leaf closes and another opens.
 
+        Validate restart with completed and active leaves behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindowRecovery
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 mixed-leaf recovery cut
         """
@@ -77,11 +95,17 @@ class TestNestedWindowRecovery:
     def test_two_gid_multi_vgroup_normal_source_resume(self):
         """Nested recovery: two normal-source gids resume across vgroups.
 
+        Validate two gid multi vgroup normal source resume behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindowRecovery
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 normal multi-vgroup recovery
         """
@@ -90,11 +114,17 @@ class TestNestedWindowRecovery:
     def test_cross_db_virtual_multi_vgroup_resume(self):
         """Nested recovery: cross-DB virtual inputs resume across vgroups.
 
+        Validate cross db virtual multi vgroup resume behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindowRecovery
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 virtual multi-vgroup recovery
         """
