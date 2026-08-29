@@ -146,7 +146,6 @@ class TestStreamObservabilityProgress:
         Since: v3.4.0.0
 
         Labels: stream,recalc,observability,ci
-
         Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7045278024
 
         History:
@@ -235,7 +234,6 @@ class TestStreamObservabilityProgress:
         Since: v3.4.0.0
 
         Labels: stream,recalc,precision,ci
-
         Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7045278024
 
         History:

@@ -213,6 +213,23 @@ class TestTimezoneConfigUnification(_AlterLocalTimezoneMixin):
     """
 
     def test_alter_local_timezone(self):
+        """ALTER LOCAL timezone validation via unified config path.
+
+        Verify ALTER LOCAL timezone accepts IANA names, fixed offsets, UTC forms,
+        and Windows names while rejecting GMT series, abbreviations, and invalid input.
+
+        Since: v3.4.0.0
+
+        Labels: timezone, config
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-23: Tony Zhang created
+        """
         self._setup_alter_local_case()
         self.check_alter_local_iana_names()
         self.check_alter_local_fixed_offsets()

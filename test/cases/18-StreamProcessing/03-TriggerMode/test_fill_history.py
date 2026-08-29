@@ -20,6 +20,7 @@ class TestStreamStateFillHistory:
         Since: v3.3.3.7
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -171,6 +172,7 @@ class TestStreamStateFillHistory:
             - Streams:03-TriggerMode
 
         Since: v3.4.2.0
+
         Labels: common,ci
         Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7048315279
 
@@ -221,6 +223,7 @@ class TestStreamStateFillHistory:
             - Streams:03-TriggerMode
 
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
         Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7073766431
 
