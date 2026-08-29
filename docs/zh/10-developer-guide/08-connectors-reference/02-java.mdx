@@ -313,6 +313,7 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING [`varcharAsString`]：将 VARCHAR/BINARY 类型映射为 String，仅在使用 WebSocket 连接时生效。默认值为 false。
 - TSDBDriver.PROPERTY_KEY_APP_NAME [`app_name`]：App 名称，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为 java。
 - TSDBDriver.PROPERTY_KEY_APP_IP [`app_ip`]：App IP，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为空。
+- TSDBDriver.PROPERTY_KEY_STMT_CACHE_SIZE [`stmtCacheSize`]：PreparedStatement 缓存大小，缓存并复用已预编译的语句以提升重复写入性能。仅在使用 WebSocket 连接时生效。默认值为 5，高效写入模式（asyncWrite=stmt）下默认值为 2，设置为 0 表示关闭缓存。注意：缓存命中时驱动复用同一个语句对象，调用 `close()` 后不得再使用其引用；缓存的语句在空闲期间会占用服务端语句资源，高效写入模式下还会保活后台写入线程（每条缓存语句占用 backendWriteThreadNum 个线程）。
 
 ---
 
