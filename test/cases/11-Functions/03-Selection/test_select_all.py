@@ -318,7 +318,7 @@ class TestSelectFunction:
         tdSql.query("select GREATEST(now, '1');")
         tdSql.error("select GREATEST(1)")
         tdSql.error("select GREATEST(cast('a' as varbinary), cast('b' as varbinary), 'c', 'd');")
-        tdSql.error("select GREATEST(6, cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")       
+        tdSql.error("select GREATEST(6, cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")
 
     def run_least(self):
         self.run_normal_query_new("least")
@@ -449,6 +449,7 @@ class TestSelectFunction:
         Since: v3.3.0.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2024-9-28 qevolg Created
             - 2025-5-08 Huo Hong Migrated to new test framework

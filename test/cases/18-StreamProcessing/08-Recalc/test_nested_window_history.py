@@ -15,11 +15,17 @@ class TestNestedWindowHistory:
     def test_fixed_root_fill_history_matches_realtime(self):
         """Nested history: fixed-root FILL_HISTORY matches realtime rows.
 
+        Validate fixed root fill history matches realtime behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindowHistory
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 fixed-root history parity
         """
@@ -28,11 +34,17 @@ class TestNestedWindowHistory:
     def test_fixed_root_fill_history_first_matches_realtime(self):
         """Nested history: fixed-root FILL_HISTORY_FIRST matches realtime.
 
+        Validate fixed root fill history first matches realtime behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindowHistory
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 fixed-root history parity
         """
@@ -41,11 +53,17 @@ class TestNestedWindowHistory:
     def test_data_driven_root_fill_history_matches_realtime(self):
         """Nested history: data-root FILL_HISTORY matches realtime rows.
 
+        Validate data driven root fill history matches realtime behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindowHistory
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 data-root history parity
         """
@@ -54,11 +72,17 @@ class TestNestedWindowHistory:
     def test_data_driven_root_fill_history_first_matches_realtime(self):
         """Nested history: data-root FILL_HISTORY_FIRST matches realtime.
 
+        Validate data driven root fill history first matches realtime behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindowHistory
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 data-root history parity
         """
@@ -67,11 +91,17 @@ class TestNestedWindowHistory:
     def test_history_eof_does_not_close_ancestor(self):
         """Nested history: scan EOF does not close an open ancestor scope.
 
+        Validate history eof does not close ancestor behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindowHistory
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 ancestor EOF coverage
         """
@@ -80,11 +110,17 @@ class TestNestedWindowHistory:
     def test_state_leaf_history_eof_tail_matches_legacy(self):
         """Nested history: STATE leaf keeps the legacy final tail window.
 
+        Validate state leaf history eof tail matches legacy behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindowHistory
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 STATE history tail coverage
         """
@@ -93,11 +129,17 @@ class TestNestedWindowHistory:
     def test_session_leaf_history_eof_tail_matches_legacy(self):
         """Nested history: SESSION leaf keeps the legacy final tail window.
 
+        Validate session leaf history eof tail matches legacy behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindowHistory
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 SESSION history tail coverage
         """
@@ -106,11 +148,17 @@ class TestNestedWindowHistory:
     def test_sliding_leaf_history_eof_tail_matches_legacy(self):
         """Nested history: SLIDING leaf keeps the legacy final tail tick.
 
+        Validate sliding leaf history eof tail matches legacy behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindowHistory
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 SLIDING history tail coverage
         """
@@ -119,11 +167,17 @@ class TestNestedWindowHistory:
     def test_history_to_realtime_boundary_is_contiguous(self):
         """Nested history: an active leaf continues once into realtime.
 
+        Validate history to realtime boundary is contiguous behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindowHistory
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 history handoff coverage
         """
@@ -132,11 +186,17 @@ class TestNestedWindowHistory:
     def test_cross_database_virtual_sources_match_history(self):
         """Nested history: cross-DB virtual groups retain exact parity.
 
+        Validate cross database virtual sources match history behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindowHistory
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 virtual history parity
         """

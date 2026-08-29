@@ -142,8 +142,11 @@ class TestStreamObservabilityProgress:
         4. Verify an empty-range recalculation finishes at 100 percent.
 
         Catalog: Streams:Observability
+
         Since: v3.4.0.0
+
         Labels: stream,recalc,observability,ci
+
         Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7045278024
 
         History:
@@ -228,8 +231,11 @@ class TestStreamObservabilityProgress:
         3. Recalculate the historical range and verify that it is actually scanned.
 
         Catalog: Streams:Observability
+
         Since: v3.4.0.0
+
         Labels: stream,recalc,precision,ci
+
         Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7045278024
 
         History:

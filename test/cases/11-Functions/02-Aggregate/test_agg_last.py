@@ -15,7 +15,7 @@ class Test_Last:
     currentDir = os.path.dirname(os.path.abspath(__file__))
     dbname = "test"
     stbname= "meters"
-    
+
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
@@ -30,17 +30,18 @@ class Test_Last:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
             - 2025-9-18 Stephen Jin
 
         """
-            
+
         self.prepareHistoryData()
         self.insertNowData()
         self.checkResult()
-        
+
     def prepareHistoryData(self):
         cmd = f"taosBenchmark -t 100 -n 10000 -y"
         ret = os.system(cmd)
@@ -48,7 +49,7 @@ class Test_Last:
             raise Exception("taosBenchmark run failed")
         time.sleep(5)
         tdLog.info(f"Prepare history data:taosBenchmark -t 100 -n 10000 -y")
-        
+
     def insertNowData(self):
         tdSql.execute(f"use {self.dbname}")
 
@@ -59,11 +60,11 @@ class Test_Last:
         tdSql.query(f"select last(ts) from {self.dbname}.{self.stbname}")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1759194759001)
-        
+
         tdSql.query(f"select last(ts), first(ts) from {self.dbname}.{self.stbname}")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1759194759001)
-        
+
         tdSql.query(f"select first(ts), last(ts) from {self.dbname}.{self.stbname}")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 1759194759001)
@@ -81,6 +82,7 @@ class Test_Last:
         Since: v3.4.1.13
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -134,6 +136,7 @@ class Test_Last:
         Since: v3.4.1.13
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -231,6 +234,7 @@ class Test_Last:
         Since: ver-3.4.0.0
 
         Labels: last/last_row,tag,integration,functional
+
         Jira: TS-6146
 
         Catalog:
@@ -271,6 +275,7 @@ class Test_Last:
         Since: v3.4.0.0
 
         Labels: composite key,last/last_row,integration,functional
+
         Jira: TD-38004
 
         History:

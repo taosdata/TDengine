@@ -36,7 +36,7 @@ class TestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "root")
         tdSql.checkData(0, 9, "SYSAUDIT,SYSDBA,SYSSEC")
-        tdSql.checkData(0, 10, "[0,4]")        
+        tdSql.checkData(0, 10, "[0,4]")
         tdSql.query("select name,sec_levels from information_schema.ins_users where name='root'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "root")
@@ -1587,14 +1587,15 @@ class TestCase:
     #
     def test_priv_dac_mac(self):
         """Test basic privileges of Discretionary Access Control and Mandatory Access Control
-        
+
         1. Test mandatory SoD(Separation of Duty).
         2. Test mandatory access control with security levels.
         3. Test CREATE with SECURITY_LEVEL and ALTER SECURITY POLICY.
-        
+
         Since: v3.4.1.0
 
         Labels: ci,basic,integration,functional,security
+
         Jira: 6670071929,6671585124
 
         History:
@@ -1605,5 +1606,5 @@ class TestCase:
         self.do_check_init_env()
         self.do_check_sod()
         self.do_check_mac()
-    
+
         tdLog.debug("finish executing %s" % __file__)

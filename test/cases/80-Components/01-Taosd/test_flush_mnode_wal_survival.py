@@ -57,6 +57,7 @@ class TestFlushMnodeWalSurvival:
 
     def test_flush_mnode_wal_survival(self):
         """FLUSH MNODE makes prior mnode state durable enough to survive total WAL loss;
+
         anything committed after the flush and never re-flushed does not.
 
         1. Create marker_before, then run FLUSH MNODE.

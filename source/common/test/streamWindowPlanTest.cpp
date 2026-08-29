@@ -1525,7 +1525,8 @@ TEST(StreamWindowPlanTest, heartbeatPreservesSingleLayerGoldenBytes) {
   tDeepFreeSMStreamHbRspMsg(&legacy);
 }
 
-static_assert(offsetof(SSTriggerCalcParam, notifyType) == 40);
+static_assert(offsetof(SSTriggerCalcParam, notifyType) == 40,
+              "SSTriggerCalcParam::notifyType offset changed");
 
 SStreamContextPolicyEntry makeContextPolicyEntry(int64_t gid, int32_t paramIndex, int8_t contextPolicy) {
   SStreamContextPolicyEntry entry = {};

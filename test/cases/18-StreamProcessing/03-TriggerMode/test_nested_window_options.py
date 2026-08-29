@@ -12,11 +12,17 @@ class TestNestedWindowOptions:
     def test_outer_close_default_discard_and_flush_close(self):
         """Nested WINDOW: outer close discards by default and flushes leaf remainders.
 
+        Validate outer close default discard and flush close behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowOptions
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 outer-close option coverage
         """
@@ -69,11 +75,17 @@ class TestNestedWindowOptions:
     def test_flush_does_not_synthesize_open_only_close(self):
         """Nested WINDOW: flush does not synthesize a close for OPEN-only leaves.
 
+        Validate flush does not synthesize open only close behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowOptions
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 OPEN-only flush coverage
         """
@@ -128,11 +140,17 @@ class TestNestedWindowOptions:
     def test_flush_does_not_bypass_false_true_for(self):
         """Nested WINDOW: outer-close flush still rejects a false leaf TRUE_FOR.
 
+        Validate flush does not bypass false true for behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowOptions
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 TRUE_FOR flush coverage
         """
@@ -181,11 +199,17 @@ class TestNestedWindowOptions:
     def test_ignore_nodata_and_force_output_apply_to_leaf(self):
         """Nested WINDOW: IGNORE_NODATA suppresses only leaf FORCE_OUTPUT ticks.
 
+        Validate ignore nodata and force output apply to leaf behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowOptions
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 leaf no-data option coverage
         """
@@ -242,11 +266,17 @@ class TestNestedWindowOptions:
     def test_max_delay_snapshot_is_immutable_and_leaf_only(self):
         """Nested WINDOW: MAX_DELAY freezes leaf snapshots without ancestor output.
 
+        Validate max delay snapshot is immutable and leaf only behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowOptions
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 MAX_DELAY snapshot coverage
         """
@@ -295,11 +325,17 @@ class TestNestedWindowOptions:
     def test_watermark_expired_input_matches_single_layer(self):
         """Nested WINDOW: WATERMARK expiry is applied once at the chain entry.
 
+        Validate watermark expired input matches single layer behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowOptions
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 watermark expiry coverage
         """
@@ -375,11 +411,17 @@ class TestNestedWindowOptions:
     def test_ignore_disorder_matches_single_layer(self):
         """Nested WINDOW: IGNORE_DISORDER is applied once before the window chain.
 
+        Validate ignore disorder matches single layer behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowOptions
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 GPT-5 Added P0 disorder entry-policy coverage
         """
