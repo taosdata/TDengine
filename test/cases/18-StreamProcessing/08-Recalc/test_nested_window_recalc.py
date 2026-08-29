@@ -14,11 +14,17 @@ class TestNestedWindowRecalc:
     def test_virtual_history_user_recalc(self):
         """Recalc: virtual history and user recalc retain exact rows.
 
+        Validate virtual history user recalc behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindow
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Split aggregate entry point
         """
@@ -27,11 +33,17 @@ class TestNestedWindowRecalc:
     def test_manual_active_count_recalc(self):
         """Recalc: manual and active-count ranges retain exact rows.
 
+        Validate manual active count recalc behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindow
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Split aggregate entry point
         """
@@ -40,11 +52,17 @@ class TestNestedWindowRecalc:
     def test_delete_recalc(self):
         """Recalc: virtual and sliding delete recalc retain exact rows.
 
+        Validate delete recalc behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindow
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Split aggregate entry point
         """
@@ -53,11 +71,17 @@ class TestNestedWindowRecalc:
     def test_restart_recovery(self):
         """Recalc: restart resumes an active nested leaf.
 
+        Validate restart recovery behavior.
+
         Catalog:
             - Streams:08-Recalc:NestedWindow
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Split aggregate entry point
         """

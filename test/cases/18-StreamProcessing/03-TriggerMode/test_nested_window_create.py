@@ -18,11 +18,17 @@ class TestNestedWindowCreate:
     def test_depth_two_and_eight_execute(self):
         """Nested WINDOW: two and eight layers execute with frozen ancestors.
 
+        Validate depth two and eight execute behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowCreate
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Added P0 creation execution matrix
         """
@@ -31,11 +37,17 @@ class TestNestedWindowCreate:
     def test_invalid_depth_and_source_metadata(self):
         """Nested WINDOW: invalid depth and composite primary keys are rejected.
 
+        Validate invalid depth and source metadata behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowCreate
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional,negative
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Added P0 creation metadata matrix
         """
@@ -44,11 +56,17 @@ class TestNestedWindowCreate:
     def test_partition_and_rollup_validate_whole_chain(self):
         """Nested WINDOW: partition and rollup validate every layer.
 
+        Validate partition and rollup validate whole chain behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowCreate
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional,negative
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Added P0 partition and rollup matrix
         """
@@ -57,11 +75,17 @@ class TestNestedWindowCreate:
     def test_nonleaf_and_option_capabilities(self):
         """Nested WINDOW: nonleaf and stream-option capabilities are checked.
 
+        Validate nonleaf and option capabilities behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindowCreate
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional,negative
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Added P0 nonleaf capability matrix
         """

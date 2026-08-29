@@ -226,14 +226,14 @@ class TestShowDiskInfo:
                 assert False
     def _calculate_disk_usage(self, path):
         size = 0
-        for vgid in range(2, 2+self.vgroups): 
+        for vgid in range(2, 2+self.vgroups):
             tsdb_path = os.path.join(self.dnode_path, path, "vnode", f"vnode{vgid}", "tsdb")
-            size += self.get_disk_usage(tsdb_path) 
+            size += self.get_disk_usage(tsdb_path)
         return int(size/1024)
 
     def _value_check(self, size1, size2, threshold=1000):
         if abs(size1 - size2) < threshold:
-            tdLog.info(f"checkEqual success, base_value={size1},check_value={size2}") 
+            tdLog.info(f"checkEqual success, base_value={size1},check_value={size2}")
         else :
             tdLog.exit(f"checkEqual error, base_value=={size1},check_value={size2}")
 
@@ -254,9 +254,9 @@ class TestShowDiskInfo:
         size1 = self._calculate_disk_usage('data00')
         size2 = self._calculate_disk_usage('data01')
 
-        tdSql.query(f'select sum(data1), sum(data2) from information_schema.ins_disk_usage where db_name="{self.db_name}"')  
-        data1 = int(tdSql.queryResult[0][0])  
-        data2 = int(tdSql.queryResult[0][1])  
+        tdSql.query(f'select sum(data1), sum(data2) from information_schema.ins_disk_usage where db_name="{self.db_name}"')
+        data1 = int(tdSql.queryResult[0][0])
+        data2 = int(tdSql.queryResult[0][1])
 
         self._value_check(size1, data1)
         self._value_check(size2, data2)
@@ -334,11 +334,12 @@ class TestShowDiskInfo:
         4. Write bulk data into a database with multi-level storage configuration
         5. Perform TRIM operation and validate data retention across levels
         6. Compare disk usage statistics from show disk_info with actual disk usage
-        
+
 
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

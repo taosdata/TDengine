@@ -172,11 +172,12 @@ class TestBenchmarkExcept:
         1. Insert operator be canceled check expect
         2. Insert operator be forced exit check expect
         3. Insert operator meet dnode exit check expect
-        
-        
+
+
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

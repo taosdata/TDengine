@@ -13,11 +13,17 @@ class TestNestedWindow:
     def test_soc_rewrites(self):
         """Trigger mode: SOC rewrites retain their public rows.
 
+        Validate soc rewrites behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindow
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Split aggregate entry point
         """
@@ -26,11 +32,17 @@ class TestNestedWindow:
     def test_leaf_equivalence(self):
         """Trigger mode: nested leaves equal direct-window results.
 
+        Validate leaf equivalence behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindow
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Split aggregate entry point
         """
@@ -39,11 +51,17 @@ class TestNestedWindow:
     def test_ignore_nodata(self):
         """Trigger mode: ignore-no-data suppresses empty leaf output.
 
+        Validate ignore nodata behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindow
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Split aggregate entry point
         """
@@ -52,11 +70,17 @@ class TestNestedWindow:
     def test_outer_close_flush(self):
         """Trigger mode: outer close flushes the active nested leaf.
 
+        Validate outer close flush behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindow
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Split aggregate entry point
         """
@@ -65,11 +89,17 @@ class TestNestedWindow:
     def test_peer_group_order(self):
         """Trigger mode: timestamp peers are order independent by group.
 
+        Validate peer group order behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindow
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Split aggregate entry point
         """
@@ -78,11 +108,17 @@ class TestNestedWindow:
     def test_creation_matrix(self):
         """Trigger mode: creation matrix preserves valid and invalid contracts.
 
+        Validate creation matrix behavior.
+
         Catalog:
             - Streams:03-TriggerMode:NestedWindow
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Split aggregate entry point
         """

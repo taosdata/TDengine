@@ -52,8 +52,11 @@ class TestManualRecalcReliability:
         4. Verify realtime calculation continues after manual recovery.
 
         Catalog: Streams:Recalculation
+
         Since: v3.4.0.0
+
         Labels: stream,recalc,reliability,restart,ci
+
         Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7045278024
 
         History:

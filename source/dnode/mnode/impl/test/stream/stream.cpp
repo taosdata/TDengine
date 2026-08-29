@@ -8616,12 +8616,14 @@ class MndStreamCreateMetadataTest : public testing::Test {
 
   static void releaseStb(SMnode*, SStbObj*) {}
 
+#ifdef TD_ENTERPRISE
   static SExtSourceObj* acquireExtSource(SMnode*, const char* sourceName) {
     gCreateMetadataTest->acquiredExtSources_.emplace_back(sourceName == nullptr ? "" : sourceName);
     return gCreateMetadataTest->returnExtSource_ ? &gCreateMetadataTest->extSource_ : nullptr;
   }
 
   static void releaseExtSource(SMnode*, SExtSourceObj*) {}
+#endif
 
   static int32_t buildDbVgroups(SMnode*, SSHashObj** ppVgroups) {
     if (gCreateMetadataTest->blockVgroupLookup_) {
@@ -8792,7 +8794,9 @@ class MndStreamCreateMetadataTest : public testing::Test {
     epSet_.numOfEps = 1;
     tstrncpy(epSet_.eps[0].fqdn, "localhost", sizeof(epSet_.eps[0].fqdn));
     epSet_.eps[0].port = 6030;
+#ifdef TD_ENTERPRISE
     extSource_.type = EXT_SOURCE_MYSQL;
+#endif
 
     tstrncpy(stb_.name, "0.test.meters", sizeof(stb_.name));
     tstrncpy(stb_.db, "0.test", sizeof(stb_.db));
@@ -8835,8 +8839,10 @@ class MndStreamCreateMetadataTest : public testing::Test {
     stub_.set(mndReleaseDb, releaseDb);
     stub_.set(mndAcquireStb, acquireStb);
     stub_.set(mndReleaseStb, releaseStb);
+#ifdef TD_ENTERPRISE
     stub_.set(mndAcquireExtSource, acquireExtSource);
     stub_.set(mndReleaseExtSource, releaseExtSource);
+#endif
     stub_.set(mstBuildDBVgroupsMap, buildDbVgroups);
     stub_.set(mstDestroyDbVgroupsHash, destroyDbVgroups);
     stub_.set(mstGetTableVgId, getTableVgId);
@@ -9199,14 +9205,18 @@ class MndStreamCreateMetadataTest : public testing::Test {
   SSchema                 stbTags_[1] = {};
   SColCmpr                stbCmpr_[2] = {};
   SSchemaExt              metaSchemaExt_[2] = {};
+#ifdef TD_ENTERPRISE
   SExtSourceObj           extSource_ = {};
+#endif
   MndMsgFp                handler_ = nullptr;
   SMsgSendInfo*           pendingSend_ = nullptr;
   SRpcMsg                 queuedMsg_ = {};
   std::vector<uint8_t>    callbackBytes_;
   bool                    returnStb_ = false;
   bool                    returnDb_ = true;
+#ifdef TD_ENTERPRISE
   bool                    returnExtSource_ = true;
+#endif
   bool                    savedDisableStream_ = false;
   bool                    streamInitialized_ = false;
   bool                    callbackBeforeSendReturn_ = false;
@@ -9264,7 +9274,9 @@ class MndStreamCreateMetadataTest : public testing::Test {
   int32_t                  transactionPartitionColType_ = -1;
   int32_t                  transactionPartitionDataType_ = -1;
   int32_t                  transactionPartitionBytes_ = -1;
+#ifdef TD_ENTERPRISE
   std::vector<std::string> acquiredExtSources_;
+#endif
   std::vector<int64_t>     freedTransporterIds_;
 };
 
@@ -9280,6 +9292,7 @@ TEST_F(MndStreamCreateMetadataTest, NormalTableUsesVnodePreflightBeforeTransacti
   freeRequestFixture(&req);
 }
 
+#ifdef TD_ENTERPRISE
 TEST_F(MndStreamCreateMetadataTest, ExtCandidateUsesAuthoritativeSourceIdentity) {
   for (const auto& fixture : {std::pair<const char*, const char*>("0.ext_source", ""),
                               std::pair<const char*, const char*>("cluster.0.ext_source", "0.wrong")}) {
@@ -9318,6 +9331,19 @@ TEST_F(MndStreamCreateMetadataTest, ExtCandidateRequiresExistingAuthoritativeSou
     freeRequestFixture(&req);
   }
 }
+#else
+TEST_F(MndStreamCreateMetadataTest, CommunityExtCandidateReturnsSourceNotFound) {
+  SCMCreateStreamReq req = makeRequest();
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  addExtSpec(&req, "cluster.0.ext_source", "remote_meters", "ts");
+
+  EXPECT_EQ(TSDB_CODE_EXT_SOURCE_NOT_FOUND, runCreate(&req));
+  EXPECT_EQ(0, asyncSendCalls_);
+  EXPECT_EQ(0, createTransCalls_);
+
+  freeRequestFixture(&req);
+}
+#endif
 
 TEST_F(MndStreamCreateMetadataTest, CalcOnlyExtSpecStillUsesLocalPreflight) {
   SCMCreateStreamReq req = makeRequest();

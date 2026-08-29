@@ -332,7 +332,7 @@ class TestAggFunction:
         tdSql.query("select GREATEST(now, '1');")
         tdSql.error("select GREATEST(1)")
         tdSql.error("select GREATEST(cast('a' as varbinary), cast('b' as varbinary), 'c', 'd');")
-        tdSql.error("select GREATEST(6, cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")       
+        tdSql.error("select GREATEST(6, cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")
 
     def run_least(self):
         self.run_normal_query_new("least")
@@ -470,6 +470,7 @@ class TestAggFunction:
         Since: v3.3.0.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2024-9-28 qevolg Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -487,19 +488,19 @@ class TestAggFunction:
         self.run_sum()
         self.run_leastsquares()
         self.run_statecount()
-        
+
         # select function
         self.run_max()
         self.run_min()
 
         # error function
         self.run_error()
-        
+
         # null
         self.do_agg_null()
-        
+
         # min/max support timestamp/bool
-        self.do_min_max_timestamp_bool()        
+        self.do_min_max_timestamp_bool()
 
     def initdabase(self):
         # drop the leftover database so every run starts from the same dataset
@@ -525,7 +526,7 @@ class TestAggFunction:
             if i == 2500:
                 tdSql.execute(sql)
                 sql = "insert into "
-        tdSql.execute(sql)        
+        tdSql.execute(sql)
 
     def verify_agg_null(self):
         for i in range(20):
@@ -613,7 +614,7 @@ class TestAggFunction:
         self.initdabase()
         self.insert_data()
         self.verify_agg_null()
-        
+
     def do_min_max_timestamp_bool(self):
         db = "db_minmax_bool_ts"
 

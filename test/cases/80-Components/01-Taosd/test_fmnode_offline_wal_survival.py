@@ -99,6 +99,7 @@ class TestFmnodeOfflineWalSurvival:
 
     def test_fmnode_offline_wal_survival(self):
         """`taosd -fMnode` makes prior mnode state durable enough to survive total
+
         WAL loss; anything committed afterwards and never re-flushed does not.
 
         1. Create marker_before while taosd is up, then gracefully stop taosd

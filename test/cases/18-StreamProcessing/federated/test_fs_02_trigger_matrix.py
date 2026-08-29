@@ -110,11 +110,17 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
     def test_nested_external_trigger_rejected(self):
         """Nested WINDOW: a real external trigger catalog is rejected.
 
+        Validate nested external trigger rejected behavior.
+
         Catalog:
             - Streams:Federated:TriggerMatrix
+
         Since: v3.4.2.0
+
         Labels: common,ci,integration,functional,negative
+
         Feishu: None
+
         History:
             - 2026-08-16 Codex Added P0 external nested-trigger rejection
         """
@@ -218,7 +224,13 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
 
     # FS-TM-001 PERIOD ----------------------------------------------------
     def test_tm_001_period(self):
-        """PERIOD trigger pulls external table on schedule."""
+        """PERIOD trigger pulls external table on schedule.
+
+        Validate tm 001 period behavior.
+
+        Since: v3.4.2.0
+
+        """
         # PERIOD(10s, 10a) = every 10s with 10ms offset (from existing test_trigger_type.py).
         # The calc SQL is a raw passthrough of src_t, so the sink content is the
         # fixed _STD_ROWS dataset itself -- deterministic regardless of how many
@@ -229,7 +241,13 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
                                expected_rows=len(expected), expected=expected)
 
     def test_tm_001_period_trows(self):
-        """PERIOD trigger, calc SQL reads %%trows instead of the ext table directly."""
+        """PERIOD trigger, calc SQL reads %%trows instead of the ext table directly.
+
+        Validate tm 001 period trows behavior.
+
+        Since: v3.4.2.0
+
+        """
         base_ms = 1741000000000  # 2025-03-03, distinct from _STD_ROWS' 2024-01-01 range
         new_rows = [
             (base_ms,          101, 10.1, 'tm002_a', 0),
@@ -251,6 +269,9 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
         a slide boundary and fires at least once. The calc SQL is a raw
         passthrough of src_t (same pattern as FS-TM-001/PERIOD), so a firing
         re-dumps the whole external table: STD_ROWS plus the two new rows.
+
+        Since: v3.4.2.0
+
         """
         base_ms = 1741000000000  # 2025-03-03, distinct from _STD_ROWS' 2024-01-01 range
         new_rows = [
@@ -266,7 +287,13 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
                                post_create_rows=new_rows, wait_timeout=90)
 
     def test_tm_002_sliding_only_trows(self):
-        """SLIDING without INTERVAL, calc SQL reads %%trows instead of the ext table directly."""
+        """SLIDING without INTERVAL, calc SQL reads %%trows instead of the ext table directly.
+
+        Validate tm 002 sliding only trows behavior.
+
+        Since: v3.4.2.0
+
+        """
         base_ms = 1741100000000
         new_rows = [
             (base_ms,          101, 10.1, 'tm002t_a', 0),
@@ -288,6 +315,9 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
         pre-existing (non-backfilled) rows. Same raw-passthrough calc SQL as
         FS-TM-001/FS-TM-002, so the sink ends up with STD_ROWS plus the two
         new rows.
+
+        Since: v3.4.2.0
+
         """
         base_ms = 1741000000000 + 3600_000  # offset from tm002's base to avoid PK clashes across runs
         new_rows = [
@@ -303,7 +333,13 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
                                post_create_rows=new_rows, wait_timeout=90)
 
     def test_tm_003_interval_sliding_trows(self):
-        """INTERVAL + SLIDING, calc SQL reads %%trows instead of the ext table directly."""
+        """INTERVAL + SLIDING, calc SQL reads %%trows instead of the ext table directly.
+
+        Validate tm 003 interval sliding trows behavior.
+
+        Since: v3.4.2.0
+
+        """
         base_ms = 1741100000000 + 3600_000
         new_rows = [
             (base_ms,          201, 20.1, 'tm003t_a', 0),
@@ -325,6 +361,9 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
         (pre-existing rows are not backfilled, see FS-UC-001b). Same
         raw-passthrough calc SQL as FS-TM-001..003, so the sink ends up with
         STD_ROWS plus the two new rows.
+
+        Since: v3.4.2.0
+
         """
         base_ms = 1741000000000 + 2 * 3600_000
         new_rows = [
@@ -340,7 +379,13 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
                                post_create_rows=new_rows, wait_timeout=90)
 
     def test_tm_004_session_trows(self):
-        """SESSION, calc SQL reads %%trows instead of the ext table directly."""
+        """SESSION, calc SQL reads %%trows instead of the ext table directly.
+
+        Validate tm 004 session trows behavior.
+
+        Since: v3.4.2.0
+
+        """
         base_ms = 1741100000000 + 2 * 3600_000
         new_rows = [
             (base_ms,          301, 30.1, 'tm004t_a', 0),
@@ -361,6 +406,9 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
         opened by the first row, guaranteeing a firing. Same raw-passthrough
         calc SQL as FS-TM-001..004, so the sink ends up with STD_ROWS plus
         the two new rows.
+
+        Since: v3.4.2.0
+
         """
         base_ms = 1741000000000 + 3 * 3600_000
         new_rows = [
@@ -376,7 +424,13 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
                                post_create_rows=new_rows, wait_timeout=90)
 
     def test_tm_005_state_window_trows(self):
-        """STATE_WINDOW, calc SQL reads %%trows instead of the ext table directly."""
+        """STATE_WINDOW, calc SQL reads %%trows instead of the ext table directly.
+
+        Validate tm 005 state window trows behavior.
+
+        Since: v3.4.2.0
+
+        """
         base_ms = 1741100000000 + 3 * 3600_000
         new_rows = [
             (base_ms,          401, 40.1, 'tm005t_a', 0),
@@ -397,6 +451,9 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
         (val=5) satisfies END WITH val > 4 and closes it, guaranteeing a
         firing. Same raw-passthrough calc SQL as FS-TM-001..005, so the sink
         ends up with STD_ROWS plus the two new rows.
+
+        Since: v3.4.2.0
+
         """
         base_ms = 1741000000000 + 4 * 3600_000
         new_rows = [
@@ -415,7 +472,13 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
         )
 
     def test_tm_006_event_window_trows(self):
-        """EVENT_WINDOW, calc SQL reads %%trows instead of the ext table directly."""
+        """EVENT_WINDOW, calc SQL reads %%trows instead of the ext table directly.
+
+        Validate tm 006 event window trows behavior.
+
+        Since: v3.4.2.0
+
+        """
         base_ms = 1741100000000 + 4 * 3600_000
         new_rows = [
             (base_ms,          1, 50.1, 'tm006t_a', 0),
@@ -438,6 +501,9 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
         CREATE STREAM, guaranteeing one complete count-window closes. Same
         raw-passthrough calc SQL as FS-TM-001..006, so the sink ends up with
         STD_ROWS plus the two new rows.
+
+        Since: v3.4.2.0
+
         """
         base_ms = 1741000000000 + 5 * 3600_000
         new_rows = [
@@ -453,7 +519,13 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
                                post_create_rows=new_rows, wait_timeout=90)
 
     def test_tm_007_count_window_trows(self):
-        """COUNT_WINDOW, calc SQL reads %%trows instead of the ext table directly."""
+        """COUNT_WINDOW, calc SQL reads %%trows instead of the ext table directly.
+
+        Validate tm 007 count window trows behavior.
+
+        Since: v3.4.2.0
+
+        """
         base_ms = 1741100000000 + 5 * 3600_000
         new_rows = [
             (base_ms,          601, 60.1, 'tm007t_a', 0),
