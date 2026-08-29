@@ -311,6 +311,7 @@ The configuration parameters in properties are as follows:
 - TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING [`varcharAsString`]: Maps VARCHAR/BINARY types to String. Effective only when using WebSocket connections. Default value is false.
 - TSDBDriver.PROPERTY_KEY_APP_NAME [`app_name`]: App name, can be used for display in the `show connections` query result. Effective only when using WebSocket connections. Default value is java.
 - TSDBDriver.PROPERTY_KEY_APP_IP [`app_ip`]: App IP, can be used for display in the `show connections` query result. Effective only when using WebSocket connections. Default value is empty.
+- TSDBDriver.PROPERTY_KEY_STMT_CACHE_SIZE [`stmtCacheSize`]: PreparedStatement cache size; caches and reuses prepared statements to improve repeated write performance. Effective only when using WebSocket connections. Default value is 5, or 2 when efficient writing mode (asyncWrite=stmt) is enabled; set to 0 to disable the cache. Note: on a cache hit the driver reuses the same statement object, so the reference must not be used after `close()`; cached statements hold server-side statement resources while idle, and in efficient writing mode also keep the backend write threads alive (each cached statement occupies backendWriteThreadNum threads).
 
 ---
 
