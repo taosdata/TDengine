@@ -3771,6 +3771,12 @@ class RealtimePipelineHarness {
                      : processPull(index, TDMT_STREAM_TRIGGER_PULL_RSP, TSDB_CODE_STREAM_NO_CONTEXT, nullptr, 0);
   }
 
+  int32_t dispatchGroupColError(int64_t gid, int32_t responseCode) {
+    int32_t index = findGroupColPull(gid);
+    return index < 0 ? TSDB_CODE_INVALID_PARA
+                     : processPull(index, TDMT_STREAM_TRIGGER_PULL_RSP, responseCode, nullptr, 0);
+  }
+
   int32_t dispatchGroupColValue(int64_t gid, int64_t value) {
     int32_t index = findGroupColPull(gid);
     if (index < 0) return TSDB_CODE_INVALID_PARA;
@@ -18630,6 +18636,46 @@ TEST_F(StreamNestedRealtimeTest, MultiGroupBatchOwnsEveryGidLifecycle) {
   EXPECT_EQ(1, runningRequests);
 }
 
+TEST_F(StreamNestedRealtimeTest, DropGroupColumnPullsAreSerializedPerReader) {
+  RealtimePipelineHarness harness;
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy, false, STRIGGER_EVENT_WINDOW_NONE,
+                           STRIGGER_EVENT_WINDOW_NONE, 0, 1, true, 0, false, 1, true));
+  ASSERT_TRUE(harness.start());
+
+  const PipelineWalGroup group42 = {42, 1001, {1000, 1015}, {1, 2}, 2};
+  const PipelineWalGroup group43 = {43, 1002, {2000, 2015}, {3, 4}, 3};
+  ASSERT_TRUE(harness.feedGroups({group42, group43}));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.feedDroppedGroups({42, 43}));
+  EXPECT_EQ(0, harness.groupColPullCount(42));
+  EXPECT_EQ(1, harness.groupColPullCount(43));
+  EXPECT_EQ(2, listNEles(&harness.context()->dropTableReqs));
+
+  auto* pProgress = static_cast<SSTriggerWalProgress*>(tSimpleHashGet(
+      harness.context()->pReaderWalProgress, &RealtimePipelineHarness::kVgId, sizeof(RealtimePipelineHarness::kVgId)));
+  ASSERT_NE(pProgress, nullptr);
+  EXPECT_TRUE(pProgress->groupColValuePullInFlight);
+  EXPECT_EQ(43, pProgress->groupColValuePullGid);
+  EXPECT_EQ(TSDB_CODE_RPC_TIMEOUT, harness.dispatchGroupColError(43, TSDB_CODE_RPC_TIMEOUT));
+  EXPECT_TRUE(pProgress->groupColValuePullInFlight);
+  EXPECT_EQ(43, pProgress->groupColValuePullGid);
+  EXPECT_EQ(1, listNEles(&harness.context()->retryPullReqs));
+
+  ASSERT_TRUE(harness.dispatchSerializedRealtimeStart());
+  EXPECT_TRUE(pProgress->groupColValuePullInFlight);
+  EXPECT_EQ(0, listNEles(&harness.context()->retryPullReqs));
+  EXPECT_EQ(2, harness.groupColPullCount(43));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchGroupColValue(43, 4300));
+  ASSERT_EQ((std::vector<int64_t>{43}), harness.droppedGids());
+  EXPECT_EQ(1, harness.groupColPullCount(42));
+  EXPECT_EQ(1, listNEles(&harness.context()->dropTableReqs));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchGroupColValue(42, 4200));
+  EXPECT_EQ((std::vector<int64_t>{43, 42}), harness.droppedGids());
+  EXPECT_EQ(0, listNEles(&harness.context()->dropTableReqs));
+}
+
 TEST_F(StreamNestedRealtimeTest, InitialNestedSendFailureRollsBackOwnership) {
   gRealtimePipelineClockNs = 100 * NANOSECOND_PER_MSEC;
   RealtimePipelineHarness harness;
@@ -21916,6 +21962,35 @@ struct CreateTableRequestState {
 
 CreateTableRequestState gCreateTableRequestState;
 
+struct NodelayGroupColPullState {
+  int32_t                    sendCalls = 0;
+  std::vector<int64_t>       gids;
+  std::vector<SMsgSendInfo*> sendInfos;
+};
+
+NodelayGroupColPullState gNodelayGroupColPullState;
+
+int32_t captureNodelayGroupColPull(const SEpSet*, SRpcMsg* pMsg) {
+  ++gNodelayGroupColPullState.sendCalls;
+  SSTriggerPullRequestUnion request = {};
+  if (pMsg->pCont != nullptr && pMsg->contLen > static_cast<int32_t>(sizeof(SMsgHead)) &&
+      tDeserializeSTriggerPullRequest(static_cast<char*>(pMsg->pCont) + sizeof(SMsgHead),
+                                      pMsg->contLen - sizeof(SMsgHead), &request) == TSDB_CODE_SUCCESS) {
+    gNodelayGroupColPullState.gids.push_back(request.groupColValueReq.gid);
+    tDestroySTriggerPullRequest(&request);
+  }
+  gNodelayGroupColPullState.sendInfos.push_back(static_cast<SMsgSendInfo*>(pMsg->info.ahandle));
+  rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = nullptr;
+  pMsg->info.ahandle = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t acquireNoCreateTableRequest(SStreamTriggerTask*, int64_t, int64_t, SSTriggerCalcRequest** ppRequest) {
+  *ppRequest = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t acquireCreateTableRequest(SStreamTriggerTask* pTask, int64_t sessionId, int64_t gid,
                                   SSTriggerCalcRequest** ppRequest) {
   ++gCreateTableRequestState.acquireCalls;
@@ -22030,6 +22105,98 @@ TEST_F(StreamTriggerCreateTableRequestTest, NodelayCreateRequestContainsNoCalcul
   EXPECT_EQ(gCreateTableRequestState.decodedRequest.pAncestorContext, nullptr);
   EXPECT_EQ(gCreateTableRequestState.decodedRequest.createTable, 1);
   EXPECT_EQ(gCreateTableRequestState.decodedRequest.gid, kCreateTableGroupId);
+}
+
+TEST(StreamTriggerNodelayCreateTableTest, GroupColPullHasSingleInFlightRequestPerReader) {
+  gNodelayGroupColPullState = {};
+  Stub stub;
+  stub.set(tmsgSendReq, captureNodelayGroupColPull);
+  stub.set(stTriggerTaskAcquireRequest, acquireNoCreateTableRequest);
+  stub.set(stTriggerTaskReleaseRequest, releaseTriggerRetryRequestForCheck);
+
+  SStreamTriggerTask task = {};
+  task.task.type = STREAM_TRIGGER_TASK;
+  task.task.streamId = 0x110;
+  task.task.taskId = 0x111;
+  task.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  task.nodelayCreateSubtable = 1;
+  task.hasPartitionBy = true;
+
+  SStreamTaskAddr      reader = {.taskId = 0x112, .nodeId = 7};
+  SSTriggerWalProgress progress = {.pTaskAddr = &reader};
+  progress.pullReq.base.streamId = task.task.streamId;
+  progress.pullReq.base.sessionId = kRealtimeSessionId;
+  progress.pullReq.base.triggerTaskId = task.task.taskId;
+
+  SSTriggerRealtimeContext context = {};
+  context.pTask = &task;
+  context.sessionId = kRealtimeSessionId;
+  context.status = STRIGGER_CONTEXT_DETERMINE_BOUND;
+  context.pReaderWalProgress = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  ASSERT_NE(context.pReaderWalProgress, nullptr);
+  ASSERT_EQ(
+      tSimpleHashPut(context.pReaderWalProgress, &reader.nodeId, sizeof(reader.nodeId), &progress, sizeof(progress)),
+      TSDB_CODE_SUCCESS);
+  auto* pProgress = static_cast<SSTriggerWalProgress*>(
+      tSimpleHashGet(context.pReaderWalProgress, &reader.nodeId, sizeof(reader.nodeId)));
+  ASSERT_NE(pProgress, nullptr);
+  context.pGroupColVals = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(context.pGroupColVals, nullptr);
+  context.pPendingCreateTableGids = taosArrayInit(1, sizeof(SSTriggerPendingCreateTableEntry));
+  ASSERT_NE(context.pPendingCreateTableGids, nullptr);
+  SSTriggerPendingCreateTableEntry pending = {
+      .gid = kCreateTableGroupId,
+      .pProgress = pProgress,
+      .attemptCount = 1,
+  };
+  ASSERT_NE(taosArrayPush(context.pPendingCreateTableGids, &pending), nullptr);
+  task.pRealtimeContext = &context;
+
+  auto dispatchCalcResponse = [&task]() {
+    SSTriggerCalcRequest request = {.runnerTaskId = kRunnerTaskId, .sessionId = kRealtimeSessionId};
+    SSTriggerAHandle     responseAhandle = {};
+    responseAhandle.param = &request;
+    SMsgSendInfo responseSendInfo = {};
+    responseSendInfo.param = &responseAhandle;
+    SRpcMsg response = {.msgType = TDMT_STREAM_TRIGGER_CALC_RSP, .code = TSDB_CODE_SUCCESS};
+    response.info.ahandle = &responseSendInfo;
+    int64_t errorTaskId = 0;
+    return stTriggerTaskProcessRsp(&task.task, &response, &errorTaskId);
+  };
+
+  ASSERT_EQ(dispatchCalcResponse(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(dispatchCalcResponse(), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gNodelayGroupColPullState.sendCalls, 1);
+  ASSERT_EQ(gNodelayGroupColPullState.gids.size(), 1U);
+  EXPECT_EQ(gNodelayGroupColPullState.gids[0], kCreateTableGroupId);
+
+  ASSERT_EQ(gNodelayGroupColPullState.sendInfos.size(), 1U);
+  SRpcMsg pullResponse = {.msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .code = TSDB_CODE_SUCCESS};
+  pullResponse.info.ahandle = gNodelayGroupColPullState.sendInfos[0];
+  int64_t errorTaskId = 0;
+  SSHashObj* pReaderWalProgress = context.pReaderWalProgress;
+  context.pReaderWalProgress = nullptr;
+  int32_t code = stTriggerTaskProcessRsp(&task.task, &pullResponse, &errorTaskId);
+  context.pReaderWalProgress = pReaderWalProgress;
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  destroyAhandle(gNodelayGroupColPullState.sendInfos[0]);
+  gNodelayGroupColPullState.sendInfos[0] = nullptr;
+  EXPECT_FALSE(pProgress->groupColValuePullInFlight);
+
+  auto* pFirst = static_cast<SSTriggerPendingCreateTableEntry*>(taosArrayGet(context.pPendingCreateTableGids, 0));
+  ASSERT_NE(pFirst, nullptr);
+  pFirst->gid = kCreateTableGroupId + 1;
+  ASSERT_EQ(dispatchCalcResponse(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(gNodelayGroupColPullState.gids.size(), 2U);
+  EXPECT_EQ(gNodelayGroupColPullState.gids[1], kCreateTableGroupId + 1);
+
+  for (SMsgSendInfo* pSendInfo : gNodelayGroupColPullState.sendInfos) {
+    destroyAhandle(pSendInfo);
+  }
+
+  taosArrayDestroy(context.pPendingCreateTableGids);
+  tSimpleHashCleanup(context.pGroupColVals);
+  tSimpleHashCleanup(context.pReaderWalProgress);
 }
 
 int32_t compareRealtimeMaxDelayGroups(const HeapNode* lhs, const HeapNode* rhs) {

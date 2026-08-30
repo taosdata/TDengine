@@ -89,6 +89,7 @@ typedef struct SSTriggerAHandle {
   int64_t sessionId;
   int8_t  paramType; /* ESTriggerAHandleParamType */
   void   *param;
+  void   *pullOwner; /* borrowed owner for pull requests that require terminal cleanup */
   uint64_t progressStepId;
   uint64_t progressRequestToken;
   SStreamManualRecalcAttemptId manualAttempt;
