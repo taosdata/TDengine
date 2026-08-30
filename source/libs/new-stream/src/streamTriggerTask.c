@@ -11835,6 +11835,33 @@ _end:
   return code;
 }
 
+static int32_t stRealtimeContextClaimGroupColValuePull(SSTriggerWalProgress *pProgress, int64_t gid, bool *pClaimed) {
+  if (pProgress == NULL || pClaimed == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *pClaimed = false;
+  if (pProgress->groupColValuePullInFlight) {
+    if (pProgress->groupColValuePullGid == gid) {
+      return TSDB_CODE_SUCCESS;
+    }
+    return TSDB_CODE_NEED_RETRY;
+  }
+
+  pProgress->groupColValuePullInFlight = true;
+  pProgress->groupColValuePullGid = gid;
+  *pClaimed = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void stRealtimeContextReleaseGroupColValuePull(SSTriggerWalProgress *pProgress) {
+  if (pProgress == NULL) {
+    return;
+  }
+  pProgress->groupColValuePullInFlight = false;
+  pProgress->groupColValuePullGid = 0;
+}
+
 static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, ESTriggerPullType type) {
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
@@ -12262,6 +12289,14 @@ static int32_t stRealtimeContextSendPullReqForGid(SSTriggerRealtimeContext *pCon
   SRpcMsg               msg = {.msgType = TDMT_STREAM_TRIGGER_PULL};
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
+  bool                  pullClaimed = false;
+
+  code = stRealtimeContextClaimGroupColValuePull(pProgress, gid, &pullClaimed);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (!pullClaimed) {
+    ST_TASK_DLOG("skip duplicate pull GROUP_COL_VALUE for gid:%" PRId64 " to node:%d", gid, pReader->nodeId);
+    return TSDB_CODE_SUCCESS;
+  }
 
   pReq->type = STRIGGER_PULL_GROUP_COL_VALUE;
   pReq->readerTaskId = pReader->taskId;
@@ -12270,6 +12305,8 @@ static int32_t stRealtimeContextSendPullReqForGid(SSTriggerRealtimeContext *pCon
   code = stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pReq, pReq->progressStepId, pReq->progressRequestToken,
                                    &msg.info.ahandle);
   QUERY_CHECK_CODE(code, lino, _end);
+  SMsgSendInfo *pSendInfo = msg.info.ahandle;
+  ((SSTriggerAHandle *)pSendInfo->param)->pullOwner = pProgress;
   msg.contLen = tSerializeSTriggerPullRequest(NULL, 0, pReq);
   QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   msg.contLen += sizeof(SMsgHead);
@@ -12290,6 +12327,9 @@ static int32_t stRealtimeContextSendPullReqForGid(SSTriggerRealtimeContext *pCon
 _end:
   if (code != TSDB_CODE_SUCCESS && msg.info.ahandle != NULL) {
     destroyAhandle(msg.info.ahandle);
+  }
+  if (code != TSDB_CODE_SUCCESS && pullClaimed) {
+    stRealtimeContextReleaseGroupColValuePull(pProgress);
   }
   return code;
 }
@@ -14280,7 +14320,11 @@ static int32_t stRealtimeContextSendDropTableReq(SSTriggerRealtimeContext *pCont
   if (needTagValue && taosArrayGetSize(pDropReq->groupColVals) == 0) {
     *needColVal = true;
     code = stRealtimeContextSendGroupColValuePull(pContext, gid);
-    QUERY_CHECK_CODE(code, lino, _end);
+    if (code == TSDB_CODE_NEED_RETRY) {
+      code = TSDB_CODE_SUCCESS;
+    } else {
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     code = tdListAppend(&pContext->dropTableReqs, &pDropReq);
     QUERY_CHECK_CODE(code, lino, _end);
     goto _end;
@@ -14347,6 +14391,16 @@ static int32_t stRealtimeContextRetryPullRequest(SSTriggerRealtimeContext *pCont
   code = stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pReq, pReq->progressStepId, pReq->progressRequestToken,
                                    &msg.info.ahandle);
   QUERY_CHECK_CODE(code, lino, _end);
+  if (pReq->type == STRIGGER_PULL_GROUP_COL_VALUE) {
+    SSTriggerWalProgress *pProgress =
+        tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(pReader->nodeId));
+    SSTriggerGroupColValueRequest *pGroupColReq = (SSTriggerGroupColValueRequest *)pReq;
+    if (pProgress != NULL && &pProgress->pullReq.base == pReq && pProgress->groupColValuePullInFlight &&
+        pProgress->groupColValuePullGid == pGroupColReq->gid) {
+      SMsgSendInfo *pSendInfo = msg.info.ahandle;
+      ((SSTriggerAHandle *)pSendInfo->param)->pullOwner = pProgress;
+    }
+  }
   ST_TASK_DLOG("trigger retry pull req ahandle %p allocated", msg.info.ahandle);
 
   msg.contLen = tSerializeSTriggerPullRequest(NULL, 0, pReq);
@@ -16757,19 +16811,28 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
     }
 
     case STRIGGER_PULL_GROUP_COL_VALUE: {
+      SSTriggerWalProgress *pPullProgress = pAhandle->pullOwner;
+      if (pPullProgress != NULL && pPullProgress->groupColValuePullInFlight) {
+        SSTriggerGroupColValueRequest *pGroupColReq = (SSTriggerGroupColValueRequest *)pReq;
+        QUERY_CHECK_CONDITION(pPullProgress->groupColValuePullGid == pGroupColReq->gid, code, lino, _end,
+                              TSDB_CODE_INVALID_MSG);
+        stRealtimeContextReleaseGroupColValuePull(pPullProgress);
+      }
       QUERY_CHECK_CONDITION(
           (pContext->status == STRIGGER_CONTEXT_DETERMINE_BOUND || pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ ||
            pContext->status == STRIGGER_CONTEXT_SEND_DROP_REQ),
           code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerGroupColValueRequest *pRequest = (SSTriggerGroupColValueRequest *)pReq;
       if (pContext->status == STRIGGER_CONTEXT_DETERMINE_BOUND && pContext->pPendingCreateTableGids != NULL) {
-        // pending create-table: LAST_TS needed tag, we pulled groupInfo for one gid; create table then continue or finish
+        // pending create-table: LAST_TS needed tag, we pulled groupInfo for one gid; create table then continue or
+        // finish
         SStreamGroupInfo groupInfo = {0};
         if (pRsp->contLen > 0) {
           code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
           QUERY_CHECK_CODE(code, lino, _end);
         }
-        code = tSimpleHashPut(pContext->pGroupColVals, &pRequest->gid, sizeof(int64_t), &groupInfo.gInfo, POINTER_BYTES);
+        code =
+            tSimpleHashPut(pContext->pGroupColVals, &pRequest->gid, sizeof(int64_t), &groupInfo.gInfo, POINTER_BYTES);
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayClearEx(groupInfo.gInfo, tDestroySStreamGroupValue);
           QUERY_CHECK_CODE(code, lino, _end);
@@ -16792,8 +16855,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           SSTriggerPendingCreateTableEntry *pNext =
               (SSTriggerPendingCreateTableEntry *)taosArrayGet(pContext->pPendingCreateTableGids, 0);
           QUERY_CHECK_NULL(pNext, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-          code =
-              stRealtimeContextSendPullReqForGid(pContext, pNext->pProgress, pNext->gid);
+          code = stRealtimeContextSendPullReqForGid(pContext, pNext->pProgress, pNext->gid);
           QUERY_CHECK_CODE(code, lino, _end);
         } else {
           taosArrayDestroy(pContext->pPendingCreateTableGids);
@@ -16868,6 +16930,19 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
             code = stTriggerTaskAttributeChildFailure(stRealtimeContextCheckForTurn(pContext, nowNs),
                                                       pFailureRecordedByChild);
             QUERY_CHECK_CODE(code, lino, _end);
+          } else if (pPullProgress != NULL) {
+            tdListInitIter(&pContext->dropTableReqs, &iter, TD_LIST_FORWARD);
+            while ((pNode = tdListNext(&iter)) != NULL) {
+              SSTriggerDropRequest *pDropReq = *(SSTriggerDropRequest **)pNode->data;
+              void                 *px = tSimpleHashGet(pContext->pGroups, &pDropReq->gid, sizeof(int64_t));
+              QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+              SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
+              if (pGroup->vgId == pPullProgress->pTaskAddr->nodeId) {
+                code = stRealtimeContextSendPullReqForGid(pContext, pPullProgress, pDropReq->gid);
+                QUERY_CHECK_CODE(code, lino, _end);
+                break;
+              }
+            }
           }
           break;
         }
