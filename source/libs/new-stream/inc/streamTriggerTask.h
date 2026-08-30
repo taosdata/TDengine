@@ -339,6 +339,9 @@ typedef struct SSTriggerWalProgress {
   int64_t                   lastScanVer;  // version of the last committed record in previous scan
   int64_t                   verTime;      // commit time of the last commit record in previous scan
   SSTriggerPullRequestUnion pullReq;
+  // nodelay GROUP_COL_VALUE owns pullReq until its logical request finishes.
+  bool                      groupColValuePullInFlight;
+  int64_t                   groupColValuePullGid;
   SArray                   *reqCids;         // SArray<col_id_t>
   SArray                   *reqCols;         // SArray<OTableInfo>
   SArray                   *reqUids;         // SArray<int64_t>
