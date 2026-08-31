@@ -466,6 +466,10 @@ typedef struct {
   char*    reason;
   char*    createdBy;
   char*    labels;
+  // Immutable creator UID; zero identifies records written before this field existed.
+  int64_t  ownerId;
+  // Account domain used when matching explicit XNode task privileges.
+  int32_t  acctId;
   SRWLatch lock;
   // SArray** labels;
   // int32_t  numOfLabels;
