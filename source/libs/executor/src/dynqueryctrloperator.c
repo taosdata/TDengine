@@ -6611,6 +6611,15 @@ static int32_t resetDynQueryCtrlOperState(SOperatorInfo* pOper) {
       if (pVtbScan->resolvedColRefMap) {
         taosHashClear(pVtbScan->resolvedColRefMap);
       }
+      // Table configurations include terminal tag values used by tag-ref chains.
+      // They must be refetched for every stream trigger so ALTER TABLE tag changes
+      // are visible to the next calculation cycle.
+      if (pVtbScan->tableCfgCache) {
+        taosHashSetFreeFp(pVtbScan->tableCfgCache, destroyTableCfgCacheEntry);
+        taosHashCleanup(pVtbScan->tableCfgCache);
+        pVtbScan->tableCfgCache = NULL;
+        qDebug("reset dynamic vtable scan: cleared table config cache for tag-ref refresh");
+      }
       // Agg/interval org-table maps are rebuilt from scratch on every (re)open by
       // buildOrgTbInfoBatch/Single. In a stream the operator is reset and reopened per
       // trigger, so release the previous instances here to avoid leaking / reusing stale
