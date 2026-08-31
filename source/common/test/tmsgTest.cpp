@@ -872,6 +872,11 @@ void replaceString(std::vector<uint8_t>* frame, const MetaStringField& field, si
 }
 
 void writeMetaI32(std::vector<uint8_t>* frame, size_t offset, int32_t value) {
+  if (offset > frame->size() || frame->size() - offset < sizeof(value)) {
+    ADD_FAILURE() << "Cannot write an int32_t at offset " << offset << " in a " << frame->size()
+                  << "-byte frame";
+    return;
+  }
   memcpy(frame->data() + offset, &value, sizeof(value));
 }
 
