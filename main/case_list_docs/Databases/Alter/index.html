@@ -663,6 +663,17 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#02-Databases.03-Alter.test_db_alter_maxrows_compact.TestDbAlterMaxrowsCompact.test_db_alter_maxrows_compact" class="md-nav__link">
+        Verify ALTER DATABASE MAXROWS takes effect on existing data via COMPACT ... FORCE 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -4176,6 +4187,17 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#02-Databases.03-Alter.test_db_alter_maxrows_compact.TestDbAlterMaxrowsCompact.test_db_alter_maxrows_compact" class="md-nav__link">
+        Verify ALTER DATABASE MAXROWS takes effect on existing data via COMPACT ... FORCE 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -4426,6 +4448,44 @@
   
   
   
+<h2 id="02-Databases.03-Alter.test_db_alter_maxrows_compact.TestDbAlterMaxrowsCompact.test_db_alter_maxrows_compact" class="doc doc-heading">
+
+<a href="#02-Databases.03-Alter.test_db_alter_maxrows_compact.TestDbAlterMaxrowsCompact.test_db_alter_maxrows_compact" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify ALTER DATABASE MAXROWS takes effect on existing data via COMPACT ... FORCE</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a database with a small MAXROWS/MINROWS and write a modest amount of</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   data into a single table, then flush it to disk and record the baseline</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   block distribution</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Shrink MAXROWS (and MINROWS), run COMPACT DATABASE ... FORCE (required since</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   there is no new write after the alter, so a plain compact would skip the</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   fileset), poll SHOW COMPACTS until the task finishes, then verify via</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   SHOW TABLE DISTRIBUTED / ins_table_fixed_distributed that the block count</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   increased and no block exceeds the new MAXROWS</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Grow MAXROWS beyond the original value and repeat step 2, verifying the</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   block count decreases again and blocks stay within the new bound</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/02-Databases/03-Alter/test_db_alter_maxrows_compact.py" target="_blank">
+                      cases/02-Databases/03-Alter/test_db_alter_maxrows_compact.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="02-Databases.03-Alter.test_db_alter_option.TestDatabaseAlterOption.test_db_alter_option" class="doc doc-heading">
 
 <a href="#02-Databases.03-Alter.test_db_alter_option.TestDatabaseAlterOption.test_db_alter_option" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4443,18 +4503,19 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Check alter cache model</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Check alter cache size</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Check alter min rows</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Check alter pages</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Check alter wal_level</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Check alter wal_fsync_period</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Check alter stt_trigger</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. Check alter wal_retention_period</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">13. Check alter wal_retention_size</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">14. Check alter ss_keeplocal</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">15. Check alter ss_compact</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">16. Check alter keep_time_offset</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">17. Check alter compact_interval</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">18. Check alter compact_time_offset</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">19. Check alter unsupport option</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Check alter max rows</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Check alter pages</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Check alter wal_level</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Check alter wal_fsync_period</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. Check alter stt_trigger</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">13. Check alter wal_retention_period</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">14. Check alter wal_retention_size</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">15. Check alter ss_keeplocal</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">16. Check alter ss_compact</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">17. Check alter keep_time_offset</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">18. Check alter compact_interval</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">19. Check alter compact_time_offset</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">20. Check alter unsupport option</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>

@@ -3534,8 +3534,52 @@
         
   
     <li class="md-nav__item">
+      <a href="#80-Components.01-Taosd.test_fmnode_offline_wal_survival.TestFmnodeOfflineWalSurvival.test_fmnode_offline_wal_survival" class="md-nav__link">
+        `taosd -fMnode` makes prior mnode state durable enough to survive total 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#80-Components.01-Taosd.test_com_config_refresh.TestComTaosdConfigRefresh.test_com_taosc_config" class="md-nav__link">
         Client config hot refresh 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#80-Components.01-Taosd.test_sdb_json_modify_import.TestSdbJsonModifyImport.test_sdb_json_editable_field_takes_effect" class="md-nav__link">
+        Editing a field on a type's editable-scalar list and reimporting takes effect. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#80-Components.01-Taosd.test_sdb_json_modify_import.TestSdbJsonModifyImport.test_sdb_json_immutable_field_edit_is_silently_ignored" class="md-nav__link">
+        Editing a field that is NOT editable must not error, and must not apply. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#80-Components.01-Taosd.test_flush_mnode_wal_survival.TestFlushMnodeWalSurvival.test_flush_mnode_wal_survival" class="md-nav__link">
+        FLUSH MNODE makes prior mnode state durable enough to survive total WAL loss; 
       </a>
       
     </li>
@@ -4322,8 +4366,52 @@
         
   
     <li class="md-nav__item">
+      <a href="#80-Components.01-Taosd.test_fmnode_offline_wal_survival.TestFmnodeOfflineWalSurvival.test_fmnode_offline_wal_survival" class="md-nav__link">
+        `taosd -fMnode` makes prior mnode state durable enough to survive total 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#80-Components.01-Taosd.test_com_config_refresh.TestComTaosdConfigRefresh.test_com_taosc_config" class="md-nav__link">
         Client config hot refresh 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#80-Components.01-Taosd.test_sdb_json_modify_import.TestSdbJsonModifyImport.test_sdb_json_editable_field_takes_effect" class="md-nav__link">
+        Editing a field on a type's editable-scalar list and reimporting takes effect. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#80-Components.01-Taosd.test_sdb_json_modify_import.TestSdbJsonModifyImport.test_sdb_json_immutable_field_edit_is_silently_ignored" class="md-nav__link">
+        Editing a field that is NOT editable must not error, and must not apply. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#80-Components.01-Taosd.test_flush_mnode_wal_survival.TestFlushMnodeWalSurvival.test_flush_mnode_wal_survival" class="md-nav__link">
+        FLUSH MNODE makes prior mnode state durable enough to survive total WAL loss; 
       </a>
       
     </li>
@@ -5395,6 +5483,82 @@
   
   
   
+<h2 id="80-Components.01-Taosd.test_flush_mnode_wal_survival.TestFlushMnodeWalSurvival.test_flush_mnode_wal_survival" class="doc doc-heading">
+
+<a href="#80-Components.01-Taosd.test_flush_mnode_wal_survival.TestFlushMnodeWalSurvival.test_flush_mnode_wal_survival" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>FLUSH MNODE makes prior mnode state durable enough to survive total WAL loss;</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create marker_before, then run FLUSH MNODE.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create marker_after (deliberately left un-flushed).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Force-kill taosd (SIGKILL -- no graceful-shutdown flush side effect).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Delete the mnode WAL directory entirely.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Restart taosd.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. marker_before must still exist; marker_after must be gone.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/80-Components/01-Taosd/test_flush_mnode_wal_survival.py" target="_blank">
+                      cases/80-Components/01-Taosd/test_flush_mnode_wal_survival.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="80-Components.01-Taosd.test_fmnode_offline_wal_survival.TestFmnodeOfflineWalSurvival.test_fmnode_offline_wal_survival" class="doc doc-heading">
+
+<a href="#80-Components.01-Taosd.test_fmnode_offline_wal_survival.TestFmnodeOfflineWalSurvival.test_fmnode_offline_wal_survival" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>`taosd -fMnode` makes prior mnode state durable enough to survive total</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create marker_before while taosd is up, then gracefully stop taosd</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   (`-fMnode`&#39;s documented precondition per FS 4.2 is that taosd is</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   already stopped -- a graceful stop, not a mid-write crash, so this</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   is the realistic operator workflow, not a race against WAL fsync).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Run `taosd -fMnode`.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Delete the mnode WAL directory entirely (on top of -fMnode&#39;s own</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   truncation, to prove there is truly nothing left to lose from it).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Restart taosd: marker_before must still be there.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Create marker_after (never flushed), force-kill taosd (SIGKILL,</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   simulating a genuine crash with nothing durably flushed), delete</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   the WAL again, restart: marker_after must be gone (negative</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   control -- this is the scenario `-fMnode` protects you FROM).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/80-Components/01-Taosd/test_fmnode_offline_wal_survival.py" target="_blank">
+                      cases/80-Components/01-Taosd/test_fmnode_offline_wal_survival.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="80-Components.01-Taosd.test_meta_force_repair.TestMetaForceRepair.test_meta_force_repair_accepts_repair_target_syntax" class="doc doc-heading">
 
 <a href="#80-Components.01-Taosd.test_meta_force_repair.TestMetaForceRepair.test_meta_force_repair_accepts_repair_target_syntax" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -5507,6 +5671,77 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/80-Components/01-Taosd/test_meta_force_repair.py" target="_blank">
                       cases/80-Components/01-Taosd/test_meta_force_repair.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="80-Components.01-Taosd.test_sdb_json_modify_import.TestSdbJsonModifyImport.test_sdb_json_editable_field_takes_effect" class="doc doc-heading">
+
+<a href="#80-Components.01-Taosd.test_sdb_json_modify_import.TestSdbJsonModifyImport.test_sdb_json_editable_field_takes_effect" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Editing a field on a type's editable-scalar list and reimporting takes effect.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Stop taosd, dump sdb.json.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Edit the dnode record&#39;s `fqdn` (on the FS 4.4 editable list for `dnode`).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Import via -mSdb (must succeed), redump, and verify the change landed.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Restart and verify at the SQL level too.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/80-Components/01-Taosd/test_sdb_json_modify_import.py" target="_blank">
+                      cases/80-Components/01-Taosd/test_sdb_json_modify_import.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="80-Components.01-Taosd.test_sdb_json_modify_import.TestSdbJsonModifyImport.test_sdb_json_immutable_field_edit_is_silently_ignored" class="doc doc-heading">
+
+<a href="#80-Components.01-Taosd.test_sdb_json_modify_import.TestSdbJsonModifyImport.test_sdb_json_immutable_field_edit_is_silently_ignored" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Editing a field that is NOT editable must not error, and must not apply.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Covers two flavors of &#34;immutable&#34; per FS 4.4:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">(a) field-level: `dnode` supports overlay, but only for fqdn/port --</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    `id` and `createdTime` are on the same record&#39;s `fields` for</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    display only and are never applied.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">(b) type-level: `mnode` has no scalar overlay support at all -- ANY</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    edit to its `fields` (e.g. `role`, which is sync-managed) must be</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    a complete no-op, since import for this type is rawData-only.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">In both cases `-mSdb` must still exit 0 (no error) -- the FS</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">deliberately treats out-of-scope `fields` edits as ignorable, not as</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">a validation failure.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/80-Components/01-Taosd/test_sdb_json_modify_import.py" target="_blank">
+                      cases/80-Components/01-Taosd/test_sdb_json_modify_import.py
                     </a>
                   </div>
         </div>

@@ -2905,17 +2905,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#18-StreamProcessing.23-Compatibility.test_new_stream_compatibility.TestNewStreamCompatibility.test_stream_compatibility" class="md-nav__link">
-        Comp: stream backward and forward 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#18-StreamProcessing.23-Compatibility.test_compatibility_backward_forward_part1.TestStreamCompatibility.test_stream_compatibility" class="md-nav__link">
         Comp: stream backward and forward (Part 1/3) 
       </a>
@@ -2962,6 +2951,17 @@
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.23-Compatibility.test_compatibility_cross_version.TestStreamCompatibility.test_stream_compatibility" class="md-nav__link">
         Comp: stream cross-version 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.23-Compatibility.test_new_stream_compatibility.TestNewStreamCompatibility.test_stream_compatibility" class="md-nav__link">
+        Upgrade streams and data written by supported old releases. 
       </a>
       
     </li>
@@ -3959,17 +3959,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#18-StreamProcessing.23-Compatibility.test_new_stream_compatibility.TestNewStreamCompatibility.test_stream_compatibility" class="md-nav__link">
-        Comp: stream backward and forward 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#18-StreamProcessing.23-Compatibility.test_compatibility_backward_forward_part1.TestStreamCompatibility.test_stream_compatibility" class="md-nav__link">
         Comp: stream backward and forward (Part 1/3) 
       </a>
@@ -4016,6 +4005,17 @@
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.23-Compatibility.test_compatibility_cross_version.TestStreamCompatibility.test_stream_compatibility" class="md-nav__link">
         Comp: stream cross-version 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.23-Compatibility.test_new_stream_compatibility.TestNewStreamCompatibility.test_stream_compatibility" class="md-nav__link">
+        Upgrade streams and data written by supported old releases. 
       </a>
       
     </li>
@@ -4718,29 +4718,13 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Comp: stream backward and forward</strong> 
+                    <strong>Upgrade streams and data written by supported old releases.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test compatibility across 4 baseline versions with stream processing validation:</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Test [v3.3.7.9 Base Version Compatibility]</div>
-                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.1 Install v3.3.7.9 and prepare data using tdCb.prepareDataOnOldVersion()</div>
-                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.1 Create test databases and tables</div>
-                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.2 Create streams and insert sample data</div>
-                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.3 Verify stream functionality on v3.3.7.9</div>
-                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.2 Upgrade to new version with mode 2 (no upgrade mode)</div>
-                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.2.1 Kill all dnodes and update to new version</div>
-                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.2.2 Start new version with existing data</div>
-                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.2.3 Verify cross-major version compatibility (corss_major_version=True)</div>
-                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.3 Verify data and functionality using tdCb.verifyData()</div>
-                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.3.1 Check table counts and row counts consistency</div>
-                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.3.2 Verify stream processing functionality</div>
-                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.3.3 Validate aggregation results accuracy</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Test [v3.3.8.5 Base Version Compatibility]</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Test [v3.3.8.6 Base Version Compatibility]</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Test [v3.4.1.0 Base Version Compatibility]</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Start each old release, create streams, and verify its output.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Upgrade the preserved data directory to the current build.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify that the current build reads and runs those streams.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>

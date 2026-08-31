@@ -3323,6 +3323,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#21-MetaData.test_vnode_snapshot_keep.TestVnodeSnapshotKeep.test_vnode_snapshot_keep" class="md-nav__link">
+        Restore KEEP configuration from a vnode snapshot 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#21-MetaData.test_meta_batch_txn_crash_recovery.TestBatchMetaTxnCrashRecovery.test_crash_recovery" class="md-nav__link">
         Run all crash recovery tests. 
       </a>
@@ -4564,6 +4575,17 @@
     <li class="md-nav__item">
       <a href="#21-MetaData.test_meta_batch_txn_stability.TestBatchMetaTxnStability.test_repeated_txn_cycles" class="md-nav__link">
         Repeated BEGIN/COMMIT/ROLLBACK cycles for leak detection. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#21-MetaData.test_vnode_snapshot_keep.TestVnodeSnapshotKeep.test_vnode_snapshot_keep" class="md-nav__link">
+        Restore KEEP configuration from a vnode snapshot 
       </a>
       
     </li>
@@ -6192,6 +6214,40 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_txn_consumer_mixed_snapshot_wal.py" target="_blank">
                       cases/21-MetaData/test_txn_consumer_mixed_snapshot_wal.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="21-MetaData.test_vnode_snapshot_keep.TestVnodeSnapshotKeep.test_vnode_snapshot_keep" class="doc doc-heading">
+
+<a href="#21-MetaData.test_vnode_snapshot_keep.TestVnodeSnapshotKeep.test_vnode_snapshot_keep" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Restore KEEP configuration from a vnode snapshot</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Disable vnode placement on dnode 1 in the three-node test cluster.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create a one-vgroup, three-replica database and stop its follower.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Alter KEEP on the leader, write data, and remove the stopped follower WAL.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Restart the follower and require snapshot recovery.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify catalog metadata and follower vnode.json KEEP values.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Restart the follower again and verify the persisted KEEP values.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_vnode_snapshot_keep.py" target="_blank">
+                      cases/21-MetaData/test_vnode_snapshot_keep.py
                     </a>
                   </div>
         </div>
