@@ -5493,6 +5493,7 @@
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">anything committed after the flush and never re-flushed does not.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create marker_before, then run FLUSH MNODE.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create marker_after (deliberately left un-flushed).</div>
@@ -5528,6 +5529,7 @@
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">WAL loss; anything committed afterwards and never re-flushed does not.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create marker_before while taosd is up, then gracefully stop taosd</div>
                           <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   (`-fMnode`&#39;s documented precondition per FS 4.2 is that taosd is</div>

@@ -918,7 +918,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_alter_lifecycle" class="md-nav__link">
-        ALTER ADD/SET/DROP TAG is visible in ins_tags (and SHOW TAGS) on the same 
+        ALTER ADD/SET/DROP TAG is visible in ins_tags (and SHOW TAGS) on the same connection, for both physical normal tables and virtual normal tables: ADD exposes the tag with a NULL value, SET fills it, DROP removes the row. 
       </a>
       
     </li>
@@ -929,7 +929,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_create_tag_value_required" class="md-nav__link">
-        Create rules: CREATE VTABLE tags must carry an explicit value — `= literal` 
+        Create rules: CREATE VTABLE tags must carry an explicit value — `= literal` (owned) or `FROM db.tb.tag` (tag-ref). A bare `name TYPE` tag is rejected, as is a mix of FROM and valueless tags; literal + FROM mixed stays legal. 
       </a>
       
     </li>
@@ -1094,7 +1094,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_json_tag_mixed" class="md-nav__link">
-        Error: a JSON tag coexisting with other tags is rejected (a JSON tag is the whole 
+        Error: a JSON tag coexisting with other tags is rejected (a JSON tag is the whole payload; mixing would silently lose the other tag values). 
       </a>
       
     </li>
@@ -1116,7 +1116,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_tag_ref_type_mismatch" class="md-nav__link">
-        Error: a tag-ref whose declared type differs from the source tag type is rejected 
+        Error: a tag-ref whose declared type differs from the source tag type is rejected (checkTagRef). src0.city is NCHAR(20); declaring the ref as INT is a type mismatch. 
       </a>
       
     </li>
@@ -1149,7 +1149,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_nchar_tag_over_length" class="md-nav__link">
-        Error: an NCHAR tag longer than TSDB_MAX_NCHAR_LEN is rejected at CREATE 
+        Error: an NCHAR tag longer than TSDB_MAX_NCHAR_LEN is rejected at CREATE (NCHAR byte length = N * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE). 
       </a>
       
     </li>
@@ -1182,7 +1182,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_ext_json_option_rules" class="md-nav__link">
-        Error: external-source tag-ref, ALTER-time JSON tags, and column options on tags 
+        Error: external-source tag-ref, ALTER-time JSON tags, and column options on tags are explicitly rejected (review-driven rules). 
       </a>
       
     </li>
@@ -1215,7 +1215,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_tag_bytes_exceed_max_tags_len" class="md-nav__link">
-        Error: total tag bytes exceeding TSDB_MAX_TAGS_LEN (16384) is rejected at CREATE 
+        Error: total tag bytes exceeding TSDB_MAX_TAGS_LEN (16384) is rejected at CREATE (checkCreateTags). Two VARCHAR(8192) tags sum past the cap while each stays well under the per-column cap, so this specifically exercises the total-bytes guard. 
       </a>
       
     </li>
@@ -1226,7 +1226,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_and_show_tags" class="md-nav__link">
-        ins_tags and SHOW TAGS expose owned tags and tag-refs of normal and 
+        ins_tags and SHOW TAGS expose owned tags and tag-refs of normal and virtual normal tables; tag-less tables produce no rows. 
       </a>
       
     </li>
@@ -1237,7 +1237,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_cursor_path_full_scan" class="md-nav__link">
-        ins_tags full-DB scan (no table_name equality) walks the meta cursor path: 
+        ins_tags full-DB scan (no table_name equality) walks the meta cursor path: vntb owned tags, vntb tag-refs resolved through the pause/resume re-read filler (sysTableUserTagsFillNtbRefTagsRow), child-table tags carrying stable_name, and tag-less tables producing no rows (phantom-tag decoder regression). 
       </a>
       
     </li>
@@ -1248,7 +1248,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_type_rendering" class="md-nav__link">
-        ins_tags renders tag_type (with length suffix for var types) and tag_value 
+        ins_tags renders tag_type (with length suffix for var types) and tag_value for the common owned-tag types on a normal table. 
       </a>
       
     </li>
@@ -1259,7 +1259,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_multi_db_isolation" class="md-nav__link">
-        ins_tags rows are isolated by db_name: same-named tables with different tag 
+        ins_tags rows are isolated by db_name: same-named tables with different tag values in two databases do not leak into each other's result set. 
       </a>
       
     </li>
@@ -1270,7 +1270,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_add_tag_same_conn_select" class="md-nav__link">
-        Lifecycle: after ALTER ADD TAG on a persistent connection, the new tag is immediately 
+        Lifecycle: after ALTER ADD TAG on a persistent connection, the new tag is immediately readable (ALTER response carries the full meta — no catalog-cache staleness). 
       </a>
       
     </li>
@@ -1347,7 +1347,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_create_with_literal_tags" class="md-nav__link">
-        Normal table: CREATE TABLE ... TAGS where every tag carries `= literal` creates a 
+        Normal table: CREATE TABLE ... TAGS where every tag carries `= literal` creates a normal table with owned tags, while valueless TAGS keeps the historical super-table semantics — the inline values are how CREATE TABLE tells the two apart. 
       </a>
       
     </li>
@@ -1358,7 +1358,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_desc_show_create" class="md-nav__link">
-        Normal table: DESC marks owned tags; SHOW CREATE emits the table's FINAL form — 
+        Normal table: DESC marks owned tags; SHOW CREATE emits the table's FINAL form — a single CREATE TABLE with an inline TAGS clause (NULL tag -> `= NULL`, valued tag -> `= value`), not a CREATE + ALTER ADD/SET TAG sequence. 
       </a>
       
     </li>
@@ -1391,7 +1391,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_drop_readd_same_name" class="md-nav__link">
-        Normal table: DROP TAG then ADD TAG with the same name — old value must not 
+        Normal table: DROP TAG then ADD TAG with the same name — old value must not resurrect, and the same connection must see the change immediately. 
       </a>
       
     </li>
@@ -1457,7 +1457,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_create_tag_explicit_null_roundtrip" class="md-nav__link">
-        Normal table: SHOW CREATE emits the table's FINAL form — a single CREATE TABLE 
+        Normal table: SHOW CREATE emits the table's FINAL form — a single CREATE TABLE with an inline TAGS clause, not a CREATE + ALTER ADD/SET TAG sequence. A NULL-valued owned tag renders inline as `= NULL` (a valid explicit value), which round-trips. 
       </a>
       
     </li>
@@ -1479,7 +1479,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_auth_tag_ref_source_select" class="md-nav__link">
-        Privilege gate: a user without SELECT on the source db is denied CREATE VTABLE 
+        Privilege gate: a user without SELECT on the source db is denied CREATE VTABLE tag/col refs, ALTER ADD TAG ... FROM, and ALTER SET TAG x = db.tb.tag; granting READ on the source db lets them through, and revoking it denies them again (covers authColDefRefs + the authAlterTable ref-alter branch). 
       </a>
       
     </li>
@@ -1490,7 +1490,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_restart_drop_all_tags_then_readd" class="md-nav__link">
-        Restart: after dropping every tag (schemaTag.nCols=0, version stays monotonic, empty 
+        Restart: after dropping every tag (schemaTag.nCols=0, version stays monotonic, empty STag trailer), the table stays readable across restart and a tag can be re-added — the case where the empty-schema trailer must re-decode and the version must stay monotonic. 
       </a>
       
     </li>
@@ -1501,7 +1501,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_restart_owned_tag_and_ref_persist" class="md-nav__link">
-        Restart: owned tag values + tag-ref resolution survive a taosd restart — the on-disk 
+        Restart: owned tag values + tag-ref resolution survive a taosd restart — the on-disk bit-5 trailer and monotonic schemaTag.version re-decode correctly. 
       </a>
       
     </li>
@@ -1512,7 +1512,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_set_on_tag_ref_converts_to_owned" class="md-nav__link">
-        SET TAG on a tag-ref converts it to an owned tag (ref -> literal): the reference 
+        SET TAG on a tag-ref converts it to an owned tag (ref -> literal): the reference is cleared and the static value takes over, mirroring the virtual-child-table behavior. 
       </a>
       
     </li>
@@ -1523,29 +1523,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_ref_set_converts_to_owned" class="md-nav__link">
-        SET TAG on a vntb tag-ref converts it to an owned tag: ins_tags then serves 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_tagless_omits_tags" class="md-nav__link">
-        SHOW CREATE on a tag-less table omits the TAGS clause entirely (no empty `TAGS()`), 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_json_owned" class="md-nav__link">
-        SHOW CREATE: a JSON owned tag emits its actual content (not `= NULL`) and the 
+        SET TAG on a vntb tag-ref converts it to an owned tag: ins_tags then serves the literal from the owned-value branch (hasRef cleared) on both the fast path (table_name equality) and the cursor path (full scan). 
       </a>
       
     </li>
@@ -1599,6 +1577,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_json_owned" class="md-nav__link">
+        SHOW CREATE: JSON owned tag round-trip with quote escaping. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_roundtrip" class="md-nav__link">
         SHOW CREATE: output re-creates an equivalent table (values survive). 
       </a>
@@ -1610,8 +1599,19 @@
         
   
     <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_tagless_omits_tags" class="md-nav__link">
+        SHOW CREATE: tag-less tables omit the TAGS clause. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_stable_name_semantics" class="md-nav__link">
-        stable_name is NULL for normal/virtual-normal tables and filters behave 
+        stable_name is NULL for normal/virtual-normal tables and filters behave accordingly: IS NULL keeps only ntb/vntb rows, equality keeps only child rows. 
       </a>
       
     </li>
@@ -4761,7 +4761,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_alter_lifecycle" class="md-nav__link">
-        ALTER ADD/SET/DROP TAG is visible in ins_tags (and SHOW TAGS) on the same 
+        ALTER ADD/SET/DROP TAG is visible in ins_tags (and SHOW TAGS) on the same connection, for both physical normal tables and virtual normal tables: ADD exposes the tag with a NULL value, SET fills it, DROP removes the row. 
       </a>
       
     </li>
@@ -4772,7 +4772,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_create_tag_value_required" class="md-nav__link">
-        Create rules: CREATE VTABLE tags must carry an explicit value — `= literal` 
+        Create rules: CREATE VTABLE tags must carry an explicit value — `= literal` (owned) or `FROM db.tb.tag` (tag-ref). A bare `name TYPE` tag is rejected, as is a mix of FROM and valueless tags; literal + FROM mixed stays legal. 
       </a>
       
     </li>
@@ -4937,7 +4937,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_json_tag_mixed" class="md-nav__link">
-        Error: a JSON tag coexisting with other tags is rejected (a JSON tag is the whole 
+        Error: a JSON tag coexisting with other tags is rejected (a JSON tag is the whole payload; mixing would silently lose the other tag values). 
       </a>
       
     </li>
@@ -4959,7 +4959,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_tag_ref_type_mismatch" class="md-nav__link">
-        Error: a tag-ref whose declared type differs from the source tag type is rejected 
+        Error: a tag-ref whose declared type differs from the source tag type is rejected (checkTagRef). src0.city is NCHAR(20); declaring the ref as INT is a type mismatch. 
       </a>
       
     </li>
@@ -4992,7 +4992,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_nchar_tag_over_length" class="md-nav__link">
-        Error: an NCHAR tag longer than TSDB_MAX_NCHAR_LEN is rejected at CREATE 
+        Error: an NCHAR tag longer than TSDB_MAX_NCHAR_LEN is rejected at CREATE (NCHAR byte length = N * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE). 
       </a>
       
     </li>
@@ -5025,7 +5025,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_ext_json_option_rules" class="md-nav__link">
-        Error: external-source tag-ref, ALTER-time JSON tags, and column options on tags 
+        Error: external-source tag-ref, ALTER-time JSON tags, and column options on tags are explicitly rejected (review-driven rules). 
       </a>
       
     </li>
@@ -5058,7 +5058,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_error_tag_bytes_exceed_max_tags_len" class="md-nav__link">
-        Error: total tag bytes exceeding TSDB_MAX_TAGS_LEN (16384) is rejected at CREATE 
+        Error: total tag bytes exceeding TSDB_MAX_TAGS_LEN (16384) is rejected at CREATE (checkCreateTags). Two VARCHAR(8192) tags sum past the cap while each stays well under the per-column cap, so this specifically exercises the total-bytes guard. 
       </a>
       
     </li>
@@ -5069,7 +5069,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_and_show_tags" class="md-nav__link">
-        ins_tags and SHOW TAGS expose owned tags and tag-refs of normal and 
+        ins_tags and SHOW TAGS expose owned tags and tag-refs of normal and virtual normal tables; tag-less tables produce no rows. 
       </a>
       
     </li>
@@ -5080,7 +5080,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_cursor_path_full_scan" class="md-nav__link">
-        ins_tags full-DB scan (no table_name equality) walks the meta cursor path: 
+        ins_tags full-DB scan (no table_name equality) walks the meta cursor path: vntb owned tags, vntb tag-refs resolved through the pause/resume re-read filler (sysTableUserTagsFillNtbRefTagsRow), child-table tags carrying stable_name, and tag-less tables producing no rows (phantom-tag decoder regression). 
       </a>
       
     </li>
@@ -5091,7 +5091,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_type_rendering" class="md-nav__link">
-        ins_tags renders tag_type (with length suffix for var types) and tag_value 
+        ins_tags renders tag_type (with length suffix for var types) and tag_value for the common owned-tag types on a normal table. 
       </a>
       
     </li>
@@ -5102,7 +5102,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_multi_db_isolation" class="md-nav__link">
-        ins_tags rows are isolated by db_name: same-named tables with different tag 
+        ins_tags rows are isolated by db_name: same-named tables with different tag values in two databases do not leak into each other's result set. 
       </a>
       
     </li>
@@ -5113,7 +5113,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_alter_add_tag_same_conn_select" class="md-nav__link">
-        Lifecycle: after ALTER ADD TAG on a persistent connection, the new tag is immediately 
+        Lifecycle: after ALTER ADD TAG on a persistent connection, the new tag is immediately readable (ALTER response carries the full meta — no catalog-cache staleness). 
       </a>
       
     </li>
@@ -5190,7 +5190,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_create_with_literal_tags" class="md-nav__link">
-        Normal table: CREATE TABLE ... TAGS where every tag carries `= literal` creates a 
+        Normal table: CREATE TABLE ... TAGS where every tag carries `= literal` creates a normal table with owned tags, while valueless TAGS keeps the historical super-table semantics — the inline values are how CREATE TABLE tells the two apart. 
       </a>
       
     </li>
@@ -5201,7 +5201,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_desc_show_create" class="md-nav__link">
-        Normal table: DESC marks owned tags; SHOW CREATE emits the table's FINAL form — 
+        Normal table: DESC marks owned tags; SHOW CREATE emits the table's FINAL form — a single CREATE TABLE with an inline TAGS clause (NULL tag -> `= NULL`, valued tag -> `= value`), not a CREATE + ALTER ADD/SET TAG sequence. 
       </a>
       
     </li>
@@ -5234,7 +5234,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_drop_readd_same_name" class="md-nav__link">
-        Normal table: DROP TAG then ADD TAG with the same name — old value must not 
+        Normal table: DROP TAG then ADD TAG with the same name — old value must not resurrect, and the same connection must see the change immediately. 
       </a>
       
     </li>
@@ -5300,7 +5300,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ntb_create_tag_explicit_null_roundtrip" class="md-nav__link">
-        Normal table: SHOW CREATE emits the table's FINAL form — a single CREATE TABLE 
+        Normal table: SHOW CREATE emits the table's FINAL form — a single CREATE TABLE with an inline TAGS clause, not a CREATE + ALTER ADD/SET TAG sequence. A NULL-valued owned tag renders inline as `= NULL` (a valid explicit value), which round-trips. 
       </a>
       
     </li>
@@ -5322,7 +5322,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_auth_tag_ref_source_select" class="md-nav__link">
-        Privilege gate: a user without SELECT on the source db is denied CREATE VTABLE 
+        Privilege gate: a user without SELECT on the source db is denied CREATE VTABLE tag/col refs, ALTER ADD TAG ... FROM, and ALTER SET TAG x = db.tb.tag; granting READ on the source db lets them through, and revoking it denies them again (covers authColDefRefs + the authAlterTable ref-alter branch). 
       </a>
       
     </li>
@@ -5333,7 +5333,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_restart_drop_all_tags_then_readd" class="md-nav__link">
-        Restart: after dropping every tag (schemaTag.nCols=0, version stays monotonic, empty 
+        Restart: after dropping every tag (schemaTag.nCols=0, version stays monotonic, empty STag trailer), the table stays readable across restart and a tag can be re-added — the case where the empty-schema trailer must re-decode and the version must stay monotonic. 
       </a>
       
     </li>
@@ -5344,7 +5344,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_restart_owned_tag_and_ref_persist" class="md-nav__link">
-        Restart: owned tag values + tag-ref resolution survive a taosd restart — the on-disk 
+        Restart: owned tag values + tag-ref resolution survive a taosd restart — the on-disk bit-5 trailer and monotonic schemaTag.version re-decode correctly. 
       </a>
       
     </li>
@@ -5355,7 +5355,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_set_on_tag_ref_converts_to_owned" class="md-nav__link">
-        SET TAG on a tag-ref converts it to an owned tag (ref -> literal): the reference 
+        SET TAG on a tag-ref converts it to an owned tag (ref -> literal): the reference is cleared and the static value takes over, mirroring the virtual-child-table behavior. 
       </a>
       
     </li>
@@ -5366,29 +5366,7 @@
   
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_ref_set_converts_to_owned" class="md-nav__link">
-        SET TAG on a vntb tag-ref converts it to an owned tag: ins_tags then serves 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_tagless_omits_tags" class="md-nav__link">
-        SHOW CREATE on a tag-less table omits the TAGS clause entirely (no empty `TAGS()`), 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_json_owned" class="md-nav__link">
-        SHOW CREATE: a JSON owned tag emits its actual content (not `= NULL`) and the 
+        SET TAG on a vntb tag-ref converts it to an owned tag: ins_tags then serves the literal from the owned-value branch (hasRef cleared) on both the fast path (table_name equality) and the cursor path (full scan). 
       </a>
       
     </li>
@@ -5442,6 +5420,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_json_owned" class="md-nav__link">
+        SHOW CREATE: JSON owned tag round-trip with quote escaping. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_roundtrip" class="md-nav__link">
         SHOW CREATE: output re-creates an equivalent table (values survive). 
       </a>
@@ -5453,8 +5442,19 @@
         
   
     <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_show_create_tagless_omits_tags" class="md-nav__link">
+        SHOW CREATE: tag-less tables omit the TAGS clause. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_normal_tags.TestVtableNormalTags.test_ins_tags_stable_name_semantics" class="md-nav__link">
-        stable_name is NULL for normal/virtual-normal tables and filters behave 
+        stable_name is NULL for normal/virtual-normal tables and filters behave accordingly: IS NULL keeps only ntb/vntb rows, equality keeps only child rows. 
       </a>
       
     </li>
@@ -5725,6 +5725,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Data: SELECT ts, val returns all rows with values from the source.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Query shared virtual-normal fixtures and assert results via helper checks.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -5748,6 +5754,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Data: SELECT ts (primary timestamp) returns each row's timestamp.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Query shared virtual-normal fixtures and assert results via helper checks.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -5771,6 +5783,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Data: SELECT val returns the source column values.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Query shared virtual-normal fixtures and assert results via helper checks.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -5794,6 +5812,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Data: WHERE val = const filters rows.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Query shared virtual-normal fixtures and assert results via helper checks.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -5817,6 +5841,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Data: WHERE val > N / val BETWEEN filters rows.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Query shared virtual-normal fixtures and assert results via helper checks.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -5840,6 +5870,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Data: WHERE ts filters by time range.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Query shared virtual-normal fixtures and assert results via helper checks.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -5863,6 +5899,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Data: ORDER BY ts ASC returns rows in ascending time order.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Query shared virtual-normal fixtures and assert results via helper checks.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -5886,6 +5928,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Data: ORDER BY ts DESC returns rows in descending time order.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Query shared virtual-normal fixtures and assert results via helper checks.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -5909,6 +5957,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Data: LIMIT N returns the first N rows.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Query shared virtual-normal fixtures and assert results via helper checks.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -5932,6 +5986,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Data: COUNT/SUM/AVG/MIN/MAX over the data column.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Query shared virtual-normal fixtures and assert results via helper checks.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -5955,6 +6015,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Data: GROUP BY the data column.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Query shared virtual-normal fixtures and assert results via helper checks.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -5978,6 +6044,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Data: WHERE data AND time combined filter.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Query shared virtual-normal fixtures and assert results via helper checks.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6001,6 +6073,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>DESC: lists all columns and tags with correct types.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Run DESC and assert virtual table schema metadata.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6024,6 +6102,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>DESC: the data column's ref column (val FROM src0.val) is shown.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Run DESC and assert virtual table schema metadata.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6047,6 +6131,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>SHOW CREATE: emits TAGS with the owned inline value.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify SHOW CREATE TABLE output and round-trip the emitted DDL where applicable.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6070,6 +6160,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>SHOW CREATE: emits the tag-ref FROM clause.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify SHOW CREATE TABLE output and round-trip the emitted DDL where applicable.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6093,6 +6189,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>SHOW CREATE: emits both owned and tag-ref in one TAGS clause.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify SHOW CREATE TABLE output and round-trip the emitted DDL where applicable.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6116,6 +6218,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>SHOW CREATE: output re-creates an equivalent table (values survive).</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify SHOW CREATE TABLE output and round-trip the emitted DDL where applicable.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6168,11 +6276,13 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>SHOW CREATE: a JSON owned tag emits its actual content (not `= NULL`) and the</strong> 
+                    <strong>SHOW CREATE: JSON owned tag round-trip with quote escaping.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">doubling).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify SHOW CREATE emits actual JSON content (not `= NULL`) and that replaying</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">the emitted DDL preserves the string, including an embedded single quote</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">(escaped by doubling in SQL).</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -6197,10 +6307,12 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>SHOW CREATE on a tag-less table omits the TAGS clause entirely (no empty `TAGS()`),</strong> 
+                    <strong>SHOW CREATE: tag-less tables omit the TAGS clause.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Assert both normal and virtual-normal tables emit no empty `TAGS()` clause</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">in SHOW CREATE TABLE output.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -6227,6 +6339,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Tag: SELECT an owned INT tag returns the constant value per row.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Project, filter, or aggregate owned/tag-ref tags on shared fixtures.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6250,6 +6368,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Tag: SELECT an owned NCHAR tag returns the string value.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Project, filter, or aggregate owned/tag-ref tags on shared fixtures.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6273,6 +6397,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Tag: SELECT multiple owned tags together.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Project, filter, or aggregate owned/tag-ref tags on shared fixtures.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6296,6 +6426,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Tag: SELECT a tag-ref returns the source tag value.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Project, filter, or aggregate owned/tag-ref tags on shared fixtures.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6319,6 +6455,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Tag: a tag-ref dynamically follows the source tag after SET TAG.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Project, filter, or aggregate owned/tag-ref tags on shared fixtures.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6342,6 +6484,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Tag: SELECT owned + tag-ref tags together with data.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Project, filter, or aggregate owned/tag-ref tags on shared fixtures.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6365,6 +6513,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Tag: tag-refs pulling from different source child tables.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Project, filter, or aggregate owned/tag-ref tags on shared fixtures.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6388,6 +6542,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Tag: owned tag projected together with the data column.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Project, filter, or aggregate owned/tag-ref tags on shared fixtures.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6411,6 +6571,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Tag: WHERE owned_tag = const filters rows.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Project, filter, or aggregate owned/tag-ref tags on shared fixtures.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6434,6 +6600,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Tag: WHERE owned_tag > N / < N filters rows.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Project, filter, or aggregate owned/tag-ref tags on shared fixtures.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6457,6 +6629,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Tag: WHERE owned_tag AND data column combined.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Project, filter, or aggregate owned/tag-ref tags on shared fixtures.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6480,6 +6658,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Tag: WHERE on a tag-ref filters rows.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Project, filter, or aggregate owned/tag-ref tags on shared fixtures.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6503,6 +6687,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Tag: GROUP BY an owned tag.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Project, filter, or aggregate owned/tag-ref tags on shared fixtures.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6526,6 +6716,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Tag: GROUP BY a tag-ref.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Project, filter, or aggregate owned/tag-ref tags on shared fixtures.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6549,6 +6745,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Tag: DISTINCT collapses the constant owned tag value.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Project, filter, or aggregate owned/tag-ref tags on shared fixtures.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6572,6 +6774,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Tag: DISTINCT collapses tag-ref values.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Project, filter, or aggregate owned/tag-ref tags on shared fixtures.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6595,6 +6803,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Tag: aggregate with an owned-tag filter.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Project, filter, or aggregate owned/tag-ref tags on shared fixtures.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6618,6 +6832,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Lifecycle: ALTER ADD TAG adds an owned tag (visible in DESC).</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Exercise virtual-normal table tag DDL lifecycle and verify side effects.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6639,10 +6859,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Lifecycle: after ALTER ADD TAG on a persistent connection, the new tag is immediately</strong> 
+                    <strong>Lifecycle: after ALTER ADD TAG on a persistent connection, the new tag is immediately readable (ALTER response carries the full meta — no catalog-cache staleness).</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Exercise virtual-normal table tag DDL lifecycle and verify side effects.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -6669,6 +6890,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Lifecycle: SET TAG updates an owned tag value, readable via SELECT.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Exercise virtual-normal table tag DDL lifecycle and verify side effects.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6692,6 +6919,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Lifecycle: ALTER DROP TAG removes the tag from schema.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Exercise virtual-normal table tag DDL lifecycle and verify side effects.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6715,6 +6948,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Lifecycle: ALTER ADD TAG name TYPE FROM src.tag adds a tag reference.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Exercise virtual-normal table tag DDL lifecycle and verify side effects.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6738,6 +6977,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Lifecycle: drop and recreate with different tags.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Exercise virtual-normal table tag DDL lifecycle and verify side effects.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6761,6 +7006,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Error: DECIMAL tags are rejected at CREATE.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Assert invalid tag or DDL usage is rejected with expected errors.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6784,6 +7035,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Error: duplicate tag names within TAGS(...) are rejected.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Assert invalid tag or DDL usage is rejected with expected errors.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6807,6 +7064,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Error: a tag name colliding with a column name is rejected.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Assert invalid tag or DDL usage is rejected with expected errors.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6830,6 +7093,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Error: ALTER ADD TAG whose name collides with a column is rejected (tags/columns share name space).</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Assert invalid tag or DDL usage is rejected with expected errors.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6851,10 +7120,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Error: a JSON tag coexisting with other tags is rejected (a JSON tag is the whole</strong> 
+                    <strong>Error: a JSON tag coexisting with other tags is rejected (a JSON tag is the whole payload; mixing would silently lose the other tag values).</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Assert invalid tag or DDL usage is rejected with expected errors.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -6881,6 +7151,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Error: tag-ref pointing to a non-existent source tag is rejected.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Assert invalid tag or DDL usage is rejected with expected errors.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6904,6 +7180,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Error: tag-ref must reference a tag column, not a data column.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Assert invalid tag or DDL usage is rejected with expected errors.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6927,6 +7209,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Normal table: ADD TAG + SET TAG, projection and WHERE filter on owned tags.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_ntb_add_set_query` body for SQL and assertions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6950,6 +7238,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Normal table: DROP TAG removes the tag; same connection sees it immediately.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_ntb_alter_drop_tag` body for SQL and assertions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -6971,11 +7265,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Normal table: DESC marks owned tags; SHOW CREATE emits the table's FINAL form —</strong> 
+                    <strong>Normal table: DESC marks owned tags; SHOW CREATE emits the table's FINAL form — a single CREATE TABLE with an inline TAGS clause (NULL tag -> `= NULL`, valued tag -> `= value`), not a CREATE + ALTER ADD/SET TAG sequence.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">-&gt; `= value`), not a CREATE + ALTER ADD/SET TAG sequence.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify SHOW CREATE TABLE output and round-trip the emitted DDL where applicable.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7000,11 +7294,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Normal table: SHOW CREATE emits the table's FINAL form — a single CREATE TABLE</strong> 
+                    <strong>Normal table: SHOW CREATE emits the table's FINAL form — a single CREATE TABLE with an inline TAGS clause, not a CREATE + ALTER ADD/SET TAG sequence. A NULL-valued owned tag renders inline as `= NULL` (a valid explicit value), which round-trips.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">owned tag renders inline as `= NULL` (a valid explicit value), which round-trips.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify SHOW CREATE TABLE output and round-trip the emitted DDL where applicable.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7031,6 +7325,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Normal table: GROUP BY / DISTINCT on owned tags, agg with tag filter.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_ntb_group_distinct_agg` body for SQL and assertions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -7054,6 +7354,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Normal table: dup tag, tag/col collision, decimal, tag-ref FROM, bad SET/DROP.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_ntb_error_cases` body for SQL and assertions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -7075,10 +7381,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Normal table: DROP TAG then ADD TAG with the same name — old value must not</strong> 
+                    <strong>Normal table: DROP TAG then ADD TAG with the same name — old value must not resurrect, and the same connection must see the change immediately.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_ntb_drop_readd_same_name` body for SQL and assertions.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7105,6 +7412,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Normal table: DROP TAG then re-add the same name with a different type/length.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_ntb_drop_readd_diff_type` body for SQL and assertions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -7128,6 +7441,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Normal table: drop first / middle / last tag; survivors keep their values.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_ntb_drop_position_variants` body for SQL and assertions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -7151,6 +7470,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Normal table: repeated ADD/DROP TAG cycles on the same name stay consistent.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_ntb_add_drop_cycles` body for SQL and assertions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -7174,6 +7499,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Normal table: drop twice, select a dropped tag, stale SET on a dropped tag.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_ntb_drop_negative` body for SQL and assertions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -7197,6 +7528,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Normal table: tag count cap (TSDB_MAX_TAGS=128); dropping one frees a slot.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_ntb_max_tags_cap` body for SQL and assertions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -7220,6 +7557,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Virtual normal table: SET TAG re-points a tag-ref to another source tag.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_vtag_conv_ref_to_ref` body for SQL and assertions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -7243,6 +7586,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Virtual normal table: SET TAG <ref> = value clears the ref (ref -> literal).</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_vtag_conv_ref_to_literal` body for SQL and assertions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -7266,6 +7615,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Virtual normal table: SET TAG <owned> = db.tb.tag turns an owned tag into a ref.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_vtag_conv_literal_to_ref` body for SQL and assertions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -7289,6 +7644,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Virtual normal table: literal -> ref -> literal -> ref cycles stay consistent.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_vtag_conv_cycles` body for SQL and assertions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -7310,11 +7671,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Create rules: CREATE VTABLE tags must carry an explicit value — `= literal`</strong> 
+                    <strong>Create rules: CREATE VTABLE tags must carry an explicit value — `= literal` (owned) or `FROM db.tb.tag` (tag-ref). A bare `name TYPE` tag is rejected, as is a mix of FROM and valueless tags; literal + FROM mixed stays legal.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">mix of FROM and valueless tags; literal + FROM mixed stays legal.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_create_tag_value_required` body for SQL and assertions.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7339,11 +7700,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Normal table: CREATE TABLE ... TAGS where every tag carries `= literal` creates a</strong> 
+                    <strong>Normal table: CREATE TABLE ... TAGS where every tag carries `= literal` creates a normal table with owned tags, while valueless TAGS keeps the historical super-table semantics — the inline values are how CREATE TABLE tells the two apart.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">semantics — the inline values are how CREATE TABLE tells the two apart.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_ntb_create_with_literal_tags` body for SQL and assertions.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7368,10 +7729,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>ins_tags and SHOW TAGS expose owned tags and tag-refs of normal and</strong> 
+                    <strong>ins_tags and SHOW TAGS expose owned tags and tag-refs of normal and virtual normal tables; tag-less tables produce no rows.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_ins_tags_and_show_tags` body for SQL and assertions.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7396,12 +7758,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>ins_tags full-DB scan (no table_name equality) walks the meta cursor path:</strong> 
+                    <strong>ins_tags full-DB scan (no table_name equality) walks the meta cursor path: vntb owned tags, vntb tag-refs resolved through the pause/resume re-read filler (sysTableUserTagsFillNtbRefTagsRow), child-table tags carrying stable_name, and tag-less tables producing no rows (phantom-tag decoder regression).</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">(sysTableUserTagsFillNtbRefTagsRow), child-table tags carrying stable_name, and</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">tag-less tables producing no rows (phantom-tag decoder regression).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_ins_tags_cursor_path_full_scan` body for SQL and assertions.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7426,10 +7787,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>stable_name is NULL for normal/virtual-normal tables and filters behave</strong> 
+                    <strong>stable_name is NULL for normal/virtual-normal tables and filters behave accordingly: IS NULL keeps only ntb/vntb rows, equality keeps only child rows.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_ins_tags_stable_name_semantics` body for SQL and assertions.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7454,11 +7816,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>ALTER ADD/SET/DROP TAG is visible in ins_tags (and SHOW TAGS) on the same</strong> 
+                    <strong>ALTER ADD/SET/DROP TAG is visible in ins_tags (and SHOW TAGS) on the same connection, for both physical normal tables and virtual normal tables: ADD exposes the tag with a NULL value, SET fills it, DROP removes the row.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">ADD exposes the tag with a NULL value, SET fills it, DROP removes the row.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_ins_tags_alter_lifecycle` body for SQL and assertions.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7483,10 +7845,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>ins_tags renders tag_type (with length suffix for var types) and tag_value</strong> 
+                    <strong>ins_tags renders tag_type (with length suffix for var types) and tag_value for the common owned-tag types on a normal table.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_ins_tags_type_rendering` body for SQL and assertions.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7511,11 +7874,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>SET TAG on a vntb tag-ref converts it to an owned tag: ins_tags then serves</strong> 
+                    <strong>SET TAG on a vntb tag-ref converts it to an owned tag: ins_tags then serves the literal from the owned-value branch (hasRef cleared) on both the fast path (table_name equality) and the cursor path (full scan).</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">(table_name equality) and the cursor path (full scan).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_ins_tags_ref_set_converts_to_owned` body for SQL and assertions.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7540,10 +7903,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>ins_tags rows are isolated by db_name: same-named tables with different tag</strong> 
+                    <strong>ins_tags rows are isolated by db_name: same-named tables with different tag values in two databases do not leak into each other's result set.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_ins_tags_multi_db_isolation` body for SQL and assertions.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7568,10 +7932,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>SET TAG on a tag-ref converts it to an owned tag (ref -> literal): the reference</strong> 
+                    <strong>SET TAG on a tag-ref converts it to an owned tag (ref -> literal): the reference is cleared and the static value takes over, mirroring the virtual-child-table behavior.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Uses setup_class fixtures; see `test_set_on_tag_ref_converts_to_owned` body for SQL and assertions.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7596,10 +7961,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Error: external-source tag-ref, ALTER-time JSON tags, and column options on tags</strong> 
+                    <strong>Error: external-source tag-ref, ALTER-time JSON tags, and column options on tags are explicitly rejected (review-driven rules).</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Assert invalid tag or DDL usage is rejected with expected errors.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7624,11 +7990,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Error: total tag bytes exceeding TSDB_MAX_TAGS_LEN (16384) is rejected at CREATE</strong> 
+                    <strong>Error: total tag bytes exceeding TSDB_MAX_TAGS_LEN (16384) is rejected at CREATE (checkCreateTags). Two VARCHAR(8192) tags sum past the cap while each stays well under the per-column cap, so this specifically exercises the total-bytes guard.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">the per-column cap, so this specifically exercises the total-bytes guard.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Assert invalid tag or DDL usage is rejected with expected errors.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7655,6 +8021,12 @@
                   <div class="doc doc-docstring doc-summary">
                     <strong>Error: a VARCHAR tag longer than TSDB_MAX_BINARY_LEN is rejected at CREATE.</strong> 
                   </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Assert invalid tag or DDL usage is rejected with expected errors.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/05-VirtualTables/test_vtable_normal_tags.py" target="_blank">
@@ -7676,10 +8048,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Error: an NCHAR tag longer than TSDB_MAX_NCHAR_LEN is rejected at CREATE</strong> 
+                    <strong>Error: an NCHAR tag longer than TSDB_MAX_NCHAR_LEN is rejected at CREATE (NCHAR byte length = N * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE).</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Assert invalid tag or DDL usage is rejected with expected errors.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7704,10 +8077,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Error: a tag-ref whose declared type differs from the source tag type is rejected</strong> 
+                    <strong>Error: a tag-ref whose declared type differs from the source tag type is rejected (checkTagRef). src0.city is NCHAR(20); declaring the ref as INT is a type mismatch.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Assert invalid tag or DDL usage is rejected with expected errors.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7732,10 +8106,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Restart: owned tag values + tag-ref resolution survive a taosd restart — the on-disk</strong> 
+                    <strong>Restart: owned tag values + tag-ref resolution survive a taosd restart — the on-disk bit-5 trailer and monotonic schemaTag.version re-decode correctly.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Validate tag persistence across taosd restart scenarios.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7760,11 +8135,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Restart: after dropping every tag (schemaTag.nCols=0, version stays monotonic, empty</strong> 
+                    <strong>Restart: after dropping every tag (schemaTag.nCols=0, version stays monotonic, empty STag trailer), the table stays readable across restart and a tag can be re-added — the case where the empty-schema trailer must re-decode and the version must stay monotonic.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">case where the empty-schema trailer must re-decode and the version must stay monotonic.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Validate tag persistence across taosd restart scenarios.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -7789,12 +8164,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Privilege gate: a user without SELECT on the source db is denied CREATE VTABLE</strong> 
+                    <strong>Privilege gate: a user without SELECT on the source db is denied CREATE VTABLE tag/col refs, ALTER ADD TAG ... FROM, and ALTER SET TAG x = db.tb.tag; granting READ on the source db lets them through, and revoking it denies them again (covers authColDefRefs + the authAlterTable ref-alter branch).</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">READ on the source db lets them through, and revoking it denies them again</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">(covers authColDefRefs + the authAlterTable ref-alter branch).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify privilege gates on tag-ref and source-table access.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
