@@ -30,6 +30,7 @@ class Test_Last:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -81,6 +82,7 @@ class Test_Last:
         Since: v3.4.1.13
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -134,6 +136,7 @@ class Test_Last:
         Since: v3.4.1.13
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -201,6 +204,7 @@ class Test_Last:
         Since: ver-3.4.0.0
 
         Labels: last/last_row,tag,integration,functional
+
         Jira: TS-6146
 
         Catalog:
@@ -241,6 +245,7 @@ class Test_Last:
         Since: v3.4.0.0
 
         Labels: composite key,last/last_row,integration,functional
+
         Jira: TD-38004
 
         History:

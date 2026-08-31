@@ -222,7 +222,9 @@ class TestStreamObservabilityRuntime:
         3. Verify stable runtime values and task-role applicability.
 
         Catalog: Streams:Observability
+
         Since: v3.4.0.0
+
         Labels: stream,observability,ci
         Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7045278024
 

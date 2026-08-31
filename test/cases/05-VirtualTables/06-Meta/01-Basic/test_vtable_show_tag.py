@@ -19,6 +19,7 @@ class TestVtableShowTag:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: TD-35567
 
         History:

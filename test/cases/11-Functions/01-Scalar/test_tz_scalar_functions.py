@@ -2404,4 +2404,22 @@ class TestTimezoneScalarFunctions(
     _ToUnixTimestampTzMixin,
     _WeekFamilyTzMixin,
 ):
-    pass
+    def test_timezone_scalar_functions(self):
+        """Timezone scalar function test suite.
+
+        Aggregates timezone scalar function tests from mixin classes; individual
+        scenarios are implemented in inherited test_* methods.
+
+        Since: v3.4.2.0
+
+        Labels: timezone, scalar
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-07-10: Tony Zhang created
+        """
+        pass
