@@ -14244,7 +14244,8 @@ TEST_F(StreamNestedHistoryEffectsTest, ContextPressureUsesConstantTimeConservati
   }
 
   constexpr int32_t pendingPerGroup = (contextPendingLimit + groupCount - 1) / groupCount;
-  static_assert(pendingPerGroup < STREAM_CALC_REQ_MAX_WIN_NUM);
+  static_assert(pendingPerGroup < STREAM_CALC_REQ_MAX_WIN_NUM,
+                "pending calculation requests exceed the window limit");
   ScopedHistoryPendingInflation inflation(pContext, groups, pendingPerGroup);
   pContext->pMinGroup = nullptr;
   pContext->finishCheck = false;
