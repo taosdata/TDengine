@@ -48,6 +48,16 @@ class TestStreamObservabilityProgress:
                 "ins_stream_recalculates.status has unexpected type: "
                 f"{recalc_schema.get('status')!r}"
             )
+        if recalc_schema.get("request_time") != "TIMESTAMP":
+            raise AssertionError(
+                "ins_stream_recalculates.request_time has unexpected type: "
+                f"{recalc_schema.get('request_time')!r}"
+            )
+        if recalc_schema.get("message") != "VARCHAR":
+            raise AssertionError(
+                "ins_stream_recalculates.message has unexpected type: "
+                f"{recalc_schema.get('message')!r}"
+            )
 
     @staticmethod
     def _insert_history(table, tag, rows=60000, start_row=0, batch_size=5000):
@@ -132,7 +142,9 @@ class TestStreamObservabilityProgress:
         4. Verify an empty-range recalculation finishes at 100 percent.
 
         Catalog: Streams:Observability
+
         Since: v3.4.0.0
+
         Labels: stream,recalc,observability,ci
         Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7045278024
 
@@ -209,3 +221,105 @@ class TestStreamObservabilityProgress:
             raise AssertionError(
                 f"new group changed completed history denominator: {history_rows!r}"
             )
+
+    def test_recalc_range_uses_trigger_precision(self):
+        """Cross-database recalculation uses the trigger table precision.
+
+        1. Create a millisecond stream database over a microsecond trigger table.
+        2. Seed historical input before stream creation and establish its group later.
+        3. Recalculate the historical range and verify that it is actually scanned.
+
+        Catalog: Streams:Observability
+
+        Since: v3.4.0.0
+
+        Labels: stream,recalc,precision,ci
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7045278024
+
+        History:
+            - 2026-08-21 OpenAI GPT-5 Created
+        """
+        tdStream.ensureSnode()
+        tdSql.executes(
+            [
+                "drop database if exists recalc_stream_ms",
+                "drop database if exists recalc_trigger_us",
+                "create database recalc_stream_ms vgroups 1 precision 'ms'",
+                "create database recalc_trigger_us vgroups 1 precision 'us'",
+                "create stable recalc_trigger_us.events "
+                "(ts timestamp, value int) tags(site int)",
+                "create table recalc_trigger_us.site_1 using "
+                "recalc_trigger_us.events tags(1)",
+                "insert into recalc_trigger_us.site_1 values"
+                "('2025-01-01 00:00:00',1)"
+                "('2025-01-01 00:00:30',2)",
+            ]
+        )
+        tdSql.execute(
+            "create stream recalc_stream_ms.s_cross_precision "
+            "interval(1m) sliding(1m) from recalc_trigger_us.events "
+            "partition by tbname into recalc_trigger_us.result "
+            "OUTPUT_SUBTABLE(CONCAT('result_', tbname)) "
+            "(wstart, total) tags(source varchar(128) as tbname) "
+            "as select _twstart, count(*) from %%trows"
+        )
+
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            rows = self._query_rows(
+                "select status from information_schema.ins_streams "
+                "where db_name='recalc_stream_ms' "
+                "and stream_name='s_cross_precision'"
+            )
+            if rows == [("Running",)]:
+                break
+            time.sleep(0.5)
+        else:
+            raise AssertionError(f"cross-precision stream did not run: {rows!r}")
+
+        tdSql.execute(
+            "insert into recalc_trigger_us.site_1 "
+            "values(now,3)(now+2m,4)"
+        )
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            rows = self._query_rows(
+                "select table_name from information_schema.ins_tables "
+                "where db_name='recalc_trigger_us' "
+                "and table_name='result_site_1'"
+            )
+            if rows == [("result_site_1",)]:
+                break
+            time.sleep(0.5)
+        else:
+            raise AssertionError(f"stream group was not established: {rows!r}")
+
+        tdSql.execute(
+            "recalculate stream recalc_stream_ms.s_cross_precision "
+            "from '2025-01-01 00:00:00' to '2025-01-01 00:01:00'"
+        )
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            rows = self._query_rows(
+                "select count(*) "
+                "from information_schema.ins_stream_recalculates "
+                "where stream_name='s_cross_precision' "
+                "and `start`='2025-01-01 00:00:00' "
+                "and `end`='2025-01-01 00:01:00'"
+            )
+            if rows == [(1,)]:
+                break
+            time.sleep(0.5)
+        else:
+            raise AssertionError(f"recalculation view has wrong range: {rows!r}")
+
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            rows = self._query_rows(
+                "select total from recalc_trigger_us.result_site_1 "
+                "where wstart='2025-01-01 00:00:00'"
+            )
+            if rows == [(2,)]:
+                return
+            time.sleep(0.5)
+        raise AssertionError(f"historical microsecond range was not scanned: {rows!r}")

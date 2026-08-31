@@ -1,20 +1,22 @@
-#include <iostream>
-#include <iomanip>
+#include <arpa/inet.h>
+#include <gtest/gtest.h>
+#include <limits.h>
+#include <stub.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <algorithm>
+#include <cstring>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
 #include <sstream>
 #include <string>
-#include <vector>
-#include <cstring>
-#include <unistd.h>
-#include <limits.h>
-#include <sys/stat.h>
-#include <arpa/inet.h>
-#include <algorithm>
 #include <unordered_map>
-#include <gtest/gtest.h>
+#include <vector>
 
 #include "streamMsg.h"
 #include "tmsg.h"
+#include "tsimplehash.h"
 
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
@@ -485,6 +487,824 @@ TEST(td_msg_test, create_stb_req_codec_backward_compat_without_parent_names) {
   ASSERT_EQ(out.parentStbFNames[1][0], '\0');
 
   tDecoderClear(&decoder);
+}
+
+namespace {
+
+struct MetaVarField {
+  size_t   offset;
+  uint32_t value;
+  size_t   width;
+};
+
+struct MetaStringField {
+  MetaVarField length;
+  size_t       dataOffset;
+  size_t       dataLength;
+  size_t       destinationSize;
+};
+
+struct MetaSection {
+  size_t start;
+  size_t end;
+};
+
+struct TableMetaFrameLayout {
+  std::vector<MetaVarField>    schemaColIds;
+  std::vector<MetaVarField>    schemaExtColIds;
+  std::vector<MetaVarField>    schemaBytes;
+  std::vector<MetaStringField> topNames;
+  std::vector<MetaStringField> schemaNames;
+  std::vector<MetaStringField> refNames;
+  std::vector<MetaStringField> seriesNames;
+  std::vector<MetaStringField> seriesConditions;
+  std::vector<size_t>          refPresenceOffsets;
+  std::vector<size_t>          refConditionLengthOffsets;
+  std::vector<MetaVarField>    refConditionBinaryLengths;
+  std::vector<size_t>          seriesConditionLengthOffsets;
+  std::vector<MetaVarField>    seriesConditionLengths;
+  std::vector<size_t>          compatiblePrefixEnds;
+  std::vector<MetaSection>     optionalSections;
+  MetaVarField                 firstRefConditionBinaryLength = {};
+  MetaVarField                 firstSeriesConditionLength = {};
+  size_t                       numTagsOffset = 0;
+  size_t                       numColumnsOffset = 0;
+  size_t                       tableTypeOffset = 0;
+  size_t                       schemasOffset = 0;
+  size_t                       numColRefsOffset = 0;
+  size_t                       numTagRefsOffset = 0;
+  size_t                       numSeriesOffset = 0;
+  size_t                       firstRefConditionLengthOffset = 0;
+  size_t                       firstSeriesConditionLengthOffset = 0;
+  size_t                       firstOptionalOffset = 0;
+  size_t                       colExtSectionOffset = 0;
+};
+
+class TableMetaFrameCursor {
+ public:
+  explicit TableMetaFrameCursor(const std::vector<uint8_t>& frame) : frame_(frame), pos_(sizeof(int32_t)) {}
+
+  size_t pos() const { return pos_; }
+  void   skip(size_t size) { pos_ += size; }
+
+  int32_t readI32() {
+    int32_t value = 0;
+    memcpy(&value, frame_.data() + pos_, sizeof(value));
+    pos_ += sizeof(value);
+    return value;
+  }
+
+  uint8_t readU8() { return frame_[pos_++]; }
+
+  MetaVarField readVar() {
+    MetaVarField field = {.offset = pos_, .value = 0, .width = 0};
+    uint32_t     shift = 0;
+    do {
+      const uint8_t byte = frame_[pos_++];
+      field.value |= static_cast<uint32_t>(byte & 0x7f) << shift;
+      ++field.width;
+      shift += 7;
+      if ((byte & 0x80) == 0) break;
+    } while (field.width < 5);
+    return field;
+  }
+
+  MetaStringField readString(size_t destinationSize) {
+    MetaStringField field = {};
+    field.length = readVar();
+    field.dataOffset = pos_;
+    field.dataLength = field.length.value;
+    field.destinationSize = destinationSize;
+    pos_ += field.dataLength;
+    return field;
+  }
+
+ private:
+  const std::vector<uint8_t>& frame_;
+  size_t                      pos_;
+};
+
+std::vector<uint8_t> makeProducerTableMetaFrame(bool partialRefs = false) {
+  SSchema schemas[4] = {};
+  schemas[0] = {.type = TSDB_DATA_TYPE_TIMESTAMP, .colId = PRIMARYKEY_TIMESTAMP_COL_ID, .bytes = 8};
+  schemas[1] = {.type = TSDB_DATA_TYPE_INT, .colId = 2, .bytes = 4};
+  schemas[2] = {.type = TSDB_DATA_TYPE_VARCHAR, .colId = 3, .bytes = 16};
+  schemas[3] = {.type = TSDB_DATA_TYPE_NCHAR, .colId = 4, .bytes = 32};
+  tstrncpy(schemas[0].name, "ts", sizeof(schemas[0].name));
+  tstrncpy(schemas[1].name, "value", sizeof(schemas[1].name));
+  tstrncpy(schemas[2].name, "tag_a", sizeof(schemas[2].name));
+  tstrncpy(schemas[3].name, "tag_b", sizeof(schemas[3].name));
+
+  SSchemaExt schemaExt[2] = {};
+  schemaExt[0].colId = schemas[0].colId;
+  schemaExt[1].colId = schemas[1].colId;
+
+  SColRef colRefs[2] = {};
+  SColRef tagRefs[2] = {};
+  for (int32_t i = 0; i < 2; ++i) {
+    colRefs[i].hasRef = !partialRefs || i == 0;
+    colRefs[i].id = schemas[i].colId;
+    tstrncpy(colRefs[i].refDbName, i == 0 ? "source_db_a" : "source_db_b", sizeof(colRefs[i].refDbName));
+    tstrncpy(colRefs[i].refTableName, i == 0 ? "source_table_a" : "source_table_b", sizeof(colRefs[i].refTableName));
+    tstrncpy(colRefs[i].refColName, i == 0 ? "source_col_a" : "source_col_b", sizeof(colRefs[i].refColName));
+    colRefs[i].refType = 1;
+    tstrncpy(colRefs[i].refSourceName, i == 0 ? "source_a" : "source_b", sizeof(colRefs[i].refSourceName));
+    tstrncpy(colRefs[i].refSchemaName, i == 0 ? "schema_a" : "schema_b", sizeof(colRefs[i].refSchemaName));
+    colRefs[i].tagCondJson = const_cast<char*>(i == 0 ? "x" : "yz");
+    colRefs[i].tagCondLen = static_cast<int32_t>(strlen(colRefs[i].tagCondJson)) + 1;
+
+    tagRefs[i] = colRefs[i];
+    tagRefs[i].id = schemas[i + 2].colId;
+  }
+
+  SSeriesEntry series[2] = {};
+  for (int32_t i = 0; i < 2; ++i) {
+    tstrncpy(series[i].alias, i == 0 ? "series_a" : "series_b", sizeof(series[i].alias));
+    tstrncpy(series[i].sourceName, i == 0 ? "source_a" : "source_b", sizeof(series[i].sourceName));
+    tstrncpy(series[i].dbName, i == 0 ? "db_a" : "db_b", sizeof(series[i].dbName));
+    tstrncpy(series[i].measurementName, i == 0 ? "measurement_a" : "measurement_b", sizeof(series[i].measurementName));
+    series[i].tagCondJson = const_cast<char*>(i == 0 ? "a" : "bc");
+    series[i].tagCondLen = static_cast<int32_t>(strlen(series[i].tagCondJson)) + 1;
+  }
+
+  STableMetaRsp meta = {};
+  tstrncpy(meta.tbName, "vtable", sizeof(meta.tbName));
+  tstrncpy(meta.stbName, "vstb", sizeof(meta.stbName));
+  tstrncpy(meta.dbFName, "1.test", sizeof(meta.dbFName));
+  meta.dbId = 1;
+  meta.numOfTags = 2;
+  meta.numOfColumns = 2;
+  meta.precision = TSDB_TIME_PRECISION_MILLI;
+  meta.tableType = TSDB_VIRTUAL_NORMAL_TABLE;
+  meta.suid = 10;
+  meta.tuid = 11;
+  meta.vgId = 2;
+  meta.pSchemas = schemas;
+  meta.pSchemaExt = schemaExt;
+  meta.virtualStb = 1;
+  meta.numOfColRefs = 2;
+  meta.pColRefs = colRefs;
+  meta.numOfTagRefs = 2;
+  meta.pTagRefs = tagRefs;
+  meta.numOfSeries = 2;
+  meta.pSeries = series;
+
+  const int32_t size = tSerializeSTableMetaRsp(nullptr, 0, &meta);
+  EXPECT_GT(size, 0);
+  std::vector<uint8_t> frame(size);
+  EXPECT_EQ(size, tSerializeSTableMetaRsp(frame.data(), size, &meta));
+  return frame;
+}
+
+std::vector<uint8_t> makeProducerLargeSeriesTableMetaFrame(int32_t numOfSeries) {
+  std::vector<SSeriesEntry> series(static_cast<size_t>(numOfSeries));
+
+  STableMetaRsp meta = {};
+  tstrncpy(meta.tbName, "series_table", sizeof(meta.tbName));
+  tstrncpy(meta.dbFName, "1.test", sizeof(meta.dbFName));
+  meta.tableType = TSDB_NORMAL_TABLE;
+  meta.numOfSeries = numOfSeries;
+  meta.pSeries = series.data();
+
+  const int32_t size = tSerializeSTableMetaRsp(nullptr, 0, &meta);
+  EXPECT_GT(size, 0);
+  std::vector<uint8_t> frame(static_cast<size_t>(size));
+  EXPECT_EQ(size, tSerializeSTableMetaRsp(frame.data(), size, &meta));
+  return frame;
+}
+
+std::vector<uint8_t> makeProducerHistoricalTagRefTableMetaFrame(std::vector<SColRef>& tagRefs) {
+  SSchema schemas[2] = {};
+  schemas[0] = {.type = TSDB_DATA_TYPE_TIMESTAMP, .colId = PRIMARYKEY_TIMESTAMP_COL_ID, .bytes = 8};
+  schemas[1] = {.type = TSDB_DATA_TYPE_INT, .colId = 2, .bytes = 4};
+  tstrncpy(schemas[0].name, "ts", sizeof(schemas[0].name));
+  tstrncpy(schemas[1].name, "current_tag", sizeof(schemas[1].name));
+  SSchemaExt schemaExt = {.colId = schemas[0].colId};
+
+  STableMetaRsp meta = {};
+  tstrncpy(meta.tbName, "vtable", sizeof(meta.tbName));
+  tstrncpy(meta.stbName, "vstb", sizeof(meta.stbName));
+  tstrncpy(meta.dbFName, "1.test", sizeof(meta.dbFName));
+  meta.numOfTags = 1;
+  meta.numOfColumns = 1;
+  meta.tableType = TSDB_VIRTUAL_NORMAL_TABLE;
+  meta.pSchemas = schemas;
+  meta.pSchemaExt = &schemaExt;
+  meta.numOfTagRefs = static_cast<int32_t>(tagRefs.size());
+  meta.pTagRefs = tagRefs.data();
+
+  const int32_t size = tSerializeSTableMetaRsp(nullptr, 0, &meta);
+  EXPECT_GT(size, 0);
+  std::vector<uint8_t> frame(static_cast<size_t>(size));
+  EXPECT_EQ(size, tSerializeSTableMetaRsp(frame.data(), size, &meta));
+  return frame;
+}
+
+TableMetaFrameLayout describeProducerTableMetaFrame(const std::vector<uint8_t>& frame) {
+  TableMetaFrameLayout layout = {};
+  TableMetaFrameCursor cursor(frame);
+  layout.topNames.push_back(cursor.readString(TSDB_TABLE_NAME_LEN));
+  layout.topNames.push_back(cursor.readString(TSDB_TABLE_NAME_LEN));
+  layout.topNames.push_back(cursor.readString(TSDB_DB_FNAME_LEN));
+  cursor.skip(sizeof(int64_t));
+  layout.numTagsOffset = cursor.pos();
+  const int32_t numTags = cursor.readI32();
+  layout.numColumnsOffset = cursor.pos();
+  const int32_t numColumns = cursor.readI32();
+  cursor.skip(sizeof(int8_t));
+  layout.tableTypeOffset = cursor.pos();
+  cursor.skip(sizeof(int8_t));
+  cursor.skip(sizeof(int32_t) * 2 + sizeof(uint64_t) * 2 + sizeof(int32_t));
+  layout.schemasOffset = cursor.pos();
+  for (int32_t i = 0; i < numColumns + numTags; ++i) {
+    cursor.skip(sizeof(int8_t) * 2);
+    layout.schemaBytes.push_back(cursor.readVar());
+    layout.schemaColIds.push_back(cursor.readVar());
+    layout.schemaNames.push_back(cursor.readString(TSDB_COL_NAME_LEN));
+  }
+  const size_t schemasEnd = cursor.pos();
+  layout.compatiblePrefixEnds.push_back(schemasEnd);
+  for (int32_t i = 0; i < numColumns; ++i) {
+    layout.schemaExtColIds.push_back(cursor.readVar());
+    cursor.skip(sizeof(uint32_t) + sizeof(int32_t));
+  }
+
+  layout.firstOptionalOffset = cursor.pos();
+  layout.optionalSections.push_back({schemasEnd, layout.firstOptionalOffset});
+  layout.compatiblePrefixEnds.push_back(layout.firstOptionalOffset);
+  const size_t colRefsStart = cursor.pos();
+  cursor.skip(sizeof(int8_t));
+  layout.numColRefsOffset = cursor.pos();
+  const int32_t     numColRefs = cursor.readI32();
+  std::vector<bool> colHasRef;
+  for (int32_t i = 0; i < numColRefs; ++i) {
+    layout.refPresenceOffsets.push_back(cursor.pos());
+    const bool hasRef = cursor.readU8() != 0;
+    colHasRef.push_back(hasRef);
+    cursor.skip(sizeof(int16_t));
+    if (hasRef) {
+      layout.refNames.push_back(cursor.readString(TSDB_DB_NAME_LEN));
+      layout.refNames.push_back(cursor.readString(TSDB_TABLE_NAME_LEN));
+      layout.refNames.push_back(cursor.readString(TSDB_COL_NAME_LEN));
+    }
+  }
+  layout.optionalSections.push_back({colRefsStart, cursor.pos()});
+  layout.compatiblePrefixEnds.push_back(cursor.pos());
+
+  for (size_t width : {sizeof(int32_t), sizeof(int64_t), sizeof(uint8_t), sizeof(int8_t)}) {
+    const size_t start = cursor.pos();
+    cursor.skip(width);
+    layout.optionalSections.push_back({start, cursor.pos()});
+    layout.compatiblePrefixEnds.push_back(cursor.pos());
+  }
+
+  layout.numTagRefsOffset = cursor.pos();
+  const size_t      tagRefsStart = cursor.pos();
+  const int32_t     numTagRefs = cursor.readI32();
+  std::vector<bool> tagHasRef;
+  for (int32_t i = 0; i < numTagRefs; ++i) {
+    layout.refPresenceOffsets.push_back(cursor.pos());
+    const bool hasRef = cursor.readU8() != 0;
+    tagHasRef.push_back(hasRef);
+    cursor.skip(sizeof(int16_t));
+    if (hasRef) {
+      layout.refNames.push_back(cursor.readString(TSDB_DB_NAME_LEN));
+      layout.refNames.push_back(cursor.readString(TSDB_TABLE_NAME_LEN));
+      layout.refNames.push_back(cursor.readString(TSDB_COL_NAME_LEN));
+    }
+  }
+  layout.optionalSections.push_back({tagRefsStart, cursor.pos()});
+  layout.compatiblePrefixEnds.push_back(cursor.pos());
+
+  layout.numSeriesOffset = cursor.pos();
+  const size_t  seriesStart = cursor.pos();
+  const int32_t numSeries = cursor.readI32();
+  for (int32_t i = 0; i < numSeries; ++i) {
+    layout.seriesNames.push_back(cursor.readString(TSDB_COL_NAME_LEN));
+    layout.seriesNames.push_back(cursor.readString(TSDB_EXT_SOURCE_NAME_LEN));
+    layout.seriesNames.push_back(cursor.readString(TSDB_DB_NAME_LEN));
+    layout.seriesNames.push_back(cursor.readString(TSDB_TABLE_NAME_LEN));
+    const size_t    declaredOffset = cursor.pos();
+    const int32_t   declaredLength = cursor.readI32();
+    MetaStringField condition = cursor.readString(static_cast<size_t>(declaredLength) + 1);
+    layout.seriesConditions.push_back(condition);
+    layout.seriesConditionLengthOffsets.push_back(declaredOffset);
+    layout.seriesConditionLengths.push_back(condition.length);
+    if (i == 0) {
+      layout.firstSeriesConditionLengthOffset = declaredOffset;
+      layout.firstSeriesConditionLength = condition.length;
+    }
+  }
+  layout.optionalSections.push_back({seriesStart, cursor.pos()});
+  layout.compatiblePrefixEnds.push_back(cursor.pos());
+
+  const size_t inheritorsStart = cursor.pos();
+  cursor.skip(sizeof(int8_t));
+  layout.optionalSections.push_back({inheritorsStart, cursor.pos()});
+  layout.compatiblePrefixEnds.push_back(cursor.pos());
+  layout.colExtSectionOffset = cursor.pos();
+  const size_t refExtStart = cursor.pos();
+  EXPECT_EQ(numColRefs, cursor.readI32());
+  for (int32_t i = 0; i < numColRefs; ++i) {
+    if (!colHasRef[i]) continue;
+    cursor.skip(sizeof(int8_t));
+    layout.refNames.push_back(cursor.readString(TSDB_EXT_SOURCE_NAME_LEN));
+    layout.refNames.push_back(cursor.readString(TSDB_EXT_SOURCE_SCHEMA_LEN));
+    const size_t declaredOffset = cursor.pos();
+    cursor.skip(sizeof(int32_t));
+    MetaVarField binaryLength = cursor.readVar();
+    cursor.skip(binaryLength.value);
+    layout.refConditionLengthOffsets.push_back(declaredOffset);
+    layout.refConditionBinaryLengths.push_back(binaryLength);
+    if (i == 0) {
+      layout.firstRefConditionLengthOffset = declaredOffset;
+      layout.firstRefConditionBinaryLength = binaryLength;
+    }
+  }
+  EXPECT_EQ(numTagRefs, cursor.readI32());
+  for (int32_t i = 0; i < numTagRefs; ++i) {
+    if (!tagHasRef[i]) continue;
+    cursor.skip(sizeof(int8_t));
+    layout.refNames.push_back(cursor.readString(TSDB_EXT_SOURCE_NAME_LEN));
+    layout.refNames.push_back(cursor.readString(TSDB_EXT_SOURCE_SCHEMA_LEN));
+    const size_t  declaredOffset = cursor.pos();
+    const int32_t declaredLength = cursor.readI32();
+    MetaVarField  binaryLength = cursor.readVar();
+    EXPECT_EQ(declaredLength, static_cast<int32_t>(binaryLength.value));
+    cursor.skip(binaryLength.value);
+    layout.refConditionLengthOffsets.push_back(declaredOffset);
+    layout.refConditionBinaryLengths.push_back(binaryLength);
+  }
+  layout.optionalSections.push_back({refExtStart, cursor.pos()});
+  layout.compatiblePrefixEnds.push_back(cursor.pos());
+  EXPECT_EQ(frame.size(), cursor.pos());
+  return layout;
+}
+
+void setFrameLength(std::vector<uint8_t>* frame) {
+  const int32_t length = static_cast<int32_t>(frame->size() - sizeof(int32_t));
+  memcpy(frame->data(), &length, sizeof(length));
+}
+
+void replaceBytes(std::vector<uint8_t>* frame, size_t offset, size_t oldWidth,
+                  std::initializer_list<uint8_t> replacement) {
+  frame->erase(frame->begin() + offset, frame->begin() + offset + oldWidth);
+  frame->insert(frame->begin() + offset, replacement);
+  setFrameLength(frame);
+}
+
+void replaceString(std::vector<uint8_t>* frame, const MetaStringField& field, size_t newLength, bool terminated) {
+  ASSERT_LE(newLength, static_cast<size_t>(UINT32_MAX));
+  std::vector<uint8_t> replacement;
+  uint32_t             value = static_cast<uint32_t>(newLength);
+  do {
+    uint8_t byte = value & 0x7f;
+    value >>= 7;
+    if (value != 0) byte |= 0x80;
+    replacement.push_back(byte);
+  } while (value != 0);
+  const size_t prefixLength = replacement.size();
+  replacement.resize(prefixLength + newLength, 'x');
+  if (terminated && newLength > 0) replacement.back() = '\0';
+  frame->erase(frame->begin() + field.length.offset, frame->begin() + field.dataOffset + field.dataLength);
+  frame->insert(frame->begin() + field.length.offset, replacement.begin(), replacement.end());
+  setFrameLength(frame);
+}
+
+void writeMetaI32(std::vector<uint8_t>* frame, size_t offset, int32_t value) {
+  if (offset > frame->size() || frame->size() - offset < sizeof(value)) {
+    ADD_FAILURE() << "Cannot write an int32_t at offset " << offset << " in a " << frame->size()
+                  << "-byte frame";
+    return;
+  }
+  memcpy(frame->data() + offset, &value, sizeof(value));
+}
+
+void expectTableMetaDecodeFailure(const std::vector<uint8_t>& frame, int32_t bufLen = -1) {
+  STableMetaRsp decoded = {};
+  const int32_t length = bufLen < 0 ? static_cast<int32_t>(frame.size()) : bufLen;
+  EXPECT_NE(TSDB_CODE_SUCCESS, tDeserializeSTableMetaRsp(const_cast<uint8_t*>(frame.data()), length, &decoded));
+  tFreeSTableMetaRsp(&decoded);
+}
+
+std::vector<std::vector<uint8_t>> malformedVarints(const std::vector<uint8_t>& valid, const MetaVarField& field,
+                                                   bool isU16) {
+  std::vector<std::vector<uint8_t>> cases;
+  EXPECT_EQ(1U, field.width);
+  EXPECT_LT(field.value, 0x80U);
+  if (field.width != 1 || field.value >= 0x80U) return cases;
+
+  auto nonMinimal = valid;
+  replaceBytes(&nonMinimal, field.offset, field.width, {static_cast<uint8_t>(field.value | 0x80), 0x00});
+  cases.push_back(std::move(nonMinimal));
+
+  auto overlong = valid;
+  if (isU16) {
+    replaceBytes(&overlong, field.offset, field.width, {0x80, 0x80, 0x80, 0x00});
+  } else {
+    replaceBytes(&overlong, field.offset, field.width, {0x80, 0x80, 0x80, 0x80, 0x80, 0x00});
+  }
+  cases.push_back(std::move(overlong));
+
+  auto outOfWidth = valid;
+  if (isU16) {
+    replaceBytes(&outOfWidth, field.offset, field.width, {0x80, 0x80, 0x04});
+  } else {
+    replaceBytes(&outOfWidth, field.offset, field.width, {0x80, 0x80, 0x80, 0x80, 0x10});
+  }
+  cases.push_back(std::move(outOfWidth));
+
+  auto unterminated = valid;
+  if (isU16) {
+    replaceBytes(&unterminated, field.offset, field.width, {0x80, 0x80, 0x80});
+  } else {
+    replaceBytes(&unterminated, field.offset, field.width, {0x80, 0x80, 0x80, 0x80, 0x80});
+  }
+  unterminated.resize(field.offset + (isU16 ? 3 : 5));
+  setFrameLength(&unterminated);
+  cases.push_back(std::move(unterminated));
+  return cases;
+}
+
+}  // namespace
+
+TEST(td_msg_test, table_meta_rsp_public_decoder_accepts_producer_and_compatible_prefixes) {
+  for (const bool partialRefs : {false, true}) {
+    SCOPED_TRACE(partialRefs);
+    const auto valid = makeProducerTableMetaFrame(partialRefs);
+    const auto layout = describeProducerTableMetaFrame(valid);
+
+    STableMetaRsp decoded = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSTableMetaRsp(const_cast<uint8_t*>(valid.data()), valid.size(), &decoded));
+    EXPECT_EQ(2, decoded.numOfColumns);
+    EXPECT_EQ(2, decoded.numOfTags);
+    if (partialRefs) {
+      ASSERT_NE(nullptr, decoded.pColRefs);
+      ASSERT_NE(nullptr, decoded.pTagRefs);
+      EXPECT_FALSE(decoded.pColRefs[1].hasRef);
+      EXPECT_FALSE(decoded.pTagRefs[1].hasRef);
+    }
+    tFreeSTableMetaRsp(&decoded);
+
+    for (const size_t prefixEnd : layout.compatiblePrefixEnds) {
+      SCOPED_TRACE(prefixEnd);
+      auto prefix = valid;
+      prefix.resize(prefixEnd);
+      setFrameLength(&prefix);
+      STableMetaRsp prefixDecoded = {};
+      EXPECT_EQ(TSDB_CODE_SUCCESS,
+                tDeserializeSTableMetaRsp(prefix.data(), static_cast<int32_t>(prefix.size()), &prefixDecoded));
+      tFreeSTableMetaRsp(&prefixDecoded);
+    }
+  }
+}
+
+TEST(td_msg_test, table_meta_rsp_public_decoder_accepts_historical_tag_ref_slots) {
+  SSchema schemas[5] = {};
+  schemas[0] = {.type = TSDB_DATA_TYPE_TIMESTAMP, .colId = PRIMARYKEY_TIMESTAMP_COL_ID, .bytes = 8};
+  schemas[1] = {.type = TSDB_DATA_TYPE_VARCHAR, .colId = 2, .bytes = 16};
+  schemas[2] = {.type = TSDB_DATA_TYPE_VARCHAR, .colId = 3, .bytes = 16};
+  schemas[3] = {.type = TSDB_DATA_TYPE_VARCHAR, .colId = 4, .bytes = 16};
+  schemas[4] = {.type = TSDB_DATA_TYPE_INT, .colId = 6, .bytes = 4};
+  tstrncpy(schemas[0].name, "ts", sizeof(schemas[0].name));
+  tstrncpy(schemas[1].name, "tag_a", sizeof(schemas[1].name));
+  tstrncpy(schemas[2].name, "tag_b", sizeof(schemas[2].name));
+  tstrncpy(schemas[3].name, "tag_c", sizeof(schemas[3].name));
+  tstrncpy(schemas[4].name, "extra2", sizeof(schemas[4].name));
+
+  SSchemaExt schemaExt = {.colId = schemas[0].colId};
+  SColRef    tagRefs[5] = {};
+  for (int32_t i = 0; i < 5; ++i) tagRefs[i].id = i + 2;
+  tagRefs[3].hasRef = true;
+  tstrncpy(tagRefs[3].refDbName, "source_db", sizeof(tagRefs[3].refDbName));
+  tstrncpy(tagRefs[3].refTableName, "src0", sizeof(tagRefs[3].refTableName));
+  tstrncpy(tagRefs[3].refColName, "city", sizeof(tagRefs[3].refColName));
+  tagRefs[4].hasRef = true;
+  tstrncpy(tagRefs[4].refDbName, "source_db", sizeof(tagRefs[4].refDbName));
+  tstrncpy(tagRefs[4].refTableName, "src1", sizeof(tagRefs[4].refTableName));
+  tstrncpy(tagRefs[4].refColName, "code", sizeof(tagRefs[4].refColName));
+
+  STableMetaRsp meta = {};
+  tstrncpy(meta.tbName, "vtable", sizeof(meta.tbName));
+  tstrncpy(meta.stbName, "vstb", sizeof(meta.stbName));
+  tstrncpy(meta.dbFName, "1.test", sizeof(meta.dbFName));
+  meta.numOfTags = 4;
+  meta.numOfColumns = 1;
+  meta.tableType = TSDB_VIRTUAL_NORMAL_TABLE;
+  meta.pSchemas = schemas;
+  meta.pSchemaExt = &schemaExt;
+  meta.numOfTagRefs = 5;
+  meta.pTagRefs = tagRefs;
+
+  const int32_t size = tSerializeSTableMetaRsp(nullptr, 0, &meta);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> frame(static_cast<size_t>(size));
+  ASSERT_EQ(size, tSerializeSTableMetaRsp(frame.data(), size, &meta));
+
+  STableMetaRsp decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSTableMetaRsp(frame.data(), static_cast<int32_t>(frame.size()), &decoded));
+  EXPECT_EQ(4, decoded.numOfTags);
+  EXPECT_EQ(5, decoded.numOfTagRefs);
+  ASSERT_NE(nullptr, decoded.pTagRefs);
+  EXPECT_EQ(5, decoded.pTagRefs[3].id);
+  EXPECT_TRUE(decoded.pTagRefs[3].hasRef);
+  EXPECT_STREQ("src0", decoded.pTagRefs[3].refTableName);
+  EXPECT_STREQ("city", decoded.pTagRefs[3].refColName);
+  EXPECT_EQ(6, decoded.pTagRefs[4].id);
+  EXPECT_TRUE(decoded.pTagRefs[4].hasRef);
+  EXPECT_STREQ("src1", decoded.pTagRefs[4].refTableName);
+  EXPECT_STREQ("code", decoded.pTagRefs[4].refColName);
+  tFreeSTableMetaRsp(&decoded);
+}
+
+TEST(td_msg_test, table_meta_rsp_public_decoder_rejects_tag_ref_count_beyond_col_id_domain) {
+  std::vector<SColRef> tagRefs(static_cast<size_t>(INT16_MAX) + 1);
+  const auto           frame = makeProducerHistoricalTagRefTableMetaFrame(tagRefs);
+
+  expectTableMetaDecodeFailure(frame);
+}
+
+TEST(td_msg_test, table_meta_rsp_public_decoder_accepts_tag_ref_history_above_live_tag_limit) {
+  std::vector<SColRef> tagRefs(TSDB_MAX_TAGS + 1);
+  for (size_t i = 0; i < tagRefs.size(); ++i) tagRefs[i].id = static_cast<col_id_t>(i + 2);
+  tagRefs.back().hasRef = true;
+  tstrncpy(tagRefs.back().refDbName, "source_db", sizeof(tagRefs.back().refDbName));
+  tstrncpy(tagRefs.back().refTableName, "source_table", sizeof(tagRefs.back().refTableName));
+  tstrncpy(tagRefs.back().refColName, "source_col", sizeof(tagRefs.back().refColName));
+  auto frame = makeProducerHistoricalTagRefTableMetaFrame(tagRefs);
+
+  STableMetaRsp decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSTableMetaRsp(frame.data(), static_cast<int32_t>(frame.size()), &decoded));
+  EXPECT_EQ(1, decoded.numOfTags);
+  EXPECT_EQ(TSDB_MAX_TAGS + 1, decoded.numOfTagRefs);
+  ASSERT_NE(nullptr, decoded.pTagRefs);
+  EXPECT_EQ(2, decoded.pTagRefs[0].id);
+  EXPECT_FALSE(decoded.pTagRefs[0].hasRef);
+  EXPECT_EQ(TSDB_MAX_TAGS + 2, decoded.pTagRefs[TSDB_MAX_TAGS].id);
+  EXPECT_TRUE(decoded.pTagRefs[TSDB_MAX_TAGS].hasRef);
+  tFreeSTableMetaRsp(&decoded);
+}
+
+TEST(td_msg_test, table_meta_rsp_public_decoder_accepts_producer_series_above_column_limit) {
+  const auto frame = makeProducerLargeSeriesTableMetaFrame(TSDB_MAX_COLUMNS + 1);
+
+  STableMetaRsp decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSTableMetaRsp(const_cast<uint8_t*>(frame.data()),
+                                                         static_cast<int32_t>(frame.size()), &decoded));
+  EXPECT_EQ(TSDB_MAX_COLUMNS + 1, decoded.numOfSeries);
+  ASSERT_NE(nullptr, decoded.pSeries);
+  EXPECT_STREQ("", decoded.pSeries[TSDB_MAX_COLUMNS].alias);
+  tFreeSTableMetaRsp(&decoded);
+}
+
+TEST(td_msg_test, table_meta_rsp_public_decoder_accepts_system_table_blob_widths) {
+  for (const int32_t bytes : {TSDB_XNODE_TASK_PARSER_MAX_LEN + BLOBSTR_HEADER_SIZE,
+                              TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN + BLOBSTR_HEADER_SIZE}) {
+    SSchema schema = {.type = TSDB_DATA_TYPE_BLOB, .colId = 1, .bytes = bytes};
+    tstrncpy(schema.name, "payload", sizeof(schema.name));
+
+    STableMetaRsp meta = {};
+    tstrncpy(meta.tbName, "system_table", sizeof(meta.tbName));
+    tstrncpy(meta.dbFName, "information_schema", sizeof(meta.dbFName));
+    meta.numOfColumns = 1;
+    meta.tableType = TSDB_SYSTEM_TABLE;
+    meta.pSchemas = &schema;
+
+    const int32_t size = tSerializeSTableMetaRsp(nullptr, 0, &meta);
+    ASSERT_GT(size, 0);
+    std::vector<uint8_t> frame(static_cast<size_t>(size));
+    ASSERT_EQ(size, tSerializeSTableMetaRsp(frame.data(), size, &meta));
+
+    STableMetaRsp decoded = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSTableMetaRsp(frame.data(), static_cast<int32_t>(frame.size()), &decoded));
+    ASSERT_NE(nullptr, decoded.pSchemas);
+    EXPECT_EQ(bytes, decoded.pSchemas[0].bytes);
+    tFreeSTableMetaRsp(&decoded);
+  }
+}
+
+TEST(td_msg_test, table_meta_rsp_public_decoder_rejects_oversized_schema_width) {
+  SSchema schema = {.type = TSDB_DATA_TYPE_BLOB, .colId = 1, .bytes = TSDB_MAX_BLOB_LEN + BLOBSTR_HEADER_SIZE + 1};
+  tstrncpy(schema.name, "payload", sizeof(schema.name));
+
+  STableMetaRsp meta = {};
+  tstrncpy(meta.tbName, "system_table", sizeof(meta.tbName));
+  tstrncpy(meta.dbFName, "information_schema", sizeof(meta.dbFName));
+  meta.numOfColumns = 1;
+  meta.tableType = TSDB_SYSTEM_TABLE;
+  meta.pSchemas = &schema;
+
+  const int32_t size = tSerializeSTableMetaRsp(nullptr, 0, &meta);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> frame(static_cast<size_t>(size));
+  ASSERT_EQ(size, tSerializeSTableMetaRsp(frame.data(), size, &meta));
+  expectTableMetaDecodeFailure(frame);
+}
+
+TEST(td_msg_test, table_meta_rsp_public_decoder_rejects_noncanonical_reference_presence) {
+  const auto valid = makeProducerTableMetaFrame();
+  const auto layout = describeProducerTableMetaFrame(valid);
+
+  ASSERT_FALSE(layout.refPresenceOffsets.empty());
+  for (const size_t offset : layout.refPresenceOffsets) {
+    auto noncanonical = valid;
+    noncanonical[offset] = 2;
+    expectTableMetaDecodeFailure(noncanonical);
+  }
+}
+
+TEST(td_msg_test, table_meta_rsp_public_decoder_rejects_noncanonical_varints) {
+  const auto valid = makeProducerTableMetaFrame();
+  const auto layout = describeProducerTableMetaFrame(valid);
+
+  size_t                           fieldIndex = 0;
+  std::vector<const MetaVarField*> u16Fields;
+  for (const auto& field : layout.schemaColIds) u16Fields.push_back(&field);
+  for (const auto& field : layout.schemaExtColIds) u16Fields.push_back(&field);
+  for (const auto* field : u16Fields) {
+    const auto cases = malformedVarints(valid, *field, true);
+    for (size_t caseIndex = 0; caseIndex < cases.size(); ++caseIndex) {
+      SCOPED_TRACE(testing::Message() << "u16 field " << fieldIndex << " case " << caseIndex);
+      expectTableMetaDecodeFailure(cases[caseIndex]);
+    }
+    ++fieldIndex;
+  }
+
+  std::vector<const MetaVarField*> u32Fields;
+  for (const auto& field : layout.schemaBytes) u32Fields.push_back(&field);
+  for (const auto& field : layout.topNames) u32Fields.push_back(&field.length);
+  for (const auto& field : layout.schemaNames) u32Fields.push_back(&field.length);
+  for (const auto& field : layout.refNames) u32Fields.push_back(&field.length);
+  for (const auto& field : layout.seriesNames) u32Fields.push_back(&field.length);
+  for (const auto& field : layout.refConditionBinaryLengths) u32Fields.push_back(&field);
+  fieldIndex = 0;
+  for (const auto* field : u32Fields) {
+    const auto cases = malformedVarints(valid, *field, false);
+    for (size_t caseIndex = 0; caseIndex < cases.size(); ++caseIndex) {
+      SCOPED_TRACE(testing::Message() << "u32 field " << fieldIndex << " case " << caseIndex);
+      expectTableMetaDecodeFailure(cases[caseIndex]);
+    }
+    ++fieldIndex;
+  }
+}
+
+TEST(td_msg_test, table_meta_rsp_public_decoder_rejects_unbounded_counts) {
+  const auto valid = makeProducerTableMetaFrame();
+  const auto layout = describeProducerTableMetaFrame(valid);
+
+  for (size_t offset : {layout.numTagsOffset, layout.numColumnsOffset, layout.numColRefsOffset, layout.numTagRefsOffset,
+                        layout.numSeriesOffset}) {
+    auto negative = valid;
+    writeMetaI32(&negative, offset, -1);
+    expectTableMetaDecodeFailure(negative);
+  }
+
+  for (size_t offset : {layout.numColRefsOffset, layout.numTagRefsOffset, layout.numSeriesOffset}) {
+    auto huge = valid;
+    writeMetaI32(&huge, offset, INT32_MAX);
+    expectTableMetaDecodeFailure(huge);
+  }
+
+  auto sumOverflow = valid;
+  writeMetaI32(&sumOverflow, layout.numColumnsOffset, INT32_MAX);
+  writeMetaI32(&sumOverflow, layout.numTagsOffset, 2);
+  expectTableMetaDecodeFailure(sumOverflow);
+
+  auto oversizedProduct = valid;
+  writeMetaI32(&oversizedProduct, layout.numColumnsOffset, TSDB_MAX_COLUMNS);
+  writeMetaI32(&oversizedProduct, layout.numTagsOffset, TSDB_MAX_TAGS);
+  expectTableMetaDecodeFailure(oversizedProduct);
+
+  auto truncatedCount = valid;
+  truncatedCount.resize(layout.numColumnsOffset + sizeof(int32_t) - 1);
+  setFrameLength(&truncatedCount);
+  expectTableMetaDecodeFailure(truncatedCount);
+}
+
+TEST(td_msg_test, table_meta_rsp_public_decoder_rejects_invalid_fixed_strings) {
+  const auto valid = makeProducerTableMetaFrame();
+  const auto layout = describeProducerTableMetaFrame(valid);
+
+  std::vector<const MetaStringField*> fields;
+  for (const auto& field : layout.topNames) fields.push_back(&field);
+  for (const auto& field : layout.schemaNames) fields.push_back(&field);
+  for (const auto& field : layout.refNames) fields.push_back(&field);
+  for (const auto& field : layout.seriesNames) fields.push_back(&field);
+  for (const auto* field : fields) {
+    auto oversized = valid;
+    replaceString(&oversized, *field, field->destinationSize + 1, true);
+    expectTableMetaDecodeFailure(oversized);
+
+    auto missingNul = valid;
+    missingNul[field->dataOffset + field->dataLength - 1] = 'x';
+    expectTableMetaDecodeFailure(missingNul);
+  }
+}
+
+TEST(td_msg_test, table_meta_rsp_public_decoder_rejects_invalid_reference_conditions) {
+  const auto valid = makeProducerTableMetaFrame();
+  const auto layout = describeProducerTableMetaFrame(valid);
+
+  ASSERT_EQ(layout.refConditionLengthOffsets.size(), layout.refConditionBinaryLengths.size());
+  for (size_t i = 0; i < layout.refConditionLengthOffsets.size(); ++i) {
+    SCOPED_TRACE(i);
+    const size_t lengthOffset = layout.refConditionLengthOffsets[i];
+    const auto&  binaryLength = layout.refConditionBinaryLengths[i];
+
+    auto negative = valid;
+    writeMetaI32(&negative, lengthOffset, -1);
+    expectTableMetaDecodeFailure(negative);
+
+    auto lengthOverflow = valid;
+    writeMetaI32(&lengthOverflow, lengthOffset, INT32_MAX);
+    expectTableMetaDecodeFailure(lengthOverflow);
+
+    auto binaryLengthOverflow = valid;
+    replaceBytes(&binaryLengthOverflow, binaryLength.offset, binaryLength.width, {0xff, 0xff, 0xff, 0xff, 0x0f});
+    expectTableMetaDecodeFailure(binaryLengthOverflow);
+
+    auto mismatch = valid;
+    writeMetaI32(&mismatch, lengthOffset, static_cast<int32_t>(binaryLength.value) + 1);
+    expectTableMetaDecodeFailure(mismatch);
+
+    auto truncated = valid;
+    truncated.resize(binaryLength.offset + binaryLength.width);
+    setFrameLength(&truncated);
+    expectTableMetaDecodeFailure(truncated);
+  }
+}
+
+TEST(td_msg_test, table_meta_rsp_public_decoder_rejects_invalid_series_conditions) {
+  const auto valid = makeProducerTableMetaFrame();
+  const auto layout = describeProducerTableMetaFrame(valid);
+
+  ASSERT_EQ(layout.seriesConditionLengthOffsets.size(), layout.seriesConditionLengths.size());
+  ASSERT_EQ(layout.seriesConditionLengthOffsets.size(), layout.seriesConditions.size());
+  for (size_t i = 0; i < layout.seriesConditionLengthOffsets.size(); ++i) {
+    SCOPED_TRACE(i);
+    const size_t lengthOffset = layout.seriesConditionLengthOffsets[i];
+    const auto&  encodedLength = layout.seriesConditionLengths[i];
+    const auto&  condition = layout.seriesConditions[i];
+
+    const auto malformedLengths = malformedVarints(valid, encodedLength, false);
+    for (size_t caseIndex = 0; caseIndex < malformedLengths.size(); ++caseIndex) {
+      SCOPED_TRACE(testing::Message() << "condition length case " << caseIndex);
+      expectTableMetaDecodeFailure(malformedLengths[caseIndex]);
+    }
+
+    auto negative = valid;
+    writeMetaI32(&negative, lengthOffset, -1);
+    expectTableMetaDecodeFailure(negative);
+
+    auto lengthOverflow = valid;
+    writeMetaI32(&lengthOverflow, lengthOffset, INT32_MAX);
+    expectTableMetaDecodeFailure(lengthOverflow);
+
+    auto mismatch = valid;
+    writeMetaI32(&mismatch, lengthOffset, static_cast<int32_t>(encodedLength.value) + 1);
+    expectTableMetaDecodeFailure(mismatch);
+
+    auto missingNul = valid;
+    missingNul[condition.dataOffset + condition.dataLength - 1] = 'x';
+    expectTableMetaDecodeFailure(missingNul);
+
+    auto truncated = valid;
+    truncated.resize(encodedLength.offset + encodedLength.width);
+    setFrameLength(&truncated);
+    expectTableMetaDecodeFailure(truncated);
+  }
+}
+
+TEST(td_msg_test, table_meta_rsp_public_decoder_rejects_invalid_frame_and_optional_sections) {
+  const auto valid = makeProducerTableMetaFrame();
+  const auto layout = describeProducerTableMetaFrame(valid);
+
+  auto negativeFrame = valid;
+  negativeFrame.resize(valid.size() + 128, 0);
+  writeMetaI32(&negativeFrame, 0, -1);
+  expectTableMetaDecodeFailure(negativeFrame);
+
+  auto beyondBufLen = valid;
+  beyondBufLen.push_back(0);
+  setFrameLength(&beyondBufLen);
+  expectTableMetaDecodeFailure(beyondBufLen, static_cast<int32_t>(beyondBufLen.size() - 1));
+
+  auto outerTrailing = valid;
+  outerTrailing.push_back(0);
+  expectTableMetaDecodeFailure(outerTrailing);
+
+  for (const auto& section : layout.optionalSections) {
+    if (section.end - section.start <= 1) continue;
+    auto optionalTruncated = valid;
+    optionalTruncated.resize(section.start + 1);
+    setFrameLength(&optionalTruncated);
+    expectTableMetaDecodeFailure(optionalTruncated);
+  }
+
+  auto sectionTrailing = valid;
+  sectionTrailing.push_back(0);
+  setFrameLength(&sectionTrailing);
+  expectTableMetaDecodeFailure(sectionTrailing);
 }
 
 TEST(td_msg_test, create_stb_req_codec_rejects_overflow_num_parents) {
@@ -982,6 +1802,258 @@ static void writeI32(std::vector<char>* bytes, uint32_t offset, int32_t value) {
   memcpy(bytes->data() + offset, &value, sizeof(value));
 }
 
+static uint32_t recalcDetailOffset(const std::vector<char>& bytes, uint32_t tailOffset, int32_t recalcCount) {
+  return tailOffset + 3 * sizeof(int32_t) + sizeof(int32_t) + 3 * sizeof(int64_t) + sizeof(int32_t) +
+         7 * sizeof(uint64_t) + 2 * sizeof(int8_t) + sizeof(int64_t) + 2 * sizeof(int32_t) +
+         recalcCount * (3 * sizeof(int64_t) + 2 * sizeof(int32_t));
+}
+
+static void addRecalcDetail(SStreamTaskMetricsEntry* entry, int64_t recalcId, int32_t retryOrdinal, int32_t errorCode) {
+  ASSERT_NE(entry, nullptr);
+  if (entry->snapshot.pRecalcDetails == nullptr) {
+    entry->snapshot.pRecalcDetails = taosArrayInit(1, sizeof(SStreamRecalcDetail));
+    ASSERT_NE(entry->snapshot.pRecalcDetails, nullptr);
+  }
+  SStreamRecalcDetail detail = {};
+  detail.recalcId = recalcId;
+  detail.retryOrdinal = retryOrdinal;
+  detail.errorCode = errorCode;
+  detail.errorText = errorCode == 0 ? nullptr : taosStrdup(tstrerror(errorCode));
+  ASSERT_TRUE(errorCode == 0 || detail.errorText != nullptr);
+  ASSERT_NE(taosArrayPush(entry->snapshot.pRecalcDetails, &detail), nullptr);
+}
+
+static SStreamHbMsg buildHeartbeatWithOneRecalcDetail() {
+  SStreamHbMsg input = {};
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pVgLeaders = taosArrayInit(0, sizeof(int32_t));
+  input.pStreamStatus = taosArrayInit(0, sizeof(SStmTaskStatusMsg));
+  input.pStreamReq = taosArrayInit(0, sizeof(int32_t));
+  input.pTriggerStatus = taosArrayInit(0, sizeof(SSTriggerRuntimeStatus));
+  input.pTaskMetrics = taosArrayInit(1, sizeof(SStreamTaskMetricsEntry));
+  EXPECT_NE(input.pVgLeaders, nullptr);
+  EXPECT_NE(input.pStreamStatus, nullptr);
+  EXPECT_NE(input.pStreamReq, nullptr);
+  EXPECT_NE(input.pTriggerStatus, nullptr);
+  EXPECT_NE(input.pTaskMetrics, nullptr);
+  SStreamTaskMetricsEntry entry = buildTriggerMetricEntry(0, 101, 201, 301);
+  entry.snapshot.pRecalculates = taosArrayInit(1, sizeof(SStreamRecalcSnapshot));
+  SStreamRecalcSnapshot recalc = {.recalcId = 401};
+  EXPECT_NE(entry.snapshot.pRecalculates, nullptr);
+  EXPECT_NE(taosArrayPush(entry.snapshot.pRecalculates, &recalc), nullptr);
+  addRecalcDetail(&entry, 401, 1, TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_NE(taosArrayPush(input.pTaskMetrics, &entry), nullptr);
+  return input;
+}
+
+static int32_t gRecalcDetailMallocCalls = 0;
+
+static void* failRecalcDetailTextMalloc(int64_t size) {
+  if (++gRecalcDetailMallocCalls == 4) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return nullptr;
+  }
+  return taosMemCalloc(1, size);
+}
+
+class RecalcDetailTextMallocFailureGuard {
+ public:
+  RecalcDetailTextMallocFailureGuard() {
+    gRecalcDetailMallocCalls = 0;
+    stub_.set(taosMemMalloc, failRecalcDetailTextMalloc);
+  }
+  ~RecalcDetailTextMallocFailureGuard() { stub_.reset(taosMemMalloc); }
+
+ private:
+  Stub stub_;
+};
+
+static int64_t gSnapshotArrayGetCalls = 0;
+static int64_t gDetailArrayGetCalls = 0;
+
+static void* countRecalcDecodeArrayGet(const SArray* pArray, size_t index) {
+  if (pArray == nullptr || index >= pArray->size) return nullptr;
+  if (pArray->elemSize == sizeof(SStreamRecalcSnapshot)) ++gSnapshotArrayGetCalls;
+  if (pArray->elemSize == sizeof(SStreamRecalcDetail)) ++gDetailArrayGetCalls;
+  return TARRAY_GET_ELEM(pArray, index);
+}
+
+class RecalcDecodeArrayGetGuard {
+ public:
+  RecalcDecodeArrayGetGuard() {
+    gSnapshotArrayGetCalls = 0;
+    gDetailArrayGetCalls = 0;
+    stub_.set(taosArrayGet, countRecalcDecodeArrayGet);
+  }
+  ~RecalcDecodeArrayGetGuard() { stub_.reset(taosArrayGet); }
+
+ private:
+  Stub stub_;
+};
+
+static SSHashObj* failRecalcSnapshotHashInit(size_t capacity, _hash_fn_t fn) {
+  (void)capacity;
+  (void)fn;
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+class RecalcSnapshotHashInitFailureGuard {
+ public:
+  RecalcSnapshotHashInitFailureGuard() { stub_.set(tSimpleHashInit, failRecalcSnapshotHashInit); }
+  ~RecalcSnapshotHashInitFailureGuard() { stub_.reset(tSimpleHashInit); }
+
+ private:
+  Stub stub_;
+};
+
+static Stub*   gRecalcDetailHashStub = nullptr;
+static int32_t gRecalcDetailHashPutCalls = 0;
+static int32_t gRecalcDetailHashCleanupCalls = 0;
+
+static int32_t failRecalcDetailHashPut(SSHashObj* pHashObj, const void* key, size_t keyLen, const void* data,
+                                       size_t dataLen) {
+  if (++gRecalcDetailHashPutCalls == 2) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  gRecalcDetailHashStub->reset(tSimpleHashPut);
+  int32_t code = tSimpleHashPut(pHashObj, key, keyLen, data, dataLen);
+  gRecalcDetailHashStub->set(tSimpleHashPut, failRecalcDetailHashPut);
+  return code;
+}
+
+static void countRecalcDetailHashCleanup(SSHashObj* pHashObj) {
+  ++gRecalcDetailHashCleanupCalls;
+  gRecalcDetailHashStub->reset(tSimpleHashCleanup);
+  tSimpleHashCleanup(pHashObj);
+  gRecalcDetailHashStub->set(tSimpleHashCleanup, countRecalcDetailHashCleanup);
+}
+
+class RecalcDetailHashPutFailureGuard {
+ public:
+  RecalcDetailHashPutFailureGuard() {
+    gRecalcDetailHashPutCalls = 0;
+    gRecalcDetailHashCleanupCalls = 0;
+    gRecalcDetailHashStub = &stub_;
+    stub_.set(tSimpleHashPut, failRecalcDetailHashPut);
+    stub_.set(tSimpleHashCleanup, countRecalcDetailHashCleanup);
+  }
+  ~RecalcDetailHashPutFailureGuard() {
+    stub_.reset(tSimpleHashPut);
+    stub_.reset(tSimpleHashCleanup);
+    gRecalcDetailHashStub = nullptr;
+  }
+
+ private:
+  Stub stub_;
+};
+
+static SStreamHbMsg buildHeartbeatWithReverseRecalcDetails(int32_t count) {
+  SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pTaskMetrics = taosArrayInit(1, sizeof(SStreamTaskMetricsEntry));
+  EXPECT_NE(input.pTaskMetrics, nullptr);
+  SStreamTaskMetricsEntry entry = buildTriggerMetricEntry(0, 101, 201, 301);
+  entry.snapshot.pRecalculates = taosArrayInit(count, sizeof(SStreamRecalcSnapshot));
+  EXPECT_NE(entry.snapshot.pRecalculates, nullptr);
+  for (int32_t i = 0; i < count; ++i) {
+    SStreamRecalcSnapshot snapshot = {.recalcId = 10000 + i};
+    EXPECT_NE(taosArrayPush(entry.snapshot.pRecalculates, &snapshot), nullptr);
+  }
+  for (int32_t i = count - 1; i >= 0; --i) {
+    addRecalcDetail(&entry, 10000 + i, i % 4, TSDB_CODE_OUT_OF_MEMORY);
+  }
+  EXPECT_NE(taosArrayPush(input.pTaskMetrics, &entry), nullptr);
+  return input;
+}
+
+TEST(StreamMsgTest, RecalcDetailDecodeUsesLinearArrayAccesses) {
+  constexpr int32_t kCount = 1024;
+  SStreamHbMsg      input = buildHeartbeatWithReverseRecalcDetails(kCount);
+  std::vector<char> bytes = encodeHeartbeat(input);
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  int32_t      decodeCode = TSDB_CODE_SUCCESS;
+  int64_t      arrayGetCalls = 0;
+  {
+    RecalcDecodeArrayGetGuard guard;
+    tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+    decodeCode = tDecodeStreamHbMsg(&decoder, &output);
+    arrayGetCalls = gSnapshotArrayGetCalls + gDetailArrayGetCalls;
+  }
+  EXPECT_EQ(decodeCode, TSDB_CODE_SUCCESS);
+  EXPECT_LE(arrayGetCalls, 3 * kCount);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, RecalcDetailSnapshotIndexAllocationFailurePropagates) {
+  SStreamHbMsg      input = buildHeartbeatWithOneRecalcDetail();
+  std::vector<char> bytes = encodeHeartbeat(input);
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  int32_t decodeCode = TSDB_CODE_SUCCESS;
+  {
+    RecalcSnapshotHashInitFailureGuard guard;
+    decodeCode = tDecodeStreamHbMsg(&decoder, &output);
+  }
+  EXPECT_EQ(decodeCode, TSDB_CODE_OUT_OF_MEMORY);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, RecalcDetailIndexInsertFailurePropagates) {
+  SStreamHbMsg      input = buildHeartbeatWithOneRecalcDetail();
+  std::vector<char> bytes = encodeHeartbeat(input);
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  int32_t decodeCode = TSDB_CODE_SUCCESS;
+  {
+    RecalcDetailHashPutFailureGuard guard;
+    decodeCode = tDecodeStreamHbMsg(&decoder, &output);
+  }
+  EXPECT_EQ(decodeCode, TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(gRecalcDetailHashPutCalls, 2);
+  EXPECT_EQ(gRecalcDetailHashCleanupCalls, 2);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, RecalcDetailLargeReverseOrderRoundTrips) {
+  constexpr int32_t kCount = 1024;
+  SStreamHbMsg      input = buildHeartbeatWithReverseRecalcDetails(kCount);
+
+  std::vector<char> bytes = encodeHeartbeat(input);
+  SStreamHbMsg      output = {};
+  SDecoder          decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &output), TSDB_CODE_SUCCESS);
+  tDecoderClear(&decoder);
+  const auto* decodedEntry = static_cast<const SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0));
+  ASSERT_NE(decodedEntry, nullptr);
+  ASSERT_EQ(taosArrayGetSize(decodedEntry->snapshot.pRecalculates), kCount);
+  ASSERT_EQ(taosArrayGetSize(decodedEntry->snapshot.pRecalcDetails), kCount);
+  const auto* firstDetail =
+      static_cast<const SStreamRecalcDetail*>(taosArrayGet(decodedEntry->snapshot.pRecalcDetails, 0));
+  const auto* lastDetail =
+      static_cast<const SStreamRecalcDetail*>(taosArrayGet(decodedEntry->snapshot.pRecalcDetails, kCount - 1));
+  ASSERT_NE(firstDetail, nullptr);
+  ASSERT_NE(lastDetail, nullptr);
+  EXPECT_EQ(firstDetail->recalcId, 10000 + kCount - 1);
+  EXPECT_EQ(lastDetail->recalcId, 10000);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
 TEST(StreamMsgTest, HeartbeatObservabilityTailV1RoundTrips) {
   SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
   input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
@@ -1038,6 +2110,308 @@ TEST(StreamMsgTest, HeartbeatObservabilityTailV1RoundTrips) {
   EXPECT_EQ(decodedEmpty->seriousId, 302);
   EXPECT_EQ(decodedEmpty->snapshot.applicableMask, 0);
   EXPECT_EQ(decodedEmpty->snapshot.pRecalculates, nullptr);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, RecalcDetailV1RoundTripsWithoutMovingFixedSnapshots) {
+  SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pTaskMetrics = taosArrayInit(1, sizeof(SStreamTaskMetricsEntry));
+  SStreamTaskMetricsEntry entry = buildTriggerMetricEntry(0, 101, 201, 301);
+  entry.snapshot.pRecalculates = taosArrayInit(2, sizeof(SStreamRecalcSnapshot));
+  ASSERT_NE(entry.snapshot.pRecalculates, nullptr);
+  SStreamRecalcSnapshot first = {.recalcId = 401};
+  SStreamRecalcSnapshot second = {.recalcId = 402};
+  ASSERT_NE(taosArrayPush(entry.snapshot.pRecalculates, &first), nullptr);
+  ASSERT_NE(taosArrayPush(entry.snapshot.pRecalculates, &second), nullptr);
+  addRecalcDetail(&entry, 401, 2, TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &entry), nullptr);
+
+  SStreamHbMsg output = roundTripHeartbeat(input);
+  const auto*  decodedEntry = static_cast<const SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0));
+  ASSERT_NE(decodedEntry, nullptr);
+  ASSERT_EQ(taosArrayGetSize(decodedEntry->snapshot.pRecalculates), 2);
+  ASSERT_EQ(taosArrayGetSize(decodedEntry->snapshot.pRecalcDetails), 1);
+  const auto* decodedDetail =
+      static_cast<const SStreamRecalcDetail*>(taosArrayGet(decodedEntry->snapshot.pRecalcDetails, 0));
+  ASSERT_NE(decodedDetail, nullptr);
+  EXPECT_EQ(decodedDetail->recalcId, 401);
+  EXPECT_EQ(decodedDetail->retryOrdinal, 2);
+  EXPECT_EQ(decodedDetail->errorCode, TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_STREQ(decodedDetail->errorText, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, MissingRecalcDetailLeavesRetryInformationUnavailable) {
+  SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pTaskMetrics = taosArrayInit(1, sizeof(SStreamTaskMetricsEntry));
+  SStreamTaskMetricsEntry entry = buildTriggerMetricEntry(0, 101, 201, 301);
+  entry.snapshot.pRecalculates = taosArrayInit(1, sizeof(SStreamRecalcSnapshot));
+  ASSERT_NE(entry.snapshot.pRecalculates, nullptr);
+  SStreamRecalcSnapshot recalc = {.recalcId = 401};
+  ASSERT_NE(taosArrayPush(entry.snapshot.pRecalculates, &recalc), nullptr);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &entry), nullptr);
+
+  SStreamHbMsg output = roundTripHeartbeat(input);
+  const auto*  decodedEntry = static_cast<const SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0));
+  ASSERT_NE(decodedEntry, nullptr);
+  EXPECT_EQ(decodedEntry->decodeCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decodedEntry->snapshot.pRecalcDetails, nullptr);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, UnknownRecalcDetailVersionSkipsItsDeclaredLength) {
+  SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pTaskMetrics = taosArrayInit(1, sizeof(SStreamTaskMetricsEntry));
+  SStreamTaskMetricsEntry entry = buildTriggerMetricEntry(0, 101, 201, 301);
+  entry.snapshot.pRecalculates = taosArrayInit(1, sizeof(SStreamRecalcSnapshot));
+  ASSERT_NE(entry.snapshot.pRecalculates, nullptr);
+  SStreamRecalcSnapshot recalc = {.recalcId = 401};
+  ASSERT_NE(taosArrayPush(entry.snapshot.pRecalculates, &recalc), nullptr);
+  addRecalcDetail(&entry, 401, 1, TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &entry), nullptr);
+  std::vector<char> bytes = encodeHeartbeat(input);
+  uint32_t          tailOffset = locateHeartbeatTail(bytes);
+  writeI32(&bytes, recalcDetailOffset(bytes, tailOffset, 1), 99);
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &output), TSDB_CODE_SUCCESS);
+  const auto* decodedEntry = static_cast<const SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0));
+  ASSERT_NE(decodedEntry, nullptr);
+  EXPECT_EQ(decodedEntry->decodeCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decodedEntry->snapshot.pRecalcDetails, nullptr);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, DuplicateRecalcDetailIdInvalidatesOnlyTheMetricsEntry) {
+  SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pTaskMetrics = taosArrayInit(2, sizeof(SStreamTaskMetricsEntry));
+  SStreamTaskMetricsEntry first = buildTriggerMetricEntry(0, 101, 201, 301);
+  first.snapshot.pRecalculates = taosArrayInit(2, sizeof(SStreamRecalcSnapshot));
+  ASSERT_NE(first.snapshot.pRecalculates, nullptr);
+  SStreamRecalcSnapshot recalc1 = {.recalcId = 401};
+  SStreamRecalcSnapshot recalc2 = {.recalcId = 402};
+  ASSERT_NE(taosArrayPush(first.snapshot.pRecalculates, &recalc1), nullptr);
+  ASSERT_NE(taosArrayPush(first.snapshot.pRecalculates, &recalc2), nullptr);
+  addRecalcDetail(&first, 401, 1, TSDB_CODE_OUT_OF_MEMORY);
+  addRecalcDetail(&first, 402, 2, TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &first), nullptr);
+  SStreamTaskMetricsEntry second = buildEmptyMetricEntry(1, 101, 202, 302);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &second), nullptr);
+  std::vector<char> bytes = encodeHeartbeat(input);
+  uint32_t          tailOffset = locateHeartbeatTail(bytes);
+  uint32_t          detailOffset = recalcDetailOffset(bytes, tailOffset, 2);
+  uint32_t          secondDetailId = detailOffset + 3 * sizeof(int32_t) + sizeof(int64_t) + 2 * sizeof(int32_t) +
+                            sizeof(uint8_t) + strlen(tstrerror(TSDB_CODE_OUT_OF_MEMORY)) + 1;
+  int64_t duplicateId = 401;
+  memcpy(bytes.data() + secondDetailId, &duplicateId, sizeof(duplicateId));
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &output), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0))->decodeCode,
+            TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 1))->decodeCode, TSDB_CODE_SUCCESS);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, OrphanRecalcDetailIdInvalidatesOnlyTheMetricsEntry) {
+  SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pTaskMetrics = taosArrayInit(2, sizeof(SStreamTaskMetricsEntry));
+  SStreamTaskMetricsEntry first = buildTriggerMetricEntry(0, 101, 201, 301);
+  first.snapshot.pRecalculates = taosArrayInit(1, sizeof(SStreamRecalcSnapshot));
+  ASSERT_NE(first.snapshot.pRecalculates, nullptr);
+  SStreamRecalcSnapshot recalc = {.recalcId = 401};
+  ASSERT_NE(taosArrayPush(first.snapshot.pRecalculates, &recalc), nullptr);
+  addRecalcDetail(&first, 401, 1, TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &first), nullptr);
+  SStreamTaskMetricsEntry second = buildEmptyMetricEntry(1, 101, 202, 302);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &second), nullptr);
+  std::vector<char> bytes = encodeHeartbeat(input);
+  uint32_t          tailOffset = locateHeartbeatTail(bytes);
+  uint32_t          detailOffset = recalcDetailOffset(bytes, tailOffset, 1);
+  int64_t           orphanId = 999;
+  memcpy(bytes.data() + detailOffset + 3 * sizeof(int32_t), &orphanId, sizeof(orphanId));
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &output), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0))->decodeCode,
+            TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 1))->decodeCode, TSDB_CODE_SUCCESS);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, InvalidRecalcDetailErrorPairInvalidatesOnlyTheMetricsEntry) {
+  SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pTaskMetrics = taosArrayInit(2, sizeof(SStreamTaskMetricsEntry));
+  SStreamTaskMetricsEntry first = buildTriggerMetricEntry(0, 101, 201, 301);
+  first.snapshot.pRecalculates = taosArrayInit(1, sizeof(SStreamRecalcSnapshot));
+  ASSERT_NE(first.snapshot.pRecalculates, nullptr);
+  SStreamRecalcSnapshot recalc = {.recalcId = 401};
+  ASSERT_NE(taosArrayPush(first.snapshot.pRecalculates, &recalc), nullptr);
+  addRecalcDetail(&first, 401, 1, TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &first), nullptr);
+  SStreamTaskMetricsEntry second = buildEmptyMetricEntry(1, 101, 202, 302);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &second), nullptr);
+  std::vector<char> bytes = encodeHeartbeat(input);
+  uint32_t          tailOffset = locateHeartbeatTail(bytes);
+  uint32_t          detailOffset = recalcDetailOffset(bytes, tailOffset, 1);
+  writeI32(&bytes, detailOffset + 3 * sizeof(int32_t) + sizeof(int64_t) + sizeof(int32_t), 0);
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &output), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0))->decodeCode,
+            TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 1))->decodeCode, TSDB_CODE_SUCCESS);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, RecalcDetailLengthAndCountCannotOverflowEntryBoundary) {
+  SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pTaskMetrics = taosArrayInit(2, sizeof(SStreamTaskMetricsEntry));
+  SStreamTaskMetricsEntry first = buildTriggerMetricEntry(0, 101, 201, 301);
+  first.snapshot.pRecalculates = taosArrayInit(1, sizeof(SStreamRecalcSnapshot));
+  ASSERT_NE(first.snapshot.pRecalculates, nullptr);
+  SStreamRecalcSnapshot recalc = {.recalcId = 401};
+  ASSERT_NE(taosArrayPush(first.snapshot.pRecalculates, &recalc), nullptr);
+  addRecalcDetail(&first, 401, 1, TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &first), nullptr);
+  SStreamTaskMetricsEntry second = buildEmptyMetricEntry(1, 101, 202, 302);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &second), nullptr);
+  std::vector<char> bytes = encodeHeartbeat(input);
+  uint32_t          tailOffset = locateHeartbeatTail(bytes);
+  uint32_t          detailOffset = recalcDetailOffset(bytes, tailOffset, 1);
+  writeI32(&bytes, detailOffset + sizeof(int32_t), INT32_MAX);
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &output), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0))->decodeCode,
+            TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 1))->decodeCode, TSDB_CODE_SUCCESS);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&output, true);
+
+  bytes = encodeHeartbeat(input);
+  tailOffset = locateHeartbeatTail(bytes);
+  detailOffset = recalcDetailOffset(bytes, tailOffset, 1);
+  writeI32(&bytes, detailOffset + 2 * sizeof(int32_t), INT32_MAX);
+  SStreamHbMsg countOutput = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &countOutput), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(countOutput.pTaskMetrics, 0))->decodeCode,
+            TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(static_cast<SStreamTaskMetricsEntry*>(taosArrayGet(countOutput.pTaskMetrics, 1))->decodeCode,
+            TSDB_CODE_SUCCESS);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&countOutput, true);
+}
+
+TEST(StreamMsgTest, CleanupFreesRecalcDetailStrings) {
+  SStreamHbMsg msg = buildHeartbeatWithTwoTaskStatuses();
+  msg.pTaskMetrics = taosArrayInit(1, sizeof(SStreamTaskMetricsEntry));
+  SStreamTaskMetricsEntry entry = buildTriggerMetricEntry(0, 101, 201, 301);
+  entry.snapshot.pRecalculates = taosArrayInit(1, sizeof(SStreamRecalcSnapshot));
+  ASSERT_NE(entry.snapshot.pRecalculates, nullptr);
+  SStreamRecalcSnapshot recalc = {.recalcId = 401};
+  ASSERT_NE(taosArrayPush(entry.snapshot.pRecalculates, &recalc), nullptr);
+  addRecalcDetail(&entry, 401, 1, TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_NE(taosArrayPush(msg.pTaskMetrics, &entry), nullptr);
+
+  tCleanupStreamHbMsg(&msg, true);
+  EXPECT_EQ(msg.pTaskMetrics, nullptr);
+  tCleanupStreamHbMsg(&msg, true);
+}
+
+TEST(StreamMsgTest, RecalcDetailRejectsEmbeddedNulAndTrailingBytes) {
+  SStreamHbMsg      input = buildHeartbeatWithOneRecalcDetail();
+  std::vector<char> bytes = encodeHeartbeat(input);
+  uint32_t          tailOffset = locateHeartbeatTail(bytes);
+  uint32_t          detailOffset = recalcDetailOffset(bytes, tailOffset, 1);
+  uint32_t          entryLengthOffset = tailOffset + 3 * sizeof(int32_t) + sizeof(int32_t) + 3 * sizeof(int64_t);
+  uint32_t          errorTextLengthOffset = detailOffset + 3 * sizeof(int32_t) + sizeof(int64_t) + 2 * sizeof(int32_t);
+  uint32_t          errorTextOffset = errorTextLengthOffset + sizeof(uint8_t);
+  const char*       errorText = tstrerror(TSDB_CODE_OUT_OF_MEMORY);
+  const char        trailing[] = {'j', 'u', 'n', 'k', '\0'};
+  ASSERT_LT(errorTextOffset + strlen(errorText), bytes.size());
+  ASSERT_LT(bytes[errorTextLengthOffset], 128);
+  bytes.insert(bytes.begin() + errorTextOffset + strlen(errorText) + 1, std::begin(trailing), std::end(trailing));
+  bytes[errorTextLengthOffset] += sizeof(trailing);
+  writeI32(&bytes, detailOffset + sizeof(int32_t), readI32(bytes, detailOffset + sizeof(int32_t)) + sizeof(trailing));
+  writeI32(&bytes, entryLengthOffset, readI32(bytes, entryLengthOffset) + sizeof(trailing));
+  writeI32(&bytes, tailOffset + sizeof(int32_t), readI32(bytes, tailOffset + sizeof(int32_t)) + sizeof(trailing));
+  writeI32(&bytes, 0, static_cast<int32_t>(bytes.size() - sizeof(int32_t)));
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &output), TSDB_CODE_SUCCESS);
+  const auto* decoded = static_cast<const SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0));
+  ASSERT_NE(decoded, nullptr);
+  EXPECT_EQ(decoded->decodeCode, TSDB_CODE_INVALID_MSG);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, RecalcDetailRejectsUnconsumedEntryBytes) {
+  SStreamHbMsg      input = buildHeartbeatWithOneRecalcDetail();
+  std::vector<char> bytes = encodeHeartbeat(input);
+  uint32_t          tailOffset = locateHeartbeatTail(bytes);
+  uint32_t          detailOffset = recalcDetailOffset(bytes, tailOffset, 1);
+  writeI32(&bytes, detailOffset + sizeof(int32_t), sizeof(int32_t));
+  writeI32(&bytes, detailOffset + 2 * sizeof(int32_t), 0);
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &output), TSDB_CODE_SUCCESS);
+  const auto* decoded = static_cast<const SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0));
+  ASSERT_NE(decoded, nullptr);
+  EXPECT_EQ(decoded->decodeCode, TSDB_CODE_INVALID_MSG);
+  tDecoderClear(&decoder);
+  tCleanupStreamHbMsg(&input, true);
+  tCleanupStreamHbMsg(&output, true);
+}
+
+TEST(StreamMsgTest, RecalcDetailAllocationFailurePropagates) {
+  SStreamHbMsg      input = buildHeartbeatWithOneRecalcDetail();
+  std::vector<char> bytes = encodeHeartbeat(input);
+
+  SStreamHbMsg output = {};
+  SDecoder     decoder = {};
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  {
+    RecalcDetailTextMallocFailureGuard guard;
+    EXPECT_EQ(tDecodeStreamHbMsg(&decoder, &output), TSDB_CODE_OUT_OF_MEMORY);
+  }
+  tDecoderClear(&decoder);
   tCleanupStreamHbMsg(&input, true);
   tCleanupStreamHbMsg(&output, true);
 }

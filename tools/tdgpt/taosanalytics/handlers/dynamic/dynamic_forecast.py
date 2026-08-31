@@ -4,6 +4,7 @@ import pandas as pd
 
 from taosanalytics.algo.dynamic.forecaster import (
     ArimaModelForecaster,
+    DeepARModelForecaster,
     ProphetModelForecaster,
 )
 from taosanalytics.base import AbstractForecastService
@@ -32,10 +33,7 @@ class DynamicForecastService(AbstractForecastService):
             "execute dynamic forecast service:%s, algo:%s", self.name, algo_name
         )
 
-        if algo_name == "theta":
-            raise NotImplementedError("Theta model is not implemented yet")
-
-        if algo_name not in ("arima", "prophet"):
+        if algo_name not in ("arima", "prophet", "deepar"):
             raise ValueError(
                 f"unsupported algorithm '{algo_name}' in dynamic forecast service"
             )
@@ -57,6 +55,11 @@ class DynamicForecastService(AbstractForecastService):
 
         if algo_name == "arima":
             forecaster = ArimaModelForecaster(
+                self.config_file_path, df, self.rows, alpha=1 - self.conf
+            )
+        elif algo_name == "deepar":
+            # DeepAR can handle timezone-aware datetimes directly
+            forecaster = DeepARModelForecaster(
                 self.config_file_path, df, self.rows, alpha=1 - self.conf
             )
         else:
@@ -84,6 +87,14 @@ class DynamicForecastService(AbstractForecastService):
         if algo_name == "prophet":
             # make_future_dataframe includes historical rows; keep only the future horizon.
             result = result.tail(self.rows).reset_index(drop=True)
+        elif algo_name == "deepar":
+            prediction_length = len(result)
+            if self.rows > prediction_length:
+                raise RuntimeError(
+                    f"requested forecast rows ({self.rows}) exceeds DeepAR model's "
+                    f"prediction_length ({prediction_length})"
+                )
+            result = result.head(self.rows).reset_index(drop=True)
 
         result_ts = [self.start_ts + i * self.time_step for i in range(self.rows)]
         res = [result_ts, result["yhat"].tolist()]

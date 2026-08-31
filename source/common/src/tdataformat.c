@@ -5228,7 +5228,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
               goto _exit;
             }
             uint8_t precision = 0, scale = 0;
-            decimalFromTypeMod(pSchemaExt[iInfo].typeMod, &precision, &scale);
+            decimalFromTypeMod(infos[iInfo].typeMod, &precision, &scale);
             Decimal128 dec = {0};
             uint8_t  **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
             int32_t    length = infos[iInfo].bind->length[iRow];
@@ -5250,7 +5250,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
               goto _exit;
             }
             uint8_t precision = 0, scale = 0;
-            decimalFromTypeMod(pSchemaExt[iInfo].typeMod, &precision, &scale);
+            decimalFromTypeMod(infos[iInfo].typeMod, &precision, &scale);
             Decimal64 dec = {0};
             uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
             int32_t   length = infos[iInfo].bind->length[iRow];
@@ -5461,7 +5461,7 @@ int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, SSHash
               goto _exit;
             }
             uint8_t precision = 0, scale = 0;
-            decimalFromTypeMod(pSchemaExt[iInfo].typeMod, &precision, &scale);
+            decimalFromTypeMod(infos[iInfo].typeMod, &precision, &scale);
             Decimal128 dec = {0};
             uint8_t  **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
             int32_t    length = infos[iInfo].bind->length[iRow];
@@ -5480,7 +5480,7 @@ int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, SSHash
               goto _exit;
             }
             uint8_t precision = 0, scale = 0;
-            decimalFromTypeMod(pSchemaExt[iInfo].typeMod, &precision, &scale);
+            decimalFromTypeMod(infos[iInfo].typeMod, &precision, &scale);
             Decimal64 dec = {0};
             uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
             int32_t   length = infos[iInfo].bind->length[iRow];

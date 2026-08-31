@@ -633,8 +633,7 @@ class TestTaosBackupCheckpoint:
     # ------------------------------------------------------------------
 
     def test_backup_checkpoint_skip_whole_db(self):
-        """taosBackup -C skips an entire database when backup_complete.flag
-        already exists.
+        """taosBackup -C skips an entire database when backup_complete.flag already exists.
 
         Deterministic verification of the whole-DB skip branch in
         backupData.c backDatabaseData() (flag present + -C => immediate
@@ -880,8 +879,7 @@ class TestTaosBackupCheckpoint:
     # ------------------------------------------------------------------
 
     def test_restore_checkpoint_path_normalization(self):
-        """restore -C must still skip files when the -i path spelling differs
-        between runs (e.g. trailing '/' vs no trailing '/').
+        """restore -C must still skip files when the -i path spelling differs between runs (e.g. trailing '/' vs no trailing '/').
 
         bckArgs.c normalizes g_outPath (collapse '//', strip trailing '/').
         restoreCkpt.c matches checkpoint keys with exact strcmp(), so WITHOUT
@@ -916,14 +914,19 @@ class TestTaosBackupCheckpoint:
         DB_NORM  = "ckpt_norm_src"
         DB_DST_N = "ckpt_norm_dst"
         STB      = "meters"
-        TABLES   = 8000
-        ROWS     = 2000
-        KILL_RST = 9    # seconds - meta-creation for TABLES tables finishes
-                         # first (scales with table count only) and does not
-                         # write checkpoint entries; the data-restore phase
-                         # that follows (scales with TABLES x ROWS) is what
-                         # this must land inside of
-        MAX_RETRIES = 3
+        # TABLES x ROWS must keep the restore's data phase comfortably longer
+        # than the largest KILL_RST delay.  TABLES is kept modest so restore
+        # meta-creation (creating TABLES child tables) finishes quickly - it
+        # writes NO checkpoint entries, so a kill landing there always yields an
+        # empty restore_checkpoint.txt.  Each file (ROWS rows) stays under
+        # STMT2_BATCH_MAX (16384) so restore uses the STMT2 multi-table path,
+        # whose first mid-run flush (64 pending files or 10000 pending rows)
+        # is what actually writes the first checkpoint entries.
+        TABLES   = 1000
+        ROWS     = 16000        # 1000 x 16000 = 16M rows
+        KILL_RST = 20           # seconds - first restore kill delay
+        KILL_STEP = 15          # grow the kill delay by this much per retry
+        MAX_RETRIES = 6         # delays 20,35,50,65,80,95 s
 
         try:
             taosbackup, benchmark, tmpdir = self.find_programs()
@@ -931,36 +934,28 @@ class TestTaosBackupCheckpoint:
                 os.path.dirname(os.path.abspath(__file__)), "tmp_ckpt_norm"
             )
 
-            # Two ways this can go wrong, needing two different fixes:
-            #  - restore finishes before KILL_RST: no checkpoint to resume-test
-            #    at all - the data-restore phase (TABLES x ROWS-bound) was too
-            #    short, so grow ROWS (growing TABLES instead would also stretch
-            #    meta-creation, which doesn't produce checkpoint entries, and can
-            #    end up making things worse).
+            # The restore reads ONLY from the backup dir (it never modifies the
+            # backup), so the expensive insert + full-backup steps run ONCE and
+            # every restore retry below reuses the SAME backup.  A retry only
+            # drops the destination DB and clears the checkpoint file, costing
+            # ~KILL_RST seconds instead of a full re-insert (minutes) + re-backup
+            # (minutes).  Without this, a slow/ASAN runner that keeps killing the
+            # restore during meta-creation (0 checkpoint entries) blew the case's
+            # 1200s budget by re-inserting 16M rows on every single attempt.
+            #
+            # Two ways this can still go wrong, needing two different fixes:
+            #  - restore finishes before the kill: the data-restore phase
+            #    (TABLES x ROWS-bound) was too short - grow ROWS and redo the
+            #    insert + backup once.
             #  - restore gets killed but the checkpoint file is empty: the kill
             #    landed during meta-creation (table-count-bound), before the
-            #    data-restore phase had even started - grow KILL_RST instead.
-            # Either way, retry rather than silently declaring the test passed
-            # or hard-failing on the first bad draw.
+            #    first mid-run STMT2 flush wrote any checkpoint - grow KILL_RST
+            #    (cheap: reuses the same backup).
             killed = False
             dedup_ckpt = 0
             ckpt_lines = []
             ckpt_file = os.path.join(tmpdir_n, DB_NORM, "restore_checkpoint.txt")
-            for attempt in range(MAX_RETRIES + 1):
-                if attempt > 0:
-                    if not killed:
-                        ROWS *= 2
-                        tdLog.info(
-                            f"restore completed before kill on attempt {attempt}/{MAX_RETRIES} "
-                            f"- retrying with more rows (ROWS={ROWS})"
-                        )
-                    else:
-                        KILL_RST += 5
-                        tdLog.info(
-                            f"killed before any file completed on attempt {attempt}/{MAX_RETRIES} "
-                            f"- retrying with a longer kill delay (KILL_RST={KILL_RST}s)"
-                        )
-
+            while True:
                 # -- step 1: insert TABLES x ROWS rows ----------------------
                 tdLog.info(f"=== step 1: insert {TABLES} x {ROWS} rows ===")
                 cmd = f"{benchmark} -d {DB_NORM} -t {TABLES} -n {ROWS} -y"
@@ -987,32 +982,57 @@ class TestTaosBackupCheckpoint:
                 if src_count == 0:
                     tdLog.exit("source table empty - taosBenchmark may have failed")
 
-                # -- step 4: restore attempt (no -C) with TRAILING SLASH --
-                tdLog.info(f"=== step 4: restore attempt {attempt + 1}/{MAX_RETRIES + 1} "
-                           f"(no -C, -i with trailing '/', kill after {KILL_RST}s) ===")
-                tdSql.execute(f"drop database if exists {DB_DST_N}")
-                restore_cmd = f"{taosbackup} -T 1 -W \"{DB_NORM}={DB_DST_N}\" -i {tmpdir_n}/"
-                ret, killed, _rlist = run_with_timeout(restore_cmd, KILL_RST)
-                if not killed:
-                    if ret != 0:
-                        tdLog.exit(f"restore attempt 1 failed unexpectedly (ret={ret})")
-                    continue
+                # -- step 4: restore retries (no -C) with TRAILING SLASH -----
+                # Every try reuses the SAME backup, so a failed try only costs
+                # ~KILL_RST seconds.  The dataset is grown (and insert+backup
+                # redone) only when a try finishes before the kill - rare.
+                restored_early = False
+                landed = False
+                for try_no in range(1, MAX_RETRIES + 1):
+                    tdLog.info(f"=== step 4: restore attempt 1 (try {try_no}/{MAX_RETRIES}, "
+                               f"no -C, -i with trailing '/', kill after {KILL_RST}s) ===")
+                    tdSql.execute(f"drop database if exists {DB_DST_N}")
+                    if os.path.exists(ckpt_file):
+                        os.remove(ckpt_file)
+                    restore_cmd = f"{taosbackup} -T 1 -W \"{DB_NORM}={DB_DST_N}\" -i {tmpdir_n}/"
+                    ret, killed, _rlist = run_with_timeout(restore_cmd, KILL_RST)
+                    if not killed:
+                        if ret != 0:
+                            tdLog.exit(f"restore attempt 1 failed unexpectedly (ret={ret})")
+                        restored_early = True
+                        tdLog.info(
+                            f"  restore completed before kill on try {try_no} "
+                            f"(faster than {KILL_RST}s) - growing dataset (ROWS={ROWS})"
+                        )
+                        break
 
-                ckpt_lines = []
-                if os.path.exists(ckpt_file):
-                    with open(ckpt_file) as f:
-                        ckpt_lines = [ln.strip() for ln in f if ln.strip()]
-                dedup_ckpt = len(set(ckpt_lines))
-                tdLog.info(f"  checkpoint file has {len(ckpt_lines)} entries ({dedup_ckpt} unique) after kill")
-                if dedup_ckpt > 0:
-                    break
-            else:
-                tdLog.exit(
-                    f"could not land a kill inside the data-restore window even after "
-                    f"{MAX_RETRIES} retries (final TABLES={TABLES}, ROWS={ROWS}, "
-                    f"KILL_RST={KILL_RST}s, killed={killed}, dedup_ckpt={dedup_ckpt}) - "
-                    f"environment timing too unpredictable for these constants"
-                )
+                    ckpt_lines = []
+                    if os.path.exists(ckpt_file):
+                        with open(ckpt_file) as f:
+                            ckpt_lines = [ln.strip() for ln in f if ln.strip()]
+                    dedup_ckpt = len(set(ckpt_lines))
+                    tdLog.info(f"  checkpoint file has {len(ckpt_lines)} entries "
+                               f"({dedup_ckpt} unique) after kill@{KILL_RST}s")
+                    if dedup_ckpt > 0:
+                        landed = True
+                        break
+                    KILL_RST += KILL_STEP
+                    tdLog.info(
+                        f"  kill fired before any checkpoint entry was written "
+                        f"- retrying with a longer kill delay (KILL_RST={KILL_RST}s)"
+                    )
+
+                if not landed and not restored_early:
+                    tdLog.exit(
+                        f"could not land a kill inside the data-restore window even after "
+                        f"{MAX_RETRIES} tries (final TABLES={TABLES}, ROWS={ROWS}, "
+                        f"KILL_RST={KILL_RST}s, killed={killed}, dedup_ckpt={dedup_ckpt}) - "
+                        f"environment timing too unpredictable for these constants"
+                    )
+                if restored_early:
+                    ROWS *= 2
+                    continue
+                break
 
             # Even though attempt 1 used "-i <dir>/", no "//" may appear in the
             # recorded keys - that is the whole point of the normalization fix.
@@ -1181,8 +1201,7 @@ class TestTaosBackupCheckpoint:
     # ------------------------------------------------------------------
 
     def test_backup_checkpoint_format_change_rejected(self):
-        """taosBackup -C resume must refuse to start when the data format
-        differs from the previous backup.
+        """taosBackup -C resume must refuse to start when the data format differs from the previous backup.
 
         bckArgs.c reads the previous run's format from {outPath}/backup.log
         (line "  Format       : binary|parquet") and, when -C is requested

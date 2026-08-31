@@ -750,6 +750,7 @@ Below are the business error codes for each module.
 | 0x8000620C | Virtual table reference depth exceeds limit                                | The recursive reference chain of a virtual table query exceeds the maximum depth supported by the executor.                                      | Check the virtual-table reference chain, shorten it, or contact development. |
 | 0x8000620D | Virtual table query cannot resolve ref column                              | The virtual-table query cannot resolve a valid next reference or final referenced column while recursively expanding the reference chain.         | Check the virtual-table reference chain and metadata definition, or contact development. |
 | 0x8000620E | Virtual table circular reference detected                                  | A circular reference (A→B→...→A) was detected while recursively resolving the virtual-table reference chain.                                     | Check the virtual-table reference chain and eliminate the circular dependency. |
+| 0x8000620F | No valid epSet for virtual super table data source node                    | The virtual super table query used stale source vgroup metadata, so no endpoint was available for the source node.                               | The client refreshes related database metadata and retries automatically. If the error persists, check cluster status and client logs. |
 
 #### federated query
 

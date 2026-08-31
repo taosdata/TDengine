@@ -78,6 +78,20 @@ static int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataIn
 
 static int32_t exchangeWait(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo);
 
+// Order the exchange sources (vgroups) by nodeId so that a multi-vgroup exchange
+// always consumes data from the vgroups in a fixed order. The source list order
+// otherwise varies between runs (depends on how the per-vgroup execution nodes are
+// scheduled), which makes order-sensitive aggregates such as LEASTSQUARES return
+// non-deterministic results even when sequential receive mode is enabled.
+static int32_t cmpExchangeSourceByNodeId(const void* pLeft, const void* pRight) {
+  const SDownstreamSourceNode* pL = (const SDownstreamSourceNode*)pLeft;
+  const SDownstreamSourceNode* pR = (const SDownstreamSourceNode*)pRight;
+  if (pL->addr.nodeId == pR->addr.nodeId) {
+    return 0;
+  }
+  return (pL->addr.nodeId < pR->addr.nodeId) ? -1 : 1;
+}
+
 static bool isVstbScan(SSourceDataInfo* pDataInfo) {return pDataInfo->type == EX_SRC_TYPE_VSTB_SCAN; }
 static bool isVstbWinScan(SSourceDataInfo* pDataInfo) { return pDataInfo->type == EX_SRC_TYPE_VSTB_WIN_SCAN; }
 static bool isVstbAggScan(SSourceDataInfo* pDataInfo) { return pDataInfo->type == EX_SRC_TYPE_VSTB_AGG_SCAN; }
@@ -631,6 +645,15 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
     return code;
   } else {
     pInfo->self = refId;
+  }
+
+  // Deterministic vgroup consumption order: see cmpExchangeSourceByNodeId().
+  // Only applies to static exchanges. Dynamic exchanges (virtual-table, federated,
+  // stream, ...) look sources up by nodeId via pHashSources, which is keyed by the
+  // pre-sort index, so reordering pSources there would break the nodeId->source
+  // mapping and return wrong/missing data.
+  if (numOfSources > 1 && !pInfo->dynamicOp) {
+    taosArraySort(pInfo->pSources, cmpExchangeSourceByNodeId);
   }
 
   return initDataSource(numOfSources, pInfo, id);
@@ -2249,7 +2272,7 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator,
       qDebug("%s vgroup:%d is missing from the query plan, "
              "request metadata refresh",
              GET_TASKID(pOperator->pTaskInfo), pBasicParam->vgId);
-      return TSDB_CODE_SCH_DATA_SRC_EP_MISS;
+      return TSDB_CODE_VTABLE_DATA_SRC_EP_MISS;
     } else if (pBasicParam->type == EX_SRC_TYPE_VSTB_TS_SCAN || pBasicParam->type == EX_SRC_TYPE_VSTB_PART_INTERVAL_SCAN ||
                pBasicParam->type == EX_SRC_TYPE_VSTB_SYS_SCAN) {
       // Multi-exchange virtual table paths build each exchange param from the full vg map.

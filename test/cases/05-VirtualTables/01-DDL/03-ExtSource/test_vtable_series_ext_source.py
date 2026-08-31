@@ -7,7 +7,7 @@
 
 Covers what the sibling ext-source DDL files do NOT:
   A. CREATE VTABLE ... SERIES (normal vtable, single / multi series alias)
-  B. CREATE VTABLE ... USING vstb ... SERIES (child vtable)
+  B. CREATE VTABLE ... USING vstb ... SERIES (single and batch child vtables)
   C. ALTER VTABLE ADD SERIES / REMOVE SERIES
   D. ALTER COLUMN col SET alias.col  (colref <-> series)
   E. Negative paths (non-influx source, tag-match violations, unknown alias)
@@ -124,7 +124,13 @@ class TestVtableSeriesExtSource:
     # ===================================================================
 
     def test_create_vtable_series_on_normal_vtable(self):
-        """Create normal vtables with InfluxDB SERIES bindings and validate row sets."""
+        """Create normal vtables with InfluxDB SERIES bindings and validate row sets.
+
+        Validate create vtable series on normal vtable behavior.
+
+        Since: v3.4.2.0
+
+        """
         tdSql.execute("DROP VTABLE IF EXISTS v_a1")
         tdSql.execute(
             "CREATE VTABLE v_a1 (ts timestamp, "
@@ -201,7 +207,13 @@ class TestVtableSeriesExtSource:
             f"TAGS (site nchar(16)) VIRTUAL 1")
 
     def test_create_child_vtable_series_using_vstb(self):
-        """Create child vtables with SERIES under a virtual stable and query them."""
+        """Create child vtables with SERIES under a virtual stable and query them.
+
+        Validate create child vtable series using vstb behavior.
+
+        Since: v3.4.2.0
+
+        """
         self._fresh_vstb("stb_b1")
         tdSql.execute("DROP VTABLE IF EXISTS vc_b1")
         tdSql.execute(
@@ -263,12 +275,43 @@ class TestVtableSeriesExtSource:
         tdSql.execute("DROP VTABLE vc_b4")
         tdSql.execute("DROP STABLE stb_b4")
 
+    def test_batch_create_child_vtable_series_using_vstb(self):
+        """Batch-create child vtables with independent SERIES declarations.
+
+        Validate batch create child vtable series using vstb behavior.
+
+        Since: v3.4.2.0
+
+        """
+        self._fresh_vstb("stb_b_batch")
+        tdSql.execute(
+            "CREATE VTABLE "
+            "vc_b_batch_d1 (value FROM s1.value) "
+            "USING stb_b_batch TAGS ('siteD1') "
+            "SERIES s1 AS vseries_inf_src.vseries_inf.shared_m (device='d1') "
+            "vc_b_batch_d2 (value FROM s2.value) "
+            "USING stb_b_batch TAGS ('siteD2') "
+            "SERIES s2 AS vseries_inf_src.vseries_inf.shared_m (device='d2')"
+        )
+        _check_count("SELECT count(*) FROM vc_b_batch_d1", 3)
+        _check_count("SELECT count(*) FROM vc_b_batch_d2", 2)
+        _check_count("SELECT count(*) FROM stb_b_batch", 5)
+        tdSql.execute("DROP VTABLE vc_b_batch_d1")
+        tdSql.execute("DROP VTABLE vc_b_batch_d2")
+        tdSql.execute("DROP STABLE stb_b_batch")
+
     # ===================================================================
     # C. ALTER VTABLE ADD SERIES / REMOVE SERIES
     # ===================================================================
 
     def test_alter_vtable_add_and_remove_series_aliases(self):
-        """Alter vtables to add or remove SERIES aliases and verify the bound rows."""
+        """Alter vtables to add or remove SERIES aliases and verify the bound rows.
+
+        Validate alter vtable add and remove series aliases behavior.
+
+        Since: v3.4.2.0
+
+        """
         tdSql.execute("DROP VTABLE IF EXISTS v_c1")
         # Start with a local-only NULL column (no series yet).
         tdSql.execute("CREATE VTABLE v_c1 (ts timestamp, value double)")
@@ -316,7 +359,13 @@ class TestVtableSeriesExtSource:
     # ===================================================================
 
     def test_alter_vtable_column_bindings_between_null_and_series(self):
-        """Alter column bindings between NULL and different SERIES aliases."""
+        """Alter column bindings between NULL and different SERIES aliases.
+
+        Validate alter vtable column bindings between null and series behavior.
+
+        Since: v3.4.2.0
+
+        """
         tdSql.execute("DROP VTABLE IF EXISTS v_d1")
         tdSql.execute("CREATE VTABLE v_d1 (ts timestamp, value double)")
         _check_count("SELECT count(value) FROM v_d1", 0)
@@ -355,7 +404,13 @@ class TestVtableSeriesExtSource:
     # ===================================================================
 
     def test_reject_invalid_series_ddl(self):
-        """Reject invalid SERIES DDL against non-Influx sources and bad tag conditions."""
+        """Reject invalid SERIES DDL against non-Influx sources and bad tag conditions.
+
+        Validate reject invalid series ddl behavior.
+
+        Since: v3.4.2.0
+
+        """
         tdSql.error(
             "CREATE VTABLE v_e1 (ts timestamp, v int FROM s1.v) "
             f"SERIES s1 AS {_PG_SRC}.{_PG_DB}.r (v='1')")
@@ -470,7 +525,13 @@ class TestVtableSeriesExtSource:
                 "SERIES s1 AS vseries_inf_src.vseries_inf.m_evolve (device='d1')")
 
     def test_keep_series_semantics_after_influx_tag_growth(self):
-        """Keep existing SERIES semantics after InfluxDB grows its tag set."""
+        """Keep existing SERIES semantics after InfluxDB grows its tag set.
+
+        Validate keep series semantics after influx tag growth behavior.
+
+        Since: v3.4.2.0
+
+        """
         self._ensure_evolve_baseline_vtable()    # original source caches {device}
         self._grow_evolve_tags_once()            # InfluxDB tags -> {device, zone}
         self._ensure_growth_source()             # fresh source sees current tags

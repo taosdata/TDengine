@@ -73,7 +73,7 @@ static int32_t sdbAfterRestoredData(SSdb *pSdb) {
   return 0;
 }
 
-static void sdbResetData(SSdb *pSdb) {
+void sdbResetData(SSdb *pSdb) {
   mInfo("start to reset sdb");
 
   for (ESdbType i = 0; i < SDB_MAX; ++i) {

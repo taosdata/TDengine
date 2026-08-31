@@ -53,6 +53,7 @@ typedef struct {
   int64_t closeTs;
   int64_t fileSize;
   int64_t syncedOffset;
+  SDiskID diskId;  // multi-mount-point write: the tfs disk this segment actually lives on; id<0 means it lives under pWal->path (primary dir)
 } SWalFileInfo;
 
 typedef struct WalIdxEntry {
@@ -122,16 +123,59 @@ static inline SWalFileInfo* walGetCurFileInfo(SWal* pWal) {
   return (SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
 }
 
+// Build a segment file name directly under an explicit directory. Used by walRollImpl
+// to create a brand-new segment's files before that segment has been registered into
+// pWal->fileInfoSet (so walResolveFileDir below cannot resolve it yet).
+static inline void walBuildLogNameAt(const char* dir, int64_t fileFirstVer, char* buf) {
+  TAOS_UNUSED(snprintf(buf, WAL_FILE_LEN, "%s%s%020" PRId64 "." WAL_LOG_SUFFIX, dir, TD_DIRSEP, fileFirstVer));
+}
+
+static inline void walBuildIdxNameAt(const char* dir, int64_t fileFirstVer, char* buf) {
+  TAOS_UNUSED(snprintf(buf, WAL_FILE_LEN, "%s%s%020" PRId64 "." WAL_INDEX_SUFFIX, dir, TD_DIRSEP, fileFirstVer));
+}
+
+// Resolve the directory that holds the segment starting at fileFirstVer, by looking up
+// its diskId in pWal->fileInfoSet. Falls back to pWal->path when tfs is unbound, the
+// segment predates this feature (diskId.id < 0), or no matching entry is found.
+static inline void walResolveFileDir(SWal* pWal, int64_t fileFirstVer, char* dirBuf, int32_t bufLen) {
+  if (pWal->pTfs != NULL) {
+    int32_t       sz = (int32_t)taosArrayGetSize(pWal->fileInfoSet);
+    SWalFileInfo* pData = (SWalFileInfo*)pWal->fileInfoSet->pData;
+    for (int32_t i = sz - 1; i >= 0; i--) {
+      if (pData[i].firstVer == fileFirstVer) {
+        if (pData[i].diskId.id >= 0) {
+          const char* diskPath = tfsGetDiskPath(pWal->pTfs, pData[i].diskId);
+          if (diskPath != NULL) {
+            TAOS_UNUSED(snprintf(dirBuf, bufLen, "%s%s%s", diskPath, TD_DIRSEP, pWal->relDir));
+            return;
+          }
+        }
+        break;
+      }
+    }
+  }
+  tstrncpy(dirBuf, pWal->path, bufLen);
+}
+
+// These keep their original signature so all existing call sites (walRead.c, walMgmt.c,
+// walMeta.c, walTxn.c, and most of walWrite.c) need no changes at all: once a segment's
+// diskId has been recorded in fileInfoSet, they transparently resolve to the right disk.
 static inline void walBuildLogName(SWal* pWal, int64_t fileFirstVer, char* buf) {
-  TAOS_UNUSED(snprintf(buf, WAL_FILE_LEN, "%s%s%020" PRId64 "." WAL_LOG_SUFFIX, pWal->path, TD_DIRSEP, fileFirstVer));
+  char dir[WAL_PATH_LEN];
+  walResolveFileDir(pWal, fileFirstVer, dir, sizeof(dir));
+  walBuildLogNameAt(dir, fileFirstVer, buf);
 }
 
 static inline void walBuildIdxName(SWal* pWal, int64_t fileFirstVer, char* buf) {
-  TAOS_UNUSED(snprintf(buf, WAL_FILE_LEN, "%s%s%020" PRId64 "." WAL_INDEX_SUFFIX, pWal->path, TD_DIRSEP, fileFirstVer));
+  char dir[WAL_PATH_LEN];
+  walResolveFileDir(pWal, fileFirstVer, dir, sizeof(dir));
+  walBuildIdxNameAt(dir, fileFirstVer, buf);
 }
 
 static inline void walBuildTxnName(SWal* pWal, int64_t fileFirstVer, char* buf) {
-  TAOS_UNUSED(snprintf(buf, WAL_FILE_LEN, "%s%s%020" PRId64 "." WAL_TXN_SUFFIX, pWal->path, TD_DIRSEP, fileFirstVer));
+  char dir[WAL_PATH_LEN];
+  walResolveFileDir(pWal, fileFirstVer, dir, sizeof(dir));
+  TAOS_UNUSED(snprintf(buf, WAL_FILE_LEN, "%s%s%020" PRId64 "." WAL_TXN_SUFFIX, dir, TD_DIRSEP, fileFirstVer));
 }
 
 #define WAL_TXN_PENDING_FILE    "txn.pending"
@@ -196,6 +240,10 @@ int32_t walCheckAndRepairIdx(SWal* pWal);
 int32_t walMetaSerialize(SWal* pWal, char** serialized);
 int32_t walMetaDeserialize(SWal* pWal, const char* bytes);
 // meta section end
+
+// multi-mount-point write section (level 0 only), implemented in walWrite.c
+int32_t walTfsAllocDisk(SWal* pWal, SDiskID* pDiskId);
+int32_t walResolveSegDir(SWal* pWal, SDiskID diskId, char* dirBuf, int32_t bufLen);
 
 int32_t decryptBody(SWalCfg* cfg, SWalCkHead* pHead, int32_t plainBodyLen, const char* func);
 

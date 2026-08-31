@@ -763,6 +763,10 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
   if (!rollback) {
     pWriter->info.state.committed = pWriter->ever;
     pVnode->config = pWriter->info.config;
+    // vnode.json and the tsdb runtime keep cache must be updated together.
+    // Do this only after the snapshot has been accepted so a rollback keeps
+    // the old runtime configuration intact.
+    tsdbSetKeepCfg(pVnode->pTsdb, &pVnode->config.tsdbCfg);
     pVnode->state = (SVState){.committed = pWriter->info.state.committed,
                               .applied = pWriter->info.state.committed,
                               .commitID = pWriter->commitID,
@@ -871,10 +875,25 @@ static int32_t vnodeSnapWriteInfo(SVSnapWriter *pWriter, uint8_t *pData, uint32_
   char dir[TSDB_FILENAME_LEN] = {0};
   vnodeGetPrimaryPath(pVnode, false, dir, TSDB_FILENAME_LEN);
 
-  SVnodeStats vndStats = pWriter->info.config.vndStats;
-  pWriter->info.config = pVnode->config;
-  pWriter->info.config.vndStats = vndStats;
-  vDebug("vgId:%d, save config while write snapshot", pWriter->pVnode->config.vgId);
+  // Keep the target vnode identity and replication topology local.  All other
+  // persisted vnode settings come from the snapshot leader, including the
+  // database retention settings (keep0/keep1/keep2/keepTimeOffset).
+  int32_t  vgId = pVnode->config.vgId;
+  int32_t  mountVgId = pVnode->config.mountVgId;
+  uint64_t dbId = pVnode->config.dbId;
+  char     dbname[TSDB_DB_FNAME_LEN] = {0};
+  SSyncCfg syncCfg = pVnode->config.syncCfg;
+  tstrncpy(dbname, pVnode->config.dbname, sizeof(dbname));
+
+  pWriter->info.config.vgId = vgId;
+  pWriter->info.config.mountVgId = mountVgId;
+  pWriter->info.config.dbId = dbId;
+  tstrncpy(pWriter->info.config.dbname, dbname, sizeof(pWriter->info.config.dbname));
+  pWriter->info.config.syncCfg = syncCfg;
+
+  vInfo("vgId:%d, saved snapshot config, keep0:%d keep1:%d keep2:%d keepTimeOffset:%d", pVnode->config.vgId,
+        pWriter->info.config.tsdbCfg.keep0, pWriter->info.config.tsdbCfg.keep1, pWriter->info.config.tsdbCfg.keep2,
+        pWriter->info.config.tsdbCfg.keepTimeOffset);
   code = vnodeSaveInfo(dir, &pWriter->info);
   TSDB_CHECK_CODE(code, lino, _exit);
 

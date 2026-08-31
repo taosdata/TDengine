@@ -5279,6 +5279,321 @@ _return:
   return DEAL_RES_ERROR;
 }
 
+typedef enum {
+  STREAM_NESTED_PROJECTION_EVENT_START = 1,
+  STREAM_NESTED_PROJECTION_EVENT_END,
+  STREAM_NESTED_PROJECTION_STATE,
+} EStreamNestedProjectionKind;
+
+typedef struct {
+  int32_t layerIndex;
+  int32_t ordinal;
+  int16_t slotId;
+  int8_t  kind;
+  char    alias[TSDB_COL_NAME_LEN];
+} SStreamNestedProjectionRef;
+
+typedef struct {
+  SStreamWindowPlanNode*         pPlanAst;
+  SNode*                         pLeafWindow;
+  SArray*                        pPlaceholderMasks;
+  SArray*                        pProjectionRefs;
+  SStreamWindowPlanValidationCtx validation;
+} SStreamNestedWindowContext;
+
+typedef struct {
+  char name[TSDB_TABLE_NAME_LEN];
+} SStreamCalcRelationName;
+
+typedef struct {
+  SStreamNestedWindowContext* pNested;
+  int32_t                     code;
+} SStreamLayerBindContext;
+
+static char streamAsciiFold(char ch) { return ch >= 'A' && ch <= 'Z' ? (char)(ch - 'A' + 'a') : ch; }
+
+static bool streamAsciiEqualIgnoreCase(const char* pLeft, const char* pRight) {
+  while (*pLeft != '\0' && *pRight != '\0') {
+    if (streamAsciiFold(*pLeft++) != streamAsciiFold(*pRight++)) return false;
+  }
+  return *pLeft == '\0' && *pRight == '\0';
+}
+
+static int64_t streamWindowPlaceholderMask(const char* pName) {
+  if (streamAsciiEqualIgnoreCase(pName, "_twstart")) return PLACE_HOLDER_WSTART;
+  if (streamAsciiEqualIgnoreCase(pName, "_twend")) return PLACE_HOLDER_WEND;
+  if (streamAsciiEqualIgnoreCase(pName, "_twduration")) return PLACE_HOLDER_WDURATION;
+  if (streamAsciiEqualIgnoreCase(pName, "_twrownum")) return PLACE_HOLDER_WROWNUM;
+  if (streamAsciiEqualIgnoreCase(pName, "_tprev_ts")) return PLACE_HOLDER_PREV_TS;
+  if (streamAsciiEqualIgnoreCase(pName, "_tcurrent_ts")) return PLACE_HOLDER_CURRENT_TS;
+  if (streamAsciiEqualIgnoreCase(pName, "_tnext_ts")) return PLACE_HOLDER_NEXT_TS;
+  return 0;
+}
+
+static bool streamLayerAllowsPlaceholder(const SNode* pWindow, int64_t mask) {
+  if (nodeType(pWindow) == QUERY_NODE_INTERVAL_WINDOW && ((const SIntervalWindowNode*)pWindow)->pInterval == NULL) {
+    return mask == PLACE_HOLDER_PREV_TS || mask == PLACE_HOLDER_CURRENT_TS || mask == PLACE_HOLDER_NEXT_TS;
+  }
+  if (nodeType(pWindow) != QUERY_NODE_INTERVAL_WINDOW && nodeType(pWindow) != QUERY_NODE_SESSION_WINDOW &&
+      nodeType(pWindow) != QUERY_NODE_STATE_WINDOW && nodeType(pWindow) != QUERY_NODE_COUNT_WINDOW &&
+      nodeType(pWindow) != QUERY_NODE_EVENT_WINDOW) {
+    return false;
+  }
+  return mask == PLACE_HOLDER_WSTART || mask == PLACE_HOLDER_WEND || mask == PLACE_HOLDER_WDURATION ||
+         mask == PLACE_HOLDER_WROWNUM;
+}
+
+static int32_t streamNestedLayerIndex(const SStreamWindowPlanNode* pPlan, const char* pName) {
+  int32_t index = 0;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pPlan->pLayers) {
+    const SStreamWindowLayerNode* pLayer = (const SStreamWindowLayerNode*)pNode;
+    if (pLayer->name[0] != '\0' && streamAsciiEqualIgnoreCase(pLayer->name, pName)) return index;
+    ++index;
+  }
+  return -1;
+}
+
+static int32_t streamNestedSetPlaceholderMask(SStreamNestedWindowContext* pNested, int32_t layerIndex, int64_t mask) {
+  int64_t* pMask = taosArrayGet(pNested->pPlaceholderMasks, layerIndex);
+  if (pMask == NULL) return TSDB_CODE_INVALID_PARA;
+  *pMask |= mask;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t collectStreamCalcRelationNames(const SNode* pQuery, SArray* pNames);
+
+static int32_t addStreamCalcRelationName(const char* pName, SArray* pNames) {
+  if (pName == NULL || pName[0] == '\0') return TSDB_CODE_SUCCESS;
+  SStreamCalcRelationName name = {0};
+  tstrncpy(name.name, pName, sizeof(name.name));
+  return taosArrayPush(pNames, &name) == NULL ? terrno : TSDB_CODE_SUCCESS;
+}
+
+static int32_t collectStreamCalcRelationTableNames(const SNode* pTable, SArray* pNames) {
+  if (pTable == NULL) return TSDB_CODE_SUCCESS;
+  switch (nodeType(pTable)) {
+    case QUERY_NODE_REAL_TABLE: {
+      const SRealTableNode* pReal = (const SRealTableNode*)pTable;
+      const char* pName = pReal->table.tableAlias[0] == '\0' ? pReal->table.tableName : pReal->table.tableAlias;
+      return addStreamCalcRelationName(pName, pNames);
+    }
+    case QUERY_NODE_TEMP_TABLE: {
+      const STempTableNode* pTemp = (const STempTableNode*)pTable;
+      int32_t               code = TSDB_CODE_SUCCESS;
+      if (pTemp->hasExplicitAlias) code = addStreamCalcRelationName(pTemp->table.tableAlias, pNames);
+      if (code == TSDB_CODE_SUCCESS) code = collectStreamCalcRelationNames(pTemp->pSubquery, pNames);
+      return code;
+    }
+    case QUERY_NODE_JOIN_TABLE: {
+      const SJoinTableNode* pJoin = (const SJoinTableNode*)pTable;
+      int32_t               code = collectStreamCalcRelationTableNames(pJoin->pLeft, pNames);
+      if (code == TSDB_CODE_SUCCESS) code = collectStreamCalcRelationTableNames(pJoin->pRight, pNames);
+      return code;
+    }
+    default:
+      return TSDB_CODE_SUCCESS;
+  }
+}
+
+static int32_t collectStreamCalcSubqueryNames(const SNodeList* pSubqueries, SArray* pNames) {
+  SNode* pSubquery = NULL;
+  FOREACH(pSubquery, pSubqueries) {
+    int32_t code = collectStreamCalcRelationNames(pSubquery, pNames);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t collectStreamCalcRelationNames(const SNode* pQuery, SArray* pNames) {
+  if (pQuery == NULL) return TSDB_CODE_SUCCESS;
+  if (nodeType(pQuery) == QUERY_NODE_SELECT_STMT) {
+    const SSelectStmt* pSelect = (const SSelectStmt*)pQuery;
+    int32_t            code = collectStreamCalcRelationTableNames(pSelect->pFromTable, pNames);
+    if (code == TSDB_CODE_SUCCESS) code = collectStreamCalcSubqueryNames(pSelect->pSubQueries, pNames);
+    return code;
+  }
+  if (nodeType(pQuery) == QUERY_NODE_SET_OPERATOR) {
+    const SSetOperator* pSet = (const SSetOperator*)pQuery;
+    int32_t             code = collectStreamCalcRelationNames(pSet->pLeft, pNames);
+    if (code == TSDB_CODE_SUCCESS) code = collectStreamCalcRelationNames(pSet->pRight, pNames);
+    if (code == TSDB_CODE_SUCCESS) code = collectStreamCalcSubqueryNames(pSet->pSubQueries, pNames);
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t validateStreamNestedLayerNamespace(SStreamNestedWindowContext* pNested, const SNode* pQuery) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray* pNames = taosArrayInit(8, sizeof(SStreamCalcRelationName));
+  if (pNames == NULL) return terrno;
+  code = collectStreamCalcRelationNames(pQuery, pNames);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+
+  int32_t index = 0;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pNested->pPlanAst->pLayers) {
+    const SStreamWindowLayerNode* pLayer = (const SStreamWindowLayerNode*)pNode;
+    for (int32_t prior = 0; prior < index; ++prior) {
+      const SStreamWindowLayerNode* pPrior =
+          (const SStreamWindowLayerNode*)nodesListGetNode(pNested->pPlanAst->pLayers, prior);
+      if (pLayer->name[0] != '\0' && streamAsciiEqualIgnoreCase(pLayer->name, pPrior->name)) {
+        code = TSDB_CODE_INVALID_PARA;
+        goto _exit;
+      }
+    }
+    for (int32_t i = 0; i < taosArrayGetSize(pNames); ++i) {
+      const SStreamCalcRelationName* pName = taosArrayGet(pNames, i);
+      if (pLayer->name[0] != '\0' && streamAsciiEqualIgnoreCase(pLayer->name, pName->name)) {
+        code = TSDB_CODE_INVALID_PARA;
+        goto _exit;
+      }
+    }
+    ++index;
+  }
+
+_exit:
+  taosArrayDestroy(pNames);
+  return code;
+}
+
+static EDealRes bindStreamLayerPlaceholderImpl(SNode** ppNode, void* pContext) {
+  SStreamLayerBindContext* pBind = pContext;
+  if (nodeType(*ppNode) == QUERY_NODE_FUNCTION) {
+    const int64_t mask = streamWindowPlaceholderMask(((SFunctionNode*)*ppNode)->functionName);
+    if (mask != 0) {
+      const int32_t leafIndex = LIST_LENGTH(pBind->pNested->pPlanAst->pLayers) - 1;
+      const SStreamWindowLayerNode* pLeaf =
+          (const SStreamWindowLayerNode*)nodesListGetNode(pBind->pNested->pPlanAst->pLayers, leafIndex);
+      if (pLeaf == NULL || !streamLayerAllowsPlaceholder(pLeaf->pWindow, mask)) {
+        pBind->code = TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+        return DEAL_RES_ERROR;
+      }
+      pBind->code = streamNestedSetPlaceholderMask(pBind->pNested, leafIndex, mask);
+      if (pBind->code != TSDB_CODE_SUCCESS) return DEAL_RES_ERROR;
+    }
+    return DEAL_RES_CONTINUE;
+  }
+  if (nodeType(*ppNode) != QUERY_NODE_COLUMN) return DEAL_RES_CONTINUE;
+
+  SColumnNode* pCol = (SColumnNode*)*ppNode;
+  if (pCol->tableAlias[0] == '\0') return DEAL_RES_CONTINUE;
+  const int32_t layerIndex = streamNestedLayerIndex(pBind->pNested->pPlanAst, pCol->tableAlias);
+  if (layerIndex < 0) return DEAL_RES_CONTINUE;
+
+  const int64_t                 mask = streamWindowPlaceholderMask(pCol->colName);
+  const SStreamWindowLayerNode* pLayer =
+      (const SStreamWindowLayerNode*)nodesListGetNode(pBind->pNested->pPlanAst->pLayers, layerIndex);
+  if (mask == 0 || !streamLayerAllowsPlaceholder(pLayer->pWindow, mask)) {
+    pBind->code = TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+    return DEAL_RES_ERROR;
+  }
+
+  SFunctionNode* pFunc = NULL;
+  pBind->code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (pBind->code != TSDB_CODE_SUCCESS) return DEAL_RES_ERROR;
+  tstrncpy(pFunc->functionName, pCol->colName, sizeof(pFunc->functionName));
+  tstrncpy(pFunc->node.aliasName, pCol->node.aliasName, sizeof(pFunc->node.aliasName));
+  tstrncpy(pFunc->node.userAlias, pCol->node.userAlias, sizeof(pFunc->node.userAlias));
+  SNode* pLayerValue = NULL;
+  pBind->code = nodesMakeValueNodeFromInt32(layerIndex, &pLayerValue);
+  if (pBind->code == TSDB_CODE_SUCCESS) {
+    ((SValueNode*)pLayerValue)->notReserved = true;
+    pBind->code = nodesListMakeAppend(&pFunc->pParameterList, pLayerValue);
+    if (pBind->code == TSDB_CODE_SUCCESS) pLayerValue = NULL;
+  }
+  if (pBind->code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode(pLayerValue);
+    nodesDestroyNode((SNode*)pFunc);
+    return DEAL_RES_ERROR;
+  }
+  pBind->code = streamNestedSetPlaceholderMask(pBind->pNested, layerIndex, mask);
+  if (pBind->code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode((SNode*)pFunc);
+    return DEAL_RES_ERROR;
+  }
+  nodesDestroyNode(*ppNode);
+  *ppNode = (SNode*)pFunc;
+  return DEAL_RES_IGNORE_CHILD;
+}
+
+static void bindStreamLayerPlaceholdersInQuery(SNode* pQuery, SStreamLayerBindContext* pBind);
+
+static void bindStreamLayerPlaceholdersInTable(SNode* pTable, SStreamLayerBindContext* pBind) {
+  if (pTable == NULL || pBind->code != TSDB_CODE_SUCCESS) return;
+  if (nodeType(pTable) == QUERY_NODE_TEMP_TABLE) {
+    bindStreamLayerPlaceholdersInQuery(((STempTableNode*)pTable)->pSubquery, pBind);
+  } else if (nodeType(pTable) == QUERY_NODE_JOIN_TABLE) {
+    SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
+    bindStreamLayerPlaceholdersInTable(pJoin->pLeft, pBind);
+    bindStreamLayerPlaceholdersInTable(pJoin->pRight, pBind);
+  }
+}
+
+static void bindStreamLayerPlaceholdersInSubqueries(SNodeList* pSubqueries, SStreamLayerBindContext* pBind) {
+  SNode* pSubquery = NULL;
+  FOREACH(pSubquery, pSubqueries) {
+    bindStreamLayerPlaceholdersInQuery(pSubquery, pBind);
+    if (pBind->code != TSDB_CODE_SUCCESS) return;
+  }
+}
+
+static void bindStreamLayerPlaceholdersInQuery(SNode* pQuery, SStreamLayerBindContext* pBind) {
+  if (pQuery == NULL || pBind->code != TSDB_CODE_SUCCESS) return;
+  if (nodeType(pQuery) == QUERY_NODE_SELECT_STMT) {
+    SSelectStmt* pSelect = (SSelectStmt*)pQuery;
+    nodesRewriteSelectStmt(pSelect, SQL_CLAUSE_FROM, bindStreamLayerPlaceholderImpl, pBind);
+    if (pBind->code != TSDB_CODE_SUCCESS) return;
+    bindStreamLayerPlaceholdersInTable(pSelect->pFromTable, pBind);
+    bindStreamLayerPlaceholdersInSubqueries(pSelect->pSubQueries, pBind);
+  } else if (nodeType(pQuery) == QUERY_NODE_SET_OPERATOR) {
+    SSetOperator* pSet = (SSetOperator*)pQuery;
+    nodesRewriteExprs(pSet->pProjectionList, bindStreamLayerPlaceholderImpl, pBind);
+    nodesRewriteExprs(pSet->pOrderByList, bindStreamLayerPlaceholderImpl, pBind);
+    bindStreamLayerPlaceholdersInQuery(pSet->pLeft, pBind);
+    bindStreamLayerPlaceholdersInQuery(pSet->pRight, pBind);
+    bindStreamLayerPlaceholdersInSubqueries(pSet->pSubQueries, pBind);
+  }
+}
+
+static int32_t bindStreamLayerPlaceholders(SStreamNestedWindowContext* pNested, SNode* pQuery) {
+  SStreamLayerBindContext cxt = {.pNested = pNested, .code = TSDB_CODE_SUCCESS};
+  bindStreamLayerPlaceholdersInQuery(pQuery, &cxt);
+  return cxt.code;
+}
+
+typedef struct {
+  SStreamWindowPlanNode* pPlan;
+  int32_t                code;
+} SStreamLayerOutsideContext;
+
+static EDealRes checkStreamLayerPlaceholderOutsideCalc(SNode* pNode, void* pContext) {
+  SStreamLayerOutsideContext* pOutside = pContext;
+  if (nodeType(pNode) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode)->tableAlias[0] != '\0' &&
+      streamNestedLayerIndex(pOutside->pPlan, ((SColumnNode*)pNode)->tableAlias) >= 0) {
+    pOutside->code = TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+    return DEAL_RES_ERROR;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t checkStreamLayerPlaceholdersOutsideCalc(const SCreateStreamStmt*     pStmt,
+                                                       const SStreamWindowPlanNode* pPlan) {
+  const SStreamTriggerNode*    pTrigger = (const SStreamTriggerNode*)pStmt->pTrigger;
+  const SStreamTriggerOptions* pOptions = (const SStreamTriggerOptions*)pTrigger->pOptions;
+  const SStreamNotifyOptions*  pNotify = (const SStreamNotifyOptions*)pTrigger->pNotify;
+  SStreamLayerOutsideContext   cxt = {.pPlan = (SStreamWindowPlanNode*)pPlan, .code = TSDB_CODE_SUCCESS};
+  nodesWalkExprs(pTrigger->pPartitionList, checkStreamLayerPlaceholderOutsideCalc, &cxt);
+  if (cxt.code == TSDB_CODE_SUCCESS)
+    nodesWalkExprs(pTrigger->pRollupTagList, checkStreamLayerPlaceholderOutsideCalc, &cxt);
+  if (cxt.code == TSDB_CODE_SUCCESS && pOptions != NULL)
+    nodesWalkExpr(pOptions->pPreFilter, checkStreamLayerPlaceholderOutsideCalc, &cxt);
+  if (cxt.code == TSDB_CODE_SUCCESS && pNotify != NULL)
+    nodesWalkExpr(pNotify->pWhere, checkStreamLayerPlaceholderOutsideCalc, &cxt);
+  if (cxt.code == TSDB_CODE_SUCCESS) nodesWalkExpr(pStmt->pSubtable, checkStreamLayerPlaceholderOutsideCalc, &cxt);
+  return cxt.code;
+}
+
 static EDealRes translateExternalWindowPlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc) {
   int32_t        code = TSDB_CODE_SUCCESS;
   SNode*         extraValue = NULL;
@@ -6974,9 +7289,7 @@ static bool isWindowJoinSubTbname(SSelectStmt* pSelect, SNode* pNode) {
   return true;
 }
 
-static bool isTbnameFuction(SNode* pNode) {
-  return QUERY_NODE_FUNCTION == nodeType(pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pNode)->funcType;
-}
+static bool isTbnameFuction(SNode* pNode) { return fmIsCanonicalTbnameFunction(pNode); }
 
 static bool hasTbnameFunction(SNodeList* pPartitionByList) {
   SNode* pPartKey = NULL;
@@ -15457,8 +15770,8 @@ static void fixStmtTsPlaceholderPrecisionInWhere(SSelectStmt* pSelect) {
 static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_WHERE;
   int32_t code = TSDB_CODE_SUCCESS;
-  if (pSelect->pWhere && BIT_FLAG_TEST_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) &&
-      inStreamCalcClause(pCxt)) {
+  if (pSelect->pWhere && inStreamCalcClause(pCxt) && nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE &&
+      ((SRealTableNode*)pSelect->pFromTable)->placeholderType == SP_PARTITION_ROWS) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                         "%%%%trows can not be used with WHERE clause."));
   }
@@ -18327,6 +18640,7 @@ static int32_t buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStm
   pReq->replications = pStmt->pOptions->replica;
   pReq->sstTrigger = pStmt->pOptions->sstTrigger;
   pReq->minRows = pStmt->pOptions->minRowsPerBlock;
+  pReq->maxRows = pStmt->pOptions->maxRowsPerBlock;
   pReq->walRetentionPeriod = pStmt->pOptions->walRetentionPeriod;
   pReq->walRetentionSize = pStmt->pOptions->walRetentionSize;
   pReq->ssKeepLocal = pStmt->pOptions->ssKeepLocal;
@@ -22261,14 +22575,25 @@ static bool isSlidingWindow(SNode* pWindow) {
   return pInterval->pInterval == NULL;
 }
 
+static SNode* getStreamNestedLeafWindow(SStreamWindowPlanNode* pPlan) {
+  if (pPlan == NULL || LIST_LENGTH(pPlan->pLayers) == 0) return NULL;
+  SStreamWindowLayerNode* pLeaf =
+      (SStreamWindowLayerNode*)nodesListGetNode(pPlan->pLayers, LIST_LENGTH(pPlan->pLayers) - 1);
+  return pLeaf == NULL ? NULL : pLeaf->pWindow;
+}
+
 // check the validity of CREATE STREAM statement
 static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   SStreamTriggerNode*    pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
   SStreamTriggerOptions* pTriggerOptions = (SStreamTriggerOptions*)pTrigger->pOptions;
   SStreamNotifyOptions*  pNotifyOptions = (SStreamNotifyOptions*)pTrigger->pNotify;
+  const bool             nested =
+      pTrigger->pTriggerWindow != NULL && nodeType(pTrigger->pTriggerWindow) == QUERY_NODE_STREAM_WINDOW_PLAN;
+  SNode* pLeafWindow =
+      nested ? getStreamNestedLeafWindow((SStreamWindowPlanNode*)pTrigger->pTriggerWindow) : pTrigger->pTriggerWindow;
   int32_t                code = TSDB_CODE_SUCCESS;
 
-  if (!pTrigger->pTriggerWindow) {
+  if (pLeafWindow == NULL) {
     PAR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_PARA, "Trigger window can not be null"));
   }
 
@@ -22295,7 +22620,7 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
                                          "ROLLUP BY requires explicit FROM table"));
   }
 
-  if (pTrigger->pTrigerTable == NULL && nodeType(pTrigger->pTriggerWindow) != QUERY_NODE_PERIOD_WINDOW) {
+  if (pTrigger->pTrigerTable == NULL && (nested || nodeType(pLeafWindow) != QUERY_NODE_PERIOD_WINDOW)) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_NO_TRIGGER_TABLE,
                                          "Trigger table must be specified when trigger window is not period window"));
   }
@@ -22310,9 +22635,8 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
                                          "PARTITION BY list can only be specified when trigger table is specified"));
   }
 
-  if (LIST_LENGTH(pTrigger->pRollupTagList) > 0 && nodeType(pTrigger->pTriggerWindow) != QUERY_NODE_PERIOD_WINDOW &&
-      nodeType(pTrigger->pTriggerWindow) != QUERY_NODE_INTERVAL_WINDOW &&
-      nodeType(pTrigger->pTriggerWindow) != QUERY_NODE_SESSION_WINDOW) {
+  if (!nested && LIST_LENGTH(pTrigger->pRollupTagList) > 0 && nodeType(pLeafWindow) != QUERY_NODE_PERIOD_WINDOW &&
+      nodeType(pLeafWindow) != QUERY_NODE_INTERVAL_WINDOW && nodeType(pLeafWindow) != QUERY_NODE_SESSION_WINDOW) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_ROLLUP,
                                          "ROLLUP BY has unsupported trigger window"));
   }
@@ -22362,15 +22686,19 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
                                          "Noify WHERE clause can only be specified when query is specified"));
   }
 
+  if (pTriggerOptions && pTriggerOptions->flushOnOuterClose && !nested) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_PARA,
+                                         "FLUSH_ON_OUTER_CLOSE requires a nested window plan"));
+  }
+
   if (pNotifyOptions && pNotifyOptions->eventType == EVENT_NONE) {
-    if (nodeType(pTrigger->pTriggerWindow) != QUERY_NODE_PERIOD_WINDOW &&
-        nodeType(pTrigger->pTriggerWindow) != QUERY_NODE_INTERVAL_WINDOW) {
+    if (nodeType(pLeafWindow) != QUERY_NODE_PERIOD_WINDOW && nodeType(pLeafWindow) != QUERY_NODE_INTERVAL_WINDOW) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(
           &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_NOTIFY,
           "Notify type must be specified when trigger window is not period or sliding window without interval"));
     }
-    if (nodeType(pTrigger->pTriggerWindow) == QUERY_NODE_INTERVAL_WINDOW) {
-      SIntervalWindowNode* pIntervalWindow = (SIntervalWindowNode*)pTrigger->pTriggerWindow;
+    if (nodeType(pLeafWindow) == QUERY_NODE_INTERVAL_WINDOW) {
+      SIntervalWindowNode* pIntervalWindow = (SIntervalWindowNode*)pLeafWindow;
       if (pIntervalWindow->pInterval != NULL) {
         PAR_ERR_JRET(generateSyntaxErrMsgExt(
             &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_NOTIFY,
@@ -22379,15 +22707,15 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     }
   }
 
-  if (nodeType(pTrigger->pTriggerWindow) == QUERY_NODE_PERIOD_WINDOW) {
+  if (nodeType(pLeafWindow) == QUERY_NODE_PERIOD_WINDOW) {
     if (pTriggerOptions && (pTriggerOptions->fillHistoryFirst || pTriggerOptions->fillHistory)) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
                                            "Fill history is not supported when trigger is period"));
     }
   }
 
-  if (nodeType(pTrigger->pTriggerWindow) != QUERY_NODE_INTERVAL_WINDOW &&
-      nodeType(pTrigger->pTriggerWindow) != QUERY_NODE_PERIOD_WINDOW) {
+  if (!nested && nodeType(pLeafWindow) != QUERY_NODE_INTERVAL_WINDOW &&
+      nodeType(pLeafWindow) != QUERY_NODE_PERIOD_WINDOW) {
     if (pTriggerOptions && pTriggerOptions->ignoreNoDataTrigger) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(
           &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
@@ -22395,18 +22723,16 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     }
   }
 
-  if (pTriggerOptions && pTriggerOptions->deleteRecalc) {
-    if (nodeType(pTrigger->pTriggerWindow) == QUERY_NODE_COUNT_WINDOW) {
-      SCountWindowNode* pCountWindow = (SCountWindowNode*)pTrigger->pTriggerWindow;
+  if (!nested && pTriggerOptions && pTriggerOptions->deleteRecalc) {
+    if (nodeType(pLeafWindow) == QUERY_NODE_COUNT_WINDOW) {
+      SCountWindowNode* pCountWindow = (SCountWindowNode*)pLeafWindow;
       if (pCountWindow->windowSliding != 1) {
         PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
                                              "delete recalc is not supported when count window sliding is not 1"));
       }
-    } else if (nodeType(pTrigger->pTriggerWindow) == QUERY_NODE_PERIOD_WINDOW ||
-               isSlidingWindow(pTrigger->pTriggerWindow)) {
+    } else if (nodeType(pLeafWindow) == QUERY_NODE_PERIOD_WINDOW) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                           "delete recalc is not supported when trigger is period window or sliding "
-                                           "window"));
+                                           "delete recalc is not supported when trigger is period window"));
     }
   }
 
@@ -23043,7 +23369,7 @@ static int32_t createStreamReqBuildNotifyOptions(STranslateContext* pCxt, SStrea
   // Due to historical reasons, bit positions were not initially used in notifyHistory, and for compatibility, they
   // continue to be retained.
   pReq->notifyHistory = BIT_FLAG_TEST_MASK(pNotifyOptions->notifyType, NOTIFY_HISTORY);
-  pReq->addOptions = BIT_FLAG_TEST_MASK(pNotifyOptions->notifyType, NOTIFY_ON_FAILURE_PAUSE);
+  pReq->addOptions |= pNotifyOptions->notifyType & NOTIFY_ON_FAILURE_PAUSE;
   pReq->addOptions |= (pNotifyOptions->pWhere != NULL) ? NOTIFY_HAS_FILTER : 0;
   PAR_ERR_JRET(nodesCloneNode(pNotifyOptions->pWhere, pNotifyCond));
 
@@ -23734,11 +24060,150 @@ static int32_t registerFederatedTriggerWindowColKeys(SScanPhysiNode* pScanNode, 
   return cxt.errCode;
 }
 
+typedef struct {
+  SScanPhysiNode* pScan;
+  int32_t         count;
+} SStreamTriggerScanSearch;
+
+static bool isStreamTriggerPhysicalScan(ENodeType type) {
+  return type == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN ||
+         type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN;
+}
+
+static void findStreamTriggerPhysicalScan(SPhysiNode* pNode, SStreamTriggerScanSearch* pSearch) {
+  if (pNode == NULL) return;
+  if (isStreamTriggerPhysicalScan(nodeType(pNode))) {
+    pSearch->pScan = (SScanPhysiNode*)pNode;
+    ++pSearch->count;
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) { findStreamTriggerPhysicalScan((SPhysiNode*)pChild, pSearch); }
+}
+
+static SProjectPhysiNode* findStreamTriggerProject(SPhysiNode* pNode) {
+  if (pNode == NULL) return NULL;
+  if (nodeType(pNode) == QUERY_NODE_PHYSICAL_PLAN_PROJECT) return (SProjectPhysiNode*)pNode;
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    SProjectPhysiNode* pProject = findStreamTriggerProject((SPhysiNode*)pChild);
+    if (pProject != NULL) return pProject;
+  }
+  return NULL;
+}
+
+static int32_t getStreamTriggerOutputRoot(SSubplan* pScanSubplan, SPhysiNode** ppRoot) {
+  if (pScanSubplan == NULL || ppRoot == NULL) return TSDB_CODE_INVALID_PARA;
+  SSubplan* pOutputSubplan = pScanSubplan;
+  *ppRoot = pOutputSubplan->pNode;
+  if (findStreamTriggerProject(*ppRoot) != NULL) return TSDB_CODE_SUCCESS;
+  while (LIST_LENGTH(pOutputSubplan->pParents) > 0) {
+    if (LIST_LENGTH(pOutputSubplan->pParents) != 1) return TSDB_CODE_STREAM_INVALID_TRIGGER;
+    SNode* pParent = nodesListGetNode(pOutputSubplan->pParents, 0);
+    if (pParent == NULL || nodeType(pParent) != QUERY_NODE_PHYSICAL_SUBPLAN) {
+      return TSDB_CODE_STREAM_INVALID_TRIGGER;
+    }
+    pOutputSubplan = (SSubplan*)pParent;
+    *ppRoot = pOutputSubplan->pNode;
+    if (findStreamTriggerProject(*ppRoot) != NULL) return TSDB_CODE_SUCCESS;
+  }
+  return *ppRoot == NULL ? TSDB_CODE_STREAM_INVALID_TRIGGER : TSDB_CODE_SUCCESS;
+}
+
+static int32_t putStreamTriggerExprSlot(SHashObj* pHash, SNode* pExpr, int16_t slotId) {
+  char*   pKey = NULL;
+  int32_t keyLen = 0;
+  int32_t code = streamGetSlotKey(pExpr, &pKey, &keyLen, 0);
+  if (code == TSDB_CODE_SUCCESS) code = taosHashPut(pHash, pKey, keyLen, &slotId, sizeof(slotId));
+  taosMemoryFree(pKey);
+  return code;
+}
+
+static int32_t buildStreamTriggerOutputSlotHash(SPhysiNode* pRoot, SScanPhysiNode* pScan, SHashObj** ppHash) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pRoot == NULL || pRoot->pOutputDataBlockDesc == NULL) return TSDB_CODE_STREAM_INVALID_TRIGGER;
+  SHashObj* pHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (pHash == NULL) return terrno;
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pRoot->pOutputDataBlockDesc->pSlots) {
+    SSlotDescNode* pSlot = (SSlotDescNode*)pNode;
+    PAR_ERR_JRET(taosHashPut(pHash, pSlot->name, strlen(pSlot->name), &pSlot->slotId, sizeof(pSlot->slotId)));
+  }
+
+  SProjectPhysiNode* pProject = findStreamTriggerProject(pRoot);
+  if (pProject != NULL) {
+    FOREACH(pNode, pProject->pProjections) {
+      STargetNode* pTarget = (STargetNode*)pNode;
+      PAR_ERR_JRET(putStreamTriggerExprSlot(pHash, pTarget->pExpr, pTarget->slotId));
+    }
+  }
+  FOREACH(pNode, getScanNodeScanCols(pScan)) {
+    STargetNode* pTarget = (STargetNode*)pNode;
+    PAR_ERR_JRET(putStreamTriggerExprSlot(pHash, pTarget->pExpr, pTarget->slotId));
+  }
+
+  *ppHash = pHash;
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  taosHashCleanup(pHash);
+  return code;
+}
+
+static void resolveStreamNestedProjectionRefs(SPhysiNode* pRoot, const SScanPhysiNode* pScan,
+                                              const SCMCreateStreamReq* pReq, SStreamNestedWindowContext* pNested) {
+  SProjectPhysiNode* pProject = findStreamTriggerProject(pRoot);
+  if (pProject == NULL) return;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pProject->pProjections) {
+    STargetNode* pTarget = (STargetNode*)pNode;
+    SExprNode*   pExpr = (SExprNode*)pTarget->pExpr;
+    for (int32_t i = 0; i < taosArrayGetSize(pNested->pProjectionRefs); ++i) {
+      SStreamNestedProjectionRef* pRef = taosArrayGet(pNested->pProjectionRefs, i);
+      if (strcmp(pExpr->userAlias, pRef->alias) == 0 || strcmp(pExpr->aliasName, pRef->alias) == 0) {
+        pRef->slotId = pTarget->slotId;
+      }
+    }
+  }
+
+  bool virtualTrigger = pReq->triggerTblType == TSDB_VIRTUAL_NORMAL_TABLE ||
+                        pReq->triggerTblType == TSDB_VIRTUAL_CHILD_TABLE ||
+                        BIT_FLAG_TEST_MASK(pReq->flags, CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB);
+  if (!virtualTrigger && pScan->node.pOutputDataBlockDesc != NULL) {
+    // The serialized trigger plan contains only the scan subplan, not the parent project that
+    // owns nested derived expressions. The reader appends a version column after the scan
+    // columns; the trigger task then evaluates nested EVENT/STATE expressions in projection
+    // order and appends them after that version column.
+    int16_t projectionSlotId = LIST_LENGTH(pScan->node.pOutputDataBlockDesc->pSlots) + 1;
+    for (int32_t i = 0; i < taosArrayGetSize(pNested->pProjectionRefs); ++i) {
+      SStreamNestedProjectionRef* pRef = taosArrayGet(pNested->pProjectionRefs, i);
+      pRef->slotId = projectionSlotId++;
+    }
+  }
+}
+
+static SColumnNode* getStreamWindowTimestampColumn(SNode* pWindow) {
+  switch (nodeType(pWindow)) {
+    case QUERY_NODE_INTERVAL_WINDOW:
+      return (SColumnNode*)((SIntervalWindowNode*)pWindow)->pCol;
+    case QUERY_NODE_SESSION_WINDOW:
+      return ((SSessionWindowNode*)pWindow)->pCol;
+    case QUERY_NODE_STATE_WINDOW:
+      return (SColumnNode*)((SStateWindowNode*)pWindow)->pCol;
+    case QUERY_NODE_COUNT_WINDOW:
+      return (SColumnNode*)((SCountWindowNode*)pWindow)->pCol;
+    case QUERY_NODE_EVENT_WINDOW:
+      return (SColumnNode*)((SEventWindowNode*)pWindow)->pCol;
+    default:
+      return NULL;
+  }
+}
+
 // build trigger query plan in create stream request
 static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSelectStmt* pTriggerSelect,
                                                     SCMCreateStreamReq* pReq, SHashObj** pTriggerSlotHash,
                                                     SNode* pTriggerWindow, SNodeList* pTriggerPartition,
-                                                    SNodeList* pRollupTagList) {
+                                                    SNodeList* pRollupTagList, SStreamNestedWindowContext* pNested) {
   int32_t             code = TSDB_CODE_SUCCESS;
   SQueryPlan*         pTriggerPlan = NULL;
   SScanPhysiNode*     pScanNode = NULL;
@@ -23761,7 +24226,17 @@ static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSe
     PAR_ERR_JRET(
         generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "Trigger query scan subplan is NULL"));
   }
-  pScanNode = (SScanPhysiNode*)((SSubplan*)cxt.streamCxt.triggerScanSubplan)->pNode;
+  SSubplan*   pScanSubplan = (SSubplan*)cxt.streamCxt.triggerScanSubplan;
+  SPhysiNode* pScanRoot = pScanSubplan->pNode;
+  SPhysiNode* pOutputRoot = NULL;
+  PAR_ERR_JRET(getStreamTriggerOutputRoot(pScanSubplan, &pOutputRoot));
+  SStreamTriggerScanSearch scanSearch = {0};
+  findStreamTriggerPhysicalScan(pScanRoot, &scanSearch);
+  if (scanSearch.count != 1 || scanSearch.pScan == NULL) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                         "Trigger plan must contain exactly one scan"));
+  }
+  pScanNode = scanSearch.pScan;
   pScanTuple = (pScanNode->node.pOutputDataBlockDesc);
 
   PAR_ERR_JRET(nodesCloneNode(pScanNode->node.pConditions, &pTriggerFilter));
@@ -23773,22 +24248,22 @@ static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSe
     pScanNode->node.pConditions = NULL;
   }
 
-  *pTriggerSlotHash = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  if (*pTriggerSlotHash == NULL) {
-    PAR_ERR_JRET(terrno);
+  if (pNested == NULL) {
+    *pTriggerSlotHash = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    if (*pTriggerSlotHash == NULL) PAR_ERR_JRET(terrno);
+  } else {
+    PAR_ERR_JRET(buildStreamTriggerOutputSlotHash(pOutputRoot, pScanNode, pTriggerSlotHash));
   }
 
-  findTsSlotId(pScanNode, &pReq->triTsSlotId);
   findPkSlotId(pScanNode, &pReq->triPkSlotId);
-
-  if (pReq->triTsSlotId == -1) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
-                                         "Can not find timestamp primary key in trigger query scan"));
+  if (pNested == NULL || nodeType(pScanNode) == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
+    findTsSlotId(pScanNode, &pReq->triTsSlotId);
   }
-
-  FOREACH(pNode, pScanTuple->pSlots) {
-    SSlotDescNode* pSlot = (SSlotDescNode*)pNode;
-    PAR_ERR_JRET(taosHashPut(*pTriggerSlotHash, pSlot->name, strlen(pSlot->name), &pSlot->slotId, sizeof(int16_t)));
+  if (pNested == NULL) {
+    FOREACH(pNode, pScanTuple->pSlots) {
+      SSlotDescNode* pSlot = (SSlotDescNode*)pNode;
+      PAR_ERR_JRET(taosHashPut(*pTriggerSlotHash, pSlot->name, strlen(pSlot->name), &pSlot->slotId, sizeof(int16_t)));
+    }
   }
 
   // For EXT-driven (federated) streams, the trigger SELECT projects _twstart as an alias
@@ -23826,6 +24301,22 @@ static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSe
   // collect trigger cols and set slot id
   PAR_ERR_JRET(createStreamSetNodeSlotId(pTriggerWindow, *pTriggerSlotHash, pTriggerCols));
 
+  if (pNested != NULL) {
+    resolveStreamNestedProjectionRefs(pOutputRoot, pScanNode, pReq, pNested);
+    SColumnNode* pTs = NULL;
+    SNode*       pLayerNode = NULL;
+    FOREACH(pLayerNode, pNested->pPlanAst->pLayers) {
+      pTs = getStreamWindowTimestampColumn(((SStreamWindowLayerNode*)pLayerNode)->pWindow);
+      if (pTs != NULL) break;
+    }
+    if (pTs != NULL) pReq->triTsSlotId = pTs->slotId;
+  }
+
+  if (pReq->triTsSlotId == -1) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
+                                         "Can not find timestamp primary key in trigger query scan"));
+  }
+
   // collect partition cols and set slot id
   PAR_ERR_JRET(createStreamSetListSlotId(pTriggerPartition, *pTriggerSlotHash, pPartitionCols));
   PAR_ERR_JRET(createStreamSetListSlotId(pRollupTagList, *pTriggerSlotHash, NULL));
@@ -23833,6 +24324,7 @@ static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSe
   // collect filter cols and set slot id
   PAR_ERR_JRET(createStreamSetNodeSlotId(pTriggerFilter, *pTriggerSlotHash, pFilterCols));
 
+  pScanSubplan->requiresAncestorContext = pNested != NULL;
   PAR_ERR_JRET(nodesNodeToString(cxt.streamCxt.triggerScanSubplan, false, (char**)&pReq->triggerScanPlan, NULL));
   PAR_ERR_JRET(nodesListToString(pTriggerCols, false, (char**)&pReq->triggerCols, &pTriggerColsLen));
   PAR_ERR_JRET(nodesListToString(pFilterCols, false, (char**)&pReq->triggerFilterCols, &pFilterColsLen));
@@ -24152,10 +24644,86 @@ static int32_t createSimpleSelectStmtImpl(const char* pDb, const char* pTable, S
 static int32_t createSimpleSelectStmtFromCols(const char* pDb, const char* pTable, int32_t numOfProjs,
                                               const char* const pProjCol[], SSelectStmt** pStmt);
 static int32_t createProjectCol(const char* pProjCol, SNode** ppNode);
+
+static int32_t initStreamNestedWindowContext(SStreamWindowPlanNode* pPlan, SStreamNestedWindowContext* pNested) {
+  memset(pNested, 0, sizeof(*pNested));
+  pNested->pPlanAst = pPlan;
+  pNested->pLeafWindow = getStreamNestedLeafWindow(pPlan);
+  if (pNested->pLeafWindow == NULL) return TSDB_CODE_INVALID_PARA;
+  const int32_t numLayers = LIST_LENGTH(pPlan->pLayers);
+  pNested->pPlaceholderMasks = taosArrayInit(numLayers, sizeof(int64_t));
+  pNested->pProjectionRefs = taosArrayInit(4, sizeof(SStreamNestedProjectionRef));
+  if (pNested->pPlaceholderMasks == NULL || pNested->pProjectionRefs == NULL) return terrno;
+  for (int32_t i = 0; i < numLayers; ++i) {
+    int64_t mask = 0;
+    if (taosArrayPush(pNested->pPlaceholderMasks, &mask) == NULL) return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void destroyStreamNestedWindowContext(SStreamNestedWindowContext* pNested) {
+  taosArrayDestroy(pNested->pPlaceholderMasks);
+  taosArrayDestroy(pNested->pProjectionRefs);
+  memset(pNested, 0, sizeof(*pNested));
+}
+
+static int32_t appendStreamNestedProjection(SSelectStmt* pSelect, SStreamNestedWindowContext* pNested,
+                                            const SNode* pExpr, int32_t layerIndex, int32_t ordinal, int8_t kind) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pProjection = NULL;
+  PAR_ERR_JRET(nodesCloneNode(pExpr, &pProjection));
+
+  SStreamNestedProjectionRef ref = {.layerIndex = layerIndex, .ordinal = ordinal, .slotId = -1, .kind = kind};
+  (void)snprintf(ref.alias, sizeof(ref.alias), "__nw_%d_%d_%d", layerIndex, kind, ordinal);
+  tstrncpy(((SExprNode*)pProjection)->aliasName, ref.alias, sizeof(((SExprNode*)pProjection)->aliasName));
+  tstrncpy(((SExprNode*)pProjection)->userAlias, ref.alias, sizeof(((SExprNode*)pProjection)->userAlias));
+  PAR_ERR_JRET(nodesListStrictAppend(pSelect->pProjectionList, pProjection));
+  pProjection = NULL;
+  if (taosArrayPush(pNested->pProjectionRefs, &ref) == NULL) {
+    PAR_ERR_JRET(terrno);
+  }
+
+_return:
+  nodesDestroyNode(pProjection);
+  return code;
+}
+
+static int32_t appendStreamNestedProjections(SSelectStmt* pSelect, SStreamNestedWindowContext* pNested) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t layerIndex = 0;
+  SNode*  pLayerNode = NULL;
+  FOREACH(pLayerNode, pNested->pPlanAst->pLayers) {
+    SNode* pWindow = ((SStreamWindowLayerNode*)pLayerNode)->pWindow;
+    if (nodeType(pWindow) == QUERY_NODE_STATE_WINDOW) {
+      int32_t ordinal = 0;
+      SNode*  pExpr = NULL;
+      FOREACH(pExpr, ((SStateWindowNode*)pWindow)->pExprList) {
+        if (nodeType(pExpr) != QUERY_NODE_COLUMN) {
+          PAR_ERR_JRET(appendStreamNestedProjection(pSelect, pNested, pExpr, layerIndex, ordinal,
+                                                    STREAM_NESTED_PROJECTION_STATE));
+        }
+        ++ordinal;
+      }
+    } else if (nodeType(pWindow) == QUERY_NODE_EVENT_WINDOW) {
+      SEventWindowNode* pEvent = (SEventWindowNode*)pWindow;
+      PAR_ERR_JRET(appendStreamNestedProjection(pSelect, pNested, pEvent->pStartCond, layerIndex, 0,
+                                                STREAM_NESTED_PROJECTION_EVENT_START));
+      if (pEvent->pEndCond != NULL) {
+        PAR_ERR_JRET(appendStreamNestedProjection(pSelect, pNested, pEvent->pEndCond, layerIndex, 0,
+                                                  STREAM_NESTED_PROJECTION_EVENT_END));
+      }
+    }
+    ++layerIndex;
+  }
+
+_return:
+  return code;
+}
+
 // build trigger select list in create stream request
 static int32_t createStreamReqBuildTriggerSelect(STranslateContext* pCxt, SRealTableNode* pTriggerTable,
                                                  const STableMeta* pTriggerTableMeta, SSelectStmt** pTriggerSelect,
-                                                 SCreateStreamStmt* pStmt) {
+                                                 SCreateStreamStmt* pStmt, SStreamNestedWindowContext* pNested) {
   int32_t                code = TSDB_CODE_SUCCESS;
   SFunctionNode*         pFunc = NULL;
   SNode*                 pTsCol = NULL;
@@ -24170,6 +24738,9 @@ static int32_t createStreamReqBuildTriggerSelect(STranslateContext* pCxt, SRealT
   // only collect columns appeared in trigger and tags in pre-filter
   PAR_ERR_JRET(nodesCollectColumnsFromNode(pStmt->pTrigger, NULL, COLLECT_COL_TYPE_COL,
                                            &((SSelectStmt*)*pTriggerSelect)->pProjectionList));
+  if (pNested != NULL) {
+    PAR_ERR_JRET(appendStreamNestedProjections(*pTriggerSelect, pNested));
+  }
   if (pPreFilter) {
     PAR_ERR_JRET(nodesCollectColumnsFromNode(pPreFilter, NULL, COLLECT_COL_TYPE_TAG,
                                              &((SSelectStmt*)*pTriggerSelect)->pProjectionList));
@@ -24338,7 +24909,7 @@ static EDealRes createStreamReqBuildTriggerCheckPartitionWalker(SNode* pNode, vo
 
 static int32_t createStreamReqBuildTriggerCheckPartition(STranslateContext* pCxt, SNodeList* pTriggerPartition,
                                                          STableMeta* pTriggerTableMeta, SNode* pTriggerWindow,
-                                                         const SExtTableMeta* pExtMeta) {
+                                                         const SExtTableMeta* pExtMeta, bool nested) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
 
@@ -24346,8 +24917,9 @@ static int32_t createStreamReqBuildTriggerCheckPartition(STranslateContext* pCxt
   nodesWalkExprs(pTriggerPartition, createStreamReqBuildTriggerCheckPartitionWalker, &cxt);
   PAR_ERR_JRET(cxt.code);
 
-  if (pTriggerTableMeta->tableType == TSDB_SUPER_TABLE && nodeType(pTriggerWindow) != QUERY_NODE_INTERVAL_WINDOW &&
-      nodeType(pTriggerWindow) != QUERY_NODE_SESSION_WINDOW && nodeType(pTriggerWindow) != QUERY_NODE_PERIOD_WINDOW &&
+  if (!nested && pTriggerTableMeta->tableType == TSDB_SUPER_TABLE &&
+      nodeType(pTriggerWindow) != QUERY_NODE_INTERVAL_WINDOW && nodeType(pTriggerWindow) != QUERY_NODE_SESSION_WINDOW &&
+      nodeType(pTriggerWindow) != QUERY_NODE_PERIOD_WINDOW &&
       (LIST_LENGTH(pTriggerPartition) == 0 || !hasTbnameFunction(pTriggerPartition))) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(
         &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
@@ -24377,14 +24949,14 @@ _return:
 // Translate trigger partition in create stream request
 static int32_t createStreamReqBuildTriggerTranslatePartition(STranslateContext* pCxt, SNodeList* pTriggerPartition,
                                                              STableMeta* pTriggerTableMeta, SNode* pTriggerWindow,
-                                                             const SExtTableMeta* pExtMeta) {
+                                                             const SExtTableMeta* pExtMeta, bool nested) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   pCxt->currClause = SQL_CLAUSE_PARTITION_BY;
   PAR_ERR_JRET(translateExprList(pCxt, pTriggerPartition));
 
   PAR_ERR_JRET(createStreamReqBuildTriggerCheckPartition(pCxt, pTriggerPartition, pTriggerTableMeta, pTriggerWindow,
-                                                         pExtMeta));
+                                                         pExtMeta, nested));
 _return:
   if (code) {
     parserError("%s failed, code:%d", __func__, code);
@@ -24448,10 +25020,11 @@ _return:
 // Build trigger scan AST, which will be used to generate trigger scan plan later.
 static int32_t createStreamReqBuildTriggerAst(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
                                               SSelectStmt** pTriggerSelect, SHashObj** pTriggerSlotHash,
-                                              SNode** pTriggerFilter, SCMCreateStreamReq* pReq) {
+                                              SNode** pTriggerFilter, SCMCreateStreamReq* pReq,
+                                              SStreamNestedWindowContext* pNested) {
   int32_t             code = TSDB_CODE_SUCCESS;
   SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
-  SNode**             pTriggerWindow = &pTrigger->pTriggerWindow;
+  SNode*              pTriggerWindow = pNested == NULL ? pTrigger->pTriggerWindow : (SNode*)pNested->pPlanAst;
   SNodeList*          pTriggerPartition = pTrigger->pPartitionList;
   STableMeta*         pTriggerTableMeta = NULL;
   SRealTableNode*     pTriggerTable = (SRealTableNode*)pTrigger->pTrigerTable;
@@ -24461,11 +25034,14 @@ static int32_t createStreamReqBuildTriggerAst(STranslateContext* pCxt, SCreateSt
   if (!pTriggerTable) {
     // no trigger table, only translate trigger window
     parserDebug("no trigger table in create stream req, streamId:%" PRId64, pReq->streamId);
-    PAR_ERR_JRET(createStreamReqBuildTriggerTranslateWindow(pCxt, pTriggerWindow));
-    PAR_RET(createStreamReqBuildTriggerBuildWindowInfo(pCxt, *pTriggerWindow, pReq));
+    PAR_ERR_JRET(createStreamReqBuildTriggerTranslateWindow(pCxt, &pTriggerWindow));
+    pTrigger->pTriggerWindow = pTriggerWindow;
+    PAR_RET(createStreamReqBuildTriggerBuildWindowInfo(pCxt, pTriggerWindow, pReq));
   }
 
-  PAR_ERR_JRET(createStreamReqBulidTriggerExtractCondFromWindow(pCxt, *pTriggerWindow, pTriggerFilter));
+  if (pNested == NULL) {
+    PAR_ERR_JRET(createStreamReqBulidTriggerExtractCondFromWindow(pCxt, pTriggerWindow, pTriggerFilter));
+  }
 
   pReq->triggerHasPF = (*pTriggerFilter != NULL);
 
@@ -24526,8 +25102,7 @@ static int32_t createStreamReqBuildTriggerAst(STranslateContext* pCxt, SCreateSt
 
   // For EXT trigger, pTriggerTable->pMeta is owned by pTriggerTable (freed when node destroyed).
   // For local trigger, pTriggerTableMeta is our local copy (freed at _return).
-  STableMeta* pMetaForHelpers =
-      (pTriggerTable->pExtTableNode != NULL) ? pTriggerTable->pMeta : pTriggerTableMeta;
+  STableMeta* pMetaForHelpers = (pTriggerTable->pExtTableNode != NULL) ? pTriggerTable->pMeta : pTriggerTableMeta;
   // Raw ext metadata (carries isTag per column) for PARTITION BY tag validation;
   // NULL for local triggers.  The synthetic pMetaForHelpers above cannot express
   // tag-ness (buildTableMetaFromExtMeta sets numOfTags=0), so
@@ -24535,15 +25110,38 @@ static int32_t createStreamReqBuildTriggerAst(STranslateContext* pCxt, SCreateSt
   const SExtTableMeta* pTrigExtMeta =
       (pTriggerTable->pExtTableNode != NULL) ? ((SExtTableNode*)pTriggerTable->pExtTableNode)->pExtMeta : NULL;
 
+  if (pNested != NULL) {
+    pNested->validation.isExtTrigger = pTriggerTable->pExtTableNode != NULL;
+    pNested->validation.hasCompositePrimaryKey = pMetaForHelpers->tableInfo.numOfPKs > 0;
+    pNested->validation.isSuperTable = pMetaForHelpers->tableType == TSDB_SUPER_TABLE;
+    pNested->validation.hasRollup = LIST_LENGTH(pTrigger->pRollupTagList) > 0;
+  }
+
   SNodeList* projList = NULL;
   PAR_ERR_JRET(createStreamReqBuildTriggerTableInfo(pCxt, pTriggerTable, pMetaForHelpers, pReq));
-  PAR_ERR_JRET(createStreamReqBuildTriggerSelect(pCxt, pTriggerTable, pMetaForHelpers, pTriggerSelect, pStmt));
+  PAR_ERR_JRET(createStreamReqBuildTriggerSelect(pCxt, pTriggerTable, pMetaForHelpers, pTriggerSelect, pStmt, pNested));
 
   PAR_ERR_JRET(createStreamReqBuildTriggerTranslateSelect(pCxt, pTrigger, *pTriggerSelect, pTriggerFilter));
-  PAR_ERR_JRET(createStreamReqBuildTriggerTranslateWindow(pCxt, pTriggerWindow));
-  PAR_ERR_JRET(createStreamReqBuildTriggerTranslatePartition(pCxt, pTriggerPartition, pMetaForHelpers, *pTriggerWindow,
-                                                             pTrigExtMeta));
+  if (pNested == NULL) {
+    PAR_ERR_JRET(createStreamReqBuildTriggerTranslateWindow(pCxt, &pTriggerWindow));
+    pTrigger->pTriggerWindow = pTriggerWindow;
+  } else {
+    SNode* pLayerNode = NULL;
+    FOREACH(pLayerNode, pNested->pPlanAst->pLayers) {
+      SStreamWindowLayerNode* pLayer = (SStreamWindowLayerNode*)pLayerNode;
+      PAR_ERR_JRET(createStreamReqBuildTriggerTranslateWindow(pCxt, &pLayer->pWindow));
+    }
+    pNested->pLeafWindow = getStreamNestedLeafWindow(pNested->pPlanAst);
+  }
+  PAR_ERR_JRET(createStreamReqBuildTriggerTranslatePartition(pCxt, pTriggerPartition, pMetaForHelpers,
+                                                             pNested == NULL ? pTriggerWindow : pNested->pLeafWindow,
+                                                             pTrigExtMeta, pNested != NULL));
   PAR_ERR_JRET(createStreamReqBuildTriggerTranslateRollup(pCxt, pTrigger->pRollupTagList, pMetaForHelpers));
+  if (pNested != NULL) {
+    pNested->validation.partitionByTbname = hasTbnameFunction(pTriggerPartition);
+    pNested->validation.partitionByTag =
+        LIST_LENGTH(pTriggerPartition) > (pNested->validation.partitionByTbname ? 1 : 0);
+  }
 
 _return:
   if (code) {
@@ -24557,9 +25155,10 @@ static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreat
                                                int32_t placeHolderBitmap, SNodeList* pTriggerPartition) {
   int32_t code = TSDB_CODE_SUCCESS;
   bool    hasIdleResumeEvent = (pReq->eventTypes & (EVENT_IDLE | EVENT_RESUME)) != 0;
-  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_CURRENT_TS) ||
-      BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PREV_TS) ||
-      BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_NEXT_TS)) {
+  bool    nested = BIT_FLAG_TEST_MASK(pReq->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
+  if (!nested && (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_CURRENT_TS) ||
+                  BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PREV_TS) ||
+                  BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_NEXT_TS))) {
     if (!(pReq->triggerType == WINDOW_TYPE_INTERVAL && pReq->trigger.sliding.interval == 0)) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
                                            "_tcurrent_ts/_tprev_ts/_tnext_ts can only be used in sliding window"));
@@ -24571,10 +25170,10 @@ static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreat
     }
   }
 
-  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WSTART) ||
-      BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WEND) ||
-      BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WDURATION) ||
-      BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WROWNUM)) {
+  if (!nested && (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WSTART) ||
+                  BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WEND) ||
+                  BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WDURATION) ||
+                  BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WROWNUM))) {
     if (pReq->triggerType == WINDOW_TYPE_PERIOD ||
         (pReq->triggerType == WINDOW_TYPE_INTERVAL && pReq->trigger.sliding.interval == 0)) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
@@ -24631,13 +25230,150 @@ _return:
   return code;
 }
 
+static int32_t appendStreamNestedConditionSlot(SArray* pSlots, int16_t slotId) {
+  if (slotId < 0) return TSDB_CODE_PLAN_SLOT_NOT_FOUND;
+  return taosArrayPush(pSlots, &slotId) == NULL ? terrno : TSDB_CODE_SUCCESS;
+}
+
+static int16_t getStreamNestedProjectionSlot(const SStreamNestedWindowContext* pNested, int32_t layerIndex, int8_t kind,
+                                             int32_t ordinal) {
+  for (int32_t i = 0; i < taosArrayGetSize(pNested->pProjectionRefs); ++i) {
+    const SStreamNestedProjectionRef* pRef = taosArrayGet(pNested->pProjectionRefs, i);
+    if (pRef->layerIndex == layerIndex && pRef->kind == kind && pRef->ordinal == ordinal) {
+      return pRef->slotId;
+    }
+  }
+  return -1;
+}
+
+static int32_t fillStreamNestedLayerInput(const SStreamNestedWindowContext* pNested, int32_t layerIndex, SNode* pWindow,
+                                          const SCMCreateStreamReq* pReq, SStreamWindowLayerSpec* pSpec) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  pSpec->input.tsSlotId = -1;
+  pSpec->input.pkSlotId = pReq->triPkSlotId;
+  pSpec->input.eventStartSlotId = -1;
+  pSpec->input.eventEndSlotId = -1;
+  pSpec->input.pConditionSlotIds = taosArrayInit(0, sizeof(int16_t));
+  if (pSpec->input.pConditionSlotIds == NULL) return terrno;
+
+  SColumnNode* pTs = getStreamWindowTimestampColumn(pWindow);
+  if (pTs == NULL) {
+    if (nodeType(pWindow) != QUERY_NODE_PERIOD_WINDOW) return TSDB_CODE_PLAN_SLOT_NOT_FOUND;
+  } else {
+    if (pTs->slotId < 0) return TSDB_CODE_PLAN_SLOT_NOT_FOUND;
+    pSpec->input.tsSlotId = pTs->slotId;
+  }
+
+  if (nodeType(pWindow) == QUERY_NODE_STATE_WINDOW) {
+    int32_t ordinal = 0;
+    SNode* pExpr = NULL;
+    FOREACH(pExpr, ((SStateWindowNode*)pWindow)->pExprList) {
+      const int16_t slotId =
+          nodeType(pExpr) == QUERY_NODE_COLUMN
+              ? ((SColumnNode*)pExpr)->slotId
+              : getStreamNestedProjectionSlot(pNested, layerIndex, STREAM_NESTED_PROJECTION_STATE, ordinal);
+      PAR_ERR_JRET(appendStreamNestedConditionSlot(pSpec->input.pConditionSlotIds, slotId));
+      ++ordinal;
+    }
+  } else if (nodeType(pWindow) == QUERY_NODE_COUNT_WINDOW) {
+    SNode* pExpr = NULL;
+    FOREACH(pExpr, ((SCountWindowNode*)pWindow)->pColList) {
+      if (nodeType(pExpr) != QUERY_NODE_COLUMN) return TSDB_CODE_INVALID_PARA;
+      PAR_ERR_JRET(appendStreamNestedConditionSlot(pSpec->input.pConditionSlotIds, ((SColumnNode*)pExpr)->slotId));
+    }
+  } else if (nodeType(pWindow) == QUERY_NODE_EVENT_WINDOW) {
+    pSpec->input.eventStartSlotId =
+        getStreamNestedProjectionSlot(pNested, layerIndex, STREAM_NESTED_PROJECTION_EVENT_START, 0);
+    if (pSpec->input.eventStartSlotId < 0) return TSDB_CODE_PLAN_SLOT_NOT_FOUND;
+    if (((SEventWindowNode*)pWindow)->pEndCond != NULL) {
+      pSpec->input.eventEndSlotId =
+          getStreamNestedProjectionSlot(pNested, layerIndex, STREAM_NESTED_PROJECTION_EVENT_END, 0);
+      if (pSpec->input.eventEndSlotId < 0) return TSDB_CODE_PLAN_SLOT_NOT_FOUND;
+    }
+  }
+
+_return:
+  return code;
+}
+
+static int32_t replaceStreamNestedStateSlots(SStateWinTrigger* pState, const SArray* pSlots) {
+  SArray* pCopy = taosArrayDup(pSlots, NULL);
+  if (pCopy == NULL) return terrno;
+  taosArrayDestroy(pState->pSlotIds);
+  pState->pSlotIds = pCopy;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t buildStreamNestedWindowPlan(STranslateContext* pCxt, SStreamNestedWindowContext* pNested,
+                                           SCMCreateStreamReq* pReq) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  SStreamWindowPlan* pPlan = taosMemoryCalloc(1, sizeof(*pPlan));
+  if (pPlan == NULL) return terrno;
+  pPlan->version = STREAM_WINDOW_PLAN_VERSION;
+  pPlan->pLayers = taosArrayInit(LIST_LENGTH(pNested->pPlanAst->pLayers), sizeof(SStreamWindowLayerSpec));
+  if (pPlan->pLayers == NULL) {
+    code = terrno;
+    goto _return;
+  }
+
+  int32_t layerIndex = 0;
+  SNode*  pLayerNode = NULL;
+  FOREACH(pLayerNode, pNested->pPlanAst->pLayers) {
+    SStreamWindowLayerNode* pLayer = (SStreamWindowLayerNode*)pLayerNode;
+    SCMCreateStreamReq      layerReq = {0};
+    SStreamWindowLayerSpec  spec = {0};
+    PAR_ERR_JRET(createStreamReqBuildTriggerBuildWindowInfo(pCxt, pLayer->pWindow, &layerReq));
+    spec.triggerType = layerReq.triggerType;
+    tstrncpy(spec.name, pLayer->name, sizeof(spec.name));
+    const int64_t* pMask = taosArrayGet(pNested->pPlaceholderMasks, layerIndex);
+    if (pMask == NULL) {
+      tFreeSCMCreateStreamReq(&layerReq);
+      PAR_ERR_JRET(TSDB_CODE_INVALID_PARA);
+    }
+    spec.placeholderMask = *pMask;
+    spec.trigger = layerReq.trigger;
+    memset(&layerReq.trigger, 0, sizeof(layerReq.trigger));
+    code = fillStreamNestedLayerInput(pNested, layerIndex, pLayer->pWindow, pReq, &spec);
+    if (code == TSDB_CODE_SUCCESS && spec.triggerType == WINDOW_TYPE_STATE) {
+      code = replaceStreamNestedStateSlots(&spec.trigger.stateWin, spec.input.pConditionSlotIds);
+      if (code == TSDB_CODE_SUCCESS && layerIndex == LIST_LENGTH(pNested->pPlanAst->pLayers) - 1) {
+        code = replaceStreamNestedStateSlots(&pReq->trigger.stateWin, spec.input.pConditionSlotIds);
+      }
+    }
+    if (code == TSDB_CODE_SUCCESS && taosArrayPush(pPlan->pLayers, &spec) == NULL) code = terrno;
+    if (code != TSDB_CODE_SUCCESS) {
+      taosArrayDestroy(spec.input.pConditionSlotIds);
+      spec.input.pConditionSlotIds = NULL;
+      layerReq.triggerType = spec.triggerType;
+      layerReq.trigger = spec.trigger;
+      memset(&spec.trigger, 0, sizeof(spec.trigger));
+      tFreeSCMCreateStreamReq(&layerReq);
+      goto _return;
+    }
+    ++layerIndex;
+  }
+
+  pNested->validation.deleteRecalc = pReq->deleteReCalc;
+  pNested->validation.ignoreNoDataTrigger = pReq->igNoDataTrigger;
+  pNested->validation.flushOnOuterClose = BIT_FLAG_TEST_MASK(pReq->addOptions, STREAM_OPTION_FLUSH_ON_OUTER_CLOSE);
+  pNested->validation.eventTypes = pReq->eventTypes;
+  PAR_ERR_JRET(tValidateStreamWindowPlan(pPlan, &pNested->validation));
+  PAR_ERR_JRET(tValidateStreamWindowPlanLeafProjection(pPlan, pReq->triggerType, &pReq->trigger));
+  pReq->pWindowPlan = pPlan;
+  pPlan = NULL;
+
+_return:
+  tDestroyStreamWindowPlan(&pPlan);
+  return code;
+}
+
 // Trigger AST is complete, build trigger info in create stream request
 static int32_t createStreamReqBuildTriggerPlan(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
                                                SSelectStmt** pTriggerSelect, SHashObj** pTriggerSlotHash,
-                                               SCMCreateStreamReq* pReq) {
+                                               SCMCreateStreamReq* pReq, SNode* pTriggerWindow,
+                                               SStreamNestedWindowContext* pNested) {
   int32_t             code = TSDB_CODE_SUCCESS;
   SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
-  SNode*              pTriggerWindow = pTrigger->pTriggerWindow;
   SNodeList*          pTriggerPartition = pTrigger->pPartitionList;
   SRealTableNode*     pTriggerTable = (SRealTableNode*)pTrigger->pTrigerTable;
 
@@ -24649,9 +25385,11 @@ static int32_t createStreamReqBuildTriggerPlan(STranslateContext* pCxt, SCreateS
   }
 
   PAR_ERR_JRET(createStreamReqBuildTriggerBuildPlan(pCxt, *pTriggerSelect, pReq, pTriggerSlotHash, pTriggerWindow,
-                                                    pTriggerPartition, pTrigger->pRollupTagList));
-  PAR_ERR_JRET(createStreamReqBuildTriggerBuildWindowInfo(pCxt, pTriggerWindow, pReq));
+                                                    pTriggerPartition, pTrigger->pRollupTagList, pNested));
+  PAR_ERR_JRET(
+      createStreamReqBuildTriggerBuildWindowInfo(pCxt, pNested == NULL ? pTriggerWindow : pNested->pLeafWindow, pReq));
   PAR_ERR_JRET(createStreamReqCheckPlaceHolder(pCxt, pReq, pReq->placeHolderBitmap, pTriggerPartition));
+  if (pNested != NULL) PAR_ERR_JRET(buildStreamNestedWindowPlan(pCxt, pNested, pReq));
   PAR_ERR_JRET(createStreamReqSetDefaultTag(pCxt, pStmt, pTriggerPartition, pTrigger->pRollupTagList, pReq));
 
 _return:
@@ -25013,6 +25751,7 @@ static int32_t streamSplitCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan
     tstrncpy(pNewScan.sourceName, pCalcScan->sourceName, sizeof(pNewScan.sourceName));
     tstrncpy(pNewScan.extTable, pCalcScan->extTable, sizeof(pNewScan.extTable));
     tstrncpy(pNewScan.tsColumn, pCalcScan->tsColumn, sizeof(pNewScan.tsColumn));
+    pScanSubPlan->requiresAncestorContext = BIT_FLAG_TEST_MASK(pReq->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
     PAR_ERR_JRET(nodesNodeToString(pCalcScan->scanPlan, false, (char**)&pNewScan.scanPlan, NULL));
     if (NULL == taosArrayPush(pReq->calcScanPlanList, &pNewScan)) {
       PAR_ERR_JRET(terrno);
@@ -26125,11 +26864,28 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   SNode*                 pNotifyCond = NULL;
   SNode*                 pTriggerFilter =
       ((SStreamTriggerOptions*)pTrigger->pOptions) ? ((SStreamTriggerOptions*)pTrigger->pOptions)->pPreFilter : NULL;
+  SStreamWindowPlanNode* pWindowPlanAst =
+      nodeType(pTriggerWindow) == QUERY_NODE_STREAM_WINDOW_PLAN ? (SStreamWindowPlanNode*)pTriggerWindow : NULL;
+  SStreamNestedWindowContext  nestedContext = {0};
+  SStreamNestedWindowContext* pNested = NULL;
+  if (pWindowPlanAst != NULL) {
+    pNested = &nestedContext;
+    PAR_ERR_JRET(initStreamNestedWindowContext(pWindowPlanAst, pNested));
+    PAR_ERR_JRET(validateStreamNestedLayerNamespace(pNested, pStmt->pQuery));
+    PAR_ERR_JRET(checkStreamLayerPlaceholdersOutsideCalc(pStmt, pWindowPlanAst));
+    PAR_ERR_JRET(bindStreamLayerPlaceholders(pNested, pStmt->pQuery));
+  }
 
   pCxt->streamInfo.triggerPartitionList = pTrigger->pPartitionList;
   pCxt->streamInfo.rollupTagList = pTrigger->pRollupTagList;
 
   PAR_ERR_JRET(createStreamReqBuildDefaultReq(pCxt, pStmt, pReq));
+  if (pNested != NULL) {
+    pReq->addOptions |= STREAM_OPTION_NESTED_WINDOW_PLAN;
+    if (pTriggerOptions != NULL && pTriggerOptions->flushOnOuterClose) {
+      pReq->addOptions |= STREAM_OPTION_FLUSH_ON_OUTER_CLOSE;
+    }
+  }
   parserDebug("buildCreateStreamReq step: DefaultReq done");
   PAR_ERR_JRET(createStreamReqBuildNameAndId(pCxt, pStmt, pReq));
   parserDebug("buildCreateStreamReq step: NameAndId done");
@@ -26137,12 +26893,13 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   parserDebug("buildCreateStreamReq step: NotifyOptions done");
   // Split build AST and build plan into two steps, because trigger's select list may depend on stream's calculation
   // part.
-  PAR_ERR_JRET(createStreamReqBuildTriggerAst(pCxt, pStmt, &pTriggerSelect, &pTriggerSlotHash, &pTriggerFilter, pReq));
+  PAR_ERR_JRET(
+      createStreamReqBuildTriggerAst(pCxt, pStmt, &pTriggerSelect, &pTriggerSlotHash, &pTriggerFilter, pReq, pNested));
   parserDebug("buildCreateStreamReq step: TriggerAst done");
   PAR_ERR_JRET(createStreamReqBuildTriggerOptions(pCxt, pStmt, pTriggerOptions, pReq));
   parserDebug("buildCreateStreamReq step: TriggerOptions done");
-  PAR_ERR_JRET(createStreamReqBuildCalc(pCxt, pStmt, pTrigger->pPartitionList, pTriggerSelect, pTriggerWindow,
-                                        &pNotifyCond, pReq));
+  PAR_ERR_JRET(createStreamReqBuildCalc(pCxt, pStmt, pTrigger->pPartitionList, pTriggerSelect,
+                                        pNested == NULL ? pTriggerWindow : pNested->pLeafWindow, &pNotifyCond, pReq));
   parserDebug("buildCreateStreamReq step: Calc done");
   // Pt A4/A5 + Pt-Followup F1 ordering: collect EXT source refs and build extSpecs AFTER trigger AST and calc
   // translation, so pExtTableNode is set on both sides (see DS Sec 6.1.1 / Sec 6.2.1).
@@ -26153,12 +26910,14 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   parserDebug("buildCreateStreamReq step: collectExtSourceRefs done");
   PAR_ERR_JRET(createStreamReqBuildExtSpecs(pCxt, pStmt, pReq));
   parserDebug("buildCreateStreamReq step: ExtSpecs done");
-  PAR_ERR_JRET(createStreamReqBuildTriggerPlan(pCxt, pStmt, &pTriggerSelect, &pTriggerSlotHash, pReq));
+  PAR_ERR_JRET(createStreamReqBuildTriggerPlan(pCxt, pStmt, &pTriggerSelect, &pTriggerSlotHash, pReq,
+                                               pNested == NULL ? pTriggerWindow : (SNode*)pNested->pPlanAst, pNested));
   parserDebug("buildCreateStreamReq step: TriggerPlan done");
   PAR_ERR_JRET(createStreamReqBuildOutTable(pCxt, pStmt, pTriggerSlotHash, pReq));
   parserDebug("buildCreateStreamReq step: OutTable done");
 
 _return:
+  destroyStreamNestedWindowContext(&nestedContext);
   pCxt->streamInfo.triggerPartitionList = pTriggerPartitionList;
   pCxt->streamInfo.rollupTagList = pRollupTagList;
   if (code) {
@@ -27274,6 +28033,13 @@ static int32_t translateBalanceVgroup(STranslateContext* pCxt, SBalanceVgroupStm
   SBalanceVgroupReq req = {0};
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP, (FSerializeFunc)tSerializeSBalanceVgroupReq, &req);
   tFreeSBalanceVgroupReq(&req);
+  return code;
+}
+
+static int32_t translateFlushMnode(STranslateContext* pCxt, SFlushMnodeStmt* pStmt) {
+  SFlushMnodeReq req = {0};
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_FLUSH_MNODE, (FSerializeFunc)tSerializeSFlushMnodeReq, &req);
+  tFreeSFlushMnodeReq(&req);
   return code;
 }
 
@@ -29642,6 +30408,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       code = translateBalanceVgroup(pCxt, (SBalanceVgroupStmt*)pNode);
       break;
+    case QUERY_NODE_FLUSH_MNODE_STMT:
+      code = translateFlushMnode(pCxt, (SFlushMnodeStmt*)pNode);
+      break;
     case QUERY_NODE_ASSIGN_LEADER_STMT:
       code = translateAssignLeader(pCxt, (SAssignLeaderStmt*)pNode);
       break;
@@ -31840,10 +32609,9 @@ static int32_t setExternalRefSchemaName(STranslateContext* pCxt, SColRef* pColRe
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t buildVirtualSubTableBatchReq(STranslateContext* pCxt, const SCreateVSubTableStmt* pStmt,
-                                            STableMeta* pStbMeta, SArray* tagName, uint8_t tagNum, const STag* pTag,
-                                            const SVgroupInfo* pVgroupInfo, SVgroupCreateTableBatch* pBatch,
-                                            SNodeList* pTagRefNodes, int64_t txnId) {
+static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSubTableStmt* pStmt, STableMeta* pStbMeta,
+                                       SArray* tagName, uint8_t tagNum, const STag* pTag, SNodeList* pTagRefNodes,
+                                       int64_t txnId, SVCreateTbReq* pReq) {
   int32_t       code = TSDB_CODE_SUCCESS;
   SVCreateTbReq req = {0};
   SNode*        pCol;
@@ -31866,7 +32634,7 @@ static int32_t buildVirtualSubTableBatchReq(STranslateContext* pCxt, const SCrea
     PAR_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  PAR_ERR_RET(tInitDefaultSColRefWrapperByCols(&req.colRef, pStbMeta->tableInfo.numOfColumns));
+  PAR_ERR_JRET(tInitDefaultSColRefWrapperByCols(&req.colRef, pStbMeta->tableInfo.numOfColumns));
 
   const SSchema* pColSchemas = getTableColumnSchema(pStbMeta);
   for (int32_t i = 0; i < pStbMeta->tableInfo.numOfColumns; ++i) {
@@ -31967,17 +32735,10 @@ static int32_t buildVirtualSubTableBatchReq(STranslateContext* pCxt, const SCrea
     }
   }
 
-  pBatch->info = *pVgroupInfo;
-  tstrncpy(pBatch->dbName, pStmt->dbName, sizeof(pBatch->dbName));
-  pBatch->req.pArray = taosArrayInit(1, sizeof(struct SVCreateTbReq));
-  if (NULL == pBatch->req.pArray || NULL == taosArrayPush(pBatch->req.pArray, &req)) {
-    PAR_ERR_JRET(terrno);
-  }
-
+  *pReq = req;
   return code;
 _return:
   tdDestroySVCreateTbReq(&req);
-  taosArrayDestroy(pBatch->req.pArray);
   return code;
 }
 
@@ -32237,11 +32998,45 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
+static int32_t addCreateReqIntoVgroup(SHashObj* pVgroupHashmap, const char* dbName, const SVgroupInfo* pVgInfo,
+                                      SVCreateTbReq* pReq) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  SVgroupCreateTableBatch* pTableBatch = taosHashGet(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId));
+  if (pTableBatch == NULL) {
+    SVgroupCreateTableBatch tBatch = {0};
+    tBatch.info = *pVgInfo;
+    tstrncpy(tBatch.dbName, dbName, TSDB_DB_NAME_LEN);
+
+    tBatch.req.pArray = taosArrayInit(4, sizeof(struct SVCreateTbReq));
+    if (!tBatch.req.pArray) {
+      code = terrno;
+    } else if (NULL == taosArrayPush(tBatch.req.pArray, pReq)) {
+      taosArrayDestroy(tBatch.req.pArray);
+      code = terrno;
+    } else {
+      code = taosHashPut(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId), &tBatch, sizeof(tBatch));
+      if (TSDB_CODE_SUCCESS != code) {
+        taosArrayDestroy(tBatch.req.pArray);
+      }
+    }
+  } else {  // add to the correct vgroup
+    if (NULL == taosArrayPush(pTableBatch->req.pArray, pReq)) {
+      code = terrno;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    tdDestroySVCreateTbReq(pReq);
+  }
+
+  return code;
+}
+
 static int32_t addCreateTbReqIntoVgroup(SHashObj* pVgroupHashmap, const char* dbName, uint64_t suid,
                                         const char* sTableName, const char* tableName, SArray* tagName, uint8_t tagNum,
                                         const STag* pTag, int32_t ttl, const char* comment, bool ignoreExists,
                                         SVgroupInfo* pVgInfo, int64_t txnId) {
-  struct SVCreateTbReq req = {0};
+  SVCreateTbReq req = {0};
   req.type = TD_CHILD_TABLE;
   req.txnId = txnId;
   req.name = taosStrdup(tableName);
@@ -32266,36 +33061,7 @@ static int32_t addCreateTbReqIntoVgroup(SHashObj* pVgroupHashmap, const char* db
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  int32_t                  code = TSDB_CODE_SUCCESS;
-  SVgroupCreateTableBatch* pTableBatch = taosHashGet(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId));
-  if (pTableBatch == NULL) {
-    SVgroupCreateTableBatch tBatch = {0};
-    tBatch.info = *pVgInfo;
-    tstrncpy(tBatch.dbName, dbName, TSDB_DB_NAME_LEN);
-
-    tBatch.req.pArray = taosArrayInit(4, sizeof(struct SVCreateTbReq));
-    if (!tBatch.req.pArray) {
-      code = terrno;
-    } else if (NULL == taosArrayPush(tBatch.req.pArray, &req)) {
-      taosArrayDestroy(tBatch.req.pArray);
-      code = terrno;
-    } else {
-      code = taosHashPut(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId), &tBatch, sizeof(tBatch));
-      if (TSDB_CODE_SUCCESS != code) {
-        taosArrayDestroy(tBatch.req.pArray);
-      }
-    }
-  } else {  // add to the correct vgroup
-    if (NULL == taosArrayPush(pTableBatch->req.pArray, &req)) {
-      code = terrno;
-    }
-  }
-
-  if (TSDB_CODE_SUCCESS != code) {
-    tdDestroySVCreateTbReq(&req);
-  }
-
-  return code;
+  return addCreateReqIntoVgroup(pVgroupHashmap, dbName, pVgInfo, &req);
 }
 
 static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SNodeList* pSpecificTags, SNodeList* pValsOfTags,
@@ -32959,13 +33725,16 @@ int32_t serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap, SArray** pOut
   } while (true);
 
   if (TSDB_CODE_SUCCESS != code) {
-    taosArrayDestroy(pBufArray);
+    destroyCreateTbReqArray(pBufArray);
   } else {
     *pOut = pBufArray;
   }
 
   return code;
 }
+
+static int32_t rewriteCreateVirtualSubTableClause(STranslateContext* pCxt, SCreateVSubTableStmt* pStmt,
+                                                  SHashObj* pVgroupHashmap);
 
 static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) {
   SCreateMultiTablesStmt* pStmt = (SCreateMultiTablesStmt*)pQuery->pRoot;
@@ -32979,8 +33748,17 @@ static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) 
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode;
   FOREACH(pNode, pStmt->pSubTables) {
-    SCreateSubTableClause* pClause = (SCreateSubTableClause*)pNode;
-    code = rewriteCreateSubTable(pCxt, pClause, pVgroupHashmap);
+    switch (nodeType(pNode)) {
+      case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
+        code = rewriteCreateSubTable(pCxt, (SCreateSubTableClause*)pNode, pVgroupHashmap);
+        break;
+      case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
+        code = rewriteCreateVirtualSubTableClause(pCxt, (SCreateVSubTableStmt*)pNode, pVgroupHashmap);
+        break;
+      default:
+        code = TSDB_CODE_PAR_INTERNAL_ERROR;
+        break;
+    }
     if (TSDB_CODE_SUCCESS != code) {
       taosHashCleanup(pVgroupHashmap);
       return code;
@@ -32994,7 +33772,11 @@ static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) 
     return code;
   }
 
-  return rewriteToVnodeModifyOpStmt(pQuery, pBufArray);
+  code = rewriteToVnodeModifyOpStmt(pQuery, pBufArray);
+  if (TSDB_CODE_SUCCESS != code) {
+    destroyCreateTbReqArray(pBufArray);
+  }
+  return code;
 }
 
 static int32_t rewriteCreateTableFromFile(STranslateContext* pCxt, SQuery* pQuery) {
@@ -35568,21 +36350,6 @@ _return:
   return code;
 }
 
-static int32_t buildCreateVSubTableDataBlock(STranslateContext* pCxt, const SCreateVSubTableStmt* pStmt,
-                                             const SVgroupInfo* pInfo, SArray* pBufArray, STableMeta* pStbMeta,
-                                             SArray* tagName, uint8_t tagNum, const STag* pTag,
-                                             SNodeList* pTagRefNodes, int64_t txnId) {
-  SVgroupCreateTableBatch tbatch = {0};
-  int32_t                 code = TSDB_CODE_SUCCESS;
-  PAR_ERR_JRET(buildVirtualSubTableBatchReq(pCxt, pStmt, pStbMeta, tagName, tagNum, pTag, pInfo, &tbatch,
-                                            pTagRefNodes, txnId));
-  PAR_ERR_JRET(serializeVgroupCreateTableBatch(&tbatch, pBufArray));
-
-_return:
-  destroyCreateTbReqBatch(&tbatch);
-  return code;
-}
-
 static int32_t translateExtSeriesTagCond(STranslateContext* pCxt, SNode* pTagCond);
 
 // Match pTagCond conditions against influx metadata tags: exact 1:1, no duplicates, no missing.
@@ -36109,25 +36876,23 @@ _return:
   return code;
 }
 
-static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQuery) {
-  int32_t               code = TSDB_CODE_SUCCESS;
-  SCreateVSubTableStmt* pStmt = (SCreateVSubTableStmt*)pQuery->pRoot;
-  SVgroupInfo           info = {0};
-  SName                 name = {0};
-  SArray*               pBufArray = NULL;
-  STableMeta*           pSuperTableMeta = NULL;
-  STag*                 pTag = NULL;
-  SArray*               tagName = NULL;
-  SNode*                pCol = NULL;
-  SNodeList*            pTagRefNodes = NULL;
+static int32_t rewriteCreateVirtualSubTableClause(STranslateContext* pCxt, SCreateVSubTableStmt* pStmt,
+                                                  SHashObj* pVgroupHashmap) {
+  int32_t       code = TSDB_CODE_SUCCESS;
+  int32_t       lino = 0;
+  SVgroupInfo   info = {0};
+  SName         name = {0};
+  STableMeta*   pSuperTableMeta = NULL;
+  STag*         pTag = NULL;
+  SArray*       tagName = NULL;
+  SNode*        pCol = NULL;
+  SNodeList*    pTagRefNodes = NULL;
+  SVCreateTbReq req = {0};
 
   PAR_ERR_JRET(checkCreateVSubTable(pCxt, pStmt));
 
-  pBufArray = taosArrayInit(1, POINTER_BYTES);
   tagName = taosArrayInit(8, TSDB_COL_NAME_LEN + sizeof(col_id_t));
-  if (NULL == pBufArray || NULL == tagName) {
-    PAR_ERR_JRET(terrno);
-  }
+  QUERY_CHECK_NULL(tagName, code, lino, _return, terrno);
 
   PAR_ERR_JRET(refreshGetTableMeta(pCxt, pStmt->useDbName, pStmt->useTableName, &pSuperTableMeta));
 
@@ -36222,10 +36987,9 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
     PAR_ERR_JRET(buildKVRowForAllTags(pCxt, pStmt->pValsOfTags, pSuperTableMeta, &pTag, tagName));
   }
 
-  PAR_ERR_JRET(buildCreateVSubTableDataBlock(pCxt, pStmt, &info, pBufArray, pSuperTableMeta, tagName,
-                                             taosArrayGetSize(tagName), pTag, pTagRefNodes,
-                                             pCxt->pParseCxt->txnId));
-  PAR_ERR_JRET(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
+  PAR_ERR_JRET(buildVirtualSubTableReq(pCxt, pStmt, pSuperTableMeta, tagName, taosArrayGetSize(tagName), pTag,
+                                       pTagRefNodes, pCxt->pParseCxt->txnId, &req));
+  PAR_ERR_JRET(addCreateReqIntoVgroup(pVgroupHashmap, pStmt->dbName, &info, &req));
 
   nodesDestroyList(pTagRefNodes);
   taosMemoryFreeClear(pSuperTableMeta);
@@ -36233,9 +36997,32 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
   return code;
 _return:
   nodesDestroyList(pTagRefNodes);
-  destroyCreateTbReqArray(pBufArray);
   taosArrayDestroy(tagName);
   taosMemoryFreeClear(pSuperTableMeta);
+  return code;
+}
+
+static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQuery) {
+  int32_t               code = TSDB_CODE_SUCCESS;
+  int32_t               lino = 0;
+  SCreateVSubTableStmt* pStmt = (SCreateVSubTableStmt*)pQuery->pRoot;
+  SHashObj*             pVgroupHashmap = NULL;
+  SArray*               pBufArray = NULL;
+
+  pVgroupHashmap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  QUERY_CHECK_NULL(pVgroupHashmap, code, lino, _return, terrno);
+
+  taosHashSetFreeFp(pVgroupHashmap, destroyCreateTbReqBatch);
+  PAR_ERR_JRET(rewriteCreateVirtualSubTableClause(pCxt, pStmt, pVgroupHashmap));
+  PAR_ERR_JRET(serializeVgroupsCreateTableBatch(pVgroupHashmap, &pBufArray));
+  PAR_ERR_JRET(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
+
+_return:
+  if (code) {
+    parserError("%s failed since %d", __FUNCTION__ , code);
+    destroyCreateTbReqArray(pBufArray);
+  }
+  taosHashCleanup(pVgroupHashmap);
   return code;
 }
 

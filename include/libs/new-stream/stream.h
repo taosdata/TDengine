@@ -33,6 +33,7 @@ extern "C" {
 // #define STREAM_RETURN_ROWS_NUM_NEW 1000000
 
 #define STREAM_ACT_MIN_DELAY_MSEC (STREAM_MAX_GROUP_NUM * STREAM_HB_INTERVAL_MS)
+#define STREAM_PULL_TASK_NOT_EXIST_RETRY_LIMIT 10
 
 #define STREAM_FLAG_TRIGGER_READER  (1 << 0)
 #define STREAM_FLAG_TOP_RUNNER      (1 << 1)
@@ -75,14 +76,53 @@ void    stReaderResponseStatsSetWalData(SStreamReaderResponseStats *pResponse, c
 void stReaderTaskRecordPullResult(SStreamReaderTask *pTask, const SStreamReaderResponseStats *pResponse, int32_t code,
                                   int64_t nowMonoUs, int64_t nowWallMs);
 
+typedef enum {
+  STRIGGER_AHANDLE_PARAM_PULL_REQUEST = 0,
+  STRIGGER_AHANDLE_PARAM_NESTED_INPUT_ROUTE,
+  STRIGGER_AHANDLE_PARAM_NESTED_RECOVERY,
+  STRIGGER_AHANDLE_PARAM_NESTED_RECOVERY_PSEUDO,
+} ESTriggerAHandleParamType;
+
 typedef struct SSTriggerAHandle {
   int64_t streamId;
   int64_t taskId;
   int64_t sessionId;
-  void*   param;
+  int8_t  paramType; /* ESTriggerAHandleParamType */
+  void   *param;
+  void   *pullOwner; /* borrowed owner for pull requests that require terminal cleanup */
   uint64_t progressStepId;
   uint64_t progressRequestToken;
+  SStreamManualRecalcAttemptId manualAttempt;
 } SSTriggerAHandle;
+
+typedef enum {
+  STREAM_NESTED_INPUT_REALTIME = 0,
+  STREAM_NESTED_INPUT_HISTORY,
+  STREAM_NESTED_INPUT_RECOVERY,
+} EStreamNestedInputOwner;
+
+typedef enum {
+  STREAM_NESTED_CURSOR_NONE = 0,
+  STREAM_NESTED_CURSOR_ROSTER,
+  STREAM_NESTED_CURSOR_SOURCE_DATA,
+} EStreamNestedCursorFamily;
+
+typedef struct {
+  EStreamNestedInputOwner   owner;
+  ESTriggerPullType         pullType;
+  int64_t                   sessionId;
+  int64_t                   ownerId;
+  uint64_t                  generation;
+  int64_t                   readerTaskId;
+  EStreamNestedCursorFamily cursorFamily;
+  uint64_t                  rosterId;
+  uint64_t                  cursorId;
+  uint64_t                  snapshotLeaseId;
+  uint32_t                  pageSeq;
+  int32_t                   rosterIndex;
+  int32_t                   sourceIndex;
+  int32_t                   subSourceIndex;
+} SStreamNestedInputRoute;
 
 typedef enum sinkHandleInitState {
   SINK_HANDLE_UNINITIALIZED = 0,
@@ -160,8 +200,18 @@ typedef struct SStreamCacheReadInfo {
   int64_t      gid;
   TSKEY        start;
   TSKEY        end;
+  const SStreamContextPolicy   *pContextPolicy;
+  const SStreamAncestorContext *pAncestorContext;
+  const SStreamRuntimeFuncInfo *pRuntime;
+  SStreamCacheScope             cacheScope;
+  int32_t                       readInfoIndex;
+  bool                          hasCacheScope;
+  bool                          reset;
   SSDataBlock *pBlock;
 } SStreamCacheReadInfo;
+
+int32_t stBindStreamCacheReadScope(const SStreamRuntimeFuncInfo *pRuntime, SStreamCacheReadInfo *pReadInfo);
+void    stClearStreamCacheReadScope(SStreamCacheReadInfo *pReadInfo);
 
 #define STRIGGER_RECALC_RANGE_MAX_HOURS 24
 

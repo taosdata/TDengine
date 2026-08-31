@@ -7823,6 +7823,7 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastShardBits));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->securityLevel));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->parallel));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->maxRows));
 
   tEndEncode(&encoder);
 
@@ -7939,6 +7940,12 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   pReq->parallel = 0;
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->parallel));
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->maxRows));
+  } else {
+    pReq->maxRows = -1;
   }
 
   tEndDecode(&decoder);
@@ -10919,6 +10926,240 @@ static int32_t tEncodeSTableMetaRsp(SEncoder *pEncoder, STableMetaRsp *pRsp) {
   return 0;
 }
 
+typedef struct {
+  const uint8_t *p;
+  const uint8_t *end;
+} STableMetaFrameCursor;
+
+static int32_t tableMetaScanFixed(STableMetaFrameCursor *pCursor, size_t size, const uint8_t **ppValue) {
+  if (size > (size_t)(pCursor->end - pCursor->p)) return TSDB_CODE_INVALID_MSG;
+  if (ppValue != NULL) *ppValue = pCursor->p;
+  pCursor->p += size;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tableMetaScanI32(STableMetaFrameCursor *pCursor, int32_t *pValue) {
+  const uint8_t *p = NULL;
+  TAOS_CHECK_RETURN(tableMetaScanFixed(pCursor, sizeof(*pValue), &p));
+  memcpy(pValue, p, sizeof(*pValue));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tableMetaScanVarint(STableMetaFrameCursor *pCursor, int32_t bits, uint32_t *pValue) {
+  const int32_t maxWidth = bits == 16 ? 3 : 5;
+  uint32_t      value = 0;
+  int32_t       width = 0;
+
+  for (; width < maxWidth; ++width) {
+    if (pCursor->p == pCursor->end) return TSDB_CODE_INVALID_MSG;
+    const uint8_t byte = *pCursor->p++;
+    const uint8_t payload = byte & 0x7f;
+    if (width == maxWidth - 1 && payload > (bits == 16 ? 0x03 : 0x0f)) return TSDB_CODE_INVALID_MSG;
+    value |= (uint32_t)payload << (7 * width);
+    if ((byte & 0x80) == 0) {
+      if (width > 0 && payload == 0) return TSDB_CODE_INVALID_MSG;
+      if (pValue != NULL) *pValue = value;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  return TSDB_CODE_INVALID_MSG;
+}
+
+static int32_t tableMetaScanCStr(STableMetaFrameCursor *pCursor, size_t destinationSize, int32_t expectedLen) {
+  uint32_t length = 0;
+  TAOS_CHECK_RETURN(tableMetaScanVarint(pCursor, 32, &length));
+  if (length == 0 || length > destinationSize || length > (uint32_t)(pCursor->end - pCursor->p)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (expectedLen >= 0 && (uint32_t)expectedLen != length) return TSDB_CODE_INVALID_MSG;
+  if (pCursor->p[length - 1] != '\0' || memchr(pCursor->p, '\0', length - 1) != NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  pCursor->p += length;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tableMetaScanColRefs(STableMetaFrameCursor *pCursor, int32_t count, bool *pHasRefs) {
+  for (int32_t i = 0; i < count; ++i) {
+    const uint8_t *pHasRef = NULL;
+    TAOS_CHECK_RETURN(tableMetaScanFixed(pCursor, sizeof(int8_t), &pHasRef));
+    TAOS_CHECK_RETURN(tableMetaScanFixed(pCursor, sizeof(int16_t), NULL));
+    if (*pHasRef > 1) return TSDB_CODE_INVALID_MSG;
+    if (pHasRefs != NULL) pHasRefs[i] = *pHasRef == 1;
+    if (*pHasRef == 1) {
+      TAOS_CHECK_RETURN(tableMetaScanCStr(pCursor, TSDB_DB_NAME_LEN, -1));
+      TAOS_CHECK_RETURN(tableMetaScanCStr(pCursor, TSDB_TABLE_NAME_LEN, -1));
+      TAOS_CHECK_RETURN(tableMetaScanCStr(pCursor, TSDB_COL_NAME_LEN, -1));
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tableMetaScanColRefExts(STableMetaFrameCursor *pCursor, int32_t count, const bool *pHasRefs) {
+  for (int32_t i = 0; i < count; ++i) {
+    if (!pHasRefs[i]) continue;
+    TAOS_CHECK_RETURN(tableMetaScanFixed(pCursor, sizeof(int8_t), NULL));
+    TAOS_CHECK_RETURN(tableMetaScanCStr(pCursor, TSDB_EXT_SOURCE_NAME_LEN, -1));
+    TAOS_CHECK_RETURN(tableMetaScanCStr(pCursor, TSDB_EXT_SOURCE_SCHEMA_LEN, -1));
+
+    int32_t declaredLen = 0;
+    TAOS_CHECK_RETURN(tableMetaScanI32(pCursor, &declaredLen));
+    if (declaredLen < 0 || declaredLen >= INT32_MAX || declaredLen > TSDB_MAX_MSG_SIZE) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+    if (declaredLen > 0) {
+      uint32_t encodedLen = 0;
+      TAOS_CHECK_RETURN(tableMetaScanVarint(pCursor, 32, &encodedLen));
+      if (encodedLen != (uint32_t)declaredLen) return TSDB_CODE_INVALID_MSG;
+      TAOS_CHECK_RETURN(tableMetaScanFixed(pCursor, encodedLen, NULL));
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tableMetaScanFrame(const void *buf, int32_t bufLen) {
+  if (buf == NULL || bufLen < (int32_t)sizeof(int32_t) || bufLen > TSDB_MAX_MSG_SIZE) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  int32_t frameLen = 0;
+  memcpy(&frameLen, buf, sizeof(frameLen));
+  if (frameLen < 0 || frameLen != bufLen - (int32_t)sizeof(frameLen)) return TSDB_CODE_INVALID_MSG;
+
+  STableMetaFrameCursor cursor = {
+      .p = (const uint8_t *)buf + sizeof(frameLen),
+      .end = (const uint8_t *)buf + bufLen,
+  };
+  TAOS_CHECK_RETURN(tableMetaScanCStr(&cursor, TSDB_TABLE_NAME_LEN, -1));
+  TAOS_CHECK_RETURN(tableMetaScanCStr(&cursor, TSDB_TABLE_NAME_LEN, -1));
+  TAOS_CHECK_RETURN(tableMetaScanCStr(&cursor, TSDB_DB_FNAME_LEN, -1));
+  TAOS_CHECK_RETURN(tableMetaScanFixed(&cursor, sizeof(int64_t), NULL));
+
+  int32_t numOfTags = 0;
+  int32_t numOfColumns = 0;
+  TAOS_CHECK_RETURN(tableMetaScanI32(&cursor, &numOfTags));
+  TAOS_CHECK_RETURN(tableMetaScanI32(&cursor, &numOfColumns));
+  if (numOfTags < 0 || numOfTags > TSDB_MAX_TAGS || numOfColumns < 0 || numOfColumns > TSDB_MAX_COLUMNS ||
+      numOfColumns > INT32_MAX - numOfTags) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  TAOS_CHECK_RETURN(tableMetaScanFixed(&cursor, sizeof(int8_t), NULL));
+  const uint8_t *pTableType = NULL;
+  TAOS_CHECK_RETURN(tableMetaScanFixed(&cursor, sizeof(int8_t), &pTableType));
+  TAOS_CHECK_RETURN(tableMetaScanFixed(&cursor, sizeof(int32_t) * 2 + sizeof(uint64_t) * 2 + sizeof(int32_t), NULL));
+
+  const int32_t totalCols = numOfColumns + numOfTags;
+  const int32_t maxSchemaBytes = TSDB_MAX_BLOB_LEN + BLOBSTR_HEADER_SIZE;
+  if ((size_t)totalCols > (size_t)(cursor.end - cursor.p) / 5) return TSDB_CODE_INVALID_MSG;
+  for (int32_t i = 0; i < totalCols; ++i) {
+    TAOS_CHECK_RETURN(tableMetaScanFixed(&cursor, sizeof(int8_t) * 2, NULL));
+    uint32_t rawBytes = 0;
+    TAOS_CHECK_RETURN(tableMetaScanVarint(&cursor, 32, &rawBytes));
+    const int32_t bytes = (int32_t)((rawBytes >> 1) ^ (uint32_t)-(int32_t)(rawBytes & 1));
+    if (bytes <= 0 || bytes > maxSchemaBytes) return TSDB_CODE_INVALID_MSG;
+    TAOS_CHECK_RETURN(tableMetaScanVarint(&cursor, 16, NULL));
+    TAOS_CHECK_RETURN(tableMetaScanCStr(&cursor, TSDB_COL_NAME_LEN, -1));
+  }
+
+  if (cursor.p == cursor.end) return TSDB_CODE_SUCCESS;
+  if (withExtSchema((int8_t)*pTableType)) {
+    if ((size_t)numOfColumns > (size_t)(cursor.end - cursor.p) / 9) return TSDB_CODE_INVALID_MSG;
+    for (int32_t i = 0; i < numOfColumns; ++i) {
+      TAOS_CHECK_RETURN(tableMetaScanVarint(&cursor, 16, NULL));
+      TAOS_CHECK_RETURN(tableMetaScanFixed(&cursor, sizeof(uint32_t) + sizeof(int32_t), NULL));
+    }
+  }
+
+  if (cursor.p == cursor.end) return TSDB_CODE_SUCCESS;
+  TAOS_CHECK_RETURN(tableMetaScanFixed(&cursor, sizeof(int8_t), NULL));
+  int32_t numOfColRefs = 0;
+  bool    colHasRefs[TSDB_MAX_COLUMNS] = {0};
+  TAOS_CHECK_RETURN(tableMetaScanI32(&cursor, &numOfColRefs));
+  if (numOfColRefs < 0 || numOfColRefs > numOfColumns) return TSDB_CODE_INVALID_MSG;
+  if (hasColRef((int8_t)*pTableType)) {
+    TAOS_CHECK_RETURN(tableMetaScanColRefs(&cursor, numOfColRefs, colHasRefs));
+  }
+
+  if (cursor.p == cursor.end) return TSDB_CODE_SUCCESS;
+  TAOS_CHECK_RETURN(tableMetaScanFixed(&cursor, sizeof(int32_t), NULL));
+  if (cursor.p == cursor.end) return TSDB_CODE_SUCCESS;
+  TAOS_CHECK_RETURN(tableMetaScanFixed(&cursor, sizeof(int64_t), NULL));
+  if (cursor.p == cursor.end) return TSDB_CODE_SUCCESS;
+  TAOS_CHECK_RETURN(tableMetaScanFixed(&cursor, sizeof(uint8_t), NULL));
+  if (cursor.p == cursor.end) return TSDB_CODE_SUCCESS;
+  TAOS_CHECK_RETURN(tableMetaScanFixed(&cursor, sizeof(int8_t), NULL));
+
+  if (cursor.p == cursor.end) return TSDB_CODE_SUCCESS;
+  int32_t numOfTagRefs = 0;
+  TAOS_CHECK_RETURN(tableMetaScanI32(&cursor, &numOfTagRefs));
+  const bool   tableHasTagRefs = hasTagRef((int8_t)*pTableType);
+  const size_t minEncodedColRefSize = sizeof(int8_t) + sizeof(int16_t);
+  if (numOfTagRefs < 0 ||
+      (tableHasTagRefs &&
+       (numOfTagRefs > INT16_MAX || (size_t)numOfTagRefs > (size_t)(cursor.end - cursor.p) / minEncodedColRefSize)) ||
+      (!tableHasTagRefs && numOfTagRefs > numOfTags)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  const STableMetaFrameCursor tagRefsCursor = cursor;
+  if (tableHasTagRefs) {
+    TAOS_CHECK_RETURN(tableMetaScanColRefs(&cursor, numOfTagRefs, NULL));
+  }
+
+  if (cursor.p == cursor.end) return TSDB_CODE_SUCCESS;
+  int32_t numOfSeries = 0;
+  TAOS_CHECK_RETURN(tableMetaScanI32(&cursor, &numOfSeries));
+  const size_t minEncodedSeriesSize = 4 * 2 + sizeof(int32_t);
+  if (numOfSeries < 0 || (size_t)numOfSeries > SIZE_MAX / sizeof(SSeriesEntry) ||
+      (size_t)numOfSeries > (size_t)(cursor.end - cursor.p) / minEncodedSeriesSize) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  for (int32_t i = 0; i < numOfSeries; ++i) {
+    TAOS_CHECK_RETURN(tableMetaScanCStr(&cursor, TSDB_COL_NAME_LEN, -1));
+    TAOS_CHECK_RETURN(tableMetaScanCStr(&cursor, TSDB_EXT_SOURCE_NAME_LEN, -1));
+    TAOS_CHECK_RETURN(tableMetaScanCStr(&cursor, TSDB_DB_NAME_LEN, -1));
+    TAOS_CHECK_RETURN(tableMetaScanCStr(&cursor, TSDB_TABLE_NAME_LEN, -1));
+    int32_t declaredLen = 0;
+    TAOS_CHECK_RETURN(tableMetaScanI32(&cursor, &declaredLen));
+    if (declaredLen < 0 || declaredLen >= INT32_MAX || declaredLen > TSDB_MAX_MSG_SIZE) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+    if (declaredLen > 0) TAOS_CHECK_RETURN(tableMetaScanCStr(&cursor, (size_t)declaredLen, declaredLen));
+  }
+
+  if (cursor.p == cursor.end) return TSDB_CODE_SUCCESS;
+  TAOS_CHECK_RETURN(tableMetaScanFixed(&cursor, sizeof(int8_t), NULL));
+  if (cursor.p == cursor.end) return TSDB_CODE_SUCCESS;
+
+  int32_t numOfColExts = 0;
+  TAOS_CHECK_RETURN(tableMetaScanI32(&cursor, &numOfColExts));
+  if (numOfColExts != numOfColRefs) return TSDB_CODE_INVALID_MSG;
+  if (hasColRef((int8_t)*pTableType)) {
+    TAOS_CHECK_RETURN(tableMetaScanColRefExts(&cursor, numOfColExts, colHasRefs));
+  }
+  int32_t numOfTagExts = 0;
+  TAOS_CHECK_RETURN(tableMetaScanI32(&cursor, &numOfTagExts));
+  if (numOfTagExts != numOfTagRefs) return TSDB_CODE_INVALID_MSG;
+  if (hasColRef((int8_t)*pTableType)) {
+    bool *tagHasRefs = NULL;
+    if (numOfTagRefs > 0) {
+      tagHasRefs = taosMemoryCalloc(numOfTagRefs, sizeof(*tagHasRefs));
+      if (tagHasRefs == NULL) return terrno;
+    }
+
+    STableMetaFrameCursor tagRefsScanCursor = tagRefsCursor;
+    int32_t               code = tableMetaScanColRefs(&tagRefsScanCursor, numOfTagRefs, tagHasRefs);
+    if (code == TSDB_CODE_SUCCESS) {
+      code = tableMetaScanColRefExts(&cursor, numOfTagExts, tagHasRefs);
+    }
+    taosMemoryFree(tagHasRefs);
+    TAOS_CHECK_RETURN(code);
+  }
+
+  return cursor.p == cursor.end ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG;
+}
+
 static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pRsp->tbName));
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pRsp->stbName));
@@ -11147,6 +11388,7 @@ int32_t tDeserializeSTableMetaRsp(void *buf, int32_t bufLen, STableMetaRsp *pRsp
   int32_t  code = 0;
   int32_t  lino;
 
+  TAOS_CHECK_EXIT(tableMetaScanFrame(buf, bufLen));
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
@@ -12714,6 +12956,7 @@ int32_t tSerializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeCon
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->secureDelete));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastShardBits));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->securityLevel));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->maxRows));
 
   tEndEncode(&encoder);
 
@@ -12798,6 +13041,12 @@ int32_t tDeserializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeC
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->securityLevel));
   } else {
     pReq->securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->maxRows));
+  } else {
+    pReq->maxRows = -1;
   }
 
   tEndDecode(&decoder);
@@ -13359,6 +13608,37 @@ _exit:
 }
 
 void tFreeSBalanceVgroupReq(SBalanceVgroupReq *pReq) { FREESQL(); }
+
+int32_t tSerializeSFlushMnodeReq(void *buf, int32_t bufLen, SFlushMnodeReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0, lino, tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->useless));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSFlushMnodeReq(void *buf, int32_t bufLen, SFlushMnodeReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0, lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->useless));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSFlushMnodeReq(SFlushMnodeReq *pReq) { (void)pReq; }
 
 int32_t tSerializeSAssignLeaderReq(void *buf, int32_t bufLen, SAssignLeaderReq *pReq) {
   SEncoder encoder = {0};
@@ -15401,16 +15681,375 @@ void destroySForeignSourceInfo(void *info) {
   }
 }
 
+static const SStreamContextPolicyEntry *tFindFetchContextPolicyEntry(const SStreamContextPolicy *pPolicy, int64_t gid,
+                                                                     int32_t paramIndex) {
+  int32_t low = 0;
+  int32_t high = taosArrayGetSize(pPolicy == NULL ? NULL : pPolicy->pEntries) - 1;
+  while (low <= high) {
+    const int32_t                    mid = low + (high - low) / 2;
+    const SStreamContextPolicyEntry *pEntry = taosArrayGet(pPolicy->pEntries, mid);
+    if (pEntry == NULL) return NULL;
+    if (pEntry->gid == gid && pEntry->paramIndex == paramIndex) return pEntry;
+    if (pEntry->gid < gid || (pEntry->gid == gid && pEntry->paramIndex < paramIndex)) {
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return NULL;
+}
+
+typedef struct {
+  int64_t gid;
+  int32_t paramIndex;
+  int32_t reserved;
+} SFetchContextParamKey;
+
+typedef struct {
+  int32_t layerIndex;
+  int8_t  triggerType;
+  int8_t  reserved[3];
+  TSKEY   openingTs;
+  int64_t nativeDiscriminator;
+} SFetchContextLineageScopeKey;
+
+typedef struct {
+  int64_t                      gid;
+  int32_t                      scopeCount;
+  int32_t                      reserved;
+  SFetchContextLineageScopeKey scopes[STREAM_WINDOW_MAX_LAYERS - 1];
+} SFetchContextLineageKey;
+
+typedef struct {
+  int32_t vgId;
+  int32_t readInfoIndex;
+} SFetchContextReadKey;
+
+typedef struct {
+  int32_t index;
+  int32_t count;
+} SFetchContextIndexValue;
+
+typedef struct {
+  SSHashObj *pParams;
+  SSHashObj *pParamLineages;
+  SSHashObj *pBindingLineages;
+  SSHashObj *pBindingsByRead;
+  SSHashObj *pBindingsByIndex;
+  SSHashObj *pAncestorGids;
+} SFetchContextIndex;
+
+static SFetchContextParamKey tMakeFetchContextParamKey(int64_t gid, int32_t paramIndex) {
+  SFetchContextParamKey key = {0};
+  key.gid = gid;
+  key.paramIndex = paramIndex;
+  return key;
+}
+
+static SFetchContextReadKey tMakeFetchContextReadKey(int32_t vgId, int32_t readInfoIndex) {
+  SFetchContextReadKey key = {0};
+  key.vgId = vgId;
+  key.readInfoIndex = readInfoIndex;
+  return key;
+}
+
+static int32_t tMakeFetchContextLineageKey(int64_t gid, const SWindowLineage *pLineage, SFetchContextLineageKey *pKey) {
+  if (pKey == NULL) return TSDB_CODE_INVALID_PARA;
+  memset(pKey, 0, sizeof(*pKey));
+  pKey->gid = gid;
+  pKey->scopeCount = taosArrayGetSize(pLineage == NULL ? NULL : pLineage->pScopes);
+  if (pKey->scopeCount <= 0 || pKey->scopeCount >= STREAM_WINDOW_MAX_LAYERS) return TSDB_CODE_INVALID_PARA;
+  for (int32_t i = 0; i < pKey->scopeCount; ++i) {
+    const SScopeInstanceId *pScope = taosArrayGet(pLineage->pScopes, i);
+    if (pScope == NULL) return TSDB_CODE_INVALID_PARA;
+    pKey->scopes[i].layerIndex = pScope->layerIndex;
+    pKey->scopes[i].triggerType = pScope->triggerType;
+    pKey->scopes[i].openingTs = pScope->openingTs;
+    pKey->scopes[i].nativeDiscriminator = pScope->nativeDiscriminator;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void tCleanupFetchContextIndex(SFetchContextIndex *pIndex) {
+  if (pIndex == NULL) return;
+  tSimpleHashCleanup(pIndex->pParams);
+  tSimpleHashCleanup(pIndex->pParamLineages);
+  tSimpleHashCleanup(pIndex->pBindingLineages);
+  tSimpleHashCleanup(pIndex->pBindingsByRead);
+  tSimpleHashCleanup(pIndex->pBindingsByIndex);
+  tSimpleHashCleanup(pIndex->pAncestorGids);
+  memset(pIndex, 0, sizeof(*pIndex));
+}
+
+static int32_t tIncrementFetchContextCount(SSHashObj *pHash, const void *pKey, size_t keyLen, int32_t index) {
+  SFetchContextIndexValue *pValue = tSimpleHashGet(pHash, pKey, keyLen);
+  if (pValue != NULL) {
+    ++pValue->count;
+    return TSDB_CODE_SUCCESS;
+  }
+  SFetchContextIndexValue value = {.index = index, .count = 1};
+  return tSimpleHashPut(pHash, pKey, keyLen, &value, sizeof(value));
+}
+
+static int32_t tBuildFetchContextIndex(const SStreamAncestorContext *pContext, SFetchContextIndex *pIndex) {
+  if (pContext == NULL || pIndex == NULL) return TSDB_CODE_INVALID_PARA;
+  memset(pIndex, 0, sizeof(*pIndex));
+  const int32_t paramCount = taosArrayGetSize(pContext->pParamContexts);
+  const int32_t bindingCount = taosArrayGetSize(pContext->pReadScopeBindings);
+  pIndex->pParams = tSimpleHashInit(paramCount, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  pIndex->pParamLineages = tSimpleHashInit(paramCount, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  pIndex->pBindingLineages = tSimpleHashInit(bindingCount, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  pIndex->pBindingsByRead = tSimpleHashInit(bindingCount, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  pIndex->pBindingsByIndex = tSimpleHashInit(bindingCount, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  pIndex->pAncestorGids = tSimpleHashInit(paramCount, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (pIndex->pParams == NULL || pIndex->pParamLineages == NULL || pIndex->pBindingLineages == NULL ||
+      pIndex->pBindingsByRead == NULL || pIndex->pBindingsByIndex == NULL || pIndex->pAncestorGids == NULL) {
+    int32_t code = terrno;
+    tCleanupFetchContextIndex(pIndex);
+    return code;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < paramCount; ++i) {
+    const SStreamAncestorParamContext *pParam = taosArrayGet(pContext->pParamContexts, i);
+    const SFetchContextParamKey paramKey = tMakeFetchContextParamKey(pParam->leafIdentity.gid, pParam->paramIndex);
+    TAOS_CHECK_GOTO(tSimpleHashPut(pIndex->pParams, &paramKey, sizeof(paramKey), &i, sizeof(i)), NULL, _exit);
+    SFetchContextLineageKey lineageKey = {0};
+    TAOS_CHECK_GOTO(tMakeFetchContextLineageKey(pParam->leafIdentity.gid, &pParam->leafIdentity.lineage, &lineageKey),
+                    NULL, _exit);
+    TAOS_CHECK_GOTO(tIncrementFetchContextCount(pIndex->pParamLineages, &lineageKey, sizeof(lineageKey), i), NULL,
+                    _exit);
+    const int8_t present = 1;
+    TAOS_CHECK_GOTO(tSimpleHashPut(pIndex->pAncestorGids, &pParam->leafIdentity.gid, sizeof(pParam->leafIdentity.gid),
+                                   &present, sizeof(present)),
+                    NULL, _exit);
+  }
+
+  for (int32_t i = 0; i < bindingCount; ++i) {
+    const SStreamReadScopeBinding *pBinding = taosArrayGet(pContext->pReadScopeBindings, i);
+    const SFetchContextReadKey     readKey = tMakeFetchContextReadKey(pBinding->vgId, pBinding->readInfoIndex);
+    TAOS_CHECK_GOTO(tSimpleHashPut(pIndex->pBindingsByRead, &readKey, sizeof(readKey), &i, sizeof(i)), NULL, _exit);
+    TAOS_CHECK_GOTO(tIncrementFetchContextCount(pIndex->pBindingsByIndex, &pBinding->readInfoIndex,
+                                                sizeof(pBinding->readInfoIndex), i),
+                    NULL, _exit);
+    SFetchContextLineageKey lineageKey = {0};
+    TAOS_CHECK_GOTO(tMakeFetchContextLineageKey(pBinding->scope.gid, &pBinding->scope.lineage, &lineageKey), NULL,
+                    _exit);
+    TAOS_CHECK_GOTO(tIncrementFetchContextCount(pIndex->pBindingLineages, &lineageKey, sizeof(lineageKey), i), NULL,
+                    _exit);
+  }
+  return TSDB_CODE_SUCCESS;
+
+_exit:
+  tCleanupFetchContextIndex(pIndex);
+  return code;
+}
+
+static int32_t tValidateFetchBindingProjection(const SStreamRuntimeFuncInfo *pInfo, const SStreamContextPolicy *pPolicy,
+                                               const SStreamAncestorContext *pContext,
+                                               const SFetchContextIndex     *pIndex) {
+  const int32_t readCount = taosArrayGetSize(pInfo->curGrpRead);
+  if (pContext == NULL || taosArrayGetSize(pContext->pReadScopeBindings) != readCount) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  for (int32_t i = 0; i < readCount; ++i) {
+    const SSTriggerGroupReadInfo  *pRead = taosArrayGet(pInfo->curGrpRead, i);
+    const SFetchContextIndexValue *pBindingValue = tSimpleHashGet(pIndex->pBindingsByIndex, &i, sizeof(i));
+    const SStreamReadScopeBinding *pMatch = pBindingValue == NULL || pBindingValue->count != 1
+                                                ? NULL
+                                                : taosArrayGet(pContext->pReadScopeBindings, pBindingValue->index);
+    if (pRead == NULL || pMatch == NULL || pMatch->scope.gid != pRead->gid) return TSDB_CODE_INVALID_MSG;
+
+    SFetchContextLineageKey lineageKey = {0};
+    if (tMakeFetchContextLineageKey(pMatch->scope.gid, &pMatch->scope.lineage, &lineageKey) != TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+    const SFetchContextIndexValue *pParamValue =
+        tSimpleHashGet(pIndex->pParamLineages, &lineageKey, sizeof(lineageKey));
+    if (pParamValue == NULL || pParamValue->count != 1) return TSDB_CODE_INVALID_MSG;
+    const SStreamAncestorParamContext *pParam = taosArrayGet(pContext->pParamContexts, pParamValue->index);
+    const SStreamContextPolicyEntry   *pEntry =
+        pParam == NULL ? NULL : tFindFetchContextPolicyEntry(pPolicy, pParam->leafIdentity.gid, pParam->paramIndex);
+    if (pEntry == NULL || pEntry->contextPolicy != STREAM_CONTEXT_POLICY_ANCESTOR) return TSDB_CODE_INVALID_MSG;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pPolicy->pEntries); ++i) {
+    const SStreamContextPolicyEntry *pEntry = taosArrayGet(pPolicy->pEntries, i);
+    if (pEntry->contextPolicy != STREAM_CONTEXT_POLICY_ANCESTOR) return TSDB_CODE_INVALID_MSG;
+    const SFetchContextParamKey        paramKey = tMakeFetchContextParamKey(pEntry->gid, pEntry->paramIndex);
+    const int32_t                     *pParamIndex = tSimpleHashGet(pIndex->pParams, &paramKey, sizeof(paramKey));
+    const SStreamAncestorParamContext *pParam =
+        pParamIndex == NULL ? NULL : taosArrayGet(pContext->pParamContexts, *pParamIndex);
+    if (pParam == NULL) return TSDB_CODE_INVALID_MSG;
+    SFetchContextLineageKey lineageKey = {0};
+    if (tMakeFetchContextLineageKey(pParam->leafIdentity.gid, &pParam->leafIdentity.lineage, &lineageKey) !=
+            TSDB_CODE_SUCCESS ||
+        tSimpleHashGet(pIndex->pBindingLineages, &lineageKey, sizeof(lineageKey)) == NULL) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool tFetchReadHasAncestorDependency(const SFetchContextIndex *pIndex, int64_t gid) {
+  return pIndex != NULL && tSimpleHashGet(pIndex->pAncestorGids, &gid, sizeof(gid)) != NULL;
+}
+
+static int32_t tValidateFetchCurrentReadBindings(const SStreamRuntimeFuncInfo *pInfo,
+                                                 const SStreamAncestorContext *pContext,
+                                                 const SFetchContextIndex     *pIndex) {
+  const int32_t readCount = taosArrayGetSize(pInfo->curGrpRead);
+  const int32_t bindingCount = taosArrayGetSize(pContext == NULL ? NULL : pContext->pReadScopeBindings);
+  int32_t       expectedCount = 0;
+  for (int32_t i = 0; i < readCount; ++i) {
+    const SSTriggerGroupReadInfo *pRead = taosArrayGet(pInfo->curGrpRead, i);
+    if (pRead == NULL) return TSDB_CODE_INVALID_MSG;
+    if (!tFetchReadHasAncestorDependency(pIndex, pRead->gid)) continue;
+
+    ++expectedCount;
+    const SFetchContextIndexValue *pBindingValue = tSimpleHashGet(pIndex->pBindingsByIndex, &i, sizeof(i));
+    const SStreamReadScopeBinding *pMatch = pBindingValue == NULL || pBindingValue->count != 1
+                                                ? NULL
+                                                : taosArrayGet(pContext->pReadScopeBindings, pBindingValue->index);
+    if (pMatch == NULL || pMatch->scope.gid != pRead->gid) return TSDB_CODE_INVALID_MSG;
+  }
+  return expectedCount == bindingCount ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG;
+}
+
+static int32_t tValidateFetchGroupReadBindings(const SStreamRuntimeFuncInfo *pInfo,
+                                               const SStreamAncestorContext *pContext,
+                                               const SFetchContextIndex     *pIndex) {
+  const int32_t bindingCount = taosArrayGetSize(pContext == NULL ? NULL : pContext->pReadScopeBindings);
+  if (pInfo->pGroupReadInfos == NULL) return bindingCount == 0 ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG;
+
+  int32_t expectedCount = 0;
+  int32_t iter = 0;
+  void   *px = tSimpleHashIterate(pInfo->pGroupReadInfos, NULL, &iter);
+  while (px != NULL) {
+    const int32_t vgId = *(int32_t *)tSimpleHashGetKey(px, NULL);
+    const SArray *pInfos = *(SArray **)px;
+    for (int32_t i = 0; i < taosArrayGetSize(pInfos); ++i) {
+      const SSTriggerGroupReadInfo *pRead = taosArrayGet(pInfos, i);
+      if (pRead == NULL) return TSDB_CODE_INVALID_MSG;
+      if (!tFetchReadHasAncestorDependency(pIndex, pRead->gid)) continue;
+
+      ++expectedCount;
+      const SFetchContextReadKey     readKey = tMakeFetchContextReadKey(vgId, i);
+      const int32_t                 *pBindingIndex = tSimpleHashGet(pIndex->pBindingsByRead, &readKey, sizeof(readKey));
+      const SStreamReadScopeBinding *pBinding =
+          pBindingIndex == NULL ? NULL : taosArrayGet(pContext->pReadScopeBindings, *pBindingIndex);
+      if (pBinding == NULL || pBinding->scope.gid != pRead->gid) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+    }
+    px = tSimpleHashIterate(pInfo->pGroupReadInfos, px, &iter);
+  }
+  return expectedCount == bindingCount ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG;
+}
+
+static int32_t tValidateFetchGroupCalcProjection(const SStreamRuntimeFuncInfo *pInfo,
+                                                 const SStreamContextPolicy   *pPolicy) {
+  int32_t                 expectedCount = 0;
+  int32_t                 iter = 0;
+  SSTriggerGroupCalcInfo *pCalcInfo = tSimpleHashIterate(pInfo->pGroupCalcInfos, NULL, &iter);
+  while (pCalcInfo != NULL) {
+    int64_t *pGid = tSimpleHashGetKey(pCalcInfo, NULL);
+    for (int32_t i = 0; i < taosArrayGetSize(pCalcInfo->pParams); ++i) {
+      if (tFindFetchContextPolicyEntry(pPolicy, *pGid, i) == NULL) return TSDB_CODE_INVALID_MSG;
+      ++expectedCount;
+    }
+    pCalcInfo = tSimpleHashIterate(pInfo->pGroupCalcInfos, pCalcInfo, &iter);
+  }
+  return taosArrayGetSize(pPolicy->pEntries) == expectedCount ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG;
+}
+
+static int32_t tValidateFetchContextProjection(SStreamRuntimeFuncInfo *pInfo, const SStreamContextPolicy *pPolicy,
+                                               const SStreamAncestorContext *pContext) {
+  if (pInfo == NULL || tAdmitStreamContext(pPolicy, pContext, true) != TSDB_CODE_SUCCESS) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  int32_t            code = TSDB_CODE_SUCCESS;
+  SFetchContextIndex index = {0};
+  if (pContext != NULL) {
+    code = tBuildFetchContextIndex(pContext, &index);
+    if (code != TSDB_CODE_SUCCESS) return TSDB_CODE_INVALID_MSG;
+  }
+
+  if (!pInfo->isMultiGroupCalc) {
+    int32_t paramCount = taosArrayGetSize(pInfo->pStreamPesudoFuncVals);
+    if (paramCount == 0) paramCount = 1;
+    if (taosArrayGetSize(pPolicy->pEntries) != paramCount) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+    if (taosArrayGetSize(pContext == NULL ? NULL : pContext->pReadScopeBindings) != 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+    for (int32_t i = 0; i < paramCount; ++i) {
+      const int32_t paramIndex = pInfo->pStreamPesudoFuncVals == NULL ? pInfo->curIdx : i;
+      if (tFindFetchContextPolicyEntry(pPolicy, pInfo->groupId, paramIndex) == NULL) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
+    }
+    goto _exit;
+  }
+
+  if (pInfo->curGrpRead != NULL) {
+    if (pInfo->pGroupCalcInfos == NULL) {
+      code = tValidateFetchBindingProjection(pInfo, pPolicy, pContext, &index);
+      goto _exit;
+    }
+    code = tValidateFetchGroupCalcProjection(pInfo, pPolicy);
+    if (code == TSDB_CODE_SUCCESS) code = tValidateFetchCurrentReadBindings(pInfo, pContext, &index);
+    goto _exit;
+  }
+
+  if (pInfo->pGroupCalcInfos != NULL) {
+    code = tValidateFetchGroupCalcProjection(pInfo, pPolicy);
+    if (code == TSDB_CODE_SUCCESS) code = tValidateFetchGroupReadBindings(pInfo, pContext, &index);
+    goto _exit;
+  }
+
+  if (taosArrayGetSize(pPolicy->pEntries) != 1) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  const SStreamContextPolicyEntry *pEntry = taosArrayGet(pPolicy->pEntries, 0);
+  if (pEntry == NULL || pEntry->paramIndex != pInfo->curIdx) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  if (pEntry->contextPolicy == STREAM_CONTEXT_POLICY_ANCESTOR &&
+      taosArrayGetSize(pContext == NULL ? NULL : pContext->pReadScopeBindings) != 1) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  pInfo->groupId = pEntry->gid;
+
+_exit:
+  tCleanupFetchContextIndex(&index);
+  return code;
+}
+
 int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, bool needStreamRtInfo, bool needStreamGrpInfo) {
   int32_t code = 0;
   int32_t lino;
   int32_t headLen = sizeof(SMsgHead);
+  SStreamContextPolicy   *pProjectedPolicy = NULL;
+  SStreamAncestorContext *pProjectedContext = NULL;
+  SEncoder                encoder = {0};
+  const bool              effectiveNeedStreamGrpInfo = pReq->reset && needStreamGrpInfo;
+  TAOS_CHECK_EXIT(tProjectStreamCalcContextForFetch(pReq->pStRtFuncInfo, needStreamRtInfo, effectiveNeedStreamGrpInfo,
+                                                    &pProjectedPolicy, &pProjectedContext));
   if (buf != NULL) {
     buf = (char *)buf + headLen;
     bufLen -= headLen;
   }
 
-  SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
@@ -15430,7 +16069,7 @@ int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, bo
   if (pReq->pStRtFuncInfo) {
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, 1));
     TAOS_CHECK_EXIT(
-        tSerializeStRtFuncInfo(&encoder, pReq->pStRtFuncInfo, /* pReq->reset && */ needStreamRtInfo, pReq->reset && needStreamGrpInfo));
+        tSerializeStRtFuncInfo(&encoder, pReq->pStRtFuncInfo, needStreamRtInfo, effectiveNeedStreamGrpInfo));
   } else {
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, 0));
   }
@@ -15438,9 +16077,24 @@ int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, bo
   TAOS_CHECK_EXIT(tEncodeBool(&encoder, pReq->dynTbname));
   TAOS_CHECK_EXIT(tEncodeBool(&encoder, pReq->forceFetchCompleted));
 
+  if (pProjectedPolicy != NULL) {
+    TAOS_CHECK_EXIT(tStartEncodeStreamTailFrame(&encoder, STREAM_CONTEXT_POLICY_FRAME_MAGIC,
+                                                STREAM_CONTEXT_POLICY_FRAME_VERSION, 0));
+    TAOS_CHECK_EXIT(tEncodeStreamContextPolicy(&encoder, pProjectedPolicy));
+    tEndEncodeStreamTailFrame(&encoder);
+  }
+  if (pProjectedContext != NULL) {
+    TAOS_CHECK_EXIT(
+        tStartEncodeStreamTailFrame(&encoder, STREAM_ANCESTOR_FRAME_MAGIC, STREAM_ANCESTOR_FRAME_VERSION, 0));
+    TAOS_CHECK_EXIT(tEncodeStreamAncestorContext(&encoder, pProjectedContext));
+    tEndEncodeStreamTailFrame(&encoder);
+  }
+
   tEndEncode(&encoder);
 
 _exit:
+  tDestroyStreamContextPolicy(&pProjectedPolicy);
+  tDestroyStreamAncestorContext(&pProjectedContext);
   if (code) {
     tEncoderClear(&encoder);
     return code;
@@ -15462,6 +16116,8 @@ int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) 
   int32_t code = 0;
   int32_t lino;
   int32_t headLen = sizeof(SMsgHead);
+  SStreamContextPolicy   *pContextPolicy = NULL;
+  SStreamAncestorContext *pAncestorContext = NULL;
 
   SMsgHead *pHead = buf;
   pHead->vgId = pReq->header.vgId;
@@ -15512,9 +16168,63 @@ int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) 
     TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pReq->forceFetchCompleted));
   }
 
+  bool policySeen = false;
+  bool ancestorSeen = false;
+  while (!tDecodeIsEnd(&decoder)) {
+    SStreamTailFrameDecoder frame = {0};
+    TAOS_CHECK_EXIT(tDecodeNextStreamTailFrame(&decoder, &frame));
+    if (frame.magic == STREAM_CONTEXT_POLICY_FRAME_MAGIC) {
+      if (policySeen || ancestorSeen || frame.version != STREAM_CONTEXT_POLICY_FRAME_VERSION || frame.flags != 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        tFinishDecodeStreamTailFrame(&frame, false);
+        goto _exit;
+      }
+      policySeen = true;
+      code = tDecodeStreamContextPolicy(&frame.payloadDecoder, &pContextPolicy);
+      if (code == TSDB_CODE_SUCCESS)
+        code = tFinishDecodeStreamTailFrame(&frame, true);
+      else
+        tFinishDecodeStreamTailFrame(&frame, false);
+      TAOS_CHECK_EXIT(code);
+      continue;
+    }
+    if (frame.magic == STREAM_ANCESTOR_FRAME_MAGIC) {
+      if (ancestorSeen || frame.version != STREAM_ANCESTOR_FRAME_VERSION || frame.flags != 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        tFinishDecodeStreamTailFrame(&frame, false);
+        goto _exit;
+      }
+      ancestorSeen = true;
+      code = tDecodeStreamAncestorContext(&frame.payloadDecoder, &pAncestorContext);
+      if (code == TSDB_CODE_SUCCESS)
+        code = tFinishDecodeStreamTailFrame(&frame, true);
+      else
+        tFinishDecodeStreamTailFrame(&frame, false);
+      TAOS_CHECK_EXIT(code);
+      continue;
+    }
+    TAOS_CHECK_EXIT(tFinishDecodeStreamTailFrame(&frame, false));
+  }
+  if ((pContextPolicy != NULL || pAncestorContext != NULL) && pReq->pStRtFuncInfo == NULL) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  if (pContextPolicy != NULL || pAncestorContext != NULL) {
+    code = tValidateFetchContextProjection(pReq->pStRtFuncInfo, pContextPolicy, pAncestorContext);
+    if (code != TSDB_CODE_SUCCESS) goto _exit;
+  }
+  if (pReq->pStRtFuncInfo != NULL) {
+    pReq->pStRtFuncInfo->pContextPolicy = pContextPolicy;
+    pContextPolicy = NULL;
+    pReq->pStRtFuncInfo->pAncestorContext = pAncestorContext;
+    pAncestorContext = NULL;
+  }
+
   tEndDecode(&decoder);
 
 _exit:
+  tDestroyStreamContextPolicy(&pContextPolicy);
+  tDestroyStreamAncestorContext(&pAncestorContext);
   tDecoderClear(&decoder);
   return code;
 }

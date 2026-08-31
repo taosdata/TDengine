@@ -989,6 +989,7 @@ alter_db_option(A) ::= PARALLEL NK_INTEGER(B).                                  
 alter_db_option(A) ::= WAL_LEVEL NK_INTEGER(B).                                   { A.type = DB_OPTION_WAL; A.val = B; }
 alter_db_option(A) ::= STT_TRIGGER NK_INTEGER(B).                                 { A.type = DB_OPTION_STT_TRIGGER; A.val = B; }
 alter_db_option(A) ::= MINROWS NK_INTEGER(B).                                     { A.type = DB_OPTION_MINROWS; A.val = B; }
+alter_db_option(A) ::= MAXROWS NK_INTEGER(B).                                     { A.type = DB_OPTION_MAXROWS; A.val = B; }
 alter_db_option(A) ::= WAL_RETENTION_PERIOD NK_INTEGER(B).                        { A.type = DB_OPTION_WAL_RETENTION_PERIOD; A.val = B; }
 alter_db_option(A) ::= WAL_RETENTION_PERIOD NK_MINUS(B) NK_INTEGER(C).            {
                                                                                     SToken t = B;
@@ -1072,17 +1073,29 @@ cmd ::= CREATE STABLE not_exists_opt(A) full_table_name(B)
                                                                                    { pCxt->pRootNode = createCreateInheritedStableStmt(pCxt, A, B, C, NULL, F, E); }
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_def_list(C) NK_RP series_clause_opt(S) vtags_def_opt(T).           { pCxt->pRootNode = createCreateVTableStmt(pCxt, A, B, C, S, T); }
-cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
-  NK_LP specific_column_ref_list(C) NK_RP USING full_table_name(D)
+cmd ::= CREATE VTABLE create_vsubtable_clause(A).                                { pCxt->pRootNode = A; }
+cmd ::= CREATE VTABLE multi_create_vsubtable_clause(A).                          { pCxt->pRootNode = createCreateMultiTableStmt(pCxt, A); }
+
+%type create_vsubtable_clause                                                    { SNode* }
+%destructor create_vsubtable_clause                                              { nodesDestroyNode($$); }
+create_vsubtable_clause(A) ::= not_exists_opt(B) full_table_name(C)
+  NK_LP specific_column_ref_list(D) NK_RP USING full_table_name(E)
+  specific_cols_opt(F) TAGS NK_LP vtags_literal_list(G) NK_RP
+  series_clause_opt(H).                                                           { A = createCreateVSubTableStmt(pCxt, B, C, D, NULL, E, F, G, NULL, NULL, H); }
+create_vsubtable_clause(A) ::= not_exists_opt(B) full_table_name(C)
+  NK_LP column_ref_list(D) NK_RP USING full_table_name(E)
+  specific_cols_opt(F) TAGS NK_LP vtags_literal_list(G) NK_RP
+  series_clause_opt(H).                                                           { A = createCreateVSubTableStmt(pCxt, B, C, NULL, D, E, F, G, NULL, NULL, H); }
+create_vsubtable_clause(A) ::= not_exists_opt(B) full_table_name(C) USING full_table_name(D)
   specific_cols_opt(E) TAGS NK_LP vtags_literal_list(F) NK_RP
-  series_clause_opt(G).                                                           { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, C, NULL, D, E, F, NULL, NULL, G); }
-cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
-  NK_LP column_ref_list(C) NK_RP USING full_table_name(D)
-  specific_cols_opt(E) TAGS NK_LP vtags_literal_list(F) NK_RP
-  series_clause_opt(G).                                                           { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, NULL, C, D, E, F, NULL, NULL, G); }
-cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B) USING full_table_name(C)
-  specific_cols_opt(D) TAGS NK_LP vtags_literal_list(E) NK_RP
-  series_clause_opt(F).                                                           { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, NULL, NULL, C, D, E, NULL, NULL, F); }
+  series_clause_opt(G).                                                           { A = createCreateVSubTableStmt(pCxt, B, C, NULL, NULL, D, E, F, NULL, NULL, G); }
+
+%type multi_create_vsubtable_clause                                              { SNodeList* }
+%destructor multi_create_vsubtable_clause                                        { nodesDestroyList($$); }
+multi_create_vsubtable_clause(A) ::= create_vsubtable_clause(B) create_vsubtable_clause(C).
+                                                                                  { A = addNodeToList(pCxt, createNodeList(pCxt, B), C); }
+multi_create_vsubtable_clause(A) ::= multi_create_vsubtable_clause(B) create_vsubtable_clause(C).
+                                                                                  { A = addNodeToList(pCxt, B, C); }
 cmd ::= DROP TABLE with_opt(A) multi_drop_clause(B).                              { pCxt->pRootNode = createDropTableStmt(pCxt, A, B); }
 cmd ::= DROP STABLE with_opt(A) exists_opt(B) full_table_name(C).                 { pCxt->pRootNode = createDropSuperTableStmt(pCxt, A, B, C); }
 cmd ::= DROP VTABLE with_opt(A) multi_drop_clause(B).                            { pCxt->pRootNode = createDropVirtualTableStmt(pCxt, A, B); }
@@ -1669,10 +1682,31 @@ stream_outtable_opt(A) ::= .                                                    
 stream_outtable_opt(A) ::= INTO full_table_name(B) nodelay_create_subtable_opt(F) output_subtable_opt(C) column_name_opt(D) stream_tags_def_opt(E).        { A = createStreamOutTableNode(pCxt, B, C, D, E, F); }
 
 /********** stream_trigger **********/
-stream_trigger(A) ::= trigger_type(B) trigger_table_opt(C) stream_partition_by_opt(D) stream_rollup_by_opt(E)
+stream_trigger(A) ::= stream_trigger_window(B) trigger_table_opt(C) stream_partition_by_opt(D) stream_rollup_by_opt(E)
                       trigger_options_opt(F) notification_opt(G).                                                           { A = createStreamTriggerNode(pCxt, B, C, D, E, F, G); }
 
 /***** trigger type *****/
+
+stream_trigger_window(A) ::= trigger_type(B).                                                                                { A = B; }
+stream_trigger_window(A) ::= WINDOW NK_LP nested_window_layers(B) NK_RP.                                                     { A = createStreamWindowPlanNode(pCxt, B); }
+
+%type nested_window_layers                                                                                                   { SNodeList* }
+%destructor nested_window_layers                                                                                             { nodesDestroyList($$); }
+nested_window_layers(A) ::= named_nonleaf_window_layers(B) NK_COMMA nested_window_leaf(C).                                  { A = B; if (TSDB_CODE_SUCCESS == pCxt->errCode) { pCxt->errCode = nodesListStrictAppend(A, C); } else { nodesDestroyNode(C); } }
+
+%type named_nonleaf_window_layers                                                                                            { SNodeList* }
+%destructor named_nonleaf_window_layers                                                                                      { nodesDestroyList($$); }
+named_nonleaf_window_layers(A) ::= named_nonleaf_window(B).                                                                  { A = NULL; if (TSDB_CODE_SUCCESS == pCxt->errCode) { pCxt->errCode = nodesListMakeStrictAppend(&A, B); } else { nodesDestroyNode(B); } }
+named_nonleaf_window_layers(A) ::= named_nonleaf_window_layers(B) NK_COMMA named_nonleaf_window(C).                         { A = B; if (TSDB_CODE_SUCCESS == pCxt->errCode) { pCxt->errCode = nodesListStrictAppend(A, C); } else { nodesDestroyNode(C); } }
+
+%type named_nonleaf_window                                                                                                   { SNode* }
+%destructor named_nonleaf_window                                                                                             { nodesDestroyNode($$); }
+named_nonleaf_window(A) ::= trigger_type(B) AS table_alias(C).                                                              { A = createStreamWindowLayerNode(pCxt, B, &C); }
+
+%type nested_window_leaf                                                                                                     { SNode* }
+%destructor nested_window_leaf                                                                                               { nodesDestroyNode($$); }
+nested_window_leaf(A) ::= trigger_type(B).                                                                                   { A = createStreamWindowLayerNode(pCxt, B, NULL); }
+nested_window_leaf(A) ::= trigger_type(B) AS table_alias(C).                                                                { A = createStreamWindowLayerNode(pCxt, B, &C); }
 
 trigger_type(A) ::= SESSION NK_LP column_reference(B) NK_COMMA interval_sliding_duration_literal(C) NK_RP.                  { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
 trigger_type(A) ::= STATE_WINDOW NK_LP state_window_expr_list(B) NK_RP state_window_opt(C) true_for_opt(D).                 { A = createStateWindowNode(pCxt, B, C, D); }
@@ -1757,6 +1791,7 @@ trigger_option(A) ::= WATERMARK NK_LP duration_literal(B) NK_RP.                
 trigger_option(A) ::= EVENT_TYPE NK_LP event_type_list(B) NK_RP.                   { A.type = STREAM_TRIGGER_OPTION_EVENT_TYPE; A.flag = B; A.pNode = NULL; }
 trigger_option(A) ::= IGNORE_NODATA_TRIGGER.                                       { A.type = STREAM_TRIGGER_OPTION_IGNORE_NODATA_TRIGGER; A.pNode = NULL; }
 trigger_option(A) ::= IDLE_TIMEOUT NK_LP duration_literal(B) NK_RP.                { A.type = STREAM_TRIGGER_OPTION_IDLE_TIMEOUT; A.pNode = releaseRawExprNode(pCxt, B); }
+trigger_option(A) ::= FLUSH_ON_OUTER_CLOSE.                                        { A.type = STREAM_TRIGGER_OPTION_FLUSH_ON_OUTER_CLOSE; A.pNode = NULL; }
 
 /***** notification_opt *****/
 notification_opt(A) ::= .                                                         { A = NULL; }
@@ -1872,6 +1907,8 @@ cmd ::= KILL SSMIGRATE NK_INTEGER(A).                                           
 
 /************************************************ merge/redistribute/ vgroup ******************************************/
 cmd ::= BALANCE VGROUP.                                                           { pCxt->pRootNode = createBalanceVgroupStmt(pCxt); }
+
+cmd ::= FLUSH MNODE.                                                              { pCxt->pRootNode = createFlushMnodeStmt(pCxt); }
 
 cmd ::= ASSIGN LEADER FORCE.                                                      { pCxt->pRootNode = createAssignLeaderStmt(pCxt); }
 
@@ -2331,6 +2368,13 @@ expression_list(A) ::= expression_list(B) NK_COMMA expr_or_subquery(C).         
 
 column_reference(A) ::= column_name(B).                                           { A = createRawExprNode(pCxt, &B, createColumnNode(pCxt, NULL, &B)); }
 column_reference(A) ::= table_name(B) NK_DOT column_name(C).                      { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= table_name(B) NK_DOT TWSTART(C).                          { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= table_name(B) NK_DOT TWEND(C).                            { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= table_name(B) NK_DOT TWDURATION(C).                       { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= table_name(B) NK_DOT TWROWNUM(C).                         { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= table_name(B) NK_DOT TPREV_TS(C).                         { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= table_name(B) NK_DOT TCURRENT_TS(C).                      { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= table_name(B) NK_DOT TNEXT_TS(C).                         { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 column_reference(A) ::= NK_ALIAS(B).                                              { A = createRawExprNode(pCxt, &B, createColumnNode(pCxt, NULL, &B)); }
 column_reference(A) ::= table_name(B) NK_DOT NK_ALIAS(C).                         { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 

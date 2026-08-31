@@ -2055,9 +2055,7 @@ class TestTaosBackupCoverage:
     #       not double-count it in the final summary.
     # -----------------------------------------------------------------
     def test_extmeta_failure_reconciles_stage1_success(self):
-        """restore.c: a Stage 2 (ext-meta) failure for a database whose
-        Stage 1 (basic data) already succeeded must reverse that Stage 1
-        success in g_stats, not double-count it.
+        """restore.c: a Stage 2 (ext-meta) failure for a database whose Stage 1 (basic data) already succeeded must reverse that Stage 1 success in g_stats, not double-count it.
 
         Steps:
           1. Create two databases; db1 has a real topic, db2 is plain.

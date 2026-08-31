@@ -1866,6 +1866,7 @@ SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, SToken* pT
   pCxt->errCode = nodesMakeNode(QUERY_NODE_TEMP_TABLE, (SNode**)&tempTable);
   CHECK_MAKE_NODE(tempTable);
   tempTable->pSubquery = pSubquery;
+  tempTable->hasExplicitAlias = (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type);
   if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
     COPY_STRING_FORM_ID_TOKEN(tempTable->table.tableAlias, pTableAlias);
   } else {
@@ -8160,6 +8161,40 @@ _err:
   return NULL;
 }
 
+SNode* createStreamWindowLayerNode(SAstCreateContext* pCxt, SNode* pWindow, SToken* pName) {
+  SStreamWindowLayerNode* pLayer = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL != pName) {
+    CHECK_NAME(checkTableName(pCxt, pName));
+  }
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_WINDOW_LAYER, (SNode**)&pLayer);
+  CHECK_MAKE_NODE(pLayer);
+  if (NULL != pName) {
+    COPY_STRING_FORM_ID_TOKEN(pLayer->name, pName);
+  }
+  pLayer->pWindow = pWindow;
+  return (SNode*)pLayer;
+
+_err:
+  nodesDestroyNode(pWindow);
+  nodesDestroyNode((SNode*)pLayer);
+  return NULL;
+}
+
+SNode* createStreamWindowPlanNode(SAstCreateContext* pCxt, SNodeList* pLayers) {
+  SStreamWindowPlanNode* pPlan = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_WINDOW_PLAN, (SNode**)&pPlan);
+  CHECK_MAKE_NODE(pPlan);
+  pPlan->pLayers = pLayers;
+  return (SNode*)pPlan;
+
+_err:
+  nodesDestroyList(pLayers);
+  nodesDestroyNode((SNode*)pPlan);
+  return NULL;
+}
+
 SNode* createStreamTriggerOptions(SAstCreateContext* pCxt) {
   SStreamTriggerOptions* pOptions = NULL;
   CHECK_PARSER_STATUS(pCxt);
@@ -8181,6 +8216,7 @@ SNode* createStreamTriggerOptions(SAstCreateContext* pCxt) {
   pOptions->forceOutput = false;
   pOptions->ignoreDisorder = false;
   pOptions->ignoreNoDataTrigger = false;
+  pOptions->flushOnOuterClose = false;
   return (SNode*)pOptions;
 _err:
   nodesDestroyNode((SNode*)pOptions);
@@ -8349,6 +8385,14 @@ SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStream
         goto _err;
       }
       pStreamOptions->pIdleTimeout = pOptionUnit->pNode;
+      break;
+    case STREAM_TRIGGER_OPTION_FLUSH_ON_OUTER_CLOSE:
+      if (pStreamOptions->flushOnOuterClose) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                "FLUSH_ON_OUTER_CLOSE specified multiple times");
+        goto _err;
+      }
+      pStreamOptions->flushOnOuterClose = true;
       break;
     default:
       break;
@@ -8594,6 +8638,16 @@ SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   SBalanceVgroupStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_BALANCE_VGROUP_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createFlushMnodeStmt(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SFlushMnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FLUSH_MNODE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   return (SNode*)pStmt;
 _err:

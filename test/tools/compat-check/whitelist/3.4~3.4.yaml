@@ -98,6 +98,8 @@ modified_tables:
 - table: INS_STREAM_RECALCULATES
   added_columns:
   - status
+  - request_time
+  - message
 - table: INS_STREAM_TASKS
   added_columns:
   - input_rows_per_sec_1m
