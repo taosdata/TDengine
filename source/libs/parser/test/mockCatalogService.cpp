@@ -984,7 +984,6 @@ class MockCatalogServiceImpl {
             const auto& src = entry->cols[c];
             SExtColumnDef& dst = p->pCols[c];
             tstrncpy(dst.colName, src.colName.c_str(), TSDB_COL_NAME_LEN);
-            tstrncpy(dst.remoteColName, src.colName.c_str(), TSDB_COL_NAME_LEN);
             // Pick a reasonable extTypeName for the mocked source.
             if (src.type == TSDB_DATA_TYPE_TIMESTAMP) {
               tstrncpy(dst.extTypeName, "timestamp", sizeof(dst.extTypeName));
