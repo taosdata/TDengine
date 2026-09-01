@@ -40,6 +40,7 @@
 #include "tanalytics.h"
 #include "tcol.h"
 #include "tglobal.h"
+#include "tversion.h"
 #include "tmsg.h"
 #include "ttime.h"
 #include "osTimezone.h"
@@ -32414,9 +32415,32 @@ static int32_t setExternalRefSchemaName(STranslateContext* pCxt, SColRef* pColRe
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t buildVChildOwnTagValue(STranslateContext* pCxt, STableMeta* pStbMeta, SValueNode* pVal,
+                                      SVChildOwnTagDef* pDef);
+
+// Owned columns/tags ship with this build. An older server silently drops the trailing
+// own-defs section while decoding SVCreateTbReq (its decoder stops at tDecodeIsEnd), so a
+// mixed-version deployment would accept the create with the owned members missing. Reject
+// loudly at translate time when the connected server is older than this client. In-server
+// translate paths never set tsServerVerInt (it stays 0) and are naturally exempt.
+static int32_t parCheckVchildOwnMembersSupported(STranslateContext* pCxt) {
+  if (tsServerVerInt > 0) {
+    int32_t clientVerInt = 0;
+    if (taosVersionStrToInt(td_version, &clientVerInt) == 0 && clientVerInt > 0 &&
+        tsServerVerInt < clientVerInt) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_VERSION_NOT_COMPATIBLE,
+                                     "owned columns/tags on virtual child tables require server version %s or later; "
+                                     "the connected server is older (mixed-version cluster)",
+                                     td_version);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSubTableStmt* pStmt, STableMeta* pStbMeta,
                                        SArray* tagName, uint8_t tagNum, const STag* pTag, SNodeList* pTagRefNodes,
-                                       int64_t txnId, SVCreateTbReq* pReq) {
+                                       SNodeList* pOwnTagDefs, SNodeList* pOwnTagVals, int64_t txnId,
+                                       SVCreateTbReq* pReq) {
   int32_t       code = TSDB_CODE_SUCCESS;
   SVCreateTbReq req = {0};
   SNode*        pCol;
@@ -32447,11 +32471,50 @@ static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSu
   }
 
   if (pStmt->pSpecificColRefs) {
+    // own (extension) columns: named refs with an explicit type that are not part of the
+    // vstb schema (validated in rewriteCreateVirtualSubTable)
+    int32_t nOwnCols = 0;
+    FOREACH(pCol, pStmt->pSpecificColRefs) {
+      SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
+      if (pColRef->hasDataType && getNormalColSchemaIndex(pStbMeta, pColRef->colName) == -1) {
+        nOwnCols++;
+      }
+    }
+    if (nOwnCols > 0) {
+      PAR_ERR_JRET(parCheckVchildOwnMembersSupported(pCxt));
+      req.pOwnColDefs = taosMemoryCalloc(nOwnCols, sizeof(SVChildOwnColDef));
+      if (NULL == req.pOwnColDefs) {
+        PAR_ERR_JRET(terrno);
+      }
+      req.nOwnColDefs = nOwnCols;
+    }
+    int32_t ownColIdx = 0;
     FOREACH(pCol, pStmt->pSpecificColRefs) {
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
       int32_t         schemaIdx = getNormalColSchemaIndex(pStbMeta, pColRef->colName);
       if (schemaIdx == -1) {
-        PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
+        if (!pColRef->hasDataType) {
+          PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
+        }
+        SVChildOwnColDef* pDef = &req.pOwnColDefs[ownColIdx++];
+        pDef->schema.type = pColRef->dataType.type;
+        pDef->schema.bytes = calcTypeBytes(pColRef->dataType);
+        pDef->schema.flags = IS_DECIMAL_TYPE(pColRef->dataType.type) ? COL_HAS_TYPE_MOD : 0;
+        pDef->schema.colId = 0;  // placeholder; the vnode assigns colIds from TSDB_VCHILD_OWN_COL_ID_BASE
+        tstrncpy(pDef->schema.name, pColRef->colName, TSDB_COL_NAME_LEN);
+        pDef->typeMod =
+            IS_DECIMAL_TYPE(pColRef->dataType.type) ? decimalCalcTypeMod(pColRef->dataType.precision, pColRef->dataType.scale) : 0;
+        char*   tagJson = NULL;
+        int32_t tagCondLen = 0;
+        if (pColRef->pTagCond) {
+          PAR_ERR_JRET(nodesNodeToString(pColRef->pTagCond, false, &tagJson, &tagCondLen));
+        }
+        code = setColRef(&pDef->ref, 0, pColRef->colName, pColRef->refColName, pColRef->refTableName,
+                         pColRef->refDbName, pColRef->refType, pColRef->refSourceName, tagJson, tagCondLen);
+        taosMemoryFree(tagJson);
+        PAR_ERR_JRET(code);
+        PAR_ERR_JRET(setExternalRefSchemaName(pCxt, &pDef->ref));
+        continue;
       }
       const SSchema* pSchema = pColSchemas + schemaIdx;
       char*   tagJson = NULL;
@@ -32499,6 +32562,22 @@ static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSu
       SColumnRefNode* pTagRef = (SColumnRefNode*)pRefNode;
       col_id_t        tagIdx = getTagSchemaIndex(pStbMeta, pTagRef->colName);
       if (tagIdx == -1) {
+        // pTagRefNodes also carries references attached to own (extension) tags (see
+        // checkAndReplaceOwnTagRefs); those are consumed by the own-tag loop below and must
+        // not be resolved against the vstb tag schema here.
+        bool isOwnTag = false;
+        if (NULL != pOwnTagDefs) {
+          SNode* pDefNode = NULL;
+          FOREACH(pDefNode, pOwnTagDefs) {
+            if (0 == strncmp(((SColumnDefNode*)pDefNode)->colName, pTagRef->colName, TSDB_COL_NAME_LEN)) {
+              isOwnTag = true;
+              break;
+            }
+          }
+        }
+        if (isOwnTag) {
+          continue;
+        }
         PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_TAG_NAME);
       }
       const SSchema* pSchema = pTagsSchema + tagIdx;
@@ -32514,6 +32593,50 @@ static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSu
       taosMemoryFree(tagJson);
       PAR_ERR_JRET(code);
       PAR_ERR_JRET(setExternalRefSchemaName(pCxt, &req.colRef.pTagRef[tagIdx]));
+    }
+  }
+
+  // own (extension) tags declared in the USING tag list (`name TYPE`), each with an
+  // optional literal value or a tag reference (recorded in pTagRefNodes by tag name)
+  int32_t nOwnTags = (NULL != pOwnTagDefs) ? LIST_LENGTH(pOwnTagDefs) : 0;
+  if (nOwnTags > 0) {
+    PAR_ERR_JRET(parCheckVchildOwnMembersSupported(pCxt));
+    req.pOwnTagDefs = taosMemoryCalloc(nOwnTags, sizeof(SVChildOwnTagDef));
+    if (NULL == req.pOwnTagDefs) {
+      PAR_ERR_JRET(terrno);
+    }
+    req.nOwnTagDefs = nOwnTags;
+    for (int32_t i = 0; i < nOwnTags; i++) {
+      // defensive: nodesListGetNode returns NULL when pOwnTagVals has fewer entries than pOwnTagDefs
+      if (i >= LIST_LENGTH(pOwnTagVals)) {
+        PAR_ERR_JRET(TSDB_CODE_PAR_TAGS_NOT_MATCHED);
+      }
+      SColumnDefNode*   pTagDef = (SColumnDefNode*)nodesListGetNode(pOwnTagDefs, i);
+      SValueNode*       pVal = (SValueNode*)nodesListGetNode(pOwnTagVals, i);
+      SVChildOwnTagDef* pDef = &req.pOwnTagDefs[i];
+      pDef->schema.type = pTagDef->dataType.type;
+      pDef->schema.bytes = calcTypeBytes(pTagDef->dataType);
+      pDef->schema.flags = 0;
+      pDef->schema.colId = 0;  // placeholder; the vnode assigns colIds from TSDB_VCHILD_OWN_COL_ID_BASE
+      tstrncpy(pDef->schema.name, pTagDef->colName, TSDB_COL_NAME_LEN);
+
+      if (NULL != pTagRefNodes) {
+        SNode* pRefNode = NULL;
+        FOREACH(pRefNode, pTagRefNodes) {
+          SColumnRefNode* pTagRef = (SColumnRefNode*)pRefNode;
+          if (0 == strncmp(pTagRef->colName, pTagDef->colName, TSDB_COL_NAME_LEN)) {
+            code = setColRef(&pDef->ref, 0, pTagDef->colName, pTagRef->refColName, pTagRef->refTableName,
+                             pTagRef->refDbName, pTagRef->refType, pTagRef->refSourceName, NULL, 0);
+            PAR_ERR_JRET(code);
+            // same backfill as the own-column/vstb ref paths above: resolve the origin's
+            // schema name from the ext source cache when refSourceName is set
+            PAR_ERR_JRET(setExternalRefSchemaName(pCxt, &pDef->ref));
+            break;
+          }
+        }
+      }
+
+      PAR_ERR_JRET(buildVChildOwnTagValue(pCxt, pStbMeta, pVal, pDef));
     }
   }
 
@@ -34673,9 +34796,16 @@ _return:
 
 static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                               SVAlterTbReq* pReq) {
-  // only super and normal and virtual normal support
-  if (TSDB_CHILD_TABLE == pTableMeta->tableType || TSDB_VIRTUAL_CHILD_TABLE == pTableMeta->tableType) {
+  // only super and normal and virtual normal support; virtual child table only supports ADD COLUMN
+  // with an origin reference (ADD COLUMN ... FROM db.tb.col)
+  if (TSDB_CHILD_TABLE == pTableMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  }
+  if (TSDB_VIRTUAL_CHILD_TABLE == pTableMeta->tableType &&
+      TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF != pStmt->alterType) {
+    return generateSyntaxErrMsgExt(
+        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
+        "virtual child table requires FROM <db>.<table>.<col> reference when adding column");
   }
 
   if (NULL != getColSchema(pTableMeta, pStmt->colName)) {
@@ -34699,10 +34829,14 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
   }
 
   if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) {
-    if (TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType) {
+    if (TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType &&
+        TSDB_VIRTUAL_CHILD_TABLE != pTableMeta->tableType) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
     }
 
+    // Note: origin-table read privilege is intentionally NOT checked here, same as the create-virtual-table
+    // path (checkColRef only validates existence/type/ref-chain). The ALTER VTABLE form additionally checks
+    // PRIV_TBL_SELECT on the ref table in authAlterVTable; keep the two paths as they are.
     // check ref column exists and check type
     SDataType colType = pStmt->dataType;
     colType.bytes = calcTypeBytes(colType);
@@ -34799,8 +34933,20 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
 
 static int32_t buildDropColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, const STableMeta* pTableMeta,
                                SVAlterTbReq* pReq) {
-  if (TSDB_CHILD_TABLE == pTableMeta->tableType || TSDB_VIRTUAL_CHILD_TABLE == pTableMeta->tableType) {
+  if (TSDB_CHILD_TABLE == pTableMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  }
+
+  // virtual child table: only an own (extension) column may be dropped from the vchild. The name
+  // is resolved against the own schema on the vnode (mnode is unaware of own columns); the colId
+  // is filled in there, mirroring the ADD path. vstb cascaded columns are rejected as the name
+  // will not be found in the own schema (-> TSDB_CODE_VND_COL_NOT_EXISTS).
+  if (TSDB_VIRTUAL_CHILD_TABLE == pTableMeta->tableType) {
+    pReq->colName = taosStrdup(pStmt->colName);
+    if (NULL == pReq->colName) {
+      return terrno;
+    }
+    return TSDB_CODE_SUCCESS;
   }
 
   if (2 == getNumOfColumns(pTableMeta)) {
@@ -35129,6 +35275,59 @@ static int32_t buildAlterTableRemoveSeries(STranslateContext* pCxt, SAlterTableS
   }
   return TSDB_CODE_SUCCESS;
 }
+// Build the request for ALTER VTABLE <vchild> ADD TAG: the tag goes into the virtual child
+// table's own (extension) tag area and is invisible to the vstb. Only virtual child tables are
+// allowed here; all other table types keep the previous rejection. The initial tag value is NULL;
+// a literal value or a tag reference is attached afterwards via SET TAG / ALTER TAG SET REF.
+static int32_t buildAddVChildOwnTagReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+                                       SVAlterTbReq* pReq) {
+  if (TSDB_VIRTUAL_CHILD_TABLE != pTableMeta->tableType) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  }
+
+  // duplicate check against the merged view: vstb columns/tags + existing own columns/tags
+  if (NULL != getColSchema(pTableMeta, pStmt->colName)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
+  }
+
+  // tag type restrictions, same rules as super table ADD TAG (see checkAlterSuperTableBySchema)
+  if (TSDB_DATA_TYPE_JSON == pStmt->dataType.type) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
+  }
+  if (IS_DECIMAL_TYPE(pStmt->dataType.type)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, "Decimal type is not allowed for tag");
+  }
+
+  // the vnode side rebuilds the shared tag blob with the merged tag schema, which does not
+  // support a JSON tag of the vstb; refuse to mix an own tag with a vstb JSON tag
+  int32_t  numOfTags = getNumOfTags(pTableMeta);
+  SSchema* pTagsSchema = getTableTagSchema(pTableMeta);
+  if (numOfTags == 1 && pTagsSchema->type == TSDB_DATA_TYPE_JSON) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
+  }
+
+  // limits are checked against the merged view (vstb tags + existing own tags + the new one);
+  // the vnode side re-checks authoritatively
+  if (TSDB_MAX_TAGS == numOfTags) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_NUM);
+  }
+  int32_t tagsLen = calcTypeBytes(pStmt->dataType);
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    tagsLen += pTagsSchema[i].bytes;
+  }
+  if (tagsLen > TSDB_MAX_TAGS_LEN) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_LENGTH, TSDB_MAX_TAGS_LEN);
+  }
+
+  pReq->colName = taosStrdup(pStmt->colName);
+  if (NULL == pReq->colName) {
+    return terrno;
+  }
+  pReq->type = pStmt->dataType.type;
+  pReq->flags = 0;
+  pReq->bytes = calcTypeBytes(pStmt->dataType);
+  return TSDB_CODE_SUCCESS;
+}
 
 
 // Shared validation for ADD TAG (owned tag) and ADD TAG ... FROM (tag reference): JSON tag
@@ -35296,10 +35495,26 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
 
   switch (pStmt->alterType) {
     case TSDB_ALTER_TABLE_ADD_TAG:
+      // virtual child tables add an own/extension tag; normal and virtual normal tables add an
+      // owned tag; super tables are handled by translateAlterSuperTable
+      if (TSDB_VIRTUAL_CHILD_TABLE == pTableMeta->tableType) {
+        return buildAddVChildOwnTagReq(pCxt, pStmt, pTableMeta, pReq);
+      }
       return buildAddTagReq(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF:
       return buildAddTagRefReq(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_DROP_TAG:
+      // virtual child tables drop an own/extension tag; the name is resolved against the own tag
+      // schema on the vnode (mnode is unaware of own tags). Normal and virtual normal tables
+      // resolve the tag here (buildDropTagReq). Super tables handle tag drop via
+      // translateAlterSuperTable.
+      if (TSDB_VIRTUAL_CHILD_TABLE == pTableMeta->tableType) {
+        pReq->colName = taosStrdup(pStmt->colName);
+        if (NULL == pReq->colName) {
+          return terrno;
+        }
+        return TSDB_CODE_SUCCESS;
+      }
       return buildDropTagReq(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
@@ -36578,6 +36793,374 @@ _return:
   return code;
 }
 
+// Validate an own (extension) column declaration of a vchild at CREATE VTABLE time
+// (`name TYPE FROM db.tb.col` where name is not part of the vstb schema). Mirrors the
+// checks of ALTER VTABLE <vchild> ADD COLUMN ... FROM ... (buildAddColReq).
+static int32_t checkCreateVChildOwnColRef(STranslateContext* pCxt, SCreateVSubTableStmt* pStmt,
+                                          STableMeta* pSuperTableMeta, SColumnRefNode* pColRef) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
+
+  // the name must not clash with a vstb tag, another own column, or an own tag
+  if (NULL != getTagSchema(pSuperTableMeta, pColRef->colName)) {
+    PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN, pColRef->colName));
+  }
+  FOREACH(pNode, pStmt->pSpecificColRefs) {
+    SColumnRefNode* pOther = (SColumnRefNode*)pNode;
+    if (pOther != pColRef && pOther->hasDataType &&
+        0 == strncmp(pOther->colName, pColRef->colName, TSDB_COL_NAME_LEN)) {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN, pColRef->colName));
+    }
+  }
+  if (NULL != pStmt->pSpecificTags) {
+    FOREACH(pNode, pStmt->pSpecificTags) {
+      if (QUERY_NODE_COLUMN_DEF == nodeType(pNode) &&
+          0 == strncmp(((SColumnDefNode*)pNode)->colName, pColRef->colName, TSDB_COL_NAME_LEN)) {
+        PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN, pColRef->colName));
+      }
+    }
+  }
+
+  // var-length limits, same as buildAddColReq
+  if ((TSDB_DATA_TYPE_VARCHAR == pColRef->dataType.type && calcTypeBytes(pColRef->dataType) > TSDB_MAX_BINARY_LEN) ||
+      (TSDB_DATA_TYPE_VARBINARY == pColRef->dataType.type && calcTypeBytes(pColRef->dataType) > TSDB_MAX_BINARY_LEN) ||
+      (TSDB_DATA_TYPE_NCHAR == pColRef->dataType.type && calcTypeBytes(pColRef->dataType) > TSDB_MAX_NCHAR_LEN)) {
+    PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN));
+  }
+
+  // limits are checked against the merged view (vstb columns + all own columns of this statement)
+  int32_t nOwnCols = 0;
+  int32_t ownRowSize = 0;
+  FOREACH(pNode, pStmt->pSpecificColRefs) {
+    SColumnRefNode* pOther = (SColumnRefNode*)pNode;
+    if (pOther->hasDataType) {
+      nOwnCols++;
+      ownRowSize += calcTypeBytes(pOther->dataType);
+    }
+  }
+  if (pSuperTableMeta->tableInfo.numOfColumns + nOwnCols > TSDB_MAX_COLUMNS) {
+    PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TOO_MANY_COLUMNS));
+  }
+  if (pSuperTableMeta->tableInfo.rowSize + ownRowSize > TSDB_MAX_BYTES_PER_ROW_VIRTUAL) {
+    PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROW_LENGTH, TSDB_MAX_BYTES_PER_ROW_VIRTUAL));
+  }
+
+  // reference validation, same as vstb-aligned columns
+  SDataType colType = pColRef->dataType;
+  colType.bytes = calcTypeBytes(colType);
+  PAR_ERR_RET(disambiguateThreeSegColRef(pCxt, pColRef));
+  if (pColRef->refType == 1) {
+    PAR_ERR_RET(checkExternalColRef(pCxt, pColRef->refSourceName, pColRef->refDbName, pColRef->refTableName,
+                                    pColRef->refColName, pColRef->colName, colType));
+  }
+  PAR_ERR_RET(checkColRef(pCxt, pStmt->dbName, pStmt->tableName, pColRef->colName, pColRef->refDbName,
+                          pColRef->refTableName, pColRef->refColName, colType, pSuperTableMeta->tableInfo.precision));
+  return code;
+}
+
+// Validate an own (extension) tag declaration of a vchild at CREATE VTABLE time
+// (`name TYPE` in the USING tag list). Mirrors the checks of ALTER VTABLE <vchild>
+// ADD TAG (metaAddVChildOwnTag); merged count/length limits are checked by the caller.
+static int32_t checkCreateVChildOwnTagDef(STranslateContext* pCxt, SCreateVSubTableStmt* pStmt,
+                                          STableMeta* pSuperTableMeta, SColumnDefNode* pTagDef,
+                                          SNodeList* pOwnTagDefs) {
+  SNode* pNode = NULL;
+
+  // the name must not clash with a vstb column/tag, an own column, or another own tag
+  if (NULL != getColSchema(pSuperTableMeta, pTagDef->colName) ||
+      NULL != getTagSchema(pSuperTableMeta, pTagDef->colName)) {
+    PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN, pTagDef->colName));
+  }
+  if (NULL != pStmt->pSpecificColRefs) {
+    FOREACH(pNode, pStmt->pSpecificColRefs) {
+      if (((SColumnRefNode*)pNode)->hasDataType &&
+          0 == strncmp(((SColumnRefNode*)pNode)->colName, pTagDef->colName, TSDB_COL_NAME_LEN)) {
+        PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN, pTagDef->colName));
+      }
+    }
+  }
+  if (NULL != pOwnTagDefs) {
+    FOREACH(pNode, pOwnTagDefs) {
+      if (0 == strncmp(((SColumnDefNode*)pNode)->colName, pTagDef->colName, TSDB_COL_NAME_LEN)) {
+        PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN, pTagDef->colName));
+      }
+    }
+  }
+
+  // tag type restrictions, same rules as super table ADD TAG
+  if (TSDB_DATA_TYPE_JSON == pTagDef->dataType.type) {
+    PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG));
+  }
+  if (IS_DECIMAL_TYPE(pTagDef->dataType.type)) {
+    PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                        "Decimal type is not allowed for tag"));
+  }
+  if ((TSDB_DATA_TYPE_VARCHAR == pTagDef->dataType.type || TSDB_DATA_TYPE_VARBINARY == pTagDef->dataType.type ||
+       TSDB_DATA_TYPE_NCHAR == pTagDef->dataType.type || TSDB_DATA_TYPE_GEOMETRY == pTagDef->dataType.type) &&
+      calcTypeBytes(pTagDef->dataType) > TSDB_MAX_TAGS_LEN) {
+    PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN));
+  }
+
+  // the shared tag blob of a vchild does not support a vstb JSON tag (see metaAddVChildOwnTag)
+  if (1 == getNumOfTags(pSuperTableMeta) &&
+      TSDB_DATA_TYPE_JSON == getTableTagSchema(pSuperTableMeta)[0].type) {
+    PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Clone a tag reference node (nodesCloneNode has no QUERY_NODE_COLUMN_REF copier).
+static int32_t cloneColRefNode(SColumnRefNode* pSrc, SColumnRefNode** ppDst) {
+  int32_t code = nodesMakeNode(QUERY_NODE_COLUMN_REF, (SNode**)ppDst);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  (*ppDst)->refType = pSrc->refType;
+  tstrncpy((*ppDst)->colName, pSrc->colName, TSDB_COL_NAME_LEN);
+  tstrncpy((*ppDst)->refDbName, pSrc->refDbName, TSDB_DB_NAME_LEN);
+  tstrncpy((*ppDst)->refTableName, pSrc->refTableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy((*ppDst)->refColName, pSrc->refColName, TSDB_COL_NAME_LEN);
+  tstrncpy((*ppDst)->refSourceName, pSrc->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  return TSDB_CODE_SUCCESS;
+}
+
+// Append pNode to pList, transferring ownership only on success: on failure the node is
+// freed here and the caller's pointer is cleared, so the error-path cleanup never frees a
+// node the list may have already linked (nodesListAppend links the node before any step
+// that can fail afterwards would run today, but do not rely on those capacity semantics).
+static int32_t appendCloneToList(SNodeList* pList, SNode** ppNode) {
+  int32_t code = nodesListAppend(pList, *ppNode);
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode(*ppNode);
+    *ppNode = NULL;
+    return code;
+  }
+  *ppNode = NULL;  // owned by the list now
+  return TSDB_CODE_SUCCESS;
+}
+
+// Split the USING tag list of CREATE VTABLE into vstb tags (plain names) and own
+// (extension) tags (name + explicit type, SColumnDefNode). The returned lists are clones;
+// the statement's original lists stay intact. When no own tag is declared all outputs are
+// NULL and the caller falls back to the original lists.
+static int32_t splitCreateVChildOwnTags(STranslateContext* pCxt, SCreateVSubTableStmt* pStmt,
+                                        STableMeta* pSuperTableMeta, SNodeList** ppStbTags,
+                                        SNodeList** ppStbTagVals, SNodeList** ppOwnTagDefs,
+                                        SNodeList** ppOwnTagVals) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
+  // clones not yet attached to an output list; destroyed on the error path
+  SNode*  pTagClone = NULL;
+  SNode*  pValClone = NULL;
+
+  *ppStbTags = NULL;
+  *ppStbTagVals = NULL;
+  *ppOwnTagDefs = NULL;
+  *ppOwnTagVals = NULL;
+
+  if (NULL == pStmt->pSpecificTags) {
+    return TSDB_CODE_SUCCESS;  // the positional form cannot declare own tags
+  }
+
+  bool hasOwnTag = false;
+  FOREACH(pNode, pStmt->pSpecificTags) {
+    if (QUERY_NODE_COLUMN_DEF == nodeType(pNode)) {
+      hasOwnTag = true;
+      break;
+    }
+  }
+  if (!hasOwnTag) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (LIST_LENGTH(pStmt->pValsOfTags) != LIST_LENGTH(pStmt->pSpecificTags)) {
+    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TAGS_NOT_MATCHED));
+  }
+
+  PAR_ERR_JRET(nodesMakeList(ppStbTags));
+  PAR_ERR_JRET(nodesMakeList(ppStbTagVals));
+  PAR_ERR_JRET(nodesMakeList(ppOwnTagDefs));
+  PAR_ERR_JRET(nodesMakeList(ppOwnTagVals));
+
+  SListCell* pTagCell = pStmt->pSpecificTags->pHead;
+  SListCell* pValCell = pStmt->pValsOfTags->pHead;
+  while (NULL != pTagCell && NULL != pValCell) {
+    // a tag value may be a reference node (FROM db.tb.tag), which nodesCloneNode cannot copy
+    if (QUERY_NODE_COLUMN_REF == nodeType(pValCell->pNode)) {
+      SColumnRefNode* pRefClone = NULL;
+      PAR_ERR_JRET(cloneColRefNode((SColumnRefNode*)pValCell->pNode, &pRefClone));
+      pValClone = (SNode*)pRefClone;
+    } else {
+      PAR_ERR_JRET(nodesCloneNode(pValCell->pNode, &pValClone));
+    }
+    if (QUERY_NODE_COLUMN_DEF == nodeType(pTagCell->pNode)) {
+      PAR_ERR_JRET(
+          checkCreateVChildOwnTagDef(pCxt, pStmt, pSuperTableMeta, (SColumnDefNode*)pTagCell->pNode, *ppOwnTagDefs));
+      PAR_ERR_JRET(nodesCloneNode(pTagCell->pNode, &pTagClone));
+      PAR_ERR_JRET(appendCloneToList(*ppOwnTagDefs, &pTagClone));
+      PAR_ERR_JRET(appendCloneToList(*ppOwnTagVals, &pValClone));
+    } else {
+      PAR_ERR_JRET(nodesCloneNode(pTagCell->pNode, &pTagClone));
+      PAR_ERR_JRET(appendCloneToList(*ppStbTags, &pTagClone));
+      PAR_ERR_JRET(appendCloneToList(*ppStbTagVals, &pValClone));
+    }
+    pTagCell = pTagCell->pNext;
+    pValCell = pValCell->pNext;
+  }
+
+  // limits are checked against the merged view (vstb tags + all own tags of this statement)
+  int32_t ownTagsLen = 0;
+  FOREACH(pNode, *ppOwnTagDefs) {
+    ownTagsLen += calcTypeBytes(((SColumnDefNode*)pNode)->dataType);
+  }
+  int32_t stbTagsLen = 0;
+  SSchema* pTagSchema = getTableTagSchema(pSuperTableMeta);
+  for (int32_t i = 0; i < getNumOfTags(pSuperTableMeta); i++) {
+    stbTagsLen += pTagSchema[i].bytes;
+  }
+  if (getNumOfTags(pSuperTableMeta) + LIST_LENGTH(*ppOwnTagDefs) > TSDB_MAX_TAGS) {
+    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_NUM));
+  }
+  if (stbTagsLen + ownTagsLen > TSDB_MAX_TAGS_LEN) {
+    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_LENGTH, TSDB_MAX_TAGS_LEN));
+  }
+
+  return code;
+_return:
+  // clones already appended to a list are owned by that list and destroyed below
+  nodesDestroyNode(pTagClone);
+  nodesDestroyNode(pValClone);
+  nodesDestroyList(*ppStbTags);
+  nodesDestroyList(*ppStbTagVals);
+  nodesDestroyList(*ppOwnTagDefs);
+  nodesDestroyList(*ppOwnTagVals);
+  *ppStbTags = NULL;
+  *ppStbTagVals = NULL;
+  *ppOwnTagDefs = NULL;
+  *ppOwnTagVals = NULL;
+  return code;
+}
+
+// Validate tag references attached to own (extension) tags and replace them with NULL
+// value nodes, mirroring checkAndReplaceTagRefs for vstb tags. The ref info (keyed by the
+// own tag name) is appended to *ppTagRefNodes and consumed by buildVirtualSubTableReq.
+static int32_t checkAndReplaceOwnTagRefs(STranslateContext* pCxt, const char* pSrcDbName, const char* pSrcTableName,
+                                         SNodeList* pOwnTagDefs, SNodeList* pOwnTagVals, SNodeList** ppTagRefNodes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == pOwnTagDefs) {
+    return code;
+  }
+
+  int32_t    tagIdx = 0;
+  SListCell* pCell = pOwnTagVals->pHead;
+  while (NULL != pCell) {
+    SNode* pNode = pCell->pNode;
+    if (QUERY_NODE_COLUMN_REF == nodeType(pNode)) {
+      SColumnRefNode* pColRef = (SColumnRefNode*)pNode;
+      SColumnDefNode* pTagDef = (SColumnDefNode*)nodesListGetNode(pOwnTagDefs, tagIdx);
+
+      SDataType tagType = pTagDef->dataType;
+      tagType.bytes = calcTypeBytes(tagType);
+      PAR_ERR_JRET(checkTagRef(pCxt, pSrcDbName, pSrcTableName, pTagDef->colName, pColRef->refDbName,
+                               pColRef->refTableName, pColRef->refColName, tagType));
+
+      if (NULL == *ppTagRefNodes) {
+        PAR_ERR_JRET(nodesMakeList(ppTagRefNodes));
+      }
+      SColumnRefNode* pClone = NULL;
+      PAR_ERR_JRET(cloneColRefNode(pColRef, &pClone));
+      tstrncpy(pClone->colName, pTagDef->colName, TSDB_COL_NAME_LEN);
+      {
+        SNode* pCloneNode = (SNode*)pClone;
+        PAR_ERR_JRET(appendCloneToList(*ppTagRefNodes, &pCloneNode));
+      }
+
+      // Replace the column ref node with a NULL value node
+      SValueNode* pNull = NULL;
+      PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pNull));
+      pNull->literal = taosStrdup("NULL");
+      if (NULL == pNull->literal) {
+        nodesDestroyNode((SNode*)pNull);
+        PAR_ERR_JRET(terrno);
+      }
+      pNull->node.resType.type = TSDB_DATA_TYPE_NULL;
+
+      nodesDestroyNode(pCell->pNode);
+      pCell->pNode = (SNode*)pNull;
+    }
+    tagIdx++;
+    pCell = pCell->pNext;
+  }
+
+  return code;
+_return:
+  return code;
+}
+
+// Parse the literal value of an own (extension) tag into the create req. A NULL literal
+// (including the placeholder of a tag reference) leaves hasValue unset.
+static int32_t buildVChildOwnTagValue(STranslateContext* pCxt, STableMeta* pStbMeta, SValueNode* pVal,
+                                      SVChildOwnTagDef* pDef) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SToken      token;
+  // sized TSDB_MAX_BYTES_PER_ROW like the other checkAndTrimValue callers (parInsertSql.c):
+  // checkAndTrimValue trims string tokens into this buffer with that bound, so a smaller
+  // buffer (e.g. TSDB_MAX_TAGS_LEN) could be overflowed by a long literal
+  char        tokenBuf[TSDB_MAX_BYTES_PER_ROW];
+  SArray*     pTagArray = NULL;
+  STag*       pDummyTag = NULL;
+  const char* tagStr = pVal->literal;
+
+  if (NULL == tagStr) {
+    return TSDB_CODE_SUCCESS;  // no literal (e.g. tag reference placeholder): hasValue stays unset
+  }
+
+  NEXT_TOKEN_WITH_PREV(tagStr, token);
+  code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pDef->schema.type);
+  if (TSDB_CODE_SUCCESS == code && TK_NK_VARIABLE == token.type) {
+    code = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pTagArray = taosArrayInit(1, sizeof(STagVal));
+    if (NULL == pTagArray) {
+      code = terrno;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = parseTagValue(&pCxt->msgBuf, &tagStr, pStbMeta->tableInfo.precision, &pDef->schema, &token, NULL, pTagArray,
+                         &pDummyTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    NEXT_VALID_TOKEN(tagStr, token);
+    if (token.n != 0) {
+      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code && taosArrayGetSize(pTagArray) > 0) {
+    STagVal* pTagVal = (STagVal*)taosArrayGet(pTagArray, 0);
+    pDef->hasValue = true;
+    pDef->valType = pTagVal->type;
+    pDef->valI64 = pTagVal->i64;
+    if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+      pDef->valLen = pTagVal->nData;
+      pDef->pVal = (uint8_t*)pTagVal->pData;
+      pTagVal->pData = NULL;  // ownership moves to the req
+    }
+  }
+
+  if (NULL != pTagArray) {
+    for (int32_t i = 0; i < taosArrayGetSize(pTagArray); ++i) {
+      STagVal* p = (STagVal*)taosArrayGet(pTagArray, i);
+      if (IS_VAR_DATA_TYPE(p->type)) {
+        taosMemoryFreeClear(p->pData);
+      }
+    }
+    taosArrayDestroy(pTagArray);
+  }
+  return code;
+}
+
 // Check if pValsOfTags contains any tag references (SColumnRefNode), validate them,
 // and replace them with NULL value nodes so buildKVRowForBindTags/buildKVRowForAllTags can proceed.
 // Returns the tag reference info in pTagRefNodes (caller should destroy).
@@ -36693,6 +37276,14 @@ static int32_t rewriteCreateVirtualSubTableClause(STranslateContext* pCxt, SCrea
   SNode*        pCol = NULL;
   SNodeList*    pTagRefNodes = NULL;
   SVCreateTbReq req = {0};
+  // Declared here (not at first use below) so the _return cleanup is safe even when an
+  // earlier PAR_ERR_JRET (e.g. own-column ref validation on a SHOW-CREATE replay) jumps
+  // past the initialization near splitCreateVChildOwnTags; otherwise nodesDestroyList
+  // would run on uninitialized pointers and crash.
+  SNodeList*    pStbTags = NULL;
+  SNodeList*    pStbTagVals = NULL;
+  SNodeList*    pOwnTagDefs = NULL;
+  SNodeList*    pOwnTagVals = NULL;
 
   PAR_ERR_JRET(checkCreateVSubTable(pCxt, pStmt));
 
@@ -36725,7 +37316,19 @@ static int32_t rewriteCreateVirtualSubTableClause(STranslateContext* pCxt, SCrea
       }
       const SSchema*  pSchema = getColSchema(pSuperTableMeta, pColRef->colName);
       if (NULL == pSchema) {
-        PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
+        // an entry with an explicit type declares an own (extension) column of the vchild
+        if (!pColRef->hasDataType) {
+          PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
+        }
+        PAR_ERR_JRET(checkCreateVChildOwnColRef(pCxt, pStmt, pSuperTableMeta, pColRef));
+        continue;
+      }
+      if (pColRef->hasDataType) {
+        // a vstb column takes its type from the vstb schema; declaring one is rejected
+        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
+                                             "column %s already exists in the virtual super table, type must not be "
+                                             "specified",
+                                             pColRef->colName));
       }
       if (pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         PAR_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
@@ -36780,28 +37383,45 @@ static int32_t rewriteCreateVirtualSubTableClause(STranslateContext* pCxt, SCrea
   PAR_ERR_JRET(getTableHashVgroupImpl(pCxt, &name, &info));
   PAR_ERR_JRET(collectUseTable(&name, pCxt->pTargetTables));
 
+  // Split the USING tag list into vstb tags and own (extension) tags (name + explicit
+  // type). Without own tags the original lists are used as-is.
+  PAR_ERR_JRET(splitCreateVChildOwnTags(pCxt, pStmt, pSuperTableMeta, &pStbTags, &pStbTagVals, &pOwnTagDefs,
+                                        &pOwnTagVals));
+  SNodeList* pTagsForBuild = (NULL != pStbTags) ? pStbTags : pStmt->pSpecificTags;
+  SNodeList* pValsForBuild = (NULL != pStbTagVals) ? pStbTagVals : pStmt->pValsOfTags;
+
   // Check and extract tag references from pValsOfTags, replacing them with NULL values.
   // Supports both legacy syntax (FROM db.table.tag) and new unified syntax
   // (tag_name FROM db.table.tag, or db.table.tag positional).
-  PAR_ERR_JRET(checkAndReplaceTagRefs(pCxt, pStmt->dbName, pStmt->tableName, pStmt->pSpecificTags, pStmt->pValsOfTags, pSuperTableMeta, &pTagRefNodes));
+  PAR_ERR_JRET(checkAndReplaceTagRefs(pCxt, pStmt->dbName, pStmt->tableName, pTagsForBuild, pValsForBuild, pSuperTableMeta, &pTagRefNodes));
+  PAR_ERR_JRET(
+      checkAndReplaceOwnTagRefs(pCxt, pStmt->dbName, pStmt->tableName, pOwnTagDefs, pOwnTagVals, &pTagRefNodes));
 
-  if (NULL != pStmt->pSpecificTags) {
+  if (NULL != pTagsForBuild) {
     PAR_ERR_JRET(
-        buildKVRowForBindTags(pCxt, pStmt->pSpecificTags, pStmt->pValsOfTags, pSuperTableMeta, &pTag, tagName));
+        buildKVRowForBindTags(pCxt, pTagsForBuild, pValsForBuild, pSuperTableMeta, &pTag, tagName));
   } else {
-    PAR_ERR_JRET(buildKVRowForAllTags(pCxt, pStmt->pValsOfTags, pSuperTableMeta, &pTag, tagName));
+    PAR_ERR_JRET(buildKVRowForAllTags(pCxt, pValsForBuild, pSuperTableMeta, &pTag, tagName));
   }
 
   PAR_ERR_JRET(buildVirtualSubTableReq(pCxt, pStmt, pSuperTableMeta, tagName, taosArrayGetSize(tagName), pTag,
-                                       pTagRefNodes, pCxt->pParseCxt->txnId, &req));
+                                       pTagRefNodes, pOwnTagDefs, pOwnTagVals, pCxt->pParseCxt->txnId, &req));
   PAR_ERR_JRET(addCreateReqIntoVgroup(pVgroupHashmap, pStmt->dbName, &info, &req));
 
   nodesDestroyList(pTagRefNodes);
+  nodesDestroyList(pStbTags);
+  nodesDestroyList(pStbTagVals);
+  nodesDestroyList(pOwnTagDefs);
+  nodesDestroyList(pOwnTagVals);
   taosMemoryFreeClear(pSuperTableMeta);
   taosArrayDestroy(tagName);
   return code;
 _return:
   nodesDestroyList(pTagRefNodes);
+  nodesDestroyList(pStbTags);
+  nodesDestroyList(pStbTagVals);
+  nodesDestroyList(pOwnTagDefs);
+  nodesDestroyList(pOwnTagVals);
   taosArrayDestroy(tagName);
   taosMemoryFreeClear(pSuperTableMeta);
   return code;

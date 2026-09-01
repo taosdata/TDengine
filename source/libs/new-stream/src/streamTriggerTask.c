@@ -21898,14 +21898,15 @@ static int32_t stRealtimeGroupUpdateExecTime(SSTriggerRealtimeGroup *pGroup, int
       heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
     }
     if (nested) {
-      ST_TASK_DLOG("group %" PRId64 " holds %" PRId32 " nested params and %" PRId32
+      ST_TASK_DLOG("group %" PRId64 " holds %" PRId64 " nested params and %" PRId64
                    " nested parwin params, expecting to exec at %" PRId64,
-                   pGroup->gid, listNEles(&pGroup->pendingNestedEvents), listNEles(&pGroup->pendingNestedParWinEvents),
-                   pGroup->nextExecTime);
+                   pGroup->gid, (int64_t)listNEles(&pGroup->pendingNestedEvents),
+                   (int64_t)listNEles(&pGroup->pendingNestedParWinEvents), pGroup->nextExecTime);
     } else {
       ST_TASK_DLOG(
           "group %" PRId64 " holds %" PRId64 " params and %" PRId64 " parwin params, expecting to exec at %" PRId64,
-          pGroup->gid, pGroup->pPendingCalcParams.neles, pGroup->pPendingParWinCalcParams.neles, pGroup->nextExecTime);
+          pGroup->gid, (int64_t)pGroup->pPendingCalcParams.neles, (int64_t)pGroup->pPendingParWinCalcParams.neles,
+          pGroup->nextExecTime);
     }
   }
 

@@ -696,12 +696,67 @@ int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta) 
   QUERY_PARAM_CHECK(pMeta);
   QUERY_PARAM_CHECK(msg->pColRefs);
 
+  // The vchild response carries the merged column/tag view: vstb columns (colId <
+  // TSDB_VCHILD_OWN_COL_ID_BASE) followed by the child's own columns (colId >=
+  // TSDB_VCHILD_OWN_COL_ID_BASE), then vstb tags followed by the child's own tags.
+  // Split the own columns/tags out by colId (not by position) and pack them behind
+  // colRef/tagRef in the same block, own columns first then own tags.
+  // tDecodeSTableMetaRsp packs pSchemas as numOfColumns columns followed by numOfTags
+  // tags (numOfColumns + numOfTags entries in total), so pSchemas[numOfColumns + i]
+  // below addresses the i-th tag; reject negative counts so a malformed message cannot
+  // drive that indexing out of bounds.
+  if (msg->numOfColumns < 0 || msg->numOfTags < 0) {
+    qError("invalid numOfColumns[%d] numOfTags[%d] in vchild table meta rsp msg", msg->numOfColumns,
+           msg->numOfTags);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+  int32_t numOfOwnCols = 0;
+  int32_t numOfOwnTags = 0;
+  if (msg->pSchemas && msg->numOfColumns > 0) {
+    for (int32_t i = 0; i < msg->numOfColumns; ++i) {
+      if (msg->pSchemas[i].colId >= TSDB_VCHILD_OWN_COL_ID_BASE) {
+        ++numOfOwnCols;
+      }
+    }
+  }
+  if (msg->pSchemas && msg->numOfTags > 0) {
+    for (int32_t i = 0; i < msg->numOfTags; ++i) {
+      if (msg->pSchemas[msg->numOfColumns + i].colId >= TSDB_VCHILD_OWN_COL_ID_BASE) {
+        ++numOfOwnTags;
+      }
+    }
+  }
+
   int32_t pColRefSize = sizeof(SColRef) * msg->numOfColRefs;
   int32_t pTagRefSize = (msg->pTagRefs && msg->numOfTagRefs > 0) ? sizeof(SColRef) * msg->numOfTagRefs : 0;
+  int32_t ownSchemaSize = numOfOwnCols * (int32_t)sizeof(SSchema);
+  int32_t ownTagSchemaSize = numOfOwnTags * (int32_t)sizeof(SSchema);
+  // Carry own-column ext (typeMod) only when at least one own column has COL_HAS_TYPE_MOD, so the
+  // common all-non-decimal case pays no extra memory. Matches the persistence/wire condition.
+  bool    hasOwnColTypeMod = false;
+  if (numOfOwnCols > 0 && msg->pSchemas) {
+    for (int32_t i = 0; i < msg->numOfColumns; ++i) {
+      if (msg->pSchemas[i].colId >= TSDB_VCHILD_OWN_COL_ID_BASE && (msg->pSchemas[i].flags & COL_HAS_TYPE_MOD)) {
+        hasOwnColTypeMod = true;
+        break;
+      }
+    }
+  }
+  // An own column carrying COL_HAS_TYPE_MOD must come with the pSchemaExt block (the decoder
+  // sizes it to numOfColumns entries, one per column); fail loudly instead of silently
+  // zeroing the decimal typeMod when the block is missing.
+  if (hasOwnColTypeMod && NULL == msg->pSchemaExt) {
+    qError("vchild %s meta rsp has own column with COL_HAS_TYPE_MOD but no schemaExt", msg->tbName);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+  int32_t ownSchemaExtSize = hasOwnColTypeMod ? numOfOwnCols * (int32_t)sizeof(SSchemaExt) : 0;
 
-  SVCTableMeta *pTableMeta = taosMemoryCalloc(1, sizeof(SVCTableMeta) + pColRefSize + pTagRefSize);
+  SVCTableMeta *pTableMeta = taosMemoryCalloc(
+      1, sizeof(SVCTableMeta) + pColRefSize + pTagRefSize + ownSchemaSize + ownTagSchemaSize + ownSchemaExtSize);
   if (NULL == pTableMeta) {
-    qError("calloc size[%d] failed", (int32_t)sizeof(SVCTableMeta) + pColRefSize + pTagRefSize);
+    qError("calloc size[%d] failed",
+           (int32_t)sizeof(SVCTableMeta) + pColRefSize + pTagRefSize + ownSchemaSize + ownTagSchemaSize +
+               ownSchemaExtSize);
     return terrno;
   }
 
@@ -711,6 +766,8 @@ int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta) 
   pTableMeta->suid = msg->suid;
   pTableMeta->numOfColRefs = msg->numOfColRefs;
   pTableMeta->rversion = msg->rversion;
+  pTableMeta->numOfOwnCols = numOfOwnCols;
+  pTableMeta->numOfOwnTags = numOfOwnTags;
 
   pTableMeta->colRef = (SColRef *)((char *)pTableMeta + sizeof(SVCTableMeta));
   memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
@@ -730,6 +787,44 @@ int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta) 
   } else {
     pTableMeta->tagRef = NULL;
     pTableMeta->numOfTagRefs = 0;
+  }
+
+  if (ownSchemaSize > 0) {
+    pTableMeta->ownSchemas = (SSchema *)((char *)pTableMeta + sizeof(SVCTableMeta) + pColRefSize + pTagRefSize);
+    int32_t o = 0;
+    for (int32_t i = 0; i < msg->numOfColumns; ++i) {
+      if (msg->pSchemas[i].colId >= TSDB_VCHILD_OWN_COL_ID_BASE) {
+        pTableMeta->ownSchemas[o++] = msg->pSchemas[i];
+      }
+    }
+  } else {
+    pTableMeta->ownSchemas = NULL;
+  }
+
+  if (ownSchemaExtSize > 0) {
+    pTableMeta->ownSchemaExt = (SSchemaExt *)((char *)pTableMeta + sizeof(SVCTableMeta) + pColRefSize +
+                                              pTagRefSize + ownSchemaSize);
+    int32_t o = 0;
+    for (int32_t i = 0; i < msg->numOfColumns; ++i) {
+      if (msg->pSchemas[i].colId >= TSDB_VCHILD_OWN_COL_ID_BASE) {
+        pTableMeta->ownSchemaExt[o++].typeMod = msg->pSchemaExt[i].typeMod;
+      }
+    }
+  } else {
+    pTableMeta->ownSchemaExt = NULL;
+  }
+
+  if (ownTagSchemaSize > 0) {
+    pTableMeta->ownTagSchemas = (SSchema *)((char *)pTableMeta + sizeof(SVCTableMeta) + pColRefSize +
+                                            pTagRefSize + ownSchemaSize + ownSchemaExtSize);
+    int32_t o = 0;
+    for (int32_t i = 0; i < msg->numOfTags; ++i) {
+      if (msg->pSchemas[msg->numOfColumns + i].colId >= TSDB_VCHILD_OWN_COL_ID_BASE) {
+        pTableMeta->ownTagSchemas[o++] = msg->pSchemas[msg->numOfColumns + i];
+      }
+    }
+  } else {
+    pTableMeta->ownTagSchemas = NULL;
   }
 
   // Populate series
@@ -760,12 +855,73 @@ int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta) 
   return TSDB_CODE_SUCCESS;
 }
 
+// Count the vstb (non-own, colId < TSDB_VCHILD_OWN_COL_ID_BASE) columns/tags of a virtual
+// child response's merged schema. tDecodeSTableMetaRsp packs pSchemas as numOfColumns columns
+// followed by numOfTags tags, so pSchemas[numOfColumns + i] addresses the i-th tag; rejects
+// negative counts so a malformed message cannot drive that indexing out of bounds.
+static int32_t queryCountVstbSchema(const STableMetaRsp *msg, int32_t *pNumOfCols, int32_t *pNumOfTags) {
+  if (msg->numOfColumns < 0 || msg->numOfTags < 0) {
+    qError("invalid numOfColumns[%d] numOfTags[%d] in vchild table meta rsp msg", msg->numOfColumns, msg->numOfTags);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+  int32_t numOfCols = 0;
+  for (int32_t i = 0; i < msg->numOfColumns; ++i) {
+    if (msg->pSchemas[i].colId < TSDB_VCHILD_OWN_COL_ID_BASE) {
+      ++numOfCols;
+    }
+  }
+  int32_t numOfTags = 0;
+  for (int32_t i = 0; i < msg->numOfTags; ++i) {
+    if (msg->pSchemas[msg->numOfColumns + i].colId < TSDB_VCHILD_OWN_COL_ID_BASE) {
+      ++numOfTags;
+    }
+  }
+  *pNumOfCols = numOfCols;
+  *pNumOfTags = numOfTags;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Repack the vstb entries of a virtual child merged schema into the stb-side meta: columns
+// first, then tags; the matching schemaExt column entries are copied too when dstExt != NULL.
+// Must be called with the counts from queryCountVstbSchema (the destination is sized by them).
+static void queryPackVstbSchema(const STableMetaRsp *msg, SSchema *dstSchema, SSchemaExt *dstExt) {
+  int32_t o = 0;
+  for (int32_t i = 0; i < msg->numOfColumns; ++i) {
+    if (msg->pSchemas[i].colId < TSDB_VCHILD_OWN_COL_ID_BASE) {
+      dstSchema[o] = msg->pSchemas[i];
+      if (dstExt != NULL) {
+        dstExt[o] = msg->pSchemaExt[i];
+      }
+      ++o;
+    }
+  }
+  for (int32_t i = 0; i < msg->numOfTags; ++i) {
+    if (msg->pSchemas[msg->numOfColumns + i].colId < TSDB_VCHILD_OWN_COL_ID_BASE) {
+      dstSchema[o++] = msg->pSchemas[msg->numOfColumns + i];
+    }
+  }
+}
+
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta **pMeta) {
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(pMeta);
-  int32_t total = msg->numOfColumns + msg->numOfTags;
+  // A virtual child response carries the merged column/tag view (vstb columns/tags
+  // followed by the child's own ones with colId >= TSDB_VCHILD_OWN_COL_ID_BASE). The
+  // stb-side meta must hold the pure vstb schema: it is cached as the shared vstb entry,
+  // while own columns/tags are per-child and get re-attached from SVCTableMeta during
+  // the vchild meta merge.
+  bool    stripOwn = isStb && msg->tableType == TSDB_VIRTUAL_CHILD_TABLE && NULL != msg->pSchemas;
+  int32_t numOfCols = msg->numOfColumns;
+  int32_t numOfTags = msg->numOfTags;
+  if (stripOwn) {
+    int32_t code = queryCountVstbSchema(msg, &numOfCols, &numOfTags);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  int32_t total = numOfCols + numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
-  int32_t schemaExtSize = (withExtSchema(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
+  int32_t schemaExtSize = (withExtSchema(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * numOfCols : 0;
   int32_t pColRefSize = (hasColRef(msg->tableType) && msg->pColRefs && !isStb) ? sizeof(SColRef) * msg->numOfColRefs : 0;
   // Virtual super tables also need tagRef so planner can create TagRefSourceLogicNode
   bool    needTagRef = hasTagRef(msg->tableType) && msg->pTagRefs && (!isStb || msg->virtualStb);
@@ -808,14 +964,20 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
     }
   }
 
-  pTableMeta->tableInfo.numOfTags = msg->numOfTags;
+  pTableMeta->tableInfo.numOfTags = numOfTags;
   pTableMeta->tableInfo.precision = msg->precision;
-  pTableMeta->tableInfo.numOfColumns = msg->numOfColumns;
+  pTableMeta->tableInfo.numOfColumns = numOfCols;
 
-  memcpy(pTableMeta->schema, msg->pSchemas, sizeof(SSchema) * total);
+  if (stripOwn) {
+    queryPackVstbSchema(msg, pTableMeta->schema, pSchemaExt);
+  } else {
+    memcpy(pTableMeta->schema, msg->pSchemas, sizeof(SSchema) * total);
+  }
   if (withExtSchema(msg->tableType) && msg->pSchemaExt) {
     pTableMeta->schemaExt = pSchemaExt;
-    memcpy(pSchemaExt, msg->pSchemaExt, schemaExtSize);
+    if (!stripOwn) {
+      memcpy(pSchemaExt, msg->pSchemaExt, schemaExtSize);
+    }
   } else {
     pTableMeta->schemaExt = NULL;
   }
@@ -865,8 +1027,8 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
     pTableMeta->seriesEntries = NULL;
   }
 
-  bool hasPK = (msg->numOfColumns > 1) && (pTableMeta->schema[1].flags & COL_IS_KEY);
-  for (int32_t i = 0; i < msg->numOfColumns; ++i) {
+  bool hasPK = (numOfCols > 1) && (pTableMeta->schema[1].flags & COL_IS_KEY);
+  for (int32_t i = 0; i < numOfCols; ++i) {
     pTableMeta->tableInfo.rowSize += pTableMeta->schema[i].bytes;
     if (hasPK && (i > 0)) {
       if ((pTableMeta->schema[i].flags & COL_IS_KEY)) {
@@ -891,9 +1053,20 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
 int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta **pMeta) {
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(pMeta);
-  int32_t total = msg->numOfColumns + msg->numOfTags;
+  // See queryCreateTableMetaFromMsg: strip the vchild own columns/tags when building the
+  // stb-side meta so the shared vstb cache entry keeps the pure vstb schema.
+  bool    stripOwn = isStb && msg->tableType == TSDB_VIRTUAL_CHILD_TABLE && NULL != msg->pSchemas;
+  int32_t numOfCols = msg->numOfColumns;
+  int32_t numOfTags = msg->numOfTags;
+  if (stripOwn) {
+    int32_t code = queryCountVstbSchema(msg, &numOfCols, &numOfTags);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  int32_t total = numOfCols + numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
-  int32_t schemaExtSize = (withExtSchema(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
+  int32_t schemaExtSize = (withExtSchema(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * numOfCols : 0;
   int32_t pColRefSize = (hasColRef(msg->tableType) && msg->pColRefs) ? sizeof(SColRef) * msg->numOfColRefs : 0;
   int32_t tbNameSize = strlen(msg->tbName) + 1;
 
@@ -919,14 +1092,20 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   pTableMeta->ownerId = msg->ownerId;
   pTableMeta->secureDelete = msg->secureDelete;
 
-  pTableMeta->tableInfo.numOfTags = msg->numOfTags;
+  pTableMeta->tableInfo.numOfTags = numOfTags;
   pTableMeta->tableInfo.precision = msg->precision;
-  pTableMeta->tableInfo.numOfColumns = msg->numOfColumns;
+  pTableMeta->tableInfo.numOfColumns = numOfCols;
 
-  TAOS_MEMCPY(pTableMeta->schema, msg->pSchemas, sizeof(SSchema) * total);
+  if (stripOwn) {
+    queryPackVstbSchema(msg, pTableMeta->schema, pSchemaExt);
+  } else {
+    TAOS_MEMCPY(pTableMeta->schema, msg->pSchemas, sizeof(SSchema) * total);
+  }
   if (withExtSchema(msg->tableType) && msg->pSchemaExt) {
     pTableMeta->schemaExt = pSchemaExt;
-    TAOS_MEMCPY(pSchemaExt, msg->pSchemaExt, schemaExtSize);
+    if (!stripOwn) {
+      TAOS_MEMCPY(pSchemaExt, msg->pSchemaExt, schemaExtSize);
+    }
   } else {
     pTableMeta->schemaExt = NULL;
   }
@@ -963,8 +1142,8 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
     pTableMeta->seriesEntries = NULL;
   }
 
-  bool hasPK = (msg->numOfColumns > 1) && (pTableMeta->schema[1].flags & COL_IS_KEY);
-  for (int32_t i = 0; i < msg->numOfColumns; ++i) {
+  bool hasPK = (numOfCols > 1) && (pTableMeta->schema[1].flags & COL_IS_KEY);
+  for (int32_t i = 0; i < numOfCols; ++i) {
     pTableMeta->tableInfo.rowSize += pTableMeta->schema[i].bytes;
     if (hasPK && (i > 0)) {
       if ((pTableMeta->schema[i].flags & COL_IS_KEY)) {

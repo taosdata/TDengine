@@ -5475,10 +5475,46 @@ typedef struct SVCheckHasCtbReq {
 int32_t tSerializeSVCheckHasCtbReq(void* buf, int32_t bufLen, const SVCheckHasCtbReq* pReq);
 int32_t tDeserializeSVCheckHasCtbReq(const void* buf, int32_t bufLen, SVCheckHasCtbReq* pReq);
 
+// TDMT_VND_CHECK_STB_ALTER_NAME ==============
+// Pre-check for a virtual stb alter that introduces new column/tag names: each vnode owning
+// vchild tables of the stb verifies that none of them already owns one of the names as an
+// own (extension) column/tag. Response carries only the error code.
+typedef struct SVCheckStbAlterNameReq {
+  int64_t suid;    // uid of the virtual super table being altered
+  SArray* pNames;  // array of char[TSDB_COL_NAME_LEN], new names introduced by the alter
+} SVCheckStbAlterNameReq;
+
+int32_t tSerializeSVCheckStbAlterNameReq(void* buf, int32_t bufLen, const SVCheckStbAlterNameReq* pReq);
+int32_t tDeserializeSVCheckStbAlterNameReq(const void* buf, int32_t bufLen, SVCheckStbAlterNameReq* pReq);
+void    tFreeSVCheckStbAlterNameReq(SVCheckStbAlterNameReq* pReq);
+
 // TDMT_VND_CREATE_TABLE ==============
 #define TD_CREATE_IF_NOT_EXISTS       0x1
 #define TD_CREATE_NORMAL_TB_IN_STREAM 0x2
 #define TD_CREATE_SUB_TB_IN_STREAM    0x4
+
+// Own (extension) column of a virtual child table declared at CREATE VTABLE time
+// (see SVChildOwnSchema in storageapi.h). schema.colId is a placeholder on the wire;
+// the vnode assigns colIds from TSDB_VCHILD_OWN_COL_ID_BASE upwards.
+typedef struct SVChildOwnColDef {
+  SSchema  schema;
+  SColRef  ref;  // hasRef is always true: an own data column must carry an origin reference
+  STypeMod typeMod;  // decimal precision/scale for own columns of decimal type (0 otherwise)
+} SVChildOwnColDef;
+
+// Own (extension) tag of a virtual child table declared at CREATE VTABLE time. Carries
+// an optional literal value (hasValue) or an optional tag reference (ref.hasRef); both
+// empty means the tag value is NULL. schema.colId is a placeholder as above.
+typedef struct SVChildOwnTagDef {
+  SSchema  schema;
+  SColRef  ref;
+  bool     hasValue;
+  int8_t   valType;
+  int64_t  valI64;   // fixed-width literal value
+  int32_t  valLen;   // payload length for var-width types
+  uint8_t *pVal;     // var-width literal payload
+} SVChildOwnTagDef;
+
 typedef struct SVCreateTbReq {
   int32_t  flags;
   char*    name;
@@ -5511,6 +5547,11 @@ typedef struct SVCreateTbReq {
   SSeriesWrapper  series;  // series declarations for virtual table
   int64_t         txnId;   // batch meta txn ID (0 = not in txn)
   int8_t          txnStatus; // EMetaTxnStatus for snapshot replication (0 = normal/PRE_CREATE)
+  // vchild own (extension) columns/tags declared at create time, TSDB_VIRTUAL_CHILD_TABLE only
+  int32_t           nOwnColDefs;
+  SVChildOwnColDef *pOwnColDefs;
+  int32_t           nOwnTagDefs;
+  SVChildOwnTagDef *pOwnTagDefs;
 } SVCreateTbReq;
 
 int  tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);

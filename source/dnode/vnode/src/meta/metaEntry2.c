@@ -672,16 +672,151 @@ static int32_t metaAddOrDropTagIndexOfSuperTable(SMeta *pMeta, const SMetaHandle
   return code;
 }
 
+// Fail a vstb schema change that would collide with a vchild's own (extension) column/tag
+// names: mnode is not aware of vchild tables, so the conflict can only be detected here, on
+// the vnode owning them. Returning an error fails the whole stb alter on this vnode.
+static int32_t metaCheckVchildOwnNameConflict(SMeta *pMeta, const SMetaEntry *pChildEntry, const char *pName) {
+  if (pChildEntry->type != TSDB_VIRTUAL_CHILD_TABLE) {
+    return TSDB_CODE_SUCCESS;
+  }
+  for (int32_t i = 0; i < pChildEntry->own.nOwnCols; i++) {
+    if (strncmp(pChildEntry->own.pOwnColSchemas[i].name, pName, TSDB_COL_NAME_LEN) == 0) {
+      metaError("vgId:%d, super table alter on %s conflicts with own column %s of virtual child table uid %" PRId64,
+                TD_VID(pMeta->pVnode), pChildEntry->name, pName, pChildEntry->uid);
+      return TSDB_CODE_VND_COL_ALREADY_EXISTS;
+    }
+  }
+  for (int32_t i = 0; i < pChildEntry->own.nOwnTags; i++) {
+    if (strncmp(pChildEntry->own.pOwnTagSchemas[i].name, pName, TSDB_COL_NAME_LEN) == 0) {
+      metaError("vgId:%d, super table alter on %s conflicts with own tag %s of virtual child table uid %" PRId64,
+                TD_VID(pMeta->pVnode), pChildEntry->name, pName, pChildEntry->uid);
+      return TSDB_CODE_VND_COL_ALREADY_EXISTS;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Check ALL names in pNames (an SArray of char*, each pointing to a column/tag name) against
+// every vchild's own (extension) column/tag names, fetching the child entries only once. Used
+// by vstb schema-change paths so an alter touching several names does not re-fetch every child
+// once per name.
+static int32_t metaCheckOwnNameConflictsOfChildTables(SMeta *pMeta, tb_uid_t suid, SArray *pNames) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pNames == NULL || taosArrayGetSize(pNames) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SArray *childTables = 0;
+  code = metaGetChildUidsOfSuperTable(pMeta, suid, &childTables);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, suid:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
+              __LINE__, tstrerror(code), suid);
+    // metaGetChildUidsOfSuperTable frees and NULLs its out array on every failure path;
+    // destroy (NULL-safe) anyway so this exit stays self-contained like the ones below
+    taosArrayDestroy(childTables);
+    return code;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(childTables); i++) {
+    int64_t uid = *(int64_t *)taosArrayGet(childTables, i);
+
+    SMetaEntry *pChildEntry = NULL;
+    code = metaFetchEntryByUid(pMeta, uid, &pChildEntry);
+    if (code) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, child uid:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
+                __LINE__, tstrerror(code), uid);
+      taosArrayDestroy(childTables);
+      return code;
+    }
+
+    for (int32_t j = 0; j < taosArrayGetSize(pNames); j++) {
+      const char *pName = *(char **)taosArrayGet(pNames, j);
+      code = metaCheckVchildOwnNameConflict(pMeta, pChildEntry, pName);
+      if (code) {
+        break;
+      }
+    }
+
+    metaFetchEntryFree(&pChildEntry);
+    if (code) {
+      taosArrayDestroy(childTables);
+      return code;
+    }
+  }
+
+  taosArrayDestroy(childTables);
+  return code;
+}
+
+// Single-name variant kept for the exported meta.h surface: delegate to the multi-name
+// helper (wrap pName in a 1-element array) so the fetch/error handling lives in one place.
+int32_t metaCheckOwnNameConflictOfChildTables(SMeta *pMeta, tb_uid_t suid, const char *pName) {
+  SArray *pNames = taosArrayInit(1, sizeof(char *));
+  if (NULL == pNames) {
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (taosArrayPush(pNames, &pName) == NULL) {
+    taosArrayDestroy(pNames);
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  }
+  int32_t code = metaCheckOwnNameConflictsOfChildTables(pMeta, suid, pNames);
+  taosArrayDestroy(pNames);
+  return code;
+}
+
+// Pre-check for a virtual stb schema change: reject the alter before any mutation if any name
+// of the new row/tag schema collides with a vchild's own (extension) column/tag names. All
+// names of the new schema are checked, not just the diff: after a failed first attempt the
+// persisted stb entry may already carry the new schema, so an mnode-driven retry shows no
+// version diff (metaSchemaTableUpdate then skips the in-op check) while the conflicting name
+// is still present. The child entries are fetched exactly once for all names, so this costs
+// O(children) disk lookups instead of O(names x children).
+static int32_t metaCheckNewSchemaOwnNameConflicts(SMeta *pMeta, const SMetaEntry *pEntry) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SArray *pNames = taosArrayInit(pEntry->stbEntry.schemaRow.nCols + pEntry->stbEntry.schemaTag.nCols, sizeof(char *));
+  if (NULL == pNames) {
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  for (int32_t i = 0; i < pEntry->stbEntry.schemaRow.nCols; i++) {
+    const char *pName = pEntry->stbEntry.schemaRow.pSchema[i].name;
+    if (taosArrayPush(pNames, &pName) == NULL) {
+      code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+  }
+  for (int32_t i = 0; i < pEntry->stbEntry.schemaTag.nCols; i++) {
+    const char *pName = pEntry->stbEntry.schemaTag.pSchema[i].name;
+    if (taosArrayPush(pNames, &pName) == NULL) {
+      code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+  }
+
+  code = metaCheckOwnNameConflictsOfChildTables(pMeta, pEntry->uid, pNames);
+
+_exit:
+  taosArrayDestroy(pNames);
+  return code;
+}
+
 static int32_t metaAddOrDropColumnIndexOfVirtualSuperTable(SMeta *pMeta, const SMetaHandleParam *pParam,
                                                            const SSchema *pOldColumn, const SSchema *pNewColumn) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   const SMetaEntry *pEntry = pParam->pEntry;
   const SMetaEntry *pOldEntry = pParam->pOldEntry;
-  enum { ADD_COLUMN, DROP_COLUMN } action;
+  enum { ADD_COLUMN, DROP_COLUMN, RENAME_COLUMN } action;
 
   if (pOldColumn && pNewColumn) {
-    return TSDB_CODE_SUCCESS;
+    // same colId on both sides: type/bytes change or rename. Only a rename can collide with
+    // a vchild's own column/tag names, and it needs no colRef update.
+    if (strncmp(pOldColumn->name, pNewColumn->name, TSDB_COL_NAME_LEN) == 0) {
+      return TSDB_CODE_SUCCESS;
+    }
+    action = RENAME_COLUMN;
   } else if (pOldColumn) {
     action = DROP_COLUMN;
   } else {
@@ -712,6 +847,15 @@ static int32_t metaAddOrDropColumnIndexOfVirtualSuperTable(SMeta *pMeta, const S
     SMetaHandleParam param = {.pEntry = pChildEntry};
 
     if (action == ADD_COLUMN) {
+      // the vstb's new column must not collide with the vchild's own (extension)
+      // columns/tags; a conflict fails the whole stb alter on this vnode
+      code = metaCheckVchildOwnNameConflict(pMeta, pChildEntry, pNewColumn->name);
+      if (code) {
+        taosArrayDestroy(childTables);
+        metaFetchEntryFree(&pChildEntry);
+        return code;
+      }
+
       code = updataTableColRef(&pChildEntry->colRef, pNewColumn, 1, NULL);
       if (code) {
         metaErr(TD_VID(pMeta->pVnode), code);
@@ -723,6 +867,14 @@ static int32_t metaAddOrDropColumnIndexOfVirtualSuperTable(SMeta *pMeta, const S
       code = metaEntryTableUpdate(pMeta, &param);
       if (code) {
         metaErr(TD_VID(pMeta->pVnode), code);
+        taosArrayDestroy(childTables);
+        metaFetchEntryFree(&pChildEntry);
+        return code;
+      }
+    } else if (action == RENAME_COLUMN) {
+      // conflict check only; the colRef array is keyed by colId and needs no update
+      code = metaCheckVchildOwnNameConflict(pMeta, pChildEntry, pNewColumn->name);
+      if (code) {
         taosArrayDestroy(childTables);
         metaFetchEntryFree(&pChildEntry);
         return code;
@@ -757,6 +909,55 @@ static int32_t metaUpdateSuperTableTagSchema(SMeta *pMeta, const SMetaHandlePara
   const SMetaEntry     *pOldEntry = pParam->pOldEntry;
   const SSchemaWrapper *pNewTagSchema = &pEntry->stbEntry.schemaTag;
   const SSchemaWrapper *pOldTagSchema = &pOldEntry->stbEntry.schemaTag;
+
+  // for a virtual stb, a new/renamed tag must not collide with any vchild's own (extension)
+  // column/tag names (mnode is not aware of vchild tables, so check on this vnode). Collect
+  // all new/renamed tag names first and check them in a single child scan, before any tag
+  // index mutation below.
+  bool checkOwnConflict = TABLE_IS_VIRTUAL(pEntry->flags);
+  if (checkOwnConflict) {
+    SArray *pNames = taosArrayInit(4, sizeof(char *));
+    if (NULL == pNames) {
+      return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+    int32_t iOldName = 0, iNewName = 0;
+    for (; iOldName < pOldTagSchema->nCols && iNewName < pNewTagSchema->nCols;) {
+      SSchema *pOldColumn = pOldTagSchema->pSchema + iOldName;
+      SSchema *pNewColumn = pNewTagSchema->pSchema + iNewName;
+      if (pOldColumn->colId == pNewColumn->colId) {
+        if (strncmp(pOldColumn->name, pNewColumn->name, TSDB_COL_NAME_LEN) != 0) {
+          const char *pName = pNewColumn->name;
+          if (taosArrayPush(pNames, &pName) == NULL) {
+            taosArrayDestroy(pNames);
+            return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+          }
+        }
+        iOldName++;
+        iNewName++;
+      } else if (pOldColumn->colId < pNewColumn->colId) {
+        iOldName++;  // dropped tag: no new name to check
+      } else {
+        const char *pName = pNewColumn->name;
+        if (taosArrayPush(pNames, &pName) == NULL) {
+          taosArrayDestroy(pNames);
+          return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+        }
+        iNewName++;
+      }
+    }
+    for (; iNewName < pNewTagSchema->nCols; iNewName++) {
+      const char *pName = pNewTagSchema->pSchema[iNewName].name;
+      if (taosArrayPush(pNames, &pName) == NULL) {
+        taosArrayDestroy(pNames);
+        return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
+    code = metaCheckOwnNameConflictsOfChildTables(pMeta, pEntry->uid, pNames);
+    taosArrayDestroy(pNames);
+    if (code) {
+      return code;
+    }
+  }
 
   int32_t iOld = 0, iNew = 0;
   for (; iOld < pOldTagSchema->nCols && iNew < pNewTagSchema->nCols;) {
@@ -2679,6 +2880,25 @@ static int32_t metaHandleSuperTableUpdateImpl(SMeta *pMeta, SMetaHandleParam *pP
 
   const SMetaEntry *pEntry = pParam->pEntry;
   const SMetaEntry *pOldEntry = pParam->pOldEntry;
+
+  // Virtual stb: reject a column/tag name that collides with any vchild's own
+  // (extension) column/tag BEFORE any mutation. The same conflict is re-checked inside
+  // META_SCHEMA_TABLE handling (metaUpdateSuperTableRowSchema /
+  // metaUpdateSuperTableTagSchema), but only after META_ENTRY_TABLE has upserted the
+  // new schema; a first-attempt rejection thus leaves the stb half-applied, and the
+  // mnode-driven retry then sees no schemaRow/schemaTag version diff and skips the
+  // in-op check — silently succeeding. Pre-checking here keeps the rejection
+  // idempotent across retries. All names of the new schema are checked (not only the
+  // diff, which is empty on such a retry); existing names are safe to re-check because
+  // own-schema creation already forbids names colliding with stb columns/tags. The
+  // child entries are fetched exactly once for all names.
+  if (TABLE_IS_VIRTUAL(pEntry->flags)) {
+    code = metaCheckNewSchemaOwnNameConflicts(pMeta, pEntry);
+    if (code) {
+      metaErr(TD_VID(pMeta->pVnode), code);
+      return code;
+    }
+  }
 
   SMetaTableOp ops[] = {
       {META_ENTRY_TABLE, META_TABLE_OP_UPDATA},   //

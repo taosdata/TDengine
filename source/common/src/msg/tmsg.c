@@ -17647,6 +17647,46 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
     TAOS_CHECK_EXIT(tEncodeSSeriesWrapper(pCoder, &pReq->series));
     TAOS_CHECK_EXIT(tEncodeSColRefWrapperTail(pCoder, &pReq->colRef));
   }
+  // vchild own (extension) columns/tags declared at create time (tail-encoded; old decoders
+  // stop at tDecodeIsEnd and simply ignore this section)
+  if (pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pReq->nOwnColDefs));
+    for (int32_t i = 0; i < pReq->nOwnColDefs; i++) {
+      TAOS_CHECK_EXIT(tEncodeSSchema(pCoder, &pReq->pOwnColDefs[i].schema));
+      TAOS_CHECK_EXIT(tEncodeSColRef(pCoder, &pReq->pOwnColDefs[i].ref));
+      TAOS_CHECK_EXIT(tEncodeSColRefExt(pCoder, &pReq->pOwnColDefs[i].ref));
+    }
+    TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pReq->nOwnTagDefs));
+    for (int32_t i = 0; i < pReq->nOwnTagDefs; i++) {
+      SVChildOwnTagDef *pDef = &pReq->pOwnTagDefs[i];
+      TAOS_CHECK_EXIT(tEncodeSSchema(pCoder, &pDef->schema));
+      TAOS_CHECK_EXIT(tEncodeSColRef(pCoder, &pDef->ref));
+      TAOS_CHECK_EXIT(tEncodeSColRefExt(pCoder, &pDef->ref));
+      TAOS_CHECK_EXIT(tEncodeI8(pCoder, pDef->hasValue));
+      if (pDef->hasValue) {
+        TAOS_CHECK_EXIT(tEncodeI8(pCoder, pDef->valType));
+        TAOS_CHECK_EXIT(tEncodeI64(pCoder, pDef->valI64));
+        if (IS_VAR_DATA_TYPE(pDef->valType)) {
+          TAOS_CHECK_EXIT(tEncodeBinary(pCoder, pDef->pVal, pDef->valLen));
+        }
+      }
+    }
+    // Own-column typeMod sub-section, appended at the end of the vchild own section. Emitted only
+    // when at least one own column carries COL_HAS_TYPE_MOD (decimal). Old decoders stop earlier
+    // (tDecodeIsEnd); the decoder below reads it only when present.
+    bool hasOwnColTypeMod = false;
+    for (int32_t i = 0; i < pReq->nOwnColDefs; i++) {
+      if (pReq->pOwnColDefs[i].schema.flags & COL_HAS_TYPE_MOD) {
+        hasOwnColTypeMod = true;
+        break;
+      }
+    }
+    if (hasOwnColTypeMod) {
+      for (int32_t i = 0; i < pReq->nOwnColDefs; i++) {
+        TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pReq->pOwnColDefs[i].typeMod));
+      }
+    }
+  }
   // owned tag schema/values: trailing field so old peers can still decode the prefix (they stop at
   // tDecodeIsEnd before this point); ntb.schemaTag.nCols==0 for tag-less tables (encoded as an
   // empty wrapper, matching the decode side).
@@ -17769,6 +17809,72 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
       TAOS_CHECK_EXIT(tDecodeSColRefWrapperTail(pCoder, &pReq->colRef));
     }
   }
+  // vchild own (extension) columns/tags declared at create time
+  if (pReq->type == TSDB_VIRTUAL_CHILD_TABLE && !tDecodeIsEnd(pCoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pReq->nOwnColDefs));
+    if (pReq->nOwnColDefs < 0 || pReq->nOwnColDefs > TSDB_MAX_COLUMNS) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    if (pReq->nOwnColDefs > 0) {
+      pReq->pOwnColDefs = taosMemoryCalloc(pReq->nOwnColDefs, sizeof(SVChildOwnColDef));
+      if (pReq->pOwnColDefs == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      for (int32_t i = 0; i < pReq->nOwnColDefs; i++) {
+        TAOS_CHECK_EXIT(tDecodeSSchema(pCoder, &pReq->pOwnColDefs[i].schema));
+        TAOS_CHECK_EXIT(tDecodeSColRef(pCoder, &pReq->pOwnColDefs[i].ref));
+        TAOS_CHECK_EXIT(tDecodeSColRefExt(pCoder, &pReq->pOwnColDefs[i].ref));
+      }
+    }
+    TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pReq->nOwnTagDefs));
+    if (pReq->nOwnTagDefs < 0 || pReq->nOwnTagDefs > TSDB_MAX_TAGS) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    if (pReq->nOwnTagDefs > 0) {
+      pReq->pOwnTagDefs = taosMemoryCalloc(pReq->nOwnTagDefs, sizeof(SVChildOwnTagDef));
+      if (pReq->pOwnTagDefs == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      for (int32_t i = 0; i < pReq->nOwnTagDefs; i++) {
+        SVChildOwnTagDef *pDef = &pReq->pOwnTagDefs[i];
+        TAOS_CHECK_EXIT(tDecodeSSchema(pCoder, &pDef->schema));
+        TAOS_CHECK_EXIT(tDecodeSColRef(pCoder, &pDef->ref));
+        TAOS_CHECK_EXIT(tDecodeSColRefExt(pCoder, &pDef->ref));
+        TAOS_CHECK_EXIT(tDecodeI8(pCoder, (int8_t *)&pDef->hasValue));
+        if (pDef->hasValue) {
+          TAOS_CHECK_EXIT(tDecodeI8(pCoder, &pDef->valType));
+          TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pDef->valI64));
+          if (IS_VAR_DATA_TYPE(pDef->valType)) {
+            uint64_t tmpLen = 0;
+            TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pCoder, (void **)&pDef->pVal, &tmpLen));
+            if (tmpLen > INT32_MAX) {
+              // the length is bounded by the decode buffer, but a malformed message could
+              // still carry a huge value; fail instead of silently wrapping in the cast below
+              TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+            }
+            pDef->valLen = (int32_t)tmpLen;
+          }
+        }
+      }
+    }
+    // Own-column typeMod sub-section (see encoder). Read only when present: tDecodeIsEnd handles
+    // older payloads without it; the COL_HAS_TYPE_MOD check handles newer payloads whose own
+    // columns carry no typeMod (writer omits the sub-section).
+    if (pReq->nOwnColDefs > 0 && !tDecodeIsEnd(pCoder)) {
+      bool hasOwnColTypeMod = false;
+      for (int32_t i = 0; i < pReq->nOwnColDefs; i++) {
+        if (pReq->pOwnColDefs[i].schema.flags & COL_HAS_TYPE_MOD) {
+          hasOwnColTypeMod = true;
+          break;
+        }
+      }
+      if (hasOwnColTypeMod) {
+        for (int32_t i = 0; i < pReq->nOwnColDefs; i++) {
+          TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pReq->pOwnColDefs[i].typeMod));
+        }
+      }
+    }
+  }
   // owned tag schema/values: trailing field gated by tDecodeIsEnd, so messages from peers built
   // before this field existed still decode (ntb.schemaTag stays zeroed -> tag-less).
   // NOTE: use the non-Ex tDecodeSSchemaWrapper (taosMemoryCalloc) here, NOT the Ex variant
@@ -17821,6 +17927,19 @@ void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
   taosMemoryFreeClear(req->colRef.pColRef);
   taosMemoryFreeClear(req->colRef.pTagRef);
   tFreeSSeriesWrapper(&req->series);
+  if (req->pOwnColDefs) {
+    for (int32_t i = 0; i < req->nOwnColDefs; i++) {
+      taosMemoryFreeClear(req->pOwnColDefs[i].ref.tagCondJson);
+    }
+    taosMemoryFreeClear(req->pOwnColDefs);
+  }
+  if (req->pOwnTagDefs) {
+    for (int32_t i = 0; i < req->nOwnTagDefs; i++) {
+      taosMemoryFreeClear(req->pOwnTagDefs[i].ref.tagCondJson);
+      taosMemoryFreeClear(req->pOwnTagDefs[i].pVal);
+    }
+    taosMemoryFreeClear(req->pOwnTagDefs);
+  }
 }
 
 int tEncodeSVCreateTbBatchReq(SEncoder *pCoder, const SVCreateTbBatchReq *pReq) {
@@ -18068,6 +18187,66 @@ int32_t tDeserializeSVCheckHasCtbReq(const void *buf, int32_t bufLen, SVCheckHas
   return 0;
 }
 
+int32_t tSerializeSVCheckStbAlterNameReq(void *buf, int32_t bufLen, const SVCheckStbAlterNameReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_RETURN(tStartEncode(&encoder));
+  TAOS_CHECK_RETURN(tEncodeI64(&encoder, pReq->suid));
+  int32_t numOfNames = (pReq->pNames != NULL) ? (int32_t)taosArrayGetSize(pReq->pNames) : 0;
+  TAOS_CHECK_RETURN(tEncodeI32(&encoder, numOfNames));
+  for (int32_t i = 0; i < numOfNames; ++i) {
+    TAOS_CHECK_RETURN(tEncodeBinary(&encoder, taosArrayGet(pReq->pNames, i), TSDB_COL_NAME_LEN));
+  }
+  tEndEncode(&encoder);
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVCheckStbAlterNameReq(const void *buf, int32_t bufLen, SVCheckStbAlterNameReq *pReq) {
+  int32_t  code = 0;
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, (char *)buf, bufLen);
+  TAOS_CHECK_RETURN(tStartDecode(&decoder));
+  TAOS_CHECK_RETURN(tDecodeI64(&decoder, &pReq->suid));
+  int32_t numOfNames = 0;
+  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &numOfNames));
+  // numOfNames comes from an untrusted peer message; bound it to TSDB_MAX_COLUMNS (the real
+  // maximum column/tag count) and reject negatives so a rogue value cannot drive a huge
+  // upfront allocation or a long decode loop.
+  if (numOfNames < 0 || numOfNames > TSDB_MAX_COLUMNS) {
+    tDecoderClear(&decoder);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+  if (numOfNames > 0) {
+    pReq->pNames = taosArrayInit(numOfNames, TSDB_COL_NAME_LEN);
+    if (pReq->pNames == NULL) {
+      tDecoderClear(&decoder);
+      TAOS_RETURN(terrno);
+    }
+    for (int32_t i = 0; i < numOfNames; ++i) {
+      uint32_t len = 0;
+      uint8_t *pData = NULL;
+      code = tDecodeBinary(&decoder, &pData, &len);
+      if (code != 0 || len != TSDB_COL_NAME_LEN || taosArrayPush(pReq->pNames, pData) == NULL) {
+        tDecoderClear(&decoder);
+        taosArrayDestroy(pReq->pNames);
+        pReq->pNames = NULL;
+        TAOS_RETURN(code != 0 ? code : TSDB_CODE_INVALID_MSG);
+      }
+    }
+  }
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSVCheckStbAlterNameReq(SVCheckStbAlterNameReq *pReq) {
+  if (pReq == NULL) return;
+  taosArrayDestroy(pReq->pNames);
+  pReq->pNames = NULL;
+}
+
 static int32_t tEncodeSSubmitBlkRsp(SEncoder *pEncoder, const SSubmitBlkRsp *pBlock) {
   int32_t code = 0;
   int32_t lino;
@@ -18126,7 +18305,18 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->flags));
       TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pReq->bytes));
       break;
+    case TSDB_ALTER_TABLE_ADD_TAG:
+      // virtual child table own (extension) tag: same payload shape as ADD_COLUMN
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->type));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->flags));
+      TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pReq->bytes));
+      break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
+      break;
+    case TSDB_ALTER_TABLE_DROP_TAG:
+      // virtual child table own (extension) tag drop: same payload shape as DROP_COLUMN
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
@@ -18250,15 +18440,6 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       break;
     case TSDB_ALTER_TABLE_REMOVE_SERIES:
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->seriesAlias));
-      break;
-    case TSDB_ALTER_TABLE_ADD_TAG:
-      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
-      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->type));
-      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->flags));
-      TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pReq->bytes));
-      break;
-    case TSDB_ALTER_TABLE_DROP_TAG:
-      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
       break;
     case TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF:
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
@@ -18452,7 +18633,18 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->flags));
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pReq->bytes));
       break;
+    case TSDB_ALTER_TABLE_ADD_TAG:
+      // virtual child table own (extension) tag: same payload shape as ADD_COLUMN
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->type));
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->flags));
+      TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pReq->bytes));
+      break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
+      break;
+    case TSDB_ALTER_TABLE_DROP_TAG:
+      // virtual child table own (extension) tag drop: same payload shape as DROP_COLUMN
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
@@ -18584,15 +18776,6 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       break;
     case TSDB_ALTER_TABLE_REMOVE_SERIES:
       TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pReq->seriesAlias));
-      break;
-    case TSDB_ALTER_TABLE_ADD_TAG:
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
-      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->type));
-      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->flags));
-      TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pReq->bytes));
-      break;
-    case TSDB_ALTER_TABLE_DROP_TAG:
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
       break;
     case TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF:
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));

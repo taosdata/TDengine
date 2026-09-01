@@ -52,6 +52,11 @@ char          tsLocalEp[TSDB_EP_LEN] = {0};  // Local End Point, hostname:port
 char          tsVersionName[16] = "community";
 uint16_t      tsServerPort = 6030;
 int32_t       tsVersion = 30000000;
+// Encoded version (taosVersionStrToInt) of the server this client is connected to; set on
+// connect and used by shared code (parser) to gate features an older server would silently
+// drop (e.g. virtual child table owned columns/tags). 0 = not a client connection (in-server
+// paths), gates are exempt.
+int32_t       tsServerVerInt = 0;
 int32_t       tsdmConfigVersion = -1;
 int32_t       tsConfigInited = 0;
 int32_t       tsLocalKeyVersion = 0;
