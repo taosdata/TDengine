@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import shutil
+import socket
 import socketserver
 import struct
 import threading
@@ -94,8 +95,29 @@ class _NotifyServer(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
 
     def __init__(self):
+        self.client_lock = threading.Lock()
+        self.clients = set()
         super().__init__(("0.0.0.0", NOTIFY_PORT), _NotifyHandler)
         self.log_lock = threading.Lock()
+
+    def process_request_thread(self, request, client_address):
+        with self.client_lock:
+            self.clients.add(request)
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            with self.client_lock:
+                self.clients.discard(request)
+
+    def close_clients(self):
+        with self.client_lock:
+            clients = list(self.clients)
+        for client in clients:
+            try:
+                client.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            client.close()
 
 
 class TestExternalWindowMultiGroupNotify:
@@ -185,10 +207,11 @@ class TestExternalWindowMultiGroupNotify:
 
             assert sorted(observed, key=lambda row: (row[1], row[0])) == result_rows
         finally:
+            tdStream.dropAllStreamsAndDbs()
             notify_server.shutdown()
+            notify_server.close_clients()
             notify_server.server_close()
             notify_thread.join(timeout=5)
-            tdStream.dropAllStreamsAndDbs()
 
     def _prepare_tables(self):
         tdSql.execute(f"create database {self.DB} vgroups 2")
