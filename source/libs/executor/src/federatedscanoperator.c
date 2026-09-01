@@ -105,9 +105,8 @@ static int32_t fedScanBuildMissingTagFilter(
       continue;
     }
 
-    const char* remoteName = pCol->remoteColName[0] ? pCol->remoteColName : pCol->colName;
     offset += snprintf(pSql + offset, cap - offset, "%s%c%s%c = ''",
-                       offset > 0 ? " AND " : "", q, remoteName, q);
+                       offset > 0 ? " AND " : "", q, pCol->colName, q);
   }
 
   if (offset == 0) {
@@ -215,7 +214,7 @@ static const char* fedScanFindRemoteCondColName(const SVStbPushedCondSql* pSql, 
     for (int32_t j = 0; j < pSql->pMeta->numOfCols; ++j) {
       SExtColumnDef* pCol = &pSql->pMeta->pCols[j];
       if (strncasecmp(pCol->colName, pKV->colName, TSDB_COL_NAME_LEN) == 0) {
-        return pCol->remoteColName[0] ? pCol->remoteColName : pCol->colName;
+        return pCol->colName;
       }
     }
   }
@@ -908,9 +907,8 @@ static int32_t fedScanBuildVStbQueryAndMappings(
   char tsRemoteNameBuf[TSDB_COL_NAME_LEN] = {0};
   {
     SExtColumnDef* pTsCol = &pMeta->pCols[tsIdx];
-    const char* remoteName = pTsCol->remoteColName[0] ? pTsCol->remoteColName : pTsCol->colName;
-    tstrncpy(tsRemoteNameBuf, remoteName, sizeof(tsRemoteNameBuf));
-    offset += snprintf(sqlBuf + offset, sqlBufLen - offset, "%c%s%c", q, remoteName, q);
+    tstrncpy(tsRemoteNameBuf, pTsCol->colName, sizeof(tsRemoteNameBuf));
+    offset += snprintf(sqlBuf + offset, sqlBufLen - offset, "%c%s%c", q, pTsCol->colName, q);
     tstrncpy(mappings[0].extTypeName, pTsCol->extTypeName, sizeof(mappings[0].extTypeName));
     code = extTypeNameToTDengineType(
         srcType, pTsCol->extTypeName, pTsCol->extCharsetName, &mappings[0].tdType);
@@ -935,8 +933,7 @@ static int32_t fedScanBuildVStbQueryAndMappings(
     for (int32_t j = 0; j < pMeta->numOfCols; j++) {
       SExtColumnDef* pCol = &pMeta->pCols[j];
       if (strncasecmp(pCol->colName, pKV->colName, TSDB_COL_NAME_LEN) == 0) {
-        const char* remoteName = pCol->remoteColName[0] ? pCol->remoteColName : pCol->colName;
-        offset += snprintf(sqlBuf + offset, sqlBufLen - offset, ", %c%s%c", q, remoteName, q);
+        offset += snprintf(sqlBuf + offset, sqlBufLen - offset, ", %c%s%c", q, pCol->colName, q);
 
         int32_t mIdx = 1 + i;
         tstrncpy(mappings[mIdx].extTypeName, pCol->extTypeName, sizeof(mappings[mIdx].extTypeName));
