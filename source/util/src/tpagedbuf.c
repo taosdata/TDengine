@@ -20,12 +20,14 @@ typedef struct SPageDiskInfo {
 
 struct SPageInfo {
   SListNode* pn;  // point to list node struct. it is NULL when the page is evicted from the in-memory buffer
+  SPageInfo* pNextFree;
   void*      pData;
   int64_t    offset;
   int32_t    pageId;
   int32_t    length : 29;
   bool       used : 1;   // set current page is in used
   bool       dirty : 1;  // set current buffer page is dirty or not
+  bool       recycled : 1;
 };
 
 struct SDiskbasedBuf {
@@ -38,7 +40,8 @@ struct SDiskbasedBuf {
   char*      prefix;      // file name prefix
   int32_t    pageSize;    // current used page size
   int32_t    inMemPages;  // numOfPages that are allocated in memory
-  SList*     freePgList;  // free page list
+  SPageInfo* pFreePageHead;
+  SPageInfo* pFreePageTail;
   SArray*    pIdList;     // page id list
   SSHashObj* all;
   SList*     lruList;
@@ -463,7 +466,9 @@ static SPageInfo* registerNewPageInfo(SDiskbasedBuf* pBuf, int32_t pageId) {
   ppi->length = -1;
   ppi->used = true;
   ppi->pn = NULL;
+  ppi->pNextFree = NULL;
   ppi->dirty = false;
+  ppi->recycled = false;
 
   SPageInfo** pRet = taosArrayPush(pBuf->pIdList, &ppi);
   if (NULL == pRet) {
@@ -552,8 +557,7 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int64_t inMem
   }
   pPBuf->fileSize = 0;
   pPBuf->pFree = taosArrayInit(4, sizeof(SFreeListItem));
-  pPBuf->freePgList = tdListNew(POINTER_BYTES);
-  if (pPBuf->pFree == NULL || pPBuf->freePgList == NULL) {
+  if (pPBuf->pFree == NULL) {
     code = terrno;
     goto _error;
   }
@@ -641,19 +645,27 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId) {
 
   SPageInfo* pi = NULL;
   int32_t    code = 0;
-  if (listNEles(pBuf->freePgList) != 0) {
-    SListNode* pItem = tdListPopHead(pBuf->freePgList);
-    pi = *(SPageInfo**)pItem->data;
-    pi->used = true;
+  if (pBuf->pFreePageHead != NULL) {
+    pi = pBuf->pFreePageHead;
+    if (pBuf->pFreePageTail == NULL || !pi->recycled || pi->used || pi->dirty || pi->pData != NULL || pi->pn != NULL) {
+      taosMemoryFree(availablePage);
+      terrno = TSDB_CODE_APP_ERROR;
+      return NULL;
+    }
     *pageId = pi->pageId;
-    taosMemoryFreeClear(pItem);
     code = lruListPushFront(pBuf->lruList, pi);
     if (TSDB_CODE_SUCCESS != code) {
-      taosMemoryFree(pi);
       taosMemoryFree(availablePage);
       terrno = code;
       return NULL;
     }
+    pBuf->pFreePageHead = pi->pNextFree;
+    if (pBuf->pFreePageHead == NULL) {
+      pBuf->pFreePageTail = NULL;
+    }
+    pi->pNextFree = NULL;
+    pi->used = true;
+    pi->recycled = false;
   } else {  // create a new pageinfo
     // register new id in this group
     *pageId = (++pBuf->allocateId);
@@ -861,7 +873,6 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   taosArrayDestroy(pBuf->pIdList);
 
   pBuf->lruList = tdListFree(pBuf->lruList);
-  pBuf->freePgList = tdListFree(pBuf->freePgList);
 
   taosArrayDestroy(pBuf->emptyDummyIdList);
   taosArrayDestroy(pBuf->pFree);
@@ -906,23 +917,58 @@ int32_t setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t dBufSetBufPageRecycled(SDiskbasedBuf* pBuf, void* pPage) {
-  SPageInfo* ppi = getPageInfoFromPayload(pPage);
-
-  int32_t code = tdListAppend(pBuf->freePgList, &ppi);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
+static int32_t recycleBufPageInfo(SDiskbasedBuf* pBuf, SPageInfo* ppi, bool allowUsed) {
+  if (pBuf == NULL || ppi == NULL || ppi->recycled || (!allowUsed && ppi->used)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if ((pBuf->pFreePageHead == NULL) != (pBuf->pFreePageTail == NULL) ||
+      (pBuf->pFreePageTail != NULL && pBuf->pFreePageTail->pNextFree != NULL) || ppi->pNextFree != NULL) {
+    return TSDB_CODE_APP_ERROR;
+  }
+  if ((ppi->pData == NULL) != (ppi->pn == NULL) || (ppi->pData == NULL && (ppi->used || ppi->dirty))) {
+    return TSDB_CODE_APP_ERROR;
+  }
+  if (ppi->pn != NULL && *(SPageInfo**)ppi->pn->data != ppi) {
+    return TSDB_CODE_APP_ERROR;
   }
 
   ppi->used = false;
   ppi->dirty = false;
+  ppi->recycled = true;
 
-  // add this pageinfo into the free page info list
-  SListNode* pNode = tdListPopNode(pBuf->lruList, ppi->pn);
-  taosMemoryFreeClear(ppi->pData);
-  taosMemoryFreeClear(pNode);
-  ppi->pn = NULL;
+  if (ppi->pData != NULL) {
+    SListNode* pNode = tdListPopNode(pBuf->lruList, ppi->pn);
+    taosMemoryFreeClear(ppi->pData);
+    taosMemoryFreeClear(pNode);
+    ppi->pn = NULL;
+  }
+
+  if (pBuf->pFreePageTail == NULL) {
+    pBuf->pFreePageHead = ppi;
+  } else {
+    pBuf->pFreePageTail->pNextFree = ppi;
+  }
+  pBuf->pFreePageTail = ppi;
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t dBufSetBufPageRecycled(SDiskbasedBuf* pBuf, void* pPage) {
+  if (pPage == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  return recycleBufPageInfo(pBuf, getPageInfoFromPayload(pPage), true);
+}
+
+int32_t dBufRecyclePageById(SDiskbasedBuf* pBuf, int32_t pageId) {
+  if (pBuf == NULL || pageId < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SPageInfo** ppInfo = tSimpleHashGet(pBuf->all, &pageId, sizeof(pageId));
+  if (ppInfo == NULL || *ppInfo == NULL) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  return recycleBufPageInfo(pBuf, *ppInfo, false);
 }
 
 void dBufSetPrintInfo(SDiskbasedBuf* pBuf) { pBuf->printStatis = true; }
@@ -999,7 +1045,8 @@ void clearDiskbasedBuf(SDiskbasedBuf* pBuf) {
   taosArrayClear(pBuf->pIdList);
 
   tdListEmpty(pBuf->lruList);
-  tdListEmpty(pBuf->freePgList);
+  pBuf->pFreePageHead = NULL;
+  pBuf->pFreePageTail = NULL;
 
   taosArrayClear(pBuf->emptyDummyIdList);
   taosArrayClear(pBuf->pFree);

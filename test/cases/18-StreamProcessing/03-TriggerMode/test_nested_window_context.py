@@ -21,7 +21,7 @@ class TestNestedWindowContext:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 ancestor placeholder coverage
@@ -40,7 +40,7 @@ class TestNestedWindowContext:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 sliding context coverage
@@ -61,7 +61,7 @@ class TestNestedWindowContext:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 recursive context coverage
@@ -80,12 +80,33 @@ class TestNestedWindowContext:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 lineage-scoped trows coverage
         """
         self._run_isolated(self._check_repeated_parent_value_uses_distinct_lineage)
+
+    def test_external_window_batches_gids_and_lineages_on_one_vnode(self):
+        """Nested external window: grouped leaf ranges keep lineage context.
+
+        Validate external window batches gids and lineages on one vnode behavior.
+
+        Catalog:
+            - Streams:03-TriggerMode:NestedWindowContext
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
+
+        History:
+            - 2026-08-24 OpenAI Added multi-group external-window coverage
+        """
+        self._run_isolated(
+            self._check_external_window_batches_gids_and_lineages_on_one_vnode
+        )
 
     def _run_isolated(self, scenario):
         tdStream.dropAllStreamsAndDbs()
@@ -302,5 +323,56 @@ class TestNestedWindowContext:
                     1000,
                     2000,
                 ),
+            ],
+        )
+
+    def _check_external_window_batches_gids_and_lineages_on_one_vnode(self):
+        tdSql.executes(
+            [
+                "create database nw_context_grouped vgroups 1",
+                "create stable nw_context_grouped.src "
+                "(ts timestamp,parent varchar(8),v int) tags(gid int)",
+                "create table nw_context_grouped.g1 using "
+                "nw_context_grouped.src tags(1)",
+                "create table nw_context_grouped.g2 using "
+                "nw_context_grouped.src tags(2)",
+                "create stream nw_context_grouped.s_context window ("
+                "state_window(parent) extend(1) as w_parent,"
+                "count_window(2,2) as w_leaf) "
+                "from nw_context_grouped.src partition by tbname,gid "
+                "stream_options(event_type(window_close)|flush_on_outer_close) "
+                "into nw_context_grouped.r_context output_subtable("
+                "concat('r_',%%1)) "
+                "(leaf_start,parent_start,members,total) "
+                "tags(source varchar(64) as %%1,gid int as %%2) as "
+                "select w_leaf._twstart,w_parent._twstart,count(*),sum(v) "
+                "from %%tbname "
+                "where ts>=w_parent._twstart and ts<w_leaf._twend",
+            ]
+        )
+        tdStream.checkStreamStatus("s_context")
+        tdSql.execute(
+            "insert into nw_context_grouped.g1 values "
+            "('2025-08-24 02:00:00','A',10) "
+            "('2025-08-24 02:00:01','A',20) "
+            "('2025-08-24 02:00:02','B',100) "
+            "('2025-08-24 02:00:03','B',200) "
+            "('2025-08-24 02:00:04','A',1000) "
+            "('2025-08-24 02:00:05','A',2000) "
+            "nw_context_grouped.g2 values "
+            "('2025-08-24 02:00:00','X',1) "
+            "('2025-08-24 02:00:01','X',2) "
+            "('2025-08-24 02:00:02','Y',3) "
+            "('2025-08-24 02:00:03','Y',4)"
+        )
+        self._wait_exact_rows(
+            "select gid,leaf_start,parent_start,members,total "
+            "from nw_context_grouped.r_context order by gid,parent_start",
+            [
+                (1, "2025-08-24 02:00:00", "2025-08-24 02:00:00", 1, 10),
+                (1, "2025-08-24 02:00:02", "2025-08-24 02:00:02", 1, 100),
+                (1, "2025-08-24 02:00:04", "2025-08-24 02:00:04", 1, 1000),
+                (2, "2025-08-24 02:00:00", "2025-08-24 02:00:00", 1, 1),
+                (2, "2025-08-24 02:00:02", "2025-08-24 02:00:02", 1, 3),
             ],
         )

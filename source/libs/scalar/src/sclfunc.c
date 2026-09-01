@@ -7114,9 +7114,10 @@ int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, ST
     gTaskScalarExtra.pStreamInfo = pStRtFuncInfo;
     gTaskScalarExtra.pStreamRange = &timeStartParas;
     TAOS_CHECK_EXIT(scalarCalculate(node->pStart, NULL, NULL, &gTaskScalarExtra));
-    
+
     if (timeStartParas.opType == OP_TYPE_GREATER_THAN) {
       // For greater than or lower than, used different param, rigth or left.
+      TAOS_CHECK_EXIT(timeStartParas.timeValue == INT64_MAX ? TSDB_CODE_OUT_OF_RANGE : TSDB_CODE_SUCCESS);
       pWinRange->skey = timeStartParas.timeValue + 1;
     } else if (timeStartParas.opType == OP_TYPE_GREATER_EQUAL) {
       pWinRange->skey = timeStartParas.timeValue;
@@ -7132,10 +7133,11 @@ int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, ST
     gTaskScalarExtra.pStreamInfo = pStRtFuncInfo;
     gTaskScalarExtra.pStreamRange = &timeEndParas;
     TAOS_CHECK_EXIT(scalarCalculate(node->pEnd, NULL, NULL, &gTaskScalarExtra));
-    
+
     if (timeEndParas.opType == OP_TYPE_LOWER_THAN) {
       pWinRange->ekey = timeEndParas.timeValue;
     } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL) {
+      TAOS_CHECK_EXIT(timeEndParas.timeValue == INT64_MAX ? TSDB_CODE_OUT_OF_RANGE : TSDB_CODE_SUCCESS);
       pWinRange->ekey = timeEndParas.timeValue + 1;
     } else {
       qError("end time range error, opType:%d", timeEndParas.opType);

@@ -5733,6 +5733,22 @@ _end:
   return code;
 }
 
+static void clearReaderTableState(STsdbReader* pReader) {
+  STableBlockScanInfo** p = NULL;
+  int32_t               iter = 0;
+
+  while ((p = tSimpleHashIterate(pReader->status.pTableMap, p, &iter)) != NULL) {
+    clearBlockScanInfo(*p);
+  }
+
+  tSimpleHashClear(pReader->status.pTableMap);
+  pReader->status.pTableIter = NULL;
+  taosMemoryFreeClear(pReader->status.uidList.tableUidList);
+  pReader->status.uidList.currentIndex = 0;
+  clearBlockScanInfoBuf(&pReader->blockInfoBuf);
+  pReader->blockInfoBuf.numOfTables = 0;
+}
+
 // TODO refactor: with createDataBlockScanInfo
 int32_t tsdbSetTableList2(void* ptr, const void* pTableList, int32_t num) {
   int32_t               code = TSDB_CODE_SUCCESS;
@@ -5742,20 +5758,28 @@ int32_t tsdbSetTableList2(void* ptr, const void* pTableList, int32_t num) {
   STableUidList*        pUidList = NULL;
   int32_t               iter = 0;
   bool                  acquired = false;
+  bool                  tableStateDiscarded = false;
 
   STsdbReader* pReader = (STsdbReader*)ptr;
   TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  size = tSimpleHashGetSize(pReader->status.pTableMap);
 
   code = tsdbAcquireReader(pReader);
   TSDB_CHECK_CODE(code, lino, _end);
   acquired = true;
+
+  TSDB_CHECK_CONDITION(num >= 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_CONDITION(num == 0 || pTableList != NULL, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_NULL(pReader->status.pTableMap, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+
+  size = tSimpleHashGetSize(pReader->status.pTableMap);
 
   while ((p = tSimpleHashIterate(pReader->status.pTableMap, p, &iter)) != NULL) {
     clearBlockScanInfo(*p);
   }
 
   tSimpleHashClear(pReader->status.pTableMap);
+  pReader->status.pTableIter = NULL;
+  tableStateDiscarded = true;
 
   if (size < num) {
     code = ensureBlockScanInfoBuf(&pReader->blockInfoBuf, num);
@@ -5782,7 +5806,14 @@ int32_t tsdbSetTableList2(void* ptr, const void* pTableList, int32_t num) {
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
+  if (num > 1) {
+    taosSort(pUidList->tableUidList, num, sizeof(uint64_t), uidComparFunc);
+  }
+
 _end:
+  if (code != TSDB_CODE_SUCCESS && tableStateDiscarded) {
+    clearReaderTableState(pReader);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -5887,12 +5918,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
   code = tsdbReaderCreate(pVnode, pCond, ppReader, capacity, pResBlock, idstr);
   TSDB_CHECK_CODE(code, lino, _end);
 
-  // check for query time window
   pReader = *ppReader;
-  if (isEmptyQueryTimeWindow(&pReader->info.window) && pCond->type == TIMEWINDOW_RANGE_CONTAINED) {
-    tsdbDebug("%p query window not overlaps with the data set, no result returned, %s", pReader, pReader->idStr);
-    goto _end;
-  }
 
   if (pCond->type == TIMEWINDOW_RANGE_EXTERNAL) {
     // update the SQueryTableDataCond to create inner reader
@@ -6225,6 +6251,15 @@ static int32_t tsdbSetQueryReseek(void* pQHandle) {
   }
 }
 
+static int32_t takeReaderSnapshot(STsdbReader* pReader) {
+  tsdbTrace("tsdb/reader: %p, take snapshot", pReader);
+  int32_t code = tsdbTakeReadSnap2(pReader, tsdbSetQueryReseek, &pReader->pReadSnap, pReader->idStr);
+  if (code == TSDB_CODE_SUCCESS) {
+    pReader->flag = READER_STATUS_NORMAL;
+  }
+  return code;
+}
+
 /*
   Resume the suspended reader. If the reader is TIMEWINDOW_RANGE_EXTERNAL type,
   we need to resume its inner readers as well. We can choose correct reader to
@@ -6243,13 +6278,8 @@ int32_t tsdbReaderResume2(STsdbReader* pReader) {
   //  restore reader's state, task snapshot
   numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
   if (numOfTables > 0) {
-    tsdbTrace("tsdb/reader: %p, take snapshot", pReader);
-    code = tsdbTakeReadSnap2(pReader, tsdbSetQueryReseek, &pReader->pReadSnap, pReader->idStr);
+    code = takeReaderSnapshot(pReader);
     TSDB_CHECK_CODE(code, lino, _end);
-
-    // open reader failure may cause the flag still to be READER_STATUS_SUSPEND, which may cause suspend reader failure.
-    // So we need to set it A.S.A.P
-    pReader->flag = READER_STATUS_NORMAL;
 
     if (pReader->type == TIMEWINDOW_RANGE_CONTAINED) {
       code = doOpenReaderImpl(pReader);
@@ -6919,7 +6949,10 @@ int32_t tsdbReaderReset2(void* p, SQueryTableDataCond* pCond) {
   TSDB_CHECK_CODE(code, lino, _end);
   acquired = true;
 
-  if (pReader->innerReader[0] != NULL || pReader->innerReader[1] != NULL) {
+  TSDB_CHECK_NULL(pCond, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  if (pReader->type == TIMEWINDOW_RANGE_EXTERNAL || pReader->innerReader[0] != NULL ||
+      pReader->innerReader[1] != NULL) {
     // Defect guard: reset unconditionally drops the reader to
     // TIMEWINDOW_RANGE_CONTAINED below, which would orphan the prev/next
     // inner readers and silently break the 3-segment external scan. The
@@ -6933,27 +6966,50 @@ int32_t tsdbReaderReset2(void* p, SQueryTableDataCond* pCond) {
 
   pReader->step = EXTERNAL_ROWS_INIT;
   pReader->currentStepDone = false;
-  if (pReader->flag == READER_STATUS_SUSPEND) {
-    code = tsdbReaderResume2(pReader);
-    TSDB_CHECK_CODE(code, lino, _end);
-  }
-
-  if (isEmptyQueryTimeWindow(&pReader->info.window) || pReader->pReadSnap == NULL) {
-    tsdbDebug("tsdb reader reset return %p, %s", pReader->pReadSnap, pReader->idStr);
-    code = tsdbReleaseReader(pReader);
-    acquired = false;
-    TSDB_CHECK_CODE(code, lino, _end);
-    goto _end;
-  }
 
   SReaderStatus*  pStatus = &pReader->status;
   SDataBlockIter* pBlockIter = &pStatus->blockIter;
 
-  TSDB_CHECK_NULL(pCond, code, lino, _end, TSDB_CODE_INVALID_PARA);
   pReader->info.order = pCond->order;
   pReader->type = TIMEWINDOW_RANGE_CONTAINED;
   code = updateQueryTimeWindow(pReader->pTsdb, &pCond->twindows, &pReader->info.window);
   TSDB_CHECK_CODE(code, lino, _end);
+
+  if (pReader->flag == READER_STATUS_NORMAL && pReader->pReadSnap == NULL) {
+    code = TSDB_CODE_INTERNAL_ERROR;
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
+
+  if (isEmptyQueryTimeWindow(&pReader->info.window)) {
+    pStatus->loadFromFile = false;
+    pStatus->pTableIter = NULL;
+    pStatus->pProcMemTableIter = NULL;
+    pStatus->pCurrentFileset = NULL;
+    tsdbDataFileReaderClose(&pReader->pFileReader);
+    clearDataBlockIterator(pBlockIter, shouldFreePkBuf(&pReader->suppInfo));
+
+    bool    asc = ASCENDING_TRAVERSE(pReader->info.order);
+    int32_t step = asc ? 1 : -1;
+    int64_t ts = 0;
+    if (asc) {
+      ts = (pReader->info.window.skey > INT64_MIN) ? pReader->info.window.skey - 1 : pReader->info.window.skey;
+    } else {
+      ts = (pReader->info.window.ekey < INT64_MAX) ? pReader->info.window.ekey + 1 : pReader->info.window.ekey;
+    }
+    resetAllDataBlockScanInfo(pStatus->pTableMap, ts, step);
+    goto _release;
+  }
+
+  int32_t numOfTables = tSimpleHashGetSize(pStatus->pTableMap);
+  if (numOfTables == 0) {
+    goto _release;
+  }
+
+  if (pReader->flag == READER_STATUS_SUSPEND && pReader->pReadSnap == NULL) {
+    code = takeReaderSnapshot(pReader);
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
+
   pStatus->loadFromFile = true;
   pStatus->pTableIter = NULL;
 
@@ -6963,8 +7019,6 @@ int32_t tsdbReaderReset2(void* p, SQueryTableDataCond* pCond) {
   pReader->suppInfo.tsColAgg.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
   pReader->suppInfo.blockSmaMode = TSD_READER_BLOCK_SMA_MODE_NORMAL;
   tsdbDataFileReaderClose(&pReader->pFileReader);
-
-  int32_t numOfTables = tSimpleHashGetSize(pStatus->pTableMap);
 
   code = initFilesetIterator(&pStatus->fileIter, pReader->pReadSnap->pfSetArray, pReader);
   TSDB_CHECK_CODE(code, lino, _end);
@@ -7004,6 +7058,7 @@ int32_t tsdbReaderReset2(void* p, SQueryTableDataCond* pCond) {
             pReader, pReader->info.suid, numOfTables, pCond->twindows.skey, pReader->info.window.skey,
             pReader->info.window.ekey, pReader->idStr);
 
+_release:
   code = tsdbReleaseReader(pReader);
   acquired = false;
   TSDB_CHECK_CODE(code, lino, _end);

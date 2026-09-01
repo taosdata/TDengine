@@ -186,10 +186,6 @@ void    federatedScanResetForNewChild(SOperatorInfo* pOperator);
 int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrOut);
 int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, SOperatorInfo** ppOptrOut);
 
-// Stream-specific external window operators (stable implementation for streaming)
-int32_t createStreamExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrOut);
-int32_t createStreamMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, SOperatorInfo** ppOptrOut);
-
 // clang-format on
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,

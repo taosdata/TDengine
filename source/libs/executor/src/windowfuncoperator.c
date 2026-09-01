@@ -34,6 +34,7 @@ typedef struct SWindowFuncOperatorInfo {
   SExprSupp          scalarSup;
   SExprSupp          funcSupp;
   SNodeList         *pAggFuncs;
+  SWindowInputPool  *pInputPool;
   SWindowInputStore *pInputStore;
   SResultRow        *pAggRow;
   int32_t           *pOutputSrcSlots;
@@ -53,14 +54,21 @@ typedef struct SWindowInputPage {
   int32_t rows;
 } SWindowInputPage;
 
-struct SWindowInputStore {
+struct SWindowInputPool {
   SDiskbasedBuf *pBuf;
-  SSDataBlock   *pTemplate;
-  SSDataBlock   *pPageBlocks[2];
-  SArray        *pPages;
-  int32_t        totalRows;
   int32_t        pageSize;
-  int32_t        currentPageIndexes[2];
+};
+
+struct SWindowInputStore {
+  SWindowInputPool *pPool;  // borrowed; owner outlives this store
+  SSDataBlock      *pTemplate;
+  SSDataBlock      *pPageBlocks[2];
+  SArray           *pPages;
+  int32_t           totalRows;
+  int32_t           currentPageIndexes[2];
+#if defined(BUILD_TEST)
+  bool failNextDirectoryCommit;
+#endif
 };
 
 static int64_t winMaxI64(int64_t lhs, int64_t rhs) { return lhs > rhs ? lhs : rhs; }
@@ -320,9 +328,57 @@ int32_t winCalcOutputBatchEnd(int64_t totalRows, int64_t startRow, int64_t capac
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t winInputStoreCreate(const SSDataBlock *pTemplate, int32_t pageSize, int64_t inMemBufSize, const char *id,
-                            SWindowInputStore **ppStore) {
-  if (pTemplate == NULL || pageSize <= 0 || ppStore == NULL) {
+int32_t winInputPoolCreate(int32_t pageSize, int64_t inMemBufSize, const char *id, SWindowInputPool **ppPool) {
+  if (pageSize <= 0 || inMemBufSize <= 0 || ppPool == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  *ppPool = NULL;
+  if (!osTempSpaceAvailable()) {
+    terrno = TSDB_CODE_NO_DISKSPACE;
+    return terrno;
+  }
+
+  SWindowInputPool *pPool = taosMemoryCalloc(1, sizeof(SWindowInputPool));
+  QUERY_CHECK_NULL(pPool, code, lino, _end, terrno);
+
+  code = createDiskbasedBuf(&pPool->pBuf, pageSize, inMemBufSize, id, tsTempDir);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pPool->pageSize = pageSize;
+  *ppPool = pPool;
+  return TSDB_CODE_SUCCESS;
+
+_end:
+  winInputPoolDestroy(pPool);
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+void winInputPoolDestroy(SWindowInputPool *pPool) {
+  if (pPool == NULL) {
+    return;
+  }
+
+  destroyDiskbasedBuf(pPool->pBuf);
+  taosMemoryFreeClear(pPool);
+}
+
+int32_t winInputPoolGetPageSize(const SWindowInputPool *pPool) { return pPool == NULL ? 0 : pPool->pageSize; }
+
+SDiskbasedBufStatis winInputPoolGetStatis(const SWindowInputPool *pPool) {
+  SDiskbasedBufStatis statis = {0};
+  if (pPool != NULL && pPool->pBuf != NULL) {
+    statis = getDBufStatis(pPool->pBuf);
+  }
+  return statis;
+}
+
+int32_t winInputStoreCreate(const SSDataBlock *pTemplate, SWindowInputPool *pPool, SWindowInputStore **ppStore) {
+  if (pTemplate == NULL || pPool == NULL || pPool->pBuf == NULL || ppStore == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -330,17 +386,10 @@ int32_t winInputStoreCreate(const SSDataBlock *pTemplate, int32_t pageSize, int6
   int32_t lino = 0;
 
   *ppStore = NULL;
-  if (!osTempSpaceAvailable()) {
-    terrno = TSDB_CODE_NO_DISKSPACE;
-    return terrno;
-  }
-
   SWindowInputStore *pStore = taosMemoryCalloc(1, sizeof(SWindowInputStore));
   QUERY_CHECK_NULL(pStore, code, lino, _end, terrno);
 
-  code = createDiskbasedBuf(&pStore->pBuf, pageSize, inMemBufSize, id, tsTempDir);
-  QUERY_CHECK_CODE(code, lino, _end);
-
+  pStore->pPool = pPool;
   pStore->pPages = taosArrayInit(4, sizeof(SWindowInputPage));
   QUERY_CHECK_NULL(pStore->pPages, code, lino, _end, terrno);
 
@@ -348,7 +397,6 @@ int32_t winInputStoreCreate(const SSDataBlock *pTemplate, int32_t pageSize, int6
   QUERY_CHECK_CODE(code, lino, _end);
   winFuncMarkBlockMaterialized(pStore->pTemplate);
 
-  pStore->pageSize = pageSize;
   pStore->currentPageIndexes[0] = -1;
   pStore->currentPageIndexes[1] = -1;
   *ppStore = pStore;
@@ -367,12 +415,36 @@ void winInputStoreDestroy(SWindowInputStore *pStore) {
     return;
   }
 
-  destroyDiskbasedBuf(pStore->pBuf);
+  if (pStore->pPages != NULL && pStore->pPool != NULL && pStore->pPool->pBuf != NULL) {
+    int32_t pageCount = taosArrayGetSize(pStore->pPages);
+    for (int32_t pageIndex = 0; pageIndex < pageCount; ++pageIndex) {
+      SWindowInputPage *pInputPage = taosArrayGet(pStore->pPages, pageIndex);
+      if (pInputPage == NULL) {
+        qError("%s failed to access input page directory at index %d", __func__, pageIndex);
+        continue;
+      }
+      int32_t code = dBufRecyclePageById(pStore->pPool->pBuf, pInputPage->pageId);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed to recycle input page %d since %s", __func__, pInputPage->pageId, tstrerror(code));
+      }
+    }
+  }
+
   blockDataDestroy(pStore->pTemplate);
   blockDataDestroy(pStore->pPageBlocks[0]);
   blockDataDestroy(pStore->pPageBlocks[1]);
   taosArrayDestroy(pStore->pPages);
   taosMemoryFreeClear(pStore);
+}
+
+static void winInputStoreRollbackPage(SWindowInputStore *pStore, void *pPage, int32_t pageId) {
+  if (pPage != NULL) {
+    releaseBufPage(pStore->pPool->pBuf, pPage);
+  }
+  int32_t code = dBufRecyclePageById(pStore->pPool->pBuf, pageId);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed to roll back input page %d since %s", __func__, pageId, tstrerror(code));
+  }
 }
 
 int32_t winInputStoreAppendBlock(SWindowInputStore *pStore, SSDataBlock *pBlock) {
@@ -389,7 +461,7 @@ int32_t winInputStoreAppendBlock(SWindowInputStore *pStore, SSDataBlock *pBlock)
 
   while (start < pBlock->info.rows) {
     int32_t stop = 0;
-    code = blockDataSplitRows(pBlock, pBlock->info.hasVarCol, start, &stop, pStore->pageSize);
+    code = blockDataSplitRows(pBlock, pBlock->info.hasVarCol, start, &stop, pStore->pPool->pageSize);
     QUERY_CHECK_CODE(code, lino, _end);
 
     SSDataBlock *pPageBlock = NULL;
@@ -397,7 +469,7 @@ int32_t winInputStoreAppendBlock(SWindowInputStore *pStore, SSDataBlock *pBlock)
     QUERY_CHECK_CODE(code, lino, _end);
 
     int32_t pageId = -1;
-    void   *pPage = getNewBufPage(pStore->pBuf, &pageId);
+    void   *pPage = getNewBufPage(pStore->pPool->pBuf, &pageId);
     if (pPage == NULL) {
       blockDataDestroy(pPageBlock);
       code = terrno;
@@ -406,8 +478,8 @@ int32_t winInputStoreAppendBlock(SWindowInputStore *pStore, SSDataBlock *pBlock)
 
     int32_t size =
         blockDataGetSize(pPageBlock) + sizeof(int32_t) + taosArrayGetSize(pPageBlock->pDataBlock) * sizeof(int32_t);
-    if (size > getBufPageSize(pStore->pBuf)) {
-      releaseBufPage(pStore->pBuf, pPage);
+    if (size > getBufPageSize(pStore->pPool->pBuf)) {
+      winInputStoreRollbackPage(pStore, pPage, pageId);
       blockDataDestroy(pPageBlock);
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       QUERY_CHECK_CODE(code, lino, _end);
@@ -415,19 +487,36 @@ int32_t winInputStoreAppendBlock(SWindowInputStore *pStore, SSDataBlock *pBlock)
 
     code = blockDataToBuf(pPage, pPageBlock);
     if (code != TSDB_CODE_SUCCESS) {
-      releaseBufPage(pStore->pBuf, pPage);
+      winInputStoreRollbackPage(pStore, pPage, pageId);
       blockDataDestroy(pPageBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     setBufPageDirty(pPage, true);
-    releaseBufPage(pStore->pBuf, pPage);
+    releaseBufPage(pStore->pPool->pBuf, pPage);
 
+    void *p = NULL;
+#if defined(BUILD_TEST)
+    if (pStore->failNextDirectoryCommit) {
+      pStore->failNextDirectoryCommit = false;
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      SWindowInputPage inputPage = {.pageId = pageId, .startRow = pStore->totalRows, .rows = pPageBlock->info.rows};
+      p = taosArrayPush(pStore->pPages, &inputPage);
+      code = p == NULL ? terrno : TSDB_CODE_SUCCESS;
+    }
+#else
     SWindowInputPage inputPage = {.pageId = pageId, .startRow = pStore->totalRows, .rows = pPageBlock->info.rows};
-    void            *p = taosArrayPush(pStore->pPages, &inputPage);
+    p = taosArrayPush(pStore->pPages, &inputPage);
+    code = p == NULL ? terrno : TSDB_CODE_SUCCESS;
+#endif
     blockDataDestroy(pPageBlock);
-    QUERY_CHECK_NULL(p, code, lino, _end, terrno);
+    if (code != TSDB_CODE_SUCCESS) {
+      winInputStoreRollbackPage(pStore, NULL, pageId);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
 
-    pStore->totalRows += inputPage.rows;
+    SWindowInputPage *pCommittedPage = p;
+    pStore->totalRows += pCommittedPage->rows;
     start = stop + 1;
   }
 
@@ -443,6 +532,31 @@ int32_t winInputStoreGetRows(const SWindowInputStore *pStore) { return pStore ==
 int32_t winInputStoreGetPageCount(const SWindowInputStore *pStore) {
   return pStore == NULL || pStore->pPages == NULL ? 0 : taosArrayGetSize(pStore->pPages);
 }
+
+#if defined(BUILD_TEST)
+int32_t winInputPoolTestGetRegisteredPageCount(const SWindowInputPool *pPool) {
+  return pPool == NULL || pPool->pBuf == NULL ? 0 : taosArrayGetSize(getDataBufPagesIdList(pPool->pBuf));
+}
+
+int32_t winInputStoreTestGetPageId(const SWindowInputStore *pStore, int32_t pageIndex, int32_t *pPageId) {
+  if (pStore == NULL || pPageId == NULL || pageIndex < 0 || pageIndex >= winInputStoreGetPageCount(pStore)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SWindowInputPage *pInputPage = taosArrayGet(pStore->pPages, pageIndex);
+  if (pInputPage == NULL) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  *pPageId = pInputPage->pageId;
+  return TSDB_CODE_SUCCESS;
+}
+
+void winInputStoreTestFailNextDirectoryCommit(SWindowInputStore *pStore) {
+  if (pStore != NULL) {
+    pStore->failNextDirectoryCommit = true;
+  }
+}
+#endif
 
 static int32_t winInputStoreGetBlockSlot(SWindowInputStore *pStore, int32_t pageIndex, int32_t slot,
                                          SSDataBlock **ppBlock) {
@@ -466,14 +580,14 @@ static int32_t winInputStoreGetBlockSlot(SWindowInputStore *pStore, int32_t page
       return terrno;
     }
 
-    void *pPage = getBufPage(pStore->pBuf, pPageInfo->pageId);
+    void *pPage = getBufPage(pStore->pPool->pBuf, pPageInfo->pageId);
     if (pPage == NULL) {
       return terrno;
     }
 
     blockDataCleanup(pStore->pPageBlocks[slot]);
     int32_t code = blockDataFromBuf(pStore->pPageBlocks[slot], pPage);
-    releaseBufPage(pStore->pBuf, pPage);
+    releaseBufPage(pStore->pPool->pBuf, pPage);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -552,14 +666,6 @@ static int32_t winInputStoreGetPageForRow(SWindowInputStore *pStore, int32_t glo
   return TSDB_CODE_OUT_OF_RANGE;
 }
 
-SDiskbasedBufStatis winInputStoreGetStatis(const SWindowInputStore *pStore) {
-  SDiskbasedBufStatis statis = {0};
-  if (pStore != NULL && pStore->pBuf != NULL) {
-    statis = getDBufStatis(pStore->pBuf);
-  }
-  return statis;
-}
-
 static void destroyWindowFuncOperatorInfo(void *param) {
   SWindowFuncOperatorInfo *pInfo = (SWindowFuncOperatorInfo *)param;
   if (pInfo == NULL) {
@@ -568,6 +674,7 @@ static void destroyWindowFuncOperatorInfo(void *param) {
 
   cleanupBasicInfo(&pInfo->binfo);
   winInputStoreDestroy(pInfo->pInputStore);
+  winInputPoolDestroy(pInfo->pInputPool);
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSup);
   cleanupExprSupp(&pInfo->funcSupp);
@@ -1825,7 +1932,13 @@ static int32_t winFuncBuildInput(SOperatorInfo *pOperator) {
       int64_t  bufSize = 0;
       code = getBufferPgSize(pBlock->info.rowSize, &pageSize, &bufSize);
       QUERY_CHECK_CODE(code, lino, _end);
-      code = winInputStoreCreate(pBlock, pageSize, bufSize, pOperator->pTaskInfo->id.str, &pInfo->pInputStore);
+      code = winInputPoolCreate(pageSize, bufSize, pOperator->pTaskInfo->id.str, &pInfo->pInputPool);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = winInputStoreCreate(pBlock, pInfo->pInputPool, &pInfo->pInputStore);
+      if (code != TSDB_CODE_SUCCESS) {
+        winInputPoolDestroy(pInfo->pInputPool);
+        pInfo->pInputPool = NULL;
+      }
       QUERY_CHECK_CODE(code, lino, _end);
     }
 

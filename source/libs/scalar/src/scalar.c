@@ -1782,8 +1782,15 @@ static int32_t sclCalcStreamCurrWinTimeRange(SScalarCtx *ctx, SStreamTSRangePara
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t sclCheckedTimestampAdd(TSKEY base, int64_t delta, TSKEY *pResult) {
+  if (pResult == NULL || (delta > 0 && base > INT64_MAX - delta) || (delta < 0 && base < INT64_MIN - delta)) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  *pResult = base + delta;
+  return TSDB_CODE_SUCCESS;
+}
 
-static int32_t sclCalcStreamExtWinsTimeRange(SScalarCtx *ctx,          SOperatorNode *node) {
+static int32_t sclCalcStreamExtWinsTimeRange(SScalarCtx *ctx, SOperatorNode *node) {
   int32_t code = 0;
   int64_t timeValue = 0;
   SNode* pNode = NULL;
@@ -1849,9 +1856,10 @@ static int32_t sclCalcStreamExtWinsTimeRange(SScalarCtx *ctx,          SOperator
       for (int32_t i = 0; i < winNum; ++i) {
         int64_t             tsVal = pTsValList[(tsValRows == 1) ? 0 : i];
         SSTriggerCalcParam *pParam = taosArrayGet(ctx->stream.pStreamRuntimeFuncInfo->pStreamPesudoFuncVals, i);
-        int64_t skey = (node->flag & OPERATOR_FLAG_STREAM_EXT_JOIN_AUTO_RANGE) && pParam->wstart == pParam->wend
-                           ? tsVal
-                           : tsVal + 1;
+        int64_t             skey = tsVal;
+        if (!((node->flag & OPERATOR_FLAG_STREAM_EXT_JOIN_AUTO_RANGE) && pParam->wstart == pParam->wend)) {
+          SCL_ERR_RET(sclCheckedTimestampAdd(tsVal, 1, &skey));
+        }
         ctx->stream.pWins[i].tw.skey =
             (-1 == ctx->stream.pWins[i].resWinIdx) ? TMAX(skey, ctx->stream.pWins[i].tw.skey) : skey;
         ctx->stream.pWins[i].resWinIdx = -1;
@@ -1880,7 +1888,10 @@ static int32_t sclCalcStreamExtWinsTimeRange(SScalarCtx *ctx,          SOperator
       } else if (node->opType == OP_TYPE_LOWER_EQUAL) {
         for (int32_t i = 0; i < winNum; ++i) {
           int64_t tsVal = pTsValList[(tsValRows == 1) ? 0 : i];
-          ctx->stream.pWins[i].tw.ekey = (-2 == ctx->stream.pWins[i].resWinIdx) ? TMIN(tsVal + 1, ctx->stream.pWins[i].tw.ekey) : (tsVal + 1);
+          int64_t ekey = 0;
+          SCL_ERR_RET(sclCheckedTimestampAdd(tsVal, 1, &ekey));
+          ctx->stream.pWins[i].tw.ekey =
+              (-2 == ctx->stream.pWins[i].resWinIdx) ? TMIN(ekey, ctx->stream.pWins[i].tw.ekey) : ekey;
           ctx->stream.pWins[i].resWinIdx = -2;
         }
       } else {
@@ -1908,6 +1919,49 @@ static int32_t sclCalcStreamExtWinsTimeRange(SScalarCtx *ctx,          SOperator
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t sclCalcStreamExtWinOffset(SOperatorNode *node, SScalarParam *params, int32_t rowNum,
+                                         SScalarParam *output) {
+  if (node->pLeft == NULL || nodeType(node->pLeft) != QUERY_NODE_FUNCTION || node->pRight == NULL ||
+      nodeType(node->pRight) != QUERY_NODE_VALUE || params[0].columnData == NULL ||
+      params[0].columnData->pData == NULL || params[0].columnData->info.type != TSDB_DATA_TYPE_TIMESTAMP ||
+      params[1].columnData == NULL || params[1].columnData->pData == NULL || params[1].numOfRows != 1 ||
+      (node->opType != OP_TYPE_ADD && node->opType != OP_TYPE_SUB)) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  int64_t delta = 0;
+  int32_t type = params[1].columnData->info.type;
+  if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_TIMESTAMP) {
+    GET_TYPED_DATA(delta, int64_t, type, params[1].columnData->pData,
+                   typeGetTypeModFromColInfo(&params[1].columnData->info));
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    uint64_t value = 0;
+    GET_TYPED_DATA(value, uint64_t, type, params[1].columnData->pData,
+                   typeGetTypeModFromColInfo(&params[1].columnData->info));
+    if (value > INT64_MAX) {
+      return TSDB_CODE_QRY_INVALID_INPUT;
+    }
+    delta = (int64_t)value;
+  } else {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  if (delta == INT64_MIN || delta < 0) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  if (node->opType == OP_TYPE_SUB) {
+    delta = -delta;
+  }
+
+  SCL_ERR_RET(sclCreateColumnInfoData(&node->node.resType, rowNum, output));
+  for (int32_t i = 0; i < rowNum; ++i) {
+    int32_t sourceRow = params[0].numOfRows == 1 ? 0 : i;
+    TSKEY   base = ((TSKEY *)params[0].columnData->pData)[sourceRow];
+    SCL_ERR_RET(sclCheckedTimestampAdd(base, delta, &((TSKEY *)output->columnData->pData)[i]));
+  }
+  output->numOfRows = rowNum;
+  output->numOfQualified = rowNum;
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *output) {
   SScalarParam *params = NULL;
@@ -1933,6 +1987,11 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
 
   if (ctx->stream.pWins && sclIsStreamRangeReq(node)) {
     code = sclCalcStreamExtWinsTimeRange(ctx, node);
+    goto _return;
+  }
+
+  if (ctx->stream.pWins && (node->opType == OP_TYPE_ADD || node->opType == OP_TYPE_SUB)) {
+    code = sclCalcStreamExtWinOffset(node, params, rowNum, output);
     goto _return;
   }
 

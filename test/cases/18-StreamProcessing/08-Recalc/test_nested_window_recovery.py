@@ -47,7 +47,7 @@ class TestNestedWindowRecovery:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 ancestor-only recovery cut
@@ -66,7 +66,7 @@ class TestNestedWindowRecovery:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 active-leaf recovery cut
@@ -85,7 +85,7 @@ class TestNestedWindowRecovery:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 mixed-leaf recovery cut
@@ -104,12 +104,34 @@ class TestNestedWindowRecovery:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 normal multi-vgroup recovery
         """
         self._run_isolated("nw_recover_gids", self._check_normal_multi_vgroup)
+
+    def test_external_window_multigroup_pending_restart_matches_control(self):
+        """Nested external-window groups keep pending leaves across restart.
+
+        Validate external window multigroup pending restart matches control behavior.
+
+        Catalog:
+            - Streams:08-Recalc:NestedWindowRecovery
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
+
+        History:
+            - 2026-08-24 GPT-5 Added external-window multi-group recovery
+        """
+        self._run_isolated(
+            "nw_recover_ext_grouped",
+            self._check_external_window_multigroup_recovery,
+        )
 
     def test_cross_db_virtual_multi_vgroup_resume(self):
         """Nested recovery: cross-DB virtual inputs resume across vgroups.
@@ -123,7 +145,7 @@ class TestNestedWindowRecovery:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 virtual multi-vgroup recovery
@@ -960,6 +982,143 @@ class TestNestedWindowRecovery:
                 ("2025-08-18 00:30:00", "2025-08-18 00:30:01", "Session"),
             ],
         )
+
+    def _external_window_recovery_stream(
+        self, db_name, source, stream, output
+    ):
+        return (
+            f"create stream {db_name}.{stream} window ("
+            "interval(1h) sliding(1h) as w_outer,"
+            "count_window(2,2) as w_leaf) "
+            f"from {db_name}.{source} partition by tbname,gid "
+            f"{self._notify_clause(db_name, stream)} "
+            f"into {db_name}.{output} output_subtable("
+            f"concat('{output}_',cast(%%2 as varchar))) "
+            "(leaf_start,outer_start,members,total) "
+            "tags(source varchar(64) as %%1,gid int as %%2) as select "
+            "w_leaf._twstart,w_outer._twstart,count(*),sum(v) "
+            "from %%tbname where ts>=w_outer._twstart and ts<w_leaf._twend"
+        )
+
+    def _check_external_window_multigroup_recovery(self, db_name):
+        tdSql.executes(
+            [
+                f"create database {db_name} vgroups 4",
+                f"create stable {db_name}.control_src "
+                "(ts timestamp,v int) tags(gid int)",
+                f"create stable {db_name}.target_src "
+                "(ts timestamp,v int) tags(gid int)",
+            ]
+        )
+        control_pairs = self._find_two_physical_table_pairs(
+            db_name, "control_src", "c"
+        )
+        target_pairs = self._find_two_physical_table_pairs(
+            db_name, "target_src", "t"
+        )
+        control_a, control_b = control_pairs[0][1], control_pairs[1][1]
+        target_a, target_b = target_pairs[0][1], target_pairs[1][1]
+        tdSql.executes(
+            [
+                f"alter table {db_name}.{control_a} set tag gid=1",
+                f"alter table {db_name}.{control_b} set tag gid=2",
+                f"alter table {db_name}.{target_a} set tag gid=1",
+                f"alter table {db_name}.{target_b} set tag gid=2",
+                self._external_window_recovery_stream(
+                    db_name, "control_src", "s_control", "r_control"
+                ),
+                self._external_window_recovery_stream(
+                    db_name, "target_src", "s_target", "r_target"
+                ),
+            ]
+        )
+        self._wait_trigger_running("s_control")
+        self._wait_trigger_running("s_target")
+
+        tdSql.execute(
+            f"insert into {db_name}.{control_a} values "
+            "('2025-08-18 01:00:00',10) "
+            "('2025-08-18 01:00:01',20) "
+            f"{db_name}.{control_b} values "
+            "('2025-08-18 01:00:00',100) "
+            "('2025-08-18 01:00:01',200)"
+        )
+        rows_sql = (
+            "select gid,leaf_start,outer_start,members,total "
+            f"from {db_name}.{{}} order by gid,leaf_start"
+        )
+        expected = [
+            (1, "2025-08-18 01:00:00", "2025-08-18 01:00:00", 1, 10),
+            (2, "2025-08-18 01:00:00", "2025-08-18 01:00:00", 1, 100),
+        ]
+        self._wait_publications(
+            f"select count(*) from {db_name}.r_control",
+            rows_sql.format("r_control"),
+            expected,
+        )
+
+        tdSql.execute(
+            f"insert into {db_name}.{target_a} values "
+            "('2025-08-18 01:00:00',10) "
+            f"{db_name}.{target_b} values "
+            "('2025-08-18 01:00:00',100)"
+        )
+        self._wait_publications(
+            f"select count(*) from {db_name}.r_target",
+            rows_sql.format("r_target"),
+            [],
+            stable_seconds=1,
+        )
+
+        self._restart_dnode()
+        self._wait_stream_status(db_name, "s_target", "Running")
+        tdSql.execute(
+            f"insert into {db_name}.{target_a} values "
+            "('2025-08-18 01:00:01',20) "
+            f"{db_name}.{target_b} values "
+            "('2025-08-18 01:00:01',200)"
+        )
+        self._wait_publications(
+            f"select count(*) from {db_name}.r_target",
+            rows_sql.format("r_target"),
+            expected,
+        )
+
+        expected_notifications = [
+            ("2025-08-18 01:00:00", "2025-08-18 01:00:01", "Count"),
+            ("2025-08-18 01:00:00", "2025-08-18 01:00:01", "Count"),
+        ]
+        control_events = self._wait_notifications(
+            db_name,
+            "s_control",
+            "r_control",
+            expected_notifications,
+        )
+        target_events = self._wait_notifications(
+            db_name,
+            "s_target",
+            "r_target",
+            expected_notifications,
+        )
+        control_identity = sorted(
+            (
+                event.tableName.rsplit("_", 1)[-1],
+                event.windowStart,
+                event.windowEnd,
+                event.triggerType,
+            )
+            for event in control_events
+        )
+        target_identity = sorted(
+            (
+                event.tableName.rsplit("_", 1)[-1],
+                event.windowStart,
+                event.windowEnd,
+                event.triggerType,
+            )
+            for event in target_events
+        )
+        assert target_identity == control_identity
 
     def _check_virtual_multi_vgroup(self, db_name):
         physical_db = f"{db_name}_physical"

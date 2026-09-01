@@ -71,7 +71,9 @@ typedef struct SScalarCtx {
   ((NULL == (_node)) || SCL_IS_NOTNULL_CONST_NODE(_node))
 #define SCL_IS_VAR_VALUE_NODE(_node) ((QUERY_NODE_VALUE == (_node)->type) && IS_STR_DATA_TYPE(((SValueNode*)(_node))->node.resType.type))
 
-#define SCL_IS_CONST_CALC(_ctx) (NULL == (_ctx)->pBlockList && NULL == (_ctx)->stream.streamTsRange && NULL == (_ctx)->stream.pWins)
+#define SCL_IS_CONST_CALC(_ctx)                                                                          \
+  (NULL == (_ctx)->pBlockList && NULL == (_ctx)->stream.streamTsRange && NULL == (_ctx)->stream.pWins && \
+   NULL == (_ctx)->stream.pStreamRuntimeFuncInfo)
 
 #define SCL_IS_NULL_VALUE_NODE(_node)       \
   ((QUERY_NODE_VALUE == nodeType(_node)) && \

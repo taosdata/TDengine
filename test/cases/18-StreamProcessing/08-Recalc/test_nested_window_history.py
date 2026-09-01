@@ -24,7 +24,7 @@ class TestNestedWindowHistory:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 fixed-root history parity
@@ -43,7 +43,7 @@ class TestNestedWindowHistory:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 fixed-root history parity
@@ -62,7 +62,7 @@ class TestNestedWindowHistory:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 data-root history parity
@@ -81,7 +81,7 @@ class TestNestedWindowHistory:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 data-root history parity
@@ -100,7 +100,7 @@ class TestNestedWindowHistory:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 ancestor EOF coverage
@@ -119,7 +119,7 @@ class TestNestedWindowHistory:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 STATE history tail coverage
@@ -138,7 +138,7 @@ class TestNestedWindowHistory:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 SESSION history tail coverage
@@ -157,7 +157,7 @@ class TestNestedWindowHistory:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 SLIDING history tail coverage
@@ -176,7 +176,7 @@ class TestNestedWindowHistory:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 history handoff coverage
@@ -195,12 +195,31 @@ class TestNestedWindowHistory:
 
         Labels: common,ci,integration,functional
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
 
         History:
             - 2026-08-16 GPT-5 Added P0 virtual history parity
         """
         self._run_isolated(self._cross_database_virtual_sources)
+
+    def test_external_window_multigroup_history_matches_realtime(self):
+        """Nested external-window history keeps exact group and vnode scope.
+
+        Validate external window multigroup history matches realtime behavior.
+
+        Catalog:
+            - Streams:08-Recalc:NestedWindowHistory
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7024149350
+
+        History:
+            - 2026-08-24 GPT-5 Added external-window multi-group history parity
+        """
+        self._run_isolated(self._external_window_multigroup_history)
 
     def _run_isolated(self, scenario):
         self._drop_virtual_test_databases()
@@ -614,6 +633,136 @@ class TestNestedWindowHistory:
         self._wait_history_finished("nw_hist_virtual", "s_history")
         self._wait_stable_exact_rows(
             self._virtual_result_sql("r_history"), expected
+        )
+
+    def _external_window_multigroup_history(self):
+        db = "nw_hist_ext_grouped"
+        tdSql.executes(
+            [
+                f"create database {db} vgroups 4",
+                f"create stable {db}.src "
+                "(ts timestamp,parent varchar(8),v int) tags(gid int)",
+            ]
+        )
+        tables = self._find_tables_on_distinct_vgroups(db, "src", "g")
+        first, second = tables[0][1], tables[1][1]
+        tdSql.executes(
+            [
+                f"alter table {db}.{first} set tag gid=1",
+                f"alter table {db}.{second} set tag gid=2",
+                self._external_window_multigroup_stream(db, "s_rt", "r_rt"),
+            ]
+        )
+        self._wait_stream_running("s_rt")
+        tdSql.execute(
+            f"insert into {db}.{first} values "
+            "('2025-09-01 08:00:00','A',10) "
+            "('2025-09-01 08:00:01','A',20) "
+            "('2025-09-01 08:00:02','B',100) "
+            "('2025-09-01 08:00:03','B',200) "
+            "('2025-09-01 08:00:04','A',1000) "
+            "('2025-09-01 08:00:05','A',2000) "
+            f"{db}.{second} values "
+            "('2025-09-01 08:00:00','X',1) "
+            "('2025-09-01 08:00:01','X',2) "
+            "('2025-09-01 08:00:02','Y',3) "
+            "('2025-09-01 08:00:03','Y',4)"
+        )
+        expected = [
+            (first, 1, "2025-09-01 08:00:00", "2025-09-01 08:00:00", 1, 10),
+            (first, 1, "2025-09-01 08:00:02", "2025-09-01 08:00:02", 1, 100),
+            (first, 1, "2025-09-01 08:00:04", "2025-09-01 08:00:04", 1, 1000),
+            (second, 2, "2025-09-01 08:00:00", "2025-09-01 08:00:00", 1, 1),
+            (second, 2, "2025-09-01 08:00:02", "2025-09-01 08:00:02", 1, 3),
+        ]
+        self._wait_stable_exact_rows(
+            self._external_window_multigroup_result(db, "r_rt"), expected
+        )
+
+        tdSql.execute(
+            self._external_window_multigroup_stream(
+                db,
+                "s_history",
+                "r_history",
+                "fill_history('2025-09-01 08:00:00')",
+            )
+        )
+        self._wait_stream_running("s_history")
+        self._wait_history_batch_complete(
+            db,
+            "s_history",
+            self._external_window_multigroup_result(db, "r_history"),
+            expected,
+        )
+
+    def _find_tables_on_distinct_vgroups(self, db, stable, prefix):
+        by_vgroup = {}
+        for index in range(32):
+            table = f"{prefix}{index}"
+            tdSql.execute(
+                f"create table {db}.{table} using {db}.{stable} tags({index + 1})"
+            )
+            tdSql.query(
+                "select vgroup_id from information_schema.ins_tables "
+                f"where db_name='{db}' and table_name='{table}'"
+            )
+            by_vgroup.setdefault(tdSql.getData(0, 0), table)
+            if len(by_vgroup) >= 2:
+                selected = list(by_vgroup.items())[:2]
+                tdLog.info(f"selected external-window vgroup tables: {selected!r}")
+                return selected
+        tdLog.exit(
+            "external-window history fixture requires two vgroups: "
+            f"{by_vgroup!r}"
+        )
+
+    def _external_window_multigroup_stream(self, db, stream, output, option=None):
+        options = f"{option}|" if option else ""
+        return (
+            f"create stream {db}.{stream} window ("
+            "state_window(parent) extend(1) as w_parent,"
+            "count_window(2,2) as w_leaf) "
+            f"from {db}.src partition by tbname,gid stream_options("
+            f"{options}event_type(window_close)|flush_on_outer_close) "
+            f"into {db}.{output} output_subtable(concat('{output}_',%%1)) "
+            "(leaf_start,parent_start,members,total) "
+            "tags(source varchar(64) as %%1,gid int as %%2) as "
+            "select w_leaf._twstart,w_parent._twstart,count(*),sum(v) "
+            "from %%tbname "
+            "where ts>=w_parent._twstart and ts<w_leaf._twend"
+        )
+
+    def _external_window_multigroup_result(self, db, output):
+        return (
+            "select source,gid,leaf_start,parent_start,members,total "
+            f"from {db}.{output} order by gid,parent_start"
+        )
+
+    def _wait_history_batch_complete(self, db, stream, result_sql, expected):
+        latest = []
+        for attempt in range(self.RETRY):
+            tdSql.query(
+                "select status,message,history_progress_pct "
+                "from information_schema.ins_streams "
+                f"where db_name='{db}' and stream_name='{stream}'"
+            )
+            latest = self._current_rows()
+            tdSql.query(result_sql)
+            actual = self._current_rows()
+            complete = self._rows_equal(expected)
+            if len(latest) == 1 and latest[0][2] == 100 and not complete:
+                tdLog.exit(
+                    "history progress reached 100 before the grouped request "
+                    f"published all rows: stream={latest!r}, rows={actual!r}"
+                )
+            if len(latest) == 1 and latest[0][2] == 100 and complete:
+                self._wait_stable_exact_rows(result_sql, expected)
+                return
+            if attempt + 1 < self.RETRY:
+                time.sleep(1)
+        tdLog.exit(
+            f"grouped history did not complete in {self.RETRY} seconds: "
+            f"stream={latest!r}"
         )
 
     def _prepare_cross_database_virtual_source(self):

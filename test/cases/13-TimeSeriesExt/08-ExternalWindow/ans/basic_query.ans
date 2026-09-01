@@ -78,25 +78,25 @@ taos> select _wstart, _wend, w.v1, count(*), dev from st1_1 partition by dev  ex
  2020-05-13 11:34:00.000 | 2020-05-13 11:35:00.000 |        1007 |                     2 | dev_01                         |
  2020-05-13 11:37:00.000 | 2020-05-13 11:38:00.000 |        1008 |                     2 | dev_01                         |
 
-taos> select _wstart, _wend, w.v1, count(*), v2 from st1_1 partition by v2  external_window((select ts, endtime, v1  from ext_win_subq_1) w) limit 20;
+taos> select _wstart, _wend, w.v1, count(*), v2 from st1_1 partition by v2  external_window((select ts, endtime, v1  from ext_win_subq_1) w) order by v2 limit 20;
          _wstart         |          _wend          |     v1      |       count(*)        |          v2          |
 =================================================================================================================
- 2020-05-13 11:25:00.000 | 2020-05-13 11:26:00.000 |        1004 |                     1 |               101086 |
- 2020-05-13 11:19:00.000 | 2020-05-13 11:20:00.000 |        1002 |                     1 |               101081 |
- 2020-05-13 11:34:00.000 | 2020-05-13 11:35:00.000 |        1007 |                     1 |               101095 |
- 2020-05-13 10:18:00.000 | 2020-05-13 10:19:00.000 |        1001 |                     1 |               101020 |
- 2020-05-13 11:37:00.000 | 2020-05-13 11:38:00.000 |        1008 |                     1 |               101098 |
- 2020-05-13 11:19:00.000 | 2020-05-13 11:20:00.000 |        1002 |                     1 |               101080 |
- 2020-05-13 11:37:00.000 | 2020-05-13 11:38:00.000 |        1008 |                     1 |               101099 |
- 2020-05-13 11:31:00.000 | 2020-05-13 11:32:00.000 |        1006 |                     1 |               101093 |
  2020-05-13 10:18:00.000 | 2020-05-13 10:19:00.000 |        1001 |                     1 |               101019 |
- 2020-05-13 11:25:00.000 | 2020-05-13 11:26:00.000 |        1004 |                     1 |               101087 |
- 2020-05-13 11:34:00.000 | 2020-05-13 11:35:00.000 |        1007 |                     1 |               101096 |
- 2020-05-13 11:28:00.000 | 2020-05-13 11:29:00.000 |        1005 |                     1 |               101089 |
- 2020-05-13 11:31:00.000 | 2020-05-13 11:32:00.000 |        1006 |                     1 |               101092 |
- 2020-05-13 11:22:00.000 | 2020-05-13 11:23:00.000 |        1003 |                     1 |               101084 |
+ 2020-05-13 10:18:00.000 | 2020-05-13 10:19:00.000 |        1001 |                     1 |               101020 |
+ 2020-05-13 11:19:00.000 | 2020-05-13 11:20:00.000 |        1002 |                     1 |               101080 |
+ 2020-05-13 11:19:00.000 | 2020-05-13 11:20:00.000 |        1002 |                     1 |               101081 |
  2020-05-13 11:22:00.000 | 2020-05-13 11:23:00.000 |        1003 |                     1 |               101083 |
+ 2020-05-13 11:22:00.000 | 2020-05-13 11:23:00.000 |        1003 |                     1 |               101084 |
+ 2020-05-13 11:25:00.000 | 2020-05-13 11:26:00.000 |        1004 |                     1 |               101086 |
+ 2020-05-13 11:25:00.000 | 2020-05-13 11:26:00.000 |        1004 |                     1 |               101087 |
+ 2020-05-13 11:28:00.000 | 2020-05-13 11:29:00.000 |        1005 |                     1 |               101089 |
  2020-05-13 11:28:00.000 | 2020-05-13 11:29:00.000 |        1005 |                     1 |               101090 |
+ 2020-05-13 11:31:00.000 | 2020-05-13 11:32:00.000 |        1006 |                     1 |               101092 |
+ 2020-05-13 11:31:00.000 | 2020-05-13 11:32:00.000 |        1006 |                     1 |               101093 |
+ 2020-05-13 11:34:00.000 | 2020-05-13 11:35:00.000 |        1007 |                     1 |               101095 |
+ 2020-05-13 11:34:00.000 | 2020-05-13 11:35:00.000 |        1007 |                     1 |               101096 |
+ 2020-05-13 11:37:00.000 | 2020-05-13 11:38:00.000 |        1008 |                     1 |               101098 |
+ 2020-05-13 11:37:00.000 | 2020-05-13 11:38:00.000 |        1008 |                     1 |               101099 |
 
 taos> select _wstart, _wend, w.v1, count(*), v2 from st1_1 partition by v2  external_window((select ts, endtime, v1  from ext_win_subq_1) w) order by v2 desc limit 20;
          _wstart         |          _wend          |     v1      |       count(*)        |          v2          |
@@ -396,6 +396,6 @@ taos> select _wstart, _wend, w.v1, count(*), sum(v1) as sv1, dev from st1_1 part
 taos> select cast(_wstart as bigint) as ws, count(*) as c from ext_src external_window((select _wstart, _wend, count(*) as wc from ext_win partition by t1 interval(10m)) w) order by ws;
 
 DB error: EXTERNAL_WINDOW subquery cannot have GROUP BY or PARTITION BY clause if the outer query doesn't have [0x80002658] 
-taos> select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_src external_window((select _wstart, _wend, count(*) as wc from ext_win partition by t1 interval(10m)) w) order by ws
+taos> select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_src external_window((select _wstart, _wend, count(*) as wc from ext_win partition by t1 interval(10m)) w) order by ws;
 
 DB error: EXTERNAL_WINDOW subquery cannot have GROUP BY or PARTITION BY clause if the outer query doesn't have [0x80002658] 

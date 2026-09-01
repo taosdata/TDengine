@@ -2609,6 +2609,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pEndCond);
       nodesDestroyList(pLogicNode->pColList);
       nodesDestroyList(pLogicNode->pProjs);
+      nodesDestroyNode(pLogicNode->pWindowConditions);
       destroyExtWindowFillInfo(&pLogicNode->extFill);
       nodesDestroyNode(pLogicNode->pSubquery);
       break;
@@ -2784,6 +2785,7 @@ void nodesDestroyNode(SNode* pNode) {
       SExternalWindowPhysiNode* pPhyNode = (SExternalWindowPhysiNode*)pNode;
       nodesDestroyNode(pPhyNode->pSubquery);
       nodesDestroyNode(pPhyNode->pTimeRange);
+      nodesDestroyNode(pPhyNode->pWindowConditions);
       destroyExtWindowFillInfo(&pPhyNode->extFill);
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       break;

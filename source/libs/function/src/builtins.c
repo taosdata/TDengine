@@ -8214,6 +8214,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = fillforwardFunction,
     .sprocessFunc = fillforwardScalarFunction,
     .finalizeFunc = functionFinalize,
+    .cleanupFunc  = fillforwardFunctionCleanupExt,
     .estimateReturnRowsFunc = fillforwardEstReturnRows,
     .processFuncByRow  = fillforwardFunctionByRow,
   },

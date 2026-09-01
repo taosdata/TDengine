@@ -669,15 +669,15 @@ int32_t ncharTobinary(void *buf, void **out, void *charsetCxt) {  // todo need t
 
   *out = taosMemoryCalloc(1, inputLen);
   if (NULL == *out) {
-    sclError("charset:%s to %s. val:%s convert ncharTobinary failed, since memory alloc failed.",
+    sclError("charset:%s to %s. len:%d convert ncharTobinary failed, since memory alloc failed.",
              DEFAULT_UNICODE_ENCODEC, charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset,
-             (char *)varDataVal(buf));
+             (int32_t)varDataLen(buf));
     SCL_ERR_RET(terrno);
   }
   int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(*out), charsetCxt);
   if (len < 0) {
-    sclError("charset:%s to %s. val:%s convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC,
-             charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset, (char *)varDataVal(buf));
+    sclError("charset:%s to %s. len:%d convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC,
+             charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset, (int32_t)varDataLen(buf));
     taosMemoryFree(*out);
     SCL_ERR_RET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
   }

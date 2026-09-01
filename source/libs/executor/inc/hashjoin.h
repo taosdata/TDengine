@@ -44,6 +44,13 @@ typedef enum EHJoinPhase {
   E_JOIN_PHASE_POST
 } EHJoinPhase;
 
+typedef enum EHJoinMultiGroupPhase {
+  HJOIN_MULTI_GROUP_BUILD = 0,
+  HJOIN_MULTI_GROUP_PROBE,
+  HJOIN_MULTI_GROUP_EMIT_EOG,
+  HJOIN_MULTI_GROUP_DONE,
+} EHJoinMultiGroupPhase;
+
 typedef struct SHJoinCtx {
   bool         rowRemains;
   bool         midRemains;
@@ -106,6 +113,8 @@ typedef struct SHJoinTableCtx {
   int64_t        blkId;
   SQueryStat     inputStat;
   bool           hasTimeRange;
+  bool           multiGroupJoin;
+  uint64_t       baseGId;
 
   SHJoinColMap*      primCol;
   SNode*             primExpr;
@@ -126,14 +135,14 @@ typedef struct SHJoinTableCtx {
 } SHJoinTableCtx;
 
 typedef struct SHJoinExecInfo {
-  int64_t buildBlkNum;
-  int64_t buildBlkRows;
-  int64_t probeBlkNum;
-  int64_t probeBlkRows;
-  int64_t resRows;
-  int64_t expectRows;
+  int64_t  buildBlkNum;
+  int64_t  buildBlkRows;
+  int64_t  probeBlkNum;
+  int64_t  probeBlkRows;
+  int64_t  resRows;
+  int64_t  expectRows;
+  uint64_t hashMemPeakBytes;
 } SHJoinExecInfo;
-
 
 typedef struct SHJoinOperatorInfo {
   EJoinType        joinType;
@@ -151,10 +160,22 @@ typedef struct SHJoinOperatorInfo {
   SArray*          pRowBufs;
   SSHashObj*       pKeyHash;
   bool             keyHashBuilt;
+  bool                  multiGroupJoin;
+  SBlockID              probeId;
+  bool                  probeIdSet;
+  SSDataBlock*          pPendingProbe;
+  uint64_t              hashOwnedBytes;
+  EHJoinMultiGroupPhase multiGroupPhase;
+  int32_t               groupOrderIdx;
+  uint64_t              currentBaseGId;
+  bool                  buildEogSeen;
+  bool                  probeEogSeen;
+  SArray*               pProbeWinIdx;
+  SArray*               pOutputWinIdx;
   SHJoinCtx        ctx;
   SHJoinExecInfo   execInfo;
   int32_t          blkThreshold;
-  hJoinImplFp      joinFp;  
+  hJoinImplFp           joinFp;
 } SHJoinOperatorInfo;
 
 #define IS_HASH_JOIN_KEY_COL(_keyIdx) ((_keyIdx) >= 0)
@@ -180,13 +201,19 @@ typedef struct SHJoinOperatorInfo {
 int32_t hInnerJoinDo(struct SOperatorInfo* pOperator);
 int32_t hLeftJoinDo(struct SOperatorInfo* pOperator);
 void hJoinSetDone(struct SOperatorInfo* pOperator);
-void hJoinAppendResToBlock(struct SOperatorInfo* pOperator, SSDataBlock* pRes, bool* allFetched);
-bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t *pBufLen);
+int32_t hJoinAppendResToBlock(struct SOperatorInfo* pOperator, SSDataBlock* pRes, bool* allFetched);
+bool    hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t* pBufLen);
 int32_t hJoinCopyMergeMidBlk(SHJoinCtx* pCtx, SSDataBlock** ppMid, SSDataBlock** ppFin);
 int32_t hJoinHandleMidRemains(SHJoinOperatorInfo* pJoin, SHJoinCtx* pCtx);
-bool hJoinBlkReachThreshold(SHJoinOperatorInfo* pInfo, int64_t blkRows);
+bool    hJoinBlkReachThreshold(SHJoinOperatorInfo* pInfo, int64_t blkRows);
 int32_t hJoinCopyNMatchRowsToBlock(SHJoinOperatorInfo* pJoin, SSDataBlock* pRes, int32_t startIdx, int32_t rows);
 
+#if defined(BUILD_TEST)
+void hJoinTestFailHashInitOnce(void);
+void hJoinTestFailPagePushOnce(void);
+void hJoinTestFailAfterPageGrowthOnce(void);
+void hJoinTestResetFailureHooks(void);
+#endif
 
 #ifdef __cplusplus
 }

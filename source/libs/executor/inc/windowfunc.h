@@ -29,6 +29,7 @@ typedef struct SSqlWindowFrameRange {
   int64_t end;
 } SSqlWindowFrameRange;
 
+typedef struct SWindowInputPool  SWindowInputPool;
 typedef struct SWindowInputStore SWindowInputStore;
 
 int32_t winCalcRowsFrame(int64_t rowIndex, int64_t partitionRows, const SWindowFrameNode *pFrame,
@@ -42,14 +43,22 @@ int32_t winCalcPercentRank(int64_t rank, int64_t partitionRows, double *pValue);
 int32_t winCalcCumeDist(int64_t peerEnd, int64_t partitionRows, double *pValue);
 int32_t winFuncCheckDedicatedFallback(const char *pFuncName);
 int32_t winCalcOutputBatchEnd(int64_t totalRows, int64_t startRow, int64_t capacity, int64_t *pEndRow);
-int32_t winInputStoreCreate(const SSDataBlock *pTemplate, int32_t pageSize, int64_t inMemBufSize, const char *id,
-                            SWindowInputStore **ppStore);
+int32_t winInputPoolCreate(int32_t pageSize, int64_t inMemBufSize, const char *id, SWindowInputPool **ppPool);
+void    winInputPoolDestroy(SWindowInputPool *pPool);
+int32_t winInputPoolGetPageSize(const SWindowInputPool *pPool);
+SDiskbasedBufStatis winInputPoolGetStatis(const SWindowInputPool *pPool);
+int32_t winInputStoreCreate(const SSDataBlock *pTemplate, SWindowInputPool *pPool, SWindowInputStore **ppStore);
 void    winInputStoreDestroy(SWindowInputStore *pStore);
 int32_t winInputStoreAppendBlock(SWindowInputStore *pStore, SSDataBlock *pBlock);
 int32_t winInputStoreGetRows(const SWindowInputStore *pStore);
 int32_t winInputStoreGetPageCount(const SWindowInputStore *pStore);
 int32_t winInputStoreGetBlock(SWindowInputStore *pStore, int32_t pageIndex, SSDataBlock **ppBlock);
-SDiskbasedBufStatis winInputStoreGetStatis(const SWindowInputStore *pStore);
+
+#if defined(BUILD_TEST)
+int32_t winInputPoolTestGetRegisteredPageCount(const SWindowInputPool *pPool);
+int32_t winInputStoreTestGetPageId(const SWindowInputStore *pStore, int32_t pageIndex, int32_t *pPageId);
+void    winInputStoreTestFailNextDirectoryCommit(SWindowInputStore *pStore);
+#endif
 
 #ifdef __cplusplus
 }

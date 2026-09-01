@@ -5065,6 +5065,7 @@ typedef struct {
   bool                           reset;
   bool                           dynTbname;
   bool                           forceFetchCompleted;
+  bool                           reuseReader;
   // used for new-stream
 } SResFetchReq;
 
