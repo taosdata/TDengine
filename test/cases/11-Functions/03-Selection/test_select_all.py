@@ -259,7 +259,9 @@ class TestSelectFunction:
 
     def run_error(self):
         tdSql.error("select * from (select to_iso8601(ts, timezone()), timezone() from ts_4893.meters \
-            order by ts desc) limit 1000;", expectErrInfo="Invalid timezone format") # TS-5340
+            order by ts desc) limit 1000;",
+            # the message quotes the rejected timezone, which varies per host
+            expectErrInfo="Invalid timezone", fullMatched=False) # TS-5340
         tdSql.error("select * from ts_4893.meters where ts between(timetruncate(now, 1h) - 10y) and timetruncate(now(), 10y) partition by voltage;",
                     expectErrInfo="Invalid time unit : timetruncate") #
 
@@ -316,7 +318,7 @@ class TestSelectFunction:
         tdSql.query("select GREATEST(now, '1');")
         tdSql.error("select GREATEST(1)")
         tdSql.error("select GREATEST(cast('a' as varbinary), cast('b' as varbinary), 'c', 'd');")
-        tdSql.error("select GREATEST(6, cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")       
+        tdSql.error("select GREATEST(6, cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")
 
     def run_least(self):
         self.run_normal_query_new("least")
@@ -447,6 +449,7 @@ class TestSelectFunction:
         Since: v3.3.0.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2024-9-28 qevolg Created
             - 2025-5-08 Huo Hong Migrated to new test framework

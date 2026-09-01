@@ -21,6 +21,7 @@
 #include "mndSecurityPolicy.h"
 #include "mndShow.h"
 #include "mndStb.h"
+#include "mndStreamRecalc.h"
 #include "mndSubscribe.h"
 #include "mndSync.h"
 #include "mndToken.h"
@@ -62,6 +63,7 @@ static bool    mndTransPerformCommitActionStage(SMnode *pMnode, STrans *pTrans, 
 static bool    mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans, bool topHalf);
 static bool    mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans, bool topHalf);
 static bool    mndTransPerformFinishStage(SMnode *pMnode, STrans *pTrans, bool topHalf);
+static bool    mndTransIsStreamStopCallback(ETrnFunc stopFunc);
 
 static inline bool mndTransIsInSyncContext(bool topHalf) { return !topHalf; }
 
@@ -527,6 +529,7 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
 
   SDB_GET_INT32(pRaw, dataPos, &pTrans->startFunc, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pTrans->stopFunc, _OVER)
+  if (mndTransIsStreamStopCallback(pTrans->stopFunc)) pTrans->stopCbState = TRANS_STOP_CB_PENDING;
   SDB_GET_INT32(pRaw, dataPos, &pTrans->paramLen, _OVER)
   if (pTrans->paramLen != 0) {
     pTrans->param = taosMemoryMalloc(pTrans->paramLen);
@@ -685,8 +688,42 @@ static TransCbFp mndTransGetCbFp(ETrnFunc ftype) {
       return mndSodTransStop;
     case TRANS_STOP_FUNC_SOD_ROLE_CHECK:
       return mndSodGrantRoleStop;
+    case TRANS_STOP_FUNC_STREAM_RECALC:
+      return mndStreamRecalcTransStopped;
+    case TRANS_STOP_FUNC_STREAM_LIFECYCLE:
+      return mndStreamLifecycleTransStopped;
     default:
       return NULL;
+  }
+}
+
+static bool mndTransIsStreamStopCallback(ETrnFunc stopFunc) {
+  return stopFunc == TRANS_STOP_FUNC_STREAM_LIFECYCLE || stopFunc == TRANS_STOP_FUNC_STREAM_RECALC;
+}
+
+static void mndTransPublishStreamBeforeRsp(SSdb *pSdb, STrans *pTrans) {
+  TransCbFp fp = NULL;
+  void     *param = NULL;
+  int32_t   paramLen = 0;
+  bool      claimed = false;
+
+  sdbWriteLock(pSdb, SDB_TRANS);
+  if (mndTransIsStreamStopCallback(pTrans->stopFunc) && pTrans->stopCbState == TRANS_STOP_CB_PENDING) {
+    fp = mndTransGetCbFp(pTrans->stopFunc);
+    param = pTrans->param;
+    paramLen = pTrans->paramLen;
+    pTrans->stopCbState = TRANS_STOP_CB_RUNNING;
+    claimed = true;
+  }
+  sdbUnLock(pSdb, SDB_TRANS);
+
+  if (fp != NULL) (*fp)(pSdb->pMnode, param, paramLen);
+
+  if (claimed) {
+    sdbWriteLock(pSdb, SDB_TRANS);
+    pTrans->stopCbState = TRANS_STOP_CB_DONE;
+    pTrans->stopFunc = 0;
+    sdbUnLock(pSdb, SDB_TRANS);
   }
 }
 
@@ -783,7 +820,7 @@ static int32_t mndTransDelete(SSdb *pSdb, STrans *pTrans, bool callFunc) {
   mInfo("trans:%d, perform delete action, row:%p stage:%s callfunc:%d, stopFunc:%d", pTrans->id, pTrans,
         mndTransStr(pTrans->stage), callFunc, pTrans->stopFunc);
 
-  if (pTrans->stopFunc > 0 && callFunc) {
+  if (pTrans->stopFunc > 0 && callFunc && !mndTransIsStreamStopCallback(pTrans->stopFunc)) {
     TransCbFp fp = mndTransGetCbFp(pTrans->stopFunc);
     if (fp) {
       (*fp)(pSdb->pMnode, pTrans->param, pTrans->paramLen);
@@ -897,6 +934,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
   pTrans->policy = policy;
   pTrans->conflict = conflict;
   pTrans->exec = TRN_EXEC_PARALLEL;
+  pTrans->stopCbState = TRANS_STOP_CB_PENDING;
   pTrans->ableToBeKilled = false;
   pTrans->createdTime = taosGetTimestampMs();
   pTrans->prepareActions = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(STransAction));
@@ -922,6 +960,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
   if (pReq != NULL) {
     if (taosArrayPush(pTrans->pRpcArray, &pReq->info) == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
+      mndTransDrop(pTrans);
       return NULL;
     }
     pTrans->originRpcType = pReq->msgType;
@@ -1085,6 +1124,7 @@ void mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen) {
 void mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *param, int32_t paramLen) {
   pTrans->startFunc = startFunc;
   pTrans->stopFunc = stopFunc;
+  if (mndTransIsStreamStopCallback(stopFunc)) pTrans->stopCbState = TRANS_STOP_CB_PENDING;
   pTrans->param = param;
   pTrans->paramLen = paramLen;
 }
@@ -1564,6 +1604,11 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
   if (code == 0) code = mndTransGetActionErrCode(pTrans->redoActions);
 
   if (pTrans->stage == TRN_STAGE_FINISH) {
+    bool streamCallbackPending = false;
+    sdbReadLock(pMnode->pSdb, SDB_TRANS);
+    streamCallbackPending = mndTransIsStreamStopCallback(pTrans->stopFunc) && pTrans->stopCbState != TRANS_STOP_CB_DONE;
+    sdbUnLock(pMnode->pSdb, SDB_TRANS);
+    if (streamCallbackPending) return;
     sendRsp = true;
   }
 
@@ -2726,6 +2771,8 @@ static bool mndTransPerformFinishStage(SMnode *pMnode, STrans *pTrans, bool topH
   int32_t code = sdbWrite(pMnode->pSdb, pRaw);
   if (code != 0) {
     mError("trans:%d, failed to write sdb since %s", pTrans->id, terrstr());
+  } else {
+    mndTransPublishStreamBeforeRsp(pMnode->pSdb, pTrans);
   }
 
   mInfo("trans:%d, execute finished, code:0x%x, failedTimes:%d createTime:%" PRId64, pTrans->id, pTrans->code,
@@ -2789,6 +2836,7 @@ void mndTransRefresh(SMnode *pMnode, STrans *pTrans) {
 static int32_t mndProcessTransTimer(SRpcMsg *pReq) {
   mTrace("start to process trans timer");
   mndTransPullup(pReq->info.node);
+  mndStreamRecalcPullup(pReq->info.node);
   return 0;
 }
 
@@ -3106,7 +3154,7 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)stage, false), pTrans, &lino, _OVER);
 
-    char opername[TSDB_TRANS_OPER_LEN + VARSTR_HEADER_SIZE] = {0};
+    char opername[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(opername, pTrans->opername, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)opername, false), pTrans, &lino, _OVER);

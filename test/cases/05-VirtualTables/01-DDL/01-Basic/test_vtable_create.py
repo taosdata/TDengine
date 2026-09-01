@@ -75,6 +75,7 @@ class TestVtableCreate:
         Since: v3.3.6.0
 
         Labels: create,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -137,6 +138,7 @@ class TestVtableCreate:
         Since: v3.3.6.0
 
         Labels: create,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -443,6 +445,7 @@ class TestVtableCreate:
         Since: v3.3.6.0
 
         Labels: create,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -628,6 +631,7 @@ class TestVtableCreate:
         Since: v3.3.6.0
 
         Labels: create,negative,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -790,6 +794,7 @@ class TestVtableCreate:
         Since: v3.4.2.2
 
         Labels: drop,virtual,batch,integration,functional
+
         Jira: None
 
         History:
@@ -874,6 +879,7 @@ class TestVtableCreate:
         Since: v3.4.2.2
 
         Labels: drop,virtual,batch,boundary,integration,functional
+
         Jira: None
 
         History:
@@ -999,6 +1005,7 @@ class TestVtableCreate:
         Since: v3.4.2.2
 
         Labels: drop,virtual,batch,syntax,integration,functional
+
         Jira: None
 
         History:
@@ -1076,6 +1083,7 @@ class TestVtableCreate:
         Since: v3.4.2.2
 
         Labels: drop,virtual,batch,with,uid,integration,functional
+
         Jira: None
 
         History:
@@ -1151,6 +1159,7 @@ class TestVtableCreate:
         Since: v3.4.2.2
 
         Labels: drop,virtual,batch,txn,integration,functional
+
         Jira: None
 
         History:

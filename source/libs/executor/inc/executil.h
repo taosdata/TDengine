@@ -30,6 +30,8 @@ extern "C" {
 #include "tsimplehash.h"
 #include "tjson.h"
 
+struct SOperatorInfo;
+
 typedef struct STaskSubJobCtx {
   bool               isExchange;
   bool               isStream;
@@ -290,6 +292,7 @@ int32_t buildStreamRunnerFetchRtInfo(const SStreamRuntimeFuncInfo* pSrc, SStream
 void    cleanupStreamRunnerFetchRtInfo(SStreamRuntimeFuncInfo* pInfo);
 int32_t remoteNodeCopy(SNode* pSrc, SNode* pDst);
 int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes);
+bool    isStaticMultiGroupJoinQualified(const struct SOperatorInfo* pOperator);
 
 int32_t          findDataBlockColIndexBySlotId(const SSDataBlock* pBlock, int32_t slotId);
 SColumnInfoData* getDataBlockColBySlotId(const SSDataBlock* pBlock, int32_t slotId, int32_t* pIndex);
@@ -298,6 +301,8 @@ SColumnInfoData* getDataBlockColBySlotId(const SSDataBlock* pBlock, int32_t slot
 void    execUtilTestResetHandleRemoteRowResState(void);
 void    execUtilTestSetExtractSingleRspBlockFailOnce(int32_t code);
 int32_t execUtilTestGetHandleRemoteRowResDestroyCount(void);
+void    execUtilTestFailStreamGroupSortHashPutAfter(int32_t successfulPuts);
+int32_t execUtilTestSortStreamTableGroups(STableListInfo* pTableListInfo);
 #endif
 
 #ifdef __cplusplus

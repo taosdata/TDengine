@@ -1224,9 +1224,27 @@ typedef enum EStreamExtJoinKey {
   STREAM_EXT_JOIN_KEY_TWEND,
 } EStreamExtJoinKey;
 
-static bool streamExtJoinSourceIsSafe(SNode* pTable);
-static bool streamExtJoinTableIsSafe(SJoinTableNode* pJoinTable);
-static EStreamExtJoinKey streamExtJoinTableKeyType(SJoinTableNode* pJoinTable);
+typedef enum EStreamExtPredicateClass {
+  STREAM_EXT_PREDICATE_TIME_RANGE,
+  STREAM_EXT_PREDICATE_ROW,
+  STREAM_EXT_PREDICATE_WINDOW_CONSTANT,
+  STREAM_EXT_PREDICATE_UNSUPPORTED,
+} EStreamExtPredicateClass;
+
+typedef struct SStreamExtJoinCondInfo {
+  EStreamExtJoinKey timeKey;
+  bool              hasTimeEquality;
+  int32_t           ordinaryEqualityNum;
+} SStreamExtJoinCondInfo;
+
+static bool              streamExtJoinSourceIsSafe(const SPlanStreamContext* pStreamCxt, SNode* pTable);
+static bool              streamExtJoinTableIsSafe(const SPlanStreamContext* pStreamCxt, SJoinTableNode* pJoinTable);
+static EStreamExtJoinKey streamExtJoinTableKeyType(const SPlanStreamContext* pStreamCxt, SJoinTableNode* pJoinTable);
+static int32_t           conditionHasPlaceHolder(SNode* pNode, bool* pHasPlaceHolder);
+static bool    streamDirectBaseTableIsBroadcastSafe(const SPlanStreamContext* pStreamCxt, SSelectStmt* pSelect,
+                                                    bool allowGroupStaticDimensionFilter);
+static int32_t streamExtractWindowConditions(SNode* pWhere, SNode** pConditions);
+static int32_t streamRemoveWindowConditions(SLogicNode* pRoot);
 
 static bool streamExtJoinExprNameMatches(const SExprNode* pExpr, const char* pColName) {
   if (NULL == pExpr || NULL == pColName) {
@@ -1278,16 +1296,21 @@ static EStreamExtJoinKey streamExtJoinGetProjectedKey(SSelectStmt* pSelect, cons
   return STREAM_EXT_JOIN_KEY_NONE;
 }
 
-static bool streamExtJoinSubquerySourceIsSupported(STempTableNode* pTable) {
+static bool streamExtJoinSubquerySourceIsSupported(const SPlanStreamContext* pStreamCxt, STempTableNode* pTable) {
   if (NULL == pTable || NULL == pTable->pSubquery || QUERY_NODE_SELECT_STMT != nodeType(pTable->pSubquery)) {
     return false;
   }
 
   SSelectStmt* pSelect = (SSelectStmt*)pTable->pSubquery;
-  return pSelect->hasAggFuncs && !pSelect->joinContains && NULL != pSelect->pFromTable;
+  if (pSelect->hasAggFuncs && !pSelect->joinContains && NULL != pSelect->pFromTable) {
+    return true;
+  }
+
+  return streamDirectBaseTableIsBroadcastSafe(pStreamCxt, pSelect, true);
 }
 
-static EStreamExtJoinKey streamExtJoinFindKeyInSource(SNode* pTable, const SColumnNode* pCol) {
+static EStreamExtJoinKey streamExtJoinFindKeyInSource(const SPlanStreamContext* pStreamCxt, SNode* pTable,
+                                                      const SColumnNode* pCol) {
   if (NULL == pTable || NULL == pCol) {
     return STREAM_EXT_JOIN_KEY_NONE;
   }
@@ -1295,25 +1318,27 @@ static EStreamExtJoinKey streamExtJoinFindKeyInSource(SNode* pTable, const SColu
   switch (nodeType(pTable)) {
     case QUERY_NODE_TEMP_TABLE: {
       STempTableNode* pTemp = (STempTableNode*)pTable;
-      if (!streamExtJoinSubquerySourceIsSupported(pTemp) || 0 != strcasecmp(pTemp->table.tableAlias, pCol->tableAlias)) {
+      if (!streamExtJoinSubquerySourceIsSupported(pStreamCxt, pTemp) ||
+          0 != strcasecmp(pTemp->table.tableAlias, pCol->tableAlias)) {
         return STREAM_EXT_JOIN_KEY_NONE;
       }
       return streamExtJoinGetProjectedKey((SSelectStmt*)pTemp->pSubquery, pCol->colName);
     }
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode*   pJoin = (SJoinTableNode*)pTable;
-      EStreamExtJoinKey key = streamExtJoinFindKeyInSource(pJoin->pLeft, pCol);
+      EStreamExtJoinKey key = streamExtJoinFindKeyInSource(pStreamCxt, pJoin->pLeft, pCol);
       if (STREAM_EXT_JOIN_KEY_NONE != key) {
         return key;
       }
-      return streamExtJoinFindKeyInSource(pJoin->pRight, pCol);
+      return streamExtJoinFindKeyInSource(pStreamCxt, pJoin->pRight, pCol);
     }
     default:
       return STREAM_EXT_JOIN_KEY_NONE;
   }
 }
 
-static EStreamExtJoinKey streamExtJoinEqCondKeyType(SJoinTableNode* pJoinTable, SOperatorNode* pOp) {
+static EStreamExtJoinKey streamExtJoinEqCondKeyType(const SPlanStreamContext* pStreamCxt, SJoinTableNode* pJoinTable,
+                                                    SOperatorNode* pOp) {
   if (NULL == pJoinTable || NULL == pOp || OP_TYPE_EQUAL != pOp->opType || QUERY_NODE_COLUMN != nodeType(pOp->pLeft) ||
       QUERY_NODE_COLUMN != nodeType(pOp->pRight)) {
     return STREAM_EXT_JOIN_KEY_NONE;
@@ -1321,75 +1346,125 @@ static EStreamExtJoinKey streamExtJoinEqCondKeyType(SJoinTableNode* pJoinTable, 
 
   SColumnNode*      pLeftCol = (SColumnNode*)pOp->pLeft;
   SColumnNode*      pRightCol = (SColumnNode*)pOp->pRight;
-  EStreamExtJoinKey leftKey = streamExtJoinFindKeyInSource(pJoinTable->pLeft, pLeftCol);
-  EStreamExtJoinKey rightKey = streamExtJoinFindKeyInSource(pJoinTable->pRight, pRightCol);
+  EStreamExtJoinKey leftKey = streamExtJoinFindKeyInSource(pStreamCxt, pJoinTable->pLeft, pLeftCol);
+  EStreamExtJoinKey rightKey = streamExtJoinFindKeyInSource(pStreamCxt, pJoinTable->pRight, pRightCol);
   if (STREAM_EXT_JOIN_KEY_NONE != leftKey && leftKey == rightKey) {
     return leftKey;
   }
 
-  leftKey = streamExtJoinFindKeyInSource(pJoinTable->pRight, pLeftCol);
-  rightKey = streamExtJoinFindKeyInSource(pJoinTable->pLeft, pRightCol);
+  leftKey = streamExtJoinFindKeyInSource(pStreamCxt, pJoinTable->pRight, pLeftCol);
+  rightKey = streamExtJoinFindKeyInSource(pStreamCxt, pJoinTable->pLeft, pRightCol);
   return STREAM_EXT_JOIN_KEY_NONE != leftKey && leftKey == rightKey ? leftKey : STREAM_EXT_JOIN_KEY_NONE;
 }
 
-static EStreamExtJoinKey streamExtJoinOnCondKeyType(SJoinTableNode* pJoinTable, SNode* pCond) {
-  if (NULL == pCond) {
-    return STREAM_EXT_JOIN_KEY_NONE;
+static bool streamExtJoinSourceContainsColumn(SNode* pTable, const SColumnNode* pCol) {
+  if (NULL == pTable || NULL == pCol) {
+    return false;
   }
 
-  if (QUERY_NODE_OPERATOR == nodeType(pCond)) {
-    return streamExtJoinEqCondKeyType(pJoinTable, (SOperatorNode*)pCond);
-  }
-
-  if (QUERY_NODE_LOGIC_CONDITION != nodeType(pCond)) {
-    return STREAM_EXT_JOIN_KEY_NONE;
-  }
-
-  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)pCond;
-  if (LOGIC_COND_TYPE_AND != pLogicCond->condType || 0 == LIST_LENGTH(pLogicCond->pParameterList)) {
-    return STREAM_EXT_JOIN_KEY_NONE;
-  }
-
-  EStreamExtJoinKey joinKey = STREAM_EXT_JOIN_KEY_NONE;
-  SNode* pParam = NULL;
-  FOREACH(pParam, pLogicCond->pParameterList) {
-    EStreamExtJoinKey paramKey = streamExtJoinOnCondKeyType(pJoinTable, pParam);
-    if (STREAM_EXT_JOIN_KEY_NONE == paramKey ||
-        (STREAM_EXT_JOIN_KEY_NONE != joinKey && joinKey != paramKey)) {
-      return STREAM_EXT_JOIN_KEY_NONE;
+  switch (nodeType(pTable)) {
+    case QUERY_NODE_TEMP_TABLE:
+      return 0 == strcasecmp(((STempTableNode*)pTable)->table.tableAlias, pCol->tableAlias);
+    case QUERY_NODE_JOIN_TABLE: {
+      SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
+      return streamExtJoinSourceContainsColumn(pJoin->pLeft, pCol) ||
+             streamExtJoinSourceContainsColumn(pJoin->pRight, pCol);
     }
-    joinKey = paramKey;
+    default:
+      return false;
   }
-
-  return joinKey;
 }
 
-static bool streamExtJoinSourceIsSafe(SNode* pTable) {
+static bool streamExtJoinCollectCond(const SPlanStreamContext* pStreamCxt, SJoinTableNode* pJoinTable, SNode* pCond,
+                                     SStreamExtJoinCondInfo* pInfo) {
+  if (NULL == pCond || NULL == pInfo) {
+    return false;
+  }
+
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond)) {
+    SLogicConditionNode* pLogic = (SLogicConditionNode*)pCond;
+    if (LOGIC_COND_TYPE_AND != pLogic->condType || 0 == LIST_LENGTH(pLogic->pParameterList)) {
+      return false;
+    }
+    SNode* pParam = NULL;
+    FOREACH(pParam, pLogic->pParameterList) {
+      if (!streamExtJoinCollectCond(pStreamCxt, pJoinTable, pParam, pInfo)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
+    return false;
+  }
+  SOperatorNode* pOp = (SOperatorNode*)pCond;
+  if (OP_TYPE_EQUAL != pOp->opType || QUERY_NODE_COLUMN != nodeType(pOp->pLeft) ||
+      QUERY_NODE_COLUMN != nodeType(pOp->pRight)) {
+    return false;
+  }
+
+  EStreamExtJoinKey key = streamExtJoinEqCondKeyType(pStreamCxt, pJoinTable, pOp);
+  if (STREAM_EXT_JOIN_KEY_NONE != key) {
+    if (pInfo->hasTimeEquality && pInfo->timeKey != key) {
+      return false;
+    }
+    pInfo->timeKey = key;
+    pInfo->hasTimeEquality = true;
+    return true;
+  }
+
+  SColumnNode* pLeftCol = (SColumnNode*)pOp->pLeft;
+  SColumnNode* pRightCol = (SColumnNode*)pOp->pRight;
+  if (STREAM_EXT_JOIN_KEY_NONE != streamExtJoinFindKeyInSource(pStreamCxt, pJoinTable->pLeft, pLeftCol) ||
+      STREAM_EXT_JOIN_KEY_NONE != streamExtJoinFindKeyInSource(pStreamCxt, pJoinTable->pRight, pLeftCol) ||
+      STREAM_EXT_JOIN_KEY_NONE != streamExtJoinFindKeyInSource(pStreamCxt, pJoinTable->pLeft, pRightCol) ||
+      STREAM_EXT_JOIN_KEY_NONE != streamExtJoinFindKeyInSource(pStreamCxt, pJoinTable->pRight, pRightCol)) {
+    return false;
+  }
+  bool crossSides = (streamExtJoinSourceContainsColumn(pJoinTable->pLeft, pLeftCol) &&
+                     streamExtJoinSourceContainsColumn(pJoinTable->pRight, pRightCol)) ||
+                    (streamExtJoinSourceContainsColumn(pJoinTable->pRight, pLeftCol) &&
+                     streamExtJoinSourceContainsColumn(pJoinTable->pLeft, pRightCol));
+  if (!crossSides) {
+    return false;
+  }
+
+  ++pInfo->ordinaryEqualityNum;
+  return true;
+}
+
+static bool streamExtJoinSourceIsSafe(const SPlanStreamContext* pStreamCxt, SNode* pTable) {
   if (NULL == pTable) {
     return false;
   }
 
   switch (nodeType(pTable)) {
     case QUERY_NODE_TEMP_TABLE:
-      return streamExtJoinSubquerySourceIsSupported((STempTableNode*)pTable);
+      return streamExtJoinSubquerySourceIsSupported(pStreamCxt, (STempTableNode*)pTable);
     case QUERY_NODE_JOIN_TABLE:
-      return streamExtJoinTableIsSafe((SJoinTableNode*)pTable);
+      return streamExtJoinTableIsSafe(pStreamCxt, (SJoinTableNode*)pTable);
     default:
       return false;
   }
 }
 
-static bool streamExtJoinTableIsSafe(SJoinTableNode* pJoinTable) {
-  return STREAM_EXT_JOIN_KEY_NONE != streamExtJoinTableKeyType(pJoinTable);
+static bool streamExtJoinTableIsSafe(const SPlanStreamContext* pStreamCxt, SJoinTableNode* pJoinTable) {
+  return STREAM_EXT_JOIN_KEY_NONE != streamExtJoinTableKeyType(pStreamCxt, pJoinTable);
 }
 
-static EStreamExtJoinKey streamExtJoinTableKeyType(SJoinTableNode* pJoinTable) {
+static EStreamExtJoinKey streamExtJoinTableKeyType(const SPlanStreamContext* pStreamCxt, SJoinTableNode* pJoinTable) {
   if (NULL == pJoinTable || JOIN_TYPE_INNER != pJoinTable->joinType || JOIN_STYPE_NONE != pJoinTable->subType ||
-      !streamExtJoinSourceIsSafe(pJoinTable->pLeft) || !streamExtJoinSourceIsSafe(pJoinTable->pRight)) {
+      !streamExtJoinSourceIsSafe(pStreamCxt, pJoinTable->pLeft) ||
+      !streamExtJoinSourceIsSafe(pStreamCxt, pJoinTable->pRight)) {
     return STREAM_EXT_JOIN_KEY_NONE;
   }
 
-  return streamExtJoinOnCondKeyType(pJoinTable, pJoinTable->pOnCond);
+  SStreamExtJoinCondInfo info = {0};
+  if (!streamExtJoinCollectCond(pStreamCxt, pJoinTable, pJoinTable->pOnCond, &info) || !info.hasTimeEquality) {
+    return STREAM_EXT_JOIN_KEY_NONE;
+  }
+  return info.timeKey;
 }
 
 static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SJoinTableNode* pJoinTable,
@@ -6200,10 +6275,10 @@ _return:
   return code;
 }
 
-static int32_t buildStreamExtJoinTwendTimeRange(SSelectStmt* pSelect) {
+static int32_t buildStreamExtJoinTwendTimeRange(const SPlanStreamContext* pStreamCxt, SSelectStmt* pSelect) {
   if (NULL == pSelect || NULL == pSelect->pFromTable || QUERY_NODE_JOIN_TABLE != nodeType(pSelect->pFromTable) ||
       NULL != pSelect->pTimeRange ||
-      STREAM_EXT_JOIN_KEY_TWEND != streamExtJoinTableKeyType((SJoinTableNode*)pSelect->pFromTable)) {
+      STREAM_EXT_JOIN_KEY_TWEND != streamExtJoinTableKeyType(pStreamCxt, (SJoinTableNode*)pSelect->pFromTable)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -6217,8 +6292,9 @@ static int32_t buildStreamExtJoinTwendTimeRange(SSelectStmt* pSelect) {
 
   PLAN_ERR_JRET(makeStreamExtWindowTimeRangeOp(OP_TYPE_GREATER_THAN, "_twstart", FUNCTION_TYPE_TWSTART,
                                                fmGetTwstartFuncId(), pSelect->precision, &pStartOp));
-  PLAN_ERR_JRET(makeStreamExtWindowTimeRangeOp(OP_TYPE_LOWER_EQUAL, "_twend", FUNCTION_TYPE_TWEND,
-                                               fmGetTwendFuncId(), pSelect->precision, &pEndOp));
+  ((SOperatorNode*)pStartOp)->flag |= OPERATOR_FLAG_STREAM_EXT_JOIN_AUTO_RANGE;
+  PLAN_ERR_JRET(makeStreamExtWindowTimeRangeOp(OP_TYPE_LOWER_EQUAL, "_twend", FUNCTION_TYPE_TWEND, fmGetTwendFuncId(),
+                                               pSelect->precision, &pEndOp));
 
   pTimeRange->pStart = pStartOp;
   pTimeRange->pEnd = pEndOp;
@@ -6326,6 +6402,11 @@ static int32_t createWindowLogicNodeByStreamExternal(SLogicPlanContext* pCxt, SE
   pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
   pWindow->partType = 0;
   pWindow->pTspk = NULL;
+  pWindow->extWinInputMode = streamDirectBaseTableIsBroadcastSafe(&pCxt->pPlanCxt->streamCxt, pSelect, true)
+                                 ? EXT_WIN_INPUT_BROADCAST
+                                 : EXT_WIN_INPUT_WINDOW_BOUND;
+  PLAN_ERR_JRET(streamExtractWindowConditions(pSelect->pWhere, &pWindow->pWindowConditions));
+  PLAN_ERR_JRET(streamRemoveWindowConditions(pCxt->pCurrRoot));
   if (nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE) {
     SRealTableNode* pTable = (SRealTableNode*)pSelect->pFromTable;
     if (pTable->pMeta->tableType == TSDB_NORMAL_TABLE || pTable->pMeta->tableType == TSDB_CHILD_TABLE ||
@@ -6344,7 +6425,7 @@ static int32_t createWindowLogicNodeByStreamExternal(SLogicPlanContext* pCxt, SE
   } else {
     pWindow->isSingleTable = false;
   }
-  PLAN_ERR_RET(nodesCloneNode(pSelect->pTimeRange, &pWindow->pTimeRange));
+  PLAN_ERR_JRET(nodesCloneNode(pSelect->pTimeRange, &pWindow->pTimeRange));
 
   SNode* pNode = NULL;
   FOREACH(pNode, pCxt->pCurrRoot->pTargets) {
@@ -6352,24 +6433,24 @@ static int32_t createWindowLogicNodeByStreamExternal(SLogicPlanContext* pCxt, SE
       SColumnNode* pCol = (SColumnNode*)pNode;
 
       if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-        PLAN_ERR_RET(nodesCloneNode(pNode, &pWindow->pTspk));
+        PLAN_ERR_JRET(nodesCloneNode(pNode, &pWindow->pTspk));
         break;
       }
     }
   }
 
   if (pWindow->pTspk == NULL) {
-    nodesDestroyNode((SNode*)pWindow);
     planError("External window can not find pk column, listSize:%d", pCxt->pCurrRoot->pTargets->length);
-    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+    goto _return;
   }
 
-  code = nodesCloneNode(pExternal->pSubquery, &pWindow->pSubquery);
-  if (code != TSDB_CODE_SUCCESS) {
-    nodesDestroyNode((SNode*)pWindow);
-    return code;
-  }
+  PLAN_ERR_JRET(nodesCloneNode(pExternal->pSubquery, &pWindow->pSubquery));
   return createExternalWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
+
+_return:
+  nodesDestroyNode((SNode*)pWindow);
+  return code;
 }
 
 static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
@@ -6483,83 +6564,151 @@ static bool placeHolderCanMakeExternalWindow(int32_t startType, int32_t endType)
   }
 }
 
-static bool filterHasPlaceHolderRange(SOperatorNode *pOperator) {
-  SNode* pOpLeft = pOperator->pLeft;
-  SNode* pOpRight = pOperator->pRight;
+typedef enum {
+  STREAM_EXT_BOUND_INVALID = 0,
+  STREAM_EXT_BOUND_LOWER,
+  STREAM_EXT_BOUND_UPPER,
+} EStreamExternalBoundKind;
 
-  if (pOpLeft == NULL || pOpRight == NULL) {
+typedef struct {
+  bool hasLower;
+  bool hasUpper;
+} SStreamExternalBoundKinds;
+
+static bool streamExternalWindowValueIsNonnegative(const SValueNode* pValue, bool allowTimestamp) {
+  if (pValue == NULL) return false;
+  const int8_t type = pValue->node.resType.type;
+  if (IS_UNSIGNED_NUMERIC_TYPE(type)) return pValue->datum.u <= INT64_MAX;
+  return (IS_SIGNED_NUMERIC_TYPE(type) || (allowTimestamp && IS_TIMESTAMP_TYPE(type))) && pValue->datum.i >= 0;
+}
+
+static bool streamExternalWindowPlaceholderSatisfiesShape(const SNode* pNode) {
+  if (pNode == NULL || nodeType(pNode) != QUERY_NODE_FUNCTION) {
     return false;
   }
 
-  if (nodeType(pOpLeft) == QUERY_NODE_COLUMN) {
-    SColumnNode* pTsCol = (SColumnNode*)pOpLeft;
-    if (pTsCol->colType != COLUMN_TYPE_COLUMN || pTsCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
+  const SFunctionNode* pFunc = (const SFunctionNode*)pNode;
+  switch (pFunc->funcType) {
+    case FUNCTION_TYPE_TWSTART:
+    case FUNCTION_TYPE_TWEND:
+    case FUNCTION_TYPE_TPREV_TS:
+    case FUNCTION_TYPE_TNEXT_TS:
+    case FUNCTION_TYPE_TCURRENT_TS:
+    case FUNCTION_TYPE_TPREV_LOCALTIME:
+    case FUNCTION_TYPE_TNEXT_LOCALTIME:
+    case FUNCTION_TYPE_TLOCALTIME:
+    case FUNCTION_TYPE_TIDLESTART:
+    case FUNCTION_TYPE_TIDLEEND:
+      break;
+    default:
+      return false;
+  }
+
+  int32_t numParams = LIST_LENGTH(pFunc->pParameterList);
+  if ((numParams != 1 && numParams != 2) || nodeType(nodesListGetNode(pFunc->pParameterList, 0)) != QUERY_NODE_VALUE) {
+    return false;
+  }
+
+  if (numParams == 2) {
+    const SNode* pLayer = nodesListGetNode(pFunc->pParameterList, 1);
+    if (nodeType(pLayer) != QUERY_NODE_VALUE ||
+        !streamExternalWindowValueIsNonnegative((const SValueNode*)pLayer, false)) {
       return false;
     }
-  } else {
-    return false;
-  }
-
-  SConditionCheckContext opCxt = {.hasNotBasicOp = false,
-                                  .hasNegativeConst = false,
-                                  .hasOtherFunc = false,
-                                  .placeholderAtRight = false,
-                                  .placeholderType = 0};
-
-  nodesWalkExpr(pOpRight, conditionOnlyPhAndConstImpl, &opCxt);
-  if (opCxt.hasNotBasicOp || opCxt.hasNegativeConst || opCxt.hasOtherFunc || opCxt.placeholderAtRight) {
-    return false;
   }
   return true;
 }
 
-static bool logicConditionSatisfyExternalWindow(SLogicConditionNode *pLogicCond) {
+static bool streamExternalWindowOffsetSatisfiesShape(const SNode* pNode) {
+  if (streamExternalWindowPlaceholderSatisfiesShape(pNode)) {
+    return true;
+  }
+  if (pNode == NULL || nodeType(pNode) != QUERY_NODE_OPERATOR) {
+    return false;
+  }
+
+  const SOperatorNode* pOffset = (const SOperatorNode*)pNode;
+  if ((pOffset->opType != OP_TYPE_ADD && pOffset->opType != OP_TYPE_SUB) ||
+      !streamExternalWindowPlaceholderSatisfiesShape(pOffset->pLeft) || pOffset->pRight == NULL ||
+      nodeType(pOffset->pRight) != QUERY_NODE_VALUE) {
+    return false;
+  }
+
+  const SValueNode* pValue = (const SValueNode*)pOffset->pRight;
+  return streamExternalWindowValueIsNonnegative(pValue, true);
+}
+
+static EStreamExternalBoundKind streamClassifyExternalWindowBound(const SOperatorNode* pOperator) {
+  if (pOperator == NULL || pOperator->pLeft == NULL || pOperator->pRight == NULL ||
+      nodeType(pOperator->pLeft) != QUERY_NODE_COLUMN) {
+    return STREAM_EXT_BOUND_INVALID;
+  }
+
+  const SColumnNode* pTsCol = (const SColumnNode*)pOperator->pLeft;
+  if (pTsCol->colType != COLUMN_TYPE_COLUMN || pTsCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID ||
+      !streamExternalWindowOffsetSatisfiesShape(pOperator->pRight)) {
+    return STREAM_EXT_BOUND_INVALID;
+  }
+
+  switch (pOperator->opType) {
+    case OP_TYPE_GREATER_THAN:
+    case OP_TYPE_GREATER_EQUAL:
+      return STREAM_EXT_BOUND_LOWER;
+    case OP_TYPE_LOWER_THAN:
+    case OP_TYPE_LOWER_EQUAL:
+      return STREAM_EXT_BOUND_UPPER;
+    default:
+      return STREAM_EXT_BOUND_INVALID;
+  }
+}
+
+static bool filterHasPlaceHolderRange(const SOperatorNode* pOperator) {
+  return streamClassifyExternalWindowBound(pOperator) != STREAM_EXT_BOUND_INVALID;
+}
+
+static bool conditionSatisfyExternalWindow(SNode* pCondition, SStreamExternalBoundKinds* pKinds);
+
+static bool logicConditionSatisfyExternalWindow(SLogicConditionNode* pLogicCond, SStreamExternalBoundKinds* pKinds) {
   if (pLogicCond->condType != LOGIC_COND_TYPE_AND || LIST_LENGTH(pLogicCond->pParameterList) == 0) {
     return false;
   }
-  SNode *pOperator = NULL;
-  FOREACH(pOperator, pLogicCond->pParameterList) {
-    if (nodeType(pOperator) != QUERY_NODE_OPERATOR) {
-      return false;
-    }
-    if (!filterHasPlaceHolderRange((SOperatorNode*)pOperator)) {
+  SNode* pCondition = NULL;
+  FOREACH(pCondition, pLogicCond->pParameterList) {
+    if (!conditionSatisfyExternalWindow(pCondition, pKinds)) {
       return false;
     }
   }
   return true;
 }
 
+static bool conditionSatisfyExternalWindow(SNode* pCondition, SStreamExternalBoundKinds* pKinds) {
+  if (pCondition == NULL) {
+    return false;
+  }
+  if (nodeType(pCondition) == QUERY_NODE_LOGIC_CONDITION) {
+    return logicConditionSatisfyExternalWindow((SLogicConditionNode*)pCondition, pKinds);
+  }
+  if (nodeType(pCondition) != QUERY_NODE_OPERATOR || !filterHasPlaceHolderRange((const SOperatorNode*)pCondition)) {
+    return false;
+  }
+
+  EStreamExternalBoundKind kind = streamClassifyExternalWindowBound((const SOperatorNode*)pCondition);
+  pKinds->hasLower |= kind == STREAM_EXT_BOUND_LOWER;
+  pKinds->hasUpper |= kind == STREAM_EXT_BOUND_UPPER;
+  return true;
+}
 
 static bool timeRangeSatisfyExternalWindow(STimeRangeNode* pTimeRange) {
   if (!pTimeRange || !pTimeRange->pStart || !pTimeRange->pEnd) {
     return false;
   }
 
-  if (nodeType(pTimeRange->pStart) == QUERY_NODE_OPERATOR) {
-    if (!filterHasPlaceHolderRange((SOperatorNode*)pTimeRange->pStart)) {
-      return false;
-    }
-  } else if (nodeType(pTimeRange->pStart) == QUERY_NODE_LOGIC_CONDITION) {
-    if (!logicConditionSatisfyExternalWindow((SLogicConditionNode*)pTimeRange->pStart)) {
-      return false;
-    }
-  } else {
+  SStreamExternalBoundKinds kinds = {0};
+  if (!conditionSatisfyExternalWindow(pTimeRange->pStart, &kinds) ||
+      !conditionSatisfyExternalWindow(pTimeRange->pEnd, &kinds)) {
     return false;
   }
-
-  if (nodeType(pTimeRange->pEnd) == QUERY_NODE_OPERATOR) {
-    if (!filterHasPlaceHolderRange((SOperatorNode*)pTimeRange->pEnd)) {
-      return false;
-    }
-  } else if (nodeType(pTimeRange->pEnd) == QUERY_NODE_LOGIC_CONDITION) {
-    if (!logicConditionSatisfyExternalWindow((SLogicConditionNode*)pTimeRange->pEnd)) {
-      return false;
-    }
-  } else {
-    return false;
-  }
-
-  return true;
+  return kinds.hasLower && kinds.hasUpper;
 }
 
 static int32_t conditionHasPlaceHolder(SNode* pNode, bool* pHasPlaceHolder) {
@@ -6583,6 +6732,414 @@ _return:
   nodesDestroyNode(pOtherCond);
   nodesDestroyNode(pCond);
   return code;
+}
+
+static bool streamWindowConstantExprIsSafe(SNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+
+  if (QUERY_NODE_VALUE == nodeType(pNode)) {
+    return true;
+  }
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    switch (pFunc->funcType) {
+      case FUNCTION_TYPE_TWSTART:
+      case FUNCTION_TYPE_TWEND:
+      case FUNCTION_TYPE_TWDURATION:
+      case FUNCTION_TYPE_TWROWNUM:
+        if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+          return false;
+        }
+        SNode* pLayer = nodesListGetNode(pFunc->pParameterList, 0);
+        return QUERY_NODE_VALUE == nodeType(pLayer) && ((SValueNode*)pLayer)->notReserved;
+      default:
+        return false;
+    }
+  }
+  if (QUERY_NODE_OPERATOR == nodeType(pNode)) {
+    SOperatorNode* pOp = (SOperatorNode*)pNode;
+    bool           isComparison = pOp->opType == OP_TYPE_EQUAL || pOp->opType == OP_TYPE_NOT_EQUAL ||
+                        pOp->opType == OP_TYPE_GREATER_THAN || pOp->opType == OP_TYPE_GREATER_EQUAL ||
+                        pOp->opType == OP_TYPE_LOWER_THAN || pOp->opType == OP_TYPE_LOWER_EQUAL;
+    return (isComparison || nodesIsBasicArithmeticOp(pOp)) && streamWindowConstantExprIsSafe(pOp->pLeft) &&
+           streamWindowConstantExprIsSafe(pOp->pRight);
+  }
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pNode)) {
+    SLogicConditionNode* pLogic = (SLogicConditionNode*)pNode;
+    if (LOGIC_COND_TYPE_AND != pLogic->condType || 0 == LIST_LENGTH(pLogic->pParameterList)) {
+      return false;
+    }
+    SNode* pParam = NULL;
+    FOREACH(pParam, pLogic->pParameterList) {
+      if (!streamWindowConstantExprIsSafe(pParam)) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+static EStreamExtPredicateClass streamClassifyExternalWindowPredicate(SNode* pNode) {
+  if (NULL == pNode) {
+    return STREAM_EXT_PREDICATE_UNSUPPORTED;
+  }
+  if (QUERY_NODE_OPERATOR == nodeType(pNode) &&
+      STREAM_EXT_BOUND_INVALID != streamClassifyExternalWindowBound((SOperatorNode*)pNode)) {
+    return STREAM_EXT_PREDICATE_TIME_RANGE;
+  }
+  if (streamWindowConstantExprIsSafe(pNode)) {
+    return STREAM_EXT_PREDICATE_WINDOW_CONSTANT;
+  }
+
+  bool hasPlaceHolder = false;
+  if (TSDB_CODE_SUCCESS != conditionHasPlaceHolder(pNode, &hasPlaceHolder) || hasPlaceHolder) {
+    return STREAM_EXT_PREDICATE_UNSUPPORTED;
+  }
+  return STREAM_EXT_PREDICATE_ROW;
+}
+
+static int32_t streamCollectWindowConditions(SNode* pNode, SNodeList** pConditions) {
+  if (NULL == pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pNode) && LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)pNode)->condType) {
+    SNode* pParam = NULL;
+    FOREACH(pParam, ((SLogicConditionNode*)pNode)->pParameterList) {
+      PLAN_ERR_RET(streamCollectWindowConditions(pParam, pConditions));
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+  if (STREAM_EXT_PREDICATE_WINDOW_CONSTANT != streamClassifyExternalWindowPredicate(pNode)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pClone = NULL;
+  PLAN_ERR_RET(nodesCloneNode(pNode, &pClone));
+  int32_t code = nodesListMakeStrictAppend(pConditions, pClone);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pClone);
+  }
+  return code;
+}
+
+static int32_t streamExtractWindowConditions(SNode* pWhere, SNode** pConditions) {
+  if (NULL == pConditions) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *pConditions = NULL;
+
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SNodeList* pConds = NULL;
+  PLAN_ERR_JRET(streamCollectWindowConditions(pWhere, &pConds));
+  if (NULL == pConds) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SLogicConditionNode* pLogic = NULL;
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pLogic));
+  pLogic->condType = LOGIC_COND_TYPE_AND;
+  pLogic->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pLogic->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+  pLogic->pParameterList = pConds;
+  pConds = NULL;
+  *pConditions = (SNode*)pLogic;
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  nodesDestroyList(pConds);
+  return code;
+}
+
+static int32_t streamCollectRowConditions(SNode* pNode, SNodeList** pConditions) {
+  if (NULL == pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pNode) && LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)pNode)->condType) {
+    SNode* pParam = NULL;
+    FOREACH(pParam, ((SLogicConditionNode*)pNode)->pParameterList) {
+      PLAN_ERR_RET(streamCollectRowConditions(pParam, pConditions));
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  EStreamExtPredicateClass cls = streamClassifyExternalWindowPredicate(pNode);
+  if (STREAM_EXT_PREDICATE_TIME_RANGE == cls || STREAM_EXT_PREDICATE_WINDOW_CONSTANT == cls) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pClone = NULL;
+  PLAN_ERR_RET(nodesCloneNode(pNode, &pClone));
+  int32_t code = nodesListMakeStrictAppend(pConditions, pClone);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pClone);
+  }
+  return code;
+}
+
+static int32_t streamRemoveWindowConditions(SLogicNode* pRoot) {
+  if (NULL == pRoot || NULL == pRoot->pConditions) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SNodeList* pRows = NULL;
+  PLAN_ERR_JRET(streamCollectRowConditions(pRoot->pConditions, &pRows));
+
+  SNode* pNewConditions = NULL;
+  PLAN_ERR_JRET(nodesMergeConds(&pNewConditions, &pRows));
+
+  nodesDestroyNode(pRoot->pConditions);
+  pRoot->pConditions = pNewConditions;
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  nodesDestroyList(pRows);
+  return code;
+}
+
+static bool streamDirectBaseTableProjectionIsSafe(SNodeList* pProjectionList, bool* pUsesWindowMetadata) {
+  *pUsesWindowMetadata = false;
+  SNode* pProj = NULL;
+  FOREACH(pProj, pProjectionList) {
+    SNode* pExpr = QUERY_NODE_TARGET == nodeType(pProj) ? ((STargetNode*)pProj)->pExpr : pProj;
+    if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+      continue;
+    }
+    if (QUERY_NODE_FUNCTION != nodeType(pExpr)) {
+      return false;
+    }
+    switch (((SFunctionNode*)pExpr)->funcType) {
+      case FUNCTION_TYPE_TWSTART:
+      case FUNCTION_TYPE_TWEND:
+      case FUNCTION_TYPE_TWDURATION:
+      case FUNCTION_TYPE_TWROWNUM:
+        *pUsesWindowMetadata = true;
+        if (1 != LIST_LENGTH(((SFunctionNode*)pExpr)->pParameterList)) {
+          return false;
+        }
+        SNode* pLayer = nodesListGetNode(((SFunctionNode*)pExpr)->pParameterList, 0);
+        if (QUERY_NODE_VALUE != nodeType(pLayer) || !((SValueNode*)pLayer)->notReserved) {
+          return false;
+        }
+        break;
+      default:
+        return false;
+    }
+  }
+  return true;
+}
+
+static bool streamDirectBaseTableMatchesTrigger(const SPlanStreamContext* pStreamCxt, SSelectStmt* pSelect) {
+  if (NULL == pStreamCxt || NULL == pStreamCxt->pTriggerTable || NULL == pSelect ||
+      QUERY_NODE_REAL_TABLE != nodeType(pStreamCxt->pTriggerTable) ||
+      QUERY_NODE_REAL_TABLE != nodeType(pSelect->pFromTable)) {
+    return false;
+  }
+
+  SRealTableNode* pTrigger = (SRealTableNode*)pStreamCxt->pTriggerTable;
+  SRealTableNode* pSource = (SRealTableNode*)pSelect->pFromTable;
+  return 0 == strcasecmp(pTrigger->table.dbName, pSource->table.dbName) &&
+         0 == strcasecmp(pTrigger->table.tableName, pSource->table.tableName);
+}
+
+static bool streamPartitionPlaceholderIsValid(const SPlanStreamContext* pStreamCxt, const SNode* pPlaceholder) {
+  if (NULL == pStreamCxt || NULL == pStreamCxt->pTriggerPartitionList ||
+      QUERY_NODE_FUNCTION != nodeType(pPlaceholder)) {
+    return false;
+  }
+
+  SFunctionNode* pFunc = (SFunctionNode*)pPlaceholder;
+  if (FUNCTION_TYPE_PLACEHOLDER_COLUMN != pFunc->funcType || LIST_LENGTH(pFunc->pParameterList) < 2) {
+    return false;
+  }
+
+  SNode* pIndexNode = nodesListGetNode(pFunc->pParameterList, 1);
+  if (QUERY_NODE_VALUE != nodeType(pIndexNode)) {
+    return false;
+  }
+
+  int64_t index = *(int64_t*)nodesGetValueFromNode((SValueNode*)pIndexNode);
+  return index > 0 && index <= LIST_LENGTH(pStreamCxt->pTriggerPartitionList);
+}
+
+static bool streamPartitionPlaceholderEqualityIsSafe(const SPlanStreamContext* pStreamCxt, const SOperatorNode* pOp,
+                                                     bool requirePartitionExprMatch) {
+  if (NULL == pOp || OP_TYPE_EQUAL != pOp->opType) {
+    return false;
+  }
+
+  bool leftIsPlaceholder = QUERY_NODE_FUNCTION == nodeType(pOp->pLeft) &&
+                           FUNCTION_TYPE_PLACEHOLDER_COLUMN == ((SFunctionNode*)pOp->pLeft)->funcType;
+  bool rightIsPlaceholder = QUERY_NODE_FUNCTION == nodeType(pOp->pRight) &&
+                            FUNCTION_TYPE_PLACEHOLDER_COLUMN == ((SFunctionNode*)pOp->pRight)->funcType;
+  if (leftIsPlaceholder == rightIsPlaceholder) {
+    return false;
+  }
+
+  const SNode* pPlaceholder = leftIsPlaceholder ? pOp->pLeft : pOp->pRight;
+  const SNode* pColumn = leftIsPlaceholder ? pOp->pRight : pOp->pLeft;
+  if (QUERY_NODE_COLUMN != nodeType(pColumn) || !streamPartitionPlaceholderIsValid(pStreamCxt, pPlaceholder)) {
+    return false;
+  }
+  if (!requirePartitionExprMatch) {
+    return true;
+  }
+
+  SNode*  pIndexNode = nodesListGetNode(((SFunctionNode*)pPlaceholder)->pParameterList, 1);
+  int64_t index = *(int64_t*)nodesGetValueFromNode((SValueNode*)pIndexNode);
+  return nodesEqualNode(pColumn, nodesListGetNode(pStreamCxt->pTriggerPartitionList, (int32_t)index - 1));
+}
+
+static bool streamDirectBaseTableWhereIsSafe(SNode* pNode, const SPlanStreamContext* pStreamCxt,
+                                             bool requirePartitionExprMatch) {
+  if (NULL == pNode) {
+    return true;
+  }
+
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pNode)) {
+    SLogicConditionNode* pLogic = (SLogicConditionNode*)pNode;
+    if (LOGIC_COND_TYPE_AND != pLogic->condType || 0 == LIST_LENGTH(pLogic->pParameterList)) {
+      return false;
+    }
+    SNode* pParam = NULL;
+    FOREACH(pParam, pLogic->pParameterList) {
+      if (!streamDirectBaseTableWhereIsSafe(pParam, pStreamCxt, requirePartitionExprMatch)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  if (QUERY_NODE_OPERATOR != nodeType(pNode) || !nodesIsComparisonOp((SOperatorNode*)pNode)) {
+    return false;
+  }
+
+  SOperatorNode* pOp = (SOperatorNode*)pNode;
+  if (nodesIsUnaryOp(pOp)) {
+    if (NULL == pOp->pLeft || NULL != pOp->pRight) {
+      return false;
+    }
+    return QUERY_NODE_COLUMN == nodeType(pOp->pLeft) || QUERY_NODE_VALUE == nodeType(pOp->pLeft);
+  }
+  if (OP_TYPE_EXISTS == pOp->opType || OP_TYPE_NOT_EXISTS == pOp->opType) {
+    return false;
+  }
+  if (NULL == pOp->pLeft || NULL == pOp->pRight) {
+    return false;
+  }
+  if (QUERY_NODE_FUNCTION == nodeType(pOp->pLeft)) {
+    return streamPartitionPlaceholderEqualityIsSafe(pStreamCxt, pOp, requirePartitionExprMatch);
+  }
+  if (QUERY_NODE_FUNCTION == nodeType(pOp->pRight)) {
+    return streamPartitionPlaceholderEqualityIsSafe(pStreamCxt, pOp, requirePartitionExprMatch);
+  }
+  return (QUERY_NODE_COLUMN == nodeType(pOp->pLeft) || QUERY_NODE_VALUE == nodeType(pOp->pLeft)) &&
+         (QUERY_NODE_COLUMN == nodeType(pOp->pRight) || QUERY_NODE_VALUE == nodeType(pOp->pRight));
+}
+
+static bool streamDirectBaseTableContainsPartitionPlaceholder(SNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    EFunctionType type = ((SFunctionNode*)pNode)->funcType;
+    return FUNCTION_TYPE_PLACEHOLDER_COLUMN == type || FUNCTION_TYPE_PLACEHOLDER_TBNAME == type;
+  }
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pNode)) {
+    SNode* pParam = NULL;
+    FOREACH(pParam, ((SLogicConditionNode*)pNode)->pParameterList) {
+      if (streamDirectBaseTableContainsPartitionPlaceholder(pParam)) {
+        return true;
+      }
+    }
+  } else if (QUERY_NODE_OPERATOR == nodeType(pNode)) {
+    SOperatorNode* pOp = (SOperatorNode*)pNode;
+    return streamDirectBaseTableContainsPartitionPlaceholder(pOp->pLeft) ||
+           streamDirectBaseTableContainsPartitionPlaceholder(pOp->pRight);
+  }
+  return false;
+}
+
+static bool streamDirectBaseTablePartitionPlaceholdersMatch(SNode* pNode, const SPlanStreamContext* pStreamCxt) {
+  if (NULL == pNode || !streamDirectBaseTableContainsPartitionPlaceholder(pNode)) {
+    return true;
+  }
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pNode)) {
+    SLogicConditionNode* pLogic = (SLogicConditionNode*)pNode;
+    if (LOGIC_COND_TYPE_AND != pLogic->condType) {
+      return false;
+    }
+    SNode* pParam = NULL;
+    FOREACH(pParam, pLogic->pParameterList) {
+      if (!streamDirectBaseTablePartitionPlaceholdersMatch(pParam, pStreamCxt)) {
+        return false;
+      }
+    }
+    return true;
+  }
+  if (QUERY_NODE_OPERATOR != nodeType(pNode)) {
+    return false;
+  }
+
+  SOperatorNode* pOp = (SOperatorNode*)pNode;
+  if (QUERY_NODE_FUNCTION == nodeType(pOp->pLeft) || QUERY_NODE_FUNCTION == nodeType(pOp->pRight)) {
+    return streamPartitionPlaceholderEqualityIsSafe(pStreamCxt, pOp, true);
+  }
+  return streamDirectBaseTablePartitionPlaceholdersMatch(pOp->pLeft, pStreamCxt) &&
+         streamDirectBaseTablePartitionPlaceholdersMatch(pOp->pRight, pStreamCxt);
+}
+
+static bool streamDirectBaseTableIsBroadcastSafe(const SPlanStreamContext* pStreamCxt, SSelectStmt* pSelect,
+                                                 bool allowGroupStaticDimensionFilter) {
+  if (NULL == pSelect || NULL == pSelect->pFromTable || QUERY_NODE_REAL_TABLE != nodeType(pSelect->pFromTable) ||
+      NULL != pSelect->pTimeRange ||
+      (NULL != pSelect->pWindow && QUERY_NODE_EXTERNAL_WINDOW != nodeType(pSelect->pWindow)) || pSelect->joinContains ||
+      pSelect->hasAggFuncs || pSelect->hasIndefiniteRowsFunc || pSelect->hasMultiRowsFunc ||
+      NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList || NULL != pSelect->pOrderByList ||
+      NULL != pSelect->pLimit || NULL != pSelect->pSlimit || pSelect->hasInterpFunc || pSelect->hasUniqueFunc ||
+      pSelect->hasTailFunc || pSelect->hasForecastFunc) {
+    return false;
+  }
+  if (SP_PARTITION_ROWS == ((SRealTableNode*)pSelect->pFromTable)->placeholderType) {
+    return false;
+  }
+  if (!streamDirectBaseTableWhereIsSafe(pSelect->pWhere, pStreamCxt, !allowGroupStaticDimensionFilter)) {
+    return false;
+  }
+  if (streamDirectBaseTableContainsPartitionPlaceholder(pSelect->pWhere) &&
+      (!allowGroupStaticDimensionFilter && !streamDirectBaseTableMatchesTrigger(pStreamCxt, pSelect))) {
+    return false;
+  }
+  bool usesWindowMetadata = false;
+  if (!streamDirectBaseTableProjectionIsSafe(pSelect->pProjectionList, &usesWindowMetadata)) {
+    return false;
+  }
+  return usesWindowMetadata;
+}
+
+static int32_t streamConditionHasUnsupportedPlaceHolder(SNode* pNode, bool* pHasPlaceHolder) {
+  if (NULL == pNode) {
+    *pHasPlaceHolder = false;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pNode) && LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)pNode)->condType) {
+    SNode* pParam = NULL;
+    FOREACH(pParam, ((SLogicConditionNode*)pNode)->pParameterList) {
+      PLAN_ERR_RET(streamConditionHasUnsupportedPlaceHolder(pParam, pHasPlaceHolder));
+      if (*pHasPlaceHolder) {
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+  if (STREAM_EXT_PREDICATE_WINDOW_CONSTANT == streamClassifyExternalWindowPredicate(pNode)) {
+    *pHasPlaceHolder = false;
+    return TSDB_CODE_SUCCESS;
+  }
+  return conditionHasPlaceHolder(pNode, pHasPlaceHolder);
 }
 
 static bool streamSelectIsDerivedWrapper(SSelectStmt* pSelect) {
@@ -6635,18 +7192,21 @@ static int32_t streamDerivedWrapperSatisfyExternalWindow(SLogicPlanContext* pCxt
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t streamCurrentSelectSatisfyExternalWindow(SLogicPlanContext* pCxt, SSelectStmt* pSelect, bool* pSatisfy) {
+static int32_t streamCurrentSelectSatisfyExternalWindow(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
+                                                        bool allowGroupStaticDimensionFilter, bool* pSatisfy) {
   *pSatisfy = false;
   if (NULL == pSelect || NULL == pSelect->pFromTable) {
     return TSDB_CODE_SUCCESS;
   }
 
   bool hasPlaceHolderCond = false;
-  PAR_ERR_RET(conditionHasPlaceHolder(pSelect->pWhere, &hasPlaceHolderCond));
+  PAR_ERR_RET(streamConditionHasUnsupportedPlaceHolder(pSelect->pWhere, &hasPlaceHolderCond));
 
   ENodeType fromType = nodeType(pSelect->pFromTable);
-  bool      safeExtJoin =
-      QUERY_NODE_JOIN_TABLE == fromType && streamExtJoinTableIsSafe((SJoinTableNode*)pSelect->pFromTable);
+  bool      safeExtJoin = QUERY_NODE_JOIN_TABLE == fromType &&
+                     streamExtJoinTableIsSafe(&pCxt->pPlanCxt->streamCxt, (SJoinTableNode*)pSelect->pFromTable);
+  bool safeBroadcast =
+      streamDirectBaseTableIsBroadcastSafe(&pCxt->pPlanCxt->streamCxt, pSelect, allowGroupStaticDimensionFilter);
   planDebug("stream external window evaluate select: fromType=%d hasPlaceHolder=%d treeChecked=%d treeEnabled=%d",
             fromType, hasPlaceHolderCond, pCxt->streamExtWindowTreeChecked, pCxt->streamExtWindowTreeEnabled);
 
@@ -6657,17 +7217,24 @@ static int32_t streamCurrentSelectSatisfyExternalWindow(SLogicPlanContext* pCxt,
     return TSDB_CODE_SUCCESS;
   }
 
-  if (!safeExtJoin && !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange)) {
+  if (!allowGroupStaticDimensionFilter && QUERY_NODE_REAL_TABLE == fromType &&
+      streamDirectBaseTableContainsPartitionPlaceholder(pSelect->pWhere) &&
+      (!streamDirectBaseTableMatchesTrigger(&pCxt->pPlanCxt->streamCxt, pSelect) ||
+       !streamDirectBaseTablePartitionPlaceholdersMatch(pSelect->pWhere, &pCxt->pPlanCxt->streamCxt))) {
+    planDebug("%s", "stream external window disabled: direct table partition placeholder is not trigger-identical");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (!safeExtJoin && !safeBroadcast && !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange)) {
     planDebug("%s", "stream external window disabled: select time range does not match trigger window placeholders");
     return TSDB_CODE_SUCCESS;
   }
 
-  if (NULL != pSelect->pWindow || hasEffectivePartition(pSelect) ||
-      NULL != pSelect->pGroupByList ||
-      !inStreamCalcClause(pCxt->pPlanCxt) || hasPlaceHolderCond ||
+  if (NULL != pSelect->pWindow || hasEffectivePartition(pSelect) || NULL != pSelect->pGroupByList ||
+      !inStreamCalcClause(pCxt->pPlanCxt) || (hasPlaceHolderCond && !safeBroadcast) ||
       (QUERY_NODE_JOIN_TABLE == fromType && !safeExtJoin) || NULL != pSelect->pSlimit || NULL != pSelect->pLimit ||
-      pCxt->pPlanCxt->streamCxt.disableExtWindow || pSelect->hasInterpFunc ||
-      pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
+      pCxt->pPlanCxt->streamCxt.disableExtWindow || pSelect->hasInterpFunc || pSelect->hasUniqueFunc ||
+      pSelect->hasIndefiniteRowsFunc || pSelect->hasMultiRowsFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
       (pSelect->pOrderByList != NULL && pCxt->pPlanCxt->streamCxt.hasForceOutput)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -6685,30 +7252,34 @@ static int32_t streamCurrentSelectSatisfyExternalWindow(SLogicPlanContext* pCxt,
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t streamSelectTreeSatisfyExternalWindow(SLogicPlanContext* pCxt, SNode* pStmt, bool* pSatisfy);
+static int32_t streamSelectTreeSatisfyExternalWindow(SLogicPlanContext* pCxt, SNode* pStmt,
+                                                     bool allowGroupStaticDimensionFilter, bool* pSatisfy);
 
-static int32_t streamTableTreeSatisfyExternalWindow(SLogicPlanContext* pCxt, SNode* pTable, bool* pSatisfy) {
+static int32_t streamTableTreeSatisfyExternalWindow(SLogicPlanContext* pCxt, SNode* pTable,
+                                                    bool allowGroupStaticDimensionFilter, bool* pSatisfy) {
   if (NULL == pTable || !*pSatisfy) {
     return TSDB_CODE_SUCCESS;
   }
 
   switch (nodeType(pTable)) {
     case QUERY_NODE_TEMP_TABLE:
-      return streamSelectTreeSatisfyExternalWindow(pCxt, ((STempTableNode*)pTable)->pSubquery, pSatisfy);
+      return streamSelectTreeSatisfyExternalWindow(pCxt, ((STempTableNode*)pTable)->pSubquery,
+                                                   allowGroupStaticDimensionFilter, pSatisfy);
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
-      PLAN_ERR_RET(streamTableTreeSatisfyExternalWindow(pCxt, pJoin->pLeft, pSatisfy));
+      PLAN_ERR_RET(streamTableTreeSatisfyExternalWindow(pCxt, pJoin->pLeft, true, pSatisfy));
       if (!*pSatisfy) {
         return TSDB_CODE_SUCCESS;
       }
-      return streamTableTreeSatisfyExternalWindow(pCxt, pJoin->pRight, pSatisfy);
+      return streamTableTreeSatisfyExternalWindow(pCxt, pJoin->pRight, true, pSatisfy);
     }
     default:
       return TSDB_CODE_SUCCESS;
   }
 }
 
-static int32_t streamSelectTreeSatisfyExternalWindow(SLogicPlanContext* pCxt, SNode* pStmt, bool* pSatisfy) {
+static int32_t streamSelectTreeSatisfyExternalWindow(SLogicPlanContext* pCxt, SNode* pStmt,
+                                                     bool allowGroupStaticDimensionFilter, bool* pSatisfy) {
   if (NULL == pStmt || !*pSatisfy) {
     return TSDB_CODE_SUCCESS;
   }
@@ -6718,12 +7289,12 @@ static int32_t streamSelectTreeSatisfyExternalWindow(SLogicPlanContext* pCxt, SN
   }
 
   SSelectStmt* pSelect = (SSelectStmt*)pStmt;
-  PLAN_ERR_RET(streamCurrentSelectSatisfyExternalWindow(pCxt, pSelect, pSatisfy));
+  PLAN_ERR_RET(streamCurrentSelectSatisfyExternalWindow(pCxt, pSelect, allowGroupStaticDimensionFilter, pSatisfy));
   if (!*pSatisfy) {
     return TSDB_CODE_SUCCESS;
   }
 
-  return streamTableTreeSatisfyExternalWindow(pCxt, pSelect->pFromTable, pSatisfy);
+  return streamTableTreeSatisfyExternalWindow(pCxt, pSelect->pFromTable, allowGroupStaticDimensionFilter, pSatisfy);
 }
 
 /**
@@ -6770,14 +7341,14 @@ static int32_t checkExternalWindow(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   if (!pCxt->streamExtWindowTreeChecked) {
     bool satisfy = true;
-    PLAN_ERR_RET(streamSelectTreeSatisfyExternalWindow(pCxt, (SNode*)pSelect, &satisfy));
+    PLAN_ERR_RET(streamSelectTreeSatisfyExternalWindow(pCxt, (SNode*)pSelect, false, &satisfy));
     pCxt->streamExtWindowTreeChecked = true;
     pCxt->streamExtWindowTreeEnabled = satisfy;
     planDebug("stream external window tree evaluated: satisfy=%d", satisfy);
   }
 
   if (pCxt->streamExtWindowTreeEnabled && !streamSelectIsDerivedWrapper(pSelect)) {
-    PLAN_ERR_RET(buildStreamExtJoinTwendTimeRange(pSelect));
+    PLAN_ERR_RET(buildStreamExtJoinTwendTimeRange(&pCxt->pPlanCxt->streamCxt, pSelect));
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -7916,8 +8487,294 @@ static void setLogicSubplanType(SPlanContext* pCxt, SLogicSubplan* pSubplan) {
   }
 }
 
+typedef enum EStreamMultiGroupRejectReason {
+  STREAM_MULTI_GROUP_REJECT_NONE = 0,
+  STREAM_MULTI_GROUP_REJECT_UNSAFE_JOIN,
+  STREAM_MULTI_GROUP_REJECT_MISSING_BASE_GID,
+  STREAM_MULTI_GROUP_REJECT_NON_TRANSPARENT,
+  STREAM_MULTI_GROUP_REJECT_CALC_GROUPING,
+  STREAM_MULTI_GROUP_REJECT_PARTITION_ROWS,
+  STREAM_MULTI_GROUP_REJECT_HASH_UNAVAILABLE,
+} EStreamMultiGroupRejectReason;
+
+typedef struct SStreamMultiGroupCheckContext {
+  SArray*                       pJoins;
+  const SNode*                  pTriggerTable;
+  EStreamMultiGroupRejectReason reason;
+  ENodeType                     rejectNodeType;
+} SStreamMultiGroupCheckContext;
+
+static const char* streamMultiGroupRejectReasonName(EStreamMultiGroupRejectReason reason) {
+  switch (reason) {
+    case STREAM_MULTI_GROUP_REJECT_UNSAFE_JOIN:
+      return "unsafe JOIN";
+    case STREAM_MULTI_GROUP_REJECT_MISSING_BASE_GID:
+      return "missing baseGId source";
+    case STREAM_MULTI_GROUP_REJECT_NON_TRANSPARENT:
+      return "non-transparent operator";
+    case STREAM_MULTI_GROUP_REJECT_CALC_GROUPING:
+      return "calc grouping";
+    case STREAM_MULTI_GROUP_REJECT_PARTITION_ROWS:
+      return "%%trows";
+    case STREAM_MULTI_GROUP_REJECT_HASH_UNAVAILABLE:
+      return "hash algorithm unavailable";
+    default:
+      return "none";
+  }
+}
+
+static void streamMultiGroupReject(SStreamMultiGroupCheckContext* pCxt, EStreamMultiGroupRejectReason reason,
+                                   const SNode* pNode) {
+  if (STREAM_MULTI_GROUP_REJECT_NONE == pCxt->reason) {
+    pCxt->reason = reason;
+    pCxt->rejectNodeType = NULL == pNode ? QUERY_NODE_NODE_LIST : nodeType(pNode);
+  }
+}
+
+static void streamMultiGroupInspectAst(SNode* pNode, const SPlanStreamContext* pStreamCxt, bool* pHasGrouping,
+                                       bool* pUsesPartitionRows, bool* pHasUnsafeJoin);
+
+static void streamMultiGroupInspectTable(SNode* pTable, const SPlanStreamContext* pStreamCxt, bool* pHasGrouping,
+                                         bool* pUsesPartitionRows, bool* pHasUnsafeJoin) {
+  if (NULL == pTable || *pHasGrouping || *pUsesPartitionRows || *pHasUnsafeJoin) {
+    return;
+  }
+
+  switch (nodeType(pTable)) {
+    case QUERY_NODE_REAL_TABLE:
+      *pUsesPartitionRows = SP_PARTITION_ROWS == ((SRealTableNode*)pTable)->placeholderType;
+      break;
+    case QUERY_NODE_TEMP_TABLE:
+      streamMultiGroupInspectAst(((STempTableNode*)pTable)->pSubquery, pStreamCxt, pHasGrouping, pUsesPartitionRows,
+                                 pHasUnsafeJoin);
+      break;
+    case QUERY_NODE_JOIN_TABLE: {
+      SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
+      if (!streamExtJoinTableIsSafe(pStreamCxt, pJoin)) {
+        *pHasUnsafeJoin = true;
+        break;
+      }
+      streamMultiGroupInspectTable(pJoin->pLeft, pStreamCxt, pHasGrouping, pUsesPartitionRows, pHasUnsafeJoin);
+      streamMultiGroupInspectTable(pJoin->pRight, pStreamCxt, pHasGrouping, pUsesPartitionRows, pHasUnsafeJoin);
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+static void streamMultiGroupInspectAst(SNode* pNode, const SPlanStreamContext* pStreamCxt, bool* pHasGrouping,
+                                       bool* pUsesPartitionRows, bool* pHasUnsafeJoin) {
+  if (NULL == pNode || *pHasGrouping || *pUsesPartitionRows || *pHasUnsafeJoin ||
+      QUERY_NODE_SELECT_STMT != nodeType(pNode)) {
+    return;
+  }
+
+  SSelectStmt* pSelect = (SSelectStmt*)pNode;
+  *pHasGrouping = NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList;
+  streamMultiGroupInspectTable(pSelect->pFromTable, pStreamCxt, pHasGrouping, pUsesPartitionRows, pHasUnsafeJoin);
+  SNode* pSubquery = NULL;
+  FOREACH(pSubquery, pSelect->pSubQueries) {
+    streamMultiGroupInspectAst(pSubquery, pStreamCxt, pHasGrouping, pUsesPartitionRows, pHasUnsafeJoin);
+  }
+}
+
+static bool streamMultiGroupTreeHasJoin(const SLogicNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+  if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pNode)) {
+    return true;
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (streamMultiGroupTreeHasJoin((const SLogicNode*)pChild)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static const STableNode* streamMultiGroupTableNode(const SNode* pTable) {
+  if (NULL == pTable || (QUERY_NODE_REAL_TABLE != nodeType(pTable) && QUERY_NODE_VIRTUAL_TABLE != nodeType(pTable))) {
+    return NULL;
+  }
+  return (const STableNode*)pTable;
+}
+
+static bool streamMultiGroupSubtreeScansMatchTrigger(const SLogicNode* pNode, const SNode* pTriggerTable,
+                                                     bool* pHasScan) {
+  if (NULL == pNode) {
+    return false;
+  }
+
+  const SName* pScanName = NULL;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_SCAN:
+      pScanName = &((const SScanLogicNode*)pNode)->tableName;
+      break;
+    case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
+      pScanName = &((const SVirtualScanLogicNode*)pNode)->tableName;
+      break;
+    default:
+      break;
+  }
+
+  if (NULL != pScanName) {
+    const STableNode* pTrigger = streamMultiGroupTableNode(pTriggerTable);
+    *pHasScan = true;
+    return NULL != pTrigger && 0 == strcasecmp(pTrigger->dbName, pScanName->dbname) &&
+           0 == strcasecmp(pTrigger->tableName, pScanName->tname);
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (!streamMultiGroupSubtreeScansMatchTrigger((const SLogicNode*)pChild, pTriggerTable, pHasScan)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static int32_t streamMultiGroupCollect(SLogicNode* pNode, SStreamMultiGroupCheckContext* pCxt, bool inJoinTree,
+                                       bool* pHasBaseGId) {
+  *pHasBaseGId = false;
+  if (NULL == pNode) {
+    streamMultiGroupReject(pCxt, STREAM_MULTI_GROUP_REJECT_MISSING_BASE_GID, NULL);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      if (1 != LIST_LENGTH(pNode->pChildren) || NULL != pNode->pLimit || NULL != pNode->pSlimit) {
+        streamMultiGroupReject(pCxt, STREAM_MULTI_GROUP_REJECT_NON_TRANSPARENT, (SNode*)pNode);
+        return TSDB_CODE_SUCCESS;
+      }
+      return streamMultiGroupCollect((SLogicNode*)nodesListGetNode(pNode->pChildren, 0), pCxt, inJoinTree, pHasBaseGId);
+    case QUERY_NODE_LOGIC_PLAN_WINDOW: {
+      SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode;
+      if (WINDOW_TYPE_EXTERNAL != pWindow->winType) {
+        streamMultiGroupReject(pCxt, STREAM_MULTI_GROUP_REJECT_NON_TRANSPARENT, (SNode*)pNode);
+        return TSDB_CODE_SUCCESS;
+      }
+
+      SNode* pChild = NULL;
+      FOREACH(pChild, pNode->pChildren) {
+        if (!streamMultiGroupTreeHasJoin((SLogicNode*)pChild)) {
+          if (!inJoinTree && EXT_WIN_INPUT_WINDOW_BOUND == pWindow->extWinInputMode) {
+            bool hasScan = false;
+            if (!streamMultiGroupSubtreeScansMatchTrigger((SLogicNode*)pChild, pCxt->pTriggerTable, &hasScan) ||
+                !hasScan) {
+              streamMultiGroupReject(pCxt, STREAM_MULTI_GROUP_REJECT_MISSING_BASE_GID, pChild);
+              return TSDB_CODE_SUCCESS;
+            }
+          }
+          continue;
+        }
+        bool childHasBaseGId = false;
+        PLAN_ERR_RET(streamMultiGroupCollect((SLogicNode*)pChild, pCxt, true, &childHasBaseGId));
+        if (!childHasBaseGId) {
+          return TSDB_CODE_SUCCESS;
+        }
+      }
+      *pHasBaseGId = true;
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_LOGIC_PLAN_JOIN: {
+      SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
+      if (JOIN_TYPE_INNER != pJoin->joinType || JOIN_STYPE_NONE != pJoin->subType ||
+          2 != LIST_LENGTH(pNode->pChildren)) {
+        streamMultiGroupReject(pCxt, STREAM_MULTI_GROUP_REJECT_UNSAFE_JOIN, (SNode*)pNode);
+        return TSDB_CODE_SUCCESS;
+      }
+      if (JOIN_ALGO_UNKNOWN != pJoin->joinAlgo && JOIN_ALGO_HASH != pJoin->joinAlgo) {
+        streamMultiGroupReject(pCxt, STREAM_MULTI_GROUP_REJECT_HASH_UNAVAILABLE, (SNode*)pNode);
+        return TSDB_CODE_SUCCESS;
+      }
+
+      bool leftHasBaseGId = false;
+      bool rightHasBaseGId = false;
+      PLAN_ERR_RET(
+          streamMultiGroupCollect((SLogicNode*)nodesListGetNode(pNode->pChildren, 0), pCxt, true, &leftHasBaseGId));
+      if (!leftHasBaseGId) {
+        return TSDB_CODE_SUCCESS;
+      }
+      PLAN_ERR_RET(
+          streamMultiGroupCollect((SLogicNode*)nodesListGetNode(pNode->pChildren, 1), pCxt, true, &rightHasBaseGId));
+      if (!rightHasBaseGId) {
+        return TSDB_CODE_SUCCESS;
+      }
+      if (NULL == taosArrayPush(pCxt->pJoins, &pJoin)) {
+        return terrno;
+      }
+      *pHasBaseGId = true;
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_LOGIC_PLAN_SCAN:
+      streamMultiGroupReject(pCxt, STREAM_MULTI_GROUP_REJECT_MISSING_BASE_GID, (SNode*)pNode);
+      return TSDB_CODE_SUCCESS;
+    default:
+      streamMultiGroupReject(pCxt, STREAM_MULTI_GROUP_REJECT_NON_TRANSPARENT, (SNode*)pNode);
+      return TSDB_CODE_SUCCESS;
+  }
+}
+
+static int32_t streamEnableMultiGroupCalc(SPlanContext* pPlanCxt, SLogicNode* pRoot, bool hasGrouping,
+                                          bool usesPartitionRows, bool hasUnsafeJoin) {
+  if (!pPlanCxt->streamCxt.isCalc) {
+    return TSDB_CODE_SUCCESS;
+  }
+  pPlanCxt->streamCxt.enableMultiGroupCalc = false;
+
+  SStreamMultiGroupCheckContext cxt = {
+      .pJoins = taosArrayInit(4, POINTER_BYTES),
+      .pTriggerTable = pPlanCxt->streamCxt.pTriggerTable,
+      .reason = STREAM_MULTI_GROUP_REJECT_NONE,
+      .rejectNodeType = QUERY_NODE_NODE_LIST,
+  };
+  if (NULL == cxt.pJoins) {
+    return terrno;
+  }
+
+  if (hasGrouping) {
+    streamMultiGroupReject(&cxt, STREAM_MULTI_GROUP_REJECT_CALC_GROUPING, pPlanCxt->pAstRoot);
+  } else if (usesPartitionRows) {
+    streamMultiGroupReject(&cxt, STREAM_MULTI_GROUP_REJECT_PARTITION_ROWS, pPlanCxt->pAstRoot);
+  } else if (hasUnsafeJoin) {
+    streamMultiGroupReject(&cxt, STREAM_MULTI_GROUP_REJECT_UNSAFE_JOIN, pPlanCxt->pAstRoot);
+  } else if (0 == LIST_LENGTH(pPlanCxt->streamCxt.pTriggerPartitionList)) {
+    streamMultiGroupReject(&cxt, STREAM_MULTI_GROUP_REJECT_MISSING_BASE_GID, pPlanCxt->streamCxt.pTriggerTable);
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  bool    hasBaseGId = false;
+  if (STREAM_MULTI_GROUP_REJECT_NONE == cxt.reason) {
+    code = streamMultiGroupCollect(pRoot, &cxt, false, &hasBaseGId);
+  }
+  if (TSDB_CODE_SUCCESS == code && STREAM_MULTI_GROUP_REJECT_NONE == cxt.reason && hasBaseGId) {
+    for (int32_t i = 0; i < taosArrayGetSize(cxt.pJoins); ++i) {
+      SJoinLogicNode* pJoin = *(SJoinLogicNode**)taosArrayGet(cxt.pJoins, i);
+      pJoin->multiGroupJoin = true;
+    }
+    pPlanCxt->streamCxt.enableMultiGroupCalc = true;
+  } else if (TSDB_CODE_SUCCESS == code) {
+    planDebug("stream multi-group disabled: nodeType=%d reason=%s", cxt.rejectNodeType,
+              streamMultiGroupRejectReasonName(cxt.reason));
+  }
+
+  taosArrayDestroy(cxt.pJoins);
+  return code;
+}
+
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
   SLogicPlanContext cxt = {.pPlanCxt = pCxt, .pCurrRoot = NULL};
+
+  bool hasGrouping = false;
+  bool usesPartitionRows = false;
+  bool hasUnsafeJoin = false;
+  if (pCxt->streamCxt.isCalc) {
+    streamMultiGroupInspectAst(pCxt->pAstRoot, &pCxt->streamCxt, &hasGrouping, &usesPartitionRows, &hasUnsafeJoin);
+  }
 
   SLogicSubplan* pSubplan = NULL;
   int32_t        code = nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN, (SNode**)&pSubplan);
@@ -7933,6 +8790,9 @@ int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
     setLogicNodeParent(pSubplan->pNode);
     setLogicSubplanType(pCxt, pSubplan);
     code = adjustLogicNodeDataRequirement(pSubplan->pNode, DATA_ORDER_LEVEL_NONE);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = streamEnableMultiGroupCalc(pCxt, pSubplan->pNode, hasGrouping, usesPartitionRows, hasUnsafeJoin);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

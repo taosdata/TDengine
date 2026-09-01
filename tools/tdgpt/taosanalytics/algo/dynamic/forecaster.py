@@ -1,6 +1,7 @@
 import json
 from abc import ABC, abstractmethod
 
+import numpy as np
 import pandas as pd
 from prophet import Prophet
 from statsmodels.tsa.arima.model import ARIMA
@@ -29,9 +30,10 @@ class BaseModelForecaster(ABC):
         self.kwargs = kwargs
         self.model_info: dict | None = None
         self._model = None
-        self.alpha = kwargs.get(
-            "alpha", 0.05
-        )  # default confidence level for prediction intervals
+        self._freq: str | None = None
+
+        # default confidence level for prediction intervals
+        self.alpha = kwargs.get("alpha", 0.05)
 
     def build(self):
         self.model_info = self._load_config()
@@ -50,7 +52,12 @@ class BaseModelForecaster(ABC):
             )
             return None
 
-        self._model = self._build_model()
+        try:
+            self._model = self._build_model()
+        except Exception as e:
+            raise RuntimeError(
+                f"failed to build {self.target_algo} model from {self.path}: {e}"
+            ) from e
         return self._model
 
     def forecast(self):
@@ -64,7 +71,7 @@ class BaseModelForecaster(ABC):
             with open(self.path, "r", encoding="utf-8") as handle:
                 return json.load(handle)
         except FileNotFoundError:
-            AppLogger.error(f"Model config not found: {self.path}")
+            AppLogger.error("Model config not found: %s", self.path)
             return None
 
     def _is_expected_algo(self):
@@ -73,6 +80,23 @@ class BaseModelForecaster(ABC):
 
     def _has_required_columns(self):
         return self.required_columns.issubset(self.df.columns)
+
+    def _get_pytorch_subdir_path(self, filename: str) -> str | None:
+        """Resolve model file path in pytorch/ subdirectory relative to config file.
+
+        Config structure:
+        /path/to/model/config.json
+        /path/to/model/pytorch/weights.pt
+        /path/to/model/pytorch/config.json
+
+        Returns absolute path if file exists, None otherwise.
+        """
+        from pathlib import Path
+        config_dir = Path(self.path).parent
+        pytorch_file = config_dir / "pytorch" / filename
+        if pytorch_file.exists():
+            return str(pytorch_file)
+        return None
 
     @abstractmethod
     def _build_model(self):
@@ -211,3 +235,151 @@ class ProphetModelForecaster(BaseModelForecaster):
         best_params = self.model_info.get("best_params") or {}
         best_params["freq"] = self.model_info.get("freq", "D")
         return best_params
+
+
+class DeepARModelForecaster(BaseModelForecaster):
+    """
+    DeepAR model reconstructor using GluonTS and PyTorch.
+
+    The model files are resolved as follows:
+    1. If model_path/config_path are explicitly set in config, use them
+    2. Otherwise, search in pytorch/ subdirectory relative to config file:
+       Config file: /path/to/model/model_config.json
+       Model files: /path/to/model/pytorch/weights.pt
+                    /path/to/model/pytorch/config.json
+
+    Example config:
+    {
+        "algo": "deepar",
+        "best_params": {"num_layers": 1, "hidden_size": 256, ...},
+        "freq": "1D",
+        "prediction_length": 12
+    }
+    """
+
+    target_algo = "DEEPAR"
+
+    def _build_model(self):
+        import torch
+        from gluonts.torch import DeepAREstimator
+
+        model_path = self.model_info.get("model_path")
+        config_path = self.model_info.get("config_path")
+
+        # If paths not explicitly provided, resolve from pytorch/ subdirectory
+        if not model_path:
+            model_path = self._get_pytorch_subdir_path("weights.pt")
+        if not config_path:
+            config_path = self._get_pytorch_subdir_path("config.json")
+
+        if not model_path:
+            raise RuntimeError(
+                "DeepAR requires model_path (PyTorch .pth/.pt file). "
+                "Either set model_path in config or place weights.pt in pytorch/ subdirectory"
+            )
+
+        # Load model config from pytorch/ subdirectory
+        cfg = {}
+        if config_path:
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+            except Exception as e:
+                AppLogger.warning("Could not load config from %s: %s", config_path, e)
+
+        freq_cfg = cfg.get("freq")
+        freq_info = self.model_info.get("freq")
+        if freq_cfg and freq_info and freq_cfg != freq_info:
+            raise RuntimeError(
+                "freq mismatch: pytorch/config.json has %r but main config has %r"
+                % (freq_cfg, freq_info)
+            )
+        freq = freq_cfg or freq_info or "D"
+        self._freq = freq
+        prediction_length = cfg.get("prediction_length") or self.model_info.get("prediction_length", 12)
+
+        if self.horizon > prediction_length:
+            raise RuntimeError(
+                f"requested forecast rows ({self.horizon}) exceeds DeepAR model's "
+                f"prediction_length ({prediction_length})"
+            )
+
+        estimator = DeepAREstimator(
+            freq=freq,
+            prediction_length=prediction_length,
+            context_length=cfg.get("context_length", self.model_info.get("context_length", 2 * prediction_length)),
+            num_layers=cfg.get("num_layers", self.model_info.get("num_layers", 2)),
+            hidden_size=cfg.get("hidden_size", self.model_info.get("hidden_size", 128)),
+            dropout_rate=cfg.get("dropout_rate", self.model_info.get("dropout_rate", 0.1)),
+            batch_size=cfg.get("batch_size", self.model_info.get("batch_size", 32)),
+            num_feat_dynamic_real=cfg.get("num_feat_dynamic_real", 0),
+            num_parallel_samples=cfg.get("num_parallel_samples", 100),
+            lr=cfg.get("learning_rate", self.model_info.get("learning_rate", 0.001)),
+        )
+
+        module = estimator.create_lightning_module()
+        AppLogger.info("Loading DeepAR model from %s", model_path)
+        state_dict = torch.load(model_path, map_location="cpu", weights_only=True)
+        module.load_state_dict(state_dict)
+        module.eval()
+
+        transformation = estimator.create_transformation()
+        predictor = estimator.create_predictor(transformation, module)
+
+        AppLogger.info("Successfully loaded DeepAR model from %s", model_path)
+        return predictor
+
+    def _predict(self, model):
+        """Generate predictions using DeepAR model (PyTorchPredictor)."""
+        from gluonts.dataset.pandas import PandasDataset
+
+        if not self._has_required_columns():
+            raise RuntimeError("input data must have 'ts' and 'y' columns")
+
+        freq = self._freq or self.model_info.get("freq", "D")
+        ts_index = pd.to_datetime(self.df["ts"])
+
+        inferred_freq = pd.infer_freq(ts_index)
+        if inferred_freq is not None and inferred_freq != freq:
+            raise RuntimeError(
+                "input data freq %r does not match model training freq %r"
+                % (inferred_freq, freq)
+            )
+
+        target_series = pd.Series(self.df["y"].values, index=ts_index)
+        target_series.index.freq = pd.tseries.frequencies.to_offset(freq)
+
+        dataset = PandasDataset({"target": target_series})
+        forecasts = list(model.predict(dataset))
+
+        if not forecasts:
+            raise RuntimeError("no predictions generated by DeepAR model")
+
+        forecast = forecasts[0]
+        q_lo = self.alpha / 2
+        q_hi = 1.0 - self.alpha / 2
+        results = []
+        for step_idx in range(forecast.samples.shape[1]):
+            step_samples = forecast.samples[:, step_idx]
+            results.append({
+                "yhat": float(np.quantile(step_samples, 0.5)),
+                "yhat_lower": float(np.quantile(step_samples, q_lo)),
+                "yhat_upper": float(np.quantile(step_samples, q_hi)),
+            })
+
+        last_ts = ts_index.max()
+        future_ts = pd.date_range(start=last_ts, periods=len(results) + 1, freq=freq)[1:]
+
+        return pd.DataFrame({
+            "ts": future_ts[:len(results)],
+            "yhat": [r["yhat"] for r in results],
+            "yhat_lower": [r["yhat_lower"] for r in results],
+            "yhat_upper": [r["yhat_upper"] for r in results],
+        })
+
+    def get_param(self) -> dict:
+        best_params = self.model_info.get("best_params", {})
+        best_params["freq"] = self.model_info.get("freq", "D")
+        best_params["prediction_length"] = self.model_info.get("prediction_length", 12)
+        return best_params
+

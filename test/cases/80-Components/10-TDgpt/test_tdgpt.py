@@ -18,6 +18,7 @@ class TestTDgptBasic:
         Since: v3.3.2.16
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -52,6 +53,7 @@ class TestTDgptBasic:
         Since: v3.3.2.16
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -265,6 +267,7 @@ class TestTDgptBasic:
         Since: v3.3.8.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -332,6 +335,7 @@ class TestTDgptBasic:
         Since: v3.3.8.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -385,6 +389,7 @@ class TestTDgptBasic:
         Since: v3.3.0.0
 
         Labels: common,ci,ignore,integration,functional
+
         History:
             - 2025-10-13 Alex Duan add doc
 
@@ -392,6 +397,23 @@ class TestTDgptBasic:
         pass
     
     def test_imputation_function(self):
+        """TDgpt imputation function on stable child tables.
+
+        Create an anode, register the imputation algorithm, insert sample rows,
+        and verify imputation() and related explain queries execute successfully.
+
+        Since: v3.3.0.0
+
+        Labels: common, ci, integration, functional
+
+        Jira: None
+
+        Catalog:
+            - Functions:Scalar
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+        """
         tdSql.execute("create database if not exists imputation vgroups 3")
         tdSql.execute("use imputation")
         

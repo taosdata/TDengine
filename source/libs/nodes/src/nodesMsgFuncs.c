@@ -2923,7 +2923,8 @@ enum {
   PHY_SCAN_CODE_BASE_TABLE_NAME,
   PHY_SCAN_CODE_BASE_GROUP_ORDER_SCAN,
   PHY_SCAN_CODE_BASE_VIRTUAL_STABLE_SCAN,
-  PHY_SCAN_CODE_BASE_OUTPUT_TS_PRECISION
+  PHY_SCAN_CODE_BASE_OUTPUT_TS_PRECISION,
+  PHY_SCAN_CODE_BASE_USE_TRIGGER_TABLE_LIST
 };
 
 static int32_t physiScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2956,6 +2957,9 @@ static int32_t physiScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeU8(pEncoder, PHY_SCAN_CODE_BASE_OUTPUT_TS_PRECISION, pNode->outputTsPrecision);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->useTriggerTableList) {
+    code = tlvEncodeBool(pEncoder, PHY_SCAN_CODE_BASE_USE_TRIGGER_TABLE_LIST, pNode->useTriggerTableList);
   }
 
   return code;
@@ -2998,6 +3002,9 @@ static int32_t msgToPhysiScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_SCAN_CODE_BASE_OUTPUT_TS_PRECISION:
         code = tlvDecodeU8(pTlv, &pNode->outputTsPrecision);
+        break;
+      case PHY_SCAN_CODE_BASE_USE_TRIGGER_TABLE_LIST:
+        code = tlvDecodeBool(pTlv, &pNode->useTriggerTableList);
         break;
       default:
         break;
@@ -4244,6 +4251,7 @@ enum {
   PHY_HASH_JOIN_CODE_RIGHT_ON_COND,
   PHY_HASH_JOIN_CODE_TIME_RANGE_SKEY,
   PHY_HASH_JOIN_CODE_TIME_RANGE_EKEY,
+  PHY_HASH_JOIN_CODE_MULTI_GROUP_JOIN,
 
 };
 
@@ -4307,6 +4315,9 @@ static int32_t physiHashJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI64(pEncoder, PHY_HASH_JOIN_CODE_TIME_RANGE_EKEY, pNode->timeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_HASH_JOIN_CODE_MULTI_GROUP_JOIN, pNode->multiGroupJoin);
   }
 
   return code;
@@ -4379,6 +4390,9 @@ static int32_t msgToPhysiHashJoinNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_HASH_JOIN_CODE_TIME_RANGE_EKEY:
         code = tlvDecodeI64(pTlv, &pNode->timeRange.ekey);
+        break;
+      case PHY_HASH_JOIN_CODE_MULTI_GROUP_JOIN:
+        code = tlvDecodeBool(pTlv, &pNode->multiGroupJoin);
         break;
       default:
         break;
@@ -5338,7 +5352,9 @@ enum {
   PHY_EXT_CODE_FILL_MODE,
   PHY_EXT_CODE_FILL_EXPRS,
   PHY_EXT_CODE_FILL_VALUES,
-  PHY_EXT_CODE_SUB_QUERY
+  PHY_EXT_CODE_SUB_QUERY,
+  PHY_EXT_CODE_INPUT_MODE,
+  PHY_EXT_CODE_WINDOW_CONDITIONS
 };
 
 static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -5388,6 +5404,12 @@ static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEnco
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_EXT_CODE_SUB_QUERY, nodeToMsg, pNode->pSubquery);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeEnum(pEncoder, PHY_EXT_CODE_INPUT_MODE, pNode->extWinInputMode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_EXT_CODE_WINDOW_CONDITIONS, nodeToMsg, pNode->pWindowConditions);
   }
 
   return code;
@@ -5447,6 +5469,12 @@ static int32_t msgToPhysiExternalWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_EXT_CODE_SUB_QUERY:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pSubquery);
+        break;
+      case PHY_EXT_CODE_INPUT_MODE:
+        code = tlvDecodeEnum(pTlv, &pNode->extWinInputMode, sizeof(pNode->extWinInputMode));
+        break;
+      case PHY_EXT_CODE_WINDOW_CONDITIONS:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pWindowConditions);
         break;
       default:
         break;
@@ -6711,7 +6739,8 @@ enum {
   SUBPLAN_CODE_ROOT_NODE,
   SUBPLAN_CODE_DATA_SINK,
   SUBPLAN_CODE_TAG_COND,
-  SUBPLAN_CODE_TAG_INDEX_COND
+  SUBPLAN_CODE_TAG_INDEX_COND,
+  SUBPLAN_CODE_INHERITED_MULTI_GROUP_JOIN
 };
 
 static int32_t subplanInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -6778,6 +6807,9 @@ static int32_t subplanToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, SUBPLAN_CODE_TAG_INDEX_COND, nodeToMsg, pNode->pTagIndexCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, SUBPLAN_CODE_INHERITED_MULTI_GROUP_JOIN, pNode->inheritedMultiGroupJoin);
   }
 
   return code;
@@ -6853,6 +6885,9 @@ static int32_t msgToSubplan(STlvDecoder* pDecoder, void* pObj) {
         break;
       case SUBPLAN_CODE_TAG_INDEX_COND:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pTagIndexCond);
+        break;
+      case SUBPLAN_CODE_INHERITED_MULTI_GROUP_JOIN:
+        code = tlvDecodeBool(pTlv, &pNode->inheritedMultiGroupJoin);
         break;
       default:
         break;

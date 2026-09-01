@@ -81,6 +81,7 @@ class TestStreamRecalcDeleteRecalc:
         Since: v3.3.7.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -104,10 +105,10 @@ class TestStreamRecalcDeleteRecalc:
     def createDatabase(self):
         tdLog.info("create database")
         tdSql.prepare(dbname="qdb", vgroups=1)
-        tdSql.prepare(dbname="tdb", vgroups=1) 
+        tdSql.prepare(dbname="tdb", vgroups=1)
         tdSql.prepare(dbname="rdb", vgroups=1)
         clusterComCheck.checkDbReady("qdb")
-        clusterComCheck.checkDbReady("tdb") 
+        clusterComCheck.checkDbReady("tdb")
         clusterComCheck.checkDbReady("rdb")
 
     def prepareQueryData(self):
@@ -243,13 +244,13 @@ class TestStreamRecalcDeleteRecalc:
         for stream in self.streams:
             stream.checkResults()
         tdLog.info(f"check total:{len(self.streams)} streams result successfully")
-    
+
 
     def createStreams(self):
         self.streams = []
 
         # ===== Test 1: DELETE_RECALC Option =====
-        
+
         # Test 1.1: INTERVAL+SLIDING with DELETE_RECALC - should trigger recalculation when data is deleted
         stream = StreamItem(
             id=1,
@@ -414,7 +415,7 @@ class TestStreamRecalcDeleteRecalc:
                 and tdSql.compareData(1, 1, 200)
                 and tdSql.compareData(1, 2, 261.5)
             )
-        
+
         tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:09:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
         tdSql.execute("delete from tdb.de1 where ts = '2025-01-01 02:09:30';")
 
@@ -430,7 +431,7 @@ class TestStreamRecalcDeleteRecalc:
             )
 
         # Verify that recalculation occurred
-        tdLog.info("EVENT_WINDOW with DELETE_RECALC successfully handled data deletion") 
+        tdLog.info("EVENT_WINDOW with DELETE_RECALC successfully handled data deletion")
 
 
     def check05(self):
@@ -483,8 +484,13 @@ class TestStreamRecalcDeleteRecalc:
                 and tdSql.compareData(3, 2, 272)
             )
         before_rows = self.result_rows("rdb.r_count_delete")
-        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:15:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
-        tdSql.execute("delete from tdb.dc1 where ts = '2025-01-01 02:15:15';")
+        tdSql.execute("delete from tdb.dc1 where ts = '2025-01-01 02:16:15';")
+        tdSql.executes(
+            [
+                "insert into tdb.dc1 values ('2025-01-01 02:16:30', 70, 'normal');",
+                "insert into tdb.dc1 values ('2025-01-01 02:16:45', 80, 'normal');",
+            ]
+        )
 
         tdSql.checkResultsByFunc(
             sql=self.result_sql("rdb.r_count_delete"),
@@ -511,15 +517,34 @@ class TestStreamRecalcDeleteRecalc:
 
     def has_count_delete_recalculated_rows(self, before_rows):
         rows = self.result_rows("rdb.r_count_delete")
-        return rows != before_rows and self.rows_match(
-            rows,
-            [
-                ("2025-01-01 02:15:00", 201, 269.2039800995025, "dc1"),
-                ("2025-01-01 02:15:15", 100, 271.0, "dc1"),
-                ("2025-01-01 02:15:30", 100, 271.0, "dc1"),
-                ("2025-01-01 02:15:45", 100, 272.0, "dc1"),
-            ],
-        )
+        ranges = [
+            ("2025-01-01 02:15:00", "2025-01-01 02:15:30"),
+            ("2025-01-01 02:15:15", "2025-01-01 02:15:45"),
+            ("2025-01-01 02:15:30", "2025-01-01 02:16:00"),
+            ("2025-01-01 02:15:45", "2025-01-01 02:16:30"),
+            ("2025-01-01 02:16:00", "2025-01-01 02:16:45"),
+        ]
+        if rows == before_rows or len(rows) != len(ranges):
+            return False
+        for row, (start, end) in zip(rows, ranges):
+            if row[0] != start or row[3] != "dc1":
+                return False
+            tdSql.query(
+                "select count(*), avg(cint) from qdb.meters "
+                f"where cts >= '{start}' and cts < '{end}'"
+            )
+            if tdSql.getRows() != 1:
+                return False
+            expected_count = tdSql.getData(0, 0)
+            expected_average = tdSql.getData(0, 1)
+            if row[1] != expected_count:
+                return False
+            if row[2] is None or expected_average is None:
+                if row[2] != expected_average:
+                    return False
+            elif abs(row[2] - float(expected_average)) > 0.000001:
+                return False
+        return True
 
     def rows_match(self, actual_rows, expected_rows):
         if len(actual_rows) != len(expected_rows):

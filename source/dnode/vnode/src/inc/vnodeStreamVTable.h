@@ -35,6 +35,10 @@ extern "C" {
 
 // vnodeStream.c
 int32_t addUidListToBlock(SArray *uidListAdd, void **block, int64_t ver, int32_t *totalRows, ETableBlockType type);
+int32_t vnodeCollectNodeGroupReadRange(const SStreamRuntimeFuncInfo *pRuntime, STimeWindow *pRange);
+int32_t vnodeCalculateNodeGroupReadRange(STimeRangeNode *node, SStreamRuntimeFuncInfo *pRuntime,
+                                         SStreamRuntimeFuncInfo *pTmpRuntime, int32_t actualNodeId, STimeWindow *pRange,
+                                         bool *pRangeValid);
 
 // vnodeStreamVTable.c
 int32_t streamMaybeRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo *pInfo,

@@ -1126,6 +1126,7 @@ static SSDataBlock* getOneRowResultBlock(SExecTaskInfo* pTaskInfo, STableScanBas
   pBlock->info.rows = 1;
   pBlock->info.id.uid = tbInfo->uid;
   pBlock->info.id.groupId = tbInfo->groupId;
+  pBlock->info.id.baseGId = tbInfo->baseGId;
   pBlock->info.blankFill = true;
 
   // only one row: set all col data to null & hasNull
@@ -1197,6 +1198,24 @@ _end:
   return code;
 }
 
+static int32_t setTableScanBlockGroupId(const STableScanInfo* pInfo, SSDataBlock* pBlock) {
+  STableListInfo* pTableList = pInfo->base.pTableListInfo;
+  if (pTableList->groupOffset != NULL) {
+    const STableKeyInfo* pGroup = tableListGetInfo(pTableList, pInfo->tableStartIndex);
+    if (pGroup == NULL) return TSDB_CODE_INVALID_PARA;
+    pBlock->info.id.groupId = pGroup->groupId;
+    pBlock->info.id.baseGId = pGroup->baseGId;
+    return TSDB_CODE_SUCCESS;
+  }
+  return tableListGetTableGroupId(pTableList, pBlock->info.id.uid, &pBlock->info.id.groupId, &pBlock->info.id.baseGId);
+}
+
+#if defined(BUILD_TEST)
+int32_t scanTestSetTableScanBlockGroupId(const STableScanInfo* pInfo, SSDataBlock* pBlock) {
+  return setTableScanBlockGroupId(pInfo, pBlock);
+}
+#endif
+
 static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
@@ -1238,8 +1257,7 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
     }
 
     if (pBlock->info.id.uid) {
-      code = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid, &pBlock->info.id.groupId,
-                               &pBlock->info.id.baseGId);
+      code = setTableScanBlockGroupId(pTableScanInfo, pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -1478,8 +1496,11 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
   return code;
 }
 
-static int32_t doInitReader(STableScanInfo* pInfo, SExecTaskInfo* pTaskInfo, SStorageAPI* pAPI, int32_t* pNum,
-                            STableKeyInfo** pList) {
+static void    bindFreshReaderStats(STableScanBase* pBase);
+static void    bindExistingReaderStats(STableScanBase* pBase);
+static int32_t deactivateTableScanReader(STableScanBase* pBase);
+
+static int32_t doInitReader(STableScanInfo* pInfo, SExecTaskInfo* pTaskInfo, int32_t* pNum, STableKeyInfo** pList) {
   const char* idStr = GET_TASKID(pTaskInfo);
   int32_t     code = initNextGroupScan(pInfo, pList, pNum);
   if (code) {
@@ -1487,19 +1508,46 @@ static int32_t doInitReader(STableScanInfo* pInfo, SExecTaskInfo* pTaskInfo, SSt
     return code;
   }
 
-  if (pInfo->base.dataReader != NULL) {
-    qError("%s tsdb reader should be null", idStr);
-    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-  }
-
-  code = pAPI->tsdReader.tsdReaderOpen(pInfo->base.readHandle.vnode, &pInfo->base.cond, *pList, *pNum, pInfo->pResBlock,
-                                       (void**)&pInfo->base.dataReader, idStr, &pInfo->pIgnoreTables);
+  bool opened = false;
+  code = openOrRebindTableReader(&pInfo->base, *pList, *pNum, pInfo->pResBlock, idStr, &pInfo->pIgnoreTables, &opened);
   if (code) {
-    qError("%s failed to open tsdbReader, code:%s at line:%d", idStr, tstrerror(code), __LINE__);
+    qError("%s failed to initialize tsdbReader, code:%s at line:%d", idStr, tstrerror(code), __LINE__);
   }
 
   return code;
 }
+
+int32_t openOrRebindTableReader(STableScanBase* pBase, STableKeyInfo* pTables, int32_t numOfTables, SSDataBlock* pBlock,
+                                const char* pTaskId, SHashObj** ppIgnoreTables, bool* pOpened) {
+  *pOpened = false;
+  if (pBase->dataReader == NULL) {
+    int32_t code = pBase->readerAPI.tsdReaderOpen(pBase->readHandle.vnode, &pBase->cond, pTables, numOfTables, pBlock,
+                                                  (void**)&pBase->dataReader, pTaskId, ppIgnoreTables);
+    if (code == TSDB_CODE_SUCCESS) {
+      *pOpened = true;
+      bindFreshReaderStats(pBase);
+    }
+    return code;
+  }
+
+  int32_t code = pBase->readerAPI.tsdSetQueryTableList(pBase->dataReader, pTables, numOfTables);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  return pBase->readerAPI.tsdReaderResetStatus(pBase->dataReader, &pBase->cond);
+}
+
+#if defined(BUILD_TEST)
+int32_t scanTestDoInitReader(STableScanInfo* pInfo, SExecTaskInfo* pTaskInfo, int32_t* pNum, STableKeyInfo** pList) {
+  return doInitReader(pInfo, pTaskInfo, pNum, pList);
+}
+
+int32_t scanTestOpenOrRebindTableReader(STableScanBase* pBase, STableKeyInfo* pTables, int32_t numOfTables,
+                                        SSDataBlock* pBlock, const char* pTaskId, SHashObj** ppIgnoreTables,
+                                        bool* pOpened) {
+  return openOrRebindTableReader(pBase, pTables, numOfTables, pBlock, pTaskId, ppIgnoreTables, pOpened);
+}
+#endif
 
 int compareColIdPair(const void* elem1, const void* elem2) {
   SColIdPair* node1 = (SColIdPair*)elem1;
@@ -1860,13 +1908,11 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
   }
 
   if (isNewTable) {
-    if (pInfo->base.dataReader != NULL) {
-      pAPI->tsdReader.tsdReaderClose(pInfo->base.dataReader);
-    }
-    pInfo->base.dataReader = NULL;
+    code = closeTableScanReader(&pInfo->base);
+    QUERY_CHECK_CODE(code, lino, _return);
 
     taosRLockLatch(&pTaskInfo->lock);
-    code = doInitReader(pInfo, pTaskInfo, pAPI, &num, &pList);
+    code = doInitReader(pInfo, pTaskInfo, &num, &pList);
     taosRUnLockLatch(&pTaskInfo->lock);
     QUERY_CHECK_CODE(code, lino, _return);
 
@@ -2182,17 +2228,23 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
     }
   }
 
-  void **reader = taosHashGet(pInfo->readerCache, &pUid, sizeof(uint64_t));
+  void** reader = taosHashGet(pInfo->readerCache, &pUid, sizeof(uint64_t));
   if (reader) {
     if (isNewScanParam(pParam)) {
-      pAPI->tsdReader.tsdReaderClose(*reader);
-      pInfo->base.dataReader = NULL;
+      if (*reader == pInfo->base.dataReader) {
+        code = closeTableScanReader(&pInfo->base);
+        QUERY_CHECK_CODE(code, lino, _return);
+      } else {
+        code = deactivateTableScanReader(&pInfo->base);
+        QUERY_CHECK_CODE(code, lino, _return);
+        pAPI->tsdReader.tsdReaderClose(*reader);
+      }
 
       code = taosHashRemove(pInfo->readerCache, &pUid, sizeof(uint64_t));
       QUERY_CHECK_CODE(code, lino, _return);
 
       taosRLockLatch(&pTaskInfo->lock);
-      code = doInitReader(pInfo, pTaskInfo, pAPI, &num, &pList);
+      code = doInitReader(pInfo, pTaskInfo, &num, &pList);
       taosRUnLockLatch(&pTaskInfo->lock);
       QUERY_CHECK_CODE(code, lino, _return);
 
@@ -2200,7 +2252,12 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
       QUERY_CHECK_CODE(code, lino, _return);
       pInfo->newReader = true;
     } else {
-      pInfo->base.dataReader = *reader;
+      if (pInfo->base.dataReader != *reader) {
+        code = deactivateTableScanReader(&pInfo->base);
+        QUERY_CHECK_CODE(code, lino, _return);
+        pInfo->base.dataReader = *reader;
+        bindExistingReaderStats(&pInfo->base);
+      }
       code = blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
       QUERY_CHECK_CODE(code, lino, _return);
 
@@ -2209,10 +2266,11 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
       pInfo->scanTimes = 0;
     }
   } else {
-    pInfo->base.dataReader = NULL;
+    code = deactivateTableScanReader(&pInfo->base);
+    QUERY_CHECK_CODE(code, lino, _return);
 
     taosRLockLatch(&pTaskInfo->lock);
-    code = doInitReader(pInfo, pTaskInfo, pAPI, &num, &pList);
+    code = doInitReader(pInfo, pTaskInfo, &num, &pList);
     taosRUnLockLatch(&pTaskInfo->lock);
     QUERY_CHECK_CODE(code, lino, _return);
 
@@ -2279,12 +2337,13 @@ static int32_t startNextGroupScan(SOperatorInfo* pOperator, SSDataBlock** pResul
     // losing the fill-reference rows for every group after the first. Open a
     // fresh reader for the new group instead, matching table merge scan's
     // close-and-reopen reader lifecycle when switching groups.
-    pAPI->tsdReader.tsdReaderClose(pInfo->base.dataReader);
-    pInfo->base.dataReader = NULL;
+    code = closeTableScanReader(&pInfo->base);
+    QUERY_CHECK_CODE(code, lino, _end);
     taosHashClear(pInfo->pIgnoreTables);  // discard any stale UIDs from the previous group
     code = pAPI->tsdReader.tsdReaderOpen(pInfo->base.readHandle.vnode, &pInfo->base.cond, pList, num, pInfo->pResBlock,
                                          (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->pIgnoreTables);
     QUERY_CHECK_CODE(code, lino, _end);
+    bindFreshReaderStats(&pInfo->base);
   } else {
     code = pAPI->tsdReader.tsdSetQueryTableList(pInfo->base.dataReader, pList, num);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -2331,12 +2390,17 @@ static int32_t groupSeqTableScan(SOperatorInfo* pOperator, SSDataBlock** pResBlo
       return code;
     }
 
+    bool opened = false;
     taosRLockLatch(&pTaskInfo->lock);
-    code = doInitReader(pInfo, pTaskInfo, pAPI, &num, &pList);
+    code = initNextGroupScan(pInfo, &pList, &num);
+    if (code == TSDB_CODE_SUCCESS) {
+      code = openOrRebindTableReader(&pInfo->base, pList, num, pInfo->pResBlock, GET_TASKID(pTaskInfo),
+                                     &pInfo->pIgnoreTables, &opened);
+    }
     taosRUnLockLatch(&pTaskInfo->lock);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    if (pInfo->filesetDelimited) {
+    if (opened && pInfo->filesetDelimited) {
       pAPI->tsdReader.tsdSetFilesetDelimited(pInfo->base.dataReader);
     }
 
@@ -2560,9 +2624,9 @@ static int32_t doVstbSingleDynamicTableScanNext(SOperatorInfo* pOperator, SSData
     if (reader) {
       if (*reader == pInfo->base.dataReader) {
         pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, NULL);
-        pInfo->base.dataReader = NULL;
-      }
-      if (pAPI->tsdReader.tsdReaderClose) {
+        code = closeTableScanReader(&pInfo->base);
+        QUERY_CHECK_CODE(code, lino, _end);
+      } else if (pAPI->tsdReader.tsdReaderClose) {
         pAPI->tsdReader.tsdReaderClose(*reader);
       }
     }
@@ -2907,27 +2971,179 @@ _end:
   return code;
 }
 
+static void captureReaderCost(const STableScanBase* pBase, SFileBlockLoadRecorder* pCurrent) {
+  *pCurrent = (SFileBlockLoadRecorder){0};
+  if (pBase->dataReader != NULL && pBase->readerAPI.tsdReaderSetExecInfo != NULL) {
+    pBase->readerAPI.tsdReaderSetExecInfo(pBase->dataReader, pCurrent);
+  }
+}
+
+static void invalidateReaderCostBaseline(STableScanBase* pBase) {
+  pBase->readerCostBaseline = (SFileBlockLoadRecorder){0};
+  pBase->readerCostBaselineReader = NULL;
+}
+
+static void bindFreshReaderStats(STableScanBase* pBase) {
+  pBase->readerCostBaseline = (SFileBlockLoadRecorder){0};
+  pBase->readerCostBaselineReader = pBase->dataReader;
+}
+
+static void bindExistingReaderStats(STableScanBase* pBase) {
+  captureReaderCost(pBase, &pBase->readerCostBaseline);
+  pBase->readerCostBaselineReader = pBase->dataReader;
+}
+
+static int32_t validateReaderCostMonotonic(const SFileBlockLoadRecorder* pCurrent,
+                                           const SFileBlockLoadRecorder* pBaseline) {
+  if (pCurrent->fileLoadBlocks < pBaseline->fileLoadBlocks || pCurrent->fileLoadElapsed < pBaseline->fileLoadElapsed ||
+      pCurrent->sttLoadBlocks < pBaseline->sttLoadBlocks || pCurrent->sttLoadElapsed < pBaseline->sttLoadElapsed ||
+      pCurrent->memLoadBlocks < pBaseline->memLoadBlocks || pCurrent->memLoadElapsed < pBaseline->memLoadElapsed ||
+      pCurrent->smaLoadBlocks < pBaseline->smaLoadBlocks || pCurrent->smaLoadElapsed < pBaseline->smaLoadElapsed ||
+      pCurrent->composedBlocks < pBaseline->composedBlocks || pCurrent->composedElapsed < pBaseline->composedElapsed) {
+    qError("reader cumulative cost regressed within one scan statistics epoch");
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t addReaderCostDelta(SFileBlockLoadRecorder* pTarget, const SFileBlockLoadRecorder* pCurrent,
+                                  const SFileBlockLoadRecorder* pBaseline) {
+  int32_t code = validateReaderCostMonotonic(pCurrent, pBaseline);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  pTarget->fileLoadBlocks += pCurrent->fileLoadBlocks - pBaseline->fileLoadBlocks;
+  pTarget->fileLoadElapsed += pCurrent->fileLoadElapsed - pBaseline->fileLoadElapsed;
+  pTarget->sttLoadBlocks += pCurrent->sttLoadBlocks - pBaseline->sttLoadBlocks;
+  pTarget->sttLoadElapsed += pCurrent->sttLoadElapsed - pBaseline->sttLoadElapsed;
+  pTarget->memLoadBlocks += pCurrent->memLoadBlocks - pBaseline->memLoadBlocks;
+  pTarget->memLoadElapsed += pCurrent->memLoadElapsed - pBaseline->memLoadElapsed;
+  pTarget->smaLoadBlocks += pCurrent->smaLoadBlocks - pBaseline->smaLoadBlocks;
+  pTarget->smaLoadElapsed += pCurrent->smaLoadElapsed - pBaseline->smaLoadElapsed;
+  pTarget->composedBlocks += pCurrent->composedBlocks - pBaseline->composedBlocks;
+  pTarget->composedElapsed += pCurrent->composedElapsed - pBaseline->composedElapsed;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t snapshotReaderStats(const STableScanBase* pBase, SFileBlockLoadRecorder* pOut) {
+  *pOut = pBase->readRecorder;
+  if (pBase->dataReader != pBase->readerCostBaselineReader) {
+    qError("scan statistics Reader identity changed without flushing, baseline:%p, current:%p",
+           pBase->readerCostBaselineReader, pBase->dataReader);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  if (pBase->dataReader == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SFileBlockLoadRecorder current = {0};
+  captureReaderCost(pBase, &current);
+  return addReaderCostDelta(pOut, &current, &pBase->readerCostBaseline);
+}
+
+static int32_t beginReaderStatsEpoch(STableScanBase* pBase) {
+  if (pBase->dataReader != pBase->readerCostBaselineReader) {
+    qError("cannot begin scan statistics epoch after Reader identity changed, baseline:%p, current:%p",
+           pBase->readerCostBaselineReader, pBase->dataReader);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  SFileBlockLoadRecorder current = {0};
+  captureReaderCost(pBase, &current);
+  int32_t code = validateReaderCostMonotonic(&current, &pBase->readerCostBaseline);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  pBase->readerCostBaseline = current;
+  pBase->readerCostBaselineReader = pBase->dataReader;
+  pBase->readRecorder = (SFileBlockLoadRecorder){0};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t flushReaderStats(STableScanBase* pBase) {
+  SFileBlockLoadRecorder recorder = {0};
+  int32_t                code = snapshotReaderStats(pBase, &recorder);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  pBase->readRecorder = recorder;
+  invalidateReaderCostBaseline(pBase);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t deactivateTableScanReader(STableScanBase* pBase) {
+  int32_t code = flushReaderStats(pBase);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  pBase->dataReader = NULL;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t closeTableScanReader(STableScanBase* pBase) {
+  STsdbReader* pReader = pBase->dataReader;
+  int32_t      code = deactivateTableScanReader(pBase);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (pReader != NULL && pBase->readerAPI.tsdReaderClose != NULL) {
+    pBase->readerAPI.tsdReaderClose(pReader);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void forceCloseTableScanReader(STableScanBase* pBase) {
+  STsdbReader* pReader = pBase->dataReader;
+  pBase->dataReader = NULL;
+  invalidateReaderCostBaseline(pBase);
+  if (pReader != NULL && pBase->readerAPI.tsdReaderClose != NULL) {
+    pBase->readerAPI.tsdReaderClose(pReader);
+  }
+}
+
+#if defined(BUILD_TEST)
+void scanTestBindFreshReaderStats(STableScanBase* pBase) { bindFreshReaderStats(pBase); }
+
+int32_t scanTestBeginReaderStatsEpoch(STableScanBase* pBase) { return beginReaderStatsEpoch(pBase); }
+
+void scanTestSnapshotReaderStats(const STableScanBase* pBase, STableScanAnalyzeInfo* pOut) {
+  (void)snapshotReaderStats(pBase, pOut);
+}
+
+int32_t scanTestSnapshotReaderStatsCode(const STableScanBase* pBase, STableScanAnalyzeInfo* pOut) {
+  return snapshotReaderStats(pBase, pOut);
+}
+
+void scanTestFlushReaderStats(STableScanBase* pBase) { (void)flushReaderStats(pBase); }
+#endif
+
 static int32_t getTableScannerExecInfo(struct SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
   SFileBlockLoadRecorder* pRecorder = taosMemoryCalloc(1, sizeof(SFileBlockLoadRecorder));
   if (!pRecorder) {
     return terrno;
   }
   const STableScanInfo* pTableScanInfo = pOptr->info;
-  *pRecorder = pTableScanInfo->base.readRecorder;
-  pTableScanInfo->base.readerAPI.tsdReaderSetExecInfo(pTableScanInfo->base.dataReader, pRecorder);
+  int32_t               code = snapshotReaderStats(&pTableScanInfo->base, pRecorder);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pRecorder);
+    return code;
+  }
   *pOptrExplain = pRecorder;
   *len = sizeof(SFileBlockLoadRecorder);
   return 0;
 }
 
-static void destroyTableScanBase(STableScanBase* pBase, TsdReader* pAPI) {
+static void destroyTableScanBase(STableScanBase* pBase) {
+  int32_t code = closeTableScanReader(pBase);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to flush Table Scan Reader statistics before terminal close since %s", tstrerror(code));
+    forceCloseTableScanReader(pBase);
+  }
+
   cleanupQueryTableDataCond(&pBase->cond);
   cleanupQueryTableDataCond(&pBase->orgCond);
-
-  if (pAPI->tsdReaderClose) {
-    pAPI->tsdReaderClose(pBase->dataReader);
-  }
-  pBase->dataReader = NULL;
 
   if (pBase->matchInfo.pList != NULL) {
     taosArrayDestroy(pBase->matchInfo.pList);
@@ -2938,6 +3154,10 @@ static void destroyTableScanBase(STableScanBase* pBase, TsdReader* pAPI) {
   cleanupExprSupp(&pBase->pseudoSup);
 }
 
+#if defined(BUILD_TEST)
+void scanTestDestroyTableScanBase(STableScanBase* pBase) { destroyTableScanBase(pBase); }
+#endif
+
 static void cleanReaderForVTable(STableScanInfo* pInfo){
   if (pInfo != NULL && pInfo->base.readerAPI.tsdReaderClose) {
     void *pIter = taosHashIterate(pInfo->readerCache, NULL);
@@ -2945,9 +3165,16 @@ static void cleanReaderForVTable(STableScanInfo* pInfo){
       void **reader = pIter;
       if (*reader) {
         if (*reader == pInfo->base.dataReader) {
-          pInfo->base.dataReader = NULL;
+          int32_t code = closeTableScanReader(&pInfo->base);
+          if (code != TSDB_CODE_SUCCESS) {
+            qError("failed to flush active virtual Table Scan Reader statistics before terminal close since %s",
+                   tstrerror(code));
+            forceCloseTableScanReader(&pInfo->base);
+          }
+          *reader = NULL;
+        } else {
+          pInfo->base.readerAPI.tsdReaderClose(*reader);
         }
-        pInfo->base.readerAPI.tsdReaderClose(*reader);
       }
       pIter = taosHashIterate(pInfo->readerCache, pIter);
     }
@@ -2965,7 +3192,7 @@ static void destroyTableScanOperatorInfo(void* param) {
     cleanReaderForVTable(pTableScanInfo);
     taosHashCleanup(pTableScanInfo->readerCache);
   }
-  destroyTableScanBase(&pTableScanInfo->base, &pTableScanInfo->base.readerAPI);
+  destroyTableScanBase(&pTableScanInfo->base);
   taosArrayDestroy(pTableScanInfo->pBlockColMap);
   taosMemoryFreeClear(param);
 }
@@ -2982,9 +3209,25 @@ static void resetClolumnReserve(SSDataBlock* pBlock, int32_t dataRequireFlag) {
   }
 }
 
+static int32_t resetTableScanReader(STableScanInfo* pInfo, bool reuseReader) {
+  if (reuseReader || pInfo->virtualStableScan) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return closeTableScanReader(&pInfo->base);
+}
+
+#if defined(BUILD_TEST)
+void scanTestResetTableScanReader(STableScanInfo* pInfo, bool reuseReader) {
+  (void)resetTableScanReader(pInfo, reuseReader);
+}
+
+int32_t scanTestCloseTableScanReader(STableScanInfo* pInfo) { return resetTableScanReader(pInfo, false); }
+#endif
+
 static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   int32_t         code = TSDB_CODE_SUCCESS;
-  STableScanInfo*   pInfo = pOper->info;
+  STableScanInfo* pInfo = pOper->info;
+  SExecTaskInfo*  pTaskInfo = pOper->pTaskInfo;
   pOper->status = OP_NOT_OPENED;
 
   pInfo->scanTimes = 0;
@@ -2996,16 +3239,9 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   pInfo->countState = 0;
   pInfo->base.scanFlag = (pInfo->scanInfo.numOfAsc > 1) ? PRE_SCAN : MAIN_SCAN;
 
-  if (!pInfo->virtualStableScan) {
-  // if (pInfo->virtualStableScan && pInfo->readerCache) {
-  //   cleanReaderForVTable(pInfo);
-  //   taosHashClear(pInfo->readerCache);
-  //   pInfo->readerCache = false;
-  // } else {
-    if (pInfo->base.readerAPI.tsdReaderClose) {
-      pInfo->base.readerAPI.tsdReaderClose(pInfo->base.dataReader);
-    }
-    pInfo->base.dataReader = NULL;
+  code = resetTableScanReader(pInfo, pTaskInfo->reuseReaderOnReset);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
   tableListDestroy(pInfo->base.pTableListInfo);
   pInfo->base.pTableListInfo = tableListCreate();
@@ -3014,12 +3250,11 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
     return terrno;
   }
 
-  SExecTaskInfo*         pTaskInfo = pOper->pTaskInfo;
   STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pTaskInfo->pSubplan->pNode;
   if (!pTableScanNode->scan.node.dynamicOp) {
     code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
-                                    &pInfo->base.readHandle, pInfo->base.pTableListInfo, 
-                                    pTaskInfo->pSubplan->pTagCond, pTaskInfo->pSubplan->pTagIndexCond, pTaskInfo, NULL);
+                                   &pInfo->base.readHandle, pInfo->base.pTableListInfo, pTaskInfo->pSubplan->pTagCond,
+                                   pTaskInfo->pSubplan->pTagIndexCond, pTaskInfo, NULL);
     if (code) {
       qError("%s failed to createScanTableListInfo, code:%s", __func__, tstrerror(code));
       return code;
@@ -3037,7 +3272,7 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
     cleanupQueryTableDataCond(&pInfo->base.orgCond);
     memcpy(&pInfo->base.orgCond, &pInfo->base.cond, sizeof(SQueryTableDataCond));
     memset(&pInfo->base.cond, 0, sizeof(SQueryTableDataCond));
-  } 
+  }
 
   pOper->resultInfo.totalRows = 0;
   blockDataEmpty(pInfo->pResBlock);
@@ -3045,8 +3280,12 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   taosHashClear(pInfo->pIgnoreTables);
   taosArrayDestroy(pInfo->pBlockColMap);
   pInfo->pBlockColMap = NULL;
-  return code;
+  return beginReaderStatsEpoch(&pInfo->base);
 }
+
+#if defined(BUILD_TEST)
+int32_t scanTestResetTableScanOperatorState(SOperatorInfo* pOper) { return resetTableScanOperatorState(pOper); }
+#endif
 
 int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
                                     STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
@@ -3394,9 +3633,8 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     }
 
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
-    pAPI->tsdReader.tsdReaderClose(pTSInfo->base.dataReader);
-
-    pTSInfo->base.dataReader = NULL;
+    code = closeTableScanReader(&pTSInfo->base);
+    QUERY_CHECK_CODE(code, lino, _end);
     int64_t validVer = pTaskInfo->tmqInfo.snapshotVer + 1;
     qDebug("queue scan tsdb over, switch to wal ver %" PRId64, validVer);
     code = pAPI->tqReaderFn.tqReaderSeek(pInfo->tqReader, validVer, pTaskInfo->id.str);
@@ -4638,14 +4876,44 @@ _end:
  * The stats are dropped together with the reader on close, so every close site
  * must go through this helper or EXPLAIN ANALYZE under-reports the scan cost.
  */
-static void flushAndCloseTmsReader(STableScanBase* pBase, STsdbReader** ppReader) {
-  if (pBase->readerAPI.tsdReaderClose == NULL || *ppReader == NULL) {
-    return;
+static int32_t flushAndCloseTmsReader(STableScanBase* pBase, STsdbReader** ppReader, bool sharedReader) {
+  if (*ppReader == NULL) {
+    return TSDB_CODE_SUCCESS;
   }
-  pBase->readerAPI.tsdReaderSetExecInfo(*ppReader, &pBase->readRecorder);
-  pBase->readerAPI.tsdReaderClose(*ppReader);
-  *ppReader = NULL;
+  if (sharedReader) {
+    if (*ppReader != pBase->dataReader) {
+      qError("shared Table Merge Reader identity differs from Table Scan base Reader");
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    return closeTableScanReader(pBase);
+  }
+
+  if (pBase->readerAPI.tsdReaderClose != NULL) {
+    pBase->readerAPI.tsdReaderSetExecInfo(*ppReader, &pBase->readRecorder);
+    pBase->readerAPI.tsdReaderClose(*ppReader);
+    *ppReader = NULL;
+  }
+  return TSDB_CODE_SUCCESS;
 }
+
+#if defined(BUILD_TEST)
+int32_t scanTestFlushAndCloseTmsReader(STableScanBase* pBase, STsdbReader** ppReader, bool sharedReader) {
+  return flushAndCloseTmsReader(pBase, ppReader, sharedReader);
+}
+#endif
+
+static int32_t resetTableMergeReader(STableMergeScanInfo* pInfo, bool reuseReader) {
+  if (!reuseReader) {
+    return flushAndCloseTmsReader(&pInfo->base, &pInfo->base.dataReader, true);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+#if defined(BUILD_TEST)
+void scanTestResetTableMergeReader(STableMergeScanInfo* pInfo, bool reuseReader) {
+  (void)resetTableMergeReader(pInfo, reuseReader);
+}
+#endif
 
 static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSubTableInput* pInput,
                                                 bool* pSubTableHasBlock) {
@@ -4713,9 +4981,9 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
   }
 
   if (*pSubTableHasBlock) {
-    code = tableListGetTableGroupId(pInfo->base.pTableListInfo, pInput->pReaderBlock->info.id.uid,
-                 &pInput->pReaderBlock->info.id.groupId, &pInput->pReaderBlock->info.id.baseGId);
-    QUERY_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_NULL(pInput->pKeyInfo, code, lino, _end, TSDB_CODE_INVALID_PARA);
+    pInput->pReaderBlock->info.id.groupId = pInput->pKeyInfo->groupId;
+    pInput->pReaderBlock->info.id.baseGId = pInput->pKeyInfo->baseGId;
     /*
      * See getBlockForTableMergeScan: resultInfo.totalRows is the OUTPUT-row
      * counter (maintained by recordOpExecEnd). Adding sort-input rows here
@@ -4723,7 +4991,8 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
      */
   }
   if (!pInput->bInMemReader || !*pSubTableHasBlock) {
-    flushAndCloseTmsReader(&pInfo->base, &pInput->pReader);
+    code = flushAndCloseTmsReader(&pInfo->base, &pInput->pReader, false);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   pInfo->base.dataReader = NULL;
@@ -5105,7 +5374,7 @@ static void stopSubTablesTableMergeScan(STableMergeScanInfo* pInfo) {
       blockDataDestroy(pInput->pReaderBlock);
       blockDataDestroy(pInput->pPageBlock);
       taosArrayDestroy(pInput->aBlockPages);
-      flushAndCloseTmsReader(&pInfo->base, &pInput->pReader);
+      (void)flushAndCloseTmsReader(&pInfo->base, &pInput->pReader, false);
     }
 
     destroyDiskbasedBuf(pSubTblsInfo->pBlocksBuf);
@@ -5162,7 +5431,8 @@ static int32_t createVTableMergeScanInfoFromBatchParam(SOperatorInfo* pOperator)
   if (pInfo->pSortHandle) {
     stopDurationForGroupTableMergeScan(pOperator);
   }
-  flushAndCloseTmsReader(&pInfo->base, &pInfo->base.dataReader);
+  code = flushAndCloseTmsReader(&pInfo->base, &pInfo->base.dataReader, true);
+  QUERY_CHECK_CODE(code, lino, _return);
 
   for (int32_t i = 0; i < pInfo->numNextDurationBlocks; ++i) {
     if (pInfo->nextDurationBlocks[i]) {
@@ -5504,9 +5774,8 @@ static int32_t getBlockForTableMergeScan(void* param, SSDataBlock** ppBlock) {
       if (bSkipped) continue;
     }
 
-    code = tableListGetTableGroupId(pInfo->base.pTableListInfo, pBlock->info.id.uid, &pBlock->info.id.groupId,
-                 &pBlock->info.id.baseGId);
-    QUERY_CHECK_CODE(code, lino, _end);
+    pBlock->info.id.groupId = pInfo->groupId;
+    pBlock->info.id.baseGId = pInfo->baseGroupId;
 
     /*
      * Do NOT add to resultInfo.totalRows here: this is a block fed INTO the
@@ -5658,9 +5927,9 @@ void startGroupTableMergeScan(SOperatorInfo* pOperator) {
   int32_t              lino = 0;
   STableMergeScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
-  SReadHandle*         pHandle = &pInfo->base.readHandle;
   SStorageAPI*         pAPI = &pTaskInfo->storageAPI;
-  qDebug("%s table merge scan start group %" PRIu64, GET_TASKID(pTaskInfo), pInfo->groupId);
+  qDebug("%s table merge scan start group %" PRIu64 ":%" PRIu64, GET_TASKID(pTaskInfo), pInfo->baseGroupId,
+         pInfo->groupId);
 
   {
     int32_t numOfTables = 0;
@@ -5671,7 +5940,7 @@ void startGroupTableMergeScan(SOperatorInfo* pOperator) {
     for (; i < numOfTables; ++i) {
       STableKeyInfo* tableKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, i);
       QUERY_CHECK_NULL(tableKeyInfo, code, lino, _end, terrno);
-      if (tableKeyInfo->groupId != pInfo->groupId) {
+      if (tableKeyInfo->groupId != pInfo->groupId || tableKeyInfo->baseGId != pInfo->baseGroupId) {
         break;
       }
     }
@@ -5684,21 +5953,15 @@ void startGroupTableMergeScan(SOperatorInfo* pOperator) {
   int32_t        numOfTable = tableEndIdx - tableStartIdx + 1;
   STableKeyInfo* startKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, tableStartIdx);
 
-  if (pInfo->base.dataReader == NULL) {
-    /* First group: create a new reader */
-    code = pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInfo->base.cond, startKeyInfo, numOfTable, pInfo->pReaderBlock,
-                                         (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->mSkipTables);
-    QUERY_CHECK_CODE(code, lino, _end);
+  bool opened = false;
+  code = openOrRebindTableReader(&pInfo->base, startKeyInfo, numOfTable, pInfo->pReaderBlock, GET_TASKID(pTaskInfo),
+                                 &pInfo->mSkipTables, &opened);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (opened) {
     if (pInfo->filesetDelimited) {
       pAPI->tsdReader.tsdSetFilesetDelimited(pInfo->base.dataReader);
     }
     pAPI->tsdReader.tsdSetSetNotifyCb(pInfo->base.dataReader, tableMergeScanTsdbNotifyCb, pInfo);
-  } else {
-    /* Subsequent groups: reuse the existing reader with new table list */
-    code = pAPI->tsdReader.tsdSetQueryTableList(pInfo->base.dataReader, startKeyInfo, numOfTable);
-    QUERY_CHECK_CODE(code, lino, _end);
-    code = pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
-    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   code = startDurationForGroupTableMergeScan(pOperator);
@@ -5711,6 +5974,10 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
 }
+
+#if defined(BUILD_TEST)
+void scanTestStartGroupTableMergeScan(SOperatorInfo* pOperator) { startGroupTableMergeScan(pOperator); }
+#endif
 
 void stopGroupTableMergeScan(SOperatorInfo* pOperator) {
   STableMergeScanInfo* pInfo = pOperator->info;
@@ -5734,7 +6001,8 @@ void stopGroupTableMergeScan(SOperatorInfo* pOperator) {
   resetLimitInfoForNextGroup(&pInfo->limitInfo);
   taosHashCleanup(pInfo->mSkipTables);
   pInfo->mSkipTables = NULL;
-  qDebug("%s table merge scan stop group %" PRIu64, GET_TASKID(pTaskInfo), pInfo->groupId);
+  qDebug("%s table merge scan stop group %" PRIu64 ":%" PRIu64, GET_TASKID(pTaskInfo), pInfo->baseGroupId,
+         pInfo->groupId);
 }
 
 // all data produced by this function only belongs to one group
@@ -5815,6 +6083,7 @@ int32_t doTableMergeScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     STableKeyInfo* tmp = (STableKeyInfo*)tableListGetInfo(pInfo->base.pTableListInfo, pInfo->tableStartIndex);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
     pInfo->groupId = tmp->groupId;
+    pInfo->baseGroupId = tmp->baseGId;
     startGroupTableMergeScan(pOperator);
   }
 
@@ -5833,6 +6102,7 @@ int32_t doTableMergeScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     }
     if (pBlock != NULL) {
       pBlock->info.id.groupId = pInfo->groupId;
+      pBlock->info.id.baseGId = pInfo->baseGroupId;
       pInfo->bGroupProcessed = true;
       break;
     } else {
@@ -5852,6 +6122,7 @@ int32_t doTableMergeScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         STableKeyInfo* tmp = tableListGetInfo(pInfo->base.pTableListInfo, pInfo->tableStartIndex);
         QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
         pInfo->groupId = tmp->groupId;
+        pInfo->baseGroupId = tmp->baseGId;
         startGroupTableMergeScan(pOperator);
         resetLimitInfoForNextGroup(&pInfo->limitInfo);
       }
@@ -5888,7 +6159,11 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   STableMergeScanInfo* pTableScanInfo = (STableMergeScanInfo*)param;
 
   // start one reader variable
-  flushAndCloseTmsReader(&pTableScanInfo->base, &pTableScanInfo->base.dataReader);
+  int32_t code = flushAndCloseTmsReader(&pTableScanInfo->base, &pTableScanInfo->base.dataReader, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to flush shared Table Merge Reader statistics before terminal close since %s", tstrerror(code));
+    forceCloseTableScanReader(&pTableScanInfo->base);
+  }
 
   for (int32_t i = 0; i < pTableScanInfo->numNextDurationBlocks; ++i) {
     if (pTableScanInfo->nextDurationBlocks[i] != NULL) {
@@ -5905,7 +6180,7 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   pTableScanInfo->pSortInputBlock = NULL;
   // end one reader variable
 
-  destroyTableScanBase(&pTableScanInfo->base, &pTableScanInfo->base.readerAPI);
+  destroyTableScanBase(&pTableScanInfo->base);
 
   blockDataDestroy(pTableScanInfo->pResBlock);
   pTableScanInfo->pResBlock = NULL;
@@ -5953,12 +6228,17 @@ int32_t getTableMergeScanExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExpla
         pInfo->base.readerAPI.tsdReaderSetExecInfo(pInput->pReader, &pInfo->base.readRecorder);
       }
     }
-  } else if (pInfo->base.dataReader != NULL) {
-    pInfo->base.readerAPI.tsdReaderSetExecInfo(pInfo->base.dataReader,
-                                               &pInfo->base.readRecorder);
+  } else {
+    int32_t code = snapshotReaderStats(&pInfo->base, &execInfo->blockRecorder);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(execInfo);
+      return code;
+    }
   }
 
-  execInfo->blockRecorder = pInfo->base.readRecorder;
+  if (pSubTblsInfo != NULL) {
+    execInfo->blockRecorder = pInfo->base.readRecorder;
+  }
   execInfo->sortExecInfo = pInfo->sortExecInfo;
 
   *pOptrExplain = execInfo;
@@ -5968,14 +6248,20 @@ int32_t getTableMergeScanExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExpla
 }
 
 static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
-  int32_t         code = TSDB_CODE_SUCCESS;
-  STableMergeScanInfo*   pInfo = pOper->info;
+  int32_t              code = TSDB_CODE_SUCCESS;
+  STableMergeScanInfo* pInfo = pOper->info;
+  SExecTaskInfo*       pTaskInfo = pOper->pTaskInfo;
   pOper->status = OP_NOT_OPENED;
 
   pInfo->tableEndIndex = 0;
   pInfo->tableStartIndex = 0;
   pInfo->hasGroupId = false;
-  flushAndCloseTmsReader(&pInfo->base, &pInfo->base.dataReader);
+  pInfo->groupId = 0;
+  pInfo->baseGroupId = 0;
+  code = resetTableMergeReader(pInfo, pTaskInfo->reuseReaderOnReset);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
   pInfo->base.scanFlag = MAIN_SCAN;
 
   pInfo->base.limitInfo = (SLimitInfo){0};
@@ -5988,8 +6274,6 @@ static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
     return terrno;
   }
-  SExecTaskInfo*         pTaskInfo = pOper->pTaskInfo;
-
   STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pTaskInfo->pSubplan->pNode;
   code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
                                   &pInfo->base.readHandle, pInfo->base.pTableListInfo, 
@@ -6031,16 +6315,14 @@ static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
 
   stopSubTablesTableMergeScan(pInfo);
 
-  /*
-   * Re-execution starts a fresh measurement: zero the I/O recorder so the next
-   * run's EXPLAIN ANALYZE counters (file_load_blocks/stt_load_blocks/...) do not
-   * include the cost of the previous run. Must come after the flushAndCloseTmsReader
-   * calls above (reader close and stopSubTablesTableMergeScan both flush into it).
-   * Matches resultInfo.totalRows being reset above.
-   */
-  pInfo->base.readRecorder = (SFileBlockLoadRecorder){0};
-  return code;
+  return beginReaderStatsEpoch(&pInfo->base);
 }
+
+#if defined(BUILD_TEST)
+int32_t scanTestResetTableMergeScanOperatorState(SOperatorInfo* pOper) {
+  return resetTableMergeScanOperatorState(pOper);
+}
+#endif
 
 int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
                                          STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,

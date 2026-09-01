@@ -692,6 +692,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
 
   for (int32_t i = 0; i < size; ++i) {
     SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
+    pChildNode->pParent = pPhyNode;
     // For external window parent, pre-initialize runtime from subquery before building children
     if (QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW == type && i == 0) {
       // best-effort pre-init; ignore errors here and let later construction handle them
@@ -783,17 +784,9 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     }
     code = createVirtualTableMergeOperatorInfo(ops, size, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL == type) {
-    if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
-      code = createStreamExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
-    } else {
-      code = createExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
-    }
+    code = createExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL == type) {
-    if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
-      code = createStreamMergeAlignedExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
-    } else {
-      code = createMergeAlignedExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
-    }
+    code = createMergeAlignedExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else {
     code = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = code;

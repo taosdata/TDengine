@@ -54,6 +54,8 @@ CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
     USING [db_name.]stb_name
     [(tag_name [, tag_name] ...)]
     TAGS (tag_value [, tag_value] ...)
+    [SERIES series_alias AS ext_source_name.db_name.measurement_name
+        (tag_name = 'tag_value' [, tag_name = 'tag_value'] ...) ...]
 
   create_definition:
      [stb_col_name FROM] [db_name.]table_name.col_name
@@ -62,6 +64,32 @@ CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
      | [tag_name] FROM [db_name.]table_name.tag_name
      | [db_name.]table_name.tag_name
 ```
+
+#### 批量创建虚拟子表
+
+一条 `CREATE VTABLE` 语句可以包含多个虚拟子表建表子句。各子句之间不使用逗号分隔，每个子句都可以独立指定 `IF NOT EXISTS`、虚拟超级表、列引用、标签值、标签引用和 `SERIES`。
+
+```sql
+CREATE VTABLE
+    IF NOT EXISTS meter_v1 (
+        voltage FROM source_meter_1.voltage,
+        current FROM source_meter_1.current
+    ) USING meters_vst TAGS ('beijing', 1)
+    IF NOT EXISTS meter_v2 (
+        voltage FROM s2.voltage,
+        current FROM s2.current
+    ) USING meters_vst TAGS ('shanghai', 2)
+    SERIES s2 AS influx_src.metrics.meters (site='shanghai');
+```
+
+批量创建虚拟子表时应注意：
+
+- `IF NOT EXISTS` 只作用于紧随其后的一个虚拟子表。
+- 每个目标虚拟子表必须与其 `USING` 指定的虚拟超级表位于同一数据库；不同子句可以使用不同的数据库、虚拟超级表或 vgroup。
+- 系统会在发送建表请求前校验全部子句。任一子句存在语法、元数据、权限或引用错误时，不创建任何虚拟子表。
+- 请求进入服务端后不保证整批原子性。部分虚拟子表创建成功后发生错误时，已经创建的虚拟子表不会自动回滚。可为所有子句指定 `IF NOT EXISTS` 后重试。
+- 一个子句不能引用同一批量语句中创建的另一个虚拟子表；所有引用源必须在执行语句前存在。
+- 虚拟普通表和虚拟超级表不支持批量创建，一条语句中也不能混合创建普通子表、虚拟普通表和虚拟子表。
 
 **`tag_value` 语法说明**
 

@@ -33,7 +33,7 @@ from taosanalytics.util import safely_remove_file
 class ServiceRegistry:
     """Singleton register for multiple anomaly detection algorithms and forecast algorithms"""
 
-    _only_params_models = ["arima", "prophet", "theta"]
+    _forecast_models = ["arima", "prophet", "deepar"]
     _anomaly_models = ["iforest", "svm"]
     _regression_models = [
         "linear_regression",
@@ -125,7 +125,7 @@ class ServiceRegistry:
                         continue
 
                     config_file_name = f"{model_name}.json"
-                    config_path = os.path.join(item_path, config_file_name)
+                    config_path = item_path / config_file_name
 
                     if not config_path.exists():
                         AppLogger.debug(
@@ -311,7 +311,7 @@ class ServiceRegistry:
             if "algo" in config:
                 algo_name = config["algo"]
 
-                if algo_name.lower() in ServiceRegistry._only_params_models:
+                if algo_name.lower() in ServiceRegistry._forecast_models:
                     # only parameters model
                     # create a simple service object with the metadata, the actual implementation
                     # can be loaded later when execute.

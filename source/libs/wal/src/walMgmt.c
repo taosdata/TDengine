@@ -146,6 +146,14 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   // set config
   (void)memcpy(&pWal->cfg, pCfg, sizeof(SWalCfg));
 
+  // Bind tfs here, before walLoadMeta/walCheckAndRepairMeta/walCheckAndRepairIdx run
+  // below -- those need pTfs/relDir already set so the open-time repair pass can find
+  // historical segments on every mount point instead of only pWal->path.
+  pWal->pTfs = pCfg->pTfs;
+  if (pCfg->pTfs != NULL) {
+    tstrncpy(pWal->relDir, pCfg->relDir, sizeof(pWal->relDir));
+  }
+
   pWal->fsyncSeq = pCfg->fsyncPeriod / 1000;
   if (pWal->cfg.retentionSize > 0) {
     pWal->cfg.retentionSize *= 1024;
@@ -295,6 +303,27 @@ int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
 
   pWal->fsyncSeq = pCfg->fsyncPeriod / 1000;
   if (pWal->fsyncSeq <= 0) pWal->fsyncSeq = 1;
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+// Re-bind a dnode-level shared tfs handle on an already-opened WAL, e.g. after a mount
+// point is hot-added. Pure assignment: no disk I/O, no roll is triggered here, so it
+// never changes behavior at the instant it is called -- it only affects the *next* roll.
+//
+// IMPORTANT: this does NOT retroactively affect the one-time repair pass walOpen() already
+// ran (walCheckAndRepairMeta/walCheckAndRepairIdx). To have that pass see every mount point
+// a historical segment might live on, pTfs/relDir must be set on SWalCfg *before* calling
+// walOpen() -- see the SWalCfg.pTfs comment in wal.h. Not calling either leaves
+// pWal->pTfs == NULL, in which case every name-builder falls back to pWal->path and WAL
+// behavior is exactly what it was before this feature existed.
+int32_t walSetTfs(SWal *pWal, STfs *pTfs, const char *relDir) {
+  if (pWal == NULL) TAOS_RETURN(TSDB_CODE_APP_ERROR);
+
+  pWal->pTfs = pTfs;
+  if (relDir != NULL) {
+    tstrncpy(pWal->relDir, relDir, sizeof(pWal->relDir));
+  }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
