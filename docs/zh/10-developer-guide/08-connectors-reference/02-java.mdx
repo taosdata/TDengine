@@ -1451,7 +1451,7 @@ JDBC 标准不支持数据订阅，因此本章所有接口都是扩展接口。
   - **异常**：如果在提交过程中发生错误，将抛出 SQLException 异常。
 - `void close() throws SQLException`
   - **接口说明**：关闭消费者，释放资源。
-  - **异常**：如果在关闭过程中发生错误，将抛出 SQLException 异常。
+  - **异常**：对于原生连接，仅当本地消费者资源释放失败时抛出 `SQLException` 异常；该方法不会报告取消订阅或自动提交 offset 失败。WebSocket 连接遵循 WebSocket 连接器的关闭语义。
 - `void seek(TopicPartition partition, long offset) throws SQLException`
   - **接口说明**：将给定分区的偏移量设置到指定的位置。
   - **参数说明**：

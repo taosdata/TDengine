@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include <iostream>
 #include "clientInt.h"
+#include "clientTmq.h"
 #include "osSemaphore.h"
 #include "tglobal.h"
 #include "taoserror.h"
@@ -38,6 +39,24 @@
 namespace {
 
 #define nDup 10
+
+struct TmqCloseTestContext {
+  tmq_t   tmq = {0};
+  int32_t unsubscribeCount = 0;
+  int32_t releaseCount = 0;
+};
+
+void countTmqCloseRelease(void* param) {
+  TmqCloseTestContext* context = static_cast<TmqCloseTestContext*>(param);
+  context->releaseCount++;
+}
+
+int32_t failTmqUnsubscribe(tmq_t* tmq) {
+  TmqCloseTestContext* context = reinterpret_cast<TmqCloseTestContext*>(tmq);
+  context->unsubscribeCount++;
+  return TSDB_CODE_TMQ_INVALID_STATUS;
+}
+
 static int32_t queryDB(TAOS* taos, char* command) {
   int       i;
   TAOS_RES* pSql = NULL;
@@ -401,6 +420,99 @@ TEST(clientCase, driverInit_Test) {
   // taosInitGlobalCfg();
   //  taos_init();
 }
+
+TEST(clientCase, tmq_close_releases_creator_ref_after_unsubscribe_failure) {
+  SMqMgmt mgmt = {0};
+  ASSERT_EQ(taosThreadMutexInit(&mgmt.lock, NULL), 0);
+  mgmt.rsetId = taosOpenRef(1, countTmqCloseRelease);
+  ASSERT_GT(mgmt.rsetId, 0);
+
+  TmqCloseTestContext context = {};
+  context.tmq.consumerId = 0x1234;
+  atomic_store_8(&context.tmq.status, TMQ_CONSUMER_STATUS__READY);
+  context.tmq.refId = taosAddRef(mgmt.rsetId, &context);
+  ASSERT_GT(context.tmq.refId, 0);
+
+  tmq_t* retained = static_cast<tmq_t*>(
+      taosAcquireRef(mgmt.rsetId, context.tmq.refId));
+  ASSERT_EQ(retained, &context.tmq);
+
+  EXPECT_EQ(
+      tmqConsumerCloseImpl(&context.tmq, &mgmt, failTmqUnsubscribe), 0);
+  EXPECT_EQ(context.unsubscribeCount, 1);
+  EXPECT_EQ(atomic_load_8(&context.tmq.status), TMQ_CONSUMER_STATUS__CLOSED);
+  EXPECT_EQ(context.tmq.creatorRefRemoved, 1);
+  EXPECT_EQ(taosAcquireRef(mgmt.rsetId, context.tmq.refId), nullptr);
+  EXPECT_EQ(context.releaseCount, 0);
+
+  EXPECT_EQ(
+      tmqConsumerCloseImpl(&context.tmq, &mgmt, failTmqUnsubscribe), 0);
+  EXPECT_EQ(context.unsubscribeCount, 1);
+  EXPECT_EQ(context.releaseCount, 0);
+
+  EXPECT_EQ(taosReleaseRef(mgmt.rsetId, context.tmq.refId), 0);
+  EXPECT_EQ(context.releaseCount, 1);
+  taosCloseRef(mgmt.rsetId);
+  EXPECT_EQ(taosThreadMutexDestroy(&mgmt.lock), 0);
+}
+
+TEST(clientCase, tmq_close_removes_creator_ref_when_already_closed) {
+  SMqMgmt mgmt = {0};
+  ASSERT_EQ(taosThreadMutexInit(&mgmt.lock, NULL), 0);
+  mgmt.rsetId = taosOpenRef(1, countTmqCloseRelease);
+  ASSERT_GT(mgmt.rsetId, 0);
+
+  TmqCloseTestContext context = {};
+  context.tmq.consumerId = 0x5678;
+  atomic_store_8(&context.tmq.status, TMQ_CONSUMER_STATUS__CLOSED);
+  context.tmq.refId = taosAddRef(mgmt.rsetId, &context);
+  ASSERT_GT(context.tmq.refId, 0);
+
+  tmq_t* retained = static_cast<tmq_t*>(
+      taosAcquireRef(mgmt.rsetId, context.tmq.refId));
+  ASSERT_EQ(retained, &context.tmq);
+
+  EXPECT_EQ(
+      tmqConsumerCloseImpl(&context.tmq, &mgmt, failTmqUnsubscribe), 0);
+  EXPECT_EQ(context.unsubscribeCount, 0);
+  EXPECT_EQ(context.tmq.creatorRefRemoved, 1);
+  EXPECT_EQ(taosAcquireRef(mgmt.rsetId, context.tmq.refId), nullptr);
+  EXPECT_EQ(context.releaseCount, 0);
+
+  EXPECT_EQ(taosReleaseRef(mgmt.rsetId, context.tmq.refId), 0);
+  EXPECT_EQ(context.releaseCount, 1);
+  taosCloseRef(mgmt.rsetId);
+  EXPECT_EQ(taosThreadMutexDestroy(&mgmt.lock), 0);
+}
+
+TEST(clientCase, tmq_close_retries_creator_ref_removal_after_failure) {
+  SMqMgmt mgmt = {0};
+  ASSERT_EQ(taosThreadMutexInit(&mgmt.lock, NULL), 0);
+  mgmt.rsetId = taosOpenRef(1, countTmqCloseRelease);
+  ASSERT_GT(mgmt.rsetId, 0);
+
+  TmqCloseTestContext context = {};
+  context.tmq.consumerId = 0x9abc;
+  atomic_store_8(&context.tmq.status, TMQ_CONSUMER_STATUS__READY);
+  context.tmq.refId = 1;
+
+  EXPECT_EQ(tmqConsumerCloseImpl(&context.tmq, &mgmt,
+                                 failTmqUnsubscribe),
+            TSDB_CODE_REF_NOT_EXIST);
+  EXPECT_EQ(context.unsubscribeCount, 1);
+  EXPECT_EQ(atomic_load_8(&context.tmq.status), TMQ_CONSUMER_STATUS__CLOSED);
+  EXPECT_EQ(context.tmq.creatorRefRemoved, 0);
+
+  EXPECT_EQ(tmqConsumerCloseImpl(&context.tmq, &mgmt,
+                                 failTmqUnsubscribe),
+            TSDB_CODE_REF_NOT_EXIST);
+  EXPECT_EQ(context.unsubscribeCount, 1);
+  EXPECT_EQ(context.tmq.creatorRefRemoved, 0);
+
+  taosCloseRef(mgmt.rsetId);
+  EXPECT_EQ(taosThreadMutexDestroy(&mgmt.lock), 0);
+}
+
 TEST(clientCase, sessControl) { testSessionCtrl(); }
 
 TEST(clientCase, connect_Test) {

@@ -863,7 +863,7 @@ For other parameters, please refer to: [Consumer Parameter List](../07-subscript
   - **Exception**: Throws `TDengineError` exception if execution fails.
 
 - `void Close()`
-  - **Interface Description**: Close the consumer.
+  - **Interface Description**: Close the consumer and release its resources. The native implementation does not report unsubscribe, automatic offset commit, or resource release failures.
 
 #### Consumption Record
 

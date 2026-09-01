@@ -644,5 +644,5 @@ TaosResult object can be iterated over to retrieve queried data.
   - **Return Value**: `partition`, the last committed offset of the partition.
   - **Exception**: Throws `TmqError` exception on failure.
 - `def close(self)`
-  - **Interface Description**: Closes the tmq connection.
-  - **Exception**: Throws `TmqError` exception on failure.
+  - **Interface Description**: Closes the native TMQ consumer and releases its resources.
+  - **Exception**: Throws `TmqError` only if local consumer resource release fails. Unsubscribe or automatic offset commit failures are not reported by this method.
