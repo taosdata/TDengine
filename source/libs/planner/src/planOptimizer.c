@@ -8959,6 +8959,9 @@ static bool hashJoinOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
+  if (pJoin->multiGroupJoin) {
+    return JOIN_ALGO_HASH != pJoin->joinAlgo;
+  }
   if (pJoin->joinAlgo != JOIN_ALGO_UNKNOWN) {
     return res;
   }
@@ -9275,6 +9278,9 @@ static bool stbJoinOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
+  if (pJoin->multiGroupJoin) {
+    return false;
+  }
   if (pJoin->joinAlgo == JOIN_ALGO_UNKNOWN) {
     pJoin->joinAlgo = JOIN_ALGO_MERGE;
   }

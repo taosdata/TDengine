@@ -17,13 +17,16 @@
 #include "osWindows.h"
 #endif
 
+#include <array>
 #include <cstring>
 #include <fstream>
+#include <memory>
 
 #include "stub.h"
 
 #include "parTestUtil.h"
 #include "parAst.h"
+#include "parInt.h"
 
 #include "nodes.h"
 
@@ -92,9 +95,125 @@ class StrictAppendStubGuard {
   Stub stub_;
 };
 
+using QueryGuard = unique_ptr<SQuery, decltype(&qDestroyQuery)>;
+
+QueryGuard parseInitialSql(const char* pSql) {
+  array<char, 1024> msgBuf = {0};
+  SParseContext     cxt = {0};
+  cxt.acctId = 0;
+  cxt.db = "test";
+  cxt.pUser = "root";
+  cxt.isSuperUser = true;
+  cxt.enableSysInfo = true;
+  cxt.privInfo = UINT16_MAX;
+  cxt.pSql = pSql;
+  cxt.sqlLen = strlen(pSql);
+  cxt.pMsg = msgBuf.data();
+  cxt.msgLen = msgBuf.max_size();
+  cxt.svrVer = "3.0.0.0";
+
+  SQuery* pQuery = nullptr;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, parse(&cxt, &pQuery)) << msgBuf.data();
+  return QueryGuard(pQuery, qDestroyQuery);
+}
+
 }  // namespace
 
 class ParserInitialCTest : public ParserDdlTest {};
+
+TEST_F(ParserInitialCTest, createVSubTableBatchAst) {
+  {
+    QueryGuard query = parseInitialSql(
+        "CREATE VTABLE IF NOT EXISTS v_explicit "
+        "(value FROM src1.value) USING vst (location) TAGS ('beijing')");
+    ASSERT_NE(query, nullptr);
+    ASSERT_EQ(nodeType(query->pRoot), QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT);
+
+    const SCreateVSubTableStmt* pStmt = (const SCreateVSubTableStmt*)query->pRoot;
+    EXPECT_STREQ(pStmt->dbName, "test");
+    EXPECT_STREQ(pStmt->tableName, "v_explicit");
+    EXPECT_STREQ(pStmt->useDbName, "test");
+    EXPECT_STREQ(pStmt->useTableName, "vst");
+    EXPECT_TRUE(pStmt->ignoreExists);
+    ASSERT_NE(pStmt->pSpecificColRefs, nullptr);
+    EXPECT_EQ(LIST_LENGTH(pStmt->pSpecificColRefs), 1);
+    EXPECT_EQ(pStmt->pColRefs, nullptr);
+  }
+
+  {
+    QueryGuard query = parseInitialSql("CREATE VTABLE v_positional (src2.value) USING vst TAGS (2)");
+    ASSERT_NE(query, nullptr);
+    ASSERT_EQ(nodeType(query->pRoot), QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT);
+
+    const SCreateVSubTableStmt* pStmt = (const SCreateVSubTableStmt*)query->pRoot;
+    EXPECT_STREQ(pStmt->tableName, "v_positional");
+    EXPECT_FALSE(pStmt->ignoreExists);
+    EXPECT_EQ(pStmt->pSpecificColRefs, nullptr);
+    ASSERT_NE(pStmt->pColRefs, nullptr);
+    EXPECT_EQ(LIST_LENGTH(pStmt->pColRefs), 1);
+  }
+
+  {
+    QueryGuard query = parseInitialSql(
+        "CREATE VTABLE v_no_refs USING vst TAGS (3) "
+        "SERIES influx AS ext0.db0.measurement0 (site='beijing')");
+    ASSERT_NE(query, nullptr);
+    ASSERT_EQ(nodeType(query->pRoot), QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT);
+
+    const SCreateVSubTableStmt* pStmt = (const SCreateVSubTableStmt*)query->pRoot;
+    EXPECT_STREQ(pStmt->tableName, "v_no_refs");
+    EXPECT_EQ(pStmt->pSpecificColRefs, nullptr);
+    EXPECT_EQ(pStmt->pColRefs, nullptr);
+    ASSERT_NE(pStmt->pSeriesList, nullptr);
+    EXPECT_EQ(LIST_LENGTH(pStmt->pSeriesList), 1);
+  }
+
+  {
+    QueryGuard query = parseInitialSql(
+        "CREATE VTABLE "
+        "IF NOT EXISTS v1 (value FROM src1.value) USING vst1 (location) TAGS ('beijing') "
+        "v2 (src2.value) USING vst2 TAGS (2) "
+        "SERIES influx AS ext0.db0.measurement0 (site='shanghai') "
+        "v3 USING vst3 TAGS (3)");
+    ASSERT_NE(query, nullptr);
+    ASSERT_EQ(nodeType(query->pRoot), QUERY_NODE_CREATE_MULTI_TABLES_STMT);
+
+    const SCreateMultiTablesStmt* pMulti = (const SCreateMultiTablesStmt*)query->pRoot;
+    ASSERT_NE(pMulti->pSubTables, nullptr);
+    ASSERT_EQ(LIST_LENGTH(pMulti->pSubTables), 3);
+
+    const SCreateVSubTableStmt* pFirst = (const SCreateVSubTableStmt*)nodesListGetNode(pMulti->pSubTables, 0);
+    const SCreateVSubTableStmt* pSecond = (const SCreateVSubTableStmt*)nodesListGetNode(pMulti->pSubTables, 1);
+    const SCreateVSubTableStmt* pThird = (const SCreateVSubTableStmt*)nodesListGetNode(pMulti->pSubTables, 2);
+    ASSERT_NE(pFirst, nullptr);
+    ASSERT_NE(pSecond, nullptr);
+    ASSERT_NE(pThird, nullptr);
+    EXPECT_EQ(nodeType(pFirst), QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT);
+    EXPECT_EQ(nodeType(pSecond), QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT);
+    EXPECT_EQ(nodeType(pThird), QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT);
+
+    EXPECT_STREQ(pFirst->tableName, "v1");
+    EXPECT_TRUE(pFirst->ignoreExists);
+    ASSERT_NE(pFirst->pSpecificColRefs, nullptr);
+    EXPECT_EQ(pFirst->pColRefs, nullptr);
+    EXPECT_STREQ(pSecond->tableName, "v2");
+    EXPECT_FALSE(pSecond->ignoreExists);
+    EXPECT_EQ(pSecond->pSpecificColRefs, nullptr);
+    ASSERT_NE(pSecond->pColRefs, nullptr);
+    ASSERT_NE(pSecond->pSeriesList, nullptr);
+    EXPECT_EQ(LIST_LENGTH(pSecond->pSeriesList), 1);
+    EXPECT_STREQ(pThird->tableName, "v3");
+    EXPECT_EQ(pThird->pSpecificColRefs, nullptr);
+    EXPECT_EQ(pThird->pColRefs, nullptr);
+  }
+}
+
+TEST_F(ParserInitialCTest, createVSubTableBatchSyntaxError) {
+  runParseOnly("CREATE VTABLE v1 USING vst TAGS (1), v2 USING vst TAGS (2)", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("CREATE VTABLE v1 (ts TIMESTAMP) v2 (ts TIMESTAMP)", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("CREATE VTABLE v1 (ts TIMESTAMP) v2 USING vst TAGS (2)", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("CREATE VTABLE v1 USING vst TAGS (1) v2 (ts TIMESTAMP)", TSDB_CODE_PAR_SYNTAX_ERROR);
+}
 
 TEST_F(ParserInitialCTest, xnodeTaskParserPresence) {
   login("root");

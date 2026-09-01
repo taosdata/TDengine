@@ -87,7 +87,9 @@ SELECT stream_name,
        start,
        end,
        progress,
-       status
+       status,
+       request_time,
+       message
 FROM information_schema.ins_stream_recalculates
 WHERE stream_name = 'your_stream_name'
 ORDER BY start, recalc_id;
@@ -102,7 +104,11 @@ ORDER BY start, recalc_id;
 
 滚动升级期间，如果旧版本任务只能提供重算进度，`status` 可能为 `NULL`，但 `progress` 仍可用。
 
+SQL 成功返回表示重算请求已被接受，不表示重算已经完成。重算在后台执行；如果服务或流任务重启、重新部署时请求尚未达到终态，未完成的请求会被恢复并继续执行，临时执行失败会自动重试。请使用 `recalc_id` 跟踪同一个请求，处于 `Pending` 或 `Running` 时不要重复提交相同请求。`request_time` 是 mnode 接受请求的时间，`message` 在可用时包含重算状态或错误信息。
+
 已结束的重算记录从 mnode 首次观察到终态开始保留 1 小时，每个流最多保留 100 条。`Pending` 和 `Running` 记录不受该数量上限影响。记录只保存在内存中，进程重启后可能消失。
+
+上述保留策略只适用于已结束的记录，与未完成请求的持久化恢复机制相互独立。
 
 ## 理解 `NULL` 和零值
 

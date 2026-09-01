@@ -2982,44 +2982,61 @@ int restoreDatabaseMeta(const char *dbName) {
     }
 
     // Virtual tables, streams and topics are NOT restored here — see
-    // restoreDatabaseExtMeta().  They can reference tables in other databases,
-    // so they must run only after every database's physical tables exist.
+    // restoreDatabaseExtMetaApply().  They can reference tables in other
+    // databases, so they must run only after every database's physical tables
+    // exist.
 
     return TSDB_CODE_SUCCESS;
 }
 
 //
-// restore database extended metadata: virtual tables + streams + topics
+// restore one database's extended-metadata "shell": the database itself and its
+// virtual super tables.
 //
-// A virtual table can map each of its columns to an arbitrary db.table.column,
-// so its DDL may reference a database other than the one being restored.  This
-// function is therefore called in a second pass, after every database's
-// physical tables and data have been restored.
+// Used only when the basic stage did not run (--content=ext-meta): the
+// database does not exist yet, and virtual child tables need their virtual
+// super table (whose DDL lives in stb.sql, basic content).  This is kept as a
+// separate phase so restoreMain() can create EVERY database before applying
+// ANY extended-metadata DDL.
 //
-// needCreateDb: true when the basic stage did not run for this database
-//               (--content=ext-meta).  restoreDbSql() creates the database, or
-//               falls back to USE when it already exists.
-//
-int restoreDatabaseExtMeta(const char *dbName, bool needCreateDb) {
+int restoreDatabaseExtMetaPrepare(const char *dbName) {
     int code = TSDB_CODE_SUCCESS;
 
     g_progress.phase = PROGRESS_PHASE_EXTMETA;
 
-    if (needCreateDb) {
-        code = restoreDbSql(dbName);
-        if (code != TSDB_CODE_SUCCESS) {
-            logError("restore db sql failed(0x%08X): %s", code, dbName);
-            return code;
-        }
-        // Virtual child tables need their virtual super table, whose DDL lives
-        // in stb.sql (basic content).  The basic stage did not run, so create
-        // the virtual super tables here — physical ones are left alone.
-        code = restoreStbSql(dbName, true /* virtual super tables only */);
-        if (code != TSDB_CODE_SUCCESS) {
-            logError("restore virtual stb sql failed(0x%08X): %s", code, dbName);
-            return code;
-        }
+    // restoreDbSql() creates the database, or falls back to USE when it
+    // already exists (APPEND mode).
+    code = restoreDbSql(dbName);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("restore db sql failed(0x%08X): %s", code, dbName);
+        return code;
     }
+    // Virtual child tables need their virtual super table, whose DDL lives
+    // in stb.sql (basic content).  The basic stage did not run, so create
+    // the virtual super tables here — physical ones are left alone.
+    code = restoreStbSql(dbName, true /* virtual super tables only */);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("restore virtual stb sql failed(0x%08X): %s", code, dbName);
+        return code;
+    }
+
+    return TSDB_CODE_SUCCESS;
+}
+
+//
+// restore one database's extended metadata DDL: virtual tables + streams +
+// topics
+//
+// A virtual table can map each of its columns to an arbitrary db.table.column,
+// so its DDL may reference a database other than the one being restored.  This
+// function is therefore called in a second pass, after every database's
+// physical tables and data (and, for --content=ext-meta, after every database
+// itself) have been created.
+//
+int restoreDatabaseExtMetaApply(const char *dbName) {
+    int code = TSDB_CODE_SUCCESS;
+
+    g_progress.phase = PROGRESS_PHASE_EXTMETA;
 
     //
     // 1. Virtual table DDL (vtb.sql) + virtual child tags (vtags/)

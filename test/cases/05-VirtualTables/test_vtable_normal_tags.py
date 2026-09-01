@@ -130,6 +130,8 @@ class TestVtableNormalTags:
     def test_data_select_columns(self):
         """Data: SELECT ts, val returns all rows with values from the source.
 
+        Query shared virtual-normal fixtures and assert results via helper checks.
+
         Catalog:
             - VirtualTable
 
@@ -151,6 +153,8 @@ class TestVtableNormalTags:
     def test_data_select_primary_ts(self):
         """Data: SELECT ts (primary timestamp) returns each row's timestamp.
 
+        Query shared virtual-normal fixtures and assert results via helper checks.
+
         Catalog:
             - VirtualTable
 
@@ -171,6 +175,8 @@ class TestVtableNormalTags:
     def test_data_select_data_column(self):
         """Data: SELECT val returns the source column values.
 
+        Query shared virtual-normal fixtures and assert results via helper checks.
+
         Catalog:
             - VirtualTable
 
@@ -190,6 +196,8 @@ class TestVtableNormalTags:
     def test_data_filter_eq(self):
         """Data: WHERE val = const filters rows.
 
+        Query shared virtual-normal fixtures and assert results via helper checks.
+
         Catalog:
             - VirtualTable
 
@@ -208,6 +216,8 @@ class TestVtableNormalTags:
 
     def test_data_filter_range(self):
         """Data: WHERE val > N / val BETWEEN filters rows.
+
+        Query shared virtual-normal fixtures and assert results via helper checks.
 
         Catalog:
             - VirtualTable
@@ -233,6 +243,8 @@ class TestVtableNormalTags:
     def test_data_time_range_filter(self):
         """Data: WHERE ts filters by time range.
 
+        Query shared virtual-normal fixtures and assert results via helper checks.
+
         Catalog:
             - VirtualTable
 
@@ -256,6 +268,8 @@ class TestVtableNormalTags:
     def test_data_order_by_ts_asc(self):
         """Data: ORDER BY ts ASC returns rows in ascending time order.
 
+        Query shared virtual-normal fixtures and assert results via helper checks.
+
         Catalog:
             - VirtualTable
 
@@ -276,6 +290,8 @@ class TestVtableNormalTags:
     def test_data_order_by_ts_desc(self):
         """Data: ORDER BY ts DESC returns rows in descending time order.
 
+        Query shared virtual-normal fixtures and assert results via helper checks.
+
         Catalog:
             - VirtualTable
 
@@ -295,6 +311,8 @@ class TestVtableNormalTags:
 
     def test_data_limit(self):
         """Data: LIMIT N returns the first N rows.
+
+        Query shared virtual-normal fixtures and assert results via helper checks.
 
         Catalog:
             - VirtualTable
@@ -317,6 +335,8 @@ class TestVtableNormalTags:
     def test_data_aggregates(self):
         """Data: COUNT/SUM/AVG/MIN/MAX over the data column.
 
+        Query shared virtual-normal fixtures and assert results via helper checks.
+
         Catalog:
             - VirtualTable
 
@@ -338,6 +358,8 @@ class TestVtableNormalTags:
     def test_data_group_by_value(self):
         """Data: GROUP BY the data column.
 
+        Query shared virtual-normal fixtures and assert results via helper checks.
+
         Catalog:
             - VirtualTable
 
@@ -357,6 +379,8 @@ class TestVtableNormalTags:
 
     def test_data_combined_filter(self):
         """Data: WHERE data AND time combined filter.
+
+        Query shared virtual-normal fixtures and assert results via helper checks.
 
         Catalog:
             - VirtualTable
@@ -382,6 +406,8 @@ class TestVtableNormalTags:
 
     def test_desc_full_schema(self):
         """DESC: lists all columns and tags with correct types.
+
+        Run DESC and assert virtual table schema metadata.
 
         Catalog:
             - VirtualTable
@@ -411,6 +437,8 @@ class TestVtableNormalTags:
     def test_desc_tag_ref_refcolumn(self):
         """DESC: the data column's ref column (val FROM src0.val) is shown.
 
+        Run DESC and assert virtual table schema metadata.
+
         Catalog:
             - VirtualTable
 
@@ -436,6 +464,8 @@ class TestVtableNormalTags:
     def test_show_create_owned(self):
         """SHOW CREATE: emits TAGS with the owned inline value.
 
+        Verify SHOW CREATE TABLE output and round-trip the emitted DDL where applicable.
+
         Catalog:
             - VirtualTable
 
@@ -456,6 +486,8 @@ class TestVtableNormalTags:
 
     def test_show_create_tag_ref(self):
         """SHOW CREATE: emits the tag-ref FROM clause.
+
+        Verify SHOW CREATE TABLE output and round-trip the emitted DDL where applicable.
 
         Catalog:
             - VirtualTable
@@ -479,6 +511,8 @@ class TestVtableNormalTags:
     def test_show_create_mixed(self):
         """SHOW CREATE: emits both owned and tag-ref in one TAGS clause.
 
+        Verify SHOW CREATE TABLE output and round-trip the emitted DDL where applicable.
+
         Catalog:
             - VirtualTable
 
@@ -500,6 +534,8 @@ class TestVtableNormalTags:
 
     def test_show_create_roundtrip(self):
         """SHOW CREATE: output re-creates an equivalent table (values survive).
+
+        Verify SHOW CREATE TABLE output and round-trip the emitted DDL where applicable.
 
         Catalog:
             - VirtualTable
@@ -563,9 +599,11 @@ class TestVtableNormalTags:
                            "vtable: = NULL survives round-trip")
 
     def test_show_create_json_owned(self):
-        """SHOW CREATE: a JSON owned tag emits its actual content (not `= NULL`) and the
-        output round-trips, including a single quote inside the JSON string (escaped by
-        doubling).
+        """SHOW CREATE: JSON owned tag round-trip with quote escaping.
+
+        Verify SHOW CREATE emits actual JSON content (not `= NULL`) and that replaying
+        the emitted DDL preserves the string, including an embedded single quote
+        (escaped by doubling in SQL).
 
         Catalog:
             - VirtualTable
@@ -602,8 +640,10 @@ class TestVtableNormalTags:
         tdSql.execute("DROP TABLE vctb_json_sc;")
 
     def test_show_create_tagless_omits_tags(self):
-        """SHOW CREATE on a tag-less table omits the TAGS clause entirely (no empty `TAGS()`),
-        for both normal and virtual-normal tables.
+        """SHOW CREATE: tag-less tables omit the TAGS clause.
+
+        Assert both normal and virtual-normal tables emit no empty `TAGS()` clause
+        in SHOW CREATE TABLE output.
 
         Catalog:
             - VirtualTable
@@ -636,6 +676,8 @@ class TestVtableNormalTags:
     def test_tag_owned_value(self):
         """Tag: SELECT an owned INT tag returns the constant value per row.
 
+        Project, filter, or aggregate owned/tag-ref tags on shared fixtures.
+
         Catalog:
             - VirtualTable
 
@@ -654,6 +696,8 @@ class TestVtableNormalTags:
 
     def test_tag_owned_nchar_value(self):
         """Tag: SELECT an owned NCHAR tag returns the string value.
+
+        Project, filter, or aggregate owned/tag-ref tags on shared fixtures.
 
         Catalog:
             - VirtualTable
@@ -675,6 +719,8 @@ class TestVtableNormalTags:
     def test_tag_owned_multiple(self):
         """Tag: SELECT multiple owned tags together.
 
+        Project, filter, or aggregate owned/tag-ref tags on shared fixtures.
+
         Catalog:
             - VirtualTable
 
@@ -695,6 +741,8 @@ class TestVtableNormalTags:
     def test_tag_ref_value(self):
         """Tag: SELECT a tag-ref returns the source tag value.
 
+        Project, filter, or aggregate owned/tag-ref tags on shared fixtures.
+
         Catalog:
             - VirtualTable
 
@@ -713,6 +761,8 @@ class TestVtableNormalTags:
 
     def test_tag_ref_follow_source(self):
         """Tag: a tag-ref dynamically follows the source tag after SET TAG.
+
+        Project, filter, or aggregate owned/tag-ref tags on shared fixtures.
 
         Catalog:
             - VirtualTable
@@ -737,6 +787,8 @@ class TestVtableNormalTags:
     def test_tag_mixed_owned_ref(self):
         """Tag: SELECT owned + tag-ref tags together with data.
 
+        Project, filter, or aggregate owned/tag-ref tags on shared fixtures.
+
         Catalog:
             - VirtualTable
 
@@ -757,6 +809,8 @@ class TestVtableNormalTags:
     def test_tag_multi_source_ref(self):
         """Tag: tag-refs pulling from different source child tables.
 
+        Project, filter, or aggregate owned/tag-ref tags on shared fixtures.
+
         Catalog:
             - VirtualTable
 
@@ -775,6 +829,8 @@ class TestVtableNormalTags:
 
     def test_tag_owned_with_data(self):
         """Tag: owned tag projected together with the data column.
+
+        Project, filter, or aggregate owned/tag-ref tags on shared fixtures.
 
         Catalog:
             - VirtualTable
@@ -796,6 +852,8 @@ class TestVtableNormalTags:
     def test_tag_owned_filter_eq(self):
         """Tag: WHERE owned_tag = const filters rows.
 
+        Project, filter, or aggregate owned/tag-ref tags on shared fixtures.
+
         Catalog:
             - VirtualTable
 
@@ -815,6 +873,8 @@ class TestVtableNormalTags:
 
     def test_tag_owned_filter_range(self):
         """Tag: WHERE owned_tag > N / < N filters rows.
+
+        Project, filter, or aggregate owned/tag-ref tags on shared fixtures.
 
         Catalog:
             - VirtualTable
@@ -836,6 +896,8 @@ class TestVtableNormalTags:
     def test_tag_owned_filter_combined(self):
         """Tag: WHERE owned_tag AND data column combined.
 
+        Project, filter, or aggregate owned/tag-ref tags on shared fixtures.
+
         Catalog:
             - VirtualTable
 
@@ -855,6 +917,8 @@ class TestVtableNormalTags:
 
     def test_tag_ref_filter(self):
         """Tag: WHERE on a tag-ref filters rows.
+
+        Project, filter, or aggregate owned/tag-ref tags on shared fixtures.
 
         Catalog:
             - VirtualTable
@@ -878,6 +942,8 @@ class TestVtableNormalTags:
     def test_tag_group_by_owned(self):
         """Tag: GROUP BY an owned tag.
 
+        Project, filter, or aggregate owned/tag-ref tags on shared fixtures.
+
         Catalog:
             - VirtualTable
 
@@ -897,6 +963,8 @@ class TestVtableNormalTags:
 
     def test_tag_group_by_tag_ref(self):
         """Tag: GROUP BY a tag-ref.
+
+        Project, filter, or aggregate owned/tag-ref tags on shared fixtures.
 
         Catalog:
             - VirtualTable
@@ -918,6 +986,8 @@ class TestVtableNormalTags:
     def test_tag_distinct_owned(self):
         """Tag: DISTINCT collapses the constant owned tag value.
 
+        Project, filter, or aggregate owned/tag-ref tags on shared fixtures.
+
         Catalog:
             - VirtualTable
 
@@ -935,6 +1005,8 @@ class TestVtableNormalTags:
 
     def test_tag_distinct_tag_ref(self):
         """Tag: DISTINCT collapses tag-ref values.
+
+        Project, filter, or aggregate owned/tag-ref tags on shared fixtures.
 
         Catalog:
             - VirtualTable
@@ -954,6 +1026,8 @@ class TestVtableNormalTags:
 
     def test_tag_agg_with_owned_filter(self):
         """Tag: aggregate with an owned-tag filter.
+
+        Project, filter, or aggregate owned/tag-ref tags on shared fixtures.
 
         Catalog:
             - VirtualTable
@@ -979,6 +1053,8 @@ class TestVtableNormalTags:
     def test_alter_add_tag(self):
         """Lifecycle: ALTER ADD TAG adds an owned tag (visible in DESC).
 
+        Exercise virtual-normal table tag DDL lifecycle and verify side effects.
+
         Catalog:
             - VirtualTable
 
@@ -999,8 +1075,9 @@ class TestVtableNormalTags:
         assert "extra" in names, f"ADD TAG not visible: {names}"
 
     def test_alter_add_tag_same_conn_select(self):
-        """Lifecycle: after ALTER ADD TAG on a persistent connection, the new tag is immediately
-        readable (ALTER response carries the full meta — no catalog-cache staleness).
+        """Lifecycle: after ALTER ADD TAG on a persistent connection, the new tag is immediately readable (ALTER response carries the full meta — no catalog-cache staleness).
+
+        Exercise virtual-normal table tag DDL lifecycle and verify side effects.
 
         Catalog:
             - VirtualTable
@@ -1026,6 +1103,8 @@ class TestVtableNormalTags:
     def test_alter_set_tag(self):
         """Lifecycle: SET TAG updates an owned tag value, readable via SELECT.
 
+        Exercise virtual-normal table tag DDL lifecycle and verify side effects.
+
         Catalog:
             - VirtualTable
 
@@ -1046,6 +1125,8 @@ class TestVtableNormalTags:
 
     def test_alter_drop_tag(self):
         """Lifecycle: ALTER DROP TAG removes the tag from schema.
+
+        Exercise virtual-normal table tag DDL lifecycle and verify side effects.
 
         Catalog:
             - VirtualTable
@@ -1070,6 +1151,8 @@ class TestVtableNormalTags:
     def test_alter_add_tag_ref(self):
         """Lifecycle: ALTER ADD TAG name TYPE FROM src.tag adds a tag reference.
 
+        Exercise virtual-normal table tag DDL lifecycle and verify side effects.
+
         Catalog:
             - VirtualTable
 
@@ -1090,6 +1173,8 @@ class TestVtableNormalTags:
 
     def test_drop_recreate(self):
         """Lifecycle: drop and recreate with different tags.
+
+        Exercise virtual-normal table tag DDL lifecycle and verify side effects.
 
         Catalog:
             - VirtualTable
@@ -1117,6 +1202,8 @@ class TestVtableNormalTags:
     def test_error_decimal_rejected(self):
         """Error: DECIMAL tags are rejected at CREATE.
 
+        Assert invalid tag or DDL usage is rejected with expected errors.
+
         Catalog:
             - VirtualTable
 
@@ -1135,6 +1222,8 @@ class TestVtableNormalTags:
 
     def test_error_dup_tag_name(self):
         """Error: duplicate tag names within TAGS(...) are rejected.
+
+        Assert invalid tag or DDL usage is rejected with expected errors.
 
         Catalog:
             - VirtualTable
@@ -1155,6 +1244,8 @@ class TestVtableNormalTags:
     def test_error_tag_col_collision(self):
         """Error: a tag name colliding with a column name is rejected.
 
+        Assert invalid tag or DDL usage is rejected with expected errors.
+
         Catalog:
             - VirtualTable
 
@@ -1173,6 +1264,8 @@ class TestVtableNormalTags:
     def test_error_alter_tag_col_collision(self):
         """Error: ALTER ADD TAG whose name collides with a column is rejected (tags/columns share name space).
 
+        Assert invalid tag or DDL usage is rejected with expected errors.
+
         Catalog:
             - VirtualTable
 
@@ -1190,8 +1283,9 @@ class TestVtableNormalTags:
         tdSql.error("ALTER TABLE vctb_e_altercol ADD TAG val INT;")  # 'val' is a column
 
     def test_error_json_tag_mixed(self):
-        """Error: a JSON tag coexisting with other tags is rejected (a JSON tag is the whole
-        payload; mixing would silently lose the other tag values).
+        """Error: a JSON tag coexisting with other tags is rejected (a JSON tag is the whole payload; mixing would silently lose the other tag values).
+
+        Assert invalid tag or DDL usage is rejected with expected errors.
 
         Catalog:
             - VirtualTable
@@ -1212,6 +1306,8 @@ class TestVtableNormalTags:
     def test_error_nonexistent_ref_tag(self):
         """Error: tag-ref pointing to a non-existent source tag is rejected.
 
+        Assert invalid tag or DDL usage is rejected with expected errors.
+
         Catalog:
             - VirtualTable
 
@@ -1230,6 +1326,8 @@ class TestVtableNormalTags:
 
     def test_error_ref_data_column(self):
         """Error: tag-ref must reference a tag column, not a data column.
+
+        Assert invalid tag or DDL usage is rejected with expected errors.
 
         Catalog:
             - VirtualTable
@@ -1256,6 +1354,8 @@ class TestVtableNormalTags:
 
     def test_ntb_add_set_query(self):
         """Normal table: ADD TAG + SET TAG, projection and WHERE filter on owned tags.
+
+        Uses setup_class fixtures; see `test_ntb_add_set_query` body for SQL and assertions.
 
         Catalog:
             - VirtualTable
@@ -1299,6 +1399,8 @@ class TestVtableNormalTags:
     def test_ntb_alter_drop_tag(self):
         """Normal table: DROP TAG removes the tag; same connection sees it immediately.
 
+        Uses setup_class fixtures; see `test_ntb_alter_drop_tag` body for SQL and assertions.
+
         Catalog:
             - VirtualTable
 
@@ -1327,9 +1429,9 @@ class TestVtableNormalTags:
                            "ntb: data intact after DROP TAG")
 
     def test_ntb_desc_show_create(self):
-        """Normal table: DESC marks owned tags; SHOW CREATE emits the table's FINAL form —
-        a single CREATE TABLE with an inline TAGS clause (NULL tag -> `= NULL`, valued tag
-        -> `= value`), not a CREATE + ALTER ADD/SET TAG sequence.
+        """Normal table: DESC marks owned tags; SHOW CREATE emits the table's FINAL form — a single CREATE TABLE with an inline TAGS clause (NULL tag -> `= NULL`, valued tag -> `= value`), not a CREATE + ALTER ADD/SET TAG sequence.
+
+        Verify SHOW CREATE TABLE output and round-trip the emitted DDL where applicable.
 
         Catalog:
             - VirtualTable
@@ -1382,9 +1484,9 @@ class TestVtableNormalTags:
         tdLog.info("  PASS: SHOW CREATE round-trip restores tags")
 
     def test_ntb_create_tag_explicit_null_roundtrip(self):
-        """Normal table: SHOW CREATE emits the table's FINAL form — a single CREATE TABLE
-        with an inline TAGS clause, not a CREATE + ALTER ADD/SET TAG sequence. A NULL-valued
-        owned tag renders inline as `= NULL` (a valid explicit value), which round-trips.
+        """Normal table: SHOW CREATE emits the table's FINAL form — a single CREATE TABLE with an inline TAGS clause, not a CREATE + ALTER ADD/SET TAG sequence. A NULL-valued owned tag renders inline as `= NULL` (a valid explicit value), which round-trips.
+
+        Verify SHOW CREATE TABLE output and round-trip the emitted DDL where applicable.
 
         Catalog:
             - VirtualTable
@@ -1427,6 +1529,8 @@ class TestVtableNormalTags:
     def test_ntb_group_distinct_agg(self):
         """Normal table: GROUP BY / DISTINCT on owned tags, agg with tag filter.
 
+        Uses setup_class fixtures; see `test_ntb_group_distinct_agg` body for SQL and assertions.
+
         Catalog:
             - VirtualTable
 
@@ -1458,6 +1562,8 @@ class TestVtableNormalTags:
 
     def test_ntb_error_cases(self):
         """Normal table: dup tag, tag/col collision, decimal, tag-ref FROM, bad SET/DROP.
+
+        Uses setup_class fixtures; see `test_ntb_error_cases` body for SQL and assertions.
 
         Catalog:
             - VirtualTable
@@ -1496,8 +1602,9 @@ class TestVtableNormalTags:
     # ==================================================================
 
     def test_ntb_drop_readd_same_name(self):
-        """Normal table: DROP TAG then ADD TAG with the same name — old value must not
-        resurrect, and the same connection must see the change immediately.
+        """Normal table: DROP TAG then ADD TAG with the same name — old value must not resurrect, and the same connection must see the change immediately.
+
+        Uses setup_class fixtures; see `test_ntb_drop_readd_same_name` body for SQL and assertions.
 
         Catalog:
             - VirtualTable
@@ -1530,6 +1637,8 @@ class TestVtableNormalTags:
 
     def test_ntb_drop_readd_diff_type(self):
         """Normal table: DROP TAG then re-add the same name with a different type/length.
+
+        Uses setup_class fixtures; see `test_ntb_drop_readd_diff_type` body for SQL and assertions.
 
         Catalog:
             - VirtualTable
@@ -1566,6 +1675,8 @@ class TestVtableNormalTags:
 
     def test_ntb_drop_position_variants(self):
         """Normal table: drop first / middle / last tag; survivors keep their values.
+
+        Uses setup_class fixtures; see `test_ntb_drop_position_variants` body for SQL and assertions.
 
         Catalog:
             - VirtualTable
@@ -1616,6 +1727,8 @@ class TestVtableNormalTags:
     def test_ntb_add_drop_cycles(self):
         """Normal table: repeated ADD/DROP TAG cycles on the same name stay consistent.
 
+        Uses setup_class fixtures; see `test_ntb_add_drop_cycles` body for SQL and assertions.
+
         Catalog:
             - VirtualTable
 
@@ -1648,6 +1761,8 @@ class TestVtableNormalTags:
     def test_ntb_drop_negative(self):
         """Normal table: drop twice, select a dropped tag, stale SET on a dropped tag.
 
+        Uses setup_class fixtures; see `test_ntb_drop_negative` body for SQL and assertions.
+
         Catalog:
             - VirtualTable
 
@@ -1675,6 +1790,8 @@ class TestVtableNormalTags:
 
     def test_ntb_max_tags_cap(self):
         """Normal table: tag count cap (TSDB_MAX_TAGS=128); dropping one frees a slot.
+
+        Uses setup_class fixtures; see `test_ntb_max_tags_cap` body for SQL and assertions.
 
         Catalog:
             - VirtualTable
@@ -1714,6 +1831,8 @@ class TestVtableNormalTags:
     def test_vtag_conv_ref_to_ref(self):
         """Virtual normal table: SET TAG re-points a tag-ref to another source tag.
 
+        Uses setup_class fixtures; see `test_vtag_conv_ref_to_ref` body for SQL and assertions.
+
         Catalog:
             - VirtualTable
 
@@ -1743,6 +1862,8 @@ class TestVtableNormalTags:
 
     def test_vtag_conv_ref_to_literal(self):
         """Virtual normal table: SET TAG <ref> = value clears the ref (ref -> literal).
+
+        Uses setup_class fixtures; see `test_vtag_conv_ref_to_literal` body for SQL and assertions.
 
         Catalog:
             - VirtualTable
@@ -1782,6 +1903,8 @@ class TestVtableNormalTags:
     def test_vtag_conv_literal_to_ref(self):
         """Virtual normal table: SET TAG <owned> = db.tb.tag turns an owned tag into a ref.
 
+        Uses setup_class fixtures; see `test_vtag_conv_literal_to_ref` body for SQL and assertions.
+
         Catalog:
             - VirtualTable
 
@@ -1820,6 +1943,8 @@ class TestVtableNormalTags:
     def test_vtag_conv_cycles(self):
         """Virtual normal table: literal -> ref -> literal -> ref cycles stay consistent.
 
+        Uses setup_class fixtures; see `test_vtag_conv_cycles` body for SQL and assertions.
+
         Catalog:
             - VirtualTable
 
@@ -1850,9 +1975,9 @@ class TestVtableNormalTags:
         tdLog.info("  PASS: literal/ref conversion cycles")
 
     def test_create_tag_value_required(self):
-        """Create rules: CREATE VTABLE tags must carry an explicit value — `= literal`
-        (owned) or `FROM db.tb.tag` (tag-ref). A bare `name TYPE` tag is rejected, as is a
-        mix of FROM and valueless tags; literal + FROM mixed stays legal.
+        """Create rules: CREATE VTABLE tags must carry an explicit value — `= literal` (owned) or `FROM db.tb.tag` (tag-ref). A bare `name TYPE` tag is rejected, as is a mix of FROM and valueless tags; literal + FROM mixed stays legal.
+
+        Uses setup_class fixtures; see `test_create_tag_value_required` body for SQL and assertions.
 
         Catalog:
             - VirtualTable
@@ -1887,9 +2012,9 @@ class TestVtableNormalTags:
         tdLog.info("  PASS: CREATE VTABLE requires explicit tag values")
 
     def test_ntb_create_with_literal_tags(self):
-        """Normal table: CREATE TABLE ... TAGS where every tag carries `= literal` creates a
-        normal table with owned tags, while valueless TAGS keeps the historical super-table
-        semantics — the inline values are how CREATE TABLE tells the two apart.
+        """Normal table: CREATE TABLE ... TAGS where every tag carries `= literal` creates a normal table with owned tags, while valueless TAGS keeps the historical super-table semantics — the inline values are how CREATE TABLE tells the two apart.
+
+        Uses setup_class fixtures; see `test_ntb_create_with_literal_tags` body for SQL and assertions.
 
         Catalog:
             - VirtualTable
@@ -1948,8 +2073,9 @@ class TestVtableNormalTags:
         tdLog.info("  PASS: CREATE TABLE tag value rules")
 
     def test_ins_tags_and_show_tags(self):
-        """ins_tags and SHOW TAGS expose owned tags and tag-refs of normal and
-        virtual normal tables; tag-less tables produce no rows.
+        """ins_tags and SHOW TAGS expose owned tags and tag-refs of normal and virtual normal tables; tag-less tables produce no rows.
+
+        Uses setup_class fixtures; see `test_ins_tags_and_show_tags` body for SQL and assertions.
 
         Catalog:
             - VirtualTable
@@ -2012,10 +2138,9 @@ class TestVtableNormalTags:
         tdLog.info("  PASS: ins_tags / SHOW TAGS cover ntb and vntb tags")
 
     def test_ins_tags_cursor_path_full_scan(self):
-        """ins_tags full-DB scan (no table_name equality) walks the meta cursor path:
-        vntb owned tags, vntb tag-refs resolved through the pause/resume re-read filler
-        (sysTableUserTagsFillNtbRefTagsRow), child-table tags carrying stable_name, and
-        tag-less tables producing no rows (phantom-tag decoder regression).
+        """ins_tags full-DB scan (no table_name equality) walks the meta cursor path: vntb owned tags, vntb tag-refs resolved through the pause/resume re-read filler (sysTableUserTagsFillNtbRefTagsRow), child-table tags carrying stable_name, and tag-less tables producing no rows (phantom-tag decoder regression).
+
+        Uses setup_class fixtures; see `test_ins_tags_cursor_path_full_scan` body for SQL and assertions.
 
         Catalog:
             - VirtualTable
@@ -2071,8 +2196,9 @@ class TestVtableNormalTags:
         tdLog.info("  PASS: ins_tags cursor path covers owned/ref/mixed/child/tag-less")
 
     def test_ins_tags_stable_name_semantics(self):
-        """stable_name is NULL for normal/virtual-normal tables and filters behave
-        accordingly: IS NULL keeps only ntb/vntb rows, equality keeps only child rows.
+        """stable_name is NULL for normal/virtual-normal tables and filters behave accordingly: IS NULL keeps only ntb/vntb rows, equality keeps only child rows.
+
+        Uses setup_class fixtures; see `test_ins_tags_stable_name_semantics` body for SQL and assertions.
 
         Catalog:
             - VirtualTable
@@ -2107,9 +2233,9 @@ class TestVtableNormalTags:
         tdLog.info("  PASS: ins_tags stable_name NULL semantics")
 
     def test_ins_tags_alter_lifecycle(self):
-        """ALTER ADD/SET/DROP TAG is visible in ins_tags (and SHOW TAGS) on the same
-        connection, for both physical normal tables and virtual normal tables:
-        ADD exposes the tag with a NULL value, SET fills it, DROP removes the row.
+        """ALTER ADD/SET/DROP TAG is visible in ins_tags (and SHOW TAGS) on the same connection, for both physical normal tables and virtual normal tables: ADD exposes the tag with a NULL value, SET fills it, DROP removes the row.
+
+        Uses setup_class fixtures; see `test_ins_tags_alter_lifecycle` body for SQL and assertions.
 
         Catalog:
             - VirtualTable
@@ -2161,8 +2287,9 @@ class TestVtableNormalTags:
         tdLog.info("  PASS: ins_tags reflects ALTER ADD/SET/DROP TAG same-connection")
 
     def test_ins_tags_type_rendering(self):
-        """ins_tags renders tag_type (with length suffix for var types) and tag_value
-        for the common owned-tag types on a normal table.
+        """ins_tags renders tag_type (with length suffix for var types) and tag_value for the common owned-tag types on a normal table.
+
+        Uses setup_class fixtures; see `test_ins_tags_type_rendering` body for SQL and assertions.
 
         Catalog:
             - VirtualTable
@@ -2204,9 +2331,9 @@ class TestVtableNormalTags:
         tdLog.info("  PASS: ins_tags tag_type/tag_value rendering")
 
     def test_ins_tags_ref_set_converts_to_owned(self):
-        """SET TAG on a vntb tag-ref converts it to an owned tag: ins_tags then serves
-        the literal from the owned-value branch (hasRef cleared) on both the fast path
-        (table_name equality) and the cursor path (full scan).
+        """SET TAG on a vntb tag-ref converts it to an owned tag: ins_tags then serves the literal from the owned-value branch (hasRef cleared) on both the fast path (table_name equality) and the cursor path (full scan).
+
+        Uses setup_class fixtures; see `test_ins_tags_ref_set_converts_to_owned` body for SQL and assertions.
 
         Catalog:
             - VirtualTable
@@ -2243,8 +2370,9 @@ class TestVtableNormalTags:
         tdLog.info("  PASS: ins_tags serves converted ref->owned tag on both paths")
 
     def test_ins_tags_multi_db_isolation(self):
-        """ins_tags rows are isolated by db_name: same-named tables with different tag
-        values in two databases do not leak into each other's result set.
+        """ins_tags rows are isolated by db_name: same-named tables with different tag values in two databases do not leak into each other's result set.
+
+        Uses setup_class fixtures; see `test_ins_tags_multi_db_isolation` body for SQL and assertions.
 
         Catalog:
             - VirtualTable
@@ -2288,8 +2416,9 @@ class TestVtableNormalTags:
     # ==================================================================
 
     def test_set_on_tag_ref_converts_to_owned(self):
-        """SET TAG on a tag-ref converts it to an owned tag (ref -> literal): the reference
-        is cleared and the static value takes over, mirroring the virtual-child-table behavior.
+        """SET TAG on a tag-ref converts it to an owned tag (ref -> literal): the reference is cleared and the static value takes over, mirroring the virtual-child-table behavior.
+
+        Uses setup_class fixtures; see `test_set_on_tag_ref_converts_to_owned` body for SQL and assertions.
 
         Catalog:
             - VirtualTable
@@ -2319,8 +2448,9 @@ class TestVtableNormalTags:
         tdLog.info("  PASS: SET TAG on tag-ref converts to owned")
 
     def test_error_ext_json_option_rules(self):
-        """Error: external-source tag-ref, ALTER-time JSON tags, and column options on tags
-        are explicitly rejected (review-driven rules).
+        """Error: external-source tag-ref, ALTER-time JSON tags, and column options on tags are explicitly rejected (review-driven rules).
+
+        Assert invalid tag or DDL usage is rejected with expected errors.
 
         Catalog:
             - VirtualTable
@@ -2355,9 +2485,9 @@ class TestVtableNormalTags:
         tdLog.info("  PASS: ext/json/option tag rules enforced")
 
     def test_error_tag_bytes_exceed_max_tags_len(self):
-        """Error: total tag bytes exceeding TSDB_MAX_TAGS_LEN (16384) is rejected at CREATE
-        (checkCreateTags). Two VARCHAR(8192) tags sum past the cap while each stays well under
-        the per-column cap, so this specifically exercises the total-bytes guard.
+        """Error: total tag bytes exceeding TSDB_MAX_TAGS_LEN (16384) is rejected at CREATE (checkCreateTags). Two VARCHAR(8192) tags sum past the cap while each stays well under the per-column cap, so this specifically exercises the total-bytes guard.
+
+        Assert invalid tag or DDL usage is rejected with expected errors.
 
         Catalog:
             - VirtualTable
@@ -2378,6 +2508,8 @@ class TestVtableNormalTags:
     def test_error_varchar_tag_over_length(self):
         """Error: a VARCHAR tag longer than TSDB_MAX_BINARY_LEN is rejected at CREATE.
 
+        Assert invalid tag or DDL usage is rejected with expected errors.
+
         Catalog:
             - VirtualTable
 
@@ -2395,8 +2527,9 @@ class TestVtableNormalTags:
                     "TAGS (t VARCHAR(66000) = 'x');")
 
     def test_error_nchar_tag_over_length(self):
-        """Error: an NCHAR tag longer than TSDB_MAX_NCHAR_LEN is rejected at CREATE
-        (NCHAR byte length = N * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE).
+        """Error: an NCHAR tag longer than TSDB_MAX_NCHAR_LEN is rejected at CREATE (NCHAR byte length = N * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE).
+
+        Assert invalid tag or DDL usage is rejected with expected errors.
 
         Catalog:
             - VirtualTable
@@ -2415,8 +2548,9 @@ class TestVtableNormalTags:
                     "TAGS (t NCHAR(17000) = 'x');")
 
     def test_error_tag_ref_type_mismatch(self):
-        """Error: a tag-ref whose declared type differs from the source tag type is rejected
-        (checkTagRef). src0.city is NCHAR(20); declaring the ref as INT is a type mismatch.
+        """Error: a tag-ref whose declared type differs from the source tag type is rejected (checkTagRef). src0.city is NCHAR(20); declaring the ref as INT is a type mismatch.
+
+        Assert invalid tag or DDL usage is rejected with expected errors.
 
         Catalog:
             - VirtualTable
@@ -2460,8 +2594,9 @@ class TestVtableNormalTags:
         raise AssertionError("[tags-persistence] dnode not ready 30s after restart")
 
     def test_restart_owned_tag_and_ref_persist(self):
-        """Restart: owned tag values + tag-ref resolution survive a taosd restart — the on-disk
-        bit-5 trailer and monotonic schemaTag.version re-decode correctly.
+        """Restart: owned tag values + tag-ref resolution survive a taosd restart — the on-disk bit-5 trailer and monotonic schemaTag.version re-decode correctly.
+
+        Validate tag persistence across taosd restart scenarios.
 
         Catalog:
             - VirtualTable
@@ -2488,9 +2623,9 @@ class TestVtableNormalTags:
         tdLog.info("  PASS: restart preserves owned tags + tag-refs")
 
     def test_restart_drop_all_tags_then_readd(self):
-        """Restart: after dropping every tag (schemaTag.nCols=0, version stays monotonic, empty
-        STag trailer), the table stays readable across restart and a tag can be re-added — the
-        case where the empty-schema trailer must re-decode and the version must stay monotonic.
+        """Restart: after dropping every tag (schemaTag.nCols=0, version stays monotonic, empty STag trailer), the table stays readable across restart and a tag can be re-added — the case where the empty-schema trailer must re-decode and the version must stay monotonic.
+
+        Validate tag persistence across taosd restart scenarios.
 
         Catalog:
             - VirtualTable
@@ -2526,10 +2661,9 @@ class TestVtableNormalTags:
         tdLog.info("  PASS: restart after drop-all-tags + re-add")
 
     def test_auth_tag_ref_source_select(self):
-        """Privilege gate: a user without SELECT on the source db is denied CREATE VTABLE
-        tag/col refs, ALTER ADD TAG ... FROM, and ALTER SET TAG x = db.tb.tag; granting
-        READ on the source db lets them through, and revoking it denies them again
-        (covers authColDefRefs + the authAlterTable ref-alter branch).
+        """Privilege gate: a user without SELECT on the source db is denied CREATE VTABLE tag/col refs, ALTER ADD TAG ... FROM, and ALTER SET TAG x = db.tb.tag; granting READ on the source db lets them through, and revoking it denies them again (covers authColDefRefs + the authAlterTable ref-alter branch).
+
+        Verify privilege gates on tag-ref and source-table access.
 
         Catalog:
             - VirtualTable

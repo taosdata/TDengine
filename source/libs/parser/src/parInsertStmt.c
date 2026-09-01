@@ -877,7 +877,9 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
   }
 
   for (int c = 0; c < boundInfo->numOfBound; ++c) {
-    SSchema* pColSchema = &pSchema[boundInfo->pColIndex[c]];
+    int32_t  colIdx = boundInfo->pColIndex[c];
+    SSchema* pColSchema = &pSchema[colIdx];
+    pBindInfos[c].typeMod = pSchemaExt == NULL ? 0 : pSchemaExt[colIdx].typeMod;
     if (pColSchema->colId <= lastColId) {
       colInOrder = false;
     } else {
@@ -1213,7 +1215,7 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
         goto _return;
       }
       uint8_t precision = 0, scale = 0;
-      decimalFromTypeMod(pExtSchema[c].typeMod, &precision, &scale);
+      decimalFromTypeMod(pExtSchema[boundInfo->pColIndex[c]].typeMod, &precision, &scale);
       code = tColDataAddValueByBind2WithDecimal(pCol, pBind, bytes, precision, scale);
     } else {
       code = tColDataAddValueByBind2(pCol, pBind, bytes);
@@ -1304,7 +1306,7 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
       goto _return;
     }
     uint8_t precision = 0, scale = 0;
-    decimalFromTypeMod(pExtSchema->typeMod, &precision, &scale);
+    decimalFromTypeMod(pExtSchema[boundInfo->pColIndex[colIdx]].typeMod, &precision, &scale);
     code = tColDataAddValueByBind2WithDecimal(pCol, pBind, bytes, precision, scale);
   } else {
     code = tColDataAddValueByBind2(pCol, pBind, bytes);
@@ -1345,7 +1347,9 @@ int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, SSHashObj* parsedCols, T
   }
 
   for (int c = 0; c < boundInfo->numOfBound; ++c) {
-    SSchema* pColSchema = &pSchema[boundInfo->pColIndex[c]];
+    int32_t  colIdx = boundInfo->pColIndex[c];
+    SSchema* pColSchema = &pSchema[colIdx];
+    pBindInfos[c].typeMod = pSchemaExt == NULL ? 0 : pSchemaExt[colIdx].typeMod;
     if (pColSchema->colId <= lastColId) {
       colInOrder = false;
     } else {

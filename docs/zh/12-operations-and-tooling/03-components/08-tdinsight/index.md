@@ -159,8 +159,8 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 
 ### 预配置告警规则自动导入
 
-涛思总结用户使用经验，整理出 14 个常用的告警规则（alert rule），能够对集群关键指标进行监测并及时上报指标异常、超限等告警信息。  
-从 TDengine server 3.3.4.3 版本（tdengine-datasource 3.6.3）开始，TDengine Datasource 支持预配置告警规则自动导入功能，用户可将 14 个告警规则一键导入 Grafana（**11 及以上版本**），直接使用。  
+涛思总结用户使用经验，整理出 16 个常用的告警规则（alert rule），能够对集群关键指标进行监测并及时上报指标异常、超限等告警信息。  
+从 TDengine server 3.3.4.3 版本（tdengine-datasource 3.6.3）开始，TDengine Datasource 支持预配置告警规则自动导入功能，用户可将 16 个告警规则一键导入 Grafana（**11 及以上版本**），直接使用。  
 预配置告警规则导入方法如下图所示，在 tdengine-datasource setting 界面，打开“Load TDengine Alert”开关，点击“Save & test”按钮后，插件会自动加载上述告警规则，规则会放入以数据源名称 + “-alert”的 grafana 告警目录中。如不需要，关闭“Load TDengine Alert”开关，点击“Clear TDengine Alert”旁边的按钮则会清除此数据源已导入的所有告警规则。
 
 ![TDengine Alert](../../../assets/tdinsight-09.webp)  
@@ -170,7 +170,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 
 ![Alert-rules](../../../assets/tdinsight-10.webp)
 
-14 个告警规则具体配置如下：  
+16 个告警规则具体配置如下：  
 
 | 规则名称 | 规则阈值 | 无监控数据时的行为 | 数据扫描间隔 |持续时间 | 执行 SQL              |
 | ------ | --------- | ---------------- | ----------- |------- |----------------------|
@@ -188,6 +188,12 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 |Adapter WebSocket 请求失败 |> 5|不触发报警|30 秒|0 秒|`select now(), sum(`fail`) as`Failed`from log.adapter_requests where req_type=1 and ts >= (now -30s) and ts < now`|
 |dnode 数据上报缺少 |< 3|触发告警|180 秒|0 秒|`select now(),  cluster_id, count(*) as dnode_report  from log.taosd_cluster_info where _ts >= (now -180s) and _ts < now  partition by cluster_id  having timetruncate(first(_ts), 1h) > 0`|
 |dnode 重启 |max(update_time) > last(update_time)|触发告警|90 秒|0 秒|`select now(), dnode_ep, max(uptime) - last(uptime) as dnode_report  from log.taosd_dnodes_info where _ts >= (now - 90s) and _ts < now partition by dnode_ep`|
+| 流式计算运行失败 | `error_code` != 0 | 不触发报警 | 1 分钟 | 0 秒 | `select now(), cluster_id, stream_name, last(cast(error_code as bigint)) as error_code from log.taosd_stream_failure where _ts >= (now - 120s) and _ts < now partition by cluster_id, stream_name having first(_ts) > 0` |
+| 流式计算重算失败 | `Failed` 状态的重算任务数 > 0 | 不触发报警 | 1 分钟 | 0 秒 | `select now() as ts, stream_name, recalc_id, progress, message, count(*) as failed from information_schema.ins_stream_recalculates where status = 'Failed' partition by stream_name, recalc_id, progress, message` |
+
+**注意**：流式计算运行失败、流式计算重算失败两条规则依赖流式计算可观测性功能，仅 TDengine `v3.4.2.7` 及以上版本支持；在更早的版本上，这两条规则会处于查询错误状态，不影响其他告警规则。
+
+**升级说明**：从 tdengine-datasource 4.0.1 及更早版本升级时，已有数据源不会自动获得新版本新增的告警规则。升级到 4.0.2 及以上版本后，打开该数据源的 setting 界面，重新点击一次“Save & test”按钮，插件会把“流式计算运行失败”“流式计算重算失败”两条新规则追加到已有的 `alert_1m` 规则组中；已有规则及其自定义（阈值、标签、持续时间等）与规则组检查间隔均保持不变，联络点（Contact points）、通知策略（Notification policies）等告警通道配置也不受影响。
 
 用户可参考上述告警规则，根据自己业务需求进行修改与完善。  
 

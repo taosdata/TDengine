@@ -34,7 +34,7 @@ If taosX cannot connect directly to your data source, you can install [taosX-Age
 1. In taosExplorer, click **Next**.
 1. Enter a unique name for your agent and click **Next** to generate an authentication token.
 1. On your local machine, open the `C:\TDengine\cfg\agent.toml` file.
-1. Copy the values of `endpoint` and `token` displayed in taosExplorer into the `agent.toml` file.
+1. Edit `endpoint` in the taosExplorer configuration block if needed, then copy the `endpoint` and `token` values into the `agent.toml` file. If you do not edit `endpoint`, taosExplorer uses the automatically populated default value.
 
    ```toml
    endpoint="http://localhost:6055"
@@ -63,7 +63,7 @@ If taosX cannot connect directly to your data source, you can install [taosX-Age
 1. In taosExplorer, click **Next**.
 1. Enter a unique name for your agent and click **Next** to generate an authentication token.
 1. On your local machine, open the `/etc/taos/agent.toml` file.
-1. Copy the values of `endpoint` and `token` displayed in taosExplorer into the `agent.toml` file.
+1. Edit `endpoint` in the taosExplorer configuration block if needed, then copy the `endpoint` and `token` values into the `agent.toml` file. If you do not edit `endpoint`, taosExplorer uses the automatically populated default value.
 
    ```toml
    endpoint="http://localhost:6055"
@@ -93,7 +93,7 @@ After taosX-Agent is installed and connected on the data-source side, reuse the 
 - Adjust task-level collection settings (such as collection interval)
 - Append points and update point CSV / mapping
 
-These operations do not require reinstalling the Agent on the OPC (or other) server host, and do not require generating and redistributing a new “agent install package” just to change points. Tasks communicate with central taosX using the configured `endpoint` and `token`.
+These operations do not require reinstalling the Agent on the OPC (or other) server host, and do not require generating and redistributing a new “agent install package” just to change points. Tasks communicate with central taosX using the configured `endpoint` and `token`. If you manually change `endpoint` in taosExplorer, later Agent creation dialogs in the same session reuse that value.
 
 Cases that do require changing the Agent host again include: replacing the connection `endpoint` / `token`, upgrading the Agent, or editing host-local `agent.toml` or store-and-forward options. Component reference: [taosX-Agent](../../12-operations-and-tooling/03-components/07-taosx-agent/index.md). You can also manage agents and tasks with SQL; see [Data Ingestion (Xnode)](../../05-tdengine-sql/08-cluster-management/02-xnode.md).
 

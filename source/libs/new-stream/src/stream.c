@@ -92,6 +92,7 @@ void streamCleanup(void) {
   stTriggerTaskEnvCleanup();
   streamTimerCleanUp();
   smUndeployAllTasks();
+  streamNoticeQueueCleanup();
   destroyDataSinkMgr();
   streamNotifyWorkerPoolDestroy(&gStreamMgmt.notifyWorkerPool);
   streamMgmtCleanup();
@@ -141,6 +142,7 @@ int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
   TAOS_CHECK_EXIT(initStreamDataSink());
 
   TAOS_CHECK_EXIT(streamNotifyWorkerPoolInit(&gStreamMgmt.notifyWorkerPool, tsStreamNotifyWorkerNum));
+  TAOS_CHECK_EXIT(streamNoticeQueueInit());
 
 _exit:
 

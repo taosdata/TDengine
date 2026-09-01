@@ -36,6 +36,24 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
 )
 
+ADD_EXECUTABLE(hashJoinMultiGroupTests hashJoinMultiGroupTests.cpp)
+DEP_ext_gtest(hashJoinMultiGroupTests)
+if(BUILD_TEST)
+        target_compile_definitions(hashJoinMultiGroupTests PRIVATE BUILD_TEST)
+endif()
+TARGET_LINK_LIBRARIES(
+        hashJoinMultiGroupTests
+        PRIVATE PRIVATE os util common executor qcom function planner scalar nodes vnode
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        hashJoinMultiGroupTests
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
+)
+add_test(NAME hashJoinMultiGroupTests COMMAND hashJoinMultiGroupTests)
+
 ADD_EXECUTABLE(queryPlanTests queryPlanTests.cpp)
 DEP_ext_gtest(queryPlanTests)
 DEP_ext_cppstub(queryPlanTests)
@@ -53,7 +71,10 @@ TARGET_INCLUDE_DIRECTORIES(
 
 ADD_EXECUTABLE(execUtilTests execUtilTests.cpp)
 DEP_ext_gtest(execUtilTests)
-target_compile_definitions(execUtilTests PRIVATE BUILD_TEST)
+DEP_ext_cppstub(execUtilTests)
+if(BUILD_TEST)
+        target_compile_definitions(execUtilTests PRIVATE BUILD_TEST)
+endif()
 TARGET_LINK_LIBRARIES(
         execUtilTests
         PRIVATE PRIVATE os util common executor qcom function planner scalar nodes vnode

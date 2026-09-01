@@ -36,6 +36,7 @@ typedef struct SSourceDataInfo {
   int64_t             seqId;
   SRWLatch            lock;
   SRetrieveTableRsp*  pRsp;
+  int32_t             rspLen;
   uint64_t            totalRows;
   int64_t             startTime;
   int32_t             code;
@@ -55,14 +56,25 @@ typedef struct SSourceDataInfo {
   STimeWindow         window;
   uint64_t            groupid;
   bool                fetchSent; // need reset
+  bool                currentEogSeen;  // strict Runner fetch current-group barrier state
+  uint64_t            currentEogGid;
   uint64_t            fetchTimes;   // per-source fetch count
   int64_t             fetchCostUs;  // per-source total RPC round-trip (us)
 } SSourceDataInfo;
+
+typedef enum EExchangeFetchResultType {
+  EXCHANGE_FETCH_RESULT_NONE = 0,
+  EXCHANGE_FETCH_RESULT_DATA,
+  EXCHANGE_FETCH_RESULT_EOG,
+  EXCHANGE_FETCH_RESULT_EOF,
+} EExchangeFetchResultType;
 
 static void destroyExchangeOperatorInfo(void* param);
 static void freeBlock(void* pParam);
 static void freeSourceDataInfo(void* param);
 static void setAllSourcesCompleted(SOperatorInfo* pOperator);
+static void clearSourceResponse(SSourceDataInfo* pDataInfo);
+static void destroyExchangeMultiGroupResult(void* pParam);
 
 static int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code);
 static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex);
@@ -75,8 +87,25 @@ static int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInf
                                  bool holdDataInBuf);
 static int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDataInfo,
                                      SStreamRuntimeInfo* pStreamRuntimeInfo);
+static int32_t decodeStrictMultiGroupFetchResponse(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo,
+                                                   SSourceDataInfo* pDataInfo, int32_t sourceIndex,
+                                                   EExchangeFetchResultType* pResultType, bool* pOutputQueued);
 
 static int32_t exchangeWait(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo);
+
+// Order the exchange sources (vgroups) by nodeId so that a multi-vgroup exchange
+// always consumes data from the vgroups in a fixed order. The source list order
+// otherwise varies between runs (depends on how the per-vgroup execution nodes are
+// scheduled), which makes order-sensitive aggregates such as LEASTSQUARES return
+// non-deterministic results even when sequential receive mode is enabled.
+static int32_t cmpExchangeSourceByNodeId(const void* pLeft, const void* pRight) {
+  const SDownstreamSourceNode* pL = (const SDownstreamSourceNode*)pLeft;
+  const SDownstreamSourceNode* pR = (const SDownstreamSourceNode*)pRight;
+  if (pL->addr.nodeId == pR->addr.nodeId) {
+    return 0;
+  }
+  return (pL->addr.nodeId < pR->addr.nodeId) ? -1 : 1;
+}
 
 static bool isVstbScan(SSourceDataInfo* pDataInfo) {return pDataInfo->type == EX_SRC_TYPE_VSTB_SCAN; }
 static bool isVstbWinScan(SSourceDataInfo* pDataInfo) { return pDataInfo->type == EX_SRC_TYPE_VSTB_WIN_SCAN; }
@@ -84,6 +113,272 @@ static bool isVstbAggScan(SSourceDataInfo* pDataInfo) { return pDataInfo->type =
 static bool isVstbTagScan(SSourceDataInfo* pDataInfo) { return pDataInfo->type == EX_SRC_TYPE_VSTB_TAG_SCAN; }
 static bool isStbJoinScan(SSourceDataInfo* pDataInfo) { return pDataInfo->type == EX_SRC_TYPE_STB_JOIN_SCAN; }
 
+static bool isStrictRunnerFetchType(int8_t type) {
+  return type == STREAM_RUNNER_FETCH_DATA || type == STREAM_RUNNER_FETCH_EOG;
+}
+
+static bool hasRunnerFetchFrame(int8_t type) { return type != STREAM_RUNNER_FETCH_LEGACY; }
+
+static bool isStrictMultiGroupRunnerSource(const SOperatorInfo* pOperator, int32_t sourceIndex) {
+  const SStreamRuntimeFuncInfo* pStream =
+      pOperator == NULL || pOperator->pTaskInfo == NULL ? NULL : GET_STM_RTINFO(pOperator->pTaskInfo);
+  if (pOperator == NULL || pOperator->info == NULL || pOperator->pTaskInfo == NULL ||
+      pOperator->pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM || pOperator->pTaskInfo->pStreamRuntimeInfo == NULL ||
+      pStream == NULL || !pStream->isMultiGroupCalc || !isStaticMultiGroupJoinQualified(pOperator)) {
+    return false;
+  }
+
+  const SExchangeInfo*         pExchangeInfo = pOperator->info;
+  const SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, sourceIndex);
+  return pSource != NULL && pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_RUNNER;
+}
+
+static int32_t normalizeFetchResponseHeader(SRetrieveTableRsp* pRsp, int32_t rspLen) {
+  if (pRsp == NULL || rspLen < (int32_t)sizeof(SRetrieveTableRsp)) return TSDB_CODE_INVALID_MSG;
+
+  pRsp->numOfRows = be64toh((uint64_t)pRsp->numOfRows);
+  pRsp->compLen = ntohl((uint32_t)pRsp->compLen);
+  pRsp->payloadLen = ntohl((uint32_t)pRsp->payloadLen);
+  pRsp->useconds = be64toh((uint64_t)pRsp->useconds);
+  pRsp->numOfBlocks = ntohl((uint32_t)pRsp->numOfBlocks);
+  if (isStrictRunnerFetchType(pRsp->streamBlockType)) {
+    pRsp->numOfCols = be64toh((uint64_t)pRsp->numOfCols);
+  } else {
+    pRsp->numOfCols = (int64_t)ntohl((uint32_t)pRsp->numOfCols);
+  }
+
+  int32_t bodyLen = rspLen - (int32_t)sizeof(SRetrieveTableRsp);
+  if (pRsp->payloadLen < 0 || pRsp->compLen < 0 || pRsp->compLen > bodyLen || pRsp->numOfBlocks < 0 ||
+      pRsp->numOfRows < 0 || pRsp->numOfCols < 0 ||
+      (isStrictRunnerFetchType(pRsp->streamBlockType) && pRsp->payloadLen > bodyLen)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t getLocalFetchResponseLen(const void* pData, uint32_t* pRspLen) {
+  if (pData == NULL || pRspLen == NULL) return TSDB_CODE_INVALID_PARA;
+
+  int64_t allocationSize = taosMemorySize((void*)pData);
+  if (allocationSize < (int64_t)sizeof(SRetrieveTableRsp)) return TSDB_CODE_INVALID_MSG;
+
+  const SRetrieveTableRsp* pRsp = pData;
+  uint32_t                 bodyLen = ntohl((uint32_t)pRsp->compLen);
+  int64_t                  responseLen = (int64_t)sizeof(SRetrieveTableRsp) + bodyLen;
+  if (responseLen > allocationSize || responseLen > INT32_MAX) return TSDB_CODE_INVALID_MSG;
+  *pRspLen = (uint32_t)responseLen;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void clearSourceResponse(SSourceDataInfo* pDataInfo) {
+  if (pDataInfo == NULL) return;
+  taosMemoryFreeClear(pDataInfo->pRsp);
+  pDataInfo->rspLen = 0;
+}
+
+static void destroyExchangeMultiGroupResult(void* pParam) {
+  SExchangeMultiGroupResult* pResult = pParam;
+  if (pResult == NULL) return;
+  blockDataDestroy(pResult->pBlock);
+  taosArrayDestroy(pResult->pLineage);
+  memset(pResult, 0, sizeof(*pResult));
+}
+
+static void clearPublishedLineage(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo) {
+  if (pExchangeInfo->pPublishedLineage == NULL) return;
+
+  SStreamRuntimeFuncInfo* pRuntime = pExchangeInfo->pPublishedStream;
+  if (pRuntime == NULL && pOperator != NULL && pOperator->pTaskInfo != NULL &&
+      pOperator->pTaskInfo->pStreamRuntimeInfo != NULL) {
+    pRuntime = &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo;
+  }
+  if (pRuntime != NULL && pRuntime->pStreamBlkWinIdx == pExchangeInfo->pPublishedLineage) {
+    pRuntime->pStreamBlkWinIdx = NULL;
+  }
+  taosArrayDestroy(pExchangeInfo->pPublishedLineage);
+  pExchangeInfo->pPublishedLineage = NULL;
+  pExchangeInfo->pPublishedStream = NULL;
+}
+
+static void clearExchangeResultState(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo) {
+  clearPublishedLineage(pOperator, pExchangeInfo);
+  taosArrayClearEx(pExchangeInfo->pMultiGroupResultList, destroyExchangeMultiGroupResult);
+  taosArrayClearEx(pExchangeInfo->pResultBlockList, freeBlock);
+  taosArrayClearEx(pExchangeInfo->pRecycledBlocks, freeBlock);
+}
+
+static int32_t acquireExchangeResultBlock(SExchangeInfo* pExchangeInfo, SSDataBlock** ppBlock) {
+  *ppBlock = NULL;
+  if (taosArrayGetSize(pExchangeInfo->pRecycledBlocks) > 0) {
+    *ppBlock = *(SSDataBlock**)taosArrayPop(pExchangeInfo->pRecycledBlocks);
+    blockDataCleanup(*ppBlock);
+    return TSDB_CODE_SUCCESS;
+  }
+  return createOneDataBlock(pExchangeInfo->pDummyBlock, false, ppBlock);
+}
+
+static int32_t enqueueExchangeMultiGroupResult(SExchangeInfo* pExchangeInfo, SExchangeMultiGroupResult* pResult) {
+  if (pExchangeInfo->pMultiGroupResultList == NULL) {
+    pExchangeInfo->pMultiGroupResultList = taosArrayInit(16, sizeof(SExchangeMultiGroupResult));
+    if (pExchangeInfo->pMultiGroupResultList == NULL) return terrno;
+  }
+  if (taosArrayPush(pExchangeInfo->pMultiGroupResultList, pResult) == NULL) return terrno;
+  memset(pResult, 0, sizeof(*pResult));
+  return TSDB_CODE_SUCCESS;
+}
+
+static void resetStrictMultiGroupBarrier(SExchangeInfo* pExchangeInfo) {
+  pExchangeInfo->nextGroupIdx = 0;
+  pExchangeInfo->eogSourceCount = 0;
+  pExchangeInfo->strictSourcesValidated = false;
+  for (int32_t i = 0; i < taosArrayGetSize(pExchangeInfo->pSourceDataInfo); ++i) {
+    SSourceDataInfo* pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, i);
+    if (pDataInfo == NULL) continue;
+    pDataInfo->currentEogSeen = false;
+    pDataInfo->currentEogGid = 0;
+  }
+}
+
+static bool canPollStrictMultiGroupSource(const SExchangeInfo* pExchangeInfo, int32_t sourceIndex) {
+  const SSourceDataInfo* pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, sourceIndex);
+  return pDataInfo != NULL && pDataInfo->status != EX_SOURCE_DATA_EXHAUSTED && !pDataInfo->currentEogSeen;
+}
+
+static int32_t getStrictCanonicalGroup(const SOperatorInfo* pOperator, const SExchangeInfo* pExchangeInfo,
+                                       uint64_t* pGroupId, int32_t* pGroupCount) {
+  if (pOperator == NULL || pOperator->pTaskInfo == NULL || pOperator->pTaskInfo->pStreamRuntimeInfo == NULL ||
+      pGroupId == NULL || pGroupCount == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  const SArray* pGroupOrder = pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcOrder;
+  int32_t       groupCount = taosArrayGetSize(pGroupOrder);
+  if (pGroupOrder == NULL || groupCount <= 0 || pExchangeInfo->nextGroupIdx < 0 ||
+      pExchangeInfo->nextGroupIdx >= groupCount) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  uint64_t* pExpectedGroup = taosArrayGet(pGroupOrder, pExchangeInfo->nextGroupIdx);
+  if (pExpectedGroup == NULL || *pExpectedGroup == 0) return TSDB_CODE_INVALID_MSG;
+  *pGroupId = *pExpectedGroup;
+  *pGroupCount = groupCount;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t acceptStrictMultiGroupFetchResult(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo,
+                                                 int32_t sourceIndex, EExchangeFetchResultType resultType,
+                                                 SExchangeMultiGroupResult* pResult, bool* pOutputQueued) {
+  *pOutputQueued = false;
+  int32_t totalSources = taosArrayGetSize(pExchangeInfo->pSourceDataInfo);
+  if (totalSources <= 0 || taosArrayGetSize(pExchangeInfo->pSources) != totalSources || sourceIndex < 0 ||
+      sourceIndex >= totalSources) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (!pExchangeInfo->strictSourcesValidated) {
+    for (int32_t i = 0; i < totalSources; ++i) {
+      if (!isStrictMultiGroupRunnerSource(pOperator, i)) return TSDB_CODE_INVALID_MSG;
+    }
+    pExchangeInfo->strictSourcesValidated = true;
+  }
+
+  SSourceDataInfo* pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, sourceIndex);
+  if (pDataInfo == NULL || pDataInfo->status == EX_SOURCE_DATA_EXHAUSTED) return TSDB_CODE_INVALID_MSG;
+
+  const SArray* pGroupOrder = pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcOrder;
+  int32_t       groupCount = taosArrayGetSize(pGroupOrder);
+  if (pGroupOrder == NULL || groupCount <= 0 || pExchangeInfo->nextGroupIdx < 0 ||
+      pExchangeInfo->nextGroupIdx > groupCount || pExchangeInfo->eogSourceCount < 0 ||
+      pExchangeInfo->eogSourceCount > totalSources) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  if (resultType == EXCHANGE_FETCH_RESULT_EOF) {
+    if (pExchangeInfo->nextGroupIdx != groupCount || pExchangeInfo->eogSourceCount != 0) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+    pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  uint64_t expectedGroup = 0;
+  int32_t  checkedGroupCount = 0;
+  int32_t  code = getStrictCanonicalGroup(pOperator, pExchangeInfo, &expectedGroup, &checkedGroupCount);
+  if (code != TSDB_CODE_SUCCESS || checkedGroupCount != groupCount || pResult == NULL || pDataInfo->currentEogSeen ||
+      pResult->baseGId != expectedGroup) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  if (resultType == EXCHANGE_FETCH_RESULT_DATA) {
+    if (pResult->type != STREAM_RUNNER_FETCH_DATA || pResult->pBlock == NULL) return TSDB_CODE_INVALID_MSG;
+    code = enqueueExchangeMultiGroupResult(pExchangeInfo, pResult);
+    if (code == TSDB_CODE_SUCCESS) *pOutputQueued = true;
+    return code;
+  }
+  if (resultType != EXCHANGE_FETCH_RESULT_EOG || pResult->type != STREAM_RUNNER_FETCH_EOG) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  pDataInfo->currentEogSeen = true;
+  pDataInfo->currentEogGid = expectedGroup;
+  ++pExchangeInfo->eogSourceCount;
+  if (pExchangeInfo->eogSourceCount < totalSources) return TSDB_CODE_SUCCESS;
+  if (pExchangeInfo->eogSourceCount != totalSources) return TSDB_CODE_INVALID_MSG;
+
+  code = acquireExchangeResultBlock(pExchangeInfo, &pResult->pBlock);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = qSetMultiGroupEogBlock(pResult->pBlock, expectedGroup);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = enqueueExchangeMultiGroupResult(pExchangeInfo, pResult);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  ++pExchangeInfo->nextGroupIdx;
+  pExchangeInfo->eogSourceCount = 0;
+  for (int32_t i = 0; i < totalSources; ++i) {
+    SSourceDataInfo* pSourceInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, i);
+    if (pSourceInfo == NULL || !pSourceInfo->currentEogSeen || pSourceInfo->currentEogGid != expectedGroup) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+    pSourceInfo->currentEogSeen = false;
+    pSourceInfo->currentEogGid = 0;
+  }
+  *pOutputQueued = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t popExchangeMultiGroupResult(SOperatorInfo* pOperator, SSDataBlock** ppBlock, bool* pPopped) {
+  SExchangeInfo* pExchangeInfo = pOperator->info;
+  *ppBlock = NULL;
+  *pPopped = false;
+  if (taosArrayGetSize(pExchangeInfo->pMultiGroupResultList) == 0) return TSDB_CODE_SUCCESS;
+
+  SExchangeMultiGroupResult* pQueued = taosArrayGet(pExchangeInfo->pMultiGroupResultList, 0);
+  if (pQueued == NULL || pQueued->pBlock == NULL) return TSDB_CODE_INVALID_MSG;
+  SExchangeMultiGroupResult result = *pQueued;
+  memset(pQueued, 0, sizeof(*pQueued));
+  taosArrayRemove(pExchangeInfo->pMultiGroupResultList, 0);
+
+  if (taosArrayPush(pExchangeInfo->pRecycledBlocks, &result.pBlock) == NULL) {
+    destroyExchangeMultiGroupResult(&result);
+    return terrno;
+  }
+  *ppBlock = result.pBlock;
+  result.pBlock = NULL;
+
+  clearPublishedLineage(pOperator, pExchangeInfo);
+  if (result.type == STREAM_RUNNER_FETCH_DATA) {
+    pExchangeInfo->pPublishedLineage = result.pLineage;
+    result.pLineage = NULL;
+    pExchangeInfo->pPublishedStream = &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo;
+    pExchangeInfo->pPublishedStream->pStreamBlkWinIdx = pExchangeInfo->pPublishedLineage;
+  } else if (result.type != STREAM_RUNNER_FETCH_EOG) {
+    destroyExchangeMultiGroupResult(&result);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  destroyExchangeMultiGroupResult(&result);
+  *pPopped = true;
+  return TSDB_CODE_SUCCESS;
+}
 
 static void streamSequenciallyLoadRemoteData(SOperatorInfo* pOperator,
                                              SExchangeInfo* pExchangeInfo,
@@ -143,26 +438,10 @@ static void streamSequenciallyLoadRemoteData(SOperatorInfo* pOperator,
       pExchangeInfo->current++;
       continue;
     }
-
-    if (!IS_STREAM_SINGLE_GRP(pTaskInfo) && pStream->pGroupReadInfos) {
-      SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pExchangeInfo->current);
-      if (!pDataInfo) {
-        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-        pTaskInfo->code = terrno;
-        T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
-      }
-
-      if (pSource->fetchMsgType == TDMT_STREAM_FETCH) {
-        SArray** ppNode = tSimpleHashGet(pStream->pGroupReadInfos, &pSource->addr.nodeId, sizeof(pSource->addr.nodeId));
-        if (NULL == ppNode) {
-          pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
-          pExchangeInfo->current++;
-          continue;
-        }
-
-        pStream->curNodeId = pSource->addr.nodeId;
-        pStream->curGrpRead = *ppNode;
-      }
+    if (isStrictMultiGroupRunnerSource(pOperator, pExchangeInfo->current) &&
+        !canPollStrictMultiGroupSource(pExchangeInfo, pExchangeInfo->current)) {
+      pExchangeInfo->current++;
+      continue;
     }
 
     pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
@@ -172,6 +451,10 @@ static void streamSequenciallyLoadRemoteData(SOperatorInfo* pOperator,
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    }
+    if (pDataInfo->status == EX_SOURCE_DATA_EXHAUSTED) {
+      pExchangeInfo->current++;
+      continue;
     }
 
     while (true) {
@@ -187,7 +470,7 @@ static void streamSequenciallyLoadRemoteData(SOperatorInfo* pOperator,
       if (pDataInfo->seqId != currSeqId) {
         qDebug("%s seq rsp reqId %" PRId64 " mismatch with exchange %p curr seqId %" PRId64 ", ignore it", 
             GET_TASKID(pTaskInfo), pDataInfo->seqId, pExchangeInfo, currSeqId);
-        taosMemoryFreeClear(pDataInfo->pRsp);
+        clearSourceResponse(pDataInfo);
         continue;
       }
 
@@ -212,6 +495,29 @@ static void streamSequenciallyLoadRemoteData(SOperatorInfo* pOperator,
     SRetrieveTableRsp*   pRsp = pDataInfo->pRsp;
     SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
 
+    if (isStrictMultiGroupRunnerSource(pOperator, pExchangeInfo->current) ||
+        hasRunnerFetchFrame(pRsp->streamBlockType)) {
+      EExchangeFetchResultType resultType = EXCHANGE_FETCH_RESULT_NONE;
+      bool                     outputQueued = false;
+      code = decodeStrictMultiGroupFetchResponse(pOperator, pExchangeInfo, pDataInfo, pExchangeInfo->current,
+                                                 &resultType, &outputQueued);
+      TAOS_CHECK_EXIT(code);
+      if (resultType == EXCHANGE_FETCH_RESULT_EOF) {
+        pExchangeInfo->current++;
+        clearSourceResponse(pDataInfo);
+        continue;
+      }
+      if (resultType != EXCHANGE_FETCH_RESULT_DATA && resultType != EXCHANGE_FETCH_RESULT_EOG) {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
+      updateLoadRemoteInfo(pLoadInfo, pRsp->numOfRows, pRsp->compLen, startTs, pOperator);
+      pDataInfo->totalRows += pRsp->numOfRows;
+      pExchangeInfo->current++;
+      clearSourceResponse(pDataInfo);
+      if (outputQueued) return;
+      continue;
+    }
+
     if (pRsp->numOfRows == 0) {
       qDebug("exhausted %p,%s vgId:%d, clientId:0x%" PRIx64 " taskID:0x%" PRIx64
              " execId:%d idx %d of total completed, rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64 " try next", pDataInfo,
@@ -224,7 +530,7 @@ static void streamSequenciallyLoadRemoteData(SOperatorInfo* pOperator,
       } else {
         pExchangeInfo->current += 1;
       }
-      taosMemoryFreeClear(pDataInfo->pRsp);
+      clearSourceResponse(pDataInfo);
       continue;
     }
 
@@ -242,7 +548,7 @@ static void streamSequenciallyLoadRemoteData(SOperatorInfo* pOperator,
       pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
       if (isVstbScan(pDataInfo)) {
         pExchangeInfo->current = -1;
-        taosMemoryFreeClear(pDataInfo->pRsp);
+        clearSourceResponse(pDataInfo);
         continue;
       }
     } else {
@@ -257,7 +563,7 @@ static void streamSequenciallyLoadRemoteData(SOperatorInfo* pOperator,
 
     pExchangeInfo->current++;
 
-    taosMemoryFreeClear(pDataInfo->pRsp);
+    clearSourceResponse(pDataInfo);
     return;
   }
 
@@ -312,7 +618,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
       int64_t currSeqId = atomic_load_64(&pExchangeInfo->seqId);
       if (pDataInfo->seqId != currSeqId) {
         qDebug("concurrent rsp reqId %" PRId64 " mismatch with exchange %p curr seqId %" PRId64 ", ignore it", pDataInfo->seqId, pExchangeInfo, currSeqId);
-        taosMemoryFreeClear(pDataInfo->pRsp);
+        clearSourceResponse(pDataInfo);
         break;
       }
 
@@ -328,12 +634,15 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
 
       // todo
       SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
+      if (hasRunnerFetchFrame(pRsp->streamBlockType)) {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
       if (pRsp->numOfRows == 0) {
         if (NULL != pDataInfo->pSrcUidList && !isVstbScan(pDataInfo)) {
           pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
           code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
           if (code != TSDB_CODE_SUCCESS) {
-            taosMemoryFreeClear(pDataInfo->pRsp);
+            clearSourceResponse(pDataInfo);
             TAOS_CHECK_EXIT(code);
           }
         } else {
@@ -342,7 +651,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
                  " execId:%d index:%d completed, rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64 ", try next %d/%" PRIzu, pDataInfo,
                  GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->clientId, pSource->taskId, pSource->execId, i,
                  pDataInfo->totalRows, pExchangeInfo->loadInfo.totalRows, i + 1, totalSources);
-          taosMemoryFreeClear(pDataInfo->pRsp);
+          clearSourceResponse(pDataInfo);
         }
         break;
       }
@@ -368,13 +677,13 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
                pRsp->numOfBlocks, pRsp->numOfRows, pLoadInfo->totalRows, pLoadInfo->totalSize / 1024.0);
       }
 
-      taosMemoryFreeClear(pDataInfo->pRsp);
+      clearSourceResponse(pDataInfo);
 
       if ((pDataInfo->status != EX_SOURCE_DATA_EXHAUSTED || NULL != pDataInfo->pSrcUidList) && !isVstbScan(pDataInfo) && !isVstbTagScan(pDataInfo)) {
         pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
         code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
         if (code != TSDB_CODE_SUCCESS) {
-          taosMemoryFreeClear(pDataInfo->pRsp);
+          clearSourceResponse(pDataInfo);
           TAOS_CHECK_EXIT(code);
         }
       }
@@ -417,8 +726,16 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
     return NULL;
   }
 
-  // we have buffered retrieved datablock, return it directly
+  bool         strictPopped = false;
   SSDataBlock* p = NULL;
+  code = popExchangeMultiGroupResult(pOperator, &p, &strictPopped);
+  if (code != TSDB_CODE_SUCCESS) {
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
+  if (strictPopped) return p;
+
+  // we have buffered retrieved datablock, return it directly
   if (taosArrayGetSize(pExchangeInfo->pResultBlockList) > 0) {
     p = taosArrayGetP(pExchangeInfo->pResultBlockList, 0);
     taosArrayRemove(pExchangeInfo->pResultBlockList, 0);
@@ -450,7 +767,14 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(pOperator->pTaskInfo->code));
       T_LONG_JMP(pTaskInfo->env, pOperator->pTaskInfo->code);
     }
-    
+
+    code = popExchangeMultiGroupResult(pOperator, &p, &strictPopped);
+    if (code != TSDB_CODE_SUCCESS) {
+      pTaskInfo->code = code;
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
+    if (strictPopped) return p;
+
     if (taosArrayGetSize(pExchangeInfo->pResultBlockList) == 0) {
       qDebug("empty resultBlockList");
       return NULL;
@@ -469,6 +793,47 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
       return p;
     }
   }
+}
+
+static int32_t processExchangeLoadedBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SSDataBlock** ppRes,
+                                          bool* pContinue) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SExchangeInfo* pExchangeInfo = pOperator->info;
+  *ppRes = NULL;
+  *pContinue = false;
+
+  if (isStrictMultiGroupRunnerSource(pOperator, 0) && qIsMultiGroupEogBlock(pBlock)) {
+    *ppRes = pBlock;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  if (blockDataGetNumOfRows(pBlock) == 0) {
+    qDebug("rows 0 block got, continue next load");
+    *pContinue = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SLimitInfo* pLimitInfo = &pExchangeInfo->limitInfo;
+  if (hasLimitOffsetInfo(pLimitInfo)) {
+    int32_t status = handleLimitOffset(pOperator, pLimitInfo, pBlock, false);
+    if (status == PROJECT_RETRIEVE_CONTINUE) {
+      qDebug("limit retrieve continue");
+      *pContinue = true;
+    } else if (status == PROJECT_RETRIEVE_DONE) {
+      if (pBlock->info.rows == 0) {
+        setOperatorCompleted(pOperator);
+      } else {
+        *ppRes = pBlock;
+      }
+    }
+  } else {
+    *ppRes = pBlock;
+    qDebug("block with rows %" PRId64 " returned in exechange", pBlock->info.rows);
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
@@ -494,35 +859,11 @@ static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
       return code;
     }
 
-    code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+    bool continueLoad = false;
+    code = processExchangeLoadedBlock(pOperator, pBlock, ppRes, &continueLoad);
     QUERY_CHECK_CODE(code, lino, _end);
-
-    if (blockDataGetNumOfRows(pBlock) == 0) {
-      qDebug("rows 0 block got, continue next load");
-      continue;
-    }
-
-    SLimitInfo* pLimitInfo = &pExchangeInfo->limitInfo;
-    if (hasLimitOffsetInfo(pLimitInfo)) {
-      int32_t status = handleLimitOffset(pOperator, pLimitInfo, pBlock, false);
-      if (status == PROJECT_RETRIEVE_CONTINUE) {
-        qDebug("limit retrieve continue");
-        continue;
-      } else if (status == PROJECT_RETRIEVE_DONE) {
-        if (pBlock->info.rows == 0) {
-          setOperatorCompleted(pOperator);
-          (*ppRes) = NULL;
-          return code;
-        } else {
-          (*ppRes) = pBlock;
-          return code;
-        }
-      }
-    } else {
-      (*ppRes) = pBlock;
-      qDebug("block with rows %" PRId64 " returned in exechange", pBlock->info.rows);
-      return code;
-    }
+    if (continueLoad) continue;
+    return code;
   }
 
 _end:
@@ -633,6 +974,15 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
     pInfo->self = refId;
   }
 
+  // Deterministic vgroup consumption order: see cmpExchangeSourceByNodeId().
+  // Only applies to static exchanges. Dynamic exchanges (virtual-table, federated,
+  // stream, ...) look sources up by nodeId via pHashSources, which is keyed by the
+  // pre-sort index, so reordering pSources there would break the nodeId->source
+  // mapping and return wrong/missing data.
+  if (numOfSources > 1 && !pInfo->dynamicOp) {
+    taosArraySort(pInfo->pSources, cmpExchangeSourceByNodeId);
+  }
+
   return initDataSource(numOfSources, pInfo, id);
 }
 
@@ -652,7 +1002,7 @@ int32_t resetExchangeOperState(SOperatorInfo* pOper) {
     SSourceDataInfo* pDataInfo = taosArrayGet(pInfo->pSourceDataInfo, i);
     taosWLockLatch(&pDataInfo->lock);
     taosMemoryFreeClear(pDataInfo->decompBuf);
-    taosMemoryFreeClear(pDataInfo->pRsp);
+    clearSourceResponse(pDataInfo);
 
     pDataInfo->totalRows = 0;
     pDataInfo->code = 0;
@@ -662,13 +1012,13 @@ int32_t resetExchangeOperState(SOperatorInfo* pOper) {
     pDataInfo->fetchCostUs = 0;
     taosWUnLockLatch(&pDataInfo->lock);
   }
+  if (isStrictMultiGroupRunnerSource(pOper, 0)) resetStrictMultiGroupBarrier(pInfo);
 
   if (pInfo->dynamicOp) {
     taosArrayClearEx(pInfo->pSourceDataInfo, freeSourceDataInfo);
-  } 
+  }
 
-  taosArrayClearEx(pInfo->pResultBlockList, freeBlock);
-  taosArrayClearEx(pInfo->pRecycledBlocks, freeBlock);
+  clearExchangeResultState(pOper, pInfo);
 
   blockDataCleanup(pInfo->pDummyBlock);
 
@@ -743,7 +1093,6 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
   QUERY_CHECK_NULL(pInfo->pResultBlockList, code, lino, _error, terrno);
   pInfo->pRecycledBlocks = taosArrayInit(64, POINTER_BYTES);
   QUERY_CHECK_NULL(pInfo->pRecycledBlocks, code, lino, _error, terrno);
-
   SExchangeOpStopInfo stopInfo = {QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, pInfo->self};
   code = qAppendTaskStopInfo(pTaskInfo, &stopInfo);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -789,6 +1138,7 @@ _error:
 
 void destroyExchangeOperatorInfo(void* param) {
   SExchangeInfo* pExInfo = (SExchangeInfo*)param;
+  clearPublishedLineage(NULL, pExInfo);
   int32_t        code = taosRemoveRef(fetchObjRefPool, pExInfo->self);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -803,7 +1153,7 @@ void freeBlock(void* pParam) {
 void freeSourceDataInfo(void* p) {
   SSourceDataInfo* pInfo = (SSourceDataInfo*)p;
   taosMemoryFreeClear(pInfo->decompBuf);
-  taosMemoryFreeClear(pInfo->pRsp);
+  clearSourceResponse(pInfo);
 
   pInfo->decompBufSize = 0;
 }
@@ -829,6 +1179,8 @@ void doDestroyExchangeOperatorInfo(void* param) {
 
   taosArrayDestroyEx(pExInfo->pResultBlockList, freeBlock);
   taosArrayDestroyEx(pExInfo->pRecycledBlocks, freeBlock);
+  taosArrayDestroyEx(pExInfo->pMultiGroupResultList, destroyExchangeMultiGroupResult);
+  clearPublishedLineage(NULL, pExInfo);
 
   blockDataDestroy(pExInfo->pDummyBlock);
   tSimpleHashCleanup(pExInfo->pHashSources);
@@ -903,6 +1255,8 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   if (0 == code && NULL == pMsg->pData) {
     qError("invalid rsp msg, msgType:%d, len:%d", pMsg->msgType, pMsg->len);
     code = TSDB_CODE_QRY_INVALID_MSG;
+  } else if (code == TSDB_CODE_SUCCESS) {
+    code = normalizeFetchResponseHeader(pMsg->pData, pMsg->len);
   }
 
   taosWLockLatch(&pSourceDataInfo->lock);
@@ -912,19 +1266,15 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
 
     pSourceDataInfo->seqId = pWrapper->seqId;
     pSourceDataInfo->pRsp = pMsg->pData;
+    pSourceDataInfo->rspLen = pMsg->len;
+    pSourceDataInfo->code = TSDB_CODE_SUCCESS;
 
     SRetrieveTableRsp* pRsp = pSourceDataInfo->pRsp;
-    pRsp->numOfRows = htobe64(pRsp->numOfRows);
-    pRsp->compLen = htonl(pRsp->compLen);
-    pRsp->payloadLen = htonl(pRsp->payloadLen);
-    pRsp->numOfCols = htonl(pRsp->numOfCols);
-    pRsp->useconds = htobe64(pRsp->useconds);
-    pRsp->numOfBlocks = htonl(pRsp->numOfBlocks);
-
     qDebug("%s fetch rsp received, index:%d, blocks:%d, rows:%" PRId64 ", %p", pSourceDataInfo->taskId, index,
            pRsp->numOfBlocks, pRsp->numOfRows, pExchangeInfo);
   } else {
     taosMemoryFree(pMsg->pData);
+    pSourceDataInfo->rspLen = 0;
     pSourceDataInfo->code = rpcCvtErrCode(code);
     if (pSourceDataInfo->code != code) {
       qError("%s fetch rsp received, index:%d, error:%s, cvted error: %s, %p", pSourceDataInfo->taskId, index,
@@ -1446,6 +1796,50 @@ void clearVtbScanDataInfo(void* pItem) {
   }
 }
 
+static int32_t projectNodeGroupReadView(SStreamRuntimeFuncInfo* pStream, int32_t actualNodeId) {
+  tClearStreamCurrentGroupRead(pStream);
+  pStream->curNodeId = actualNodeId;
+  SArray** ppNodeReads = tSimpleHashGet(pStream->pGroupReadInfos, &actualNodeId, sizeof(actualNodeId));
+  if (ppNodeReads == NULL || *ppNodeReads == NULL) return TSDB_CODE_SUCCESS;
+
+  SArray* pView = taosArrayInit(1, sizeof(SSTriggerGroupReadInfo));
+  if (pView == NULL) return terrno;
+  for (int32_t i = 0; i < taosArrayGetSize(*ppNodeReads); ++i) {
+    const SSTriggerGroupReadInfo* pRead = taosArrayGet(*ppNodeReads, i);
+    if (pRead == NULL) {
+      taosArrayDestroy(pView);
+      return TSDB_CODE_INVALID_PARA;
+    }
+    if (taosArrayPush(pView, pRead) == NULL) {
+      taosArrayDestroy(pView);
+      return terrno;
+    }
+  }
+  if (taosArrayGetSize(pView) == 0) {
+    taosArrayDestroy(pView);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pStream->curGrpRead = pView;
+  pStream->curGrpReadOwnership = STREAM_GRP_READ_OWNED_SHALLOW_VIEW;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void setStreamFetchResetMode(SResFetchReq* pReq, bool* pFetchSent, const SStreamRuntimeInfo* pRuntime) {
+  if (*pFetchSent) {
+    return;
+  }
+  pReq->reset = true;
+  pReq->reuseReader = qStreamFetchReuseReader(pRuntime);
+  *pFetchSent = true;
+}
+
+#if defined(BUILD_TEST)
+void exchangeTestSetStreamFetchResetMode(SResFetchReq* pReq, bool* pFetchSent, const SStreamRuntimeInfo* pRuntime) {
+  setStreamFetchResetMode(pReq, pFetchSent, pRuntime);
+}
+#endif
+
 int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
@@ -1456,9 +1850,22 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     return TSDB_CODE_SUCCESS;
   }
 
-  pDataInfo->status = EX_SOURCE_DATA_STARTED;
   SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pDataInfo->index);
   QUERY_CHECK_NULL(pSource, code, lino, _end, terrno);
+
+  SStreamRuntimeFuncInfo* pStream = GET_STM_RTINFO(pTaskInfo);
+  if (pStream != NULL && pStream->isMultiGroupCalc && pStream->pGroupReadInfos != NULL &&
+      pSource->fetchMsgType == TDMT_STREAM_FETCH) {
+    bool hasReads = false;
+    code = projectNodeGroupReadView(pStream, pSource->addr.nodeId);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (pStream->curGrpRead == NULL) {
+      pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  pDataInfo->status = EX_SOURCE_DATA_STARTED;
 
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
 
@@ -1470,12 +1877,13 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
   if (pSource->localExec) {
     SDataBuf pBuf = {0};
-    code =
-      (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->sId,
-                                  pTaskInfo->id.queryId, pSource->clientId,
-                                  pSource->taskId, 0, pSource->execId,
-                                  &pBuf.pData,
-                                  pTaskInfo->localFetch.explainRes);
+    code = (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->sId, pTaskInfo->id.queryId,
+                                       pSource->clientId, pSource->taskId, 0, pSource->execId, &pBuf.pData,
+                                       pTaskInfo->localFetch.explainRes);
+    if (code == TSDB_CODE_SUCCESS && pBuf.pData != NULL) {
+      code = getLocalFetchResponseLen(pBuf.pData, &pBuf.len);
+      if (code != TSDB_CODE_SUCCESS) taosMemoryFreeClear(pBuf.pData);
+    }
     QUERY_CHECK_CODE(code, lino, _end);
     pDataInfo->startTime = taosGetTimestampUs();
     code = loadRemoteDataCallback(pWrapper, &pBuf, code);
@@ -1495,7 +1903,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     if (pTaskInfo->pStreamRuntimeInfo) {
       req.dynTbname = pExchangeInfo->dynTbname;
       req.execId = pTaskInfo->pStreamRuntimeInfo->execId;
-      req.pStRtFuncInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+      req.pStRtFuncInfo = pStream;
 
       if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_RUNNER) {
         qDebug("%s stream fetch from runner, execId:%d, %p", GET_TASKID(pTaskInfo), req.execId, pTaskInfo->pStreamRuntimeInfo);
@@ -1539,10 +1947,8 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       } else {
         needStreamGrpInfo = true;
       }
-      
-      if (!pDataInfo->fetchSent) {
-        req.reset = pDataInfo->fetchSent = true;
-      }
+
+      setStreamFetchResetMode(&req, &pDataInfo->fetchSent, pTaskInfo->pStreamRuntimeInfo);
     }
 
     switch (pDataInfo->type) {
@@ -1887,6 +2293,131 @@ void storeNotifyInfo(SOperatorInfo* pOperator) {
   }
 }
 
+static int32_t decodeStrictMultiGroupFetchResponse(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo,
+                                                   SSourceDataInfo* pDataInfo, int32_t sourceIndex,
+                                                   EExchangeFetchResultType* pResultType, bool* pOutputQueued) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  SRetrieveTableRsp*        pRsp = pDataInfo->pRsp;
+  SStreamRunnerFetchFrame   frame = {0};
+  SExchangeMultiGroupResult result = {0};
+  *pResultType = EXCHANGE_FETCH_RESULT_NONE;
+  *pOutputQueued = false;
+
+  bool strictGate = isStrictMultiGroupRunnerSource(pOperator, sourceIndex);
+  bool strictType = pRsp != NULL && isStrictRunnerFetchType(pRsp->streamBlockType);
+  if (!strictGate)
+    return pRsp != NULL && hasRunnerFetchFrame(pRsp->streamBlockType) ? TSDB_CODE_INVALID_MSG : TSDB_CODE_SUCCESS;
+  if (pRsp == NULL || pDataInfo->rspLen < (int32_t)sizeof(SRetrieveTableRsp)) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  if (pRsp->streamBlockType == STREAM_RUNNER_FETCH_LEGACY) {
+    if (pRsp->completed != 1 || pRsp->numOfRows != 0 || pRsp->numOfBlocks != 0 || pRsp->numOfCols != 0 ||
+        pRsp->payloadLen != 0 || pRsp->compLen != 0 ||
+        pDataInfo->rspLen != (int32_t)sizeof(SRetrieveTableRsp) + INT_BYTES * 2) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+    int32_t compSize = 0;
+    int32_t rawSize = 0;
+    memcpy(&compSize, pRsp->data, INT_BYTES);
+    memcpy(&rawSize, pRsp->data + INT_BYTES, INT_BYTES);
+    if (compSize != 0 || rawSize != 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+    *pResultType = EXCHANGE_FETCH_RESULT_EOF;
+    code = acceptStrictMultiGroupFetchResult(pOperator, pExchangeInfo, sourceIndex, *pResultType, NULL, pOutputQueued);
+    goto _exit;
+  }
+  if (!strictType || pRsp->completed != 0 || pRsp->compressed != 0 || pRsp->payloadLen < INT_BYTES * 2 ||
+      pRsp->compLen != pRsp->payloadLen || pRsp->payloadLen > pDataInfo->rspLen - (int32_t)sizeof(SRetrieveTableRsp) ||
+      pDataInfo->rspLen != (int32_t)sizeof(SRetrieveTableRsp) + pRsp->payloadLen) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  int32_t blockSize = 0;
+  int32_t rawSize = 0;
+  memcpy(&blockSize, pRsp->data, INT_BYTES);
+  memcpy(&rawSize, pRsp->data + INT_BYTES, INT_BYTES);
+  if (blockSize < 0 || rawSize < 0 || blockSize != rawSize || blockSize > pRsp->payloadLen - INT_BYTES * 2) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  const int32_t frameOffset = INT_BYTES * 2 + blockSize;
+  const int32_t frameLen = pRsp->payloadLen - frameOffset;
+  if (frameLen <= 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  code = tDeserializeSStreamRunnerFetchFrame(pRsp->data + frameOffset, frameLen, &frame);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+  if ((int8_t)frame.type != pRsp->streamBlockType) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  result.type = frame.type;
+  result.baseGId = frame.baseGId;
+  if (frame.type == STREAM_RUNNER_FETCH_DATA) {
+    if (pRsp->numOfRows <= 0 || pRsp->numOfBlocks != 1 || blockSize == 0 || pRsp->numOfCols <= 0 ||
+        pRsp->numOfCols > INT32_MAX) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+    code = acquireExchangeResultBlock(pExchangeInfo, &result.pBlock);
+    if (code != TSDB_CODE_SUCCESS) goto _exit;
+
+    blockDataCleanup(result.pBlock);
+    const char* pDecodedEnd = NULL;
+    code = blockDecodeInternalBounded(result.pBlock, pRsp->data + INT_BYTES * 2, (size_t)blockSize, &pDecodedEnd);
+    if (code != TSDB_CODE_SUCCESS) goto _exit;
+    if (pDecodedEnd != pRsp->data + frameOffset || result.pBlock->info.rows != pRsp->numOfRows ||
+        taosArrayGetSize(result.pBlock->pDataBlock) != pRsp->numOfCols ||
+        result.pBlock->info.id.baseGId != frame.baseGId || result.pBlock->info.id.groupId != frame.baseGId) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+    code = tValidateSStreamRunnerFetchFrame(&frame, result.pBlock->info.rows);
+    if (code != TSDB_CODE_SUCCESS) goto _exit;
+    result.pLineage = frame.pLineage;
+    frame.pLineage = NULL;
+    *pResultType = EXCHANGE_FETCH_RESULT_DATA;
+  } else if (frame.type == STREAM_RUNNER_FETCH_EOG) {
+    if (pRsp->numOfRows != 0 || pRsp->numOfBlocks != 0 || pRsp->numOfCols != 0 || blockSize != 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+    code = tValidateSStreamRunnerFetchFrame(&frame, 0);
+    if (code != TSDB_CODE_SUCCESS) goto _exit;
+    *pResultType = EXCHANGE_FETCH_RESULT_EOG;
+  } else {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  code = acceptStrictMultiGroupFetchResult(pOperator, pExchangeInfo, sourceIndex, *pResultType, &result, pOutputQueued);
+  if (code == TSDB_CODE_SUCCESS && *pResultType == EXCHANGE_FETCH_RESULT_DATA &&
+      pOperator->pTaskInfo->pStreamRuntimeInfo->inputStatsFp != NULL) {
+    pOperator->pTaskInfo->pStreamRuntimeInfo->inputStatsFp(pOperator->pTaskInfo->pStreamRuntimeInfo->pInputStatsParam,
+                                                           pRsp->numOfRows, 1);
+  }
+
+_exit:
+  tDestroySStreamRunnerFetchFrame(&frame);
+  destroyExchangeMultiGroupResult(&result);
+  if (code != TSDB_CODE_SUCCESS) {
+    clearExchangeResultState(pOperator, pExchangeInfo);
+    resetStrictMultiGroupBarrier(pExchangeInfo);
+    *pResultType = EXCHANGE_FETCH_RESULT_NONE;
+    *pOutputQueued = false;
+  }
+  return code;
+}
+
 int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDataInfo,
                               SStreamRuntimeInfo* pStreamRuntimeInfo) {
   int32_t            code = TSDB_CODE_SUCCESS;
@@ -1894,8 +2425,16 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
   SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
   SSDataBlock*       pb = NULL;
 
+  if (pRetrieveRsp == NULL || pDataInfo->rspLen < (int32_t)sizeof(SRetrieveTableRsp)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  int32_t availablePayload = pDataInfo->rspLen - (int32_t)sizeof(SRetrieveTableRsp);
+  int32_t declaredPayload = pRetrieveRsp->compLen > 0 ? pRetrieveRsp->compLen : availablePayload;
+  if (declaredPayload < 0 || declaredPayload > availablePayload) return TSDB_CODE_INVALID_MSG;
+
   char* pNextStart = pRetrieveRsp->data;
   char* pStart = pNextStart;
+  char* pPayloadEnd = pRetrieveRsp->data + declaredPayload;
 
   int32_t index = 0;
 
@@ -1919,6 +2458,11 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
   while (index++ < pRetrieveRsp->numOfBlocks) {
     pStart = pNextStart;
 
+    if (pPayloadEnd - pStart < INT_BYTES * 2) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _end;
+    }
+
     if (pDataInfo->type == EX_SRC_TYPE_VSTB_SCAN || pDataInfo->type == EX_SRC_TYPE_VSTB_TAG_SCAN) {
       pb = taosMemoryCalloc(1, sizeof(SSDataBlock));
       QUERY_CHECK_NULL(pb, code, lino, _end, terrno);
@@ -1930,12 +2474,15 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
       QUERY_CHECK_NULL(pb, code, lino, _end, code);
     }
 
-    int32_t compLen = *(int32_t*)pStart;
+    int32_t compLen = 0;
+    memcpy(&compLen, pStart, INT_BYTES);
     pStart += sizeof(int32_t);
 
-    int32_t rawLen = *(int32_t*)pStart;
+    int32_t rawLen = 0;
+    memcpy(&rawLen, pStart, INT_BYTES);
     pStart += sizeof(int32_t);
-    QUERY_CHECK_CONDITION((compLen <= rawLen && compLen != 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    QUERY_CHECK_CONDITION((compLen > 0 && compLen <= rawLen && compLen <= pPayloadEnd - pStart), code, lino, _end,
+                          TSDB_CODE_INVALID_MSG);
 
     pNextStart = pStart + compLen;
     if (pRetrieveRsp->compressed && (compLen < rawLen)) {
@@ -1947,7 +2494,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
     bool isVstb = (pDataInfo->type == EX_SRC_TYPE_VSTB_SCAN || pDataInfo->type == EX_SRC_TYPE_VSTB_TAG_SCAN);
     code = extractDataBlockFromFetchRsp(pb, pStart, NULL, &pStart, isVstb);
     if (code != 0) {
-      taosMemoryFreeClear(pDataInfo->pRsp);
+      clearSourceResponse(pDataInfo);
       goto _end;
     }
 
@@ -1967,6 +2514,309 @@ _end:
   }
   return code;
 }
+
+#if defined(BUILD_TEST)
+typedef struct SExchangeMultiGroupTestOwner {
+  SExchangeInfo       exchange;
+  SOperatorInfo       operatorInfo;
+  SExecTaskInfo       taskInfo;
+  SStreamRuntimeInfo* pRuntimeInfo;
+  SSubplan            subplan;
+  SExchangePhysiNode  exchangeNode;
+  bool                delayedRefHeld;
+} SExchangeMultiGroupTestOwner;
+
+void exchangeTestDestroyMultiGroupOwner(void* pParam);
+
+static void* exchangeTestCreateMultiSourceOwnerImpl(bool staticQualified, bool runtimeMultiGroup, bool runnerSource,
+                                                    int32_t sourceCount, const uint64_t* pGroupOrder,
+                                                    int32_t groupCount) {
+  if (sourceCount <= 0 || groupCount < 0 || (groupCount > 0 && pGroupOrder == NULL)) return NULL;
+
+  SExchangeMultiGroupTestOwner* pOwner = taosMemoryCalloc(1, sizeof(*pOwner));
+  if (pOwner == NULL) return NULL;
+  pOwner->pRuntimeInfo = taosMemoryCalloc(1, sizeof(*pOwner->pRuntimeInfo));
+  if (pOwner->pRuntimeInfo == NULL) {
+    taosMemoryFree(pOwner);
+    return NULL;
+  }
+
+  pOwner->exchange.pSources = taosArrayInit(sourceCount, sizeof(SDownstreamSourceNode));
+  pOwner->exchange.pSourceDataInfo = taosArrayInit(sourceCount, sizeof(SSourceDataInfo));
+  pOwner->exchange.pResultBlockList = taosArrayInit(1, POINTER_BYTES);
+  pOwner->exchange.pRecycledBlocks = taosArrayInit(1, POINTER_BYTES);
+  if (pOwner->exchange.pSources == NULL || pOwner->exchange.pSourceDataInfo == NULL ||
+      pOwner->exchange.pResultBlockList == NULL || pOwner->exchange.pRecycledBlocks == NULL ||
+      createDataBlock(&pOwner->exchange.pDummyBlock) != 0) {
+    exchangeTestDestroyMultiGroupOwner(pOwner);
+    return NULL;
+  }
+
+  SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  if (blockDataAppendColInfo(pOwner->exchange.pDummyBlock, &column) != TSDB_CODE_SUCCESS) {
+    exchangeTestDestroyMultiGroupOwner(pOwner);
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < sourceCount; ++i) {
+    SDownstreamSourceNode source = {0};
+    source.fetchMsgType = runnerSource ? TDMT_STREAM_FETCH_FROM_RUNNER : TDMT_STREAM_FETCH;
+    SSourceDataInfo sourceInfo = {.index = i, .type = EX_SRC_TYPE_STB_JOIN_SCAN};
+    if (taosArrayPush(pOwner->exchange.pSources, &source) == NULL ||
+        taosArrayPush(pOwner->exchange.pSourceDataInfo, &sourceInfo) == NULL) {
+      exchangeTestDestroyMultiGroupOwner(pOwner);
+      return NULL;
+    }
+  }
+
+  pOwner->exchange.limitInfo.limit = (SLimit){.limit = -1, .offset = -1};
+  pOwner->exchange.limitInfo.slimit = (SLimit){.limit = -1, .offset = -1};
+  pOwner->operatorInfo.info = &pOwner->exchange;
+  pOwner->operatorInfo.pTaskInfo = &pOwner->taskInfo;
+  pOwner->operatorInfo.pPhyNode = &pOwner->exchangeNode.node;
+  pOwner->exchangeNode.node.type = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
+  pOwner->taskInfo.execModel = OPTR_EXEC_MODEL_STREAM;
+  pOwner->taskInfo.pStreamRuntimeInfo = pOwner->pRuntimeInfo;
+  pOwner->taskInfo.pSubplan = &pOwner->subplan;
+  pOwner->pRuntimeInfo->funcInfo.isMultiGroupCalc = runtimeMultiGroup;
+  if (groupCount > 0) {
+    pOwner->pRuntimeInfo->funcInfo.pGroupCalcOrder = taosArrayInit(groupCount, sizeof(uint64_t));
+    if (pOwner->pRuntimeInfo->funcInfo.pGroupCalcOrder == NULL) {
+      exchangeTestDestroyMultiGroupOwner(pOwner);
+      return NULL;
+    }
+    for (int32_t i = 0; i < groupCount; ++i) {
+      if (taosArrayPush(pOwner->pRuntimeInfo->funcInfo.pGroupCalcOrder, &pGroupOrder[i]) == NULL) {
+        exchangeTestDestroyMultiGroupOwner(pOwner);
+        return NULL;
+      }
+    }
+  }
+  pOwner->subplan.inheritedMultiGroupJoin = staticQualified;
+  return pOwner;
+}
+
+void* exchangeTestCreateMultiGroupOwner(bool staticQualified, bool runtimeMultiGroup, bool runnerSource) {
+  const uint64_t defaultGroup = 101;
+  return exchangeTestCreateMultiSourceOwnerImpl(staticQualified, runtimeMultiGroup, runnerSource, 1, &defaultGroup, 1);
+}
+
+void* exchangeTestCreateMultiSourceOwner(bool staticQualified, bool runtimeMultiGroup, bool runnerSource,
+                                         int32_t sourceCount, const uint64_t* pGroupOrder, int32_t groupCount) {
+  return exchangeTestCreateMultiSourceOwnerImpl(staticQualified, runtimeMultiGroup, runnerSource, sourceCount,
+                                                pGroupOrder, groupCount);
+}
+
+int32_t exchangeTestAcceptSourceFetchResponse(void* pParam, int32_t sourceIndex, const void* pRspData, int32_t rspLen) {
+  SExchangeMultiGroupTestOwner* pOwner = pParam;
+  if (pOwner == NULL || sourceIndex < 0 || pRspData == NULL || rspLen <= 0) return TSDB_CODE_INVALID_PARA;
+
+  SSourceDataInfo* pDataInfo = taosArrayGet(pOwner->exchange.pSourceDataInfo, sourceIndex);
+  if (pDataInfo == NULL || pDataInfo->pRsp != NULL) return TSDB_CODE_INVALID_PARA;
+  pDataInfo->pRsp = taosMemoryMalloc(rspLen);
+  if (pDataInfo->pRsp == NULL) return terrno;
+  memcpy(pDataInfo->pRsp, pRspData, rspLen);
+  pDataInfo->rspLen = rspLen;
+
+  int32_t code = normalizeFetchResponseHeader(pDataInfo->pRsp, rspLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    clearSourceResponse(pDataInfo);
+    if (isStrictMultiGroupRunnerSource(&pOwner->operatorInfo, sourceIndex)) {
+      clearExchangeResultState(&pOwner->operatorInfo, &pOwner->exchange);
+      resetStrictMultiGroupBarrier(&pOwner->exchange);
+    }
+    return code;
+  }
+
+  SRetrieveTableRsp* pRsp = pDataInfo->pRsp;
+  if (isStrictMultiGroupRunnerSource(&pOwner->operatorInfo, sourceIndex) ||
+      hasRunnerFetchFrame(pRsp->streamBlockType)) {
+    EExchangeFetchResultType resultType = EXCHANGE_FETCH_RESULT_NONE;
+    bool                     outputQueued = false;
+    code = decodeStrictMultiGroupFetchResponse(&pOwner->operatorInfo, &pOwner->exchange, pDataInfo, sourceIndex,
+                                               &resultType, &outputQueued);
+  } else if (pRsp->numOfRows > 0) {
+    code = doExtractResultBlocks(&pOwner->exchange, pDataInfo, pOwner->pRuntimeInfo);
+  }
+  clearSourceResponse(pDataInfo);
+  return code;
+}
+
+int32_t exchangeTestAcceptFetchResponse(void* pParam, const void* pRspData, int32_t rspLen) {
+  return exchangeTestAcceptSourceFetchResponse(pParam, 0, pRspData, rspLen);
+}
+
+bool exchangeTestCanPollSource(void* pParam, int32_t sourceIndex) {
+  SExchangeMultiGroupTestOwner* pOwner = pParam;
+  return pOwner != NULL && canPollStrictMultiGroupSource(&pOwner->exchange, sourceIndex);
+}
+
+bool exchangeTestAllSourcesExhausted(void* pParam) {
+  SExchangeMultiGroupTestOwner* pOwner = pParam;
+  if (pOwner == NULL) return false;
+  int32_t completed = 0;
+  return getCompletedSources(pOwner->exchange.pSourceDataInfo, &completed) == TSDB_CODE_SUCCESS &&
+         completed == taosArrayGetSize(pOwner->exchange.pSourceDataInfo);
+}
+
+int32_t exchangeTestPopMultiGroupResult(void* pParam, SSDataBlock** ppBlock, const SArray** ppPublishedLineage) {
+  SExchangeMultiGroupTestOwner* pOwner = pParam;
+  if (pOwner == NULL || ppBlock == NULL || ppPublishedLineage == NULL) return TSDB_CODE_INVALID_PARA;
+
+  bool    popped = false;
+  int32_t code = popExchangeMultiGroupResult(&pOwner->operatorInfo, ppBlock, &popped);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (!popped && taosArrayGetSize(pOwner->exchange.pResultBlockList) > 0) {
+    *ppBlock = taosArrayGetP(pOwner->exchange.pResultBlockList, 0);
+    taosArrayRemove(pOwner->exchange.pResultBlockList, 0);
+    if (taosArrayPush(pOwner->exchange.pRecycledBlocks, ppBlock) == NULL) return terrno;
+  }
+  *ppPublishedLineage = pOwner->exchange.pPublishedLineage;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t exchangeTestLoadNextMultiGroupResult(void* pParam, SSDataBlock** ppBlock) {
+  SExchangeMultiGroupTestOwner* pOwner = pParam;
+  if (pOwner == NULL || ppBlock == NULL) return TSDB_CODE_INVALID_PARA;
+
+  const SArray* pLineage = NULL;
+  int32_t       code = exchangeTestPopMultiGroupResult(pOwner, ppBlock, &pLineage);
+  if (code != TSDB_CODE_SUCCESS || *ppBlock == NULL) return code;
+  bool continueLoad = false;
+  return processExchangeLoadedBlock(&pOwner->operatorInfo, *ppBlock, ppBlock, &continueLoad);
+}
+
+int32_t exchangeTestGetResultQueueSizes(void* pParam, int32_t* pStrictItems, int32_t* pOrdinaryBlocks) {
+  SExchangeMultiGroupTestOwner* pOwner = pParam;
+  if (pOwner == NULL || pStrictItems == NULL || pOrdinaryBlocks == NULL) return TSDB_CODE_INVALID_PARA;
+  *pStrictItems = taosArrayGetSize(pOwner->exchange.pMultiGroupResultList);
+  *pOrdinaryBlocks = taosArrayGetSize(pOwner->exchange.pResultBlockList);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t exchangeTestEnableFilterLimitGuards(void* pParam) {
+  SExchangeMultiGroupTestOwner* pOwner = pParam;
+  if (pOwner == NULL || pOwner->operatorInfo.exprSupp.pFilterInfo != NULL) return TSDB_CODE_INVALID_PARA;
+
+  SValueNode* pFalse = NULL;
+  int32_t     code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pFalse);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  pFalse->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pFalse->node.resType.bytes = sizeof(bool);
+  bool falseValue = false;
+  code = nodesSetValueNodeValue(pFalse, &falseValue);
+  if (code == TSDB_CODE_SUCCESS) {
+    pFalse->translate = true;
+    code = filterInitFromNode((SNode*)pFalse, &pOwner->operatorInfo.exprSupp.pFilterInfo, 0, NULL);
+  }
+  nodesDestroyNode((SNode*)pFalse);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  pOwner->exchange.limitInfo.limit = (SLimit){.limit = 0, .offset = 0};
+  pOwner->exchange.limitInfo.slimit = (SLimit){.limit = 0, .offset = 0};
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t exchangeTestResetMultiGroupOwner(void* pParam) {
+  SExchangeMultiGroupTestOwner* pOwner = pParam;
+  if (pOwner == NULL) return TSDB_CODE_INVALID_PARA;
+  for (int32_t i = 0; i < taosArrayGetSize(pOwner->exchange.pSourceDataInfo); ++i) {
+    SSourceDataInfo* pDataInfo = taosArrayGet(pOwner->exchange.pSourceDataInfo, i);
+    clearSourceResponse(pDataInfo);
+    pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
+  }
+  clearExchangeResultState(&pOwner->operatorInfo, &pOwner->exchange);
+  if (isStrictMultiGroupRunnerSource(&pOwner->operatorInfo, 0)) resetStrictMultiGroupBarrier(&pOwner->exchange);
+  return TSDB_CODE_SUCCESS;
+}
+
+void exchangeTestDestroyMultiGroupOwner(void* pParam) {
+  SExchangeMultiGroupTestOwner* pOwner = pParam;
+  if (pOwner == NULL) return;
+  filterFreeInfo(pOwner->operatorInfo.exprSupp.pFilterInfo);
+  pOwner->operatorInfo.exprSupp.pFilterInfo = NULL;
+  clearExchangeResultState(&pOwner->operatorInfo, &pOwner->exchange);
+  taosArrayDestroy(pOwner->exchange.pMultiGroupResultList);
+  taosArrayDestroy(pOwner->exchange.pResultBlockList);
+  taosArrayDestroy(pOwner->exchange.pRecycledBlocks);
+  taosArrayDestroy(pOwner->exchange.pSources);
+  taosArrayDestroyEx(pOwner->exchange.pSourceDataInfo, freeSourceDataInfo);
+  blockDataDestroy(pOwner->exchange.pDummyBlock);
+  if (pOwner->pRuntimeInfo != NULL) {
+    taosArrayDestroy(pOwner->pRuntimeInfo->funcInfo.pGroupCalcOrder);
+    pOwner->pRuntimeInfo->funcInfo.pGroupCalcOrder = NULL;
+  }
+  taosMemoryFree(pOwner->pRuntimeInfo);
+  taosMemoryFree(pOwner);
+}
+
+void exchangeTestSetRuntimeLineageAlias(void* pParam, SArray* pLineage) {
+  SExchangeMultiGroupTestOwner* pOwner = pParam;
+  if (pOwner != NULL) pOwner->pRuntimeInfo->funcInfo.pStreamBlkWinIdx = pLineage;
+}
+
+const SArray* exchangeTestGetRuntimeLineageAlias(void* pParam) {
+  SExchangeMultiGroupTestOwner* pOwner = pParam;
+  return pOwner == NULL ? NULL : pOwner->pRuntimeInfo->funcInfo.pStreamBlkWinIdx;
+}
+
+bool exchangeTestIsStrictResultQueueAllocated(void* pParam) {
+  SExchangeMultiGroupTestOwner* pOwner = pParam;
+  return pOwner != NULL && pOwner->exchange.pMultiGroupResultList != NULL;
+}
+
+int32_t exchangeTestBeginDelayedDestroy(void* pParam) {
+  SExchangeMultiGroupTestOwner* pOwner = pParam;
+  if (pOwner == NULL || pOwner->delayedRefHeld) return TSDB_CODE_INVALID_PARA;
+
+  int32_t code = qExecutorInit();
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = tsem_init(&pOwner->exchange.ready, 0, 0);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  pOwner->exchange.isExchange = true;
+  int64_t refId = taosAddRef(fetchObjRefPool, &pOwner->exchange);
+  if (refId < 0) return terrno;
+  pOwner->exchange.self = refId;
+  if (taosAcquireRef(fetchObjRefPool, refId) == NULL) return terrno;
+  pOwner->delayedRefHeld = true;
+  destroyExchangeOperatorInfo(&pOwner->exchange);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t exchangeTestFinishDelayedDestroy(void* pParam) {
+  SExchangeMultiGroupTestOwner* pOwner = pParam;
+  if (pOwner == NULL || !pOwner->delayedRefHeld) return TSDB_CODE_INVALID_PARA;
+
+  int64_t refId = pOwner->exchange.self;
+  taosArrayDestroy(pOwner->pRuntimeInfo->funcInfo.pGroupCalcOrder);
+  pOwner->pRuntimeInfo->funcInfo.pGroupCalcOrder = NULL;
+  taosMemoryFreeClear(pOwner->pRuntimeInfo);
+  pOwner->taskInfo.pStreamRuntimeInfo = NULL;
+  return taosReleaseRef(fetchObjRefPool, refId);
+}
+
+int32_t exchangeTestNormalizeFetchHeader(const void* pRspData, int32_t rspLen, int64_t* pNumOfCols) {
+  if (pRspData == NULL || pNumOfCols == NULL || rspLen <= 0) return TSDB_CODE_INVALID_PARA;
+  SRetrieveTableRsp* pRsp = taosMemoryMalloc(rspLen);
+  if (pRsp == NULL) return terrno;
+  memcpy(pRsp, pRspData, rspLen);
+  int32_t code = normalizeFetchResponseHeader(pRsp, rspLen);
+  if (code == TSDB_CODE_SUCCESS) *pNumOfCols = pRsp->numOfCols;
+  taosMemoryFree(pRsp);
+  return code;
+}
+
+int32_t exchangeTestGetLocalFetchResponseLen(const void* pRspData, int32_t rspLen, uint32_t* pLogicalLen) {
+  if (pRspData == NULL || pLogicalLen == NULL || rspLen <= 0) return TSDB_CODE_INVALID_PARA;
+  void* pRsp = taosMemoryMalloc(rspLen);
+  if (pRsp == NULL) return terrno;
+  memcpy(pRsp, pRspData, rspLen);
+  int32_t code = getLocalFetchResponseLen(pRsp, pLogicalLen);
+  taosMemoryFree(pRsp);
+  return code;
+}
+#endif
 
 int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
@@ -2034,7 +2884,7 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
       int64_t currSeqId = atomic_load_64(&pExchangeInfo->seqId);
       if (pDataInfo->seqId != currSeqId) {
         qDebug("seq rsp reqId %" PRId64 " mismatch with exchange %p curr seqId %" PRId64 ", ignore it", pDataInfo->seqId, pExchangeInfo, currSeqId);
-        taosMemoryFreeClear(pDataInfo->pRsp);
+        clearSourceResponse(pDataInfo);
         continue;
       }
 
@@ -2052,6 +2902,11 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
     SRetrieveTableRsp*   pRsp = pDataInfo->pRsp;
     SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
 
+    if (hasRunnerFetchFrame(pRsp->streamBlockType)) {
+      code = TSDB_CODE_INVALID_MSG;
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+
     if (pRsp->numOfRows == 0) {
       qDebug("exhausted %p,%s vgId:%d, clientId:0x%" PRIx64 " taskID:0x%" PRIx64
              " execId:%d %d of total completed, rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64 " try next", pDataInfo,
@@ -2064,7 +2919,7 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
       } else {
         pExchangeInfo->current += 1;
       }
-      taosMemoryFreeClear(pDataInfo->pRsp);
+      clearSourceResponse(pDataInfo);
       continue;
     }
 
@@ -2094,7 +2949,7 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
     updateLoadRemoteInfo(pLoadInfo, pRetrieveRsp->numOfRows, pRetrieveRsp->compLen, startTs, pOperator);
     pDataInfo->totalRows += pRetrieveRsp->numOfRows;
 
-    taosMemoryFreeClear(pDataInfo->pRsp);
+    clearSourceResponse(pDataInfo);
     if (pExchangeInfo->dynamicOp && pExchangeInfo->seqLoadData) {
       taosArrayClearEx(pExchangeInfo->pSourceDataInfo, clearVtbScanDataInfo);
 
@@ -2289,7 +3144,7 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator,
       qDebug("%s vgroup:%d is missing from the query plan, "
              "request metadata refresh",
              GET_TASKID(pOperator->pTaskInfo), pBasicParam->vgId);
-      return TSDB_CODE_SCH_DATA_SRC_EP_MISS;
+      return TSDB_CODE_VTABLE_DATA_SRC_EP_MISS;
     } else if (pBasicParam->type == EX_SRC_TYPE_VSTB_TS_SCAN || pBasicParam->type == EX_SRC_TYPE_VSTB_PART_INTERVAL_SCAN ||
                pBasicParam->type == EX_SRC_TYPE_VSTB_SYS_SCAN) {
       // Multi-exchange virtual table paths build each exchange param from the full vg map.

@@ -3682,6 +3682,164 @@ TEST(stmt2Case, decimal) {
   taos_close(taos);
 }
 
+TEST(stmt2Case, decimal_bind_after_skipped_narrow_decimal) {
+  TAOS* taos = connectTaosOrExit("localhost", "root", "taosdata", NULL, 0);
+
+  do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_decimal_gap");
+  do_query(taos, "CREATE DATABASE stmt2_testdb_decimal_gap");
+  do_query(taos,
+           "CREATE STABLE stmt2_testdb_decimal_gap.st (ts TIMESTAMP, narrow DECIMAL(3,2), wide DECIMAL(8,2)) "
+           "TAGS (did BIGINT)");
+  do_query(taos, "CREATE TABLE stmt2_testdb_decimal_gap.ct USING stmt2_testdb_decimal_gap.st TAGS (1)");
+
+  // Match the STMT2 options used by the WebSocket JDBC driver.
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+
+  int code = taos_stmt2_prepare(stmt, "INSERT INTO stmt2_testdb_decimal_gap.ct (ts, wide) VALUES (?, ?)", 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  int             fieldNum = 0;
+  TAOS_FIELD_ALL* fields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &fields);
+  checkError(stmt, code, __FILE__, __LINE__);
+  ASSERT_EQ(fieldNum, 2);
+  ASSERT_STREQ(fields[0].name, "ts");
+  ASSERT_STREQ(fields[1].name, "wide");
+  ASSERT_EQ(fields[1].type, TSDB_DATA_TYPE_DECIMAL64);
+  ASSERT_EQ(fields[1].precision, 8);
+  ASSERT_EQ(fields[1].scale, 2);
+  taos_stmt2_free_fields(stmt, fields);
+
+  int64_t ts =
+      std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+          .count();
+  int32_t tsLen = sizeof(ts);
+  char    decimal[] = "28.1";
+  int32_t decimalLen = sizeof(decimal) - 1;
+
+  TAOS_STMT2_BIND  cols[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts, &tsLen, NULL, 1},
+                              {TSDB_DATA_TYPE_DECIMAL64, decimal, &decimalLen, NULL, 1}};
+  TAOS_STMT2_BIND* bindCols = &cols[0];
+  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &bindCols};
+
+  int bindCode = taos_stmt2_bind_param(stmt, &bindv, -1);
+  EXPECT_EQ(bindCode, TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt);
+
+  if (bindCode == TSDB_CODE_SUCCESS) {
+    int affectedRows = 0;
+    code = taos_stmt2_exec(stmt, &affectedRows);
+    EXPECT_EQ(code, TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt);
+    EXPECT_EQ(affectedRows, 1);
+
+    if (code == TSDB_CODE_SUCCESS) {
+      TAOS_RES* result = execQueryWithRetry(taos, "SELECT narrow, wide FROM stmt2_testdb_decimal_gap.ct");
+      ASSERT_NE(result, nullptr);
+      ASSERT_EQ(taos_errno(result), TSDB_CODE_SUCCESS);
+
+      TAOS_ROW row = taos_fetch_row(result);
+      ASSERT_NE(row, nullptr);
+      ASSERT_EQ(row[0], nullptr);
+      ASSERT_STREQ((char*)row[1], "28.10");
+      ASSERT_EQ(taos_fetch_row(result), nullptr);
+      taos_free_result(result);
+    }
+  }
+
+  taos_stmt2_close(stmt);
+  do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_decimal_gap");
+  taos_close(taos);
+}
+
+TEST(stmt2Case, decimal_bind_after_schema_change) {
+  TAOS* taos = connectTaosOrExit("localhost", "root", "taosdata", NULL, 0);
+
+  do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_decimal_alter");
+  do_query(taos, "CREATE DATABASE stmt2_testdb_decimal_alter");
+  do_query(taos,
+           "CREATE TABLE stmt2_testdb_decimal_alter.t (ts TIMESTAMP, removed DECIMAL(6,2), "
+           "narrow DECIMAL(3,2))");
+  do_query(taos, "ALTER TABLE stmt2_testdb_decimal_alter.t DROP COLUMN removed");
+  do_query(taos, "ALTER TABLE stmt2_testdb_decimal_alter.t ADD COLUMN wide DECIMAL(8,2)");
+  do_query(taos, "ALTER TABLE stmt2_testdb_decimal_alter.t ADD COLUMN huge DECIMAL(20,4)");
+
+  auto insertRow = [&](const char* trace, int64_t ts, const char* wideValue, int32_t bindMode,
+                       bool bindSeparately) {
+    SCOPED_TRACE(trace);
+    TAOS_STMT2_OPTION option = {0, false, false, NULL, NULL};
+    TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+    EXPECT_NE(stmt, nullptr);
+    if (stmt == nullptr) {
+      return;
+    }
+
+    int code = taos_stmt2_prepare(
+        stmt, "INSERT INTO stmt2_testdb_decimal_alter.t (ts, wide, huge) VALUES (?, ?, ?)", 0);
+    EXPECT_EQ(code, TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt);
+    if (code != TSDB_CODE_SUCCESS) {
+      taos_stmt2_close(stmt);
+      return;
+    }
+
+    int32_t tsLen = sizeof(ts);
+    int32_t wideLen = strlen(wideValue);
+    char    hugeValue[] = "1234567890123456.789";
+    int32_t hugeLen = sizeof(hugeValue) - 1;
+    TAOS_STMT2_BIND cols[3] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts, &tsLen, NULL, 1},
+                               {TSDB_DATA_TYPE_DECIMAL64, (void*)wideValue, &wideLen, NULL, 1},
+                               {TSDB_DATA_TYPE_DECIMAL, hugeValue, &hugeLen, NULL, 1}};
+
+    if (bindSeparately) {
+      for (int32_t colIdx = 0; colIdx < 3; ++colIdx) {
+        TAOS_STMT2_BIND* bindCol = &cols[colIdx];
+        TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &bindCol};
+        code = taos_stmt2_bind_param(stmt, &bindv, colIdx);
+        EXPECT_EQ(code, TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt);
+        if (code != TSDB_CODE_SUCCESS) {
+          break;
+        }
+      }
+    } else {
+      TAOS_STMT2_BIND* bindCols = &cols[0];
+      TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &bindCols};
+      code = taos_stmt2_bind_param(stmt, &bindv, bindMode);
+      EXPECT_EQ(code, TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt);
+    }
+
+    if (code == TSDB_CODE_SUCCESS) {
+      int affectedRows = 0;
+      code = taos_stmt2_exec(stmt, &affectedRows);
+      EXPECT_EQ(code, TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt);
+      EXPECT_EQ(affectedRows, 1);
+    }
+    taos_stmt2_close(stmt);
+  };
+
+  insertRow("column-format bind", 1591060628000, "28.1", -1, false);
+  insertRow("row-format bind", 1591060629000, "29.1", -2, false);
+  insertRow("single-column bind", 1591060630000, "30.1", 0, true);
+
+  TAOS_RES* result = execQueryWithRetry(
+      taos, "SELECT narrow, wide, huge FROM stmt2_testdb_decimal_alter.t ORDER BY ts");
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(taos_errno(result), TSDB_CODE_SUCCESS);
+
+  const char* expectedWide[] = {"28.10", "29.10", "30.10"};
+  for (int32_t i = 0; i < 3; ++i) {
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(row[0], nullptr);
+    ASSERT_STREQ((char*)row[1], expectedWide[i]);
+    ASSERT_STREQ((char*)row[2], "1234567890123456.7890");
+  }
+  ASSERT_EQ(taos_fetch_row(result), nullptr);
+  taos_free_result(result);
+
+  do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_decimal_alter");
+  taos_close(taos);
+}
+
 void testMultiPrepare(TAOS* taos, TAOS_STMT2_OPTION* option) {
   TAOS_STMT2* stmt = taos_stmt2_init(taos, option);
   ASSERT_NE(stmt, nullptr);
