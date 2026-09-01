@@ -8,7 +8,7 @@ torch==2.4.1+cpu ; platform_machine == "x86_64"
 # ARM平台 (aarch64)
 torch==2.4.1 ; platform_machine == "aarch64"
 
-transformers==4.40.1
+transformers==5.10.1
 accelerate==0.34.2
 huggingface-hub==0.36.2
 fsspec==2023.10.0

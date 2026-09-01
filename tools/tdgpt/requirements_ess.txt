@@ -1,6 +1,6 @@
 -r requirements_docker.txt
 
-transformers==4.40.1
+transformers==5.10.1
 
 --find-links https://download.pytorch.org/whl/torch/
 # x86/x64平台
