@@ -942,9 +942,9 @@ stmt 升级到 stmt2 的改动：
 
 - `int32_t tmq_consumer_close(tmq_t *tmq)`
 
-  - **接口说明**：用于关闭 tmq_t 结构体。需与 tmq_consumer_new 配合使用。
+  - **接口说明**：用于关闭 tmq_t 结构体并释放资源，需与 tmq_consumer_new 配合使用。该接口还会尝试取消订阅，并在启用自动提交时提交 offset；返回值仅表示本地消费者引用是否移除，不表示取消订阅或自动提交是否成功。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
-  - **返回值**：非 `NULL`：成功，返回一个指向 TAOS_RES 结构体的指针，该结构体包含了接收到的消息。`NULL`：表示没有数据，可通过 taos_errno(NULL) 获取错误码，具体错误码参见参考手册。TAOS_RES 结果和 taos_query 返回结果一致，可通过查询的各种接口获取 TAOS_RES 里的信息，比如 schema 等。
+  - **返回值**：`0`：本地消费者引用移除成功。非 `0`：资源释放失败，可调用函数 `char *tmq_err2str(int32_t code)` 获取更详细的错误信息。
 
 - `int32_t tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment, int32_t *numOfAssignment)`
 
