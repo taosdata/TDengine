@@ -1843,6 +1843,7 @@ GroupedCalcWireOffsets locateGroupedCalcWireOffsets(const std::vector<uint8_t>& 
       uint8_t* content = nullptr;
       uint32_t contentLen = 0;
       EXPECT_EQ(TSDB_CODE_SUCCESS, tDecodeBinary(&decoder, &content, &contentLen));
+      EXPECT_EQ(TSDB_CODE_SUCCESS, tDecodeBinary(&decoder, &content, &contentLen));
     }
     int32_t groupCols = 0;
     EXPECT_EQ(TSDB_CODE_SUCCESS, tDecodeI32(&decoder, &groupCols));

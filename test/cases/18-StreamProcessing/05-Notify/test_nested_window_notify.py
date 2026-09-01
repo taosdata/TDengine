@@ -270,10 +270,10 @@ class TestNestedWindowNotify:
         events = self._wait_stable_event_count(log_path, 4)
         actual = [self._subevent_key(event) for event in events]
         expected = [
-            ("WINDOW_OPEN", -1, 0, 1755276000000),
-            ("WINDOW_OPEN", 0, 0, 1755276000000),
-            ("WINDOW_CLOSE", 0, 0, 1755276000000),
-            ("WINDOW_OPEN", 1, 1, 1755276001000),
+            ("WINDOW_OPEN", -1, "", 1755276000000),
+            ("WINDOW_OPEN", 0, "0", 1755276000000),
+            ("WINDOW_CLOSE", 0, "0", 1755276000000),
+            ("WINDOW_OPEN", 1, "1", 1755276001000),
         ]
         assert actual == expected, events
         assert all(event.get("triggerType") == "Event" for event in events), events
@@ -439,7 +439,7 @@ class TestNestedWindowNotify:
         return (
             event.get("eventType"),
             event.get("windowIndex"),
-            condition.get("conditionIndex"),
+            condition.get("conditionPath"),
             event.get("windowStart"),
         )
 

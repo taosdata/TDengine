@@ -12086,6 +12086,19 @@ static int32_t stAppendNestedInputProjectionFromString(SArray **ppProjections, i
   return code;
 }
 
+static int32_t stAppendNestedEventStartProjectionFromString(SArray **ppProjections, int16_t slotId,
+                                                            const void *pEncoded) {
+  if (pEncoded == NULL) return TSDB_CODE_INVALID_PARA;
+  SNode  *pStartCond = NULL;
+  SNode  *pExpr = NULL;
+  int32_t code = nodesStringToNode(pEncoded, &pStartCond);
+  if (code == TSDB_CODE_SUCCESS) code = stEventStartCondStripLeafWrappers(pStartCond, &pExpr);
+  if (code == TSDB_CODE_SUCCESS) code = stAppendNestedInputProjection(ppProjections, slotId, &pExpr);
+  nodesDestroyNode(pStartCond);
+  nodesDestroyNode(pExpr);
+  return code;
+}
+
 static int32_t stTriggerTaskBuildNestedInputProjections(const SStreamWindowPlan *pPlan, SArray **ppProjections) {
   if (pPlan == NULL || pPlan->pLayers == NULL || ppProjections == NULL || *ppProjections != NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -12101,8 +12114,8 @@ static int32_t stTriggerTaskBuildNestedInputProjections(const SStreamWindowPlan 
       break;
     }
     if (pLayer->triggerType == WINDOW_TYPE_EVENT) {
-      code = stAppendNestedInputProjectionFromString(&pProjections, pLayer->input.eventStartSlotId,
-                                                     pLayer->trigger.event.startCond);
+      code = stAppendNestedEventStartProjectionFromString(&pProjections, pLayer->input.eventStartSlotId,
+                                                          pLayer->trigger.event.startCond);
       if (code == TSDB_CODE_SUCCESS && pLayer->trigger.event.endCond != NULL) {
         code = stAppendNestedInputProjectionFromString(&pProjections, pLayer->input.eventEndSlotId,
                                                        pLayer->trigger.event.endCond);
@@ -23072,7 +23085,8 @@ static int32_t stRealtimeGroupUpdateExecTime(SSTriggerRealtimeGroup *pGroup, int
     }
   }
 
-  if (enterHeap && pGroup->nextExecTime != 0 && nextExecTime != pGroup->nextExecTime) {
+  bool deadlineChanged = nested ? nextExecTime != pGroup->nextExecTime : nextExecTime < pGroup->nextExecTime;
+  if (enterHeap && pGroup->nextExecTime != 0 && deadlineChanged) {
     heapRemove(pContext->pMaxDelayHeap, &pGroup->heapNode);
     pGroup->nextExecTime = 0;
   }
