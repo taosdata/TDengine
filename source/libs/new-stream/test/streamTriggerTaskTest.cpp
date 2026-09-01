@@ -535,6 +535,18 @@ static SNode* makeDeployParityEventComparison(int16_t slotId, EOperatorType opTy
   return pOperator;
 }
 
+static SNode* makeDeployEventStartLeaf(SNode* pCondition) {
+  if (pCondition == nullptr) return nullptr;
+  SNode* pNode = nullptr;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_EVENT_START_LEAF, &pNode));
+  if (pNode == nullptr) {
+    nodesDestroyNode(pCondition);
+    return nullptr;
+  }
+  reinterpret_cast<SEventStartLeafNode*>(pNode)->pCond = pCondition;
+  return pNode;
+}
+
 static char* makeDeployParityEventStartConditions() {
   SNode* pNode = nullptr;
   EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_NODE_LIST, &pNode));
@@ -542,7 +554,7 @@ static char* makeDeployParityEventStartConditions() {
 
   auto* pConditions = reinterpret_cast<SNodeListNode*>(pNode);
   for (uint8_t conditionIndex = 1; conditionIndex <= 3; ++conditionIndex) {
-    SNode* pCondition = makeDeployParityEventComparison(2, OP_TYPE_EQUAL, conditionIndex);
+    SNode* pCondition = makeDeployEventStartLeaf(makeDeployParityEventComparison(2, OP_TYPE_EQUAL, conditionIndex));
     if (pCondition == nullptr) {
       nodesDestroyNode(pNode);
       return nullptr;
@@ -4246,7 +4258,8 @@ class RealtimePipelineHarness {
     if (plan == RealtimePipelinePlan::EventCountLeaf) {
       pRoot->triggerType = WINDOW_TYPE_EVENT;
       pRoot->trigger = {};
-      pRoot->trigger.event.startCond = encodeDeployNode(makeDeployParityEventComparison(2, OP_TYPE_NOT_EQUAL, 0));
+      pRoot->trigger.event.startCond =
+          encodeDeployNode(makeDeployEventStartLeaf(makeDeployParityEventComparison(2, OP_TYPE_NOT_EQUAL, 0)));
       pRoot->trigger.event.endCond = encodeDeployNode(makeDeployParityEventComparison(3, OP_TYPE_NOT_EQUAL, 0));
       if (pRoot->trigger.event.startCond == nullptr || pRoot->trigger.event.endCond == nullptr ||
           !configureParityInput(pRoot, WINDOW_TYPE_EVENT)) {
@@ -18831,6 +18844,35 @@ TEST_F(StreamNestedRealtimeTest, LegacyPendingBatchWithoutLowLatencyWaitsForDead
   EXPECT_EQ(1, pGroup->pPendingCalcParams.neles);
   EXPECT_GT(pGroup->nextExecTime, turnNow);
   EXPECT_EQ(&pGroup->heapNode, heapMin(harness.context()->pMaxDelayHeap));
+  EXPECT_EQ(0, harness.calcSendCount());
+}
+
+TEST_F(StreamNestedRealtimeTest, LegacyPendingBatchKeepsEarliestDeadline) {
+  ScopedStreamBatchRequestWait batchWait(10);
+  RealtimePipelineHarness      harness;
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacySession, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                           STRIGGER_EVENT_WINDOW_NONE, 0, 1, false));
+  ASSERT_TRUE(harness.start());
+  ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 1000));
+
+  Stub clockStub;
+  clockStub.set(taosClockGetTime, captureRealtimePipelineTurnClock);
+  const int64_t firstTurnNow = 100 * NANOSECOND_PER_MSEC;
+  resetRealtimePipelineTurnClock(firstTurnNow, 0, firstTurnNow);
+  ASSERT_TRUE(harness.feedRows({1000, 2000}, {1, 2}));
+
+  SSTriggerRealtimeGroup* pGroup = harness.group();
+  ASSERT_NE(nullptr, pGroup);
+  ASSERT_GT(pGroup->pPendingCalcParams.neles, 0);
+  const int64_t firstDeadline = firstTurnNow + 10 * NANOSECOND_PER_MSEC;
+  ASSERT_EQ(firstDeadline, pGroup->nextExecTime);
+
+  const int64_t secondTurnNow = firstTurnNow + NANOSECOND_PER_MSEC;
+  resetRealtimePipelineTurnClock(secondTurnNow, 0, secondTurnNow);
+  ASSERT_TRUE(harness.feedRows({3000, 4000}, {3, 4}));
+
+  EXPECT_GT(pGroup->pPendingCalcParams.neles, 1);
+  EXPECT_EQ(firstDeadline, pGroup->nextExecTime);
   EXPECT_EQ(0, harness.calcSendCount());
 }
 
