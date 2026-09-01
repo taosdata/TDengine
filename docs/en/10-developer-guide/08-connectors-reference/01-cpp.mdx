@@ -947,9 +947,9 @@ Description:
 
 - `int32_t tmq_consumer_close(tmq_t *tmq)`
 
-  - **Interface Description**: Used to close a tmq_t structure. Must be used in conjunction with tmq_consumer_new.
+  - **Interface Description**: Closes a tmq_t structure and releases its resources. Must be used in conjunction with tmq_consumer_new. The function also attempts to unsubscribe and, when automatic commit is enabled, commit offsets. Its return value reports only whether the local consumer reference was removed; it does not report unsubscribe or automatic offset commit failures.
     - tmq: [Input] Points to a valid tmq_t structure pointer, which represents a TMQ consumer object.
-  - **Return Value**: `0`: Success. Non-`0`: Failure, you can call the function `char *tmq_err2str(int32_t code)` to get more detailed error information.
+  - **Return Value**: `0`: The local consumer reference was removed successfully. Non-`0`: Resource release failed. You can call `char *tmq_err2str(int32_t code)` to get more detailed error information.
 
 - `int32_t tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment, int32_t *numOfAssignment)`
 
