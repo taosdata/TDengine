@@ -130,6 +130,7 @@ struct tmq_t {
   // status
   SRWLatch lock;
   int8_t   status;
+  int8_t   creatorRefRemoved;
   int32_t  epoch;
   // poll info
   int64_t pollCnt;
@@ -178,6 +179,8 @@ typedef struct {
   int32_t             rsetId;
   TdThreadMutex       lock;
 } SMqMgmt;
+
+typedef int32_t (*TmqUnsubscribeFn)(tmq_t* tmq);
 
 typedef struct {
   int32_t code;
@@ -369,6 +372,8 @@ void            tmqFreeRspWrapper(SMqRspWrapper* rspWrapper);
 void            tmqFreeImpl(void* handle);
 void            tmqClearUnhandleMsg(tmq_t* tmq);
 void            tmqMgmtInit(void);
+int32_t         tmqConsumerCloseImpl(tmq_t* tmq, SMqMgmt* pMgmt,
+                                     TmqUnsubscribeFn unsubscribeFn);
 bool            tmqTryClaimSupplementalHb(tmq_t* tmq, int64_t now);
 int32_t         checkWalRange(SVgOffsetInfo* offset, int64_t value);
 bool            isInSnapshotMode(int8_t type, bool useSnapshot);

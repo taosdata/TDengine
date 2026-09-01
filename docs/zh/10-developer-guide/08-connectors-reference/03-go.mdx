@@ -1012,8 +1012,8 @@ conf := &tmq.ConfigMap{
   - **返回值**：TopicPartition 列表，错误信息。
 
 - `func (c *Consumer) Close() error`
-  - **接口说明**：关闭消费者。
-  - **返回值**：错误信息。
+  - **接口说明**：关闭消费者并释放资源。
+  - **返回值**：对于原生连接，返回错误表示本地消费者资源释放失败；该方法不返回取消订阅或自动提交 offset 失败。WebSocket 连接遵循 WebSocket 连接器的关闭语义。
 
 #### 消费记录
 

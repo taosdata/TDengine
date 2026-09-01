@@ -1446,7 +1446,7 @@ For other parameters, please refer to: [Consumer parameter list](../07-subscript
   - **Exception**: If an error occurs during the commit process, a SQLException will be thrown.
 - `void close() throws SQLException`
   - **Interface Description**: Close the consumer and release resources.
-  - **Exception**: If an error occurs during the closing process, a SQLException will be thrown.
+  - **Exception**: For native connections, a SQLException is thrown only if local consumer resource release fails. Unsubscribe or automatic offset commit failures are not reported by this method. WebSocket connections follow the WebSocket connector's close semantics.
 - `void seek(TopicPartition partition, long offset) throws SQLException`
   - **Interface Description**: Set the offset of a given partition to a specified position.
   - **Parameter Description**:

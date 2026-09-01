@@ -924,6 +924,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
 
   // init status
   pTmq->status = TMQ_CONSUMER_STATUS__INIT;
+  pTmq->creatorRefRemoved = 0;
   pTmq->pollCnt = 0;
   pTmq->epoch = 0;
   pTmq->pollFlag = 0;
@@ -1929,26 +1930,45 @@ int32_t tmq_unsubscribe(tmq_t* tmq) {
   return code;
 }
 
-int32_t tmq_consumer_close(tmq_t* tmq) {
-  if (tmq == NULL) return TSDB_CODE_INVALID_PARA;
-  int32_t code = 0;
-  (void) taosThreadMutexLock(&tmqMgmt.lock);
-  if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__CLOSED){
-    goto end;
-  }
-  tqInfoC("consumer:0x%" PRIx64 " start to close consumer, status:%d", tmq->consumerId, tmq->status);
-  code = tmq_unsubscribe(tmq);
-  if (code == 0) {
-    atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__CLOSED);
-    code = taosRemoveRef(tmqMgmt.rsetId, tmq->refId);
-    if (code != 0){
-      tqErrorC("tmq close failed to remove ref:%" PRId64 ", code:%d", tmq->refId, code);
+int32_t tmqConsumerCloseImpl(tmq_t* tmq, SMqMgmt* pMgmt,
+                             TmqUnsubscribeFn unsubscribeFn) {
+  if (tmq == NULL || pMgmt == NULL || unsubscribeFn == NULL) return TSDB_CODE_INVALID_PARA;
+
+  (void)taosThreadMutexLock(&pMgmt->lock);
+  int8_t status = atomic_load_8(&tmq->status);
+  tqInfoC("consumer:0x%" PRIx64 " start to close consumer, status:%d", tmq->consumerId, status);
+  if (status != TMQ_CONSUMER_STATUS__CLOSED) {
+    int32_t unsubscribeCode = unsubscribeFn(tmq);
+    if (unsubscribeCode != 0) {
+      tqErrorC("consumer:0x%" PRIx64 " unsubscribe failed, code:%d(%s)", tmq->consumerId, unsubscribeCode,
+               tstrerror(unsubscribeCode));
     }
+    atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__CLOSED);
+  } else {
+    tqDebugC("consumer:0x%" PRIx64 " already closed, skip unsubscribe", tmq->consumerId);
   }
 
-end:
-  (void)taosThreadMutexUnlock(&tmqMgmt.lock);
-  return code;
+  if (tmq->creatorRefRemoved) {
+    tqDebugC("consumer:0x%" PRIx64 " creator ref already removed", tmq->consumerId);
+    (void)taosThreadMutexUnlock(&pMgmt->lock);
+    return 0;
+  }
+
+  int64_t refId = tmq->refId;
+  tmq->creatorRefRemoved = 1;
+  int32_t removeRefCode = taosRemoveRef(pMgmt->rsetId, refId);
+  if (removeRefCode != 0) {
+    tmq->creatorRefRemoved = 0;
+    tqErrorC("consumer:0x%" PRIx64 " failed to remove creator ref:%" PRId64 ", code:%d(%s)", tmq->consumerId,
+             refId, removeRefCode, tstrerror(removeRefCode));
+  }
+
+  (void)taosThreadMutexUnlock(&pMgmt->lock);
+  return removeRefCode;
+}
+
+int32_t tmq_consumer_close(tmq_t* tmq) {
+  return tmqConsumerCloseImpl(tmq, &tmqMgmt, tmq_unsubscribe);
 }
 
 const char* tmq_err2str(int32_t err) {
@@ -2077,4 +2097,3 @@ TAOS* tmq_get_connect(tmq_t* tmq) {
   }
   return NULL;
 }
-
