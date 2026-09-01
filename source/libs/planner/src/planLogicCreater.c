@@ -1657,12 +1657,11 @@ static int32_t addExtPrimaryTsCol(SScanLogicNode* pExtScan, SNodeList** pCols) {
   }
 
   SExtColumnDef* pPkCol = &pExtTblNode->pExtMeta->pCols[pExtTblNode->tsPrimaryColIdx];
-  const char*    pkColName = (pPkCol->remoteColName[0] != '\0') ? pPkCol->remoteColName : pPkCol->colName;
 
   SColumnNode* pTsCol = NULL;
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTsCol));
 
-  tstrncpy(pTsCol->colName, pkColName, sizeof(pTsCol->colName));
+  tstrncpy(pTsCol->colName, pPkCol->colName, sizeof(pTsCol->colName));
   tstrncpy(pTsCol->tableAlias, pExtScan->tableName.tname, sizeof(pTsCol->tableAlias));
   tstrncpy(pTsCol->dbName, pExtScan->tableName.dbname, sizeof(pTsCol->dbName));
   tstrncpy(pTsCol->tableName, pExtScan->tableName.tname, sizeof(pTsCol->tableName));

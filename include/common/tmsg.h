@@ -301,8 +301,7 @@ typedef enum EExtSQLDialect {
 // without depending on extConnector.h, which would create a nodes → extconnector
 // build dependency.
 typedef struct SExtColumnDef {
-  char colName[TSDB_COL_NAME_LEN];        // TDengine-side column name (may differ from remote)
-  char remoteColName[TSDB_COL_NAME_LEN];  // original column name on the remote source; empty = same as colName
+  char colName[TSDB_COL_NAME_LEN];        // connector-normalized column name
   char extTypeName[64];                   // original type name from the external source
   // Charset / encoding for string columns:
   //   MySQL: CHARACTER_SET_NAME from INFORMATION_SCHEMA.COLUMNS (e.g. "utf8mb4").
