@@ -39,6 +39,7 @@ class TestVtableCreate:
         Since: v3.3.8.0
 
         Labels: create,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -51,16 +52,17 @@ class TestVtableCreate:
         tdSql.execute("select database();")
 
         sql = "CREATE STABLE `vtb_virtual_stb_max_col` (ts timestamp"
-        for i in range(32763):
+        # virtual stb col+tag cap is 30719 since v3.4.3 (colIds >= 0x7800 reserved for vchild own cols)
+        for i in range(30716):
             sql += f", col_{i} double"
         sql += ") TAGS (id int) VIRTUAL 1;"
         tdSql.execute(sql)
 
         tdLog.info(f"test create virtual child tables.")
         sql = "CREATE VTABLE vtb_virtual_child_max_col_1 ("
-        for i in range(32763):
+        for i in range(30716):
             sql += f"col_{i} from d_{i%100}.double_col"
-            if i != 32762:
+            if i != 30715:
                 sql += ", "
         sql += ") USING vtb_virtual_stb_max_col TAGS (1);"
         tdSql.execute(sql)
@@ -68,46 +70,46 @@ class TestVtableCreate:
 
         tdLog.info(f"test create virtual child tables.")
         sql = "CREATE VTABLE vtb_virtual_child_max_col_2 ("
-        for i in range(32763):
+        for i in range(30716):
             sql += f"col_{i} from d_{i%100}.double_col"
-            if i != 32762:
+            if i != 30715:
                 sql += ", "
         sql += ") USING vtb_virtual_stb_max_col TAGS (1);"
         tdSql.execute(sql, queryTimes = 1)
 
         tdLog.info(f"test query virtual child tables.")
-        tdSql.query("SELECT ts, col_1, col_4097, col_32762 FROM vtb_virtual_child_max_col_1;")
+        tdSql.query("SELECT ts, col_1, col_4097, col_30715 FROM vtb_virtual_child_max_col_1;")
         tdSql.checkRows(2)
         tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1696000000000)
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(0, 2, 97)
-        tdSql.checkData(0, 3, 62)
+        tdSql.checkData(0, 3, 15)
         tdSql.checkData(1, 0, 1696000001000)
         tdSql.checkData(1, 1, 2)
         tdSql.checkData(1, 2, 98)
-        tdSql.checkData(1, 3, 63)
+        tdSql.checkData(1, 3, 16)
 
         tdLog.info(f"test query virtual super tables.")
-        tdSql.query("SELECT ts, col_1, col_4097, col_32762 FROM vtb_virtual_stb_max_col order by ts;")
+        tdSql.query("SELECT ts, col_1, col_4097, col_30715 FROM vtb_virtual_stb_max_col order by ts;")
         tdSql.checkRows(4)
         tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1696000000000)
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(0, 2, 97)
-        tdSql.checkData(0, 3, 62)
+        tdSql.checkData(0, 3, 15)
         tdSql.checkData(1, 0, 1696000000000)
         tdSql.checkData(1, 1, 1)
         tdSql.checkData(1, 2, 97)
-        tdSql.checkData(1, 3, 62)
+        tdSql.checkData(1, 3, 15)
         tdSql.checkData(2, 0, 1696000001000)
         tdSql.checkData(2, 1, 2)
         tdSql.checkData(2, 2, 98)
-        tdSql.checkData(2, 3, 63)
+        tdSql.checkData(2, 3, 16)
         tdSql.checkData(3, 0, 1696000001000)
         tdSql.checkData(3, 1, 2)
         tdSql.checkData(3, 2, 98)
-        tdSql.checkData(3, 3, 63)
+        tdSql.checkData(3, 3, 16)
 
     def test_virtual_normal_table_max_column(self):
         """Virtual normal table max column
@@ -117,6 +119,7 @@ class TestVtableCreate:
         Since: v3.3.8.0
 
         Labels: create,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -155,6 +158,7 @@ class TestVtableCreate:
         Since: v3.3.8.0
 
         Labels: create,negative,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -166,8 +170,9 @@ class TestVtableCreate:
         tdSql.execute("use test_vtable_max_column;")
         tdSql.execute("select database();")
 
+        # virtual stb col+tag cap is 30719 since v3.4.3: 30717 data columns exceed it
         sql = "CREATE STABLE `vtb_virtual_stb_exceed_max_col` (ts timestamp"
-        for i in range(32764):
+        for i in range(30717):
             sql += f", col_{i} double"
         sql += ") TAGS (id int) VIRTUAL 1;"
         tdSql.error(sql)
@@ -181,7 +186,7 @@ class TestVtableCreate:
         tdLog.info(f"test alter virtual tables exceed max column num.")
 
         sql = "CREATE STABLE `vtb_virtual_stb_alter_exceed_max_col` (ts timestamp"
-        for i in range(32763):
+        for i in range(30716):
             sql += f", col_{i} double"
         sql += ") TAGS (id int) VIRTUAL 1;"
         tdSql.execute(sql)
@@ -192,13 +197,13 @@ class TestVtableCreate:
         sql += ")"
         tdSql.execute(sql)
 
-        tdSql.error("ALTER TABLE vtb_virtual_stb_alter_exceed_max_col ADD COLUMN col_32763 double;")
+        tdSql.error("ALTER TABLE vtb_virtual_stb_alter_exceed_max_col ADD COLUMN col_30716 double;")
         tdSql.error("ALTER TABLE vtb_virtual_stb_alter_exceed_max_col ADD TAG id2 int;")
         tdSql.error("ALTER TABLE vtb_virtual_ntb_alter_exceed_max_col ADD COLUMN col_32766 double;")
 
-        tdLog.info(f"test alter after drop virtual tables, colId exceed INT16_MAX.")
-        tdSql.execute("ALTER TABLE vtb_virtual_stb_alter_exceed_max_col DROP COLUMN col_32762;")
-        tdSql.error("ALTER TABLE vtb_virtual_stb_alter_exceed_max_col ADD COLUMN col_32763 double;")
+        tdLog.info(f"test alter after drop virtual tables, colId exceed virtual stb cap.")
+        tdSql.execute("ALTER TABLE vtb_virtual_stb_alter_exceed_max_col DROP COLUMN col_30715;")
+        tdSql.error("ALTER TABLE vtb_virtual_stb_alter_exceed_max_col ADD COLUMN col_30716 double;")
         tdSql.error("ALTER TABLE vtb_virtual_stb_alter_exceed_max_col ADD TAG id2 int;")
         tdSql.execute("ALTER TABLE vtb_virtual_ntb_alter_exceed_max_col DROP COLUMN col_32765;")
         tdSql.error("ALTER TABLE vtb_virtual_ntb_alter_exceed_max_col ADD COLUMN col_32766 double;")
@@ -213,6 +218,7 @@ class TestVtableCreate:
         Since: v3.3.8.0
 
         Labels: create,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -296,6 +302,7 @@ class TestVtableCreate:
         Since: v3.3.8.0
 
         Labels: create,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -307,17 +314,18 @@ class TestVtableCreate:
         tdSql.execute("use test_vtable_max_column;")
         tdSql.execute("select database();")
 
+        # virtual stb col+tag cap is 30719 since v3.4.3 (colIds >= 0x7800 reserved for vchild own cols)
         sql = "CREATE STABLE `vtb_virtual_stb_max_col_exceed_ref` (ts timestamp"
-        for i in range(32763):
+        for i in range(30716):
             sql += f", col_{i} double"
         sql += ") TAGS (id int) VIRTUAL 1;"
         tdSql.execute(sql)
 
         tdLog.info("test create virtual child tables.")
         sql = "CREATE VTABLE vtb_virtual_child_exceed_ref ("
-        for i in range(32763):
+        for i in range(30716):
             sql += f"col_{i} from d_{i%5000}.double_col"
-            if i != 32762:
+            if i != 30715:
                 sql += ", "
         sql += ") USING vtb_virtual_stb_max_col_exceed_ref TAGS (1);"
         tdSql.execute(sql)
@@ -331,10 +339,10 @@ class TestVtableCreate:
         tdLog.info("test query virtual child tables and check every column.")
         tdSql.query("SELECT * FROM vtb_virtual_child_exceed_ref;")
         tdSql.checkRows(2)
-        tdSql.checkCols(32764)
+        tdSql.checkCols(30717)
         tdSql.checkData(0, 0, 1696000000000)
         tdSql.checkData(1, 0, 1696000001000)
-        for i in range(32763):
+        for i in range(30716):
             tdSql.checkData(0, 1 + i, i % 5000)
             tdSql.checkData(1, 1 + i, i % 5000 + 1)
 
@@ -359,6 +367,7 @@ class TestVtableCreate:
         Since: v3.3.8.0
 
         Labels: create,negative,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -377,29 +386,32 @@ class TestVtableCreate:
         sql += ") TAGS (id int) VIRTUAL 1;"
         tdSql.error(sql)
 
-        # Case 2: create virtual super table with max bytes per row
+        # Case 2: create virtual super table with max bytes per row (524283 bytes:
+        # ts(8) + 30710*8 + 4*(60000+2) + (38585+2) = 524283 exactly; 1 more byte exceeds).
+        # Leaves 1 colId of slack under the 30719 virtual stb cap (v3.4.3+, colIds >= 0x7800
+        # reserved for vchild own cols) so the drop/add-column alter below can succeed.
         sql = "CREATE STABLE `vtb_virtual_stb_max_col_no_error` (ts timestamp"
-        for i in range(32750):
+        for i in range(30710):
             sql += f", col_{i} double"
         for i in range(4):
             sql += f", var_col_{i} varchar(60000)"
-        sql += ", var_col_last varchar(22265)) TAGS (id int) VIRTUAL 1;"
+        sql += ", var_col_last varchar(38585)) TAGS (id int) VIRTUAL 1;"
         tdSql.execute(sql)
 
         sql = "CREATE STABLE `vtb_virtual_stb_max_col_error` (ts timestamp"
-        for i in range(32750):
+        for i in range(30710):
             sql += f", col_{i} double"
         for i in range(4):
             sql += f", var_col_{i} varchar(60000)"
-        sql += ", var_col_last varchar(22266)) TAGS (id int) VIRTUAL 1;"
+        sql += ", var_col_last varchar(38586)) TAGS (id int) VIRTUAL 1;"
         tdSql.error(sql)
 
         tdSql.error("ALTER STABLE vtb_virtual_stb_max_col_no_error ADD COLUMN var_len_exceed varchar(1);")
-        tdSql.error("ALTER STABLE vtb_virtual_stb_max_col_no_error MODIFY COLUMN var_col_last varchar(22266);")
+        tdSql.error("ALTER STABLE vtb_virtual_stb_max_col_no_error MODIFY COLUMN var_col_last varchar(38586);")
         tdSql.execute("ALTER STABLE vtb_virtual_stb_max_col_no_error DROP COLUMN var_col_last;")
         tdSql.execute("ALTER STABLE vtb_virtual_stb_max_col_no_error ADD COLUMN var_col_last varchar(1);")
-        tdSql.execute("ALTER STABLE vtb_virtual_stb_max_col_no_error MODIFY COLUMN var_col_last varchar(22265);")
-        tdSql.error("ALTER STABLE vtb_virtual_stb_max_col_no_error MODIFY COLUMN var_col_last varchar(22266);")
+        tdSql.execute("ALTER STABLE vtb_virtual_stb_max_col_no_error MODIFY COLUMN var_col_last varchar(38585);")
+        tdSql.error("ALTER STABLE vtb_virtual_stb_max_col_no_error MODIFY COLUMN var_col_last varchar(38586);")
 
         # Case 3: create virtual normal table with max columns (exceed max)
         sql = "CREATE VTABLE `vtb_virtual_ntb_max_col_error` (ts timestamp"

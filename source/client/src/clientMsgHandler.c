@@ -280,6 +280,14 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     pTscObj->tokenName[0] = 0;
   }
   tstrncpy(pTscObj->sVer, connectRsp.sVer, tListLen(pTscObj->sVer));
+  // Expose the connected server's version to shared code (the parser gates features an older
+  // server would silently drop, e.g. virtual child table owned columns/tags).
+  {
+    int32_t serverVerInt = 0;
+    if (taosVersionStrToInt(connectRsp.sVer, &serverVerInt) == 0) {
+      atomic_store_32(&tsServerVerInt, serverVerInt);
+    }
+  }
   tstrncpy(pTscObj->sDetailVer, connectRsp.sDetailVer, tListLen(pTscObj->sDetailVer));
 
   // update the appInstInfo

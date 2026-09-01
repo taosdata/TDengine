@@ -998,6 +998,39 @@ static int32_t jsonToTableMeta(const SJson* pJson, void* pObj) {
   return code;
 }
 
+// Compute the allocation size for an embedded table meta from the JSON content instead of
+// blindly trusting the stored MetaSize: MetaSize was computed with the *writer's*
+// sizeof(STableMeta), which may be smaller than this binary's (e.g. a node string persisted
+// by an older version before fields were appended to STableMeta). Decoding with the current
+// layout into such an undersized buffer overflows the heap. Take the max so a larger stored
+// size (written by a newer version) is still honored.
+static int32_t tableMetaJsonBufSize(const SJson* pJson, const char* pName, int32_t storedSize) {
+  const SJson* pMeta = tjsonGetObjectItem(pJson, pName);
+  if (NULL == pMeta) {
+    return storedSize;
+  }
+
+  int32_t nSchemas = 0;
+  int32_t nSchemaExts = 0;
+  int32_t nRefCols = 0;
+  const SJson* pItem = tjsonGetObjectItem(pMeta, jkTableMetaColSchemas);
+  if (NULL != pItem) {
+    nSchemas = tjsonGetArraySize(pItem);
+  }
+  pItem = tjsonGetObjectItem(pMeta, jkTableMetaSchemaExts);
+  if (NULL != pItem) {
+    nSchemaExts = tjsonGetArraySize(pItem);
+  }
+  pItem = tjsonGetObjectItem(pMeta, jkTableMetaRefCols);
+  if (NULL != pItem) {
+    nRefCols = tjsonGetArraySize(pItem);
+  }
+
+  int32_t need = (int32_t)sizeof(STableMeta) + nSchemas * (int32_t)sizeof(SSchema) +
+                 nSchemaExts * (int32_t)sizeof(SSchemaExt) + nRefCols * (int32_t)sizeof(SColRef);
+  return storedSize > need ? storedSize : need;
+}
+
 static const char* jkLogicPlanTargets = "Targets";
 static const char* jkLogicPlanConditions = "Conditions";
 static const char* jkLogicPlanChildren = "Children";
@@ -7637,6 +7670,7 @@ static int32_t jsonToRealTableNode(const SJson* pJson, void* pObj) {
     code = tjsonGetIntValue(pJson, jkRealTableMetaSize, &objSize);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    objSize = tableMetaJsonBufSize(pJson, jkRealTableMeta, objSize);
     code = tjsonMakeObject(pJson, jkRealTableMeta, jsonToTableMeta, (void**)&pNode->pMeta, objSize);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -7777,6 +7811,7 @@ static int32_t jsonToVirtualTableNode(const SJson* pJson, void* pObj) {
     code = tjsonGetIntValue(pJson, jkVirtualTableMetaSize, &objSize);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    objSize = tableMetaJsonBufSize(pJson, jkVirtuaTableMeta, objSize);
     code = tjsonMakeObject(pJson, jkVirtuaTableMeta, jsonToTableMeta, (void**)&pNode->pMeta, objSize);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -7828,6 +7863,7 @@ static int32_t jsonToPlaceHolderTableNode(const SJson* pJson, void* pObj) {
     code = tjsonGetIntValue(pJson, jkPlaceHolderTableMetaSize, &objSize);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    objSize = tableMetaJsonBufSize(pJson, jkPlaceHolderTableMeta, objSize);
     code = tjsonMakeObject(pJson, jkPlaceHolderTableMeta, jsonToTableMeta, (void**)&pNode->pMeta, objSize);
   }
   if (TSDB_CODE_SUCCESS == code) {

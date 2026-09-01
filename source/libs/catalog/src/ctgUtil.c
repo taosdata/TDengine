@@ -1800,6 +1800,188 @@ int32_t ctgCloneVgInfo(SDBVgInfo* src, SDBVgInfo** dst) {
   return TSDB_CODE_SUCCESS;
 }
 
+// Merge vchild-specific data (own extension columns/tags, col/tag refs, rversion) into a
+// caller-owned tbMeta that currently holds the pure (v)stb schema.
+//
+// The block is realloc'd; own column schemas (colId >= TSDB_VCHILD_OWN_COL_ID_BASE) are
+// inserted into the schema area right behind the existing columns and own tag schemas
+// right behind the existing tags (tag schemas are shifted back), and
+// tableInfo.numOfColumns/numOfTags are bumped accordingly. If the meta carries a
+// schemaExt area it is extended with zeroed entries for the own columns so the packed
+// layout stays consistent with TABLE_META_FULL_SIZE()/tableMetaResetPointers(). On
+// success the merged meta reports numOfOwnCols/numOfOwnTags == 0 and
+// ownSchemas/ownTagSchemas == NULL: own columns/tags become ordinary trailing
+// columns/tags and the result is indistinguishable from a meta built without them.
+//
+// *ppTbMeta must be caller-owned (a fresh msg-built meta or a cache clone), NEVER a
+// pointer into the catalog cache. Ref arrays are memcpy'd (ownership of tagCondJson
+// strings transfers to the merged meta, same as the previous inline merge code).
+// With numOfOwnCols == 0 && numOfOwnTags == 0 the result is byte-identical to the
+// previous inline merge.
+int32_t ctgMergeVctbOwnMeta(STableMeta** ppTbMeta, const SVCTableMeta* pVctbMeta) {
+  if (NULL == ppTbMeta || NULL == *ppTbMeta || NULL == pVctbMeta) {
+    qError("invalid input param, ppTbMeta:%p, pVctbMeta:%p", (void*)ppTbMeta, (void*)pVctbMeta);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pVctbMeta->numOfOwnCols < 0 || (pVctbMeta->numOfOwnCols > 0 && NULL == pVctbMeta->ownSchemas) ||
+      pVctbMeta->numOfOwnTags < 0 || (pVctbMeta->numOfOwnTags > 0 && NULL == pVctbMeta->ownTagSchemas) ||
+      pVctbMeta->numOfColRefs < 0 || (pVctbMeta->numOfColRefs > 0 && NULL == pVctbMeta->colRef) ||
+      pVctbMeta->numOfTagRefs < 0 || (pVctbMeta->numOfTagRefs > 0 && NULL == pVctbMeta->tagRef) ||
+      // ownSchemaExt is optional, but a non-NULL ext with zero own columns is an inconsistent
+      // state that the count-based sizing below cannot represent
+      (NULL != pVctbMeta->ownSchemaExt && pVctbMeta->numOfOwnCols <= 0)) {
+    qError("invalid vctb meta, numOfOwnCols:%d, ownSchemas:%p, numOfOwnTags:%d, ownTagSchemas:%p, numOfColRefs:%d, "
+           "colRef:%p, numOfTagRefs:%d, tagRef:%p, ownSchemaExt:%p",
+           pVctbMeta->numOfOwnCols, (void*)pVctbMeta->ownSchemas, pVctbMeta->numOfOwnTags,
+           (void*)pVctbMeta->ownTagSchemas, pVctbMeta->numOfColRefs, (void*)pVctbMeta->colRef,
+           pVctbMeta->numOfTagRefs, (void*)pVctbMeta->tagRef, (void*)pVctbMeta->ownSchemaExt);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  STableMeta* pTbMeta = *ppTbMeta;
+  int32_t     numOfCols = pTbMeta->tableInfo.numOfColumns;
+  int32_t     numOfTags = pTbMeta->tableInfo.numOfTags;
+  int32_t     numOfOwnCols = pVctbMeta->numOfOwnCols;
+  int32_t     numOfOwnTags = pVctbMeta->numOfOwnTags;
+  int32_t     ownSchemaSize = numOfOwnCols * (int32_t)sizeof(SSchema);
+  int32_t     ownTagSchemaSize = numOfOwnTags * (int32_t)sizeof(SSchema);
+  int32_t     colRefSize = pVctbMeta->numOfColRefs * (int32_t)sizeof(SColRef);
+  int32_t     tagRefSize =
+      (pVctbMeta->tagRef && pVctbMeta->numOfTagRefs > 0) ? pVctbMeta->numOfTagRefs * (int32_t)sizeof(SColRef) : 0;
+
+  if (numOfCols + numOfOwnCols > TSDB_MAX_COLUMNS) {
+    qError("too many columns after merging vchild own columns, cols:%d, ownCols:%d, max:%d", numOfCols, numOfOwnCols,
+           TSDB_MAX_COLUMNS);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+  if (numOfTags + numOfOwnTags > TSDB_MAX_TAGS) {
+    qError("too many tags after merging vchild own tags, tags:%d, ownTags:%d, max:%d", numOfTags, numOfOwnTags,
+           TSDB_MAX_TAGS);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
+  int32_t metaSize = sizeof(STableMeta) + (numOfCols + numOfTags) * (int32_t)sizeof(SSchema);
+  int32_t schemaExtSize = 0;
+  if (withExtSchema(pTbMeta->tableType) && pTbMeta->schemaExt) {
+    schemaExtSize = numOfCols * (int32_t)sizeof(SSchemaExt);
+  }
+  // Own-column ext (typeMod) is independent of whether the vstb itself carries a schemaExt: a
+  // vchild whose vstb has no decimal columns can still own decimal columns. The merged schemaExt
+  // must be position-aligned with schema[] as [vstb cols ext][own cols ext] and must always cover
+  // the merged numOfColumns, because TABLE_META_FULL_SIZE()/tableMetaResetPointers() size the ext
+  // area as numOfColumns entries:
+  //  - vstb has ext: the ext area is extended with numOfOwnCols slots regardless of whether the
+  //    own columns carry ext of their own (zero-filled when they do not). Skipping those slots
+  //    under-allocates the block, and cloneTableMeta() then reads numOfOwnCols * sizeof(SSchemaExt)
+  //    bytes past it (ASAN heap-buffer-overflow).
+  //  - vstb has no ext but own columns do: the vstb's numOfCols slots still must be allocated and
+  //    zeroed so the own ext lands at the right offset — the ext area in that case is
+  //    (numOfCols + numOfOwnCols) entries, not just the own ones (otherwise the memset below writes
+  //    past the realloc'd block and corrupts the heap).
+  bool ownColHasExt = (pVctbMeta->ownSchemaExt != NULL);
+  int32_t ownExtSize = 0;
+  if (schemaExtSize > 0) {
+    ownExtSize = numOfOwnCols * (int32_t)sizeof(SSchemaExt);
+  } else if (ownColHasExt) {
+    ownExtSize = (numOfCols + numOfOwnCols) * (int32_t)sizeof(SSchemaExt);
+  }
+
+  STableMeta* pNew = taosMemoryRealloc(
+      pTbMeta, metaSize + ownSchemaSize + ownTagSchemaSize + schemaExtSize + ownExtSize + colRefSize + tagRefSize);
+  if (NULL == pNew) {
+    qError("realloc size[%d] failed since %s",
+           metaSize + ownSchemaSize + ownTagSchemaSize + schemaExtSize + ownExtSize + colRefSize + tagRefSize,
+           tstrerror(terrno));
+    return terrno;
+  }
+  pTbMeta = pNew;
+  *ppTbMeta = pNew;
+
+  char* pBase = (char*)pTbMeta;
+  // The schemaExt area sits right behind the schema area. After merge it must hold
+  // [vstb cols ext][own cols ext] (position-aligned with schema[]). Three cases:
+  //  - vstb has ext + own has ext: move vstb ext back, then copy own ext behind it.
+  //  - vstb has ext + own has no ext: move vstb ext back, then zero the own ext slots behind it.
+  //  - vstb has no ext + own has ext: zero the vstb slots, then copy own ext behind them.
+  int32_t totalExtSize = schemaExtSize + ownExtSize;
+  if (totalExtSize > 0) {
+    char* pExtBase = pBase + metaSize + ownSchemaSize + ownTagSchemaSize;
+    if (ownSchemaSize + ownTagSchemaSize > 0 && schemaExtSize > 0) {
+      memmove(pExtBase, pBase + metaSize, schemaExtSize);
+    }
+    if (schemaExtSize == 0 && ownExtSize > 0) {
+      // vstb had no ext: its numOfCols slots must exist (zeroed) so own ext stays aligned.
+      memset(pExtBase, 0, numOfCols * (int32_t)sizeof(SSchemaExt));
+    }
+    if (ownExtSize > 0) {
+      // Own ext lands right behind the vstb's ext slots. When the vstb has its own ext
+      // (schemaExtSize > 0) that offset is schemaExtSize; when it does not, the vstb's
+      // numOfCols zeroed placeholders fill the same role, so the offset is numOfCols slots.
+      int32_t ownExtOffset = (schemaExtSize > 0) ? schemaExtSize : numOfCols * (int32_t)sizeof(SSchemaExt);
+      SSchemaExt* pOwnExtDst = (SSchemaExt*)(pExtBase + ownExtOffset);
+      if (ownColHasExt) {
+        for (int32_t i = 0; i < numOfOwnCols; ++i) {
+          pOwnExtDst[i].typeMod = pVctbMeta->ownSchemaExt[i].typeMod;
+        }
+      } else {
+        // vstb has ext but own columns do not: keep their ext slots zeroed so the ext area
+        // still covers the merged numOfColumns.
+        memset(pOwnExtDst, 0, numOfOwnCols * (int32_t)sizeof(SSchemaExt));
+      }
+    }
+    pTbMeta->schemaExt = (SSchemaExt*)pExtBase;
+  } else {
+    pTbMeta->schemaExt = NULL;
+  }
+
+  // Shift the tag schemas behind the own columns and drop the own column schemas into
+  // the gap, so the schema area stays [columns][own columns][tags][own tags].
+  if (ownSchemaSize > 0) {
+    if (numOfTags > 0) {
+      memmove(&pTbMeta->schema[numOfCols + numOfOwnCols], &pTbMeta->schema[numOfCols],
+              numOfTags * (int32_t)sizeof(SSchema));
+    }
+    memcpy(&pTbMeta->schema[numOfCols], pVctbMeta->ownSchemas, ownSchemaSize);
+    pTbMeta->tableInfo.numOfColumns = numOfCols + numOfOwnCols;
+    for (int32_t i = 0; i < numOfOwnCols; ++i) {
+      pTbMeta->tableInfo.rowSize += pVctbMeta->ownSchemas[i].bytes;
+    }
+  }
+  if (ownTagSchemaSize > 0) {
+    memcpy(&pTbMeta->schema[numOfCols + numOfOwnCols + numOfTags], pVctbMeta->ownTagSchemas, ownTagSchemaSize);
+    pTbMeta->tableInfo.numOfTags = numOfTags + numOfOwnTags;
+  }
+
+  char* pCursor = pBase + metaSize + ownSchemaSize + ownTagSchemaSize + schemaExtSize + ownExtSize;
+  pTbMeta->numOfColRefs = pVctbMeta->numOfColRefs;
+  if (colRefSize > 0) {
+    pTbMeta->colRef = (SColRef*)pCursor;
+    memcpy(pTbMeta->colRef, pVctbMeta->colRef, colRefSize);
+  } else {
+    pTbMeta->colRef = NULL;
+  }
+  pTbMeta->numOfTagRefs = pVctbMeta->numOfTagRefs;
+  if (tagRefSize > 0) {
+    pTbMeta->tagRef = (SColRef*)(pCursor + colRefSize);
+    memcpy(pTbMeta->tagRef, pVctbMeta->tagRef, tagRefSize);
+  } else {
+    pTbMeta->tagRef = NULL;
+  }
+  pTbMeta->rversion = pVctbMeta->rversion;
+  // Own columns/tags were merged into the schema area; keep the head fields cleared so
+  // the result stays compatible with cloneTableMeta()/TABLE_META_FULL_SIZE(). ownSchemaExt
+  // must be cleared too: it still points into the caller's SVCTableMeta tail block, which is
+  // freed right after merge returns (catalog.c cache-miss path) — leaving it set would be a
+  // dangling pointer on every merged per-child meta.
+  pTbMeta->numOfOwnCols = 0;
+  pTbMeta->ownSchemas = NULL;
+  pTbMeta->ownSchemaExt = NULL;
+  pTbMeta->numOfOwnTags = 0;
+  pTbMeta->ownTagSchemas = NULL;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput) {
   int32_t code = 0;
   *pOutput = taosMemoryMalloc(sizeof(STableMetaOutput));
@@ -1814,13 +1996,25 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     int32_t metaSize = sizeof(SVCTableMeta);
     int32_t colRefSize = 0;
     int32_t tagRefSize = 0;
+    int32_t ownSchemaSize = 0;
+    int32_t ownTagSchemaSize = 0;
     if (hasColRef(output->vctbMeta->tableType) && output->vctbMeta->colRef) {
       colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
     }
     if (hasTagRef(output->vctbMeta->tableType) && output->vctbMeta->tagRef && output->vctbMeta->numOfTagRefs > 0) {
       tagRefSize = output->vctbMeta->numOfTagRefs * sizeof(SColRef);
     }
-    (*pOutput)->vctbMeta = taosMemoryMalloc(metaSize + colRefSize + tagRefSize);
+    if (output->vctbMeta->numOfOwnCols > 0 && output->vctbMeta->ownSchemas) {
+      ownSchemaSize = output->vctbMeta->numOfOwnCols * sizeof(SSchema);
+    }
+    int32_t ownSchemaExtSize = (output->vctbMeta->numOfOwnCols > 0 && output->vctbMeta->ownSchemaExt != NULL)
+                                   ? output->vctbMeta->numOfOwnCols * sizeof(SSchemaExt)
+                                   : 0;
+    if (output->vctbMeta->numOfOwnTags > 0 && output->vctbMeta->ownTagSchemas) {
+      ownTagSchemaSize = output->vctbMeta->numOfOwnTags * sizeof(SSchema);
+    }
+    (*pOutput)->vctbMeta =
+        taosMemoryMalloc(metaSize + colRefSize + tagRefSize + ownSchemaSize + ownSchemaExtSize + ownTagSchemaSize);
     if (NULL == (*pOutput)->vctbMeta) {
       qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
       taosMemoryFreeClear(*pOutput);
@@ -1855,7 +2049,29 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     } else {
       (*pOutput)->vctbMeta->tagRef = NULL;
     }
-
+    if (ownSchemaSize > 0) {
+      (*pOutput)->vctbMeta->ownSchemas =
+          (SSchema*)((char*)(*pOutput)->vctbMeta + metaSize + colRefSize + tagRefSize);
+      TAOS_MEMCPY((*pOutput)->vctbMeta->ownSchemas, output->vctbMeta->ownSchemas, ownSchemaSize);
+    } else {
+      (*pOutput)->vctbMeta->numOfOwnCols = 0;
+      (*pOutput)->vctbMeta->ownSchemas = NULL;
+    }
+    if (ownSchemaExtSize > 0) {
+      (*pOutput)->vctbMeta->ownSchemaExt = (SSchemaExt*)((char*)(*pOutput)->vctbMeta + metaSize + colRefSize +
+                                                          tagRefSize + ownSchemaSize);
+      TAOS_MEMCPY((*pOutput)->vctbMeta->ownSchemaExt, output->vctbMeta->ownSchemaExt, ownSchemaExtSize);
+    } else {
+      (*pOutput)->vctbMeta->ownSchemaExt = NULL;
+    }
+    if (ownTagSchemaSize > 0) {
+      (*pOutput)->vctbMeta->ownTagSchemas = (SSchema*)((char*)(*pOutput)->vctbMeta + metaSize + colRefSize +
+                                                        tagRefSize + ownSchemaSize + ownSchemaExtSize);
+      TAOS_MEMCPY((*pOutput)->vctbMeta->ownTagSchemas, output->vctbMeta->ownTagSchemas, ownTagSchemaSize);
+    } else {
+      (*pOutput)->vctbMeta->numOfOwnTags = 0;
+      (*pOutput)->vctbMeta->ownTagSchemas = NULL;
+    }
     code = queryCloneSeriesEntries(output->vctbMeta->seriesEntries, output->vctbMeta->numOfSeries,
                                    &(*pOutput)->vctbMeta->seriesEntries);
     if (TSDB_CODE_SUCCESS != code) {
@@ -2975,7 +3191,12 @@ FORCE_INLINE uint64_t ctgGetTbMetaCacheSize(STableMeta* pMeta) {
     case TSDB_CHILD_TABLE:
       return sizeof(SCTableMeta);
     case TSDB_VIRTUAL_CHILD_TABLE:
-      return sizeof(SVCTableMeta);
+      // After ctgMergeVctbOwnMeta the cached vchild STableMeta is byte-identical to a normal
+      // STableMeta: own columns/tags are folded into schema[], numOfOwnCols/Tags == 0, and the
+      // colRef/tagRef/schemaExt areas sit in the same single block. So size it with the full
+      // generic formula (which also accounts for colRef/tagRef) rather than the SVCTableMeta
+      // compact-block layout used on the wire.
+      return TABLE_META_FULL_SIZE(pMeta);
     default:
       return sizeof(*pMeta) + pMeta->tableInfo.numOfColumns * sizeof(SSchema);
   }

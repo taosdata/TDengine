@@ -124,6 +124,11 @@ typedef struct SColumnRefNode {
   // Non-empty refSourceName indicates an external (4-segment path) reference.
   char      refSourceName[TSDB_EXT_SOURCE_NAME_LEN];    // 4-segment first token (external source name)
   SNode*    pTagCond;           // series tag condition (SOperatorNode or SLogicConditionNode), or NULL
+  // Own (extension) column declaration of a virtual child table: set when the col_ref
+  // carries an explicit type (`name TYPE FROM db.tb.col`), meaning the column is not
+  // defined in the vstb schema. Only valid in CREATE VTABLE specific_column_ref_list.
+  bool      hasDataType;
+  SDataType dataType;
 } SColumnRefNode;
 
 typedef struct STargetNode {
