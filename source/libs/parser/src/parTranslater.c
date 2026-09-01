@@ -2406,6 +2406,21 @@ static int32_t createTbnameFunctionNode(SColumnNode* pCol, SFunctionNode** pFunc
 static int32_t findAndSetTextTableColumn(STextTableNode* pTextTable, SColumnNode** pColRef, bool* pFound);
 static int32_t findAndSetFileTableColumn(SFileTableNode* pFileTable, SColumnNode** pColRef, bool* pFound);
 
+static bool externalColumnNamesEqual(int8_t sourceType, const char* schemaName, const char* queryName) {
+  return EXT_SOURCE_MYSQL == sourceType ? 0 == strcasecmp(schemaName, queryName)
+                                        : 0 == strcmp(schemaName, queryName);
+}
+
+static bool externalTableColumnNameEqual(const SRealTableNode* pTable, const char* schemaName,
+                                         const char* queryName) {
+  if (NULL == pTable->pExtTableNode) {
+    return 0 == strcmp(schemaName, queryName);
+  }
+
+  const SExtTableNode* pExtTable = (const SExtTableNode*)pTable->pExtTableNode;
+  return externalColumnNamesEqual(pExtTable->sourceType, schemaName, queryName);
+}
+
 static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** pColRef, STableNode* pTable,
                                          bool* pFound) {
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -2442,7 +2457,7 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
 
   int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
   for (int32_t i = 0; i < nums; ++i) {
-    if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
+    if (externalTableColumnNameEqual((SRealTableNode*)pTable, pMeta->schema[i].name, pCol->colName)) {
       if (invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PERMISSION_DENIED, pCol->colName);
       }
@@ -2476,7 +2491,7 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
         pMeta = pRealTable->pMeta;
         nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
         for (int32_t i = 0; i < nums; ++i) {
-          if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
+          if (externalTableColumnNameEqual((SRealTableNode*)pTable, pMeta->schema[i].name, pCol->colName)) {
             if (invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
               return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PERMISSION_DENIED, pCol->colName);
             }
@@ -9796,8 +9811,8 @@ static int32_t validateExternalColRefCurrentMeta(STranslateContext* pCxt, const 
 
   int32_t extColIdx = -1;
   for (int32_t i = 0; i < pExtNode->pExtMeta->numOfCols; i++) {
-    if (strcasecmp(pExtNode->pExtMeta->pCols[i].colName, pColRef->refColName) == 0 ||
-        strcasecmp(pExtNode->pExtMeta->pCols[i].remoteColName, pColRef->refColName) == 0) {
+    if (externalColumnNamesEqual(pExtNode->sourceType, pExtNode->pExtMeta->pCols[i].colName,
+                                 pColRef->refColName)) {
       extColIdx = i;
       break;
     }
@@ -24857,7 +24872,7 @@ typedef struct SCheckPartitionCxt {
 // Look up whether `colName` is a tag column in the raw ext metadata.
 static bool extMetaColIsTag(const SExtTableMeta* pExtMeta, const char* colName) {
   for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
-    if (strcasecmp(pExtMeta->pCols[i].colName, colName) == 0) {
+    if (strcmp(pExtMeta->pCols[i].colName, colName) == 0) {
       return pExtMeta->pCols[i].isTag;
     }
   }
@@ -34593,8 +34608,7 @@ static int32_t checkSeriesExtColRef(STranslateContext* pCxt, const char* sourceN
 
   int32_t extColIdx = -1;
   for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
-    if (strcasecmp(pExtMeta->pCols[i].colName, refCol) == 0 ||
-        strcasecmp(pExtMeta->pCols[i].remoteColName, refCol) == 0) {
+    if (strcmp(pExtMeta->pCols[i].colName, refCol) == 0) {
       extColIdx = i;
       break;
     }
@@ -34681,8 +34695,7 @@ static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceNa
   // (4) External column must exist
   int32_t extColIdx = -1;
   for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
-    if (strcasecmp(pExtMeta->pCols[i].colName, refCol) == 0 ||
-        strcasecmp(pExtMeta->pCols[i].remoteColName, refCol) == 0) {
+    if (externalColumnNamesEqual(pInfo->type, pExtMeta->pCols[i].colName, refCol)) {
       extColIdx = i;
       break;
     }
@@ -36398,7 +36411,7 @@ static int32_t matchSeriesTagsToMeta(STranslateContext* pCxt, const SSeriesDeclN
     bool found = false;
     for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
       if (pExtMeta->pCols[i].isTag && !matched[i] &&
-          0 == strcasecmp(pExtMeta->pCols[i].colName, pCol->colName)) {
+          0 == strcmp(pExtMeta->pCols[i].colName, pCol->colName)) {
         matched[i] = true;
         found = true;
         break;

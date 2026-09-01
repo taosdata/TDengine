@@ -317,21 +317,6 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
   }
 }
 
-// ---------------------------------------------------------------------------
-// resolveExtColName — map TDengine column name to the remote source column name.
-// If pExtMeta is NULL or the column has no remoteColName, returns tdColName as-is.
-// ---------------------------------------------------------------------------
-static const char* resolveExtColName(const SExtTableMeta* pExtMeta, const char* tdColName) {
-  if (!pExtMeta) return tdColName;
-  for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
-    if (strcasecmp(pExtMeta->pCols[i].colName, tdColName) == 0 &&
-        pExtMeta->pCols[i].remoteColName[0] != '\0') {
-      return pExtMeta->pCols[i].remoteColName;
-    }
-  }
-  return tdColName;
-}
-
 // Forward declaration for mutual recursion
 static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dialect,
                               const SExtTableMeta* pExtMeta,
@@ -965,7 +950,7 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
         dynAppendQuotedId(s, pCol->tableName, dialect);
         dynSQLAppendChar(s, '.');
       }
-      dynAppendQuotedId(s, resolveExtColName(pExtMeta, pCol->colName), dialect);
+      dynAppendQuotedId(s, pCol->colName, dialect);
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_VALUE:
@@ -1095,7 +1080,6 @@ static int32_t renderNode(const SPhysiNode* pNode, EExtSQLDialect dialect,
                            const SNodesRemoteSQLCtx* pCtx, SDynSQL* s);
 
 // Render SELECT column list from a SNodeList (pProjections or pScanCols).
-// pExtMeta is used for column name resolution (TDengine name → remote name).
 static void renderSelectList(SDynSQL* s, const SNodeList* pCols, EExtSQLDialect dialect,
                               const SExtTableMeta* pExtMeta, const SNodesRemoteSQLCtx* pCtx) {
   if (!pCols || LIST_LENGTH(pCols) == 0) {
@@ -1118,24 +1102,17 @@ static void renderSelectList(SDynSQL* s, const SNodeList* pCols, EExtSQLDialect 
     first = false;
     if (nodeType(pCol) == QUERY_NODE_COLUMN) {
       const char* tdName = ((const SColumnNode*)pCol)->colName;
-      const char* colName = resolveExtColName(pExtMeta, tdName);
-      dynAppendQuotedId(s, colName, dialect);
+      dynAppendQuotedId(s, tdName, dialect);
       // Add AS alias when:
       // (1) The column has an explicit aliasName (e.g. TAIL(val,2) rewrites val
       //     with aliasName="expr_1") that differs from the rendered colName.
       //     Without this, a nested-subquery case emits "SELECT expr_1 FROM
       //     (SELECT val FROM ...) _sq" where "expr_1" is unknown in the inner
       //     result — causing MySQL error 1054, PG error 42703, etc.
-      // (2) Remote column name differs from TDengine name (column rename), so
-      //     parent nodes (Project/Sort) can reference columns by TDengine name
-      //     through the subquery boundary.
       const char* alias = ((const SExprNode*)pCol)->aliasName;
-      if (alias && alias[0] != '\0' && strcasecmp(alias, colName) != 0) {
+      if (alias && alias[0] != '\0' && strcasecmp(alias, tdName) != 0) {
         dynSQLAppendStr(s, " AS ");
         dynAppendQuotedId(s, alias, dialect);
-      } else if (pExtMeta && strcasecmp(colName, tdName) != 0) {
-        dynSQLAppendStr(s, " AS ");
-        dynAppendQuotedId(s, tdName, dialect);
       }
     } else {
       (void)dynAppendExpr(s, pCol, dialect, pExtMeta, pCtx);
@@ -1313,9 +1290,8 @@ static int32_t renderNode(const SPhysiNode* pNode, EExtSQLDialect dialect,
     // No explicit ORDER BY from planner — always order by the primary timestamp
     // column ASC to guarantee deterministic results from all external sources.
     SExtColumnDef pTsCol = pMeta->pCols[0];
-    const char* tsName = pTsCol.remoteColName[0] ? pTsCol.remoteColName : pTsCol.colName;
     dynSQLAppendStr(s, " ORDER BY ");
-    dynAppendQuotedId(s, tsName, dialect);
+    dynAppendQuotedId(s, pTsCol.colName, dialect);
     dynSQLAppendStr(s, " ASC");
   }
   renderLimit(s, (const SLimitNode*)pScan->node.pLimit);
