@@ -584,7 +584,7 @@ struct SSTriggerRealtimeContext {
   SObjList                     pCalcTableUids;     // SObjList<{uid, vgId}>
   SSTriggerNewTimestampSorter *pCalcSorter;
   SSTriggerNewVtableMerger    *pCalcMerger;
-  void                        *pNestedCalcBatch;  // SStagedNestedCalcBatch, owned while %%trows pull is in flight
+  void                        *pNestedCalcMaterialization;  // SRealtimeNestedCalcMaterialization
   // these fields are shared by all groups and do not need to reset for each group
   STimeWindow           periodWindow;  // for period trigger
   SSTriggerCalcRequest *pCalcReq;
@@ -600,7 +600,6 @@ struct SSTriggerRealtimeContext {
   SHashObj *pCalcDataCacheIters;
 
   SList   retryPullReqs;  // SList<SSTriggerPullRequest*>
-  SList   retryCalcReqs;  // SList<SSTriggerCalcRequest*>
   SList   dropTableReqs;  // SList<SSTriggerDropRequest*>
   int32_t dropReqIndex;
 
@@ -663,6 +662,7 @@ typedef struct SSTriggerHistoryContext {
 
   // these fields are shared by all groups and do not need to be destroyed
   bool                    reenterCheck;
+  int64_t                 checkedGroupGid;
   int32_t                 tbIter;
   SSTriggerVirtTableInfo *pCurVirTable;   // only for virtual tables
   SSTriggerTableMeta     *pCurTableMeta;  // only for non-virtual tables
@@ -671,6 +671,7 @@ typedef struct SSTriggerHistoryContext {
   SSTriggerCalcParam     *pParamToFetch;
   STimeWindow             paramCalcRange;
   SSTriggerCalcRequest   *pCalcReq;
+  SArray                 *pNestedCalcRanges;  // SArray<SHistoryNestedCalcRange>
   int64_t                 lastSentWinEnd;
   // these fields are shared by all groups and need to be destroyed
   SSTriggerTimestampSorter *pSorter;
@@ -684,7 +685,6 @@ typedef struct SSTriggerHistoryContext {
   SHashObj *pCalcDataCacheIters;
 
   SList retryPullReqs;  // SList<SSTriggerPullRequest*>
-  SList retryCalcReqs;  // SList<SSTriggerCalcRequest*>
 
 } SSTriggerHistoryContext;
 
@@ -716,6 +716,7 @@ void    stDestroyNestedPendingCalcNode(SListNode **ppNode);
 
 typedef struct SSTriggerCalcSlot {
   SSTriggerCalcRequest req;  // keep in the first place
+  uint64_t             generation;
   TD_DLIST_NODE(SSTriggerCalcSlot);
 } SSTriggerCalcSlot;
 

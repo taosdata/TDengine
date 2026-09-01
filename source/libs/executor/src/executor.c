@@ -375,12 +375,47 @@ static void setReadHandle(SReadHandle* pHandle, STableScanBase* pScanBaseInfo) {
   pScanBaseInfo->readHandle.cacheSttStatis = pHandle->cacheSttStatis;
 }
 
-int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle) {
+static int32_t validateReaderReuseReset(SOperatorInfo* pOperator) {
+  if (pOperator == NULL || pOperator->pPhyNode == NULL || pOperator->info == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  const ENodeType type = nodeType(pOperator->pPhyNode);
+  if (type == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    STableScanInfo*      pInfo = pOperator->info;
+    STableScanPhysiNode* pNode = (STableScanPhysiNode*)pOperator->pPhyNode;
+    return pInfo->base.cond.type == TIMEWINDOW_RANGE_CONTAINED && !pNode->scan.node.dynamicOp &&
+                   !pNode->scan.virtualStableScan
+               ? TSDB_CODE_SUCCESS
+               : TSDB_CODE_INVALID_PARA;
+  }
+  if (type == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
+    STableMergeScanInfo* pInfo = pOperator->info;
+    STableScanPhysiNode* pNode = (STableScanPhysiNode*)pOperator->pPhyNode;
+    return pInfo->base.cond.type == TIMEWINDOW_RANGE_CONTAINED && !pNode->scan.node.dynamicOp &&
+                   !pNode->scan.virtualStableScan && !pNode->paraTablesSort && pInfo->pSubTablesMergeInfo == NULL
+               ? TSDB_CODE_SUCCESS
+               : TSDB_CODE_INVALID_PARA;
+  }
+  return TSDB_CODE_INVALID_PARA;
+}
+
+int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle, EQueryTableScanResetMode mode) {
   if (pInfo == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (mode != QUERY_TABLE_SCAN_RESET_FRESH && mode != QUERY_TABLE_SCAN_RESET_REUSE_READER) {
     return TSDB_CODE_INVALID_PARA;
   }
   SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)pInfo;
   SOperatorInfo*  pOperator = pTaskInfo->pRoot;
+
+  if (mode == QUERY_TABLE_SCAN_RESET_REUSE_READER) {
+    int32_t code = validateReaderReuseReset(pOperator);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
 
   void*           info = pOperator->info;
   STableScanBase* pScanBaseInfo = NULL;
@@ -395,7 +430,10 @@ int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle) {
 
   qDebug("reset table scan, name:%s, id:%s, time range: [%" PRId64 ", %" PRId64 "]", pOperator->name, GET_TASKID(pTaskInfo), handle->winRange.skey,
   handle->winRange.ekey);
-  return pOperator->fpSet.resetStateFn(pOperator);
+  pTaskInfo->reuseReaderOnReset = mode == QUERY_TABLE_SCAN_RESET_REUSE_READER;
+  int32_t code = pOperator->fpSet.resetStateFn(pOperator);
+  pTaskInfo->reuseReaderOnReset = false;
+  return code;
 }
 
 int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle* readers,
@@ -422,6 +460,11 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
   }
 
   return code;
+}
+
+bool qTaskUsesMultiGroupJoinProtocol(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = tinfo;
+  return pTaskInfo != NULL && isStaticMultiGroupJoinQualified(pTaskInfo->pRoot);
 }
 
 typedef struct {
@@ -918,6 +961,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   int32_t ret = setjmp(pTaskInfo->env);
   if (ret != TSDB_CODE_SUCCESS) {
     pTaskInfo->code = ret;
+    qClearStreamFetchRuntime(pTaskInfo->pStreamRuntimeInfo);
     (void)cleanUpUdfs();
 
     qDebug("%s task abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
@@ -1080,6 +1124,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
   int32_t ret = setjmp(pTaskInfo->env);
   if (ret != TSDB_CODE_SUCCESS) {
     pTaskInfo->code = ret;
+    qClearStreamFetchRuntime(pTaskInfo->pStreamRuntimeInfo);
     (void)cleanUpUdfs();
     qDebug("%s task abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
     atomic_store_64(&pTaskInfo->owner, 0);
@@ -1426,8 +1471,11 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     STableListInfo*  pTableListInfo = pScanBaseInfo->pTableListInfo;
 
     if (pOffset->type == TMQ_OFFSET__LOG) {
-      pTaskInfo->storageAPI.tsdReader.tsdReaderClose(pScanBaseInfo->dataReader);
-      pScanBaseInfo->dataReader = NULL;
+      code = closeTableScanReader(pScanBaseInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        return code;
+      }
 
       SStoreTqReader* pReaderAPI = &pTaskInfo->storageAPI.tqReaderFn;
       SWalReader*     pWalReader = pReaderAPI->tqReaderGetWalReader(pInfo->tqReader);
@@ -1502,29 +1550,17 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       }
       pScanInfo->scanTimes = 0;
 
-      if (pScanBaseInfo->dataReader == NULL) {
-        code = pTaskInfo->storageAPI.tsdReader.tsdReaderOpen(pScanBaseInfo->readHandle.vnode, &pScanBaseInfo->cond,
-                                                             &keyInfo, 1, pScanInfo->pResBlock,
-                                                             (void**)&pScanBaseInfo->dataReader, id, NULL);
-        if (code != TSDB_CODE_SUCCESS) {
-          qError("prepare read tsdb snapshot failed, uid:%" PRId64 ", code:%s %s", pOffset->uid, tstrerror(code), id);
-          return code;
-        }
+      bool opened = false;
+      code = openOrRebindTableReader(pScanBaseInfo, &keyInfo, 1, pScanInfo->pResBlock, id, NULL, &opened);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("prepare read tsdb snapshot failed, uid:%" PRId64 ", code:%s %s", pOffset->uid, tstrerror(code), id);
+        return code;
+      }
 
+      if (opened) {
         qDebug("tsdb reader created with offset(snapshot) uid:%" PRId64 " ts:%" PRId64 " table index:%d, total:%d, %s",
                uid, pScanBaseInfo->cond.twindows.skey, pScanInfo->currentTable, numOfTables, id);
       } else {
-        code = pTaskInfo->storageAPI.tsdReader.tsdSetQueryTableList(pScanBaseInfo->dataReader, &keyInfo, 1);
-        if (code != TSDB_CODE_SUCCESS) {
-          qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-          return code;
-        }
-
-        code = pTaskInfo->storageAPI.tsdReader.tsdReaderResetStatus(pScanBaseInfo->dataReader, &pScanBaseInfo->cond);
-        if (code != TSDB_CODE_SUCCESS) {
-          qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-          return code;
-        }
         qDebug("tsdb reader offset seek snapshot to uid:%" PRId64 " ts %" PRId64 "  table index:%d numOfTable:%d, %s",
                uid, pScanBaseInfo->cond.twindows.skey, pScanInfo->currentTable, numOfTables, id);
       }
@@ -1871,6 +1907,7 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppRes, bool* finished
   int32_t ret = setjmp(pTaskInfo->env);
   if (ret != TSDB_CODE_SUCCESS) {
     pTaskInfo->code = ret;
+    qClearStreamFetchRuntime(pTaskInfo->pStreamRuntimeInfo);
     (void)cleanUpUdfs();
     qDebug("%s task abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
     atomic_store_64(&pTaskInfo->owner, 0);

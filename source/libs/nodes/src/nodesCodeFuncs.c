@@ -1367,6 +1367,9 @@ static const char* jkWindowLogicPlanTimeRangeExpr = "TimeRangeExpr";
 static const char* jkWindowLogicPlanExtFillMode = "ExtFillMode";
 static const char* jkWindowLogicPlanExtFillExprs = "ExtFillExprs";
 static const char* jkWindowLogicPlanExtFillValues = "ExtFillValues";
+static const char* jkExtWinInputMode = "ExtWinInputMode";
+static const char* jkWindowConditions = "WindowConditions";
+static const char* jkMultiGroupJoin = "MultiGroupJoin";
 
 static int32_t logicWindowNodeToJson(const void* pObj, SJson* pJson) {
   const SWindowLogicNode* pNode = (const SWindowLogicNode*)pObj;
@@ -1422,6 +1425,12 @@ static int32_t logicWindowNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkWindowLogicPlanExtFillValues, nodeToJson, pNode->extFill.pFillValues);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkExtWinInputMode, pNode->extWinInputMode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkWindowConditions, nodeToJson, pNode->pWindowConditions);
   }
 
   return code;
@@ -1489,6 +1498,12 @@ static int32_t jsonToLogicWindowNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkWindowLogicPlanExtFillValues, &pNode->extFill.pFillValues);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkExtWinInputMode, pNode->extWinInputMode, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkWindowConditions, &pNode->pWindowConditions);
   }
 
   return code;
@@ -2287,6 +2302,9 @@ static int32_t logicJoinNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkJoinLogicPlanOnConditions, nodeToJson, pNode->pFullOnCond);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkMultiGroupJoin, pNode->multiGroupJoin);
+  }
   return code;
 }
 
@@ -2311,6 +2329,9 @@ static int32_t jsonToLogicJoinNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkJoinLogicPlanOnConditions, &pNode->pFullOnCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkMultiGroupJoin, &pNode->multiGroupJoin);
   }
 
   return code;
@@ -2625,6 +2646,7 @@ static const char* jkScanPhysiPlanTableType = "TableType";
 static const char* jkScanPhysiPlanTableName = "TableName";
 static const char* jkScanPhysiPlanGroupOrderScan = "GroupOrderScan";
 static const char* jkScanPhysiPlanVirtualStableScan = "VirtualStableScan";
+static const char* jkScanPhysiPlanUseTriggerTableList = "UseTriggerTableList";
 
 static int32_t physiScanNodeToJson(const void* pObj, SJson* pJson) {
   const SScanPhysiNode* pNode = (const SScanPhysiNode*)pObj;
@@ -2653,6 +2675,9 @@ static int32_t physiScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkScanPhysiPlanVirtualStableScan, pNode->virtualStableScan);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->useTriggerTableList) {
+    code = tjsonAddBoolToObject(pJson, jkScanPhysiPlanUseTriggerTableList, pNode->useTriggerTableList);
   }
 
   return code;
@@ -2685,6 +2710,9 @@ static int32_t jsonToPhysiScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkScanPhysiPlanVirtualStableScan, &pNode->virtualStableScan);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkScanPhysiPlanUseTriggerTableList)) {
+    code = tjsonGetBoolValue(pJson, jkScanPhysiPlanUseTriggerTableList, &pNode->useTriggerTableList);
   }
 
   return code;
@@ -3883,6 +3911,9 @@ static int32_t physiHashJoinNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkJoinPhysiPlanTimeRangeEKey, pNode->timeRange.ekey);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkMultiGroupJoin, pNode->multiGroupJoin);
+  }
 
   return code;
 }
@@ -3947,6 +3978,9 @@ static int32_t jsonToPhysiHashJoinNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkJoinPhysiPlanTimeRangeEKey, &pNode->timeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkMultiGroupJoin, &pNode->multiGroupJoin);
   }
 
   return code;
@@ -4642,6 +4676,12 @@ static int32_t physiExternalNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkExternalPhysiPlanFillValues, nodeToJson, pNode->extFill.pFillValues);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkExtWinInputMode, pNode->extWinInputMode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkWindowConditions, nodeToJson, pNode->pWindowConditions);
+  }
   return code;
 }
 
@@ -4687,6 +4727,12 @@ static int32_t jsonToPhysiExternalNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkExternalPhysiPlanFillValues, &pNode->extFill.pFillValues);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkExtWinInputMode, pNode->extWinInputMode, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkWindowConditions, &pNode->pWindowConditions);
   }
 
   return code;
@@ -6018,6 +6064,7 @@ static const char* jkSubplanIsAudit = "IsAudit";
 static const char* jkSubplanDynTbname = "DynTbname";
 static const char* jkSubplanProcessOneBlock = "ProcessOneBlock";
 static const char* jkSubplanRequiresAncestorContext = "RequiresAncestorContext";
+static const char* jkSubplanInheritedMultiGroupJoin = "InheritedMultiGroupJoin";
 static const char* jkSubplanUserAppId = "UserAppId";
 
 static int32_t subplanToJson(const void* pObj, SJson* pJson) {
@@ -6086,6 +6133,9 @@ static int32_t subplanToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code && pNode->requiresAncestorContext) {
     code = tjsonAddBoolToObject(pJson, jkSubplanRequiresAncestorContext, true);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->inheritedMultiGroupJoin) {
+    code = tjsonAddBoolToObject(pJson, jkSubplanInheritedMultiGroupJoin, true);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkSubplanUserAppId, pNode->userAppId);
@@ -6262,6 +6312,12 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
     pNode->requiresAncestorContext = false;
     if (NULL != tjsonGetObjectItem(pJson, jkSubplanRequiresAncestorContext)) {
       code = tjsonGetBoolValue(pJson, jkSubplanRequiresAncestorContext, &pNode->requiresAncestorContext);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pNode->inheritedMultiGroupJoin = false;
+    if (NULL != tjsonGetObjectItem(pJson, jkSubplanInheritedMultiGroupJoin)) {
+      code = tjsonGetBoolValue(pJson, jkSubplanInheritedMultiGroupJoin, &pNode->inheritedMultiGroupJoin);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {

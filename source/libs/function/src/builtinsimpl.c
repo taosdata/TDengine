@@ -4802,6 +4802,7 @@ int32_t fillforwardFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pRes
     return TSDB_CODE_FUNC_SETUP_ERROR;
   }
   SFillforwardInfo* pFillforwardInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pFillforwardInfo->str = NULL;
   pFillforwardInfo->nonnull = false;
 
   return TSDB_CODE_SUCCESS;
@@ -5023,17 +5024,8 @@ _exit:
     if (!pCtx) {
       break;
     }
-
-    SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
-    SFillforwardInfo*             pRes = GET_ROWCELL_INTERBUF(pResInfo);
-    SInputColumnInfoData* pInput = &pCtx->input;
-    SColumnInfoData*      pInputCol = pInput->pData[0];
-
-    if (IS_VAR_DATA_TYPE(pInputCol->info.type) && pRes->nonnull) {
-      taosMemoryFree(pRes->str);
-    }
-
     if (!code) {
+      SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
       pResInfo->numOfRes = numOfElems;
     }
   }
@@ -5043,6 +5035,22 @@ _exit:
     pRows = NULL;
   }
   return code;
+}
+
+void fillforwardFunctionCleanupExt(SqlFunctionCtx* pCtx) {
+  if (pCtx == NULL || pCtx->resultInfo == NULL) {
+    return;
+  }
+
+  SFillforwardInfo* pInfo = GET_ROWCELL_INTERBUF(pCtx->resultInfo);
+  if (pInfo == NULL) {
+    return;
+  }
+
+  if (IS_VAR_DATA_TYPE(pCtx->resDataInfo.type)) {
+    taosMemoryFreeClear(pInfo->str);
+  }
+  pInfo->nonnull = false;
 }
 
 int32_t getTopBotInfoSize(int64_t numOfItems) { return sizeof(STopBotRes) + numOfItems * sizeof(STopBotResItem); }

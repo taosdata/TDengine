@@ -383,6 +383,7 @@ void destroyFillOperatorInfo(void* param) {
 
   cleanupExprSupp(&pInfo->noFillExprSupp);
   cleanupExprSupp(&pInfo->fillNullExprSupp);
+  nodesDestroyNode(pInfo->pTimeRange);
 
   taosMemoryFreeClear(pInfo->p);
   taosArrayDestroy(pInfo->matchInfo.pList);

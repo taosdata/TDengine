@@ -20,6 +20,7 @@ target_link_options(
         -Wl,--wrap=initStorageAPI
         -Wl,--wrap=qDestroyTask
         -Wl,--wrap=qCreateStreamExecTaskInfo
+        -Wl,--wrap=qNeedReset
         -Wl,--wrap=qResetTableScan
         -Wl,--wrap=qSetTaskId
         -Wl,--wrap=qUpdateOperatorParam

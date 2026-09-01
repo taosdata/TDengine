@@ -365,8 +365,10 @@ int32_t initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSH
                                STsdbReader* pReader) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  bool    published = false;
 
   TSDB_CHECK_NULL(pScanInfo, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_NULL(pTableMap, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   pScanInfo->uid = uid;
@@ -382,11 +384,16 @@ int32_t initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSH
   pScanInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
   code = tSimpleHashPut(pTableMap, &pScanInfo->uid, sizeof(uint64_t), &pScanInfo, POINTER_BYTES);
   TSDB_CHECK_CODE(code, lino, _end);
+  published = true;
 
   tsdbTrace("%p check table uid:%" PRId64 " from lastKey:%" PRId64 " %s", pReader, pScanInfo->uid,
             pScanInfo->lastProcKey.ts, pReader->idStr);
 
 _end:
+  if (code != TSDB_CODE_SUCCESS && !published && pScanInfo != NULL) {
+    clearBlockScanInfo(pScanInfo);
+    memset(pScanInfo, 0, sizeof(*pScanInfo));
+  }
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }

@@ -3812,10 +3812,10 @@ _err:
 }
 
 SNode* createColumnRefNodeByNode(SAstCreateContext* pCxt, SToken* pColName, SNode* pRef) {
+  SColumnRefNode* pCol = NULL;
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkColumnName(pCxt, pColName));
 
-  SColumnRefNode* pCol = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN_REF, (SNode**)&pCol);
   CHECK_MAKE_NODE(pCol);
   if (pColName) {
@@ -3826,8 +3826,11 @@ SNode* createColumnRefNodeByNode(SAstCreateContext* pCxt, SToken* pColName, SNod
   tstrncpy(pCol->refTableName, ((SColumnRefNode*)pRef)->refTableName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pCol->refColName, ((SColumnRefNode*)pRef)->refColName, TSDB_COL_NAME_LEN);
   tstrncpy(pCol->refSourceName, ((SColumnRefNode*)pRef)->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  nodesDestroyNode(pRef);
   return (SNode*)pCol;
 _err:
+  nodesDestroyNode(pRef);
+  nodesDestroyNode((SNode*)pCol);
   return NULL;
 }
 

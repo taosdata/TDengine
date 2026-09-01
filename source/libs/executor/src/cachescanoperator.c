@@ -367,6 +367,7 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
         STableKeyInfo* pKeyInfo = &((STableKeyInfo*)pList)[0];
         pInfo->pRes->info.id.groupId = pKeyInfo->groupId;
+        pInfo->pRes->info.id.baseGId = pKeyInfo->baseGId;
 
         if (taosArrayGetSize(pInfo->pUidList) > 0) {
           void* pUid = taosArrayGet(pInfo->pUidList, 0);

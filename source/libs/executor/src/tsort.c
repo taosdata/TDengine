@@ -863,6 +863,9 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
   SSDataBlock* pRightBlock = pRightSource->src.pBlock;
 
   if (pParam->cmpGroupId) {
+    if (pLeftBlock->info.id.baseGId != pRightBlock->info.id.baseGId) {
+      return pLeftBlock->info.id.baseGId < pRightBlock->info.id.baseGId ? -1 : 1;
+    }
     if (pLeftBlock->info.id.groupId != pRightBlock->info.id.groupId) {
       return pLeftBlock->info.id.groupId < pRightBlock->info.id.groupId ? -1 : 1;
     }

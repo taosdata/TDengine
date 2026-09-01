@@ -47,8 +47,6 @@ extern "C" {
 
 #define STREAM_CLR_FLAG(st, f) (st) &= (~f)
 
-#define STREAM_CALC_REQ_MAX_WIN_NUM 40960
-
 typedef struct SStreamTaskStats SStreamTaskStats;
 
 typedef struct SStreamReaderTask {
@@ -130,6 +128,8 @@ typedef enum sinkHandleInitState {
   SINK_HANDLE_INITIALIZED = 2
 } sinkHandleInitState;
 
+typedef struct SStreamRunnerGroupedContinuation SStreamRunnerGroupedContinuation;
+
 typedef struct SStreamRunnerTaskExecution {
   const char        *pPlan;
   void              *pExecutor;
@@ -140,6 +140,8 @@ typedef struct SStreamRunnerTaskExecution {
   void              *pSinkHandle;
   SSDataBlock       *pOutBlock;
   int32_t            sinkHandleInited;  // 0: Uninitialized, 1: initializing, 2: initialized
+
+  SStreamRunnerGroupedContinuation *pGroupedContinuation;
 } SStreamRunnerTaskExecution;
 
 typedef struct SStreamRunnerTaskOutput {

@@ -13,10 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <fstream>
 #include <memory>
+#include <tuple>
 #include <vector>
 
 #include "cJSON.h"
@@ -31,6 +33,16 @@ using namespace std;
 
 namespace ParserTest {
 class ParserStreamTest : public ParserDdlTest {};
+
+TEST_F(ParserStreamTest, RejectsConcatenatedCreateStreamWithoutCrashing) {
+  run("create stream stream_streamdb.s_invalid interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _twstart, CLIENT_VERSION();"
+      "create stream stream_streamdb.s_invalid interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _twstart, CURRENT_USER();",
+      TSDB_CODE_STREAM_INVALID_QUERY, PARSER_STAGE_TRANSLATE);
+}
 
 namespace {
 
@@ -104,6 +116,51 @@ class SharedValidatorFailureGuard {
   SharedValidatorFailureGuard() { stub_.set(tValidateStreamWindowPlan, failStreamWindowPlanValidation); }
 
   ~SharedValidatorFailureGuard() { stub_.reset(tValidateStreamWindowPlan); }
+
+ private:
+  Stub stub_;
+};
+
+static bool pstIsC1NonnegativeCondition(const SNode* pNode) {
+  if (nullptr == pNode || QUERY_NODE_OPERATOR != nodeType(pNode)) {
+    return false;
+  }
+
+  const auto* pOp = (const SOperatorNode*)pNode;
+  if (OP_TYPE_GREATER_EQUAL != pOp->opType || QUERY_NODE_COLUMN != nodeType(pOp->pLeft) ||
+      QUERY_NODE_VALUE != nodeType(pOp->pRight)) {
+    return false;
+  }
+
+  const auto* pColumn = (const SColumnNode*)pOp->pLeft;
+  const auto* pValue = (const SValueNode*)pOp->pRight;
+  return 0 == strcmp(pColumn->colName, "c1") && nullptr != pValue->literal && 0 == strcmp(pValue->literal, "0");
+}
+
+static Stub* gRowConditionMergeFailureStub = nullptr;
+
+int32_t failMergeForC1NonnegativeCondition(SNode** pDst, SNodeList** pSrc) {
+  if (nullptr != pSrc && 1 == LIST_LENGTH(*pSrc) && pstIsC1NonnegativeCondition(nodesListGetNode(*pSrc, 0))) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  gRowConditionMergeFailureStub->reset(nodesMergeConds);
+  int32_t code = nodesMergeConds(pDst, pSrc);
+  gRowConditionMergeFailureStub->set(nodesMergeConds, failMergeForC1NonnegativeCondition);
+  return code;
+}
+
+class RowConditionMergeFailureGuard {
+ public:
+  RowConditionMergeFailureGuard() {
+    gRowConditionMergeFailureStub = &stub_;
+    stub_.set(nodesMergeConds, failMergeForC1NonnegativeCondition);
+  }
+
+  ~RowConditionMergeFailureGuard() {
+    stub_.reset(nodesMergeConds);
+    gRowConditionMergeFailureStub = nullptr;
+  }
 
  private:
   Stub stub_;
@@ -1645,6 +1702,7 @@ static void pstAssertLegacyCalcSubplansDoNotRequireAncestorContext(const SQueryP
     FOREACH(pSubplanNode, ((SNodeListNode*)pGroupNode)->pNodeList) {
       ASSERT_EQ(QUERY_NODE_PHYSICAL_SUBPLAN, nodeType(pSubplanNode));
       EXPECT_FALSE(((const SSubplan*)pSubplanNode)->requiresAncestorContext);
+      EXPECT_FALSE(((const SSubplan*)pSubplanNode)->inheritedMultiGroupJoin);
     }
   }
 }
@@ -1918,6 +1976,369 @@ static void pstCheckCalcPlanExternalWindowNeedCalcTimeRangeCount(const SQuery* p
 
   int32_t count = pstCountExternalWindowNodesNeedCalcTimeRange((const SQueryPlan*)pPlanNode);
   EXPECT_EQ(count, expectedCount);
+}
+
+struct SExternalWindowPhysiInfo {
+  EExtWinInputMode inputMode;
+  bool             hasTimeRange;
+  bool             hasWindowConditions;
+  int32_t          windowConditionNodeType;
+  int32_t          windowConditionType;
+  uint8_t          windowConditionResultType;
+  int32_t          windowConditionResultBytes;
+  string           sourceTable;
+  int32_t          durationUpperBoundCount;
+  int32_t          windowConditionC1Count;
+  struct SFunctionInfo {
+    string functionName;
+    string userAlias;
+    string firstParamTableAlias;
+    string firstParamColName;
+  };
+  vector<SFunctionInfo> functions;
+};
+
+struct SExternalWindowConditionCounts {
+  int32_t durationUpperBound = 0;
+  int32_t c1Columns = 0;
+};
+
+static EDealRes pstCountExternalWindowConditions(SNode* pNode, void* pContext) {
+  auto* pCounts = (SExternalWindowConditionCounts*)pContext;
+  if (QUERY_NODE_COLUMN == nodeType(pNode) && 0 == strcmp(((SColumnNode*)pNode)->colName, "c1")) {
+    ++pCounts->c1Columns;
+  }
+  if (QUERY_NODE_OPERATOR != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  auto* pOp = (SOperatorNode*)pNode;
+  if (OP_TYPE_LOWER_EQUAL != pOp->opType || QUERY_NODE_FUNCTION != nodeType(pOp->pLeft) ||
+      QUERY_NODE_VALUE != nodeType(pOp->pRight)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  auto* pFunc = (SFunctionNode*)pOp->pLeft;
+  auto* pValue = (SValueNode*)pOp->pRight;
+  if (0 != strcmp(pFunc->functionName, "_twduration") || 1 != LIST_LENGTH(pFunc->pParameterList) ||
+      nullptr == pValue->literal || 0 != strcmp(pValue->literal, "30000")) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SNode* pLayer = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_VALUE == nodeType(pLayer) && ((SValueNode*)pLayer)->notReserved) {
+    ++pCounts->durationUpperBound;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static void pstCollectExternalWindowFunctions(const SNodeList*                                 pFuncs,
+                                              vector<SExternalWindowPhysiInfo::SFunctionInfo>* pInfos) {
+  SNode* pTarget = nullptr;
+  FOREACH(pTarget, pFuncs) {
+    SNode* pExpr = QUERY_NODE_TARGET == nodeType(pTarget) ? ((STargetNode*)pTarget)->pExpr : pTarget;
+    if (QUERY_NODE_FUNCTION != nodeType(pExpr)) {
+      continue;
+    }
+
+    const auto*                             pFunc = (const SFunctionNode*)pExpr;
+    SExternalWindowPhysiInfo::SFunctionInfo info;
+    info.functionName = pFunc->functionName;
+    info.userAlias = pFunc->node.userAlias;
+    SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+    if (QUERY_NODE_COLUMN == nodeType(pParam)) {
+      const auto* pColumn = (const SColumnNode*)pParam;
+      info.firstParamTableAlias = pColumn->tableAlias;
+      info.firstParamColName = pColumn->colName;
+    }
+    pInfos->push_back(info);
+  }
+}
+
+static void pstCollectExternalWindowPhysiInfo(const SPhysiNode* pNode, vector<SExternalWindowPhysiInfo>* pInfos,
+                                              vector<ENodeType>* pJoinTypes) {
+  if (pNode == nullptr) {
+    return;
+  }
+
+  const ENodeType type = nodeType((const SNode*)pNode);
+  if (type == QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL || type == QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL) {
+    const auto*                    pExternal = (const SExternalWindowPhysiNode*)pNode;
+    SExternalWindowConditionCounts counts;
+    nodesWalkExpr(pExternal->pWindowConditions, pstCountExternalWindowConditions, &counts);
+
+    SExternalWindowPhysiInfo info = {};
+    info.inputMode = pExternal->extWinInputMode;
+    info.hasTimeRange = pExternal->pTimeRange != nullptr;
+    info.hasWindowConditions = pExternal->pWindowConditions != nullptr;
+    info.windowConditionNodeType = pExternal->pWindowConditions == nullptr ? 0 : nodeType(pExternal->pWindowConditions);
+    info.durationUpperBoundCount = counts.durationUpperBound;
+    info.windowConditionC1Count = counts.c1Columns;
+    if (QUERY_NODE_LOGIC_CONDITION == info.windowConditionNodeType) {
+      const auto* pLogic = (const SLogicConditionNode*)pExternal->pWindowConditions;
+      info.windowConditionType = pLogic->condType;
+      info.windowConditionResultType = pLogic->node.resType.type;
+      info.windowConditionResultBytes = pLogic->node.resType.bytes;
+    }
+    if (QUERY_NODE_COLUMN == nodeType(pExternal->window.pTspk)) {
+      info.sourceTable = ((const SColumnNode*)pExternal->window.pTspk)->tableName;
+    }
+    pstCollectExternalWindowFunctions(pExternal->window.pFuncs, &info.functions);
+    pInfos->push_back(info);
+  }
+  if (type == QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN || type == QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN) {
+    pJoinTypes->push_back(type);
+  }
+
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) {
+    pstCollectExternalWindowPhysiInfo((const SPhysiNode*)pChild, pInfos, pJoinTypes);
+  }
+}
+
+struct SCalcScanPhysiInfo {
+  string    sourceDb;
+  string    sourceTable;
+  ENodeType scanType;
+  bool      hasTimeRange;
+  bool      dynamicOp;
+  bool      virtualStableScan;
+  bool      paraTablesSort;
+  bool      useTriggerTableList;
+  int32_t   c1NonnegativeCount;
+  int32_t   durationPredicateCount;
+};
+
+static EDealRes pstCountC1NonnegativeConditions(SNode* pNode, void* pContext) {
+  if (pstIsC1NonnegativeCondition(pNode)) {
+    ++*(int32_t*)pContext;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static void pstCollectCalcScanPhysiInfo(const SPhysiNode* pNode, vector<SCalcScanPhysiInfo>* pInfos) {
+  if (nullptr == pNode) {
+    return;
+  }
+
+  const ENodeType type = nodeType((const SNode*)pNode);
+  if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == type || QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN == type ||
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == type || QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
+    const auto*        pScan = (const STableScanPhysiNode*)pNode;
+    SCalcScanPhysiInfo info = {};
+    info.sourceDb = tNameGetDbNameP(&pScan->scan.tableName);
+    info.sourceTable = tNameGetTableName(&pScan->scan.tableName);
+    info.scanType = type;
+    info.hasTimeRange = pScan->pTimeRange != nullptr;
+    info.dynamicOp = pScan->scan.node.dynamicOp;
+    info.virtualStableScan = pScan->scan.virtualStableScan;
+    info.paraTablesSort = pScan->paraTablesSort;
+    info.useTriggerTableList = pScan->scan.useTriggerTableList;
+    nodesWalkExpr(pNode->pConditions, pstCountC1NonnegativeConditions, &info.c1NonnegativeCount);
+    SExternalWindowConditionCounts counts;
+    nodesWalkExpr(pNode->pConditions, pstCountExternalWindowConditions, &counts);
+    info.durationPredicateCount = counts.durationUpperBound;
+    pInfos->push_back(info);
+  }
+
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) { pstCollectCalcScanPhysiInfo((const SPhysiNode*)pChild, pInfos); }
+}
+
+static void pstCollectCalcPlanExternalWindowInfo(const SQuery* pQuery, ParserStage stage,
+                                                 vector<SExternalWindowPhysiInfo>* pInfos,
+                                                 vector<ENodeType>*                pJoinTypes,
+                                                 vector<SCalcScanPhysiInfo>*       pScanInfos = nullptr) {
+  ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+  ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+  SCMCreateStreamReq req = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+  unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+  ASSERT_NE(req.calcPlan, nullptr);
+
+  SNode* pPlanNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)req.calcPlan, &pPlanNode));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlanNode, nodesDestroyNode);
+  ASSERT_NE(pPlanNode, nullptr);
+
+  const auto* pPlan = (const SQueryPlan*)pPlanNode;
+  SNode*      pLevelNode = nullptr;
+  FOREACH(pLevelNode, pPlan->pSubplans) {
+    const auto* pLevel = (const SNodeListNode*)pLevelNode;
+    SNode*      pSubplanNode = nullptr;
+    FOREACH(pSubplanNode, pLevel->pNodeList) {
+      const auto* pSubplan = (const SSubplan*)pSubplanNode;
+      pstCollectExternalWindowPhysiInfo(pSubplan->pNode, pInfos, pJoinTypes);
+    }
+  }
+
+  if (nullptr == pScanInfos) {
+    return;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(req.calcScanPlanList); ++i) {
+    const auto* pScan = (const SStreamCalcScan*)taosArrayGet(req.calcScanPlanList, i);
+    ASSERT_NE(pScan, nullptr);
+    ASSERT_NE(pScan->scanPlan, nullptr);
+
+    SNode* pScanPlanNode = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)pScan->scanPlan, &pScanPlanNode));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> scanPlanGuard(pScanPlanNode, nodesDestroyNode);
+    ASSERT_EQ(QUERY_NODE_PHYSICAL_SUBPLAN, nodeType(pScanPlanNode));
+    pstCollectCalcScanPhysiInfo(((const SSubplan*)pScanPlanNode)->pNode, pScanInfos);
+  }
+}
+
+struct SMultiGroupJoinPhysiInfo {
+  int32_t                           joinCount = 0;
+  int32_t                           externalWindowCount = 0;
+  int32_t                           nestedLeftJoinCount = 0;
+  vector<const SHashJoinPhysiNode*> hashJoins;
+};
+
+static bool pstMultiGroupPhysiTreeHasJoin(const SPhysiNode* pNode) {
+  if (nullptr == pNode) {
+    return false;
+  }
+
+  const ENodeType type = nodeType((const SNode*)pNode);
+  if (QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN == type || QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == type) {
+    return true;
+  }
+
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) {
+    if (pstMultiGroupPhysiTreeHasJoin((const SPhysiNode*)pChild)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static void pstCollectMultiGroupJoinPhysiInfo(const SPhysiNode* pNode, SMultiGroupJoinPhysiInfo* pInfo) {
+  if (nullptr == pNode) {
+    return;
+  }
+
+  const ENodeType type = nodeType((const SNode*)pNode);
+  if (QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN == type) {
+    ++pInfo->joinCount;
+    pInfo->hashJoins.push_back((const SHashJoinPhysiNode*)pNode);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == type) {
+    ++pInfo->joinCount;
+  }
+  if ((QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN == type || QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == type) &&
+      pstMultiGroupPhysiTreeHasJoin((const SPhysiNode*)nodesListGetNode(pNode->pChildren, 0))) {
+    ++pInfo->nestedLeftJoinCount;
+  }
+  if (QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL == type || QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL == type) {
+    ++pInfo->externalWindowCount;
+  }
+
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) { pstCollectMultiGroupJoinPhysiInfo((const SPhysiNode*)pChild, pInfo); }
+}
+
+static void pstCheckMultiGroupJoinPlan(const SQuery* pQuery, ParserStage stage, bool enabled, int32_t joinCount,
+                                       int32_t markedHashJoinCount, int32_t expectedExternalWindowCount = -1,
+                                       int32_t expectedNestedLeftJoinCount = -1,
+                                       int32_t expectedInheritedSubplanCount = -1) {
+  ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+  ASSERT_EQ(QUERY_NODE_CREATE_STREAM_STMT, nodeType(pQuery->pRoot));
+
+  SCMCreateStreamReq req = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+  unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+  EXPECT_EQ(enabled, req.enableMultiGroupCalc);
+  ASSERT_NE(nullptr, req.calcPlan);
+
+  SNode* pPlanNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)req.calcPlan, &pPlanNode));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlanNode, nodesDestroyNode);
+  ASSERT_NE(nullptr, pPlanNode);
+
+  SMultiGroupJoinPhysiInfo info;
+  int32_t                  inheritedSubplanCount = 0;
+  SNode*                   pLevelNode = nullptr;
+  FOREACH(pLevelNode, ((const SQueryPlan*)pPlanNode)->pSubplans) {
+    const auto* pLevel = (const SNodeListNode*)pLevelNode;
+    SNode*      pSubplanNode = nullptr;
+    FOREACH(pSubplanNode, pLevel->pNodeList) {
+      const auto* pSubplan = (const SSubplan*)pSubplanNode;
+      pstCollectMultiGroupJoinPhysiInfo(pSubplan->pNode, &info);
+      if (pSubplan->inheritedMultiGroupJoin) {
+        ++inheritedSubplanCount;
+      }
+    }
+  }
+
+  EXPECT_EQ(joinCount, info.joinCount);
+  if (0 <= expectedExternalWindowCount) {
+    EXPECT_EQ(expectedExternalWindowCount, info.externalWindowCount);
+  }
+  if (0 <= expectedNestedLeftJoinCount) {
+    EXPECT_EQ(expectedNestedLeftJoinCount, info.nestedLeftJoinCount);
+  }
+  int32_t actualMarkedHashJoinCount = 0;
+  for (const SHashJoinPhysiNode* pJoin : info.hashJoins) {
+    if (pJoin->multiGroupJoin) {
+      ++actualMarkedHashJoinCount;
+    }
+  }
+  EXPECT_EQ(markedHashJoinCount, actualMarkedHashJoinCount);
+  if (0 <= expectedInheritedSubplanCount) {
+    EXPECT_EQ(expectedInheritedSubplanCount, inheritedSubplanCount);
+  }
+  if (enabled) {
+    ASSERT_EQ(joinCount, info.hashJoins.size());
+    for (const SHashJoinPhysiNode* pJoin : info.hashJoins) {
+      EXPECT_TRUE(pJoin->multiGroupJoin);
+    }
+  } else {
+    EXPECT_EQ(0, inheritedSubplanCount);
+  }
+}
+
+static void pstAssertNoInheritedMultiGroupJoinSubplans(const char* pCalcPlan) {
+  ASSERT_NE(nullptr, pCalcPlan);
+  EXPECT_EQ(nullptr, strstr(pCalcPlan, "\"InheritedMultiGroupJoin\":true"));
+
+  SNode* pPlanNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(pCalcPlan, &pPlanNode));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlanNode, nodesDestroyNode);
+  SNode*                                         pLevelNode = nullptr;
+  FOREACH(pLevelNode, ((const SQueryPlan*)pPlanNode)->pSubplans) {
+    SNode* pSubplanNode = nullptr;
+    FOREACH(pSubplanNode, ((const SNodeListNode*)pLevelNode)->pNodeList) {
+      EXPECT_FALSE(((const SSubplan*)pSubplanNode)->inheritedMultiGroupJoin);
+    }
+  }
+}
+
+static int32_t pstCountNonWrapperSelects(SNode* pNode);
+
+static int32_t pstCountNonWrapperSelectsInTable(SNode* pTable) {
+  if (nullptr == pTable) {
+    return 0;
+  }
+  if (QUERY_NODE_TEMP_TABLE == nodeType(pTable)) {
+    return pstCountNonWrapperSelects(((STempTableNode*)pTable)->pSubquery);
+  }
+  if (QUERY_NODE_JOIN_TABLE == nodeType(pTable)) {
+    auto* pJoin = (SJoinTableNode*)pTable;
+    return pstCountNonWrapperSelectsInTable(pJoin->pLeft) + pstCountNonWrapperSelectsInTable(pJoin->pRight);
+  }
+  return 0;
+}
+
+static int32_t pstCountNonWrapperSelects(SNode* pNode) {
+  if (nullptr == pNode || QUERY_NODE_SELECT_STMT != nodeType(pNode)) {
+    return 0;
+  }
+
+  auto*   pSelect = (SSelectStmt*)pNode;
+  int32_t count = QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) ? 0 : 1;
+  return count + pstCountNonWrapperSelectsInTable(pSelect->pFromTable);
 }
 
 static void pstCheckRollupTagList(SNodeList* pRollupTagList, const char* const* pExpectedColNames,
@@ -4171,8 +4592,92 @@ TEST_F(ParserStreamTest, TestQuery) {
   addCreateStreamOutCols(&expect, "%%tbname", TSDB_DATA_TYPE_VARCHAR, 0, 272, 0, 0);
   addCreateStreamOutCols(&expect, "avg(c1)", TSDB_DATA_TYPE_DOUBLE, 0, 8, 0, 0);
   setCreateStreamPlaceHolderBitmap(&expect, PLACE_HOLDER_LOCALTIME | PLACE_HOLDER_PARTITION_TBNAME);
-  addCreateStreamQueryScanPlan(&expect, false, "{\"NodeType\":\"1137\",\"Name\":\"PhysiSubplan\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"2\",\"SubplanId\":\"2\"},\"SubplanType\":\"3\",\"MsgType\":\"769\",\"Level\":\"1\",\"DbFName\":\"0.stream_triggerdb\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"2\",\"InUse\":\"0\",\"NumOfEps\":\"3\",\"Eps\":[{\"Fqdn\":\"dnode_1\",\"Port\":\"6030\"},{\"Fqdn\":\"dnode_2\",\"Port\":\"6030\"},{\"Fqdn\":\"dnode_3\",\"Port\":\"6030\"}]},\"RootNode\":{\"NodeType\":\"1101\",\"Name\":\"PhysiTableScan\",\"PhysiTableScan\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"3\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"4536029962895989025\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"3785532846947205635\",\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"ScanCols\":[{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"3\",\"SlotId\":\"1\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"0\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"ts\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}},{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"3\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"AliasName\":\"c1\",\"UserAlias\":\"c1\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"2\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"c1\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}}],\"TableId\":\"42\",\"STableId\":\"0\",\"TableType\":\"1\",\"TableName\":{\"NameType\":\"2\",\"AcctId\":\"0\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\"},\"GroupOrderScan\":false,\"VirtualStableScan\":false,\"ScanCount\":\"1\",\"ReverseScanCount\":\"0\",\"StartKey\":\"-9223372036854775808\",\"EndKey\":\"9223372036854775807\",\"Ratio\":1,\"DataRequired\":\"1\",\"Interval\":\"0\",\"Offset\":\"0\",\"Sliding\":\"0\",\"IntervalUnit\":\"0\",\"SlidingUnit\":\"0\",\"TriggerType\":\"0\",\"Watermark\":\"0\",\"IgnoreExpired\":\"0\",\"GroupSort\":false,\"AssignBlockUid\":false,\"IgnoreUpdate\":\"0\",\"FilesetDelimited\":false,\"NeedCountEmptyTable\":false,\"ParaTablesSort\":false,\"SmallDataTsSort\":false,\"FirstDayOfWeek\":\"0\"}},\"DataSink\":{\"NodeType\":\"1133\",\"Name\":\"PhysiDispatch\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"3\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":true,\"ProcessOneBlock\":false}}");
-  addCreateStreamQueryScanPlan(&expect, false, "{\"NodeType\":\"1137\",\"Name\":\"PhysiSubplan\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"2\",\"SubplanId\":\"3\"},\"SubplanType\":\"3\",\"MsgType\":\"769\",\"Level\":\"1\",\"DbFName\":\"0.stream_triggerdb\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"3\",\"InUse\":\"0\",\"NumOfEps\":\"3\",\"Eps\":[{\"Fqdn\":\"dnode_1\",\"Port\":\"6030\"},{\"Fqdn\":\"dnode_2\",\"Port\":\"6030\"},{\"Fqdn\":\"dnode_3\",\"Port\":\"6030\"}]},\"RootNode\":{\"NodeType\":\"1101\",\"Name\":\"PhysiTableScan\",\"PhysiTableScan\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"4\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"4536029962895989025\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"3785532846947205635\",\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"ScanCols\":[{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"4\",\"SlotId\":\"1\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"0\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"ts\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}},{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"4\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"AliasName\":\"c1\",\"UserAlias\":\"c1\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"2\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"c1\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}}],\"TableId\":\"42\",\"STableId\":\"0\",\"TableType\":\"1\",\"TableName\":{\"NameType\":\"2\",\"AcctId\":\"0\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\"},\"GroupOrderScan\":false,\"VirtualStableScan\":false,\"ScanCount\":\"1\",\"ReverseScanCount\":\"0\",\"StartKey\":\"-9223372036854775808\",\"EndKey\":\"9223372036854775807\",\"Ratio\":1,\"DataRequired\":\"1\",\"Interval\":\"0\",\"Offset\":\"0\",\"Sliding\":\"0\",\"IntervalUnit\":\"0\",\"SlidingUnit\":\"0\",\"TriggerType\":\"0\",\"Watermark\":\"0\",\"IgnoreExpired\":\"0\",\"GroupSort\":false,\"AssignBlockUid\":false,\"IgnoreUpdate\":\"0\",\"FilesetDelimited\":false,\"NeedCountEmptyTable\":false,\"ParaTablesSort\":false,\"SmallDataTsSort\":false,\"FirstDayOfWeek\":\"0\"}},\"DataSink\":{\"NodeType\":\"1133\",\"Name\":\"PhysiDispatch\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"4\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":true,\"ProcessOneBlock\":false}}");
+  addCreateStreamQueryScanPlan(
+      &expect, false,
+      "{\"NodeType\":\"1137\",\"Name\":\"PhysiSubplan\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"2\","
+      "\"SubplanId\":\"2\"},\"SubplanType\":\"3\",\"MsgType\":\"769\",\"Level\":\"1\",\"DbFName\":\"0.stream_"
+      "triggerdb\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"2\",\"InUse\":\"0\",\"NumOfEps\":\"3\",\"Eps\":[{\"Fqdn\":"
+      "\"dnode_1\",\"Port\":\"6030\"},{\"Fqdn\":\"dnode_2\",\"Port\":\"6030\"},{\"Fqdn\":\"dnode_3\",\"Port\":\"6030\"}"
+      "]},\"RootNode\":{\"NodeType\":\"1101\",\"Name\":\"PhysiTableScan\",\"PhysiTableScan\":{\"OutputDataBlockDesc\":{"
+      "\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"3\",\"TotalRowSize\":\"12\","
+      "\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\","
+      "\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":"
+      "true,\"Name\":\"4536029962895989025\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{"
+      "\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":"
+      "false,\"Output\":true,\"Name\":\"3785532846947205635\",\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":"
+      "\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"ScanCols\":[{"
+      "\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"3\",\"SlotId\":\"1\",\"Expr\":{"
+      "\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":"
+      "\"0\",\"Bytes\":\"8\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\","
+      "\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"0\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\","
+      "\"DbName\":\"\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"ts\",\"DataBlockId\":\"0\","
+      "\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,"
+      "\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}},{\"NodeType\":\"18\",\"Name\":"
+      "\"Target\",\"Target\":{\"DataBlockId\":\"3\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\","
+      "\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"AliasName\":"
+      "\"c1\",\"UserAlias\":\"c1\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\","
+      "\"TableType\":\"1\",\"ColId\":\"2\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"stream_triggerdb\","
+      "\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"c1\",\"DataBlockId\":\"0\",\"SlotId\":\"0\","
+      "\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\","
+      "\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}}],\"TableId\":\"42\",\"STableId\":\"0\",\"TableType\":"
+      "\"1\",\"TableName\":{\"NameType\":\"2\",\"AcctId\":\"0\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\"},"
+      "\"GroupOrderScan\":false,\"VirtualStableScan\":false,\"UseTriggerTableList\":true,\"ScanCount\":\"1\","
+      "\"ReverseScanCount\":\"0\",\"StartKey\":\"-9223372036854775808\",\"EndKey\":\"9223372036854775807\",\"Ratio\":1,"
+      "\"DataRequired\":\"1\",\"Interval\":\"0\",\"Offset\":\"0\",\"Sliding\":\"0\",\"IntervalUnit\":\"0\","
+      "\"SlidingUnit\":\"0\",\"TriggerType\":\"0\",\"Watermark\":\"0\",\"IgnoreExpired\":\"0\",\"GroupSort\":false,"
+      "\"AssignBlockUid\":false,\"IgnoreUpdate\":\"0\",\"FilesetDelimited\":false,\"NeedCountEmptyTable\":false,"
+      "\"ParaTablesSort\":false,\"SmallDataTsSort\":false,\"FirstDayOfWeek\":\"0\"}},\"DataSink\":{\"NodeType\":"
+      "\"1133\",\"Name\":\"PhysiDispatch\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":"
+      "\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"3\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\","
+      "\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":"
+      "\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\","
+      "\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{"
+      "\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":"
+      "\"\",\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,"
+      "\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":true,\"ProcessOneBlock\":false}}");
+  addCreateStreamQueryScanPlan(
+      &expect, false,
+      "{\"NodeType\":\"1137\",\"Name\":\"PhysiSubplan\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"2\","
+      "\"SubplanId\":\"3\"},\"SubplanType\":\"3\",\"MsgType\":\"769\",\"Level\":\"1\",\"DbFName\":\"0.stream_"
+      "triggerdb\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"3\",\"InUse\":\"0\",\"NumOfEps\":\"3\",\"Eps\":[{\"Fqdn\":"
+      "\"dnode_1\",\"Port\":\"6030\"},{\"Fqdn\":\"dnode_2\",\"Port\":\"6030\"},{\"Fqdn\":\"dnode_3\",\"Port\":\"6030\"}"
+      "]},\"RootNode\":{\"NodeType\":\"1101\",\"Name\":\"PhysiTableScan\",\"PhysiTableScan\":{\"OutputDataBlockDesc\":{"
+      "\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"4\",\"TotalRowSize\":\"12\","
+      "\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\","
+      "\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":"
+      "true,\"Name\":\"4536029962895989025\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{"
+      "\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":"
+      "false,\"Output\":true,\"Name\":\"3785532846947205635\",\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":"
+      "\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"ScanCols\":[{"
+      "\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"4\",\"SlotId\":\"1\",\"Expr\":{"
+      "\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":"
+      "\"0\",\"Bytes\":\"8\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\","
+      "\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"0\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\","
+      "\"DbName\":\"\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"ts\",\"DataBlockId\":\"0\","
+      "\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,"
+      "\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}},{\"NodeType\":\"18\",\"Name\":"
+      "\"Target\",\"Target\":{\"DataBlockId\":\"4\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\","
+      "\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"AliasName\":"
+      "\"c1\",\"UserAlias\":\"c1\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\","
+      "\"TableType\":\"1\",\"ColId\":\"2\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"stream_triggerdb\","
+      "\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"c1\",\"DataBlockId\":\"0\",\"SlotId\":\"0\","
+      "\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\","
+      "\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}}],\"TableId\":\"42\",\"STableId\":\"0\",\"TableType\":"
+      "\"1\",\"TableName\":{\"NameType\":\"2\",\"AcctId\":\"0\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\"},"
+      "\"GroupOrderScan\":false,\"VirtualStableScan\":false,\"UseTriggerTableList\":true,\"ScanCount\":\"1\","
+      "\"ReverseScanCount\":\"0\",\"StartKey\":\"-9223372036854775808\",\"EndKey\":\"9223372036854775807\",\"Ratio\":1,"
+      "\"DataRequired\":\"1\",\"Interval\":\"0\",\"Offset\":\"0\",\"Sliding\":\"0\",\"IntervalUnit\":\"0\","
+      "\"SlidingUnit\":\"0\",\"TriggerType\":\"0\",\"Watermark\":\"0\",\"IgnoreExpired\":\"0\",\"GroupSort\":false,"
+      "\"AssignBlockUid\":false,\"IgnoreUpdate\":\"0\",\"FilesetDelimited\":false,\"NeedCountEmptyTable\":false,"
+      "\"ParaTablesSort\":false,\"SmallDataTsSort\":false,\"FirstDayOfWeek\":\"0\"}},\"DataSink\":{\"NodeType\":"
+      "\"1133\",\"Name\":\"PhysiDispatch\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":"
+      "\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"4\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\","
+      "\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":"
+      "\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\","
+      "\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{"
+      "\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":"
+      "\"\",\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,"
+      "\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":true,\"ProcessOneBlock\":false}}");
   setCreateStreamQueryCalcPlan(&expect, "{\"NodeType\":\"1138\",\"PhysiPlan\":{\"QueryId\":\"0\",\"NumOfSubplans\":\"1\",\"Subplans\":{\"NodeType\":\"15\",\"NodeList\":{\"DataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"NodeList\":[{\"NodeType\":\"1137\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"1\",\"SubplanId\":\"1\"},\"SubplanType\":\"5\",\"MsgType\":\"771\",\"Level\":\"0\",\"DbFName\":\"\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"0\",\"InUse\":\"0\",\"NumOfEps\":\"0\"},\"Child\":[{\"NodeType\":\"2\",\"Value\":{\"DataType\":{\"Type\":\"5\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Flag\":false,\"Translate\":true,\"NotReserved\":false,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"8589934594\"}},{\"NodeType\":\"2\",\"Value\":{\"DataType\":{\"Type\":\"5\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Flag\":false,\"Translate\":true,\"NotReserved\":false,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"8589934595\"}}],\"RootNode\":{\"NodeType\":\"1108\",\"PhysiProject\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"2\",\"TotalRowSize\":\"288\",\"OutputRowSize\":\"288\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"2\",\"DataType\":{\"Type\":\"7\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}},\"Children\":[{\"NodeType\":\"1110\",\"PhysiAgg\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"1\",\"TotalRowSize\":\"8\",\"OutputRowSize\":\"8\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"7\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}},\"Children\":[{\"NodeType\":\"1111\",\"PhysiExchange\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"0\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"SrcStartGroupId\":\"2\",\"SrcEndGroupId\":\"2\",\"SeqRecvData\":false,\"DynTbname\":true,\"GrpSingleChannel\":false,\"SingleSource\":false}}],\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"AggFuncs\":[{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"1\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"5\",\"Function\":{\"DataType\":{\"Type\":\"7\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"avg(c1)\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Id\":\"8\",\"Type\":\"2\",\"Parameters\":[{\"NodeType\":\"1\",\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"UserAlias\":\"c1\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"2\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}],\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"}}}}}],\"MergeDataBlock\":true,\"GroupKeyOptimized\":false,\"HasCountFunc\":false}}],\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"Projections\":[{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"2\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"5\",\"Function\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"_tlocaltime\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Id\":\"184\",\"Type\":\"3530\",\"Parameters\":[{\"NodeType\":\"2\",\"Value\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Flag\":false,\"Translate\":true,\"NotReserved\":true,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"0\"}}],\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}}}},{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"2\",\"SlotId\":\"1\",\"Expr\":{\"NodeType\":\"5\",\"Function\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"UserAlias\":\"%%tbname\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Id\":\"187\",\"Type\":\"3533\",\"Parameters\":[{\"NodeType\":\"2\",\"Value\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"195\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Literal\":\"\",\"Flag\":false,\"Translate\":true,\"NotReserved\":true,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"\"}}],\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}}}},{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"2\",\"SlotId\":\"2\",\"Expr\":{\"NodeType\":\"1\",\"Column\":{\"DataType\":{\"Type\":\"7\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"avg(c1)\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"0\",\"TableType\":\"0\",\"ColId\":\"0\",\"ProjId\":\"0\",\"ColType\":\"0\",\"DbName\":\"\",\"TableName\":\"\",\"TableAlias\":\"\",\"DataBlockId\":\"1\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}}],\"MergeDataBlock\":true,\"IgnoreGroupId\":true,\"InputIgnoreGroup\":false}},\"DataSink\":{\"NodeType\":\"1133\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"2\",\"TotalRowSize\":\"288\",\"OutputRowSize\":\"288\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"2\",\"DataType\":{\"Type\":\"7\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":false,\"ProcessOneBlock\":false}}]}}}}");
   setCreateStreamSql(&expect, "create stream stream_streamdb.s1 period(1s) from stream_triggerdb.st1 partition by tbname, tag1, tag2, tag3 into stream_outdb.stream_out as select _tlocaltime, %%tbname, avg(c1) from %%tbname");
   run("create stream stream_streamdb.s1 period(1s) from stream_triggerdb.st1 partition by tbname, tag1, tag2, tag3 into stream_outdb.stream_out as select _tlocaltime, %%tbname, avg(c1) from %%tbname");
@@ -4388,6 +4893,450 @@ TEST_F(ParserStreamTest, TestStreamExternalWindowExplicitStrictRangeHasNoAutoFla
       "where ts > _twstart and ts <= _twend");
 }
 
+TEST_F(ParserStreamTest, EnablesMultiGroupOnlyWithExternalWindowCapability) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 3);
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    EXPECT_TRUE(req.enableMultiGroupCalc);
+    EXPECT_EQ(0, req.placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS);
+    pstAssertNoInheritedMultiGroupJoinSubplans((const char*)req.calcPlan);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_multigroup_gate interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select _twstart, avg(c1) from stream_triggerdb.st1 "
+      "where ts >= _twstart and ts < _twend and tag1 = %%1");
+}
+
+TEST_F(ParserStreamTest, KeepsSingleGroupWhenCalcUsesAnotherVnodeDomain) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    EXPECT_FALSE(req.enableMultiGroupCalc);
+    pstAssertNoInheritedMultiGroupJoinSubplans((const char*)req.calcPlan);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_cross_db_fallback interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select _twstart, avg(c1) from stream_querydb.st1 "
+      "where ts >= _twstart and ts < _twend and tag1 = %%1");
+}
+
+TEST_F(ParserStreamTest, KeepsSingleGroupWhenPartitionedTriggerReadsWindowBoundFixedTable) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    vector<SExternalWindowPhysiInfo> infos;
+    vector<ENodeType>                joinTypes;
+    pstCollectCalcPlanExternalWindowInfo(pQuery, stage, &infos, &joinTypes);
+    ASSERT_EQ(1, infos.size());
+    EXPECT_EQ(EXT_WIN_INPUT_WINDOW_BOUND, infos[0].inputMode);
+    EXPECT_TRUE(infos[0].hasTimeRange);
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    EXPECT_FALSE(req.enableMultiGroupCalc);
+    pstAssertNoInheritedMultiGroupJoinSubplans((const char*)req.calcPlan);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_fixed_table_fallback count_window(5, 5, c1) "
+      "from stream_triggerdb.st1 partition by tbname into stream_outdb.stream_out as "
+      "select _twstart, count(*) from stream_triggerdb.stream_t1 "
+      "where ts >= _twstart and ts <= _twend and c1 is not null");
+}
+
+TEST_F(ParserStreamTest, KeepsExternalWindowWhenMultiGroupCandidateIsFalse) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 1);
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    EXPECT_FALSE(req.enableMultiGroupCalc);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_external_only interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend");
+}
+
+TEST_F(ParserStreamTest, RejectsPartitionRowsFromMultiGroupCapability) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    EXPECT_NE(0, req.placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS);
+    EXPECT_FALSE(req.enableMultiGroupCalc);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_trows_gate count_window(2, 1) "
+      "from stream_triggerdb.st1 partition by tbname into stream_outdb.stream_out as "
+      "select _twstart, count(*) from %%trows");
+}
+
+TEST_F(ParserStreamTest, SkipsBroadcastExternalWindowForPartitionRows) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s_trows_window_bound session(ts, 10m) "
+      "from stream_triggerdb.st1 into stream_outdb.stream_out as "
+      "select ts, c1, _twstart, _twend, _twrownum from %%trows");
+}
+
+TEST_F(ParserStreamTest, MultiGroupJoinAcceptsExternalWindowTreesBehindTransparentNodes) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckMultiGroupJoinPlan(pQuery, stage, true, 1, 1, -1, -1, 1);
+  });
+
+  run("create stream stream_streamdb.s_multigroup_transparent interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, a.cnt, b.minv from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b on a.ts = b.ts where a.cnt >= 0");
+}
+
+TEST_F(ParserStreamTest, MultiGroupJoinSerializesInheritedQualificationForDistributedLeaves) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+    ASSERT_TRUE(req.enableMultiGroupCalc);
+    ASSERT_NE(nullptr, req.calcPlan);
+    EXPECT_NE(nullptr, strstr((const char*)req.calcPlan, "\"InheritedMultiGroupJoin\":true"));
+
+    SNode* pPlanNode = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)req.calcPlan, &pPlanNode));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlanNode, nodesDestroyNode);
+    int32_t                                        subplanCount = 0;
+    int32_t                                        markedSubplanCount = 0;
+    int32_t                                        inheritedSubplanCount = 0;
+    SNode*                                         pLevelNode = nullptr;
+    FOREACH(pLevelNode, ((const SQueryPlan*)pPlanNode)->pSubplans) {
+      SNode* pSubplanNode = nullptr;
+      FOREACH(pSubplanNode, ((const SNodeListNode*)pLevelNode)->pNodeList) {
+        const auto*              pSubplan = (const SSubplan*)pSubplanNode;
+        SMultiGroupJoinPhysiInfo info;
+        pstCollectMultiGroupJoinPhysiInfo(pSubplan->pNode, &info);
+        ++subplanCount;
+        if (pSubplan->inheritedMultiGroupJoin) {
+          ++inheritedSubplanCount;
+          EXPECT_EQ(0, info.hashJoins.size());
+        }
+        for (const SHashJoinPhysiNode* pJoin : info.hashJoins) {
+          if (pJoin->multiGroupJoin) {
+            ++markedSubplanCount;
+            EXPECT_FALSE(pSubplan->inheritedMultiGroupJoin);
+          }
+        }
+      }
+    }
+    EXPECT_EQ(2, subplanCount);
+    EXPECT_EQ(1, markedSubplanCount);
+    EXPECT_EQ(1, inheritedSubplanCount);
+  });
+
+  run("create stream stream_streamdb.s_multigroup_inherited interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, a.cnt, b.minv from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b on a.ts = b.ts where a.cnt >= 0");
+}
+
+TEST_F(ParserStreamTest, MultiGroupJoinAcceptsUnaryBroadcastPredicate) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckMultiGroupJoinPlan(pQuery, stage, true, 1, 1, -1, -1, 1);
+
+    vector<SExternalWindowPhysiInfo> infos;
+    vector<ENodeType>                joinTypes;
+    pstCollectCalcPlanExternalWindowInfo(pQuery, stage, &infos, &joinTypes);
+
+    const SExternalWindowPhysiInfo* pBroadcast = nullptr;
+    for (const auto& info : infos) {
+      if ("stream_t2" == info.sourceTable) {
+        ASSERT_EQ(nullptr, pBroadcast);
+        pBroadcast = &info;
+      }
+    }
+    ASSERT_NE(nullptr, pBroadcast);
+    EXPECT_EQ(EXT_WIN_INPUT_BROADCAST, pBroadcast->inputMode);
+    EXPECT_FALSE(pBroadcast->hasTimeRange);
+  });
+
+  run("create stream stream_streamdb.s_multigroup_unary interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, a.v0, b.v1 from "
+      "(select _twstart ts, max(c1) v0 from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, c1 v1 from stream_querydb.stream_t2 where c1 is not null) b "
+      "on a.ts = b.ts");
+}
+
+TEST_F(ParserStreamTest, MultiGroupJoinMarksEveryLevelOfNestedJoinTree) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckMultiGroupJoinPlan(pQuery, stage, true, 3, 3, -1, -1, 3);
+  });
+
+  run("create stream stream_streamdb.s_multigroup_nested interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, a.v0, b.v1, c.v2, d.v3 from "
+      "(select _twstart ts, max(c1) v0 from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, max(c1) v1 from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b on a.ts = b.ts join "
+      "(select _twstart ts, max(c1) v2 from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) c on b.ts = c.ts join "
+      "(select _twstart ts, max(c1) v3 from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) d on c.ts = d.ts");
+}
+
+TEST_F(ParserStreamTest, MultiGroupJoinRejectsMissingBaseGroupSource) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckMultiGroupJoinPlan(pQuery, stage, false, 1, 0); });
+
+  run("create stream stream_streamdb.s_multigroup_missing_base interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, a.cnt, b.bcnt from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, count(*) bcnt from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend limit 1) b on a.ts = b.ts");
+}
+
+TEST_F(ParserStreamTest, MultiGroupJoinRejectsNonTransparentOperator) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckMultiGroupJoinPlan(pQuery, stage, false, 1, 0, 3); });
+
+  run("create stream stream_streamdb.s_multigroup_sort interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, a.cnt, b.minv from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b on a.ts = b.ts order by a.ts");
+}
+
+TEST_F(ParserStreamTest, MultiGroupJoinRejectsCalcGroupingAndPartitionRows) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckMultiGroupJoinPlan(pQuery, stage, false, 1, 0); });
+  run("create stream stream_streamdb.s_multigroup_calc_partition interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, count(*) from "
+      "(select _twstart ts, c1 from stream_querydb.stream_t1 where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, c1 from stream_querydb.stream_t2 where ts >= _twstart and ts < _twend) b "
+      "on a.ts = b.ts partition by a.ts");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckMultiGroupJoinPlan(pQuery, stage, false, 0, 0); });
+  run("create stream stream_streamdb.s_multigroup_trows count_window(2, 1) "
+      "from stream_triggerdb.st1 partition by tbname into stream_outdb.stream_out as "
+      "select _twstart, count(*) from %%trows");
+}
+
+TEST_F(ParserStreamTest, MultiGroupJoinLeavesNoPartialMarkWhenAncestorIsUnsafe) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckMultiGroupJoinPlan(pQuery, stage, false, 2, 0, 4, 1); });
+
+  run("create stream stream_streamdb.s_multigroup_atomic interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, a.v0, b.v1, c.v2 from "
+      "(select _twstart ts, max(c1) v0 from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, max(c1) v1 from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b on a.ts = b.ts join "
+      "(select _twstart ts, max(c1) v2 from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend order by ts) c on b.ts = c.ts");
+}
+
+TEST_F(ParserStreamTest, MultiGroupJoinForcesEveryMarkedJoinToPhysicalHash) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckMultiGroupJoinPlan(pQuery, stage, true, 2, 2, -1, -1, 2);
+  });
+
+  run("create stream stream_streamdb.s_multigroup_hash interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, a.v0, b.v1, c.v2 from "
+      "(select _twstart ts, max(c1) v0 from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, max(c1) v1 from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b on a.ts = b.ts join "
+      "(select _twstart ts, max(c1) v2 from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) c on b.ts = c.ts");
+}
+
+TEST_F(ParserStreamTest, ExternalWindowAcceptsExactAndBounds) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 1);
+    pstCheckCalcPlanExternalWindowNeedCalcTimeRangeCount(pQuery, stage, 1);
+  });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart - 1s and ts <= _twend + 1s");
+}
+
+TEST_F(ParserStreamTest, ExternalWindowAcceptsMultipleBoundsUsingMaxAndMin) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 1);
+    pstCheckCalcPlanExternalWindowNeedCalcTimeRangeCount(pQuery, stage, 1);
+  });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart - 1s and ts > _twstart - 500a "
+      "and ts < _twend + 2s and ts <= _twend + 1s");
+}
+
+TEST_F(ParserStreamTest, ExternalWindowAcceptsCanonicalizedComparisonDirection) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 1);
+    pstCheckCalcPlanExternalWindowNeedCalcTimeRangeCount(pQuery, stage, 0);
+  });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where _twstart <= ts and _twend > ts");
+}
+
+TEST_F(ParserStreamTest, ExternalWindowRejectsMissingStartOrEnd) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart");
+  run("create stream stream_streamdb.s2 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts < _twend");
+}
+
+TEST_F(ParserStreamTest, ExternalWindowRejectsOrNotAndNonPrimaryTimestamp) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart or ts < _twend");
+  run("create stream stream_streamdb.s2 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where not (ts >= _twstart and ts < _twend)");
+  run("create stream stream_streamdb.s3 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where c3 >= _twstart and c3 < _twend");
+}
+
+TEST_F(ParserStreamTest, ExternalWindowRejectsDynamicDynamicAndNegativeOffset) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart + _twduration and ts < _twend");
+  run("create stream stream_streamdb.s2 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart + (-1s) and ts < _twend");
+  run("create stream stream_streamdb.s3 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= now() and ts < _twend");
+  run("create stream stream_streamdb.s4 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart + 1s + 1s and ts < _twend");
+}
+
+TEST_F(ParserStreamTest, NestedExternalWindowAcceptsCrossLayerBounds) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 1);
+    pstCheckCalcPlanExternalWindowNeedCalcTimeRangeCount(pQuery, stage, 1);
+  });
+
+  run("create stream stream_streamdb.s1 window ("
+      "interval(10s) sliding(10s) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= w_outer._twstart and ts < w_leaf._twend");
+}
+
 TEST_F(ParserStreamTest, TestStreamExternalWindowLeftJoinAggSubqueriesDisabled) {
   setAsyncFlag("-1");
   useDb("root", "stream_streamdb");
@@ -4421,19 +5370,90 @@ TEST_F(ParserStreamTest, TestStreamExternalWindowThreeInnerJoinAggSubqueries) {
       "on b.ts = c.ts");
 }
 
-TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinNonWindowKeyDisabled) {
+TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinWindowAndOrdinaryKeysEnabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 3); });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select t1.ts, t1.pile_code, t2.minv from "
+      "(select _twstart ts, min(c1) pile_code from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) t1 "
+      "join "
+      "(select _twstart ts, min(c1) pile_code, min(c1) minv from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) t2 "
+      "on t1.ts = t2.ts and t1.pile_code = t2.pile_code");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinMismatchedWindowKeysDisabled) {
   setAsyncFlag("-1");
   useDb("root", "stream_streamdb");
 
   setCheckDdlFunc(
       [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
 
-  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
-      "into stream_outdb.stream_out as select a.ts, a.cnt, b.minv from "
-      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 where ts >= _twstart and ts < _twend) a "
-      "join "
-      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 where ts >= _twstart and ts < _twend) b "
-      "on a.ts = b.ts and a.cnt = b.minv");
+  run("create stream stream_streamdb.s_join_mismatched_keys interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select a.ts, a.cnt, b.minv from "
+      "(select _twstart ts, _twstart ts2, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, _twend te, min(c1) minv from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b "
+      "on a.ts = b.ts and a.ts2 = b.te");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinUnsupportedOnConditionsDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  const string prefix =
+      "create stream stream_streamdb.s_join_on_negative interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, a.cnt, b.minv from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b on ";
+  run(prefix + "a.ts = b.ts or a.cnt = b.minv", TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND, PARSER_STAGE_TRANSLATE);
+  run(prefix + "a.ts = b.ts and a.cnt > b.minv");
+  run(prefix + "a.ts = b.ts and abs(a.cnt) = b.minv");
+  run(prefix + "a.ts = b.ts and a.cnt = 1");
+  run(prefix + "a.ts = b.ts and a.cnt = %%1", TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, PARSER_STAGE_TRANSLATE);
+  run(prefix + "a.ts = b.ts and a.cnt = a.cnt");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowUnsupportedJoinSubtypesDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  const string prefix =
+      "create stream stream_streamdb.s_join_subtype_negative interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as ";
+  const string left =
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a ";
+  const string right =
+      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b ";
+  run(prefix + "select a.ts, a.cnt, b.minv from " + left + "right join " + right + "on a.ts = b.ts");
+  run(prefix + "select a.ts, a.cnt, b.minv from " + left + "full join " + right + "on a.ts = b.ts");
+  run(prefix + "select a.ts, a.cnt from " + left + "left semi join " + right + "on a.ts = b.ts");
+  run(prefix + "select a.ts, a.cnt from " + left + "left anti join " + right + "on a.ts = b.ts");
+  run(prefix +
+      "select a.ts, a.c1 ac1, b.c1 bc1 from stream_querydb.stream_t1 a left asof join "
+      "stream_querydb.stream_t2 b on a.ts <= b.ts jlimit 1 "
+      "where a.ts >= _twstart and a.ts < _twend");
+  run(prefix +
+      "select a.ts, a.c1 ac1, b.c1 bc1 from stream_querydb.stream_t1 a left window join "
+      "stream_querydb.stream_t2 b window_offset(-1s, 1s) "
+      "where a.ts >= _twstart and a.ts < _twend");
 }
 
 TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinParentLimitDisablesAll) {
@@ -4485,17 +5505,441 @@ TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinChildLimitKeepsOuterTi
       "on a.te = b.te");
 }
 
-TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinBaseTableDisabled) {
+TEST_F(ParserStreamTest, TestStreamExternalWindowDirectBaseTableBroadcastEnabled) {
   setAsyncFlag("-1");
   useDb("root", "stream_streamdb");
 
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    vector<SExternalWindowPhysiInfo> infos;
+    vector<ENodeType>                joinTypes;
+    pstCollectCalcPlanExternalWindowInfo(pQuery, stage, &infos, &joinTypes);
+    ASSERT_EQ(1, infos.size());
+    EXPECT_EQ(EXT_WIN_INPUT_BROADCAST, infos[0].inputMode);
+    EXPECT_FALSE(infos[0].hasTimeRange);
+  });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, c1 from stream_querydb.stream_t2 where c1 >= 0");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDirectBaseTableMatchingPartitionPlaceholderBroadcastEnabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    vector<SExternalWindowPhysiInfo> infos;
+    vector<ENodeType>                joinTypes;
+    pstCollectCalcPlanExternalWindowInfo(pQuery, stage, &infos, &joinTypes);
+    ASSERT_EQ(1, infos.size());
+    EXPECT_EQ(EXT_WIN_INPUT_BROADCAST, infos[0].inputMode);
+    EXPECT_FALSE(infos[0].hasTimeRange);
+  });
+
+  run("create stream stream_streamdb.s_broadcast_matching_partition interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from stream_triggerdb.st1 where tag1 = %%1");
+}
+
+TEST_F(ParserStreamTest, AllowsMatchingPartitionPlaceholderInsideJoinBroadcastSubquery) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    vector<SExternalWindowPhysiInfo> infos;
+    vector<ENodeType>                joinTypes;
+    vector<SCalcScanPhysiInfo>       scanInfos;
+    pstCollectCalcPlanExternalWindowInfo(pQuery, stage, &infos, &joinTypes, &scanInfos);
+
+    ASSERT_EQ(3, infos.size());
+    ASSERT_EQ(1, count_if(infos.begin(), infos.end(), [](const SExternalWindowPhysiInfo& info) {
+                return "st1" == info.sourceTable && !info.hasTimeRange;
+              }));
+    const auto& dimensionInput = *find_if(infos.begin(), infos.end(), [](const SExternalWindowPhysiInfo& info) {
+      return "st1" == info.sourceTable && !info.hasTimeRange;
+    });
+    EXPECT_EQ(EXT_WIN_INPUT_BROADCAST, dimensionInput.inputMode);
+    EXPECT_FALSE(dimensionInput.hasTimeRange);
+
+    int32_t dimensionScans = 0;
+    for (const auto& scan : scanInfos) {
+      if ("stream_querydb" != scan.sourceDb || "st1" != scan.sourceTable) {
+        continue;
+      }
+      ++dimensionScans;
+      EXPECT_TRUE(scan.scanType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN ||
+                  scan.scanType == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN);
+      EXPECT_FALSE(scan.hasTimeRange);
+      EXPECT_FALSE(scan.dynamicOp);
+      EXPECT_FALSE(scan.virtualStableScan);
+      if (scan.scanType == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
+        EXPECT_FALSE(scan.paraTablesSort);
+      }
+    }
+    EXPECT_GT(dimensionScans, 0);
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    EXPECT_TRUE(req.enableMultiGroupCalc);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_join_partition_value "
+      "count_window(2,1) from stream_triggerdb.st1 "
+      "partition by tbname,tag1 into stream_outdb.stream_out as "
+      "select t1.ts,t2.c2 from "
+      "(select _twend ts,last(c1) c1 from %%tbname "
+      "where ts>=_twstart and ts<=_twend) t1 join "
+      "(select _twend ts,tag1,c2 from stream_querydb.st1 "
+      "where tag1=%%2) t2 on t1.ts=t2.ts");
+}
+
+TEST_F(ParserStreamTest, PhysicalScanMarksOnlyTbnamePlaceholderLeafForTriggerTableRouting) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    vector<SExternalWindowPhysiInfo> infos;
+    vector<ENodeType>                joinTypes;
+    vector<SCalcScanPhysiInfo>       scanInfos;
+    pstCollectCalcPlanExternalWindowInfo(pQuery, stage, &infos, &joinTypes, &scanInfos);
+
+    int32_t placeholderScans = 0;
+    int32_t fixedScans = 0;
+    for (const auto& info : scanInfos) {
+      if ("st1" == info.sourceTable) {
+        ++placeholderScans;
+        EXPECT_TRUE(info.useTriggerTableList);
+      } else if ("stream_t2" == info.sourceTable) {
+        ++fixedScans;
+        EXPECT_FALSE(info.useTriggerTableList);
+      }
+    }
+    EXPECT_GT(placeholderScans, 0);
+    EXPECT_GT(fixedScans, 0);
+  });
+
+  run("create stream stream_streamdb.s_scan_trigger_route "
+      "count_window(2,1) from stream_triggerdb.st1 "
+      "partition by tbname into stream_outdb.stream_out as "
+      "select t1.ts,t2.c1 from "
+      "(select _twend ts,last(c1) c1 from %%tbname "
+      "where ts>=_twstart and ts<=_twend) t1 join "
+      "(select _twend ts,c1 from stream_querydb.stream_t2) t2 on t1.ts=t2.ts");
+}
+
+TEST_F(ParserStreamTest, RejectsNonEqualityJoinBroadcastPlaceholder) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0);
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    EXPECT_FALSE(req.enableMultiGroupCalc);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_join_partition_non_equality "
+      "count_window(2,1) from stream_triggerdb.st1 "
+      "partition by tbname,tag1 into stream_outdb.stream_out as "
+      "select t1.ts,t2.c2 from "
+      "(select _twend ts,last(c1) c1 from %%tbname "
+      "where ts>=_twstart and ts<=_twend) t1 join "
+      "(select _twend ts,tag1,c2 from stream_querydb.st1 "
+      "where c2<>%%2) t2 on t1.ts=t2.ts");
+}
+
+TEST_F(ParserStreamTest, RejectsWrappedColumnJoinBroadcastPlaceholder) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0);
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    EXPECT_FALSE(req.enableMultiGroupCalc);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_join_partition_wrapped_column "
+      "count_window(2,1) from stream_triggerdb.st1 "
+      "partition by tbname,tag2 into stream_outdb.stream_out as "
+      "select t1.ts,t2.c2 from "
+      "(select _twend ts,last(c1) c1 from %%tbname "
+      "where ts>=_twstart and ts<=_twend) t1 join "
+      "(select _twend ts,tag2,c2 from stream_querydb.st1 "
+      "where lower(tag2)=%%2) t2 on t1.ts=t2.ts");
+}
+
+TEST_F(ParserStreamTest, RejectsMismatchedDirectBroadcastPlaceholder) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0);
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    EXPECT_FALSE(req.enableMultiGroupCalc);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_broadcast_mismatched_partition interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from stream_triggerdb.st1 where c1 = %%1");
+}
+
+TEST_F(ParserStreamTest, RejectsOutOfRangeJoinBroadcastPlaceholder) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  const char* sql =
+      "create stream stream_streamdb.s_join_partition_out_of_range "
+      "count_window(2,1) from stream_triggerdb.st1 "
+      "partition by tbname,tag1 into stream_outdb.stream_out as "
+      "select t1.ts,t2.c2 from "
+      "(select _twend ts,last(c1) c1 from %%tbname "
+      "where ts>=_twstart and ts<=_twend) t1 join "
+      "(select _twend ts,tag1,c2 from stream_querydb.st1 "
+      "where tag1=%%3) t2 on t1.ts=t2.ts";
+  array<char, 1024> msgBuf = {0};
+  SQuery*           pQuery = nullptr;
+  int32_t           code = pstTranslateCreateStreamSql(sql, &pQuery, msgBuf.data(), msgBuf.max_size());
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  EXPECT_EQ(TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, code) << msgBuf.data();
+  EXPECT_NE(strstr(msgBuf.data(), "partition index out of range"), nullptr) << msgBuf.data();
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowFiveLeafWindowBoundAndBroadcastInputs) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    vector<SExternalWindowPhysiInfo> infos;
+    vector<ENodeType>                joinTypes;
+    vector<SCalcScanPhysiInfo>       scanInfos;
+    pstCollectCalcPlanExternalWindowInfo(pQuery, stage, &infos, &joinTypes, &scanInfos);
+
+    ASSERT_EQ(QUERY_NODE_CREATE_STREAM_STMT, nodeType(pQuery->pRoot));
+    const auto* pCreate = (const SCreateStreamStmt*)pQuery->pRoot;
+    EXPECT_EQ(pstCountNonWrapperSelects(pCreate->pQuery), infos.size());
+    ASSERT_EQ(6, infos.size());
+
+    vector<const SExternalWindowPhysiInfo*> broadcast;
+    const SExternalWindowPhysiInfo*         pT0 = nullptr;
+    const SExternalWindowPhysiInfo*         pT1 = nullptr;
+    const SExternalWindowPhysiInfo*         pRoot = nullptr;
+    for (const auto& info : infos) {
+      if (EXT_WIN_INPUT_BROADCAST == info.inputMode) {
+        broadcast.push_back(&info);
+      } else if (info.sourceTable.empty()) {
+        pRoot = &info;
+      } else if ("stream_t2" == info.sourceTable) {
+        pT1 = &info;
+      } else {
+        pT0 = &info;
+      }
+    }
+
+    ASSERT_EQ(3, broadcast.size());
+    const auto* pT2 = broadcast[0];
+    const auto* pT3 = broadcast[1];
+    const auto* pT4 = broadcast[2];
+    ASSERT_NE(nullptr, pT0);
+    ASSERT_NE(nullptr, pT1);
+    ASSERT_NE(nullptr, pRoot);
+
+    EXPECT_EQ("stream_t1", pT0->sourceTable);
+    EXPECT_EQ(EXT_WIN_INPUT_WINDOW_BOUND, pT0->inputMode);
+    EXPECT_TRUE(pT0->hasTimeRange);
+    EXPECT_EQ("stream_t2", pT1->sourceTable);
+    EXPECT_EQ(EXT_WIN_INPUT_WINDOW_BOUND, pT1->inputMode);
+    EXPECT_TRUE(pT1->hasTimeRange);
+    EXPECT_EQ("stream_t1", pT2->sourceTable);
+    EXPECT_EQ("stream_t2", pT3->sourceTable);
+    EXPECT_EQ("stream_t1", pT4->sourceTable);
+    for (const auto* pBroadcast : {pT2, pT3, pT4}) {
+      EXPECT_EQ(EXT_WIN_INPUT_BROADCAST, pBroadcast->inputMode);
+      EXPECT_FALSE(pBroadcast->hasTimeRange);
+      EXPECT_FALSE(pBroadcast->hasWindowConditions);
+      EXPECT_EQ(0, pBroadcast->durationUpperBoundCount);
+    }
+
+    EXPECT_EQ(0, pT0->durationUpperBoundCount);
+    EXPECT_TRUE(pT1->hasWindowConditions);
+    EXPECT_EQ(QUERY_NODE_LOGIC_CONDITION, pT1->windowConditionNodeType);
+    EXPECT_EQ(LOGIC_COND_TYPE_AND, pT1->windowConditionType);
+    EXPECT_EQ(TSDB_DATA_TYPE_BOOL, pT1->windowConditionResultType);
+    EXPECT_EQ(tDataTypes[TSDB_DATA_TYPE_BOOL].bytes, pT1->windowConditionResultBytes);
+    EXPECT_EQ(1, pT1->durationUpperBoundCount);
+    EXPECT_EQ(0, pT1->windowConditionC1Count);
+    EXPECT_FALSE(pRoot->hasWindowConditions);
+    EXPECT_EQ(0, pRoot->durationUpperBoundCount);
+
+    int32_t totalDurationUpperBoundCount = 0;
+    for (const auto& info : infos) {
+      totalDurationUpperBoundCount += info.durationUpperBoundCount;
+    }
+    EXPECT_EQ(1, totalDurationUpperBoundCount);
+
+    ASSERT_EQ(5, scanInfos.size());
+    using SScanOwnership = tuple<string, bool, int32_t, int32_t>;
+    vector<SScanOwnership> actualScanOwnership;
+    for (const auto& scan : scanInfos) {
+      EXPECT_EQ(0, scan.durationPredicateCount);
+      actualScanOwnership.emplace_back(scan.sourceTable, scan.hasTimeRange, scan.c1NonnegativeCount,
+                                       scan.durationPredicateCount);
+    }
+    vector<SScanOwnership> expectedScanOwnership = {
+        make_tuple("stream_t1", true, 0, 0),  make_tuple("stream_t2", true, 1, 0),
+        make_tuple("stream_t1", false, 1, 0), make_tuple("stream_t2", false, 1, 0),
+        make_tuple("stream_t1", false, 1, 0),
+    };
+    sort(actualScanOwnership.begin(), actualScanOwnership.end());
+    sort(expectedScanOwnership.begin(), expectedScanOwnership.end());
+    EXPECT_EQ(expectedScanOwnership, actualScanOwnership);
+
+    auto countFunction = [](const SExternalWindowPhysiInfo& info, const char* pFunctionName, const char* pUserAlias,
+                            const char* pTableAlias, const char* pColName) {
+      return count_if(info.functions.begin(), info.functions.end(),
+                      [&](const SExternalWindowPhysiInfo::SFunctionInfo& func) {
+                        return pFunctionName == func.functionName && pUserAlias == func.userAlias &&
+                               pTableAlias == func.firstParamTableAlias && pColName == func.firstParamColName;
+                      });
+    };
+    EXPECT_EQ(1, countFunction(*pRoot, "first", "first(t1.soc)", "t1", "soc"));
+    EXPECT_EQ(1, countFunction(*pRoot, "last", "last(t1.soc)", "t1", "soc"));
+
+    ASSERT_EQ(4, joinTypes.size());
+    for (ENodeType type : joinTypes) {
+      EXPECT_TRUE(QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN == type || QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == type);
+    }
+  });
+
+  run("create stream stream_streamdb.s_five_leaf window (state_window(c1) extend(1) as w_order, "
+      "count_window(2, 1) as w_leaf) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select first(t0.ts), first(t1.soc), last(t1.soc) from "
+      "(select _twstart ts, max(c1) pile_code, max(c1) soc from stream_querydb.stream_t1 "
+      "where ts >= w_order._twstart and ts <= _twstart) t0 "
+      "join (select _twstart ts, max(c1) pile_code, first(c1) soc from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts <= _twend and _twduration <= 30000 and c1 >= 0) t1 "
+      "on t0.ts = t1.ts and t0.pile_code = t1.pile_code "
+      "join (select _twstart ts, c1 pile_code from stream_querydb.stream_t1 where c1 >= 0) t2 "
+      "on t1.ts = t2.ts and t1.pile_code = t2.pile_code "
+      "join (select _twstart ts, c1 pile_code from stream_querydb.stream_t2 where c1 >= 0) t3 "
+      "on t2.ts = t3.ts and t2.pile_code = t3.pile_code "
+      "join (select _twstart ts, c1 pile_code from stream_querydb.stream_t1 where c1 >= 0) t4 "
+      "on t3.ts = t4.ts and t3.pile_code = t4.pile_code");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowAncestorWindowConditionDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
   setCheckDdlFunc(
       [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
 
-  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
-      "into stream_outdb.stream_out as select a.ts, a.cnt, b.c1 from "
-      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 where ts >= _twstart and ts < _twend) a "
-      "join stream_querydb.stream_t2 b on a.ts = b.ts");
+  run("create stream stream_streamdb.s_ancestor_window_condition window ("
+      "state_window(c1) extend(1) as w_order, count_window(2, 1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts <= _twend and w_order._twduration <= 30000");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowBroadcastAncestorProjectionDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s_broadcast_ancestor_projection window ("
+      "state_window(c1) extend(1) as w_order, count_window(2, 1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select w_order._twstart, c1 from stream_querydb.stream_t2 where c1 >= 0");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowRowConditionRemovalFailureReleasesWindowNode) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of nodesMergeConds is unreliable in Windows release builds";
+#endif
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  RowConditionMergeFailureGuard guard;
+  run("create stream stream_streamdb.s_row_condition_merge_failure interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts <= _twend and _twduration <= 30000 and c1 >= 0",
+      TSDB_CODE_OUT_OF_MEMORY, PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDirectBaseTableWindowPlaceholderDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+  run("create stream stream_streamdb.s_broadcast_placeholder interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from stream_querydb.stream_t2 where c1 >= _twstart");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDirectBaseTableAggregateDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+  run("create stream stream_streamdb.s_broadcast_aggregate interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, count(*) from stream_querydb.stream_t2 where c1 >= 0");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDirectBaseTableMultiRowsFunctionDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+  run("create stream stream_streamdb.s_broadcast_multi_rows interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, tail(c1, 1) from stream_querydb.stream_t2 where c1 >= 0");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowIndefiniteRowsFunctionDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s_indefinite_rows interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, csum(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDirectBaseTableForeignPartitionPlaceholderDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+  run("create stream stream_streamdb.s_broadcast_foreign_partition interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from stream_querydb.st1 where tag1 = %%1");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDirectBaseTableOrderOrLimitDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+  run("create stream stream_streamdb.s_broadcast_order interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from stream_querydb.stream_t2 where c1 >= 0 order by c1");
+  run("create stream stream_streamdb.s_broadcast_limit interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from stream_querydb.stream_t2 where c1 >= 0 limit 1");
 }
 
 TEST_F(ParserStreamTest, TestOutTagExprSpecialCases) {

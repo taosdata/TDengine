@@ -99,6 +99,7 @@ struct SExecTaskInfo {
   SQueryAutoQWorkerPoolCB* pWorkerCb;
   SMsgCb*                  pMsgCb;            // RPC callback (from client or qnode), safe for pure computation operators
   SStreamRuntimeInfo*      pStreamRuntimeInfo;
+  bool                     reuseReaderOnReset;
   bool                     ownStreamRtInfo;
   STaskSubJobCtx*          pSubJobCtx;
   bool                     enableExplain;     // enable explain flag

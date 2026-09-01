@@ -64,13 +64,38 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_CONTEXT_POLICY_FRAME_VERSION 1
 #define STREAM_ANCESTOR_CONTEXT_VERSION     2
 #define STREAM_ANCESTOR_FRAME_VERSION      1
+#define STREAM_FETCH_RESET_MODE_FRAME_VERSION 1
+#define STREAM_RUNNER_FETCH_FRAME_VERSION     1
 #define STREAM_WINDOW_MAX_LAYERS           8
 #define STREAM_NESTED_TRIGGER_ID_LEN       33
+#define STREAM_CALC_REQ_MAX_WIN_NUM           40960
 #define STREAM_WINDOW_PLAN_FRAME_MAGIC     UINT32_C(0x4e57504c)
 #define STREAM_CONTEXT_POLICY_FRAME_MAGIC   UINT32_C(0x4e574350)
 #define STREAM_ANCESTOR_FRAME_MAGIC        UINT32_C(0x4e574354)
+#define STREAM_FETCH_RESET_MODE_FRAME_MAGIC   UINT32_C(0x4e574652)
 #define STREAM_OPTION_FLUSH_ON_OUTER_CLOSE BIT_FLAG_MASK(4)
 #define STREAM_OPTION_NESTED_WINDOW_PLAN   BIT_FLAG_MASK(5)
+
+typedef enum EStreamRunnerFetchType {
+  STREAM_RUNNER_FETCH_LEGACY = 0,
+  STREAM_RUNNER_FETCH_DATA = 1,
+  STREAM_RUNNER_FETCH_EOG = 2,
+} EStreamRunnerFetchType;
+
+typedef struct SStreamRunnerFetchFrame {
+  EStreamRunnerFetchType type;
+  uint64_t               baseGId;
+  SArray*                pLineage;  // owned SArray<int64_t>, DATA only
+} SStreamRunnerFetchFrame;
+
+int32_t tSerializeSStreamRunnerFetchFrame(void* buf, int32_t bufLen, const SStreamRunnerFetchFrame* pFrame);
+/**
+ * pFrame must be zero-initialized or initialized by a previous call to this function. Any owned state is released
+ * before decoding, and pFrame is left empty on failure.
+ */
+int32_t tDeserializeSStreamRunnerFetchFrame(const void* buf, int32_t bufLen, SStreamRunnerFetchFrame* pFrame);
+int32_t tValidateSStreamRunnerFetchFrame(const SStreamRunnerFetchFrame* pFrame, int64_t rows);
+void    tDestroySStreamRunnerFetchFrame(SStreamRunnerFetchFrame* pFrame);
 
 #define PLACE_HOLDER_NONE             0
 #define PLACE_HOLDER_PREV_TS          BIT_FLAG_MASK(0)
@@ -1510,6 +1535,8 @@ typedef struct SSTriggerCalcRequest {
   int32_t execId;     // no serialize
   int32_t curWinIdx;  // no serialize
   void*   pOutBlock;  // no serialize
+  SStreamRunnerFetchFrame      outFrame;   // no serialize, owned runner output
+  bool                         outFinished;           // no serialize
   uint64_t progressStepId;        // no serialize
   uint64_t progressRequestToken;  // no serialize
   SStreamManualRecalcAttemptId manualAttempt;         // no serialize
@@ -1517,6 +1544,7 @@ typedef struct SSTriggerCalcRequest {
 
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq);
 int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq);
+int32_t tValidateSTriggerCalcRequest(const SSTriggerCalcRequest* pReq);
 int32_t tValidateSTriggerCalcRequestAncestorContext(const SSTriggerCalcRequest* pReq, bool nested);
 void    tDestroySSTriggerCalcParam(void* ptr);
 void    tDestroySSTriggerGroupCalcInfo(void* ptr);
@@ -1543,6 +1571,12 @@ typedef enum ESTriggerCtrlType {
   STRIGGER_CTRL_STOP = 1,
 } ESTriggerCtrlType;
 
+typedef enum {
+  STREAM_GRP_READ_BORROWED = 0,
+  STREAM_GRP_READ_OWNED_SHALLOW_VIEW,
+  STREAM_GRP_READ_OWNED_DEEP,
+} EStreamGroupReadOwnership;
+
 typedef struct SSTriggerCtrlRequest {
   ESTriggerCtrlType type;
   int64_t           streamId;
@@ -1562,12 +1596,14 @@ typedef struct SStreamRuntimeFuncInfo {
   SArray* pStreamPartColVals;
 
   // The following fields are used for multi-group calculation
-  SSHashObj* pGroupCalcInfos;  // SSHashObj<gid int64_t, info SSTriggerGroupCalcInfo>
-  SSHashObj* pGroupReadInfos;  // SSHashObj<vgId int32_t, pInfos SArray<SSTriggerGroupReadInfo>*>
-  SSTriggerGroupCalcInfo* curGrpCalc;
-  int32_t                 curNodeId;
-  SArray*                 curGrpRead; // SArray<SSTriggerGroupReadInfo>
-  
+  SSHashObj*                pGroupCalcInfos;  // SSHashObj<gid int64_t, info SSTriggerGroupCalcInfo>
+  SArray*                   pGroupCalcOrder;  // no serialize, SArray<uint64_t>, owned by runtime
+  SSHashObj*                pGroupReadInfos;  // SSHashObj<vgId int32_t, pInfos SArray<SSTriggerGroupReadInfo>*>
+  SSTriggerGroupCalcInfo*   curGrpCalc;
+  int32_t                   curNodeId;
+  SArray*                   curGrpRead;  // SArray<SSTriggerGroupReadInfo>
+  EStreamGroupReadOwnership curGrpReadOwnership;
+
   SArray* pStreamBlkWinIdx;  // no serialize, SArray<int64_t->winOutIdx+rowStartIdx>
   STimeWindow curWindow;
 //  STimeWindow wholeWindow;
@@ -1592,6 +1628,20 @@ typedef struct SStreamRuntimeFuncInfo {
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo, bool needStreamGrpInfo);
 int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
 void    tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo);
+void    tClearStreamCurrentGroupRead(SStreamRuntimeFuncInfo* pInfo);
+
+typedef struct SStreamCalcContextGroupView {
+  int64_t                 gid;
+  SStreamContextPolicy*   pContextPolicy;
+  SStreamAncestorContext* pAncestorContext;
+} SStreamCalcContextGroupView;
+
+int32_t tProjectStreamCalcContextForAllGroups(const SStreamContextPolicy*   pPolicy,
+                                              const SStreamAncestorContext* pContext, SArray** ppViews);
+void    tDestroyStreamCalcContextGroupViews(SArray** ppViews);
+int32_t tProjectStreamCalcContextForGroup(const SStreamContextPolicy* pPolicy, const SStreamAncestorContext* pContext,
+                                          int64_t gid, SStreamContextPolicy** ppPolicy,
+                                          SStreamAncestorContext** ppContext);
 int32_t tProjectStreamCalcContextForFetch(const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo,
                                           bool effectiveNeedStreamGrpInfo, SStreamContextPolicy** ppPolicy,
                                           SStreamAncestorContext** ppContext);

@@ -4,6 +4,7 @@
 #include <condition_variable>
 #include <future>
 #include <mutex>
+#include <vector>
 
 #include "dataSink.h"
 #include "nodes.h"
@@ -12,6 +13,7 @@
 #include "streamReader.h"
 #include "streamRunner.h"
 #include "stub.h"
+#include "tmsg.h"
 
 namespace {
 
@@ -368,6 +370,306 @@ TEST(StreamReaderTest, ProjectsMultiGroupAncestorContextSelectedByReadBinding) {
   tDestroyStreamContextPolicy(&source.pContextPolicy);
   tDestroyStreamAncestorContext(&source.pAncestorContext);
   taosArrayDestroy(source.curGrpRead);
+  tDestroyStreamContextPolicy(&target.pContextPolicy);
+  tDestroyStreamAncestorContext(&target.pAncestorContext);
+  taosArrayDestroy(target.pStreamPesudoFuncVals);
+}
+
+TEST(StreamReaderBindingTest, ValidatesMultipleGidsForOneActualNode) {
+  SStreamRuntimeFuncInfo source = {};
+  source.isMultiGroupCalc = true;
+  source.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  source.curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 3);
+  ASSERT_NE(nullptr, source.curGrpRead);
+  static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(source.curGrpRead, 0))->gid = 101;
+  static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(source.curGrpRead, 1))->gid = 101;
+  static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(source.curGrpRead, 2))->gid = 202;
+  source.pGroupCalcInfos = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(nullptr, source.pGroupCalcInfos);
+  tSimpleHashSetFreeFp(source.pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+  SSTriggerCalcParam firstParam = {};
+  firstParam.wstart = 1000;
+  firstParam.wend = 1099;
+  SSTriggerGroupCalcInfo firstCalc = {};
+  firstCalc.pParams = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(nullptr, firstCalc.pParams);
+  ASSERT_NE(nullptr, taosArrayPush(firstCalc.pParams, &firstParam));
+  const int64_t firstGid = 101;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSimpleHashPut(source.pGroupCalcInfos, &firstGid, sizeof(firstGid), &firstCalc, sizeof(firstCalc)));
+  SSTriggerCalcParam secondParam = {};
+  secondParam.wstart = 2000;
+  secondParam.wend = 2099;
+  SSTriggerGroupCalcInfo secondCalc = {};
+  secondCalc.pParams = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(nullptr, secondCalc.pParams);
+  ASSERT_NE(nullptr, taosArrayPush(secondCalc.pParams, &secondParam));
+  const int64_t otherGid = 202;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSimpleHashPut(source.pGroupCalcInfos, &otherGid, sizeof(otherGid), &secondCalc, sizeof(secondCalc)));
+  auto *firstRead = static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(source.curGrpRead, 0));
+  auto *secondRead = static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(source.curGrpRead, 1));
+  auto *thirdRead = static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(source.curGrpRead, 2));
+  firstRead->firstParam = firstRead->lastParam = firstParam;
+  secondRead->firstParam = secondRead->lastParam = firstParam;
+  thirdRead->firstParam = thirdRead->lastParam = secondParam;
+  appendReaderPolicy(&source, 101, 0);
+  appendReaderPolicy(&source, 202, 0);
+  appendReaderAncestorContext(&source, 101, 0, 1000, 1100);
+  appendReaderAncestorContext(&source, 202, 0, 2000, 2100);
+  appendReaderBinding(&source, 7, 0, 0);
+  appendReaderBinding(&source, 7, 1, 0);
+  appendReaderBinding(&source, 7, 2, 1);
+
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stValidateNodeGroupReadBindings(&source, 7));
+
+  taosArrayDestroy(source.curGrpRead);
+  tSimpleHashCleanup(source.pGroupCalcInfos);
+  tDestroyStreamContextPolicy(&source.pContextPolicy);
+  tDestroyStreamAncestorContext(&source.pAncestorContext);
+}
+
+TEST(StreamReaderBindingTest, FromTriggerFetchKeepsFullBatchForNodeValidation) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.isMultiGroupCalc = true;
+  runtime.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  runtime.curNodeId = 7;
+  runtime.groupId = 101;
+  runtime.curIdx = 0;
+  runtime.curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 1);
+  ASSERT_NE(nullptr, runtime.curGrpRead);
+  runtime.curGrpReadOwnership = STREAM_GRP_READ_OWNED_DEEP;
+  auto *read = static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(runtime.curGrpRead, 0));
+  ASSERT_NE(nullptr, read);
+  read->gid = 101;
+  read->pTables = taosArrayInit_s(sizeof(uint64_t), 1);
+  ASSERT_NE(nullptr, read->pTables);
+  const uint64_t uid = 9001;
+  ASSERT_NE(nullptr, taosArrayPush(read->pTables, &uid));
+
+  runtime.pGroupCalcInfos = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(nullptr, runtime.pGroupCalcInfos);
+  tSimpleHashSetFreeFp(runtime.pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+  SSTriggerGroupCalcInfo calc = {};
+  calc.pParams = taosArrayInit_s(sizeof(SSTriggerCalcParam), 1);
+  ASSERT_NE(nullptr, calc.pParams);
+  SSTriggerCalcParam param = {};
+  param.wstart = 1000;
+  param.wend = 1099;
+  *static_cast<SSTriggerCalcParam *>(taosArrayGet(calc.pParams, 0)) = param;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSimpleHashPut(runtime.pGroupCalcInfos, &read->gid, sizeof(read->gid), &calc, sizeof(calc)));
+  read->firstParam = param;
+  read->lastParam = param;
+  runtime.pGroupReadInfos = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  ASSERT_NE(nullptr, runtime.pGroupReadInfos);
+  tSimpleHashSetFreeFp(runtime.pGroupReadInfos, tDestroySSTriggerGroupReadInfoArray);
+  SArray *nodeReads = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 1);
+  ASSERT_NE(nullptr, nodeReads);
+  SSTriggerGroupReadInfo sourceRead = *read;
+  sourceRead.pTables = nullptr;
+  ASSERT_NE(nullptr, taosArrayPush(nodeReads, &sourceRead));
+  const int32_t nodeId = 7;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSimpleHashPut(runtime.pGroupReadInfos, &nodeId, sizeof(nodeId), &nodeReads, POINTER_BYTES));
+  appendReaderPolicy(&runtime, read->gid, 0);
+  appendReaderAncestorContext(&runtime, read->gid, 0, 1000, 1100);
+  appendReaderBinding(&runtime, 7, 0, 0);
+
+  SResFetchReq request = {};
+  request.header.vgId = 7;
+  request.pStRtFuncInfo = &runtime;
+  const int32_t size = tSerializeSResFetchReq(nullptr, 0, &request, true, true);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> bytes(size);
+  ASSERT_EQ(size, tSerializeSResFetchReq(bytes.data(), bytes.size(), &request, true, true));
+
+  SResFetchReq decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(bytes.data(), bytes.size(), &decoded));
+  ASSERT_NE(nullptr, decoded.pStRtFuncInfo);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stValidateNodeGroupReadBindings(decoded.pStRtFuncInfo, 7));
+  auto *decodedRead = static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(decoded.pStRtFuncInfo->curGrpRead, 0));
+  ASSERT_NE(nullptr, decodedRead);
+  --decodedRead->firstParam.wstart;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stValidateNodeGroupReadBindings(decoded.pStRtFuncInfo, 7));
+
+  tDestroySResFetchReq(&decoded);
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(StreamReaderBindingTest, DecodedRegularNodeValidatesAtAdmissionLimit) {
+  constexpr int32_t      kParamCount = STREAM_CALC_REQ_MAX_WIN_NUM;
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.isMultiGroupCalc = true;
+  runtime.curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 1);
+  ASSERT_NE(nullptr, runtime.curGrpRead);
+  runtime.curGrpReadOwnership = STREAM_GRP_READ_OWNED_DEEP;
+  auto *read = static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(runtime.curGrpRead, 0));
+  ASSERT_NE(nullptr, read);
+  read->gid = 101;
+
+  runtime.pGroupCalcInfos = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(nullptr, runtime.pGroupCalcInfos);
+  tSimpleHashSetFreeFp(runtime.pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+  SSTriggerGroupCalcInfo calc = {};
+  calc.pParams = taosArrayInit(kParamCount, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(nullptr, calc.pParams);
+  for (int32_t i = 0; i < kParamCount; ++i) {
+    SSTriggerCalcParam param = {};
+    param.wstart = i * 100;
+    param.wend = param.wstart + 99;
+    ASSERT_NE(nullptr, taosArrayPush(calc.pParams, &param));
+  }
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSimpleHashPut(runtime.pGroupCalcInfos, &read->gid, sizeof(read->gid), &calc, sizeof(calc)));
+  read->firstParam = *static_cast<SSTriggerCalcParam *>(taosArrayGet(calc.pParams, 0));
+  read->lastParam = *static_cast<SSTriggerCalcParam *>(taosArrayGet(calc.pParams, kParamCount - 1));
+
+  SResFetchReq request = {};
+  request.header.vgId = 7;
+  request.pStRtFuncInfo = &runtime;
+  const int32_t size = tSerializeSResFetchReq(nullptr, 0, &request, true, true);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> bytes(size);
+  ASSERT_EQ(size, tSerializeSResFetchReq(bytes.data(), bytes.size(), &request, true, true));
+
+  SResFetchReq decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(bytes.data(), bytes.size(), &decoded));
+  ASSERT_NE(nullptr, decoded.pStRtFuncInfo);
+  EXPECT_EQ(nullptr, decoded.pStRtFuncInfo->pGroupReadInfos);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stValidateNodeGroupReadBindings(decoded.pStRtFuncInfo, 7));
+
+  SSTriggerCalcParam excess = {};
+  excess.wstart = kParamCount * 100LL;
+  excess.wend = excess.wstart + 99;
+  ASSERT_NE(nullptr, taosArrayPush(calc.pParams, &excess));
+  read->lastParam = excess;
+  const int32_t oversizedSize = tSerializeSResFetchReq(nullptr, 0, &request, true, true);
+  ASSERT_GT(oversizedSize, 0);
+  std::vector<uint8_t> oversizedBytes(oversizedSize);
+  ASSERT_EQ(oversizedSize, tSerializeSResFetchReq(oversizedBytes.data(), oversizedBytes.size(), &request, true, true));
+  SResFetchReq oversized = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(oversizedBytes.data(), oversizedBytes.size(), &oversized));
+  ASSERT_NE(nullptr, oversized.pStRtFuncInfo);
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stValidateNodeGroupReadBindings(oversized.pStRtFuncInfo, 7));
+
+  tDestroySResFetchReq(&oversized);
+  tDestroySResFetchReq(&decoded);
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(StreamReaderBindingTest, DecodedRegularNodeRejectsZeroParamCalcGroup) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.isMultiGroupCalc = true;
+  runtime.curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 1);
+  ASSERT_NE(nullptr, runtime.curGrpRead);
+  runtime.curGrpReadOwnership = STREAM_GRP_READ_OWNED_DEEP;
+  auto *read = static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(runtime.curGrpRead, 0));
+  ASSERT_NE(nullptr, read);
+  read->gid = 101;
+
+  runtime.pGroupCalcInfos = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(nullptr, runtime.pGroupCalcInfos);
+  tSimpleHashSetFreeFp(runtime.pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+  SSTriggerGroupCalcInfo calc = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSimpleHashPut(runtime.pGroupCalcInfos, &read->gid, sizeof(read->gid), &calc, sizeof(calc)));
+
+  SResFetchReq request = {};
+  request.header.vgId = 7;
+  request.pStRtFuncInfo = &runtime;
+  const int32_t size = tSerializeSResFetchReq(nullptr, 0, &request, true, true);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> bytes(size);
+  ASSERT_EQ(size, tSerializeSResFetchReq(bytes.data(), bytes.size(), &request, true, true));
+
+  SResFetchReq decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(bytes.data(), bytes.size(), &decoded));
+  ASSERT_NE(nullptr, decoded.pStRtFuncInfo);
+  const auto *decodedCalc = static_cast<const SSTriggerGroupCalcInfo *>(
+      tSimpleHashGet(decoded.pStRtFuncInfo->pGroupCalcInfos, &read->gid, sizeof(read->gid)));
+  ASSERT_NE(nullptr, decodedCalc);
+  EXPECT_EQ(nullptr, decodedCalc->pParams);
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stValidateNodeGroupReadBindings(decoded.pStRtFuncInfo, 7));
+
+  tDestroySResFetchReq(&decoded);
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(StreamReaderBindingTest, RejectsWrongNodeDuplicateBindingAndUnknownGid) {
+  SStreamRuntimeFuncInfo source = {};
+  source.isMultiGroupCalc = true;
+  source.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  source.curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 1);
+  ASSERT_NE(nullptr, source.curGrpRead);
+  static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(source.curGrpRead, 0))->gid = 101;
+  source.pGroupCalcInfos = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(nullptr, source.pGroupCalcInfos);
+  tSimpleHashSetFreeFp(source.pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+  SSTriggerCalcParam param = {};
+  param.wstart = 1000;
+  param.wend = 1099;
+  SSTriggerGroupCalcInfo calc = {};
+  calc.pParams = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(nullptr, calc.pParams);
+  ASSERT_NE(nullptr, taosArrayPush(calc.pParams, &param));
+  const int64_t gid = 101;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSimpleHashPut(source.pGroupCalcInfos, &gid, sizeof(gid), &calc, sizeof(calc)));
+  auto *read = static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(source.curGrpRead, 0));
+  read->firstParam = read->lastParam = param;
+  appendReaderPolicy(&source, gid, 0);
+  appendReaderAncestorContext(&source, gid, 0, 1000, 1100);
+  appendReaderBinding(&source, 8, 0, 0);
+
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stValidateNodeGroupReadBindings(&source, 7));
+  appendReaderBinding(&source, 7, 0, 0);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stValidateNodeGroupReadBindings(&source, 7));
+  appendReaderBinding(&source, 7, 0, 0);
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stValidateNodeGroupReadBindings(&source, 7));
+  static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(source.curGrpRead, 0))->gid = 999;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stValidateNodeGroupReadBindings(&source, 7));
+
+  taosArrayDestroy(source.curGrpRead);
+  tSimpleHashCleanup(source.pGroupCalcInfos);
+  tDestroyStreamContextPolicy(&source.pContextPolicy);
+  tDestroyStreamAncestorContext(&source.pAncestorContext);
+}
+
+TEST(StreamReaderBindingTest, OneBindingMayCoverSameLineageFirstAndLastParams) {
+  SStreamRuntimeFuncInfo source = {};
+  source.isMultiGroupCalc = true;
+  source.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  source.curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 1);
+  ASSERT_NE(nullptr, source.curGrpRead);
+  static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(source.curGrpRead, 0))->gid = 101;
+  source.pGroupCalcInfos = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(nullptr, source.pGroupCalcInfos);
+  SSTriggerGroupCalcInfo calc = {};
+  const int64_t          gid = 101;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSimpleHashPut(source.pGroupCalcInfos, &gid, sizeof(gid), &calc, sizeof(calc)));
+  appendReaderPolicy(&source, gid, 0);
+  appendReaderPolicy(&source, gid, 1);
+  appendReaderAncestorContext(&source, gid, 0, 1000, 1100);
+  appendReaderAncestorContext(&source, gid, 1, 1000, 1200);
+  appendReaderBinding(&source, 7, 0, 0);
+
+  SStreamRuntimeFuncInfo target = {};
+  target.pStreamPesudoFuncVals = taosArrayInit_s(sizeof(SSTriggerCalcParam), 1);
+  ASSERT_NE(nullptr, target.pStreamPesudoFuncVals);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stProjectReaderCalcContext(&source, 7, 0, -1, &target));
+  EXPECT_EQ(gid, target.groupId);
+  ASSERT_NE(nullptr, target.pContextPolicy);
+  EXPECT_EQ(0, static_cast<SStreamContextPolicyEntry *>(taosArrayGet(target.pContextPolicy->pEntries, 0))->paramIndex);
+  const auto *projected = onlyProjectedReaderContext(target);
+  ASSERT_NE(nullptr, projected);
+  const auto *snapshot = static_cast<const SWindowAncestorSnapshot *>(taosArrayGet(projected->pSnapshots, 0));
+  ASSERT_NE(nullptr, snapshot);
+  EXPECT_EQ(1100, snapshot->values.window.start);
+
+  taosArrayDestroy(source.curGrpRead);
+  tSimpleHashCleanup(source.pGroupCalcInfos);
+  tDestroyStreamContextPolicy(&source.pContextPolicy);
+  tDestroyStreamAncestorContext(&source.pAncestorContext);
   tDestroyStreamContextPolicy(&target.pContextPolicy);
   tDestroyStreamAncestorContext(&target.pAncestorContext);
   taosArrayDestroy(target.pStreamPesudoFuncVals);

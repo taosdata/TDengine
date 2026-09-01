@@ -29,18 +29,19 @@ extern "C" {
 #include "dataSinkMgt.h"
 #include "executil.h"
 #include "executor.h"
+#include "extConnector.h"
 #include "planner.h"
 #include "scalar.h"
+#include "streamMsg.h"
 #include "taosdef.h"
 #include "tarray.h"
 #include "tfill.h"
 #include "thash.h"
 #include "tlockfree.h"
+#include "tlrucache.h"
 #include "tmsg.h"
 #include "tpagedbuf.h"
-#include "tlrucache.h"
 #include "tworker.h"
-#include "extConnector.h"
 
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 
@@ -60,7 +61,7 @@ typedef enum EExtWinMode {
 
 #define IS_NON_STREAM_MODE(_task) ((_task)->execModel != OPTR_EXEC_MODEL_STREAM)
 #define IS_STREAM_MODE(_task) ((_task)->execModel == OPTR_EXEC_MODEL_STREAM)
-#define IS_STREAM_SINGLE_GRP(_task) (!(_task)->pStreamRuntimeInfo->funcInfo.isMultiGroupCalc)
+#define IS_STREAM_SINGLE_GRP(_task) (!GET_STM_RTINFO(_task)->isMultiGroupCalc)
 
 /**
  * If the number of generated results is greater than this value,
@@ -224,6 +225,13 @@ typedef struct SExchangeSrcIndex {
   int32_t inUseIdx;
 } SExchangeSrcIndex;
 
+typedef struct SExchangeMultiGroupResult {
+  EStreamRunnerFetchType type;
+  uint64_t               baseGId;
+  SSDataBlock*           pBlock;
+  SArray*                pLineage;  // owned until publication
+} SExchangeMultiGroupResult;
+
 typedef struct SExchangeInfo {
   bool       isExchange;  // KEEP IT FIRST
   int64_t    seqId;
@@ -237,6 +245,12 @@ typedef struct SExchangeInfo {
   // passed by downstream operator
   SArray*      pResultBlockList;
   SArray*      pRecycledBlocks;  // build a pool for small data block to avoid to repeatly create and then destroy.
+  SArray*      pMultiGroupResultList;        // SArray<SExchangeMultiGroupResult>, strict Runner fetch only
+  SArray*      pPublishedLineage;            // owned; runtime pStreamBlkWinIdx borrows it
+  SStreamRuntimeFuncInfo* pPublishedStream;  // borrowed runtime that received pPublishedLineage
+  int32_t                 nextGroupIdx;      // strict Runner fetch canonical cursor
+  int32_t                 eogSourceCount;    // strict Runner sources at current group barrier
+  bool                    strictSourcesValidated;
   SSDataBlock* pDummyBlock;      // dummy block, not keep data
   bool         seqLoadData;      // sequential load data or not, false by default
   bool         dynamicOp;
@@ -345,6 +359,8 @@ typedef struct STableMetaCacheInfo {
 typedef struct STableScanBase {
   STsdbReader*           dataReader;
   SFileBlockLoadRecorder readRecorder;
+  SFileBlockLoadRecorder readerCostBaseline;
+  STsdbReader*           readerCostBaselineReader;
   SQueryTableDataCond    cond;
   SQueryTableDataCond    orgCond; // use for virtual super table scan
   SAggOptrPushDownInfo   pdInfo;
@@ -359,6 +375,10 @@ typedef struct STableScanBase {
   STableListInfo* pTableListInfo;
   TsdReader       readerAPI;
 } STableScanBase;
+
+int32_t openOrRebindTableReader(STableScanBase* pBase, STableKeyInfo* pTables, int32_t numOfTables, SSDataBlock* pBlock,
+                                const char* pTaskId, SHashObj** ppIgnoreTables, bool* pOpened);
+int32_t closeTableScanReader(STableScanBase* pBase);
 
 typedef struct STableScanInfo {
   STableScanBase  base;
@@ -439,6 +459,7 @@ typedef struct STableMergeScanInfo {
   int32_t         tableEndIndex;
   bool            hasGroupId;
   uint64_t        groupId;
+  uint64_t        baseGroupId;
   STableScanBase  base;
   int32_t         bufPageSize;
   uint32_t        sortBufSize;  // max buffer size for in-memory sort

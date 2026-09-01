@@ -159,6 +159,14 @@ int32_t setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp);
 int32_t dBufSetBufPageRecycled(SDiskbasedBuf* pBuf, void* pPage);
 
 /**
+ * Recycle an unreferenced page by id without loading its payload from disk.
+ * @param pBuf
+ * @param pageId
+ * @return
+ */
+int32_t dBufRecyclePageById(SDiskbasedBuf* pBuf, int32_t pageId);
+
+/**
  * Print the statistics when closing this buffer
  * @param pBuf
  */

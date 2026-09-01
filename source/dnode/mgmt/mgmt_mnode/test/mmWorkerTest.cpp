@@ -47,6 +47,7 @@ struct ReaderSideEffectCounts {
   int32_t destroyTask;
   int32_t createTask;
   int32_t resetScan;
+  EQueryTableScanResetMode resetMode = QUERY_TABLE_SCAN_RESET_FRESH;
   int32_t setTaskId;
   int32_t updateOperator;
   int32_t setStreamGen;
@@ -66,6 +67,7 @@ int32_t                   gCleanupSignals = 0;
 int32_t                   gHandlerCalls = 0;
 SArray*                   gReaderCalcInfos = nullptr;
 ReaderSideEffectCounts    gReaderSideEffects = {};
+int32_t                   gReuseReaderResetCode = TSDB_CODE_SUCCESS;
 
 ObservedItem* findByHandle(void* handle) {
   for (auto& item : gItems) {
@@ -107,6 +109,7 @@ class MgmtMnodeWorkerTest : public ::testing::Test {
       gCleanupSignals = 0;
       gHandlerCalls = 0;
       gReaderSideEffects = {};
+      gReuseReaderResetCode = TSDB_CODE_SUCCESS;
     }
     gReaderCalcInfos = nullptr;
 
@@ -381,6 +384,162 @@ TEST_F(MgmtMnodeWorkerTest, VnodeFetchMatchesMnodeAdmissionBeforeReaderSideEffec
   EXPECT_EQ(0, gReaderSideEffects.executeTask);
 }
 
+TEST_F(MgmtMnodeWorkerTest, VnodeReuseFetchPassesReaderReuseResetMode) {
+  STableScanPhysiNode scan = {};
+  scan.scan.node.type = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  SSubplan calcAst = {};
+  calcAst.pNode = &scan.scan.node;
+
+  SStreamTriggerReaderCalcInfo calcInfo = {};
+  calcInfo.calcAst = &calcAst;
+  calcInfo.pTaskInfo = reinterpret_cast<qTaskInfo_t>(static_cast<uintptr_t>(0x5001));
+  calcInfo.requiresContextPolicy = false;
+  gReaderCalcInfos = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(gReaderCalcInfos, nullptr);
+  SStreamTriggerReaderCalcInfo* pCalcInfo = &calcInfo;
+  ASSERT_NE(taosArrayPush(gReaderCalcInfos, &pCalcInfo), nullptr);
+
+  SStreamRuntimeFuncInfo runtime = {};
+  SResFetchReq           request = {};
+  request.queryId = 11;
+  request.taskId = 22;
+  request.execId = 0;
+  request.reset = true;
+  request.reuseReader = true;
+  request.pStRtFuncInfo = &runtime;
+  const int32_t size = tSerializeSResFetchReq(nullptr, 0, &request, false, false);
+  ASSERT_GT(size, 0);
+
+  SRpcMsg msg = {};
+  msg.msgType = TDMT_STREAM_FETCH;
+  msg.contLen = size;
+  msg.pCont = rpcMallocCont(size);
+  ASSERT_NE(msg.pCont, nullptr);
+  ASSERT_EQ(tSerializeSResFetchReq(msg.pCont, size, &request, false, false), size);
+  msg.info.handle = reinterpret_cast<void*>(static_cast<uintptr_t>(0x5002));
+  {
+    std::lock_guard<std::mutex> lock(gMutex);
+    gItems.push_back({msg.info.handle, msg.pCont, TSDB_CODE_SUCCESS, 0, 0});
+  }
+
+  SVnode     vnode = {};
+  SQueueInfo queueInfo = {};
+  EXPECT_EQ(TSDB_CODE_SUCCESS, vnodeProcessStreamReaderMsg(&vnode, &msg, &queueInfo));
+  rpcFreeCont(msg.pCont);
+  msg.pCont = nullptr;
+
+  std::lock_guard<std::mutex> lock(gMutex);
+  EXPECT_EQ(1, gReaderSideEffects.resetScan);
+  EXPECT_EQ(QUERY_TABLE_SCAN_RESET_REUSE_READER, gReaderSideEffects.resetMode);
+  EXPECT_EQ(0, gReaderSideEffects.destroyTask);
+  EXPECT_EQ(0, gReaderSideEffects.createTask);
+}
+
+TEST_F(MgmtMnodeWorkerTest, VnodeReuseFetchFallsBackToFreshResetForUnsupportedScan) {
+  SSystemTableScanPhysiNode scan = {};
+  scan.scan.node.type = QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN;
+  SSubplan calcAst = {};
+  calcAst.pNode = &scan.scan.node;
+
+  SStreamTriggerReaderCalcInfo calcInfo = {};
+  calcInfo.calcAst = &calcAst;
+  calcInfo.pTaskInfo = reinterpret_cast<qTaskInfo_t>(static_cast<uintptr_t>(0x5001));
+  calcInfo.requiresContextPolicy = false;
+  gReaderCalcInfos = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(gReaderCalcInfos, nullptr);
+  SStreamTriggerReaderCalcInfo* pCalcInfo = &calcInfo;
+  ASSERT_NE(taosArrayPush(gReaderCalcInfos, &pCalcInfo), nullptr);
+
+  SStreamRuntimeFuncInfo runtime = {};
+  SResFetchReq           request = {};
+  request.queryId = 11;
+  request.taskId = 22;
+  request.execId = 0;
+  request.reset = true;
+  request.reuseReader = true;
+  request.pStRtFuncInfo = &runtime;
+  const int32_t size = tSerializeSResFetchReq(nullptr, 0, &request, false, false);
+  ASSERT_GT(size, 0);
+
+  SRpcMsg msg = {};
+  msg.msgType = TDMT_STREAM_FETCH;
+  msg.contLen = size;
+  msg.pCont = rpcMallocCont(size);
+  ASSERT_NE(msg.pCont, nullptr);
+  ASSERT_EQ(tSerializeSResFetchReq(msg.pCont, size, &request, false, false), size);
+  msg.info.handle = reinterpret_cast<void*>(static_cast<uintptr_t>(0x5004));
+  {
+    std::lock_guard<std::mutex> lock(gMutex);
+    gItems.push_back({msg.info.handle, msg.pCont, TSDB_CODE_SUCCESS, 0, 0});
+    gReuseReaderResetCode = TSDB_CODE_INVALID_PARA;
+  }
+
+  SVnode     vnode = {};
+  SQueueInfo queueInfo = {};
+  EXPECT_EQ(TSDB_CODE_SUCCESS, vnodeProcessStreamReaderMsg(&vnode, &msg, &queueInfo));
+  rpcFreeCont(msg.pCont);
+  msg.pCont = nullptr;
+
+  std::lock_guard<std::mutex> lock(gMutex);
+  EXPECT_EQ(1, gReaderSideEffects.resetScan);
+  EXPECT_EQ(QUERY_TABLE_SCAN_RESET_FRESH, gReaderSideEffects.resetMode);
+  EXPECT_EQ(0, gReaderSideEffects.destroyTask);
+  EXPECT_EQ(0, gReaderSideEffects.createTask);
+  EXPECT_EQ(1, gReaderSideEffects.executeTask);
+}
+
+TEST_F(MgmtMnodeWorkerTest, VnodeReuseFetchWithoutExistingResettableTaskFailsBeforeSideEffects) {
+  STableScanPhysiNode scan = {};
+  scan.scan.node.type = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  SSubplan calcAst = {};
+  calcAst.pNode = &scan.scan.node;
+
+  SStreamTriggerReaderCalcInfo calcInfo = {};
+  calcInfo.calcAst = &calcAst;
+  calcInfo.pTaskInfo = nullptr;
+  calcInfo.requiresContextPolicy = false;
+  gReaderCalcInfos = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(gReaderCalcInfos, nullptr);
+  SStreamTriggerReaderCalcInfo* pCalcInfo = &calcInfo;
+  ASSERT_NE(taosArrayPush(gReaderCalcInfos, &pCalcInfo), nullptr);
+
+  SStreamRuntimeFuncInfo runtime = {};
+  SResFetchReq           request = {};
+  request.queryId = 11;
+  request.taskId = 22;
+  request.execId = 0;
+  request.reset = true;
+  request.reuseReader = true;
+  request.pStRtFuncInfo = &runtime;
+  const int32_t size = tSerializeSResFetchReq(nullptr, 0, &request, false, false);
+  ASSERT_GT(size, 0);
+
+  SRpcMsg msg = {};
+  msg.msgType = TDMT_STREAM_FETCH;
+  msg.contLen = size;
+  msg.pCont = rpcMallocCont(size);
+  ASSERT_NE(msg.pCont, nullptr);
+  ASSERT_EQ(tSerializeSResFetchReq(msg.pCont, size, &request, false, false), size);
+  msg.info.handle = reinterpret_cast<void*>(static_cast<uintptr_t>(0x5003));
+  {
+    std::lock_guard<std::mutex> lock(gMutex);
+    gItems.push_back({msg.info.handle, msg.pCont, TSDB_CODE_SUCCESS, 0, 0});
+  }
+
+  SVnode     vnode = {};
+  SQueueInfo queueInfo = {};
+  EXPECT_NE(TSDB_CODE_SUCCESS, vnodeProcessStreamReaderMsg(&vnode, &msg, &queueInfo));
+  rpcFreeCont(msg.pCont);
+  msg.pCont = nullptr;
+
+  std::lock_guard<std::mutex> lock(gMutex);
+  EXPECT_EQ(0, gReaderSideEffects.initStorage);
+  EXPECT_EQ(0, gReaderSideEffects.destroyTask);
+  EXPECT_EQ(0, gReaderSideEffects.createTask);
+  EXPECT_EQ(0, gReaderSideEffects.resetScan);
+  EXPECT_EQ(0, gReaderSideEffects.executeTask);
+}
+
 }  // namespace
 
 extern "C" {
@@ -459,10 +618,13 @@ int32_t __wrap_qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void*, SReadHan
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t __wrap_qResetTableScan(qTaskInfo_t, SReadHandle*) {
+bool __wrap_qNeedReset(qTaskInfo_t pTaskInfo) { return pTaskInfo != nullptr; }
+
+int32_t __wrap_qResetTableScan(qTaskInfo_t, SReadHandle*, EQueryTableScanResetMode mode) {
   std::lock_guard<std::mutex> lock(gMutex);
   ++gReaderSideEffects.resetScan;
-  return TSDB_CODE_SUCCESS;
+  gReaderSideEffects.resetMode = mode;
+  return mode == QUERY_TABLE_SCAN_RESET_REUSE_READER ? gReuseReaderResetCode : TSDB_CODE_SUCCESS;
 }
 
 int32_t __wrap_qSetTaskId(qTaskInfo_t, uint64_t, uint64_t) {
