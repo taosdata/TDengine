@@ -18,6 +18,11 @@
 
 #include "streamMsg.h"
 
+/* The tracker contract uses the stream state-transition error in this branch. */
+#ifndef TSDB_CODE_INVALID_STATE
+#define TSDB_CODE_INVALID_STATE TSDB_CODE_STREAM_INVALID_STATETRANS
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -33,7 +38,25 @@ typedef struct SStreamRecalcContributor {
   SStreamProgressRange requestedRange;
 } SStreamRecalcContributor;
 
-typedef struct SStreamRecalcTracker SStreamRecalcTracker;
+typedef struct SStreamRecalcTracker      SStreamRecalcTracker;
+typedef struct SStreamRecalcAttemptState SStreamRecalcAttemptState;
+
+typedef struct SStreamRecalcAttemptRef {
+  uint64_t chainId;
+  uint32_t executionOrdinal; /* 0..3 */
+} SStreamRecalcAttemptRef;
+
+typedef enum EStreamRecalcAttemptDecision {
+  STREAM_RECALC_ATTEMPT_NONE = 0,
+  STREAM_RECALC_ATTEMPT_RETRY = 1,
+  STREAM_RECALC_ATTEMPT_EXHAUSTED = 2,
+} EStreamRecalcAttemptDecision;
+
+typedef struct SStreamRecalcAttemptOutcome {
+  EStreamRecalcAttemptDecision decision;
+  SStreamRecalcAttemptRef      attempt;
+  int32_t                      errorCode;
+} SStreamRecalcAttemptOutcome;
 
 typedef struct SStreamRecalcDebugSnapshot {
   SStreamRecalcSnapshot snapshot;
@@ -80,6 +103,41 @@ int32_t stRecalcTrackerFailJob(SStreamRecalcTracker *pTracker, int64_t recalcId,
 int32_t stRecalcContributorsAdd(SStreamRecalcTracker *pTracker, SArray **ppContributors, int64_t recalcId,
                                 SStreamProgressRange requestedRange);
 int32_t stRecalcContributorsMerge(SArray **ppDst, const SArray *pSrc);
+int32_t stRecalcTrackerConfirmGroupPrefix(SStreamRecalcTracker *pTracker, int64_t gid, TSKEY confirmedThrough,
+                                          const SArray *pContributors);
+int32_t stRecalcAttemptCreate(size_t contributorCapacity, SStreamRecalcAttemptState **ppAttempt);
+void    stRecalcAttemptDestroy(SStreamRecalcAttemptState **ppAttempt);
+/*
+ * Tracker calls are internally serialized; the tracker owner must prevent
+ * destroy while calls are in flight. ActivateAttempt transfers *ppAttempt to
+ * the tracker on success and clears it. Completion/failure APIs return the
+ * operation status; when they return success, callers must also inspect the
+ * supplied outcome decision to distinguish retry from exhaustion. The
+ * execution ordinal is bounded by STREAM_RECALC_MAX_ATTEMPT_ORDINAL.
+ */
+int32_t stRecalcTrackerActivateAttempt(SStreamRecalcTracker *pTracker, SStreamRecalcAttemptState **ppAttempt,
+                                       int64_t gid, SStreamProgressRange scanRange, SStreamProgressRange calcRange,
+                                       const SArray *pContributors, SStreamRecalcAttemptRef *pRef);
+int32_t stRecalcTrackerStartRetry(SStreamRecalcTracker *pTracker, uint64_t chainId, SStreamRecalcAttemptRef *pRef);
+int32_t stRecalcTrackerRecordAttemptFailure(SStreamRecalcTracker *pTracker, SStreamRecalcAttemptRef attempt,
+                                            int32_t errorCode, SStreamRecalcAttemptOutcome *pOutcome);
+int32_t stRecalcTrackerBeginAttemptStep(SStreamRecalcTracker *pTracker, SStreamRecalcAttemptRef attempt, int64_t gid,
+                                        SStreamProgressRange stepRange, const SArray *pContributors, uint64_t *pStepId);
+int32_t stRecalcTrackerAddAttemptReader(SStreamRecalcTracker *pTracker, SStreamRecalcAttemptRef attempt,
+                                        uint64_t stepId, uint64_t requestToken);
+int32_t stRecalcTrackerCompleteAttemptReader(SStreamRecalcTracker *pTracker, SStreamRecalcAttemptRef attempt,
+                                             uint64_t stepId, uint64_t requestToken, int32_t errorCode,
+                                             SStreamRecalcAttemptOutcome *pOutcome);
+int32_t stRecalcTrackerSetAttemptTriggerDone(SStreamRecalcTracker *pTracker, SStreamRecalcAttemptRef attempt,
+                                             uint64_t stepId, int32_t pendingCalcParamCount, int32_t errorCode,
+                                             SStreamRecalcAttemptOutcome *pOutcome);
+int32_t stRecalcTrackerAddAttemptRunner(SStreamRecalcTracker *pTracker, SStreamRecalcAttemptRef attempt,
+                                        uint64_t stepId, uint64_t requestToken);
+int32_t stRecalcTrackerCompleteAttemptRunner(SStreamRecalcTracker *pTracker, SStreamRecalcAttemptRef attempt,
+                                             uint64_t stepId, uint64_t requestToken, int32_t errorCode,
+                                             SStreamRecalcAttemptOutcome *pOutcome);
+int32_t stRecalcTrackerCompleteAttempt(SStreamRecalcTracker *pTracker, SStreamRecalcAttemptRef attempt,
+                                       SStreamRecalcAttemptOutcome *pOutcome);
 int32_t stRecalcTrackerBeginStep(SStreamRecalcTracker *pTracker, int64_t gid, SStreamProgressRange stepRange,
                                  const SArray *pContributors, uint64_t *pStepId);
 int32_t stRecalcTrackerAddReader(SStreamRecalcTracker *pTracker, uint64_t stepId, uint64_t requestToken);
@@ -95,6 +153,9 @@ int32_t stRecalcTrackerCommitHistoryThrough(SStreamRecalcTracker *pTracker, TSKE
                                             bool terminalBarrierDone);
 int32_t stRecalcTrackerCopySnapshot(SStreamRecalcTracker *pTracker, bool *pHistoryValid, int32_t *pHistoryProgressPct,
                                     SArray **ppRecalculates);
+int32_t stRecalcTrackerCopySnapshotWithDetails(SStreamRecalcTracker *pTracker, bool *pHistoryValid,
+                                               int32_t *pHistoryProgressPct, SArray **ppRecalculates,
+                                               SArray **ppRecalcDetails);
 /** Returned arrays contain deep-owned value snapshots and belong to the caller. */
 int32_t stRecalcTrackerCopyDebugJobs(SStreamRecalcTracker *pTracker, SArray **ppJobs);
 /**

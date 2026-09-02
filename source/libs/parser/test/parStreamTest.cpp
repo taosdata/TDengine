@@ -13,10 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <fstream>
 #include <memory>
+#include <tuple>
+#include <vector>
 
 #include "cJSON.h"
 #include "mockCatalogService.h"
@@ -30,6 +33,16 @@ using namespace std;
 
 namespace ParserTest {
 class ParserStreamTest : public ParserDdlTest {};
+
+TEST_F(ParserStreamTest, RejectsConcatenatedCreateStreamWithoutCrashing) {
+  run("create stream stream_streamdb.s_invalid interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _twstart, CLIENT_VERSION();"
+      "create stream stream_streamdb.s_invalid interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _twstart, CURRENT_USER();",
+      TSDB_CODE_STREAM_INVALID_QUERY, PARSER_STAGE_TRANSLATE);
+}
 
 namespace {
 
@@ -58,6 +71,96 @@ class StrictAppendTbnameFailureGuard {
   StrictAppendTbnameFailureGuard() { stub_.set(nodesListMakeStrictAppend, strictAppendFailForTbnameFunction); }
 
   ~StrictAppendTbnameFailureGuard() { stub_.reset(nodesListMakeStrictAppend); }
+
+ private:
+  Stub stub_;
+};
+
+int32_t compositePrimaryKeyCatalogGetTableMeta(SCatalog*, SRequestConnInfo*, const SName* pTableName,
+                                               STableMeta** ppTableMeta) {
+  int32_t code = g_mockCatalogService->catalogGetTableMeta(pTableName, ppTableMeta);
+  if (code == TSDB_CODE_SUCCESS && ppTableMeta != nullptr && *ppTableMeta != nullptr &&
+      strcmp(tNameGetTableName(pTableName), "nested_composite_pk") == 0) {
+    (*ppTableMeta)->tableInfo.numOfPKs = 1;
+    (*ppTableMeta)->schema[1].flags |= COL_IS_KEY;
+  }
+  return code;
+}
+
+class CompositePrimaryKeyMetaGuard {
+ public:
+  CompositePrimaryKeyMetaGuard() { stub_.set(catalogGetTableMeta, compositePrimaryKeyCatalogGetTableMeta); }
+
+  ~CompositePrimaryKeyMetaGuard() { stub_.reset(catalogGetTableMeta); }
+
+ private:
+  Stub stub_;
+};
+
+class AsyncFlagGuard {
+ public:
+  explicit AsyncFlagGuard(bool enabled) : previous_(getAsyncFlag()) { setAsyncFlag(enabled ? "1" : "-1"); }
+
+  ~AsyncFlagGuard() { setAsyncFlag(previous_ ? "1" : "-1"); }
+
+ private:
+  bool previous_;
+};
+
+int32_t failStreamWindowPlanValidation(const SStreamWindowPlan*, const SStreamWindowPlanValidationCtx*) {
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
+
+class SharedValidatorFailureGuard {
+ public:
+  SharedValidatorFailureGuard() { stub_.set(tValidateStreamWindowPlan, failStreamWindowPlanValidation); }
+
+  ~SharedValidatorFailureGuard() { stub_.reset(tValidateStreamWindowPlan); }
+
+ private:
+  Stub stub_;
+};
+
+static bool pstIsC1NonnegativeCondition(const SNode* pNode) {
+  if (nullptr == pNode || QUERY_NODE_OPERATOR != nodeType(pNode)) {
+    return false;
+  }
+
+  const auto* pOp = (const SOperatorNode*)pNode;
+  if (OP_TYPE_GREATER_EQUAL != pOp->opType || QUERY_NODE_COLUMN != nodeType(pOp->pLeft) ||
+      QUERY_NODE_VALUE != nodeType(pOp->pRight)) {
+    return false;
+  }
+
+  const auto* pColumn = (const SColumnNode*)pOp->pLeft;
+  const auto* pValue = (const SValueNode*)pOp->pRight;
+  return 0 == strcmp(pColumn->colName, "c1") && nullptr != pValue->literal && 0 == strcmp(pValue->literal, "0");
+}
+
+static Stub* gRowConditionMergeFailureStub = nullptr;
+
+int32_t failMergeForC1NonnegativeCondition(SNode** pDst, SNodeList** pSrc) {
+  if (nullptr != pSrc && 1 == LIST_LENGTH(*pSrc) && pstIsC1NonnegativeCondition(nodesListGetNode(*pSrc, 0))) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  gRowConditionMergeFailureStub->reset(nodesMergeConds);
+  int32_t code = nodesMergeConds(pDst, pSrc);
+  gRowConditionMergeFailureStub->set(nodesMergeConds, failMergeForC1NonnegativeCondition);
+  return code;
+}
+
+class RowConditionMergeFailureGuard {
+ public:
+  RowConditionMergeFailureGuard() {
+    gRowConditionMergeFailureStub = &stub_;
+    stub_.set(nodesMergeConds, failMergeForC1NonnegativeCondition);
+  }
+
+  ~RowConditionMergeFailureGuard() {
+    stub_.reset(nodesMergeConds);
+    gRowConditionMergeFailureStub = nullptr;
+  }
 
  private:
   Stub stub_;
@@ -128,6 +231,1564 @@ static const SExternalWindowPhysiNode* pstFindExternalWindowNode(const SQueryPla
   }
 
   return nullptr;
+}
+
+struct SWindowTraversalCounts {
+  int32_t plans = 0;
+  int32_t layers = 0;
+  int32_t concreteWindows = 0;
+};
+
+static void pstCountWindowTraversalNode(const SNode* pNode, SWindowTraversalCounts* pCounts) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_STREAM_WINDOW_PLAN:
+      ++pCounts->plans;
+      break;
+    case QUERY_NODE_STREAM_WINDOW_LAYER:
+      ++pCounts->layers;
+      break;
+    case QUERY_NODE_STATE_WINDOW:
+    case QUERY_NODE_INTERVAL_WINDOW:
+    case QUERY_NODE_COUNT_WINDOW:
+      ++pCounts->concreteWindows;
+      break;
+    default:
+      break;
+  }
+}
+
+static EDealRes pstCountWindowWalker(SNode* pNode, void* pContext) {
+  pstCountWindowTraversalNode(pNode, (SWindowTraversalCounts*)pContext);
+  return DEAL_RES_CONTINUE;
+}
+
+static EDealRes pstCountWindowRewriter(SNode** ppNode, void* pContext) {
+  pstCountWindowTraversalNode(*ppNode, (SWindowTraversalCounts*)pContext);
+  return DEAL_RES_CONTINUE;
+}
+
+struct SWindowValueLiteralCount {
+  const char* pLiteral = nullptr;
+  int32_t     count = 0;
+};
+
+static EDealRes pstCountWindowValueLiteral(SNode* pNode, void* pContext) {
+  auto* pCount = (SWindowValueLiteralCount*)pContext;
+  if (QUERY_NODE_VALUE == nodeType(pNode)) {
+    const auto* pValue = (const SValueNode*)pNode;
+    if (nullptr != pValue->literal && 0 == strcmp(pCount->pLiteral, pValue->literal)) {
+      ++pCount->count;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+struct SPseudoLayerBinding {
+  std::string name;
+  bool        qualified;
+  int64_t     layerIndex;
+};
+
+static EDealRes pstCollectPseudoLayerBinding(SNode* pNode, void* pContext) {
+  if (nodeType(pNode) != QUERY_NODE_FUNCTION) return DEAL_RES_CONTINUE;
+
+  auto* pFunc = (SFunctionNode*)pNode;
+  if (strcmp(pFunc->functionName, "_twstart") != 0 && strcmp(pFunc->functionName, "_twend") != 0 &&
+      strcmp(pFunc->functionName, "_twduration") != 0 && strcmp(pFunc->functionName, "_twrownum") != 0 &&
+      strcmp(pFunc->functionName, "_tprev_ts") != 0 && strcmp(pFunc->functionName, "_tcurrent_ts") != 0 &&
+      strcmp(pFunc->functionName, "_tnext_ts") != 0) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  const int32_t numParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numParams != 1 && numParams != 2) {
+    ADD_FAILURE() << pFunc->functionName << " has " << numParams << " parameters";
+    return DEAL_RES_ERROR;
+  }
+
+  int64_t layerIndex = 0;
+  if (numParams == 2) {
+    SNode* pLayer = nodesListGetNode(pFunc->pParameterList, 1);
+    if (nodeType(pLayer) != QUERY_NODE_VALUE || ((SValueNode*)pLayer)->node.resType.type != TSDB_DATA_TYPE_INT) {
+      ADD_FAILURE() << pFunc->functionName << " has invalid layer parameter";
+      return DEAL_RES_ERROR;
+    }
+    layerIndex = ((SValueNode*)pLayer)->datum.i;
+  }
+
+  ((std::vector<SPseudoLayerBinding>*)pContext)->push_back({pFunc->functionName, numParams == 2, layerIndex});
+  return DEAL_RES_CONTINUE;
+}
+
+static void pstCollectProjectPseudoLayerBindings(const SPhysiNode* pNode, std::vector<SPseudoLayerBinding>* pBindings) {
+  if (pNode == nullptr) return;
+
+  if (nodeType((const SNode*)pNode) == QUERY_NODE_PHYSICAL_PLAN_PROJECT) {
+    const auto* pProject = (const SProjectPhysiNode*)pNode;
+    nodesWalkExprs(pProject->pProjections, pstCollectPseudoLayerBinding, pBindings);
+  }
+
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) { pstCollectProjectPseudoLayerBindings((const SPhysiNode*)pChild, pBindings); }
+}
+
+static void pstCollectProjectPseudoLayerBindings(const SQueryPlan* pPlan, std::vector<SPseudoLayerBinding>* pBindings) {
+  SNode* pLevelNode = nullptr;
+  FOREACH(pLevelNode, pPlan->pSubplans) {
+    auto*  pLevel = (SNodeListNode*)pLevelNode;
+    SNode* pSubplanNode = nullptr;
+    FOREACH(pSubplanNode, pLevel->pNodeList) {
+      const auto* pSubplan = (const SSubplan*)pSubplanNode;
+      pstCollectProjectPseudoLayerBindings(pSubplan->pNode, pBindings);
+    }
+  }
+}
+
+static const SStreamWindowLayerSpec* pstWindowLayer(const SCMCreateStreamReq& req, int32_t index) {
+  if (req.pWindowPlan == nullptr || req.pWindowPlan->pLayers == nullptr || index < 0 ||
+      index >= taosArrayGetSize(req.pWindowPlan->pLayers)) {
+    return nullptr;
+  }
+  return static_cast<const SStreamWindowLayerSpec*>(taosArrayGet(req.pWindowPlan->pLayers, index));
+}
+
+static void pstAssertNestedRequestRoundTrip(const SQuery*                                         pQuery,
+                                            const std::function<void(const SCMCreateStreamReq&)>& check = {}) {
+  ASSERT_NE(nullptr, pQuery);
+  ASSERT_NE(nullptr, pQuery->pCmdMsg);
+  ASSERT_NE(nullptr, pQuery->pCmdMsg->pMsg);
+
+  SCMCreateStreamReq req = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+  unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  ASSERT_NE(nullptr, req.pWindowPlan->pLayers);
+  ASSERT_GE(taosArrayGetSize(req.pWindowPlan->pLayers), 2);
+  ASSERT_NE(nullptr, req.triggerScanPlan);
+  EXPECT_NE(0, req.addOptions & STREAM_OPTION_NESTED_WINDOW_PLAN);
+  SNode* pTriggerPlan = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)req.triggerScanPlan, &pTriggerPlan));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> triggerPlanGuard(pTriggerPlan, nodesDestroyNode);
+  ASSERT_EQ(QUERY_NODE_PHYSICAL_SUBPLAN, nodeType(pTriggerPlan));
+  EXPECT_TRUE(((const SSubplan*)pTriggerPlan)->requiresAncestorContext);
+  for (int32_t i = 0; i < taosArrayGetSize(req.pWindowPlan->pLayers); ++i) {
+    const auto* pLayer = (const SStreamWindowLayerSpec*)taosArrayGet(req.pWindowPlan->pLayers, i);
+    ASSERT_NE(nullptr, pLayer);
+    ASSERT_NE(nullptr, pLayer->input.pConditionSlotIds);
+    EXPECT_GE(pLayer->input.tsSlotId, 0);
+    EXPECT_GE(pLayer->input.pkSlotId, -1);
+    for (int32_t j = 0; j < taosArrayGetSize(pLayer->input.pConditionSlotIds); ++j) {
+      EXPECT_GE(*static_cast<const int16_t*>(taosArrayGet(pLayer->input.pConditionSlotIds, j)), 0);
+    }
+    if (pLayer->triggerType == WINDOW_TYPE_STATE) {
+      ASSERT_NE(nullptr, pLayer->trigger.stateWin.pSlotIds);
+      EXPECT_EQ(taosArrayGetSize(pLayer->trigger.stateWin.pSlotIds), taosArrayGetSize(pLayer->input.pConditionSlotIds));
+      for (int32_t j = 0; j < taosArrayGetSize(pLayer->trigger.stateWin.pSlotIds); ++j) {
+        EXPECT_EQ(*static_cast<const int16_t*>(taosArrayGet(pLayer->input.pConditionSlotIds, j)),
+                  *static_cast<const int16_t*>(taosArrayGet(pLayer->trigger.stateWin.pSlotIds, j)));
+      }
+    }
+    if (pLayer->triggerType == WINDOW_TYPE_EVENT) {
+      EXPECT_GE(pLayer->input.eventStartSlotId, 0);
+      if (pLayer->trigger.event.endCond != nullptr) EXPECT_GE(pLayer->input.eventEndSlotId, 0);
+    }
+  }
+  if (check) check(req);
+}
+
+static void pstCollectTriggerScans(const SPhysiNode* pNode, std::vector<const SScanPhysiNode*>* pScans) {
+  if (pNode == nullptr) return;
+
+  if (nodeType((const SNode*)pNode) == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN ||
+      nodeType((const SNode*)pNode) == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
+    pScans->push_back((const SScanPhysiNode*)pNode);
+  }
+
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) { pstCollectTriggerScans((const SPhysiNode*)pChild, pScans); }
+}
+
+static void pstAssertNestedRawTimestampSlots(const SCMCreateStreamReq& req, EWindowType expectedLeafType) {
+  ASSERT_NE(nullptr, req.triggerScanPlan);
+
+  SNode* pPlanNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)req.triggerScanPlan, &pPlanNode));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlanNode, nodesDestroyNode);
+  ASSERT_NE(nullptr, pPlanNode);
+  ASSERT_EQ(QUERY_NODE_PHYSICAL_SUBPLAN, nodeType(pPlanNode));
+
+  const auto* pSubplan = (const SSubplan*)pPlanNode;
+  ASSERT_NE(nullptr, pSubplan->pNode);
+  std::vector<const SScanPhysiNode*> scans;
+  pstCollectTriggerScans(pSubplan->pNode, &scans);
+  ASSERT_EQ(1U, scans.size());
+
+  const auto* pScan = scans[0];
+  ASSERT_NE(nullptr, pScan->node.pOutputDataBlockDesc);
+  ASSERT_NE(nullptr, pScan->node.pOutputDataBlockDesc->pSlots);
+  const int32_t rawSlotCount = LIST_LENGTH(pScan->node.pOutputDataBlockDesc->pSlots);
+  ASSERT_GT(rawSlotCount, 0);
+
+  const STargetNode* pTimestampTarget = nullptr;
+  int32_t            timestampTargets = 0;
+  SNode*             pTargetNode = nullptr;
+  FOREACH(pTargetNode, pScan->pScanCols) {
+    ASSERT_EQ(QUERY_NODE_TARGET, nodeType(pTargetNode));
+    const auto* pTarget = (const STargetNode*)pTargetNode;
+    if (pTarget->pExpr != nullptr && nodeType(pTarget->pExpr) == QUERY_NODE_COLUMN &&
+        ((const SColumnNode*)pTarget->pExpr)->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      pTimestampTarget = pTarget;
+      ++timestampTargets;
+    }
+  }
+  ASSERT_EQ(1, timestampTargets);
+  ASSERT_NE(nullptr, pTimestampTarget);
+  ASSERT_GE(pTimestampTarget->slotId, 0);
+  ASSERT_LT(pTimestampTarget->slotId, rawSlotCount);
+
+  const SSlotDescNode* pTimestampSlot = nullptr;
+  int32_t              timestampSlots = 0;
+  SNode*               pSlotNode = nullptr;
+  FOREACH(pSlotNode, pScan->node.pOutputDataBlockDesc->pSlots) {
+    ASSERT_EQ(QUERY_NODE_SLOT_DESC, nodeType(pSlotNode));
+    const auto* pSlot = (const SSlotDescNode*)pSlotNode;
+    if (pSlot->slotId == pTimestampTarget->slotId) {
+      pTimestampSlot = pSlot;
+      ++timestampSlots;
+    }
+  }
+  ASSERT_EQ(1, timestampSlots);
+  ASSERT_NE(nullptr, pTimestampSlot);
+  EXPECT_EQ(TSDB_DATA_TYPE_TIMESTAMP, pTimestampSlot->dataType.type);
+
+  EXPECT_EQ(pTimestampTarget->slotId, req.triTsSlotId);
+  ASSERT_NE(nullptr, req.pWindowPlan);
+  ASSERT_NE(nullptr, req.pWindowPlan->pLayers);
+  ASSERT_EQ(2, taosArrayGetSize(req.pWindowPlan->pLayers));
+  for (int32_t i = 0; i < taosArrayGetSize(req.pWindowPlan->pLayers); ++i) {
+    const auto* pLayer = pstWindowLayer(req, i);
+    ASSERT_NE(nullptr, pLayer);
+    EXPECT_EQ(pTimestampTarget->slotId, pLayer->input.tsSlotId);
+  }
+
+  const auto* pLeaf = pstWindowLayer(req, 1);
+  ASSERT_NE(nullptr, pLeaf);
+  ASSERT_EQ(expectedLeafType, pLeaf->triggerType);
+  ASSERT_NE(nullptr, pLeaf->input.pConditionSlotIds);
+  if (expectedLeafType == WINDOW_TYPE_STATE) {
+    ASSERT_EQ(1, taosArrayGetSize(pLeaf->input.pConditionSlotIds));
+    ASSERT_NE(nullptr, pLeaf->trigger.stateWin.pSlotIds);
+    ASSERT_EQ(1, taosArrayGetSize(pLeaf->trigger.stateWin.pSlotIds));
+    ASSERT_NE(nullptr, req.trigger.stateWin.pSlotIds);
+    ASSERT_EQ(1, taosArrayGetSize(req.trigger.stateWin.pSlotIds));
+    const int16_t conditionSlot = *(const int16_t*)taosArrayGet(pLeaf->input.pConditionSlotIds, 0);
+    EXPECT_GE(conditionSlot, 0);
+    EXPECT_EQ(conditionSlot, *(const int16_t*)taosArrayGet(pLeaf->trigger.stateWin.pSlotIds, 0));
+    EXPECT_EQ(conditionSlot, *(const int16_t*)taosArrayGet(req.trigger.stateWin.pSlotIds, 0));
+  } else if (expectedLeafType == WINDOW_TYPE_COUNT) {
+    EXPECT_EQ(0, taosArrayGetSize(pLeaf->input.pConditionSlotIds));
+    EXPECT_EQ(2, req.trigger.count.countVal);
+    EXPECT_GT(req.trigger.count.sliding, 0);
+  } else if (expectedLeafType == WINDOW_TYPE_EVENT) {
+    EXPECT_EQ(0, taosArrayGetSize(pLeaf->input.pConditionSlotIds));
+    EXPECT_EQ(rawSlotCount + 1, pLeaf->input.eventStartSlotId);
+    EXPECT_EQ(rawSlotCount + 2, pLeaf->input.eventEndSlotId);
+    ASSERT_NE(nullptr, pLeaf->trigger.event.startCond);
+    ASSERT_NE(nullptr, pLeaf->trigger.event.endCond);
+    ASSERT_NE(nullptr, req.trigger.event.startCond);
+    ASSERT_NE(nullptr, req.trigger.event.endCond);
+  }
+}
+
+static void pstCheckClonedWindowPlanLifecycle(SNode* pWindowPlan, int32_t expectedLayers,
+                                              const char* pExpectedFirstName, ENodeType expectedFirstWindowType,
+                                              const char* pExpectedLastName, ENodeType expectedLastWindowType) {
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pWindowPlan, nodesDestroyNode);
+  ASSERT_NE(nullptr, pWindowPlan);
+  ASSERT_EQ(QUERY_NODE_STREAM_WINDOW_PLAN, nodeType(pWindowPlan));
+
+  auto* pPlan = (SStreamWindowPlanNode*)pWindowPlan;
+  ASSERT_EQ(expectedLayers, LIST_LENGTH(pPlan->pLayers));
+  auto* pFirst = (SStreamWindowLayerNode*)nodesListGetNode(pPlan->pLayers, 0);
+  auto* pLast = (SStreamWindowLayerNode*)nodesListGetNode(pPlan->pLayers, expectedLayers - 1);
+  EXPECT_STREQ(pExpectedFirstName, pFirst->name);
+  EXPECT_EQ(expectedFirstWindowType, nodeType(pFirst->pWindow));
+  EXPECT_STREQ(pExpectedLastName, pLast->name);
+  EXPECT_EQ(expectedLastWindowType, nodeType(pLast->pWindow));
+
+  SWindowTraversalCounts walked;
+  nodesWalkExpr(pWindowPlan, pstCountWindowWalker, &walked);
+  EXPECT_EQ(1, walked.plans);
+  EXPECT_EQ(expectedLayers, walked.layers);
+  EXPECT_EQ(expectedLayers, walked.concreteWindows);
+
+  SWindowTraversalCounts rewritten;
+  nodesRewriteExpr(&pWindowPlan, pstCountWindowRewriter, &rewritten);
+  EXPECT_EQ(1, rewritten.plans);
+  EXPECT_EQ(expectedLayers, rewritten.layers);
+  EXPECT_EQ(expectedLayers, rewritten.concreteWindows);
+  ASSERT_EQ(planGuard.get(), pWindowPlan);
+
+  char*   pEncoded = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString(pWindowPlan, false, &pEncoded, &len));
+  auto                                    freeEncoded = [](char* pData) { taosMemoryFree(pData); };
+  unique_ptr<char, decltype(freeEncoded)> encodedGuard(pEncoded, freeEncoded);
+  ASSERT_GT(len, 0);
+
+  SNode* pDecoded = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(pEncoded, &pDecoded));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> decodedGuard(pDecoded, nodesDestroyNode);
+  ASSERT_NE(nullptr, pDecoded);
+  ASSERT_EQ(QUERY_NODE_STREAM_WINDOW_PLAN, nodeType(pDecoded));
+
+  const auto* pDecodedPlan = (const SStreamWindowPlanNode*)pDecoded;
+  ASSERT_EQ(expectedLayers, LIST_LENGTH(pDecodedPlan->pLayers));
+  const auto* pDecodedFirst = (const SStreamWindowLayerNode*)nodesListGetNode(pDecodedPlan->pLayers, 0);
+  const auto* pDecodedLast = (const SStreamWindowLayerNode*)nodesListGetNode(pDecodedPlan->pLayers, expectedLayers - 1);
+  EXPECT_STREQ(pExpectedFirstName, pDecodedFirst->name);
+  EXPECT_EQ(expectedFirstWindowType, nodeType(pDecodedFirst->pWindow));
+  EXPECT_STREQ(pExpectedLastName, pDecodedLast->name);
+  EXPECT_EQ(expectedLastWindowType, nodeType(pDecodedLast->pWindow));
+}
+
+static void pstParseStreamOnly(const char* pSql, const function<void(const SQuery*, ParserStage)>& check) {
+  array<char, 1024> msgBuf = {0};
+  SParseContext     cxt = {0};
+  cxt.acctId = 0;
+  cxt.db = "stream_streamdb";
+  cxt.pUser = "root";
+  cxt.pSql = pSql;
+  cxt.sqlLen = strlen(pSql);
+  cxt.pMsg = msgBuf.data();
+  cxt.msgLen = msgBuf.max_size();
+
+  SQuery* pQuery = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, parse(&cxt, &pQuery)) << msgBuf.data();
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  ASSERT_NE(nullptr, pQuery);
+  check(pQuery, PARSER_STAGE_PARSE);
+}
+
+static void pstExpectStreamParseCode(const char* pSql, int32_t expectedCode) {
+  array<char, 1024> msgBuf = {0};
+  SParseContext     cxt = {0};
+  cxt.acctId = 0;
+  cxt.db = "stream_streamdb";
+  cxt.pUser = "root";
+  cxt.pSql = pSql;
+  cxt.sqlLen = strlen(pSql);
+  cxt.pMsg = msgBuf.data();
+  cxt.msgLen = msgBuf.max_size();
+
+  SQuery* pQuery = nullptr;
+  EXPECT_EQ(expectedCode, parse(&cxt, &pQuery)) << msgBuf.data();
+  qDestroyQuery(pQuery);
+}
+
+TEST_F(ParserStreamTest, NestedWindowParsesRootToLeafAndRoundTrips) {
+  SNode* pWindowPlanClone = nullptr;
+  pstParseStreamOnly(
+      "create stream stream_streamdb.s_nested window ("
+      "state_window(c1) extend(1) as w_state, "
+      "interval(1m) sliding(1m) as w_min, "
+      "count_window(2,1)) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart "
+      "from stream_querydb.stream_t2",
+      [&](const SQuery* pQuery, ParserStage stage) {
+        ASSERT_EQ(PARSER_STAGE_PARSE, stage);
+        ASSERT_EQ(QUERY_NODE_CREATE_STREAM_STMT, nodeType(pQuery->pRoot));
+        const auto* stmt = (const SCreateStreamStmt*)pQuery->pRoot;
+        const auto* trigger = (const SStreamTriggerNode*)stmt->pTrigger;
+        ASSERT_EQ(QUERY_NODE_STREAM_WINDOW_PLAN, nodeType(trigger->pTriggerWindow));
+        const auto* plan = (const SStreamWindowPlanNode*)trigger->pTriggerWindow;
+        ASSERT_EQ(3, LIST_LENGTH(plan->pLayers));
+        EXPECT_STREQ("w_state", ((SStreamWindowLayerNode*)nodesListGetNode(plan->pLayers, 0))->name);
+        EXPECT_STREQ("w_min", ((SStreamWindowLayerNode*)nodesListGetNode(plan->pLayers, 1))->name);
+        EXPECT_STREQ("", ((SStreamWindowLayerNode*)nodesListGetNode(plan->pLayers, 2))->name);
+
+        ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(trigger->pTriggerWindow, &pWindowPlanClone));
+        ASSERT_NE(trigger->pTriggerWindow, pWindowPlanClone);
+      });
+
+  ASSERT_NE(nullptr, pWindowPlanClone);
+  pstCheckClonedWindowPlanLifecycle(pWindowPlanClone, 3, "w_state", QUERY_NODE_STATE_WINDOW, "",
+                                    QUERY_NODE_COUNT_WINDOW);
+}
+
+TEST_F(ParserStreamTest, NestedWindowPreservesSlidingOffsetAcrossLifecycle) {
+  SNode* pWindowPlanClone = nullptr;
+  pstParseStreamOnly(
+      "create stream stream_streamdb.s_nested_sliding_offset window ("
+      "interval(2m) sliding(1m, 10s) as w_interval, count_window(2,1)) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _twstart from stream_querydb.stream_t2",
+      [&](const SQuery* pQuery, ParserStage stage) {
+        ASSERT_EQ(PARSER_STAGE_PARSE, stage);
+        const auto* pStmt = (const SCreateStreamStmt*)pQuery->pRoot;
+        const auto* pTrigger = (const SStreamTriggerNode*)pStmt->pTrigger;
+        const auto* pPlan = (const SStreamWindowPlanNode*)pTrigger->pTriggerWindow;
+        const auto* pLayer = (const SStreamWindowLayerNode*)nodesListGetNode(pPlan->pLayers, 0);
+        const auto* pInterval = (const SIntervalWindowNode*)pLayer->pWindow;
+        ASSERT_NE(nullptr, pInterval->pSOffset);
+        EXPECT_STREQ("10s", ((const SValueNode*)pInterval->pSOffset)->literal);
+
+        SWindowValueLiteralCount walked;
+        walked.pLiteral = "10s";
+        nodesWalkExpr(pTrigger->pTriggerWindow, pstCountWindowValueLiteral, &walked);
+        EXPECT_EQ(1, walked.count);
+
+        ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(pTrigger->pTriggerWindow, &pWindowPlanClone));
+      });
+
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> cloneGuard(pWindowPlanClone, nodesDestroyNode);
+  ASSERT_NE(nullptr, pWindowPlanClone);
+  const auto* pClonePlan = (const SStreamWindowPlanNode*)pWindowPlanClone;
+  const auto* pCloneLayer = (const SStreamWindowLayerNode*)nodesListGetNode(pClonePlan->pLayers, 0);
+  const auto* pCloneInterval = (const SIntervalWindowNode*)pCloneLayer->pWindow;
+  ASSERT_NE(nullptr, pCloneInterval->pSOffset);
+  EXPECT_STREQ("10s", ((const SValueNode*)pCloneInterval->pSOffset)->literal);
+
+  SWindowValueLiteralCount walkedClone;
+  walkedClone.pLiteral = "10s";
+  nodesWalkExpr(pWindowPlanClone, pstCountWindowValueLiteral, &walkedClone);
+  EXPECT_EQ(1, walkedClone.count);
+
+  char*   pEncoded = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString(pWindowPlanClone, false, &pEncoded, &len));
+  auto                                    freeEncoded = [](char* pData) { taosMemoryFree(pData); };
+  unique_ptr<char, decltype(freeEncoded)> encodedGuard(pEncoded, freeEncoded);
+  ASSERT_GT(len, 0);
+
+  SNode* pDecoded = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(pEncoded, &pDecoded));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> decodedGuard(pDecoded, nodesDestroyNode);
+  ASSERT_NE(nullptr, pDecoded);
+  const auto* pDecodedPlan = (const SStreamWindowPlanNode*)pDecoded;
+  const auto* pDecodedLayer = (const SStreamWindowLayerNode*)nodesListGetNode(pDecodedPlan->pLayers, 0);
+  const auto* pDecodedInterval = (const SIntervalWindowNode*)pDecodedLayer->pWindow;
+  ASSERT_NE(nullptr, pDecodedInterval->pSOffset);
+  EXPECT_STREQ("10s", ((const SValueNode*)pDecodedInterval->pSOffset)->literal);
+}
+
+TEST_F(ParserStreamTest, NestedWindowClonesPeriodLayerOwnedFields) {
+  SNode* pWindowPlanClone = nullptr;
+  pstParseStreamOnly(
+      "create stream stream_streamdb.s_nested_period window ("
+      "period(1m, 10s) as w_period, count_window(2,1)) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _twstart from stream_querydb.stream_t2",
+      [&](const SQuery* pQuery, ParserStage stage) {
+        ASSERT_EQ(PARSER_STAGE_PARSE, stage);
+        const auto* pStmt = (const SCreateStreamStmt*)pQuery->pRoot;
+        const auto* pTrigger = (const SStreamTriggerNode*)pStmt->pTrigger;
+        const auto* pPlan = (const SStreamWindowPlanNode*)pTrigger->pTriggerWindow;
+        const auto* pLayer = (const SStreamWindowLayerNode*)nodesListGetNode(pPlan->pLayers, 0);
+        ASSERT_EQ(QUERY_NODE_PERIOD_WINDOW, nodeType(pLayer->pWindow));
+        const auto* pPeriod = (const SPeriodWindowNode*)pLayer->pWindow;
+        ASSERT_NE(nullptr, pPeriod->pPeroid);
+        ASSERT_NE(nullptr, pPeriod->pOffset);
+        EXPECT_STREQ("1m", ((const SValueNode*)pPeriod->pPeroid)->literal);
+        EXPECT_STREQ("10s", ((const SValueNode*)pPeriod->pOffset)->literal);
+
+        ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(pTrigger->pTriggerWindow, &pWindowPlanClone));
+      });
+
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> cloneGuard(pWindowPlanClone, nodesDestroyNode);
+  ASSERT_NE(nullptr, pWindowPlanClone);
+  const auto* pClonePlan = (const SStreamWindowPlanNode*)pWindowPlanClone;
+  const auto* pCloneLayer = (const SStreamWindowLayerNode*)nodesListGetNode(pClonePlan->pLayers, 0);
+  ASSERT_EQ(QUERY_NODE_PERIOD_WINDOW, nodeType(pCloneLayer->pWindow));
+  const auto* pClonePeriod = (const SPeriodWindowNode*)pCloneLayer->pWindow;
+  ASSERT_NE(nullptr, pClonePeriod->pPeroid);
+  ASSERT_NE(nullptr, pClonePeriod->pOffset);
+  EXPECT_STREQ("1m", ((const SValueNode*)pClonePeriod->pPeroid)->literal);
+  EXPECT_STREQ("10s", ((const SValueNode*)pClonePeriod->pOffset)->literal);
+}
+
+TEST_F(ParserStreamTest, NestedWindowParsesTwoLayersAndNamedLeaf) {
+  pstParseStreamOnly(
+      "create stream stream_streamdb.s_nested_two window ("
+      "interval(2m) sliding(2m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _twstart from stream_querydb.stream_t2",
+      [&](const SQuery* pQuery, ParserStage stage) {
+        ASSERT_EQ(PARSER_STAGE_PARSE, stage);
+        const auto* stmt = (const SCreateStreamStmt*)pQuery->pRoot;
+        const auto* trigger = (const SStreamTriggerNode*)stmt->pTrigger;
+        const auto* plan = (const SStreamWindowPlanNode*)trigger->pTriggerWindow;
+        ASSERT_EQ(2, LIST_LENGTH(plan->pLayers));
+        EXPECT_STREQ("w_outer", ((SStreamWindowLayerNode*)nodesListGetNode(plan->pLayers, 0))->name);
+        EXPECT_STREQ("w_leaf", ((SStreamWindowLayerNode*)nodesListGetNode(plan->pLayers, 1))->name);
+      });
+}
+
+TEST_F(ParserStreamTest, NestedWindowParsesEightLayers) {
+  pstParseStreamOnly(
+      "create stream stream_streamdb.s_nested_eight window ("
+      "interval(8m) sliding(8m) as w1, interval(7m) sliding(7m) as w2, "
+      "interval(6m) sliding(6m) as w3, interval(5m) sliding(5m) as w4, "
+      "interval(4m) sliding(4m) as w5, interval(3m) sliding(3m) as w6, "
+      "interval(2m) sliding(2m) as w7, count_window(2,1)) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _twstart from stream_querydb.stream_t2",
+      [&](const SQuery* pQuery, ParserStage stage) {
+        ASSERT_EQ(PARSER_STAGE_PARSE, stage);
+        const auto* stmt = (const SCreateStreamStmt*)pQuery->pRoot;
+        const auto* trigger = (const SStreamTriggerNode*)stmt->pTrigger;
+        const auto* plan = (const SStreamWindowPlanNode*)trigger->pTriggerWindow;
+        ASSERT_EQ(8, LIST_LENGTH(plan->pLayers));
+        EXPECT_STREQ("w1", ((SStreamWindowLayerNode*)nodesListGetNode(plan->pLayers, 0))->name);
+        EXPECT_STREQ("", ((SStreamWindowLayerNode*)nodesListGetNode(plan->pLayers, 7))->name);
+      });
+}
+
+TEST_F(ParserStreamTest, NestedWindowParsesNineLayersForAstLifecycle) {
+  SNode* pWindowPlanClone = nullptr;
+  pstParseStreamOnly(
+      "create stream stream_streamdb.s_nested_nine window ("
+      "interval(9m) sliding(9m) as w1, interval(8m) sliding(8m) as w2, "
+      "interval(7m) sliding(7m) as w3, interval(6m) sliding(6m) as w4, "
+      "interval(5m) sliding(5m) as w5, interval(4m) sliding(4m) as w6, "
+      "interval(3m) sliding(3m) as w7, interval(2m) sliding(2m) as w8, "
+      "count_window(2,1)) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart "
+      "from stream_querydb.stream_t2",
+      [&](const SQuery* pQuery, ParserStage stage) {
+        ASSERT_EQ(PARSER_STAGE_PARSE, stage);
+        const auto* stmt = (const SCreateStreamStmt*)pQuery->pRoot;
+        const auto* trigger = (const SStreamTriggerNode*)stmt->pTrigger;
+        const auto* plan = (const SStreamWindowPlanNode*)trigger->pTriggerWindow;
+        ASSERT_EQ(9, LIST_LENGTH(plan->pLayers));
+        ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(trigger->pTriggerWindow, &pWindowPlanClone));
+      });
+
+  ASSERT_NE(nullptr, pWindowPlanClone);
+  pstCheckClonedWindowPlanLifecycle(pWindowPlanClone, 9, "w1", QUERY_NODE_INTERVAL_WINDOW, "", QUERY_NODE_COUNT_WINDOW);
+}
+
+TEST_F(ParserStreamTest, NestedWindowParsesQuotedLayerNames) {
+  pstParseStreamOnly(
+      "create stream stream_streamdb.s_nested_quoted window ("
+      "state_window(c1) extend(1) as `w_outer`, count_window(2,1) as `w_leaf`) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _twstart from stream_querydb.stream_t2",
+      [&](const SQuery* pQuery, ParserStage stage) {
+        ASSERT_EQ(PARSER_STAGE_PARSE, stage);
+        const auto* stmt = (const SCreateStreamStmt*)pQuery->pRoot;
+        const auto* trigger = (const SStreamTriggerNode*)stmt->pTrigger;
+        const auto* plan = (const SStreamWindowPlanNode*)trigger->pTriggerWindow;
+        ASSERT_EQ(2, LIST_LENGTH(plan->pLayers));
+        EXPECT_STREQ("w_outer", ((SStreamWindowLayerNode*)nodesListGetNode(plan->pLayers, 0))->name);
+        EXPECT_STREQ("w_leaf", ((SStreamWindowLayerNode*)nodesListGetNode(plan->pLayers, 1))->name);
+      });
+}
+
+TEST_F(ParserStreamTest, NestedWindowValidatesLayerNameLengthBeforeCopy) {
+  string maxLengthName(TSDB_TABLE_NAME_LEN - 1, 'a');
+  string maxLengthSql =
+      "create stream stream_streamdb.s_nested_max_name window ("
+      "interval(2m) sliding(2m) as " +
+      maxLengthName +
+      ", count_window(2,1)) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart from stream_querydb.stream_t2";
+  pstParseStreamOnly(maxLengthSql.c_str(), [&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_PARSE, stage);
+    const auto* pStmt = (const SCreateStreamStmt*)pQuery->pRoot;
+    const auto* pTrigger = (const SStreamTriggerNode*)pStmt->pTrigger;
+    const auto* pPlan = (const SStreamWindowPlanNode*)pTrigger->pTriggerWindow;
+    const auto* pLayer = (const SStreamWindowLayerNode*)nodesListGetNode(pPlan->pLayers, 0);
+    EXPECT_STREQ(maxLengthName.c_str(), pLayer->name);
+  });
+
+  string tooLongName(TSDB_TABLE_NAME_LEN, 'b');
+  string tooLongSql =
+      "create stream stream_streamdb.s_nested_long_name window ("
+      "interval(2m) sliding(2m) as " +
+      tooLongName +
+      ", count_window(2,1)) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart from stream_querydb.stream_t2";
+  pstExpectStreamParseCode(tooLongSql.c_str(), TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME);
+}
+
+TEST_F(ParserStreamTest, NestedWindowParsesFlushOnOuterCloseOption) {
+  pstParseStreamOnly(
+      "create stream stream_streamdb.s_nested_flush window ("
+      "interval(2m) sliding(2m) as w_outer, count_window(2,1)) "
+      "from stream_triggerdb.stream_t1 stream_options(flush_on_outer_close) "
+      "into stream_outdb.stream_out as select _twstart from stream_querydb.stream_t2",
+      [&](const SQuery* pQuery, ParserStage stage) {
+        ASSERT_EQ(PARSER_STAGE_PARSE, stage);
+        const auto* stmt = (const SCreateStreamStmt*)pQuery->pRoot;
+        const auto* trigger = (const SStreamTriggerNode*)stmt->pTrigger;
+        ASSERT_NE(nullptr, trigger->pOptions);
+        EXPECT_TRUE(((const SStreamTriggerOptions*)trigger->pOptions)->flushOnOuterClose);
+      });
+
+  pstExpectStreamParseCode(
+      "create stream stream_streamdb.s_nested_flush_duplicate window ("
+      "interval(2m) sliding(2m) as w_outer, count_window(2,1)) "
+      "from stream_triggerdb.stream_t1 stream_options("
+      "flush_on_outer_close | flush_on_outer_close) into stream_outdb.stream_out "
+      "as select _twstart from stream_querydb.stream_t2",
+      TSDB_CODE_PAR_SYNTAX_ERROR);
+}
+
+TEST_F(ParserStreamTest, NestedWindowGrammarRejectsInvalidLayerShapes) {
+  pstExpectStreamParseCode(
+      "create stream stream_streamdb.s_nested_single window (count_window(2,1)) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _twstart from stream_querydb.stream_t2",
+      TSDB_CODE_PAR_SYNTAX_ERROR);
+  pstExpectStreamParseCode(
+      "create stream stream_streamdb.s_nested_unnamed_nonleaf window ("
+      "interval(2m) sliding(2m), count_window(2,1)) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _twstart from stream_querydb.stream_t2",
+      TSDB_CODE_PAR_SYNTAX_ERROR);
+}
+
+TEST_F(ParserStreamTest, NestedWindowPreservesDirectSingleWindowAst) {
+  pstParseStreamOnly(
+      "create stream stream_streamdb.s_single interval(1m) sliding(1m) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _twstart from stream_querydb.stream_t2",
+      [&](const SQuery* pQuery, ParserStage stage) {
+        ASSERT_EQ(PARSER_STAGE_PARSE, stage);
+        const auto* stmt = (const SCreateStreamStmt*)pQuery->pRoot;
+        const auto* trigger = (const SStreamTriggerNode*)stmt->pTrigger;
+        EXPECT_EQ(QUERY_NODE_INTERVAL_WINDOW, nodeType(trigger->pTriggerWindow));
+      });
+}
+
+TEST_F(ParserStreamTest, NestedWindowParsesQualifiedLayerPseudoColumns) {
+  pstParseStreamOnly(
+      "create stream stream_streamdb.s_nested_qualified_ast window ("
+      "sliding(1m) as w_slide, interval(1m) sliding(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select w_slide._tprev_ts, w_slide._tcurrent_ts, w_slide._tnext_ts, "
+      "w_outer._twstart, w_outer._twend, w_leaf._twduration, w_leaf._twrownum from %%trows",
+      [&](const SQuery* pQuery, ParserStage stage) {
+        ASSERT_EQ(PARSER_STAGE_PARSE, stage);
+        const auto* pStmt = (const SCreateStreamStmt*)pQuery->pRoot;
+        const auto* pSelect = (const SSelectStmt*)pStmt->pQuery;
+        ASSERT_NE(nullptr, pSelect->pProjectionList);
+        ASSERT_EQ(7, LIST_LENGTH(pSelect->pProjectionList));
+
+        const char* expectedAliases[] = {"w_slide", "w_slide", "w_slide", "w_outer", "w_outer", "w_leaf", "w_leaf"};
+        const char* expectedNames[] = {"_tprev_ts", "_tcurrent_ts", "_tnext_ts", "_twstart",
+                                       "_twend",    "_twduration",  "_twrownum"};
+        for (int32_t i = 0; i < 7; ++i) {
+          const SNode* pProjection = nodesListGetNode(pSelect->pProjectionList, i);
+          ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(pProjection));
+          const auto* pColumn = (const SColumnNode*)pProjection;
+          EXPECT_STREQ(expectedAliases[i], pColumn->tableAlias);
+          EXPECT_STREQ(expectedNames[i], pColumn->colName);
+        }
+      });
+}
+
+TEST_F(ParserStreamTest, NestedWindowRequestWindowPlanRoundTrips) {
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+
+    ASSERT_NE(nullptr, req.pWindowPlan);
+    ASSERT_NE(nullptr, req.pWindowPlan->pLayers);
+    EXPECT_EQ(2, taosArrayGetSize(req.pWindowPlan->pLayers));
+    EXPECT_EQ(WINDOW_TYPE_COUNT, req.triggerType);
+    EXPECT_NE(0, req.addOptions & STREAM_OPTION_NESTED_WINDOW_PLAN);
+    ASSERT_EQ(WINDOW_TYPE_STATE, ((SStreamWindowLayerSpec*)taosArrayGet(req.pWindowPlan->pLayers, 0))->triggerType);
+    ASSERT_EQ(WINDOW_TYPE_COUNT, ((SStreamWindowLayerSpec*)taosArrayGet(req.pWindowPlan->pLayers, 1))->triggerType);
+    const auto* pState = (const SStreamWindowLayerSpec*)taosArrayGet(req.pWindowPlan->pLayers, 0);
+    const auto* pLeaf = (const SStreamWindowLayerSpec*)taosArrayGet(req.pWindowPlan->pLayers, 1);
+    pstAssertNestedRawTimestampSlots(req, WINDOW_TYPE_COUNT);
+    EXPECT_STREQ("w_state", pState->name);
+    EXPECT_STREQ("w_leaf", pLeaf->name);
+    ASSERT_NE(nullptr, pState->input.pConditionSlotIds);
+    ASSERT_NE(nullptr, pState->trigger.stateWin.pSlotIds);
+    EXPECT_EQ(1, taosArrayGetSize(pState->input.pConditionSlotIds));
+    EXPECT_EQ(1, taosArrayGetSize(pState->trigger.stateWin.pSlotIds));
+    ASSERT_NE(nullptr, pLeaf->input.pConditionSlotIds);
+    EXPECT_EQ(0, taosArrayGetSize(pLeaf->input.pConditionSlotIds));
+    EXPECT_EQ(PLACE_HOLDER_WSTART, pState->placeholderMask);
+    EXPECT_EQ(PLACE_HOLDER_WROWNUM, pLeaf->placeholderMask);
+    EXPECT_EQ(*static_cast<const int16_t*>(taosArrayGet(pState->input.pConditionSlotIds, 0)),
+              *static_cast<const int16_t*>(taosArrayGet(pState->trigger.stateWin.pSlotIds, 0)));
+    EXPECT_GE(pState->input.tsSlotId, 0);
+    EXPECT_GE(pLeaf->input.tsSlotId, 0);
+    EXPECT_EQ(-1, pState->input.pkSlotId);
+    EXPECT_EQ(-1, pLeaf->input.pkSlotId);
+    EXPECT_EQ(-1, pState->input.eventStartSlotId);
+    EXPECT_EQ(-1, pState->input.eventEndSlotId);
+    EXPECT_EQ(2, req.trigger.count.countVal);
+    EXPECT_EQ(1, req.trigger.count.sliding);
+
+    SCMCreateStreamReq* pClone = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tCloneStreamCreateDeployPointers(&req, &pClone));
+    auto freeReq = [](SCMCreateStreamReq* pReq) {
+      if (pReq == nullptr) return;
+      tFreeSCMCreateStreamReq(pReq);
+      taosMemoryFree(pReq);
+    };
+    unique_ptr<SCMCreateStreamReq, decltype(freeReq)> cloneGuard(pClone, freeReq);
+    ASSERT_NE(nullptr, pClone);
+    ASSERT_NE(nullptr, pClone->pWindowPlan);
+    EXPECT_NE(req.pWindowPlan, pClone->pWindowPlan);
+    EXPECT_NE(req.pWindowPlan->pLayers, pClone->pWindowPlan->pLayers);
+    const auto* pClonedState = pstWindowLayer(*pClone, 0);
+    const auto* pClonedLeaf = pstWindowLayer(*pClone, 1);
+    ASSERT_NE(nullptr, pClonedState);
+    ASSERT_NE(nullptr, pClonedLeaf);
+    EXPECT_NE(pState->input.pConditionSlotIds, pClonedState->input.pConditionSlotIds);
+    EXPECT_NE(pState->trigger.stateWin.pSlotIds, pClonedState->trigger.stateWin.pSlotIds);
+    EXPECT_NE(pState->trigger.stateWin.expr, pClonedState->trigger.stateWin.expr);
+    EXPECT_NE(pLeaf->input.pConditionSlotIds, pClonedLeaf->input.pConditionSlotIds);
+  });
+
+  run("create stream stream_streamdb.s_nested_request window ("
+      "state_window(c1) extend(1) as w_state, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select w_state._twstart, w_leaf._twrownum from %%trows");
+}
+
+TEST_F(ParserStreamTest, NestedWindowRequestPreservesOnFailurePauseBit) {
+  static const char kSql[] =
+      "create stream stream_streamdb.s_nested_notify window ("
+      "state_window(c1) extend(1) as w_state, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 notify('ws://localhost:8080') on (window_close) "
+      "notify_options(notify_history) into stream_outdb.stream_out as "
+      "select w_state._twstart, w_leaf._twrownum from %%trows";
+
+  array<char, 1024> msgBuf = {0};
+  SParseContext     cxt = {0};
+  cxt.acctId = 0;
+  cxt.db = "stream_streamdb";
+  cxt.pUser = "root";
+  cxt.isSuperUser = true;
+  cxt.enableSysInfo = true;
+  cxt.privInfo = UINT16_MAX;
+  cxt.pSql = kSql;
+  cxt.sqlLen = strlen(kSql);
+  cxt.pMsg = msgBuf.data();
+  cxt.msgLen = msgBuf.max_size();
+
+  SQuery* pQuery = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, parse(&cxt, &pQuery)) << msgBuf.data();
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  ASSERT_NE(nullptr, pQuery);
+  ASSERT_EQ(QUERY_NODE_CREATE_STREAM_STMT, nodeType(pQuery->pRoot));
+
+  auto* pStmt = (SCreateStreamStmt*)pQuery->pRoot;
+  ASSERT_NE(nullptr, pStmt->pTrigger);
+  auto* pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
+  ASSERT_NE(nullptr, pTrigger->pNotify);
+  auto* pNotify = (SStreamNotifyOptions*)pTrigger->pNotify;
+  pNotify->notifyType = NOTIFY_ON_FAILURE_PAUSE;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, authenticate(&cxt, pQuery, nullptr)) << msgBuf.data();
+  ASSERT_EQ(TSDB_CODE_SUCCESS, translate(&cxt, pQuery, nullptr)) << msgBuf.data();
+  ASSERT_NE(nullptr, pQuery->pCmdMsg);
+
+  SCMCreateStreamReq req = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+  unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+  EXPECT_NE(0, req.addOptions & STREAM_OPTION_NESTED_WINDOW_PLAN);
+  EXPECT_NE(0, req.addOptions & NOTIFY_ON_FAILURE_PAUSE);
+  EXPECT_EQ(0, req.addOptions & BIT_FLAG_MASK(0));
+}
+
+TEST_F(ParserStreamTest, NestedWindowUsesRawScanTimestampSlotForDataDrivenLeaves) {
+  useDb("root", "stream_streamdb");
+  EWindowType expectedLeafType = WINDOW_TYPE_STATE;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+    pstAssertNestedRawTimestampSlots(req, expectedLeafType);
+  });
+
+  expectedLeafType = WINDOW_TYPE_STATE;
+  run("create stream stream_streamdb.s_nested_raw_ts_state window ("
+      "interval(1m) sliding(1m) as w_outer, state_window(c1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.s_nested_raw_ts_state as "
+      "select _twstart ts, _twend wend, count(*) cnt from %%trows");
+
+  expectedLeafType = WINDOW_TYPE_COUNT;
+  run("create stream stream_streamdb.s_nested_raw_ts_count window ("
+      "interval(1m) sliding(1m) as w_outer, count_window(2,2) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.s_nested_raw_ts_count as "
+      "select _twstart ts, _twend wend, count(*) cnt from %%trows");
+
+  expectedLeafType = WINDOW_TYPE_EVENT;
+  run("create stream stream_streamdb.s_nested_raw_ts_event window ("
+      "interval(1m) sliding(1m) as w_outer, "
+      "event_window(start with c1 = 1 end with c1 = 0) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.s_nested_raw_ts_event as "
+      "select _twstart ts, _twend wend, count(*) cnt from %%trows");
+}
+
+TEST_F(ParserStreamTest, NestedWindowLeafStateExpressionUsesProjectedSlot) {
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+    const auto*                                                        pLeaf = pstWindowLayer(req, 1);
+    ASSERT_NE(nullptr, pLeaf);
+    ASSERT_NE(nullptr, pLeaf->input.pConditionSlotIds);
+    ASSERT_EQ(2, taosArrayGetSize(pLeaf->input.pConditionSlotIds));
+    ASSERT_NE(nullptr, pLeaf->trigger.stateWin.pSlotIds);
+    ASSERT_EQ(2, taosArrayGetSize(pLeaf->trigger.stateWin.pSlotIds));
+    ASSERT_NE(nullptr, req.trigger.stateWin.pSlotIds);
+    ASSERT_EQ(2, taosArrayGetSize(req.trigger.stateWin.pSlotIds));
+
+    SNodeList* pStateExprs = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToList((const char*)pLeaf->trigger.stateWin.expr, &pStateExprs));
+    unique_ptr<SNodeList, decltype(&nodesDestroyList)> stateExprsGuard(pStateExprs, nodesDestroyList);
+    ASSERT_EQ(2, LIST_LENGTH(pStateExprs));
+
+    int16_t slots[2] = {-1, -1};
+    for (int32_t i = 0; i < 2; ++i) {
+      slots[i] = *(const int16_t*)taosArrayGet(pLeaf->input.pConditionSlotIds, i);
+      EXPECT_GE(slots[i], 0);
+      EXPECT_EQ(slots[i], *(const int16_t*)taosArrayGet(pLeaf->trigger.stateWin.pSlotIds, i));
+      EXPECT_EQ(slots[i], *(const int16_t*)taosArrayGet(req.trigger.stateWin.pSlotIds, i));
+      EXPECT_EQ(QUERY_NODE_OPERATOR, nodeType(nodesListGetNode(pStateExprs, i)));
+    }
+    EXPECT_NE(slots[0], slots[1]);
+  });
+
+  run("create stream stream_streamdb.s_nested_state_expr window ("
+      "interval(1m) sliding(1m) as w_outer, state_window(c1 > 5, c1 < 10) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from %%trows");
+}
+
+TEST_F(ParserStreamTest, NestedWindowLeafEventMultiStartUsesCompositeProjection) {
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+    const auto*                                                        pLeaf = pstWindowLayer(req, 1);
+    ASSERT_NE(nullptr, pLeaf);
+    ASSERT_GE(pLeaf->input.eventStartSlotId, 0);
+    ASSERT_GE(pLeaf->input.eventEndSlotId, 0);
+    EXPECT_EQ(pLeaf->input.eventStartSlotId + 1, pLeaf->input.eventEndSlotId);
+
+    SNode* pStartCond = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)pLeaf->trigger.event.startCond, &pStartCond));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> startCondGuard(pStartCond, nodesDestroyNode);
+    ASSERT_EQ(QUERY_NODE_NODE_LIST, nodeType(pStartCond));
+    EXPECT_EQ(2, LIST_LENGTH(((const SNodeListNode*)pStartCond)->pNodeList));
+  });
+
+  run("create stream stream_streamdb.s_nested_event_multi_start window ("
+      "interval(1m) sliding(1m) as w_outer, "
+      "event_window(start with (c1 > 0, c1 < 10) end with c1 = 0) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from %%trows");
+}
+
+TEST_F(ParserStreamTest, NestedWindowRejectsHierarchicalEventStartTree) {
+  useDb("root", "stream_streamdb");
+  run("create stream stream_streamdb.s_nested_event_tree window ("
+      "interval(1m) sliding(1m) as w_outer, "
+      "event_window(start with ((c1 > 0, c2 = 'a'), c1 < 10) end with c1 = 0) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from %%trows",
+      TSDB_CODE_STREAM_INVALID_TRIGGER, PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserStreamTest, NestedWindowEventLeafKeepsSlotsAfterEventAncestor) {
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+    const auto*                                                        pOuter = pstWindowLayer(req, 0);
+    const auto*                                                        pLeaf = pstWindowLayer(req, 1);
+    ASSERT_NE(nullptr, pOuter);
+    ASSERT_NE(nullptr, pLeaf);
+    ASSERT_EQ(WINDOW_TYPE_EVENT, pOuter->triggerType);
+    ASSERT_EQ(WINDOW_TYPE_EVENT, pLeaf->triggerType);
+    ASSERT_GE(pOuter->input.eventStartSlotId, 0);
+    ASSERT_GE(pOuter->input.eventEndSlotId, 0);
+    ASSERT_GE(pLeaf->input.eventStartSlotId, 0);
+    ASSERT_GE(pLeaf->input.eventEndSlotId, 0);
+    EXPECT_LT(pOuter->input.eventStartSlotId, pOuter->input.eventEndSlotId);
+    EXPECT_LT(pOuter->input.eventEndSlotId, pLeaf->input.eventStartSlotId);
+    EXPECT_LT(pLeaf->input.eventStartSlotId, pLeaf->input.eventEndSlotId);
+  });
+
+  run("create stream stream_streamdb.s_nested_event_leaf_slots window ("
+      "event_window(start with c1 = 1 end with c1 = 0) as w_outer, "
+      "event_window(start with c2 = 1 end with c2 = 0) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from %%trows");
+}
+
+TEST_F(ParserStreamTest, NestedWindowEventAncestorUsesTrailingDerivedSlots) {
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+    const auto*                                                        pOuter = pstWindowLayer(req, 0);
+    ASSERT_NE(nullptr, pOuter);
+    ASSERT_EQ(WINDOW_TYPE_EVENT, pOuter->triggerType);
+
+    SNode* pPlanNode = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)req.triggerScanPlan, &pPlanNode));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlanNode, nodesDestroyNode);
+    ASSERT_EQ(QUERY_NODE_PHYSICAL_SUBPLAN, nodeType(pPlanNode));
+    std::vector<const SScanPhysiNode*> scans;
+    pstCollectTriggerScans(((const SSubplan*)pPlanNode)->pNode, &scans);
+    ASSERT_EQ(1U, scans.size());
+    ASSERT_NE(nullptr, scans[0]->node.pOutputDataBlockDesc);
+    const int32_t rawSlotCount = LIST_LENGTH(scans[0]->node.pOutputDataBlockDesc->pSlots);
+
+    EXPECT_EQ(rawSlotCount + 1, pOuter->input.eventStartSlotId);
+    EXPECT_EQ(rawSlotCount + 2, pOuter->input.eventEndSlotId);
+  });
+
+  run("create stream stream_streamdb.s_nested_event_ancestor_slots window ("
+      "event_window(start with c1 = 1 end with c1 = 0) as w_outer, count_window(3,1)) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from %%trows");
+}
+
+TEST_F(ParserStreamTest, NestedWindowBindsQualifiedAncestorPlaceholder) {
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+    ASSERT_NE(nullptr, req.pWindowPlan);
+    ASSERT_EQ(2, taosArrayGetSize(req.pWindowPlan->pLayers));
+    ASSERT_NE(nullptr, req.calcPlan);
+
+    SNode* pCalcPlan = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)req.calcPlan, &pCalcPlan));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> calcPlanGuard(pCalcPlan, nodesDestroyNode);
+    ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN, nodeType(pCalcPlan));
+
+    std::vector<SPseudoLayerBinding> bindings;
+    pstCollectProjectPseudoLayerBindings((const SQueryPlan*)pCalcPlan, &bindings);
+    ASSERT_EQ(3U, bindings.size());
+
+    auto find = [&](const char* name) -> const SPseudoLayerBinding* {
+      for (const auto& binding : bindings) {
+        if (binding.name == name) return &binding;
+      }
+      return nullptr;
+    };
+    const auto* pOuter = find("_twstart");
+    const auto* pLeaf = find("_twrownum");
+    const auto* pUnqualified = find("_twend");
+    ASSERT_NE(nullptr, pOuter);
+    ASSERT_NE(nullptr, pLeaf);
+    ASSERT_NE(nullptr, pUnqualified);
+    EXPECT_TRUE(pOuter->qualified);
+    EXPECT_EQ(0, pOuter->layerIndex);
+    EXPECT_TRUE(pLeaf->qualified);
+    EXPECT_EQ(1, pLeaf->layerIndex);
+    EXPECT_FALSE(pUnqualified->qualified);
+  });
+
+  run("create stream stream_streamdb.s_nested_binding window ("
+      "state_window(c1) extend(1) as w_state, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select w_state._twstart, w_leaf._twrownum, _twend from %%trows");
+}
+
+TEST_F(ParserStreamTest, NestedWindowAllowsOuterWhereAroundTrowsSubquery) {
+  useDb("root", "stream_streamdb");
+
+  run("create stream stream_streamdb.s_nested_trows_outer_where window ("
+      "state_window(c1) extend(1) as w_state, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select t1.ts, t1.last_c1, t2.max_c1 from "
+      "(select _twend ts, last(c1) last_c1 from %%trows) t1 inner join "
+      "(select _twend ts, max(c1) max_c1 from stream_querydb.stream_t2 "
+      "where ts >= w_state._twstart and ts <= _twstart) t2 "
+      "on t1.ts = t2.ts where t2.max_c1 > 0");
+
+  run("create stream stream_streamdb.s_nested_trows_direct_where window ("
+      "state_window(c1) extend(1) as w_state, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twend, last(c1) from %%trows where c1 > 0",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserStreamTest, NestedWindowKeepsAggregateAncestorLayerAsValue) {
+  AsyncFlagGuard asyncGuard(false);
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+    ASSERT_NE(nullptr, req.calcPlan);
+
+    SNode* pCalcPlan = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)req.calcPlan, &pCalcPlan));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> calcPlanGuard(pCalcPlan, nodesDestroyNode);
+    ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN, nodeType(pCalcPlan));
+
+    const SExternalWindowPhysiNode* pExternal = pstFindExternalWindowNode((const SQueryPlan*)pCalcPlan);
+    ASSERT_NE(nullptr, pExternal);
+    std::vector<SPseudoLayerBinding> bindings;
+    nodesWalkExprs(pExternal->window.pFuncs, pstCollectPseudoLayerBinding, &bindings);
+
+    const SPseudoLayerBinding* pOuter = nullptr;
+    for (const auto& binding : bindings) {
+      if (binding.name == "_twstart" && binding.qualified) {
+        pOuter = &binding;
+        break;
+      }
+    }
+    ASSERT_NE(nullptr, pOuter);
+    EXPECT_EQ(0, pOuter->layerIndex);
+  });
+
+  run("create stream stream_streamdb.s_nested_aggregate_binding window ("
+      "state_window(c1) extend(1) as w_state, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select w_state._twstart, max(c1) from stream_querydb.stream_t2 "
+      "where ts >= w_state._twstart and ts <= _twstart");
+}
+
+TEST_F(ParserStreamTest, NestedWindowNamespaceMatrix) {
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (stage == PARSER_STAGE_TRANSLATE) pstAssertNestedRequestRoundTrip(pQuery);
+  });
+
+  run("create stream stream_streamdb.s_layer_duplicate_case window ("
+      "interval(1m) sliding(1m) as W_OUTER, count_window(2,1) as w_outer) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, _twend from %%trows",
+      TSDB_CODE_INVALID_PARA);
+
+  const std::string maxLayerName(192, 'a');
+  run("create stream stream_streamdb.s_layer_name_192 window ("
+      "interval(1m) sliding(1m) as `" +
+      maxLayerName +
+      "`, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select `" +
+      maxLayerName + "`._twstart, _twend from %%trows");
+
+  const std::string oversizedLayerName(193, 'a');
+  const std::string oversizedLayerSql =
+      "create stream stream_streamdb.s_layer_name_193 window ("
+      "interval(1m) sliding(1m) as `" +
+      oversizedLayerName +
+      "`, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, _twend from %%trows";
+  pstExpectStreamParseCode(oversizedLayerSql.c_str(), TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME);
+
+  pstExpectStreamParseCode(
+      "create stream stream_streamdb.s_layer_name_empty window ("
+      "interval(1m) sliding(1m) as ``, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, _twend from %%trows",
+      TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME);
+
+  run("create stream stream_streamdb.s_layer_name_invalid window ("
+      "interval(1m) sliding(1m) as `bad.name`, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, _twend from %%trows");
+
+  run("create stream stream_streamdb.s_layer_ascii_only window ("
+      "interval(1m) sliding(1m) as `\xC3\x84`, count_window(2,1) as `\xC3\xA4`) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, _twend from %%trows");
+
+  run("create stream stream_streamdb.s_layer_case window ("
+      "interval(1m) sliding(1m) as W_OUTER, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select w_outer._twstart, W_LEAF._twrownum from %%trows");
+
+  run("create stream stream_streamdb.s_physical_hidden window ("
+      "interval(1m) sliding(1m) as stream_t2, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select stream_t2._twstart, _twend from stream_querydb.stream_t2 as q");
+
+  run("create stream stream_streamdb.s_physical_visible_conflict window ("
+      "interval(1m) sliding(1m) as q, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, _twend from stream_querydb.stream_t2 as q",
+      TSDB_CODE_INVALID_PARA);
+
+  run("create stream stream_streamdb.s_derived_conflict window ("
+      "interval(1m) sliding(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, _twend from (select * from stream_querydb.stream_t2) w_outer",
+      TSDB_CODE_INVALID_PARA);
+
+  run("create stream stream_streamdb.s_recursive_derived_conflict window ("
+      "interval(1m) sliding(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select w_outer._twstart, _twend from (select * from "
+      "(select * from stream_querydb.stream_t2) w_outer) nested_table",
+      TSDB_CODE_INVALID_PARA);
+
+  run("create stream stream_streamdb.s_recursive_derived_nonconflict window ("
+      "interval(1m) sliding(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select ts, c1 from (select w_outer._twstart as ts, c1 from "
+      "(select * from stream_querydb.stream_t2) calc_relation) nested_table");
+
+  run("create stream stream_streamdb.s_derived_generated window ("
+      "interval(1m) sliding(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select w_outer._twstart, _twend from (select * from stream_querydb.stream_t2)");
+
+  run("create stream stream_streamdb.s_layer_not_column window ("
+      "interval(1m) sliding(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select w_outer.some_column, _twend from %%trows",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  run("create stream stream_streamdb.s_recursive_set_binding window ("
+      "interval(1m) sliding(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select w_outer._twstart, c1 from stream_querydb.stream_t2 union all "
+      "select w_leaf._twstart, c1 from stream_querydb.stream_t2");
+
+  run("create stream stream_streamdb.s_partition_alias_not_relation window ("
+      "interval(1m) sliding(1m) as w_outer, interval(1s) sliding(1s) as w_leaf) "
+      "from stream_triggerdb.stream_t1 partition by tbname w_outer "
+      "into stream_outdb.stream_out as select w_outer._twstart, _twend from %%trows");
+
+  run("create stream stream_streamdb.s_select_alias_not_relation window ("
+      "interval(1m) sliding(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select w_outer._twstart as w_outer, _twend from %%trows");
+
+  run("create stream stream_streamdb.s_layer_outside_calc window ("
+      "interval(1m) sliding(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 partition by w_outer._twstart "
+      "into stream_outdb.stream_out as select _twstart, _twend from %%trows",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+}
+
+TEST_F(ParserStreamTest, NestedWindowCapabilityMatrix) {
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (stage == PARSER_STAGE_TRANSLATE) pstAssertNestedRequestRoundTrip(pQuery);
+  });
+
+  run("create stream stream_streamdb.s_leaf_state window ("
+      "interval(1m) sliding(1m) as w_outer, state_window(c1) extend(2) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select w_outer._twstart, _twrownum from %%trows");
+
+  run("create stream stream_streamdb.s_leaf_state_extend_zero window ("
+      "interval(1m) sliding(1m) as w_outer, state_window(c1) extend(0) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from %%trows");
+
+  run("create stream stream_streamdb.s_leaf_state_extend_one window ("
+      "interval(1m) sliding(1m) as w_outer, state_window(c1) extend(1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from %%trows");
+
+  run("create stream stream_streamdb.s_leaf_state_zeroth_state window ("
+      "interval(1m) sliding(1m) as w_outer, "
+      "state_window(c1) extend(0) zeroth_state(no_zeroth) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from %%trows");
+
+  run("create stream stream_streamdb.s_leaf_state_zeroth_value window ("
+      "interval(1m) sliding(1m) as w_outer, "
+      "state_window(c1) extend(0) zeroth_state(0) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from %%trows");
+
+  run("create stream stream_streamdb.s_leaf_event window ("
+      "interval(1m) sliding(1m) as w_outer, "
+      "event_window(start with (c1 > 0, c1 < 10) end with c1 = 0) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from %%trows");
+
+  run("create stream stream_streamdb.s_nested_session window ("
+      "session(ts, 1m) as w_session, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select w_session._twstart, _twend from %%trows");
+
+  run("create stream stream_streamdb.s_count_interval window ("
+      "count_window(2,2) as w_count, interval(1m) sliding(1m) as w_leaf) "
+      "from stream_triggerdb.stream_t1 stream_options(ignore_nodata_trigger) "
+      "into stream_outdb.stream_out as select _twstart, c1 from %%trows");
+
+  run("create stream stream_streamdb.s_delete_recalc_sliding window ("
+      "sliding(1m) as w_slide, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 stream_options(delete_recalc) "
+      "into stream_outdb.stream_out as select _twstart, c1 from %%trows");
+
+  run("create stream stream_streamdb.s_delete_recalc_count_step window ("
+      "count_window(3,2) as w_count, interval(1m) sliding(1m) as w_leaf) "
+      "from stream_triggerdb.stream_t1 stream_options(delete_recalc) "
+      "into stream_outdb.stream_out as select _twstart, c1 from %%trows",
+      TSDB_CODE_INVALID_PARA);
+
+  run("create stream stream_streamdb.s_super_state_without_tbname window ("
+      "interval(1m) sliding(1m) as w_outer, state_window(c1) as w_leaf) "
+      "from stream_triggerdb.st1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from %%trows",
+      TSDB_CODE_INVALID_PARA);
+
+  run("create stream stream_streamdb.s_super_state_partition_length_tbname window ("
+      "interval(1m) sliding(1m) as w_outer, state_window(c1) as w_leaf) "
+      "from stream_triggerdb.st1 partition by length(tbname) into stream_outdb.stream_out as "
+      "select _twstart, c1 from %%trows",
+      TSDB_CODE_INVALID_PARA);
+
+  run("create stream stream_streamdb.s_super_state_partition_substr_tbname window ("
+      "interval(1m) sliding(1m) as w_outer, state_window(c1) as w_leaf) "
+      "from stream_triggerdb.st1 partition by substr(tbname, 1, 1) into stream_outdb.stream_out as "
+      "select _twstart, c1 from %%trows",
+      TSDB_CODE_INVALID_PARA);
+
+  {
+    AsyncFlagGuard asyncGuard(false);
+    run("create stream stream_streamdb.s_super_state_partition_tag window ("
+        "interval(1m) sliding(1m) as w_outer, state_window(c1) as w_leaf) "
+        "from stream_triggerdb.st1 partition by tbname, tag1 into stream_outdb.stream_out as "
+        "select _twstart, c1 from %%trows");
+  }
+
+  run("create stream stream_streamdb.s_nonleaf_overlap window ("
+      "interval(2m) sliding(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, c1 from %%trows",
+      TSDB_CODE_INVALID_PARA);
+
+  run("create stream stream_streamdb.s_nonleaf_state window ("
+      "state_window(c1) extend(0) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, c1 from %%trows",
+      TSDB_CODE_INVALID_PARA);
+
+  run("create stream stream_streamdb.s_nonleaf_state_extend_two window ("
+      "state_window(c1) extend(2) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, c1 from %%trows",
+      TSDB_CODE_INVALID_PARA);
+
+  run("create stream stream_streamdb.s_nonleaf_state_extend_default window ("
+      "state_window(c1) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, c1 from %%trows",
+      TSDB_CODE_INVALID_PARA);
+
+  run("create stream stream_streamdb.s_nonleaf_count_overlap window ("
+      "count_window(3,2) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, c1 from %%trows",
+      TSDB_CODE_INVALID_PARA);
+
+  run("create stream stream_streamdb.s_nonleaf_event_multi_start window ("
+      "event_window(start with (c1 > 0, c1 < 10) end with c1 = 0) as w_outer, "
+      "count_window(2,1) as w_leaf) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, c1 from %%trows",
+      TSDB_CODE_INVALID_PARA);
+
+  run("create stream stream_streamdb.s_sliding_twstart window ("
+      "sliding(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select w_outer._twstart, c1 from %%trows",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  run("create stream stream_streamdb.s_state_prev_ts window ("
+      "state_window(c1) extend(1) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select w_outer._tprev_ts, c1 from %%trows",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  run("create stream stream_streamdb.s_leaf_sliding_unqualified_twstart window ("
+      "interval(1m) sliding(1m) as w_outer, sliding(1s) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, c1 from %%trows",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  run("create stream stream_streamdb.s_leaf_count_unqualified_prev_ts window ("
+      "interval(1m) sliding(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tprev_ts, c1 from %%trows",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  run("create stream stream_streamdb.s_nested_idle window ("
+      "interval(1m) sliding(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s) | event_type(idle)) "
+      "into stream_outdb.stream_out as select w_outer._twstart, c1 from %%trows",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  run("create stream stream_streamdb.s_nested_resume window ("
+      "interval(1m) sliding(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s) | event_type(resume)) "
+      "into stream_outdb.stream_out as select w_leaf._twstart, c1 from %%trows",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  run("create stream stream_streamdb.s_ignore_nodata_noninterval_leaf window ("
+      "count_window(2,1) as w_count, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 stream_options(ignore_nodata_trigger) "
+      "into stream_outdb.stream_out as select _twstart, c1 from %%trows",
+      TSDB_CODE_INVALID_PARA);
+
+  run("create stream stream_streamdb.s_nine_layers window ("
+      "interval(9m) sliding(9m) as w1, interval(8m) sliding(8m) as w2, "
+      "interval(7m) sliding(7m) as w3, interval(6m) sliding(6m) as w4, "
+      "interval(5m) sliding(5m) as w5, interval(4m) sliding(4m) as w6, "
+      "interval(3m) sliding(3m) as w7, interval(2m) sliding(2m) as w8, "
+      "count_window(2,1) as w9) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, c1 from %%trows",
+      TSDB_CODE_INVALID_PARA);
+
+  run("create stream stream_streamdb.s_single_flush interval(1m) sliding(1m) "
+      "from stream_triggerdb.stream_t1 stream_options(flush_on_outer_close) "
+      "into stream_outdb.stream_out as select _twstart, c1 from stream_querydb.stream_t2",
+      TSDB_CODE_INVALID_PARA);
+}
+
+TEST_F(ParserStreamTest, NestedWindowRollupCapabilityMatrix) {
+  // MockCatalogService returns an empty DB-vgroup result for the async path.
+  // Existing supertable rollup tests therefore exercise planner shape through
+  // the synchronous interface only (see TestCreateStreamRollupSemantic).
+  const bool previousAsync = getAsyncFlag();
+  {
+    AsyncFlagGuard asyncGuard(false);
+    useDb("root", "stream_streamdb");
+    setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+      if (stage == PARSER_STAGE_TRANSLATE) pstAssertNestedRequestRoundTrip(pQuery);
+    });
+
+    run("create stream stream_streamdb.s_time_rollup window ("
+        "interval(1m) sliding(1m) as w_outer, interval(1s) sliding(1s) as w_leaf) "
+        "from stream_triggerdb.st1 rollup by tag2 into stream_outdb.stream_out as "
+        "select _twstart, avg(c1) from stream_querydb.stream_t2");
+
+    setCheckDdlFunc({});
+    run("create stream stream_streamdb.s_rollup_non_time_leaf window ("
+        "interval(1m) sliding(1m) as w_outer, count_window(2,1) as w_leaf) "
+        "from stream_triggerdb.st1 rollup by tag2 into stream_outdb.stream_out as "
+        "select _twstart, avg(c1) from stream_querydb.stream_t2",
+        TSDB_CODE_INVALID_PARA);
+  }
+  EXPECT_EQ(previousAsync, getAsyncFlag());
+}
+
+TEST_F(ParserStreamTest, NestedWindowSuperTableTbnamePartitionBuildsCanonicalPlan) {
+  AsyncFlagGuard asyncGuard(false);
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    pstAssertNestedRequestRoundTrip(pQuery, [&](const SCMCreateStreamReq& req) {
+      ASSERT_EQ(TSDB_SUPER_TABLE, req.triggerTblType);
+      const auto* pOuter = pstWindowLayer(req, 0);
+      const auto* pLeaf = pstWindowLayer(req, 1);
+      ASSERT_NE(nullptr, pOuter);
+      ASSERT_NE(nullptr, pLeaf);
+      EXPECT_EQ(WINDOW_TYPE_INTERVAL, pOuter->triggerType);
+      EXPECT_EQ(WINDOW_TYPE_STATE, pLeaf->triggerType);
+      ASSERT_NE(nullptr, pLeaf->input.pConditionSlotIds);
+      EXPECT_EQ(1, taosArrayGetSize(pLeaf->input.pConditionSlotIds));
+    });
+  });
+
+  run("create stream stream_streamdb.s_super_state_partition_tbname window ("
+      "interval(1m) sliding(1m) as w_outer, state_window(c1) as w_leaf) "
+      "from stream_triggerdb.st1 partition by tbname into stream_outdb.stream_out as "
+      "select _twstart, c1 from %%trows");
+}
+
+TEST_F(ParserStreamTest, NestedWindowRejectsNonLeafPeriodAtCapabilityValidation) {
+  AsyncFlagGuard asyncGuard(false);
+  useDb("root", "stream_streamdb");
+
+  run("create stream stream_streamdb.s_nonleaf_period window ("
+      "period(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, c1 from %%trows",
+      TSDB_CODE_INVALID_PARA);
+
+  SharedValidatorFailureGuard validatorGuard;
+  run("create stream stream_streamdb.s_nonleaf_period_reach window ("
+      "period(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, c1 from %%trows",
+      TSDB_CODE_OUT_OF_MEMORY);
+}
+
+TEST_F(ParserStreamTest, NestedWindowRejectsCompositePrimaryKeyTrigger) {
+  AsyncFlagGuard asyncGuard(false);
+  useDb("root", "stream_streamdb");
+
+  ITableBuilder& builder =
+      g_mockCatalogService->createTableBuilder("stream_triggerdb", "nested_composite_pk", TSDB_NORMAL_TABLE, 3)
+          .setPrecision(TSDB_TIME_PRECISION_MILLI)
+          .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+          .addColumn("c1", TSDB_DATA_TYPE_INT)
+          .addColumn("c2", TSDB_DATA_TYPE_INT);
+  builder.done();
+
+  CompositePrimaryKeyMetaGuard guard;
+  run("create stream stream_streamdb.s_nested_composite_pk window ("
+      "interval(1m) sliding(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.nested_composite_pk into stream_outdb.stream_out as "
+      "select _twstart, c1 from %%trows",
+      TSDB_CODE_INVALID_PARA);
+
+  SharedValidatorFailureGuard validatorGuard;
+  run("create stream stream_streamdb.s_nested_composite_pk_reach window ("
+      "interval(1m) sliding(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.nested_composite_pk into stream_outdb.stream_out as "
+      "select _twstart, c1 from %%trows",
+      TSDB_CODE_OUT_OF_MEMORY);
+}
+
+TEST_F(ParserStreamTest, NestedWindowMarksEveryDetachedCalcScanJson) {
+  AsyncFlagGuard asyncGuard(false);
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+
+    ASSERT_NE(nullptr, req.calcScanPlanList);
+    ASSERT_GE(taosArrayGetSize(req.calcScanPlanList), 2);
+    EXPECT_NE(0, req.addOptions & STREAM_OPTION_NESTED_WINDOW_PLAN);
+    for (int32_t i = 0; i < taosArrayGetSize(req.calcScanPlanList); ++i) {
+      const auto* pScan = (const SStreamCalcScan*)taosArrayGet(req.calcScanPlanList, i);
+      ASSERT_NE(nullptr, pScan);
+      ASSERT_NE(nullptr, pScan->scanPlan);
+
+      SNode* pScanPlan = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)pScan->scanPlan, &pScanPlan));
+      unique_ptr<SNode, decltype(&nodesDestroyNode)> scanPlanGuard(pScanPlan, nodesDestroyNode);
+      ASSERT_EQ(QUERY_NODE_PHYSICAL_SUBPLAN, nodeType(pScanPlan));
+      EXPECT_TRUE(((const SSubplan*)pScanPlan)->requiresAncestorContext);
+    }
+  });
+
+  run("create stream stream_streamdb.s_nested_reader_context window ("
+      "state_window(c1) extend(1) as w_state, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 notify('ws://localhost:8080') on (window_close) "
+      "into stream_outdb.stream_out as "
+      "select w_state._twstart, avg(a.c1) from stream_querydb.stream_t1 a "
+      "join stream_querydb.stream_t2 b on a.ts = b.ts");
+}
+
+static const SProjectPhysiNode* pstGetLegacyCalcRootProject(const SQueryPlan* pPlan) {
+  if (pPlan == nullptr || LIST_LENGTH(pPlan->pSubplans) != 1) return nullptr;
+  const auto* pGroup = (const SNodeListNode*)nodesListGetNode(pPlan->pSubplans, 0);
+  if (pGroup == nullptr || nodeType(pGroup) != QUERY_NODE_NODE_LIST || LIST_LENGTH(pGroup->pNodeList) != 1) {
+    return nullptr;
+  }
+  const auto* pSubplan = (const SSubplan*)nodesListGetNode(pGroup->pNodeList, 0);
+  if (pSubplan == nullptr || nodeType(pSubplan) != QUERY_NODE_PHYSICAL_SUBPLAN || pSubplan->pNode == nullptr ||
+      nodeType(pSubplan->pNode) != QUERY_NODE_PHYSICAL_PLAN_PROJECT) {
+    return nullptr;
+  }
+  return (const SProjectPhysiNode*)pSubplan->pNode;
+}
+
+static void pstAssertLegacyCalcSubplansDoNotRequireAncestorContext(const SQueryPlan* pPlan) {
+  ASSERT_NE(nullptr, pPlan);
+  SNode* pGroupNode = nullptr;
+  FOREACH(pGroupNode, pPlan->pSubplans) {
+    ASSERT_EQ(QUERY_NODE_NODE_LIST, nodeType(pGroupNode));
+    SNode* pSubplanNode = nullptr;
+    FOREACH(pSubplanNode, ((SNodeListNode*)pGroupNode)->pNodeList) {
+      ASSERT_EQ(QUERY_NODE_PHYSICAL_SUBPLAN, nodeType(pSubplanNode));
+      EXPECT_FALSE(((const SSubplan*)pSubplanNode)->requiresAncestorContext);
+      EXPECT_FALSE(((const SSubplan*)pSubplanNode)->inheritedMultiGroupJoin);
+    }
+  }
+}
+
+static int32_t pstReplaceUniqueJsonToken(string* pJson, const string& from, const string& to) {
+  const size_t pos = pJson->find(from);
+  if (pos == string::npos) return 0;
+  if (pJson->find(from, pos + from.size()) != string::npos) return -1;
+  pJson->replace(pos, from.size(), to);
+  return 1;
+}
+
+TEST_F(ParserStreamTest, StreamPlanGoldenLegacySubplanJsonUnchanged) {
+  static const char kLegacyCalcPlanGolden[] =
+      R"task4({"NodeType":"1138","Name":"PhysiPlan","PhysiPlan":{"QueryId":"0","NumOfSubplans":"1","Subplans":{"NodeType":"15","Name":"NodeList","NodeList":{"DataType":{"Type":"0","Precision":"0","Scale":"0","Bytes":"0"},"AliasName":"","UserAlias":"","HasNull":false,"RelatedTo":"0","BindExprID":"0","NodeList":[{"NodeType":"1137","Name":"PhysiSubplan","PhysiSubplan":{"Id":{"QueryId":"0","GroupId":"1","SubplanId":"1"},"SubplanType":"5","MsgType":"771","Level":"0","DbFName":"","User":"","NodeAddr":{"Id":"0","InUse":"0","NumOfEps":"0"},"Child":[{"NodeType":"2","Name":"Value","Value":{"DataType":{"Type":"5","Precision":"0","Scale":"0","Bytes":"8"},"AliasName":"","UserAlias":"","HasNull":false,"RelatedTo":"0","BindExprID":"0","LiteralSize":"0","Flag":"0","Translate":true,"NotReserved":false,"IsNull":false,"Unit":"0","Datum":"8589934594"}}],"RootNode":{"NodeType":"1108","Name":"PhysiProject","PhysiProject":{"OutputDataBlockDesc":{"NodeType":"19","Name":"DataBlockDesc","DataBlockDesc":{"DataBlockId":"1","TotalRowSize":"12","OutputRowSize":"12","Slots":[{"NodeType":"20","Name":"SlotDesc","SlotDesc":{"SlotId":"0","DataType":{"Type":"9","Precision":"0","Scale":"0","Bytes":"8"},"Reserve":false,"Output":true,"Name":"12572130732020657366","Tag":false}},{"NodeType":"20","Name":"SlotDesc","SlotDesc":{"SlotId":"1","DataType":{"Type":"4","Precision":"0","Scale":"0","Bytes":"4"},"Reserve":false,"Output":true,"Name":"4821887455481289517","Tag":false}}],"Precision":"0"}},"Children":[{"NodeType":"1111","Name":"PhysiExchange","PhysiExchange":{"OutputDataBlockDesc":{"NodeType":"19","Name":"DataBlockDesc","DataBlockDesc":{"DataBlockId":"0","TotalRowSize":"12","OutputRowSize":"12","Slots":[{"NodeType":"20","Name":"SlotDesc","SlotDesc":{"SlotId":"0","DataType":{"Type":"9","Precision":"0","Scale":"0","Bytes":"8"},"Reserve":false,"Output":true,"Name":"1011735779866557034","Tag":false}},{"NodeType":"20","Name":"SlotDesc","SlotDesc":{"SlotId":"1","DataType":{"Type":"4","Precision":"0","Scale":"0","Bytes":"4"},"Reserve":false,"Output":true,"Name":"7606375837463693085","Tag":false}}],"Precision":"0"}},"InputOrder":"0","OutputOrder":"0","RequireDataOrder":"0","ResultDataOrder":"4","DynamicOp":false,"ForceCreateNonBlockingOptr":false,"SrcStartGroupId":"2","SrcEndGroupId":"2","SeqRecvData":false,"DynTbname":false,"GrpSingleChannel":false,"SingleSource":false}}],"InputOrder":"0","OutputOrder":"0","RequireDataOrder":"1","ResultDataOrder":"1","DynamicOp":false,"ForceCreateNonBlockingOptr":false,"Projections":[{"NodeType":"18","Name":"Target","Target":{"DataBlockId":"1","SlotId":"0","Expr":{"NodeType":"1","Name":"Column","Column":{"DataType":{"Type":"9","Precision":"0","Scale":"0","Bytes":"8"},"AliasName":"expr_1","UserAlias":"ts","HasNull":false,"RelatedTo":"0","BindExprID":"0","TableId":"39","TableType":"3","ColId":"1","ProjId":"0","ColType":"1","DbName":"stream_querydb","TableName":"stream_t2","TableAlias":"stream_t2","ColName":"ts","DataBlockId":"0","SlotId":"0","TableHasPk":false,"IsPk":false,"NumOfPKs":"0","HasDep":false,"HasRef":false,"RefDb":"","RefTable":"","RefCol":"","IsPrimTs":true}}}},{"NodeType":"18","Name":"Target","Target":{"DataBlockId":"1","SlotId":"1","Expr":{"NodeType":"1","Name":"Column","Column":{"DataType":{"Type":"4","Precision":"0","Scale":"0","Bytes":"4"},"AliasName":"expr_2","UserAlias":"c1","HasNull":false,"RelatedTo":"0","BindExprID":"0","TableId":"39","TableType":"3","ColId":"2","ProjId":"0","ColType":"1","DbName":"stream_querydb","TableName":"stream_t2","TableAlias":"stream_t2","ColName":"c1","DataBlockId":"0","SlotId":"1","TableHasPk":false,"IsPk":false,"NumOfPKs":"0","HasDep":false,"HasRef":false,"RefDb":"","RefTable":"","RefCol":"","IsPrimTs":false}}}}],"MergeDataBlock":true,"IgnoreGroupId":true,"InputIgnoreGroup":false}},"DataSink":{"NodeType":"1133","Name":"PhysiDispatch","PhysiDispatch":{"InputDataBlockDesc":{"NodeType":"19","Name":"DataBlockDesc","DataBlockDesc":{"DataBlockId":"1","TotalRowSize":"12","OutputRowSize":"12","Slots":[{"NodeType":"20","Name":"SlotDesc","SlotDesc":{"SlotId":"0","DataType":{"Type":"9","Precision":"0","Scale":"0","Bytes":"8"},"Reserve":false,"Output":true,"Name":"","Tag":false}},{"NodeType":"20","Name":"SlotDesc","SlotDesc":{"SlotId":"1","DataType":{"Type":"4","Precision":"0","Scale":"0","Bytes":"4"},"Reserve":false,"Output":true,"Name":"","Tag":false}}],"Precision":"0"}}}},"ShowRewrite":false,"IsView":false,"IsAudit":false,"RowThreshold":"4096","DyRowThreshold":false,"DynTbname":false,"ProcessOneBlock":false,"UserAppId":"0"}}]}}}})task4";
+
+  useDb("root", "stream_streamdb");
+  int32_t checked = 0;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ++checked;
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+    ASSERT_NE(nullptr, req.calcPlan);
+
+    SNode* pActualNode = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)req.calcPlan, &pActualNode));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> actualGuard(pActualNode, nodesDestroyNode);
+    ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN, nodeType(pActualNode));
+    const auto* pActualPlan = (const SQueryPlan*)pActualNode;
+    pstAssertLegacyCalcSubplansDoNotRequireAncestorContext(pActualPlan);
+
+    SNode* pGoldenNode = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(kLegacyCalcPlanGolden, &pGoldenNode));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> goldenGuard(pGoldenNode, nodesDestroyNode);
+    ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN, nodeType(pGoldenNode));
+
+    const SProjectPhysiNode* pActualProject = pstGetLegacyCalcRootProject(pActualPlan);
+    const SProjectPhysiNode* pGoldenProject = pstGetLegacyCalcRootProject((const SQueryPlan*)pGoldenNode);
+    ASSERT_NE(nullptr, pActualProject);
+    ASSERT_NE(nullptr, pGoldenProject);
+    ASSERT_NE(nullptr, pActualProject->node.pOutputDataBlockDesc);
+    ASSERT_NE(nullptr, pGoldenProject->node.pOutputDataBlockDesc);
+    ASSERT_EQ(2, LIST_LENGTH(pActualProject->node.pOutputDataBlockDesc->pSlots));
+    ASSERT_EQ(2, LIST_LENGTH(pGoldenProject->node.pOutputDataBlockDesc->pSlots));
+
+    string normalized = (const char*)req.calcPlan;
+    for (int32_t i = 0; i < 2; ++i) {
+      const auto* pActualSlot =
+          (const SSlotDescNode*)nodesListGetNode(pActualProject->node.pOutputDataBlockDesc->pSlots, i);
+      const auto* pGoldenSlot =
+          (const SSlotDescNode*)nodesListGetNode(pGoldenProject->node.pOutputDataBlockDesc->pSlots, i);
+      ASSERT_NE(nullptr, pActualSlot);
+      ASSERT_NE(nullptr, pGoldenSlot);
+      const string actualToken = string("\"Name\":\"") + pActualSlot->name + "\"";
+      const string goldenToken = string("\"Name\":\"") + pGoldenSlot->name + "\"";
+      ASSERT_EQ(1, pstReplaceUniqueJsonToken(&normalized, actualToken, goldenToken));
+    }
+    ASSERT_EQ(1, pstReplaceUniqueJsonToken(&normalized, ",\"CharsetName\":\"UTF-8\"", ""));
+    static const string kEmptyRefSource = "\"RefSource\":\"\",";
+    for (int32_t i = 0; i < 2; ++i) {
+      const size_t pos = normalized.find(kEmptyRefSource);
+      ASSERT_NE(string::npos, pos);
+      normalized.erase(pos, kEmptyRefSource.size());
+    }
+    ASSERT_EQ(string::npos, normalized.find(kEmptyRefSource));
+    EXPECT_EQ(kLegacyCalcPlanGolden, normalized)
+        << "legacy calc plan changed outside branch-defined serialized fields and pointer-derived project slot names";
+  });
+
+  run("create stream stream_streamdb.s_legacy_golden interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select ts as ts, c1 as c1 from stream_querydb.stream_t2");
+  EXPECT_GT(checked, 0);
 }
 
 TEST_F(ParserDdlTest, stateWindowKeywordSyntax) {
@@ -383,6 +2044,369 @@ static void pstCheckEventTreeShape(const SQuery* pQuery, ParserStage stage) {
   SNode* leaf1 = nodesListGetNode(root->pNodeList, 1);
   ASSERT_EQ(nodeType(leaf1), QUERY_NODE_EVENT_START_LEAF);
   ASSERT_NE(((SEventStartLeafNode*)leaf1)->pTrueFor, nullptr);
+}
+
+struct SExternalWindowPhysiInfo {
+  EExtWinInputMode inputMode;
+  bool             hasTimeRange;
+  bool             hasWindowConditions;
+  int32_t          windowConditionNodeType;
+  int32_t          windowConditionType;
+  uint8_t          windowConditionResultType;
+  int32_t          windowConditionResultBytes;
+  string           sourceTable;
+  int32_t          durationUpperBoundCount;
+  int32_t          windowConditionC1Count;
+  struct SFunctionInfo {
+    string functionName;
+    string userAlias;
+    string firstParamTableAlias;
+    string firstParamColName;
+  };
+  vector<SFunctionInfo> functions;
+};
+
+struct SExternalWindowConditionCounts {
+  int32_t durationUpperBound = 0;
+  int32_t c1Columns = 0;
+};
+
+static EDealRes pstCountExternalWindowConditions(SNode* pNode, void* pContext) {
+  auto* pCounts = (SExternalWindowConditionCounts*)pContext;
+  if (QUERY_NODE_COLUMN == nodeType(pNode) && 0 == strcmp(((SColumnNode*)pNode)->colName, "c1")) {
+    ++pCounts->c1Columns;
+  }
+  if (QUERY_NODE_OPERATOR != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  auto* pOp = (SOperatorNode*)pNode;
+  if (OP_TYPE_LOWER_EQUAL != pOp->opType || QUERY_NODE_FUNCTION != nodeType(pOp->pLeft) ||
+      QUERY_NODE_VALUE != nodeType(pOp->pRight)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  auto* pFunc = (SFunctionNode*)pOp->pLeft;
+  auto* pValue = (SValueNode*)pOp->pRight;
+  if (0 != strcmp(pFunc->functionName, "_twduration") || 1 != LIST_LENGTH(pFunc->pParameterList) ||
+      nullptr == pValue->literal || 0 != strcmp(pValue->literal, "30000")) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SNode* pLayer = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_VALUE == nodeType(pLayer) && ((SValueNode*)pLayer)->notReserved) {
+    ++pCounts->durationUpperBound;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static void pstCollectExternalWindowFunctions(const SNodeList*                                 pFuncs,
+                                              vector<SExternalWindowPhysiInfo::SFunctionInfo>* pInfos) {
+  SNode* pTarget = nullptr;
+  FOREACH(pTarget, pFuncs) {
+    SNode* pExpr = QUERY_NODE_TARGET == nodeType(pTarget) ? ((STargetNode*)pTarget)->pExpr : pTarget;
+    if (QUERY_NODE_FUNCTION != nodeType(pExpr)) {
+      continue;
+    }
+
+    const auto*                             pFunc = (const SFunctionNode*)pExpr;
+    SExternalWindowPhysiInfo::SFunctionInfo info;
+    info.functionName = pFunc->functionName;
+    info.userAlias = pFunc->node.userAlias;
+    SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+    if (QUERY_NODE_COLUMN == nodeType(pParam)) {
+      const auto* pColumn = (const SColumnNode*)pParam;
+      info.firstParamTableAlias = pColumn->tableAlias;
+      info.firstParamColName = pColumn->colName;
+    }
+    pInfos->push_back(info);
+  }
+}
+
+static void pstCollectExternalWindowPhysiInfo(const SPhysiNode* pNode, vector<SExternalWindowPhysiInfo>* pInfos,
+                                              vector<ENodeType>* pJoinTypes) {
+  if (pNode == nullptr) {
+    return;
+  }
+
+  const ENodeType type = nodeType((const SNode*)pNode);
+  if (type == QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL || type == QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL) {
+    const auto*                    pExternal = (const SExternalWindowPhysiNode*)pNode;
+    SExternalWindowConditionCounts counts;
+    nodesWalkExpr(pExternal->pWindowConditions, pstCountExternalWindowConditions, &counts);
+
+    SExternalWindowPhysiInfo info = {};
+    info.inputMode = pExternal->extWinInputMode;
+    info.hasTimeRange = pExternal->pTimeRange != nullptr;
+    info.hasWindowConditions = pExternal->pWindowConditions != nullptr;
+    info.windowConditionNodeType = pExternal->pWindowConditions == nullptr ? 0 : nodeType(pExternal->pWindowConditions);
+    info.durationUpperBoundCount = counts.durationUpperBound;
+    info.windowConditionC1Count = counts.c1Columns;
+    if (QUERY_NODE_LOGIC_CONDITION == info.windowConditionNodeType) {
+      const auto* pLogic = (const SLogicConditionNode*)pExternal->pWindowConditions;
+      info.windowConditionType = pLogic->condType;
+      info.windowConditionResultType = pLogic->node.resType.type;
+      info.windowConditionResultBytes = pLogic->node.resType.bytes;
+    }
+    if (QUERY_NODE_COLUMN == nodeType(pExternal->window.pTspk)) {
+      info.sourceTable = ((const SColumnNode*)pExternal->window.pTspk)->tableName;
+    }
+    pstCollectExternalWindowFunctions(pExternal->window.pFuncs, &info.functions);
+    pInfos->push_back(info);
+  }
+  if (type == QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN || type == QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN) {
+    pJoinTypes->push_back(type);
+  }
+
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) {
+    pstCollectExternalWindowPhysiInfo((const SPhysiNode*)pChild, pInfos, pJoinTypes);
+  }
+}
+
+struct SCalcScanPhysiInfo {
+  string    sourceDb;
+  string    sourceTable;
+  ENodeType scanType;
+  bool      hasTimeRange;
+  bool      dynamicOp;
+  bool      virtualStableScan;
+  bool      paraTablesSort;
+  bool      useTriggerTableList;
+  int32_t   c1NonnegativeCount;
+  int32_t   durationPredicateCount;
+};
+
+static EDealRes pstCountC1NonnegativeConditions(SNode* pNode, void* pContext) {
+  if (pstIsC1NonnegativeCondition(pNode)) {
+    ++*(int32_t*)pContext;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static void pstCollectCalcScanPhysiInfo(const SPhysiNode* pNode, vector<SCalcScanPhysiInfo>* pInfos) {
+  if (nullptr == pNode) {
+    return;
+  }
+
+  const ENodeType type = nodeType((const SNode*)pNode);
+  if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == type || QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN == type ||
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == type || QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
+    const auto*        pScan = (const STableScanPhysiNode*)pNode;
+    SCalcScanPhysiInfo info = {};
+    info.sourceDb = tNameGetDbNameP(&pScan->scan.tableName);
+    info.sourceTable = tNameGetTableName(&pScan->scan.tableName);
+    info.scanType = type;
+    info.hasTimeRange = pScan->pTimeRange != nullptr;
+    info.dynamicOp = pScan->scan.node.dynamicOp;
+    info.virtualStableScan = pScan->scan.virtualStableScan;
+    info.paraTablesSort = pScan->paraTablesSort;
+    info.useTriggerTableList = pScan->scan.useTriggerTableList;
+    nodesWalkExpr(pNode->pConditions, pstCountC1NonnegativeConditions, &info.c1NonnegativeCount);
+    SExternalWindowConditionCounts counts;
+    nodesWalkExpr(pNode->pConditions, pstCountExternalWindowConditions, &counts);
+    info.durationPredicateCount = counts.durationUpperBound;
+    pInfos->push_back(info);
+  }
+
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) { pstCollectCalcScanPhysiInfo((const SPhysiNode*)pChild, pInfos); }
+}
+
+static void pstCollectCalcPlanExternalWindowInfo(const SQuery* pQuery, ParserStage stage,
+                                                 vector<SExternalWindowPhysiInfo>* pInfos,
+                                                 vector<ENodeType>*                pJoinTypes,
+                                                 vector<SCalcScanPhysiInfo>*       pScanInfos = nullptr) {
+  ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+  ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+  SCMCreateStreamReq req = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+  unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+  ASSERT_NE(req.calcPlan, nullptr);
+
+  SNode* pPlanNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)req.calcPlan, &pPlanNode));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlanNode, nodesDestroyNode);
+  ASSERT_NE(pPlanNode, nullptr);
+
+  const auto* pPlan = (const SQueryPlan*)pPlanNode;
+  SNode*      pLevelNode = nullptr;
+  FOREACH(pLevelNode, pPlan->pSubplans) {
+    const auto* pLevel = (const SNodeListNode*)pLevelNode;
+    SNode*      pSubplanNode = nullptr;
+    FOREACH(pSubplanNode, pLevel->pNodeList) {
+      const auto* pSubplan = (const SSubplan*)pSubplanNode;
+      pstCollectExternalWindowPhysiInfo(pSubplan->pNode, pInfos, pJoinTypes);
+    }
+  }
+
+  if (nullptr == pScanInfos) {
+    return;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(req.calcScanPlanList); ++i) {
+    const auto* pScan = (const SStreamCalcScan*)taosArrayGet(req.calcScanPlanList, i);
+    ASSERT_NE(pScan, nullptr);
+    ASSERT_NE(pScan->scanPlan, nullptr);
+
+    SNode* pScanPlanNode = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)pScan->scanPlan, &pScanPlanNode));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> scanPlanGuard(pScanPlanNode, nodesDestroyNode);
+    ASSERT_EQ(QUERY_NODE_PHYSICAL_SUBPLAN, nodeType(pScanPlanNode));
+    pstCollectCalcScanPhysiInfo(((const SSubplan*)pScanPlanNode)->pNode, pScanInfos);
+  }
+}
+
+struct SMultiGroupJoinPhysiInfo {
+  int32_t                           joinCount = 0;
+  int32_t                           externalWindowCount = 0;
+  int32_t                           nestedLeftJoinCount = 0;
+  vector<const SHashJoinPhysiNode*> hashJoins;
+};
+
+static bool pstMultiGroupPhysiTreeHasJoin(const SPhysiNode* pNode) {
+  if (nullptr == pNode) {
+    return false;
+  }
+
+  const ENodeType type = nodeType((const SNode*)pNode);
+  if (QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN == type || QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == type) {
+    return true;
+  }
+
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) {
+    if (pstMultiGroupPhysiTreeHasJoin((const SPhysiNode*)pChild)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static void pstCollectMultiGroupJoinPhysiInfo(const SPhysiNode* pNode, SMultiGroupJoinPhysiInfo* pInfo) {
+  if (nullptr == pNode) {
+    return;
+  }
+
+  const ENodeType type = nodeType((const SNode*)pNode);
+  if (QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN == type) {
+    ++pInfo->joinCount;
+    pInfo->hashJoins.push_back((const SHashJoinPhysiNode*)pNode);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == type) {
+    ++pInfo->joinCount;
+  }
+  if ((QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN == type || QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == type) &&
+      pstMultiGroupPhysiTreeHasJoin((const SPhysiNode*)nodesListGetNode(pNode->pChildren, 0))) {
+    ++pInfo->nestedLeftJoinCount;
+  }
+  if (QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL == type || QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL == type) {
+    ++pInfo->externalWindowCount;
+  }
+
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) { pstCollectMultiGroupJoinPhysiInfo((const SPhysiNode*)pChild, pInfo); }
+}
+
+static void pstCheckMultiGroupJoinPlan(const SQuery* pQuery, ParserStage stage, bool enabled, int32_t joinCount,
+                                       int32_t markedHashJoinCount, int32_t expectedExternalWindowCount = -1,
+                                       int32_t expectedNestedLeftJoinCount = -1,
+                                       int32_t expectedInheritedSubplanCount = -1) {
+  ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+  ASSERT_EQ(QUERY_NODE_CREATE_STREAM_STMT, nodeType(pQuery->pRoot));
+
+  SCMCreateStreamReq req = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+  unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+  EXPECT_EQ(enabled, req.enableMultiGroupCalc);
+  ASSERT_NE(nullptr, req.calcPlan);
+
+  SNode* pPlanNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)req.calcPlan, &pPlanNode));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlanNode, nodesDestroyNode);
+  ASSERT_NE(nullptr, pPlanNode);
+
+  SMultiGroupJoinPhysiInfo info;
+  int32_t                  inheritedSubplanCount = 0;
+  SNode*                   pLevelNode = nullptr;
+  FOREACH(pLevelNode, ((const SQueryPlan*)pPlanNode)->pSubplans) {
+    const auto* pLevel = (const SNodeListNode*)pLevelNode;
+    SNode*      pSubplanNode = nullptr;
+    FOREACH(pSubplanNode, pLevel->pNodeList) {
+      const auto* pSubplan = (const SSubplan*)pSubplanNode;
+      pstCollectMultiGroupJoinPhysiInfo(pSubplan->pNode, &info);
+      if (pSubplan->inheritedMultiGroupJoin) {
+        ++inheritedSubplanCount;
+      }
+    }
+  }
+
+  EXPECT_EQ(joinCount, info.joinCount);
+  if (0 <= expectedExternalWindowCount) {
+    EXPECT_EQ(expectedExternalWindowCount, info.externalWindowCount);
+  }
+  if (0 <= expectedNestedLeftJoinCount) {
+    EXPECT_EQ(expectedNestedLeftJoinCount, info.nestedLeftJoinCount);
+  }
+  int32_t actualMarkedHashJoinCount = 0;
+  for (const SHashJoinPhysiNode* pJoin : info.hashJoins) {
+    if (pJoin->multiGroupJoin) {
+      ++actualMarkedHashJoinCount;
+    }
+  }
+  EXPECT_EQ(markedHashJoinCount, actualMarkedHashJoinCount);
+  if (0 <= expectedInheritedSubplanCount) {
+    EXPECT_EQ(expectedInheritedSubplanCount, inheritedSubplanCount);
+  }
+  if (enabled) {
+    ASSERT_EQ(joinCount, info.hashJoins.size());
+    for (const SHashJoinPhysiNode* pJoin : info.hashJoins) {
+      EXPECT_TRUE(pJoin->multiGroupJoin);
+    }
+  } else {
+    EXPECT_EQ(0, inheritedSubplanCount);
+  }
+}
+
+static void pstAssertNoInheritedMultiGroupJoinSubplans(const char* pCalcPlan) {
+  ASSERT_NE(nullptr, pCalcPlan);
+  EXPECT_EQ(nullptr, strstr(pCalcPlan, "\"InheritedMultiGroupJoin\":true"));
+
+  SNode* pPlanNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(pCalcPlan, &pPlanNode));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlanNode, nodesDestroyNode);
+  SNode*                                         pLevelNode = nullptr;
+  FOREACH(pLevelNode, ((const SQueryPlan*)pPlanNode)->pSubplans) {
+    SNode* pSubplanNode = nullptr;
+    FOREACH(pSubplanNode, ((const SNodeListNode*)pLevelNode)->pNodeList) {
+      EXPECT_FALSE(((const SSubplan*)pSubplanNode)->inheritedMultiGroupJoin);
+    }
+  }
+}
+
+static int32_t pstCountNonWrapperSelects(SNode* pNode);
+
+static int32_t pstCountNonWrapperSelectsInTable(SNode* pTable) {
+  if (nullptr == pTable) {
+    return 0;
+  }
+  if (QUERY_NODE_TEMP_TABLE == nodeType(pTable)) {
+    return pstCountNonWrapperSelects(((STempTableNode*)pTable)->pSubquery);
+  }
+  if (QUERY_NODE_JOIN_TABLE == nodeType(pTable)) {
+    auto* pJoin = (SJoinTableNode*)pTable;
+    return pstCountNonWrapperSelectsInTable(pJoin->pLeft) + pstCountNonWrapperSelectsInTable(pJoin->pRight);
+  }
+  return 0;
+}
+
+static int32_t pstCountNonWrapperSelects(SNode* pNode) {
+  if (nullptr == pNode || QUERY_NODE_SELECT_STMT != nodeType(pNode)) {
+    return 0;
+  }
+
+  auto*   pSelect = (SSelectStmt*)pNode;
+  int32_t count = QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) ? 0 : 1;
+  return count + pstCountNonWrapperSelectsInTable(pSelect->pFromTable);
 }
 
 static void pstCheckRollupTagList(SNodeList* pRollupTagList, const char* const* pExpectedColNames,
@@ -696,6 +2720,23 @@ static void pstCheckCreateStreamSelectTimeRange(const SQuery* pQuery, ParserStag
   ASSERT_EQ(nodeType(pSelect->pTimeRange), QUERY_NODE_TIME_RANGE);
   const STimeRangeNode* pTimeRange = (const STimeRangeNode*)pSelect->pTimeRange;
   EXPECT_EQ(pTimeRange->needCalc, expectedNeedCalc);
+}
+
+static void pstCheckCreateStreamSelectStartRangeFlag(const SQuery* pQuery, ParserStage stage, bool expectedSet) {
+  const SSelectStmt* pSelect = pstGetCreateStreamSelect(pQuery, stage);
+  ASSERT_NE(pSelect, nullptr);
+  ASSERT_NE(pSelect->pTimeRange, nullptr);
+  ASSERT_EQ(nodeType(pSelect->pTimeRange), QUERY_NODE_TIME_RANGE);
+
+  const STimeRangeNode* pTimeRange = (const STimeRangeNode*)pSelect->pTimeRange;
+  ASSERT_NE(pTimeRange->pStart, nullptr);
+  ASSERT_EQ(nodeType(pTimeRange->pStart), QUERY_NODE_OPERATOR);
+  const SOperatorNode* pStart = (const SOperatorNode*)pTimeRange->pStart;
+  if (expectedSet) {
+    EXPECT_EQ(pStart->flag & OPERATOR_FLAG_STREAM_EXT_JOIN_AUTO_RANGE, OPERATOR_FLAG_STREAM_EXT_JOIN_AUTO_RANGE);
+  } else {
+    EXPECT_EQ(pStart->flag & OPERATOR_FLAG_STREAM_EXT_JOIN_AUTO_RANGE, 0);
+  }
 }
 
 /*
@@ -1896,6 +3937,13 @@ TEST_F(ParserStreamTest, TestCountWindowDeleteRecalcSupportsSlideOne) {
       TSDB_CODE_STREAM_INVALID_TRIGGER);
 }
 
+TEST_F(ParserStreamTest, DeleteRecalcAllowsPureSliding) {
+  run("create stream stream_streamdb.s_delete_recalc sliding(10s) "
+      "from stream_triggerdb.stream_t1 stream_options(delete_recalc) "
+      "into stream_outdb.stream_out as select _tcurrent_ts, avg(c1) "
+      "from stream_querydb.stream_t2");
+}
+
 TEST_F(ParserStreamTest, TestCountWindowDefaultSlidingInCreateReq) {
   pstCheckCreateStreamCountTrigger(
       "create stream stream_streamdb.s1 count_window(1) "
@@ -2726,8 +4774,92 @@ TEST_F(ParserStreamTest, TestQuery) {
   addCreateStreamOutCols(&expect, "%%tbname", TSDB_DATA_TYPE_VARCHAR, 0, 272, 0, 0);
   addCreateStreamOutCols(&expect, "avg(c1)", TSDB_DATA_TYPE_DOUBLE, 0, 8, 0, 0);
   setCreateStreamPlaceHolderBitmap(&expect, PLACE_HOLDER_LOCALTIME | PLACE_HOLDER_PARTITION_TBNAME);
-  addCreateStreamQueryScanPlan(&expect, false, "{\"NodeType\":\"1137\",\"Name\":\"PhysiSubplan\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"2\",\"SubplanId\":\"2\"},\"SubplanType\":\"3\",\"MsgType\":\"769\",\"Level\":\"1\",\"DbFName\":\"0.stream_triggerdb\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"2\",\"InUse\":\"0\",\"NumOfEps\":\"3\",\"Eps\":[{\"Fqdn\":\"dnode_1\",\"Port\":\"6030\"},{\"Fqdn\":\"dnode_2\",\"Port\":\"6030\"},{\"Fqdn\":\"dnode_3\",\"Port\":\"6030\"}]},\"RootNode\":{\"NodeType\":\"1101\",\"Name\":\"PhysiTableScan\",\"PhysiTableScan\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"3\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"4536029962895989025\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"3785532846947205635\",\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"ScanCols\":[{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"3\",\"SlotId\":\"1\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"0\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"ts\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}},{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"3\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"AliasName\":\"c1\",\"UserAlias\":\"c1\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"2\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"c1\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}}],\"TableId\":\"42\",\"STableId\":\"0\",\"TableType\":\"1\",\"TableName\":{\"NameType\":\"2\",\"AcctId\":\"0\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\"},\"GroupOrderScan\":false,\"VirtualStableScan\":false,\"ScanCount\":\"1\",\"ReverseScanCount\":\"0\",\"StartKey\":\"-9223372036854775808\",\"EndKey\":\"9223372036854775807\",\"Ratio\":1,\"DataRequired\":\"1\",\"Interval\":\"0\",\"Offset\":\"0\",\"Sliding\":\"0\",\"IntervalUnit\":\"0\",\"SlidingUnit\":\"0\",\"TriggerType\":\"0\",\"Watermark\":\"0\",\"IgnoreExpired\":\"0\",\"GroupSort\":false,\"AssignBlockUid\":false,\"IgnoreUpdate\":\"0\",\"FilesetDelimited\":false,\"NeedCountEmptyTable\":false,\"ParaTablesSort\":false,\"SmallDataTsSort\":false,\"FirstDayOfWeek\":\"0\"}},\"DataSink\":{\"NodeType\":\"1133\",\"Name\":\"PhysiDispatch\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"3\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":true,\"ProcessOneBlock\":false}}");
-  addCreateStreamQueryScanPlan(&expect, false, "{\"NodeType\":\"1137\",\"Name\":\"PhysiSubplan\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"2\",\"SubplanId\":\"3\"},\"SubplanType\":\"3\",\"MsgType\":\"769\",\"Level\":\"1\",\"DbFName\":\"0.stream_triggerdb\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"3\",\"InUse\":\"0\",\"NumOfEps\":\"3\",\"Eps\":[{\"Fqdn\":\"dnode_1\",\"Port\":\"6030\"},{\"Fqdn\":\"dnode_2\",\"Port\":\"6030\"},{\"Fqdn\":\"dnode_3\",\"Port\":\"6030\"}]},\"RootNode\":{\"NodeType\":\"1101\",\"Name\":\"PhysiTableScan\",\"PhysiTableScan\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"4\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"4536029962895989025\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"3785532846947205635\",\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"ScanCols\":[{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"4\",\"SlotId\":\"1\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"0\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"ts\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}},{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"4\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"AliasName\":\"c1\",\"UserAlias\":\"c1\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"2\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"c1\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}}],\"TableId\":\"42\",\"STableId\":\"0\",\"TableType\":\"1\",\"TableName\":{\"NameType\":\"2\",\"AcctId\":\"0\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\"},\"GroupOrderScan\":false,\"VirtualStableScan\":false,\"ScanCount\":\"1\",\"ReverseScanCount\":\"0\",\"StartKey\":\"-9223372036854775808\",\"EndKey\":\"9223372036854775807\",\"Ratio\":1,\"DataRequired\":\"1\",\"Interval\":\"0\",\"Offset\":\"0\",\"Sliding\":\"0\",\"IntervalUnit\":\"0\",\"SlidingUnit\":\"0\",\"TriggerType\":\"0\",\"Watermark\":\"0\",\"IgnoreExpired\":\"0\",\"GroupSort\":false,\"AssignBlockUid\":false,\"IgnoreUpdate\":\"0\",\"FilesetDelimited\":false,\"NeedCountEmptyTable\":false,\"ParaTablesSort\":false,\"SmallDataTsSort\":false,\"FirstDayOfWeek\":\"0\"}},\"DataSink\":{\"NodeType\":\"1133\",\"Name\":\"PhysiDispatch\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"4\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":true,\"ProcessOneBlock\":false}}");
+  addCreateStreamQueryScanPlan(
+      &expect, false,
+      "{\"NodeType\":\"1137\",\"Name\":\"PhysiSubplan\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"2\","
+      "\"SubplanId\":\"2\"},\"SubplanType\":\"3\",\"MsgType\":\"769\",\"Level\":\"1\",\"DbFName\":\"0.stream_"
+      "triggerdb\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"2\",\"InUse\":\"0\",\"NumOfEps\":\"3\",\"Eps\":[{\"Fqdn\":"
+      "\"dnode_1\",\"Port\":\"6030\"},{\"Fqdn\":\"dnode_2\",\"Port\":\"6030\"},{\"Fqdn\":\"dnode_3\",\"Port\":\"6030\"}"
+      "]},\"RootNode\":{\"NodeType\":\"1101\",\"Name\":\"PhysiTableScan\",\"PhysiTableScan\":{\"OutputDataBlockDesc\":{"
+      "\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"3\",\"TotalRowSize\":\"12\","
+      "\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\","
+      "\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":"
+      "true,\"Name\":\"4536029962895989025\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{"
+      "\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":"
+      "false,\"Output\":true,\"Name\":\"3785532846947205635\",\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":"
+      "\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"ScanCols\":[{"
+      "\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"3\",\"SlotId\":\"1\",\"Expr\":{"
+      "\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":"
+      "\"0\",\"Bytes\":\"8\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\","
+      "\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"0\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\","
+      "\"DbName\":\"\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"ts\",\"DataBlockId\":\"0\","
+      "\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,"
+      "\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}},{\"NodeType\":\"18\",\"Name\":"
+      "\"Target\",\"Target\":{\"DataBlockId\":\"3\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\","
+      "\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"AliasName\":"
+      "\"c1\",\"UserAlias\":\"c1\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\","
+      "\"TableType\":\"1\",\"ColId\":\"2\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"stream_triggerdb\","
+      "\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"c1\",\"DataBlockId\":\"0\",\"SlotId\":\"0\","
+      "\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\","
+      "\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}}],\"TableId\":\"42\",\"STableId\":\"0\",\"TableType\":"
+      "\"1\",\"TableName\":{\"NameType\":\"2\",\"AcctId\":\"0\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\"},"
+      "\"GroupOrderScan\":false,\"VirtualStableScan\":false,\"UseTriggerTableList\":true,\"ScanCount\":\"1\","
+      "\"ReverseScanCount\":\"0\",\"StartKey\":\"-9223372036854775808\",\"EndKey\":\"9223372036854775807\",\"Ratio\":1,"
+      "\"DataRequired\":\"1\",\"Interval\":\"0\",\"Offset\":\"0\",\"Sliding\":\"0\",\"IntervalUnit\":\"0\","
+      "\"SlidingUnit\":\"0\",\"TriggerType\":\"0\",\"Watermark\":\"0\",\"IgnoreExpired\":\"0\",\"GroupSort\":false,"
+      "\"AssignBlockUid\":false,\"IgnoreUpdate\":\"0\",\"FilesetDelimited\":false,\"NeedCountEmptyTable\":false,"
+      "\"ParaTablesSort\":false,\"SmallDataTsSort\":false,\"FirstDayOfWeek\":\"0\"}},\"DataSink\":{\"NodeType\":"
+      "\"1133\",\"Name\":\"PhysiDispatch\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":"
+      "\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"3\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\","
+      "\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":"
+      "\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\","
+      "\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{"
+      "\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":"
+      "\"\",\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,"
+      "\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":true,\"ProcessOneBlock\":false}}");
+  addCreateStreamQueryScanPlan(
+      &expect, false,
+      "{\"NodeType\":\"1137\",\"Name\":\"PhysiSubplan\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"2\","
+      "\"SubplanId\":\"3\"},\"SubplanType\":\"3\",\"MsgType\":\"769\",\"Level\":\"1\",\"DbFName\":\"0.stream_"
+      "triggerdb\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"3\",\"InUse\":\"0\",\"NumOfEps\":\"3\",\"Eps\":[{\"Fqdn\":"
+      "\"dnode_1\",\"Port\":\"6030\"},{\"Fqdn\":\"dnode_2\",\"Port\":\"6030\"},{\"Fqdn\":\"dnode_3\",\"Port\":\"6030\"}"
+      "]},\"RootNode\":{\"NodeType\":\"1101\",\"Name\":\"PhysiTableScan\",\"PhysiTableScan\":{\"OutputDataBlockDesc\":{"
+      "\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"4\",\"TotalRowSize\":\"12\","
+      "\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\","
+      "\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":"
+      "true,\"Name\":\"4536029962895989025\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{"
+      "\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":"
+      "false,\"Output\":true,\"Name\":\"3785532846947205635\",\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":"
+      "\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"ScanCols\":[{"
+      "\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"4\",\"SlotId\":\"1\",\"Expr\":{"
+      "\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":"
+      "\"0\",\"Bytes\":\"8\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\","
+      "\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"0\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\","
+      "\"DbName\":\"\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"ts\",\"DataBlockId\":\"0\","
+      "\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,"
+      "\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}},{\"NodeType\":\"18\",\"Name\":"
+      "\"Target\",\"Target\":{\"DataBlockId\":\"4\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\","
+      "\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"AliasName\":"
+      "\"c1\",\"UserAlias\":\"c1\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\","
+      "\"TableType\":\"1\",\"ColId\":\"2\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"stream_triggerdb\","
+      "\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"c1\",\"DataBlockId\":\"0\",\"SlotId\":\"0\","
+      "\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\","
+      "\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}}],\"TableId\":\"42\",\"STableId\":\"0\",\"TableType\":"
+      "\"1\",\"TableName\":{\"NameType\":\"2\",\"AcctId\":\"0\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\"},"
+      "\"GroupOrderScan\":false,\"VirtualStableScan\":false,\"UseTriggerTableList\":true,\"ScanCount\":\"1\","
+      "\"ReverseScanCount\":\"0\",\"StartKey\":\"-9223372036854775808\",\"EndKey\":\"9223372036854775807\",\"Ratio\":1,"
+      "\"DataRequired\":\"1\",\"Interval\":\"0\",\"Offset\":\"0\",\"Sliding\":\"0\",\"IntervalUnit\":\"0\","
+      "\"SlidingUnit\":\"0\",\"TriggerType\":\"0\",\"Watermark\":\"0\",\"IgnoreExpired\":\"0\",\"GroupSort\":false,"
+      "\"AssignBlockUid\":false,\"IgnoreUpdate\":\"0\",\"FilesetDelimited\":false,\"NeedCountEmptyTable\":false,"
+      "\"ParaTablesSort\":false,\"SmallDataTsSort\":false,\"FirstDayOfWeek\":\"0\"}},\"DataSink\":{\"NodeType\":"
+      "\"1133\",\"Name\":\"PhysiDispatch\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":"
+      "\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"4\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\","
+      "\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":"
+      "\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\","
+      "\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{"
+      "\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":"
+      "\"\",\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,"
+      "\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":true,\"ProcessOneBlock\":false}}");
   setCreateStreamQueryCalcPlan(&expect, "{\"NodeType\":\"1138\",\"PhysiPlan\":{\"QueryId\":\"0\",\"NumOfSubplans\":\"1\",\"Subplans\":{\"NodeType\":\"15\",\"NodeList\":{\"DataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"NodeList\":[{\"NodeType\":\"1137\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"1\",\"SubplanId\":\"1\"},\"SubplanType\":\"5\",\"MsgType\":\"771\",\"Level\":\"0\",\"DbFName\":\"\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"0\",\"InUse\":\"0\",\"NumOfEps\":\"0\"},\"Child\":[{\"NodeType\":\"2\",\"Value\":{\"DataType\":{\"Type\":\"5\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Flag\":false,\"Translate\":true,\"NotReserved\":false,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"8589934594\"}},{\"NodeType\":\"2\",\"Value\":{\"DataType\":{\"Type\":\"5\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Flag\":false,\"Translate\":true,\"NotReserved\":false,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"8589934595\"}}],\"RootNode\":{\"NodeType\":\"1108\",\"PhysiProject\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"2\",\"TotalRowSize\":\"288\",\"OutputRowSize\":\"288\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"2\",\"DataType\":{\"Type\":\"7\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}},\"Children\":[{\"NodeType\":\"1110\",\"PhysiAgg\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"1\",\"TotalRowSize\":\"8\",\"OutputRowSize\":\"8\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"7\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}},\"Children\":[{\"NodeType\":\"1111\",\"PhysiExchange\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"0\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"SrcStartGroupId\":\"2\",\"SrcEndGroupId\":\"2\",\"SeqRecvData\":false,\"DynTbname\":true,\"GrpSingleChannel\":false,\"SingleSource\":false}}],\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"AggFuncs\":[{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"1\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"5\",\"Function\":{\"DataType\":{\"Type\":\"7\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"avg(c1)\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Id\":\"8\",\"Type\":\"2\",\"Parameters\":[{\"NodeType\":\"1\",\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"UserAlias\":\"c1\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"2\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}],\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"}}}}}],\"MergeDataBlock\":true,\"GroupKeyOptimized\":false,\"HasCountFunc\":false}}],\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"Projections\":[{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"2\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"5\",\"Function\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"_tlocaltime\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Id\":\"184\",\"Type\":\"3530\",\"Parameters\":[{\"NodeType\":\"2\",\"Value\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Flag\":false,\"Translate\":true,\"NotReserved\":true,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"0\"}}],\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}}}},{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"2\",\"SlotId\":\"1\",\"Expr\":{\"NodeType\":\"5\",\"Function\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"UserAlias\":\"%%tbname\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Id\":\"187\",\"Type\":\"3533\",\"Parameters\":[{\"NodeType\":\"2\",\"Value\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"195\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Literal\":\"\",\"Flag\":false,\"Translate\":true,\"NotReserved\":true,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"\"}}],\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}}}},{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"2\",\"SlotId\":\"2\",\"Expr\":{\"NodeType\":\"1\",\"Column\":{\"DataType\":{\"Type\":\"7\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"avg(c1)\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"0\",\"TableType\":\"0\",\"ColId\":\"0\",\"ProjId\":\"0\",\"ColType\":\"0\",\"DbName\":\"\",\"TableName\":\"\",\"TableAlias\":\"\",\"DataBlockId\":\"1\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}}],\"MergeDataBlock\":true,\"IgnoreGroupId\":true,\"InputIgnoreGroup\":false}},\"DataSink\":{\"NodeType\":\"1133\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"2\",\"TotalRowSize\":\"288\",\"OutputRowSize\":\"288\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"2\",\"DataType\":{\"Type\":\"7\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":false,\"ProcessOneBlock\":false}}]}}}}");
   setCreateStreamSql(&expect, "create stream stream_streamdb.s1 period(1s) from stream_triggerdb.st1 partition by tbname, tag1, tag2, tag3 into stream_outdb.stream_out as select _tlocaltime, %%tbname, avg(c1) from %%tbname");
   run("create stream stream_streamdb.s1 period(1s) from stream_triggerdb.st1 partition by tbname, tag1, tag2, tag3 into stream_outdb.stream_out as select _tlocaltime, %%tbname, avg(c1) from %%tbname");
@@ -2935,8 +5067,10 @@ TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinAggSubqueriesByTwendAd
   setAsyncFlag("-1");
   useDb("root", "stream_streamdb");
 
-  setCheckDdlFunc(
-      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCreateStreamSelectTimeRange(pQuery, stage, true, true); });
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCreateStreamSelectTimeRange(pQuery, stage, true, true);
+    pstCheckCreateStreamSelectStartRangeFlag(pQuery, stage, true);
+  });
 
   run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
       "into stream_outdb.stream_out as select a.te, a.cnt, b.minv from "
@@ -2944,6 +5078,464 @@ TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinAggSubqueriesByTwendAd
       "join "
       "(select _twend te, min(c1) minv from stream_querydb.stream_t2 where ts >= _twstart and ts < _twend) b "
       "on a.te = b.te");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowExplicitStrictRangeHasNoAutoFlag) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCreateStreamSelectTimeRange(pQuery, stage, true, true);
+    pstCheckCreateStreamSelectStartRangeFlag(pQuery, stage, false);
+  });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twend, avg(c1) from stream_querydb.stream_t2 "
+      "where ts > _twstart and ts <= _twend");
+}
+
+TEST_F(ParserStreamTest, EnablesMultiGroupOnlyWithExternalWindowCapability) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 3);
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    EXPECT_TRUE(req.enableMultiGroupCalc);
+    EXPECT_EQ(0, req.placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS);
+    pstAssertNoInheritedMultiGroupJoinSubplans((const char*)req.calcPlan);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_multigroup_gate interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select _twstart, avg(c1) from stream_triggerdb.st1 "
+      "where ts >= _twstart and ts < _twend and tag1 = %%1");
+}
+
+TEST_F(ParserStreamTest, KeepsSingleGroupWhenCalcUsesAnotherVnodeDomain) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    EXPECT_FALSE(req.enableMultiGroupCalc);
+    pstAssertNoInheritedMultiGroupJoinSubplans((const char*)req.calcPlan);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_cross_db_fallback interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select _twstart, avg(c1) from stream_querydb.st1 "
+      "where ts >= _twstart and ts < _twend and tag1 = %%1");
+}
+
+TEST_F(ParserStreamTest, KeepsSingleGroupWhenPartitionedTriggerReadsWindowBoundFixedTable) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    vector<SExternalWindowPhysiInfo> infos;
+    vector<ENodeType>                joinTypes;
+    pstCollectCalcPlanExternalWindowInfo(pQuery, stage, &infos, &joinTypes);
+    ASSERT_EQ(1, infos.size());
+    EXPECT_EQ(EXT_WIN_INPUT_WINDOW_BOUND, infos[0].inputMode);
+    EXPECT_TRUE(infos[0].hasTimeRange);
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    EXPECT_FALSE(req.enableMultiGroupCalc);
+    pstAssertNoInheritedMultiGroupJoinSubplans((const char*)req.calcPlan);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_fixed_table_fallback count_window(5, 5, c1) "
+      "from stream_triggerdb.st1 partition by tbname into stream_outdb.stream_out as "
+      "select _twstart, count(*) from stream_triggerdb.stream_t1 "
+      "where ts >= _twstart and ts <= _twend and c1 is not null");
+}
+
+TEST_F(ParserStreamTest, KeepsExternalWindowWhenMultiGroupCandidateIsFalse) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 1);
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    EXPECT_FALSE(req.enableMultiGroupCalc);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_external_only interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend");
+}
+
+TEST_F(ParserStreamTest, RejectsPartitionRowsFromMultiGroupCapability) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    EXPECT_NE(0, req.placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS);
+    EXPECT_FALSE(req.enableMultiGroupCalc);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_trows_gate count_window(2, 1) "
+      "from stream_triggerdb.st1 partition by tbname into stream_outdb.stream_out as "
+      "select _twstart, count(*) from %%trows");
+}
+
+TEST_F(ParserStreamTest, SkipsBroadcastExternalWindowForPartitionRows) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s_trows_window_bound session(ts, 10m) "
+      "from stream_triggerdb.st1 into stream_outdb.stream_out as "
+      "select ts, c1, _twstart, _twend, _twrownum from %%trows");
+}
+
+TEST_F(ParserStreamTest, MultiGroupJoinAcceptsExternalWindowTreesBehindTransparentNodes) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckMultiGroupJoinPlan(pQuery, stage, true, 1, 1, -1, -1, 1);
+  });
+
+  run("create stream stream_streamdb.s_multigroup_transparent interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, a.cnt, b.minv from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b on a.ts = b.ts where a.cnt >= 0");
+}
+
+TEST_F(ParserStreamTest, MultiGroupJoinSerializesInheritedQualificationForDistributedLeaves) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+    ASSERT_TRUE(req.enableMultiGroupCalc);
+    ASSERT_NE(nullptr, req.calcPlan);
+    EXPECT_NE(nullptr, strstr((const char*)req.calcPlan, "\"InheritedMultiGroupJoin\":true"));
+
+    SNode* pPlanNode = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)req.calcPlan, &pPlanNode));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlanNode, nodesDestroyNode);
+    int32_t                                        subplanCount = 0;
+    int32_t                                        markedSubplanCount = 0;
+    int32_t                                        inheritedSubplanCount = 0;
+    SNode*                                         pLevelNode = nullptr;
+    FOREACH(pLevelNode, ((const SQueryPlan*)pPlanNode)->pSubplans) {
+      SNode* pSubplanNode = nullptr;
+      FOREACH(pSubplanNode, ((const SNodeListNode*)pLevelNode)->pNodeList) {
+        const auto*              pSubplan = (const SSubplan*)pSubplanNode;
+        SMultiGroupJoinPhysiInfo info;
+        pstCollectMultiGroupJoinPhysiInfo(pSubplan->pNode, &info);
+        ++subplanCount;
+        if (pSubplan->inheritedMultiGroupJoin) {
+          ++inheritedSubplanCount;
+          EXPECT_EQ(0, info.hashJoins.size());
+        }
+        for (const SHashJoinPhysiNode* pJoin : info.hashJoins) {
+          if (pJoin->multiGroupJoin) {
+            ++markedSubplanCount;
+            EXPECT_FALSE(pSubplan->inheritedMultiGroupJoin);
+          }
+        }
+      }
+    }
+    EXPECT_EQ(2, subplanCount);
+    EXPECT_EQ(1, markedSubplanCount);
+    EXPECT_EQ(1, inheritedSubplanCount);
+  });
+
+  run("create stream stream_streamdb.s_multigroup_inherited interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, a.cnt, b.minv from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b on a.ts = b.ts where a.cnt >= 0");
+}
+
+TEST_F(ParserStreamTest, MultiGroupJoinAcceptsUnaryBroadcastPredicate) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckMultiGroupJoinPlan(pQuery, stage, true, 1, 1, -1, -1, 1);
+
+    vector<SExternalWindowPhysiInfo> infos;
+    vector<ENodeType>                joinTypes;
+    pstCollectCalcPlanExternalWindowInfo(pQuery, stage, &infos, &joinTypes);
+
+    const SExternalWindowPhysiInfo* pBroadcast = nullptr;
+    for (const auto& info : infos) {
+      if ("stream_t2" == info.sourceTable) {
+        ASSERT_EQ(nullptr, pBroadcast);
+        pBroadcast = &info;
+      }
+    }
+    ASSERT_NE(nullptr, pBroadcast);
+    EXPECT_EQ(EXT_WIN_INPUT_BROADCAST, pBroadcast->inputMode);
+    EXPECT_FALSE(pBroadcast->hasTimeRange);
+  });
+
+  run("create stream stream_streamdb.s_multigroup_unary interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, a.v0, b.v1 from "
+      "(select _twstart ts, max(c1) v0 from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, c1 v1 from stream_querydb.stream_t2 where c1 is not null) b "
+      "on a.ts = b.ts");
+}
+
+TEST_F(ParserStreamTest, MultiGroupJoinMarksEveryLevelOfNestedJoinTree) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckMultiGroupJoinPlan(pQuery, stage, true, 3, 3, -1, -1, 3);
+  });
+
+  run("create stream stream_streamdb.s_multigroup_nested interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, a.v0, b.v1, c.v2, d.v3 from "
+      "(select _twstart ts, max(c1) v0 from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, max(c1) v1 from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b on a.ts = b.ts join "
+      "(select _twstart ts, max(c1) v2 from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) c on b.ts = c.ts join "
+      "(select _twstart ts, max(c1) v3 from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) d on c.ts = d.ts");
+}
+
+TEST_F(ParserStreamTest, MultiGroupJoinRejectsMissingBaseGroupSource) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckMultiGroupJoinPlan(pQuery, stage, false, 1, 0); });
+
+  run("create stream stream_streamdb.s_multigroup_missing_base interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, a.cnt, b.bcnt from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, count(*) bcnt from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend limit 1) b on a.ts = b.ts");
+}
+
+TEST_F(ParserStreamTest, MultiGroupJoinRejectsNonTransparentOperator) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckMultiGroupJoinPlan(pQuery, stage, false, 1, 0, 3); });
+
+  run("create stream stream_streamdb.s_multigroup_sort interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, a.cnt, b.minv from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b on a.ts = b.ts order by a.ts");
+}
+
+TEST_F(ParserStreamTest, MultiGroupJoinRejectsCalcGroupingAndPartitionRows) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckMultiGroupJoinPlan(pQuery, stage, false, 1, 0); });
+  run("create stream stream_streamdb.s_multigroup_calc_partition interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, count(*) from "
+      "(select _twstart ts, c1 from stream_querydb.stream_t1 where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, c1 from stream_querydb.stream_t2 where ts >= _twstart and ts < _twend) b "
+      "on a.ts = b.ts partition by a.ts");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckMultiGroupJoinPlan(pQuery, stage, false, 0, 0); });
+  run("create stream stream_streamdb.s_multigroup_trows count_window(2, 1) "
+      "from stream_triggerdb.st1 partition by tbname into stream_outdb.stream_out as "
+      "select _twstart, count(*) from %%trows");
+}
+
+TEST_F(ParserStreamTest, MultiGroupJoinLeavesNoPartialMarkWhenAncestorIsUnsafe) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckMultiGroupJoinPlan(pQuery, stage, false, 2, 0, 4, 1); });
+
+  run("create stream stream_streamdb.s_multigroup_atomic interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, a.v0, b.v1, c.v2 from "
+      "(select _twstart ts, max(c1) v0 from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, max(c1) v1 from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b on a.ts = b.ts join "
+      "(select _twstart ts, max(c1) v2 from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend order by ts) c on b.ts = c.ts");
+}
+
+TEST_F(ParserStreamTest, MultiGroupJoinForcesEveryMarkedJoinToPhysicalHash) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckMultiGroupJoinPlan(pQuery, stage, true, 2, 2, -1, -1, 2);
+  });
+
+  run("create stream stream_streamdb.s_multigroup_hash interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, a.v0, b.v1, c.v2 from "
+      "(select _twstart ts, max(c1) v0 from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, max(c1) v1 from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b on a.ts = b.ts join "
+      "(select _twstart ts, max(c1) v2 from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) c on b.ts = c.ts");
+}
+
+TEST_F(ParserStreamTest, ExternalWindowAcceptsExactAndBounds) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 1);
+    pstCheckCalcPlanExternalWindowNeedCalcTimeRangeCount(pQuery, stage, 1);
+  });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart - 1s and ts <= _twend + 1s");
+}
+
+TEST_F(ParserStreamTest, ExternalWindowAcceptsMultipleBoundsUsingMaxAndMin) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 1);
+    pstCheckCalcPlanExternalWindowNeedCalcTimeRangeCount(pQuery, stage, 1);
+  });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart - 1s and ts > _twstart - 500a "
+      "and ts < _twend + 2s and ts <= _twend + 1s");
+}
+
+TEST_F(ParserStreamTest, ExternalWindowAcceptsCanonicalizedComparisonDirection) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 1);
+    pstCheckCalcPlanExternalWindowNeedCalcTimeRangeCount(pQuery, stage, 0);
+  });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where _twstart <= ts and _twend > ts");
+}
+
+TEST_F(ParserStreamTest, ExternalWindowRejectsMissingStartOrEnd) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart");
+  run("create stream stream_streamdb.s2 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts < _twend");
+}
+
+TEST_F(ParserStreamTest, ExternalWindowRejectsOrNotAndNonPrimaryTimestamp) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart or ts < _twend");
+  run("create stream stream_streamdb.s2 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where not (ts >= _twstart and ts < _twend)");
+  run("create stream stream_streamdb.s3 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where c3 >= _twstart and c3 < _twend");
+}
+
+TEST_F(ParserStreamTest, ExternalWindowRejectsDynamicDynamicAndNegativeOffset) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart + _twduration and ts < _twend");
+  run("create stream stream_streamdb.s2 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart + (-1s) and ts < _twend");
+  run("create stream stream_streamdb.s3 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= now() and ts < _twend");
+  run("create stream stream_streamdb.s4 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart + 1s + 1s and ts < _twend");
+}
+
+TEST_F(ParserStreamTest, NestedExternalWindowAcceptsCrossLayerBounds) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 1);
+    pstCheckCalcPlanExternalWindowNeedCalcTimeRangeCount(pQuery, stage, 1);
+  });
+
+  run("create stream stream_streamdb.s1 window ("
+      "interval(10s) sliding(10s) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= w_outer._twstart and ts < w_leaf._twend");
 }
 
 TEST_F(ParserStreamTest, TestStreamExternalWindowLeftJoinAggSubqueriesDisabled) {
@@ -2979,19 +5571,90 @@ TEST_F(ParserStreamTest, TestStreamExternalWindowThreeInnerJoinAggSubqueries) {
       "on b.ts = c.ts");
 }
 
-TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinNonWindowKeyDisabled) {
+TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinWindowAndOrdinaryKeysEnabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 3); });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select t1.ts, t1.pile_code, t2.minv from "
+      "(select _twstart ts, min(c1) pile_code from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) t1 "
+      "join "
+      "(select _twstart ts, min(c1) pile_code, min(c1) minv from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) t2 "
+      "on t1.ts = t2.ts and t1.pile_code = t2.pile_code");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinMismatchedWindowKeysDisabled) {
   setAsyncFlag("-1");
   useDb("root", "stream_streamdb");
 
   setCheckDdlFunc(
       [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
 
-  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
-      "into stream_outdb.stream_out as select a.ts, a.cnt, b.minv from "
-      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 where ts >= _twstart and ts < _twend) a "
-      "join "
-      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 where ts >= _twstart and ts < _twend) b "
-      "on a.ts = b.ts and a.cnt = b.minv");
+  run("create stream stream_streamdb.s_join_mismatched_keys interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select a.ts, a.cnt, b.minv from "
+      "(select _twstart ts, _twstart ts2, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, _twend te, min(c1) minv from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b "
+      "on a.ts = b.ts and a.ts2 = b.te");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinUnsupportedOnConditionsDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  const string prefix =
+      "create stream stream_streamdb.s_join_on_negative interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select a.ts, a.cnt, b.minv from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b on ";
+  run(prefix + "a.ts = b.ts or a.cnt = b.minv", TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND, PARSER_STAGE_TRANSLATE);
+  run(prefix + "a.ts = b.ts and a.cnt > b.minv");
+  run(prefix + "a.ts = b.ts and abs(a.cnt) = b.minv");
+  run(prefix + "a.ts = b.ts and a.cnt = 1");
+  run(prefix + "a.ts = b.ts and a.cnt = %%1", TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, PARSER_STAGE_TRANSLATE);
+  run(prefix + "a.ts = b.ts and a.cnt = a.cnt");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowUnsupportedJoinSubtypesDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  const string prefix =
+      "create stream stream_streamdb.s_join_subtype_negative interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as ";
+  const string left =
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a ";
+  const string right =
+      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b ";
+  run(prefix + "select a.ts, a.cnt, b.minv from " + left + "right join " + right + "on a.ts = b.ts");
+  run(prefix + "select a.ts, a.cnt, b.minv from " + left + "full join " + right + "on a.ts = b.ts");
+  run(prefix + "select a.ts, a.cnt from " + left + "left semi join " + right + "on a.ts = b.ts");
+  run(prefix + "select a.ts, a.cnt from " + left + "left anti join " + right + "on a.ts = b.ts");
+  run(prefix +
+      "select a.ts, a.c1 ac1, b.c1 bc1 from stream_querydb.stream_t1 a left asof join "
+      "stream_querydb.stream_t2 b on a.ts <= b.ts jlimit 1 "
+      "where a.ts >= _twstart and a.ts < _twend");
+  run(prefix +
+      "select a.ts, a.c1 ac1, b.c1 bc1 from stream_querydb.stream_t1 a left window join "
+      "stream_querydb.stream_t2 b window_offset(-1s, 1s) "
+      "where a.ts >= _twstart and a.ts < _twend");
 }
 
 TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinParentLimitDisablesAll) {
@@ -3043,17 +5706,441 @@ TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinChildLimitKeepsOuterTi
       "on a.te = b.te");
 }
 
-TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinBaseTableDisabled) {
+TEST_F(ParserStreamTest, TestStreamExternalWindowDirectBaseTableBroadcastEnabled) {
   setAsyncFlag("-1");
   useDb("root", "stream_streamdb");
 
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    vector<SExternalWindowPhysiInfo> infos;
+    vector<ENodeType>                joinTypes;
+    pstCollectCalcPlanExternalWindowInfo(pQuery, stage, &infos, &joinTypes);
+    ASSERT_EQ(1, infos.size());
+    EXPECT_EQ(EXT_WIN_INPUT_BROADCAST, infos[0].inputMode);
+    EXPECT_FALSE(infos[0].hasTimeRange);
+  });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select _twstart, c1 from stream_querydb.stream_t2 where c1 >= 0");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDirectBaseTableMatchingPartitionPlaceholderBroadcastEnabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    vector<SExternalWindowPhysiInfo> infos;
+    vector<ENodeType>                joinTypes;
+    pstCollectCalcPlanExternalWindowInfo(pQuery, stage, &infos, &joinTypes);
+    ASSERT_EQ(1, infos.size());
+    EXPECT_EQ(EXT_WIN_INPUT_BROADCAST, infos[0].inputMode);
+    EXPECT_FALSE(infos[0].hasTimeRange);
+  });
+
+  run("create stream stream_streamdb.s_broadcast_matching_partition interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from stream_triggerdb.st1 where tag1 = %%1");
+}
+
+TEST_F(ParserStreamTest, AllowsMatchingPartitionPlaceholderInsideJoinBroadcastSubquery) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    vector<SExternalWindowPhysiInfo> infos;
+    vector<ENodeType>                joinTypes;
+    vector<SCalcScanPhysiInfo>       scanInfos;
+    pstCollectCalcPlanExternalWindowInfo(pQuery, stage, &infos, &joinTypes, &scanInfos);
+
+    ASSERT_EQ(3, infos.size());
+    ASSERT_EQ(1, count_if(infos.begin(), infos.end(), [](const SExternalWindowPhysiInfo& info) {
+                return "st1" == info.sourceTable && !info.hasTimeRange;
+              }));
+    const auto& dimensionInput = *find_if(infos.begin(), infos.end(), [](const SExternalWindowPhysiInfo& info) {
+      return "st1" == info.sourceTable && !info.hasTimeRange;
+    });
+    EXPECT_EQ(EXT_WIN_INPUT_BROADCAST, dimensionInput.inputMode);
+    EXPECT_FALSE(dimensionInput.hasTimeRange);
+
+    int32_t dimensionScans = 0;
+    for (const auto& scan : scanInfos) {
+      if ("stream_querydb" != scan.sourceDb || "st1" != scan.sourceTable) {
+        continue;
+      }
+      ++dimensionScans;
+      EXPECT_TRUE(scan.scanType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN ||
+                  scan.scanType == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN);
+      EXPECT_FALSE(scan.hasTimeRange);
+      EXPECT_FALSE(scan.dynamicOp);
+      EXPECT_FALSE(scan.virtualStableScan);
+      if (scan.scanType == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
+        EXPECT_FALSE(scan.paraTablesSort);
+      }
+    }
+    EXPECT_GT(dimensionScans, 0);
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    EXPECT_TRUE(req.enableMultiGroupCalc);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_join_partition_value "
+      "count_window(2,1) from stream_triggerdb.st1 "
+      "partition by tbname,tag1 into stream_outdb.stream_out as "
+      "select t1.ts,t2.c2 from "
+      "(select _twend ts,last(c1) c1 from %%tbname "
+      "where ts>=_twstart and ts<=_twend) t1 join "
+      "(select _twend ts,tag1,c2 from stream_querydb.st1 "
+      "where tag1=%%2) t2 on t1.ts=t2.ts");
+}
+
+TEST_F(ParserStreamTest, PhysicalScanMarksOnlyTbnamePlaceholderLeafForTriggerTableRouting) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    vector<SExternalWindowPhysiInfo> infos;
+    vector<ENodeType>                joinTypes;
+    vector<SCalcScanPhysiInfo>       scanInfos;
+    pstCollectCalcPlanExternalWindowInfo(pQuery, stage, &infos, &joinTypes, &scanInfos);
+
+    int32_t placeholderScans = 0;
+    int32_t fixedScans = 0;
+    for (const auto& info : scanInfos) {
+      if ("st1" == info.sourceTable) {
+        ++placeholderScans;
+        EXPECT_TRUE(info.useTriggerTableList);
+      } else if ("stream_t2" == info.sourceTable) {
+        ++fixedScans;
+        EXPECT_FALSE(info.useTriggerTableList);
+      }
+    }
+    EXPECT_GT(placeholderScans, 0);
+    EXPECT_GT(fixedScans, 0);
+  });
+
+  run("create stream stream_streamdb.s_scan_trigger_route "
+      "count_window(2,1) from stream_triggerdb.st1 "
+      "partition by tbname into stream_outdb.stream_out as "
+      "select t1.ts,t2.c1 from "
+      "(select _twend ts,last(c1) c1 from %%tbname "
+      "where ts>=_twstart and ts<=_twend) t1 join "
+      "(select _twend ts,c1 from stream_querydb.stream_t2) t2 on t1.ts=t2.ts");
+}
+
+TEST_F(ParserStreamTest, RejectsNonEqualityJoinBroadcastPlaceholder) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0);
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    EXPECT_FALSE(req.enableMultiGroupCalc);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_join_partition_non_equality "
+      "count_window(2,1) from stream_triggerdb.st1 "
+      "partition by tbname,tag1 into stream_outdb.stream_out as "
+      "select t1.ts,t2.c2 from "
+      "(select _twend ts,last(c1) c1 from %%tbname "
+      "where ts>=_twstart and ts<=_twend) t1 join "
+      "(select _twend ts,tag1,c2 from stream_querydb.st1 "
+      "where c2<>%%2) t2 on t1.ts=t2.ts");
+}
+
+TEST_F(ParserStreamTest, RejectsWrappedColumnJoinBroadcastPlaceholder) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0);
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    EXPECT_FALSE(req.enableMultiGroupCalc);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_join_partition_wrapped_column "
+      "count_window(2,1) from stream_triggerdb.st1 "
+      "partition by tbname,tag2 into stream_outdb.stream_out as "
+      "select t1.ts,t2.c2 from "
+      "(select _twend ts,last(c1) c1 from %%tbname "
+      "where ts>=_twstart and ts<=_twend) t1 join "
+      "(select _twend ts,tag2,c2 from stream_querydb.st1 "
+      "where lower(tag2)=%%2) t2 on t1.ts=t2.ts");
+}
+
+TEST_F(ParserStreamTest, RejectsMismatchedDirectBroadcastPlaceholder) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0);
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    EXPECT_FALSE(req.enableMultiGroupCalc);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_broadcast_mismatched_partition interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from stream_triggerdb.st1 where c1 = %%1");
+}
+
+TEST_F(ParserStreamTest, RejectsOutOfRangeJoinBroadcastPlaceholder) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  const char* sql =
+      "create stream stream_streamdb.s_join_partition_out_of_range "
+      "count_window(2,1) from stream_triggerdb.st1 "
+      "partition by tbname,tag1 into stream_outdb.stream_out as "
+      "select t1.ts,t2.c2 from "
+      "(select _twend ts,last(c1) c1 from %%tbname "
+      "where ts>=_twstart and ts<=_twend) t1 join "
+      "(select _twend ts,tag1,c2 from stream_querydb.st1 "
+      "where tag1=%%3) t2 on t1.ts=t2.ts";
+  array<char, 1024> msgBuf = {0};
+  SQuery*           pQuery = nullptr;
+  int32_t           code = pstTranslateCreateStreamSql(sql, &pQuery, msgBuf.data(), msgBuf.max_size());
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  EXPECT_EQ(TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, code) << msgBuf.data();
+  EXPECT_NE(strstr(msgBuf.data(), "partition index out of range"), nullptr) << msgBuf.data();
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowFiveLeafWindowBoundAndBroadcastInputs) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    vector<SExternalWindowPhysiInfo> infos;
+    vector<ENodeType>                joinTypes;
+    vector<SCalcScanPhysiInfo>       scanInfos;
+    pstCollectCalcPlanExternalWindowInfo(pQuery, stage, &infos, &joinTypes, &scanInfos);
+
+    ASSERT_EQ(QUERY_NODE_CREATE_STREAM_STMT, nodeType(pQuery->pRoot));
+    const auto* pCreate = (const SCreateStreamStmt*)pQuery->pRoot;
+    EXPECT_EQ(pstCountNonWrapperSelects(pCreate->pQuery), infos.size());
+    ASSERT_EQ(6, infos.size());
+
+    vector<const SExternalWindowPhysiInfo*> broadcast;
+    const SExternalWindowPhysiInfo*         pT0 = nullptr;
+    const SExternalWindowPhysiInfo*         pT1 = nullptr;
+    const SExternalWindowPhysiInfo*         pRoot = nullptr;
+    for (const auto& info : infos) {
+      if (EXT_WIN_INPUT_BROADCAST == info.inputMode) {
+        broadcast.push_back(&info);
+      } else if (info.sourceTable.empty()) {
+        pRoot = &info;
+      } else if ("stream_t2" == info.sourceTable) {
+        pT1 = &info;
+      } else {
+        pT0 = &info;
+      }
+    }
+
+    ASSERT_EQ(3, broadcast.size());
+    const auto* pT2 = broadcast[0];
+    const auto* pT3 = broadcast[1];
+    const auto* pT4 = broadcast[2];
+    ASSERT_NE(nullptr, pT0);
+    ASSERT_NE(nullptr, pT1);
+    ASSERT_NE(nullptr, pRoot);
+
+    EXPECT_EQ("stream_t1", pT0->sourceTable);
+    EXPECT_EQ(EXT_WIN_INPUT_WINDOW_BOUND, pT0->inputMode);
+    EXPECT_TRUE(pT0->hasTimeRange);
+    EXPECT_EQ("stream_t2", pT1->sourceTable);
+    EXPECT_EQ(EXT_WIN_INPUT_WINDOW_BOUND, pT1->inputMode);
+    EXPECT_TRUE(pT1->hasTimeRange);
+    EXPECT_EQ("stream_t1", pT2->sourceTable);
+    EXPECT_EQ("stream_t2", pT3->sourceTable);
+    EXPECT_EQ("stream_t1", pT4->sourceTable);
+    for (const auto* pBroadcast : {pT2, pT3, pT4}) {
+      EXPECT_EQ(EXT_WIN_INPUT_BROADCAST, pBroadcast->inputMode);
+      EXPECT_FALSE(pBroadcast->hasTimeRange);
+      EXPECT_FALSE(pBroadcast->hasWindowConditions);
+      EXPECT_EQ(0, pBroadcast->durationUpperBoundCount);
+    }
+
+    EXPECT_EQ(0, pT0->durationUpperBoundCount);
+    EXPECT_TRUE(pT1->hasWindowConditions);
+    EXPECT_EQ(QUERY_NODE_LOGIC_CONDITION, pT1->windowConditionNodeType);
+    EXPECT_EQ(LOGIC_COND_TYPE_AND, pT1->windowConditionType);
+    EXPECT_EQ(TSDB_DATA_TYPE_BOOL, pT1->windowConditionResultType);
+    EXPECT_EQ(tDataTypes[TSDB_DATA_TYPE_BOOL].bytes, pT1->windowConditionResultBytes);
+    EXPECT_EQ(1, pT1->durationUpperBoundCount);
+    EXPECT_EQ(0, pT1->windowConditionC1Count);
+    EXPECT_FALSE(pRoot->hasWindowConditions);
+    EXPECT_EQ(0, pRoot->durationUpperBoundCount);
+
+    int32_t totalDurationUpperBoundCount = 0;
+    for (const auto& info : infos) {
+      totalDurationUpperBoundCount += info.durationUpperBoundCount;
+    }
+    EXPECT_EQ(1, totalDurationUpperBoundCount);
+
+    ASSERT_EQ(5, scanInfos.size());
+    using SScanOwnership = tuple<string, bool, int32_t, int32_t>;
+    vector<SScanOwnership> actualScanOwnership;
+    for (const auto& scan : scanInfos) {
+      EXPECT_EQ(0, scan.durationPredicateCount);
+      actualScanOwnership.emplace_back(scan.sourceTable, scan.hasTimeRange, scan.c1NonnegativeCount,
+                                       scan.durationPredicateCount);
+    }
+    vector<SScanOwnership> expectedScanOwnership = {
+        make_tuple("stream_t1", true, 0, 0),  make_tuple("stream_t2", true, 1, 0),
+        make_tuple("stream_t1", false, 1, 0), make_tuple("stream_t2", false, 1, 0),
+        make_tuple("stream_t1", false, 1, 0),
+    };
+    sort(actualScanOwnership.begin(), actualScanOwnership.end());
+    sort(expectedScanOwnership.begin(), expectedScanOwnership.end());
+    EXPECT_EQ(expectedScanOwnership, actualScanOwnership);
+
+    auto countFunction = [](const SExternalWindowPhysiInfo& info, const char* pFunctionName, const char* pUserAlias,
+                            const char* pTableAlias, const char* pColName) {
+      return count_if(info.functions.begin(), info.functions.end(),
+                      [&](const SExternalWindowPhysiInfo::SFunctionInfo& func) {
+                        return pFunctionName == func.functionName && pUserAlias == func.userAlias &&
+                               pTableAlias == func.firstParamTableAlias && pColName == func.firstParamColName;
+                      });
+    };
+    EXPECT_EQ(1, countFunction(*pRoot, "first", "first(t1.soc)", "t1", "soc"));
+    EXPECT_EQ(1, countFunction(*pRoot, "last", "last(t1.soc)", "t1", "soc"));
+
+    ASSERT_EQ(4, joinTypes.size());
+    for (ENodeType type : joinTypes) {
+      EXPECT_TRUE(QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN == type || QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == type);
+    }
+  });
+
+  run("create stream stream_streamdb.s_five_leaf window (state_window(c1) extend(1) as w_order, "
+      "count_window(2, 1) as w_leaf) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select first(t0.ts), first(t1.soc), last(t1.soc) from "
+      "(select _twstart ts, max(c1) pile_code, max(c1) soc from stream_querydb.stream_t1 "
+      "where ts >= w_order._twstart and ts <= _twstart) t0 "
+      "join (select _twstart ts, max(c1) pile_code, first(c1) soc from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts <= _twend and _twduration <= 30000 and c1 >= 0) t1 "
+      "on t0.ts = t1.ts and t0.pile_code = t1.pile_code "
+      "join (select _twstart ts, c1 pile_code from stream_querydb.stream_t1 where c1 >= 0) t2 "
+      "on t1.ts = t2.ts and t1.pile_code = t2.pile_code "
+      "join (select _twstart ts, c1 pile_code from stream_querydb.stream_t2 where c1 >= 0) t3 "
+      "on t2.ts = t3.ts and t2.pile_code = t3.pile_code "
+      "join (select _twstart ts, c1 pile_code from stream_querydb.stream_t1 where c1 >= 0) t4 "
+      "on t3.ts = t4.ts and t3.pile_code = t4.pile_code");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowAncestorWindowConditionDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
   setCheckDdlFunc(
       [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
 
-  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
-      "into stream_outdb.stream_out as select a.ts, a.cnt, b.c1 from "
-      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 where ts >= _twstart and ts < _twend) a "
-      "join stream_querydb.stream_t2 b on a.ts = b.ts");
+  run("create stream stream_streamdb.s_ancestor_window_condition window ("
+      "state_window(c1) extend(1) as w_order, count_window(2, 1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts <= _twend and w_order._twduration <= 30000");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowBroadcastAncestorProjectionDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s_broadcast_ancestor_projection window ("
+      "state_window(c1) extend(1) as w_order, count_window(2, 1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select w_order._twstart, c1 from stream_querydb.stream_t2 where c1 >= 0");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowRowConditionRemovalFailureReleasesWindowNode) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of nodesMergeConds is unreliable in Windows release builds";
+#endif
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  RowConditionMergeFailureGuard guard;
+  run("create stream stream_streamdb.s_row_condition_merge_failure interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts <= _twend and _twduration <= 30000 and c1 >= 0",
+      TSDB_CODE_OUT_OF_MEMORY, PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDirectBaseTableWindowPlaceholderDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+  run("create stream stream_streamdb.s_broadcast_placeholder interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from stream_querydb.stream_t2 where c1 >= _twstart");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDirectBaseTableAggregateDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+  run("create stream stream_streamdb.s_broadcast_aggregate interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, count(*) from stream_querydb.stream_t2 where c1 >= 0");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDirectBaseTableMultiRowsFunctionDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+  run("create stream stream_streamdb.s_broadcast_multi_rows interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, tail(c1, 1) from stream_querydb.stream_t2 where c1 >= 0");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowIndefiniteRowsFunctionDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s_indefinite_rows interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, csum(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDirectBaseTableForeignPartitionPlaceholderDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+  run("create stream stream_streamdb.s_broadcast_foreign_partition interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from stream_querydb.st1 where tag1 = %%1");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDirectBaseTableOrderOrLimitDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+  run("create stream stream_streamdb.s_broadcast_order interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from stream_querydb.stream_t2 where c1 >= 0 order by c1");
+  run("create stream stream_streamdb.s_broadcast_limit interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _twstart, c1 from stream_querydb.stream_t2 where c1 >= 0 limit 1");
 }
 
 TEST_F(ParserStreamTest, TestOutTagExprSpecialCases) {
@@ -3791,6 +6878,33 @@ class FederatedFlagGuard {
   bool prev_;
 };
 }  // namespace
+
+TEST_F(ParserStreamTest, NestedWindowRejectsExtTrigger) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  registerExtPgMetrics();
+
+  runAsyncOnly(
+      "create stream stream_streamdb.s_nested_ext_trigger window ("
+      "interval(10m) sliding(10m) as w_outer, count_window(2,1) as w_leaf) "
+      "from ext_pg.metrics into stream_outdb.stream_out as "
+      "select _twstart ts, count(*) cnt from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend",
+      TSDB_CODE_INVALID_PARA);
+
+  SharedValidatorFailureGuard validatorGuard;
+  runAsyncOnly(
+      "create stream stream_streamdb.s_nested_ext_trigger_reach window ("
+      "interval(10m) sliding(10m) as w_outer, count_window(2,1) as w_leaf) "
+      "from ext_pg.metrics into stream_outdb.stream_out as "
+      "select _twstart ts, count(*) cnt from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend",
+      TSDB_CODE_OUT_OF_MEMORY);
+#endif
+}
 
 // T053: trigger=EXT, calc=local — basic happy path.
 // Verifies: SCMCreateStreamReq.numOfExtSpecs >= 1 and

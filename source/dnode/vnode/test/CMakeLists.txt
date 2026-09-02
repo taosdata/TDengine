@@ -88,6 +88,7 @@ add_test(
 # ---------------------------------------------------------------------------
 ADD_EXECUTABLE(metaTxnAlterStbTest metaTxnAlterStbTest.cpp)
 DEP_ext_gtest(metaTxnAlterStbTest)
+DEP_ext_cppstub(metaTxnAlterStbTest)
 TARGET_LINK_LIBRARIES(
          metaTxnAlterStbTest
          PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode
@@ -154,6 +155,28 @@ IF(NOT TD_WINDOWS)
              PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
              PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
     )
+ENDIF()
+
+IF(NOT TD_WINDOWS)
+    ADD_EXECUTABLE(tsdbReaderResetTest tsdbReaderResetTest.cpp)
+    DEP_ext_gtest(tsdbReaderResetTest)
+    DEP_ext_cppstub(tsdbReaderResetTest)
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(tsdbReaderResetTest PRIVATE -fpermissive -Wno-error)
+    endif()
+    TARGET_LINK_LIBRARIES(
+        tsdbReaderResetTest
+        PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode
+    )
+    TARGET_INCLUDE_DIRECTORIES(
+        tsdbReaderResetTest
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    add_test(NAME tsdbReaderResetTest COMMAND tsdbReaderResetTest)
 ENDIF()
 
 # ---------------------------------------------------------------------------

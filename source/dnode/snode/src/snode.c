@@ -266,7 +266,74 @@ _exit:
   return code;
 }
 
-static int32_t buildStreamFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8_t precision, bool finished) {
+static int32_t buildStreamFetchRsp(SSDataBlock* pBlock, const SStreamRunnerFetchFrame* pFrame, void** data,
+                                   size_t* size, int8_t precision, bool finished) {
+  if (pFrame != NULL && pFrame->type != STREAM_RUNNER_FETCH_LEGACY) {
+    if (data == NULL || size == NULL) return TSDB_CODE_INVALID_PARA;
+    *data = NULL;
+    *size = 0;
+
+    int64_t rows = pBlock == NULL ? 0 : pBlock->info.rows;
+    int32_t code = tValidateSStreamRunnerFetchFrame(pFrame, rows);
+    if (code != TSDB_CODE_SUCCESS || finished ||
+        (pFrame->type == STREAM_RUNNER_FETCH_DATA &&
+         (pBlock == NULL || pBlock->info.id.baseGId != pFrame->baseGId ||
+          pBlock->info.id.groupId != pFrame->baseGId)) ||
+        (pFrame->type == STREAM_RUNNER_FETCH_EOG && pBlock != NULL)) {
+      return code == TSDB_CODE_SUCCESS ? TSDB_CODE_INVALID_MSG : code;
+    }
+
+    int32_t blockSize = pFrame->type == STREAM_RUNNER_FETCH_DATA ? blockGetInternalEncodeSize(pBlock) : 0;
+    int32_t frameSize = tSerializeSStreamRunnerFetchFrame(NULL, 0, pFrame);
+    if (blockSize < 0 || frameSize == 0) return TSDB_CODE_INVALID_MSG;
+    if (frameSize < 0) return frameSize;
+
+    int64_t payloadSize = (int64_t)INT_BYTES * 2 + blockSize + frameSize;
+    if (payloadSize > INT32_MAX || payloadSize > INT32_MAX - (int64_t)sizeof(SRetrieveTableRsp) ||
+        payloadSize > SIZE_MAX - sizeof(SRetrieveTableRsp)) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+    size_t responseSize = sizeof(SRetrieveTableRsp) + (size_t)payloadSize;
+    void*  strictBuf = rpcMallocCont(responseSize);
+    if (strictBuf == NULL) return terrno;
+
+    SRetrieveTableRsp* pRetrieve = strictBuf;
+    pRetrieve->version = 0;
+    pRetrieve->precision = precision;
+    pRetrieve->compressed = 0;
+    pRetrieve->completed = 0;
+    pRetrieve->streamBlockType = (int8_t)pFrame->type;
+    pRetrieve->payloadLen = htonl((int32_t)payloadSize);
+    pRetrieve->compLen = htonl((int32_t)payloadSize);
+    pRetrieve->numOfRows = htobe64(rows);
+    pRetrieve->numOfBlocks = htonl(pFrame->type == STREAM_RUNNER_FETCH_DATA ? 1 : 0);
+    pRetrieve->numOfCols = htobe64(pBlock == NULL ? 0 : (int64_t)taosArrayGetSize(pBlock->pDataBlock));
+    *((int32_t*)(pRetrieve->data)) = blockSize;
+    *((int32_t*)(pRetrieve->data + INT_BYTES)) = blockSize;
+
+    if (pFrame->type == STREAM_RUNNER_FETCH_DATA) {
+      uint32_t numOfCols = (uint32_t)taosArrayGetSize(pBlock->pDataBlock);
+      int32_t  actualLen = blockEncodeInternal(pBlock, pRetrieve->data + INT_BYTES * 2, blockSize, numOfCols);
+      if (actualLen != blockSize) {
+        code = actualLen < 0 ? terrno : TSDB_CODE_INVALID_MSG;
+        rpcFreeCont(strictBuf);
+        return code;
+      }
+    }
+
+    int32_t encodedFrame = tSerializeSStreamRunnerFetchFrame(
+        pRetrieve->data + INT_BYTES * 2 + blockSize, frameSize, pFrame);
+    if (encodedFrame != frameSize) {
+      code = encodedFrame < 0 ? encodedFrame : TSDB_CODE_INVALID_MSG;
+      rpcFreeCont(strictBuf);
+      return code;
+    }
+
+    *data = strictBuf;
+    *size = responseSize;
+    return TSDB_CODE_SUCCESS;
+  }
+
   int32_t code = 0;
   int32_t lino = 0;
   void*   buf =  NULL;
@@ -313,6 +380,26 @@ end:
   return code;
 }
 
+int32_t sndTestBuildStreamFetchRsp(SSDataBlock* pBlock, const SStreamRunnerFetchFrame* pFrame, void** data,
+                                   size_t* size, int8_t precision, bool finished) {
+  return buildStreamFetchRsp(pBlock, pFrame, data, size, precision, finished);
+}
+
+static int32_t transferFetchRuntimeToCalcRequest(SStreamRuntimeFuncInfo* pRuntime, SSTriggerCalcRequest* pCalcReq) {
+  if (pRuntime == NULL || pCalcReq == NULL) return TSDB_CODE_INVALID_PARA;
+  TSWAP(pCalcReq->pContextPolicy, pRuntime->pContextPolicy);
+  TSWAP(pCalcReq->pAncestorContext, pRuntime->pAncestorContext);
+  if (pCalcReq->isMultiGroupCalc) {
+    tClearStreamCurrentGroupRead(pRuntime);
+    TSWAP(pCalcReq->pGroupCalcInfos, pRuntime->pGroupCalcInfos);
+    TSWAP(pCalcReq->pGroupReadInfos, pRuntime->pGroupReadInfos);
+  } else {
+    TSWAP(pCalcReq->groupColVals, pRuntime->pStreamPartColVals);
+    TSWAP(pCalcReq->params, pRuntime->pStreamPesudoFuncVals);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* pRpcMsg) {
   int32_t code = 0, lino = 0;
   void* taskAddr = NULL;
@@ -339,12 +426,8 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
     calcReq.precision = req.pStRtFuncInfo->precision;
     calcReq.isMultiGroupCalc = req.pStRtFuncInfo->isMultiGroupCalc;
     calcReq.stbPartByTbname = req.pStRtFuncInfo->stbPartByTbname;
-    if (calcReq.isMultiGroupCalc) {
-      TSWAP(calcReq.pGroupCalcInfos, req.pStRtFuncInfo->pGroupCalcInfos);
-      TSWAP(calcReq.pGroupReadInfos, req.pStRtFuncInfo->pGroupReadInfos);
-    } else {
-      TSWAP(calcReq.groupColVals, req.pStRtFuncInfo->pStreamPartColVals);
-      TSWAP(calcReq.params, req.pStRtFuncInfo->pStreamPesudoFuncVals);
+    TAOS_CHECK_EXIT(transferFetchRuntimeToCalcRequest(req.pStRtFuncInfo, &calcReq));
+    if (!calcReq.isMultiGroupCalc) {
       calcReq.gid = req.pStRtFuncInfo->groupId;
       calcReq.rollupTbCount = req.pStRtFuncInfo->rollupTbCount;
     }
@@ -360,7 +443,8 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   
   TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &calcReq, requestStartMonoUs));
 
-  TAOS_CHECK_EXIT(buildStreamFetchRsp(calcReq.pOutBlock, &buf, &size, 0, req.forceFetchCompleted));
+  const bool responseFinished = calcReq.isMultiGroupCalc ? calcReq.outFinished : req.forceFetchCompleted;
+  TAOS_CHECK_EXIT(buildStreamFetchRsp(calcReq.pOutBlock, &calcReq.outFrame, &buf, &size, 0, responseFinished));
 
 _exit:
 
@@ -397,10 +481,20 @@ static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   readInfo.eventConditionPath = req.pStRtFuncInfo->curEventConditionPath;
   readInfo.start = req.pStRtFuncInfo->curWindow.skey;
   readInfo.end = req.pStRtFuncInfo->curWindow.ekey;
+  readInfo.pRuntime = req.pStRtFuncInfo;
+  readInfo.reset = req.reset;
   bool finished;
   TAOS_CHECK_EXIT(stRunnerFetchDataFromCache(&readInfo,&finished));
 
-  TAOS_CHECK_EXIT(buildStreamFetchRsp(readInfo.pBlock, &buf, &size, 0, finished));
+  code = buildStreamFetchRsp(readInfo.pBlock, NULL, &buf, &size, 0, finished);
+  if (code != TSDB_CODE_SUCCESS) {
+    lino = __LINE__;
+    int32_t cleanupCode = stRemoveStreamCacheReadScope(&readInfo);
+    if (cleanupCode != TSDB_CODE_SUCCESS) {
+      sndError("failed to remove cache read scope since %s", tstrerror(cleanupCode));
+    }
+    goto _exit;
+  }
 
 _exit:
 
@@ -417,6 +511,7 @@ _exit:
   }
 
   blockDataDestroy(readInfo.pBlock);
+  stClearStreamCacheReadScope(&readInfo);
   freeOperatorParam(req.pOpParam, OP_GET_PARAM);
   req.pOpParam = NULL;
   tDestroySResFetchReq(&req);
@@ -706,7 +801,7 @@ static int32_t handleExtFetchReq(SSnode *pSnode, SRpcMsg *pRpcMsg) {
   
   outRows = (pBlock != NULL) ? pBlock->info.rows : 0;
 
-  TAOS_CHECK_EXIT(buildStreamFetchRsp(pBlock, &buf, &size, 0, true));
+  TAOS_CHECK_EXIT(buildStreamFetchRsp(pBlock, NULL, &buf, &size, 0, true));
 
 _exit:
   blockDataDestroy(pBlock);

@@ -2,11 +2,16 @@
 
 #include <cmath>
 #include <limits>
+#include <vector>
 
 #include "os.h"
 #include "tdatablock.h"
 #include "tpagedbuf.h"
 #include "windowfunc.h"
+
+extern "C" int32_t winInputPoolTestGetRegisteredPageCount(const SWindowInputPool *pPool);
+extern "C" int32_t winInputStoreTestGetPageId(const SWindowInputStore *pStore, int32_t pageIndex, int32_t *pPageId);
+extern "C" void    winInputStoreTestFailNextDirectoryCommit(SWindowInputStore *pStore);
 
 namespace {
 
@@ -261,15 +266,19 @@ TEST(windowFuncFrameTest, inputStoreSpillsPagedBlocksAndReadsRowsBack) {
   SSDataBlock *pInput = createIntBlock(64, 1000);
   ASSERT_NE(pInput, nullptr);
 
+  SWindowInputPool *pPool = nullptr;
+  ASSERT_EQ(winInputPoolCreate(128, 128, "windowInputStoreTest", &pPool), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pPool, nullptr);
+
   SWindowInputStore *pStore = nullptr;
-  ASSERT_EQ(winInputStoreCreate(pInput, 128, 128, "windowInputStoreTest", &pStore), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(winInputStoreCreate(pInput, pPool, &pStore), TSDB_CODE_SUCCESS);
   ASSERT_NE(pStore, nullptr);
 
   ASSERT_EQ(winInputStoreAppendBlock(pStore, pInput), TSDB_CODE_SUCCESS);
   EXPECT_EQ(winInputStoreGetRows(pStore), 64);
   EXPECT_GT(winInputStoreGetPageCount(pStore), 1);
 
-  SDiskbasedBufStatis statis = winInputStoreGetStatis(pStore);
+  SDiskbasedBufStatis statis = winInputPoolGetStatis(pPool);
   EXPECT_GT(statis.flushPages, 0);
 
   SSDataBlock *pFirstPage = nullptr;
@@ -290,5 +299,167 @@ TEST(windowFuncFrameTest, inputStoreSpillsPagedBlocksAndReadsRowsBack) {
   EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(pLastCol, pLastPage->info.rows - 1)), 1063);
 
   winInputStoreDestroy(pStore);
+  winInputPoolDestroy(pPool);
   blockDataDestroy(pInput);
+}
+
+TEST(windowFuncFrameTest, inputStoresSharePoolAndKeepPagesIsolated) {
+  tstrncpy(tsTempDir, "/tmp", PATH_MAX);
+  tsTempSpace.size.avail = 1024 * 1024;
+
+  SSDataBlock *pFirstInput = createIntBlock(64, 1000);
+  SSDataBlock *pSecondInput = createIntBlock(64, 2000);
+  ASSERT_NE(pFirstInput, nullptr);
+  ASSERT_NE(pSecondInput, nullptr);
+
+  SWindowInputPool *pPool = nullptr;
+  ASSERT_EQ(winInputPoolCreate(128, 128, "sharedWindowInputPoolTest", &pPool), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pPool, nullptr);
+
+  SWindowInputStore *pFirstStore = nullptr;
+  SWindowInputStore *pSecondStore = nullptr;
+  ASSERT_EQ(winInputStoreCreate(pFirstInput, pPool, &pFirstStore), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(winInputStoreCreate(pSecondInput, pPool, &pSecondStore), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(winInputStoreAppendBlock(pFirstStore, pFirstInput), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(winInputStoreAppendBlock(pSecondStore, pSecondInput), TSDB_CODE_SUCCESS);
+
+  EXPECT_GT(winInputPoolGetStatis(pPool).flushPages, 0);
+  EXPECT_EQ(winInputPoolGetPageSize(pPool), 128);
+
+  SSDataBlock *pFirstReplay = nullptr;
+  SSDataBlock *pSecondReplay = nullptr;
+  ASSERT_EQ(winInputStoreGetBlock(pFirstStore, 0, &pFirstReplay), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(winInputStoreGetBlock(pSecondStore, 0, &pSecondReplay), TSDB_CODE_SUCCESS);
+  auto *pFirstCol = static_cast<SColumnInfoData *>(taosArrayGet(pFirstReplay->pDataBlock, 0));
+  auto *pSecondCol = static_cast<SColumnInfoData *>(taosArrayGet(pSecondReplay->pDataBlock, 0));
+  ASSERT_NE(pFirstCol, nullptr);
+  ASSERT_NE(pSecondCol, nullptr);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(pFirstCol, 0)), 1000);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(pSecondCol, 0)), 2000);
+
+  winInputStoreDestroy(pFirstStore);
+  pFirstStore = nullptr;
+  SWindowInputStore *pReplacementStore = nullptr;
+  ASSERT_EQ(winInputStoreCreate(pFirstInput, pPool, &pReplacementStore), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(winInputStoreAppendBlock(pReplacementStore, pFirstInput), TSDB_CODE_SUCCESS);
+  SSDataBlock *pReplacementReplay = nullptr;
+  ASSERT_EQ(winInputStoreGetBlock(pReplacementStore, 0, &pReplacementReplay), TSDB_CODE_SUCCESS);
+  auto *pReplacementCol = static_cast<SColumnInfoData *>(taosArrayGet(pReplacementReplay->pDataBlock, 0));
+  ASSERT_NE(pReplacementCol, nullptr);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(pReplacementCol, 0)), 1000);
+
+  winInputStoreDestroy(pReplacementStore);
+  winInputStoreDestroy(pSecondStore);
+  winInputPoolDestroy(pPool);
+  blockDataDestroy(pFirstInput);
+  blockDataDestroy(pSecondInput);
+}
+
+TEST(windowFuncFrameTest, destroyedBorrowerPagesAreReusedWithoutLoadingSiblingPages) {
+  tstrncpy(tsTempDir, "/tmp", PATH_MAX);
+  tsTempSpace.size.avail = 1024 * 1024;
+
+  SSDataBlock *pFirstInput = createIntBlock(64, 1000);
+  SSDataBlock *pSiblingInput = createIntBlock(64, 2000);
+  ASSERT_NE(pFirstInput, nullptr);
+  ASSERT_NE(pSiblingInput, nullptr);
+
+  SWindowInputPool *pPool = nullptr;
+  ASSERT_EQ(winInputPoolCreate(128, 128, "windowInputBorrowerChurnTest", &pPool), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pPool, nullptr);
+
+  SWindowInputStore *pFirstStore = nullptr;
+  SWindowInputStore *pSiblingStore = nullptr;
+  ASSERT_EQ(winInputStoreCreate(pFirstInput, pPool, &pFirstStore), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(winInputStoreCreate(pSiblingInput, pPool, &pSiblingStore), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(winInputStoreAppendBlock(pFirstStore, pFirstInput), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(winInputStoreAppendBlock(pSiblingStore, pSiblingInput), TSDB_CODE_SUCCESS);
+
+  std::vector<int32_t> firstPageIds;
+  for (int32_t page = 0; page < winInputStoreGetPageCount(pFirstStore); ++page) {
+    int32_t pageId = -1;
+    ASSERT_EQ(winInputStoreTestGetPageId(pFirstStore, page, &pageId), TSDB_CODE_SUCCESS);
+    firstPageIds.push_back(pageId);
+  }
+  ASSERT_GT(firstPageIds.size(), 2);
+  int32_t registeredBeforeDestroy = winInputPoolTestGetRegisteredPageCount(pPool);
+  int32_t loadsBeforeDestroy = winInputPoolGetStatis(pPool).loadPages;
+
+  winInputStoreDestroy(pFirstStore);
+  pFirstStore = nullptr;
+  EXPECT_EQ(winInputPoolGetStatis(pPool).loadPages, loadsBeforeDestroy);
+
+  SWindowInputStore *pReplacementStore = nullptr;
+  ASSERT_EQ(winInputStoreCreate(pFirstInput, pPool, &pReplacementStore), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(winInputStoreAppendBlock(pReplacementStore, pFirstInput), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(winInputPoolTestGetRegisteredPageCount(pPool), registeredBeforeDestroy);
+  ASSERT_EQ(winInputStoreGetPageCount(pReplacementStore), firstPageIds.size());
+  for (int32_t page = 0; page < winInputStoreGetPageCount(pReplacementStore); ++page) {
+    int32_t pageId = -1;
+    ASSERT_EQ(winInputStoreTestGetPageId(pReplacementStore, page, &pageId), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(pageId, firstPageIds[page]);
+  }
+
+  SSDataBlock *pSiblingReplay = nullptr;
+  ASSERT_EQ(winInputStoreGetBlock(pSiblingStore, 0, &pSiblingReplay), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pSiblingReplay, nullptr);
+  auto *pSiblingCol = static_cast<SColumnInfoData *>(taosArrayGet(pSiblingReplay->pDataBlock, 0));
+  ASSERT_NE(pSiblingCol, nullptr);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(pSiblingCol, 0)), 2000);
+
+  winInputStoreDestroy(pReplacementStore);
+  winInputStoreDestroy(pSiblingStore);
+  winInputPoolDestroy(pPool);
+  blockDataDestroy(pFirstInput);
+  blockDataDestroy(pSiblingInput);
+}
+
+TEST(windowFuncFrameTest, failedDirectoryCommitPageIsReusedAndSiblingRemainsReadable) {
+  tstrncpy(tsTempDir, "/tmp", PATH_MAX);
+  tsTempSpace.size.avail = 1024 * 1024;
+
+  SSDataBlock *pSiblingInput = createIntBlock(1, 2000);
+  SSDataBlock *pFailedInput = createIntBlock(1, 3000);
+  ASSERT_NE(pSiblingInput, nullptr);
+  ASSERT_NE(pFailedInput, nullptr);
+
+  SWindowInputPool *pPool = nullptr;
+  ASSERT_EQ(winInputPoolCreate(128, 128, "windowInputAppendRollbackTest", &pPool), TSDB_CODE_SUCCESS);
+
+  SWindowInputStore *pSiblingStore = nullptr;
+  SWindowInputStore *pFailedStore = nullptr;
+  ASSERT_EQ(winInputStoreCreate(pSiblingInput, pPool, &pSiblingStore), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(winInputStoreCreate(pFailedInput, pPool, &pFailedStore), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(winInputStoreAppendBlock(pSiblingStore, pSiblingInput), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(winInputStoreGetPageCount(pSiblingStore), 1);
+  int32_t registeredBeforeFailure = winInputPoolTestGetRegisteredPageCount(pPool);
+
+  winInputStoreTestFailNextDirectoryCommit(pFailedStore);
+  EXPECT_EQ(winInputStoreAppendBlock(pFailedStore, pFailedInput), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(winInputStoreGetPageCount(pFailedStore), 0);
+  int32_t registeredAfterFailure = winInputPoolTestGetRegisteredPageCount(pPool);
+  EXPECT_EQ(registeredAfterFailure, registeredBeforeFailure + 1);
+  winInputStoreDestroy(pFailedStore);
+
+  SWindowInputStore *pReplacementStore = nullptr;
+  ASSERT_EQ(winInputStoreCreate(pFailedInput, pPool, &pReplacementStore), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(winInputStoreAppendBlock(pReplacementStore, pFailedInput), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(winInputPoolTestGetRegisteredPageCount(pPool), registeredAfterFailure);
+  ASSERT_EQ(winInputStoreGetPageCount(pReplacementStore), 1);
+  int32_t replacementPageId = -1;
+  ASSERT_EQ(winInputStoreTestGetPageId(pReplacementStore, 0, &replacementPageId), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(replacementPageId, registeredBeforeFailure);
+
+  SSDataBlock *pSiblingReplay = nullptr;
+  ASSERT_EQ(winInputStoreGetBlock(pSiblingStore, 0, &pSiblingReplay), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pSiblingReplay, nullptr);
+  auto *pSiblingCol = static_cast<SColumnInfoData *>(taosArrayGet(pSiblingReplay->pDataBlock, 0));
+  ASSERT_NE(pSiblingCol, nullptr);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(pSiblingCol, 0)), 2000);
+
+  winInputStoreDestroy(pReplacementStore);
+  winInputStoreDestroy(pSiblingStore);
+  winInputPoolDestroy(pPool);
+  blockDataDestroy(pSiblingInput);
+  blockDataDestroy(pFailedInput);
 }

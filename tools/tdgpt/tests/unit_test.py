@@ -39,6 +39,7 @@ def _prepare_tmp_dir(service_name: str):
     os.makedirs(temp_dir, exist_ok=True)
     return temp_dir
 
+
 class UtilTest(unittest.TestCase):
     """utility test cases"""
 
@@ -372,9 +373,9 @@ class ServiceTest(unittest.TestCase):
             if item["type"] == "anomaly-detection":
                 builtins = [i for i in item["algo"] if i.get("builtins") == True]
                 if (version.major, version.minor) == (3, 12):
-                    self.assertEqual(len(builtins), 4)
+                    self.assertEqual(len(builtins), 9)
                 else:
-                    self.assertEqual(len(builtins), 5)
+                    self.assertEqual(len(builtins), 10)
             elif item["type"] == "forecast":
                 builtins = [i for i in item["algo"] if i.get("builtins") == True]
                 builtin_names = {i["name"] for i in builtins}
@@ -860,23 +861,6 @@ class ServiceTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 loader.register_service_from_file(config_path)
         finally:
-            if config_path and os.path.exists(config_path):
-                os.remove(config_path)
-
-    def test_dynamic_execute_theta_not_implemented(self):
-        service_name = None
-        config_path = None
-        try:
-            service_name, config_path = self._register_dynamic_service_for_algo("theta")
-            service = loader.get_service(service_name)
-            self.assertIsNotNone(service)
-            with self.assertRaisesRegex(
-                NotImplementedError, "Theta model is not implemented yet"
-            ):
-                service.execute()
-        finally:
-            if service_name and service_name in loader.services:
-                del loader.services[service_name]
             if config_path and os.path.exists(config_path):
                 os.remove(config_path)
 
@@ -1743,6 +1727,7 @@ class ServiceTest(unittest.TestCase):
     def test_dynamic_load_linear_regression_service_success(self):
         """Registering a valid linear regression config creates a DynamicRegressionService."""
         from taosanalytics.handlers.dynamic import DynamicRegressionService
+
         service_name = "lr_service_test"
         temp_dir = _prepare_tmp_dir(service_name)
 

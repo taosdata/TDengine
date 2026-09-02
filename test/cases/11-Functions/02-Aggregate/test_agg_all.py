@@ -27,6 +27,8 @@ class TestAggFunction:
         tdLog.info(f"insert data.")
         datafile = etool.getFilePath(os.path.dirname(__file__), "resource", "data", "d1001.data")
 
+        # drop the leftover database so every run starts from the same dataset
+        tdSql.execute("drop database if exists ts_4893;")
         tdSql.execute("create database ts_4893;")
         tdSql.execute("use ts_4893;")
         tdSql.execute("select database();")
@@ -271,7 +273,9 @@ class TestAggFunction:
 
     def run_error(self):
         tdSql.error("select * from (select to_iso8601(ts, timezone()), timezone() from ts_4893.meters \
-            order by ts desc) limit 1000;", expectErrInfo="Invalid timezone format") # TS-5340
+            order by ts desc) limit 1000;",
+            # the message quotes the rejected timezone, which varies per host
+            expectErrInfo="Invalid timezone", fullMatched=False) # TS-5340
         tdSql.error("select * from ts_4893.meters where ts between(timetruncate(now, 1h) - 10y) and timetruncate(now(), 10y) partition by voltage;",
                     expectErrInfo="Invalid time unit : timetruncate") #
 
@@ -328,7 +332,7 @@ class TestAggFunction:
         tdSql.query("select GREATEST(now, '1');")
         tdSql.error("select GREATEST(1)")
         tdSql.error("select GREATEST(cast('a' as varbinary), cast('b' as varbinary), 'c', 'd');")
-        tdSql.error("select GREATEST(6, cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")       
+        tdSql.error("select GREATEST(6, cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")
 
     def run_least(self):
         self.run_normal_query_new("least")
@@ -466,6 +470,7 @@ class TestAggFunction:
         Since: v3.3.0.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2024-9-28 qevolg Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -483,22 +488,24 @@ class TestAggFunction:
         self.run_sum()
         self.run_leastsquares()
         self.run_statecount()
-        
+
         # select function
         self.run_max()
         self.run_min()
 
         # error function
         self.run_error()
-        
+
         # null
         self.do_agg_null()
-        
+
         # min/max support timestamp/bool
-        self.do_min_max_timestamp_bool()        
+        self.do_min_max_timestamp_bool()
 
     def initdabase(self):
-        tdSql.execute('create database if not exists db_test vgroups 2  buffer 10')
+        # drop the leftover database so every run starts from the same dataset
+        tdSql.execute('drop database if exists db_test')
+        tdSql.execute('create database db_test vgroups 2  buffer 10')
         tdSql.execute('use db_test')
         tdSql.execute('create stable stb(ts timestamp, delay int) tags(groupid int)')
         sql = 'create table '
@@ -519,7 +526,7 @@ class TestAggFunction:
             if i == 2500:
                 tdSql.execute(sql)
                 sql = "insert into "
-        tdSql.execute(sql)        
+        tdSql.execute(sql)
 
     def verify_agg_null(self):
         for i in range(20):
@@ -607,7 +614,7 @@ class TestAggFunction:
         self.initdabase()
         self.insert_data()
         self.verify_agg_null()
-        
+
     def do_min_max_timestamp_bool(self):
         db = "db_minmax_bool_ts"
 

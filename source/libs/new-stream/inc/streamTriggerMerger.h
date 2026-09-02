@@ -22,6 +22,7 @@ extern "C" {
 
 #include "filter.h"
 #include "stream.h"
+#include "streamWindowChain.h"
 #include "tcommon.h"
 #include "tlosertree.h"
 #include "tobjpool.h"
@@ -383,11 +384,12 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter);
  * @param pReadRange The time range for sorting, containing start and end timestamps
  * @param pMetas The metadatas of current table
  * @param pSlice The data slice containing the data block and the range of rows to be considered
+ * @param orderedInput Whether rows older than the accepted version frontier must be skipped
  * @return int32_t Status code indicating success or error
  */
 int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_t tbUid, int32_t tsSlotId,
                                     int32_t pkSlotId, STimeWindow *pReadRange, SObjList *pMetas,
-                                    SSTriggerDataSlice *pSlice);
+                                    SSTriggerDataSlice *pSlice, bool orderedInput);
 
 /**
  * @brief Get next data block from the sorter.
@@ -458,11 +460,12 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger);
  * @param pTableColRefs Array of table column references, each containing original and virtual table column mappings
  * @param pMetas The metadatas of all original tables
  * @param pSlices The hash map from original table uid to its data slice
+ * @param orderedInput Whether each source must skip rows older than its accepted version frontier
  * @return int32_t
  */
 int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId, int32_t pkSlotId,
                                  STimeWindow *pReadRange, SObjList *pTableUids, SArray *pTableColRefs,
-                                 SSHashObj *pMetas, SSHashObj *pSlices);
+                                 SSHashObj *pMetas, SSHashObj *pSlices, bool orderedInput);
 
 /**
  * @brief Gets next data block from the vtable merger.
@@ -475,6 +478,43 @@ int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbU
  */
 int32_t stNewVtableMergerNextDataBlock(SSTriggerNewVtableMerger *pMerger, SSDataBlock **ppDataBlock, int32_t *pStartIdx,
                                        int32_t *pEndIdx);
+
+typedef struct SStreamTriggerPeerMerger SStreamTriggerPeerMerger;
+
+typedef enum {
+  STREAM_TRIGGER_PEER_SOURCE_ROW = 0,
+  STREAM_TRIGGER_PEER_SOURCE_NEED_INPUT,
+  STREAM_TRIGGER_PEER_SOURCE_EOF,
+} EStreamTriggerPeerSourceStatus;
+
+typedef enum {
+  STREAM_TRIGGER_PEER_GROUP_READY = 0,
+  STREAM_TRIGGER_PEER_GROUP_NEED_INPUT,
+  STREAM_TRIGGER_PEER_GROUP_EOF,
+} EStreamTriggerPeerGroupStatus;
+
+typedef struct {
+  SWindowChainRowRef row;
+  TSKEY              eventTs;
+} SStreamTriggerPeerHead;
+
+typedef int32_t (*FStreamTriggerPeerSourcePeek)(void *pSource, SStreamTriggerPeerHead *pHead,
+                                                EStreamTriggerPeerSourceStatus *pStatus);
+typedef void (*FStreamTriggerPeerSourceConsume)(void *pSource);
+
+typedef struct {
+  FStreamTriggerPeerSourcePeek    peek;
+  FStreamTriggerPeerSourceConsume consume;
+} SStreamTriggerPeerSourceOps;
+
+int32_t stTriggerMergerPeerCreate(int64_t gid, SStreamTriggerPeerMerger **ppMerger);
+void    stTriggerMergerPeerReset(SStreamTriggerPeerMerger *pMerger, int64_t gid);
+int32_t stTriggerMergerPeerAddSource(SStreamTriggerPeerMerger *pMerger, int64_t tableUid,
+                                     const SStreamTriggerPeerSourceOps *pOps, void *pSource);
+int32_t stTriggerMergerNextPeerGroup(SStreamTriggerPeerMerger *pMerger, EStreamTriggerPeerGroupStatus *pStatus,
+                                     int32_t *pNeedSourceIndex, const SWindowChainPeerGroup **ppGroup);
+int32_t stTriggerMergerPeerRetryOutstanding(SStreamTriggerPeerMerger *pMerger);
+void    stTriggerMergerPeerDestroy(SStreamTriggerPeerMerger **ppMerger);
 
 #ifdef __cplusplus
 }

@@ -79,28 +79,40 @@ static int restoreDatabaseBasic(const char *dbName) {
 }
 
 //
-// restore one database's extended metadata: virtual tables, streams, topics
+// restore one database's extended-metadata "shell": the database itself and its
+// virtual super tables.  Used only by --content=ext-meta (the basic stage never
+// ran, so no database exists yet).
 //
-static int restoreDatabaseExtMetaOne(const char *dbName, bool needCreateDb) {
+static int restoreDatabaseExtMetaPrepareOne(const char *dbName) {
+#ifdef COMPAT_AVRO_ENABLED
+    // The basic stage (which does the AVRO restore) never ran for this db, so
+    // there is nothing this stage can restore for an AVRO backup in that mode.
+    char avroDbPath[MAX_PATH_LEN];
+    if (isAvroDb(dbName, avroDbPath, sizeof(avroDbPath))) {
+        logError("db %s is a taosdump AVRO backup: --content=ext-meta cannot "
+                  "restore it standalone, run without --content or with basic+ext-meta", dbName);
+        return TSDB_CODE_BCK_INVALID_COMBINATION;
+    }
+#endif
+
+    return restoreDatabaseExtMetaPrepare(dbName);
+}
+
+//
+// restore one database's extended metadata DDL: virtual tables, streams, topics
+//
+static int restoreDatabaseExtMetaApplyOne(const char *dbName) {
 #ifdef COMPAT_AVRO_ENABLED
     // AVRO backups have no vtb.sql / stream.sql / topic.sql; their virtual
     // tables were already handled inside restoreAvroDatabase() during stage 1.
     char avroDbPath[MAX_PATH_LEN];
     if (isAvroDb(dbName, avroDbPath, sizeof(avroDbPath))) {
-        if (needCreateDb) {
-            // needCreateDb means stage 1 (which does the AVRO restore) never
-            // ran for this db, i.e. --content=ext-meta was used alone. There
-            // is nothing this stage can restore for an AVRO backup in that mode.
-            logError("db %s is a taosdump AVRO backup: --content=ext-meta cannot "
-                      "restore it standalone, run without --content or with basic+ext-meta", dbName);
-            return TSDB_CODE_BCK_INVALID_COMBINATION;
-        }
         logWarn("db %s is a taosdump AVRO backup, ext meta stage skipped", dbName);
         return TSDB_CODE_SUCCESS;
     }
 #endif
 
-    return restoreDatabaseExtMeta(dbName, needCreateDb);
+    return restoreDatabaseExtMetaApply(dbName);
 }
 
 //
@@ -256,7 +268,25 @@ int restoreMain() {
         // otherwise, and double-counting would corrupt the end summary).
         bool extMetaOnly = !argContentBasic();
 
-        for (int i = 0; backDB[i] != NULL; i++) {
+        // Create EVERY database (and its virtual super tables) before applying
+        // ANY extended-metadata DDL.  A stream's INTO target — like a virtual
+        // table's source columns — can live in a different database, and the
+        // restore order here comes from raw readdir(), which is filesystem-
+        // dependent.  Without this two-pass split, a cross-database stream
+        // fails with "Database not exist" whenever the referencing database is
+        // restored before the referenced one.
+        if (extMetaOnly) {
+            for (int i = 0; backDB[i] != NULL && code == TSDB_CODE_SUCCESS; i++) {
+                logInfo("[%d/%d] db: %s  ext meta prepare start",
+                        i + 1, (int)g_stats.dbTotal, backDB[i]);
+                code = restoreDatabaseExtMetaPrepareOne(backDB[i]);
+                if (code != TSDB_CODE_SUCCESS) {
+                    g_stats.dbFailed++;
+                }
+            }
+        }
+
+        for (int i = 0; backDB[i] != NULL && code == TSDB_CODE_SUCCESS; i++) {
             g_progress.dbIndex = i + 1;
             snprintf(g_progress.dbName, sizeof(g_progress.dbName), "%s", backDB[i]);
             g_progress.stbTotal   = 0;
@@ -274,7 +304,7 @@ int restoreMain() {
             logInfo("[%d/%d] db: %s  ext meta restore start",
                     i + 1, (int)g_stats.dbTotal, backDB[i]);
 
-            code = restoreDatabaseExtMetaOne(backDB[i], extMetaOnly);
+            code = restoreDatabaseExtMetaApplyOne(backDB[i]);
             if (code == TSDB_CODE_SUCCESS) {
                 if (extMetaOnly) g_stats.dbSuccess++;
             } else {
@@ -286,7 +316,6 @@ int restoreMain() {
                     g_stats.dbSuccess--;
                     g_stats.dbFailed++;
                 }
-                break;
             }
         }
     }

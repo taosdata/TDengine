@@ -39,7 +39,7 @@ int32_t hInnerJoinDo(struct SOperatorInfo* pOperator) {
   bool allFetched = false;
 
   if (pJoin->ctx.pBuildRow) {
-    hJoinAppendResToBlock(pOperator, pRes, &allFetched);
+    HJ_ERR_RET(hJoinAppendResToBlock(pOperator, pRes, &allFetched));
     if (pRes->info.rows >= pRes->info.capacity) {
       if (allFetched) {
         ++pCtx->probeStartIdx;
@@ -67,7 +67,7 @@ int32_t hInnerJoinDo(struct SOperatorInfo* pOperator) {
 */
     if (pGroup) {
       pCtx->pBuildRow = pGroup->rows;
-      hJoinAppendResToBlock(pOperator, pRes, &allFetched);
+      HJ_ERR_RET(hJoinAppendResToBlock(pOperator, pRes, &allFetched));
       if (pRes->info.rows >= pRes->info.capacity) {
         if (allFetched) {
           ++pCtx->probeStartIdx;
@@ -90,7 +90,7 @@ int32_t hLeftJoinHandleSeqRowRemains(struct SOperatorInfo* pOperator, SHJoinOper
   SHJoinCtx* pCtx = &pJoin->ctx;
   
   while (!allFetched) {
-    hJoinAppendResToBlock(pOperator, pJoin->midBlk, &allFetched);
+    HJ_ERR_RET(hJoinAppendResToBlock(pOperator, pJoin->midBlk, &allFetched));
     if (pJoin->midBlk->info.rows > 0) {
       HJ_ERR_RET(doFilter(pJoin->midBlk, pJoin->pPreFilter, NULL, NULL));
       if (pJoin->midBlk->info.rows > 0) {
@@ -170,7 +170,7 @@ int32_t hLeftJoinHandleSeqProbeRows(struct SOperatorInfo* pOperator, SHJoinOpera
     allFetched = false;
 
     while (!allFetched) {
-      hJoinAppendResToBlock(pOperator, pJoin->midBlk, &allFetched);
+      HJ_ERR_RET(hJoinAppendResToBlock(pOperator, pJoin->midBlk, &allFetched));
       if (pJoin->midBlk->info.rows > 0) {
         HJ_ERR_RET(doFilter(pJoin->midBlk, pJoin->pPreFilter, NULL, NULL));
         if (pJoin->midBlk->info.rows > 0) {
@@ -215,9 +215,9 @@ int32_t hLeftJoinHandleSeqProbeRows(struct SOperatorInfo* pOperator, SHJoinOpera
 int32_t hLeftJoinHandleRowRemains(struct SOperatorInfo* pOperator, SHJoinOperatorInfo* pJoin, bool* loopCont) {
   bool allFetched = false;
   SHJoinCtx* pCtx = &pJoin->ctx;
-  
-  hJoinAppendResToBlock(pOperator, pJoin->finBlk, &allFetched);
-  
+
+  HJ_ERR_RET(hJoinAppendResToBlock(pOperator, pJoin->finBlk, &allFetched));
+
   if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
     if (allFetched) {
       ++pCtx->probeStartIdx;
@@ -270,7 +270,7 @@ int32_t hLeftJoinHandleProbeRows(struct SOperatorInfo* pOperator, SHJoinOperator
     
     pCtx->pBuildRow = pGroup->rows;
 
-    hJoinAppendResToBlock(pOperator, pJoin->finBlk, &allFetched);
+    HJ_ERR_RET(hJoinAppendResToBlock(pOperator, pJoin->finBlk, &allFetched));
     if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
       if (allFetched) {
         ++pCtx->probeStartIdx;
@@ -349,4 +349,3 @@ int32_t hLeftJoinDo(struct SOperatorInfo* pOperator) {
 }
 
 #endif
-

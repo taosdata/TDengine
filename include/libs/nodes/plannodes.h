@@ -199,6 +199,7 @@ typedef struct SJoinLogicNode {
   bool           isLowLevelJoin;
   bool           seqWinGroup;
   bool           grpJoin;
+  bool           multiGroupJoin;
   bool           hashJoinHint;
   bool           batchScanHint;
   
@@ -442,6 +443,11 @@ typedef enum EWindowAlgorithm {
   EXTERNAL_ALGO_MERGE,
 } EWindowAlgorithm;
 
+typedef enum EExtWinInputMode {
+  EXT_WIN_INPUT_WINDOW_BOUND,
+  EXT_WIN_INPUT_BROADCAST,
+} EExtWinInputMode;
+
 typedef struct SExtWindowFillInfo {
   EFillMode  mode;
   SNodeList* pFillExprs;
@@ -502,6 +508,8 @@ typedef struct SWindowLogicNode {
   bool                  extWinSplit;
   bool                  needGroupSort;
   bool                  calcWithPartition;
+  EExtWinInputMode      extWinInputMode;
+  SNode*                pWindowConditions;
   SExtWindowFillInfo    extFill;
   int32_t               orgTableVgId;
   tb_uid_t              orgTableUid;
@@ -668,6 +676,7 @@ typedef struct SScanPhysiNode {
   bool       groupOrderScan;
   bool       virtualStableScan;
   uint8_t    outputTsPrecision;  // cross-precision: convert TIMESTAMP cols to this precision at scan output (UINT8_MAX = no conversion)
+  bool       useTriggerTableList;
 } SScanPhysiNode;
 
 typedef struct STagScanPhysiNode {
@@ -976,6 +985,7 @@ typedef struct SHashJoinPhysiNode {
   SNode* pPrimKeyCond;
   SNode* pColEqCond;
   SNode* pTagEqCond;
+  bool   multiGroupJoin;
 } SHashJoinPhysiNode;
 
 typedef struct SGroupCachePhysiNode {
@@ -1192,6 +1202,8 @@ typedef struct SExternalWindowPhysiNode {
   bool             needGroupSort;
   bool             calcWithPartition;
   bool             matchPartitionBy;
+  EExtWinInputMode   extWinInputMode;
+  SNode*             pWindowConditions;
   SExtWindowFillInfo extFill;
   int32_t          orgTableVgId; // for vtable window query
   tb_uid_t         orgTableUid;  // for vtable window query
@@ -1317,6 +1329,8 @@ typedef struct SSubplan {
   bool           dynamicRowThreshold;
   int32_t        rowsThreshold;
   bool           processOneBlock;
+  bool           requiresAncestorContext;
+  bool           inheritedMultiGroupJoin;
   bool           dynTbname;
   int16_t        userAppId;  // encoded from client user_app, propagated for server-side use
 } SSubplan;

@@ -167,7 +167,11 @@ int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t ad
   return 0;
 }
 
-int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, int64_t ownerId, STableMetaRsp *pMetaRsp) {
+static int32_t metaFillRspSchemaExt(const SSchemaWrapper *pSchema, const SExtSchema *pExtSchemas,
+                                    SSchemaExt *pSchemaExt);
+
+int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, const SExtSchema *pExtSchemas,
+                      int64_t ownerId, STableMetaRsp *pMetaRsp) {
   pMetaRsp->pSchemas = taosMemoryMalloc(pSchema->nCols * sizeof(SSchema));
   if (NULL == pMetaRsp->pSchemas) {
     return terrno;
@@ -190,7 +194,7 @@ int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, int64
 
   memcpy(pMetaRsp->pSchemas, pSchema->pSchema, pSchema->nCols * sizeof(SSchema));
 
-  return 0;
+  return metaFillRspSchemaExt(pSchema, pExtSchemas, pMetaRsp->pSchemaExt);
 }
 
 static int32_t metaFillRspSchemaExt(const SSchemaWrapper *pSchema, const SExtSchema *pExtSchemas, SSchemaExt *pSchemaExt) {

@@ -39,6 +39,7 @@ class TestStreamRecalcWithOptions:
         Since: v3.3.7.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
         Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7073750299
 

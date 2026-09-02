@@ -1576,6 +1576,7 @@ static int32_t createScanPhysiNodeFinalize(SPhysiPlanContext* pCxt, SSubplan* pS
     pScanPhysiNode->groupOrderScan = pScanLogicNode->groupOrderScan;
     pScanPhysiNode->virtualStableScan = pScanLogicNode->virtualStableScan;
     pScanPhysiNode->outputTsPrecision = pScanLogicNode->outputTsPrecision;
+    pScanPhysiNode->useTriggerTableList = pScanLogicNode->phTbnameScan;
     memcpy(&pScanPhysiNode->tableName, &pScanLogicNode->tableName, sizeof(SName));
     if (NULL != pScanLogicNode->pTagCond) {
       pSubplan->pTagCond = NULL;
@@ -4496,6 +4497,7 @@ static int32_t createHashJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
 
   pJoin->joinType = pJoinLogicNode->joinType;
   pJoin->subType = pJoinLogicNode->subType;
+  pJoin->multiGroupJoin = pJoinLogicNode->multiGroupJoin;
   pJoin->pWindowOffset = NULL;
   code = nodesCloneNode(pJoinLogicNode->pWindowOffset, &pJoin->pWindowOffset);
   if (TSDB_CODE_SUCCESS != code) {
@@ -4582,6 +4584,22 @@ static int32_t createHashJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
 
 static int32_t createJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SJoinLogicNode* pJoinLogicNode,
                                    SPhysiNode** pPhyNode) {
+  if (pJoinLogicNode->multiGroupJoin) {
+    if (JOIN_ALGO_HASH != pJoinLogicNode->joinAlgo) {
+      planError("multi-group JOIN requires hash algorithm, actual:%d", pJoinLogicNode->joinAlgo);
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+    int32_t code = createHashJoinPhysiNode(pCxt, pChildren, pJoinLogicNode, pPhyNode);
+    if (TSDB_CODE_SUCCESS == code && (QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN != nodeType(*pPhyNode) ||
+                                      !((SHashJoinPhysiNode*)*pPhyNode)->multiGroupJoin)) {
+      planError("%s", "marked logical JOIN did not produce a marked physical hash JOIN");
+      nodesDestroyNode((SNode*)*pPhyNode);
+      *pPhyNode = NULL;
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+    return code;
+  }
+
   switch (pJoinLogicNode->joinAlgo) {
     case JOIN_ALGO_MERGE:
       return createMergeJoinPhysiNode(pCxt, pChildren, pJoinLogicNode, pPhyNode);
@@ -6459,11 +6477,13 @@ static int32_t createExternalWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList*
                                 nodeType(pWindowLogicNode->pSubquery) == QUERY_NODE_REMOTE_TABLE &&
                                 ((((SRemoteTableNode*)pWindowLogicNode->pSubquery)->flag &
                                   REMOTE_TABLE_FLAG_EXT_PART_KEYS_MATCH) != 0);
+  pExternal->extWinInputMode = pWindowLogicNode->extWinInputMode;
   pExternal->extFill.mode = pWindowLogicNode->extFill.mode;
   pExternal->orgTableUid = pWindowLogicNode->orgTableUid;
   pExternal->orgTableVgId = pWindowLogicNode->orgTableVgId;
   PLAN_ERR_JRET(nodesCloneNode(pWindowLogicNode->pSubquery, &pExternal->pSubquery));
   PLAN_ERR_JRET(nodesCloneNode(pWindowLogicNode->pTimeRange, &pExternal->pTimeRange));
+  PLAN_ERR_JRET(nodesCloneNode(pWindowLogicNode->pWindowConditions, &pExternal->pWindowConditions));
 
   PLAN_ERR_JRET(createWindowPhysiNodeFinalize(pCxt, pChildren, &pExternal->window, pWindowLogicNode));
   if (pWindowLogicNode->extFill.pFillExprs != NULL) {
@@ -7413,10 +7433,46 @@ static int32_t pushSubplan(SPhysiPlanContext* pCxt, SNode* pSubplan, int32_t lev
   return nodesListAppend(pGroup->pNodeList, (SNode*)pSubplan);
 }
 
+static bool physiNodeRoutesSubplanGroup(const SPhysiNode* pNode, int32_t groupId) {
+  if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pNode)) {
+    const SExchangePhysiNode* pExchange = (const SExchangePhysiNode*)pNode;
+    return groupId >= pExchange->srcStartGroupId && groupId <= pExchange->srcEndGroupId;
+  }
+  if (QUERY_NODE_PHYSICAL_PLAN_MERGE == nodeType(pNode)) {
+    const SMergePhysiNode* pMerge = (const SMergePhysiNode*)pNode;
+    return groupId >= pMerge->srcGroupId && groupId <= pMerge->srcEndGroupId;
+  }
+  return false;
+}
+
+static bool physiSubplanEdgeInheritsMultiGroupJoin(const SPhysiNode* pNode, int32_t groupId, bool belowMultiGroupJoin) {
+  if (NULL == pNode) {
+    return false;
+  }
+
+  if (physiNodeRoutesSubplanGroup(pNode, groupId)) {
+    return belowMultiGroupJoin;
+  }
+
+  bool   childBelowMultiGroupJoin = belowMultiGroupJoin || (QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN == nodeType(pNode) &&
+                                                          ((const SHashJoinPhysiNode*)pNode)->multiGroupJoin);
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (physiSubplanEdgeInheritsMultiGroupJoin((const SPhysiNode*)pChild, groupId, childBelowMultiGroupJoin)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static int32_t buildPhysiPlan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SSubplan* pParent,
-                              SQueryPlan* pQueryPlan) {
+                              SQueryPlan* pQueryPlan, bool inheritedMultiGroupJoin) {
   SSubplan* pSubplan = NULL;
   int32_t   code = createPhysiSubplan(pCxt, pLogicSubplan, &pSubplan);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pSubplan->inheritedMultiGroupJoin = inheritedMultiGroupJoin;
+  }
 
   if (TSDB_CODE_SUCCESS == code) {
     code = pushSubplan(pCxt, (SNode*)pSubplan, pLogicSubplan->level, pQueryPlan->pSubplans);
@@ -7438,7 +7494,11 @@ static int32_t buildPhysiPlan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubp
   if (TSDB_CODE_SUCCESS == code) {
     SNode* pChild = NULL;
     FOREACH(pChild, pLogicSubplan->pChildren) {
-      code = buildPhysiPlan(pCxt, (SLogicSubplan*)pChild, pSubplan, pQueryPlan);
+      SLogicSubplan* pLogicChild = (SLogicSubplan*)pChild;
+      bool           childInheritedMultiGroupJoin =
+          inheritedMultiGroupJoin ||
+          physiSubplanEdgeInheritsMultiGroupJoin(pSubplan->pNode, pLogicChild->id.groupId, false);
+      code = buildPhysiPlan(pCxt, pLogicChild, pSubplan, pQueryPlan, childInheritedMultiGroupJoin);
       if (TSDB_CODE_SUCCESS != code) {
         break;
       }
@@ -7457,7 +7517,7 @@ static int32_t doCreatePhysiPlan(SPhysiPlanContext* pCxt, SQueryLogicPlan* pLogi
 
   SNode* pSubplan = NULL;
   FOREACH(pSubplan, pLogicPlan->pTopSubplans) {
-    code = buildPhysiPlan(pCxt, (SLogicSubplan*)pSubplan, NULL, pPlan);
+    code = buildPhysiPlan(pCxt, (SLogicSubplan*)pSubplan, NULL, pPlan, false);
     if (TSDB_CODE_SUCCESS != code) {
       break;
     }
