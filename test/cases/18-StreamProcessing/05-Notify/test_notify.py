@@ -39,6 +39,14 @@ def _wait_notify_events(path, min_events, retries=30):
     return _load_notify_events(path)
 
 
+def _assert_no_notify_events(path, settle_seconds=5):
+    time.sleep(settle_seconds)
+    if not os.path.exists(path):
+        return
+    events = _load_notify_events(path)
+    assert len(events) == 0, events
+
+
 def _subevent_key(event):
     cond = event.get("triggerCondition", {})
     return (
@@ -88,8 +96,7 @@ class TestStreamNotifyTrigger:
 
         Since: v3.3.3.7
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -122,9 +129,21 @@ class TestStreamNotifyTrigger:
         streams.append(self.Basic16())
         streams.append(self.Basic17())
         streams.append(self.Basic18())
+        streams.append(self.Basic19())
 
         tdStream.checkAll(streams)      
         stop_notify_server_background()
+
+    def test_stream_notify_where_filter(self):
+        """Notify WHERE filters result rows and suppresses empty notifications."""
+
+        self.start_notify_server()
+        try:
+            tdStream.dropAllStreamsAndDbs()
+            tdStream.ensureSnode()
+            tdStream.checkAll([self.NotifyWhereFilter()])
+        finally:
+            stop_notify_server_background()
 
     class Basic1(StreamCheckItem):
         def __init__(self):
@@ -2378,3 +2397,194 @@ class TestStreamNotifyTrigger:
             for child_event in events[1:4]:
                 assert child_event.get("triggerId") != parent_trigger_id, events
                 assert child_event.get("parentTriggerId") == parent_trigger_id, events
+
+    class Basic19(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb19"
+
+        def create(self):
+            tdLog.info("=============== create database")
+            tdSql.execute(f"create database {self.db} vgroups 1")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute(
+                "create table s1_5w ("
+                "ts timestamp, v1 int, v2 int, v3 int, v4 int"
+                ") tags (id int)"
+            )
+            tdSql.execute("create table s1_5w_sub_0 using s1_5w tags(0)")
+            tdSql.execute(
+                "create stream notify_stream_s1_5w_0_v10 "
+                "count_window(1) from s1_5w_sub_0 "
+                "stream_options(calc_notify_only | pre_filter(v1 >= 110 or v1 < 90)) "
+                "notify('ws://localhost:12345/basic19_no_into') on (window_close) "
+                "as select "
+                "ts as ts, "
+                "tbname as device_name, "
+                "'v1' as field_name, "
+                "v1 as val, "
+                "case "
+                "when v1 < 80 then -2 "
+                "when v1 >= 80 and v1 < 90 then -1 "
+                "when v1 >= 90 and v1 < 110 then 0 "
+                "when v1 >= 110 and v1 < 120 then 1 "
+                "when v1 >= 120 then 2 "
+                "else null end as alarm_level "
+                "from %%trows"
+            )
+
+        def insert1(self):
+            tdSql.execute("insert into s1_5w_sub_0 values(now, 190, 90, 90, 90)")
+
+        def check1(self):
+            event = expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic19_no_into.log"),
+                streamName=f"{self.db}.notify_stream_s1_5w_0_v10",
+                eventType="WINDOW_CLOSE",
+                triggerType="Count",
+                result_pred=lambda rows: len(rows) == 1
+                and rows[0]["device_name"] == "s1_5w_sub_0"
+                and rows[0]["field_name"] == "v1"
+                and rows[0]["val"] == 190
+                and rows[0]["alarm_level"] == 2,
+            )
+            assert event.tableName == f"{self.db}.notify_stream_s1_5w_0_v10"
+
+            tdSql.query("show tables like 'notify_stream_s1_5w_0_v10'")
+            tdSql.checkRows(0)
+
+            tdSql.execute("drop stream notify_stream_s1_5w_0_v10")
+            tdSql.execute(
+                "create stream notify_stream_s1_5w_0_v11 "
+                "count_window(1) from s1_5w_sub_0 "
+                "stream_options(calc_notify_only | pre_filter(v1 >= 110 or v1 < 90)) "
+                "notify('ws://localhost:12345/basic19_with_into') on (window_close) "
+                "into test_stream_alarm as select "
+                "ts as ts, "
+                "tbname as device_name, "
+                "'v1' as field_name, "
+                "v1 as val, "
+                "case "
+                "when v1 < 80 then -2 "
+                "when v1 >= 80 and v1 < 90 then -1 "
+                "when v1 >= 90 and v1 < 110 then 0 "
+                "when v1 >= 110 and v1 < 120 then 1 "
+                "when v1 >= 120 then 2 "
+                "else null end as alarm_level "
+                "from %%trows"
+            )
+            tdStream.checkStreamStatus("notify_stream_s1_5w_0_v11")
+
+            tdSql.execute("insert into s1_5w_sub_0 values(now, 190, 90, 90, 90)")
+
+            event = expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic19_with_into.log"),
+                streamName=f"{self.db}.notify_stream_s1_5w_0_v11",
+                eventType="WINDOW_CLOSE",
+                triggerType="Count",
+                tableName="test_stream_alarm",
+                result_pred=lambda rows: len(rows) == 1
+                and rows[0]["device_name"] == "s1_5w_sub_0"
+                and rows[0]["field_name"] == "v1"
+                and rows[0]["val"] == 190
+                and rows[0]["alarm_level"] == 2,
+            )
+            assert event.tableName == "test_stream_alarm"
+
+            tdSql.query("show tables like 'test_stream_alarm'")
+            tdSql.checkRows(0)
+
+    class NotifyWhereFilter(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb_notify_where"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 1")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute("create table t (ts timestamp, grp int, val int)")
+            tdSql.execute("create table t_sparse (ts timestamp, val int)")
+            tdSql.execute(
+                "create stream s_partial "
+                "interval(10s) sliding(10s) from t "
+                "notify('ws://localhost:12345/notify_where_partial') "
+                "on(window_close) where max_val >= 20 "
+                "into r_partial (ts, grp primary key, cnt, max_val) as "
+                "select _twstart, grp, count(*) as cnt, max(val) as max_val "
+                "from %%trows partition by grp"
+            )
+            tdSql.execute(
+                "create stream s_none "
+                "interval(10s) sliding(10s) from t "
+                "notify('ws://localhost:12345/notify_where_none') "
+                "on(window_close) where max_val > 100 "
+                "into r_none (ts, grp primary key, cnt, max_val) as "
+                "select _twstart, grp, count(*) as cnt, max(val) as max_val "
+                "from %%trows partition by grp"
+            )
+            tdSql.execute(
+                "create stream s_sparse_windows "
+                "interval(10s) sliding(10s) from t_sparse "
+                "notify('ws://localhost:12345/notify_where_sparse_windows') "
+                "on(window_close) where max_val >= 20 "
+                "into r_sparse_windows (ts, cnt, max_val) as "
+                "select _twstart, count(*) as cnt, max(val) as max_val from %%trows"
+            )
+
+        def insert1(self):
+            tdSql.execute(
+                "insert into t values "
+                "('2025-01-01 00:00:00.000', 1, 10) "
+                "('2025-01-01 00:00:01.000', 2, 20) "
+                "('2025-01-01 00:00:02.000', 3, 30) "
+                "('2025-01-01 00:00:10.000', 1, 0)"
+            )
+            tdSql.execute(
+                "insert into t_sparse values "
+                "('2025-01-01 00:00:00.000', 20) "
+                "('2025-01-01 00:00:10.000', 0) "
+                "('2025-01-01 00:00:20.000', 30) "
+                "('2025-01-01 00:00:30.000', 0) "
+                "('2025-01-01 00:00:40.000', 40) "
+                "('2025-01-01 00:00:50.000', 0)"
+            )
+
+        def check1(self):
+            partial_log = os.path.join(NOTIFY_RESULT_DIR, "notify_where_partial.log")
+            none_log = os.path.join(NOTIFY_RESULT_DIR, "notify_where_none.log")
+            sparse_log = os.path.join(NOTIFY_RESULT_DIR, "notify_where_sparse_windows.log")
+
+            event = expect_event(
+                partial_log,
+                streamName=f"{self.db}.s_partial",
+                eventType="WINDOW_CLOSE",
+                triggerType="Interval",
+                result_pred=lambda rows: sorted(
+                    (row["grp"], row["cnt"], row["max_val"]) for row in rows
+                ) == [(2, 1, 20), (3, 1, 30)],
+            )
+            assert event.result["curSize"] == 2, event.raw
+            assert all(set(row) == {"ts", "grp", "cnt", "max_val"} for row in event.resultData), event.raw
+
+            _assert_no_notify_events(none_log)
+
+            tdSql.query("select grp, cnt, max_val from r_partial order by grp")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 1)
+            tdSql.checkData(0, 2, 10)
+            tdSql.checkData(1, 0, 2)
+            tdSql.checkData(1, 1, 1)
+            tdSql.checkData(1, 2, 20)
+            tdSql.checkData(2, 0, 3)
+            tdSql.checkData(2, 1, 1)
+            tdSql.checkData(2, 2, 30)
+
+            tdSql.query("select grp, cnt, max_val from r_none order by grp")
+            tdSql.checkRows(3)
+
+            sparse_events = _wait_notify_events(sparse_log, 3)
+            sparse_windows = sorted((event["windowStart"], event["result"]["data"][0]["max_val"]) for event in sparse_events)
+            assert sparse_windows == [
+                (1735660800000, 20),
+                (1735660820000, 30),
+                (1735660840000, 40),
+            ], sparse_events

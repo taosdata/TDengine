@@ -1,9 +1,9 @@
+import glob
 import os
 import time
 import json
-import subprocess
 
-from new_test_framework.utils import tdLog, tdSql, sc, tdDnodes,clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, tdDnodes,clusterComCheck, ci_scaled_retry
 
 
 class TestWalKeepVersionTrim:
@@ -12,7 +12,7 @@ class TestWalKeepVersionTrim:
 
 
     def test_wal_keep_version_and_trim(self):
-        """WAL keep log dropped
+        """Wal keep trim
         
         This test verifies:
         1. prepare data
@@ -21,10 +21,12 @@ class TestWalKeepVersionTrim:
         4. trim database wal
         5. check wal log dropped after trim
 
+        Catalog:
+            - Database:WAL
+
         Since: v3.3.6.31
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: TS-7567
 
         History:
@@ -32,7 +34,19 @@ class TestWalKeepVersionTrim:
         """
         clusterComCheck.checkDnodes(3)
 
-        subprocess.run("taosBenchmark -t 100 -n 100000 -a 3 -y", shell=True, check=True)
+        # Create database with 1 vgroup and short WAL roll period to quickly generate multiple WAL files
+        tdSql.execute("drop database if exists test")
+        tdSql.execute("create database test replica 3 vgroups 1 wal_level 1 wal_roll_period 1")
+        tdSql.execute("create table test.t1 (ts timestamp, v int)")
+        _wal_dir = os.path.join(tdDnodes.getDnodeDir(1), "data", "vnode", "vnode2", "wal")
+        _ts = int(time.time() * 1000)
+        for _ in range(30):
+            for _i in range(200):
+                tdSql.execute(f"insert into test.t1 values ({_ts}, {_i})")
+                _ts += 1
+            time.sleep(1.2)
+            if len(glob.glob(os.path.join(_wal_dir, "*.log"))) >= 3:
+                break
 
         tdSql.execute("alter database test WAL_RETENTION_PERIOD 0")
 
@@ -42,22 +56,8 @@ class TestWalKeepVersionTrim:
 
         tdSql.query("show test.vgroups")
         tdSql.checkData(0, 20, 0)
-        tdSql.checkData(1, 20, -1)
 
-        max_retry = 240
-        # check wal vgId 3 firstVer is greater than 0 means flush finished
-        for dnode_id in [1,2,3]:
-            check_ver = False
-            for _ in range(max_retry):
-                ver = self.get_wal_file_first_version(dnode_id, 3)
-                tdLog.info(f"dnode{dnode_id} vg3 firstVer: {ver}")
-                if ver > 0:
-                    check_ver = True
-                    break
-                time.sleep(1)
-
-            assert check_ver, f"dnode{dnode_id} vg3 firstVer is not greater than 0 after {max_retry} seconds"
-        
+        max_retry = ci_scaled_retry(240)
         # check wal vgId 2 firstVer is 0
         for dnode_id in [1,2,3]:
             check_ver = False
@@ -76,15 +76,24 @@ class TestWalKeepVersionTrim:
         # duplicate exec trim database test wal to test the core from feishu project 6686737748
         tdSql.execute("trim database test wal")
 
-        # check wal vgId 2 firstVer is greater than 0 after trim
+        # check wal vgId 2 firstVer is greater than 0 after trim.
+        # Each replica computes its own trim point from its own applied/committed
+        # index at the moment it processes the trim request (see walEndSnapshot).
+        # A replica that is momentarily lagging on raft apply when the two trims
+        # above are processed will legitimately compute a no-op trim, so re-issue
+        # trim periodically here to catch it once it has caught up, instead of
+        # relying solely on the two calls above.
+        trim_retry_period = 5
         for dnode_id in [1,2,3]:
             check_ver = False
-            for _ in range(max_retry):
+            for i in range(max_retry):
                 ver = self.get_wal_file_first_version(dnode_id, 2)
                 tdLog.info(f"dnode{dnode_id} vg2 firstVer: {ver}")
                 if ver > 0:
                     check_ver = True
                     break
+                if i > 0 and i % trim_retry_period == 0:
+                    tdSql.execute("trim database test wal")
                 time.sleep(1)
             assert check_ver, f"dnode{dnode_id} vg2 firstVer is not greater than 0 after {max_retry} seconds after trim"
 

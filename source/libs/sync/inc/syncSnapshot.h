@@ -51,6 +51,19 @@ typedef struct SyncSnapBlock {
 
 void syncSnapBlockDestroy(void *ptr);
 
+// Snapshot rate limiter (global per dnode, shared by all vgroup senders)
+typedef struct SSnapshotRateLimiter {
+  TdThreadMutex mutex;
+  int64_t       tokens;      // available tokens in bytes, may go negative
+  int64_t       lastFillMs;  // last refill timestamp in milliseconds
+} SSnapshotRateLimiter;
+
+int32_t snapshotRateLimiterCreate(SSnapshotRateLimiter **ppLimiter);
+void    snapshotRateLimiterDestroy(SSnapshotRateLimiter **ppLimiter);
+bool    snapshotRateLimiterTryConsume(void);
+void    snapshotRateLimiterDeduct(int32_t bytes);
+void    snapshotRateLimiterCleanUp(void);
+
 typedef struct SSyncSnapshotSender {
   int8_t         start;
   int32_t        seq;

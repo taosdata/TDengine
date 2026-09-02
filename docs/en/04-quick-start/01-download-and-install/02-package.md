@@ -1,0 +1,115 @@
+---
+sidebar_label: Deploy from Package
+title: Get Started with TDengine TSDB Using an Installation Package
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import PkgList from "/src/components/PkgList";
+import Getstarted from './resource/_get_started.mdx';
+
+You can install TDengine TSDB on Linux and Windows. To install TDengine TSDB in a Docker container instead of on your machine, see [Get Started with TDengine TSDB in Docker](01-docker.md).
+
+## Before You Begin
+
+- Verify that your machine meets the minimum system requirements for TDengine TSDB. For more information, see [Supported Platforms](../../12-operations-and-tooling/05-supported-platforms.md) and [System Requirements](../../12-operations-and-tooling/02-operations/01-planning.md).
+- **(Windows only)** The installer checks for Microsoft Visual C++ Redistributable 2015-2022 x64 version 14.44 or later. If it is missing or outdated, the installer can install the bundled 14.50.35719.0 redistributable after you confirm the prompt. If the installation fails, download the latest supported package from [Microsoft Visual C++ Redistributable latest supported downloads](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
+
+## Procedure
+
+<Tabs>
+<TabItem label="Linux" value="linux">
+
+1. Download the tar.gz installation package from the list below:  
+   <PkgList productName="TDengine TSDB-Enterprise" platform="Linux-Generic" excludeSbom />
+2. Navigate to the directory where the package is located and extract it using `tar`. For example, on an x64 architecture:  
+
+   ```bash tsdb-ee
+   tar -zxvf tdengine-tsdb-enterprise-{{VERSION}}-linux-x64.tar.gz
+   ```
+
+3. After extracting the files, go into the subdirectory and run the `install.sh` script:  
+
+   ```bash
+   sudo ./install.sh
+   ```
+
+</TabItem>
+<TabItem label="Windows" value="windows">
+
+1. Download the Windows installation package from the list below:  
+   <PkgList productName="TDengine TSDB-Enterprise" platform="Windows" excludeSbom />
+2. Run the installation package and follow the on-screen instructions to complete the installation of TDengine TSDB. The default installation directory is `C:\\TDengine`. You can select an installation root directory. If the selected path does not end in `TDengine`, the installer creates a `TDengine` directory under it. For example, selecting `D:\\apps` installs TDengine TSDB in `D:\\apps\\TDengine`; selecting `D:\\apps\\TDengine` does not create a duplicate directory. An upgrade continues to use the existing installation directory and does not allow it to be changed.
+
+</TabItem>
+</Tabs>
+
+For more package types and versions, visit the [TDengine Download Center](https://tdengine.com/downloads/?product=TDengine+TSDB-Enterprise).
+
+## Start the Service
+
+<Tabs>
+<TabItem label="Linux" value="linux">
+
+After installation, execute the following script in your terminal to start all services:
+
+```bash
+sudo start-all.sh
+```
+
+All TDengine TSDB components are managed by systemd. You can check their service status with the following commands:
+
+```bash
+sudo systemctl status taosd
+sudo systemctl status taosadapter
+sudo systemctl status taoskeeper
+sudo systemctl status taos-explorer
+```
+
+If the output shows the status as `Active: active (running) since ...`, it means the services have started successfully.
+
+</TabItem>
+<TabItem label="Windows" value="windows">
+
+The installer adds the actual installation directory to the `PATH` environment variable. After installation, open a new Command Prompt window as administrator, change to the actual installation directory, and use `start-all.bat` to manage all services. With no arguments it starts services by default; it also supports the `status` and `stop` subcommands.
+
+Start all services:
+
+```cmd
+start-all.bat
+```
+
+To start services only and skip connectivity checks and Snode/Xnode initialization, use the `-S` option:
+
+```cmd
+start-all.bat -S
+```
+
+Check service status:
+
+```cmd
+start-all.bat status
+```
+
+Stop all services:
+
+```cmd
+start-all.bat stop
+```
+
+To inspect the raw status of each Windows service, run:
+
+```cmd
+sc query taosd
+sc query taosadapter
+sc query taosx
+sc query taoskeeper
+sc query taos-explorer
+```
+
+If `start-all.bat status` shows `running`, or `sc query` output contains `RUNNING`, the corresponding service has started successfully.
+
+</TabItem>
+</Tabs>
+
+<Getstarted />

@@ -852,6 +852,6 @@ class TestTsdbForceRepairBaseSmoke:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         tdSql.checkEqual(True, True)

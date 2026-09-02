@@ -138,7 +138,19 @@ __compar_fn_t gDataCompare[] = {
     comparestrRegexNMatch, setChkNotInBytes1,      setChkNotInBytes2,       setChkNotInBytes4,
     setChkNotInBytes8,     compareChkNotInString,  comparestrPatternNMatch, comparewcsPatternNMatch,
     comparewcsRegexMatch,  comparewcsRegexNMatch,  compareLenBinaryVal,     compareDecimal64,
-    compareDecimal128,     setChkInDecimalHash,    setChkNotInDecimalHash,
+    compareDecimal128,     setChkInDecimalHash,    setChkNotInDecimalHash,  compareBlobVal,
+    compareBlobPatternMatch, compareBlobPatternNMatch, compareBlobRegexMatch, compareBlobRegexNMatch, compareChkInBlob,
+    compareChkNotInBlob,
+};
+
+enum {
+  FLT_COMP_FUNC_BLOB = 35,
+  FLT_COMP_FUNC_BLOB_PATTERN_MATCH,
+  FLT_COMP_FUNC_BLOB_PATTERN_NMATCH,
+  FLT_COMP_FUNC_BLOB_REGEX_MATCH,
+  FLT_COMP_FUNC_BLOB_REGEX_NMATCH,
+  FLT_COMP_FUNC_BLOB_IN,
+  FLT_COMP_FUNC_BLOB_NOT_IN,
 };
 
 __compar_fn_t gInt8SignCompare[] = {compareInt8Val,   compareInt8Int16, compareInt8Int32,
@@ -184,8 +196,9 @@ __compar_fn_t gUint64UsignCompare[] = {compareUint64Uint8, compareUint64Uint16, 
 
 int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool scalarMode) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY &&
-                             type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
+  if (optr == OP_TYPE_IN &&
+      (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY && type != TSDB_DATA_TYPE_NCHAR &&
+       type != TSDB_DATA_TYPE_GEOMETRY && type != TSDB_DATA_TYPE_BLOB)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
@@ -222,8 +235,9 @@ int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool 
     return code;
   }
 
-  if (optr == OP_TYPE_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY &&
-                                 type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
+  if (optr == OP_TYPE_NOT_IN &&
+      (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY && type != TSDB_DATA_TYPE_NCHAR &&
+       type != TSDB_DATA_TYPE_GEOMETRY && type != TSDB_DATA_TYPE_BLOB)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
@@ -350,6 +364,28 @@ int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool 
       } else {
         *comparFn = 0;
         code = TSDB_CODE_QRY_GEO_NOT_SUPPORT_ERROR;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_BLOB: {
+      if (optr == OP_TYPE_MATCH) {
+        *comparFn = FLT_COMP_FUNC_BLOB_REGEX_MATCH;
+      } else if (optr == OP_TYPE_NMATCH) {
+        *comparFn = FLT_COMP_FUNC_BLOB_REGEX_NMATCH;
+      } else if (optr == OP_TYPE_LIKE) {
+        *comparFn = FLT_COMP_FUNC_BLOB_PATTERN_MATCH;
+      } else if (optr == OP_TYPE_NOT_LIKE) {
+        *comparFn = FLT_COMP_FUNC_BLOB_PATTERN_NMATCH;
+      } else if (optr == OP_TYPE_IN) {
+        *comparFn = FLT_COMP_FUNC_BLOB_IN;
+      } else if (optr == OP_TYPE_NOT_IN) {
+        *comparFn = FLT_COMP_FUNC_BLOB_NOT_IN;
+      } else if ((optr >= OP_TYPE_GREATER_THAN && optr <= OP_TYPE_NOT_EQUAL) || optr == OP_TYPE_IS_NULL ||
+                 optr == OP_TYPE_IS_NOT_NULL) {
+        *comparFn = FLT_COMP_FUNC_BLOB;
+      } else {
+        *comparFn = 0;
+        code = TSDB_CODE_BLOB_OP_NOT_SUPPORTED;
       }
       break;
     }
@@ -1418,7 +1454,8 @@ int32_t filterAddUnitFromUnit(SFilterInfo *dst, SFilterInfo *src, SFilterUnit *u
         t = FILTER_GET_FIELD(dst, right);
         FILTER_SET_FLAG(t->flag, FLD_DATA_IS_HASH);
       } else {
-        FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, varDataTLen(data), false, &rField->flag));
+        int32_t dataLen = IS_STR_DATA_BLOB(type) ? blobDataTLen(data) : varDataTLen(data);
+        FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, dataLen, false, &rField->flag));
       }
     } else {
       FLT_ERR_RET(
@@ -1844,6 +1881,7 @@ int32_t fltConverToStr(char *str, int32_t strMaxLen, int type, void *buf, int32_
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_GEOMETRY:
+    case TSDB_DATA_TYPE_BLOB:
       if (bufSize < 0) {
         //        tscError("invalid buf size");
         return TSDB_CODE_TSC_INVALID_VALUE;
@@ -2149,6 +2187,16 @@ void filterFreePCtx(SFilterPCtx *pctx) {
   taosHashCleanup(pctx->unitHash);
 }
 
+static void fltFreeBlkNotNullGroup(void *data) {
+  SFltBlkNotNullGroup *pGroup = (SFltBlkNotNullGroup *)data;
+  if (NULL == pGroup) {
+    return;
+  }
+
+  taosArrayDestroy(pGroup->pItems);
+  pGroup->pItems = NULL;
+}
+
 void filterFreeInfo(SFilterInfo *info) {
   if (info == NULL) {
     return;
@@ -2190,6 +2238,8 @@ void filterFreeInfo(SFilterInfo *info) {
   }
 
   taosMemoryFreeClear(info->colRange);
+  taosArrayDestroyEx(info->pBlkOrNotNullGroups, fltFreeBlkNotNullGroup);
+  info->pBlkOrNotNullGroups = NULL;
 
   filterFreePCtx(&info->pctx);
 
@@ -2337,8 +2387,8 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       char    newValData[TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE] = {0};
       int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(fi->data), varDataLen(fi->data), varDataVal(newValData), NULL);
       if (len < 0) {
-        qError("filterInitValFieldData taosUcs4ToMbs error 1");
-        return TSDB_CODE_SCALAR_CONVERT_ERROR;
+        qError("%s failed to convert NCHAR value to string, len:%d", __func__, (int32_t)varDataLen(fi->data));
+        return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
       }
       varDataSetLen(newValData, len);
       varDataCopy(fi->data, newValData);
@@ -3019,6 +3069,8 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
   info->colRange = oinfo.colRange;
   oinfo.colRangeNum = 0;
   oinfo.colRange = NULL;
+  info->pBlkOrNotNullGroups = oinfo.pBlkOrNotNullGroups;
+  oinfo.pBlkOrNotNullGroups = NULL;
 
   FILTER_SET_FLAG(info->options, FLT_OPTION_NEED_UNIQE);
 
@@ -3434,7 +3486,7 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SColumnDataAgg *pDataStatis, int3
 
 _return:
 
-  FLT_ERR_RET(filterDumpInfoToString(info, "Block Filter", 2));
+  (void)filterDumpInfoToString(info, "Block Filter", 2);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -3680,9 +3732,10 @@ int32_t filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *p
       }
       int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(colData), varDataLen(colData), varDataVal(newColData), NULL);
       if (len < 0) {
-        qError("castConvert1 taosUcs4ToMbs error");
+        qError("%s failed to convert NCHAR column value to string for match/nmatch, len:%d", __func__,
+               (int32_t)varDataLen(colData));
         taosMemoryFreeClear(newColData);
-        FLT_ERR_RET(TSDB_CODE_SCALAR_CONVERT_ERROR);
+        FLT_ERR_RET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
       } else {
         varDataSetLen(newColData, len);
         p[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, newColData,
@@ -3763,9 +3816,10 @@ int32_t filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
               int32_t len =
                   taosUcs4ToMbs((TdUcs4 *)varDataVal(colData), varDataLen(colData), varDataVal(newColData), NULL);
               if (len < 0) {
-                qError("castConvert1 taosUcs4ToMbs error");
+                qError("%s failed to convert NCHAR column value to string for match/nmatch, len:%d", __func__,
+                       (int32_t)varDataLen(colData));
                 taosMemoryFreeClear(newColData);
-                FLT_ERR_RET(TSDB_CODE_SCALAR_CONVERT_ERROR);
+                FLT_ERR_RET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
               } else {
                 varDataSetLen(newColData, len);
                 p[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, newColData, cunit->valData);
@@ -3859,7 +3913,7 @@ int32_t filterPreprocess(SFilterInfo *info) {
 
   FLT_ERR_JRET(filterGenerateColRange(info, gRes, gResNum));
 
-  FLT_ERR_JRET(filterDumpInfoToString(info, "Final", 1));
+  (void)filterDumpInfoToString(info, "Final", 1);
 
   FLT_ERR_JRET(filterPostProcessRange(info));
 
@@ -3938,7 +3992,7 @@ int32_t fltInitFromNode(SNode *tree, SFilterInfo *info, uint32_t options) {
   FLT_ERR_JRET(fltInitValFieldData(info));
 
   if (!FILTER_GET_FLAG(info->options, FLT_OPTION_NO_REWRITE)) {
-    FLT_ERR_JRET(filterDumpInfoToString(info, "Before preprocess", 0));
+    (void)filterDumpInfoToString(info, "Before preprocess", 0);
 
     FLT_ERR_JRET(filterPreprocess(info));
 
@@ -3957,7 +4011,7 @@ int32_t fltInitFromNode(SNode *tree, SFilterInfo *info, uint32_t options) {
   if (info->unitFlags == NULL) {
     FLT_ERR_JRET(terrno);
   }
-  FLT_ERR_JRET(filterDumpInfoToString(info, "Final", 0));
+  (void)filterDumpInfoToString(info, "Final", 0);
   return code;
 
 _return:
@@ -4478,8 +4532,65 @@ int32_t fltSclBuildRangeFromBlockSma(SFltSclColumnRange *colRange, SColumnDataAg
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t fltFindDataStatisByColId(SColumnDataAgg *pDataStatis, int32_t numOfCols, col_id_t colId) {
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    if (pDataStatis[i].colId == colId) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+static int32_t fltExecuteBlkOrNotNullGroups(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols,
+                                            int32_t numOfRows, bool *keep) {
+  if (NULL == info || NULL == keep || NULL == info->pBlkOrNotNullGroups) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(info->pBlkOrNotNullGroups); ++i) {
+    SFltBlkNotNullGroup *pGroup = taosArrayGet(info->pBlkOrNotNullGroups, i);
+    if (NULL == pGroup || NULL == pGroup->pItems || taosArrayGetSize(pGroup->pItems) <= 0) {
+      continue;
+    }
+
+    bool groupMatched = false;
+    bool allRowsNull = true;
+    for (int32_t j = 0; j < taosArrayGetSize(pGroup->pItems); ++j) {
+      SFltBlkNotNullItem *pItem = taosArrayGet(pGroup->pItems, j);
+      if (NULL == pItem) {
+        FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
+      }
+
+      int32_t idx = fltFindDataStatisByColId(pDataStatis, numOfCols, pItem->colId);
+      if (idx < 0) {
+        allRowsNull = false;
+        continue;
+      }
+
+      if (pDataStatis[idx].numOfNull < numOfRows) {
+        groupMatched = true;
+        break;
+      }
+    }
+
+    if (!groupMatched && allRowsNull) {
+      *keep = false;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows,
                            bool *keep) {
+  *keep = true;
+  FLT_ERR_RET(fltExecuteBlkOrNotNullGroups(info, pDataStatis, numOfCols, numOfRows, keep));
+  if (!(*keep)) {
+    FLT_RET(TSDB_CODE_SUCCESS);
+  }
+
   if (info->scalarMode) {
     SArray *colRanges = info->sclCtx.fltSclRange;
     for (int32_t i = 0; i < taosArrayGetSize(colRanges); ++i) {
@@ -4868,8 +4979,8 @@ int32_t filterConverNcharColumns(SFilterInfo *info, int32_t rows, bool *gotNchar
         }
         bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), (TdUcs4 *)varDataVal(dst), bufSize, &len, NULL);
         if (!ret) {
-          qError("filterConverNcharColumns taosMbsToUcs4 error");
-          return TSDB_CODE_SCALAR_CONVERT_ERROR;
+          qError("%s failed to convert NCHAR column value, srcLen:%d", __func__, (int32_t)varDataLen(src));
+          return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
         }
         varDataLen(dst) = len;
       }
@@ -5133,8 +5244,33 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
   return DEAL_RES_ERROR;
 }
 
+static EDealRes fltNormalizeBuiltinFuncRewriter(SNode **pNode, void *pContext) {
+  if (QUERY_NODE_FUNCTION != nodeType(*pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SFunctionNode *pFunc = (SFunctionNode *)*pNode;
+  if (pFunc->funcId != 0 && pFunc->funcType != FUNCTION_TYPE_TBNAME) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  if (FUNCTION_TYPE_TBNAME != pFunc->funcType && 0 != strcmp(pFunc->functionName, "tbname")) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  int32_t code = fmGetFuncInfo(pFunc, NULL, 0);
+  if (TSDB_CODE_SUCCESS != code) {
+    *(int32_t *)pContext = code;
+    return DEAL_RES_ERROR;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
 int32_t fltReviseNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat) {
   int32_t code = 0;
+  nodesRewriteExprPostOrder(pNode, fltNormalizeBuiltinFuncRewriter, &code);
+  FLT_ERR_JRET(code);
   nodesRewriteExprPostOrder(pNode, fltReviseRewriter, (void *)pStat);
 
   FLT_ERR_JRET(pStat->code);
@@ -5435,30 +5571,61 @@ static int32_t fltSclCollectOperatorFromNode(SNode *pNode, SArray *sclOpList) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t fltSclCollectOperatorsFromLogicCond(SNode *pNode, SArray *sclOpList) {
+static int32_t fltSclCollectOperatorsFromAndNode(SNode *pNode, SArray *sclOpList) {
+  if (NULL == pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
+    return fltSclCollectOperatorFromNode(pNode, sclOpList);
+  }
+
+  if (nodeType(pNode) != QUERY_NODE_LOGIC_CONDITION) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SLogicConditionNode *pLogicCond = (SLogicConditionNode *)pNode;
+  if (pLogicCond->condType != LOGIC_COND_TYPE_AND) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode *pExpr = NULL;
+  FOREACH(pExpr, pLogicCond->pParameterList) {
+    FLT_ERR_RET(fltSclCollectOperatorsFromAndNode(pExpr, sclOpList));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fltSclCollectOperatorsFromLogicCond(SNode *pNode, SArray *sclOpList, bool requireFullCondition) {
   if (nodeType(pNode) != QUERY_NODE_LOGIC_CONDITION) {
     return TSDB_CODE_SUCCESS;
   }
   SLogicConditionNode *pLogicCond = (SLogicConditionNode *)pNode;
-  // TODO: support LOGIC_COND_TYPE_OR
   if (pLogicCond->condType != LOGIC_COND_TYPE_AND) {
     return TSDB_CODE_SUCCESS;
   }
-  SNode *pExpr = NULL;
-  FOREACH(pExpr, pLogicCond->pParameterList) {
-    if (!fltSclIsCollectableNode(pExpr)) {
-      return TSDB_CODE_SUCCESS;
+
+  // A strict time range may replace the original condition, so it must cover every AND term.
+  if (requireFullCondition) {
+    SNode *pExpr = NULL;
+    FOREACH(pExpr, pLogicCond->pParameterList) {
+      if (!fltSclIsCollectableNode(pExpr)) {
+        return TSDB_CODE_SUCCESS;
+      }
     }
+    FOREACH(pExpr, pLogicCond->pParameterList) { FLT_ERR_RET(fltSclCollectOperatorFromNode(pExpr, sclOpList)); }
+    return TSDB_CODE_SUCCESS;
   }
-  FOREACH(pExpr, pLogicCond->pParameterList) { FLT_ERR_RET(fltSclCollectOperatorFromNode(pExpr, sclOpList)); }
-  return TSDB_CODE_SUCCESS;
+
+  return fltSclCollectOperatorsFromAndNode(pNode, sclOpList);
 }
 
-static int32_t fltSclCollectOperators(SNode *pNode, SArray *sclOpList) {
+static int32_t fltSclCollectOperators(SNode *pNode, SArray *sclOpList, bool requireFullCondition) {
   if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
     FLT_ERR_RET(fltSclCollectOperatorFromNode(pNode, sclOpList));
   } else if (nodeType(pNode) == QUERY_NODE_LOGIC_CONDITION) {
-    FLT_ERR_RET(fltSclCollectOperatorsFromLogicCond(pNode, sclOpList));
+    FLT_ERR_RET(fltSclCollectOperatorsFromLogicCond(pNode, sclOpList, requireFullCondition));
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -5469,7 +5636,8 @@ int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode) {
   if (NULL == sclOpList) {
     FLT_ERR_RET(terrno);
   }
-  FLT_ERR_JRET(fltSclCollectOperators(*pNode, sclOpList));
+  FLT_ERR_JRET(
+      fltSclCollectOperators(*pNode, sclOpList, FILTER_GET_FLAG(pInfo->options, FLT_OPTION_TIMESTAMP)));
   SArray *colRangeList = taosArrayInit(16, sizeof(SFltSclColumnRange));
   if (NULL == colRangeList) {
     FLT_ERR_JRET(terrno);
@@ -5496,6 +5664,193 @@ _return:
   }
   taosArrayDestroy(colRangeList);
   taosArrayDestroy(sclOpList);
+  return code;
+}
+
+static bool fltBlkNotNullIsTargetColumn(SNode *pNode, SColumnNode **ppColNode) {
+  if (NULL == pNode || nodeType(pNode) != QUERY_NODE_COLUMN) {
+    return false;
+  }
+
+  SColumnNode *pCol = (SColumnNode *)pNode;
+  if (pCol->colType != COLUMN_TYPE_COLUMN) {
+    return false;
+  }
+
+  if (NULL != ppColNode) {
+    *ppColNode = pCol;
+  }
+
+  return true;
+}
+
+static bool fltBlkNotNullIsNotNullCond(SNode *pNode, SColumnNode **ppColNode) {
+  if (NULL == pNode || nodeType(pNode) != QUERY_NODE_OPERATOR) {
+    return false;
+  }
+
+  SOperatorNode *pOper = (SOperatorNode *)pNode;
+  if (pOper->opType != OP_TYPE_IS_NOT_NULL || NULL != pOper->pRight) {
+    return false;
+  }
+
+  return fltBlkNotNullIsTargetColumn(pOper->pLeft, ppColNode);
+}
+
+static int32_t fltBlkNotNullGroupAddCol(SFltBlkNotNullGroup *pGroup, const SColumnNode *pColNode) {
+  if (NULL == pGroup || NULL == pColNode) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  if (NULL == pGroup->pItems) {
+    pGroup->pItems = taosArrayInit(4, sizeof(SFltBlkNotNullItem));
+    if (NULL == pGroup->pItems) {
+      FLT_ERR_RET(terrno);
+    }
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pGroup->pItems); ++i) {
+    SFltBlkNotNullItem *pItem = taosArrayGet(pGroup->pItems, i);
+    if (NULL == pItem) {
+      FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
+    }
+    if (pItem->colId == pColNode->colId) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  SFltBlkNotNullItem item = {.colId = pColNode->colId};
+  if (NULL == taosArrayPush(pGroup->pItems, &item)) {
+    FLT_ERR_RET(terrno);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fltBlkNotNullCollectOrItems(SNode *pNode, SFltBlkNotNullGroup *pGroup, bool *pMatched) {
+  if (NULL == pMatched) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  *pMatched = false;
+
+  SColumnNode *pColNode = NULL;
+  if (fltBlkNotNullIsNotNullCond(pNode, &pColNode)) {
+    FLT_ERR_RET(fltBlkNotNullGroupAddCol(pGroup, pColNode));
+    *pMatched = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == pNode || nodeType(pNode) != QUERY_NODE_LOGIC_CONDITION) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SLogicConditionNode *pLogicCond = (SLogicConditionNode *)pNode;
+  if (pLogicCond->condType != LOGIC_COND_TYPE_OR) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  bool allMatched = true;
+  SNode *pChild = NULL;
+  FOREACH(pChild, pLogicCond->pParameterList) {
+    bool childMatched = false;
+    FLT_ERR_RET(fltBlkNotNullCollectOrItems(pChild, pGroup, &childMatched));
+    if (!childMatched) {
+      allMatched = false;
+      break;
+    }
+  }
+
+  if (!allMatched || NULL == pGroup->pItems || taosArrayGetSize(pGroup->pItems) <= 0) {
+    fltFreeBlkNotNullGroup(pGroup);
+    *pMatched = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *pMatched = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fltBlkNotNullAppendGroup(SArray **ppGroups, SFltBlkNotNullGroup *pGroup) {
+  if (NULL == pGroup || NULL == pGroup->pItems || taosArrayGetSize(pGroup->pItems) <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == *ppGroups) {
+    *ppGroups = taosArrayInit(4, sizeof(SFltBlkNotNullGroup));
+    if (NULL == *ppGroups) {
+      FLT_ERR_RET(terrno);
+    }
+  }
+
+  if (NULL == taosArrayPush(*ppGroups, pGroup)) {
+    FLT_ERR_RET(terrno);
+  }
+  pGroup->pItems = NULL;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fltBlkNotNullExtractFromAnd(SNode *pNode, SArray **ppGroups) {
+  if (NULL == pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SColumnNode *pColNode = NULL;
+  if (fltBlkNotNullIsNotNullCond(pNode, &pColNode)) {
+    SFltBlkNotNullGroup group = {0};
+    FLT_ERR_RET(fltBlkNotNullGroupAddCol(&group, pColNode));
+    int32_t code = fltBlkNotNullAppendGroup(ppGroups, &group);
+    fltFreeBlkNotNullGroup(&group);
+    return code;
+  }
+
+  if (nodeType(pNode) != QUERY_NODE_LOGIC_CONDITION) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SLogicConditionNode *pLogicCond = (SLogicConditionNode *)pNode;
+  if (pLogicCond->condType != LOGIC_COND_TYPE_AND) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode *pChild = NULL;
+  FOREACH(pChild, pLogicCond->pParameterList) {
+    SFltBlkNotNullGroup group = {0};
+    bool                matched = false;
+    FLT_ERR_RET(fltBlkNotNullCollectOrItems(pChild, &group, &matched));
+    if (matched) {
+      int32_t code = fltBlkNotNullAppendGroup(ppGroups, &group);
+      fltFreeBlkNotNullGroup(&group);
+      FLT_ERR_RET(code);
+      continue;
+    }
+
+    fltFreeBlkNotNullGroup(&group);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fltBuildBlkOrNotNullGroups(SNode *pNode, SArray **ppGroups) {
+  if (NULL == ppGroups || NULL == pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *ppGroups = NULL;
+
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_CONDITION &&
+      ((SLogicConditionNode *)pNode)->condType == LOGIC_COND_TYPE_OR) {
+    SFltBlkNotNullGroup group = {0};
+    bool                matched = false;
+    int32_t             code = fltBlkNotNullCollectOrItems(pNode, &group, &matched);
+    if (TSDB_CODE_SUCCESS == code && matched) {
+      code = fltBlkNotNullAppendGroup(ppGroups, &group);
+    }
+    fltFreeBlkNotNullGroup(&group);
+    return code;
+  }
+
+  int32_t code = fltBlkNotNullExtractFromAnd(pNode, ppGroups);
   return code;
 }
 
@@ -5547,6 +5902,75 @@ int32_t filterSetDataFromColId(SFilterInfo *info, void *param) {
   return fltSetColFieldDataImpl(info, param, fltGetDataFromColId, true);
 }
 
+void filterInfoSetTableCtx(SFilterInfo *pFilterInfo, void *pTable) {
+  if (pFilterInfo != NULL) {
+    pFilterInfo->pTable = pTable;
+  }
+}
+
+void filterSetExecContext(SFilterInfo *info, void* pTaskInfo, sclIsTaskKilled isTaskKilledFn) {
+  if (info == NULL) return;
+  info->pTaskInfo    = pTaskInfo;
+  info->isTaskKilled = isTaskKilledFn;
+}
+
+static bool fltBlockSmaNeedsDataColumnStats(const SColumnNode *pCol) {
+  if (NULL == pCol) {
+    return false;
+  }
+
+  return COLUMN_TYPE_COLUMN == pCol->colType && !pCol->isPrimTs && PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId;
+}
+
+bool filterBlockSmaOnlyUsesNumOfNull(const SFilterInfo *info) {
+  if (NULL == info) {
+    return false;
+  }
+
+  bool hasNumOfNullOnlyUsage = false;
+
+  if (info->scalarMode && NULL != info->sclCtx.fltSclRange) {
+    for (int32_t i = 0; i < taosArrayGetSize(info->sclCtx.fltSclRange); ++i) {
+      const SFltSclColumnRange *pColRange = taosArrayGet(info->sclCtx.fltSclRange, i);
+      if (NULL == pColRange || NULL == pColRange->colNode) {
+        return false;
+      }
+
+      if (!fltBlockSmaNeedsDataColumnStats(pColRange->colNode)) {
+        continue;
+      }
+
+      return false;
+    }
+  }
+
+  if (info->colRangeNum > 0 && NULL == info->colRange) {
+    return false;
+  }
+
+  for (uint32_t i = 0; i < info->colRangeNum; ++i) {
+    const SFilterRangeCtx *pCtx = info->colRange[i];
+    if (NULL == pCtx) {
+      return false;
+    }
+
+    if (PRIMARYKEY_TIMESTAMP_COL_ID == pCtx->colId) {
+      continue;
+    }
+
+    hasNumOfNullOnlyUsage = true;
+    if (pCtx->isrange) {
+      return false;
+    }
+  }
+
+  if (NULL != info->pBlkOrNotNullGroups && taosArrayGetSize(info->pBlkOrNotNullGroups) > 0) {
+    hasNumOfNullOnlyUsage = true;
+  }
+
+  return hasNumOfNullOnlyUsage;
+}
+
 int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options, void* pSclExtraParams) {
   SFilterInfo *info = NULL;
   if (pNode == NULL) {
@@ -5588,6 +6012,8 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options, 
     fltDebug("scalar mode: %d", info->scalarMode);
   }
 
+  FLT_ERR_JRET(fltBuildBlkOrNotNullGroups(pNode, &info->pBlkOrNotNullGroups));
+
   if (!info->scalarMode) {
     FLT_ERR_JRET(fltInitFromNode(pNode, info, options));
   } else {
@@ -5626,8 +6052,11 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
       FLT_ERR_JRET(terrno);
     }
 
-    gTaskScalarExtra.pStreamInfo = (void*)info->pStreamRtInfo;
+    gTaskScalarExtra.pStreamInfo  = (void*)info->pStreamRtInfo;
     gTaskScalarExtra.pStreamRange = NULL;
+    output.param = info->pTable;
+    gTaskScalarExtra.pTaskInfo    = info->pTaskInfo    ? info->pTaskInfo    : gTaskScalarExtra.pTaskInfo;
+    gTaskScalarExtra.isTaskKilled = info->isTaskKilled ? info->isTaskKilled : gTaskScalarExtra.isTaskKilled;
     code =
         scalarCalculate(info->sclCtx.node, pList, &output, &gTaskScalarExtra);
     taosArrayDestroy(pList);

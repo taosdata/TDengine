@@ -50,7 +50,8 @@ int32_t walSetKeepVersion(SWal *pWal, int64_t ver) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  if (ver < 0) {
+  // -1 is the valid "release" sentinel (no keep constraint); other negative values are invalid.
+  if (ver < -1) {
     wError("vgId:%d, failed to set keep version, invalid ver:%" PRId64, pWal->cfg.vgId, ver);
     return TSDB_CODE_INVALID_PARA;
   }
@@ -289,7 +290,15 @@ static int32_t walRebuildFileInfoSet(SArray* metaLogList, SArray* actualLogList)
       if (pMetaInfo->firstVer < pLogInfo->firstVer) {
         j++;
       } else if (pMetaInfo->firstVer == pLogInfo->firstVer) {
+        // pLogInfo->diskId comes from the disk scan (walScanActualLogFiles) and always
+        // reflects where the file actually, physically lives right now -- meta's diskId
+        // may be stale (e.g. disk ids were reassigned, or the whole dataDir tree was
+        // moved/repointed since the meta was last saved). Preserve it across the
+        // whole-struct copy below instead of letting a stale persisted value win, or
+        // walBuildLogName resolves to the wrong path and taosStatFile fails with ENOENT.
+        SDiskID scannedDiskId = pLogInfo->diskId;
         (*pLogInfo) = *pMetaInfo;
+        pLogInfo->diskId = scannedDiskId;
         j++;
         break;
       } else {
@@ -371,12 +380,131 @@ static int32_t walRepairLogFileTs(SWal* pWal, bool* updateMeta) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+// Copy all files in srcDir to dstDir (non-recursive, best-effort).
+static int32_t walCopyDirFiles(int32_t vgId, const char* srcDir, const char* dstDir) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  TdDirPtr pDir = taosOpenDir(srcDir);
+  if (pDir == NULL) {
+    wWarn("vgId:%d, failed to open WAL dir %s for backup", vgId, srcDir);
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+
+  TdDirEntryPtr pEntry;
+  while ((pEntry = taosReadDir(pDir)) != NULL) {
+    const char* name = taosGetDirEntryName(pEntry);
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+    if (taosDirEntryIsDir(pEntry)) continue;
+
+    char srcFile[WAL_FILE_LEN + TSDB_FILENAME_LEN];
+    char dstFile[WAL_FILE_LEN + TSDB_FILENAME_LEN];
+    (void)snprintf(srcFile, sizeof(srcFile), "%s%s%s", srcDir, TD_DIRSEP, name);
+    (void)snprintf(dstFile, sizeof(dstFile), "%s%s%s", dstDir, TD_DIRSEP, name);
+
+    int64_t copied = taosCopyFile(srcFile, dstFile);
+    if (copied < 0) {
+      wWarn("vgId:%d, failed to copy WAL file %s to %s", vgId, srcFile, dstFile);
+      code = TAOS_SYSTEM_ERROR(errno);
+      // Continue copying remaining files even on partial failure
+    } else {
+      wDebug("vgId:%d, backed up WAL file %s -> %s (%" PRId64 " bytes)", vgId, srcFile, dstFile, copied);
+    }
+  }
+  (void)taosCloseDir(&pDir);
+  return code;
+}
+
+// Collect absolute paths of every non-primary mount point that currently holds files
+// under pWal->relDir (skipping oldPath, the primary -- caller handles it separately),
+// using tfs's own cross-disk directory iterator. Called by walRenameCorruptedDir so that
+// backup/clear covers every disk this WAL's history might be spread across, not just the
+// primary directory -- otherwise segments on non-primary disks would become permanent
+// orphans (never backed up, never cleared) whenever the Sync layer invokes
+// walClearCorruption() on a multi-mount-point WAL.
+static int32_t walCollectTfsDirs(SWal* pWal, const char* oldPath, SArray* outDirs) {
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  STfsDir* pTDir = NULL;
+
+  if (tfsOpendir(pWal->pTfs, pWal->relDir, &pTDir) != TSDB_CODE_SUCCESS) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  for (const STfsFile* pFile = NULL; (pFile = tfsReaddir(pTDir)) != NULL;) {
+    if (taosIsDir(pFile->aname)) continue;
+    const char* diskPath = tfsGetDiskPath(pWal->pTfs, pFile->did);
+    if (diskPath == NULL) continue;
+
+    char dirPath[WAL_PATH_LEN];
+    (void)snprintf(dirPath, sizeof(dirPath), "%s%s%s", diskPath, TD_DIRSEP, pWal->relDir);
+    if (strcmp(dirPath, oldPath) == 0) continue;
+
+    bool    dup = false;
+    int32_t n = (int32_t)taosArrayGetSize(outDirs);
+    for (int32_t i = 0; i < n; i++) {
+      if (strcmp((char*)taosArrayGet(outDirs, i), dirPath) == 0) {
+        dup = true;
+        break;
+      }
+    }
+    if (!dup) {
+      TSDB_CHECK_NULL(taosArrayPush(outDirs, dirPath), code, lino, _exit, terrno);
+    }
+  }
+
+  tfsClosedir(pTDir);
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+
+_exit:
+  tfsClosedir(pTDir);
+  TAOS_RETURN(code);
+}
+
+// Backup (if configured) and then either rename-to-.corrupted or remove a single wal
+// directory. Reused for the primary directory and, when tfs is bound, every non-primary
+// mount point walCollectTfsDirs found.
+static int32_t walClearOneCorruptedDir(SWal* pWal, const char* dirPath, int64_t now, bool hasBackupDir) {
+  if (hasBackupDir) {
+    char backupSubDir[PATH_MAX + 64];
+    (void)snprintf(backupSubDir, sizeof(backupSubDir), "%s%swal_vgId%d_%" PRId64, tsWalCorruptionBackupDir,
+                   TD_DIRSEP, pWal->cfg.vgId, now);
+    // Reuse the same backupSubDir (same vgId + timestamp) across every mount point's
+    // call, so all of this vnode's segments land together in one backup folder --
+    // <firstVer>.log/.idx/.txn file names never collide across disks for the same vnode.
+    wInfo("vgId:%d, backing up corrupted WAL directory %s to %s", pWal->cfg.vgId, dirPath, backupSubDir);
+    if (taosMkDir(backupSubDir) != 0 && !taosCheckExistFile(backupSubDir)) {
+      wWarn("vgId:%d, failed to create backup dir %s, skip backup of %s", pWal->cfg.vgId, backupSubDir, dirPath);
+    } else {
+      int32_t backupCode = walCopyDirFiles(pWal->cfg.vgId, dirPath, backupSubDir);
+      if (backupCode != TSDB_CODE_SUCCESS) {
+        wWarn("vgId:%d, partial failure during WAL backup of %s to %s", pWal->cfg.vgId, dirPath, backupSubDir);
+      } else {
+        wInfo("vgId:%d, successfully backed up corrupted WAL %s to %s", pWal->cfg.vgId, dirPath, backupSubDir);
+      }
+    }
+
+    char newPath[WAL_FILE_LEN + 32];
+    (void)snprintf(newPath, sizeof(newPath), "%s.corrupted.%" PRId64, dirPath, now);
+    wInfo("vgId:%d, renaming corrupted WAL directory from %s to %s", pWal->cfg.vgId, dirPath, newPath);
+    if (taosRenameFile(dirPath, newPath) != 0) {
+      int32_t code = TAOS_SYSTEM_ERROR(errno);
+      wError("vgId:%d, failed to rename WAL directory from %s to %s since %s", pWal->cfg.vgId, dirPath, newPath,
+             tstrerror(code));
+      TAOS_RETURN(code);
+    }
+  } else {
+    wInfo("vgId:%d, removing corrupted WAL directory %s", pWal->cfg.vgId, dirPath);
+    taosRemoveDir(dirPath);
+  }
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
 static int32_t walRenameCorruptedDir(SWal* pWal) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   char    oldPath[WAL_FILE_LEN];
-  char    newPath[WAL_FILE_LEN + 32];
   int64_t now = taosGetTimestampMs();
+  SArray* extraDirs = NULL;  // SArray<char[WAL_PATH_LEN]>, non-primary mount points
 
   // Close all open file handles before renaming the directory
   // This is critical especially for Windows systems where open files prevent directory rename
@@ -391,24 +519,45 @@ static int32_t walRenameCorruptedDir(SWal* pWal) {
     pWal->pIdxFile = NULL;
   }
 
-  // Build old and new directory paths
+  // Build old path
   tstrncpy(oldPath, pWal->path, sizeof(oldPath));
-  snprintf(newPath, sizeof(newPath), "%s.corrupted.%" PRId64, oldPath, now);
 
-  wInfo("vgId:%d, renaming corrupted WAL directory from %s to %s", pWal->cfg.vgId, oldPath, newPath);
+  bool hasBackupDir = (tsWalCorruptionBackupDir[0] != '\0');
 
-  // Rename the directory (taosRenameFile works for directories too)
-  if (taosRenameFile(oldPath, newPath) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    wError("vgId:%d, failed to rename WAL directory from %s to %s since %s", pWal->cfg.vgId, oldPath, newPath,
-           tstrerror(code));
-    TAOS_CHECK_GOTO(code, &lino, _exit);
+  if (pWal->pTfs != NULL) {
+    extraDirs = taosArrayInit(4, WAL_PATH_LEN);
+    TSDB_CHECK_NULL(extraDirs, code, lino, _exit, terrno);
+    // Best-effort: a failure to enumerate non-primary mount points should not abort
+    // clearing the primary directory below.
+    int32_t collectCode = walCollectTfsDirs(pWal, oldPath, extraDirs);
+    if (collectCode != TSDB_CODE_SUCCESS) {
+      wWarn("vgId:%d, failed to enumerate non-primary wal mount points since %s (continuing with primary only)",
+            pWal->cfg.vgId, tstrerror(collectCode));
+    }
+  }
+
+  TAOS_CHECK_EXIT(walClearOneCorruptedDir(pWal, oldPath, now, hasBackupDir));
+
+  if (extraDirs != NULL) {
+    int32_t n = (int32_t)taosArrayGetSize(extraDirs);
+    for (int32_t i = 0; i < n; i++) {
+      const char* dirPath = (char*)taosArrayGet(extraDirs, i);
+      // Best-effort for non-primary disks too: log and continue rather than aborting the
+      // whole clear-corruption flow because one secondary mount point had an issue.
+      int32_t subCode = walClearOneCorruptedDir(pWal, dirPath, now, hasBackupDir);
+      if (subCode != TSDB_CODE_SUCCESS) {
+        wWarn("vgId:%d, failed to clear corrupted dir %s since %s (continuing)", pWal->cfg.vgId, dirPath,
+              tstrerror(subCode));
+      }
+    }
   }
 
   // Clear the fileInfoSet
   taosArrayClear(pWal->fileInfoSet);
 
-  // Recreate the WAL directory
+  // Recreate the primary WAL directory. Non-primary directories are recreated lazily by
+  // tfsMkdirRecurAt the next time walRollImpl picks that disk again -- no need to
+  // eagerly recreate every mount point here.
   if (taosMkDir(oldPath) != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, failed to recreate WAL directory %s since %s", pWal->cfg.vgId, oldPath, tstrerror(code));
@@ -421,14 +570,46 @@ static int32_t walRenameCorruptedDir(SWal* pWal) {
   pWal->writeCur = -1;
   pWal->totSize = 0;
 
-  wInfo("vgId:%d, successfully renamed corrupted WAL directory and recreated a new one", pWal->cfg.vgId);
+  wInfo("vgId:%d, successfully cleared corrupted WAL directory and recreated a new one", pWal->cfg.vgId);
 
 _exit:
+  taosArrayDestroy(extraDirs);
   if (code != TSDB_CODE_SUCCESS) {
     wError("vgId:%d, failed to rename corrupted WAL directory since %s, at line:%d", pWal->cfg.vgId, tstrerror(code),
            lino);
   }
   TAOS_RETURN(code);
+}
+
+// Clear a corrupted WAL and reset it to a valid empty state anchored at commitIndex.
+// This is the public interface for the Sync layer to call when it detects a WAL
+// head-loss that cannot be recovered by repair alone.
+int32_t walClearCorruption(SWal* pWal, int64_t commitIndex) {
+  if (!walShouldDeleteCorruption(pWal)) {
+    wWarn("vgId:%d, WAL corruption clear requested but not permitted by configuration", pWal->cfg.vgId);
+    TAOS_RETURN(TSDB_CODE_WAL_LOG_INCOMPLETE);
+  }
+
+  wInfo("vgId:%d, clearing WAL corruption, anchoring at commitIndex:%" PRId64, pWal->cfg.vgId, commitIndex);
+
+  int32_t code = walRenameCorruptedDir(pWal);
+  if (code != TSDB_CODE_SUCCESS) {
+    wError("vgId:%d, failed to clear corrupted WAL directory since %s", pWal->cfg.vgId, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  // Mirror the state walRestoreFromSnapshot sets so that the WAL is in a
+  // well-defined empty-but-anchored state: [commitIndex+1, commitIndex].
+  pWal->vers.firstVer = commitIndex + 1;
+  pWal->vers.lastVer = commitIndex;
+  pWal->vers.commitVer = commitIndex;
+  pWal->vers.snapshotVer = commitIndex;
+  pWal->vers.verInSnapshotting = -1;
+  pWal->lastRollSeq = -1;
+
+  wInfo("vgId:%d, WAL corruption cleared, firstVer:%" PRId64 ", lastVer:%" PRId64, pWal->cfg.vgId, pWal->vers.firstVer,
+        pWal->vers.lastVer);
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 static int32_t walLogEntriesComplete(SWal* pWal) {
@@ -521,6 +702,94 @@ static FORCE_INLINE bool walShouldDeleteCorruption(const SWal* pWal) {
   return tsWalDeleteOnCorruption || dmRepairNeedWalRepair(pWal->cfg.vgId);
 }
 
+// Scan for actual .log segment files on disk. When pWal->pTfs is bound, a historical
+// segment may live on any level-0 mount point, so this walks pWal->relDir across every
+// tfs-managed disk (mirroring how tsdb itself walks tfs directories via tfsOpendir/
+// tfsReaddir, see tsdbFS2.c) instead of scanning only pWal->path -- otherwise segments
+// placed on non-primary disks would look "missing" and get silently dropped from
+// fileInfoSet by walRebuildFileInfoSet below, permanently losing WAL data on the next
+// walSaveMeta().
+static int32_t walScanActualLogFiles(SWal* pWal, regex_t* pLogRegPattern, SArray* actualLog) {
+  if (pWal->pTfs == NULL) {
+    TdDirPtr pDir = taosOpenDir(pWal->path);
+    if (pDir == NULL) {
+      TAOS_RETURN(terrno);
+    }
+
+    TdDirEntryPtr pDirEntry;
+    while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+      char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
+      if (regexec(pLogRegPattern, name, 0, NULL, 0) == 0) {
+        int64_t firstVer = -1;
+        int32_t consumed = 0;
+        // The regex's unescaped "." can match any single char, so a match doesn't
+        // guarantee the name is actually "<digits>.log". sscanf's return value alone
+        // isn't enough either: for e.g. "123xlog", "%lld" greedily consumes "123" and
+        // succeeds (return value 1) before the literal ".log" fails to match "xlog" and
+        // scanning stops -- a failed literal match doesn't undo the already-completed
+        // conversion. %n records how many bytes were actually consumed once the whole
+        // format string (conversion + literal ".log") matches, so comparing it against
+        // strlen(name) is what actually proves the name is exactly "<digits>.log".
+        if (sscanf(name, "%" PRId64 ".log%n", &firstVer, &consumed) != 1 || firstVer < 0 ||
+            (size_t)consumed != strlen(name)) {
+          continue;
+        }
+        SWalFileInfo fileInfo;
+        (void)memset(&fileInfo, -1, sizeof(SWalFileInfo));
+        fileInfo.firstVer = firstVer;
+        // Sentinel must match walRollFileInfo/walMetaDeserialize's {level:0, id:-1}, not
+        // the raw memset {-1,-1} -- walResolveFileDir treats both identically (id<0 means
+        // "use pWal->path"), but a mismatched diskLevel would make walMetaSerialize's
+        // output differ from a run that never rescanned, breaking byte-for-byte meta
+        // round-tripping (see WalKeepEnv.readOldMeta).
+        fileInfo.diskId.level = 0;
+        if (taosArrayPush(actualLog, &fileInfo) == NULL) {
+          int32_t code = terrno;
+          TAOS_UNUSED(taosCloseDir(&pDir));
+          TAOS_RETURN(code);
+        }
+      }
+    }
+    TAOS_UNUSED(taosCloseDir(&pDir));
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  STfsDir* pTDir = NULL;
+  int32_t  code = tfsOpendir(pWal->pTfs, pWal->relDir, &pTDir);
+  if (code != TSDB_CODE_SUCCESS) {
+    TAOS_RETURN(code);
+  }
+
+  char bname[TSDB_FILENAME_LEN];
+  for (const STfsFile* pFile = NULL; (pFile = tfsReaddir(pTDir)) != NULL;) {
+    if (taosIsDir(pFile->aname)) continue;
+    tstrncpy(bname, pFile->aname, sizeof(bname));
+    char* name = taosDirEntryBaseName(bname);
+    if (regexec(pLogRegPattern, name, 0, NULL, 0) == 0) {
+      int64_t firstVer = -1;
+      int32_t consumed = 0;
+      // Same check as the single-mount branch above: don't trust a regex match alone,
+      // and don't trust sscanf's return value alone either -- confirm the whole name was
+      // consumed by comparing %n's count against strlen(name).
+      if (sscanf(name, "%" PRId64 ".log%n", &firstVer, &consumed) != 1 || firstVer < 0 ||
+          (size_t)consumed != strlen(name)) {
+        continue;
+      }
+      SWalFileInfo fileInfo;
+      (void)memset(&fileInfo, -1, sizeof(SWalFileInfo));
+      fileInfo.firstVer = firstVer;
+      fileInfo.diskId = pFile->did;
+      if (taosArrayPush(actualLog, &fileInfo) == NULL) {
+        code = terrno;
+        tfsClosedir(pTDir);
+        TAOS_RETURN(code);
+      }
+    }
+  }
+  tfsClosedir(pTDir);
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
 int32_t walCheckAndRepairMeta(SWal* pWal) {
   // load log files, get first/snapshot/last version info
   int32_t     code = 0;
@@ -528,7 +797,6 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
   const char* logPattern = "^[0-9]+.log$";
   const char* idxPattern = "^[0-9]+.idx$";
   regex_t     logRegPattern, idxRegPattern;
-  TdDirPtr    pDir = NULL;
   SArray*     actualLog = NULL;
 
   wInfo("vgId:%d, begin to repair meta, wal path:%s, first index:%" PRId64 ", last index:%" PRId64
@@ -539,23 +807,10 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
 
   TAOS_CHECK_EXIT_SET_CODE(regcomp(&idxRegPattern, idxPattern, REG_EXTENDED), code, terrno);
 
-  pDir = taosOpenDir(pWal->path);
-  TSDB_CHECK_NULL(pDir, code, lino, _exit, terrno);
-
   actualLog = taosArrayInit(8, sizeof(SWalFileInfo));
+  TSDB_CHECK_NULL(actualLog, code, lino, _exit, terrno);
 
-  // scan log files and build new meta
-  TdDirEntryPtr pDirEntry;
-  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
-    char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
-    int   code = regexec(&logRegPattern, name, 0, NULL, 0);
-    if (code == 0) {
-      SWalFileInfo fileInfo;
-      (void)memset(&fileInfo, -1, sizeof(SWalFileInfo));
-      (void)sscanf(name, "%" PRId64 ".log", &fileInfo.firstVer);
-      TSDB_CHECK_NULL(taosArrayPush(actualLog, &fileInfo), code, lino, _exit, terrno);
-    }
-  }
+  TAOS_CHECK_EXIT(walScanActualLogFiles(pWal, &logRegPattern, actualLog));
 
   taosArraySort(actualLog, compareWalFileInfo);
 
@@ -663,7 +918,6 @@ _exit:
     wError("vgId:%d, failed to repair meta since %s, at line:%d", pWal->cfg.vgId, tstrerror(code), lino);
   }
   taosArrayDestroy(actualLog);
-  TAOS_UNUSED(taosCloseDir(&pDir));
   walRegfree(&logRegPattern);
   walRegfree(&idxRegPattern);
 
@@ -879,6 +1133,10 @@ int32_t walRollFileInfo(SWal* pWal) {
   pNewInfo->closeTs = -1;
   pNewInfo->fileSize = 0;
   pNewInfo->syncedOffset = 0;
+  // Sentinel: "not yet assigned to a tfs disk" / "lives under pWal->path". walRollImpl
+  // overwrites this right after the push when multi-mount-point write is active.
+  pNewInfo->diskId.level = 0;
+  pNewInfo->diskId.id = -1;
   if (!taosArrayPush(pArray, pNewInfo)) {
     taosMemoryFree(pNewInfo);
     TAOS_RETURN(terrno);
@@ -943,6 +1201,10 @@ int32_t walMetaSerialize(SWal* pWal, char** serialized) {
     if (cJSON_AddStringToObject(pField, "closeTs", buf) == NULL) goto _err;
     (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pInfo->fileSize);
     if (cJSON_AddStringToObject(pField, "fileSize", buf) == NULL) goto _err;
+    // diskLevel/diskId: int32_t fits exactly in a double, no string-encoding needed.
+    // Optional fields -- see walMetaDeserialize for the backward-compat default.
+    if (cJSON_AddNumberToObject(pField, "diskLevel", pInfo->diskId.level) == NULL) goto _err;
+    if (cJSON_AddNumberToObject(pField, "diskId", pInfo->diskId.id) == NULL) goto _err;
   }
   char* pSerialized = cJSON_Print(pRoot);
   cJSON_Delete(pRoot);
@@ -996,6 +1258,10 @@ int32_t walMetaDeserialize(SWal* pWal, const char* bytes) {
     if (!pInfoJson) goto _err;
 
     SWalFileInfo info = {0};
+    // Default to "not tfs-tracked / lives under pWal->path" for meta files written
+    // before this feature existed (backward compatibility, same pattern as keepVersion).
+    info.diskId.level = 0;
+    info.diskId.id = -1;
 
     pField = cJSON_GetObjectItem(pInfoJson, "firstVer");
     if (!pField) goto _err;
@@ -1012,6 +1278,10 @@ int32_t walMetaDeserialize(SWal* pWal, const char* bytes) {
     pField = cJSON_GetObjectItem(pInfoJson, "fileSize");
     if (!pField) goto _err;
     info.fileSize = atoll(cJSON_GetStringValue(pField));
+    pField = cJSON_GetObjectItem(pInfoJson, "diskLevel");
+    if (pField) info.diskId.level = (int32_t)cJSON_GetNumberValue(pField);
+    pField = cJSON_GetObjectItem(pInfoJson, "diskId");
+    if (pField) info.diskId.id = (int32_t)cJSON_GetNumberValue(pField);
     if (!taosArrayPush(pArray, &info)) {
       cJSON_Delete(pRoot);
       return terrno;

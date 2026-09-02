@@ -72,11 +72,22 @@ else
   # 非 arm64 只关心真泄漏
   [[ $non_32 -eq 0 ]] && echo "no memory leak detected"
 fi
+memory_leak=${non_32}
 
 # shellcheck disable=SC2126
 indirect_leak=$(cat "${LOG_DIR}"/*.asan | grep "Indirect leak" | wc -l)
 # shellcheck disable=SC2126
-python_error=$(cat "${LOG_DIR}"/*.info | grep -w "stack" | wc -l)
+# tmq_vtable intentionally triggers tAssert in error test cases (case_non_snapshot_stb_topic_error).
+# tAssert emits two consecutive lines:
+#   E UTL FATAL tAssert at file .../tmq_vtable.c:72 exit:1
+#   E UTL FATAL obtained 8 stack frames          <- matched by grep -w "stack"
+# The "obtained N stack frames" line carries no file name, so grep -v "tmq_vtable" misses it.
+# Use awk to suppress that line only when it immediately follows a tmq_vtable tAssert line.
+python_error=$(
+  awk '/tmq_vtable/{skip=1;next} skip&&/obtained [0-9]+ stack frames/{skip=0;next} {skip=0}' \
+    "${LOG_DIR}"/*.info \
+  | grep -w "stack" | wc -l
+)
 
 # Use "#" "0x" and "TDinternal" to match python taos error log
 # #1 0x7f480ff14839  (/usr/local/lib/python3.9/site-packages/taosws/taosws.abi3.so+0x269839)
@@ -89,10 +100,18 @@ python_error=$(cat "${LOG_DIR}"/*.info | grep -w "stack" | wc -l)
 # ignore gcov-instrumented noasan test binaries (sml_test/tmq_get_meta_json/replay_test etc.) running under ASAN:
 # when these noasan binaries exit, __gcov_open/__gcov_exit tries to write coverage data and SEGVs.
 # this is NOT a product bug — it's an artifact of running gcov-compiled binaries via LD_PRELOAD ASAN.
+# OpenSSL is linked into libtaos.so in some CI images, so its process-global
+# config/error-state init frames carry the taos-community lib path and can be
+# misclassified here.  Filter only OpenSSL-internal frames; any TDengine caller
+# frames in the same report remain counted.
+openssl_internal_pat="CRYPTO_|ERR_|BIO_(new_file|meth_new)|def_load|NCONF_load|CONF_modules_load_file_ex|ossl_|OPENSSL_|sk_[A-Za-z0-9_]+_deep_copy|EVP_|RAND_|SSL_CTX_|inner_(evp|ossl)_|evp_(generic_fetch|cipher_|rand_)|ssl_(evp_md_fetch|load_ciphers)|provider_|algorithm_|construct_evp_method|drbg_|rand_new_|seed_src_|pgtls_|initialize_SSL|aes_[A-Za-z0-9_]+_newctx"
+# libpq.so.5 may bundle OpenSSL symbols under the taos-community build path.
+# Keep this filter tied to libpq so TDengine-owned frames remain visible.
+libpq_openssl_internal_pat="(X509_[A-Za-z0-9_]+|by_file_ctrl_ex).*/libpq\\.so\\.5"
 python_taos_error=$(
   cat "${LOG_DIR}"/*.info |
   grep -E  "#[0-9]+ 0x[0-9a-f]+ .*(TDinternal|TDengine|/taosws/|/mnt/tsdb/source/taos-community/)" |
-  grep -E -v "venv|taosws.abi3.so|__gcov|gcov_do_dump|_GLOBAL__sub_D|sml_test|tmq_get_meta_json|replay_test|tmq_sim|tmq_taosx_ci" |
+  grep -E -v "venv|taosws.abi3.so|__gcov|gcov_do_dump|_GLOBAL__sub_D|sml_test|tmq_get_meta_json|replay_test|tmq_sim|tmq_taosx_ci|${openssl_internal_pat}|${libpq_openssl_internal_pat}" |
   wc -l
 )
 

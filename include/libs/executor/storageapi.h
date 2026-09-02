@@ -49,11 +49,17 @@ typedef struct SMeta SMeta;
 typedef TSKEY (*GetTsFun)(void*);
 
 typedef struct SMetaEntry {
-  int64_t  version;
-  int8_t   type;
-  int8_t   flags;  // TODO: need refactor?
-  tb_uid_t uid;
-  char*    name;
+  int64_t   version;
+  int8_t    type;
+  int8_t    flags;
+  uint8_t   txnStatus;   // EMetaTxnStatus
+  txn_id_t  txnId;       // for meta transaction, 0 if not in transaction
+  int64_t   txnOrigVer;  // for PRE_ALTER: the ORIGINAL committed version before the FIRST alter
+                         // in this txn (for rollback & pre-alter read redirect). Preserved across
+                         // repeated alters of the same uid within one txn — never overwritten with
+                         // an intermediate in-txn version.
+  tb_uid_t  uid;
+  char*     name;
   union {
     struct {
       SSchemaWrapper schemaRow;
@@ -62,6 +68,16 @@ typedef struct SMetaEntry {
       int64_t        keep;
       int64_t        ownerId;
       int8_t         securityLevel;
+      // VST inheritance (BASE ON): persisted so the TMQ snapshot path can rebuild a
+      // replayable BASE ON clause. The WAL/incremental path carries these in the
+      // CREATE_STB message, but a snapshot is reconstructed from this entry alone, so
+      // without them snapshot consumers silently lose the child's inheritance.
+      // Names are the resolved parent full names (acctId.db.table); suids are omitted
+      // because they are source-local and re-resolved by name on replay.
+      int8_t  numParents;
+      int16_t ownColStart;
+      int16_t ownTagStart;
+      char    parentStbFNames[TSDB_MAX_VST_PARENTS][TSDB_TABLE_FNAME_LEN];
     } stbEntry;
     struct {
       int64_t  btime;
@@ -79,6 +95,8 @@ typedef struct SMetaEntry {
       int32_t        ncid;  // next column id
       int64_t        ownerId;
       SSchemaWrapper schemaRow;
+      SSchemaWrapper schemaTag;  // owned tag schema (normal/virtual-normal table with tags); nCols==0 when no tags
+      uint8_t*       pTags;      // owned tag values, STag container (NULL when no tags)
     } ntbEntry;
     struct {
       STSma* tsma;
@@ -90,6 +108,7 @@ typedef struct SMetaEntry {
   SColCmprWrapper colCmpr;  // col compress alg
   SExtSchema*     pExtSchemas;
   SColRefWrapper  colRef;   // col reference for virtual table
+  SSeriesWrapper  series;   // series declarations for virtual table
 } SMetaEntry;
 
 typedef struct SMetaReader {
@@ -100,6 +119,7 @@ typedef struct SMetaReader {
   void*              pBuf;
   int32_t            szBuf;
   struct SStoreMeta* pAPI;
+  int64_t            txnId;  // batch meta txn: same-txn visibility for PRE_CREATE entries
 } SMetaReader;
 
 typedef struct SMTbCursor {
@@ -111,6 +131,7 @@ typedef struct SMTbCursor {
   int32_t     vLen;
   SMetaReader mr;
   int8_t      paused;
+  int64_t     txnId;  // batch meta txn: same-txn visibility bypass
 } SMTbCursor;
 
 typedef struct SMCtbCursor {
@@ -123,6 +144,8 @@ typedef struct SMCtbCursor {
   int           vLen;
   int8_t        paused;
   int           lock;
+  int64_t       txnId;          // batch meta txn: same-txn visibility bypass
+  int8_t        stbTxnDropped;  // 1 if STB is in committed PRE_DROP; set once in metaResumeCtbCursor
 } SMCtbCursor;
 
 typedef struct SRowBuffPos {
@@ -188,6 +211,13 @@ typedef union {
 
 typedef void (*TsdReaderNotifyCbFn)(ETsdReaderNotifyType type, STsdReaderNotifyInfo* info, void* param);
 
+typedef enum {
+  TSD_READER_BLOCK_SMA_MODE_NORMAL = 0,
+  TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY = 1,
+  TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY = 2,
+  TSD_READER_BLOCK_SMA_MODE_MAX_ONLY = 3,
+} ETsdReaderBlockSmaMode;
+
 struct SFileSetReader;
 
 typedef struct TsdReader {
@@ -200,6 +230,7 @@ typedef struct TsdReader {
 
   int32_t      (*tsdReaderRetrieveBlockSMAInfo)();
   int32_t      (*tsdReaderRetrieveDataBlock)(void* p, SSDataBlock** pBlock);
+  int32_t      (*tsdReaderSetBlockSmaMode)(void* pReader, ETsdReaderBlockSmaMode mode);
 
   void         (*tsdReaderReleaseDataBlock)(void* pReader);
 
@@ -286,13 +317,18 @@ typedef struct SStoreMeta {
   int32_t (*cursorNext)(SMTbCursor* pTbCur, ETableType jumpTableType);              // metaTbCursorNext
   int32_t (*cursorPrev)(SMTbCursor* pTbCur, ETableType jumpTableType);              // metaTbCursorPrev
 
-  int32_t (*getTableTags)(void* pVnode, uint64_t suid, SArray* uidList);
-  int32_t (*getTableTagsByUid)(void* pVnode, int64_t suid, SArray* uidList);
+  int32_t (*getTableTags)(void* pVnode, uint64_t suid, SArray* uidList, int64_t txnId);
+  int32_t (*getTableTagsByUidVersion)(void* pVnode, int64_t suid, SArray* uidList, int64_t version);
+  // For triggers whose source is a virtual super table, child tags may be col-refs that
+  // chain across one or more vtables. This API walks that chain (single or multi-hop,
+  // possibly cross-vnode) and rebuilds STUidTagInfo.pTagVal as a fresh STag carrying
+  // the resolved literal tag values. No-op when suid is not a virtual stable.
+  int32_t (*resolveVTableTagChain)(void* pVnode, int64_t suid, SArray* pUidTagList);
   const void* (*extractTagVal)(const void* tag, int16_t type, STagVal* tagVal);  // todo remove it
 
-  int32_t (*getTableUidByName)(void* pVnode, char* tbName, uint64_t* uid);
-  int32_t (*getTableTypeSuidByName)(void* pVnode, char* tbName, ETableType* tbType, uint64_t* suid);
-  int32_t (*getTableNameByUid)(void* pVnode, uint64_t uid, char* tbName);
+  int32_t (*getTableUidByName)(void* pVnode, char* tbName, uint64_t* uid, int64_t txnId);
+  int32_t (*getTableTypeSuidByName)(void* pVnode, char* tbName, ETableType* tbType, uint64_t* suid, int64_t txnId);
+  int32_t (*getTableNameByUid)(void* pVnode, uint64_t uid, char* tbName, int64_t txnId);
   bool (*isTableExisted)(void* pVnode, tb_uid_t uid);
 
   int32_t (*metaGetCachedTbGroup)(void* pVnode, tb_uid_t suid, const uint8_t* pKey, int32_t keyLen, SArray** pList);
@@ -303,15 +339,19 @@ typedef struct SStoreMeta {
                                 bool* acquireRes);
   int32_t (*putCachedTableList)(void* pVnode, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload,
                                 int32_t payloadLen, double selectivityRatio);
-  int32_t (*getStableCachedTableList)(void* pVnode, tb_uid_t suid,
-    const uint8_t* pTagCondKey, int32_t tagCondKeyLen,
-    const uint8_t* pKey, int32_t keyLen, SArray* pList1, bool* acquireRes);
-  int32_t (*putStableCachedTableList)(void* pVnode, uint64_t suid,
-    const void* pTagCondKey, int32_t tagCondKeyLen,
-    const void* pKey, int32_t keyLen, SArray* pUidList, SArray** pTagColIds);
+  int32_t (*getStableCachedTableList)(void* pVnode, tb_uid_t suid, const uint8_t* pTagCondKey, int32_t tagCondKeyLen,
+                                      const uint8_t* pKey, int32_t keyLen, SArray* pList1, bool* acquireRes,
+                                      bool* needWarmup);
+  int32_t (*warmupStableCachedTableList)(void* pVnode, uint64_t suid, const void* pTagCondKey, int32_t tagCondKeyLen,
+                                         const uint8_t* pKey, int32_t keyLen, const SArray* pTagColIds, SArray* pList,
+                                         bool* acquireRes);
+  int32_t (*putStableCachedTableList)(void* pVnode, uint64_t suid, const void* pTagCondKey, int32_t tagCondKeyLen,
+                                      const void* pKey, int32_t keyLen, SArray* pUidList, SArray** pTagColIds);
 
   int32_t (*metaGetCachedRefDbs)(void* pVnode, tb_uid_t suid, SArray* pList);
   int32_t (*metaPutRefDbsToCache)(void* pVnode, tb_uid_t suid, SArray* pList);
+  int32_t (*metaGetCachedExtSources)(void* pVnode, tb_uid_t suid, SArray* pList);
+  int32_t (*metaPutExtSourcesToCache)(void* pVnode, tb_uid_t suid, SArray* pList);
 
   void* (*storeGetIndexInfo)(void* pVnode);
   void* (*getInvertIndex)(void* pVnode);
@@ -325,15 +365,17 @@ typedef struct SStoreMeta {
   int8_t (*getSecurityLevel)(void* pVnode);
   int32_t (*getDBSize)(void* pVnode, SDbSizeStatisInfo* pInfo);
 
-  SMCtbCursor* (*openCtbCursor)(void* pVnode, tb_uid_t uid, int lock);
+  SMCtbCursor* (*openCtbCursor)(void* pVnode, tb_uid_t uid, int lock, int64_t txnId);
   int32_t (*resumeCtbCursor)(SMCtbCursor* pCtbCur, int8_t first);
   void (*pauseCtbCursor)(SMCtbCursor* pCtbCur);
   void (*closeCtbCursor)(SMCtbCursor* pCtbCur);
   tb_uid_t (*ctbCursorNext)(SMCtbCursor* pCur);
+
+  bool (*hasPendingTxnEntries)(void* pVnode);  // batch meta txn: any active/finalized-un-vacuumed txns
 } SStoreMeta;
 
 typedef struct SStoreMetaReader {
-  void (*initReader)(SMetaReader* pReader, void* pVnode, int32_t flags, SStoreMeta* pAPI);
+  void (*initReader)(SMetaReader* pReader, void* pVnode, int32_t flags, SStoreMeta* pAPI, int64_t txnId);
   void (*clearReader)(SMetaReader* pReader);
   void (*readerReleaseLock)(SMetaReader* pReader);
   int32_t (*getTableEntryByUid)(SMetaReader* pReader, tb_uid_t uid);

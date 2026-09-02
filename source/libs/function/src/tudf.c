@@ -138,6 +138,11 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   }
   TAOS_STRCAT(path, "/" CUS_PROMPT "udf");
 #endif
+  if (taosStatFile(path, NULL, NULL, NULL) != 0) {
+    fnError("udfd binary does not exist: %s", path);
+    err = TSDB_CODE_UDF_UV_EXEC_FAILURE;
+    goto _OVER;
+  }
   char *argsUdfd[] = {path, "-c", configDir, NULL};
   options.args = argsUdfd;
   options.file = path;
@@ -2490,6 +2495,7 @@ int32_t udfcClose() { return 0; }
 int32_t udfStartUdfd(int32_t startDnodeId) { return 0; }
 void    udfStopUdfd() { return; }
 int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols, SScalarParam *output) {
+  uError("callUdfScalarFunc: udf is not supported in community edition, func:%s", udfName ? udfName : "(null)");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 #endif

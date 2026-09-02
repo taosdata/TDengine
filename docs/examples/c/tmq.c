@@ -265,7 +265,7 @@ void basic_consume_loop(tmq_t* tmq) {
   fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
 }
 
-void consume_repeatly(tmq_t* tmq) {
+void consume_repeatedly(tmq_t* tmq) {
   int32_t               numOfAssignment = 0;
   tmq_topic_assignment* pAssign = NULL;
 
@@ -320,7 +320,7 @@ int main(int argc, char* argv[]) {
 
   basic_consume_loop(tmq);
 
-  consume_repeatly(tmq);
+  consume_repeatedly(tmq);
 
   code = tmq_consumer_close(tmq);
   if (code) {

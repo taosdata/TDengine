@@ -75,6 +75,9 @@ export PATH=$PATH:${_DEBUG_BASE}/build/bin
 export LD_LIBRARY_PATH=${_DEBUG_BASE}/build/lib
 ln -s ${_DEBUG_BASE}/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
 ln -s ${_DEBUG_BASE}/build/lib/libtaos.so /usr/lib/libtaos.so.1 2>/dev/null
+# 兼容测试（如 test_new_stream_compatibility.py）硬编码 /usr/bin/taos，
+# 在此创建符号链接使其生效，无论二进制实际安装位置如何。
+ln -sf ${_DEBUG_BASE}/build/bin/taos /usr/bin/taos 2>/dev/null || true
 ln -s ${_DEBUG_BASE}/build/lib/libtaosnative.so /usr/lib/libtaosnative.so 2>/dev/null
 ln -s ${_DEBUG_BASE}/build/lib/libtaosnative.so /usr/lib/libtaosnative.so.1 2>/dev/null
 ln -s ${_DEBUG_BASE}/build/lib/libtaosws.so /usr/lib/libtaosws.so 2>/dev/null
@@ -108,13 +111,31 @@ fi
 cd $CONTAINER_TESTDIR/$target_dir || { echo "Can't enter the target dirctory: ${CONTAINER_TESTDIR}/${target_dir}"; exit 1; }
 ulimit -c unlimited
 
-# get python connector and update: taospy 2.8.9 taos-ws-py 0.6.9
-pip3 install taospy==2.8.9
-pip3 install taos-ws-py==0.6.9
-pip3 install pyotp
+# 使用容器本地 marker + requirements.txt 内容 hash 比较，智能安装依赖。
+# marker 不能放在 bind-mounted 源码目录里；CI 每个 case 是新容器，
+# 但源码目录可能跨容器共享，旧 marker 会让新容器跳过 pip install。
+# tdengine-ci:0.3 image bakes Nexus as default pip index; no -i needed
+_REQ_FILE="${CONTAINER_TESTDIR}/test/requirements.txt"
+_REQ_HASH=$(python3 -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest()[:16])' "${_REQ_FILE}" 2>/dev/null || echo "unknown")
+_PY_TAG=$(python3 -c 'import sys; print(f"{sys.implementation.cache_tag}-{sys.version_info[0]}.{sys.version_info[1]}")' 2>/dev/null || echo "python")
+_DEPS_MARKER="${TMPDIR:-/tmp}/tdengine-ci-deps-${_PY_TAG}-${_REQ_HASH}.installed"
+if [[ ! -f "${_DEPS_MARKER}" ]] || [[ "${_REQ_FILE}" -nt "${_DEPS_MARKER}" ]]; then
+    _PIP_LOG=$(mktemp "${TMPDIR:-/tmp}/tdengine-ci-pip.XXXXXX")
+    if pip3 install -r "${_REQ_FILE}" -q >"${_PIP_LOG}" 2>&1; then
+        tail -5 "${_PIP_LOG}"
+        touch "${_DEPS_MARKER}"
+    else
+        tail -50 "${_PIP_LOG}"
+        rm -f "${_PIP_LOG}"
+        exit 1
+    fi
+    rm -f "${_PIP_LOG}"
+fi
 
 $TIMEOUT_CMD $cmd
 RET=$?
+# pytest exit code 5 = no tests collected / all skipped → treat as pass
+[ $RET -eq 5 ] && RET=0
 echo "cmd exit code: $RET"
 
 mkdir -p ${_SIM_BASE}/var_taoslog

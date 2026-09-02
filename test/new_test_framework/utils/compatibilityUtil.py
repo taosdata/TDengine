@@ -19,6 +19,7 @@ import time
 import platform
 import subprocess
 
+import importlib
 from pathlib import Path
 from .log import *
 from .sql import *
@@ -27,6 +28,19 @@ from .common import *
 from taos.tmq import Consumer
 from new_test_framework.utils import clusterComCheck
 from taos.error import TmqError
+
+# Load enterprise package downloader from taos-internal
+_current_dir = os.path.dirname(os.path.realpath(__file__))
+_enterprise_downloader_path = os.path.abspath(
+    os.path.join(_current_dir, "../../../../taos-internal/utils/download_enterprise_package.py")
+)
+if os.path.exists(_enterprise_downloader_path):
+    _spec = importlib.util.spec_from_file_location("download_enterprise_package", _enterprise_downloader_path)
+    _mod = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    _downloader = _mod.EnterprisePackageDownloader()
+else:
+    _downloader = None
 
 
 def _create_so_symlinks(lib_dir: str) -> None:
@@ -93,19 +107,51 @@ stb = f"{dbname}.meters"
 
 class CompatibilityBase:
 
+    def _getProcessPids(self, processNameOrPid):
+        target = str(processNameOrPid).strip()
+        if not target:
+            return []
+
+        if target.isdigit():
+            result = subprocess.run(
+                ["ps", "-p", target, "-o", "pid="],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            return [line.strip() for line in result.stdout.splitlines()
+                    if line.strip()]
+
+        result = subprocess.run(
+            ["ps", "-eo", "pid=,comm="],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        pids = []
+        for line in result.stdout.splitlines():
+            parts = line.strip().split(None, 1)
+            if len(parts) != 2:
+                continue
+            pid, command = parts
+            if command == target:
+                pids.append(pid)
+        return pids
+
     def checkProcessPid(self,processName):
         tdLog.info(f"checkProcessPid {processName}")
         i=0
         while i<60:
             tdLog.info(f"wait stop {processName}")
-            processPid = subprocess.getstatusoutput(f'ps aux|grep {processName} |grep -v "grep"|awk \'{{print $2}}\'')[1]
+            processPids = self._getProcessPids(processName)
+            processPid = " ".join(processPids)
             tdLog.info(f"times:{i},{processName}-pid:{processPid}")
             if(processPid == ""):
                 break
             i += 1
             time.sleep(1)
         else:
-            tdLog.info(f'this processName is not stopped in 60s')
+            tdLog.error(f'{processName} is not stopped in 60s')
 
     def version_compare(self, version1, version2):
         """
@@ -129,78 +175,35 @@ class CompatibilityBase:
 
     # Modified installTaosd to accept version parameter
     def installTaosdForRollingUpgrade(self, dnodePaths, base_version):
-        packagePath = "/usr/local/src/"
-        
-        # New download URL format
-        if platform.system() == "Linux" and platform.machine() == "aarch64":
-            packageName = f"tdengine-tsdb-oss-{base_version}-linux-arm64.tar.gz"
-            download_url = f"https://downloads.taosdata.com/tdengine-tsdb-oss/{base_version}/{packageName}"
-        else:
-            packageName = f"tdengine-tsdb-oss-{base_version}-linux-x64.tar.gz"
-            download_url = f"https://downloads.taosdata.com/tdengine-tsdb-oss/{base_version}/{packageName}"
-            
-        tdLog.info(f"wget {download_url}")
-        
-        # Compute extracted directory name (strip "-linux-{arch}.tar.gz")
-        packageTPath = re.sub(r"-linux-(x64|arm64)\.tar\.gz$", "", packageName, flags=re.IGNORECASE)
-        extract_dir = os.path.join(packagePath, packageTPath)
-        my_file = Path(f"{packagePath}/{packageName}")
-        if not my_file.exists():
-            print(f"{packageName} is not exists")
-            tdLog.info(f"cd {packagePath} && wget {download_url}")
-            ret_code = os.system(f"cd {packagePath} && wget {download_url}")
-            if ret_code != 0:
-                return False
-            
-            # Check if file was actually downloaded
-            my_file = Path(f"{packagePath}/{packageName}")
-            if not my_file.exists():
-                return False
-        else: 
-            print(f"{packageName} has been exists")
-
-        # Extract without running install.sh to avoid overwriting system binaries
-        if not Path(extract_dir).exists():
-            extract_ret = os.system(f"cd {packagePath} && tar xf {packageName} > /dev/null 2>&1")
-            if extract_ret != 0:
-                return False
-
-        # The outer archive contains package.tar.gz with the actual bin/ tree.
-        # Extract it if bin/ is not yet present.
-        bin_dir = os.path.join(extract_dir, "bin")
-        if not Path(bin_dir).exists():
-            inner_pkg = os.path.join(extract_dir, "package.tar.gz")
-            if not Path(inner_pkg).exists():
-                tdLog.error(f"Neither bin/ nor package.tar.gz found in: {extract_dir}")
-                return False
-            extract_ret = os.system(f"cd {extract_dir} && tar xf package.tar.gz > /dev/null 2>&1")
-            if extract_ret != 0:
-                return False
-
+        tdLog.info(f"Downloading and extracting enterprise version {base_version} (no install)")
+        try:
+            bin_dir, lib_dir = _downloader.download_and_extract(base_version, "enterprise")
+        except Exception as e:
+            tdLog.error(f"Failed to download enterprise version {base_version}: {e}")
+            return False
         self.old_bin_dir = bin_dir
-        # Libraries are in driver/ (not lib/) for this package layout.
-        lib_dir = os.path.join(extract_dir, "driver")
-        if not Path(lib_dir).exists():
-            lib_dir = os.path.join(extract_dir, "lib")
         self.old_lib_dir = lib_dir
-        _create_so_symlinks(lib_dir)
+        extract_dir = os.path.dirname(bin_dir)
+        tdLog.info(f"Extracted: bin={bin_dir}, lib={lib_dir}")
 
         for dnodePath in dnodePaths:
-            tdLog.info(f"start taosd: rm -rf {dnodePath}data/* && LD_LIBRARY_PATH={self.old_lib_dir} nohup {self.old_bin_dir}/taosd -c {dnodePath}cfg/ &")
-            os.system(f"rm -rf {dnodePath}data/* && LD_LIBRARY_PATH={self.old_lib_dir} nohup {self.old_bin_dir}/taosd -c {dnodePath}cfg/ &")
+            tdLog.info(f"start taosd: rm -rf {dnodePath}data/* && LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosd -c {dnodePath}cfg/ > /dev/null 2>&1 &")
+            os.system(f"rm -rf {dnodePath}data/* && LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosd -c {dnodePath}cfg/ > /dev/null 2>&1 &")
             os.system(f"killall taosadapter")
-            taosadapter_toml_src = "/etc/taos/taosadapter.toml"
+            taosadapter_toml_src = os.path.join(extract_dir, "cfg", "taosadapter.toml")
             if os.path.exists(taosadapter_toml_src):
                 os.system(f"cp {taosadapter_toml_src} {dnodePath}cfg/taosadapter.toml")
                 taosadapter_cfg = dnodePath + "cfg/taosadapter.toml"
                 taosadapter_log_path = dnodePath + "log/"
-                print(f"taosadapter_cfg:{taosadapter_cfg}, taosadapter_log_path:{taosadapter_log_path}")
+                tdLog.info(f"taosadapter_cfg:{taosadapter_cfg}, taosadapter_log_path:{taosadapter_log_path}")
                 self.alter_string_in_file(taosadapter_cfg,"#path = \"/var/log/taos\"",f"path = \"{taosadapter_log_path}\"")
                 self.alter_string_in_file(taosadapter_cfg,"taosConfigDir = \"\"",f"taosConfigDir = \"{dnodePath}cfg/\"")
-                print(f"{self.old_bin_dir}/taosadapter --version")
+                tdLog.info(f"{self.old_bin_dir}/taosadapter --version")
                 os.system(f"{self.old_bin_dir}/taosadapter --version")
-                print(f"LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosadapter -c {taosadapter_cfg} 2>&1 &")
-                os.system(f"LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosadapter -c {taosadapter_cfg} 2>&1 &")
+                tdLog.info(f"LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosadapter -c {taosadapter_cfg} > /dev/null 2>&1 &")
+                os.system(f"LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosadapter -c {taosadapter_cfg} > /dev/null 2>&1 &")
+            else:
+                tdLog.info(f"taosadapter.toml not found at {taosadapter_toml_src}, skipping taosadapter startup")
             time.sleep(5)
         
         return True
@@ -233,11 +236,11 @@ class CompatibilityBase:
         
         my_file = Path(f"{packagePath}/{packageName}")
         if not my_file.exists():
-            print(f"{packageName} is not exists")
+            tdLog.info(f"{packageName} is not exists")
             tdLog.info(f"cd {packagePath} && wget {download_url}")
             os.system(f"cd {packagePath} && wget {download_url}")
         else: 
-            print(f"{packageName} has been exists")
+            tdLog.info(f"{packageName} has been exists")
 
         # Compute extracted directory name and extract without running install.sh
         packageTPath = re.sub(r"-linux-(x64|arm64)\.tar\.gz$", "", packageName, flags=re.IGNORECASE)
@@ -264,23 +267,25 @@ class CompatibilityBase:
         os.system(f"pkill -9 taosd")
         self.checkProcessPid("taosd")
 
-        print(f"start taosd: rm -rf {dataPath}/* && LD_LIBRARY_PATH={self.old_lib_dir} nohup {self.old_bin_dir}/taosd -c {cPath} &")
-        os.system(f"rm -rf {dataPath}/* && LD_LIBRARY_PATH={self.old_lib_dir} nohup {self.old_bin_dir}/taosd -c {cPath} &")
+        tdLog.info(f"start taosd: rm -rf {dataPath}/* && LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosd -c {cPath} > /dev/null 2>&1 &")
+        os.system(f"rm -rf {dataPath}/* && LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosd -c {cPath} > /dev/null 2>&1 &")
         os.system(f"killall taosadapter")
         self.checkProcessPid("taosadapter")
 
-        taosadapter_toml_src = "/etc/taos/taosadapter.toml"
+        taosadapter_toml_src = os.path.join(extract_dir, "cfg", "taosadapter.toml")
         if os.path.exists(taosadapter_toml_src):
             os.system(f"cp {taosadapter_toml_src} {cPath}/taosadapter.toml")
             taosadapter_cfg = cPath + "/taosadapter.toml"
             taosadapter_log_path = cPath + "/../log/"
-            print(f"taosadapter_cfg:{taosadapter_cfg}, taosadapter_log_path:{taosadapter_log_path}")
+            tdLog.info(f"taosadapter_cfg:{taosadapter_cfg}, taosadapter_log_path:{taosadapter_log_path}")
             self.alter_string_in_file(taosadapter_cfg,"#path = \"/var/log/taos\"",f"path = \"{taosadapter_log_path}\"")
             self.alter_string_in_file(taosadapter_cfg,"taosConfigDir = \"\"",f"taosConfigDir = \"{cPath}\"")
-            print(f"{self.old_bin_dir}/taosadapter --version")
+            tdLog.info(f"{self.old_bin_dir}/taosadapter --version")
             os.system(f"{self.old_bin_dir}/taosadapter --version")
-            print(f"LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosadapter -c {taosadapter_cfg} 2>&1 &")
-            os.system(f"LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosadapter -c {taosadapter_cfg} 2>&1 &")
+            tdLog.info(f"LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosadapter -c {taosadapter_cfg} > /dev/null 2>&1 &")
+            os.system(f"LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosadapter -c {taosadapter_cfg} > /dev/null 2>&1 &")
+        else:
+            tdLog.info(f"taosadapter.toml not found at {taosadapter_toml_src}, skipping taosadapter startup")
         time.sleep(5)
 
 
@@ -308,17 +313,38 @@ class CompatibilityBase:
         with open(file,"w",encoding="utf-8") as f:
             f.write(file_data)
 
-    def killAllDnodes(self):
-        tdLog.info("kill all dnodes")
-        tdLog.info("kill taosd")
-        os.system(f"pkill -9 taosd")
-        tdLog.info("kill taos")
-        os.system(f"pkill -9 taos") 
-        tdLog.info("check taosd")
+    def _hasProcess(self, processName):
+        return bool(self._getProcessPids(processName))
+
+    def stopTaosdCompletely(self):
+        """Stop taosd, taos and taosadapter processes for compatibility
+        tests.
+
+        Tries graceful shutdown first (systemctl stop, then up to 5
+        rounds of pkill), and falls back to SIGKILL plus freeing TCP
+        port 6030 via fuser if any process is still alive. Waits for
+        taosd and taosadapter to fully exit before returning.
+        """
+        tdLog.info("stop taosd service")
+        os.system("systemctl stop taosd 2>/dev/null || true")
+
+        for _ in range(5):
+            os.system("pkill taosd 2>/dev/null || true")
+            os.system("pkill taos 2>/dev/null || true")
+            os.system("pkill taosadapter 2>/dev/null || true")
+            if (not self._hasProcess("taosd") and
+                    not self._hasProcess("taos") and
+                    not self._hasProcess("taosadapter")):
+                break
+            time.sleep(1)
+        else:
+            tdLog.info("force kill remaining compatibility processes")
+            os.system("pkill -9 taosd 2>/dev/null || true")
+            os.system("pkill -9 taos 2>/dev/null || true")
+            os.system("pkill -9 taosadapter 2>/dev/null || true")
+            os.system("fuser -k -n tcp 6030 2>/dev/null || true")
+
         self.checkProcessPid("taosd")
-        tdLog.info("kill taosadapter")
-        os.system(f"pkill  -9   taosadapter")
-        tdLog.info("check taosadapter")
         self.checkProcessPid("taosadapter")
 
     def prepareDataOnOldVersion(self, base_version, bPath,corss_major_version):
@@ -330,7 +356,7 @@ class CompatibilityBase:
         _old_adapter_bin = f"{self.old_bin_dir}/taosadapter"
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{base_version}")
         tdLog.info(f" {_old_bench} -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y ")
-        os.system(f"{_old_bench} -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y  ")
+        os.system(f"{_old_bench} -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y > /dev/null 2>&1")
         os.system(f"{_old_taos} -s 'alter database test   keep 365000 '")
         os.system(f"{_old_taos} -s 'alter database test  cachemodel \"both\" '")
         os.system(f"{_old_taos} -s 'select last(*) from test.meters '")
@@ -340,7 +366,7 @@ class CompatibilityBase:
         os.system(f"{_old_taos} -s 'flush database test '")
 
         os.system(f"{_old_taos} -s \"insert into test.d1 values (now+11s, 11, 190, 0.21), (now+12s, 11, 190, 0.21), (now+13s, 11, 190, 0.21), (now+14s, 11, 190, 0.21), (now+15s, 11, 190, 0.21) test.d3  values  (now+16s, 11, 190, 0.21), (now+17s, 11, 190, 0.21), (now+18s, 11, 190, 0.21), (now+19s, 119, 191, 0.25) test.d3  (ts) values (now+20s);\"")
-        os.system(f"{_old_bench} -f cases/18-StreamProcessing/30-OldPyCases/json/com_alltypedata.json -y")
+        os.system(f"{_old_bench} -f cases/18-StreamProcessing/30-OldPyCases/json/com_alltypedata.json -y > /dev/null 2>&1")
         os.system(f"{_old_taos} -s 'flush database curdb '")
         os.system(f"{_old_taos} -s 'alter database curdb  cachemodel \"both\" '")
         os.system(f"{_old_taos} -s 'select count(*) from curdb.meters '")
@@ -392,8 +418,8 @@ class CompatibilityBase:
         consumer.close()
         
         tdLog.info(f" {_old_bench} -f cases/18-StreamProcessing/30-OldPyCases/json/compa4096.json -y  ")
-        os.system(f"{_old_bench} -f cases/18-StreamProcessing/30-OldPyCases/json/compa4096.json -y")
-        os.system(f"{_old_bench} -f cases/18-StreamProcessing/30-OldPyCases/json/all_insertmode_alltypes.json -y")
+        os.system(f"{_old_bench} -f cases/18-StreamProcessing/30-OldPyCases/json/compa4096.json -y > /dev/null 2>&1")
+        os.system(f"{_old_bench} -f cases/18-StreamProcessing/30-OldPyCases/json/all_insertmode_alltypes.json -y > /dev/null 2>&1")
 
         # os.system(f"{_old_taos} -s 'flush database db4096 '")
         os.system(f"{_old_taos} -f cases/18-StreamProcessing/30-OldPyCases/json/TS-3131.tsql")
@@ -511,10 +537,10 @@ class CompatibilityBase:
         tdLog.printNoPrefix(f"==========step3:prepare and check data in new version")
         time.sleep(1)
         tdsql=tdCom.newTdSql()
-        print(tdsql)
+        tdLog.info(tdsql)
         if corss_major_version:
             cmd = f" LD_LIBRARY_PATH={self.old_lib_dir}  {self.old_bin_dir}/taos -h localhost ;"
-            print(os.system(cmd))
+            tdLog.info(os.system(cmd))
             if os.system(cmd) == 0:
                 raise Exception("failed to execute system command. cmd: %s" % cmd)
         
@@ -591,14 +617,14 @@ class CompatibilityBase:
         while comFlag:
             for i in  range(qRows) :
                 if tdsql.queryResult[i][0] == "retentions" :
-                    print("parameters include retentions")
+                    tdLog.info("parameters include retentions")
                     comFlag=False
                     break
                 else :
                     comFlag=True
                     j=j+1
             if j == qRows:
-                print("parameters don't include retentions")
+                tdLog.info("parameters don't include retentions")
                 import inspect
                 caller = inspect.getframeinfo(inspect.stack()[0][0])
                 args = (caller.filename, caller.lineno)
@@ -613,9 +639,9 @@ class CompatibilityBase:
         resultList = []
         for i in range(6):
             resultList.append(tdsql.queryResult[i][3])
-        print(resultList)
+        tdLog.info(resultList)
         if self.is_list_same_as_ordered_list(resultList,expectList):
-            print("The unordered list is the same as the ordered list.")
+            tdLog.info("The unordered list is the same as the ordered list.")
         else:
             tdLog.exit("The unordered list is not the same as the ordered list.")
 
@@ -719,7 +745,7 @@ class CompatibilityBase:
                     consumer_rows += block.nrows()
                 tdLog.info(f"consumer rows is {consumer_rows}")
             else:
-                print("consumer has completed and break")
+                tdLog.info("consumer has completed and break")
                 break
         consumer.close()
         tdsql.query(f"{topic_select_sql}")
@@ -732,13 +758,17 @@ class CompatibilityBase:
         tdsql.execute(f"drop topic {db_topic};",queryTimes=10)
         tdsql.execute(f"drop topic {stable_topic};",queryTimes=10)
 
-        os.system(f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y  ")
+        os.system(f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y > /dev/null 2>&1")
         tdsql.query(f"select count(*) from {stb}")
         tdsql.checkData(0,0,tableNumbers*recordNumbers2)
 
-    def checkstatus(self,retry_times=30):
-        
-        # sleep before check status to avoid dnodes not ready issue
+    def checkstatus(self, retry_times=300):
+        # Sleep before checking status to avoid dnodes not ready issue.
+        # NOTE: retry_times must be large enough to cover slow vnode restore after an
+        # upgrade. When the old version left no WAL snapshot (e.g. 3.3.3.0 data), the
+        # new version has to replay and commit the whole dataset on restore, which can
+        # take several minutes (e.g. a 4094-column table from compa4096.json). Bumped
+        # from 60 to 300 to avoid flaky "vnodes are not ready" (see tsdb!1495 follow-up).
         time.sleep(30)
         tdsql=tdCom.newTdSql()
         dnodes_ready = False
@@ -796,4 +826,4 @@ class CompatibilityBase:
         tdLog.info(f"vnodes are ready in {retry_times}s")
 
 # Create instance for compatibility
-tdCb = CompatibilityBase() 
+tdCb = CompatibilityBase()

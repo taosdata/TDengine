@@ -40,6 +40,7 @@ extern "C" {
 #include "tpagedbuf.h"
 #include "tlrucache.h"
 #include "tworker.h"
+#include "extConnector.h"
 
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 
@@ -179,6 +180,7 @@ typedef enum EExchangeSourceType {
   EX_SRC_TYPE_VSTB_TS_SCAN,
   EX_SRC_TYPE_VSTB_INTERVAL_SCAN,
   EX_SRC_TYPE_VSTB_PART_INTERVAL_SCAN,
+  EX_SRC_TYPE_VSTB_SYS_SCAN,
 } EExchangeSourceType;
 
 typedef enum {
@@ -200,6 +202,7 @@ typedef struct SExchangeOperatorBasicParam {
   SOrgTbInfo*           orgTbInfo;
   SArray*               batchOrgTbInfo; // SArray<SOrgTbInfo>
   SArray*               tagList;
+  SArray*               sysScanReqs; // SArray<SSysTableScanVtbRefReq>
   STimeWindow           window;
   SDownstreamSourceNode newDeployedSrc; // used with isNewDeployed
   /* notify scan params */
@@ -248,6 +251,52 @@ typedef struct SExchangeInfo {
   bool                notifyToSend;  // need to send notify STEP DONE message
   TSKEY               notifyTs;      // notify timestamp
 } SExchangeInfo;
+
+// ---------------------------------------------------------------------------
+// SFederatedScanOperatorInfo — state for the FederatedScan operator (Module F)
+// ---------------------------------------------------------------------------
+
+// Per-table scan context for multi-table FederatedScan (VStb dynamic dispatch)
+typedef struct SFedScanTableCtx {
+  SExtConnectorHandle*  pConnHandle;
+  SExtQueryHandle*      pQueryHandle;
+  bool                  queryStarted;
+  bool                  queryFinished;
+  bool                  twoPassPhase1Done;
+  SExtColTypeMapping*   pDynColMappings;   // dynamically built column mappings (VStb)
+  int32_t               numDynColMappings;
+  SSDataBlock*          pFetchedBlock;      // last fetched block owned by this table context
+} SFedScanTableCtx;
+
+typedef struct SFederatedScanOperatorInfo {
+  SFederatedScanPhysiNode*  pFedScanNode;      // physi node ref (not owned)
+  SExtConnectorHandle*      pConnHandle;        // connector handle (Module B)
+  SExtQueryHandle*          pQueryHandle;       // query handle (Module B)
+  bool                      queryStarted;       // query has been issued
+  bool                      queryFinished;      // EOF reached
+  bool                      twoPassMode;        // true: execute query twice (PRE_SCAN then MAIN_SCAN)
+  bool                      twoPassPhase1Done;  // true: PRE_SCAN pass done, now doing MAIN_SCAN pass
+  int64_t                   fetchedRows;        // cumulative rows fetched
+  int64_t                   fetchBlockCount;    // cumulative block count
+  int64_t                   elapsedTimeUs;      // cumulative elapsed time (µs)
+  SSDataBlock*              pFetchedBlock;      // owned block returned by extConnectorFetchBlock
+  char                      extErrMsg[512];     // formatted remote error message
+  // Per-table context cache for VStb multi-table dispatch
+  SHashObj*                 pTableCtxMap;       // key: source/db/table/filter hashes, value: SFedScanTableCtx
+  char                      activeTableKey[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 32];
+  // VStb dynamic query: column type mappings built at runtime
+  SForeignScanOperatorParam* pActiveVStbParam;  // borrowed ref to current VStb param (not owned)
+  SExtColTypeMapping*       pDynColMappings;    // dynamically built column mappings
+  int32_t                   numDynColMappings;
+  // True when this federate scan feeds a virtual-table scan operator (either
+  // static or VStb dispatch path).  Used to gate per-block TIMESTAMP precision
+  // conversion to the consumer's declared precision so unrelated direct
+  // external-table queries are unaffected.
+  bool                      underVTableScan;
+} SFederatedScanOperatorInfo;
+
+void fedScanReleaseFetchedBlock(SFederatedScanOperatorInfo* pInfo);
+int32_t fedScanSaveActiveCtx(SFederatedScanOperatorInfo* pInfo);
 
 typedef struct SScanInfo {
   int32_t numOfAsc;
@@ -521,7 +570,51 @@ typedef struct SOptrBasicInfo {
   bool           mergeResultBlock;
   int32_t        inputTsOrder;
   int32_t        outputTsOrder;
+  EDataOrderLevel inputDataOrder;
+  EDataOrderLevel outputDataOrder;
 } SOptrBasicInfo;
+
+static FORCE_INLINE void setOptrBasicInfoOrder(SOptrBasicInfo* pInfo, const SPhysiNode* pNode) {
+  pInfo->inputTsOrder = pNode->inputTsOrder;
+  pInfo->outputTsOrder = pNode->outputTsOrder;
+  // Maps planner's require/result data order to executor's input/output data order.
+  // inputDataOrder is used by optrHasOrderedInput() to decide if sorted execution path is viable.
+  pInfo->inputDataOrder = pNode->requireDataOrder;
+  pInfo->outputDataOrder = pNode->resultDataOrder;
+}
+
+static FORCE_INLINE bool optrHasOrderedInput(const SOptrBasicInfo* pInfo, EDataOrderLevel minLevel) {
+  return (pInfo->inputTsOrder == TSDB_ORDER_ASC || pInfo->inputTsOrder == TSDB_ORDER_DESC) &&
+         pInfo->inputDataOrder >= minLevel;
+}
+
+static FORCE_INLINE bool optrHasOrderedOutput(const SOptrBasicInfo* pInfo, EDataOrderLevel minLevel) {
+  return (pInfo->outputTsOrder == TSDB_ORDER_ASC || pInfo->outputTsOrder == TSDB_ORDER_DESC) &&
+         pInfo->outputDataOrder >= minLevel;
+}
+
+typedef struct SIndefRowsWindowState {
+  STimeWindow  win;      // logical window range for this state
+  uint64_t     groupId;  // source group id of this logical window
+  SResultRow*  pRow;     // persistent function state for this logical window
+  SList*       pSealedBlocks;  // SList<SSDataBlock*> - completed full blocks
+  SSDataBlock* pCurBlock;      // block currently being filled
+} SIndefRowsWindowState;
+
+typedef struct SIndefRowsStateKey {
+  uint64_t groupId;
+  TSKEY    skey;
+} SIndefRowsStateKey;
+
+typedef struct SIndefRowsRuntime {
+  SSHashObj*             pOpenStatesMap;  // key: SIndefRowsStateKey -> val: SIndefRowsWindowState*
+  SList*                 pReadyBlocks;    // SList<SSDataBlock*> - blocks ready to return to upstream
+  SSDataBlock*           pReturnedBlock;  // last returned block, destroyed on next fetch
+  SArray*                pPseudoColInfo;  // pseudo-column slot mapping for direct project
+  SSDataBlock*           pTmpBlock;       // reusable temp block for one segment copy
+  int32_t                blockCapacity;   // max rows per output block
+  SExprSupp              projSupp;        // projection expressions for pure raw-col/scalar window queries
+} SIndefRowsRuntime;
 
 typedef struct SIntervalAggOperatorInfo {
   SOptrBasicInfo     binfo;              // basic info
@@ -537,6 +630,8 @@ typedef struct SIntervalAggOperatorInfo {
   STimeWindowAggSupp twAggSup;
   SArray*            pPrevValues;  //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
   bool               cleanGroupResInfo;
+  bool               indefRowsMode;
+  SIndefRowsRuntime  indefRows;
   struct SOperatorInfo* pOperator;
   // for limit optimization
   bool          limited;
@@ -576,7 +671,11 @@ typedef struct SWindowRowsSup {
   int32_t     startRowIndex;
   int32_t     numOfRows;
   uint64_t    groupId;
-  uint32_t    numNullRows;  // number of continuous rows with null state col
+  uint32_t    numNullRows;           // number of continuous all-NULL rows
+  uint32_t    numDeferredPartialNull; // number of continuous deferred partial-NULL rows
+  uint32_t    numDeferredTailAllNull; // trailing all-NULL suffix after deferred partial-NULL rows
+  int32_t     firstDeferredPartialRowIndex; // first deferred partial-NULL row index in current pending segment
+  TSKEY       lastDeferredPartialNullTs; // timestamp of the last deferred partial-NULL row
   TSKEY       lastTs;  // last row's timestamp, used for checking duplicated ts
 } SWindowRowsSup;
 
@@ -589,6 +688,10 @@ static inline bool hasContinuousNullRows(SWindowRowsSup* pRowSup) {
 // reset on initialization or found of a row with non-null state col
 static inline void resetNumNullRows(SWindowRowsSup* pRowSup) {
   pRowSup->numNullRows = 0;
+  pRowSup->numDeferredPartialNull = 0;
+  pRowSup->numDeferredTailAllNull = 0;
+  pRowSup->firstDeferredPartialRowIndex = -1;
+  pRowSup->lastDeferredPartialNullTs = INT64_MIN;
 }
 
 static inline void resetWindowRowsSup(SWindowRowsSup* pRowSup) {
@@ -599,7 +702,10 @@ static inline void resetWindowRowsSup(SWindowRowsSup* pRowSup) {
   pRowSup->win.skey = pRowSup->win.ekey = 0;
   pRowSup->prevTs = INT64_MIN;
   pRowSup->startRowIndex = pRowSup->groupId = 0;
-  pRowSup->numOfRows = pRowSup->numNullRows = 0;
+  pRowSup->numOfRows = pRowSup->numNullRows = pRowSup->numDeferredPartialNull = 0;
+  pRowSup->numDeferredTailAllNull = 0;
+  pRowSup->firstDeferredPartialRowIndex = -1;
+  pRowSup->lastDeferredPartialNullTs = INT64_MIN;
 }
 
 typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
@@ -614,6 +720,8 @@ typedef struct SSessionAggOperatorInfo {
   int64_t               gap;       // session window gap
   int32_t               tsSlotId;  // primary timestamp slot id
   STimeWindowAggSupp    twAggSup;
+  bool                  indefRowsMode;
+  SIndefRowsRuntime     indefRows;
   struct SOperatorInfo* pOperator;
   bool                  cleanGroupResInfo;
 } SSessionAggOperatorInfo;
@@ -624,11 +732,16 @@ typedef struct SStateWindowOperatorInfo {
   SExprSupp             scalarSup;
   SGroupResInfo         groupResInfo;
   SWindowRowsSup        winSup;
-  SColumn               stateCol;
+  SArray*               stateCols;  // SArray<SColumn>
   bool                  hasKey;    // has key means the state window has started
-  SStateKeys            stateKey;
+  SArray*               stateKeys;  // SArray<SStateKeys>
+  SArray*               pendingKeys; // SArray<SStateKeys>  shadow including deferred partial-NULL rows
+  bool*                 pendingColTouched; // per-column flag: non-NULL seen in a pending partial-NULL row
+  bool                  hasPendingPartialNull; // any deferred partial-NULL row exists
   int32_t               tsSlotId;  // primary timestamp column slot id
   STimeWindowAggSupp    twAggSup;
+  bool                  indefRowsMode;
+  SIndefRowsRuntime     indefRows;
   struct SOperatorInfo* pOperator;
   bool                  cleanGroupResInfo;
   STrueForInfo          trueForInfo;
@@ -649,8 +762,16 @@ typedef struct SEventWindowOperatorInfo {
   bool               inWindow;
   SResultRow*        pRow;
   SSDataBlock*       pPreDataBlock;
+  bool               indefRowsMode;
+  SIndefRowsRuntime  indefRows;
   struct SOperatorInfo*     pOperator;
   STrueForInfo              trueForInfo;
+  STrueForInfo  startTrueForInfo;
+  int32_t       startCondCount;     // consecutive start-condition row count (across blocks)
+  int64_t       startCondFirstTs;   // ts of first row in current start-condition streak (INT64_MIN if none)
+  STrueForInfo  endTrueForInfo;
+  int32_t       endCondCount;       // consecutive end-condition row count (across blocks)
+  int64_t       endCondFirstTs;     // ts of first row in current end-condition streak (INT64_MIN if none)
 } SEventWindowOperatorInfo;
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
@@ -668,6 +789,23 @@ void cleanupBasicInfo(SOptrBasicInfo* pInfo);
 
 int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, SFunctionStateStore* pStore);
 void checkIndefRowsFuncs(SExprSupp* pSup);
+int32_t initIndefRowsRuntime(SIndefRowsRuntime* pRuntime, SqlFunctionCtx* pCtx, int32_t numOfExprs, int32_t blockCapacity,
+                             SNodeList* pProjs, SFunctionStateStore* pFuncStore);
+void    resetIndefRowsRuntime(SIndefRowsRuntime* pRuntime, struct SOperatorInfo* pOperator);
+void    cleanupIndefRowsRuntime(SIndefRowsRuntime* pRuntime, struct SOperatorInfo* pOperator);
+SIndefRowsWindowState* findIndefRowsWindowState(const SIndefRowsRuntime* pRuntime, uint64_t groupId, TSKEY winSKey);
+int32_t applyIndefRowsFuncOnWindowState(struct SOperatorInfo* pOperator, SIndefRowsRuntime* pRuntime,
+                                        SIndefRowsWindowState** ppState, SSDataBlock* pResultTemplate,
+                                        uint64_t groupId, const STimeWindow* pWin, SSDataBlock* pInputBlock,
+                                        int32_t startRow, int32_t numRows, int32_t inputTsOrder,
+                                        int32_t resultRowSize);
+int32_t closeIndefRowsWindowState(struct SOperatorInfo* pOperator, SIndefRowsRuntime* pRuntime,
+                                  SIndefRowsWindowState* pState);
+int32_t closeAllIndefRowsWindowStates(struct SOperatorInfo* pOperator, SIndefRowsRuntime* pRuntime);
+void    dropIndefRowsWindowState(struct SOperatorInfo* pOperator, SIndefRowsRuntime* pRuntime,
+                                 SIndefRowsWindowState* pState);
+void    dropAllIndefRowsWindowStates(struct SOperatorInfo* pOperator, SIndefRowsRuntime* pRuntime);
+SSDataBlock* getNextIndefRowsResultBlock(SIndefRowsRuntime* pRuntime, struct SOperatorInfo* pOperator);
 void    cleanupExprSupp(SExprSupp* pSup);
 void    cleanupExprSuppWithoutFilter(SExprSupp* pSupp);
 
@@ -721,6 +859,12 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
                                int32_t rows, SExecTaskInfo* pTask, STableMetaCacheInfo* pCache);
 
 int32_t appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
+
+// Append one tag value (looked up by cid from pTagData) into the resolved-tag array, replacing
+// any existing entry with the same cid. Shared by the DynQueryCtrl path and the static virtual
+// table scan path (ensureOwnedTagsResolved).
+int32_t appendResolvedTagVal(SArray* pResolvedTags, col_id_t dstColId, const SSchema* pSchema,
+                             const STag* pTagData);
 int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput,
                             int32_t* rowEntryInfoOffset);
 void    clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);
@@ -730,10 +874,12 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
                                    bool isIntervalQuery, SAggSupporter* pSup, bool keepGroup);
 
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
-                              int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams);
+                              int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams,
+                              SExecTaskInfo* pTaskInfo);
 int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock,
                                         SqlFunctionCtx* pCtx, int32_t numOfOutput, SArray* pPseudoList,
-                                        const void* pExtraParams, bool doSelectFunc, bool hasIndefRowsFunc);
+                                        const void* pExtraParams, bool doSelectFunc, bool hasIndefRowsFunc,
+                                        SExecTaskInfo* pTaskInfo);
 
 int32_t setInputDataBlock(SExprSupp* pExprSupp, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
                           bool createDummyCol);
@@ -764,6 +910,10 @@ SExprInfo*   createExpr(SNodeList* pNodeList, int32_t* numOfExprs);
 int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultRow* pRow, SqlFunctionCtx* pCtx,
                                  SSDataBlock* pBlock, const int32_t* rowEntryOffset, SExecTaskInfo* pTaskInfo);
 void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExprs, const int32_t* rowEntryOffset);
+bool resultRowGetGroupKeyResult(const SResultRow* pRow, int32_t index, const int32_t* rowEntryOffset,
+                                const void** ppData, bool* pIsNull);
+bool resultRowCopyGroupKeyResult(SResultRow* pDstRow, int32_t dstIndex, const SResultRow* pSrcRow, int32_t srcIndex,
+                                 const int32_t* rowEntryOffset, int32_t interBufSize);
 
 void    streamOpReleaseState(struct SOperatorInfo* pOperator);
 void    streamOpReloadState(struct SOperatorInfo* pOperator);
@@ -793,10 +943,6 @@ int64_t getDeleteMark(SWindowPhysiNode* pWinPhyNode, int64_t interval);
 void    resetUnCloseSessionWinInfo(SSHashObj* winMap);
 void    setStreamOperatorCompleted(struct SOperatorInfo* pOperator);
 void    destroyFlusedPos(void* pRes);
-bool    isIrowtsPseudoColumn(SExprInfo* pExprInfo);
-bool    isIsfilledPseudoColumn(SExprInfo* pExprInfo);
-bool    isInterpFunc(SExprInfo* pExprInfo);
-bool    isIrowtsOriginPseudoColumn(SExprInfo* pExprInfo);
 
 int32_t encodeSSessionKey(void** buf, SSessionKey* key);
 void*   decodeSSessionKey(void* buf, SSessionKey* key);
@@ -811,6 +957,8 @@ int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, in
 int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window, bool isNewParam, ETableScanDynType type);
 int32_t buildTableScanOperatorParamNotify(SOperatorParam** ppRes,
                                           int32_t srcOpType, TSKEY notifyTs);
+int32_t setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId,
+                         const char* name);
 void    freeExchangeGetBasicOperatorParam(void* pParam);
 void    freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);
 int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam,
@@ -828,14 +976,22 @@ bool inWinRange(STimeWindow* range, STimeWindow* cur);
 int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
                                TSKEY* primaryKeys, int32_t prevPosition, int32_t order);
 int32_t extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status);
-bool    getIgoreNullRes(SExprSupp* pExprSup);
-bool    checkNullRow(SExprSupp* pExprSup, SSDataBlock* pSrcBlock, int32_t index, bool ignoreNull);
 STrueForInfo* getTrueForInfo(struct SOperatorInfo* pOperator);
 
 void    destroyTmqScanOperatorInfo(void* param);
 void    resetBasicOperatorState(SOptrBasicInfo* pBasicInfo);
 
 int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size);
+
+#if defined(BUILD_TEST)
+int32_t extWinTestTakeReusableBlock(SList* pFreeBlocks, SList* pTargetBlocks, int32_t rows, SSDataBlock** ppBlock,
+                                    SArray** ppIdx);
+bool    extWinTestBlockNodeInvariantHolds(SList* pList, SListNode* pNode, SListNode* pExpectedPrev, SSDataBlock* pBlock,
+                                          SArray* pIdx, int32_t appendRows, int32_t* pOverlapCol);
+int32_t extWinTestOutputAliasLifecycle(SList* pOutputList, SList* pFreeBlocks, bool reset, bool* pAliasEstablished,
+                                       bool* pAliasCleared);
+int32_t extWinTestLastWinClosed(SList* pOutputBlocks, bool* pClosed);
+#endif
 
 #ifdef __cplusplus
 }

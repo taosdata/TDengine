@@ -30,6 +30,9 @@ TAOS *(*fp_taos_connect_auth)(const char *ip, const char *user, const char *auth
 TAOS *(*fp_taos_connect_with)(const OPTIONS *options) = NULL;
 TAOS *(*fp_taos_connect_with_dsn)(const char *dsn) = NULL;
 void (*fp_taos_close)(TAOS *taos) = NULL;
+int (*fp_taos_txn_begin)(TAOS *taos) = NULL;
+int (*fp_taos_txn_commit)(TAOS *taos) = NULL;
+int (*fp_taos_txn_rollback)(TAOS *taos) = NULL;
 
 const char *(*fp_taos_data_type)(int type) = NULL;
 
@@ -64,6 +67,9 @@ int (*fp_taos_stmt2_prepare)(TAOS_STMT2 *stmt, const char *sql, unsigned long le
 int (*fp_taos_stmt2_bind_param)(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx) = NULL;
 int (*fp_taos_stmt2_bind_param_a)(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp,
                                   void *param) = NULL;
+int (*fp_taos_stmt2_bind_param_column)(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv) = NULL;
+int (*fp_taos_stmt2_bind_param_column_a)(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv, __taos_async_fn_t fp,
+                                         void *param) = NULL;
 int (*fp_taos_stmt2_exec)(TAOS_STMT2 *stmt, int *affected_rows) = NULL;
 int (*fp_taos_stmt2_close)(TAOS_STMT2 *stmt) = NULL;
 int (*fp_taos_stmt2_is_insert)(TAOS_STMT2 *stmt, int *insert) = NULL;
@@ -107,6 +113,7 @@ const char *(*fp_taos_get_server_info)(TAOS *taos) = NULL;
 const char *(*fp_taos_get_client_info)() = NULL;
 int (*fp_taos_get_current_db)(TAOS *taos, char *database, int len, int *required) = NULL;
 int (*fp_taos_get_connection_info)(TAOS *taos, TSDB_CONNECTION_INFO info, char *buffer, int *len) = NULL;
+void *(*fp_taos_get_result_tz)(TAOS_RES *res) = NULL;
 
 const char *(*fp_taos_errstr)(TAOS_RES *res) = NULL;
 int (*fp_taos_errno)(TAOS_RES *res) = NULL;

@@ -11,6 +11,51 @@
 
 #include "sut.h"
 
+extern "C" {
+#include "smInt.h"
+#include "tglobal.h"
+}
+
+namespace {
+
+int32_t dispatchToFirstTriggerWorker(SDispatchWorkerPool*, void*, int32_t* pWorkerIdx) {
+  *pWorkerIdx = 0;
+  return TSDB_CODE_SUCCESS;
+}
+
+}  // namespace
+
+TEST(SnodeQueueOwnershipTest, TriggerDispatchFailureReleasesTransferredRpcItem) {
+  SSnodeMgmt      mgmt = {};
+  SDispatchWorker worker = {};
+  mgmt.pSnode = reinterpret_cast<SSnode*>(&mgmt);
+  mgmt.triggerWorkerPool.name = "snode-queue-ownership-test";
+  mgmt.triggerWorkerPool.num = 1;
+  mgmt.triggerWorkerPool.pWorkers = &worker;
+  mgmt.triggerWorkerPool.dispatchFp = dispatchToFirstTriggerWorker;
+  ASSERT_EQ(0, taosThreadMutexInit(&mgmt.triggerWorkerPool.poolLock, nullptr));
+  ASSERT_EQ(0, taosOpenQueue(&worker.queue));
+  taosSetQueueMemoryCapacity(worker.queue, 1);
+
+  const int64_t queueMemoryBefore = atomic_load_64(&tsQueueMemoryUsed);
+  const int64_t queueMemoryAllowedBefore = tsQueueMemoryAllowed;
+  tsQueueMemoryAllowed = INT64_MAX;
+
+  SRpcMsg msg = {};
+  msg.msgType = TDMT_STREAM_TRIGGER_CTRL;
+  msg.contLen = 94;
+  msg.pCont = rpcMallocCont(msg.contLen);
+  ASSERT_NE(nullptr, msg.pCont);
+
+  EXPECT_EQ(TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY, smPutMsgToQueue(&mgmt, STREAM_TRIGGER_QUEUE, &msg));
+  EXPECT_EQ(nullptr, msg.pCont);
+  EXPECT_EQ(queueMemoryBefore, atomic_load_64(&tsQueueMemoryUsed));
+
+  tsQueueMemoryAllowed = queueMemoryAllowedBefore;
+  taosCloseQueue(worker.queue);
+  taosThreadMutexDestroy(&mgmt.triggerWorkerPool.poolLock);
+}
+
 class DndTestSnode : public ::testing::Test {
  protected:
   static void SetUpTestSuite() { test.Init(TD_TMP_DIR_PATH "dsnodeTest", 9113); }

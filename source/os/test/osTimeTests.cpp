@@ -213,6 +213,100 @@ TEST(osTimeTests, windowsOffsetFallbackWhenTZUnset) {
   int64_t expected = (int64_t)minute_offset * 60;
   ASSERT_EQ(getWindowsTimezoneOffset(), expected);
 }
+
+/* Regression: taosSetGlobalTimezone must write POSIX UTC±h:mm to TZ env var.
+ * POSIX sign convention: east '-' (UTC-8:00 = UTC+8), west '+' (UTC+5:00 = UTC-5). */
+TEST(osTimeTests, windowsTZEnvVarFormatIsPOSIX) {
+  char tzEnv[64] = {0};
+
+  /* POSIX "UTC-8" = East 8 (UTC+8) → "UTC-08:00" */
+  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
+  ASSERT_GT(GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv)), 0u);
+  EXPECT_STREQ(tzEnv, "UTC-08:00");
+
+  /* "UTC" → "UTC+00:00" */
+  ASSERT_EQ(taosSetGlobalTimezone("UTC"), 0);
+  ASSERT_GT(GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv)), 0u);
+  EXPECT_STREQ(tzEnv, "UTC+00:00");
+
+  /* POSIX "UTC+5" = West 5 (UTC-5) → "UTC+05:00" */
+  ASSERT_EQ(taosSetGlobalTimezone("UTC+5"), 0);
+  ASSERT_GT(GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv)), 0u);
+  EXPECT_STREQ(tzEnv, "UTC+05:00");
+
+  /* Sub-hour: POSIX "UTC-5:30" = East 5h30m (UTC+5:30) → "UTC-05:30" */
+  ASSERT_EQ(taosSetGlobalTimezone("UTC-5:30"), 0);
+  ASSERT_GT(GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv)), 0u);
+  EXPECT_STREQ(tzEnv, "UTC-05:30");
+
+  /* Restore */
+  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
+}
+
+/* Regression: getWindowsTimezoneOffset must parse primary POSIX UTC±h:mm format.
+ * Returns east-negative: UTC+8 → -28800, UTC-5 → +18000. */
+TEST(osTimeTests, windowsGetOffsetParsePOSIX) {
+  /* "UTC-8:00" POSIX (East 8) → east-negative: -28800 */
+  SetEnvironmentVariableA("TZ", "UTC-8:00");
+  EXPECT_EQ(getWindowsTimezoneOffset(), -TdEastZone8);
+
+  /* "UTC+0:00" → 0 */
+  SetEnvironmentVariableA("TZ", "UTC+0:00");
+  EXPECT_EQ(getWindowsTimezoneOffset(), 0LL);
+
+  /* "UTC+5:00" POSIX (West 5) → east-negative: +18000 */
+  SetEnvironmentVariableA("TZ", "UTC+5:00");
+  EXPECT_EQ(getWindowsTimezoneOffset(), (int64_t)5 * 3600);
+
+  /* Sub-hour: "UTC-5:30" POSIX (East 5.5h = UTC+5:30) → -19800 */
+  SetEnvironmentVariableA("TZ", "UTC-5:30");
+  EXPECT_EQ(getWindowsTimezoneOffset(), -(int64_t)(5 * 3600 + 30 * 60));
+
+  /* Restore */
+  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
+}
+
+/* Backward compat: getWindowsTimezoneOffset must also parse bare ISO 8601 ±hh:mm
+ * that may have been written by a prior version of this code. */
+TEST(osTimeTests, windowsGetOffsetISO8601Compat) {
+  /* "+08:00" = UTC+8 (east) → east-negative: -28800 */
+  SetEnvironmentVariableA("TZ", "+08:00");
+  EXPECT_EQ(getWindowsTimezoneOffset(), -TdEastZone8);
+
+  /* "+00:00" → 0 */
+  SetEnvironmentVariableA("TZ", "+00:00");
+  EXPECT_EQ(getWindowsTimezoneOffset(), 0LL);
+
+  /* "-05:00" = UTC-5 (west) → east-negative: +18000 */
+  SetEnvironmentVariableA("TZ", "-05:00");
+  EXPECT_EQ(getWindowsTimezoneOffset(), (int64_t)5 * 3600);
+
+  /* Restore */
+  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
+}
+
+/* Regression: initTimezoneInfo must set TZ in POSIX UTC±h:mm format.
+ * Bare ISO 8601 ±hh:mm (no prefix) is not parseable by _tzset(). */
+TEST(osTimeTests, windowsInitTimezoneFormatIsPOSIX) {
+  /* Clear TZ so initTimezoneInfo reads and writes the system timezone. */
+  SetEnvironmentVariableA("TZ", NULL);
+  ASSERT_EQ(initTimezoneInfo(), TSDB_CODE_SUCCESS);
+
+  char tzEnv[64] = {0};
+  ASSERT_GT(GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv)), 0u);
+
+  /* Must start with alphabetic prefix (POSIX), not bare '+'/'-' (ISO 8601). */
+  EXPECT_TRUE((tzEnv[0] >= 'A' && tzEnv[0] <= 'Z') ||
+              (tzEnv[0] >= 'a' && tzEnv[0] <= 'z'))
+      << "TZ missing POSIX alpha prefix: " << tzEnv;
+  EXPECT_EQ(strncmp(tzEnv, "UTC", 3), 0) << "TZ does not start with UTC: " << tzEnv;
+
+  /* 4th char must be the sign. */
+  EXPECT_TRUE(tzEnv[3] == '+' || tzEnv[3] == '-') << "TZ missing sign at pos 3: " << tzEnv;
+
+  /* Restore */
+  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
+}
 #endif
 
 TEST(osTimeTests, invalidParameter) {
@@ -277,6 +371,11 @@ TEST(osTimeTests, user_mktime64) {
 }
 
 TEST(osTimeTests, taosLocalTimeBenchmark) {
+  const char* runBenchmark = getenv("TAOS_RUN_OS_TIME_BENCHMARK");
+  if (runBenchmark == nullptr || strcmp(runBenchmark, "1") != 0) {
+    GTEST_SKIP() << "set TAOS_RUN_OS_TIME_BENCHMARK=1 to run this stress benchmark";
+  }
+
   const int threads = 400;
   const int iters = 1000000;
 

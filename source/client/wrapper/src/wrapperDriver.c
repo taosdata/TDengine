@@ -13,8 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if !defined(WINDOWS) && !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif
+
 #include "wrapper.h"
 #include "wrapperHint.h"
+#ifndef WINDOWS
+#include <dlfcn.h>
+#endif
 
 #ifdef WINDOWS
 #define DRIVER_NATIVE_NAME    "taosnative.dll"
@@ -31,6 +38,9 @@
   funcName = fname;                           \
   fptr = taosLoadDllFunc(tsDriver, funcName); \
   if (fptr == NULL) goto _OVER;
+
+#define LOAD_FUNC_OPTIONAL(fptr, fname)           \
+  fptr = taosLoadDllFunc(tsDriver, fname);
 
 #ifdef WEBSOCKET
 EDriverType tsDriverType = DRIVER_NATIVE;  // todo simon
@@ -50,6 +60,33 @@ static int32_t taosGetDevelopPath(char *driverPath, const char *driverName) {
 
   return ret;
 }
+
+#ifndef WINDOWS
+static int32_t taosGetCoLocatedPath(char *driverPath, const char *driverName) {
+  Dl_info info = {0};
+  if (dladdr((void*)taosDriverInit, &info) == 0 || info.dli_fname == NULL) {
+    return -1;
+  }
+
+  const char *full = info.dli_fname;
+  const char *sep = strrchr(full, TD_DIRSEP[0]);
+  if (sep == NULL) {
+    return -1;
+  }
+
+  size_t dirLen = (size_t)(sep - full);
+  if (dirLen == 0 || dirLen >= PATH_MAX) {
+    return -1;
+  }
+
+  int32_t n = snprintf(driverPath, PATH_MAX, "%.*s%s%s", (int)dirLen, full, TD_DIRSEP, driverName);
+  if (n <= 0 || n >= PATH_MAX) {
+    return -1;
+  }
+
+  return taosRealPath(driverPath, NULL, PATH_MAX);
+}
+#endif
 
 void taosDriverEnvInit() {
   const char *driver = getenv("TDENGINE_DRIVER");
@@ -73,6 +110,13 @@ int32_t taosDriverInit(EDriverType driverType) {
   } else {
     driverName = DRIVER_WSBSOCKET_NAME;
   }
+
+  // Prefer the driver colocated with loaded libtaos wrapper.
+#ifndef WINDOWS
+  if (tsDriver == NULL && taosGetCoLocatedPath(driverPath, driverName) == 0) {
+    tsDriver = taosLoadDll(driverPath);
+  }
+#endif
 
   // load from develop build path
   if (tsDriver == NULL && taosGetDevelopPath(driverPath, driverName) == 0) {
@@ -113,6 +157,13 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC(fp_taos_connect_with, "taos_connect_with");
   LOAD_FUNC(fp_taos_connect_with_dsn, "taos_connect_with_dsn");
   LOAD_FUNC(fp_taos_close, "taos_close");
+  // txn functions are currently only implemented in the native driver, not in the WebSocket driver.
+  // Use LOAD_FUNC_OPTIONAL (optional) instead of LOAD_FUNC (mandatory) so that loading the WebSocket
+  // driver does not fail due to missing symbols. Switch to LOAD_FUNC once the WebSocket driver
+  // implements txn support.
+  LOAD_FUNC_OPTIONAL(fp_taos_txn_begin, "taos_txn_begin");
+  LOAD_FUNC_OPTIONAL(fp_taos_txn_commit, "taos_txn_commit");
+  LOAD_FUNC_OPTIONAL(fp_taos_txn_rollback, "taos_txn_rollback");
 
   LOAD_FUNC(fp_taos_data_type, "taos_data_type");
 
@@ -146,6 +197,10 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC(fp_taos_stmt2_prepare, "taos_stmt2_prepare");
   LOAD_FUNC(fp_taos_stmt2_bind_param, "taos_stmt2_bind_param");
   LOAD_FUNC(fp_taos_stmt2_bind_param_a, "taos_stmt2_bind_param_a");
+  if (driverType == DRIVER_NATIVE) {
+    LOAD_FUNC(fp_taos_stmt2_bind_param_column, "taos_stmt2_bind_param_column");
+    LOAD_FUNC(fp_taos_stmt2_bind_param_column_a, "taos_stmt2_bind_param_column_a");
+  }
   LOAD_FUNC(fp_taos_stmt2_exec, "taos_stmt2_exec");
   LOAD_FUNC(fp_taos_stmt2_close, "taos_stmt2_close");
   LOAD_FUNC(fp_taos_stmt2_is_insert, "taos_stmt2_is_insert");
@@ -189,6 +244,7 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC(fp_taos_get_client_info, "taos_get_client_info");
   LOAD_FUNC(fp_taos_get_current_db, "taos_get_current_db");
   LOAD_FUNC(fp_taos_get_connection_info, "taos_get_connection_info");
+  LOAD_FUNC_OPTIONAL(fp_taos_get_result_tz, "taos_get_result_tz");
 
   LOAD_FUNC(fp_taos_errstr, "taos_errstr");
   LOAD_FUNC(fp_taos_errno, "taos_errno");

@@ -27,8 +27,7 @@ class TestSelectWithJson:
 
         Since: v3.3.0.0
 
-        Labels: decimal
-
+        Labels: decimal,integration,functional
         History:
             - 2024-12-13 Jing Sima Created
             - 2025-5-08 Huo Hong Migrated to new test framework

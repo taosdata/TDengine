@@ -12,6 +12,10 @@
 #include "tmsg.h"
 #include "tname.h"
 
+#ifndef _GRANT
+int32_t grantCheckQuery(uint32_t tsGrantVal, const SSubplan *pSubplan) { return TSDB_CODE_SUCCESS; }
+#endif
+
 SQWorkerMgmt gQwMgmt = {
     .lock = 0,
     .qwRef = -1,
@@ -463,11 +467,17 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWMsg *qwMsg, int32_t code) {
   }
 
   SQWTaskCtx *ctx = NULL;
+  bool        quickFetch = false;
   QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
 
+  QW_LOCK(QW_WRITE, &ctx->lock);
   if (!QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
+    QW_UNLOCK(QW_WRITE, &ctx->lock);
     goto _return;
   }
+  atomic_store_8(&ctx->inQuickFetch, 1);
+  QW_UNLOCK(QW_WRITE, &ctx->lock);
+  quickFetch = true;
 
   void       *rsp = NULL;
   int32_t     dataLen = 0;
@@ -518,6 +528,22 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWMsg *qwMsg, int32_t code) {
 _return:
 
   if (ctx) {
+    if (quickFetch) {
+      bool dropReceived = false;
+      QW_LOCK(QW_WRITE, &ctx->lock);
+      dropReceived = QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
+      atomic_store_8(&ctx->inQuickFetch, 0);
+      QW_UNLOCK(QW_WRITE, &ctx->lock);
+
+      if (dropReceived) {
+        // Drop only records the event while quick fetch is using the sink.
+        // Run the deferred drop after leaving quick fetch so the sink is not destroyed mid-fetch.
+        int32_t dropCode = qwDropTask(QW_FPARAMS());
+        if (TSDB_CODE_SUCCESS == code && dropCode) {
+          code = dropCode;
+        }
+      }
+    }
     qwReleaseTaskCtx(mgmt, ctx);
   }
 
@@ -820,6 +846,8 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
 
   if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
     if (QW_PHASE_POST_FETCH != phase || ((!QW_QUERY_RUNNING(ctx)) && qwTaskNotInExec(ctx))) {
+      QW_TASK_WLOG("drop task in post phase:%s, sinkHandle:%p, thread:%" PRId64, qwPhaseStr(phase), ctx->sinkHandle,
+                   taosGetSelfPthreadId());
       QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
       QW_ERR_JRET(ctx->rspCode);
     }
@@ -972,6 +1000,12 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   if (NULL == plan) {
     QW_TASK_ELOG("empty task physical plan to subplan, msg:%p, len:%d", qwMsg->msg, qwMsg->msgLen);
     QW_ERR_JRET(TSDB_CODE_QRY_INVALID_MSG);
+  }
+
+  code = grantCheckQuery(atomic_load_32(&tsGrant), plan);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode *)plan);
+    QW_ERR_JRET(code);
   }
 
   taosEnableMemPoolUsage(ctx->memPoolSession);
@@ -1312,6 +1346,9 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   if (QW_QUERY_RUNNING(ctx)) {
     QW_ERR_JRET(qwKillTaskHandle(ctx, TSDB_CODE_TSC_QUERY_CANCELLED));
     QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_DROP, ctx->dynamicTask));
+  } else if (QW_QUICK_FETCH_RUNNING(ctx)) {
+    QW_TASK_WLOG("defer direct drop while quick fetch is running, sinkHandle:%p, thread:%" PRId64, ctx->sinkHandle,
+                 taosGetSelfPthreadId());
   } else {
     QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
     dropped = true;

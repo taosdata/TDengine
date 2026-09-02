@@ -33,6 +33,7 @@ TARGET_INCLUDE_DIRECTORIES(
         joinTests
         PUBLIC "${TD_SOURCE_DIR}/include/common"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
 )
 
 ADD_EXECUTABLE(queryPlanTests queryPlanTests.cpp)
@@ -47,10 +48,14 @@ TARGET_INCLUDE_DIRECTORIES(
         queryPlanTests
         PUBLIC "${TD_SOURCE_DIR}/include/common"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
 )
 
 ADD_EXECUTABLE(execUtilTests execUtilTests.cpp)
 DEP_ext_gtest(execUtilTests)
+if(BUILD_TEST)
+        target_compile_definitions(execUtilTests PRIVATE BUILD_TEST)
+endif()
 TARGET_LINK_LIBRARIES(
         execUtilTests
         PRIVATE PRIVATE os util common executor qcom function planner scalar nodes vnode
@@ -58,6 +63,20 @@ TARGET_LINK_LIBRARIES(
 
 TARGET_INCLUDE_DIRECTORIES(
         execUtilTests
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
+)
+
+ADD_EXECUTABLE(windowFuncFrameTests windowFuncFrameTests.cpp)
+DEP_ext_gtest(windowFuncFrameTests)
+TARGET_LINK_LIBRARIES(
+        windowFuncFrameTests
+        PRIVATE PRIVATE os util common executor qcom function planner scalar nodes vnode
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        windowFuncFrameTests
         PUBLIC "${TD_SOURCE_DIR}/include/common"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )

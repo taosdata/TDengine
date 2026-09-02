@@ -5,30 +5,13 @@ import time
 import threading
 import secrets
 import numpy
-import os
-import subprocess
 import re
 from typing import List
 from datetime import datetime, timedelta
-import platform
-if platform.system().lower() == 'windows':
-    import wexpect
 
 from new_test_framework.utils import tdLog, tdSql, TDSql
 from decimal import *
-from multiprocessing import Value, Lock
 from functools import cmp_to_key
-
-class AtomicCounter:
-    def __init__(self, initial_value=0):
-        self._value = Value('i', initial_value)
-        self._lock = Lock()
-
-    def fetch_add(self, delta = 1):
-        with self._lock:
-            old_value = self._value.value
-            self._value.value += delta
-            return old_value
 
 getcontext().prec = 40
 
@@ -216,57 +199,42 @@ class DecimalColumnAggregator:
             if v < self.min:
                 self.min = v
 
-atomic_counter = AtomicCounter(0)
-
 class TaosShell:
     def __init__(self):
-        self.counter_ = atomic_counter.fetch_add()
         self.queryResult = []
-        self.tmp_file_path = os.path.join(os.path.dirname(__file__), "taos_shell_result")
-    
-    def get_file_path(self):
-        return f"{self.tmp_file_path}_{self.counter_}"
 
-    def read_result(self):
-        with open(self.get_file_path(), "r") as f:
-            lines = f.readlines()
-            lines = lines[1:]
-            for line in lines:
-                col = 0
-                vals: list[str] = line.split(",")
-                if len(self.queryResult) == 0:
-                    self.queryResult = [[] for i in range(len(vals))]
-                for val in vals:
-                    self.queryResult[col].append(val.strip().strip('"'))
-                    col += 1
+    @staticmethod
+    def format_value(val):
+        if val is None:
+            return "NULL"
+        if isinstance(val, bool):
+            return "1" if val else "0"
+        return str(val)
 
     def query(self, sql: str):
-        with open(self.get_file_path(), "a+") as f:
-            f.truncate(0)
         self.queryResult = []
         try:
-            if platform.system().lower() == "windows":
-                tdLog.info(f"use wexpect to exec taos command: {sql}")
-                child = wexpect.spawn("taos", timeout=60)
-                try:
-                    child.expect("> ")
-                    child.sendline(f"{sql} >> {self.get_file_path()};")
-                    child.expect("> ")
-                    child.sendline("quit")
-                    child.expect("> ")
-                    child.expect(wexpect.EOF)
-                except Exception as e:
-                    tdLog.error(f"wexpect failed, child.before:\n{child.before}")
-                    raise
-            else:
-                command = f'taos -s "{sql} >> {self.get_file_path()}"'
-                tdLog.debug(f"exec command: {command}")
-                result = subprocess.run(
-                    command, shell=True, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE
-                )
-            self.read_result()
+            tdLog.debug(f"exec query: {sql}")
+            tdSql.sql = sql
+            tdSql.cursor.execute(sql)
+            rows = tdSql.cursor.fetchall()
+            tdSql.queryResult = rows
+            tdSql.queryRows = len(rows)
+            tdSql.queryCols = len(tdSql.cursor.description)
+            if not rows:
+                return self.queryResult
+            self.queryResult = [[] for _ in range(len(rows[0]))]
+            for row in rows:
+                for col, val in enumerate(row):
+                    self.queryResult[col].append(self.format_value(val))
         except Exception as e:
-            tdLog.exit(f"Command '{sql}' failed with error: {e.stderr.decode('utf-8')}")
+            tdSql.queryResult = None
+            tdSql.queryRows = 0
+            tdSql.queryCols = 0
+            if "Decimal value overflow" in str(e):
+                tdLog.info(f"query got decimal overflow: {sql}")
+                return self.queryResult
+            tdLog.exit(f"Command '{sql}' failed with error: {e}")
         return self.queryResult
 
 class DecimalColumnExpr:
@@ -2012,8 +1980,7 @@ class TestDecimal3:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

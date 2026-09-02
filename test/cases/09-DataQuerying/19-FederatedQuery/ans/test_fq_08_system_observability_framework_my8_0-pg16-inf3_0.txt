@@ -1,0 +1,1656 @@
+================================================================================================
+CASE START: CASE-sys003m[MYS]
+DESC: MySQL source: SELECT all non-dynamic cols from ins_ext_sources; 10-col DS §5.4 schema; password masked; schema empty (covers SYS-003, s03)
+================================================================================================
+### CASE-sys003m[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq08_s003_m
+RESULT:
+OK
+---
+### CASE-sys003m[MYS] STEP-002 EXEC
+SQL: create external source fq08_s003_m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata' database='testdb'
+RESULT:
+OK
+---
+### CASE-sys003m[MYS] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s003_m|mysql|127.0.0.1|13306|root|******|testdb||{}
+---
+### CASE-sys003m[MYS] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq08_s003_m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s003_m|mysql|127.0.0.1|13306|root|******|testdb||{}
+---
+### CASE-sys003m[MYS] STEP-003 QUERY
+SQL: select source_name, `type`, `host`, `port`, `user`, `password`, `database`, `schema`, `options` from information_schema.ins_ext_sources where source_name='fq08_s003_m'
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s003_m|mysql|127.0.0.1|13306|root|******|testdb||{}
+---
+### CASE-sys003m[MYS] STEP-004 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq08_s003_m' and create_time is not null
+RESULT:
+count(*)
+1
+---
+### CASE-sys003m[MYS] STEP-005 CLEANUP
+SQL: drop external source if exists fq08_s003_m
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-sys003m[MYS]
+DESC: MySQL source: SELECT all non-dynamic cols from ins_ext_sources; 10-col DS §5.4 schema; password masked; schema empty (covers SYS-003, s03)
+================================================================================================
+================================================================================================
+CASE START: CASE-sys004p[POS]
+DESC: PostgreSQL source: schema='public' stored in ins_ext_sources col[7] (covers s04)
+================================================================================================
+### CASE-sys004p[POS] STEP-001 EXEC
+SQL: drop external source if exists fq08_s004_p
+RESULT:
+OK
+---
+### CASE-sys004p[POS] STEP-002 EXEC
+SQL: create external source fq08_s004_p type='postgresql' host='127.0.0.1' port=15434 user='postgres' password='taosdata' database='pgdb' schema='public'
+RESULT:
+OK
+---
+### CASE-sys004p[POS] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s004_p|postgresql|127.0.0.1|15434|postgres|******|pgdb|public|{}
+---
+### CASE-sys004p[POS] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq08_s004_p
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s004_p|postgresql|127.0.0.1|15434|postgres|******|pgdb|public|{}
+---
+### CASE-sys004p[POS] STEP-003 QUERY
+SQL: select source_name, `type`, `host`, `port`, `user`, `password`, `database`, `schema`, `options` from information_schema.ins_ext_sources where source_name='fq08_s004_p'
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s004_p|postgresql|127.0.0.1|15434|postgres|******|pgdb|public|{}
+---
+### CASE-sys004p[POS] STEP-004 CLEANUP
+SQL: drop external source if exists fq08_s004_p
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-sys004p[POS]
+DESC: PostgreSQL source: schema='public' stored in ins_ext_sources col[7] (covers s04)
+================================================================================================
+================================================================================================
+CASE START: CASE-sys005i[INF]
+DESC: InfluxDB source: type=influxdb, database=telegraf, api_token masked, protocol visible in options (covers s05 + SYS-017)
+================================================================================================
+### CASE-sys005i[INF] STEP-001 EXEC
+SQL: drop external source if exists fq08_s005_i
+RESULT:
+OK
+---
+### CASE-sys005i[INF] STEP-002 EXEC
+SQL: create external source fq08_s005_i type='influxdb' host='127.0.0.1' port=18086 user='admin' database='telegraf' options('api_token'='secret_token','protocol'='flight_sql')
+RESULT:
+OK
+---
+### CASE-sys005i[INF] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s005_i|influxdb|127.0.0.1|18086|admin|******|telegraf||{"api_token":"******","protocol":"flight_sql"}
+---
+### CASE-sys005i[INF] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq08_s005_i
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s005_i|influxdb|127.0.0.1|18086|admin|******|telegraf||{"api_token":"******","protocol":"flight_sql"}
+---
+### CASE-sys005i[INF] STEP-003 QUERY
+SQL: select source_name, `type`, `host`, `port`, `database`, `schema`, `options` from information_schema.ins_ext_sources where source_name='fq08_s005_i'
+RESULT:
+source_name|type|host|port|database|schema|options
+fq08_s005_i|influxdb|127.0.0.1|18086|telegraf||{"api_token":"******","protocol":"flight_sql"}
+---
+### CASE-sys005i[INF] STEP-004 CLEANUP
+SQL: drop external source if exists fq08_s005_i
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-sys005i[INF]
+DESC: InfluxDB source: type=influxdb, database=telegraf, api_token masked, protocol visible in options (covers s05 + SYS-017)
+================================================================================================
+================================================================================================
+CASE START: CASE-empty001[MYS]
+DESC: SELECT for non-existent source name returns 0 rows (not error); count also 0 (covers s01)
+================================================================================================
+### CASE-empty001[MYS] STEP-001 QUERY
+SQL: select source_name from information_schema.ins_ext_sources where source_name='_fq08_never_created_'
+RESULT:
+source_name
+---
+### CASE-empty001[MYS] STEP-002 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='_fq08_never_created_'
+RESULT:
+count(*)
+0
+---
+================================================================================================
+CASE END: CASE-empty001[MYS]
+DESC: SELECT for non-existent source name returns 0 rows (not error); count also 0 (covers s01)
+================================================================================================
+================================================================================================
+CASE START: CASE-cfg006[MYS]
+DESC: federatedQueryConnectTimeoutMs: valid range [100,600000]; 99 and 600001 rejected (covers SYS-006/021/022/025)
+================================================================================================
+### CASE-cfg006[MYS] STEP-001 EXEC
+SQL: alter dnode 0 'federatedQueryConnectTimeoutMs' '100'
+RESULT:
+OK
+---
+### CASE-cfg006[MYS] STEP-002 EXEC
+SQL: alter dnode 0 'federatedQueryConnectTimeoutMs' '5000'
+RESULT:
+OK
+---
+### CASE-cfg006[MYS] STEP-003 EXEC
+SQL: alter dnode 0 'federatedQueryConnectTimeoutMs' '600000'
+RESULT:
+OK
+---
+### CASE-cfg006[MYS] STEP-004 ERROR
+SQL: alter dnode 0 'federatedQueryConnectTimeoutMs' '99'
+RESULT:
+ERROR_OK
+---
+### CASE-cfg006[MYS] STEP-005 ERROR
+SQL: alter dnode 0 'federatedQueryConnectTimeoutMs' '600001'
+RESULT:
+ERROR_OK
+---
+### CASE-cfg006[MYS] STEP-006 EXEC
+SQL: alter dnode 0 'federatedQueryConnectTimeoutMs' '30000'
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-cfg006[MYS]
+DESC: federatedQueryConnectTimeoutMs: valid range [100,600000]; 99 and 600001 rejected (covers SYS-006/021/022/025)
+================================================================================================
+================================================================================================
+CASE START: CASE-cfg024m[MYS]
+DESC: federatedQueryEnable=1 recognized by server; SHOW EXTERNAL SOURCES succeeds; DDL works under enabled flag (covers SYS-024)
+================================================================================================
+### CASE-cfg024m[MYS] STEP-001 QUERY
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-cfg024m[MYS] STEP-002 EXEC
+SQL: drop external source if exists fq08_c024_m
+RESULT:
+OK
+---
+### CASE-cfg024m[MYS] STEP-003 EXEC
+SQL: create external source fq08_c024_m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata'
+RESULT:
+OK
+---
+### CASE-cfg024m[MYS] STEP-003 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_c024_m|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-cfg024m[MYS] STEP-003 AUTO-DESCRIBE
+SQL: describe external source fq08_c024_m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_c024_m|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-cfg024m[MYS] STEP-004 QUERY
+SQL: select source_name from information_schema.ins_ext_sources where source_name='fq08_c024_m'
+RESULT:
+source_name
+fq08_c024_m
+---
+### CASE-cfg024m[MYS] STEP-005 EXEC
+SQL: alter dnode 0 'federatedQueryEnable' '1'
+RESULT:
+OK
+---
+### CASE-cfg024m[MYS] STEP-006 CLEANUP
+SQL: drop external source if exists fq08_c024_m
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-cfg024m[MYS]
+DESC: federatedQueryEnable=1 recognized by server; SHOW EXTERNAL SOURCES succeeds; DDL works under enabled flag (covers SYS-024)
+================================================================================================
+================================================================================================
+CASE START: CASE-opt009m[MYS]
+DESC: OPTIONS: connect_timeout_ms + read_timeout_ms stored as JSON in options column; values correct (covers SYS-009/020)
+================================================================================================
+### CASE-opt009m[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq08_o009_m
+RESULT:
+OK
+---
+### CASE-opt009m[MYS] STEP-002 EXEC
+SQL: create external source fq08_o009_m type='mysql' host='127.0.0.1' port=13306 user='u' password='p' database='testdb' options('connect_timeout_ms'='2000','read_timeout_ms'='3000')
+RESULT:
+OK
+---
+### CASE-opt009m[MYS] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_o009_m|mysql|127.0.0.1|13306|u|******|testdb||{"connect_timeout_ms":"2000","read_timeout_ms":"3000"}
+---
+### CASE-opt009m[MYS] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq08_o009_m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_o009_m|mysql|127.0.0.1|13306|u|******|testdb||{"connect_timeout_ms":"2000","read_timeout_ms":"3000"}
+---
+### CASE-opt009m[MYS] STEP-003 QUERY
+SQL: select `options` from information_schema.ins_ext_sources where source_name='fq08_o009_m'
+RESULT:
+options
+{"connect_timeout_ms":"2000","read_timeout_ms":"3000"}
+---
+### CASE-opt009m[MYS] STEP-004 CLEANUP
+SQL: drop external source if exists fq08_o009_m
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-opt009m[MYS]
+DESC: OPTIONS: connect_timeout_ms + read_timeout_ms stored as JSON in options column; values correct (covers SYS-009/020)
+================================================================================================
+================================================================================================
+CASE START: CASE-opt010m[MYS]
+DESC: TLS: connect_timeout_ms stored as-is; tls_client_key value masked in options column (covers SYS-010)
+================================================================================================
+### CASE-opt010m[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq08_o010_m
+RESULT:
+OK
+---
+### CASE-opt010m[MYS] STEP-002 EXEC
+SQL: create external source fq08_o010_m type='mysql' host='127.0.0.1' port=13306 user='u' password='p' database='testdb' options('connect_timeout_ms'='5000','tls_client_cert'='/path/to/client.pem','tls_client_key'='MY_SECRET_KEY')
+RESULT:
+OK
+---
+### CASE-opt010m[MYS] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_o010_m|mysql|127.0.0.1|13306|u|******|testdb||{"connect_timeout_ms":"5000","tls_client_cert":"******","tls_client_key":"******"}
+---
+### CASE-opt010m[MYS] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq08_o010_m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_o010_m|mysql|127.0.0.1|13306|u|******|testdb||{"connect_timeout_ms":"5000","tls_client_cert":"******","tls_client_key":"******"}
+---
+### CASE-opt010m[MYS] STEP-003 QUERY
+SQL: select `options` from information_schema.ins_ext_sources where source_name='fq08_o010_m'
+RESULT:
+options
+{"connect_timeout_ms":"5000","tls_client_cert":"******","tls_client_key":"******"}
+---
+### CASE-opt010m[MYS] STEP-004 CLEANUP
+SQL: drop external source if exists fq08_o010_m
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-opt010m[MYS]
+DESC: TLS: connect_timeout_ms stored as-is; tls_client_key value masked in options column (covers SYS-010)
+================================================================================================
+================================================================================================
+CASE START: CASE-opt017i[INF]
+DESC: InfluxDB OPTIONS: api_token masked; protocol='flight_sql' visible; options is valid JSON (covers SYS-017)
+================================================================================================
+### CASE-opt017i[INF] STEP-001 EXEC
+SQL: drop external source if exists fq08_o017_i
+RESULT:
+OK
+---
+### CASE-opt017i[INF] STEP-002 EXEC
+SQL: create external source fq08_o017_i type='influxdb' host='127.0.0.1' port=18086 user='u' password='' database='telegraf' options('api_token'='secret_token','protocol'='flight_sql')
+RESULT:
+OK
+---
+### CASE-opt017i[INF] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_o017_i|influxdb|127.0.0.1|18086|u|******|telegraf||{"api_token":"******","protocol":"flight_sql"}
+---
+### CASE-opt017i[INF] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq08_o017_i
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_o017_i|influxdb|127.0.0.1|18086|u|******|telegraf||{"api_token":"******","protocol":"flight_sql"}
+---
+### CASE-opt017i[INF] STEP-003 QUERY
+SQL: select `options` from information_schema.ins_ext_sources where source_name='fq08_o017_i'
+RESULT:
+options
+{"api_token":"******","protocol":"flight_sql"}
+---
+### CASE-opt017i[INF] STEP-004 CLEANUP
+SQL: drop external source if exists fq08_o017_i
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-opt017i[INF]
+DESC: InfluxDB OPTIONS: api_token masked; protocol='flight_sql' visible; options is valid JSON (covers SYS-017)
+================================================================================================
+================================================================================================
+CASE START: CASE-opt028m[MYS]
+DESC: Per-source OPTIONS: custom source has explicit timeouts; default source has no OPTIONS; both in catalog (covers SYS-028)
+================================================================================================
+### CASE-opt028m[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq08_o028_d
+RESULT:
+OK
+---
+### CASE-opt028m[MYS] STEP-002 EXEC
+SQL: drop external source if exists fq08_o028_c
+RESULT:
+OK
+---
+### CASE-opt028m[MYS] STEP-003 EXEC
+SQL: create external source fq08_o028_d type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata'
+RESULT:
+OK
+---
+### CASE-opt028m[MYS] STEP-003 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_o028_d|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-opt028m[MYS] STEP-003 AUTO-DESCRIBE
+SQL: describe external source fq08_o028_d
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_o028_d|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-opt028m[MYS] STEP-004 EXEC
+SQL: create external source fq08_o028_c type='mysql' host='127.0.0.1' port=13306 user='u' password='p' database='testdb' options('read_timeout_ms'='1000','connect_timeout_ms'='500')
+RESULT:
+OK
+---
+### CASE-opt028m[MYS] STEP-004 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_o028_c|mysql|127.0.0.1|13306|u|******|testdb||{"read_timeout_ms":"1000","connect_timeout_ms":"500"}
+---
+### CASE-opt028m[MYS] STEP-004 AUTO-DESCRIBE
+SQL: describe external source fq08_o028_c
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_o028_c|mysql|127.0.0.1|13306|u|******|testdb||{"read_timeout_ms":"1000","connect_timeout_ms":"500"}
+---
+### CASE-opt028m[MYS] STEP-005 QUERY
+SQL: select `options` from information_schema.ins_ext_sources where source_name='fq08_o028_c'
+RESULT:
+options
+{"read_timeout_ms":"1000","connect_timeout_ms":"500"}
+---
+### CASE-opt028m[MYS] STEP-006 QUERY
+SQL: select source_name from information_schema.ins_ext_sources where source_name='fq08_o028_d'
+RESULT:
+source_name
+fq08_o028_d
+---
+### CASE-opt028m[MYS] STEP-007 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name in ('fq08_o028_d','fq08_o028_c')
+RESULT:
+count(*)
+2
+---
+### CASE-opt028m[MYS] STEP-008 CLEANUP
+SQL: drop external source if exists fq08_o028_d
+RESULT:
+OK
+---
+### CASE-opt028m[MYS] STEP-008 CLEANUP
+SQL: drop external source if exists fq08_o028_c
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-opt028m[MYS]
+DESC: Per-source OPTIONS: custom source has explicit timeouts; default source has no OPTIONS; both in catalog (covers SYS-028)
+================================================================================================
+================================================================================================
+CASE START: CASE-ctime018m[MYS]
+DESC: create_time must not be NULL after CREATE EXTERNAL SOURCE; count(*) IS NOT NULL == 1 (covers SYS-018)
+================================================================================================
+### CASE-ctime018m[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq08_ct018_m
+RESULT:
+OK
+---
+### CASE-ctime018m[MYS] STEP-002 EXEC
+SQL: create external source fq08_ct018_m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata'
+RESULT:
+OK
+---
+### CASE-ctime018m[MYS] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ct018_m|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-ctime018m[MYS] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq08_ct018_m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ct018_m|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-ctime018m[MYS] STEP-003 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq08_ct018_m' and create_time is not null
+RESULT:
+count(*)
+1
+---
+### CASE-ctime018m[MYS] STEP-004 CLEANUP
+SQL: drop external source if exists fq08_ct018_m
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-ctime018m[MYS]
+DESC: create_time must not be NULL after CREATE EXTERNAL SOURCE; count(*) IS NOT NULL == 1 (covers SYS-018)
+================================================================================================
+================================================================================================
+CASE START: CASE-perm004m[MYS]
+DESC: Normal user (sysinfo=0) can query basic ins_ext_sources columns without error; password always '******' (covers SYS-004)
+================================================================================================
+### CASE-perm004m[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq08_pm004_m
+RESULT:
+OK
+---
+### CASE-perm004m[MYS] STEP-002 EXEC
+SQL: create external source fq08_pm004_m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata' database='testdb'
+RESULT:
+OK
+---
+### CASE-perm004m[MYS] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_pm004_m|mysql|127.0.0.1|13306|root|******|testdb||{}
+---
+### CASE-perm004m[MYS] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq08_pm004_m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_pm004_m|mysql|127.0.0.1|13306|root|******|testdb||{}
+---
+### CASE-perm004m[MYS] STEP-003 QUERY
+SQL: select source_name, `type`, `host`, `port`, `database` from information_schema.ins_ext_sources where source_name='fq08_pm004_m'
+RESULT:
+source_name|type|host|port|database
+fq08_pm004_m|mysql|127.0.0.1|13306|testdb
+---
+### CASE-perm004m[MYS] STEP-004 EXEC
+SQL: drop user if exists fq08_pm004_usr
+RESULT:
+OK
+---
+### CASE-perm004m[MYS] STEP-005 EXEC
+SQL: create user fq08_pm004_usr pass 'Test_123' sysinfo 0
+RESULT:
+OK
+---
+### CASE-perm004m[MYS] STEP-006 CONNECT
+SQL: -- connect user=fq08_pm004_usr
+RESULT:
+OK
+---
+### CASE-perm004m[MYS] STEP-007 QUERY
+SQL: select source_name, `type`, `host`, `port`, `database` from information_schema.ins_ext_sources where source_name='fq08_pm004_m'
+RESULT:
+source_name|type|host|port|database
+fq08_pm004_m|mysql|127.0.0.1|13306|testdb
+---
+### CASE-perm004m[MYS] STEP-008 QUERY
+SQL: select `password` from information_schema.ins_ext_sources where source_name='fq08_pm004_m'
+RESULT:
+password
+******
+---
+### CASE-perm004m[MYS] STEP-009 CONNECT
+SQL: -- connect user=root
+RESULT:
+OK
+---
+### CASE-perm004m[MYS] STEP-010 EXEC
+SQL: drop user if exists fq08_pm004_usr
+RESULT:
+OK
+---
+### CASE-perm004m[MYS] STEP-011 CLEANUP
+SQL: drop external source if exists fq08_pm004_m
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-perm004m[MYS]
+DESC: Normal user (sysinfo=0) can query basic ins_ext_sources columns without error; password always '******' (covers SYS-004)
+================================================================================================
+================================================================================================
+CASE START: CASE-perm005m[MYS]
+DESC: Admin and non-admin (sysinfo=0) both see user + masked password; user col visible to all per FS §3.9.1 (covers SYS-005)
+================================================================================================
+### CASE-perm005m[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq08_pm005_m
+RESULT:
+OK
+---
+### CASE-perm005m[MYS] STEP-002 EXEC
+SQL: create external source fq08_pm005_m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata'
+RESULT:
+OK
+---
+### CASE-perm005m[MYS] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_pm005_m|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-perm005m[MYS] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq08_pm005_m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_pm005_m|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-perm005m[MYS] STEP-003 QUERY
+SQL: select `user`, `password` from information_schema.ins_ext_sources where source_name='fq08_pm005_m'
+RESULT:
+user|password
+root|******
+---
+### CASE-perm005m[MYS] STEP-004 EXEC
+SQL: drop user if exists fq08_pm005_usr
+RESULT:
+OK
+---
+### CASE-perm005m[MYS] STEP-005 EXEC
+SQL: create user fq08_pm005_usr pass 'Test_123' sysinfo 0
+RESULT:
+OK
+---
+### CASE-perm005m[MYS] STEP-006 CONNECT
+SQL: -- connect user=fq08_pm005_usr
+RESULT:
+OK
+---
+### CASE-perm005m[MYS] STEP-007 QUERY
+SQL: select `user`, `password` from information_schema.ins_ext_sources where source_name='fq08_pm005_m'
+RESULT:
+user|password
+root|******
+---
+### CASE-perm005m[MYS] STEP-008 CONNECT
+SQL: -- connect user=root
+RESULT:
+OK
+---
+### CASE-perm005m[MYS] STEP-009 EXEC
+SQL: drop user if exists fq08_pm005_usr
+RESULT:
+OK
+---
+### CASE-perm005m[MYS] STEP-010 CLEANUP
+SQL: drop external source if exists fq08_pm005_m
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-perm005m[MYS]
+DESC: Admin and non-admin (sysinfo=0) both see user + masked password; user col visible to all per FS §3.9.1 (covers SYS-005)
+================================================================================================
+================================================================================================
+CASE START: CASE-obs011m[MYS]
+DESC: Full execution chain: MySQL → EXT_TABLE_NOT_EXIST (not SYNTAX_ERROR) proves parser→planner→executor→connector path (covers SYS-011)
+================================================================================================
+### CASE-obs011m[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq08_ob011_m
+RESULT:
+OK
+---
+### CASE-obs011m[MYS] STEP-002 EXEC
+SQL: create external source fq08_ob011_m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata'
+RESULT:
+OK
+---
+### CASE-obs011m[MYS] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ob011_m|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-obs011m[MYS] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq08_ob011_m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ob011_m|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-obs011m[MYS] STEP-003 QUERY
+SQL: select source_name, `type`, `host`, `port` from information_schema.ins_ext_sources where source_name='fq08_ob011_m'
+RESULT:
+source_name|type|host|port
+fq08_ob011_m|mysql|127.0.0.1|13306
+---
+### CASE-obs011m[MYS] STEP-004 ERROR
+SQL: select * from fq08_ob011_m.testdb.some_table limit 1
+RESULT:
+ERROR_OK
+---
+### CASE-obs011m[MYS] STEP-005 CLEANUP
+SQL: drop external source if exists fq08_ob011_m
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-obs011m[MYS]
+DESC: Full execution chain: MySQL → EXT_TABLE_NOT_EXIST (not SYNTAX_ERROR) proves parser→planner→executor→connector path (covers SYS-011)
+================================================================================================
+================================================================================================
+CASE START: CASE-obs012mp[MYS]
+DESC: MySQL + PG sources registered independently; each routes to external path; combined count=2; no interference (covers SYS-012)
+================================================================================================
+### CASE-obs012mp[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq08_ob012_m
+RESULT:
+OK
+---
+### CASE-obs012mp[MYS] STEP-002 EXEC
+SQL: drop external source if exists fq08_ob012_p
+RESULT:
+OK
+---
+### CASE-obs012mp[MYS] STEP-003 EXEC
+SQL: create external source fq08_ob012_m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata'
+RESULT:
+OK
+---
+### CASE-obs012mp[MYS] STEP-003 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ob012_m|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-obs012mp[MYS] STEP-003 AUTO-DESCRIBE
+SQL: describe external source fq08_ob012_m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ob012_m|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-obs012mp[MYS] STEP-004 EXEC
+SQL: create external source fq08_ob012_p type='postgresql' host='127.0.0.1' port=15434 user='postgres' password='taosdata' database='pgdb' schema='public'
+RESULT:
+OK
+---
+### CASE-obs012mp[MYS] STEP-004 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ob012_p|postgresql|127.0.0.1|15434|postgres|******|pgdb|public|{}
+---
+### CASE-obs012mp[MYS] STEP-004 AUTO-DESCRIBE
+SQL: describe external source fq08_ob012_p
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ob012_p|postgresql|127.0.0.1|15434|postgres|******|pgdb|public|{}
+---
+### CASE-obs012mp[MYS] STEP-005 QUERY
+SQL: select source_name, `type` from information_schema.ins_ext_sources where source_name='fq08_ob012_m'
+RESULT:
+source_name|type
+fq08_ob012_m|mysql
+---
+### CASE-obs012mp[MYS] STEP-006 QUERY
+SQL: select source_name, `type` from information_schema.ins_ext_sources where source_name='fq08_ob012_p'
+RESULT:
+source_name|type
+fq08_ob012_p|postgresql
+---
+### CASE-obs012mp[MYS] STEP-007 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name in ('fq08_ob012_m','fq08_ob012_p')
+RESULT:
+count(*)
+2
+---
+### CASE-obs012mp[MYS] STEP-008 ERROR
+SQL: select * from fq08_ob012_m.testdb.t1 limit 1
+RESULT:
+ERROR_OK
+---
+### CASE-obs012mp[MYS] STEP-009 ERROR
+SQL: select * from fq08_ob012_p.pgdb.t1 limit 1
+RESULT:
+ERROR_OK
+---
+### CASE-obs012mp[MYS] STEP-010 CLEANUP
+SQL: drop external source if exists fq08_ob012_m
+RESULT:
+OK
+---
+### CASE-obs012mp[MYS] STEP-010 CLEANUP
+SQL: drop external source if exists fq08_ob012_p
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-obs012mp[MYS]
+DESC: MySQL + PG sources registered independently; each routes to external path; combined count=2; no interference (covers SYS-012)
+================================================================================================
+================================================================================================
+CASE START: CASE-obs014m[MYS]
+DESC: Lifecycle: CREATE→catalog-register→SELECT via external path→DROP→confirm removed from catalog (covers SYS-014)
+================================================================================================
+### CASE-obs014m[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq08_ob014_m
+RESULT:
+OK
+---
+### CASE-obs014m[MYS] STEP-002 EXEC
+SQL: create external source fq08_ob014_m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata'
+RESULT:
+OK
+---
+### CASE-obs014m[MYS] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ob014_m|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-obs014m[MYS] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq08_ob014_m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ob014_m|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-obs014m[MYS] STEP-003 QUERY
+SQL: select source_name, `type` from information_schema.ins_ext_sources where source_name='fq08_ob014_m'
+RESULT:
+source_name|type
+fq08_ob014_m|mysql
+---
+### CASE-obs014m[MYS] STEP-004 ERROR
+SQL: select * from fq08_ob014_m.testdb.some_table limit 1
+RESULT:
+ERROR_OK
+---
+### CASE-obs014m[MYS] STEP-005 EXEC
+SQL: drop external source if exists fq08_ob014_m
+RESULT:
+OK
+---
+### CASE-obs014m[MYS] STEP-006 QUERY
+SQL: select source_name from information_schema.ins_ext_sources where source_name='fq08_ob014_m'
+RESULT:
+source_name
+---
+================================================================================================
+CASE END: CASE-obs014m[MYS]
+DESC: Lifecycle: CREATE→catalog-register→SELECT via external path→DROP→confirm removed from catalog (covers SYS-014)
+================================================================================================
+================================================================================================
+CASE START: CASE-multi007[MYS]
+DESC: 2 MySQL + 1 PG sources; type-based WHERE count: mysql=2, postgresql=1 (covers s07)
+================================================================================================
+### CASE-multi007[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq08_ml007_m1
+RESULT:
+OK
+---
+### CASE-multi007[MYS] STEP-002 EXEC
+SQL: drop external source if exists fq08_ml007_m2
+RESULT:
+OK
+---
+### CASE-multi007[MYS] STEP-003 EXEC
+SQL: drop external source if exists fq08_ml007_p1
+RESULT:
+OK
+---
+### CASE-multi007[MYS] STEP-004 EXEC
+SQL: create external source fq08_ml007_m1 type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata'
+RESULT:
+OK
+---
+### CASE-multi007[MYS] STEP-004 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ml007_m1|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-multi007[MYS] STEP-004 AUTO-DESCRIBE
+SQL: describe external source fq08_ml007_m1
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ml007_m1|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-multi007[MYS] STEP-005 EXEC
+SQL: create external source fq08_ml007_m2 type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata'
+RESULT:
+OK
+---
+### CASE-multi007[MYS] STEP-005 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ml007_m2|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-multi007[MYS] STEP-005 AUTO-DESCRIBE
+SQL: describe external source fq08_ml007_m2
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ml007_m2|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-multi007[MYS] STEP-006 EXEC
+SQL: create external source fq08_ml007_p1 type='postgresql' host='127.0.0.1' port=15434 user='postgres' password='taosdata' database='pgdb' schema='public'
+RESULT:
+OK
+---
+### CASE-multi007[MYS] STEP-006 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ml007_p1|postgresql|127.0.0.1|15434|postgres|******|pgdb|public|{}
+---
+### CASE-multi007[MYS] STEP-006 AUTO-DESCRIBE
+SQL: describe external source fq08_ml007_p1
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ml007_p1|postgresql|127.0.0.1|15434|postgres|******|pgdb|public|{}
+---
+### CASE-multi007[MYS] STEP-007 QUERY
+SQL: select source_name from information_schema.ins_ext_sources where source_name='fq08_ml007_m1'
+RESULT:
+source_name
+fq08_ml007_m1
+---
+### CASE-multi007[MYS] STEP-008 QUERY
+SQL: select source_name from information_schema.ins_ext_sources where source_name='fq08_ml007_m2'
+RESULT:
+source_name
+fq08_ml007_m2
+---
+### CASE-multi007[MYS] STEP-009 QUERY
+SQL: select source_name from information_schema.ins_ext_sources where source_name='fq08_ml007_p1'
+RESULT:
+source_name
+fq08_ml007_p1
+---
+### CASE-multi007[MYS] STEP-010 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where `type`='mysql' and source_name in ('fq08_ml007_m1','fq08_ml007_m2','fq08_ml007_p1')
+RESULT:
+count(*)
+2
+---
+### CASE-multi007[MYS] STEP-011 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where `type`='postgresql' and source_name in ('fq08_ml007_m1','fq08_ml007_m2','fq08_ml007_p1')
+RESULT:
+count(*)
+1
+---
+### CASE-multi007[MYS] STEP-012 CLEANUP
+SQL: drop external source if exists fq08_ml007_m1
+RESULT:
+OK
+---
+### CASE-multi007[MYS] STEP-012 CLEANUP
+SQL: drop external source if exists fq08_ml007_m2
+RESULT:
+OK
+---
+### CASE-multi007[MYS] STEP-012 CLEANUP
+SQL: drop external source if exists fq08_ml007_p1
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-multi007[MYS]
+DESC: 2 MySQL + 1 PG sources; type-based WHERE count: mysql=2, postgresql=1 (covers s07)
+================================================================================================
+================================================================================================
+CASE START: CASE-proj009p[POS]
+DESC: Partial column SELECT (4-col projection) from ins_ext_sources: source_name, type, database, schema correct (covers s09)
+================================================================================================
+### CASE-proj009p[POS] STEP-001 EXEC
+SQL: drop external source if exists fq08_pj009_p
+RESULT:
+OK
+---
+### CASE-proj009p[POS] STEP-002 EXEC
+SQL: create external source fq08_pj009_p type='postgresql' host='127.0.0.1' port=15434 user='postgres' password='taosdata' database='pgdb' schema='public'
+RESULT:
+OK
+---
+### CASE-proj009p[POS] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_pj009_p|postgresql|127.0.0.1|15434|postgres|******|pgdb|public|{}
+---
+### CASE-proj009p[POS] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq08_pj009_p
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_pj009_p|postgresql|127.0.0.1|15434|postgres|******|pgdb|public|{}
+---
+### CASE-proj009p[POS] STEP-003 QUERY
+SQL: select source_name, `type`, `database`, `schema` from information_schema.ins_ext_sources where source_name='fq08_pj009_p'
+RESULT:
+source_name|type|database|schema
+fq08_pj009_p|postgresql|pgdb|public
+---
+### CASE-proj009p[POS] STEP-004 CLEANUP
+SQL: drop external source if exists fq08_pj009_p
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-proj009p[POS]
+DESC: Partial column SELECT (4-col projection) from ins_ext_sources: source_name, type, database, schema correct (covers s09)
+================================================================================================
+================================================================================================
+CASE START: CASE-comp010[MYS]
+DESC: Compound AND WHERE (host+type+source_name): MySQL row found; PG row found; type mismatch yields 0 rows (covers s10)
+================================================================================================
+### CASE-comp010[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq08_cp010_m
+RESULT:
+OK
+---
+### CASE-comp010[MYS] STEP-002 EXEC
+SQL: drop external source if exists fq08_cp010_p
+RESULT:
+OK
+---
+### CASE-comp010[MYS] STEP-003 EXEC
+SQL: create external source fq08_cp010_m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata'
+RESULT:
+OK
+---
+### CASE-comp010[MYS] STEP-003 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_cp010_m|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-comp010[MYS] STEP-003 AUTO-DESCRIBE
+SQL: describe external source fq08_cp010_m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_cp010_m|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-comp010[MYS] STEP-004 EXEC
+SQL: create external source fq08_cp010_p type='postgresql' host='127.0.0.1' port=15434 user='postgres' password='taosdata' database='pgdb' schema='public'
+RESULT:
+OK
+---
+### CASE-comp010[MYS] STEP-004 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_cp010_p|postgresql|127.0.0.1|15434|postgres|******|pgdb|public|{}
+---
+### CASE-comp010[MYS] STEP-004 AUTO-DESCRIBE
+SQL: describe external source fq08_cp010_p
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_cp010_p|postgresql|127.0.0.1|15434|postgres|******|pgdb|public|{}
+---
+### CASE-comp010[MYS] STEP-005 QUERY
+SQL: select source_name from information_schema.ins_ext_sources where `host`='127.0.0.1' and `type`='mysql' and source_name in ('fq08_cp010_m','fq08_cp010_p')
+RESULT:
+source_name
+fq08_cp010_m
+---
+### CASE-comp010[MYS] STEP-006 QUERY
+SQL: select source_name from information_schema.ins_ext_sources where `host`='127.0.0.1' and `type`='postgresql' and source_name in ('fq08_cp010_m','fq08_cp010_p')
+RESULT:
+source_name
+fq08_cp010_p
+---
+### CASE-comp010[MYS] STEP-007 QUERY
+SQL: select source_name from information_schema.ins_ext_sources where `type`='mysql' and source_name='fq08_cp010_p'
+RESULT:
+source_name
+---
+### CASE-comp010[MYS] STEP-008 CLEANUP
+SQL: drop external source if exists fq08_cp010_m
+RESULT:
+OK
+---
+### CASE-comp010[MYS] STEP-008 CLEANUP
+SQL: drop external source if exists fq08_cp010_p
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-comp010[MYS]
+DESC: Compound AND WHERE (host+type+source_name): MySQL row found; PG row found; type mismatch yields 0 rows (covers s10)
+================================================================================================
+================================================================================================
+CASE START: CASE-local016[MYS]
+DESC: Local DB CREATE/INSERT/SELECT unaffected when federatedQueryEnable=1; no regression (covers SYS-016)
+================================================================================================
+### CASE-local016[MYS] STEP-001 QUERY
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-local016[MYS] STEP-002 EXEC
+SQL: create database if not exists fq08_local016
+RESULT:
+OK
+---
+### CASE-local016[MYS] STEP-003 EXEC
+SQL: use fq08_local016
+RESULT:
+OK
+---
+### CASE-local016[MYS] STEP-004 EXEC
+SQL: create table if not exists fq08_016_t (ts timestamp, v int)
+RESULT:
+OK
+---
+### CASE-local016[MYS] STEP-005 EXEC
+SQL: insert into fq08_016_t values (1704067200000, 42)
+RESULT:
+OK
+---
+### CASE-local016[MYS] STEP-006 QUERY
+SQL: select v from fq08_016_t
+RESULT:
+v
+42
+---
+### CASE-local016[MYS] STEP-007 EXEC
+SQL: drop database if exists fq08_local016
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-local016[MYS]
+DESC: Local DB CREATE/INSERT/SELECT unaffected when federatedQueryEnable=1; no regression (covers SYS-016)
+================================================================================================
+================================================================================================
+CASE START: CASE-adv011m[MYS]
+DESC: connect_timeout_ms=500 against stopped MySQL -> EXT_SOURCE_UNAVAILABLE within timeout; source stays in catalog (covers s11)
+================================================================================================
+### CASE-adv011m[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq08_a011_m
+RESULT:
+OK
+---
+### CASE-adv011m[MYS] STEP-002 EXEC
+SQL: create external source fq08_a011_m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata' options('connect_timeout_ms'='500')
+RESULT:
+OK
+---
+### CASE-adv011m[MYS] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_a011_m|mysql|127.0.0.1|13306|root|******|||{"connect_timeout_ms":"500"}
+---
+### CASE-adv011m[MYS] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq08_a011_m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_a011_m|mysql|127.0.0.1|13306|root|******|||{"connect_timeout_ms":"500"}
+---
+### CASE-adv011m[MYS] STEP-003 QUERY
+SQL: select `options` from information_schema.ins_ext_sources where source_name='fq08_a011_m'
+RESULT:
+options
+{"connect_timeout_ms":"500"}
+---
+### CASE-adv011m[MYS] STEP-004 ENV-CTRL
+SQL: -- stop mysql 8.0
+RESULT:
+OK
+---
+### CASE-adv011m[MYS] STEP-005 ERROR
+SQL: select count(*) from fq08_a011_m.testdb.t
+RESULT:
+ERROR_OK
+---
+### CASE-adv011m[MYS] STEP-006 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq08_a011_m'
+RESULT:
+count(*)
+1
+---
+### CASE-adv011m[MYS] STEP-007 ENV-CTRL
+SQL: -- start mysql 8.0
+RESULT:
+OK
+---
+### CASE-adv011m[MYS] STEP-008 CLEANUP
+SQL: drop external source if exists fq08_a011_m
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-adv011m[MYS]
+DESC: connect_timeout_ms=500 against stopped MySQL -> EXT_SOURCE_UNAVAILABLE within timeout; source stays in catalog (covers s11)
+================================================================================================
+================================================================================================
+CASE START: CASE-adv012m[MYS]
+DESC: 10-round sequential ALTER options + SELECT count: no catalog corruption; final connect_timeout_ms='1900' persisted (covers s12)
+================================================================================================
+### CASE-adv012m[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq08_a012_m
+RESULT:
+OK
+---
+### CASE-adv012m[MYS] STEP-002 MYSQL-SETUP
+SQL: -- mysql setup database=fq08_adv012_ext
+RESULT:
+OK
+---
+### CASE-adv012m[MYS] STEP-003 EXEC
+SQL: create external source fq08_a012_m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata' database='fq08_adv012_ext'
+RESULT:
+OK
+---
+### CASE-adv012m[MYS] STEP-003 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_a012_m|mysql|127.0.0.1|13306|root|******|fq08_adv012_ext||{}
+---
+### CASE-adv012m[MYS] STEP-003 AUTO-DESCRIBE
+SQL: describe external source fq08_a012_m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_a012_m|mysql|127.0.0.1|13306|root|******|fq08_adv012_ext||{}
+---
+### CASE-adv012m[MYS] STEP-004 EXEC
+SQL: alter external source fq08_a012_m set options('connect_timeout_ms'='1000')
+RESULT:
+OK
+---
+### CASE-adv012m[MYS] STEP-005 QUERY
+SQL: select count(*) from fq08_a012_m.sys_t
+RESULT:
+count(*)
+3
+---
+### CASE-adv012m[MYS] STEP-006 EXEC
+SQL: alter external source fq08_a012_m set options('connect_timeout_ms'='1100')
+RESULT:
+OK
+---
+### CASE-adv012m[MYS] STEP-007 QUERY
+SQL: select count(*) from fq08_a012_m.sys_t
+RESULT:
+count(*)
+3
+---
+### CASE-adv012m[MYS] STEP-008 EXEC
+SQL: alter external source fq08_a012_m set options('connect_timeout_ms'='1200')
+RESULT:
+OK
+---
+### CASE-adv012m[MYS] STEP-009 QUERY
+SQL: select count(*) from fq08_a012_m.sys_t
+RESULT:
+count(*)
+3
+---
+### CASE-adv012m[MYS] STEP-010 EXEC
+SQL: alter external source fq08_a012_m set options('connect_timeout_ms'='1300')
+RESULT:
+OK
+---
+### CASE-adv012m[MYS] STEP-011 QUERY
+SQL: select count(*) from fq08_a012_m.sys_t
+RESULT:
+count(*)
+3
+---
+### CASE-adv012m[MYS] STEP-012 EXEC
+SQL: alter external source fq08_a012_m set options('connect_timeout_ms'='1400')
+RESULT:
+OK
+---
+### CASE-adv012m[MYS] STEP-013 QUERY
+SQL: select count(*) from fq08_a012_m.sys_t
+RESULT:
+count(*)
+3
+---
+### CASE-adv012m[MYS] STEP-014 EXEC
+SQL: alter external source fq08_a012_m set options('connect_timeout_ms'='1500')
+RESULT:
+OK
+---
+### CASE-adv012m[MYS] STEP-015 QUERY
+SQL: select count(*) from fq08_a012_m.sys_t
+RESULT:
+count(*)
+3
+---
+### CASE-adv012m[MYS] STEP-016 EXEC
+SQL: alter external source fq08_a012_m set options('connect_timeout_ms'='1600')
+RESULT:
+OK
+---
+### CASE-adv012m[MYS] STEP-017 QUERY
+SQL: select count(*) from fq08_a012_m.sys_t
+RESULT:
+count(*)
+3
+---
+### CASE-adv012m[MYS] STEP-018 EXEC
+SQL: alter external source fq08_a012_m set options('connect_timeout_ms'='1700')
+RESULT:
+OK
+---
+### CASE-adv012m[MYS] STEP-019 QUERY
+SQL: select count(*) from fq08_a012_m.sys_t
+RESULT:
+count(*)
+3
+---
+### CASE-adv012m[MYS] STEP-020 EXEC
+SQL: alter external source fq08_a012_m set options('connect_timeout_ms'='1800')
+RESULT:
+OK
+---
+### CASE-adv012m[MYS] STEP-021 QUERY
+SQL: select count(*) from fq08_a012_m.sys_t
+RESULT:
+count(*)
+3
+---
+### CASE-adv012m[MYS] STEP-022 EXEC
+SQL: alter external source fq08_a012_m set options('connect_timeout_ms'='1900')
+RESULT:
+OK
+---
+### CASE-adv012m[MYS] STEP-023 QUERY
+SQL: select count(*) from fq08_a012_m.sys_t
+RESULT:
+count(*)
+3
+---
+### CASE-adv012m[MYS] STEP-024 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq08_a012_m'
+RESULT:
+count(*)
+1
+---
+### CASE-adv012m[MYS] STEP-025 QUERY
+SQL: select `options` from information_schema.ins_ext_sources where source_name='fq08_a012_m'
+RESULT:
+options
+{"connect_timeout_ms":"1900"}
+---
+### CASE-adv012m[MYS] STEP-026 CLEANUP
+SQL: drop external source if exists fq08_a012_m
+RESULT:
+OK
+---
+### CASE-adv012m[MYS] STEP-027 MYSQL-CLEANUP
+SQL: -- mysql drop database=fq08_adv012_ext
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-adv012m[MYS]
+DESC: 10-round sequential ALTER options + SELECT count: no catalog corruption; final connect_timeout_ms='1900' persisted (covers s12)
+================================================================================================
+================================================================================================
+CASE START: CASE-adv013m[MYS]
+DESC: No qnode -> federated SELECT fails QNODE_NOT_FOUND; restore qnode -> query succeeds again (covers s13)
+================================================================================================
+### CASE-adv013m[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq08_a013_m
+RESULT:
+OK
+---
+### CASE-adv013m[MYS] STEP-002 MYSQL-SETUP
+SQL: -- mysql setup database=fq08_adv013_ext
+RESULT:
+OK
+---
+### CASE-adv013m[MYS] STEP-003 EXEC
+SQL: create external source fq08_a013_m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata' database='fq08_adv013_ext'
+RESULT:
+OK
+---
+### CASE-adv013m[MYS] STEP-003 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_a013_m|mysql|127.0.0.1|13306|root|******|fq08_adv013_ext||{}
+---
+### CASE-adv013m[MYS] STEP-003 AUTO-DESCRIBE
+SQL: describe external source fq08_a013_m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_a013_m|mysql|127.0.0.1|13306|root|******|fq08_adv013_ext||{}
+---
+### CASE-adv013m[MYS] STEP-004 QUERY
+SQL: select val from fq08_a013_m.s13_t order by id
+RESULT:
+val
+100
+200
+---
+### CASE-adv013m[MYS] STEP-005 ENV-CTRL
+SQL: -- drop qnode on dnode 1
+RESULT:
+OK
+---
+### CASE-adv013m[MYS] STEP-006 POLL-ERROR
+SQL: select val from fq08_a013_m.s13_t order by id
+RESULT:
+ERROR_OK
+---
+### CASE-adv013m[MYS] STEP-007 ENV-CTRL
+SQL: -- ensure qnode on dnode 1
+RESULT:
+OK
+---
+### CASE-adv013m[MYS] STEP-008 POLL-SUCCESS
+SQL: select val from fq08_a013_m.s13_t order by id
+RESULT:
+val
+100
+200
+---
+### CASE-adv013m[MYS] STEP-009 CLEANUP
+SQL: drop external source if exists fq08_a013_m
+RESULT:
+OK
+---
+### CASE-adv013m[MYS] STEP-010 MYSQL-CLEANUP
+SQL: -- mysql drop database=fq08_adv013_ext
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-adv013m[MYS]
+DESC: No qnode -> federated SELECT fails QNODE_NOT_FOUND; restore qnode -> query succeeds again (covers s13)
+================================================================================================
+================================================================================================
+CASE START: CASE-adv014m[MYS]
+DESC: Qnode routing proof: ins_qnodes>=1; EXPLAIN shows Federated Scan; 5 repeated selects succeed; drop->fail->restore (covers s14)
+================================================================================================
+### CASE-adv014m[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq08_a014_m
+RESULT:
+OK
+---
+### CASE-adv014m[MYS] STEP-002 MYSQL-SETUP
+SQL: -- mysql setup database=fq08_adv014_ext
+RESULT:
+OK
+---
+### CASE-adv014m[MYS] STEP-003 EXEC
+SQL: create external source fq08_a014_m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata' database='fq08_adv014_ext'
+RESULT:
+OK
+---
+### CASE-adv014m[MYS] STEP-003 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_a014_m|mysql|127.0.0.1|13306|root|******|fq08_adv014_ext||{}
+---
+### CASE-adv014m[MYS] STEP-003 AUTO-DESCRIBE
+SQL: describe external source fq08_a014_m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_a014_m|mysql|127.0.0.1|13306|root|******|fq08_adv014_ext||{}
+---
+### CASE-adv014m[MYS] STEP-004 QUERY
+SQL: select count(*) from information_schema.ins_qnodes
+RESULT:
+count(*)
+1
+---
+### CASE-adv014m[MYS] STEP-005 QUERY
+SQL: explain select val from fq08_a014_m.s14_t order by val
+RESULT:
+QUERY_PLAN
+-> Federated Scan on fq08_a014_m.s14_t (mysql) (width=4)
+---
+### CASE-adv014m[MYS] STEP-006 QUERY
+SQL: select val from fq08_a014_m.s14_t order by val
+RESULT:
+val
+10
+20
+30
+---
+### CASE-adv014m[MYS] STEP-007 QUERY
+SQL: select val from fq08_a014_m.s14_t order by val
+RESULT:
+val
+10
+20
+30
+---
+### CASE-adv014m[MYS] STEP-008 QUERY
+SQL: select val from fq08_a014_m.s14_t order by val
+RESULT:
+val
+10
+20
+30
+---
+### CASE-adv014m[MYS] STEP-009 QUERY
+SQL: select val from fq08_a014_m.s14_t order by val
+RESULT:
+val
+10
+20
+30
+---
+### CASE-adv014m[MYS] STEP-010 QUERY
+SQL: select val from fq08_a014_m.s14_t order by val
+RESULT:
+val
+10
+20
+30
+---
+### CASE-adv014m[MYS] STEP-011 ENV-CTRL
+SQL: -- drop qnode on dnode 1
+RESULT:
+OK
+---
+### CASE-adv014m[MYS] STEP-012 POLL-ERROR
+SQL: select val from fq08_a014_m.s14_t
+RESULT:
+ERROR_OK
+---
+### CASE-adv014m[MYS] STEP-013 ENV-CTRL
+SQL: -- ensure qnode on dnode 1
+RESULT:
+OK
+---
+### CASE-adv014m[MYS] STEP-014 POLL-SUCCESS
+SQL: select val from fq08_a014_m.s14_t
+RESULT:
+val
+10
+20
+30
+---
+### CASE-adv014m[MYS] STEP-015 CLEANUP
+SQL: drop external source if exists fq08_a014_m
+RESULT:
+OK
+---
+### CASE-adv014m[MYS] STEP-016 MYSQL-CLEANUP
+SQL: -- mysql drop database=fq08_adv014_ext
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-adv014m[MYS]
+DESC: Qnode routing proof: ins_qnodes>=1; EXPLAIN shows Federated Scan; 5 repeated selects succeed; drop->fail->restore (covers s14)
+================================================================================================
+================================================================================================
+CASE START: CASE-behav021m[MYS]
+DESC: Global federatedQueryConnectTimeoutMs=100 behaviorally effective: stopped MySQL + global 100ms -> fast EXT_SOURCE_UNAVAILABLE (covers FQ-SYS-021 behavioral)
+================================================================================================
+### CASE-behav021m[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq08_bh021_m
+RESULT:
+OK
+---
+### CASE-behav021m[MYS] STEP-002 EXEC
+SQL: alter dnode 0 'federatedQueryConnectTimeoutMs' '100'
+RESULT:
+OK
+---
+### CASE-behav021m[MYS] STEP-003 EXEC
+SQL: create external source fq08_bh021_m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata'
+RESULT:
+OK
+---
+### CASE-behav021m[MYS] STEP-003 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_bh021_m|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-behav021m[MYS] STEP-003 AUTO-DESCRIBE
+SQL: describe external source fq08_bh021_m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_bh021_m|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-behav021m[MYS] STEP-004 ENV-CTRL
+SQL: -- stop mysql 8.0
+RESULT:
+OK
+---
+### CASE-behav021m[MYS] STEP-005 ERROR
+SQL: select count(*) from fq08_bh021_m.testdb.t
+RESULT:
+ERROR_OK
+---
+### CASE-behav021m[MYS] STEP-006 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq08_bh021_m'
+RESULT:
+count(*)
+1
+---
+### CASE-behav021m[MYS] STEP-007 ENV-CTRL
+SQL: -- start mysql 8.0
+RESULT:
+OK
+---
+### CASE-behav021m[MYS] STEP-008 EXEC
+SQL: alter dnode 0 'federatedQueryConnectTimeoutMs' '30000'
+RESULT:
+OK
+---
+### CASE-behav021m[MYS] STEP-009 CLEANUP
+SQL: drop external source if exists fq08_bh021_m
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-behav021m[MYS]
+DESC: Global federatedQueryConnectTimeoutMs=100 behaviorally effective: stopped MySQL + global 100ms -> fast EXT_SOURCE_UNAVAILABLE (covers FQ-SYS-021 behavioral)
+================================================================================================
+================================================================================================
+CASE START: CASE-override009m[MYS]
+DESC: Per-source OPTIONS override global: global=600000ms, per-source=500ms -> stopped MySQL -> fast UNAVAILABLE proves per-source wins (covers FQ-SYS-009/028 behavioral)
+================================================================================================
+### CASE-override009m[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq08_ov009_m
+RESULT:
+OK
+---
+### CASE-override009m[MYS] STEP-002 EXEC
+SQL: alter dnode 0 'federatedQueryConnectTimeoutMs' '600000'
+RESULT:
+OK
+---
+### CASE-override009m[MYS] STEP-003 EXEC
+SQL: create external source fq08_ov009_m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata' options('connect_timeout_ms'='500')
+RESULT:
+OK
+---
+### CASE-override009m[MYS] STEP-003 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ov009_m|mysql|127.0.0.1|13306|root|******|||{"connect_timeout_ms":"500"}
+---
+### CASE-override009m[MYS] STEP-003 AUTO-DESCRIBE
+SQL: describe external source fq08_ov009_m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ov009_m|mysql|127.0.0.1|13306|root|******|||{"connect_timeout_ms":"500"}
+---
+### CASE-override009m[MYS] STEP-004 QUERY
+SQL: select `options` from information_schema.ins_ext_sources where source_name='fq08_ov009_m'
+RESULT:
+options
+{"connect_timeout_ms":"500"}
+---
+### CASE-override009m[MYS] STEP-005 ENV-CTRL
+SQL: -- stop mysql 8.0
+RESULT:
+OK
+---
+### CASE-override009m[MYS] STEP-006 ERROR
+SQL: select count(*) from fq08_ov009_m.testdb.t
+RESULT:
+ERROR_OK
+---
+### CASE-override009m[MYS] STEP-007 ENV-CTRL
+SQL: -- start mysql 8.0
+RESULT:
+OK
+---
+### CASE-override009m[MYS] STEP-008 EXEC
+SQL: alter dnode 0 'federatedQueryConnectTimeoutMs' '30000'
+RESULT:
+OK
+---
+### CASE-override009m[MYS] STEP-009 CLEANUP
+SQL: drop external source if exists fq08_ov009_m
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-override009m[MYS]
+DESC: Per-source OPTIONS override global: global=600000ms, per-source=500ms -> stopped MySQL -> fast UNAVAILABLE proves per-source wins (covers FQ-SYS-009/028 behavioral)
+================================================================================================

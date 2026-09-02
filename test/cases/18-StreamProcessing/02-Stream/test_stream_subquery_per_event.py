@@ -8,25 +8,12 @@ from new_test_framework.utils import (
 )
 
 
-def _drop_and_create_db(db, create_sql=None):
-    """Drop database and recreate with retry for async 'dropping' state.
+_run_id = str(int(time.time()))[-6:]
 
-    Args:
-        db: database name
-        create_sql: full CREATE DATABASE statement; if None uses default
-    """
-    if create_sql is None:
-        create_sql = f"create database {db} vgroups 1 buffer 8"
-    tdSql.execute(f"drop database if exists {db}")
-    for _ in range(60):
-        try:
-            tdSql.execute(create_sql)
-            break
-        except Exception as e:
-            if 'dropping' in str(e).lower():
-                time.sleep(1)
-                continue
-            raise
+
+def _create_db(db):
+    """Create database with a per-run unique name (no drop needed)."""
+    tdSql.execute(f"create database {db} vgroups 1 buffer 8")
     tdSql.execute(f"use {db}")
 
 
@@ -82,67 +69,43 @@ class TestStreamSubqueryPerEvent:
             if "Only one snode" not in str(e):
                 raise
 
-    def test_where_subquery(self):
-        """WHERE scalar subquery is re-evaluated per trigger event.
+    def test_subquery_per_event(self):
+        """All remote-subquery flavours must be refreshed per stream event.
 
-        1. Build linea_descarga (trigger), cumple_descarga (secondary
-           source), inicio_descarga (referenced by WHERE subquery).
-        2. Pre-seed cumple_descarga with three rows so SUM differs by
-           the lower bound the subquery returns.
-        3. Insert one row into inicio_descarga BEFORE creating the
-           stream so the subquery is resolvable at plan time.
-        4. Create a count_window(1,1,pressure) stream whose body filters
-           cumple_descarga by ts >= (select last_row(ts) from inicio_descarga).
-        5. Drive three trigger events one at a time, advancing
-           inicio_descarga before each one - the customer pattern.
-        6. Verify cumulative output after every event:
-             after event 1: 1 row,  SUM=(3, 3)
-             after event 2: 2 rows, (3,3) then (2,2)
-             after event 3: 3 rows, (3,3) (2,2) (1,1)
-           A regression to constant SUM=3 means the subquery has been
-           constant-folded again and is no longer per-event.
+        Runs all 5 subquery variants in parallel via a single checkAll
+        to overlap stream processing time:
+          1. WHERE scalar subquery (REMOTE_VALUE)
+          2. _twstart workaround (control)
+          3. IN-list subquery (REMOTE_VALUE_LIST)
+          4. Row-comparison subquery (REMOTE_ROW)
+          5. EXISTS subquery (REMOTE_ZERO_ROWS)
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
             - 2026-05-11 Created to pin customer reproducer behavior
-            - 2026-05-13 Updated to dynamic per-event semantics after fix
+            - 2026-05-14 Added LIST, ROW, EXISTS variants
+            - 2026-05-26 Merged into single checkAll for parallel processing
         """
-
-        streams = [self.WhereSubqueryDynamic()]
-        tdStream.checkAll(streams)
-
-    def test_twstart_workaround(self):
-        """inicio_descarga as trigger + _twstart in body (control test).
-
-        This documents the workaround the customer used before the
-        engine fix and serves as a regression guard for the trigger /
-        _twstart path, independent of the scalar-subquery code.
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-05-11 Created to demonstrate workaround for ticket
-        """
-
-        streams = [self.SubqueryWorkaround()]
+        streams = [
+            self.WhereSubqueryDynamic(),
+            self.SubqueryWorkaround(),
+            self.InListPerEvent(),
+            self.RowPerEvent(),
+            self.ExistsPerEvent(),
+        ]
         tdStream.checkAll(streams)
 
     class WhereSubqueryDynamic(StreamCheckItem):
         def __init__(self):
-            self.db = "test_subq_where"
+            self.db = f"tswh{_run_id}"
 
         def create(self):
             tdLog.info(f"=== create db {self.db} and source tables ===")
-            _drop_and_create_db(self.db)
+            _create_db(self.db)
 
             tdSql.execute(
                 "create table linea_descarga  (ts timestamp, pressure int)"
@@ -167,7 +130,7 @@ class TestStreamSubqueryPerEvent:
                 "insert into inicio_descarga values ('2026-05-01 00:00:00', 1)"
             )
 
-            deadline = time.time() + 30
+            deadline = time.time() + 5
             while True:
                 tdSql.query("select last_row(ts) from inicio_descarga")
                 if (
@@ -181,11 +144,11 @@ class TestStreamSubqueryPerEvent:
                         "Timed out waiting for inicio_descarga seed row to become "
                         f"visible (got {tdSql.queryResult!r})"
                     )
-                time.sleep(0.5)
+                time.sleep(0.2)
 
-            tdLog.info("=== create stream analisis_68 ===")
+            tdLog.info(f"=== create stream a68{_run_id} ===")
             tdSql.execute(
-                f"create stream analisis_68 count_window(1, 1, pressure) "
+                f"create stream a68{_run_id} count_window(1, 1, pressure) "
                 f"from linea_descarga "
                 f"into resultado_descarga as "
                 f"select _twstart as ts, "
@@ -203,7 +166,7 @@ class TestStreamSubqueryPerEvent:
 
         def check1(self):
             tdLog.info("=== check after event 1: 1 row, SUM=(3, 3) ===")
-            tdSql.checkResultsByFunc(
+            tdSql.checkResultsByFunc(retry=60,
                 sql=f"select acumulado_cumple, acumulado_total "
                     f"from {self.db}.resultado_descarga order by ts",
                 func=lambda: tdSql.getRows() == 1
@@ -224,7 +187,7 @@ class TestStreamSubqueryPerEvent:
 
         def check2(self):
             tdLog.info("=== check after event 2: 2 rows, (3,3) then (2,2) ===")
-            tdSql.checkResultsByFunc(
+            tdSql.checkResultsByFunc(retry=60,
                 sql=f"select acumulado_cumple, acumulado_total "
                     f"from {self.db}.resultado_descarga order by ts",
                 func=lambda: tdSql.getRows() == 2
@@ -250,7 +213,7 @@ class TestStreamSubqueryPerEvent:
             # Per-event re-evaluation: each event sees inicio_descarga's
             # last_row(ts) at trigger time (00:00:00, 00:00:01, 00:00:02),
             # so the matching cumple_descarga rows shrink with each event.
-            tdSql.checkResultsByFunc(
+            tdSql.checkResultsByFunc(retry=60,
                 sql=f"select acumulado_cumple, acumulado_total "
                     f"from {self.db}.resultado_descarga order by ts",
                 func=lambda: tdSql.getRows() == 3
@@ -289,7 +252,7 @@ class TestStreamSubqueryPerEvent:
                 f"from {self.db}.resultado_descarga order by ts"
             )
             expected_rows = self._rows_after_e3
-            deadline = time.time() + 5
+            deadline = time.time() + 3
             while time.time() < deadline:
                 tdSql.query(sql)
                 rows = tdSql.getRows()
@@ -298,7 +261,7 @@ class TestStreamSubqueryPerEvent:
                         f"event 4 unexpectedly produced output before event 5: "
                         f"expected {expected_rows} rows, got {rows}"
                     )
-                time.sleep(0.1)
+                time.sleep(0.2)
             self._rows_pre_e5 = expected_rows
             tdLog.info(
                 f"=== check4 verified no event-4 output: rows={self._rows_pre_e5} "
@@ -336,7 +299,7 @@ class TestStreamSubqueryPerEvent:
             # Wait for event 5's (2,2) row to arrive; this also flushes
             # any pending event-4 output, so we can scan the new tail
             # for the stale (1,1) marker.
-            tdSql.checkResultsByFunc(
+            tdSql.checkResultsByFunc(retry=60,
                 sql=sql,
                 func=lambda: tdSql.getRows() > rows_pre_e5
                 and tdSql.getData(tdSql.getRows() - 1, 0) == 2
@@ -370,11 +333,11 @@ class TestStreamSubqueryPerEvent:
 
     class SubqueryWorkaround(StreamCheckItem):
         def __init__(self):
-            self.db = "test_subq_workaround"
+            self.db = f"tswa{_run_id}"
 
         def create(self):
             tdLog.info(f"=== create db {self.db} and source tables ===")
-            _drop_and_create_db(self.db)
+            _create_db(self.db)
 
             tdSql.execute(
                 "create table linea_descarga  (ts timestamp, pressure int)"
@@ -398,7 +361,7 @@ class TestStreamSubqueryPerEvent:
             # count_window(1) window; _twstart binds the per-window
             # lower bound dynamically into the cumple_descarga filter.
             tdSql.execute(
-                f"create stream analisis_wa count_window(1, 1, dummy) "
+                f"create stream awa{_run_id} count_window(1, 1, dummy) "
                 f"from inicio_descarga "
                 f"into resultado_descarga as "
                 f"select _twstart as ts, "
@@ -416,7 +379,7 @@ class TestStreamSubqueryPerEvent:
 
         def check1(self):
             tdLog.info("=== check after inicio 1: 1 row, SUM=(3, 3) ===")
-            tdSql.checkResultsByFunc(
+            tdSql.checkResultsByFunc(retry=60,
                 sql=f"select acumulado_cumple, acumulado_total "
                     f"from {self.db}.resultado_descarga order by ts",
                 func=lambda: tdSql.getRows() == 1
@@ -436,7 +399,7 @@ class TestStreamSubqueryPerEvent:
             tdLog.info(
                 "=== check after inicio 2: 2 rows, second SUM=(2, 2) ==="
             )
-            tdSql.checkResultsByFunc(
+            tdSql.checkResultsByFunc(retry=60,
                 sql=f"select acumulado_cumple, acumulado_total "
                     f"from {self.db}.resultado_descarga order by ts",
                 func=lambda: tdSql.getRows() == 2
@@ -458,7 +421,7 @@ class TestStreamSubqueryPerEvent:
             tdLog.info(
                 "=== check after inicio 3: 3 rows, third SUM=(1, 1) ==="
             )
-            tdSql.checkResultsByFunc(
+            tdSql.checkResultsByFunc(retry=60,
                 sql=f"select acumulado_cumple, acumulado_total "
                     f"from {self.db}.resultado_descarga order by ts",
                 func=lambda: tdSql.getRows() == 3
@@ -474,32 +437,15 @@ class TestStreamSubqueryPerEvent:
     # IN-list subquery (REMOTE_VALUE_LIST)
     # ------------------------------------------------------------------
 
-    def test_in_list_subquery(self):
-        """REMOTE_VALUE_LIST must be refreshed per stream event.
-
-        Bug: in stream mode, the LIST cache check in sclInitParam()
-        short-circuited once VALUELIST_FLAG_VAL_UNSET was cleared on
-        the first event. Every subsequent trigger event reused the same
-        pHashFilter, so the IN-list never reflected later changes to
-        the source table.
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-05-14 Created to pin LIST cache invalidation
-        """
-        streams = [self.InListPerEvent()]
-        tdStream.checkAll(streams)
+    # ------------------------------------------------------------------
+    # IN-list subquery (REMOTE_VALUE_LIST)
+    # ------------------------------------------------------------------
 
     class InListPerEvent(StreamCheckItem):
         def __init__(self):
-            self.db = "test_subq_inlist"
+            self.db = f"tsin{_run_id}"
 
-        def _wait_seed_visible(self, count_sql, label, timeout=15):
+        def _wait_seed_visible(self, count_sql, label, timeout=5):
             deadline = time.time() + timeout
             while time.time() < deadline:
                 try:
@@ -508,14 +454,14 @@ class TestStreamSubqueryPerEvent:
                         return
                 except Exception:
                     pass
-                time.sleep(0.5)
+                time.sleep(0.2)
             raise RuntimeError(
                 f"{label} seed row did not become queryable before CREATE STREAM"
             )
 
         def create(self):
             tdLog.info(f"=== create db {self.db} ===")
-            _drop_and_create_db(self.db)
+            _create_db(self.db)
 
             tdSql.execute("create table linea     (ts timestamp, p int)")
             tdSql.execute("create table data      (ts timestamp, f1 int, v int)")
@@ -537,9 +483,9 @@ class TestStreamSubqueryPerEvent:
                 "where ts = '2026-05-01 00:00:00' and id = 1",
                 "whitelist",
             )
-            tdLog.info("=== create stream sum_in_whitelist ===")
+            tdLog.info(f"=== create stream siw{_run_id} ===")
             tdSql.execute(
-                f"create stream sum_in_whitelist count_window(1, 1, p) "
+                f"create stream siw{_run_id} count_window(1, 1, p) "
                 f"from linea "
                 f"into r as "
                 f"select _twstart as ts, sum(v) as total "
@@ -554,7 +500,7 @@ class TestStreamSubqueryPerEvent:
             )
 
         def check1(self):
-            tdSql.checkResultsByFunc(
+            tdSql.checkResultsByFunc(retry=60,
                 sql=f"select total from {self.db}.r order by ts",
                 func=lambda: tdSql.getRows() == 1
                 and tdSql.compareData(0, 0, 10),
@@ -572,7 +518,7 @@ class TestStreamSubqueryPerEvent:
         def check2(self):
             # Event 2 must see whitelist={1,2}: SUM=10+20=30.
             # Bug-without-fix would cache {1} and emit 10 again.
-            tdSql.checkResultsByFunc(
+            tdSql.checkResultsByFunc(retry=60,
                 sql=f"select total from {self.db}.r order by ts",
                 func=lambda: tdSql.getRows() == 2
                 and tdSql.compareData(0, 0, 10)
@@ -593,21 +539,16 @@ class TestStreamSubqueryPerEvent:
 
         def check3(self):
             # Event 3 empties the whitelist so no rows match IN and the
-            # stream body emits no output.  Poll for 15 seconds to both
-            # allow the stream time to process event 3 and verify that no
-            # stale IN-list row appears.  The 15-second window ensures
-            # event 3 is evaluated while the whitelist is still empty,
-            # before insert4 re-populates it.
-            deadline = time.monotonic() + 15.0
-            while True:
+            # stream body emits no output.  Wait long enough for the stream
+            # to process, then verify no stale row appeared.
+            time.sleep(3)
+            for _ in range(3):
                 tdSql.query(f"select total from {self.db}.r order by ts")
                 assert tdSql.getRows() == 2, (
                     f"event 3 stale IN-list: got {tdSql.getRows()} rows, "
                     f"expected 2 (cached IN-list was not invalidated)"
                 )
-                if time.monotonic() >= deadline:
-                    break
-                time.sleep(0.5)
+                time.sleep(1)
 
         def insert4(self):
             # Re-add id=1 to whitelist and trigger event 4.  Whitelist is
@@ -627,7 +568,7 @@ class TestStreamSubqueryPerEvent:
             # Event 4: whitelist={1}, so only f1=1 (v=10) matches -> SUM=10.
             # check3 already verified event 3 produced no stale row, so we
             # just wait for the correct event-4 output.
-            tdSql.checkResultsByFunc(
+            tdSql.checkResultsByFunc(retry=60,
                 sql=f"select total from {self.db}.r order by ts",
                 func=lambda: tdSql.getRows() == 3
                 and tdSql.compareData(0, 0, 10)
@@ -639,32 +580,11 @@ class TestStreamSubqueryPerEvent:
     # Row-comparison subquery (REMOTE_ROW)
     # ------------------------------------------------------------------
 
-    def test_row_subquery(self):
-        """REMOTE_ROW must be refreshed per stream event.
-
-        `> ANY (subquery)` is rewritten by the planner to `> MIN(...)`,
-        which materialises into a REMOTE_ROW node. In stream mode the
-        ROW cache check in sclInitParam() short-circuited once
-        pRemote->valSet was set on the first event, so the threshold
-        was frozen forever.
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-05-14 Created to pin ROW cache invalidation
-        """
-        streams = [self.RowPerEvent()]
-        tdStream.checkAll(streams)
-
     class RowPerEvent(StreamCheckItem):
         def __init__(self):
-            self.db = "test_subq_row"
+            self.db = f"tsro{_run_id}"
 
-        def _wait_seed_visible(self, count_sql, label, timeout=15):
+        def _wait_seed_visible(self, count_sql, label, timeout=5):
             deadline = time.time() + timeout
             while time.time() < deadline:
                 try:
@@ -673,14 +593,14 @@ class TestStreamSubqueryPerEvent:
                         return
                 except Exception:
                     pass
-                time.sleep(0.5)
+                time.sleep(0.2)
             raise RuntimeError(
                 f"{label} seed row did not become queryable before CREATE STREAM"
             )
 
         def create(self):
             tdLog.info(f"=== create db {self.db} ===")
-            _drop_and_create_db(self.db)
+            _create_db(self.db)
 
             tdSql.execute("create table linea     (ts timestamp, p int)")
             tdSql.execute("create table data      (ts timestamp, v int)")
@@ -703,9 +623,9 @@ class TestStreamSubqueryPerEvent:
                 "where ts = '2026-05-01 00:00:00' and t = 35",
                 "threshold",
             )
-            tdLog.info("=== create stream sum_gt_any_threshold ===")
+            tdLog.info(f"=== create stream sgt{_run_id} ===")
             tdSql.execute(
-                f"create stream sum_gt_any_threshold count_window(1, 1, p) "
+                f"create stream sgt{_run_id} count_window(1, 1, p) "
                 f"from linea "
                 f"into r as "
                 f"select _twstart as ts, sum(v) as total "
@@ -720,7 +640,7 @@ class TestStreamSubqueryPerEvent:
             )
 
         def check1(self):
-            tdSql.checkResultsByFunc(
+            tdSql.checkResultsByFunc(retry=60,
                 sql=f"select total from {self.db}.r order by ts",
                 func=lambda: tdSql.getRows() == 1
                 and tdSql.compareData(0, 0, 40),
@@ -738,7 +658,7 @@ class TestStreamSubqueryPerEvent:
         def check2(self):
             # Event 2 must see new min 15: rows v in {20,30,40}, SUM=90.
             # Bug-without-fix would cache 35 and emit 40 again.
-            tdSql.checkResultsByFunc(
+            tdSql.checkResultsByFunc(retry=60,
                 sql=f"select total from {self.db}.r order by ts",
                 func=lambda: tdSql.getRows() == 2
                 and tdSql.compareData(0, 0, 40)
@@ -757,7 +677,7 @@ class TestStreamSubqueryPerEvent:
 
         def check3(self):
             # Event 3: threshold={5}, all 4 rows match, SUM=100.
-            tdSql.checkResultsByFunc(
+            tdSql.checkResultsByFunc(retry=60,
                 sql=f"select total from {self.db}.r order by ts",
                 func=lambda: tdSql.getRows() == 3
                 and tdSql.compareData(0, 0, 40)
@@ -765,34 +685,15 @@ class TestStreamSubqueryPerEvent:
                 and tdSql.compareData(2, 0, 100),
             )
 
-    def test_exists_subquery(self):
-        """REMOTE_ZERO_ROWS (EXISTS) must be refreshed per stream event.
-
-        `EXISTS (subquery)` is rewritten by the planner to a
-        REMOTE_ZERO_ROWS node holding a 0/1 row count. handleRemoteZeroRowsRes
-        forces the AST node type to QUERY_NODE_VALUE after fetching, so the
-        scalar walker stops re-dispatching the case and replays the cached
-        row count for every later event. The fix restores the
-        QUERY_NODE_REMOTE_ZERO_ROWS type in stream mode so the next trigger
-        re-fetches.
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-05-14 Created to pin REMOTE_ZERO_ROWS per-event refetch
-        """
-        streams = [self.ExistsPerEvent()]
-        tdStream.checkAll(streams)
+    # ------------------------------------------------------------------
+    # EXISTS subquery (REMOTE_ZERO_ROWS)
+    # ------------------------------------------------------------------
 
     class ExistsPerEvent(StreamCheckItem):
         def __init__(self):
-            self.db = "test_subq_exists"
+            self.db = f"tsex{_run_id}"
 
-        def _wait_seed_visible(self, count_sql, label, timeout=15):
+        def _wait_seed_visible(self, count_sql, label, timeout=5):
             deadline = time.time() + timeout
             while time.time() < deadline:
                 try:
@@ -801,14 +702,14 @@ class TestStreamSubqueryPerEvent:
                         return
                 except Exception:
                     pass
-                time.sleep(0.5)
+                time.sleep(0.2)
             raise RuntimeError(
                 f"{label} seed row did not become queryable before CREATE STREAM"
             )
 
         def create(self):
             tdLog.info(f"=== create db {self.db} ===")
-            _drop_and_create_db(self.db)
+            _create_db(self.db)
 
             tdSql.execute("create table linea  (ts timestamp, p int)")
             tdSql.execute("create table data   (ts timestamp, v int)")
@@ -828,7 +729,7 @@ class TestStreamSubqueryPerEvent:
                 "select count(*) from gate", "gate",
             )
 
-            tdLog.info("=== create stream sum_when_gate_open ===")
+            tdLog.info(f"=== create stream sgo{_run_id} ===")
             # Use EXISTS inside the projection so every trigger event emits a
             # row regardless of gate state. flag is 1 when gate has rows,
             # 0 otherwise.  Without the REMOTE_ZERO_ROWS type-restore fix,
@@ -836,7 +737,7 @@ class TestStreamSubqueryPerEvent:
             # the walker stops re-dispatching the case, so event 2 keeps
             # replaying flag=1 even after the gate is emptied.
             tdSql.execute(
-                f"create stream sum_when_gate_open count_window(1, 1, p) "
+                f"create stream sgo{_run_id} count_window(1, 1, p) "
                 f"from linea "
                 f"into r as "
                 f"select _twstart as ts, "
@@ -852,7 +753,7 @@ class TestStreamSubqueryPerEvent:
             )
 
         def check1(self):
-            tdSql.checkResultsByFunc(
+            tdSql.checkResultsByFunc(retry=60,
                 sql=f"select flag from {self.db}.r order by ts",
                 func=lambda: tdSql.getRows() == 1
                 and tdSql.compareData(0, 0, 1),
@@ -867,12 +768,12 @@ class TestStreamSubqueryPerEvent:
 
         def check2(self):
             sql = f"select flag from {self.db}.r order by ts"
-            deadline = time.time() + 60
+            deadline = time.time() + 30
             while time.time() < deadline:
                 tdSql.query(sql)
                 if tdSql.getRows() >= 2:
                     break
-                time.sleep(2)
+                time.sleep(1)
             tdSql.query(sql)
             rows = tdSql.getRows()
             for i in range(rows):

@@ -36,6 +36,7 @@ bool tmq_ctx_auth(struct tmq_ctx* context, const char* username, const char* pas
 
     conn = taos_connect(host, username, password, NULL, port);
     if (conn) {
+      (void)taos_options_connection(conn, TSDB_OPTION_CONNECTION_USER_APP, "TSDB");
       context->conn = conn;
 
       break;
@@ -423,6 +424,7 @@ void tmq_ctx_cleanup(struct tmq_ctx* context) {
     tmq_topic_info *tinfo, *tinfo_tmp;
 
     HASH_ITER(hh_id, context->topic_info, tinfo, tinfo_tmp) {
+      HASH_DELETE(hh_id, context->topic_info, tinfo);
       ttq_free(tinfo->topic_name);
       ttq_free(tinfo);
     }

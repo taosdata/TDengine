@@ -540,6 +540,7 @@ function install_bin() {
 
 
   chmod 0555 ${install_main_dir}/bin/*
+  rm -f ${install_main_dir}/uninstall.sh || :
   [ -x ${install_main_dir}/bin/${remove_name} ] && mv -f ${install_main_dir}/bin/${remove_name} ${install_main_dir}/uninstall.sh || :
 
   #Make link
@@ -591,10 +592,12 @@ function install_lib() {
   rm -f ${lib_link_dir}/libtaos.* || :
   rm -f ${lib_link_dir}/libtaosnative.* || :
   rm -f ${lib_link_dir}/libtaosws.* || :
+  rm -f ${lib_link_dir}/libtaospyudf.* || :
   if [ "$osType" != "Darwin" ]; then
     rm -f ${lib64_link_dir}/libtaos.* || :
     rm -f ${lib64_link_dir}/libtaosnative.* || :
     rm -f ${lib64_link_dir}/libtaosws.* || :
+    rm -f ${lib64_link_dir}/libtaospyudf.* || :
   fi
   #rm -rf ${v15_java_app_dir}              || :
   cp -rf ${script_dir}/driver/* ${driver_dir}/ && chmod 755 ${driver_dir}/*
@@ -607,7 +610,10 @@ function install_lib() {
     ln -sf ${driver_dir}/libtaosnative.* ${lib_link_dir}/libtaosnative.so.3
     ln -sf ${lib_link_dir}/libtaosnative.so.3 ${lib_link_dir}/libtaosnative.so
 
-    ln -sf ${driver_dir}/libtaosws.so.* ${lib_link_dir}/libtaosws.so
+    ln -sf ${driver_dir}/libtaosws.so.* ${lib_link_dir}/libtaosws.so.3
+    ln -sf ${lib_link_dir}/libtaosws.so.3 ${lib_link_dir}/libtaosws.so
+    ln -sf ${driver_dir}/libtaospyudf.so.* ${lib_link_dir}/libtaospyudf.so.3
+    ln -sf ${lib_link_dir}/libtaospyudf.so.3 ${lib_link_dir}/libtaospyudf.so
 
     # Link lib64 if it exists
     if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
@@ -616,10 +622,12 @@ function install_lib() {
       ln -sf ${driver_dir}/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.3 || :
       ln -sf ${lib64_link_dir}/libtaosnative.so.3 ${lib64_link_dir}/libtaosnative.so || :
 
-      ln -sf ${driver_dir}/libtaosws.so.* ${lib64_link_dir}/libtaosws.so || :
+      ln -sf ${driver_dir}/libtaosws.so.* ${lib64_link_dir}/libtaosws.so.3 || :
+      ln -sf ${lib64_link_dir}/libtaosws.so.3 ${lib64_link_dir}/libtaosws.so || :
+      ln -sf ${driver_dir}/libtaospyudf.so.* ${lib64_link_dir}/libtaospyudf.so.3 || :
+      ln -sf ${lib64_link_dir}/libtaospyudf.so.3 ${lib64_link_dir}/libtaospyudf.so || :
     fi
 
-    # Update library cache
     if [[ $user_mode -eq 0 ]]; then
       ldconfig 2>/dev/null || log warn "Failed to update library cache (ldconfig)"
     fi
@@ -632,6 +640,9 @@ function install_lib() {
 
     for f in ${driver_dir}/libtaosws.dylib.*; do
       [ -f "$f" ] && ln -sf "$f" "${lib_link_dir}/libtaosws.dylib"
+    done
+    for f in ${driver_dir}/libtaospyudf.dylib.*; do
+      [ -f "$f" ] && ln -sf "$f" "${lib_link_dir}/libtaospyudf.dylib"
     done
     # Update dyld shared cache
     if [[ $user_mode -eq 0 ]]; then
@@ -730,7 +741,9 @@ function install_jemalloc() {
 function install_header() {
   rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h
 
-  [ -f ${inc_link_dir}/taosws.h ] && rm -f ${inc_link_dir}/taosws.h
+  if [ -f "${inc_link_dir}/taosws.h" ]; then
+    rm -f "${inc_link_dir}/taosws.h"
+  fi
 
   cp -f ${script_dir}/inc/* ${install_main_dir}/include && chmod 644 ${install_main_dir}/include/*
   ln -sf ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
@@ -739,7 +752,9 @@ function install_header() {
   ln -sf ${install_main_dir}/include/tdef.h ${inc_link_dir}/tdef.h
   ln -sf ${install_main_dir}/include/taosudf.h ${inc_link_dir}/taosudf.h
 
-  [ -f ${install_main_dir}/include/taosws.h ] && ln -sf ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h
+  if [ -f "${install_main_dir}/include/taosws.h" ]; then
+    ln -sf "${install_main_dir}/include/taosws.h" "${inc_link_dir}/taosws.h"
+  fi
 }
 
 function add_newHostname_to_hosts() {
@@ -1512,7 +1527,7 @@ function updateProduct() {
   fi
 
   cd $script_dir
-  rm -rf $(tar -tf "${tarName}" | grep -Ev "^\./$|^\/") || :
+  rm -rf $(tar -tf "${tarName}" | grep -Ev "^\./$|^/") || :
 }
 
 function installProduct() {
@@ -1572,7 +1587,7 @@ function installProduct() {
 
   cd $script_dir
   touch ~/.${historyFile}
-  rm -rf $(tar -tf "${tarName}" | grep -Ev "^\./$|^\/") || :
+  rm -rf $(tar -tf "${tarName}" | grep -Ev "^\./$|^/") || :
 }
 
 check_java_env() {

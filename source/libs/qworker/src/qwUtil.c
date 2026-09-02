@@ -795,7 +795,7 @@ bool qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx, bool forceStop, int32_t errC
     } else {
       QW_TASK_DLOG_E("task running, async killed");
     }
-  } else if (QW_FETCH_RUNNING(ctx)) {
+  } else if (QW_FETCH_RUNNING(ctx) || QW_QUICK_FETCH_RUNNING(ctx)) {
     QW_TASK_DLOG_E("task fetching");
     QW_UPDATE_RSP_CODE(ctx, errCode);
     if (forceStop) {
@@ -906,4 +906,3 @@ void qwChkDropTimeoutQuery(SQWorker *mgmt, int32_t currTs) {
     pIter = taosHashIterate(mgmt->ctxHash, pIter);
   }
 }
-

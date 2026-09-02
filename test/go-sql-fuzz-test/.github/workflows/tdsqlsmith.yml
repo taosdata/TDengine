@@ -1,0 +1,370 @@
+name: tdsqlsmith
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tdengine-build:
+    name: build-tdengine-runtime
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout TDengine main
+        uses: actions/checkout@v6
+        with:
+          repository: taosdata/TDengine
+          path: TDengine
+          ref: main
+
+      - name: Get TDengine commit id
+        id: tdengine-commit
+        run: |
+          cd TDengine
+          echo "commit_id=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache TDengine package
+        id: cache-server
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: tdengine-main-${{ runner.os }}-${{ steps.tdengine-commit.outputs.commit_id }}
+
+      - name: Get CMake
+        if: steps.cache-server.outputs.cache-hit != 'true'
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+
+      - name: Cache TDengine externals
+        if: steps.cache-server.outputs.cache-hit != 'true'
+        uses: actions/cache@v5
+        with:
+          path: TDengine/.externals
+          key: tdengine-ext-${{ runner.os }}-${{ hashFiles('TDengine/cmake/external.cmake', 'TDengine/cmake/in/**') }}
+
+      - name: Build TDengine
+        if: steps.cache-server.outputs.cache-hit != 'true'
+        run: |
+          cd TDengine
+          mkdir -p debug
+          cd debug
+          cmake .. -DBUILD_TEST=off -DBUILD_DEPENDENCY_TESTS=0
+          make -j"$(nproc)"
+
+      - name: Package TDengine binaries
+        if: steps.cache-server.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ./release
+          cp ./TDengine/debug/build/bin/taos ./release/
+          cp ./TDengine/debug/build/bin/taosd ./release/
+          cp ./TDengine/debug/build/lib/libtaos.so ./release/
+          cp ./TDengine/debug/build/lib/libtaosnative.so ./release/
+          cp ./TDengine/include/client/taos.h ./release/
+          cat > ./release/install.sh <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          cd "$(dirname "$0")"
+          chmod +x ./taos ./taosd
+          cp ./taos /bin/
+          cp ./taosd /bin/
+          cp ./libtaosnative.so /usr/lib
+          cp ./libtaos.so /usr/lib
+          cp ./taos.h /usr/include
+          EOF
+          chmod +x ./release/install.sh
+          tar -zcvf server.tar.gz ./release
+
+      - name: Upload TDengine package artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: tdengine-server-${{ github.run_id }}
+          path: server.tar.gz
+          if-no-files-found: error
+
+  build-main:
+    needs: tdengine-build
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    name: build-tdsqlsmith-main
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Download TDengine package
+        uses: actions/download-artifact@v6
+        with:
+          name: tdengine-server-${{ github.run_id }}
+          path: .
+
+      - name: Install TDengine runtime for build
+        run: |
+          tar -zxvf server.tar.gz
+          if command -v sudo >/dev/null 2>&1; then
+            sudo bash ./release/install.sh
+          else
+            bash ./release/install.sh
+          fi
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: tdsqlsmith/go.mod
+          cache-dependency-path: tdsqlsmith/go.sum
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Build tdsqlsmith
+        working-directory: tdsqlsmith
+        run: |
+          make init
+          make build
+
+      - name: Upload build artifact
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: tdsqlsmith-build-${{ github.run_id }}
+          path: |
+            tdsqlsmith/bin/tdsqlsmith
+            tdsqlsmith/run_parent_child_test.sh
+            tdsqlsmith/run_web_service.sh
+          if-no-files-found: error
+
+  daily-build-and-fuzz:
+    needs: tdengine-build
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    name: daily-build-and-1h-fuzz
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Download TDengine package
+        uses: actions/download-artifact@v6
+        with:
+          name: tdengine-server-${{ github.run_id }}
+          path: .
+
+      - name: Install TDengine runtime
+        run: |
+          tar -zxvf server.tar.gz
+          sudo bash ./release/install.sh
+          sudo nohup taosd > taosd.log 2>&1 &
+          for i in $(seq 1 60); do
+            if taos -s "select server_version();" >/dev/null 2>&1; then
+              echo "TDengine is ready."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "TDengine failed to start in time." >&2
+          exit 1
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: tdsqlsmith/go.mod
+          cache-dependency-path: tdsqlsmith/go.sum
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Build tdsqlsmith
+        working-directory: tdsqlsmith
+        run: |
+          make init
+          make build
+
+      - name: Run 1h parent-child test
+        working-directory: tdsqlsmith
+        run: |
+          chmod +x ./run_parent_child_test.sh
+          sudo TDSQLSMITH_BIN="$PWD/bin/tdsqlsmith" ./run_parent_child_test.sh 1h
+
+      - name: Extract crash SQL
+        if: always()
+        id: crashsql
+        run: |
+          set -euo pipefail
+          OUT_DIR="tdsqlsmith/out/crash_sql"
+          OUT_FILE="${OUT_DIR}/crash_sql_latest.sql"
+          TMP_SETUP="$(mktemp)"
+          TMP_CRASH="$(mktemp)"
+          trap 'rm -f "${TMP_SETUP}" "${TMP_CRASH}" "${TMP_SETUP}.uniq" "${TMP_CRASH}.uniq"' EXIT
+          sudo mkdir -p "${OUT_DIR}"
+
+          sudo find tdsqlsmith/out -type f -name run_report.json -print0 2>/dev/null \
+            | while IFS= read -r -d '' report_path; do
+                sudo jq -r '.setup_sql[]? // empty' "${report_path}" >> "${TMP_SETUP}" || true
+                sudo jq -r '(.taosd_incidents[]?.crash_sql // empty), (.tdsqlsmith_incidents[]?.crash_sql // empty)' "${report_path}" >> "${TMP_CRASH}" || true
+              done
+
+          sed -i '/^[[:space:]]*$/d' "${TMP_SETUP}" || true
+          sed -i '/^[[:space:]]*$/d' "${TMP_CRASH}" || true
+          awk '!seen[$0]++' "${TMP_SETUP}" > "${TMP_SETUP}.uniq" || true
+          awk '!seen[$0]++' "${TMP_CRASH}" > "${TMP_CRASH}.uniq" || true
+          mv "${TMP_SETUP}.uniq" "${TMP_SETUP}"
+          mv "${TMP_CRASH}.uniq" "${TMP_CRASH}"
+
+          if [ -s "${TMP_CRASH}" ]; then
+            if [ -s "${TMP_SETUP}" ]; then
+              {
+                echo "-- setup_sql"
+                while IFS= read -r sql; do
+                  printf "%s\n" "${sql}"
+                done < "${TMP_SETUP}"
+                echo
+              } | sudo tee "${OUT_FILE}" > /dev/null
+            else
+              sudo tee "${OUT_FILE}" > /dev/null < /dev/null
+            fi
+
+            idx=0
+            while IFS= read -r sql; do
+              idx=$((idx + 1))
+              printf -- "-- crash_sql #%d\n%s\n\n" "${idx}" "${sql}" | sudo tee -a "${OUT_FILE}" > /dev/null
+            done < "${TMP_CRASH}"
+            echo "has_crash_sql=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "-- no crash sql found" | sudo tee "${OUT_FILE}" > /dev/null
+            echo "has_crash_sql=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Add crash SQL summary
+        if: always()
+        run: |
+          if [ "${{ steps.crashsql.outputs.has_crash_sql }}" = "true" ]; then
+            echo "### Crash SQL" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Found crash SQL. Download artifact \`tdsqlsmith-crash-sql-${GITHUB_RUN_ID}\`." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Crash SQL" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "No crash SQL found in this run." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Feishu notification for crash SQL
+        if: always() && steps.crashsql.outputs.has_crash_sql == 'true'
+        env:
+          FEISHU_NOTIFICATION_WEBHOOK: ${{ secrets.FEISHU_NOTIFICATION_WEBHOOK }}
+          FEISHU_ALERT_WEBHOOK: ${{ secrets.FEISHU_ALERT_WEBHOOK }}
+        run: |
+          WORKFLOW_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          PAYLOAD="{
+            \"msg_type\": \"interactive\",
+            \"card\": {
+              \"config\": {\"wide_screen_mode\": true},
+              \"header\": {
+                \"title\": {\"tag\": \"plain_text\", \"content\": \"Go SQL Fuzz Alert: Crash SQL Detected\"},
+                \"template\": \"red\"
+              },
+              \"elements\": [
+                {
+                  \"tag\": \"div\",
+                  \"text\": {
+                    \"tag\": \"lark_md\",
+                    \"content\": \"**Repo**: ${GITHUB_REPOSITORY}\\n**Owner**: Platform Test\\n**Status**: Failed\\nCrash SQL detected in scheduled fuzz run. Download artifact \`tdsqlsmith-crash-sql-${GITHUB_RUN_ID}\` for details.\\n[View Workflow](${WORKFLOW_URL})\"
+                  }
+                }
+              ]
+            }
+          }"
+          echo "--- notification webhook response ---"
+          curl -sS --fail-with-body -X POST "$FEISHU_NOTIFICATION_WEBHOOK" \
+               -H 'Content-Type: application/json' -d "$PAYLOAD" || echo "notification webhook failed"
+          echo "--- alert webhook response ---"
+          curl -sS --fail-with-body -X POST "$FEISHU_ALERT_WEBHOOK" \
+               -H 'Content-Type: application/json' -d "$PAYLOAD" || echo "alert webhook failed"
+
+      - name: Fix output directory permissions for artifact upload
+        if: always()
+        run: sudo chown -R $(id -u):$(id -g) tdsqlsmith/out || true
+
+      - name: Upload crash SQL artifact
+        if: always() && steps.crashsql.outputs.has_crash_sql == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: tdsqlsmith-crash-sql-${{ github.run_id }}
+          path: tdsqlsmith/out/crash_sql/crash_sql_latest.sql
+          if-no-files-found: warn
+
+      - name: Upload tdsqlsmith run artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: tdsqlsmith-daily-run-${{ github.run_id }}
+          path: |
+            tdsqlsmith/out
+            tdsqlsmith/bin/tdsqlsmith
+            tdsqlsmith/run_parent_child_test.sh
+            taosd.log
+          if-no-files-found: warn
+
+      - name: Feishu notification for run result
+        if: always()
+        env:
+          FEISHU_NOTIFICATION_WEBHOOK: ${{ secrets.FEISHU_NOTIFICATION_WEBHOOK }}
+          FEISHU_ALERT_WEBHOOK: ${{ secrets.FEISHU_ALERT_WEBHOOK }}
+        run: |
+          WORKFLOW_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          JOB_STATUS="${{ job.status }}"
+          HAS_CRASH="${{ steps.crashsql.outputs.has_crash_sql }}"
+          if [ -z "$HAS_CRASH" ]; then HAS_CRASH="false"; fi
+
+          if [ "$JOB_STATUS" = "success" ] && [ "$HAS_CRASH" != "true" ]; then
+            HEADER_COLOR="green"
+            STATUS_TEXT="Success"
+          else
+            HEADER_COLOR="red"
+            STATUS_TEXT="Failed"
+          fi
+
+          if [ "$HAS_CRASH" = "true" ]; then
+            CRASH_TEXT="Crash SQL detected. Download artifact \`tdsqlsmith-crash-sql-${GITHUB_RUN_ID}\` for details."
+          else
+            CRASH_TEXT="No crash SQL found."
+          fi
+
+          PAYLOAD="{
+            \"msg_type\": \"interactive\",
+            \"card\": {
+              \"config\": {\"wide_screen_mode\": true},
+              \"header\": {
+                \"title\": {\"tag\": \"plain_text\", \"content\": \"Go SQL Fuzz Daily Run: ${STATUS_TEXT}\"},
+                \"template\": \"${HEADER_COLOR}\"
+              },
+              \"elements\": [
+                {
+                  \"tag\": \"div\",
+                  \"text\": {
+                    \"tag\": \"lark_md\",
+                    \"content\": \"**Repo**: ${GITHUB_REPOSITORY}\\n**Owner**: Platform Test\\n**Status**: ${STATUS_TEXT}\\n**Crash SQL**: ${CRASH_TEXT}\\n[View Workflow](${WORKFLOW_URL})\"
+                  }
+                }
+              ]
+            }
+          }"
+          echo "--- notification webhook response ---"
+          curl -sS --fail-with-body -X POST "$FEISHU_NOTIFICATION_WEBHOOK" \
+               -H 'Content-Type: application/json' -d "$PAYLOAD" || echo "notification webhook failed"
+          if [ "$JOB_STATUS" != "success" ]; then
+            echo "--- alert webhook response ---"
+            curl -sS --fail-with-body -X POST "$FEISHU_ALERT_WEBHOOK" \
+                 -H 'Content-Type: application/json' -d "$PAYLOAD" || echo "alert webhook failed"
+          fi

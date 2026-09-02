@@ -21,6 +21,20 @@ namespace ParserTest {
 
 class ParserInitialDTest : public ParserDdlTest {};
 
+TEST_F(ParserInitialDTest, setFirstDayOfWeek) {
+  useDb("root", "test");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT);
+    SSetFirstDayOfWeekStmt* pStmt = (SSetFirstDayOfWeekStmt*)pQuery->pRoot;
+    ASSERT_EQ(pStmt->firstDayOfWeek, 0);
+  });
+
+  run("SET FIRST_DAY_OF_WEEK 0", TSDB_CODE_SUCCESS, PARSER_STAGE_PARSE);
+
+  run("SET FIRST_DAY_OF_WEEK -1", TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK, PARSER_STAGE_PARSE);
+}
+
 // DELETE FROM table_name [WHERE condition]
 TEST_F(ParserInitialDTest, delete) {
   useDb("root", "test");
@@ -253,6 +267,29 @@ TEST_F(ParserInitialDTest, dropTable) {
 
   run("DROP TABLE t1");
   run("DROP TABLE t1, st1s1, st1s2");
+}
+
+TEST_F(ParserInitialDTest, dropVTable) {
+  useDb("root", "test");
+
+  // single-table DROP VTABLE parses today
+  runParseOnly("DROP VTABLE vt1");
+  // batch DROP VTABLE (multiple tables) must parse after the grammar change
+  runParseOnly("DROP VTABLE vt1, vt2");
+  runParseOnly("DROP VTABLE IF EXISTS vt1, vt2, vt3");
+  // database-qualified names, backticks, and case-insensitive keyword
+  runParseOnly("DROP VTABLE test.vt1, `vt2`, db2.`vt3`");
+  runParseOnly("drop vtable if exists vt1, vt2");
+  // single-table IF EXISTS keeps working
+  runParseOnly("DROP VTABLE IF EXISTS vt1");
+  // WITH (uid-based replay) form, single and batch
+  runParseOnly("DROP VTABLE WITH `123`");
+  runParseOnly("DROP VTABLE WITH `123`, `456`");
+  // malformed statements must be rejected at parse level
+  runParseOnly("DROP VTABLE vt1,", TSDB_CODE_PAR_INCOMPLETE_SQL);   // trailing comma
+  runParseOnly("DROP VTABLE", TSDB_CODE_PAR_INCOMPLETE_SQL);        // empty table list
+  runParseOnly("DROP VTABLE vt1 vt2", TSDB_CODE_PAR_SYNTAX_ERROR);  // missing comma
+  runParseOnly("DROP VTABLES vt1, vt2", TSDB_CODE_PAR_SYNTAX_ERROR);
 }
 
 TEST_F(ParserInitialDTest, dropTopic) {

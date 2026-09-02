@@ -151,11 +151,14 @@ void saveXnodedPid(int32_t pid) {
 }
 
 static void locateXnodedExecFile(char *path) {
+#ifdef WINDOWS
+  if (taosAppPath(path, PATH_MAX) != 0) {
+    path[0] = '\0';
+  }
+#else
   if (tsProcPath == NULL) {
     path[0] = '.';
-#ifdef WINDOWS
-    GetModuleFileName(NULL, path, PATH_MAX);
-#elif defined(_TD_DARWIN_64)
+#if defined(_TD_DARWIN_64)
     uint32_t pathSize = sizeof(path);
     _NSGetExecutablePath(path, &pathSize);
 #endif
@@ -164,6 +167,7 @@ static void locateXnodedExecFile(char *path) {
   }
 
   TAOS_DIRNAME(path);
+#endif
   if (strlen(path) != 0) {
     TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
     if (taosCheckExistFile(path)) {

@@ -1,20 +1,13 @@
-import taos
-import socket
 import random
-from new_test_framework.utils import tdLog, tdSql, TDSql, tdDnodes
+from new_test_framework.utils import tdLog, tdSql
 
 
 class TestIntervalBugFix:
-    updatecfgDict = {"timezone": "UTC"}
+    updatecfgDict = {"timezone": "UTC", "clientCfg": {"timezone": "UTC"}}
 
     def setup_class(cls):
-        host = socket.gethostname()
-        con = taos.connect(
-            host=f"{host}", config=tdDnodes.getSimCfgPath(), timezone="UTC"
-        )
         tdLog.debug("start to execute %s" % __file__)
-        cls.testSql = TDSql()
-        cls.testSql.init(con.cursor())
+        cls.testSql = tdSql
 
     def ts_5400_prepare_data(self):
         tdLog.info("prepare data for TS-5400")
@@ -33,8 +26,7 @@ class TestIntervalBugFix:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-11-20 xs Ren Created
             - 2024-9-14 Feng Chao Created
@@ -46,6 +38,267 @@ class TestIntervalBugFix:
         self.ts_7676_test_uni_ts()
         self.td_6739571506_test()
         self.sliding_month_february()
+
+    def test_interval_data_order_level(self):
+        """Interval: data order level regression
+
+        Validate that a multi-table interval subquery can feed another interval
+        window without requiring the inner result to be globally ordered. The
+        inner partition-by-tbname interval output is only group ordered, but the
+        outer interval should still aggregate correctly.
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+        """
+
+        db = "db_interval_order_level"
+        self.testSql.execute(f"drop database if exists {db}")
+        self.testSql.execute(f"create database {db}")
+        self.testSql.execute(f"use {db}")
+        self.testSql.execute("create stable st(ts timestamp, v int) tags(g int)")
+        self.testSql.execute("create table t1 using st tags(1)")
+        self.testSql.execute("create table t2 using st tags(2)")
+        self.testSql.execute(
+            "insert into t1 values "
+            "('2024-01-01 00:00:00.000', 1) "
+            "('2024-01-01 00:00:01.000', 2) "
+            "('2024-01-01 00:00:04.000', 3)"
+        )
+        self.testSql.execute(
+            "insert into t2 values "
+            "('2024-01-01 00:00:00.000', 10) "
+            "('2024-01-01 00:00:02.000', 20) "
+            "('2024-01-01 00:00:05.000', 30)"
+        )
+
+        sql = (
+            "select cast(_wstart as bigint), sum(c) from "
+            "(select _wstart, count(*) as c, tbname from st partition by tbname interval(2s)) "
+            "interval(4s)"
+        )
+        self.testSql.query(sql)
+        self.testSql.checkRows(2)
+        self.testSql.checkData(0, 0, 1704067200000)
+        self.testSql.checkData(0, 1, 4)
+        self.testSql.checkData(1, 0, 1704067204000)
+        self.testSql.checkData(1, 1, 2)
+
+        sql_desc = (
+            "select cast(_wstart as bigint), sum(c) from "
+            "(select _wstart, count(*) as c, tbname from st partition by tbname interval(2s) order by 1 desc) "
+            "interval(4s)"
+        )
+        self.testSql.query(sql_desc)
+        self.testSql.checkRows(2)
+        self.testSql.checkData(0, 0, 1704067200000)
+        self.testSql.checkData(0, 1, 4)
+        self.testSql.checkData(1, 0, 1704067204000)
+        self.testSql.checkData(1, 1, 2)
+
+    def test_last_row_sliding_interval_matches_subquery(self):
+        """Interval: last functions over sliding windows match subquery results.
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: TD-7043509904
+        """
+
+        db = "db_interval_last_row_sliding"
+        days = [
+            "2021-08-27",
+            "2021-08-28",
+            "2021-08-29",
+            "2021-08-30",
+            "2021-08-31",
+            "2021-09-01",
+            "2021-09-02",
+            "2021-09-03",
+            "2021-09-04",
+            "2021-09-05",
+            "2021-09-06",
+            "2021-09-07",
+            "2021-09-08",
+            "2021-09-09",
+            "2021-09-10",
+            "2021-09-11",
+            "2021-09-12",
+            "2021-09-13",
+            "2021-12-20",
+            "2021-12-21",
+            "2021-12-22",
+        ]
+
+        self.testSql.execute(f"drop database if exists {db} force")
+        self.testSql.execute(f"create database {db} vgroups 4 keep 365000d")
+        self.testSql.execute(f"use {db}")
+        self.testSql.execute("create stable st(ts timestamp, v int) tags(g int)")
+        self.testSql.execute("create table t0 using st tags(0)")
+        self.testSql.execute("create table t1 using st tags(1)")
+
+        for table, ms, value_offset in (("t0", "000", 0), ("t1", "001", 100)):
+            values = " ".join(
+                f"('{day} 01:00:00.{ms}', {idx + value_offset})"
+                for idx, day in enumerate(days, start=1)
+            )
+            self.testSql.execute(f"insert into {table} values {values}")
+
+        for func in ("last_row", "last"):
+            direct_sql = (
+                f"select cast(_wstart as bigint), cast({func}(ts) as bigint) "
+                "from st interval(18d) sliding(1d) order by 1"
+            )
+            subquery_sql = (
+                f"select cast(_wstart as bigint), cast({func}(ts) as bigint) "
+                "from (select * from st) interval(18d) sliding(1d) order by 1"
+            )
+
+            self.testSql.query(direct_sql)
+            direct_rows = list(self.testSql.queryResult)
+            self.testSql.query(subquery_sql)
+            subquery_rows = list(self.testSql.queryResult)
+
+            self.testSql.checkEqual(len(subquery_rows), 55)
+            self.testSql.checkEqual(direct_rows, subquery_rows)
+
+    def test_multi_week_tumbling_offset_matches_subquery(self):
+        """Interval: multi-week tumbling windows keep one fixed phase.
+
+        Catalog:
+            - TimeSeries:TimeWindow
+
+        Since: v3.4.2.1
+        Labels: common,ci
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7043509904
+
+        History:
+            - 2026-07-22 Codex Created
+        """
+
+        db = "db_interval_multi_week_offset"
+        self.testSql.execute(f"drop database if exists {db} force")
+        self.testSql.execute(f"create database {db} vgroups 2 keep 365000d")
+        self.testSql.execute(f"use {db}")
+        self.testSql.execute("create stable st(ts timestamp, v bigint) tags(g int)")
+        self.testSql.execute("create table t1 using st tags(1)")
+        self.testSql.execute(
+            "insert into t1 values "
+            "('2021-09-04 22:16:40.001', -1591543056712849320) "
+            "('2021-09-13 06:16:40.001', -9074711936305748162) "
+            "('2021-12-21 02:58:50.001', -7336830604222743803)"
+        )
+
+        self.testSql.query("select first_day_of_week()")
+        original_fdow = self.testSql.queryResult[0][0]
+        try:
+            self.testSql.execute("set first_day_of_week 0")
+            for func in ("last_row", "last"):
+                queries = (
+                    f"select cast(_wstart as bigint), {func}(v) from st interval(14w,2w) order by _wstart",
+                    f"select cast(_wstart as bigint), {func}(v) from (select * from st) "
+                    "interval(14w,2w) order by _wstart",
+                )
+                for sql in queries:
+                    self.testSql.query(sql)
+                    self.testSql.checkRows(2)
+                    self.testSql.checkData(0, 0, 1627171200000)
+                    self.testSql.checkData(0, 1, -9074711936305748162)
+                    self.testSql.checkData(1, 0, 1635638400000)
+                    self.testSql.checkData(1, 1, -7336830604222743803)
+        finally:
+            self.testSql.execute(f"set first_day_of_week {original_fdow}")
+
+    def test_multi_week_sliding_uses_fixed_phase(self):
+        """Interval: block order cannot change multi-week sliding windows.
+
+        Catalog:
+            - TimeSeries:TimeWindow
+
+        Since: v3.4.2.1
+        Labels: common,ci
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7043509904
+
+        History:
+            - 2026-07-22 Codex Created
+        """
+
+        db = "db_interval_multi_week_sliding"
+        self.testSql.execute(f"drop database if exists {db} force")
+        self.testSql.execute(f"create database {db} vgroups 2 keep 365000d")
+        self.testSql.execute(f"use {db}")
+        self.testSql.execute("create stable st(ts timestamp, v nchar(16)) tags(g int)")
+        for index in range(8):
+            self.testSql.execute(f"create table t{index} using st tags({index})")
+
+        self.testSql.query(
+            "select table_name, vgroup_id from information_schema.ins_tables "
+            f"where db_name = '{db}' and stable_name = 'st' order by table_name"
+        )
+        tables_by_vgroup = {}
+        for table_name, vgroup_id in self.testSql.queryResult:
+            tables_by_vgroup.setdefault(vgroup_id, table_name)
+        self.testSql.checkEqual(len(tables_by_vgroup) >= 2, True)
+        early_table, late_table = list(tables_by_vgroup.values())[:2]
+
+        self.testSql.execute(
+            f"insert into {early_table} values "
+            "('2021-08-27 01:00:00.000', 'early')"
+        )
+        self.testSql.execute(f"flush database {db}")
+        self.testSql.execute(
+            f"insert into {late_table} values "
+            "('2021-12-25 23:33:20.000', 'before') "
+            "('2021-12-26 03:25:50.000', 'after')"
+        )
+
+        self.testSql.query("select first_day_of_week()")
+        original_fdow = self.testSql.queryResult[0][0]
+        try:
+            self.testSql.execute("set first_day_of_week 0")
+            last_queries = (
+                "select cast(_wstart as bigint), cast(last(ts) as bigint), last(v) from st "
+                "interval(13w,5w) sliding(6w) order by _wstart",
+                "select cast(_wstart as bigint), cast(last(ts) as bigint), last(v) from (select * from st) "
+                "interval(13w,5w) sliding(6w) order by _wstart",
+                "select cast(_wstart as bigint), cast(last(ts) as bigint), last(v) "
+                "from (select * from st order by ts) "
+                "interval(13w,5w) sliding(6w) order by _wstart",
+            )
+            expected = (
+                (1625356800000, 1630026000000, "early"),
+                (1628985600000, 1630026000000, "early"),
+                (1632614400000, 1640475200000, "before"),
+                (1636243200000, 1640489150000, "after"),
+                (1639872000000, 1640489150000, "after"),
+            )
+            for sql in last_queries:
+                self.testSql.query(sql)
+                self.testSql.checkRows(5)
+                for row, values in enumerate(expected):
+                    for col, value in enumerate(values):
+                        self.testSql.checkData(row, col, value)
+
+            count_queries = (
+                "select cast(_wstart as bigint), count(*) from st "
+                "interval(13w,5w) sliding(6w) order by _wstart",
+                "select cast(_wstart as bigint), count(*) from (select * from st) "
+                "interval(13w,5w) sliding(6w) order by _wstart",
+                "select cast(_wstart as bigint), count(*) from (select * from st order by ts) "
+                "interval(13w,5w) sliding(6w) order by _wstart",
+            )
+            expected_counts = (1, 1, 1, 2, 2)
+            for sql in count_queries:
+                self.testSql.query(sql)
+                self.testSql.checkRows(5)
+                for row, count in enumerate(expected_counts):
+                    self.testSql.checkData(row, 0, expected[row][0])
+                    self.testSql.checkData(row, 1, count)
+        finally:
+            self.testSql.execute(f"set first_day_of_week {original_fdow}")
 
     def sliding_month_february(self):
         """Validate interval(1n) monthly windows over February with various sliding values.
@@ -260,11 +513,19 @@ class TestIntervalBugFix:
         
         # interval window: subquery is union all window with order by non-pk column
         sql = f"select  _wstart, first(`event_time`) from (select _wstart, first(`event_time`) as t2, `event_time`, `status`,  tbname from st partition by tbname interval(2s) union all (select _wstart, first(`event_time`) as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s)) order by t2 asc) interval(3s)"
-        tdSql.error(sql)
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1763617914000)
+        tdSql.checkData(1, 0, 1763617917000)
+        tdSql.checkData(2, 0, 1763617920000)
 
         # union all window without order by
         sql = f"select  _wstart, first(`event_time`) from (select _wstart, first(`event_time`), `event_time`, `status`,  tbname from st partition by tbname interval(2s) union all (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s))) interval(3s)"
-        tdSql.error(sql)
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1763617914000)
+        tdSql.checkData(1, 0, 1763617917000)
+        tdSql.checkData(2, 0, 1763617920000)
         
         # interval window: subquery is state window with order by asc
         sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1) interval(3s);"
@@ -351,7 +612,16 @@ class TestIntervalBugFix:
         
         # session window: subquery is state window with order by non-pk column
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 2 desc) session(t2, 500a);"
-        tdSql.error(sql)
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 1763617916000)
+        tdSql.checkData(0, 1, 15)
+        tdSql.checkData(1, 0, 1763617918000)
+        tdSql.checkData(1, 1, 20)
+        tdSql.checkData(2, 0, 1763617922000)
+        tdSql.checkData(2, 1, 25)
+        tdSql.checkData(3, 0, 1763617923000)
+        tdSql.checkData(3, 1, 30)
         
         # session window: subquery is state window without order by
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`)) session(t2, 500a);"
@@ -415,11 +685,23 @@ class TestIntervalBugFix:
         
         # state window: subquery is state window without order
         sql = f"select _wstart, sum(`status`) from (select ts, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s)) state_window(status);"
-        tdSql.error(sql)
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(15)
+        tdSql.checkData(0, 0, 1763617916000)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(14, 0, 1763617922004)
+        tdSql.checkData(14, 1, 3)
         
         # state window: subquery is state window with order by non-pk column
         sql = f"select _wstart, sum(`status`) from (select ts, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 2 desc) state_window(status);"
-        tdSql.error(sql)
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1763617916001)
+        tdSql.checkData(0, 1, 5)
+        tdSql.checkData(1, 0, 1763617920002)
+        tdSql.checkData(1, 1, 20)
+        tdSql.checkData(2, 0, 1763617922004)
+        tdSql.checkData(2, 1, 15)
         
         sql = f"select _wstart, first(`status`), ts from (select ts, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 desc) state_window(status);"
         tdSql.query(sql, show=True)
@@ -475,7 +757,16 @@ class TestIntervalBugFix:
         
         # count window: subquery is state window with order by non-pk column
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 2 desc) count_window(5);"
-        tdSql.error(sql)
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 1763617923004)
+        tdSql.checkData(0, 1, 15)
+        tdSql.checkData(1, 0, 1763617922001)
+        tdSql.checkData(1, 1, 14)
+        tdSql.checkData(2, 0, 1763617918003)
+        tdSql.checkData(2, 1, 9)
+        tdSql.checkData(3, 0, 1763617916004)
+        tdSql.checkData(3, 1, 4)
         
         # count window: subquery is state window without order by
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`)) count_window(5);"
@@ -497,7 +788,10 @@ class TestIntervalBugFix:
         
         # event window: subquery is state window with order by non-pk column
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 2) event_window start with status > 1 end with status > 4;"
-        tdSql.error(sql)
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1763617918004)
+        tdSql.checkData(0, 1, 37)
         
         # event window: subquery is state window without order by
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`)) event_window start with status > 1 end with status > 4;"
@@ -525,7 +819,13 @@ class TestIntervalBugFix:
         
         # event window: subquery is state window with order by non-pk column
         sql = f"select _wstart, sum(`status`), first(t2), last(t2), count(*) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 2 desc) event_window start with status%3 == 1 end with status%3 == 0;"
-        tdSql.error(sql)
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1763617923003)
+        tdSql.checkData(0, 1, 8)
+        tdSql.checkData(0, 2, 1763617922000)
+        tdSql.checkData(0, 3, 1763617923003)
+        tdSql.checkData(0, 4, 3)
         
         # event window: subquery is state window without order by
         sql = f"select _wstart, sum(`status`), first(t2), last(t2), count(*) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`)) event_window start with status%3 == 1 end with status%3 == 0;"

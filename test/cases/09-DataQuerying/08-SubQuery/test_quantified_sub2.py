@@ -68,8 +68,7 @@ class TestQuantifiedSubQuery2:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

@@ -15,11 +15,15 @@
 
 #define ALLOW_FORBID_FUNC
 
+#ifndef WIN32
 #include <grp.h>
 #include <pwd.h>
 #include <signal.h>
 #include <sys/time.h>
 #include <unistd.h>
+#else
+#include <winsock2.h>
+#endif
 
 #include <errno.h>
 #include <stdio.h>
@@ -127,6 +131,7 @@ static int listeners__start(void) {
   // rc = listeners__add_local(tsLocalFqdn, tsMqttPort);
   rc = listeners__add_local("0.0.0.0", tsMqttPort);
   if (TTQ_ERR_SUCCESS != rc) {
+    ttq_log(NULL, TTQ_LOG_ERR, "Error: Failed to start listener on port %d (rc=%d).", tsMqttPort, rc);
     ttq_free(db.config->listeners);
   }
 
@@ -150,10 +155,14 @@ static void listeners__stop(void) {
 }
 
 static void ttq_rand_init(void) {
+#ifdef WIN32
+  srand((unsigned int)time(NULL));
+#else
   struct timeval tv;
 
   UNUSED(gettimeofday(&tv, NULL));
   srand((unsigned int)(tv.tv_sec + tv.tv_usec));
+#endif
 }
 
 void ttqConfigInit(struct tmqtt__config *config) {
@@ -251,6 +260,7 @@ static void ttq_cxt_cleanup(void) {
   ttqCxtFreeDisused();
 }
 
+#ifndef WIN32
 static void ttq_handle_sigint(int signal) {
   fprintf(stderr, "signal handle: %d\n", signal);
 
@@ -277,6 +287,10 @@ static void ttq_signal_setup(void) {
   (void)sigaction(SIGHUP, &sa, NULL);
 #endif
 }
+#else
+/* On Windows, process signals are handled by libuv at the daemon level. */
+static void ttq_signal_setup(void) {}
+#endif
 
 static int ttq_init(int argc, char *argv[], struct tmqtt__config *config) {
   int rc;

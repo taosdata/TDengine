@@ -224,8 +224,7 @@ class TestCase:
 
         Since: 3.4.1.0
 
-        Labels: tmq,vtable
-
+        Labels: tmq,vtable,integration,functional
         Jira: https://project.feishu.cn/taosdata_td/feature/detail/6593807450
 
         Catalog:

@@ -28,6 +28,10 @@ class TestTableParamTtl:
         cls.modify_ttl = 1
 
     def wait_query(self, sql: str, expected_row_num: int, timeout_in_seconds: float):
+        # Under ASAN the TTL background thread and flush are 3-5x slower; extend
+        # all waits proportionally so the test does not produce a false failure.
+        if os.environ.get("CI_ASAN_BUILD") == "1":
+            timeout_in_seconds = timeout_in_seconds * 4
         timeout = timeout_in_seconds
         tdSql.query(sql)
         while timeout > 0 and tdSql.getRows() != expected_row_num:
@@ -101,8 +105,7 @@ class TestTableParamTtl:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

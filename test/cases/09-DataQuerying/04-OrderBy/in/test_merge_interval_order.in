@@ -1,0 +1,13 @@
+use db_merge_intv;
+
+select '=== CASE 1: No partition - MergeAligned output is GLOBAL, Projection merges blocks ===' as info;
+explain verbose true select _wstart, sum(cnt) from (select _wstart as a, count(*) as cnt from st interval(5s)) interval(10s)\G;
+
+select '=== CASE 2: With partition by - Sort ensures global order for outer interval ===' as info;
+explain verbose true select _wstart, sum(cnt) from (select _wstart as a, count(*) as cnt from st partition by region interval(5s) order by a) interval(10s)\G;
+
+select '=== CASE 3: No partition - result correctness ===' as info;
+select _wstart, sum(cnt) from (select _wstart as a, count(*) as cnt from st interval(5s)) interval(10s);
+
+select '=== CASE 4: With partition - result correctness ===' as info;
+select _wstart, sum(cnt) from (select _wstart as a, count(*) as cnt from st partition by region interval(5s) order by a) interval(10s);

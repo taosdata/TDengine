@@ -237,6 +237,21 @@ void taos_close(TAOS *taos) {
   (*fp_taos_close)(taos);
 }
 
+int taos_txn_begin(TAOS *taos) {
+  CHECK_INT(fp_taos_txn_begin);
+  return (*fp_taos_txn_begin)(taos);
+}
+
+int taos_txn_commit(TAOS *taos) {
+  CHECK_INT(fp_taos_txn_commit);
+  return (*fp_taos_txn_commit)(taos);
+}
+
+int taos_txn_rollback(TAOS *taos) {
+  CHECK_INT(fp_taos_txn_rollback);
+  return (*fp_taos_txn_rollback)(taos);
+}
+
 const char *taos_data_type(int type) {
   (void)taos_init();
   CHECK_PTR(fp_taos_data_type);
@@ -382,6 +397,17 @@ int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t c
                             void *param) {
   CHECK_INT(fp_taos_stmt2_bind_param_a);
   return (*fp_taos_stmt2_bind_param_a)(stmt, bindv, col_idx, fp, param);
+}
+
+int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv) {
+  CHECK_INT(fp_taos_stmt2_bind_param_column);
+  return (*fp_taos_stmt2_bind_param_column)(stmt, bindv);
+}
+
+int taos_stmt2_bind_param_column_a(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv, __taos_async_fn_t fp,
+                                   void *param) {
+  CHECK_INT(fp_taos_stmt2_bind_param_column_a);
+  return (*fp_taos_stmt2_bind_param_column_a)(stmt, bindv, fp, param);
 }
 
 int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows) {
@@ -575,6 +601,11 @@ int taos_get_current_db(TAOS *taos, char *database, int len, int *required) {
 int taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char *buffer, int* len) {
   CHECK_INT(fp_taos_get_connection_info);
   return (*fp_taos_get_connection_info)(taos, info, buffer, len);
+}
+
+void *taos_get_result_tz(TAOS_RES *res) {
+  if (fp_taos_get_result_tz == NULL) return NULL;
+  return (*fp_taos_get_result_tz)(res);
 }
 
 const char *taos_errstr(TAOS_RES *res) {

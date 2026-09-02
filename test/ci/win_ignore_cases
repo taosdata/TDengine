@@ -62,3 +62,6 @@ cases/20-RSMAs/test_rsma.py
 # timeout
 cases/81-Tools/02-Taos/test_tool_taos_cli.py
 
+# copy-mode repair not supported in Windows
+cases/50-Others/02-Repair/test_copy_repair.py
+

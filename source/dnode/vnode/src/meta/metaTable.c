@@ -18,15 +18,22 @@
 extern SDmNotifyHandle dmNotifyHdl;
 
 int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
+int32_t metaAddTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
+int32_t metaDropTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
 int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
 int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
 int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
-int32_t metaUpdateTableMultiTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq);
-int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq);
+int32_t metaUpdateTableMultiTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq,
+                                          STableMetaRsp *pMetaRsp);
+int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq,
+                                          STableMetaRsp *pMetaRsp);
 int32_t metaUpdateTableOptions2(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq);
 int32_t metaUpdateTableColCompress2(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq);
 int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
 int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
+int32_t metaAlterTagRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
+int32_t metaAddTableSeries(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
+int32_t metaRemoveTableSeries(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
 int32_t metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 
 int32_t    metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
@@ -114,6 +121,9 @@ int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t ad
     pWp->pColRef = p;
 
     SColRef *pCol = p + nCols;
+    // The element comes from realloc and is uninitialized; zero it so that
+    // pointer fields such as tagCondJson are NULL on every code path below.
+    memset(pCol, 0, sizeof(SColRef));
     if (NULL == pColRef) {
       pCol->hasRef = false;
       pCol->id = pSchema->colId;
@@ -121,9 +131,19 @@ int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t ad
       pCol->hasRef = pColRef->hasRef;
       pCol->id = pSchema->colId;
       if (pCol->hasRef) {
+        pCol->refType = pColRef->refType;
+        tstrncpy(pCol->refSourceName, pColRef->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+        tstrncpy(pCol->refSchemaName, pColRef->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
         tstrncpy(pCol->refDbName, pColRef->refDbName, TSDB_DB_NAME_LEN);
         tstrncpy(pCol->refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
         tstrncpy(pCol->refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
+        if (pColRef->tagCondLen > 0) {
+          pCol->tagCondLen = pColRef->tagCondLen;
+          pCol->tagCondJson = taosStrdup(pColRef->tagCondJson);
+        } else {
+          pCol->tagCondLen = 0;
+          pCol->tagCondJson = NULL;
+        }
       }
     }
     pWp->nCols = nCols + 1;
@@ -132,6 +152,7 @@ int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t ad
     for (int32_t i = 0; i < nCols; i++) {
       SColRef *pOColRef = &pWp->pColRef[i];
       if (pOColRef->id == pSchema->colId) {
+        taosMemoryFreeClear(pOColRef->tagCondJson);
         int32_t left = (nCols - i - 1) * sizeof(SColRef);
         if (left) {
           memmove(pWp->pColRef + i, pWp->pColRef + i + 1, left);
@@ -146,7 +167,11 @@ int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t ad
   return 0;
 }
 
-int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, int64_t ownerId, STableMetaRsp *pMetaRsp) {
+static int32_t metaFillRspSchemaExt(const SSchemaWrapper *pSchema, const SExtSchema *pExtSchemas,
+                                    SSchemaExt *pSchemaExt);
+
+int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, const SExtSchema *pExtSchemas,
+                      int64_t ownerId, STableMetaRsp *pMetaRsp) {
   pMetaRsp->pSchemas = taosMemoryMalloc(pSchema->nCols * sizeof(SSchema));
   if (NULL == pMetaRsp->pSchemas) {
     return terrno;
@@ -169,7 +194,7 @@ int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, int64
 
   memcpy(pMetaRsp->pSchemas, pSchema->pSchema, pSchema->nCols * sizeof(SSchema));
 
-  return 0;
+  return metaFillRspSchemaExt(pSchema, pExtSchemas, pMetaRsp->pSchemaExt);
 }
 
 static int32_t metaFillRspSchemaExt(const SSchemaWrapper *pSchema, const SExtSchema *pExtSchemas, SSchemaExt *pSchemaExt) {
@@ -227,12 +252,19 @@ int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, const SSchemaWrap
     }
 
     memcpy(pMetaRsp->pColRefs, pRef->pColRef, pRef->nCols * sizeof(SColRef));
+    // Deep-copy tagCondJson strings (shallow memcpy only copied the pointer)
+    for (int32_t i = 0; i < pRef->nCols; i++) {
+      pMetaRsp->pColRefs[i].tagCondJson = NULL;
+      if (pRef->pColRef[i].tagCondJson) {
+        pMetaRsp->pColRefs[i].tagCondJson = taosStrdup(pRef->pColRef[i].tagCondJson);
+      }
+    }
   } else {
     pMetaRsp->pColRefs = NULL;
   }
 
   tstrncpy(pMetaRsp->tbName, tbName, TSDB_TABLE_NAME_LEN);
-  if (tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
+  if (tableType == TSDB_VIRTUAL_NORMAL_TABLE || tableType == TSDB_NORMAL_TABLE) {
     pMetaRsp->tuid = pEntry->uid;
   } else if (tableType == TSDB_VIRTUAL_CHILD_TABLE) {
     pMetaRsp->tuid = pEntry->uid;
@@ -247,24 +279,54 @@ int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, const SSchemaWrap
 
   // Populate tag references
   if (pRef->nTagRefs > 0 && pRef->pTagRef) {
-    pMetaRsp->pTagRefs = taosMemoryMalloc(pRef->nTagRefs * sizeof(SColRef));
+    pMetaRsp->pTagRefs = taosMemoryCalloc(pRef->nTagRefs, sizeof(SColRef));
     if (NULL == pMetaRsp->pTagRefs) {
       code = terrno;
       goto _return;
     }
     memcpy(pMetaRsp->pTagRefs, pRef->pTagRef, pRef->nTagRefs * sizeof(SColRef));
+    for (int32_t i = 0; i < pRef->nTagRefs; i++) {
+      pMetaRsp->pTagRefs[i].tagCondJson = NULL;
+      if (pRef->pTagRef[i].tagCondJson) {
+        pMetaRsp->pTagRefs[i].tagCondJson = taosStrdup(pRef->pTagRef[i].tagCondJson);
+        if (NULL == pMetaRsp->pTagRefs[i].tagCondJson) {
+          code = terrno;
+          goto _return;
+        }
+      }
+    }
     pMetaRsp->numOfTagRefs = pRef->nTagRefs;
   } else {
     pMetaRsp->pTagRefs = NULL;
     pMetaRsp->numOfTagRefs = 0;
   }
 
+  // Populate series
+  if (pEntry->series.nSeries > 0) {
+    pMetaRsp->numOfSeries = pEntry->series.nSeries;
+    pMetaRsp->pSeries = taosMemoryCalloc(pEntry->series.nSeries, sizeof(SSeriesEntry));
+    if (NULL == pMetaRsp->pSeries) {
+      code = terrno;
+      goto _return;
+    }
+    for (int32_t i = 0; i < pEntry->series.nSeries; i++) {
+      SSeriesEntry *src = &pEntry->series.pSeries[i];
+      SSeriesEntry *dst = &pMetaRsp->pSeries[i];
+      tstrncpy(dst->alias, src->alias, TSDB_COL_NAME_LEN);
+      tstrncpy(dst->sourceName, src->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+      tstrncpy(dst->dbName, src->dbName, TSDB_DB_NAME_LEN);
+      tstrncpy(dst->measurementName, src->measurementName, TSDB_TABLE_NAME_LEN);
+      dst->tagCondLen = src->tagCondLen;
+      dst->tagCondJson = src->tagCondJson ? taosStrdup(src->tagCondJson) : NULL;
+    }
+  } else {
+    pMetaRsp->numOfSeries = 0;
+    pMetaRsp->pSeries = NULL;
+  }
+
   return code;
 _return:
-  taosMemoryFreeClear(pMetaRsp->pSchemaExt);
-  taosMemoryFreeClear(pMetaRsp->pSchemas);
-  taosMemoryFreeClear(pMetaRsp->pColRefs);
-  taosMemoryFreeClear(pMetaRsp->pTagRefs);
+  tFreeSTableMetaRsp(pMetaRsp);
   return code;
 }
 
@@ -455,7 +517,11 @@ static int32_t metaDropTables(SMeta *pMeta, SArray *tbUids) {
     int8_t   sysTbl = 0;
     int      type;
     code = metaDropTableByUid(pMeta, uid, &type, &suid, &sysTbl);
-    if (code) return code;
+    if (code) {
+      metaULock(pMeta);
+      tSimpleHashCleanup(suidHash);
+      return code;
+    }
     if (!sysTbl && type == TSDB_CHILD_TABLE && suid != 0 && suidHash) {
       int64_t *pVal = tSimpleHashGet(suidHash, &suid, sizeof(tb_uid_t));
       if (pVal) {
@@ -464,7 +530,11 @@ static int32_t metaDropTables(SMeta *pMeta, SArray *tbUids) {
         nCtbDropped = 1;
       }
       code = tSimpleHashPut(suidHash, &suid, sizeof(tb_uid_t), &nCtbDropped, sizeof(int64_t));
-      if (code) return code;
+      if (code) {
+        metaULock(pMeta);
+        tSimpleHashCleanup(suidHash);
+        return code;
+      }
     }
     /*
     if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
@@ -870,6 +940,11 @@ int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMeta
     case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
     case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF:
       return metaAddTableColumn(pMeta, version, pReq, pMetaRsp);
+    case TSDB_ALTER_TABLE_ADD_TAG:
+    case TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF:
+      return metaAddTableTag(pMeta, version, pReq, pMetaRsp);
+    case TSDB_ALTER_TABLE_DROP_TAG:
+      return metaDropTableTag(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_DROP_COLUMN:
       return metaDropTableColumn(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
@@ -877,9 +952,9 @@ int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMeta
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
       return metaAlterTableColumnName(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL:
-      return metaUpdateTableMultiTableTagValue(pMeta, version, pReq);
+      return metaUpdateTableMultiTableTagValue(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL:
-      return metaUpdateTableChildTableTagValue(pMeta, version, pReq);
+      return metaUpdateTableChildTableTagValue(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       return metaUpdateTableOptions2(pMeta, version, pReq);
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
@@ -888,6 +963,12 @@ int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMeta
       return metaAlterTableColumnRef(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_REMOVE_COLUMN_REF:
       return metaRemoveTableColumnRef(pMeta, version, pReq, pMetaRsp);
+    case TSDB_ALTER_TABLE_ALTER_TAG_REF:
+      return metaAlterTagRef(pMeta, version, pReq, pMetaRsp);
+    case TSDB_ALTER_TABLE_ADD_SERIES:
+      return metaAddTableSeries(pMeta, version, pReq, pMetaRsp);
+    case TSDB_ALTER_TABLE_REMOVE_SERIES:
+      return metaRemoveTableSeries(pMeta, version, pReq, pMetaRsp);
     default:
       return terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
       break;

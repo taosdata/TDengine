@@ -20,6 +20,7 @@ extern "C" {
 #endif
 
 #include "nodes.h"
+#include "scalar.h"
 #include "tcommon.h"
 
 typedef struct SFilterInfo SFilterInfo;
@@ -59,9 +60,11 @@ extern int32_t filterSetDataFromColId(SFilterInfo *info, void *param);
 extern int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict, bool* hasRemoteNode);
 extern int32_t filterConverNcharColumns(SFilterInfo *pFilterInfo, int32_t rows, bool *gotNchar);
 extern int32_t filterFreeNcharColumns(SFilterInfo *pFilterInfo);
+extern void    filterSetExecContext(SFilterInfo *info, void* pTaskInfo, sclIsTaskKilled isTaskKilledFn);
 extern void    filterFreeInfo(SFilterInfo *info);
 extern int32_t filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows,
                                   bool *keep);
+extern bool    filterBlockSmaOnlyUsesNumOfNull(const SFilterInfo *info);
 
 /* condition split interface */
 int32_t filterPartitionCond(SNode **pCondition, SNode **pPrimaryKeyCond, SNode **pTagIndexCond, SNode **pTagCond,
@@ -71,6 +74,7 @@ EConditionType filterClassifyCondition(SNode *pNode);
 int32_t        filterGetCompFunc(__compar_fn_t *func, int32_t type, int32_t optr);
 bool           filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right);
 const void *filterInfoGetSclExtraParans(const SFilterInfo *pFilterInfo);
+void           filterInfoSetTableCtx(SFilterInfo *pFilterInfo, void *pTable);
 
 #ifdef __cplusplus
 }

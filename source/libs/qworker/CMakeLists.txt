@@ -1,5 +1,10 @@
 aux_source_directory(src QWORKER_SRC)
 
+if(TD_GRANT)
+  ADD_DEFINITIONS(-D_GRANT)
+  LIST(APPEND QWORKER_SRC ${TD_ENTERPRISE_DIR}/source/plugins/grant/src/grantUtil.c)
+endif()
+
 add_library(qworker STATIC ${QWORKER_SRC})
 target_include_directories(
     qworker

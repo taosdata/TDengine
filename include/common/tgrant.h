@@ -34,6 +34,7 @@ extern "C" {
 #define GRANT_FLAG_ALL       (0x01)
 #define GRANT_FLAG_AUDIT     (0x02)
 #define GRANT_FLAG_VIEW      (0x04)
+#define GRANT_FLAG_QRY       (0x08)
 // ...
 #define GRANT_FLAG_EX_MULTI_TIER (0x10000)
 #define GRANT_FLAG_EX_VNODE      (0x20000)
@@ -69,6 +70,8 @@ typedef enum {
   TSDB_GRANT_VNODE,
   TSDB_GRANT_MOUNT,
   TSDB_GRANT_XNODE,
+  TSDB_GRANT_EXT_SOURCE,  // federated query: external data source
+  TSDB_GRANT_QRY_RESTRICTED,
 } EGrantType;
 
 int32_t checkAndGetCryptKey(const char *encryptCode, const char *machineId, char **key);

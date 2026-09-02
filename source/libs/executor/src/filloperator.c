@@ -85,7 +85,8 @@ static void doHandleRemainBlockForNewGroupImpl(SOperatorInfo* pOperator, SFillOp
   taosFillSetStartInfo(pInfo->pFillInfo, pInfo->pRes->info.rows, ts);
 
   taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->pRes);
-  if (pInfo->pFillInfo->type == TSDB_FILL_PREV || pInfo->pFillInfo->type == TSDB_FILL_LINEAR) {
+  if (pInfo->pFillInfo->type == TSDB_FILL_PREV || pInfo->pFillInfo->type == TSDB_FILL_NEAR ||
+      pInfo->pFillInfo->type == TSDB_FILL_LINEAR) {
     int32_t code = fillResetPrevForNewGroup(pInfo->pFillInfo);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -132,7 +133,7 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
   SExprSupp*         pSup = &pOperator->exprSupp;
   code = setInputDataBlock(pSup, pBlock, order, scanFlag, false);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
+  code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
   // reset the row value before applying the no-fill functions to the input data block, which is "pBlock" in this case.
@@ -142,7 +143,7 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
   QUERY_CHECK_CODE(code, lino, _end);
 
   code = projectApplyFunctions(pNoFillSupp->pExprInfo, pInfo->pRes, pBlock, pNoFillSupp->pCtx, pNoFillSupp->numOfExprs,
-                               NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
+                               NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
   if (pInfo->fillNullExprSupp.pExprInfo) {
@@ -150,7 +151,7 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
     code = setInputDataBlock(&pInfo->fillNullExprSupp, pBlock, order, scanFlag, false);
     QUERY_CHECK_CODE(code, lino, _end);
     code = projectApplyFunctions(pInfo->fillNullExprSupp.pExprInfo, pInfo->pRes, pBlock, pInfo->fillNullExprSupp.pCtx,
-        pInfo->fillNullExprSupp.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
+        pInfo->fillNullExprSupp.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
   }
 
   pInfo->pRes->info.id.groupId = pBlock->info.id.groupId;
@@ -199,6 +200,13 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   blockDataCleanup(pResBlock);
   int32_t        order = pInfo->pFillInfo->order;
 
+  // Detect unbounded fill: no explicit WHERE time range was provided.
+  // In this mode, fill bounds are derived from the actual data timestamps.
+  SFillPhysiNode* pPhyFillNode = (SFillPhysiNode*)pOperator->pPhyNode;
+  bool isUnboundedFill = (pInfo->pTimeRange == NULL && pPhyFillNode != NULL &&
+                          pPhyFillNode->timeRange.skey == INT64_MIN &&
+                          pPhyFillNode->timeRange.ekey == INT64_MAX);
+
   doHandleRemainBlockFromNewGroup(pOperator, pInfo, pResultInfo, order);
   if (pResBlock->info.rows > 0) {
     pResBlock->info.id.groupId = pInfo->curGroupId;
@@ -213,10 +221,20 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
         setOperatorCompleted(pOperator);
         return NULL;
       } else if (pInfo->totalInputRows == 0 && taosFillNotStarted(pInfo->pFillInfo)) {
+        if (isUnboundedFill) {
+          // No data and unbounded fill range: nothing to fill.
+          setOperatorCompleted(pOperator);
+          return NULL;
+        }
         reviseFillStartAndEndKey(pInfo, order);
       }
 
-      taosFillSetStartInfo(pInfo->pFillInfo, 0, pInfo->win.ekey);
+      // For unbounded fill, use last-seen data timestamp to avoid filling to INT64_MAX.
+      int64_t closeKey = pInfo->win.ekey;
+      if (isUnboundedFill && pInfo->totalInputRows > 0) {
+        closeKey = pInfo->pFillInfo->end;
+      }
+      taosFillSetStartInfo(pInfo->pFillInfo, 0, closeKey);
     } else {
       pResBlock->info.scanFlag = pBlock->info.scanFlag;
       pBlock->info.dataLoad = 1;
@@ -232,6 +250,16 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
 
       if (pInfo->curGroupId == 0 || (pInfo->curGroupId == pInfo->pRes->info.id.groupId)) {
         if (pInfo->curGroupId == 0 && taosFillNotStarted(pInfo->pFillInfo)) {
+          if (isUnboundedFill) {
+            // Derive fill start/end bounds from the first data block's actual window range.
+            if (order == TSDB_ORDER_ASC) {
+              pInfo->win.skey = pBlock->info.window.skey;
+              pInfo->win.ekey = pBlock->info.window.ekey;
+            } else {
+              pInfo->win.ekey = pBlock->info.window.ekey;
+              pInfo->win.skey = pBlock->info.window.skey;
+            }
+          }
           reviseFillStartAndEndKey(pInfo, order);
         }
 
@@ -245,8 +273,12 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
         pInfo->existNewGroupBlock = pBlock;
 
         // Fill the previous group data block, before handle the data block of new group.
-        // Close the fill operation for previous group data block
-        taosFillSetStartInfo(pInfo->pFillInfo, 0, pInfo->win.ekey);
+        // Close the fill operation for previous group data block.
+        int64_t closeKey = pInfo->win.ekey;
+        if (isUnboundedFill && pInfo->totalInputRows > 0) {
+          closeKey = pInfo->pFillInfo->end;
+        }
+        taosFillSetStartInfo(pInfo->pFillInfo, 0, closeKey);
       }
     }
 
@@ -331,6 +363,7 @@ static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);
     }
+
     if (fillResult->info.rows > 0) {
       break;
     }
@@ -363,7 +396,7 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr,
                             STimeWindow win, int32_t capacity, const char* id,
                             SInterval* pInterval, int32_t fillType,
                             int32_t order, SExecTaskInfo* pTaskInfo,
-                            int64_t surroundingTime) {
+                            int64_t surroundingTime, bool indefRowsMode) {
   SFillColInfo* pColInfo =
       createFillColInfo(pExpr, numOfCols, pNotFillExpr, numOfNotFillCols,
                         pFillNullExpr, numOfFillNullExprs, pValNode);
@@ -381,7 +414,7 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr,
                                     numOfFillNullExprs, capacity, pInterval,
                                     fillType, pColInfo, pInfo->primaryTsCol,
                                     order, id, pTaskInfo, surroundingTime,
-                                    &pInfo->pFillInfo);
+                                    indefRowsMode, &pInfo->pFillInfo);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     return code;
@@ -590,7 +623,7 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
                       (SNodeListNode*)pPhyFillNode->pValues,
                       pPhyFillNode->timeRange, pResultInfo->capacity,
                       pTaskInfo->id.str, pInterval, type, order, pTaskInfo,
-                      surroundingTime);
+                      surroundingTime, pPhyFillNode->indefRowsMode);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -612,7 +645,7 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
-
+  filterSetExecContext(pOperator->exprSupp.pFilterInfo, pTaskInfo, isTaskKilled);
   setOperatorInfo(pOperator, "FillOperator", QUERY_NODE_PHYSICAL_PLAN_FILL, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doFillNext, NULL, destroyFillOperatorInfo, optrDefaultBufFn, NULL,
                                          optrDefaultGetNextExtFn, NULL);
@@ -646,8 +679,10 @@ static void reviseFillStartAndEndKey(SFillOperatorInfo* pInfo, int32_t order) {
     ekey = taosTimeTruncate(pInfo->win.ekey, &pInfo->pFillInfo->interval);
     next = ekey;
     while (next < pInfo->win.ekey) {
-      next = taosTimeAdd(ekey, pInfo->pFillInfo->interval.sliding, pInfo->pFillInfo->interval.slidingUnit,
-                         pInfo->pFillInfo->interval.precision, NULL);
+      next = taosTimeAdd(ekey, pInfo->pFillInfo->interval.sliding,
+                         pInfo->pFillInfo->interval.slidingUnit,
+                         pInfo->pFillInfo->interval.precision,
+                         pInfo->pFillInfo->interval.timezone);
       if (next == ekey) break;
       ekey = next > pInfo->win.ekey ? ekey : next;
     }
@@ -656,8 +691,10 @@ static void reviseFillStartAndEndKey(SFillOperatorInfo* pInfo, int32_t order) {
     skey = taosTimeTruncate(pInfo->win.skey, &pInfo->pFillInfo->interval);
     next = skey;
     while (next < pInfo->win.skey) {
-      next = taosTimeAdd(skey, pInfo->pFillInfo->interval.sliding, pInfo->pFillInfo->interval.slidingUnit,
-                         pInfo->pFillInfo->interval.precision, NULL);
+      next = taosTimeAdd(skey, pInfo->pFillInfo->interval.sliding,
+                         pInfo->pFillInfo->interval.slidingUnit,
+                         pInfo->pFillInfo->interval.precision,
+                         pInfo->pFillInfo->interval.timezone);
       if (next == skey) break;
       skey = next > pInfo->win.skey ? skey : next;
     }

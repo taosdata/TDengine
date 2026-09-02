@@ -6,10 +6,15 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
 #include <netdb.h>
 #include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#endif
 
 #ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
@@ -85,6 +90,9 @@ int net__init(void) {
 }
 
 void net__cleanup(void) {
+#ifdef WIN32
+  WSACleanup();
+#endif
 #ifdef WITH_TLS
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
   CRYPTO_cleanup_all_ex_data();
@@ -887,7 +895,11 @@ ssize_t net__read(struct tmqtt *ttq, void *buf, size_t count) {
 
 #endif
 
+#ifdef WIN32
+    return recv(ttq->sock, buf, (int)count, 0);
+#else
     return read(ttq->sock, buf, count);
+#endif
 
 #ifdef WITH_TLS
   }
@@ -913,7 +925,7 @@ ssize_t net__write(struct tmqtt *ttq, const void *buf, size_t count) {
     /* Call normal write/send */
 #endif
 
-    return send(ttq->sock, buf, count, MSG_NOSIGNAL);
+    return send(ttq->sock, buf, (int)count, MSG_NOSIGNAL);
 
 #ifdef WITH_TLS
   }
@@ -921,8 +933,15 @@ ssize_t net__write(struct tmqtt *ttq, const void *buf, size_t count) {
 }
 
 int net__socket_nonblock(ttq_sock_t *sock) {
+#ifdef WIN32
+  u_long mode = 1;
+  if (ioctlsocket(*sock, FIONBIO, &mode) != NO_ERROR) {
+    UNUSED(COMPAT_CLOSE(*sock));
+    *sock = INVALID_SOCKET;
+    return TTQ_ERR_ERRNO;
+  }
+#else
   int opt;
-  /* Set non-blocking */
   opt = fcntl(*sock, F_GETFL, 0);
   if (opt == -1) {
     UNUSED(COMPAT_CLOSE(*sock));
@@ -930,12 +949,11 @@ int net__socket_nonblock(ttq_sock_t *sock) {
     return TTQ_ERR_ERRNO;
   }
   if (fcntl(*sock, F_SETFL, opt | O_NONBLOCK) == -1) {
-    /* If either fcntl fails, don't want to allow this client to connect. */
     UNUSED(COMPAT_CLOSE(*sock));
     *sock = INVALID_SOCKET;
     return TTQ_ERR_ERRNO;
   }
-
+#endif
   return TTQ_ERR_SUCCESS;
 }
 

@@ -36,8 +36,7 @@ class TestMqttDevBasic:
 
         Since: v3.3.3.7
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -113,7 +112,7 @@ class TestMqttDevBasic:
         client.on_message = self.on_message
 
         client.username_pw_set("root", "taosdata")
-        client.connect("127.0.1.1", 6083)
+        client.connect("127.0.1.1", 6057)
         client.loop_start()
 
         self.loop_count = 0

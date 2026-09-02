@@ -192,8 +192,12 @@ function clean_env_file() {
   escaped_bin=$(printf '%s' "${bin_link_dir}" | sed 's/[.[\\/^$*]/\\&/g')
   escaped_lib=$(printf '%s' "${lib_link_dir}" | sed 's/[.[\\/^$*]/\\&/g')
   sed -e "/^# ${productName} install path$/d" \
+      -e "/^# taos bin env$/d" \
+      -e "/^# taos lib env$/d" \
       -e "\|^export PATH=\"${escaped_bin}:.*\"|d" \
+      -e "\|^export PATH=${escaped_bin}:.*|d" \
       -e "\|^export LD_LIBRARY_PATH=\"${escaped_lib}:.*\"|d" \
+      -e "\|^export LD_LIBRARY_PATH=${escaped_lib}$|d" \
       "$env_file" > "$tmp_file" && mv "$tmp_file" "$env_file" || rm -f "$tmp_file"
 }
 clean_env_file

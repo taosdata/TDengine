@@ -33,8 +33,7 @@ class TestKeepOrderFunc:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -72,6 +71,140 @@ class TestKeepOrderFunc:
                     (num >= 380 and num < 389) or (num >= 470 and num < 480) or (num >= 570 and num < 581) or (num >= 680 and num < 692):
                     continue
                 tdSql.execute(f"INSERT INTO keeporderdb.t{tableIndex} VALUES({ts + num * 1000}, {ts + (num % 13) * 1000}, {num * 1.0}, {215 + num/15}, 0.0)")
+
+    def check_query_rows_and_prefix(self, sql, expected_rows, expected_prefix):
+        tdSql.query(sql)
+        tdSql.checkRows(expected_rows)
+        for row_idx, row in enumerate(expected_prefix):
+            for col_idx, expected in enumerate(row):
+                tdSql.checkData(row_idx, col_idx, expected)
+
+    def check_long_result_sqls(self):
+        checks = [
+            (
+                "select _wstart, _wend, _wduration, statecount(voltage, 'LE', 223) "
+                "from keeporderdb.meters session(ts, 1s);",
+                6220,
+                [
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:34.230", 9000, 1],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:34.230", 9000, 2],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:34.230", 9000, 3],
+                ],
+            ),
+            (
+                "select _wstart, _wend, _wduration, mavg(voltage, 4) "
+                "from keeporderdb.meters session(ts, 1s);",
+                6181,
+                [
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:34.230", 9000, 215],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:34.230", 9000, 215],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:34.230", 9000, 215],
+                ],
+            ),
+            (
+                "select _wstart, _wend, _wduration, count(*) from keeporderdb.meters count_window(3);",
+                2074,
+                [
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 3],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 3],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 3],
+                ],
+            ),
+            (
+                "select _wstart, _wend, _wduration, max(current) from keeporderdb.meters count_window(3);",
+                2074,
+                [
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 0],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 0],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 0],
+                ],
+            ),
+            (
+                "select _wstart, _wend, _wduration, min(current) from keeporderdb.meters count_window(3);",
+                2074,
+                [
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 0],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 0],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 0],
+                ],
+            ),
+            (
+                "select _wstart, _wend, _wduration, top(voltage, 1) "
+                "from keeporderdb.meters count_window(3);",
+                2074,
+                [
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 215],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 215],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 215],
+                ],
+            ),
+            (
+                "select _wstart, _wend, _wduration, top(voltage, 2) "
+                "from keeporderdb.meters count_window(3);",
+                4148,
+                [
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 215],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 215],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 215],
+                ],
+            ),
+            (
+                "select _wstart, _wend, _wduration, bottom(voltage, 1) "
+                "from keeporderdb.meters count_window(3);",
+                2074,
+                [
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 215],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 215],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 215],
+                ],
+            ),
+            (
+                "select _wstart, _wend, _wduration, bottom(voltage, 2) "
+                "from keeporderdb.meters count_window(3);",
+                4148,
+                [
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 215],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 215],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 215],
+                ],
+            ),
+            (
+                "select _wstart, _wend, _wduration, statecount(voltage, 'LE', 223) "
+                "from keeporderdb.meters count_window(3);",
+                6220,
+                [
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 1],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 2],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 3],
+                ],
+            ),
+            (
+                "select _wstart, _wend, _wduration, mode(current) from keeporderdb.meters count_window(3);",
+                2074,
+                [
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 0],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 0],
+                    ["2025-03-12 13:31:25.230", "2025-03-12 13:31:25.230", 0, 0],
+                ],
+            ),
+            ("select statecount(voltage, 'LE', 223) from keeporderdb.meters;", 6220, [[1], [2], [3]]),
+            ("select mavg(voltage, 4) from keeporderdb.meters;", 6217, [[215], [215], [215]]),
+            (
+                "select statecount(voltage, 'LE', 223) from "
+                "(select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);",
+                6220,
+                [[-1], [-1], [-1]],
+            ),
+            (
+                "select mavg(voltage, 4) from "
+                "(select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);",
+                6145,
+                [[262], [262], [262]],
+            ),
+        ]
+
+        for sql, expected_rows, expected_prefix in checks:
+            self.check_query_rows_and_prefix(sql, expected_rows, expected_prefix)
 
     def unstable_result_func(self):
         sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 1) from keeporderdb.meters session(ts, 1s) order by _wstart limit 2;"
@@ -139,8 +272,11 @@ class TestKeepOrderFunc:
         tdSql.query(sql)
         tdSql.checkRows(2)
 
-        # Duplicate timestamp not allowed in count/event/state window
+        # System primary timeline keeps legacy behavior for duplicate timestamps.
         sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 1) from keeporderdb.meters state_window(voltage);"
-        tdSql.error(sql)
+        tdSql.query(sql)
+        tdSql.checkRows(48)
         sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 1) from keeporderdb.meters count_window(3);"
-        tdSql.error(sql)
+        tdSql.query(sql)
+        tdSql.checkRows(2074)
+        self.check_long_result_sqls()

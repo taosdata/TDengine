@@ -31,6 +31,7 @@ typedef struct SOperatorValueType {
   int32_t  selfType;
   int32_t  peerType;
   STypeMod selfTypeMod;
+  STypeMod peerTypeMod;
 } SOperatorValueType;
 
 typedef struct SScalarStreamCtx {

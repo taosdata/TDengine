@@ -202,6 +202,22 @@ class TestGrant:
             self.checkGrantsTimeSeries("drop virtual ctb/ntb and check", tss_grant)
             tdSql.execute("drop table db100.vstb100")
             self.checkGrantsTimeSeries("drop virtual stb and check", tss_grant)
+
+            # Test cascade drop of virtual STB — VCTBs still present, should be
+            # cleaned up via the virtual-child handler with correct stats accounting.
+            tdSql.execute("create stable db100.vstb200(ts timestamp, c0 int, c1 int) tags(t0 int) virtual 1")
+            tdSql.execute("create vtable db100.vctb200(c0 from db100.ntb101.c1, c1 from db100.ntb101.c2) using db100.vstb200 tags(0)")
+            tdSql.execute("create vtable db100.vctb201(c0 from db100.ntb101.c1, c1 from db100.ntb101.c2) using db100.vstb200 tags(1)")
+            self.checkGrantsTimeSeries("create vstb200 with 2 vctbs and check", tss_grant)
+            # Cascade drop: vstb200 still has 2 vctbs — triggers metaHandleSuperTableDrop loop
+            tdSql.execute("drop table db100.vstb200")
+            self.checkGrantsTimeSeries("cascade drop vstb200 with vctbs and check", tss_grant)
+            # Verify the cascade-dropped vctbs no longer exist
+            tdSql.query("select * from information_schema.ins_tables where db_name='db100' and table_name in ('vctb200', 'vctb201')")
+            tdSql.checkRows(0)
+            tdSql.query("select * from information_schema.ins_stables where db_name='db100' and stable_name='vstb200'")
+            tdSql.checkRows(0)
+
             tdSql.execute("drop database db100")
             tss_grant -= 5
             self.checkGrantsTimeSeries("drop database and check", tss_grant)
@@ -228,7 +244,7 @@ class TestGrant:
                 tdLog.info(f"expireTime: {expireTime}, serviceTime: {serviceTime}")
                 tdSql.checkEqual(True, abs(expireTime - serviceTime - 864000) < 15)
                 tdSql.query(f'show grants full;')
-                nGrantItems = 49
+                nGrantItems = 50
                 tdSql.checkRows(nGrantItems)
                 tdSql.checkEqual(tdSql.queryResult[0][2], serviceTimeStr)
                 for i in range(1, nGrantItems):
@@ -311,8 +327,7 @@ class TestGrant:
 
         Since: xxx
 
-        Labels: xxx
-
+        Labels: common,ci,integration,functional,security
         Jira: xxx
 
         Catalog:

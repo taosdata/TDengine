@@ -677,7 +677,7 @@ SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, s
 #ifdef _TD_LOONGARCH_64
   SHashNode *pNewNode = taosMemoryCalloc(1, sizeof(SHashNode) + keyLen + dsize + 1);
 #else
-  SHashNode *pNewNode = taosMemoryMalloc(sizeof(SHashNode) + keyLen + dsize + 1);
+  SHashNode *pNewNode = taosMemoryCalloc(1, sizeof(SHashNode) + keyLen + dsize + 1);
 #endif
 
   if (pNewNode == NULL) {

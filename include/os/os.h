@@ -23,9 +23,8 @@ extern "C" {
 #include <assert.h>
 #include <ctype.h>
 
-#include <regex.h>
-
 #if !defined(WINDOWS)
+#include <regex.h>
 #include <dirent.h>
 
 #if !defined(_ALPINE) && !defined(TD_ASTRA)
@@ -72,11 +71,8 @@ extern "C" {
 #endif
 #include <malloc.h>
 #include <time.h>
-#ifndef TD_USE_WINSOCK
-#include <winsock2.h>
-#else
-#include <winsock.h>
-#endif
+#include "osWindows.h"
+#include <regex.h>
 #endif
 
 #include <errno.h>

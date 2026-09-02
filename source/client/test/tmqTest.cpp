@@ -26,6 +26,7 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
 #include "../inc/clientInt.h"
+#include "clientTmq.h"
 #include "taos.h"
 
 int main(int argc, char** argv) {
@@ -36,6 +37,32 @@ int main(int argc, char** argv) {
 TEST(testCase, driverInit_Test) {
   // taosInitGlobalCfg();
   //  taos_init();
+}
+
+TEST(testCase, supplemental_heartbeat_claim_Test) {
+  tmq_t tmq = {0};
+  tmq.consumerId = 0x1234;
+  tmq.heartBeatIntervalMs = 1000;
+
+  atomic_store_64(&tmq.lastHbReportTimeMs, 10000);
+  ASSERT_FALSE(tmqTryClaimSupplementalHb(&tmq, 12000));
+  ASSERT_EQ(atomic_load_64(&tmq.lastHbReportTimeMs), 10000);
+
+  ASSERT_TRUE(tmqTryClaimSupplementalHb(&tmq, 12001));
+  ASSERT_EQ(atomic_load_64(&tmq.lastHbReportTimeMs), 12001);
+
+  ASSERT_FALSE(tmqTryClaimSupplementalHb(&tmq, 12001));
+  ASSERT_EQ(atomic_load_64(&tmq.lastHbReportTimeMs), 12001);
+}
+
+TEST(testCase, supplemental_heartbeat_clock_rollback_Test) {
+  tmq_t tmq = {0};
+  tmq.consumerId = 0x1234;
+  tmq.heartBeatIntervalMs = 1000;
+
+  atomic_store_64(&tmq.lastHbReportTimeMs, 10000);
+  ASSERT_FALSE(tmqTryClaimSupplementalHb(&tmq, 9000));
+  ASSERT_EQ(atomic_load_64(&tmq.lastHbReportTimeMs), 9000);
 }
 
 TEST(testCase, create_topic_ctb_Test) {

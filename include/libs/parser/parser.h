@@ -157,15 +157,37 @@ typedef struct SParseContext {
   SArray*     pTableMetaPos;    // sql table pos => catalog data pos
   SArray*     pTableVgroupPos;  // sql table pos => catalog data pos
   int64_t     allocatorId;
+  txn_id_t    txnId;
+  SSHashObj*  pTxnVgSet;   // borrowed ref to STscObj->pTxnVgSet (read-only during parse)
+  SHashObj*   pTxnTableMeta;  // borrowed ref to STscObj->pTxnTableMeta (same-txn table cache)
+  SHashObj*   pTxnSuidMap;    // borrowed ref to STscObj->pTxnSuidMap (suid → stbFullName for compact CTB assembly)
   parseSqlFn  parseSqlFp;
   void*       parseSqlParam;
   SArray*     pSubMetaList;
   setQueryFn  setQueryFp;
   timezone_t  timezone;
+  char        timezoneName[TD_TIMEZONE_LEN]; // IANA name for serialization to taosd
   void*       charsetCxt;
+  int8_t      firstDayOfWeek;  /* 0-6; -1 = not set (use global tsFirstDayOfWeek) */
+  // External source context: set by client from STscObj when USE ext_source was called.
+  // These allow 1-seg table references to resolve against the active external source.
+  char        currentExtSource[TSDB_EXT_SOURCE_NAME_LEN];  // active external source name (empty = none)
+  char        currentExtNs1[TSDB_EXT_SOURCE_DATABASE_LEN]; // active namespace (db/schema); empty if not set
+  char        currentExtNs2[TSDB_EXT_SOURCE_SCHEMA_LEN];   // active schema (PG 3-seg only); empty otherwise
 } SParseContext;
 
+typedef struct SPureInsertParserCtx {
+  int                    nr_params;
+
+  char                   buf[512];
+} SPureInsertParserCtx;
+
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
+bool    qIsLiteralSql(const char* pStr);
+
+// NOTE: only for insert into [db.]? (...) values (...)
+int32_t qPureParseInsert(SPureInsertParserCtx *pCtx, const char *pStr);
+
 bool    qIsInsertValuesSql(const char* pStr, size_t length);
 bool    qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t acctId, const char* dbName,
                         char* msgBuf, int32_t msgBufLen, int* pCode);
@@ -205,6 +227,7 @@ int32_t     qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool 
 int32_t     qRebuildStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, uint64_t uid, uint64_t suid, int32_t vgId,
                                   bool rebuildCreateTb);
 void        qDestroyStmtDataBlock(STableDataCxt* pBlock);
+void        qDestroyStmtVgroupList(SArray* pVgroupList);
 STableMeta* qGetTableMetaInDataBlock(STableDataCxt* pDataBlock);
 int32_t     qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData);
 
@@ -284,6 +307,9 @@ typedef struct SParseMetaCache {
   SArray*   pDnodes;       // element is SDNodeAddr
   bool      dnodeRequired;
   bool      forceFetchViewMeta;
+  // Federated query ext source metadata (populated by collectMetaKey / putMetaDataToCache)
+  SHashObj* pExtSources;   // key is sourceName (varchar), element is SMetaRes* → SExtSourceInfo*
+  SHashObj* pExtTableMeta; // key is ext-table composite key, element is SMetaRes* → SExtTableMeta*
 } SParseMetaCache;
 
 int32_t collectMetaKey(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache);

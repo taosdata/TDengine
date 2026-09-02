@@ -20,9 +20,16 @@ import os
 import sys
 
 
-NUM_INFO_DB_TABLES = 59  # number of system tables in information_schema
-NUM_PERF_DB_TABLES = 6  # number of system tables in performance_schema
 NUM_USER_DB_TABLES = 1  # number of user tables in test_meta_sysdb
+
+
+def get_sys_table_count(db_name):
+    tdSql.query(
+        f"select table_name from information_schema.ins_tables where db_name = '{db_name}'"
+    )
+    return tdSql.getRows()
+
+
 class TestMetaSysDb2:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
@@ -35,12 +42,11 @@ class TestMetaSysDb2:
         3. Check ins_columns result correctly with table_name filter
         4. Check table count scan with group by db_name and stable_name
         5. Check table count scan after taosd restart
-        6. Check count(distinct ...) function NOT optimized on ins_tables
+        6. Check count(distinct ...) function succeeds on ins_tables
 
         Since: v3.3.6
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: TS-7600
 
         History:
@@ -68,6 +74,8 @@ class TestMetaSysDb2:
         tdLog.info(f"Checking optimized plan for 'information_schema.ins_tables'")
 
         # create test database and table
+        tdSql.execute("drop database if exists test_meta_sysdb", show=1)
+        tdSql.execute("drop database if exists empty_db_for_count_test", show=1)
         tdSql.execute("create database if not exists test_meta_sysdb", show=1)
         tdSql.execute("use test_meta_sysdb")
         tdSql.execute("create table stb (ts timestamp, v1 int) tags (t1 int)", show=1)
@@ -76,6 +84,8 @@ class TestMetaSysDb2:
         tdSql.execute("create database if not exists empty_db_for_count_test", show=1)
         tdSql.execute("use empty_db_for_count_test")
         tdSql.execute("create table stb_empty (ts timestamp, v1 int) tags (t1 int)", show=1)
+        info_tables = get_sys_table_count("information_schema")
+        perf_tables = get_sys_table_count("performance_schema")
 
         # check count plan optimization for information_schema.ins_tables
         # to guarantee the efficiency of count(*) query on it
@@ -89,7 +99,7 @@ class TestMetaSysDb2:
         ## 1.1 check count result
         tdSql.query("select count(*) cnt from information_schema.ins_tables", show=1)
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, NUM_INFO_DB_TABLES + NUM_PERF_DB_TABLES + NUM_USER_DB_TABLES) # 48 sys tables + 6 perf tables + 1 user table
+        tdSql.checkData(0, 0, info_tables + perf_tables + NUM_USER_DB_TABLES)
 
         ## 2. check plan with group by
         ### 2.1 check plan with group by db_name
@@ -103,8 +113,8 @@ class TestMetaSysDb2:
         tdSql.query("select db_name, count(*) cnt from information_schema.ins_tables \
                     group by db_name order by cnt desc", show=1)
         tdSql.checkRows(4)
-        tdSql.checkData(0, 1, NUM_INFO_DB_TABLES) # 47 tables in information_schema
-        tdSql.checkData(1, 1, NUM_PERF_DB_TABLES)  # 5  tables in sys
+        tdSql.checkData(0, 1, info_tables)
+        tdSql.checkData(1, 1, perf_tables)
         tdSql.checkData(2, 1, NUM_USER_DB_TABLES)  # 1  table in test_meta_sysdb
         tdSql.checkData(3, 1, 0)  # 0  table in empty_db_for_count_test
 
@@ -120,11 +130,22 @@ class TestMetaSysDb2:
                     group by stable_name order by cnt desc", show=1)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, None)
-        tdSql.checkData(0, 1, NUM_INFO_DB_TABLES + NUM_PERF_DB_TABLES) # 47+5 normal tables in system databases
+        tdSql.checkData(0, 1, info_tables + perf_tables)
         tdSql.checkData(1, 0, "stb")
         tdSql.checkData(1, 1, NUM_USER_DB_TABLES)  # 1  table in test_meta_sysdb.stb
         tdSql.checkData(2, 0, "stb_empty")
         tdSql.checkData(2, 1, 0)  # 0  table in empty_db_for_count_test.stb_empty
+
+        ### 2.5 check partition by stable_name result without order by
+        tdSql.query("select count(*) cnt, stable_name from information_schema.ins_tables \
+                    partition by stable_name", show=1)
+        tdSql.checkRows(3)
+        stable_name_counts = {}
+        for i in range(tdSql.getRows()):
+            stable_name_counts[tdSql.getData(i, 1)] = tdSql.getData(i, 0)
+        assert stable_name_counts.get(None) == info_tables + perf_tables
+        assert stable_name_counts.get("stb") == NUM_USER_DB_TABLES
+        assert stable_name_counts.get("stb_empty") == 0
 
         ## 3. check plan with where condition
         ### 3.1 check plan with where db_name
@@ -139,7 +160,7 @@ class TestMetaSysDb2:
         tdSql.query("select count(*) cnt from information_schema.ins_tables \
                     where db_name='information_schema'", show=1)
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, NUM_INFO_DB_TABLES) # 47 tables in information_schema
+        tdSql.checkData(0, 0, info_tables)
         ### 3.3 check plan with where stable_name
         tdSql.query("explain select count(*) cnt from information_schema.ins_tables \
                     where stable_name='stb'", show=1)
@@ -188,12 +209,10 @@ class TestMetaSysDb2:
 
         tdLog.info("Table count scan optimization check passed for all eligible tables.")
 
-    # if distinct keyword is enabled in count function,
-    # the optimization should check it and NOT apply optimization!!!!!
     def check_count_distinct(self):
-        tdSql.error("select count(distinct table_name) from information_schema.ins_tables",
-                     expectErrInfo='syntax error near "distinct table_name) from information_schema.ins_tables"',
-                    show=1)
+        tdSql.query("select count(distinct table_name) from information_schema.ins_tables", show=1)
+        tdSql.checkRows(1)
+        assert tdSql.getData(0, 0) > 0, "count(distinct table_name) should return a positive count"
 
     #
     # ------------------ test_odbc.py ------------------
@@ -254,6 +273,8 @@ class TestMetaSysDb2:
         sql += " tb2 using stb1 tags(2,'2',2.0)"
         sql += " tb3 using stb1 tags(3,'3',3.0)"
         tdSql.execute(sql)
+        info_tables = get_sys_table_count("information_schema")
+        perf_tables = get_sys_table_count("performance_schema")
 
         sql = "insert into "
         sql += ' tb1 values (\'2021-11-11 09:00:00\',true,1,1,1,1,1,1,"123","1234",1,1,1,1)'
@@ -277,10 +298,10 @@ class TestMetaSysDb2:
         for i in range(0, 3):
             db_name = tdSql.getData(i, 1)
             if db_name == 'information_schema':
-                tdSql.checkData(i, 0, NUM_INFO_DB_TABLES)
+                tdSql.checkData(i, 0, info_tables)
                 tdSql.checkData(i, 2, None)
             elif db_name == 'performance_schema':
-                tdSql.checkData(i, 0, 6)
+                tdSql.checkData(i, 0, perf_tables)
                 tdSql.checkData(i, 2, None)
             elif db_name == 'tbl_count':
                 tdSql.checkData(i, 0, 3)
@@ -290,10 +311,10 @@ class TestMetaSysDb2:
         
         tdSql.query('select count(1) v,db_name, stable_name from information_schema.ins_tables group by db_name, stable_name order by v desc;')
         tdSql.checkRows(3)
-        tdSql.checkData(0, 0, NUM_INFO_DB_TABLES)
+        tdSql.checkData(0, 0, info_tables)
         tdSql.checkData(0, 1, 'information_schema')
         tdSql.checkData(0, 2, None)
-        tdSql.checkData(1, 0, 6)
+        tdSql.checkData(1, 0, perf_tables)
         tdSql.checkData(1, 1, 'performance_schema')
         tdSql.checkData(1, 2, None)
         tdSql.checkData(2, 0, 3)
@@ -302,11 +323,11 @@ class TestMetaSysDb2:
 
         tdSql.query('select count(1) v,db_name from information_schema.ins_tables group by db_name order by v asc')
         tdSql.checkRows(3)
-        tdSql.checkData(1, 0, 6)
+        tdSql.checkData(1, 0, perf_tables)
         tdSql.checkData(1, 1, 'performance_schema')
         tdSql.checkData(0, 0, 3)
         tdSql.checkData(0, 1, 'tbl_count')
-        tdSql.checkData(2, 0, NUM_INFO_DB_TABLES)
+        tdSql.checkData(2, 0, info_tables)
         tdSql.checkData(2, 1, 'information_schema')
 
         tdSql.query("select count(*) from information_schema.ins_tables where db_name='tbl_count'")
@@ -319,7 +340,7 @@ class TestMetaSysDb2:
 
         tdSql.query('select count(*) from information_schema.ins_tables')
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 68)
+        tdSql.checkData(0, 0, info_tables + perf_tables + 3)
 
 
         tdSql.execute('create table stba (ts timestamp, c1 bool, c2 tinyint, c3 smallint, c4 int, c5 bigint, c6 float, c7 double, c8 binary(10), c9 nchar(10), c10 tinyint unsigned, c11 smallint unsigned, c12 int unsigned, c13 bigint unsigned) TAGS(t1 int, t2 binary(10), t3 double);')
@@ -399,10 +420,10 @@ class TestMetaSysDb2:
         tdSql.checkData(1, 0, 3)
         tdSql.checkData(1, 1, 'tbl_count')
         tdSql.checkData(1, 2, 'stb1')
-        tdSql.checkData(2, 0, 6)
+        tdSql.checkData(2, 0, perf_tables)
         tdSql.checkData(2, 1, 'performance_schema')
         tdSql.checkData(2, 2, None)
-        tdSql.checkData(3, 0, NUM_INFO_DB_TABLES)
+        tdSql.checkData(3, 0, info_tables)
         tdSql.checkData(3, 1, 'information_schema')
         tdSql.checkData(3, 2, None)
 
@@ -414,10 +435,10 @@ class TestMetaSysDb2:
         tdSql.checkData(1, 0, 3)
         tdSql.checkData(1, 1, 'tbl_count')
         tdSql.checkData(1, 2, 'stb1')
-        tdSql.checkData(2, 0, 6)
+        tdSql.checkData(2, 0, perf_tables)
         tdSql.checkData(2, 1, 'performance_schema')
         tdSql.checkData(2, 2, None)
-        tdSql.checkData(3, 0, NUM_INFO_DB_TABLES)
+        tdSql.checkData(3, 0, info_tables)
         tdSql.checkData(3, 1, 'information_schema')
         tdSql.checkData(3, 2, None)
 
@@ -426,9 +447,9 @@ class TestMetaSysDb2:
 
         tdSql.checkData(0, 0, 4)
         tdSql.checkData(0, 1, 'tbl_count')
-        tdSql.checkData(1, 0, 6)
+        tdSql.checkData(1, 0, perf_tables)
         tdSql.checkData(1, 1, 'performance_schema')
-        tdSql.checkData(2, 0, NUM_INFO_DB_TABLES)
+        tdSql.checkData(2, 0, info_tables)
         tdSql.checkData(2, 1, 'information_schema')
 
         tdSql.query("select count(*) from information_schema.ins_tables where db_name='tbl_count'")
@@ -441,5 +462,5 @@ class TestMetaSysDb2:
 
         tdSql.query('select count(*) from information_schema.ins_tables')
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 69)
+        tdSql.checkData(0, 0, info_tables + perf_tables + 4)
         tdSql.execute('drop database tbl_count')

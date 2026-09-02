@@ -71,7 +71,10 @@ static void    mndCancelGetNextDb(SMnode *pMnode, void *pIter);
 static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq);
 
 #ifndef TD_ENTERPRISE
-int32_t mndProcessCompactDbReq(SRpcMsg *pReq) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
+  mError("failed to process compact db req since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
 #endif
 
 int32_t mndInitDb(SMnode *pMnode) {
@@ -905,22 +908,27 @@ static int32_t mndSetAuditOwnedDbs(SMnode *pMnode, SUserObj *pOperUser, SDbObj *
 
   void *pIter = NULL;
   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
+    taosRLockLatch(&pUser->lock);
     if (taosHashGetSize(pUser->roles) <= 0) {
+      taosRUnLockLatch(&pUser->lock);
       sdbRelease(pSdb, pUser);
       pUser = NULL;
       continue;
     }
-    if(strncmp(pUser->name, pOperUser->name, TSDB_USER_LEN) == 0) {
+    if (strncmp(pUser->name, pOperUser->name, TSDB_USER_LEN) == 0) {
+      taosRUnLockLatch(&pUser->lock);
       sdbRelease(pSdb, pUser);
       pUser = NULL;
       continue;
     }
     if (!taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sysAuditLen) &&
         !taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, sysAuditLogLen)) {
+      taosRUnLockLatch(&pUser->lock);
       sdbRelease(pSdb, pUser);
       pUser = NULL;
       continue;
     }
+    taosRUnLockLatch(&pUser->lock);
     TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUserObj));
     TAOS_CHECK_EXIT(taosHashPut(newUserObj.ownedDbs, pDb->name, strlen(pDb->name) + 1, NULL, 0));
     if (auditOwnedDbs == NULL) {
@@ -1140,10 +1148,12 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   // Considering the efficiency of use db privileges in some scenarios like insert operation, owned DBs is stored.
   bool addOwned = false;
   if (dbObj.cfg.isAudit == 1) {
+    taosRLockLatch(&pUser->lock);
     if (taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT)) ||
         taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, sizeof(TSDB_ROLE_SYSAUDIT_LOG))) {
       addOwned = true;
     }
+    taosRUnLockLatch(&pUser->lock);
     TAOS_CHECK_GOTO(mndSetAuditOwnedDbs(pMnode, pUser, &dbObj, &auditOwnedDbs), NULL, _OVER);
   } else {
     addOwned = true;
@@ -1316,6 +1326,22 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_DB, NULL), &lino, _OVER);
 
+#ifdef TD_ENTERPRISE
+  /* Reject CREATE DATABASE if an external source with the same bare name exists.
+   * External source names use the bare database name (no acctId prefix). */
+  {
+    const char *dotPos   = strchr(createReq.db, '.');
+    const char *bareName = (dotPos != NULL) ? dotPos + 1 : createReq.db;
+    void       *pExtSrc  = sdbAcquire(pMnode->pSdb, SDB_EXT_SOURCE, bareName);
+    if (pExtSrc != NULL) {
+      sdbRelease(pMnode->pSdb, pExtSrc);
+      code = TSDB_CODE_EXT_SOURCE_NAME_CONFLICT;
+      goto _OVER;
+    }
+    if (terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) terrno = 0;
+  }
+#endif
+
   TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DB), &lino, _OVER);
 
   int32_t nVnodes = createReq.numOfVgroups * createReq.replications;
@@ -1485,6 +1511,12 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
 
   if (pAlter->minRows > 0 && pAlter->minRows != pDb->cfg.minRows) {
     pDb->cfg.minRows = pAlter->minRows;
+    pDb->vgVersion++;
+    code = 0;
+  }
+
+  if (pAlter->maxRows > 0 && pAlter->maxRows != pDb->cfg.maxRows) {
+    pDb->cfg.maxRows = pAlter->maxRows;
     pDb->vgVersion++;
     code = 0;
   }
@@ -1665,7 +1697,7 @@ _err:
   TAOS_RETURN(code);
 }
 
-static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
+static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *pNew, int32_t parallel) {
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "alter-db");
   if (pTrans == NULL) {
@@ -1678,6 +1710,9 @@ static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *p
 
   mndTransSetDbName(pTrans, pOld->name, NULL);
   mndTransSetGroupParallel(pTrans);
+  if (parallel > 0) {
+    mndTransSetGroupParallelNum(pTrans, parallel);
+  }
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransCheckConflictWithCompact(pMnode, pTrans), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransCheckConflictWithRetention(pMnode, pTrans), NULL, _OVER);
@@ -1860,7 +1895,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
 
   dbObj.cfgVersion++;
   dbObj.updateTime = taosGetTimestampMs();
-  code = mndAlterDb(pMnode, pReq, pDb, &dbObj);
+  code = mndAlterDb(pMnode, pReq, pDb, &dbObj, alterReq.parallel);
 
   if (dbObj.cfg.replications != pDb->cfg.replications) {
     // return quickly, operation executed asynchronously

@@ -597,11 +597,31 @@ int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
     opts.format = TMIN(opts.format, leaderOpts.format);
   }
 
+  // If FSM is incomplete, use MEDIUM mode for efficient partial file recovery
+  if (pSnap->state == SYNC_FSM_STATE_INCOMPLETE) {
+    opts.format = TSDB_SNAP_REP_FMT_MEDIUM;
+    tsdbInfo("vgId:%d, snap prep: FSM incomplete, switching to MEDIUM format", TD_VID(pVnode));
+  }
+
+  // Build file list for MEDIUM mode
+  SMediumSnapFileList mediumFileList = {0};
+  int32_t            mediumFileListLen = 0;
+  if (opts.format == TSDB_SNAP_REP_FMT_MEDIUM) {
+    int32_t code2 = tsdbBuildMediumSnapFileList(pVnode->pTsdb, &mediumFileList);
+    if (code2 == 0 && mediumFileList.nFiles > 0) {
+      mediumFileListLen = tSerializeSMediumSnapFileList(NULL, 0, &mediumFileList);
+      if (mediumFileListLen < 0) mediumFileListLen = 0;
+    }
+  }
+
   // info data realloc
   const int32_t headLen = sizeof(SSyncTLV);
   int32_t       bufLen = headLen;
   bufLen += tsdbPartitionInfoEstSize(pInfo);
   bufLen += tsdbRepOptsEstSize(&opts);
+  if (mediumFileListLen > 0) {
+    bufLen += sizeof(SSyncTLV) + mediumFileListLen;
+  }
   if ((code = syncSnapInfoDataRealloc(pSnap, bufLen)) != 0) {
     tsdbError("vgId:%d, failed to realloc memory for data of snap info. bytes:%d", TD_VID(pVnode), bufLen);
     goto _out;
@@ -626,6 +646,20 @@ int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
   }
   offset += tlen;
 
+  // serialize MEDIUM file list as TLV sub-field
+  if (mediumFileListLen > 0) {
+    SSyncTLV *pSubHead = (SSyncTLV *)(buf + offset);
+    tlen = tSerializeSMediumSnapFileList(pSubHead->val, bufLen - offset - sizeof(SSyncTLV), &mediumFileList);
+    if (tlen < 0) {
+      code = tlen;
+      tsdbError("vgId:%d, failed to serialize medium file list since %s", TD_VID(pVnode), terrstr());
+      goto _out;
+    }
+    pSubHead->typ = SNAP_DATA_MEDIUM;
+    pSubHead->len = tlen;
+    offset += sizeof(SSyncTLV) + tlen;
+  }
+
   // set header of info data
   SSyncTLV* pHead = pSnap->data;
   pHead->typ = pSnap->type;
@@ -635,6 +669,145 @@ int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
            pHead->len);
 
 _out:
+  taosMemoryFreeClear(mediumFileList.aFiles);
   tsdbPartitionInfoClear(pInfo);
+  return code;
+}
+
+int32_t tSerializeSMediumSnapFileList(void *buf, int32_t bufLen, SMediumSnapFileList *pList) {
+  int32_t  code = 0;
+  SEncoder encoder = {0};
+
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if ((code = tStartEncode(&encoder))) goto _err;
+  if ((code = tEncodeI32(&encoder, pList->nFiles))) goto _err;
+  for (int32_t i = 0; i < pList->nFiles; i++) {
+    SMediumSnapFileInfo *pFile = &pList->aFiles[i];
+    if ((code = tEncodeI32(&encoder, pFile->fid))) goto _err;
+    if ((code = tEncodeI32(&encoder, pFile->ftype))) goto _err;
+    if ((code = tEncodeI32(&encoder, pFile->level))) goto _err;
+    if ((code = tEncodeI64(&encoder, pFile->minVer))) goto _err;
+    if ((code = tEncodeI64(&encoder, pFile->maxVer))) goto _err;
+    if ((code = tEncodeI32(&encoder, pFile->lcn))) goto _err;
+    if ((code = tEncodeI32(&encoder, pFile->mid))) goto _err;
+    if ((code = tEncodeI64(&encoder, pFile->cid))) goto _err;
+    if ((code = tEncodeI32(&encoder, pFile->diskLevel))) goto _err;
+    if ((code = tEncodeI32(&encoder, pFile->diskId))) goto _err;
+    if ((code = tEncodeI64(&encoder, pFile->size))) goto _err;
+    if ((code = tEncodeI8(&encoder, pFile->missing))) goto _err;
+  }
+
+  tEndEncode(&encoder);
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+
+_err:
+  tEncoderClear(&encoder);
+  return code;
+}
+
+int32_t tDeserializeSMediumSnapFileList(void *buf, int32_t bufLen, SMediumSnapFileList *pList) {
+  int32_t  code = 0;
+  SDecoder decoder = {0};
+
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if ((code = tStartDecode(&decoder))) goto _err;
+  if ((code = tDecodeI32(&decoder, &pList->nFiles))) goto _err;
+
+  if (pList->nFiles > 0) {
+    pList->aFiles = taosMemoryCalloc(pList->nFiles, sizeof(SMediumSnapFileInfo));
+    if (pList->aFiles == NULL) {
+      code = terrno;
+      goto _err;
+    }
+    for (int32_t i = 0; i < pList->nFiles; i++) {
+      SMediumSnapFileInfo *pFile = &pList->aFiles[i];
+      if ((code = tDecodeI32(&decoder, &pFile->fid))) goto _err;
+      if ((code = tDecodeI32(&decoder, &pFile->ftype))) goto _err;
+      if ((code = tDecodeI32(&decoder, &pFile->level))) goto _err;
+      if ((code = tDecodeI64(&decoder, &pFile->minVer))) goto _err;
+      if ((code = tDecodeI64(&decoder, &pFile->maxVer))) goto _err;
+      if ((code = tDecodeI32(&decoder, &pFile->lcn))) goto _err;
+      if ((code = tDecodeI32(&decoder, &pFile->mid))) goto _err;
+      if ((code = tDecodeI64(&decoder, &pFile->cid))) goto _err;
+      if ((code = tDecodeI32(&decoder, &pFile->diskLevel))) goto _err;
+      if ((code = tDecodeI32(&decoder, &pFile->diskId))) goto _err;
+      if ((code = tDecodeI64(&decoder, &pFile->size))) goto _err;
+      if ((code = tDecodeI8(&decoder, &pFile->missing))) goto _err;
+    }
+  } else {
+    pList->aFiles = NULL;
+  }
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+
+_err:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSMediumSnapFileHdr(void *buf, int32_t bufLen, SMediumSnapFileHdr *pHdr) {
+  int32_t  code = 0;
+  SEncoder encoder = {0};
+
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if ((code = tStartEncode(&encoder))) goto _err;
+  if ((code = tEncodeI32(&encoder, pHdr->fileInfo.fid))) goto _err;
+  if ((code = tEncodeI32(&encoder, pHdr->fileInfo.ftype))) goto _err;
+  if ((code = tEncodeI32(&encoder, pHdr->fileInfo.level))) goto _err;
+  if ((code = tEncodeI64(&encoder, pHdr->fileInfo.minVer))) goto _err;
+  if ((code = tEncodeI64(&encoder, pHdr->fileInfo.maxVer))) goto _err;
+  if ((code = tEncodeI32(&encoder, pHdr->fileInfo.lcn))) goto _err;
+  if ((code = tEncodeI32(&encoder, pHdr->fileInfo.mid))) goto _err;
+  if ((code = tEncodeI64(&encoder, pHdr->fileInfo.cid))) goto _err;
+  if ((code = tEncodeI32(&encoder, pHdr->fileInfo.diskLevel))) goto _err;
+  if ((code = tEncodeI32(&encoder, pHdr->fileInfo.diskId))) goto _err;
+  if ((code = tEncodeI64(&encoder, pHdr->fileInfo.size))) goto _err;
+  if ((code = tEncodeI8(&encoder, pHdr->fileInfo.missing))) goto _err;
+  if ((code = tEncodeI32(&encoder, pHdr->opType))) goto _err;
+
+  tEndEncode(&encoder);
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+
+_err:
+  tEncoderClear(&encoder);
+  return code;
+}
+
+int32_t tDeserializeSMediumSnapFileHdr(void *buf, int32_t bufLen, SMediumSnapFileHdr *pHdr) {
+  int32_t  code = 0;
+  SDecoder decoder = {0};
+
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if ((code = tStartDecode(&decoder))) goto _err;
+  if ((code = tDecodeI32(&decoder, &pHdr->fileInfo.fid))) goto _err;
+  if ((code = tDecodeI32(&decoder, &pHdr->fileInfo.ftype))) goto _err;
+  if ((code = tDecodeI32(&decoder, &pHdr->fileInfo.level))) goto _err;
+  if ((code = tDecodeI64(&decoder, &pHdr->fileInfo.minVer))) goto _err;
+  if ((code = tDecodeI64(&decoder, &pHdr->fileInfo.maxVer))) goto _err;
+  if ((code = tDecodeI32(&decoder, &pHdr->fileInfo.lcn))) goto _err;
+  if ((code = tDecodeI32(&decoder, &pHdr->fileInfo.mid))) goto _err;
+  if ((code = tDecodeI64(&decoder, &pHdr->fileInfo.cid))) goto _err;
+  if ((code = tDecodeI32(&decoder, &pHdr->fileInfo.diskLevel))) goto _err;
+  if ((code = tDecodeI32(&decoder, &pHdr->fileInfo.diskId))) goto _err;
+  if ((code = tDecodeI64(&decoder, &pHdr->fileInfo.size))) goto _err;
+  if ((code = tDecodeI8(&decoder, &pHdr->fileInfo.missing))) goto _err;
+  if ((code = tDecodeI32(&decoder, &pHdr->opType))) goto _err;
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+
+_err:
+  tDecoderClear(&decoder);
   return code;
 }

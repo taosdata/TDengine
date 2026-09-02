@@ -78,6 +78,13 @@ class Test5dnode3mnodeStop:
         tdDnodes[2].starttaosd()
         clusterComCheck.checkMnodeStatus(3)
 
+        # Reconnect tdSql to dnode4 before stopping dnode1, because the current
+        # connection targets dnode1 (port 6030) and will break once it's killed.
+        # In ASAN builds the client-side failover is too slow to recover in time.
+        dnode4_port = int(tdDnodes[3].cfgDict.get("serverPort", 6330))
+        new_conn = taos.connect(host=self.host, port=dnode4_port)
+        tdSql.init(new_conn.cursor())
+
         tdDnodes[0].stoptaosd()
         clusterComCheck.check3mnodeoff(1,3)
         tdDnodes[0].starttaosd()
@@ -98,8 +105,7 @@ class Test5dnode3mnodeStop:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

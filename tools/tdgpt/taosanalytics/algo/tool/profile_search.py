@@ -1,4 +1,3 @@
-# encoding:utf-8
 """profile search core logic"""
 
 import heapq
@@ -16,7 +15,7 @@ def _np_scalar(val):
     elements raises ``AttributeError``.  This helper calls ``.item()`` when available and
     falls back to returning the value unchanged otherwise.
     """
-    return val.item() if hasattr(val, 'item') else val
+    return val.item() if hasattr(val, "item") else val
 
 
 class ProfileSearchLimits(IntEnum):
@@ -47,14 +46,14 @@ def _validate_normalization(norm_type):
     norm_type = str(norm_type).lower()
     if norm_type not in {m.value for m in NormalizationMethod}:
         raise ValueError(f"unsupported normalization: {norm_type}")
-    
+
     return norm_type
 
 
 def _validate_result_constraints(result_obj, algo_type):
     has_num = "num" in result_obj
     has_threshold = "threshold" in result_obj
-    
+
     if has_num and has_threshold:
         raise ValueError('"num" and "threshold" cannot be set at the same time')
     if not has_num and not has_threshold:
@@ -70,9 +69,13 @@ def _validate_result_constraints(result_obj, algo_type):
             raise ValueError('"result.threshold" cannot be NaN or Inf')
 
         if algo_type == "dtw" and t < 0:
-            raise ValueError('for dtw algorithm, "result.threshold" must be non-negative')
+            raise ValueError(
+                'for dtw algorithm, "result.threshold" must be non-negative'
+            )
         if algo_type == "cosine" and (t < -1 or t > 1):
-            raise ValueError('for cosine similarity, "result.threshold" must be in range [-1, 1]')
+            raise ValueError(
+                'for cosine similarity, "result.threshold" must be in range [-1, 1]'
+            )
 
     top_n = None
     if has_num:
@@ -80,8 +83,14 @@ def _validate_result_constraints(result_obj, algo_type):
             top_n = int(result_obj["num"])
         except (ValueError, TypeError, KeyError):
             raise ValueError('"result.num" must be an integer')
-        if top_n < ProfileSearchLimits.MIN_PROFILE_SEARCH_RESULTS or top_n > ProfileSearchLimits.MAX_PROFILE_SEARCH_RESULTS:
-            raise ValueError(f'"result.num" must be in range [{ProfileSearchLimits.MIN_PROFILE_SEARCH_RESULTS}, {ProfileSearchLimits.MAX_PROFILE_SEARCH_RESULTS}]')
+        if (
+            top_n < ProfileSearchLimits.MIN_PROFILE_SEARCH_RESULTS
+            or top_n > ProfileSearchLimits.MAX_PROFILE_SEARCH_RESULTS
+        ):
+            raise ValueError(
+                f'"result.num" must be in range [{ProfileSearchLimits.MIN_PROFILE_SEARCH_RESULTS}, '
+                "{ProfileSearchLimits.MAX_PROFILE_SEARCH_RESULTS}]"
+            )
 
     return has_threshold, top_n
 
@@ -94,7 +103,7 @@ def _validate_source_data(source_data):
     if source_arr.size > ProfileSearchLimits.MAX_SOURCE_LEN:
         raise ValueError(
             f'"source_data" length {source_arr.size} exceeds maximum allowed '
-            f'({ProfileSearchLimits.MAX_SOURCE_LEN})'
+            f"({ProfileSearchLimits.MAX_SOURCE_LEN})"
         )
 
     if not np.all(np.isfinite(source_arr)):
@@ -107,17 +116,24 @@ def _parse_source_data(source_data):
     # Keep backward compatibility with legacy source_data: [1, 2, 3]
     if isinstance(source_data, dict):
         if "data" not in source_data:
-            raise ValueError('"source_data.data" is required when "source_data" is an object')
+            raise ValueError(
+                '"source_data.data" is required when "source_data" is an object'
+            )
 
         source_arr = _validate_source_data(source_data.get("data"))
 
         source_ts_window = None
         source_ts = source_data.get("ts")
         if source_ts is not None:
-            if isinstance(source_ts, (list, tuple)) and len(source_ts) == source_arr.size:
+            if (
+                isinstance(source_ts, (list, tuple))
+                and len(source_ts) == source_arr.size
+            ):
                 source_ts_window = [_np_scalar(source_ts[0]), _np_scalar(source_ts[-1])]
             else:
-                raise ValueError('"source_data.ts" must have the same length as "source_data.data"')
+                raise ValueError(
+                    '"source_data.ts" must have the same length as "source_data.data"'
+                )
 
         return source_arr, source_ts_window
 
@@ -128,7 +144,7 @@ def _validate_profile_list(profile_list, source_len, algo_type):
     if len(profile_list) > ProfileSearchLimits.MAX_PROFILES:
         raise ValueError(
             f'"target_data.data" has too many profiles ({len(profile_list)}); '
-            f'max is {ProfileSearchLimits.MAX_PROFILES}'
+            f"max is {ProfileSearchLimits.MAX_PROFILES}"
         )
 
     total_len = 0
@@ -138,19 +154,22 @@ def _validate_profile_list(profile_list, source_len, algo_type):
 
         if profile_arr.ndim != 1 or profile_arr.size == 0:
             raise ValueError("input series must be a non-empty 1-D numeric array")
-        
+
         if not np.all(np.isfinite(profile_arr)):
             raise ValueError(f'"target_data.data[{idx}]" contains NaN or Inf')
-        
-        if algo_type == 'cosine' and profile_arr.size != source_len:
-            raise ValueError(f'for cosine similarity, each profile in "target_data.data" must have the same length as "source_data" ({source_len})')
+
+        if algo_type == "cosine" and profile_arr.size != source_len:
+            raise ValueError(
+                f'for cosine similarity, each profile in "target_data.data" '
+                f'must have the same length as "source_data" ({source_len})'
+            )
 
         total_len += profile_arr.size
 
     if total_len > ProfileSearchLimits.MAX_TARGET_LEN:
         raise ValueError(
             f'total length of all profiles in "target_data.data" ({total_len}) exceeds maximum allowed '
-            f'({ProfileSearchLimits.MAX_TARGET_LEN})'
+            f"({ProfileSearchLimits.MAX_TARGET_LEN})"
         )
 
 
@@ -161,11 +180,15 @@ def _validate_min_max_window(min_window, max_window):
         max_window = int(max_window)
 
     if min_window is not None and min_window < ProfileSearchLimits.MIN_WINDOW:
-        raise ValueError(f'"min_window" must be greater than or equal to {ProfileSearchLimits.MIN_WINDOW}')
+        raise ValueError(
+            f'"min_window" must be greater than or equal to {ProfileSearchLimits.MIN_WINDOW}'
+        )
     if max_window is not None and max_window < ProfileSearchLimits.MIN_WINDOW:
-        raise ValueError(f'"max_window" must be greater than or equal to {ProfileSearchLimits.MIN_WINDOW}')
+        raise ValueError(
+            f'"max_window" must be greater than or equal to {ProfileSearchLimits.MIN_WINDOW}'
+        )
     if min_window is not None and max_window is not None and min_window > max_window:
-        raise ValueError(f'"min_window" cannot be larger than "max_window"')
+        raise ValueError('"min_window" cannot be larger than "max_window"')
 
     return min_window, max_window
 
@@ -173,7 +196,10 @@ def _validate_min_max_window(min_window, max_window):
 def _validate_radius(algo_type, algo_params):
     if algo_type == "dtw":
         radius = int(algo_params.get("radius", ProfileSearchLimits.MIN_RADIUS))
-        if radius < ProfileSearchLimits.MIN_RADIUS or radius > ProfileSearchLimits.MAX_RADIUS:
+        if (
+            radius < ProfileSearchLimits.MIN_RADIUS
+            or radius > ProfileSearchLimits.MAX_RADIUS
+        ):
             raise ValueError(
                 f"radius value out of range, valid range [{ProfileSearchLimits.MIN_RADIUS}, {ProfileSearchLimits.MAX_RADIUS}]"
             )
@@ -181,7 +207,10 @@ def _validate_radius(algo_type, algo_params):
 
     return None
 
-def _validate_integer_param(algo_params, param_name, default_val: int, min_val: int = 1):
+
+def _validate_integer_param(
+    algo_params, param_name, default_val: int, min_val: int = 1
+):
     if default_val < min_val:
         raise ValueError("default_val should be >= min_val")
 
@@ -198,6 +227,7 @@ def _validate_integer_param(algo_params, param_name, default_val: int, min_val: 
 
     return raw_val
 
+
 def _validate_window_steps(algo_type, algo_params):
     has_window_size_step = "window_size_step" in algo_params
 
@@ -205,14 +235,16 @@ def _validate_window_steps(algo_type, algo_params):
         raise ValueError('"window_size_step" can only be set for dtw algorithm')
 
     window_size_step = _validate_integer_param(algo_params, "window_size_step", 1, 1)
-    window_sliding_step = _validate_integer_param(algo_params, "window_sliding_step", 1, 1)
+    window_sliding_step = _validate_integer_param(
+        algo_params, "window_sliding_step", 1, 1
+    )
 
     return window_size_step, window_sliding_step
 
 
 def _normalize_series(series_arr, norm_type):
     arr = np.array(series_arr, dtype=float)
-    
+
     if norm_type == NormalizationMethod.NONE.value:
         return arr
     if norm_type == NormalizationMethod.CENTERING.value:
@@ -239,16 +271,29 @@ def _calc_cosine_similarity(arr1, arr2):
     return float(np.dot(arr1, arr2) / den)
 
 
-def _build_window_candidates_from_series(ts_vals, data_vals, source_len: int, min_window: int, max_window: int,
-                                        window_size_step: int, window_sliding_step: int,
-                                        exclude_source: bool = False, source_ts_window=None):
+def _build_window_candidates_from_series(
+    ts_vals,
+    data_vals,
+    source_len: int,
+    min_window: int,
+    max_window: int,
+    window_size_step: int,
+    window_sliding_step: int,
+    exclude_source: bool = False,
+    exclude_overlap: bool = False,
+    source_ts_window=None,
+):
     ts_arr = np.array(ts_vals)
     data_arr = np.array(data_vals, dtype=float)
 
     if ts_arr.ndim != 1 or data_arr.ndim != 1:
-        raise ValueError('when "target_data.data" is 1-D, "target_data.ts" must also be 1-D')
+        raise ValueError(
+            'when "target_data.data" is 1-D, "target_data.ts" must also be 1-D'
+        )
     if ts_arr.size != data_arr.size:
-        raise ValueError('"target_data.ts" length must equal "target_data.data" length for 1-D data')
+        raise ValueError(
+            '"target_data.ts" length must equal "target_data.data" length for 1-D data'
+        )
     if ts_arr.size == 0:
         raise ValueError('"target_data.data" cannot be empty')
 
@@ -263,8 +308,8 @@ def _build_window_candidates_from_series(ts_vals, data_vals, source_len: int, mi
     max_w = min(max_w, int(data_arr.size))
     if min_w > int(data_arr.size):
         raise ValueError(
-            f'min_window ({min_w}) exceeds target series length ({int(data_arr.size)}); '
-            'reduce min_window or use a longer target series'
+            f"min_window ({min_w}) exceeds target series length ({int(data_arr.size)}); "
+            "reduce min_window or use a longer target series"
         )
 
     for win_size in range(min_w, max_w + 1, window_size_step):
@@ -272,19 +317,36 @@ def _build_window_candidates_from_series(ts_vals, data_vals, source_len: int, mi
             end = start + win_size - 1
             assert end < data_arr.size and end < ts_arr.size
 
-            if exclude_source and source_ts_window is not None:
-                if ts_arr[start] <= source_ts_window[0] and ts_arr[end] >= source_ts_window[1]:
+            if source_ts_window is not None:
+                if (
+                    exclude_source
+                    and ts_arr[start] <= source_ts_window[0]
+                    and ts_arr[end] >= source_ts_window[1]
+                ):
+                    continue
+
+                # overlap with the source timewindow should also be excluded.
+                if exclude_overlap and _is_interval_overlapping(
+                    [ts_arr[start], ts_arr[end]], source_ts_window
+                ):
                     continue
 
             yield {
-                "series": data_arr[start:end + 1],
+                "series": data_arr[start : end + 1],
                 "ts_window": [_np_scalar(ts_arr[start]), _np_scalar(ts_arr[end])],
-                "num": end - start + 1
+                "num": end - start + 1,
             }
 
 
-def _build_candidates_from_profiles(ts_vals, profiles, min_window, max_window,
-                                    exclude_source=False, source_ts_window=None):
+def _build_candidates_from_profiles(
+    ts_vals,
+    profiles,
+    min_window,
+    max_window,
+    exclude_source=False,
+    exclude_overlap=False,
+    source_ts_window=None,
+):
     if not isinstance(profiles, list) or len(profiles) == 0:
         raise ValueError('"target_data.data" must be a non-empty array')
 
@@ -295,7 +357,9 @@ def _build_candidates_from_profiles(ts_vals, profiles, min_window, max_window,
     for idx, profile in enumerate(profiles):
         profile_arr = np.array(profile, dtype=float)
         if profile_arr.ndim != 1 or profile_arr.size == 0:
-            raise ValueError("each profile in target_data.data must be a non-empty 1-D numeric array")
+            raise ValueError(
+                "each profile in target_data.data must be a non-empty 1-D numeric array"
+            )
 
         if min_window is not None and profile_arr.size < int(min_window):
             continue
@@ -303,23 +367,35 @@ def _build_candidates_from_profiles(ts_vals, profiles, min_window, max_window,
             continue
 
         if len(ts_vals) <= idx:
-            raise ValueError('when "target_data.data" is a list of profiles, "target_data.ts" and "target_data.data" must have matching lengths')
-        
+            raise ValueError(
+                'when "target_data.data" is a list of profiles, "target_data.ts" and "target_data.data" '
+                "must have matching lengths"
+            )
+
         if isinstance(ts_vals[idx], (list, tuple)) and len(ts_vals[idx]) == 2:
             ts_window = [ts_vals[idx][0], ts_vals[idx][1]]
         else:
-            raise ValueError('when "target_data.data" is a list of profiles, each corresponding item in "target_data.ts" must be a [start_ts, end_ts] pair')
+            raise ValueError(
+                'when "target_data.data" is a list of profiles, each corresponding item in "target_data.ts" '
+                "must be a [start_ts, end_ts] pair"
+            )
 
-        if exclude_source and source_ts_window is not None:
-            if ts_window[0] <= source_ts_window[0] and ts_window[1] >= source_ts_window[1]:
+        if source_ts_window is not None:
+            if (
+                exclude_source
+                and ts_window[0] <= source_ts_window[0]
+                and ts_window[1] >= source_ts_window[1]
+            ):
+                continue
+
+            # overlap with the source timewindow should also be excluded.
+            if exclude_overlap and _is_interval_overlapping(
+                ts_window, source_ts_window
+            ):
                 continue
 
         has_candidate = True
-        yield {
-            "series": profile_arr,
-            "ts_window": ts_window,
-            "num": profile_arr.size
-        }
+        yield {"series": profile_arr, "ts_window": ts_window, "num": profile_arr.size}
 
     if not has_candidate:
         raise ValueError("no candidate profiles after min_window/max_window filtering")
@@ -331,7 +407,7 @@ def _parse_profile_search_input(req_json):
     algo_obj = req_json.get("algo", None)
     if algo_obj is None or not isinstance(algo_obj, dict):
         raise ValueError('"algo" object is required and must be a dictionary')
-    
+
     algo_type = str(algo_obj.get("type", "dtw")).lower()
     if algo_type not in {"dtw", "cosine"}:
         raise ValueError(f"unsupported algo: {algo_type}")
@@ -382,9 +458,13 @@ def _validate_params(parsed_input):
     ts_list = parsed_input["ts_list"]
     data_list = parsed_input["data_list"]
 
-    if algo_type != "dtw" and ("min_window" in algo_params or "max_window" in algo_params):
-        raise ValueError('"min_window" and "max_window" can only be set for dtw algorithm')
-    
+    if algo_type != "dtw" and (
+        "min_window" in algo_params or "max_window" in algo_params
+    ):
+        raise ValueError(
+            '"min_window" and "max_window" can only be set for dtw algorithm'
+        )
+
     has_threshold, top_n = _validate_result_constraints(result_obj, algo_type)
     source_arr, source_ts_window = _parse_source_data(parsed_input["source_data"])
 
@@ -395,10 +475,16 @@ def _validate_params(parsed_input):
         algo_params.get("min_window", None),
         algo_params.get("max_window", None),
     )
-    
-    window_size_step, window_sliding_step = _validate_window_steps(algo_type, algo_params)
 
-    is_profile_list = isinstance(data_list, list) and len(data_list) > 0 and isinstance(data_list[0], (list, tuple))
+    window_size_step, window_sliding_step = _validate_window_steps(
+        algo_type, algo_params
+    )
+
+    is_profile_list = (
+        isinstance(data_list, list)
+        and len(data_list) > 0
+        and isinstance(data_list[0], (list, tuple))
+    )
     if is_profile_list:
         _validate_profile_list(data_list, source_arr.size, algo_type)
     else:
@@ -406,13 +492,19 @@ def _validate_params(parsed_input):
         if data_arr.size > ProfileSearchLimits.MAX_TARGET_LEN:
             raise ValueError(
                 f'"target_data.data" length {data_arr.size} exceeds maximum allowed '
-                f'({ProfileSearchLimits.MAX_TARGET_LEN})'
+                f"({ProfileSearchLimits.MAX_TARGET_LEN})"
             )
         if not np.all(np.isfinite(data_arr)):
             raise ValueError('"target_data.data" contains NaN or Inf')
 
-        _validate_possible_candidates(source_arr, data_arr.size, min_window, max_window,
-                                    window_size_step, window_sliding_step)
+        _validate_possible_candidates(
+            source_arr,
+            data_arr.size,
+            min_window,
+            max_window,
+            window_size_step,
+            window_sliding_step,
+        )
 
     radius = _validate_radius(algo_type, algo_params)
 
@@ -433,11 +525,18 @@ def _validate_params(parsed_input):
         "window_sliding_step": window_sliding_step,
         "exclude_source": exclude_source,
         "exclude_overlap": exclude_overlap,
-        "is_profile_list": is_profile_list
+        "is_profile_list": is_profile_list,
     }
 
-def _validate_possible_candidates(source_arr, data_list_size, min_window, max_window,
-                                  window_size_step, window_sliding_step):
+
+def _validate_possible_candidates(
+    source_arr,
+    data_list_size,
+    min_window,
+    max_window,
+    window_size_step,
+    window_sliding_step,
+):
     eff_min_w = min_window if min_window is not None else int(source_arr.size)
     eff_max_w = max_window if max_window is not None else int(source_arr.size)
 
@@ -447,14 +546,16 @@ def _validate_possible_candidates(source_arr, data_list_size, min_window, max_wi
     if eff_min_w > 0 and eff_max_w >= eff_min_w:
         total_candidates = 0
         for win_size in range(int(eff_min_w), int(eff_max_w) + 1, window_size_step):
-            candidate_count_for_size = (data_list_size - win_size) // window_sliding_step + 1
+            candidate_count_for_size = (
+                data_list_size - win_size
+            ) // window_sliding_step + 1
             total_candidates += max(0, candidate_count_for_size)
 
         if total_candidates > ProfileSearchLimits.MAX_WINDOW_CANDIDATES:
             raise ValueError(
-                f'sliding window would generate {total_candidates} candidates, '
-                f'which exceeds the maximum of {ProfileSearchLimits.MAX_WINDOW_CANDIDATES}; '
-                f'reduce target_data length or narrow the window range'
+                f"sliding window would generate {total_candidates} candidates, "
+                f"which exceeds the maximum of {ProfileSearchLimits.MAX_WINDOW_CANDIDATES}; "
+                f"reduce target_data length or narrow the window range"
             )
 
 
@@ -486,13 +587,16 @@ def _filter_exclude_overlap(matches, limit=None):
     for idx, match in enumerate(matches):
         ts_window = match.get("ts_window")
         if not isinstance(ts_window, (list, tuple)) or len(ts_window) != 2:
-            raise ValueError(f'matches[{idx}].ts_window must be a [start_ts, end_ts] pair')
+            raise ValueError(
+                f"matches[{idx}].ts_window must be a [start_ts, end_ts] pair"
+            )
         if ts_window[0] > ts_window[1]:
-            raise ValueError(f'matches[{idx}].ts_window must satisfy start_ts <= end_ts')
+            raise ValueError(
+                f"matches[{idx}].ts_window must satisfy start_ts <= end_ts"
+            )
 
         has_overlap = any(
-            _is_interval_overlapping(ts_window, k_window)
-            for k_window, _ in kept
+            _is_interval_overlapping(ts_window, k_window) for k_window, _ in kept
         )
 
         if not has_overlap:
@@ -509,6 +613,7 @@ def _filter_exclude_overlap(matches, limit=None):
 # that filtering still yields target_rows results in most cases.
 _EXCLUSION_OVERSAMPLE = 8
 
+
 def _heap_key(algo_type, criteria_val, seq_idx):
     # Higher heap key means a better candidate after normalization of the metric:
     # cosine uses the raw similarity (higher is better), while DTW inverts the
@@ -516,6 +621,7 @@ def _heap_key(algo_type, criteria_val, seq_idx):
     if algo_type == "dtw":
         return (-criteria_val, -seq_idx)
     return (criteria_val, -seq_idx)
+
 
 def do_profile_search_impl(req_json):
     parsed_input = _parse_profile_search_input(req_json)
@@ -541,19 +647,33 @@ def do_profile_search_impl(req_json):
     source_norm = _normalize_series(source_arr, norm_type)
     metric_type = "dtw_distance" if algo_type == "dtw" else "cosine_similarity"
     threshold = float(result_obj["threshold"]) if has_threshold else None
-    target_rows = ProfileSearchLimits.MAX_PROFILE_SEARCH_RESULTS if top_n is None else top_n
+    target_rows = (
+        ProfileSearchLimits.MAX_PROFILE_SEARCH_RESULTS if top_n is None else top_n
+    )
     need_exclusion_filter = exclude_overlap
 
     def _build_candidates():
         if parsed["is_profile_list"]:
             return _build_candidates_from_profiles(
-                ts_list, data_list, min_window, max_window,
-                exclude_source=exclude_source, source_ts_window=source_ts_window
+                ts_list,
+                data_list,
+                min_window,
+                max_window,
+                exclude_source=exclude_source,
+                exclude_overlap=exclude_overlap,
+                source_ts_window=source_ts_window,
             )
         return _build_window_candidates_from_series(
-            ts_list, data_list, source_arr.size, min_window, max_window,
-            window_size_step, window_sliding_step,
-            exclude_source=exclude_source, source_ts_window=source_ts_window
+            ts_list,
+            data_list,
+            source_arr.size,
+            min_window,
+            max_window,
+            window_size_step,
+            window_sliding_step,
+            exclude_source=exclude_source,
+            exclude_overlap=exclude_overlap,
+            source_ts_window=source_ts_window,
         )
 
     # Score all candidates once.
@@ -576,7 +696,9 @@ def do_profile_search_impl(req_json):
             criteria = float(criteria)
         else:
             if source_norm.size != candidate_norm.size:
-                raise ValueError("for cosine similarity, source_data and each candidate profile must have the same length")
+                raise ValueError(
+                    "for cosine similarity, source_data and each candidate profile must have the same length"
+                )
             criteria = _calc_cosine_similarity(source_norm, candidate_norm)
 
         if has_threshold:
@@ -588,7 +710,7 @@ def do_profile_search_impl(req_json):
         match_obj = {
             "criteria": criteria,
             "ts_window": item["ts_window"],
-            "num": item["num"]
+            "num": item["num"],
         }
 
         key = _heap_key(algo_type, criteria, seq)
@@ -644,8 +766,4 @@ def do_profile_search_impl(req_json):
             # Double the oversample factor and rebuild from the cached scored list.
             oversample *= 2
 
-    return {
-        "rows": len(matches),
-        "metric_type": metric_type,
-        "matches": matches
-    }
+    return {"rows": len(matches), "metric_type": metric_type, "matches": matches}

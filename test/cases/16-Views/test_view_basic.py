@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, tdCom, TDSetSql, TDSql
+from new_test_framework.utils import tdLog, tdSql, tdCom, TDSetSql, TDSql, tmqCom
 import taos
 import os
 import sys
@@ -45,7 +45,7 @@ class TestViewBasic:
             tdLog.info("Create child table {} successfully".format(ctname))
 
             # insert data into child tables
-            conn.execute(f"insert into {ctname} values(now, 1.1, 1)(now+1s, 2.2, 2)(now+2s, 3.3, 3)(now+3s, 4.4, 4)(now+4s, 5.5, 5)(now+5s, 6.6, 6)(now+6s, 7.7, 7)(now+7s, 8.8, 8)(now+8s, 9.9, 9)(now+9s, 10.1, 10);)")
+            conn.execute(f"insert into {ctname} values(now, 1.1, 1)(now+1s, 2.2, 2)(now+2s, 3.3, 3)(now+3s, 4.4, 4)(now+4s, 5.5, 5)(now+5s, 6.6, 6)(now+6s, 7.7, 7)(now+7s, 8.8, 8)(now+8s, 9.9, 9)(now+9s, 10.1, 10)")
             tdLog.info(f"Insert into data to {ctname} successfully")
 
     def initConsumerTable(self,cdbName='cdb', replicaVar=1):
@@ -95,37 +95,6 @@ class TestViewBasic:
         tdLog.info("consume info sql: %s"%sql)
         tdSql.query(sql)
     
-    def startTmqSimProcess(self,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0,alias=0,snapshot=0):
-        buildPath = tdCom.getBuildPath()
-        cfgPath = tdCom.getClientCfgPath()
-        if valgrind == 1:
-            logFile = cfgPath + '/../log/valgrind-tmq.log'
-            shellCmd = 'nohup valgrind --log-file=' + logFile
-            shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
-
-        if (platform.system().lower() == 'windows'):
-            processorName = buildPath + '\\build\\bin\\tmq_sim.exe'
-            if alias != 0:
-                processorNameNew = buildPath + '\\build\\bin\\tmq_sim_new.exe'
-                shellCmd = 'cp %s %s'%(processorName, processorNameNew)
-                os.system(shellCmd)
-                processorName = processorNameNew
-            shellCmd = 'mintty -h never ' + processorName + ' -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s -e %d "%(pollDelay, dbName, showMsg, showRow, cdbName, snapshot)
-            shellCmd += "> nul 2>&1 &"
-        else:
-            processorName = buildPath + '/build/bin/tmq_sim'
-            if alias != 0:
-                processorNameNew = buildPath + '/build/bin/tmq_sim_new'
-                shellCmd = 'cp %s %s'%(processorName, processorNameNew)
-                os.system(shellCmd)
-                processorName = processorNameNew
-            shellCmd = 'nohup ' + processorName + ' -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s -e %d "%(pollDelay, dbName, showMsg, showRow, cdbName, snapshot)
-            shellCmd += "> /dev/null 2>&1 &"
-        tdLog.info(shellCmd)
-        os.system(shellCmd)
-
     def checkFileContent(self, consumerId, queryString, skipRowsOfCons=0):
         buildPath = tdCom.getBuildPath()
         cfgPath = tdCom.getClientCfgPath()
@@ -429,7 +398,7 @@ class TestViewBasic:
         self.create_user(username, password)
         tdSql.execute("grant create database to view_test;")
         conn = taos.connect(user=username, password=password)
-        time.sleep(2) # wait for user privileges to take effect
+        time.sleep(4) # wait for user privileges to take effect
         self.prepare_data(conn)
         cursor = conn.cursor()
         testSql = TDSql()
@@ -480,7 +449,7 @@ class TestViewBasic:
         self.create_user(username, password)
         tdSql.execute("grant create database to view_test;")
         conn = taos.connect(user=username, password=password)
-        time.sleep(2) # wait for user privileges to take effect
+        time.sleep(4) # wait for user privileges to take effect
         self.prepare_data()
         cursor = conn.cursor()
         testSql = TDSql()
@@ -736,7 +705,7 @@ class TestViewBasic:
         self.insertConsumerInfo(consumerId, expectrowcnt, topicList, keyList, ifcheckdata, ifManualCommit)
 
         tdLog.info("start consume processor")
-        self.startTmqSimProcess(paraDict['pollDelay'], paraDict["dbName"], paraDict['showMsg'], paraDict['showRow'])
+        tmqCom.startTmqSimProcess(paraDict['pollDelay'], paraDict["dbName"], paraDict['showMsg'], paraDict['showRow'])
 
         tdLog.info("wait the consume result")
         expectRows = 1
@@ -757,6 +726,100 @@ class TestViewBasic:
         tdSql.execute(f"drop database {paraDict['dbName']}")
         tdSql.execute("drop database cdb;")
         tdLog.info("Finish test case 'test_tmq_from_view'")
+
+    def run_view_interp(self):
+        """This test case is used to verify the query from a view whose body
+        is an interp query. A view is stored as SQL text and re-parsed on
+        every read, and the parsed statement reaches translate as a clone.
+        When the clone drops the RANGE / EVERY / FILL clauses, create view
+        still succeeds but reading the view fails with 'Missing RANGE
+        clause, EVERY clause or FILL clause', while the very same select
+        runs fine on its own.
+        """
+        dbname = "view_interp_db"
+        tdSql.execute(f"create database {dbname}")
+        tdSql.execute(f"use {dbname}")
+        tdSql.execute("create table ct1 (ts timestamp, val double)")
+        tdSql.execute(
+            "insert into ct1 values"
+            " ('2026-08-12 17:34:00', 1.0)"
+            " ('2026-08-12 17:36:00', 3.0)"
+            " ('2026-08-12 17:38:00', 5.0)"
+        )
+        tdSql.execute("create stable stb_interp (ts timestamp, val double) tags (gid int)")
+        tdSql.execute("create table c1 using stb_interp tags(1)")
+        tdSql.execute("create table c2 using stb_interp tags(2)")
+        tdSql.execute(
+            "insert into c1 values ('2026-08-12 17:34:00', 1.0)('2026-08-12 17:38:00', 5.0)"
+            " c2 values ('2026-08-12 17:34:00', 2.0)('2026-08-12 17:38:00', 6.0)"
+        )
+
+        range_sql = (
+            "select _irowts, interp(val) from ct1"
+            " range('2026-08-12 17:34:00', '2026-08-12 17:38:00')"
+            " every(60s) fill(linear)"
+        )
+        tdSql.query(range_sql)
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 1, 1.0)
+        tdSql.checkData(4, 1, 5.0)
+
+        tdSql.execute(f"create view v_interp_range as {range_sql}")
+        tdSql.query("select * from v_interp_range")
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, '2026-08-12 17:34:00.000')
+        tdSql.checkData(0, 1, 1.0)
+        tdSql.checkData(4, 0, '2026-08-12 17:38:00.000')
+        tdSql.checkData(4, 1, 5.0)
+        tdLog.info("Verify the query from interp view with range/every/fill successfully")
+
+        # single point range, where the every clause can be omitted
+        point_sql = (
+            "select _irowts, interp(val) from ct1"
+            " range('2026-08-12 17:35:00') fill(prev)"
+        )
+        tdSql.query(point_sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 1.0)
+
+        tdSql.execute(f"create view v_interp_point as {point_sql}")
+        tdSql.query("select * from v_interp_point")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 1.0)
+        tdLog.info("Verify the query from interp view with single point range successfully")
+
+        # interp partitioned by table name
+        part_sql = (
+            "select _irowts, tbname, interp(val) from stb_interp"
+            " partition by tbname"
+            " range('2026-08-12 17:34:00', '2026-08-12 17:38:00')"
+            " every(60s) fill(linear)"
+        )
+        tdSql.query(part_sql)
+        tdSql.checkRows(10)
+
+        tdSql.execute(f"create view v_interp_part as {part_sql}")
+        tdSql.query("select * from v_interp_part")
+        tdSql.checkRows(10)
+        tdLog.info("Verify the query from interp view with partition by successfully")
+
+        # interp nested in a subquery
+        nested_sql = f"select * from ({range_sql})"
+        tdSql.query(nested_sql)
+        tdSql.checkRows(5)
+
+        tdSql.execute(f"create view v_interp_nested as {nested_sql}")
+        tdSql.query("select * from v_interp_nested")
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 1, 1.0)
+        tdSql.checkData(4, 1, 5.0)
+        tdLog.info("Verify the query from interp view nested in a subquery successfully")
+
+        for view in ["v_interp_range", "v_interp_point", "v_interp_part", "v_interp_nested"]:
+            tdSql.execute(f"drop view {view};")
+        tdSql.execute(f"drop database {dbname}")
+        tdLog.info("Finish test case 'test_view_interp'")
+
     def run_TD_33390(self):
         tdSql.execute('create database test')
         tdSql.execute('create table test.nt(ts timestamp, c1 int)')
@@ -780,15 +843,17 @@ class TestViewBasic:
         8. Query from view
         9. TMQ consume from view
         10. Verify bug TD-33390
+        11. Query from a view whose body is an interp query
 
         Since: v3.3.7.0
 
-        Lables: common,ci,mount
+        Labels: common,ci,mount,integration,functional
 
         Jira: TS-5868
 
         History:
             - 2025-11-04 Alex Duan Migrated from uncatalog/system-test/0-others/test_view_basic.py
+            - 2026-08-13 clone of the parsed AST dropped the interp clauses
 
         """
         self.run_TD_33390()
@@ -807,6 +872,7 @@ class TestViewBasic:
         self.run_view_permission_db_read_view_read()
         self.run_query_from_view()
         self.run_tmq_from_view()
+        self.run_view_interp()
 
 
 

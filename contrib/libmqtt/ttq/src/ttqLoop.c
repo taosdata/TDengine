@@ -2,8 +2,12 @@
 
 #define _GNU_SOURCE
 
+#ifdef WIN32
+#include <winsock2.h>
+#else
 #include <sys/socket.h>
 #include <unistd.h>
+#endif
 
 #include <errno.h>
 #include <signal.h>
@@ -27,6 +31,30 @@ extern bool flag_reload;
 extern bool flag_tree_print;
 extern int  run;
 
+#ifdef WIN32
+
+/*
+ * Detect parent death by checking if the stdin pipe (set up by the parent via
+ * UV_CREATE_PIPE) is still alive. Use Win32 PeekNamedPipe on the raw HANDLE —
+ * avoid any CRT fd operations on fd 0 which may not be initialized by the UCRT.
+ */
+static HANDLE g_stdin_handle = INVALID_HANDLE_VALUE;
+
+static void ttq_ppid_init(void) {
+  g_stdin_handle = GetStdHandle(STD_INPUT_HANDLE);
+}
+
+static int ttq_ppid_changed(void) {
+  if (g_stdin_handle == INVALID_HANDLE_VALUE || g_stdin_handle == NULL) return 0;
+  DWORD avail = 0;
+  if (!PeekNamedPipe(g_stdin_handle, NULL, 0, NULL, &avail, NULL)) {
+    return 1;
+  }
+  return 0;
+}
+
+#else
+
 pid_t g_ppid;
 
 static void ttq_ppid_init(void) { g_ppid = getppid(); }
@@ -39,6 +67,8 @@ static int ttq_ppid_changed(void) {
 
   return 0;
 }
+
+#endif
 
 static int single_publish(struct tmqtt *context, struct tmqtt_message_v5 *msg, uint32_t message_expiry) {
   struct tmqtt_msg_store *stored;

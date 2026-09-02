@@ -7,7 +7,7 @@ import threading
 import subprocess
 from  datetime import datetime
 
-from new_test_framework.utils import tdLog, tdSql, etool, tdCom, tdDnodes
+from new_test_framework.utils import tdLog, tdSql, etool, tdCom, tdDnodes, tmqCom
 from taos.tmq import *
 from taos import *
 
@@ -155,7 +155,8 @@ class TestTmqBugs:
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_td32187'%(buildPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
         
         print("bug TD-32187 ................ [passed]")
 
@@ -294,9 +295,100 @@ class TestTmqBugs:
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_td35698'%(buildPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
         
         print("bug TD-35698 ................ [passed]")
+
+    #
+    # ------------------- 9 ----------------
+    #
+    def do_spot_trading(self):
+        # Issue 6995592605: when the INSERT tag binding column order
+        # differs from the STABLE TAGS schema order, tTagNew() sorts
+        # the tag value array by cid while the tag name array stays in
+        # binding order, producing wrong tagName/value pairs in the
+        # tmq JSON meta for the auto-created child table.
+        #
+        # The STABLE schema TAGS order is:
+        #   tab, underlying_date, trade_date, company_code,
+        #   company_name, un_name, unit_alias_name, un_id
+        # The INSERT below binds tags in a DIFFERENT order
+        # (un_id appears before un_name / unit_alias_name).
+        # The C verifier (tmq_spot_trading) parses the auto-create-ctb
+        # JSON meta and asserts that tag 'un_id' has value '19' etc.
+        db_name = "spot_trading"
+        topic_name = "topic_spot_trading"
+
+        tdSql.execute(f"drop topic if exists {topic_name}")
+        tdSql.execute(f"drop database if exists {db_name}")
+        tdSql.execute(
+            f"create database if not exists {db_name} vgroups 1 wal_retention_period 3600"
+        )
+        tdSql.execute(f"use {db_name}")
+
+        tdSql.execute(
+            "CREATE STABLE `trade_realtime_log` ("
+            "`ts` TIMESTAMP,"
+            "`u_date` TIMESTAMP,"
+            "`t_date` TIMESTAMP,"
+            "`receive_time` TIMESTAMP,"
+            "`pull_time` TIMESTAMP,"
+            "`time_code` TINYINT,"
+            "`buy_price1` DOUBLE,"
+            "`sale_price1` DOUBLE,"
+            "`tradeseq_id` VARCHAR(50),"
+            "`tab_name` VARCHAR(100),"
+            "`new_price` DOUBLE"
+            ") TAGS ("
+            "`tab` VARCHAR(100),"
+            "`underlying_date` TIMESTAMP,"
+            "`trade_date` TIMESTAMP,"
+            "`company_code` VARCHAR(50),"
+            "`company_name` VARCHAR(200),"
+            "`un_name` VARCHAR(200),"
+            "`unit_alias_name` VARCHAR(200),"
+            "`un_id` VARCHAR(50))"
+        )
+
+        tdSql.execute(
+            f"create topic {topic_name} with meta as database {db_name}"
+        )
+
+        def _insert(ts):
+            return (
+                "INSERT INTO spot_trading.`realtime_20260524_20260520_19_11` "
+                "USING spot_trading.trade_realtime_log "
+                "(`tab`, `underlying_date`, `trade_date`, `company_code`, "
+                " `company_name`, `un_id`, `un_name`, `unit_alias_name`) "
+                "TAGS ('2026spot-trade-20260524', '2026-05-24 00:00:00', "
+                "      '2026-05-20 00:00:00', '91320811MADR1RFF2J01', "
+                "      'GuangJing-Energy-Company-Long-Name', '19', "
+                "      'GuangJing-Energy-UnName', 'GuangJing-Energy-UnitAlias') "
+                "(ts, u_date, t_date, receive_time, pull_time, time_code, "
+                " buy_price1, sale_price1, tradeseq_id, tab_name, new_price) "
+                f"VALUES ('{ts}', '2026-05-24 00:00:00', '2026-05-20 00:00:00', "
+                f"        '{ts}', '{ts}', 11, 327.3, 328.0, "
+                "         'PHDJS2026052442000811', 'spot-trade-2026-05-24', "
+                "         328.0)"
+            )
+
+        tdSql.execute(_insert("2026-05-20 16:03:46"))
+        tdSql.execute(_insert("2026-05-20 16:04:46"))
+
+        tdSql.query(f"select count(*) from {db_name}.trade_realtime_log")
+        tdSql.checkData(0, 0, 2)
+
+        buildPath = tdCom.getBuildPath()
+        cmdStr = f"{buildPath}/build/bin/tmq_spot_trading {topic_name}"
+        tdLog.info(cmdStr)
+        ret = os.system(cmdStr)
+        if ret != 0:
+            raise Exception(f"{cmdStr} failed, ret={ret}")
+
+        tdSql.execute(f"drop topic if exists {topic_name}")
+
+        print("bug 6995592605 (spot_trading) ................ [passed]")
 
     #
     # ------------------- 9 ----------------
@@ -343,7 +435,8 @@ class TestTmqBugs:
         cmdStr = '%s/build/bin/tmq_td38404'%(buildPath)
         # cmdStr = '/Users/mingming/code/TDengine2/debug/build/bin/tmq_td38404'
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
         
         print("bug TD-38404 ................ [passed]")
 
@@ -466,7 +559,18 @@ class TestTmqBugs:
     #
     # ------------------- 12 ----------------
     #
-    def do_ts5466(self):
+    def insert(self):
+        # create new connector for new tdSql instance in my thread
+        newTdSql = tdCom.newTdSql()
+        for i in range(10):
+            newTdSql.execute(f'insert into db_5466.tt{i}(ts, c1, c2) using db_5466.s5466 tags("__devicid__") values(1669092069068, 0, 1)')
+            newTdSql.execute(f'alter table db_5466.tt{i} set tag t = "hello"')
+            time.sleep(0.5)
+
+        return
+    
+    def do_ts5466(self, snapshot_enable="true"):
+        tdSql.execute(f'alter dnode 1 "debugflag 135"')
         tdSql.execute(f'create database if not exists db_taosx')
         tdSql.execute(f'create database if not exists db_5466')
         tdSql.execute(f'use db_5466')
@@ -481,12 +585,23 @@ class TestTmqBugs:
 
         tdSql.execute("create topic db_5466_topic with meta as database db_5466")
         buildPath = tdCom.getBuildPath()
-        cmdStr = '%s/build/bin/tmq_ts5466'%(buildPath)
+        cmdStr = '%s/build/bin/tmq_ts5466 %s'%(buildPath, snapshot_enable)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+
+        pThread = threading.Thread(target=self.insert)
+        pThread.start()
+
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
         
+        pThread.join()
+        tdSql.checkResultsBySql(
+            sql="select tbname,t from db_5466.s5466 order by tbname",
+            exp_sql="select tbname,t from db_taosx.s5466 order by tbname",
+            retry=1,
+        )
         print("bug TS-5466 ................ [passed]")
-    
+
     #
     # ------------------- 13 ----------------
     #
@@ -732,6 +847,7 @@ class TestTmqBugs:
     # ------------------- 16 ----------------
     #
     def do_ts7402(self):
+        tdSql.execute(f'alter dnode 1 "debugflag 135"')
         tdSql.execute(f'drop topic if exists topic1')
         tdSql.execute(f'drop topic if exists topic2')
         tdSql.execute(f'drop database if exists test')
@@ -787,36 +903,6 @@ class TestTmqBugs:
     #
     # ------------------- 18 ----------------
     #
-    def get_leader(self):
-        tdLog.debug("get leader")
-        tdSql.query("show vnodes")
-        for result in tdSql.queryResult:
-            if result[3] == 'leader':
-                tdLog.debug("leader is %d"%(result[0]))
-                return result[0]
-        return -1
-
-    def balance_vnode(self):
-        leader_before = self.get_leader()
-        
-        while True:
-            leader_after = -1
-            tdLog.info("balancing vgroup leader")
-            tdSql.execute("balance vgroup leader")
-            while True:
-                tdLog.info("get new vgroup leader")
-                leader_after = self.get_leader()
-                if leader_after != -1 :
-                    break
-                else:
-                    time.sleep(1)
-            if leader_after != leader_before:
-                tdLog.info("leader changed")
-                break
-            else :
-                time.sleep(1)
-                tdLog.info("leader not changed")
-
     def do_ts4674(self):
         tdSql.execute(f'create database d1 replica 3 vgroups 1')
         tdSql.execute(f'use d1')
@@ -855,7 +941,7 @@ class TestTmqBugs:
                             # continue
                         else :
                             break
-                    self.balance_vnode()
+                    tmqCom.balance_vnode('d1')
                     balance = True
                     tdSql.execute(f'insert into t1 using st tags(1) values(now+5s, 11) (now+10s, 12)')
                     continue
@@ -984,31 +1070,32 @@ class TestTmqBugs:
          - Test tmq consumer can switch topics after unsubscribe.
         8. Jira TD-35698:
          - Test tmq consumption with meta topic containing decimal columns.
-        9. Jira TD-37436:
+        9. Issue 6995592605:
+         - Test tmq JSON meta tagName/value pairing when INSERT tag
+           binding order differs from the STABLE TAGS schema order.
+        10. Jira TD-37436:
          - Test tmq consumption with meta topic on database containing stream.
-        10. Jira TD-38404:
+        11. Jira TD-38404:
          - Tmq_get_json_meta behaves unexpectedly when the tags of subscribed meta messages contain empty strings.
-        11. Jira TS-4563:
+        12. Jira TS-4563:
          - Test tmq consumption of unordered data inserted by stmt.
-        12. Jira TS-5466:
+        13. Jira TS-5466:
          - Test tmq consumption with meta topic after altering stable to add many columns.
-        13. Jira TS-5906:
+        14. Jira TS-5906:
          - Test tmq consumption after altering child table tags and inserting new data.
-        14. Jira TS-6115:
+        15. Jira TS-6115:
          - Test tmq consumption with large amount of data inserted by taosBenchmark.
-        15. Jira TS-6392:
+        16. Jira TS-6392:
          - Test tmq consumer group rebalance and recovery after dnode restart with WAL retention.
-        16. Jira TS-7402:
+        17. Jira TS-7402:
          - Test tmq consumption with meta topic created on stable with filter conditions.
-        17. Jira TS-7662:
+        18. Jira TS-7662:
          - Test tmq consumption with meta topic created on stable with where clause.
         19. Jira TS-4674:
          - Test tmq consumption behavior during vgroup leader rebalance in multi-replica environment.
-
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1042,10 +1129,11 @@ class TestTmqBugs:
         self.do_td32526()
         self.do_td33504()
         self.do_td35698()
+        self.do_spot_trading()
         self.do_td37436()
         self.do_td38404()
         self.do_ts4563()
-        self.do_ts5466()
+        self.do_ts5466("true")
         self.do_ts5906()
         self.do_ts6115()
         self.do_ts6392()

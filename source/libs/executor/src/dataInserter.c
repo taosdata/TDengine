@@ -42,6 +42,9 @@
 
 extern SDataSinkStat gDataSinkStat;
 SHashObj*            gStreamGrpTableHash = NULL;
+
+#define STREAM_GRP_TABLE_HASH_CAPACITY 8192
+
 typedef struct SSubmitRes {
   int64_t      affectedRows;
   int32_t      code;
@@ -161,7 +164,8 @@ static void freeCacheTbInfo(void* pp) {
 }
 
 int32_t initInserterGrpInfo() {
-  gStreamGrpTableHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  gStreamGrpTableHash = taosHashInit(STREAM_GRP_TABLE_HASH_CAPACITY, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
+                                     false, HASH_ENTRY_LOCK);
   if (NULL == gStreamGrpTableHash) {
     qError("failed to create stream group table hash");
     return terrno;
@@ -998,7 +1002,7 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
     } else {
       pReq = (*ppSendInfo)->msg;
     }
-    SArray* TagNames = taosArrayInit(8, TSDB_COL_NAME_LEN);
+    SArray* TagNames = taosArrayInit(8, TSDB_COL_NAME_LEN + sizeof(col_id_t));
     if (!TagNames) {
       terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
@@ -1010,11 +1014,6 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
       int16_t* slotId = taosHashGet(pInserter->pCols, &colIdx, sizeof(colIdx));
       if (NULL == slotId) {
         continue;
-      }
-      if (NULL == taosArrayPush(TagNames, tSchema->name)) {
-        taosArrayDestroy(TagNames);
-        tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
-        goto _end;
       }
 
       colIdx = *slotId;
@@ -1049,6 +1048,12 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
               tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
               goto _end;
             }
+            int32_t code = insTagNameAppend(TagNames, tSchema->name, tSchema->colId);
+            if (code != 0) {
+              taosArrayDestroy(TagNames);
+              tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
+              goto _end;
+            }
           }
           break;
         }
@@ -1074,6 +1079,11 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
                 tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
                 goto _end;
               }
+              if (TSDB_CODE_SUCCESS != insTagNameAppend(TagNames, tSchema->name, tSchema->colId)) {
+                taosArrayDestroy(TagNames);
+                tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
+                goto _end;
+              }
             }
           } else {
             uError("the column type %" PRIi16 " is undefined\n", pColInfoData->info.type);
@@ -1086,6 +1096,7 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
       }
     }
     STag* pTag = NULL;
+    taosArraySort(TagNames, tTagNameCompare);
     code = tTagNew(pTagVals, 1, false, &pTag);
     if (code != TSDB_CODE_SUCCESS) {
       terrno = code;
@@ -1227,6 +1238,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
   SSubmitReq2* pReq = *ppReq;
   SArray*      pVals = NULL;
   SArray*      pTagVals = NULL;
+  SArray*      pTagNames = NULL;
   int32_t      numOfBlks = 0;
   char*        tableName = NULL;
   int32_t      code = 0, lino = 0;
@@ -1328,17 +1340,14 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         goto _end;
       }
       // 解析tag
-      SArray* TagNames = taosArrayInit(8, TSDB_COL_NAME_LEN);
-      if (!TagNames) {
+      pTagNames = taosArrayInit(8, TSDB_COL_NAME_LEN + sizeof(col_id_t));
+      if (!pTagNames) {
         terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         goto _end;
       }
       for (int32_t i = 0; i < pInserter->pTagSchema->nCols; ++i) {
         SSchema* tSchema = &pInserter->pTagSchema->pSchema[i];
         int16_t  colIdx = tSchema->colId;
-        if (NULL == taosArrayPush(TagNames, tSchema->name)) {
-          goto _end;
-        }
         int16_t* slotId = taosHashGet(pInserter->pCols, &colIdx, sizeof(colIdx));
         if (NULL == slotId) {
           continue;
@@ -1372,6 +1381,10 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
               if (NULL == taosArrayPush(pTagVals, &tv)) {
                 goto _end;
               }
+              int32_t code = insTagNameAppend(pTagNames, tSchema->name, tSchema->colId);
+              if (code != 0) {
+                goto _end;
+              }
             }
             break;
           }
@@ -1393,6 +1406,10 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
                 if (NULL == taosArrayPush(pTagVals, &tv)) {
                   goto _end;
                 }
+                int32_t code = insTagNameAppend(pTagNames, tSchema->name, tSchema->colId);
+                if (code != 0) {
+                  goto _end;
+                }
               }
             } else {
               uError("the column type %" PRIi16 " is undefined\n", pColInfoData->info.type);
@@ -1403,6 +1420,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         }
       }
       STag* pTag = NULL;
+      taosArraySort(pTagNames, tTagNameCompare);
       code = tTagNew(pTagVals, 1, false, &pTag);
       if (code != TSDB_CODE_SUCCESS) {
         terrno = code;
@@ -1410,8 +1428,14 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         goto _end;
       }
 
-      code = inserterBuildCreateTbReq(tbData.pCreateTbReq, tableName, pTag, *suid, pInserter->pNode->tableName, TagNames,
+      code = inserterBuildCreateTbReq(tbData.pCreateTbReq, tableName, pTag, *suid, pInserter->pNode->tableName, pTagNames,
                                pInserter->pTagSchema->nCols, TSDB_DEFAULT_TABLE_TTL);
+      if (code != TSDB_CODE_SUCCESS) {
+        terrno = code;
+        qError("failed to create table, error:%s", tstrerror(code));
+        goto _end;
+      }
+      pTagNames = NULL;
     }
 
     for (int32_t k = 0; k < pTSchema->numOfCols; ++k) {  // iterate by column
@@ -1530,6 +1554,7 @@ _end:
 
   taosMemoryFreeClear(tableName);
 
+  taosArrayDestroy(pTagNames);
   taosArrayDestroy(pTagVals);
   taosArrayDestroy(pVals);
 
@@ -1706,7 +1731,16 @@ int32_t buildNormalTableCreateReq(SDataInserterHandle* pInserter, SStreamInserte
     tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].colId = i + 1;
     tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].type = pField->type;
     tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].bytes = pField->bytes;
+    /* Clear COL_HAS_TYPE_MOD for non-decimal columns: pExtSchemas is only
+     * populated for decimal types.  If a source field carries COL_HAS_TYPE_MOD
+     * in its flags but the column is not decimal, keeping the flag would cause
+     * metaDecodeExtSchemas to attempt reading typeMod bytes that were never
+     * encoded (metaEncodeExtSchema skips when pExtSchemas == NULL), corrupting
+     * the decoder position and producing an OUT_OF_RANGE error on ownerId. */
     tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].flags = pField->flags;
+    if (!IS_DECIMAL_TYPE(pField->type)) {
+      tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].flags &= ~COL_HAS_TYPE_MOD;
+    }
     if (i == 0 && pField->type != TSDB_DATA_TYPE_TIMESTAMP) {
       terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       qError("buildNormalTableCreateReq, the first column must be timestamp.");
@@ -1797,42 +1831,6 @@ _end:
   return code;
 }
 
-static int32_t getTagValsFromStreamInserterInfo(SStreamDataInserterInfo* pInserterInfo, int32_t preCols,
-                                                SArray** ppTagVals, SArray* pTagCids) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t nTags = pInserterInfo->pTagVals->size;
-  *ppTagVals = taosArrayInit(nTags, sizeof(STagVal));
-  if (!ppTagVals) {
-    return terrno;
-  }
-  for (int32_t i = 0; i < pInserterInfo->pTagVals->size; ++i) {
-    SStreamTagInfo* pTagInfo = taosArrayGet(pInserterInfo->pTagVals, i);
-    STagVal         tagVal = {
-                .cid = pTagCids ? *(col_id_t*)taosArrayGet(pTagCids, i) : preCols + i + 1,
-                .type = pTagInfo->val.data.type,
-    };
-    if (!pTagInfo->val.isNull) {
-      if (IS_VAR_DATA_TYPE(pTagInfo->val.data.type)) {
-        tagVal.nData = pTagInfo->val.data.nData;
-        tagVal.pData = pTagInfo->val.data.pData;
-      } else {
-        tagVal.i64 = pTagInfo->val.data.val;
-      }
-
-      if (NULL == taosArrayPush(*ppTagVals, &tagVal)) {
-        code = terrno;
-        goto _end;
-      }
-    }
-  }
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    taosArrayDestroy(*ppTagVals);
-    *ppTagVals = NULL;
-  }
-  return code;
-}
-
 static int32_t buildStreamSubTableCreateReq(SStreamRunnerTask* pTask, SDataInserterHandle* pInserter,
                                             SStreamInserterParam* pInsertParam, SStreamDataInserterInfo* pInserterInfo,
                                             SSubmitTbData* tbData) {
@@ -1860,17 +1858,15 @@ static int32_t buildStreamSubTableCreateReq(SStreamRunnerTask* pTask, SDataInser
   }
   int32_t nTags = pInserterInfo->pTagVals->size;
 
-  TagNames = taosArrayInit(nTags, TSDB_COL_NAME_LEN);
+  TagNames = taosArrayInit(nTags, TSDB_COL_NAME_LEN + sizeof(col_id_t));
   if (!TagNames) {
     code = terrno;
     goto _end;
   }
-  for (int32_t i = 0; i < nTags; ++i) {
-    SFieldWithOptions* pField = taosArrayGet(pInsertParam->pTagFields, i);
-    if (NULL == taosArrayPush(TagNames, pField->name)) {
-      code = terrno;
-      goto _end;
-    }
+  pTagVals = taosArrayInit(nTags, sizeof(STagVal));
+  if (!pTagVals) {
+    code = terrno;
+    goto _end;
   }
 
   tbData->flags |= (SUBMIT_REQ_AUTO_CREATE_TABLE | SUBMIT_REQ_SCHEMA_RES);
@@ -1886,11 +1882,39 @@ static int32_t buildStreamSubTableCreateReq(SStreamRunnerTask* pTask, SDataInser
   tbData->pCreateTbReq->type = TSDB_CHILD_TABLE;
   tbData->pCreateTbReq->flags |= (TD_CREATE_SUB_TB_IN_STREAM | TD_CREATE_IF_NOT_EXISTS);
 
-  code = getTagValsFromStreamInserterInfo(pInserterInfo, pInsertParam->pFields->size, &pTagVals, pInsertParam->tagCids);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _end;
+  for (int32_t i = 0; i < nTags; ++i) {
+    SStreamTagInfo*    pTagInfo = taosArrayGet(pInserterInfo->pTagVals, i);
+    SFieldWithOptions* pField = taosArrayGet(pInsertParam->pTagFields, i);
+    col_id_t cid = pInsertParam->tagCids ? *(col_id_t*)taosArrayGet(pInsertParam->tagCids, i)
+                                         : (col_id_t)(pInsertParam->pFields->size + i + 1);
+
+    if (pTagInfo->val.isNull) {
+      continue;
+    }
+
+    STagVal tagVal = {
+        .cid = cid,
+        .type = pTagInfo->val.data.type,
+    };
+    if (IS_VAR_DATA_TYPE(pTagInfo->val.data.type)) {
+      tagVal.nData = pTagInfo->val.data.nData;
+      tagVal.pData = pTagInfo->val.data.pData;
+    } else {
+      tagVal.i64 = pTagInfo->val.data.val;
+    }
+
+    if (NULL == taosArrayPush(pTagVals, &tagVal)) {
+      code = terrno;
+      goto _end;
+    }
+    int32_t code = insTagNameAppend(TagNames, pField->name, cid);
+    if (code != 0) {
+      code = terrno;
+      goto _end;
+    }
   }
 
+  taosArraySort(TagNames, tTagNameCompare);
   code = tTagNew(pTagVals, pInsertParam->sver, false, &pTag);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("failed to create tag, error:%s", tstrerror(code));

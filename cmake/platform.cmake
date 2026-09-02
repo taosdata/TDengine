@@ -163,10 +163,12 @@ ELSE ()
     SET(PLATFORM_ARCH_STR "amd64")
     MESSAGE(STATUS "input cpuType: x64")
     SET(TD_INTEL_64 TRUE)
+    ADD_DEFINITIONS("-D_TD_X86_")
   ELSEIF (BUILD_VER_CPUTYPE MATCHES "x86")
     SET(PLATFORM_ARCH_STR "i386")
     MESSAGE(STATUS "input cpuType: x86")
     SET(TD_INTEL_32 TRUE)
+    ADD_DEFINITIONS("-D_TD_X86_")
   ELSE ()
     MESSAGE(STATUS "input cpuType unknown " ${BUILD_VER_CPUTYPE})
   ENDIF ()
@@ -186,6 +188,36 @@ IF(TD_WINDOWS)
   ELSEIF(MINGW)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--stack,8388608")
   ENDIF()
+ENDIF()
+
+# ── Linux Release binary size optimization ────────────────────────────────────
+# Compile:  -ffunction-sections -fdata-sections  (isolate each function/data)
+# Link:     --gc-sections   (remove unreferenced dead code/data sections)
+#           --icf=all       (merge identical code — mold & lld only, skipped on GNU ld)
+#
+# Debug info is deliberately kept in Release binaries by default so that
+# coredumps can be symbolicated.  Use build.sh --split-debug to separate
+# DWARF info into .debug files and strip the originals for shipping.
+IF(TD_LINUX AND CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffunction-sections -fdata-sections")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffunction-sections -fdata-sections")
+
+    set(_ld_size_flags "-Wl,--gc-sections")
+    # ICF (Identical Code Folding) is supported by mold and lld but not GNU ld (bfd).
+    # Probe the actual linker with a test link to avoid false positives when the
+    # system `ld` is mold but the user overrides with -fuse-ld=bfd.
+    include(CheckCSourceCompiles)
+    set(CMAKE_REQUIRED_LINK_OPTIONS "-Wl,--icf=all")
+    check_c_source_compiles("int main(){return 0;}" LINKER_SUPPORTS_ICF)
+    unset(CMAKE_REQUIRED_LINK_OPTIONS)
+    if(LINKER_SUPPORTS_ICF)
+        set(_ld_size_flags "${_ld_size_flags} -Wl,--icf=all")
+        MESSAGE(STATUS "Linker supports ICF — enabled")
+    endif()
+
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${_ld_size_flags}")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${_ld_size_flags}")
+    MESSAGE(STATUS "Release binary size optimization enabled: ${_ld_size_flags}")
 ENDIF()
 
 MESSAGE(STATUS "Platform arch:" ${PLATFORM_ARCH_STR})

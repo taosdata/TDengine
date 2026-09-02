@@ -2770,6 +2770,14 @@ bool tTagIsJsonNull(void *data) {
   return ((STag *)data)->nTag == 0;
 }
 
+int32_t tTagNameCompare(const void *a, const void *b) {
+  int16_t c1 = 0, c2 = 0;
+  memcpy(&c1, (char*)a + TSDB_COL_NAME_LEN, sizeof(int16_t));
+  memcpy(&c2, (char*)b + TSDB_COL_NAME_LEN, sizeof(int16_t));
+  if (c1 < c2) return -1;
+  return c1 > c2;
+}
+
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
   int32_t  code = 0;
   uint8_t *p = NULL;
@@ -4584,6 +4592,20 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
             code = TSDB_CODE_PAR_VALUE_TOO_LONG;
             goto _exit;
           }
+          if (type == TSDB_DATA_TYPE_NCHAR && varDataLen(data + offset) > 0) {
+            int32_t ucs4Len = varDataLen(data + offset);
+            char   *mbsBuf = taosMemoryMalloc(ucs4Len + 1);
+            if (mbsBuf == NULL) {
+              code = terrno;
+              goto _exit;
+            }
+            int32_t mbsLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(data + offset), ucs4Len, mbsBuf, NULL);
+            taosMemoryFreeClear(mbsBuf);
+            if (mbsLen < 0) {
+              code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
+              goto _exit;
+            }
+          }
           code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, (uint8_t *)varDataVal(data + offset),
                                                                         varDataLen(data + offset));
         }
@@ -5206,7 +5228,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
               goto _exit;
             }
             uint8_t precision = 0, scale = 0;
-            decimalFromTypeMod(pSchemaExt[iInfo].typeMod, &precision, &scale);
+            decimalFromTypeMod(infos[iInfo].typeMod, &precision, &scale);
             Decimal128 dec = {0};
             uint8_t  **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
             int32_t    length = infos[iInfo].bind->length[iRow];
@@ -5228,7 +5250,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
               goto _exit;
             }
             uint8_t precision = 0, scale = 0;
-            decimalFromTypeMod(pSchemaExt[iInfo].typeMod, &precision, &scale);
+            decimalFromTypeMod(infos[iInfo].typeMod, &precision, &scale);
             Decimal64 dec = {0};
             uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
             int32_t   length = infos[iInfo].bind->length[iRow];
@@ -5439,7 +5461,7 @@ int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, SSHash
               goto _exit;
             }
             uint8_t precision = 0, scale = 0;
-            decimalFromTypeMod(pSchemaExt[iInfo].typeMod, &precision, &scale);
+            decimalFromTypeMod(infos[iInfo].typeMod, &precision, &scale);
             Decimal128 dec = {0};
             uint8_t  **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
             int32_t    length = infos[iInfo].bind->length[iRow];
@@ -5458,7 +5480,7 @@ int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, SSHash
               goto _exit;
             }
             uint8_t precision = 0, scale = 0;
-            decimalFromTypeMod(pSchemaExt[iInfo].typeMod, &precision, &scale);
+            decimalFromTypeMod(infos[iInfo].typeMod, &precision, &scale);
             Decimal64 dec = {0};
             uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
             int32_t   length = infos[iInfo].bind->length[iRow];

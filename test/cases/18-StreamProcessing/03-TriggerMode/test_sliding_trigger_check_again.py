@@ -16,8 +16,7 @@ class TestSlidingTriggerCheckAgain:
 
         Since: v3.4.1.2
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Feishu: https://project.feishu.cn/taosdata_td/defect/detail/6945766706
 
         History:

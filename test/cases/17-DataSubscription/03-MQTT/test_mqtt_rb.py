@@ -30,8 +30,7 @@ class TestMqttCases:
 
         Since: v3.3.3.7
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -69,7 +68,7 @@ class TestMqttCases:
             'user': "root",
             'passwd': "taosdata",
             'host': "127.0.0.1",
-            'port': 6083,
+            'port': 6057,
             'qos': 2,
             'topic': "$share/g1/topic_meters",
             'loop_time': .1,
@@ -164,8 +163,7 @@ class TestMqttCases:
 
         Since: v3.3.3.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         """

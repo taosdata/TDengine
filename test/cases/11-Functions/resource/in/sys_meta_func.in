@@ -1,0 +1,11 @@
+use ts_4893
+select database() from fc_d
+select server_status() from fc_d limit 1
+select database(), avg(voltage) from fc_d
+select server_status(), avg(voltage) from fc_d
+select database(), diff(voltage) from fc_d
+select length(database()) from fc_d
+select avg(length(database())) from fc_d
+select diff(length(database())) from fc_d
+select sleep(0), avg(voltage) from fc_d
+select sleep(0), diff(voltage) from fc_d

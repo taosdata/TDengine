@@ -22,6 +22,7 @@
 
 #ifdef TD_ENTERPRISE
 namespace {
+//
 class ClsConfigDynamicTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -586,6 +587,75 @@ TEST(timeTest, timestamp2tm) {
                                0 /* hour start from 0*/, 0, 0, 000000000L);
 }
 
+TEST(timeTest, validateUnsignedPosixUtcTimezone) {
+  const struct {
+    const char* input;
+    const char* normalized;
+    int64_t     offsetSeconds;
+  } validCases[] = {
+      {"UTC0", "UTC+0", 0},
+      {"UTC8", "UTC+8", -8 * 3600},
+      {"UTC8:30", "UTC+8:30", -(8 * 3600 + 30 * 60)},
+      {"UTC13:59", "UTC+13:59", -(13 * 3600 + 59 * 60)},
+      {"UTC14", "UTC+14", -14 * 3600},
+      // The UTC prefix is case-insensitive on every validation path.
+      {"utc8", "UTC+8", -8 * 3600},
+      {"UtC8:30", "UTC+8:30", -(8 * 3600 + 30 * 60)},
+      {"utc+8", "UTC+8", -8 * 3600},
+      {"uTc-8", "UTC-8", 8 * 3600},
+      {"utc+08:00", "UTC+8", -8 * 3600},
+      {"utc", "UTC", 0},
+  };
+
+  for (const auto& test : validCases) {
+    char       normalized[TD_TIMEZONE_LEN] = {0};
+    timezone_t normalizedTz = NULL;
+    ASSERT_EQ(taosValidateAndNormalizeTimezone(
+                  test.input, normalized, sizeof(normalized), &normalizedTz),
+              TSDB_CODE_SUCCESS)
+        << test.input;
+    EXPECT_STREQ(normalized, test.normalized);
+
+    int64_t offsetSeconds = 0;
+    ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(0, normalizedTz,
+                                             &offsetSeconds),
+              TSDB_CODE_SUCCESS);
+    EXPECT_EQ(offsetSeconds, test.offsetSeconds) << test.input;
+    tzfree(normalizedTz);
+
+    timezone_t directTz = NULL;
+    ASSERT_EQ(taosValidateTimezone(test.input, &directTz),
+              TSDB_CODE_SUCCESS)
+        << test.input;
+    ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(0, directTz, &offsetSeconds),
+              TSDB_CODE_SUCCESS);
+    EXPECT_EQ(offsetSeconds, test.offsetSeconds) << test.input;
+    tzfree(directTz);
+  }
+
+  char tooSmall[sizeof("UTC+13:59") - 1] = {0};
+  EXPECT_EQ(taosValidateAndNormalizeTimezone(
+                "UTC13:59", tooSmall, sizeof(tooSmall), NULL),
+            TSDB_CODE_PAR_INVALID_TIMEZONE);
+
+  const char* const invalidCases[] = {
+      "UTC15",
+      "UTC14:01",
+      "UTC8:60",
+      "UTC8EDT",
+  };
+  for (const char* input : invalidCases) {
+    char normalized[TD_TIMEZONE_LEN] = {0};
+    EXPECT_EQ(taosValidateAndNormalizeTimezone(
+                  input, normalized, sizeof(normalized), NULL),
+              TSDB_CODE_PAR_INVALID_TIMEZONE)
+        << input;
+    EXPECT_EQ(taosValidateTimezone(input, NULL),
+              TSDB_CODE_PAR_INVALID_TIMEZONE)
+        << input;
+  }
+}
+
 void test_ts2char(int64_t ts, const char* format, int32_t precison, const char* expected) {
   char    buf[256] = {0};
   int32_t code = TEST_ts2char(format, ts, precison, buf, 256);
@@ -772,6 +842,18 @@ TEST(timeTest, char2ts) {
   ASSERT_EQ(0, TEST_char2ts("yyyy年 a a a a a a a a a a a a a a a MM/ddTZH", &ts, TSDB_TIME_PRECISION_MICRO,
                             "1970年 a     "));
   ASSERT_EQ(-3, TEST_char2ts("yyyy-mm-DDD", &ts, TSDB_TIME_PRECISION_MILLI, "1970-01-001"));
+}
+
+TEST(timeTest, char2tsIgnoresStaleErrno) {
+  osDefaultInit();
+  int64_t       ts = 0;
+  const int32_t previousErrno = ERRNO;
+
+  SET_ERRNO(ERANGE);
+  const int32_t code = TEST_char2ts("yyyy-MM-dd", &ts, TSDB_TIME_PRECISION_MILLI, "2026-05-01");
+  SET_ERRNO(previousErrno);
+
+  ASSERT_EQ(0, code);
 }
 
 TEST(timeTest, epSet) {
@@ -1312,6 +1394,142 @@ TEST(testCase, taosTimeTruncate_DST_day_interval) {
 
   tzfree(ny);
   // TzRestoreGuard destructor handles taosSetGlobalTimezone("Asia/Shanghai")
+}
+
+TEST(testCase, taosTimeAdd_DST_day_interval_duration) {
+  TzRestoreGuard tzGuard;
+
+  timezone_t ny = tzalloc("America/New_York");
+  ASSERT_NE(ny, nullptr);
+
+  const int64_t one_day_ms = 86400LL * 1000;
+  SInterval interval = {};
+  interval.timezone     = ny;
+  interval.intervalUnit = 'd';
+  interval.slidingUnit  = 'd';
+  interval.offsetUnit   = 0;
+  interval.precision    = TSDB_TIME_PRECISION_MILLI;
+  interval.interval     = one_day_ms;
+  interval.sliding      = one_day_ms;
+  interval.offset       = 0;
+  interval.timeRange.skey = INT64_MIN;
+  interval.timeRange.ekey = INT64_MAX;
+
+  const int64_t spring_start_ms = 1741496400000LL;  // 2025-03-09 00:00:00 America/New_York
+  const int64_t spring_next_ms  = 1741579200000LL;  // 2025-03-10 00:00:00 America/New_York
+  const int64_t fall_start_ms   = 1762056000000LL;  // 2025-11-02 00:00:00 America/New_York
+  const int64_t fall_next_ms    = 1762146000000LL;  // 2025-11-03 00:00:00 America/New_York
+
+  EXPECT_EQ(taosTimeAdd(spring_start_ms, one_day_ms, 'd', TSDB_TIME_PRECISION_MILLI, ny), spring_next_ms)
+      << "Spring-forward local day should be 23 hours, ending at the next local midnight.";
+  EXPECT_EQ(taosTimeAdd(fall_start_ms, one_day_ms, 'd', TSDB_TIME_PRECISION_MILLI, ny), fall_next_ms)
+      << "Fall-back local day should be 25 hours, ending at the next local midnight.";
+
+  EXPECT_EQ(getNextTimeWindowStart(&interval, spring_start_ms, TSDB_ORDER_ASC), spring_next_ms);
+  EXPECT_EQ(getNextTimeWindowStart(&interval, fall_start_ms, TSDB_ORDER_ASC), fall_next_ms);
+
+  EXPECT_EQ(taosTimeGetIntervalEnd(spring_start_ms, &interval) + 1, spring_next_ms);
+  EXPECT_EQ(taosTimeGetIntervalEnd(fall_start_ms, &interval) + 1, fall_next_ms);
+  EXPECT_EQ((spring_next_ms - spring_start_ms), 23LL * 3600 * 1000);
+  EXPECT_EQ((fall_next_ms - fall_start_ms), 25LL * 3600 * 1000);
+
+  EXPECT_EQ(taosTimeTruncate(spring_start_ms + 12LL * 3600 * 1000, &interval), spring_start_ms);
+  EXPECT_EQ(taosTimeTruncate(fall_start_ms + 12LL * 3600 * 1000, &interval), fall_start_ms);
+  EXPECT_EQ(taosTimeTruncate(fall_next_ms + 12LL * 3600 * 1000, &interval), fall_next_ms);
+
+  tzfree(ny);
+}
+
+TEST(testCase, taosTimeCountIntervalForFill_DST_calendar_days) {
+  TzRestoreGuard tzGuard;
+
+  timezone_t ny = tzalloc("America/New_York");
+  ASSERT_NE(ny, nullptr);
+
+  const int64_t day_ms = 86400LL * 1000;
+
+  // Local-midnight anchors in America/New_York.
+  const int64_t mar_02 = 1740891600000LL;  // 2025-03-02 00:00 (before spring-forward)
+  const int64_t mar_08 = 1741410000000LL;  // 2025-03-08 00:00 (spring-forward week)
+  const int64_t mar_10 = 1741579200000LL;  // 2025-03-10 00:00
+  const int64_t mar_16 = 1742097600000LL;  // 2025-03-16 00:00
+  const int64_t nov_01 = 1761969600000LL;  // 2025-11-01 00:00 (fall-back week)
+  const int64_t nov_03 = 1762146000000LL;  // 2025-11-03 00:00
+
+  /*
+   * The count must equal the number of calendar-day steps taosTimeAdd takes to
+   * advance skey to ekey, +1 (the trailing window). Derive the expected value
+   * straight from the stepping so the test is anchored to the real arithmetic.
+   */
+  auto stepCount = [&](int64_t skey, int64_t ekey, int64_t step, char unit) -> int32_t {
+    int32_t n = 0;
+    int64_t cur = skey;
+    while (cur < ekey) {
+      cur = taosTimeAdd(cur, step, unit, TSDB_TIME_PRECISION_MILLI, ny);
+      ++n;
+    }
+    return n + 1;  // ret + 1, matching taosTimeCountIntervalForFill semantics
+  };
+
+  /*
+   * 1d: spring-forward (Mar 9 is 23h) and fall-back (Nov 2 is 25h) span the same
+   * 2 calendar days, so they must return the same count. The old fixed
+   * (ekey-skey)/interval formula returned 2 (spring) vs 3 (fall).
+   */
+  EXPECT_EQ(taosTimeCountIntervalForFill(mar_08, mar_10, day_ms, 'd', TSDB_TIME_PRECISION_MILLI, TSDB_ORDER_ASC, ny),
+            stepCount(mar_08, mar_10, day_ms, 'd'));
+  EXPECT_EQ(taosTimeCountIntervalForFill(nov_01, nov_03, day_ms, 'd', TSDB_TIME_PRECISION_MILLI, TSDB_ORDER_ASC, ny),
+            stepCount(nov_01, nov_03, day_ms, 'd'));
+  EXPECT_EQ(taosTimeCountIntervalForFill(mar_08, mar_10, day_ms, 'd', TSDB_TIME_PRECISION_MILLI, TSDB_ORDER_ASC, ny),
+            taosTimeCountIntervalForFill(nov_01, nov_03, day_ms, 'd', TSDB_TIME_PRECISION_MILLI, TSDB_ORDER_ASC, ny))
+      << "spring-forward and fall-back must count the same number of calendar days";
+
+  // DESC must also stay consistent with the stepping.
+  EXPECT_EQ(taosTimeCountIntervalForFill(nov_01, nov_03, day_ms, 'd', TSDB_TIME_PRECISION_MILLI, TSDB_ORDER_DESC, ny),
+            stepCount(nov_01, nov_03, day_ms, 'd'));
+
+  // 1w spanning the spring-forward week (Mar 2 -> Mar 16 = 2 calendar weeks).
+  EXPECT_EQ(taosTimeCountIntervalForFill(mar_02, mar_16, 7 * day_ms, 'w', TSDB_TIME_PRECISION_MILLI, TSDB_ORDER_ASC, ny),
+            stepCount(mar_02, mar_16, 7 * day_ms, 'w'));
+
+  tzfree(ny);
+}
+
+TEST(testCase, formatTimestampTz_negative_fraction) {
+  TzRestoreGuard tzGuard;
+
+  timezone_t utc = tzalloc("UTC");
+  ASSERT_NE(utc, nullptr);
+
+  char buf[128];
+
+  /* -500ms: val = -500, precision = MILLI (0)
+   * Expected: 1969-12-31 23:59:59.500, NOT .:-500
+   */
+  char *r = formatTimestampTz(buf, sizeof(buf), -500, TSDB_TIME_PRECISION_MILLI, utc);
+  ASSERT_NE(r, nullptr);
+  std::string s(buf);
+  EXPECT_NE(s.find(".500"), std::string::npos)
+      << "Negative ms timestamp fraction should be positive: " << s;
+  /* fraction must not be negative (e.g. ".-500") */
+  EXPECT_EQ(s.find(".-"), std::string::npos)
+      << "Fraction part should not be negative: " << s;
+
+  /* -1us: val = -1, precision = MICRO (1) → should be .999999 */
+  r = formatTimestampTz(buf, sizeof(buf), -1, TSDB_TIME_PRECISION_MICRO, utc);
+  ASSERT_NE(r, nullptr);
+  s = std::string(buf);
+  EXPECT_NE(s.find(".999999"), std::string::npos)
+      << "Negative us timestamp fraction should be 999999: " << s;
+
+  /* -1ns: val = -1, precision = NANO (2) → should be .999999999 */
+  r = formatTimestampTz(buf, sizeof(buf), -1, TSDB_TIME_PRECISION_NANO, utc);
+  ASSERT_NE(r, nullptr);
+  s = std::string(buf);
+  EXPECT_NE(s.find(".999999999"), std::string::npos)
+      << "Negative ns timestamp fraction should be 999999999: " << s;
+
+  tzfree(utc);
 }
 #endif
 

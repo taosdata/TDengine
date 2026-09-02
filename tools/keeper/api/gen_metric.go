@@ -299,7 +299,14 @@ func (gm *GeneralMetric) lineWriteBody(buf *bytes.Buffer, qid uint64) error {
 	latency := endTime.Sub(startTime)
 
 	if err != nil {
-		gmLogger.Errorf("latency:%v, req_data:%v, url:%s, resp:%d, err:%s", latency, req_data, urlWithQid.String(), resp.StatusCode, err)
+		statusCode := -1
+		if resp != nil {
+			statusCode = resp.StatusCode
+			if resp.Body != nil {
+				_ = resp.Body.Close()
+			}
+		}
+		gmLogger.Errorf("latency:%v, req_data:%v, url:%s, resp:%d, err:%s", latency, req_data, urlWithQid.String(), statusCode, err)
 		return err
 	}
 	if logger.Logger.IsLevelEnabled(logrus.TraceLevel) {
@@ -582,6 +589,10 @@ func get_sub_table_name(stbName string, tagMap map[string]string) string {
 	case "taosd_dnodes_status":
 		if checkKeysExist(tagMap, "cluster_id", "dnode_id") {
 			return fmt.Sprintf("dstatus_%s_cluster_%s", tagMap["dnode_id"], tagMap["cluster_id"])
+		}
+	case "taosd_stream_failure":
+		if checkKeysExist(tagMap, "cluster_id", "stream_id") {
+			return fmt.Sprintf("stream_failure_%s_cluster_%s", tagMap["stream_id"], tagMap["cluster_id"])
 		}
 	case "taosd_dnodes_log_dirs":
 		if checkKeysExist(tagMap, "cluster_id", "dnode_id", "data_dir_name") {

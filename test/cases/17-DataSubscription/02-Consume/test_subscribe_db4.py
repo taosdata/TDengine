@@ -80,7 +80,7 @@ class TestCase:
         tmqCom.insertConsumerInfo(self.consumerId, self.expectrowcnt,topicList,keyList,self.ifcheckdata,self.ifManualCommit)
 
         tdLog.info("start consume processor")
-        tmqCom.startTmqSimProcess(self.pollDelay,self.paraDict["dbName"],self.showMsg, self.showRow,self.cdbName,0,0,self.paraDict["snapshot"])
+        tmqCom.startTmqSimProcess(self.pollDelay,self.paraDict["dbName"],self.showMsg, self.showRow,self.cdbName,snapshot=self.paraDict["snapshot"])
 
         tdLog.info("After waiting for a commit notify, drop one stable")
         #time.sleep(3)
@@ -115,8 +115,7 @@ class TestCase:
         
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -125,4 +124,3 @@ class TestCase:
         """
         tdSql.prepare()
         self.tmqCase12()
-

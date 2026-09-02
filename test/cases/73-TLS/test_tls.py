@@ -98,8 +98,7 @@ class TestTLSDemo:
 
         Since: xxx
 
-        Labels: xxx
-
+        Labels: common,ci,integration,functional,security
         Jira: xxx
 
         Catalog:

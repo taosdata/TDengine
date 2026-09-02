@@ -32,6 +32,7 @@ struct STaosQueue {
   void         *ahandle;  // for queue set
   FItem         itemFp;
   FItems        itemsFp;
+  FFreeItem     freeFp;
   int32_t       numOfItems;
   int64_t       memOfItems;
   int64_t       threadId;
@@ -83,6 +84,10 @@ void taosSetQueueFp(STaosQueue *queue, FItem itemFp, FItems itemsFp) {
   queue->itemsFp = itemsFp;
 }
 
+void taosQueueSetFreeFp(STaosQueue *queue, FFreeItem fp) {
+  if (queue) queue->freeFp = fp;
+}
+
 void taosCloseQueue(STaosQueue *queue) {
   if (queue == NULL) return;
   STaosQnode *pTemp;
@@ -101,6 +106,9 @@ void taosCloseQueue(STaosQueue *queue) {
   while (pNode) {
     pTemp = pNode;
     pNode = pNode->next;
+    if (queue->freeFp) {
+      queue->freeFp((void *)((char *)pTemp + sizeof(STaosQnode)));
+    }
     taosMemoryFree(pTemp);
   }
 
@@ -203,6 +211,14 @@ void taosFreeQitem(void *pItem) {
   uTrace("item:%p, node:%p is freed, alloc:%" PRId64, pItem, pNode, alloced);
 
   taosMemoryFree(pNode);
+}
+
+void taosFreeQueueItem(STaosQueue *queue, void *pItem) {
+  if (pItem == NULL) return;
+  if (queue != NULL && queue->freeFp != NULL) {
+    queue->freeFp(pItem);
+  }
+  taosFreeQitem(pItem);
 }
 
 int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {

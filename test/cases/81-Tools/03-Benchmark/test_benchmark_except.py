@@ -14,6 +14,7 @@
 from new_test_framework.utils import tdLog, tdSql, etool, sc
 import os
 import time
+_ASAN_BUILD = os.environ.get("CI_ASAN_BUILD") == "1"
 import threading
 import signal
 import psutil
@@ -64,11 +65,18 @@ class TestBenchmarkExcept:
 
         os.kill(pids[0], signal.SIGINT)
         if isForceExit:
-            # Send second SIGINT immediately (no delay!) to trigger forced exit
+            # Standard signals are not queued. Give the first handler a full
+            # scheduler time slice before delivering the forced-stop signal.
+            time.sleep(1)
             os.kill(pids[0], signal.SIGINT)
 
-        # Wait for benchmark to finish and write output
-        time.sleep(10)
+        # Wait for benchmark to finish and write output.
+        # Under ASAN taosBenchmark exits much slower; poll instead of sleeping a fixed amount.
+        _max_wait = 90 if _ASAN_BUILD else 15
+        for _ in range(_max_wait):
+            if self._rlist is not None:
+                break
+            time.sleep(1)
 
         if self._rlist:
             tdLog.info(self._rlist)
@@ -124,8 +132,13 @@ class TestBenchmarkExcept:
         tdLog.info("stopping dnode 1 ...")
         sc.dnodeStop(1)
 
-        # Wait for benchmark to detect error and exit
-        time.sleep(10)
+        # Wait for benchmark to detect error and exit.
+        # Under ASAN taosBenchmark exits much slower; poll instead of sleeping a fixed amount.
+        _max_wait = 90 if _ASAN_BUILD else 15
+        for _ in range(_max_wait):
+            if self._rlist is not None:
+                break
+            time.sleep(1)
 
         if self._rlist:
             tdLog.info(self._rlist)
@@ -159,11 +172,11 @@ class TestBenchmarkExcept:
         1. Insert operator be canceled check expect
         2. Insert operator be forced exit check expect
         3. Insert operator meet dnode exit check expect
-        
-        
+
+
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 

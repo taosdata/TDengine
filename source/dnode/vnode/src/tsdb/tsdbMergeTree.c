@@ -144,6 +144,16 @@ void destroyLDataIter(SLDataIter *pIter) {
   taosMemoryFree(pIter);
 }
 
+void tSttBlockLoadCostAdd(SSttBlockLoadCostInfo *pDst, const SSttBlockLoadCostInfo *pSrc) {
+  if (pDst == NULL || pSrc == NULL) {
+    return;
+  }
+  pDst->loadBlocks += pSrc->loadBlocks;
+  pDst->loadStatisBlocks += pSrc->loadStatisBlocks;
+  pDst->blockElapsedTime += pSrc->blockElapsedTime;
+  pDst->statisElapsedTime += pSrc->statisElapsedTime;
+}
+
 void destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoadCost) {
   if (pLDataIterArray == NULL) {
     return;
@@ -155,13 +165,7 @@ void destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoad
     for (int32_t j = 0; j < taosArrayGetSize(pList); ++j) {
       SLDataIter *pIter = taosArrayGetP(pList, j);
       if (pIter->pBlockLoadInfo != NULL) {
-        SSttBlockLoadCostInfo *pCost = &pIter->pBlockLoadInfo->cost;
-        if (pLoadCost != NULL) {
-          pLoadCost->loadBlocks += pCost->loadBlocks;
-          pLoadCost->loadStatisBlocks += pCost->loadStatisBlocks;
-          pLoadCost->blockElapsedTime += pCost->blockElapsedTime;
-          pLoadCost->statisElapsedTime += pCost->statisElapsedTime;
-        }
+        tSttBlockLoadCostAdd(pLoadCost, &pIter->pBlockLoadInfo->cost);
       }
 
       destroyLDataIter(pIter);
@@ -1039,7 +1043,13 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
     goto _end;
   }
 
-  code = adjustSttDataIters(pConf->pSttFileBlockIterArray, pConf->pCurrentFileset);
+  /*
+   * pConf->pSttLoadCost (set by the tsdb reader, NULL for other callers) receives
+   * the accumulated load cost of any iterators dropped while shrinking the array,
+   * so the cost is not silently freed and stt_load_blocks stays accurate in
+   * EXPLAIN ANALYZE.
+   */
+  code = adjustSttDataIters(pConf->pSttFileBlockIterArray, pConf->pCurrentFileset, pConf->pSttLoadCost);
   if (code) {
     goto _end;
   }

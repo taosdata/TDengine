@@ -745,6 +745,175 @@ char *tz_win[W_TZ_CITY_NUM][2] = {{"Asia/Shanghai", "China Standard Time"},
 #include <unistd.h>
 #endif
 
+/*
+ * Cross-platform Windows timezone name -> IANA mapping table.
+ * On Windows, the win_tz[W_TZ_NUM] array is already defined above inside
+ * #ifdef WINDOWS. On non-Windows, we define a static copy here so that
+ * taosWindowsNameToIana() can perform the lookup on all platforms.
+ */
+#ifndef WINDOWS
+#define W_TZ_NUM 139
+static const char *win_tz_xplat[W_TZ_NUM][2] = {
+  {"China Standard Time", "Asia/Shanghai"},
+  {"AUS Central Standard Time", "Australia/Darwin"},
+  {"AUS Eastern Standard Time", "Australia/Sydney"},
+  {"Afghanistan Standard Time", "Asia/Kabul"},
+  {"Alaskan Standard Time", "America/Anchorage"},
+  {"Aleutian Standard Time", "America/Adak"},
+  {"Altai Standard Time", "Asia/Barnaul"},
+  {"Arab Standard Time", "Asia/Riyadh"},
+  {"Arabian Standard Time", "Asia/Dubai"},
+  {"Arabic Standard Time", "Asia/Baghdad"},
+  {"Argentina Standard Time", "America/Buenos_Aires"},
+  {"Astrakhan Standard Time", "Europe/Astrakhan"},
+  {"Atlantic Standard Time", "America/Halifax"},
+  {"Aus Central W. Standard Time", "Australia/Eucla"},
+  {"Azerbaijan Standard Time", "Asia/Baku"},
+  {"Azores Standard Time", "Atlantic/Azores"},
+  {"Bahia Standard Time", "America/Bahia"},
+  {"Bangladesh Standard Time", "Asia/Dhaka"},
+  {"Belarus Standard Time", "Europe/Minsk"},
+  {"Bougainville Standard Time", "Pacific/Bougainville"},
+  {"Canada Central Standard Time", "America/Regina"},
+  {"Cape Verde Standard Time", "Atlantic/Cape_Verde"},
+  {"Caucasus Standard Time", "Asia/Yerevan"},
+  {"Cen. Australia Standard Time", "Australia/Adelaide"},
+  {"Central America Standard Time", "America/Guatemala"},
+  {"Central Asia Standard Time", "Asia/Almaty"},
+  {"Central Brazilian Standard Time", "America/Cuiaba"},
+  {"Central Europe Standard Time", "Europe/Budapest"},
+  {"Central European Standard Time", "Europe/Warsaw"},
+  {"Central Pacific Standard Time", "Pacific/Guadalcanal"},
+  {"Central Standard Time", "America/Chicago"},
+  {"Central Standard Time (Mexico)", "America/Mexico_City"},
+  {"Chatham Islands Standard Time", "Pacific/Chatham"},
+  {"Cuba Standard Time", "America/Havana"},
+  {"Dateline Standard Time", "Etc/GMT+12"},
+  {"E. Africa Standard Time", "Africa/Nairobi"},
+  {"E. Australia Standard Time", "Australia/Brisbane"},
+  {"E. Europe Standard Time", "Europe/Chisinau"},
+  {"E. South America Standard Time", "America/Sao_Paulo"},
+  {"Easter Island Standard Time", "Pacific/Easter"},
+  {"Eastern Standard Time", "America/New_York"},
+  {"Eastern Standard Time (Mexico)", "America/Cancun"},
+  {"Egypt Standard Time", "Africa/Cairo"},
+  {"Ekaterinburg Standard Time", "Asia/Yekaterinburg"},
+  {"FLE Standard Time", "Europe/Kiev"},
+  {"Fiji Standard Time", "Pacific/Fiji"},
+  {"GMT Standard Time", "Europe/London"},
+  {"GTB Standard Time", "Europe/Bucharest"},
+  {"Georgian Standard Time", "Asia/Tbilisi"},
+  {"Greenland Standard Time", "America/Godthab"},
+  {"Greenwich Standard Time", "Atlantic/Reykjavik"},
+  {"Haiti Standard Time", "America/Port-au-Prince"},
+  {"Hawaiian Standard Time", "Pacific/Honolulu"},
+  {"India Standard Time", "Asia/Calcutta"},
+  {"Iran Standard Time", "Asia/Tehran"},
+  {"Israel Standard Time", "Asia/Jerusalem"},
+  {"Jordan Standard Time", "Asia/Amman"},
+  {"Kaliningrad Standard Time", "Europe/Kaliningrad"},
+  {"Korea Standard Time", "Asia/Seoul"},
+  {"Libya Standard Time", "Africa/Tripoli"},
+  {"Line Islands Standard Time", "Pacific/Kiritimati"},
+  {"Lord Howe Standard Time", "Australia/Lord_Howe"},
+  {"Magadan Standard Time", "Asia/Magadan"},
+  {"Magallanes Standard Time", "America/Punta_Arenas"},
+  {"Marquesas Standard Time", "Pacific/Marquesas"},
+  {"Mauritius Standard Time", "Indian/Mauritius"},
+  {"Middle East Standard Time", "Asia/Beirut"},
+  {"Montevideo Standard Time", "America/Montevideo"},
+  {"Morocco Standard Time", "Africa/Casablanca"},
+  {"Mountain Standard Time", "America/Denver"},
+  {"Mountain Standard Time (Mexico)", "America/Chihuahua"},
+  {"Myanmar Standard Time", "Asia/Rangoon"},
+  {"N. Central Asia Standard Time", "Asia/Novosibirsk"},
+  {"Namibia Standard Time", "Africa/Windhoek"},
+  {"Nepal Standard Time", "Asia/Katmandu"},
+  {"New Zealand Standard Time", "Pacific/Auckland"},
+  {"Newfoundland Standard Time", "America/St_Johns"},
+  {"Norfolk Standard Time", "Pacific/Norfolk"},
+  {"North Asia East Standard Time", "Asia/Irkutsk"},
+  {"North Asia Standard Time", "Asia/Krasnoyarsk"},
+  {"North Korea Standard Time", "Asia/Pyongyang"},
+  {"Omsk Standard Time", "Asia/Omsk"},
+  {"Pacific SA Standard Time", "America/Santiago"},
+  {"Pacific Standard Time", "America/Los_Angeles"},
+  {"Pacific Standard Time (Mexico)", "America/Tijuana"},
+  {"Pakistan Standard Time", "Asia/Karachi"},
+  {"Paraguay Standard Time", "America/Asuncion"},
+  {"Qyzylorda Standard Time", "Asia/Qyzylorda"},
+  {"Romance Standard Time", "Europe/Paris"},
+  {"Russia Time Zone 10", "Asia/Srednekolymsk"},
+  {"Russia Time Zone 11", "Asia/Kamchatka"},
+  {"Russia Time Zone 3", "Europe/Samara"},
+  {"Russian Standard Time", "Europe/Moscow"},
+  {"SA Eastern Standard Time", "America/Cayenne"},
+  {"SA Pacific Standard Time", "America/Bogota"},
+  {"SA Western Standard Time", "America/La_Paz"},
+  {"SE Asia Standard Time", "Asia/Bangkok"},
+  {"Saint Pierre Standard Time", "America/Miquelon"},
+  {"Sakhalin Standard Time", "Asia/Sakhalin"},
+  {"Samoa Standard Time", "Pacific/Apia"},
+  {"Sao Tome Standard Time", "Africa/Sao_Tome"},
+  {"Saratov Standard Time", "Europe/Saratov"},
+  {"Singapore Standard Time", "Asia/Singapore"},
+  {"South Africa Standard Time", "Africa/Johannesburg"},
+  {"South Sudan Standard Time", "Africa/Juba"},
+  {"Sri Lanka Standard Time", "Asia/Colombo"},
+  {"Sudan Standard Time", "Africa/Khartoum"},
+  {"Syria Standard Time", "Asia/Damascus"},
+  {"Taipei Standard Time", "Asia/Taipei"},
+  {"Tasmania Standard Time", "Australia/Hobart"},
+  {"Tocantins Standard Time", "America/Araguaina"},
+  {"Tokyo Standard Time", "Asia/Tokyo"},
+  {"Tomsk Standard Time", "Asia/Tomsk"},
+  {"Tonga Standard Time", "Pacific/Tongatapu"},
+  {"Transbaikal Standard Time", "Asia/Chita"},
+  {"Turkey Standard Time", "Europe/Istanbul"},
+  {"Turks And Caicos Standard Time", "America/Grand_Turk"},
+  {"US Eastern Standard Time", "America/Indianapolis"},
+  {"US Mountain Standard Time", "America/Phoenix"},
+  {"UTC", "Etc/UTC"},
+  {"UTC+12", "Etc/GMT-12"},
+  {"UTC+13", "Etc/GMT-13"},
+  {"UTC-02", "Etc/GMT+2"},
+  {"UTC-08", "Etc/GMT+8"},
+  {"UTC-09", "Etc/GMT+9"},
+  {"UTC-11", "Etc/GMT+11"},
+  {"Ulaanbaatar Standard Time", "Asia/Ulaanbaatar"},
+  {"Venezuela Standard Time", "America/Caracas"},
+  {"Vladivostok Standard Time", "Asia/Vladivostok"},
+  {"Volgograd Standard Time", "Europe/Volgograd"},
+  {"W. Australia Standard Time", "Australia/Perth"},
+  {"W. Central Africa Standard Time", "Africa/Lagos"},
+  {"W. Europe Standard Time", "Europe/Berlin"},
+  {"W. Mongolia Standard Time", "Asia/Hovd"},
+  {"West Asia Standard Time", "Asia/Tashkent"},
+  {"West Bank Standard Time", "Asia/Hebron"},
+  {"West Pacific Standard Time", "Pacific/Port_Moresby"},
+  {"Yakutsk Standard Time", "Asia/Yakutsk"},
+  {"Yukon Standard Time", "America/Whitehorse"}
+};
+#endif
+
+const char *taosWindowsNameToIana(const char *winName) {
+  if (winName == NULL) return NULL;
+#ifdef WINDOWS
+  for (int i = 0; i < W_TZ_NUM; i++) {
+    if (strcasecmp(win_tz[i][0], winName) == 0) {
+      return win_tz[i][1];
+    }
+  }
+#else
+  for (int i = 0; i < W_TZ_NUM; i++) {
+    if (strcasecmp(win_tz_xplat[i][0], winName) == 0) {
+      return win_tz_xplat[i][1];
+    }
+  }
+#endif
+  return NULL;
+}
+
 #define TZ_SLOTS 8
 
 typedef struct {
@@ -854,6 +1023,49 @@ static int32_t parseTimezoneOffset(const char* tzname, int64_t* offset_seconds, 
     return parseOffsetString(tzname, offset_seconds, display_name, name_len);
   }
 
+  // 2c. Handle "UTC±N" / "UTC±HH:MM" POSIX-style: strip prefix, parse as POSIX offset.
+  //     POSIX sign: + = west, - = east.
+  if (strncasecmp(tzname, "UTC", 3) == 0
+      && (tzname[3] == '+' || tzname[3] == '-')) {
+    char posixSign = tzname[3];
+    int hours = 0, minutes = 0;
+    if (sscanf(tzname + 4, "%d:%d", &hours, &minutes) >= 1
+        && hours >= 0 && hours <= 14 && minutes >= 0 && minutes <= 59) {
+      int64_t offset = (int64_t)hours * 3600 + (int64_t)minutes * 60;
+      *offset_seconds = (posixSign == '+') ? offset : -offset;
+      if (display_name != NULL) {
+        char isoSign = (posixSign == '+') ? '-' : '+';
+        snprintf(display_name, name_len, "UTC%c%02d:%02d (UTC, %c%02d%02d)",
+                 isoSign, hours, minutes, isoSign, hours, minutes);
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  // 2b. Handle POSIX-style format from normalizeOffsetTzCommon: "<+0800>-8" or "<-0530>+5:30"
+  //     The angle-bracket part is the display abbreviation; the offset after '>'
+  //     uses POSIX convention (east-negative, west-positive).
+  if (tzname[0] == '<') {
+    const char *gt = strchr(tzname, '>');
+    if (gt != NULL && (gt[1] == '+' || gt[1] == '-')) {
+      char posixSign = gt[1];
+      int hours = 0, minutes = 0;
+      if (sscanf(gt + 2, "%d:%d", &hours, &minutes) >= 1 && hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+        int64_t offset = (int64_t)hours * 3600 + (int64_t)minutes * 60;
+        // POSIX sign: east-negative, west-positive.
+        // WindowsTimezoneObj.offset_seconds uses POSIX convention (east-negative).
+        *offset_seconds = (posixSign == '+') ? offset : -offset;
+        if (display_name != NULL) {
+          // Display: invert sign back to ISO direction for user-facing string
+          char isoSign = (posixSign == '+') ? '-' : '+';
+          snprintf(display_name, name_len, "UTC%c%02d:%02d (UTC, %c%02d%02d)",
+                   isoSign, hours, minutes, isoSign, hours, minutes);
+        }
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+  }
+
   // 3. Search for IANA timezone name (e.g., "Asia/Shanghai")
   for (size_t i = 0; i < W_TZ_CITY_NUM; i++) {
     if (strcmp(tz_win[i][0], tzname) == 0) {
@@ -934,14 +1146,32 @@ int64_t getWindowsTimezoneOffset(void) {
   DWORD len = GetEnvironmentVariableA("TZ", tz_env, sizeof(tz_env));
 
   if (len > 0 && len < sizeof(tz_env) && tz_env[0] != '\0') {
-    // TZ format like "+0:00" or "-8:00"
-    if (tz_env[0] == '+' || tz_env[0] == '-') {
-      char sign = tz_env[0];
+    /* TZ is normally stored in POSIX format by taosSetGlobalTimezone /
+     * initTimezoneInfo: optional alpha prefix (e.g. "UTC") then sign+offset.
+     * POSIX sign: '+' = west of UTC, '-' = east.
+     * E.g. "UTC-8:00" or "-8:00" = (East 8, e.g. Asia/Shanghai);
+     *      "UTC+5:00" or "+5:00" = (West 5, e.g. America/Bogota).
+     *
+     * Keep backward compatibility with older bare ISO 8601 values such as
+     * "+08:00"/"-05:00", where the sign follows UTC direction instead. */
+    const char *p = tz_env;
+    bool        hasPrefix = false;
+    while (*p && ((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z'))) {
+      hasPrefix = true;
+      ++p;
+    }
+    if (*p == '+' || *p == '-') {
+      char sign = *p;
       int  hours = 0;
       int  minutes = 0;
-      if (sscanf(tz_env + 1, "%d:%d", &hours, &minutes) >= 1) {
+      if (sscanf(p + 1, "%d:%d", &hours, &minutes) >= 1) {
         int64_t offset_seconds = (hours * 3600 + minutes * 60);
-        return (sign == '+') ? offset_seconds : -offset_seconds;
+        if (hasPrefix) {
+          /* POSIX: '+' means west, '-' means east; return east-negative. */
+          return (sign == '+') ? offset_seconds : -offset_seconds;
+        }
+        /* Bare ISO 8601: '+' means east, '-' means west; still return east-negative. */
+        return (sign == '+') ? -offset_seconds : offset_seconds;
       }
     }
   }
@@ -1012,6 +1242,13 @@ int32_t taosSetGlobalTimezone(const char *tz) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
+  /*
+   * NOTE on error codes: This function may return TIME_ERROR or INVALID_CFG
+   * for platform-level failures (tzalloc returning NULL, registry lookup
+   * failure, etc.). User-facing format validation is done upstream by
+   * cfgSetTimezone() / taosValidateAndNormalizeTimezone(), which returns
+   * TSDB_CODE_PAR_INVALID_TIMEZONE for invalid timezone strings.
+   */
   int32_t code = TSDB_CODE_SUCCESS;
   uDebug("[tz]set timezone to %s", tz);
 #ifdef WINDOWS
@@ -1027,7 +1264,7 @@ int32_t taosSetGlobalTimezone(const char *tz) {
   // We convert this directly to TZ env var format expected by
   // getWindowsTimezoneOffset(), preserving POSIX sign semantics.
   if (strcasecmp(tz, "UTC") == 0 || strcasecmp(tz, "GMT") == 0) {
-    snprintf(winStr, sizeof(winStr), "+0:00");
+    snprintf(winStr, sizeof(winStr), "UTC+00:00");
     snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, +0000)", tz);
     found = 1;
   } else {
@@ -1042,11 +1279,11 @@ int32_t taosSetGlobalTimezone(const char *tz) {
       int  tzMins = 0;
 
       if (sscanf(p + 1, "%d:%d", &tzHours, &tzMins) >= 1 && tzHours >= 0 && tzHours <= 23 && tzMins >= 0 && tzMins <= 59) {
-        snprintf(winStr, sizeof(winStr), "%c%d:%02d", sign, tzHours, tzMins);
+        /* Keep POSIX sign as-is: "UTC-8" (east) → "UTC-08:00". */
+        char utc_sign = (sign == '-') ? '+' : '-';
+        snprintf(winStr, sizeof(winStr), "UTC%c%02d:%02d", sign, tzHours, tzMins);
 
-        // Display string keeps UTC direction (inverse of POSIX sign).
-        char utcSign = (sign == '+') ? '-' : '+';
-        snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, %c%02d%02d)", tz, utcSign, tzHours, tzMins);
+        snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, %c%02d%02d)", tz, utc_sign, tzHours, tzMins);
         found = 1;
       }
     }
@@ -1074,11 +1311,10 @@ int32_t taosSetGlobalTimezone(const char *tz) {
         int  tzHours  = (keyValue[5] - '0') * 10 + (keyValue[6] - '0');
         int  tzMins   = (keyValue[8] - '0') * 10 + (keyValue[9] - '0');
 
-        // Build TZ env-var in the POSIX offset format expected by getWindowsTimezoneOffset():
-        //   "<sign><hours>:<minutes>"  e.g. East 8 (UTC+08:00) -> "-8:00"
-        // The sign is inverted because the POSIX `timezone` global uses east-negative convention.
-        char tzSign = (origSign == '+') ? '-' : '+';
-        snprintf(winStr, sizeof(winStr), "%c%d:%02d", tzSign, tzHours, tzMins);
+        /* POSIX TZ sign is inverted from UTC direction:
+         * registry origSign='+' (UTC+8 east) → POSIX '-' → "UTC-08:00". */
+        char posix_sign = (origSign == '+') ? '-' : '+';
+        snprintf(winStr, sizeof(winStr), "UTC%c%02d:%02d", posix_sign, tzHours, tzMins);
 
         // Display string keeps the original UTC direction (not inverted).
         if (strcasecmp(tz, "UTC") == 0) {
@@ -1135,10 +1371,9 @@ int32_t taosGetLocalTimezoneOffset(int32_t *code) {
   }
   if (code != NULL) *code = TSDB_CODE_SUCCESS;
 #ifdef WINDOWS
-  // getWindowsTimezoneOffset() reads the TZ environment variable set by taosSetGlobalTimezone.
-  // TZ is stored in POSIX `timezone` convention (east-negative), e.g. East 8 (UTC+8) -> "-8:00"
-  // -> returns -28800.  We negate it here to produce an east-positive result consistent
-  // with the Linux/macOS tm_gmtoff convention returned by the #else branch below.
+  /* getWindowsTimezoneOffset() reads TZ env var (POSIX format, e.g. "UTC-08:00").
+   * Returns east-negative: East 8 (TZ="UTC-08:00") → -28800, West 5 (TZ="UTC+05:00") → +18000.
+   * Negate for east-positive (tm_gmtoff convention). */
   return -(int32_t)getWindowsTimezoneOffset();
 #elif defined(TD_ASTRA)
   return -(int32_t)timezone;
@@ -1363,17 +1598,16 @@ int32_t initTimezoneInfo(void) {
       uInfo("[tz] Time zone has no DST mode, effective bias=%ld", minute_offset);
     }
     
-    // minute_offset is in POSIX timezone convention (east-negative, west-positive).
-    // For TZ env var, use the same convention: e.g., "-8:00" for UTC+8 (East 8).
-     // Derive sign from the full minute_offset to handle sub-hour offsets correctly.
-     char sign = (minute_offset < 0) ? '-' : '+';
-     LONG abs_minutes = (minute_offset < 0) ? -minute_offset : minute_offset;
-     int32_t offset_hours = (int32_t)(abs_minutes / 60);
-     int32_t offset_mins = (int32_t)(abs_minutes % 60);
+    /* minute_offset: east-negative (UTC+8 = -480, UTC-5 = +300).
+     * POSIX TZ sign matches: east '-' → "UTC-8:00", west '+' → "UTC+5:00". */
+    char sign = (minute_offset < 0) ? '-' : '+';
+    LONG abs_minutes = (minute_offset < 0) ? -minute_offset : minute_offset;
+    int32_t offset_hours = (int32_t)(abs_minutes / 60);
+    int32_t offset_mins = (int32_t)(abs_minutes % 60);
     
     char winStr[64] = {0};
-    snprintf(winStr, sizeof(winStr), "%c%d:%02d", sign, offset_hours, offset_mins);
-    
+    snprintf(winStr, sizeof(winStr), "UTC%c%02d:%02d", sign, offset_hours, offset_mins);
+
     uInfo("[tz] About to set TZ env var: minutes=%ld, hours=%d, mins=%d, result: TZ=%s",
       minute_offset, offset_hours, offset_mins, winStr);
     

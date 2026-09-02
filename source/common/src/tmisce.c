@@ -478,3 +478,46 @@ _exit:
   cfgDestroyIter(pIter);
   TAOS_RETURN(code);
 }
+
+int16_t taosAppNameToId(const char* appName) {
+  // The knownApps array must be sorted by name in ascending order for binary search to work correctly.
+  static const struct {
+    const char* name;
+    int16_t     id;
+  } knownApps[] = {
+      {"IDMP", TD_APP_IDMP},
+      {"TDgpt", TD_APP_TDGPT},
+      {"TDinsight", TD_APP_TD_INSIGHT},
+      {"TSDB", TD_APP_TSDB},
+      {"taos", TD_APP_TAOS},
+      {"taosAdapter", TD_APP_TAOS_ADAPTER},
+      {"taosAi", TD_APP_TAOS_AI},
+      {"taosBenchmark", TD_APP_TAOS_BENCHMARK},
+      {"taosExplorer", TD_APP_TAOS_EXPLORER},
+      {"taosX", TD_APP_TAOSX},
+      {"taosdump", TD_APP_TAOS_DUMP},
+      {"taosgen", TD_APP_TAOS_GEN},
+      {"taoskeeper", TD_APP_TAOS_KEEPER},
+      {"taoskeeper.exe", TD_APP_TAOS_KEEPER},
+  };
+  const int32_t appCnt = (int32_t)tListLen(knownApps);
+
+  if (NULL == appName || 0 == appName[0]) {
+    return TD_APP_UNKNOWN;
+  }
+
+  // binary search for the appName in the knownApps array
+  int32_t left = 0, right = appCnt - 1;
+  while (left <= right) {
+    int32_t mid = left + (right - left) / 2;
+    int     cmp = strcmp(appName, knownApps[mid].name);
+    if (cmp == 0) {
+      return knownApps[mid].id;
+    } else if (cmp < 0) {
+      right = mid - 1;
+    } else {
+      left = mid + 1;
+    }
+  }
+  return TD_APP_UNKNOWN;
+}

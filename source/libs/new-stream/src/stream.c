@@ -23,6 +23,15 @@
 
 SStreamMgmtInfo gStreamMgmt = {0};
 
+void streamGetMnodeEpset(SEpSet *pEpSet) {
+  if (pEpSet == NULL) return;
+  if (gStreamMgmt.getMnode != NULL) {
+    (*gStreamMgmt.getMnode)(gStreamMgmt.dnode, pEpSet);
+  } else {
+    memset(pEpSet, 0, sizeof(*pEpSet));
+  }
+}
+
 void streamSetSnodeEnabled(  SMsgCb* msgCb) {
   if (tsDisableStream) {
     return;
@@ -62,9 +71,28 @@ void streamCleanup(void) {
   }
   
   stInfo("stream cleanup start");
+
+  // Phase 1: stop the hb timer up-front and wait until every callback that was
+  // already in flight has finished, so no stream callback can dereference
+  // module state after this point.  This MUST happen before any per-module
+  // free runs, otherwise we race into a heap-use-after-free (see
+  // streamUtil.c:stmHbAddStreamStatus).
+  atomic_store_8(&gStreamMgmt.tmrStopped, 1);
+  streamTmrStop(gStreamMgmt.hb.hbTmr);
+  streamTmrWaitAllCallbacks();
+
+  // Phase 2: now that no in-flight stream timer callback can be running
+  // (Phase 1 set tmrStopped=1 and streamTmrWaitAllCallbacks drained every
+  // callback, including the trigger one), per-module cleanups only need
+  // to do passive teardown.  Note that stTriggerTaskEnvCleanup() itself
+  // does NOT synchronously wait for the trigger callback -- it just calls
+  // streamTmrStop, which only cancels callbacks still in the timer wheel.
+  // Safety here relies entirely on Phase 1; do not skip Phase 1 thinking
+  // any per-module cleanup will rescue you.
   stTriggerTaskEnvCleanup();
   streamTimerCleanUp();
   smUndeployAllTasks();
+  streamNoticeQueueCleanup();
   destroyDataSinkMgr();
   streamMgmtCleanup();
   destroyInserterGrpInfo();
@@ -84,6 +112,11 @@ int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
   gStreamMgmt.getMnode = getMnode;
   gStreamMgmt.getDnode = getDnode;
   gStreamMgmt.getSynEpset = getSynEpset;
+
+  // Reset cleanup gating in case dnode is being re-initialized after a
+  // previous streamCleanup() within the same process.
+  atomic_store_8(&gStreamMgmt.tmrStopped, 0);
+  atomic_store_32(&gStreamMgmt.tmrInflight, 0);
 
   gStreamMgmt.vgLeaders = taosArrayInit(20, sizeof(int32_t));
   TSDB_CHECK_NULL(gStreamMgmt.vgLeaders, code, lino, _exit, terrno);
@@ -106,6 +139,8 @@ int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
   TAOS_CHECK_EXIT(initInserterGrpInfo());
 
   TAOS_CHECK_EXIT(initStreamDataSink());
+
+  TAOS_CHECK_EXIT(streamNoticeQueueInit());
 
 _exit:
 
@@ -262,4 +297,3 @@ void streamHandleTaskError(int64_t streamId, int64_t taskId, int32_t errCode) {
   atomic_store_32(&(*task)->errorCode, errCode);
   atomic_store_32((int32_t*)&(*task)->status, STREAM_STATUS_FAILED);
 }
-

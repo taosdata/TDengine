@@ -1,0 +1,597 @@
+### EXP-basic-01_mysql POS
+SQL: select * from fq_exp_mysql.sensor
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=150)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-basic-01_pg POS
+SQL: select * from fq_exp_pg.sensor
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65539)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-basic-01_influx POS
+SQL: select * from fq_exp_influx.sensor
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65543)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-basic-02_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor where `time` > '2024-01-01'
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=4 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-basic-02_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor where `time` > '2024-01-01'
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-basic-02_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor where `time` > '2024-01-01'
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-basic-03_mysql POS
+SQL: select * from fq_exp_mysql.sensor
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=150)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-basic-03_pg POS
+SQL: select * from fq_exp_pg.sensor
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65539)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-basic-03_influx POS
+SQL: select * from fq_exp_influx.sensor
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65543)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-verbose-01_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-verbose-01_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-verbose-01_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-verbose-02_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor where `time` > '2024-01-01' order by `time` limit 10
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=4 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-verbose-02_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor where `time` > '2024-01-01' order by `time` limit 10
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-verbose-02_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor where `time` > '2024-01-01' order by `time` limit 10
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-verbose-03_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-verbose-03_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-verbose-03_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-01_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor where `time` >= '2024-01-01' order by `time` limit 3
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=3 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-01_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor where `time` >= '2024-01-01' order by `time` limit 3
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=3 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-01_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor where `time` >= '2024-01-01' order by `time` limit 3
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=3 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-02_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor where voltage > 220.0
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=3 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-02_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor where voltage > 220.0
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=3 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-02_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor where voltage > 220.0
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=3 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-03_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor order by voltage desc
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-03_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor order by voltage desc
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-03_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor order by voltage desc
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-04_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor limit 2
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=2 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-04_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor limit 2
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=2 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-04_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor limit 2
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=2 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-05_mysql POS
+SQL: select count(*), region from fq_exp_mysql.sensor group by region
+RESULT
+-> GroupAggregate (cost=<COST> rows=2 functions=1 width=138 groups=1 input_order=unknown)
+   -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=138)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-05_pg POS
+SQL: select count(*), region from fq_exp_pg.sensor group by region
+RESULT
+-> GroupAggregate (cost=<COST> rows=2 functions=1 width=65527 groups=1 input_order=unknown)
+   -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65527)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-05_influx POS
+SQL: select count(*), region from fq_exp_influx.sensor group by region
+RESULT
+-> GroupAggregate (cost=<COST> rows=2 functions=1 width=65527 groups=1 input_order=unknown)
+   -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65527)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-06_mysql POS
+SQL: select sum(voltage), avg(voltage), min(voltage), max(voltage) from fq_exp_mysql.sensor
+RESULT
+-> Aggregate (cost=<COST> rows=1 functions=4 width=32 input_order=unknown)
+   -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=8)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-06_pg POS
+SQL: select sum(voltage), avg(voltage), min(voltage), max(voltage) from fq_exp_pg.sensor
+RESULT
+-> Aggregate (cost=<COST> rows=1 functions=4 width=32 input_order=unknown)
+   -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=8)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-06_influx POS
+SQL: select sum(voltage), avg(voltage), min(voltage), max(voltage) from fq_exp_influx.sensor
+RESULT
+-> Aggregate (cost=<COST> rows=1 functions=4 width=32 input_order=unknown)
+   -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=8)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-07_mysql POS
+SQL: select region, count(*) as cnt from fq_exp_mysql.sensor group by region having count(*) > 1
+RESULT
+-> GroupAggregate (cost=<COST> rows=2 functions=1 width=138 groups=1 input_order=unknown)
+   -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=138)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-07_pg POS
+SQL: select region, count(*) as cnt from fq_exp_pg.sensor group by region having count(*) > 1
+RESULT
+-> GroupAggregate (cost=<COST> rows=2 functions=1 width=65527 groups=1 input_order=unknown)
+   -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65527)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-07_influx POS
+SQL: select region, count(*) as cnt from fq_exp_influx.sensor group by region having count(*) > 1
+RESULT
+-> GroupAggregate (cost=<COST> rows=2 functions=1 width=65527 groups=1 input_order=unknown)
+   -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65527)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-08_mysql POS
+SQL: select csum(voltage) from fq_exp_mysql.sensor
+RESULT
+-> Indefinite Rows Function (cost=<COST> rows=5 functions=1 width=8)
+   -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-08_pg POS
+SQL: select csum(voltage) from fq_exp_pg.sensor
+RESULT
+-> Indefinite Rows Function (cost=<COST> rows=5 functions=1 width=8)
+   -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-08_influx POS
+SQL: select csum(voltage) from fq_exp_influx.sensor
+RESULT
+-> Indefinite Rows Function (cost=<COST> rows=5 functions=1 width=8)
+   -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-09_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-09_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-push-09_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-dialect-01_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-dialect-02_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-dialect-03_influx POS
+SQL: select * from fq_exp_influx.sensor
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65543)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-typemap-01_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-typemap-02_influx POS
+SQL: select * from fq_exp_influx.sensor
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65543)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-security-01_mysql POS
+SQL: select * from fq_exp_mysql.sensor
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=150)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-security-01_pg POS
+SQL: select * from fq_exp_pg.sensor
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65539)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-security-01_influx POS
+SQL: select * from fq_exp_influx.sensor
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65543)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-join-01_mysql POS
+SQL: select s.`time`, s.voltage, r.area from fq_exp_mysql.sensor s join fq_exp_mysql.region_info r on s.`time` = r.`time` and s.region = r.region
+RESULT
+-> Projection (cost=<COST> rows=2 columns=3 width=20 input_order=unknown)
+   -> Inner Join (cost=<COST> rows=2 columns=5 width=280 input_order=asc algo=Merge)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
+      -> Data Exchange 1:1 (cost=<COST> rows=2 width=142)
+         -> Federated Scan on fq_exp_mysql.region_info (mysql) (cost=<COST> rows=2 width=142)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-join-01_pg POS
+SQL: select s.`time`, s.voltage, r.area from fq_exp_pg.sensor s join fq_exp_pg.region_info r on s.`time` = r.`time` and s.region = r.region
+RESULT
+-> Projection (cost=<COST> rows=2 columns=3 width=20 input_order=unknown)
+   -> Inner Join (cost=<COST> rows=2 columns=5 width=131058 input_order=asc algo=Merge)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
+      -> Data Exchange 1:1 (cost=<COST> rows=2 width=65531)
+         -> Federated Scan on fq_exp_pg.region_info (postgresql) (cost=<COST> rows=2 width=65531)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-join-02_mysql_pg POS
+SQL: select m.`time`, m.voltage, p.current from fq_exp_mysql.sensor m join fq_exp_pg.sensor p on m.`time` = p.`time` and m.region = p.region
+RESULT
+-> Projection (cost=<COST> rows=0 columns=3 width=20 input_order=unknown)
+   -> Inner Join (cost=<COST> rows=0 columns=5 width=65669 input_order=asc algo=Merge)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
+      -> Data Exchange 1:1 (cost=<COST> rows=5 width=65531)
+         -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65531)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-join-02_mysql_influx POS
+SQL: select m.`time`, m.voltage, p.current from fq_exp_mysql.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region
+RESULT
+-> Projection (cost=<COST> rows=0 columns=3 width=24 input_order=unknown)
+   -> Inner Join (cost=<COST> rows=0 columns=5 width=65673 input_order=asc algo=Merge)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=154)
+      -> Data Exchange 1:1 (cost=<COST> rows=5 width=65535)
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-join-02_pg_influx POS
+SQL: select m.`time`, m.voltage, p.current from fq_exp_pg.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region
+RESULT
+-> Projection (cost=<COST> rows=5 columns=3 width=24 input_order=unknown)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=131062 input_order=asc algo=Merge)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65543)
+      -> Data Exchange 1:1 (cost=<COST> rows=5 width=65535)
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-combo-01_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor where voltage > 219.0 order by `time`
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-combo-01_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor where voltage > 219.0 order by `time`
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-combo-01_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor where voltage > 219.0 order by `time`
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-combo-02_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor order by `time` limit 2 offset 1
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=2 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-combo-02_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor order by `time` limit 2 offset 1
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=2 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-combo-02_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor order by `time` limit 2 offset 1
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=2 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-combo-03_mysql POS
+SQL: select distinct region from fq_exp_mysql.sensor
+RESULT
+-> GroupAggregate (cost=<COST> rows=2 width=130 groups=1 input_order=unknown)
+   -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=130)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-combo-03_pg POS
+SQL: select distinct region from fq_exp_pg.sensor
+RESULT
+-> GroupAggregate (cost=<COST> rows=2 width=65519 groups=1 input_order=unknown)
+   -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65519)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-combo-03_influx POS
+SQL: select distinct region from fq_exp_influx.sensor
+RESULT
+-> GroupAggregate (cost=<COST> rows=2 width=65519 groups=1 input_order=unknown)
+   -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65519)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-combo-04_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor where (voltage > 220.0 and region = 'north') or current < 1.2
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=3 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-combo-04_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor where (voltage > 220.0 and region = 'north') or current < 1.2
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=3 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-combo-04_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor where (voltage > 220.0 and region = 'north') or current < 1.2
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=3 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-base-01_mysql POS
+SQL: select * from fq_exp_mysql.sensor
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=150)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-base-01_pg POS
+SQL: select * from fq_exp_pg.sensor
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65539)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-base-01_influx POS
+SQL: select * from fq_exp_influx.sensor
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65543)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-base-02_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor where voltage > 220.0 order by `time` limit 3
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=3 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-base-02_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor where voltage > 220.0 order by `time` limit 3
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=3 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-base-02_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor where voltage > 220.0 order by `time` limit 3
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=3 width=16)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-subq-01_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor where voltage > (select avg(voltage) from fq_exp_mysql.sensor)
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=2 width=16)
+   InitPlan 1
+      -> Aggregate (cost=<COST> rows=1 functions=1 width=8 input_order=unknown)
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=8)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-subq-01_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor where voltage > (select avg(voltage) from fq_exp_pg.sensor)
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=2 width=16)
+   InitPlan 1
+      -> Aggregate (cost=<COST> rows=1 functions=1 width=8 input_order=unknown)
+         -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=8)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---
+### EXP-subq-01_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor where voltage > (select avg(voltage) from fq_exp_influx.sensor)
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=2 width=16)
+   InitPlan 1
+      -> Aggregate (cost=<COST> rows=1 functions=1 width=8 input_order=unknown)
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=8)
+Planning Time: <TIME> ms
+Execution Time: <TIME> ms
+---

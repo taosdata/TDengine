@@ -1242,6 +1242,8 @@ class TestTsma:
 
         Since: v3.0.0.0
 
+        Labels: common,ci,integration,functional
+
         History:
             - 2024-4-14 chenhaoran Created
             - 2025-5-13 Huo Hong Migrated to new test framework

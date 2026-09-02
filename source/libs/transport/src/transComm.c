@@ -16,6 +16,7 @@
 #include "transComm.h"
 #include "osTime.h"
 #include "tchecksum.h"
+#include "tglobal.h"
 #include "tqueue.h"
 #include "transLog.h"
 #include "transSasl.h"
@@ -180,9 +181,47 @@ int32_t transCompressMsg(char* msg, int32_t len) {
   }
   return ret;
 }
+
+static int32_t transValidateCompMsg(STransMsgHead* pHead, int32_t msgLen, int32_t* compressedLen) {
+  if (pHead->comp != 1) {
+    tError("unsupported compressed rpc msg, comp:%d", pHead->comp);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  int32_t minLen = (int32_t)(sizeof(STransMsgHead) + sizeof(STransCompMsg));
+  if (msgLen < minLen) {
+    tError("invalid compressed rpc msg, msgLen:%d, minLen:%d", msgLen, minLen);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  *compressedLen = msgLen - (int32_t)sizeof(STransMsgHead) - (int32_t)sizeof(STransCompMsg);
+  if (*compressedLen <= 0) {
+    tError("invalid compressed rpc msg, compressedLen:%d", *compressedLen);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t transValidateOriLen(int32_t oriLen) {
+  if (oriLen <= 0 || oriLen >= TRANS_MSG_LIMIT) {
+    tError("invalid compressed rpc msg, originLen:%d, limit:%d", oriLen, (int32_t)TRANS_MSG_LIMIT);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t transDecompressMsg(char** msg, int32_t* len) {
   STransMsgHead* pHead = (STransMsgHead*)(*msg);
   if (pHead->comp == 0) return 0;
+
+  int32_t tlen = *len;
+  int32_t compressedLen = 0;
+  int32_t code = transValidateCompMsg(pHead, tlen, &compressedLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   int64_t start = taosGetTimestampMs();
 
@@ -190,8 +229,11 @@ int32_t transDecompressMsg(char** msg, int32_t* len) {
 
   STransCompMsg* pComp = (STransCompMsg*)pCont;
   int32_t        oriLen = ntohl(pComp->contLen);
+  code = transValidateOriLen(oriLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
-  int32_t tlen = *len;
   char*   buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
   if (buf == NULL) {
     return terrno;
@@ -199,7 +241,7 @@ int32_t transDecompressMsg(char** msg, int32_t* len) {
 
   STransMsgHead* pNewHead = (STransMsgHead*)buf;
   int32_t        decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), (char*)pNewHead->content,
-                                                 tlen - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
+                                                 compressedLen, oriLen);
 
   if (decompLen != oriLen) {
     taosMemoryFree(buf);
@@ -221,12 +263,22 @@ int32_t transDecompressMsg(char** msg, int32_t* len) {
 }
 int32_t transDecompressMsgExt(char const* msg, int32_t len, char** out, int32_t* outLen) {
   STransMsgHead* pHead = (STransMsgHead*)msg;
+
+  int32_t compressedLen = 0;
+  int32_t code = transValidateCompMsg(pHead, len, &compressedLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
   char*          pCont = transContFromHead(pHead);
 
   STransCompMsg* pComp = (STransCompMsg*)pCont;
   int32_t        oriLen = ntohl(pComp->contLen);
+  code = transValidateOriLen(oriLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
-  int32_t tlen = len;
   char*   buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
   if (buf == NULL) {
     return terrno;
@@ -235,7 +287,7 @@ int32_t transDecompressMsgExt(char const* msg, int32_t len, char** out, int32_t*
 
   STransMsgHead* pNewHead = (STransMsgHead*)buf;
   int32_t        decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), (char*)pNewHead->content,
-                                                 tlen - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
+                                                 compressedLen, oriLen);
   if (decompLen != oriLen) {
     tError("msgLen:%d, originLen:%d, decompLen:%d", len, oriLen, decompLen);
     taosMemoryFree(buf);
@@ -455,12 +507,25 @@ int32_t transConnBufferAppend(SConnBuffer* connBuf, char* buf, int32_t len) {
 int32_t transSetConnOption(uv_tcp_t* stream, int keepalive) {
   int32_t ret = 0;
 #if defined(WINDOWS) || defined(DARWIN)
+  uv_os_fd_t fd;
+  int uvRet = uv_fileno((uv_handle_t*)stream, &fd);
+  if (uvRet == 0) {
+    int32_t r = taosSetTcpKeepalive((int)(uintptr_t)fd, keepalive);
+    if (r != 0) {
+      tWarn("taosSetTcpKeepalive failed, fd:%d, code:0x%x", (int)(uintptr_t)fd, r);
+    }
+    r = taosSetSockOpt2((int)(uintptr_t)fd);
+    if (r != 0) {
+      tWarn("taosSetSockOpt2 failed, fd:%d, code:0x%x", (int)(uintptr_t)fd, r);
+    }
+  } else {
+    tWarn("uv_fileno failed in transSetConnOption, ret:%d, %s", uvRet, uv_err_name(uvRet));
+  }
 #else
   ret = uv_tcp_keepalive(stream, 1, keepalive);
 #endif
   ret = uv_tcp_nodelay(stream, 1);
   return ret;
-  // int ret = uv_tcp_keepalive(stream, 5, 60);
 }
 
 int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAsyncPool** pPool) {
@@ -668,6 +733,10 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
 
 int32_t transDoCrc(char* buf, int32_t len) {
   STransMsgHead* pHead = (STransMsgHead*)buf;
+  if (!tsRpcCrcEnable) {
+    pHead->magicNum = 0;  // CRC disabled on this side: leave magicNum at 0, skip computation
+    return 0;
+  }
   pHead->magicNum = 0;
   uint32_t chechSum = taosCalcChecksum(0, (const uint8_t*)buf, len);
   pHead->magicNum = htonl(chechSum);
@@ -676,10 +745,14 @@ int32_t transDoCrc(char* buf, int32_t len) {
 }
 int32_t transDoCrcCheck(char* buf, int32_t len) {
   STransMsgHead* pHead = (STransMsgHead*)buf;
+  if (!tsRpcCrcEnable) {
+    pHead->magicNum = 0;  // CRC disabled on this side: skip verification
+    return 0;
+  }
   uint32_t       checkSum = ntohl(pHead->magicNum);
   pHead->magicNum = 0;
   if (taosCheckChecksum((const uint8_t*)buf, len, checkSum)) {
-    return TSDB_CODE_INVALID_MSG;
+    return TSDB_CODE_INVALID_MSG;  // mismatch -> reject (strict; no bypass)
   } else {
     return 0;
   }
@@ -973,6 +1046,10 @@ bool transCompareReqAndUserEpset(SReqEpSet* a, SEpSet* b) {
 #endif
 
 static void transInitEnv() {
+  // resolve crc32c (pick the hardware impl when SSE4.2 is available) once here so that
+  // client-side RPC also uses hardware crc, not only the server (which resolves it in dmInit)
+  taosResolveCRC();
+
   refMgt = transOpenRefMgt(50000, transDestroyExHandle);
   svrRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
   instMgt = taosOpenRef(50, rpcCloseImpl);
@@ -1227,6 +1304,14 @@ void freeWReqToWQ(queue* wq, SWReqsWrapper* w) {
 }
 
 int32_t transSetReadOption(uv_handle_t* handle) {
+#if defined(WINDOWS)
+  // On Windows, SIO_TCP_SET_ACK_FREQUENCY (set in transSetConnOption) is a persistent
+  // socket option and does not need to be re-applied on each read. This differs from
+  // Linux where TCP_QUICKACK is a one-shot flag that must be reset after each recv.
+  return 0;
+#else
+  // On Linux, TCP_QUICKACK is a temporary state and needs to be reset
+  // on each read to maintain the low-latency behavior.
   int32_t code = 0;
   int32_t fd;
   int     ret = uv_fileno((uv_handle_t*)handle, &fd);
@@ -1236,6 +1321,7 @@ int32_t transSetReadOption(uv_handle_t* handle) {
   }
   code = taosSetSockOpt2(fd);
   return code;
+#endif
 }
 
 int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqEpSet) {
@@ -1253,8 +1339,9 @@ int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqE
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy((char*)pReq, (char*)pEpset, size);
-  // clear previous
+  // clear previous; NULL out before validation so no dangling pointer on failure
   taosMemoryFree(*pReqEpSet);
+  *pReqEpSet = NULL;
 
   if (transValidReqEpset(pReq) != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pReq);
@@ -1547,6 +1634,10 @@ void* procClientMsg(void* arg) {
   return NULL;
 }
 static void transInitEnv() {
+  // resolve crc32c (pick the hardware impl when SSE4.2 is available) once here so that
+  // client-side RPC also uses hardware crc, not only the server (which resolves it in dmInit)
+  taosResolveCRC();
+
   refMgt = transOpenRefMgt(50000, transDestroyExHandle);
   svrRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
   instMgt = taosOpenRef(50, rpcCloseImpl);
@@ -1838,8 +1929,9 @@ int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqE
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy((char*)pReq, (char*)pEpset, size);
-  // clear previous
+  // clear previous; NULL out before validation so no dangling pointer on failure
   taosMemoryFree(*pReqEpSet);
+  *pReqEpSet = NULL;
 
   if (transValidReqEpset(pReq) != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pReq);

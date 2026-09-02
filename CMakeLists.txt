@@ -40,6 +40,13 @@ include(cmake/check_env.cmake)
 include(cmake/define.cmake)
 include(cmake/version.cmake)
 
+# Ensure pthread is linked globally (workaround for mold linker issues)
+# On Windows pthread is provided via ext_pthread (pthreadVC3.lib) and linked
+# per-target; the global injection would resolve to a non-existent 'pthread.lib'.
+if(NOT WIN32)
+  link_libraries(pthread)
+endif()
+
 if(USE_CONAN)
   message(STATUS "Using Conan for dependency management")
   include(cmake/conan.cmake)
@@ -62,7 +69,6 @@ add_subdirectory(contrib)
 add_subdirectory(source)
 add_subdirectory(tools)
 add_subdirectory(utils)
-add_subdirectory(tests)
 add_subdirectory(examples/c)
 
 if(TD_ENTERPRISE)

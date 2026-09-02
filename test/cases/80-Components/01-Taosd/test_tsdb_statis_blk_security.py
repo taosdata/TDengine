@@ -227,7 +227,7 @@ class TestTsdbSttStatisBlkSecurity:
 
         Since: v3.4.2.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         dbname = f"tsdb_statis_sec_{int(time.time())}"
         tdSql.execute(f"drop database if exists {dbname}")
@@ -294,7 +294,7 @@ class TestTsdbSttStatisBlkSecurity:
 
         Since: v3.4.2.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         dbname = f"tsdb_statis_valid_{int(time.time())}"
         tdSql.execute(f"drop database if exists {dbname}")
@@ -505,7 +505,7 @@ class TestTsdbBrinBlkSecurity:
 
         Since: v3.4.2.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         dbname = f"tsdb_brin_sec_{int(time.time())}"
         tdSql.execute(f"drop database if exists {dbname}")

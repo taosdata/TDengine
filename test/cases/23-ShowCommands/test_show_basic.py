@@ -5,7 +5,9 @@ import random
 import re
 import os
 import taos
-from new_test_framework.utils import tdLog, tdSql, cluster, sc, clusterComCheck, etool, tdCom, AutoGen, TDSetSql
+import taosrest
+from new_test_framework.utils import tdLog, tdSql, cluster, sc, clusterComCheck, etool, tdCom, AutoGen, TDSetSql, tdStream
+from new_test_framework.utils.server.dnodes import tdDnodes
 
 
 class TestShowBasic:
@@ -440,6 +442,10 @@ class TestShowBasic:
                 return res[0][0]
         raise Exception(f"variable {name} not found")
 
+    def is_community_edition(self):
+        tdSql.query("select server_version()")
+        return "community" in str(tdSql.getData(0, 0)).lower()
+
     def show_variables(self):
         epsion = 0.0000001
         var = 'minimalTmpDirGB'
@@ -455,16 +461,22 @@ class TestShowBasic:
             tdSql.error(f'ALTER LOCAL "{var}" "{error_val}"')
 
         var = 'supportVnodes'
-        expect_val = 1024
-        sql = f'ALTER DNODE 1 "{var}" "1024"'
-        tdSql.execute(sql, queryTimes=1)
-        val = int(self.get_variable(var, False, 1))
-        if val != expect_val:
-            tdLog.exit(f'failed to set dnode {var} to {expect_val} actually {val}')
+        # supportVnodes uses CFG_DYN_ENT_SERVER, which maps to CFG_DYN_NONE on
+        # community builds, so ALTER DNODE is rejected there; it only succeeds
+        # on enterprise edition.
+        if self.is_community_edition():
+            tdSql.error(f'ALTER DNODE 1 "{var}" "1024"')
+        else:
+            expect_val = 1024
+            sql = f'ALTER DNODE 1 "{var}" "1024"'
+            tdSql.execute(sql, queryTimes=1)
+            val = int(self.get_variable(var, False, 1))
+            if val != expect_val:
+                tdLog.exit(f'failed to set dnode {var} to {expect_val} actually {val}')
 
-        error_vals = ['a', '10a', '', '1.100r', '1.12  r', '5k']
-        for error_val in error_vals:
-            tdSql.error(f'ALTER DNODE 1 "{var}" "{error_val}"')
+            error_vals = ['a', '10a', '', '1.100r', '1.12  r', '5k']
+            for error_val in error_vals:
+                tdSql.error(f'ALTER DNODE 1 "{var}" "{error_val}"')
 
         var = 'randErrorDivisor'
         vals = ['9223372036854775807', '9223372036854775807.1', '9223372036854775806', '9223372036854775808', '9223372036854775808.1', '9223372036854775807.0', '9223372036854775806.1']
@@ -510,7 +522,11 @@ class TestShowBasic:
             "create view viewc2c4 as select c2,c4 from stb ",
             "create view viewc2c5 as select c2,c5 from stb ",
         ]
-        tdSql.executes(sqls)
+        if self.is_community_edition():
+            # CREATE VIEW is enterprise-only; community builds reject it
+            tdSql.error(sqls[0])
+        else:
+            tdSql.executes(sqls)
 
     def checkView(self):
         tdLog.info(f"check view like.")
@@ -576,15 +592,22 @@ class TestShowBasic:
         tdSql.execute("insert into ct1 using t100 tags(1) values('2024-05-17 14:58:52.902', 'a2', '200')")
         tdSql.execute("insert into ct1 using t100 tags(1) values('2024-05-17 14:58:52.902', 'a3', '300')")
         tdSql.execute("insert into ct2 using t100 tags(2) values('2024-05-17 14:58:52.902', 'a2', '200')")
-        tdSql.execute("create view v100 as select * from t100")
-        tdSql.execute("create view v200 as select * from ct1")
+        if self.is_community_edition():
+            # CREATE VIEW is enterprise-only; community builds reject it
+            tdSql.error("create view v100 as select * from t100")
+        else:
+            tdSql.execute("create view v100 as select * from t100")
+            tdSql.execute("create view v200 as select * from ct1")
 
-        tdSql.error("show tags from v100", expectErrInfo="Tags can only applied to super table and child table")
-        tdSql.error("show tags from v200", expectErrInfo="Tags can only applied to super table and child table")
+            tdSql.error("show tags from v100", expectErrInfo="Tags can only applied to super table and child table")
+            tdSql.error("show tags from v200", expectErrInfo="Tags can only applied to super table and child table")
 
         tdSql.execute("create table t200 (ts timestamp, pk varchar(20) primary key, c1 varchar(100))")
 
-        tdSql.error("show tags from t200", expectErrInfo="Tags can only applied to super table and child table")
+        # SHOW TAGS is allowed on normal tables (vnormal owned-tag support) and
+        # returns 0 rows since a normal table has no tags
+        tdSql.query("show tags from t200")
+        tdSql.checkRows(0)
 
     def checkShow(self):
         # not support
@@ -619,8 +642,9 @@ class TestShowBasic:
     def do_army_show(self):
         # insert data
         self.insertData()
-        # check view
-        self.checkView()
+        # check view (views are enterprise-only)
+        if not self.is_community_edition():
+            self.checkView()
         # do action
         self.doQuery()
         # check show
@@ -688,10 +712,15 @@ class TestShowBasic:
         tdSql.execute(f'create table ctb1 using stb tags (1, 1)')
         tdSql.execute(f'create table ctb2 using stb tags (2, 2)')
         tdSql.execute(f'create table ntb (ts timestamp, c0 int)')
-        tdSql.execute(f'create view vtb as select * from stb')
-        tdSql.execute(f'create view vtb1 as select * from ctb1')
-        tdSql.execute(f'create view vtb2 as select * from ctb2')
-        tdSql.execute(f'create view vtbn as select * from ntb')
+        has_views = not self.is_community_edition()
+        if has_views:
+            tdSql.execute(f'create view vtb as select * from stb')
+            tdSql.execute(f'create view vtb1 as select * from ctb1')
+            tdSql.execute(f'create view vtb2 as select * from ctb2')
+            tdSql.execute(f'create view vtbn as select * from ntb')
+        else:
+            # CREATE VIEW is enterprise-only; community builds reject it
+            tdSql.error(f'create view vtb as select * from stb')
         tdSql.execute(f'insert into ctb1 values (now, 1)')
         tdSql.execute(f'insert into ctb2 values (now, 2)')
 
@@ -730,11 +759,14 @@ class TestShowBasic:
         tdSql.error(f'show tags from tb_undef from db', expectErrInfo='Fail to get table info, error: Table does not exist')
         tdSql.error(f'show tags from db.tb_undef', expectErrInfo='Fail to get table info, error: Table does not exist')
         tdSql.error(f'show tags from tb_undef', expectErrInfo='Fail to get table info, error: Table does not exist')
-        tdSql.error(f'show tags from ntb', expectErrInfo='Tags can only applied to super table and child table')
-        tdSql.error(f'show tags from vtb', expectErrInfo='Tags can only applied to super table and child table')
-        tdSql.error(f'show tags from vtb1', expectErrInfo='Tags can only applied to super table and child table')
-        tdSql.error(f'show tags from vtb2', expectErrInfo='Tags can only applied to super table and child table')
-        tdSql.error(f'show tags from vtbn', expectErrInfo='Tags can only applied to super table and child table')
+        # SHOW TAGS is allowed on normal tables and returns 0 rows
+        tdSql.query(f'show tags from ntb')
+        tdSql.checkRows(0)
+        if has_views:
+            tdSql.error(f'show tags from vtb', expectErrInfo='Tags can only applied to super table and child table')
+            tdSql.error(f'show tags from vtb1', expectErrInfo='Tags can only applied to super table and child table')
+            tdSql.error(f'show tags from vtb2', expectErrInfo='Tags can only applied to super table and child table')
+            tdSql.error(f'show tags from vtbn', expectErrInfo='Tags can only applied to super table and child table')
 
         # show table tags
         tdSql.query(f'show table tags from stb')
@@ -771,10 +803,11 @@ class TestShowBasic:
         tdSql.error(f'show table tags from db.tb_undef', expectErrInfo='Table does not exist')
         tdSql.error(f'show table tags from tb_undef', expectErrInfo='Table does not exist')
         tdSql.error(f'show table tags from ntb', expectErrInfo='Tags can only applied to super table and child table')
-        tdSql.error(f'show table tags from vtb', expectErrInfo='Tags can only applied to super table and child table')
-        tdSql.error(f'show table tags from vtb1', expectErrInfo='Tags can only applied to super table and child table')
-        tdSql.error(f'show table tags from vtb2', expectErrInfo='Tags can only applied to super table and child table')
-        tdSql.error(f'show table tags from vtbn', expectErrInfo='Tags can only applied to super table and child table')
+        if has_views:
+            tdSql.error(f'show table tags from vtb', expectErrInfo='Tags can only applied to super table and child table')
+            tdSql.error(f'show table tags from vtb1', expectErrInfo='Tags can only applied to super table and child table')
+            tdSql.error(f'show table tags from vtb2', expectErrInfo='Tags can only applied to super table and child table')
+            tdSql.error(f'show table tags from vtbn', expectErrInfo='Tags can only applied to super table and child table')
 
         # show indexes
         tdSql.execute(f'create index idx1 on stb (t1)')
@@ -817,6 +850,100 @@ class TestShowBasic:
 
         print("do show tag index ..................... [passed]")
 
+    def _assert_show_streams_name_db_rows(self, expected_pairs, require_nonzero=False):
+        """Last query must be SHOW STREAMS (or equivalent); compare (stream_name, db_name) on cols 0 and 3, order-independent."""
+        if require_nonzero:
+            tdSql.checkAssert(tdSql.getRows() > 0)
+        got = [(tdSql.getData(i, 0), tdSql.getData(i, 3)) for i in range(tdSql.getRows())]
+        tdSql.checkEqual(sorted(got), sorted(expected_pairs))
+
+    #
+    # ------------------- show streams without database ----------------
+    #
+    def do_show_streams_no_db(self):
+        """Test SHOW STREAMS works without a selected database and shows db_name column."""
+        tdLog.info("do_show_streams_no_db ..................... [start]")
+
+        # New taos client session (same deploy as conftest get_taos_conn) so current DB is not inherited
+        # from prior steps (e.g. use db). Restore cls.conn cursor in finally for teardown.
+        _saved_conn = self.conn
+        try:
+            tdSql.close()
+        except Exception:
+            pass
+        if getattr(self, "restful", False):
+            _conn = taosrest.connect(url=f"http://{self.host}:6041", timezone="utc")
+        else:
+            _conn = taos.connect(host=self.host, config=tdDnodes.sim.cfgPath)
+        tdSql.init(_conn.cursor(), False)
+        try:
+            tdSql.execute("drop database if exists ss_db1")
+            tdSql.execute("drop database if exists ss_db2")
+            tdSql.execute("create database ss_db1")
+            tdSql.execute("create database ss_db2")
+
+            # Create source tables in each db
+            tdSql.execute("create table ss_db1.src1 (ts timestamp, v int)")
+            tdSql.execute("create table ss_db2.src2 (ts timestamp, v int)")
+
+            # Ensure an snode exists (required for stream creation)
+            tdStream.createSnode(1)
+            # Create a stream in each database
+            tdSql.execute(
+                "create stream ss_db1.ss1 INTERVAL(1s) SLIDING(1s) from ss_db1.src1 into ss_db1.dst1 as select _tlocaltime as ts, count(v) as cnt from ss_db1.src1"
+            )
+            tdSql.execute(
+                "create stream ss_db2.ss2 INTERVAL(1s) SLIDING(1s) from ss_db2.src2 into ss_db2.dst2 as select _tlocaltime as ts, count(v) as cnt from ss_db2.src2"
+            )
+            tdSql.execute(
+                "create stream ss_db1.stm3 count_window(1) from ss_db1.src1 into ss_db1.dst1 as select _tlocaltime as ts, count(v) as cnt from ss_db1.src1"
+            )
+            tdSql.execute(
+                "create stream ss_db2.stm4 count_window(1) from ss_db2.src2 into ss_db2.dst2 as select _tlocaltime as ts, count(v) as cnt from ss_db2.src2"
+            )
+            tdStream.checkStreamStatus()
+
+            # (stream_name, db_name); order-independent — same idea as tdSql.checkEqual(sorted(...), sorted(...)) in e.g. test_write_sml_opentsdb_json.py
+            tdLog.info("check show streams")
+            tdSql.query("show streams")
+            exp_all = [
+                ("stm4", "ss_db2"),
+                ("stm3", "ss_db1"),
+                ("ss2", "ss_db2"),
+                ("ss1", "ss_db1"),
+            ]
+            self._assert_show_streams_name_db_rows(exp_all, require_nonzero=True)
+
+            tdLog.info("check show streams like 'ss%'")
+            tdSql.query("show streams like 'ss%'")
+            exp_ss = [("ss2", "ss_db2"), ("ss1", "ss_db1")]
+            self._assert_show_streams_name_db_rows(exp_ss)
+
+            tdLog.info("check show streams like 'stm%'")
+            tdSql.query("show streams like 'stm%'")
+            exp_stm = [("stm4", "ss_db2"), ("stm3", "ss_db1")]
+            self._assert_show_streams_name_db_rows(exp_stm)
+
+            tdLog.info("check show streams db.streams")
+            tdSql.query("show ss_db1.streams")
+            exp_db1 = [("stm3", "ss_db1"), ("ss1", "ss_db1")]
+            self._assert_show_streams_name_db_rows(exp_db1)
+
+            tdSql.query("show ss_db2.streams")
+            exp_db2 = [("stm4", "ss_db2"), ("ss2", "ss_db2")]
+            self._assert_show_streams_name_db_rows(exp_db2)
+            tdLog.info("do_show_streams_no_db ..................... [passed]")
+        finally:
+            try:
+                tdSql.close()
+            except Exception:
+                pass
+            try:
+                _conn.close()
+            except Exception:
+                pass
+            tdSql.init(_saved_conn.cursor(), False)
+
     #
     # ------------------- main ----------------
     #
@@ -839,11 +966,12 @@ class TestShowBasic:
            show tags from super table/child table
            show table tags from super table/child table
            show indexes from super table/child table
+        9. Verify SHOW STREAMS works without a selected database and shows db_name column
     
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -852,9 +980,13 @@ class TestShowBasic:
             - 2025-10-17 Alex Duan Migrated from uncatalog/system-test/0-others/test_show.py
             - 2025-4-28 Simon Guan Migrated from tsim/show/basic.sim
             - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_show_tag_index.py
+            - 2026-04-03 Mario Peng Add test_show_streams_no_db
+            - 2026-08-16 Adapt to community edition (ALTER DNODE supportVnodes is enterprise-only,
+              CREATE VIEW is enterprise-only) and allow SHOW TAGS on normal tables
         
         """
         self.do_system_test_show()
         self.do_army_show()
         self.do_sim()
         self.do_show_tag_index()
+        self.do_show_streams_no_db()

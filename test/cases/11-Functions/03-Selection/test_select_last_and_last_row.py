@@ -969,8 +969,7 @@ class TestFuncLast:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-12-12 Alex Duan Migrated from uncatalog/system-test/2-query/test_last_row_interval.py
 
@@ -988,8 +987,7 @@ class TestFuncLast:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-12-29 Tony Zhang Created
         """
@@ -1036,8 +1034,7 @@ class TestFuncLast:
 
         Since: v3.3.8.9
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2026-03-03 Tony Zhang created
 

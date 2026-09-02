@@ -34,6 +34,12 @@
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
 
+  // Line-buffer stdout so every diagnostic printf below is flushed immediately.
+  // Without this, stdout is fully block-buffered when redirected to a log file;
+  // a failed ASSERT aborts the process via SIGABRT before the buffer is flushed,
+  // losing the very printf that identifies which SQL/assertion failed.
+  setvbuf(stdout, nullptr, _IOLBF, 0);
+
   return RUN_ALL_TESTS();
 }
 
@@ -58,9 +64,10 @@ TAOS* getConnWithOption(const char *tz){
 }
 
 void execQuery(TAOS* pConn, const char *sql){
+  printf("execQuery sql:%s\n", sql);
   TAOS_RES* pRes = taos_query(pConn, sql);
   int       code = taos_errno(pRes);
-  while (code == TSDB_CODE_MND_DB_IN_CREATING || code == TSDB_CODE_MND_DB_IN_DROPPING) {
+  while (code == TSDB_CODE_MND_DB_IN_CREATING || code == TSDB_CODE_MND_DB_IN_DROPPING || code == TSDB_CODE_MND_VGROUP_OFFLINE) {
     taosMsleep(2000);
     TAOS_RES* pRes = taos_query(pConn, sql);
     code = taos_errno(pRes);
@@ -87,16 +94,19 @@ void checkRows(TAOS* pConn, const char *sql, int32_t expectedRows){
   while ((pRow = taos_fetch_row(pRes)) != NULL) {
     rows++;
   }
+  printf("checkRows actual:%d\n", rows);
   ASSERT(rows == expectedRows);
   taos_free_result(pRes);
 }
 
 void check_timezone(TAOS* pConn, const char *sql, const char* tz){
+  printf("check_timezone sql:%s,tz:%s\n", sql, tz);
   TAOS_RES *pRes = taos_query(pConn, sql);
   ASSERT(taos_errno(pRes) == 0);
   TAOS_ROW row = NULL;
   while ((row = taos_fetch_row(pRes)) != NULL) {
     if (strcmp((const char*)row[0], "timezone") == 0){
+      printf("check_timezone actual:%s\n", (const char*)row[1]);
       ASSERT(strstr((const char*)row[1], tz) != NULL);
     }
   }
@@ -104,10 +114,12 @@ void check_timezone(TAOS* pConn, const char *sql, const char* tz){
 }
 
 void check_sql_result_partial(TAOS* pConn, const char *sql, const char* result){
+  printf("check_sql_result_partial sql:%s,result:%s\n", sql, result);
   TAOS_RES *pRes = taos_query(pConn, sql);
   ASSERT(taos_errno(pRes) == 0);
   TAOS_ROW row = NULL;
   while ((row = taos_fetch_row(pRes)) != NULL) {
+    printf("check_sql_result_partial actual:%s\n", (const char*)row[0]);
     ASSERT(strstr((const char*)row[0], result) != NULL);
   }
   taos_free_result(pRes);
@@ -132,6 +144,7 @@ void check_sql_result(TAOS* pConn, const char *sql, const char* result){
   TAOS_ROW row = NULL;
   while ((row = taos_fetch_row(pRes)) != NULL) {
 #ifndef WINDOWS
+    printf("check_sql_result actual:%s\n", (const char*)row[0]);
     ASSERT (memcmp((const char*)row[0], result, strlen(result)) == 0);
 #endif
   }
@@ -145,7 +158,9 @@ void check_sql_result_integer(TAOS* pConn, const char *sql, int64_t result){
   TAOS_ROW row = NULL;
   while ((row = taos_fetch_row(pRes)) != NULL) {
 #ifndef WINDOWS
-    ASSERT (*(int64_t*)row[0] == result);
+    int64_t actual = *(int64_t*)row[0];
+    printf("check_sql_result_integer actual:%" PRId64 "\n", actual);
+    ASSERT (actual == result);
 #endif
   }
   taos_free_result(pRes);
@@ -289,9 +304,7 @@ TEST(connectionCase, setConnectionOption_Test) {
   check_sql_result(pConn, "select timezone()", "Asia/Kolkata (IST, +0530)");
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, "adbc");
-  ASSERT(code == 0);
-  CHECK_TAOS_OPTION_POINTER(pConn, timezone, false);
-  check_sql_result(pConn, "select timezone()", "adbc (UTC, +0000)");
+  ASSERT(code != 0);  // invalid timezone is not allowed anymore
 #endif
 
   // test user APP
@@ -724,6 +737,7 @@ TEST(timezoneCase, func_timezone_Test) {
   execQuery(pConn, "create database db1");
   execQuery(pConn, "create table db1.ntb (ts timestamp, c1 binary(32), c2 int)");
   execQuery(pConn, "insert into db1.ntb values(1704142800000, '2024-01-01 23:00:00', 1)");   // 2024-01-01 23:00:00+0200
+  execQuery(pConn, "SET FIRST_DAY_OF_WEEK 4");
 
   // test timezone
   check_sql_result(pConn, "select timezone()", "UTC-2 (UTC, +0200)");
@@ -764,7 +778,7 @@ TEST(timezoneCase, func_timezone_Test) {
   check_sql_result_integer(pConn, "select WEEKDAY('2024-01-01 23:00:00+0200')", 0);
   check_sql_result_integer(pConn, "select WEEKDAY('2024-01-01 23:00:00-1100')", 1);
   check_sql_result_integer(pConn, "select WEEKDAY(1704142800000)", 0);
-  check_sql_result_integer(pConn, "select WEEKDAY(ts) from db1.ntb", 1);
+  check_sql_result_integer(pConn, "select WEEKDAY(ts) from db1.ntb", 0);
 
   // DAYOFWEEK
   check_sql_result_integer(pConn, "select DAYOFWEEK('2024-01-01')", 2);
@@ -772,7 +786,7 @@ TEST(timezoneCase, func_timezone_Test) {
   check_sql_result_integer(pConn, "select DAYOFWEEK('2024-01-01 23:00:00+0200')", 2);
   check_sql_result_integer(pConn, "select DAYOFWEEK('2024-01-01 23:00:00-1100')", 3);
   check_sql_result_integer(pConn, "select DAYOFWEEK(1704142800000)", 2);
-  check_sql_result_integer(pConn, "select DAYOFWEEK(ts) from db1.ntb", 3);
+  check_sql_result_integer(pConn, "select DAYOFWEEK(ts) from db1.ntb", 2);
 
   // WEEK
   check_sql_result_integer(pConn, "select WEEK('2024-01-07')", 1);
@@ -804,29 +818,29 @@ TEST(timezoneCase, func_timezone_Test) {
   check_sql_result(pConn, "select TO_ISO8601(1,'+0800')", "1970-01-01T08:00:00.001+0800");
 
   // TO_UNIXTIMESTAMP
-  check_sql_result_integer(pConn, "select TO_UNIXTIMESTAMP(c1) from db1.ntb", 1704121200000);   // use timezone in server UTC-8
+  check_sql_result_integer(pConn, "select TO_UNIXTIMESTAMP(c1) from db1.ntb", 1704142800000);   // use session timezone UTC-2
   check_sql_result_integer(pConn, "select TO_UNIXTIMESTAMP('2024-01-01T23:00:00.000+0200')", 1704142800000);
   check_sql_result_integer(pConn, "select TO_UNIXTIMESTAMP('2024-01-01T13:00:00.000-08')", 1704142800000);
   check_sql_result_integer(pConn, "select TO_UNIXTIMESTAMP('2024-01-01T23:00:00.001')", 1704142800001);
 
   // TO_TIMESTAMP
-  check_sql_result_integer(pConn, "select TO_TIMESTAMP(c1,'yyyy-mm-dd hh24:mi:ss') from db1.ntb", 1704121200000);   // use timezone in server UTC-8
+  check_sql_result_integer(pConn, "select TO_TIMESTAMP(c1,'yyyy-mm-dd hh24:mi:ss') from db1.ntb", 1704142800000);   // use session timezone UTC-2
   check_sql_result_integer(pConn, "select TO_TIMESTAMP('2024-01-01 23:00:00+02:00', 'yyyy-mm-dd hh24:mi:ss tzh')", 1704142800000);
   check_sql_result_integer(pConn, "select TO_TIMESTAMP('2024-01-01T13:00:00-08', 'yyyy-mm-ddThh24:mi:ss tzh')", 1704142800000);
   check_sql_result_integer(pConn, "select TO_TIMESTAMP('2024/01/01 23:00:00', 'yyyy/mm/dd hh24:mi:ss')", 1704142800000);
 
   // TO_CHAR
-  check_sql_result(pConn, "select TO_CHAR(ts,'yyyy-mm-dd hh24:mi:ss') from db1.ntb", "2024-01-02 05:00:00");   // use timezone in server UTC-8
+  check_sql_result(pConn, "select TO_CHAR(ts,'yyyy-mm-dd hh24:mi:ss') from db1.ntb", "2024-01-01 23:00:00");   // use session timezone UTC-2
   check_sql_result(pConn, "select TO_CHAR(cast(1704142800000 as timestamp), 'yyyy-mm-dd hh24:mi:ss tzh')", "2024-01-01 23:00:00 +02");
   check_sql_result(pConn, "select TO_CHAR(cast(1704142800000 as timestamp), 'yyyy-mm-dd hh24:mi:ss')", "2024-01-01 23:00:00");
 
   // TIMEDIFF
-  check_sql_result_integer(pConn, "select TIMEDIFF(c1, '2024-01-01T23:00:00.001+02') from db1.ntb", -21600001);   // use timezone in server UTC-8
-  check_sql_result_integer(pConn, "select TIMEDIFF(c1, '2024-01-01T23:00:00.001') from db1.ntb", -1);   // use timezone in server UTC-8
+  check_sql_result_integer(pConn, "select TIMEDIFF(c1, '2024-01-01T23:00:00.001+02') from db1.ntb", -1);   // use session timezone UTC-2
+  check_sql_result_integer(pConn, "select TIMEDIFF(c1, '2024-01-01T23:00:00.001') from db1.ntb", -1);   // use session timezone UTC-2
   check_sql_result_integer(pConn, "select TIMEDIFF('2024-01-01T23:00:00.001', '2024-01-01T13:00:00.000-08')", 1);
 
   // CAST
-  check_sql_result_integer(pConn, "select CAST(c1 as timestamp) from db1.ntb", 1704121200000);
+  check_sql_result_integer(pConn, "select CAST(c1 as timestamp) from db1.ntb", 1704142800000);
   check_sql_result_integer(pConn, "select CAST('2024-01-01T23:00:00.000+02' as timestamp)", 1704142800000);
   check_sql_result_integer(pConn, "select CAST('2024-01-01T23:00:00.000' as timestamp)", 1704142800000);
 
@@ -842,6 +856,7 @@ TEST(timezoneCase, func_timezone_Test) {
   execQuery(pConn, "insert into db1.ntb values(1703987400000, '2023-12-31 00:50:00', 1)");   // 2023-12-31 00:50:00-0100
   execQuery(pConn, "insert into db1.ntb1 values(1704070200000, '2023-12-31 23:50:00', 11)");   // 2023-12-31 23:50:00-0100
   checkRows(pConn, "select a.ts,b.ts from db1.ntb a join db1.ntb1 b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d)", 1);
+  checkRows(pConn, "select /*+ hash_join() */ a.ts,b.ts from db1.ntb a join db1.ntb1 b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d)", 1);
 
   // operator +1n +1y
   check_sql_result(pConn, "select TO_ISO8601(CAST('2023-01-31T00:00:00.000-01' as timestamp) + 1n)", "2023-02-28T00:00:00.000-0100");

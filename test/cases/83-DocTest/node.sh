@@ -2,6 +2,18 @@
 
 set -e
 
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_TEST_CI="$(cd "${_SCRIPT_DIR}/../.." && pwd)/ci"
+if [ -f "${_TEST_CI}/setup_internal_mirrors.sh" ]; then
+  # shellcheck source=../../ci/setup_internal_mirrors.sh
+  source "${_TEST_CI}/setup_internal_mirrors.sh"
+else
+  _REPO_ROOT="$(cd "${_SCRIPT_DIR}/../../../../../" && pwd)"
+  # shellcheck source=../../../../../tools/cicd/tsdb-test-pipeline/ci/setup_internal_mirrors.sh
+  source "${_REPO_ROOT}/tools/cicd/tsdb-test-pipeline/ci/setup_internal_mirrors.sh"
+fi
+setup_internal_mirrors
+
 check_transactions() {
     for i in {1..30}
     do
@@ -36,7 +48,7 @@ sleep 10
 
 cd ../../docs/examples/node
 
-npm install
+npm install --fetch-retries=3 --fetch-timeout=120000
 
 cd websocketexample
 

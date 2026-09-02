@@ -200,13 +200,13 @@ fi
 
 kill_service_of() {
   local svc=$1
-  # grep -v -x "$$" : exclude the current script's own PID
-  # ps -o pid=,comm= -p ... : get pid and command name
-  # awk '$2 != "${uninstallScript}" && $2 != "uninstall.sh" {print $1}' : exclude ${uninstallScript} and uninstall.sh processes
-  pids=$(ps -eo pid=,comm= | awk -v svc="$svc" '$2 == svc {print $1}' || true)
+  local self_pid="${BASHPID:-$$}"
+  # Exclude the current uninstall script by PID first. Process names for shell
+  # scripts vary between direct execution, symlink execution and sudo wrappers.
+  pids=$(ps -eo pid=,comm= | awk -v svc="$svc" -v self="$self_pid" '$2 == svc && $1 != self {print $1}' || true)
   if [ -n "$pids" ]; then
     echo "$pids" | xargs -r ps -o pid=,comm= -p 2>/dev/null \
-      | awk -v us="${uninstallScript}" '$2 != us && $2 != "uninstall.sh" {print $1}' \
+      | awk -v us="${uninstallScript}" -v self="$self_pid" '$1 != self && $2 != us && $2 != "uninstall.sh" {print $1}' \
       | xargs -r kill -9 2>/dev/null || true
   fi
 }
@@ -298,7 +298,7 @@ function clean_lib() {
   # Remove link
   for dir in "${lib_link_dir}" "${lib64_link_dir}"; do
     if [ -d "$dir" ]; then
-      for pattern in "libtaos.*" "libtaosnative.*" "libtaosws.*"; do
+      for pattern in "libtaos.*" "libtaosnative.*" "libtaosws.*" "libtaospyudf.*"; do
         find "${dir:?}" -name "$pattern" -exec rm -f {} \; || :
       done
     fi
@@ -460,6 +460,7 @@ function remove_install_dir() {
     rm -rf "${install_main_dir:?}" || :
   fi
 }
+
 # ====== main logic starts here ======
 if [ "$interactive_remove" == "yes" ]; then
   echo -e "\nDo you want to remove all the data, log and configuration files? [y/n]"
@@ -541,8 +542,12 @@ function clean_env_file() {
   escaped_bin=$(printf '%s' "${bin_link_dir}" | sed 's/[.[\\/^$*]/\\&/g')
   escaped_lib=$(printf '%s' "${lib_link_dir}" | sed 's/[.[\\/^$*]/\\&/g')
   sed -e "/^# ${productName} install path$/d" \
+      -e "/^# taos bin env$/d" \
+      -e "/^# taos lib env$/d" \
       -e "\|^export PATH=\"${escaped_bin}:.*\"|d" \
+      -e "\|^export PATH=${escaped_bin}:.*|d" \
       -e "\|^export LD_LIBRARY_PATH=\"${escaped_lib}:.*\"|d" \
+      -e "\|^export LD_LIBRARY_PATH=${escaped_lib}$|d" \
       "$env_file" > "$tmp_file" && mv "$tmp_file" "$env_file" || rm -f "$tmp_file"
 }
 clean_env_file

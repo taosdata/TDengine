@@ -200,6 +200,7 @@ SColVal *tRowIterNext(SRowIter *pIter);
 
 // STag ================================
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
+int32_t tTagNameCompare(const void *a, const void *b);
 void    tTagFree(STag *pTag);
 bool    tTagIsJson(const void *pTag);
 bool    tTagIsJsonNull(void *tagVal);
@@ -512,6 +513,7 @@ typedef struct {
   int32_t          columnId;
   int32_t          type;
   int32_t          bytes;
+  STypeMod         typeMod;
   TAOS_STMT2_BIND *bind;
 
 } SBindInfo2;
@@ -555,6 +557,19 @@ struct SRowBuildScanInfo {
 
 int8_t schemaHasBlob(const STSchema *pSchema);
 #endif
+
+// Append a tag name and its column ID into a tag-name array whose elemSize is
+// TSDB_COL_NAME_LEN + sizeof(col_id_t).  Using taosArrayPush(arr, name) would
+// copy elemSize bytes from a TSDB_COL_NAME_LEN-byte source, causing an
+// out-of-bounds read.  This helper uses taosArrayReserve to allocate the slot
+// first, then writes the two fields separately.
+static FORCE_INLINE int32_t insTagNameAppend(SArray *pTagNames, const char *name, col_id_t colId) {
+  void *slot = taosArrayReserve(pTagNames, 1);
+  if (NULL == slot) return terrno;
+  memcpy(slot, name, TSDB_COL_NAME_LEN);
+  *(col_id_t *)POINTER_SHIFT(slot, TSDB_COL_NAME_LEN) = colId;
+  return TSDB_CODE_SUCCESS;
+}
 
 #ifdef __cplusplus
 }

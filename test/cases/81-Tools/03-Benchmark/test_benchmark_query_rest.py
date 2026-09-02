@@ -143,7 +143,41 @@ class TestBenchmarkQueryRest:
         assert queryResult == expectResult, (
             "Queryfile:%s ,result is %s != expect: %s" % args0
         )
-        
+
+    def do_rest_mixed_query_reset_cache_result_file(self):
+        binPath = etool.benchMarkFile()
+        os.system("rm -f query_rest_reset_result.txt-*")
+
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("create database if not exists db")
+        tdSql.execute("use db")
+        tdSql.execute("create table stb (ts timestamp, c0 int) tags (t0 int)")
+        tdSql.execute("insert into tb0 using stb tags (0) values (now, 0)")
+
+        jsonFile = "%s/json/queryModeSpecMixRestResetResult.json" % os.path.dirname(__file__)
+        status, output = subprocess.getstatusoutput("%s -f %s" % (binPath, jsonFile))
+        if status != 0:
+            tdLog.exit("mixed REST query failed, output:\n%s" % output)
+
+        resultFile = "query_rest_reset_result.txt-0"
+        if not os.path.exists(resultFile):
+            tdLog.exit("result file does not exist: %s" % resultFile)
+
+        with open(resultFile, "r+") as f1:
+            content = f1.read()
+
+        if content.count("200 OK") != 1:
+            tdLog.exit("RESET QUERY CACHE response was written into %s: %s" % (resultFile, content))
+
+        pattern = re.compile("{.*}")
+        match = pattern.search(content)
+        if match is None:
+            tdLog.exit("REST query response body does not exist in %s: %s" % (resultFile, content))
+
+        contentsDict = ast.literal_eval(match.group())
+        if contentsDict["data"][0][0] != 1:
+            tdLog.exit("unexpected REST query result in %s: %s" % (resultFile, content))
+
     def do_taosdemo_test_query_with_json(self):
         binPath = etool.benchMarkFile()
         if binPath == "":
@@ -383,8 +417,7 @@ class TestBenchmarkQueryRest:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -393,6 +426,7 @@ class TestBenchmarkQueryRest:
             - 2025-10-29 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_taosdemo_test_query_with_json.py
 
         """
+        self.do_rest_mixed_query_reset_cache_result_file()
         self.do_benchmark_query_json()
         self.do_taosdemo_test_query_with_json()
         self.do_taosdemo_test_query_with_json_mixed_query()

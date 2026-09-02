@@ -151,8 +151,7 @@ class Test5dnode3mnodeSep1VnodeStopMnodeCreateDbRep3:
 
         Since: xxx
 
-        Labels: xxx
-
+        Labels: common,ci,integration,functional
         Jira: xxx
 
         Catalog:

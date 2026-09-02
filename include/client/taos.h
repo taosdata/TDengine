@@ -263,6 +263,9 @@ DLL_EXPORT TAOS *taos_connect_totp(const char *ip, const char *user, const char 
 DLL_EXPORT int   taos_connect_test(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port);
 DLL_EXPORT TAOS *taos_connect_token(const char *ip, const char *token, const char *db, uint16_t port);
 DLL_EXPORT void  taos_close(TAOS *taos);
+DLL_EXPORT int   taos_txn_begin(TAOS *taos);     // only supported in Enterprise Edition currently
+DLL_EXPORT int   taos_txn_commit(TAOS *taos);    // only supported in Enterprise Edition currently
+DLL_EXPORT int   taos_txn_rollback(TAOS *taos);  // only supported in Enterprise Edition currently
 
 DLL_EXPORT const char *taos_data_type(int type);
 
@@ -319,11 +322,42 @@ typedef struct TAOS_STMT2_BINDV {
   TAOS_STMT2_BIND **bind_cols;
 } TAOS_STMT2_BINDV;
 
+// Columnar binding structures for stmt2.
+// For normal-table INSERT, the target table name must be fixed in SQL.
+// Columnar binding has no tbnames vector, so forms like
+// "INSERT INTO ? VALUES (...)" are not supported.
+// For super-table INSERT with a tbname column, rows must be grouped by
+// table name, for example tb1,tb1,tb2,tb2 rather than tb1,tb2,tb1.
+// Tag columns still use row-aligned buffers in columns[]; callers must repeat
+// the same tag value for every row in the same tbname group. Column-mode bind
+// consumes the first row's tag for each group and does not compare later rows.
+typedef struct TAOS_STMT2_COLUMN_BIND {
+  int      buffer_type;
+  void    *buffer;
+  int32_t *length;
+  char    *is_null;
+} TAOS_STMT2_COLUMN_BIND;
+
+typedef struct TAOS_STMT2_COLUMN_BINDV {
+  int                      num_columns;   // number of columns
+  int                      num_rows;      // number of rows
+  int                      num_tables;    // number of tables (required > 0 for multi-table INSERT with tbname column, ignored for single-table/SELECT)
+  TAOS_STMT2_COLUMN_BIND *columns;
+} TAOS_STMT2_COLUMN_BINDV;
+
+// STMT2 bind usage contract on the same prepared stmt:
+// 1. Row-mode and column-mode binding are mutually exclusive. Do not mix
+//    taos_stmt2_bind_param(_a) and taos_stmt2_bind_param_column(_a); call
+//    taos_stmt2_prepare() again before switching binding modes.
+// 2. bind and exec must alternate by batch. bind -> bind -> exec is not
+//    supported; use bind -> exec -> bind -> exec instead.
 DLL_EXPORT TAOS_STMT2 *taos_stmt2_init(TAOS *taos, TAOS_STMT2_OPTION *option);
 DLL_EXPORT int         taos_stmt2_prepare(TAOS_STMT2 *stmt, const char *sql, unsigned long length);
 DLL_EXPORT int         taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx);
 DLL_EXPORT int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp,
                                        void *param);
+DLL_EXPORT int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv);
+DLL_EXPORT int taos_stmt2_bind_param_column_a(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv, __taos_async_fn_t fp, void *param);
 DLL_EXPORT int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows);
 DLL_EXPORT int taos_stmt2_close(TAOS_STMT2 *stmt);
 DLL_EXPORT int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert);
@@ -368,6 +402,9 @@ DLL_EXPORT const char *taos_get_server_info(TAOS *taos);
 DLL_EXPORT const char *taos_get_client_info();
 DLL_EXPORT int         taos_get_current_db(TAOS *taos, char *database, int len, int *required);
 DLL_EXPORT int         taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char* buffer, int* len);
+/* Return the timezone handle captured when the result was created.
+ * The handle is owned internally; caller must NOT call tzfree() on it. */
+DLL_EXPORT void       *taos_get_result_tz(TAOS_RES *res);
 
 DLL_EXPORT const char *taos_errstr(TAOS_RES *res);
 DLL_EXPORT int         taos_errno(TAOS_RES *res);

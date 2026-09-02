@@ -15,6 +15,10 @@
 #ifndef TDENGINE_EXECUTIL_H
 #define TDENGINE_EXECUTIL_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "executor.h"
 #include "function.h"
 #include "nodes.h"
@@ -181,8 +185,8 @@ int32_t         tableListFind(const STableListInfo* pTableList, uint64_t uid, in
 void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psuid, uint64_t* uid, int32_t* type);
 int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode,
   SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI, SHashObj* groupIdMap, bool gIdFromBaseId);
-int32_t doFilterByTagCond(int64_t suid, SArray* pUidList, SNode* pTagCond, void* pVnode,
-                                 SIdxFltStatus status, SStorageAPI* pAPI, void* pStreamInfo);
+int32_t doFilterByTagCond(int64_t suid, SArray* pUidList, int64_t version, SNode* pTagCond, void* pVnode,
+                                 SIdxFltStatus status, SStorageAPI* pAPI, void* pStreamInfo, int64_t txnId);
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
 void   closeResultRow(SResultRow* pResultRow);
@@ -241,6 +245,7 @@ SColumn   extractColumnFromColumnNode(SColumnNode* pColNode);
 
 int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, STableScanPhysiNode* pTableScanNode,
                                const SReadHandle* readHandle, bool applyExtWin);
+void    interpPruneExtWindows(int8_t interpFillMode, STimeWindow* extTwindows);
 int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTableDataCond* pOrgCond,
                                      const SReadHandle* readHandle, SArray* colArray);
 
@@ -255,7 +260,7 @@ TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols);
 void  updateTimeWindowInfo(SColumnInfoData* pColData, const STimeWindow* pWin, int64_t delta);
 
 SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList, void* pVnode,
-                                        SStorageAPI* pStorageAPI);
+                                        SStorageAPI* pStorageAPI, int64_t txnId);
 
 /**
  * @brief build a tuple into keyBuf
@@ -281,9 +286,21 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* p
 int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 
 int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* typeStr, const char* pId);
+int32_t buildStreamRunnerFetchRtInfo(const SStreamRuntimeFuncInfo* pSrc, SStreamRuntimeFuncInfo* pDst);
+void    cleanupStreamRunnerFetchRtInfo(SStreamRuntimeFuncInfo* pInfo);
 int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes);
 
 int32_t          findDataBlockColIndexBySlotId(const SSDataBlock* pBlock, int32_t slotId);
 SColumnInfoData* getDataBlockColBySlotId(const SSDataBlock* pBlock, int32_t slotId, int32_t* pIndex);
+
+#if defined(BUILD_TEST)
+void    execUtilTestResetHandleRemoteRowResState(void);
+void    execUtilTestSetExtractSingleRspBlockFailOnce(int32_t code);
+int32_t execUtilTestGetHandleRemoteRowResDestroyCount(void);
+#endif
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // TDENGINE_EXECUTIL_H

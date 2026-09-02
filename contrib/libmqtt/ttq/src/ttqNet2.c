@@ -1,3 +1,8 @@
+#ifdef WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <string.h>
+#else
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <netdb.h>
@@ -5,6 +10,7 @@
 #include <strings.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#endif
 
 #ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
@@ -36,6 +42,13 @@
 static ttq_sock_t spare_sock = INVALID_SOCKET;
 
 void ttqNetBrokerInit(void) {
+#ifdef WIN32
+  WSADATA wsaData;
+  if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+    ttq_log(NULL, TTQ_LOG_ERR, "Error: WSAStartup failed.");
+    return;
+  }
+#endif
   spare_sock = socket(AF_INET, SOCK_STREAM, 0);
   UNUSED(net__init());
 #ifdef WITH_TLS
@@ -54,7 +67,14 @@ void ttqNetBrokerCleanup(void) {
 static void net__print_error(unsigned int log, const char *format_str) {
   char *buf;
 
+#ifdef WIN32
+  char  wsa_buf[256];
+  int   err = WSAGetLastError();
+  snprintf(wsa_buf, sizeof(wsa_buf), "WSA error %d", err);
+  buf = wsa_buf;
+#else
   buf = strerror(errno);
+#endif
   ttq_log(NULL, log, format_str, buf);
 }
 
@@ -550,6 +570,11 @@ int ttqNetTlsLoadVerify(struct tmqtt__listener *listener) {
 }
 
 static int net__bind_interface(struct tmqtt__listener *listener, struct addrinfo *rp) {
+#ifdef WIN32
+  /* getifaddrs()/SO_BINDTODEVICE-style interface binding is not available on Windows. */
+  ttq_log(NULL, TTQ_LOG_ERR, "Error: Binding to a specific interface is not supported on Windows.");
+  return TTQ_ERR_NOT_SUPPORTED;
+#else
   /*
    * This binds the listener sock to a network interface.
    * The use of SO_BINDTODEVICE requires root access, which we don't have, so instead
@@ -613,6 +638,7 @@ static int net__bind_interface(struct tmqtt__listener *listener, struct addrinfo
     ttq_log(NULL, TTQ_LOG_ERR, "Error: Interface %s does not exist.", listener->bind_interface);
     return TTQ_ERR_NOT_FOUND;
   }
+#endif
 }
 
 static int ttqNetSocketListen_tcp(struct tmqtt__listener *listener) {
@@ -673,11 +699,11 @@ static int ttqNetSocketListen_tcp(struct tmqtt__listener *listener) {
 
     ss_opt = 1;
     /* Unimportant if this fails */
-    (void)setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &ss_opt, sizeof(ss_opt));
+    (void)setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&ss_opt, sizeof(ss_opt));
 
 #ifdef IPV6_V6ONLY
     ss_opt = 1;
-    (void)setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &ss_opt, sizeof(ss_opt));
+    (void)setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (const char *)&ss_opt, sizeof(ss_opt));
 #endif
 
     if (net__socket_nonblock(&sock)) {

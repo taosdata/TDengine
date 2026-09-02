@@ -18,6 +18,7 @@
 #include "dmInt.h"
 // #include "dmMgmt.h"
 #include "crypt.h"
+#include "extConnector.h"
 #include "monitor.h"
 #include "stream.h"
 #include "systable.h"
@@ -303,12 +304,18 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.mload = tsMLoad;
 
   if (taosThreadMutexUnlock(&pMgmt->pData->statusInfolock) != 0) {
+    tFreeSStatusReq(&req);
     dError("failed to unlock status info lock");
     return;
   }
 
   dTrace("send status req to mnode, begin to get qnode loads, statusSeq:%d", pMgmt->statusSeq);
   (*pMgmt->getQnodeLoadsFp)(&req.qload);
+
+  // Collect idle txn keepalive queries from all VNodes
+  if (pMgmt->collectVnodeTxnIdleFp != NULL) {
+    (*pMgmt->collectVnodeTxnIdleFp)(&req.pTxnActiveQueries);
+  }
 
   req.statusSeq = pMgmt->statusSeq;
   req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
@@ -325,6 +332,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   if (contLen < 0) {
+    tFreeSStatusReq(&req);
     dError("failed to serialize status req since %s", tstrerror(contLen));
     return;
   }
@@ -333,6 +341,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   contLen = tSerializeSStatusReq(pHead, contLen, &req);
   if (contLen < 0) {
     rpcFreeCont(pHead);
+    tFreeSStatusReq(&req);
     dError("failed to serialize status req since %s", tstrerror(contLen));
     return;
   }
@@ -677,7 +686,8 @@ void dmUpdateStatusInfo(SDnodeMgmt *pMgmt) {
     tsVinfo.pVloads = vinfo.pVloads;
     vinfo.pVloads = NULL;
   } else {
-    taosArrayDestroy(vinfo.pVloads);
+    // Discard the freshly fetched loads; use the shared helper so each SVnodeLoad's embedded pSnapProgress array is freed too (avoid leak).
+    tFreeSVnodeLoadArray(vinfo.pVloads);
     vinfo.pVloads = NULL;
   }
 
@@ -883,6 +893,20 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (cfgReq.version > 0) {
     tsdmConfigVersion = cfgReq.version;
   }
+
+  // Propagate federatedQuery* changes to the ext connector module so that
+  // pools created after this ALTER pick up the new values without restart.
+  if (taosStrncasecmp(cfgReq.config, "federatedQuery", 14) == 0) {
+    SExtConnectorModuleCfg extConnCfg = {
+      .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
+      .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
+      .query_timeout_ms         = tsFederatedQueryQueryTimeoutMs,
+      .idle_conn_ttl_s          = tsFederatedQueryIdleConnTtlSec,
+      .probe_timeout_ms         = tsFederatedQueryProbeTimeoutMs,
+    };
+    extConnectorUpdateModuleCfg(&extConnCfg);
+  }
+
   return code;
 }
 
@@ -1597,7 +1621,8 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
     }
   }
 
-  taosArrayDestroy(vinfo.pVloads);
+  // Use the shared helper so each SVnodeLoad's embedded pSnapProgress array is freed as well (avoid leak).
+  tFreeSVnodeLoadArray(vinfo.pVloads);
 }
 
 int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
@@ -1696,6 +1721,129 @@ int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
   return colDataSetNItems(pColInfo, 0, (const char *)&dnodeId, pBlock->info.rows, 1, false);
 }
 
+static int32_t dmBuildCpuAllocationBlock(SSDataBlock **ppBlock) {
+  int32_t      code = 0;
+  SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (pBlock == NULL) return terrno;
+
+  size_t               size = 0;
+  const SSysTableMeta *pMeta = NULL;
+  getInfosDbMeta(&pMeta, &size);
+
+  int32_t index = -1;
+  for (int32_t i = 0; i < (int32_t)size; ++i) {
+    if (strcmp(pMeta[i].name, TSDB_INS_TABLE_CPU_ALLOCATION) == 0) {
+      index = i;
+      break;
+    }
+  }
+  if (index < 0) {
+    taosMemoryFree(pBlock);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  pBlock->pDataBlock = taosArrayInit(pMeta[index].colNum, sizeof(SColumnInfoData));
+  if (pBlock->pDataBlock == NULL) {
+    code = terrno;
+    goto _exit_cpu;
+  }
+
+  for (int32_t i = 0; i < pMeta[index].colNum; ++i) {
+    SColumnInfoData colInfoData = {0};
+    colInfoData.info.colId = i + 1;
+    colInfoData.info.type = pMeta[index].schema[i].type;
+    colInfoData.info.bytes = pMeta[index].schema[i].bytes;
+    if (taosArrayPush(pBlock->pDataBlock, &colInfoData) == NULL) {
+      code = terrno;
+      goto _exit_cpu;
+    }
+  }
+
+  pBlock->info.hasVarCol = true;
+_exit_cpu:
+  if (code != 0) {
+    blockDataDestroy(pBlock);
+  } else {
+    *ppBlock = pBlock;
+  }
+  return code;
+}
+
+static int32_t dmAppendCpuAllocationRow(SSDataBlock *pBlock, int32_t dnodeId, const char *category, int32_t cores,
+                                        const char *coreIds, bool enabled) {
+  int32_t code = 0;
+  int32_t row = pBlock->info.rows;
+
+  // column 0: dnode_id (INT)
+  SColumnInfoData *pCol0 = taosArrayGet(pBlock->pDataBlock, 0);
+  if (pCol0 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  code = colDataSetVal(pCol0, row, (const char *)&dnodeId, false);
+  if (code) return code;
+
+  // column 1: thread_category (VARCHAR)
+  SColumnInfoData *pCol1 = taosArrayGet(pBlock->pDataBlock, 1);
+  if (pCol1 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  char catBuf[16 + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(catBuf, category);
+  code = colDataSetVal(pCol1, row, catBuf, false);
+  if (code) return code;
+
+  // column 2: cores (INT)
+  SColumnInfoData *pCol2 = taosArrayGet(pBlock->pDataBlock, 2);
+  if (pCol2 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  code = colDataSetVal(pCol2, row, (const char *)&cores, false);
+  if (code) return code;
+
+  // column 3: core_ids (VARCHAR)
+  SColumnInfoData *pCol3 = taosArrayGet(pBlock->pDataBlock, 3);
+  if (pCol3 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  char idsBuf[256 + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(idsBuf, coreIds);
+  code = colDataSetVal(pCol3, row, idsBuf, false);
+  if (code) return code;
+
+  // column 4: enabled (BOOL)
+  SColumnInfoData *pCol4 = taosArrayGet(pBlock->pDataBlock, 4);
+  if (pCol4 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  int8_t boolVal = enabled ? 1 : 0;
+  code = colDataSetVal(pCol4, row, (const char *)&boolVal, false);
+  if (code) return code;
+
+  pBlock->info.rows++;
+  return 0;
+}
+
+static int32_t dmFillCpuAllocationBlock(SSDataBlock *pBlock, int32_t dnodeId) {
+  int32_t                code = 0;
+  const SCpuAllocStatus *status = taosGetCpuAllocStatus();
+  const char            *catNames[] = {"management", "write", "read"};
+
+  code = blockDataEnsureCapacity(pBlock, THREAD_CAT_COUNT);
+  if (code) return code;
+
+  for (int32_t c = 0; c < THREAD_CAT_COUNT; c++) {
+    char    coreIdsBuf[256] = {0};
+    int32_t cores = 0;
+    bool    enabled = false;
+
+    if (status->enabled) {
+      cores = status->sets[c].count;
+      enabled = true;
+      int off = 0;
+      for (int32_t i = 0; i < status->sets[c].count && off < (int)sizeof(coreIdsBuf) - 8; i++) {
+        off +=
+            snprintf(coreIdsBuf + off, sizeof(coreIdsBuf) - off, "%s%d", i > 0 ? "," : "", status->sets[c].coreIds[i]);
+      }
+    } else {
+      tstrncpy(coreIdsBuf, "-", sizeof(coreIdsBuf));
+    }
+
+    code = dmAppendCpuAllocationRow(pBlock, dnodeId, catNames[c], cores, coreIdsBuf, enabled);
+    if (code) return code;
+  }
+  return 0;
+}
+
 int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t           size = 0;
   int32_t           rowsRead = 0;
@@ -1711,19 +1859,32 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return code;
   }
 #endif
-  if (strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_DNODE_VARIABLES)) {
+  if (strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_DNODE_VARIABLES) != 0 &&
+      strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_CPU_ALLOCATION) != 0) {
     return TSDB_CODE_INVALID_MSG;
   }
 
   SSDataBlock *pBlock = NULL;
-  if ((code = dmBuildVariablesBlock(&pBlock)) != 0) {
-    return code;
-  }
 
-  code = dmAppendVariablesToBlock(pBlock, pMgmt->pData->dnodeId);
-  if (code != 0) {
-    blockDataDestroy(pBlock);
-    return code;
+  if (strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_CPU_ALLOCATION) == 0) {
+    if ((code = dmBuildCpuAllocationBlock(&pBlock)) != 0) {
+      return code;
+    }
+    code = dmFillCpuAllocationBlock(pBlock, pMgmt->pData->dnodeId);
+    if (code != 0) {
+      blockDataDestroy(pBlock);
+      return code;
+    }
+  } else {
+    if ((code = dmBuildVariablesBlock(&pBlock)) != 0) {
+      return code;
+    }
+
+    code = dmAppendVariablesToBlock(pBlock, pMgmt->pData->dnodeId);
+    if (code != 0) {
+      blockDataDestroy(pBlock);
+      return code;
+    }
   }
 
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -1822,8 +1983,11 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_SYSTABLE_RETRIEVE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_MND_ALTER_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_MND_ALTER_KEY_EXPIRATION, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  // 第二跳：mnode 广播下来的 DND 消息由 DNODE 模块消费，执行本地密钥/过期时间更新。
+  // 注意：不能注册 TDMT_MND_ALTER_* （它属于 client->mnode 第一跳，已在 mmHandle.c 注册到 MNODE 模块），
+  // 否则会和 MNODE 模块的路由冲突，导致 client 请求被 DNODE 模块直接消费而绕过 mnode 广播。
+  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_KEY_EXPIRATION, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_HEARTBEAT_RSP, dmPutMsgToStreamMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_RELOAD_DNODE_TLS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 

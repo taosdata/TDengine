@@ -117,7 +117,7 @@ echo "$(pwd)"
 echo "====NOTES: ${pkgFile} must be in the same directory as dockerbuild.sh===="
 
 scriptDir=$(dirname $(readlink -f $0))
-communityDir=${scriptDir}/../../../community
+communityDir=$(cd "${scriptDir}/../.." && pwd)
 DockerfilePath=${communityDir}/packaging/docker/
 if [ "$cloudBuild" == "y" ]; then
   communityArchiveDir=/nas/TDengine/v$version/cloud

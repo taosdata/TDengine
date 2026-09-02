@@ -44,7 +44,8 @@ typedef struct SIndefOperatorInfo {
 static int32_t      doGenerateSourceData(SOperatorInfo* pOperator);
 static int32_t      doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 static int32_t      doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
-int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId, int32_t* numOfRows, bool createNewColModel, const void* pExtraParams);
+int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId,
+                             int64_t* numOfRows, bool createNewColModel, const void* pExtraParams);
 
 static bool hasLagLeadFunc(const SExprSupp* pSup) {
   if (pSup == NULL || pSup->pCtx == NULL) {
@@ -205,14 +206,21 @@ static int32_t processByRowInExternalWindows(SArray* pGroupedCtxArray, SSDataBlo
     SqlFunctionCtx** ppFirstCtx = taosArrayGet(pGroupedCtxArray, 0);
     TAOS_CHECK_EXIT((*ppFirstCtx)->fpSet.processFuncByRow(pGroupedCtxArray));
 
-    int32_t winRows = (*ppFirstCtx)->resultInfo->numOfRes;
+    uint64_t winRows = (*ppFirstCtx)->resultInfo->numOfRes;
     if (winRows > 0) {
+      if (winRows > INT32_MAX - totalRows) {
+        qError("external window process-by-row result rows overflow, totalRows:%d, winRows:%" PRIu64, totalRows,
+               winRows);
+        code = TSDB_CODE_OUT_OF_RANGE;
+        goto _exit;
+      }
+
       int64_t  val = 0;
       int32_t* pOutPair = (int32_t*)&val;
       pOutPair[0] = winIdx;
       pOutPair[1] = totalRows;
       TSDB_CHECK_NULL(taosArrayPush(pStreamInfo->pStreamBlkWinIdx, &val), code, lino, _exit, terrno);
-      totalRows += winRows;
+      totalRows += (int32_t)winRows;
     }
   }
 
@@ -340,8 +348,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   code = createOneDataBlock(pResBlock, false, &pInfo->pFinalRes);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  pInfo->binfo.inputTsOrder = pProjPhyNode->node.inputTsOrder;
-  pInfo->binfo.outputTsOrder = pProjPhyNode->node.outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, &pProjPhyNode->node);
   pInfo->inputIgnoreGroup = pProjPhyNode->inputIgnoreGroup;
   pInfo->outputIgnoreGroup = pProjPhyNode->ignoreGroupId;
 
@@ -564,7 +571,8 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       QUERY_CHECK_CODE(code, lino, _end);
 
       code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
-                                   pProjectInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo));
+                                   pProjectInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo),
+                                   pOperator->pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
 
       status = doIngroupLimitOffset(pLimitInfo, pBlock->info.id.groupId, pInfo->pRes, pOperator);
@@ -592,6 +600,9 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       }
 
       // do apply filter
+      if (pOperator->exprSupp.pFilterInfo != NULL) {
+        filterSetExecContext(pOperator->exprSupp.pFilterInfo, pOperator->pTaskInfo, isTaskKilled);
+      }
       code = doFilter(pFinalRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
 
@@ -729,8 +740,7 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   TSDB_CHECK_CODE(code, lino, _error);
 
   pInfo->binfo.pRes = pResBlock;
-  pInfo->binfo.inputTsOrder = pNode->inputTsOrder;
-  pInfo->binfo.outputTsOrder = pNode->outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, pNode);
   code = setRowTsColumnOutputInfo(pSup->pCtx, numOfExpr, &pInfo->pPseudoColInfo);
   TSDB_CHECK_CODE(code, lino, _error);
 
@@ -769,7 +779,8 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
   SExprSupp* pScalarSup = &pIndefInfo->scalarSup;
   if (pScalarSup->pExprInfo != NULL) {
     code = projectApplyFunctions(pScalarSup->pExprInfo, pBlock, pBlock, pScalarSup->pCtx, pScalarSup->numOfExprs,
-                                 pIndefInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo));
+                                 pIndefInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo),
+                                 pOperator->pTaskInfo);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
@@ -786,7 +797,8 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
   }
 
   code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
-                               pIndefInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo));
+                               pIndefInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo),
+                               pOperator->pTaskInfo);
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
@@ -1015,8 +1027,10 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
         SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
 
         SScalarParam dest = {.columnData = &idata};
-        gTaskScalarExtra.pStreamInfo = GET_STM_RTINFO(pOperator->pTaskInfo);
+        gTaskScalarExtra.pStreamInfo  = GET_STM_RTINFO(pOperator->pTaskInfo);
         gTaskScalarExtra.pStreamRange = NULL;
+        gTaskScalarExtra.pTaskInfo    = pOperator->pTaskInfo;
+        gTaskScalarExtra.isTaskKilled = isTaskKilled;
         code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest, &gTaskScalarExtra);
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayDestroy(pBlockList);
@@ -1036,11 +1050,13 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
         colDataDestroy(&idata);
         taosArrayDestroy(pBlockList);
       } else {
+        qError("%s: unsupported scalar expression node type at line %d, since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
         return TSDB_CODE_OPS_NOT_SUPPORT;
       }
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_OPERATOR) {
       TAOS_CHECK_RETURN(projectApplyOperator(&pExpr[k], pRes, NULL, outputSlotId, NULL, false, &gTaskScalarExtra));
     } else {
+      qError("%s: unsupported expression node type at line %d, since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
       return TSDB_CODE_OPS_NOT_SUPPORT;
     }
   }
@@ -1069,7 +1085,8 @@ static void setPseudoOutputColInfo(SSDataBlock* pResult, SqlFunctionCtx* pCtx, S
   }
 }
 
-int32_t projectApplyColumn(SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId, SqlFunctionCtx* pfCtx, int32_t* numOfRows, bool createNewColModel) {
+int32_t projectApplyColumn(SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId,
+                           SqlFunctionCtx* pfCtx, int64_t* numOfRows, bool createNewColModel) {
   int32_t code = 0, lino = 0;
   SInputColumnInfoData* pInputData = &pfCtx->input;
   SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
@@ -1119,7 +1136,8 @@ _exit:
 }
 
 
-int32_t projectApplyValue(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId, int32_t* numOfRows, bool createNewColModel) {
+int32_t projectApplyValue(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId,
+                          int64_t* numOfRows, bool createNewColModel) {
   int32_t code = 0, lino = 0;
   SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
   TSDB_CHECK_NULL(pColInfoData, code, lino, _exit, terrno);
@@ -1148,7 +1166,8 @@ _exit:
 
 
 
-int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId, int32_t* numOfRows, bool createNewColModel, const void* pExtraParams) {
+int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId,
+                             int64_t* numOfRows, bool createNewColModel, const void* pExtraParams) {
   int32_t code = 0, lino = 0;
   SArray* pBlockList = NULL;
   if (NULL != pSrcBlock) {
@@ -1194,8 +1213,9 @@ _exit:
 
 
 int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, 
-                                    int32_t outputSlotId, int32_t* numOfRows, bool createNewColModel, const void* pExtraParams, 
-                                    SArray* pPseudoList, SArray** processByRowFunctionCtx, bool doSelectFunc) {
+                             int32_t outputSlotId, int64_t* numOfRows, bool createNewColModel,
+                             const void* pExtraParams, SArray* pPseudoList, SArray** processByRowFunctionCtx,
+                             bool doSelectFunc) {
   int32_t code = 0, lino = 0;
   SArray* pBlockList = NULL;
   SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
@@ -1241,6 +1261,7 @@ int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprI
 
     colDataDestroy(&idata);
     taosArrayDestroy(pBlockList);
+    pBlockList = NULL;
     TAOS_CHECK_EXIT(code);
 
     *numOfRows = dest.numOfRows;
@@ -1345,9 +1366,19 @@ _exit:
 
 int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock,
                                         SqlFunctionCtx* pCtx, int32_t numOfOutput, SArray* pPseudoList,
-                                        const void* pExtraParams, bool doSelectFunc, bool hasIndefRowsFunc) {
+                                        const void* pExtraParams, bool doSelectFunc, bool hasIndefRowsFunc,
+                                        SExecTaskInfo* pTaskInfo) {
   int32_t lino = 0;
   int32_t code = TSDB_CODE_SUCCESS;
+
+  SExecTaskInfo* savedTaskInfo = gTaskScalarExtra.pTaskInfo;
+  sclIsTaskKilled savedIsTaskKilled = gTaskScalarExtra.isTaskKilled;
+
+  if (pTaskInfo != NULL) {
+    gTaskScalarExtra.pTaskInfo    = pTaskInfo;
+    gTaskScalarExtra.isTaskKilled = isTaskKilled;
+  }
+
   if (hasIndefRowsFunc) {
     setPseudoOutputColInfo(pResult, pCtx, pPseudoList);
   }
@@ -1394,11 +1425,11 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
     TAOS_CHECK_EXIT(blockDataEnsureCapacity(pResult, pResult->info.rows));
   }
 
-  int32_t numOfRows = 0;
+  int64_t numOfRows = 0;
 
   for (int32_t k = 0; k < numOfOutput; ++k) {
-    int32_t               outputSlotId = pExpr[k].base.resSchema.slotId;
-    SqlFunctionCtx*       pfCtx = &pCtx[k];
+    int32_t         outputSlotId = pExpr[k].base.resSchema.slotId;
+    SqlFunctionCtx* pfCtx = &pCtx[k];
     switch (pExpr[k].pExpr->nodeType) {
       case QUERY_NODE_COLUMN: {
         TAOS_CHECK_EXIT(projectApplyColumn(pResult, pSrcBlock, outputSlotId, pfCtx, &numOfRows, createNewColModel));
@@ -1486,10 +1517,20 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
   }
 
   if (!createNewColModel) {
-    pResult->info.rows += numOfRows;
+    if (numOfRows > INT32_MAX - pResult->info.rows) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+      qError("project output rows overflow, currentRows:%" PRId64 ", appendRows:%" PRId64,
+             (int64_t)pResult->info.rows, numOfRows);
+      goto _exit;
+    }
+
+    pResult->info.rows += (int32_t)numOfRows;
   }
 
 _exit:
+  gTaskScalarExtra.pTaskInfo    = savedTaskInfo;
+  gTaskScalarExtra.isTaskKilled = savedIsTaskKilled;
+
   if (pGroupedCtxArray) {
     taosArrayDestroy(pGroupedCtxArray);
   }
@@ -1506,6 +1547,8 @@ _exit:
 }
 
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
-                              int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams) {
-  return projectApplyFunctionsWithSelect(pExpr, pResult, pSrcBlock, pCtx, numOfOutput, pPseudoList, pExtraParams, false, true);
+                              int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams,
+                              SExecTaskInfo* pTaskInfo) {
+  return projectApplyFunctionsWithSelect(pExpr, pResult, pSrcBlock, pCtx, numOfOutput, pPseudoList, pExtraParams,
+                                         false, true, pTaskInfo);
 }

@@ -16,8 +16,7 @@ class TestDemo:
 
         Since: v3.3.0.0
 
-        Labels: demo
-
+        Labels: demo,integration,functional
         Jira: None
 
         History:

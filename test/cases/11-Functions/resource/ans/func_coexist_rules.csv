@@ -1,0 +1,119 @@
+
+taos> use ts_4893
+Database changed.
+
+taos> select abs(voltage), max(voltage) from fc_d
+ abs(voltage) | max(voltage) |
+==============================
+          230 |          230 |
+
+taos> select abs(voltage), min(voltage) from fc_d
+ abs(voltage) | min(voltage) |
+==============================
+          210 |          210 |
+
+taos> select abs(current), first(voltage) from fc_d
+     abs(current)     | first(voltage) |
+========================================
+                   10 |            220 |
+
+taos> select abs(current), last(voltage) from fc_d
+     abs(current)     | last(voltage) |
+=======================================
+                   11 |           230 |
+
+taos> select voltage+1, lag(voltage, 1, 0), csum(current) from fc_d
+         voltage+1         | lag(voltage, 1, 0) |       csum(current)       |
+=============================================================================
+                       221 |                  0 |                        10 |
+                       216 |                220 |                        18 |
+                       226 |                215 |                        30 |
+                       211 |                225 |                        39 |
+                       231 |                210 |                        50 |
+
+taos> select diff(voltage, 0) from fc_d
+   diff(voltage, 0)    |
+========================
+                    -5 |
+                    10 |
+                   -15 |
+                    20 |
+
+taos> select diff(voltage, 1) from fc_d
+   diff(voltage, 1)    |
+========================
+ NULL                  |
+                    10 |
+ NULL                  |
+                    20 |
+
+taos> select abs(voltage), top(voltage, 3) from fc_d
+ abs(voltage) | top(voltage, 3) |
+=================================
+          220 |             220 |
+          230 |             230 |
+          225 |             225 |
+
+taos> select abs(voltage), bottom(current, 3) from fc_d
+ abs(voltage) |  bottom(current, 3)  |
+======================================
+          220 |                   10 |
+          215 |                    8 |
+          210 |                    9 |
+
+taos> select abs(voltage), top(voltage, 5) from fc_d
+ abs(voltage) | top(voltage, 5) |
+=================================
+          210 |             210 |
+          215 |             215 |
+          225 |             225 |
+          220 |             220 |
+          230 |             230 |
+
+taos> select abs(voltage)+1, tail(voltage, 2) from fc_d
+      abs(voltage)+1       | tail(voltage, 2) |
+===============================================
+                       231 |              230 |
+                       211 |              210 |
+
+taos> SELECT abs(voltage), abs(id) FROM ts_4893.fc_d
+ abs(voltage) |   abs(id)   |
+=============================
+          220 |           0 |
+          215 |           1 |
+          225 |           2 |
+          210 |           3 |
+          230 |           4 |
+
+taos> SELECT diff(voltage, 2), diff(current) FROM ts_4893.fc_d
+   diff(voltage, 2)    |       diff(current)       |
+====================================================
+                    -5 |                        -2 |
+                    10 |                         4 |
+                   -15 |                        -3 |
+                    20 |                         2 |
+
+taos> SELECT diff(voltage, 0), diff(current, 1) FROM ts_4893.fc_d
+   diff(voltage, 0)    |     diff(current, 1)      |
+====================================================
+                    -5 | NULL                      |
+                    10 |                         4 |
+                   -15 | NULL                      |
+                    20 |                         2 |
+
+taos> SELECT top(abs(voltage), 3) FROM ts_4893.fc_d
+ top(abs(voltage), 3) |
+=======================
+                  220 |
+                  230 |
+                  225 |
+
+taos> SELECT abs(voltage), csum(current) FROM ts_4893.fc_d
+ abs(voltage) |       csum(current)       |
+===========================================
+          220 |                        10 |
+          215 |                        18 |
+          225 |                        30 |
+          210 |                        39 |
+          230 |                        50 |
+

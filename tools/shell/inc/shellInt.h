@@ -134,8 +134,10 @@ int32_t shellCountPrefixOnes(uint8_t c);
 int32_t shellExecute(int argc, char *argv[]);
 int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision);
 void    shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields);
-void    shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t length, int32_t precision);
-void    shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision); 
+void    shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t length, int32_t precision,
+                        timezone_t tz);
+void    shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision,
+                            timezone_t tz);
 
 // shellUtil.c
 int32_t shellCheckIntSize();
@@ -149,11 +151,15 @@ int32_t getDsnEnv();
 void    shellExit();
 void trimStr(char *srcInfo, char *removeStr);
 
+// shellSubscribe.c
+int32_t shellSubscribe(char *command);
+
 // shellNettest.c
 void shellTestNetWork();
 
 // shellMain.c
 extern SShellObj shell;
 extern char configDirShell[PATH_MAX];
+extern bool shellCmdkilled;
 
 #endif /*_TD_SHELL_INT_H_*/

@@ -74,6 +74,13 @@ TARGET_LINK_LIBRARIES(
         os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
 )
 
+ADD_EXECUTABLE(stmt2TestColumn stmt2TestColumn.cpp)
+DEP_ext_gtest(stmt2TestColumn)
+TARGET_LINK_LIBRARIES(
+        stmt2TestColumn PRIVATE
+        os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
+)
+
 ADD_EXECUTABLE(clientBITest clientBITests.cpp)
 DEP_ext_gtest(clientBITest)
 TARGET_LINK_LIBRARIES(
@@ -87,6 +94,19 @@ TARGET_LINK_LIBRARIES(
          sessionTest PRIVATE
         os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
 )
+
+ADD_EXECUTABLE(txnStateTest txnStateTest.cpp)
+DEP_ext_gtest(txnStateTest)
+TARGET_LINK_LIBRARIES(
+        txnStateTest PRIVATE
+        os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
+)
+IF(TD_LINUX)
+SET_TARGET_PROPERTIES(
+        txnStateTest PROPERTIES
+        LINK_FLAGS "-Wl,--wrap=acquireTscObj -Wl,--wrap=releaseTscObj -Wl,--wrap=rpcSendRecv -Wl,--wrap=rpcFreeCont -Wl,--wrap=taosArrayInit -Wl,--wrap=tSimpleHashInit"
+)
+ENDIF()
 
 TARGET_INCLUDE_DIRECTORIES(
         clientTest
@@ -168,6 +188,13 @@ TARGET_INCLUDE_DIRECTORIES(
 )
 
 TARGET_INCLUDE_DIRECTORIES(
+        stmt2TestColumn
+        PUBLIC "${TD_SOURCE_DIR}/include/client/"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/geometry"
+        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+)
+
+TARGET_INCLUDE_DIRECTORIES(
         instanceTest
         PUBLIC "${TD_SOURCE_DIR}/include/client/"
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
@@ -175,6 +202,12 @@ TARGET_INCLUDE_DIRECTORIES(
 
 TARGET_INCLUDE_DIRECTORIES(
         sessionTest
+        PUBLIC "${TD_SOURCE_DIR}/include/client/"
+        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        txnStateTest
         PUBLIC "${TD_SOURCE_DIR}/include/client/"
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
@@ -199,3 +232,15 @@ add_test(
         COMMAND sessionTest
 
     )
+
+add_test(
+                NAME txnStateTest
+                COMMAND txnStateTest
+
+        )
+if(TD_WINDOWS)
+    set_tests_properties(sessionTest PROPERTIES
+        RUN_SERIAL TRUE
+        TIMEOUT 900
+    )
+endif()

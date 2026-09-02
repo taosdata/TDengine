@@ -10,6 +10,7 @@
     "MD029": false, // ol-prefix 列表前缀可以任意设置
     "MD025": false, // single-title 同一文档只能有一个一级标题
     "MD033": false, // no-inline-html 禁止行内HTML
+    "MD036": false, // no-emphasis-as-heading 允许独占一行的加粗提示语（如 **说明** / **示例** / **备注**）
     "MD060": false, // ul-style 列表前缀不强制使用统一样式
     "MD041": false, // first-line-heading 禁止第一行必须是标题
     "MD046": {"style": "fenced"}, // code-fence-style 代码块使用围栏样式

@@ -31,7 +31,7 @@ class TestDeleteCheck:
         # init cluster path
         cls.selfPath = os.path.dirname(os.path.realpath(__file__))
         projPath = find_proj_path(cls.selfPath)
-        cls.projDir = f"{projPath}sim/"
+        cls.projDir = os.path.join(projPath, "sim") + os.sep
         tdLog.info(f" init projPath={cls.projDir}")
 
     def compactDatbase(self):
@@ -124,8 +124,7 @@ class TestDeleteCheck:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

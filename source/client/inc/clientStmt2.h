@@ -86,6 +86,18 @@ STableDataCxt *pCurrBlock;
 SSubmitTbData *pCurrTbData;
 } SStmtExecInfo;
 */
+typedef struct SStmt2LiteralCtx {
+  tsem_t   sem;
+
+  int32_t  code;
+
+  uint8_t  sem_valid:1;       // sem valid or not
+  uint8_t  prepared:1;        // literal statement prepared by stmt2 or not
+  uint8_t  executing:1;       // literal statement executing by stmt2 or not
+  uint8_t  executed:1;        // literal statement executed by stmt2 or not
+  uint8_t  has_result_set:1;  // literal statement generates result set or not
+} SStmt2LiteralCtx;
+
 typedef struct {
   bool              stbInterlaceMode;
   STMT_TYPE         type;
@@ -107,6 +119,12 @@ typedef struct {
   int32_t           placeholderOfTags;
   int32_t           placeholderOfCols;
   SStbInterlaceInfo siInfo;
+  // Field cache for columnar binding (initialized lazily by column bind)
+  int               cachedFieldNum;
+  TAOS_FIELD_ALL   *cachedFields;
+  bool              cachedIsInsert;
+  bool              cachedHasTbnameColumn;
+  int               cachedTbnameColIdx;
 } SStmtSQLInfo2;
 /*
 typedef struct SStmtStatInfo {
@@ -139,10 +157,14 @@ uint64_t    qRemainNum;
 */
 typedef struct {
   TAOS_STMT2       *stmt;
-  TAOS_STMT2_BINDV *bindv;
   int32_t           col_idx;
   __taos_async_fn_t fp;
   void             *param;
+  bool              is_columnar;  // true for columnar binding, false for row binding
+  union {
+    TAOS_STMT2_BINDV         *bindv;         // row binding (when is_columnar=false)
+    TAOS_STMT2_COLUMN_BINDV *column_bindv;   // columnar binding (when is_columnar=true)
+  };
 } ThreadArgs;
 
 typedef struct AsyncBindParam {
@@ -176,6 +198,11 @@ typedef struct {
   bool           asyncResultAvailable;
   SStmtStatInfo  stat;
   SArray*        pVgDataBlocksForRetry;  // SArray<SVgDataBlocks*> saved serialized data for NEED_CLIENT_HANDLE_ERROR retry
+  SHashObj*      pRetryTagHash;  // table name -> deep-copied tag binds used only by TABLE_NOT_EXIST retry
+
+  char                      msgBuf[128];
+  SStmt2LiteralCtx          ctx;
+  uint8_t                   literal:1;
 } STscStmt2;
 /*
 extern char *gStmtStatusStr[];
@@ -256,11 +283,15 @@ TAOS_STMT2 *stmtInit2(STscObj *taos, TAOS_STMT2_OPTION *pOptions);
 int         stmtClose2(TAOS_STMT2 *stmt);
 int         stmtExec2(TAOS_STMT2 *stmt, int *affected_rows);
 int         stmtPrepare2(TAOS_STMT2 *stmt, const char *sql, unsigned long length);
+int         stmtBindLiteral2(TAOS_STMT2 *stmt);
 int         stmtSetTbName2(TAOS_STMT2 *stmt, const char *tbName);
 int         stmtSetTbTags2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *tags, SVCreateTbReq **pCreateTbReq);
 int         stmtCheckTags2(TAOS_STMT2 *stmt, SVCreateTbReq **pCreateTbReq);
+bool        stmt2TableExistsInCache(TAOS_STMT2 *stmt);
+int         stmt2CacheRetryTags(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *tags, bool fixedTags);
 int         stmtBindBatch2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *bind, int32_t colIdx, SVCreateTbReq *pCreateTbReq);
 int         stmtGetStbColFields2(TAOS_STMT2 *stmt, int *nums, TAOS_FIELD_ALL **fields);
+int         stmtEnsureColumnFieldCache2(TAOS_STMT2 *stmt);
 int         stmtGetParamNum2(TAOS_STMT2 *stmt, int *nums);
 bool        stmt2IsInsert(TAOS_STMT2 *stmt);
 bool        stmt2IsSelect(TAOS_STMT2 *stmt);
@@ -270,6 +301,9 @@ int         stmt2AsyncBind(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t co
 int         stmtAsyncBindThreadFunc(void *args);
 void        stmtBuildErrorMsg(STscStmt2 *pStmt, const char *msg);
 int32_t     stmtBuildErrorMsgWithCode(STscStmt2 *pStmt, const char *msg, int32_t errorCode);
+
+
+int         stmtIsLiteral(TAOS_STMT2 *stmt);
 
 #ifdef __cplusplus
 }

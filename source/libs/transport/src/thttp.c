@@ -252,6 +252,7 @@ static FORCE_INLINE int32_t taosBuildDstAddr(const char* server, uint16_t port, 
 static void* httpThread(void* arg) {
   SHttpModule* http = (SHttpModule*)arg;
   setThreadName("http-cli-send-thread");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   TAOS_UNUSED(uv_run(http->loop, UV_RUN_DEFAULT));
   return NULL;
 }
@@ -374,6 +375,7 @@ static void httpAsyncCb(uv_async_t* handle) {
 
   static int32_t BATCH_SIZE = 20;
   int32_t        count = 0;
+  bool           hasPending = false;
 
   if ((taosThreadMutexLock(&item->mtx)) != 0) {
     tError("http-report failed to lock mutex");
@@ -385,8 +387,15 @@ static void httpAsyncCb(uv_async_t* handle) {
     QUEUE_REMOVE(h);
     QUEUE_PUSH(&wq, h);
   }
+  hasPending = !QUEUE_IS_EMPTY(&item->qmsg);
   if (taosThreadMutexUnlock(&item->mtx) != 0) {
     tError("http-report failed to unlock mutex");
+  }
+  if (hasPending) {
+    int ret = uv_async_send(handle);
+    if (ret != 0) {
+      tError("http-report failed to continue async batch since %s", uv_err_name(ret));
+    }
   }
 
   httpTrace(&wq);
@@ -792,7 +801,7 @@ _ERROR:
 
   if (code != 0) {
     tError("http-report failed to report reason:%s, chanId:%" PRId64 ", seq:%" PRId64, tstrerror(code), chanId,
-           msg->seq);
+           msg == NULL ? 0 : msg->seq);
   }
   httpDestroyMsg(msg);
   if (load != NULL) taosReleaseRef(httpRefMgt, chanId);
@@ -830,7 +839,7 @@ _ERROR:
 
   if (code != 0) {
     tError("http-report failed to report reason:%s, chanId:%" PRId64 ", seq:%" PRId64, tstrerror(code), chanId,
-           msg->seq);
+           msg == NULL ? 0 : msg->seq);
   }
   httpDestroyMsg(msg);
   if (load != NULL) taosReleaseRef(httpRefMgt, chanId);

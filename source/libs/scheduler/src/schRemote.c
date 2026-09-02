@@ -55,6 +55,8 @@ int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
     case TDMT_VND_SUBMIT_RSP:
     case TDMT_VND_DELETE_RSP:
     case TDMT_VND_COMMIT_RSP:
+    case TDMT_VND_TXN_COMMIT_RSP:
+    case TDMT_VND_TXN_ROLLBACK_RSP:
       break;
     default:
       SCH_TASK_ELOG("unknown rsp msg, type:%s, status:%s", TMSG_INFO(msgType), jobTaskStatusStr(taskStatus));
@@ -156,6 +158,12 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
       SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
       break;
     }
+    case TDMT_VND_TXN_COMMIT_RSP:
+    case TDMT_VND_TXN_ROLLBACK_RSP: {
+      SCH_ERR_JRET(rspCode);
+      SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
+      break;
+    }
     case TDMT_VND_CREATE_TABLE_RSP: {
       SVCreateTbBatchRsp batchRsp = {0};
       if (pMsg->pData) {
@@ -250,8 +258,16 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
         }
         SCH_ERR_JRET(rsp.code);
 
-        pJob->execRes.res = rsp.pMeta;
-        pJob->execRes.msgType = TDMT_VND_ALTER_TABLE;
+        if (rsp.pMeta) {
+          SCH_LOCK(SCH_WRITE, &pJob->resLock);
+          if (pJob->execRes.res) {
+            tFreeSTableMetaRsp(pJob->execRes.res);
+            taosMemoryFree(pJob->execRes.res);
+          }
+          pJob->execRes.res = rsp.pMeta;
+          pJob->execRes.msgType = TDMT_VND_ALTER_TABLE;
+          SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
+        }
       }
 
       SCH_ERR_JRET(rspCode);
@@ -728,6 +744,8 @@ int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp) {
     case TDMT_SCH_EXPLAIN:
     case TDMT_SCH_FETCH:
     case TDMT_SCH_MERGE_FETCH:
+    case TDMT_VND_TXN_COMMIT:
+    case TDMT_VND_TXN_ROLLBACK:
       *fp = schHandleCallback;
       break;
     case TDMT_SCH_DROP_TASK:
@@ -1220,7 +1238,9 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     case TDMT_VND_DROP_TABLE:
     case TDMT_VND_ALTER_TABLE:
     case TDMT_VND_SUBMIT:
-    case TDMT_VND_COMMIT: {
+    case TDMT_VND_COMMIT:
+    case TDMT_VND_TXN_COMMIT:
+    case TDMT_VND_TXN_ROLLBACK: {
       msgSize = pTask->msgLen;
       msg = pTask->msg;
       pTask->msg = NULL;
@@ -1286,6 +1306,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       qMsg.sql = pJob->sql;
       qMsg.msgLen = pTask->msgLen;
       qMsg.msg = pTask->msg;
+      qMsg.txnId = pJob->txnId;
 
       if (strcmp(tsLocalFqdn, GET_ACTIVE_EP(&addr->epSet)->fqdn) == 0) {
         qMsg.compress = 0;
@@ -1294,6 +1315,8 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       }
 
       SCH_ERR_JRET(schBuildSubJobEndpoints(pTask, &qMsg.subEndPoints, pJob));
+
+      qMsg.firstDayOfWeek = pJob->firstDayOfWeek;
 
       msgSize = tSerializeSSubQueryMsg(NULL, 0, &qMsg);
       if (msgSize < 0) {

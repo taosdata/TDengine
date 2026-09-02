@@ -105,7 +105,7 @@ class TestFunIrate:
         sql += " (now()+15s, 9, -99999, -999, -99, -9.99, NULL, 1, 'binary9', 'nchar9', now()+9a )"
         sql += " (now()+20s, 9, -99999, -999, NULL, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )"
 
-        sql += f" {dbname}.ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) "
+        sql += f" {dbname}.ct4 values (now()-811d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) "
         sql += " (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) "
         sql += " (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) "
 
@@ -239,8 +239,7 @@ class TestFunIrate:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -275,4 +274,3 @@ class TestFunIrate:
         self.insert_datas_and_check_irate(self.tb_nums,self.row_nums,self.time_step)
 
         #tdSql.close()
-

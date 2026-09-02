@@ -30,6 +30,8 @@ typedef enum {
   TRANS_FUNC_RECOVER_STREAM_STEP_NEXT = 5,
   TRANS_STOP_FUNC_SOD = 6,
   TRANS_STOP_FUNC_SOD_ROLE_CHECK = 7,
+  TRANS_STOP_FUNC_STREAM_RECALC = 8,
+  TRANS_STOP_FUNC_STREAM_LIFECYCLE = 9,
 } ETrnFunc;
 
 typedef enum {
@@ -88,6 +90,7 @@ void    mndTransSetUserData(STrans *pTrans, void* data, int32_t dataLen);
 void    mndTransAddArbGroupId(STrans *pTrans, int32_t groupId);
 void    mndTransSetSerial(STrans *pTrans);
 void    mndTransSetGroupParallel(STrans *pTrans);
+void    mndTransSetGroupParallelNum(STrans *pTrans, int32_t parallelNum);
 void    mndTransSetBeKilled(STrans *pTrans, bool ableToBeKilled);
 void    mndTransSetKillMode(STrans *pTrans, ETrnKillMode killMode);
 void    mndTransSetParallel(STrans *pTrans);

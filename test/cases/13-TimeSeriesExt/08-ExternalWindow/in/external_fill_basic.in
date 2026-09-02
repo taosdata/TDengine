@@ -1,0 +1,22 @@
+use test_ext_fill;
+
+select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_fill_src_1 external_window((select ts, endtime, mark from ext_fill_win) w) fill(none) order by ws;
+select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_fill_src_1 external_window((select ts, endtime, mark from ext_fill_win) w) fill(null) order by ws;
+select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_fill_src_empty external_window((select ts, endtime, mark from ext_fill_win) w) fill(null_f) order by ws;
+select cast(_wstart as bigint) as ws, sum(v) as sv from ext_fill_src_1 external_window((select ts, endtime, mark from ext_fill_win) w) fill(value, 999) order by ws;
+select cast(_wstart as bigint) as ws, sum(v) as sv from ext_fill_src_empty external_window((select ts, endtime, mark from ext_fill_win) w) fill(value_f, 999) order by ws;
+select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_fill_src_1 external_window((select ts, endtime, mark from ext_fill_win) w) fill(value, 888, 999) order by ws;
+select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_fill_src_1 external_window((select ts, endtime, mark from ext_fill_win) w) fill(value, 0, 0) order by ws;
+select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_fill_src_empty external_window((select ts, endtime, mark from ext_fill_win) w) fill(value_f, 888, 999) order by ws;
+select cast(_wstart as bigint) as ws, sum(v) as sv from ext_fill_src_1 external_window((select ts, endtime, mark from ext_fill_win) w) fill(prev) order by ws;
+select cast(_wstart as bigint) as ws, sum(v) as sv from ext_fill_src_1 external_window((select ts, endtime, mark from ext_fill_win) w) fill(next) order by ws;
+select cast(_wstart as bigint) as ws, sum(v) as sv from ext_fill_src_empty external_window((select ts, endtime, mark from ext_fill_win) w) fill(prev) order by ws;
+select cast(_wstart as bigint) as ws, sum(v) as sv from ext_fill_src_empty external_window((select ts, endtime, mark from ext_fill_win) w) fill(next) order by ws;
+select t1, cast(_wstart as bigint) as ws, sum(v) as sv from ext_fill_src partition by t1 external_window((select ts, endtime, mark from ext_fill_win) w) fill(prev) order by t1, ws;
+select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv from ext_fill_src_1 external_window((select ts, endtime, mark from ext_fill_win) w) fill(null) order by ws;
+select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv from ext_fill_src_1 external_window((select ts, endtime, mark from ext_fill_win) w) fill(value, 999) order by ws;
+select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv from ext_fill_src_1 external_window((select ts, endtime, mark from ext_fill_win) w) fill(prev) order by ws;
+select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv from ext_fill_src_1 external_window((select ts, endtime, mark from ext_fill_win) w) fill(none) order by ws;
+select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv from ext_fill_src_empty external_window((select ts, endtime, mark from ext_fill_win) w) fill(null_f) order by ws;
+select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv from ext_fill_src_empty external_window((select ts, endtime, mark from ext_fill_win) w) fill(value_f, 999) order by ws;
+select t1, cast(_wstart as bigint) as ws, w.mark, sum(v) as sv from ext_fill_src partition by t1 external_window((select ts, endtime, mark from ext_fill_win) w) fill(prev) order by t1, ws;

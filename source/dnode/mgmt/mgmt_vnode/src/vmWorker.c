@@ -17,6 +17,13 @@
 #include "vmInt.h"
 #include "vnodeInt.h"
 
+extern int32_t vmProcessDnodeQuerySnapSendProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+
+static void vmFreeRpcQitem(void *pItem) {
+  SRpcMsg *pMsg = (SRpcMsg *)pItem;
+  rpcFreeCont(pMsg->pCont);
+}
+
 static inline void vmSendRsp(SRpcMsg *pMsg, int32_t code) {
   if (pMsg->info.handle == NULL) return;
   SRpcMsg rsp = {
@@ -92,11 +99,23 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_CHECK_VNODE_LEARNER_CATCHUP:
       code = vmProcessCheckLearnCatchupReq(pMgmt, pMsg);
       break;
+    case TDMT_DND_QUERY_SNAP_SEND_PROGRESS:
+      code = vmProcessDnodeQuerySnapSendProgressReq(pMgmt, pMsg);
+      break;
     case TDMT_VND_ARB_HEARTBEAT:
       code = vmProcessArbHeartBeatReq(pMgmt, pMsg);
       break;
     case TDMT_VND_ALTER_ELECTBASELINE:
       code = vmProcessAlterVnodeElectBaselineReq(pMgmt, pMsg);
+      break;
+    case TDMT_DND_QUERY_COMPACT_PROGRESS:
+      code = vmProcessDnodeQueryCompactProgressReq(pMgmt, pMsg);
+      break;
+    case TDMT_DND_CLOSE_VNODE:
+      code = vmProcessCloseVnodeReq(pMgmt, pMsg);
+      break;
+    case TDMT_DND_OPEN_VNODE:
+      code = vmProcessOpenVnodeReq(pMgmt, pMsg);
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
@@ -420,25 +439,44 @@ int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
 
 int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   int32_t         code = 0;
-  SMultiWorkerCfg wcfg = {.max = 1, .name = "vnode-write", .fp = (FItems)vnodeProposeWriteMsg, .param = pVnode->pImpl};
-  SMultiWorkerCfg scfg = {.max = 1, .name = "vnode-sync", .fp = (FItems)vmProcessSyncQueue, .param = pVnode};
-  SMultiWorkerCfg sccfg = {.max = 1, .name = "vnode-sync-rd", .fp = (FItems)vmProcessSyncQueue, .param = pVnode};
-  SMultiWorkerCfg acfg = {.max = 1, .name = "vnode-apply", .fp = (FItems)vnodeApplyWriteMsg, .param = pVnode->pImpl};
+  SMultiWorkerCfg wcfg = {.max = 1,
+                          .name = "vnode-write",
+                          .fp = (FItems)vnodeProposeWriteMsg,
+                          .param = pVnode->pImpl,
+                          .threadCategory = THREAD_CAT_WRITE};
+  SMultiWorkerCfg scfg = {.max = 1,
+                          .name = "vnode-sync",
+                          .fp = (FItems)vmProcessSyncQueue,
+                          .param = pVnode,
+                          .threadCategory = THREAD_CAT_WRITE};
+  SMultiWorkerCfg sccfg = {.max = 1,
+                           .name = "vnode-sync-rd",
+                           .fp = (FItems)vmProcessSyncQueue,
+                           .param = pVnode,
+                           .threadCategory = THREAD_CAT_WRITE};
+  SMultiWorkerCfg acfg = {.max = 1,
+                          .name = "vnode-apply",
+                          .fp = (FItems)vnodeApplyWriteMsg,
+                          .param = pVnode->pImpl,
+                          .threadCategory = THREAD_CAT_WRITE};
   code = tMultiWorkerInit(&pVnode->pWriteW, &wcfg);
   if (code) {
     return code;
   }
+  taosQueueSetFreeFp(pVnode->pWriteW.queue, vmFreeRpcQitem);
   code = tMultiWorkerInit(&pVnode->pSyncW, &scfg);
   if (code) {
     tMultiWorkerCleanup(&pVnode->pWriteW);
     return code;
   }
+  taosQueueSetFreeFp(pVnode->pSyncW.queue, vmFreeRpcQitem);
   code = tMultiWorkerInit(&pVnode->pSyncRdW, &sccfg);
   if (code) {
     tMultiWorkerCleanup(&pVnode->pWriteW);
     tMultiWorkerCleanup(&pVnode->pSyncW);
     return code;
   }
+  taosQueueSetFreeFp(pVnode->pSyncRdW.queue, vmFreeRpcQitem);
   code = tMultiWorkerInit(&pVnode->pApplyW, &acfg);
   if (code) {
     tMultiWorkerCleanup(&pVnode->pWriteW);
@@ -446,10 +484,14 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
     tMultiWorkerCleanup(&pVnode->pSyncRdW);
     return code;
   }
+  taosQueueSetFreeFp(pVnode->pApplyW.queue, vmFreeRpcQitem);
 
   pVnode->pQueryQ = tQueryAutoQWorkerAllocQueue(&pMgmt->queryPool, pVnode, (FItem)vmProcessQueryQueue);
+  taosQueueSetFreeFp(pVnode->pQueryQ, vmFreeRpcQitem);
   pVnode->pStreamReaderQ = tQueryAutoQWorkerAllocQueue(&pMgmt->streamReaderPool, pVnode, (FItem)vmProcessStreamReaderQueue);
+  taosQueueSetFreeFp(pVnode->pStreamReaderQ, vmFreeRpcQitem);
   pVnode->pFetchQ = tWWorkerAllocQueue(&pMgmt->fetchPool, pVnode, (FItems)vmProcessFetchQueue);
+  taosQueueSetFreeFp(pVnode->pFetchQ, vmFreeRpcQitem);
 
   if (pVnode->pWriteW.queue == NULL || pVnode->pSyncW.queue == NULL || pVnode->pSyncRdW.queue == NULL ||
       pVnode->pApplyW.queue == NULL || pVnode->pQueryQ == NULL || pVnode->pFetchQ == NULL || !pVnode->pStreamReaderQ) {
@@ -489,12 +531,14 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
   pQPool->name = "vnode-query";
   pQPool->min = tsNumOfVnodeQueryThreads;
   pQPool->max = tsNumOfVnodeQueryThreads;
+  pQPool->threadCategory = THREAD_CAT_READ;
   if ((code = tQueryAutoQWorkerInit(pQPool)) != 0) return code;
 
   SQueryAutoQWorkerPool *pSPool = &pMgmt->streamReaderPool;
   pSPool->name = "vnode-st-reader";
   pSPool->min = tsNumOfVnodeStreamReaderThreads;
   pSPool->max = tsNumOfVnodeStreamReaderThreads;
+  pSPool->threadCategory = THREAD_CAT_READ;
   if ((code = tQueryAutoQWorkerInit(pSPool)) != 0) return code;
 
   tsNumOfQueryThreads += tsNumOfVnodeQueryThreads;
@@ -502,10 +546,15 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
   SWWorkerPool *pFPool = &pMgmt->fetchPool;
   pFPool->name = "vnode-fetch";
   pFPool->max = tsNumOfVnodeFetchThreads;
+  pFPool->threadCategory = THREAD_CAT_READ;
   if ((code = tWWorkerInit(pFPool)) != 0) return code;
 
-  SSingleWorkerCfg mgmtCfg = {
-      .min = 1, .max = 1, .name = "vnode-mgmt", .fp = (FItem)vmProcessMgmtQueue, .param = pMgmt};
+  SSingleWorkerCfg mgmtCfg = {.min = 1,
+                              .max = 1,
+                              .name = "vnode-mgmt",
+                              .fp = (FItem)vmProcessMgmtQueue,
+                              .param = pMgmt,
+                              .threadCategory = THREAD_CAT_WRITE};
 
   if ((code = tSingleWorkerInit(&pMgmt->mgmtWorker, &mgmtCfg)) != 0) return code;
 
@@ -519,7 +568,8 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
                                    .max = threadNum,
                                    .name = "vnode-multi-mgmt",
                                    .fp = (FItem)vmProcessMultiMgmtQueue,
-                                   .param = pMgmt};
+                                   .param = pMgmt,
+                                   .threadCategory = THREAD_CAT_WRITE};
 
   if ((code = tSingleWorkerInit(&pMgmt->mgmtMultiWorker, &multiMgmtCfg)) != 0) return code;
   dDebug("vnode workers are initialized");

@@ -31,6 +31,7 @@
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "tbase64.h"
+#include "tpriv.h"
 
 // clang-format on
 
@@ -41,6 +42,7 @@ static SRoleMgmt roleMgmt = {0};
 
 static int32_t  mndCreateDefaultRoles(SMnode *pMnode);
 static int32_t  mndUpgradeDefaultRoles(SMnode *pMnode, int32_t version);
+static bool     mndIsUpgradedBuiltinRoles(SMnode *pMnode);
 static SSdbRow *mndRoleActionDecode(SSdbRaw *pRaw);
 static int32_t  mndRoleActionInsert(SSdb *pSdb, SRoleObj *pRole);
 static int32_t  mndRoleActionDelete(SSdb *pSdb, SRoleObj *pRole);
@@ -74,6 +76,7 @@ int32_t mndInitRole(SMnode *pMnode) {
       .insertFp = (SdbInsertFp)mndRoleActionInsert,
       .updateFp = (SdbUpdateFp)mndRoleActionUpdate,
       .deleteFp = (SdbDeleteFp)mndRoleActionDelete,
+      .isUpgradedFp = (SdbIsUpgradedFp)mndIsUpgradedBuiltinRoles,
   };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ROLE, mndProcessCreateRoleReq);
@@ -93,6 +96,22 @@ int32_t mndInitRole(SMnode *pMnode) {
 
 void mndCleanupRole(SMnode *pMnode) { (void)taosThreadRwlockDestroy(&roleMgmt.rw); }
 
+static bool mndIsUpgradedBuiltinRoles(SMnode *pMnode) {
+  for (int32_t i = 0; i < tListLen(__builtinRoles); ++i) {
+    SRoleObj *pRole = NULL;
+    if (mndAcquireRole(pMnode, __builtinRoles[i], &pRole) == 0) {
+      if (pRole->version < MND_ROLE_SYSROLE_VER) {
+        mndReleaseRole(pMnode, pRole);
+        return false;
+      }
+      mndReleaseRole(pMnode, pRole);
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
 int64_t mndGetRoleLastUpd() {
   int64_t lastUpd;
   (void)taosThreadRwlockRdlock(&roleMgmt.rw);
@@ -109,7 +128,10 @@ void mndSetRoleLastUpd(int64_t updateTime) {
 
 bool mndNeedRetrieveRole(SUserObj *pUser) {
   bool result = false;
-  if (taosHashGetSize(pUser->roles) > 0) {
+  taosRLockLatch(&pUser->lock);
+  int32_t roleNum = taosHashGetSize(pUser->roles);
+  taosRUnLockLatch(&pUser->lock);
+  if (roleNum > 0) {
     (void)taosThreadRwlockRdlock(&roleMgmt.rw);
     if (pUser->lastRoleRetrieve <= roleMgmt.lastUpd) result = true;
     (void)taosThreadRwlockUnlock(&roleMgmt.rw);
