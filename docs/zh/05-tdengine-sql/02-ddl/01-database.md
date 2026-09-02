@@ -263,6 +263,8 @@ database_option: {
 - 不加时间单位时默认单位为天，默认值为 `[0, 0]`。
 - 取默认值 `[0, 0]` 时，如果 `COMPACT_INTERVAL` 大于 0，会按照 `[-keep2, -duration]` 下发自动 `compact`。
 - 要关闭自动 `compact` 功能，需要将 `COMPACT_INTERVAL` 设置为 `0`。
+- 例如，`-300,-200` 表示每次触发自动 `compact` 时，整理距今 300 天到 200 天之间的数据。
+- 这些值必须为负数，表示待 `compact` 的时间范围位于过去。如果数据库的 `DURATION` 仍为默认值 `10d`，则 `-300,-5` 会报错，因为第二个值（距今 5 天）比 `-DURATION`（距今 10 天）更靠近当前时间。
 
 #### COMPACT_TIME_OFFSET
 
@@ -288,11 +290,11 @@ database_option: {
 
 #### ENCRYPT_ALGORITHM
 
-指定数据库加密算法。该选项与数据安全能力相关，详见 [数据安全](../../11-security-guide/03-data-security.md)。
+指定数据库加密算法。该选项与数据安全能力相关，详见 [数据安全](../../11-security-guide/06-data-security.md)。
 
 #### IS_AUDIT
 
-指定是否创建审计库。审计库有额外的参数约束，详见 [审计与合规](../../11-security-guide/05-audit-and-compliance.md)。
+指定是否创建审计库。审计库有额外的参数约束，详见 [审计与合规](../../11-security-guide/07-audit-and-compliance.md)。
 
 #### ALLOW_DROP
 
@@ -305,7 +307,7 @@ database_option: {
 - `0`：删除操作写入删除标记；磁盘上的数据块不会被立即物理覆写。
 - `1`：在写入删除标记之外，对落盘 DATA / STT 文件中对应区间的数据块做物理覆写（secure erase），降低通过文件系统直接读取已删数据的风险。
 
-可通过 `CREATE DATABASE` / `ALTER DATABASE` 设置；单次 `DELETE` 也可在语句末尾加 `SECURE_DELETE` 关键字。行为、局限与示例见 [数据安全 · 安全删除](../../11-security-guide/03-data-security.md#安全删除)。
+可通过 `CREATE DATABASE` / `ALTER DATABASE` 设置；单次 `DELETE` 也可在语句末尾加 `SECURE_DELETE` 关键字。行为、局限与示例见 [数据安全 · 安全删除](../../11-security-guide/06-data-security.md#安全删除)。
 
 #### SECURITY_LEVEL
 
@@ -357,6 +359,7 @@ alter_database_option: {
   | WAL_RETENTION_PERIOD value
   | WAL_RETENTION_SIZE value
   | MINROWS value
+  | MAXROWS value
   | COMPACT_INTERVAL value
   | COMPACT_TIME_RANGE value
   | COMPACT_TIME_OFFSET value
@@ -498,6 +501,14 @@ REDISTRIBUTE VGROUP vgroup_no DNODE dnode_id1 [DNODE dnode_id2] [DNODE dnode_id3
 ```
 
 按照给定的 `dnode` 列表，调整 `vgroup` 中的 `vnode` 分布。因为副本数目最大为 3，所以最多输入 3 个 `dnode`。
+
+### 自动调整 VGROUP 中 VNODE 的分布
+
+```sql
+BALANCE VGROUP;
+```
+
+自动调整集群中所有 `vgroup` 的 `vnode` 分布，相当于在 `vnode` 层面对整个集群执行数据负载均衡。
 
 ### 自动调整 VGROUP 中 LEADER 的分布
 

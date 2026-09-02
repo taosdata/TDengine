@@ -16,6 +16,7 @@ import os
 import string
 import random
 import subprocess
+import time
 
 
 class TestTaosBackupBasic:
@@ -82,8 +83,11 @@ class TestTaosBackupBasic:
         tdSql.execute("use db")
         # All data types including NCHAR are tested here.
         # NCHAR columns are used in both data (via STMT2) and tags.
+        # The primary key timestamp column is deliberately named "myts" (not
+        # "ts") to catch any code path that hardcodes the column name instead
+        # of using the _c0 pseudo-column.
         tdSql.execute(
-            "create table st(ts timestamp, c1 INT, c2 BOOL, c3 TINYINT, c4 SMALLINT, c5 BIGINT, "
+            "create table st(myts timestamp, c1 INT, c2 BOOL, c3 TINYINT, c4 SMALLINT, c5 BIGINT, "
             "c6 FLOAT, c7 DOUBLE, c8 TIMESTAMP, c9 BINARY(10), c10 NCHAR(10), "
             "c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED) "
             "tags(n1 INT, w2 BOOL, t3 TINYINT, t4 SMALLINT, t5 BIGINT, t6 FLOAT, t7 DOUBLE, "
@@ -103,7 +107,7 @@ class TestTaosBackupBasic:
             "insert into t2 values(1640000000000, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)"
         )
         tdSql.execute(
-            "create table db.nt1 (ts timestamp, c1 INT, c2 BOOL, c3 TINYINT, c4 SMALLINT, c5 BIGINT, "
+            "create table db.nt1 (myts timestamp, c1 INT, c2 BOOL, c3 TINYINT, c4 SMALLINT, c5 BIGINT, "
             "c6 FLOAT, c7 DOUBLE, c8 TIMESTAMP, c9 BINARY(10), c10 NCHAR(10), "
             "c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED)"
         )
@@ -122,11 +126,11 @@ class TestTaosBackupBasic:
 
         self.makeDir(tmpdir)
 
-        self.exec("%s -D db -o %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-D db -o %s -T 1" % (tmpdir))
 
         tdSql.execute("drop database db")
 
-        self.exec("%s -i %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-i %s -T 1" % (tmpdir))
 
         assert self.dbFound("db"), "database 'db' not found after restore"
 
@@ -147,6 +151,16 @@ class TestTaosBackupBasic:
         tdSql.checkData(0, 1, None)
 
         tdSql.query("select count(*) from db.nt1")
+        tdSql.checkData(0, 0, 2)
+
+        # Query explicitly by the renamed primary-key column "myts" to verify
+        # backup/restore doesn't depend on the time column literally being
+        # called "ts" (it queries the _c0 pseudo-column internally).
+        tdSql.query("select myts, c1 from db.t1 where myts = 1640000000000")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 1)
+
+        tdSql.query("select count(*) from db.nt1 where myts >= 1640000000000")
         tdSql.checkData(0, 0, 2)
 
         tdLog.info("do_taosbackup_basic ......................... [passed]")
@@ -202,15 +216,15 @@ class TestTaosBackupBasic:
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
-        self.exec("%s --databases db -o %s" % (binPath, tmpdir1))
-        self.exec("%s -D db1 -o %s" % (binPath, tmpdir2))
+        etool.taosdump("--databases db -o %s" % (tmpdir1))
+        etool.taosdump("-D db1 -o %s" % (tmpdir2))
 
         tdSql.execute("drop database db")
         tdSql.execute("drop database db1")
 
         # restore with renamed databases
-        self.exec('%s -W "db=newdb" -i %s' % (binPath, tmpdir1))
-        self.exec('%s -W "db1=newdb1" -i %s' % (binPath, tmpdir2))
+        etool.taosdump('-W "db=newdb" -i %s' % (tmpdir1))
+        etool.taosdump('-W "db1=newdb1" -i %s' % (tmpdir2))
 
         tdSql.query("select * from information_schema.ins_databases")
         dbresult = tdSql.queryResult
@@ -287,11 +301,11 @@ class TestTaosBackupBasic:
         self.makeDir(tmpdir)
 
         # backup schema only
-        self.exec("%s -s -D db -o %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-s -D db -o %s -T 1" % (tmpdir))
 
         tdSql.execute("drop database db")
 
-        self.exec("%s -i %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-i %s -T 1" % (tmpdir))
 
         assert self.dbFound("db"), "database 'db' not found after schema-only restore"
 
@@ -351,11 +365,11 @@ class TestTaosBackupBasic:
         self.makeDir(tmpdir)
 
         # dump only t1 (ctable) from db
-        self.exec("%s db t1 -o %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("db t1 -o %s -T 1" % (tmpdir))
 
         tdSql.execute("drop database db")
 
-        self.exec('%s -i %s -T 1 -W "db=newdb"' % (binPath, tmpdir))
+        etool.taosdump('-i %s -T 1 -W "db=newdb"' % (tmpdir))
 
         assert self.dbFound("newdb"), "newdb not found after restore"
 
@@ -414,11 +428,11 @@ class TestTaosBackupBasic:
         self.makeDir(tmpdir)
 
         # dump only super table st (plus its child tables)
-        self.exec("%s db st -o %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("db st -o %s -T 1" % (tmpdir))
 
         tdSql.execute("drop database db")
 
-        self.exec('%s -i %s -T 1 -W "db=newdb"' % (binPath, tmpdir))
+        etool.taosdump('-i %s -T 1 -W "db=newdb"' % (tmpdir))
 
         assert self.dbFound("newdb"), "newdb not found after restore"
 
@@ -479,12 +493,12 @@ class TestTaosBackupBasic:
         self.makeDir(tmpdir)
 
         # backup with parquet format
-        self.exec("%s -F parquet -D db -o %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-F parquet -D db -o %s -T 1" % (tmpdir))
 
         tdSql.execute("drop database db")
 
         # restore with parquet format
-        self.exec("%s -F parquet -i %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-F parquet -i %s -T 1" % (tmpdir))
 
         assert self.dbFound("db"), "database 'db' not found after parquet restore"
 
@@ -553,11 +567,11 @@ class TestTaosBackupBasic:
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
-        self.exec("%s --databases db -o %s" % (binPath, tmpdir))
+        etool.taosdump("--databases db -o %s" % (tmpdir))
 
         tdSql.execute("drop database db")
 
-        self.exec("%s -i %s" % (binPath, tmpdir))
+        etool.taosdump("-i %s" % (tmpdir))
 
         assert self.dbFound("db"), "database 'db' not found after restore"
 
@@ -588,11 +602,11 @@ class TestTaosBackupBasic:
 
         os.system("rm -rf %s" % tmpdir)
         os.makedirs(tmpdir)
-        self.exec("%s -D test -o %s" % (binPath, tmpdir))
+        etool.taosdump("-D test -o %s" % (tmpdir))
 
         tdSql.execute("drop database test")
 
-        self.exec("%s -i %s" % (binPath, tmpdir))
+        etool.taosdump("-i %s" % (tmpdir))
 
         tdSql.execute("use test")
         tdSql.query("show stables")
@@ -657,11 +671,11 @@ class TestTaosBackupBasic:
 
         self.makeDir(tmpdir)
 
-        self.exec("%s db -o %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("db -o %s -T 1" % (tmpdir))
 
         tdSql.execute("drop database db")
 
-        self.exec("%s -i %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-i %s -T 1" % (tmpdir))
 
         assert self.dbFound("db"), "database 'db' not found after restore"
 
@@ -719,11 +733,11 @@ class TestTaosBackupBasic:
         self.makeDir(tmpdir)
 
         # backup with 2 tag threads
-        self.exec("%s -m 2 -T 2 -D db -o %s" % (binPath, tmpdir))
+        etool.taosdump("-m 2 -T 2 -D db -o %s" % (tmpdir))
 
         tdSql.execute("drop database db")
 
-        self.exec("%s -T 2 -i %s" % (binPath, tmpdir))
+        etool.taosdump("-T 2 -i %s" % (tmpdir))
 
         assert self.dbFound("db"), "database 'db' not found after restore"
 
@@ -775,11 +789,11 @@ class TestTaosBackupBasic:
         self.makeDir(tmpdir)
 
         # backup
-        self.exec("%s -D db -o %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-D db -o %s -T 1" % (tmpdir))
 
         # restore with stmt version 1
         tdSql.execute("drop database db")
-        self.exec("%s -v 1 -i %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-v 1 -i %s -T 1" % (tmpdir))
 
         assert self.dbFound("db"), "database 'db' not found after STMT v1 restore"
 
@@ -789,7 +803,7 @@ class TestTaosBackupBasic:
 
         # restore with stmt version 2 (default)
         tdSql.execute("drop database db")
-        self.exec("%s -v 2 -i %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-v 2 -i %s -T 1" % (tmpdir))
 
         assert self.dbFound("db"), "database 'db' not found after STMT v2 restore"
 
@@ -876,10 +890,10 @@ class TestTaosBackupBasic:
             tdLog.exit("taosBackup not found!")
 
         self.makeDir(tmpdir)
-        self.exec("%s -D db -o %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-D db -o %s -T 1" % (tmpdir))
 
         tdSql.execute("drop database db")
-        self.exec("%s -i %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-i %s -T 1" % (tmpdir))
 
         assert self.dbFound("db"), "database 'db' not found after restore"
         tdSql.execute("use db")
@@ -959,7 +973,7 @@ class TestTaosBackupBasic:
             tdLog.exit("taosBackup not found!")
 
         self.makeDir(tmpdir)
-        self.exec("%s -D db -o %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-D db -o %s -T 1" % (tmpdir))
 
         # t1.dat must exist; t2.dat must NOT exist (empty table → skipped)
         dat_t1 = "%s/db/st_data0/t1.dat" % tmpdir
@@ -968,7 +982,7 @@ class TestTaosBackupBasic:
         assert not os.path.exists(dat_t2), "t2.dat must NOT exist for empty child table"
 
         tdSql.execute("drop database db")
-        self.exec("%s -i %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-i %s -T 1" % (tmpdir))
 
         assert self.dbFound("db"), "database 'db' not found after restore"
         tdSql.execute("use db")
@@ -1014,7 +1028,7 @@ class TestTaosBackupBasic:
             tdLog.exit("taosBackup not found!")
 
         self.makeDir(tmpdir)
-        self.exec("%s -D db -o %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-D db -o %s -T 1" % (tmpdir))
 
         # nt1.dat must exist; nt2.dat must NOT exist
         dat_nt1 = "%s/db/_ntb_data0/nt1.dat" % tmpdir
@@ -1023,7 +1037,7 @@ class TestTaosBackupBasic:
         assert not os.path.exists(dat_nt2), "nt2.dat must NOT exist for empty normal table"
 
         tdSql.execute("drop database db")
-        self.exec("%s -i %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-i %s -T 1" % (tmpdir))
 
         assert self.dbFound("db"), "database 'db' not found after restore"
         tdSql.execute("use db")
@@ -1072,9 +1086,9 @@ class TestTaosBackupBasic:
 
         self.makeDir(tmpdir)
         # Backup only 2022 data
-        self.exec(
-            "%s -D db -o %s -T 1 -S '2022-01-01 00:00:00.000' -E '2022-12-31 23:59:59.999'"
-            % (binPath, tmpdir)
+        etool.taosdump(
+            "-D db -o %s -T 1 -S '2022-01-01 00:00:00.000' -E '2022-12-31 23:59:59.999'"
+            % tmpdir
         )
 
         # t1.dat must exist; t2.dat must NOT exist (0 rows in range)
@@ -1084,7 +1098,7 @@ class TestTaosBackupBasic:
         assert not os.path.exists(dat_t2), "t2.dat must NOT exist: t2 has no data in time range"
 
         tdSql.execute("drop database db")
-        self.exec("%s -i %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-i %s -T 1" % (tmpdir))
 
         assert self.dbFound("db"), "database 'db' not found after restore"
         tdSql.execute("use db")
@@ -1132,17 +1146,17 @@ class TestTaosBackupBasic:
         self.makeDir(tmpdir)
 
         # First backup — flag must be created on completion
-        self.exec("%s -D db -o %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-D db -o %s -T 1" % (tmpdir))
         flag_path = "%s/db/backup_complete.flag" % tmpdir
         assert os.path.exists(flag_path), "backup_complete.flag must exist after successful backup"
 
         # Second backup — flag is detected, deleted at start (fresh run), then recreated
-        self.exec("%s -D db -o %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-D db -o %s -T 1" % (tmpdir))
         assert os.path.exists(flag_path), "backup_complete.flag must exist after second backup"
 
         # Restore and verify correctness after two successive backups
         tdSql.execute("drop database db")
-        self.exec("%s -i %s -T 1" % (binPath, tmpdir))
+        etool.taosdump("-i %s -T 1" % (tmpdir))
 
         assert self.dbFound("db"), "database 'db' not found after restore"
         tdSql.execute("use db")
@@ -1190,7 +1204,7 @@ class TestTaosBackupBasic:
             tdLog.exit("taosBackup not found!")
 
         self.makeDir(tmpdir)
-        self.exec("%s -D db -o %s -T 2" % (binPath, tmpdir))
+        etool.taosdump("-D db -o %s -T 2" % (tmpdir))
 
         # .dat files exist only for non-empty CTBs
         for i in range(1, 4):
@@ -1201,7 +1215,7 @@ class TestTaosBackupBasic:
             assert not os.path.exists(dat), "t%d.dat must NOT exist (empty CTB)" % i
 
         tdSql.execute("drop database db")
-        self.exec("%s -i %s -T 2" % (binPath, tmpdir))
+        etool.taosdump("-i %s -T 2" % (tmpdir))
 
         assert self.dbFound("db"), "database 'db' not found after restore"
         tdSql.execute("use db")
@@ -1272,9 +1286,9 @@ class TestTaosBackupBasic:
             tdLog.exit("taosBackup not found!")
 
         self.makeDir(tmpdir)
-        self.exec(
-            "%s -D db -o %s -T 2 -S '2022-01-01 00:00:00.000' -E '2022-12-31 23:59:59.999'"
-            % (binPath, tmpdir)
+        etool.taosdump(
+            "-D db -o %s -T 2 -S '2022-01-01 00:00:00.000' -E '2022-12-31 23:59:59.999'"
+            % tmpdir
         )
 
         # t1: has in-range data → must have .dat
@@ -1291,7 +1305,7 @@ class TestTaosBackupBasic:
             "t4.dat must NOT exist (empty)"
 
         tdSql.execute("drop database db")
-        self.exec("%s -i %s -T 2" % (binPath, tmpdir))
+        etool.taosdump("-i %s -T 2" % (tmpdir))
 
         assert self.dbFound("db"), "database 'db' not found after restore"
         tdSql.execute("use db")
@@ -1359,9 +1373,9 @@ class TestTaosBackupBasic:
 
         self.makeDir(tmpdir)
         # Specify t1 and t2 explicitly (spec-tables path), plus time filter
-        self.exec(
-            "%s db t1 t2 -o %s -T 1 -S '2022-01-01 00:00:00.000' -E '2022-12-31 23:59:59.999'"
-            % (binPath, tmpdir)
+        etool.taosdump(
+            "db t1 t2 -o %s -T 1 -S '2022-01-01 00:00:00.000' -E '2022-12-31 23:59:59.999'"
+            % tmpdir
         )
 
         # t1: spec + in-range → .dat must exist
@@ -1375,7 +1389,7 @@ class TestTaosBackupBasic:
             "t3.dat must NOT exist (not in spec)"
 
         tdSql.execute("drop database db")
-        self.exec('%s -i %s -T 1 -W "db=newdb"' % (binPath, tmpdir))
+        etool.taosdump('-i %s -T 1 -W "db=newdb"' % (tmpdir))
 
         assert self.dbFound("newdb"), "newdb not found after restore"
         tdSql.execute("use newdb")
@@ -1391,6 +1405,135 @@ class TestTaosBackupBasic:
 
         tdSql.execute("drop database newdb")
         tdLog.info("do_taosbackup_prefilter_spec_tables_time_filter [passed]")
+
+    #
+    # ------------------- do_taosbackup_log ----------------
+    #
+    def do_taosbackup_log(self):
+        """Verify backup.log / restore.log audit logging added to taosBackup.
+
+        Covers:
+        - backup.log written under the backup root dir, truncated on rerun
+        - restore.log written under cwd, appended (not cleared) across runs
+        - log-open failure only warns, never fails the backup/restore itself
+        - the on-disk log mirrors the console output exactly (byte for byte)
+        - failure-path SQL (e.g. stream name conflict) is never truncated,
+          in either the console or the log file
+        - streams are only backed up / restored when content mode includes
+          ext-meta, so every backup and restore here passes -M all to make the
+          stream flow end-to-end and trigger the stream-conflict warning
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-07-30 Alex Duan Created
+
+        """
+        import tempfile
+
+        binPath = etool.taosDumpFile()
+        if binPath == "":
+            tdLog.exit("taosBackup not found!")
+        streamName = "stream_taosbackup_log_test_with_a_fairly_long_name_for_no_truncation_check"
+
+        # --- fixture: one normal table with a couple rows, plus a stream ---
+        tdSql.execute("drop database if exists dblog")
+        tdSql.execute("create database dblog")
+        tdSql.execute("create table dblog.t1(ts timestamp, v int)")
+        tdSql.execute("insert into dblog.t1 values(now, 1)(now+1s, 2)")
+        tdSql.execute_ignore_error("drop snode on dnode 1")
+        tdSql.execute("create snode on dnode 1")
+        tdSql.execute(
+            f"create stream if not exists dblog.{streamName} interval(1s) sliding(1s) "
+            f"from dblog.t1 into dblog.stream_out as "
+            f"select _twstart as ts, avg(v) as avg_v from %%trows"
+        )
+        # The -M all backup below derives stream.sql from ins_streams.sql, so
+        # make sure the stream is already visible there before backing up
+        # (avoids a flaky run where stream.sql comes out empty).
+        for _ in range(20):
+            tdSql.query(
+                f"select stream_name from information_schema.ins_streams "
+                f"where db_name='dblog' and stream_name='{streamName}'"
+            )
+            if tdSql.getRows() > 0:
+                break
+            time.sleep(0.5)
+        else:
+            tdLog.exit(f"stream {streamName} not visible in ins_streams")
+
+        bck_dir = os.path.join(tempfile.mkdtemp(), "taosbackup_log_bck")
+
+        # --- backup.log: created, mirrors console, truncated on rerun ---
+        os.system(f"rm -rf {bck_dir}")
+        console1 = os.popen(f"{binPath} -M all -o {bck_dir} -D dblog 2>&1").read()
+        logPath = os.path.join(bck_dir, "backup.log")
+        assert os.path.exists(logPath), "backup.log was not created under the backup root dir"
+
+        with open(logPath) as f:
+            fileContent1 = f.read()
+        assert console1 == fileContent1, "backup.log content does not match console output byte-for-byte"
+        assert "Server Ver." in fileContent1 and "Start Time" in fileContent1 and "End Time" in fileContent1, \
+            "backup.log is missing the server version / start / end time banner fields"
+
+        # rerun into the same dir - backup.log must be overwritten, not appended
+        os.system(f"{binPath} -M all -o {bck_dir} -D dblog > /dev/null 2>&1")
+        with open(logPath) as f:
+            fileContent2 = f.read()
+        assert fileContent2.count("taosDump version") == 1, "backup.log was appended instead of truncated on rerun"
+
+        # --- log-open failure must only warn, never fail the backup ---
+        bad_dir = os.path.join(tempfile.mkdtemp(), "taosbackup_log_bad")
+        os.system(f"mkdir -p {bad_dir}/backup.log")  # path collision forces open() to fail
+        ret = os.system(f"{binPath} -M all -o {bad_dir} -D dblog > /tmp/taosbackup_log_badrun.txt 2>&1")
+        with open("/tmp/taosbackup_log_badrun.txt") as f:
+            badRunOut = f.read()
+        os.system("rm -f /tmp/taosbackup_log_badrun.txt")
+        assert ret == 0, "backup must still succeed even if the on-disk log can't be opened"
+        assert "open log file failed" in badRunOut, "expected a warning about the log file failing to open"
+        assert "Result       : SUCCESS" in badRunOut, "backup did not report SUCCESS despite the log-open failure"
+
+        # --- restore.log: created under cwd, appended (not cleared) across runs ---
+        restore_dir = tempfile.mkdtemp()
+        cwd = os.getcwd()
+        os.chdir(restore_dir)
+        try:
+            tdSql.execute("drop database if exists dblog")
+            console2 = os.popen(f"{binPath} -M all -i {bck_dir} 2>&1").read()
+            restoreLogPath = os.path.join(restore_dir, "restore.log")
+            assert os.path.exists(restoreLogPath), "restore.log was not created under cwd"
+            with open(restoreLogPath) as f:
+                restoreContent1 = f.read()
+            assert console2 == restoreContent1, "restore.log content does not match console output byte-for-byte"
+
+            # second restore in the same cwd: the stream already exists, and its
+            # (long) create-stream SQL must show up in full - not truncated -
+            # both on the console and in restore.log
+            console3 = os.popen(f"{binPath} -M all -i {bck_dir} 2>&1").read()
+            with open(restoreLogPath) as f:
+                restoreContent2 = f.read()
+
+            assert restoreContent2.count("taosDump version") == 2, \
+                "restore.log was truncated instead of appended across runs"
+            assert streamName in console3, \
+                "stream-already-exists warning did not contain the full stream name (truncated?)"
+            assert "..." not in console3, \
+                "console output contains a truncation ellipsis - SQL truncation should be gone"
+            assert streamName in restoreContent2 and "..." not in restoreContent2, \
+                "restore.log does not contain the full, untruncated stream-conflict SQL"
+        finally:
+            os.chdir(cwd)
+
+        # cleanup
+        tdSql.execute("drop database if exists dblog")
+        tdSql.execute("drop snode on dnode 1")
+        os.system(f"rm -rf {bck_dir} {bad_dir} {restore_dir}")
+        tdLog.info("do_taosbackup_log ........................... [passed]")
 
     # -----------------------------------------------------------------------
     # 19. Table-level backup with positional args
@@ -1465,9 +1608,9 @@ class TestTaosBackupBasic:
         # --- Case A: Multiple CTBs from same STB (c1, c3) ---
         tdLog.info("Case A: multiple CTBs from same STB")
         self.makeDir(tmpdir)
-        self.exec(f"{binPath} tldb c1 c3 -o {tmpdir} -T 1")
+        etool.taosdump(f"tldb c1 c3 -o {tmpdir} -T 1")
         tdSql.execute("drop database tldb")
-        self.exec(f'{binPath} -i {tmpdir} -T 1 -W "tldb=tla"')
+        etool.taosdump(f'-i {tmpdir} -T 1 -W "tldb=tla"')
 
         assert self.dbFound("tla"), "tla not found after restore"
         # st1 DDL must be preserved (parent of c1, c3)
@@ -1528,9 +1671,9 @@ class TestTaosBackupBasic:
         # --- Case B: CTBs from different STBs (c1 from st1, d1 from st2) ---
         tdLog.info("Case B: CTBs from different STBs")
         self.makeDir(tmpdir)
-        self.exec(f"{binPath} tldb c1 d1 -o {tmpdir} -T 1")
+        etool.taosdump(f"tldb c1 d1 -o {tmpdir} -T 1")
         tdSql.execute("drop database tldb")
-        self.exec(f'{binPath} -i {tmpdir} -T 1 -W "tldb=tlb"')
+        etool.taosdump(f'-i {tmpdir} -T 1 -W "tldb=tlb"')
 
         assert self.dbFound("tlb"), "tlb not found after restore"
         # Both st1 and st2 DDLs must be preserved
@@ -1573,9 +1716,9 @@ class TestTaosBackupBasic:
         # --- Case C: Mixed CTBs + NTBs (c1 + nt1) ---
         tdLog.info("Case C: mixed CTBs + NTBs")
         self.makeDir(tmpdir)
-        self.exec(f"{binPath} tldb c1 nt1 -o {tmpdir} -T 1")
+        etool.taosdump(f"tldb c1 nt1 -o {tmpdir} -T 1")
         tdSql.execute("drop database tldb")
-        self.exec(f'{binPath} -i {tmpdir} -T 1 -W "tldb=tlc"')
+        etool.taosdump(f'-i {tmpdir} -T 1 -W "tldb=tlc"')
 
         assert self.dbFound("tlc"), "tlc not found after restore"
         # st1 DDL preserved (for c1), nt1 also restored
@@ -1617,9 +1760,9 @@ class TestTaosBackupBasic:
         # --- Case D: NTB-only (nt1, nt2) ---
         tdLog.info("Case D: NTB-only positional args")
         self.makeDir(tmpdir)
-        self.exec(f"{binPath} tldb nt1 nt2 -o {tmpdir} -T 1")
+        etool.taosdump(f"tldb nt1 nt2 -o {tmpdir} -T 1")
         tdSql.execute("drop database tldb")
-        self.exec(f'{binPath} -i {tmpdir} -T 1 -W "tldb=tld"')
+        etool.taosdump(f'-i {tmpdir} -T 1 -W "tldb=tld"')
 
         assert self.dbFound("tld"), "tld not found after restore"
         # No STBs restored
@@ -1667,6 +1810,8 @@ class TestTaosBackupBasic:
         17. Pre-filter empty CTBs via last_row(ts): time filter; in-range rows correct, out-of-range skipped
         18. Pre-filter empty CTBs with spec-tables + time filter; -S/-E applies to named CTBs
         19. Table-level backup with positional args: multi-CTB, cross-STB, mixed CTB+NTB, NTB-only
+        20. backup.log/restore.log audit logging: truncate vs append, log-open
+            failure resilience, no SQL truncation on failure paths
 
         Since: v3.0.0.0
 
@@ -1697,3 +1842,4 @@ class TestTaosBackupBasic:
         self.do_taosbackup_prefilter_empty_ctb_time_filter()
         self.do_taosbackup_prefilter_spec_tables_time_filter()
         self.do_taosbackup_table_level()
+        self.do_taosbackup_log()

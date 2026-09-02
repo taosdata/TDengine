@@ -15,7 +15,7 @@ TDengine 的各语言连接器通过 WebSocket 接口与 TDengine 进行通信�
 
 架构图如下：
 
-![TDengine Database taosAdapter Architecture](assets/taosAdapter-architecture.png)
+![TDengine Database taosAdapter Architecture](../../assets/taosadapter-01.png)
 
 ## 功能列表
 
@@ -528,6 +528,16 @@ taosAdapter 的基础配置参数如下：
 - **`instanceId`**：taosAdapter 实例 id，用于区分不同 taosAdapter 的日志，默认值：32。
 - **`port`**：taosAdapter 对外提供 HTTP/WebSocket 服务的端口，默认值：6041。
 - **`taosConfigDir`**：TDengine 的配置文件目录，默认值：`/etc/taos`。该目录下的 `taos.cfg` 文件将被加载。
+
+### SSL {#ssl}
+
+`[ssl]` 用于在 taosAdapter 上启用 HTTPS / WSS（企业版）。示例配置见 [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/blob/3.0/example/config/taosadapter.toml)。证书生成与启用步骤见 [全链路传输安全 · 服务端 HTTPS/WSS](../../11-security-guide/02-full-trace-transport.md#211-server-httpswss) 与 [附录：生成自签名证书](../../11-security-guide/02-full-trace-transport.md#11-appendix-self-signed-cert)。
+
+- **`ssl.enable`**：是否启用 SSL。默认 `false`。企业版能力。
+- **`ssl.certFile`**：服务端证书文件路径（PEM）。
+- **`ssl.keyFile`**：服务端私钥文件路径（PEM）；建议权限 `600`。
+
+启用后需重启 taosAdapter（如 `systemctl restart taosadapter`）。日志中通常可见 `SSL is enabled`。客户端 TrustStore / `wss` / `useSSL` 见 [客户端与连接器安全](../../11-security-guide/05-client-connector-security.md)。
 
 从 **3.3.4.0 版本** 开始，taosAdapter 支持设置调用 C 方法并发调用数：
 

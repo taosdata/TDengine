@@ -20,6 +20,7 @@
 #include "bckPool.h"
 #include "bckDb.h"
 #include "bckSchemaChange.h"
+#include "bckUtil.h"
 #include "decimal.h"
 #include "ttypes.h"
 #include "osString.h"
@@ -295,7 +296,7 @@ static int stmt2PrepareOnce(Stmt2RestoreCtx *ctx, int numCols, FieldInfo *fieldI
     int ret = taos_stmt2_prepare(ctx->stmt2, sql, 0);
     taosMemoryFree(sql);
     if (ret != 0) {
-        logError("taos_stmt2_prepare failed: %s", taos_stmt2_error(ctx->stmt2));
+        logError("taos_stmt2_prepare failed(0x%08X, %s)", ret, taos_stmt2_error(ctx->stmt2));
         taos_stmt2_close(ctx->stmt2); ctx->stmt2 = NULL;
         return ret;
     }
@@ -538,16 +539,16 @@ static int stmt2FlushBatch(Stmt2RestoreCtx *ctx) {
 
     int code = taos_stmt2_bind_param(ctx->stmt2, &bindv, -1);
     if (code != 0) {
-        logError("taos_stmt2_bind_param failed (%s.%s): %s",
-                 ctx->dbName, ctx->tbName, taos_stmt2_error(ctx->stmt2));
+        logError("taos_stmt2_bind_param failed (%s.%s): 0x%08X, %s",
+                 ctx->dbName, ctx->tbName, code, taos_stmt2_error(ctx->stmt2));
         return code;
     }
 
     int affectedRows = 0;
     code = taos_stmt2_exec(ctx->stmt2, &affectedRows);
     if (code != 0) {
-        logError("taos_stmt2_exec failed (%s.%s): %s",
-                 ctx->dbName, ctx->tbName, taos_stmt2_error(ctx->stmt2));
+        logError("taos_stmt2_exec failed (%s.%s): 0x%08X, %s",
+                 ctx->dbName, ctx->tbName, code, taos_stmt2_error(ctx->stmt2));
         return code;
     }
 
@@ -631,7 +632,7 @@ static int stmt2PrepareOnceMulti(Stmt2RestoreCtx *ctx, int numCols,
     int ret = taos_stmt2_prepare(ctx->stmt2, sql, 0);
     taosMemoryFree(sql);
     if (ret != 0) {
-        logError("stmt2 multi-table prepare failed: %s", taos_stmt2_error(ctx->stmt2));
+        logError("stmt2 multi-table prepare failed(0x%08X, %s)", ret, taos_stmt2_error(ctx->stmt2));
         taos_stmt2_close(ctx->stmt2); ctx->stmt2 = NULL;
         return ret;
     }
@@ -710,8 +711,8 @@ int stmt2FlushMultiTableSlots(Stmt2RestoreCtx *ctx) {
     taosMemoryFree(bindcols);
 
     if (code != 0) {
-        logError("stmt2 multi-table bind_param failed (%s, %d tables): %s",
-                 ctx->dbName, N, taos_stmt2_error(ctx->stmt2));
+        logError("stmt2 multi-table bind_param failed (%s, %d tables): 0x%08X, %s",
+                 ctx->dbName, N, code, taos_stmt2_error(ctx->stmt2));
         goto cleanup;
     }
 
@@ -719,8 +720,8 @@ int stmt2FlushMultiTableSlots(Stmt2RestoreCtx *ctx) {
         int affectedRows = 0;
         code = taos_stmt2_exec(ctx->stmt2, &affectedRows);
         if (code != 0) {
-            logError("stmt2 multi-table exec failed (%s, %d tables): %s",
-                     ctx->dbName, N, taos_stmt2_error(ctx->stmt2));
+            logError("stmt2 multi-table exec failed (%s, %d tables): 0x%08X, %s",
+                     ctx->dbName, N, code, taos_stmt2_error(ctx->stmt2));
         } else {
             ctx->totalRows += affectedRows;
             logDebug("stmt2 multi-table flush: %d tables, %d rows", N, affectedRows);
@@ -779,7 +780,7 @@ int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
 
     int code = TSDB_CODE_SUCCESS;
     TaosFile *f = openTaosFileForRead(filePath, &code);
-    if (!f) { logError("open failed(%d): %s", code, filePath); return code; }
+    if (!f) { logError("open failed(0x%08X): %s", code, filePath); return code; }
     if (f->header.numRows == 0) { closeTaosFileRead(f); return TSDB_CODE_SUCCESS; }
 
     ctx->lastFileSize = f->fileSize;  /* cache for caller's stat elimination */
@@ -816,8 +817,8 @@ int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
             snprintf(quotedDb, sizeof(quotedDb), "`%s`", ctx->dbName);
             int selRet = taos_select_db(ctx->conn, quotedDb);
             if (selRet != 0)
-                logWarn("stmt2 multi-table: taos_select_db(%s) failed (code=%d), continuing",
-                        ctx->dbName, selRet);
+                logWarn("stmt2 multi-table: taos_select_db(%s) failed (code=0x%08X, %s), continuing",
+                        ctx->dbName, selRet, bckErrMsg(selRet));
             code = stmt2PrepareOnceMulti(ctx, numCols, fis);
             if (code != TSDB_CODE_SUCCESS) { closeTaosFileRead(f); goto done; }
         }
@@ -832,7 +833,7 @@ int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
         code = readTaosFileBlocks(f, dataBlockCallbackV2, &cbd);
         closeTaosFileRead(f);
         if (code != TSDB_CODE_SUCCESS) {
-            logError("read blocks failed(%d): %s", code, filePath);
+            logError("read blocks failed(0x%08X): %s", code, filePath);
             goto done;
         }
 
@@ -851,7 +852,7 @@ int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
             ctx->totalPendingRows >= batchCap) {
             code = stmt2FlushMultiTableSlots(ctx);
             if (code != TSDB_CODE_SUCCESS)
-                logError("stmt2 multi-table flush failed (%s): %d", ctx->dbName, code);
+                logError("stmt2 multi-table flush failed (%s): 0x%08X", ctx->dbName, code);
             else
                 ctx->lastCallFlushed = true;  // signal restoreDataThread to drain pending checkpoints
         }
@@ -860,6 +861,23 @@ int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
                  ctx->dbName, tbName, ctx->totalRows, ctx->numPending);
     } else {
         /* ---- SINGLE-TABLE PATH (WebSocket / NTB / large file) ---- */
+
+        /* Any tables already sealed into pending multi-table slots must be
+         * flushed on the CURRENT multi-table handle before we switch away —
+         * otherwise closing ctx->stmt2 below discards their binding and the
+         * next flush (on the new single-table handle, or the final flush at
+         * thread exit) would silently rebind their data under whatever table
+         * name that handle was last prepared with, losing the pending tables'
+         * rows entirely. */
+        if (ctx->numPending > 0) {
+            code = stmt2FlushMultiTableSlots(ctx);
+            if (code != TSDB_CODE_SUCCESS) {
+                logError("stmt2 multi-table flush failed (%s) before switching to single-table path: 0x%08X",
+                         ctx->dbName, code);
+                closeTaosFileRead(f);
+                goto done;
+            }
+        }
 
         /* In native multi-table mode (multiTable=true) the current stmt2 handle
          * may be a multi-table one (singleTableBindOnce=false).  Close it so
@@ -880,7 +898,7 @@ int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
         code = readTaosFileBlocks(f, dataBlockCallbackV2, &cbd);
         closeTaosFileRead(f);
         if (code != TSDB_CODE_SUCCESS) {
-            logError("read blocks failed(%d): %s", code, filePath);
+            logError("read blocks failed(0x%08X): %s", code, filePath);
             goto done;
         }
 
@@ -941,7 +959,7 @@ int restoreOneParquetFileV2(TAOS_STMT2 **stmt2Ptr, TAOS *conn, const char *dbNam
         int            err = TSDB_CODE_FAILED;
         ParquetReader *pr  = parquetReaderOpen(filePath, &err);
         if (!pr) {
-            logError("open parquet file failed(%d): %s", err, filePath);
+            logError("open parquet file failed(0x%08X, %s): %s", err, bckErrMsg(err), filePath);
             return err;
         }
         TAOS_FIELD *fields = NULL;
@@ -976,7 +994,7 @@ int restoreOneParquetFileV2(TAOS_STMT2 **stmt2Ptr, TAOS *conn, const char *dbNam
     int ret = taos_stmt2_prepare(stmt2, sql, 0);
     taosMemoryFree(sql);
     if (ret != 0) {
-        logError("taos_stmt2_prepare failed for parquet: %s", taos_stmt2_error(stmt2));
+        logError("taos_stmt2_prepare failed for parquet(0x%08X, %s)", ret, taos_stmt2_error(stmt2));
         // Invalidate handle so next file gets a fresh one
         taos_stmt2_close(stmt2);
         *stmt2Ptr = NULL;
@@ -986,7 +1004,7 @@ int restoreOneParquetFileV2(TAOS_STMT2 **stmt2Ptr, TAOS *conn, const char *dbNam
     int64_t rows = 0;
     code = fileParquetToStmt2(stmt2, filePath, &rows);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("restore parquet (STMT2) failed(%d): %s -> %s.%s",
+        logError("restore parquet (STMT2) failed(0x%08X): %s -> %s.%s",
                  code, filePath, dbName, tbName);
     } else {
         logDebug("restore parquet (STMT2) done: %s.%s rows: %" PRId64, dbName, tbName, rows);

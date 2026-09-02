@@ -7,7 +7,7 @@ description: TDengine 客户端和服务端的错误码列表和详细说明
 
 本文中详细列举了在使用 TDengine 时可能得到的来自客户端和服务端的错误码以及所要采取的相应动作。
 
-排查连接、写入与订阅类问题时，也可结合 [常见问题](../16-faq/01-faq.md)、[流式计算](../06-stream-processing/index.md) 与 [数据订阅](../07-data-subscription/index.md) 章节。
+排查连接、写入与订阅类问题时，也可结合 [常见问题](../16-faq/01-faq.md)、[流式计算](../07-stream-processing/index.md) 与 [数据订阅](../06-data-subscription/index.md) 章节。
 
 ## TSDB
 
@@ -735,6 +735,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000620C | Virtual table reference depth exceeds limit                                | 虚拟表查询在递归解析引用链时，引用层级超过了执行器支持的最大深度              | 检查虚拟表引用链，缩短引用层级或联系开发处理  |
 | 0x8000620D | Virtual table query cannot resolve ref column                              | 虚拟表查询在递归解析引用列时，找不到合法的下一跳引用或最终引用列               | 检查虚拟表引用链和元数据定义，必要时联系开发处理 |
 | 0x8000620E | Virtual table circular reference detected                                  | 虚拟表查询在递归解析引用链时，检测到循环引用（A→B→...→A）                | 检查虚拟表引用链，消除循环依赖             |
+| 0x8000620F | No valid epSet for virtual super table data source node                    | 虚拟超级表查询使用了过期的数据源 vgroup 路由，执行器找不到对应 endpoint       | 客户端会刷新相关数据库元数据并自动重试；若持续失败，请检查集群状态和客户端日志 |
 
 #### federated query
 
@@ -802,6 +803,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000411B | External source table has no timestamp primary key column | 引用的外部源表没有可解析的时间戳主键列 | 为外部源表指定有效的时间戳列 |
 | 0x8000411C | PARTITION BY is not supported for the given external source type | 该外部源类型不支持 PARTITION BY | 移除 PARTITION BY，或改用支持的外部源类型 |
 | 0x8000411D | External reader has no local SStreamTriggerReaderInfo; trigger must resend uid maxTs hash | 外部 reader 缺少本地流状态 | 保留现场和日志，github 上报 |
+| 0x8000411F | Influxdb tag key is too long or convert error | influxdb tag 的 key 或 value 长度不符合要求 | tag 名超过 64 个字符或者 tag 值超过 256 个字符，会报错。需要修改数据后，重新建流 |
 
 #### xnode
 

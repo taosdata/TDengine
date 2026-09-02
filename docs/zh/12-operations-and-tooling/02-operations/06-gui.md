@@ -32,177 +32,177 @@ toc_max_heading_level: 4
 
 点击功能列表的“数据浏览器”入口，在“数据浏览器”中可以创建和删除数据库、创建和删除超级表和子表，执行 SQL 语句，查看 SQL 语句的执行结果。此外，超级管理员还有对数据库的管理权限，其他用户不提供该功能。如下图所示：
 
-![explorer-01-explorer-entry.jpeg](./assets/explorer-01-explorer-entry.jpeg "进入数据浏览器页面")
+![explorer-01-explorer-entry.jpeg](../../assets/explorer-01-explorer-entry.jpeg "进入数据浏览器页面")
 
 ### 创建数据库
 
 下面通过创建数据库，来熟悉数据浏览器页面的功能和操作，接下来看创建数据库的两种方式：
 
-1. 通过点击图中的 + 号，跳转到创建数据库页面，点击**创建**按钮，如下图：
+1. 通过点击图中的 + 号，跳转到创建数据库页面，点击 **创建** 按钮，如下图：
 
 第一步 点击 + 号；
-![explorer-02-createDbentry.jpeg](./assets/explorer-02-createDbentry.jpeg "点开 + 号创建数据库")
+![explorer-02-createDbentry.jpeg](../../assets/explorer-02-createDbentry.jpeg "点开 + 号创建数据库")
 
 第二步 填写数据库名称、需要的数据库配置参数，配置参数进行了分类和折叠，点击可展开；
-![explorer-03-createDbPage.jpeg](./assets/explorer-03-createDbPage.jpeg "创建数据库页面")
-![explorer-04-createDbPage2.jpeg](./assets/explorer-04-createDbPage2.jpeg "创建数据库页面展开参数")
+![explorer-03-createDbPage.jpeg](../../assets/explorer-03-createDbPage.jpeg "创建数据库页面")
+![explorer-04-createDbPage2.jpeg](../../assets/explorer-04-createDbPage2.jpeg "创建数据库页面展开参数")
 
-第三步 点击**创建**按钮之后，如下图左边出现数据库名称则创建数据库成功。
-![explorer-05-createDbtest01.jpeg](./assets/explorer-05-createDbtest01.jpeg "创建数据库 test01")
+第三步 点击 **创建** 按钮之后，如下图左边出现数据库名称则创建数据库成功。
+![explorer-05-createDbtest01.jpeg](../../assets/explorer-05-createDbtest01.jpeg "创建数据库 test01")
 
 2. 通过在 SQL 编辑器中数据 sql 语句，点击 执行 按钮，如下图：
 
 第一步 输入 sql 语句；
-![explorer-06-sqlCreateDb.jpeg](./assets/explorer-06-sqlCreateDb.jpeg "通过 sql 创建数据库")
+![explorer-06-sqlCreateDb.jpeg](../../assets/explorer-06-sqlCreateDb.jpeg "通过 sql 创建数据库")
 
 第二步 点击“执行”按钮，左边出现 test02，则数据库创建成功。
-![explorer-07-createDbtest02.jpeg](./assets/explorer-07-createDbtest02.jpeg "创建数据库 test02")
+![explorer-07-createDbtest02.jpeg](../../assets/explorer-07-createDbtest02.jpeg "创建数据库 test02")
 
 由于创建、修改和删除超级表、创建表、创建子表在行为上是一致的，就以创建超级表为示例做演示：
 
 ### 创建超级表
 
 第一步 鼠标移动到 STables 上，点击出现的 + 号，出现创建超级表 tab；
-![explorer-08-createStbEntry.jpeg](./assets/explorer-08-createStbEntry.jpeg "创建超级表入口")
+![explorer-08-createStbEntry.jpeg](../../assets/explorer-08-createStbEntry.jpeg "创建超级表入口")
 
-第二步 填写超级表信息，点击**创建**按钮；
-![explorer-09-createStbPage.jpeg](./assets/explorer-09-createStbPage.jpeg "创建超级表页面")
+第二步 填写超级表信息，点击 **创建** 按钮；
+![explorer-09-createStbPage.jpeg](../../assets/explorer-09-createStbPage.jpeg "创建超级表页面")
 
 第三步 点击 Stables 出现刚才填写的超级表名，则证明创建成功。
-![explorer-10-createStbSucc.jpeg](./assets/explorer-10-createStbSucc.jpeg "创建超级表成功")
+![explorer-10-createStbSucc.jpeg](../../assets/explorer-10-createStbSucc.jpeg "创建超级表成功")
 
 ### 查看超级表
 
 鼠标放在需要查看的超级表上，出现如下图所示图标，点击“眼睛图标”查看超级表信息
-![explorer-11-viewStableEntry.jpeg](./assets/explorer-11-viewStableEntry.jpeg "查看超级表入口")
-![explorer-12-viewStableInfo.jpeg](./assets/explorer-12-viewStableInfo.jpeg "查看超级表详情")
+![explorer-11-viewStableEntry.jpeg](../../assets/explorer-11-viewStableEntry.jpeg "查看超级表入口")
+![explorer-12-viewStableInfo.jpeg](../../assets/explorer-12-viewStableInfo.jpeg "查看超级表详情")
 
 ### 修改超级表
 
 鼠标放在需要编辑的超级表上，出现如下图所示图标，点击“编辑图标”修改超级表信息
-![explorer-13-editStableEntry.jpeg](./assets/explorer-13-editStableEntry.jpeg "编辑超级表入口")
+![explorer-13-editStableEntry.jpeg](../../assets/explorer-13-editStableEntry.jpeg "编辑超级表入口")
 
 ### 删除超级表
 
 鼠标放在需要删除的超级表上，出现如下图所示图标，点击“删除图标”删除超级表
-![explorer-15-delStb.jpeg](./assets/explorer-15-delStb.jpeg "删除超级表")
+![explorer-15-delStb.jpeg](../../assets/explorer-15-delStb.jpeg "删除超级表")
 
 ### SQL 编辑器使用
 
 当输入多条语句，可以鼠标选中需要执行的语句，也可以对语句进行注释（快捷键 Control-/ Command-/），然后再点击执行即可
-![explorer-16-sqlEditor.jpeg](./assets/explorer-16-sqlEditor.jpeg "Sql 编辑器")
+![explorer-16-sqlEditor.jpeg](../../assets/explorer-16-sqlEditor.jpeg "Sql 编辑器")
 
 ### SQL 收藏功能使用
 
 鼠标选中窗口中的 SQL，点击收藏按钮，即可对 SQL 进行收藏，并可以填写对该 SQL 语句的描述
-![explorer-17-favoritesAdd.png](./assets/explorer-17-favoritesAdd.png "添加 SQL 收藏")
+![explorer-17-favoritesAdd.png](../../assets/explorer-17-favoritesAdd.png "添加 SQL 收藏")
 
 个人收藏中，点击 SQL 的共享按钮，当前 SQL 会被添加到共享收藏中
-![explorer-18-favoritesAddPublic.png](./assets/explorer-18-favoritesAddPublic.png "添加共享")
+![explorer-18-favoritesAddPublic.png](../../assets/explorer-18-favoritesAddPublic.png "添加共享")
 
 共享收藏中的 SQL 对所有用户可见
-![explorer-19-favoritesPublic.png](./assets/explorer-19-favoritesPublic.png "共享页面")
+![explorer-19-favoritesPublic.png](../../assets/explorer-19-favoritesPublic.png "共享页面")
 
 点击取消共享按钮，可以撤回对此 SQL 的共享
-![explorer-20-favoritesCancelPublic.png](./assets/explorer-20-favoritesCancelPublic.png "取消共享")
+![explorer-20-favoritesCancelPublic.png](../../assets/explorer-20-favoritesCancelPublic.png "取消共享")
 
 在搜索栏中可以对 SQL 或描述进行模糊搜索
-![explorer-21-favoritesSearch.png](./assets/explorer-21-favoritesSearch.png "模糊搜索")
+![explorer-21-favoritesSearch.png](../../assets/explorer-21-favoritesSearch.png "模糊搜索")
 
 点击删除按钮，SQL 将会从个人收藏中删除，如果 SQL 已经共享到共享收藏，那么共享收藏中对应 SQL 也会同步删除
 
-![explorer-22-favoritesDelete.png](./assets/explorer-22-favoritesDelete.png "删除 SQL 收藏")
+![explorer-22-favoritesDelete.png](../../assets/explorer-22-favoritesDelete.png "删除 SQL 收藏")
 
 > 注意：
 >
 > 1. 如果欲收藏的 SQL 已经在个人收藏中，则无法重复收藏，该操作会报错但不产生任何后果
 > 2. 如果欲共享的 SQL 已经被自己或他人共享过，则无法重复共享，该操作会报错但不产生任何后果
 >
->![explorer-23-favoritesNotes.png](assets/explorer-23-favoritesNotes.png)
+>![explorer-23-favoritesNotes.png](../../assets/gui-01.png)
 
 ## 流式计算
 
 通过 taosExplorer，你可以完成对流的管理，从而利用 TDengine 的流式计算能力。
 
 :::note
-界面左侧导航菜单显示为「流计算」；产品文档统一称为「流式计算」，详见 [流式计算](../../06-stream-processing/index.md)。
+界面左侧导航菜单显示为「流计算」；产品文档统一称为「流式计算」，详见 [流式计算](../../07-stream-processing/index.md)。
 :::
 
 点击左侧导航栏中的「流计算」，即可进入流式计算配置管理页面。
 你可以通过以下两种方式创建流：「流计算」向导和自定义 SQL 语句。当前，通过「流计算」向导创建流时，暂不支持分组功能。通过自定义 SQL 创建流时，需要了解流式计算 SQL 语法并保证其正确性。
 
-![stream-01-streamEntry.jpeg](./assets/stream-01-streamEntry.jpeg "进入流计算页面")
+![stream-01-streamEntry.jpeg](../../assets/stream-01-streamEntry.jpeg "进入流计算页面")
 
 ### 创建流计算 Wizard
 
-![stream-02-createStreamEntry.jpeg](./assets/stream-02-createStreamEntry.jpeg "创建流计算入口")
+![stream-02-createStreamEntry.jpeg](../../assets/stream-02-createStreamEntry.jpeg "创建流计算入口")
 
-第一步 填写创建流计算需要的信息，点击**创建**按钮；
+第一步 填写创建流计算需要的信息，点击 **创建** 按钮；
 
-![stream-03-createStreamWizard.jpeg](./assets/stream-03-createStreamWizard.jpeg "创建流计算 Wizard 页面")
-![stream-04-createStreamWizard.jpeg](./assets/stream-04-createStreamWizard.jpeg "创建流计算 Wizard 页面")
+![stream-03-createStreamWizard.jpeg](../../assets/stream-03-createStreamWizard.jpeg "创建流计算 Wizard 页面")
+![stream-04-createStreamWizard.jpeg](../../assets/stream-04-createStreamWizard.jpeg "创建流计算 Wizard 页面")
 
 第二步 页面出现以下记录，则证明创建成功。
-![stream-05-createStreamSucc1.jpeg](./assets/stream-05-createStreamSucc1.jpeg "查看已创建的流计算")
+![stream-05-createStreamSucc1.jpeg](../../assets/stream-05-createStreamSucc1.jpeg "查看已创建的流计算")
 
 ### 使用 SQL
 
-第一步 切换到 SQL 页，直接输入创建流计算的 SQL，点击**创建**按钮；
-![stream-06-createStreamSql.jpeg](./assets/stream-06-createStreamSql.jpeg "创建流计算 SQL 页面")
+第一步 切换到 SQL 页，直接输入创建流计算的 SQL，点击 **创建** 按钮；
+![stream-06-createStreamSql.jpeg](../../assets/stream-06-createStreamSql.jpeg "创建流计算 SQL 页面")
 
 第二步 页面出现以下记录，则证明创建成功。
-![stream-07-createStreamSucc2.jpeg](./assets/stream-07-createStreamSucc2.jpeg "查看已创建的流计算")
+![stream-07-createStreamSucc2.jpeg](../../assets/stream-07-createStreamSucc2.jpeg "查看已创建的流计算")
 
 ## 数据订阅
 
-通过 taosExplorer，你可以完成对数据订阅的管理。主题与消费模型见 [数据订阅](../../07-data-subscription/index.md)；也可用 `taos` shell 的 `subscribe` 快速验证，见 [数据订阅](../04-tools/01-taos-cli.md#数据订阅)。
+通过 taosExplorer，你可以完成对数据订阅的管理。主题与消费模型见 [数据订阅](../../06-data-subscription/index.md)；也可用 `taos` shell 的 `subscribe` 快速验证，见 [数据订阅](../04-tools/01-taos-cli.md#数据订阅)。
 点击左侧导航栏中的“数据订阅”，即可进入数据订阅配置管理页面。
 你可以通过以下两种方式创建主题：使用向导和自定义 SQL 语句。通过自定义 SQL 创建主题时，需要了解数据订阅 SQL 语法并保证其正确性。
 
-![topic-01-dataSubscription.jpeg](./assets/topic-01-dataSubscription.jpeg "进入数据订阅页面")
+![topic-01-dataSubscription.jpeg](../../assets/topic-01-dataSubscription.jpeg "进入数据订阅页面")
 
 ### 添加数据订阅
 
-![topic-02-addTopic.jpeg](./assets/topic-02-addTopic.jpeg "添加新主题入口")
+![topic-02-addTopic.jpeg](../../assets/topic-02-addTopic.jpeg "添加新主题入口")
 
 1. Wizard 方式
 
-第一步 填写添加新主题需要的信息，点击**创建**按钮；
-![topic-03-addTopicWizard.jpeg](./assets/topic-03-addTopicWizard.jpeg "添加新主题 Wizard 页面")
+第一步 填写添加新主题需要的信息，点击 **创建** 按钮；
+![topic-03-addTopicWizard.jpeg](../../assets/topic-03-addTopicWizard.jpeg "添加新主题 Wizard 页面")
 
 如上图，你可以选择是否“同步 meta”。如果同步 meta 信息，则可以订阅到 meta 信息，比如增加或者删除超级表。
 
 你需要根据使用场景来选择是否开启，如果你引用 taos 连接器编写业务代码订阅 topic，则不能开启“同步 meta”，只能订阅数据；如果你创建 topic 在 explorer 配置同步任务使用，则可以开启“同步 meta”。
 
 第二步 页面出现以下记录，则证明创建成功。
-![topic-05-addTopicSucc1.jpeg](./assets/topic-05-addTopicSucc1.jpeg "查看已创建的主题")
+![topic-05-addTopicSucc1.jpeg](../../assets/topic-05-addTopicSucc1.jpeg "查看已创建的主题")
 
 2. SQL 方式
 
-第一步 切换到 SQL 页，直接输入添加新主题 sql，点击**创建**按钮；
-![topic-06-addTopicSql.jpeg](./assets/topic-06-addTopicSql.jpeg "添加新主题 SQL 页面")
+第一步 切换到 SQL 页，直接输入添加新主题 sql，点击 **创建** 按钮；
+![topic-06-addTopicSql.jpeg](../../assets/topic-06-addTopicSql.jpeg "添加新主题 SQL 页面")
 
 第二步 页面出现以下记录，则证明创建成功。
-![topic-07-addTopicsSucc2.jpeg](./assets/topic-07-addTopicsSucc2.jpeg "查看已创建的主题")
+![topic-07-addTopicsSucc2.jpeg](../../assets/topic-07-addTopicsSucc2.jpeg "查看已创建的主题")
 
 ### 共享主题
 
 在“共享主题”标签页，在“主题“下拉列表中，选择将要分享的主题；
 点击“添加可消费该主题的用户”按钮，然后在“用户名”下拉列表中选择相应的用户，然后点击“新增”，即可将该主题分享给此用户
 
-![topic-08-shareTopic.jpeg](./assets/topic-08-shareTopic.jpeg "共享主题")
+![topic-08-shareTopic.jpeg](../../assets/topic-08-shareTopic.jpeg "共享主题")
 
 ### 查看消费者信息
 
 通过执行下一节“示例代码”所述的“完整实例”，即可消费共享主题
 在“消费者”标签页，可查看到消费者的有关信息
-![topic-10-consumer.jpeg](./assets/topic-10-consumer.jpeg "消费者")
+![topic-10-consumer.jpeg](../../assets/topic-10-consumer.jpeg "消费者")
 
 ### 示例代码
 
 在“示例代码”标签页，在“主题“下拉列表中，选择相应的主题；
 选择你熟悉的语言，然后你可以阅读以及使用这部分示例代码用来”创建消费“，”订阅主题“，通过执行“完整实例”中的程序即可消费共享主题
-![topic-09-sample.jpeg](./assets/topic-09-sample.jpeg "示例代码")
+![topic-09-sample.jpeg](../../assets/topic-09-sample.jpeg "示例代码")
 
 ## 工具
 
@@ -222,13 +222,13 @@ toc_max_heading_level: 4
 
 点击“系统管理”后，默认会进入“用户”标签页。
 在用户列表，可以查看系统中已存在的用户及其创建时间，并可以对用户进行启用、禁用，编辑（包括修改密码，数据库的读写权限等），删除等操作。
-![management-01-systemEntry.jpeg](./assets/management-01-systemEntry.jpeg "进入系统管理页面")
+![management-01-systemEntry.jpeg](../../assets/management-01-systemEntry.jpeg "进入系统管理页面")
 
 第一步 点击用户列表右上方的“+新增”按钮，即可打开“新增用户”对话框，填写新增用户的信息，点击“确定”按钮：
-![management-02-addUser.jpeg](./assets/management-02-addUser.jpeg "进入新增用户页面")
+![management-02-addUser.jpeg](../../assets/management-02-addUser.jpeg "进入新增用户页面")
 
 第二步 查看新增的用户
-![management-03-addUserSucc.jpeg](./assets/management-02-addUserSucc.jpeg "新增用户成功")
+![management-03-addUserSucc.jpeg](../../assets/management-02-addUserSucc.jpeg "新增用户成功")
 
 ### 导入用户/权限
 
@@ -241,13 +241,13 @@ toc_max_heading_level: 4
   - 权限
   - 白名单
 
-![management-01-importInfo.jpeg](assets/management-01-importInfo.jpeg)
+![management-01-importInfo.jpeg](../../assets/gui-02.jpeg)
 
 ### 慢 SQL
 
 点击“系统管理”后，点击“慢 SQL”标签页，可以查看慢 SQL 执行语句日志统计与明细。
 
 - 慢 SQL 明细：默认展示的是开始执行时间是一天内和执行耗时大于等于 10 秒的数据
-![management-01-slowsql.jpeg](assets/management-01-slowsql.jpeg)
+![management-01-slowsql.jpeg](../../assets/gui-03.jpeg)
 - 慢 SQL 统计：默认展示所有的数据，可根据开始执行时间进行过滤
-![management-02-slowsql.jpeg](assets/management-02-slowsql.jpeg)
+![management-02-slowsql.jpeg](../../assets/gui-04.jpeg)

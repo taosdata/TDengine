@@ -616,6 +616,7 @@ bool hasExternalWindowDerivedFromSubquery(SSelectStmt* pSelect);
 static int32_t makeExtScanLogicNode(SLogicPlanContext* pCxt, SNode* pExtTableNode,
                                     const char* dbName, const char* tableName,
                                     SScanLogicNode** ppScan);
+static int32_t addExtPrimaryTsCol(SScanLogicNode* pExtScan, SNodeList** pCols);
 
 // ---------------------------------------------------------------------------
 // createExternalScanLogicNode: builds an SScanLogicNode for an external table
@@ -636,6 +637,22 @@ static int32_t createExternalScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_ALL,
                                &pScan->pScanCols);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && pRealTable->placeholderType == SP_PARTITION_ROWS) {
+    code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_ALL,
+                               &pCxt->pPlanCxt->streamCxt.triggerScanList);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && pRealTable->placeholderType == SP_PARTITION_ROWS) {
+    code = addExtPrimaryTsCol(pScan, &pScan->pScanCols);
+    planDebug("external partition rows scan prepared, table:%s.%s, scanCols:%d, triggerScanCols:%d, code:%d",
+              pRealTable->table.dbName, pRealTable->table.tableName,
+              NULL == pScan->pScanCols ? 0 : LIST_LENGTH(pScan->pScanCols),
+              NULL == pCxt->pPlanCxt->streamCxt.triggerScanList
+                  ? 0
+                  : LIST_LENGTH(pCxt->pPlanCxt->streamCxt.triggerScanList),
+              code);
   }
 
   // Collect pseudo-column functions (e.g. TBNAME) — needed for PARTITION BY TBNAME.
@@ -2559,16 +2576,6 @@ static bool isVirtualTagRefCol(SVirtualTableNode* pVirtualTable, SNode* pNode) {
   if (tagRefIndex == -1) {
     tagRefIndex = findTagRefIndexByName(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colName);
   }
-  if (tagRefIndex == -1) {
-    int32_t totalCols = pVirtualTable->pMeta->tableInfo.numOfColumns + pVirtualTable->pMeta->tableInfo.numOfTags;
-    int32_t tagSchemaIndex = findSchemaIndex(pVirtualTable->pMeta->schema, totalCols, pCol->colId);
-    if (tagSchemaIndex >= pVirtualTable->pMeta->tableInfo.numOfColumns) {
-      int32_t tagPos = tagSchemaIndex - pVirtualTable->pMeta->tableInfo.numOfColumns;
-      if (tagPos >= 0 && tagPos < pVirtualTable->pMeta->numOfTagRefs && pVirtualTable->pMeta->tagRef[tagPos].hasRef) {
-        tagRefIndex = tagPos;
-      }
-    }
-  }
 
   return tagRefIndex != -1 && pVirtualTable->pMeta->tagRef[tagRefIndex].hasRef;
 }
@@ -2955,19 +2962,6 @@ static int32_t classifyTagColumns(SVirtualTableNode* pVirtualTable,
     int32_t tagRefIndex = findTagRefIndex(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colId);
     if (tagRefIndex == -1) {
       tagRefIndex = findTagRefIndexByName(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colName);
-    }
-
-    if (tagRefIndex == -1) {
-      int32_t totalCols = pVirtualTable->pMeta->tableInfo.numOfColumns +
-                          pVirtualTable->pMeta->tableInfo.numOfTags;
-      int32_t tagSchemaIndex = findSchemaIndex(pVirtualTable->pMeta->schema, totalCols, pCol->colId);
-      if (tagSchemaIndex >= pVirtualTable->pMeta->tableInfo.numOfColumns) {
-        int32_t tagPos = tagSchemaIndex - pVirtualTable->pMeta->tableInfo.numOfColumns;
-        if (tagPos >= 0 && tagPos < pVirtualTable->pMeta->numOfTagRefs &&
-            pVirtualTable->pMeta->tagRef[tagPos].hasRef) {
-          tagRefIndex = tagPos;
-        }
-      }
     }
 
     if (tagRefIndex >= 0 && pVirtualTable->pMeta->tagRef[tagRefIndex].hasRef) {
@@ -3406,17 +3400,6 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
       if (tagRefIndex == -1) {
         tagRefIndex = findTagRefIndexByName(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colName);
       }
-      if (tagRefIndex == -1) {
-        int32_t totalCols = pVirtualTable->pMeta->tableInfo.numOfColumns + pVirtualTable->pMeta->tableInfo.numOfTags;
-        int32_t tagSchemaIndex = findSchemaIndex(pVirtualTable->pMeta->schema, totalCols, pCol->colId);
-        if (tagSchemaIndex >= pVirtualTable->pMeta->tableInfo.numOfColumns) {
-          int32_t tagPos = tagSchemaIndex - pVirtualTable->pMeta->tableInfo.numOfColumns;
-          if (tagPos >= 0 && tagPos < pVirtualTable->pMeta->numOfTagRefs &&
-              pVirtualTable->pMeta->tagRef[tagPos].hasRef) {
-            tagRefIndex = tagPos;
-          }
-        }
-      }
 
       // Check if this tag reference needs a RefSource node
       if (tagRefIndex != -1 && pVirtualTable->pMeta->tagRef[tagRefIndex].hasRef) {
@@ -3610,29 +3593,37 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
         SRealTableNode* pRefTbl = (SRealTableNode*)*ppRefTable;
         if (!pRefTbl->pMeta || !pRefTbl->pMeta->tagRef || pRefTbl->pMeta->numOfTagRefs <= 0) break;
 
-        // Find the tag-ref entry matching the current terminal colId
+        // Find the tag-ref entry matching the current terminal colId,
+        // falling back to name match. Never index tagRef by tag position:
+        // stale tagRef arrays are not aligned with schema tag positions.
         int32_t totalCols = pRefTbl->pMeta->tableInfo.numOfColumns + pRefTbl->pMeta->tableInfo.numOfTags;
-        int32_t tagSchemaIdx = -1;
-        for (int32_t si = pRefTbl->pMeta->tableInfo.numOfColumns; si < totalCols; ++si) {
-          if (pRefTbl->pMeta->schema[si].colId == terminalColId) {
-            tagSchemaIdx = si - pRefTbl->pMeta->tableInfo.numOfColumns;
+        int32_t tagRefIdx = -1;
+        for (int32_t ti = 0; ti < pRefTbl->pMeta->numOfTagRefs; ++ti) {
+          if (pRefTbl->pMeta->tagRef[ti].id == terminalColId) {
+            tagRefIdx = ti;
             break;
           }
         }
         // Also try matching by name if colId didn't match
-        if (tagSchemaIdx < 0) {
-          for (int32_t si = pRefTbl->pMeta->tableInfo.numOfColumns; si < totalCols; ++si) {
-            if (strcasecmp(pRefTbl->pMeta->schema[si].name, terminalColName) == 0) {
-              tagSchemaIdx = si - pRefTbl->pMeta->tableInfo.numOfColumns;
+        if (tagRefIdx < 0 && terminalColName[0] != '\0') {
+          for (int32_t ti = 0; ti < pRefTbl->pMeta->numOfTagRefs; ++ti) {
+            if (pRefTbl->pMeta->tagRef[ti].colName[0] != '\0' &&
+                strcasecmp(pRefTbl->pMeta->tagRef[ti].colName, terminalColName) == 0) {
+              tagRefIdx = ti;
+              break;
+            }
+            int32_t schemaIndex = findSchemaIndex(pRefTbl->pMeta->schema, totalCols, pRefTbl->pMeta->tagRef[ti].id);
+            if (schemaIndex >= 0 && strcasecmp(pRefTbl->pMeta->schema[schemaIndex].name, terminalColName) == 0) {
+              tagRefIdx = ti;
               break;
             }
           }
         }
-        if (tagSchemaIdx < 0 || tagSchemaIdx >= pRefTbl->pMeta->numOfTagRefs) break;
-        if (!pRefTbl->pMeta->tagRef[tagSchemaIdx].hasRef) break;
+        if (tagRefIdx < 0) break;
+        if (!pRefTbl->pMeta->tagRef[tagRefIdx].hasRef) break;
 
         // Follow the chain to the next level
-        SColRef* pNextRef = &pRefTbl->pMeta->tagRef[tagSchemaIdx];
+        SColRef* pNextRef = &pRefTbl->pMeta->tagRef[tagRefIdx];
         tstrncpy(curDbName, pNextRef->refDbName, TSDB_DB_NAME_LEN);
         tstrncpy(curTbName, pNextRef->refTableName, TSDB_TABLE_NAME_LEN);
 
@@ -3805,17 +3796,6 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
       if (tagRefIndex == -1) {
         tagRefIndex = findTagRefIndexByName(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colName);
       }
-      if (tagRefIndex == -1) {
-        int32_t totalCols = pVirtualTable->pMeta->tableInfo.numOfColumns + pVirtualTable->pMeta->tableInfo.numOfTags;
-        int32_t tagSchemaIndex = findSchemaIndex(pVirtualTable->pMeta->schema, totalCols, pCol->colId);
-        if (tagSchemaIndex >= pVirtualTable->pMeta->tableInfo.numOfColumns) {
-          int32_t tagPos = tagSchemaIndex - pVirtualTable->pMeta->tableInfo.numOfColumns;
-          if (tagPos >= 0 && tagPos < pVirtualTable->pMeta->numOfTagRefs &&
-              pVirtualTable->pMeta->tagRef[tagPos].hasRef) {
-            tagRefIndex = tagPos;
-          }
-        }
-      }
 
       // Check if this tagRef needs a RefSource node
       if (tagRefIndex != -1 && pVirtualTable->pMeta->tagRef[tagRefIndex].hasRef) {
@@ -3910,17 +3890,6 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
         int32_t tagRefIndex = findTagRefIndex(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colId);
         if (tagRefIndex == -1) {
           tagRefIndex = findTagRefIndexByName(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colName);
-        }
-        if (tagRefIndex == -1) {
-          int32_t totalCols = pVirtualTable->pMeta->tableInfo.numOfColumns + pVirtualTable->pMeta->tableInfo.numOfTags;
-          int32_t tagSchemaIndex = findSchemaIndex(pVirtualTable->pMeta->schema, totalCols, pCol->colId);
-          if (tagSchemaIndex >= pVirtualTable->pMeta->tableInfo.numOfColumns) {
-            int32_t tagPos = tagSchemaIndex - pVirtualTable->pMeta->tableInfo.numOfColumns;
-            if (tagPos >= 0 && tagPos < pVirtualTable->pMeta->numOfTagRefs &&
-                pVirtualTable->pMeta->tagRef[tagPos].hasRef) {
-              tagRefIndex = tagPos;
-            }
-          }
         }
         if (tagRefIndex == -1) {
           int32_t colRefIndex = findColRefIndex(pVirtualTable->pMeta->colRef, pVirtualTable, pCol->colId);
@@ -5876,8 +5845,9 @@ static int32_t buildStreamExtJoinTwendTimeRange(SSelectStmt* pSelect) {
 
   PLAN_ERR_JRET(makeStreamExtWindowTimeRangeOp(OP_TYPE_GREATER_THAN, "_twstart", FUNCTION_TYPE_TWSTART,
                                                fmGetTwstartFuncId(), pSelect->precision, &pStartOp));
-  PLAN_ERR_JRET(makeStreamExtWindowTimeRangeOp(OP_TYPE_LOWER_EQUAL, "_twend", FUNCTION_TYPE_TWEND,
-                                               fmGetTwendFuncId(), pSelect->precision, &pEndOp));
+  ((SOperatorNode*)pStartOp)->flag |= OPERATOR_FLAG_STREAM_EXT_JOIN_AUTO_RANGE;
+  PLAN_ERR_JRET(makeStreamExtWindowTimeRangeOp(OP_TYPE_LOWER_EQUAL, "_twend", FUNCTION_TYPE_TWEND, fmGetTwendFuncId(),
+                                               pSelect->precision, &pEndOp));
 
   pTimeRange->pStart = pStartOp;
   pTimeRange->pEnd = pEndOp;
@@ -6237,6 +6207,55 @@ _return:
   return code;
 }
 
+static bool streamSelectIsDerivedWrapper(SSelectStmt* pSelect) {
+  return NULL != pSelect && NULL != pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable);
+}
+
+static bool streamExtWindowDerivedWrapperSupportsTrigger(ENodeType triggerWinType) {
+  switch (triggerWinType) {
+    case QUERY_NODE_INTERVAL_WINDOW:
+    case QUERY_NODE_SLIDING_WINDOW:
+    case QUERY_NODE_PERIOD_WINDOW:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static int32_t streamDerivedWrapperSatisfyExternalWindow(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
+                                                         bool hasPlaceHolderCond, bool* pSatisfy) {
+  if (!streamSelectIsDerivedWrapper(pSelect)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (!streamExtWindowDerivedWrapperSupportsTrigger(pCxt->pPlanCxt->streamCxt.triggerWinType)) {
+    planDebug("stream external window disabled: derived table wrapper unsupported triggerWinType=%d",
+              pCxt->pPlanCxt->streamCxt.triggerWinType);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList ||
+      !inStreamCalcClause(pCxt->pPlanCxt) || hasPlaceHolderCond || NULL != pSelect->pSlimit ||
+      NULL != pSelect->pLimit || pCxt->pPlanCxt->streamCxt.disableExtWindow || pSelect->hasInterpFunc ||
+      pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
+      (pSelect->pOrderByList != NULL && pCxt->pPlanCxt->streamCxt.hasForceOutput)) {
+    planDebug("%s", "stream external window disabled: unsafe derived table wrapper");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pCxt->pPlanCxt->streamCxt.hasNotify || pCxt->pPlanCxt->streamCxt.hasForceOutput) {
+    if (pSelect->pFill || pSelect->hasInterpFunc || pSelect->hasForecastFunc || pSelect->hasGenericAnalysisFunc ||
+        pSelect->isDistinct || pSelect->pOrderByList) {
+      planDebug("%s", "stream external window disabled: unsafe notify/force-output derived table wrapper");
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  *pSatisfy = true;
+  planDebug("%s", "stream external window derived table wrapper accepted");
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t streamCurrentSelectSatisfyExternalWindow(SLogicPlanContext* pCxt, SSelectStmt* pSelect, bool* pSatisfy) {
   *pSatisfy = false;
   if (NULL == pSelect || NULL == pSelect->pFromTable) {
@@ -6249,14 +6268,27 @@ static int32_t streamCurrentSelectSatisfyExternalWindow(SLogicPlanContext* pCxt,
   ENodeType fromType = nodeType(pSelect->pFromTable);
   bool      safeExtJoin =
       QUERY_NODE_JOIN_TABLE == fromType && streamExtJoinTableIsSafe((SJoinTableNode*)pSelect->pFromTable);
+  planDebug("stream external window evaluate select: fromType=%d hasPlaceHolder=%d treeChecked=%d treeEnabled=%d",
+            fromType, hasPlaceHolderCond, pCxt->streamExtWindowTreeChecked, pCxt->streamExtWindowTreeEnabled);
+
+  if (QUERY_NODE_TEMP_TABLE == fromType) {
+    planDebug("%s", "stream external window candidate has a derived table source, checking nested select tree");
+    PLAN_ERR_RET(streamDerivedWrapperSatisfyExternalWindow(pCxt, pSelect, hasPlaceHolderCond, pSatisfy));
+    planDebug("stream external window derived wrapper result: satisfy=%d", *pSatisfy);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (!safeExtJoin && !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange)) {
+    planDebug("%s", "stream external window disabled: select time range does not match trigger window placeholders");
+    return TSDB_CODE_SUCCESS;
+  }
 
   if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList ||
-      !inStreamCalcClause(pCxt->pPlanCxt) || hasPlaceHolderCond || QUERY_NODE_TEMP_TABLE == fromType ||
+      !inStreamCalcClause(pCxt->pPlanCxt) || hasPlaceHolderCond ||
       (QUERY_NODE_JOIN_TABLE == fromType && !safeExtJoin) || NULL != pSelect->pSlimit || NULL != pSelect->pLimit ||
-      pCxt->pPlanCxt->streamCxt.disableExtWindow || LIST_LENGTH(pSelect->pSubQueries) > 0 || pSelect->hasInterpFunc ||
+      pCxt->pPlanCxt->streamCxt.disableExtWindow || pSelect->hasInterpFunc ||
       pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
-      (pSelect->pOrderByList != NULL && pCxt->pPlanCxt->streamCxt.hasForceOutput) ||
-      (!safeExtJoin && !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange))) {
+      (pSelect->pOrderByList != NULL && pCxt->pPlanCxt->streamCxt.hasForceOutput)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -6269,6 +6301,7 @@ static int32_t streamCurrentSelectSatisfyExternalWindow(SLogicPlanContext* pCxt,
   }
 
   *pSatisfy = true;
+  planDebug("%s", "stream external window select accepted");
   return TSDB_CODE_SUCCESS;
 }
 
@@ -6355,23 +6388,27 @@ static int32_t checkExternalWindow(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     return checkExprListForExternalWin(pCxt, pSelect);
   }
 
-  if (pCxt->streamExtWindowTreeChecked) {
-    return TSDB_CODE_SUCCESS;
+  if (!pCxt->streamExtWindowTreeChecked) {
+    bool satisfy = true;
+    PLAN_ERR_RET(streamSelectTreeSatisfyExternalWindow(pCxt, (SNode*)pSelect, &satisfy));
+    pCxt->streamExtWindowTreeChecked = true;
+    pCxt->streamExtWindowTreeEnabled = satisfy;
+    planDebug("stream external window tree evaluated: satisfy=%d", satisfy);
   }
 
-  bool satisfy = true;
-  PLAN_ERR_RET(streamSelectTreeSatisfyExternalWindow(pCxt, (SNode*)pSelect, &satisfy));
-  if (satisfy) {
+  if (pCxt->streamExtWindowTreeEnabled && !streamSelectIsDerivedWrapper(pSelect)) {
     PLAN_ERR_RET(buildStreamExtJoinTwendTimeRange(pSelect));
   }
-  pCxt->streamExtWindowTreeChecked = true;
-  pCxt->streamExtWindowTreeEnabled = satisfy;
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (hasExternalWindowDerivedFromSubquery(pSelect)) {
     return createWindowLogicNodeByExternal(pCxt, (SExternalWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
+  }
+  if (streamSelectIsDerivedWrapper(pSelect)) {
+    planDebug("%s", "stream external window skip derived table wrapper");
+    return TSDB_CODE_SUCCESS;
   }
   if (!pCxt->streamExtWindowTreeEnabled) {
     return TSDB_CODE_SUCCESS;

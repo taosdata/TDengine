@@ -179,8 +179,9 @@ struct SExtQueryHandle {
 // Internal helpers
 // ============================================================
 
-// Password decrypt (AES-128-CBC with fixed enterprise key)
-void extDecryptPassword(const char *cipherBuf, char *outPlain, int32_t outLen);
+// Password encrypt/decrypt (AES-128-CBC with fixed enterprise key)
+void encryptExtSourcePassword(const char *plaintext, char *outBuf);
+void decryptExtSourcePassword(const char *cipherBuf, char *outPlain);
 
 // Helper: dialect from source type
 EExtSQLDialect extDialectFromSourceType(EExtSourceType srcType);

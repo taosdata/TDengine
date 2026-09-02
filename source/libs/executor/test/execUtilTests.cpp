@@ -19,6 +19,55 @@ extern "C" void handleRemoteRowRes(SScalarFetchParam* pParam, STaskSubJobCtx* ct
 
 namespace {
 
+SStreamAncestorContext *makeFetchProjectionContext(int64_t gid, int32_t paramIndex) {
+  auto *context = static_cast<SStreamAncestorContext *>(taosMemoryCalloc(1, sizeof(SStreamAncestorContext)));
+  EXPECT_NE(context, nullptr);
+  if (context == nullptr) return nullptr;
+  context->pParamContexts = taosArrayInit(1, sizeof(SStreamAncestorParamContext));
+  EXPECT_NE(context->pParamContexts, nullptr);
+  if (context->pParamContexts == nullptr) return context;
+
+  SStreamAncestorParamContext param = {};
+  param.paramIndex = paramIndex;
+  param.leafIdentity.gid = gid;
+  param.leafIdentity.triggerType = WINDOW_TYPE_COUNT;
+  param.leafIdentity.lineage.pScopes = taosArrayInit(1, sizeof(SScopeInstanceId));
+  EXPECT_NE(param.leafIdentity.lineage.pScopes, nullptr);
+  SScopeInstanceId scope = {};
+  scope.layerIndex = 0;
+  scope.triggerType = WINDOW_TYPE_SESSION;
+  scope.openingTs = 100;
+  scope.nativeDiscriminator = 1;
+  EXPECT_NE(taosArrayPush(param.leafIdentity.lineage.pScopes, &scope), nullptr);
+  param.pSnapshots = taosArrayInit(1, sizeof(SWindowAncestorSnapshot));
+  EXPECT_NE(param.pSnapshots, nullptr);
+  SWindowAncestorSnapshot snapshot = {};
+  snapshot.layerIndex = 0;
+  snapshot.triggerType = WINDOW_TYPE_SESSION;
+  snapshot.placeholderMask = PLACE_HOLDER_WSTART;
+  snapshot.values.window.start = 100;
+  EXPECT_NE(taosArrayPush(param.pSnapshots, &snapshot), nullptr);
+  EXPECT_NE(taosArrayPush(context->pParamContexts, &param), nullptr);
+  return context;
+}
+
+SStreamContextPolicy *makeFetchProjectionPolicy(int64_t gid, int32_t paramIndex) {
+  auto *policy = static_cast<SStreamContextPolicy *>(taosMemoryCalloc(1, sizeof(SStreamContextPolicy)));
+  EXPECT_NE(policy, nullptr);
+  if (policy == nullptr) return nullptr;
+  policy->pEntries = taosArrayInit(paramIndex + 1, sizeof(SStreamContextPolicyEntry));
+  EXPECT_NE(policy->pEntries, nullptr);
+  if (policy->pEntries == nullptr) return policy;
+  for (int32_t i = 0; i <= paramIndex; ++i) {
+    SStreamContextPolicyEntry entry = {};
+    entry.gid = gid;
+    entry.paramIndex = i;
+    entry.contextPolicy = i == paramIndex ? STREAM_CONTEXT_POLICY_ANCESTOR : STREAM_CONTEXT_POLICY_NONE;
+    EXPECT_NE(taosArrayPush(policy->pEntries, &entry), nullptr);
+  }
+  return policy;
+}
+
 struct StableTagFilterWarmupMock {
   int32_t getCacheCalls = 0;
   int32_t warmupCalls = 0;
@@ -313,6 +362,52 @@ TEST(execUtilTest, stableTagFilterCacheSkipsWarmupWhenEntryAlreadyPrewarmed) {
   tsStableTagFilterCache = oldStableTagFilterCache;
 }
 
+TEST(execUtilTest, buildRunnerFetchInfoProjectsCurrentAncestorContext) {
+  SStreamRuntimeFuncInfo source = {};
+  source.groupId = 101;
+  source.curIdx = 1;
+  source.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  source.pStreamPesudoFuncVals = taosArrayInit(2, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(source.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam first = {};
+  first.wstart = 100;
+  first.wend = 199;
+  first.notifyType = BIT_FLAG_MASK(0);
+  SSTriggerCalcParam second = {};
+  second.wstart = 200;
+  second.wend = 299;
+  second.notifyType = BIT_FLAG_MASK(0);
+  ASSERT_NE(taosArrayPush(source.pStreamPesudoFuncVals, &first), nullptr);
+  ASSERT_NE(taosArrayPush(source.pStreamPesudoFuncVals, &second), nullptr);
+  source.pContextPolicy = makeFetchProjectionPolicy(source.groupId, 1);
+  source.pAncestorContext = makeFetchProjectionContext(source.groupId, 1);
+
+  SStreamRuntimeFuncInfo projected = {};
+  ASSERT_EQ(buildStreamRunnerFetchRtInfo(&source, &projected), TSDB_CODE_SUCCESS);
+  ASSERT_NE(projected.pContextPolicy, nullptr);
+  EXPECT_NE(source.pContextPolicy, projected.pContextPolicy);
+  ASSERT_EQ(taosArrayGetSize(projected.pContextPolicy->pEntries), 1);
+  const auto *policyEntry =
+      static_cast<const SStreamContextPolicyEntry *>(taosArrayGet(projected.pContextPolicy->pEntries, 0));
+  ASSERT_NE(policyEntry, nullptr);
+  EXPECT_EQ(policyEntry->paramIndex, 0);
+  ASSERT_NE(projected.pAncestorContext, nullptr);
+  EXPECT_NE(source.pAncestorContext, projected.pAncestorContext);
+  ASSERT_EQ(taosArrayGetSize(projected.pAncestorContext->pParamContexts), 1);
+  const auto *param =
+      static_cast<const SStreamAncestorParamContext *>(taosArrayGet(projected.pAncestorContext->pParamContexts, 0));
+  ASSERT_NE(param, nullptr);
+  EXPECT_EQ(param->paramIndex, 0);
+  const auto *snapshot = static_cast<const SWindowAncestorSnapshot *>(taosArrayGet(param->pSnapshots, 0));
+  ASSERT_NE(snapshot, nullptr);
+  EXPECT_EQ(snapshot->values.window.start, 100);
+
+  tDestroyStRtFuncInfo(&source);
+  ASSERT_NE(projected.pContextPolicy, nullptr);
+  ASSERT_NE(projected.pAncestorContext, nullptr);
+  cleanupStreamRunnerFetchRtInfo(&projected);
+}
+
 // Test for fix of double-free bug in projectApplyFunction (GHSA-f8pf-77fh-53wv).
 //
 // When scalarCalculate succeeds but the subsequent colDataMergeCol/colDataAssign
@@ -488,4 +583,133 @@ TEST(execUtilTest, handleRemoteRowResNoDoubleFreeOnExtractFailure) {
 
   execUtilTestResetHandleRemoteRowResState();
   taosArrayDestroy(ctx.subResNodes);
+}
+
+TEST(execUtilTest, externalWindowReusableBlockGrowsToRequestedRows) {
+  SSDataBlock *pBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData col = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(pBlock, &col), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(pBlock, 4096), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(pBlock->info.capacity, 4096);
+
+  SArray *pIdx = taosArrayInit(1, sizeof(int64_t));
+  ASSERT_NE(pIdx, nullptr);
+
+  SList *pFreeBlocks = tdListNew(POINTER_BYTES * 2);
+  SList *pTargetBlocks = tdListNew(POINTER_BYTES * 2);
+  ASSERT_NE(pFreeBlocks, nullptr);
+  ASSERT_NE(pTargetBlocks, nullptr);
+
+  void *reusable[2] = {pBlock, pIdx};
+  ASSERT_EQ(tdListAppend(pFreeBlocks, reusable), TSDB_CODE_SUCCESS);
+
+  SSDataBlock *pReusedBlock = nullptr;
+  SArray      *pReusedIdx = nullptr;
+  ASSERT_EQ(extWinTestTakeReusableBlock(pFreeBlocks, pTargetBlocks, 4097, &pReusedBlock, &pReusedIdx),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pReusedBlock, pBlock);
+  EXPECT_EQ(pReusedIdx, pIdx);
+  EXPECT_GE(pReusedBlock->info.capacity, 4097);
+  EXPECT_EQ(listNEles(pFreeBlocks), 0);
+  EXPECT_EQ(listNEles(pTargetBlocks), 1);
+
+  SListNode *pNode = listTail(pTargetBlocks);
+  ASSERT_NE(pNode, nullptr);
+  int32_t overlapCol = -1;
+  EXPECT_TRUE(extWinTestBlockNodeInvariantHolds(pTargetBlocks, pNode, pNode->dl_prev_, pReusedBlock, pReusedIdx, 0,
+                                                &overlapCol));
+  EXPECT_EQ(overlapCol, -1);
+
+  SColumnInfoData *pCol = static_cast<SColumnInfoData *>(taosArrayGet(pReusedBlock->pDataBlock, 0));
+  ASSERT_NE(pCol, nullptr);
+  char *pOriginalData = pCol->pData;
+  pCol->pData = reinterpret_cast<char *>(pNode);
+  EXPECT_FALSE(extWinTestBlockNodeInvariantHolds(pTargetBlocks, pNode, pNode->dl_prev_, pReusedBlock, pReusedIdx, 0,
+                                                 &overlapCol));
+  EXPECT_EQ(overlapCol, 0);
+  pCol->pData = pOriginalData;
+
+  pNode = tdListPopHead(pTargetBlocks);
+  ASSERT_NE(pNode, nullptr);
+  blockDataDestroy(*(SSDataBlock **)pNode->data);
+  taosArrayDestroy(*(SArray **)((SSDataBlock **)pNode->data + 1));
+  taosMemoryFree(pNode);
+  tdListFree(pFreeBlocks);
+  tdListFree(pTargetBlocks);
+}
+
+TEST(execUtilTest, externalWindowReusableBlockRejectsEmptyFreeListAsInternalError) {
+  SList *pFreeBlocks = tdListNew(POINTER_BYTES * 2);
+  SList *pTargetBlocks = tdListNew(POINTER_BYTES * 2);
+  ASSERT_NE(pFreeBlocks, nullptr);
+  ASSERT_NE(pTargetBlocks, nullptr);
+
+  SSDataBlock *pBlock = nullptr;
+  SArray      *pIdx = nullptr;
+  EXPECT_EQ(extWinTestTakeReusableBlock(pFreeBlocks, pTargetBlocks, 1, &pBlock, &pIdx),
+            TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  EXPECT_EQ(pBlock, nullptr);
+  EXPECT_EQ(pIdx, nullptr);
+  EXPECT_EQ(listNEles(pFreeBlocks), 0);
+  EXPECT_EQ(listNEles(pTargetBlocks), 0);
+
+  tdListFree(pFreeBlocks);
+  tdListFree(pTargetBlocks);
+}
+
+static void checkExternalWindowOutputAliasLifecycle(bool reset) {
+  SList *pFreeBlocks = tdListNew(POINTER_BYTES * 2);
+  SList *pOutputBlocks = tdListNew(POINTER_BYTES * 2);
+  ASSERT_NE(pFreeBlocks, nullptr);
+  ASSERT_NE(pOutputBlocks, nullptr);
+
+  SSDataBlock *pBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+  SArray *pIdx = taosArrayInit(1, sizeof(int64_t));
+  ASSERT_NE(pIdx, nullptr);
+
+  void *outputBlock[2] = {pBlock, pIdx};
+  ASSERT_EQ(tdListAppend(pOutputBlocks, outputBlock), TSDB_CODE_SUCCESS);
+
+  bool aliasEstablished = false;
+  bool aliasCleared = false;
+  EXPECT_EQ(extWinTestOutputAliasLifecycle(pOutputBlocks, pFreeBlocks, reset, &aliasEstablished, &aliasCleared),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(aliasEstablished);
+  EXPECT_TRUE(aliasCleared);
+  EXPECT_EQ(listNEles(pOutputBlocks), 0);
+  EXPECT_EQ(listNEles(pFreeBlocks), 1);
+
+  SListNode *pNode = tdListPopHead(pFreeBlocks);
+  ASSERT_NE(pNode, nullptr);
+  blockDataDestroy(*(SSDataBlock **)pNode->data);
+  taosArrayDestroy(*(SArray **)((SSDataBlock **)pNode->data + 1));
+  taosMemoryFree(pNode);
+
+  tdListFree(pOutputBlocks);
+  tdListFree(pFreeBlocks);
+}
+
+TEST(execUtilTest, externalWindowNextClearsBorrowedIndexBeforeRecycle) {
+  checkExternalWindowOutputAliasLifecycle(false);
+}
+
+TEST(execUtilTest, externalWindowResetClearsBorrowedIndexBeforeRecycle) {
+  checkExternalWindowOutputAliasLifecycle(true);
+}
+
+TEST(execUtilTest, externalWindowLastClosedRejectsMissingIndexArray) {
+  SList *pOutputBlocks = tdListNew(POINTER_BYTES * 2);
+  ASSERT_NE(pOutputBlocks, nullptr);
+
+  void *outputBlock[2] = {nullptr, nullptr};
+  ASSERT_EQ(tdListAppend(pOutputBlocks, outputBlock), TSDB_CODE_SUCCESS);
+
+  bool closed = true;
+  EXPECT_EQ(extWinTestLastWinClosed(pOutputBlocks, &closed), TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  EXPECT_FALSE(closed);
+
+  tdListFree(pOutputBlocks);
 }

@@ -1,9 +1,8 @@
-# encoding:utf-8
 """anomaly handlers: encapsulates anomaly detection business logic"""
 
 from taosanalytics.algo.anomaly import do_ad_check
 from taosanalytics.log import AppLogger
-from taosanalytics.util import parse_options, do_check_before_exec
+from taosanalytics.util import do_check_before_exec, parse_options
 
 
 def handle_anomaly(request):
@@ -18,7 +17,9 @@ def handle_anomaly(request):
     """
 
     try:
-        req_json, payload, options, data_index, ts_index = do_check_before_exec(request, True)
+        req_json, payload, options, data_index, ts_index = do_check_before_exec(
+            request, True
+        )
     except Exception as e:
         AppLogger.error("failed to do anomaly-detection, %s", str(e))
         return {"msg": str(e), "rows": -1}
@@ -35,7 +36,13 @@ def handle_anomaly(request):
 
     try:
         _, ano_window, mask_list = do_ad_check(payload, ts_list, algo, params)
-        result = {"algo": algo, "option": options, "res": ano_window, "rows": len(ano_window), "mask": mask_list}
+        result = {
+            "algo": algo,
+            "option": options,
+            "res": ano_window,
+            "rows": len(ano_window),
+            "mask": mask_list,
+        }
 
         AppLogger.debug("anomaly-detection result: %s", str(result))
         return result

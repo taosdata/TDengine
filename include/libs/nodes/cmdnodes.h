@@ -324,6 +324,7 @@ typedef struct SColumnDefNode {
   SDataType dataType;
   SNode*    pOptions;
   bool      sma;
+  SNode*    pTagVal;  // inline tag value for `TAGS(name TYPE = value)` (NULL ⇒ tag is NULL/ref)
 } SColumnDefNode;
 
 typedef struct SCreateTableStmt {
@@ -331,6 +332,7 @@ typedef struct SCreateTableStmt {
   char           dbName[TSDB_DB_NAME_LEN];
   char           tableName[TSDB_TABLE_NAME_LEN];
   bool           ignoreExists;
+  bool           stableKeyword;  // true only for CREATE STABLE syntax (never a normal table)
   SNodeList*     pCols;
   SNodeList*     pTags;
   STableOptions* pOptions;
@@ -344,6 +346,7 @@ typedef struct SCreateVTableStmt {
   bool       ignoreExists;
   SNodeList* pCols;
   SNodeList* pSeriesList;     // list of SSeriesDeclNode (nullable)
+  SNodeList* pTags;           // list of SColumnDefNode (virtual normal table tags, nullable)
 } SCreateVTableStmt;
 
 typedef struct SCreateVSubTableStmt {
@@ -422,11 +425,9 @@ typedef struct SDropSuperTableStmt {
 } SDropSuperTableStmt;
 
 typedef struct SDropVirtualTableStmt {
-  ENodeType type;
-  char      dbName[TSDB_DB_NAME_LEN];
-  char      tableName[TSDB_TABLE_NAME_LEN];
-  bool      ignoreNotExists;
-  bool      withOpt;
+  ENodeType  type;
+  SNodeList* pTables;
+  bool       withOpt;
 } SDropVirtualTableStmt;
 
 typedef struct SUpdateTagValueNode {
@@ -1255,6 +1256,10 @@ typedef SGrantStmt SRevokeStmt;
 typedef struct SBalanceVgroupStmt {
   ENodeType type;
 } SBalanceVgroupStmt;
+
+typedef struct SFlushMnodeStmt {
+  ENodeType type;
+} SFlushMnodeStmt;
 
 typedef struct SAssignLeaderStmt {
   ENodeType type;

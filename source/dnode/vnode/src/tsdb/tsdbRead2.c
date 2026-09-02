@@ -6723,8 +6723,11 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
     goto _end;
   }
 
-  // there is no statistics data for composed block
-  if (pReader->status.composedDataBlock || (!pReader->suppInfo.smaValid)) {
+  // These modes synthesize an all-NULL aggregate for columns absent from a block SMA.
+  // Other modes require every requested column to have block SMA enabled.
+  if (pReader->status.composedDataBlock ||
+      (!pReader->suppInfo.smaValid && pReader->suppInfo.blockSmaMode != TSD_READER_BLOCK_SMA_MODE_MAX_ONLY &&
+       pReader->suppInfo.blockSmaMode != TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY)) {
     goto _end;
   }
 
@@ -6751,8 +6754,10 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
   }
 
   *allHave = true;
-  synthesizeAllNullSma =
-      (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY && pSup->colAggArray.size <= 0);
+  synthesizeAllNullSma = (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY) ||
+                         (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_MAX_ONLY) ||
+                         (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY &&
+                          pSup->colAggArray.size <= 0);
   if (pSup->colAggArray.size <= 0 && !synthesizeAllNullSma) {
     *allHave = false;
     goto _end;
@@ -7076,6 +7081,7 @@ int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pT
   pTableBlockInfo->defMaxRows = pc->maxRows;
 
   int32_t bucketRange = ceil(((double)(pc->maxRows - pc->minRows)) / numOfBuckets);
+  if (bucketRange <= 0) bucketRange = 1;
 
   pTableBlockInfo->numOfFiles += 1;
 
@@ -7277,7 +7283,17 @@ int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_
       metaReaderClear(&mr);
       return code;
     }
-  } else if (mr.me.type == TSDB_NORMAL_TABLE) {  // do nothing
+  } else if (mr.me.type == TSDB_NORMAL_TABLE || mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
+    // normal/virtual-normal tables may own tags (ntbEntry.schemaTag); expose them to the catalog
+    *pTagSchema = NULL;
+    if (mr.me.ntbEntry.schemaTag.nCols > 0) {
+      *pTagSchema = tCloneSSchemaWrapper(&mr.me.ntbEntry.schemaTag);
+      if (NULL == *pTagSchema) {
+        code = terrno;
+        metaReaderClear(&mr);
+        return code;
+      }
+    }
   } else if (mr.me.type == TSDB_SUPER_TABLE) {
     tDecoderClear(&mr.coder);
     *suid = uid;
@@ -7442,7 +7458,9 @@ int32_t tsdbReaderSetBlockSmaMode(void* p, ETsdReaderBlockSmaMode mode) {
   STsdbReader* pReader = (STsdbReader*)p;
 
   TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  TSDB_CHECK_CONDITION(mode == TSD_READER_BLOCK_SMA_MODE_NORMAL || mode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY,
+  TSDB_CHECK_CONDITION(mode == TSD_READER_BLOCK_SMA_MODE_NORMAL || mode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY ||
+                           mode == TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY ||
+                           mode == TSD_READER_BLOCK_SMA_MODE_MAX_ONLY,
                        code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   pReader->suppInfo.blockSmaMode = mode;

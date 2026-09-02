@@ -33,6 +33,23 @@ SKIP_WINDOWS_SET_TIMEZONE = pytest.mark.skipif(
     reason='Windows does not support SET TIMEZONE cases in this suite',
 )
 
+
+def _check_invalid_timezone_detail(sql, tz):
+    """Assert the error names the rejected timezone instead of a placeholder.
+
+    tdSql strips single quotes from the error info, so the expected detail is
+    matched without the quotes that the server actually emits.
+    """
+    err = tdSql.error(
+        sql,
+        expectedErrno=ERR_INVALID_TIMEZONE,
+        fullMatched=False,
+    )
+    assert f"Invalid timezone: {tz}" in err, (
+        f"sql:{sql}, expected rejected timezone '{tz}' in error info: {err}"
+    )
+    assert "%s" not in err, f"sql:{sql}, raw placeholder leaked: {err}"
+
 class _ToIso8601IanaMixin:
     """TO_ISO8601 IANA timezone parameter and DST-aware output."""
 
@@ -92,12 +109,11 @@ class _ToIso8601IanaMixin:
             assert '+08:00' in row[0] or '+0800' in row[0]
 
     def check_to_iso8601_invalid_tz(self):
-        """Invalid timezone params should fail."""
+        """Invalid timezone params should fail and name the rejected value."""
         self._prepare_to_iso8601_iana_data()
-        for tz in ["'Invalid/Zone'", "'CST'", "'+8'"]:
-            tdSql.error(
-                f"select to_iso8601(ts, {tz}) from {self.ntbname}",
-                expectedErrno=ERR_INVALID_TIMEZONE,
+        for tz in ['Invalid/Zone', 'CST', '+8']:
+            _check_invalid_timezone_detail(
+                f"select to_iso8601(ts, '{tz}') from {self.ntbname}", tz
             )
 
     def check_to_iso8601_no_param_uses_l2(self):
@@ -203,13 +219,12 @@ class _ToCharTimezoneMixin:
                 f"tz={tz}, c1={c1}: expected {expected_time} in {tdSql.queryResult[0][0]}"
 
     def check_to_char_invalid_tz(self):
-        """Invalid timezone params should fail."""
+        """Invalid timezone params should fail and name the rejected value."""
         self._prepare_to_char_timezone_data()
         fmt = 'YYYY-MM-DD HH24:MI:SS'
-        for tz in ["'Invalid/Zone'", "'CST'"]:
-            tdSql.error(
-                f"select to_char(ts, '{fmt}', {tz}) from {self.ntbname}",
-                expectedErrno=ERR_INVALID_TIMEZONE,
+        for tz in ['Invalid/Zone', 'CST']:
+            _check_invalid_timezone_detail(
+                f"select to_char(ts, '{fmt}', '{tz}') from {self.ntbname}", tz
             )
 
     def check_to_char_no_param_uses_l2(self):
@@ -301,12 +316,11 @@ class _TimetruncateTzMixin:
             assert tdSql.queryResult[0][0] is not None
 
     def check_timetruncate_invalid_tz(self):
-        """Invalid timezone string should fail."""
+        """Invalid timezone string should fail and name the rejected value."""
         self._prepare_timetruncate_tz_data()
-        for tz in ["'Invalid/Zone'", "'CST'"]:
-            tdSql.error(
-                f"select timetruncate(ts, 1d, {tz}) from {self.ntbname}",
-                expectedErrno=ERR_INVALID_TIMEZONE,
+        for tz in ['Invalid/Zone', 'CST']:
+            _check_invalid_timezone_detail(
+                f"select timetruncate(ts, 1d, '{tz}') from {self.ntbname}", tz
             )
 
     def check_timetruncate_l1_overrides_l2(self):
@@ -350,6 +364,31 @@ class _TimetruncateTzMixin:
             result = tdSql.queryResult[0][0]
             assert expected in result, f"tz={tz}, unit={unit}: expected {expected} in {result}"
 
+    def check_timetruncate_utc_prefix_case_insensitive(self):
+        """Lowercase UTC prefixes must resolve exactly like uppercase ones.
+
+        A case-sensitive prefix check in the execution path would silently fall
+        back to the connection timezone instead of the requested offset.
+        """
+        self._prepare_timetruncate_tz_data()
+        tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
+        tdSql.query(f"select timetruncate(ts, 1d) from {self.ntbname}")
+        r_session = tdSql.queryResult[0][0]
+
+        pairs = [('utc8', 'UTC8'), ('utc+8', 'UTC+8'), ('uTc-8', 'UTC-8')]
+        for lower, upper in pairs:
+            tdSql.query(f"select timetruncate(ts, 1d, '{lower}') from {self.ntbname}")
+            r_lower = tdSql.queryResult[0][0]
+            tdSql.query(f"select timetruncate(ts, 1d, '{upper}') from {self.ntbname}")
+            r_upper = tdSql.queryResult[0][0]
+            assert r_lower == r_upper, f"{lower} vs {upper}: {r_lower} != {r_upper}"
+
+        # UTC+8 is west 8 under POSIX, so it must differ from Asia/Shanghai.
+        tdSql.query(f"select timetruncate(ts, 1d, 'utc8') from {self.ntbname}")
+        assert tdSql.queryResult[0][0] != r_session, (
+            "'utc8' fell back to the connection timezone"
+        )
+
     def test_timetruncate_tz(self):
         """summary: TIMETRUNCATE third parameter: string timezone, integer 0/1 compat, fallback chain.
 
@@ -375,6 +414,7 @@ class _TimetruncateTzMixin:
         self.check_timetruncate_l1_overrides_l2()
         self.check_timetruncate_no_param_uses_l2()
         self.check_timetruncate_subday_string_tz_uses_target_offset()
+        self.check_timetruncate_utc_prefix_case_insensitive()
 
 class _TimetruncateNaturalUnitsMixin:
     """TIMETRUNCATE n/q/y natural units (1n/1q/1y only; Nx is invalid)."""
@@ -1184,6 +1224,11 @@ class _TimezoneDisplayAbbrMixin:
             ('-0530',     '-0530 (UTC, +0530)'),
             ('UTC-8',     'UTC-8 (UTC, +0800)'),
             ('UTC+5',     'UTC+5 (UTC, -0500)'),
+            # SET TIMEZONE echoes the input verbatim, so the name keeps the
+            # user's case. The abbreviation is always the canonical 'UTC'.
+            ('utc8',      'utc8 (UTC, -0800)'),
+            ('utc+8',     'utc+8 (UTC, -0800)'),
+            ('uTc-8',     'uTc-8 (UTC, +0800)'),
         ]
         for tz_input, expected in cases:
             tdSql.execute(f"SET TIMEZONE '{tz_input}'")
@@ -1332,7 +1377,11 @@ class _ToIso8601UtcPrefixMixin:
         """'utc+0800' and 'Utc+0800' should also work (case-insensitive)."""
         self._prepare_to_iso8601_utc_prefix_data()
         for tz in ['utc+0800', 'Utc+0800']:
-            tdSql.error(f"select to_iso8601(ts, '{tz}') from {self.ntbname}")
+            tdSql.query(f"select to_iso8601(ts, '{tz}') from {self.ntbname}")
+            result = tdSql.queryResult[0][0]
+            assert '20:00:00' in result, f"'{tz}': expected 20:00:00 in '{result}'"
+            assert 'UTC' not in result.upper(), \
+                f"'{tz}': output should not contain 'UTC': '{result}'"
 
     def check_utc_prefix_negative_offset(self):
         """'UTC-09:00' should produce 03:00 (UTC-9)."""
@@ -2369,4 +2418,22 @@ class TestTimezoneScalarFunctions(
     _ToUnixTimestampTzMixin,
     _WeekFamilyTzMixin,
 ):
-    pass
+    def test_timezone_scalar_functions(self):
+        """Timezone scalar function test suite.
+
+        Aggregates timezone scalar function tests from mixin classes; individual
+        scenarios are implemented in inherited test_* methods.
+
+        Since: v3.4.2.0
+
+        Labels: timezone, scalar
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-07-10: Tony Zhang created
+        """
+        pass

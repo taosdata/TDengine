@@ -1515,6 +1515,12 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     code = 0;
   }
 
+  if (pAlter->maxRows > 0 && pAlter->maxRows != pDb->cfg.maxRows) {
+    pDb->cfg.maxRows = pAlter->maxRows;
+    pDb->vgVersion++;
+    code = 0;
+  }
+
   if (pAlter->walRetentionPeriod > TSDB_DB_MIN_WAL_RETENTION_PERIOD &&
       pAlter->walRetentionPeriod != pDb->cfg.walRetentionPeriod) {
     pDb->cfg.walRetentionPeriod = pAlter->walRetentionPeriod;

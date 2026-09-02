@@ -17,6 +17,7 @@
 #include "bckDb.h"
 #include "parquetBlock.h"
 #include "bckArgs.h"
+#include "bckUtil.h"
 #include "ttypes.h"
 #include "osString.h"
 #include "bckProgress.h"
@@ -24,6 +25,11 @@
 //
 // -------------------------------------- UTIL -----------------------------------------
 //
+
+// forward declarations: defined further down, used by restoreNtbSql() and restoreStbSql()
+static int  extractBareIdent(const char *p, char *out, int outSz);
+static bool stbTagFilesHaveSpecMatch(const char *dbName, const char *stbName);
+static bool stbExistsOnServer(const char *targetDb, const char *stbName);
 
 // execute a SQL string on the given connection
 static int execSql(TAOS *conn, const char *sql) {
@@ -177,10 +183,15 @@ static int restoreDbSql(const char *dbName) {
 // -------------------------------------- META: STB SQL -----------------------------------------
 //
 
-// restore create stable SQL  
-static int restoreStbSql(const char *dbName) {
+// restore create stable SQL
+//
+// virtualOnly: when true, only virtual super tables (DDL containing "VIRTUAL 1")
+// are created.  Virtual super tables are stored in stb.sql and therefore belong
+// to the basic content, but virtual child tables cannot be created without
+// them — so the extended-metadata-only path creates just those.
+static int restoreStbSql(const char *dbName, bool virtualOnly) {
     int code = TSDB_CODE_FAILED;
-    
+
     char sqlFile[MAX_PATH_LEN] = {0};
     obtainFileName(BACK_FILE_STBSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS, sqlFile, sizeof(sqlFile));
 
@@ -228,6 +239,42 @@ static int restoreStbSql(const char *dbName) {
         }
 
         if (lineLen > 0) {
+            // Backup writes "VIRTUAL 1" into the DDL of a virtual super table,
+            // the same marker isVirtualSuperTable() looks for on the backup side.
+            if (virtualOnly && strstr(line, "VIRTUAL 1") == NULL) {
+                line = next;
+                continue;
+            }
+
+            // Find the STABLE keyword and the backtick-quoted table name after it
+            char *stablePos = strstr(line, "STABLE");
+            char *nameStart = stablePos ? stablePos + strlen("STABLE") : NULL;
+            if (nameStart) while (*nameStart == ' ') nameStart++;
+
+            // Positional table args (taosdump dbname tb1 tb2 ...) select which
+            // physical tables to restore.  A super table is only worth
+            // creating when either it is named directly, or the backup's OWN
+            // tag files (not the live server, which restore has no source-side
+            // view of) have a row whose tbname matches the spec list —
+            // mirroring the same "named directly, or has a matching child"
+            // rule the backup side applies against the source server.
+            // Skipping here means an unrequested, unmatched STB is never
+            // created in the first place, instead of being created and torn
+            // down after the fact.  Not applied to virtual STBs: spec-table
+            // filtering does not extend to virtual tables/streams/topics, and
+            // stbTagFilesHaveSpecMatch() only knows how to read the physical
+            // tags/ directory, not vtags/.
+            if (!virtualOnly && argSpecTables() && nameStart) {
+                char bareStbName[TSDB_TABLE_NAME_LEN] = {0};
+                extractBareIdent(nameStart, bareStbName, sizeof(bareStbName));
+                if (!argStbNameInSpecTables(bareStbName) &&
+                    !stbTagFilesHaveSpecMatch(dbName, bareStbName)) {
+                    logDebug("skip STB not requested and no matching child in backup: %s", bareStbName);
+                    line = next;
+                    continue;
+                }
+            }
+
             // Add database prefix: "CREATE STABLE `tbl`" -> "CREATE STABLE `db`.`tbl`"
             // Allocate based on actual line length (DDL can exceed TSDB_MAX_SQL_LEN)
             int fullSqlSize = lineLen + TSDB_DB_NAME_LEN + 16;
@@ -237,11 +284,7 @@ static int restoreStbSql(const char *dbName) {
                 break;
             }
 
-            // Find the STABLE keyword and the backtick-quoted table name after it
-            char *stablePos = strstr(line, "STABLE");
-            if (stablePos) {
-                char *nameStart = stablePos + strlen("STABLE");
-                while (*nameStart == ' ') nameStart++;
+            if (nameStart) {
                 // nameStart now points to "`tableName`"
                 int prefixLen = nameStart - line;
                 const char *targetDb = argRenameDb(dbName);
@@ -330,6 +373,26 @@ static int restoreNtbSql(const char *dbName) {
         }
 
         if (lineLen > 0) {
+            // Add database prefix: "CREATE TABLE `tbl`" -> "CREATE TABLE `db`.`tbl`"
+            char *tablePos = strstr(line, "TABLE");
+            char *nameStart = tablePos ? tablePos + strlen("TABLE") : NULL;
+            if (nameStart) while (*nameStart == ' ') nameStart++;
+
+            // Positional table args (taosdump dbname tb1 tb2 ...) select which
+            // tables to restore, same as they select which tables to back up.
+            // The backup file may contain more tables than the current restore
+            // was asked for (e.g. backed up with "dbname d0 ntb1", restoring
+            // with only "dbname d0"), so filter here too.
+            if (argSpecTables() && nameStart) {
+                char bareName[TSDB_TABLE_NAME_LEN] = {0};
+                extractBareIdent(nameStart, bareName, sizeof(bareName));
+                if (!argTableInSpecTables(bareName)) {
+                    logDebug("skip normal table not in spec list: %s", bareName);
+                    line = next;
+                    continue;
+                }
+            }
+
             // Allocate based on actual line length (DDL can exceed TSDB_MAX_SQL_LEN)
             int fullSqlSize = lineLen + TSDB_DB_NAME_LEN + 16;
             char *fullSql = (char *)taosMemoryMalloc(fullSqlSize);
@@ -338,11 +401,7 @@ static int restoreNtbSql(const char *dbName) {
                 break;
             }
 
-            // Add database prefix: "CREATE TABLE `tbl`" -> "CREATE TABLE `db`.`tbl`"
-            char *tablePos = strstr(line, "TABLE");
-            if (tablePos) {
-                char *nameStart = tablePos + strlen("TABLE");
-                while (*nameStart == ' ') nameStart++;
+            if (nameStart) {
                 int prefixLen = nameStart - line;
                 const char *targetDb = argRenameDb(dbName);
                 snprintf(fullSql, fullSqlSize, "%.*s`%s`.%s",
@@ -409,6 +468,34 @@ static void replaceAllInSql(char *buf, int bufSize, const char *srcPat, const ch
     tmp[outPos] = '\0';
     snprintf(buf, bufSize, "%s", tmp);
     taosMemoryFree(tmp);
+}
+
+// Apply every configured -W/--rename pair as a "`oldDb`." -> "`newDb`." and
+// "oldDb." -> "newDb." replacement across buf, in place.
+//
+// A virtual table's columns, a stream's source/target, or a topic's query can
+// reference a database OTHER than the one currently being restored (e.g. a
+// virtual table in db2 sourced from db1).  Since -W already carries the full
+// rename mapping, applying every pair here — instead of only the current
+// database's own old/new pair — keeps any renamed database mentioned in the
+// DDL consistent, not just the one being restored right now.
+static void applyAllRenamesInSql(char *buf, int bufSize) {
+    int n = argRenameCount();
+    for (int i = 0; i < n; i++) {
+        const char *oldDb = argRenameOldAt(i);
+        const char *newDb = argRenameNewAt(i);
+        if (!oldDb || !newDb || strcmp(oldDb, newDb) == 0) continue;
+
+        char oldBt[TSDB_DB_NAME_LEN + 4], newBt[TSDB_DB_NAME_LEN + 4];
+        snprintf(oldBt, sizeof(oldBt), "`%s`.", oldDb);
+        snprintf(newBt, sizeof(newBt), "`%s`.", newDb);
+        replaceAllInSql(buf, bufSize, oldBt, newBt);
+
+        char oldPat[TSDB_DB_NAME_LEN + 4], newPat[TSDB_DB_NAME_LEN + 4];
+        snprintf(oldPat, sizeof(oldPat), "%s.", oldDb);
+        snprintf(newPat, sizeof(newPat), "%s.", newDb);
+        replaceAllInSql(buf, bufSize, oldPat, newPat);
+    }
 }
 
 //
@@ -629,7 +716,7 @@ static int vtbTagBlockCallback(void *userData,
     BlockReader reader;
     int32_t code = initBlockReader(&reader, blockData);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("vtbTagBlockCallback: initBlockReader failed: %d", code);
+        logError("vtbTagBlockCallback: initBlockReader failed(0x%08X, %s)", code, bckErrMsg(code));
         return code;
     }
 
@@ -652,7 +739,7 @@ static int vtbTagBlockCallback(void *userData,
         int8_t t = (c < numFields) ? fieldInfos[c].type : TSDB_DATA_TYPE_NCHAR;
         code = getColumnData(&reader, t, &colData[c], &colLen[c]);
         if (code != TSDB_CODE_SUCCESS) {
-            logError("vtbTagBlockCallback: getColumnData col=%d failed: %d", c, code);
+            logError("vtbTagBlockCallback: getColumnData col=%d failed(0x%08X, %s)", c, code, bckErrMsg(code));
             taosMemoryFree(colData);
             taosMemoryFree(colLen);
             return code;
@@ -831,7 +918,7 @@ static int restoreVstbChildTags(const char       *dbName,
         int openCode = 0;
         TaosFile *taosFile = openTaosFileForRead(vtagFiles[f], &openCode);
         if (!taosFile || openCode != TSDB_CODE_SUCCESS) {
-            logError("open vtag file failed(%d): %s", openCode, vtagFiles[f]);
+            logError("open vtag file failed(0x%08X): %s", openCode, vtagFiles[f]);
             code = TSDB_CODE_BCK_READ_FILE_FAILED;
             break;
         }
@@ -856,7 +943,7 @@ static int restoreVstbChildTags(const char       *dbName,
 
         code = readTaosFileBlocks(taosFile, vtbTagBlockCallback, &ctx);
         if (code != TSDB_CODE_SUCCESS) {
-            logError("readTaosFileBlocks failed(%d): %s", code, vtagFiles[f]);
+            logError("readTaosFileBlocks failed(0x%08X): %s", code, vtagFiles[f]);
         }
 
         // Flush the last accumulated child table (readTaosFileBlocks has no finalize hook)
@@ -998,14 +1085,10 @@ static int restoreVtbSql(const char *dbName) {
                          prefixLen, line, targetDb, nameStart);
             }
 
-            // Apply db rename in FROM/USING column references
-            if (strcmp(dbName, targetDb) != 0) {
-                char srcPat[TSDB_DB_NAME_LEN + 5];
-                char dstPat[TSDB_DB_NAME_LEN + 5];
-                snprintf(srcPat, sizeof(srcPat), "`%s`.", dbName);
-                snprintf(dstPat, sizeof(dstPat), "`%s`.", targetDb);
-                replaceAllInSql(fullSql, fullSqlSize, srcPat, dstPat);
-            }
+            // Apply every -W rename pair to FROM/USING column references, not just
+            // this database's own pair — a virtual table's source column can live
+            // in a different database that is also being renamed.
+            applyAllRenamesInSql(fullSql, fullSqlSize);
 
             if (isChildSkeleton) {
                 // New-format skeleton: store for batch restore via vtags binary
@@ -1102,6 +1185,7 @@ static int restoreVtbSql(const char *dbName) {
     }
 
     logInfo("restored %d virtual table(s) for db: %s", vtbCount, dbName);
+    atomic_add_fetch_64(&g_stats.vtbTotal, vtbCount);
     taosMemoryFree(skeletons);
     taosMemoryFree(content);
     return code;
@@ -1196,6 +1280,7 @@ static int queryServerTagNames(TAOS *conn, const char *dbName, const char *stbNa
     snprintf(sql, sizeof(sql), "DESCRIBE `%s`.`%s`", dbName, stbName);
     TAOS_RES *res = taos_query(conn, sql);
     if (taos_errno(res) != TSDB_CODE_SUCCESS) {
+        logError("DESCRIBE failed(0x%08X %s): %s", taos_errno(res), taos_errstr(res), sql);
         taos_free_result(res);
         return -1;
     }
@@ -1415,7 +1500,7 @@ static int tagBlockCallback(void *userData,
     BlockReader reader;
     int32_t code = initBlockReader(&reader, blockData);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("init block reader failed for tags: %d", code);
+        logError("init block reader failed for tags(0x%08X, %s)", code, bckErrMsg(code));
         return code;
     }
 
@@ -1494,6 +1579,17 @@ static int tagBlockCallback(void *userData,
             memcpy(tbName, varData + offset + sizeof(uint16_t), varLen);
             tbName[varLen] = '\0';
 
+            // Positional table args (taosdump dbname tb1 tb2 ...) select which
+            // child tables to restore, mirroring the filter the backup side
+            // already applied when deciding which tables' tags to export: if
+            // the STB itself is named in the spec list, every one of its
+            // children is wanted, so skip the per-table check in that case.
+            if (argSpecTables() && !argStbNameInSpecTables(ctx->stbName) &&
+                !argTableInSpecTables(tbName)) {
+                row++;
+                continue;
+            }
+
             // Append "CREATE TABLE IF NOT EXISTS `db`.`tb` USING `db`.`stb` TAGS("
             pos += snprintf(ctx->sqlBuf + pos, TAG_BATCH_SQL_BYTES - pos,
                             "CREATE TABLE IF NOT EXISTS `%s`.`%s` USING `%s`.`%s` TAGS(",
@@ -1513,7 +1609,7 @@ static int tagBlockCallback(void *userData,
 
         if (batchCnt == 0) continue;
 
-        logDebug("restore tag batch sql (%d tables): %.120s...", batchCnt, ctx->sqlBuf);
+        logDebug("restore tag batch sql (%d tables): %s", batchCnt, ctx->sqlBuf);
 
         TAOS_RES *res  = taos_query(ctx->conn, ctx->sqlBuf);
         int       rc   = taos_errno(res);
@@ -1525,7 +1621,7 @@ static int tagBlockCallback(void *userData,
             atomic_add_fetch_64(&g_progress.ctbDoneCur, batchCnt);
         } else {
             // Batch failed: fall back to one-by-one to identify and skip bad rows
-            logDebug("tag batch failed (0x%08X), retrying %d rows one-by-one", rc, batchCnt);
+            logDebug("tag batch failed (0x%08X, %s), retrying %d rows one-by-one", rc, bckErrMsg(rc), batchCnt);
             for (int r = batchStart; r < row; r++) {
                 int32_t *off2 = (int32_t *)colDataPtrs[0];
                 if (off2[r] < 0) continue;
@@ -1540,6 +1636,13 @@ static int tagBlockCallback(void *userData,
                 char tb2[TSDB_TABLE_NAME_LEN] = {0};
                 memcpy(tb2, vd2 + off2[r] + sizeof(uint16_t), vl2);
                 tb2[vl2] = '\0';
+
+                // same spec-table filter as the batch pass above — rows the
+                // batch loop skipped still fall inside [batchStart, row)
+                if (argSpecTables() && !argStbNameInSpecTables(ctx->stbName) &&
+                    !argTableInSpecTables(tb2)) {
+                    continue;
+                }
 
                 int p2 = snprintf(ctx->sqlBuf, TAG_BATCH_SQL_BYTES,
                                   "CREATE TABLE IF NOT EXISTS `%s`.`%s` USING `%s`.`%s` TAGS(",
@@ -1560,7 +1663,7 @@ static int tagBlockCallback(void *userData,
                     atomic_add_fetch_64(&g_stats.childTablesTotal, 1);
                     atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
                 } else {
-                    logError("create child table failed(0x%08X): %s.%s", rc2, rdbName, tb2);
+                    logError("create child table failed(0x%08X, %s): %s.%s", rc2, bckErrMsg(rc2), rdbName, tb2);
                     ctx->failedCnt++;
                 }
             }
@@ -1624,6 +1727,16 @@ static int parquetTagCallback(void *userData,
         if (tbLen >= TSDB_TABLE_NAME_LEN) tbLen = TSDB_TABLE_NAME_LEN - 1;
         memcpy(tbName, (char *)tbBind->buffer + (size_t)row * tbBind->buffer_length, tbLen);
         tbName[tbLen] = '\0';
+
+        // Positional table args (taosdump dbname tb1 tb2 ...) select which
+        // child tables to restore, mirroring the filter the backup side
+        // already applied when deciding which tables' tags to export: if the
+        // STB itself is named in the spec list, every one of its children is
+        // wanted, so skip the per-table check in that case.
+        if (argSpecTables() && !argStbNameInSpecTables(ctx->stbName) &&
+            !argTableInSpecTables(tbName)) {
+            continue;
+        }
 
         char *sql = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN);
         if (!sql) { ctx->failedCnt++; continue; }
@@ -1750,7 +1863,7 @@ static void* restoreTagThread(void *arg) {
         int code = TSDB_CODE_SUCCESS;
         ParquetReader *pr = parquetReaderOpen(thread->tagFile, &code);
         if (pr == NULL) {
-            logError("open parquet tag file failed(%d): %s", code, thread->tagFile);
+            logError("open parquet tag file failed(0x%08X, %s): %s", code, bckErrMsg(code), thread->tagFile);
             thread->code = code;
             return NULL;
         }
@@ -1776,7 +1889,7 @@ static void* restoreTagThread(void *arg) {
         code = parquetReaderReadAll(pr, parquetTagCallback, &ctx);
         parquetReaderClose(pr);
         if (code != TSDB_CODE_SUCCESS)
-            logError("read parquet tag file failed(%d): %s", code, thread->tagFile);
+            logError("read parquet tag file failed(0x%08X, %s): %s", code, bckErrMsg(code), thread->tagFile);
 
         logDebug("restore tag thread %d done. success: %" PRId64 " failed: %" PRId64,
                 thread->index, ctx.successCnt, ctx.failedCnt);
@@ -1789,7 +1902,7 @@ static void* restoreTagThread(void *arg) {
     int code = 0;
     TaosFile *taosFile = openTaosFileForRead(thread->tagFile, &code);
     if (taosFile == NULL) {
-        logError("open tag file failed(%d): %s", code, thread->tagFile);
+        logError("open tag file failed(0x%08X): %s", code, thread->tagFile);
         thread->code = code;
         return NULL;
     }
@@ -1827,7 +1940,7 @@ static void* restoreTagThread(void *arg) {
     // read blocks and process
     code = readTaosFileBlocks(taosFile, tagBlockCallback, &ctx);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("read tag blocks failed(%d): %s", code, thread->tagFile);
+        logError("read tag blocks failed(0x%08X): %s", code, thread->tagFile);
     }
     thread->code = code;
 
@@ -1904,6 +2017,426 @@ static char** findTagFiles(const char *dbName, const char *stbName, int *count) 
     return files;
 }
 
+// Read-only scan callback for stbTagFilesHaveSpecMatch(): decode just the
+// tbname column (column 0, same layout tagBlockCallback() uses) and record
+// whether any row matches the spec-tables list.  No SQL is built and no
+// table is created — this exists purely to answer "would this STB have had
+// any child worth restoring", before restoreStbSql() decides whether the
+// STB itself is worth creating.
+static int scanTagBlockForSpecMatch(void *userData, FieldInfo *fieldInfos,
+                                    int numFields, void *blockData,
+                                    int32_t blockLen, int32_t blockRows) {
+    bool *found = (bool *)userData;
+    if (*found) return TSDB_CODE_SUCCESS;  // already matched; nothing left to do
+
+    BlockReader reader;
+    int32_t code = initBlockReader(&reader, blockData);
+    if (code != TSDB_CODE_SUCCESS) return code;
+
+    void *tbnameColPtr = NULL;
+    int32_t tbnameColLen = 0;
+    code = getColumnData(&reader, fieldInfos[0].type, &tbnameColPtr, &tbnameColLen);
+    if (code != TSDB_CODE_SUCCESS) return code;
+
+    for (int row = 0; row < blockRows && !*found; row++) {
+        int32_t *offsets = (int32_t *)tbnameColPtr;
+        int32_t  offset  = offsets[row];
+        if (offset < 0) continue;
+        char *varData = (char *)tbnameColPtr + blockRows * sizeof(int32_t);
+        uint16_t varLen = *(uint16_t *)(varData + offset);
+        if (varLen == 0) continue;
+        if (varLen >= TSDB_TABLE_NAME_LEN) varLen = TSDB_TABLE_NAME_LEN - 1;
+
+        char tbName[TSDB_TABLE_NAME_LEN] = {0};
+        memcpy(tbName, varData + offset + sizeof(uint16_t), varLen);
+        tbName[varLen] = '\0';
+
+        if (argTableInSpecTables(tbName)) *found = true;
+    }
+    return TSDB_CODE_SUCCESS;
+}
+
+// Read-only scan callback for the parquet tag format — same purpose as
+// scanTagBlockForSpecMatch() above, for .par tag files.
+static int scanParquetTagForSpecMatch(void *userData, TAOS_FIELD *fields,
+                                      int numFields, TAOS_MULTI_BIND *bindArray,
+                                      int32_t numRows) {
+    bool *found = (bool *)userData;
+    if (*found || numFields < 1) return TSDB_CODE_SUCCESS;
+
+    TAOS_MULTI_BIND *tbBind = &bindArray[0];
+    for (int row = 0; row < numRows && !*found; row++) {
+        if (tbBind->is_null && tbBind->is_null[row]) continue;
+        int32_t tbLen = tbBind->length ? (int32_t)tbBind->length[row]
+                                       : (int32_t)tbBind->buffer_length;
+        if (tbLen <= 0) continue;
+        if (tbLen >= TSDB_TABLE_NAME_LEN) tbLen = TSDB_TABLE_NAME_LEN - 1;
+
+        char tbName[TSDB_TABLE_NAME_LEN] = {0};
+        memcpy(tbName, (char *)tbBind->buffer + (size_t)row * tbBind->buffer_length, tbLen);
+        tbName[tbLen] = '\0';
+
+        if (argTableInSpecTables(tbName)) *found = true;
+    }
+    return TSDB_CODE_SUCCESS;
+}
+
+// Does this STB's backup tag data (tags/{stbName}_data*.{dat|par}) contain at
+// least one child table named in the current -D/positional spec-tables list?
+// Used by restoreStbSql() to decide whether an unrequested STB is worth
+// creating at all, instead of creating it and tearing it down afterwards.
+static bool stbTagFilesHaveSpecMatch(const char *dbName, const char *stbName) {
+    int fileCnt = 0;
+    char **tagFiles = findTagFiles(dbName, stbName, &fileCnt);
+    if (tagFiles == NULL || fileCnt == 0) {
+        if (tagFiles) freeArrayPtr(tagFiles);
+        return false;
+    }
+
+    bool found = false;
+    for (int i = 0; i < fileCnt && !found; i++) {
+        const char *ext = strrchr(tagFiles[i], '.');
+        if (ext && strcmp(ext, ".par") == 0) {
+            int prCode = TSDB_CODE_SUCCESS;
+            ParquetReader *pr = parquetReaderOpen(tagFiles[i], &prCode);
+            if (pr) {
+                parquetReaderReadAll(pr, scanParquetTagForSpecMatch, &found);
+                parquetReaderClose(pr);
+            }
+        } else {
+            int openCode = TSDB_CODE_SUCCESS;
+            TaosFile *tf = openTaosFileForRead(tagFiles[i], &openCode);
+            if (tf) {
+                readTaosFileBlocks(tf, scanTagBlockForSpecMatch, &found);
+                closeTaosFileRead(tf);
+            }
+        }
+    }
+
+    freeArrayPtr(tagFiles);
+    return found;
+}
+
+// Does stbName currently exist on the target server?  Used to skip tag
+// restore for an STB that restoreStbSql() decided not to create (because
+// positional table args did not request it and no tag file had a matching
+// child) — avoids a DESCRIBE-against-a-missing-table warning that would
+// otherwise be logged for no functional reason.
+static bool stbExistsOnServer(const char *targetDb, const char *stbName) {
+    char sql[TSDB_TABLE_FNAME_LEN + 64];
+    snprintf(sql, sizeof(sql),
+             "SELECT count(*) FROM information_schema.ins_stables "
+             "WHERE db_name='%s' AND stable_name='%s'", targetDb, stbName);
+    int32_t cnt = 0;
+    if (queryValueInt(sql, 0, &cnt) != TSDB_CODE_SUCCESS) return true;  // unsure -> don't skip
+    return cnt > 0;
+}
+
+//
+// ---- helpers for validateSpecTablesForRestore: collect child table names from tag files ----
+//
+
+// Simple growable string array for collecting table names.
+#define COLLECTOR_INIT_CAP 128
+typedef struct {
+    char **names;
+    int    capacity;
+    int    count;
+} NameCollector;
+
+static int collectorAdd(NameCollector *c, const char *name) {
+    // dedup
+    for (int i = 0; i < c->count; i++) {
+        if (strcmp(c->names[i], name) == 0) return 0;
+    }
+    if (c->count >= c->capacity) {
+        c->capacity *= 2;
+        char **tmp = (char **)taosMemoryRealloc(c->names, c->capacity * sizeof(char *));
+        if (!tmp) return -1;
+        c->names = tmp;
+    }
+    c->names[c->count++] = taosStrdup(name);
+    return 0;
+}
+
+static void collectorFree(NameCollector *c) {
+    if (!c->names) return;
+    for (int i = 0; i < c->count; i++) taosMemoryFree(c->names[i]);
+    taosMemoryFree(c->names);
+    c->names    = NULL;
+    c->capacity = 0;
+    c->count    = 0;
+}
+
+// Binary tag block callback: extract tbname (column 0) from every row.
+static int collectTagBlockNames(void *userData, FieldInfo *fieldInfos,
+                                int numFields, void *blockData,
+                                int32_t blockLen, int32_t blockRows) {
+    NameCollector *c = (NameCollector *)userData;
+    if (numFields < 1) return TSDB_CODE_SUCCESS;
+
+    BlockReader reader;
+    if (initBlockReader(&reader, blockData) != TSDB_CODE_SUCCESS) return TSDB_CODE_SUCCESS;
+
+    void   *tbnameColPtr = NULL;
+    int32_t tbnameColLen = 0;
+    if (getColumnData(&reader, fieldInfos[0].type, &tbnameColPtr, &tbnameColLen) != TSDB_CODE_SUCCESS)
+        return TSDB_CODE_SUCCESS;
+
+    for (int row = 0; row < blockRows; row++) {
+        int32_t *offsets = (int32_t *)tbnameColPtr;
+        int32_t  offset  = offsets[row];
+        if (offset < 0) continue;
+        char    *varData = (char *)tbnameColPtr + blockRows * sizeof(int32_t);
+        uint16_t varLen  = *(uint16_t *)(varData + offset);
+        if (varLen == 0) continue;
+        if (varLen >= TSDB_TABLE_NAME_LEN) varLen = (uint16_t)(TSDB_TABLE_NAME_LEN - 1);
+
+        char tbName[TSDB_TABLE_NAME_LEN] = {0};
+        memcpy(tbName, varData + offset + sizeof(uint16_t), varLen);
+        tbName[varLen] = '\0';
+        collectorAdd(c, tbName);
+    }
+    return TSDB_CODE_SUCCESS;
+}
+
+// Parquet tag callback: extract tbname (column 0) from every row.
+static int collectParquetTagNames(void *userData, TAOS_FIELD *fields,
+                                  int numFields, TAOS_MULTI_BIND *bindArray,
+                                  int32_t numRows) {
+    NameCollector *c = (NameCollector *)userData;
+    if (numFields < 1) return TSDB_CODE_SUCCESS;
+
+    TAOS_MULTI_BIND *tbBind = &bindArray[0];
+    for (int row = 0; row < numRows; row++) {
+        if (tbBind->is_null && tbBind->is_null[row]) continue;
+        int32_t tbLen = tbBind->length ? (int32_t)tbBind->length[row]
+                                       : (int32_t)tbBind->buffer_length;
+        if (tbLen <= 0) continue;
+        if (tbLen >= TSDB_TABLE_NAME_LEN) tbLen = TSDB_TABLE_NAME_LEN - 1;
+
+        char tbName[TSDB_TABLE_NAME_LEN] = {0};
+        memcpy(tbName, (char *)tbBind->buffer + (size_t)row * tbBind->buffer_length, tbLen);
+        tbName[tbLen] = '\0';
+        collectorAdd(c, tbName);
+    }
+    return TSDB_CODE_SUCCESS;
+}
+
+// Collect all child table names from tags/{stbName}_data*.{dat|par} files.
+static int collectChildTableNames(const char *dbName, const char *stbName,
+                                  NameCollector *c) {
+    int   fileCnt = 0;
+    char **tagFiles = findTagFiles(dbName, stbName, &fileCnt);
+    if (!tagFiles || fileCnt == 0) {
+        if (tagFiles) freeArrayPtr(tagFiles);
+        return TSDB_CODE_SUCCESS;
+    }
+
+    for (int i = 0; i < fileCnt; i++) {
+        const char *ext = strrchr(tagFiles[i], '.');
+        if (ext && strcmp(ext, ".par") == 0) {
+            int prCode = TSDB_CODE_SUCCESS;
+            ParquetReader *pr = parquetReaderOpen(tagFiles[i], &prCode);
+            if (pr) {
+                parquetReaderReadAll(pr, collectParquetTagNames, c);
+                parquetReaderClose(pr);
+            }
+        } else {
+            int openCode = TSDB_CODE_SUCCESS;
+            TaosFile *tf = openTaosFileForRead(tagFiles[i], &openCode);
+            if (tf) {
+                readTaosFileBlocks(tf, collectTagBlockNames, c);
+                closeTaosFileRead(tf);
+            }
+        }
+    }
+
+    freeArrayPtr(tagFiles);
+    return TSDB_CODE_SUCCESS;
+}
+
+//
+// Parse a SQL DDL line from stb.sql or ntb.sql and extract the bare table name.
+// The DDL format is:  CREATE [STABLE|TABLE] [IF NOT EXISTS] [`db`.]`name` ...
+// Returns the extracted name via *outName (caller must free), or NULL on failure.
+//
+static char *extractTableNameFromDdl(const char *line) {
+    // Find the keyword after CREATE
+    const char *p = line;
+    while (*p == ' ' || *p == '\t') p++;
+    if (strncasecmp(p, "CREATE ", 7) != 0) return NULL;
+    p += 7;
+    while (*p == ' ' || *p == '\t') p++;
+
+    // Skip "STABLE" or "TABLE"
+    if (strncasecmp(p, "STABLE", 6) == 0)      p += 6;
+    else if (strncasecmp(p, "TABLE", 5) == 0)  p += 5;
+    else return NULL;
+
+    while (*p == ' ' || *p == '\t') p++;
+
+    // Skip "IF NOT EXISTS"
+    if (strncasecmp(p, "IF", 2) == 0) {
+        p += 2;
+        while (*p == ' ' || *p == '\t') p++;
+        if (strncasecmp(p, "NOT", 3) == 0) {
+            p += 3;
+            while (*p == ' ' || *p == '\t') p++;
+            if (strncasecmp(p, "EXISTS", 6) == 0) {
+                p += 6;
+                while (*p == ' ' || *p == '\t') p++;
+            }
+        }
+    }
+
+    // Now p should point to the table name (possibly backtick-quoted)
+    char bareName[TSDB_TABLE_NAME_LEN] = {0};
+    extractBareIdent(p, bareName, sizeof(bareName));
+    if (bareName[0] == '\0') return NULL;
+    return taosStrdup(bareName);
+}
+
+// Pre-scan validate: check that every user-specified table name exists in the
+// backup files for the given database.  Covers super tables (stb.sql), normal
+// tables (ntb.sql), and child tables (tags/ data files).
+int validateSpecTablesForRestore(const char *dbName) {
+    if (!argSpecTables()) return TSDB_CODE_SUCCESS;
+
+    int    specCount = argSpecTablesCount();
+    char **specTbs   = argSpecTables();
+
+    NameCollector c = {0};
+    c.capacity = COLLECTOR_INIT_CAP;
+    c.names    = (char **)taosMemoryCalloc(c.capacity, sizeof(char *));
+    if (!c.names) return TSDB_CODE_BCK_MALLOC_FAILED;
+
+    char sqlFile[MAX_PATH_LEN];
+
+    // ---- 1. Collect STB names from stb.sql ----
+    obtainFileName(BACK_FILE_STBSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS,
+                   sqlFile, sizeof(sqlFile));
+    if (taosCheckExistFile(sqlFile)) {
+        char *content = readFileContent(sqlFile, NULL);
+        if (content) {
+            char *line = content, *next = NULL;
+            while (line && *line) {
+                next = strchr(line, '\n');
+                if (next) { *next = '\0'; next++; }
+                while (*line == ' ' || *line == '\r') line++;
+                int len = (int)strlen(line);
+                while (len > 0 && (line[len-1] == ' ' || line[len-1] == '\r'))
+                    line[--len] = '\0';
+                if (len > 0) {
+                    char *name = extractTableNameFromDdl(line);
+                    if (name) { collectorAdd(&c, name); taosMemoryFree(name); }
+                }
+                line = next;
+            }
+            taosMemoryFree(content);
+        }
+    }
+
+    // ---- 2. Collect normal table names from ntb.sql ----
+    obtainFileName(BACK_FILE_NTBSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS,
+                   sqlFile, sizeof(sqlFile));
+    if (taosCheckExistFile(sqlFile)) {
+        char *content = readFileContent(sqlFile, NULL);
+        if (content) {
+            char *line = content, *next = NULL;
+            while (line && *line) {
+                next = strchr(line, '\n');
+                if (next) { *next = '\0'; next++; }
+                while (*line == ' ' || *line == '\r') line++;
+                int len = (int)strlen(line);
+                while (len > 0 && (line[len-1] == ' ' || line[len-1] == '\r'))
+                    line[--len] = '\0';
+                if (len > 0) {
+                    char *name = extractTableNameFromDdl(line);
+                    if (name) { collectorAdd(&c, name); taosMemoryFree(name); }
+                }
+                line = next;
+            }
+            taosMemoryFree(content);
+        }
+    }
+
+    // ---- 3. Collect child table names from tag files ----
+    // First get the STB names from what we already collected, then scan each
+    // STB's tag files for child names.
+    {
+        // Snapshot the STB names so the loop doesn't see names added during iteration
+        int   stbCount = c.count;
+        char *stbSnapshot[256]; // stack alloc; reasonable upper bound for STBs per DB
+        if (stbCount > 256) stbCount = 256;
+        for (int i = 0; i < stbCount; i++) stbSnapshot[i] = c.names[i];
+
+        for (int i = 0; i < stbCount; i++) {
+            // Also try scanning tag files for STBs NOT in stb.sql — the tag files
+            // exist even when stb.sql wasn't written (edge case: meta-only runs).
+            collectChildTableNames(dbName, c.names[i], &c);
+        }
+    }
+
+    // Also scan tag files for STBs that might have data but whose STB name
+    // came from ins_tables — discover STBs from the tags/ directory directly.
+    {
+        char tagDir[MAX_PATH_LEN];
+        obtainFileName(BACK_DIR_TAG, dbName, NULL, NULL, 0, 0, BINARY_TAOS,
+                       tagDir, sizeof(tagDir));
+        TdDirPtr dir = taosOpenDir(tagDir);
+        if (dir) {
+            TdDirEntryPtr entry;
+            while ((entry = taosReadDir(dir)) != NULL) {
+                char *en = taosGetDirEntryName(entry);
+                if (en[0] == '.') continue;
+                // Pattern: {stbName}_data{N}.{ext}
+                char *us = strstr(en, "_data");
+                if (!us) continue;
+                int stbLen = (int)(us - en);
+                if (stbLen <= 0 || stbLen >= TSDB_TABLE_NAME_LEN) continue;
+                char stbName[TSDB_TABLE_NAME_LEN];
+                memcpy(stbName, en, stbLen);
+                stbName[stbLen] = '\0';
+
+                // Add the STB name itself (might not be in stb.sql for edge cases)
+                collectorAdd(&c, stbName);
+
+                // Collect child names from this STB's tag files
+                collectChildTableNames(dbName, stbName, &c);
+            }
+            taosCloseDir(&dir);
+        }
+    }
+
+    // ---- 4. Check each spec table against the collected set ----
+    int  missingCount = 0;
+    char missingBuf[4096] = "";
+    for (int i = 0; i < specCount; i++) {
+        bool found = false;
+        for (int j = 0; j < c.count; j++) {
+            if (strcmp(specTbs[i], c.names[j]) == 0) { found = true; break; }
+        }
+        if (!found) {
+            if (missingCount > 0)
+                snprintf(missingBuf + strlen(missingBuf),
+                         sizeof(missingBuf) - strlen(missingBuf), ", ");
+            snprintf(missingBuf + strlen(missingBuf),
+                     sizeof(missingBuf) - strlen(missingBuf), "'%s'", specTbs[i]);
+            missingCount++;
+        }
+    }
+
+    collectorFree(&c);
+
+    if (missingCount > 0) {
+        logError("database '%s': %d specified table(s) not found in backup: %s",
+                 dbName, missingCount, missingBuf);
+        return TSDB_CODE_BCK_SPEC_TABLE_NOT_FOUND;
+    }
+
+    return TSDB_CODE_SUCCESS;
+}
 
 //
 // restore child table tags for one super table (parallel threads)
@@ -2194,32 +2727,16 @@ static int restoreStreamsSql(const char *dbName) {
                 }
             }
 
-            // Step 2: if rename is configured, replace old dbName references with targetDb.
-            // Handle both backtick-quoted (`dbName`.) and unquoted (dbName.) patterns.
-            if (strcmp(targetDb, dbName) != 0) {
-                char *input = execSql;
-                char tmpBuf[TSDB_MAX_SQL_LEN];
-
-                // First pass: backtick-quoted  `dbName`. -> `targetDb`.
-                char oldBt[256], newBt[256];
-                snprintf(oldBt, sizeof(oldBt), "`%s`.", dbName);
-                snprintf(newBt, sizeof(newBt), "`%s`.", targetDb);
-                if (replaceAllSubstr(input, oldBt, newBt, tmpBuf, sizeof(tmpBuf))) {
-                    strncpy(renamedBuf, tmpBuf, sizeof(renamedBuf) - 1);
-                    renamedBuf[sizeof(renamedBuf) - 1] = '\0';
-                    execSql = renamedBuf;
-                    input = execSql;
-                }
-
-                // Second pass: unquoted  dbName. -> targetDb.
-                char oldPat[256], newPat[256];
-                snprintf(oldPat, sizeof(oldPat), "%s.", dbName);
-                snprintf(newPat, sizeof(newPat), "%s.", targetDb);
-                if (replaceAllSubstr(input, oldPat, newPat, tmpBuf, sizeof(tmpBuf))) {
-                    strncpy(renamedBuf, tmpBuf, sizeof(renamedBuf) - 1);
+            // Step 2: apply every -W rename pair to database references in the DDL,
+            // not just this database's own pair — a stream's source or target table
+            // can live in a different database that is also being renamed.
+            if (argRenameCount() > 0) {
+                if (execSql != renamedBuf) {
+                    strncpy(renamedBuf, execSql, sizeof(renamedBuf) - 1);
                     renamedBuf[sizeof(renamedBuf) - 1] = '\0';
                     execSql = renamedBuf;
                 }
+                applyAllRenamesInSql(renamedBuf, sizeof(renamedBuf));
             }
 
             TAOS_RES *res = taos_query(conn, execSql);
@@ -2228,10 +2745,10 @@ static int restoreStreamsSql(const char *dbName) {
             if (rc == TSDB_CODE_SUCCESS) {
                 streamCount++;
             } else if (rc == TSDB_CODE_MND_STREAM_ALREADY_EXIST) {
-                logWarn("stream already exists(0x%08X %s): %.120s", rc, taos_errstr(res), line);
+                logWarn("stream already exists(0x%08X %s): %s", rc, taos_errstr(res), line);
                 streamCount++;
             } else {
-                logError("create stream failed(0x%08X %s): %.120s", rc, taos_errstr(res), line);
+                logError("create stream failed(0x%08X %s): %s", rc, taos_errstr(res), line);
                 code = rc;
             }
             if (res) taos_free_result(res);
@@ -2241,6 +2758,107 @@ static int restoreStreamsSql(const char *dbName) {
     }
 
     logInfo("restored %d stream(s) for db: %s", streamCount, dbName);
+    atomic_add_fetch_64(&g_stats.streamTotal, streamCount);
+    releaseConnection(conn);
+    taosMemoryFree(content);
+    return code;
+}
+
+
+//
+// -------------------------------------- TOPIC SQL -----------------------------------------
+//
+
+// restore topic create SQL (topic.sql)
+//
+// Topics are cluster-level objects: unlike streams, a topic name is not
+// db-qualified, so no db prefix is injected.  Database references inside the
+// topic's query are rewritten via every configured -W/--rename pair (see
+// applyAllRenamesInSql()), not just this database's own pair, since the
+// subscribed table can live in a different database.  Note that a topic name
+// itself is never renamed, so restoring into the same cluster hits
+// TSDB_CODE_MND_TOPIC_ALREADY_EXIST, which is treated as success.
+static int restoreTopicsSql(const char *dbName) {
+    int code = TSDB_CODE_SUCCESS;
+
+    char sqlFile[MAX_PATH_LEN] = {0};
+    obtainFileName(BACK_FILE_TOPICSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS, sqlFile, sizeof(sqlFile));
+
+    if (!taosCheckExistFile(sqlFile)) {
+        logDebug("topic.sql not found, skip topics: %s", sqlFile);
+        return TSDB_CODE_SUCCESS;
+    }
+
+    char *content = readFileContent(sqlFile, NULL);
+    if (content == NULL) {
+        logError("read topic.sql failed: %s", sqlFile);
+        return TSDB_CODE_BCK_READ_FILE_FAILED;
+    }
+
+    TAOS *conn = getConnection(&code);
+    if (conn == NULL) {
+        taosMemoryFree(content);
+        return code;
+    }
+
+    // topic.sql contains CREATE TOPIC statements, one per line
+    char *line = content;
+    char *next = NULL;
+    int topicCount = 0;
+
+    while (line && *line) {
+        if (g_interrupted) {
+            code = TSDB_CODE_BCK_USER_CANCEL;
+            break;
+        }
+
+        next = strchr(line, '\n');
+        if (next) {
+            *next = '\0';
+            next++;
+        }
+
+        // trim
+        while (*line == ' ' || *line == '\r') line++;
+        int lineLen = strlen(line);
+        while (lineLen > 0 && (line[lineLen-1] == ' ' || line[lineLen-1] == '\r')) {
+            line[--lineLen] = '\0';
+        }
+
+        if (lineLen > 0) {
+            char *execSql = line;
+            char renamedBuf[TSDB_MAX_SQL_LEN];
+
+            // Apply every -W rename pair to database references in the query,
+            // not just this database's own pair — a topic's subscribed table can
+            // live in a different database that is also being renamed.
+            if (argRenameCount() > 0) {
+                strncpy(renamedBuf, execSql, sizeof(renamedBuf) - 1);
+                renamedBuf[sizeof(renamedBuf) - 1] = '\0';
+                applyAllRenamesInSql(renamedBuf, sizeof(renamedBuf));
+                execSql = renamedBuf;
+            }
+
+            TAOS_RES *res = taos_query(conn, execSql);
+            int rc = taos_errno(res);
+
+            if (rc == TSDB_CODE_SUCCESS) {
+                topicCount++;
+            } else if (rc == TSDB_CODE_MND_TOPIC_ALREADY_EXIST) {
+                logWarn("topic already exists(0x%08X %s): %s", rc, taos_errstr(res), line);
+                topicCount++;
+            } else {
+                logError("create topic failed(0x%08X %s): %s", rc, taos_errstr(res), line);
+                code = rc;
+            }
+            if (res) taos_free_result(res);
+        }
+
+        line = next;
+    }
+
+    logInfo("restored %d topic(s) for db: %s", topicCount, dbName);
+    atomic_add_fetch_64(&g_stats.topicTotal, topicCount);
     releaseConnection(conn);
     taosMemoryFree(content);
     return code;
@@ -2262,16 +2880,16 @@ int restoreDatabaseMeta(const char *dbName) {
     //
     code = restoreDbSql(dbName);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("restore db sql failed(%d): %s", code, dbName);
+        logError("restore db sql failed(0x%08X): %s", code, dbName);
         return code;
     }
 
     //
     // 2. Restore super table SQL
     //
-    code = restoreStbSql(dbName);
+    code = restoreStbSql(dbName, false /* all super tables */);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("restore stb sql failed(%d): %s", code, dbName);
+        logError("restore stb sql failed(0x%08X): %s", code, dbName);
         return code;
     }
 
@@ -2315,6 +2933,17 @@ int restoreDatabaseMeta(const char *dbName) {
         g_progress.ctbTotalCur = 0;
         atomic_store_64(&g_progress.ctbDoneCur, 0);
 
+        // restoreStbSql() skips creating an STB that positional table args did
+        // not request and that has no matching child in the backup, so it may
+        // simply not exist on the target server.  Skip tag restore for it too
+        // instead of letting restoreStbTags() run DESCRIBE against a table
+        // that was never created (harmless, but logs a spurious ERROR).
+        if (argSpecTables() &&
+            !stbExistsOnServer(argRenameDb(dbName), stbNames[i])) {
+            logDebug("skip tag restore, STB was not created: %s.%s", dbName, stbNames[i]);
+            continue;
+        }
+
         atomic_add_fetch_64(&g_stats.stbTotal, 1);
         logInfo("[%lld/%lld] db: %s  [%d/%d] stb: %s  meta start",
                 (long long)g_progress.dbIndex, (long long)g_progress.dbTotal,
@@ -2331,7 +2960,7 @@ int restoreDatabaseMeta(const char *dbName) {
         atomic_store_64(&g_progress.ctbDoneCur, 0);
 
         if (code != TSDB_CODE_SUCCESS) {
-            logError("restore stb tags failed(%d): %s.%s", code, dbName, stbNames[i]);
+            logError("restore stb tags failed(0x%08X): %s.%s", code, dbName, stbNames[i]);
             freeArrayPtr(stbNames);
             return code;
         }
@@ -2348,27 +2977,91 @@ int restoreDatabaseMeta(const char *dbName) {
     //
     code = restoreNtbSql(dbName);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("restore ntb sql failed(%d): %s", code, dbName);
+        logError("restore ntb sql failed(0x%08X): %s", code, dbName);
         return code;
     }
 
+    // Virtual tables, streams and topics are NOT restored here — see
+    // restoreDatabaseExtMetaApply().  They can reference tables in other
+    // databases, so they must run only after every database's physical tables
+    // exist.
+
+    return TSDB_CODE_SUCCESS;
+}
+
+//
+// restore one database's extended-metadata "shell": the database itself and its
+// virtual super tables.
+//
+// Used only when the basic stage did not run (--content=ext-meta): the
+// database does not exist yet, and virtual child tables need their virtual
+// super table (whose DDL lives in stb.sql, basic content).  This is kept as a
+// separate phase so restoreMain() can create EVERY database before applying
+// ANY extended-metadata DDL.
+//
+int restoreDatabaseExtMetaPrepare(const char *dbName) {
+    int code = TSDB_CODE_SUCCESS;
+
+    g_progress.phase = PROGRESS_PHASE_EXTMETA;
+
+    // restoreDbSql() creates the database, or falls back to USE when it
+    // already exists (APPEND mode).
+    code = restoreDbSql(dbName);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("restore db sql failed(0x%08X): %s", code, dbName);
+        return code;
+    }
+    // Virtual child tables need their virtual super table, whose DDL lives
+    // in stb.sql (basic content).  The basic stage did not run, so create
+    // the virtual super tables here — physical ones are left alone.
+    code = restoreStbSql(dbName, true /* virtual super tables only */);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("restore virtual stb sql failed(0x%08X): %s", code, dbName);
+        return code;
+    }
+
+    return TSDB_CODE_SUCCESS;
+}
+
+//
+// restore one database's extended metadata DDL: virtual tables + streams +
+// topics
+//
+// A virtual table can map each of its columns to an arbitrary db.table.column,
+// so its DDL may reference a database other than the one being restored.  This
+// function is therefore called in a second pass, after every database's
+// physical tables and data (and, for --content=ext-meta, after every database
+// itself) have been created.
+//
+int restoreDatabaseExtMetaApply(const char *dbName) {
+    int code = TSDB_CODE_SUCCESS;
+
+    g_progress.phase = PROGRESS_PHASE_EXTMETA;
+
     //
-    // 5. Restore virtual table DDL (vtb.sql)
-    //    Must run after physical tables so that virtual columns can reference them
+    // 1. Virtual table DDL (vtb.sql) + virtual child tags (vtags/)
     //
     code = restoreVtbSql(dbName);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("restore vtb sql failed(%d): %s", code, dbName);
+        logError("restore vtb sql failed(0x%08X): %s", code, dbName);
         return code;
     }
 
     //
-    // 6. Restore stream SQL (stream.sql)
-    //    Must run after all tables are created since streams depend on source/target tables
+    // 2. Stream SQL (stream.sql) — depends on source/target tables existing
     //
     code = restoreStreamsSql(dbName);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("restore stream sql failed(%d): %s", code, dbName);
+        logError("restore stream sql failed(0x%08X): %s", code, dbName);
+        return code;
+    }
+
+    //
+    // 3. Topic SQL (topic.sql) — depends on the subscribed tables existing
+    //
+    code = restoreTopicsSql(dbName);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("restore topic sql failed(0x%08X): %s", code, dbName);
         return code;
     }
 

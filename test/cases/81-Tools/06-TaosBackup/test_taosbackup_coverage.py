@@ -2051,6 +2051,89 @@ class TestTaosBackupCoverage:
         tdLog.info("test_multi_rename_restore PASSED")
 
     # -----------------------------------------------------------------
+    # C-2b. Stage2 failure must reverse Stage1's success in g_stats,
+    #       not double-count it in the final summary.
+    # -----------------------------------------------------------------
+    def test_extmeta_failure_reconciles_stage1_success(self):
+        """restore.c: a Stage 2 (ext-meta) failure for a database whose Stage 1 (basic data) already succeeded must reverse that Stage 1 success in g_stats, not double-count it.
+
+        Steps:
+          1. Create two databases; db1 has a real topic, db2 is plain.
+          2. Backup both together with --content=all.
+          3. Corrupt db1's topic.sql to reference a nonexistent table, so
+             restoreTopicsSql() (and therefore Stage 2 for db1) fails after
+             Stage 1 for db1 has already completed successfully.
+          4. Restore both with --content=all.
+          5. Verify the final "Databases : total=2, success=1, failed=1"
+             summary line — NOT "success=2, failed=1" (which would mean
+             db1's Stage 1 success was never reversed).
+          6. Verify db1's basic data still restored (Stage 1 unaffected)
+             but its topic does not exist (Stage 2 failed).
+          7. Verify db2 restored completely.
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-08-12 Created to cover dbSuccess/dbFailed reconciliation
+        """
+        db1, db2 = "bcov_recon_db1", "bcov_recon_db2"
+        topic = "bcov_recon_tp"
+        tmpdir = _tmpdir("tmp_cov_reconcile")
+
+        tdLog.info("=== step 1: create two databases, one with a topic ===")
+        tdSql.execute(f"drop topic if exists {topic}")
+        _insert_simple(db1, rows=20)
+        _insert_simple(db2, rows=20)
+        tdSql.execute(f"create topic {topic} as select * from {db1}.st")
+
+        tdLog.info("=== step 2: backup both with --content=all ===")
+        rlist = etool.taosdump(f"--content=all -D {db1},{db2} -o {tmpdir}")
+        _checkstr(rlist, "Result       : SUCCESS")
+
+        topicSqlPath = os.path.join(tmpdir, db1, "topic.sql")
+        if not os.path.exists(topicSqlPath):
+            tdLog.exit(f"topic.sql missing from backup: {topicSqlPath}")
+
+        tdLog.info("=== step 3: corrupt db1's topic.sql ===")
+        with open(topicSqlPath, "w") as f:
+            f.write(
+                f"CREATE TOPIC IF NOT EXISTS `{topic}` AS SELECT * FROM "
+                f"`{db1}`.`nonexistent_stb_zzz`;\n"
+            )
+
+        tdLog.info("=== step 4: drop both databases, restore --content=all ===")
+        tdSql.execute(f"drop topic if exists {topic}")
+        tdSql.execute(f"drop database if exists {db1}")
+        tdSql.execute(f"drop database if exists {db2}")
+        rlist2 = etool.taosdump(f"--content=all -i {tmpdir}", checkRun=False)
+
+        tdLog.info("=== step 5: verify reconciled Databases summary ===")
+        _checkstr(rlist2, "total=2, success=1, failed=1")
+        _checkmissing(rlist2, "success=2, failed=1")
+
+        tdLog.info("=== step 6: db1 basic data restored, topic missing ===")
+        cnt1 = _rowcount(db1, "st")
+        if cnt1 != 40:
+            tdLog.exit(f"db1 st row count mismatch: expected 40, got {cnt1}")
+        tdSql.query("show topics")
+        topicNames = [row[0] for row in tdSql.queryResult]
+        if topic in topicNames:
+            tdLog.exit(f"topic {topic} should not exist — its creation was corrupted")
+
+        tdLog.info("=== step 7: db2 restored completely ===")
+        cnt2 = _rowcount(db2, "st")
+        if cnt2 != 40:
+            tdLog.exit(f"db2 st row count mismatch: expected 40, got {cnt2}")
+
+        tdSql.execute(f"drop topic if exists {topic}")
+        tdSql.execute(f"drop database if exists {db1}")
+        tdSql.execute(f"drop database if exists {db2}")
+
+        tdLog.info("test_extmeta_failure_reconciles_stage1_success PASSED")
+
+    # -----------------------------------------------------------------
     # C-3. restoreNtbSql + restoreStbSql already-exists branches
     # -----------------------------------------------------------------
     def test_second_restore_already_exists(self):

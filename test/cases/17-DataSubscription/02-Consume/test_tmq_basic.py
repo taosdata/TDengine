@@ -630,11 +630,11 @@ class TestBasic5:
             "auto.offset.reset": "earliest",
         }
         consumer = Consumer(consumer_dict)
-        tdSql.query("show connections")
-        tdSql.checkRows(2)
+        tdSql.query("select * from performance_schema.perf_connections where type = 'TMQ'")
+        tdSql.checkRows(1)
         time.sleep(10)
-        tdSql.query("show connections")
-        tdSql.checkRows(2)
+        tdSql.query("select * from performance_schema.perf_connections where type = 'TMQ'")
+        tdSql.checkRows(1)
 
         consumer.close()
     #

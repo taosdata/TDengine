@@ -1149,6 +1149,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_DISABLED,                "Federated query
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_TS_COLUMN_MISSING,       "External source table has no timestamp primary key column")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_PARTITION_NOT_SUPPORTED, "PARTITION BY is not supported for the given external source type")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_READER_NO_LOCAL_INFO,    "External reader has no local SStreamTriggerReaderInfo; trigger must resend uid maxTs hash")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_HISTORY_NOT_SUPPORTED,   "FILL_HISTORY/FILL_HISTORY_FIRST is not supported for external (federated) trigger tables")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_TAG_INVALID,             "Influxdb tag key is too long or convert error")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_ROLLUP_ILLEGAL_PATH,     "Stream rollup tag path is illegal")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_ROLLUP,          "Invalid ROLLUP BY clause")
 
@@ -1195,6 +1197,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_ORIGIN_TS_COL,   "Virtual table query
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED,      "Virtual table reference depth exceeds limit")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_REF_COLUMN,      "Virtual table query cannot resolve ref column")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_CIRCULAR_REF,            "Virtual table circular reference detected")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_DATA_SRC_EP_MISS,         "No valid epSet for virtual super table data source node")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_SEQ_NOT_FOUND, "Blob seq not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT_TAG, "Blob type not support on tag")

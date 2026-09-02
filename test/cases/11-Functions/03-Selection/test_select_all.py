@@ -259,7 +259,9 @@ class TestSelectFunction:
 
     def run_error(self):
         tdSql.error("select * from (select to_iso8601(ts, timezone()), timezone() from ts_4893.meters \
-            order by ts desc) limit 1000;", expectErrInfo="Invalid timezone format") # TS-5340
+            order by ts desc) limit 1000;",
+            # the message quotes the rejected timezone, which varies per host
+            expectErrInfo="Invalid timezone", fullMatched=False) # TS-5340
         tdSql.error("select * from ts_4893.meters where ts between(timetruncate(now, 1h) - 10y) and timetruncate(now(), 10y) partition by voltage;",
                     expectErrInfo="Invalid time unit : timetruncate") #
 
@@ -316,7 +318,7 @@ class TestSelectFunction:
         tdSql.query("select GREATEST(now, '1');")
         tdSql.error("select GREATEST(1)")
         tdSql.error("select GREATEST(cast('a' as varbinary), cast('b' as varbinary), 'c', 'd');")
-        tdSql.error("select GREATEST(6, cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")       
+        tdSql.error("select GREATEST(6, cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")
 
     def run_least(self):
         self.run_normal_query_new("least")
@@ -447,6 +449,7 @@ class TestSelectFunction:
         Since: v3.3.0.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2024-9-28 qevolg Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -605,6 +608,159 @@ class TestSelectFunction:
         )
         # K-row and N-1 row functions cannot coexist (row count mismatch)
         tdSql.error("SELECT top(voltage, 3), bottom(current, 3), diff(id) FROM ts_4893.fc_d")
+
+    def check_pipeline_column_anchor(self, sql, expected_rows, first_anchor, last_anchor):
+        tdSql.query(sql)
+        tdSql.checkRows(expected_rows)
+        tdSql.checkData(0, 0, first_anchor)
+        tdSql.checkData(expected_rows - 1, 0, last_anchor)
+
+    def do_pipeline_same_type_column_anchor(self):
+        cases = [
+            (
+                "SELECT id, lag(voltage, 1), lag(current, 1) FROM ts_4893.fc_d",
+                5,
+                0,
+                4,
+            ),
+            (
+                "SELECT id, lead(voltage, 1), lead(current, 1) FROM ts_4893.fc_d",
+                5,
+                0,
+                4,
+            ),
+            (
+                "SELECT id, fill_forward(voltage), fill_forward(current) FROM ts_4893.fc_d",
+                5,
+                0,
+                4,
+            ),
+            (
+                "SELECT id, csum(voltage), csum(current) FROM ts_4893.fc_d",
+                5,
+                0,
+                4,
+            ),
+            (
+                "SELECT id, statecount(voltage, 'GE', 220),"
+                " statecount(current, 'GE', 10) FROM ts_4893.fc_d",
+                5,
+                0,
+                4,
+            ),
+            (
+                "SELECT id, stateduration(voltage, 'GE', 220, 1s),"
+                " stateduration(current, 'GE', 10, 1s) FROM ts_4893.fc_d",
+                5,
+                0,
+                4,
+            ),
+            (
+                "SELECT id, diff(voltage), diff(current) FROM ts_4893.fc_d",
+                4,
+                1,
+                4,
+            ),
+            (
+                "SELECT id, derivative(voltage, 1s, 0),"
+                " derivative(current, 1s, 0) FROM ts_4893.fc_d",
+                4,
+                1,
+                4,
+            ),
+            (
+                "SELECT id, mavg(voltage, 2), mavg(current, 2) FROM ts_4893.fc_d",
+                4,
+                1,
+                4,
+            ),
+        ]
+
+        for sql, expected_rows, first_anchor, last_anchor in cases:
+            self.check_pipeline_column_anchor(sql, expected_rows, first_anchor, last_anchor)
+
+        print("pipeline same-type column anchors .......... [ passed ]")
+
+    def do_pipeline_cross_type_column_anchor(self):
+        self.check_pipeline_column_anchor(
+            "SELECT id, lag(voltage, 1), lead(current, 1),"
+            " fill_forward(id), csum(voltage),"
+            " statecount(current, 'GE', 10),"
+            " stateduration(current, 'GE', 10, 1s) FROM ts_4893.fc_d",
+            5,
+            0,
+            4,
+        )
+        self.check_pipeline_column_anchor(
+            "SELECT id, diff(voltage), derivative(current, 1s, 0) FROM ts_4893.fc_d",
+            4,
+            1,
+            4,
+        )
+        self.check_pipeline_column_anchor(
+            "SELECT id, mavg(voltage, 2), mavg(current, 2),"
+            " mavg(id, 2) FROM ts_4893.fc_d",
+            4,
+            1,
+            4,
+        )
+
+        tdSql.query(
+            "SELECT ts, lag(voltage, 1), lead(current, 1),"
+            " fill_forward(id), csum(voltage),"
+            " statecount(current, 'GE', 10),"
+            " stateduration(current, 'GE', 10, 1s) FROM ts_4893.fc_d"
+        )
+        tdSql.checkRows(5)
+        tdSql.query(
+            "SELECT ts, diff(voltage), derivative(current, 1s, 0) FROM ts_4893.fc_d"
+        )
+        tdSql.checkRows(4)
+        tdSql.query(
+            "SELECT ts, mavg(voltage, 2), mavg(current, 2),"
+            " mavg(id, 2) FROM ts_4893.fc_d"
+        )
+        tdSql.checkRows(4)
+
+        print("pipeline cross-type column anchors ......... [ passed ]")
+
+    def do_pipeline_column_anchor_rejections(self):
+        tdSql.error(
+            "SELECT ts, mavg(voltage, 2), mavg(current, 3) FROM ts_4893.fc_d"
+        )
+        tdSql.error("SELECT ts, mavg(voltage, 2), csum(current) FROM ts_4893.fc_d")
+        tdSql.error("SELECT ts, diff(voltage), csum(current) FROM ts_4893.fc_d")
+        tdSql.error(
+            "SELECT ts, statecount(voltage, 'GE', 220),"
+            " mavg(current, 2) FROM ts_4893.fc_d"
+        )
+
+        print("pipeline column-anchor rejections .......... [ passed ]")
+
+    def test_pipeline_function_column_coexistence(self):
+        """Pipeline functions coexist with ordinary-column row anchors.
+
+        1. Cover two same-type functions for every row-transform pipeline function
+        2. Cover compatible N-row, N-1-row, and same-K N-K+1 cross-function groups
+        3. Verify both timestamp and ordinary-column anchors preserve row alignment
+        4. Keep rejecting combinations whose output row counts differ
+
+        Catalog:
+            - Function:Selection
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-08-06 Codex Added pipeline-function column-anchor coverage
+
+        """
+        self.do_pipeline_same_type_column_anchor()
+        self.do_pipeline_cross_type_column_anchor()
+        self.do_pipeline_column_anchor_rejections()
 
     def test_func_coexist_rules(self):
         """Function coexistence: rule 4/5, uniqueness constraint, DIFF ignore param.

@@ -19,6 +19,7 @@ class TestVtableShowTag:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: TD-35567
 
         History:
@@ -50,6 +51,10 @@ class TestVtableShowTag:
         tdSql.query(f"show tags from v_super_t")
         tdSql.checkRows(0)
 
-        tdSql.error(f"show tags from v_normal_t")
+        # a virtual normal table has no tags; show tags returns an empty set, mirroring a plain
+        # normal table (show tags from <normal> also returns 0 rows). It no longer errors now that
+        # vnormal shares the owned-tag mechanism with vchild.
+        tdSql.query(f"show tags from v_normal_t")
+        tdSql.checkRows(0)
 
         tdLog.info(f"end virtual table show tag test successfully")

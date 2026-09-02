@@ -1,16 +1,21 @@
-# encoding:utf-8
 """misc handlers: encapsulates miscellaneous tool business logic"""
 
 import numpy as np
 from scipy.stats import pearsonr
 
-from taosanalytics.algo.tool.batch import do_batch_process, update_config
+from taosanalytics.algo.association import do_apriori
+from taosanalytics.algo.tool.batch_env import gen_batch_envelop, update_config
 from taosanalytics.algo.tool.profile_search import do_profile_search_impl
 from taosanalytics.log import AppLogger
-from taosanalytics.util import SINGLE_COLUMN_ERROR_MSG, do_check_before_exec, do_initial_check, get_more_data_list
+from taosanalytics.util import (
+    SINGLE_COLUMN_ERROR_MSG,
+    do_check_before_exec,
+    do_initial_check,
+    get_more_data_list,
+)
 
 
-def handle_batch(request):
+def handle_build_batch_env(request):
     """
     Execute batch processing business logic.
 
@@ -35,15 +40,23 @@ def handle_batch(request):
 
     try:
         # median, lower bounding, upper bounding, processed_batches
-        center, lower, upper, processed_batches = do_batch_process(np.array(ts), np.array(data), windows, conf)
+        center, lower, upper, processed_batches = gen_batch_envelop(
+            np.array(ts), np.array(data), windows, conf
+        )
 
-        res = {"rows": lower.size, "center": center.tolist(), "lower": lower.tolist(), "upper": upper.tolist()}
+        res = {
+            "rows": lower.size,
+            "center": center.tolist(),
+            "lower": lower.tolist(),
+            "upper": upper.tolist(),
+        }
         AppLogger.debug("batch processed result: %s", res)
 
         return res
     except Exception as e:
-        AppLogger.error('golden batch process failed, %s', str(e))
+        AppLogger.error("golden batch process failed, %s", str(e))
         return {"msg": str(e), "rows": -1}
+
 
 def handle_pearsonr(request, api_version):
     """
@@ -59,20 +72,20 @@ def handle_pearsonr(request, api_version):
     except ValueError as e:
         msg = str(e)
         if msg == SINGLE_COLUMN_ERROR_MSG:
-            msg = 'a second data column is required for pearsonr'
+            msg = "a second data column is required for pearsonr"
         return {"msg": msg, "rows": -1}
     except Exception as e:
         return {"msg": str(e), "rows": -1}
 
-    if api_version != 'v1':
-        AppLogger.error('unsupported API version: %s', api_version)
+    if api_version != "v1":
+        AppLogger.error("unsupported API version: %s", api_version)
         return {"msg": f"unsupported API version: {api_version}", "rows": -1}
 
     try:
         second_list = get_more_data_list(payload, req_json["schema"])
         if second_list is None:
             return {"msg": "a second data column is required for pearsonr", "rows": -1}
-        
+
         correlation, p_value = pearsonr(payload[data_index], second_list)
         if not np.isfinite(correlation):
             correlation = 0.0
@@ -82,12 +95,18 @@ def handle_pearsonr(request, api_version):
         p_value = float(p_value)
 
         AppLogger.debug(f"pearsonr correlation: {correlation}, p value: {p_value}")
-        res = {"option": options, "rows": 1, "correlation_coefficient": correlation, "p_value": p_value}
+        res = {
+            "option": options,
+            "rows": 1,
+            "correlation_coefficient": correlation,
+            "p_value": p_value,
+        }
 
         return res
     except Exception as e:
-        AppLogger.error('pearsonr correlation failed, %s', str(e))
+        AppLogger.error("pearsonr correlation failed, %s", str(e))
         return {"msg": str(e), "rows": -1}
+
 
 def do_profile_search(request, api_version):
     """
@@ -111,8 +130,13 @@ def do_profile_search(request, api_version):
     - Or return all profiles with distance below the threshold when using dtw.
     - Or return all profiles with similarity above the threshold when using cosine similarity.
     - "num" and "threshold" cannot be set at the same time.
-    - "exclude_source" is applicable for all algorithms and means whether to exclude the matched profile that contains the source profile. For example, if the source profile has ts window [2, 4], the matched profile with ts window [2, 4] will be excluded if "exclude_source" is set to true.
-    - "exclude_overlap" is applicable for all algorithms and means whether to exclude any matched profile that overlaps with a better-ranked result. For example, if there are two matched profiles with ts window [1, 5] and [4, 6], the profile [4, 6] will be excluded if "exclude_overlap" is set to true. Endpoint-touching windows are treated as adjacent/non-overlapping, so windows such as [1, 5] and [5, 9] are not excluded by "exclude_overlap".    
+    - "exclude_source" is applicable for all algorithms and means whether to exclude the matched profile that contains
+    the source profile. For example, if the source profile has ts window [2, 4], the matched profile with ts window
+    [2, 4] will be excluded if "exclude_source" is set to true.
+    - "exclude_overlap" is applicable for all algorithms and means whether to exclude any matched profile that
+    overlaps with a better-ranked result. For example, if there are two matched profiles with ts window [1, 5]
+    and [4, 6], the profile [4, 6] will be excluded if "exclude_overlap" is set to true. Endopint-touching windows
+    are treated as adjacent/non-overlapping, so windows such as [1, 5] and [5, 9] are not excluded by "exclude_overlap".
     - Threshold-based results are capped at 500 matches.
     target_data.ts may be either:
     - a unix timestamp list, such as [1, 2, 3, 4, 5, 6]
@@ -173,8 +197,8 @@ def do_profile_search(request, api_version):
     }
 
     """
-    if api_version != 'v1':
-        AppLogger.error('unsupported API version: %s', api_version)
+    if api_version != "v1":
+        AppLogger.error("unsupported API version: %s", api_version)
         return {"msg": f"unsupported API version: {api_version}", "rows": -1}
 
     try:
@@ -188,5 +212,100 @@ def do_profile_search(request, api_version):
         return result
 
     except Exception as e:
-        AppLogger.error('profile search failed, %s', str(e))
+        AppLogger.error("profile search failed, %s", str(e))
+        return {"msg": str(e), "rows": -1}
+
+
+def handle_association(request, api_version):
+    """
+    Execute Apriori association rule mining.
+
+    :param request: Flask request object
+    :param api_version: API version to determine the specific implementation
+    :return: dict with association analysis result or error information
+
+    Request body example (matrix format):
+    {
+        "data": [[1, 1, 0, 0], [1, 1, 0, 0], [1, 0, 1, 0], [1, 0, 1, 0], [0, 1, 1, 0]],
+        "schema": ["item_A", "item_B", "item_C", "item_D"],
+        "option": {
+            "min_support": 0.3,
+            "min_confidence": 0.6,
+            "max_rules": 20,
+            "data_format": "matrix"
+        }
+    }
+
+    Request body example (transactions format):
+    {
+        "data": [["milk", "bread"], ["milk", "bread", "eggs"], ["milk"], ["bread", "eggs"]],
+        "option": {
+            "min_support": 0.25,
+            "min_confidence": 0.5,
+            "max_rules": 10,
+            "data_format": "transactions"
+        }
+    }
+
+    Response example:
+    {
+        "rows": 4,
+        "algo": "apriori",
+        "option": {"min_support": 0.3, "min_confidence": 0.6},
+        "rules": [
+            {
+                "antecedents": ["item_A"],
+                "consequents": ["item_B"],
+                "support": 0.4,
+                "confidence": 0.75,
+                "lift": 1.2,
+                "leverage": 0.1,
+                "conviction": 2.5
+            }
+        ],
+        "itemsets": [
+            {"items": ["item_A"], "support": 0.6},
+            {"items": ["item_A", "item_B"], "support": 0.4}
+        ],
+        "num_transactions": 5,
+        "num_items": 4
+    }
+    """
+    if api_version != "v1":
+        AppLogger.error("unsupported API version: %s", api_version)
+        return {"msg": f"unsupported API version: {api_version}", "rows": -1}
+
+    try:
+        req_json = do_initial_check(request)
+    except Exception as e:
+        return {"msg": str(e), "rows": -1}
+
+    if "data" not in req_json:
+        return {"msg": "'data' is required in payload", "rows": -1}
+
+    try:
+        data = req_json.get("data")
+        schema = req_json.get("schema", None)
+        options = req_json.get("option", {})
+
+        result_data = do_apriori(data, schema, options)
+
+        res = {
+            "rows": len(result_data.get("rules", [])),
+            "algo": "apriori",
+            "option": options,
+            "rules": result_data["rules"],
+            "itemsets": result_data["itemsets"],
+            "num_transactions": result_data["num_transactions"],
+            "num_items": result_data["num_items"],
+        }
+
+        AppLogger.debug("association analysis result: %s rows of rules", res["rows"])
+        return res
+
+    except ValueError as e:
+        AppLogger.error("association analysis parameter error: %s", str(e))
+        return {"msg": str(e), "rows": -1}
+    except Exception as e:
+        AppLogger.error("association analysis failed, %s", str(e))
         return {"msg": str(e), "rows": -1}

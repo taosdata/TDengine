@@ -133,6 +133,7 @@ typedef enum {
   MND_OPER_COMMIT_TXN,
   MND_OPER_ROLLBACK_TXN,
   MND_OPER_ALLOC_TXN_SEQ,
+  MND_OPER_FLUSH_MNODE,
   MND_OPER_MAX  // the max operation type
 } EOperType;
 
@@ -193,6 +194,12 @@ typedef enum {
   TRN_KILL_MODE_INTERUPT = 1,
   // TRN_KILL_MODE_ROLLBACK = 2,
 } ETrnKillMode;
+
+typedef enum {
+  TRANS_STOP_CB_PENDING = 0,
+  TRANS_STOP_CB_RUNNING,
+  TRANS_STOP_CB_DONE,
+} ETransStopCbState;
 
 typedef enum {
   DND_REASON_ONLINE = 0,
@@ -257,6 +264,7 @@ typedef struct {
   SHashObj*     arbGroupIds;
   int32_t       startFunc;
   int32_t       stopFunc;
+  int8_t        stopCbState;
   int32_t       paramLen;
   void*         param;
   char          opername[TSDB_TRANS_OPER_LEN];
@@ -458,6 +466,10 @@ typedef struct {
   char*    reason;
   char*    createdBy;
   char*    labels;
+  // Immutable creator UID; zero identifies records written before this field existed.
+  int64_t  ownerId;
+  // Account domain used when matching explicit XNode task privileges.
+  int32_t  acctId;
   SRWLatch lock;
   // SArray** labels;
   // int32_t  numOfLabels;
@@ -1239,6 +1251,13 @@ typedef struct {
   bool             isReload;
 } SMqRebOutputObj;
 
+typedef struct SStreamRecalcPersistReq {
+  int64_t recalcId;
+  TSKEY   start;
+  TSKEY   end;
+  int64_t requestTimeMs;
+} SStreamRecalcPersistReq;
+
 typedef struct {
   char                name[TSDB_STREAM_FNAME_LEN];
   char                createUser[TSDB_USER_LEN];
@@ -1256,6 +1275,9 @@ typedef struct {
   // only STREAM_FLAG_REF_EXT_SOURCE (bit 3) is consumed; lifted from
   // SCMCreateStreamReq.flags by mndStreamBuildObj.
   uint64_t flags;
+  uint64_t recalcRevision;
+  SArray*  pIncompleteRecalcs;  // SArray<SStreamRecalcPersistReq>
+  int8_t   sdbRawUpdateKind;    // EStreamRawUpdateKind; not business-serialized
   // External source trigger specs live in pCreate->extSpecs
   // (SCMCreateStreamReq.extSpecs), which is JSON-serialized as part of
   // pCreate and persists for the whole lifetime of the stream object; there

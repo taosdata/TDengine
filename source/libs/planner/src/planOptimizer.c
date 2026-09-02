@@ -10337,9 +10337,14 @@ static int32_t findDepTableScanNode(SColumnNode* pCol, SVirtualScanLogicNode *pV
     }
   }
   *ppNode = NULL;
-  planError("column %s.%s's depend column not found in virtual scan node", pCol->tableAlias, pCol->colName);
-  // TODO(smj): make a proper error code.
-  return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  // Not found is not an error. E.g. COUNT(*) unfolds to COUNT(ts) and the virtual table's own
+  // primary timestamp has no matching source-table scan. Return SUCCESS with *ppNode=NULL so the
+  // caller can skip this aggregate func — but a skipped func means PDA must be abandoned
+  // (the caller bails via pSkipped), otherwise the rewritten plan would silently lose that
+  // func's output slot.
+  qDebug("findDepTableScanNode: column %s has no source-table scan (e.g. COUNT(*)->COUNT(ts)); PDA must bail",
+         pCol->colName);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mergeAggFuncToAggNode(SAggLogicNode* pAgg, SFunctionNode* pFunc) {
@@ -10362,7 +10367,7 @@ _return:
 }
 
 static int32_t rebuildPlanForPdaOptimize(SColumnNode* pCol, SFunctionNode* pAggFunc, SVirtualScanLogicNode* pVScan,
-                                         SHashObj* pAggNodeMap) {
+                                         SHashObj* pAggNodeMap, bool* pSkipped) {
   int32_t         code = TSDB_CODE_SUCCESS;
   SScanLogicNode* pDepScan = NULL;
   SAggLogicNode*  pAggNode = NULL;
@@ -10372,6 +10377,12 @@ static int32_t rebuildPlanForPdaOptimize(SColumnNode* pCol, SFunctionNode* pAggF
   // pAggNodeMap is a hash map, the key is the vtable's origin table's name, the value is the SAggLogicNode ptr.
   // if 2 more agg func has the same origin table, we should merge them into one agg node.
   PLAN_ERR_JRET(findDepTableScanNode(pCol, pVScan, (SNode**)&pDepScan));
+  if (NULL == pDepScan) {
+    // column has no matching source-table scan (e.g. virtual table's own ts from COUNT(*));
+    // signal the caller to abandon PDA — proceeding would rewrite the plan without this func.
+    *pSkipped = true;
+    return TSDB_CODE_SUCCESS;
+  }
   char tableFNameKey[TSDB_COL_FNAME_LEN + 1] = {0};
   TAOS_STRNCAT(tableFNameKey, pDepScan->tableName.tname, TSDB_TABLE_NAME_LEN);
   TAOS_STRNCAT(tableFNameKey, ".", 2);
@@ -10426,6 +10437,7 @@ static int32_t pdaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan)
 
   SVirtualScanLogicNode *pVScan = (SVirtualScanLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
   SNode                 *pAggFunc = NULL;
+  bool                   skipped = false;
   SHashObj              *pAggNodeMap = taosHashInit(LIST_LENGTH(pAgg->pAggFuncs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (NULL == pAggNodeMap) {
     PLAN_ERR_JRET(terrno);
@@ -10442,7 +10454,12 @@ static int32_t pdaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan)
           // virtual tablescan operator.
           goto _return;
         }
-        PLAN_ERR_JRET(rebuildPlanForPdaOptimize(pCol, pFunc, pVScan, pAggNodeMap));
+        PLAN_ERR_JRET(rebuildPlanForPdaOptimize(pCol, pFunc, pVScan, pAggNodeMap, &skipped));
+        if (skipped) {
+          // An agg func has no source-table scan (e.g. COUNT(*) -> COUNT(ts)); rewriting without it
+          // would produce a plan with fewer outputs than the original agg. Bail out entirely.
+          goto _return;
+        }
       }
     }
   }
@@ -10560,6 +10577,11 @@ static int32_t checkAllStateExprsSameOriginTable(SNodeList* pStateExprs, SVirtua
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
   PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)pFirstExpr, pVScan, &pFirstScan));
+  if (NULL == pFirstScan) {
+    // the state column has no source-table scan (e.g. vtable's own ts) — cannot prove same origin
+    *pSameOrigin = false;
+    goto _return;
+  }
   const char* firstTable = ((SScanLogicNode*)pFirstScan)->tableName.tname;
 
   SNode* pExpr = NULL;
@@ -10575,6 +10597,11 @@ static int32_t checkAllStateExprsSameOriginTable(SNodeList* pStateExprs, SVirtua
       goto _return;
     }
     PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)pExpr, pVScan, &pOtherScan));
+    if (NULL == pOtherScan) {
+      // no matching source-table scan for this state column — treat as not-same-origin
+      *pSameOrigin = false;
+      goto _return;
+    }
     if (strcmp(((SScanLogicNode*)pOtherScan)->tableName.tname, firstTable) != 0) {
       *pSameOrigin = false;
     }
@@ -10736,6 +10763,12 @@ static int32_t rebuildPlanForVtableWindowOptimize(SColumnNode* pCol, SFunctionNo
   // pAggNodeMap is a hash map, the key is the vtable's origin table's name, the value is the SAggLogicNode ptr.
   // if 2 more agg func has the same origin table, we should merge them into one agg node.
   PLAN_ERR_JRET(findDepTableScanNode(pCol, pVScan, (SNode**)&pDepScan));
+  if (NULL == pDepScan) {
+    // the func's column has no source-table scan (e.g. vtable's own ts); bail out instead of
+    // dereferencing NULL — caller must skip this rewrite.
+    planError("rebuildPlanForVtableWindowOptimize: column %s has no source-table scan", pCol->colName);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
   char tableFNameKey[TSDB_TABLE_FNAME_LEN + 1] = {0};
   TAOS_STRNCAT(tableFNameKey, pDepScan->tableName.dbname, TSDB_DB_NAME_LEN);
   TAOS_STRNCAT(tableFNameKey, ".", 2);
@@ -12766,7 +12799,8 @@ static bool distinctAggFilterShouldOptimize(SLogicNode* pNode, void* pCtx) {
     pFuncs = pAgg->pAggFuncs;
   } else if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode)) {
     SWindowLogicNode* pWin = (SWindowLogicNode*)pNode;
-    // Only INTERVAL windows support distinct (SESSION/STATE/EVENT rejected at translate time)
+    // Only INTERVAL windows support distinct. SESSION/STATE/EVENT/COUNT/EXTERNAL are rejected
+    // at translate time in validateDistinctFunc(); keep this guard as a backstop.
     if (pWin->winType != WINDOW_TYPE_INTERVAL) return false;
     // Already optimized
     if (pWin->node.pChildren && pWin->node.pChildren->length > 0) {
@@ -14776,6 +14810,18 @@ static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
 // ─────────────────────────────────────────────────────────────────────────────
 
 static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  // Stream calc plans need a local Project/Sort left above the ExternalScan so that
+  // streamScanSplit (planSpliter.c) has a parent node to split the scan away from,
+  // producing a genuine runner subplan fed by Exchange from the calc-reader scan.
+  // Harvesting that chain down to the remote source (as this optimization normally
+  // does) collapses a bare passthrough calc query like "AS SELECT * FROM <ext table>"
+  // down to a single parentless scan, leaving the calc plan with zero runner
+  // subplans -- which the stream trigger/mnode deploy path cannot execute (calc
+  // requests can only be dispatched to a runner task, not a calc reader directly).
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SScanLogicNode* pScan = fqFindExternalScan(pLogicSubplan->pNode);
   if (NULL == pScan) {
     return TSDB_CODE_SUCCESS;

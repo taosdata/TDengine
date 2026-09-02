@@ -33,6 +33,7 @@ extern "C" {
 // #define STREAM_RETURN_ROWS_NUM_NEW 1000000
 
 #define STREAM_ACT_MIN_DELAY_MSEC (STREAM_MAX_GROUP_NUM * STREAM_HB_INTERVAL_MS)
+#define STREAM_PULL_TASK_NOT_EXIST_RETRY_LIMIT 10
 
 #define STREAM_FLAG_TRIGGER_READER  (1 << 0)
 #define STREAM_FLAG_TOP_RUNNER      (1 << 1)
@@ -48,19 +49,80 @@ extern "C" {
 
 #define STREAM_CALC_REQ_MAX_WIN_NUM 40960
 
+typedef struct SStreamTaskStats SStreamTaskStats;
+
 typedef struct SStreamReaderTask {
-  SStreamTask task;
-  int8_t      triggerReader;
-  void*       info;
+  SStreamTask       task;
+  SStreamTaskStats *pStats;
+  int8_t            triggerReader;
+  void             *info;
 } SStreamReaderTask;
 
+typedef struct SStreamReaderResponseStats {
+  int64_t  requestStartMonoUs;
+  uint64_t dataRows;
+  uint64_t dataBlocks;
+  int64_t  lastReturnedWalVer;
+  int64_t  activeScanContexts;
+  int64_t  tableCount;
+  bool     lastReturnedWalVerValid;
+  bool     activeScanContextsValid;
+  bool     tableCountValid;
+} SStreamReaderResponseStats;
+
+int64_t streamTaskGetMonotonicUs(void);
+int32_t stmMaybeRotateTaskStats(SStreamTask *pTask, SStreamTaskStats *pStats, int64_t nowMonoUs, bool debugEnabled);
+void    stReaderResponseStatsSetWalData(SStreamReaderResponseStats *pResponse, const SSTriggerWalNewRsp *pWalResponse);
+void stReaderTaskRecordPullResult(SStreamReaderTask *pTask, const SStreamReaderResponseStats *pResponse, int32_t code,
+                                  int64_t nowMonoUs, int64_t nowWallMs);
+
+typedef enum {
+  STRIGGER_AHANDLE_PARAM_PULL_REQUEST = 0,
+  STRIGGER_AHANDLE_PARAM_NESTED_INPUT_ROUTE,
+  STRIGGER_AHANDLE_PARAM_NESTED_RECOVERY,
+  STRIGGER_AHANDLE_PARAM_NESTED_RECOVERY_PSEUDO,
+} ESTriggerAHandleParamType;
 
 typedef struct SSTriggerAHandle {
   int64_t streamId;
   int64_t taskId;
   int64_t sessionId;
-  void*   param;
+  int8_t  paramType; /* ESTriggerAHandleParamType */
+  void   *param;
+  void   *pullOwner; /* borrowed owner for pull requests that require terminal cleanup */
+  uint64_t progressStepId;
+  uint64_t progressRequestToken;
+  SStreamManualRecalcAttemptId manualAttempt;
 } SSTriggerAHandle;
+
+typedef enum {
+  STREAM_NESTED_INPUT_REALTIME = 0,
+  STREAM_NESTED_INPUT_HISTORY,
+  STREAM_NESTED_INPUT_RECOVERY,
+} EStreamNestedInputOwner;
+
+typedef enum {
+  STREAM_NESTED_CURSOR_NONE = 0,
+  STREAM_NESTED_CURSOR_ROSTER,
+  STREAM_NESTED_CURSOR_SOURCE_DATA,
+} EStreamNestedCursorFamily;
+
+typedef struct {
+  EStreamNestedInputOwner   owner;
+  ESTriggerPullType         pullType;
+  int64_t                   sessionId;
+  int64_t                   ownerId;
+  uint64_t                  generation;
+  int64_t                   readerTaskId;
+  EStreamNestedCursorFamily cursorFamily;
+  uint64_t                  rosterId;
+  uint64_t                  cursorId;
+  uint64_t                  snapshotLeaseId;
+  uint32_t                  pageSeq;
+  int32_t                   rosterIndex;
+  int32_t                   sourceIndex;
+  int32_t                   subSourceIndex;
+} SStreamNestedInputRoute;
 
 typedef enum sinkHandleInitState {
   SINK_HANDLE_UNINITIALIZED = 0,
@@ -114,6 +176,7 @@ typedef struct SStreamTagInfo {
 
 typedef struct SStreamRunnerTask {
   SStreamTask                   task;
+  SStreamTaskStats             *pStats;
   SStreamRunnerTaskExecMgr      execMgr;
   SStreamRunnerTaskOutput       output;
   SStreamRunnerTaskNotification notification;
@@ -137,8 +200,18 @@ typedef struct SStreamCacheReadInfo {
   int64_t      gid;
   TSKEY        start;
   TSKEY        end;
+  const SStreamContextPolicy   *pContextPolicy;
+  const SStreamAncestorContext *pAncestorContext;
+  const SStreamRuntimeFuncInfo *pRuntime;
+  SStreamCacheScope             cacheScope;
+  int32_t                       readInfoIndex;
+  bool                          hasCacheScope;
+  bool                          reset;
   SSDataBlock *pBlock;
 } SStreamCacheReadInfo;
+
+int32_t stBindStreamCacheReadScope(const SStreamRuntimeFuncInfo *pRuntime, SStreamCacheReadInfo *pReadInfo);
+void    stClearStreamCacheReadScope(SStreamCacheReadInfo *pReadInfo);
 
 #define STRIGGER_RECALC_RANGE_MAX_HOURS 24
 
@@ -196,7 +269,9 @@ typedef struct SStreamCacheReadInfo {
   }
 
 #define STREAM_PRINT_LOG_END_WITHID(code, lino)                                     \
-  if (code != 0) {                                                                  \
+  if (code == TSDB_CODE_STREAM_NO_CONTEXT) {                                        \
+    ST_TASK_WLOG("%s warn at line %d since %s", __func__, lino, tstrerror(code)); \
+  } else if (code != 0) {                                                           \
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code)); \
   } else {                                                                          \
     ST_TASK_DLOG("%s done success", __func__);                                      \

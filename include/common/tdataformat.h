@@ -513,6 +513,7 @@ typedef struct {
   int32_t          columnId;
   int32_t          type;
   int32_t          bytes;
+  STypeMod         typeMod;
   TAOS_STMT2_BIND *bind;
 
 } SBindInfo2;

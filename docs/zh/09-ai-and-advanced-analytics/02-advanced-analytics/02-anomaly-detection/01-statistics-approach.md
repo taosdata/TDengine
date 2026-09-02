@@ -3,7 +3,7 @@ title: 统计学算法
 sidebar_label: 统计学算法
 ---
 
-- k-sigma<sup>[1]</sup>: 即 ***68–95–99.7 rule*** 。***k***值默认为 3，即序列均值的 3 倍标准差范围为边界，超过边界的是异常值。KSigma 要求数据整体上服从正态分布，如果一个点偏离均值 K 倍标准差，则该点被视为异常点。
+- k-sigma<sup>[1]</sup>: 即 ***68–95–99.7 rule***。***k***值默认为 3，即序列均值的 3 倍标准差范围为边界，超过边界的是异常值。KSigma 要求数据整体上服从正态分布，如果一个点偏离均值 K 倍标准差，则该点被视为异常点。
 
 | 参数  | 说明    | 是否必选 | 默认值 |
 | --- | ----- | ---- | --- |
@@ -32,6 +32,39 @@ ANOMALY_WINDOW(foo.i32, "algo=iqr")
 SELECT _WSTART, COUNT(*)
 FROM foo
 ANOMALY_WINDOW(foo.i32, "algo=grubbs")
+```
+
+- ECOD：Empirical Cumulative Distribution-based Outlier Detection，基于经验累积分布的离群点检测算法。该算法根据数据点在各个特征经验累积分布中的尾部概率计算离群程度，尾部概率越小，表示数据点越异常。ECOD 不要求数据服从特定的参数分布，支持多变量数据。参数 `contamination` 用于指定预期异常点比例，默认值为 `0.1`。
+
+```SQL
+--- 使用 ECOD 进行多变量异常检测
+SELECT _WSTART, COUNT(*)
+FROM foo
+ANOMALY_WINDOW(foo.i32, foo.i64, "algo=ecod,contamination=0.1")
+```
+
+- COPOD：Copula-Based Outlier Detection，基于 Copula 的离群点检测算法。该算法根据各个特征的经验累积分布构造联合分布，并利用数据点在联合分布中的尾部概率计算离群程度。COPOD 不需要预先假设数据的具体分布，适用于多变量数据。参数 `contamination` 用于指定预期异常点比例，默认值为 `0.1`。
+
+```SQL
+--- 使用 COPOD 进行多变量异常检测
+SELECT _WSTART, COUNT(*)
+FROM foo
+ANOMALY_WINDOW(foo.i32, foo.i64, "algo=copod,contamination=0.1")
+```
+
+- PCA：Principal Component Analysis，基于主成分分析的离群点检测算法。该算法将数据投影到主成分空间，并根据数据点偏离主成分空间的程度计算离群分数。PCA 适用于正常数据具有较明显低维线性结构的场景。参数 `contamination` 用于指定预期异常点比例，默认值为 `0.1`；参数 `n_components` 用于指定主成分数量；参数 `standardization` 用于控制是否对输入特征进行标准化，默认值为 `1`。
+
+| 参数 | 说明 | 是否必选 | 默认值 |
+| --- | --- | --- | --- |
+| contamination | 预期异常点比例，取值范围为 `(0, 0.5]` | 否 | `0.1` |
+| n_components | PCA 使用的主成分数量，必须大于 `0` | 否 | 全部主成分 |
+| standardization | 是否对输入特征进行标准化，`1` 表示启用，`0` 表示禁用 | 否 | `1` |
+
+```SQL
+--- 使用 PCA 进行多变量异常检测
+SELECT _WSTART, COUNT(*)
+FROM foo
+ANOMALY_WINDOW(foo.i32, foo.i64, "algo=pca,contamination=0.1,n_components=2")
 ```
 
 - SHESD<sup>[4]</sup>：带有季节性的 ESD 检测算法。ESD 可以检测时间序列数据的多异常点。需要指定异常检测方向（'pos' / 'neg' / 'both'），异常值比例的上界***max_anoms***，最差的情况是至多 49.9%。数据集的异常比例一般不超过 5%

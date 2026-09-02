@@ -238,7 +238,9 @@ typedef struct SHintNode {
   void*       value;
 } SHintNode;
 
-#define OPERATOR_FLAG_NEGATIVE_OP      (1 << 0)
+#define OPERATOR_FLAG_NEGATIVE_OP                (1 << 0)
+#define OPERATOR_FLAG_XNODE_TEXT_BLOB            (1 << 1)
+#define OPERATOR_FLAG_STREAM_EXT_JOIN_AUTO_RANGE (1 << 2)
 
 typedef struct SOperatorNode {
   SExprNode     node;  // QUERY_NODE_OPERATOR
@@ -379,6 +381,7 @@ typedef struct SRealTableNode {
 typedef struct STempTableNode {
   STableNode table;  // QUERY_NODE_TEMP_TABLE
   SNode*     pSubquery;
+  bool       hasExplicitAlias;
 } STempTableNode;
 
 typedef struct STextTableNode {
@@ -648,6 +651,17 @@ typedef struct SExternalWindowNode {
   char        aliasName[TSDB_COL_NAME_LEN];
 } SExternalWindowNode;
 
+typedef struct SStreamWindowPlanNode {
+  ENodeType  type;
+  SNodeList* pLayers;
+} SStreamWindowPlanNode;
+
+typedef struct SStreamWindowLayerNode {
+  ENodeType type;
+  char      name[TSDB_TABLE_NAME_LEN];
+  SNode*    pWindow;
+} SStreamWindowLayerNode;
+
 typedef struct SStreamTriggerOptions {
   ENodeType type; // QUERY_NODE_STREAM_TRIGGER_OPTIONS
   SNode*    pPreFilter;
@@ -667,11 +681,12 @@ typedef struct SStreamTriggerOptions {
   bool      lowLatencyCalc;
   bool      forceOutput;
   bool      ignoreNoDataTrigger;
+  bool      flushOnOuterClose;
 } SStreamTriggerOptions;
 
 typedef struct SStreamTriggerNode {
   ENodeType   type;
-  SNode*      pTriggerWindow; // S.*WindowNode
+  SNode*      pTriggerWindow;  // concrete window node or SStreamWindowPlanNode
   SNode*      pTrigerTable;
   SNode*      pOptions; // SStreamTriggerOptions
   SNode*      pNotify; // SStreamNotifyOptions

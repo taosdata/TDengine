@@ -7,11 +7,11 @@ toc_max_heading_level: 4
 
 ## 概述
 
-TDengine TSDB Enterprise 通过 taosExplorer 与 taosX，支持在浏览器中配置任务，以零代码方式将第三方数据源写入 TDengine。写入过程中可对数据进行提取、过滤和转换，以统一命名空间并提升数据质量，从而减少额外 ETL 组件。
+TDengine 通过 taosExplorer 与 taosX，支持在浏览器中配置任务，以零代码方式将第三方数据源写入 TDengine。写入过程中可对数据进行提取、过滤和转换，以统一命名空间并提升数据质量，从而减少额外 ETL 组件。
 
 下图展示了零代码接入平台的系统架构。
 
-![零代码数据接入架构图](assets/data-in.png)
+![零代码数据接入架构图](../../assets/no-code-ingestion-01.png)
 
 ## 支持的数据源
 
@@ -58,7 +58,7 @@ TDengine TSDB Enterprise 通过 taosExplorer 与 taosX，支持在浏览器中�
 
 #### 示例数据
 
-![示例数据](assets/transform-01.png)
+![示例数据](../../assets/no-code-ingestion-02.png)
 
 如图，示例数据输入框中就是示例数据，可以通过三种方式来获取示例数据：
 
@@ -72,7 +72,7 @@ TDengine TSDB Enterprise 通过 taosExplorer 与 taosX，支持在浏览器中�
 
 解析就是通过解析规则，将非结构化字符串解析为结构化数据。消息体的解析规则目前支持 JSON、Regex 和 UDT。
 
-##### JSON 解析
+1. **JSON 解析**
 
 JSON 解析支持 JSONObject 或者 JSONArray。如下 JSON 示例数据，可自动解析出字段：`groupid`、`voltage`、`current`、`ts`、`inuse`、`location`。
 
@@ -104,21 +104,23 @@ JSON 解析支持 JSONObject 或者 JSONArray。如下 JSON 示例数据，可�
 $["groupid"]=groupid,$["data"]["voltage"]=voltage,$["data"]["current"]=current,$["ts"]=ts,$["inuse"]=inuse,$["location"][0]["province"]=location_0_province,$["location"][0]["city"]=location_0_city,$["location"][0]["street"]=location_0_street
 ```
 
-![JSON 解析](assets/transform-02.png)
+![JSON 解析](../../assets/no-code-ingestion-03.png)
 
 > 注意：JSON 属性名称中不能含有`.`；如果含有，则必须使用名称 alias 将名称转义。
 
-##### Regex 正则表达式 {#regex}
+2. **Regex 正则表达式**
 
-可以使用正则表达式的**命名捕获组**从任何字符串（文本）字段中提取多个字段。如图所示，从 nginx 日志中提取访问 ip、时间戳、访问的 url 等字段。
+<a id="regex"></a>
+
+可以使用正则表达式的 **命名捕获组** 从任何字符串（文本）字段中提取多个字段。如图所示，从 nginx 日志中提取访问 ip、时间戳、访问的 url 等字段。
 
 ``` re
 (?<ip>\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b)\s-\s-\s\[(?<ts>\d{2}/\w{3}/\d{4}:\d{2}:\d{2}:\d{2}\s\+\d{4})\]\s"(?<method>[A-Z]+)\s(?<url>[^\s"]+).*(?<status>\d{3})\s(?<length>\d+)
 ```
 
-![Regex 解析](assets/transform-03.png)
+![Regex 解析](../../assets/no-code-ingestion-04.png)
 
-##### UDT 自定义解析脚本
+3. **UDT 自定义解析脚本**
 
 自定义 rhai 语法脚本解析输入数据（参考 `https://rhai.rs/book/` ），脚本目前仅支持 json 格式原始数据。
 
@@ -150,7 +152,7 @@ let v3 = data["voltage"].split(",");
 
 最终解析结果如下所示：
 
-![UDT](assets/transform-udf.png)
+![UDT](../../assets/no-code-ingestion-05.png)
 
 ### 提取或拆分
 
@@ -170,7 +172,7 @@ let v3 = data["voltage"].split(",");
 * 对字段 `voltage` 使用正则表达式 `^(?<voltage>[0-9]+)(?<voltage_unit>[a-zA-Z]+)$` 提取出电压值和电压单位，Regex 规则同解析过程中的一样，使用 **命名捕获组** 命名提取字段。
 * 对字段 `location` 使用 convert 转换，填写一个 JSON map 对象，其中 key 为字段 `current` 的值，`value` 为转换后的值。如图，`location` 字段的值 `"beijing.chaoyang.datun"` 被转换为 `"beijing.chaoyang.datunludong"`。
 
-![拆分和提取](assets/transform-04.png)
+![拆分和提取](../../assets/no-code-ingestion-06.png)
 
 ### 过滤 {#filter}
 
@@ -210,18 +212,18 @@ between_time_range(ts, -604800, 0)
 
 不同的数据类型有各自判断表达式的写法。
 
-##### BOOL 类型
+1. **BOOL 类型**
 
 可以使用变量或者使用操作符`!`，比如对于字段 "inuse": true，可以编写以下表达式：
 
 > 1. inuse
 > 2. !inuse
 
-##### 数值类型（int/float）
+2. **数值类型（int/float）**
 
 数值类型支持使用比较操作符`==`、`!=`、`>`、`>=`、`<`、`<=`。
 
-##### 字符串类型
+3. **字符串类型**
 
 使用比较操作符，比较字符串。
 
@@ -235,7 +237,7 @@ between_time_range(ts, -604800, 0)
 | ends_with  | returns true if the string ends with a certain string | s.ends_with("suffix") |
 | len  | returns the number of characters (not number of bytes) in the string，must be used with comparison operator | s.len == 5 判断字符串长度是否为 5；len 作为属性返回 int，和前四个函数有区别，前四个直接返回 bool。 |
 
-##### 复合表达式
+4. **复合表达式**
 
 多个判断表达式，可以使用逻辑操作符 (&&、||、!) 来组合。
 比如下面的表达式表示获取北京市安装的并且电压值大于 200 的智能表数据。
@@ -244,7 +246,7 @@ between_time_range(ts, -604800, 0)
 
 ### 映射
 
-映射是将解析、提取、拆分的**源字段**对应到**目标表字段**，可以直接对应，也可以通过一些规则计算后再映射到目标表。
+映射是将解析、提取、拆分的 **源字段** 对应到 **目标表字段**，可以直接对应，也可以通过一些规则计算后再映射到目标表。
 
 #### 选择目标超级表
 
@@ -266,7 +268,7 @@ between_time_range(ts, -604800, 0)
 | sum | 选择多个数值型字段做加法计算。|
 | expr | **数值运算表达式**，可以对数值型字段做更加复杂的函数处理和数学运算。|
 
-##### format 中支持的字符串处理函数
+1. **format 中支持的字符串处理函数**
 
 |Function|description|e.g.|
 |:----|:----|:----|
@@ -275,7 +277,7 @@ between_time_range(ts, -604800, 0)
 |sub_string(start_pos, len)|extracts a sub-string，两个参数：<br />1. start position, counting from end if < 0<br />2. (optional) number of characters to extract, none if ≤ 0, to end if omitted|"012345678".sub_string(5)  // "5678"<br />"012345678".sub_string(5, 2)  // "56"<br />"012345678".sub_string(-2)  // "78"|
 |replace(substring, replacement)|replaces a sub-string with another|"012345678".replace("012", "abc") // "abc345678"|
 
-##### expr 数学计算表达式
+2. **expr 数学计算表达式**
 
 基本数学运算支持加`+`、减`-`、乘`*`、除`/`。
 
@@ -300,7 +302,7 @@ between_time_range(ts, -604800, 0)
 
 ## 任务的创建
 
-下面以 MQTT 数据源为例概述如何创建任务（完整字段说明见 [MQTT](./06-mqtt.mdx)）：从 MQTT Broker 消费数据并写入 TDengine。
+下面以 MQTT 数据源为例概述如何创建任务（完整字段说明见 [MQTT](./07-mqtt.md)）：从 MQTT Broker 消费数据并写入 TDengine。
 
 1. 登录至 taosExplorer 以后，点击左侧导航栏上的“数据写入”，即可进入任务列表页面
 2. 在任务列表页面，点击“+ 新增数据源”，即可进入任务创建页面
@@ -309,7 +311,7 @@ between_time_range(ts, -604800, 0)
 5. 配置认证和 SSL 加密：
    * 如果 MQTT broker 开启了用户认证，则在认证部分，输入 MQTT broker 的用户名和密码；
    * 如果 MQTT broker 开启了 SSL 加密，则可以打开页面上的 SSL 证书开关，并上传 CA 的证书，以及客户端的证书和私钥文件；
-6. 在“采集配置”部分，可选择 MQTT 协议的版本，目前支持 3.1，3.1.1，5.0 三个版本；配置 Client ID 时要注意，如果对同一个 MQTT Broker 创建了多个任务，Client ID 应不同，否则会造成 Client ID 冲突，导致任务无法正常运行；在对主题和 QoS 进行配置时，需要使用 `<topic name>::<QoS>` 的形式，即订阅的主题与 QoS 之间要使用两个冒号分隔，其中 QoS 的取值范围为 0、1、2，分别代表 at most once、at least once、exactly once（此处为连接外部 MQTT Broker 的客户端能力；若使用 [MQTT 订阅](../../07-data-subscription/03-mqtt.md) 连接 TDengine Bnode，则仅支持 QoS 0/1）；配置完成以上信息后，可以点击“检查连通性”按钮，对以上配置进行检查，如果连通性检查失败，请按照页面上返回的具体错误提示进行修改；
+6. 在“采集配置”部分，可选择 MQTT 协议的版本，目前支持 3.1，3.1.1，5.0 三个版本；配置 Client ID 时要注意，如果对同一个 MQTT Broker 创建了多个任务，Client ID 应不同，否则会造成 Client ID 冲突，导致任务无法正常运行；在对主题和 QoS 进行配置时，需要使用 `<topic name>::<QoS>` 的形式，即订阅的主题与 QoS 之间要使用两个冒号分隔，其中 QoS 的取值范围为 0、1、2，分别代表 at most once、at least once、exactly once（此处为连接外部 MQTT Broker 的客户端能力；若使用 [MQTT 订阅](../../06-data-subscription/03-mqtt.md) 连接 TDengine Bnode，则仅支持 QoS 0/1）；配置完成以上信息后，可以点击“检查连通性”按钮，对以上配置进行检查，如果连通性检查失败，请按照页面上返回的具体错误提示进行修改；
 7. 在从 MQTT broker 同步数据的过程中，taosX 还支持对消息体中的字段进行提取，过滤、映射等操作。在位于“Payload 转换”下方的文本框中，可以直接输入消息体样例，以上传文件的方式导入，或从所配置的服务器检索样例消息；
 8. 对消息体字段的提取，目前支持 2 种方式：JSON 和正则表达式。对于简单的 key/value 格式的 JSON 数据，可以直接点击提取按钮，即可展示解析出的字段名；对于复杂的 JSON 数据，可以使用 JSON Path 提取感兴趣的字段；当使用正则表达式提取字段时，要保证正则表达式的正确性；
 9. 消息体中的字段被解析后，可以基于解析出的字段名设置过滤规则，只有满足过滤规则的数据，才会写入 TDengine，否则会忽略该消息；例如：可以配置过滤规则为 voltage > 200，即只有当电压大于 200V 的数据才会被同步至 TDengine；
@@ -327,7 +329,7 @@ between_time_range(ts, -604800, 0)
 
 在数据源的“高级选项”列表中，增加了多项健康状态监测的配置项，包括：
 
-![health options](assets/health-options.png)
+![health options](../../assets/no-code-ingestion-07.png)
 
 1. 健康监测时段（Health Check Duration）：可选项，表示对最近多长时间的任务状态进行统计。
 2. Busy 状态阈值（Busy State Threshold）：百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。

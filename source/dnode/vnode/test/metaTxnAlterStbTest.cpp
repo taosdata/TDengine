@@ -30,10 +30,12 @@
  * version (V0), not the intermediate. It fails on the pre-fix code and passes after.
  */
 
+#include <cinttypes>
 #include <cstdio>
 #include <cstring>
 
 #include "gtest/gtest.h"
+#include "stub.h"
 
 extern "C" {
 #include "meta.h"
@@ -41,6 +43,8 @@ extern "C" {
 #include "tarray.h"
 #include "tglobal.h"
 #include "tmsg.h"
+#include "tmsgcb.h"
+#include "vnd.h"
 #include "vnodeInt.h"
 }
 
@@ -53,6 +57,14 @@ const char* kTestDir = "/tmp/td_meta_txn_alter_stb_test";
 const int64_t kSuid = 700001;
 const char* kStbName = "stb_txn_alter";
 const int64_t kTxnId = 42;
+
+SRpcMsg gDirectMetaRsp = {};
+int32_t gDirectMetaRspCount = 0;
+
+void captureDirectMetaRsp(SRpcMsg* pMsg) {
+  gDirectMetaRsp = *pMsg;
+  ++gDirectMetaRspCount;
+}
 
 // Build a minimal 2-column (ts, v) row schema; nCols columns total.
 void fillRowSchema(SSchemaWrapper* sw, int32_t nCols, int32_t schemaVer) {
@@ -134,6 +146,65 @@ int64_t scanStbTxnOrigVer(SMeta* pMeta, int8_t* pStatusOut) {
 }
 
 }  // namespace
+
+TEST(VnodeTableMeta, DirectRequestUsesResponseMessageType) {
+  SVnode vnode = {};
+  vnode.config.vgId = 1;
+  vnode.config.szPage = 4096;
+  vnode.config.szCache = 256;
+  vnode.path = const_cast<char*>(kTestDir);
+
+  taosRemoveDir(kTestDir);
+  taosMkDir(kTestDir);
+
+  SMeta* pMeta = nullptr;
+  ASSERT_EQ(0, metaOpen(&vnode, &pMeta, 0));
+  ASSERT_NE(nullptr, pMeta);
+  vnode.pMeta = pMeta;
+  ASSERT_EQ(0, metaBegin(pMeta, META_BEGIN_HEAP_OS));
+  SVCreateStbReq createReq = {};
+  buildStbReq(&createReq, 2, 0, 0);
+  int32_t code = metaCreateSuperTable(pMeta, 100, &createReq);
+  freeStbReq(&createReq);
+  ASSERT_EQ(0, code);
+  ASSERT_EQ(0, metaCommit(pMeta, pMeta->txn));
+
+  STableInfoReq infoReq = {};
+  infoReq.option = REQ_OPT_TBUID;
+  snprintf(infoReq.tbName, sizeof(infoReq.tbName), "%" PRId64, kSuid);
+  int32_t reqLen = tSerializeSTableInfoReq(nullptr, 0, &infoReq);
+  ASSERT_GT(reqLen, 0);
+  void* pReq = taosMemoryMalloc(reqLen);
+  ASSERT_NE(nullptr, pReq);
+  ASSERT_EQ(reqLen, tSerializeSTableInfoReq(pReq, reqLen, &infoReq));
+  SRpcMsg msg = {};
+  msg.msgType = TDMT_VND_TABLE_META;
+  msg.pCont = pReq;
+  msg.contLen = reqLen;
+
+  gDirectMetaRsp = {};
+  gDirectMetaRspCount = 0;
+  {
+    Stub stub;
+    stub.set(tmsgSendRsp, captureDirectMetaRsp);
+    EXPECT_EQ(TSDB_CODE_SUCCESS, vnodeGetTableMeta(&vnode, &msg, true));
+  }
+  ASSERT_EQ(1, gDirectMetaRspCount);
+  EXPECT_EQ(TDMT_VND_TABLE_META_RSP, gDirectMetaRsp.msgType);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, gDirectMetaRsp.code);
+  ASSERT_NE(nullptr, gDirectMetaRsp.pCont);
+
+  STableMetaRsp metaRsp = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSTableMetaRsp(gDirectMetaRsp.pCont, gDirectMetaRsp.contLen, &metaRsp));
+  EXPECT_EQ(kSuid, metaRsp.suid);
+  EXPECT_EQ(TSDB_SUPER_TABLE, metaRsp.tableType);
+  EXPECT_STREQ(kStbName, metaRsp.tbName);
+  tFreeSTableMetaRsp(&metaRsp);
+  rpcFreeCont(gDirectMetaRsp.pCont);
+  taosMemoryFree(pReq);
+  metaClose(&pMeta);
+  taosRemoveDir(kTestDir);
+}
 
 // ============================================================================
 // Repeated STB ALTER within one txn must record the ORIGINAL pre-txn version in

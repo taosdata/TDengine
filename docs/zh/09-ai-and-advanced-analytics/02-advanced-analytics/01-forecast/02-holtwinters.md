@@ -1,14 +1,14 @@
 ---
-title: HoltWinters
-sidebar_label: HoltWinters
+title: Holt-Winters
+sidebar_label: Holt-Winters
 ---
 
 本节讲述 HoltWinters 算法模型的使用方法。
 
 ## 功能概述
 
-HoltWinters 模型又称三次指数平滑（Holt-Winters / Triple Exponential Smoothing）。适用于含有线性趋势和周期波动的非平稳序列，利用指数平滑法让模型参数不断适应非平稳序列的变化，并对未来趋势进行**短期**预测。
-HoltWinters 有两种不同的季节性组成部分，当季节变化在该时间序列中大致保持不变时，通常选择**加法模型**；而当季节变化与时间序列的水平成比例变化时，通常选择**乘法模型**。
+HoltWinters 模型又称三次指数平滑（Holt-Winters / Triple Exponential Smoothing）。适用于含有线性趋势和周期波动的非平稳序列，利用指数平滑法让模型参数不断适应非平稳序列的变化，并对未来趋势进行 **短期** 预测。
+HoltWinters 有两种不同的季节性组成部分，当季节变化在该时间序列中大致保持不变时，通常选择 **加法模型**；而当季节变化与时间序列的水平成比例变化时，通常选择 **乘法模型**。
 该模型对于返回数据不提供计算的置信区间范围结果，在 95% 置信区间的上下界结果与预测结果相同。
 
 ### 参数
@@ -34,14 +34,14 @@ FORECAST(i32, "algo=holtwinters,period=10,trend=mul,seasonal=mul")
 完整的调用 SQL 语句如下：
 
 ```SQL
-SELECT _frowts, FORECAST(i32, "algo=holtwinters, period=10,trend=mul,seasonal=mul") from foo
+SELECT _frowts, FORECAST(i32, "algo=holtwinters,period=10,trend=mul,seasonal=mul") FROM foo;
 ```
 
 ```json5
 {
 "rows": rows,         // 返回结果的行数
 "period": period,     // 返回结果的周期性，该结果与输入的周期性相同，如果没有周期性，该值为 0
-"algo": 'holtwinters' // 返回结果使用的计算模型
+"algo": "holtwinters", // 返回结果使用的计算模型
 "mse": mse,           // 最小均方误差（minimum square error）
 "res": res            // 具体的结果，按照列形式返回的结果。一般意义上包含了两列 [timestamp][fc_results]。
 }

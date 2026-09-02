@@ -38,10 +38,13 @@
 #include "extConnector.h"
 #include "osString.h"     // taosUcs4ToMbs / TdUcs4 (extColCellToStr NCHAR conversion)
 #include "plannodes.h"    // SExtColTypeMapping full definition
+#include "querynodes.h"   // SColumnNode / SExprNode
+#include "scalar.h"       // scalarCalculate for vectorized partition expressions
 #include "taoserror.h"
 #include "tdatablock.h"
 #include "thash.h"
 #include "tlog.h"
+#include "ttypes.h"       // Typed partition-expression values
 #include "tmsg.h"
 #include "tsimplehash.h"
 #include "taos.h"
@@ -53,16 +56,19 @@
 #define STREAM_RETURN_ROWS_NUM 4096
 #endif
 
-/* extConnectorInt.h declares extDecryptPassword (internal API shared between
- * community extConnector and the stream reader).                              */
 #include "extConnectorInt.h"
-
 
 /* Maximum number of uids per InfluxDB OR-group (DS §6.1.5). */
 #define EXT_INFLUX_UID_BATCH_SIZE  64
 
-/* SQL buffer size; large enough for any generated statement. */
-#define EXT_SQL_BUF_SIZE  (4096 * 4)
+/* SQL buffer sizes by statement shape.  Only batched UNION ALL statements
+ * need the largest buffer; fixed-shape and single-uid queries have smaller
+ * bounded inputs. */
+#define EXT_SCHEMA_SQL_BUF_LEN  512
+#define EXT_SIMPLE_SQL_BUF_LEN  (1024 * 2)
+#define EXT_CALC_SQL_BUF_LEN    4096
+#define EXT_DATA_SQL_BUF_LEN    (4096 * 2)
+#define EXT_BATCH_SQL_BUF_LEN   (4096 * 4)
 
 /* Max length for the tagset key string used as pTagsetIndex key
  * ("col1=val1|col2=val2|..."). */
@@ -70,8 +76,13 @@
 
 /* Scratch buffer size for one generated SQL clause fragment (a WHERE
  * prefilter condition or a SELECT column list) before it is spliced into a
- * full statement in EXT_SQL_BUF_SIZE. */
+ * full statement in one of the statement-shape buffers above. */
 #define EXT_SQL_CLAUSE_BUF_LEN 1024
+
+/* A tagset key can expand when separators and escaped quotes are rendered as
+ * SQL.  Four times the key limit covers that expansion without using the full
+ * batch-statement buffer. */
+#define EXT_TAG_WHERE_BUF_LEN  (EXT_TAGSET_KEY_MAX * 4)
 
 /* Bounds-safe SQL fragment append.
  *
@@ -132,6 +143,28 @@ static int32_t handleCalcDataPull(SStreamExtReaderInfo *pInfo,
 static int32_t handleGroupColValuePull(SStreamExtReaderInfo *pInfo,
                                        const SSTriggerExtPullReq *pReq,
                                        SSTriggerExtPullRsp *pRsp);
+static int32_t extCopyOptionalString(const char *src, char **ppDst, const char *fieldName);
+static int32_t extCopyFixedStringArray(SArray *pSrc, int32_t elemSize, SArray **ppDst, const char *fieldName);
+static int32_t extCopyPointerStringArray(SArray *pSrc, SArray **ppDst, const char *fieldName);
+static int32_t extParsePartitionExprNodes(SStreamExtReaderInfo *pInfo);
+static int32_t extCopyColTypeMappings(const SExtColTypeMapping *pSrc, int32_t nMappings,
+                                      SExtColTypeMapping **ppDst, int32_t *pCopiedCount,
+                                      const char *fieldName);
+static void extBuildSourceCfg(const SStreamExtTriggerSpec *pExtSpec, const char *plainPwd,
+                              SExtSourceCfg *pCfg);
+static int32_t extInitReaderHashes(SStreamExtReaderInfo *pInfo);
+static void extDestroyUidBlocks(SArray *pUidBlocks);
+static int32_t extFetchUidBlocks(SStreamExtReaderInfo *pInfo,
+                                 const char *phase,
+                                 const char *colList,
+                                 int32_t nCols,
+                                 const char *prefilterBuf,
+                                 const SExtColTypeMapping *pMappings,
+                                 int32_t nMappings,
+                                 SSHashObj *pUidWindow,
+                                 SArray *pUidBlocks);
+static int32_t extBuildUidWindowFromMetaBlock(SSDataBlock *pMetaBlock,
+                                              SSHashObj **ppUidWindow);
 
 /* ============================================================
  * Utility: free a response struct (all owned sub-objects).
@@ -162,6 +195,13 @@ static void freeGroupIndexValue(void *pVal) {
     taosArrayDestroy(*ppArr);
     *ppArr = NULL;
   }
+}
+
+static void freeUidIndexValue(void *pVal) {
+  SUidIndexEntry *pEntry = (SUidIndexEntry *)pVal;
+  if (pEntry == NULL) return;
+  taosArrayDestroyEx(pEntry->partitionValues, tDestroySStreamGroupValue);
+  pEntry->partitionValues = NULL;
 }
 
 /* ============================================================
@@ -260,11 +300,19 @@ static const char *extTableQualifier(const SStreamExtTriggerSpec *pSpec) {
  * ============================================================ */
 static int32_t buildExtTableRef(const SStreamExtTriggerSpec *pSpec,
                                 char *buf, int32_t bufLen) {
+  int32_t n = 0;
   if ((EExtSourceType)pSpec->sourceType == EXT_SOURCE_INFLUXDB) {
-    return snprintf(buf, bufLen, "%s", pSpec->extTable);
+    n = snprintf(buf, bufLen, "%s", pSpec->extTable);
+  } else {
+    n = snprintf(buf, bufLen, "%s.%s",
+                 extTableQualifier(pSpec), pSpec->extTable);
   }
-  return snprintf(buf, bufLen, "%s.%s",
-                  extTableQualifier(pSpec), pSpec->extTable);
+  if (n < 0 || n >= bufLen) {
+    stError("ext: buildExtTableRef overflow need:%d have:%d table:%s", n, bufLen, pSpec->extTable);
+    if (bufLen > 0) buf[0] = '\0';
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  return n;
 }
 
 /* ============================================================
@@ -281,11 +329,9 @@ static int32_t buildPrefilterClause(const SStreamExtTriggerSpec *pSpec,
   }
   int32_t n = snprintf(buf, bufLen, "(%s) AND ", pSpec->prefilter);
   if (n < 0 || n >= bufLen) {
-    /* Truncation: safer to drop the prefilter than to send a malformed SQL. */
-    stWarn("ext: buildPrefilterClause truncated (need %d have %d), dropping prefilter",
-           n, bufLen);
+    stError("ext: buildPrefilterClause overflow need:%d have:%d", n, bufLen);
     buf[0] = '\0';
-    return 0;
+    return TSDB_CODE_OUT_OF_RANGE;
   }
   return n;
 }
@@ -305,10 +351,9 @@ static int32_t buildTriggerPrefilterClause(const SStreamExtTriggerSpec *pSpec,
   }
   int32_t n = snprintf(buf, bufLen, "(%s) AND ", pSpec->triggerPrefilter);
   if (n < 0 || n >= bufLen) {
-    stWarn("ext: buildTriggerPrefilterClause truncated (need %d have %d), dropping triggerPrefilter",
-           n, bufLen);
+    stError("ext: buildTriggerPrefilterClause overflow need:%d have:%d", n, bufLen);
     buf[0] = '\0';
-    return 0;
+    return TSDB_CODE_OUT_OF_RANGE;
   }
   return n;
 }
@@ -318,14 +363,14 @@ static int32_t buildTriggerPrefilterClause(const SStreamExtTriggerSpec *pSpec,
  * Caller must taosArrayDestroy the result.
  * ============================================================ */
 static SArray *collectAllUids(SSHashObj *pUidIndex) {
-  SArray *pArr = taosArrayInit(tSimpleHashGetSize(pUidIndex), sizeof(int64_t));
+  SArray *pArr = taosArrayInit(tSimpleHashGetSize(pUidIndex), sizeof(uint64_t));
   if (pArr == NULL) return NULL;
 
   int32_t iter = 0;
   void   *pVal = NULL;
   while ((pVal = tSimpleHashIterate(pUidIndex, pVal, &iter)) != NULL) {
     size_t  keyLen = 0;
-    int64_t uid    = *(int64_t *)tSimpleHashGetKey(pVal, &keyLen);
+    uint64_t uid    = *(uint64_t *)tSimpleHashGetKey(pVal, &keyLen);
     taosArrayPush(pArr, &uid);
   }
   return pArr;
@@ -336,14 +381,14 @@ static SArray *collectAllUids(SSHashObj *pUidIndex) {
  * ============================================================ */
 static SArray *collectUidsFromWindow(SSHashObj *pUidWindow) {
   if (pUidWindow == NULL) return NULL;
-  SArray *pArr = taosArrayInit(tSimpleHashGetSize(pUidWindow), sizeof(int64_t));
+  SArray *pArr = taosArrayInit(tSimpleHashGetSize(pUidWindow), sizeof(uint64_t));
   if (pArr == NULL) return NULL;
 
   int32_t iter = 0;
   void   *pVal = NULL;
   while ((pVal = tSimpleHashIterate(pUidWindow, pVal, &iter)) != NULL) {
     size_t  kLen = 0;
-    int64_t uid  = *(int64_t *)tSimpleHashGetKey(pVal, &kLen);
+    uint64_t uid  = *(uint64_t *)tSimpleHashGetKey(pVal, &kLen);
     taosArrayPush(pArr, &uid);
   }
   return pArr;
@@ -560,6 +605,250 @@ static int32_t extQueryExecFetchAll(SExtConnectorHandle  *pConn,
   return code;
 }
 
+static int32_t extCopyOptionalString(const char *src, char **ppDst, const char *fieldName) {
+  if (src == NULL || src[0] == '\0') {
+    *ppDst = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *ppDst = tstrdup(src);
+  if (*ppDst == NULL) {
+    stError("ext: OOM copying %s", fieldName);
+    return terrno;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extCopyFixedStringArray(SArray *pSrc, int32_t elemSize, SArray **ppDst,
+                                       const char *fieldName) {
+  *ppDst = NULL;
+  if (pSrc == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t nItems = (int32_t)taosArrayGetSize(pSrc);
+  SArray *pDst = taosArrayInit(nItems, elemSize);
+  if (pDst == NULL) {
+    stError("ext: OOM copying %s", fieldName);
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < nItems; ++i) {
+    const void *pItem = taosArrayGet(pSrc, i);
+    if (taosArrayPush(pDst, pItem) == NULL) {
+      taosArrayDestroy(pDst);
+      stError("ext: OOM pushing %s[%d]", fieldName, i);
+      return terrno;
+    }
+  }
+
+  *ppDst = pDst;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extCopyPointerStringArray(SArray *pSrc, SArray **ppDst, const char *fieldName) {
+  *ppDst = NULL;
+  if (pSrc == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t nItems = (int32_t)taosArrayGetSize(pSrc);
+  SArray *pDst = taosArrayInit(nItems, POINTER_BYTES);
+  if (pDst == NULL) {
+    stError("ext: OOM copying %s", fieldName);
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < nItems; ++i) {
+    const char *pItem = (const char *)taosArrayGetP(pSrc, i);
+    char       *pDup = taosStrdup(pItem != NULL ? pItem : "");
+    if (pDup == NULL) {
+      taosArrayDestroyP(pDst, taosMemFree);
+      stError("ext: OOM copying %s[%d]", fieldName, i);
+      return terrno;
+    }
+    if (taosArrayPush(pDst, &pDup) == NULL) {
+      taosMemoryFree(pDup);
+      taosArrayDestroyP(pDst, taosMemFree);
+      stError("ext: OOM pushing %s[%d]", fieldName, i);
+      return terrno;
+    }
+  }
+
+  *ppDst = pDst;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extParsePartitionExprNodes(SStreamExtReaderInfo *pInfo) {
+  const SStreamTask *pTask = pInfo->pTask;
+  pInfo->pPartitionColExprNodes = NULL;
+  if (pInfo->spec.partitionTagExprs == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t nExpr = (int32_t)taosArrayGetSize(pInfo->spec.partitionTagExprs);
+  pInfo->pPartitionColExprNodes = taosArrayInit(nExpr, POINTER_BYTES);
+  if (pInfo->pPartitionColExprNodes == NULL) {
+    ST_TASK_ELOG("%s", "ext: OOM allocating pPartitionColExprNodes");
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < nExpr; ++i) {
+    const char *exprStr = (const char *)taosArrayGetP(pInfo->spec.partitionTagExprs, i);
+    SNode      *pNode = NULL;
+
+    if (exprStr != NULL && exprStr[0] != '\0') {
+      int32_t code = nodesStringToNode(exprStr, &pNode);
+      if (code != TSDB_CODE_SUCCESS) {
+        ST_TASK_ELOG("ext: failed to parse partitionTagExprs[%d]=\"%s\" code:%d", i, exprStr, code);
+        return code;
+      }
+    }
+
+    if (taosArrayPush(pInfo->pPartitionColExprNodes, &pNode) == NULL) {
+      nodesDestroyNode(pNode);
+      ST_TASK_ELOG("ext: OOM pushing pPartitionColExprNodes[%d]", i);
+      return terrno;
+    }
+  }
+
+  ST_TASK_DLOG("ext: parsed %d partitionTagExprs templates", nExpr);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extCopyColTypeMappings(const SExtColTypeMapping *pSrc, int32_t nMappings,
+                                      SExtColTypeMapping **ppDst, int32_t *pCopiedCount,
+                                      const char *fieldName) {
+  *ppDst = NULL;
+  *pCopiedCount = 0;
+  if (pSrc == NULL || nMappings <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SExtColTypeMapping *pDst = taosMemoryMalloc((size_t)nMappings * sizeof(SExtColTypeMapping));
+  if (pDst == NULL) {
+    stError("ext: OOM copying %s", fieldName);
+    return terrno;
+  }
+
+  memcpy(pDst, pSrc, (size_t)nMappings * sizeof(SExtColTypeMapping));
+  *ppDst = pDst;
+  *pCopiedCount = nMappings;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void extBuildSourceCfg(const SStreamExtTriggerSpec *pExtSpec, const char *plainPwd,
+                              SExtSourceCfg *pCfg) {
+  memset(pCfg, 0, sizeof(*pCfg));
+  pCfg->source_type = (EExtSourceType)pExtSpec->sourceType;
+  tstrncpy(pCfg->source_name, pExtSpec->sourceName, sizeof(pCfg->source_name));
+  tstrncpy(pCfg->host, pExtSpec->host, sizeof(pCfg->host));
+  pCfg->port = (int32_t)pExtSpec->port;
+  tstrncpy(pCfg->user, pExtSpec->user, sizeof(pCfg->user));
+  tstrncpy(pCfg->password, plainPwd, sizeof(pCfg->password));
+  tstrncpy(pCfg->default_database, pExtSpec->extDb, sizeof(pCfg->default_database));
+  tstrncpy(pCfg->options, pExtSpec->options, sizeof(pCfg->options));
+  pCfg->meta_version = (int64_t)pExtSpec->connCfgVersion;
+}
+
+static int32_t extInitReaderHashes(SStreamExtReaderInfo *pInfo) {
+  const SStreamTask *pTask = pInfo->pTask;
+  pInfo->pUidIndex = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (pInfo->pUidIndex == NULL) {
+    ST_TASK_ELOG("%s", "ext: tSimpleHashInit(pUidIndex) failed");
+    return terrno;
+  }
+  tSimpleHashSetFreeFp(pInfo->pUidIndex, freeUidIndexValue);
+
+  pInfo->pGroupIndex = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (pInfo->pGroupIndex == NULL) {
+    ST_TASK_ELOG("%s", "ext: tSimpleHashInit(pGroupIndex) failed");
+    return terrno;
+  }
+  tSimpleHashSetFreeFp(pInfo->pGroupIndex, freeGroupIndexValue);
+
+  pInfo->pTagsetIndex = tSimpleHashInit(64, MurmurHash3_32);
+  if (pInfo->pTagsetIndex == NULL) {
+    ST_TASK_ELOG("%s", "ext: tSimpleHashInit(pTagsetIndex) failed");
+    return terrno;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extCopyReaderSpec(SStreamExtReaderInfo *pInfo, const SStreamExtTriggerSpec *pExtSpec) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  pInfo->spec = *pExtSpec;
+  pInfo->spec.prefilter = NULL;
+  pInfo->spec.triggerPrefilter = NULL;
+  pInfo->spec.triggerColumns = NULL;
+  pInfo->spec.partitionTagCols = NULL;
+  pInfo->spec.partitionTagExprs = NULL;
+  pInfo->spec.pColMappings = NULL;
+  pInfo->spec.numColMappings = 0;
+  pInfo->spec.calcColumns = NULL;
+  pInfo->spec.pCalcMappings = NULL;
+  pInfo->spec.numCalcMappings = 0;
+
+  code = extCopyOptionalString(pExtSpec->prefilter, &pInfo->spec.prefilter, "prefilter");
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  code = extCopyOptionalString(pExtSpec->triggerPrefilter, &pInfo->spec.triggerPrefilter, "triggerPrefilter");
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  code = extCopyFixedStringArray(pExtSpec->triggerColumns, TSDB_COL_NAME_LEN,
+                                 &pInfo->spec.triggerColumns, "triggerColumns");
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  code = extCopyFixedStringArray(pExtSpec->partitionTagCols, TSDB_COL_NAME_LEN,
+                                 &pInfo->spec.partitionTagCols, "partitionTagCols");
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  code = extCopyPointerStringArray(pExtSpec->partitionTagExprs, &pInfo->spec.partitionTagExprs,
+                                   "partitionTagExprs");
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  code = extParsePartitionExprNodes(pInfo);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  code = extCopyColTypeMappings(pExtSpec->pColMappings, pExtSpec->numColMappings,
+                                &pInfo->spec.pColMappings, &pInfo->spec.numColMappings,
+                                "pColMappings");
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  code = extCopyFixedStringArray(pExtSpec->calcColumns, TSDB_COL_NAME_LEN,
+                                 &pInfo->spec.calcColumns, "calcColumns");
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  return extCopyColTypeMappings(pExtSpec->pCalcMappings, pExtSpec->numCalcMappings,
+                                &pInfo->spec.pCalcMappings, &pInfo->spec.numCalcMappings,
+                                "pCalcMappings");
+}
+
+static int32_t extOpenReaderConnector(SStreamExtReaderInfo *pInfo, const SStreamExtTriggerSpec *pExtSpec) {
+  const SStreamTask *pTask = pInfo->pTask;
+  char          plainPwd[TSDB_EXT_SOURCE_PASSWORD_LEN] = {0};
+  SExtSourceCfg cfg = {0};
+  int32_t       code = TSDB_CODE_SUCCESS;
+
+  decryptExtSourcePassword((const char *)pExtSpec->encryptedPassword, plainPwd);
+  extBuildSourceCfg(pExtSpec, plainPwd, &cfg);
+  memset(plainPwd, 0, sizeof(plainPwd));
+
+  code = extConnectorOpen(&cfg, &pInfo->pConn);
+  memset(cfg.password, 0, sizeof(cfg.password));
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("ext: extConnectorOpen failed code:%d source=%s host=%s port=%d",
+                 code, pExtSpec->sourceName, pExtSpec->host, (int)pExtSpec->port);
+    return code;
+  }
+
+  ST_TASK_DLOG("ext: extConnectorOpen ok, source=%s", pExtSpec->sourceName);
+  return TSDB_CODE_SUCCESS;
+}
+
 /* ============================================================
  * Lifecycle: open
  * ============================================================ */
@@ -575,218 +864,27 @@ int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask,
   }
 
   const SStreamExtTriggerSpec *pExtSpec = (const SStreamExtTriggerSpec *)pSpec;
-
   stDebug("ext: open extReader source=%s host=%s port=%d user=%s db=%s tbl=%s srcType=%d",
           pExtSpec->sourceName, pExtSpec->host, (int)pExtSpec->port,
           pExtSpec->user, pExtSpec->extDb, pExtSpec->extTable,
           (int)pExtSpec->sourceType);
-  /* NOTE: password is intentionally NOT logged */
 
-  SStreamExtReaderInfo *pInfo =
-    taosMemoryCalloc(1, sizeof(SStreamExtReaderInfo));
+  SStreamExtReaderInfo *pInfo = taosMemoryCalloc(1, sizeof(SStreamExtReaderInfo));
   if (pInfo == NULL) {
     stError("ext: OOM allocating SStreamExtReaderInfo");
     return terrno;
   }
 
-  /* Store back-pointer to owning task for log context (not owned). */
   pInfo->pTask = pTask;
+  code = extCopyReaderSpec(pInfo, pExtSpec);
+  if (code != TSDB_CODE_SUCCESS) goto _err;
 
-  /* Copy the spec into local state. */
-  pInfo->spec = *pExtSpec;
-  /* The struct copy above aliases every owned pointer to the caller's spec.
-   * Null the ones deep-copied further below up-front so an early _err (before
-   * their copy block runs) cannot make streamReaderExtClose double-free the
-   * caller-owned array. */
-  pInfo->spec.partitionTagCols = NULL;
-  /* The prefilter pointer must be deep-copied since the spec is transient. */
-  if (pExtSpec->prefilter != NULL && pExtSpec->prefilter[0] != '\0') {
-    pInfo->spec.prefilter = tstrdup(pExtSpec->prefilter);
-    if (pInfo->spec.prefilter == NULL) {
-      code = terrno;
-      ST_TASK_ELOG("%s", "ext: OOM copying prefilter");
-      goto _err;
-    }
-  } else {
-    pInfo->spec.prefilter = NULL;
-  }
-
-  /* Deep-copy triggerPrefilter (PRE_FILTER for trigger reader). */
-  if (pExtSpec->triggerPrefilter != NULL && pExtSpec->triggerPrefilter[0] != '\0') {
-    pInfo->spec.triggerPrefilter = tstrdup(pExtSpec->triggerPrefilter);
-    if (pInfo->spec.triggerPrefilter == NULL) {
-      code = terrno;
-      ST_TASK_ELOG("%s", "ext: OOM copying triggerPrefilter");
-      goto _err;
-    }
-  } else {
-    pInfo->spec.triggerPrefilter = NULL;
-  }
-
-  /* Deep-copy triggerColumns (SArray<char[TSDB_COL_NAME_LEN]>) — the source
-   * spec is transient (deploy msg lifetime), so the reader owns its own copy. */
-  pInfo->spec.triggerColumns = NULL;
-  if (pExtSpec->triggerColumns != NULL) {
-    int32_t nCols = (int32_t)taosArrayGetSize(pExtSpec->triggerColumns);
-    pInfo->spec.triggerColumns = taosArrayInit(nCols, TSDB_COL_NAME_LEN);
-    if (pInfo->spec.triggerColumns == NULL) {
-      code = terrno;
-      ST_TASK_ELOG("%s", "ext: OOM copying triggerColumns");
-      goto _err;
-    }
-    for (int32_t i = 0; i < nCols; i++) {
-      const char *colName = (const char *)taosArrayGet(pExtSpec->triggerColumns, i);
-      if (taosArrayPush(pInfo->spec.triggerColumns, colName) == NULL) {
-        code = terrno;
-        ST_TASK_ELOG("ext: OOM pushing triggerColumns[%d]='%s'", i, colName);
-        goto _err;
-      }
-    }
-    ST_TASK_DLOG("ext: copied %d triggerColumns into spec", nCols);
-  }
-
-  /* Deep-copy partitionTagCols (SArray<char[TSDB_COL_NAME_LEN]>) — PARTITION BY
-   * tag column names used to derive groupId over the partition-tag subset. */
-  pInfo->spec.partitionTagCols = NULL;
-  if (pExtSpec->partitionTagCols != NULL) {
-    int32_t nPart = (int32_t)taosArrayGetSize(pExtSpec->partitionTagCols);
-    pInfo->spec.partitionTagCols = taosArrayInit(nPart, TSDB_COL_NAME_LEN);
-    if (pInfo->spec.partitionTagCols == NULL) {
-      code = terrno;
-      ST_TASK_ELOG("%s", "ext: OOM copying partitionTagCols");
-      goto _err;
-    }
-    for (int32_t i = 0; i < nPart; i++) {
-      const char *colName = (const char *)taosArrayGet(pExtSpec->partitionTagCols, i);
-      if (taosArrayPush(pInfo->spec.partitionTagCols, colName) == NULL) {
-        code = terrno;
-        ST_TASK_ELOG("ext: OOM pushing partitionTagCols[%d]='%s'", i, colName);
-        goto _err;
-      }
-    }
-    ST_TASK_DLOG("ext: copied %d partitionTagCols into spec", nPart);
-  }
-
-  /* Deep-copy pColMappings (SExtColTypeMapping[]) — same lifetime concern. */
-  pInfo->spec.pColMappings   = NULL;
-  pInfo->spec.numColMappings = 0;
-  if (pExtSpec->numColMappings > 0 && pExtSpec->pColMappings != NULL) {
-    pInfo->spec.pColMappings = (SExtColTypeMapping *)taosMemoryMalloc(
-        pExtSpec->numColMappings * sizeof(SExtColTypeMapping));
-    if (pInfo->spec.pColMappings == NULL) {
-      code = terrno;
-      ST_TASK_ELOG("%s", "ext: OOM copying pColMappings");
-      goto _err;
-    }
-    memcpy(pInfo->spec.pColMappings, pExtSpec->pColMappings,
-           pExtSpec->numColMappings * sizeof(SExtColTypeMapping));
-    pInfo->spec.numColMappings = pExtSpec->numColMappings;
-    ST_TASK_DLOG("ext: copied %d colMappings into spec", pExtSpec->numColMappings);
-  }
-
-  /* Deep-copy calcColumns (SArray<char[TSDB_COL_NAME_LEN]>) — aggregate-input columns. */
-  pInfo->spec.calcColumns = NULL;
-  if (pExtSpec->calcColumns != NULL) {
-    int32_t nCalc = (int32_t)taosArrayGetSize(pExtSpec->calcColumns);
-    pInfo->spec.calcColumns = taosArrayInit(nCalc, TSDB_COL_NAME_LEN);
-    if (pInfo->spec.calcColumns == NULL) {
-      code = terrno;
-      ST_TASK_ELOG("%s", "ext: OOM copying calcColumns");
-      goto _err;
-    }
-    for (int32_t i = 0; i < nCalc; i++) {
-      const char *colName = (const char *)taosArrayGet(pExtSpec->calcColumns, i);
-      if (taosArrayPush(pInfo->spec.calcColumns, colName) == NULL) {
-        code = terrno;
-        ST_TASK_ELOG("ext: OOM pushing calcColumns[%d]='%s'", i, colName);
-        goto _err;
-      }
-    }
-    ST_TASK_DLOG("ext: copied %d calcColumns into spec", nCalc);
-  }
-
-  /* Deep-copy pCalcMappings (SExtColTypeMapping[]) — aggregate column type info. */
-  pInfo->spec.pCalcMappings   = NULL;
-  pInfo->spec.numCalcMappings = 0;
-  if (pExtSpec->numCalcMappings > 0 && pExtSpec->pCalcMappings != NULL) {
-    pInfo->spec.pCalcMappings = (SExtColTypeMapping *)taosMemoryMalloc(
-        pExtSpec->numCalcMappings * sizeof(SExtColTypeMapping));
-    if (pInfo->spec.pCalcMappings == NULL) {
-      code = terrno;
-      ST_TASK_ELOG("%s", "ext: OOM copying pCalcMappings");
-      goto _err;
-    }
-    memcpy(pInfo->spec.pCalcMappings, pExtSpec->pCalcMappings,
-           pExtSpec->numCalcMappings * sizeof(SExtColTypeMapping));
-    pInfo->spec.numCalcMappings = pExtSpec->numCalcMappings;
-    ST_TASK_DLOG("ext: copied %d calcMappings into spec", pExtSpec->numCalcMappings);
-  }
-
-  /* Decrypt password — extDecryptPassword decrypts in-place into outPlain. */
-  char plainPwd[TSDB_EXT_SOURCE_PASSWORD_LEN] = {0};
-  extDecryptPassword((const char *)pExtSpec->encryptedPassword, plainPwd,
-                     (int32_t)sizeof(plainPwd));
-
-  /* Build connector config. */
-  SExtSourceCfg cfg = {0};
-  cfg.source_type = (EExtSourceType)pExtSpec->sourceType;
-  tstrncpy(cfg.source_name, pExtSpec->sourceName, sizeof(cfg.source_name));
-  tstrncpy(cfg.host, pExtSpec->host, sizeof(cfg.host));
-  cfg.port = (int32_t)pExtSpec->port;
-  tstrncpy(cfg.user, pExtSpec->user, sizeof(cfg.user));
-  tstrncpy(cfg.password, plainPwd, sizeof(cfg.password));
-  tstrncpy(cfg.default_database, pExtSpec->extDb, sizeof(cfg.default_database));
-  tstrncpy(cfg.options, pExtSpec->options, sizeof(cfg.options));
-  cfg.meta_version = (int64_t)pExtSpec->connCfgVersion;
-
-  /* Wipe plaintext password from stack immediately after use. */
-  memset(plainPwd, 0, sizeof(plainPwd));
-
-  code = extConnectorOpen(&cfg, &pInfo->pConn);
-  /* Wipe password copy in cfg as well. */
-  memset(cfg.password, 0, sizeof(cfg.password));
-  if (code != TSDB_CODE_SUCCESS) {
-    ST_TASK_ELOG("ext: extConnectorOpen failed code:%d source=%s host=%s port=%d",
-             code, pExtSpec->sourceName, pExtSpec->host, (int)pExtSpec->port);
-    goto _err;
-  }
-  ST_TASK_DLOG("ext: extConnectorOpen ok, source=%s", pExtSpec->sourceName);
-
-  /* Init pUidIndex: hash<int64_t uid, SUidIndexEntry>. */
-  pInfo->pUidIndex = tSimpleHashInit(64,
-      taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
-  if (pInfo->pUidIndex == NULL) {
-    code = terrno;
-    ST_TASK_ELOG("%s", "ext: tSimpleHashInit(pUidIndex) failed");
-    goto _err;
-  }
-
-  /* Init pGroupIndex: hash<int64_t groupId, SArray*>.  The value is a
-   * pointer to an SArray; we register a free callback to handle cleanup. */
-  pInfo->pGroupIndex = tSimpleHashInit(16,
-      taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
-  if (pInfo->pGroupIndex == NULL) {
-    code = terrno;
-    ST_TASK_ELOG("%s", "ext: tSimpleHashInit(pGroupIndex) failed");
-    goto _err;
-  }
-  /* NOTE: tSimpleHashSetFreeFp signature is void(*)(void*) where the void*
-   * points to the stored VALUE bytes.  For pointer-valued hashes the callback
-   * receives a pointer to the stored SArray*, so we must dereference inside. */
-  tSimpleHashSetFreeFp(pInfo->pGroupIndex, freeGroupIndexValue);
-
-  /* Init pTagsetIndex: variable-length key (tagset string), value int64_t uid.
-   * InfluxDB only; still allocated for all source types to keep code uniform. */
-  pInfo->pTagsetIndex = tSimpleHashInit(64,
-      MurmurHash3_32);   /* variable-length string key → MurmurHash */
-  if (pInfo->pTagsetIndex == NULL) {
-    code = terrno;
-    ST_TASK_ELOG("%s", "ext: tSimpleHashInit(pTagsetIndex) failed");
-    goto _err;
-  }
+  code = extOpenReaderConnector(pInfo, pExtSpec);
+  if (code != TSDB_CODE_SUCCESS) goto _err;
+  code = extInitReaderHashes(pInfo);
+  if (code != TSDB_CODE_SUCCESS) goto _err;
 
   pInfo->influxBatchOffset = 0;
-
   *ppReaderInfo = pInfo;
   ST_TASK_DLOG("ext: streamReaderExtOpen ok source=%s", pExtSpec->sourceName);
   return TSDB_CODE_SUCCESS;
@@ -830,49 +928,18 @@ void streamReaderExtClose(SStreamExtReaderInfo *pInfo) {
     pInfo->pInfluxTagCols = NULL;
   }
 
-  /* Free prefilter deep copy (calc reader). */
-  if (pInfo->spec.prefilter) {
-    taosMemoryFree(pInfo->spec.prefilter);
-    pInfo->spec.prefilter = NULL;
+  /* Free parsed pPartitionColExprNodes cache. */
+  if (pInfo->pPartitionColExprNodes) {
+    int32_t n = (int32_t)taosArrayGetSize(pInfo->pPartitionColExprNodes);
+    for (int32_t i = 0; i < n; i++) {
+      SNode *pNode = (SNode *)taosArrayGetP(pInfo->pPartitionColExprNodes, i);
+      nodesDestroyNode(pNode);
+    }
+    taosArrayDestroy(pInfo->pPartitionColExprNodes);
+    pInfo->pPartitionColExprNodes = NULL;
   }
 
-  /* Free triggerPrefilter deep copy (trigger reader). */
-  if (pInfo->spec.triggerPrefilter) {
-    taosMemoryFree(pInfo->spec.triggerPrefilter);
-    pInfo->spec.triggerPrefilter = NULL;
-  }
-
-  /* Free triggerColumns deep copy. */
-  if (pInfo->spec.triggerColumns) {
-    taosArrayDestroy(pInfo->spec.triggerColumns);
-    pInfo->spec.triggerColumns = NULL;
-  }
-
-  /* Free partitionTagCols deep copy. */
-  if (pInfo->spec.partitionTagCols) {
-    taosArrayDestroy(pInfo->spec.partitionTagCols);
-    pInfo->spec.partitionTagCols = NULL;
-  }
-
-  /* Free pColMappings deep copy. */
-  if (pInfo->spec.pColMappings) {
-    taosMemoryFree(pInfo->spec.pColMappings);
-    pInfo->spec.pColMappings   = NULL;
-    pInfo->spec.numColMappings = 0;
-  }
-
-  /* Free calcColumns deep copy. */
-  if (pInfo->spec.calcColumns) {
-    taosArrayDestroy(pInfo->spec.calcColumns);
-    pInfo->spec.calcColumns = NULL;
-  }
-
-  /* Free pCalcMappings deep copy. */
-  if (pInfo->spec.pCalcMappings) {
-    taosMemoryFree(pInfo->spec.pCalcMappings);
-    pInfo->spec.pCalcMappings   = NULL;
-    pInfo->spec.numCalcMappings = 0;
-  }
+  tCleanupSStreamExtTriggerSpec(&pInfo->spec);
 
   /* Zero the whole struct to prevent use-after-free leaking sensitive data. */
   memset(pInfo, 0, sizeof(*pInfo));
@@ -957,63 +1024,251 @@ static int32_t buildTagsetKey(char *buf, int32_t bufLen,
   return off;
 }
 
+typedef struct SBindPartitionExprCtx {
+  SArray *pTagCols;
+  int32_t code;
+} SBindPartitionExprCtx;
+
+static EDealRes bindPartitionExprColumn(SNode *pNode, void *pContext) {
+  if (nodeType(pNode) != QUERY_NODE_COLUMN) return DEAL_RES_CONTINUE;
+
+  SBindPartitionExprCtx *pCtx = (SBindPartitionExprCtx *)pContext;
+  SColumnNode *pCol = (SColumnNode *)pNode;
+  int32_t nTags = (int32_t)taosArrayGetSize(pCtx->pTagCols);
+  for (int32_t i = 0; i < nTags; ++i) {
+    const char *pTagCol = (const char *)taosArrayGet(pCtx->pTagCols, i);
+    if (pTagCol != NULL && strcasecmp(pTagCol, pCol->colName) == 0) {
+      pCol->dataBlockId = 0;
+      pCol->slotId = i;
+      return DEAL_RES_CONTINUE;
+    }
+  }
+
+  pCtx->code = TSDB_CODE_MND_STREAM_TBNAME_CALC_FAILED;
+  return DEAL_RES_ERROR;
+}
+
+static int32_t bindPartitionExprNodes(SStreamExtReaderInfo *pInfo, SArray *pTagCols) {
+  const SStreamTask *pTask = pInfo->pTask;
+  if (pInfo->pPartitionColExprNodes == NULL) return TSDB_CODE_SUCCESS;
+
+  int32_t nExprs = (int32_t)taosArrayGetSize(pInfo->pPartitionColExprNodes);
+  int32_t bound = 0;
+  for (int32_t i = 0; i < nExprs; ++i) {
+    SNode *pExpr = (SNode *)taosArrayGetP(pInfo->pPartitionColExprNodes, i);
+    if (pExpr == NULL) continue;
+    SBindPartitionExprCtx ctx = {.pTagCols = pTagCols, .code = TSDB_CODE_SUCCESS};
+    nodesWalkExpr(pExpr, bindPartitionExprColumn, &ctx);
+    if (ctx.code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("ext: failed to bind partition expression slot:%d code:%d", i, ctx.code);
+      return ctx.code;
+    }
+    ++bound;
+  }
+  ST_TASK_DLOG("ext: bound %d partition expression(s) for vectorized evaluation", bound);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extColumnRowToGroupValue(SColumnInfoData *pCol, int32_t row, SStreamGroupValue *pOut) {
+  SStreamGroupValue value = {0};
+  value.data.type = pCol->info.type;
+  value.isNull = colDataIsNull_s(pCol, row) || value.data.type == TSDB_DATA_TYPE_NULL;
+  if (value.isNull) {
+    *pOut = value;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  void *pRaw = colDataGetData(pCol, row);
+  if (pRaw == NULL) return TSDB_CODE_MND_STREAM_TBNAME_CALC_FAILED;
+
+  if (IS_VAR_DATA_TYPE(value.data.type)) {
+    bool    isBlob = IS_STR_DATA_BLOB(value.data.type);
+    int32_t len = isBlob ? blobDataLen(pRaw) : varDataLen(pRaw);
+    const void *pPayload = isBlob ? (const void *)blobDataVal(pRaw) : (const void *)varDataVal(pRaw);
+    value.data.pData = taosMemoryMalloc(len > 0 ? len : 1);
+    if (value.data.pData == NULL) return terrno;
+    if (len > 0) memcpy(value.data.pData, pPayload, len);
+    value.data.nData = len;
+  } else if (value.data.type == TSDB_DATA_TYPE_DECIMAL) {
+    int32_t len = pCol->info.bytes;
+    value.data.pData = taosMemoryMalloc(len > 0 ? len : 1);
+    if (value.data.pData == NULL) return terrno;
+    if (len > 0) memcpy(value.data.pData, pRaw, len);
+    value.data.nData = len;
+  } else {
+    valueSetDatum(&value.data, value.data.type, pRaw, tDataTypes[value.data.type].bytes);
+  }
+
+  *pOut = value;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extCloneGroupValue(const SStreamGroupValue *pSrc, SStreamGroupValue *pDst) {
+  *pDst = *pSrc;
+  if (pSrc->isNull || (!IS_VAR_DATA_TYPE(pSrc->data.type) && pSrc->data.type != TSDB_DATA_TYPE_DECIMAL)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pDst->data.pData = taosMemoryMalloc(pSrc->data.nData > 0 ? pSrc->data.nData : 1);
+  if (pDst->data.pData == NULL) return terrno;
+  if (pSrc->data.nData > 0) memcpy(pDst->data.pData, pSrc->data.pData, pSrc->data.nData);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t appendPartitionGroupKey(char *buf, int32_t bufLen, int32_t *pOffset,
+                                       const SStreamGroupValue *pValue) {
+  int32_t dataLen = 0;
+  const void *pData = NULL;
+  if (!pValue->isNull) {
+    if (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL) {
+      dataLen = pValue->data.nData;
+      pData = pValue->data.pData;
+    } else {
+      dataLen = tDataTypes[pValue->data.type].bytes;
+      pData = &pValue->data.val;
+    }
+  }
+
+  int32_t headerLen = sizeof(pValue->data.type) + sizeof(pValue->isNull) + sizeof(dataLen);
+  if (*pOffset > bufLen - headerLen || dataLen > bufLen - *pOffset - headerLen) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  memcpy(buf + *pOffset, &pValue->data.type, sizeof(pValue->data.type));
+  *pOffset += sizeof(pValue->data.type);
+  memcpy(buf + *pOffset, &pValue->isNull, sizeof(pValue->isNull));
+  *pOffset += sizeof(pValue->isNull);
+  memcpy(buf + *pOffset, &dataLen, sizeof(dataLen));
+  *pOffset += sizeof(dataLen);
+  if (dataLen > 0) {
+    memcpy(buf + *pOffset, pData, dataLen);
+    *pOffset += dataLen;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void extRollbackGroupIndexInsert(SStreamExtReaderInfo *pInfo, uint64_t groupId, uint64_t uid,
+                                        SArray *pArr, bool groupCreated) {
+  const SStreamTask *pTask = pInfo->pTask;
+  if (pArr != NULL) {
+    if (taosArrayPop(pArr) == NULL) {
+      ST_TASK_ELOG("ext: initTableList pGroupIndex rollback pop failed gid=%" PRIu64 " uid=%" PRIu64,
+                   groupId, uid);
+    }
+  }
+
+  if (groupCreated) {
+    int32_t rollbackCode = tSimpleHashRemove(pInfo->pGroupIndex, &groupId, sizeof(groupId));
+    if (rollbackCode != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("ext: initTableList pGroupIndex rollback failed gid=%" PRIu64 " code:%d",
+                   groupId, rollbackCode);
+    }
+  }
+}
+
+static int32_t extEnsureGroupUidArray(SStreamExtReaderInfo *pInfo, uint64_t groupId,
+                                      SArray ***pppArr, bool *pGroupCreated) {
+  const SStreamTask *pTask = pInfo->pTask;
+  *pppArr = (SArray **)tSimpleHashGet(pInfo->pGroupIndex, &groupId, sizeof(groupId));
+  *pGroupCreated = false;
+  if (*pppArr != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SArray *pArr = taosArrayInit(4, sizeof(uint64_t));
+  if (pArr == NULL) {
+    ST_TASK_ELOG("ext: initTableList pGroupIndex OOM gid=%" PRIu64, groupId);
+    return terrno;
+  }
+
+  int32_t code = tSimpleHashPut(pInfo->pGroupIndex, &groupId, sizeof(groupId), &pArr, POINTER_BYTES);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(pArr);
+    ST_TASK_ELOG("ext: initTableList pGroupIndex put failed gid=%" PRIu64, groupId);
+    return code;
+  }
+
+  *pppArr = (SArray **)tSimpleHashGet(pInfo->pGroupIndex, &groupId, sizeof(groupId));
+  if (*pppArr == NULL) {
+    ST_TASK_ELOG("ext: initTableList pGroupIndex lookup failed gid=%" PRIu64, groupId);
+    extRollbackGroupIndexInsert(pInfo, groupId, 0, NULL, true);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  *pGroupCreated = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extPublishTagsetUid(SStreamExtReaderInfo *pInfo, uint64_t uid,
+                                   const char *tagsetKey, int32_t tagsetKeyLen) {
+  const SStreamTask *pTask = pInfo->pTask;
+  if (tagsetKey == NULL || tagsetKeyLen <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = tSimpleHashPut(pInfo->pTagsetIndex, tagsetKey, tagsetKeyLen, &uid, sizeof(uid));
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("ext: initTableList pTagsetIndex put failed uid=%" PRIu64, uid);
+  }
+  return code;
+}
+
 /* Insert one uid entry into all three hashes atomically.
  * uid == groupId for now (no separate groupId derivation needed). */
 static int32_t extTableListInsertEntry(SStreamExtReaderInfo *pInfo,
-                                       int64_t uid, int64_t groupId,
-                                       const char *tagsetKey, int32_t tagsetKeyLen) {
+                                       uint64_t uid, uint64_t groupId,
+                                       const char *tagsetKey, int32_t tagsetKeyLen,
+                                       SArray *pPartitionValues) {
   const SStreamTask *pTask = pInfo->pTask;
+  int32_t code = TSDB_CODE_SUCCESS;
+  bool    groupCreated = false;
+  bool    tagsetInserted = false;
+  SArray **ppArr = NULL;
 
-  /* 1. pUidIndex: uid → {groupId, tagsetKey} */
-  SUidIndexEntry entry = {.groupId = groupId};
+  code = extEnsureGroupUidArray(pInfo, groupId, &ppArr, &groupCreated);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+
+  if (taosArrayPush(*ppArr, &uid) == NULL) {
+    code = terrno;
+    ST_TASK_ELOG("ext: initTableList pGroupIndex array push OOM gid=%" PRIu64, groupId);
+    goto _exit;
+  }
+
+  code = extPublishTagsetUid(pInfo, uid, tagsetKey, tagsetKeyLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+  tagsetInserted = (tagsetKey != NULL && tagsetKeyLen > 0);
+
+  SUidIndexEntry entry = {.groupId = groupId, .partitionValues = pPartitionValues};
   if (tagsetKey != NULL && tagsetKeyLen > 0) {
     tstrncpy(entry.tagsetKey, tagsetKey,
              TMIN((int32_t)sizeof(entry.tagsetKey), tagsetKeyLen + 1));
   }
-  int32_t code = tSimpleHashPut(pInfo->pUidIndex, &uid, sizeof(uid),
-                                &entry, sizeof(entry));
+  code = tSimpleHashPut(pInfo->pUidIndex, &uid, sizeof(uid), &entry, sizeof(entry));
   if (code != TSDB_CODE_SUCCESS) {
-    ST_TASK_ELOG("ext: initTableList pUidIndex put failed uid=%" PRId64 " code:%d",
-                 uid, code);
-    return code;
+    ST_TASK_ELOG("ext: initTableList pUidIndex put failed uid=%" PRIu64 " code:%d", uid, code);
+    goto _exit;
   }
 
-  /* 2. pGroupIndex: groupId → SArray<uid> */
-  SArray **ppArr = (SArray **)tSimpleHashGet(pInfo->pGroupIndex,
-                                              &groupId, sizeof(groupId));
-  if (ppArr == NULL) {
-    SArray *pArr = taosArrayInit(4, sizeof(int64_t));
-    if (pArr == NULL) {
-      ST_TASK_ELOG("ext: initTableList pGroupIndex OOM gid=%" PRId64, groupId);
-      return terrno;
-    }
-    code = tSimpleHashPut(pInfo->pGroupIndex, &groupId, sizeof(groupId),
-                          &pArr, POINTER_BYTES);
-    if (code != TSDB_CODE_SUCCESS) {
-      taosArrayDestroy(pArr);
-      ST_TASK_ELOG("ext: initTableList pGroupIndex put failed gid=%" PRId64, groupId);
-      return code;
-    }
-    ppArr = (SArray **)tSimpleHashGet(pInfo->pGroupIndex, &groupId, sizeof(groupId));
-  }
-  if (taosArrayPush(*ppArr, &uid) == NULL) {
-    ST_TASK_ELOG("ext: initTableList pGroupIndex array push OOM gid=%" PRId64, groupId);
-    return terrno;
-  }
-
-  /* 3. pTagsetIndex: tagsetKey → uid  (skip for empty key on non-InfluxDB) */
-  if (tagsetKey != NULL && tagsetKeyLen > 0) {
-    code = tSimpleHashPut(pInfo->pTagsetIndex, tagsetKey, tagsetKeyLen,
-                          &uid, sizeof(uid));
-    if (code != TSDB_CODE_SUCCESS) {
-      ST_TASK_ELOG("ext: initTableList pTagsetIndex put failed uid=%" PRId64, uid);
-      return code;
-    }
-  }
-
-  ST_TASK_DLOG("ext: initTableList inserted uid=%" PRId64 " gid=%" PRId64
+  ST_TASK_DLOG("ext: initTableList inserted uid=%" PRIu64 " gid=%" PRIu64
                " tagset=\"%.*s\"", uid, groupId, tagsetKeyLen, tagsetKey ? tagsetKey : "");
   return TSDB_CODE_SUCCESS;
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    if (tagsetInserted) {
+      int32_t rollbackCode = tSimpleHashRemove(pInfo->pTagsetIndex, tagsetKey, tagsetKeyLen);
+      if (rollbackCode != TSDB_CODE_SUCCESS) {
+        ST_TASK_ELOG("ext: initTableList pTagsetIndex rollback failed uid=%" PRIu64 " code:%d",
+                     uid, rollbackCode);
+      }
+    }
+    extRollbackGroupIndexInsert(pInfo, groupId, uid, ppArr != NULL ? *ppArr : NULL, groupCreated);
+    taosArrayDestroyEx(pPartitionValues, tDestroySStreamGroupValue);
+  }
+  return code;
 }
 
 /* ============================================================
@@ -1034,10 +1289,14 @@ static int32_t extTableListInsertEntry(SStreamExtReaderInfo *pInfo,
  * zero, byte). That garbled name then gets embedded verbatim into the SQL
  * sent to the external source, which the remote parser rejects.
  *
- * Returns the number of narrow bytes written (excl. NUL), or -1 on failure/
- * would-not-fit; outBuf is always NUL-terminated. */
+ * Returns the number of narrow bytes written (excl. NUL), or a negative error
+ * code on failure; outBuf is always NUL-terminated. */
 static int32_t extColCellToStr(SColumnInfoData *pCol, int32_t row, char *outBuf, int32_t outBufLen) {
-  if (outBufLen <= 0) return -1;
+  if (outBufLen <= 0) {
+    stError("ext: convert column cell to string failed, invalid output buffer length row:%d bufLen:%d", row,
+            outBufLen);
+    return -1;
+  }
   outBuf[0]          = '\0';
   char       *pRaw   = colDataGetVarData(pCol, row);
   int32_t     rawLen = varDataLen(pRaw);
@@ -1045,11 +1304,17 @@ static int32_t extColCellToStr(SColumnInfoData *pCol, int32_t row, char *outBuf,
   if (pCol->info.type == TSDB_DATA_TYPE_NCHAR) {
     /* taosUcs4ToMbs requires the output buffer to hold at least rawLen bytes
      * (the UCS-4 byte length), mirroring streamTriggerTask.c's usage. */
-    if (rawLen >= outBufLen) return -1;
+    if (rawLen > outBufLen) {
+      stError("ext: convert NCHAR cell to string failed, output buffer too small row:%d type:%d rawLen:%d bufLen:%d",
+              row, pCol->info.type, rawLen, outBufLen);
+      return TSDB_CODE_STREAM_EXT_TAG_INVALID;
+    }
     int32_t len = taosUcs4ToMbs((TdUcs4 *)pVal, rawLen, outBuf, NULL);
     if (len < 0 || len >= outBufLen) {
       outBuf[0] = '\0';
-      return -1;
+      stError("ext: convert NCHAR cell from UCS-4 failed row:%d type:%d rawLen:%d bufLen:%d resultLen:%d", row,
+              pCol->info.type, rawLen, outBufLen, len);
+      return TSDB_CODE_STREAM_EXT_TAG_INVALID;
     }
     outBuf[len] = '\0';
     return len;
@@ -1066,9 +1331,20 @@ static int32_t influxSchemaBlockCb(SSDataBlock *pBlock, void *pCtx) {
   for (int32_t r = 0; r < pBlock->info.rows; r++) {
     SColumnInfoData *pCol = taosArrayGet(pBlock->pDataBlock, 0);
     if (pCol == NULL || colDataIsNull_s(pCol, r)) continue;
-    char nameBuf[TSDB_COL_NAME_LEN] = {0};
-    if (extColCellToStr(pCol, r, nameBuf, sizeof(nameBuf)) < 0) continue;
-    taosArrayPush(pTagCols, nameBuf);
+    char *nameBuf = (char *)taosArrayReserve(pTagCols, 1);
+    if (nameBuf == NULL) {
+      int32_t code = terrno;
+      stError("ext: reserve InfluxDB tag column name failed at row:%d code:%d", r, code);
+      blockDataDestroy(pBlock);
+      return code;
+    }
+    int32_t code = extColCellToStr(pCol, r, nameBuf, EXT_INFLUX_KEY_NCHAR_CHARS);
+    if (code < 0) {
+      taosArrayPop(pTagCols);
+      stError("ext: convert InfluxDB tag column name failed at row:%d, code:%d", r, code);
+      blockDataDestroy(pBlock);
+      return code;
+    }
   }
   blockDataDestroy(pBlock);
   return TSDB_CODE_SUCCESS;
@@ -1085,97 +1361,289 @@ typedef struct {
    *   1 = all tags       : PARTITION BY tbname; groupId = uid (per sub-table).
    *   2 = subset          : PARTITION BY <tags>; groupId = hash(partition-tag subset). */
   int8_t                    groupMode;
-  int64_t                   measurementGroupId;
-  int32_t                  *partIdx; /* indices into pTagCols of the partition tags (mode 2) */
-  int32_t                   nPart;   /* number of valid entries in partIdx */
+  uint64_t                  measurementGroupId;
+  int32_t                  *partIdx; /* direct-column tag index per partition slot; -1 for expressions */
+  int32_t                   nPart;   /* number of PARTITION BY slots */
+  /* Parsed complete expression per slot, or NULL for a bare tag column. */
+  SNode                   **partExprNodes;
 } SInfluxDistinctCtx;
+
+static int32_t extBuildNCharGroupValue(const SStreamTask *pTask, const char *colName, const char *colVal,
+                                       SStreamGroupValue *pOut);
+
+static void extDestroyPartitionResultCols(SColumnInfoData **ppCols, int32_t nPart) {
+  if (ppCols == NULL) return;
+  for (int32_t p = 0; p < nPart; ++p) {
+    if (ppCols[p] == NULL) continue;
+    colDataDestroy(ppCols[p]);
+    taosMemoryFree(ppCols[p]);
+  }
+  taosMemoryFree(ppCols);
+}
+
+static int32_t extEvaluatePartitionExprBlock(SInfluxDistinctCtx *pCtx, SSDataBlock *pBlock,
+                                             SColumnInfoData ***ppResultCols) {
+  const SStreamTask *pTask = pCtx->pInfo->pTask;
+  *ppResultCols = NULL;
+  if (pCtx->nPart == 0) return TSDB_CODE_SUCCESS;
+
+  SColumnInfoData **ppCols = taosMemoryCalloc(pCtx->nPart, POINTER_BYTES);
+  if (ppCols == NULL) return terrno;
+  SArray *pBlockList = taosArrayInit(1, POINTER_BYTES);
+  if (pBlockList == NULL || taosArrayPush(pBlockList, &pBlock) == NULL) {
+    taosArrayDestroy(pBlockList);
+    taosMemoryFree(ppCols);
+    return terrno;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t evaluated = 0;
+  for (int32_t p = 0; p < pCtx->nPart; ++p) {
+    SNode *pExpr = pCtx->partExprNodes[p];
+    if (pExpr == NULL) continue;
+
+    ppCols[p] = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+    if (ppCols[p] == NULL) {
+      code = terrno;
+      break;
+    }
+    SDataType *pType = &((SExprNode *)pExpr)->resType;
+    ppCols[p]->info.type = pType->type;
+    ppCols[p]->info.bytes = pType->bytes;
+    ppCols[p]->info.scale = pType->scale;
+    ppCols[p]->info.precision = pType->precision;
+
+    SScalarParam output = {.columnData = ppCols[p]};
+    code = scalarCalculate(pExpr, pBlockList, &output, NULL);
+    if (code != TSDB_CODE_SUCCESS || output.numOfRows != pBlock->info.rows) {
+      if (code == TSDB_CODE_SUCCESS) code = TSDB_CODE_INTERNAL_ERROR;
+      ST_TASK_ELOG("ext: vectorized partition expression slot:%d failed rows:%d expected:%" PRId64 " code:%d",
+                   p, output.numOfRows, pBlock->info.rows, code);
+      break;
+    }
+    ++evaluated;
+  }
+  taosArrayDestroy(pBlockList);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    extDestroyPartitionResultCols(ppCols, pCtx->nPart);
+    return code;
+  }
+  *ppResultCols = ppCols;
+  ST_TASK_DLOG("ext: vectorized %d partition expression(s) over %" PRId64 " distinct tag row(s)", evaluated,
+               pBlock->info.rows);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extAllocInfluxTagValueBufs(int32_t nTags, char **ppValBufs) {
+  *ppValBufs = NULL;
+  if (nTags <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *ppValBufs = taosMemoryCalloc(nTags, EXT_INFLUX_TAG_NCHAR_CHARS);
+  if (*ppValBufs == NULL) {
+    stError("ext: allocate distinct tag value buffers failed count:%d bytes:%zu code:%d",
+            nTags, (size_t)EXT_INFLUX_TAG_NCHAR_CHARS, terrno);
+    return terrno;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extExtractInfluxTagRowValues(SInfluxDistinctCtx *pDCtx, SSDataBlock *pBlock, int32_t row,
+                                            char *pValBufs, const char **colNames, const char **colVals) {
+  const SStreamTask *pTask = pDCtx->pInfo->pTask;
+  for (int32_t c = 0; c < pDCtx->nTags; ++c) {
+    char            *pValBuf = pValBufs + (size_t)c * EXT_INFLUX_TAG_NCHAR_CHARS;
+    SColumnInfoData *pCol = taosArrayGet(pBlock->pDataBlock, c);
+
+    colNames[c] = (const char *)taosArrayGet(pDCtx->pTagCols, c);
+    if (pCol != NULL && !colDataIsNull_s(pCol, row)) {
+      int32_t code = extColCellToStr(pCol, row, pValBuf, EXT_INFLUX_TAG_NCHAR_CHARS - TSDB_NCHAR_SIZE);
+      if (code < 0) {
+        ST_TASK_ELOG("ext: distinct tag value conversion failed row:%d tag:%d code:%d", row, c, code);
+        return code;
+      }
+      colVals[c] = pValBuf;
+    } else {
+      pValBuf[0] = '\0';
+      colVals[c] = "";
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extBuildInfluxPartitionValues(SInfluxDistinctCtx *pDCtx, SColumnInfoData **ppExprResults,
+                                             int32_t row, const char **colNames, const char **colVals,
+                                             SArray **ppPartitionValues) {
+  const SStreamTask *pTask = pDCtx->pInfo->pTask;
+  *ppPartitionValues = NULL;
+  if (pDCtx->nPart <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SArray *pPartitionValues = taosArrayInit(pDCtx->nPart, sizeof(SStreamGroupValue));
+  if (pPartitionValues == NULL) {
+    return terrno;
+  }
+
+  for (int32_t p = 0; p < pDCtx->nPart; ++p) {
+    SStreamGroupValue partValue = {0};
+    const char       *pColName = (const char *)taosArrayGet(pDCtx->pInfo->spec.partitionTagCols, p);
+    int32_t           code = TSDB_CODE_SUCCESS;
+
+    if (pColName != NULL && strcmp(pColName, INFLUXDB_PARTITION_BY_TBNAME) == 0) {
+      partValue.isNull = true;
+    } else if (ppExprResults != NULL && ppExprResults[p] != NULL) {
+      code = extColumnRowToGroupValue(ppExprResults[p], row, &partValue);
+    } else {
+      int32_t idx = pDCtx->partIdx[p];
+      code = idx >= 0 ? extBuildNCharGroupValue(pTask, colNames[idx], colVals[idx], &partValue)
+                      : TSDB_CODE_MND_STREAM_TBNAME_CALC_FAILED;
+    }
+
+    if (code != TSDB_CODE_SUCCESS || taosArrayPush(pPartitionValues, &partValue) == NULL) {
+      if (code == TSDB_CODE_SUCCESS) {
+        code = terrno;
+      }
+      tDestroySStreamGroupValue(&partValue);
+      taosArrayDestroyEx(pPartitionValues, tDestroySStreamGroupValue);
+      return code;
+    }
+  }
+
+  *ppPartitionValues = pPartitionValues;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extBuildInfluxGroupId(const SInfluxDistinctCtx *pDCtx, uint64_t uid,
+                                     SArray *pPartitionValues, uint64_t *pGroupId) {
+  const SStreamTask *pTask = pDCtx->pInfo->pTask;
+  if (pDCtx->groupMode == 1) {
+    *pGroupId = uid;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pDCtx->groupMode != 2) {
+    *pGroupId = pDCtx->measurementGroupId;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char    subKey[EXT_TAGSET_KEY_MAX * TSDB_NCHAR_SIZE] = {0};
+  int32_t subLen = 0;
+  for (int32_t p = 0; p < pDCtx->nPart; ++p) {
+    SStreamGroupValue *pPartValue = (SStreamGroupValue *)taosArrayGet(pPartitionValues, p);
+    int32_t code = appendPartitionGroupKey(subKey, sizeof(subKey), &subLen, pPartValue);
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("ext: partition tuple key exceeds %d bytes at slot:%d code:%d",
+                   (int32_t)sizeof(subKey), p, code);
+      return code;
+    }
+  }
+
+  *pGroupId = MurmurHash3_64(subKey, subLen) | 1ULL;
+  return TSDB_CODE_SUCCESS;
+}
 
 /* Register each distinct tag combination as a uid entry. */
 static int32_t influxDistinctBlockCb(SSDataBlock *pBlock, void *pCtx) {
-  SInfluxDistinctCtx       *pDCtx = (SInfluxDistinctCtx *)pCtx;
-  SStreamExtReaderInfo *pInfo  = pDCtx->pInfo;
-  const SStreamTask        *pTask  = pInfo->pTask;
-  int32_t                   nTags  = pDCtx->nTags;
-  int32_t                   code   = TSDB_CODE_SUCCESS;
+  SInfluxDistinctCtx    *pDCtx = (SInfluxDistinctCtx *)pCtx;
+  SStreamExtReaderInfo  *pInfo = pDCtx->pInfo;
+  const SStreamTask     *pTask = pInfo->pTask;
+  int32_t                nTags = pDCtx->nTags;
+  int32_t                code = TSDB_CODE_SUCCESS;
+  SColumnInfoData      **ppExprResults = NULL;
+  char                  *pValBufs = NULL;
 
-  for (int32_t r = 0; r < pBlock->info.rows; r++) {
+  if (nTags > TSDB_MAX_TAGS) {
+    ST_TASK_ELOG("ext: distinct tag count exceeds limit count:%d limit:%d", nTags, TSDB_MAX_TAGS);
+    blockDataDestroy(pBlock);
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
+  code = extEvaluatePartitionExprBlock(pDCtx, pBlock, &ppExprResults);
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    return code;
+  }
+
+  code = extAllocInfluxTagValueBufs(nTags, &pValBufs);
+  if (code != TSDB_CODE_SUCCESS) {
+    extDestroyPartitionResultCols(ppExprResults, pDCtx->nPart);
+    blockDataDestroy(pBlock);
+    return code;
+  }
+
+  for (int32_t r = 0; r < pBlock->info.rows; ++r) {
     char tagsetKey[EXT_TAGSET_KEY_MAX] = {0};
     const char *colNames[TSDB_MAX_TAGS] = {0};
     const char *colVals[TSDB_MAX_TAGS]  = {0};
-    char        valBufs[TSDB_MAX_TAGS][EXT_INFLUX_TAG_NCHAR_CHARS];
+    SArray     *pPartitionValues = NULL;
+    uint64_t    groupId = 0;
 
-    for (int32_t c = 0; c < nTags && c < TSDB_MAX_TAGS; c++) {
-      colNames[c] = (const char *)taosArrayGet(pDCtx->pTagCols, c);
-      SColumnInfoData *pCol = taosArrayGet(pBlock->pDataBlock, c);
-      if (pCol && !colDataIsNull_s(pCol, r) &&
-          extColCellToStr(pCol, r, valBufs[c], sizeof(valBufs[c])) >= 0) {
-        colVals[c] = valBufs[c];
-      } else {
-        valBufs[c][0] = '\0';
-        colVals[c]    = "";
-      }
+    code = extExtractInfluxTagRowValues(pDCtx, pBlock, r, pValBufs, colNames, colVals);
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
     }
-    int32_t keyLen = buildTagsetKey(tagsetKey, sizeof(tagsetKey),
-                                    colNames, colVals, nTags);
+
+    int32_t keyLen = buildTagsetKey(tagsetKey, sizeof(tagsetKey), colNames, colVals, nTags);
     if (keyLen < 0) {
       ST_TASK_WLOG("%s", "ext: initInfluxTagPartition tagset key truncated, skipping row");
       continue;
     }
 
-    /* uid = MurmurHash3_64(full tagsetKey) | 1  (never 0); identifies the sub-table. */
-    int64_t uid = (int64_t)(MurmurHash3_64(tagsetKey, keyLen) | 1ULL);
-
-    /* groupId depends on the PARTITION BY spec (may be shared across uids). */
-    int64_t groupId;
-    if (pDCtx->groupMode == 1) {
-      groupId = uid;                          /* PARTITION BY tbname: per sub-table */
-    } else if (pDCtx->groupMode == 2) {
-      /* PARTITION BY <tags>: hash only the partition-tag values, so sub-tables
-       * that agree on those tags share one groupId. */
-      const char *subNames[TSDB_MAX_TAGS] = {0};
-      const char *subVals[TSDB_MAX_TAGS]  = {0};
-      int32_t     ns           = 0;
-      for (int32_t p = 0; p < pDCtx->nPart && ns < TSDB_MAX_TAGS; p++) {
-        int32_t idx = pDCtx->partIdx[p];
-        subNames[ns] = colNames[idx];
-        subVals[ns]  = colVals[idx];
-        ns++;
-      }
-      char    subKey[EXT_TAGSET_KEY_MAX] = {0};
-      int32_t subLen = buildTagsetKey(subKey, sizeof(subKey), subNames, subVals, ns);
-      if (subLen < 0) {
-        ST_TASK_WLOG("%s", "ext: initInfluxTagPartition subset group key truncated, using measurement group");
-        groupId = pDCtx->measurementGroupId;
-      } else {
-        groupId = (int64_t)(MurmurHash3_64(subKey, subLen) | 1ULL);
-      }
-    } else {
-      groupId = pDCtx->measurementGroupId;    /* no PARTITION BY: one group */
-    }
-
-    /* Skip duplicates (hash collision or repeated rows). */
+    uint64_t uid = MurmurHash3_64(tagsetKey, keyLen) | 1ULL;
     if (tSimpleHashGet(pInfo->pUidIndex, &uid, sizeof(uid)) != NULL) continue;
 
-    code = extTableListInsertEntry(pInfo, uid, groupId, tagsetKey, keyLen);
-    if (code != TSDB_CODE_SUCCESS) return code;
+    code = extBuildInfluxPartitionValues(pDCtx, ppExprResults, r, colNames, colVals, &pPartitionValues);
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
+
+    code = extBuildInfluxGroupId(pDCtx, uid, pPartitionValues, &groupId);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosArrayDestroyEx(pPartitionValues, tDestroySStreamGroupValue);
+      break;
+    }
+
+    code = extTableListInsertEntry(pInfo, uid, groupId, tagsetKey, keyLen, pPartitionValues);
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
     pDCtx->nGroups++;
   }
+
+  taosMemoryFree(pValBufs);
+  extDestroyPartitionResultCols(ppExprResults, pDCtx->nPart);
   blockDataDestroy(pBlock);
   return code;
 }
 
-/* InfluxDB: query information_schema.columns for tag column names,
- * then SELECT DISTINCT <tags> to enumerate live tag combinations.
- * Each combination → one uid/group entry. */
-static int32_t extInitInfluxTagPartition(SStreamExtReaderInfo *pInfo) {
-  const SStreamTask *pTask = pInfo->pTask;
-  int32_t            code  = TSDB_CODE_SUCCESS;
+typedef struct {
+  uint64_t measurementGroupId;
+  int8_t   groupMode;
+  int32_t  nPart;
+  int32_t *partIdx;
+  SNode  **partExprNodes;
+} SInfluxPartitionPlan;
 
-  /* Step 1: discover tag columns from information_schema.
-   * InfluxDB 3.x encodes tag columns as Arrow Dictionary type; the
-   * data_type column reports 'Dictionary(Int32, Utf8)' for tag columns.
-   * Use data_type LIKE 'Dictionary%' to identify them. */
-  char schemaSQL[EXT_SQL_BUF_SIZE] = {0};
+static void extDestroyInfluxPartitionPlan(SInfluxPartitionPlan *pPlan) {
+  if (pPlan == NULL) {
+    return;
+  }
+
+  taosMemoryFree(pPlan->partIdx);
+  taosMemoryFree(pPlan->partExprNodes);
+  memset(pPlan, 0, sizeof(*pPlan));
+}
+
+static int32_t extDiscoverInfluxTagCols(SStreamExtReaderInfo *pInfo, SArray **ppTagCols) {
+  const SStreamTask *pTask = pInfo->pTask;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  char schemaSQL[EXT_SCHEMA_SQL_BUF_LEN] = {0};
   snprintf(schemaSQL, sizeof(schemaSQL),
            "SELECT column_name FROM information_schema.columns "
            "WHERE table_name = '%s' AND data_type LIKE 'Dictionary%%' "
@@ -1184,156 +1652,254 @@ static int32_t extInitInfluxTagPartition(SStreamExtReaderInfo *pInfo) {
   ST_TASK_DLOG("ext: initInfluxTagPartition schema SQL=\"%s\"", schemaSQL);
 
   SExtColTypeMapping nameMapping = {0};
-  /* column_name is a VARCHAR; map to NCHAR for safe string retrieval. */
-  nameMapping.tdType.type  = TSDB_DATA_TYPE_NCHAR;
-  nameMapping.tdType.bytes = TSDB_COL_NAME_LEN;
+  nameMapping.tdType.type = TSDB_DATA_TYPE_NCHAR;
+  nameMapping.tdType.bytes = EXT_INFLUX_KEY_NCHAR_CHARS_TOO_LONG + VARSTR_HEADER_SIZE;
   tstrncpy(nameMapping.colName, "column_name", sizeof(nameMapping.colName));
 
-  /* Collect tag column names via callback. */
-  SArray *pTagCols = taosArrayInit(8, sizeof(char[TSDB_COL_NAME_LEN]));
-  if (pTagCols == NULL) return terrno;
+  SArray *pTagCols = taosArrayInit(8, EXT_INFLUX_KEY_NCHAR_CHARS);
+  if (pTagCols == NULL) {
+    return terrno;
+  }
 
-  code = extQueryExecForEach(pInfo->pConn, schemaSQL,
-                             &nameMapping, 1,
-                             influxSchemaBlockCb, pTagCols);
+  code = extQueryExecForEach(pInfo->pConn, schemaSQL, &nameMapping, 1, influxSchemaBlockCb, pTagCols);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("ext: initInfluxTagPartition schema query failed code:%d", code);
     taosArrayDestroy(pTagCols);
     return code;
   }
 
+  ST_TASK_DLOG("ext: initInfluxTagPartition discovered %d tag columns",
+               (int32_t)taosArrayGetSize(pTagCols));
+  *ppTagCols = pTagCols;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extBuildInfluxDistinctSql(const SStreamExtReaderInfo *pInfo, SArray *pTagCols,
+                                         char *distSQL, int32_t distSqlLen) {
+  const SStreamTask *pTask = pInfo->pTask;
   int32_t nTags = (int32_t)taosArrayGetSize(pTagCols);
-  ST_TASK_DLOG("ext: initInfluxTagPartition discovered %d tag columns", nTags);
-
-  if (nTags == 0) {
-    /* No tag columns — treat whole measurement as single group (same as
-     * no-partition path). */
-    taosArrayDestroy(pTagCols);
-    goto single_group;
-  }
-
-  /* Step 2: SELECT DISTINCT <tag cols> to enumerate live combinations. */
-  char    distSQL[EXT_SQL_BUF_SIZE] = {0};
   int32_t off = 0;
-  bool    ok  = extSqlCat(distSQL, sizeof(distSQL), &off, "SELECT DISTINCT ");
-  for (int32_t i = 0; ok && i < nTags; i++) {
-    const char *cn = (const char *)taosArrayGet(pTagCols, i);
-    ok = extSqlCat(distSQL, sizeof(distSQL), &off,
-                   "%s%s", cn, (i + 1 < nTags) ? ", " : "");
+  bool    ok = extSqlCat(distSQL, distSqlLen, &off, "SELECT DISTINCT ");
+
+  for (int32_t i = 0; ok && i < nTags; ++i) {
+    const char *pColName = (const char *)taosArrayGet(pTagCols, i);
+    ok = extSqlCat(distSQL, distSqlLen, &off, "%s%s", pColName, (i + 1 < nTags) ? ", " : "");
   }
-  if (ok) ok = extSqlCat(distSQL, sizeof(distSQL), &off, " FROM %s", pInfo->spec.extTable);
+  if (ok) {
+    ok = extSqlCat(distSQL, distSqlLen, &off, " FROM %s", pInfo->spec.extTable);
+  }
   if (!ok) {
     ST_TASK_ELOG("ext: initInfluxTagPartition distinct SQL exceeds %d bytes for %d tag cols",
-                 (int32_t)sizeof(distSQL), nTags);
-    taosArrayDestroy(pTagCols);
+                 distSqlLen, nTags);
     return TSDB_CODE_OUT_OF_RANGE;
   }
-  ST_TASK_DLOG("ext: initInfluxTagPartition distinct SQL=\"%s\"", distSQL);
 
-  /* Build col-type mappings (all tag values treated as NCHAR strings). */
+  ST_TASK_DLOG("ext: initInfluxTagPartition distinct SQL=\"%s\"", distSQL);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extBuildInfluxTagMappings(SArray *pTagCols, SExtColTypeMapping **ppMappings) {
+  int32_t nTags = (int32_t)taosArrayGetSize(pTagCols);
   SExtColTypeMapping *pMappings = taosMemoryCalloc(nTags, sizeof(SExtColTypeMapping));
   if (pMappings == NULL) {
-    taosArrayDestroy(pTagCols);
     return terrno;
   }
-  for (int32_t i = 0; i < nTags; i++) {
-    pMappings[i].tdType.type  = TSDB_DATA_TYPE_NCHAR;
+
+  for (int32_t i = 0; i < nTags; ++i) {
+    pMappings[i].tdType.type = TSDB_DATA_TYPE_NCHAR;
     pMappings[i].tdType.bytes = EXT_INFLUX_TAG_NCHAR_CHARS;
-    tstrncpy(pMappings[i].colName,
-             (const char *)taosArrayGet(pTagCols, i),
-             sizeof(pMappings[i].colName));
+    tstrncpy(pMappings[i].colName, (const char *)taosArrayGet(pTagCols, i), sizeof(pMappings[i].colName));
   }
 
-  /* Determine the groupId derivation mode and the measurement-level constant
-   * group (used when there is no PARTITION BY, or as a fallback). */
-  char    mkey[TSDB_TABLE_NAME_LEN * 2] = {0};
+  *ppMappings = pMappings;
+  return TSDB_CODE_SUCCESS;
+}
+
+static uint64_t extBuildInfluxMeasurementGroupId(const SStreamExtReaderInfo *pInfo) {
+  char mkey[TSDB_TABLE_NAME_LEN * 2] = {0};
   int32_t mkeyLen = snprintf(mkey, sizeof(mkey), "%s.%s",
                              extTableQualifier(&pInfo->spec), pInfo->spec.extTable);
-  int64_t measurementGroupId = (int64_t)(MurmurHash3_64(mkey, mkeyLen) | 1ULL);
+  return MurmurHash3_64(mkey, mkeyLen) | 1ULL;
+}
 
-  int8_t   groupMode = 0;    /* 0=single, 1=all-tags (tbname), 2=subset */
-  int32_t  nPart     = 0;
-  int32_t *partIdx   = NULL;
-  if (pInfo->spec.partitionByTag) {
-    int32_t nPartCols = pInfo->spec.partitionTagCols
-                          ? (int32_t)taosArrayGetSize(pInfo->spec.partitionTagCols) : 0;
-    if (nPartCols == 0) {
-      groupMode = 1;         /* PARTITION BY tbname == group by all tags */
-    } else {
-      partIdx = taosMemoryCalloc(nPartCols, sizeof(int32_t));
-      if (partIdx == NULL) {
-        taosMemoryFree(pMappings);
-        taosArrayDestroy(pTagCols);
-        return terrno;
-      }
-      /* Map each partition tag column name to its index in the discovered tags. */
-      for (int32_t p = 0; p < nPartCols; p++) {
-        const char *pcol = (const char *)taosArrayGet(pInfo->spec.partitionTagCols, p);
-        for (int32_t t = 0; t < nTags; t++) {
-          if (strncmp(pcol, (const char *)taosArrayGet(pTagCols, t), TSDB_COL_NAME_LEN) == 0) {
-            partIdx[nPart++] = t;
-            break;
-          }
-        }
-      }
-      if (nPart == 0) {
-        /* None of the partition tags matched a discovered tag: degrade to a
-         * single measurement group rather than mis-derive groupId. */
-        ST_TASK_WLOG("%s", "ext: initInfluxTagPartition partition tags not found among tags, single group");
-        taosMemoryFree(partIdx);
-        partIdx = NULL;
-      } else {
-        groupMode = 2;       /* PARTITION BY specific tags */
+static int32_t extResolveInfluxPartitionPlan(SStreamExtReaderInfo *pInfo, SArray *pTagCols,
+                                             SInfluxPartitionPlan *pPlan) {
+  const SStreamTask *pTask = pInfo->pTask;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  pPlan->measurementGroupId = extBuildInfluxMeasurementGroupId(pInfo);
+  pPlan->groupMode = 0;
+  pPlan->nPart = 0;
+  pPlan->partIdx = NULL;
+  pPlan->partExprNodes = NULL;
+
+  if (!pInfo->spec.partitionByTag) {
+    ST_TASK_DLOG("ext: initInfluxTagPartition groupMode=%d nPart=%d measurementGid=%" PRIu64,
+                 (int)pPlan->groupMode, pPlan->nPart, pPlan->measurementGroupId);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t nPartCols = pInfo->spec.partitionTagCols
+                          ? (int32_t)taosArrayGetSize(pInfo->spec.partitionTagCols)
+                          : 0;
+  if (nPartCols == 0) {
+    ST_TASK_ELOG("%s", "ext: PARTITION BY has no positional tag or expression slots");
+    return TSDB_CODE_MND_STREAM_TBNAME_CALC_FAILED;
+  }
+
+  pPlan->partIdx = taosMemoryCalloc(nPartCols, sizeof(int32_t));
+  pPlan->partExprNodes = taosMemoryCalloc(nPartCols, sizeof(SNode *));
+  if (pPlan->partIdx == NULL || pPlan->partExprNodes == NULL) {
+    return terrno;
+  }
+
+  int32_t nTags = (int32_t)taosArrayGetSize(pTagCols);
+  bool    allResolved = true;
+  for (int32_t p = 0; p < nPartCols; ++p) {
+    pPlan->partIdx[p] = -1;
+    pPlan->partExprNodes[p] = pInfo->pPartitionColExprNodes
+                                  ? (SNode *)taosArrayGetP(pInfo->pPartitionColExprNodes, p)
+                                  : NULL;
+    if (pPlan->partExprNodes[p] != NULL) {
+      continue;
+    }
+
+    const char *pCol = (const char *)taosArrayGet(pInfo->spec.partitionTagCols, p);
+    if (pCol != NULL && strcmp(pCol, INFLUXDB_PARTITION_BY_TBNAME) == 0) {
+      continue;
+    }
+    if (pCol == NULL || pCol[0] == '\0') {
+      ST_TASK_ELOG("ext: partition slot:%d has neither a tag column nor an expression", p);
+      allResolved = false;
+      break;
+    }
+
+    for (int32_t t = 0; t < nTags; ++t) {
+      if (strcasecmp(pCol, (const char *)taosArrayGet(pTagCols, t)) == 0) {
+        pPlan->partIdx[p] = t;
+        break;
       }
     }
+    if (pPlan->partIdx[p] < 0) {
+      ST_TASK_ELOG("ext: partition tag column '%s' not found for slot:%d", pCol, p);
+      allResolved = false;
+      break;
+    }
   }
-  ST_TASK_DLOG("ext: initInfluxTagPartition groupMode=%d nPart=%d measurementGid=%" PRId64,
-               (int)groupMode, nPart, measurementGroupId);
+  if (!allResolved) {
+    return TSDB_CODE_MND_STREAM_TBNAME_CALC_FAILED;
+  }
 
-  /* Enumerate distinct tag combinations via callback. */
+  pPlan->nPart = nPartCols;
+  pPlan->groupMode = pInfo->spec.partitionByTbname ? 1 : 2;
+  code = bindPartitionExprNodes(pInfo, pTagCols);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  ST_TASK_DLOG("ext: initInfluxTagPartition groupMode=%d nPart=%d measurementGid=%" PRIu64,
+               (int)pPlan->groupMode, pPlan->nPart, pPlan->measurementGroupId);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extEnumerateInfluxDistinctGroups(SStreamExtReaderInfo *pInfo, SArray *pTagCols,
+                                                SExtColTypeMapping *pMappings,
+                                                const SInfluxPartitionPlan *pPlan,
+                                                int32_t *pGroupCount) {
+  const SStreamTask *pTask = pInfo->pTask;
+  int32_t nTags = (int32_t)taosArrayGetSize(pTagCols);
+  char    distSQL[EXT_BATCH_SQL_BUF_LEN] = {0};
+  int32_t code = extBuildInfluxDistinctSql(pInfo, pTagCols, distSQL, sizeof(distSQL));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
   SInfluxDistinctCtx dCtx = {
-    .pInfo    = pInfo,
+    .pInfo = pInfo,
     .pTagCols = pTagCols,
-    .nTags    = nTags,
-    .nGroups  = 0,
-    .groupMode          = groupMode,
-    .measurementGroupId = measurementGroupId,
-    .partIdx            = partIdx,
-    .nPart              = nPart,
+    .nTags = nTags,
+    .nGroups = 0,
+    .groupMode = pPlan->groupMode,
+    .measurementGroupId = pPlan->measurementGroupId,
+    .partIdx = pPlan->partIdx,
+    .nPart = pPlan->nPart,
+    .partExprNodes = pPlan->partExprNodes,
   };
-  code = extQueryExecForEach(pInfo->pConn, distSQL,
-                             pMappings, nTags,
-                             influxDistinctBlockCb, &dCtx);
-  taosMemoryFree(pMappings);
-  taosMemoryFree(partIdx);
 
+  code = extQueryExecForEach(pInfo->pConn, distSQL, pMappings, nTags, influxDistinctBlockCb, &dCtx);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("ext: initInfluxTagPartition distinct query failed code:%d", code);
-    taosArrayDestroy(pTagCols);
     return code;
   }
 
-  if (dCtx.nGroups > 0) {
-    /* Save tag column names for use in batch PULL queries. */
-    if (pInfo->pInfluxTagCols) taosArrayDestroy(pInfo->pInfluxTagCols);
-    pInfo->pInfluxTagCols = pTagCols;   /* transfer ownership */
-    ST_TASK_DLOG("ext: initInfluxTagPartition inserted %d tag-combination groups",
-                 dCtx.nGroups);
-    return code;
+  *pGroupCount = dCtx.nGroups;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extInsertInfluxSingleGroup(SStreamExtReaderInfo *pInfo) {
+  const SStreamTask *pTask = pInfo->pTask;
+  char    key[TSDB_TABLE_NAME_LEN * 2] = {0};
+  int32_t keyLen = snprintf(key, sizeof(key), "%s.%s",
+                            extTableQualifier(&pInfo->spec), pInfo->spec.extTable);
+  uint64_t uid = MurmurHash3_64(key, keyLen) | 1ULL;
+
+  ST_TASK_DLOG("ext: initInfluxTagPartition no tag combos — single group uid=%" PRIu64, uid);
+  return extTableListInsertEntry(pInfo, uid, uid, "", 0, NULL);
+}
+
+/* InfluxDB: query information_schema.columns for tag column names,
+ * then SELECT DISTINCT <tags> to enumerate live tag combinations.
+ * Each combination → one uid/group entry. */
+static int32_t extInitInfluxTagPartition(SStreamExtReaderInfo *pInfo) {
+  const SStreamTask *pTask = pInfo->pTask;
+  int32_t               code = TSDB_CODE_SUCCESS;
+  int32_t               nGroups = 0;
+  SArray               *pTagCols = NULL;
+  SExtColTypeMapping   *pMappings = NULL;
+  SInfluxPartitionPlan  plan = {0};
+
+  code = extDiscoverInfluxTagCols(pInfo, &pTagCols);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
   }
+
+  if ((int32_t)taosArrayGetSize(pTagCols) == 0) {
+    code = extInsertInfluxSingleGroup(pInfo);
+    goto _exit;
+  }
+
+  code = extBuildInfluxTagMappings(pTagCols, &pMappings);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+
+  code = extResolveInfluxPartitionPlan(pInfo, pTagCols, &plan);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+
+  code = extEnumerateInfluxDistinctGroups(pInfo, pTagCols, pMappings, &plan, &nGroups);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+
+  if (nGroups > 0) {
+    if (pInfo->pInfluxTagCols != NULL) {
+      taosArrayDestroy(pInfo->pInfluxTagCols);
+    }
+    pInfo->pInfluxTagCols = pTagCols;
+    pTagCols = NULL;
+    ST_TASK_DLOG("ext: initInfluxTagPartition inserted %d tag-combination groups", nGroups);
+    goto _exit;
+  }
+
+  code = extInsertInfluxSingleGroup(pInfo);
+
+_exit:
+  extDestroyInfluxPartitionPlan(&plan);
+  taosMemoryFree(pMappings);
   taosArrayDestroy(pTagCols);
-  /* Fall through if no rows returned (empty measurement). */
-
-single_group:
-  {
-    /* No tags or empty measurement: treat as single group. */
-    char   key[TSDB_TABLE_NAME_LEN * 2] = {0};
-    int32_t keyLen = snprintf(key, sizeof(key), "%s.%s",
-                               extTableQualifier(&pInfo->spec), pInfo->spec.extTable);
-    int64_t uid = (int64_t)(MurmurHash3_64(key, keyLen) | 1ULL);
-    ST_TASK_DLOG("ext: initInfluxTagPartition no tag combos — single group uid=%" PRId64, uid);
-    return extTableListInsertEntry(pInfo, uid, uid, "", 0);
-  }
+  return code;
 }
 
 /* Build a stable uid key string for MySQL/PG (no tag concept). */
@@ -1344,9 +1910,9 @@ static int32_t extInitSingleGroup(SStreamExtReaderInfo *pInfo) {
                              pInfo->spec.sourceName,
                              extTableQualifier(&pInfo->spec),
                              pInfo->spec.extTable);
-  int64_t uid = (int64_t)(MurmurHash3_64(key, keyLen) | 1ULL);
-  ST_TASK_DLOG("ext: initSingleGroup uid=%" PRId64 " key=\"%s\"", uid, key);
-  return extTableListInsertEntry(pInfo, uid, uid, NULL, 0);
+  uint64_t uid = MurmurHash3_64(key, keyLen) | 1ULL;
+  ST_TASK_DLOG("ext: initSingleGroup uid=%" PRIu64 " key=\"%s\"", uid, key);
+  return extTableListInsertEntry(pInfo, uid, uid, NULL, 0, NULL);
 }
 
 static int32_t streamExtReaderInitTableList(SStreamExtReaderInfo *pInfo) {
@@ -1382,11 +1948,34 @@ static int32_t streamExtReaderInitTableList(SStreamExtReaderInfo *pInfo) {
 /* ============================================================
  * PULL dispatcher
  * ============================================================ */
+static int32_t extDispatchPullRequest(SStreamExtReaderInfo *pInfo,
+                                      ESTriggerPullType pullType,
+                                      const SSTriggerExtPullReq *pReq,
+                                      SSTriggerExtPullRsp *pRsp) {
+  switch (pullType) {
+    case STRIGGER_PULL_LAST_TS_EXT:
+      return handleLastTsPull(pInfo, pReq, pRsp);
+    case STRIGGER_PULL_META_EXT:
+      return handleMetaPull(pInfo, pReq, pRsp);
+    case STRIGGER_PULL_DATA_EXT:
+      return handleDataPull(pInfo, pReq, pRsp);
+    case STRIGGER_PULL_META_DATA_EXT:
+      return handleMetaDataPull(pInfo, pReq, pRsp);
+    case STRIGGER_PULL_CALC_DATA_EXT:
+      return handleCalcDataPull(pInfo, pReq, pRsp);
+    case STRIGGER_PULL_GROUP_COL_VALUE_EXT:
+      return handleGroupColValuePull(pInfo, pReq, pRsp);
+    default:
+      return TSDB_CODE_INVALID_PARA;
+  }
+}
+
 int32_t streamReaderExtHandlePull(SStreamExtReaderInfo *pInfo,
                                   int32_t pullType,
                                   const void *pReqVoid,
                                   void **ppRsp) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t             code = TSDB_CODE_SUCCESS;
+  SSTriggerExtPullRsp *pRsp = NULL;
 
   if (pInfo == NULL || ppRsp == NULL) {
     stError("ext: handlePull invalid args");
@@ -1395,10 +1984,11 @@ int32_t streamReaderExtHandlePull(SStreamExtReaderInfo *pInfo,
 
   const SStreamTask *pTask = pInfo->pTask;
   ST_TASK_DLOG("ext: streamReaderExtHandlePull enter pullType=%d pInfo=%p",
-          pullType, pInfo);
+               pullType, pInfo);
   *ppRsp = NULL;
 
   const SSTriggerExtPullReq *pReq = (const SSTriggerExtPullReq *)pReqVoid;
+  ESTriggerPullType          typedPullType = (ESTriggerPullType)pullType;
 
   /* ---- One-shot table-list initialization ----
    * For ext-source readers, pUidIndex is built by querying the external DB
@@ -1411,41 +2001,26 @@ int32_t streamReaderExtHandlePull(SStreamExtReaderInfo *pInfo,
     code = streamExtReaderInitTableList(pInfo);
     if (code != TSDB_CODE_SUCCESS) {
       ST_TASK_ELOG("ext: initTableList failed code:%d — aborting pull", code);
-      return code;
+      goto _exit;
     }
   }
 
-  /* Allocate response. */
-  SSTriggerExtPullRsp *pRsp = allocPullRsp((ESTriggerPullType)pullType);
+  pRsp = allocPullRsp(typedPullType);
   if (pRsp == NULL) {
+    code = terrno;
     ST_TASK_ELOG("%s", "ext: handlePull OOM allocating rsp");
-    return terrno;
+    goto _exit;
   }
 
-  /* Dispatch to specific handler. */
-  switch ((ESTriggerPullType)pullType) {
-    case STRIGGER_PULL_LAST_TS_EXT:
-      code = handleLastTsPull(pInfo, pReq, pRsp);
-      break;
-    case STRIGGER_PULL_META_EXT:
-      code = handleMetaPull(pInfo, pReq, pRsp);
-      break;
-    case STRIGGER_PULL_DATA_EXT:
-      code = handleDataPull(pInfo, pReq, pRsp);
-      break;
-    case STRIGGER_PULL_META_DATA_EXT:
-      code = handleMetaDataPull(pInfo, pReq, pRsp);
-      break;
-    case STRIGGER_PULL_CALC_DATA_EXT:
-      code = handleCalcDataPull(pInfo, pReq, pRsp);
-      break;
-    case STRIGGER_PULL_GROUP_COL_VALUE_EXT:
-      code = handleGroupColValuePull(pInfo, pReq, pRsp);
-      break;
-    default:
-      ST_TASK_ELOG("ext: handlePull unknown pullType=%d", pullType);
-      code = TSDB_CODE_INVALID_PARA;
-      break;
+  code = extDispatchPullRequest(pInfo, typedPullType, pReq, pRsp);
+  if (code == TSDB_CODE_INVALID_PARA &&
+      !(typedPullType == STRIGGER_PULL_LAST_TS_EXT ||
+        typedPullType == STRIGGER_PULL_META_EXT ||
+        typedPullType == STRIGGER_PULL_DATA_EXT ||
+        typedPullType == STRIGGER_PULL_META_DATA_EXT ||
+        typedPullType == STRIGGER_PULL_CALC_DATA_EXT ||
+        typedPullType == STRIGGER_PULL_GROUP_COL_VALUE_EXT)) {
+    ST_TASK_ELOG("ext: handlePull unknown pullType=%d", pullType);
   }
 
   if (code == TSDB_CODE_STREAM_NO_DATA) {
@@ -1463,6 +2038,12 @@ int32_t streamReaderExtHandlePull(SStreamExtReaderInfo *pInfo,
   }
 
   *ppRsp = pRsp;
+  pRsp = NULL;
+
+_exit:
+  if (pRsp != NULL) {
+    streamExtPullRspFree(pRsp);
+  }
   return code;
 }
 
@@ -1485,29 +2066,36 @@ static int32_t handleLastTsPullRelational(SStreamExtReaderInfo *pInfo,
                                           const char *tsCol,
                                           SArray *pLastTsArr) {
   const SStreamTask *pTask = pInfo->pTask;
+  int32_t            code  = TSDB_CODE_SUCCESS;
 
-  char sqlBuf[EXT_SQL_BUF_SIZE] = {0};
+  char sqlBuf[EXT_SIMPLE_SQL_BUF_LEN] = {0};
   char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
   /* Trigger reader uses PRE_FILTER (triggerPrefilter), not the calc WHERE. */
-  buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
+  code = buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
+  if (code < 0) return code;
 
   /* Build SQL: SELECT MAX(ts) AS ts FROM <table> [WHERE triggerPrefilter]
    * The AS alias ensures the result column name matches tsMapping.colName
    * for databases (e.g. InfluxDB 3.x DataFusion) that name aggregates
    * as "MAX(ts)" rather than the bare column name. */
   char tblRef[TSDB_TABLE_NAME_LEN + TSDB_DB_NAME_LEN + 2] = {0};
-  buildExtTableRef(&pInfo->spec, tblRef, sizeof(tblRef));
-  int32_t off = snprintf(sqlBuf, sizeof(sqlBuf),
-                         "SELECT MAX(%s) AS %s FROM %s",
-                         tsCol, tsCol, tblRef);
+  code = buildExtTableRef(&pInfo->spec, tblRef, sizeof(tblRef));
+  if (code < 0) return code;
+  int32_t off = 0;
+  bool    ok  = extSqlCat(sqlBuf, sizeof(sqlBuf), &off,
+                          "SELECT MAX(%s) AS %s FROM %s",
+                          tsCol, tsCol, tblRef);
   if (prefilterBuf[0] != '\0') {
-    off += snprintf(sqlBuf + off, sizeof(sqlBuf) - off,
-                    " WHERE %s", prefilterBuf);
+    ok = extSqlCat(sqlBuf, sizeof(sqlBuf), &off, " WHERE %s", prefilterBuf);
     /* Strip trailing " AND " added by buildPrefilterClause. */
     int32_t plen = strlen(prefilterBuf);
     if (plen >= 5 && strcmp(prefilterBuf + plen - 5, " AND ") == 0) {
       sqlBuf[off - 5] = '\0';
     }
+  }
+  if (!ok) {
+    ST_TASK_ELOG("ext: lastTs relational SQL exceeds %d bytes", (int32_t)sizeof(sqlBuf));
+    return TSDB_CODE_OUT_OF_RANGE;
   }
   ST_TASK_DLOG("ext: lastTs relational SQL=\"%s\"", sqlBuf);
 
@@ -1522,8 +2110,8 @@ static int32_t handleLastTsPullRelational(SStreamExtReaderInfo *pInfo,
   tstrncpy(tsMapping.colName, tsCol, sizeof(tsMapping.colName));
 
   SSDataBlock *pBlock = NULL;
-  int32_t code = extQueryExecFetchAll(pInfo->pConn, sqlBuf,
-                                      &tsMapping, 1, &pBlock);
+  code = extQueryExecFetchAll(pInfo->pConn, sqlBuf,
+                              &tsMapping, 1, &pBlock);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("ext: handleLastTsPullRelational query failed code:%d", code);
     return code;
@@ -1545,11 +2133,11 @@ static int32_t handleLastTsPullRelational(SStreamExtReaderInfo *pInfo,
   void   *pVal = NULL;
   while ((pVal = tSimpleHashIterate(pInfo->pUidIndex, pVal, &iter)) != NULL) {
     size_t         kLen  = 0;
-    int64_t        uid   = *(int64_t *)tSimpleHashGetKey(pVal, &kLen);
+    uint64_t        uid   = *(uint64_t *)tSimpleHashGetKey(pVal, &kLen);
     SUidIndexEntry *pEnt = (SUidIndexEntry *)pVal;
     SExtLastTsInfo info  = {
-      .uid = uid,
-      .gid = pEnt->groupId,
+      .uid = (int64_t)uid,
+      .gid = (int64_t)pEnt->groupId,
       .ts  = globalMaxTs,
     };
     taosArrayPush(pLastTsArr, &info);
@@ -1637,20 +2225,114 @@ static SSDataBlock *createMetaBlock(void) {
 
 /* Append one row to a metaBlock.  All values are int64. */
 static int32_t metaBlockAppendRow(SSDataBlock *pBlock,
-                                  int64_t groupId, int64_t skey, int64_t ekey,
-                                  int64_t uid, int64_t rows) {
+                                  uint64_t groupId, int64_t skey, int64_t ekey,
+                                  uint64_t uid, int64_t rows) {
   int32_t row = pBlock->info.rows;
   /* Ensure capacity. */
   int32_t code = blockDataEnsureCapacity(pBlock, row + 1);
   if (code != TSDB_CODE_SUCCESS) return code;
 
-  int64_t vals[META_COL_COUNT] = {groupId, skey, ekey, uid, rows};
+  int64_t vals[META_COL_COUNT] = {(int64_t)groupId, skey, ekey, (int64_t)uid, rows};
   for (int32_t c = 0; c < META_COL_COUNT; c++) {
     SColumnInfoData *pCol = taosArrayGet(pBlock->pDataBlock, c);
     code = colDataSetVal(pCol, row, (const char *)&vals[c], false);
     if (code != TSDB_CODE_SUCCESS) return code;
   }
   pBlock->info.rows = row + 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int64_t extLookupUidMaxTs(SSHashObj *pUidMaxTs, uint64_t uid) {
+  int64_t maxTs = INT64_MIN;
+
+  if (pUidMaxTs != NULL) {
+    int64_t *pMaxTs = (int64_t *)tSimpleHashGet(pUidMaxTs, &uid, sizeof(uid));
+    if (pMaxTs != NULL) {
+      maxTs = *pMaxTs;
+    }
+  }
+
+  return maxTs;
+}
+
+static void extInitRelationalMetaMappings(const char *tsCol, SExtColTypeMapping metaMappings[4]) {
+  metaMappings[0].tdType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  metaMappings[0].tdType.bytes = sizeof(int64_t);
+  tstrncpy(metaMappings[0].colName, tsCol, sizeof(metaMappings[0].colName));
+
+  metaMappings[1].tdType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  metaMappings[1].tdType.bytes = sizeof(int64_t);
+  tstrncpy(metaMappings[1].colName, tsCol, sizeof(metaMappings[1].colName));
+
+  metaMappings[2].tdType.type = TSDB_DATA_TYPE_BIGINT;
+  metaMappings[2].tdType.bytes = sizeof(int64_t);
+  tstrncpy(metaMappings[2].colName, "uid", sizeof(metaMappings[2].colName));
+
+  metaMappings[3].tdType.type = TSDB_DATA_TYPE_BIGINT;
+  metaMappings[3].tdType.bytes = sizeof(int64_t);
+  tstrncpy(metaMappings[3].colName, "cnt", sizeof(metaMappings[3].colName));
+}
+
+static int32_t extBuildRelationalMetaSql(const char *tblRef, const char *prefilterBuf,
+                                         const char *tsCol, uint64_t uid, int64_t maxTs,
+                                         char *sqlBuf, int32_t sqlBufLen) {
+  char dtBuf[32] = {0};
+  epochToDatetimeStr(maxTs, TSDB_TIME_PRECISION_MICRO, dtBuf, sizeof(dtBuf));
+
+  int32_t sqlLen = snprintf(sqlBuf, sqlBufLen,
+                            "SELECT MIN(%s),MAX(%s),%" PRIu64 ",COUNT(*) FROM %s "
+                            "WHERE %s%s > %s",
+                            tsCol, tsCol, uid,
+                            tblRef,
+                            prefilterBuf,
+                            tsCol, dtBuf);
+  if (sqlLen < 0 || sqlLen >= sqlBufLen) {
+    stError("ext: meta relational SQL exceeds %d bytes uid=%" PRIu64,
+            sqlBufLen, uid);
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extAppendRelationalMetaRow(const SStreamTask *pTask, SSDataBlock *pBlock,
+                                          uint64_t groupId, uint64_t uid, SSDataBlock *pMetaBlock,
+                                          int32_t *pTotalFetched) {
+  if (pBlock == NULL || pBlock->info.rows == 0) {
+    ST_TASK_DLOG("ext: meta relational uid=%" PRIu64 " no rows", uid);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (taosArrayGetSize(pBlock->pDataBlock) < 4) {
+    ST_TASK_WLOG("ext: meta relational uid=%" PRIu64 " block cols=%d < 4, skip",
+                 uid, (int32_t)taosArrayGetSize(pBlock->pDataBlock));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SColumnInfoData *colMin = taosArrayGet(pBlock->pDataBlock, 0);
+  SColumnInfoData *colMax = taosArrayGet(pBlock->pDataBlock, 1);
+  SColumnInfoData *colCnt = taosArrayGet(pBlock->pDataBlock, 3);
+  if (colMin == NULL || colMax == NULL ||
+      colDataIsNull_s(colMin, 0) || colDataIsNull_s(colMax, 0)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int64_t skey = *(int64_t *)colDataGetData(colMin, 0);
+  int64_t ekey = *(int64_t *)colDataGetData(colMax, 0);
+  int64_t cnt = colCnt ? *(int64_t *)colDataGetData(colCnt, 0) : 0;
+
+  printDataBlock(pBlock, __func__, "ext_meta_relational_raw", pTask->streamId);
+
+  int32_t code = metaBlockAppendRow(pMetaBlock, groupId, skey, ekey, uid, cnt);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  *pTotalFetched += (int32_t)cnt;
+  if (*pTotalFetched >= STREAM_RETURN_ROWS_NUM) {
+    ST_TASK_DLOG("%s", "ext: meta relational hit row threshold, returning");
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1669,113 +2351,62 @@ static int32_t handleMetaPullRelational(SStreamExtReaderInfo *pInfo,
                                         SSHashObj                *pUidMaxTs,
                                         SSTriggerExtPullRsp      *pRsp) {
   const SStreamTask *pTask = pInfo->pTask;
-  int32_t code         = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS;
   int32_t totalFetched = 0;
-
-  /* Trigger reader uses PRE_FILTER (triggerPrefilter), not the calc WHERE.
-   * Build the prefilter clause once; invariant across all uids. */
+  SSDataBlock *pBlock = NULL;
+  SExtColTypeMapping metaMappings[4] = {0};
   char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
-  buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
-
   char tblRef[TSDB_TABLE_NAME_LEN + TSDB_DB_NAME_LEN + 2] = {0};
-  buildExtTableRef(&pInfo->spec, tblRef, sizeof(tblRef));
 
-  /* All reader->trigger timestamps are in nanoseconds. The watermark (maxTs)
-   * from triggerSideUidMaxTs is therefore in ns; use NANO for datetime
-   * conversion and for the tsPrecision hint to the connector. */
+  code = buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
+  if (code < 0) {
+    goto _exit;
+  }
 
-  for (int32_t i = 0; i < totalUids; i++) {
-    int64_t        uid = *(int64_t *)taosArrayGet(pAllUids, i);
-    SUidIndexEntry *ent = tSimpleHashGet(pInfo->pUidIndex, &uid, sizeof(uid));
-    if (ent == NULL) continue;
+  code = buildExtTableRef(&pInfo->spec, tblRef, sizeof(tblRef));
+  if (code < 0) {
+    goto _exit;
+  }
 
-    char sqlBuf[EXT_SQL_BUF_SIZE] = {0};
-    /* Look up the watermark from the trigger-provided map; default to INT64_MIN
-     * (fetch everything) when no watermark exists yet for this uid. */
-    int64_t maxTs = INT64_MIN;
-    if (pUidMaxTs != NULL) {
-      int64_t *pMaxTs = (int64_t *)tSimpleHashGet(pUidMaxTs, &uid, sizeof(uid));
-      if (pMaxTs != NULL) maxTs = *pMaxTs;
+  extInitRelationalMetaMappings(tsCol, metaMappings);
+
+  for (int32_t i = 0; i < totalUids; ++i) {
+    uint64_t uid = *(uint64_t *)taosArrayGet(pAllUids, i);
+    SUidIndexEntry *pEntry = tSimpleHashGet(pInfo->pUidIndex, &uid, sizeof(uid));
+    char sqlBuf[EXT_SIMPLE_SQL_BUF_LEN] = {0};
+
+    if (pEntry == NULL) {
+      continue;
     }
-    /* MySQL / PostgreSQL: WHERE ts > 'YYYY-MM-DD HH:MM:SS.uuuuuu'
-     * maxTs is in ns (uniform reader->trigger precision). */
-    char dtBuf[32] = {0};
-    epochToDatetimeStr(maxTs, TSDB_TIME_PRECISION_MICRO, dtBuf, sizeof(dtBuf));
-    snprintf(sqlBuf, sizeof(sqlBuf),
-              "SELECT MIN(%s),MAX(%s),%" PRId64 ",COUNT(*) FROM %s "
-              "WHERE %s%s > %s",
-              tsCol, tsCol, uid,
-              tblRef,
-              prefilterBuf,
-              tsCol, dtBuf);
-    
-    ST_TASK_DLOG("ext: meta relational uid=%" PRId64 " sql=\"%.120s\"", uid, sqlBuf);
 
-    /* Provide explicit column type mappings so the connector populates
-     * pDataBlock: col0=MIN(ts) BIGINT, col1=MAX(ts) BIGINT,
-     *             col2=uid literal BIGINT, col3=COUNT(*) BIGINT. */
-    SExtColTypeMapping metaMappings[4] = {0};
-    metaMappings[0].tdType.type  = TSDB_DATA_TYPE_TIMESTAMP;
-    metaMappings[0].tdType.bytes = sizeof(int64_t);
-    tstrncpy(metaMappings[0].colName, tsCol, sizeof(metaMappings[0].colName));
-    metaMappings[1].tdType.type  = TSDB_DATA_TYPE_TIMESTAMP;
-    metaMappings[1].tdType.bytes = sizeof(int64_t);
-    tstrncpy(metaMappings[1].colName, tsCol, sizeof(metaMappings[1].colName));
-    metaMappings[2].tdType.type  = TSDB_DATA_TYPE_BIGINT;
-    metaMappings[2].tdType.bytes = sizeof(int64_t);
-    tstrncpy(metaMappings[2].colName, "uid", sizeof(metaMappings[2].colName));
-    metaMappings[3].tdType.type  = TSDB_DATA_TYPE_BIGINT;
-    metaMappings[3].tdType.bytes = sizeof(int64_t);
-    tstrncpy(metaMappings[3].colName, "cnt", sizeof(metaMappings[3].colName));
-
-    SSDataBlock *pBlock = NULL;
-    code = extQueryExecFetchAll(pInfo->pConn, sqlBuf,
-                                metaMappings, 4, &pBlock);
+    code = extBuildRelationalMetaSql(tblRef, prefilterBuf, tsCol, uid,
+                                     extLookupUidMaxTs(pUidMaxTs, uid),
+                                     sqlBuf, sizeof(sqlBuf));
     if (code != TSDB_CODE_SUCCESS) {
-      ST_TASK_ELOG("ext: meta relational query uid=%" PRId64 " code:%d",
-              uid, code);
       break;
     }
-    if (pBlock == NULL || pBlock->info.rows == 0) {
-      if (pBlock) blockDataDestroy(pBlock);
-      ST_TASK_DLOG("ext: meta relational uid=%" PRId64 " no rows", uid);
-      continue;
+
+    ST_TASK_DLOG("ext: meta relational uid=%" PRIu64 " sql=\"%.120s\"", uid, sqlBuf);
+
+    code = extQueryExecFetchAll(pInfo->pConn, sqlBuf, metaMappings, 4, &pBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("ext: meta relational query uid=%" PRIu64 " code:%d", uid, code);
+      break;
     }
 
-    /* Extract MIN(ts), MAX(ts), cnt from first row. */
-    if (taosArrayGetSize(pBlock->pDataBlock) < 4) {
-      ST_TASK_WLOG("ext: meta relational uid=%" PRId64 " block cols=%d < 4, skip",
-              uid, (int)taosArrayGetSize(pBlock->pDataBlock));
-      blockDataDestroy(pBlock);
-      continue;
-    }
-    SColumnInfoData *colMin = taosArrayGet(pBlock->pDataBlock, 0);
-    SColumnInfoData *colMax = taosArrayGet(pBlock->pDataBlock, 1);
-    SColumnInfoData *colCnt = taosArrayGet(pBlock->pDataBlock, 3);
-
-    if (colMin == NULL || colMax == NULL ||
-        colDataIsNull_s(colMin, 0) || colDataIsNull_s(colMax, 0)) {
-      blockDataDestroy(pBlock);
-      continue;
-    }
-
-    int64_t skey = *(int64_t *)colDataGetData(colMin, 0);
-    int64_t ekey = *(int64_t *)colDataGetData(colMax, 0);
-    int64_t cnt  = colCnt ? *(int64_t *)colDataGetData(colCnt, 0) : 0;
-
-    printDataBlock(pBlock, __func__, "ext_meta_relational_raw", pTask->streamId);
-
-    code = metaBlockAppendRow(pRsp->pMetaBlock, ent->groupId, skey, ekey, uid, cnt);
+    code = extAppendRelationalMetaRow(pTask, pBlock, pEntry->groupId, uid,
+                                      pRsp->pMetaBlock, &totalFetched);
     blockDataDestroy(pBlock);
-    if (code != TSDB_CODE_SUCCESS) break;
-
-    totalFetched += (int32_t)cnt;
-    if (totalFetched >= STREAM_RETURN_ROWS_NUM) {
-      ST_TASK_DLOG("%s", "ext: meta relational hit row threshold, returning");
+    pBlock = NULL;
+    if (code != TSDB_CODE_SUCCESS || totalFetched >= STREAM_RETURN_ROWS_NUM) {
       break;
     }
   }
 
+_exit:
+  if (pBlock != NULL) {
+    blockDataDestroy(pBlock);
+  }
   return code;
 }
 
@@ -1791,10 +2422,7 @@ typedef struct {
   bool    seen;
 } SInfluxUidAgg;
 
-/* Build the OR-compound SQL for one batch of uids.
- * Returns true if at least one uid was written into sqlBuf; false if all
- * uids in the batch had missing index entries and the batch should be skipped. */
-/* Build the OR-compound SQL for a batch of uids starting at batchStart.
+/* Build the UNION ALL SQL for a batch of uids starting at batchStart.
  *
  * Returns the number of uids *consumed* (advanced past) from batchStart, and
  * sets *pAnyUid to whether at least one uid contributed a WHERE clause.  The
@@ -1813,50 +2441,49 @@ static int32_t buildInfluxBatchSql(SStreamExtReaderInfo *pInfo,
                                    char                     *sqlBuf,
                                    int32_t                   sqlBufLen,
                                    bool                     *pAnyUid) {
+  const SStreamTask *pTask = pInfo->pTask;
   int32_t off = 0;
   *pAnyUid = false;
 
-  /* SELECT clause: ts, tag1, tag2, ... */
-  bool ok = extSqlCat(sqlBuf, sqlBufLen, &off, "SELECT %s", tsCol);
-  for (int32_t c = 0; ok && c < nTags; c++) {
-    const char *cn = (const char *)taosArrayGet(pInfo->pInfluxTagCols, c);
-    ok = extSqlCat(sqlBuf, sqlBufLen, &off, ", %s", cn);
-  }
-  if (ok) ok = extSqlCat(sqlBuf, sqlBufLen, &off, " FROM %s WHERE ", pInfo->spec.extTable);
-  if (!ok) {
-    /* The SELECT/FROM header alone overflows the buffer — no query is possible.
-     * Consume the whole batch so the caller makes forward progress (it logs the
-     * empty batch and moves on). */
-    return batchSize;
-  }
-
-  /* WHERE clause: OR of per-uid tag conditions. */
+  /* One UNION ALL arm per uid, each a standalone SELECT with its own WHERE.
+   * DataFusion (InfluxDB 3.x) cannot plan a single query whose top-level OR
+   * combines branches with different time-column bounds ("unable to analyze
+   * provided filters for a boundary on the time column"); UNION ALL sidesteps
+   * this because every arm is planned/pruned independently, while still
+   * issuing a single round trip for the whole uid batch. */
   bool    anyUid = false;
   int32_t k      = 0;
   for (; k < batchSize; k++) {
-    int64_t        uid = *(int64_t *)taosArrayGet(pAllUids, batchStart + k);
+    uint64_t        uid = *(uint64_t *)taosArrayGet(pAllUids, batchStart + k);
     SUidIndexEntry *ent = tSimpleHashGet(pInfo->pUidIndex, &uid, sizeof(uid));
     if (ent == NULL) continue;  /* missing index entry: consume, emit no clause */
 
-    char tagWhere[EXT_SQL_BUF_SIZE / 4] = {0};
+    char tagWhere[EXT_TAG_WHERE_BUF_LEN] = {0};
     if (nTags > 0) {
       int32_t twLen = buildInfluxTagWhereClause(ent->tagsetKey,
                                                 tagWhere, sizeof(tagWhere));
-      if (twLen < 0) continue; /* tagset key too long, skip uid */
+      if (twLen < 0) {
+        ST_TASK_ELOG("ext: influx batch tag WHERE exceeds %d bytes uid=%" PRIu64,
+                     (int32_t)sizeof(tagWhere), uid);
+        return TSDB_CODE_OUT_OF_RANGE;
+      }
     }
 
     /* Look up watermark from trigger-provided map; INT64_MIN means fetch all. */
-    int64_t maxTs = INT64_MIN;
-    if (pUidMaxTs != NULL) {
-      int64_t *pMaxTs = (int64_t *)tSimpleHashGet(pUidMaxTs, &uid, sizeof(uid));
-      if (pMaxTs != NULL) maxTs = *pMaxTs;
-    }
+    int64_t maxTs = extLookupUidMaxTs(pUidMaxTs, uid);
 
-    /* Tentatively append this uid's clause; revert atomically if it overflows. */
-    int32_t saveOff   = off;
-    bool    clauseOk  = true;
-    if (anyUid) clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, " OR ");
-    if (clauseOk) clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, "(");
+    /* Tentatively append this uid's SELECT arm; revert atomically if it overflows. */
+    int32_t saveOff  = off;
+    bool    clauseOk = true;
+    if (anyUid) clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, " UNION ALL ");
+    if (clauseOk) clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, "SELECT %s", tsCol);
+    for (int32_t c = 0; clauseOk && c < nTags; c++) {
+      const char *cn = (const char *)taosArrayGet(pInfo->pInfluxTagCols, c);
+      clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, ", %s", cn);
+    }
+    if (clauseOk) {
+      clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, " FROM %s WHERE ", pInfo->spec.extTable);
+    }
     if (clauseOk && prefilterBuf[0] != '\0') {
       /* prefilterBuf already ends with " AND " */
       clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, "%s", prefilterBuf);
@@ -1869,21 +2496,15 @@ static int32_t buildInfluxBatchSql(SStreamExtReaderInfo *pInfo,
      * nanosecond integers directly without unit conversion. */
     if (clauseOk) {
       clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off,
-                           "%s > to_timestamp_nanos(%" PRId64 "))", tsCol, maxTs);
+                           "%s > to_timestamp_nanos(%" PRId64 ")", tsCol, maxTs);
     }
 
     if (!clauseOk) {
-      /* This uid's clause does not fit. Revert to the end of the previous uid's
-       * clause and stop here; the caller re-batches uid k and the remainder. */
       off = saveOff;
       sqlBuf[saveOff] = '\0';
-      if (!anyUid) {
-        /* A single uid clause exceeds the entire buffer (pathological). Consume
-         * just this uid so the caller still makes progress; *pAnyUid stays false
-         * and the batch is skipped. */
-        k++;
-      }
-      break;
+      ST_TASK_ELOG("ext: influx batch SQL exceeds %d bytes uid=%" PRIu64 " batchStart=%d batchSize=%d",
+                   sqlBufLen, uid, batchStart, batchSize);
+      return TSDB_CODE_OUT_OF_RANGE;
     }
     anyUid = true;
   }
@@ -1902,79 +2523,265 @@ typedef struct {
   SInfluxUidAgg            *pAgg;
 } SInfluxAccumCtx;
 
+static int32_t influxAccumBlockCb(SSDataBlock *pBlk, void *pCtx);
+
+static int32_t extBuildInfluxMetaMappings(SStreamExtReaderInfo *pInfo, const char *tsCol,
+                                          int32_t nTags, SExtColTypeMapping **ppMappings,
+                                          int32_t *pCols) {
+  *pCols = 1 + nTags;
+  *ppMappings = taosMemoryCalloc(*pCols, sizeof(SExtColTypeMapping));
+  if (*ppMappings == NULL) {
+    return terrno;
+  }
+
+  (*ppMappings)[0].tdType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  (*ppMappings)[0].tdType.bytes = sizeof(int64_t);
+  tstrncpy((*ppMappings)[0].colName, tsCol, sizeof((*ppMappings)[0].colName));
+  for (int32_t c = 0; c < nTags; ++c) {
+    (*ppMappings)[1 + c].tdType.type = TSDB_DATA_TYPE_NCHAR;
+    (*ppMappings)[1 + c].tdType.bytes = EXT_INFLUX_TAG_NCHAR_CHARS;
+    tstrncpy((*ppMappings)[1 + c].colName,
+             (const char *)taosArrayGet(pInfo->pInfluxTagCols, c),
+             sizeof((*ppMappings)[1 + c].colName));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static SInfluxUidAgg *extAllocInfluxUidAgg(int32_t consumed) {
+  SInfluxUidAgg *pAgg = taosMemoryCalloc(consumed, sizeof(SInfluxUidAgg));
+  if (pAgg == NULL) {
+    return NULL;
+  }
+
+  for (int32_t k = 0; k < consumed; ++k) {
+    pAgg[k].skey = INT64_MAX;
+    pAgg[k].ekey = INT64_MIN;
+  }
+
+  return pAgg;
+}
+
+static int32_t extFlushInfluxMetaAgg(SStreamExtReaderInfo *pInfo, SArray *pAllUids,
+                                     int32_t batchStart, int32_t consumed,
+                                     SInfluxUidAgg *pAgg, SSTriggerExtPullRsp *pRsp,
+                                     int32_t *pTotalFetched, int32_t batchIdx) {
+  const SStreamTask *pTask = pInfo->pTask;
+  for (int32_t k = 0; k < consumed; ++k) {
+    if (!pAgg[k].seen) {
+      continue;
+    }
+
+    uint64_t        uid = *(uint64_t *)taosArrayGet(pAllUids, batchStart + k);
+    SUidIndexEntry *pEntry = tSimpleHashGet(pInfo->pUidIndex, &uid, sizeof(uid));
+    if (pEntry == NULL) {
+      continue;
+    }
+
+    int32_t code = metaBlockAppendRow(pRsp->pMetaBlock, pEntry->groupId,
+                                      pAgg[k].skey, pAgg[k].ekey, uid, pAgg[k].cnt);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    *pTotalFetched += (int32_t)pAgg[k].cnt;
+    if (*pTotalFetched >= STREAM_RETURN_ROWS_NUM) {
+      ST_TASK_DLOG("ext: influx meta batch %d hit row threshold uid=%" PRIu64, batchIdx, uid);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extRunInfluxMetaBatch(SStreamExtReaderInfo *pInfo, SArray *pAllUids,
+                                     int32_t batchStart, int32_t batchSize, int32_t batchIdx,
+                                     const char *tsCol, const char *prefilterBuf, int32_t nTags,
+                                     SSHashObj *pUidMaxTs, SExtColTypeMapping *pMappings, int32_t nCols,
+                                     SSTriggerExtPullRsp *pRsp, int32_t *pConsumed,
+                                     int32_t *pTotalFetched) {
+  const SStreamTask *pTask = pInfo->pTask;
+  char    sqlBuf[EXT_BATCH_SQL_BUF_LEN] = {0};
+  bool    anyUid = false;
+  int32_t consumed = buildInfluxBatchSql(pInfo, pAllUids, batchStart, batchSize,
+                                         tsCol, prefilterBuf, nTags, pUidMaxTs,
+                                         sqlBuf, sizeof(sqlBuf), &anyUid);
+  if (consumed < 0) {
+    return consumed;
+  }
+  if (consumed == 0) {
+    consumed = batchSize;
+  }
+  *pConsumed = consumed;
+
+  if (!anyUid) {
+    ST_TASK_DLOG("ext: influx meta batch %d: all uids missing, skip", batchIdx);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  ST_TASK_DLOG("ext: influx meta batch sql=\"%.200s\"", sqlBuf);
+  SInfluxUidAgg *pAgg = extAllocInfluxUidAgg(consumed);
+  if (pAgg == NULL) {
+    return terrno;
+  }
+
+  SInfluxAccumCtx aCtx = {
+    .pInfo = pInfo,
+    .pAllUids = pAllUids,
+    .batchStart = batchStart,
+    .batchSize = consumed,
+    .nTags = nTags,
+    .pAgg = pAgg,
+  };
+
+  int32_t code = extQueryExecForEach(pInfo->pConn, sqlBuf, pMappings, nCols,
+                                     influxAccumBlockCb, &aCtx);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = extFlushInfluxMetaAgg(pInfo, pAllUids, batchStart, consumed, pAgg, pRsp,
+                                 pTotalFetched, batchIdx);
+  } else {
+    ST_TASK_ELOG("ext: influx meta batch %d query failed code:%d", batchIdx, code);
+  }
+
+  taosMemoryFree(pAgg);
+  return code;
+}
+
+static int32_t extExtractInfluxAccumTagValues(SInfluxAccumCtx *pACtx, SSDataBlock *pBlk,
+                                              int32_t row, char *pValBufs,
+                                              const char **colNames, const char **colVals) {
+  SStreamExtReaderInfo *pInfo = pACtx->pInfo;
+  const SStreamTask    *pTask = pInfo->pTask;
+
+  for (int32_t c = 0; c < pACtx->nTags; ++c) {
+    char *pValBuf = pValBufs + (size_t)c * EXT_INFLUX_TAG_NCHAR_CHARS;
+    SColumnInfoData *pTagCol = taosArrayGet(pBlk->pDataBlock, 1 + c);
+
+    colNames[c] = (const char *)taosArrayGet(pInfo->pInfluxTagCols, c);
+    if (pTagCol != NULL && !colDataIsNull_s(pTagCol, row)) {
+      int32_t code = extColCellToStr(pTagCol, row, pValBuf, EXT_INFLUX_TAG_NCHAR_CHARS);
+      if (code < 0) {
+        ST_TASK_ELOG("ext: accumulated tag value conversion failed row:%d tag:%d code:%d",
+                     row, c, code);
+        return code;
+      }
+      colVals[c] = pValBuf;
+      continue;
+    }
+
+    pValBuf[0] = '\0';
+    colVals[c] = "";
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extResolveInfluxAccumSlot(SInfluxAccumCtx *pACtx, const char **colNames,
+                                         const char **colVals, int32_t *pSlot) {
+  SStreamExtReaderInfo *pInfo = pACtx->pInfo;
+
+  *pSlot = -1;
+  if (pACtx->nTags == 0) {
+    *pSlot = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char tagsetKey[EXT_TAGSET_KEY_MAX] = {0};
+  int32_t keyLen = buildTagsetKey(tagsetKey, sizeof(tagsetKey), colNames, colVals, pACtx->nTags);
+  if (keyLen < 0) {
+    return keyLen;
+  }
+
+  uint64_t *pUid = (uint64_t *)tSimpleHashGet(pInfo->pTagsetIndex, tagsetKey, keyLen);
+  if (pUid == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t k = 0; k < pACtx->batchSize; ++k) {
+    if (*(uint64_t *)taosArrayGet(pACtx->pAllUids, pACtx->batchStart + k) == *pUid) {
+      *pSlot = k;
+      break;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 /* Per-block callback: accumulate ts min/max/cnt into pAgg slots. */
 static int32_t influxAccumBlockCb(SSDataBlock *pBlk, void *pCtx) {
-  SInfluxAccumCtx          *pACtx = (SInfluxAccumCtx *)pCtx;
-  SStreamExtReaderInfo *pInfo  = pACtx->pInfo;
-  const SStreamTask        *pTask  = pInfo->pTask;
+  SInfluxAccumCtx *pACtx = (SInfluxAccumCtx *)pCtx;
+  const SStreamTask *pTask = pACtx->pInfo->pTask;
+  int32_t code = TSDB_CODE_SUCCESS;
+  char *pValBufs = NULL;
 
-  for (int32_t r = 0; r < pBlk->info.rows; r++) {
-    /* Extract ts (col 0). */
+  ST_TASK_DLOG("ext: influxAccumBlockCb rows=%" PRId64, pBlk != NULL ? pBlk->info.rows : (int64_t)-1);
+
+  if (pACtx->nTags > TSDB_MAX_TAGS) {
+    ST_TASK_ELOG("ext: accumulated tag count exceeds limit count:%d limit:%d",
+                 pACtx->nTags, TSDB_MAX_TAGS);
+    code = TSDB_CODE_OUT_OF_RANGE;
+    goto _exit;
+  }
+
+  if (pACtx->nTags > 0) {
+    pValBufs = taosMemoryCalloc(pACtx->nTags, EXT_INFLUX_TAG_NCHAR_CHARS);
+    if (pValBufs == NULL) {
+      code = terrno;
+      ST_TASK_ELOG("ext: allocate accumulated tag value buffers failed count:%d bytes:%zu code:%d",
+                   pACtx->nTags, (size_t)EXT_INFLUX_TAG_NCHAR_CHARS, code);
+      goto _exit;
+    }
+  }
+
+  for (int32_t r = 0; r < pBlk->info.rows; ++r) {
     SColumnInfoData *pTsCol = taosArrayGet(pBlk->pDataBlock, 0);
-    if (pTsCol == NULL || colDataIsNull_s(pTsCol, r)) continue;
-    int64_t ts = *(int64_t *)colDataGetData(pTsCol, r);
-
-    /* Rebuild tagset key from tag columns to look up uid. */
-    char        tagsetKey[EXT_TAGSET_KEY_MAX] = {0};
-    const char *colNames[TSDB_MAX_TAGS]                  = {0};
-    const char *colVals[TSDB_MAX_TAGS]                   = {0};
-    char        valBufs[TSDB_MAX_TAGS][EXT_INFLUX_TAG_NCHAR_CHARS];
-
-    for (int32_t c = 0; c < pACtx->nTags && c < TSDB_MAX_TAGS; c++) {
-      colNames[c] = (const char *)taosArrayGet(pInfo->pInfluxTagCols, c);
-      SColumnInfoData *pTagCol = taosArrayGet(pBlk->pDataBlock, 1 + c);
-      if (pTagCol && !colDataIsNull_s(pTagCol, r) &&
-          extColCellToStr(pTagCol, r, valBufs[c], sizeof(valBufs[c])) >= 0) {
-        colVals[c] = valBufs[c];
-      } else {
-        valBufs[c][0] = '\0';
-        colVals[c]    = "";
-      }
-    }
-
-    /* Resolve uid and slot index.
-     * When nTags == 0 (single-group, no PARTITION BY), the tagset index has no
-     * entry (empty key was not inserted), so resolve directly from pAllUids. */
+    const char *colNames[TSDB_MAX_TAGS] = {0};
+    const char *colVals[TSDB_MAX_TAGS] = {0};
     int32_t slot = -1;
-    int64_t uid  = 0;
-    if (pACtx->nTags == 0) {
-      /* Single-group: only one uid in the batch; slot is always 0. */
-      uid  = *(int64_t *)taosArrayGet(pACtx->pAllUids, pACtx->batchStart);
-      slot = 0;
-    } else {
-      int32_t keyLen = buildTagsetKey(tagsetKey, sizeof(tagsetKey),
-                                      colNames, colVals, pACtx->nTags);
-      if (keyLen < 0) continue;
 
-      /* Resolve uid via tagset index. */
-      int64_t *pUid = (int64_t *)tSimpleHashGet(pInfo->pTagsetIndex,
-                                                 tagsetKey, keyLen);
-      if (pUid == NULL) continue;
-      uid = *pUid;
-
-      /* Find slot in this batch. */
-      for (int32_t k = 0; k < pACtx->batchSize; k++) {
-        if (*(int64_t *)taosArrayGet(pACtx->pAllUids, pACtx->batchStart + k) == uid) {
-          slot = k;
-          break;
-        }
-      }
-      if (slot < 0) continue;
+    if (pTsCol == NULL || colDataIsNull_s(pTsCol, r)) {
+      continue;
     }
 
-    if (ts < pACtx->pAgg[slot].skey) pACtx->pAgg[slot].skey = ts;
-    if (ts > pACtx->pAgg[slot].ekey) pACtx->pAgg[slot].ekey = ts;
+    code = extExtractInfluxAccumTagValues(pACtx, pBlk, r, pValBufs, colNames, colVals);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
+    }
+
+    code = extResolveInfluxAccumSlot(pACtx, colNames, colVals, &slot);
+    if (code != TSDB_CODE_SUCCESS) {
+      if (code < 0) {
+        goto _exit;
+      }
+      continue;
+    }
+    if (slot < 0) {
+      continue;
+    }
+
+    int64_t ts = *(int64_t *)colDataGetData(pTsCol, r);
+    if (ts < pACtx->pAgg[slot].skey) {
+      pACtx->pAgg[slot].skey = ts;
+    }
+    if (ts > pACtx->pAgg[slot].ekey) {
+      pACtx->pAgg[slot].ekey = ts;
+    }
     pACtx->pAgg[slot].cnt++;
     pACtx->pAgg[slot].seen = true;
   }
+
+_exit:
+  taosMemoryFree(pValBufs);
   blockDataDestroy(pBlk);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 /* ============================================================
  * handleMetaPullInflux — InfluxDB meta pull (N=64 uid batch loop).
  *
- * One query per batch of N uids using OR-compound WHERE clauses (DS §6.1.5).
+ * One query per batch of N uids using a UNION ALL of per-uid SELECTs
+ * (DS §6.1.5); UNION ALL (rather than a top-level OR) is required because
+ * DataFusion (InfluxDB 3.x) cannot plan an OR whose branches carry different
+ * time-column bounds, see buildInfluxBatchSql.
  * Rows returned by the connector are client-aggregated into per-uid
  * min/max ts and row count, then appended to pRsp->pMetaBlock.
  * ============================================================ */
@@ -1991,108 +2798,28 @@ static int32_t handleMetaPullInflux(SStreamExtReaderInfo *pInfo,
                            ? (int32_t)taosArrayGetSize(pInfo->pInfluxTagCols) : 0;
   int32_t batchStart   = pInfo->influxBatchOffset;
   int32_t batchIdx     = 0;
+  int32_t nCols        = 0;
+  SExtColTypeMapping *pMappings = NULL;
 
   /* Trigger reader uses PRE_FILTER (triggerPrefilter), not the calc WHERE.
    * Build once; invariant across all uid batches. */
   char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
-  buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
+  code = buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
+  if (code < 0) goto _done;
 
-  /* Col-type mappings: ts (TIMESTAMP) + nTags × NCHAR(EXT_INFLUX_TAG_NCHAR_CHARS).
-   * Use TIMESTAMP (not BIGINT) so the connector correctly converts the Arrow
-   * Timestamp(Nanosecond) column to an int64 nanosecond value; BIGINT would
-   * receive the raw Arrow integer representation which may be wrong. */
-  int32_t nCols = 1 + nTags;
-  SExtColTypeMapping *pMappings = taosMemoryCalloc(nCols, sizeof(SExtColTypeMapping));
-  if (pMappings == NULL) {
-    code = terrno;
-    goto _done;
-  }
-  pMappings[0].tdType.type  = TSDB_DATA_TYPE_TIMESTAMP;
-  pMappings[0].tdType.bytes = sizeof(int64_t);
-  tstrncpy(pMappings[0].colName, tsCol, sizeof(pMappings[0].colName));
-  for (int32_t c = 0; c < nTags; c++) {
-    pMappings[1 + c].tdType.type  = TSDB_DATA_TYPE_NCHAR;
-    pMappings[1 + c].tdType.bytes = EXT_INFLUX_TAG_NCHAR_CHARS;
-    tstrncpy(pMappings[1 + c].colName,
-             (const char *)taosArrayGet(pInfo->pInfluxTagCols, c),
-             sizeof(pMappings[1 + c].colName));
-  }
+  code = extBuildInfluxMetaMappings(pInfo, tsCol, nTags, &pMappings, &nCols);
+  if (code != TSDB_CODE_SUCCESS) goto _done;
 
   while (batchStart < totalUids) {
     int32_t batchEnd  = TMIN(batchStart + EXT_INFLUX_UID_BATCH_SIZE, totalUids);
     int32_t batchSize = batchEnd - batchStart;
+    int32_t consumed = batchSize;
     ST_TASK_DLOG("ext: influx meta batch %d uids=%d [%d..%d)",
             batchIdx, batchSize, batchStart, batchEnd);
 
-    /* Build OR-compound SQL for this batch. buildInfluxBatchSql returns how many
-     * uids it actually consumed: fewer than batchSize if a uid's clause would
-     * have overflowed sqlBuf, in which case the remainder is re-batched next
-     * iteration (no uid is dropped, no out-of-bounds write). */
-    char    sqlBuf[EXT_SQL_BUF_SIZE] = {0};
-    bool    anyUid   = false;
-    int32_t consumed = buildInfluxBatchSql(pInfo, pAllUids, batchStart, batchSize,
-                                           tsCol, prefilterBuf, nTags, pUidMaxTs,
-                                           sqlBuf, sizeof(sqlBuf), &anyUid);
-    if (consumed <= 0) consumed = batchSize;  /* safety: always make progress */
-    if (!anyUid) {
-      ST_TASK_DLOG("ext: influx meta batch %d: all uids missing, skip", batchIdx);
-      batchStart += consumed;
-      batchIdx++;
-      continue;
-    }
-    ST_TASK_DLOG("ext: influx meta batch sql=\"%.200s\"", sqlBuf);
-
-    /* Allocate per-uid accumulators (one slot per consumed uid). */
-    SInfluxUidAgg *pAgg = taosMemoryCalloc(consumed, sizeof(SInfluxUidAgg));
-    if (pAgg == NULL) {
-      code = terrno;
-      break;
-    }
-    for (int32_t k = 0; k < consumed; k++) {
-      pAgg[k].skey = INT64_MAX;
-      pAgg[k].ekey = INT64_MIN;
-    }
-
-    /* Execute query and accumulate rows via callback. */
-    SInfluxAccumCtx aCtx = {
-      .pInfo      = pInfo,
-      .pAllUids   = pAllUids,
-      .batchStart = batchStart,
-      .batchSize  = consumed,
-      .nTags      = nTags,
-      .pAgg       = pAgg,
-    };
-    code = extQueryExecForEach(pInfo->pConn, sqlBuf,
-                               pMappings, nCols,
-                               influxAccumBlockCb, &aCtx);
-    if (code != TSDB_CODE_SUCCESS) {
-      ST_TASK_ELOG("ext: influx meta batch %d query failed code:%d",
-              batchIdx, code);
-      taosMemoryFree(pAgg);
-      break;
-    }
-
-    /* Flush aggregates into metaBlock. */
-    for (int32_t k = 0; k < consumed && code == TSDB_CODE_SUCCESS; k++) {
-      if (!pAgg[k].seen) continue;
-
-      int64_t        uid = *(int64_t *)taosArrayGet(pAllUids, batchStart + k);
-      SUidIndexEntry *ent = tSimpleHashGet(pInfo->pUidIndex, &uid, sizeof(uid));
-      if (ent == NULL) continue;
-
-      code = metaBlockAppendRow(pRsp->pMetaBlock, ent->groupId,
-                                pAgg[k].skey, pAgg[k].ekey,
-                                uid, pAgg[k].cnt);
-      if (code != TSDB_CODE_SUCCESS) break;
-
-      totalFetched += (int32_t)pAgg[k].cnt;
-      if (totalFetched >= STREAM_RETURN_ROWS_NUM) {
-        ST_TASK_DLOG("ext: influx meta batch %d hit row threshold uid=%" PRId64,
-                batchIdx, uid);
-      }
-    }
-    taosMemoryFree(pAgg);
-
+    code = extRunInfluxMetaBatch(pInfo, pAllUids, batchStart, batchSize, batchIdx, tsCol,
+                                 prefilterBuf, nTags, pUidMaxTs, pMappings, nCols, pRsp,
+                                 &consumed, &totalFetched);
     if (code != TSDB_CODE_SUCCESS || totalFetched >= STREAM_RETURN_ROWS_NUM) break;
 
     batchStart += consumed;
@@ -2107,6 +2834,80 @@ _done:
   pInfo->influxBatchOffset = hitThreshold ? batchStart : 0;
   ST_TASK_DLOG("ext: influx meta done code=%d batchOffset=%d hitThreshold=%d",
           code, pInfo->influxBatchOffset, (int)hitThreshold);
+  return code;
+}
+
+static int32_t extAppendInfluxLastTsBatch(SStreamExtReaderInfo *pInfo, SArray *pAllUids,
+                                          int32_t batchStart, int32_t consumed,
+                                          SInfluxUidAgg *pAgg, SArray *pLastTsArr) {
+  for (int32_t k = 0; k < consumed; ++k) {
+    uint64_t uid = *(uint64_t *)taosArrayGet(pAllUids, batchStart + k);
+    SUidIndexEntry *pEntry = tSimpleHashGet(pInfo->pUidIndex, &uid, sizeof(uid));
+    if (pEntry == NULL) {
+      continue;
+    }
+
+    SExtLastTsInfo info = {
+      .uid = (int64_t)uid,
+      .gid = (int64_t)pEntry->groupId,
+      .ts = pAgg[k].seen ? pAgg[k].ekey : INT64_MIN,
+    };
+    taosArrayPush(pLastTsArr, &info);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extRunInfluxLastTsBatch(SStreamExtReaderInfo *pInfo, SArray *pAllUids,
+                                       int32_t batchStart, int32_t batchSize, int32_t batchIdx,
+                                       const char *tsCol, const char *prefilterBuf, int32_t nTags,
+                                       SExtColTypeMapping *pMappings, int32_t nCols,
+                                       SArray *pLastTsArr, int32_t *pConsumed) {
+  const SStreamTask *pTask = pInfo->pTask;
+  char sqlBuf[EXT_BATCH_SQL_BUF_LEN] = {0};
+  bool anyUid = false;
+  SInfluxUidAgg *pAgg = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  *pConsumed = buildInfluxBatchSql(pInfo, pAllUids, batchStart, batchSize,
+                                   tsCol, prefilterBuf, nTags, NULL,
+                                   sqlBuf, sizeof(sqlBuf), &anyUid);
+  if (*pConsumed < 0) {
+    return *pConsumed;
+  }
+  if (*pConsumed == 0) {
+    *pConsumed = batchSize;
+  }
+
+  pAgg = extAllocInfluxUidAgg(*pConsumed);
+  if (pAgg == NULL) {
+    return terrno;
+  }
+
+  if (anyUid) {
+    ST_TASK_DLOG("ext: influx lastTs batch sql=\"%.200s\"", sqlBuf);
+    SInfluxAccumCtx aCtx = {
+      .pInfo = pInfo,
+      .pAllUids = pAllUids,
+      .batchStart = batchStart,
+      .batchSize = *pConsumed,
+      .nTags = nTags,
+      .pAgg = pAgg,
+    };
+    code = extQueryExecForEach(pInfo->pConn, sqlBuf, pMappings, nCols,
+                               influxAccumBlockCb, &aCtx);
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("ext: influx lastTs batch %d query failed code:%d", batchIdx, code);
+      goto _exit;
+    }
+  } else {
+    ST_TASK_DLOG("ext: influx lastTs batch %d: all uids missing index entry", batchIdx);
+  }
+
+  code = extAppendInfluxLastTsBatch(pInfo, pAllUids, batchStart, *pConsumed, pAgg, pLastTsArr);
+
+_exit:
+  taosMemoryFree(pAgg);
   return code;
 }
 
@@ -2129,96 +2930,45 @@ static int32_t handleLastTsPullInflux(SStreamExtReaderInfo *pInfo,
                                       SArray *pAllUids, int32_t totalUids,
                                       const char *tsCol, SArray *pLastTsArr) {
   const SStreamTask *pTask = pInfo->pTask;
-  int32_t code       = TSDB_CODE_SUCCESS;
-  int32_t nTags      = pInfo->pInfluxTagCols
-                         ? (int32_t)taosArrayGetSize(pInfo->pInfluxTagCols) : 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t nTags = pInfo->pInfluxTagCols
+                    ? (int32_t)taosArrayGetSize(pInfo->pInfluxTagCols) : 0;
   int32_t batchStart = 0;
-  int32_t batchIdx   = 0;
-
-  /* Trigger reader uses PRE_FILTER (triggerPrefilter), not the calc WHERE.
-   * Build once; invariant across all uid batches. */
+  int32_t batchIdx = 0;
+  int32_t nCols = 0;
+  SExtColTypeMapping *pMappings = NULL;
   char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
-  buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
 
-  /* Col-type mappings: ts (TIMESTAMP) + nTags × NCHAR(EXT_INFLUX_TAG_NCHAR_CHARS). */
-  int32_t nCols = 1 + nTags;
-  SExtColTypeMapping *pMappings = taosMemoryCalloc(nCols, sizeof(SExtColTypeMapping));
-  if (pMappings == NULL) return terrno;
-  pMappings[0].tdType.type  = TSDB_DATA_TYPE_TIMESTAMP;
-  pMappings[0].tdType.bytes = sizeof(int64_t);
-  tstrncpy(pMappings[0].colName, tsCol, sizeof(pMappings[0].colName));
-  for (int32_t c = 0; c < nTags; c++) {
-    pMappings[1 + c].tdType.type  = TSDB_DATA_TYPE_NCHAR;
-    pMappings[1 + c].tdType.bytes = EXT_INFLUX_TAG_NCHAR_CHARS;
-    tstrncpy(pMappings[1 + c].colName,
-             (const char *)taosArrayGet(pInfo->pInfluxTagCols, c),
-             sizeof(pMappings[1 + c].colName));
+  code = buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
+  if (code < 0) {
+    goto _exit;
+  }
+
+  code = extBuildInfluxMetaMappings(pInfo, tsCol, nTags, &pMappings, &nCols);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
   }
 
   while (batchStart < totalUids) {
-    int32_t batchEnd  = TMIN(batchStart + EXT_INFLUX_UID_BATCH_SIZE, totalUids);
+    int32_t batchEnd = TMIN(batchStart + EXT_INFLUX_UID_BATCH_SIZE, totalUids);
     int32_t batchSize = batchEnd - batchStart;
+    int32_t consumed = batchSize;
+
     ST_TASK_DLOG("ext: influx lastTs batch %d uids=%d [%d..%d)",
                  batchIdx, batchSize, batchStart, batchEnd);
 
-    /* Build OR-compound SQL for this batch; pUidMaxTs=NULL means no watermark
-     * (fetch all history) since LAST_TS wants the true per-uid max. */
-    char    sqlBuf[EXT_SQL_BUF_SIZE] = {0};
-    bool    anyUid   = false;
-    int32_t consumed = buildInfluxBatchSql(pInfo, pAllUids, batchStart, batchSize,
-                                           tsCol, prefilterBuf, nTags, NULL,
-                                           sqlBuf, sizeof(sqlBuf), &anyUid);
-    if (consumed <= 0) consumed = batchSize;  /* safety: always make progress */
-
-    /* Per-uid accumulators; uids never matching a row keep seen=false and
-     * are reported as ts=INT64_MIN below. */
-    SInfluxUidAgg *pAgg = taosMemoryCalloc(consumed, sizeof(SInfluxUidAgg));
-    if (pAgg == NULL) { code = terrno; break; }
-    for (int32_t k = 0; k < consumed; k++) {
-      pAgg[k].skey = INT64_MAX;
-      pAgg[k].ekey = INT64_MIN;
+    code = extRunInfluxLastTsBatch(pInfo, pAllUids, batchStart, batchSize, batchIdx,
+                                   tsCol, prefilterBuf, nTags, pMappings, nCols,
+                                   pLastTsArr, &consumed);
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
     }
 
-    if (anyUid) {
-      ST_TASK_DLOG("ext: influx lastTs batch sql=\"%.200s\"", sqlBuf);
-      SInfluxAccumCtx aCtx = {
-        .pInfo      = pInfo,
-        .pAllUids   = pAllUids,
-        .batchStart = batchStart,
-        .batchSize  = consumed,
-        .nTags      = nTags,
-        .pAgg       = pAgg,
-      };
-      code = extQueryExecForEach(pInfo->pConn, sqlBuf, pMappings, nCols,
-                                 influxAccumBlockCb, &aCtx);
-      if (code != TSDB_CODE_SUCCESS) {
-        ST_TASK_ELOG("ext: influx lastTs batch %d query failed code:%d", batchIdx, code);
-        taosMemoryFree(pAgg);
-        break;
-      }
-    } else {
-      ST_TASK_DLOG("ext: influx lastTs batch %d: all uids missing index entry", batchIdx);
-    }
-
-    /* Emit one SExtLastTsInfo per uid in this batch, seen or not. */
-    for (int32_t k = 0; k < consumed; k++) {
-      int64_t         uid = *(int64_t *)taosArrayGet(pAllUids, batchStart + k);
-      SUidIndexEntry *ent = tSimpleHashGet(pInfo->pUidIndex, &uid, sizeof(uid));
-      if (ent == NULL) continue;
-      SExtLastTsInfo info = {
-        .uid = uid,
-        .gid = ent->groupId,
-        .ts  = pAgg[k].seen ? pAgg[k].ekey : INT64_MIN,
-      };
-      taosArrayPush(pLastTsArr, &info);
-    }
-    taosMemoryFree(pAgg);
-
-    if (code != TSDB_CODE_SUCCESS) break;
     batchStart += consumed;
     batchIdx++;
   }
 
+_exit:
   taosMemoryFree(pMappings);
   return code;
 }
@@ -2290,93 +3040,104 @@ static int32_t handleMetaPull(SStreamExtReaderInfo *pInfo,
  * pMappings/nMappings: column type mappings to pass to extConnectorFetchBlock.
  *   When NULL/0, falls back to pInfo->spec.pColMappings (trigger col mappings).
  * ============================================================ */
+static int32_t extBuildRelationalFetchSql(const char *colList, const char *tblRef,
+                                          const char *prefilterBuf, const char *tsCol,
+                                          uint64_t uid, int64_t skey, int64_t ekey,
+                                          char *sqlBuf, int32_t sqlBufLen) {
+  char skeyDt[32] = {0};
+  char ekeyDt[32] = {0};
+  epochToDatetimeStr(skey, TSDB_TIME_PRECISION_MICRO, skeyDt, sizeof(skeyDt));
+  epochToDatetimeStr(ekey, TSDB_TIME_PRECISION_MICRO, ekeyDt, sizeof(ekeyDt));
+
+  int32_t sqlLen = snprintf(sqlBuf, sqlBufLen,
+                            "SELECT %s FROM %s WHERE %s%s >= %s AND %s <= %s",
+                            colList, tblRef, prefilterBuf, tsCol, skeyDt, tsCol, ekeyDt);
+  if (sqlLen < 0 || sqlLen >= sqlBufLen) {
+    stError("ext: fetchDataForUid relational SQL exceeds %d bytes uid=%" PRIu64,
+            sqlBufLen, uid);
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extBuildInfluxFetchSql(SStreamExtReaderInfo *pInfo, const char *colList,
+                                      const char *tblRef, const char *prefilterBuf,
+                                      const char *tsCol, uint64_t uid,
+                                      int64_t skey, int64_t ekey,
+                                      char *sqlBuf, int32_t sqlBufLen) {
+  const SStreamTask *pTask = pInfo->pTask;
+  SUidIndexEntry *pEntry = tSimpleHashGet(pInfo->pUidIndex, &uid, sizeof(uid));
+  char tagWhere[EXT_TAG_WHERE_BUF_LEN] = {0};
+
+  if (pEntry != NULL && pEntry->tagsetKey[0] != '\0') {
+    int32_t tagCode = buildInfluxTagWhereClause(pEntry->tagsetKey, tagWhere, sizeof(tagWhere));
+    if (tagCode < 0) {
+      ST_TASK_ELOG("ext: fetchDataForUid tag WHERE exceeds %d bytes uid=%" PRIu64,
+                   (int32_t)sizeof(tagWhere), uid);
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
+  }
+
+  const char *wherePrefix = prefilterBuf;
+  const char *tagClause = tagWhere;
+  const char *timeSep = (tagClause[0] != '\0') ? " AND " : "";
+  int32_t sqlLen = snprintf(sqlBuf, sqlBufLen,
+                            "SELECT %s FROM %s WHERE %s%s%s%s >= to_timestamp_nanos(%" PRId64 ")"
+                            " AND %s <= to_timestamp_nanos(%" PRId64 ")",
+                            colList, tblRef,
+                            wherePrefix, tagClause, timeSep,
+                            tsCol, skey, tsCol, ekey);
+  if (sqlLen < 0 || sqlLen >= sqlBufLen) {
+    ST_TASK_ELOG("ext: fetchDataForUid influx SQL exceeds %d bytes uid=%" PRIu64,
+                 sqlBufLen, uid);
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void extSelectFetchMappings(const SExtColTypeMapping *pMappings, int32_t nMappings,
+                                   const SExtColTypeMapping **ppEffMappings,
+                                   int32_t *pEffMappings) {
+  *ppEffMappings = (pMappings != NULL && nMappings > 0) ? pMappings : NULL;
+  *pEffMappings = (pMappings != NULL && nMappings > 0) ? nMappings : 0;
+}
+
 /* prefilterBuf must already be built by the caller:
  *   handleDataPull     → buildTriggerPrefilterClause (trigger data, PRE_FILTER)
  *   handleCalcDataPull → buildTriggerPrefilterClause (trigger-side data for calc, PRE_FILTER) */
 static int32_t fetchDataForUid(SStreamExtReaderInfo *pInfo,
                                const char *colList,
-                               int64_t uid, int64_t skey, int64_t ekey,
+                               uint64_t uid, int64_t skey, int64_t ekey,
                                bool isInflux,
                                const char *prefilterBuf,
                                const SExtColTypeMapping *pMappings,
                                int32_t nMappings,
                                SSDataBlock **ppBlock) {
-  char sqlBuf[EXT_SQL_BUF_SIZE] = {0};
-
+  const SStreamTask *pTask = pInfo->pTask;
+  char sqlBuf[EXT_DATA_SQL_BUF_LEN] = {0};
+  char tblRef[TSDB_TABLE_NAME_LEN + TSDB_DB_NAME_LEN + 2] = {0};
   const char *tsCol = (pInfo->spec.tsColumn[0] != '\0')
                         ? pInfo->spec.tsColumn : "ts";
-
-  char tblRef[TSDB_TABLE_NAME_LEN + TSDB_DB_NAME_LEN + 2] = {0};
-  buildExtTableRef(&pInfo->spec, tblRef, sizeof(tblRef));
-
-  if (!isInflux) {
-    /* MySQL / PostgreSQL: no per-uid column filter; time window only.
-     * skey/ekey are in ns (uniform reader->trigger precision); convert to
-     * quoted DATETIME literals for the MySQL/PG WHERE clause. */
-    char skeyDt[32] = {0};
-    char ekeyDt[32] = {0};
-    epochToDatetimeStr(skey, TSDB_TIME_PRECISION_MICRO, skeyDt, sizeof(skeyDt));
-    epochToDatetimeStr(ekey, TSDB_TIME_PRECISION_MICRO, ekeyDt, sizeof(ekeyDt));
-    snprintf(sqlBuf, sizeof(sqlBuf),
-             "SELECT %s FROM %s WHERE %s%s >= %s AND %s <= %s",
-             colList,
-             tblRef,
-             prefilterBuf,
-             tsCol, skeyDt, tsCol, ekeyDt);
-  } else {
-    /* InfluxDB: filter by tag values derived from ent->tagsetKey. */
-    SUidIndexEntry *ent = tSimpleHashGet(pInfo->pUidIndex, &uid, sizeof(uid));
-    char tagWhere[EXT_SQL_BUF_SIZE / 2] = {0};
-    if (ent != NULL && ent->tagsetKey[0] != '\0') {
-      int32_t twLen = buildInfluxTagWhereClause(ent->tagsetKey,
-                                                tagWhere, sizeof(tagWhere));
-      if (twLen < 0) tagWhere[0] = '\0'; /* truncation: skip tag filter */
-    }
-
-    /* DataFusion (InfluxDB 3.x): use to_timestamp_nanos() for ns integers;
-     * CAST(ns AS TIMESTAMP) would treat them as seconds and overflow. */
-    if (tagWhere[0] != '\0' && prefilterBuf[0] != '\0') {
-      snprintf(sqlBuf, sizeof(sqlBuf),
-               "SELECT %s FROM %s WHERE %s%s AND %s >= to_timestamp_nanos(%" PRId64 ")"
-               " AND %s <= to_timestamp_nanos(%" PRId64 ")",
-               colList,
-               tblRef,
-               prefilterBuf, tagWhere,
-               tsCol, skey, tsCol, ekey);
-    } else if (tagWhere[0] != '\0') {
-      snprintf(sqlBuf, sizeof(sqlBuf),
-               "SELECT %s FROM %s WHERE %s AND %s >= to_timestamp_nanos(%" PRId64 ")"
-               " AND %s <= to_timestamp_nanos(%" PRId64 ")",
-               colList,
-               tblRef,
-               tagWhere,
-               tsCol, skey, tsCol, ekey);
-    } else {
-      /* No tag filter (single-group or tagsetKey empty): time window only. */
-      snprintf(sqlBuf, sizeof(sqlBuf),
-               "SELECT %s FROM %s WHERE %s%s >= to_timestamp_nanos(%" PRId64 ")"
-               " AND %s <= to_timestamp_nanos(%" PRId64 ")",
-               colList,
-               tblRef,
-               prefilterBuf,
-               tsCol, skey, tsCol, ekey);
-    }
+  const SExtColTypeMapping *pEffMappings = NULL;
+  int32_t nEffMappings = 0;
+  int32_t code = buildExtTableRef(&pInfo->spec, tblRef, sizeof(tblRef));
+  if (code < 0) {
+    return code;
   }
-  const SStreamTask *pTask = pInfo->pTask;
-  ST_TASK_DLOG("ext: fetchDataForUid uid=%" PRId64 " sql=\"%.180s\"", uid, sqlBuf);
 
-  /* Use caller-supplied mappings when provided (non-NULL, non-zero).
-   * Callers are responsible for passing the correct mapping set:
-   *   handleDataPull      → pInfo->spec.pColMappings (trigger cols)
-   *   handleCalcDataPull  → pInfo->spec.pCalcMappings (aggregate-input cols)
-   * When NULL/0, extConnectorFetchBlock skips column-type enforcement and
-   * returns the raw result columns as-is (used when no mapping is available). */
-  const SExtColTypeMapping *pEffMappings = (pMappings != NULL && nMappings > 0)
-                                               ? pMappings
-                                               : NULL;
-  int32_t nEffMappings = (pMappings != NULL && nMappings > 0)
-                             ? nMappings
-                             : 0;
+  code = isInflux
+           ? extBuildInfluxFetchSql(pInfo, colList, tblRef, prefilterBuf, tsCol,
+                                    uid, skey, ekey, sqlBuf, sizeof(sqlBuf))
+           : extBuildRelationalFetchSql(colList, tblRef, prefilterBuf, tsCol,
+                                        uid, skey, ekey, sqlBuf, sizeof(sqlBuf));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  ST_TASK_DLOG("ext: fetchDataForUid uid=%" PRIu64 " sql=\"%.180s\"", uid, sqlBuf);
+  extSelectFetchMappings(pMappings, nMappings, &pEffMappings, &nEffMappings);
   return extQueryExecFetchAll(pInfo->pConn, sqlBuf,
                               (SExtColTypeMapping *)pEffMappings,
                               nEffMappings,
@@ -2400,10 +3161,8 @@ static int32_t buildTriggerColList(const SStreamExtTriggerSpec *pSpec,
   for (int32_t i = 0; i < n; i++) {
     const char *colName = (const char *)taosArrayGet(pSpec->triggerColumns, i);
     if (!extSqlCat(buf, bufLen, &off, "%s%s", colName, (i < n - 1) ? "," : "")) {
-      /* Bounds-safe append truncated (no OOB write); the resulting SELECT would
-       * be malformed and fail cleanly rather than corrupting the stack. */
-      stWarn("ext: triggerColumns list truncated at col %d/%d (bufLen=%d)", i, n, bufLen);
-      break;
+      stError("ext: triggerColumns list exceeds %d bytes at col %d/%d", bufLen, i, n);
+      return TSDB_CODE_OUT_OF_RANGE;
     }
   }
   return n;
@@ -2431,10 +3190,8 @@ static int32_t buildCalcColList(const SStreamExtTriggerSpec *pSpec,
   for (int32_t i = 0; i < n; i++) {
     const char *colName = (const char *)taosArrayGet(pSpec->calcColumns, i);
     if (!extSqlCat(buf, bufLen, &off, "%s%s", colName, (i < n - 1) ? "," : "")) {
-      /* Bounds-safe append truncated (no OOB write); the resulting SELECT would
-       * be malformed and fail cleanly rather than corrupting the stack. */
-      stWarn("ext: calcColumns list truncated at col %d/%d (bufLen=%d)", i, n, bufLen);
-      break;
+      stError("ext: calcColumns list exceeds %d bytes at col %d/%d", bufLen, i, n);
+      return TSDB_CODE_OUT_OF_RANGE;
     }
   }
   return n;
@@ -2442,10 +3199,10 @@ static int32_t buildCalcColList(const SStreamExtTriggerSpec *pSpec,
 
 /* ============================================================
  * Build indexHash and dataBlock from a list of per-uid blocks.
- * pUidBlocks: SArray<struct{int64_t uid; SSDataBlock* pBlock}>
+ * pUidBlocks: SArray<struct{uint64_t uid; SSDataBlock* pBlock}>
  * ============================================================ */
 typedef struct {
-  int64_t      uid;
+  uint64_t      uid;
   SSDataBlock *pBlock;
 } SUidBlockPair;
 
@@ -2496,7 +3253,7 @@ static int32_t buildDataBlockAndIndex(SArray *pUidBlocks,
 /* ============================================================
  * Batched InfluxDB data fetch (perf, DS §6.1.5).
  *
- * Instead of one external query per uid, issue one OR-compound query per batch
+ * Instead of one external query per uid, issue one UNION ALL query per batch
  * of up to EXT_INFLUX_UID_BATCH_SIZE uids and demultiplex the returned rows back
  * to per-uid blocks by tagset — mirroring the META batch loop.  Used only for
  * InfluxDB sources that PARTITION BY tag (nTags > 0) and have an explicit column
@@ -2512,14 +3269,14 @@ typedef struct {
   SStreamExtReaderInfo *pInfo;
   int32_t               nData;   /* number of data (output) columns (== nMappings) */
   int32_t               nTags;   /* tag columns appended after the data columns */
-  SSHashObj            *pUidBlk; /* hash<int64_t uid, SSDataBlock*>; owns the blocks */
+  SSHashObj            *pUidBlk; /* hash<uint64_t uid, SSDataBlock*>; owns the blocks */
   int32_t               code;    /* sticky error captured inside the callback */
 } SInfluxDataDemuxCtx;
 
 /* Append data columns [0, nData) of source row r into the per-uid block,
  * creating the block (schema cloned from the source) on first use. */
 static int32_t influxDemuxAppendRow(SInfluxDataDemuxCtx *pCtx, SSDataBlock *pSrc,
-                                    int32_t r, int64_t uid) {
+                                    int32_t r, uint64_t uid) {
   SSDataBlock **ppDst = (SSDataBlock **)tSimpleHashGet(pCtx->pUidBlk, &uid, sizeof(uid));
   SSDataBlock  *pDst  = (ppDst != NULL) ? *ppDst : NULL;
 
@@ -2563,22 +3320,49 @@ static int32_t influxDemuxAppendRow(SInfluxDataDemuxCtx *pCtx, SSDataBlock *pSrc
 static int32_t influxDataDemuxBlockCb(SSDataBlock *pBlk, void *pCtxArg) {
   SInfluxDataDemuxCtx  *pCtx  = (SInfluxDataDemuxCtx *)pCtxArg;
   SStreamExtReaderInfo *pInfo = pCtx->pInfo;
+  const SStreamTask     *pTask = pInfo->pTask;
 
-  int32_t nt = pCtx->nTags < TSDB_MAX_TAGS ? pCtx->nTags : TSDB_MAX_TAGS;
+  if (pCtx->nTags > TSDB_MAX_TAGS) {
+    pCtx->code = TSDB_CODE_OUT_OF_RANGE;
+    ST_TASK_ELOG("ext: demux tag count exceeds limit count:%d limit:%d", pCtx->nTags, TSDB_MAX_TAGS);
+    blockDataDestroy(pBlk);
+    return pCtx->code;
+  }
+
+  int32_t nt = pCtx->nTags;
+  char   *pValBufs = NULL;
+  if (nt > 0) {
+    pValBufs = taosMemoryCalloc(nt, EXT_INFLUX_TAG_NCHAR_CHARS);
+    if (pValBufs == NULL) {
+      pCtx->code = terrno;
+      ST_TASK_ELOG("ext: allocate demux tag value buffers failed count:%d bytes:%zu code:%d",
+                   nt, (size_t)EXT_INFLUX_TAG_NCHAR_CHARS, pCtx->code);
+      blockDataDestroy(pBlk);
+      return pCtx->code;
+    }
+  }
+
   for (int32_t r = 0; r < pBlk->info.rows && pCtx->code == TSDB_CODE_SUCCESS; r++) {
     char        tagsetKey[EXT_TAGSET_KEY_MAX] = {0};
     const char *colNames[TSDB_MAX_TAGS]                  = {0};
     const char *colVals[TSDB_MAX_TAGS]                   = {0};
-    char        valBufs[TSDB_MAX_TAGS][EXT_INFLUX_TAG_NCHAR_CHARS];
 
     for (int32_t c = 0; c < nt; c++) {
+      char *pValBuf = pValBufs + (size_t)c * EXT_INFLUX_TAG_NCHAR_CHARS;
       colNames[c] = (const char *)taosArrayGet(pInfo->pInfluxTagCols, c);
       SColumnInfoData *pTagCol = taosArrayGet(pBlk->pDataBlock, pCtx->nData + c);
-      if (pTagCol && !colDataIsNull_s(pTagCol, r) &&
-          extColCellToStr(pTagCol, r, valBufs[c], sizeof(valBufs[c])) >= 0) {
-        colVals[c] = valBufs[c];
+      if (pTagCol && !colDataIsNull_s(pTagCol, r)) {
+        int32_t tagCode = extColCellToStr(pTagCol, r, pValBuf, EXT_INFLUX_TAG_NCHAR_CHARS);
+        if (tagCode < 0) {
+          pCtx->code = tagCode;
+          ST_TASK_ELOG("ext: demux tag value conversion failed row:%d tag:%d code:%d", r, c, pCtx->code);
+          taosMemoryFree(pValBufs);
+          blockDataDestroy(pBlk);
+          return pCtx->code;
+        }
+        colVals[c] = pValBuf;
       } else {
-        valBufs[c][0] = '\0';
+        pValBuf[0] = '\0';
         colVals[c]    = "";
       }
     }
@@ -2591,8 +3375,138 @@ static int32_t influxDataDemuxBlockCb(SSDataBlock *pBlk, void *pCtxArg) {
     pCtx->code = influxDemuxAppendRow(pCtx, pBlk, r, *pUid);
   }
 
+  taosMemoryFree(pValBufs);
   blockDataDestroy(pBlk);
   return pCtx->code;
+}
+
+static int32_t extSnapshotUidWindows(SSHashObj *pUidWindow, SArray **ppUids, SArray **ppWins) {
+  int32_t nUids = tSimpleHashGetSize(pUidWindow);
+  *ppUids = taosArrayInit(nUids, sizeof(uint64_t));
+  *ppWins = taosArrayInit(nUids, sizeof(SExtUidWindow));
+  if (*ppUids == NULL || *ppWins == NULL) {
+    taosArrayDestroy(*ppUids);
+    taosArrayDestroy(*ppWins);
+    *ppUids = NULL;
+    *ppWins = NULL;
+    return terrno;
+  }
+
+  int32_t iter = 0;
+  void   *pVal = NULL;
+  while ((pVal = tSimpleHashIterate(pUidWindow, pVal, &iter)) != NULL) {
+    uint64_t uid = *(uint64_t *)tSimpleHashGetKey(pVal, NULL);
+    if (taosArrayPush(*ppUids, &uid) == NULL || taosArrayPush(*ppWins, (SExtUidWindow *)pVal) == NULL) {
+      taosArrayDestroy(*ppUids);
+      taosArrayDestroy(*ppWins);
+      *ppUids = NULL;
+      *ppWins = NULL;
+      return terrno;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extBuildInfluxFetchMappings(SStreamExtReaderInfo *pInfo,
+                                           const SExtColTypeMapping *pMappings, int32_t nMappings,
+                                           int32_t nTags, SExtColTypeMapping **ppMapAll,
+                                           int32_t *pColsAll) {
+  *ppMapAll = NULL;
+  *pColsAll = nMappings + nTags;
+
+  SExtColTypeMapping *pMapAll = taosMemoryCalloc(*pColsAll, sizeof(SExtColTypeMapping));
+  if (pMapAll == NULL) {
+    return terrno;
+  }
+
+  memcpy(pMapAll, pMappings, (size_t)nMappings * sizeof(SExtColTypeMapping));
+  for (int32_t c = 0; c < nTags; ++c) {
+    pMapAll[nMappings + c].tdType.type = TSDB_DATA_TYPE_NCHAR;
+    pMapAll[nMappings + c].tdType.bytes = EXT_INFLUX_TAG_NCHAR_CHARS;
+    tstrncpy(pMapAll[nMappings + c].colName,
+             (const char *)taosArrayGet(pInfo->pInfluxTagCols, c),
+             sizeof(pMapAll[nMappings + c].colName));
+  }
+
+  *ppMapAll = pMapAll;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extBuildInfluxFetchBatchSql(SStreamExtReaderInfo *pInfo, const char *colList,
+                                           const char *tblRef, const char *tsCol,
+                                           const char *prefilterBuf, int32_t nTags,
+                                           SArray *pUids, SArray *pWins, int32_t batchStart,
+                                           int32_t batchSize, char *sqlBuf, int32_t sqlBufLen,
+                                           int32_t *pConsumed, bool *pAnyUid) {
+  const SStreamTask *pTask = pInfo->pTask;
+  int32_t off = 0;
+  bool    anyUid = false;
+  int32_t k = 0;
+
+  for (; k < batchSize; ++k) {
+    uint64_t        uid = *(uint64_t *)taosArrayGet(pUids, batchStart + k);
+    SExtUidWindow  *pWin = (SExtUidWindow *)taosArrayGet(pWins, batchStart + k);
+    SUidIndexEntry *pEntry = tSimpleHashGet(pInfo->pUidIndex, &uid, sizeof(uid));
+    char            tagWhere[EXT_TAG_WHERE_BUF_LEN] = {0};
+
+    if (pEntry != NULL && pEntry->tagsetKey[0] != '\0') {
+      int32_t twLen = buildInfluxTagWhereClause(pEntry->tagsetKey, tagWhere, sizeof(tagWhere));
+      if (twLen < 0) {
+        ST_TASK_ELOG("ext: influx data batch tag WHERE exceeds %d bytes uid=%" PRIu64,
+                     (int32_t)sizeof(tagWhere), uid);
+        return TSDB_CODE_OUT_OF_RANGE;
+      }
+    }
+
+    int32_t saveOff = off;
+    bool    clauseOk = true;
+    if (anyUid) clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, " UNION ALL ");
+    if (clauseOk) clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, "SELECT %s", colList);
+    for (int32_t c = 0; clauseOk && c < nTags; ++c) {
+      clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, ", %s",
+                           (const char *)taosArrayGet(pInfo->pInfluxTagCols, c));
+    }
+    if (clauseOk) clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, " FROM %s WHERE ", tblRef);
+    if (clauseOk && prefilterBuf[0] != '\0') clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, "%s", prefilterBuf);
+    if (clauseOk && tagWhere[0] != '\0') clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, "%s AND ", tagWhere);
+    if (clauseOk) {
+      clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off,
+                           "%s >= to_timestamp_nanos(%" PRId64 ")"
+                           " AND %s <= to_timestamp_nanos(%" PRId64 ")",
+                           tsCol, pWin->skey, tsCol, pWin->ekey);
+    }
+    if (!clauseOk) {
+      sqlBuf[saveOff] = '\0';
+      ST_TASK_ELOG("ext: influx data batch SQL exceeds %d bytes uid=%" PRIu64 " batchStart=%d batchSize=%d",
+                   sqlBufLen, uid, batchStart, batchSize);
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
+
+    anyUid = true;
+  }
+
+  *pConsumed = (k > 0) ? k : batchSize;
+  *pAnyUid = anyUid;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extTransferUidBlocksFromHash(SSHashObj *pUidBlk, SArray *pUidBlocks) {
+  int32_t iter = 0;
+  void   *pVal = NULL;
+
+  while ((pVal = tSimpleHashIterate(pUidBlk, pVal, &iter)) != NULL) {
+    uint64_t      uid = *(uint64_t *)tSimpleHashGetKey(pVal, NULL);
+    SSDataBlock  *pBlk = *(SSDataBlock **)pVal;
+    SUidBlockPair pair = {.uid = uid, .pBlock = pBlk};
+
+    if (taosArrayPush(pUidBlocks, &pair) == NULL) {
+      return terrno;
+    }
+    *(SSDataBlock **)pVal = NULL;
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t fetchDataBatchInflux(SStreamExtReaderInfo       *pInfo,
@@ -2603,49 +3517,29 @@ static int32_t fetchDataBatchInflux(SStreamExtReaderInfo       *pInfo,
                                     const char                 *prefilterBuf,
                                     SSHashObj                  *pUidWindow,
                                     SArray                     *pUidBlocks) {
-  const SStreamTask  *pTask      = pInfo->pTask;
-  int32_t             code       = TSDB_CODE_SUCCESS;
-  SExtColTypeMapping *pMapAll    = NULL;
-  SSHashObj          *pUidBlk    = NULL;
-  SArray             *pUids      = NULL;
-  SArray             *pWins      = NULL;
-  int32_t             nColsAll   = 0;
+  const SStreamTask *pTask = pInfo->pTask;
+  int32_t             code = TSDB_CODE_SUCCESS;
+  SExtColTypeMapping *pMapAll = NULL;
+  SSHashObj          *pUidBlk = NULL;
+  SArray             *pUids = NULL;
+  SArray             *pWins = NULL;
+  int32_t             nColsAll = 0;
   int32_t             batchStart = 0;
-  SInfluxDataDemuxCtx ctx        = {0};
+  SInfluxDataDemuxCtx ctx = {0};
 
   const char *tsCol = (pInfo->spec.tsColumn[0] != '\0') ? pInfo->spec.tsColumn : "ts";
   char tblRef[TSDB_TABLE_NAME_LEN + TSDB_DB_NAME_LEN + 2] = {0};
-  buildExtTableRef(&pInfo->spec, tblRef, sizeof(tblRef));
+  code = buildExtTableRef(&pInfo->spec, tblRef, sizeof(tblRef));
+  if (code < 0) goto _exit;
 
   int32_t nUids = tSimpleHashGetSize(pUidWindow);
   if (nUids == 0) return TSDB_CODE_SUCCESS;
 
-  /* Snapshot the requested uids (+windows) for batch iteration. */
-  pUids = taosArrayInit(nUids, sizeof(int64_t));
-  pWins = taosArrayInit(nUids, sizeof(SExtUidWindow));
-  if (pUids == NULL || pWins == NULL) { code = terrno; goto _exit; }
-  {
-    int32_t it = 0;
-    void   *pv = NULL;
-    while ((pv = tSimpleHashIterate(pUidWindow, pv, &it)) != NULL) {
-      int64_t uid = *(int64_t *)tSimpleHashGetKey(pv, NULL);
-      if (taosArrayPush(pUids, &uid) == NULL) { code = terrno; goto _exit; }
-      if (taosArrayPush(pWins, (SExtUidWindow *)pv) == NULL) { code = terrno; goto _exit; }
-    }
-  }
+  code = extSnapshotUidWindows(pUidWindow, &pUids, &pWins);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
 
-  /* Combined column-type mappings: data columns + tag columns (NCHAR). */
-  nColsAll = nMappings + nTags;
-  pMapAll = taosMemoryCalloc(nColsAll, sizeof(SExtColTypeMapping));
-  if (pMapAll == NULL) { code = terrno; goto _exit; }
-  memcpy(pMapAll, pMappings, (size_t)nMappings * sizeof(SExtColTypeMapping));
-  for (int32_t c = 0; c < nTags; c++) {
-    pMapAll[nMappings + c].tdType.type  = TSDB_DATA_TYPE_NCHAR;
-    pMapAll[nMappings + c].tdType.bytes = EXT_INFLUX_TAG_NCHAR_CHARS;
-    tstrncpy(pMapAll[nMappings + c].colName,
-             (const char *)taosArrayGet(pInfo->pInfluxTagCols, c),
-             sizeof(pMapAll[nMappings + c].colName));
-  }
+  code = extBuildInfluxFetchMappings(pInfo, pMappings, nMappings, nTags, &pMapAll, &nColsAll);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
 
   pUidBlk = tSimpleHashInit(nUids, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   if (pUidBlk == NULL) { code = terrno; goto _exit; }
@@ -2660,54 +3554,14 @@ static int32_t fetchDataBatchInflux(SStreamExtReaderInfo       *pInfo,
   while (batchStart < nUids && code == TSDB_CODE_SUCCESS) {
     int32_t batchEnd  = TMIN(batchStart + EXT_INFLUX_UID_BATCH_SIZE, nUids);
     int32_t batchSize = batchEnd - batchStart;
-
-    /* SELECT <data cols>, <tag cols> FROM tbl WHERE (uid clauses OR-joined). */
-    char    sqlBuf[EXT_SQL_BUF_SIZE] = {0};
-    int32_t off = 0;
-    bool    ok  = extSqlCat(sqlBuf, sizeof(sqlBuf), &off, "SELECT %s", colList);
-    for (int32_t c = 0; ok && c < nTags; c++) {
-      ok = extSqlCat(sqlBuf, sizeof(sqlBuf), &off, ", %s",
-                     (const char *)taosArrayGet(pInfo->pInfluxTagCols, c));
-    }
-    if (ok) ok = extSqlCat(sqlBuf, sizeof(sqlBuf), &off, " FROM %s WHERE ", tblRef);
-    if (!ok) { code = TSDB_CODE_OUT_OF_RANGE; break; }
-
+    char    sqlBuf[EXT_BATCH_SQL_BUF_LEN] = {0};
     bool    anyUid = false;
-    int32_t k      = 0;
-    for (; k < batchSize; k++) {
-      int64_t         uid = *(int64_t *)taosArrayGet(pUids, batchStart + k);
-      SExtUidWindow  *win = (SExtUidWindow *)taosArrayGet(pWins, batchStart + k);
-      SUidIndexEntry *ent = tSimpleHashGet(pInfo->pUidIndex, &uid, sizeof(uid));
+    int32_t consumed = batchSize;
 
-      char tagWhere[EXT_SQL_BUF_SIZE / 4] = {0};
-      if (ent != NULL && ent->tagsetKey[0] != '\0') {
-        int32_t twLen = buildInfluxTagWhereClause(ent->tagsetKey, tagWhere, sizeof(tagWhere));
-        if (twLen < 0) tagWhere[0] = '\0';
-      }
-
-      /* Tentatively append this uid's clause; revert atomically on overflow. */
-      int32_t saveOff  = off;
-      bool    clauseOk = true;
-      if (anyUid) clauseOk = extSqlCat(sqlBuf, sizeof(sqlBuf), &off, " OR ");
-      if (clauseOk) clauseOk = extSqlCat(sqlBuf, sizeof(sqlBuf), &off, "(");
-      if (clauseOk && prefilterBuf[0] != '\0')
-        clauseOk = extSqlCat(sqlBuf, sizeof(sqlBuf), &off, "%s", prefilterBuf);
-      if (clauseOk && tagWhere[0] != '\0')
-        clauseOk = extSqlCat(sqlBuf, sizeof(sqlBuf), &off, "%s AND ", tagWhere);
-      if (clauseOk)
-        clauseOk = extSqlCat(sqlBuf, sizeof(sqlBuf), &off,
-                             "%s >= to_timestamp_nanos(%" PRId64 ")"
-                             " AND %s <= to_timestamp_nanos(%" PRId64 "))",
-                             tsCol, win->skey, tsCol, win->ekey);
-      if (!clauseOk) {
-        off = saveOff;
-        sqlBuf[saveOff] = '\0';
-        if (!anyUid) k++; /* single clause exceeds buffer: skip to make progress */
-        break;
-      }
-      anyUid = true;
-    }
-    int32_t consumed = (k > 0) ? k : batchSize;
+    code = extBuildInfluxFetchBatchSql(pInfo, colList, tblRef, tsCol, prefilterBuf, nTags,
+                                       pUids, pWins, batchStart, batchSize, sqlBuf, sizeof(sqlBuf),
+                                       &consumed, &anyUid);
+    if (code != TSDB_CODE_SUCCESS) break;
 
     if (anyUid) {
       ST_TASK_DLOG("ext: influx data batch [%d..%d) sql=\"%.180s\"",
@@ -2725,15 +3579,7 @@ static int32_t fetchDataBatchInflux(SStreamExtReaderInfo       *pInfo,
 
   /* Move per-uid blocks into pUidBlocks (ownership transfer). */
   if (code == TSDB_CODE_SUCCESS) {
-    int32_t it = 0;
-    void   *pv = NULL;
-    while ((pv = tSimpleHashIterate(pUidBlk, pv, &it)) != NULL) {
-      int64_t       uid  = *(int64_t *)tSimpleHashGetKey(pv, NULL);
-      SSDataBlock  *pBlk = *(SSDataBlock **)pv;
-      SUidBlockPair pair = {.uid = uid, .pBlock = pBlk};
-      if (taosArrayPush(pUidBlocks, &pair) == NULL) { code = terrno; break; }
-      *(SSDataBlock **)pv = NULL; /* ownership moved; skip in cleanup below */
-    }
+    code = extTransferUidBlocksFromHash(pUidBlk, pUidBlocks);
   }
 
 _exit:
@@ -2756,6 +3602,122 @@ _exit:
   return code;
 }
 
+static void extDestroyUidBlocks(SArray *pUidBlocks) {
+  if (pUidBlocks == NULL) {
+    return;
+  }
+
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pUidBlocks); ++i) {
+    SUidBlockPair *pPair = taosArrayGet(pUidBlocks, i);
+    if (pPair != NULL && pPair->pBlock != NULL) {
+      blockDataDestroy(pPair->pBlock);
+      pPair->pBlock = NULL;
+    }
+  }
+
+  taosArrayDestroy(pUidBlocks);
+}
+
+static int32_t extFetchUidBlocks(SStreamExtReaderInfo *pInfo,
+                                 const char *phase,
+                                 const char *colList,
+                                 int32_t nCols,
+                                 const char *prefilterBuf,
+                                 const SExtColTypeMapping *pMappings,
+                                 int32_t nMappings,
+                                 SSHashObj *pUidWindow,
+                                 SArray *pUidBlocks) {
+  const SStreamTask *pTask = pInfo->pTask;
+  int32_t code = TSDB_CODE_SUCCESS;
+  bool    isInflux = ((EExtSourceType)pInfo->spec.sourceType == EXT_SOURCE_INFLUXDB);
+  int32_t nTags = pInfo->pInfluxTagCols ? (int32_t)taosArrayGetSize(pInfo->pInfluxTagCols) : 0;
+
+  /* InfluxDB can batch uid windows only when the select list and mappings
+   * align positionally; otherwise it must fall back to one query per uid. */
+  if (isInflux && nTags > 0 && nCols > 0 && nMappings == nCols) {
+    ST_TASK_DLOG("ext: %s using batched influx fetch uidCount=%d nCols=%d nTags=%d",
+                 phase, tSimpleHashGetSize(pUidWindow), nCols, nTags);
+    return fetchDataBatchInflux(pInfo, colList, pMappings, nMappings, nTags, prefilterBuf,
+                                pUidWindow, pUidBlocks);
+  }
+
+  ST_TASK_DLOG("ext: %s using per-uid fetch uidCount=%d nCols=%d nMappings=%d",
+               phase, tSimpleHashGetSize(pUidWindow), nCols, nMappings);
+
+  int32_t iter = 0;
+  void   *pVal = NULL;
+  while ((pVal = tSimpleHashIterate(pUidWindow, pVal, &iter)) != NULL) {
+    size_t         kLen = 0;
+    uint64_t       uid = *(uint64_t *)tSimpleHashGetKey(pVal, &kLen);
+    SExtUidWindow *pWin = (SExtUidWindow *)pVal;
+    SSDataBlock   *pBlock = NULL;
+
+    code = fetchDataForUid(pInfo, colList, uid, pWin->skey, pWin->ekey, isInflux, prefilterBuf,
+                           pMappings, nMappings, &pBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("ext: %s fetchDataForUid uid=%" PRIu64 " code:%d", phase, uid, code);
+      return code;
+    }
+
+    SUidBlockPair pair = {.uid = uid, .pBlock = pBlock};
+    if (taosArrayPush(pUidBlocks, &pair) == NULL) {
+      code = terrno;
+      ST_TASK_ELOG("ext: %s push uid block failed uid=%" PRIu64 " code:%d", phase, uid, code);
+      blockDataDestroy(pBlock);
+      return code;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extBuildUidWindowFromMetaBlock(SSDataBlock *pMetaBlock, SSHashObj **ppUidWindow) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SSHashObj *pUidWindow = NULL;
+
+  if (pMetaBlock == NULL || ppUidWindow == NULL) {
+    stError("ext: buildUidWindowFromMetaBlock invalid args metaBlock=%p ppUidWindow=%p",
+            pMetaBlock, ppUidWindow);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *ppUidWindow = NULL;
+  pUidWindow = tSimpleHashInit(pMetaBlock->info.rows,
+                               taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (pUidWindow == NULL) {
+    code = terrno;
+    stError("ext: buildUidWindowFromMetaBlock alloc hash failed code:%d", code);
+    goto _exit;
+  }
+
+  SColumnInfoData *pColUid = taosArrayGet(pMetaBlock->pDataBlock, META_COL_UID);
+  SColumnInfoData *pColSkey = taosArrayGet(pMetaBlock->pDataBlock, META_COL_SKEY);
+  SColumnInfoData *pColEkey = taosArrayGet(pMetaBlock->pDataBlock, META_COL_EKEY);
+
+  for (int32_t row = 0; row < pMetaBlock->info.rows; ++row) {
+    uint64_t uid = *(uint64_t *)colDataGetData(pColUid, row);
+    int64_t  skey = *(int64_t *)colDataGetData(pColSkey, row);
+    int64_t  ekey = *(int64_t *)colDataGetData(pColEkey, row);
+    SExtUidWindow win = {.skey = skey, .ekey = ekey};
+
+    code = tSimpleHashPut(pUidWindow, &uid, sizeof(uid), &win, sizeof(win));
+    if (code != TSDB_CODE_SUCCESS) {
+      stError("ext: buildUidWindowFromMetaBlock put uid=%" PRIu64 " failed code:%d",
+              uid, code);
+      goto _exit;
+    }
+  }
+
+  *ppUidWindow = pUidWindow;
+  pUidWindow = NULL;
+
+_exit:
+  if (pUidWindow != NULL) {
+    tSimpleHashCleanup(pUidWindow);
+  }
+  return code;
+}
+
 /* ============================================================
  * Handler: STRIGGER_PULL_DATA_EXT
  *
@@ -2768,6 +3730,10 @@ static int32_t handleDataPull(SStreamExtReaderInfo *pInfo,
                               const SSTriggerExtPullReq *pReq,
                               SSTriggerExtPullRsp *pRsp) {
   const SStreamTask *pTask = pInfo->pTask;
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int64_t            dataRows = 0;
+  SArray            *pUidBlocks = NULL;
+
   ST_TASK_DLOG("ext: handleDataPull enter source=%s", pInfo->spec.sourceName);
 
   if (pReq == NULL || pReq->pUidWindow == NULL) {
@@ -2775,17 +3741,20 @@ static int32_t handleDataPull(SStreamExtReaderInfo *pInfo,
     return TSDB_CODE_INVALID_PARA;
   }
 
-  bool isInflux = ((EExtSourceType)pInfo->spec.sourceType == EXT_SOURCE_INFLUXDB);
-
   char    colList[EXT_SQL_CLAUSE_BUF_LEN] = {0};
   int32_t nCols = buildTriggerColList(&pInfo->spec, colList, sizeof(colList));
+  if (nCols < 0) {
+    code = nCols;
+    goto _exit;
+  }
 
   /* Trigger data path: use PRE_FILTER (triggerPrefilter). */
   char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
-  buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
-
-  int32_t nTags = pInfo->pInfluxTagCols
-                    ? (int32_t)taosArrayGetSize(pInfo->pInfluxTagCols) : 0;
+  int32_t pfCode = buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
+  if (pfCode < 0) {
+    code = pfCode;
+    goto _exit;
+  }
 
   /* Mappings correspond to the explicit trigger column list; with the "*"
    * fallback (nCols == 0) the result columns won't match them positionally, so
@@ -2793,57 +3762,24 @@ static int32_t handleDataPull(SStreamExtReaderInfo *pInfo,
   const SExtColTypeMapping *pColMaps = (nCols > 0) ? pInfo->spec.pColMappings : NULL;
   int32_t                   nColMaps = (nCols > 0) ? pInfo->spec.numColMappings : 0;
 
-  SArray *pUidBlocks = taosArrayInit(tSimpleHashGetSize(pReq->pUidWindow),
-                                     sizeof(SUidBlockPair));
-  if (pUidBlocks == NULL) return terrno;
+  pUidBlocks = taosArrayInit(tSimpleHashGetSize(pReq->pUidWindow), sizeof(SUidBlockPair));
+  if (pUidBlocks == NULL) {
+    code = terrno;
+    ST_TASK_ELOG("ext: handleDataPull alloc uid blocks failed code:%d", code);
+    goto _exit;
+  }
 
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  /* Batched path: InfluxDB PARTITION BY tag with an explicit column list whose
-   * count matches the type mappings — one OR-compound query per 64 uids instead
-   * of one query per uid.  Otherwise fall back to the per-uid path. */
-  if (isInflux && nTags > 0 && nCols > 0 && nColMaps == nCols) {
-    code = fetchDataBatchInflux(pInfo, colList, pColMaps,
-                                nColMaps, nTags, prefilterBuf,
-                                pReq->pUidWindow, pUidBlocks);
-  } else {
-    int32_t iter = 0;
-    void   *pVal = NULL;
-    while ((pVal = tSimpleHashIterate(pReq->pUidWindow, pVal, &iter)) != NULL) {
-      size_t  kLen  = 0;
-      int64_t uid   = *(int64_t *)tSimpleHashGetKey(pVal, &kLen);
-      SExtUidWindow *win = (SExtUidWindow *)pVal;
-
-      SSDataBlock *pBlock = NULL;
-      code = fetchDataForUid(pInfo, colList, uid, win->skey, win->ekey,
-                             isInflux,
-                             prefilterBuf,
-                             pColMaps,
-                             nColMaps,
-                             &pBlock);
-      if (code != TSDB_CODE_SUCCESS) {
-        ST_TASK_ELOG("ext: handleDataPull fetchDataForUid uid=%" PRId64 " code:%d",
-                uid, code);
-        break;
-      }
-      SUidBlockPair pair = {.uid = uid, .pBlock = pBlock};
-      taosArrayPush(pUidBlocks, &pair);
+  code = extFetchUidBlocks(pInfo, "handleDataPull", colList, nCols, prefilterBuf, pColMaps,
+                           nColMaps, pReq->pUidWindow, pUidBlocks);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = buildDataBlockAndIndex(pUidBlocks, &pRsp->pDataBlock, &pRsp->pIndexHash);
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("ext: handleDataPull buildDataBlockAndIndex failed code:%d", code);
+      goto _exit;
     }
   }
 
-  if (code == TSDB_CODE_SUCCESS) {
-    code = buildDataBlockAndIndex(pUidBlocks, &pRsp->pDataBlock,
-                                  &pRsp->pIndexHash);
-  }
-
-  /* Free any unconsumed blocks. */
-  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pUidBlocks); i++) {
-    SUidBlockPair *pair = taosArrayGet(pUidBlocks, i);
-    if (pair->pBlock) blockDataDestroy(pair->pBlock);
-  }
-  taosArrayDestroy(pUidBlocks);
-
-  int64_t dataRows = (pRsp->pDataBlock != NULL) ? pRsp->pDataBlock->info.rows : 0;
+  dataRows = (pRsp->pDataBlock != NULL) ? pRsp->pDataBlock->info.rows : 0;
   ST_TASK_DLOG("ext: handleDataPull done code=%d dataRows=%" PRId64, code, dataRows);
   printDataBlock(pRsp->pDataBlock, __func__, "ext_data", pTask->streamId);
 
@@ -2853,6 +3789,9 @@ static int32_t handleDataPull(SStreamExtReaderInfo *pInfo,
     ST_TASK_DLOG("%s", "ext: handleDataPull no rows -> TSDB_CODE_STREAM_NO_DATA");
     code = TSDB_CODE_STREAM_NO_DATA;
   }
+
+_exit:
+  extDestroyUidBlocks(pUidBlocks);
   return code;
 }
 
@@ -2866,36 +3805,30 @@ static int32_t handleMetaDataPull(SStreamExtReaderInfo *pInfo,
                                   const SSTriggerExtPullReq *pReq,
                                   SSTriggerExtPullRsp *pRsp) {
   const SStreamTask *pTask = pInfo->pTask;
+  int32_t            code = TSDB_CODE_SUCCESS;
+  SSHashObj         *pUidWindow = NULL;
+
   ST_TASK_DLOG("ext: handleMetaDataPull enter source=%s", pInfo->spec.sourceName);
 
   /* First, execute the META logic (same as handleMetaPull). */
-  int32_t code = handleMetaPull(pInfo, pReq, pRsp);
-  if (code != TSDB_CODE_SUCCESS) {
+  code = handleMetaPull(pInfo, pReq, pRsp);
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_STREAM_NO_DATA) {
     ST_TASK_ELOG("ext: handleMetaDataPull: meta phase failed code:%d", code);
-    return code;
+    goto _exit;
   }
 
   /* Build a synthetic pUidWindow from the resulting metaBlock so we can reuse
    * handleDataPull logic. */
-  if (pRsp->pMetaBlock == NULL || pRsp->pMetaBlock->info.rows == 0) {
+  if (code == TSDB_CODE_STREAM_NO_DATA || pRsp->pMetaBlock == NULL || pRsp->pMetaBlock->info.rows == 0) {
     ST_TASK_DLOG("%s", "ext: handleMetaDataPull: no meta rows, skipping data phase");
-    return TSDB_CODE_SUCCESS;
+    code = TSDB_CODE_SUCCESS;
+    goto _exit;
   }
 
-  SSHashObj *pUidWindow = tSimpleHashInit(pRsp->pMetaBlock->info.rows,
-                                          taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
-  if (pUidWindow == NULL) return terrno;
-
-  SColumnInfoData *colUid  = taosArrayGet(pRsp->pMetaBlock->pDataBlock, META_COL_UID);
-  SColumnInfoData *colSkey = taosArrayGet(pRsp->pMetaBlock->pDataBlock, META_COL_SKEY);
-  SColumnInfoData *colEkey = taosArrayGet(pRsp->pMetaBlock->pDataBlock, META_COL_EKEY);
-
-  for (int32_t r = 0; r < pRsp->pMetaBlock->info.rows; r++) {
-    int64_t uid  = *(int64_t *)colDataGetData(colUid,  r);
-    int64_t skey = *(int64_t *)colDataGetData(colSkey, r);
-    int64_t ekey = *(int64_t *)colDataGetData(colEkey, r);
-    SExtUidWindow win = {.skey = skey, .ekey = ekey};
-    tSimpleHashPut(pUidWindow, &uid, sizeof(uid), &win, sizeof(win));
+  code = extBuildUidWindowFromMetaBlock(pRsp->pMetaBlock, &pUidWindow);
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("ext: handleMetaDataPull build uid window failed code:%d", code);
+    goto _exit;
   }
 
   /* Temporarily set pUidWindow in a synthetic request. */
@@ -2907,7 +3840,6 @@ static int32_t handleMetaDataPull(SStreamExtReaderInfo *pInfo,
   if (code == TSDB_CODE_STREAM_NO_DATA) {
     code = TSDB_CODE_SUCCESS;
   }
-  tSimpleHashCleanup(pUidWindow);
 
   ST_TASK_DLOG("ext: handleMetaDataPull done code=%d metaRows=%" PRId64 " dataRows=%" PRId64,
           code,
@@ -2915,7 +3847,31 @@ static int32_t handleMetaDataPull(SStreamExtReaderInfo *pInfo,
           pRsp->pDataBlock ? pRsp->pDataBlock->info.rows : 0);
   printDataBlock(pRsp->pMetaBlock, __func__, "ext_meta_data_meta", pTask->streamId);
   printDataBlock(pRsp->pDataBlock, __func__, "ext_meta_data_data", pTask->streamId);
+
+_exit:
+  if (pUidWindow != NULL) {
+    tSimpleHashCleanup(pUidWindow);
+  }
   return code;
+}
+
+static int32_t extPrepareCalcFetch(SStreamExtReaderInfo *pInfo,
+                                   char *colList, int32_t colListLen,
+                                   int32_t *pCols,
+                                   const SExtColTypeMapping **ppMappings,
+                                   int32_t *pMappings,
+                                   char *prefilterBuf, int32_t prefilterBufLen) {
+  const SStreamTask *pTask = pInfo->pTask;
+  *pCols = buildCalcColList(&pInfo->spec, colList, colListLen);
+  if (*pCols < 0) {
+    return *pCols;
+  }
+
+  *ppMappings = (*pCols > 0) ? pInfo->spec.pCalcMappings : NULL;
+  *pMappings = (*pCols > 0) ? pInfo->spec.numCalcMappings : 0;
+  ST_TASK_DLOG("ext: handleCalcDataPull colList='%s'", colList);
+
+  return buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, prefilterBufLen);
 }
 
 /* ============================================================
@@ -2935,6 +3891,15 @@ static int32_t handleCalcDataPull(SStreamExtReaderInfo *pInfo,
                                   const SSTriggerExtPullReq *pReq,
                                   SSTriggerExtPullRsp *pRsp) {
   const SStreamTask *pTask = pInfo->pTask;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t calcRows = 0;
+  int32_t nCols = 0;
+  int32_t nMappings = 0;
+  SArray *pUidBlocks = NULL;
+  char colList[EXT_SQL_CLAUSE_BUF_LEN] = {0};
+  char calcPrefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
+  const SExtColTypeMapping *pMappings = NULL;
+
   ST_TASK_DLOG("ext: handleCalcDataPull enter source=%s calcCols=%d",
                pInfo->spec.sourceName,
                pInfo->spec.calcColumns
@@ -2946,84 +3911,338 @@ static int32_t handleCalcDataPull(SStreamExtReaderInfo *pInfo,
     return TSDB_CODE_INVALID_PARA;
   }
 
-  bool isInflux = ((EExtSourceType)pInfo->spec.sourceType == EXT_SOURCE_INFLUXDB);
+  code = extPrepareCalcFetch(pInfo, colList, sizeof(colList), &nCols, &pMappings,
+                             &nMappings, calcPrefilterBuf, sizeof(calcPrefilterBuf));
+  if (code < 0) {
+    goto _exit;
+  }
 
-  /* Use calc columns for the SELECT list (aggregate-input columns).
-   * Falls back to trigger columns (then SELECT *) when calcColumns is empty. */
-  char    colList[EXT_SQL_CLAUSE_BUF_LEN] = {0};
-  int32_t nCols = buildCalcColList(&pInfo->spec, colList, sizeof(colList));
-  ST_TASK_DLOG("ext: handleCalcDataPull colList='%s'", colList);
+  pUidBlocks = taosArrayInit(tSimpleHashGetSize(pReq->pUidWindow), sizeof(SUidBlockPair));
+  if (pUidBlocks == NULL) {
+    code = terrno;
+    ST_TASK_ELOG("ext: handleCalcDataPull alloc uid blocks failed code:%d", code);
+    goto _exit;
+  }
 
-  /* Use pCalcMappings for type-correct column reads, but only when we built an
-   * explicit column list: with the "*" fallback (nCols == 0) the result column
-   * set/order won't match the mappings positionally, so drop them and let the
-   * connector return raw columns. */
-  const SExtColTypeMapping *pMappings   = (nCols > 0) ? pInfo->spec.pCalcMappings : NULL;
-  int32_t                   nMappings   = (nCols > 0) ? pInfo->spec.numCalcMappings : 0;
-
-  /* handleCalcDataPull fetches trigger-side data to feed the calc engine;
-   * apply PRE_FILTER (triggerPrefilter) only — same filter as the trigger reader. */
-  char calcPrefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
-  buildTriggerPrefilterClause(&pInfo->spec, calcPrefilterBuf, sizeof(calcPrefilterBuf));
-
-  int32_t nTags = pInfo->pInfluxTagCols
-                    ? (int32_t)taosArrayGetSize(pInfo->pInfluxTagCols) : 0;
-
-  SArray *pUidBlocks = taosArrayInit(tSimpleHashGetSize(pReq->pUidWindow),
-                                     sizeof(SUidBlockPair));
-  if (pUidBlocks == NULL) return terrno;
-
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  /* Batched path: InfluxDB PARTITION BY tag with an explicit calc column list
-   * whose count matches the calc type mappings — one OR-compound query per 64
-   * uids instead of one query per uid.  Otherwise fall back to the per-uid path. */
-  if (isInflux && nTags > 0 && nCols > 0 && nMappings == nCols) {
-    code = fetchDataBatchInflux(pInfo, colList, pMappings, nMappings, nTags,
-                                calcPrefilterBuf, pReq->pUidWindow, pUidBlocks);
-  } else {
-    int32_t iter = 0;
-    void   *pVal = NULL;
-    while ((pVal = tSimpleHashIterate(pReq->pUidWindow, pVal, &iter)) != NULL) {
-      size_t  kLen  = 0;
-      int64_t uid   = *(int64_t *)tSimpleHashGetKey(pVal, &kLen);
-      SExtUidWindow *win = (SExtUidWindow *)pVal;
-
-      SSDataBlock *pBlock = NULL;
-      code = fetchDataForUid(pInfo, colList, uid, win->skey, win->ekey,
-                             isInflux, calcPrefilterBuf, pMappings, nMappings, &pBlock);
-      if (code != TSDB_CODE_SUCCESS) {
-        ST_TASK_ELOG("ext: handleCalcDataPull fetchDataForUid uid=%" PRId64 " code:%d",
-                uid, code);
-        break;
-      }
-      SUidBlockPair pair = {.uid = uid, .pBlock = pBlock};
-      taosArrayPush(pUidBlocks, &pair);
+  code = extFetchUidBlocks(pInfo, "handleCalcDataPull", colList, nCols,
+                           calcPrefilterBuf, pMappings, nMappings,
+                           pReq->pUidWindow, pUidBlocks);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = buildDataBlockAndIndex(pUidBlocks, &pRsp->pDataBlock, &pRsp->pIndexHash);
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("ext: handleCalcDataPull buildDataBlockAndIndex failed code:%d", code);
+      goto _exit;
     }
   }
 
-  if (code == TSDB_CODE_SUCCESS) {
-    code = buildDataBlockAndIndex(pUidBlocks, &pRsp->pDataBlock,
-                                  &pRsp->pIndexHash);
-  }
-
-  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pUidBlocks); i++) {
-    SUidBlockPair *pair = taosArrayGet(pUidBlocks, i);
-    if (pair->pBlock) blockDataDestroy(pair->pBlock);
-  }
-  taosArrayDestroy(pUidBlocks);
-
-  int64_t calcRows = (pRsp->pDataBlock != NULL) ? pRsp->pDataBlock->info.rows : 0;
+  calcRows = (pRsp->pDataBlock != NULL) ? pRsp->pDataBlock->info.rows : 0;
   ST_TASK_DLOG("ext: handleCalcDataPull done code=%d calcRows=%" PRId64, code, calcRows);
   printDataBlock(pRsp->pDataBlock, __func__, "ext_calc_data", pTask->streamId);
-
-  /* Mirror vnodeProcessStreamWalCalcDataNewReq: return NO_DATA when empty so
-   * the trigger side treats this as a normal empty-poll. */
   if (code == TSDB_CODE_SUCCESS && calcRows == 0) {
     ST_TASK_DLOG("%s", "ext: handleCalcDataPull no rows -> TSDB_CODE_STREAM_NO_DATA");
     code = TSDB_CODE_STREAM_NO_DATA;
   }
+
+_exit:
+  extDestroyUidBlocks(pUidBlocks);
   return code;
+}
+
+/* ============================================================
+ * Helpers for handleGroupColValuePull (below): resolving one gid's
+ * PARTITION BY tag/tbname values is broken into small steps so the overall
+ * flow reads as an orchestrator rather than one long function.
+ * ============================================================ */
+
+/* Per-call state threaded through the extGroupColValue* helpers below. */
+typedef struct SExtGroupColValueCtx {
+  SStreamExtReaderInfo *pInfo;
+  uint64_t              uid;
+  int32_t               nPart;       /* size of pInfo->spec.partitionTagCols, or 0 */
+  bool                  wantTbname;  /* tbname is in PARTITION BY and source is InfluxDB */
+  int32_t               tbnameSlot;  /* position of the INFLUXDB_PARTITION_BY_TBNAME
+                                      * sentinel in partitionTagCols, or -1 if
+                                      * tbname isn't one of the explicit
+                                      * PARTITION BY items */
+  SStreamGroupValue    *pSlots;      /* nPart slots, indexed like partitionTagCols */
+  bool                 *pFilled;     /* which of pSlots[] have a real value */
+  /* Scratch for the "<extTable>_<tagVal>_<tagVal>..." subtable identity. */
+  char                  nameBuf[TSDB_TABLE_NAME_LEN];
+  int32_t               nameLen;
+  bool                  nameOverflow;
+} SExtGroupColValueCtx;
+
+/* Find the position (0-based) within partitionTagCols marked with the
+ * INFLUXDB_PARTITION_BY_TBNAME sentinel by buildExtSpecs (parTranslater.c) -- i.e. a bare tbname
+ * reference mixed into PARTITION BY alongside explicit tag columns (e.g.
+ * "PARTITION BY host, tbname, region" -> tbname is position 2, 0-based
+ * index 1). Returns -1 when tbname isn't one of the explicit positions. */
+static int32_t extGroupColValueFindTbnameSlot(SStreamExtReaderInfo *pInfo, int32_t nPart) {
+  for (int32_t p = 0; p < nPart; p++) {
+    const char *pcol = (const char *)taosArrayGet(pInfo->spec.partitionTagCols, p);
+    if (pcol != NULL && strcmp(pcol, INFLUXDB_PARTITION_BY_TBNAME) == 0) {
+      return p;
+    }
+  }
+  return -1;
+}
+
+/* Build one UCS-4-encoded NCHAR SStreamGroupValue from a raw UTF-8 tag value.
+ * InfluxDB tag columns are discovered/typed as NCHAR (see
+ * extInitInfluxTagPartition's pMappings[i].tdType.type), so the parser
+ * resolves a PARTITION BY tag reference (e.g. "host") to NCHAR too.
+ * FUNCTION_TYPE_PLACEHOLDER_COLUMN (functionMgt.c) rejects a type mismatch
+ * against the resolved value node's type, so this must be UCS-4-encoded
+ * NCHAR, not raw UTF-8 VARCHAR bytes. */
+static int32_t extBuildNCharGroupValue(const SStreamTask *pTask, const char *colName, const char *colVal,
+                                       SStreamGroupValue *pOut) {
+  SStreamGroupValue val = {0};
+  val.isNull   = false;
+  val.isTbname = false;
+  val.data.type = TSDB_DATA_TYPE_NCHAR;
+  int32_t srcLen  = (int32_t)strlen(colVal);
+  int32_t maxUcs4 = srcLen * TSDB_NCHAR_SIZE;
+  val.data.pData = taosMemoryMalloc(maxUcs4 > 0 ? maxUcs4 : 1);
+  if (val.data.pData == NULL) return terrno;
+  int32_t outLen = 0;
+  if (srcLen > 0) {
+    outLen = maxUcs4;
+    bool ok = taosMbsToUcs4(colVal, srcLen, (TdUcs4 *)val.data.pData, maxUcs4, &outLen, NULL);
+    if (!ok) {
+      ST_TASK_ELOG("ext: handleGroupColValuePull UTF-8 to UCS-4 conversion failed for col='%s'", colName);
+      taosMemoryFree(val.data.pData);
+      return TSDB_CODE_INVALID_PARA;
+    }
+  }
+  val.data.nData = outLen;
+  *pOut = val;
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Single pass over pEntry->tagsetKey ("col=val|col=val|..."). With no
+ * positional PARTITION BY tuple it emits the raw tag values. Otherwise the
+ * typed tuple comes from pEntry->partitionValues and this scan only composes
+ * the "<extTable>_<tagVal>_..." subtable identity when tbname is requested. */
+static int32_t extGroupColValueScanTagsetKey(SExtGroupColValueCtx *pCtx, const SUidIndexEntry *pEntry,
+                                             SArray *pGroupColVals) {
+  int32_t            code  = TSDB_CODE_SUCCESS;
+  const SStreamTask *pTask = pCtx->pInfo->pTask;
+
+  char tagsetKey[EXT_TAGSET_KEY_MAX] = {0};
+  tstrncpy(tagsetKey, pEntry->tagsetKey, sizeof(tagsetKey));
+
+  const char *colNames[TSDB_MAX_TAGS] = {0};
+  const char *colVals[TSDB_MAX_TAGS] = {0};
+  int32_t     nCols = 0;
+  char       *saveptr = NULL;
+  char       *pair = strtok_r(tagsetKey, "|", &saveptr);
+  while (pair != NULL) {
+    char *eq = strchr(pair, '=');
+    if (eq == NULL) {
+      pair = strtok_r(NULL, "|", &saveptr);
+      continue;
+    }
+    *eq = '\0';
+    const char *colName = pair;
+    const char *colVal  = eq + 1;
+    if (nCols >= TSDB_MAX_TAGS) {
+      ST_TASK_ELOG("ext: tagset contains more than %d columns", TSDB_MAX_TAGS);
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
+    colNames[nCols] = colName;
+    colVals[nCols] = colVal;
+    ++nCols;
+
+    if (pCtx->wantTbname && !pCtx->nameOverflow) {
+      int32_t n = snprintf(pCtx->nameBuf + pCtx->nameLen, sizeof(pCtx->nameBuf) - pCtx->nameLen, "_%s", colVal);
+      if (n < 0 || n >= (int32_t)(sizeof(pCtx->nameBuf) - pCtx->nameLen)) {
+        pCtx->nameOverflow = true;
+      } else {
+        pCtx->nameLen += n;
+      }
+    }
+
+    pair = strtok_r(NULL, "|", &saveptr);
+  }
+
+  if (pCtx->nPart == 0) {
+    for (int32_t i = 0; i < nCols; ++i) {
+      SStreamGroupValue value = {0};
+      code = extBuildNCharGroupValue(pTask, colNames[i], colVals[i], &value);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      if (taosArrayPush(pGroupColVals, &value) == NULL) {
+        tDestroySStreamGroupValue(&value);
+        return terrno;
+      }
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extGroupColValueCopyCachedSlots(SExtGroupColValueCtx *pCtx, const SUidIndexEntry *pEntry) {
+  const SStreamTask *pTask = pCtx->pInfo->pTask;
+  if (pCtx->nPart == 0) return TSDB_CODE_SUCCESS;
+  if (pEntry == NULL || pEntry->partitionValues == NULL ||
+      taosArrayGetSize(pEntry->partitionValues) != pCtx->nPart) {
+    ST_TASK_ELOG("ext: cached partition tuple missing or misaligned uid:%" PRIu64 " expected:%d actual:%d",
+                 pCtx->uid, pCtx->nPart,
+                 pEntry != NULL && pEntry->partitionValues != NULL
+                     ? (int32_t)taosArrayGetSize(pEntry->partitionValues)
+                     : 0);
+    return TSDB_CODE_MND_STREAM_TBNAME_CALC_FAILED;
+  }
+
+  for (int32_t p = 0; p < pCtx->nPart; ++p) {
+    if (p == pCtx->tbnameSlot) continue;
+    SStreamGroupValue *pCached = (SStreamGroupValue *)taosArrayGet(pEntry->partitionValues, p);
+    int32_t code = extCloneGroupValue(pCached, &pCtx->pSlots[p]);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    pCtx->pFilled[p] = true;
+  }
+  ST_TASK_DLOG("ext: reused %d cached partition slot(s) for uid:%" PRIu64, pCtx->nPart, pCtx->uid);
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Resolve the sub-table's own tbname string into tbnameBuf: the composed
+ * "<measurement>_<tagVal>..." identity when pCtx->nameBuf was built without
+ * overflowing (and this uid actually had a tagsetKey to compose from), else
+ * the "influxdb_<uid>" fallback. Feeds extGroupColValueFillTbnameSlot's
+ * single call site in handleGroupColValuePull. */
+static void extGroupColValueComposeTbname(const SExtGroupColValueCtx *pCtx, bool hadTagsetKey, uint64_t uid,
+                                          uint64_t gid, char *tbnameBuf, int32_t tbnameBufSize,
+                                          int32_t *pTbnameLen) {
+  const SStreamTask *pTask    = pCtx->pInfo->pTask;
+  bool                composed = hadTagsetKey && !pCtx->nameOverflow;
+  if (composed) {
+    *pTbnameLen = snprintf(tbnameBuf, tbnameBufSize, "%s", pCtx->nameBuf);
+  } else {
+    if (hadTagsetKey) {
+      ST_TASK_DLOG("ext: handleGroupColValuePull gid=%" PRIu64 " uid=%" PRIu64
+                   " measurement_tag name overflowed TSDB_TABLE_NAME_LEN, "
+                   "falling back to influxdb_<uid>", gid, uid);
+    }
+    *pTbnameLen = snprintf(tbnameBuf, tbnameBufSize, "influxdb_%" PRIu64, uid);
+  }
+}
+
+/* Fill pCtx->pSlots[pCtx->tbnameSlot] (if tbname is one of the explicit
+ * PARTITION BY positions) as a regular VARCHAR positional value -- NOT
+ * UCS-4 NCHAR like the tag-column slots in extGroupColValueScanTagsetKey,
+ * since a positional reference to this slot (e.g. %%2) has its parse-time
+ * resType inherited from the raw tbname() node itself (TSDB_DATA_TYPE_BINARY/
+ * VARCHAR; see FUNCTION_TYPE_PLACEHOLDER_COLUMN's resType resolution in
+ * parTranslater.c, which copies pExpr->resType from the PARTITION BY list
+ * entry at that position). No-op when tbname isn't an explicit position.
+ *
+ * Also marked isTbname=true: since buildExtSpecs guarantees partitionTagCols
+ * is non-NULL whenever partitionByTbname is set (a bare "PARTITION BY
+ * tbname" always occupies its own slot too, see the anyPositionalItem check
+ * in parTranslater.c), this slot always exists whenever handleGroupColValuePull
+ * wants tbname at all -- so it doubles as the sole source FUNCTION_TYPE_
+ * PLACEHOLDER_TBNAME (%%tbname, functionMgt.c) scans for, with no separate
+ * trailing entry needed. */
+static int32_t extGroupColValueFillTbnameSlot(SExtGroupColValueCtx *pCtx, const char *tbnameBuf, int32_t tbnameLen) {
+  if (pCtx->tbnameSlot < 0) return TSDB_CODE_SUCCESS;
+
+  SStreamGroupValue tbSlotVal = {0};
+  tbSlotVal.isNull    = false;
+  tbSlotVal.isTbname  = true;
+  tbSlotVal.data.type = TSDB_DATA_TYPE_VARCHAR;
+  tbSlotVal.data.pData = taosMemoryMalloc(tbnameLen > 0 ? tbnameLen : 1);
+  if (tbSlotVal.data.pData == NULL) return terrno;
+  if (tbnameLen > 0) memcpy(tbSlotVal.data.pData, tbnameBuf, tbnameLen);
+  tbSlotVal.data.nData = tbnameLen;
+
+  pCtx->pSlots[pCtx->tbnameSlot]  = tbSlotVal;
+  pCtx->pFilled[pCtx->tbnameSlot] = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Destroy any typed pCtx->pSlots[p] still marked pFilled[p] -- i.e. built by
+ * extGroupColValueScanTagsetKey/extGroupColValueFillTbnameSlot but never
+ * handed off to pGroupColVals (extGroupColValueFlushSlots clears pFilled[p]
+ * the moment ownership transfers, see below). Safe to call unconditionally
+ * from handleGroupColValuePull's _exit on both the success and every error
+ * path: on success every slot has already been cleared by a successful
+ * flush, so this is a no-op; on any early return (a tag conversion failure
+ * mid tagsetKey scan, an OOM while filling the tbname slot, or a failed
+ * taosArrayPush partway through the flush) it reclaims exactly the slots
+ * that were filled but never flushed. */
+static void extGroupColValueFreeFilledSlots(SExtGroupColValueCtx *pCtx) {
+  if (pCtx->pSlots == NULL || pCtx->pFilled == NULL) return;
+  for (int32_t p = 0; p < pCtx->nPart; p++) {
+    if (pCtx->pFilled[p]) {
+      tDestroySStreamGroupValue(&pCtx->pSlots[p]);
+      pCtx->pFilled[p] = false;
+    }
+  }
+}
+
+/* Flush the ordered tag-column slots (subset, or mixed-with-tbname) into
+ * pGroupColVals, in partitionTagCols order -- this is what keeps position p
+ * aligned with _placeholder_column(p+1). A slot that was never filled is
+ * emitted as isNull=true so later positions don't
+ * shift. Clears pFilled[p] the instant a filled slot's value is copied into
+ * pGroupColVals: ownership of slotVal.data.pData has now passed to the
+ * array, so extGroupColValueFreeFilledSlots must not free it again. On a
+ * push failure partway through, the slots already pushed are correctly
+ * left untouched (pFilled already false) and every remaining
+ * filled-but-not-yet-pushed slot (including the one that just failed) is
+ * left with pFilled[p]==true so the caller's cleanup reclaims it -- no slot
+ * is ever freed twice or leaked. */
+static int32_t extGroupColValueFlushSlots(SExtGroupColValueCtx *pCtx, SArray *pGroupColVals) {
+  for (int32_t p = 0; p < pCtx->nPart; p++) {
+    SStreamGroupValue slotVal = {0};
+    if (pCtx->pFilled[p]) {
+      slotVal = pCtx->pSlots[p];
+    } else {
+      slotVal.isNull = true;
+    }
+    if (taosArrayPush(pGroupColVals, &slotVal) == NULL) {
+      return terrno;
+    }
+    pCtx->pFilled[p] = false;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extInitGroupColValueCtx(SStreamExtReaderInfo *pInfo, uint64_t gid,
+                                       SExtGroupColValueCtx *pCtx) {
+  pCtx->pInfo = pInfo;
+  pCtx->uid = gid;
+
+  SArray **ppUids = (SArray **)tSimpleHashGet(pInfo->pGroupIndex, &gid, sizeof(gid));
+  if (ppUids != NULL && taosArrayGetSize(*ppUids) > 0) {
+    pCtx->uid = *(uint64_t *)taosArrayGet(*ppUids, 0);
+  }
+
+  pCtx->nPart = pInfo->spec.partitionTagCols
+                    ? (int32_t)taosArrayGetSize(pInfo->spec.partitionTagCols)
+                    : 0;
+  pCtx->wantTbname = (pInfo->spec.partitionByTbname &&
+                      (EExtSourceType)pInfo->spec.sourceType == EXT_SOURCE_INFLUXDB);
+  pCtx->tbnameSlot = (pCtx->wantTbname && pCtx->nPart > 0)
+                         ? extGroupColValueFindTbnameSlot(pInfo, pCtx->nPart)
+                         : -1;
+
+  if (pCtx->wantTbname) {
+    pCtx->nameLen = snprintf(pCtx->nameBuf, sizeof(pCtx->nameBuf), "%s", pInfo->spec.extTable);
+    pCtx->nameOverflow = (pCtx->nameLen < 0 || pCtx->nameLen >= (int32_t)sizeof(pCtx->nameBuf));
+  }
+
+  if (pCtx->nPart == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pCtx->pSlots = (SStreamGroupValue *)taosMemoryCalloc(pCtx->nPart, sizeof(SStreamGroupValue));
+  pCtx->pFilled = (bool *)taosMemoryCalloc(pCtx->nPart, sizeof(bool));
+  if (pCtx->pSlots == NULL || pCtx->pFilled == NULL) {
+    return terrno;
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 /* ============================================================
@@ -3045,92 +4264,71 @@ static int32_t handleGroupColValuePull(SStreamExtReaderInfo *pInfo,
                                        const SSTriggerExtPullReq *pReq,
                                        SSTriggerExtPullRsp *pRsp) {
   const SStreamTask *pTask = pInfo->pTask;
-  int64_t            gid   = pReq->gid;
+  uint64_t           gid   = (uint64_t)pReq->gid;
+  int32_t            code  = TSDB_CODE_SUCCESS;
 
-  ST_TASK_DLOG("ext: handleGroupColValuePull enter gid=%" PRId64, gid);
+  ST_TASK_DLOG("ext: handleGroupColValuePull enter gid=%" PRIu64, gid);
 
   pRsp->pGroupColVals = taosArrayInit(4, sizeof(SStreamGroupValue));
-  if (pRsp->pGroupColVals == NULL) return terrno;
-
-  int64_t  uid    = gid;
-  SArray **ppUids = (SArray **)tSimpleHashGet(pInfo->pGroupIndex, &gid, sizeof(int64_t));
-  if (ppUids != NULL && taosArrayGetSize(*ppUids) > 0) {
-    uid = *(int64_t *)taosArrayGet(*ppUids, 0);
+  if (pRsp->pGroupColVals == NULL) {
+    code = terrno;
+    goto _exit;
   }
 
-  SUidIndexEntry *pEntry = (SUidIndexEntry *)tSimpleHashGet(pInfo->pUidIndex, &uid, sizeof(int64_t));
-  if (pEntry == NULL || pEntry->tagsetKey[0] == '\0') {
-    /* MySQL/PG (no tag concept) or no tag columns: nothing to report. */
-    ST_TASK_DLOG("ext: handleGroupColValuePull gid=%" PRId64 " uid=%" PRId64 " has no tagsetKey, empty result",
-                 gid, uid);
-    return TSDB_CODE_SUCCESS;
+  SExtGroupColValueCtx ctx = {0};
+  code = extInitGroupColValueCtx(pInfo, gid, &ctx);
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("ext: handleGroupColValuePull init ctx failed gid=%" PRIu64 " code:%d",
+                 gid, code);
+    goto _exit;
   }
 
-  int32_t nPart = pInfo->spec.partitionTagCols ? (int32_t)taosArrayGetSize(pInfo->spec.partitionTagCols) : 0;
+  SUidIndexEntry *pEntry = (SUidIndexEntry *)tSimpleHashGet(pInfo->pUidIndex, &ctx.uid, sizeof(ctx.uid));
+  bool hadTagsetKey = (pEntry != NULL && pEntry->tagsetKey[0] != '\0');
+  if (!hadTagsetKey) {
+    /* MySQL/PG (no tag concept) or no tag columns: nothing to report from
+     * the tagsetKey path; still fall through to the tbname branch below. */
+    ST_TASK_DLOG("ext: handleGroupColValuePull gid=%" PRIu64 " uid=%" PRIu64 " has no tagsetKey",
+                 gid, ctx.uid);
+  } else {
+    code = extGroupColValueScanTagsetKey(&ctx, pEntry, pRsp->pGroupColVals);
+    if (code != TSDB_CODE_SUCCESS) goto _exit;
+  }
+  code = extGroupColValueCopyCachedSlots(&ctx, pEntry);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
 
-  char tagsetKey[EXT_TAGSET_KEY_MAX] = {0};
-  tstrncpy(tagsetKey, pEntry->tagsetKey, sizeof(tagsetKey));
-
-  char *saveptr = NULL;
-  char *pair    = strtok_r(tagsetKey, "|", &saveptr);
-  while (pair != NULL) {
-    char *eq = strchr(pair, '=');
-    if (eq == NULL) {
-      pair = strtok_r(NULL, "|", &saveptr);
-      continue;
-    }
-    *eq = '\0';
-    const char *colName = pair;
-    const char *colVal  = eq + 1;
-
-    /* nPart == 0 means PARTITION BY tbname (all tags); otherwise only keep
-     * columns that are actually part of the PARTITION BY subset. */
-    bool keep = (nPart == 0);
-    for (int32_t p = 0; !keep && p < nPart; p++) {
-      const char *pcol = (const char *)taosArrayGet(pInfo->spec.partitionTagCols, p);
-      if (pcol != NULL && strcmp(pcol, colName) == 0) {
-        keep = true;
-      }
-    }
-
-    if (keep) {
-      // InfluxDB tag columns are discovered/typed as NCHAR (see
-      // extInitInfluxTagPartition's pMappings[i].tdType.type), so the parser
-      // resolves a PARTITION BY tag reference (e.g. "host") to NCHAR too.
-      // FUNCTION_TYPE_PLACEHOLDER_COLUMN (functionMgt.c) rejects a type
-      // mismatch against the resolved value node's type, so this must be
-      // UCS-4-encoded NCHAR, not raw UTF-8 VARCHAR bytes.
-      SStreamGroupValue val = {0};
-      val.isNull   = false;
-      val.isTbname = false;
-      val.data.type = TSDB_DATA_TYPE_NCHAR;
-      int32_t srcLen  = (int32_t)strlen(colVal);
-      int32_t maxUcs4 = srcLen * TSDB_NCHAR_SIZE;
-      val.data.pData = taosMemoryMalloc(maxUcs4 > 0 ? maxUcs4 : 1);
-      if (val.data.pData == NULL) return terrno;
-      int32_t outLen = 0;
-      if (srcLen > 0) {
-        outLen = maxUcs4;
-        bool ok = taosMbsToUcs4(colVal, srcLen, (TdUcs4 *)val.data.pData, maxUcs4, &outLen, NULL);
-        if (!ok) {
-          ST_TASK_ELOG("ext: handleGroupColValuePull UTF-8 to UCS-4 conversion failed for col='%s'", colName);
-          taosMemoryFree(val.data.pData);
-          return TSDB_CODE_INVALID_PARA;
-        }
-      }
-      val.data.nData = outLen;
-      if (taosArrayPush(pRsp->pGroupColVals, &val) == NULL) {
-        taosMemoryFree(val.data.pData);
-        return terrno;
-      }
-    }
-
-    pair = strtok_r(NULL, "|", &saveptr);
+  char    tbnameBuf[32 + TSDB_TABLE_NAME_LEN] = {0};
+  int32_t tbnameLen = 0;
+  if (ctx.wantTbname) {
+    extGroupColValueComposeTbname(&ctx, hadTagsetKey, ctx.uid, gid, tbnameBuf, sizeof(tbnameBuf), &tbnameLen);
+    code = extGroupColValueFillTbnameSlot(&ctx, tbnameBuf, tbnameLen);
+    if (code != TSDB_CODE_SUCCESS) goto _exit;
   }
 
-  ST_TASK_DLOG("ext: handleGroupColValuePull gid=%" PRId64 " resolved %d tag value(s)",
+  code = extGroupColValueFlushSlots(&ctx, pRsp->pGroupColVals);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+
+  ST_TASK_DLOG("ext: handleGroupColValuePull gid=%" PRIu64 " resolved %d tag value(s)",
                gid, (int32_t)taosArrayGetSize(pRsp->pGroupColVals));
-  return TSDB_CODE_SUCCESS;
+
+_exit:
+  extGroupColValueFreeFilledSlots(&ctx);
+  taosMemoryFree(ctx.pSlots);
+  taosMemoryFree(ctx.pFilled);
+  return code;
+}
+
+static bool extAppendFetchDataBound(char *sql, int32_t sqlLen, int32_t *pOff,
+                                    const char *tsCol, const char *op,
+                                    int64_t ts, bool isInflux) {
+  if (isInflux) {
+    return extSqlCat(sql, sqlLen, pOff, " AND %s %s to_timestamp_nanos(%" PRId64 ")",
+                     tsCol, op, ts);
+  }
+
+  char dt[32] = {0};
+  epochToDatetimeStr(ts, TSDB_TIME_PRECISION_MICRO, dt, sizeof(dt));
+  return extSqlCat(sql, sqlLen, pOff, " AND %s %s %s", tsCol, op, dt);
 }
 
 /* ============================================================
@@ -3149,6 +4347,7 @@ int32_t streamReaderExtFetchData(SStreamExtReaderInfo *pReaderInfo,
                                  int64_t skey, int64_t ekey,
                                  SSDataBlock **ppOut) {
   int32_t code = TSDB_CODE_SUCCESS;
+  bool    ok = true;
 
   if (pReaderInfo == NULL || ppOut == NULL) {
     stError("ext: streamReaderExtFetchData invalid args pInfo=%p ppOut=%p",
@@ -3163,12 +4362,19 @@ int32_t streamReaderExtFetchData(SStreamExtReaderInfo *pReaderInfo,
                            ? pReaderInfo->spec.tsColumn : "ts";
 
   char tblRef[TSDB_TABLE_NAME_LEN + TSDB_DB_NAME_LEN + 2] = {0};
-  buildExtTableRef(&pReaderInfo->spec, tblRef, sizeof(tblRef));
+  code = buildExtTableRef(&pReaderInfo->spec, tblRef, sizeof(tblRef));
+  if (code < 0) {
+    goto _exit;
+  }
 
   /* Build column list from calcColumns (aggregate-input columns).
    * Returns the explicit column count, or 0 when it falls back to "*". */
   char    colList[EXT_SQL_CLAUSE_BUF_LEN] = {0};
   int32_t nCols = buildCalcColList(&pReaderInfo->spec, colList, sizeof(colList));
+  if (nCols < 0) {
+    code = nCols;
+    goto _exit;
+  }
 
   /* Only enforce the calc column-type mappings when we built an explicit column
    * list (nCols > 0).  With the "*" fallback the result column set and order are
@@ -3180,40 +4386,30 @@ int32_t streamReaderExtFetchData(SStreamExtReaderInfo *pReaderInfo,
   /* streamReaderExtFetchData fetches pure calc data for aggregation;
    * apply calc WHERE prefilter (prefilter) only — not PRE_FILTER. */
   char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
-  buildPrefilterClause(&pReaderInfo->spec, prefilterBuf, sizeof(prefilterBuf));
+  code = buildPrefilterClause(&pReaderInfo->spec, prefilterBuf, sizeof(prefilterBuf));
+  if (code < 0) {
+    goto _exit;
+  }
 
   /* Build the SELECT statement (bounds-safe appends; bail out on truncation so
    * we never execute a malformed query). */
-  char    sql[EXT_SQL_BUF_SIZE] = {0};
+  char    sql[EXT_CALC_SQL_BUF_LEN] = {0};
   int32_t off = 0;
-  bool    ok  = extSqlCat(sql, sizeof(sql), &off,
-                          "SELECT %s FROM %s WHERE %s1=1", colList, tblRef, prefilterBuf);
+  ok = extSqlCat(sql, sizeof(sql), &off, "SELECT %s FROM %s WHERE %s1=1", colList, tblRef,
+                 prefilterBuf);
 
   bool isInflux = ((EExtSourceType)pReaderInfo->spec.sourceType == EXT_SOURCE_INFLUXDB);
   if (ok && skey != INT64_MIN) {
-    if (isInflux) {
-      ok = extSqlCat(sql, sizeof(sql), &off,
-                     " AND %s >= to_timestamp_nanos(%" PRId64 ")", tsCol, skey);
-    } else {
-      char skeyDt[32] = {0};
-      epochToDatetimeStr(skey, TSDB_TIME_PRECISION_MICRO, skeyDt, sizeof(skeyDt));
-      ok = extSqlCat(sql, sizeof(sql), &off, " AND %s >= %s", tsCol, skeyDt);
-    }
+    ok = extAppendFetchDataBound(sql, sizeof(sql), &off, tsCol, ">=", skey, isInflux);
   }
   if (ok && ekey != INT64_MAX) {
-    if (isInflux) {
-      ok = extSqlCat(sql, sizeof(sql), &off,
-                     " AND %s <= to_timestamp_nanos(%" PRId64 ")", tsCol, ekey);
-    } else {
-      char ekeyDt[32] = {0};
-      epochToDatetimeStr(ekey, TSDB_TIME_PRECISION_MICRO, ekeyDt, sizeof(ekeyDt));
-      ok = extSqlCat(sql, sizeof(sql), &off, " AND %s <= %s", tsCol, ekeyDt);
-    }
+    ok = extAppendFetchDataBound(sql, sizeof(sql), &off, tsCol, "<=", ekey, isInflux);
   }
   if (!ok) {
     ST_TASK_ELOG("ext: streamReaderExtFetchData SQL exceeds %d bytes, aborting fetch",
                  (int32_t)sizeof(sql));
-    return TSDB_CODE_OUT_OF_RANGE;
+    code = TSDB_CODE_OUT_OF_RANGE;
+    goto _exit;
   }
 
   ST_TASK_DLOG("ext: streamReaderExtFetchData sql=\"%.200s\" nMappings=%d",
@@ -3223,10 +4419,12 @@ int32_t streamReaderExtFetchData(SStreamExtReaderInfo *pReaderInfo,
                               (SExtColTypeMapping *)pMappings, nMappings, ppOut);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("ext: streamReaderExtFetchData failed code:%d", code);
-    return code;
+    goto _exit;
   }
 
   ST_TASK_DLOG("ext: streamReaderExtFetchData done rows=%" PRId64,
           *ppOut ? (*ppOut)->info.rows : 0);
-  return TSDB_CODE_SUCCESS;
+
+_exit:
+  return code;
 }

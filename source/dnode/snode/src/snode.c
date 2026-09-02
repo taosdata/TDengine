@@ -53,6 +53,7 @@ static int32_t handleTriggerCalcReq(SSnode* pSnode, void* pWorkerCb, SRpcMsg* pR
   SStreamRunnerTask* pTask = NULL;
   void* taskAddr = NULL;
   int32_t code = 0, lino = 0;
+  int64_t requestStartMonoUs = streamTaskGetMonotonicUs();
   TAOS_CHECK_EXIT(tDeserializeSTriggerCalcRequest(POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead), &req));
   TAOS_CHECK_EXIT(streamAcquireTask(req.streamId, req.runnerTaskId, (SStreamTask**)&pTask, &taskAddr));
 
@@ -62,7 +63,7 @@ static int32_t handleTriggerCalcReq(SSnode* pSnode, void* pWorkerCb, SRpcMsg* pR
   //pTask->pMsgCb = &pSnode->msgCb;
   pTask->pWorkerCb = pWorkerCb;
   req.curWinIdx = 0;
-  TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &req));
+  TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &req, requestStartMonoUs));
 
 _exit:
 
@@ -215,6 +216,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   SStreamRunnerTask* pTask = NULL;
   void* buf = NULL;
   size_t size = 0;
+  int64_t requestStartMonoUs = streamTaskGetMonotonicUs();
 
   stDebug("handleStreamFetchData, msgType:%s, contLen:%d 0x%" PRIx64 ":0x%" PRIx64, 
       TMSG_INFO(pRpcMsg->msgType), pRpcMsg->contLen, TRACE_GET_ROOTID(&pRpcMsg->info.traceId), TRACE_GET_MSGID(&pRpcMsg->info.traceId));
@@ -232,6 +234,8 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
     calcReq.precision = req.pStRtFuncInfo->precision;
     calcReq.isMultiGroupCalc = req.pStRtFuncInfo->isMultiGroupCalc;
     calcReq.stbPartByTbname = req.pStRtFuncInfo->stbPartByTbname;
+    TSWAP(calcReq.pContextPolicy, req.pStRtFuncInfo->pContextPolicy);
+    TSWAP(calcReq.pAncestorContext, req.pStRtFuncInfo->pAncestorContext);
     if (calcReq.isMultiGroupCalc) {
       TSWAP(calcReq.pGroupCalcInfos, req.pStRtFuncInfo->pGroupCalcInfos);
       TSWAP(calcReq.pGroupReadInfos, req.pStRtFuncInfo->pGroupReadInfos);
@@ -251,7 +255,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   //pTask->pMsgCb = &pSnode->msgCb;
   pTask->pWorkerCb = pWorkerCb;
   
-  TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &calcReq));
+  TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &calcReq, requestStartMonoUs));
 
   TAOS_CHECK_EXIT(buildStreamFetchRsp(calcReq.pOutBlock, &buf, &size, 0, req.forceFetchCompleted));
 
@@ -290,10 +294,20 @@ static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   //SSTriggerCalcParam* pParam = taosArrayGet(req.pStRtFuncInfo->pStreamPesudoFuncVals, req.pStRtFuncInfo->curIdx);
   readInfo.start = req.pStRtFuncInfo->curWindow.skey;
   readInfo.end = req.pStRtFuncInfo->curWindow.ekey;
+  readInfo.pRuntime = req.pStRtFuncInfo;
+  readInfo.reset = req.reset;
   bool finished;
   TAOS_CHECK_EXIT(stRunnerFetchDataFromCache(&readInfo,&finished));
 
-  TAOS_CHECK_EXIT(buildStreamFetchRsp(readInfo.pBlock, &buf, &size, 0, finished));
+  code = buildStreamFetchRsp(readInfo.pBlock, &buf, &size, 0, finished);
+  if (code != TSDB_CODE_SUCCESS) {
+    lino = __LINE__;
+    int32_t cleanupCode = stRemoveStreamCacheReadScope(&readInfo);
+    if (cleanupCode != TSDB_CODE_SUCCESS) {
+      sndError("failed to remove cache read scope since %s", tstrerror(cleanupCode));
+    }
+    goto _exit;
+  }
 
 _exit:
 
@@ -310,6 +324,7 @@ _exit:
   }
 
   blockDataDestroy(readInfo.pBlock);
+  stClearStreamCacheReadScope(&readInfo);
   freeOperatorParam(req.pOpParam, OP_GET_PARAM);
   req.pOpParam = NULL;
   tDestroySResFetchReq(&req);

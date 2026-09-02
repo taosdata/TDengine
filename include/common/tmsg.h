@@ -292,7 +292,9 @@ typedef enum EExtSQLDialect {
 // column (parTranslater.c's createStreamReqSetDefaultTag).  Keeping both sides
 // on this single constant prevents them drifting apart — InfluxDB tags have no
 // declared TDengine-side width, so the two call sites must agree on one.
-#define EXT_INFLUX_TAG_NCHAR_CHARS 256
+#define EXT_INFLUX_TAG_NCHAR_CHARS (257 * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE)
+#define EXT_INFLUX_KEY_NCHAR_CHARS ((TSDB_COL_NAME_LEN - 1) * TSDB_NCHAR_SIZE)
+#define EXT_INFLUX_KEY_NCHAR_CHARS_TOO_LONG (TSDB_COL_NAME_LEN * TSDB_NCHAR_SIZE)
 
 // SExtColumnDef / SExtTableMeta — external table metadata types.
 // Defined here so that nodes/querynodes.h and nodes source files can use them
@@ -360,6 +362,7 @@ typedef enum {
 #define TSDB_ALTER_TABLE_REMOVE_SERIES                   23
 #define TSDB_ALTER_TABLE_ADD_BASE_ON                     24
 #define TSDB_ALTER_TABLE_DROP_BASE_ON                    25
+#define TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF           26 // add a tag reference to a virtual normal table
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -489,6 +492,8 @@ typedef enum ENodeType {
   QUERY_NODE_EXTERNAL_TABLE,    // SExtTableNode: external table reference in FROM clause
   QUERY_NODE_EXT_OPTION,        // helper: single OPTIONS key='val' pair node
   QUERY_NODE_EXT_ALTER_CLAUSE,  // helper: one SET clause in ALTER EXTERNAL SOURCE
+  QUERY_NODE_STREAM_WINDOW_PLAN,
+  QUERY_NODE_STREAM_WINDOW_LAYER,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -571,6 +576,7 @@ typedef enum ENodeType {
   QUERY_NODE_ALTER_KEY_EXPIRATION_STMT,
   QUERY_NODE_SET_TIMEZONE_STMT,
   QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT,
+  QUERY_NODE_FLUSH_MNODE_STMT,
 
   // show statement nodes
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
@@ -2590,6 +2596,7 @@ typedef struct {
   int8_t  secureDelete;  
   int8_t  securityLevel;
   int32_t parallel;       // group parallel concurrency limit for replica changes, 0 = unlimited
+  int32_t maxRows;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -3673,6 +3680,7 @@ typedef struct {
   int8_t  allowDrop;
   int8_t  secureDelete;
   int8_t  securityLevel;
+  int32_t maxRows;
 } SAlterVnodeConfigReq;
 
 int32_t tSerializeSAlterVnodeConfigReq(void* buf, int32_t bufLen, SAlterVnodeConfigReq* pReq);
@@ -4691,6 +4699,14 @@ int32_t tDeserializeSBalanceVgroupReq(void* buf, int32_t bufLen, SBalanceVgroupR
 void    tFreeSBalanceVgroupReq(SBalanceVgroupReq* pReq);
 
 typedef struct {
+  int32_t useless;  // reserved; empty request
+} SFlushMnodeReq;
+
+int32_t tSerializeSFlushMnodeReq(void* buf, int32_t bufLen, SFlushMnodeReq* pReq);
+int32_t tDeserializeSFlushMnodeReq(void* buf, int32_t bufLen, SFlushMnodeReq* pReq);
+void    tFreeSFlushMnodeReq(SFlushMnodeReq* pReq);
+
+typedef struct {
   int32_t useless;  // useless
   int32_t sqlLen;
   char*   sql;
@@ -5481,6 +5497,8 @@ typedef struct SVCreateTbReq {
     } ctb;
     struct {
       SSchemaWrapper schemaRow;
+      SSchemaWrapper schemaTag;  // owned tag schema (normal/virtual-normal table with tags); nCols==0 when no tags
+      uint8_t*       pTags;      // owned tag values, STag container (NULL when no tags)
       int64_t        userId;
     } ntb;
   };

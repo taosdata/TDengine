@@ -275,6 +275,13 @@ static int32_t checkDbUseAuth(SAuthCxt* pCxt, const char* pDbName) {
   return code == TSDB_CODE_SUCCESS ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
 }
 
+// Maps only a DAC denial to the table-specific parser error. MAC and operational
+// errors must retain their original codes.
+static int32_t checkTableSelectAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName) {
+  int32_t code = authObjPrivileges(pCxt, pDbName, pTabName, PRIV_TBL_SELECT, PRIV_OBJ_TBL);
+  return code == TSDB_CODE_PAR_PERMISSION_DENIED ? TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED : code;
+}
+
 static int32_t checkEffectiveAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, EPrivType privType,
                                   EPrivObjType objType, SNode** pCond) {
   return checkAuthImpl(pCxt, pDbName, pTabName, privType, objType, NULL, NULL, false, true);
@@ -605,22 +612,27 @@ static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {
   return code;
 }
 
-static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
-  PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
-  PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB));
+// Check SELECT privilege on the source table of every column/tag reference in a def list.
+static int32_t authColDefRefs(SAuthCxt* pCxt, SNodeList* pDefs) {
   SNode* pCol = NULL;
-  FOREACH(pCol, pStmt->pCols) {
+  FOREACH(pCol, pDefs) {
     SColumnDefNode* pColDef = (SColumnDefNode*)pCol;
     if (NULL == pColDef) {
       PAR_ERR_RET(TSDB_CODE_PAR_INVALID_COLUMN);
     }
     SColumnOptions* pOptions = (SColumnOptions*)pColDef->pOptions;
     if (pOptions && pOptions->hasRef) {
-      if (authObjPrivileges(pCxt, pOptions->refDb, pOptions->refTable, PRIV_TBL_SELECT, PRIV_OBJ_TBL)) {
-        return TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED;
-      }
+      PAR_ERR_RET(checkTableSelectAuth(pCxt, pOptions->refDb, pOptions->refTable));
     }
   }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
+  PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
+  PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB));
+  PAR_ERR_RET(authColDefRefs(pCxt, pStmt->pCols));
+  PAR_ERR_RET(authColDefRefs(pCxt, pStmt->pTags));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -629,18 +641,23 @@ static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) 
   SNodeList* pTmpList = pStmt->pSpecificColRefs ? pStmt->pSpecificColRefs : pStmt->pColRefs;
   PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
   PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB));
-  if (NULL == pTmpList) {
-    // no column reference
-    return TSDB_CODE_SUCCESS;
+  if (pTmpList) {
+    FOREACH(pNode, pTmpList) {
+      SColumnRefNode* pColRef = (SColumnRefNode*)pNode;
+      if (NULL == pColRef) {
+        PAR_ERR_RET(TSDB_CODE_PAR_INVALID_COLUMN);
+      }
+      PAR_ERR_RET(checkTableSelectAuth(pCxt, pColRef->refDbName, pColRef->refTableName));
+    }
   }
 
-  FOREACH(pNode, pTmpList) {
-    SColumnRefNode* pColRef = (SColumnRefNode*)pNode;
-    if (NULL == pColRef) {
-      PAR_ERR_RET(TSDB_CODE_PAR_INVALID_COLUMN);
-    }
-    if (authObjPrivileges(pCxt, pColRef->refDbName, pColRef->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL)) {
-      return TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED;
+  if (pStmt->pValsOfTags) {
+    FOREACH(pNode, pStmt->pValsOfTags) {
+      if (QUERY_NODE_COLUMN_REF != nodeType(pNode)) {
+        continue;
+      }
+      SColumnRefNode* pTagRef = (SColumnRefNode*)pNode;
+      PAR_ERR_RET(checkTableSelectAuth(pCxt, pTagRef->refDbName, pTagRef->refTableName));
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -705,28 +722,31 @@ static int32_t authCreateTopic(SAuthCxt* pCxt, SCreateTopicStmt* pStmt) {
 }
 
 static int32_t authCreateMultiTable(SAuthCxt* pCxt, SCreateMultiTablesStmt* pStmt) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  SNode*  pNode = NULL;
+  SNode* pNode = NULL;
   FOREACH(pNode, pStmt->pSubTables) {
-    if (pNode->type == QUERY_NODE_CREATE_SUBTABLE_CLAUSE) {
-      SCreateSubTableClause* pClause = (SCreateSubTableClause*)pNode;
-      code = checkDbUseAuth(pCxt, pClause->dbName);
-      if (TSDB_CODE_SUCCESS != code) break;
-      code = authObjPrivileges(pCxt, pClause->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB);
-      if (TSDB_CODE_SUCCESS != code) {
+    switch (nodeType(pNode)) {
+      case QUERY_NODE_CREATE_SUBTABLE_CLAUSE: {
+        SCreateSubTableClause* pClause = (SCreateSubTableClause*)pNode;
+        PAR_ERR_RET(checkDbUseAuth(pCxt, pClause->dbName));
+        PAR_ERR_RET(authObjPrivileges(pCxt, pClause->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB));
         break;
       }
-    } else {
-      SCreateSubTableFromFileClause* pClause = (SCreateSubTableFromFileClause*)pNode;
-      code = checkDbUseAuth(pCxt, pClause->useDbName);
-      if (TSDB_CODE_SUCCESS != code) break;
-      code = authObjPrivileges(pCxt, pClause->useDbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB);
-      if (TSDB_CODE_SUCCESS != code) {
+      case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE: {
+        SCreateSubTableFromFileClause* pClause = (SCreateSubTableFromFileClause*)pNode;
+        PAR_ERR_RET(checkDbUseAuth(pCxt, pClause->useDbName));
+        PAR_ERR_RET(authObjPrivileges(pCxt, pClause->useDbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB));
         break;
       }
+      case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
+        PAR_ERR_RET(authCreateVSubTable(pCxt, (SCreateVSubTableStmt*)pNode));
+        break;
+      default:
+        parserError("authCreateMultiTable: unexpected node type %d", nodeType(pNode));
+        PAR_ERR_RET(TSDB_CODE_INVALID_PARA);
+        break;
     }
   }
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t authDropTable(SAuthCxt* pCxt, SDropTableStmt* pStmt) {
@@ -764,14 +784,21 @@ static int32_t authDropStable(SAuthCxt* pCxt, SDropSuperTableStmt* pStmt) {
 }
 
 static int32_t authDropVtable(SAuthCxt* pCxt, SDropVirtualTableStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if (pStmt->withOpt && !pCxt->pParseCxt->isSuperUser) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
-  PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
-  if (!pStmt->withOpt) {
-    PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_DROP, PRIV_OBJ_TBL, NULL, NULL));
+  SNode* pNode = NULL;
+  FOREACH(pNode, pStmt->pTables) {
+    SDropTableClause* pClause = (SDropTableClause*)pNode;
+    code = checkDbUseAuth(pCxt, pClause->dbName);
+    if (TSDB_CODE_SUCCESS != code) break;
+    if (!pStmt->withOpt) {
+      code = checkAuth(pCxt, pClause->dbName, pClause->tableName, PRIV_CM_DROP, PRIV_OBJ_TBL, NULL, NULL);
+      if (TSDB_CODE_SUCCESS != code) break;
+    }
   }
-  return 0;
+  return code;
 }
 
 static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
@@ -810,6 +837,16 @@ static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
     // DAC domain: non-security ALTER requires DB_USE + CM_ALTER + MAC clearance
     PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
     int32_t code = checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
+    // reference alters additionally read the source table: require SELECT on it (mirrors
+    // authAlterVTable — the ALTER TABLE form of the same statements must not bypass it)
+    if (TSDB_CODE_SUCCESS == code &&
+        (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
+         pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF ||
+         pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
+         pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF)) {
+      PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->refDbName));
+      code = checkAuth(pCxt, pStmt->refDbName, pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL, NULL);
+    }
 #ifdef TD_ENTERPRISE
     if (TSDB_CODE_SUCCESS == code) {
       // MAC clearance check: secLvl inherited from STB for child tables
@@ -843,7 +880,9 @@ static int32_t authAlterVTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
   PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
   PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL));
   if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
-      pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF) {
+      pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF ||
+      pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
+      pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF) {
     PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->refDbName));
     if (checkAuth(pCxt, pStmt->refDbName, pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL, NULL)) {
       return TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED;

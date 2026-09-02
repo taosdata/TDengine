@@ -69,10 +69,18 @@ class _AlterLocalTimezoneMixin:
         """UTC±N POSIX style should be accepted."""
         valid_utc = [
             'UTC',
+            'UTC0',
+            'UTC8',
+            'UTC8:30',
             'UTC-8',
             'UTC+10',
             'UTC-0',
             'UTC+0',
+            # The UTC prefix is case-insensitive.
+            'utc8',
+            'UtC8:30',
+            'utc+10',
+            'uTc-8',
         ]
         for tz in valid_utc:
             tdSql.execute(f"ALTER LOCAL 'timezone {tz}'")
@@ -158,6 +166,9 @@ class _AlterLocalTimezoneMixin:
         original_global = _get_global_timezone()
 
         cases = [
+            ('UTC8', ['-08:00', '-0800']),
+            ('utc8', ['-08:00', '-0800']),
+            ('utc+08:00', ['-08:00', '-0800']),
             ('+08:00', ['-08:00', '-0800']),
             ('UTC+08:00', ['-08:00', '-0800']),
             ('-05:30', ['+05:30', '+0530']),
@@ -202,6 +213,23 @@ class TestTimezoneConfigUnification(_AlterLocalTimezoneMixin):
     """
 
     def test_alter_local_timezone(self):
+        """ALTER LOCAL timezone validation via unified config path.
+
+        Verify ALTER LOCAL timezone accepts IANA names, fixed offsets, UTC forms,
+        and Windows names while rejecting GMT series, abbreviations, and invalid input.
+
+        Since: v3.4.0.0
+
+        Labels: timezone, config
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-23: Tony Zhang created
+        """
         self._setup_alter_local_case()
         self.check_alter_local_iana_names()
         self.check_alter_local_fixed_offsets()

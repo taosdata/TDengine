@@ -12,7 +12,7 @@ toc_max_heading_level: 5
 `node-red-node-tdengine` 是官方 Node-RED 插件，包含两个节点：
 
 - **tdengine-operator**：执行 SQL，支持写入、查询与元数据管理。
-- **tdengine-consumer**：消费指定主题的数据，语义可对照 [数据订阅](../../07-data-subscription/index.md)。
+- **tdengine-consumer**：消费指定主题的数据，语义可对照 [数据订阅](../../06-data-subscription/index.md)。
 
 ## 前置条件
 
@@ -26,7 +26,7 @@ toc_max_heading_level: 5
 
 以上各安装组件调用关系如下图：
 
-![td-frame](img/assets/td-frame.webp)
+![td-frame](../../assets/node-red-01.webp)
 
 ## 配置数据源
 
@@ -137,7 +137,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 - td-writer 节点状态变成绿色，表示流程工作正常。
 - debug 节点下的数字表示成功采集次数。
 
-![td-writer](img/assets/td-writer.webp)
+![td-writer](../../assets/node-red-02.webp)
 
 向下游节点输出写入成功结果，若失败抛出异常：
 
@@ -178,7 +178,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 - td-reader 节点状态变成“绿色”，表示流程工作正常。
 - debug 节点显示查询成功次数。
   
-![td-reader](img/assets/td-reader.webp)
+![td-reader](../../assets/node-red-03.webp)
 
 向下游节点输出查询结果，若失败抛出异常：
 
@@ -238,7 +238,7 @@ debug 节点展示向下游节点推送数据次数，生产中可把 debug 节�
 
 流程启动成功后可看到 td-consumer 节点状态变成“绿色”表示流程工作正常，debug 节点数字表示消费次数，如下图：
   
-![td-consumer](img/assets/td-consumer.webp)
+![td-consumer](../../assets/node-red-04.webp)
 
 向下游节点推送的过载设备警告信息，若失败抛出异常：
 
@@ -276,12 +276,12 @@ debug 节点展示向下游节点推送数据次数，生产中可把 debug 节�
 - debug 节点展示发生异常数量。
 - 可通过 NODE-RED 日志系统查看异常详细。
 
-![td-catch](img/assets/td-catch.webp)
+![td-catch](../../assets/node-red-05.webp)
 
 ### 运行效果
 
 以上流程制作完成后，点击“部署”发布，进入运行状态，如下：
-![td-all](img/assets/td-all.webp)
+![td-all](../../assets/node-red-06.webp)
 
 ## 总结
 

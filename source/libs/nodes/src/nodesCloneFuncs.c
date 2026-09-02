@@ -158,6 +158,7 @@ static int32_t columnDefNodeCopy(const SColumnDefNode* pSrc, SColumnDefNode* pDs
   COPY_OBJECT_FIELD(dataType, sizeof(SDataType));
   COPY_SCALAR_FIELD(sma);;
   CLONE_NODE_FIELD(pOptions);
+  CLONE_NODE_FIELD(pTagVal);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -376,6 +377,7 @@ static int32_t realTableNodeCopy(const SRealTableNode* pSrc, SRealTableNode* pDs
 static int32_t tempTableNodeCopy(const STempTableNode* pSrc, STempTableNode* pDst) {
   COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
   CLONE_NODE_FIELD(pSubquery);
+  COPY_SCALAR_FIELD(hasExplicitAlias);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -547,8 +549,26 @@ static int32_t intervalWindowNodeCopy(const SIntervalWindowNode* pSrc, SInterval
   CLONE_NODE_FIELD(pInterval);
   CLONE_NODE_FIELD(pOffset);
   CLONE_NODE_FIELD(pSliding);
+  CLONE_NODE_FIELD(pSOffset);
   CLONE_NODE_FIELD(pFill);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t periodWindowNodeCopy(const SPeriodWindowNode* pSrc, SPeriodWindowNode* pDst) {
+  CLONE_NODE_FIELD(pPeroid);
+  CLONE_NODE_FIELD(pOffset);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t streamWindowPlanNodeCopy(const SStreamWindowPlanNode* pSrc, SStreamWindowPlanNode* pDst) {
+  CLONE_NODE_LIST_FIELD(pLayers);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t streamWindowLayerNodeCopy(const SStreamWindowLayerNode* pSrc, SStreamWindowLayerNode* pDst) {
+  COPY_CHAR_ARRAY_FIELD(name);
+  CLONE_NODE_FIELD(pWindow);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -792,6 +812,9 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(sliding);
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
+  COPY_SCALAR_FIELD(firstDayOfWeek);
+  COPY_SCALAR_FIELD(timezone);
+  COPY_CHAR_ARRAY_FIELD(timezoneName);
   CLONE_NODE_FIELD(pTagCond);
   CLONE_NODE_FIELD(pTagIndexCond);
   COPY_SCALAR_FIELD(triggerType);
@@ -1525,6 +1548,7 @@ static int32_t physiSubplanCopy(const SSubplan* pSrc, SSubplan* pDst) {
   COPY_SCALAR_FIELD(dynamicRowThreshold);
   COPY_SCALAR_FIELD(rowsThreshold);
   COPY_SCALAR_FIELD(processOneBlock);
+  COPY_SCALAR_FIELD(requiresAncestorContext);
   COPY_SCALAR_FIELD(dynTbname);
   COPY_SCALAR_FIELD(userAppId);
   return TSDB_CODE_SUCCESS;
@@ -1560,12 +1584,25 @@ static int32_t downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstre
   return TSDB_CODE_SUCCESS;
 }
 
+// NOTE: every field of SSelectStmt is copied by hand below, and a field
+// added to SSelectStmt MUST be added here as well. The destination node
+// comes from calloc, so a field left out does not keep its initial value,
+// it becomes zero - and the parser sets several fields to something else
+// than zero (lastProcessByRowFuncId to -1, onlyHasKeepOrderFunc to true,
+// timeRange to TSWINDOW_INITIALIZER, ...). Forgetting one is silent: the
+// compiler accepts it and it surfaces far away as a statement that runs
+// fine on its own but misbehaves once it reaches translate through a
+// clone, which is what view expansion (clientView.c) and prepared
+// statement bind (qStmtBindParams) do. Fields translate derives are zero
+// at parse time, so copying them is harmless and keeps this list complete.
+// See NodesCloneTest.selectStmtKeeps* for the regression tests.
 static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_SCALAR_FIELD(subQType);
   COPY_SCALAR_FIELD(quantify);
   COPY_SCALAR_FIELD(isDistinct);
   CLONE_NODE_LIST_FIELD(pProjectionList);
+  CLONE_NODE_LIST_FIELD(pProjectionBindList);
   CLONE_NODE_FIELD(pFromTable);
   CLONE_NODE_FIELD(pWhere);
   CLONE_NODE_LIST_FIELD(pPartitionByList);
@@ -1573,16 +1610,29 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   CLONE_NODE_LIST_FIELD(pWindowList);
   CLONE_NODE_LIST_FIELD(pGroupByList);
   CLONE_NODE_FIELD(pHaving);
+  CLONE_NODE_FIELD(pRange);
+  CLONE_NODE_FIELD(pRangeAround);
+  CLONE_NODE_FIELD(pEvery);
+  CLONE_NODE_FIELD(pFill);
   CLONE_NODE_LIST_FIELD(pOrderByList);
   CLONE_NODE_FIELD_EX(pLimit, SLimitNode*);
   CLONE_NODE_FIELD_EX(pSlimit, SLimitNode*);
   COPY_CHAR_ARRAY_FIELD(stmtName);
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(isSubquery);
+  COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  CLONE_NODE_FIELD(pTimeRange);
+  CLONE_NODE_LIST_FIELD(pSubQueries);
+  COPY_SCALAR_FIELD(selectFuncNum);
+  COPY_SCALAR_FIELD(returnRows);
+  COPY_SCALAR_FIELD(multiRowsFuncKParam);
+  COPY_SCALAR_FIELD(hasNonLocalSubQ);
+  COPY_SCALAR_FIELD(hasGenericAnalysisFunc);
   COPY_SCALAR_FIELD(isEmptyResult);
   COPY_SCALAR_FIELD(timeLineResMode);
   COPY_SCALAR_FIELD(timeLineFromOrderBy);
   COPY_SCALAR_FIELD(timeLineCurMode);
+  COPY_SCALAR_FIELD(lastProcessByRowFuncId);
   COPY_SCALAR_FIELD(windowMode);
   COPY_SCALAR_FIELD(hasAggFuncs);
   COPY_SCALAR_FIELD(hasRepeatScanFuncs);
@@ -1725,6 +1775,15 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_INTERVAL_WINDOW:
       code = intervalWindowNodeCopy((const SIntervalWindowNode*)pNode, (SIntervalWindowNode*)pDst);
+      break;
+    case QUERY_NODE_PERIOD_WINDOW:
+      code = periodWindowNodeCopy((const SPeriodWindowNode*)pNode, (SPeriodWindowNode*)pDst);
+      break;
+    case QUERY_NODE_STREAM_WINDOW_PLAN:
+      code = streamWindowPlanNodeCopy((const SStreamWindowPlanNode*)pNode, (SStreamWindowPlanNode*)pDst);
+      break;
+    case QUERY_NODE_STREAM_WINDOW_LAYER:
+      code = streamWindowLayerNodeCopy((const SStreamWindowLayerNode*)pNode, (SStreamWindowLayerNode*)pDst);
       break;
     case QUERY_NODE_NODE_LIST:
       code = nodeListNodeCopy((const SNodeListNode*)pNode, (SNodeListNode*)pDst);

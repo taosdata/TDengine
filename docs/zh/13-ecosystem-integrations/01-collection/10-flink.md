@@ -10,7 +10,7 @@ import FlinkCommonInfo from './flink/_flink-common-info.mdx'
 
 Apache Flink 是由 Apache 软件基金会支持的开源分布式流批一体处理框架，可用于流处理、批处理、复杂事件处理、实时数仓构建等场景，并通过连接器对接多种数据源进行读写。
 
-TDengine 通过 **Flink 连接器**与 Flink 集成：连接器既可将 Flink 作业中的处理结果写入 TDengine（Sink），也可在企业版中从 TDengine 读数（Source/CDC）。两侧通过 JDBC/连接器直接访问数据库，而不是把 TDengine 当作向 Flink 投递消息的消息队列。
+TDengine 通过 **Flink 连接器** 与 Flink 集成：连接器既可将 Flink 作业中的处理结果写入 TDengine（Sink），也可在企业版中从 TDengine 读数（Source/CDC）。两侧通过 JDBC/连接器直接访问数据库，而不是把 TDengine 当作向 Flink 投递消息的消息队列。
 
 本文说明社区版可用的 Sink / Table Sink 用法。企业版 Source、CDC 与 Table Source 详见 [数据发布](../../08-data-ingest-and-delivery/02-no-code-delivery/index.md) 中的 [Flink](../../08-data-ingest-and-delivery/02-no-code-delivery/02-Flink.md)。
 

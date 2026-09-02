@@ -3189,9 +3189,6 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
     if (pTbData->flags & SUBMIT_REQ_WITH_BLOB) {
       hasBlob = 1;
     }
-    if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-      continue;  // skip column data format
-    }
     if (pTbData->flags & SUBMIT_REQ_ONLY_CREATE_TABLE) {
       continue;  // skip only crate table request
     }
@@ -3239,6 +3236,12 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
              TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version, pTbData->uid, pTbData->suid,
              info.suid);
       return code;
+    }
+
+    // Column-format data is self-describing by column ID and type. Child identity and its
+    // parent suid have already been validated, so no parent-meta lookup or sver check is needed.
+    if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      continue;
     }
 
     if (info.suid) {
@@ -4286,6 +4289,10 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
 
   if (req.minRows != -1 && req.minRows != pVnode->config.tsdbCfg.minRows) {
     pVnode->config.tsdbCfg.minRows = req.minRows;
+  }
+
+  if (req.maxRows != -1 && req.maxRows != pVnode->config.tsdbCfg.maxRows) {
+    pVnode->config.tsdbCfg.maxRows = req.maxRows;
   }
 
   if (req.ssKeepLocal != -1 && req.ssKeepLocal != pVnode->config.ssKeepLocal) {

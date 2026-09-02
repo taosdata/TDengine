@@ -762,9 +762,13 @@ class CompatibilityBase:
         tdsql.query(f"select count(*) from {stb}")
         tdsql.checkData(0,0,tableNumbers*recordNumbers2)
 
-    def checkstatus(self,retry_times=30):
-        
-        # sleep before check status to avoid dnodes not ready issue
+    def checkstatus(self, retry_times=300):
+        # Sleep before checking status to avoid dnodes not ready issue.
+        # NOTE: retry_times must be large enough to cover slow vnode restore after an
+        # upgrade. When the old version left no WAL snapshot (e.g. 3.3.3.0 data), the
+        # new version has to replay and commit the whole dataset on restore, which can
+        # take several minutes (e.g. a 4094-column table from compa4096.json). Bumped
+        # from 60 to 300 to avoid flaky "vnodes are not ready" (see tsdb!1495 follow-up).
         time.sleep(30)
         tdsql=tdCom.newTdSql()
         dnodes_ready = False

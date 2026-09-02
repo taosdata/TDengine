@@ -15,12 +15,14 @@
 
 #include "mndStream.h"
 #include "audit.h"
+#include "functionMgt.h"
 #include "libs/new-stream/stream.h"
 #include "mndDb.h"
 #include "mndExtSource.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndStb.h"
+#include "mndStreamRecalc.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
@@ -30,6 +32,8 @@
 #include "tglobal.h"
 #include "tmisce.h"
 #include "tname.h"
+#include "tref.h"
+#include "ttimer.h"
 
 #define MND_STREAM_MAX_NUM 100000
 
@@ -37,8 +41,60 @@ typedef struct {
   int8_t placeHolder;  // // to fix windows compile error, define place holder
 } SMStreamNodeCheckMsg;
 
+typedef enum {
+  STREAM_PREFLIGHT_PENDING = 0,
+  STREAM_PREFLIGHT_ENQUEUEING,
+  STREAM_PREFLIGHT_HANDED_OFF,
+  STREAM_PREFLIGHT_PROCESSING,
+  STREAM_PREFLIGHT_REPLIED,
+  STREAM_PREFLIGHT_REPLIED_BY_QUEUE,
+} EStreamPreflightState;
+
+typedef struct {
+  int32_t  refSetId;
+  int64_t  refId;
+  uint64_t nonce;
+} SStreamPreflightToken;
+
+typedef struct {
+  TdThreadMutex          mutex;
+  TdThreadCond           terminalCleanupCond;
+  int32_t                refSetId;
+  int64_t                refId;
+  uint64_t               nonce;
+  SMnode                *pMnode;
+  SRpcHandleInfo         clientInfo;
+  void                  *pCreateReq;
+  int32_t                createReqLen;
+  void                  *pMetaRsp;
+  int32_t                metaRspLen;
+  int64_t                transporterId;
+  bool                   transporterPublished;
+  bool                   transporterReleased;
+  bool                   releasePending;
+  bool                   removed;
+  tmr_h                  timer;
+  SStreamPreflightToken *pTimerToken;
+  EStreamPreflightState  state;
+  bool                   terminalCleanupDone;
+} SStreamPreflightEntry;
+
+typedef struct {
+  const STableMetaRsp *pMeta;
+  bool                 hasCompositePrimaryKey;
+  bool                 partitionByTbname;
+  bool                 partitionByTag;
+  int32_t              code;
+} SStreamColumnValidationCtx;
+
 static int32_t  mndNodeCheckSentinel = 0;
 SStmRuntime  mStreamMgmt = {0};
+static int32_t       mndStreamPreflightRef = -1;
+static void         *mndStreamPreflightTimer = NULL;
+static int8_t        mndStreamPreflightStopping = 1;
+static TdThreadOnce  mndStreamPreflightAdmissionOnce = PTHREAD_ONCE_INIT;
+static TdThreadMutex mndStreamPreflightAdmissionMutex;
+static int32_t       mndStreamPreflightAdmissionInitCode = TSDB_CODE_SUCCESS;
 
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
@@ -58,18 +114,332 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq);
 
 static SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
 
+static int32_t mndStreamDecodeRecalcPatch(SDecoder *pDecoder, SStreamObj *pStream) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int32_t requestNum = 0;
+
+  TAOS_CHECK_EXIT(tStartDecode(pDecoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pStream->name));
+  TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pStream->recalcRevision));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &requestNum));
+  if (requestNum < 0 || (uint32_t)requestNum > TD_CODER_REMAIN_CAPACITY(pDecoder) / (4 * sizeof(int64_t))) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  if (requestNum > 0) {
+    pStream->pIncompleteRecalcs = taosArrayInit(requestNum, sizeof(SStreamRecalcPersistReq));
+    TSDB_CHECK_NULL(pStream->pIncompleteRecalcs, code, lino, _exit, terrno);
+  }
+  for (int32_t i = 0; i < requestNum; ++i) {
+    SStreamRecalcPersistReq request = {0};
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &request.recalcId));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &request.start));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &request.end));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &request.requestTimeMs));
+    if (request.recalcId == 0 || request.end <= request.start || request.requestTimeMs <= 0) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    if (taosArrayPush(pStream->pIncompleteRecalcs, &request) == NULL) TAOS_CHECK_EXIT(terrno);
+  }
+
+_exit:
+  tEndDecode(pDecoder);
+  return code;
+}
+
 SSdbRaw       *mndStreamSeqActionEncode(SStreamObj *pStream);
 SSdbRow       *mndStreamSeqActionDecode(SSdbRaw *pRaw);
 static int32_t mndStreamSeqActionInsert(SSdb *pSdb, SStreamSeq *pStream);
 static int32_t mndStreamSeqActionDelete(SSdb *pSdb, SStreamSeq *pStream);
 static int32_t mndStreamSeqActionUpdate(SSdb *pSdb, SStreamSeq *pOldStream, SStreamSeq *pNewStream);
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq);
+static int32_t mndProcessCreateStreamContinuation(SRpcMsg *pReq);
+static int32_t mndProcessCreateStreamFinal(SRpcMsg *pReq, SCMCreateStreamReq *pCreate);
+
+static void mndStreamInitPreflightAdmission(void) {
+  mndStreamPreflightAdmissionInitCode = taosThreadMutexInit(&mndStreamPreflightAdmissionMutex, NULL);
+}
+
+static int32_t mndStreamEnsurePreflightAdmission(void) {
+  int32_t code = taosThreadOnce(&mndStreamPreflightAdmissionOnce, mndStreamInitPreflightAdmission);
+  return code == TSDB_CODE_SUCCESS ? mndStreamPreflightAdmissionInitCode : code;
+}
+
+static void mndStreamDestroyPreflightEntry(void *pData) {
+  SStreamPreflightEntry *pEntry = pData;
+  if (pEntry == NULL) return;
+
+  taosMemoryFreeClear(pEntry->pCreateReq);
+  taosMemoryFreeClear(pEntry->pMetaRsp);
+  (void)taosThreadCondDestroy(&pEntry->terminalCleanupCond);
+  (void)taosThreadMutexDestroy(&pEntry->mutex);
+  taosMemoryFree(pEntry);
+}
+
+static void mndStreamReleasePreflightToken(void *pData) {
+  SStreamPreflightToken *pToken = pData;
+  if (pToken == NULL) return;
+  TAOS_UNUSED(taosReleaseRef(pToken->refSetId, pToken->refId));
+  taosMemoryFree(pToken);
+}
+
+static SStreamPreflightToken *mndStreamCreatePreflightToken(SStreamPreflightEntry *pEntry) {
+  SStreamPreflightToken *pToken = taosMemoryMalloc(sizeof(*pToken));
+  if (pToken == NULL) return NULL;
+  if (taosAcquireRef(pEntry->refSetId, pEntry->refId) == NULL) {
+    taosMemoryFree(pToken);
+    return NULL;
+  }
+  *pToken = (SStreamPreflightToken){
+      .refSetId = pEntry->refSetId,
+      .refId = pEntry->refId,
+      .nonce = pEntry->nonce,
+  };
+  return pToken;
+}
+
+static SStreamPreflightEntry *mndStreamAcquirePreflight(const SStreamPreflightToken *pToken) {
+  if (pToken == NULL) return NULL;
+  SStreamPreflightEntry *pEntry = taosAcquireRef(pToken->refSetId, pToken->refId);
+  if (pEntry == NULL) return NULL;
+  if (pEntry->nonce != pToken->nonce) {
+    TAOS_UNUSED(taosReleaseRef(pToken->refSetId, pToken->refId));
+    return NULL;
+  }
+  return pEntry;
+}
+
+static void mndStreamSendPreflightResponse(const SRpcHandleInfo *pInfo, int32_t code) {
+  SRpcMsg rsp = {.code = code, .info = *pInfo};
+  TAOS_UNUSED(rpcSendResponse(&rsp));
+}
+
+static void mndStreamCleanupPreflight(SStreamPreflightEntry *pEntry, bool fromTimer, bool terminal) {
+  int64_t                transporterId = 0;
+  tmr_h                  timer = NULL;
+  SStreamPreflightToken *pTimerToken = NULL;
+  bool                   remove = false;
+
+  (void)taosThreadMutexLock(&pEntry->mutex);
+  if (fromTimer) {
+    pEntry->timer = NULL;
+    pEntry->pTimerToken = NULL;
+  } else {
+    timer = pEntry->timer;
+    pTimerToken = pEntry->pTimerToken;
+    pEntry->timer = NULL;
+    pEntry->pTimerToken = NULL;
+  }
+  if (pEntry->transporterPublished) {
+    if (!pEntry->transporterReleased && pEntry->transporterId > 0) {
+      pEntry->transporterReleased = true;
+      transporterId = pEntry->transporterId;
+    }
+  } else {
+    pEntry->releasePending = true;
+  }
+  if (terminal && !pEntry->removed) {
+    pEntry->removed = true;
+    remove = true;
+  }
+  (void)taosThreadMutexUnlock(&pEntry->mutex);
+
+  if (timer != NULL && pTimerToken != NULL) {
+    if (taosTmrStopA(&timer)) {
+      mndStreamReleasePreflightToken(pTimerToken);
+    }
+  }
+  if (transporterId > 0) {
+    (void)asyncFreeConnById(pEntry->pMnode->msgCb.clientRpc, transporterId);
+  }
+  if (remove) {
+    TAOS_UNUSED(taosRemoveRef(pEntry->refSetId, pEntry->refId));
+  }
+
+  if (terminal) {
+    (void)taosThreadMutexLock(&pEntry->mutex);
+    pEntry->terminalCleanupDone = true;
+    (void)taosThreadCondBroadcast(&pEntry->terminalCleanupCond);
+    (void)taosThreadMutexUnlock(&pEntry->mutex);
+  }
+}
+
+static void mndStreamCleanupPreflightTerminal(SStreamPreflightEntry *pEntry, bool fromTimer) {
+  mndStreamCleanupPreflight(pEntry, fromTimer, true);
+}
+
+static void mndStreamCleanupPreflightHandoff(SStreamPreflightEntry *pEntry) {
+  mndStreamCleanupPreflight(pEntry, false, false);
+}
+
+static bool mndStreamFailPendingPreflight(SStreamPreflightEntry *pEntry, int32_t code, bool fromTimer) {
+  SRpcHandleInfo clientInfo = {0};
+  bool           won = false;
+
+  (void)taosThreadMutexLock(&pEntry->mutex);
+  if (pEntry->state == STREAM_PREFLIGHT_PENDING) {
+    pEntry->state = STREAM_PREFLIGHT_REPLIED;
+    clientInfo = pEntry->clientInfo;
+    won = true;
+  }
+  (void)taosThreadMutexUnlock(&pEntry->mutex);
+
+  if (won) {
+    mndStreamCleanupPreflightTerminal(pEntry, fromTimer);
+    mndStreamSendPreflightResponse(&clientInfo, code);
+  }
+  return won;
+}
+
+static int32_t mndStreamBuildContinuationPayload(const SStreamPreflightEntry *pEntry, void **ppPayload,
+                                                 int32_t *pPayloadLen) {
+  if (pEntry == NULL || ppPayload == NULL || pPayloadLen == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  void *pPayload = rpcMallocCont(sizeof(SStreamPreflightToken));
+  if (pPayload == NULL) return terrno;
+  const SStreamPreflightToken token = {
+      .refSetId = pEntry->refSetId,
+      .refId = pEntry->refId,
+      .nonce = pEntry->nonce,
+  };
+  memcpy(pPayload, &token, sizeof(token));
+  *ppPayload = pPayload;
+  *pPayloadLen = sizeof(SStreamPreflightToken);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndStreamDecodeContinuationPayload(const void *pPayload, int32_t payloadLen,
+                                                  SStreamPreflightToken *pToken) {
+  if (pPayload == NULL || payloadLen != (int32_t)sizeof(SStreamPreflightToken) || pToken == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  memcpy(pToken, pPayload, sizeof(*pToken));
+  if (pToken->refSetId != mndStreamPreflightRef || pToken->refId <= 0 || pToken->nonce == 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndStreamCreateQueuedPreflight(SMnode *pMnode, const SRpcHandleInfo *pClientInfo, const void *pCreateReq,
+                                              int32_t createReqLen, const void *pMetaRsp, int32_t metaRspLen,
+                                              SStreamPreflightEntry **ppEntry) {
+  if (pMnode == NULL || pClientInfo == NULL || pCreateReq == NULL || createReqLen <= 0 || pMetaRsp == NULL ||
+      metaRspLen <= 0 || ppEntry == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *ppEntry = NULL;
+
+  SStreamPreflightEntry *pEntry = taosMemoryCalloc(1, sizeof(*pEntry));
+  if (pEntry == NULL) return terrno;
+  if (taosThreadMutexInit(&pEntry->mutex, NULL) != 0) {
+    taosMemoryFree(pEntry);
+    return terrno;
+  }
+  if (taosThreadCondInit(&pEntry->terminalCleanupCond, NULL) != 0) {
+    (void)taosThreadMutexDestroy(&pEntry->mutex);
+    taosMemoryFree(pEntry);
+    return terrno;
+  }
+  pEntry->pCreateReq = taosMemoryMalloc(createReqLen);
+  pEntry->pMetaRsp = taosMemoryMalloc(metaRspLen);
+  if (pEntry->pCreateReq == NULL || pEntry->pMetaRsp == NULL) {
+    mndStreamDestroyPreflightEntry(pEntry);
+    return terrno;
+  }
+  memcpy(pEntry->pCreateReq, pCreateReq, createReqLen);
+  memcpy(pEntry->pMetaRsp, pMetaRsp, metaRspLen);
+  pEntry->pMnode = pMnode;
+  pEntry->clientInfo = *pClientInfo;
+  pEntry->createReqLen = createReqLen;
+  pEntry->metaRspLen = metaRspLen;
+  pEntry->state = STREAM_PREFLIGHT_ENQUEUEING;
+  pEntry->nonce = ((uint64_t)taosSafeRand() << 32) | taosSafeRand();
+  if (pEntry->nonce == 0) pEntry->nonce = 1;
+
+  (void)taosThreadMutexLock(&mndStreamPreflightAdmissionMutex);
+  if (atomic_load_8(&mndStreamPreflightStopping)) {
+    (void)taosThreadMutexUnlock(&mndStreamPreflightAdmissionMutex);
+    mndStreamDestroyPreflightEntry(pEntry);
+    return TSDB_CODE_APP_IS_STOPPING;
+  }
+  pEntry->refSetId = mndStreamPreflightRef;
+  pEntry->refId = taosAddRef(pEntry->refSetId, pEntry);
+  if (pEntry->refId <= 0) {
+    (void)taosThreadMutexUnlock(&mndStreamPreflightAdmissionMutex);
+    mndStreamDestroyPreflightEntry(pEntry);
+    return terrno;
+  }
+  SStreamPreflightEntry *pLocalEntry = taosAcquireRef(pEntry->refSetId, pEntry->refId);
+  if (pLocalEntry == NULL) {
+    TAOS_UNUSED(taosRemoveRef(pEntry->refSetId, pEntry->refId));
+    (void)taosThreadMutexUnlock(&mndStreamPreflightAdmissionMutex);
+    return terrno;
+  }
+  (void)taosThreadMutexUnlock(&mndStreamPreflightAdmissionMutex);
+  *ppEntry = pLocalEntry;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void mndStreamPreflightTimeout(void *param, void *tmrId) {
+  SStreamPreflightToken *pToken = param;
+  SStreamPreflightEntry *pEntry = mndStreamAcquirePreflight(pToken);
+  if (pEntry != NULL) {
+    (void)mndStreamFailPendingPreflight(pEntry, TSDB_CODE_RPC_TIMEOUT, true);
+    TAOS_UNUSED(taosReleaseRef(pToken->refSetId, pToken->refId));
+  }
+  mndStreamReleasePreflightToken(pToken);
+}
 
 void mndCleanupStream(SMnode *pMnode) {
   mDebug("try to clean up stream");
-  
+
+  if (mndStreamEnsurePreflightAdmission() == TSDB_CODE_SUCCESS) {
+    (void)taosThreadMutexLock(&mndStreamPreflightAdmissionMutex);
+    atomic_store_8(&mndStreamPreflightStopping, 1);
+    (void)taosThreadMutexUnlock(&mndStreamPreflightAdmissionMutex);
+  } else {
+    atomic_store_8(&mndStreamPreflightStopping, 1);
+  }
+  if (mndStreamPreflightRef >= 0) {
+    SStreamPreflightEntry *pEntry = NULL;
+    while ((pEntry = taosIterateRef(mndStreamPreflightRef, 0)) != NULL) {
+      const int64_t refId = pEntry->refId;
+      bool           sendResponse = false;
+      bool           cleanup = false;
+      SRpcHandleInfo clientInfo = {0};
+      (void)taosThreadMutexLock(&pEntry->mutex);
+      while (!pEntry->terminalCleanupDone && pEntry->state != STREAM_PREFLIGHT_PENDING &&
+             pEntry->state != STREAM_PREFLIGHT_HANDED_OFF) {
+        (void)taosThreadCondWait(&pEntry->terminalCleanupCond, &pEntry->mutex);
+      }
+      if (!pEntry->terminalCleanupDone && pEntry->state == STREAM_PREFLIGHT_PENDING) {
+        pEntry->state = STREAM_PREFLIGHT_REPLIED;
+        clientInfo = pEntry->clientInfo;
+        sendResponse = true;
+        cleanup = true;
+      } else if (!pEntry->terminalCleanupDone && pEntry->state == STREAM_PREFLIGHT_HANDED_OFF) {
+        pEntry->state = STREAM_PREFLIGHT_REPLIED_BY_QUEUE;
+        cleanup = true;
+      }
+      (void)taosThreadMutexUnlock(&pEntry->mutex);
+      if (cleanup) mndStreamCleanupPreflightTerminal(pEntry, false);
+      if (sendResponse) mndStreamSendPreflightResponse(&clientInfo, TSDB_CODE_APP_IS_STOPPING);
+      TAOS_UNUSED(taosReleaseRef(mndStreamPreflightRef, refId));
+    }
+  }
+  if (mndStreamPreflightTimer != NULL) {
+    taosTmrCleanUp(mndStreamPreflightTimer);
+    mndStreamPreflightTimer = NULL;
+  }
+  if (mndStreamPreflightRef >= 0) {
+    taosCloseRef(mndStreamPreflightRef);
+    mndStreamPreflightRef = -1;
+  }
+
   msmHandleBecomeNotLeader(pMnode);
-  
+
   mDebug("mnd stream runtime info cleanup");
 }
 
@@ -99,14 +469,38 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
 
   SDB_GET_INT32(pRaw, dataPos, &tlen, _over);
 
+  if (tlen <= 0 || tlen >= INT32_MAX || tlen > pRaw->dataLen - dataPos) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, _over);
+  }
+
   buf = taosMemoryMalloc(tlen + 1);
   TSDB_CHECK_NULL(buf, code, lino, _over, terrno);
 
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, _over);
 
+  int32_t remaining = pRaw->dataLen - dataPos;
+  if (remaining == 0) {
+    pStream->sdbRawUpdateKind = MND_STREAM_RAW_UPDATE_FULL;
+  } else if (remaining == sizeof(int8_t)) {
+    SDB_GET_INT8(pRaw, dataPos, &pStream->sdbRawUpdateKind, _over);
+    if (pStream->sdbRawUpdateKind != MND_STREAM_RAW_UPDATE_FULL &&
+        pStream->sdbRawUpdateKind != MND_STREAM_RAW_UPDATE_RECALC_PATCH) {
+      code = TSDB_CODE_INVALID_MSG;
+      TSDB_CHECK_CODE(code, lino, _over);
+    }
+  } else {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, _over);
+  }
+
   SDecoder decoder;
   tDecoderInit(&decoder, buf, tlen + 1);
-  code = tDecodeSStreamObj(&decoder, pStream, sver);
+  if (pStream->sdbRawUpdateKind == MND_STREAM_RAW_UPDATE_RECALC_PATCH) {
+    code = mndStreamDecodeRecalcPatch(&decoder, pStream);
+  } else {
+    code = tDecodeSStreamObj(&decoder, pStream, sver);
+  }
   tDecoderClear(&decoder);
 
   if (code < 0) {
@@ -124,7 +518,7 @@ _over:
     terrno = code;
     return NULL;
   } else {
-    mTrace("stream:%s, decode from raw:%p, row:%p", pStream->pCreate->name, pRaw, pStream);
+    mTrace("stream:%s, decode from raw:%p, row:%p", pStream->name, pRaw, pStream);
 
     terrno = 0;
     return pRow;
@@ -132,25 +526,75 @@ _over:
 }
 
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream) {
-  mTrace("stream:%s, perform insert action", pStream->pCreate->name);
-  return 0;
+  mTrace("stream:%s, perform insert action", pStream->name);
+  if (pStream->sdbRawUpdateKind == MND_STREAM_RAW_UPDATE_RECALC_PATCH) {
+    return TSDB_CODE_SDB_OBJ_NOT_THERE;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream) {
-  mInfo("stream:%s, perform delete action", pStream->pCreate->name);
+  mInfo("stream:%s, perform delete action", pStream->name);
   tFreeStreamObj(pStream);
   return 0;
+}
+
+static int32_t mndStreamApplyRecalcPatch(SStreamObj *pOldStream, const SStreamObj *pPatch) {
+  taosRLockLatch(&pOldStream->lock);
+  bool newerRecalcRevision = pPatch->recalcRevision > pOldStream->recalcRevision;
+  taosRUnLockLatch(&pOldStream->lock);
+  if (!newerRecalcRevision) return TSDB_CODE_SUCCESS;
+
+  SArray *pRequests = pPatch->pIncompleteRecalcs == NULL ? NULL : taosArrayDup(pPatch->pIncompleteRecalcs, NULL);
+  if (pPatch->pIncompleteRecalcs != NULL && pRequests == NULL) return terrno;
+
+  taosWLockLatch(&pOldStream->lock);
+  if (pPatch->recalcRevision > pOldStream->recalcRevision) {
+    SArray *pOldRequests = pOldStream->pIncompleteRecalcs;
+    pOldStream->pIncompleteRecalcs = pRequests;
+    pOldStream->recalcRevision = pPatch->recalcRevision;
+    pRequests = NULL;
+    taosArrayDestroy(pOldRequests);
+  }
+  taosWUnLockLatch(&pOldStream->lock);
+  taosArrayDestroy(pRequests);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStreamObj *pNewStream) {
   mTrace("stream:%s, perform update action", pOldStream->pCreate->name);
 
+  if (pNewStream->sdbRawUpdateKind == MND_STREAM_RAW_UPDATE_RECALC_PATCH) {
+    return mndStreamApplyRecalcPatch(pOldStream, pNewStream);
+  }
+
+  taosRLockLatch(&pOldStream->lock);
+  bool recalcMayWin = pNewStream->recalcRevision > pOldStream->recalcRevision;
+  taosRUnLockLatch(&pOldStream->lock);
+
+  SArray *pRequests = recalcMayWin && pNewStream->pIncompleteRecalcs != NULL
+                          ? taosArrayDup(pNewStream->pIncompleteRecalcs, NULL)
+                          : NULL;
+  if (recalcMayWin && pNewStream->pIncompleteRecalcs != NULL && pRequests == NULL) return terrno;
+
+  SArray *pOldRequests = NULL;
+  taosWLockLatch(&pOldStream->lock);
   atomic_store_32(&pOldStream->mainSnodeId, pNewStream->mainSnodeId);
   atomic_store_8(&pOldStream->userStopped, atomic_load_8(&pNewStream->userStopped));
   pOldStream->ownerId = pNewStream->ownerId;
   pOldStream->updateTime = pNewStream->updateTime;
-  
-  return 0;
+  if (recalcMayWin && pNewStream->recalcRevision > pOldStream->recalcRevision) {
+    pOldRequests = pOldStream->pIncompleteRecalcs;
+    pOldStream->pIncompleteRecalcs = pRequests;
+    pOldStream->recalcRevision = pNewStream->recalcRevision;
+    pRequests = NULL;
+  }
+  taosWUnLockLatch(&pOldStream->lock);
+
+  taosArrayDestroy(pOldRequests);
+  taosArrayDestroy(pRequests);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t mndAcquireStream(SMnode *pMnode, char *streamName, SStreamObj **pStream) {
@@ -752,6 +1196,572 @@ _OVER:
   return code;
 }
 
+static int32_t mndStreamClassifyExtTrigger(const SCMCreateStreamReq *pCreate, const char **ppSourceName,
+                                           int8_t *pSourceType, bool *pIsExtTrigger) {
+  *ppSourceName = NULL;
+  *pSourceType = 0;
+  *pIsExtTrigger = false;
+  if (pCreate->extSpecs == NULL) return pCreate->numOfExtSpecs == 0 ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_PARA;
+
+  const int32_t numOfSpecs = taosArrayGetSize(pCreate->extSpecs);
+  if (numOfSpecs != pCreate->numOfExtSpecs) return TSDB_CODE_INVALID_PARA;
+  int32_t numOfCandidates = 0;
+  for (int32_t i = 0; i < numOfSpecs; ++i) {
+    SStreamExtTriggerSpec *pSpec = taosArrayGetP(pCreate->extSpecs, i);
+    if (pSpec == NULL || pSpec->sourceName[0] == '\0') return TSDB_CODE_INVALID_PARA;
+    const bool hasTable = pSpec->extTable[0] != '\0';
+    const bool hasTsColumn = pSpec->tsColumn[0] != '\0';
+    if (hasTable != hasTsColumn) return TSDB_CODE_INVALID_PARA;
+    if (hasTable) {
+      ++numOfCandidates;
+      *ppSourceName = pSpec->sourceName;
+      *pSourceType = pSpec->sourceType;
+    }
+  }
+  if (numOfCandidates > 1) return TSDB_CODE_INVALID_PARA;
+  *pIsExtTrigger = numOfCandidates == 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndStreamRejectAuthoritativeExtTrigger(SMnode *pMnode, const SCMCreateStreamReq *pCreate,
+                                                      const char *pSourceName, int8_t sourceType) {
+#ifdef TD_ENTERPRISE
+  SExtSourceObj *pSource = mndAcquireExtSource(pMnode, pSourceName);
+  if (pSource == NULL) return TSDB_CODE_EXT_SOURCE_NOT_FOUND;
+  const bool typeMatches = pSource->type == sourceType;
+  mndReleaseExtSource(pMnode, pSource);
+  if (!typeMatches) return TSDB_CODE_INVALID_PARA;
+
+  SStreamWindowPlanValidationCtx ctx = {
+      .isExtTrigger = true,
+      .deleteRecalc = pCreate->deleteReCalc,
+      .ignoreNoDataTrigger = pCreate->igNoDataTrigger,
+      .flushOnOuterClose = BIT_FLAG_TEST_MASK(pCreate->addOptions, STREAM_OPTION_FLUSH_ON_OUTER_CLOSE),
+      .eventTypes = pCreate->eventTypes,
+  };
+  return tValidateStreamWindowPlan(pCreate->pWindowPlan, &ctx);
+#else
+  (void)pMnode;
+  (void)pCreate;
+  (void)pSourceName;
+  (void)sourceType;
+  return TSDB_CODE_EXT_SOURCE_NOT_FOUND;
+#endif
+}
+
+static int32_t mndStreamBuildStbMetaSnapshot(SMnode *pMnode, const SCMCreateStreamReq *pCreate, SDbObj *pDb,
+                                             SStbObj *pStb, STableMetaRsp *pMeta) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  taosRLockLatch(&pStb->lock);
+  if (pStb->numOfColumns <= 0 || pStb->numOfColumns > TSDB_MAX_COLUMNS || pStb->numOfTags < 0 ||
+      pStb->numOfTags > TSDB_MAX_TAGS || pStb->numOfColumns > INT32_MAX - pStb->numOfTags || pStb->pColumns == NULL ||
+      (pStb->numOfTags > 0 && pStb->pTags == NULL)) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  const int32_t totalCols = pStb->numOfColumns + pStb->numOfTags;
+  pMeta->pSchemas = taosMemoryCalloc(totalCols, sizeof(SSchema));
+  if (pMeta->pSchemas == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  pMeta->pSchemaExt = taosMemoryCalloc(pStb->numOfColumns, sizeof(SSchemaExt));
+  if (pMeta->pSchemaExt == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+
+  tstrncpy(pMeta->dbFName, pDb->name, sizeof(pMeta->dbFName));
+  tstrncpy(pMeta->tbName, pCreate->triggerTblName, sizeof(pMeta->tbName));
+  tstrncpy(pMeta->stbName, pCreate->triggerTblName, sizeof(pMeta->stbName));
+  pMeta->dbId = pDb->uid;
+  pMeta->numOfColumns = pStb->numOfColumns;
+  pMeta->numOfTags = pStb->numOfTags;
+  pMeta->precision = pDb->cfg.precision;
+  pMeta->tableType = TSDB_SUPER_TABLE;
+  pMeta->sversion = pStb->colVer;
+  pMeta->tversion = pStb->tagVer;
+  pMeta->suid = pStb->uid;
+  pMeta->tuid = pStb->uid;
+  pMeta->vgId = 0;
+  pMeta->virtualStb = pStb->virtualStb;
+  memcpy(pMeta->pSchemas, pStb->pColumns, sizeof(SSchema) * pStb->numOfColumns);
+  if (pStb->numOfTags > 0) {
+    memcpy(pMeta->pSchemas + pStb->numOfColumns, pStb->pTags, sizeof(SSchema) * pStb->numOfTags);
+  }
+  for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
+    pMeta->pSchemaExt[i].colId = pStb->pColumns[i].colId;
+    if (pStb->pCmpr != NULL) {
+      pMeta->pSchemaExt[i].compress = pStb->pCmpr[i].alg;
+    }
+  }
+
+_exit:
+  taosRUnLockLatch(&pStb->lock);
+  return code;
+}
+
+static int32_t mndStreamFindAuthoritativeColumn(const STableMetaRsp *pMeta, const SColumnNode *pColumn, bool *pIsTag,
+                                                const SSchema **ppSchema) {
+  const int32_t totalCols = pMeta->numOfColumns + pMeta->numOfTags;
+  int32_t       idIndex = -1;
+  int32_t       nameIndex = -1;
+  int32_t       idMatches = 0;
+  int32_t       nameMatches = 0;
+  for (int32_t i = 0; i < totalCols; ++i) {
+    if (pMeta->pSchemas[i].colId == pColumn->colId) {
+      idIndex = i;
+      ++idMatches;
+    }
+    if (pColumn->colName[0] != '\0' && strcmp(pMeta->pSchemas[i].name, pColumn->colName) == 0) {
+      nameIndex = i;
+      ++nameMatches;
+    }
+  }
+  if (idMatches != 1 || nameMatches != 1 || idIndex != nameIndex) return TSDB_CODE_INVALID_PARA;
+  *pIsTag = idIndex >= pMeta->numOfColumns;
+  *ppSchema = &pMeta->pSchemas[idIndex];
+  return TSDB_CODE_SUCCESS;
+}
+
+static void mndStreamNormalizeColumnNode(SColumnNode *pColumn, const STableMetaRsp *pMeta, const SSchema *pSchema,
+                                         bool isTag, bool hasCompositePrimaryKey) {
+  pColumn->tableId = pMeta->tuid;
+  pColumn->tableType = pMeta->tableType;
+  pColumn->colId = pSchema->colId;
+  pColumn->colType = isTag ? COLUMN_TYPE_TAG : COLUMN_TYPE_COLUMN;
+  pColumn->isPrimTs = pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID;
+  pColumn->tableHasPk = hasCompositePrimaryKey;
+  pColumn->numOfPKs = hasCompositePrimaryKey ? 1 : 0;
+  pColumn->isPk = (pSchema->flags & COL_IS_KEY) != 0;
+  pColumn->node.resType.type = pSchema->type;
+  pColumn->node.resType.bytes = pSchema->bytes;
+  tstrncpy(pColumn->colName, pSchema->name, sizeof(pColumn->colName));
+}
+
+static EDealRes mndStreamValidatePartitionNode(SNode *pNode, void *pContext) {
+  SStreamColumnValidationCtx *pCtx = pContext;
+  if (pCtx->code != TSDB_CODE_SUCCESS) return DEAL_RES_ERROR;
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN: {
+      bool           isTag = false;
+      const SSchema *pSchema = NULL;
+      SColumnNode   *pColumn = (SColumnNode *)pNode;
+      pCtx->code = mndStreamFindAuthoritativeColumn(pCtx->pMeta, pColumn, &isTag, &pSchema);
+      if (pCtx->code != TSDB_CODE_SUCCESS || !isTag) {
+        pCtx->code = TSDB_CODE_INVALID_PARA;
+        return DEAL_RES_ERROR;
+      }
+      mndStreamNormalizeColumnNode(pColumn, pCtx->pMeta, pSchema, isTag, pCtx->hasCompositePrimaryKey);
+      pCtx->partitionByTag = true;
+      return DEAL_RES_CONTINUE;
+    }
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode *pFunction = (SFunctionNode *)pNode;
+      if (fmGetFuncInfo(pFunction, NULL, 0) != TSDB_CODE_SUCCESS) {
+        pCtx->code = TSDB_CODE_INVALID_PARA;
+        return DEAL_RES_ERROR;
+      }
+      if (pFunction->funcType != FUNCTION_TYPE_TBNAME && !fmIsScalarFunc(pFunction->funcId)) {
+        pCtx->code = TSDB_CODE_INVALID_PARA;
+        return DEAL_RES_ERROR;
+      }
+      return DEAL_RES_CONTINUE;
+    }
+    case QUERY_NODE_VALUE:
+    case QUERY_NODE_NODE_LIST:
+    case QUERY_NODE_OPERATOR:
+    case QUERY_NODE_LOGIC_CONDITION:
+    case QUERY_NODE_WHEN_THEN:
+    case QUERY_NODE_CASE_WHEN:
+      return DEAL_RES_CONTINUE;
+    default:
+      pCtx->code = TSDB_CODE_INVALID_PARA;
+      return DEAL_RES_ERROR;
+  }
+}
+
+static int32_t mndStreamValidateColumnLists(SCMCreateStreamReq *pCreate, const STableMetaRsp *pMeta,
+                                            SStreamWindowPlanValidationCtx *pValidationCtx) {
+  SNodeList *pList = NULL;
+  int32_t    code = TSDB_CODE_SUCCESS;
+  if (pCreate->partitionCols != NULL) {
+    TAOS_CHECK_GOTO(nodesStringToList(pCreate->partitionCols, &pList), NULL, _exit);
+    SStreamColumnValidationCtx ctx = {
+        .pMeta = pMeta,
+        .hasCompositePrimaryKey = pValidationCtx->hasCompositePrimaryKey,
+        .code = TSDB_CODE_SUCCESS,
+    };
+    SNode *pNode = NULL;
+    FOREACH(pNode, pList) {
+      if (fmIsCanonicalTbnameFunction(pNode)) ctx.partitionByTbname = true;
+      nodesWalkExprPostOrder(pNode, mndStreamValidatePartitionNode, &ctx);
+      if (ctx.code != TSDB_CODE_SUCCESS) {
+        code = ctx.code;
+        goto _exit;
+      }
+    }
+    pValidationCtx->partitionByTbname = ctx.partitionByTbname;
+    pValidationCtx->partitionByTag = ctx.partitionByTag;
+    char   *pNormalized = NULL;
+    int32_t normalizedLen = 0;
+    TAOS_CHECK_GOTO(nodesListToString(pList, false, &pNormalized, &normalizedLen), NULL, _exit);
+    taosMemoryFree(pCreate->partitionCols);
+    pCreate->partitionCols = pNormalized;
+    nodesDestroyList(pList);
+    pList = NULL;
+  }
+
+  if (pCreate->rollupTagCols != NULL) {
+    TAOS_CHECK_GOTO(nodesStringToList(pCreate->rollupTagCols, &pList), NULL, _exit);
+    SNode *pNode = NULL;
+    FOREACH(pNode, pList) {
+      if (nodeType(pNode) != QUERY_NODE_COLUMN) {
+        code = TSDB_CODE_INVALID_PARA;
+        goto _exit;
+      }
+      bool           isTag = false;
+      const SSchema *pSchema = NULL;
+      TAOS_CHECK_GOTO(mndStreamFindAuthoritativeColumn(pMeta, (SColumnNode *)pNode, &isTag, &pSchema), NULL, _exit);
+      if (!isTag || (pSchema->type != TSDB_DATA_TYPE_VARCHAR && pSchema->type != TSDB_DATA_TYPE_NCHAR)) {
+        code = TSDB_CODE_INVALID_PARA;
+        goto _exit;
+      }
+      mndStreamNormalizeColumnNode((SColumnNode *)pNode, pMeta, pSchema, isTag, pValidationCtx->hasCompositePrimaryKey);
+    }
+    pValidationCtx->hasRollup = LIST_LENGTH(pList) > 0;
+    char   *pNormalized = NULL;
+    int32_t normalizedLen = 0;
+    TAOS_CHECK_GOTO(nodesListToString(pList, false, &pNormalized, &normalizedLen), NULL, _exit);
+    taosMemoryFree(pCreate->rollupTagCols);
+    pCreate->rollupTagCols = pNormalized;
+  }
+
+_exit:
+  nodesDestroyList(pList);
+  return code;
+}
+
+static int32_t mndStreamNormalizeAuthoritativeMetadata(SCMCreateStreamReq *pCreate, const STableMetaRsp *pMeta,
+                                                       int64_t expectedDbUid, int8_t expectedDbPrecision,
+                                                       int32_t expectedVgId, bool expectSuperTable) {
+  if (pCreate == NULL || pCreate->pWindowPlan == NULL || pMeta == NULL || pMeta->numOfColumns <= 0 ||
+      pMeta->numOfColumns > TSDB_MAX_COLUMNS || pMeta->numOfTags < 0 || pMeta->numOfTags > TSDB_MAX_TAGS ||
+      pMeta->numOfColumns > INT32_MAX - pMeta->numOfTags || pMeta->pSchemas == NULL || pMeta->tuid == 0 ||
+      strcmp(pMeta->tbName, pCreate->triggerTblName) != 0 || strcmp(pMeta->dbFName, pCreate->triggerDB) != 0 ||
+      pMeta->dbId != expectedDbUid || pMeta->precision != expectedDbPrecision || pMeta->vgId != expectedVgId) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (expectSuperTable) {
+    if (pMeta->tableType != TSDB_SUPER_TABLE || pMeta->suid != pMeta->tuid || pMeta->stbName[0] == '\0') {
+      return TSDB_CODE_INVALID_MSG;
+    }
+  } else {
+    const bool isNormal = pMeta->tableType == TSDB_NORMAL_TABLE || pMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE;
+    const bool isChild = pMeta->tableType == TSDB_CHILD_TABLE || pMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE;
+    if ((!isNormal && !isChild) || (isNormal && (pMeta->suid != 0 || pMeta->stbName[0] != '\0')) ||
+        (isChild && (pMeta->suid == 0 || pMeta->suid == pMeta->tuid || pMeta->stbName[0] == '\0'))) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+  }
+
+  const int32_t totalCols = pMeta->numOfColumns + pMeta->numOfTags;
+  bool          hasCompositePrimaryKey = false;
+  for (int32_t i = 0; i < totalCols; ++i) {
+    const SSchema *pSchema = &pMeta->pSchemas[i];
+    if (memchr(pSchema->name, '\0', sizeof(pSchema->name)) == NULL || pSchema->name[0] == '\0' || pSchema->bytes <= 0) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+    if (i > 0 && i < pMeta->numOfColumns && (pSchema->flags & COL_IS_KEY) != 0) hasCompositePrimaryKey = true;
+    for (int32_t j = 0; j < i; ++j) {
+      if (pMeta->pSchemas[j].colId == pSchema->colId || strcmp(pMeta->pSchemas[j].name, pSchema->name) == 0) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+    }
+  }
+
+  pCreate->triggerTblType = pMeta->tableType;
+  pCreate->triggerTblUid = pMeta->tuid;
+  pCreate->triggerTblSuid = pMeta->suid;
+  pCreate->triggerTblVgId = pMeta->vgId;
+  pCreate->triggerPrec = pMeta->precision;
+  if (pMeta->virtualStb) {
+    pCreate->flags |= CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB;
+  } else {
+    pCreate->flags &= ~CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pCreate->pWindowPlan->pLayers); ++i) {
+    SStreamWindowLayerSpec *pLayer = taosArrayGet(pCreate->pWindowPlan->pLayers, i);
+    if (pLayer->triggerType == WINDOW_TYPE_INTERVAL) pLayer->trigger.sliding.precision = pMeta->precision;
+  }
+  if (pCreate->triggerType == WINDOW_TYPE_INTERVAL) pCreate->trigger.sliding.precision = pMeta->precision;
+
+  SStreamWindowPlanValidationCtx validationCtx = {
+      .hasCompositePrimaryKey = hasCompositePrimaryKey,
+      .isSuperTable = pMeta->tableType == TSDB_SUPER_TABLE,
+      .deleteRecalc = pCreate->deleteReCalc,
+      .ignoreNoDataTrigger = pCreate->igNoDataTrigger,
+      .flushOnOuterClose = BIT_FLAG_TEST_MASK(pCreate->addOptions, STREAM_OPTION_FLUSH_ON_OUTER_CLOSE),
+      .eventTypes = pCreate->eventTypes,
+  };
+  int32_t code = mndStreamValidateColumnLists(pCreate, pMeta, &validationCtx);
+  if (code == TSDB_CODE_SUCCESS) code = tValidateStreamWindowPlan(pCreate->pWindowPlan, &validationCtx);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = tValidateStreamWindowPlanLeafProjection(pCreate->pWindowPlan, pCreate->triggerType, &pCreate->trigger);
+  }
+  return code;
+}
+
+static int32_t mndStreamQueueContinuation(SMnode *pMnode, const SRpcHandleInfo *pClientInfo, const void *pCreateReq,
+                                          int32_t createReqLen, const void *pMetaRsp, int32_t metaRspLen) {
+  SStreamPreflightEntry *pEntry = NULL;
+  int32_t                code =
+      mndStreamCreateQueuedPreflight(pMnode, pClientInfo, pCreateReq, createReqLen, pMetaRsp, metaRspLen, &pEntry);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  SRpcMsg continuation = {
+      .msgType = TDMT_MND_UNUSED1,
+      .info = *pClientInfo,
+  };
+  continuation.info.rsp = NULL;
+  continuation.info.rspLen = 0;
+  code = mndStreamBuildContinuationPayload(pEntry, &continuation.pCont, &continuation.contLen);
+  bool queueOwnsResponse = false;
+  if (code == TSDB_CODE_SUCCESS) {
+    queueOwnsResponse = true;
+    code = tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &continuation);
+  }
+
+  bool terminalCleanup = false;
+  (void)taosThreadMutexLock(&pEntry->mutex);
+  if (pEntry->state == STREAM_PREFLIGHT_ENQUEUEING) {
+    pEntry->state = code == TSDB_CODE_SUCCESS ? STREAM_PREFLIGHT_HANDED_OFF : STREAM_PREFLIGHT_REPLIED_BY_QUEUE;
+    terminalCleanup = code != TSDB_CODE_SUCCESS;
+  }
+  (void)taosThreadCondBroadcast(&pEntry->terminalCleanupCond);
+  (void)taosThreadMutexUnlock(&pEntry->mutex);
+  if (terminalCleanup) mndStreamCleanupPreflightTerminal(pEntry, false);
+  TAOS_UNUSED(taosReleaseRef(pEntry->refSetId, pEntry->refId));
+  return queueOwnsResponse ? TSDB_CODE_ACTION_IN_PROGRESS : code;
+}
+
+static int32_t mndStreamPreflightCallback(void *param, SDataBuf *pMsg, int32_t code) {
+  SStreamPreflightToken *pToken = param;
+  SStreamPreflightEntry *pEntry = mndStreamAcquirePreflight(pToken);
+  if (pEntry == NULL) {
+    if (pMsg != NULL) taosMemoryFreeClear(pMsg->pData);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    if (pMsg != NULL) taosMemoryFreeClear(pMsg->pData);
+    (void)mndStreamFailPendingPreflight(pEntry, code, false);
+    TAOS_UNUSED(taosReleaseRef(pToken->refSetId, pToken->refId));
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pMsg == NULL || pMsg->pData == NULL || pMsg->len <= 0) {
+    if (pMsg != NULL) taosMemoryFreeClear(pMsg->pData);
+    (void)mndStreamFailPendingPreflight(pEntry, TSDB_CODE_INVALID_MSG, false);
+    TAOS_UNUSED(taosReleaseRef(pToken->refSetId, pToken->refId));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  (void)taosThreadMutexLock(&pEntry->mutex);
+  if (pEntry->state != STREAM_PREFLIGHT_PENDING || pEntry->pMetaRsp != NULL) {
+    (void)taosThreadMutexUnlock(&pEntry->mutex);
+    taosMemoryFreeClear(pMsg->pData);
+    TAOS_UNUSED(taosReleaseRef(pToken->refSetId, pToken->refId));
+    return TSDB_CODE_SUCCESS;
+  }
+  pEntry->pMetaRsp = pMsg->pData;
+  pEntry->metaRspLen = pMsg->len;
+  pMsg->pData = NULL;
+  (void)taosThreadMutexUnlock(&pEntry->mutex);
+
+  void   *pPayload = NULL;
+  int32_t payloadLen = 0;
+  code = mndStreamBuildContinuationPayload(pEntry, &pPayload, &payloadLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    (void)mndStreamFailPendingPreflight(pEntry, code, false);
+    TAOS_UNUSED(taosReleaseRef(pToken->refSetId, pToken->refId));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SRpcHandleInfo clientInfo = {0};
+  bool           won = false;
+  (void)taosThreadMutexLock(&pEntry->mutex);
+  if (pEntry->state == STREAM_PREFLIGHT_PENDING) {
+    pEntry->state = STREAM_PREFLIGHT_ENQUEUEING;
+    clientInfo = pEntry->clientInfo;
+    won = true;
+  }
+  (void)taosThreadMutexUnlock(&pEntry->mutex);
+  if (!won) {
+    rpcFreeCont(pPayload);
+    TAOS_UNUSED(taosReleaseRef(pToken->refSetId, pToken->refId));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SRpcMsg continuation = {
+      .msgType = TDMT_MND_UNUSED1,
+      .pCont = pPayload,
+      .contLen = payloadLen,
+      .info = clientInfo,
+  };
+  continuation.info.rsp = NULL;
+  continuation.info.rspLen = 0;
+  code = tmsgPutToQueue(&pEntry->pMnode->msgCb, WRITE_QUEUE, &continuation);
+
+  bool handoffCleanup = false;
+  bool terminalCleanup = false;
+  (void)taosThreadMutexLock(&pEntry->mutex);
+  if (pEntry->state == STREAM_PREFLIGHT_ENQUEUEING) {
+    pEntry->state = code == TSDB_CODE_SUCCESS ? STREAM_PREFLIGHT_HANDED_OFF : STREAM_PREFLIGHT_REPLIED_BY_QUEUE;
+    handoffCleanup = code == TSDB_CODE_SUCCESS;
+    terminalCleanup = code != TSDB_CODE_SUCCESS;
+  }
+  (void)taosThreadCondBroadcast(&pEntry->terminalCleanupCond);
+  (void)taosThreadMutexUnlock(&pEntry->mutex);
+  if (handoffCleanup) {
+    mndStreamCleanupPreflightHandoff(pEntry);
+  } else if (terminalCleanup) {
+    mndStreamCleanupPreflightTerminal(pEntry, false);
+  }
+  TAOS_UNUSED(taosReleaseRef(pToken->refSetId, pToken->refId));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndStreamStartVnodePreflight(SMnode *pMnode, SRpcMsg *pReq, const SCMCreateStreamReq *pCreate,
+                                            int32_t vgId, const SEpSet *pEpSet) {
+  int32_t       code = TSDB_CODE_SUCCESS;
+  STableInfoReq tableReq = {0};
+  tableReq.header.vgId = vgId;
+  tableReq.option = REQ_OPT_TBNAME;
+  tstrncpy(tableReq.dbFName, pCreate->triggerDB, sizeof(tableReq.dbFName));
+  tstrncpy(tableReq.tbName, pCreate->triggerTblName, sizeof(tableReq.tbName));
+  int32_t requestLen = tSerializeSTableInfoReq(NULL, 0, &tableReq);
+  if (requestLen <= 0) return requestLen;
+
+  SStreamPreflightEntry *pEntry = taosMemoryCalloc(1, sizeof(*pEntry));
+  if (pEntry == NULL) return terrno;
+  if (taosThreadMutexInit(&pEntry->mutex, NULL) != 0) {
+    taosMemoryFree(pEntry);
+    return terrno;
+  }
+  if (taosThreadCondInit(&pEntry->terminalCleanupCond, NULL) != 0) {
+    (void)taosThreadMutexDestroy(&pEntry->mutex);
+    taosMemoryFree(pEntry);
+    return terrno;
+  }
+  pEntry->pMnode = pMnode;
+  pEntry->clientInfo = pReq->info;
+  pEntry->state = STREAM_PREFLIGHT_PENDING;
+  pEntry->createReqLen = pReq->contLen;
+  pEntry->pCreateReq = taosMemoryMalloc(pReq->contLen);
+  if (pEntry->pCreateReq == NULL) {
+    mndStreamDestroyPreflightEntry(pEntry);
+    return terrno;
+  }
+  memcpy(pEntry->pCreateReq, pReq->pCont, pReq->contLen);
+  pEntry->nonce = ((uint64_t)taosSafeRand() << 32) | taosSafeRand();
+  if (pEntry->nonce == 0) pEntry->nonce = 1;
+
+  (void)taosThreadMutexLock(&mndStreamPreflightAdmissionMutex);
+  if (atomic_load_8(&mndStreamPreflightStopping)) {
+    (void)taosThreadMutexUnlock(&mndStreamPreflightAdmissionMutex);
+    mndStreamDestroyPreflightEntry(pEntry);
+    return TSDB_CODE_APP_IS_STOPPING;
+  }
+  pEntry->refSetId = mndStreamPreflightRef;
+  pEntry->refId = taosAddRef(pEntry->refSetId, pEntry);
+  if (pEntry->refId <= 0) {
+    (void)taosThreadMutexUnlock(&mndStreamPreflightAdmissionMutex);
+    mndStreamDestroyPreflightEntry(pEntry);
+    return terrno;
+  }
+
+  SStreamPreflightEntry *pSenderEntry = taosAcquireRef(pEntry->refSetId, pEntry->refId);
+  if (pSenderEntry == NULL) {
+    TAOS_UNUSED(taosRemoveRef(pEntry->refSetId, pEntry->refId));
+    (void)taosThreadMutexUnlock(&mndStreamPreflightAdmissionMutex);
+    return terrno;
+  }
+
+  SStreamPreflightToken *pTimerToken = mndStreamCreatePreflightToken(pEntry);
+  if (pTimerToken == NULL) {
+    code = terrno;
+    goto _fail;
+  }
+  (void)taosThreadMutexLock(&pEntry->mutex);
+  pEntry->pTimerToken = pTimerToken;
+  pEntry->timer = taosTmrStart(mndStreamPreflightTimeout, tsStatusSRTimeoutMs, pTimerToken, mndStreamPreflightTimer);
+  tmr_h timer = pEntry->timer;
+  if (timer == NULL) {
+    pEntry->pTimerToken = NULL;
+  }
+  (void)taosThreadMutexUnlock(&pEntry->mutex);
+  if (timer == NULL) {
+    mndStreamReleasePreflightToken(pTimerToken);
+    code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    goto _fail;
+  }
+
+  SMsgSendInfo *pSendInfo = taosMemoryCalloc(1, sizeof(*pSendInfo));
+  if (pSendInfo == NULL) {
+    code = terrno;
+    goto _fail;
+  }
+  pSendInfo->msgInfo.pData = taosMemoryMalloc(requestLen);
+  if (pSendInfo->msgInfo.pData == NULL) {
+    code = terrno;
+    destroySendMsgInfo(pSendInfo);
+    goto _fail;
+  }
+  if (tSerializeSTableInfoReq(pSendInfo->msgInfo.pData, requestLen, &tableReq) != requestLen) {
+    code = TSDB_CODE_INVALID_MSG;
+    destroySendMsgInfo(pSendInfo);
+    goto _fail;
+  }
+  pSendInfo->fp = mndStreamPreflightCallback;
+  pSendInfo->param = mndStreamCreatePreflightToken(pEntry);
+  if (pSendInfo->param == NULL) {
+    code = terrno;
+    destroySendMsgInfo(pSendInfo);
+    goto _fail;
+  }
+  pSendInfo->paramFreeFp = mndStreamReleasePreflightToken;
+  pSendInfo->msgType = TDMT_VND_TABLE_META;
+  pSendInfo->msgInfo.len = requestLen;
+  pSendInfo->msgInfo.handle = NULL;
+
+  int64_t transporterId = 0;
+  code = asyncSendMsgToServer(pMnode->msgCb.clientRpc, (SEpSet *)pEpSet, &transporterId, pSendInfo);
+  int64_t releaseId = 0;
+  (void)taosThreadMutexLock(&pEntry->mutex);
+  pEntry->transporterPublished = true;
+  pEntry->transporterId = transporterId;
+  if ((pEntry->releasePending || pEntry->state != STREAM_PREFLIGHT_PENDING) && !pEntry->transporterReleased &&
+      transporterId > 0) {
+    pEntry->transporterReleased = true;
+    releaseId = transporterId;
+  }
+  (void)taosThreadMutexUnlock(&pEntry->mutex);
+  if (releaseId > 0) (void)asyncFreeConnById(pMnode->msgCb.clientRpc, releaseId);
+  if (code != TSDB_CODE_SUCCESS) goto _fail;
+
+  (void)taosThreadMutexUnlock(&mndStreamPreflightAdmissionMutex);
+  TAOS_UNUSED(taosReleaseRef(pEntry->refSetId, pEntry->refId));
+  return TSDB_CODE_ACTION_IN_PROGRESS;
+
+_fail:
+  (void)mndStreamFailPendingPreflight(pEntry, code, false);
+  (void)taosThreadMutexUnlock(&mndStreamPreflightAdmissionMutex);
+  TAOS_UNUSED(taosReleaseRef(pEntry->refSetId, pEntry->refId));
+  return TSDB_CODE_ACTION_IN_PROGRESS;
+}
+
 int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
@@ -1007,36 +2017,42 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
 
   mndReleaseUser(pMnode, pOperUser); // release user after privilege check
 
-  if (atomic_load_8(&pStream->userDropped)) {
-    code = TSDB_CODE_MND_STREAM_DROPPING;
-    mstsError("user %s failed to stop stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
-    sdbRelease(pMnode->pSdb, pStream);
-    return code;
-  }
-
   STrans *pTrans = NULL;
-  code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_STOP_NAME, &pTrans);
+  code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_DB_INSIDE, MND_STREAM_STOP_NAME, &pTrans);
   if (pTrans == NULL || code) {
     mstsError("failed to stop stream %s since %s", pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
 
-  pStream->updateTime = taosGetTimestampMs();
+  if (atomic_load_8(&pStream->userDropped)) {
+    code = TSDB_CODE_MND_STREAM_DROPPING;
+    mstsError("user %s failed to stop stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return code;
+  }
 
-  atomic_store_8(&pStream->userStopped, 1);
-
-  MND_STREAM_SET_LAST_TS(STM_EVENT_STOP_STREAM, pStream->updateTime);
-
-  msmUndeployStream(pMnode, streamId, pStream->name);
-
-  // stop stream
-  code = mndStreamTransAppend(pStream, pTrans, SDB_STATUS_READY);
+  int64_t updateTime = taosGetTimestampMs();
+  code = mndStreamTransAppendLifecycleUpdate(pStream, 1, updateTime, pTrans);
   if (code != TSDB_CODE_SUCCESS) {
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
   }
+
+  SStreamLifecycleTransParam *pParam = taosMemoryCalloc(1, sizeof(*pParam));
+  if (pParam == NULL) {
+    code = terrno;
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return code;
+  }
+  pParam->streamId = streamId;
+  pParam->action = MND_STREAM_LIFECYCLE_STOP;
+  pParam->expectedUserStopped = 1;
+  tstrncpy(pParam->streamName, pStream->name, sizeof(pParam->streamName));
+  mndTransSetCb(pTrans, 0, TRANS_STOP_FUNC_STREAM_LIFECYCLE, pParam, sizeof(*pParam));
 
   code = mndTransPrepare(pMnode, pTrans);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1045,6 +2061,8 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
     mndTransDrop(pTrans);
     return code;
   }
+
+  MND_STREAM_SET_LAST_TS(STM_EVENT_STOP_STREAM, updateTime);
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
@@ -1109,10 +2127,19 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
 
   mndReleaseUser(pMnode, pOperUser); // release user after privilege check
 
+  STrans *pTrans = NULL;
+  code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_DB_INSIDE, MND_STREAM_START_NAME, &pTrans);
+  if (pTrans == NULL || code) {
+    mstsError("failed to start stream %s since %s", pStream->name, tstrerror(code));
+    sdbRelease(pMnode->pSdb, pStream);
+    return code;
+  }
+
   if (atomic_load_8(&pStream->userDropped)) {
     code = TSDB_CODE_MND_STREAM_DROPPING;
     mstsError("user %s failed to start stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
     return code;
   }
 
@@ -1120,30 +2147,31 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
     code = TSDB_CODE_MND_STREAM_NOT_STOPPED;
     mstsError("user %s failed to start stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
     return code;
   }
 
-  atomic_store_8(&pStream->userStopped, 0);
-
-  pStream->updateTime = taosGetTimestampMs();
-
-  MND_STREAM_SET_LAST_TS(STM_EVENT_START_STREAM, pStream->updateTime);
-
-  STrans *pTrans = NULL;
-  code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_START_NAME, &pTrans);
-  if (pTrans == NULL || code) {
-    mstsError("failed to start stream %s since %s", pStream->name, tstrerror(code));
-    sdbRelease(pMnode->pSdb, pStream);
-    return code;
-  }
-
-  code = mndStreamTransAppend(pStream, pTrans, SDB_STATUS_READY);
+  int64_t updateTime = taosGetTimestampMs();
+  code = mndStreamTransAppendLifecycleUpdate(pStream, 0, updateTime, pTrans);
   if (code != TSDB_CODE_SUCCESS) {
     mstsError("failed to start stream %s since %s", pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
   }
+
+  SStreamLifecycleTransParam *pParam = taosMemoryCalloc(1, sizeof(*pParam));
+  if (pParam == NULL) {
+    code = terrno;
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return code;
+  }
+  pParam->streamId = streamId;
+  pParam->action = MND_STREAM_LIFECYCLE_START;
+  pParam->expectedUserStopped = 0;
+  tstrncpy(pParam->streamName, pStream->name, sizeof(pParam->streamName));
+  mndTransSetCb(pTrans, 0, TRANS_STOP_FUNC_STREAM_LIFECYCLE, pParam, sizeof(*pParam));
 
   code = mndTransPrepare(pMnode, pTrans);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1153,7 +2181,7 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
     return code;
   }
 
-  mstPostStreamAction(mStreamMgmt.actionQ, streamId, pStream->name, NULL, true, STREAM_ACT_DEPLOY);
+  MND_STREAM_SET_LAST_TS(STM_EVENT_START_STREAM, updateTime);
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
@@ -1167,6 +2195,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   SUserObj   *pOperUser = NULL;
   int32_t     code = 0;
   int32_t     notExistNum = 0;
+  int64_t     lifecycleUpdateTime = 0;
 
   SMDropStreamReq dropReq = {0};
   int64_t         tss = taosGetTimestampMs();
@@ -1197,16 +2226,19 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     }
   }
 
-  // Create a single transaction for all stream drops
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, MND_STREAM_DROP_NAME);
-  if (pTrans == NULL) {
-    mError("failed to create drop stream transaction since %s", tstrerror(terrno));
-    code = terrno;
-    mndReleaseUser(pMnode, pOperUser);
-    tFreeMDropStreamReq(&dropReq);
-    TAOS_RETURN(code);
+  STrans *pTrans = NULL;
+  if (dropReq.count != 1) {
+    // Keep the legacy multi-key transaction path unchanged.
+    pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, MND_STREAM_DROP_NAME);
+    if (pTrans == NULL) {
+      mError("failed to create drop stream transaction since %s", tstrerror(terrno));
+      code = terrno;
+      mndReleaseUser(pMnode, pOperUser);
+      tFreeMDropStreamReq(&dropReq);
+      TAOS_RETURN(code);
+    }
+    pTrans->ableToBeKilled = true;
   }
-  pTrans->ableToBeKilled = true;
 
   // Process all streams and add them to the transaction
   for (int32_t i = 0; i < dropReq.count; i++) {
@@ -1270,13 +2302,21 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
     mstsInfo("start to drop stream %s", pStream->pCreate->name);
 
-    pStream->updateTime = taosGetTimestampMs();
-
-    atomic_store_8(&pStream->userDropped, 1);
-
-    MND_STREAM_SET_LAST_TS(STM_EVENT_DROP_STREAM, pStream->updateTime);
-
-    msmUndeployStream(pMnode, streamId, pStream->pCreate->name);
+    if (dropReq.count == 1) {
+      code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_DB_INSIDE, MND_STREAM_DROP_NAME, &pTrans);
+      if (code != TSDB_CODE_SUCCESS || pTrans == NULL) {
+        code = code != TSDB_CODE_SUCCESS ? code : terrno;
+        sdbRelease(pMnode->pSdb, pStream);
+        pStream = NULL;
+        goto _OVER;
+      }
+      lifecycleUpdateTime = taosGetTimestampMs();
+    } else {
+      pStream->updateTime = taosGetTimestampMs();
+      atomic_store_8(&pStream->userDropped, 1);
+      MND_STREAM_SET_LAST_TS(STM_EVENT_DROP_STREAM, pStream->updateTime);
+      msmUndeployStream(pMnode, streamId, pStream->pCreate->name);
+    }
 
     // Append drop stream operation to the transaction
     code = mndStreamTransAppend(pStream, pTrans, SDB_STATUS_DROPPED);
@@ -1285,6 +2325,20 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
       sdbRelease(pMnode->pSdb, pStream);
       pStream = NULL;
       goto _OVER;
+    }
+
+    if (dropReq.count == 1) {
+      SStreamLifecycleTransParam *pParam = taosMemoryCalloc(1, sizeof(*pParam));
+      if (pParam == NULL) {
+        code = terrno;
+        sdbRelease(pMnode->pSdb, pStream);
+        pStream = NULL;
+        goto _OVER;
+      }
+      pParam->streamId = streamId;
+      pParam->action = MND_STREAM_LIFECYCLE_DROP;
+      tstrncpy(pParam->streamName, pStream->name, sizeof(pParam->streamName));
+      mndTransSetCb(pTrans, 0, TRANS_STOP_FUNC_STREAM_LIFECYCLE, pParam, sizeof(*pParam));
     }
 
     sdbRelease(pMnode->pSdb, pStream);
@@ -1301,6 +2355,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
       goto _OVER;
     }
     mInfo("trans:%d, drop stream transaction prepared for %d streams", pTrans->id, dropReq.count - notExistNum);
+    if (dropReq.count == 1) MND_STREAM_SET_LAST_TS(STM_EVENT_DROP_STREAM, lifecycleUpdateTime);
   } else {
     // All streams don't exist, no need to prepare transaction
     mndTransDrop(pTrans);
@@ -1337,7 +2392,185 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+static int32_t mndStreamDispatchNestedCreate(SRpcMsg *pReq, const SCMCreateStreamReq *pCreate) {
+  SMnode     *pMnode = pReq->info.node;
+  const char *pSourceName = NULL;
+  int8_t      sourceType = 0;
+  bool        isExtTrigger = false;
+  int32_t     code = mndStreamClassifyExtTrigger(pCreate, &pSourceName, &sourceType, &isExtTrigger);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (isExtTrigger) return mndStreamRejectAuthoritativeExtTrigger(pMnode, pCreate, pSourceName, sourceType);
+
+  if (pCreate->triggerDB == NULL || pCreate->triggerTblName == NULL) return TSDB_CODE_INVALID_PARA;
+  SDbObj *pDb = mndAcquireDb(pMnode, pCreate->triggerDB);
+  if (pDb == NULL) return TSDB_CODE_MND_DB_NOT_EXIST;
+
+  char stbFName[TSDB_TABLE_FNAME_LEN] = {0};
+  (void)snprintf(stbFName, sizeof(stbFName), "%s.%s", pCreate->triggerDB, pCreate->triggerTblName);
+  SStbObj *pStb = mndAcquireStb(pMnode, stbFName);
+  if (pStb != NULL) {
+    STableMetaRsp meta = {0};
+    code = mndStreamBuildStbMetaSnapshot(pMnode, pCreate, pDb, pStb, &meta);
+    mndReleaseStb(pMnode, pStb);
+    mndReleaseDb(pMnode, pDb);
+    if (code != TSDB_CODE_SUCCESS) {
+      tFreeSTableMetaRsp(&meta);
+      return code;
+    }
+    const int32_t metaLen = tSerializeSTableMetaRsp(NULL, 0, &meta);
+    void         *pMeta = metaLen > 0 ? taosMemoryMalloc(metaLen) : NULL;
+    if (pMeta == NULL) {
+      code = metaLen > 0 ? terrno : metaLen;
+    } else if (tSerializeSTableMetaRsp(pMeta, metaLen, &meta) != metaLen) {
+      code = TSDB_CODE_INVALID_MSG;
+    } else {
+      code = mndStreamQueueContinuation(pMnode, &pReq->info, pReq->pCont, pReq->contLen, pMeta, metaLen);
+    }
+    taosMemoryFree(pMeta);
+    tFreeSTableMetaRsp(&meta);
+    return code;
+  }
+
+  SSHashObj *pDbVgroups = NULL;
+  int32_t    vgId = 0;
+  code = mstBuildDBVgroupsMap(pMnode, &pDbVgroups);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = mstGetTableVgId(pDbVgroups, pCreate->triggerDB, pCreate->triggerTblName, &vgId);
+  }
+  mstDestroyDbVgroupsHash(pDbVgroups);
+  mndReleaseDb(pMnode, pDb);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
+  if (pVgroup == NULL) return terrno != 0 ? terrno : TSDB_CODE_MND_VGROUP_NOT_EXIST;
+  SEpSet epSet = mndGetVgroupEpset(pMnode, pVgroup);
+  mndReleaseVgroup(pMnode, pVgroup);
+  return mndStreamStartVnodePreflight(pMnode, pReq, pCreate, vgId, &epSet);
+}
+
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
+  int32_t code = grantCheck(TSDB_GRANT_STREAMS);
+  if (code < 0) return code;
+
+  SCMCreateStreamReq *pCreate = taosMemoryCalloc(1, sizeof(*pCreate));
+  if (pCreate == NULL) return terrno;
+  code = tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, pCreate);
+  if (code != TSDB_CODE_SUCCESS) {
+    tFreeSCMCreateStreamReq(pCreate);
+    taosMemoryFree(pCreate);
+    return code;
+  }
+
+  const bool nested = BIT_FLAG_TEST_MASK(pCreate->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
+  const bool flushOnOuterClose = BIT_FLAG_TEST_MASK(pCreate->addOptions, STREAM_OPTION_FLUSH_ON_OUTER_CLOSE);
+  if (nested != (pCreate->pWindowPlan != NULL) || (flushOnOuterClose && (!nested || pCreate->pWindowPlan == NULL))) {
+    code = TSDB_CODE_INVALID_PARA;
+  } else if (nested) {
+    code = atomic_load_8(&mndStreamPreflightStopping) ? TSDB_CODE_APP_IS_STOPPING
+                                                      : mndStreamDispatchNestedCreate(pReq, pCreate);
+  } else {
+    return mndProcessCreateStreamFinal(pReq, pCreate);
+  }
+
+  tFreeSCMCreateStreamReq(pCreate);
+  taosMemoryFree(pCreate);
+  return code;
+}
+
+static int32_t mndProcessCreateStreamContinuation(SRpcMsg *pReq) {
+  SStreamPreflightToken token = {0};
+  int32_t               code = mndStreamDecodeContinuationPayload(pReq->pCont, pReq->contLen, &token);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  SStreamPreflightEntry *pEntry = mndStreamAcquirePreflight(&token);
+  if (pEntry == NULL) return TSDB_CODE_INVALID_MSG;
+  bool claimed = false;
+  (void)taosThreadMutexLock(&pEntry->mutex);
+  if (pEntry->state == STREAM_PREFLIGHT_ENQUEUEING || pEntry->state == STREAM_PREFLIGHT_HANDED_OFF) {
+    pEntry->state = STREAM_PREFLIGHT_PROCESSING;
+    claimed = true;
+  }
+  (void)taosThreadCondBroadcast(&pEntry->terminalCleanupCond);
+  (void)taosThreadMutexUnlock(&pEntry->mutex);
+  if (!claimed) {
+    TAOS_UNUSED(taosReleaseRef(token.refSetId, token.refId));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  SCMCreateStreamReq *pCreate = taosMemoryCalloc(1, sizeof(*pCreate));
+  if (pCreate == NULL) {
+    code = terrno;
+    goto _finish;
+  }
+  STableMetaRsp meta = {0};
+  code = tDeserializeSCMCreateStreamReq(pEntry->pCreateReq, pEntry->createReqLen, pCreate);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+  if (!BIT_FLAG_TEST_MASK(pCreate->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN) || pCreate->pWindowPlan == NULL) {
+    code = TSDB_CODE_INVALID_PARA;
+    goto _exit;
+  }
+  code = tDeserializeSTableMetaRsp(pEntry->pMetaRsp, pEntry->metaRspLen, &meta);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+
+  SMnode *pMnode = pEntry->pMnode;
+  SDbObj *pDb = mndAcquireDb(pMnode, pCreate->triggerDB);
+  if (pDb == NULL) {
+    code = TSDB_CODE_MND_DB_NOT_EXIST;
+    goto _exit;
+  }
+  const int64_t dbUid = pDb->uid;
+  const int8_t  dbPrecision = pDb->cfg.precision;
+  mndReleaseDb(pMnode, pDb);
+
+  bool    expectSuperTable = meta.tableType == TSDB_SUPER_TABLE;
+  int32_t expectedVgId = 0;
+  if (expectSuperTable) {
+    char stbFName[TSDB_TABLE_FNAME_LEN] = {0};
+    (void)snprintf(stbFName, sizeof(stbFName), "%s.%s", pCreate->triggerDB, pCreate->triggerTblName);
+    SStbObj *pStb = mndAcquireStb(pMnode, stbFName);
+    if (pStb == NULL || pStb->uid != meta.tuid) {
+      if (pStb != NULL) mndReleaseStb(pMnode, pStb);
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+    mndReleaseStb(pMnode, pStb);
+  } else {
+    SSHashObj *pDbVgroups = NULL;
+    code = mstBuildDBVgroupsMap(pMnode, &pDbVgroups);
+    if (code == TSDB_CODE_SUCCESS) {
+      code = mstGetTableVgId(pDbVgroups, pCreate->triggerDB, pCreate->triggerTblName, &expectedVgId);
+    }
+    mstDestroyDbVgroupsHash(pDbVgroups);
+    if (code != TSDB_CODE_SUCCESS) goto _exit;
+  }
+
+  code = mndStreamNormalizeAuthoritativeMetadata(pCreate, &meta, dbUid, dbPrecision, expectedVgId, expectSuperTable);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+
+  SRpcMsg createReq = {
+      .msgType = TDMT_MND_CREATE_STREAM,
+      .info = pEntry->clientInfo,
+  };
+  code = mndProcessCreateStreamFinal(&createReq, pCreate);
+  pCreate = NULL;
+
+_exit:
+  tFreeSTableMetaRsp(&meta);
+  if (pCreate != NULL) {
+    tFreeSCMCreateStreamReq(pCreate);
+    taosMemoryFree(pCreate);
+  }
+_finish:
+  (void)taosThreadMutexLock(&pEntry->mutex);
+  if (pEntry->state == STREAM_PREFLIGHT_PROCESSING) pEntry->state = STREAM_PREFLIGHT_REPLIED_BY_QUEUE;
+  (void)taosThreadCondBroadcast(&pEntry->terminalCleanupCond);
+  (void)taosThreadMutexUnlock(&pEntry->mutex);
+  mndStreamCleanupPreflightTerminal(pEntry, false);
+  TAOS_UNUSED(taosReleaseRef(token.refSetId, token.refId));
+  return code;
+}
+
+static int32_t mndProcessCreateStreamFinal(SRpcMsg *pReq, SCMCreateStreamReq *pCreate) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
   SStreamObj  streamObj = {0};
@@ -1345,19 +2578,12 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     lino = 0;
   STrans     *pTrans = NULL;
-  uint64_t    streamId = 0;
-  SCMCreateStreamReq* pCreate = NULL;
+  uint64_t            streamId = 0;
   int64_t             tss = taosGetTimestampMs();
 
   if ((code = grantCheck(TSDB_GRANT_STREAMS)) < 0) {
     goto _OVER;
   }
-
-  pCreate = taosMemoryCalloc(1, sizeof(SCMCreateStreamReq));
-  TSDB_CHECK_NULL(pCreate, code, lino, _OVER, terrno);
-  
-  code = tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, pCreate);
-  TSDB_CHECK_CODE(code, lino, _OVER);
 
   streamId = pCreate->streamId;
 
@@ -1396,7 +2622,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
    * (DS Sec 6.1.1 "password fill responsibility split"). For each unique
    * sourceName, look up the AES-CBC ciphertext from mnode-local sdb
    * (SExtSourceObj, mndDef.h) and memcpy it into the spec. The snode
-   * reader later calls extDecryptPassword to recover the plaintext.
+   * reader later calls decryptExtSourcePassword to recover the plaintext.
    * Failure (source missing or DROPped between parser cache fetch and
    * mnode arrival) returns TSDB_CODE_EXT_SOURCE_NOT_FOUND (0x6407,
    * MR 245). DS Sec 6.1.2 line 266. */
@@ -1415,9 +2641,8 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
       }
       memcpy(pSpec->encryptedPassword, pSrcObj->encryptedPassword,
              TSDB_EXT_SOURCE_ENC_PASSWORD_LEN);
-      pSpec->encryptedPasswordLen = TSDB_EXT_SOURCE_ENC_PASSWORD_LEN;
-      mDebug("stream:%s spec[%d] source=%s encryptedPassword filled (len=%u)",
-             pCreate->name, i, pSpec->sourceName, (unsigned)pSpec->encryptedPasswordLen);
+      mDebug("stream:%s spec[%d] source=%s encryptedPassword filled",
+             pCreate->name, i, pSpec->sourceName);
       mndReleaseExtSource(pMnode, pSrcObj);
     }
   }
@@ -1613,12 +2838,26 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
   }
 */
 
-  code = msmRecalcStream(pMnode, pStream->pCreate->streamId, &recalcReq.timeRange);
+  SDbObj *pStreamDb = mndAcquireDb(pMnode, pStream->pCreate->streamDB);
+  if (pStreamDb == NULL) {
+    code = terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_MND_DB_NOT_SELECTED;
+    mstsError("failed to acquire stream db %s since %s", pStream->pCreate->streamDB, tstrerror(code));
+    sdbRelease(pMnode->pSdb, pStream);
+    tFreeMRecalcStreamReq(&recalcReq);
+    return code;
+  }
+
+  STimeWindow triggerRange = recalcReq.timeRange;
+  mstConvertRecalcRangePrecision(&triggerRange, pStreamDb->cfg.precision, pStream->pCreate->triggerPrec);
+  mndReleaseDb(pMnode, pStreamDb);
+
+  code = msmRecalcStream(pMnode, pStream, &triggerRange, pReq);
   if (code != TSDB_CODE_SUCCESS) {
     sdbRelease(pMnode->pSdb, pStream);
     tFreeMRecalcStreamReq(&recalcReq);
     return code;
   }
+  code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   if (tsAuditLevel >= AUDIT_LEVEL_DATABASE){
     char buf[128];
@@ -1633,11 +2872,12 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
   tFreeMRecalcStreamReq(&recalcReq);
 //  mndTransDrop(pTrans);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 
 int32_t mndInitStream(SMnode *pMnode) {
+  int32_t   code = TSDB_CODE_SUCCESS;
   SSdbTable table = {
       .sdbType = SDB_STREAM,
       .keyType = SDB_KEY_BINARY,
@@ -1649,7 +2889,21 @@ int32_t mndInitStream(SMnode *pMnode) {
   };
 
   if (!tsDisableStream) {
+    code = mndStreamEnsurePreflightAdmission();
+    if (code != TSDB_CODE_SUCCESS) return code;
+    mndStreamPreflightRef = taosOpenRef(4096, mndStreamDestroyPreflightEntry);
+    if (mndStreamPreflightRef < 0) return terrno;
+    mndStreamPreflightTimer = taosTmrInit(4096, 100, TMAX(tsStatusSRTimeoutMs, 100), "mnd-stream-preflight");
+    if (mndStreamPreflightTimer == NULL) {
+      taosCloseRef(mndStreamPreflightRef);
+      mndStreamPreflightRef = -1;
+      return terrno;
+    }
+    (void)taosThreadMutexLock(&mndStreamPreflightAdmissionMutex);
+    atomic_store_8(&mndStreamPreflightStopping, 0);
+    (void)taosThreadMutexUnlock(&mndStreamPreflightAdmissionMutex);
     mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STREAM, mndProcessCreateStreamReq);
+    mndSetMsgHandle(pMnode, TDMT_MND_UNUSED1, mndProcessCreateStreamContinuation);
     mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);
     mndSetMsgHandle(pMnode, TDMT_MND_START_STREAM, mndProcessStartStreamReq);
     mndSetMsgHandle(pMnode, TDMT_MND_STOP_STREAM, mndProcessStopStreamReq);
@@ -1665,8 +2919,9 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAM_RECALCULATES, mndRetrieveStreamRecalculates);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAM_RECALCULATES, mndCancelGetNextStreamRecalculates);
 
-  int32_t code = sdbSetTable(pMnode->pSdb, table);
+  code = sdbSetTable(pMnode->pSdb, table);
   if (code) {
+    if (!tsDisableStream) mndCleanupStream(pMnode);
     return code;
   }
 

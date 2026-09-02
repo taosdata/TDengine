@@ -502,6 +502,23 @@ TEST_F(ParserSelectTest, interp) {
   run("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR)");
 }
 
+// A statement reaching translate through a clone of its parsed AST must be
+// accepted exactly like the statement itself. Views (clientView.c) and bound
+// prepared statements (qStmtBindParams) only ever translate such a clone, so
+// a clone losing RANGE/EVERY/FILL rejects a valid INTERP query there with
+// "Missing RANGE clause, EVERY clause or FILL clause".
+TEST_F(ParserSelectTest, clonedAstInterp) {
+  useDb("root", "test");
+
+  runClonedAst("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR)");
+}
+
+TEST_F(ParserSelectTest, clonedAstIndefiniteRowsFunc) {
+  useDb("root", "test");
+
+  runClonedAst("SELECT CSUM(c1) FROM t1");
+}
+
 TEST_F(ParserSelectTest, subquery) {
   useDb("root", "test");
 

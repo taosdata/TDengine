@@ -76,21 +76,91 @@ class TestTS_3404:
         print("do TS-3404 ............................ [passed]")
 
     #
+    # ------------------- interp with a bound parameter ----------------
+    #
+    def do_interp_stmt(self):
+        # A prepared statement keeps its parsed AST in pPrepareRoot and
+        # translates a clone of it on every bind, so the RANGE / EVERY /
+        # FILL clauses have to survive that clone. When they do not,
+        # prepare succeeds and bind fails with "Missing RANGE clause,
+        # EVERY clause or FILL clause", while the same query without a
+        # placeholder works. STMT and STMT2 clone in two different places,
+        # so both are exercised here.
+        dbname = "interp_stmt_db"
+        tdSql.prepare(dbname, drop=True)
+        tdSql.execute("create table ct1 (ts timestamp, val double)")
+        tdSql.execute(
+            "insert into ct1 values"
+            " ('2026-08-12 17:34:00', 1.0)"
+            " ('2026-08-12 17:36:00', 3.0)"
+            " ('2026-08-12 17:38:00', 5.0)"
+        )
+
+        # reference result, no placeholder and therefore no clone
+        tdSql.query(
+            "select _irowts, interp(val) from ct1 where val > 0"
+            " range('2026-08-12 17:34:00', '2026-08-12 17:38:00')"
+            " every(60s) fill(linear)"
+        )
+        tdSql.checkRows(5)
+
+        query = (
+            "select _irowts, interp(val) from ct1 where val > ?"
+            " range('2026-08-12 17:34:00', '2026-08-12 17:38:00')"
+            " every(60s) fill(linear)"
+        )
+
+        conn = taos.connect()
+        try:
+            conn.select_db(dbname)
+
+            # STMT binds through qStmtBindParams
+            stmt = conn.statement(query)
+            params = taos.new_bind_params(1)
+            params[0].double(0.0)
+            stmt.bind_param(params)
+            stmt.execute()
+            rows = stmt.use_result().fetch_all()
+            assert len(rows) == 5, f"stmt: expect 5 rows, got {len(rows)}"
+            assert rows[0][1] == 1.0, f"stmt: expect 1.0, got {rows[0][1]}"
+            assert rows[4][1] == 5.0, f"stmt: expect 5.0, got {rows[4][1]}"
+            stmt.close()
+
+            # STMT2 binds through qStmtBindParams2, a second clone site
+            stmt2 = conn.statement2(query)
+            stmt2.bind_param(None, None, [[[0.0]]])
+            stmt2.execute()
+            rows = stmt2.result().fetch_all()
+            assert len(rows) == 5, f"stmt2: expect 5 rows, got {len(rows)}"
+            assert rows[0][1] == 1.0, f"stmt2: expect 1.0, got {rows[0][1]}"
+            assert rows[4][1] == 5.0, f"stmt2: expect 5.0, got {rows[4][1]}"
+            stmt2.close()
+        finally:
+            conn.close()
+
+        tdSql.execute(f"drop database {dbname}")
+        print("do interp stmt ........................ [passed]")
+
+    #
     # ------------------- main ----------------
     #
     def test_query_inerp_bugs(self):
         """Interp bugs
 
         1. Verify bug TS-3404 (timestamp precision cause wrong window function result)
-        
+        2. Verify interp with a bound parameter keeps its RANGE/EVERY/FILL clauses
+
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
             - 2025-10-31 Alex Duan Migrated from uncatalog/system-test/99-TDcase/test_TS_3404.py
+            - 2026-08-13 clone of the parsed AST dropped the interp clauses
 
         """
         self.do_ts_3404()
+        self.do_interp_stmt()
     

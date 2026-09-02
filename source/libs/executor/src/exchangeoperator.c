@@ -73,9 +73,24 @@ static int32_t seqLoadRemoteData(SOperatorInfo* pOperator);
 static int32_t prepareLoadRemoteData(SOperatorInfo* pOperator);
 static int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock,
                                  bool holdDataInBuf);
-static int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDataInfo);
+static int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDataInfo,
+                                     SStreamRuntimeInfo* pStreamRuntimeInfo);
 
 static int32_t exchangeWait(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo);
+
+// Order the exchange sources (vgroups) by nodeId so that a multi-vgroup exchange
+// always consumes data from the vgroups in a fixed order. The source list order
+// otherwise varies between runs (depends on how the per-vgroup execution nodes are
+// scheduled), which makes order-sensitive aggregates such as LEASTSQUARES return
+// non-deterministic results even when sequential receive mode is enabled.
+static int32_t cmpExchangeSourceByNodeId(const void* pLeft, const void* pRight) {
+  const SDownstreamSourceNode* pL = (const SDownstreamSourceNode*)pLeft;
+  const SDownstreamSourceNode* pR = (const SDownstreamSourceNode*)pRight;
+  if (pL->addr.nodeId == pR->addr.nodeId) {
+    return 0;
+  }
+  return (pL->addr.nodeId < pR->addr.nodeId) ? -1 : 1;
+}
 
 static bool isVstbScan(SSourceDataInfo* pDataInfo) {return pDataInfo->type == EX_SRC_TYPE_VSTB_SCAN; }
 static bool isVstbWinScan(SSourceDataInfo* pDataInfo) { return pDataInfo->type == EX_SRC_TYPE_VSTB_WIN_SCAN; }
@@ -227,7 +242,7 @@ static void streamSequenciallyLoadRemoteData(SOperatorInfo* pOperator,
       continue;
     }
 
-    code = doExtractResultBlocks(pExchangeInfo, pDataInfo);
+    code = doExtractResultBlocks(pExchangeInfo, pDataInfo, pTaskInfo->pStreamRuntimeInfo);
     TAOS_CHECK_EXIT(code);
 
     SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
@@ -346,7 +361,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
         break;
       }
 
-      TAOS_CHECK_EXIT(doExtractResultBlocks(pExchangeInfo, pDataInfo));
+      TAOS_CHECK_EXIT(doExtractResultBlocks(pExchangeInfo, pDataInfo, pTaskInfo->pStreamRuntimeInfo));
 
       SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
       updateLoadRemoteInfo(pLoadInfo, pRetrieveRsp->numOfRows, pRetrieveRsp->compLen, pDataInfo->startTime, pOperator);
@@ -630,6 +645,15 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
     return code;
   } else {
     pInfo->self = refId;
+  }
+
+  // Deterministic vgroup consumption order: see cmpExchangeSourceByNodeId().
+  // Only applies to static exchanges. Dynamic exchanges (virtual-table, federated,
+  // stream, ...) look sources up by nodeId via pHashSources, which is keyed by the
+  // pre-sort index, so reordering pSources there would break the nodeId->source
+  // mapping and return wrong/missing data.
+  if (numOfSources > 1 && !pInfo->dynamicOp) {
+    taosArraySort(pInfo->pSources, cmpExchangeSourceByNodeId);
   }
 
   return initDataSource(numOfSources, pInfo, id);
@@ -1855,7 +1879,8 @@ void storeNotifyInfo(SOperatorInfo* pOperator) {
   }
 }
 
-int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDataInfo) {
+int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDataInfo,
+                              SStreamRuntimeInfo* pStreamRuntimeInfo) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
@@ -1921,6 +1946,9 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
     void* tmp = taosArrayPush(pExchangeInfo->pResultBlockList, &pb);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
     qDebug("%dth block added to resultBlockList, rows:%" PRId64, index, pb->info.rows);
+    if (pStreamRuntimeInfo != NULL && pStreamRuntimeInfo->inputStatsFp != NULL) {
+      pStreamRuntimeInfo->inputStatsFp(pStreamRuntimeInfo->pInputStatsParam, pb->info.rows, 1);
+    }
     pb = NULL;
   }
 
@@ -2031,7 +2059,7 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
       continue;
     }
 
-    code = doExtractResultBlocks(pExchangeInfo, pDataInfo);
+    code = doExtractResultBlocks(pExchangeInfo, pDataInfo, pTaskInfo->pStreamRuntimeInfo);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -2240,6 +2268,11 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator,
       }
       pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pBasicParam->vgId, sizeof(pBasicParam->vgId));
       QUERY_CHECK_NULL(pIdx, code, lino, _return, TSDB_CODE_INVALID_PARA);
+    } else if (pBasicParam->type == EX_SRC_TYPE_VSTB_SCAN) {
+      qDebug("%s vgroup:%d is missing from the query plan, "
+             "request metadata refresh",
+             GET_TASKID(pOperator->pTaskInfo), pBasicParam->vgId);
+      return TSDB_CODE_VTABLE_DATA_SRC_EP_MISS;
     } else if (pBasicParam->type == EX_SRC_TYPE_VSTB_TS_SCAN || pBasicParam->type == EX_SRC_TYPE_VSTB_PART_INTERVAL_SCAN ||
                pBasicParam->type == EX_SRC_TYPE_VSTB_SYS_SCAN) {
       // Multi-exchange virtual table paths build each exchange param from the full vg map.
@@ -2621,6 +2654,8 @@ int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDa
 static int32_t exchangeWait(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo) {
   SExecTaskInfo* pTask = pOperator->pTaskInfo;
   int32_t        code = TSDB_CODE_SUCCESS;
+  void*                pBlockingStatsParam = NULL;
+  FStreamBlockingStats blockingStatsFp = NULL;
   if (pTask->pWorkerCb) {
     code = pTask->pWorkerCb->beforeBlocking(pTask->pWorkerCb->pPool);
     if (code != TSDB_CODE_SUCCESS) {
@@ -2629,7 +2664,17 @@ static int32_t exchangeWait(SOperatorInfo* pOperator, SExchangeInfo* pExchangeIn
     }
   }
 
+  if (pTask->pStreamRuntimeInfo != NULL) {
+    pBlockingStatsParam = pTask->pStreamRuntimeInfo->pBlockingStatsParam;
+    blockingStatsFp = pTask->pStreamRuntimeInfo->blockingStatsFp;
+  }
+  if (blockingStatsFp != NULL) {
+    blockingStatsFp(pBlockingStatsParam, true);
+  }
   code = tsem_wait(&pExchangeInfo->ready);
+  if (blockingStatsFp != NULL) {
+    blockingStatsFp(pBlockingStatsParam, false);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     pTask->code = code;

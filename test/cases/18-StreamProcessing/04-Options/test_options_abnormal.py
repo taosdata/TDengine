@@ -19,6 +19,7 @@ class TestStreamOptionsAbnormal:
         Since: v3.3.3.7
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -59,6 +60,7 @@ class TestStreamOptionsAbnormal:
             tdSql.execute(f"create table ct102 using {self.stbName2} tags(2)")
             
             # must not create stb/ctb/ntb using create vtable
+            # valueless TAGS is rejected at CREATE VTABLE (explicit value required)
             tdSql.error(f"create vtable if not exists err_stb1  (cts timestamp, cint int) tags (tint int)")
             tdSql.error(f"create vtable if not exists err_ct1 using {self.stbName2} tags(100)")
             

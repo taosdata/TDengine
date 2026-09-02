@@ -137,6 +137,7 @@ static SKeyword keywordTable[] = {
     {"FIRST_DAY_OF_WEEK",    TK_FIRST_DAY_OF_WEEK},
     {"FLOAT",                TK_FLOAT},
     {"FLUSH",                TK_FLUSH},
+    {"FLUSH_ON_OUTER_CLOSE", TK_FLUSH_ON_OUTER_CLOSE},
     {"FOLLOWING",            TK_FOLLOWING},
     {"FROM",                 TK_FROM},
     {"FROM_BASE64",          TK_FROM_BASE64},

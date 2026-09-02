@@ -3,48 +3,49 @@ import os
 import re
 import sys
 from datetime import timedelta
+
 import matplotlib.pyplot as plt
-import pandas as pd
 import numpy as np
+import pandas as pd
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'misc'))
-
-from sklearn.preprocessing import StandardScaler
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "misc"))
 
 import torch
-from flask import Flask, request, jsonify
-
-from momentfm.utils.utils import control_randomness
+from flask import Flask, jsonify, request
+from hf_download import snapshot_download_with_fallback
 from momentfm import MOMENTPipeline
-
+from momentfm.utils.utils import control_randomness
+from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from hf_download import snapshot_download_with_fallback
 pretrained_model = None
-control_randomness(seed=13) # Set random seeds for PyTorch, Numpy etc.
+control_randomness(seed=13)  # Set random seeds for PyTorch, Numpy etc.
 
 app = Flask(__name__)
 device = "cuda:1" if torch.cuda.is_available() else "cpu"
 
-@app.route('/imputation', methods=['POST'])
+
+@app.route("/imputation", methods=["POST"])
 def moment():
     if pretrained_model is None:
-        return jsonify({
-            'status': 'error',
-            'error': 'Model not loaded yet'
-        }), 503
+        return jsonify({"status": "error", "error": "Model not loaded yet"}), 503
     data = request.get_json()
-    if not data or 'input' not in data:
-        return jsonify({
-           'status': 'error',
-            'error': 'Invalid input, please provide "input" field in JSON'
-        }), 400
+    if not data or "input" not in data:
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "error": 'Invalid input, please provide "input" field in JSON',
+                }
+            ),
+            400,
+        )
 
-    input_data = data['input']
-    input_ts = data['ts']
-    time_precision = data['precision']
-    freq = data['freq']
+    input_data = data["input"]
+    input_ts = data["ts"]
+    time_precision = data["precision"]
+    freq = data["freq"]
 
     res = do_handle_input_data(input_data, input_ts, time_precision, freq)
 
@@ -54,12 +55,12 @@ def moment():
 
 class InputDataset(torch.utils.data.Dataset):
     def __init__(
-            self,
-            input_data,
-            input_ts,
-            time_precision: str,
-            freq,
-            data_stride_len: int = 512,
+        self,
+        input_data,
+        input_ts,
+        time_precision: str,
+        freq,
+        data_stride_len: int = 512,
     ):
         self.seq_len = data_stride_len
         self.data_stride_len = data_stride_len
@@ -76,14 +77,30 @@ class InputDataset(torch.utils.data.Dataset):
         # self.freq_val, self.freq_unit = 1, 'ms'
         self.parse_freq()
 
-        complete_df, self.mask = complete_timeseries(self.input_ts, input_data, self.time_precision, self.freq,
-                                                     self.freq_val, self.freq_unit)
+        complete_df, self.mask = complete_timeseries(
+            self.input_ts,
+            input_data,
+            self.time_precision,
+            self.freq,
+            self.freq_val,
+            self.freq_unit,
+        )
 
         self.timeseries_complete_length = complete_df.shape[0]
-        self.timeseries_padding_length = ((complete_df.shape[0] // self.seq_len) + 1) * self.seq_len
+        self.timeseries_padding_length = (
+            (complete_df.shape[0] // self.seq_len) + 1
+        ) * self.seq_len
 
         inc = self.timeseries_padding_length - complete_df.shape[0]
-        data, self.input_mask, self.mask = padding_data_list(complete_df, np.min(input_data), inc, self.mask, self.freq, self.freq_val, self.freq_unit)
+        data, self.input_mask, self.mask = padding_data_list(
+            complete_df,
+            np.min(input_data),
+            inc,
+            self.mask,
+            self.freq,
+            self.freq_val,
+            self.freq_unit,
+        )
 
         self.data, self.ts = self._transform_data(data)
 
@@ -97,7 +114,7 @@ class InputDataset(torch.utils.data.Dataset):
         return self.ts
 
     def get_length_info(self):
-        return  self.timeseries_padding_length, self.timeseries_complete_length
+        return self.timeseries_padding_length, self.timeseries_complete_length
 
     def _transform_data(self, input_data):
         self.scaler.fit(input_data.values)
@@ -107,9 +124,8 @@ class InputDataset(torch.utils.data.Dataset):
         seq_start = self.data_stride_len * index
         seq_end = seq_start + self.seq_len
 
-        if seq_end > self.timeseries_padding_length:
-            seq_end = self.timeseries_padding_length
-            # seq_end = seq_end - self.seq_len
+        seq_end = min(seq_end, self.timeseries_padding_length)
+        # seq_end = seq_end - self.seq_len
 
         timeseries = self.data[seq_start:seq_end, :].T
         mask = self.mask[seq_start:seq_end]
@@ -120,12 +136,12 @@ class InputDataset(torch.utils.data.Dataset):
         return self.timeseries_padding_length // self.data_stride_len
 
     def parse_freq(self):
-        match = re.match(r'^(\d*)([DHTSLU])$', self.freq)
+        match = re.match(r"^(\d*)([DHTSLU])$", self.freq)
         if not match:
             raise ValueError(f"failed to parse time string: {self.freq}")
 
         self.freq_val = int(match.group(1)) if len(match.group(1)) > 0 else 1
-        self.freq_unit  = match.group(2)
+        self.freq_unit = match.group(2)
 
 
 def padding_data_list(df, val, n_rows, mask, freq, freq_value, freq_unit):
@@ -133,12 +149,12 @@ def padding_data_list(df, val, n_rows, mask, freq, freq_value, freq_unit):
     last_time = df.index[-1]
 
     unit_map = {
-        'D': 'days',
-        'H': 'hours',
-        'T': 'minutes',
-        'S': 'seconds',
-        'L': 'milliseconds',
-        'U': 'microseconds',
+        "D": "days",
+        "H": "hours",
+        "T": "minutes",
+        "S": "seconds",
+        "L": "milliseconds",
+        "U": "microseconds",
     }
 
     unit = freq_unit
@@ -150,34 +166,42 @@ def padding_data_list(df, val, n_rows, mask, freq, freq_value, freq_unit):
     # generate the increase timestamps series
     if isinstance(last_time, (np.datetime64, pd.Timestamp)):
         new_timestamp = pd.date_range(
-            start=last_time + delta,
-            periods=n_rows,
-            freq=freq
+            start=last_time + delta, periods=n_rows, freq=freq
         )
     else:
         new_timestamp = [last_time + i + 1 for i in range(n_rows)]
 
-    new_df = pd.DataFrame({'value': [val] * n_rows, }, index=new_timestamp)
+    new_df = pd.DataFrame(
+        {
+            "value": [val] * n_rows,
+        },
+        index=new_timestamp,
+    )
 
     # append the new rows
     input_mask = np.ones(df.shape[0] + n_rows, dtype=int)
     input_mask[-n_rows:] = 0
 
-    return pd.concat([df, new_df]), input_mask, np.append(mask, np.ones(n_rows, dtype=int))
+    return (
+        pd.concat([df, new_df]),
+        input_mask,
+        np.append(mask, np.ones(n_rows, dtype=int)),
+    )
+
 
 def draw_imputation_stride_result(trues, preds, masks):
     fig, axs = plt.subplots(2, 1, figsize=(10, 5))
-    axs[0].set_title(f"Channel=0")
-    axs[0].plot(trues[0, 0, :].squeeze(), label='Ground Truth', c='darkblue')
-    axs[0].plot(preds[0, 0, :].squeeze(), label='Predictions', c='red')
+    axs[0].set_title("Channel=0")
+    axs[0].plot(trues[0, 0, :].squeeze(), label="Ground Truth", c="darkblue")
+    axs[0].plot(preds[0, 0, :].squeeze(), label="Predictions", c="red")
     axs[0].legend(fontsize=14)
 
-    axs[1].imshow(np.tile(masks[np.newaxis, 0, 0], reps=(8, 1)), cmap='binary')
+    axs[1].imshow(np.tile(masks[np.newaxis, 0, 0], reps=(8, 1)), cmap="binary")
     plt.savefig("moment.png")
     plt.close()
 
 
-def complete_timeseries(timestamps, values, precision, freq, freq_val, freq_unit:str):
+def complete_timeseries(timestamps, values, precision, freq, freq_val, freq_unit: str):
     """
     Complete the time series data by generating a DataFrame with a full time range and marking missing values.
 
@@ -192,24 +216,26 @@ def complete_timeseries(timestamps, values, precision, freq, freq_val, freq_unit
     """
 
     # Create an initial DataFrame, convert timestamps to pandas datetime type and set as index
-    df = pd.DataFrame({
-        'timestamp': pd.to_datetime(timestamps, unit=precision, errors='coerce'),
-        'value': values
-    }).set_index('timestamp')
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.to_datetime(timestamps, unit=precision, errors="coerce"),
+            "value": values,
+        }
+    ).set_index("timestamp")
 
     # 生成完整时间范围
-    norm_freq = '1' + freq_unit
+    norm_freq = "1" + freq_unit
     full_range = pd.date_range(
         start=df.index.min().floor(norm_freq),
         end=df.index.max().ceil(norm_freq),
-        freq=freq
+        freq=freq,
     )
 
     # rebuild value list and fill with min value
     complete_df = df.reindex(full_range)
 
     # fill missing value
-    missing_mask = complete_df['value'].isna()
+    missing_mask = complete_df["value"].isna()
     missing_indices = np.where(missing_mask)[0]
 
     # fill with min value
@@ -220,10 +246,13 @@ def complete_timeseries(timestamps, values, precision, freq, freq_val, freq_unit
 
     return complete_df, mask
 
+
 def do_handle_input_data(value_list, ts_list, precision, freq):
     stride_len = 512
 
-    input_data = InputDataset(value_list, ts_list, precision, freq, data_stride_len=stride_len)
+    input_data = InputDataset(
+        value_list, ts_list, precision, freq, data_stride_len=stride_len
+    )
 
     padding_len, comp_len = input_data.get_length_info()
 
@@ -242,7 +271,9 @@ def do_handle_input_data(value_list, ts_list, precision, freq):
 
             # Reshape to [batch_size * n_channels, 1, window_size]
             batch_x = batch_x.reshape((-1, 1, stride_len))
-            output = pretrained_model(x_enc=batch_x, input_mask=input_masks, mask=mask)  # [batch_size, n_channels, window_size]
+            output = pretrained_model(
+                x_enc=batch_x, input_mask=input_masks, mask=mask
+            )  # [batch_size, n_channels, window_size]
 
             reconstruction = output.reconstruction.detach().cpu().numpy()
             mask = mask.detach().squeeze().cpu().numpy()
@@ -271,39 +302,42 @@ def do_handle_input_data(value_list, ts_list, precision, freq):
     res_mask_list = masks.reshape(padding_len)[:comp_len]
 
     data = merge_imputation_res(input_data, res_data_list, res_mask_list)
-    
+
     return {
         "ts": convert_ts(ts_list, precision),
-        "target":data,
-        "mask":(1-res_mask_list).tolist()
+        "target": data,
+        "mask": (1 - res_mask_list).tolist(),
     }
+
 
 def merge_imputation_res(input_data, res_data_list, res_mask_list):
     _, comp_len = input_data.get_length_info()
-    
+
     data = input_data.get_data()[:comp_len]
 
     index = np.where(res_mask_list == 0)[0]
     data[index] = res_data_list[index]
-    
+
     # restore the previous value
     data = input_data.scaler.inverse_transform(data)
 
     return data.reshape(comp_len).tolist()
 
+
 def convert_ts(ts_list, precision):
-    if precision == 'ms':
-        ts_list = ts_list.astype('int64') // 10e5
-    elif precision == 'us':
-        ts_list = ts_list.astype('int64') // 10e2
-    elif precision == 'ns':
+    if precision == "ms":
+        ts_list = ts_list.astype("int64") // 10e5
+    elif precision == "us":
+        ts_list = ts_list.astype("int64") // 10e2
+    elif precision == "ns":
         ts_list = ts_list
     else:
         raise ValueError(f"Unsupported precision: {precision}")
 
     return ts_list.tolist()
 
-def download_model(model_name, root_dir, enable_ep = False):
+
+def download_model(model_name, root_dir, enable_ep=False):
     # model_list = ['Salesforce/moirai-moe-1.0-R-small']
     model_list = [model_name]
 
@@ -311,7 +345,7 @@ def download_model(model_name, root_dir, enable_ep = False):
     if not os.path.exists(root_dir):
         os.mkdir(root_dir)
 
-    dst_folder = root_dir + '/'
+    dst_folder = root_dir + "/"
     if not os.path.exists(dst_folder):
         os.mkdir(dst_folder)
 
@@ -320,108 +354,116 @@ def download_model(model_name, root_dir, enable_ep = False):
             repo_id=item,
             local_dir=dst_folder,  # storage directory
             enable_ep=enable_ep,
-            local_dir_use_symlinks=False,   # disable the link
+            local_dir_use_symlinks=False,  # disable the link
             resume_download=True,
         )
+
 
 def main():
     global pretrained_model
 
     _model_list = [
-        'AutonLab/MOMENT-1-small',  # small model with 37.9M parameters
-        'AutonLab/MOMENT-1-base',  # small model with 113M parameters
-        'AutonLab/MOMENT-1-large',  # small model with 346M parameters
+        "AutonLab/MOMENT-1-small",  # small model with 37.9M parameters
+        "AutonLab/MOMENT-1-base",  # small model with 113M parameters
+        "AutonLab/MOMENT-1-large",  # small model with 346M parameters
     ]
 
     parser = argparse.ArgumentParser(
-        description='MOMENT imputation server',
+        description="MOMENT imputation server",
         formatter_class=argparse.RawTextHelpFormatter,
     )
 
     source_group = parser.add_mutually_exclusive_group()
     source_group.add_argument(
-        '-i', '--model-index',
+        "-i",
+        "--model-index",
         type=int,
         default=0,
         choices=range(len(_model_list)),
-        metavar=f'INDEX (0-{len(_model_list) - 1})',
+        metavar=f"INDEX (0-{len(_model_list) - 1})",
         help=(
-            'Index of the pretrained model to load from HuggingFace Hub:\n'
-            + '\n'.join(f'  {i}: {m}' for i, m in enumerate(_model_list))
+            "Index of the pretrained model to load from HuggingFace Hub:\n"
+            + "\n".join(f"  {i}: {m}" for i, m in enumerate(_model_list))
         ),
     )
     source_group.add_argument(
-        '-f', '--model-folder',
+        "-f",
+        "--model-folder",
         type=str,
-        metavar='FOLDER',
-        help='Local directory that contains (or will store) the model files.',
+        metavar="FOLDER",
+        help="Local directory that contains (or will store) the model files.",
     )
 
     parser.add_argument(
-        '-n', '--model-name',
+        "-n",
+        "--model-name",
         type=str,
         choices=_model_list,
-        metavar='MODEL_NAME',
+        metavar="MODEL_NAME",
         help=(
-            'HuggingFace model name used when downloading to --model-folder.\n'
-            f'Valid values: {_model_list}'
+            "HuggingFace model name used when downloading to --model-folder.\n"
+            f"Valid values: {_model_list}"
         ),
     )
     parser.add_argument(
-        '--enable-ep',
-        action='store_true',
+        "--enable-ep",
+        action="store_true",
         default=False,
-        help='Use the HF mirror endpoint (https://hf-mirror.com) when downloading.',
+        help="Use the HF mirror endpoint (https://hf-mirror.com) when downloading.",
     )
     parser.add_argument(
-        '--host',
+        "--host",
         type=str,
-        default='0.0.0.0',
-        help='Host address the server listens on (default: 0.0.0.0).',
+        default="0.0.0.0",
+        help="Host address the server listens on (default: 0.0.0.0).",
     )
     parser.add_argument(
-        '--port',
+        "--port",
         type=int,
         default=6066,
-        help='Port the server listens on (default: 6066).',
+        help="Port the server listens on (default: 6066).",
     )
 
     args = parser.parse_args()
 
     if args.model_folder:
         if not args.model_name:
-            parser.error('--model-name is required when --model-folder is specified.')
+            parser.error("--model-name is required when --model-folder is specified.")
 
         model_folder = args.model_folder
         model_name = args.model_name
 
         if not os.path.exists(model_folder):
-            print(f"the specified folder: {model_folder} not exists, start to create it")
+            print(
+                f"the specified folder: {model_folder} not exists, start to create it"
+            )
 
-        model_file = os.path.join(model_folder, 'model.safetensors')
-        model_conf_file = os.path.join(model_folder, 'config.json')
+        model_file = os.path.join(model_folder, "model.safetensors")
+        model_conf_file = os.path.join(model_folder, "config.json")
 
         if not os.path.exists(model_file) or not os.path.exists(model_conf_file):
             download_model(model_name, model_folder, enable_ep=args.enable_ep)
         else:
             print("model file exists, start directly")
 
-        pretrained_model = MOMENTPipeline.from_pretrained(
-            model_folder,
-            model_kwargs={'task_name': 'reconstruction'}
-        ).to(device).float()
+        pretrained_model = (
+            MOMENTPipeline.from_pretrained(
+                model_folder, model_kwargs={"task_name": "reconstruction"}
+            )
+            .to(device)
+            .float()
+        )
     else:
-        pretrained_model = MOMENTPipeline.from_pretrained(
-            _model_list[args.model_index],
-            model_kwargs={'task_name': 'reconstruction'}
-        ).to(device).float()
+        pretrained_model = (
+            MOMENTPipeline.from_pretrained(
+                _model_list[args.model_index],
+                model_kwargs={"task_name": "reconstruction"},
+            )
+            .to(device)
+            .float()
+        )
 
-    app.run(
-        host=args.host,
-        port=args.port,
-        threaded=True,
-        debug=False
-    )
+    app.run(host=args.host, port=args.port, threaded=True, debug=False)
 
 
 if __name__ == "__main__":

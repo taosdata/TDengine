@@ -39,13 +39,26 @@ int main(int argc, char** argv) {
 }
 
 static TAOS* taosConnectWithRetry(const char* host, const char* user, const char* pass, const char* db, uint16_t port) {
-  for (int32_t attempt = 0; attempt < 30; ++attempt) {
+  const int32_t maxAttempts = 30;
+  for (int32_t attempt = 1; attempt <= maxAttempts; ++attempt) {
     TAOS* pConn = taos_connect(host, user, pass, db, port);
     if (pConn != nullptr) {
+      if (attempt > 1) {
+        std::cerr << "taos_connect recovered: host=" << host << ", port=" << port << ", attempt=" << attempt
+                  << std::endl;
+      }
       return pConn;
     }
 
-    taosMsleep(1000);
+    if (attempt == 1 || attempt % 5 == 0 || attempt == maxAttempts) {
+      std::cerr << "taos_connect failed: host=" << host << ", port=" << port << ", attempt=" << attempt << "/"
+                << maxAttempts << ", code=0x" << std::hex << taos_errno(NULL) << std::dec
+                << ", reason=" << taos_errstr(NULL) << std::endl;
+    }
+
+    if (attempt < maxAttempts) {
+      taosMsleep(1000);
+    }
   }
 
   return nullptr;
@@ -258,7 +271,8 @@ TEST(connectionCase, setConnectionOption_Test) {
   int32_t code = taos_options_connection(NULL, TSDB_OPTION_CONNECTION_CHARSET, NULL);
   ASSERT(code != 0);
   TAOS* pConn = taosConnectWithRetry("localhost", "root", "taosdata", NULL, 0);
-  ASSERT_NE(pConn, nullptr);
+  ASSERT_NE(pConn, nullptr) << "last connect error: code=0x" << std::hex << taos_errno(NULL) << std::dec
+                            << ", reason=" << taos_errstr(NULL);
 
   code = taos_options_connection(pConn, TSDB_MAX_OPTIONS_CONNECTION, NULL);
   ASSERT(code != 0);

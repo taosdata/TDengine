@@ -31,6 +31,7 @@ class StreamNotifyServer:
         Since: xxx
 
         Labels: common,ci,integration,functional
+
         Jira: xxx
 
         Catalog:
@@ -265,7 +266,6 @@ class TestStreamNotifySinglePass():
                         if event["eventType"] not in [
                             "WINDOW_OPEN",
                             "WINDOW_CLOSE",
-                            "WINDOW_INVALIDATION",
                         ]:
                             print(f"Error: Invalid event type {event['eventType']}")
                             return False
@@ -278,22 +278,6 @@ class TestStreamNotifySinglePass():
                         ]:
                             print(f"Error: Invalid window type {event['windowType']}")
                             return False
-
-                        if event["eventType"] == "WINDOW_INVALIDATION":
-                            if not has_close:
-                                print(f"Error: WINDOW_INVALIDATION event is not allowed")
-                                return False
-                            # WINDOW_INVALIDATION must have fields: windowStart, windowEnd
-                            if "windowStart" not in event:
-                                print(f"Error: Missing 'windowStart' in event {event}")
-                                return False
-                            if "windowEnd" not in event:
-                                print(f"Error: Missing 'windowEnd' in event {event}")
-                                return False
-                            events_map.pop(
-                                (event["tableName"], event["windowId"]), None
-                            )
-                            continue
 
                         # Get the event from the event map; if it doesn't exist, create a new one
                         e = events_map.get((event["tableName"], event["windowId"]))
@@ -444,6 +428,7 @@ class TestStreamNotifySinglePass():
         Since: xxx
 
         Labels: common,ci,integration,functional
+
         Jira: xxx
 
         Catalog:
@@ -518,6 +503,7 @@ class TestStreamNotify:
         Since: xxx
 
         Labels: common,ci,integration,functional
+
         Jira: xxx
 
         Catalog:
@@ -550,7 +536,6 @@ class TestStreamNotify:
         # TestStreamNotifySinglePass(num_addr_per_stream=3, trigger_mode="MAX_DELAY 10s", notify_event="'window_open'", disorder=False).run()
         # TestStreamNotifySinglePass(num_addr_per_stream=3, trigger_mode="WINDOW_CLOSE", notify_event="'window_open'", disorder=False).run()
         # TestStreamNotifySinglePass(num_addr_per_stream=3, trigger_mode="FORCE_WINDOW_CLOSE", notify_event="'window_open'", disorder=False).run()
-
 
 
 

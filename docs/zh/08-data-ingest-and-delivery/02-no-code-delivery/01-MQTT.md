@@ -18,7 +18,7 @@ MQTT（Message Queuing Telemetry Transport）是一种基于发布/订阅的轻�
 ## 确认企业版服务正常
 
 - 确认 taosd 服务正常；
-- 确认 taosx 已安装（`taosx --version`），以便支持数据的 MQTT 发布功能。
+- 确认 taosX 已安装（`taosx --version`），以便支持数据的 MQTT 发布功能。
 
 ## 数据准备
 
@@ -39,7 +39,7 @@ INSERT INTO db.tb USING db.meters TAGS (1) VALUES (now, 1);
 taosx run -f "tmq+ws://username:password@ip:port/topic?param=value..." -t "mqtt://ip:port?param=value..."
 ```
 
-其中 `-f` 指定 TMQ 订阅的 DSN，`-t` 指定 MQTT broker 的 DSN。关于 taosx 和 DSN 的用法请参考 [taosX 组件文档](../../12-operations-and-tooling/03-components/06-taosx.md)。
+其中 `-f` 指定 TMQ 订阅的 DSN，`-t` 指定 MQTT broker 的 DSN。关于 taosX 和 DSN 的用法请参考 [taosX 组件文档](../../12-operations-and-tooling/03-components/06-taosx.md)。
 
 TMQ DSN 参数：
 
@@ -55,7 +55,7 @@ TMQ DSN 参数：
 - `auto.offset.reset`: TMQ 订阅参数，订阅的起始位置。
 - `experimental.snapshot.enable`: TMQ 订阅参数，如启用，可以同步已经落盘到 TSDB 时序数据存储文件中（即不在 WAL 中）的数据。如关闭，则只同步尚未落盘（即保存在 WAL 中）的数据。
 
-主题与消费概念详见 [数据订阅](../../07-data-subscription/index.md)；连接器消费参数详见 [开发指南 · 数据订阅](../../10-developer-guide/07-subscription-api.md)
+主题与消费概念详见 [数据订阅](../../06-data-subscription/index.md)；连接器消费参数详见 [开发指南 · 数据订阅](../../10-developer-guide/07-subscription-api.md)
 
 MQTT DSN 参数：
 

@@ -14,7 +14,7 @@ TDengine Driver Integration 插件为 JetBrains IDE 提供 TDengine 数据源设
 3. 搜索 `TDengine Driver Integration`。
 4. 安装插件并重启 IDE。
 
-![安装插件](./jetbrains/jetbrains-install.webp)
+![安装插件](../../assets/jetbrains-01.webp)
 
 ## 连接 TDengine
 
@@ -24,7 +24,7 @@ TDengine Driver Integration 插件为 JetBrains IDE 提供 TDengine 数据源设
 4. 按需下载插件内置的 TDengine JDBC Driver。
 5. 配置连接参数，例如 JDBC URL、用户名、密码和默认数据库，并测试连接。
 
-![创建数据库](./jetbrains/jetbrains-create-db.webp)
+![创建数据库](../../assets/jetbrains-02.webp)
 
 插件会对以下配置进行校验：
 
@@ -34,7 +34,7 @@ TDengine Driver Integration 插件为 JetBrains IDE 提供 TDengine 数据源设
 - Port
 - 默认数据库
 
-![连接测试](./jetbrains/jetbrains-connection.webp)
+![连接测试](../../assets/jetbrains-03.webp)
 
 ## SQL 开发支持
 
@@ -49,5 +49,5 @@ TDengine Driver Integration 插件为 JetBrains IDE 提供 TDengine 数据源设
 - `SHOW CREATE DATABASE` / `SHOW CREATE TABLE` 定义查看
 - Live Templates
 
-![查询测试](./jetbrains/jetbrains-select-demo.webp)
-![Live Templates](./jetbrains/jetbrains-live-demo.webp)
+![查询测试](../../assets/jetbrains-04.webp)
+![Live Templates](../../assets/jetbrains-05.webp)

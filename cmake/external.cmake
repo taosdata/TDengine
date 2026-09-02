@@ -1053,15 +1053,15 @@ INIT_EXT(ext_curl
 )
 
 if(${TD_WINDOWS})
-    # URL https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz
-    # URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+    # URL https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz
+    # URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
     get_from_local_if_exists(
-        "https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz"
-        "curl-8.2.1.tar.gz"
+        "https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz"
+        "curl-8.11.1.tar.gz"
     )
     ExternalProject_Add(ext_curl
         URL ${_url}
-        URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+        URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -1084,15 +1084,37 @@ if(${TD_WINDOWS})
     )
 else()
     string(JOIN " " _c_flags ${_c_flags_list})
-    # URL https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz
-    # URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+    set(_ext_curl_configure_env
+        "CFLAGS=${_c_flags}"
+        "CXXFLAGS=${_c_flags}"
+    )
+    if(TD_DARWIN)
+        # curl rewrites OpenSSL's -I flag to -isystem. On Intel macOS that
+        # lets /usr/local/include win, mixing Homebrew headers with ext_ssl.
+        set(_ext_curl_ssl_include_alias "${ext_curl_base}/ssl-include")
+        set(_ext_curl_prepare_ssl_include
+            COMMAND ${CMAKE_COMMAND} -E remove_directory "${_ext_curl_ssl_include_alias}"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${_ext_curl_ssl_include_alias}"
+            COMMAND ${CMAKE_COMMAND} -E create_symlink
+                "${ext_ssl_inc_dir}/openssl"
+                "${_ext_curl_ssl_include_alias}/openssl"
+        )
+        list(APPEND _ext_curl_configure_env
+            "CC=cc -I${_ext_curl_ssl_include_alias}"
+            "CXX=c++ -I${_ext_curl_ssl_include_alias}"
+        )
+    else()
+        set(_ext_curl_prepare_ssl_include "")
+    endif()
+    # URL https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz
+    # URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
     get_from_local_if_exists(
-        "https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz"
-        "curl-8.2.1.tar.gz"
+        "https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz"
+        "curl-8.11.1.tar.gz"
     )
     ExternalProject_Add(ext_curl
         URL ${_url}
-        URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+        URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
         # GIT_SHALLOW TRUE
         DEPENDS ext_ssl
         PREFIX "${_base}"
@@ -1100,8 +1122,9 @@ else()
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
+            ${_ext_curl_prepare_ssl_include}
             # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
-            COMMAND ${CMAKE_COMMAND} -E env "CFLAGS=${_c_flags}" "CXXFLAGS=${_c_flags}" ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
+            COMMAND ${CMAKE_COMMAND} -E env ${_ext_curl_configure_env} ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
                     --enable-websockets --enable-shared=no --disable-ldap
                     --disable-ldaps --without-brotli --without-zstd
                     --without-libidn2 --without-nghttp2 --without-libpsl
@@ -1844,10 +1867,11 @@ if(NOT TD_WINDOWS)        # {
         INC_DIR          include/apr-1
         LIB              lib/${ext_aprutil_static}
     )
-    # URL https://dlcdn.apache.org//apr/apr-util-1.6.3.tar.gz
+    # This retired release is only available from the Apache archive.
+    # URL https://archive.apache.org/dist/apr/apr-util-1.6.3.tar.gz
     # URL_HASH SHA256=2b74d8932703826862ca305b094eef2983c27b39d5c9414442e9976a9acf1983
     get_from_local_if_exists(
-        "https://dlcdn.apache.org//apr/apr-util-1.6.3.tar.gz"
+        "https://archive.apache.org/dist/apr/apr-util-1.6.3.tar.gz"
         "apr-util-1.6.3.tar.gz"
     )
     ExternalProject_Add(ext_aprutil
@@ -2268,9 +2292,19 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
                     "PKG_CONFIG_PATH=${ext_ssl_install}/lib/pkgconfig"
                 )
                 if(TD_DARWIN)
+                    # macOS SDK availability can exceed the configured deployment target.
+                    # Use PostgreSQL's local fallback to keep libpq compatible with it.
+                    list(APPEND _ext_libpq_configure_env "ac_cv_func_strchrnul=no")
+                    message(STATUS "[ext_libpq] macOS: using the local strchrnul fallback for deployment-target compatibility")
                     set(_ext_libpq_patch_refs_command
                         COMMAND perl -0pi -e "s/grep -v __cxa_atexit \\| grep exit/grep -v __cxa_atexit | grep -v _atexit | grep exit/"
-                            src/interfaces/libpq/Makefile)
+                            src/interfaces/libpq/Makefile
+                        # Recent macOS SDKs declare strchrnul even for older deployment
+                        # targets, so give PostgreSQL's local fallback a distinct name.
+                        COMMAND perl -0pi -e "s/static inline const char \\*\\nstrchrnul\\(/static inline const char *\\npg_strchrnul(/"
+                            src/port/snprintf.c
+                        COMMAND perl -0pi -e "s/const char \\*next_pct = strchrnul\\(/const char *next_pct = pg_strchrnul(/"
+                            src/port/snprintf.c)
                 else()
                     set(_ext_libpq_patch_refs_command "")
                 endif()
@@ -2444,6 +2478,14 @@ function(td_prepare_arrow_external arrow_build_profile)
             -DARROW_SOURCE_DIR=<SOURCE_DIR>
             -P "${CMAKE_CURRENT_LIST_DIR}/arrow-absl-gcc13-stdint-fix.cmake"
     )
+
+    if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+        list(APPEND _arrow_patch_commands
+            COMMAND "${CMAKE_COMMAND}"
+                -DARROW_SOURCE_DIR=<SOURCE_DIR>
+                -P "${CMAKE_CURRENT_LIST_DIR}/arrow-macos-libtool-fix.cmake"
+        )
+    endif()
 
     if(_arrow_patch_commands)
         # The Arrow sub-build may already have generated vendored dependency

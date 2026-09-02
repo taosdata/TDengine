@@ -18,6 +18,10 @@
 // global interrupt flag
 volatile sig_atomic_t g_interrupted = 0;
 
+// fatal-error abort flag (server unreachable) and the triggering error code
+volatile int g_fatalError = 0;
+volatile int g_fatalCode = 0;
+
 // global statistics
 BckStats g_stats = {0};
 
@@ -41,105 +45,197 @@ static void signalHandler(int32_t signum, void *sigInfo, void *context) {
 }
 #endif
 
+// Format epoch ms as "YYYY-MM-DD HH:MM:SS" into buf (must be >= 20 bytes).
+static void formatDateTime(int64_t ms, char *buf, int len) {
+    time_t t = (time_t)(ms / 1000);
+    struct tm tm_info;
+    taosLocalTime(&t, &tm_info, NULL, 0, NULL);
+    taosStrfTime(buf, len, "%Y-%m-%d %H:%M:%S", &tm_info);
+}
+
+// Query the connected server's engine version via SQL, since taosdump has no
+// direct API for the *remote* engine version (taos_get_client_info() reports
+// the linked client library, not the server). Best-effort: returns false and
+// leaves outVersion untouched on any failure - the caller must not treat this
+// as fatal.
+static bool fetchServerVersion(char *outVersion, int len) {
+    int code = TSDB_CODE_FAILED;
+    TAOS *conn = getConnection(&code);
+    if (!conn) return false;
+
+    bool ok = false;
+    TAOS_RES *res = taos_query(conn, "SELECT SERVER_VERSION();");
+    if (res && taos_errno(res) == TSDB_CODE_SUCCESS) {
+        TAOS_ROW row = taos_fetch_row(res);
+        if (row && row[0]) {
+            int32_t *lens = taos_fetch_lengths(res);
+            int copyLen = lens[0] < len - 1 ? lens[0] : len - 1;
+            memcpy(outVersion, row[0], copyLen);
+            outVersion[copyLen] = '\0';
+            ok = true;
+        }
+    }
+    if (res) taos_free_result(res);
+    releaseConnection(conn);
+    return ok;
+}
+
+// Print the invoking command line with -p/--password and -X/--dsn values
+// redacted, so credentials never land in backup.log/restore.log in cleartext.
+static void logRedactedCommand(int argc, char *argv[]) {
+    logTee("  Command      :");
+    for (int i = 0; i < argc; i++) {
+        const char *arg = argv[i];
+        if (strcmp(arg, "-p") == 0 || strcmp(arg, "--password") == 0) {
+            logTee(" %s", arg);
+        } else if (strncmp(arg, "-p", 2) == 0 && strlen(arg) > 2) {
+            logTee(" -p****");
+        } else if (strncmp(arg, "--password=", strlen("--password=")) == 0) {
+            logTee(" --password=****");
+        } else if (strcmp(arg, "-X") == 0 || strcmp(arg, "--dsn") == 0) {
+            logTee(" %s", arg);
+            if (i + 1 < argc) {
+                logTee(" ****");
+                i++;
+            }
+        } else if (strncmp(arg, "--dsn=", strlen("--dsn=")) == 0) {
+            logTee(" --dsn=****");
+        } else {
+            logTee(" %s", arg);
+        }
+    }
+    logTee("\n");
+}
+
 //
 // print startup summary
 //
-static void printStartSummary(enum ActionType action) {
+static void printStartSummary(int argc, char *argv[], enum ActionType action,
+                               const char *serverVersion, int64_t startMs) {
     bool wsMode = (argDriver() == CONN_MODE_WEBSOCKET) ||
                   (argDriver() == CONN_MODE_INVALID && argIsDsn());
-    printf("\n");
-    printf("===========================================================================\n");
-    printf("  taosdump - %s\n", action == ACTION_BACKUP ? "BACKUP" : "RESTORE");
-    printf("===========================================================================\n");
-    printf("  Connect Mode : %s\n", wsMode ? "WebSocket" : "Native");
-    printf("  Config Dir   : %s\n", argConfigDir());
+    logTee("\n");
+    logTee("===========================================================================\n");
+    logTee("  taosdump - %s\n", action == ACTION_BACKUP ? "BACKUP" : "RESTORE");
+    logTee("===========================================================================\n");
+
+    // ── Group 1: data scope ──
+    logTee("  Connect Mode : %s\n", wsMode ? "WebSocket" : "Native");
+    logTee("  Server       : %s:%d\n", argHost() ? argHost() : "(firstEp from cfg)", argPort());
     if (argIsDsn()) {
-        printf("  DSN          : %s\n", argDsn());
+        logTee("  DSN          : %s\n", argDsn());
     }
-    printf("  Server       : %s:%d\n", argHost() ? argHost() : "(firstEp from cfg)", argPort());
-    printf("  User         : %s\n", argUser());
-    printf("  Output Path  : %s\n", argOutPath());
+    {
+        // cfg dir is optional, so only print if set
+        const char * cfgDir = argConfigDir();
+        if (cfgDir && cfgDir[0]) {
+            logTee("  Config Dir   : %s\n", cfgDir);
+        }
+    }
     {
         char **dbs = argBackDB();
         if (dbs && dbs[0]) {
-            printf("  Databases    :");
+            logTee("  Databases    :");
             for (int i = 0; dbs[i]; i++) {
-                printf(" %s", dbs[i]);
+                logTee(" %s", dbs[i]);
             }
-            printf("\n");
+            logTee("\n");
         } else {
-            printf("  Databases    : ALL %s\n", action == ACTION_BACKUP ? "(system databases excluded)" : "");
+            logTee("  Databases    : ALL %s\n", action == ACTION_BACKUP ? "(system databases excluded)" : "");
         }
     }
-    printf("  Data Threads : %d\n", argDataThread());
-    printf("  Tag Threads  : %d\n", argTagThread());
+    logTee("  Content      : %s\n", argContentName());
     if (action == ACTION_BACKUP) {
-        printf("  Format       : %s\n", argStorageFormat() == BINARY_TAOS ? "binary" : "parquet");
-        printf("  Schema Only  : %s\n", argSchemaOnly() ? "yes" : "no");
-        {
-            const char *ts = argStartTime();
-            const char *te = argEndTime();
-            if (ts && te) {
-                printf("  Time Range   : %s ~ %s\n", ts, te);
-            } else if (ts) {
-                printf("  Time Range   : %s ~\n", ts);
-            } else if (te) {
-                printf("  Time Range   : ~ %s\n", te);
-            } else {
-                printf("  Time Range   : ALL\n");
-            }
+        const char *ts = argStartTime();
+        const char *te = argEndTime();
+        if (ts && te) {
+            logTee("  Time Range   : %s ~ %s\n", ts, te);
+        } else if (ts) {
+            logTee("  Time Range   : %s ~\n", ts);
+        } else if (te) {
+            logTee("  Time Range   : ~ %s\n", te);
+        } else {
+            logTee("  Time Range   : ALL\n");
         }
-        {
-            char **specTbs = argSpecTables();
-            if (specTbs) {
-                printf("  Tables       :");
-                for (int i = 0; specTbs[i]; i++) {
-                    printf(" %s", specTbs[i]);
-                }
-                printf("\n");
+    }
+    {
+        char **specTbs = argSpecTables();
+        if (specTbs) {
+            logTee("  Tables       :");
+            for (int i = 0; specTbs[i]; i++) {
+                logTee(" %s", specTbs[i]);
             }
+            logTee("\n");
         }
-        printf("  Check Point  : %s\n", argCheckpoint() ? "yes" : "no");
+    }
+    logTee("  Output Path  : %s\n", argOutPath());
+
+    // ── Group 2: tuning ──
+    logTee("\n");
+    logTee("  Data Threads : %d\n", argDataThread());
+    logTee("  Tag Threads  : %d\n", argTagThread());
+    if (action == ACTION_BACKUP) {
+        logTee("  Format       : %s\n", argStorageFormat() == BINARY_TAOS ? "binary" : "parquet");
+        logTee("  Check Point  : %s\n", argCheckpoint() ? "yes" : "no");
+        logTee("  Schema Only  : %s\n", argSchemaOnly() ? "yes" : "no");
     }
     if (action == ACTION_RESTORE) {
-        printf("  Check Point  : %s\n", argCheckpoint() ? "yes" : "no");
+        logTee("  Check Point  : %s\n", argCheckpoint() ? "yes" : "no");
         const char *rl = argRenameList();
-        if (rl) printf("  Rename DB    : %s\n", rl);
+        if (rl) logTee("  Rename DB    : %s\n", rl);
     }
-    printf("===========================================================================\n");
-    printf("\n");
+
+    // ── Group 3: meta ──
+    logTee("\n");
+    logRedactedCommand(argc, argv);
+    logTee("  Server Ver.  : %s\n", (serverVersion && serverVersion[0]) ? serverVersion : "(unknown)");
+    logTee("  User         : %s\n", argUser());
+    {
+        char dtBuf[32];
+        formatDateTime(startMs, dtBuf, sizeof(dtBuf));
+        logTee("  Start Time   : %s\n", dtBuf);
+    }
+
+    logTee("===========================================================================\n");
+    logTee("\n");
 }
 
 //
 // print end summary
 //
-static void printEndSummary(enum ActionType action, int code, double elapsed) {
-    printf("\n");
-    printf("===========================================================================\n");
+static void printEndSummary(enum ActionType action, int code, double elapsed, int64_t endMs) {
+    logTee("\n");
+    logTee("===========================================================================\n");
+    const char *actionName = (action == ACTION_BACKUP) ? "BACKUP" : "RESTORE";
     if (code == TSDB_CODE_SUCCESS) {
-        printf("  Result       : SUCCESS\n");
+        logTee("  Result       : SUCCESS (%s)\n", actionName);
     } else if (code == TSDB_CODE_BCK_USER_CANCEL) {
-        printf("  Result       : CANCELLED BY USER (code: 0x%08X)\n", code);
+        logTee("  Result       : CANCELLED BY USER (%s, code: 0x%08X)\n", actionName, code);
     } else {
-        printf("  Result       : FAILED (code: 0x%08X)\n", code);
+        const char *msg = bckErrMsg(code);
+        logTee("  Result       : FAILED (%s, code: 0x%08X, %s)\n", actionName, code, msg);
     }
-    printf("---------------------------------------------------------------------------\n");
-    printf("  Databases    : total=%" PRId64 ", success=%" PRId64 ", failed=%" PRId64 "\n",
+    logTee("---------------------------------------------------------------------------\n");
+    logTee("  Databases    : total=%" PRId64 ", success=%" PRId64 ", failed=%" PRId64 "\n",
            g_stats.dbTotal, g_stats.dbSuccess, g_stats.dbFailed);
-    printf("  Super Tables : %" PRId64 "\n", g_stats.stbTotal);
+    logTee("  Super Tables : %" PRId64 "\n", g_stats.stbTotal);
     if (action == ACTION_RESTORE) {
         int64_t restored = g_stats.dataFilesTotal - g_stats.dataFilesFailed - g_stats.dataFilesSkipped;
-        printf("  Child Tables : %" PRId64 " (data restored)\n", restored);
+        logTee("  Child Tables : %" PRId64 " (data restored)\n", restored);
     } else {
-        printf("  Child Tables : %" PRId64 " (data exported)\n", g_stats.childTablesTotal);
+        logTee("  Child Tables : %" PRId64 " (data exported)\n", g_stats.childTablesTotal);
     }
-    printf("  Total Rows   : %" PRId64 "\n", g_stats.totalRows);
-    printf("  Normal Tables: %" PRId64 "\n", g_stats.ntbTotal);
+    logTee("  Total Rows   : %" PRId64 "\n", g_stats.totalRows);
+    logTee("  Normal Tables: %" PRId64 "\n", g_stats.ntbTotal);
+    if (argContentExtMeta()) {
+        logTee("  Ext Meta     : vtable=%" PRId64 ", stream=%" PRId64 ", topic=%" PRId64 "\n",
+               g_stats.vtbTotal, g_stats.streamTotal, g_stats.topicTotal);
+    }
     if (action == ACTION_BACKUP) {
-        printf("  Data Files   : total=%" PRId64 ", skipped(resume)=%" PRId64 ", failed=%" PRId64 "\n",
+        logTee("  Data Files   : total=%" PRId64 ", skipped(resume)=%" PRId64 ", failed=%" PRId64 "\n",
                g_stats.dataFilesTotal, g_stats.dataFilesSkipped, g_stats.dataFilesFailed);
     } else {
-        printf("  Data Files   : total=%" PRId64 ", skipped(checkpoint)=%" PRId64 ", failed=%" PRId64 "\n",
+        logTee("  Data Files   : total=%" PRId64 ", skipped(checkpoint)=%" PRId64 ", failed=%" PRId64 "\n",
                g_stats.dataFilesTotal, g_stats.dataFilesSkipped, g_stats.dataFilesFailed);
     }
     // File Size:
@@ -156,9 +252,9 @@ static void printEndSummary(enum ActionType action, int code, double elapsed) {
     }
     double sizeMB = (double)displayBytes / (1024.0 * 1024.0);
     if (sizeMB >= 1024.0) {
-        printf("  File Size    : %.2f GB\n", sizeMB / 1024.0);
+        logTee("  File Size    : %.2f GB\n", sizeMB / 1024.0);
     } else {
-        printf("  File Size    : %.2f MB\n", sizeMB);
+        logTee("  File Size    : %.2f MB\n", sizeMB);
     }
     int elapsedSecs = (int)elapsed;
     if (elapsedSecs < 1) {
@@ -168,16 +264,21 @@ static void printEndSummary(enum ActionType action, int code, double elapsed) {
         int hours = elapsedSecs / 3600;
         int mins  = (elapsedSecs % 3600) / 60;
         int secs  = elapsedSecs % 60;
-        printf("  Elapsed Time : %d hours %d mins %d seconds\n", hours, mins, secs);
+        logTee("  Elapsed Time : %d hours %d mins %d seconds\n", hours, mins, secs);
     } else if (elapsedSecs >= 60) {
         int mins = elapsedSecs / 60;
         int secs = elapsedSecs % 60;
-        printf("  Elapsed Time : %d mins %d seconds\n", mins, secs);
+        logTee("  Elapsed Time : %d mins %d seconds\n", mins, secs);
     } else {
-        printf("  Elapsed Time : %d seconds\n", elapsedSecs);
+        logTee("  Elapsed Time : %d seconds\n", elapsedSecs);
     }
-    printf("===========================================================================\n");
-    printf("\n");
+    {
+        char dtBuf[32];
+        formatDateTime(endMs, dtBuf, sizeof(dtBuf));
+        logTee("  End Time     : %s\n", dtBuf);
+    }
+    logTee("===========================================================================\n");
+    logTee("\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -201,6 +302,27 @@ int main(int argc, char *argv[]) {
         logError("init args failed");
         return -1;
     }
+
+    // Open the on-disk mirror log as early as possible so it captures
+    // everything from the version banner onward.
+    //   backup  -> <outPath>/backup.log,  truncated on each run, except when
+    //              -C resumes a prior checkpointed run, which must append so
+    //              the earlier attempt's log lines aren't lost
+    //   restore -> <cwd>/restore.log,     appended across runs
+    enum ActionType action = argAction();
+    if (action == ACTION_BACKUP) {
+        taosMulMkDir(argOutPath());
+        char logPath[MAX_PATH_LEN];
+        snprintf(logPath, sizeof(logPath), "%s/backup.log", argOutPath());
+        logFileOpen(logPath, !argCheckpoint());
+    } else if (action == ACTION_RESTORE) {
+        char cwd[MAX_PATH_LEN];
+        taosGetCwd(cwd, sizeof(cwd));
+        char logPath[MAX_PATH_LEN];
+        snprintf(logPath, sizeof(logPath), "%s/restore.log", cwd);
+        logFileOpen(logPath, false);
+    }
+
     printVersion(false);
     // Determine and apply connection driver before any connection is opened.
     // Priority: explicit -Z > auto-from-DSN > default (native).
@@ -211,7 +333,7 @@ int main(int argc, char *argv[]) {
         const char *drvName = useWs ? "websocket" : "native";
         int rc = taos_options(TSDB_OPTION_DRIVER, drvName);
         if (rc != 0) {
-            logError("failed to set driver '%s': %s", drvName, taos_errstr(NULL));
+            logError("failed to set driver '%s'(0x%08X, %s)", drvName, rc, taos_errstr(NULL));
             argsDestroy();
             return -1;
         }
@@ -234,15 +356,16 @@ int main(int argc, char *argv[]) {
     // reset stats
     memset(&g_stats, 0, sizeof(g_stats));
 
-    //
-    // action
-    //
-    enum ActionType action = argAction();
-
-    printStartSummary(action);
-
     // record start time
     int64_t startMs = taosGetTimestampMs();
+
+    // Fetch the connected server's engine version for the summary banner.
+    // Best-effort: an empty string is displayed as "(unknown)" if this fails,
+    // it never blocks the backup/restore itself.
+    char serverVersion[64] = {0};
+    fetchServerVersion(serverVersion, sizeof(serverVersion));
+
+    printStartSummary(argc, argv, action, serverVersion, startMs);
 
     // start progress display thread
     if (action == ACTION_BACKUP || action == ACTION_RESTORE) {
@@ -279,11 +402,12 @@ int main(int argc, char *argv[]) {
         code = TSDB_CODE_BCK_USER_CANCEL;
     }
 
-    printEndSummary(action, code, elapsed);
+    printEndSummary(action, code, elapsed, endMs);
 
     //
-    // destroy 
+    // destroy
     //
+    logFileClose();
     argsDestroy();
     destroyConnectionPool();
     return code;

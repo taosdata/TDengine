@@ -620,8 +620,23 @@ static int32_t collectMetaKeyFromCreateTable(SCollectMetaKeyCxt* pCxt, SCreateTa
     reserveExtSourceInCache(pStmt->dbName, pCxt->pMetaCache);
   }
 #endif
+  // CREATE TABLE with TAGS goes down the vnode normal-table path when every tag carries an
+  // inline `= literal` value (valueless TAGS keeps the mnode super-table path) — mirror the
+  // rewrite gate in parTranslater.c so the table vgroup is pre-fetched for the normal-table
+  // path; otherwise the async meta cache misses and translate yields PAR_INTERNAL_ERROR.
+  // CREATE STABLE never takes the normal-table path, whatever the tag values are.
+  bool vnodePath = !pStmt->stableKeyword;
+  if (vnodePath && pStmt->pTags != NULL) {
+    SNode* pTag = NULL;
+    FOREACH(pTag, pStmt->pTags) {
+      if (((SColumnDefNode*)pTag)->pTagVal == NULL) {
+        vnodePath = false;
+        break;
+      }
+    }
+  }
   int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
-  if (TSDB_CODE_SUCCESS == code && NULL == pStmt->pTags) {
+  if (TSDB_CODE_SUCCESS == code && vnodePath) {
     code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -703,6 +718,40 @@ static int32_t collectMetaKeyFromCreateVTable(SCollectMetaKeyCxt* pCxt, SCreateV
   }
   // Reserve ext source/table metadata for each SERIES declaration
   PAR_ERR_RET(collectMetaKeyFromSeriesList(pCxt, pStmt->pSeriesList));
+  // tag-ref source tables must be pre-fetched too (symmetric with column refs above):
+  // TAGS(name TYPE FROM src.tag) references a source child table whose meta is read in the
+  // translate phase via getTableMetaFromCache. Without pre-fetch, a tag-ref whose source differs
+  // from any column-ref source misses the async meta cache and yields PAR_INTERNAL_ERROR.
+  if (TSDB_CODE_SUCCESS == code && pStmt->pTags != NULL) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, pStmt->pTags) {
+      SColumnDefNode* pTag = (SColumnDefNode*)pNode;
+      if (NULL == pTag) {
+        code = TSDB_CODE_PAR_INVALID_COLUMN;
+        break;
+      }
+      SColumnOptions* pTagOptions = (SColumnOptions*)pTag->pOptions;
+      if (pTagOptions && pTagOptions->hasRef) {
+        code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pTagOptions->refDb, pTagOptions->refTable,
+                                       pCxt->pMetaCache);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = reserveVStbRefDbsInCache(pCxt->pParseCxt->acctId, pTagOptions->refDb, pTagOptions->refTable,
+                                          pCxt->pMetaCache);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pTagOptions->refDb, pTagOptions->refTable,
+                                           pCxt->pMetaCache);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pTagOptions->refDb,
+                                        pTagOptions->refTable, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache);
+        }
+        if (TSDB_CODE_SUCCESS != code) {
+          break;
+        }
+      }
+    }
+  }
   return code;
 }
 
@@ -762,6 +811,9 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
     FOREACH(pNode, pStmt->pValsOfTags) {
       if (nodeType(pNode) == QUERY_NODE_COLUMN_REF) {
         SColumnRefNode* pTagRef = (SColumnRefNode*)pNode;
+        if (pTagRef->refDbName[0] == '\0') {
+          tstrncpy(pTagRef->refDbName, pStmt->dbName, TSDB_DB_NAME_LEN);
+        }
         PAR_ERR_RET(
             reserveTableMetaInCache(pCxt->pParseCxt->acctId, pTagRef->refDbName, pTagRef->refTableName, pCxt->pMetaCache));
         PAR_ERR_RET(reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pTagRef->refDbName, pTagRef->refTableName,
@@ -782,40 +834,51 @@ static int32_t collectMetaKeyFromCreateMultiTable(SCollectMetaKeyCxt* pCxt, SCre
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
   FOREACH(pNode, pStmt->pSubTables) {
-    if (pNode->type == QUERY_NODE_CREATE_SUBTABLE_CLAUSE) {
-      SCreateSubTableClause* pClause = (SCreateSubTableClause*)pNode;
-      code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pClause->dbName, pCxt->pMetaCache);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pClause->useDbName, pClause->useTableName,
-                                       pCxt->pMetaCache);
+    switch (nodeType(pNode)) {
+      case QUERY_NODE_CREATE_SUBTABLE_CLAUSE: {
+        SCreateSubTableClause* pClause = (SCreateSubTableClause*)pNode;
+        code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pClause->dbName, pCxt->pMetaCache);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pClause->useDbName, pClause->useTableName,
+                                         pCxt->pMetaCache);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code =
+              reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName, NULL,
+                                        PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName, NULL,
+                                        PRIV_TBL_CREATE, PRIV_OBJ_DB, pCxt->pMetaCache);
+        }
+        break;
       }
-      if (TSDB_CODE_SUCCESS == code) {
-        code =
-            reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
+      case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE: {
+        SCreateSubTableFromFileClause* pClause = (SCreateSubTableFromFileClause*)pNode;
+        code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pClause->useDbName, pCxt->pMetaCache);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pClause->useDbName, pClause->useTableName,
+                                         pCxt->pMetaCache);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->useDbName, NULL,
+                                        PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->useDbName, NULL,
+                                        PRIV_TBL_CREATE, PRIV_OBJ_DB, pCxt->pMetaCache);
+        }
+        break;
       }
-      if (TSDB_CODE_SUCCESS == code) {
-        code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName, NULL,
-                                      PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache);
-      }
-      if (TSDB_CODE_SUCCESS == code) {
-        code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName, NULL,
-                                      PRIV_TBL_CREATE, PRIV_OBJ_DB, pCxt->pMetaCache);
-      }
-    } else {
-      SCreateSubTableFromFileClause* pClause = (SCreateSubTableFromFileClause*)pNode;
-      code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pClause->useDbName, pCxt->pMetaCache);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pClause->useDbName, pClause->useTableName,
-                                       pCxt->pMetaCache);
-      }
-      if (TSDB_CODE_SUCCESS == code) {
-        code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->useDbName, NULL,
-                                      PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache);
-      }
-      if (TSDB_CODE_SUCCESS == code) {
-        code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->useDbName, NULL,
-                                      PRIV_TBL_CREATE, PRIV_OBJ_DB, pCxt->pMetaCache);
-      }
+      case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
+        code = collectMetaKeyFromCreateVSubTable(pCxt, (SCreateVSubTableStmt*)pNode);
+        break;
+      default:
+        code = TSDB_CODE_PAR_INTERNAL_ERROR;
+        break;
     }
 
     if (TSDB_CODE_SUCCESS != code) {
@@ -847,40 +910,62 @@ static int32_t collectMetaKeyFromCreateSubTableFromFile(SCollectMetaKeyCxt*     
   return code;
 }
 
+// Per-clause meta-cache reservation shared by DROP TABLE and DROP VTABLE.
+// The reserved key sets are historical and preserve each pre-refactor
+// collector exactly:
+// - DROP TABLE (isVirtual=false): DbCfg + DB_USE auth (+ enterprise ext-source)
+//   on BOTH the withOpt and non-withOpt paths, as the original
+//   collectMetaKeyFromDropTable always reserved them after the branch.
+// - DROP VTABLE (isVirtual=true): reserves DbCfg only on the WITH path, adds
+//   VStbRefDbs + DB_USE auth on the plain path, and never reserves ext-source.
+static int32_t reserveDropClauseMetaKeys(SCollectMetaKeyCxt* pCxt, SDropTableClause* pClause, bool withOpt,
+                                         bool isVirtual) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (withOpt) {
+    code = reserveTableUidInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, pClause->dbName, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code && isVirtual) {
+      code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pClause->dbName, pCxt->pMetaCache);
+    }
+  } else {
+    code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
+    if (TSDB_CODE_SUCCESS == code && isVirtual) {
+      code = reserveVStbRefDbsInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code && isVirtual) {
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName, NULL,
+                                    PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName,
+                                    pClause->tableName, PRIV_CM_DROP, PRIV_OBJ_TBL, pCxt->pMetaCache);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code && !isVirtual) {
+    code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pClause->dbName, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code && !isVirtual) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName, NULL, PRIV_DB_USE,
+                                  PRIV_OBJ_DB, pCxt->pMetaCache);
+  }
+#ifdef TD_ENTERPRISE
+  if (TSDB_CODE_SUCCESS == code && !isVirtual && tsFederatedQueryEnable && pClause->dbName[0] != '\0') {
+    code = reserveExtSourceInCache(pClause->dbName, pCxt->pMetaCache);
+  }
+#endif
+  return code;
+}
+
 static int32_t collectMetaKeyFromDropTable(SCollectMetaKeyCxt* pCxt, SDropTableStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
   FOREACH(pNode, pStmt->pTables) {
-    SDropTableClause* pClause = (SDropTableClause*)pNode;
-    if (pStmt->withOpt) {
-      code = reserveTableUidInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, pClause->dbName, pCxt->pMetaCache);
-      }
-    } else {
-      code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
-      if (TSDB_CODE_SUCCESS == code) {
-        code =
-            reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
-      }
-      if (TSDB_CODE_SUCCESS == code) {
-        code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName,
-                                      pClause->tableName, PRIV_CM_DROP, PRIV_OBJ_TBL, pCxt->pMetaCache);
-      }
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pClause->dbName, pCxt->pMetaCache);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName, NULL, PRIV_DB_USE,
-                                    PRIV_OBJ_DB, pCxt->pMetaCache);
-    }
-#ifdef TD_ENTERPRISE
-    if (TSDB_CODE_SUCCESS == code && tsFederatedQueryEnable && pClause->dbName[0] != '\0') {
-      code = reserveExtSourceInCache(pClause->dbName, pCxt->pMetaCache);
-    }
-#endif
-
+    code = reserveDropClauseMetaKeys(pCxt, (SDropTableClause*)pNode, pStmt->withOpt, false);
     if (TSDB_CODE_SUCCESS != code) {
       break;
     }
@@ -912,35 +997,15 @@ static int32_t collectMetaKeyFromDropStable(SCollectMetaKeyCxt* pCxt, SDropSuper
 
 static int32_t collectMetaKeyFromDropVtable(SCollectMetaKeyCxt* pCxt, SDropVirtualTableStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (pStmt->withOpt) {
-    code = reserveTableUidInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
-    }
-  } else {
-    code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = reserveVStbRefDbsInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_USE,
-                                    PRIV_OBJ_DB, pCxt->pMetaCache);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
-                                    PRIV_CM_DROP, PRIV_OBJ_TBL, pCxt->pMetaCache);
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pStmt->pTables) {
+    code = reserveDropClauseMetaKeys(pCxt, (SDropTableClause*)pNode, pStmt->withOpt, true);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
     }
   }
   return code;
 }
-
-
 
 static int32_t collectMetaKeyFromAlterTable(SCollectMetaKeyCxt* pCxt, SAlterTableStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1040,8 +1105,20 @@ static int32_t collectMetaKeyFromAlterTable(SCollectMetaKeyCxt* pCxt, SAlterTabl
   if (TSDB_CODE_SUCCESS == code &&
       (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
        pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
-       pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF)) {
+       pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF ||
+       pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF)) {
     code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->refDbName, pStmt->refTableName, pCxt->pMetaCache);
+    // The auth phase (authAlterTable) also requires USE on the source db and SELECT on the
+    // source table for reference alters; pre-fetch both like collectMetaKeyFromAlterVtable
+    // does, otherwise the cached-auth check always fails for non-root users.
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->refDbName, NULL,
+                                    PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->refDbName,
+                                    pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache);
+    }
   }
 #ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code && tsFederatedQueryEnable && pStmt->dbName[0] != '\0') {
@@ -1111,13 +1188,15 @@ static int32_t collectMetaKeyFromAlterVtable(SCollectMetaKeyCxt* pCxt, SAlterTab
 
   if (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
       pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
-      pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF) {
+      pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF ||
+      pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF) {
     if (pStmt->refType == 1) {
       // External reference: pre-fetch ext source info and ext table meta
       PAR_ERR_RET(reserveExtSourceInCache(pStmt->refSourceName, pCxt->pMetaCache));
       PAR_ERR_RET(reserveExtTableMetaInCache(pStmt->refSourceName, pStmt->refDbName, "",
                                              pStmt->refTableName, pCxt->pMetaCache));
-    } else if (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF) {
+    } else if (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF ||
+               pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF) {
       // Tag ref always points to a concrete table; reserve its metadata.
       PAR_ERR_RET(
           reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->refDbName, pStmt->refTableName, pCxt->pMetaCache));

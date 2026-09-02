@@ -225,6 +225,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       metaRsp.secLvl = pVnode->config.securityLevel;  // normal table inherits secLvl from vnode config
     case TSDB_VIRTUAL_NORMAL_TABLE: {
       schema = mer1.me.ntbEntry.schemaRow;
+      schemaTag = mer1.me.ntbEntry.schemaTag;  // normal/virtual-normal tables may own tags
       metaRsp.ownerId = mer1.me.ntbEntry.ownerId;
       break;
     }
@@ -363,7 +364,7 @@ _exit4:
   rpcMsg.pCont = pRsp;
   rpcMsg.contLen = rspLen;
   rpcMsg.code = code;
-  rpcMsg.msgType = pMsg->msgType;
+  rpcMsg.msgType = direct ? pMsg->msgType + 1 : pMsg->msgType;
 
   if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST && autoCreateCtb == 1) {
     code = TSDB_CODE_SUCCESS;
@@ -455,6 +456,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     (void)memcpy(cfgRsp.pTags, pTag, cfgRsp.tagsLen);
   } else if (mer1.me.type == TSDB_NORMAL_TABLE || mer1.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
     schema = mer1.me.ntbEntry.schemaRow;
+    schemaTag = mer1.me.ntbEntry.schemaTag;  // normal/virtual-normal tables may own tags
     cfgRsp.ttl = mer1.me.ntbEntry.ttlDays;
     cfgRsp.ownerId = mer1.me.ntbEntry.ownerId;
     cfgRsp.securityLevel = mer1.me.type == TSDB_NORMAL_TABLE ? pVnode->config.securityLevel : 0;
@@ -465,6 +467,18 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
         code = terrno;
         goto _exit;
       }
+    }
+    // owned tag values: copy ntbEntry.pTags so the executor's local-tag reading path
+    // (which reads cfgRsp.pTags) can project them. Mirrors the child-table branch above.
+    if (mer1.me.ntbEntry.schemaTag.nCols > 0 && mer1.me.ntbEntry.pTags != NULL) {
+      STag *pTag = (STag *)mer1.me.ntbEntry.pTags;
+      cfgRsp.tagsLen = pTag->len;
+      cfgRsp.pTags = taosMemoryMalloc(cfgRsp.tagsLen);
+      if (NULL == cfgRsp.pTags) {
+        code = terrno;
+        goto _exit;
+      }
+      (void)memcpy(cfgRsp.pTags, pTag, cfgRsp.tagsLen);
     }
   } else {
     vError("vnodeGetTableCfg get invalid table type:%d", mer1.me.type);

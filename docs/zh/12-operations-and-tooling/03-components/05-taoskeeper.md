@@ -73,7 +73,7 @@ taosKeeper 支持用 `taoskeeper -c <keeper config file>` 命令来指定配置�
 若不指定配置文件，taosKeeper 会使用默认配置文件，其路径为：`/etc/taos/taoskeeper.toml` 。
 若既不指定 taosKeeper 配置文件，且 `/etc/taos/taoskeeper.toml` 也不存在，将使用默认配置。
 
-**下面是配置文件的示例** ：
+**下面是配置文件的示例**：
 
 ```toml
 # The ID of the currently running taoskeeper instance, default is 64.
@@ -156,6 +156,8 @@ monitorFqdn localhost # taoskeeper 服务的 FQDN
 ```
 
 TDengine 监控配置相关，具体请参考：[TDengine 监控配置](../02-operations/05-monitor.md)。
+
+企业版 taosKeeper 还可接收 `taosd` 上报的审计日志（与写入 `log` 库的监控指标分离），配置段为 `[audit]` / `[audit.database]`（库名默认 `audit`；旧文档中的 `auditDB` 对应 `audit.database.name`）。完整落库路径、`auditSaveInSelf`、操作级别与表结构见 [审计与合规](../../11-security-guide/07-audit-and-compliance.md)。
 
 <Tabs>
 <TabItem label="Linux" value="linux">
@@ -290,7 +292,7 @@ Query OK, 1 row(s) in set (0.003168s)
 
 ### 使用 TDinsight 配置监控
 
-收集到监控数据以后，就可以使用 TDinsight 来配置 TDengine 的监控，具体请参考 [TDinsight 参考手册](./08-tdinsight/index.mdx)。
+收集到监控数据以后，就可以使用 TDinsight 来配置 TDengine 的监控，具体请参考 [TDinsight 参考手册](./08-tdinsight/index.md)。
 
 ## 集成 Prometheus
 
@@ -312,7 +314,7 @@ taoskeeper 提供了 `/metrics/v2` 和 `/metrics` 接口，返回了 Prometheus 
 
 v2 接口使用内存缓存模式，将指标数据缓存在内存中，避免每次请求都查询 TDengine 数据库。数据会根据配置的 `cacheTTL` 自动过期清理。
 
-**重要**：v2 内存缓存模式下，TDengine 集群可能会将监控数据分片上报到不同的 taoskeeper 实例。因此，单个 taoskeeper 实例只收到部分指标数据，**必须在 Prometheus 中配置所有 taoskeeper 实例的端点**才能获取完整的监控数据。
+**重要**：v2 内存缓存模式下，TDengine 集群可能会将监控数据分片上报到不同的 taoskeeper 实例。因此，单个 taoskeeper 实例只收到部分指标数据，**必须在 Prometheus 中配置所有 taoskeeper 实例的端点** 才能获取完整的监控数据。
 
 #### 配置说明
 

@@ -1,9 +1,8 @@
-# encoding:utf-8
 # pylint: disable=c0103
 """main service module"""
 
 import datetime
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 
 import numpy as np
 
@@ -209,17 +208,14 @@ class AbstractStatsForecastService(AbstractForecastService, ABC):
     def _fit_model(self, values: np.ndarray):
         """Fit and return a StatsForecast model."""
 
-    def _format_forecast_result(
-        self, fitted_model, values: np.ndarray
-    ) -> tuple:
+    def _format_forecast_result(self, fitted_model, values: np.ndarray) -> tuple:
         """Build forecasts, confidence intervals, and fitted MSE."""
         level = self.conf * 100 if self.return_conf else None
         if level is not None and float(level).is_integer():
             level = int(level)
 
         forecast_res = fitted_model.predict(
-            h=self.rows,
-            level=[level] if level is not None else None
+            h=self.rows, level=[level] if level is not None else None
         )
 
         forecast = forecast_res["mean"].tolist()
@@ -227,7 +223,7 @@ class AbstractStatsForecastService(AbstractForecastService, ABC):
             result = [
                 forecast,
                 forecast_res[f"lo-{level}"].tolist(),
-                forecast_res[f"hi-{level}"].tolist()
+                forecast_res[f"hi-{level}"].tolist(),
             ]
         else:
             result = [forecast]
@@ -258,11 +254,7 @@ class AbstractStatsForecastService(AbstractForecastService, ABC):
         ]
         result.insert(0, timestamps)
 
-        return {
-            "mse": mse,
-            "model_info": self.model_info,
-            "res": result
-        }
+        return {"mse": mse, "model_info": self.model_info, "res": result}
 
 
 class AbstractImputationService(AbstractAnalyticsService, ABC):
@@ -322,8 +314,8 @@ class AbstractRegressionService(AbstractAnalyticsService, ABC):
     def __init__(self):
         super().__init__()
         self.type = "regression"
-        self.input_data = None   # Feature matrix: list of sample rows
-        self.schema = None       # Column schema metadata
+        self.input_data = None  # Feature matrix: list of sample rows
+        self.schema = None  # Column schema metadata
 
     def set_input_data(self, input_data: list, schema: list = None):
         """Set the input feature data for regression.
@@ -337,7 +329,6 @@ class AbstractRegressionService(AbstractAnalyticsService, ABC):
 
     def set_params(self, params: dict) -> None:
         """Set regression parameters. Override in subclass if needed."""
-        pass
 
     def get_params(self):
         return {"dummy": "dummy"}
@@ -349,4 +340,49 @@ class AbstractRegressionService(AbstractAnalyticsService, ABC):
         Returns:
             list[float]: Predicted values, one per input sample
         """
-        pass
+
+
+class AbstractClassificationService(AbstractAnalyticsService, ABC):
+    """
+    Abstract classification service, all classification algorithms should inherit from this base class.
+
+    Mirrors the structure of AbstractRegressionService:
+      - set_input_data()  ←→  set_input_data()
+      - set_params()      ←→  set_params()
+      - execute()         ←→  execute()
+
+    Responsibilities:
+      - Load and manage input feature data
+      - Execute classification analysis
+      - Return predicted class labels as list[int] or list[str]
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.type = "classification"
+        self.input_data = None  # Feature matrix: list of sample rows
+        self.schema = None  # Column schema metadata
+
+    def set_input_data(self, input_data: list, schema: list = None):
+        """Set the input feature data for classification.
+
+        Args:
+            input_data: Feature matrix (list of sample rows, each row is a list of feature values)
+            schema: Optional schema describing the columns
+        """
+        self.input_data = input_data
+        self.schema = schema
+
+    def set_params(self, params: dict) -> None:
+        """Set classification parameters. Override in subclass if needed."""
+
+    def get_params(self):
+        return {"dummy": "dummy"}
+
+    @abstractmethod
+    def execute(self):
+        """Execute classification and return predicted class labels.
+
+        Returns:
+            list[int] or list[str]: Predicted class labels, one per input sample
+        """

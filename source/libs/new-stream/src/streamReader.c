@@ -13,6 +13,270 @@
 #include "tcommon.h"
 #include "tmsg.h"
 
+#define STREAM_READER_PERIOD_LOG_BUFFER_SIZE 2048
+// Six int64 values, one int32, the longest status, eight uint64 values, two rates, nine optional values, and a bool.
+#define STREAM_READER_PERIOD_LOG_VALUE_BYTES (6 * 21 + 11 + 10 + 8 * 20 + 2 * 32 + 9 * 32 + 5)
+#define STREAM_READER_PERIOD_LOG_FORMAT                                                                              \
+  "record=task_period stream_id=%" PRId64 " task_id=%" PRId64 " serious_id=%" PRId64                                 \
+  " node_id=%d task_type=reader status=%s stats_start_at=%" PRId64 " uptime_ms=%" PRId64 " stats_window_ms=%" PRId64 \
+  " pull_count=%" PRIu64 " success_count=%" PRIu64 " no_data_count=%" PRIu64 " no_context_count=%" PRIu64            \
+  " failure_count=%" PRIu64 " data_rows=%" PRIu64 " data_blocks=%" PRIu64                                            \
+  " data_rows_per_sec=%.3f data_blocks_per_sec=%.3f"                                                                 \
+  " scan_duration_samples=%" PRIu64                                                                                  \
+  " scan_duration_avg_ms=%s scan_duration_max_ms=%s scan_duration_lifetime_max_ms=%s"                                \
+  " scan_duration_lifetime_max_at=%s last_returned_wal_ver=%s last_success_at=%s"                                    \
+  " active_scan_contexts=%s table_count=%s cache_entries=%s stats_overflow=%s"
+
+enum {
+  STREAM_READER_PERIOD_LOG_BUFFER_CHECK =
+      1 / (int)(sizeof(STREAM_READER_PERIOD_LOG_FORMAT) + STREAM_READER_PERIOD_LOG_VALUE_BYTES <=
+                STREAM_READER_PERIOD_LOG_BUFFER_SIZE)
+};
+
+static int32_t stReaderFormatOptionalI64(char* pBuffer, int32_t bufferSize, bool valid, int64_t value) {
+  int32_t len = valid ? snprintf(pBuffer, bufferSize, "%" PRId64, value) : snprintf(pBuffer, bufferSize, "NA");
+  return len < 0 || len >= bufferSize ? TSDB_CODE_OUT_OF_BUFFER : TSDB_CODE_SUCCESS;
+}
+
+static int32_t stReaderFormatOptionalMs(char* pBuffer, int32_t bufferSize, bool valid, double valueMs) {
+  int32_t len = valid ? snprintf(pBuffer, bufferSize, "%.3f", valueMs) : snprintf(pBuffer, bufferSize, "NA");
+  return len < 0 || len >= bufferSize ? TSDB_CODE_OUT_OF_BUFFER : TSDB_CODE_SUCCESS;
+}
+
+int32_t stReaderTaskLogStats(SStreamTask* pTask, const SStreamTaskPeriodSnapshot* pSnapshot) {
+  if (pTask == NULL || pSnapshot == NULL || pTask->type != STREAM_READER_TASK ||
+      pSnapshot->taskType != STREAM_READER_TASK || pSnapshot->statsWindowMs <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  const SStreamReaderPeriodStats*   pPeriod = &pSnapshot->period.reader;
+  const SStreamReaderPeriodStats*   pCumulative = &pSnapshot->cumulative.reader;
+  const SStreamReaderGaugeSnapshot* pGauges = &pSnapshot->readerGauges;
+  char                              scanAvgMs[32] = {0};
+  char                              scanMaxMs[32] = {0};
+  char                              scanLifetimeMaxMs[32] = {0};
+  char                              scanLifetimeMaxAt[32] = {0};
+  char                              lastReturnedWalVer[32] = {0};
+  char                              lastSuccessAt[32] = {0};
+  char                              activeScanContexts[32] = {0};
+  char                              tableCount[32] = {0};
+  char                              cacheEntries[32] = {0};
+
+  int32_t code = stReaderFormatOptionalMs(
+      scanAvgMs, sizeof(scanAvgMs), pPeriod->scanDuration.samples > 0,
+      pPeriod->scanDuration.samples > 0
+          ? (double)pPeriod->scanDuration.totalUs / (double)pPeriod->scanDuration.samples / 1000.0
+          : 0.0);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = stReaderFormatOptionalMs(scanMaxMs, sizeof(scanMaxMs), pPeriod->scanDuration.samples > 0,
+                                  (double)pPeriod->scanDuration.maxUs / 1000.0);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = stReaderFormatOptionalMs(scanLifetimeMaxMs, sizeof(scanLifetimeMaxMs), pCumulative->scanDuration.samples > 0,
+                                  (double)pCumulative->scanDuration.maxUs / 1000.0);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = stReaderFormatOptionalI64(scanLifetimeMaxAt, sizeof(scanLifetimeMaxAt), pCumulative->scanDuration.samples > 0,
+                                   pCumulative->scanDuration.maxAtMs);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code =
+      stReaderFormatOptionalI64(lastReturnedWalVer, sizeof(lastReturnedWalVer),
+                                (pGauges->validMask & STREAM_READER_GAUGE_LAST_WAL) != 0, pGauges->lastReturnedWalVer);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code =
+      stReaderFormatOptionalI64(lastSuccessAt, sizeof(lastSuccessAt),
+                                (pGauges->validMask & STREAM_READER_GAUGE_LAST_SUCCESS) != 0, pGauges->lastSuccessAtMs);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = stReaderFormatOptionalI64(activeScanContexts, sizeof(activeScanContexts),
+                                   (pGauges->validMask & STREAM_READER_GAUGE_ACTIVE_CONTEXTS) != 0,
+                                   pGauges->activeScanContexts);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = stReaderFormatOptionalI64(tableCount, sizeof(tableCount),
+                                   (pGauges->validMask & STREAM_READER_GAUGE_TABLE_COUNT) != 0, pGauges->tableCount);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code =
+      stReaderFormatOptionalI64(cacheEntries, sizeof(cacheEntries),
+                                (pGauges->validMask & STREAM_READER_GAUGE_CACHE_ENTRIES) != 0, pGauges->cacheEntries);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  const double rowsPerSec = (double)pPeriod->dataRows * 1000.0 / (double)pSnapshot->statsWindowMs;
+  const double blocksPerSec = (double)pPeriod->dataBlocks * 1000.0 / (double)pSnapshot->statsWindowMs;
+  const char*  pStatus = pTask->status >= STREAM_STATUS_UNDEPLOYED && pTask->status <= STREAM_STATUS_DROPPING
+                             ? gStreamStatusStr[pTask->status]
+                             : "Unknown";
+  char         line[STREAM_READER_PERIOD_LOG_BUFFER_SIZE] = {0};
+  int32_t      len = snprintf(line, sizeof(line), STREAM_READER_PERIOD_LOG_FORMAT, pTask->streamId, pTask->taskId,
+                              pTask->seriousId, pTask->nodeId, pStatus, pSnapshot->statsStartAtMs, pSnapshot->uptimeMs,
+                              pSnapshot->statsWindowMs, pPeriod->pullCount, pPeriod->successCount, pPeriod->noDataCount,
+                              pPeriod->noContextCount, pPeriod->failureCount, pPeriod->dataRows, pPeriod->dataBlocks,
+                              rowsPerSec, blocksPerSec, pPeriod->scanDuration.samples, scanAvgMs, scanMaxMs,
+                              scanLifetimeMaxMs, scanLifetimeMaxAt, lastReturnedWalVer, lastSuccessAt, activeScanContexts,
+                              tableCount, cacheEntries, pSnapshot->statsOverflow ? "true" : "false");
+  if (len < 0 || len >= sizeof(line)) return TSDB_CODE_OUT_OF_BUFFER;
+
+  ST_TASK_DLOG("%s", line);
+  return TSDB_CODE_SUCCESS;
+}
+
+static const SStreamContextPolicyEntry* stFindReaderContextPolicyEntry(const SStreamContextPolicy* pPolicy, int64_t gid,
+                                                                       int32_t paramIndex) {
+  const int32_t count = taosArrayGetSize(pPolicy == NULL ? NULL : pPolicy->pEntries);
+  for (int32_t i = 0; i < count; ++i) {
+    const SStreamContextPolicyEntry* pEntry = taosArrayGet(pPolicy->pEntries, i);
+    if (pEntry->gid == gid && pEntry->paramIndex == paramIndex) {
+      return pEntry;
+    }
+  }
+  return NULL;
+}
+
+static int32_t stCountReaderContextBindings(const SStreamAncestorContext* pContext, int32_t actualNodeId,
+                                            int32_t readInfoIndex) {
+  int32_t       matches = 0;
+  const int32_t count = taosArrayGetSize(pContext == NULL ? NULL : pContext->pReadScopeBindings);
+  for (int32_t i = 0; i < count; ++i) {
+    const SStreamReadScopeBinding* pBinding = taosArrayGet(pContext->pReadScopeBindings, i);
+    if (pBinding->vgId == actualNodeId && pBinding->readInfoIndex == readInfoIndex) {
+      ++matches;
+    }
+  }
+  return matches;
+}
+
+static int32_t stCountReaderAncestorPolicies(const SStreamContextPolicy* pPolicy, int64_t gid) {
+  int32_t       matches = 0;
+  const int32_t count = taosArrayGetSize(pPolicy == NULL ? NULL : pPolicy->pEntries);
+  for (int32_t i = 0; i < count; ++i) {
+    const SStreamContextPolicyEntry* pEntry = taosArrayGet(pPolicy->pEntries, i);
+    if (pEntry->gid == gid && pEntry->contextPolicy == STREAM_CONTEXT_POLICY_ANCESTOR) {
+      ++matches;
+    }
+  }
+  return matches;
+}
+
+int32_t stProjectReaderCalcContext(const SStreamRuntimeFuncInfo* pSource, int32_t actualNodeId, int32_t readInfoIndex,
+                                   int32_t sourceParamIndex, SStreamRuntimeFuncInfo* pTarget) {
+  if (pSource == NULL || pTarget == NULL || taosArrayGetSize(pTarget->pStreamPesudoFuncVals) != 1) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  const bool sourceHasContext = pSource->pContextPolicy != NULL || pSource->pAncestorContext != NULL;
+  int32_t    code = tAdmitStreamContext(pSource->pContextPolicy, pSource->pAncestorContext, sourceHasContext);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  int64_t                          gid = pSource->groupId;
+  const SStreamContextPolicyEntry* pSourceEntry = NULL;
+  SStreamAncestorContext*          pProjectedContext = NULL;
+  if (!pSource->isMultiGroupCalc) {
+    if (readInfoIndex >= 0 || sourceParamIndex < 0 ||
+        sourceParamIndex >= taosArrayGetSize(pSource->pStreamPesudoFuncVals)) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    if (pSource->pContextPolicy != NULL) {
+      pSourceEntry = stFindReaderContextPolicyEntry(pSource->pContextPolicy, gid, sourceParamIndex);
+      if (pSourceEntry == NULL) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      if (pSourceEntry->contextPolicy == STREAM_CONTEXT_POLICY_ANCESTOR) {
+        code = tProjectStreamAncestorContext(pSource->pAncestorContext, gid, sourceParamIndex, 0, &pProjectedContext);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+      }
+    }
+  } else {
+    if (readInfoIndex < 0 || sourceParamIndex >= 0) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    const SSTriggerGroupReadInfo* pReadInfo = taosArrayGet(pSource->curGrpRead, readInfoIndex);
+    if (pReadInfo == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    gid = pReadInfo->gid;
+    const int32_t bindingCount = stCountReaderContextBindings(pSource->pAncestorContext, actualNodeId, readInfoIndex);
+    if (bindingCount > 1) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    if (bindingCount == 0 && stCountReaderAncestorPolicies(pSource->pContextPolicy, gid) > 0) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    if (bindingCount == 1) {
+      if (pSource->pContextPolicy == NULL) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      const int32_t count = taosArrayGetSize(pSource->pContextPolicy->pEntries);
+      for (int32_t i = 0; i < count; ++i) {
+        const SStreamContextPolicyEntry* pCandidate = taosArrayGet(pSource->pContextPolicy->pEntries, i);
+        if (pCandidate->gid != gid || pCandidate->contextPolicy != STREAM_CONTEXT_POLICY_ANCESTOR) {
+          continue;
+        }
+        SStreamAncestorContext* pCandidateContext = NULL;
+        code = tProjectStreamAncestorContext(pSource->pAncestorContext, gid, pCandidate->paramIndex, 0,
+                                             &pCandidateContext);
+        if (code != TSDB_CODE_SUCCESS) {
+          tDestroyStreamAncestorContext(&pProjectedContext);
+          return code;
+        }
+        if (stCountReaderContextBindings(pCandidateContext, actualNodeId, readInfoIndex) == 1) {
+          if (pSourceEntry != NULL) {
+            tDestroyStreamAncestorContext(&pCandidateContext);
+            tDestroyStreamAncestorContext(&pProjectedContext);
+            return TSDB_CODE_INVALID_PARA;
+          }
+          pSourceEntry = pCandidate;
+          pProjectedContext = pCandidateContext;
+        } else {
+          tDestroyStreamAncestorContext(&pCandidateContext);
+        }
+      }
+      if (pSourceEntry == NULL) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+    }
+  }
+
+  SStreamContextPolicy* pProjectedPolicy = NULL;
+  if (pSourceEntry != NULL) {
+    pProjectedPolicy = taosMemoryCalloc(1, sizeof(*pProjectedPolicy));
+    if (pProjectedPolicy == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+    pProjectedPolicy->pEntries = taosArrayInit(1, sizeof(SStreamContextPolicyEntry));
+    if (pProjectedPolicy->pEntries == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+    SStreamContextPolicyEntry projectedEntry = *pSourceEntry;
+    projectedEntry.paramIndex = 0;
+    if (taosArrayPush(pProjectedPolicy->pEntries, &projectedEntry) == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+    code = tAdmitStreamContext(pProjectedPolicy, pProjectedContext, true);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
+    }
+  }
+
+  tDestroyStreamContextPolicy(&pTarget->pContextPolicy);
+  tDestroyStreamAncestorContext(&pTarget->pAncestorContext);
+  pTarget->isMultiGroupCalc = false;
+  pTarget->groupId = gid;
+  pTarget->curIdx = 0;
+  pTarget->addOptions = pSource->addOptions;
+  pTarget->pContextPolicy = pProjectedPolicy;
+  pProjectedPolicy = NULL;
+  pTarget->pAncestorContext = pProjectedContext;
+  pProjectedContext = NULL;
+
+_exit:
+  tDestroyStreamContextPolicy(&pProjectedPolicy);
+  tDestroyStreamAncestorContext(&pProjectedContext);
+  return code;
+}
+
 static void freeUidMapElementList(void* pData) {
   if (pData == NULL) return;
   SArray* elements = *(SArray**)pData;
@@ -746,6 +1010,8 @@ static void releaseStreamReaderCalcInfo(void* p) {
   filterFreeInfo(pInfo->pFilterInfo);
 
   tDestroyStRtFuncInfo(&pInfo->rtInfo.funcInfo);
+  tDestroyStreamContextPolicy(&pInfo->tmpRtFuncInfo.pContextPolicy);
+  tDestroyStreamAncestorContext(&pInfo->tmpRtFuncInfo.pAncestorContext);
   taosArrayDestroy(pInfo->tmpRtFuncInfo.pStreamPesudoFuncVals);
   taosMemoryFree(pInfo);
 }
@@ -996,6 +1262,7 @@ static SStreamTriggerReaderCalcInfo* createStreamReaderCalcInfo(void* pTask, con
     STREAM_CHECK_RET_GOTO(nodesCloneNode(pPlan, (SNode**)&sStreamReaderCalcInfo->calcAst));
   }
   STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo->calcAst, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
+  sStreamReaderCalcInfo->requiresContextPolicy = sStreamReaderCalcInfo->calcAst->requiresAncestorContext;
   if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(sStreamReaderCalcInfo->calcAst->pNode) ||
       QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == nodeType(sStreamReaderCalcInfo->calcAst->pNode)){
     SNodeList* pScanCols = ((STableScanPhysiNode*)(sStreamReaderCalcInfo->calcAst->pNode))->scan.pScanCols;
@@ -1034,6 +1301,58 @@ end:
  * implemented in streamReaderExt.c via void* to avoid the type clash. */
 extern int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, void **ppInfo);
 extern void    stExtReaderClose(void *pInfo);
+
+static void stExtOverrideNamespaceFromFedScan(SStreamReaderTask *pTask, SStreamExtTriggerSpec *pExtSpec,
+                                              const SFederatedScanPhysiNode *pFedScan) {
+  if (pFedScan == NULL || pFedScan->pExtTable == NULL ||
+      nodeType(pFedScan->pExtTable) != QUERY_NODE_EXTERNAL_TABLE) {
+    return;
+  }
+
+  const SExtTableNode *pExtTable = (const SExtTableNode *)pFedScan->pExtTable;
+  if (strcmp(pExtSpec->sourceName, pExtTable->sourceName) != 0) {
+    ST_TASK_DLOG("ext: skip namespace from source=%s for spec source=%s", pExtTable->sourceName,
+                 pExtSpec->sourceName);
+    return;
+  }
+
+  if (pExtTable->table.dbName[0] != '\0'){
+    tstrncpy(pExtSpec->extDb, pExtTable->table.dbName, sizeof(pExtSpec->extDb));
+  }
+  if (pExtTable->schemaName[0] != '\0'){
+    tstrncpy(pExtSpec->extSchema, pExtTable->schemaName, sizeof(pExtSpec->extSchema));
+  }
+}
+
+static int32_t stExtOverrideNamespaceFromPlan(SStreamReaderTask *pTask, SStreamExtTriggerSpec *pExtSpec,
+                                              const char *planStr) {
+  if (planStr == NULL) {
+    ST_TASK_ELOG("%s", "ext: cannot resolve reader namespace from NULL scan plan");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SSubplan *pSubplan = NULL;
+  int32_t code = nodesStringToNode(planStr, (SNode **)&pSubplan);
+  if (code != TSDB_CODE_SUCCESS || pSubplan == NULL) {
+    ST_TASK_ELOG("ext: failed to parse scan plan for reader namespace, code=%d", code);
+    nodesDestroyNode((SNode *)pSubplan);
+    return code != TSDB_CODE_SUCCESS ? code : TSDB_CODE_INVALID_PARA;
+  }
+
+  SPhysiNode *pPlan = nodeType((SNode *)pSubplan) == QUERY_NODE_PHYSICAL_SUBPLAN
+                         ? (SPhysiNode *)pSubplan->pNode
+                         : (SPhysiNode *)pSubplan;
+  if (pPlan != NULL && nodeType(pPlan) == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
+    stExtOverrideNamespaceFromFedScan(pTask, pExtSpec, (SFederatedScanPhysiNode *)pPlan);
+  } else {
+    ST_TASK_ELOG("ext: cannot resolve reader namespace from scan node type=%d",
+                 pPlan != NULL ? (int)nodeType(pPlan) : -1);
+    code = TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN;
+  }
+
+  nodesDestroyNode((SNode *)pSubplan);
+  return code;
+}
 
 /* ---------------------------------------------------------------------------
  * stExtBuildTriggerColumns -- parse triggerCols node-list and populate
@@ -1224,7 +1543,7 @@ static int32_t stExtBuildCalcColumnsFromPlan(SStreamReaderTask *pTask,
   return code;
 }
 
-/* Convenience wrappers for trigger / calc reader deploy paths. */
+/* Convenience wrapper for the trigger reader deploy path. */
 static int32_t stExtBuildCalcColumns(SStreamReaderTask *pTask,
                                      const SStreamReaderDeployMsg *pMsg) {
   return stExtBuildCalcColumnsFromPlan(pTask, pMsg->pExtSpec,
@@ -1241,6 +1560,7 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
   bool    pPlanMoved = false;
   STREAM_CHECK_NULL_GOTO(pTask, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_NULL_GOTO(pMsg, TSDB_CODE_INVALID_PARA);
+  TAOS_CHECK_GOTO(streamTaskStatsInit(&pTask->task, &pTask->pStats), &lino, end);
 
   pTask->triggerReader = pMsg->triggerReader;
   if (pMsg->triggerReader == 1) {
@@ -1250,6 +1570,9 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
        * node unavailable for federated scans. */
       ST_TASK_DLOG("ext trigger reader deploy: pExtSpec=%p", pMsg->pExtSpec);
 
+      TAOS_CHECK_GOTO(stExtOverrideNamespaceFromPlan(pTask, pMsg->pExtSpec,
+                                                    (const char *)pMsg->msg.trigger.triggerScanPlan),
+                      &lino, end);
       TAOS_CHECK_GOTO(stExtBuildTriggerColumns(pTask, pMsg), &lino, end);
       TAOS_CHECK_GOTO(stExtBuildCalcColumns(pTask, pMsg), &lino, end);
 
@@ -1284,8 +1607,12 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
         tstrncpy(pMsg->pExtSpec->tsColumn, pMsg->msg.calc.tsColumn, sizeof(pMsg->pExtSpec->tsColumn));
       }
 
+      TAOS_CHECK_GOTO(stExtOverrideNamespaceFromPlan(pTask, pMsg->pExtSpec,
+                                                    (const char *)pMsg->msg.calc.calcScanPlan),
+                      &lino, end);
       TAOS_CHECK_GOTO(stExtBuildCalcColumnsFromPlan(pTask, pMsg->pExtSpec,
-                          (const char *)pMsg->msg.calc.calcScanPlan), &lino, end);
+                                                   (const char *)pMsg->msg.calc.calcScanPlan),
+                      &lino, end);
 
       void *pExtInfo = NULL;
       TAOS_CHECK_GOTO(stExtReaderOpen((void *)pMsg->pExtSpec, &pTask->task, &pExtInfo), &lino, end);
@@ -1328,6 +1655,7 @@ end:
   STREAM_PRINT_LOG_END(code, lino);
 
   if (code) {
+    streamTaskStatsHandleLifecycle(&pTask->pStats, STREAM_TASK_STATS_DEPLOY_FAILED);
     if (!pPlanMoved) {
       nodesDestroyNode(pPlan);
     }
@@ -1367,6 +1695,7 @@ int32_t stReaderTaskUndeployImpl(SStreamReaderTask** ppTask, const SStreamUndepl
     }
   }
   (*ppTask)->info = NULL;
+  streamTaskStatsHandleLifecycle(&(*ppTask)->pStats, STREAM_TASK_STATS_UNDEPLOYED);
 
 end:
   STREAM_PRINT_LOG_END(code, lino);
