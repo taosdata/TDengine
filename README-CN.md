@@ -9,7 +9,7 @@
 </p>
 <div align="center">
 
-简体中文 | [English](README.md) | [TDengine 云服务](https://cloud.taosdata.com/?utm_medium=cn&utm_source=github) | 很多职位正在热招中，请看 [这里](https://www.taosdata.com/careers/)
+简体中文 | [English](README.md) | [日本語](README-JP.md) | [TDengine 云服务](https://cloud.taosdata.com/?utm_medium=cn&utm_source=github) | 很多职位正在热招中，请看 [这里](https://www.taosdata.com/careers/)
 
 </div>
 
