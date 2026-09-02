@@ -89,17 +89,15 @@ class MockCatalogService {
     bool        isPrimaryKey;
     bool        nullable;
     bool        isTag;
-    std::string remoteColName;
     std::string extTypeName;
 
     MockExtColDef(const std::string& name, int8_t dataType, bool primaryKey, bool isNullable,
-                  bool tag = false, const std::string& remoteName = "", const std::string& externalType = "")
+                  bool tag = false, const std::string& externalType = "")
         : colName(name),
           type(dataType),
           isPrimaryKey(primaryKey),
           nullable(isNullable),
           isTag(tag),
-          remoteColName(remoteName),
           extTypeName(externalType) {}
   };
   void createExtTable(const std::string& sourceName, const std::string& mid0, const std::string& mid1,

@@ -1028,8 +1028,8 @@ For other parameters, please refer to: [Consumer Parameter List](../07-subscript
   - **Return Value**: List of TopicPartition, error information.
 
 - `func (c *Consumer) Close() error`
-  - **Interface Description**: Close the consumer.
-  - **Return Value**: Error information.
+  - **Interface Description**: Close the consumer and release its resources.
+  - **Return Value**: For native connections, an error indicates that local consumer resource release failed. Unsubscribe or automatic offset commit failures are not returned. WebSocket connections follow the WebSocket connector's close semantics.
 
 #### Consumption Records
 

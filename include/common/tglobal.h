@@ -59,6 +59,8 @@ extern char          tsLocalEp[];
 extern char          tsVersionName[];
 extern uint16_t      tsServerPort;
 extern int32_t       tsVersion;
+// Encoded version of the connected server (0 = not a client connection). See tglobal.c.
+extern int32_t       tsServerVerInt;
 extern int32_t       tsdmConfigVersion;
 extern int32_t       tsConfigInited;
 extern int32_t        tsEncryptKeysStatus;

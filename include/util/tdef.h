@@ -281,6 +281,12 @@ typedef enum {
 #define TSDB_MAX_COLUMNS_NON_VIRTUAL 4096
 #define TSDB_MIN_COLUMNS             2  // PRIMARY COLUMN(timestamp) + other columns
 
+// Lower bound of colIds allocated to a virtual child table's own (extension) columns/tags
+// (ALTER VTABLE <vchild> ADD COLUMN/TAG, independent of the vstb schema). Own colIds are
+// allocated from this base upwards; the mnode side hard-caps a virtual super table's
+// nextColId below this base, so vstb-assigned colIds can never collide with own colIds.
+#define TSDB_VCHILD_OWN_COL_ID_BASE 0x7800  // 30720
+
 #define TSDB_NODE_NAME_LEN            64
 #define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_TOPIC_NAME_LEN           193                                // it is a null-terminated string

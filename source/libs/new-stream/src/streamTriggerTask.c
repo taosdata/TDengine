@@ -23058,6 +23058,7 @@ static int32_t stRealtimeGroupUpdateExecTime(SSTriggerRealtimeGroup *pGroup, int
   int32_t                   lino = 0;
   SSTriggerRealtimeContext *pContext = pGroup->pContext;
   SStreamTriggerTask       *pTask = pContext->pTask;
+  int64_t                   oldNextExecTime = pGroup->nextExecTime;
   int64_t                   nextExecTime = INT64_MAX;
 
   bool nested = BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
@@ -23085,8 +23086,19 @@ static int32_t stRealtimeGroupUpdateExecTime(SSTriggerRealtimeGroup *pGroup, int
     }
   }
 
-  bool deadlineChanged = nested ? nextExecTime != pGroup->nextExecTime : nextExecTime < pGroup->nextExecTime;
-  if (enterHeap && pGroup->nextExecTime != 0 && deadlineChanged) {
+  bool preserveExpiredLegacyBatch = pGroup->pPendingCalcParams.neles > 0 ||
+                                    pGroup->pPendingParWinCalcParams.neles > 0;
+  if (!nested && oldNextExecTime != 0 && (oldNextExecTime > now || preserveExpiredLegacyBatch) &&
+      nextExecTime != INT64_MAX && nextExecTime > oldNextExecTime) {
+    ST_TASK_DLOG("keep existing legacy next exec time for group %" PRId64 " old:%" PRId64 " candidate:%" PRId64
+                 " now:%" PRId64 " pendingCalc:%" PRId64 " pendingParWin:%" PRId64,
+                 pGroup->gid, oldNextExecTime, nextExecTime, now, pGroup->pPendingCalcParams.neles,
+                 pGroup->pPendingParWinCalcParams.neles);
+    nextExecTime = TMIN(nextExecTime, oldNextExecTime);
+  }
+
+  bool deadlineChanged = nested ? nextExecTime != oldNextExecTime : nextExecTime < oldNextExecTime;
+  if (enterHeap && oldNextExecTime != 0 && deadlineChanged) {
     heapRemove(pContext->pMaxDelayHeap, &pGroup->heapNode);
     pGroup->nextExecTime = 0;
   }
@@ -23097,14 +23109,15 @@ static int32_t stRealtimeGroupUpdateExecTime(SSTriggerRealtimeGroup *pGroup, int
       heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
     }
     if (nested) {
-      ST_TASK_DLOG("group %" PRId64 " holds %" PRId32 " nested params and %" PRId32
+      ST_TASK_DLOG("group %" PRId64 " holds %" PRId64 " nested params and %" PRId64
                    " nested parwin params, expecting to exec at %" PRId64,
-                   pGroup->gid, listNEles(&pGroup->pendingNestedEvents), listNEles(&pGroup->pendingNestedParWinEvents),
-                   pGroup->nextExecTime);
+                   pGroup->gid, (int64_t)listNEles(&pGroup->pendingNestedEvents),
+                   (int64_t)listNEles(&pGroup->pendingNestedParWinEvents), pGroup->nextExecTime);
     } else {
       ST_TASK_DLOG(
           "group %" PRId64 " holds %" PRId64 " params and %" PRId64 " parwin params, expecting to exec at %" PRId64,
-          pGroup->gid, pGroup->pPendingCalcParams.neles, pGroup->pPendingParWinCalcParams.neles, pGroup->nextExecTime);
+          pGroup->gid, (int64_t)pGroup->pPendingCalcParams.neles, (int64_t)pGroup->pPendingParWinCalcParams.neles,
+          pGroup->nextExecTime);
     }
   }
 

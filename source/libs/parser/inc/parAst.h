@@ -348,6 +348,8 @@ STokenTriplet* createTokenTriplet(SAstCreateContext* pCxt, SToken pName);
 STokenTriplet* setColumnName(SAstCreateContext* pCxt, STokenTriplet* pTokenTri, SToken pName);
 SNode*         createColumnRefNodeByName(SAstCreateContext* pCxt, STokenTriplet* pTokenTri);
 SNode*         createColumnRefNodeByNode(SAstCreateContext* pCxt, SToken* pColName, SNode* pRef);
+SNode*         createColumnRefNodeByNodeWithType(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType,
+                                                 SNode* pRef);
 SNode*         createColumnRefNodeFromTriplet(SAstCreateContext* pCxt, SToken* pDb, SToken* pTable, SToken* pCol);
 SNode*         createColumnRefNodeFromPair(SAstCreateContext* pCxt, SToken* pTable, SToken* pCol);
 SNode*         createSeriesTagOperatorNode(SAstCreateContext* pCxt, const SToken* pTagName, const SToken* pTagValue);

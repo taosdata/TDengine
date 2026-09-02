@@ -62,6 +62,22 @@ static FORCE_INLINE tb_uid_t metaGenerateUid(SMeta* pMeta) { return tGenIdPI64()
 int32_t metaHandleEntry2(SMeta* pMeta, const SMetaEntry* pEntry);
 void    metaHandleSyncEntry(SMeta* pMeta, const SMetaEntry* pEntry);
 
+// Build the merged column view of a table for meta responses: pRowSchema (the vstb row schema
+// for a virtual child table) followed by the vchild's own (extension) columns, and the
+// persisted colRef array (position-aligned with pRowSchema) followed by the own columns'
+// references. For non-vchild tables the outputs are plain copies of the persisted view.
+// Output arrays are newly allocated (taosMemory*); SColRef tagCondJson strings are
+// deep-copied. Caller owns the outputs.
+int32_t metaBuildMergedColView(const SMetaEntry* pEntry, const SSchemaWrapper* pRowSchema,
+                               SSchema** ppSchemas, SColRef** ppColRefs, int32_t* pNumCols);
+
+// Build the merged tag view of a table for meta responses: pTagSchema (the vstb tag schema for
+// a virtual child table) followed by the vchild's own (extension) tags. For non-vchild tables
+// the output is a plain copy of pTagSchema. The output array is newly allocated (taosMemory*);
+// caller owns it.
+int32_t metaBuildMergedTagView(const SMetaEntry* pEntry, const SSchemaWrapper* pTagSchema, SSchema** ppTags,
+                               int32_t* pNumTags);
+
 // metaCache ==================
 int32_t metaCacheOpen(SMeta* pMeta);
 void    metaCacheClose(SMeta* pMeta);
@@ -75,6 +91,9 @@ int64_t metaGetStbKeep(SMeta* pMeta, int64_t uid);
 void    metaUpdateStbStats(SMeta* pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol, int64_t deltaKeep);
 int32_t metaUidFilterCacheGet(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, LRUHandle** pHandle);
 int32_t metaGetChildUidsOfSuperTable(SMeta* pMeta, tb_uid_t suid, SArray** childList);
+// Check whether any virtual child table of the super table already owns pName as an own
+// (extension) column/tag; returns TSDB_CODE_VND_COL_ALREADY_EXISTS on conflict.
+int32_t metaCheckOwnNameConflictOfChildTables(SMeta* pMeta, tb_uid_t suid, const char* pName);
 
 bool schemasHasTypeMod(const SSchema *pSchema, int32_t nCols);
 struct SMeta {

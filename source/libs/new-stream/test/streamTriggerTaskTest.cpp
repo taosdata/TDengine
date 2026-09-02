@@ -10365,7 +10365,7 @@ TEST_F(StreamNestedRecoveryTest, NestedRouteRetryPeerDrainAndHistoryOwnerBlockCu
   EXPECT_EQ(1, probe.replaceCalls);
 }
 
-TEST_F(StreamNestedRecoveryTest, RearmsActiveLeafMaxDelayAtCutover) {
+TEST_F(StreamNestedRecoveryTest, RearmsActiveLeafMaxDelayWithoutBlockingEarlierPeerDeadline) {
   NestedRouteRuntimeFixture harness;
   RecoveryShadowProbe       probe;
   probe.allowReplace = true;
@@ -10377,16 +10377,32 @@ TEST_F(StreamNestedRecoveryTest, RearmsActiveLeafMaxDelayAtCutover) {
   ASSERT_NE(nullptr, pGroup);
   const int64_t replayDeadline = stWindowChainNextDelayDeadline(pGroup->pWindowChain);
   ASSERT_NE(INT64_MAX, replayDeadline);
+  ASSERT_EQ(replayDeadline, pGroup->nextExecTime);
+
+  SSTriggerRealtimeGroup peerGroup = {};
+  peerGroup.gid = pGroup->gid + 1;
+  peerGroup.nextExecTime = replayDeadline + 1;
+  Heap* pMaxDelayHeap = pGroup->pContext->pMaxDelayHeap;
+  ASSERT_NE(nullptr, pMaxDelayHeap);
+  heapInsert(pMaxDelayHeap, &peerGroup.heapNode);
+  ASSERT_EQ(&pGroup->heapNode, heapMin(pMaxDelayHeap));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(2));
   ASSERT_TRUE(setRecoveryCutoverRunningBlocker(harness.task(), false));
-  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedRealtimeStart());
-  const int64_t cutoverDeadline = stWindowChainNextDelayDeadline(pGroup->pWindowChain);
-  EXPECT_GT(cutoverDeadline, replayDeadline);
-  EXPECT_EQ(cutoverDeadline, pGroup->nextExecTime);
-  ASSERT_NE(nullptr, harness.task()->pRealtimeContext->pMaxDelayHeap);
-  EXPECT_EQ(&pGroup->heapNode, heapMin(harness.task()->pRealtimeContext->pMaxDelayHeap));
-  EXPECT_EQ(1U, heapSize(harness.task()->pRealtimeContext->pMaxDelayHeap));
+  int32_t code = harness.dispatchSerializedRealtimeStart();
+  EXPECT_EQ(TSDB_CODE_SUCCESS, code);
+  if (code == TSDB_CODE_SUCCESS) {
+    const int64_t cutoverDeadline = stWindowChainNextDelayDeadline(pGroup->pWindowChain);
+    EXPECT_GT(cutoverDeadline, replayDeadline);
+    EXPECT_LT(peerGroup.nextExecTime, cutoverDeadline);
+    EXPECT_EQ(cutoverDeadline, pGroup->nextExecTime);
+    EXPECT_EQ(&peerGroup.heapNode, heapMin(pMaxDelayHeap));
+    EXPECT_EQ(2U, heapSize(pMaxDelayHeap));
+  }
+
+  heapRemove(pMaxDelayHeap, &peerGroup.heapNode);
+  EXPECT_EQ(&pGroup->heapNode, heapMin(pMaxDelayHeap));
+  EXPECT_EQ(1U, heapSize(pMaxDelayHeap));
 }
 
 TEST_F(StreamNestedRecoveryTest, ReplayDoesNotCallSharedRecalcHelpers) {
@@ -18830,10 +18846,8 @@ TEST_F(StreamNestedRealtimeTest, LegacyPendingBatchWithoutLowLatencyWaitsForDead
   ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 1000));
 
   Stub          clockStub;
-  Stub          acquireStub;
   const int64_t turnNow = 100 * NANOSECOND_PER_MSEC;
   clockStub.set(taosClockGetTime, captureRealtimePipelineTurnClock);
-  acquireStub.set(stTriggerTaskAcquireRequest, failUnexpectedLegacyCalcAcquire);
   resetRealtimePipelineTurnClock(turnNow, NANOSECOND_PER_MSEC, turnNow);
 
   ASSERT_TRUE(harness.feedRows({1000, 2000}, {1, 2}));
@@ -18841,10 +18855,23 @@ TEST_F(StreamNestedRealtimeTest, LegacyPendingBatchWithoutLowLatencyWaitsForDead
   ASSERT_NE(nullptr, pGroup);
   ASSERT_NE(nullptr, harness.context());
   ASSERT_NE(nullptr, harness.context()->pMaxDelayHeap);
+  const int64_t firstDeadline = pGroup->nextExecTime;
   EXPECT_EQ(1, pGroup->pPendingCalcParams.neles);
-  EXPECT_GT(pGroup->nextExecTime, turnNow);
+  EXPECT_GT(firstDeadline, turnNow);
+  EXPECT_EQ(firstDeadline, pGroup->nextExecTime);
   EXPECT_EQ(&pGroup->heapNode, heapMin(harness.context()->pMaxDelayHeap));
   EXPECT_EQ(0, harness.calcSendCount());
+
+  ASSERT_TRUE(harness.feedRows({3000}, {3}));
+  EXPECT_EQ(firstDeadline, pGroup->nextExecTime);
+  EXPECT_EQ(&pGroup->heapNode, heapMin(harness.context()->pMaxDelayHeap));
+  EXPECT_EQ(0, harness.calcSendCount());
+
+  const int64_t expiredNow = firstDeadline + NANOSECOND_PER_MSEC;
+  resetRealtimePipelineTurnClock(expiredNow, NANOSECOND_PER_MSEC, expiredNow);
+  ASSERT_TRUE(harness.feedRows({4000}, {4}));
+  EXPECT_EQ(1, harness.calcSendCount());
+  EXPECT_NE(nullptr, harness.capturedCalc());
 }
 
 TEST_F(StreamNestedRealtimeTest, LegacyPendingBatchKeepsEarliestDeadline) {

@@ -278,6 +278,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/01-Basic/test_vtable_create_batch.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/01-Basic/test_vtable_drop.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/01-Basic/test_vtable_child_colref_after_alter.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/01-Basic/test_vtable_child_ext_col_tag.py
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_create_ext_source.py
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_alter_ext_source.py
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_drop_ext_source.py
@@ -1171,6 +1172,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_scalar.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_window_no_output.py
 100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_1.py
 100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_2.py
 100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_event.py

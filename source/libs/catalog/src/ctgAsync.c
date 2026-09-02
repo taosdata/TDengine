@@ -3193,36 +3193,17 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
   }
 
   if (CTG_IS_META_VBOTH(pOut->metaType)) {
-    int32_t colRefSize = pOut->vctbMeta->numOfColRefs * sizeof(SColRef);
-    int32_t tagRefSize = pOut->vctbMeta->numOfTagRefs * sizeof(SColRef);
     if (pOut->tbMeta) {
-      int32_t metaSize = CTG_META_SIZE(pOut->tbMeta);
-      int32_t schemaExtSize = 0;
-      if (withExtSchema(pOut->tbMeta->tableType) && pOut->tbMeta->schemaExt) {
-        schemaExtSize = pOut->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
-      }
-      pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, metaSize + schemaExtSize + colRefSize + tagRefSize);
-      if (pOut->tbMeta == NULL) {
-        CTG_ERR_JRET(terrno);
-      }
-      // After realloc, update schemaExt pointer to point to the correct inline location
-      if (withExtSchema(pOut->tbMeta->tableType) && schemaExtSize > 0) {
-        pOut->tbMeta->schemaExt = (SSchemaExt*)((char*)pOut->tbMeta + metaSize);
-      }
-
+      // pOut->tbMeta is built from the response msg (never a cache object); the merge
+      // realloc's it and inserts the vchild own columns in place.
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
-      pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + metaSize + schemaExtSize);
-      TAOS_MEMCPY(pOut->tbMeta->colRef, pOut->vctbMeta->colRef, colRefSize);
-      if (pOut->vctbMeta->tagRef && tagRefSize > 0) {
-        pOut->tbMeta->tagRef = (SColRef *)((char *)pOut->tbMeta + metaSize + schemaExtSize + colRefSize);
-        TAOS_MEMCPY(pOut->tbMeta->tagRef, pOut->vctbMeta->tagRef, tagRefSize);
-      } else {
-        pOut->tbMeta->tagRef = NULL;
-      }
+      CTG_ERR_JRET(ctgMergeVctbOwnMeta(&pOut->tbMeta, pOut->vctbMeta));
     } else  {
       // tbMeta is NULL, allocate as SVCTableMeta + colRef + tagRef
       // Note: SVCTableMeta and STableMeta have the same layout for the common fields
-      int32_t allocSize = sizeof(SVCTableMeta) + colRefSize + tagRefSize;
+      int32_t colRefSize = pOut->vctbMeta->numOfColRefs * sizeof(SColRef);
+      int32_t tagRefSize = pOut->vctbMeta->numOfTagRefs * sizeof(SColRef);
+      int32_t allocSize = sizeof(STableMeta) + colRefSize + tagRefSize;
       pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, allocSize);
       if (pOut->tbMeta == NULL) {
         CTG_ERR_JRET(terrno);
@@ -3230,18 +3211,39 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       memset(pOut->tbMeta, 0, allocSize);
       // Copy SVCTableMeta structure
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
-      pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
-      TAOS_MEMCPY(pOut->tbMeta->colRef, pOut->vctbMeta->colRef, colRefSize);
+      // Degenerate meta without a schema area: own columns/tags cannot be indexed here,
+      // drop them (the packed ownSchemas/ownTagSchemas areas stay inside vctbMeta and are
+      // freed with it). Unreachable in practice: both VBOTH producers call
+      // queryCreateTableMetaFromMsg for the stb side right after queryCreateVCTableMetaFromMsg
+      // and propagate its failure, so a VBOTH output reaching here has a non-NULL tbMeta.
+      // Complain loudly if that invariant ever breaks so the data loss is diagnosable.
+      if (pOut->vctbMeta->numOfOwnCols > 0 || pOut->vctbMeta->numOfOwnTags > 0) {
+        ctgError("vctb meta for %s carries %d own cols / %d own tags but tbMeta is NULL; dropping them",
+                 pOut->ctbName, pOut->vctbMeta->numOfOwnCols, pOut->vctbMeta->numOfOwnTags);
+      }
+      pOut->tbMeta->numOfOwnCols = 0;
+      pOut->tbMeta->ownSchemas = NULL;
+      pOut->tbMeta->ownSchemaExt = NULL;
+      pOut->tbMeta->numOfOwnTags = 0;
+      pOut->tbMeta->ownTagSchemas = NULL;
+      // guard the degenerate copies the same way as ctgHandleGetTbMetasRsp /
+      // ctgHandleGetTbNamesRsp: a zero-size memcpy from a NULL source is UB
+      if (colRefSize > 0 && pOut->vctbMeta->colRef) {
+        pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
+        TAOS_MEMCPY(pOut->tbMeta->colRef, pOut->vctbMeta->colRef, colRefSize);
+      } else {
+        pOut->tbMeta->colRef = NULL;
+      }
       if (pOut->vctbMeta->tagRef && tagRefSize > 0) {
         pOut->tbMeta->tagRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta) + colRefSize);
         TAOS_MEMCPY(pOut->tbMeta->tagRef, pOut->vctbMeta->tagRef, tagRefSize);
       } else {
         pOut->tbMeta->tagRef = NULL;
       }
+      pOut->tbMeta->numOfColRefs = pOut->vctbMeta->numOfColRefs;
+      pOut->tbMeta->numOfTagRefs = pOut->vctbMeta->numOfTagRefs;
+      pOut->tbMeta->rversion = pOut->vctbMeta->rversion;
     }
-    pOut->tbMeta->numOfColRefs = pOut->vctbMeta->numOfColRefs;
-    pOut->tbMeta->numOfTagRefs = pOut->vctbMeta->numOfTagRefs;
-    pOut->tbMeta->rversion = pOut->vctbMeta->rversion;
     taosMemoryFreeClear(pOut->vctbMeta);
   }
 
@@ -3437,44 +3439,38 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
   }
 
   if (CTG_IS_META_VBOTH(pOut->metaType)) {
-    int32_t colRefSize = pOut->vctbMeta->numOfColRefs * sizeof(SColRef);
-    int32_t tagRefSize = pOut->vctbMeta->numOfTagRefs * sizeof(SColRef);
-    ctgTaskDebug("MetasRsp VBOTH: vctb tagRef=%p numOfTagRefs=%d tagRefSize=%d tbMeta=%p",
-                 pOut->vctbMeta->tagRef, pOut->vctbMeta->numOfTagRefs, tagRefSize, pOut->tbMeta);
+    ctgTaskDebug("MetasRsp VBOTH: vctb tagRef=%p numOfTagRefs=%d tbMeta=%p",
+                 pOut->vctbMeta->tagRef, pOut->vctbMeta->numOfTagRefs, pOut->tbMeta);
     if (pOut->tbMeta) {
-      int32_t metaSize = CTG_META_SIZE(pOut->tbMeta);
-      int32_t schemaExtSize = 0;
-      if (withExtSchema(pOut->tbMeta->tableType) && pOut->tbMeta->schemaExt) {
-        schemaExtSize = pOut->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
-      }
-      pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, metaSize + schemaExtSize + colRefSize + tagRefSize);
-      if (pOut->tbMeta == NULL) {
-        CTG_ERR_JRET(terrno);
-      }
-      // After realloc, update schemaExt pointer to point to the correct inline location
-      if (withExtSchema(pOut->tbMeta->tableType) && schemaExtSize > 0) {
-        pOut->tbMeta->schemaExt = (SSchemaExt*)((char*)pOut->tbMeta + metaSize);
-      }
+      // pOut->tbMeta is built from the response msg (never a cache object); the merge
+      // realloc's it and inserts the vchild own columns in place.
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
-      pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + metaSize + schemaExtSize);
-      TAOS_MEMCPY(pOut->tbMeta->colRef, pOut->vctbMeta->colRef, colRefSize);
-      if (pOut->vctbMeta->tagRef && tagRefSize > 0) {
-        pOut->tbMeta->tagRef = (SColRef *)((char *)pOut->tbMeta + metaSize + schemaExtSize + colRefSize);
-        TAOS_MEMCPY(pOut->tbMeta->tagRef, pOut->vctbMeta->tagRef, tagRefSize);
-      } else {
-        pOut->tbMeta->tagRef = NULL;
-      }
+      CTG_ERR_JRET(ctgMergeVctbOwnMeta(&pOut->tbMeta, pOut->vctbMeta));
     } else  {
       // tbMeta is NULL, allocate as SVCTableMeta + colRef + tagRef
+      int32_t colRefSize = pOut->vctbMeta->numOfColRefs * sizeof(SColRef);
+      int32_t tagRefSize = pOut->vctbMeta->numOfTagRefs * sizeof(SColRef);
       pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, sizeof(STableMeta) + colRefSize + tagRefSize);
       if (pOut->tbMeta == NULL) {
         CTG_ERR_JRET(terrno);
       }
       memset(pOut->tbMeta, 0, sizeof(STableMeta) + colRefSize + tagRefSize);
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
-      pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
+      // Degenerate meta without a schema area: own columns/tags cannot be indexed here,
+      // drop them (the packed ownSchemas/ownTagSchemas areas stay inside vctbMeta and are
+      // freed with it).
+      pOut->tbMeta->numOfOwnCols = 0;
+      pOut->tbMeta->ownSchemas = NULL;
+      pOut->tbMeta->ownSchemaExt = NULL;
+      pOut->tbMeta->numOfOwnTags = 0;
+      pOut->tbMeta->ownTagSchemas = NULL;
+      // same as ctgHandleGetTbMetaRsp: a zero-ref meta reports colRef == NULL
+      // instead of a non-NULL in-block pointer
       if (colRefSize > 0 && pOut->vctbMeta->colRef) {
+        pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
         TAOS_MEMCPY(pOut->tbMeta->colRef, pOut->vctbMeta->colRef, colRefSize);
+      } else {
+        pOut->tbMeta->colRef = NULL;
       }
       if (pOut->vctbMeta->tagRef && tagRefSize > 0) {
         pOut->tbMeta->tagRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta) + colRefSize);
@@ -3482,10 +3478,10 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
       } else {
         pOut->tbMeta->tagRef = NULL;
       }
+      pOut->tbMeta->numOfColRefs = pOut->vctbMeta->numOfColRefs;
+      pOut->tbMeta->numOfTagRefs = pOut->vctbMeta->numOfTagRefs;
+      pOut->tbMeta->rversion = pOut->vctbMeta->rversion;
     }
-    pOut->tbMeta->numOfColRefs = pOut->vctbMeta->numOfColRefs;
-    pOut->tbMeta->numOfTagRefs = pOut->vctbMeta->numOfTagRefs;
-    pOut->tbMeta->rversion = pOut->vctbMeta->rversion;
     taosMemoryFreeClear(pOut->vctbMeta);
   }
   /*
@@ -3691,36 +3687,35 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
   }
 
   if (CTG_IS_META_VBOTH(pOut->metaType)) {
-    int32_t colRefSize = pOut->vctbMeta->numOfColRefs * sizeof(SColRef);
-    int32_t tagRefSize = pOut->vctbMeta->numOfTagRefs * sizeof(SColRef);
     if (pOut->tbMeta) {
-      int32_t metaSize = CTG_META_SIZE(pOut->tbMeta);
-      int32_t schemaExtSize = 0;
-      if (withExtSchema(pOut->tbMeta->tableType) && pOut->tbMeta->schemaExt) {
-        schemaExtSize = pOut->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
-      }
-      pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, metaSize + schemaExtSize + colRefSize + tagRefSize);
-      if (pOut->tbMeta == NULL) {
-        CTG_ERR_JRET(terrno);
-      }
+      // pOut->tbMeta is built from the response msg (never a cache object); the merge
+      // realloc's it and inserts the vchild own columns in place.
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
-      pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + metaSize + schemaExtSize);
-      TAOS_MEMCPY(pOut->tbMeta->colRef, pOut->vctbMeta->colRef, colRefSize);
-      if (pOut->vctbMeta->tagRef && tagRefSize > 0) {
-        pOut->tbMeta->tagRef = (SColRef *)((char *)pOut->tbMeta + metaSize + schemaExtSize + colRefSize);
-        TAOS_MEMCPY(pOut->tbMeta->tagRef, pOut->vctbMeta->tagRef, tagRefSize);
-      } else {
-        pOut->tbMeta->tagRef = NULL;
-      }
+      CTG_ERR_JRET(ctgMergeVctbOwnMeta(&pOut->tbMeta, pOut->vctbMeta));
     } else  {
+      int32_t colRefSize = pOut->vctbMeta->numOfColRefs * sizeof(SColRef);
+      int32_t tagRefSize = pOut->vctbMeta->numOfTagRefs * sizeof(SColRef);
       pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, sizeof(STableMeta) + colRefSize + tagRefSize);
       if (pOut->tbMeta == NULL) {
         CTG_ERR_JRET(terrno);
       }
+      memset(pOut->tbMeta, 0, sizeof(STableMeta) + colRefSize + tagRefSize);
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
-      pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
+      // Degenerate meta without a schema area: own columns/tags cannot be indexed here,
+      // drop them (the packed ownSchemas/ownTagSchemas areas stay inside vctbMeta and are
+      // freed with it).
+      pOut->tbMeta->numOfOwnCols = 0;
+      pOut->tbMeta->ownSchemas = NULL;
+      pOut->tbMeta->ownSchemaExt = NULL;
+      pOut->tbMeta->numOfOwnTags = 0;
+      pOut->tbMeta->ownTagSchemas = NULL;
+      // same as ctgHandleGetTbMetaRsp: a zero-ref meta reports colRef == NULL
+      // instead of a non-NULL in-block pointer
       if (colRefSize > 0 && pOut->vctbMeta->colRef) {
+        pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
         TAOS_MEMCPY(pOut->tbMeta->colRef, pOut->vctbMeta->colRef, colRefSize);
+      } else {
+        pOut->tbMeta->colRef = NULL;
       }
       if (pOut->vctbMeta->tagRef && tagRefSize > 0) {
         pOut->tbMeta->tagRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta) + colRefSize);
@@ -3728,10 +3723,10 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
       } else {
         pOut->tbMeta->tagRef = NULL;
       }
+      pOut->tbMeta->numOfColRefs = pOut->vctbMeta->numOfColRefs;
+      pOut->tbMeta->numOfTagRefs = pOut->vctbMeta->numOfTagRefs;
+      pOut->tbMeta->rversion = pOut->vctbMeta->rversion;
     }
-    pOut->tbMeta->numOfColRefs = pOut->vctbMeta->numOfColRefs;
-    pOut->tbMeta->numOfTagRefs = pOut->vctbMeta->numOfTagRefs;
-    pOut->tbMeta->rversion = pOut->vctbMeta->rversion;
     taosMemoryFreeClear(pOut->vctbMeta);
   }
 

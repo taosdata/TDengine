@@ -3960,6 +3960,17 @@ _err:
   return NULL;
 }
 
+// Own (extension) column of a virtual child table at CREATE VTABLE time:
+// `name TYPE FROM db.tb.col` — same as createColumnRefNodeByNode plus the declared type.
+SNode* createColumnRefNodeByNodeWithType(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, SNode* pRef) {
+  SNode* pNode = createColumnRefNodeByNode(pCxt, pColName, pRef);
+  if (NULL != pNode) {
+    ((SColumnRefNode*)pNode)->hasDataType = true;
+    ((SColumnRefNode*)pNode)->dataType = dataType;
+  }
+  return pNode;
+}
+
 // Create a SColumnRefNode from db.table.col triplet tokens (for positional tag refs in vtags_literal)
 SNode* createColumnRefNodeFromTriplet(SAstCreateContext* pCxt, SToken* pDb, SToken* pTable, SToken* pCol) {
   CHECK_PARSER_STATUS(pCxt);

@@ -732,21 +732,6 @@ static void dynAppendFmtStr(SDynSQL* s, const char* fmt, bool useDatafusion) {
   dynSQLAppendChar(s, '\'');
 }
 
-// ---------------------------------------------------------------------------
-// resolveExtColName — map TDengine column name to the remote source column name.
-// If pExtMeta is NULL or the column has no remoteColName, returns tdColName as-is.
-// ---------------------------------------------------------------------------
-static const char* resolveExtColName(const SExtTableMeta* pExtMeta, const char* tdColName) {
-  if (!pExtMeta) return tdColName;
-  for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
-    if (strcasecmp(pExtMeta->pCols[i].colName, tdColName) == 0 &&
-        pExtMeta->pCols[i].remoteColName[0] != '\0') {
-      return pExtMeta->pCols[i].remoteColName;
-    }
-  }
-  return tdColName;
-}
-
 static const SExtColumnDef* findExtColByTdName(const SExtTableMeta* pExtMeta, const char* tdColName) {
   if (pExtMeta == NULL || tdColName == NULL || tdColName[0] == '\0') {
     return NULL;
@@ -3890,7 +3875,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       int32_t sepArgIdx = (businessArgCount > 1) ? (businessArgCount - 1) : -1;
       const SExtColumnDef* pPkCol = findPrimaryKeyExtCol(pExtMeta);
       const char* pPkColName = (pPkCol && pPkCol->colName[0] != '\0')
-                                   ? resolveExtColName(pExtMeta, pPkCol->colName)
+                                   ? pPkCol->colName
                                    : NULL;
 
       qDebug("FQ-SQL: GROUP_CONCAT dialect=%s func=%p nParams=%d businessArgs=%d valueArgs=%d sepArgIdx=%d orderArgIdx=%d pk=%s",
@@ -4479,7 +4464,7 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
           return s->err ? s->err : TSDB_CODE_SUCCESS;
         }
       }
-      dynAppendQuotedId(s, resolveExtColName(pExtMeta, pCol->colName), dialect);
+      dynAppendQuotedId(s, pCol->colName, dialect);
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_VALUE:
@@ -5352,7 +5337,6 @@ static int32_t dynRenderTimestampEpochOutput(
 }
 
 // Render SELECT column list from a SNodeList (pProjections or pScanCols).
-// pExtMeta is used for column name resolution (TDengine name → remote name).
 static void renderSelectList(SDynSQL* s, const SNodeList* pCols, EExtSQLDialect dialect,
                               const SExtTableMeta* pExtMeta, const SNodesRemoteSQLCtx* pCtx) {
   SNodesRemoteSQLCtx selectExprCtxStore = {0};
@@ -5472,13 +5456,11 @@ static void renderSelectList(SDynSQL* s, const SNodeList* pCols, EExtSQLDialect 
                  exprIdx, pCurrentScopeRef, pCurrentScopeAlias);
         }
       } else if (pExtMeta) {
-        const char* tdName  = pColNode->colName;
-        const char* colName = resolveExtColName(pExtMeta, tdName);
-        if (renderedTimestampEpoch || strcasecmp(colName, tdName) != 0) {
+        if (renderedTimestampEpoch) {
           dynSQLAppendStr(s, " AS ");
-          dynAppendQuotedId(s, tdName, dialect);
-          qDebug("FQ-SQL-SELECT: expr[%d] emit remap alias td=%s remote=%s",
-                 exprIdx, tdName, colName);
+          dynAppendQuotedId(s, pColNode->colName, dialect);
+          qDebug("FQ-SQL-SELECT: expr[%d] emit timestamp alias col=%s",
+                 exprIdx, pColNode->colName);
         }
       } else {
         const char* alias = fqColumnOutputAlias(pColNode, pSelectExprCtx);
@@ -6145,7 +6127,6 @@ static const char* fqGroupKeyOutputAlias(const SNode* pGroupKey,
       }
     }
   }
-
   int32_t targetIdx = -1;
   if (NULL != pTargets &&
       TSDB_CODE_SUCCESS ==

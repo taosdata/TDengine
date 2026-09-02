@@ -204,7 +204,6 @@ _return:
 
 int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta) {
   int32_t           code = 0;
-  int32_t           line = 0;
   STableMetaOutput* output = NULL;
 
   CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, ctx, pTableMeta));
@@ -228,38 +227,26 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
     }
 
     if (CTG_IS_META_VBOTH(output->metaType)) {
-      int32_t colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
-      int32_t tagRefSize = output->vctbMeta->numOfTagRefs * sizeof(SColRef);
       if (output->tbMeta) {
-        int32_t metaSize = CTG_META_SIZE(output->tbMeta);
-        int32_t schemaExtSize = 0;
-        if (withExtSchema(output->tbMeta->tableType) && output->tbMeta->schemaExt) {
-          schemaExtSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
-        }
-        output->tbMeta = taosMemoryRealloc(output->tbMeta, metaSize + schemaExtSize + colRefSize + tagRefSize);
-        QUERY_CHECK_NULL(output->tbMeta, code, line, _return, terrno);
+        // output->tbMeta is caller-owned (cloned by ctgCloneMetaOutput), never a cache
+        // object; the merge reallocs it and inserts the vchild own columns in place.
         TAOS_MEMCPY(output->tbMeta, output->vctbMeta, sizeof(SVCTableMeta));
-        if (schemaExtSize > 0) {
-          output->tbMeta->schemaExt = (SSchemaExt *)((char *)output->tbMeta + metaSize);
-        } else {
-          output->tbMeta->schemaExt = NULL;
-        }
-        output->tbMeta->colRef = (SColRef *)((char *)output->tbMeta + metaSize + schemaExtSize);
-        TAOS_MEMCPY(output->tbMeta->colRef, output->vctbMeta->colRef, colRefSize);
-        if (output->vctbMeta->tagRef && tagRefSize > 0) {
-          output->tbMeta->tagRef = (SColRef *)((char *)output->tbMeta + metaSize + schemaExtSize + colRefSize);
-          TAOS_MEMCPY(output->tbMeta->tagRef, output->vctbMeta->tagRef, tagRefSize);
-        } else {
-          output->tbMeta->tagRef = NULL;
+        code = ctgMergeVctbOwnMeta(&output->tbMeta, output->vctbMeta);
+        if (code != TSDB_CODE_SUCCESS) {
+          // Merge failed before taking ownership: both blocks are still wholly ours.
+          // The sizeof(SVCTableMeta) memcpy above makes tbMeta->colRef alias
+          // vctbMeta->colRef, so the shared tagCondJson strings must be freed exactly
+          // once (via tbMeta here) before dropping both blocks.
+          queryFreeTableMeta(output->tbMeta);
+          output->tbMeta = NULL;
+          taosMemoryFreeClear(output->vctbMeta);
+          goto _return;
         }
       } else {
         ctgError("tb:%s, tbmeta got, but tbMeta is NULL", output->tbName);
         taosMemoryFreeClear(output->vctbMeta);
         CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
       }
-      output->tbMeta->rversion = output->vctbMeta->rversion;
-      output->tbMeta->numOfColRefs = output->vctbMeta->numOfColRefs;
-      output->tbMeta->numOfTagRefs = output->vctbMeta->numOfTagRefs;
       taosMemoryFreeClear(output->vctbMeta);
       *pTableMeta = output->tbMeta;
       goto _return;
@@ -288,32 +275,22 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
     if (CTG_IS_META_CTABLE(output->metaType)) {
       TAOS_MEMCPY(*pTableMeta, &output->ctbMeta, sizeof(output->ctbMeta));
     } else if (CTG_IS_META_VCTABLE(output->metaType)) {
-      int32_t colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
-      int32_t tagRefSize = output->vctbMeta->numOfTagRefs * sizeof(SColRef);
-      int32_t metaSize = CTG_META_SIZE(*pTableMeta);
-      int32_t schemaExtSize = 0;
-      if (withExtSchema((*pTableMeta)->tableType) && (*pTableMeta)->schemaExt) {
-        schemaExtSize = (*pTableMeta)->tableInfo.numOfColumns * sizeof(SSchemaExt);
-      }
-      (*pTableMeta) = taosMemoryRealloc(*pTableMeta, metaSize + schemaExtSize + colRefSize + tagRefSize);
-      QUERY_CHECK_NULL(*pTableMeta, code , line, _return, terrno);
+      // *pTableMeta is a fresh clone of the cached vstb meta (cloneTableMeta via
+      // ctgReadTbMetaFromCache), so the merge may realloc/extend it in place without
+      // touching the shared vstb cache entry.
       TAOS_MEMCPY(*pTableMeta, output->vctbMeta, sizeof(SVCTableMeta));
-      if (schemaExtSize > 0) {
-        (*pTableMeta)->schemaExt = (SSchemaExt *)((char *)(*pTableMeta) + metaSize);
-      } else {
-        (*pTableMeta)->schemaExt = NULL;
+      code = ctgMergeVctbOwnMeta(pTableMeta, output->vctbMeta);
+      if (code != TSDB_CODE_SUCCESS) {
+        // Merge failed before taking ownership: *pTableMeta (a fresh vstb clone with the
+        // SVCTableMeta header copied in) and output->vctbMeta are still wholly ours.
+        // (*pTableMeta)->colRef aliases vctbMeta->colRef via the memcpy above, so the
+        // shared tagCondJson strings must be freed exactly once (via *pTableMeta here)
+        // before dropping both blocks.
+        queryFreeTableMeta(*pTableMeta);
+        *pTableMeta = NULL;
+        taosMemoryFreeClear(output->vctbMeta);
+        goto _return;
       }
-      (*pTableMeta)->colRef = (SColRef *)((char *)(*pTableMeta) + metaSize + schemaExtSize);
-      TAOS_MEMCPY((*pTableMeta)->colRef, output->vctbMeta->colRef, colRefSize);
-      if (output->vctbMeta->tagRef && tagRefSize > 0) {
-        (*pTableMeta)->tagRef = (SColRef *)((char *)(*pTableMeta) + metaSize + schemaExtSize + colRefSize);
-        TAOS_MEMCPY((*pTableMeta)->tagRef, output->vctbMeta->tagRef, tagRefSize);
-      } else {
-        (*pTableMeta)->tagRef = NULL;
-      }
-      (*pTableMeta)->numOfColRefs = output->vctbMeta->numOfColRefs;
-      (*pTableMeta)->numOfTagRefs = output->vctbMeta->numOfTagRefs;
-      (*pTableMeta)->rversion = output->vctbMeta->rversion;
     }
 
     taosMemoryFreeClear(output->tbMeta);

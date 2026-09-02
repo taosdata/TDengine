@@ -294,13 +294,30 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   return 0;
 }
 
+// Build the per-txn journal file name. The buffer must be sized dynamically: with deep data
+// directories the fixed TDB_FILENAME_LEN(128) buffer truncated "<dbFileName>-journal.<txnId>",
+// collapsing every txn's journal onto one shared (truncated) file name. A later abort/restore
+// would then wrongly apply another txn's stale undo pages and destroy committed data.
+static char *tdbBuildJournalName(SPager *pPager, int64_t txnId) {
+  int32_t nameLen = strlen(pPager->jFileName) + 32;  // 32 is enough for ".<int64>" and '\0'
+  char   *pName = tdbOsMalloc(nameLen);
+  if (pName == NULL) {
+    return NULL;
+  }
+  (void)snprintf(pName, nameLen, "%s.%" PRId64, pPager->jFileName, txnId);
+  return pName;
+}
+
 int tdbPagerBegin(SPager *pPager, TXN *pTxn) {
   // Open the journal
-  char jTxnFileName[TDB_FILENAME_LEN];
-  (void)snprintf(jTxnFileName, TDB_FILENAME_LEN, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
+  char *jTxnFileName = tdbBuildJournalName(pPager, pTxn->txnId);
+  if (jTxnFileName == NULL) {
+    return terrno;
+  }
   pTxn->jfd = tdbOsOpen(jTxnFileName, TDB_O_CREAT | TDB_O_RDWR, 0755);
   if (TDB_FD_INVALID(pTxn->jfd)) {
     tdbError("failed to open file due to %s. jFileName:%s", strerror(ERRNO), pPager->jFileName);
+    tdbOsFree(jTxnFileName);
     return terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
 
@@ -313,9 +330,11 @@ int tdbPagerBegin(SPager *pPager, TXN *pTxn) {
     if (tdbOsRemove(jTxnFileName) < 0 && ERRNO != ENOENT) {
       tdbWarn("failed to remove file due to %s. file:%s", strerror(ERRNO), jTxnFileName);
     }
+    tdbOsFree(jTxnFileName);
     return ret;
   }
 
+  tdbOsFree(jTxnFileName);
   pPager->pActiveTxn = pTxn;
 
   tdbDebug("pager/begin: %p, %d/%d, txnId:%" PRId64, pPager, pPager->dbOrigSize, pPager->dbFileSize, pTxn->txnId);
@@ -385,19 +404,24 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
 }
 
 int tdbPagerPostCommit(SPager *pPager, TXN *pTxn) {
-  char jTxnFileName[TDB_FILENAME_LEN];
-  (void)snprintf(jTxnFileName, TDB_FILENAME_LEN, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
-
   // remove the journal file
   if (tdbOsClose(pTxn->jfd) < 0) {
     tdbError("failed to close jfd: %s. file:%s, %" PRId64, strerror(ERRNO), pPager->jFileName, pTxn->txnId);
     return terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
 
+  char *jTxnFileName = tdbBuildJournalName(pPager, pTxn->txnId);
+  if (jTxnFileName == NULL) {
+    return terrno;
+  }
+
   if (tdbOsRemove(jTxnFileName) < 0 && ERRNO != ENOENT) {
     tdbError("failed to remove file due to %s. file:%s", strerror(ERRNO), jTxnFileName);
+    tdbOsFree(jTxnFileName);
     return terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
+
+  tdbOsFree(jTxnFileName);
 
   // pPager->inTran = 0;
 
@@ -625,13 +649,18 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     return terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
 
-  char jTxnFileName[TDB_FILENAME_LEN];
-  (void)snprintf(jTxnFileName, TDB_FILENAME_LEN, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
+  char *jTxnFileName = tdbBuildJournalName(pPager, pTxn->txnId);
+  if (jTxnFileName == NULL) {
+    return terrno;
+  }
 
   if (tdbOsRemove(jTxnFileName) < 0 && ERRNO != ENOENT) {
     tdbError("failed to remove file due to %s. file:%s", strerror(ERRNO), jTxnFileName);
+    tdbOsFree(jTxnFileName);
     return terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
+
+  tdbOsFree(jTxnFileName);
 
   return 0;
 }

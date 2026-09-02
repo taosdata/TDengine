@@ -342,7 +342,7 @@
   TD_DEF_MSG_TYPE(TDMT_VND_ALTER_STB, "vnode-alter-stb", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_DROP_STB, "vnode-drop-stb", SVDropStbReq, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_CHECK_HAS_CTB, "vnode-check-has-ctb", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_VND_UNUSED2, "vnode-unused2", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_CHECK_STB_ALTER_NAME, "vnode-check-stb-alter-name", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_UNUSED3, "vnode-unused3", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_UNUSED4, "vnode-unused4", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_UNUSED5, "vnode-unused5", NULL, NULL)
