@@ -258,8 +258,7 @@ class TestMutilStage:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-9-22 Alex Duan Migrated from uncatalog/system-test/1-insert/test_mutil_stage.py
 

@@ -65,6 +65,7 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
   // taosRealPath(pTsdb->path, NULL, slen);
   pTsdb->pVnode = pVnode;
   (void)taosThreadMutexInit(&pTsdb->mutex, NULL);
+  (void)taosThreadRwlockInit(&pTsdb->snapStatLock, NULL);
   if (!pKeepCfg) {
     tsdbSetKeepCfg(pTsdb, &pVnode->config.tsdbCfg);
   } else {
@@ -106,6 +107,7 @@ _exit:
     tsdbError("vgId:%d %s failed at %s:%d since %s, path:%s", TD_VID(pVnode), __func__, __FILE__, lino, tstrerror(code),
               pTsdb->path);
     tsdbCloseFS(&pTsdb->pFS);
+    (void)taosThreadRwlockDestroy(&pTsdb->snapStatLock);
     (void)taosThreadMutexDestroy(&pTsdb->mutex);
     taosMemoryFree(pTsdb);
   } else {
@@ -138,6 +140,22 @@ void tsdbClose(STsdb **pTsdb) {
     tsdbCloseSsMigrateMonitor(*pTsdb);
     tsdbCloseRetentionMonitor(*pTsdb);
     tsdbScanMonitorClose(*pTsdb);
+    // Free all snapshot-send progress buckets: free each bucket's pStat->pFileSetStats and pStat, then destroy the array itself
+    (void)taosThreadRwlockWrlock(&(*pTsdb)->snapStatLock);
+    if ((*pTsdb)->pSnapBuckets != NULL) {
+      int32_t numBuckets = (int32_t)taosArrayGetSize((*pTsdb)->pSnapBuckets);
+      for (int32_t b = 0; b < numBuckets; b++) {
+        SSnapSendTargetBucket *pBucket = (SSnapSendTargetBucket *)taosArrayGet((*pTsdb)->pSnapBuckets, b);
+        if (pBucket != NULL && pBucket->pStat != NULL) {
+          taosMemoryFree(pBucket->pStat->pFileSetStats);
+          taosMemoryFreeClear(pBucket->pStat);
+        }
+      }
+      taosArrayDestroy((*pTsdb)->pSnapBuckets);
+      (*pTsdb)->pSnapBuckets = NULL;
+    }
+    (void)taosThreadRwlockUnlock(&(*pTsdb)->snapStatLock);
+    (void)taosThreadRwlockDestroy(&(*pTsdb)->snapStatLock);
     (void)taosThreadMutexDestroy(&(*pTsdb)->mutex);
     taosMemoryFreeClear(*pTsdb);
   }

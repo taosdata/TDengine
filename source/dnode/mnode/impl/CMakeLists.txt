@@ -11,6 +11,7 @@ if(TD_ENTERPRISE)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/mnode/src/mndDnode.c)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/view/src/mndView.c)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/mnode/src/mndMount.c)
+  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/mnode/src/mndExtSource.c)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/token/src/mndTokenImpl.c)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/xnode/src/mndXnodeImpl.c)
 
@@ -42,18 +43,30 @@ if(TD_ENTERPRISE)
   target_include_directories(
     mnode
     PRIVATE "${TD_ENTERPRISE_DIR}/source/plugins/taosk/inc"
+    PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
+    PRIVATE "${TD_SOURCE_DIR}/source/libs/extconnector/inc"
   )
+  # extconnector is only referenced by mndExtSource.c (added to MNODE_SRC
+  # above, TD_ENTERPRISE-only), so keep the link guarded the same way as its
+  # include directories just above.
+  target_link_libraries(mnode PUBLIC extconnector)
 endif()
 target_link_libraries(
-  mnode scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw totp xnode txnode mgmt_mnode
+  mnode PUBLIC scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw totp xnode txnode mgmt_mnode
 )
+
+# libgsasl: application-layer SCRAM-SHA-256 authentication on the CONNECT handshake
+if(${BUILD_LIBGSASL} AND ${TD_LINUX})
+  DEP_ext_gsasl(mnode)
+  add_definitions(-DUSE_LIBGSASL)
+endif()
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
 endif()
 
 if(TD_GRANT)
-  TARGET_LINK_LIBRARIES(mnode grant)
+  TARGET_LINK_LIBRARIES(mnode PUBLIC grant)
   ADD_DEFINITIONS(-D_GRANT)
 endif()
 

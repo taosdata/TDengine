@@ -142,9 +142,9 @@ class TestScalarFunction:
 
     def run_base64(self):
         self.run_normal_query_new("base64")
-    
+
     def run_crc32(self):
-        self.run_normal_query_new("crc32")        
+        self.run_normal_query_new("crc32")
 
     def run_timediff(self):
         self.run_normal_query_new("timediff")
@@ -274,9 +274,11 @@ class TestScalarFunction:
 
     def run_error(self):
         tdSql.error("select * from (select to_iso8601(ts, timezone()), timezone() from ts_4893.meters \
-            order by ts desc) limit 1000;", expectErrInfo="Invalid parameter data type : to_iso8601") # TS-5340
+            order by ts desc) limit 1000;",
+            # the message quotes the rejected timezone, which varies per host
+            expectErrInfo="Invalid timezone", fullMatched=False) # TS-5340
         tdSql.error("select * from ts_4893.meters where ts between(timetruncate(now, 1h) - 10y) and timetruncate(now(), 10y) partition by voltage;",
-                    expectErrInfo="Invalid timzone format : timetruncate") #
+                    expectErrInfo="Invalid time unit : timetruncate") #
 
     def run_greatest(self):
         self.run_normal_query_new("greatest")
@@ -331,7 +333,7 @@ class TestScalarFunction:
         tdSql.query("select GREATEST(now, '1');")
         tdSql.error("select GREATEST(1)")
         tdSql.error("select GREATEST(cast('a' as varbinary), cast('b' as varbinary), 'c', 'd');")
-        tdSql.error("select GREATEST(6, cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")       
+        tdSql.error("select GREATEST(6, cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")
 
     def run_least(self):
         self.run_normal_query_new("least")
@@ -461,10 +463,10 @@ class TestScalarFunction:
 
         Catalog:
             - Function:Sclar
-            
+
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2024-9-28 qevolg Created
@@ -491,7 +493,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-13 Alex Duan add doc
@@ -513,7 +515,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-13 Alex Duan add doc
@@ -535,7 +537,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-13 Alex Duan add doc
@@ -557,14 +559,14 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-13 Alex Duan add doc
 
         """
         self.run_least()
-        
+
     def test_fun_sca_ln(self):
         """ Fun: ln()
 
@@ -579,7 +581,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-13 Alex Duan add doc
@@ -601,7 +603,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-13 Alex Duan add doc
@@ -623,7 +625,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-13 Alex Duan add doc
@@ -644,7 +646,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-13 Alex Duan add doc
@@ -664,7 +666,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-13 Alex Duan add doc
@@ -689,14 +691,14 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-13 Alex Duan add doc
 
         """
         self.run_sign()
-        
+
     def test_fun_sca_truncate(self):
         """ Fun: truncate()
 
@@ -712,14 +714,14 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-13 Alex Duan add doc
 
         """
         self.run_truncate()
-        
+
     def test_fun_sca_crc32(self):
         """ Fun: crc32()
 
@@ -731,7 +733,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-13 Alex Duan add doc
@@ -751,14 +753,14 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-14 Alex Duan add doc
 
         """
         self.run_base64()
-        
+
     def test_fun_sca_ascii(self):
         """ Fun: ascii()
 
@@ -773,7 +775,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-14 Alex Duan add doc
@@ -794,7 +796,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-14 Alex Duan add doc
@@ -817,7 +819,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-14 Alex Duan add doc
@@ -831,7 +833,7 @@ class TestScalarFunction:
         1. Support datatype varchar/nchar
         2. Query with constant/null/blank/expr parameter
         3. Call in function abs/pow
-        4. Call with function input substring/trim/upper/concat 
+        4. Call with function input substring/trim/upper/concat
         5. Query with limit/order by
         6. Query on stable/notable
         7. Error query with no parameter
@@ -840,14 +842,14 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-15 Alex Duan add doc
 
         """
         self.run_position()
-        
+
     def test_fun_sca_repeat(self):
         """ Fun: repeat()
 
@@ -863,7 +865,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-15 Alex Duan add doc
@@ -885,7 +887,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-15 Alex Duan add doc
@@ -909,7 +911,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-15 Alex Duan add doc
@@ -931,7 +933,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-15 Alex Duan add doc
@@ -955,7 +957,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-14 Alex Duan add doc
@@ -978,7 +980,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-16 Alex Duan add doc
@@ -1000,7 +1002,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-16 Alex Duan add doc
@@ -1024,7 +1026,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-16 Alex Duan add doc
@@ -1046,7 +1048,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-16 Alex Duan add doc
@@ -1069,7 +1071,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-16 Alex Duan add doc

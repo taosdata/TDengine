@@ -458,6 +458,8 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   (void)taosThreadMutexInit(&pVnode->lock, NULL);
   pVnode->blocked = false;
   pVnode->disableWrite = false;
+  pVnode->closing = 0;
+  pVnode->vacuumRunning = 0;
 
   if (tsem_init(&pVnode->syncSem, 0, 0) != 0) {
     vError("vgId:%d, failed to init semaphore", TD_VID(pVnode));
@@ -491,6 +493,17 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
     vError("vgId:%d, failed to upgrade meta since %s", TD_VID(pVnode), tstrerror(terrno));
   }
 
+  // init txn manager and rebuild in-memory txn state from B+ tree
+  vInfo("vgId:%d, start to init vnode txn manager", TD_VID(pVnode));
+  if (vnodeTxnInit(pVnode) < 0) {
+    vError("vgId:%d, failed to init txn manager since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+  if (vnodeTxnRebuildFromMeta(pVnode) < 0) {
+    vError("vgId:%d, failed to rebuild txn state from meta since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
   // open tsdb
   vInfo("vgId:%d, start to open vnode tsdb", TD_VID(pVnode));
   if ((terrno = tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback, force)) < 0) {
@@ -514,6 +527,22 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   TAOS_UNUSED(ret);
 
   vInfo("vgId:%d, start to open vnode wal", TD_VID(pVnode));
+  pVnode->config.walCfg.enableTxnFile = 1;  // vnode WAL: enable .txn files for CDC lazy load
+  // Bind the dnode-shared tfs handle *before* walOpen() so its one-time repair pass
+  // (walCheckAndRepairMeta/walCheckAndRepairIdx) already knows about every mount point a
+  // historical segment might live on -- binding after walOpen() returns is too late: that
+  // pass would only look under tdir (the primary mount) and drop every segment it can't
+  // find there, permanently losing WAL data on the next walSaveMeta(). No-op when
+  // pVnode->pTfs is NULL (single mount point).
+  // relDir must be the wal directory's path *relative to a mount point root*, i.e.
+  // "<path>/wal" (e.g. "vnode/vnode2/wal") -- NOT just VNODE_WAL_DIR ("wal") on its own,
+  // otherwise every vnode on this dnode would collide on the same "<mount>/wal/" directory
+  // and reuse the same version-numbered segment file names.
+  pVnode->config.walCfg.pTfs = pVnode->pTfs;
+  if (pVnode->pTfs != NULL) {
+    (void)snprintf(pVnode->config.walCfg.relDir, sizeof(pVnode->config.walCfg.relDir), "%s%s%s", path, TD_DIRSEP,
+                   VNODE_WAL_DIR);
+  }
   pVnode->pWal = walOpen(tdir, &(pVnode->config.walCfg));
   if (pVnode->pWal == NULL) {
     vError("vgId:%d, failed to open vnode wal since %s. wal:%s", TD_VID(pVnode), tstrerror(terrno), tdir);
@@ -539,6 +568,24 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
     vError("vgId:%d, failed to open vnode tq since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
+
+  // open txn WAL manager (CDC txn-atomic cache)
+  vInfo("vgId:%d, start to open txn WAL manager", TD_VID(pVnode));
+  pVnode->pTxnWalMgr = txnMgrOpen(pVnode->pWal, pVnode, info.lastTxnConsumeTs);
+  if (pVnode->pTxnWalMgr == NULL) {
+    vError("vgId:%d, failed to open txn WAL manager since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+  // Rebuild cache from WAL for any txns that were in-flight before restart.
+  {
+    int64_t minTxnVer = walGetFirstVer(pVnode->pWal);
+    int64_t appliedVer = pVnode->state.applied;
+    if (minTxnVer > 0 && minTxnVer <= appliedVer) {
+      (void)txnMgrReloadFromWal(pVnode->pTxnWalMgr, pVnode->pWal, minTxnVer, appliedVer);
+    }
+  }
+  // Set initial WAL keep-version based on slots loaded from WAL restart scan.
+  txnMgrRefreshWalKeepVersion(pVnode->pTxnWalMgr, pVnode->pWal, pVnode);
 
   // open blob store engine
   vInfo("vgId:%d, start to open blob store engine", TD_VID(pVnode));
@@ -589,8 +636,13 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
 _err:
   if (pVnode->pQuery) vnodeQueryClose(pVnode);
   if (pVnode->pTq) tqClose(pVnode->pTq);
+  if (pVnode->pTxnWalMgr) {
+    txnMgrClose(pVnode->pTxnWalMgr);
+    pVnode->pTxnWalMgr = NULL;
+  }
   if (pVnode->pWal) walClose(pVnode->pWal);
   if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
+  vnodeTxnCleanup(pVnode);
   if (pVnode->pMeta) metaClose(&pVnode->pMeta);
   if (pVnode->pBse) {
     bseClose(pVnode->pBse);
@@ -614,13 +666,29 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
     vInfo("start to close vnode");
+    atomic_store_8(&pVnode->closing, 1);
     vnodeAWait(&pVnode->commitTask2);
     vnodeAWait(&pVnode->commitTask);
+
+    // Vacuum may submit follow-up vacuum tasks (chained submission inside
+    // vnodeTxnVacuumExecute when more entries remain). Loop until vacuumRunning
+    // settles to 0 with no in-flight task. Bounded by the fact that
+    // vnodeTxnSubmitVacuumAsync rejects new submissions once closing==1, so
+    // at most one extra task can be queued past the closing barrier.
+    vnodeAWait(&pVnode->vacuumTask);
+    if (atomic_load_8(&pVnode->vacuumRunning)) {
+      vnodeAWait(&pVnode->vacuumTask);
+    }
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     tqClose(pVnode->pTq);
+    if (pVnode->pTxnWalMgr) {
+      txnMgrClose(pVnode->pTxnWalMgr);
+      pVnode->pTxnWalMgr = NULL;
+    }
     walClose(pVnode->pWal);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
+    vnodeTxnCleanup(pVnode);
     if (pVnode->pMeta) metaClose(&pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
 

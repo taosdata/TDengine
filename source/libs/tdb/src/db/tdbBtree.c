@@ -518,7 +518,13 @@ int tdbBtreePushFreePage(SBTree *pBt, SPage *pPage, TXN* pTxn) {
   }
 
   SPgno pgno = TDB_PAGE_PGNO(pPage), prev = 0;
-  int szCell = sizeof(pgno);
+  // NOTE: the cell here is a bare SPgno, but tdbPageDropCell()/tdbBtreeCellSize() round the
+  // cell size up to at least szFreeCell (the minimum size of a free cell). If we insert with
+  // sizeof(SPgno) but later drop reports a larger size, the free accounting gets corrupted and
+  // tdbPageFree() may even report the cell crossing the page footer. This bites on large pages
+  // (pageSize >= 64KB) where szFreeCell (6) > sizeof(SPgno) (4). Keep insert and drop symmetric
+  // by using the same rounded size here.
+  int szCell = pRoot->pPageMethods->szFreeCell;
 
   // if there's not enough space for the new cell, then we need to push the new pgno to the
   // linked list based stack, so save the content of the stack head (the 1st cell of the root page)
@@ -534,7 +540,11 @@ int tdbBtreePushFreePage(SBTree *pBt, SPage *pPage, TXN* pTxn) {
   }
 
   // insert the new cell, it becomes the new stack head.
-  ret = tdbPageInsertCell(pRoot, 0, (SCell*)&pgno, szCell, 0);
+  // use a zero-filled buffer so the bytes beyond sizeof(SPgno) (when szCell is rounded up to
+  // szFreeCell on large pages) are well-defined instead of reading past [pgno] on the stack.
+  u8 cellBuf[8] = {0};
+  memcpy(cellBuf, &pgno, sizeof(pgno));
+  ret = tdbPageInsertCell(pRoot, 0, (SCell*)cellBuf, szCell, 0);
   if (ret < 0) {
     tdbError("tdb/btree-push-free-page: insert cell failed with ret: %d.", ret);
     tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
@@ -583,8 +593,17 @@ int tdbBtreePopFreePage(SBTree *pBt, SPgno *pgno, TXN* pTxn) {
 
   *pgno = *((SPgno*)tdbPageGetCell(pRoot, 0));
 
+  // Defensive check: the stack head page number is stored in a root cell and can be corrupted by
+  // double-free / overflow-page-free bugs. A valid page number must fall within [1, dbFileSize].
+  // Crash here so the root cause (a bogus pgno already sitting in the free page table) can be
+  // located, instead of propagating it to tdbPagerAllocPage and aborting far from the source.
+  ASSERT_CORE(*pgno > 0 && *pgno <= pBt->pPager->dbFileSize, "corrupted free pgno:%u, db file size:%u.", *pgno, pBt->pPager->dbFileSize);
+
   SPgno next = 0;
-  int szCell = sizeof(next);
+  // use the same rounded cell size as tdbBtreePushFreePage()/tdbPageDropCell() so that the
+  // "is the root page full" threshold below and the insert size stay symmetric with push.
+  int szCell = pRoot->pPageMethods->szFreeCell;
+
   // if there's not enough space for a new cell, then the free pages is a linked list based stack,
   // we need to fetch the first free page to get the page number of the next free page.
   if (TDB_PAGE_FREE_SIZE(pRoot) < (szCell + TDB_PAGE_OFFSET_SIZE(pRoot))) {
@@ -597,6 +616,13 @@ int tdbBtreePopFreePage(SBTree *pBt, SPgno *pgno, TXN* pTxn) {
     }
     next = *((SPgno*)pPage->pData);
     tdbPagerReturnPage(pBt->pPager, pPage, pTxn);
+
+    // Defensive check: the next free page number is read from the page content, which can be
+    // corrupted by double-free or overflow-page-free bugs (e.g. reading a normal leaf page header
+    // such as 02 00 00 FC as a page number). A valid next pointer is either 0 (end of list) or a
+    // page number within [1, dbFileSize] that differs from the page we just popped. Crash here so
+    // the root cause can be located at the point of corruption.
+    ASSERT_CORE(next == 0 || (next <= pBt->pPager->dbFileSize && next != *pgno), "corrupted next pgno:%u, self:%u, db file size:%u.", next, *pgno, pBt->pPager->dbFileSize);
   }
 
   // drop the first cell
@@ -609,7 +635,11 @@ int tdbBtreePopFreePage(SBTree *pBt, SPgno *pgno, TXN* pTxn) {
 
   // if we have a next page, insert a new cell at index 0 to make it the stack head.
   if (next != 0) {
-    ret = tdbPageInsertCell(pRoot, 0, (SCell*)&next, szCell, 0);
+    // use a zero-filled buffer so the bytes beyond sizeof(SPgno) (when szCell is rounded up to
+    // szFreeCell on large pages) are well-defined instead of reading past [next] on the stack.
+    u8 cellBuf[8] = {0};
+    memcpy(cellBuf, &next, sizeof(next));
+    ret = tdbPageInsertCell(pRoot, 0, (SCell*)cellBuf, szCell, 0);
     if (ret < 0) {
       tdbError("tdb/btree-pop-free-page: insert cell failed with ret: %d.", ret);
       tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
@@ -748,51 +778,45 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild, TXN
 static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTxn) {
   int ret;
 
+  if (TDB_BTREE_PAGE_IS_LEAF(pParent)) {
+    tdbError("tdb/btree-balance: parent page is a leaf page, idx: %d, pgno: %" PRIu32 ".", idx,
+             TDB_PAGE_PGNO(pParent));
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
   typedef struct {
+    SPgno   pgno;
     int     kLen;
     u8     *pKey;
-    int     vLen;
-    u8     *pVal;
-  } SDecodedCell;
+  } SDecodedDivCell;
 
-  int    nOlds, pageIdx;
-  SPage *pOlds[3] = {0};
-  SDecodedCell divCells[3] = {0};
-  int    sIdx;
-  u8     childNotLeaf;
-  SPgno  rPgno;
+  int             nOlds = 3, pageIdx;
+  SPage          *pOlds[3] = {0};
+  SDecodedDivCell divCells[3] = {0};
+  int             sIdx;
+  u8              childIsLeaf;
+  SPgno           rPgno;
 
   {  // Find 3 child pages at most to do balance
     int    nCells = TDB_PAGE_TOTAL_CELLS(pParent);
-    SCell *pCell;
 
     if (nCells <= 2) {
       sIdx = 0;
       nOlds = nCells + 1;
+    } else if (idx == 0) {
+      sIdx = 0;
+    } else if (idx == nCells) {
+      sIdx = idx - 2;
     } else {
-      // has more than three child pages
-      if (idx == 0) {
-        sIdx = 0;
-      } else if (idx == nCells) {
-        sIdx = idx - 2;
-      } else {
-        sIdx = idx - 1;
-      }
-      nOlds = 3;
+      sIdx = idx - 1;
     }
-    for (int i = 0; i < nOlds; i++) {
-      if (!(sIdx + i <= nCells)) {
-        return TSDB_CODE_FAILED;
-      }
 
+    for (int i = 0; i < nOlds; i++) {
       SPgno pgno;
       if (sIdx + i == nCells) {
-        if (TDB_BTREE_PAGE_IS_LEAF(pParent)) {
-          return TSDB_CODE_INTERNAL_ERROR;
-        }
         pgno = ((SIntHdr *)(pParent->pData))->pgno;
       } else {
-        pCell = tdbPageGetCell(pParent, sIdx + i);
+        SCell* pCell = tdbPageGetCell(pParent, sIdx + i);
         pgno = *(SPgno *)pCell;
       }
 
@@ -810,13 +834,12 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
       }
     }
     // copy the parent key out if child pages are not leaf page
-    // childNotLeaf = !(TDB_BTREE_PAGE_IS_LEAF(pOlds[0]) || TDB_BTREE_PAGE_IS_OVFL(pOlds[0]));
-    childNotLeaf = !TDB_BTREE_PAGE_IS_LEAF(pOlds[0]);
-    if (childNotLeaf) {
+    childIsLeaf = TDB_BTREE_PAGE_IS_LEAF(pOlds[0]);
+    if (!childIsLeaf) {
       for (int i = 0; i < nOlds; i++) {
         if (sIdx + i < TDB_PAGE_TOTAL_CELLS(pParent)) {
           SCellDecoder cd = { 0 };
-          pCell = tdbPageGetCell(pParent, sIdx + i);
+          SCell* pCell = tdbPageGetCell(pParent, sIdx + i);
           ret = tdbBtreeDecodeCell(pParent, pCell, &cd, pTxn, pBt);
           if (ret < 0) {
             tdbError("tdb/btree-balance: decode cell failed with ret: %d.", ret);
@@ -829,31 +852,25 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           } else {
             divCells[i].pKey = tdbRealloc(NULL, cd.kLen);
             if (divCells[i].pKey == NULL) {
+              tdbError("tdb/btree-balance: realloc divcell key failed, kLen: %d, i: %d.", cd.kLen, i);
               return terrno;
             }
             memcpy(divCells[i].pKey, cd.pKey, cd.kLen);
           }
 
-          divCells[i].vLen = cd.vLen;
-          if (TDB_CELLDECODER_FREE_VAL(&cd)) {
-            divCells[i].pVal = cd.pVal;
-          } else {
-            divCells[i].pVal = tdbRealloc(NULL, cd.vLen);
-            if (divCells[i].pVal == NULL) {
-              return terrno;
-            }
-            memcpy(divCells[i].pVal, cd.pVal, cd.vLen);
-          }
+          divCells[i].pgno = cd.pgno;
         }
 
         if (i < nOlds - 1) {
           int szDivCell;
-          SCell* pDivCell = tdbOsMalloc(divCells[i].kLen + divCells[i].vLen + sizeof(SIntHdr));
+          SPgno sinkPgno = ((SIntHdr *)pOlds[i]->pData)->pgno;
+          SCell* pDivCell = tdbOsMalloc(divCells[i].kLen + sizeof(SPgno) + sizeof(SIntHdr));
           if(pDivCell == NULL) {
+            tdbError("tdb/btree-balance: malloc divcell failed, kLen: %d, i: %d.", divCells[i].kLen, i);
             return terrno;
           }
 
-          ret = tdbBtreeEncodeCell(pOlds[i], divCells[i].pKey, divCells[i].kLen, divCells[i].pVal, divCells[i].vLen,
+          ret = tdbBtreeEncodeCell(pOlds[i], divCells[i].pKey, divCells[i].kLen, &sinkPgno, sizeof(SPgno),
                                    pDivCell, &szDivCell, pTxn, pBt);
           if (ret < 0) {
             tdbOsFree(pDivCell);
@@ -861,7 +878,6 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
             return TSDB_CODE_FAILED;
           }
 
-          ((SPgno *)pDivCell)[0] = ((SIntHdr *)pOlds[i]->pData)->pgno;
           ((SIntHdr *)pOlds[i]->pData)->pgno = 0;
           ret = tdbPageInsertCell(pOlds[i], TDB_PAGE_TOTAL_CELLS(pOlds[i]), pDivCell, szDivCell, 1);
           tdbOsFree(pDivCell);
@@ -920,8 +936,8 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           // page is full, use a new page
           nNews++;
 
-          if (childNotLeaf) {
-            // for non-child page, this cell is used as the right-most child,
+          if (!childIsLeaf) {
+            // for non-leaf page, this cell is used as the right-most child,
             // the divider cell to parent as well
             continue;
           }
@@ -945,7 +961,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
         pCell = tdbPageGetCell(pOlds[infoNews[iNew - 1].iPage], infoNews[iNew - 1].oIdx);
 
         szLCell = tdbBtreeCellSize(pOlds[infoNews[iNew - 1].iPage], pCell, NULL);
-        if (!childNotLeaf) {
+        if (childIsLeaf) {
           szRCell = szLCell;
         } else {
           int    iPage = infoNews[iNew - 1].iPage;
@@ -965,11 +981,13 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           szRCell = tdbBtreeCellSize(pPage, pCell, NULL);
         }
 
-        if (!(infoNews[iNew - 1].cnt > 0)) {
+        if (infoNews[iNew - 1].cnt <= 0) {
+          tdbError("tdb/btree-balance: invalid cell count during redistribution, iNew: %d, cnt: %d.", iNew,
+                   infoNews[iNew - 1].cnt);
           return TSDB_CODE_FAILED;
         }
 
-        if (infoNews[iNew].size + szRCell >= infoNews[iNew - 1].size - szRCell) {
+        if (infoNews[iNew].size + szRCell >= infoNews[iNew - 1].size - szLCell) {
           break;
         }
 
@@ -1071,10 +1089,14 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
         pCell = tdbPageGetCell(pPage, oIdx);
         szCell = tdbBtreeCellSize(pPage, pCell, NULL);
 
-        if (!(nNewCells <= infoNews[iNew].cnt)) {
+        if (nNewCells > infoNews[iNew].cnt) {
+          tdbError("tdb/btree-balance: too many new cells, iNew: %d, nNewCells: %d, cnt: %d, iOld: %d, oIdx: %d.", iNew,
+                   nNewCells, infoNews[iNew].cnt, iOld, oIdx);
           return TSDB_CODE_FAILED;
         }
-        if (!(iNew < nNews)) {
+        if (iNew >= nNews) {
+          tdbError("tdb/btree-balance: new page index out of range, iNew: %d, nNews: %d, iOld: %d, oIdx: %d.", iNew,
+                   nNews, iOld, oIdx);
           return TSDB_CODE_FAILED;
         }
 
@@ -1087,7 +1109,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           nNewCells++;
 
           // insert parent page
-          if (!childNotLeaf && nNewCells == infoNews[iNew].cnt) {
+          if (childIsLeaf && nNewCells == infoNews[iNew].cnt) {
             SIntHdr *pIntHdr = (SIntHdr *)pParent->pData;
 
             if (iNew == nNews - 1 && pIntHdr->pgno == 0) {
@@ -1102,6 +1124,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
               // TODO: pCell here may be inserted as an overflow cell, handle it
               SCell *pNewCell = tdbOsMalloc(cd.kLen + 9);
               if (pNewCell == NULL) {
+                tdbError("tdb/btree-balance: malloc new cell failed, kLen: %d, iNew: %d.", cd.kLen, iNew);
                 return terrno;
               }
               int   szNewCell;
@@ -1138,10 +1161,13 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
             }
           }
         } else {
-          if (!(childNotLeaf)) {
+          if (childIsLeaf) {
+            tdbError("tdb/btree-balance: unexpected divider cell on leaf child, iNew: %d, nNews: %d, iOld: %d.", iNew,
+                     nNews, iOld);
             return TSDB_CODE_FAILED;
           }
-          if (!(iNew < nNews - 1)) {
+          if (iNew >= nNews - 1) {
+            tdbError("tdb/btree-balance: new page index out of range for divider, iNew: %d, nNews: %d.", iNew, nNews);
             return TSDB_CODE_FAILED;
           }
 
@@ -1149,7 +1175,9 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           ((SIntHdr *)pNews[iNew]->pData)->pgno = ((SPgno *)pCell)[0];
 
           // insert to parent as divider cell
-          if (!(iNew < nNews - 1)) {
+          if (iNew >= nNews - 1) {
+            tdbError("tdb/btree-balance: new page index out of range before divider insert, iNew: %d, nNews: %d.", iNew,
+                     nNews);
             return TSDB_CODE_FAILED;
           }
           ((SPgno *)pCell)[0] = TDB_PAGE_PGNO(pNews[iNew]);
@@ -1173,8 +1201,10 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
       }
     }
 
-    if (childNotLeaf) {
-      if (!(TDB_PAGE_TOTAL_CELLS(pNews[nNews - 1]) == infoNews[nNews - 1].cnt)) {
+    if (!childIsLeaf) {
+      if (TDB_PAGE_TOTAL_CELLS(pNews[nNews - 1]) != infoNews[nNews - 1].cnt) {
+        tdbError("tdb/btree-balance: last new page cell count mismatch, nNews: %d, total: %d, cnt: %d.", nNews,
+                 TDB_PAGE_TOTAL_CELLS(pNews[nNews - 1]), infoNews[nNews - 1].cnt);
         return TSDB_CODE_FAILED;
       }
       ((SIntHdr *)(pNews[nNews - 1]->pData))->pgno = rPgno;
@@ -1184,20 +1214,21 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
         pIntHdr->pgno = TDB_PAGE_PGNO(pNews[nNews - 1]);
       } else {
         int szDivCell;
-        SDecodedCell *pdc = &divCells[nOlds - 1];
-        SCell* pDivCell = tdbOsMalloc(pdc->kLen + pdc->vLen + sizeof(SIntHdr));
+        SDecodedDivCell *pdc = &divCells[nOlds - 1];
+        SPgno newsPgno = TDB_PAGE_PGNO(pNews[nNews - 1]);
+        SCell* pDivCell = tdbOsMalloc(pdc->kLen + sizeof(SPgno) + sizeof(SIntHdr));
         if(pDivCell == NULL) {
+          tdbError("tdb/btree-balance: malloc last divcell failed, kLen: %d, nOlds: %d.", pdc->kLen, nOlds);
           return terrno;
         }
 
-        ret = tdbBtreeEncodeCell(pParent, pdc->pKey, pdc->kLen, pdc->pVal, pdc->vLen, pDivCell, &szDivCell, pTxn, pBt);
+        ret = tdbBtreeEncodeCell(pParent, pdc->pKey, pdc->kLen, &newsPgno, sizeof(SPgno), pDivCell, &szDivCell, pTxn, pBt);
         if (ret < 0) {
           tdbOsFree(pDivCell);
           tdbError("tdb/btree-balance: encode cell failed with ret: %d.", ret);
           return TSDB_CODE_FAILED;
         }
 
-        ((SPgno *)pDivCell)[0] = TDB_PAGE_PGNO(pNews[nNews - 1]);
         ret = tdbPageInsertCell(pParent, sIdx, pDivCell, szDivCell, 0);
         tdbOsFree(pDivCell);
         if (ret) {
@@ -1217,12 +1248,15 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     // copy content to the parent page
     ret = tdbBtreeInitPage(pParent, &(SBtreeInitPageArg){.flags = flags, .pBt = pBt}, 0);
     if (ret < 0) {
+      tdbError("tdb/btree-balance: init root page failed with ret: %d.", ret);
       return ret;
     }
-    ret = tdbPageCopy(pNews[0], pParent, 1);
+    ret = tdbPageCopy(pNews[0], pParent, 0);
     if (ret < 0) {
+      tdbError("tdb/btree-balance: copy to root page failed with ret: %d.", ret);
       return ret;
     }
+    pNews[0]->nOverflow = 0;
 
     if (!TDB_BTREE_PAGE_IS_LEAF(pNews[0])) {
       ((SIntHdr *)(pParent->pData))->pgno = ((SIntHdr *)(pNews[0]->pData))->pgno;
@@ -1230,6 +1264,8 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
 
     ret = tdbPagerInsertFreePage(pBt->pPager, pNews[0], pTxn);
     if (ret < 0) {
+      tdbError("tdb/btree-balance: insert free page failed for root collapse with ret: %d, pgno: %" PRIu32 ".", ret,
+               TDB_PAGE_PGNO(pNews[0]));
       return ret;
     }
   }
@@ -1238,15 +1274,14 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     if (divCells[i].pKey) {
       tdbFree(divCells[i].pKey);
     }
-    if (divCells[i].pVal) {
-      tdbFree(divCells[i].pVal);
-    }
   }
 
   for (pageIdx = 0; pageIdx < nOlds; ++pageIdx) {
     if (pageIdx >= nNews) {
       ret = tdbPagerInsertFreePage(pBt->pPager, pOlds[pageIdx], pTxn);
       if (ret < 0) {
+        tdbError("tdb/btree-balance: insert free page failed with ret: %d, pageIdx: %d, pgno: %" PRIu32 ".", ret,
+                 pageIdx, TDB_PAGE_PGNO(pOlds[pageIdx]));
         return ret;
       }
     }
@@ -1403,11 +1438,19 @@ int tdbFreeOvflPage(SPgno pgno, int nSize, TXN *pTxn, SBTree *pBt) {
 //   3. use as less as possible overflow pages while put as much as possible data in the
 //      overflow pages to reduce the data in the current page.
 static int calcLocalSize(int minLocal, int maxLocal, int dataSize) {
-  // NOTE: using `maxLocal - sizeof(SPgno)` here is wrong as the current page may be an
+  // NOTE 1: using `maxLocal - sizeof(SPgno)` here is wrong as the current page may be an
   // interior page, which has a smaller `maxLocal` than overflow pages, this result in
   // violation of the rule 3 above.
   //
-  // However, fix the issue will corrupt existing data.
+  // NOTE 2: the modulus dividend should be `dataSize - minLocal + sizeof(SPgno)` rather than
+  // `dataSize - minLocal`, because nLocal includes a sizeof(SPgno) slot for the overflow page
+  // pointer, so the pure data carried locally is `nLocal - sizeof(SPgno)`, and minimizing
+  // overflow pages requires `(dataSize - (nLocal - sizeof(SPgno)))` to be a multiple of the
+  // per-overflow-page capacity `(maxLocal_ovfl - sizeof(SPgno))`. The missing `+ sizeof(SPgno)`
+  // means nLocal is off by up to one overflow-page-pointer worth of bytes, resulting in one
+  // extra overflow page in the worst case.
+  //
+  // Both issues are intentionally left unfixed to avoid corrupting existing data.
   int nLocal = minLocal + (dataSize - minLocal) % (maxLocal - sizeof(SPgno));
   if (nLocal > maxLocal) {
     nLocal = minLocal;
@@ -1419,11 +1462,9 @@ static int calcLocalSize(int minLocal, int maxLocal, int dataSize) {
 // TDB_BTREE_CELL =====================
 static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const void *pKey, int kLen, const void *pVal,
                                  int vLen, int *szPayload, TXN *pTxn, SBTree *pBt) {
-  int ret = 0;
   int nPayload = kLen + vLen;
-  int maxLocal = pPage->maxLocal;
 
-  if (nPayload + nHeader <= maxLocal) {
+  if (nPayload + nHeader <= pPage->maxLocal) {
     // no overflow page is needed
     memcpy(pCell + nHeader, pKey, kLen);
     if (pVal) {
@@ -1435,13 +1476,13 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
   }
 
   // handle overflow case
-  int nLocal = calcLocalSize(pPage->minLocal, maxLocal, nPayload + nHeader);
+  int nLocal = calcLocalSize(pPage->minLocal, pPage->maxLocal, nPayload + nHeader);
 
   // fetch a new ofp and make it dirty
   SPgno  pgno = 0;
   SPage *ofp = NULL;
 
-  ret = tdbFetchOvflPage(&pgno, &ofp, pTxn, pBt);
+  int ret = tdbFetchOvflPage(&pgno, &ofp, pTxn, pBt);
   if (ret < 0) {
     return ret;
   }
@@ -1452,7 +1493,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
   SCell *pBuf = tdbRealloc(NULL, pBt->pageSize);
   if (pBuf == NULL) {
     tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
-    return ret;
+    return terrno;
   }
 
   int nLeft = nPayload;
@@ -1463,7 +1504,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
     nLeft -= kLen;
     // pack partial val to local if any space left
     if (nLocal > nHeader + kLen + sizeof(SPgno)) {
-      if (!(pVal != NULL && vLen != 0)) {
+      if (pVal == NULL || vLen == 0) {
         tdbFree(pBuf);
         tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
         return TSDB_CODE_FAILED;
@@ -1599,13 +1640,13 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
   int nPayload;
   int ret;
 
-  if (!(pPage->kLen == TDB_VARIANT_LEN || pPage->kLen == kLen)) {
+  if (pPage->kLen != TDB_VARIANT_LEN && pPage->kLen != kLen) {
     return TSDB_CODE_INVALID_PARA;
   }
-  if (!(pPage->vLen == TDB_VARIANT_LEN || pPage->vLen == vLen)) {
+  if (pPage->vLen != TDB_VARIANT_LEN && pPage->vLen != vLen) {
     return TSDB_CODE_INVALID_PARA;
   }
-  if (!(pKey != NULL && kLen > 0)) {
+  if (pKey == NULL || kLen <= 0) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -1854,11 +1895,9 @@ static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pD
 // if [pFullSize] is not NULL, it return the full size of the cell, which also includes
 // the number of bytes of [pCell] in the overflow pages.
 static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int *pFullSize) {
-  u8  leaf;
   int kLen = 0, vLen = 0, nHeader = 0;
 
-  leaf = TDB_BTREE_PAGE_IS_LEAF(pPage);
-
+  u8 leaf = TDB_BTREE_PAGE_IS_LEAF(pPage);
   if (!leaf) {
     nHeader += sizeof(SPgno);
   }
@@ -1880,23 +1919,20 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int *pFullSize) {
   }
 
   int nSize = kLen + vLen + nHeader;
-  if (nSize <= pPage->maxLocal) {
-    // cell size should be at least the size of a free cell, otherwise it
-    // cannot be added to the free list when dropped.
-    if (nSize < pPage->pPageMethods->szFreeCell) {
-      nSize = pPage->pPageMethods->szFreeCell;
-    }
-    if (pFullSize) {
-      *pFullSize = nSize;
-    }
-    return nSize;
+  // cell size should be at least the size of a free cell, otherwise it
+  // cannot be added to the free list when dropped.
+  if (nSize < pPage->pPageMethods->szFreeCell) {
+    nSize = pPage->pPageMethods->szFreeCell;
   }
-
-  // handle overflow pages
   if (pFullSize) {
     *pFullSize = nSize;
   }
 
+  if (nSize <= pPage->maxLocal) {
+    return nSize;
+  }
+
+  // handle overflow pages
   return calcLocalSize(pPage->minLocal, pPage->maxLocal, nSize);
 }
 // TDB_BTREE_CELL

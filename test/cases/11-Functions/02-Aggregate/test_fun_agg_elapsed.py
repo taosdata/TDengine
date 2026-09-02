@@ -59,8 +59,7 @@ class TestFunElapsed:
             
         Since: v3.3.0.0
 
-        Labels: elapsed
-
+        Labels: elapsed,integration,functional
         History:
             - 2024-6-5 Alex Duan Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -114,8 +113,7 @@ class TestFunElapsed:
 
         Since: v3.3.0.0
 
-        Labels: elapsed
-
+        Labels: elapsed,integration,functional
         History:
             - 2024-9-14 Feng Chao Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -218,8 +216,7 @@ class TestFunElapsed:
 
         Since: v3.3.0.0
 
-        Labels: elapsed
-
+        Labels: elapsed,integration,functional
         History:
             - 2024-6-5 Alex Duan Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -249,8 +246,7 @@ class TestFunElapsed:
 
         Since: v3.3.0.0
 
-        Labels: elapsed
-
+        Labels: elapsed,integration,functional
         History:
             - 2024-6-5 Alex Duan Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -316,8 +312,7 @@ class TestFunElapsed:
 
         Since: v3.3.0.0
 
-        Labels: elapsed
-
+        Labels: elapsed,integration,functional
         History:
             - 2024-6-5 Alex Duan Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -430,8 +425,7 @@ class TestFunElapsed:
 
         Since: v3.3.0.0
 
-        Labels: elapsed
-
+        Labels: elapsed,integration,functional
         History:
             - 2024-6-5 Alex Duan Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -473,8 +467,7 @@ class TestFunElapsed:
 
         Since: v3.3.0.0
 
-        Labels: elapsed
-
+        Labels: elapsed,integration,functional
         History:
             - 2024-6-5 Alex Duan Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -482,15 +475,30 @@ class TestFunElapsed:
         """
         # incorrect parameter
         table_list = self.table_dic["super_table"] + self.table_dic["child_table"] + self.table_dic["common_table"]
-        incorrect_parameter_list = ["()", "(null)", "(*)", "(c_ts)", "(c_ts, 1s)", "(c_int)", "(c_bigint)", "(c_double)", "(c_nchar)", "(ts, null)",
+        incorrect_parameter_list = ["()", "(null)", "(*)", "(c_int)", "(c_bigint)", "(c_double)", "(c_nchar)", "(ts, null)",
                                     "(ts, *)", "(2024-01-09 17:00:00)", "(2024-01-09 17:00:00, 1s)", "(t1)", "(t1, 1s)", "(t2)", "(t3)"]
         for table in table_list:
             for param in incorrect_parameter_list:
-                if table.startswith("st"):
+                if param in ["(c_ts)", "(c_ts, 1s)"] and not table.startswith("st"):
+                    tdSql.query("select elapsed{} from {};".format(param, table))
+                    if table.endswith("_empty"):
+                        tdSql.checkRows(0)
+                    else:
+                        tdSql.checkRows(1)
+                elif table.startswith("st"):
                     tdSql.error("select elapsed{} from {} group by tbname order by ts;".format(param, table))
                 else:
                     tdSql.error("select elapsed{} from {};".format(param, table))
                 tdSql.error("select elapsed{} from {} group by ".format(param, table))
+
+        # Ordinary timestamp columns can now provide a degraded timeline.
+        for table in table_list:
+            if table.startswith("st"):
+                tdSql.query("select elapsed(c_ts) from {} group by tbname order by tbname;".format(table))
+                tdSql.query("select elapsed(c_ts, 1s) from {} group by tbname order by tbname;".format(table))
+            else:
+                tdSql.query("select elapsed(c_ts) from {};".format(table))
+                tdSql.query("select elapsed(c_ts, 1s) from {};".format(table))
 
         # query with unsupported function, like leastsquares、diff、derivative、top、bottom、last_row、interp
         unsupported_sql_list = [
@@ -537,8 +545,7 @@ class TestFunElapsed:
 
         Since: v3.3.0.0
 
-        Labels: elapsed
-
+        Labels: elapsed,integration,functional
         History:
             - 2024-9-10 Jing Sima Created
 
@@ -1793,8 +1800,9 @@ class TestFunElapsed:
         tdSql.error("select elapsed(tsc ,1s) from (select q_int tsc from stable_1) ;")
         tdSql.error("select elapsed(tsv ,1s) from (select elapsed(ts,1s) tsv from stable_1);")
         tdSql.error("select elapsed(ts ,1s) from (select elapsed(ts,1s) ts from stable_1);")
-        # # bug fix
-        tdSql.error("select elapsed(tsc ,1s) from (select tscol tsc from stable_1) ;")
+        # Non-primary timestamp column can be used as elapsed timeline input.
+        tdSql.query("select elapsed(tsc ,1s) from (select tscol tsc from stable_1) ;")
+        tdSql.checkRows(1)
 
         #TD-19911
         tdSql.error("select elapsed(ts,1s,123) from (select ts,tbname from stable_1 order by ts asc );")
@@ -2135,8 +2143,7 @@ class TestFunElapsed:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

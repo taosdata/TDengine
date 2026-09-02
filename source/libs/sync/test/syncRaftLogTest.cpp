@@ -58,7 +58,7 @@ void test2() {
   };
 
   for (int i = 0; i < 5; ++i) {
-    int code = walAppendLog(pWal, i, 100, syncMeta, "aa", 3);
+    int code = walAppendLog(pWal, i, 100, syncMeta, "aa", 0, 3);
     if (code != 0) {
       printf("code:%d terror:%d msg:%s i:%d \n", code, terrno, tstrerror(terrno), i);
       TD_ALWAYS_ASSERT(0);
@@ -120,7 +120,7 @@ void test4() {
   walRestoreFromSnapshot(pWal, 5);
 
   for (int i = 6; i < 10; ++i) {
-    int code = walAppendLog(pWal, i, 100, syncMeta, "aa", 3);
+    int code = walAppendLog(pWal, i, 100, syncMeta, "aa", 0, 3);
     if (code != 0) {
       printf("code:%d terror:%d msg:%s i:%d \n", code, terrno, tstrerror(terrno), i);
       TD_ALWAYS_ASSERT(0);

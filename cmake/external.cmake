@@ -2,6 +2,14 @@ option(TD_EXTERNALS_USE_ONLY "external dependencies use only, otherwise download
 option(TD_ALIGN_EXTERNAL "keep externals' CMAKE_BUILD_TYPE align with the main project" ON)
 option(EXTERNALS_USE_CCACHE "Use ccache for ExternalProject builds (set OFF if ccache corrupts .o files)" ON)
 
+include(ProcessorCount)
+ProcessorCount(_td_externals_default_jobs)
+if(NOT _td_externals_default_jobs)
+    set(_td_externals_default_jobs 4)
+endif()
+set(TD_EXTERNALS_BUILD_JOBS "${_td_externals_default_jobs}" CACHE STRING
+    "Maximum parallel build jobs for heavy ExternalProject dependencies")
+
 # When EXTERNALS_USE_CCACHE is OFF, prepend CCACHE_DISABLE=1 to external
 # build commands so ccache passes compilations through without caching.
 # Two forms: _EXT_ENV_PREFIX for direct COMMAND, _EXT_CCACHE_EXPORT for sh -c.
@@ -208,6 +216,12 @@ macro(INIT_EXT name)               # {
             foreach(v ${${name}_libs})
                 target_link_libraries(${tgt} PRIVATE "${v}")
             endforeach()
+            if("z${name}" STREQUAL "zext_curl" AND NOT TD_WINDOWS)
+                target_link_libraries(${tgt} PRIVATE ${ext_ssl_libs} ${ext_zlib_libs})
+                if(NOT TD_EXTERNALS_USE_ONLY)
+                    add_dependencies(${tgt} ext_ssl ext_zlib)
+                endif()
+            endif()
             if(NOT TD_WINDOWS)       # {
               if("z${name}" STREQUAL "zext_libuv")
                   target_link_libraries(${tgt} PUBLIC dl)
@@ -1039,15 +1053,15 @@ INIT_EXT(ext_curl
 )
 
 if(${TD_WINDOWS})
-    # URL https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz
-    # URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+    # URL https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz
+    # URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
     get_from_local_if_exists(
-        "https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz"
-        "curl-8.2.1.tar.gz"
+        "https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz"
+        "curl-8.11.1.tar.gz"
     )
     ExternalProject_Add(ext_curl
         URL ${_url}
-        URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+        URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -1070,15 +1084,37 @@ if(${TD_WINDOWS})
     )
 else()
     string(JOIN " " _c_flags ${_c_flags_list})
-    # URL https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz
-    # URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+    set(_ext_curl_configure_env
+        "CFLAGS=${_c_flags}"
+        "CXXFLAGS=${_c_flags}"
+    )
+    if(TD_DARWIN)
+        # curl rewrites OpenSSL's -I flag to -isystem. On Intel macOS that
+        # lets /usr/local/include win, mixing Homebrew headers with ext_ssl.
+        set(_ext_curl_ssl_include_alias "${ext_curl_base}/ssl-include")
+        set(_ext_curl_prepare_ssl_include
+            COMMAND ${CMAKE_COMMAND} -E remove_directory "${_ext_curl_ssl_include_alias}"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${_ext_curl_ssl_include_alias}"
+            COMMAND ${CMAKE_COMMAND} -E create_symlink
+                "${ext_ssl_inc_dir}/openssl"
+                "${_ext_curl_ssl_include_alias}/openssl"
+        )
+        list(APPEND _ext_curl_configure_env
+            "CC=cc -I${_ext_curl_ssl_include_alias}"
+            "CXX=c++ -I${_ext_curl_ssl_include_alias}"
+        )
+    else()
+        set(_ext_curl_prepare_ssl_include "")
+    endif()
+    # URL https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz
+    # URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
     get_from_local_if_exists(
-        "https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz"
-        "curl-8.2.1.tar.gz"
+        "https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz"
+        "curl-8.11.1.tar.gz"
     )
     ExternalProject_Add(ext_curl
         URL ${_url}
-        URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+        URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
         # GIT_SHALLOW TRUE
         DEPENDS ext_ssl
         PREFIX "${_base}"
@@ -1086,8 +1122,9 @@ else()
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
+            ${_ext_curl_prepare_ssl_include}
             # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
-            COMMAND ${CMAKE_COMMAND} -E env "CFLAGS=${_c_flags}" "CXXFLAGS=${_c_flags}" ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
+            COMMAND ${CMAKE_COMMAND} -E env ${_ext_curl_configure_env} ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
                     --enable-websockets --enable-shared=no --disable-ldap
                     --disable-ldaps --without-brotli --without-zstd
                     --without-libidn2 --without-nghttp2 --without-libpsl
@@ -1253,13 +1290,14 @@ if(BUILD_PCRE2)          # {
         INC_DIR          include
         LIB              lib/${ext_pcre2_static}
     )
+    # CVE-2025-58050: heap buffer over-read in (*scs:...)/(*ACCEPT) combo fixed in 10.46
     get_from_local_if_exists(
-        "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-10.45.tar.gz"
-        "pcre2-pcre2-10.45.tar.gz"
+        "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-10.47.tar.gz"
+        "pcre2-pcre2-10.47.tar.gz"
     )
     ExternalProject_Add(ext_pcre2
         URL ${_url}
-        URL_HASH SHA256=35ce7d21f511c4a81d7079164077d25fbc41af00f19e1b547801df905c5f0fab
+        URL_HASH SHA256=409c443549b13b216da40049850a32f3e6c57d4224ab11553ab5a786878a158e
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
@@ -1422,6 +1460,24 @@ if(TD_TAOS_TOOLS)
         "https://github.com/google/snappy/archive/32ded457c0b1fe78ceb8397632c416568d6714a0.tar.gz"
         "snappy-32ded457c0b1.tar.gz"
     )
+    # Snappy's CMakeLists.txt auto-detects SNAPPY_HAVE_BMI2/SNAPPY_HAVE_X86_CRC32
+    # via check_cxx_source_compiles() on <immintrin.h> intrinsics. Under MSVC
+    # these intrinsics compile successfully regardless of /arch:, unlike
+    # GCC/Clang which gate them behind target attributes — so on Windows the
+    # probe bakes BMI2 (BZHI) and SSE4.2 CRC32 instructions into snappy.lib
+    # even though SNAPPY_REQUIRE_AVX2 is OFF and no /arch:AVX2 was requested.
+    # Executing BZHI on a CPU without BMI2 (e.g. Intel Atom "Goldmont") raises
+    # STATUS_ILLEGAL_INSTRUCTION during taosdump avro/snappy decompression.
+    # Force both probes off on Windows so the build stays on the portable,
+    # CPU-baseline codepath; skip on Linux/macOS where the probe already
+    # correctly reports 0 without an explicit -mbmi2/-msse4.2 flag.
+    set(_ext_snappy_windows_args "")
+    if(TD_WINDOWS)
+        list(APPEND _ext_snappy_windows_args
+            -DSNAPPY_HAVE_BMI2:STRING=0
+            -DSNAPPY_HAVE_X86_CRC32:STRING=0
+        )
+    endif()
     ExternalProject_Add(ext_snappy
         URL ${_url}
         URL_HASH SHA256=677d1dd8172bac1862e6c8d7bbe1fe9fb2320cfd11ee04756b1ef8b3699c6135
@@ -1437,6 +1493,7 @@ if(TD_TAOS_TOOLS)
         # CMAKE_ARGS -DINSTALL_GTEST:BOOL=OFF
         CMAKE_ARGS -DSNAPPY_BUILD_BENCHMARKS:BOOL=OFF
         CMAKE_ARGS -DSNAPPY_BUILD_TESTS:BOOL=OFF
+        CMAKE_ARGS ${_ext_snappy_windows_args}
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
@@ -1601,7 +1658,7 @@ string(JOIN " " _ssl_libs ${ext_ssl_libs})
 set(_libs3_extra_args "")
 set(_libs3_depends ext_libxml2 ext_curl ext_zlib)
 if(TD_WINDOWS)
-    list(APPEND _libs3_extra_args "-DCMAKE_C_FLAGS:STRING=/DWIN32_LEAN_AND_MEAN /DLIBXML_STATIC")
+    list(APPEND _libs3_extra_args "-DCMAKE_C_FLAGS:STRING=/DWIN32_LEAN_AND_MEAN /DLIBXML_STATIC /DCURL_STATICLIB")
     list(APPEND _libs3_extra_args "-DPTHREAD_INCLUDE:STRING=${ext_pthread_inc_dir}")
     list(APPEND _libs3_extra_args "-DPTHREAD_LIBS:STRING=${ext_pthread_libs}")
     list(APPEND _libs3_depends ext_pthread)
@@ -1810,10 +1867,11 @@ if(NOT TD_WINDOWS)        # {
         INC_DIR          include/apr-1
         LIB              lib/${ext_aprutil_static}
     )
-    # URL https://dlcdn.apache.org//apr/apr-util-1.6.3.tar.gz
+    # This retired release is only available from the Apache archive.
+    # URL https://archive.apache.org/dist/apr/apr-util-1.6.3.tar.gz
     # URL_HASH SHA256=2b74d8932703826862ca305b094eef2983c27b39d5c9414442e9976a9acf1983
     get_from_local_if_exists(
-        "https://dlcdn.apache.org//apr/apr-util-1.6.3.tar.gz"
+        "https://archive.apache.org/dist/apr/apr-util-1.6.3.tar.gz"
         "apr-util-1.6.3.tar.gz"
     )
     ExternalProject_Add(ext_aprutil
@@ -1921,6 +1979,769 @@ if(${BUILD_LIBSASL})      # {
     )
     add_dependencies(build_externals ext_sasl2)     # this is for github workflow in cache-miss step.
 endif(${BUILD_LIBSASL})   # }
+endif()
+
+# GNU SASL (libgsasl) -- application-layer SCRAM-SHA-256 authentication.
+# This is INDEPENDENT of the Cyrus libsasl2 used by the transport layer above; it is
+# linked into mnode (server) and the client so the CONNECT handshake can negotiate SCRAM.
+# Built with the minimal flag set so it pulls NO external runtime deps (no libidn / no
+# libgcrypt / no openssl / no NLS): GNU SASL falls back to its bundled gnulib crypto.
+# NOTE: --without-stringprep is REQUIRED, not optional. --without-libidn-prefix only skips
+# a custom search prefix; it does NOT disable auto-detection of a system libidn in default
+# paths. On a host with libidn-dev installed, configure would otherwise set HAVE_LIBIDN=1 and
+# compile saslprep.o with calls to stringprep_profile / pr29_8z, leaving libtaos.so with
+# undefined references (no -lidn on its link line). --without-stringprep forces saslprep.c
+# into its ASCII-passthrough branch, which is what we want for SCRAM-SHA-256 usernames.
+# A post-install step (isolate_gsasl_syms.sh) renames the bundled gnulib symbols (base64_*,
+# md5_*, sha*_*, hmac_*, memxor, ...) to a tdgs_ prefix to avoid collisions with TDengine's
+# own base64_encode/base64_decode (source/util/src/tbase64.c) when statically linked.
+if(${BUILD_LIBGSASL} AND ${TD_LINUX})      # {
+    INIT_EXT(ext_gsasl
+        INC_DIR          include
+        LIB              lib/libgsasl.a
+    )
+    # gsasl is the only dependency not hosted on github; the GNU official FTP
+    # (ftp.gnu.org) is frequently slow/unreachable from CN networks. Prefer a CN
+    # GNU mirror (Tsinghua TUNA) as the primary source and keep ftp.gnu.org as a
+    # fallback -- ExternalProject tries the URLs in order until one matches the
+    # SHA256 below, so overseas/CI networks still resolve if the mirror is stale.
+    # When LOCAL_URL is set, get_from_local_if_exists() rewrites to
+    # ${LOCAL_URL}/gsasl-2.2.2.tar.gz (explicit filename arg), unaffected here.
+    get_from_local_if_exists(
+        "https://mirrors.tuna.tsinghua.edu.cn/gnu/gsasl/gsasl-2.2.2.tar.gz"
+        "gsasl-2.2.2.tar.gz"
+    )
+    ExternalProject_Add(ext_gsasl
+        URL ${_url} "https://ftp.gnu.org/gnu/gsasl/gsasl-2.2.2.tar.gz"
+        URL_HASH SHA256=41e8e442648eccaf6459d9ad93d4b18530b96c8eaf50e3f342532ef275eff3ba
+        PREFIX "${_base}"
+        BUILD_IN_SOURCE TRUE
+        CONFIGURE_COMMAND
+            COMMAND "${CMAKE_COMMAND}" -E env
+                CC=gcc
+                CC_FOR_BUILD=gcc
+                CFLAGS=-fPIC
+                ./configure --prefix=${_ins} --with-pic --enable-static=yes --enable-shared=no
+                    --disable-nls --enable-scram-sha256
+                    --without-stringprep
+                    --without-libidn-prefix --without-libgcrypt-prefix --without-libntlm-prefix
+                    --with-openssl=no --with-gssapi-impl=no
+                    --disable-gssapi --disable-gs2 --disable-ntlm --disable-cram-md5 --disable-digest-md5
+        # TDengine only links libgsasl; the top-level target also builds docs
+        # and can require host tools such as help2man.
+        BUILD_COMMAND
+            COMMAND ${_EXT_ENV_PREFIX} make -C lib
+        INSTALL_COMMAND
+            COMMAND ${_EXT_ENV_PREFIX} make -C lib install
+            COMMAND bash "${CMAKE_CURRENT_LIST_DIR}/isolate_gsasl_syms.sh" "${_ins}/lib/libgsasl.a" "${CMAKE_NM}" "${CMAKE_OBJCOPY}"
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_gsasl)     # this is for github workflow in cache-miss step.
+endif()                      # }
+
+if(TD_ENTERPRISE)   # { ext connector client libraries
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # MariaDB Connector/C 3.3  (MySQL / MariaDB external source)
+    # ──────────────────────────────────────────────────────────────────────────
+    if(${BUILD_WITH_MARIADB})
+        find_package(PkgConfig QUIET)
+        set(_mariadb_found FALSE)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(MARIADB_PC QUIET libmariadb)
+            if(MARIADB_PC_FOUND)
+                set(_mariadb_found TRUE)
+                message(STATUS "[ext_mariadb] Using system MariaDB ${MARIADB_PC_VERSION} — skipping ExternalProject build")
+                # Record the real .so path for extconnector staging
+                find_library(_EXT_MARIADB_SO_REALPATH
+                    NAMES libmariadb.so.3
+                    HINTS ${MARIADB_PC_LIBDIR} ${MARIADB_PC_LIBRARY_DIRS}
+                    NO_DEFAULT_PATH)
+                if(NOT _EXT_MARIADB_SO_REALPATH)
+                    set(_EXT_MARIADB_SO_REALPATH "${MARIADB_PC_LIBDIR}/libmariadb.so.3")
+                endif()
+                set(EXT_MARIADB_SO_SRCPATH "${_EXT_MARIADB_SO_REALPATH}" CACHE INTERNAL "")
+                macro(DEP_ext_mariadb tgt)
+                    cmake_language(CALL DEP_ext_mariadb_INC ${tgt})
+                    cmake_language(CALL DEP_ext_mariadb_LIB ${tgt})
+                endmacro()
+                macro(DEP_ext_mariadb_INC tgt)
+                    target_include_directories(${tgt} PRIVATE ${MARIADB_PC_INCLUDE_DIRS})
+                    add_definitions(-D_ext_mariadb)
+                endmacro()
+                macro(DEP_ext_mariadb_LIB tgt)
+                    target_link_libraries(${tgt} PRIVATE ${MARIADB_PC_LIBRARIES})
+                    add_definitions(-D_ext_mariadb)
+                endmacro()
+            endif()
+        endif()
+        if(NOT _mariadb_found)
+            if(TD_LINUX)
+                set(_ext_mariadb_lib lib/mariadb/libmariadb.so)
+            elseif(TD_DARWIN)
+                set(_ext_mariadb_lib lib/mariadb/libmariadb.dylib)
+            elseif(TD_WINDOWS)
+                set(_ext_mariadb_lib lib/mariadb/libmariadb.lib)
+            endif()
+            INIT_EXT(ext_mariadb
+                INC_DIR  include/mariadb
+                LIB      ${_ext_mariadb_lib}
+            )
+            get_from_local_if_exists(
+                "https://github.com/mariadb-corporation/mariadb-connector-c/archive/refs/tags/v3.3.10.tar.gz"
+                "mariadb-connector-c-v3.3.10.tar.gz"
+            )
+            ExternalProject_Add(ext_mariadb
+                URL            ${_url}
+                URL_HASH       SHA256=0a79088af2fbde4dbe6655dbc51bbb272b606c0d9116745697e08879e70198a7
+                DEPENDS        ext_zlib
+                PREFIX         "${_base}"
+                CMAKE_ARGS     -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+                CMAKE_ARGS     -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+                CMAKE_ARGS     -DCMAKE_INSTALL_LIBDIR:PATH=lib
+                CMAKE_ARGS     -DWITH_UNIT_TESTS:BOOL=OFF
+                CMAKE_ARGS     -DWITH_SSL:STRING=$<IF:$<BOOL:${TD_WINDOWS}>,SCHANNEL,OPENSSL>
+                CMAKE_ARGS     -DBUILD_SHARED_LIBS:BOOL=ON
+                CMAKE_ARGS     -DWITH_EXTERNAL_ZLIB:BOOL=ON
+                CMAKE_ARGS     -DZLIB_USE_STATIC_LIBS:BOOL=ON
+                CMAKE_ARGS     -DZLIB_ROOT:PATH=${ext_zlib_install}
+                CMAKE_ARGS     -DZLIB_INCLUDE_DIR:PATH=${ext_zlib_install}/include
+                CMAKE_ARGS     -DZLIB_LIBRARY:FILEPATH=${ext_zlib_install}/lib/${ext_zlib_static}
+                BUILD_COMMAND
+                    COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+                INSTALL_COMMAND
+                    COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+                EXCLUDE_FROM_ALL TRUE
+                VERBATIM
+            )
+            # macOS: MariaDB builds with bare install_name "libmariadb.3.dylib" which
+            # prevents dyld from resolving via RPATH. Fix to @rpath/libmariadb.3.dylib
+            # so the linker records the correct reference in downstream binaries.
+            if(TD_DARWIN)
+                ExternalProject_Add_Step(ext_mariadb fix_darwin_install_name
+                    COMMAND install_name_tool -id "@rpath/libmariadb.3.dylib"
+                        "${_ins}/lib/mariadb/libmariadb.3.dylib"
+                    DEPENDEES install
+                    COMMENT "Fixing libmariadb install_name for macOS RPATH resolution"
+                )
+            endif()
+            add_dependencies(build_externals ext_mariadb)
+        endif()  # NOT _mariadb_found
+    endif()  # BUILD_WITH_MARIADB
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # libpq 16  (PostgreSQL external source, covers PG 14/15/16/17)
+    # ──────────────────────────────────────────────────────────────────────────
+    if(${BUILD_WITH_LIBPQ})
+        find_package(PostgreSQL QUIET)
+        if(PostgreSQL_FOUND)
+            message(STATUS "[ext_libpq] Using system PostgreSQL ${PostgreSQL_VERSION_STRING} — skipping ExternalProject build")
+            # Record real shared lib path for extconnector staging
+            get_filename_component(_pg_lib_dir "${PostgreSQL_LIBRARIES}" DIRECTORY)
+            if(TD_DARWIN)
+                find_library(_EXT_LIBPQ_SO_REALPATH
+                    NAMES libpq.5.dylib
+                    HINTS ${PostgreSQL_LIBRARY_DIRS} ${_pg_lib_dir}
+                    NO_DEFAULT_PATH)
+                if(NOT _EXT_LIBPQ_SO_REALPATH)
+                    set(_EXT_LIBPQ_SO_REALPATH "${_pg_lib_dir}/libpq.5.dylib")
+                endif()
+            else()
+                find_library(_EXT_LIBPQ_SO_REALPATH
+                    NAMES libpq.so.5
+                    HINTS ${PostgreSQL_LIBRARY_DIRS} ${_pg_lib_dir}
+                    NO_DEFAULT_PATH)
+                if(NOT _EXT_LIBPQ_SO_REALPATH)
+                    set(_EXT_LIBPQ_SO_REALPATH "${_pg_lib_dir}/libpq.so.5")
+                endif()
+            endif()
+
+            set(EXT_LIBPQ_SO_SRCPATH "${_EXT_LIBPQ_SO_REALPATH}" CACHE INTERNAL "")
+            macro(DEP_ext_libpq tgt)
+                cmake_language(CALL DEP_ext_libpq_INC ${tgt})
+                cmake_language(CALL DEP_ext_libpq_LIB ${tgt})
+            endmacro()
+            macro(DEP_ext_libpq_INC tgt)
+                target_include_directories(${tgt} PRIVATE ${PostgreSQL_INCLUDE_DIRS})
+                add_definitions(-D_ext_libpq)
+            endmacro()
+            macro(DEP_ext_libpq_LIB tgt)
+                target_link_libraries(${tgt} PRIVATE ${PostgreSQL_LIBRARIES})
+                add_definitions(-D_ext_libpq)
+            endmacro()
+        else()
+            if(TD_LINUX)
+                set(_ext_libpq_lib lib/libpq.so)
+            elseif(TD_DARWIN)
+                set(_ext_libpq_lib lib/libpq.dylib)
+            elseif(TD_WINDOWS)
+                set(_ext_libpq_lib lib/libpq.lib)
+            endif()
+            INIT_EXT(ext_libpq
+                INC_DIR  include
+                LIB      ${_ext_libpq_lib}
+            )
+            macro(DEP_ext_libpq_INC tgt)
+                target_include_directories(${tgt} PRIVATE
+                    ${ext_libpq_inc_dir}
+                    ${ext_libpq_source}/src/include
+                    ${ext_libpq_source}/src/interfaces/libpq)
+                add_definitions(-D_ext_libpq)
+                if(NOT TD_EXTERNALS_USE_ONLY)
+                    add_dependencies(${tgt} ext_libpq)
+                endif()
+            endmacro()
+            # REL_16_3 ≡ PostgreSQL 16.3；使用官方源码 tarball，避免 CI 从 GitHub git clone 不稳定
+            get_from_local_if_exists(
+                "https://ftp.postgresql.org/pub/source/v16.3/postgresql-16.3.tar.gz"
+                "postgresql-16.3.tar.gz"
+            )
+            if(TD_WINDOWS)
+                find_package(Python3 COMPONENTS Interpreter REQUIRED)
+                find_program(_EXT_LIBPQ_NINJA_EXECUTABLE NAMES ninja ninja.exe)
+                if(NOT _EXT_LIBPQ_NINJA_EXECUTABLE)
+                    message(FATAL_ERROR
+                        "[ext_libpq] BUILD_WITH_LIBPQ=ON on Windows requires ninja. "
+                        "Install it with: python -m pip install -i https://nexus.tdengine.net/repository/pypi-group/simple/ ninja")
+                endif()
+                execute_process(
+                    COMMAND "${Python3_EXECUTABLE}" -c "import mesonbuild"
+                    RESULT_VARIABLE _ext_libpq_meson_check
+                    OUTPUT_QUIET
+                    ERROR_QUIET)
+                if(NOT _ext_libpq_meson_check EQUAL 0)
+                    message(FATAL_ERROR
+                        "[ext_libpq] BUILD_WITH_LIBPQ=ON on Windows requires meson. "
+                        "Install it with: python -m pip install -i https://nexus.tdengine.net/repository/pypi-group/simple/ meson")
+                endif()
+
+                set(_ext_libpq_meson "${Python3_EXECUTABLE}" -m mesonbuild.mesonmain)
+                if(TD_CONFIG_NAME_RESOLVED STREQUAL "Debug")
+                    set(_ext_libpq_buildtype debug)
+                else()
+                    set(_ext_libpq_buildtype release)
+                endif()
+                if(NOT OpenSSL_FOUND OR NOT OPENSSL_INCLUDE_DIR)
+                    message(FATAL_ERROR
+                        "[ext_libpq] BUILD_WITH_LIBPQ=ON on Windows requires OpenSSL with MSVC libraries. "
+                        "Install/provide OpenSSL before configuring libpq.")
+                endif()
+                get_filename_component(_ext_libpq_openssl_root "${OPENSSL_INCLUDE_DIR}" DIRECTORY)
+                set(_ext_libpq_configure_env
+                    "OPENSSL_ROOT_DIR=${_ext_libpq_openssl_root}"
+                    "CMAKE_PREFIX_PATH=${_ext_libpq_openssl_root}"
+                    "PKG_CONFIG_LIBDIR=${_ext_libpq_openssl_root}/lib/pkgconfig"
+                    "LDFLAGS=crypt32.lib ws2_32.lib advapi32.lib user32.lib"
+                )
+                ExternalProject_Add(ext_libpq
+                    URL ${_url}
+                    URL_HASH SHA256=bd3798c399bc1b6d08b94340f9dd7a75a30a7fa076788ef2f4848be2be6a5fc5
+                    PREFIX         "${_base}"
+                    PATCH_COMMAND
+                        COMMAND "${CMAKE_COMMAND}"
+                            -DPOSTGRESQL_SOURCE_DIR=<SOURCE_DIR>
+                            -P "${TD_SUPPORT_DIR}/patch_postgresql_meson_release.cmake"
+                    CONFIGURE_COMMAND
+                        COMMAND "${CMAKE_COMMAND}" -E env ${_ext_libpq_configure_env}
+                            ${_ext_libpq_meson} setup <BINARY_DIR> <SOURCE_DIR>
+                            --prefix=${_ins}
+                            --buildtype=${_ext_libpq_buildtype}
+                            -Dssl=openssl
+                            -Dldap=disabled
+                            -Dgssapi=disabled
+                            -Dnls=disabled
+                            -Dreadline=disabled
+                            -Dicu=disabled
+                            -Dzlib=disabled
+                            -Dlibxml=disabled
+                    BUILD_COMMAND
+                        COMMAND ${_ext_libpq_meson} compile -C <BINARY_DIR> libpq:shared_library
+                    INSTALL_COMMAND
+                        COMMAND "${CMAKE_COMMAND}" -E make_directory "${_ins}/bin" "${_ins}/lib" "${_ins}/include"
+                        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                            <BINARY_DIR>/src/interfaces/libpq/libpq.dll
+                            "${_ins}/bin/libpq.dll"
+                        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                            <BINARY_DIR>/src/interfaces/libpq/libpq.lib
+                            "${_ins}/lib/libpq.lib"
+                        COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                            <SOURCE_DIR>/src/include
+                            "${_ins}/include"
+                        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                            <BINARY_DIR>/src/include/pg_config.h
+                            <BINARY_DIR>/src/include/pg_config_ext.h
+                            <BINARY_DIR>/src/include/pg_config_os.h
+                            "${_ins}/include"
+                        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                            <SOURCE_DIR>/src/interfaces/libpq/libpq-fe.h
+                            <SOURCE_DIR>/src/interfaces/libpq/libpq-events.h
+                            "${_ins}/include"
+                    EXCLUDE_FROM_ALL TRUE
+                    VERBATIM
+                )
+            else()
+                find_program(_EXT_LIBPQ_MAKE_EXECUTABLE NAMES gmake make)
+                if(NOT _EXT_LIBPQ_MAKE_EXECUTABLE)
+                    message(FATAL_ERROR
+                        "[ext_libpq] BUILD_WITH_LIBPQ=ON requires GNU Make for the PostgreSQL autoconf build.")
+                endif()
+                set(_ext_libpq_configure_env
+                    "CPPFLAGS=-I${ext_ssl_inc_dir}"
+                    "LDFLAGS=-L${ext_ssl_install}/lib"
+                    "PKG_CONFIG_PATH=${ext_ssl_install}/lib/pkgconfig"
+                )
+                if(TD_DARWIN)
+                    # macOS SDK availability can exceed the configured deployment target.
+                    # Use PostgreSQL's local fallback to keep libpq compatible with it.
+                    list(APPEND _ext_libpq_configure_env "ac_cv_func_strchrnul=no")
+                    message(STATUS "[ext_libpq] macOS: using the local strchrnul fallback for deployment-target compatibility")
+                    set(_ext_libpq_patch_refs_command
+                        COMMAND perl -0pi -e "s/grep -v __cxa_atexit \\| grep exit/grep -v __cxa_atexit | grep -v _atexit | grep exit/"
+                            src/interfaces/libpq/Makefile
+                        # Recent macOS SDKs declare strchrnul even for older deployment
+                        # targets, so give PostgreSQL's local fallback a distinct name.
+                        COMMAND perl -0pi -e "s/static inline const char \\*\\nstrchrnul\\(/static inline const char *\\npg_strchrnul(/"
+                            src/port/snprintf.c
+                        COMMAND perl -0pi -e "s/const char \\*next_pct = strchrnul\\(/const char *next_pct = pg_strchrnul(/"
+                            src/port/snprintf.c)
+                else()
+                    set(_ext_libpq_patch_refs_command "")
+                endif()
+                ExternalProject_Add(ext_libpq
+                    URL ${_url}
+                    URL_HASH SHA256=bd3798c399bc1b6d08b94340f9dd7a75a30a7fa076788ef2f4848be2be6a5fc5
+                    PREFIX         "${_base}"
+                    DEPENDS        ext_ssl
+                    BUILD_IN_SOURCE TRUE
+                    CONFIGURE_COMMAND
+                        COMMAND ${CMAKE_COMMAND} -E env ${_ext_libpq_configure_env} ./configure
+                            --prefix=${_ins}
+                            --without-readline
+                            --without-icu
+                            --without-llvm
+                            --without-gssapi
+                            --disable-nls
+                            --enable-shared
+                            --with-openssl
+                    BUILD_COMMAND
+                        ${_ext_libpq_patch_refs_command}
+                        # BUILD_IN_SOURCE reuses the cached PostgreSQL source tree across
+                        # CI runs. Clean libpq objects so old non-SSL fe-secure.o is not
+                        # linked together with fe-secure-openssl.o after enabling OpenSSL.
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/interfaces/libpq clean
+                        COMMAND perl src/backend/utils/generate-errcodes.pl
+                            --outfile src/include/utils/errcodes.h
+                            src/backend/utils/errcodes.txt
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/backend/catalog
+                            distprep generated-header-symlinks
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/backend/nodes
+                            distprep generated-header-symlinks
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/backend/utils
+                            distprep generated-header-symlinks
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/backend
+                            generated-headers
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/interfaces/libpq
+                    INSTALL_COMMAND
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/interfaces/libpq install
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/include install
+                            prefix=${_ins}
+                    EXCLUDE_FROM_ALL TRUE
+                    VERBATIM
+                )
+            endif()
+            # macOS: libpq's autoconf build embeds the absolute install prefix as
+            # install_name, which breaks when the binary is run from a different
+            # location. Fix to @rpath/ so dyld resolves via RPATH.
+            if(TD_DARWIN)
+                ExternalProject_Add_Step(ext_libpq fix_darwin_install_name
+                    COMMAND install_name_tool -id "@rpath/libpq.5.dylib"
+                        "${_ins}/lib/libpq.5.dylib"
+                    DEPENDEES install
+                    COMMENT "Fixing libpq install_name for macOS RPATH resolution"
+                )
+            endif()
+            add_dependencies(build_externals ext_libpq)
+        endif()  # NOT PostgreSQL_FOUND
+    endif()  # BUILD_WITH_LIBPQ
+
+endif()   # } TD_ENTERPRISE ext connector client libraries
+
+
+# Shared Arrow source definition used by both the federated-query shared build
+# and taosdump's static parquet support.
+set(TD_ARROW_VERSION "19.0.1")
+set(TD_ARROW_GIT_TAG "apache-arrow-${TD_ARROW_VERSION}")
+set(TD_ARROW_ARCHIVE_URL "https://github.com/apache/arrow/archive/refs/tags/${TD_ARROW_GIT_TAG}.tar.gz")
+set(TD_ARROW_ARCHIVE_NAME "arrow-${TD_ARROW_GIT_TAG}.tar.gz")
+
+function(td_prepare_arrow_external arrow_build_profile)
+    # Platform-specific cmake args for the Arrow sub-build
+    set(ARROW_EXTRA_CMAKE_ARGS "")
+    if(NOT ${TD_WINDOWS})
+        set(_arrow_c_flags "-ffunction-sections -fdata-sections")
+        if(${TD_DARWIN})
+            set(_arrow_cxx_flags "-ffunction-sections -fdata-sections -include array")
+        else()
+            set(_arrow_cxx_flags "-ffunction-sections -fdata-sections")
+        endif()
+        list(APPEND ARROW_EXTRA_CMAKE_ARGS
+            "-DCMAKE_C_FLAGS:STRING=${_arrow_c_flags}"
+            "-DCMAKE_CXX_FLAGS:STRING=${_arrow_cxx_flags}"
+        )
+        # -O1 avoids GCC 14 debug-build failures in Arrow's vendored xxhash
+        # SSE2 helpers while keeping the output debuggable.
+        list(APPEND ARROW_EXTRA_CMAKE_ARGS
+            "-DCMAKE_C_FLAGS_DEBUG:STRING=-O1 -g"
+            "-DCMAKE_CXX_FLAGS_DEBUG:STRING=-O1 -g"
+        )
+        # Arrow's CHECKIN warning level appends -Werror in debug builds.
+        list(APPEND ARROW_EXTRA_CMAKE_ARGS
+            "-DBUILD_WARNING_LEVEL:STRING=PRODUCTION"
+        )
+        if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+            list(APPEND ARROW_EXTRA_CMAKE_ARGS
+                "-DCMAKE_C_FLAGS_RELEASE:STRING=-Os -DNDEBUG"
+                "-DCMAKE_CXX_FLAGS_RELEASE:STRING=-Os -DNDEBUG"
+                "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=-Os -g -DNDEBUG"
+                "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-Os -g -DNDEBUG"
+            )
+        endif()
+    else()
+        list(APPEND ARROW_EXTRA_CMAKE_ARGS
+            -DARROW_USE_STATIC_CRT:BOOL=OFF
+            -DARROW_USE_CCACHE:BOOL=OFF
+            -DARROW_USE_SCCACHE:BOOL=OFF
+            "-DCMAKE_C_COMPILER:FILEPATH=${CMAKE_C_COMPILER}"
+            "-DCMAKE_CXX_COMPILER:FILEPATH=${CMAKE_CXX_COMPILER}"
+            "-DCMAKE_LINKER:FILEPATH=${CMAKE_LINKER}"
+            "-DCMAKE_MAKE_PROGRAM:FILEPATH=${CMAKE_MAKE_PROGRAM}"
+            "-DCMAKE_AR:FILEPATH=${CMAKE_AR}"
+        )
+        if("${arrow_build_profile}" STREQUAL "shared")
+            # Federated query keeps its historical shared-build MSVC flags.
+            list(APPEND ARROW_EXTRA_CMAKE_ARGS
+                "-DCMAKE_CXX_FLAGS:STRING=/D_HAS_AUTO_PTR_ETC=1"
+                "-DCMAKE_CXX_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
+                "-DCMAKE_CXX_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
+                "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
+                "-DCMAKE_C_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /Gy /Gw"
+                "-DCMAKE_C_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /Gy /Gw"
+                "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /Gy /Gw"
+            )
+        else()
+            # taosdump's static build needs the newer MSVC C++17 and warning
+            # workarounds used by Arrow 19.0.1 and its bundled dependencies.
+            list(APPEND ARROW_EXTRA_CMAKE_ARGS
+                "-DCMAKE_CXX_STANDARD:STRING=17"
+                "-DCMAKE_CXX_STANDARD_REQUIRED:BOOL=ON"
+                "-DCMAKE_CXX_EXTENSIONS:BOOL=OFF"
+                "-DCMAKE_CXX_FLAGS:STRING=/Zc:__cplusplus"
+                "-DCMAKE_CXX_FLAGS_DEBUG:STRING=/Zc:__cplusplus /FIarray /Gy /Gw /wd4146 /wd4996 /wd4244 /wd4456 /wd4459 /wd4828 /D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING /Zi /Ob0 /Od /RTC1"
+                "-DCMAKE_CXX_FLAGS_RELEASE:STRING=/Zc:__cplusplus /FIarray /O1 /Gy /Gw /wd4146 /wd4996 /wd4244 /wd4456 /wd4459 /wd4828 /D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING /Ob2 /DNDEBUG"
+                "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=/Zc:__cplusplus /FIarray /O1 /Gy /Gw /wd4146 /wd4996 /wd4244 /wd4456 /wd4459 /wd4828 /D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING /Zi /Ob1 /DNDEBUG"
+                "-DCMAKE_C_FLAGS_DEBUG:STRING=/Zi /Od /RTC1"
+                "-DCMAKE_C_FLAGS_RELEASE:STRING=/O1 /DNDEBUG"
+                "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /DNDEBUG"
+            )
+        endif()
+    endif()
+
+    set(_arrow_ts_args "")
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+        list(APPEND _arrow_ts_args DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+    endif()
+
+    # Arrow's bundled third-party downloads happen in its own CMake sub-build,
+    # so patch ThirdpartyToolchain.cmake directly when using an internal mirror.
+    set(_arrow_patch_commands "")
+    if(NOT "${LOCAL_URL}" STREQUAL "")
+        list(APPEND _arrow_patch_commands
+            COMMAND "${CMAKE_COMMAND}"
+                "-DARROW_THIRDPARTY_TOOLCHAIN:FILEPATH=<SOURCE_DIR>/cpp/cmake_modules/ThirdpartyToolchain.cmake"
+                "-DLOCAL_URL:STRING=${LOCAL_URL}"
+                -P "${TD_SOURCE_DIR}/cmake/patch_arrow_thirdparty_mirror.cmake"
+        )
+    endif()
+
+    set(_arrow_configure_env "")
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
+        set(_arrow_configure_env "${CMAKE_COMMAND}" -E env CMAKE_POLICY_VERSION_MINIMUM=3.5)
+        list(APPEND _arrow_patch_commands
+            COMMAND "${CMAKE_COMMAND}"
+                -DARROW_SOURCE_DIR=<SOURCE_DIR>
+                -P "${CMAKE_CURRENT_LIST_DIR}/arrow-cmake4-mimalloc-fix.cmake"
+        )
+    endif()
+    list(APPEND _arrow_patch_commands
+        COMMAND "${CMAKE_COMMAND}"
+            -DARROW_SOURCE_DIR=<SOURCE_DIR>
+            -P "${CMAKE_CURRENT_LIST_DIR}/arrow-absl-gcc13-stdint-fix.cmake"
+    )
+
+    if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+        list(APPEND _arrow_patch_commands
+            COMMAND "${CMAKE_COMMAND}"
+                -DARROW_SOURCE_DIR=<SOURCE_DIR>
+                -P "${CMAKE_CURRENT_LIST_DIR}/arrow-macos-libtool-fix.cmake"
+        )
+    endif()
+
+    if(_arrow_patch_commands)
+        # The Arrow sub-build may already have generated vendored dependency
+        # download scripts (snappy_ep, thrift_ep, ...).  After patching
+        # ThirdpartyToolchain.cmake, force Arrow's configure step to regenerate
+        # those scripts so cached build dirs do not keep using public URLs.
+        list(APPEND _arrow_patch_commands
+            COMMAND "${CMAKE_COMMAND}" -E remove -f <BINARY_DIR>/CMakeCache.txt
+            COMMAND "${CMAKE_COMMAND}" -E remove_directory <BINARY_DIR>/CMakeFiles
+        )
+    endif()
+
+    set(_arrow_generator_args "")
+    list(APPEND _arrow_generator_args -G "${CMAKE_GENERATOR}")
+    if(CMAKE_GENERATOR_PLATFORM)
+        list(APPEND _arrow_generator_args -A "${CMAKE_GENERATOR_PLATFORM}")
+    endif()
+    if(CMAKE_GENERATOR_TOOLSET)
+        list(APPEND _arrow_generator_args -T "${CMAKE_GENERATOR_TOOLSET}")
+    endif()
+
+    if(_arrow_patch_commands)
+        set(_arrow_patch_arg PATCH_COMMAND ${_arrow_patch_commands})
+    else()
+        set(_arrow_patch_arg "")
+    endif()
+
+    set(ARROW_EXTRA_CMAKE_ARGS "${ARROW_EXTRA_CMAKE_ARGS}" PARENT_SCOPE)
+    set(_arrow_ts_args "${_arrow_ts_args}" PARENT_SCOPE)
+    set(_arrow_configure_env "${_arrow_configure_env}" PARENT_SCOPE)
+    set(_arrow_generator_args "${_arrow_generator_args}" PARENT_SCOPE)
+    set(_arrow_patch_arg "${_arrow_patch_arg}" PARENT_SCOPE)
+endfunction()
+
+# Apache Arrow Flight SQL — used by the InfluxDB federated query path.
+# Guard: only included when BUILD_WITH_ARROW=ON (enterprise builds on Linux/macOS).
+if(${BUILD_WITH_ARROW})
+    # Prefer system-installed Arrow (e.g. via apt libarrow-dev + libarrow-flight-sql-dev)
+    # over building from source.  This avoids the long ExternalProject build when the
+    # system already provides a compatible Arrow >= 16.
+    find_package(Arrow       QUIET CONFIG)
+    find_package(ArrowFlight QUIET CONFIG)
+    find_package(ArrowFlightSql QUIET CONFIG)
+    find_package(Parquet      QUIET CONFIG)
+
+    if(Arrow_FOUND AND ArrowFlight_FOUND AND ArrowFlightSql_FOUND AND Parquet_FOUND)
+        message(STATUS "[ext_arrow] Using system Arrow ${Arrow_VERSION} — skipping ExternalProject build")
+        # Record the system Arrow lib directory for extconnector staging
+        get_target_property(_arrow_so_loc Arrow::arrow_shared LOCATION)
+        get_filename_component(_arrow_so_dir "${_arrow_so_loc}" DIRECTORY)
+        set(EXT_ARROW_SYSTEM_LIBDIR "${_arrow_so_dir}" CACHE INTERNAL "" FORCE)
+        # Arrow SO version: 24.0.0 → SOVERSION 2400
+        string(REGEX MATCH "^([0-9]+)" _arrow_major "${Arrow_VERSION}")
+        math(EXPR _arrow_sover "${_arrow_major} * 100")
+        set(EXT_ARROW_SO_SUFFIX "so.${_arrow_sover}" CACHE INTERNAL "" FORCE)
+        # Create DEP_ext_arrow / DEP_ext_arrow_INC / DEP_ext_arrow_LIB macros that
+        # mirror the interface produced by INIT_EXT, so extconnector/CMakeLists.txt
+        # can call DEP_ext_arrow(extconnector) without knowing the source.
+        macro(DEP_ext_arrow tgt)
+            cmake_language(CALL DEP_ext_arrow_INC ${tgt})
+            cmake_language(CALL DEP_ext_arrow_LIB ${tgt})
+            if(NOT TD_WINDOWS)
+                target_link_libraries(${tgt} PUBLIC stdc++)
+            endif()
+        endmacro()
+        macro(DEP_ext_arrow_INC tgt)
+            target_include_directories(${tgt} PRIVATE ${ARROW_INCLUDE_DIR})
+            add_definitions(-D_ext_arrow)
+        endmacro()
+        macro(DEP_ext_arrow_LIB tgt)
+            target_link_libraries(${tgt} PRIVATE
+                Arrow::arrow_shared
+                ArrowFlight::arrow_flight_shared
+                ArrowFlightSql::arrow_flight_sql_shared
+                Parquet::parquet_shared)
+            add_definitions(-D_ext_arrow)
+        endmacro()
+    else()
+        # System Arrow not found — fall back to building from source via ExternalProject.
+        if(TD_LINUX)
+            set(_ext_arrow_libs
+                lib/libparquet.so
+                lib/libarrow_flight_sql.so
+                lib/libarrow_flight.so
+                lib/libarrow.so)
+        elseif(TD_DARWIN)
+            set(_ext_arrow_libs
+                lib/libparquet.dylib
+                lib/libarrow_flight_sql.dylib
+                lib/libarrow_flight.dylib
+                lib/libarrow.dylib)
+        elseif(TD_WINDOWS)
+            set(_ext_arrow_libs lib/parquet.lib lib/arrow.lib)
+        endif()
+        INIT_EXT(ext_arrow
+            INC_DIR  include
+            LIB      ${_ext_arrow_libs}
+        )
+    endif()  # Arrow_FOUND
+    if(NOT Arrow_FOUND OR NOT ArrowFlight_FOUND OR NOT ArrowFlightSql_FOUND OR NOT Parquet_FOUND)
+    # Build from source — only reached when system Arrow was NOT found above.
+    get_from_local_if_exists(
+        "${TD_ARROW_ARCHIVE_URL}"
+        "${TD_ARROW_ARCHIVE_NAME}"
+    )
+    td_prepare_arrow_external(shared)
+    if(TD_WINDOWS)
+        set(_arrow_flight_flag
+            -DARROW_FLIGHT:BOOL=OFF
+            -DARROW_FLIGHT_SQL:BOOL=OFF)
+    else()
+        set(_arrow_flight_flag
+            -DARROW_FLIGHT:BOOL=ON
+            -DARROW_FLIGHT_SQL:BOOL=ON)
+    endif()
+    set(_arrow_shared_cmake_args
+        -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        -DCMAKE_INSTALL_LIBDIR:PATH=lib
+        -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
+        -DCMAKE_CXX_STANDARD:STRING=17
+        -DARROW_BUILD_STATIC:BOOL=OFF
+        -DARROW_BUILD_SHARED:BOOL=ON
+        ${_arrow_flight_flag}
+        -DARROW_IPC:BOOL=ON
+        -DARROW_PARQUET:BOOL=ON
+        -DARROW_WITH_SNAPPY:BOOL=ON
+        -DARROW_COMPUTE:BOOL=OFF
+        -DARROW_DATASET:BOOL=OFF
+        -DARROW_FILESYSTEM:BOOL=OFF
+        -DARROW_S3:BOOL=OFF
+        -DARROW_WITH_ZLIB:BOOL=OFF
+        -DARROW_WITH_ZSTD:BOOL=OFF
+        -DARROW_WITH_LZ4:BOOL=OFF
+        -DARROW_WITH_BZ2:BOOL=OFF
+        -DARROW_WITH_RE2:BOOL=OFF
+        -DARROW_WITH_UTF8PROC:BOOL=OFF
+        -DARROW_BUILD_TESTS:BOOL=OFF
+        -DARROW_BUILD_BENCHMARKS:BOOL=OFF
+        -DARROW_DEPENDENCY_SOURCE:STRING=BUNDLED
+        -DARROW_VERBOSE_THIRDPARTY_BUILD:BOOL=OFF
+        -DARROW_JEMALLOC:BOOL=OFF
+        -DARROW_MIMALLOC:BOOL=OFF
+        -DARROW_BUILD_UTILITIES:BOOL=OFF
+        -DARROW_USE_GLOG:BOOL=OFF
+        -DARROW_SIMD_LEVEL:STRING=NONE
+        -DARROW_RUNTIME_SIMD_LEVEL:STRING=NONE
+        ${ARROW_EXTRA_CMAKE_ARGS}
+    )
+    ExternalProject_Add(ext_arrow
+        URL            ${_url}
+        URL_HASH       SHA256=4c898504958841cc86b6f8710ecb2919f96b5e10fa8989ac10ac4fca8362d86a
+        ${_arrow_ts_args}
+        PREFIX         "${_base}"
+        STAMP_DIR      "${_base}/src/ext_arrow-url-stamp"
+        SOURCE_SUBDIR  cpp
+        CMAKE_ARGS     ${_arrow_shared_cmake_args}
+        CONFIGURE_COMMAND ${_arrow_configure_env} "${CMAKE_COMMAND}" ${_arrow_generator_args} <SOURCE_DIR>/cpp ${_arrow_shared_cmake_args}
+        ${_arrow_patch_arg}
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+                    --parallel "${TD_EXTERNALS_BUILD_JOBS}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_arrow)
+    endif()  # NOT Arrow_FOUND
+
+endif()  # BUILD_WITH_ARROW
+
+if(TD_TAOS_TOOLS)
+# arrow + parquet (Apache Arrow C++ with bundled third-party dependencies)
+# Linux/macOS produces: libparquet.a  libarrow.a  libarrow_bundled_dependencies.a
+# Windows/MSVC produces: parquet_static.lib  arrow_static.lib  arrow_bundled_dependencies.lib
+if(${TD_WINDOWS})
+    INIT_EXT(ext_arrow_static
+        INC_DIR  include
+        LIB      lib/parquet_static.lib lib/arrow_static.lib lib/arrow_bundled_dependencies.lib
+    )
+else()
+    INIT_EXT(ext_arrow_static
+        INC_DIR  include
+        LIB      lib/libparquet.a lib/libarrow.a lib/libarrow_bundled_dependencies.a
+    )
+endif()
+# Source: https://github.com/apache/arrow tag ${TD_ARROW_GIT_TAG}
+get_from_local_if_exists(
+    "${TD_ARROW_ARCHIVE_URL}"
+    "${TD_ARROW_ARCHIVE_NAME}"
+)
+td_prepare_arrow_external(static)
+# Collect all Arrow cmake arguments into one list so we can wrap the configure
+# command with an environment prefix when necessary.
+set(_arrow_cmake_args
+    -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+    -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    -DCMAKE_INSTALL_LIBDIR:PATH=lib
+    -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
+    -DCMAKE_CXX_STANDARD:STRING=17
+    -DARROW_BUILD_STATIC:BOOL=ON
+    -DARROW_BUILD_SHARED:BOOL=OFF
+    -DARROW_PARQUET:BOOL=ON
+    -DARROW_IPC:BOOL=ON
+    -DARROW_COMPUTE:BOOL=OFF
+    -DARROW_DATASET:BOOL=OFF
+    -DARROW_FLIGHT:BOOL=OFF
+    -DARROW_FILESYSTEM:BOOL=OFF
+    -DARROW_S3:BOOL=OFF
+    -DARROW_WITH_SNAPPY:BOOL=ON
+    -DARROW_WITH_ZLIB:BOOL=OFF
+    -DARROW_WITH_ZSTD:BOOL=OFF
+    -DARROW_WITH_LZ4:BOOL=OFF
+    -DARROW_WITH_BZ2:BOOL=OFF
+    -DARROW_BUILD_TESTS:BOOL=OFF
+    -DARROW_BUILD_BENCHMARKS:BOOL=OFF
+    -DARROW_DEPENDENCY_SOURCE:STRING=BUNDLED
+    -DARROW_VERBOSE_THIRDPARTY_BUILD:BOOL=OFF
+    -DARROW_JEMALLOC:BOOL=OFF
+    -DARROW_MIMALLOC:BOOL=OFF
+    -DARROW_BUILD_UTILITIES:BOOL=OFF
+    -DARROW_USE_GLOG:BOOL=OFF
+    -DPARQUET_REQUIRE_ENCRYPTION:BOOL=OFF
+    -DARROW_SIMD_LEVEL:STRING=NONE
+    -DARROW_RUNTIME_SIMD_LEVEL:STRING=NONE
+    -DBUILD_WARNING_LEVEL:STRING=PRODUCTION
+    ${ARROW_EXTRA_CMAKE_ARGS}
+)
+
+set(ext_arrow_static_install_byproducts_available FALSE)
+set(_arrow_install_byproducts "")
+if(NOT TD_EXTERNALS_USE_ONLY AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.26")
+    set(ext_arrow_static_install_byproducts_available TRUE)
+    set(_arrow_install_byproducts INSTALL_BYPRODUCTS ${ext_arrow_static_libs})
+endif()
+
+ExternalProject_Add(ext_arrow_static
+    URL ${_url}
+    URL_HASH SHA256=4c898504958841cc86b6f8710ecb2919f96b5e10fa8989ac10ac4fca8362d86a
+    ${_arrow_ts_args}
+    PREFIX         "${_base}"
+    SOURCE_SUBDIR  cpp
+    CMAKE_ARGS     ${_arrow_cmake_args}
+    CONFIGURE_COMMAND ${_arrow_configure_env} "${CMAKE_COMMAND}" ${_arrow_generator_args} <SOURCE_DIR>/cpp ${_arrow_cmake_args}
+    ${_arrow_patch_arg}
+    BUILD_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+                --parallel "${TD_EXTERNALS_BUILD_JOBS}"
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+    ${_arrow_install_byproducts}
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_arrow_static)     # this is for github workflow in cache-miss step.
 endif()
 
 if(BUILD_PYUDF)

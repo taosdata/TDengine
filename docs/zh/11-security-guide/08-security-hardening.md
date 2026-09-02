@@ -1,0 +1,286 @@
+---
+sidebar_label: 安全部署配置
+title: 安全部署与加固建议
+description: TDengine 各组件暴露面与生产环境安全加固建议
+toc_max_heading_level: 4
+---
+
+组件级加固建议；分层能力说明见 [安全指南首页](./index.md)。
+
+## 背景
+
+TDengine 的分布式、多组件特性导致 TDengine 的安全配置是生产系统中比较关注的问题。本文档旨在对 TDengine 各组件及在不同部署方式下的安全问题进行说明，并提供部署和配置建议，为你的数据安全提供支持。传输证书步骤见 [传输安全](./02-full-trace-transport.md)，客户端实践见 [客户端与连接器安全](./05-client-connector-security.md)，账号与授权实践建议见 [全链路认证 · 实践建议](./01-full-trace-auth.md#实践建议)，审计配置见 [审计与合规](./07-audit-and-compliance.md)。
+
+## 安全配置涉及组件
+
+TDengine 包含多个组件，有：
+
+- `taosd`：内核组件。
+- `taosc`：客户端库。
+- `taosAdapter`：REST API 和 WebSocket 服务。
+- `taosKeeper`：监控服务组件。
+- `taosX`：数据管道和备份恢复组件。
+- `taosX-Agent`：外部数据源数据接入辅助组件。
+- `taosExplorer`：Web 可视化管理界面。
+
+与 TDengine 部署和应用相关，还会存在以下组件：
+
+- 通过各种连接器接入并使用 TDengine 数据库的应用。
+- 外部数据源：指接入 TDengine 的其他数据源，如 MQTT、OPC、Kafka 等。
+
+各组件关系如下：
+
+![TDengine 产品生态拓扑架构](../assets/security-suggestions-01.png)
+
+关于各组件的详细介绍，请参考 [概览与架构](../12-operations-and-tooling/01-overview.md)。
+
+## TDengine 安全设置
+
+### `taosd`
+
+`taosd` 集群间使用 TCP 连接基于自有协议进行数据交换。默认情况下传输可能为明文，生产环境建议启用 TLS（`enableTLS` 及证书相关参数，详见 [传输安全](./02-full-trace-transport.md)）。
+
+启用压缩可降低带宽占用（不能替代传输加密）：
+
+- **compressMsgSize**：是否对 RPC 消息进行压缩，整数，可选：`-1`：所有消息都不压缩；`0`：所有消息都压缩；`N`（`N>0`）：只有大于 `N` 个字节的消息才压缩。
+
+为了保证数据库操作可追溯，建议启用审计功能（企业版，完整参数与审计库约束见 [审计与合规](./07-audit-and-compliance.md) 与 [taosd](../12-operations-and-tooling/03-components/01-taosd.md)）。
+
+- **audit**：审计功能开关，`0` 为关，`1` 为开。企业版默认打开。
+- **auditInterval**：上报间隔，单位为毫秒。默认 `5000`。
+- **auditLevel**：审计级别（`1`–`5`，默认 `3`）。
+- **auditCreateTable**：是否针对创建子表开启审计功能。`0` 为关，`1` 为开。默认打开。
+- **auditSaveInSelf**：是否将审计记录到本集群、不经 `taosKeeper`（`v3.4.1.0+`）。
+
+为保证数据文件安全，可启用透明数据加密（详见 [静态数据保护](./06-data-security.md)）。`v3.4+` 推荐先用 `taosk` 生成分级密钥，再按库指定 `ENCRYPT_ALGORITHM`。
+
+- **encryptAlgorithm** / **encryptScope**：企业版配置项，声明算法与加密范围；与 `taosk` 主路径的关系见静态数据保护文中说明。
+
+启用白名单可限制访问地址，进一步增强私密性。
+
+- **enableWhiteList**：白名单功能开关，`0` 为关，`1` 为开；默认关闭。用户侧 `HOST` / `NOT_ALLOW_HOST` 配置见 [用户管理 · IP 白名单与黑名单](../05-tdengine-sql/07-user-and-privilege/01-user.md#ip-白名单与黑名单)。
+
+### `taosc`
+
+用户和其他组件与 `taosd` 之间使用原生客户端库（`taosc`）和自有协议进行连接。客户端须与服务端一致地配置 TLS / CA（见 [传输安全](./02-full-trace-transport.md) 与 [客户端与连接器安全](./05-client-connector-security.md)）。
+
+### `taosAdapter`
+
+`taosAdapter` 与 `taosd` 之间使用原生客户端库（`taosc`）和自有协议进行连接，同样支持 RPC 消息压缩。
+
+应用和其他组件通过各语言连接器与 `taosAdapter` 进行连接。默认情况下，连接是基于 HTTP 1.1 且不加密的。要保证 `taosAdapter` 与其他组件之间的数据传输安全，需要配置 SSL 加密连接。在 `/etc/taos/taosadapter.toml` 配置文件中修改如下配置：
+
+```toml
+[ssl]
+enable = true
+certFile = "/path/to/certificate-file"
+keyFile = "/path/to/private-key"
+```
+
+在连接器中配置 HTTPS/SSL 访问方式，完成加密访问。
+
+:::info
+`[ssl]` 为企业版能力。步骤详见 [传输安全 · 服务端 HTTPS/WSS](./02-full-trace-transport.md#211-server-httpswss)。
+:::
+
+生产环境建议将 `debug` 设为 `false`（默认为 `true` 时会暴露 `/debug/pprof`）。为进一步增强安全性，可启用白名单功能，在 `taosd` 中配置，对 `taosAdapter` 组件同样生效（经 Adapter 访问时，账户白名单看到的往往是 Adapter 主机 IP；按客户端 IP 管控须在网关侧处理，见 [全链路认证](./01-full-trace-auth.md)）。
+
+### `taosX`
+
+`taosX` 对外包括 REST API 接口和 gRPC 接口，其中 gRPC 接口用于 `taosX-Agent` 连接。
+
+- REST API 接口是基于 HTTP 1.1 且不加密的，有安全风险。
+- gRPC 接口基于 HTTP 2 且不加密，有安全风险。
+
+为了保证数据安全，建议 `taosX` API 接口仅限内部访问。在 `/etc/taos/taosx.toml` 配置文件中修改如下配置：
+
+```toml
+[serve]
+listen = "127.0.0.1:6050"
+grpc = "127.0.0.1:6055"
+```
+
+从 TDengine `v3.3.6.0` 开始，`taosX` 支持 HTTPS 连接，在 `/etc/taos/taosx.toml` 文件中添加如下配置：
+
+```toml
+[serve]
+ssl_cert = "/path/to/server.pem"
+ssl_key = "/path/to/server.key"
+ssl_ca = "/path/to/ca.pem"
+```
+
+如需单独指定 gRPC 证书，可配置 `grpc_ssl_cert` / `grpc_ssl_key` / `grpc_ssl_ca`（详见 [传输安全](./02-full-trace-transport.md)）。
+
+并在 taosExplorer 中修改 API 地址为 HTTPS 连接：
+
+```toml
+# taosX API 本地连接
+x_api = "https://127.0.0.1:6050"
+# 公网 IP 或者域名地址
+grpc = "https://public.domain.name:6055"
+```
+
+### `taosExplorer`
+
+与 `taosAdapter` 组件相似，`taosExplorer` 组件提供 HTTP 服务对外访问。在 `/etc/taos/explorer.toml` 配置文件中修改如下配置：
+
+```toml
+[ssl]
+# SSL certificate file
+certificate = "/path/to/ca.file"
+
+# SSL certificate private key
+certificate_key = "/path/to/key.file"
+```
+
+之后，使用 HTTPS 进行 taosExplorer 访问，如 `https://192.168.12.34:6060`。
+
+### `taosX-Agent`
+
+`taosX` 启用 HTTPS 后，Agent 组件与 `taosX` 之间使用 HTTP 2 加密连接，使用 Arrow-Flight RPC 进行数据交换，传输内容是二进制格式，且仅注册过的 Agent 连接有效，保障数据安全。
+
+建议在不安全网络或公共网络环境下的 Agent 服务，始终开启 HTTPS 连接。
+
+### `taosKeeper`
+
+`taosKeeper` 使用 WebSocket 连接与 `taosAdapter` 通信，将其他组件上报的监控信息写入 TDengine；经典部署下也可接收并转发审计日志（见 [审计与合规](./07-audit-and-compliance.md)）。
+
+`taosKeeper` 当前版本存在安全风险：
+
+- 默认监听地址较宽，`6043` 端口若对公网开放存在网络攻击风险。可通过配置 `host`（或启动参数 / 环境变量）绑定本机或内网地址，并用防火墙限制访问；使用 Docker 或 Kubernetes 部署且不暴露该端口时，此风险可忽略。注意：该端口对上报方**无身份认证**。
+- 配置文件中配置明文密码，需要降低配置文件可见性（如 `chmod 600`），并尽量使用专用低权限账号。在 `/etc/taos/taoskeeper.toml` 中存在：
+
+```toml
+[tdengine]
+host = "localhost"
+port = 6041
+username = "root"
+password = "taosdata"
+usessl = false
+```
+
+生产环境建议将 `usessl` 设为 `true`（配合 Adapter SSL），避免使用默认口令。
+
+## 安全增强
+
+我们建议在局域网内部使用 TDengine。
+
+如果必须在局域网外部提供访问，请考虑添加以下配置。认证侧更完整的网关说明亦可参考 [全链路认证 · API 网关](./01-full-trace-auth.md#73-api-网关认证增强)。
+
+### 负载均衡
+
+使用负载均衡对外提供 `taosAdapter` 服务。
+
+以 Nginx 为例，配置多节点负载均衡：
+
+```nginx
+http {
+    server {
+        listen 6041;
+
+        location / {
+            proxy_pass http://websocket;
+            # Headers for websocket compatible
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+            # Forwarded headers
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Port $server_port;
+            proxy_set_header X-Forwarded-Server $hostname;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+    }
+
+    upstream websocket {
+        server 192.168.11.61:6041;
+        server 192.168.11.62:6041;
+        server 192.168.11.63:6041;
+   }
+}
+```
+
+如果 `taosAdapter` 组件未配置 SSL 安全连接，还需要配置 SSL 才能保证安全访问。SSL 可以配置在更上层的 API Gateway，也可以配置在 Nginx 中；如果对各组件之间的安全性有更强的要求，你可以在所有组件中都配置 SSL。Nginx 配置如下：
+
+```nginx
+http {
+    server {
+        listen 443 ssl;
+
+        ssl_certificate /path/to/your/certificate.crt;
+        ssl_certificate_key /path/to/your/private.key;
+    }
+}
+```
+
+### 安全网关
+
+在现在互联网生产系统中，安全网关使用也很普遍。[Traefik](https://traefik.io/) 是一个很好的开源选择，我们以 Traefik 为例，解释在 API 网关中的安全配置。
+
+Traefik 中通过 middleware 中间件提供多种安全配置，包括：
+
+1. 认证（Authentication）：Traefik 提供 BasicAuth、DigestAuth、自定义认证中间件、OAuth 2.0 等多种认证方式。
+2. IP 白名单（IPWhitelist）：限制允许访问的客户端 IP。
+3. 频率限制（RateLimit）：控制发送到服务的请求数。
+4. 自定义 Headers：通过自定义 Headers 添加 `allowedHosts` 等配置，提高安全性。
+
+一个常见的中间件示例如下：
+
+```yaml
+labels:
+  - "traefik.enable=true"
+  - "traefik.http.routers.tdengine.rule=Host(`api.tdengine.example.com`)"
+  - "traefik.http.routers.tdengine.entrypoints=https"
+  - "traefik.http.routers.tdengine.tls.certresolver=default"
+  - "traefik.http.routers.tdengine.service=tdengine"
+  - "traefik.http.services.tdengine.loadbalancer.server.port=6041"
+  - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+  - "traefik.http.middlewares.check-header.headers.customrequestheaders.X-Secret-Header=SecretValue"
+  - "traefik.http.middlewares.check-header.headers.customresponseheaders.X-Header-Check=true"
+  - "traefik.http.middlewares.tdengine-ipwhitelist.ipwhitelist.sourcerange=127.0.0.1/32, 192.168.1.7"
+  - "traefik.http.routers.tdengine.middlewares=redirect-to-https,check-header,tdengine-ipwhitelist"
+```
+
+上面的示例完成以下配置：
+
+- TLS 认证使用 `default` 配置，这个配置可使用配置文件或 Traefik 启动参数中配置，如下：
+
+    ```yaml
+    traefik:
+    image: "traefik:v2.3.2"
+    hostname: "traefik"
+    networks:
+    - traefik
+    command:
+    - "--log.level=INFO"
+    - "--api.insecure=true"
+    - "--providers.docker=true"
+    - "--providers.docker.exposedbydefault=false"
+    - "--providers.docker.swarmmode=true"
+    - "--providers.docker.network=traefik"
+    - "--providers.docker.watch=true"
+    - "--entrypoints.http.address=:80"
+    - "--entrypoints.https.address=:443"
+    - "--certificatesresolvers.default.acme.dnschallenge=true"
+    - "--certificatesresolvers.default.acme.dnschallenge.provider=alidns"
+    - "--certificatesresolvers.default.acme.dnschallenge.resolvers=ns1.alidns.com"
+    - "--certificatesresolvers.default.acme.email=ops@example.com"
+    - "--certificatesresolvers.default.acme.storage=/letsencrypt/acme.json"
+    ```
+
+上面的启动参数配置了 `default` TLS 证书解析器和自动 ACME 认证（自动证书申请和续期）。请按实际环境替换邮箱与 DNS 提供方。
+
+- 中间件 `redirect-to-https`：配置从 HTTP 到 HTTPS 的转发，强制使用安全连接。
+
+    ```yaml
+    - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+    ```
+
+- 中间件 `check-header`：配置自定义 Headers 检查。外部访问必须添加自定义 Header 并匹配 Header 值，避免非法访问。这在提供 API 访问时是一个非常简单有效的安全机制。
+- 中间件 `tdengine-ipwhitelist`：配置 IP 白名单。仅允许指定 IP 访问，使用 CIDR 路由规则进行匹配，可以设置内网及外网 IP 地址。
+
+## 总结
+
+数据安全是 TDengine 产品的一项关键指标，这些措施旨在保护 TDengine 部署免受未经授权的访问和数据泄露，同时保持性能和功能。但 TDengine 自身的安全配置不是生产中的唯一保障，结合业务系统制定更加匹配需求的解决方案更加重要。已知漏洞与修复版本见 [安全公告](./09-security-advisories.md)。

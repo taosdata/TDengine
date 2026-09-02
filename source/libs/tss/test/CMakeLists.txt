@@ -10,7 +10,7 @@ if(TD_LINUX OR TD_WINDOWS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
     )
     target_link_libraries(tssTest
-        PRIVATE tss
+        PRIVATE tss common
     )
 
     enable_testing()

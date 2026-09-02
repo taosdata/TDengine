@@ -15,8 +15,7 @@ class TestStreamSubqueryBasic:
 
         Since: v3.3.3.7
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -24,7 +23,8 @@ class TestStreamSubqueryBasic:
 
         """
 
-        tdSql.error("show streams")
+        # already supported in v3.4.2.0
+        # tdSql.error("show streams")
         tdSql.error("show xx.streams")
         tdStream.dropAllStreamsAndDbs()
 

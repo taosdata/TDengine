@@ -86,6 +86,8 @@ struct SSortHandle {
   SSDataBlock*      pDataBlock;
   SMsortComparParam cmpParam;
   int32_t           numOfCompletedSources;
+  /* Cumulative time spent in fetchfp (raw-data pull from sources). */
+  int64_t           fetchTotalUs;
   bool              opened;
   int8_t            closed;
   const char*       idStr;
@@ -631,6 +633,7 @@ static int32_t sortComparInit(SMsortComparParam* pParam, SArray* pSources, int32
     }
 
     int64_t et = taosGetTimestampUs();
+    pHandle->fetchTotalUs += (et - st);
     qDebug("init for merge sort completed, elapsed time:%.2f ms, %s", (et - st) / 1000.0, pHandle->idStr);
   }
 
@@ -715,8 +718,10 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
     } else {
       int64_t st = taosGetTimestampUs();
       TAOS_CHECK_RETURN(pHandle->fetchfp(((SSortSource*)pSource)->param, &pSource->src.pBlock));
-      pSource->fetchUs += taosGetTimestampUs() - st;
+      int64_t elapsed = taosGetTimestampUs() - st;
+      pSource->fetchUs += elapsed;
       pSource->fetchNum++;
+      pHandle->fetchTotalUs += elapsed;
       if (pSource->src.pBlock == NULL) {
         (*numOfCompleted) += 1;
         pSource->src.rowIndex = -1;
@@ -879,9 +884,42 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
     SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, 0);
     SColumnInfoData* pLeftTsCol = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->slotId);
     SColumnInfoData* pRightTsCol = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
+
+    bool isVarType = IS_VAR_DATA_TYPE(pLeftTsCol->info.type);
+    if (isVarType) {
+      bool leftNull = (pLeftTsCol->pData == NULL) || colDataIsNull_var(pLeftTsCol, pLeftSource->src.rowIndex);
+      bool rightNull = (pRightTsCol->pData == NULL) || colDataIsNull_var(pRightTsCol, pRightSource->src.rowIndex);
+      if (leftNull && rightNull) return 0;
+      if (leftNull) return pOrder->nullFirst ? -1 : 1;
+      if (rightNull) return pOrder->nullFirst ? 1 : -1;
+      void* left1 = colDataGetVarData(pLeftTsCol, pLeftSource->src.rowIndex);
+      void* right1 = colDataGetVarData(pRightTsCol, pRightSource->src.rowIndex);
+      __compar_fn_t fn = pOrder->compFn;
+      if (!fn) {
+        fn = getKeyComparFunc(pLeftTsCol->info.type, pOrder->order);
+        pOrder->compFn = fn;
+      }
+      return fn(left1, right1);
+    }
+
+    if (pLeftTsCol->hasNull || pRightTsCol->hasNull || pLeftTsCol->pData == NULL || pRightTsCol->pData == NULL) {
+      bool leftNull = (pLeftTsCol->pData == NULL);
+      if (!leftNull && pLeftTsCol->hasNull) {
+        leftNull = colDataIsNull_t(pLeftTsCol, pLeftSource->src.rowIndex, false);
+      }
+
+      bool rightNull = (pRightTsCol->pData == NULL);
+      if (!rightNull && pRightTsCol->hasNull) {
+        rightNull = colDataIsNull_t(pRightTsCol, pRightSource->src.rowIndex, false);
+      }
+
+      if (leftNull && rightNull) return 0;
+      if (leftNull) return pOrder->nullFirst ? -1 : 1;
+      if (rightNull) return pOrder->nullFirst ? 1 : -1;
+    }
+
     int64_t*         leftTs = (int64_t*)(pLeftTsCol->pData) + pLeftSource->src.rowIndex;
     int64_t*         rightTs = (int64_t*)(pRightTsCol->pData) + pRightSource->src.rowIndex;
-
 
     __compar_fn_t fn = pOrder->compFn;
     if (!fn) {
@@ -2970,7 +3008,10 @@ void     tsortGetGroupId(STupleHandle* pVHandle, uint64_t* gid, uint64_t* baseGi
   *baseGid = pVHandle->pBlock->info.id.baseGId; 
 }
 int64_t tsortGetBlockId(STupleHandle* pVHandle) { return pVHandle->pBlock->info.id.blockId; }
-void     tsortGetBlockInfo(STupleHandle* pVHandle, SDataBlockInfo* pBlockInfo) { *pBlockInfo = pVHandle->pBlock->info; }
+void tsortGetBlockInfo(STupleHandle* pVHandle, SDataBlockInfo* pBlockInfo) {
+  *pBlockInfo = pVHandle->pBlock->info;
+  pBlockInfo->pBlockAgg = NULL;
+}
 
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {
   SSortExecInfo info = {0};
@@ -2991,6 +3032,10 @@ SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {
   }
 
   return info;
+}
+
+int64_t tsortGetFetchRawDataTime(SSortHandle* pHandle) {
+  return (pHandle == NULL) ? 0 : pHandle->fetchTotalUs;
 }
 
 int32_t tsortCompAndBuildKeys(const SArray* pSortCols, char* keyBuf, int32_t* keyLen, const STupleHandle* pTuple) {

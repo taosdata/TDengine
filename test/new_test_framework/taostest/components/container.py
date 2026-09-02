@@ -134,7 +134,7 @@ class Container:
             self.remote.cmd(config["fqdn"][0], [f'docker exec -d {container_name} sh -c \'echo "{ip}\t{host}" >> /etc/hosts && sort -u /etc/hosts -o /etc/hosts && sed -i "s/# firstEp                   hostname:6030/firstEp {firstEp}/g" /etc/taos/taos.cfg && sed -i "s/# fqdn                      hostname/fqdn {container_name}/g" /etc/taos/taos.cfg\''])
 
     def config_bashrc(self, config, container_name):
-        self.remote.cmd(config["fqdn"][0], [f'docker exec -d {container_name} sh -c \'echo "if [ \`ps -ef | grep taosd | grep -v grep | wc -l\` -eq 0 ];then nohup taosd -c /etc/taos >/dev/null 2>&1 & fi" >> ~/.bashrc\''])
+        self.remote.cmd(config["fqdn"][0], [f'docker exec -d {container_name} sh -c \'echo "if [ `ps -ef | grep taosd | grep -v grep | wc -l` -eq 0 ];then nohup taosd -c /etc/taos >/dev/null 2>&1 & fi" >> ~/.bashrc\''])
 
     def run_container_taosd(self, config, container_name):
         self.remote.cmd(config["fqdn"][0], [f'docker exec -d {container_name} sh -c \'taosd\''])

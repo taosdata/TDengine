@@ -64,6 +64,9 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->retryMaxInterval = pInit->retryMaxInterval;
   pRpc->retryMaxTimeout = pInit->retryMaxTimeout;
 
+  pRpc->retryOnOverloadBaseInterval = pInit->retryOnOverloadBaseInterval;
+  pRpc->retryOnOverloadTimeout = pInit->retryOnOverloadTimeout;
+
   pRpc->failFastThreshold = pInit->failFastThreshold;
   pRpc->failFastInterval = pInit->failFastInterval;
 
@@ -74,6 +77,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->destroyFp = pInit->dfp;
   pRpc->failFastFp = pInit->ffp;
   pRpc->noDelayFp = pInit->noDelayFp;
+  pRpc->overloadRetryFp = pInit->retryOnOverloadFp;
   pRpc->connLimitNum = pInit->connLimitNum;
   if (pRpc->connLimitNum == 0) {
     pRpc->connLimitNum = 20;
@@ -375,6 +379,9 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->retryMaxInterval = pInit->retryMaxInterval;
   pRpc->retryMaxTimeout = pInit->retryMaxTimeout;
 
+  pRpc->retryOnOverloadBaseInterval = pInit->retryOnOverloadBaseInterval;
+  pRpc->retryOnOverloadTimeout = pInit->retryOnOverloadTimeout;
+
   pRpc->failFastThreshold = pInit->failFastThreshold;
   pRpc->failFastInterval = pInit->failFastInterval;
 
@@ -385,6 +392,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->destroyFp = pInit->dfp;
   pRpc->failFastFp = pInit->ffp;
   pRpc->noDelayFp = pInit->noDelayFp;
+  pRpc->overloadRetryFp = pInit->retryOnOverloadFp;
   pRpc->connLimitNum = pInit->connLimitNum;
   if (pRpc->connLimitNum == 0) {
     pRpc->connLimitNum = 20;

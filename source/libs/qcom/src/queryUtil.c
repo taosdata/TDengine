@@ -687,17 +687,113 @@ end:
   *jsonStr = string;
 }
 
-int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* refColName, char* refTableName, char* refDbName) {
+int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* refColName, char* refTableName,
+                  char* refDbName, int8_t refType, const char* refSourceName, const char* tagCondJson, int32_t tagCondLen) {
   colRef->id = colId;
   colRef->hasRef = true;
+  colRef->refType = refType;
   tstrncpy(colRef->refDbName, refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(colRef->refTableName, refTableName, TSDB_TABLE_NAME_LEN);
   tstrncpy(colRef->refColName, refColName, TSDB_COL_NAME_LEN);
+  if (refSourceName && refSourceName[0]) {
+    tstrncpy(colRef->refSourceName, refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  } else {
+    colRef->refSourceName[0] = '\0';
+  }
+  colRef->refSchemaName[0] = '\0';
+  if (tagCondLen > 0) {
+    colRef->tagCondJson = taosStrdup(tagCondJson);
+    colRef->tagCondLen = tagCondLen;
+  } else {
+    colRef->tagCondJson = NULL;
+    colRef->tagCondLen = 0;
+  }
   if (colName) {
     tstrncpy(colRef->colName, colName, TSDB_COL_NAME_LEN);
   } else {
     colRef->colName[0] = '\0';
   }
+  return TSDB_CODE_SUCCESS;
+}
+
+void queryFreeSeriesEntries(SSeriesEntry* pSeries, int32_t nSeries) {
+  if (NULL == pSeries) {
+    return;
+  }
+
+  for (int32_t i = 0; i < nSeries; ++i) {
+    taosMemoryFreeClear(pSeries[i].tagCondJson);
+  }
+  taosMemoryFree(pSeries);
+}
+
+void queryFreeColRefTagConds(SColRef* pColRef, int32_t nCols) {
+  tFreeSColRefArray(pColRef, nCols);
+}
+
+void queryFreeTableMeta(STableMeta* pMeta) {
+  if (NULL == pMeta) {
+    return;
+  }
+
+  if (pMeta->tableType != TSDB_CHILD_TABLE) {
+    queryFreeColRefTagConds(pMeta->colRef, pMeta->numOfColRefs);
+    queryFreeColRefTagConds(pMeta->tagRef, pMeta->numOfTagRefs);
+    queryFreeSeriesEntries(pMeta->seriesEntries, pMeta->numOfSeries);
+  }
+  taosMemoryFree(pMeta);
+}
+
+int32_t queryCloneColRefTagConds(const SColRef* pSrc, int32_t nCols, SColRef* pDst) {
+  if (NULL == pDst || nCols <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < nCols; ++i) {
+    pDst[i].tagCondJson = NULL;
+  }
+
+  if (NULL == pSrc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < nCols; ++i) {
+    if (pSrc[i].tagCondJson) {
+      pDst[i].tagCondJson = taosStrdup(pSrc[i].tagCondJson);
+      if (NULL == pDst[i].tagCondJson) {
+        queryFreeColRefTagConds(pDst, i);
+        return terrno;
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t queryCloneSeriesEntries(const SSeriesEntry* pSrc, int32_t nSeries, SSeriesEntry** ppDst) {
+  QUERY_PARAM_CHECK(ppDst);
+  *ppDst = NULL;
+
+  if (NULL == pSrc || nSeries <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSeriesEntry* pDst = taosMemoryCalloc(nSeries, sizeof(SSeriesEntry));
+  if (NULL == pDst) {
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < nSeries; ++i) {
+    TAOS_MEMCPY(&pDst[i], &pSrc[i], sizeof(SSeriesEntry));
+    pDst[i].tagCondJson =
+        (pSrc[i].tagCondLen > 0 && pSrc[i].tagCondJson) ? taosStrdup(pSrc[i].tagCondJson) : NULL;
+    if (pSrc[i].tagCondLen > 0 && pSrc[i].tagCondJson && NULL == pDst[i].tagCondJson) {
+      queryFreeSeriesEntries(pDst, i);
+      return terrno;
+    }
+  }
+
+  *ppDst = pDst;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -722,6 +818,29 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   }
   memcpy(*pDst, pSrc, metaSize);
   tableMetaResetPointers(*pDst);
+  (*pDst)->seriesEntries = NULL;
+
+  int32_t code = queryCloneColRefTagConds(pSrc->colRef, pSrc->numOfColRefs, (*pDst)->colRef);
+  if (TSDB_CODE_SUCCESS != code) {
+    queryFreeTableMeta(*pDst);
+    *pDst = NULL;
+    return code;
+  }
+
+  code = queryCloneColRefTagConds(pSrc->tagRef, pSrc->numOfTagRefs, (*pDst)->tagRef);
+  if (TSDB_CODE_SUCCESS != code) {
+    queryFreeTableMeta(*pDst);
+    *pDst = NULL;
+    return code;
+  }
+
+  code = queryCloneSeriesEntries(pSrc->seriesEntries, pSrc->numOfSeries, &(*pDst)->seriesEntries);
+  if (TSDB_CODE_SUCCESS != code) {
+    queryFreeTableMeta(*pDst);
+    *pDst = NULL;
+    return code;
+  }
+  if (NULL == (*pDst)->seriesEntries) (*pDst)->numOfSeries = 0;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -817,6 +936,17 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
     (*pDst)->comment = taosStrdup(pSrc->comment);
     if (NULL == (*pDst)->comment) goto _exit;
   }
+  (*pDst)->sqlLen = pSrc->sqlLen;
+  if (pSrc->sqlLen > 0) {
+    if (pSrc->sql == NULL) {
+      // not an allocation failure, so terrno may still be 0 here
+      terrno = TSDB_CODE_INVALID_PARA;
+      goto _exit;
+    }
+    (*pDst)->sql = taosMemoryMalloc(pSrc->sqlLen);
+    if ((*pDst)->sql == NULL) goto _exit;
+    memcpy((*pDst)->sql, pSrc->sql, pSrc->sqlLen);
+  }
   (*pDst)->type = pSrc->type;
 
   if (pSrc->type == TSDB_CHILD_TABLE) {
@@ -838,13 +968,46 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
     }
   } else {
     (*pDst)->ntb.schemaRow.nCols = pSrc->ntb.schemaRow.nCols;
-    (*pDst)->ntb.schemaRow.version = pSrc->ntb.schemaRow.nCols;
+    (*pDst)->ntb.schemaRow.version = pSrc->ntb.schemaRow.version;
     if (pSrc->ntb.schemaRow.nCols > 0 && pSrc->ntb.schemaRow.pSchema) {
       (*pDst)->ntb.schemaRow.pSchema = taosMemoryMalloc(pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
       if (NULL == (*pDst)->ntb.schemaRow.pSchema) goto _exit;
       memcpy((*pDst)->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
     }
+    if (pSrc->type == TSDB_NORMAL_TABLE) {
+      (*pDst)->colCmpr.nCols = pSrc->colCmpr.nCols;
+      (*pDst)->colCmpr.version = pSrc->colCmpr.version;
+      if (pSrc->colCmpr.nCols > 0 && pSrc->colCmpr.pColCmpr) {
+        (*pDst)->colCmpr.pColCmpr = taosMemoryMalloc(pSrc->colCmpr.nCols * sizeof(SColCmpr));
+        if ((*pDst)->colCmpr.pColCmpr == NULL) goto _exit;
+        memcpy((*pDst)->colCmpr.pColCmpr, pSrc->colCmpr.pColCmpr, pSrc->colCmpr.nCols * sizeof(SColCmpr));
+      }
+      if (pSrc->pExtSchemas) {
+        (*pDst)->pExtSchemas = taosMemoryMalloc(pSrc->ntb.schemaRow.nCols * sizeof(SExtSchema));
+        if ((*pDst)->pExtSchemas == NULL) goto _exit;
+        memcpy((*pDst)->pExtSchemas, pSrc->pExtSchemas, pSrc->ntb.schemaRow.nCols * sizeof(SExtSchema));
+      }
+      (*pDst)->ntb.userId = pSrc->ntb.userId;
+    }
+    // Owned tags: deep-copy tag schema and STag values, mirroring the ctb.pTag copy above —
+    // a cloned request must not silently lose its tags.
+    (*pDst)->ntb.schemaTag.nCols = pSrc->ntb.schemaTag.nCols;
+    (*pDst)->ntb.schemaTag.version = pSrc->ntb.schemaTag.version;
+    if (pSrc->ntb.schemaTag.nCols > 0 && pSrc->ntb.schemaTag.pSchema) {
+      (*pDst)->ntb.schemaTag.pSchema = taosMemoryMalloc(pSrc->ntb.schemaTag.nCols * sizeof(SSchema));
+      if (NULL == (*pDst)->ntb.schemaTag.pSchema) goto _exit;
+      memcpy((*pDst)->ntb.schemaTag.pSchema, pSrc->ntb.schemaTag.pSchema,
+             pSrc->ntb.schemaTag.nCols * sizeof(SSchema));
+    }
+    STag* pNtbTags = (STag*)pSrc->ntb.pTags;
+    if (pNtbTags) {
+      (*pDst)->ntb.pTags = taosMemoryMalloc(pNtbTags->len);
+      if (NULL == (*pDst)->ntb.pTags) goto _exit;
+      memcpy((*pDst)->ntb.pTags, pNtbTags, pNtbTags->len);
+    }
   }
+  (*pDst)->txnId = pSrc->txnId;
+  (*pDst)->txnStatus = pSrc->txnStatus;
 
   return TSDB_CODE_SUCCESS;
 

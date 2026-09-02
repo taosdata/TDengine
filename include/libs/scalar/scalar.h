@@ -24,19 +24,23 @@ extern "C" {
 #include "querynodes.h"
 
 typedef int32_t (*sclFetchFromRemote)(void*, int32_t, SNode*);
+typedef bool    (*sclIsTaskKilled)(void*);
 
 typedef struct SFilterInfo SFilterInfo;
 
 typedef struct SScalarExtraInfo {
-  void*   pStreamInfo;
-  void*   pStreamRange;
-  void*   pSubJobCtx;
-  bool    isStream;
+  void*              pStreamInfo;
+  void*              pStreamRange;
+  void*              pSubJobCtx;
+  bool               isStream;
   sclFetchFromRemote fp;
-  uint64_t streamGen;
+  uint64_t           streamGen;
+  void*              pTaskInfo;    // opaque task handle for kill check
+  sclIsTaskKilled    isTaskKilled; // points to executor's isTaskKilled()
 } SScalarExtraInfo;
 
 int32_t scalarGetOperatorResultType(SOperatorNode *pOp);
+int32_t scalarGetCompOperatorResultType(SOperatorNode *pOp);
 
 /*
 pNode will be freed in API;
@@ -94,6 +98,7 @@ int32_t signFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 int32_t degreesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t radiansFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t randFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t sleepFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t greatestFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t leastFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
@@ -130,6 +135,11 @@ int32_t crc32Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 int32_t findInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t likeInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+// Maximum capture-group index accepted by regexp_extract() — shared between
+// translate-time validation (builtins.c) and runtime validation (sclfunc.c).
+#define REGEXP_EXTRACT_MAX_GROUP_IDX 512
 int32_t generateTotpSecretFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t generateTotpCodeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
@@ -148,6 +158,7 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 int32_t nowFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t timezoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t firstDayOfWeekFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t weekdayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t dayofweekFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t weekFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -203,6 +214,8 @@ int32_t streamPseudoScalarFunction(SScalarParam *pInput, int32_t inputNum, SScal
 int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinRange,
                                    bool *winRangeValid, int32_t type);
 int32_t scalarCalculateExtWinsTimeRange(STimeRangeNode *pNode, const void *pExtraParam, SExtWinTimeWindow *pWins);
+
+int32_t timestampScaleFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 extern threadlocal SScalarExtraInfo gTaskScalarExtra;
 

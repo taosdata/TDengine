@@ -17,7 +17,15 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#ifndef WIN32
 #include <syslog.h>
+#else
+#define LOG_ERR     3
+#define LOG_WARNING 4
+#define LOG_NOTICE  5
+#define LOG_INFO    6
+#define LOG_DEBUG   7
+#endif
 #include <time.h>
 
 #if defined(__APPLE__)
@@ -84,11 +92,19 @@ static int get_time(struct tm **ti) {
   s = db.now_real_s;
 
   struct tm tm_buf;
+#ifdef WIN32
+  if (localtime_s(&tm_buf, &s) != 0) {
+    fprintf(stderr, "Error obtaining system time.\n");
+    return 1;
+  }
+  *ti = &tm_buf;
+#else
   *ti = localtime_r(&s, &tm_buf);
   if (!(*ti)) {
     fprintf(stderr, "Error obtaining system time.\n");
     return 1;
   }
+#endif
 
   return 0;
 }
@@ -281,9 +297,11 @@ static int log__vprintf(unsigned int priority, const char *fmt, va_list va) {
     if (log_destinations & MQTT3_LOG_FILE && log_fptr) {
       fprintf(log_fptr, "%s\n", log_line);
     }
+#ifndef WIN32
     if (log_destinations & MQTT3_LOG_SYSLOG) {
       syslog(syslog_priority, "%s", log_line);
     }
+#endif
     if (log_destinations & MQTT3_LOG_TOPIC && priority != TTQ_LOG_DEBUG && priority != TTQ_LOG_INTERNAL) {
       // ttqDbMessageEasyQueue(NULL, topic, 2, (uint32_t)strlen(log_line), log_line, 0, 20, NULL);
     }
@@ -339,7 +357,7 @@ void ttqLogInternal(const char *fmt, ...) {
     return;
   }
 
-  ttq_log(NULL, TTQ_LOG_INTERNAL, "%s%s%s", "\e[32m", buf, "\e[0m");
+  ttq_log(NULL, TTQ_LOG_INTERNAL, "%s%s%s", "\x1b[32m", buf, "\x1b[0m");
 }
 
 int tmqtt_log_vprintf(int level, const char *fmt, va_list va) { return log__vprintf((unsigned int)level, fmt, va); }

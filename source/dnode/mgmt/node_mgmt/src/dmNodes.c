@@ -150,6 +150,14 @@ int32_t dmRunDnode(SDnode *pDnode) {
     return code;
   }
 
+  if (dmRepairFlowEnabled()) {
+    dInfo("repair flow finished, the process will exit without entering service mode");
+    dmSetStatus(pDnode, DND_STAT_STOPPED);
+    dmStopNodes(pDnode);
+    dmCloseNodes(pDnode);
+    return 0;
+  }
+
   if ((code = dmStartNodes(pDnode)) != 0) {
     dError("failed to start nodes since %s", tstrerror(code));
     dmSetStatus(pDnode, DND_STAT_STOPPED);

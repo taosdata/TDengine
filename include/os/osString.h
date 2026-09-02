@@ -58,7 +58,9 @@ typedef struct {
 #define wctomb      WCTOMB_FUNC_TAOS_FORBID
 #define wcstombs    WCSTOMBS_FUNC_TAOS_FORBID
 #define wcsncpy     WCSNCPY_FUNC_TAOS_FORBID
+#if !defined(WINDOWS)
 #define wchar_t     WCHAR_T_TYPE_TAOS_FORBID
+#endif
 #define strcasestr  STR_CASE_STR_FORBID
 #define strtoll     STR_TO_LL_FUNC_TAOS_FORBID
 #define strtoull    STR_TO_ULL_FUNC_TAOS_FORBID

@@ -28,8 +28,7 @@ class TestTmpBasic2:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -37,7 +36,7 @@ class TestTmpBasic2:
 
         """
 
-        self.prepareBasicEnv_1vgrp()
+        tmqCom.prepareBasicEnv(vgroups=1)
         # ---- global parameters start ----#
         dbName = "db"
         vgroups = 1
@@ -240,70 +239,3 @@ class TestTmpBasic2:
 
         # ------ not need stop consumer, because it exit after pull msg overthan expect msg
         tmqCom.stopTmqSimProcess("tmq_sim")
-
-    def prepareBasicEnv_1vgrp(self):
-
-        # ---- global parameters start ----#
-        dbName = "db"
-        vgroups = 1
-        stbPrefix = "stb"
-        ctbPrefix = "ctb"
-        ntbPrefix = "ntb"
-        stbNum = 1
-        ctbNum = 10
-        ntbNum = 10
-        rowsPerCtb = 10
-        tstart = 1640966400000  # 2022-01-01 00:00:"00+000"
-        # ---- global parameters end ----#
-
-        tdLog.info(f"create database {dbName} vgroups {vgroups}")
-        tdSql.execute(f"create database {dbName} vgroups {vgroups}")
-
-        # wait database ready
-        clusterComCheck.checkDbReady(dbName)
-        tdSql.execute(f"use {dbName}")
-
-        tdLog.info(f"create consume info table and consume result table")
-        tdSql.execute(
-            f"create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"
-        )
-        tdSql.execute(
-            f"create table consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)"
-        )
-
-        tdSql.query(f"show tables")
-        tdSql.checkRows(2)
-
-        tdLog.info(f"create super table")
-        tdSql.execute(
-            f"create table {stbPrefix} (ts timestamp, c1 int, c2 float, c3 binary(16)) tags (t1 int)"
-        )
-        tdSql.query(f"show stables")
-        tdSql.checkRows(1)
-
-        tdLog.info(f"create child table, normal table and insert data")
-        i = 0
-
-        while i < ctbNum:
-            ctb = ctbPrefix + str(i)
-            ntb = ntbPrefix + str(i)
-
-            tdSql.execute(f"create table {ctb} using {stbPrefix} tags( {i} )")
-            tdSql.execute(
-                f"create table {ntb} (ts timestamp, c1 int, c2 float, c3 binary(16))"
-            )
-
-            x = 0
-            while x < rowsPerCtb:
-                binary = "'binary-" + str(i) + "'"
-                tdSql.execute(
-                    f"insert into {ctb} values ({tstart} , {i} , {x} , {binary} )"
-                )
-                tdSql.execute(
-                    f"insert into {ntb} values ({tstart} , {i} , {x} , {binary} )"
-                )
-                tstart = tstart + 1
-                x = x + 1
-
-            i = i + 1
-            tstart = 1640966400000

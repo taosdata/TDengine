@@ -47,6 +47,25 @@ add_test(
     COMMAND ttimeNaturalUnitsTest
 )
 
+# ttimeQuarterParseTest.cpp
+add_executable(ttimeQuarterParseTest "ttimeQuarterParseTest.cpp")
+DEP_ext_gtest(ttimeQuarterParseTest)
+target_link_libraries(ttimeQuarterParseTest PRIVATE common)
+target_include_directories(
+    ttimeQuarterParseTest
+    PUBLIC "${TD_SOURCE_DIR}/include/common"
+    PUBLIC "${TD_SOURCE_DIR}/include/util"
+)
+add_test(
+    NAME ttimeQuarterParseTest
+    COMMAND ttimeQuarterParseTest
+)
+
+add_executable(streamWindowPlanTest "streamWindowPlanTest.cpp")
+DEP_ext_gtest(streamWindowPlanTest)
+target_link_libraries(streamWindowPlanTest PRIVATE os util common nodes)
+add_test(NAME streamWindowPlanTest COMMAND streamWindowPlanTest)
+
 # # cosCpTest.cpp
 # add_executable(cosCpTest "cosCpTest.cpp")
 # DEP_ext_gtest(cosCpTest)
@@ -81,6 +100,7 @@ if(TD_LINUX)
     # tmsg test
     add_executable(tmsgTest "")
     DEP_ext_gtest(tmsgTest)
+    DEP_ext_cppstub(tmsgTest)
     target_sources(tmsgTest
         PRIVATE
         "tmsgTest.cpp"

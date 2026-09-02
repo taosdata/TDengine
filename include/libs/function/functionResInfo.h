@@ -64,6 +64,7 @@ typedef struct SFirstLastRes {
   // used for last_row function only, isNullRes in SResultRowEntry can not be passed to downstream.So,
   // this attribute is required
   bool      isNull;
+  bool      hasTsOrder;
   int32_t   bytes;
   int64_t   ts;
   char*     pkData;

@@ -78,3 +78,14 @@ TEST_F(PlanIntervalTest, stable) {
 
   run("SELECT TBNAME, COUNT(*) FROM st1 PARTITION BY TBNAME INTERVAL(10s)");
 }
+
+TEST_F(PlanIntervalTest, smallDataScanSortHint) {
+  useDb("root", "test");
+
+  // With the hint, a super-table INTERVAL query has no ORDER BY / Sort node, so the
+  // would-be Table Merge Scan must be replaced by a plain Table Scan plus an inserted
+  // Sort that provides the ordered input the window requires.
+  run("SELECT /*+ smalldata_scan_sort() */ _WSTART, COUNT(*) FROM st1 INTERVAL(10s)");
+
+  run("SELECT /*+ smalldata_scan_sort() */ _WSTART, COUNT(*) FROM st1 PARTITION BY TBNAME INTERVAL(10s)");
+}

@@ -74,3 +74,21 @@ TEST_F(PlanOrderByTest, stable) {
 
   run("SELECT c1 AS a FROM st1 ORDER BY a");
 }
+
+TEST_F(PlanOrderByTest, smallDataScanSortHint) {
+  useDb("root", "test");
+  // With the hint, a super-table ORDER BY ts must NOT fuse into a Table Merge Scan;
+  // it must be a plain Table Scan with a Sort above it.
+  run("SELECT /*+ smalldata_scan_sort() */ * FROM st1 ORDER BY ts");
+  run("SELECT /*+ smalldata_scan_sort() */ * FROM st1 ORDER BY ts LIMIT 10");
+  run("SELECT /*+ smalldata_scan_sort() */ * FROM st1 ORDER BY ts DESC");
+}
+
+TEST_F(PlanOrderByTest, smallDataScanSortHintNonTsColumn) {
+  useDb("root", "test");
+  // Negative case: SMALLDATA_SCAN_SORT only affects timestamp-ordered scans.  On an
+  // ORDER BY over a non-timestamp column no table merge scan is involved, so the hint
+  // is a no-op; the plan must still build correctly (the hint changes nothing here).
+  run("SELECT /*+ smalldata_scan_sort() */ * FROM st1 ORDER BY c1");
+  run("SELECT /*+ smalldata_scan_sort() */ * FROM st1 ORDER BY c1 DESC");
+}

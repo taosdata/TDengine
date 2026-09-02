@@ -14,10 +14,15 @@
  */
 
 #include "catalogInt.h"
+#include "extConnector.h"
 #include "query.h"
 #include "systable.h"
 #include "tname.h"
 #include "trpc.h"
+
+static void ctgFreeExtTableMetaPRes(void* p);
+static void ctgFreeTableMeta(void* p);
+void        ctgFreeVStbRefDbs(void* p);
 
 void ctgFreeSViewMeta(SViewMeta* pMeta) {
   if (NULL == pMeta) {
@@ -146,7 +151,7 @@ void ctgFreeSTableIndex(void* info) {
 }
 
 void ctgFreeSMetaData(SMetaData* pData) {
-  taosArrayDestroy(pData->pTableMeta);
+  taosArrayDestroyEx(pData->pTableMeta, ctgFreeTableMeta);
   pData->pTableMeta = NULL;
 
   /*
@@ -206,8 +211,14 @@ void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pTsmas);
   pData->pTsmas = NULL;
 
-  taosArrayDestroy(pData->pVStbRefDbs);
+  taosArrayDestroyEx(pData->pVStbRefDbs, ctgFreeVStbRefDbs);
   pData->pVStbRefDbs = NULL;
+
+  taosArrayDestroy(pData->pExtSourceInfo);
+  pData->pExtSourceInfo = NULL;
+
+  taosArrayDestroyEx(pData->pExtTableMetaRsp, ctgFreeExtTableMetaPRes);
+  pData->pExtTableMetaRsp = NULL;
 
   taosMemoryFreeClear(pData->pSvrVer);
 }
@@ -246,7 +257,8 @@ void ctgFreeTbCacheImpl(SCtgTbCache* pCache, bool lock) {
     if (lock) {
       CTG_LOCK(CTG_WRITE, &pCache->metaLock);
     }
-    taosMemoryFreeClear(pCache->pMeta);
+    queryFreeTableMeta(pCache->pMeta);
+    pCache->pMeta = NULL;
     if (lock) {
       CTG_UNLOCK(CTG_WRITE, &pCache->metaLock);
     }
@@ -388,6 +400,7 @@ void ctgFreeHandleImpl(SCatalog* pCtg) {
   ctgFreeMetaRent(&pCtg->stbRent);
   ctgFreeMetaRent(&pCtg->viewRent);
   ctgFreeMetaRent(&pCtg->tsmaRent);
+  ctgDestroyExtSourceCache(pCtg);
 
   ctgFreeInstDbCache(pCtg->dbCache);
   ctgFreeInstUserCache(pCtg->userCache);
@@ -418,6 +431,7 @@ void ctgFreeHandle(SCatalog* pCtg) {
   ctgFreeMetaRent(&pCtg->stbRent);
   ctgFreeMetaRent(&pCtg->viewRent);
   ctgFreeMetaRent(&pCtg->tsmaRent);
+  ctgDestroyExtSourceCache(pCtg);
 
   ctgFreeInstDbCache(pCtg->dbCache);
   ctgFreeInstUserCache(pCtg->userCache);
@@ -512,6 +526,7 @@ void ctgClearHandle(SCatalog* pCtg) {
   ctgFreeMetaRent(&pCtg->stbRent);
   ctgFreeMetaRent(&pCtg->viewRent);
   ctgFreeMetaRent(&pCtg->tsmaRent);
+  ctgDestroyExtSourceCache(pCtg);
 
   ctgFreeInstDbCache(pCtg->dbCache);
   ctgFreeInstUserCache(pCtg->userCache);
@@ -648,6 +663,12 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       taosMemoryFreeClear(pCtx->target);
       break;
     }
+    case TDMT_MND_GET_EXT_SOURCE: {
+      if (pCtx->out) {
+        taosMemoryFreeClear(pCtx->out);
+      }
+      break;
+    }
     default:
       qError("invalid reqType %d", pCtx->reqType);
       break;
@@ -667,8 +688,10 @@ void ctgFreeSTableMetaOutput(STableMetaOutput* pOutput) {
     return;
   }
 
-  taosMemoryFree(pOutput->tbMeta);
-  taosMemoryFree(pOutput->vctbMeta);
+  if ((STableMeta*)pOutput->vctbMeta != pOutput->tbMeta) {
+    queryFreeTableMeta((STableMeta*)pOutput->vctbMeta);
+  }
+  queryFreeTableMeta(pOutput->tbMeta);
   taosMemoryFree(pOutput);
 }
 
@@ -686,7 +709,8 @@ void ctgResetTbMetaTask(SCtgTask* pTask) {
     pTask->msgCtx.out = NULL;
   }
   taosMemoryFreeClear(pTask->msgCtx.target);
-  taosMemoryFreeClear(pTask->res);
+  queryFreeTableMeta(pTask->res);
+  pTask->res = NULL;
 }
 
 void ctgFreeBatchMeta(void* meta) {
@@ -695,7 +719,8 @@ void ctgFreeBatchMeta(void* meta) {
   }
 
   SMetaRes* pRes = (SMetaRes*)meta;
-  taosMemoryFreeClear(pRes->pRes);
+  queryFreeTableMeta(pRes->pRes);
+  pRes->pRes = NULL;
 }
 
 void ctgFreeBatchHash(void* hash) {
@@ -789,12 +814,16 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
       }
       break;
     }
+    case CTG_TASK_GET_TB_META: {
+      queryFreeTableMeta(*pRes);
+      *pRes = NULL;
+      break;
+    }
     case CTG_TASK_GET_TB_HASH:
     case CTG_TASK_GET_DB_INFO:
     case CTG_TASK_GET_INDEX_INFO:
     case CTG_TASK_GET_UDF:
-    case CTG_TASK_GET_SVR_VER:
-    case CTG_TASK_GET_TB_META: {
+    case CTG_TASK_GET_SVR_VER: {
       taosMemoryFreeClear(*pRes);
       break;
     }
@@ -854,8 +883,11 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
       break;
     }
     case CTG_TASK_GET_V_STBREFDBS: {
-      SArray* pArray = (SArray*)*pRes;
-      taosArrayDestroyEx(pArray, tDestroySVStbRefDbsRsp);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_EXT_SOURCE: {
+      taosMemoryFreeClear(*pRes);
       break;
     }
     default:
@@ -900,13 +932,18 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
       }
       break;
     }
-    case CTG_TASK_GET_TB_META:
+    case CTG_TASK_GET_TB_META: {
+      queryFreeTableMeta(*pRes);
+      *pRes = NULL;
+      break;
+    }
     case CTG_TASK_GET_DB_INFO:
     case CTG_TASK_GET_TB_HASH:
     case CTG_TASK_GET_INDEX_INFO:
     case CTG_TASK_GET_UDF:
     case CTG_TASK_GET_SVR_VER:
-    case CTG_TASK_GET_USER: {
+    case CTG_TASK_GET_USER:
+    case CTG_TASK_GET_EXT_SOURCE: {
       taosMemoryFreeClear(*pRes);
       break;
     }
@@ -930,6 +967,46 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
     }
     default:
       qError("invalid task type %d", type);
+      break;
+  }
+}
+
+/*
+ * Destroy a task result that is owned only by the task itself.
+ * type identifies the async task result layout stored in *pRes.
+ * pRes receives NULL after the owned resource is fully released.
+ * Return value is void.
+ */
+static void ctgDestroyTaskOwnRes(CTG_TASK_TYPE type, void** pRes) {
+  if (NULL == pRes || NULL == *pRes) {
+    return;
+  }
+
+  switch (type) {
+    case CTG_TASK_GET_TB_META_BATCH:
+    case CTG_TASK_GET_TB_NAME: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeBatchMeta);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_TB_HASH_BATCH: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeBatchHash);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_VIEW: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeViewMetaRes);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_TSMA:
+    case CTG_TASK_GET_TB_TSMA: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeTbTSMARes);
+      *pRes = NULL;
+      break;
+    }
+    default:
+      ctgFreeTaskRes(type, pRes);
       break;
   }
 }
@@ -1014,7 +1091,8 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
     case CTG_TASK_GET_INDEX_INFO:
     case CTG_TASK_GET_UDF:
     case CTG_TASK_GET_QNODE:
-    case CTG_TASK_GET_USER: {
+    case CTG_TASK_GET_USER:
+    case CTG_TASK_GET_EXT_SOURCE: {
       taosMemoryFreeClear(pTask->taskCtx);
       break;
     }
@@ -1059,10 +1137,38 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
         taosArrayDestroy(taskCtx->pVgroups);
         taskCtx->pVgroups = NULL;
       }
+      if (taskCtx->pSubTablesList) {
+        taosArrayDestroyEx(taskCtx->pSubTablesList, tDestroySVSubTablesRsp);
+        taskCtx->pSubTablesList = NULL;
+      }
+      taosArrayDestroy(taskCtx->pLayerRefs);
+      taskCtx->pLayerRefs = NULL;
+      if (taskCtx->pLayerReqs) {
+        int32_t reqNum = taosArrayGetSize(taskCtx->pLayerReqs);
+        for (int32_t i = 0; i < reqNum; ++i) {
+          STablesReq* pReq = taosArrayGet(taskCtx->pLayerReqs, i);
+          if (NULL != pReq) {
+            taosArrayDestroy(pReq->pTables);
+            pReq->pTables = NULL;
+          }
+        }
+        taosArrayDestroy(taskCtx->pLayerReqs);
+        taskCtx->pLayerReqs = NULL;
+      }
+      taosHashCleanup(taskCtx->pFinalDbs);
+      taskCtx->pFinalDbs = NULL;
+      taosHashCleanup(taskCtx->pFinalExtSources);
+      taskCtx->pFinalExtSources = NULL;
+      taosMemoryFreeClear(taskCtx->pColRefCols);
+      taskCtx->numOfColRefs = 0;
+      taosMemoryFreeClear(taskCtx->pTagRefCols);
+      taskCtx->numOfTagRefs = 0;
       if (taskCtx->pResList) {
         taosArrayDestroyEx(taskCtx->pResList, tDestroySVStbRefDbsRsp);
       }
-      taosMemoryFreeClear(taskCtx->pMeta);
+      taosArrayDestroyEx(pTask->msgCtxs, (FDelete)ctgFreeMsgCtx);
+      queryFreeTableMeta(taskCtx->pMeta);
+      taskCtx->pMeta = NULL;
       taosMemoryFreeClear(pTask->taskCtx);
       break;
     }
@@ -1075,7 +1181,11 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
 void ctgFreeTask(SCtgTask* pTask, bool freeRes) {
   ctgFreeMsgCtx(&pTask->msgCtx);
   if (freeRes || pTask->subTask) {
-    ctgFreeTaskRes(pTask->type, &pTask->res);
+    if (pTask->subTask) {
+      ctgDestroyTaskOwnRes(pTask->type, &pTask->res);
+    } else {
+      ctgFreeTaskRes(pTask->type, &pTask->res);
+    }
   }
   ctgFreeTaskCtx(pTask);
 
@@ -1109,6 +1219,7 @@ void ctgFreeJob(void* job) {
 
   ctgFreeTasks(pJob->pTasks, pJob->jobRes.ctgFree);
   ctgFreeBatchs(pJob->pBatchs);
+  taosHashCleanup(pJob->pDbShortNameMap);
 
   ctgFreeSMetaData(&pJob->jobRes);
 
@@ -1690,6 +1801,7 @@ int32_t ctgCloneVgInfo(SDBVgInfo* src, SDBVgInfo** dst) {
 }
 
 int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput) {
+  int32_t code = 0;
   *pOutput = taosMemoryMalloc(sizeof(STableMetaOutput));
   if (NULL == *pOutput) {
     qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
@@ -1701,10 +1813,14 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
   if (output->vctbMeta) {
     int32_t metaSize = sizeof(SVCTableMeta);
     int32_t colRefSize = 0;
-    if (hasRefCol(output->vctbMeta->tableType) && output->vctbMeta->colRef) {
+    int32_t tagRefSize = 0;
+    if (hasColRef(output->vctbMeta->tableType) && output->vctbMeta->colRef) {
       colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
     }
-    (*pOutput)->vctbMeta = taosMemoryMalloc(metaSize + colRefSize);
+    if (hasTagRef(output->vctbMeta->tableType) && output->vctbMeta->tagRef && output->vctbMeta->numOfTagRefs > 0) {
+      tagRefSize = output->vctbMeta->numOfTagRefs * sizeof(SColRef);
+    }
+    (*pOutput)->vctbMeta = taosMemoryMalloc(metaSize + colRefSize + tagRefSize);
     if (NULL == (*pOutput)->vctbMeta) {
       qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
       taosMemoryFreeClear(*pOutput);
@@ -1712,20 +1828,52 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     }
 
     TAOS_MEMCPY((*pOutput)->vctbMeta, output->vctbMeta, metaSize);
-    if (hasRefCol(output->vctbMeta->tableType) && output->vctbMeta->colRef) {
+    (*pOutput)->vctbMeta->seriesEntries = NULL;
+    if (colRefSize > 0) {
       (*pOutput)->vctbMeta->colRef = (SColRef*)((char*)(*pOutput)->vctbMeta + metaSize);
       TAOS_MEMCPY((*pOutput)->vctbMeta->colRef, output->vctbMeta->colRef, colRefSize);
+      code = queryCloneColRefTagConds(output->vctbMeta->colRef, output->vctbMeta->numOfColRefs,
+                                      (*pOutput)->vctbMeta->colRef);
+      if (TSDB_CODE_SUCCESS != code) {
+        queryFreeTableMeta((STableMeta*)(*pOutput)->vctbMeta);
+        taosMemoryFreeClear(*pOutput);
+        CTG_ERR_RET(code);
+      }
     } else {
       (*pOutput)->vctbMeta->colRef = NULL;
+    }
+    if (tagRefSize > 0) {
+      (*pOutput)->vctbMeta->tagRef = (SColRef*)((char*)(*pOutput)->vctbMeta + metaSize + colRefSize);
+      TAOS_MEMCPY((*pOutput)->vctbMeta->tagRef, output->vctbMeta->tagRef, tagRefSize);
+      code = queryCloneColRefTagConds(output->vctbMeta->tagRef, output->vctbMeta->numOfTagRefs,
+                                      (*pOutput)->vctbMeta->tagRef);
+      if (TSDB_CODE_SUCCESS != code) {
+        queryFreeTableMeta((STableMeta*)(*pOutput)->vctbMeta);
+        taosMemoryFreeClear(*pOutput);
+        CTG_ERR_RET(code);
+      }
+    } else {
+      (*pOutput)->vctbMeta->tagRef = NULL;
+    }
+
+    code = queryCloneSeriesEntries(output->vctbMeta->seriesEntries, output->vctbMeta->numOfSeries,
+                                   &(*pOutput)->vctbMeta->seriesEntries);
+    if (TSDB_CODE_SUCCESS != code) {
+      queryFreeTableMeta((STableMeta*)(*pOutput)->vctbMeta);
+      taosMemoryFreeClear(*pOutput);
+      CTG_ERR_RET(code);
+    }
+    if (NULL == (*pOutput)->vctbMeta->seriesEntries) {
+      (*pOutput)->vctbMeta->numOfSeries = 0;
     }
   }
 
   if (output->tbMeta) {
-    int32_t code = cloneTableMeta(output->tbMeta, &(*pOutput)->tbMeta);
-    if (TSDB_CODE_SUCCESS != code) {
-      taosMemoryFreeClear((*pOutput)->vctbMeta);
+    int32_t code2 = cloneTableMeta(output->tbMeta, &(*pOutput)->tbMeta);
+    if (TSDB_CODE_SUCCESS != code2) {
+      queryFreeTableMeta((STableMeta*)(*pOutput)->vctbMeta);
       taosMemoryFreeClear(*pOutput);
-      CTG_ERR_RET(code);
+      CTG_ERR_RET(code2);
     }
   }
 
@@ -1854,6 +2002,8 @@ static int32_t ctgCloneDbVgroup(void* pSrc, void** ppDst) {
 }
 
 static void ctgFreeDbVgroup(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
+static void ctgFreeExtSourceInfoPRes(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
+static void ctgFreeExtTableMetaPRes(void* p) { extConnectorFreeTableSchema((SExtTableMeta*)((SMetaRes*)p)->pRes); }
 
 int32_t ctgCloneDbCfgInfo(void* pSrc, SDbCfgInfo** ppDst) {
   SDbCfgInfo* pDst = taosMemoryMalloc(sizeof(SDbCfgInfo));
@@ -1923,7 +2073,11 @@ static void ctgFreeDbInfo(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 //   return pDst;
 // }
 
-static void ctgFreeTableMeta(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
+static void ctgFreeTableMeta(void* p) {
+  SMetaRes* pRes = (SMetaRes*)p;
+  queryFreeTableMeta(pRes->pRes);
+  pRes->pRes = NULL;
+}
 
 static int32_t ctgCloneVgroupInfo(void* pSrc, void** ppDst) {
 #if 0
@@ -2788,6 +2942,10 @@ void ctgDestroySMetaData(SMetaData* pData) {
   taosArrayDestroyEx(pData->pTsmas, ctgFreeTbTSMAInfo);
   taosArrayDestroyEx(pData->pVStbRefDbs, ctgFreeVStbRefDbs);
   taosMemoryFreeClear(pData->pSvrVer);
+  // Federated query: SMetaData owns Phase-B ext table schema responses.  Semantic analysis clones the ones that
+  // need to live in SExtTableNode, while validation-only responses remain owned here.
+  taosArrayDestroyEx(pData->pExtSourceInfo, ctgFreeExtSourceInfoPRes);
+  taosArrayDestroyEx(pData->pExtTableMetaRsp, ctgFreeExtTableMetaPRes);
 }
 
 uint64_t ctgGetTbIndexCacheSize(STableIndex* pIndex) {
@@ -3079,6 +3237,13 @@ void ctgGetGlobalCacheStat(SCtgCacheStat* pStat) {
 
 void ctgGetGlobalCacheSize(uint64_t* pSize) {
   *pSize = 0;
+
+  // pCluster may have been freed by catalogDestroy() if a dispatched timer
+  // callback (ctgProcessTimerEvent) is still running during teardown. Guard
+  // against a NULL/stale hash to avoid dereferencing it in taosHashIterate.
+  if (gCtgMgmt.pCluster == NULL || atomic_load_8((int8_t*)&gCtgMgmt.exit)) {
+    return;
+  }
 
   SCatalog* pCtg = NULL;
   void*     pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);

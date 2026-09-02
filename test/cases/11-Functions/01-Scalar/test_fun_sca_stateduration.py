@@ -236,7 +236,8 @@ class TestFunctionStateduration:
         # unique with aggregate function
         tdSql.error(f"select stateduration(c6,'GT',1,1s) ,sum(c1)  from {dbname}.ct1")
         tdSql.error(f"select stateduration(c6,'GT',1,1s) ,max(c1)  from {dbname}.ct1")
-        tdSql.error(f"select stateduration(c6,'GT',1,1s) ,csum(c1)  from {dbname}.ct1")
+        tdSql.query(f"select stateduration(c6,'GT',1,1s) ,csum(c1)  from {dbname}.ct1")
+        tdSql.checkRows(13)
         tdSql.error(f"select stateduration(c6,'GT',1,1s) ,count(c1)  from {dbname}.ct1")
 
         # unique with filter where
@@ -407,8 +408,7 @@ class TestFunctionStateduration:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

@@ -1641,9 +1641,8 @@ int32_t parseTagValue(SMsgBuf* pMsgBuf, const char** pSql, uint8_t precision, SS
                       SArray* pTagName, SArray* pTagVals, STag** pTag, timezone_t tz, void* charsetCxt) {
   bool isNull = isNullValue(pTagSchema->type, pToken);
   if (!isNull && pTagName) {
-    if (NULL == taosArrayPush(pTagName, pTagSchema->name)) {
-      return terrno;
-    }
+    int32_t code = insTagNameAppend(pTagName, pTagSchema->name, pTagSchema->colId);
+    if (TSDB_CODE_SUCCESS != code) return code;
   }
 
   if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
@@ -1877,7 +1876,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   }
 
   if (!(pTagVals = taosArrayInit(pCxt->tags.numOfBound, sizeof(STagVal))) ||
-      !(pTagName = taosArrayInit(pCxt->tags.numOfBound, TSDB_COL_NAME_LEN))) {
+      !(pTagName = taosArrayInit(pCxt->tags.numOfBound, TSDB_COL_NAME_LEN + sizeof(col_id_t)))) {
     code = terrno;
     goto _exit;
   }
@@ -1935,7 +1934,8 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   }
 
   if (TSDB_CODE_SUCCESS == code && !isJson) {
-    code = tTagNewWithName(pTagVals, pTagName, pSchema, getNumOfTags(pStmt->pTableMeta), 1, &pTag);
+    taosArraySort(pTagName, tTagNameCompare);
+    code = tTagNew(pTagVals, 1, false, &pTag);
   }
 
   if (TSDB_CODE_SUCCESS == code && !autoCreate) {
@@ -2076,6 +2076,38 @@ static void setUserAuthInfo(SParseContext* pCxt, SName* pTbName, SUserAuthInfo* 
   pInfo->userId = pCxt->userId;
   pInfo->privType = PRIV_TBL_INSERT;
   pInfo->objType = PRIV_OBJ_TBL;
+}
+
+// Check CREATE TABLE privilege on the database of pTbName.
+// Uses the same sync/async/cache-miss logic as checkAuth().
+static int32_t checkCreateTableAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache) {
+  SUserAuthInfo authInfo = {.userId = pCxt->userId,
+                            .tbName = {.acctId = pTbName->acctId, .type = TSDB_DB_NAME_T},
+                            .privType = PRIV_TBL_CREATE,
+                            .objType = PRIV_OBJ_DB};
+  (void)snprintf(authInfo.user, sizeof(authInfo.user), "%s", pCxt->pUser);
+  (void)snprintf(authInfo.tbName.dbname, sizeof(authInfo.tbName.dbname), "%s", pTbName->dbname);
+
+  SUserAuthRes authRes = {0};
+  SUserAuthRsp authRsp = {.exists = 1};
+  int32_t      code = 0;
+  if (pCxt->async) {
+    code = catalogChkAuthFromCache(pCxt->pCatalog, &authInfo, &authRes, &authRsp);
+    if (TSDB_CODE_SUCCESS == code && 0 == authRsp.exists) {
+      if(pMissCache) *pMissCache = true;
+      return TSDB_CODE_SUCCESS;
+    }
+  } else {
+    SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
+                             .requestId = pCxt->requestId,
+                             .requestObjRefId = pCxt->requestRid,
+                             .mgmtEps = pCxt->mgmtEpSet};
+    code = catalogChkAuth(pCxt->pCatalog, &conn, &authInfo, &authRes);
+  }
+  if (TSDB_CODE_SUCCESS == code && !authRes.pass[AUTH_RES_BASIC]) {
+    code = TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+  return code;
 }
 
 static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool isAudit, bool* pMissCache, bool* pWithInsertCond, SNode** pTagCond,
@@ -2359,6 +2391,38 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     *ctbCacheHit = true;
   }
 _no_ctb_cache:
+  // Check INSERT privilege on the super table.
+  // For the non-USING path this is done in getTargetTableSchema() → checkAuth(). We mirror it here.
+  // async second-round coverage: checkAuthFromMetaData() only runs when *pQuery != NULL (second round);
+  // the first-round sync path (createInsertQuery) performs no auth, so this call is always needed.
+  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
+    bool    missCache = false;
+    SNode*  pTagCond = NULL;
+    SArray* pPrivCols = NULL;
+    bool    withInsertCond = false;
+    code = checkAuth(pCxt->pComCxt, &pStmt->usingTableName, false, &missCache, &withInsertCond, &pTagCond, &pPrivCols);
+    if (TSDB_CODE_SUCCESS == code) {
+      if (!missCache) {
+        // Propagate row-condition and column-privilege to pStmt, exactly as getTargetTableSchema() does,
+        // so that tag-value privilege checks (checkSubtablePrivilege) and column-level INSERT
+        // restrictions are enforced for the super table on the USING write path.
+        if (pPrivCols) pStmt->pPrivCols = pPrivCols;
+        pStmt->pTagCond = pTagCond;
+        if (withInsertCond && !pCxt->pComCxt->isSuperUser && pTagCond == NULL) {
+          pCxt->needTableTagVal = true;
+        }
+      } else {
+        pCxt->missCache = true;
+        nodesDestroyNode(pTagCond);
+        taosArrayDestroy(pPrivCols);
+      }
+    }
+  }
+  // ctb does not exist: will be auto-created. Check CREATE TABLE privilege on the db.
+  // !missCache guard: async cache-miss defers to the second round (processTableSchemaFromMetaData).
+  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache && !(*ctbCacheHit)) {
+    code = checkCreateTableAuth(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     if (*ctbCacheHit) {
       code = cloneTableMeta(pCtableMeta, &pStmt->pTableMeta);
@@ -2427,6 +2491,17 @@ static int32_t preParseTargetTableName(SInsertParseContext* pCxt, SVnodeModifyOp
     if (IS_SYS_DBNAME(pStmt->targetTableName.dbname)) {
       return TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED;
     }
+#ifdef TD_ENTERPRISE
+    // Fast-path: if ext source cache is already populated (warm connection),
+    // reject immediately without needing Phase 2 catalog fetch.
+    if (tsFederatedQueryEnable && pStmt->targetTableName.dbname[0] != '\0' && pCxt->pComCxt->pCatalog) {
+      bool isExtSrc = false;
+      int32_t rc = catalogIsExtSource(pCxt->pComCxt->pCatalog, pStmt->targetTableName.dbname, &isExtSrc);
+      if (TSDB_CODE_SUCCESS == rc && isExtSrc) {
+        return TSDB_CODE_EXT_SOURCE_WRITE_NOT_SUPPORTED;
+      }
+    }
+#endif
   }
 
   return code;
@@ -2551,6 +2626,16 @@ int32_t initTableColSubmitData(STableDataCxt* pTableCxt) {
     return TSDB_CODE_SUCCESS;
   }
 
+  /* Clear any existing aCol entries before adding new ones.
+   * The entry may have been retained across exec cycles (keepTable
+   * path) and still hold deep-cleared SColData entries whose nVal
+   * was zeroed by qResetStmtDataBlock.  Without this clear,
+   * taosArrayReserve appends to the existing entries, doubling
+   * nColData and producing a corrupt submit request. */
+  if (pTableCxt->pData->aCol) {
+    taosArrayClear(pTableCxt->pData->aCol);
+  }
+
   for (int32_t i = 0; i < pTableCxt->boundColsInfo.numOfBound; ++i) {
     SSchema*  pSchema = &pTableCxt->pMeta->schema[pTableCxt->boundColsInfo.pColIndex[i]];
     SColData* pCol = taosArrayReserve(pTableCxt->pData->aCol, 1);
@@ -2566,6 +2651,9 @@ int32_t initTableColSubmitData(STableDataCxt* pTableCxt) {
 int32_t initTableColSubmitDataWithBoundInfo(STableDataCxt* pTableCxt, SBoundColInfo pBoundColsInfo) {
   qDestroyBoundColInfo(&(pTableCxt->boundColsInfo));
   pTableCxt->boundColsInfo = pBoundColsInfo;
+  if (pTableCxt->pData->aCol) {
+    taosArrayClear(pTableCxt->pData->aCol);
+  }
   for (int32_t i = 0; i < pBoundColsInfo.numOfBound; ++i) {
     SSchema*  pSchema = &pTableCxt->pMeta->schema[pTableCxt->boundColsInfo.pColIndex[i]];
     SColData* pCol = taosArrayReserve(pTableCxt->pData->aCol, 1);
@@ -2981,9 +3069,8 @@ static int32_t processCtbTagsAfterCtbName(SInsertParseContext* pCxt, SVnodeModif
       }
     }
     if (code == TSDB_CODE_SUCCESS && !pStbRowsCxt->isJsonTag) {
-      SSchema* pTagsSchema = getTableTagSchema(pStbRowsCxt->pStbMeta);
-      code = tTagNewWithName(pStbRowsCxt->aTagVals, pStbRowsCxt->aTagNames, pTagsSchema,
-                             getNumOfTags(pStbRowsCxt->pStbMeta), 1, &pStbRowsCxt->pTag);
+      taosArraySort(pStbRowsCxt->aTagNames, tTagNameCompare);
+      code = tTagNew(pStbRowsCxt->aTagVals, 1, false, &pStbRowsCxt->pTag);
     }
   }
   if (code == TSDB_CODE_SUCCESS && pStbRowsCxt->pTagCond) {
@@ -3127,7 +3214,7 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
             if (pCxt->tags.parseredTags == NULL) {
               code = terrno;
             } else {
-              pCxt->tags.parseredTags->STagNames = taosArrayInit(numOfTags, sizeof(STagVal));
+              pCxt->tags.parseredTags->STagNames = taosArrayInit(numOfTags, TSDB_COL_NAME_LEN + sizeof(col_id_t));
               pCxt->tags.parseredTags->pTagVals = taosArrayInit(numOfTags, sizeof(STagVal));
               pCxt->tags.parseredTags->pTagIndex = taosMemoryCalloc(numOfTags, sizeof(uint8_t));
               pCxt->tags.parseredTags->numOfTags = 0;
@@ -3409,6 +3496,12 @@ static int32_t parseStbBoundInfo(SVnodeModifyOpStmt* pStmt, SStbRowsDataContext*
   }
   (void)memcpy((*ppTableDataCxt)->boundColsInfo.pColIndex, pStbRowsCxt->boundColsInfo.pColIndex,
                sizeof(int16_t) * pStmt->pStbRowsCxt->boundColsInfo.numOfBound);
+
+  int32_t ret = initTableColSubmitData(*ppTableDataCxt);
+  if (ret != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3417,6 +3510,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
                               STableDataCxt** ppTableDataCxt) {
   bool          bFirstTable = false;
   bool          setCtbName = false;
+  bool          ctbColsTransferred = false;
   SBoundColInfo ctbCols = {0};
   int32_t code = getStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pGotRow, pToken, &bFirstTable, &setCtbName, &ctbCols);
 
@@ -3426,7 +3520,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   }
 
   if (code != TSDB_CODE_SUCCESS || !*pGotRow) {
-    return code;
+    goto _return;
   }
 
   if (code == TSDB_CODE_SUCCESS && bFirstTable) {
@@ -3437,7 +3531,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
       char ctbFName[TSDB_TABLE_FNAME_LEN];
       code = tNameExtractFullName(&pStbRowsCxt->ctbName, ctbFName);
       if (code != TSDB_CODE_SUCCESS) {
-        return code;
+        goto _return;
       }
       code = insGetTableDataCxt(pStmt->pTableBlockHashObj, ctbFName, strlen(ctbFName), pStbRowsCxt->pCtbMeta,
                                 &pStbRowsCxt->pCreateCtbReq, ppTableDataCxt, true, true);
@@ -3451,6 +3545,9 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
     if (pCxt->pComCxt->stmtBindVersion == 2) {
       int32_t tbnameIdx = getTbnameSchemaIndex(pStbRowsCxt->pStbMeta);
       code = initTableColSubmitDataWithBoundInfo(*ppTableDataCxt, ctbCols);
+      if (code == TSDB_CODE_SUCCESS) {
+        ctbColsTransferred = true;
+      }
     } else {
       code = initTableColSubmitData(*ppTableDataCxt);
     }
@@ -3461,7 +3558,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
       SRowBuildScanInfo sinfo = {.hasBlob = 1, .scanType = ROW_BUILD_UPDATE};
       if ((*ppTableDataCxt)->pData->pBlobSet == NULL) {
         code = tBlobSetCreate(1024, 0, &(*ppTableDataCxt)->pData->pBlobSet);
-        TAOS_CHECK_RETURN(code);
+        TAOS_CHECK_GOTO(code, NULL, _return);
       }
       code = tRowBuildWithBlob(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow,
                                (*ppTableDataCxt)->pData->pBlobSet, &sinfo);
@@ -3480,6 +3577,10 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
     *pGotRow = true;
   }
 
+_return:
+  if (!ctbColsTransferred && ctbCols.pColIndex != NULL) {
+    qDestroyBoundColInfo(&ctbCols);
+  }
   clearStbRowsDataContext(pStbRowsCxt);
 
   return code;
@@ -3556,7 +3657,10 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
     if (TSDB_CODE_SUCCESS == code && i < pCols->numOfBound - 1) {
       NEXT_VALID_TOKEN(*pSql, *pToken);
       if (TK_NK_COMMA != pToken->type) {
-        if (!pCxt->forceUpdate) {
+        // ')' before all columns are consumed means the client has a stale schema with
+        // more columns than the server (e.g. after DROP COLUMN from another connection).
+        // Any other unexpected token is a genuine syntax error in the SQL.
+        if (!pCxt->forceUpdate && TK_NK_RP == pToken->type) {
           code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
           parserWarn("QID:0x%" PRIx64 ", column number is smaller than %d, need retry", pCxt->pComCxt->requestId,
                      pCols->numOfBound);
@@ -4017,7 +4121,7 @@ static int32_t constructStbRowsDataContext(SVnodeModifyOpStmt* pStmt, SStbRowsDa
     pStbRowsCxt->pCtbMeta->tableType = TSDB_CHILD_TABLE;
     pStbRowsCxt->pCtbMeta->suid = pStbRowsCxt->pStbMeta->uid;
 
-    pStbRowsCxt->aTagNames = taosArrayInit(8, TSDB_COL_NAME_LEN);
+    pStbRowsCxt->aTagNames = taosArrayInit(8, TSDB_COL_NAME_LEN + sizeof(col_id_t));
     if (!pStbRowsCxt->aTagNames) {
       code = terrno;
     }
@@ -4497,6 +4601,14 @@ static int32_t processTableSchemaFromMetaData(SInsertParseContext* pCxt, const S
     code = buildInvalidOperationMsg(&pCxt->msg, "insert data into super table is not supported");
   }
 
+  // Async second-round: pTableMeta[1] is ctb meta; absent/error means ctb does not exist yet.
+  if (TSDB_CODE_SUCCESS == code && isStb && taosArrayGetSize(pMetaData->pTableMeta) >= 2) {
+    SMetaRes* pCtbRes = TARRAY_GET_ELEM(pMetaData->pTableMeta, 1);
+    if (pCtbRes->code != TSDB_CODE_SUCCESS || pCtbRes->pRes == NULL) {
+      code = checkCreateTableAuth(pCxt->pComCxt, &pStmt->targetTableName, NULL);
+    }
+  }
+
   if (TSDB_CODE_SUCCESS == code && isStb) {
     code = storeChildTableMeta(pCxt, pStmt);
   }
@@ -4540,6 +4652,21 @@ static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCata
     nodesDestroyNode(pStmt->pTagCond);
     pStmt->pTagCond = NULL;
   }
+
+#ifdef TD_ENTERPRISE
+  // Federated query: reject INSERT into external source tables (Phase 2 check).
+  // In Phase 1, the dbname was registered in pCatalogReq->pExtSourceCheck.
+  // If the catalog resolved it as a valid ext source, reject the write here.
+  if (tsFederatedQueryEnable && pMetaData != NULL && pMetaData->pExtSourceInfo != NULL) {
+    int32_t nSrc = (int32_t)taosArrayGetSize(pMetaData->pExtSourceInfo);
+    for (int32_t i = 0; i < nSrc; ++i) {
+      SMetaRes* pRes = taosArrayGet(pMetaData->pExtSourceInfo, i);
+      if (pRes && pRes->code == TSDB_CODE_SUCCESS && pRes->pRes != NULL) {
+        return TSDB_CODE_EXT_SOURCE_WRITE_NOT_SUPPORTED;
+      }
+    }
+  }
+#endif
 
   int32_t code = checkAuthFromMetaData(pCxt, pMetaData, pStmt);
 
@@ -4838,6 +4965,18 @@ static int32_t buildInsertCatalogReq(SInsertParseContext* pCxt, SVnodeModifyOpSt
   if (TSDB_CODE_SUCCESS == code) {
     code = buildInsertDbReq(&pStmt->targetTableName, &pCatalogReq->pTableHash);
   }
+#ifdef TD_ENTERPRISE
+  if (TSDB_CODE_SUCCESS == code && tsFederatedQueryEnable && pStmt->targetTableName.dbname[0] != '\0') {
+    if (NULL == pCatalogReq->pExtSourceCheck) {
+      pCatalogReq->pExtSourceCheck = taosArrayInit(1, TSDB_TABLE_NAME_LEN);
+    }
+    if (NULL != pCatalogReq->pExtSourceCheck) {
+      char nameBuf[TSDB_TABLE_NAME_LEN] = {0};
+      tstrncpy(nameBuf, pStmt->targetTableName.dbname, TSDB_TABLE_NAME_LEN);
+      taosArrayPush(pCatalogReq->pExtSourceCheck, nameBuf);
+    }
+  }
+#endif
   return code;
 }
 

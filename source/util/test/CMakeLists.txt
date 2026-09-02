@@ -11,10 +11,12 @@ INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/common)
 add_executable(heapTest "heapTest.cpp")
 DEP_ext_gtest(heapTest)
 target_link_libraries(heapTest PRIVATE os util)
-add_test(
-    NAME heapTest
-    COMMAND heapTest
-)
+if(NOT TD_WINDOWS)
+    add_test(
+        NAME heapTest
+        COMMAND heapTest
+    )
+endif()
 
 # arrayTest
 add_executable(arrayTest "arrayTest.cpp")

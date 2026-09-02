@@ -195,11 +195,15 @@ typedef struct {
 
 typedef struct {
   timezone_t    timezone;
+  char          timezoneName[TD_TIMEZONE_LEN]; /* original IANA name from SET TIMEZONE */
+  bool          timezoneExplicit;
   void         *charsetCxt;
   char          userApp[TSDB_APP_NAME_LEN];
   char          cInfo[CONNECTOR_INFO_LEN];
+  int16_t       userAppId;
   uint32_t      userIp;
   SIpRange      userDualIp;  // user ip range
+  int8_t        firstDayOfWeek;  // 0-6, snapshotted from tsFirstDayOfWeek at connection creation
 }SOptionInfo;
 
 typedef struct {
@@ -219,6 +223,12 @@ typedef struct STscObj {
   int8_t         connType;
   int8_t         dropped;
   int8_t         biMode;
+  int8_t         txnState;
+  txn_id_t       txnId;
+  int32_t        txnDdlCount;    // DDL op count in current txn; checked against TSDB_TXN_MAX_DDL_OPS_PER_TXN
+  SSHashObj*     pTxnVgSet;      // Hash set of int32_t vgId → dummy, accumulated during DDL in txn
+  SHashObj*      pTxnTableMeta;  // Hash cache: "db.table" → STableMeta* for tables created in this txn
+  SHashObj*      pTxnSuidMap;    // Hash: suid (uint64_t) → stbFullName (char[TSDB_TABLE_FNAME_LEN])
   union {
     uint32_t flags;
     struct {
@@ -237,6 +247,9 @@ typedef struct STscObj {
   TdThreadMutex  mutex;      // used to protect the operation on db
   int32_t        numOfReqs;  // number of sqlObj bound to this connection
   int32_t        authVer;
+  int32_t        loginPassVer;  // password version at login; immutable, used for hb stale-conn kick
+  int8_t         passKilled;    // set by hb when password changed after login; requests then fail with auth error
+  int8_t         passSelfChanged;  // set when this conn changed its OWN password; hb adopts the new passVer instead of kicking
   SAppInstInfo*  pAppInfo;
   SHashObj*      pRequests;
   SPassInfo      passInfo;
@@ -248,6 +261,10 @@ typedef struct STscObj {
 
   SConnAccessInfo sessInfo;
   void*           pSessMetric;
+  // External source session context (set by USE source[.ns1[.ns2]] command)
+  char  extSource[TSDB_EXT_SOURCE_NAME_LEN];  // active external source name; empty = none
+  char  extNs1[TSDB_EXT_SOURCE_DATABASE_LEN]; // active namespace (db/schema); empty = none
+  char  extNs2[TSDB_EXT_SOURCE_SCHEMA_LEN];   // active schema (PG 3-seg); empty = none
 } STscObj;
 
 typedef struct STscDbg {
@@ -285,6 +302,7 @@ typedef struct SReqResultInfo {
   int32_t        payloadLen;
   char*          convertJson;
   void*          charsetCxt;
+  void*          timezone;
 } SReqResultInfo;
 
 typedef struct SRequestSendRecvBody {
@@ -342,6 +360,7 @@ typedef struct SRequestObj {
   SQueryExecMetric     metric;
   SRequestSendRecvBody body;
   int32_t              stmtType;
+  bool                 passAlterSelf;  // this request is "ALTER USER <self> PASS ..."
   bool                 syncQuery;     // todo refactor: async query object
   bool                 stableQuery;   // todo refactor
   bool                 validateOnly;  // todo refactor
@@ -350,6 +369,7 @@ typedef struct SRequestObj {
   bool                 inRetry;
   bool                 isSubReq;
   bool                 inCallback;
+  bool                 txnChecked;  // true after doAsyncQuery has validated txn state; skips re-check in launchQueryImpl
   uint8_t              stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
   bool                 isQuery;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
@@ -364,6 +384,10 @@ typedef struct SRequestObj {
   int32_t              execPhase;       // EQueryExecPhase
   int64_t              phaseStartTime;  // when current phase started, ms
   int8_t               secureDelete;
+
+  TAOS_STMT2          *literal_by_stmt2; // reference only
+  char                 extSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // ext source for this request (FH-10)
+  uint32_t             extPoolRetry;  // pool-exhaustion retry count (client-side delayed retry)
 } SRequestObj;
 
 typedef struct SSyncQueryParam {
@@ -387,9 +411,11 @@ void    syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
 TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t source);
 TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly, int64_t reqid);
 
+void taosAsyncExecLiteral(TAOS_STMT2 *stmt);
+
 void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
                         int8_t source);
-void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
+void taosAsyncQueryImplWithReqid(TAOS_STMT2 *stmt, uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
                                  int64_t reqid);
 void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param);
 int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effectiveUser,
@@ -423,6 +449,7 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pReqObj);
 int32_t  createTscObj(const char* user, const char* auth, const char* db, int32_t connType, SAppInstInfo* pAppInfo,
                       STscObj** p);
 void     destroyTscObj(void* pObj);
+int32_t  tscInitSessionTimezone(STscObj *pObj);
 STscObj* acquireTscObj(int64_t rid);
 void     releaseTscObj(int64_t rid);
 void     destroyAppInst(void* pAppInfo);
@@ -439,9 +466,13 @@ int64_t      removeFromMostPrevReq(SRequestObj* pRequest);
 
 char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);
+void  setConnectionExtSource(STscObj* pTscObj, const char* srcName, const char* ns1, const char* ns2);
 void  resetConnectDB(STscObj* pTscObj);
-
-int taos_options_imp(TSDB_OPTION option, const char* str);
+void  tscBestEffortRollbackOrphanTxn(STscObj* pTscObj, txn_id_t txnId, const char* source);// Reset all client-side txn state (txnId, txnState, txnDdlCount, pTxnVgSet, pTxnTableMeta, pTxnSuidMap).
+// Used for explicit COMMIT/ROLLBACK completion and for local-only cleanup after a timeout-killed txn.
+void    tscResetTxnState(STscObj* pTscObj);
+int32_t isTxnAllowedStmtType(SNode* pRoot);
+int     taos_options_imp(TSDB_OPTION option, const char* str);
 
 int32_t openTransporter(const char* user, const char* auth, int32_t numOfThreads, void** pDnodeConn);
 void    tscStopCrashReport();
@@ -469,6 +500,8 @@ int32_t sqlSecurityCheckASTLevel(SRequestObj* pRequest, SQuery* pQuery);
 
 int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, bool validateSql,
                      SRequestObj** pRequest, int64_t reqid);
+
+void markPassAlterSelf(SRequestObj* pRequest, SQuery* pQuery);
 
 void taos_close_internal(void* taos);
 
@@ -498,6 +531,7 @@ typedef struct SSqlCallbackWrapper {
 } SSqlCallbackWrapper;
 
 void    setQueryRequest(int64_t rId);
+int32_t tscCheckTxnState(SRequestObj* pRequest, SSqlCallbackWrapper* pWrapper, bool* pHandled);
 void    launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res);
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList);
 void    launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta, SSqlCallbackWrapper* pWrapper);
@@ -507,10 +541,15 @@ void    doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
 int32_t removeMeta(STscObj* pTscObj, SArray* tbList, bool isView);
 int32_t handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);
 int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog);
+int32_t tscTxnCacheMetaFromRsp(STscObj* pTscObj, STableMetaRsp* pMetaRsp, const char* opName);
+int32_t tscTxnCacheCreateTbMeta(STscObj* pTscObj, STableMetaRsp* pMetaRsp);
+int32_t tscTxnUpsertTableMeta(STscObj* pTscObj, const char* fullName, STableMeta* pTableMeta, const char* opName);
+int32_t tscTxnRecordDroppedStbSuid(STscObj* pTscObj, const SName* pStbName);
 int32_t qnodeRequired(SRequestObj* pRequest, bool* required);
 void    continueInsertFromCsv(SSqlCallbackWrapper* pWrapper, SRequestObj* pRequest);
 void    destorySqlCallbackWrapper(SSqlCallbackWrapper* pWrapper);
 void    handleQueryAnslyseRes(SSqlCallbackWrapper* pWrapper, SMetaData* pResultMeta, int32_t code);
+void    handleExtSourceError(SRequestObj* pRequest, int32_t code);
 void    restartAsyncQuery(SRequestObj* pRequest, int32_t code);
 void    destroyCtxInRequest(SRequestObj* pRequest);
 int32_t buildPreviousRequest(SRequestObj* pRequest, const char* sql, SRequestObj** pNewRequest);
@@ -561,6 +600,7 @@ enum { MONITORSQLTYPESELECT = 0, MONITORSQLTYPEINSERT = 1, MONITORSQLTYPEDELETE 
 void sqlReqLog(int64_t rid, bool killed, int32_t code, int8_t type);
 
 void tmqMgmtClose(void);
+void writeRawCleanup(void);
 
 #ifdef __cplusplus
 }

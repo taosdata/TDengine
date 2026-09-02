@@ -2,6 +2,7 @@
 import copy
 import json
 import os
+from pathlib import Path
 import random
 import shutil
 import tempfile
@@ -9,6 +10,89 @@ import time
 import uuid
 
 import pytest
+
+
+_WINDOWS_DLL_DIR = None
+
+
+def _setup_windows_taos_dll_dir():
+    if os.name != "nt":
+        return
+
+    candidates = []
+    env_bin = os.getenv("TAOS_BIN_PATH")
+    if env_bin:
+        candidates.append(Path(env_bin))
+
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "debug" / "build" / "bin"
+        if (candidate / "taosd.exe").exists() and (candidate / "taos.dll").exists():
+            candidates.append(candidate)
+
+    seen = set()
+    for candidate in candidates:
+        candidate = candidate.resolve()
+        key = str(candidate).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        if not candidate.is_dir():
+            continue
+
+        candidate_str = str(candidate)
+        path_items = os.environ.get("PATH", "").split(os.pathsep)
+        if not any(item.lower() == candidate_str.lower() for item in path_items if item):
+            os.environ["PATH"] = candidate_str + os.pathsep + os.environ.get("PATH", "")
+
+        global _WINDOWS_DLL_DIR
+        if hasattr(os, "add_dll_directory"):
+            _WINDOWS_DLL_DIR = os.add_dll_directory(candidate_str)
+        break
+
+
+def _raise_open_files_limit(target=1048576):
+    """Raise the open-files (RLIMIT_NOFILE) limit for this pytest process.
+
+    The test client opens many TDengine connections (every self.login()
+    reconnects to each dnode) plus allure result files. A low fd ceiling causes
+    two fd-exhaustion failure modes under parallel CI + ASAN:
+      - client socket/fd exhaustion -> 0x012f "third party error" at connect
+      - pytest/allure -> "OSError: [Errno 24] Too many open files" which aborts
+        the whole session with an INTERNALERROR (not a normal test failure).
+
+    Raising the soft limit up to the hard limit needs no privilege. Raising the
+    hard limit needs CAP_SYS_RESOURCE, which the CI container has (--privileged);
+    when unavailable we silently fall back to the hard limit. This only affects
+    this process and its children; taosd is launched separately and manages its
+    own limit in remote.py.
+    """
+    try:
+        import resource
+    except ImportError:
+        return  # not POSIX (e.g. Windows); nothing to do
+
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+
+    # Best effort: try to raise the hard limit too (needs CAP_SYS_RESOURCE).
+    if hard != resource.RLIM_INFINITY and hard < target:
+        try:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (target, target))
+            soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        except (ValueError, OSError):
+            pass  # not permitted; keep the existing hard limit
+
+    desired = target if hard == resource.RLIM_INFINITY else min(target, hard)
+    if soft == resource.RLIM_INFINITY or soft >= desired:
+        return
+    try:
+        resource.setrlimit(resource.RLIMIT_NOFILE, (desired, hard))
+    except (ValueError, OSError):
+        pass
+
+
+_raise_open_files_limit()
+_setup_windows_taos_dll_dir()
+
 from new_test_framework.utils import (
     BeforeTest,
     eos,
@@ -324,7 +408,10 @@ def before_test_class(request):
 
     # 处理-Q参数，如果-Q参数不等于1，则创建qnode，并设置queryPolicy
     if request.session.query_policy != 1:
-        tdSql.execute("create qnode on dnode 1")
+        try:
+            tdSql.execute("create qnode on dnode 1", queryTimes=1)
+        except Exception:
+            pass  # Qnode may already exist in enterprise builds
         tdSql.execute(f'alter local "queryPolicy" "{request.session.query_policy}"')
         tdSql.query("show local variables")
         for i in range(len(tdSql.queryResult)):

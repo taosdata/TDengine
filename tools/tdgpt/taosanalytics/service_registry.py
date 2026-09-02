@@ -1,5 +1,5 @@
-# encoding:utf-8
 """load and return the available services"""
+
 import copy
 import importlib
 import inspect
@@ -10,30 +10,51 @@ import threading
 from collections import defaultdict
 from pathlib import Path
 
-from taosanalytics.conf import Configure
-from taosanalytics.handlers.dynamic_forecast import DynamicForecastService
-from taosanalytics.handlers.dynamic_anomaly import DynamicAnomalyService
-from taosanalytics.exception import NotFoundDynamicModelError
-from taosanalytics.log import AppLogger
 from taosanalytics.base import (
     AbstractAnomalyDetectionService,
+    AbstractClassificationService,
+    AbstractCorrelationService,
     AbstractForecastService,
     AbstractImputationService,
-    AbstractCorrelationService
+    AbstractRegressionService,
 )
+from taosanalytics.conf import Configure
+from taosanalytics.exception import NotFoundDynamicModelError
+from taosanalytics.handlers import (
+    DynamicAnomalyService,
+    DynamicClassificationService,
+    DynamicForecastService,
+    DynamicRegressionService,
+)
+from taosanalytics.log import AppLogger
+from taosanalytics.util import safely_remove_file
 
 
 class ServiceRegistry:
-    """ Singleton register for multiple anomaly detection algorithms and forecast algorithms"""
+    """Singleton register for multiple anomaly detection algorithms and forecast algorithms"""
 
-    _only_params_models = ['arima', 'prophet', 'theta']
-    _only_params_anomaly_models = ['iforest']
+    _forecast_models = ["arima", "prophet", "deepar"]
+    _anomaly_models = ["iforest", "svm"]
+    _regression_models = [
+        "linear_regression",
+        "lasso",
+        "ridge",
+        "elasticnet",
+        "svr",
+        "polynomial_regression",
+    ]
+    _classification_models = [
+        "logistic_regression",
+        "decision_tree",
+    ]
 
     _base_class_name = [
         AbstractAnomalyDetectionService.__name__,
         AbstractForecastService.__name__,
         AbstractImputationService.__name__,
-        AbstractCorrelationService.__name__
+        AbstractCorrelationService.__name__,
+        AbstractRegressionService.__name__,
+        AbstractClassificationService.__name__,
     ]
 
     def __init__(self):
@@ -42,7 +63,7 @@ class ServiceRegistry:
         self._services_lock = threading.RLock()
 
     def get_service(self, name):
-        """ get the required service """
+        """get the required service"""
         with self._services_lock:
             self.sync_dynamic_services()
             return copy.copy(self.services.get(name, None))
@@ -51,8 +72,17 @@ class ServiceRegistry:
         """Synchronize dynamic services with the shared config directory."""
         with self._services_lock:
             dynamic_service_names = [
-                name for name, service in self.services.items()
-                if isinstance(service, (DynamicForecastService, DynamicAnomalyService))
+                name
+                for name, service in self.services.items()
+                if isinstance(
+                    service,
+                    (
+                        DynamicForecastService,
+                        DynamicAnomalyService,
+                        DynamicRegressionService,
+                        DynamicClassificationService,
+                    ),
+                )
             ]
 
             for name in dynamic_service_names:
@@ -60,38 +90,104 @@ class ServiceRegistry:
                 if service is None:
                     continue
 
-                config_file_path = getattr(service, 'config_file_path', None)
+                config_file_path = getattr(service, "config_file_path", None)
                 if config_file_path and not Path(config_file_path).exists():
                     del self.services[name]
                     AppLogger.info(
                         "remove dynamic model '%s' from memory because config file is gone",
-                        name)
+                        name,
+                    )
 
             dyn_dir = Path(Configure.get_instance().get_dynamic_model_directory())
             if not dyn_dir.exists() or not dyn_dir.is_dir():
                 return
 
-            for config_path in dyn_dir.iterdir():
-                if not config_path.is_file() or config_path.suffix != '.json':
-                    continue
+            # Support both old format (model_name.json in root) and new format (model_name/model_name.json)
+            for item_path in dyn_dir.iterdir():
+                if item_path.is_file() and item_path.suffix == ".json":
+                    # Old format: direct json file in root directory
+                    model_name = item_path.stem
+                    if model_name in self.services:
+                        continue
 
-                model_name = config_path.stem
-                if model_name in self.services:
-                    continue
+                    try:
+                        self.register_service_from_file(str(item_path))
+                    except Exception as e:
+                        AppLogger.error(
+                            "failed to sync dynamic model from file %s: %s, skipping",
+                            str(item_path),
+                            str(e),
+                        )
+                elif item_path.is_dir():
+                    # New format: model_name subdirectory
+                    model_name = item_path.name
+                    if model_name in self.services:
+                        continue
 
-                try:
-                    self.register_service_from_file(str(config_path))
-                except Exception as e:
-                    AppLogger.error(
-                        "failed to sync dynamic model from file %s: %s, skipping",
-                        str(config_path),
-                        str(e))
+                    config_file_name = f"{model_name}.json"
+                    config_path = item_path / config_file_name
+
+                    if not config_path.exists():
+                        AppLogger.debug(
+                            "model subdirectory '%s' found but config file '%s' not found, skipping",
+                            model_name,
+                            config_file_name,
+                        )
+                        continue
+
+                    try:
+                        self.register_service_from_file(str(config_path))
+                    except Exception as e:
+                        AppLogger.error(
+                            "failed to sync dynamic model from file %s: %s, skipping",
+                            str(config_path),
+                            str(e),
+                        )
+
+            # Check for orphaned pkl files (config deleted but pkl still exists)
+            for item_path in dyn_dir.iterdir():
+                if item_path.is_dir():
+                    # New format: check pkl in subdirectory
+                    model_name = item_path.name
+                    config_file_name = f"{model_name}.json"
+                    config_path = item_path / config_file_name
+
+                    if not config_path.exists():
+                        pkl_file_name = f"{model_name}.pkl"
+                        pkl_path = item_path / pkl_file_name
+
+                        if pkl_path.exists():
+                            safely_remove_file(str(pkl_path), model_name, "orphaned pkl file")
+
+                        # Remove empty directory after orphaned pkl is deleted
+                        try:
+                            if item_path.exists() and not any(item_path.iterdir()):
+                                item_path.rmdir()
+                                AppLogger.info(
+                                    "removed empty orphaned directory '%s'",
+                                    model_name,
+                                )
+                        except Exception as e:
+                            AppLogger.debug(
+                                "failed to remove empty directory '%s': %s",
+                                model_name,
+                                str(e),
+                            )
+                elif item_path.is_file() and item_path.suffix == ".pkl":
+                    # Old format: check pkl in root directory
+                    model_name = item_path.stem
+                    config_path = dyn_dir / f"{model_name}.json"
+
+                    if not config_path.exists():
+                        safely_remove_file(str(item_path), model_name, "orphaned pkl file")
 
     def get_typed_services(self, type_str: str) -> list:
-        """ get specified type service """
+        """get specified type service"""
         all_items = []
         with self._services_lock:
-            AppLogger.info("Fetching services of type: %s, total: %d", type_str, len(self.services))
+            AppLogger.info(
+                "Fetching services of type: %s, total: %d", type_str, len(self.services)
+            )
             services_snapshot = list(self.services.items())
 
         for key, val in services_snapshot:
@@ -102,16 +198,18 @@ class ServiceRegistry:
                         "desc": val.get_desc(),
                         "params": val.get_params(),
                         "status": val.get_status(),
-                        'builtins': val.is_builtins
+                        "builtins": val.is_builtins,
                     }
                     all_items.append(one)
                 except AttributeError as e:
-                    AppLogger.error("failed to get service: %s info, reason: %s", key, e)
+                    AppLogger.error(
+                        "failed to get service: %s info, reason: %s", key, e
+                    )
 
         return all_items
 
     def get_service_list(self):
-        """ return all available service info """
+        """return all available service info"""
         self.sync_dynamic_services()
 
         info = {
@@ -121,37 +219,39 @@ class ServiceRegistry:
                 self.get_forecast_algo_list(),
                 self.get_anomaly_algo_list(),
                 self.get_imputation_algo_list(),
-                self.get_corr_algo_list()
-            ]
+                self.get_corr_algo_list(),
+                self.get_regression_algo_list(),
+                self.get_classification_algo_list(),
+            ],
         }
 
         return info
 
     def get_anomaly_algo_list(self):
-        """ get all available service list """
+        """get all available service list"""
         return {
             "type": "anomaly-detection",
-            "algo": self.get_typed_services("anomaly-detection")
+            "algo": self.get_typed_services("anomaly-detection"),
         }
 
     def get_imputation_algo_list(self):
-        """ get all available service list """
-        return {
-            "type": "imputation",
-            "algo": self.get_typed_services("imputation")
-        }
+        """get all available service list"""
+        return {"type": "imputation", "algo": self.get_typed_services("imputation")}
 
     def get_forecast_algo_list(self):
-        """ get all available service list """
-        return {
-            "type": "forecast",
-            "algo": self.get_typed_services("forecast")
-        }
+        """get all available service list"""
+        return {"type": "forecast", "algo": self.get_typed_services("forecast")}
 
     def get_corr_algo_list(self):
+        return {"type": "correlation", "algo": self.get_typed_services("correlation")}
+
+    def get_regression_algo_list(self):
+        return {"type": "regression", "algo": self.get_typed_services("regression")}
+
+    def get_classification_algo_list(self):
         return {
-            "type": "correlation",
-            "algo": self.get_typed_services("correlation")
+            "type": "classification",
+            "algo": self.get_typed_services("classification"),
         }
 
     def register_service_from_file(self, config_file: str):
@@ -164,16 +264,38 @@ class ServiceRegistry:
         """
 
         with self._services_lock:
-            if not config_file.endswith('.json'):
+            if not config_file.endswith(".json"):
                 msg = f"not a json file: {config_file}"
                 raise ValueError(msg)
 
-            config_file_name = Path(config_file).name
-            model_name = config_file_name.replace(os.sep, '.')[:-5]  # strip .json
+            config_path = Path(config_file)
+            # Derive model_name consistently as the single source of truth.
+            # Strategy: use parent directory name when in a subdirectory (new format),
+            # otherwise use config file stem (old format at root).
+            # This ensures {model_name}/{model_name}.json always registers as model_name,
+            # matching the orphaned cleanup logic which searches for {dirname}.pkl.
+            parent_name = config_path.parent.name
+            config_stem = config_path.stem
 
-            AppLogger.info("loading algorithm/model from file: %s (module: %s)", config_file, model_name)
+            # If parent and stem match, this is the new format (model/model.json) or old format (root/model.json)
+            # If they don't match, this is either old root format (root/something.json) or
+            # misnamed new format (model/different_name.json)
+            # For robustness: prefer parent name if they differ AND parent is not a generic name
+            if parent_name == config_stem:
+                # Standard case: either model/model.json or root/model.json → use the name
+                model_name = config_stem
+            else:
+                # Names differ: use parent directory as the source of truth (new format, any name)
+                # This handles model/custom_name.json → register as "model", matching orphan cleanup
+                model_name = parent_name
 
-            with open(config_file, 'r', encoding="utf-8") as f:
+            AppLogger.info(
+                "loading algorithm/model from file: %s (model: %s)",
+                config_file,
+                model_name,
+            )
+
+            with open(config_file, "r", encoding="utf-8") as f:
                 file_content = f.read()
                 try:
                     config = json.loads(file_content)
@@ -182,24 +304,41 @@ class ServiceRegistry:
                     raise ValueError(msg) from e
 
             if not isinstance(config, dict):
-                raise ValueError(f"invalid config format in file: {config_file}, expected a JSON object")
+                raise ValueError(
+                    f"invalid config format in file: {config_file}, expected a JSON object"
+                )
 
-            if 'algo' in config:
-                algo_name = config['algo']
+            if "algo" in config:
+                algo_name = config["algo"]
 
-                if algo_name.lower() in ServiceRegistry._only_params_models:
+                if algo_name.lower() in ServiceRegistry._forecast_models:
                     # only parameters model
-                    # create a simple service object with the metadata, the actual implementation can be loaded later when execute.
+                    # create a simple service object with the metadata, the actual implementation
+                    # can be loaded later when execute.
                     serv = DynamicForecastService(
                         name=model_name,
                         desc=f"dynamic generated model training from {algo_name}",
                         algo=algo_name,
                         path=config_file,
                     )
-                elif algo_name.lower() in ServiceRegistry._only_params_anomaly_models:
+                elif algo_name.lower() in ServiceRegistry._anomaly_models:
                     serv = DynamicAnomalyService(
                         name=model_name,
                         desc=f"dynamic generated anomaly detection from {algo_name}",
+                        algo=algo_name,
+                        path=config_file,
+                    )
+                elif algo_name.lower() in ServiceRegistry._regression_models:
+                    serv = DynamicRegressionService(
+                        name=model_name,
+                        desc=f"dynamic generated regression from {algo_name}",
+                        algo=algo_name,
+                        path=config_file,
+                    )
+                elif algo_name.lower() in ServiceRegistry._classification_models:
+                    serv = DynamicClassificationService(
+                        name=model_name,
+                        desc=f"dynamic generated classification from {algo_name}",
                         algo=algo_name,
                         path=config_file,
                     )
@@ -208,51 +347,79 @@ class ServiceRegistry:
                     raise ValueError(msg)
 
                 if model_name in self.services:
-                    raise RuntimeError(f"model with name '{model_name}' already exists, register failed")
+                    raise RuntimeError(
+                        f"model with name '{model_name}' already exists, register failed"
+                    )
 
                 ServiceRegistry._register_service(self.services, model_name, serv)
-                AppLogger.info("register dynamic model:'%s' from %s, total:%d", model_name, config_file,
-                                len(self.services))
+                AppLogger.info(
+                    "register dynamic model:'%s' from %s, total:%d",
+                    model_name,
+                    config_file,
+                    len(self.services),
+                )
             else:
-                msg = f"failed to register dynamic service, missing 'algo' field in dynamic model configuration file: {config_file}"
+                msg = "failed to register dynamic service, missing 'algo' field in "
+                f"dynamic model configuration file: {config_file}"
                 raise ValueError(msg)
 
     def unregister_dynamic_service(self, name: str):
-        """ unregister the dynamic service, e.g. when the model is deleted or updated."""
+        """unregister the dynamic service, e.g. when the model is deleted or updated."""
         with self._services_lock:
             if name in self.services:
                 if self.services[name].is_builtins:
-                    raise RuntimeError(f"try to unregister built-in model:'{name}', operation not allowed")
+                    raise RuntimeError(
+                        f"try to unregister built-in model:'{name}', operation not allowed"
+                    )
 
-                if not isinstance(self.services[name], (DynamicForecastService, DynamicAnomalyService)):
-                    raise RuntimeError(f"try to unregister non-dynamic model:'{name}', operation not allowed")
+                if not isinstance(
+                    self.services[name],
+                    (
+                        DynamicForecastService,
+                        DynamicAnomalyService,
+                        DynamicRegressionService,
+                        DynamicClassificationService,
+                    ),
+                ):
+                    raise RuntimeError(
+                        f"try to unregister non-dynamic model:'{name}', operation not allowed"
+                    )
 
                 del self.services[name]
                 AppLogger.info("unregister dynamic model:'%s'", name)
             else:
-                raise NotFoundDynamicModelError(f"try to unregister non-existing model:'{name}', operation failed")
+                raise NotFoundDynamicModelError(
+                    f"try to unregister non-existing model:'{name}', operation failed"
+                )
 
     @staticmethod
     def _register_service(container, name: str, service):
-        """ register service for all kinds """
+        """register service for all kinds"""
         if name in container:
             AppLogger.error("service with name '%s' already exists", name)
-            raise RuntimeError(f"service with name '{name}' already exists, failed to register service")
+            raise RuntimeError(
+                f"service with name '{name}' already exists, failed to register service"
+            )
 
         container[name] = service
 
-    def _register_services_in_dir(self, cur_directory, lib_prefix, sub_directory, required: bool = True):
-        """ the implementation of load services """
+    def _register_services_in_dir(
+        self, cur_directory, lib_prefix, sub_directory, required: bool = True
+    ):
+        """the implementation of load services"""
         service_directory = str(os.path.join(cur_directory, sub_directory))
 
         if not os.path.exists(service_directory):
             AppLogger.fatal(
                 "service directory:%s does not exist, failed to load service",
-                service_directory)
+                service_directory,
+            )
 
             if required:
                 # fail fast if try to register the built-in service to diagnose the bug.
-                raise FileNotFoundError(f"service directory:{service_directory} does not exist")
+                raise FileNotFoundError(
+                    f"service directory:{service_directory} does not exist"
+                )
             else:
                 # ignore the failure and continue in case of registering custom models
                 return
@@ -260,7 +427,7 @@ class ServiceRegistry:
         all_files = os.listdir(service_directory)
 
         for item in all_files:
-            if item in ('__init__.py', '__pycache__') or not item.endswith('.py'):
+            if item in ("__init__.py", "__pycache__") or not item.endswith(".py"):
                 continue
 
             full_path = os.path.join(service_directory, item)
@@ -268,86 +435,145 @@ class ServiceRegistry:
                 continue
 
             # do load algorithm
-            name = lib_prefix + item.split('.')[0]
+            name = lib_prefix + item.split(".")[0]
 
             try:
                 module = importlib.import_module(name)
             except Exception as e:
-                AppLogger.error("failed to import module %s: %s, skipping", name, str(e))
+                AppLogger.error(
+                    "failed to import module %s: %s, skipping", name, str(e)
+                )
                 continue
 
             AppLogger.info("load algorithm:%s", name)
 
-            for (class_name, _) in inspect.getmembers(module, inspect.isclass):
+            for class_name, _ in inspect.getmembers(module, inspect.isclass):
 
-                if class_name in ServiceRegistry._base_class_name or (not class_name.startswith('_')):
+                if class_name in ServiceRegistry._base_class_name or (
+                    not class_name.startswith("_")
+                ):
                     continue
 
                 algo_cls = getattr(module, class_name)
 
                 if algo_cls.__module__ != module.__name__:
-                    AppLogger.warning("class %s in module %s is not defined in the module, skipping",
-                                      class_name, name)
+                    AppLogger.warning(
+                        "class %s in module %s is not defined in the module, skipping",
+                        class_name,
+                        name,
+                    )
                     continue
 
-                if algo_cls.__module__  != name:
-                    AppLogger.warning("class %s in module %s is imported from another module %s, skipping",
-                                      class_name, name, algo_cls.__module__)
+                if algo_cls.__module__ != name:
+                    AppLogger.warning(
+                        "class %s in module %s is imported from another module %s, skipping",
+                        class_name,
+                        name,
+                        algo_cls.__module__,
+                    )
                     continue
 
                 if algo_cls is not None:
                     version = sys.version_info
 
                     # ignore the shesd for python 3.12 version due to the pandas version compatibility issue
-                    if (version.major, version.minor) == (3, 12) and class_name == '_SHESDService':
+                    if (version.major, version.minor) == (
+                        3,
+                        12,
+                    ) and class_name == "_SHESDService":
                         AppLogger.info(
                             "%s not loaded due to Pandas compatibility problem on Python 3.12",
-                            class_name)
+                            class_name,
+                        )
                         continue
 
                     try:
                         obj = algo_cls()
-                        ServiceRegistry._register_service(self.services, algo_cls.name, obj)
+                        ServiceRegistry._register_service(
+                            self.services, algo_cls.name, obj
+                        )
                     except Exception as e:
-                        AppLogger.error("failed to register service:%s from %s: %s, skipping",
-                                        class_name, name, str(e))
+                        AppLogger.error(
+                            "failed to register service:%s from %s: %s, skipping",
+                            class_name,
+                            name,
+                            str(e),
+                        )
                         continue
 
     def register_all_services(self) -> None:
-        """ register all algorithms/models in the specified directory"""
+        """register all algorithms/models in the specified directory"""
         if self._loaded:
-            AppLogger.warning("already register all service abort from the register all procedure")
+            AppLogger.warning(
+                "already register all service abort from the register all procedure"
+            )
             return
 
         # start to load all services
         current_directory = os.path.dirname(os.path.abspath(__file__))
 
-        self._register_services_in_dir(current_directory, 'taosanalytics.algo.ad.', 'algo/ad/', True)
-        self._register_services_in_dir(current_directory, 'taosanalytics.algo.fc.', 'algo/fc/', True)
-        self._register_services_in_dir(current_directory, 'taosanalytics.algo.imputat.', 'algo/imputat/', True)
-        self._register_services_in_dir(current_directory, 'taosanalytics.algo.correl.', 'algo/correl/', True)
+        self._register_services_in_dir(
+            current_directory, "taosanalytics.algo.ad.", "algo/ad/", True
+        )
+        self._register_services_in_dir(
+            current_directory, "taosanalytics.algo.fc.", "algo/fc/", True
+        )
+        self._register_services_in_dir(
+            current_directory, "taosanalytics.algo.imputat.", "algo/imputat/", True
+        )
+        self._register_services_in_dir(
+            current_directory, "taosanalytics.algo.correl.", "algo/correl/", True
+        )
 
         # load user defined ML model-driven script.
         AppLogger.info("start to load custom defined models")
 
-        self._register_services_in_dir(current_directory, 'taosanalytics.algo.custom.ad.', 'algo/custom/ad/', False)
-        self._register_services_in_dir(current_directory, 'taosanalytics.algo.custom.fc.', 'algo/custom/fc/', False)
+        self._register_services_in_dir(
+            current_directory, "taosanalytics.algo.custom.ad.", "algo/custom/ad/", False
+        )
+        self._register_services_in_dir(
+            current_directory, "taosanalytics.algo.custom.fc.", "algo/custom/fc/", False
+        )
 
         AppLogger.info("start to load custom defined models from config files")
 
         dyn_dir = Configure.get_instance().get_dynamic_model_directory()
 
         if Path(dyn_dir).exists() and os.path.isdir(dyn_dir):
-            for item in os.listdir(dyn_dir):
-                if item.endswith('.json'):
+            dyn_dir_path = Path(dyn_dir)
+            # Support both old format (root json) and new format (subdir/model_name.json)
+            for item_path in dyn_dir_path.iterdir():
+                if item_path.is_file() and item_path.suffix == ".json":
+                    # Old format: direct json file in root directory
                     try:
-                        self.register_service_from_file(os.path.join(dyn_dir, item))
+                        self.register_service_from_file(str(item_path))
                     except Exception as e:
-                        AppLogger.error("failed to register dynamic model from file %s: %s, skipping", item, str(e))
-                        continue
+                        AppLogger.error(
+                            "failed to register dynamic model from file %s: %s, skipping",
+                            item_path.name,
+                            str(e),
+                        )
+                elif item_path.is_dir():
+                    # New format: model_name subdirectory
+                    model_name = item_path.name
+                    config_file_name = f"{model_name}.json"
+                    config_path = item_path / config_file_name
+
+                    if config_path.exists():
+                        try:
+                            self.register_service_from_file(str(config_path))
+                        except Exception as e:
+                            AppLogger.error(
+                                "failed to register dynamic model from file %s: %s, skipping",
+                                config_file_name,
+                                str(e),
+                            )
         else:
-            AppLogger.debug("dynamic model directory '%s' does not exist or is not a directory, "
-                            "skipping loading dynamic models from config files", dyn_dir)
+            AppLogger.debug(
+                "dynamic model directory '%s' does not exist or is not a directory, "
+                "skipping loading dynamic models from config files",
+                dyn_dir,
+            )
 
         # mark the register procedure.
         self._loaded = True

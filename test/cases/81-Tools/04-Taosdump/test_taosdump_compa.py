@@ -26,7 +26,7 @@ class TestTaosdumpCompa:
 
     def findPrograme(self):
         # taosdump 
-        taosdump = etool.taosDumpFile()
+        taosdump = etool.taosOldDumpFile()
         if taosdump == "":
             tdLog.exit("taosdump not found!")
         else:
@@ -98,8 +98,7 @@ class TestTaosdumpCompa:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional,compatibility
         Jira: None
 
         History:
@@ -109,14 +108,13 @@ class TestTaosdumpCompa:
         # database
         db = "test"
         
-        # find
-        taosdump, tmpdir = self.findPrograme()
+        newTaosdump = etool.taosDumpFile()
         data = f"{os.path.dirname(os.path.abspath(__file__))}/compa"
 
-        # dump in
-        self.dumpIn(taosdump, data)
-
-        # verify db
-        self.verifyResult(db)
+        # import and verify with taosBackup (pre-generated AVRO backup from v3.1.0.0)
+        for tool_name, tool in [("taosBackup", newTaosdump)]:
+            tdSql.execute(f"drop database if exists {db}")
+            self.dumpIn(tool, data)
+            self.verifyResult(db)
 
 

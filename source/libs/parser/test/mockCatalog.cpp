@@ -12,6 +12,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifdef _WIN32
+#include "osWindows.h"
+#endif
+
 #include <iostream>
 #include "stub.h"
 
@@ -21,10 +25,6 @@
 #include <addr_any.h>
 
 #pragma GCC diagnostic pop
-
-#ifdef WINDOWS
-#define TD_USE_WINSOCK
-#endif
 
 #include "mockCatalog.h"
 
@@ -122,6 +122,33 @@ void generateInformationSchema(MockCatalogService* mcs) {
     .addColumn("message", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
     .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
     .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_XNODE_TASKS, TSDB_SYSTEM_TABLE, 13)
+      .addColumn("id", TSDB_DATA_TYPE_INT)
+      .addColumn("name", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_TASK_NAME_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("from", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_TASK_SOURCE_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("to", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_TASK_SINK_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("parser", TSDB_DATA_TYPE_BLOB, TSDB_XNODE_TASK_PARSER_MAX_LEN + BLOBSTR_HEADER_SIZE)
+      .addColumn("via", TSDB_DATA_TYPE_INT)
+      .addColumn("xnode_id", TSDB_DATA_TYPE_INT)
+      .addColumn("status", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("reason", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_TASK_REASON_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("created_by", TSDB_DATA_TYPE_VARCHAR, TSDB_USER_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("labels", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_TASK_LABELS_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("update_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_XNODE_JOBS, TSDB_SYSTEM_TABLE, 9)
+      .addColumn("id", TSDB_DATA_TYPE_INT)
+      .addColumn("task_id", TSDB_DATA_TYPE_INT)
+      .addColumn("config", TSDB_DATA_TYPE_BLOB,
+                 TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN + BLOBSTR_HEADER_SIZE)
+      .addColumn("via", TSDB_DATA_TYPE_INT)
+      .addColumn("xnode_id", TSDB_DATA_TYPE_INT)
+      .addColumn("status", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("reason", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_TASK_REASON_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("update_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .done();
 }
 
 void generatePerformanceSchema(MockCatalogService* mcs) {
@@ -224,6 +251,17 @@ void generateTestStables(MockCatalogService* mcs, const std::string& db) {
     builder.done();
     mcs->createSubTable(db, "st2", "st2s1", 2);
     mcs->createSubTable(db, "st2", "st2s2", 3);
+  }
+  {
+    ITableBuilder& builder = mcs->createTableBuilder(db, "meters", TSDB_SUPER_TABLE, 3, 1)
+                                 .setPrecision(TSDB_TIME_PRECISION_MILLI)
+                                 .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+                                 .addColumn("c1", TSDB_DATA_TYPE_INT)
+                                 .addColumn("c2", TSDB_DATA_TYPE_INT)
+                                 .addTag("location", TSDB_DATA_TYPE_BINARY, 20);
+    builder.done();
+    mcs->createSubTable(db, "meters", "meters_0", 2);
+    mcs->createSubTable(db, "meters", "meters_1", 3);
   }
   {
     ITableBuilder& builder = mcs->createTableBuilder(db, "stream_t1", TSDB_NORMAL_TABLE, 3, 0)

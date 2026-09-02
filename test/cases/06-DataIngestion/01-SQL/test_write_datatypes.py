@@ -132,6 +132,8 @@ class TestWriteDatatypes:
     
         Since: v3.0.0.0
 
+        Labels: common,ci,integration,functional
+
         History:
             - 2023-12-1 Bob Liu Created, Huo Hong Migrated to new test framework
             - 2025-8-12 Simon Guan Migrated from tsim/insert/basic2.sim

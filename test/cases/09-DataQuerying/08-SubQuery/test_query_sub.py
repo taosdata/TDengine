@@ -16,8 +16,7 @@ class TestQuerySub:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -338,11 +337,20 @@ class TestQuerySub:
         tdSql.checkData(0, 1, 0.000083333)
 
         tdLog.info(f"======================>TD-5271")
-        tdSql.error(
+        tdSql.query(
             f"select min(val),max(val),first(val),last(val),count(val),sum(val),avg(val) from (select count(*) val from nest_mt0 group by tbname)"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10000)
+        tdSql.checkData(0, 1, 10000)
+        tdSql.checkData(0, 2, 10000)
+        tdSql.checkData(0, 3, 10000)
+        tdSql.checkData(0, 4, 4)
+        tdSql.checkData(0, 5, 40000)
+        tdSql.checkData(0, 6, 10000)
 
         tdLog.info(f"=================>us database interval query, TD-5039")
+        tdSql.execute(f"drop database if exists test;")
         tdSql.execute(f"create database test precision 'us';")
         tdSql.execute(f"use test;")
         tdSql.execute(f"create table t1(ts timestamp, k int);")
@@ -363,6 +371,7 @@ class TestQuerySub:
         tdSql.checkData(1, 1, 2.000000000)
 
     def TimeLine(self):
+        tdSql.execute(f"drop database if exists test;")
         tdSql.execute(f"create database test;")
         tdSql.execute(f"use test;")
 
@@ -399,35 +408,53 @@ class TestQuerySub:
         tdSql.error(
             f"select diff(faev) from ((select ts, faev from demo union all select ts, faev from demo));"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(faev) from (select _ts, faev from demo union all select _ts, faev from demo order by faev, _ts);"
         )
-        tdSql.error(
+        tdSql.checkRows(15)
+        tdSql.checkData(0, 0, 0.000000000)
+        tdSql.checkData(1, 0, 1.000000000)
+        tdSql.checkData(14, 0, 0.000000000)
+        tdSql.query(
             f"select diff(faev) from (select _ts, faev from demo union all select _ts, faev from demo order by faev, _ts) partition by faev;"
         )
+        tdSql.checkRows(8)
+        for i in range(8):
+            tdSql.checkData(i, 0, 0)
         tdSql.query(
             f"select diff(faev) from (select _ts, faev from demo union all select _ts + 1s, faev from demo order by faev, _ts) partition by faev;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(faev) from (select _ts, faev, deviceid from demo union all select _ts + 1s, faev, deviceid from demo order by deviceid, _ts) partition by faev;"
         )
+        tdSql.checkRows(8)
+        for i in range(8):
+            tdSql.checkData(i, 0, 0)
         tdSql.query(
             f"select diff(faev) from (select _ts, faev, deviceid from demo union all select _ts + 1s, faev, deviceid from demo order by faev, _ts, deviceid) partition by faev;"
         )
 
-        tdSql.error(f"select diff(faev) from (select _ts, faev from demo);")
-        tdSql.error(
+        tdSql.query(f"select diff(faev) from (select _ts, faev from demo);")
+        tdSql.checkRows(7)
+        tdSql.query(
             f"select diff(faev) from (select _ts, faev from demo order by faev, _ts);"
         )
+        tdSql.checkRows(7)
+        for i in range(7):
+            tdSql.checkData(i, 0, 1)
         tdSql.query(
             f"select diff(faev) from (select _ts, faev from demo order by faev, _ts) partition by faev;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(faev) from (select _ts, faev, deviceid from demo order by faev, _ts) partition by deviceid;"
         )
-        tdSql.error(
+        tdSql.checkRows(6)
+        for i in range(6):
+            tdSql.checkData(i, 0, 1)
+        tdSql.query(
             f"select diff(faev) from (select _ts, faev, deviceid from demo order by deviceid, _ts) partition by faev;"
         )
+        tdSql.checkRows(0)
         tdSql.query(
             f"select diff(faev) from (select _ts, faev, deviceid from demo order by faev, _ts, deviceid) partition by faev;"
         )

@@ -65,7 +65,9 @@ class TestBenchmarkExcept:
 
         os.kill(pids[0], signal.SIGINT)
         if isForceExit:
-            # Send second SIGINT immediately (no delay!) to trigger forced exit
+            # Standard signals are not queued. Give the first handler a full
+            # scheduler time slice before delivering the forced-stop signal.
+            time.sleep(1)
             os.kill(pids[0], signal.SIGINT)
 
         # Wait for benchmark to finish and write output.
@@ -170,11 +172,11 @@ class TestBenchmarkExcept:
         1. Insert operator be canceled check expect
         2. Insert operator be forced exit check expect
         3. Insert operator meet dnode exit check expect
-        
-        
+
+
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 

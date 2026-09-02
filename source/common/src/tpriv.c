@@ -26,6 +26,8 @@ typedef struct {
   int32_t     level;
 } SPrivObjInfo;
 
+const char* const __builtinRoles[TSDB_BUILTIN_ROLE_NUM] = {TSDB_BUILTIN_ROLE_LIST(TSDB_BUILTIN_ROLE_NAME)};
+
 static const SPrivObjInfo __privObjInfo[] = {
     {"CLUSTER", 0}, {"NODE", 0},  {"DATABASE", 0}, {"TABLE", 1}, {"FUNCTION", 0}, {"INDEX", 1},
     {"VIEW", 1},    {"USER", 0},  {"ROLE", 0},     {"RSMA", 1},  {"TSMA", 1},     {"TOPIC", 1},
@@ -536,14 +538,14 @@ int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32
 }
 
 const char* privObjGetName(EPrivObjType objType) {
-  if (objType < PRIV_OBJ_CLUSTER || objType >= PRIV_OBJ_MAX) {
+  if (objType < PRIV_OBJ_CLUSTER || objType >= (int32_t)tListLen(__privObjInfo)) {
     return "UNKNOWN";
   }
   return __privObjInfo[objType].name;
 }
 
 int32_t privObjGetLevel(EPrivObjType objType) {
-  if (objType < PRIV_OBJ_CLUSTER || objType >= PRIV_OBJ_MAX) {
+  if (objType < PRIV_OBJ_CLUSTER || objType >= (int32_t)tListLen(__privObjInfo)) {
     return -1;
   }
   return __privObjInfo[objType].level;
@@ -676,7 +678,7 @@ bool privHasObjPrivilege(SHashObj* privs, int32_t acctId, const char* objName, c
                          const SPrivInfo* privInfo, bool recursive) {
   if (tbName != NULL) {
     if (privInfo->objLevel == 0 || privInfo->objType <= PRIV_OBJ_DB) {
-      uError("invalid privilege info for table level check, privType:%d, objType:%d, objLevel:%d\n", privInfo->privType,
+      uTrace("invalid privilege info for table level check, privType:%d, objType:%d, objLevel:%d\n", privInfo->privType,
              privInfo->objType, privInfo->objLevel);
     }
   }

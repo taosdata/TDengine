@@ -114,12 +114,12 @@ class TestInterp:
 
         tdSql.query("select _irowts as ts,interp(v1),t1,tbname from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
-            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) fill(prev)")
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) fill(prev) order by tbname, _irowts")
         tdSql.checkRows(4)
         
         tdSql.query("select _irowts as ts,interp(v1),t1,tbname from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
-            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) fill(prev) order by tbname")
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) fill(prev) order by tbname, _irowts")
         tdSql.checkData(0, 2, 3)
         tdSql.checkData(1, 2, 3)
         tdSql.checkData(2, 2, 2)
@@ -132,7 +132,7 @@ class TestInterp:
         tdSql.query("select _irowts as ts,interp(v1),t1,tbname from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
             partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
-            fill(value, 0) order by tbname")
+            fill(value, 0) order by tbname, _irowts")
         tdSql.checkRows(12)
         tdSql.checkData(0, 2, 0)
         tdSql.checkData(0, 3, "ttt_123")
@@ -142,7 +142,7 @@ class TestInterp:
         tdSql.query("select _irowts as ts,interp(v1),tbname from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
             partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
-            fill(value, 0) order by tbname")
+            fill(value, 0) order by tbname, _irowts")
         tdSql.checkRows(12)
         tdSql.checkData(0, 2, "ttt_123")
         tdSql.checkData(1, 2, "ttt_13")
@@ -150,7 +150,7 @@ class TestInterp:
         tdSql.query("select _irowts as ts,interp(v1),t1,tbname from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
             partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
-            fill(NULL) order by tbname")
+            fill(NULL) order by tbname, _irowts")
         tdSql.checkRows(12)
         tdSql.checkData(0, 2, 0)
         tdSql.checkData(0, 3, "ttt_123")
@@ -160,7 +160,7 @@ class TestInterp:
         tdSql.query("select _irowts as ts,interp(v1),t1 from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
             partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
-            fill(NULL) order by tbname")
+            fill(NULL) order by tbname, _irowts")
         tdSql.checkRows(12)
         tdSql.checkData(0, 2, 0)
         tdSql.checkData(1, 2, 3)
@@ -168,7 +168,7 @@ class TestInterp:
         tdSql.query("select _irowts as ts,interp(v1), tbname from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
             partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
-            fill(NULL) order by tbname")
+            fill(NULL) order by tbname, _irowts")
         tdSql.checkRows(12)
         tdSql.checkData(0, 2, "ttt_123")
         tdSql.checkData(1, 2, "ttt_13")
@@ -176,7 +176,7 @@ class TestInterp:
         tdSql.query("select _irowts as ts,interp(v1),t1,tbname from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
             partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
-            fill(NULL) order by tbname")
+            fill(NULL) order by tbname, _irowts")
         tdSql.checkRows(12)
         tdSql.checkData(0, 2, 0)
         tdSql.checkData(0, 3, "ttt_123")
@@ -186,7 +186,7 @@ class TestInterp:
         tdSql.query("select _irowts as ts,interp(v1),t1,tbname from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
             partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
-            fill(LINEAR) order by tbname")
+            fill(LINEAR) order by tbname, _irowts")
         tdSql.checkRows(1)
         tdSql.checkData(0, 2, 3)
         tdSql.checkData(0, 3, "ttt_14")
@@ -194,21 +194,21 @@ class TestInterp:
         tdSql.query("select _irowts as ts,interp(v1), tbname from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
             partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
-            fill(LINEAR) order by tbname")
+            fill(LINEAR) order by tbname, _irowts")
         tdSql.checkRows(1)
         tdSql.checkData(0, 2, "ttt_14")
         
         tdSql.query("select _irowts as ts,interp(v1),t1 from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
             partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
-            fill(LINEAR) order by tbname")
+            fill(LINEAR) order by tbname, _irowts")
         tdSql.checkRows(1)
         tdSql.checkData(0, 2, 3)
         
         tdSql.query("select _irowts as ts,interp(v1),t1, tbname from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
             partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
-            fill(NEXT) order by tbname")
+            fill(NEXT) order by tbname, _irowts")
         tdSql.checkRows(9)
         tdSql.checkData(0, 2, 0)
         tdSql.checkData(0, 3, "ttt_123")
@@ -216,21 +216,21 @@ class TestInterp:
         tdSql.query("select _irowts as ts,interp(v1),t1 from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
             partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
-            fill(NEXT) order by tbname")
+            fill(NEXT) order by tbname, _irowts")
         tdSql.checkRows(9)
         tdSql.checkData(0, 2, 0)
         
         tdSql.query("select _irowts as ts,interp(v1),tbname from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
             partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
-            fill(NEXT) order by tbname")
+            fill(NEXT) order by tbname, _irowts")
         tdSql.checkRows(9)
         tdSql.checkData(0, 2, "ttt_123")
         
         tdSql.query("select _irowts as ts,interp(v1),t1, tbname from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
             partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
-            fill(NULL_F) order by tbname")
+            fill(NULL_F) order by tbname, _irowts")
         tdSql.checkRows(12)
         tdSql.checkData(0, 2, 0)
         tdSql.checkData(0, 3, "ttt_123")
@@ -238,7 +238,7 @@ class TestInterp:
         tdSql.query("select _irowts as ts,interp(v1),t1, tbname from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
             partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
-            fill(VALUE_F, 5) order by tbname")
+            fill(VALUE_F, 5) order by tbname, _irowts")
         tdSql.checkRows(12)
         tdSql.checkData(0, 1, 5)
         tdSql.checkData(0, 2, 0)
@@ -247,7 +247,7 @@ class TestInterp:
         tdSql.query("select _irowts as ts,interp(v1),t1, t2, tbname from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
             partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
-            fill(VALUE_F, 5) order by tbname")
+            fill(VALUE_F, 5) order by tbname, _irowts")
         tdSql.checkRows(12)
         tdSql.checkData(0, 1, 5)
         tdSql.checkData(0, 2, 0)
@@ -256,12 +256,12 @@ class TestInterp:
         
         tdSql.query("select _irowts as ts,interp(v1),t1,tbname, t2 from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
-            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) fill(prev)")
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) fill(prev) order by tbname, _irowts")
         tdSql.checkRows(4)
         
         tdSql.query("select _irowts as ts,interp(v1),t1,tbname, t2 from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
-            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) fill(prev) order by tbname")
+            partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) fill(prev) order by tbname, _irowts")
         tdSql.checkData(0, 2, 3)
         tdSql.checkData(1, 2, 3)
         tdSql.checkData(2, 2, 2)
@@ -278,7 +278,7 @@ class TestInterp:
         tdSql.query("select _irowts as ts,interp(v1),t1,t2 from db1.stb1 \
             where ts>'2024-02-19T15:25:00+08:00' and ts<'2024-02-19T16:05:00+08:00' \
             partition by tbname range('2024-02-19T15:30:00+08:00','2024-02-19T15:30:00+08:00') every(1m) \
-            fill(value, 0) order by tbname")
+            fill(value, 0) order by tbname, _irowts")
         tdSql.checkRows(12)
         tdSql.checkData(0, 2, 0)
         tdSql.checkData(0, 3, "_ttt_123")
@@ -3275,7 +3275,10 @@ class TestInterp:
 
         # select interp from supertable partition by tbname
 
-        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(null)")
+        tdSql.query(f"""select tbname, _irowts, _isfilled, interp(c0) from 
+                    {dbname}.{stbname} partition by tbname 
+                    range('2020-02-01 00:00:00', '2020-02-01 00:00:18') 
+                    every(1s) fill(null) order by tbname, _irowts""")
 
         point_idx = {1, 7, 13, 22, 28, 34, 43, 49, 55}
         point_dict = {1:1, 7:7, 13:13, 22:3, 28:9, 34:15, 43:5, 49:11, 55:17}
@@ -3296,7 +3299,10 @@ class TestInterp:
             else:
                 tdSql.checkData(row, 3, None)
 
-        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(value, 0)")
+        tdSql.query(f"""select tbname, _irowts, _isfilled, interp(c0) from 
+                    {dbname}.{stbname} partition by tbname 
+                    range('2020-02-01 00:00:00', '2020-02-01 00:00:18') 
+                    every(1s) fill(value, 0) order by tbname, _irowts""")
 
         point_idx = {1, 7, 13, 22, 28, 34, 43, 49, 55}
         point_dict = {1:1, 7:7, 13:13, 22:3, 28:9, 34:15, 43:5, 49:11, 55:17}
@@ -3317,7 +3323,10 @@ class TestInterp:
             else:
                 tdSql.checkData(row, 3, 0)
 
-        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(prev)")
+        tdSql.query(f"""select tbname, _irowts, _isfilled, interp(c0) from 
+                    {dbname}.{stbname} partition by tbname 
+                    range('2020-02-01 00:00:00', '2020-02-01 00:00:18') 
+                    every(1s) fill(prev) order by tbname, _irowts""")
 
         tdSql.checkRows(48)
         for i in range(0, 18):
@@ -3365,7 +3374,10 @@ class TestInterp:
         for i in range(46, 48):
             tdSql.checkData(i, 3, 17)
 
-        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(next)")
+        tdSql.query(f"""select tbname, _irowts, _isfilled, interp(c0) from 
+                    {dbname}.{stbname} partition by tbname 
+                    range('2020-02-01 00:00:00', '2020-02-01 00:00:18') 
+                    every(1s) fill(next) order by tbname, _irowts""")
 
         tdSql.checkRows(48)
         for i in range(0, 14):
@@ -3413,7 +3425,10 @@ class TestInterp:
         for i in range(42, 48):
             tdSql.checkData(i, 3, 17)
 
-        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear)")
+        tdSql.query(f"""select tbname, _irowts, _isfilled, interp(c0) from 
+                    {dbname}.{stbname} partition by tbname 
+                    range('2020-02-01 00:00:00', '2020-02-01 00:00:18') 
+                    every(1s) fill(linear) order by tbname, _irowts""")
 
         tdSql.checkRows(39)
         for i in range(0, 13):
@@ -3507,28 +3522,28 @@ class TestInterp:
           tdSql.checkData(i, 0, f'2020-02-01 00:00:{i + 1}.000')
           tdSql.checkData(i, 2, i + 1)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} where ts between '2020-02-01 00:00:01.000' and '2020-02-01 00:00:13.000' partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} where ts between '2020-02-01 00:00:01.000' and '2020-02-01 00:00:13.000' partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear) order by tbname, _irowts")
         tdSql.checkRows(27)
 
         for i in range(13):
           tdSql.checkData(i, 0, f'2020-02-01 00:00:{i + 1}.000')
           tdSql.checkData(i, 2, i + 1)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} where c0 <= 13 partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} where c0 <= 13 partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear) order by tbname, _irowts")
         tdSql.checkRows(27)
 
         for i in range(13):
           tdSql.checkData(i, 0, f'2020-02-01 00:00:{i + 1}.000')
           tdSql.checkData(i, 2, i + 1)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} where t1 = 1 partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} where t1 = 1 partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear) order by tbname, _irowts")
         tdSql.checkRows(13)
 
         for i in range(13):
           tdSql.checkData(i, 0, f'2020-02-01 00:00:{i + 1}.000')
           tdSql.checkData(i, 2, i + 1)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} where tbname = 'ctb1' partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} where tbname = 'ctb1' partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear) order by tbname, _irowts")
         tdSql.checkRows(13)
 
         for i in range(13):
@@ -3579,38 +3594,38 @@ class TestInterp:
           tdSql.checkData(i, 0, f'2020-02-01 00:00:{i + 1}.000')
           tdSql.checkData(i, 2, i + 1)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear) limit 13")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear) order by tbname, _irowts limit 13")
         tdSql.checkRows(13)
 
         for i in range(13):
           tdSql.checkData(i, 0, f'2020-02-01 00:00:{i + 1}.000')
           tdSql.checkData(i, 2, i + 1)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear) limit 40")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear) order by tbname, _irowts limit 40")
         tdSql.checkRows(39)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} where ts between '2020-02-01 00:00:01.000' and '2020-02-01 00:00:13.000' partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear) limit 10")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} where ts between '2020-02-01 00:00:01.000' and '2020-02-01 00:00:13.000' partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear) order by tbname, _irowts limit 10")
         tdSql.checkRows(10)
 
         for i in range(10):
           tdSql.checkData(i, 0, f'2020-02-01 00:00:{i + 1}.000')
           tdSql.checkData(i, 2, i + 1)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} where c0 <= 13 partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear) limit 10")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} where c0 <= 13 partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear) order by tbname, _irowts limit 10")
         tdSql.checkRows(10)
 
         for i in range(10):
           tdSql.checkData(i, 0, f'2020-02-01 00:00:{i + 1}.000')
           tdSql.checkData(i, 2, i + 1)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} where t1 = 1 partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear) limit 10")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} where t1 = 1 partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear) order by tbname, _irowts limit 10")
         tdSql.checkRows(10)
 
         for i in range(10):
           tdSql.checkData(i, 0, f'2020-02-01 00:00:{i + 1}.000')
           tdSql.checkData(i, 2, i + 1)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} where tbname = 'ctb1' partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear) limit 10")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} where tbname = 'ctb1' partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(linear) order by tbname, _irowts limit 10")
         tdSql.checkRows(10)
 
         for i in range(10):
@@ -3653,7 +3668,7 @@ class TestInterp:
         tdSql.execute(f"insert into {dbname}.{ctbname1} values ('2020-02-01 00:00:15', 15, 15, 15, 15, 15.0, 15.0, true, 'varchar', 'nchar')")
 
         tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(null)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(null) order by tbname, _irowts")
 
         tdLog.printNoPrefix("======step 14: test interp ignore null values")
         tdSql.execute(
@@ -3882,7 +3897,7 @@ class TestInterp:
         tdSql.checkData(7,  2, 15)
         tdSql.checkData(8,  2, None)
 
-        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0, 1) from {dbname}.{stbname_null} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(NULL)")
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0, 1) from {dbname}.{stbname_null} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(NULL) order by tbname, _irowts")
 
         tdSql.checkRows(27)
         for i in range(0, 9):
@@ -3903,7 +3918,7 @@ class TestInterp:
         tdSql.checkData(18, 1, '2020-02-01 00:00:01.000')
         tdSql.checkData(26, 1, '2020-02-01 00:00:17.000')
 
-        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(NULL)")
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(NULL) order by tbname, _irowts")
 
         tdSql.checkRows(18)
         for i in range(0, 9):
@@ -4089,7 +4104,7 @@ class TestInterp:
         tdSql.checkData(7,  2, 15)
         tdSql.checkData(8,  2, 0)
 
-        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0, 1) from {dbname}.{stbname_null} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(value, 0)")
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0, 1) from {dbname}.{stbname_null} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(value, 0) order by tbname, _irowts")
 
         tdSql.checkRows(27)
         for i in range(0, 9):
@@ -4110,7 +4125,7 @@ class TestInterp:
         tdSql.checkData(18, 1, '2020-02-01 00:00:01.000')
         tdSql.checkData(26, 1, '2020-02-01 00:00:17.000')
 
-        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(value, 0)")
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(value, 0) order by tbname, _irowts")
 
         tdSql.checkRows(18)
         for i in range(0, 9):
@@ -4296,7 +4311,7 @@ class TestInterp:
         tdSql.checkData(7,  2, 15)
         tdSql.checkData(8,  2, 15)
 
-        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0, 1) from {dbname}.{stbname_null} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(prev)")
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0, 1) from {dbname}.{stbname_null} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(prev) order by tbname, _irowts")
 
         tdSql.checkRows(14)
         for i in range(0, 9):
@@ -4311,7 +4326,7 @@ class TestInterp:
         tdSql.checkData(9,  1, '2020-02-01 00:00:09.000')
         tdSql.checkData(13, 1, '2020-02-01 00:00:17.000')
 
-        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(prev)")
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(prev) order by tbname, _irowts")
 
         tdSql.checkRows(14)
         for i in range(0, 9):
@@ -4485,7 +4500,7 @@ class TestInterp:
         tdSql.checkData(6,  2, 13)
         tdSql.checkData(7,  2, 15)
 
-        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0, 1) from {dbname}.{stbname_null} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(next)")
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0, 1) from {dbname}.{stbname_null} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(next) order by tbname, _irowts")
 
         tdSql.checkRows(15)
         for i in range(0, 7):
@@ -4500,7 +4515,7 @@ class TestInterp:
         tdSql.checkData(7,  1, '2020-02-01 00:00:01.000')
         tdSql.checkData(14, 1, '2020-02-01 00:00:15.000')
 
-        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(next)")
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(next) order by tbname, _irowts")
 
         tdSql.checkRows(15)
         for i in range(0, 7):
@@ -4674,7 +4689,7 @@ class TestInterp:
         tdSql.checkData(6,  2, 13)
         tdSql.checkData(7,  2, 15)
 
-        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0, 1) from {dbname}.{stbname_null} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(linear)")
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0, 1) from {dbname}.{stbname_null} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(linear) order by tbname, _irowts")
 
         tdSql.checkRows(11)
         for i in range(0, 7):
@@ -4689,7 +4704,7 @@ class TestInterp:
         tdSql.checkData(7,  1, '2020-02-01 00:00:09.000')
         tdSql.checkData(10, 1, '2020-02-01 00:00:15.000')
 
-        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(linear)")
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(linear) order by tbname, _irowts")
 
         tdSql.checkRows(11)
         for i in range(0, 7):
@@ -5501,20 +5516,20 @@ class TestInterp:
         tdSql.checkRows(0)
 
         # partition by tbname
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:00') every(1s) fill(null)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:00') every(1s) fill(null) order by tbname, _irowts")
         tdSql.checkRows(3)
         for i in range(3):
           tdSql.checkData(i,  0, '2020-02-01 00:00:00.000')
           tdSql.checkData(i,  1, True)
           tdSql.checkData(i,  2, None)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:00') fill(null)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:00') fill(null) order by tbname, _irowts")
         tdSql.checkRows(3)
         for i in range(3):
           tdSql.checkData(i,  0, '2020-02-01 00:00:00.000')
           tdSql.checkData(i,  1, True)
           tdSql.checkData(i,  2, None)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:01') every(1s) fill(null)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:01') every(1s) fill(null) order by tbname, _irowts")
         tdSql.checkRows(3)
         tdSql.checkData(0,  0, '2020-02-01 00:00:01.000')
         tdSql.checkData(0,  1, False)
@@ -5523,7 +5538,7 @@ class TestInterp:
           tdSql.checkData(i,  0, '2020-02-01 00:00:01.000')
           tdSql.checkData(i,  1, True)
           tdSql.checkData(i,  2, None)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01') fill(null)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01') fill(null) order by tbname, _irowts")
         tdSql.checkRows(3)
         tdSql.checkData(0,  0, '2020-02-01 00:00:01.000')
         tdSql.checkData(0,  1, False)
@@ -5533,46 +5548,46 @@ class TestInterp:
           tdSql.checkData(i,  1, True)
           tdSql.checkData(i,  2, None)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02', '2020-02-01 00:00:02') every(1s) fill(null)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02', '2020-02-01 00:00:02') every(1s) fill(null) order by tbname, _irowts")
         tdSql.checkRows(3)
         for i in range(3):
           tdSql.checkData(i,  0, '2020-02-01 00:00:02.000')
           tdSql.checkData(i,  1, True)
           tdSql.checkData(i,  2, None)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02') fill(null)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02') fill(null) order by tbname, _irowts")
         tdSql.checkRows(3)
         for i in range(3):
           tdSql.checkData(i,  0, '2020-02-01 00:00:02.000')
           tdSql.checkData(i,  1, True)
           tdSql.checkData(i,  2, None)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06', '2020-02-01 00:00:06') every(1s) fill(null)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06', '2020-02-01 00:00:06') every(1s) fill(null) order by tbname, _irowts")
         tdSql.checkRows(3)
         for i in range(3):
           tdSql.checkData(i,  0, '2020-02-01 00:00:06.000')
           tdSql.checkData(i,  1, True)
           tdSql.checkData(i,  2, None)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06') fill(null)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06') fill(null) order by tbname, _irowts")
         tdSql.checkRows(3)
         for i in range(3):
           tdSql.checkData(i,  0, '2020-02-01 00:00:06.000')
           tdSql.checkData(i,  1, True)
           tdSql.checkData(i,  2, None)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:00') every(1s) fill(value,0)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:00') every(1s) fill(value,0) order by tbname, _irowts")
         tdSql.checkRows(3)
         for i in range(3):
           tdSql.checkData(i,  0, '2020-02-01 00:00:00.000')
           tdSql.checkData(i,  1, True)
           tdSql.checkData(i,  2, 0)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:00') fill(value,0)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:00') fill(value,0) order by tbname, _irowts")
         tdSql.checkRows(3)
         for i in range(3):
           tdSql.checkData(i,  0, '2020-02-01 00:00:00.000')
           tdSql.checkData(i,  1, True)
           tdSql.checkData(i,  2, 0)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:01') every(1s) fill(value,0)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:01') every(1s) fill(value,0) order by tbname, _irowts")
         tdSql.checkRows(3)
         tdSql.checkData(0,  0, '2020-02-01 00:00:01.000')
         tdSql.checkData(0,  1, False)
@@ -5581,7 +5596,7 @@ class TestInterp:
           tdSql.checkData(i,  0, '2020-02-01 00:00:01.000')
           tdSql.checkData(i,  1, True)
           tdSql.checkData(i,  2, 0)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01') fill(value,0)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01') fill(value,0) order by tbname, _irowts")
         tdSql.checkRows(3)
         tdSql.checkData(0,  0, '2020-02-01 00:00:01.000')
         tdSql.checkData(0,  1, False)
@@ -5591,60 +5606,60 @@ class TestInterp:
           tdSql.checkData(i,  1, True)
           tdSql.checkData(i,  2, 0)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02', '2020-02-01 00:00:02') every(1s) fill(value,0)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02', '2020-02-01 00:00:02') every(1s) fill(value,0) order by tbname, _irowts")
         tdSql.checkRows(3)
         for i in range(3):
           tdSql.checkData(i,  0, '2020-02-01 00:00:02.000')
           tdSql.checkData(i,  1, True)
           tdSql.checkData(i,  2, 0)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02') fill(value,0)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02') fill(value,0) order by tbname, _irowts")
         tdSql.checkRows(3)
         for i in range(3):
           tdSql.checkData(i,  0, '2020-02-01 00:00:02.000')
           tdSql.checkData(i,  1, True)
           tdSql.checkData(i,  2, 0)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06', '2020-02-01 00:00:06') every(1s) fill(value,0)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06', '2020-02-01 00:00:06') every(1s) fill(value,0) order by tbname, _irowts")
         tdSql.checkRows(3)
         for i in range(3):
           tdSql.checkData(i,  0, '2020-02-01 00:00:06.000')
           tdSql.checkData(i,  1, True)
           tdSql.checkData(i,  2, 0)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06') fill(value,0)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06') fill(value,0) order by tbname, _irowts")
         tdSql.checkRows(3)
         for i in range(3):
           tdSql.checkData(i,  0, '2020-02-01 00:00:06.000')
           tdSql.checkData(i,  1, True)
           tdSql.checkData(i,  2, 0)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:00') every(1s) fill(prev)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:00') every(1s) fill(prev) order by tbname, _irowts")
         tdSql.checkRows(0)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:00') fill(prev)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:00') fill(prev) order by tbname, _irowts")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:01') every(1s) fill(prev)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:01') every(1s) fill(prev) order by tbname, _irowts")
         tdSql.checkRows(1)
         tdSql.checkData(0,  0, '2020-02-01 00:00:01.000')
         tdSql.checkData(0,  1, False)
         tdSql.checkData(0,  2, 1)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01') fill(prev)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01') fill(prev) order by tbname, _irowts")
         tdSql.checkRows(1)
         tdSql.checkData(0,  0, '2020-02-01 00:00:01.000')
         tdSql.checkData(0,  1, False)
         tdSql.checkData(0,  2, 1)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02', '2020-02-01 00:00:02') every(1s) fill(prev)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02', '2020-02-01 00:00:02') every(1s) fill(prev) order by tbname, _irowts")
         tdSql.checkRows(1)
         tdSql.checkData(0,  0, '2020-02-01 00:00:02.000')
         tdSql.checkData(0,  1, True)
         tdSql.checkData(0,  2, 1)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02') fill(prev)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02') fill(prev) order by tbname, _irowts")
         tdSql.checkRows(1)
         tdSql.checkData(0,  0, '2020-02-01 00:00:02.000')
         tdSql.checkData(0,  1, True)
         tdSql.checkData(0,  2, 1)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:03', '2020-02-01 00:00:03') every(1s) fill(prev)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:03', '2020-02-01 00:00:03') every(1s) fill(prev) order by tbname, _irowts")
         tdSql.checkRows(2)
         tdSql.checkData(0,  0, '2020-02-01 00:00:03.000')
         tdSql.checkData(0,  1, True)
@@ -5652,7 +5667,7 @@ class TestInterp:
         tdSql.checkData(1,  0, '2020-02-01 00:00:03.000')
         tdSql.checkData(1,  1, False)
         tdSql.checkData(1,  2, 3)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:03') fill(prev)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:03') fill(prev) order by tbname, _irowts")
         tdSql.checkData(0,  0, '2020-02-01 00:00:03.000')
         tdSql.checkData(0,  1, True)
         tdSql.checkData(0,  2, 1)
@@ -5660,7 +5675,7 @@ class TestInterp:
         tdSql.checkData(1,  1, False)
         tdSql.checkData(1,  2, 3)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:04', '2020-02-01 00:00:04') every(1s) fill(prev)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:04', '2020-02-01 00:00:04') every(1s) fill(prev) order by tbname, _irowts")
         tdSql.checkRows(2)
         tdSql.checkData(0,  0, '2020-02-01 00:00:04.000')
         tdSql.checkData(0,  1, True)
@@ -5668,7 +5683,7 @@ class TestInterp:
         tdSql.checkData(1,  0, '2020-02-01 00:00:04.000')
         tdSql.checkData(1,  1, True)
         tdSql.checkData(1,  2, 3)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:04') fill(prev)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:04') fill(prev) order by tbname, _irowts")
         tdSql.checkRows(2)
         tdSql.checkData(0,  0, '2020-02-01 00:00:04.000')
         tdSql.checkData(0,  1, True)
@@ -5677,7 +5692,7 @@ class TestInterp:
         tdSql.checkData(1,  1, True)
         tdSql.checkData(1,  2, 3)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:05', '2020-02-01 00:00:05') every(1s) fill(prev)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:05', '2020-02-01 00:00:05') every(1s) fill(prev) order by tbname, _irowts")
         tdSql.checkRows(3)
         tdSql.checkData(0,  0, '2020-02-01 00:00:05.000')
         tdSql.checkData(0,  1, True)
@@ -5688,7 +5703,7 @@ class TestInterp:
         tdSql.checkData(2,  0, '2020-02-01 00:00:05.000')
         tdSql.checkData(2,  1, False)
         tdSql.checkData(2,  2, 5)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:05') fill(prev)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:05') fill(prev) order by tbname, _irowts")
         tdSql.checkRows(3)
         tdSql.checkData(0,  0, '2020-02-01 00:00:05.000')
         tdSql.checkData(0,  1, True)
@@ -5700,7 +5715,7 @@ class TestInterp:
         tdSql.checkData(2,  1, False)
         tdSql.checkData(2,  2, 5)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06', '2020-02-01 00:00:06') every(1s) fill(prev)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06', '2020-02-01 00:00:06') every(1s) fill(prev) order by tbname, _irowts")
         tdSql.checkRows(3)
         tdSql.checkData(0,  0, '2020-02-01 00:00:06.000')
         tdSql.checkData(0,  1, True)
@@ -5711,7 +5726,7 @@ class TestInterp:
         tdSql.checkData(2,  0, '2020-02-01 00:00:06.000')
         tdSql.checkData(2,  1, True)
         tdSql.checkData(2,  2, 5)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06') fill(prev)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06') fill(prev) order by tbname, _irowts")
         tdSql.checkRows(3)
         tdSql.checkData(0,  0, '2020-02-01 00:00:06.000')
         tdSql.checkData(0,  1, True)
@@ -5723,34 +5738,34 @@ class TestInterp:
         tdSql.checkData(2,  1, True)
         tdSql.checkData(2,  2, 5)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06', '2020-02-01 00:00:06') every(1s) fill(next)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06', '2020-02-01 00:00:06') every(1s) fill(next) order by tbname, _irowts")
         tdSql.checkRows(0)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06') fill(next)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06') fill(next) order by tbname, _irowts")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:05', '2020-02-01 00:00:05') every(1s) fill(next)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:05', '2020-02-01 00:00:05') every(1s) fill(next) order by tbname, _irowts")
         tdSql.checkRows(1)
         tdSql.checkData(0,  0, '2020-02-01 00:00:05.000')
         tdSql.checkData(0,  1, False)
         tdSql.checkData(0,  2, 5)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:05') fill(next)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:05') fill(next) order by tbname, _irowts")
         tdSql.checkRows(1)
         tdSql.checkData(0,  0, '2020-02-01 00:00:05.000')
         tdSql.checkData(0,  1, False)
         tdSql.checkData(0,  2, 5)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:04', '2020-02-01 00:00:04') every(1s) fill(next)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:04', '2020-02-01 00:00:04') every(1s) fill(next) order by tbname, _irowts")
         tdSql.checkRows(1)
         tdSql.checkData(0,  0, '2020-02-01 00:00:04.000')
         tdSql.checkData(0,  1, True)
         tdSql.checkData(0,  2, 5)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:04') fill(next)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:04') fill(next) order by tbname, _irowts")
         tdSql.checkRows(1)
         tdSql.checkData(0,  0, '2020-02-01 00:00:04.000')
         tdSql.checkData(0,  1, True)
         tdSql.checkData(0,  2, 5)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:03', '2020-02-01 00:00:03') every(1s) fill(next)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:03', '2020-02-01 00:00:03') every(1s) fill(next) order by tbname, _irowts")
         tdSql.checkRows(2)
         tdSql.checkData(0,  0, '2020-02-01 00:00:03.000')
         tdSql.checkData(0,  1, False)
@@ -5758,7 +5773,7 @@ class TestInterp:
         tdSql.checkData(1,  0, '2020-02-01 00:00:03.000')
         tdSql.checkData(1,  1, True)
         tdSql.checkData(1,  2, 5)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:03') fill(next)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:03') fill(next) order by tbname, _irowts")
         tdSql.checkData(0,  0, '2020-02-01 00:00:03.000')
         tdSql.checkData(0,  1, False)
         tdSql.checkData(0,  2, 3)
@@ -5766,7 +5781,7 @@ class TestInterp:
         tdSql.checkData(1,  1, True)
         tdSql.checkData(1,  2, 5)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02', '2020-02-01 00:00:02') every(1s) fill(next)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02', '2020-02-01 00:00:02') every(1s) fill(next) order by tbname, _irowts")
         tdSql.checkRows(2)
         tdSql.checkData(0,  0, '2020-02-01 00:00:02.000')
         tdSql.checkData(0,  1, True)
@@ -5774,7 +5789,7 @@ class TestInterp:
         tdSql.checkData(1,  0, '2020-02-01 00:00:02.000')
         tdSql.checkData(1,  1, True)
         tdSql.checkData(1,  2, 5)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02') fill(next)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02') fill(next) order by tbname, _irowts")
         tdSql.checkRows(2)
         tdSql.checkData(0,  0, '2020-02-01 00:00:02.000')
         tdSql.checkData(0,  1, True)
@@ -5783,7 +5798,7 @@ class TestInterp:
         tdSql.checkData(1,  1, True)
         tdSql.checkData(1,  2, 5)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:01') every(1s) fill(next)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:01') every(1s) fill(next) order by tbname, _irowts")
         tdSql.checkRows(3)
         tdSql.checkData(0,  0, '2020-02-01 00:00:01.000')
         tdSql.checkData(0,  1, False)
@@ -5794,7 +5809,7 @@ class TestInterp:
         tdSql.checkData(2,  0, '2020-02-01 00:00:01.000')
         tdSql.checkData(2,  1, True)
         tdSql.checkData(2,  2, 5)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01') fill(next)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01') fill(next) order by tbname, _irowts")
         tdSql.checkRows(3)
         tdSql.checkData(0,  0, '2020-02-01 00:00:01.000')
         tdSql.checkData(0,  1, False)
@@ -5806,7 +5821,7 @@ class TestInterp:
         tdSql.checkData(2,  1, True)
         tdSql.checkData(2,  2, 5)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:00') every(1s) fill(next)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:00') every(1s) fill(next) order by tbname, _irowts")
         tdSql.checkRows(3)
         tdSql.checkData(0,  0, '2020-02-01 00:00:00.000')
         tdSql.checkData(0,  1, True)
@@ -5817,7 +5832,7 @@ class TestInterp:
         tdSql.checkData(2,  0, '2020-02-01 00:00:00.000')
         tdSql.checkData(2,  1, True)
         tdSql.checkData(2,  2, 5)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:00') fill(next)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:00') fill(next) order by tbname, _irowts")
         tdSql.checkRows(3)
         tdSql.checkData(0,  0, '2020-02-01 00:00:00.000')
         tdSql.checkData(0,  1, True)
@@ -5829,54 +5844,54 @@ class TestInterp:
         tdSql.checkData(2,  1, True)
         tdSql.checkData(2,  2, 5)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:00') fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:00') fill(linear) order by tbname, _irowts")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:01') every(1s) fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:01') every(1s) fill(linear) order by tbname, _irowts")
         tdSql.checkRows(1)
         tdSql.checkData(0,  0, '2020-02-01 00:00:01.000')
         tdSql.checkData(0,  1, False)
         tdSql.checkData(0,  2, 1)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01') fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:01') fill(linear) order by tbname, _irowts")
         tdSql.checkRows(1)
         tdSql.checkData(0,  0, '2020-02-01 00:00:01.000')
         tdSql.checkData(0,  1, False)
         tdSql.checkData(0,  2, 1)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02', '2020-02-01 00:00:02') every(1s) fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02', '2020-02-01 00:00:02') every(1s) fill(linear) order by tbname, _irowts")
         tdSql.checkRows(0)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02') fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:02') fill(linear) order by tbname, _irowts")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:03', '2020-02-01 00:00:03') every(1s) fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:03', '2020-02-01 00:00:03') every(1s) fill(linear) order by tbname, _irowts")
         tdSql.checkRows(1)
         tdSql.checkData(0,  0, '2020-02-01 00:00:03.000')
         tdSql.checkData(0,  1, False)
         tdSql.checkData(0,  2, 3)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:03') fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:03') fill(linear) order by tbname, _irowts")
         tdSql.checkData(0,  0, '2020-02-01 00:00:03.000')
         tdSql.checkData(0,  1, False)
         tdSql.checkData(0,  2, 3)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:04', '2020-02-01 00:00:04') every(1s) fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:04', '2020-02-01 00:00:04') every(1s) fill(linear) order by tbname, _irowts")
         tdSql.checkRows(0)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:04') fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:04') fill(linear) order by tbname, _irowts")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:05', '2020-02-01 00:00:05') every(1s) fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:05', '2020-02-01 00:00:05') every(1s) fill(linear) order by tbname, _irowts")
         tdSql.checkRows(1)
         tdSql.checkData(0,  0, '2020-02-01 00:00:05.000')
         tdSql.checkData(0,  1, False)
         tdSql.checkData(0,  2, 5)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:05') fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:05') fill(linear) order by tbname, _irowts")
         tdSql.checkRows(1)
         tdSql.checkData(0,  0, '2020-02-01 00:00:05.000')
         tdSql.checkData(0,  1, False)
         tdSql.checkData(0,  2, 5)
 
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06', '2020-02-01 00:00:06') every(1s) fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06', '2020-02-01 00:00:06') every(1s) fill(linear) order by tbname, _irowts")
         tdSql.checkRows(0)
-        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06') fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06') fill(linear) order by tbname, _irowts")
         tdSql.checkRows(0)
 
         #### TS-3799 ####
@@ -7000,8 +7015,7 @@ class TestInterp:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

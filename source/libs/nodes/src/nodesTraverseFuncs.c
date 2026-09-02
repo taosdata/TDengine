@@ -74,11 +74,18 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
     case QUERY_NODE_LOGIC_CONDITION:
       res = walkExprs(((SLogicConditionNode*)pNode)->pParameterList, order, walker, pContext);
       break;
-    case QUERY_NODE_FUNCTION:
-      res = walkExprs(((SFunctionNode*)pNode)->pParameterList, order, walker, pContext);
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunc = (SFunctionNode*)pNode;
+      res = walkExprs(pFunc->pParameterList, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pFunc->pOver, order, walker, pContext);
+      }
       break;
+    }
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
+    case QUERY_NODE_TEXT_TABLE:
+    case QUERY_NODE_FILE_TABLE:
     case QUERY_NODE_VIRTUAL_TABLE:
       break;  // todo
     case QUERY_NODE_JOIN_TABLE: {
@@ -100,12 +107,18 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       break;
     case QUERY_NODE_STATE_WINDOW: {
       SStateWindowNode* pState = (SStateWindowNode*)pNode;
-      res = walkExpr(pState->pExpr, order, walker, pContext);
+      res = walkExprs(pState->pExprList, order, walker, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pState->pCol, order, walker, pContext);
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pState->pTrueForLimit, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pState->pExtend, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExprs(pState->pZerothList, order, walker, pContext);
       }
       break;
     }
@@ -130,6 +143,9 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pInterval->pSliding, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pInterval->pSOffset, order, walker, pContext);
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pInterval->pFill, order, walker, pContext);
@@ -192,6 +208,28 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       }
       break;
     }
+    case QUERY_NODE_SQL_WINDOW_SPEC: {
+      SWindowSpecNode* pWin = (SWindowSpecNode*)pNode;
+      res = walkExprs(pWin->pPartitionByList, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExprs(pWin->pOrderByList, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pWin->pFrame, order, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_SQL_WINDOW_FRAME: {
+      SWindowFrameNode* pFrame = (SWindowFrameNode*)pNode;
+      res = walkExpr(pFrame->start.pOffset, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pFrame->end.pOffset, order, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_SQL_NAMED_WINDOW:
+      res = walkExpr(((SNamedWindowNode*)pNode)->pSpec, order, walker, pContext);
+      break;
     case QUERY_NODE_PERIOD_WINDOW: {
       SPeriodWindowNode* pPeriod = (SPeriodWindowNode*)pNode;
       res = walkExpr(pPeriod->pOffset, order, walker, pContext);
@@ -223,10 +261,19 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
         res = walkExprs(pTrigger->pPartitionList, order, walker, pContext);
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExprs(pTrigger->pRollupTagList, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pTrigger->pOptions, order, walker, pContext);
       }
       break;
     }
+    case QUERY_NODE_STREAM_WINDOW_PLAN:
+      res = walkExprs(((SStreamWindowPlanNode*)pNode)->pLayers, order, walker, pContext);
+      break;
+    case QUERY_NODE_STREAM_WINDOW_LAYER:
+      res = walkExpr(((SStreamWindowLayerNode*)pNode)->pWindow, order, walker, pContext);
+      break;
     case QUERY_NODE_STREAM_TRIGGER_OPTIONS: {
       SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pNode;
       res = walkExpr(pOptions->pPreFilter, order, walker, pContext);
@@ -235,6 +282,12 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
     case QUERY_NODE_TRUE_FOR: {
       STrueForNode* pTrueFor = (STrueForNode*)pNode;
       res = walkExpr(pTrueFor->pDuration, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pTrueFor->pStartLimit, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pTrueFor->pEndLimit, order, walker, pContext);
+      }
       break;
     }
     default:
@@ -308,7 +361,7 @@ static void checkParamIsFunc(SFunctionNode* pFunc) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   for (int32_t i = 0; i < numOfParams; ++i) {
     SNode* pPara = nodesListGetNode(pFunc->pParameterList, i);
-    if (numOfParams > 1 && nodeType(pPara) == QUERY_NODE_FUNCTION) {
+    if (nodeType(pPara) == QUERY_NODE_FUNCTION) {
       ((SFunctionNode*)pPara)->node.asParam = true;
     }
     if (nodeType(pPara) == QUERY_NODE_COLUMN) {
@@ -359,10 +412,15 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       SFunctionNode* pFunc = (SFunctionNode*)pNode;
       checkParamIsFunc(pFunc);
       res = rewriteExprs(pFunc->pParameterList, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pFunc->pOver, order, rewriter, pContext);
+      }
       break;
     }
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
+    case QUERY_NODE_TEXT_TABLE:
+    case QUERY_NODE_FILE_TABLE:
     case QUERY_NODE_VIRTUAL_TABLE:
       break;  // todo
     case QUERY_NODE_JOIN_TABLE: {
@@ -384,7 +442,7 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       break;
     case QUERY_NODE_STATE_WINDOW: {
       SStateWindowNode* pState = (SStateWindowNode*)pNode;
-      res = rewriteExpr(&pState->pExpr, order, rewriter, pContext);
+      res = rewriteExprs(pState->pExprList, order, rewriter, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pState->pCol, order, rewriter, pContext);
       }
@@ -395,7 +453,7 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
         res = rewriteExpr(&pState->pExtend, order, rewriter, pContext);
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = rewriteExpr(&pState->pZeroth, order, rewriter, pContext);
+        res = rewriteExprs(pState->pZerothList, order, rewriter, pContext);
       }
       break;
     }
@@ -435,6 +493,12 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       }
       break;
     }
+    case QUERY_NODE_STREAM_WINDOW_PLAN:
+      res = rewriteExprs(((SStreamWindowPlanNode*)pNode)->pLayers, order, rewriter, pContext);
+      break;
+    case QUERY_NODE_STREAM_WINDOW_LAYER:
+      res = rewriteExpr(&((SStreamWindowLayerNode*)pNode)->pWindow, order, rewriter, pContext);
+      break;
     case QUERY_NODE_NODE_LIST:
       res = rewriteExprs(((SNodeListNode*)pNode)->pNodeList, order, rewriter, pContext);
       break;
@@ -500,6 +564,28 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       }
       break;
     }
+    case QUERY_NODE_SQL_WINDOW_SPEC: {
+      SWindowSpecNode* pWin = (SWindowSpecNode*)pNode;
+      res = rewriteExprs(pWin->pPartitionByList, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExprs(pWin->pOrderByList, order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pWin->pFrame, order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_SQL_WINDOW_FRAME: {
+      SWindowFrameNode* pFrame = (SWindowFrameNode*)pNode;
+      res = rewriteExpr(&pFrame->start.pOffset, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pFrame->end.pOffset, order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_SQL_NAMED_WINDOW:
+      res = rewriteExpr(&((SNamedWindowNode*)pNode)->pSpec, order, rewriter, pContext);
+      break;
     case QUERY_NODE_COUNT_WINDOW: {
       SCountWindowNode* pCount = (SCountWindowNode*)pNode;
       res = rewriteExpr(&pCount->pCol, order, rewriter, pContext);
@@ -540,6 +626,12 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     case QUERY_NODE_TRUE_FOR: {
       STrueForNode* pTrueFor = (STrueForNode*)pNode;
       res = rewriteExpr(&pTrueFor->pDuration, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pTrueFor->pStartLimit, order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pTrueFor->pEndLimit, order, rewriter, pContext);
+      }
       break;
     }
 
@@ -597,6 +689,7 @@ void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalke
       nodesWalkExpr(pSelect->pWindow, walker, pContext);
       nodesWalkExpr(pSelect->pFill, walker, pContext);
     case SQL_CLAUSE_WINDOW:
+      nodesWalkExprs(pSelect->pWindowList, walker, pContext);
       if (NULL != pSelect->pWindow) {
         if (QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
           nodesWalkExpr(((SExternalWindowNode*)pSelect->pWindow)->pSubquery, walker, pContext);
@@ -643,6 +736,7 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
     case SQL_CLAUSE_EXT_WINDOW:
       nodesRewriteExpr(&(pSelect->pWindow), rewriter, pContext);
     case SQL_CLAUSE_WINDOW:
+      nodesRewriteExprs(pSelect->pWindowList, rewriter, pContext);
       if (NULL != pSelect->pWindow) {
         if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
           nodesRewriteExpr(&(((SIntervalWindowNode*)pSelect->pWindow)->pFill), rewriter, pContext);

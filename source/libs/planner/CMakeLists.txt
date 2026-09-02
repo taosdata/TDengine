@@ -4,6 +4,7 @@ target_include_directories(
     planner
     PUBLIC "${TD_SOURCE_DIR}/include/libs/planner"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
 )
 
 target_link_libraries(

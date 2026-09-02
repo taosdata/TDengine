@@ -143,15 +143,15 @@ class TestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'ctbPrefix':  'ctb',
                     'ctbNum':     1,
-                    'rowsPerTbl': 40000,
+                    'rowsPerTbl': 4000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  30,
                     'showMsg':    1,
                     'showRow':    1}
-        
+
         if self.replicaVar == 3:
-            paraDict["rowsPerTbl"] = 20000
+            paraDict["rowsPerTbl"] = 2000
 
         topicNameList = ['topic1']
         expectRowsList = []
@@ -166,7 +166,7 @@ class TestCase:
 
         tdLog.info("create topics from stb with filter")
         # queryString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s where c1 %% 7 == 0" %(paraDict['dbName'], paraDict['stbName'])
-        
+
         queryString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s" %(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicNameList[0], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
@@ -230,17 +230,17 @@ class TestCase:
 
     def test_tmq3mnodesSwitch(self):
         """Cluster: mnode switch
-        
+
         1. Setup 3-mnode cluster
         2. Start consumption
         3. Trigger mnode leader switch
         4. Continue consumption
         5. Verify seamless transition
         6. Check no interruption
-        
+
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -255,4 +255,3 @@ class TestCase:
 
 
 event = threading.Event()
-

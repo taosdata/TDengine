@@ -184,15 +184,29 @@ jobs:
           taosBenchmark -V
           taos -V
           export TAOS_FQDN=localhost
-          nohup taosd &
+          nohup taosd > /tmp/taosd.log 2>&1 &
+          taosd_pid=$!
           if command -v taosadapter >/dev/null 2>&1; then
             nohup taosadapter &
           else
             echo "taosadapter not found (optional in this workflow run), skip adapter start"
           fi
-          pgrep -l taos
-          sleep 6     # NOTE: wait for taosd initialization to complete
-          pgrep -l taos
+          for _ in {1..30}; do
+            if ! kill -0 "$taosd_pid" 2>/dev/null; then
+              echo "taosd exited before becoming ready"
+              cat /tmp/taosd.log
+              exit 1
+            fi
+            if taos -s "show databases" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          if ! taos -s "show databases" >/dev/null 2>&1; then
+            echo "taosd did not become ready within 30 seconds"
+            cat /tmp/taosd.log
+            exit 1
+          fi
           taos -s "show databases"
           taos -s "show dnodes"
 

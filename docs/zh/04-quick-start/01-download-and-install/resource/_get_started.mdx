@@ -1,0 +1,150 @@
+## 快速体验
+
+### 打开命令行
+
+TDengine 提供命令行工具 `taos shell`，可用于检查服务状态、执行 SQL、管理数据库和表。进入 shell 后，你可以直接体验写入和查询功能。
+
+在 Linux 或 macOS 终端中执行：
+
+```shell
+taos
+```
+
+在 Windows 中执行：
+
+```cmd
+taos.exe
+```
+
+进入 shell 后，提示符如下：
+
+```cmd
+taos>
+```
+
+在 shell 中，SQL 语句需要以分号（`;`）结尾。下面的示例会创建数据库、写入两条数据并查询结果：
+
+```sql
+CREATE DATABASE demo;
+USE demo;
+CREATE TABLE t (ts TIMESTAMP, speed INT);
+INSERT INTO t VALUES ('2019-07-15 00:00:00', 10);
+INSERT INTO t VALUES ('2019-07-15 01:00:00', 20);
+SELECT * FROM t;
+
+           ts            |    speed    |
+========================================
+ 2019-07-15 00:00:00.000 |          10 |
+ 2019-07-15 01:00:00.000 |          20 |
+
+Query OK, 2 row(s) in set (0.003128s)
+```
+
+除执行 SQL 外，你还可以通过 shell 检查系统运行状态、管理用户账号等。shell 和应用驱动也可以独立安装在其他机器上运行，详情请参考 [TDengine 命令行](../../../12-operations-and-tooling/04-tools/01-taos-cli.md)。
+
+### 写入测试数据
+
+`taosBenchmark` 是 TDengine 提供的测试工具，可用于快速生成测试数据，并体验写入、查询和订阅等功能。它可以模拟大量设备产生的数据，并支持配置数据库、超级表、标签列、数据列、子表数量、每张子表的数据量、写入间隔、工作线程数量以及是否写入乱序数据等参数。
+
+确认 TDengine 服务已经启动后，在终端中执行下面的命令：
+
+```shell
+taosBenchmark -y
+```
+
+执行后，系统会自动在 `test` 数据库中创建一张名为 `meters` 的超级表。该超级表包含 10,000 张子表，表名从 `d0` 到 `d9999`，每张表包含 10,000 条记录。每条记录包含 `ts`（时间戳）、`current`（电流）、`voltage`（电压）和 `phase`（相位）4 个字段。时间戳范围从 `2017-07-14 10:40:00.000` 到 `2017-07-14 10:40:09.999`。每张表还带有 `location` 和 `groupId` 两个标签，其中 `groupId` 的取值为 1 到 10，`location` 为 `California.Campbell`、`California.Cupertino` 等城市信息。
+
+该命令会写入 1 亿条记录。实际耗时取决于硬件性能，即使在普通 PC 服务器上，这个过程通常也只需要十几秒。
+
+`taosBenchmark` 提供了丰富的参数，可用于自定义表数量、记录条数等测试配置。执行下面的命令可以查看完整参数列表：
+
+```shell
+taosBenchmark --help
+```
+
+有关 `taosBenchmark` 的详细使用方法，请参考 [taosBenchmark 参考手册](../../../12-operations-and-tooling/04-tools/04-taosbenchmark.md)。
+
+### 查询测试数据
+
+使用 `taosBenchmark` 写入数据后，可以在 shell 中执行下面的查询，体验查询速度。
+
+1. 查询超级表 `meters` 下的记录总条数：
+
+```sql
+SELECT COUNT(*) FROM test.meters;
+
+     count(*)     |
+===================
+        100000000 |
+
+Query OK, 1 row(s) in set (0.075247s)
+```
+
+2. 查询 1 亿条记录的平均值、最大值和最小值：
+
+```sql
+SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters;
+
+   avg(current)   | max(voltage) | min(phase) |
+===============================================
+ 10.2084751316071 |          258 |        145 |
+
+Query OK, 1 row(s) in set (0.094037s)
+```
+
+3. 查询 `location = "California.SanFrancisco"` 的记录总条数：
+
+```sql
+SELECT COUNT(*) FROM test.meters WHERE location = "California.SanFrancisco";
+
+     count(*)     |
+===================
+         10340000 |
+
+Query OK, 1 row(s) in set (0.050540s)
+```
+
+4. 查询 `groupId = 10` 的所有记录的平均值、最大值和最小值：
+
+```sql
+SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 10;
+
+   avg(current)   | max(voltage) | min(phase) |
+===============================================
+ 10.2084751316071 |          258 |        145 |
+
+Query OK, 1 row(s) in set (0.033754s)
+```
+
+5. 对表 `d1001` 按每 10 秒进行平均值、最大值和最小值聚合统计：
+
+```sql
+SELECT _wstart, AVG(current), MAX(voltage), MIN(phase)
+FROM test.d1001 INTERVAL(10s);
+
+         _wstart         |   avg(current)   | max(voltage) | min(phase) |
+=========================================================================
+ 2017-07-14 10:40:00.000 | 10.2084751316071 |          258 |        145 |
+
+Query OK, 1 row(s) in set (0.004716s)
+```
+
+在上面的查询中，系统伪列 `_wstart` 表示每个窗口的开始时间。
+
+### 进阶体验
+
+完成以上内容后，你可以继续体验以下任务：
+
+- [基本概念](../../02-basic-concepts.md)
+- [数据建模](../../03-data-modeling.md)
+- [数据写入](../../04-write-data.md)
+- [数据查询](../../05-query-and-aggregate.md)
+- [数据订阅](../../06-data-subscription.md)
+- [流式计算](../../07-stream-processing.md)
+- [可视化管理](../../08-visual-management.md)
+- [Grafana 集成](../../09-grafana-integration.md)
+- [零代码数据写入](../../10-no-code-ingestion.md)
+
+## 下一步
+
+完成上述快速体验后，你可以继续阅读后续章节，进一步了解 TDengine 的数据建模、写入、查询、数据订阅和流式计算等能力。

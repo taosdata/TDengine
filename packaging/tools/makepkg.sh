@@ -23,6 +23,7 @@ cusEmail2="${13}"
 
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
+internal_dir="$(readlink -f ${top_dir}/../taos-internal)"
 
 productName="TDengine"
 serverName="taosd"
@@ -49,8 +50,8 @@ else
   install_dir="${release_dir}/${productName2}-server-${version}"
 fi
 
-if [ -d ${top_dir}/tools/taos-tools/packaging/deb ]; then
-  cd ${top_dir}/tools/taos-tools/packaging/deb
+if [ -d ${top_dir}/tools/taosBenchmark/packaging/deb ]; then
+  cd ${top_dir}/tools/taosBenchmark/packaging/deb
 
   taostools_ver=$(git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep -v taos | tail -1)
   [ -z "$taostools_ver" ] && taostools_ver="0.1.0"
@@ -112,7 +113,7 @@ fi
 if [ "$osType" == "Darwin" ]; then
     lib_files="${build_dir}/lib/libtaos.dylib"
     nativelib_files="${build_dir}/lib/libtaosnative.dylib"
-    wslib_files="${build_dir}/lib/libtaosws.dylib"
+    wslib_files="${build_dir}/taos-connector-rust/output/libtaosws.dylib"
 
     pkg_lib_files="libtaos.${version}.dylib"
     pkg_nativelib_files="libtaosnative.${version}.dylib"
@@ -120,7 +121,7 @@ if [ "$osType" == "Darwin" ]; then
 else
     lib_files="${build_dir}/lib/libtaos.so"
     nativelib_files="${build_dir}/lib/libtaosnative.so"
-    wslib_files="${build_dir}/lib/libtaosws.so"
+    wslib_files="${build_dir}/taos-connector-rust/output/libtaosws.so"
 
     pkg_lib_files="libtaos.so.${version}"
     pkg_nativelib_files="libtaosnative.so.${version}"
@@ -128,10 +129,21 @@ else
 fi
 header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/util/tdef.h ${code_dir}/include/libs/function/taosudf.h"
 
-wsheader_files="${build_dir}/include/taosws.h"
+wsheader_files="${build_dir}/taos-connector-rust/output/taosws.h"
+if [ ! -f "${wsheader_files}" ]; then
+  for candidate in \
+    "${build_dir}/include/taosws.h" \
+    "${build_dir}/taos-connector-rust/target/release/taosws.h" \
+    "${build_dir}/taos-connector-rust/target/debug/taosws.h"; do
+    if [ -f "${candidate}" ]; then
+      wsheader_files="${candidate}"
+      break
+    fi
+  done
+fi
 
 if [ "$dbName" != "taos" ]; then
-  cfg_dir="${top_dir}/../enterprise/packaging/cfg"
+  cfg_dir="${internal_dir}/packaging/cfg"
 else
   cfg_dir="${top_dir}/packaging/cfg"
 fi
@@ -145,7 +157,7 @@ init_file_rpm=${script_dir}/../rpm/taosd
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
 
-[ -f ${wsheader_files} ] && cp ${wsheader_files} ${install_dir}/inc || :
+[ -f "${wsheader_files}" ] && cp "${wsheader_files}" "${install_dir}/inc" || :
 
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${configFile}
 
@@ -170,7 +182,6 @@ fi
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/${serverName}.deb
 mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/${serverName}.rpm
-# mkdir -p ${install_dir}/share && cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:
 
 if [ $adapterName != "taosadapter" ]; then
   mv ${install_dir}/cfg/${clientName2}adapter.toml ${install_dir}/cfg/$adapterName.toml
@@ -192,8 +203,8 @@ fi
 #         && cp ${taostools_bin_files} ${taostools_install_dir}/bin \
 #         && chmod a+x ${taostools_install_dir}/bin/* || :
 
-#     if [ -f ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh ]; then
-#         cp ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh \
+#     if [ -f ${top_dir}/tools/taosBenchmark/packaging/tools/install-tools.sh ]; then
+#         cp ${top_dir}/tools/taosBenchmark/packaging/tools/install-tools.sh \
 #             ${taostools_install_dir}/ > /dev/null \
 #             && chmod a+x ${taostools_install_dir}/install-tools.sh \
 #             || echo -e "failed to copy install-tools.sh"
@@ -201,8 +212,8 @@ fi
 #         echo -e "install-tools.sh not found"
 #     fi
 
-#     if [ -f ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh ]; then
-#         cp ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh \
+#     if [ -f ${top_dir}/tools/taosBenchmark/packaging/tools/uninstall-tools.sh ]; then
+#         cp ${top_dir}/tools/taosBenchmark/packaging/tools/uninstall-tools.sh \
 #             ${taostools_install_dir}/ > /dev/null \
 #             && chmod a+x ${taostools_install_dir}/uninstall-tools.sh \
 #             || echo -e "failed to copy uninstall-tools.sh"
@@ -292,9 +303,9 @@ fi
 chmod a+x ${install_dir}/install.sh
 
 if [[ $dbName == "taos" ]]; then  
-  cp ${top_dir}/../enterprise/packaging/start-all.sh ${install_dir}
-  cp ${top_dir}/../enterprise/packaging/stop-all.sh ${install_dir}
-  cp ${top_dir}/../enterprise/packaging/README.md ${install_dir}
+  cp ${internal_dir}/packaging/start-all.sh ${install_dir}
+  cp ${internal_dir}/packaging/stop-all.sh ${install_dir}
+  cp ${internal_dir}/packaging/README.md ${install_dir}
   chmod a+x ${install_dir}/start-all.sh
   chmod a+x ${install_dir}/stop-all.sh
   # Copy example code  
@@ -329,12 +340,16 @@ if [[ $dbName == "taos" ]]; then
     cp -r ${examples_dir}/go ${install_dir}/examples ||:
     cp -r ${examples_dir}/nodejs ${install_dir}/examples ||:
     cp -r ${examples_dir}/C# ${install_dir}/examples ||:
-    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
+    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taosBenchmark/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
   if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then    
-    mkdir -p ${install_dir}/share/        
-    cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:    
+    for share_subdir in etc srv; do
+      if [ -e "${build_dir}/share/${share_subdir}" ]; then
+        mkdir -p "${install_dir}/share"
+        cp -rf "${build_dir}/share/${share_subdir}" "${install_dir}/share"
+      fi
+    done
   fi
 
 fi
@@ -381,9 +396,9 @@ if [ "$verMode" == "cluster" ]; then
         rm -rf ${install_dir}/connector/rust/.git ||:
 
         # copy taosx
-        if [ -d ${top_dir}/../enterprise/src/plugins/taosx/release/${clientName2}x ]; then
-          cp -r ${top_dir}/../enterprise/src/plugins/taosx/release/${clientName2}x ${install_dir}
-          cp ${top_dir}/../enterprise/src/plugins/taosx/packaging/uninstall.sh ${install_dir}/${clientName2}x/uninstall_${clientName2}x.sh
+        if [ -d ${internal_dir}/src/plugins/taosx/release/${clientName2}x ]; then
+          cp -r ${internal_dir}/src/plugins/taosx/release/${clientName2}x ${install_dir}
+          cp ${internal_dir}/src/plugins/taosx/packaging/uninstall.sh ${install_dir}/${clientName2}x/uninstall_${clientName2}x.sh
           sed -i "s/uninstall.sh/uninstall_${clientName2}x.sh/g" ${install_dir}/${clientName2}x/uninstall_${clientName2}x.sh
           sed -i "s/PREFIX=\"taos\"/PREFIX=\"${clientName2}\"/g" ${install_dir}/${clientName2}x/uninstall_${clientName2}x.sh
         fi

@@ -230,6 +230,14 @@ int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t c
   rsp.affectedRows = affectedRows;
   rsp.tbVerInfo = ctx->tbInfo;
 
+  // Propagate federated query remote-side error message when available
+  if (ctx && ctx->taskHandle) {
+    const char* extMsg = qGetExtErrMsg(ctx->taskHandle);
+    if (extMsg && extMsg[0] != '\0') {
+      rsp.extErrMsg = (char*)extMsg;  // serializer only reads; task outlives this function
+    }
+  }
+
   int32_t msgSize = tSerializeSQueryTableRsp(NULL, 0, &rsp);
   if (msgSize < 0) {
     qError("tSerializeSQueryTableRsp failed");
@@ -666,6 +674,11 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   qwMsg.msgInfo.taskType = msg.taskType;
   qwMsg.msgInfo.needFetch = msg.needFetch;
   qwMsg.msgInfo.compressMsg = msg.compress;
+
+  // batch meta txn: propagate txnId to SReadHandle for same-txn visibility
+  if (node && msg.txnId > 0) {
+    ((SReadHandle *)node)->txnId = msg.txnId;
+  }
 
   QW_SCH_TASK_DLOG("processQuery start, node:%p, type:%s, compress:%d, handle:%p, SQL:%s, code:0x%x, subEndPointsNum:%d", 
     node, TMSG_INFO(pMsg->msgType), msg.compress, pMsg->info.handle, msg.sql, qwMsg.code, (int32_t)taosArrayGetSize(*qwMsg.subEndPoints));

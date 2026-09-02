@@ -38,6 +38,7 @@ typedef struct SPlanStreamContext {
   bool        hasForceOutput;
   bool        hasNotify;
   bool        hasExtWindow;
+  bool        disableExtWindow;
   SArray*     calcScanPlanArray;
   SNode*      triggerScanSubplan;
   ENodeType   triggerWinType;
@@ -62,6 +63,7 @@ typedef struct SPlanContext {
   int32_t     msgLen;
   const char* pUser;
   bool        sysInfo;
+  int16_t     userAppId;
   union {
     uint16_t privInfo;
     struct {
@@ -80,6 +82,9 @@ typedef struct SPlanContext {
   int64_t            allocatorId;
   int64_t            userId;
   void*              timezone;
+  char               timezoneName[TD_TIMEZONE_LEN]; /* IANA name for serialization */
+  bool               timezoneExplicit;              /* set by SET TIMEZONE / connection option */
+  int8_t             firstDayOfWeek;  /* resolved: 0-6 */
   SPlanStreamContext streamCxt;
 } SPlanContext;
 

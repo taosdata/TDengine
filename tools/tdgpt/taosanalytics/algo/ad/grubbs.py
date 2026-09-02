@@ -1,13 +1,14 @@
-# encoding:utf-8
-""" grubbs algorithm class"""
+"""grubbs algorithm class"""
 
 from outliers import smirnov_grubbs as grubbs
+
 from taosanalytics.base import AbstractAnomalyDetectionService
 
 
 class _GrubbsService(AbstractAnomalyDetectionService):
-    """ Grubbs algorithm is to check the anomaly data in the input list """
-    name = 'grubbs'
+    """Grubbs algorithm is to check the anomaly data in the input list"""
+
+    name = "grubbs"
     desc = """Grubbs' test is to detect the presence of one outlier in a data set that is normally
     distributed"""
     _builtins = True
@@ -30,7 +31,7 @@ class _GrubbsService(AbstractAnomalyDetectionService):
         return error_indicator
 
     def set_params(self, params):
-        """ set the value of alpha """
+        """set the value of alpha"""
         super().set_params(params)
 
         if "alpha".lower() in params:

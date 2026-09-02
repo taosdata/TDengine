@@ -57,6 +57,10 @@ const char *taosAnalysisAlgoType(EAnalyAlgoType type) {
       return "classification";
     case ANALY_ALGO_TYPE_MOTIF:
       return "moti-discovery";
+    case ANALY_ALGO_TYPE_REGRESSION:
+      return "regression";
+    case ANALY_ALGO_TYPE_CLUSTERING:
+      return "clustering";
     default:
       return "unknown";
   }
@@ -76,6 +80,10 @@ const char *taosAnalyAlgoUrlStr(EAnalyAlgoType type) {
       return "classification";
     case ANALY_ALGO_TYPE_MOTIF:
       return "moti-discovery";
+    case ANALY_ALGO_TYPE_REGRESSION:
+      return "regression";
+    case ANALY_ALGO_TYPE_CLUSTERING:
+      return "clustering";
     default:
       return "unknown";
   }

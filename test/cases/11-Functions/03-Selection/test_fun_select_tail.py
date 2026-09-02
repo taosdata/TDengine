@@ -264,7 +264,8 @@ class TestFunTail:
 
         # tail with scalar function
         tdSql.query(f"select tail(c1,10,10) ,abs(c1)  from {dbname}.ct1")
-        tdSql.error(f"select tail(c1,10,10) , tail(c2,10,10) from {dbname}.ct1")
+        tdSql.query(f"select tail(c1,10,10) , tail(c2,10,10) from {dbname}.ct1")
+        tdSql.checkRows(3)
         tdSql.query(f"select tail(c1,10,10) , abs(c2)+2 from {dbname}.ct1")
 
         # bug need fix for scalar value or compute again
@@ -456,8 +457,7 @@ class TestFunTail:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

@@ -100,6 +100,20 @@ SET(TAOS_LIB_STATIC taos_static)
 SET(TAOS_NATIVE_LIB taosnative)
 SET(TAOS_NATIVE_LIB_STATIC taosnative_static)
 
+function(taos_configure_macos_client_rpath target_name)
+  if(NOT TD_DARWIN)
+    return()
+  endif()
+
+  set_target_properties(${target_name} PROPERTIES
+    MACOSX_RPATH TRUE
+    BUILD_WITH_INSTALL_RPATH TRUE
+    SKIP_BUILD_RPATH FALSE
+    BUILD_RPATH "@loader_path;@loader_path/../driver;/usr/local/lib"
+    INSTALL_RPATH "@loader_path;@loader_path/../driver;/usr/local/lib"
+  )
+endfunction()
+
 if(BUILD_TSZ_ENABLED)
   message(STATUS "build with TSZ enabled")
   add_definitions(-DTD_TSZ)
@@ -322,6 +336,11 @@ ELSE()
         # with the mold linker.  ASan (-fsanitize=address) works correctly.
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}     -Werror -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize-recover=all -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-literal-suffix -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize-recover=all -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
+        IF(TD_DARWIN)
+            SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-deprecated-declarations")
+            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
+            MESSAGE(STATUS "macOS AddressSanitizer build: deprecated declaration warnings disabled")
+        ENDIF()
         MESSAGE(STATUS "Compile with Address Sanitizer!")
     elseif(TD_LINUX)
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow")
@@ -347,3 +366,23 @@ IF(TD_LINUX_64)
         SET(LINK_JEMALLOC "")
     ENDIF()
 ENDIF()
+
+if(TD_DARWIN)
+    function(td_fix_macos_client_libtaos_dep target_name)
+        set_target_properties(${target_name} PROPERTIES
+            MACOSX_RPATH TRUE
+            BUILD_WITH_INSTALL_RPATH TRUE
+            SKIP_BUILD_RPATH FALSE
+            BUILD_RPATH "@loader_path;@loader_path/../driver;/usr/local/lib"
+            INSTALL_RPATH "@loader_path;@loader_path/../driver;/usr/local/lib"
+        )
+
+        add_custom_command(TARGET ${target_name} POST_BUILD
+            COMMAND /bin/sh -c
+                "bin=\"$1\"; if otool -L \"$bin\" 2>/dev/null | grep -q '@loader_path/libtaos.dylib'; then install_name_tool -change '@loader_path/libtaos.dylib' '@rpath/libtaos.dylib' \"$bin\"; fi"
+                _
+                "$<TARGET_FILE:${target_name}>"
+            VERBATIM
+        )
+    endfunction()
+endif()

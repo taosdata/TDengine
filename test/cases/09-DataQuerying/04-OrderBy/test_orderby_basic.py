@@ -591,8 +591,7 @@ class TestOrderByBasic:
 
         Since: v3.3.6.34
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: TD-38284
 
         History:

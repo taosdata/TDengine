@@ -45,9 +45,11 @@ typedef struct STsdbSnapRAWReader {
 
   // iter
   SDataFileRAWReaderIter dataIter[1];
+
+  int32_t destDnodeId;  // target follower dnodeId served by this reader, used for per-target bucketed progress stats
 } STsdbSnapRAWReader;
 
-int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, STsdbSnapRAWReader** reader) {
+int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, int32_t destDnodeId, STsdbSnapRAWReader** reader) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -57,9 +59,50 @@ int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, STsdbSnapR
   reader[0]->tsdb = tsdb;
   reader[0]->ever = ever;
   reader[0]->type = type;
+  reader[0]->destDnodeId = destDnodeId;  // record target dnodeId, used for per-bucket stats and bucket cleanup on close
 
   code = tsdbFSCreateRefSnapshot(tsdb->pFS, &reader[0]->fsetArr);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  // build snap send progress stat
+  {
+    int32_t n = (int32_t)TARRAY2_SIZE(reader[0]->fsetArr);
+    SSnapSendVnodeStat* pStat = (SSnapSendVnodeStat*)taosMemoryCalloc(1, sizeof(*pStat));
+    if (pStat != NULL) {
+      pStat->totalFileSets = n;
+      pStat->startTime = taosGetTimestampMs();
+      if (n > 0) {
+        pStat->pFileSetStats = (SSnapSendFileSetStat*)taosMemoryCalloc(n, sizeof(SSnapSendFileSetStat));
+        if (pStat->pFileSetStats != NULL) {
+          pStat->fileSetCount = n;
+          for (int32_t i = 0; i < n; i++) {
+            STFileSet*            fset = TARRAY2_GET(reader[0]->fsetArr, i);
+            SSnapSendFileSetStat* s = &pStat->pFileSetStats[i];
+            s->fid = fset->fid;
+            s->sver = 0;
+            s->ever = ever;
+            s->transferType = type;
+            for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ftype++) {
+              if (fset->farr[ftype] != NULL) {
+                s->totalSize += fset->farr[ftype]->f[0].size;
+                s->fileCount++;
+              }
+            }
+            SSttLvl* lvl;
+            TARRAY2_FOREACH(fset->lvlArr, lvl) {
+              STFileObj* fobj;
+              TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+                s->totalSize += fobj->f[0].size;
+                s->fileCount++;
+              }
+            }
+          }
+        }
+      }
+      // Hand off the built progress stats to the bucket of the corresponding destDnodeId (the helper holds the write lock internally and takes ownership of pStat)
+      tsdbSnapPutTargetStat(tsdb, reader[0]->destDnodeId, pStat);
+    }
+  }
 
 _exit:
   if (code) {
@@ -82,11 +125,15 @@ void tsdbSnapRAWReaderClose(STsdbSnapRAWReader** reader) {
   int32_t lino = 0;
 
   STsdb* tsdb = reader[0]->tsdb;
+  int32_t destDnodeId = reader[0]->destDnodeId;  // capture the target dnodeId before freeing the reader, for later bucket cleanup
 
   TARRAY2_DESTROY(reader[0]->dataReaderArr, tsdbDataFileRAWReaderClose);
   tsdbFSDestroyRefSnapshot(&reader[0]->fsetArr);
   taosMemoryFree(reader[0]);
   reader[0] = NULL;
+
+  // Clean up this target's progress bucket (the helper holds the write lock internally)
+  tsdbSnapRemoveTargetStat(tsdb, destDnodeId);
   return;
 }
 
@@ -237,6 +284,10 @@ static int32_t tsdbSnapRAWReadBegin(STsdbSnapRAWReader* reader) {
     reader->ctx->fset = TARRAY2_GET(reader->fsetArr, reader->ctx->fsetArrIdx++);
     reader->ctx->isDataDone = false;
 
+    // Record the current fileset's transfer start time (bucketed per target; the helper holds the write lock internally with bounds checking)
+    int32_t idx = reader->ctx->fsetArrIdx - 1;
+    tsdbSnapMarkFileSetStart(reader->tsdb, reader->destDnodeId, idx);
+
     code = tsdbSnapRAWReadFileSetOpenReader(reader);
     TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -255,6 +306,11 @@ static int32_t tsdbSnapRAWReadEnd(STsdbSnapRAWReader* reader) {
   tsdbSnapRAWReadFileSetCloseIter(reader);
   tsdbSnapRAWReadFileSetCloseReader(reader);
   reader->ctx->fset = NULL;
+
+  // Mark the current fileset transfer as complete (bucketed per target; the helper holds the write lock internally)
+  int32_t idx = reader->ctx->fsetArrIdx - 1;
+  tsdbSnapMarkFileSetEnd(reader->tsdb, reader->destDnodeId, idx);
+
   return 0;
 }
 
@@ -292,6 +348,12 @@ _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
   } else {
+    // Accumulate the current fileset's read bytes (bucketed per target; the helper holds the write lock internally with bounds checking)
+    if (data[0] != NULL) {
+      SSnapDataHdr *hdr = (SSnapDataHdr *)data[0];
+      int32_t       idx = reader->ctx->fsetArrIdx - 1;
+      tsdbSnapAddReadSize(reader->tsdb, reader->destDnodeId, idx, hdr->size);
+    }
     tsdbDebug("vgId:%d %s done", TD_VID(reader->tsdb->pVnode), __func__);
   }
   return code;

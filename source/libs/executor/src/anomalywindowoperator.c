@@ -191,8 +191,7 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
   QUERY_CHECK_CODE(code, lino, _error);
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
-  pInfo->binfo.inputTsOrder = pAnomalyNode->window.node.inputTsOrder;
-  pInfo->binfo.outputTsOrder = pAnomalyNode->window.node.outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, &pAnomalyNode->window.node);
 
   pInfo->anomalyCols = taosArrayInit(LIST_LENGTH(pColNodes), sizeof(SColumn));
   pInfo->anomalyData = taosArrayInit(LIST_LENGTH(pColNodes), sizeof(SStateKeys));
@@ -201,7 +200,9 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
     goto _error;
   }
 
-  pInfo->bufSize = sizeof(int32_t) + pInfo->aggSup.resultRowSize;
+  // pResultRow points to the beginning of the buffer, so only append the
+  // custom anomaly payload after the full flexible result-row bytes.
+  pInfo->bufSize = pInfo->aggSup.resultRowSize;
 
   for (int32_t i = 0; i < LIST_LENGTH(pColNodes); ++i) {
     SColumn node = extractColumnFromColumnNode((SColumnNode*)nodesListGetNode(pColNodes, i));
@@ -769,7 +770,7 @@ static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator) {
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
       code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                   pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
+                                   pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
       if (code != 0) break;
     }
 
@@ -850,6 +851,10 @@ static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator) {
     }
   }
 
+  if (pOperator->exprSupp.pFilterInfo != NULL) {
+    filterSetExecContext(pOperator->exprSupp.pFilterInfo, pOperator->pTaskInfo, isTaskKilled);
+  }
+
   code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
@@ -876,9 +881,9 @@ _OVER:
 
 int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
                                         SOperatorInfo** pOptrInfo) {
+  qError("createAnomalywindowOperatorInfo failed since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 void destroyForecastInfo(void* param) {}
 
 #endif
-

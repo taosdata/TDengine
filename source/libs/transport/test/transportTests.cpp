@@ -136,6 +136,75 @@ TEST_F(QueueEnv, testIter) {
   TD_ALWAYS_ASSERT(result.size() == vals.size());
 }
 
+TEST(TransCompressTest, RejectsCompressedPacketWithoutCompressionHeader) {
+  int32_t msgLen = sizeof(STransMsgHead);
+  char   *msg = (char *)taosMemoryCalloc(1, msgLen);
+  ASSERT_NE(msg, nullptr);
+
+  STransMsgHead *head = (STransMsgHead *)msg;
+  head->version = TRANS_VER;
+  head->comp = 1;
+  head->msgLen = htonl(msgLen);
+
+  char   *packet = msg;
+  int32_t packetLen = msgLen;
+  EXPECT_EQ(transDecompressMsg(&packet, &packetLen), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(packet, msg);
+  EXPECT_EQ(packetLen, msgLen);
+
+  char   *out = nullptr;
+  int32_t outLen = 0;
+  EXPECT_EQ(transDecompressMsgExt(msg, msgLen, &out, &outLen), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(out, nullptr);
+  EXPECT_EQ(outLen, 0);
+
+  taosMemoryFree(msg);
+}
+
+TEST(TransCompressTest, RejectsInvalidOriginalLength) {
+  int32_t msgLen = sizeof(STransMsgHead) + sizeof(STransCompMsg) + 1;
+  char   *msg = (char *)taosMemoryCalloc(1, msgLen);
+  ASSERT_NE(msg, nullptr);
+
+  STransMsgHead *head = (STransMsgHead *)msg;
+  head->version = TRANS_VER;
+  head->comp = 1;
+  head->msgLen = htonl(msgLen);
+
+  STransCompMsg *comp = (STransCompMsg *)transContFromHead(head);
+  comp->contLen = htonl(0);
+
+  char   *packet = msg;
+  int32_t packetLen = msgLen;
+  EXPECT_EQ(transDecompressMsg(&packet, &packetLen), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(packet, msg);
+  EXPECT_EQ(packetLen, msgLen);
+
+  char   *out = nullptr;
+  int32_t outLen = 0;
+  EXPECT_EQ(transDecompressMsgExt(msg, msgLen, &out, &outLen), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(out, nullptr);
+  EXPECT_EQ(outLen, 0);
+
+  comp->contLen = htonl(TRANS_MSG_LIMIT);
+  EXPECT_EQ(transDecompressMsg(&packet, &packetLen), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(packet, msg);
+  EXPECT_EQ(packetLen, msgLen);
+  EXPECT_EQ(transDecompressMsgExt(msg, msgLen, &out, &outLen), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(out, nullptr);
+  EXPECT_EQ(outLen, 0);
+
+  comp->contLen = htonl(0x7fffffff);
+  EXPECT_EQ(transDecompressMsg(&packet, &packetLen), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(packet, msg);
+  EXPECT_EQ(packetLen, msgLen);
+  EXPECT_EQ(transDecompressMsgExt(msg, msgLen, &out, &outLen), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(out, nullptr);
+  EXPECT_EQ(outLen, 0);
+
+  taosMemoryFree(msg);
+}
+
 class TransCtxEnv : public ::testing::Test {
  protected:
   virtual void SetUp() {

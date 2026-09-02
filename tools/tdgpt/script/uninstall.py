@@ -13,7 +13,6 @@ import sys
 import time
 from pathlib import Path
 
-
 if platform.system().lower() != "windows":
     print("Error: this script is for Windows only.")
     sys.exit(1)
@@ -67,9 +66,13 @@ def load_package_metadata() -> dict[str, str]:
         return defaults
     if not isinstance(payload, dict):
         return defaults
-    edition_defaults = build_package_metadata_defaults(str(payload.get("edition", defaults["edition"])))
+    edition_defaults = build_package_metadata_defaults(
+        str(payload.get("edition", defaults["edition"]))
+    )
     defaults.update(edition_defaults)
-    defaults.update({str(key): str(value) for key, value in payload.items() if value is not None})
+    defaults.update(
+        {str(key): str(value) for key, value in payload.items() if value is not None}
+    )
     return defaults
 
 
@@ -94,7 +97,9 @@ class WindowsUninstaller:
         self.log_dir = LOG_DIR
         self.venvs_dir = VENVS_DIR
         self.log_file = Path(log_file) if log_file else self.log_dir / "uninstall.log"
-        self.stdout_redirected_to_log = os.environ.get("TDGPT_LOG_REDIRECTED", "") == "1"
+        self.stdout_redirected_to_log = (
+            os.environ.get("TDGPT_LOG_REDIRECTED", "") == "1"
+        )
 
     def _append_file_log(self, level: str, message: str) -> None:
         if self.stdout_redirected_to_log:
@@ -157,7 +162,9 @@ class WindowsUninstaller:
                         check=False,
                     )
             except Exception as exc:
-                self.print_warning(f"Failed to terminate PID from {pid_file.name}: {exc}")
+                self.print_warning(
+                    f"Failed to terminate PID from {pid_file.name}: {exc}"
+                )
 
     def uninstall_service(self) -> None:
         self.print_info("Uninstalling Windows service...")
@@ -165,7 +172,9 @@ class WindowsUninstaller:
         python_exe = self.venvs_dir / "venv" / "Scripts" / "python.exe"
 
         if not service_script.exists() or not python_exe.exists():
-            self.print_info("Service wrapper or Python runtime is missing, skip service uninstall.")
+            self.print_info(
+                "Service wrapper or Python runtime is missing, skip service uninstall."
+            )
             return
 
         try:

@@ -2,23 +2,24 @@
 # filepath: /usr/local/taos/bin/set_malloc.sh
 
 # ====== CONSTANTS ======
-INSTALL_DIR="/usr/local"
-TAOS_DIR="${INSTALL_DIR}/taos"
-DRIVER_DIR="${TAOS_DIR}/driver"
-LOG_DIR="${TAOS_DIR}/log"
-BIN_DIR="${TAOS_DIR}/bin"
-CFG_DIR="/etc/default/"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+PRODUCT_NAME="${TAOS_PRODUCT_NAME:-$(basename "${INSTALL_DIR}")}"
+DRIVER_DIR="${INSTALL_DIR}/driver"
+LOG_DIR="${INSTALL_DIR}/log"
+BIN_DIR="${INSTALL_DIR}/bin"
+CFG_DIR="${TAOS_CFG_DIR:-/etc/default}"
 
-MALLOC_ENV_SH="${BIN_DIR}/set_taos_malloc_env.sh"
-MALLOC_TAOSD_ENV_CONF="${CFG_DIR}/taosd"
-MALLOC_ADAPTER_ENV_CONF="${CFG_DIR}/taosadapter"
-MALLOC_LOG_FILE="${LOG_DIR}/set_taos_malloc.log"
+MALLOC_ENV_SH="${BIN_DIR}/set_${PRODUCT_NAME}_malloc_env.sh"
+MALLOC_TAOSD_ENV_CONF="${CFG_DIR}/${PRODUCT_NAME}d"
+MALLOC_ADAPTER_ENV_CONF="${CFG_DIR}/${PRODUCT_NAME}adapter"
+MALLOC_LOG_FILE="${LOG_DIR}/set_${PRODUCT_NAME}_malloc.log"
 TCMALLOC_LIB="${DRIVER_DIR}/libtcmalloc.so"
 TCMALLOC_PREFIX="${LOG_DIR}/tcmalloc/prof"
 JEMALLOC_LIB="${DRIVER_DIR}/libjemalloc.so"
 JEMALLOC_PREFIX="${LOG_DIR}/jemalloc/prof"
 
-mkdir -p ${CFG_DIR}
+mkdir -p "${CFG_DIR}" "${LOG_DIR}"
 
 usage() {
   echo "Usage: $0 -m <0|1|2|3|4> -q -h"

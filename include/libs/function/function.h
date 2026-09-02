@@ -52,6 +52,7 @@ typedef struct SExprInfo {
   struct tExprNode*     pExpr;
 } SExprInfo;
 
+int32_t setLagLeadDefaultValueToCol(SColumnInfoData *pOutput, int32_t pos, SFunctParam *pDefaultParam);
 
 typedef bool (*FExecGetEnv)(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
 typedef void (*FExecCleanUp)(struct SqlFunctionCtx *pCtx);
@@ -91,7 +92,7 @@ typedef struct SResultRowEntryInfo {
   bool     initialized : 1;  // output buffer has been initialized
   bool     complete : 1;     // query has completed
   uint8_t  isNullRes : 6;    // the result is null
-  uint16_t numOfRes;         // num of output result in current buffer. NOT NULL RESULT
+  uint64_t numOfRes;         // num of output result in current buffer. NOT NULL RESULT
 } SResultRowEntryInfo;
 
 // determine the real data need to calculated the result
@@ -338,7 +339,9 @@ struct SScalarParam {
   int32_t          numOfRows;
   int32_t          numOfQualified;  // number of qualified elements in the final results
   timezone_t       tz;
+  char             tzName[TD_TIMEZONE_LEN];  // IANA timezone name (for server-side timezone() function)
   void            *charsetCxt;
+  int8_t           firstDayOfWeek;  /* 0-6, from connection/global config */
   SArray          *pFilterArr; // for types that can't filter with hash
 };
 

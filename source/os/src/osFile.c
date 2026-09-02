@@ -22,7 +22,7 @@
 #include <WinBase.h>
 #include <io.h>
 #include <ktmw32.h>
-#include <windows.h>
+#include <winioctl.h>
 #define F_OK 0
 #define X_OK 1
 #define W_OK 2
@@ -83,43 +83,31 @@ typedef struct TdFile {
 
 void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath) {
   if (inputTmpDir == NULL || fileNamePrefix == NULL) return;
-#ifdef WINDOWS
 
-  char tmpPath[PATH_MAX];
+  // A process-global atomic sequence guarantees a unique temp file name across
+  // all threads on every platform (WIN, Linux, MAC OS).
+  static uint64_t seqId = 0;
 
+  char    tmpPath[PATH_MAX];
   int32_t len = (int32_t)strlen(inputTmpDir);
-  memcpy(tmpPath, inputTmpDir, len);
+  (void)memcpy(tmpPath, inputTmpDir, len);
 
+#ifdef WINDOWS
   if (tmpPath[len - 1] != '/' && tmpPath[len - 1] != '\\') {
     tmpPath[len++] = '\\';
   }
-
-  snprintf(tmpPath + len, sizeof(tmpPath) - len, "%s%s%s", TD_TMP_FILE_PREFIX, fileNamePrefix, "-%d-%s");
-
-  char rand[8] = {0};
-  taosRandStr(rand, tListLen(rand) - 1);
-  snprintf(dstPath, PATH_MAX, tmpPath, taosGetPId(), rand);
-
 #else
-
-  char    tmpPath[PATH_MAX];
-  int32_t len = strlen(inputTmpDir);
-  (void)memcpy(tmpPath, inputTmpDir, len);
-  static uint64_t seqId = 0;
-
   if (tmpPath[len - 1] != '/') {
     tmpPath[len++] = '/';
   }
-
-  snprintf(tmpPath + len, sizeof(tmpPath) - len, "%s%s%s", TD_TMP_FILE_PREFIX, fileNamePrefix, "-%d-%s");
-
-  char rand[32] = {0};
-
-  (void)snprintf(rand, sizeof(rand), "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
-
-  (void)snprintf(dstPath, PATH_MAX, tmpPath, taosGetPId(), rand);
-
 #endif
+
+  snprintf(tmpPath + len, sizeof(tmpPath) - len, "%s%s%s", TD_TMP_FILE_PREFIX,
+           fileNamePrefix, "-%d-%s");
+
+  char seq[32] = {0};
+  (void)snprintf(seq, sizeof(seq), "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
+  (void)snprintf(dstPath, PATH_MAX, tmpPath, taosGetPId(), seq);
 }
 
 int64_t taosCopyFile(const char *from, const char *to) {

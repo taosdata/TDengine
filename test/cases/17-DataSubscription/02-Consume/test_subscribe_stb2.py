@@ -7,7 +7,7 @@ import threading
 from enum import Enum
 import platform
 
-from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom, tmqCom
 
 class actionType(Enum):
     CREATE_DATABASE = 0
@@ -35,59 +35,6 @@ class TestCase:
         cur=con.cursor()
         print(cur)
         return cur
-
-    def initConsumerTable(self,cdbName='cdb'):
-        tdLog.info("create consume database, and consume info table, and consume result table")
-        tdSql.query("create database if not exists %s vgroups 1 wal_retention_period 3600"%(cdbName))
-        tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
-        tdSql.query("drop table if exists %s.consumeresult "%(cdbName))
-
-        tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"%cdbName)
-        tdSql.query("create table %s.consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)"%cdbName)
-
-    def initConsumerInfoTable(self,cdbName='cdb'):
-        tdLog.info("drop consumeinfo table")
-        tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
-        tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"%cdbName)
-
-    def insertConsumerInfo(self,consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifmanualcommit,cdbName='cdb'):
-        sql = "insert into %s.consumeinfo values "%cdbName
-        sql += "(now, %d, '%s', '%s', %d, %d, %d)"%(consumerId, topicList, keyList, expectrowcnt, ifcheckdata, ifmanualcommit)
-        tdLog.info("consume info sql: %s"%sql)
-        tdSql.query(sql)
-
-    def selectConsumeResult(self,expectRows,cdbName='cdb'):
-        resultList=[]
-        while 1:
-            tdSql.query("select * from %s.consumeresult"%cdbName)
-            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
-            if tdSql.getRows() == expectRows:
-                break
-            else:
-                time.sleep(5)
-
-        for i in range(expectRows):
-            tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
-            resultList.append(tdSql.getData(i , 3))
-
-        return resultList
-
-    def startTmqSimProcess(self,buildPath,cfgPath,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0):
-        if valgrind == 1:
-            logFile = cfgPath + '/../log/valgrind-tmq.log'
-            shellCmd = 'nohup valgrind --log-file=' + logFile
-            shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
-
-        if (platform.system().lower() == 'windows'):
-            shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName)
-            shellCmd += "> nul 2>&1 &"
-        else:
-            shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName)
-            shellCmd += "> /dev/null 2>&1 &"
-        tdLog.info(shellCmd)
-        os.system(shellCmd)
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=4,replica=1):
         if dropFlag == 1:
@@ -170,7 +117,7 @@ class TestCase:
     def tmqCase8(self, cfgPath, buildPath):
         tdLog.printNoPrefix("======== test case 8: ")
 
-        self.initConsumerTable()
+        tmqCom.initConsumerTable(walRetentionPeriod=3600, includeNotifyInfo=False)
 
         # create and start thread
         parameterDict = {'cfg':        '',       \
@@ -209,17 +156,17 @@ class TestCase:
                         enable.auto.commit:false,\
                         auto.commit.interval.ms:6000,\
                         auto.offset.reset:latest'
-        self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
+        tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit, useConsumerIdTimestamp=False)
 
         tdLog.info("start consume 0 processor")
         pollDelay = 10
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start to check consume 0 result")
         expectRows = 1
-        resultList = self.selectConsumeResult(expectRows)
+        resultList = tmqCom.selectConsumeResult(expectRows, pollInterval=5)
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
@@ -229,7 +176,7 @@ class TestCase:
             tdLog.exit("tmq consume rows error!")
 
         tdLog.info("start consume 1 processor")
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
         tdLog.sleep(2)
 
         tdLog.info("start one new thread to insert data")
@@ -240,7 +187,7 @@ class TestCase:
 
         tdLog.info("start to check consume 0 and 1 result")
         expectRows = 2
-        resultList = self.selectConsumeResult(expectRows)
+        resultList = tmqCom.selectConsumeResult(expectRows, pollInterval=5)
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
@@ -250,7 +197,7 @@ class TestCase:
             tdLog.exit("tmq consume rows error!")
 
         tdLog.info("start consume 2 processor")
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
         tdLog.sleep(2)
 
         tdLog.info("start one new thread to insert data")
@@ -261,7 +208,7 @@ class TestCase:
 
         tdLog.info("start to check consume 0 and 1 and 2 result")
         expectRows = 3
-        resultList = self.selectConsumeResult(expectRows)
+        resultList = tmqCom.selectConsumeResult(expectRows, pollInterval=5)
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
@@ -277,7 +224,7 @@ class TestCase:
     def tmqCase9(self, cfgPath, buildPath):
         tdLog.printNoPrefix("======== test case 9: ")
 
-        self.initConsumerTable()
+        tmqCom.initConsumerTable(walRetentionPeriod=3600, includeNotifyInfo=False)
 
         # create and start thread
         parameterDict = {'cfg':        '',       \
@@ -316,17 +263,17 @@ class TestCase:
                         enable.auto.commit:false,\
                         auto.commit.interval.ms:6000,\
                         auto.offset.reset:latest'
-        self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
+        tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit, useConsumerIdTimestamp=False)
 
         tdLog.info("start consume 0 processor")
         pollDelay = 20
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start to check consume 0 result")
         expectRows = 1
-        resultList = self.selectConsumeResult(expectRows)
+        resultList = tmqCom.selectConsumeResult(expectRows, pollInterval=5)
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
@@ -336,11 +283,11 @@ class TestCase:
             tdLog.exit("tmq consume rows error!")
 
         tdLog.info("start consume 1 processor")
-        self.initConsumerInfoTable()
+        tmqCom.initConsumerInfoTable()
         consumerId     = 1
         ifManualCommit = 0
-        self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit, useConsumerIdTimestamp=False)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start one new thread to insert data")
         parameterDict['actionType'] = actionType.INSERT_DATA
@@ -350,7 +297,7 @@ class TestCase:
 
         tdLog.info("start to check consume 0 and 1 result")
         expectRows = 2
-        resultList = self.selectConsumeResult(expectRows)
+        resultList = tmqCom.selectConsumeResult(expectRows, pollInterval=5)
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
@@ -360,7 +307,7 @@ class TestCase:
             tdLog.exit("tmq consume rows error!")
 
         tdLog.info("start consume 2 processor")
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
         tdLog.sleep(2)
 
         tdLog.info("start one new thread to insert data")
@@ -371,7 +318,7 @@ class TestCase:
 
         tdLog.info("start to check consume 0 and 1 and 2 result")
         expectRows = 3
-        resultList = self.selectConsumeResult(expectRows)
+        resultList = tmqCom.selectConsumeResult(expectRows, pollInterval=5)
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
@@ -396,8 +343,7 @@ class TestCase:
         
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

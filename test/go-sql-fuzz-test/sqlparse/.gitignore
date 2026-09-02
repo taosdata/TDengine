@@ -1,0 +1,4 @@
+/.idea/
+*.output
+build/
+reports/

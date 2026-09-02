@@ -18,6 +18,7 @@
 #include <taoserror.h>
 #include <tglobal.h>
 #include <iostream>
+#include <string>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -31,6 +32,51 @@
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
+}
+
+class SmlParseResourceGuard {
+ public:
+  SmlParseResourceGuard(SSmlHandle *&info, SSmlLineInfo &elements) : info_(info), elements_(elements) {}
+
+  ~SmlParseResourceGuard() {
+    taosArrayDestroy(elements_.colArray);
+    if (info_ != nullptr) {
+      qDestroyQuery(info_->pQuery);
+      info_->pQuery = nullptr;
+      smlDestroyInfo(info_);
+    }
+  }
+
+  SmlParseResourceGuard(const SmlParseResourceGuard &) = delete;
+  SmlParseResourceGuard &operator=(const SmlParseResourceGuard &) = delete;
+  SmlParseResourceGuard(SmlParseResourceGuard &&) = delete;
+  SmlParseResourceGuard &operator=(SmlParseResourceGuard &&) = delete;
+
+ private:
+  SSmlHandle  *&info_;
+  SSmlLineInfo &elements_;
+};
+
+TEST(testCase, smlParseInfluxTagEscapesPreserveOriginalBytes) {
+  char             *sql = (char *)R"(m,quote=a"b,trailing=tail\\,comma=a\\\,b,equal=a\\\=b,space=a\\\ b field=1i64 1)";
+  const std::string expected[] = {"a\"b", "tail\\", "a\\,b", "a\\=b", "a\\ b"};
+  SSmlLineInfo      elements = {0};
+  SSmlHandle       *info = nullptr;
+  SmlParseResourceGuard resources(info, elements);
+
+  ASSERT_EQ(smlBuildSmlInfo(nullptr, &info), TSDB_CODE_SUCCESS);
+  info->protocol = TSDB_SML_LINE_PROTOCOL;
+  info->dataFormat = false;
+  ASSERT_EQ(smlParseInfluxString(info, sql, sql + strlen(sql), &elements), TSDB_CODE_SUCCESS);
+  SSmlTableInfo **table = (SSmlTableInfo **)taosHashIterate(info->childTables, nullptr);
+  ASSERT_NE(table, nullptr);
+  ASSERT_EQ(taosArrayGetSize((*table)->tags), sizeof(expected) / sizeof(expected[0]));
+
+  for (size_t i = 0; i < sizeof(expected) / sizeof(expected[0]); ++i) {
+    SSmlKv *kv = (SSmlKv *)taosArrayGet((*table)->tags, i);
+    ASSERT_NE(kv, nullptr);
+    EXPECT_EQ(std::string(kv->value, kv->length), expected[i]);
+  }
 }
 
 TEST(testCase, smlParseInfluxString_Test) {

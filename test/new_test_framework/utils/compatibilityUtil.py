@@ -107,19 +107,51 @@ stb = f"{dbname}.meters"
 
 class CompatibilityBase:
 
+    def _getProcessPids(self, processNameOrPid):
+        target = str(processNameOrPid).strip()
+        if not target:
+            return []
+
+        if target.isdigit():
+            result = subprocess.run(
+                ["ps", "-p", target, "-o", "pid="],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            return [line.strip() for line in result.stdout.splitlines()
+                    if line.strip()]
+
+        result = subprocess.run(
+            ["ps", "-eo", "pid=,comm="],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        pids = []
+        for line in result.stdout.splitlines():
+            parts = line.strip().split(None, 1)
+            if len(parts) != 2:
+                continue
+            pid, command = parts
+            if command == target:
+                pids.append(pid)
+        return pids
+
     def checkProcessPid(self,processName):
         tdLog.info(f"checkProcessPid {processName}")
         i=0
         while i<60:
             tdLog.info(f"wait stop {processName}")
-            processPid = subprocess.getstatusoutput(f'ps aux|grep {processName} |grep -v "grep"|awk \'{{print $2}}\'')[1]
+            processPids = self._getProcessPids(processName)
+            processPid = " ".join(processPids)
             tdLog.info(f"times:{i},{processName}-pid:{processPid}")
             if(processPid == ""):
                 break
             i += 1
             time.sleep(1)
         else:
-            tdLog.info(f'this processName is not stopped in 60s')
+            tdLog.error(f'{processName} is not stopped in 60s')
 
     def version_compare(self, version1, version2):
         """
@@ -281,17 +313,38 @@ class CompatibilityBase:
         with open(file,"w",encoding="utf-8") as f:
             f.write(file_data)
 
-    def killAllDnodes(self):
-        tdLog.info("kill all dnodes")
-        tdLog.info("kill taosd")
-        os.system(f"pkill -9 taosd")
-        tdLog.info("kill taos")
-        os.system(f"pkill -9 taos") 
-        tdLog.info("check taosd")
+    def _hasProcess(self, processName):
+        return bool(self._getProcessPids(processName))
+
+    def stopTaosdCompletely(self):
+        """Stop taosd, taos and taosadapter processes for compatibility
+        tests.
+
+        Tries graceful shutdown first (systemctl stop, then up to 5
+        rounds of pkill), and falls back to SIGKILL plus freeing TCP
+        port 6030 via fuser if any process is still alive. Waits for
+        taosd and taosadapter to fully exit before returning.
+        """
+        tdLog.info("stop taosd service")
+        os.system("systemctl stop taosd 2>/dev/null || true")
+
+        for _ in range(5):
+            os.system("pkill taosd 2>/dev/null || true")
+            os.system("pkill taos 2>/dev/null || true")
+            os.system("pkill taosadapter 2>/dev/null || true")
+            if (not self._hasProcess("taosd") and
+                    not self._hasProcess("taos") and
+                    not self._hasProcess("taosadapter")):
+                break
+            time.sleep(1)
+        else:
+            tdLog.info("force kill remaining compatibility processes")
+            os.system("pkill -9 taosd 2>/dev/null || true")
+            os.system("pkill -9 taos 2>/dev/null || true")
+            os.system("pkill -9 taosadapter 2>/dev/null || true")
+            os.system("fuser -k -n tcp 6030 2>/dev/null || true")
+
         self.checkProcessPid("taosd")
-        tdLog.info("kill taosadapter")
-        os.system(f"pkill  -9   taosadapter")
-        tdLog.info("check taosadapter")
         self.checkProcessPid("taosadapter")
 
     def prepareDataOnOldVersion(self, base_version, bPath,corss_major_version):
@@ -709,9 +762,13 @@ class CompatibilityBase:
         tdsql.query(f"select count(*) from {stb}")
         tdsql.checkData(0,0,tableNumbers*recordNumbers2)
 
-    def checkstatus(self,retry_times=30):
-        
-        # sleep before check status to avoid dnodes not ready issue
+    def checkstatus(self, retry_times=300):
+        # Sleep before checking status to avoid dnodes not ready issue.
+        # NOTE: retry_times must be large enough to cover slow vnode restore after an
+        # upgrade. When the old version left no WAL snapshot (e.g. 3.3.3.0 data), the
+        # new version has to replay and commit the whole dataset on restore, which can
+        # take several minutes (e.g. a 4094-column table from compa4096.json). Bumped
+        # from 60 to 300 to avoid flaky "vnodes are not ready" (see tsdb!1495 follow-up).
         time.sleep(30)
         tdsql=tdCom.newTdSql()
         dnodes_ready = False
@@ -769,4 +826,4 @@ class CompatibilityBase:
         tdLog.info(f"vnodes are ready in {retry_times}s")
 
 # Create instance for compatibility
-tdCb = CompatibilityBase() 
+tdCb = CompatibilityBase()

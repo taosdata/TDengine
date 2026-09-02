@@ -184,8 +184,7 @@ class Test5dnode3mnodeSep1VnodeStopDnodeRCreateDb:
 
         Since: xxx
 
-        Labels: xxx
-
+        Labels: common,ci,integration,functional
         Jira: xxx
 
         Catalog:

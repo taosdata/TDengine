@@ -1,0 +1,36 @@
+
+taos> use test_ext_fill_mvg;
+Database changed.
+
+taos> select t1, w.mark, cast(_wstart as bigint) as ws, sum(v) as sv from src partition by t1 external_window((select ts, endtime, mark from win) w) fill(value, 888) order by t1, ws;
+     t1      |    mark     |          ws           |          sv           |
+============================================================================
+           1 |         501 |         1703000000000 |                    10 |
+           1 |         502 |         1703000060000 |                   888 |
+           1 |         503 |         1703000120000 |                    30 |
+           1 |         504 |         1703000180000 |                   888 |
+           2 |         501 |         1703000000000 |                   888 |
+           2 |         502 |         1703000060000 |                    20 |
+           2 |         503 |         1703000120000 |                   888 |
+           2 |         504 |         1703000180000 |                   888 |
+
+taos> select t1, cast(_wstart as bigint) as ws, sum(v) as sv from src partition by t1 external_window((select ts, endtime, mark from win) w) fill(null) order by t1, ws;
+     t1      |          ws           |          sv           |
+==============================================================
+           1 |         1703000000000 |                    10 |
+           1 |         1703000060000 | NULL                  |
+           1 |         1703000120000 |                    30 |
+           1 |         1703000180000 | NULL                  |
+           2 |         1703000000000 | NULL                  |
+           2 |         1703000060000 |                    20 |
+           2 |         1703000120000 | NULL                  |
+           2 |         1703000180000 | NULL                  |
+
+taos> select cast(_wstart as bigint) as ws, sum(v) as sv from src_a external_window((select ts, endtime, mark from win) w) fill(prev) order by ws;
+          ws           |          sv           |
+================================================
+         1703000000000 |                    10 |
+         1703000060000 |                    10 |
+         1703000120000 |                    30 |
+         1703000180000 |                    30 |
+

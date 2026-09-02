@@ -1,9 +1,12 @@
 import argparse
 import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "misc"))
 
 import torch
-from flask import Flask, request, jsonify
-from huggingface_hub import snapshot_download
+from flask import Flask, jsonify, request
+from hf_download import snapshot_download_with_fallback
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM
 
@@ -11,41 +14,46 @@ app = Flask(__name__)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 pretrained_model = None
 
-def download_model(model_name, root_dir, enable_ep = False):
+
+def download_model(model_name, root_dir, enable_ep=False):
     # model_list = ['Maple728/TimeMoE-50M']
-    ep = 'https://hf-mirror.com' if enable_ep else None
     model_list = [model_name]
 
     # root_dir = '/var/lib/taos/taosanode/model/timemoe'
     if not os.path.exists(root_dir):
         os.mkdir(root_dir)
 
-    dst_folder = root_dir + '/'
+    dst_folder = root_dir + "/"
     if not os.path.exists(dst_folder):
         os.mkdir(dst_folder)
 
     for item in tqdm(model_list):
-        snapshot_download(
+        snapshot_download_with_fallback(
             repo_id=item,
             local_dir=dst_folder,  # storage directory
-            local_dir_use_symlinks=False,   # disable the link
+            enable_ep=enable_ep,
+            local_dir_use_symlinks=False,  # disable the link
             resume_download=True,
-            endpoint=ep
         )
 
 
-@app.route('/ds_predict', methods=['POST'])
+@app.route("/ds_predict", methods=["POST"])
 def do_predict():
     try:
         data = request.get_json()
-        if not data or 'input' not in data:
-            return jsonify({
-                'status':'error',
-                'error': 'Invalid input, please provide "input" field in JSON'
-            }), 400
+        if not data or "input" not in data:
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "error": 'Invalid input, please provide "input" field in JSON',
+                    }
+                ),
+                400,
+            )
 
-        input_data = data['input']
-        prediction_length = data['next_len']
+        input_data = data["input"]
+        prediction_length = data["next_len"]
 
         if len(set(input_data)) == 1:
             # for identical array list, std is 0, return directly
@@ -66,94 +74,94 @@ def do_predict():
             print(predictions)
             pred_y = predictions[0].numpy().tolist()
 
-        response = {
-            'status': 'success',
-            'output': pred_y
-        }
+        response = {"status": "success", "output": pred_y}
 
         return jsonify(response), 200
 
     except Exception as e:
-        return jsonify({
-            'error': f'Prediction failed: {str(e)}'
-        }), 500
+        return jsonify({"error": f"Prediction failed: {e!s}"}), 500
 
 
 def main():
     global pretrained_model
 
     model_list = [
-        'Maple728/TimeMoE-50M',  # time-moe model with 50M  parameters
-        'Maple728/TimeMoE-200M',  # time-moe model with 200M parameters
+        "Maple728/TimeMoE-50M",  # time-moe model with 50M  parameters
+        "Maple728/TimeMoE-200M",  # time-moe model with 200M parameters
     ]
 
     parser = argparse.ArgumentParser(
-        description='TimeMoE forecast model server',
+        description="TimeMoE forecast model server",
         formatter_class=argparse.RawTextHelpFormatter,
     )
 
     source_group = parser.add_mutually_exclusive_group()
     source_group.add_argument(
-        '-i', '--model-index',
+        "-i",
+        "--model-index",
         type=int,
         default=0,
         choices=range(len(model_list)),
-        metavar=f'INDEX (0-{len(model_list) - 1})',
+        metavar=f"INDEX (0-{len(model_list) - 1})",
         help=(
-            'Index of the pretrained model to load from HuggingFace Hub:\n'
-            + '\n'.join(f'  {i}: {m}' for i, m in enumerate(model_list))
+            "Index of the pretrained model to load from HuggingFace Hub:\n"
+            + "\n".join(f"  {i}: {m}" for i, m in enumerate(model_list))
         ),
     )
     source_group.add_argument(
-        '-f', '--model-folder',
+        "-f",
+        "--model-folder",
         type=str,
-        metavar='FOLDER',
-        help='Local directory that contains (or will store) the model files.',
+        metavar="FOLDER",
+        help="Local directory that contains (or will store) the model files.",
     )
 
     parser.add_argument(
-        '-n', '--model-name',
+        "-n",
+        "--model-name",
         type=str,
         choices=model_list,
-        metavar='MODEL_NAME',
+        metavar="MODEL_NAME",
         help=(
-            'HuggingFace model name used when downloading to --model-folder.\n'
-            f'Valid values: {model_list}'
+            "HuggingFace model name used when downloading to --model-folder.\n"
+            f"Valid values: {model_list}"
         ),
     )
     parser.add_argument(
-        '--enable-ep',
-        action='store_true',
+        "--enable-ep",
+        action="store_true",
         default=False,
-        help='Use the HF mirror endpoint (https://hf-mirror.com) when downloading.',
+        help="Use the HF mirror endpoint (https://hf-mirror.com) when downloading.",
     )
     parser.add_argument(
-        '--host',
+        "--host",
         type=str,
-        default='0.0.0.0',
-        help='Host address the server listens on (default: 0.0.0.0).',
+        default="0.0.0.0",
+        help="Host address the server listens on (default: 0.0.0.0).",
     )
     parser.add_argument(
-        '--port',
+        "--port",
         type=int,
         default=6062,
-        help='Port the server listens on (default: 6062).',
+        help="Port the server listens on (default: 6062).",
     )
 
     args = parser.parse_args()
 
     if args.model_folder:
         if not args.model_name:
-            parser.error('--model-name is required when --model-folder is specified.')
+            parser.error("--model-name is required when --model-folder is specified.")
 
         model_folder = args.model_folder
         model_name = args.model_name
 
         if not os.path.exists(model_folder):
-            print(f"the specified folder: {model_folder} not exists, start to create it")
+            print(
+                f"the specified folder: {model_folder} not exists, start to create it"
+            )
 
-        model_file = os.path.join(model_folder, 'model.safetensors')
-        model_conf_file = os.path.join(model_folder, 'config.json')
+        model_file = os.path.join(model_folder, "model.safetensors")
+        model_conf_file = os.path.join(model_folder, "config.json")
 
         if not os.path.exists(model_file) or not os.path.exists(model_conf_file):
             download_model(model_name, model_folder, enable_ep=args.enable_ep)
@@ -172,14 +180,8 @@ def main():
             trust_remote_code=True,
         )
 
-    app.run(
-        host=args.host,
-        port=args.port,
-        threaded=True,
-        debug=False
-    )
+    app.run(host=args.host, port=args.port, threaded=True, debug=False)
 
 
 if __name__ == "__main__":
     main()
-

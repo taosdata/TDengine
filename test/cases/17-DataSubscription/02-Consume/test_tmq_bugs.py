@@ -7,7 +7,7 @@ import threading
 import subprocess
 from  datetime import datetime
 
-from new_test_framework.utils import tdLog, tdSql, etool, tdCom, tdDnodes
+from new_test_framework.utils import tdLog, tdSql, etool, tdCom, tdDnodes, tmqCom
 from taos.tmq import *
 from taos import *
 
@@ -155,7 +155,8 @@ class TestTmqBugs:
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_td32187'%(buildPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
         
         print("bug TD-32187 ................ [passed]")
 
@@ -294,7 +295,8 @@ class TestTmqBugs:
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_td35698'%(buildPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
         
         print("bug TD-35698 ................ [passed]")
 
@@ -433,7 +435,8 @@ class TestTmqBugs:
         cmdStr = '%s/build/bin/tmq_td38404'%(buildPath)
         # cmdStr = '/Users/mingming/code/TDengine2/debug/build/bin/tmq_td38404'
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
         
         print("bug TD-38404 ................ [passed]")
 
@@ -556,7 +559,18 @@ class TestTmqBugs:
     #
     # ------------------- 12 ----------------
     #
-    def do_ts5466(self):
+    def insert(self):
+        # create new connector for new tdSql instance in my thread
+        newTdSql = tdCom.newTdSql()
+        for i in range(10):
+            newTdSql.execute(f'insert into db_5466.tt{i}(ts, c1, c2) using db_5466.s5466 tags("__devicid__") values(1669092069068, 0, 1)')
+            newTdSql.execute(f'alter table db_5466.tt{i} set tag t = "hello"')
+            time.sleep(0.5)
+
+        return
+    
+    def do_ts5466(self, snapshot_enable="true"):
+        tdSql.execute(f'alter dnode 1 "debugflag 135"')
         tdSql.execute(f'create database if not exists db_taosx')
         tdSql.execute(f'create database if not exists db_5466')
         tdSql.execute(f'use db_5466')
@@ -571,12 +585,23 @@ class TestTmqBugs:
 
         tdSql.execute("create topic db_5466_topic with meta as database db_5466")
         buildPath = tdCom.getBuildPath()
-        cmdStr = '%s/build/bin/tmq_ts5466'%(buildPath)
+        cmdStr = '%s/build/bin/tmq_ts5466 %s'%(buildPath, snapshot_enable)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+
+        pThread = threading.Thread(target=self.insert)
+        pThread.start()
+
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
         
+        pThread.join()
+        tdSql.checkResultsBySql(
+            sql="select tbname,t from db_5466.s5466 order by tbname",
+            exp_sql="select tbname,t from db_taosx.s5466 order by tbname",
+            retry=1,
+        )
         print("bug TS-5466 ................ [passed]")
-    
+
     #
     # ------------------- 13 ----------------
     #
@@ -822,6 +847,7 @@ class TestTmqBugs:
     # ------------------- 16 ----------------
     #
     def do_ts7402(self):
+        tdSql.execute(f'alter dnode 1 "debugflag 135"')
         tdSql.execute(f'drop topic if exists topic1')
         tdSql.execute(f'drop topic if exists topic2')
         tdSql.execute(f'drop database if exists test')
@@ -877,36 +903,6 @@ class TestTmqBugs:
     #
     # ------------------- 18 ----------------
     #
-    def get_leader(self):
-        tdLog.debug("get leader")
-        tdSql.query("show vnodes")
-        for result in tdSql.queryResult:
-            if result[3] == 'leader':
-                tdLog.debug("leader is %d"%(result[0]))
-                return result[0]
-        return -1
-
-    def balance_vnode(self):
-        leader_before = self.get_leader()
-        
-        while True:
-            leader_after = -1
-            tdLog.info("balancing vgroup leader")
-            tdSql.execute("balance vgroup leader")
-            while True:
-                tdLog.info("get new vgroup leader")
-                leader_after = self.get_leader()
-                if leader_after != -1 :
-                    break
-                else:
-                    time.sleep(1)
-            if leader_after != leader_before:
-                tdLog.info("leader changed")
-                break
-            else :
-                time.sleep(1)
-                tdLog.info("leader not changed")
-
     def do_ts4674(self):
         tdSql.execute(f'create database d1 replica 3 vgroups 1')
         tdSql.execute(f'use d1')
@@ -945,7 +941,7 @@ class TestTmqBugs:
                             # continue
                         else :
                             break
-                    self.balance_vnode()
+                    tmqCom.balance_vnode('d1')
                     balance = True
                     tdSql.execute(f'insert into t1 using st tags(1) values(now+5s, 11) (now+10s, 12)')
                     continue
@@ -1097,11 +1093,9 @@ class TestTmqBugs:
          - Test tmq consumption with meta topic created on stable with where clause.
         19. Jira TS-4674:
          - Test tmq consumption behavior during vgroup leader rebalance in multi-replica environment.
-
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1139,7 +1133,7 @@ class TestTmqBugs:
         self.do_td37436()
         self.do_td38404()
         self.do_ts4563()
-        self.do_ts5466()
+        self.do_ts5466("true")
         self.do_ts5906()
         self.do_ts6115()
         self.do_ts6392()

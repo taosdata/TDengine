@@ -1,0 +1,392 @@
+### 001
+SQL: select count(*) from fq05_en_m.push_t
+RESULT
+5
+---
+### 002
+SQL: select count(*) from fq05_en_m.push_t
+ERROR -0x7ffffc78: Database not exist
+---
+### 003
+SQL: create external source fq05_en2_m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata' database=fq05_enable
+ERROR -0x7fff9bf2: Federated query is disabled (set federatedQueryEnable=1)
+---
+### 004
+SQL: alter external source fq05_en_m set host='127.0.0.2'
+ERROR -0x7fff9bf2: Federated query is disabled
+---
+### 005
+SQL: drop external source fq05_en_m
+ERROR -0x7fff9bf2: Federated query is disabled
+---
+### 006
+SQL: refresh external source fq05_en_m
+ERROR -0x7fff9bf2: Federated query is disabled
+---
+### 007
+SQL: show external sources
+ERROR -0x7fff9bf2: Federated query is disabled (set federatedQueryEnable=1)
+---
+### 008
+SQL: describe external source fq05_en_m
+ERROR -0x7fff9bf2: Federated query is disabled (set federatedQueryEnable=1)
+---
+### 009
+SQL: select count(*) from fq05_en_m.push_t
+RESULT
+5
+---
+### 010
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryConnectTimeoutMs'
+RESULT
+1|federatedQueryConnectTimeoutMs|5000|both|global|
+---
+### 011
+SQL: select count(*) from fq05_ct_m.push_t
+RESULT
+5
+---
+### 012
+SQL: select count(*) from fq05_ct_m.push_t
+ERROR -0x7fff9c00: External source connection failed
+---
+### 013
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryConnectTimeoutMs'
+RESULT
+1|federatedQueryConnectTimeoutMs|600000|both|global|
+---
+### 014
+SQL: select count(*) from fq05_ct_m.push_t
+RESULT
+5
+---
+### 015
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryConnectTimeoutMs'
+RESULT
+1|federatedQueryConnectTimeoutMs|100|both|global|
+---
+### 016
+SQL: select count(*) from fq05_ct_m.push_t
+RESULT
+5
+---
+### 017
+SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryConnectTimeoutMs'
+RESULT
+federatedQueryConnectTimeoutMs|5000|both|global|
+---
+### 018
+SQL: select count(*) from fq05_ct_cl.push_t
+RESULT
+5
+---
+### 019
+SQL: select count(*) from fq05_ct_cl.push_t
+ERROR -0x7fff9c00: External source connection failed
+---
+### 020
+SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryConnectTimeoutMs'
+RESULT
+federatedQueryConnectTimeoutMs|600000|both|global|
+---
+### 021
+SQL: select count(*) from fq05_ct_cl.push_t
+RESULT
+5
+---
+### 022
+SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryConnectTimeoutMs'
+RESULT
+federatedQueryConnectTimeoutMs|100|both|global|
+---
+### 023
+SQL: select count(*) from fq05_ct_cl.push_t
+RESULT
+5
+---
+### 024
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryQueryTimeoutMs'
+RESULT
+1|federatedQueryQueryTimeoutMs|1000000000|both|global|
+---
+### 025
+SQL: select val, delay from fq05_qt_m.slow_v limit 1
+RESULT
+1|0
+---
+### 026
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryQueryTimeoutMs'
+RESULT
+1|federatedQueryQueryTimeoutMs|1000|both|global|
+---
+### 027
+SQL: select val, delay from fq05_qt_m.slow_v limit 1
+ERROR -0x7fff9c00: External source connection failed
+---
+### 028
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryQueryTimeoutMs'
+RESULT
+1|federatedQueryQueryTimeoutMs|1000000000|both|global|
+---
+### 029
+SQL: select count(*) from fq05_qt_m.push_t
+RESULT
+5
+---
+### 030
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryQueryTimeoutMs'
+RESULT
+1|federatedQueryQueryTimeoutMs|1000|both|global|
+---
+### 031
+SQL: select val, delay from fq05_qt_m.slow_v limit 1
+ERROR -0x7fff9c00: External source connection failed
+---
+### 032
+SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryQueryTimeoutMs'
+RESULT
+federatedQueryQueryTimeoutMs|100|both|global|
+---
+### 033
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryQueryTimeoutMs'
+RESULT
+1|federatedQueryQueryTimeoutMs|1000000000|both|global|
+---
+### 034
+SQL: select count(*) from fq05_qt_cl.push_t
+RESULT
+5
+---
+### 035
+SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryQueryTimeoutMs'
+RESULT
+federatedQueryQueryTimeoutMs|5000|both|global|
+---
+### 036
+SQL: select count(*) from fq05_qt_cl.push_t
+RESULT
+5
+---
+### 037
+SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryQueryTimeoutMs'
+RESULT
+federatedQueryQueryTimeoutMs|1000000000|both|global|
+---
+### 038
+SQL: select count(*) from fq05_qt_cl.push_t
+RESULT
+5
+---
+### 039
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryMaxPoolSizePer%'
+RESULT
+1|federatedQueryMaxPoolSizePerSour|64|both|global|
+---
+### 040
+SQL: select count(*) from fq05_ps_m.push_t
+RESULT
+5
+---
+### 041
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryMaxPoolSizePer%'
+RESULT
+1|federatedQueryMaxPoolSizePerSour|1|both|global|
+---
+### 042
+SQL: select count(*) from fq05_ps_m.push_t
+RESULT
+5
+---
+### 043
+SQL: select count(*) from fq05_ps_m.push_t
+ERROR -0x7fff9bf6: External source resource exhausted
+---
+### 044
+SQL: select count(*) from fq05_ps_m.push_t
+RESULT
+5
+---
+### 045
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryMaxPoolSizePer%'
+RESULT
+1|federatedQueryMaxPoolSizePerSour|64|both|global|
+---
+### 046
+SQL: select count(*) from fq05_ps_m.push_t
+RESULT
+5
+---
+### 047
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryMaxPoolSizePer%'
+RESULT
+1|federatedQueryMaxPoolSizePerSour|1|both|global|
+---
+### 048
+SQL: select count(*) from fq05_ps_m.push_t
+ERROR -0x7fff9bf6: External source resource exhausted
+---
+### 049
+SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryMaxPoolSizePer%'
+RESULT
+federatedQueryMaxPoolSizePerSour|1|both|global|
+---
+### 050
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryMaxPoolSizePer%'
+RESULT
+1|federatedQueryMaxPoolSizePerSour|64|both|global|
+---
+### 051
+SQL: select count(*) from fq05_ps_cl.push_t
+RESULT
+5
+---
+### 052
+SQL: select count(*) from fq05_ps_cl.push_t
+RESULT
+5
+---
+### 053
+SQL: select count(*) from fq05_ps_cl.push_t
+RESULT
+5
+---
+### 054
+SQL: select count(*) from fq05_ps_cl.push_t
+RESULT
+5
+---
+### 055
+SQL: select count(*) from fq05_ps_cl.push_t
+RESULT
+5
+---
+### 056
+SQL: select count(*) from fq05_ps_cl.push_t
+RESULT
+5
+---
+### 057
+SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryMaxPoolSizePer%'
+RESULT
+federatedQueryMaxPoolSizePerSour|128|both|global|
+---
+### 058
+SQL: select count(*) from fq05_ps_cl.push_t
+RESULT
+5
+---
+### 059
+SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryMaxPoolSizePer%'
+RESULT
+federatedQueryMaxPoolSizePerSour|1|both|global|
+---
+### 060
+SQL: select count(*) from fq05_ps_cl.push_t
+RESULT
+5
+---
+### 061
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
+RESULT
+1|federatedQueryIdleConnTtlSec|86400|both|global|
+---
+### 062
+SQL: select count(*) from fq05_ttl_m.push_t
+RESULT
+5
+---
+### 063
+SQL: select count(*) from fq05_ttl_m.push_t
+RESULT
+5
+---
+### 064
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
+RESULT
+1|federatedQueryIdleConnTtlSec|1|both|global|
+---
+### 065
+SQL: select count(*) from fq05_ttl_m.push_t
+RESULT
+5
+---
+### 066
+SQL: select count(*) from fq05_ttl_m.push_t
+RESULT
+5
+---
+### 067
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
+RESULT
+1|federatedQueryIdleConnTtlSec|86400|both|global|
+---
+### 068
+SQL: select count(*) from fq05_ttl_m.push_t
+RESULT
+5
+---
+### 069
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
+RESULT
+1|federatedQueryIdleConnTtlSec|1|both|global|
+---
+### 070
+SQL: select count(*) from fq05_ttl_m.push_t
+RESULT
+5
+---
+### 071
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
+RESULT
+1|federatedQueryIdleConnTtlSec|86400|both|global|
+---
+### 072
+SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
+RESULT
+federatedQueryIdleConnTtlSec|1|both|global|
+---
+### 073
+SQL: select count(*) from fq05_tc_cl.push_t
+RESULT
+5
+---
+### 074
+SQL: select count(*) from fq05_tc_cl.push_t
+RESULT
+5
+---
+### 075
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
+RESULT
+1|federatedQueryIdleConnTtlSec|1|both|global|
+---
+### 076
+SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
+RESULT
+federatedQueryIdleConnTtlSec|1|both|global|
+---
+### 077
+SQL: select count(*) from fq05_tc_cl.push_t
+RESULT
+5
+---
+### 078
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
+RESULT
+1|federatedQueryIdleConnTtlSec|1|both|global|
+---
+### 079
+SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
+RESULT
+federatedQueryIdleConnTtlSec|86400|both|global|
+---
+### 080
+SQL: select count(*) from fq05_tc_cl.push_t
+RESULT
+5
+---
+### 081
+SQL: select count(*) from fq05_tc_cl.push_t
+RESULT
+5
+---

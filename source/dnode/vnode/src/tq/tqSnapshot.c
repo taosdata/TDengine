@@ -194,7 +194,7 @@ int32_t tqSnapHandleWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData
 
   STQ*      pTq = pWriter->pTq;
   tDecoderInit(pDecoder, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
-  code = tDecodeSTqHandle(pDecoder, &handle);
+  code = tqDecodeSTqHandle(pDecoder, &handle);
   TSDB_CHECK_CODE(code, lino, end);
 
   taosWLockLatch(&pTq->lock);
@@ -206,7 +206,7 @@ int32_t tqSnapHandleWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData
 
 end:
   tDecoderClear(pDecoder);
-  tqDestroyTqHandle(&handle);
+  tqDestroySTqHandle(&handle);
   if (code != 0){
     tqError("%s failed at %d, vnode tq snapshot write failed since %s", __func__, lino, tstrerror(code));
   }

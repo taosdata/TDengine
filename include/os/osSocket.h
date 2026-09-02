@@ -140,6 +140,7 @@ int32_t taosShutDownSocketServerRDWR(TdSocketServerPtr pSocketServer);
 int32_t taosSetNonblocking(TdSocketPtr pSocket, int32_t on);
 int32_t taosSetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void *optval, int32_t optlen);
 int32_t taosSetSockOpt2(int32_t fd);
+int32_t taosSetTcpKeepalive(int fd, int keepalive_sec);
 int32_t taosGetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void *optval, int32_t *optlen);
 int32_t taosWriteMsg(TdSocketPtr pSocket, void *ptr, int32_t nbytes);
 int32_t taosReadMsg(TdSocketPtr pSocket, void *ptr, int32_t nbytes);

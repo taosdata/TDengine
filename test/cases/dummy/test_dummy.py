@@ -6,8 +6,7 @@ class TestDummy:
         
         Since: None
         
-        Labels: dummy
-        
+        Labels: dummy,integration,functional
         Jira: None
         
         History: None

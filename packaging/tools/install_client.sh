@@ -77,7 +77,7 @@ GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 
 csudo=""
-if command -v sudo > /dev/null; then
+if [ "$(id -u)" -ne 0 ] && command -v sudo > /dev/null; then
     csudo="sudo "
 fi
 
@@ -150,7 +150,6 @@ function install_lib() {
 
     [ -f ${lib_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.so         || :
     [ -f ${lib64_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.so         || :
-
     #${csudo}rm -rf ${v15_java_app_dir}              || :
 
     ${csudo}cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
@@ -177,6 +176,8 @@ function install_lib() {
                 ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so.* ${lib64_link_dir}/libtaosws.so
             fi
         fi
+
+        ${csudo}ldconfig
     else
         ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
         ${csudo}ln -s ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
@@ -189,9 +190,7 @@ function install_lib() {
         fi
     fi
 
-    if [ "$osType" != "Darwin" ]; then
-        ${csudo}ldconfig
-    else
+    if [ "$osType" = "Darwin" ]; then
         ${csudo}update_dyld_shared_cache
     fi
 }

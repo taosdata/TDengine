@@ -11,10 +11,10 @@
 #   4. Print overall PASS / FAIL summary
 #
 # Volume mounts (guaranteed by run_upgrade_compat.sh):
-#   /home/TDinternal          — source repo (read-only)
-#   /home/TDinternal/debug    — current build artifacts debugNoSan (read-only)
-#   /green_versions           — green version cache (read-only)
-#   /upgrade_logs             — log output directory (writable)
+#   /home/TDinternal/community — source repo (read-only, mounted from source/taos-community)
+#   /home/TDinternal/debug     — current build artifacts debugNoSan (read-only)
+#   /green_versions            — green version cache (read-only)
+#   /upgrade_logs              — log output directory (writable)
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -27,7 +27,7 @@ COLD_VERSIONS_1="3.3.6.0,3.3.8.0"
 COLD_VERSIONS_OPTION_1="--no-tsma --no-user"
 
 # group2
-COLD_VERSIONS_2="3.4.0.0"
+COLD_VERSIONS_2="3.4.0.0,3.4.1.0"
 COLD_VERSIONS_OPTION_2="--check-sysinfo"
 
 
@@ -68,6 +68,86 @@ echo ""
 echo "=== Installing Python dependencies ==="
 pip3 install taospy pyyaml -q --disable-pip-version-check 2>/dev/null
 echo "=== Python dependencies installed successfully ==="
+
+# ── Step 0.5: Clear the "requires executable stack" ELF flag on libtaos.so ───
+# The prebuilt green-version client libraries (downloaded from the NAS) were
+# built with an old toolchain that marks libtaos.so as requiring an executable
+# stack (PT_GNU_STACK + PF_X). Modern kernels enforce DEP/NX for the stack
+# regardless of container privilege (--privileged does NOT bypass this — it's
+# not a seccomp/capability restriction), so ctypes.CDLL("libtaos.so") fails
+# with "cannot enable executable stack as shared object requires: Invalid
+# argument". The usual fix is `execstack -c`, but that tool isn't installed in
+# the test image and apt-get has no network access in this container — so we
+# patch the PT_GNU_STACK program header's PF_X bit directly with a small,
+# dependency-free Python script instead. Harmless: these client libraries
+# don't actually rely on trampoline code needing an executable stack. Fixed
+# once on-disk in $GREEN_PATH/$BUILD_DIR (both bind-mounted writable from the
+# host), so later runs on the same worker host skip straight past this.
+echo ""
+echo "=== Clearing executable-stack flag on legacy libtaos.so binaries ==="
+python3 - "$GREEN_PATH" "$BUILD_DIR" <<'PYEOF'
+import glob
+import os
+import struct
+import sys
+
+PT_GNU_STACK = 0x6474e551
+PF_X = 0x1
+
+
+def clear_exec_stack(path):
+    with open(path, "rb") as f:
+        data = bytearray(f.read())
+    if data[:4] != b"\x7fELF":
+        return False
+    ei_class = data[4]      # 1 = 32-bit, 2 = 64-bit
+    ei_data = data[5]       # 1 = little-endian, 2 = big-endian
+    endian = "<" if ei_data == 1 else ">"
+    if ei_class == 2:
+        phoff, = struct.unpack_from(endian + "Q", data, 0x20)
+        phentsize, = struct.unpack_from(endian + "H", data, 0x36)
+        phnum, = struct.unpack_from(endian + "H", data, 0x38)
+        flags_off = 4
+    elif ei_class == 1:
+        phoff, = struct.unpack_from(endian + "I", data, 0x1C)
+        phentsize, = struct.unpack_from(endian + "H", data, 0x2A)
+        phnum, = struct.unpack_from(endian + "H", data, 0x2C)
+        flags_off = 24
+    else:
+        return False
+
+    changed = False
+    for i in range(phnum):
+        off = phoff + i * phentsize
+        p_type, = struct.unpack_from(endian + "I", data, off)
+        if p_type != PT_GNU_STACK:
+            continue
+        p_flags, = struct.unpack_from(endian + "I", data, off + flags_off)
+        if p_flags & PF_X:
+            struct.pack_into(endian + "I", data, off + flags_off, p_flags & ~PF_X)
+            changed = True
+
+    if changed:
+        with open(path, "r+b") as f:
+            f.seek(0)
+            f.write(data)
+    return changed
+
+
+roots = [r for r in sys.argv[1:] if r and os.path.isdir(r)]
+seen = set()
+for root in roots:
+    for so in glob.glob(os.path.join(root, "**", "libtaos*.so*"), recursive=True):
+        real = os.path.realpath(so)
+        if real in seen or not os.path.isfile(real):
+            continue
+        seen.add(real)
+        try:
+            if clear_exec_stack(real):
+                print(f"  [OK] cleared exec-stack: {real}")
+        except Exception as e:
+            print(f"  [WARN] failed to patch {real}: {e}")
+PYEOF
 
 # ── Helper: kill taosd processes ─────────────────────────────────────────────
 
@@ -183,7 +263,7 @@ for ver in 3.3.6.0 3.3.8.0; do
         echo "  Cold ${ver} → current : UNKNOWN"
     fi
 done
-for ver in 3.4.0.0; do
+for ver in 3.4.0.0 3.4.1.0; do
     if grep -q "\[PASS\] Cold upgrade test passed.*${ver}" "$LOG_DIR/cold_upgrade_34x.log" 2>/dev/null; then
         echo "  Cold ${ver} → current : PASS"
     elif grep -q "\[FAIL\] Cold upgrade test FAILED.*${ver}" "$LOG_DIR/cold_upgrade_34x.log" 2>/dev/null; then

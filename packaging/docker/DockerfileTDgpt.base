@@ -30,7 +30,7 @@ RUN if [ "$ARCH" = "arm64" ]; then \
                 -r /tmp/requirements_docker.txt \
                 ${PIP_INDEX_ARG} && \
     pip3 install --no-cache-dir accelerate==0.34.2 ${PIP_INDEX_ARG} && \
-    find /usr/local/lib/python3.10 -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null
+    (find /usr/local/lib/python3.10 -depth -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null || true)
 
 FROM ${PYTHON_BASE} AS venv1-builder
 ARG PIP_INDEX_URL
@@ -41,7 +41,7 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN python3.10 -m venv --system-site-packages $VIRTUAL_ENV && \
     PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
     pip3 install --no-cache-dir transformers==4.40 ${PIP_INDEX_ARG} && \
-    find $VIRTUAL_ENV -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null
+    find $VIRTUAL_ENV -depth -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null || true
 
 FROM ${PYTHON_BASE} AS venv2-builder
 ARG PIP_INDEX_URL
@@ -52,7 +52,7 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN python3.10 -m venv --system-site-packages $VIRTUAL_ENV && \
     PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
     pip3 install --no-cache-dir transformers==4.55 chronos-forecasting ${PIP_INDEX_ARG} && \
-    find $VIRTUAL_ENV -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null
+    find $VIRTUAL_ENV -depth -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null || true
 
 FROM ${PYTHON_BASE} AS venv3-builder
 ARG PIP_INDEX_URL
@@ -63,7 +63,7 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN python3.10 -m venv --system-site-packages $VIRTUAL_ENV && \
     PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
     pip3 install --no-cache-dir transformers==4.33.3 momentfm ${PIP_INDEX_ARG} && \
-    find $VIRTUAL_ENV -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null
+    find $VIRTUAL_ENV -depth -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null || true
 
 
 FROM ${PYTHON_BASE} AS venv4-builder
@@ -76,13 +76,13 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN python3.10 -m venv --system-site-packages $VIRTUAL_ENV && \
     PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
     if [ "$ARCH" = "arm64" ]; then \
-        TORCH_PKG="torch"; \
+        TORCH_PKG="torch==2.4.1"; \
     else \
         TORCH_PKG="torch==2.3.1+cpu"; \
     fi && \
     pip3 install --no-cache-dir $TORCH_PKG --index-url $TORCH_INDEX && \
     pip3 install --no-cache-dir uni2ts flask ${PIP_INDEX_ARG} && \
-    find $VIRTUAL_ENV -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null
+    find $VIRTUAL_ENV -depth -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null || true
 
 FROM ${PYTHON_BASE}
 RUN apt-get update -y && \

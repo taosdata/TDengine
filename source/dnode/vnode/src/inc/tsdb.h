@@ -361,6 +361,45 @@ typedef struct {
 typedef struct SCompMonitor SCompMonitor;
 typedef struct SRetentionMonitor SRetentionMonitor;
 typedef struct SSsMigrateMonitor SSsMigrateMonitor;
+
+// Snapshot send progress tracking structures
+typedef struct {
+  int32_t fid;
+  int32_t fileCount;
+  int32_t finishedFileCount;
+  int64_t totalSize;
+  int64_t readSize;
+  int64_t startTime;
+  int64_t sver;
+  int64_t ever;
+  int8_t  transferType;
+} SSnapSendFileSetStat;
+
+typedef struct {
+  int32_t               vgId;
+  int32_t               totalFileSets;
+  int32_t               finishedFileSets;
+  int64_t               startTime;
+  int32_t               fileSetCount;
+  SSnapSendFileSetStat *pFileSetStats;
+} SSnapSendVnodeStat;
+
+// Progress bucket for a single "send target": one SSnapSendVnodeStat per destDnodeId.
+// Uses a small array + linear scan (replica count is very small, usually 2~3), avoiding a hash
+// table for so few elements.
+typedef struct {
+  int32_t             destDnodeId;  // target follower dnodeId served by this bucket
+  SSnapSendVnodeStat *pStat;        // send-progress stats for this target (heap-allocated, freed on bucket destroy)
+} SSnapSendTargetBucket;
+
+// Byte-level progress summary for a single send target, reported per target to the mnode by vnodeGetLoad.
+// One entry per destDnodeId: total=total bytes to send to this target, transferred=bytes already sent.
+typedef struct {
+  int32_t destDnodeId;  // target follower dnodeId
+  int64_t total;        // sum of totalSize across all filesets for this target
+  int64_t transferred;  // sum of readSize across all filesets for this target
+} STsdbSnapSendGroup;
+
 struct STsdb {
   char                *path;
   SVnode              *pVnode;
@@ -384,6 +423,8 @@ struct STsdb {
   SCompMonitor        *pCompMonitor;
   SRetentionMonitor   *pRetentionMonitor;
   SSsMigrateMonitor   *pSsMigrateMonitor;
+  SArray              *pSnapBuckets;  // SArray<SSnapSendTargetBucket>: send progress bucketed by target dnodeId; access guarded by snapStatLock
+  TdThreadRwlock       snapStatLock;
   struct {
     SVHashTable *ht;
     SArray      *arr;
@@ -725,6 +766,7 @@ typedef enum ETsdbRepFmt {
   TSDB_SNAP_REP_FMT_DEFAULT = 0,
   TSDB_SNAP_REP_FMT_RAW,
   TSDB_SNAP_REP_FMT_HYBRID,
+  TSDB_SNAP_REP_FMT_MEDIUM,
 } ETsdbRepFmt;
 
 typedef struct STsdbRepOpts {
@@ -733,6 +775,72 @@ typedef struct STsdbRepOpts {
 
 int32_t tSerializeTsdbRepOpts(void *buf, int32_t bufLen, STsdbRepOpts *pInfo);
 int32_t tDeserializeTsdbRepOpts(void *buf, int32_t bufLen, STsdbRepOpts *pInfo);
+
+// MEDIUM snapshot file info (follower → leader)
+typedef struct SMediumSnapFileInfo {
+  int32_t fid;
+  int32_t ftype;
+  int32_t level;
+  int64_t minVer;
+  int64_t maxVer;
+  int32_t lcn;
+  int32_t mid;
+  int64_t cid;
+  int32_t diskLevel;
+  int32_t diskId;
+  int64_t size;
+  int8_t  missing;
+} SMediumSnapFileInfo;
+
+// MEDIUM snapshot file list (follower → leader)
+typedef struct SMediumSnapFileList {
+  int32_t              nFiles;
+  SMediumSnapFileInfo *aFiles;
+} SMediumSnapFileList;
+
+// MEDIUM snapshot file header (leader → follower, per SNAP_DATA message)
+typedef struct SMediumSnapFileHdr {
+  SMediumSnapFileInfo fileInfo;
+  int32_t            opType;  // tsdb_fop_t: TSDB_FOP_CREATE / TSDB_FOP_REMOVE / TSDB_FOP_MODIFY
+} SMediumSnapFileHdr;
+
+// serialization
+int32_t tSerializeSMediumSnapFileList(void *buf, int32_t bufLen, SMediumSnapFileList *pList);
+int32_t tDeserializeSMediumSnapFileList(void *buf, int32_t bufLen, SMediumSnapFileList *pList);
+int32_t tSerializeSMediumSnapFileHdr(void *buf, int32_t bufLen, SMediumSnapFileHdr *pHdr);
+int32_t tDeserializeSMediumSnapFileHdr(void *buf, int32_t bufLen, SMediumSnapFileHdr *pHdr);
+
+// MEDIUM snapshot reader (leader side)
+typedef struct STsdbSnapMediumReader STsdbSnapMediumReader;
+int32_t tsdbSnapMediumReaderOpen(STsdb *tsdb, int64_t ever, int8_t type,
+                                 SMediumSnapFileList *pFollowerFileList, int64_t beginIndex,
+                                 int32_t destDnodeId, STsdbSnapMediumReader **reader);
+
+// Snapshot-send progress bucket operations (implemented in tsdbSnapshot.c; each holds the snapStatLock write lock internally):
+void tsdbSnapPutTargetStat(STsdb *tsdb, int32_t destDnodeId, SSnapSendVnodeStat *pStat);
+void tsdbSnapRemoveTargetStat(STsdb *tsdb, int32_t destDnodeId);
+void tsdbSnapMarkFileSetStart(STsdb *tsdb, int32_t destDnodeId, int32_t idx);
+void tsdbSnapAddReadSize(STsdb *tsdb, int32_t destDnodeId, int32_t idx, int64_t size);
+void tsdbSnapMarkFileSetEnd(STsdb *tsdb, int32_t destDnodeId, int32_t idx);
+
+// Aggregate this tsdb's current snapshot-send total and transferred bytes per target, appending
+// the result grouped by target dnodeId to pGroups.
+// pGroups elements are of type STsdbSnapSendGroup, created/freed by the caller; when no snapshot
+// is in progress no elements are appended.
+// Thread-safe: holds the snapStatLock read lock internally.
+void tsdbGetSnapSendSummary(STsdb *tsdb, SArray *pGroups);
+int32_t tsdbSnapMediumReaderClose(STsdbSnapMediumReader **reader);
+int32_t tsdbSnapMediumRead(STsdbSnapMediumReader *reader, uint8_t **data);
+
+// MEDIUM snapshot writer (follower side)
+typedef struct STsdbSnapMediumWriter STsdbSnapMediumWriter;
+int32_t tsdbSnapMediumWriterOpen(STsdb *tsdb, int64_t ever, STsdbSnapMediumWriter **writer);
+int32_t tsdbSnapMediumWriterClose(STsdbSnapMediumWriter **writer, int8_t rollback);
+int32_t tsdbSnapMediumWriterPrepareClose(STsdbSnapMediumWriter *writer);
+int32_t tsdbSnapMediumWrite(STsdbSnapMediumWriter *writer, SSnapDataHdr *hdr);
+
+// MEDIUM snapshot helper
+int32_t tsdbBuildMediumSnapFileList(STsdb *tsdb, SMediumSnapFileList *pList);
 
 // snap read
 struct STsdbReadSnap {
@@ -904,6 +1012,8 @@ typedef struct SMergeTreeConf {
   void         *pReader;
   void         *idstr;
   bool          rspRows;  // response the rows in stt-file, if possible
+  /* optional accumulator for the load cost of dropped STT iterators */
+  SSttBlockLoadCostInfo *pSttLoadCost;
 } SMergeTreeConf;
 
 typedef struct SSttDataInfoForTable {
@@ -922,6 +1032,7 @@ void    tMergeTreeClose(SMergeTree *pMTree);
 int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols, SSttBlockLoadInfo **pInfo);
 void    destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 void    destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoadCost);
+void    tSttBlockLoadCostAdd(SSttBlockLoadCostInfo *pDst, const SSttBlockLoadCostInfo *pSrc);
 
 // tsdbCache ==============================================================================================
 typedef enum {

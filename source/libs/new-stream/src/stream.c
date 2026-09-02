@@ -23,6 +23,15 @@
 
 SStreamMgmtInfo gStreamMgmt = {0};
 
+void streamGetMnodeEpset(SEpSet *pEpSet) {
+  if (pEpSet == NULL) return;
+  if (gStreamMgmt.getMnode != NULL) {
+    (*gStreamMgmt.getMnode)(gStreamMgmt.dnode, pEpSet);
+  } else {
+    memset(pEpSet, 0, sizeof(*pEpSet));
+  }
+}
+
 void streamSetSnodeEnabled(  SMsgCb* msgCb) {
   if (tsDisableStream) {
     return;
@@ -83,6 +92,7 @@ void streamCleanup(void) {
   stTriggerTaskEnvCleanup();
   streamTimerCleanUp();
   smUndeployAllTasks();
+  streamNoticeQueueCleanup();
   destroyDataSinkMgr();
   streamMgmtCleanup();
   destroyInserterGrpInfo();
@@ -129,6 +139,8 @@ int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
   TAOS_CHECK_EXIT(initInserterGrpInfo());
 
   TAOS_CHECK_EXIT(initStreamDataSink());
+
+  TAOS_CHECK_EXIT(streamNoticeQueueInit());
 
 _exit:
 
@@ -285,4 +297,3 @@ void streamHandleTaskError(int64_t streamId, int64_t taskId, int32_t errCode) {
   atomic_store_32(&(*task)->errorCode, errCode);
   atomic_store_32((int32_t*)&(*task)->status, STREAM_STATUS_FAILED);
 }
-

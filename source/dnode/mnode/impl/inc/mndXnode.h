@@ -29,6 +29,9 @@ void    mndCleanupXnode(SMnode* pMnode);
 void    mndRetrieveTasks(SMnode* pMnode, SArray* pFc, SArray* pAd);
 void    mndXnodeHandleBecomeLeader(SMnode* pMnode);
 void    mndXnodeHandleBecomeNotLeader();
+int32_t mndSetXnodeBlobColumn(SColumnInfoData* pColInfo, int32_t row, const char* data,
+                              int32_t storedLen);
+int32_t mndGetXnodeShowStatus(SXnodeObj* pObj, char* status, int32_t statusLen);
 
 #ifdef __cplusplus
 }

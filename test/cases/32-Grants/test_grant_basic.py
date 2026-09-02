@@ -149,6 +149,38 @@ class TestCase:
             tss_grant -= 5
             self.checkGrantsTimeSeries("drop database and check", tss_grant)
 
+    @staticmethod
+    def _toEpoch(val):
+        # ins_cluster timestamp columns may come back as datetime or as string,
+        # depending on the connector; normalize both to epoch seconds.
+        if hasattr(val, "timestamp"):
+            return val.timestamp()
+        return time.mktime(time.strptime(str(val).split('.')[0], "%Y-%m-%d %H:%M:%S"))
+
+    def s6_check_default_grant_expire(self):
+        tdLog.printNoPrefix("======== test default grant expire time: ")
+        # The default (ungranted) license expires 10 days after cluster creation.
+        # Allow generous redundancy (7~30 days) to tolerate rounding/service delays,
+        # but reject clearly wrong values such as ~1 year.
+        DAY = 86400
+        tdSql.query("select create_time, expire_time from information_schema.ins_cluster;")
+        tdSql.checkRows(1)
+        createEpoch = self._toEpoch(tdSql.queryResult[0][0])
+        expireEpoch = self._toEpoch(tdSql.queryResult[0][1])
+        deltaDays = (expireEpoch - createEpoch) / DAY
+        tdLog.info(f"create_time: {tdSql.queryResult[0][0]}, expire_time: {tdSql.queryResult[0][1]}, "
+                   f"delta: {deltaDays:.3f} days")
+        if not (7 <= deltaDays <= 30):
+            raise Exception(f"default grant expire delta {deltaDays:.3f} days out of expected 7~30 days "
+                            f"(cluster create_time + ~10 days)")
+        # Also confirm show grants agrees: expire_time == service_time + 10 days.
+        tdSql.query("show grants;")
+        tdSql.checkRows(1)
+        expireTime = time.mktime(time.strptime(tdSql.queryResult[0][1], "%Y-%m-%d %H:%M:%S"))
+        serviceTime = time.mktime(time.strptime(tdSql.queryResult[0][2], "%Y-%m-%d %H:%M:%S"))
+        tdSql.checkEqual(True, abs(expireTime - serviceTime - 10 * DAY) < 15)
+        tdLog.info("default grant expire time check passed (~10 days from cluster creation)")
+
     def genClusterInfo(self, check=False):
         tdLog.info("======== genClusterInfo: ")
         self.infoPath = os.path.join(self.workPath, ".clusterInfo")
@@ -172,7 +204,7 @@ class TestCase:
                 tdLog.info(f"expireTime: {expireTime}, serviceTime: {serviceTime}")
                 tdSql.checkEqual(True, abs(expireTime - serviceTime - 864000) < 15)
                 tdSql.query(f'show grants full;')
-                nGrantItems = 49
+                nGrantItems = 50
                 tdSql.checkRows(nGrantItems)
                 tdSql.checkEqual(tdSql.queryResult[0][2], serviceTimeStr)
                 for i in range(1, nGrantItems):
@@ -391,8 +423,7 @@ class TestCase:
 
         Since: 2026-03-13
 
-        Labels: grant, timeseries, system-table, audit, log, regression
-
+        Labels: audit,grant,log,regression,system-table,timeseries,integration,functional,security
         Jira: 6672169603
 
         Catalog:
@@ -402,6 +433,7 @@ class TestCase:
         History:
             - 2026-03-13: Initial migration, covering main grant and timeseries statistics process from Cary Xu.
             - 2026-03-13: Added system table exclusion and is_audit database scenarios from Cary Xu.
+            - 2026-07: Added query_restricted grant item (show grants full now 50 rows) and default grant expire-time check.
         """
         # keep the order of following steps
         self.workPath = os.path.join(tdCom.getBuildPath(), "build", "bin")
@@ -412,6 +444,7 @@ class TestCase:
         # self.s3_check_show_grants_granted() # migrated later
         # self.s4_ts6191_check_dual_replica() # migrated later
         self.s5_check_timeseries_exclude_systable()
+        self.s6_check_default_grant_expire()
         self.clearEnv()
 
 

@@ -1,0 +1,14 @@
+use ts_4893
+select diff(voltage), diff(current) from fc_d
+select diff(voltage), derivative(current, 1s, 0) from fc_d
+select derivative(voltage, 1s, 0), derivative(current, 1s, 0) from fc_d
+select lag(voltage, 1, 0), fill_forward(current) from fc_d
+select lag(voltage, 1, 0), csum(current) from fc_d
+select lead(voltage, 1, 0), csum(current) from fc_d
+select fill_forward(voltage), csum(current) from fc_d
+select lag(voltage, 1, 0), statecount(current, 'GE', 1) from fc_d
+select statecount(voltage, 'GE', 220), stateduration(voltage, 'GE', 220, 1s) from fc_d
+select top(voltage, 3), bottom(current, 3) from fc_d
+select top(voltage, 5), top(current, 5) from fc_d
+select tail(voltage, 3), tail(current, 3) from fc_d
+select histogram(voltage, 'user_input', '[0,100,200,300]', 0), histogram(current, 'user_input', '[0,10,20,30]', 0) from fc_d

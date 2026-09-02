@@ -49,11 +49,10 @@ func ParseUint(s string, base, bitSize int) (uint64, error) {
 }
 
 func EscapeInfluxProtocol(s string) string {
-	s = strings.TrimSuffix(s, "\\")
+	s = strings.ReplaceAll(s, "\\", "\\\\")
 	s = strings.ReplaceAll(s, ",", "\\,")
 	s = strings.ReplaceAll(s, "=", "\\=")
 	s = strings.ReplaceAll(s, " ", "\\ ")
-	s = strings.ReplaceAll(s, "\"", "\\\"")
 	return s
 }
 

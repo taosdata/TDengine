@@ -13,6 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#endif
+
 #include <gtest/gtest.h>
 #include <iostream>
 
@@ -25,9 +32,6 @@
 #pragma GCC diagnostic ignored "-Wformat"
 #include <addr_any.h>
 
-#ifdef WINDOWS
-#define TD_USE_WINSOCK
-#endif
 #include "os.h"
 
 #include "catalog.h"
@@ -484,7 +488,7 @@ int32_t schtPlanToString(const SSubplan *subplan, char **str, int32_t *len) {
   return 0;
 }
 
-int32_t schtExecNode(SSubplan *subplan, uint64_t groupId, SQueryNodeAddr *ep) { return 0; }
+int32_t schtExecNode(SSubplan *subplan, int32_t groupId, SDownstreamSourceNode *source) { return 0; }
 
 void schtRpcSendRequest(void *shandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *pRid) {}
 
@@ -885,6 +889,9 @@ void *schtFreeJobThread(void *aa) {
 }  // namespace
 
 TEST(queryTest, normalCase) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of scheduler transport/planner hooks is unreliable in Windows release builds";
+#endif
   void       *mockPointer = (void *)0x1;
   char       *clusterId = "cluster1";
   char       *dbname = "1.db1";
@@ -1003,6 +1010,9 @@ TEST(queryTest, normalCase) {
 }
 
 TEST(queryTest, rescheduleCase) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of scheduler transport/planner hooks is unreliable in Windows release builds";
+#endif
   void       *mockPointer = (void *)0x1;
   char       *clusterId = "cluster1";
   char       *dbname = "1.db1";
@@ -1152,6 +1162,9 @@ TEST(queryTest, rescheduleCase) {
 
 
 TEST(queryTest, readyFirstCase) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of scheduler transport/planner hooks is unreliable in Windows release builds";
+#endif
   void       *mockPointer = (void *)0x1;
   char       *clusterId = "cluster1";
   char       *dbname = "1.db1";
@@ -1268,6 +1281,9 @@ TEST(queryTest, readyFirstCase) {
 }
 
 TEST(queryTest, flowCtrlCase) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of scheduler transport/planner hooks is unreliable in Windows release builds";
+#endif
   void       *mockPointer = (void *)0x1;
   char       *clusterId = "cluster1";
   char       *dbname = "1.db1";
@@ -1298,8 +1314,6 @@ TEST(queryTest, flowCtrlCase) {
   schtSetPlanToString();
   schtSetExecNode();
   schtSetAsyncSendMsgToServer();
-
-  ASSERT_EQ(0, initTaskQueue());
 
   int32_t          queryDone = 0;
   SRequestConnInfo conn = {0};
@@ -1365,11 +1379,12 @@ TEST(queryTest, flowCtrlCase) {
 
   (void)taosThreadJoin(thread1, NULL);
   schMgmt.jobRef = -1;
-
-  cleanupTaskQueue();
 }
 
 TEST(insertTest, normalCase) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of scheduler transport/planner hooks is unreliable in Windows release builds";
+#endif
   void       *mockPointer = (void *)0x1;
   char       *clusterId = "cluster1";
   char       *dbname = "1.db1";
@@ -1435,6 +1450,9 @@ TEST(insertTest, normalCase) {
 }
 
 TEST(multiThread, forceFree) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of scheduler transport/planner hooks is unreliable in Windows release builds";
+#endif
   TdThreadAttr thattr;
   ASSERT_EQ(0, taosThreadAttrInit(&thattr));
 
@@ -1763,6 +1781,9 @@ int main(int argc, char **argv) {
   if (rpcInit()) {
     TD_ALWAYS_ASSERT(0);
   }
+  if (initTaskQueue() != 0) {
+    TD_ALWAYS_ASSERT(0);
+  }
   taosSeedRand(taosGetTimestampSec());
   testing::InitGoogleTest(&argc, argv);
 
@@ -1774,6 +1795,7 @@ int main(int argc, char **argv) {
       break;
     }
   }
+  (void)cleanupTaskQueue();
   
   return code;
 }
