@@ -124,6 +124,15 @@ typedef struct SVCTableMeta {
   SColRef* tagRef;
   int32_t       numOfSeries;
   SSeriesEntry* seriesEntries;
+  // vchild own (extension) columns/tags, colId >= TSDB_VCHILD_OWN_COL_ID_BASE; packed
+  // behind colRef/tagRef in the same memory block, own columns first then own tags.
+  int32_t  numOfOwnCols;
+  SSchema* ownSchemas;
+  SSchemaExt* ownSchemaExt;  // numOfOwnCols entries, 1:1 with ownSchemas; carries typeMod
+                             // (decimal precision/scale) for own columns. NULL when the source
+                             // carried no own-column ext.
+  int32_t  numOfOwnTags;
+  SSchema* ownTagSchemas;
 } SVCTableMeta;
 #pragma pack(pop)
 
@@ -144,6 +153,18 @@ typedef struct STableMeta {
   SColRef*      tagRef;
   int32_t       numOfSeries;
   SSeriesEntry* seriesEntries;
+  // Same layout as the tail of SVCTableMeta. For a merged per-child meta (vstb schema +
+  // vchild own columns/tags) these stay 0/NULL: own columns/tags are inserted into
+  // schema[] during the catalog merge, which keeps cloneTableMeta()/TABLE_META_FULL_SIZE()
+  // unchanged.
+  int32_t       numOfOwnCols;
+  SSchema*      ownSchemas;
+  SSchemaExt*   ownSchemaExt;  // mirrors SVCTableMeta.ownSchemaExt: keeps the tail layout of
+                               // STableMeta identical to SVCTableMeta. NULL for merged per-child
+                               // metas (own columns are in schema[]); non-NULL only while a cached
+                               // SVCTableMeta is accessed through an STableMeta pointer.
+  int32_t       numOfOwnTags;
+  SSchema*      ownTagSchemas;
   // END: KEEP THIS PART SAME WITH SVCTableMeta
 
   // if the table is TSDB_CHILD_TABLE, the following information is acquired from the corresponding super table meta

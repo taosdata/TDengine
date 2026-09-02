@@ -18,16 +18,18 @@ All other features — including functions, operators, window queries,
 JOINs, UNION, subqueries, NULLS FIRST/LAST, etc. — are tested on every
 supported source.
 
-Schema (all four sources identical):
-  Local TDengine:  time TIMESTAMP PK, id INT, val INT, score DOUBLE, label NCHAR(32),
+Logical schema (all four sources identical):
+  Local TDengine:  time TIMESTAMP PK, id INT, val INT, Mapped_Val INT,
+                   score DOUBLE, label NCHAR(32),
                    nullable_val INT, lat DOUBLE, lon DOUBLE,
                    wkt_point NCHAR(64), wkt_poly NCHAR(256), ts_str NCHAR(32)
   MySQL:           time DATETIME(3) NOT NULL PK  (enables TDengine window queries)
   PostgreSQL:      time TIMESTAMP NOT NULL PK
-  InfluxDB:        time (built-in timestamp); label tag; id/val/score/nullable_val fields
+  InfluxDB:        time (built-in timestamp); label tag; Mapped_Val field;
+                   remaining values are fields
 
-All four sources share the same column names (time, id, val, score, label, …),
-so every SQL statement is identical across all sources with no per-source adaptation.
+Parity cases use provider-independent lowercase columns.  The dedicated
+mixed-case test verifies provider-specific metadata and binding rules.
 
 Environment:
   Enterprise edition, federatedQueryEnable=1
@@ -964,14 +966,14 @@ _ROWS_DT = [(_ms_to_dt(row[0]), *row[1:]) for row in _ROWS]
 _MYSQL_SETUP = [
     "DROP TABLE IF EXISTS parity_t",
     "CREATE TABLE parity_t ("
-    "  time DATETIME(3) NOT NULL, id INT, val INT, score DOUBLE, label VARCHAR(32),"
+    "  time DATETIME(3) NOT NULL, id INT, val INT, `Mapped_Val` INT, score DOUBLE, label VARCHAR(32),"
     "  nullable_val INT, lat DOUBLE, lon DOUBLE,"
     "  wkt_point VARCHAR(64), wkt_poly VARCHAR(256), ts_str VARCHAR(32),"
     "  PRIMARY KEY (time)"
     ")",
 ] + [
     "INSERT INTO parity_t VALUES ({})".format(
-        ", ".join(parity_sql_val(x) for x in (ts, i, v, s, l, nv, lat, lon, wp, wy, tss))
+        ", ".join(parity_sql_val(x) for x in (ts, i, v, 100 + i, s, l, nv, lat, lon, wp, wy, tss))
     )
     for ts, i, v, s, l, nv, lat, lon, wp, wy, tss in _ROWS_DT
 ]
@@ -982,13 +984,13 @@ _PG_SETUP = [
     "DROP TABLE IF EXISTS public.parity_t",
     "CREATE TABLE public.parity_t ("
     "  time TIMESTAMP NOT NULL PRIMARY KEY,"
-    "  id INT, val INT, score DOUBLE PRECISION, label VARCHAR(32),"
+    '  id INT, val INT, "Mapped_Val" INT, score DOUBLE PRECISION, label VARCHAR(32),'
     "  nullable_val INT, lat DOUBLE PRECISION, lon DOUBLE PRECISION,"
     "  wkt_point VARCHAR(64), wkt_poly VARCHAR(256), ts_str VARCHAR(32)"
     ")",
 ] + [
     "INSERT INTO public.parity_t VALUES ({})".format(
-        ", ".join(parity_sql_val(x) for x in (ts, i, v, s, l, nv, lat, lon, wp, wy, tss))
+        ", ".join(parity_sql_val(x) for x in (ts, i, v, 100 + i, s, l, nv, lat, lon, wp, wy, tss))
     )
     for ts, i, v, s, l, nv, lat, lon, wp, wy, tss in _ROWS_DT
 ]
@@ -997,7 +999,7 @@ _PG_SETUP = [
 # nullable_val is omitted for NULL rows (InfluxDB has no NULL — omitting a field
 # makes it NULL when read back via TDengine federated query).
 def _influx_line(ts, i, v, s, l, nv, lat, lon, wp, wy, tss):
-    fields = [f"id={i}i", f"val={v}i", f"score={s}"]
+    fields = [f"id={i}i", f"val={v}i", f"Mapped_Val={100 + i}i", f"score={s}"]
     if nv is not None:
         fields.append(f"nullable_val={nv}i")
     fields += [
@@ -1013,14 +1015,14 @@ _LOCAL_SETUP = [
     f"CREATE DATABASE {_LOCAL_DB}",
     f"USE {_LOCAL_DB}",
     f"CREATE TABLE {_LOCAL_TBL} ("
-    f"  time TIMESTAMP, id INT, val INT, score DOUBLE, label NCHAR(32),"
+    f"  time TIMESTAMP, id INT, val INT, `Mapped_Val` INT, score DOUBLE, label NCHAR(32),"
     f"  nullable_val INT, lat DOUBLE, lon DOUBLE,"
     f"  wkt_point NCHAR(64), wkt_poly NCHAR(256), ts_str NCHAR(32)"
     f")",
 ] + [
     "INSERT INTO {} VALUES ({})".format(
         _LOCAL_TBL,
-        ", ".join(parity_sql_val(x) for x in (ts, i, v, s, l, nv, lat, lon, wp, wy, tss))
+        ", ".join(parity_sql_val(x) for x in (ts, i, v, 100 + i, s, l, nv, lat, lon, wp, wy, tss))
     )
     for ts, i, v, s, l, nv, lat, lon, wp, wy, tss in _ROWS
 ]
@@ -1165,6 +1167,33 @@ class TestFq14ResultParity(ParityTestBase):
         """
         self.run_epoch_parity_cases(_WIN_EPOCH_CASES, self._EPOCH_BASELINE_FILE)
 
+    def test_fq_parity_mixed_case_identifiers(self):
+        """External column names follow each provider's identifier rules."""
+        tables = dict(self._ext_sources())
+
+        tdSql.query(f"DESC {tables['MySQL']}")
+        mysql_fields = [str(row[0]) for row in tdSql.queryResult]
+        assert "mapped_val" in mysql_fields and "Mapped_Val" not in mysql_fields
+        for name in ("mapped_val", "Mapped_Val", "`mapped_val`", "`Mapped_Val`"):
+            tdSql.query(f"SELECT id, {name} FROM {tables['MySQL']} WHERE {name} > 103 ORDER BY id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 4)
+            tdSql.checkData(0, 1, 104)
+            tdSql.checkData(1, 0, 5)
+            tdSql.checkData(1, 1, 105)
+
+        for provider in ("PG", "InfluxDB"):
+            tdSql.query(f"DESC {tables[provider]}")
+            fields = [str(row[0]) for row in tdSql.queryResult]
+            assert "Mapped_Val" in fields and "mapped_val" not in fields
+            tdSql.error(f"SELECT mapped_val FROM {tables[provider]}")
+            tdSql.query(f"SELECT id, `Mapped_Val` FROM {tables[provider]} WHERE `Mapped_Val` > 103 ORDER BY id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 4)
+            tdSql.checkData(0, 1, 104)
+            tdSql.checkData(1, 0, 5)
+            tdSql.checkData(1, 1, 105)
+
     def _run_ext_op_with_recover(self, op_name, fn):
         """Run one external-source operation — no retry, failures surface immediately."""
         return fn()
@@ -1174,21 +1203,23 @@ class TestFq14ResultParity(ParityTestBase):
         """Drop and re-insert parity data in all 4 DBs using *row_indices* order."""
         ordered_rows    = [_ROWS[i] for i in row_indices]
         ordered_rows_dt = [_ROWS_DT[i] for i in row_indices]
+        mapped_rows = [row[:3] + (100 + row[1],) + row[3:] for row in ordered_rows]
+        mapped_rows_dt = [row[:3] + (100 + row[1],) + row[3:] for row in ordered_rows_dt]
 
         # --- Local TDengine ---
         tdSql.execute(f"USE {_LOCAL_DB}")
         tdSql.execute(f"DROP TABLE IF EXISTS {_LOCAL_TBL}")
         tdSql.execute(
             f"CREATE TABLE {_LOCAL_TBL} ("
-            f"  time TIMESTAMP, id INT, val INT, score DOUBLE, label NCHAR(32),"
+            f"  time TIMESTAMP, id INT, val INT, `Mapped_Val` INT, score DOUBLE, label NCHAR(32),"
             f"  nullable_val INT, lat DOUBLE, lon DOUBLE,"
             f"  wkt_point NCHAR(64), wkt_poly NCHAR(256), ts_str NCHAR(32))")
-        for row in ordered_rows:
+        for row in mapped_rows:
             vals = ", ".join(parity_sql_val(x) for x in row)
             tdSql.execute(f"INSERT INTO {_LOCAL_TBL} VALUES ({vals})")
 
         # --- MySQL ---
-        mysql_sqls = ["DELETE FROM parity_t"] + parity_make_insert_sqls(ordered_rows_dt)
+        mysql_sqls = ["DELETE FROM parity_t"] + parity_make_insert_sqls(mapped_rows_dt)
         self._run_ext_op_with_recover(
             "mysql rewrite",
             lambda: ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_DB, mysql_sqls),
@@ -1196,7 +1227,7 @@ class TestFq14ResultParity(ParityTestBase):
 
         # --- PostgreSQL ---
         pg_sqls = ["DELETE FROM public.parity_t"] + parity_make_insert_sqls(
-            ordered_rows_dt, schema="public")
+            mapped_rows_dt, schema="public")
         self._run_ext_op_with_recover(
             "pg rewrite",
             lambda: ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), _PG_DB, pg_sqls),

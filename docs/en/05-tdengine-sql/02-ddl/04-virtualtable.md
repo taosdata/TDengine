@@ -12,7 +12,7 @@ Virtual tables include the following categories:
 
 - Virtual basic tables: standalone virtual tables whose columns are defined directly with their source mappings.
 - Virtual supertables: templates that define the shared columns and tags of virtual subtables and do not store data themselves.
-- Virtual subtables: tables created from virtual supertables; their column data comes from other tables, and their tags can be either literals or references to tags in other tables.
+- Virtual subtables: tables created from virtual supertables; their column data comes from other tables, and their tags can be either literals or references to tags in other tables. In addition, a virtual subtable can have owned columns and owned tags that are independent of the virtual supertable — see [Create Virtual Subtable](#create-virtual-subtable) and [Modify Virtual Subtables](#modify-virtual-subtables).
 
 ## Virtual Supertable Inheritance
 
@@ -124,13 +124,17 @@ When creating a virtual basic table, you can declare tags with the `TAGS` clause
 CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
     (create_definition[ ,create_definition] ...)
     USING [db_name.]stb_name
-    [(tag_name [, tag_name] ...)]
+    [(tag_definition [, tag_definition] ...)]
     TAGS (tag_value [, tag_value] ...)
     [SERIES series_alias AS ext_source_name.db_name.measurement_name
         (tag_name = 'tag_value' [, tag_name = 'tag_value'] ...) ...]
 
   create_definition:
      [stb_col_name FROM] [db_name.]table_name.col_name
+     | owned_col_name type_name FROM [db_name.]table_name.col_name
+  tag_definition:
+     tag_name
+     | owned_tag_name type_name
   tag_value:
      const_value
      | [db_name.]table_name.tag_name
@@ -172,6 +176,29 @@ The following rules apply to batch creation:
 
 This is consistent with the column-reference form `[stb_col_name FROM] table_name.col_name`: the name before `FROM` is the virtual-table-side name, and the name after `FROM` is the source-side name.
 
+**Owned columns and owned tags**
+
+A virtual subtable can have members that are independent of the virtual supertable. Syntactically, the distinction is whether an explicit type is specified:
+
+- In `create_definition`, an entry **without a type** (`[stb_col_name FROM] table_name.col_name`) is an aligned column (existing semantics, aligned by name or position with the virtual supertable's columns); an entry **with an explicit type** (`owned_col_name type_name FROM table_name.col_name`) declares an **owned column** — the column name is not in the virtual supertable's schema, and a `FROM` data-source reference is mandatory. Specifying a type for a column that already exists in the virtual supertable is rejected.
+- In `tag_definition`, an entry **without a type** (`tag_name`) binds a virtual-supertable tag by name (existing semantics); an entry **with an explicit type** (`owned_tag_name type_name`) declares an **owned tag**, whose value is given positionally in `TAGS(...)` as a literal, `NULL`, or a tag-ref. Positional tag binding (omitting the tag list) does not support declaring owned tags.
+
+**Example**
+
+```sql
+CREATE TABLE ev_log (ts timestamp, event bigint);
+
+CREATE VTABLE v_d1 (
+    switch   FROM p10.val,            -- aligned column: no type
+    ext_ev   BIGINT FROM ev_log.event -- owned column: explicit type + reference
+) USING v_devices (
+    device,                           -- aligned tag: bound by name
+    owner   VARCHAR(16)               -- owned tag: explicit type
+) TAGS ('d1', 'alice');
+```
+
+Owned columns and owned tags exist only on that virtual subtable: they are visible when you query the subtable directly (in `SELECT *`, owned columns appear after the virtual supertable's columns), but they are **not visible** when you query the virtual supertable — the virtual supertable's schema is unaffected.
+
 Usage Notes:
 
 1. Naming rules for virtual tables/columns follow [Name Rules](../11-appendix/02-limit.md#naming-rules).
@@ -190,6 +217,9 @@ Usage Notes:
 14. In `TAGS (...)` for a virtual subtable, each tag can be a literal value or a tag-ref. Supported tag-ref forms are `table.tag`, `FROM table.tag`, and `tag_name FROM table.tag`. Use `db_name.table.tag` for cross-database references.
 15. Reference-related limits and behaviors are described in the "Virtual-Table Reference Capabilities" section below.
 16. Rules for virtual basic table tags (the `TAGS` clause) are described in the "Virtual Basic Table Tags" section below.
+17. An owned column must carry a `FROM` data-source reference; purely local data columns are not supported. The reference target must be a data column (not a tag column), its type must match the declared type, and reference cycles are not allowed.
+18. Owned tags do not support the `JSON` or `DECIMAL` types. If the virtual supertable has a single `JSON` tag, no owned tag can be declared on its virtual subtables.
+19. Column names and tag names share a single namespace: owned column/tag names must not duplicate the virtual supertable's columns, tags, or existing owned members. In addition, if a new column/tag name introduced by `ALTER STABLE` on a virtual supertable is already used by an owned member of any virtual subtable, that `ALTER` fails.
 
 ### Virtual Basic Table Tags
 
@@ -545,13 +575,21 @@ ALTER VTABLE [db_name.]vtb_name alter_table_clause
 
 alter_table_clause: {
   ALTER COLUMN vtb_col_name SET table_name.col_name
+  | ADD COLUMN owned_col_name type_name FROM [db_name.]table_name.col_name
+  | ADD TAG owned_tag_name type_name
   | SET TAG tag_name = {new_tag_value | [db_name.]table_name.tag_name}
+  | DROP COLUMN owned_col_name
+  | DROP TAG owned_tag_name
 }
 ```
 
 **Usage Notes**
 
-1. For a virtual subtable, any column or tag schema change other than changing tag values must be performed through the virtual supertable.
+1. Changes to columns and tags that a virtual subtable inherits from its virtual supertable (cascaded members) must be performed through the virtual supertable.
+2. For a virtual subtable's **owned columns** and **owned tags**, `ADD COLUMN`, `ADD TAG`, `SET TAG`, `DROP COLUMN`, and `DROP TAG` can be executed directly on the subtable.
+3. `DROP COLUMN` / `DROP TAG` apply only to owned members; applying them to a cascaded member fails — use `ALTER STABLE` instead (which cascades to all virtual subtables under the virtual supertable).
+4. After an owned member is dropped, its name is released immediately and can be reused by either a column or a tag. Dropping an owned tag that carries a tag-ref also clears that reference.
+5. `MODIFY COLUMN`, `RENAME COLUMN`, and `RENAME TAG` are not supported for virtual subtables; the width and name of an owned member cannot be changed — drop and re-create it instead.
 
 ### Modify Subtable Tag Value
 
@@ -559,7 +597,7 @@ alter_table_clause: {
 ALTER VTABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 ...;
 ```
 
-`SET TAG` can assign either a literal value or a tag-ref to a tag.
+`SET TAG` can assign either a literal value or a tag-ref to a tag. This also applies to **owned tags**: assigning a literal clears any existing reference; assigning a tag-ref makes the value track the source tag dynamically.
 
 #### Set a Tag to a Literal
 
@@ -602,6 +640,40 @@ When a virtual subtable's tag is one link of a multi-hop chain (for example, `v2
 ALTER VTABLE vtb_name ALTER COLUMN vtb_col_name SET {[db_name.]table_name.col_name | NULL}
 ```
 
+### Add an Owned Column
+
+```sql
+ALTER VTABLE vtb_name ADD COLUMN owned_col_name type_name FROM [db_name.]table_name.col_name
+```
+
+Appends an owned column to a virtual subtable. The `FROM` data-source reference is mandatory — omitting it fails. The reference target must be a data column, its type must match the declared type, and validation follows the same rules as at creation time.
+
+```sql
+ALTER VTABLE v_d1 ADD COLUMN ext_v2 INT FROM p20.val;
+```
+
+### Add an Owned Tag
+
+```sql
+ALTER VTABLE vtb_name ADD TAG owned_tag_name type_name
+```
+
+Appends an owned tag to a virtual subtable with an initial value of `NULL`; literal values or tag-refs are attached with `SET TAG` (see "Modify Subtable Tag Value" above).
+
+```sql
+ALTER VTABLE v_d1 ADD TAG dept VARCHAR(16);
+ALTER VTABLE v_d1 SET TAG dept = 'rd';
+```
+
+### Drop an Owned Column or Owned Tag
+
+```sql
+ALTER VTABLE vtb_name DROP COLUMN owned_col_name
+ALTER VTABLE vtb_name DROP TAG owned_tag_name
+```
+
+Only owned members can be dropped. To remove a cascaded column or tag inherited from the virtual supertable, use `ALTER STABLE stb_name DROP COLUMN/DROP TAG` (this cascades to all virtual subtables and does not affect other owned members).
+
 ## Drop Virtual Tables
 
 You can drop one or more virtual tables (virtual regular tables or virtual subtables) in a single SQL statement. The tables can belong to different databases.
@@ -637,6 +709,7 @@ SHOW CREATE VTABLE [db_name.]vtable_name;
 ```
 
 Displays the creation statement for the specified virtual table. For virtual subtables created with tag-ref, the returned statement preserves the tag-ref definition.
+For a virtual subtable with owned members, the returned statement also includes the full definition of owned columns (with their source references) and owned tags (with their values or references); `DECIMAL` columns are rendered with precision and scale as `DECIMAL(p,s)`. The output is a single, fully replayable DDL.
 For a virtual basic table with tags, the returned statement includes the `TAGS(...)` clause: owned tags are inlined as `= value` (a NULL value is emitted as `= NULL`) and tag-refs as `FROM db_name.table_name.tag_name`, so a single statement fully recreates the virtual table.
 
 ### Describe Structure
@@ -645,7 +718,7 @@ For a virtual basic table with tags, the returned statement includes the `TAGS(.
 DESCRIBE [db_name.]vtb_name;
 ```
 
-`DESCRIBE` shows the virtual table's columns and tags. For tag-ref or col-ref entries, the result also shows the reference source. Tag rows of a virtual basic table are marked `TAG`.
+`DESCRIBE` shows the virtual table's columns and tags. For tag-ref or col-ref entries, the result also shows the reference source. Tag rows are marked with `TAG` (both owned tags of virtual basic tables and owned tags of virtual subtables). For a virtual subtable with owned members, owned columns appear as regular data columns, after the virtual supertable's columns.
 
 ### Show Current Tag Values of a Virtual Child Table
 

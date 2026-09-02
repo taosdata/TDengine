@@ -745,6 +745,32 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
   }
 }
 
+// Render the declared type of an own (extension) column/tag of a virtual child table
+// (colId >= TSDB_VCHILD_OWN_COL_ID_BASE). Own schemas are not part of the vstb definition,
+// so SHOW CREATE must spell the type out for the output to stay replayable.
+static void formatOwnSchemaType(char* type, int32_t cap, const SSchema* pSchema, const SSchemaExt* pSchemaExt) {
+  int32_t typeLen = snprintf(type, cap, "%s", tDataTypes[pSchema->type].name);
+  if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_VARBINARY == pSchema->type ||
+      TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
+    snprintf(type + typeLen, cap - typeLen, "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
+  } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
+    snprintf(type + typeLen, cap - typeLen, "(%d)",
+             (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+  } else if (IS_DECIMAL_TYPE(pSchema->type)) {
+    uint8_t precision = 0, scale = 0;
+    if (pSchemaExt && pSchemaExt->typeMod) {
+      decimalFromTypeMod(pSchemaExt->typeMod, &precision, &scale);
+    } else if ((((uint32_t)pSchema->bytes) >> 24) != 0) {
+      int32_t bytes = pSchema->bytes;
+      extractDecimalTypeInfoFromBytes(&bytes, &precision, &scale);
+    }
+    // skip the (precision,scale) suffix when it cannot be resolved; DECIMAL(0,0) is not replayable
+    if (precision > 0) {
+      snprintf(type + typeLen, cap - typeLen, "(%d,%d)", (int32_t)precision, (int32_t)scale);
+    }
+  }
+}
+
 static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
   char expandName[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
   bool firstRef = true;
@@ -755,6 +781,13 @@ static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
     int      typeLen = 0;
 
     if (hasColRef(pCfg->tableType) && pCfg->pColRefs && pRef->hasRef) {
+      if (pSchema->colId >= TSDB_VCHILD_OWN_COL_ID_BASE) {
+        // own (extension) column of a vchild: spell out the declared type before FROM
+        char ownType[64];
+        formatOwnSchemaType(ownType, sizeof(ownType), pSchema,
+                            pCfg->pSchemaExt ? pCfg->pSchemaExt + i : NULL);
+        typeLen += snprintf(type + typeLen, sizeof(type) - typeLen, "%s ", ownType);
+      }
       if (pRef->refType == 1 && pRef->refSourceName[0] != '\0') {
         // External ref: always emit full 4-segment path source.db.table.col
         typeLen += snprintf(type + typeLen, sizeof(type) - typeLen, "FROM `%s`", pRef->refSourceName);
@@ -822,8 +855,19 @@ static void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
   char expandName[(TSDB_COL_NAME_LEN << 1) + 1] = {0};
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
+    // Own (extension) tags carry colId >= TSDB_VCHILD_OWN_COL_ID_BASE and need an explicit type
+    // for SHOW CREATE replay: the USING tag list declares own tags as `name TYPE`, while vstb
+    // tags are referenced by name only. Reuse formatOwnSchemaType (same as the column path) so
+    // all types — including decimal (precision,scale) — stay replayable.
+    char typeDecl[64] = {0};
+    if (pSchema->colId >= TSDB_VCHILD_OWN_COL_ID_BASE) {
+      char ownType[64];
+      formatOwnSchemaType(ownType, sizeof(ownType), pSchema,
+                          pCfg->pSchemaExt ? pCfg->pSchemaExt + pCfg->numOfColumns + i : NULL);
+      snprintf(typeDecl, sizeof(typeDecl), " %s", ownType);
+    }
     *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                     "%s`%s`", ((i > 0) ? ", " : ""), expandIdentifier(pSchema->name, expandName));
+                     "%s`%s`%s", ((i > 0) ? ", " : ""), expandIdentifier(pSchema->name, expandName), typeDecl);
   }
 }
 

@@ -2506,107 +2506,6 @@ static const char* fqResolveRemoteOutputName(const SNode* pExprNode) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
-// translateExtColNamesInRemotePlan — rewrites SColumnNode.colName from the
-// TDengine-side schema name to the remote source column name, using
-// SExtColumnDef.remoteColName.  Must run CLIENT-SIDE during planning (before
-// the plan is serialized to taosd) because pExtMeta is not serialized.
-// ---------------------------------------------------------------------------
-static void translateExtColInExpr(SNode* pExpr, const SExtTableMeta* pExtMeta) {
-  if (!pExpr) return;
-  switch (nodeType(pExpr)) {
-    case QUERY_NODE_COLUMN: {
-      SColumnNode* pCol = (SColumnNode*)pExpr;
-      for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
-        if (strcasecmp(pExtMeta->pCols[i].colName, pCol->colName) == 0 &&
-            pExtMeta->pCols[i].remoteColName[0] != '\0') {
-          tstrncpy(pCol->colName, pExtMeta->pCols[i].remoteColName, TSDB_COL_NAME_LEN);
-          break;
-        }
-      }
-      break;
-    }
-    case QUERY_NODE_OPERATOR: {
-      SOperatorNode* pOp = (SOperatorNode*)pExpr;
-      translateExtColInExpr(pOp->pLeft, pExtMeta);
-      translateExtColInExpr(pOp->pRight, pExtMeta);
-      break;
-    }
-    case QUERY_NODE_LOGIC_CONDITION: {
-      SNode* pParam = NULL;
-      FOREACH(pParam, ((SLogicConditionNode*)pExpr)->pParameterList) {
-        translateExtColInExpr(pParam, pExtMeta);
-      }
-      break;
-    }
-    case QUERY_NODE_ORDER_BY_EXPR:
-      translateExtColInExpr(((SOrderByExprNode*)pExpr)->pExpr, pExtMeta);
-      break;
-    default:
-      break;
-  }
-}
-
-// Walks the pRemotePlan LOGIC tree, rewriting SColumnNode.colName from the
-// TDengine-side name to the remote source name (SExtColumnDef.remoteColName).
-static void translateExtColNamesInRemotePlan(SLogicNode* pNode, const SExtTableMeta* pExtMeta) {
-  if (!pNode || !pExtMeta) return;
-  switch (nodeType((SNode*)pNode)) {
-    case QUERY_NODE_LOGIC_PLAN_SCAN: {
-      SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-      SNode* pCol = NULL;
-      FOREACH(pCol, pScan->pScanCols) { translateExtColInExpr(pCol, pExtMeta); }
-      translateExtColInExpr(pScan->node.pConditions, pExtMeta);
-      break;
-    }
-    case QUERY_NODE_LOGIC_PLAN_SORT: {
-      SNode* pKey = NULL;
-      FOREACH(pKey, ((SSortLogicNode*)pNode)->pSortKeys) { translateExtColInExpr(pKey, pExtMeta); }
-      break;
-    }
-    case QUERY_NODE_LOGIC_PLAN_PROJECT: {
-      SNode* pProj = NULL;
-      FOREACH(pProj, ((SProjectLogicNode*)pNode)->pProjections) { translateExtColInExpr(pProj, pExtMeta); }
-      break;
-    }
-    case QUERY_NODE_LOGIC_PLAN_AGG: {
-      SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
-      SNode* pN = NULL;
-      FOREACH(pN, pAgg->pGroupKeys) { translateExtColInExpr(pN, pExtMeta); }
-      FOREACH(pN, pAgg->pAggFuncs)  { translateExtColInExpr(pN, pExtMeta); }
-      translateExtColInExpr(pAgg->node.pConditions, pExtMeta);
-      break;
-    }
-    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC: {
-      SNode* pN = NULL;
-      FOREACH(pN, ((SIndefRowsFuncLogicNode*)pNode)->pFuncs) { translateExtColInExpr(pN, pExtMeta); }
-      break;
-    }
-    case QUERY_NODE_LOGIC_PLAN_PARTITION: {
-      SPartitionLogicNode* pPart = (SPartitionLogicNode*)pNode;
-      SNode* pN = NULL;
-      FOREACH(pN, pPart->pPartitionKeys) { translateExtColInExpr(pN, pExtMeta); }
-      FOREACH(pN, pPart->pAggFuncs)       { translateExtColInExpr(pN, pExtMeta); }
-      break;
-    }
-    case QUERY_NODE_LOGIC_PLAN_JOIN: {
-      SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
-      translateExtColInExpr(pJoin->pFullOnCond, pExtMeta);
-      translateExtColInExpr(pJoin->pColEqCond, pExtMeta);
-      break;
-    }
-    default:
-      break;
-  }
-  // Recurse into children.
-  if (pNode->pChildren) {
-    SNode* pChild = NULL;
-    FOREACH(pChild, pNode->pChildren) {
-      translateExtColNamesInRemotePlan((SLogicNode*)pChild, pExtMeta);
-    }
-  }
-}
-
 // fqLogFedScanPhysi — logs the result of createFederatedScanPhysiNode at DEBUG
 // level.  Gated by qDebugFlag so no string-building overhead when debug logging
 // is off.  Output example:
@@ -2769,14 +2668,13 @@ static int32_t fqBuildTimestampTypeHints(SFederatedScanPhysiNode* pScan, const S
       continue;
     }
 
-    const char* pRemoteColName = (pCol->remoteColName[0] != '\0') ? pCol->remoteColName : pCol->colName;
-    tstrncpy(pScan->pTimestampTypeHints[hintIdx].colName, pRemoteColName,
+    tstrncpy(pScan->pTimestampTypeHints[hintIdx].colName, pCol->colName,
              sizeof(pScan->pTimestampTypeHints[hintIdx].colName));
     tstrncpy(pScan->pTimestampTypeHints[hintIdx].extTypeName, pCol->extTypeName,
              sizeof(pScan->pTimestampTypeHints[hintIdx].extTypeName));
     pScan->pTimestampTypeHints[hintIdx].tzClass = (int8_t)tzClass;
     planDebug("FQ-TsTypeHints[%d]: source=%s col=%s extType=%s tzClass=%d",
-              hintIdx, pExtNode->sourceName, pRemoteColName, pCol->extTypeName, (int)tzClass);
+              hintIdx, pExtNode->sourceName, pCol->colName, pCol->extTypeName, (int)tzClass);
     ++hintIdx;
   }
 
@@ -3287,13 +3185,6 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   // Attach the inner pRemotePlan (logic) tree to the outer Mode-1 wrapper.
   pScan->pRemotePlan = pRemoteRoot;
   pRemoteRoot = NULL;
-
-  // Translate column names from TDengine schema names to remote source names.
-  // This must run client-side (during planning) because pExtMeta is not serialized
-  // to taosd.  pRemoteRoot is a LOGIC tree, so the translator walks logic nodes.
-  if (pExtNode->pExtMeta) {
-    translateExtColNamesInRemotePlan((SLogicNode*)pScan->pRemotePlan, pExtNode->pExtMeta);
-  }
 
   planDebug("FQ-PHY: FedScan=%p pRemotePlan=%p type=%d",
             pScan, pScan->pRemotePlan,

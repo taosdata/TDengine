@@ -752,8 +752,10 @@ int32_t planCheckRequiredExtColumns(const SExtTableNode* pExtNode, const SNodeLi
     int32_t foundIdx = -1;
     for (int32_t i = 0; i < pExtNode->pExtMeta->numOfCols; ++i) {
       const SExtColumnDef* pDef = &pExtNode->pExtMeta->pCols[i];
-      if (0 == strcasecmp(pCol->colName, pDef->colName) ||
-          ('\0' != pDef->remoteColName[0] && 0 == strcasecmp(pCol->colName, pDef->remoteColName))) {
+      bool namesEqual = EXT_SOURCE_MYSQL == pExtNode->sourceType
+                            ? 0 == strcasecmp(pCol->colName, pDef->colName)
+                            : 0 == strcmp(pCol->colName, pDef->colName);
+      if (namesEqual) {
         foundIdx = i;
         break;
       }
@@ -804,8 +806,10 @@ static bool extScanRawColumnIsTag(const SExtTableNode* pExtNode, const SColumnNo
 
   for (int32_t i = 0; i < pExtNode->pExtMeta->numOfCols; ++i) {
     const SExtColumnDef* pDef = &pExtNode->pExtMeta->pCols[i];
-    if (0 == strcasecmp(pCol->colName, pDef->colName) ||
-        ('\0' != pDef->remoteColName[0] && 0 == strcasecmp(pCol->colName, pDef->remoteColName))) {
+    bool namesEqual = EXT_SOURCE_MYSQL == pExtNode->sourceType
+                          ? 0 == strcasecmp(pCol->colName, pDef->colName)
+                          : 0 == strcmp(pCol->colName, pDef->colName);
+    if (namesEqual) {
       return pDef->isTag;
     }
   }
@@ -2055,12 +2059,11 @@ static int32_t addExtPrimaryTsCol(SScanLogicNode* pExtScan, SNodeList** pCols) {
   }
 
   SExtColumnDef* pPkCol = &pExtTblNode->pExtMeta->pCols[pExtTblNode->tsPrimaryColIdx];
-  const char*    pkColName = (pPkCol->remoteColName[0] != '\0') ? pPkCol->remoteColName : pPkCol->colName;
 
   SColumnNode* pTsCol = NULL;
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTsCol));
 
-  tstrncpy(pTsCol->colName, pkColName, sizeof(pTsCol->colName));
+  tstrncpy(pTsCol->colName, pPkCol->colName, sizeof(pTsCol->colName));
   tstrncpy(pTsCol->tableAlias, pExtScan->tableName.tname, sizeof(pTsCol->tableAlias));
   tstrncpy(pTsCol->dbName, pExtScan->tableName.dbname, sizeof(pTsCol->dbName));
   tstrncpy(pTsCol->tableName, pExtScan->tableName.tname, sizeof(pTsCol->tableName));

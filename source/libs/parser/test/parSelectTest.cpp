@@ -39,10 +39,10 @@ class FederatedFlagGuard {
 void registerUnknownExternalColumn(const std::string& sourceName, int8_t sourceType,
                                    const std::string& timestampType, const std::string& integerType) {
   std::vector<MockCatalogService::MockExtColDef> columns;
-  columns.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "remote_ts", timestampType});
-  columns.push_back({"id", TSDB_DATA_TYPE_BIGINT, false, true, false, "remote_id", integerType});
+  columns.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, timestampType});
+  columns.push_back({"id", TSDB_DATA_TYPE_BIGINT, false, true, false, integerType});
   columns.push_back({"unknown_value", TSDB_DATA_TYPE_NCHAR, false, true, false,
-                     "remote_unknown", "UnknownExternalBoundaryType"});
+                     "UnknownExternalBoundaryType"});
 
   g_mockCatalogService->createExtSource(sourceName, sourceType, "127.0.0.1", 1, "fake_user", "fake_db", "public");
   g_mockCatalogService->createExtTable(sourceName, "", "", "metrics", columns, TSDB_TIME_PRECISION_MILLI);
@@ -51,9 +51,9 @@ void registerUnknownExternalColumn(const std::string& sourceName, int8_t sourceT
 void registerExternalTimelineTable(const std::string& sourceName) {
   std::vector<MockCatalogService::MockExtColDef> columns;
   columns.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false,
-                     "remote_ts", "timestamp"});
+                     "timestamp"});
   columns.push_back({"id", TSDB_DATA_TYPE_BIGINT, false, true, false,
-                     "remote_id", "bigint"});
+                     "bigint"});
 
   g_mockCatalogService->createExtSource(
       sourceName, EXT_SOURCE_POSTGRESQL, "127.0.0.1", 1, "fake_user",

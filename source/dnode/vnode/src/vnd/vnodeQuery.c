@@ -147,6 +147,11 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   SSchemaWrapper schema = {0};
   SSchemaWrapper schemaTag = {0};
   uint8_t        autoCreateCtb = 0;
+  SSchema       *pMergedCols = NULL;  // vchild: vstb row schema + own (extension) columns
+  SColRef       *pMergedRefs = NULL;  // vchild: persisted colRef + own column refs
+  int32_t        nMergedCols = 0;
+  SSchema       *pMergedTags = NULL;  // vchild: vstb tag schema + own (extension) tags
+  int32_t        nMergedTags = 0;
 
   // decode req
   if (tDeserializeSTableInfoReq(pMsg->pCont, pMsg->contLen, &infoReq) != 0) {
@@ -235,8 +240,28 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     }
   }
 
-  metaRsp.numOfTags = schemaTag.nCols;
-  metaRsp.numOfColumns = schema.nCols;
+  // For a virtual child table, build the merged column view first: vstb row schema followed
+  // by the vchild's own (extension) columns, persisted colRef followed by own column refs.
+  nMergedCols = schema.nCols;
+  if (mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+    code = metaBuildMergedColView(&mer1.me, &schema, &pMergedCols, &pMergedRefs, &nMergedCols);
+    if (code) {
+      vError("vgId:%d, vnodeGetTableMeta build merged col view for %s failed since %s", TD_VID(pVnode),
+             infoReq.tbName, tstrerror(code));
+      goto _exit;
+    }
+    // merged tag view: vstb tag schema followed by the vchild's own (extension) tags
+    nMergedTags = schemaTag.nCols;
+    code = metaBuildMergedTagView(&mer1.me, &schemaTag, &pMergedTags, &nMergedTags);
+    if (code) {
+      vError("vgId:%d, vnodeGetTableMeta build merged tag view for %s failed since %s", TD_VID(pVnode),
+             infoReq.tbName, tstrerror(code));
+      goto _exit;
+    }
+  }
+
+  metaRsp.numOfTags = (mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? nMergedTags : schemaTag.nCols;
+  metaRsp.numOfColumns = nMergedCols;
   metaRsp.precision = pVnode->config.tsdbCfg.precision;
   metaRsp.sversion = schema.version;
   metaRsp.tversion = schemaTag.version;
@@ -246,21 +271,35 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     code = terrno;
     goto _exit;
   }
-  (void)memcpy(metaRsp.pSchemas, schema.pSchema, sizeof(SSchema) * schema.nCols);
-  if (schemaTag.nCols) {
-    (void)memcpy(metaRsp.pSchemas + schema.nCols, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
+  if (pMergedCols) {
+    (void)memcpy(metaRsp.pSchemas, pMergedCols, sizeof(SSchema) * nMergedCols);
+  } else {
+    (void)memcpy(metaRsp.pSchemas, schema.pSchema, sizeof(SSchema) * schema.nCols);
+  }
+  if (pMergedTags) {
+    (void)memcpy(metaRsp.pSchemas + metaRsp.numOfColumns, pMergedTags, sizeof(SSchema) * nMergedTags);
+  } else if (schemaTag.nCols) {
+    (void)memcpy(metaRsp.pSchemas + metaRsp.numOfColumns, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
   }
   if (metaRsp.pSchemaExt) {
     SMetaReader *pReader =
         (mer1.me.type == TSDB_CHILD_TABLE || mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? &mer2 : &mer1;
-    code = fillTableColCmpr(pReader, metaRsp.pSchemaExt, metaRsp.numOfColumns);
+    // col compress/ext schema of the vstb part only; own columns keep zeroed ext schema
+    code = fillTableColCmpr(pReader, metaRsp.pSchemaExt, schema.nCols);
     if (code < 0) {
       goto _exit;
     }
     for (int32_t i = 0; i < metaRsp.numOfColumns; i++) {
-      metaRsp.pSchemaExt[i].colId = schema.pSchema[i].colId;
-      if (pReader->me.pExtSchemas) {
-        metaRsp.pSchemaExt[i].typeMod = pReader->me.pExtSchemas[i].typeMod;
+      metaRsp.pSchemaExt[i].colId = metaRsp.pSchemas[i].colId;
+      if (i < schema.nCols) {
+        if (pReader->me.pExtSchemas) {
+          metaRsp.pSchemaExt[i].typeMod = pReader->me.pExtSchemas[i].typeMod;
+        }
+      } else if (mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE && mer1.me.own.pOwnColExtSchemas != NULL &&
+                 mer1.me.own.nOwnCols == metaRsp.numOfColumns - schema.nCols) {
+        // every producer path allocates the own ext area with nOwnCols entries, so a non-NULL
+        // array covers the whole own range; the count check keeps that local instead of assumed
+        metaRsp.pSchemaExt[i].typeMod = mer1.me.own.pOwnColExtSchemas[i - schema.nCols].typeMod;
       }
     }
   } else {
@@ -269,11 +308,18 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
   if (hasColRef(mer1.me.type)) {
     metaRsp.rversion = mer1.me.colRef.version;
-    metaRsp.pColRefs = (SColRef*)taosMemoryCalloc(metaRsp.numOfColumns, sizeof(SColRef));
-    if (metaRsp.pColRefs) {
-      code = fillTableColRef(&mer1, metaRsp.pColRefs, metaRsp.numOfColumns);
-      if (code < 0) {
-        goto _exit;
+    if (pMergedRefs) {
+      // merged view already validated (persisted colRef aligned with the vstb schema) and
+      // deep-copied by metaBuildMergedColView; transfer ownership to the response
+      metaRsp.pColRefs = pMergedRefs;
+      pMergedRefs = NULL;
+    } else {
+      metaRsp.pColRefs = (SColRef*)taosMemoryCalloc(metaRsp.numOfColumns, sizeof(SColRef));
+      if (metaRsp.pColRefs) {
+        code = fillTableColRef(&mer1, metaRsp.pColRefs, metaRsp.numOfColumns);
+        if (code < 0) {
+          goto _exit;
+        }
       }
     }
     metaRsp.numOfColRefs = metaRsp.numOfColumns;
@@ -354,6 +400,14 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
 
 _exit:
+  taosMemoryFreeClear(pMergedCols);
+  taosMemoryFreeClear(pMergedTags);
+  if (pMergedRefs) {
+    for (int32_t i = 0; i < nMergedCols; i++) {
+      taosMemoryFreeClear(pMergedRefs[i].tagCondJson);
+    }
+    taosMemoryFreeClear(pMergedRefs);
+  }
   tFreeSTableMetaRsp(&metaRsp);
 _exit2:
   metaReaderClear(&mer2);
@@ -396,6 +450,11 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   void          *pRsp = NULL;
   SSchemaWrapper schema = {0};
   SSchemaWrapper schemaTag = {0};
+  SSchema       *pMergedCols = NULL;  // vchild: vstb row schema + own (extension) columns
+  SColRef       *pMergedRefs = NULL;  // vchild: persisted colRef + own column refs
+  int32_t        nMergedCols = 0;
+  SSchema       *pMergedTags = NULL;  // vchild: vstb tag schema + own (extension) tags
+  int32_t        nMergedTags = 0;
 
   // decode req
   if (tDeserializeSTableCfgReq(pMsg->pCont, pMsg->contLen, &cfgReq) != 0) {
@@ -486,8 +545,28 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     goto _exit;
   }
 
-  cfgRsp.numOfTags = schemaTag.nCols;
-  cfgRsp.numOfColumns = schema.nCols;
+  // For a virtual child table, build the merged column view first: vstb row schema followed
+  // by the vchild's own (extension) columns, persisted colRef followed by own column refs.
+  nMergedCols = schema.nCols;
+  if (mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+    code = metaBuildMergedColView(&mer1.me, &schema, &pMergedCols, &pMergedRefs, &nMergedCols);
+    if (code) {
+      vError("vgId:%d, vnodeGetTableCfg build merged col view for %s failed since %s", TD_VID(pVnode),
+             cfgReq.tbName, tstrerror(code));
+      goto _exit;
+    }
+    // merged tag view: vstb tag schema followed by the vchild's own (extension) tags
+    nMergedTags = schemaTag.nCols;
+    code = metaBuildMergedTagView(&mer1.me, &schemaTag, &pMergedTags, &nMergedTags);
+    if (code) {
+      vError("vgId:%d, vnodeGetTableCfg build merged tag view for %s failed since %s", TD_VID(pVnode),
+             cfgReq.tbName, tstrerror(code));
+      goto _exit;
+    }
+  }
+
+  cfgRsp.numOfTags = (mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? nMergedTags : schemaTag.nCols;
+  cfgRsp.numOfColumns = nMergedCols;
   cfgRsp.virtualStb = false; // vnode don't have super table, so it's always false
   cfgRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (cfgRsp.numOfColumns + cfgRsp.numOfTags));
   cfgRsp.pSchemaExt = (SSchemaExt *)taosMemoryCalloc(cfgRsp.numOfColumns, sizeof(SSchemaExt));
@@ -499,48 +578,71 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     code = terrno;
     goto _exit;
   }
-  (void)memcpy(cfgRsp.pSchemas, schema.pSchema, sizeof(SSchema) * schema.nCols);
-  if (schemaTag.nCols) {
-    (void)memcpy(cfgRsp.pSchemas + schema.nCols, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
+  if (pMergedCols) {
+    (void)memcpy(cfgRsp.pSchemas, pMergedCols, sizeof(SSchema) * nMergedCols);
+  } else {
+    (void)memcpy(cfgRsp.pSchemas, schema.pSchema, sizeof(SSchema) * schema.nCols);
+  }
+  if (pMergedTags) {
+    (void)memcpy(cfgRsp.pSchemas + cfgRsp.numOfColumns, pMergedTags, sizeof(SSchema) * nMergedTags);
+  } else if (schemaTag.nCols) {
+    (void)memcpy(cfgRsp.pSchemas + cfgRsp.numOfColumns, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
   }
 
   SMetaReader    *pReader = (mer1.me.type == TSDB_CHILD_TABLE || mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? &mer2 : &mer1;
   SColRefWrapper *pColRef = &mer1.me.colRef;
 
   if (withExtSchema(cfgRsp.tableType)) {
-    code = fillTableColCmpr(pReader, cfgRsp.pSchemaExt, cfgRsp.numOfColumns);
+    // col compress/ext schema of the vstb part; own columns carry typeMod (e.g. decimal
+    // precision/scale) from the vchild entry's own-col ext area when present.
+    code = fillTableColCmpr(pReader, cfgRsp.pSchemaExt, schema.nCols);
     if (code < 0) {
       goto _exit;
     }
 
     for (int32_t i = 0; i < cfgRsp.numOfColumns; i++) {
       SSchemaExt *pSchExt = cfgRsp.pSchemaExt + i;
-      pSchExt->colId = schema.pSchema[i].colId;
-      if (pReader->me.pExtSchemas) {
-        pSchExt->typeMod = pReader->me.pExtSchemas[i].typeMod;
+      pSchExt->colId = cfgRsp.pSchemas[i].colId;
+      if (i < schema.nCols) {
+        if (pReader->me.pExtSchemas) {
+          pSchExt->typeMod = pReader->me.pExtSchemas[i].typeMod;
+        }
+      } else if (mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE && mer1.me.own.pOwnColExtSchemas != NULL &&
+                 mer1.me.own.nOwnCols == cfgRsp.numOfColumns - schema.nCols) {
+        // see the same guard in vnodeGetTableMeta: a non-NULL own ext area is sized nOwnCols;
+        // verify the count so the index below is provably in range
+        pSchExt->typeMod = mer1.me.own.pOwnColExtSchemas[i - schema.nCols].typeMod;
       }
     }
   }
 
   cfgRsp.virtualStb = false;
   if (hasColRef(cfgRsp.tableType)) {
-    for (int32_t i = 0; i < cfgRsp.numOfColumns; i++) {
-      SColRef *pRef = &pColRef->pColRef[i];
-      cfgRsp.pColRefs[i].hasRef = pRef->hasRef;
-      cfgRsp.pColRefs[i].id = pRef->id;
-      if (cfgRsp.pColRefs[i].hasRef) {
-        cfgRsp.pColRefs[i].refType = pRef->refType;
-        tstrncpy(cfgRsp.pColRefs[i].refSourceName, pRef->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
-        tstrncpy(cfgRsp.pColRefs[i].refSchemaName, pRef->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
-        tstrncpy(cfgRsp.pColRefs[i].refDbName, pRef->refDbName, TSDB_DB_NAME_LEN);
-        tstrncpy(cfgRsp.pColRefs[i].refTableName, pRef->refTableName, TSDB_TABLE_NAME_LEN);
-        tstrncpy(cfgRsp.pColRefs[i].refColName, pRef->refColName, TSDB_COL_NAME_LEN);
-        if (pRef->tagCondJson) {
-          cfgRsp.pColRefs[i].tagCondLen = pRef->tagCondLen;
-          cfgRsp.pColRefs[i].tagCondJson = taosStrdup(pRef->tagCondJson);
-        } else {
-          cfgRsp.pColRefs[i].tagCondLen = 0;
-          cfgRsp.pColRefs[i].tagCondJson = NULL;
+    if (pMergedRefs) {
+      // merged view already validated and deep-copied by metaBuildMergedColView;
+      // transfer ownership to the response
+      taosMemoryFreeClear(cfgRsp.pColRefs);
+      cfgRsp.pColRefs = pMergedRefs;
+      pMergedRefs = NULL;
+    } else {
+      for (int32_t i = 0; i < cfgRsp.numOfColumns; i++) {
+        SColRef *pRef = &pColRef->pColRef[i];
+        cfgRsp.pColRefs[i].hasRef = pRef->hasRef;
+        cfgRsp.pColRefs[i].id = pRef->id;
+        if (cfgRsp.pColRefs[i].hasRef) {
+          cfgRsp.pColRefs[i].refType = pRef->refType;
+          tstrncpy(cfgRsp.pColRefs[i].refSourceName, pRef->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+          tstrncpy(cfgRsp.pColRefs[i].refSchemaName, pRef->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+          tstrncpy(cfgRsp.pColRefs[i].refDbName, pRef->refDbName, TSDB_DB_NAME_LEN);
+          tstrncpy(cfgRsp.pColRefs[i].refTableName, pRef->refTableName, TSDB_TABLE_NAME_LEN);
+          tstrncpy(cfgRsp.pColRefs[i].refColName, pRef->refColName, TSDB_COL_NAME_LEN);
+          if (pRef->tagCondJson) {
+            cfgRsp.pColRefs[i].tagCondLen = pRef->tagCondLen;
+            cfgRsp.pColRefs[i].tagCondJson = taosStrdup(pRef->tagCondJson);
+          } else {
+            cfgRsp.pColRefs[i].tagCondLen = 0;
+            cfgRsp.pColRefs[i].tagCondJson = NULL;
+          }
         }
       }
     }
@@ -646,6 +748,14 @@ _exit:
   }
 
   tFreeSTableCfgRsp(&cfgRsp);
+  taosMemoryFreeClear(pMergedCols);
+  taosMemoryFreeClear(pMergedTags);
+  if (pMergedRefs) {
+    for (int32_t i = 0; i < nMergedCols; i++) {
+      taosMemoryFreeClear(pMergedRefs[i].tagCondJson);
+    }
+    taosMemoryFreeClear(pMergedRefs);
+  }
   metaReaderClear(&mer2);
   metaReaderClear(&mer1);
   return code;
@@ -1115,6 +1225,37 @@ int32_t vnodeProcessCheckHasCtbReq(SVnode *pVnode, SRpcMsg *pMsg) {
   }
 
 _exit:;
+  SRpcMsg rspMsg = {.info = pMsg->info, .code = code};
+  tmsgSendRsp(&rspMsg);
+  return 0;  // return 0 so fetch worker doesn't double-send response
+}
+
+// Pre-check for a virtual stb alter that introduces new column/tag names: fail with
+// TSDB_CODE_VND_COL_ALREADY_EXISTS if any vchild table of the stb already owns one of the
+// names as an own (extension) column/tag. Same check as the backstop in metaEntry2.c, run
+// ahead of the real alter so the mnode-side trans can fail cleanly.
+int32_t vnodeProcessCheckStbAlterNameReq(SVnode *pVnode, SRpcMsg *pMsg) {
+  SVCheckStbAlterNameReq req = {0};
+  int32_t                code = 0;
+  void                  *pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t                bufLen = pMsg->contLen - sizeof(SMsgHead);
+
+  code = tDeserializeSVCheckStbAlterNameReq(pBuf, bufLen, &req);
+  if (code != 0) {
+    vError("vgId:%d, failed to deserialize check-stb-alter-name req", TD_VID(pVnode));
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(req.pNames); ++i) {
+    code = metaCheckOwnNameConflictOfChildTables(pVnode->pMeta, req.suid, (const char *)taosArrayGet(req.pNames, i));
+    if (code != 0) {
+      vError("vgId:%d, check-stb-alter-name failed for suid:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.suid, code);
+      goto _exit;
+    }
+  }
+
+_exit:;
+  tFreeSVCheckStbAlterNameReq(&req);
   SRpcMsg rspMsg = {.info = pMsg->info, .code = code};
   tmsgSendRsp(&rspMsg);
   return 0;  // return 0 so fetch worker doesn't double-send response

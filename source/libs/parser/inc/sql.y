@@ -47,6 +47,7 @@ int32_t taosParseShortWeekday(const char* str);
   }
 }
 
+%right LOWPREC.
 %left OR.
 %left AND.
 %left UNION ALL MINUS EXCEPT INTERSECT.
@@ -55,6 +56,7 @@ int32_t taosParseShortWeekday(const char* str);
 %left NK_PLUS NK_MINUS.
 %left NK_STAR NK_SLASH NK_REM.
 %left NK_CONCAT.
+%right FROM.
 
 %right NOT.
 %left NK_ARROW.
@@ -1105,14 +1107,14 @@ cmd ::= CREATE VTABLE multi_create_vsubtable_clause(A).                         
 %destructor create_vsubtable_clause                                              { nodesDestroyNode($$); }
 create_vsubtable_clause(A) ::= not_exists_opt(B) full_table_name(C)
   NK_LP specific_column_ref_list(D) NK_RP USING full_table_name(E)
-  specific_cols_opt(F) TAGS NK_LP vtags_literal_list(G) NK_RP
+  vchild_tags_opt(F) TAGS NK_LP vtags_literal_list(G) NK_RP
   series_clause_opt(H).                                                           { A = createCreateVSubTableStmt(pCxt, B, C, D, NULL, E, F, G, NULL, NULL, H); }
 create_vsubtable_clause(A) ::= not_exists_opt(B) full_table_name(C)
   NK_LP column_ref_list(D) NK_RP USING full_table_name(E)
-  specific_cols_opt(F) TAGS NK_LP vtags_literal_list(G) NK_RP
+  vchild_tags_opt(F) TAGS NK_LP vtags_literal_list(G) NK_RP
   series_clause_opt(H).                                                           { A = createCreateVSubTableStmt(pCxt, B, C, NULL, D, E, F, G, NULL, NULL, H); }
 create_vsubtable_clause(A) ::= not_exists_opt(B) full_table_name(C) USING full_table_name(D)
-  specific_cols_opt(E) TAGS NK_LP vtags_literal_list(F) NK_RP
+  vchild_tags_opt(E) TAGS NK_LP vtags_literal_list(F) NK_RP
   series_clause_opt(G).                                                           { A = createCreateVSubTableStmt(pCxt, B, C, NULL, NULL, D, E, F, NULL, NULL, G); }
 
 %type multi_create_vsubtable_clause                                              { SNodeList* }
@@ -1232,6 +1234,22 @@ with_opt(A) ::= WITH.                                                           
 specific_cols_opt(A) ::= .                                                        { A = NULL; }
 specific_cols_opt(A) ::= NK_LP col_name_list(B) NK_RP.                            { A = B; }
 
+// Tag name list of CREATE VTABLE ... USING <vstb> (<tag list>) TAGS (...): a vstb tag is
+// referenced by name only, while an own (extension) tag of the vchild is declared with an
+// explicit type (SHOW CREATE replay form: `vstb_tag`, `own_tag` NCHAR(16)).
+%type vchild_tags_opt                                                             { SNodeList* }
+%destructor vchild_tags_opt                                                       { nodesDestroyList($$); }
+vchild_tags_opt(A) ::= .                                                          { A = NULL; }
+vchild_tags_opt(A) ::= NK_LP vchild_tag_def_list(B) NK_RP.                        { A = B; }
+
+%type vchild_tag_def_list                                                         { SNodeList* }
+%destructor vchild_tag_def_list                                                   { nodesDestroyList($$); }
+vchild_tag_def_list(A) ::= vchild_tag_def(B).                                     { A = createNodeList(pCxt, B); }
+vchild_tag_def_list(A) ::= vchild_tag_def_list(B) NK_COMMA vchild_tag_def(C).     { A = addNodeToList(pCxt, B, C); }
+
+vchild_tag_def(A) ::= column_name(B).                                             { A = createColumnNode(pCxt, NULL, &B); }
+vchild_tag_def(A) ::= column_name(B) type_name(C).                                { A = createColumnDefNode(pCxt, &B, C, NULL); }
+
 %type specific_cols_with_mask_opt                                                 { SNodeList* }
 %destructor specific_cols_with_mask_opt                                           { nodesDestroyList($$); }
 specific_cols_with_mask_opt(A) ::= .                                              { A = NULL; }
@@ -1282,6 +1300,13 @@ specific_column_ref_list(A) ::= specific_column_ref(B).                         
 specific_column_ref_list(A) ::= specific_column_ref_list(B) NK_COMMA specific_column_ref(C). { A = addNodeToList(pCxt, B, C); }
 
 specific_column_ref(A) ::= column_name(B) FROM column_ref(C).                    { A = createColumnRefNodeByNode(pCxt, &B, C); }
+// Own (extension) column declared inline with an explicit type (SHOW CREATE replay form:
+// `col TYPE FROM db.tb.col`). createColumnRefNodeByNodeWithType sets hasDataType so the
+// translator routes it to the own-column branch (buildVirtualSubTableBatchReq). This shares the
+// `column_name type_name` prefix with `column_def`, so the lookahead-FROM state (lemon 801)
+// shifts FROM for specific_column_ref instead of reducing `column_options ::=` (empty) for
+// column_def; that empty rule carries [LOWPREC] and FROM has higher precedence.
+specific_column_ref(A) ::= column_name(B) type_name(C) FROM column_ref(D).       { A = createColumnRefNodeByNodeWithType(pCxt, &B, C, D); }
 
 %type column_ref_list                                                             { SNodeList* }
 %destructor column_ref_list                                                       { nodesDestroyList($$); }
@@ -3389,7 +3414,7 @@ ext_alter_clause(A) ::= OPTIONS NK_LP ext_option_list(B) NK_RP.                 
   FILE FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE RESTRICT ROW SEMI STAR STATEMENT
   STRICT STRING TIMES VALUES VARIABLE VIEW WAL.
 
-column_options(A) ::= .                                                           { A = createDefaultColumnOptions(pCxt); }
+column_options(A) ::= . [LOWPREC]                                                 { A = createDefaultColumnOptions(pCxt); }
 column_options(A) ::= column_options(B) PRIMARY KEY.                              { A = setColumnOptionsPK(pCxt, B); }
 column_options(A) ::= column_options(B) COMPOSITE KEY.                            { A = setColumnOptionsPK(pCxt, B); }
 column_options(A) ::= column_options(B) NK_ID(C) NK_STRING(D).                    { A = setColumnOptions(pCxt, B, &C, &D); }

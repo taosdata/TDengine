@@ -387,9 +387,8 @@ static int32_t fedScanBuildMissingTagFilter(const SNode* pCond, const SExtTableM
       continue;
     }
 
-    const char* remoteName = pCol->remoteColName[0] ? pCol->remoteColName : pCol->colName;
     offset += snprintf(pSql + offset, cap - offset, "%s%c%s%c = ''",
-                       offset > 0 ? " AND " : "", q, remoteName, q);
+                       offset > 0 ? " AND " : "", q, pCol->colName, q);
   }
 
   if (offset == 0) {
@@ -501,7 +500,7 @@ static const char* fedScanFindRemoteCondColName(const SVStbPushedCondSql* pSql, 
     for (int32_t j = 0; j < pSql->pMeta->numOfCols; ++j) {
       SExtColumnDef* pCol = &pSql->pMeta->pCols[j];
       if (strncasecmp(pCol->colName, pKV->colName, TSDB_COL_NAME_LEN) == 0) {
-        return pCol->remoteColName[0] ? pCol->remoteColName : pCol->colName;
+        return pCol->colName;
       }
     }
   }
@@ -688,11 +687,11 @@ static int32_t fedScanRenderPushedCondExpr(SVStbPushedCondSql* pSql, SNode* pNod
   switch (nodeType(pNode)) {
     case QUERY_NODE_COLUMN: {
       SColumnNode* pCol = (SColumnNode*)pNode;
-      const char* remoteName = fedScanFindRemoteCondColName(pSql, pCol->colId);
-      if (remoteName == NULL) {
+      const char* colName = fedScanFindRemoteCondColName(pSql, pCol->colId);
+      if (colName == NULL) {
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
       }
-      return fedScanCondSqlAppendQuotedIdent(pSql, remoteName);
+      return fedScanCondSqlAppendQuotedIdent(pSql, colName);
     }
     case QUERY_NODE_VALUE:
       return fedScanRenderPushedCondValue(pSql, (SValueNode*)pNode);
@@ -1519,7 +1518,7 @@ static bool fedScanHasNaiveTimestampHint(
 
 static int32_t fedScanAppendTimestampProjection(
     char* sql, int32_t sqlCapacity, int32_t* pOffset,
-    EExtSourceType srcType, const char* remoteName, const char* extTypeName,
+    EExtSourceType srcType, const char* colName, const char* extTypeName,
     const char* timezone,
     bool timezoneConversionSupported) {
   EExtTimestampTzClass tzClass =
@@ -1532,7 +1531,7 @@ static int32_t fedScanAppendTimestampProjection(
       written = snprintf(
           sql + *pOffset, remaining,
           "CAST(UNIX_TIMESTAMP(`%s`) * 1000000 AS SIGNED) AS `%s`",
-          remoteName, remoteName);
+          colName, colName);
     } else if (tzClass == EXT_TIMESTAMP_TZ_CLASS_NAIVE &&
                timezoneConversionSupported) {
       written = snprintf(
@@ -1540,9 +1539,9 @@ static int32_t fedScanAppendTimestampProjection(
           "CAST(TIMESTAMPDIFF(MICROSECOND, "
           "'1970-01-01 00:00:00', CONVERT_TZ(`%s`, '%s', '+00:00')) "
           "AS SIGNED) AS `%s`",
-          remoteName, timezone, remoteName);
+          colName, timezone, colName);
     } else {
-      written = snprintf(sql + *pOffset, remaining, "`%s`", remoteName);
+      written = snprintf(sql + *pOffset, remaining, "`%s`", colName);
     }
   } else if (srcType == EXT_SOURCE_POSTGRESQL) {
     if (tzClass == EXT_TIMESTAMP_TZ_CLASS_AWARE) {
@@ -1550,7 +1549,7 @@ static int32_t fedScanAppendTimestampProjection(
           sql + *pOffset, remaining,
           "CAST(EXTRACT(EPOCH FROM \"%s\") * 1000000 AS BIGINT) "
           "AS \"%s\"",
-          remoteName, remoteName);
+          colName, colName);
     } else if (tzClass == EXT_TIMESTAMP_TZ_CLASS_NAIVE &&
                timezoneConversionSupported) {
       written = snprintf(
@@ -1558,9 +1557,9 @@ static int32_t fedScanAppendTimestampProjection(
           "CAST(EXTRACT(EPOCH FROM (CAST(\"%s\" AS TIMESTAMP) "
           "AT TIME ZONE '%s')) * "
           "1000000 AS BIGINT) AS \"%s\"",
-          remoteName, timezone, remoteName);
+          colName, timezone, colName);
     } else {
-      written = snprintf(sql + *pOffset, remaining, "\"%s\"", remoteName);
+      written = snprintf(sql + *pOffset, remaining, "\"%s\"", colName);
     }
   } else {
     return TSDB_CODE_INVALID_PARA;
@@ -1856,10 +1855,9 @@ static int32_t fedScanBuildVStbQueryAndMappings(
   char tsRemoteNameBuf[TSDB_COL_NAME_LEN] = {0};
   {
     SExtColumnDef* pTsCol = &pMeta->pCols[tsIdx];
-    const char* remoteName = pTsCol->remoteColName[0] ? pTsCol->remoteColName : pTsCol->colName;
-    tstrncpy(tsRemoteNameBuf, remoteName, sizeof(tsRemoteNameBuf));
+    tstrncpy(tsRemoteNameBuf, pTsCol->colName, sizeof(tsRemoteNameBuf));
     tstrncpy(mappings[0].extTypeName, pTsCol->extTypeName, sizeof(mappings[0].extTypeName));
-    tstrncpy(mappings[0].colName, remoteName, sizeof(mappings[0].colName));
+    tstrncpy(mappings[0].colName, pTsCol->colName, sizeof(mappings[0].colName));
     code = extTypeNameToTDengineType(
         srcType, pTsCol->extTypeName, pTsCol->extCharsetName, &mappings[0].tdType);
     if (code != TSDB_CODE_SUCCESS) {
@@ -1885,12 +1883,12 @@ static int32_t fedScanBuildVStbQueryAndMappings(
     mappings[0].tsPrecision = fedScanGetCondPrecision(srcType, pMeta, tsIdx);
     if (srcType == EXT_SOURCE_MYSQL || srcType == EXT_SOURCE_POSTGRESQL) {
       code = fedScanAppendTimestampProjection(
-          sqlBuf, sqlBufLen, &offset, srcType, remoteName,
+          sqlBuf, sqlBufLen, &offset, srcType, pTsCol->colName,
           pTsCol->extTypeName, remoteTimezone,
           timezoneConversionSupported);
     } else {
       int32_t written = snprintf(sqlBuf + offset, sqlBufLen - offset,
-                                 "%c%s%c", q, remoteName, q);
+                                 "%c%s%c", q, pTsCol->colName, q);
       code = written < 0 || written >= sqlBufLen - offset
                  ? TSDB_CODE_OUT_OF_RANGE
                  : TSDB_CODE_SUCCESS;
@@ -1918,10 +1916,9 @@ static int32_t fedScanBuildVStbQueryAndMappings(
     for (int32_t j = 0; j < pMeta->numOfCols; j++) {
       SExtColumnDef* pCol = &pMeta->pCols[j];
       if (strncasecmp(pCol->colName, pKV->colName, TSDB_COL_NAME_LEN) == 0) {
-        const char* remoteName = pCol->remoteColName[0] ? pCol->remoteColName : pCol->colName;
         int32_t mIdx = 1 + i;
         tstrncpy(mappings[mIdx].extTypeName, pCol->extTypeName, sizeof(mappings[mIdx].extTypeName));
-        tstrncpy(mappings[mIdx].colName, remoteName, sizeof(mappings[mIdx].colName));
+        tstrncpy(mappings[mIdx].colName, pCol->colName, sizeof(mappings[mIdx].colName));
         code = extTypeNameToTDengineType(
             srcType, pCol->extTypeName, pCol->extCharsetName, &mappings[mIdx].tdType);
         if (code != TSDB_CODE_SUCCESS) {
@@ -1954,12 +1951,12 @@ static int32_t fedScanBuildVStbQueryAndMappings(
                srcType == EXT_SOURCE_POSTGRESQL) &&
               mappings[mIdx].tdType.type == TSDB_DATA_TYPE_TIMESTAMP) {
             code = fedScanAppendTimestampProjection(
-                sqlBuf, sqlBufLen, &offset, srcType, remoteName,
+                sqlBuf, sqlBufLen, &offset, srcType, pCol->colName,
                 pCol->extTypeName, remoteTimezone,
                 timezoneConversionSupported);
           } else {
             written = snprintf(sqlBuf + offset, sqlBufLen - offset,
-                               "%c%s%c", q, remoteName, q);
+                               "%c%s%c", q, pCol->colName, q);
             if (written < 0 || written >= sqlBufLen - offset) {
               code = TSDB_CODE_OUT_OF_RANGE;
             } else {

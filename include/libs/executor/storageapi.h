@@ -48,6 +48,22 @@ extern "C" {
 typedef struct SMeta SMeta;
 typedef TSKEY (*GetTsFun)(void*);
 
+// Own (extension) schema of a virtual child table: columns/tags added directly on a vchild
+// via ALTER VTABLE <vchild> ADD COLUMN/TAG, independent of the vstb schema. Only non-empty
+// when SMetaEntry.type == TSDB_VIRTUAL_CHILD_TABLE. Own colIds are allocated from
+// TSDB_VCHILD_OWN_COL_ID_BASE upwards (see tdef.h) so they never collide with vstb colIds.
+typedef struct SVChildOwnSchema {
+  int32_t    nOwnCols;         // own data columns; each carries a mandatory origin reference
+  SSchema   *pOwnColSchemas;   // nOwnCols entries, appended after the vstb row schema
+  SColRef   *pOwnColRefs;      // 1:1 position-aligned with pOwnColSchemas, hasRef always true
+  SExtSchema *pOwnColExtSchemas;  // nOwnCols entries, 1:1 with pOwnColSchemas; carries typeMod
+                                  // (decimal precision/scale). NULL when no own column has
+                                  // COL_HAS_TYPE_MOD (incl. older persisted entries).
+  int32_t    nOwnTags;         // own tags: schema only; refs live in colRef.pTagRef (sparse,
+                               // by colId), literal values live in the shared ctbEntry.pTags blob
+  SSchema   *pOwnTagSchemas;   // nOwnTags entries, appended after the vstb tag schema
+} SVChildOwnSchema;
+
 typedef struct SMetaEntry {
   int64_t   version;
   int8_t    type;
@@ -105,10 +121,11 @@ typedef struct SMetaEntry {
 
   uint8_t* pBuf;
 
-  SColCmprWrapper colCmpr;  // col compress alg
-  SExtSchema*     pExtSchemas;
-  SColRefWrapper  colRef;   // col reference for virtual table
-  SSeriesWrapper  series;   // series declarations for virtual table
+  SColCmprWrapper  colCmpr;  // col compress alg
+  SExtSchema*      pExtSchemas;
+  SColRefWrapper   colRef;   // col reference for virtual table
+  SSeriesWrapper   series;   // series declarations for virtual table
+  SVChildOwnSchema own;      // vchild own (extension) columns/tags, TSDB_VIRTUAL_CHILD_TABLE only
 } SMetaEntry;
 
 typedef struct SMetaReader {

@@ -1215,6 +1215,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
        pMsg->msgType == TDMT_VND_BATCH_META || pMsg->msgType == TDMT_VND_TABLE_NAME ||
        pMsg->msgType == TDMT_VND_VSUBTABLES_META || pMsg->msgType == TDMT_VND_VSTB_REF_DBS ||
        pMsg->msgType == TDMT_VND_CHECK_HAS_CTB ||
+       pMsg->msgType == TDMT_VND_CHECK_STB_ALTER_NAME ||
        pMsg->msgType == TDMT_VND_VTB_TAG_COND) &&
       !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
@@ -1252,6 +1253,8 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetVStbRefDbs(pVnode, pMsg);
     case TDMT_VND_CHECK_HAS_CTB:
       return vnodeProcessCheckHasCtbReq(pVnode, pMsg);
+    case TDMT_VND_CHECK_STB_ALTER_NAME:
+      return vnodeProcessCheckStbAlterNameReq(pVnode, pMsg);
     case TDMT_VND_VTB_TAG_COND:
       return vnodeGetVTbTagCond(pVnode, pMsg, true);
     case TDMT_VND_QUERY_SCAN_PROGRESS:
