@@ -21860,6 +21860,7 @@ static int32_t stRealtimeGroupUpdateExecTime(SSTriggerRealtimeGroup *pGroup, int
   int32_t                   lino = 0;
   SSTriggerRealtimeContext *pContext = pGroup->pContext;
   SStreamTriggerTask       *pTask = pContext->pTask;
+  int64_t                   oldNextExecTime = pGroup->nextExecTime;
   int64_t                   nextExecTime = INT64_MAX;
 
   bool nested = BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
@@ -21887,7 +21888,18 @@ static int32_t stRealtimeGroupUpdateExecTime(SSTriggerRealtimeGroup *pGroup, int
     }
   }
 
-  if (enterHeap && pGroup->nextExecTime != 0 && nextExecTime != pGroup->nextExecTime) {
+  bool preserveExpiredLegacyBatch = pGroup->pPendingCalcParams.neles > 0 ||
+                                    pGroup->pPendingParWinCalcParams.neles > 0;
+  if (!nested && oldNextExecTime != 0 && (oldNextExecTime > now || preserveExpiredLegacyBatch) &&
+      nextExecTime != INT64_MAX && nextExecTime > oldNextExecTime) {
+    ST_TASK_DLOG("keep existing legacy next exec time for group %" PRId64 " old:%" PRId64 " candidate:%" PRId64
+                 " now:%" PRId64 " pendingCalc:%" PRId64 " pendingParWin:%" PRId64,
+                 pGroup->gid, oldNextExecTime, nextExecTime, now, pGroup->pPendingCalcParams.neles,
+                 pGroup->pPendingParWinCalcParams.neles);
+    nextExecTime = TMIN(nextExecTime, oldNextExecTime);
+  }
+
+  if (enterHeap && oldNextExecTime != 0 && nextExecTime != oldNextExecTime) {
     heapRemove(pContext->pMaxDelayHeap, &pGroup->heapNode);
     pGroup->nextExecTime = 0;
   }
