@@ -674,8 +674,12 @@ Provides the time range, progress, and IDs of stream recalculation tasks.
 | 5   | `end`         | TIMESTAMP    | End of the recalculation time range |
 | 6   | `progress`    | VARCHAR(20)  | Recalculation progress, for example `42%` |
 | 7   | `status`      | VARCHAR(16)  | Recalculation status: `Pending`, `Running`, `Finished`, or `Failed` |
+| 8   | `request_time` | TIMESTAMP   | Time when the mnode accepted the recalculation request |
+| 9   | `message`     | VARCHAR(256) | Recalculation status or error message |
 
 Terminal recalculation records are retained for one hour from the time the mnode first observes the terminal state, with a maximum of 100 terminal records per stream. `Pending` and `Running` records do not count toward this limit. Records are held in memory and are not guaranteed to survive a process restart.
+
+This retention policy applies to terminal records; unfinished requests are persisted separately and can be restored after a service or stream-task restart or redeployment.
 
 ## INS_STREAM_TASKS
 

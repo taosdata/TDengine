@@ -859,6 +859,86 @@ TEST_F(StreamNotifyBlockedWorkerTest, ReclaimingParamReleasesQueueMapIterator) {
   DestroyPool();
 }
 
+TEST_F(StreamNotifyTest, GroupedNotificationsKeepGidTbnameWindowAndLineage) {
+  Stub stub;
+  stub.set(tcurlConnect, MockTcurlConnect);
+  stub.set(tcurlSend, MockTcurlSend);
+
+  std::string                           url = "ws://unused/grouped-notify";
+  std::unique_ptr<SArray, ArrayDeleter> urls(taosArrayInit(1, sizeof(char*)));
+  ASSERT_NE(urls, nullptr);
+  char* urlPtr = const_cast<char*>(url.c_str());
+  ASSERT_NE(taosArrayPush(urls.get(), &urlPtr), nullptr);
+
+  SStreamTask task = {};
+  task.type = STREAM_TRIGGER_TASK;
+  task.streamId = 0x1234;
+  task.taskId = 0x5678;
+
+  const int64_t gids[] = {202, 101, 303};
+  for (int32_t i = 0; i < 3; ++i) {
+    SCOPED_TRACE(i);
+    SWindowLineage lineage = {};
+    lineage.pScopes = taosArrayInit(1, sizeof(SScopeInstanceId));
+    ASSERT_NE(lineage.pScopes, nullptr);
+    SScopeInstanceId scope = {};
+    scope.layerIndex = 0;
+    scope.triggerType = WINDOW_TYPE_INTERVAL;
+    scope.openingTs = 1000 + i;
+    scope.nativeDiscriminator = 700 + i;
+    ASSERT_NE(taosArrayPush(lineage.pScopes, &scope), nullptr);
+
+    const TSKEY   leafStart = 2000 + i;
+    const int32_t windowIndex = 10 + i;
+    char          triggerId[STREAM_NESTED_TRIGGER_ID_LEN] = {0};
+    ASSERT_EQ(stBuildNestedTriggerId(gids[i], &lineage, leafStart, windowIndex, triggerId), TSDB_CODE_SUCCESS);
+
+    const std::string  tableName = "group_" + std::to_string(gids[i]);
+    const std::string  lineageMarker = "lineage-" + std::to_string(i);
+    const std::string  extraContent = "{\"lineageMarker\":\"" + lineageMarker + "\"}";
+    SSTriggerCalcParam param = {};
+    param.wstart = leafStart;
+    param.wend = leafStart + 99;
+    param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+    param.extraNotifyContent = const_cast<char*>(extraContent.c_str());
+    const char* triggerIds[] = {triggerId};
+    gTcurlSendState = {};
+
+    ASSERT_EQ(streamSendNestedResultNotifyContent(&task, "1.grouped_notify", tableName.c_str(), STREAM_TRIGGER_COUNT,
+                                                  gids[i], urls.get(), 0, &param, triggerIds, 1),
+              TSDB_CODE_SUCCESS);
+
+    std::unique_ptr<cJSON, JsonDeleter> root(
+        cJSON_ParseWithLength(gTcurlSendState.payload.data(), gTcurlSendState.payload.size()));
+    ASSERT_NE(root, nullptr);
+    cJSON* streams = cJSON_GetObjectItemCaseSensitive(root.get(), "streams");
+    cJSON* stream = cJSON_IsArray(streams) ? cJSON_GetArrayItem(streams, 0) : nullptr;
+    cJSON* events = cJSON_IsObject(stream) ? cJSON_GetObjectItemCaseSensitive(stream, "events") : nullptr;
+    cJSON* event = cJSON_IsArray(events) ? cJSON_GetArrayItem(events, 0) : nullptr;
+    ASSERT_TRUE(cJSON_IsObject(event));
+    cJSON* groupId = cJSON_GetObjectItemCaseSensitive(event, "groupId");
+    cJSON* receivedTableName = cJSON_GetObjectItemCaseSensitive(event, "tableName");
+    cJSON* windowStart = cJSON_GetObjectItemCaseSensitive(event, "windowStart");
+    cJSON* windowEnd = cJSON_GetObjectItemCaseSensitive(event, "windowEnd");
+    cJSON* receivedTriggerId = cJSON_GetObjectItemCaseSensitive(event, "triggerId");
+    cJSON* receivedLineageMarker = cJSON_GetObjectItemCaseSensitive(event, "lineageMarker");
+    ASSERT_TRUE(cJSON_IsString(groupId));
+    ASSERT_TRUE(cJSON_IsString(receivedTableName));
+    ASSERT_TRUE(cJSON_IsNumber(windowStart));
+    ASSERT_TRUE(cJSON_IsNumber(windowEnd));
+    ASSERT_TRUE(cJSON_IsString(receivedTriggerId));
+    ASSERT_TRUE(cJSON_IsString(receivedLineageMarker));
+    EXPECT_EQ(std::string(groupId->valuestring), std::to_string(gids[i]));
+    EXPECT_EQ(std::string(receivedTableName->valuestring), tableName);
+    EXPECT_EQ(static_cast<TSKEY>(windowStart->valuedouble), param.wstart);
+    EXPECT_EQ(static_cast<TSKEY>(windowEnd->valuedouble), param.wend);
+    EXPECT_STREQ(receivedTriggerId->valuestring, triggerId);
+    EXPECT_EQ(std::string(receivedLineageMarker->valuestring), lineageMarker);
+
+    taosArrayDestroy(lineage.pScopes);
+  }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {

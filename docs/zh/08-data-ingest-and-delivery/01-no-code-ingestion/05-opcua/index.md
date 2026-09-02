@@ -221,6 +221,14 @@ VARCHAR(1024)::name::{id#/.};VARCHAR(1024)::browse::{BrowseName};VARCHAR(200)::l
 
 占位符可与静态文本自由组合，例如 `prefix_{id#/.}_suffix`、`{BrowseName}({Description})`、`ns{ns}_{id}` 等。
 
+若需要为 OPC UA 路径追加一个层级，可在占位符后拼接静态文本：
+
+```text
+VARCHAR(1024)::Path::{Path}.Value
+```
+
+若原始路径为 `Objects.UAT.BP.AIT260002`，则存储的标签值为 `Objects.UAT.BP.AIT260002.Value`。当数据建模需要额外的路径层级时（例如对接 TDengine IDMP），这种方式非常实用。
+
 #### 上传 CSV 配置文件
 
 你可以下载 CSV 空模板并按模板配置点位信息，然后上传 CSV 配置文件来配置点位；或者根据所配置的筛选条件下载数据点位，并以 CSV 模板所制定的格式下载。

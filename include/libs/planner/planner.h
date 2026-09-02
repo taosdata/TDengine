@@ -39,6 +39,10 @@ typedef struct SPlanStreamContext {
   bool        hasNotify;
   bool        hasExtWindow;
   bool        disableExtWindow;
+  // Borrowed parser AST inputs; valid only until qCreateQueryPlan() returns.
+  SNode*      pTriggerTable;
+  SNodeList*  pTriggerPartitionList;
+  bool        enableMultiGroupCalc;
   SArray*     calcScanPlanArray;
   SNode*      triggerScanSubplan;
   ENodeType   triggerWinType;

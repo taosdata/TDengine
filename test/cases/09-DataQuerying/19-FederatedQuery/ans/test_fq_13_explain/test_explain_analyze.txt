@@ -3957,7 +3957,7 @@ SQL: select _wstart, count(*), sum(voltage) from fq_exp_pg.sensor external_windo
 RESULT
 -> Projection (cost=<COST> rows=0 columns=3 width=24 input_order=asc)
    -> External on Column time (cost=<COST> rows=0 functions=3 width=24 input_order=asc output_order=asc)
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=0 width=16)
    InitPlan 1
       -> Fill (cost=<COST> rows=0 mode=null width=16 input_order=asc)
          -> Interval on Column time (cost=<COST> rows=0 functions=2 width=16 input_order=unknown output_order=asc)
@@ -3996,7 +3996,7 @@ SQL: select _wstart, count(*), sum(voltage) from fq_exp_pg.sensor external_windo
 RESULT
 -> Projection (cost=<COST> rows=0 columns=3 width=24 input_order=asc)
    -> External on Column time (cost=<COST> rows=0 functions=3 width=24 input_order=asc output_order=asc)
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=0 width=16)
    InitPlan 1
       -> Fill (cost=<COST> rows=0 mode=null width=16 input_order=asc)
          -> Interval on Column time (cost=<COST> rows=0 functions=2 width=16 input_order=unknown output_order=asc)
@@ -4035,7 +4035,7 @@ SQL: select _wstart, count(*), sum(voltage) from fq_exp_pg.sensor external_windo
 RESULT
 -> Projection (cost=<COST> rows=0 columns=3 width=24 input_order=asc)
    -> External on Column time (cost=<COST> rows=0 functions=3 width=24 input_order=asc output_order=asc)
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=0 width=16)
    InitPlan 1
       -> Fill (cost=<COST> rows=0 mode=null width=16 input_order=asc)
          -> Interval on Column time (cost=<COST> rows=0 functions=2 width=16 input_order=unknown output_order=asc)

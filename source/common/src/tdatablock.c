@@ -3915,6 +3915,327 @@ int32_t blockDecodeImpl(SSDataBlock* pBlock, const char* pData, const char** pEn
 int32_t blockDecodeInternal(SSDataBlock* pBlock, const char* pData, const char** pEndPos) {
   return blockDecodeImpl(pBlock, pData, pEndPos, true);
 }
+
+static bool blockDecodeReadBounded(const char* pData, size_t dataLen, size_t* pOffset, void* pValue, size_t valueLen) {
+  if (pData == NULL || pOffset == NULL || pValue == NULL || *pOffset > dataLen || valueLen > dataLen - *pOffset) {
+    return false;
+  }
+
+  memcpy(pValue, pData + *pOffset, valueLen);
+  *pOffset += valueLen;
+  return true;
+}
+
+static bool blockDecodeSkipBounded(size_t dataLen, size_t* pOffset, size_t valueLen) {
+  if (pOffset == NULL || *pOffset > dataLen || valueLen > dataLen - *pOffset) return false;
+  *pOffset += valueLen;
+  return true;
+}
+
+static bool blockDecodeMultiplyBounded(size_t left, size_t right, size_t* pResult) {
+  if (pResult == NULL || (left != 0 && right > SIZE_MAX / left)) return false;
+  *pResult = left * right;
+  return true;
+}
+
+static int32_t blockDecodeInvalidMessage(void) {
+  terrno = TSDB_CODE_INVALID_MSG;
+  return terrno;
+}
+
+static bool blockDecodeLengthFits(size_t remaining, size_t headerLen, uint64_t payloadLen, size_t* pValueLen) {
+  if (pValueLen == NULL || headerLen > remaining || payloadLen > remaining - headerLen) return false;
+  *pValueLen = headerLen + (size_t)payloadLen;
+  return *pValueLen > 0;
+}
+
+static bool blockDecodeU32vBounded(const uint8_t* pData, size_t remaining, uint32_t* pValue, size_t* pEncodedLen) {
+  if (pData == NULL || pValue == NULL || pEncodedLen == NULL) return false;
+
+  uint32_t value = 0;
+  for (size_t i = 0; i < sizeof(uint32_t) + 1 && i < remaining; ++i) {
+    uint8_t byte = pData[i];
+    if (i == sizeof(uint32_t) && (byte & 0xf0) != 0) return false;
+    value |= (uint32_t)(byte & 0x7f) << (7 * i);
+    if ((byte & 0x80) == 0) {
+      *pValue = value;
+      *pEncodedLen = i + 1;
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool blockValidateJsonTagEntry(const uint8_t* pData, size_t remaining, size_t* pEntryLen) {
+  if (pData == NULL || pEntryLen == NULL) return false;
+
+  uint32_t keyLen = 0;
+  size_t   keyLenBytes = 0;
+  if (!blockDecodeU32vBounded(pData, remaining, &keyLen, &keyLenBytes) || keyLen == 0 ||
+      keyLen > remaining - keyLenBytes) {
+    return false;
+  }
+  if (pData[keyLenBytes + keyLen - 1] != 0 || memchr(pData + keyLenBytes, 0, keyLen - 1) != NULL) return false;
+
+  size_t offset = keyLenBytes + keyLen;
+  if (offset >= remaining) return false;
+  int8_t type = (int8_t)pData[offset++];
+  if (type != TSDB_DATA_TYPE_NULL && type != TSDB_DATA_TYPE_BOOL && type != TSDB_DATA_TYPE_DOUBLE &&
+      type != TSDB_DATA_TYPE_NCHAR) {
+    return false;
+  }
+
+  if (IS_VAR_DATA_TYPE(type)) {
+    uint32_t valueLen = 0;
+    size_t   valueLenBytes = 0;
+    if (!blockDecodeU32vBounded(pData + offset, remaining - offset, &valueLen, &valueLenBytes) ||
+        valueLen > remaining - offset - valueLenBytes) {
+      return false;
+    }
+    offset += valueLenBytes + valueLen;
+  } else {
+    int32_t valueLen = tDataTypes[type].bytes;
+    if (valueLen < 0 || (size_t)valueLen > remaining - offset) return false;
+    offset += (size_t)valueLen;
+  }
+
+  *pEntryLen = offset;
+  return true;
+}
+
+static bool blockValidateJsonValue(const char* pData, size_t remaining, size_t* pValueLen) {
+  if (pData == NULL || pValueLen == NULL || remaining < CHAR_BYTES) return false;
+
+  int8_t type = TSDB_DATA_TYPE_NULL;
+  memcpy(&type, pData, sizeof(type));
+  if (type == TSDB_DATA_TYPE_NULL) {
+    *pValueLen = CHAR_BYTES;
+    return true;
+  }
+  if (type == TSDB_DATA_TYPE_NCHAR) {
+    if (remaining < CHAR_BYTES + VARSTR_HEADER_SIZE) return false;
+    VarDataLenT payloadLen = 0;
+    memcpy(&payloadLen, pData + CHAR_BYTES, sizeof(payloadLen));
+    return blockDecodeLengthFits(remaining, CHAR_BYTES + VARSTR_HEADER_SIZE, payloadLen, pValueLen);
+  }
+  if (type == TSDB_DATA_TYPE_DOUBLE) {
+    return blockDecodeLengthFits(remaining, CHAR_BYTES + DOUBLE_BYTES, 0, pValueLen);
+  }
+  if (type == TSDB_DATA_TYPE_BOOL) {
+    return blockDecodeLengthFits(remaining, CHAR_BYTES * 2, 0, pValueLen);
+  }
+
+  uint8_t flags = (uint8_t)type;
+  uint8_t allowedFlags = TD_TAG_JSON | TD_TAG_LARGE;
+  if ((flags & TD_TAG_JSON) == 0 || (flags & (uint8_t)~allowedFlags) != 0 || remaining < sizeof(STag)) return false;
+
+  STag tag = {0};
+  memcpy(&tag, pData, sizeof(tag));
+  if (tag.len < (int16_t)sizeof(STag) || tag.nTag < 0) return false;
+
+  size_t indexLen = 0;
+  size_t indexWidth = (flags & TD_TAG_LARGE) != 0 ? sizeof(int16_t) : sizeof(int8_t);
+  if (!blockDecodeMultiplyBounded((size_t)tag.nTag, indexWidth, &indexLen) || indexLen > SIZE_MAX - sizeof(STag)) {
+    return false;
+  }
+  size_t minimumTagLen = sizeof(STag) + indexLen;
+  if ((size_t)tag.len < minimumTagLen || (size_t)tag.len > remaining) return false;
+
+  const uint8_t* pIndexes = (const uint8_t*)pData + sizeof(STag);
+  const uint8_t* pEntries = (const uint8_t*)pData + minimumTagLen;
+  size_t         entriesLen = (size_t)tag.len - minimumTagLen;
+  size_t         expectedOffset = 0;
+  for (int16_t i = 0; i < tag.nTag; ++i) {
+    int16_t entryOffset = 0;
+    if ((flags & TD_TAG_LARGE) != 0) {
+      memcpy(&entryOffset, pIndexes + (size_t)i * sizeof(entryOffset), sizeof(entryOffset));
+    } else {
+      int8_t smallOffset = 0;
+      memcpy(&smallOffset, pIndexes + (size_t)i * sizeof(smallOffset), sizeof(smallOffset));
+      entryOffset = smallOffset;
+    }
+    if (entryOffset < 0 || (size_t)entryOffset != expectedOffset || expectedOffset >= entriesLen) return false;
+
+    size_t entryLen = 0;
+    if (!blockValidateJsonTagEntry(pEntries + expectedOffset, entriesLen - expectedOffset, &entryLen) ||
+        entryLen > entriesLen - expectedOffset) {
+      return false;
+    }
+    expectedOffset += entryLen;
+  }
+  if (expectedOffset != entriesLen) return false;
+
+  *pValueLen = (size_t)tag.len;
+  return true;
+}
+
+static bool blockValidateVariableValue(int8_t type, const char* pData, size_t remaining, size_t* pValueLen) {
+  if (pData == NULL || pValueLen == NULL) return false;
+  if (type == TSDB_DATA_TYPE_JSON) return blockValidateJsonValue(pData, remaining, pValueLen);
+
+  if (IS_STR_DATA_BLOB(type)) {
+    if (remaining < BLOBSTR_HEADER_SIZE) return false;
+    BlobDataLenT payloadLen = 0;
+    memcpy(&payloadLen, pData, sizeof(payloadLen));
+    return blockDecodeLengthFits(remaining, BLOBSTR_HEADER_SIZE, payloadLen, pValueLen);
+  }
+
+  if (remaining < VARSTR_HEADER_SIZE) return false;
+  VarDataLenT payloadLen = 0;
+  memcpy(&payloadLen, pData, sizeof(payloadLen));
+  return blockDecodeLengthFits(remaining, VARSTR_HEADER_SIZE, payloadLen, pValueLen);
+}
+
+static bool blockValidateVariableColumn(const char* pData, size_t dataLen, size_t columnMetaOffset,
+                                        size_t columnDataOffset, int32_t numOfRows, int8_t type,
+                                        uint32_t decodedColLen) {
+  if (pData == NULL || columnDataOffset > dataLen || decodedColLen > dataLen - columnDataOffset) return false;
+
+  size_t expectedOffset = 0;
+  for (int32_t row = 0; row < numOfRows; ++row) {
+    int32_t valueOffset = 0;
+    if (!blockDecodeReadBounded(pData, dataLen, &columnMetaOffset, &valueOffset, sizeof(valueOffset))) return false;
+    if (valueOffset == -1) continue;
+    if (valueOffset < 0 || (uint32_t)valueOffset >= decodedColLen || (size_t)valueOffset != expectedOffset) {
+      return false;
+    }
+
+    size_t remaining = (size_t)decodedColLen - (size_t)valueOffset;
+    size_t valueLen = 0;
+    if (!blockValidateVariableValue(type, pData + columnDataOffset + valueOffset, remaining, &valueLen) ||
+        valueLen > remaining) {
+      return false;
+    }
+    expectedOffset += valueLen;
+  }
+
+  return columnMetaOffset == columnDataOffset && expectedOffset == decodedColLen;
+}
+
+static int32_t blockValidateInternalEncoding(const SSDataBlock* pBlock, const char* pData, size_t dataLen) {
+  if (pBlock == NULL || pData == NULL || dataLen > INT32_MAX) return blockDecodeInvalidMessage();
+
+  size_t  offset = 0;
+  int32_t version = 0;
+  int32_t encodedLen = 0;
+  int32_t numOfRows = 0;
+  int32_t numOfCols = 0;
+  if (!blockDecodeReadBounded(pData, dataLen, &offset, &version, sizeof(version)) ||
+      !blockDecodeReadBounded(pData, dataLen, &offset, &encodedLen, sizeof(encodedLen)) ||
+      !blockDecodeReadBounded(pData, dataLen, &offset, &numOfRows, sizeof(numOfRows)) ||
+      !blockDecodeReadBounded(pData, dataLen, &offset, &numOfCols, sizeof(numOfCols)) ||
+      !blockDecodeSkipBounded(dataLen, &offset, sizeof(int32_t) + sizeof(uint64_t))) {
+    return blockDecodeInvalidMessage();
+  }
+  (void)version;
+
+  if (encodedLen <= 0 || (size_t)encodedLen != dataLen || numOfRows <= 0 || numOfRows > INT32_MAX - 7 ||
+      numOfCols <= 0) {
+    return blockDecodeInvalidMessage();
+  }
+
+  size_t schemaLen = 0;
+  size_t colLenSegmentLen = 0;
+  size_t decodedSchemaLen = 0;
+  if (!blockDecodeMultiplyBounded((size_t)numOfCols, sizeof(int8_t) + sizeof(int32_t), &schemaLen) ||
+      !blockDecodeMultiplyBounded((size_t)numOfCols, sizeof(int32_t), &colLenSegmentLen) ||
+      !blockDecodeMultiplyBounded((size_t)numOfCols, sizeof(SColumnInfoData), &decodedSchemaLen)) {
+    return blockDecodeInvalidMessage();
+  }
+  (void)decodedSchemaLen;
+
+  size_t existingCols = taosArrayGetSize(pBlock->pDataBlock);
+  if (existingCols != 0 && existingCols != (size_t)numOfCols) return blockDecodeInvalidMessage();
+
+  size_t schemaOffset = offset;
+  if (!blockDecodeSkipBounded(dataLen, &offset, schemaLen)) return blockDecodeInvalidMessage();
+  size_t colLenOffset = offset;
+  if (!blockDecodeSkipBounded(dataLen, &offset, colLenSegmentLen)) return blockDecodeInvalidMessage();
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    int8_t  type = TSDB_DATA_TYPE_NULL;
+    int32_t bytes = 0;
+    int32_t encodedColLen = 0;
+    if (!blockDecodeReadBounded(pData, dataLen, &schemaOffset, &type, sizeof(type)) ||
+        !blockDecodeReadBounded(pData, dataLen, &schemaOffset, &bytes, sizeof(bytes)) ||
+        !blockDecodeReadBounded(pData, dataLen, &colLenOffset, &encodedColLen, sizeof(encodedColLen))) {
+      return blockDecodeInvalidMessage();
+    }
+
+    if (IS_INVALID_TYPE(type)) return blockDecodeInvalidMessage();
+    uint8_t precision = 0;
+    uint8_t scale = 0;
+    if (IS_DECIMAL_TYPE(type)) {
+      extractDecimalTypeInfoFromBytes(&bytes, &precision, &scale);
+    }
+    if (bytes < 0) return blockDecodeInvalidMessage();
+
+    if (existingCols != 0) {
+      const SColumnInfoData* pExisting = taosArrayGet(pBlock->pDataBlock, i);
+      if (pExisting == NULL || pExisting->info.type != type || pExisting->info.bytes != bytes ||
+          (IS_DECIMAL_TYPE(type) && (pExisting->info.precision != precision || pExisting->info.scale != scale))) {
+        return blockDecodeInvalidMessage();
+      }
+    }
+
+    uint32_t decodedColLen = ntohl((uint32_t)encodedColLen);
+    if (decodedColLen > INT32_MAX) return blockDecodeInvalidMessage();
+
+    size_t columnMetaLen = 0;
+    if (IS_VAR_DATA_TYPE(type)) {
+      if (!blockDecodeMultiplyBounded((size_t)numOfRows, sizeof(int32_t), &columnMetaLen)) {
+        return blockDecodeInvalidMessage();
+      }
+    } else {
+      if (existingCols == 0 && ((type == TSDB_DATA_TYPE_NULL && bytes != CHAR_BYTES && bytes != TYPE_BYTES[type]) ||
+                                (type != TSDB_DATA_TYPE_NULL && bytes != TYPE_BYTES[type]))) {
+        return blockDecodeInvalidMessage();
+      }
+      columnMetaLen = ((size_t)numOfRows + 7) >> NBIT;
+      if (type != TSDB_DATA_TYPE_NULL) {
+        size_t fixedDataLen = 0;
+        if (bytes <= 0 || !blockDecodeMultiplyBounded((size_t)numOfRows, (size_t)bytes, &fixedDataLen) ||
+            fixedDataLen > INT32_MAX || fixedDataLen != decodedColLen) {
+          return blockDecodeInvalidMessage();
+        }
+      } else if (decodedColLen != 0) {
+        return blockDecodeInvalidMessage();
+      }
+    }
+
+    size_t columnMetaOffset = offset;
+    if (!blockDecodeSkipBounded(dataLen, &offset, columnMetaLen)) return blockDecodeInvalidMessage();
+    size_t columnDataOffset = offset;
+    if (!blockDecodeSkipBounded(dataLen, &offset, decodedColLen) ||
+        (IS_VAR_DATA_TYPE(type) && !blockValidateVariableColumn(pData, dataLen, columnMetaOffset, columnDataOffset,
+                                                                numOfRows, type, decodedColLen))) {
+      return blockDecodeInvalidMessage();
+    }
+  }
+
+  if (!blockDecodeSkipBounded(dataLen, &offset, sizeof(bool))) return blockDecodeInvalidMessage();
+  if (offset < dataLen && !blockDecodeSkipBounded(dataLen, &offset, sizeof(uint8_t) + sizeof(uint64_t))) {
+    return blockDecodeInvalidMessage();
+  }
+  if (offset < dataLen) {
+    size_t slotIdsLen = 0;
+    if (!blockDecodeMultiplyBounded((size_t)numOfCols, sizeof(int16_t), &slotIdsLen) ||
+        !blockDecodeSkipBounded(dataLen, &offset, slotIdsLen)) {
+      return blockDecodeInvalidMessage();
+    }
+  }
+
+  return offset == dataLen ? TSDB_CODE_SUCCESS : blockDecodeInvalidMessage();
+}
+
+int32_t blockDecodeInternalBounded(SSDataBlock* pBlock, const char* pData, size_t dataLen, const char** pEndPos) {
+  if (pBlock == NULL) return blockDecodeInvalidMessage();
+  int32_t code = blockValidateInternalEncoding(pBlock, pData, dataLen);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (pBlock->pDataBlock != NULL && taosArrayGetSize(pBlock->pDataBlock) == 0) blockDataFreeRes(pBlock);
+  return blockDecodeInternal(pBlock, pData, pEndPos);
+}
+
 int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos) {
   return blockDecodeImpl(pBlock, pData, pEndPos, false);
 }

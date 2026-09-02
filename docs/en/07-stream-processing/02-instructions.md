@@ -81,6 +81,9 @@ Notes:
 - You can specify a time range (based on event time) for which the stream should be recalculated. If no end time (end_time) is specified, the recalculation range extends from the given start time (start_time) up to the stream’s current processing progress at the moment the manual recalculation is initiated.
 - Manual recalculation is not supported for scheduled triggers (PERIOD) but is supported for all other trigger types.
 - For count window triggers, both the start time and end time must be specified. Recalculation applies only to intervals that the stream has already processed. If the specified range includes intervals that the stream has not yet begun processing, those portions are automatically ignored. During recalculation, trigger windows are re-partitioned within the specified interval. This may cause misalignment between the new windows and those computed previously. As a result, users may need to manually delete the existing results for that interval from the output table to avoid duplicate results. Similarly, if no end time is specified, the recalculation request will be ignored. For scenarios that require recalculation from a certain start time with no defined end, the recommended approach is to drop the stream, recreate it, and specify FILL_HISTORY_FIRST.
+- A successful SQL response means that the recalculation request was accepted; it does not mean that recalculation has finished. Use `recalc_id` and `information_schema.ins_stream_recalculates` to monitor the request.
+- Recalculation runs in the background. If the service or stream task restarts or is redeployed before the request reaches a terminal state, the unfinished request is restored and continues processing.
+- Transient execution failures are retried automatically. Do not resubmit the same request only because it is still `Pending` or `Running`; inspect `status`, `progress`, and `message` first.
 
 ### Atypical Data Ingestion Scenarios
 

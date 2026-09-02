@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 from taosanalytics.algo.dynamic.detector import BaseModelAnomalyDetector
+from taosanalytics.algo.dynamic.model_loader import ModelLoader
 from taosanalytics.log import AppLogger
 
 
@@ -84,9 +85,7 @@ class BaseModelRegressioner(ABC):
         """Apply pipeline preprocessing if pipeline_state is available."""
         pipeline_state = self.model_info.get("_pipeline_state")
         if pipeline_state:
-            X = BaseModelAnomalyDetector._apply_pipeline_preprocessing(
-                X, pipeline_state
-            )
+            X = ModelLoader.apply_pipeline_preprocessing(X, pipeline_state)
         return X
 
     def _to_prediction_list(self, model, X: np.ndarray) -> list:

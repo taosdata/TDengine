@@ -346,9 +346,10 @@ static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType
   char    normBuf[TD_TIMEZONE_LEN] = {0};
   int32_t code = taosValidateAndNormalizeTimezone(value, normBuf, sizeof(normBuf), NULL);
   if (code != TSDB_CODE_SUCCESS) {
-    uError("cfg:%s, type:%s src:%s, invalid timezone value '%s'", pItem->name, cfgDtypeStr(pItem->dtype),
-           cfgStypeStr(stype), value);
-    TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+    uError("cfg:%s, type:%s src:%s, failed to validate timezone '%s', "
+           "code:0x%x - %s", pItem->name, cfgDtypeStr(pItem->dtype),
+           cfgStypeStr(stype), value, code, tstrerror(code));
+    TAOS_RETURN(code);
   }
 
   TAOS_CHECK_RETURN(osSetTimezone(normBuf));

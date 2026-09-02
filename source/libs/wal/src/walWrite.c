@@ -264,6 +264,41 @@ _exit:
   TAOS_RETURN(code);
 }
 
+// Pick a level-0 tfs disk for the next WAL segment. Always uses level 0 (never falls
+// through to level 1/2, unlike tfsAllocDisk's tiering fallback) since WAL must stay on
+// the hottest tier. Falls back to the primary directory (id = -1) when tfs is unbound,
+// the walMultiMountEnable switch is off, or no level-0 disk currently has room -- the
+// roll must never be blocked by a placement decision.
+int32_t walTfsAllocDisk(SWal *pWal, SDiskID *pDiskId) {
+  pDiskId->level = 0;
+  pDiskId->id = -1;
+  if (pWal->pTfs == NULL || !tsWalMultiMountEnable) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+  int32_t code = tfsAllocDiskAtLevel(pWal->pTfs, 0, "wal", pDiskId);
+  if (code != TSDB_CODE_SUCCESS) {
+    pDiskId->level = 0;
+    pDiskId->id = -1;
+    code = TSDB_CODE_SUCCESS;
+  }
+  TAOS_RETURN(code);
+}
+
+// Resolve the on-disk directory for the given diskId and make sure it exists.
+int32_t walResolveSegDir(SWal *pWal, SDiskID diskId, char *dirBuf, int32_t bufLen) {
+  if (diskId.id < 0 || pWal->pTfs == NULL) {
+    tstrncpy(dirBuf, pWal->path, bufLen);
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+  const char *diskPath = tfsGetDiskPath(pWal->pTfs, diskId);
+  if (diskPath == NULL) {
+    tstrncpy(dirBuf, pWal->path, bufLen);
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+  TAOS_UNUSED(snprintf(dirBuf, bufLen, "%s%s%s", diskPath, TD_DIRSEP, pWal->relDir));
+  TAOS_RETURN(tfsMkdirRecurAt(pWal->pTfs, pWal->relDir, diskId));
+}
+
 int32_t walRollImpl(SWal *pWal) {
   int32_t code = 0, lino = 0;
 
@@ -294,16 +329,30 @@ int32_t walRollImpl(SWal *pWal) {
   // create new file
   int64_t newFileFirstVer = pWal->vers.lastVer + 1;
   char    fnameStr[WAL_FILE_LEN];
-  walBuildIdxName(pWal, newFileFirstVer, fnameStr);
+
+  // Pick the disk for this new segment before opening any file. fileInfoSet does not
+  // yet contain an entry for newFileFirstVer, so we cannot resolve it through
+  // walResolveFileDir here -- build the names directly against the resolved segDir
+  // via the *At variants instead.
+  SDiskID diskId;
+  char    segDir[WAL_PATH_LEN];
+  TAOS_CHECK_GOTO(walTfsAllocDisk(pWal, &diskId), &lino, _exit);
+  TAOS_CHECK_GOTO(walResolveSegDir(pWal, diskId, segDir, sizeof(segDir)), &lino, _exit);
+
+  walBuildIdxNameAt(segDir, newFileFirstVer, fnameStr);
   pIdxFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE | TD_FILE_APPEND);
   TSDB_CHECK_NULL(pIdxFile, code, lino, _exit, terrno);
 
-  walBuildLogName(pWal, newFileFirstVer, fnameStr);
+  walBuildLogNameAt(segDir, newFileFirstVer, fnameStr);
   pLogFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE | TD_FILE_APPEND);
   wDebug("vgId:%d, wal create new file for write:%s", pWal->cfg.vgId, fnameStr);
   TSDB_CHECK_NULL(pLogFile, code, lino, _exit, terrno);
 
   TAOS_CHECK_GOTO(walRollFileInfo(pWal), &lino, _exit);
+  // Record the chosen disk on the just-registered segment so every subsequent lookup
+  // (walBuildLogName/walBuildIdxName/walBuildTxnName via walResolveFileDir, including
+  // the walTxnFilesRotate call right below) resolves to the same directory.
+  ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->diskId = diskId;
 
   // switch file
   pWal->pIdxFile = pIdxFile;

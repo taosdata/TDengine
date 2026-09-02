@@ -26,6 +26,7 @@
 #include <string>
 #include <vector>
 
+#include "functionMgt.h"
 #include "streamMsg.h"
 #include "streamReader.h"
 #include "tarray.h"
@@ -76,6 +77,130 @@ SResolveWorkItem mkWorkItem(const char *db, const char *tb, const char *col, int
   return w;
 }
 
+SNode *makeStreamRangePlaceholder(const char *name, int32_t layerIndex = -1) {
+  const int32_t funcId = fmGetFuncId(name);
+  EXPECT_GE(funcId, 0);
+  SFunctionNode *func = nullptr;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_FUNCTION, reinterpret_cast<SNode **>(&func)));
+  if (func == nullptr) return nullptr;
+  func->funcId = funcId;
+  func->funcType = fmGetFuncTypeFromId(funcId);
+  func->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  func->node.resType.bytes = sizeof(int64_t);
+
+  SValueNode *result = nullptr;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode **>(&result)));
+  if (result == nullptr) {
+    nodesDestroyNode(reinterpret_cast<SNode *>(func));
+    return nullptr;
+  }
+  result->node.resType = func->node.resType;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&func->pParameterList, reinterpret_cast<SNode *>(result)));
+  if (layerIndex >= 0) {
+    SValueNode *layer = nullptr;
+    EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode **>(&layer)));
+    if (layer == nullptr) {
+      nodesDestroyNode(reinterpret_cast<SNode *>(func));
+      return nullptr;
+    }
+    layer->node.resType.type = TSDB_DATA_TYPE_INT;
+    layer->node.resType.bytes = sizeof(int32_t);
+    layer->datum.i = layerIndex;
+    EXPECT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&func->pParameterList, reinterpret_cast<SNode *>(layer)));
+  }
+  return reinterpret_cast<SNode *>(func);
+}
+
+SNode *makeStreamRangeBound(EOperatorType opType, const char *placeholder, int32_t layerIndex = -1) {
+  SColumnNode *column = nullptr;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, reinterpret_cast<SNode **>(&column)));
+  if (column == nullptr) return nullptr;
+  column->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  column->node.resType.bytes = sizeof(int64_t);
+  column->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+
+  SOperatorNode *op = nullptr;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_OPERATOR, reinterpret_cast<SNode **>(&op)));
+  if (op == nullptr) {
+    nodesDestroyNode(reinterpret_cast<SNode *>(column));
+    return nullptr;
+  }
+  op->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  op->node.resType.bytes = sizeof(bool);
+  op->opType = opType;
+  op->pLeft = reinterpret_cast<SNode *>(column);
+  op->pRight = makeStreamRangePlaceholder(placeholder, layerIndex);
+  if (op->pRight == nullptr) {
+    nodesDestroyNode(reinterpret_cast<SNode *>(op));
+    return nullptr;
+  }
+  return reinterpret_cast<SNode *>(op);
+}
+
+void setNodeGroupReadRange(SStreamRuntimeFuncInfo *runtime, int32_t index, int64_t gid, int64_t firstStart,
+                           int64_t lastEnd) {
+  auto *read = static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(runtime->curGrpRead, index));
+  ASSERT_NE(nullptr, read);
+  read->gid = gid;
+  read->firstParam.wstart = firstStart;
+  read->lastParam.wend = lastEnd;
+}
+
+void appendNodeGroupRangeContext(SStreamRuntimeFuncInfo *runtime, int64_t gid, int32_t readInfoIndex, int64_t start,
+                                 int64_t end) {
+  if (runtime->pContextPolicy == nullptr) {
+    runtime->pContextPolicy = static_cast<SStreamContextPolicy *>(taosMemoryCalloc(1, sizeof(SStreamContextPolicy)));
+    ASSERT_NE(nullptr, runtime->pContextPolicy);
+    runtime->pContextPolicy->pEntries = taosArrayInit(2, sizeof(SStreamContextPolicyEntry));
+    ASSERT_NE(nullptr, runtime->pContextPolicy->pEntries);
+  }
+  SStreamContextPolicyEntry policy = {};
+  policy.gid = gid;
+  policy.paramIndex = 0;
+  policy.contextPolicy = STREAM_CONTEXT_POLICY_ANCESTOR;
+  ASSERT_NE(nullptr, taosArrayPush(runtime->pContextPolicy->pEntries, &policy));
+
+  if (runtime->pAncestorContext == nullptr) {
+    runtime->pAncestorContext =
+        static_cast<SStreamAncestorContext *>(taosMemoryCalloc(1, sizeof(SStreamAncestorContext)));
+    ASSERT_NE(nullptr, runtime->pAncestorContext);
+    runtime->pAncestorContext->pParamContexts = taosArrayInit(2, sizeof(SStreamAncestorParamContext));
+    runtime->pAncestorContext->pReadScopeBindings = taosArrayInit(2, sizeof(SStreamReadScopeBinding));
+    ASSERT_NE(nullptr, runtime->pAncestorContext->pParamContexts);
+    ASSERT_NE(nullptr, runtime->pAncestorContext->pReadScopeBindings);
+  }
+  SStreamAncestorParamContext context = {};
+  context.paramIndex = 0;
+  context.leafIdentity.gid = gid;
+  context.leafIdentity.triggerType = WINDOW_TYPE_COUNT;
+  context.leafIdentity.lineage.pScopes = taosArrayInit(1, sizeof(SScopeInstanceId));
+  ASSERT_NE(nullptr, context.leafIdentity.lineage.pScopes);
+  SScopeInstanceId scope = {};
+  scope.layerIndex = 0;
+  scope.triggerType = WINDOW_TYPE_INTERVAL;
+  scope.openingTs = start;
+  scope.nativeDiscriminator = gid;
+  ASSERT_NE(nullptr, taosArrayPush(context.leafIdentity.lineage.pScopes, &scope));
+  context.pSnapshots = taosArrayInit(1, sizeof(SWindowAncestorSnapshot));
+  ASSERT_NE(nullptr, context.pSnapshots);
+  SWindowAncestorSnapshot snapshot = {};
+  snapshot.layerIndex = 0;
+  snapshot.triggerType = WINDOW_TYPE_INTERVAL;
+  snapshot.placeholderMask = PLACE_HOLDER_WSTART | PLACE_HOLDER_WEND;
+  snapshot.values.window.start = start;
+  snapshot.values.window.end = end;
+  ASSERT_NE(nullptr, taosArrayPush(context.pSnapshots, &snapshot));
+  ASSERT_NE(nullptr, taosArrayPush(runtime->pAncestorContext->pParamContexts, &context));
+
+  SStreamReadScopeBinding binding = {};
+  binding.vgId = 7;
+  binding.readInfoIndex = readInfoIndex;
+  binding.scope.gid = gid;
+  binding.scope.lineage.pScopes = taosArrayDup(context.leafIdentity.lineage.pScopes, nullptr);
+  ASSERT_NE(nullptr, binding.scope.lineage.pScopes);
+  ASSERT_NE(nullptr, taosArrayPush(runtime->pAncestorContext->pReadScopeBindings, &binding));
+}
+
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -84,6 +209,249 @@ SResolveWorkItem mkWorkItem(const char *db, const char *tb, const char *col, int
 
 TEST(VnodeStreamVTableHelpers, tagValueEqual_BothNullEqual) {
   EXPECT_TRUE(tagValueEqual(nullptr, nullptr));
+}
+
+TEST(VnodeStreamGroupReadTest, NodeBatchUnionsRawAndCalculatedReadRanges) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.isMultiGroupCalc = true;
+  runtime.curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 2);
+  ASSERT_NE(nullptr, runtime.curGrpRead);
+  auto *first = static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(runtime.curGrpRead, 0));
+  auto *second = static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(runtime.curGrpRead, 1));
+  ASSERT_NE(nullptr, first);
+  ASSERT_NE(nullptr, second);
+  setNodeGroupReadRange(&runtime, 0, 101, 1000, 1080);
+  setNodeGroupReadRange(&runtime, 1, 202, 3000, 3050);
+  appendNodeGroupRangeContext(&runtime, 101, 0, 100, 180);
+  appendNodeGroupRangeContext(&runtime, 202, 1, 300, 350);
+
+  STimeWindow range = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, vnodeCollectNodeGroupReadRange(&runtime, &range));
+  EXPECT_EQ(1000, range.skey);
+  EXPECT_EQ(3050, range.ekey);
+
+  STimeRangeNode node = {};
+  node.type = QUERY_NODE_TIME_RANGE;
+  node.needCalc = true;
+  node.pStart = makeStreamRangeBound(OP_TYPE_GREATER_EQUAL, "_twstart", 0);
+  node.pEnd = makeStreamRangeBound(OP_TYPE_LOWER_EQUAL, "_twend", 0);
+  ASSERT_NE(nullptr, node.pStart);
+  ASSERT_NE(nullptr, node.pEnd);
+  SStreamRuntimeFuncInfo temporary = {};
+  temporary.pStreamPesudoFuncVals = taosArrayInit_s(sizeof(SSTriggerCalcParam), 1);
+  ASSERT_NE(nullptr, temporary.pStreamPesudoFuncVals);
+  bool calculatedValid = false;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            vnodeCalculateNodeGroupReadRange(&node, &runtime, &temporary, 7, &range, &calculatedValid));
+  EXPECT_TRUE(calculatedValid);
+  EXPECT_EQ(100, range.skey);
+  EXPECT_EQ(350, range.ekey);
+
+  nodesDestroyNode(node.pStart);
+  nodesDestroyNode(node.pEnd);
+  tDestroyStRtFuncInfo(&temporary);
+  tDestroyStreamContextPolicy(&runtime.pContextPolicy);
+  tDestroyStreamAncestorContext(&runtime.pAncestorContext);
+  taosArrayDestroy(runtime.curGrpRead);
+}
+
+TEST(VnodeStreamGroupReadTest, RejectsCalculatedHalfOpenUpperAtInt64Min) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.isMultiGroupCalc = true;
+  runtime.curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 1);
+  ASSERT_NE(nullptr, runtime.curGrpRead);
+  setNodeGroupReadRange(&runtime, 0, 101, INT64_MIN, INT64_MIN);
+
+  STimeRangeNode node = {};
+  node.type = QUERY_NODE_TIME_RANGE;
+  node.needCalc = true;
+  node.pStart = makeStreamRangeBound(OP_TYPE_GREATER_EQUAL, "_twstart");
+  node.pEnd = makeStreamRangeBound(OP_TYPE_LOWER_THAN, "_twend");
+  ASSERT_NE(nullptr, node.pStart);
+  ASSERT_NE(nullptr, node.pEnd);
+  SStreamRuntimeFuncInfo temporary = {};
+  temporary.pStreamPesudoFuncVals = taosArrayInit_s(sizeof(SSTriggerCalcParam), 1);
+  ASSERT_NE(nullptr, temporary.pStreamPesudoFuncVals);
+  STimeWindow range = {};
+  bool        rangeValid = false;
+
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA,
+            vnodeCalculateNodeGroupReadRange(&node, &runtime, &temporary, 7, &range, &rangeValid));
+  EXPECT_FALSE(rangeValid);
+
+  nodesDestroyNode(node.pStart);
+  nodesDestroyNode(node.pEnd);
+  tDestroyStRtFuncInfo(&temporary);
+  taosArrayDestroy(runtime.curGrpRead);
+}
+
+TEST(VnodeStreamGroupReadTest, RejectsCalculatedExclusiveLowerOverflow) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.isMultiGroupCalc = true;
+  runtime.curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 1);
+  ASSERT_NE(nullptr, runtime.curGrpRead);
+  setNodeGroupReadRange(&runtime, 0, 101, INT64_MAX, INT64_MAX);
+
+  STimeRangeNode node = {};
+  node.type = QUERY_NODE_TIME_RANGE;
+  node.needCalc = true;
+  node.pStart = makeStreamRangeBound(OP_TYPE_GREATER_THAN, "_twstart");
+  node.pEnd = makeStreamRangeBound(OP_TYPE_LOWER_THAN, "_twend");
+  ASSERT_NE(nullptr, node.pStart);
+  ASSERT_NE(nullptr, node.pEnd);
+  SStreamRuntimeFuncInfo temporary = {};
+  temporary.pStreamPesudoFuncVals = taosArrayInit_s(sizeof(SSTriggerCalcParam), 1);
+  ASSERT_NE(nullptr, temporary.pStreamPesudoFuncVals);
+  STimeWindow range = {};
+  bool        rangeValid = false;
+
+  EXPECT_EQ(TSDB_CODE_OUT_OF_RANGE,
+            vnodeCalculateNodeGroupReadRange(&node, &runtime, &temporary, 7, &range, &rangeValid));
+  EXPECT_FALSE(rangeValid);
+
+  nodesDestroyNode(node.pStart);
+  nodesDestroyNode(node.pEnd);
+  tDestroyStRtFuncInfo(&temporary);
+  taosArrayDestroy(runtime.curGrpRead);
+}
+
+TEST(VnodeStreamGroupReadTest, RejectsCalculatedInclusiveUpperOverflow) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.isMultiGroupCalc = true;
+  runtime.curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 1);
+  ASSERT_NE(nullptr, runtime.curGrpRead);
+  setNodeGroupReadRange(&runtime, 0, 101, INT64_MIN, INT64_MAX);
+
+  STimeRangeNode node = {};
+  node.type = QUERY_NODE_TIME_RANGE;
+  node.needCalc = true;
+  node.pStart = makeStreamRangeBound(OP_TYPE_GREATER_EQUAL, "_twstart");
+  node.pEnd = makeStreamRangeBound(OP_TYPE_LOWER_EQUAL, "_twend");
+  ASSERT_NE(nullptr, node.pStart);
+  ASSERT_NE(nullptr, node.pEnd);
+  SStreamRuntimeFuncInfo temporary = {};
+  temporary.pStreamPesudoFuncVals = taosArrayInit_s(sizeof(SSTriggerCalcParam), 1);
+  ASSERT_NE(nullptr, temporary.pStreamPesudoFuncVals);
+  STimeWindow range = {};
+  bool        rangeValid = false;
+
+  EXPECT_EQ(TSDB_CODE_OUT_OF_RANGE,
+            vnodeCalculateNodeGroupReadRange(&node, &runtime, &temporary, 7, &range, &rangeValid));
+  EXPECT_FALSE(rangeValid);
+
+  nodesDestroyNode(node.pStart);
+  nodesDestroyNode(node.pEnd);
+  tDestroyStRtFuncInfo(&temporary);
+  taosArrayDestroy(runtime.curGrpRead);
+}
+
+TEST(VnodeStreamGroupReadTest, PreservesCalculatedEmptyReadRange) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.isMultiGroupCalc = true;
+  runtime.curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 1);
+  ASSERT_NE(nullptr, runtime.curGrpRead);
+  setNodeGroupReadRange(&runtime, 0, 101, 300, 200);
+
+  STimeRangeNode node = {};
+  node.type = QUERY_NODE_TIME_RANGE;
+  node.needCalc = true;
+  node.pStart = makeStreamRangeBound(OP_TYPE_GREATER_EQUAL, "_twstart");
+  node.pEnd = makeStreamRangeBound(OP_TYPE_LOWER_THAN, "_twend");
+  ASSERT_NE(nullptr, node.pStart);
+  ASSERT_NE(nullptr, node.pEnd);
+  SStreamRuntimeFuncInfo temporary = {};
+  temporary.pStreamPesudoFuncVals = taosArrayInit_s(sizeof(SSTriggerCalcParam), 1);
+  ASSERT_NE(nullptr, temporary.pStreamPesudoFuncVals);
+  STimeWindow range = {};
+  bool        rangeValid = false;
+
+  range.skey = 11;
+  range.ekey = 22;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, vnodeCalculateNodeGroupReadRange(&node, &runtime, &temporary, 7, &range, &rangeValid));
+  EXPECT_FALSE(rangeValid);
+  EXPECT_EQ(11, range.skey);
+  EXPECT_EQ(22, range.ekey);
+
+  nodesDestroyNode(node.pStart);
+  nodesDestroyNode(node.pEnd);
+  tDestroyStRtFuncInfo(&temporary);
+  taosArrayDestroy(runtime.curGrpRead);
+}
+
+TEST(VnodeStreamGroupReadTest, SkipsCalculatedEmptySegmentWhenUnioningRanges) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.isMultiGroupCalc = true;
+  runtime.curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 2);
+  ASSERT_NE(nullptr, runtime.curGrpRead);
+  setNodeGroupReadRange(&runtime, 0, 101, 300, 200);
+  setNodeGroupReadRange(&runtime, 1, 202, 100, 180);
+
+  STimeRangeNode node = {};
+  node.type = QUERY_NODE_TIME_RANGE;
+  node.needCalc = true;
+  node.pStart = makeStreamRangeBound(OP_TYPE_GREATER_EQUAL, "_twstart");
+  node.pEnd = makeStreamRangeBound(OP_TYPE_LOWER_THAN, "_twend");
+  ASSERT_NE(nullptr, node.pStart);
+  ASSERT_NE(nullptr, node.pEnd);
+  SStreamRuntimeFuncInfo temporary = {};
+  temporary.pStreamPesudoFuncVals = taosArrayInit_s(sizeof(SSTriggerCalcParam), 1);
+  ASSERT_NE(nullptr, temporary.pStreamPesudoFuncVals);
+  STimeWindow range = {};
+  bool        rangeValid = false;
+
+  EXPECT_EQ(TSDB_CODE_SUCCESS, vnodeCalculateNodeGroupReadRange(&node, &runtime, &temporary, 7, &range, &rangeValid));
+  EXPECT_TRUE(rangeValid);
+  EXPECT_EQ(100, range.skey);
+  EXPECT_EQ(179, range.ekey);
+
+  nodesDestroyNode(node.pStart);
+  nodesDestroyNode(node.pEnd);
+  tDestroyStRtFuncInfo(&temporary);
+  taosArrayDestroy(runtime.curGrpRead);
+}
+
+TEST(VnodeStreamGroupReadTest, RejectsRawSlidingHalfOpenUpperAtInt64Min) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.isMultiGroupCalc = true;
+  runtime.triggerType = STREAM_TRIGGER_SLIDING;
+  runtime.curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 1);
+  ASSERT_NE(nullptr, runtime.curGrpRead);
+  setNodeGroupReadRange(&runtime, 0, 101, INT64_MIN, INT64_MIN);
+
+  STimeRangeNode node = {};
+  node.type = QUERY_NODE_TIME_RANGE;
+  node.needCalc = false;
+  SStreamRuntimeFuncInfo temporary = {};
+  STimeWindow            range = {};
+  bool                   rangeValid = false;
+
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA,
+            vnodeCalculateNodeGroupReadRange(&node, &runtime, &temporary, 7, &range, &rangeValid));
+  EXPECT_FALSE(rangeValid);
+
+  taosArrayDestroy(runtime.curGrpRead);
+}
+
+TEST(VnodeStreamGroupReadTest, RejectsInvalidRawRangeAfterValidEntry) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.isMultiGroupCalc = true;
+  runtime.curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 2);
+  ASSERT_NE(nullptr, runtime.curGrpRead);
+  setNodeGroupReadRange(&runtime, 0, 101, 100, 200);
+  setNodeGroupReadRange(&runtime, 1, 202, 300, 250);
+
+  STimeRangeNode node = {};
+  node.type = QUERY_NODE_TIME_RANGE;
+  node.needCalc = false;
+  SStreamRuntimeFuncInfo temporary = {};
+  STimeWindow            range = {};
+  bool                   rangeValid = false;
+
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA,
+            vnodeCalculateNodeGroupReadRange(&node, &runtime, &temporary, 7, &range, &rangeValid));
+  EXPECT_FALSE(rangeValid);
+
+  taosArrayDestroy(runtime.curGrpRead);
 }
 
 TEST(VnodeStreamVTableHelpers, tagValueEqual_OneNullDiffer) {

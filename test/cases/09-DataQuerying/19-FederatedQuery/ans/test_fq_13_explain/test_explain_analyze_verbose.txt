@@ -7402,11 +7402,11 @@ RESULT
          Time Range: [0, 0]
          Merge ResBlocks: True
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=0 width=16)
             Output: columns=2 width=16
             Source: 127.0.0.1:15434 user=postgres
+            Remote rows=0, blocks=<BLOCKS>, elapsed=<TIME>ms
             Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
-            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
    InitPlan 1
       -> Fill (cost=<COST> rows=0 mode=null width=16 input_order=asc)
@@ -7519,11 +7519,11 @@ RESULT
          Time Range: [0, 0]
          Merge ResBlocks: True
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=0 width=16)
             Output: columns=2 width=16
             Source: 127.0.0.1:15434 user=postgres
+            Remote rows=0, blocks=<BLOCKS>, elapsed=<TIME>ms
             Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
-            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
    InitPlan 1
       -> Fill (cost=<COST> rows=0 mode=null width=16 input_order=asc)
@@ -7636,11 +7636,11 @@ RESULT
          Time Range: [0, 0]
          Merge ResBlocks: True
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=0 width=16)
             Output: columns=2 width=16
             Source: 127.0.0.1:15434 user=postgres
+            Remote rows=0, blocks=<BLOCKS>, elapsed=<TIME>ms
             Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
-            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
    InitPlan 1
       -> Fill (cost=<COST> rows=0 mode=null width=16 input_order=asc)

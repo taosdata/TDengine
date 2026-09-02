@@ -277,6 +277,50 @@ class AnomalyDetectionTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             s.set_input_list([[1.0, 2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], None)
 
+    def test_pyod_statistical_algorithms(self):
+        """Test PyOD statistical anomaly detection algorithms."""
+        algos = ("ecod", "hbos", "copod", "iforest", "pca")
+        services = {algo: loader.get_service(algo) for algo in algos}
+
+        feature_1 = [1.0 + (i % 5) * 0.02 for i in range(40)] + [20.0, 22.0]
+        feature_2 = [2.0 + (i % 5) * 0.03 for i in range(40)] + [35.0, 40.0]
+
+        for algo, service in services.items():
+            with self.subTest(algo=algo):
+                self.assertTrue(service is not None, f"failed to get {algo} service")
+                service.set_input_list([feature_1, feature_2], None)
+                service.set_params({"contamination": 0.1})
+
+                result = service.execute()
+
+                self.assertEqual(len(result), len(feature_1))
+                self.assertTrue(all(x in (-1, service.valid_code) for x in result))
+                self.assertEqual(result[-1], -1)
+                self.assertEqual(result[-2], -1)
+
+    def test_pyod_parameter_validation(self):
+        """Test PyOD parameter validation."""
+        s = loader.get_service("ecod")
+        self.assertTrue(s is not None, "failed to get ecod service")
+
+        with self.assertRaises(ValueError):
+            s.set_params({"contamination": 0})
+
+        s = loader.get_service("hbos")
+        self.assertTrue(s is not None, "failed to get hbos service")
+        with self.assertRaises(ValueError):
+            s.set_params({"n_bins": 1})
+
+        s = loader.get_service("iforest")
+        self.assertTrue(s is not None, "failed to get iforest service")
+        with self.assertRaises(ValueError):
+            s.set_params({"n_estimators": 0})
+
+        s = loader.get_service("pca")
+        self.assertTrue(s is not None, "failed to get pca service")
+        with self.assertRaises(ValueError):
+            s.set_params({"n_components": 0})
+
     def test_multithread_safe(self):
         """Test the multithread safe function"""
         s1 = loader.get_service("ksigma")

@@ -791,6 +791,8 @@ typedef enum ENodeType {
   QUERY_NODE_EXT_OPTION,        // helper: single OPTIONS key='val' pair node
   QUERY_NODE_EXT_ALTER_CLAUSE,  // helper: one SET clause in ALTER EXTERNAL SOURCE
   QUERY_NODE_EVENT_START_LEAF,
+  QUERY_NODE_STREAM_WINDOW_PLAN,
+  QUERY_NODE_STREAM_WINDOW_LAYER,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -1142,6 +1144,8 @@ typedef enum ENodeType {
   // ext-source virtual table series (appended to avoid disturbing pinned QUERY_NODE_SHOW_CREATE_VIEW_STMT=181 block)
   QUERY_NODE_SERIES_DECL,
   QUERY_NODE_SERIES_TAG_ASSIGN,
+  // appended to avoid disturbing pinned show-statement values
+  QUERY_NODE_FLUSH_MNODE_STMT,
 } ENodeType;
 
 typedef struct {
@@ -2896,6 +2900,7 @@ typedef struct {
   int8_t  secureDelete;  
   int8_t  securityLevel;
   int32_t parallel;       // group parallel concurrency limit for replica changes, 0 = unlimited
+  int32_t maxRows;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -4180,6 +4185,7 @@ typedef struct {
   int8_t  allowDrop;
   int8_t  secureDelete;
   int8_t  securityLevel;
+  int32_t maxRows;
 } SAlterVnodeConfigReq;
 
 int32_t tSerializeSAlterVnodeConfigReq(void* buf, int32_t bufLen, SAlterVnodeConfigReq* pReq);
@@ -5200,6 +5206,14 @@ int32_t tDeserializeSBalanceVgroupReq(void* buf, int32_t bufLen, SBalanceVgroupR
 void    tFreeSBalanceVgroupReq(SBalanceVgroupReq* pReq);
 
 typedef struct {
+  int32_t useless;  // reserved; empty request
+} SFlushMnodeReq;
+
+int32_t tSerializeSFlushMnodeReq(void* buf, int32_t bufLen, SFlushMnodeReq* pReq);
+int32_t tDeserializeSFlushMnodeReq(void* buf, int32_t bufLen, SFlushMnodeReq* pReq);
+void    tFreeSFlushMnodeReq(SFlushMnodeReq* pReq);
+
+typedef struct {
   int32_t useless;  // useless
   int32_t sqlLen;
   char*   sql;
@@ -5594,6 +5608,7 @@ typedef struct {
   bool                           reset;
   bool                           dynTbname;
   bool                           forceFetchCompleted;
+  bool                           reuseReader;
   // used for new-stream
 } SResFetchReq;
 

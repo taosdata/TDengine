@@ -674,8 +674,12 @@ SELECT `vgroups` FROM information_schema.ins_databases WHERE name = 'test';
 | 5   | `end`         | TIMESTAMP    | 重算时间范围的结束时间 |
 | 6   | `progress`    | VARCHAR(20)  | 重算进度百分比，例如 `42%` |
 | 7   | `status`      | VARCHAR(16)  | 重算状态：`Pending`、`Running`、`Finished` 或 `Failed` |
+| 8   | `request_time` | TIMESTAMP   | mnode 接受重算请求的时间 |
+| 9   | `message`     | VARCHAR(256) | 重算状态或错误信息 |
 
 已结束的重算记录从 mnode 首次观察到终态开始保留 1 小时，每个流最多保留 100 条。`Pending` 和 `Running` 记录不受该数量上限影响。记录仅保存在内存中，不保证跨进程重启保留。
+
+上述保留策略只适用于已结束的记录；未完成请求单独持久化，并可在服务或流任务重启、重新部署后恢复。
 
 ## INS_STREAM_TASKS
 

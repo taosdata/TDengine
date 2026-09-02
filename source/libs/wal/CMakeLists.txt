@@ -12,6 +12,7 @@ target_link_libraries(
     PUBLIC util
     PUBLIC common
     PUBLIC crypt
+    PUBLIC tfs
 )
 
 if(BUILD_TEST)

@@ -53,6 +53,7 @@ typedef enum EStreamOptionType {
   STREAM_TRIGGER_OPTION_EVENT_TYPE,
   STREAM_TRIGGER_OPTION_IGNORE_NODATA_TRIGGER,
   STREAM_TRIGGER_OPTION_IDLE_TIMEOUT,
+  STREAM_TRIGGER_OPTION_FLUSH_ON_OUTER_CLOSE,
 } EStreamOptionType;
 
 typedef enum EDatabaseOptionType {
@@ -558,6 +559,8 @@ SNode* createStreamOutTableNode(SAstCreateContext* pCxt, SNode* pIntoTable, SNod
 SNode* createStreamTriggerNode(SAstCreateContext* pCxt, SNode* pTriggerWindow, SNode* pTriggerTable,
                                SNodeList* pPartitionList, SNodeList* pRollupTagList, SNode* pOptions,
                                SNode* pNotification);
+SNode* createStreamWindowLayerNode(SAstCreateContext* pCxt, SNode* pWindow, SToken* pName);
+SNode* createStreamWindowPlanNode(SAstCreateContext* pCxt, SNodeList* pLayers);
 SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNodeList* pStreamList);
 SNode* createPauseStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pStream);
 SNode* createResumeStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, bool ignoreUntreated, SNode* pStream);
@@ -568,6 +571,7 @@ SNode* createKillCompactStmt(SAstCreateContext* pCxt, const SToken* pId, bool fo
 SNode* createKillBackupStmt(SAstCreateContext* pCxt, const SToken* pId);
 SNode* createKillQueryStmt(SAstCreateContext* pCxt, const SToken* pQueryId);
 SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt);
+SNode* createFlushMnodeStmt(SAstCreateContext* pCxt);
 SNode* createAssignLeaderStmt(SAstCreateContext* pCxt);
 SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt, const SToken* pVgId, bool force);
 SNode* createBalanceVgroupLeaderDBNameStmt(SAstCreateContext* pCxt, SToken* pDbName, bool force);

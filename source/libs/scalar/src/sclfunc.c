@@ -4115,12 +4115,16 @@ _end:
 
 static int32_t extractTimezoneParamString(SScalarParam *pInput, int32_t idx, char *tzBuf, int32_t bufLen) {
   if (bufLen <= 0) {
-    return TSDB_CODE_PAR_INVALID_TIMEZONE;
+    sclError("%s failed at line %d, timezone buffer is unavailable, idx:%d, "
+             "bufLen:%d", __func__, __LINE__, idx, bufLen);
+    SCL_ERR_RET(TSDB_CODE_INTERNAL_ERROR);
   }
 
   int32_t tzLen = varDataLen(pInput[idx].columnData->pData);
   if (tzLen <= 0) {
-    return TSDB_CODE_PAR_INVALID_TIMEZONE;
+    sclError("%s failed at line %d, empty timezone parameter, idx:%d",
+             __func__, __LINE__, idx);
+    SCL_ERR_RET(TSDB_CODE_INTERNAL_ERROR);
   }
 
   int32_t cpLen = TMIN(tzLen, bufLen - 1);
@@ -7235,9 +7239,10 @@ int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, ST
     gTaskScalarExtra.pStreamInfo = pStRtFuncInfo;
     gTaskScalarExtra.pStreamRange = &timeStartParas;
     TAOS_CHECK_EXIT(scalarCalculate(node->pStart, NULL, NULL, &gTaskScalarExtra));
-    
+
     if (timeStartParas.opType == OP_TYPE_GREATER_THAN) {
       // For greater than or lower than, used different param, rigth or left.
+      TAOS_CHECK_EXIT(timeStartParas.timeValue == INT64_MAX ? TSDB_CODE_OUT_OF_RANGE : TSDB_CODE_SUCCESS);
       pWinRange->skey = timeStartParas.timeValue + 1;
     } else if (timeStartParas.opType == OP_TYPE_GREATER_EQUAL) {
       pWinRange->skey = timeStartParas.timeValue;
@@ -7253,10 +7258,11 @@ int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, ST
     gTaskScalarExtra.pStreamInfo = pStRtFuncInfo;
     gTaskScalarExtra.pStreamRange = &timeEndParas;
     TAOS_CHECK_EXIT(scalarCalculate(node->pEnd, NULL, NULL, &gTaskScalarExtra));
-    
+
     if (timeEndParas.opType == OP_TYPE_LOWER_THAN) {
       pWinRange->ekey = timeEndParas.timeValue;
     } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL) {
+      TAOS_CHECK_EXIT(timeEndParas.timeValue == INT64_MAX ? TSDB_CODE_OUT_OF_RANGE : TSDB_CODE_SUCCESS);
       pWinRange->ekey = timeEndParas.timeValue + 1;
     } else {
       qError("end time range error, opType:%d", timeEndParas.opType);

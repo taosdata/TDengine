@@ -561,6 +561,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_STREAM_TRIGGER_OPTIONS:
       code = makeNode(type, sizeof(SStreamTriggerOptions), &pNode);
       break;
+    case QUERY_NODE_STREAM_WINDOW_PLAN:
+      code = makeNode(type, sizeof(SStreamWindowPlanNode), &pNode);
+      break;
+    case QUERY_NODE_STREAM_WINDOW_LAYER:
+      code = makeNode(type, sizeof(SStreamWindowLayerNode), &pNode);
+      break;
     case QUERY_NODE_LEFT_VALUE:
       code = makeNode(type, sizeof(SLeftValueNode), &pNode);
       break;
@@ -893,6 +899,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
 
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       code = makeNode(type, sizeof(SBalanceVgroupStmt), &pNode);
+      break;
+    case QUERY_NODE_FLUSH_MNODE_STMT:
+      code = makeNode(type, sizeof(SFlushMnodeStmt), &pNode);
       break;
     case QUERY_NODE_ASSIGN_LEADER_STMT:
       code = makeNode(type, sizeof(SAssignLeaderStmt), &pNode);
@@ -1876,6 +1885,12 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pTrigger->pRollupTagList);
       break;
     }
+    case QUERY_NODE_STREAM_WINDOW_PLAN:
+      nodesDestroyList(((SStreamWindowPlanNode*)pNode)->pLayers);
+      break;
+    case QUERY_NODE_STREAM_WINDOW_LAYER:
+      nodesDestroyNode(((SStreamWindowLayerNode*)pNode)->pWindow);
+      break;
     case QUERY_NODE_STREAM_CALC_RANGE: {
       SStreamCalcRangeNode* pRange = (SStreamCalcRangeNode*)pNode;
       nodesDestroyNode(pRange->pStart);
@@ -2343,6 +2358,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PAUSE_STREAM_STMT:                    // no pointer field
     case QUERY_NODE_RESUME_STREAM_STMT:                   // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_STMT:                  // no pointer field
+    case QUERY_NODE_FLUSH_MNODE_STMT:                     // no pointer field
     case QUERY_NODE_ASSIGN_LEADER_STMT:                   // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:           // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:  // no pointer field
@@ -2681,6 +2697,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pEndCond);
       nodesDestroyList(pLogicNode->pColList);
       nodesDestroyList(pLogicNode->pProjs);
+      nodesDestroyNode(pLogicNode->pWindowConditions);
       destroyExtWindowFillInfo(&pLogicNode->extFill);
       nodesDestroyNode(pLogicNode->pSubquery);
       break;
@@ -2866,6 +2883,7 @@ void nodesDestroyNode(SNode* pNode) {
       SExternalWindowPhysiNode* pPhyNode = (SExternalWindowPhysiNode*)pNode;
       nodesDestroyNode(pPhyNode->pSubquery);
       nodesDestroyNode(pPhyNode->pTimeRange);
+      nodesDestroyNode(pPhyNode->pWindowConditions);
       destroyExtWindowFillInfo(&pPhyNode->extFill);
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       break;
