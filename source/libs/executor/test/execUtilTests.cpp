@@ -7207,6 +7207,57 @@ TEST(execUtilTest, externalWindowHashFactoryForceOutputsAndDrainsIndefiniteRows)
   EXPECT_EQ(values, (std::vector<int32_t>{0, 1, 3, 6}));
 }
 
+TEST(execUtilTest, externalWindowMergeAlignedBatchDrainsWithoutStreamRuntime) {
+  ExternalWindowFactoryOwner owner;
+  ASSERT_EQ(owner.init({2}, QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL, "count", false, false, 2, true, false,
+                       false, {}, false, {}, false, false, FILL_MODE_NONE, {}, OPTR_EXEC_MODEL_BATCH),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(owner.pTaskInfo->pRoot, nullptr);
+  ASSERT_NE(owner.pTaskInfo->pStreamRuntimeInfo, nullptr);
+
+  auto *pGetParam = static_cast<SOperatorParam *>(taosMemoryCalloc(1, sizeof(SOperatorParam)));
+  auto *pExtParam =
+      static_cast<SExternalWindowOperatorParam *>(taosMemoryCalloc(1, sizeof(SExternalWindowOperatorParam)));
+  ASSERT_NE(pGetParam, nullptr);
+  ASSERT_NE(pExtParam, nullptr);
+  pExtParam->ExtWins = taosArrayInit(2, sizeof(SExtWinTimeWindow));
+  ASSERT_NE(pExtParam->ExtWins, nullptr);
+  for (int32_t window = 0; window < 2; ++window) {
+    SExtWinTimeWindow extWin = {};
+    extWin.tw.skey = kExtWinFactoryInputTs + window;
+    extWin.tw.ekey = extWin.tw.skey + 1;
+    extWin.resWinIdx = -1;
+    ASSERT_NE(taosArrayPush(pExtParam->ExtWins, &extWin), nullptr);
+  }
+  pGetParam->opType = QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW;
+  pGetParam->value = pExtParam;
+  owner.pTaskInfo->pRoot->pOperatorGetParam = pGetParam;
+
+  struct StreamRuntimeRestore {
+    SExecTaskInfo      *pTaskInfo;
+    SStreamRuntimeInfo *pRuntime;
+    ~StreamRuntimeRestore() { pTaskInfo->pStreamRuntimeInfo = pRuntime; }
+  } restore = {owner.pTaskInfo, owner.pTaskInfo->pStreamRuntimeInfo};
+  owner.pTaskInfo->pStreamRuntimeInfo = nullptr;
+  ASSERT_EQ(owner.pTaskInfo->pStreamRuntimeInfo, nullptr);
+
+  SSDataBlock *pBlock = nullptr;
+  ASSERT_EQ(owner.pTaskInfo->pRoot->fpSet.getNextFn(owner.pTaskInfo->pRoot, &pBlock), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pBlock, nullptr);
+  ASSERT_EQ(pBlock->info.rows, 2);
+
+  auto *pColumn = static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0));
+  ASSERT_NE(pColumn, nullptr);
+  ASSERT_FALSE(colDataIsNull_s(pColumn, 0));
+  ASSERT_FALSE(colDataIsNull_s(pColumn, 1));
+  EXPECT_EQ(*reinterpret_cast<int64_t *>(colDataGetData(pColumn, 0)), 1);
+  EXPECT_EQ(*reinterpret_cast<int64_t *>(colDataGetData(pColumn, 1)), 1);
+
+  pBlock = nullptr;
+  ASSERT_EQ(owner.pTaskInfo->pRoot->fpSet.getNextFn(owner.pTaskInfo->pRoot, &pBlock), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pBlock, nullptr);
+}
+
 TEST(execUtilTest, externalWindowMergeAlignedFactoryDrainsAndResets) {
   ExternalWindowFactoryOwner owner;
   ASSERT_EQ(owner.init({2}, QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL, "count", false, false, 2, true),
