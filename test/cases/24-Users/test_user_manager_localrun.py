@@ -1208,8 +1208,7 @@ class TestUserSecurity:
         
         Since: v3.4.0.0
 
-        Labels: common,ci,user
-
+        Labels: common,ci,user,integration,functional,security
         Jira: None
 
         History:

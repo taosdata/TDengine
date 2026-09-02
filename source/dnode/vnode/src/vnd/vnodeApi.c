@@ -16,6 +16,7 @@
 #include "meta.h"
 #include "storageapi.h"
 #include "vnodeInt.h"
+#include "vnodeStreamVTable.h"
 
 static void initTsdbReaderAPI(TsdReader* pReader);
 static void initMetadataAPI(SStoreMeta* pMeta);
@@ -45,6 +46,7 @@ void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdReaderReleaseDataBlock = tsdbReleaseDataBlock2;
 
   pReader->tsdReaderRetrieveBlockSMAInfo = tsdbRetrieveDatablockSMA2;
+  pReader->tsdReaderSetBlockSmaMode = tsdbReaderSetBlockSmaMode;
 
   pReader->tsdReaderNotifyClosing = (void (*)(void*))tsdbReaderSetCloseFlag;
   pReader->tsdReaderResetStatus = tsdbReaderReset2;
@@ -96,7 +98,8 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 
   pMeta->extractTagVal = (const void* (*)(const void*, int16_t, STagVal*))metaGetTableTagVal;
   pMeta->getTableTags = metaGetTableTags;
-  pMeta->getTableTagsByUid = metaGetTableTagsByUids;
+  pMeta->getTableTagsByUidVersion = metaGetTableTagsByUidsVersion;
+  pMeta->resolveVTableTagChain    = vnodeResolveVTableTagChain;
 
   pMeta->getTableUidByName = metaGetTableUidByName;
   pMeta->getTableTypeSuidByName = metaGetTableTypeSuidByName;
@@ -108,6 +111,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->getCachedTableList = metaGetCachedTableUidList;
   pMeta->putCachedTableList = metaUidFilterCachePut;
   pMeta->getStableCachedTableList = metaStableTagFilterCacheGet;
+  pMeta->warmupStableCachedTableList = metaWarmupStableTagFilterCache;
   pMeta->putStableCachedTableList = metaStableTagFilterCachePut;
 
   pMeta->metaGetCachedTbGroup = metaGetCachedTbGroup;
@@ -122,6 +126,9 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 
   pMeta->metaGetCachedRefDbs = metaGetCachedRefDbs;
   pMeta->metaPutRefDbsToCache = metaPutRefDbsToCache;
+  pMeta->hasPendingTxnEntries = vnodeHasPendingTxnEntries;
+  pMeta->metaGetCachedExtSources = metaGetCachedExtSources;
+  pMeta->metaPutExtSourcesToCache = metaPutExtSourcesToCache;
 }
 
 void initTqAPI(SStoreTqReader* pTq) {

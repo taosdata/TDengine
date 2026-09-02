@@ -1138,6 +1138,10 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
       continue;
     }
 
+    if (pCol->info.noData) {
+      continue;
+    }
+
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
       size_t metaSize = pBlock->info.rows * sizeof(int32_t);
       memcpy(pCol->varmeta.offset, pStart, metaSize);
@@ -1164,6 +1168,21 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
       pCol->varmeta.length = colLength;
       if (pCol->varmeta.length > pCol->varmeta.allocLen) {
         return TSDB_CODE_FAILED;
+      }
+    } else {
+      int32_t expected = colDataGetLength(pCol, pBlock->info.rows);
+      if (colLength != 0 && colLength != expected) {
+        // Fixed-length column: the serialized length must be exactly
+        // numOfRows * info.bytes (that is what blockDataToBuf writes).
+        // Any other value means the page column's width does not match this
+        // template block (a read/write schema mismatch); the memcpy below would
+        // then overflow pData or misread the block. Fail fast rather than only
+        // guarding against over-length. (colLength == 0 is a NULL-type column.)
+        uError("blockDataFromBuf: fixed col %d type %d length mismatch, "
+               "colLen=%d expected=%" PRId64 " (rows=%d bytes=%d)",
+               i, pCol->info.type, colLength, (int64_t)expected,
+               (int32_t)pBlock->info.rows, pCol->info.bytes);
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       }
     }
     if (colLength != 0) {
@@ -1852,6 +1871,7 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
   int32_t code = 0;
 
   dst->info = src->info;
+  dst->info.pBlockAgg = NULL;
   dst->info.pks[0].pData = NULL;
   dst->info.pks[1].pData = NULL;
   dst->info.rows = 0;
@@ -1891,6 +1911,7 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
 
   uint32_t cap = dst->info.capacity;
   dst->info = src->info;
+  dst->info.pBlockAgg = NULL;
   dst->info.pks[0].pData = NULL;
   dst->info.pks[1].pData = NULL;
   dst->info.capacity = cap;
@@ -1932,6 +1953,7 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc) {
   }
 
   pDst->info = pSrc->info;
+  pDst->info.pBlockAgg = NULL;
   code = copyPkVal(&pDst->info, &pSrc->info);
   if (code != TSDB_CODE_SUCCESS) {
     uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -1956,6 +1978,7 @@ int32_t blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx, SSDataBlo
   }
 
   pBlock->info = pDataBlock->info;
+  pBlock->info.pBlockAgg = NULL;
   pBlock->info.pks[0].pData = NULL;
   pBlock->info.pks[1].pData = NULL;
   pBlock->info.rows = 0;
@@ -2051,6 +2074,7 @@ int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataB
   TAOS_CHECK_EXIT(createDataBlock(&pDstBlock));
 
   pDstBlock->info = pDataBlock->info;
+  pDstBlock->info.pBlockAgg = NULL;
   pDstBlock->info.pks[0].pData = NULL;
   pDstBlock->info.pks[1].pData = NULL;
 
@@ -2135,6 +2159,7 @@ int32_t createOneDataBlockWithColArray(const SSDataBlock* pDataBlock, SArray* pC
   QUERY_CHECK_CODE(createDataBlock(&pDstBlock), lino, _return);
 
   pDstBlock->info = pDataBlock->info;
+  pDstBlock->info.pBlockAgg = NULL;
   pDstBlock->info.pks[0].pData = NULL;
   pDstBlock->info.pks[1].pData = NULL;
 
@@ -2760,6 +2785,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
         case TSDB_DATA_TYPE_TIMESTAMP:
           memset(pBuf, 0, sizeof(pBuf));
           code = formatTimestamp(pBuf, sizeof(pBuf), *(uint64_t*)var, pColInfoData->info.precision);
+          // uDebug("timestamp precision:%d, val:%"PRIu64, pColInfoData->info.precision, *(uint64_t*)var);
           if (code != TSDB_CODE_SUCCESS) {
             TAOS_UNUSED(snprintf(pBuf, sizeof(pBuf), "NaN"));
           }

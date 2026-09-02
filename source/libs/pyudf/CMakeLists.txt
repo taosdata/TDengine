@@ -24,7 +24,7 @@ macro(_pyudf_add_target _tgt _py_inc _py_lib _ver_short _output_name)
     target_include_directories(${_tgt} PRIVATE ${_pyudf_common_incs} "${_py_inc}")
 
     DEP_ext_plog_INC(${_tgt})
-    if(TARGET ext_plog)
+    if(NOT TD_EXTERNALS_USE_ONLY AND TARGET ext_plog)
         add_dependencies(${_tgt} ext_plog)
     endif()
 
@@ -105,6 +105,8 @@ set(_tgt "taospyudf")
 set(_oname "taospyudf")
 
 _pyudf_add_target(${_tgt} "${_py_inc}" "${_py_lib}" "${_ver_short}" "${_oname}")
-add_dependencies(${_tgt} ${_cptarget})
+if(NOT TD_EXTERNALS_USE_ONLY)
+    add_dependencies(${_tgt} ${_cptarget})
+endif()
 
 message(STATUS "[pyudf] target ${_tgt} → Python ${_ver_short} (single-library abi3 rollout mode)")

@@ -211,15 +211,71 @@ class TestStreamRecalcManual:
 
         # COUNT_WINDOW(3) means every 3 records should trigger computation
         # Initial data has 6 records, so should have 2 windows
-        # Check initial results
         tdSql.checkResultsByFunc(
-                sql=f"select count(*) from rdb.r_count_manual",
-                func=lambda: (
-                    tdSql.getRows() == 1
-                    and tdSql.getData(0, 0) >= 2
-                )
-            )
+            sql="select count(*) from rdb.r_count_manual",
+            func=lambda: tdSql.getRows() == 1 and tdSql.getData(0, 0) >= 2,
+        )
+        before_rows = self.result_rows()
+
+        tdSql.execute(
+            "insert into qdb.t0 values "
+            "('2025-01-01 02:40:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', "
+            "1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');"
+        )
+        self.assert_rows_stable(before_rows)
 
         # Test 1: Manual recalculation with time range for COUNT_WINDOW
         tdLog.info("Test COUNT_WINDOW manual recalculation with time range")
-        tdSql.error("recalculate stream rdb.s_count_manual from '2025-01-01 02:50:00' to '2025-01-01 02:52:00';")
+        tdSql.execute(
+            "recalculate stream rdb.s_count_manual from '2025-01-01 02:40:00' "
+            "to '2025-01-01 02:41:30';"
+        )
+        tdSql.checkResultsByFunc(
+            sql=self.result_sql(),
+            func=lambda: self.has_recalculated_rows(before_rows),
+        )
+
+    def result_rows(self):
+        tdSql.query(self.result_sql())
+        rows = []
+        for i in range(tdSql.getRows()):
+            rows.append(
+                (
+                    self.normalize_timestamp(tdSql.getData(i, 0)),
+                    tdSql.getData(i, 1),
+                    float(tdSql.getData(i, 2)),
+                    tdSql.getData(i, 3),
+                )
+            )
+        return rows
+
+    def result_sql(self):
+        return "select * from rdb.r_count_manual order by tag_tbname, ts"
+
+    def expected_recalculated_rows(self):
+        return [
+            ("2025-01-01 02:40:00", 101, 316.9306930693069, "cm1"),
+            ("2025-01-01 02:40:45", 100, 322.0, "cm1"),
+        ]
+
+    def has_recalculated_rows(self, before_rows):
+        rows = self.result_rows()
+        return rows != before_rows and self.rows_match(rows, self.expected_recalculated_rows())
+
+    def normalize_timestamp(self, value):
+        return str(value).removesuffix(".000")
+
+    def assert_rows_stable(self, expected_rows):
+        for _ in range(3):
+            assert self.result_rows() == expected_rows
+            time.sleep(1)
+
+    def rows_match(self, actual_rows, expected_rows):
+        if len(actual_rows) != len(expected_rows):
+            return False
+        for actual, expected in zip(actual_rows, expected_rows):
+            if actual[0] != expected[0] or actual[1] != expected[1] or actual[3] != expected[3]:
+                return False
+            if abs(actual[2] - expected[2]) > 0.000001:
+                return False
+        return True

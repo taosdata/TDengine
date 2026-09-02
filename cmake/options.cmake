@@ -128,16 +128,32 @@ endif()
 option(BUILD_TAOSD_INTEGRATED "Build taosd as integrated library"    OFF)
 option(BUILD_AS_LIB           "Build TDengine as library"            OFF)
 option(BUILD_RELEASE          "If build release version"             OFF)
+# Offline diagnostic tools for storage corruption (tools/cache-rdb-verify,
+# tools/rdb-selftest). Not part of taosd and not needed for a normal build, so
+# they stay off; enable when investigating a corruption report on a host.
+option(BUILD_DIAG_TOOLS       "If build storage diagnostic tools"    OFF)
 if(TD_LINUX)
   option(BUILD_CONTRIB        "If build thirdpart from source"       OFF)
 else()
   option(BUILD_CONTRIB        "If build thirdpart from source"       ON)
 endif()
 option(BUILD_LIBSASL          "If build libsasl2"                    ON)
+option(BUILD_LIBGSASL         "If build libgsasl (GNU SASL) for SCRAM-SHA-256 auth" ON)
 option(BUILD_FLEX_DEPLOY      "If enable flexible deployment mode"   OFF)
 option(BUILD_WITH_RAND_ERR    "If build with random error injection" OFF)
 option(BUILD_TSZ_ENABLED      "If build with TSZ compression"        ON)
 option(BUILD_USE_PUBLIC_DEPS "Use public (internet) URLs for all external dependencies instead of internal mirrors" OFF)
+
+# Runtime-pluggable accelerated L2 compression backends.
+# When ON (Linux only), taosd can dlopen a user-built drop-in zlib/zstd/lz4
+# (e.g. Intel QAT/IAA, ISA-L) at startup and route the L2 dispatch table
+# through it. If the env var is unset or the dlopen/dlsym fails, the
+# statically linked stock implementations are used unchanged.
+# Activated by: TAOS_COMPRESS_ACCEL=<dir> (or per-codec TAOS_COMPRESS_ACCEL_{ZLIB,ZSTD,LZ4}).
+# See docs/zh/26-tdinternal/11-compress.md for the symbol contract and ABI requirements.
+if(TD_LINUX)
+  option(BUILD_WITH_ACCEL_COMPRESS "Build runtime-pluggable accelerated L2 compression backends (Linux only)" OFF)
+endif()
 
 # When BUILD_RELEASE is ON, force CMAKE_BUILD_TYPE to Release so that
 # CMake built-in Release flags and ExternalProject configuration align.
@@ -145,6 +161,36 @@ if(BUILD_RELEASE)
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
   message(STATUS "[options] BUILD_RELEASE=ON => CMAKE_BUILD_TYPE forced to Release")
 endif()
+
+if(TD_ENTERPRISE)
+    option(BUILD_WITH_MARIADB "If build with MariaDB Connector/C (ext source: MySQL)" ON)
+    option(BUILD_WITH_LIBPQ   "If build with libpq (ext source: PostgreSQL)" ON)
+    option(BUILD_WITH_ARROW   "If build with Apache Arrow Flight SQL (ext source: InfluxDB)" ON)
+    option(INSTALL_FQ_RUNTIME_LIBS "Install optional federated-query runtime libraries" OFF)
+    if(TD_WINDOWS)
+        set(BUILD_WITH_MARIADB OFF CACHE BOOL
+            "If build with MariaDB Connector/C (ext source: MySQL)" FORCE)
+        set(BUILD_WITH_LIBPQ OFF CACHE BOOL
+            "If build with libpq (ext source: PostgreSQL)" FORCE)
+        set(BUILD_WITH_ARROW OFF CACHE BOOL
+            "If build with Apache Arrow Flight SQL (ext source: InfluxDB)" FORCE)
+        set(INSTALL_FQ_RUNTIME_LIBS OFF CACHE BOOL
+            "Install optional federated-query runtime libraries" FORCE)
+        message(STATUS
+            "[options] TD_WINDOWS=ON: federated query providers are disabled on Windows; "
+            "taosdump still uses ext_arrow_static when TD_TAOS_TOOLS=ON")
+    endif()
+else()
+    set(BUILD_WITH_MARIADB OFF)
+    set(BUILD_WITH_LIBPQ   OFF)
+    set(BUILD_WITH_ARROW   OFF)
+    set(INSTALL_FQ_RUNTIME_LIBS OFF)
+endif()
+
+message(STATUS "BUILD_WITH_MARIADB:${BUILD_WITH_MARIADB}")
+message(STATUS "BUILD_WITH_LIBPQ:${BUILD_WITH_LIBPQ}")
+message(STATUS "BUILD_WITH_ARROW:${BUILD_WITH_ARROW}")
+message(STATUS "INSTALL_FQ_RUNTIME_LIBS:${INSTALL_FQ_RUNTIME_LIBS}")
 
 message(STATUS
   "[options] BUILD_CONTRIB=${BUILD_CONTRIB}, BUILD_ROCKSDB=${BUILD_ROCKSDB}"

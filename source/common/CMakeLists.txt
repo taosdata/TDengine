@@ -20,6 +20,7 @@ target_include_directories(common
         ${CMAKE_SOURCE_DIR}/utils/TSZ/sz/inc      # TODO: tweak for defines.h, potential cyclic-dependencies, and need to be refactored!!!
     PUBLIC
         ${PROJECT_BINARY_DIR}/source/libs/parser    # TODO: tweak for taos_lemon_token.h, potential cyclic-dependencies!!!
+        ${TD_SOURCE_DIR}/include/libs/nodes         # for nodes.h used by tmsg.c (tEncodeTagCond)
 )
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)
@@ -54,6 +55,8 @@ target_include_directories(
 
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
   PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
+  PRIVATE "${TD_SOURCE_DIR}/include/libs/tfs"
+  PRIVATE "${TD_SOURCE_DIR}/include/libs/monitor"
 )
 
 if(TD_WINDOWS)
@@ -96,6 +99,11 @@ else()
   )
   DEP_ext_curl(common)
   DEP_ext_ssl(common)
+endif()
+
+if(${BUILD_LIBGSASL} AND ${TD_LINUX})
+  add_definitions(-DUSE_LIBGSASL)
+  DEP_ext_gsasl(common)
 endif()
 
 if(BUILD_SHARED_STORAGE)

@@ -121,7 +121,6 @@ void qWorkerRetireJob(uint64_t jobId, uint64_t clientId, int32_t errCode);
 
 void qWorkerRetireJobs(int64_t retireSize, int32_t errCode);
 
-
 #ifdef __cplusplus
 }
 #endif

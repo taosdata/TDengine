@@ -1,0 +1,170 @@
+# Test category labels (English, lowercase):
+#   unit          — isolated module/component tests (GTest/ctest, no full cluster)
+#   integration   — multi-component or multi-node end-to-end against taosd/cluster
+#   functional    — SQL/feature behavior verification
+#   compatibility — backward/forward, connector, cloud, cross-version
+#   security      — auth, encryption, firewall, privilege, injection hardening
+#
+# Pytest docstring Labels keep existing tags (common, ci, smoke, …) and append categories.
+
+pytest:
+  defaults: [functional, integration]
+
+  # Top-level catalog directories (cases/XX-Name/…)
+  directory:
+    "01-DataTypes": [functional, integration]
+    "02-Databases": [functional, integration]
+    "03-Tables": [functional, integration]
+    "04-SuperTables": [functional, integration]
+    "05-VirtualTables": [functional, integration]
+    "06-DataIngestion": [functional, integration]
+    "07-DataDeletion": [functional, integration]
+    "08-DataCompression": [functional, integration]
+    "09-DataQuerying": [functional, integration]
+    "10-Operators": [functional, integration]
+    "11-Functions": [functional, integration]
+    "12-UDFs": [functional, integration]
+    "13-TimeSeriesExt": [functional, integration]
+    "14-JoinQueries": [functional, integration]
+    "15-TagIndices": [functional, integration]
+    "16-Views": [functional, integration]
+    "17-DataSubscription": [functional, integration]
+    "18-StreamProcessing": [functional, integration]
+    "19-TSMAs": [functional, integration]
+    "20-RSMAs": [functional, integration]
+    "21-MetaData": [functional, integration]
+    "22-PerformanceData": [functional, integration]
+    "23-ShowCommands": [functional, integration]
+    "24-Users": [functional, integration, security]
+    "25-Privileges": [functional, integration, security]
+    "26-NodeManager": [functional, integration]
+    "27-Mount": [functional, integration]
+    "29-Escape": [functional, integration, security]
+    "30-NameLimits": [functional, integration]
+    "31-Security": [functional, integration, security]
+    "32-Grants": [functional, integration, security]
+    "42-Xnode": [functional, integration]
+    "70-Cluster": [functional, integration]
+    "73-TLS": [functional, integration, security]
+    "80-Components": [functional, integration]
+    "81-Tools": [functional, integration]
+    "82-UnitTest": [unit, integration]
+    "83-DocTest": [compatibility, integration]
+
+  # Sub-path overrides (matched anywhere in relative path)
+  subpath:
+    "/23-Compatibility/": [compatibility, functional, integration]
+    "/19-FederatedQuery/": [compatibility, functional, integration]
+    "/05-Sync/": [functional, integration]
+    "/10-SecurityTest/": [security, functional, integration]
+    "/11-SQLFireWall/": [security, functional, integration]
+    "/12-EncryptPassword/": [security, functional, integration]
+    "/04-TransparentEncryption/": [security, functional, integration]
+    "/07-EncryptionMultiLevel/": [security, functional, integration]
+    "/04-Taosdump/test_taosdump_compa": [compatibility, functional, integration]
+    "/03-Benchmark/": [functional, integration]
+
+  # Filename substring overrides
+  filename:
+    compatible: [compatibility]
+    compatibility: [compatibility]
+    compat: [compatibility]
+    encrypt: [security]
+    privilege: [security]
+    firewall: [security]
+    blacklist: [security]
+    whitelist: [security]
+    buffer_overflow: [security]
+    ddos: [security]
+    CVE: [security]
+    tls: [security]
+    grant: [security]
+
+  # uncatalog/ legacy paths (cases/uncatalog/…)
+  uncatalog_subpath:
+    "uncatalog/system-test/6-cluster": [functional, integration]
+    "uncatalog/system-test/7-tmq": [functional, integration]
+    "uncatalog/system-test/2-query": [functional, integration]
+    "uncatalog/system-test/99-TDcase": [functional, integration]
+    "uncatalog/system-test/0-others": [functional, integration]
+    "uncatalog/army/cluster": [functional, integration]
+    "uncatalog/army/stream": [functional, integration]
+    "uncatalog/army/storage": [functional, integration]
+    "uncatalog/army/tools": [functional, integration]
+    "uncatalog/develop-test": [functional, integration]
+
+  # Placeholder tags stripped when normalizing Labels: xxx
+  placeholders: [xxx]
+
+  # Preserve these non-category labels when rewriting
+  preserve: [common, ci, smoke]
+
+  category_labels: [unit, integration, functional, compatibility, security]
+
+# CTest / GTest binaries (unit-test job in .gitlab/.tsdb-test.yml)
+ctest:
+  defaults: [unit]
+
+  # Explicit overrides by test NAME
+  by_name:
+    checkpointEncryptionTest: [unit, security]
+    userOperTest: [unit, security]
+    userTest: [unit, security]
+    clientTest: [unit, integration]
+    clientBITest: [unit, integration]
+    clientMonitorTest: [unit, integration]
+    connectOptionsTest: [unit, integration]
+    instanceTest: [unit, integration]
+    sessionTest: [unit, integration]
+    smlTest: [unit, integration]
+    stmtTest: [unit, integration]
+    stmt2Test: [unit, integration]
+    shellTest: [functional, integration]
+    benchmarkTest: [functional, integration]
+    taosdumpTest: [functional, integration]
+    simTests: [functional, integration]
+    go_test_all: [unit, compatibility]
+    dmnodeTest: [unit, integration]
+    dvnodeTest: [unit, integration]
+    dqnodeTest: [unit, integration]
+    dsnodeTest: [unit, integration]
+    catalogTest: [unit, integration]
+    schedulerTest: [unit, integration]
+    streamRunnerTest: [unit, integration]
+    dataSinkTest: [unit, integration]
+    streamTriggerTaskTest: [unit, integration]
+    sync_test: [unit, integration]
+    wal_test: [unit, integration]
+    tq_test: [unit, integration]
+    tsdb_fs_edit_test: [unit, integration]
+    transUT: [unit, integration]
+    transUtilUt: [unit, integration]
+    transUTIPv6: [unit, integration]
+
+  # Path-based overrides (CMakeLists.txt path)
+  by_cmake_path:
+    "source/client/test": [unit, integration]
+    "tools/shell/test": [functional, integration]
+    "tools/taos-tools/test": [functional, integration]
+    "utils/tsim/test": [functional, integration]
+    "source/dnode/mgmt/test": [unit, integration]
+    "source/libs/new-stream/test": [unit, integration]
+    "source/libs/sync/test": [unit, integration]
+    "source/libs/wal/test": [unit, integration]
+    "source/dnode/vnode/test": [unit, integration]
+    "source/libs/transport/test": [unit, integration]
+    "source/libs/catalog/test": [unit, integration]
+    "source/libs/scheduler/test": [unit, integration]
+    "test/go-sql-fuzz-test": [unit, compatibility]
+
+# Non-pytest cases.task entries (shell drivers)
+shell_cases:
+  "bash 83-DocTest/python.sh": [compatibility, integration]
+  "bash 83-DocTest/rust.sh": [compatibility, integration]
+  "bash 83-DocTest/c.sh": [compatibility, integration]
+  "bash 83-DocTest/node.sh": [compatibility, integration]
+  "bash 83-DocTest/csharp.sh": [compatibility, integration]
+  "bash 83-DocTest/jdbc.sh": [compatibility, integration]
+  "bash 83-DocTest/go.sh": [compatibility, integration]
+  "bash 83-DocTest/test_R.sh": [compatibility, integration]
+  "bash 82-UnitTest/test.sh": [unit, integration]

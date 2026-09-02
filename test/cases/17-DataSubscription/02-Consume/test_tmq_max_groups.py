@@ -6,8 +6,7 @@ from taos.tmq import Consumer
 import platform
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from new_test_framework.utils import tdLog, tdSql, tdCom, tmqCom
-from new_test_framework.utils.pathFinding import find_proj_path
+from new_test_framework.utils import etool, tdLog, tdSql, tdCom, tmqCom
 
 class TestCase:
     updatecfgDict = {'debugFlag': 135}    
@@ -19,27 +18,6 @@ class TestCase:
         cls.rowsPerTbl = 10
         cls.tmqMaxTopicNum = 20
         cls.tmqMaxGroups = 100
-
-    def getPath(self, tool="taosBenchmark"):
-        if (platform.system().lower() == 'windows'):
-            tool = tool + ".exe"
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        projPath = find_proj_path(selfPath)
-
-        paths = []
-        for root, dirs, files in os.walk(projPath):
-            if ((tool) in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    paths.append(os.path.join(root, tool))
-                    break
-        if (len(paths) == 0):
-            tdLog.exit("taosBenchmark not found!")
-            return
-        else:
-            tdLog.info("taosBenchmark found in %s" % paths[0])
-            return paths[0]
 
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
@@ -166,7 +144,7 @@ class TestCase:
         pThread = tmqCom.asyncInsertDataByInterlace(paraDict)
         
         # use taosBenchmark to subscribe  
-        binPath = self.getPath()
+        binPath = etool.benchMarkFile()
         jsonfile = os.path.join(os.path.dirname(__file__), "tmqMaxGroupIds.json")
         tmqCom.startProcess(binPath, f"-f {jsonfile}")
                 
@@ -232,8 +210,7 @@ class TestCase:
         
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -244,7 +221,6 @@ class TestCase:
         self.tmqCase1()
         if platform.system().lower() == 'windows':
            os.system("taskkill /f /im taosBenchmark.exe")
-
 
 
 

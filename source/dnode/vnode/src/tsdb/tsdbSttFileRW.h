@@ -41,6 +41,7 @@ typedef TARRAY2(SSttFileReader *) TSttFileReaderArray;
 // SSttFileReader
 int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *config, SSttFileReader **reader);
 void    tsdbSttFileReaderClose(SSttFileReader **reader);
+void    tsdbSttFileReaderTrimBuffers(SSttFileReader *reader);
 
 // SSttSegReader
 int32_t tsdbSttFileReadSttBlk(SSttFileReader *reader, const TSttBlkArray **sttBlkArray);

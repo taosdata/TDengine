@@ -40,6 +40,9 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
     }
   }
 
+  // Close txn write file before we delete all segments.
+  walTxnFilesClose(pWal);
+
   TAOS_UNUSED(taosCloseFile(&pWal->pLogFile));
   TAOS_UNUSED(taosCloseFile(&pWal->pIdxFile));
 
@@ -65,6 +68,14 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
         TAOS_RETURN(terrno);
       }
       wInfo("vgId:%d, restore from snapshot, remove file %s", pWal->cfg.vgId, fnameStr);
+
+      // Remove .txn only for segments beyond the snapshot boundary.
+      // Segments with firstVer <= ver may have been populated by walSnapTxnWrite;
+      // deleting them here would discard snapshot-received .txn data.
+      if (pFileInfo->firstVer > ver) {
+        walBuildTxnName(pWal, pFileInfo->firstVer, fnameStr);
+        (void)taosRemoveFile(fnameStr);
+      }
     }
   }
 
@@ -253,6 +264,41 @@ _exit:
   TAOS_RETURN(code);
 }
 
+// Pick a level-0 tfs disk for the next WAL segment. Always uses level 0 (never falls
+// through to level 1/2, unlike tfsAllocDisk's tiering fallback) since WAL must stay on
+// the hottest tier. Falls back to the primary directory (id = -1) when tfs is unbound,
+// the walMultiMountEnable switch is off, or no level-0 disk currently has room -- the
+// roll must never be blocked by a placement decision.
+int32_t walTfsAllocDisk(SWal *pWal, SDiskID *pDiskId) {
+  pDiskId->level = 0;
+  pDiskId->id = -1;
+  if (pWal->pTfs == NULL || !tsWalMultiMountEnable) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+  int32_t code = tfsAllocDiskAtLevel(pWal->pTfs, 0, "wal", pDiskId);
+  if (code != TSDB_CODE_SUCCESS) {
+    pDiskId->level = 0;
+    pDiskId->id = -1;
+    code = TSDB_CODE_SUCCESS;
+  }
+  TAOS_RETURN(code);
+}
+
+// Resolve the on-disk directory for the given diskId and make sure it exists.
+int32_t walResolveSegDir(SWal *pWal, SDiskID diskId, char *dirBuf, int32_t bufLen) {
+  if (diskId.id < 0 || pWal->pTfs == NULL) {
+    tstrncpy(dirBuf, pWal->path, bufLen);
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+  const char *diskPath = tfsGetDiskPath(pWal->pTfs, diskId);
+  if (diskPath == NULL) {
+    tstrncpy(dirBuf, pWal->path, bufLen);
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+  TAOS_UNUSED(snprintf(dirBuf, bufLen, "%s%s%s", diskPath, TD_DIRSEP, pWal->relDir));
+  TAOS_RETURN(tfsMkdirRecurAt(pWal->pTfs, pWal->relDir, diskId));
+}
+
 int32_t walRollImpl(SWal *pWal) {
   int32_t code = 0, lino = 0;
 
@@ -283,21 +329,38 @@ int32_t walRollImpl(SWal *pWal) {
   // create new file
   int64_t newFileFirstVer = pWal->vers.lastVer + 1;
   char    fnameStr[WAL_FILE_LEN];
-  walBuildIdxName(pWal, newFileFirstVer, fnameStr);
+
+  // Pick the disk for this new segment before opening any file. fileInfoSet does not
+  // yet contain an entry for newFileFirstVer, so we cannot resolve it through
+  // walResolveFileDir here -- build the names directly against the resolved segDir
+  // via the *At variants instead.
+  SDiskID diskId;
+  char    segDir[WAL_PATH_LEN];
+  TAOS_CHECK_GOTO(walTfsAllocDisk(pWal, &diskId), &lino, _exit);
+  TAOS_CHECK_GOTO(walResolveSegDir(pWal, diskId, segDir, sizeof(segDir)), &lino, _exit);
+
+  walBuildIdxNameAt(segDir, newFileFirstVer, fnameStr);
   pIdxFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE | TD_FILE_APPEND);
   TSDB_CHECK_NULL(pIdxFile, code, lino, _exit, terrno);
 
-  walBuildLogName(pWal, newFileFirstVer, fnameStr);
+  walBuildLogNameAt(segDir, newFileFirstVer, fnameStr);
   pLogFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE | TD_FILE_APPEND);
   wDebug("vgId:%d, wal create new file for write:%s", pWal->cfg.vgId, fnameStr);
   TSDB_CHECK_NULL(pLogFile, code, lino, _exit, terrno);
 
   TAOS_CHECK_GOTO(walRollFileInfo(pWal), &lino, _exit);
+  // Record the chosen disk on the just-registered segment so every subsequent lookup
+  // (walBuildLogName/walBuildIdxName/walBuildTxnName via walResolveFileDir, including
+  // the walTxnFilesRotate call right below) resolves to the same directory.
+  ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->diskId = diskId;
 
   // switch file
   pWal->pIdxFile = pIdxFile;
   pWal->pLogFile = pLogFile;
   pWal->writeCur = taosArrayGetSize(pWal->fileInfoSet) - 1;
+
+  // Open new .txn file for the new segment (closes old one with fsync inside).
+  walTxnFilesRotate(pWal, newFileFirstVer);
 
   pWal->lastRollSeq = walGetSeq();
 
@@ -351,6 +414,11 @@ int32_t walBeginSnapshot(SWal *pWal, int64_t ver, int64_t logRetention) {
   wDebug("vgId:%d, wal begin snapshot for index:%" PRId64 ", log retention:%" PRId64 " first index:%" PRId64
          ", last index:%" PRId64,
          pWal->cfg.vgId, ver, pWal->vers.logRetention, pWal->vers.firstVer, pWal->vers.lastVer);
+
+  // Truncate speculative .txn entries beyond the snapshot boundary BEFORE rolling.
+  // This ensures the segment closed by walRollImpl does not contain entries > ver.
+  TAOS_CHECK_GOTO(walTxnTruncateCurrent(pWal, ver), &lino, _exit);
+
   // check file rolling
   if (walGetLastFileSize(pWal) != 0 && (code = walRollImpl(pWal)) < 0) goto _exit;
 
@@ -489,6 +557,9 @@ int32_t walEndSnapshot(SWal *pWal, bool forceTrim) {
   }
   taosArrayClear(pWal->toDeleteFiles);
 
+  // Trim .txn files following the same snapshot boundary (Retention rules A+B).
+  walTxnFilesTrim(pWal);
+
 _exit:
   taosThreadRwlockUnlock(&pWal->mutex);
 
@@ -536,9 +607,20 @@ static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset, const STra
 }
 
 static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta,
-                                         const void *body, int32_t bodyLen, const STraceId *trace) {
+                                         const void *body, int32_t bodyLen, txn_id_t txnId, const STraceId *trace) {
   int32_t code = 0, lino = 0;
-  int32_t plainBodyLen = bodyLen;
+  // For transaction WAL entries, the on-disk body is prefixed with [txnExtFlags:8B][txnId:8B] (16 bytes).
+  // bodyLen passed in is the original pCont length; plainBodyLen accounts for the prefix.
+  int32_t plainBodyLen = (txnId != 0) ? bodyLen + (int32_t)WAL_TXN_HDR_SIZE : bodyLen;
+
+  // Determine txnExtFlags: IS_BEGIN is set on the first WAL entry for a given txnId on this vnode.
+  // We peek at txnBeginIndexMap WITHOUT updating it yet — update happens after successful write.
+  uint64_t txnExtFlags = 0;
+  if (txnId != 0 && pWal->cfg.enableTxnFile && pWal->txnBeginIndexMap != NULL) {
+    if (taosHashGet(pWal->txnBeginIndexMap, &txnId, sizeof(int64_t)) == NULL) {
+      txnExtFlags |= WAL_TXN_EXT_IS_BEGIN;
+    }
+  }
 
   int64_t       offset = walGetCurFileOffset(pWal);
   SWalFileInfo *pFileInfo = walGetCurFileInfo(pWal);
@@ -547,14 +629,46 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   pWal->writeHead.head.bodyLen = plainBodyLen;
   pWal->writeHead.head.msgType = msgType;
   pWal->writeHead.head.ingestTs = taosGetTimestampUs();
+  if (txnId != 0) {
+    WAL_SET_TXN_MSG(&pWal->writeHead.head);
+  } else {
+    WAL_CLEAR_TXN_MSG(&pWal->writeHead.head);
+  }
 
   // sync info for sync module
   pWal->writeHead.head.syncMeta = syncMeta;
 
+  // For non-encrypted transactional entries, build the combined [txnExtFlags:8B][txnId:8B]+body
+  // buffer up front so the checksum below and the write further down both operate on the exact
+  // same bytes. Computing the checksum from two independently-seeded CRCs XOR'd together (as
+  // this used to do) does NOT equal the CRC of the concatenation for a real CRC32 (crc32c here)
+  // — CRC combination requires shifting one operand by the other's length, not a plain XOR — so
+  // that always produced a checksum that mismatched what walValidBodyCksum() checks on replay,
+  // silently corrupting every non-encrypted transactional WAL entry.
+  // Owned heap buffers are declared here — BEFORE any `goto _exit` below — so the
+  // centralized cleanup at _exit can free them on every error path without touching
+  // an uninitialized variable (jumping over an initializer leaves indeterminate value).
+  char *nonEncTxnBody = NULL;
+  char *newBody = NULL;
+  char *newBodyEncrypted = NULL;
+  if (txnId != 0 && pWal->cfg.encryptData.encryptAlgrName[0] == '\0') {
+    nonEncTxnBody = taosMemoryMalloc(plainBodyLen);
+    TSDB_CHECK_NULL(nonEncTxnBody, code, lino, _exit, terrno);
+    (void)memcpy(nonEncTxnBody, &txnExtFlags, sizeof(uint64_t));
+    (void)memcpy(nonEncTxnBody + sizeof(uint64_t), &txnId, sizeof(int64_t));
+    (void)memcpy(nonEncTxnBody + WAL_TXN_HDR_SIZE, body, bodyLen);
+  }
+
   pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
-  pWal->writeHead.cksumBody = walCalcBodyCksum(body, plainBodyLen);
-  wGDebug(trace, "vgId:%d, index:%" PRId64 ", write log, type:%s, cksum head:%u, cksum body:%u", pWal->cfg.vgId, index,
-          TMSG_INFO(msgType), pWal->writeHead.cksumHead, pWal->writeHead.cksumBody);
+  // Body checksum must cover the full on-disk body: [txnExtFlags:8B][txnId:8B] prefix + content.
+  if (nonEncTxnBody != NULL) {
+    pWal->writeHead.cksumBody = walCalcBodyCksum(nonEncTxnBody, plainBodyLen);
+  } else {
+    pWal->writeHead.cksumBody = walCalcBodyCksum(body, plainBodyLen);
+  }
+  wGDebug(trace, "vgId:%d, index:%" PRId64 ", write log, type:%s, isTxn:%d, cksum head:%u, cksum body:%u",
+          pWal->cfg.vgId, index, TMSG_INFO(msgType), (int)(txnId != 0), pWal->writeHead.cksumHead,
+          pWal->writeHead.cksumBody);
 
   if (pWal->cfg.level != TAOS_WAL_SKIP) {
     TAOS_CHECK_GOTO(walWriteIndex(pWal, index, offset, trace), &lino, _exit);
@@ -571,8 +685,6 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
   int32_t cyptedBodyLen = plainBodyLen;
   char   *buf = (char *)body;
-  char   *newBody = NULL;
-  char   *newBodyEncrypted = NULL;
 
   if (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
     cyptedBodyLen = ENCRYPTED_LEN(cyptedBodyLen);
@@ -581,15 +693,21 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     TSDB_CHECK_NULL(newBody, code, lino, _exit, terrno);
 
     (void)memset(newBody, 0, cyptedBodyLen);
-    (void)memcpy(newBody, body, plainBodyLen);
+    // For transaction entries, prepend [txnExtFlags:8B][txnId:8B] into the plaintext buffer.
+    if (txnId != 0) {
+      (void)memcpy(newBody, &txnExtFlags, sizeof(uint64_t));
+      (void)memcpy(newBody + sizeof(uint64_t), &txnId, sizeof(int64_t));
+      (void)memcpy(newBody + WAL_TXN_HDR_SIZE, body, bodyLen);
+    } else {
+      (void)memcpy(newBody, body, plainBodyLen);
+    }
 
     newBodyEncrypted = taosMemoryMalloc(cyptedBodyLen);
     if (newBodyEncrypted == NULL) {
       wGError(trace, "vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId,
               walGetLastFileFirstVer(pWal), strerror(ERRNO));
 
-      if (newBody != NULL) taosMemoryFreeClear(newBody);
-
+      // newBody is freed centrally at _exit.
       TAOS_CHECK_GOTO(terrno, &lino, _exit);
     }
 
@@ -607,26 +725,49 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     //       pWal->cfg.vgId, walGetLastFileFirstVer(pWal), index, count, plainBodyLen, __FUNCTION__);
 
     buf = newBodyEncrypted;
+  } else if (nonEncTxnBody != NULL) {
+    // No encryption but transactional: the combined [txnExtFlags:8B][txnId:8B][body] buffer
+    // built above (also used for the checksum) is written with a SINGLE syscall below. This
+    // used to be 3 separate taosWriteFile() calls; a crash (SIGKILL/OOM-kill/power loss)
+    // between any of them left a WAL entry whose header/checksum (already written) claim a
+    // complete record while the on-disk bytes are truncated — permanently corrupting that
+    // entry, since restart always replays the same WAL and the vnode could never reopen again.
+    // A single write call makes the append atomic from the WAL's perspective: it either lands
+    // in full or not at all.
+    buf = nonEncTxnBody;
   }
 
-  if (pWal->cfg.level != TAOS_WAL_SKIP && taosWriteFile(pWal->pLogFile, (char *)buf, cyptedBodyLen) != cyptedBodyLen) {
-    code = terrno;
-    wGError(trace, "vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId,
-            walGetLastFileFirstVer(pWal), strerror(ERRNO));
+  // For non-encrypted non-txn entries, write the original body directly.
+  // For encrypted entries (txnId prefix already merged into newBodyEncrypted), use buf.
+  // For non-encrypted txn entries, the combined [txnExtFlags+txnId+body] buffer (buf) is used.
+  if (pWal->cfg.level != TAOS_WAL_SKIP) {
+    int32_t writeLen = (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') ? cyptedBodyLen
+                        : (nonEncTxnBody != NULL)                         ? plainBodyLen
+                                                                           : bodyLen;
+    if (taosWriteFile(pWal->pLogFile, (char *)buf, writeLen) != writeLen) {
+      code = terrno;
+      wGError(trace, "vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId,
+              walGetLastFileFirstVer(pWal), strerror(ERRNO));
 
-    if (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
-      taosMemoryFreeClear(newBody);
-      taosMemoryFreeClear(newBodyEncrypted);
+      // Heap buffers (newBody/newBodyEncrypted/nonEncTxnBody) are freed centrally at _exit.
+      walStopDnode(pWal);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
+  }
 
-    walStopDnode(pWal);
-
-    TAOS_CHECK_GOTO(code, &lino, _exit);
+  // Write same entry to .txn file (vnode CDC lazy load support).
+  // Must happen before freeing encrypted buffers (buf may point to newBodyEncrypted).
+  if (pWal->cfg.enableTxnFile && txnId != 0) {
+    const void *encBuf    = (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') ? buf : NULL;
+    int32_t     encLen    = (encBuf != NULL) ? cyptedBodyLen : 0;
+    walTxnWriteEntry(pWal, index, txnExtFlags, txnId, body, bodyLen, encBuf, encLen);
   }
 
   if (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
     taosMemoryFreeClear(newBody);
     taosMemoryFreeClear(newBodyEncrypted);
+  } else if (nonEncTxnBody != NULL) {
+    taosMemoryFreeClear(nonEncTxnBody);
   }
 
   // set status
@@ -638,12 +779,43 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   pFileInfo->lastVer = index;
   pFileInfo->fileSize += sizeof(SWalCkHead) + cyptedBodyLen;
 
+  // Update txnBeginIndexMap now that the write succeeded.
+  if (txnId != 0 && pWal->cfg.enableTxnFile && pWal->txnBeginIndexMap != NULL) {
+    if (txnExtFlags & WAL_TXN_EXT_IS_BEGIN) {
+      int32_t putCode = taosHashPut(pWal->txnBeginIndexMap, &txnId, sizeof(int64_t), &index, sizeof(int64_t));
+      if (putCode != 0) {
+        // Critical error: WAL write succeeded but hash map update failed.
+        // This indicates severe memory/system issues. Propagate error to prevent inconsistency.
+        wError("vgId:%d, txnBeginIndexMap put failed txnId:%" PRId64 " walIdx:%" PRId64 " since %s (WAL written but map update failed, system may be unstable)",
+               pWal->cfg.vgId, txnId, index, tstrerror(putCode));
+        code = putCode;
+        lino = __LINE__;
+        goto _exit;
+      }
+    }
+    if (msgType == TDMT_VND_TXN_COMMIT || msgType == TDMT_VND_TXN_ROLLBACK) {
+      int32_t removeCode = taosHashRemove(pWal->txnBeginIndexMap, &txnId, sizeof(int64_t));
+      if (removeCode != 0) {
+        wDebug("vgId:%d, txnBeginIndexMap remove failed txnId:%" PRId64 " (likely already removed or not in map)",
+               pWal->cfg.vgId, txnId);
+      }
+    }
+  }
+
   return 0;
 
 _exit:
   if (code) {
     wGError(trace, "vgId:%d, %s failed at line %d since %s", pWal->cfg.vgId, __func__, lino, tstrerror(code));
   }
+
+  // Free owned heap buffers on every error path. These are declared at the top of the
+  // function and cleared on the success path, so this is always safe (and a no-op for
+  // NULL). Covers the early `goto _exit` sites (walWriteIndex / header write / encrypt
+  // failure / body write) that previously leaked nonEncTxnBody / newBody / newBodyEncrypted.
+  taosMemoryFreeClear(nonEncTxnBody);
+  taosMemoryFreeClear(newBody);
+  taosMemoryFreeClear(newBodyEncrypted);
 
   // recover in a reverse order
   if (taosFtruncateFile(pWal->pLogFile, offset) < 0) {
@@ -702,7 +874,7 @@ static int32_t walInitWriteFile(SWal *pWal) {
 }
 
 int32_t walAppendLog(SWal *pWal, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body,
-                     int32_t bodyLen, const STraceId *trace) {
+                     int32_t bodyLen, txn_id_t txnId, const STraceId *trace) {
   int32_t code = 0, lino = 0;
 
   TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
@@ -717,7 +889,7 @@ int32_t walAppendLog(SWal *pWal, int64_t index, tmsg_t msgType, SWalSyncInfo syn
     TAOS_CHECK_GOTO(walInitWriteFile(pWal), &lino, _exit);
   }
 
-  TAOS_CHECK_GOTO(walWriteImpl(pWal, index, msgType, syncMeta, body, bodyLen, trace), &lino, _exit);
+  TAOS_CHECK_GOTO(walWriteImpl(pWal, index, msgType, syncMeta, body, bodyLen, txnId, trace), &lino, _exit);
 
 _exit:
   if (code) {
@@ -738,11 +910,13 @@ int32_t walFsync(SWal *pWal, bool forceFsync) {
   TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
   if (forceFsync || (pWal->cfg.level == TAOS_WAL_FSYNC && pWal->cfg.fsyncPeriod == 0)) {
     wTrace("vgId:%d, fileId:%" PRId64 ".log, do fsync", pWal->cfg.vgId, walGetCurFileFirstVer(pWal));
+    walTxnPreFsync(pWal);  // Step A: write txn.pending before .log fsync
     if (taosFsyncFile(pWal->pLogFile) < 0) {
       wError("vgId:%d, file:%" PRId64 ".log, fsync failed since %s", pWal->cfg.vgId, walGetCurFileFirstVer(pWal),
              strerror(ERRNO));
       code = terrno;
     }
+    walTxnPostFsync(pWal);  // Steps C+D: fsync .txn, clear txn.pending
   }
   TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 

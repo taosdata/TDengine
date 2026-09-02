@@ -18,6 +18,7 @@
 #include "decimal.h"
 #include "filter.h"
 #include "filterInt.h"
+#include "tjson.h"
 #include "geosWrapper.h"
 #include "query.h"
 #include "querynodes.h"
@@ -119,8 +120,9 @@ int32_t convertNcharToDouble(const void *inData, void *outData) {
   }
   int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData), varDataLen(inData), tmp, NULL);
   if (len < 0) {
-    sclError("castConvert taosUcs4ToMbs error 1");
-    SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
+    sclError("%s taosUcs4ToMbs failed to convert NCHAR value,"
+             " len:%d", __func__, (int32_t)varDataLen(inData));
+    SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
   }
 
   tmp[len] = 0;
@@ -455,8 +457,9 @@ static FORCE_INLINE int32_t varToNchar(char *buf, SScalarParam *pOut, int32_t ro
   int32_t ret = taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4 *)varDataVal(t), outputMaxLen - VARSTR_HEADER_SIZE,
                               &len, pOut->charsetCxt);
   if (!ret) {
-    sclError("failed to convert to NCHAR");
-    SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
+    sclError("%s failed to convert string to NCHAR value, inputLen:%d",
+             __func__, inputLen);
+    SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
   }
   varDataSetLen(t, len);
 
@@ -477,7 +480,9 @@ static FORCE_INLINE int32_t ncharToVar(char *buf, SScalarParam *pOut, int32_t ro
   }
   int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(t), pOut->charsetCxt);
   if (len < 0) {
-    SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
+    sclError("%s failed to convert NCHAR value to string, inputLen:%d",
+             __func__, inputLen);
+    SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
   }
   varDataSetLen(t, len);
 
@@ -626,8 +631,8 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int8_t *overflow) {
 
         int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(data), varDataLen(data), tmp, pCtx->pIn->charsetCxt);
         if (len < 0) {
-          sclError("castConvert taosUcs4ToMbs error 1");
-          SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
+          sclError("%s failed to convert NCHAR value to string, len:%d", __func__, (int32_t)varDataLen(data));
+          SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
         }
 
         tmp[len] = 0;
@@ -674,7 +679,7 @@ int32_t ncharTobinary(void *buf, void **out, void *charsetCxt) {  // todo need t
     sclError("charset:%s to %s. val:%s convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC,
              charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset, (char *)varDataVal(buf));
     taosMemoryFree(*out);
-    SCL_ERR_RET(TSDB_CODE_SCALAR_CONVERT_ERROR);
+    SCL_ERR_RET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
   }
   varDataSetLen(*out, len);
   SCL_RET(TSDB_CODE_SUCCESS);
@@ -2437,6 +2442,8 @@ int32_t vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
+  int16_t leftType = pLeft->columnData->info.type;
+
   pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
 
   char *pRightData = colDataGetVarData(pRight->columnData, 0);
@@ -2449,9 +2456,28 @@ int32_t vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
     bool isExist = false;
 
     if (!colDataIsNull_var(pLeft->columnData, i)) {
-      char   *pLeftData = colDataGetVarData(pLeft->columnData, i);
-      STagVal value;
-      SCL_ERR_JRET(getJsonValue(pLeftData, jsonKey, &isExist, &value));
+      char *pLeftData = colDataGetVarData(pLeft->columnData, i);
+      if (leftType == TSDB_DATA_TYPE_VARCHAR) {
+        // VARCHAR path: left operand is a text JSON string (e.g. from
+        // CAST(NCHAR→VARCHAR) applied to InfluxDB JSON fields).
+        // Use tjsonParse to check key existence in the JSON text.
+        char *jsonText = taosMemoryCalloc(1, varDataLen(pLeftData) + 1);
+        if (NULL == jsonText) {
+          code = terrno;
+          goto _return;
+        }
+        (void)memcpy(jsonText, varDataVal(pLeftData), varDataLen(pLeftData));
+        SJson *pJson = tjsonParse(jsonText);
+        taosMemoryFree(jsonText);
+        if (pJson != NULL) {
+          isExist = (tjsonGetObjectItem(pJson, jsonKey) != NULL);
+          tjsonDelete(pJson);
+        }
+      } else {
+        // Native JSON (STag binary) path — unchanged.
+        STagVal value;
+        SCL_ERR_JRET(getJsonValue(pLeftData, jsonKey, &isExist, &value));
+      }
     }
     if (isExist) {
       ++pOut->numOfQualified;

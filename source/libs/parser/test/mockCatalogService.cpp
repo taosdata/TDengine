@@ -245,6 +245,12 @@ class MockCatalogServiceImpl {
     if (TSDB_CODE_SUCCESS == code) {
       code = getAllVstbRefDbs(pCatalogReq->pVStbRefDbs, &pMetaData->pVStbRefDbs);
     }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = getAllExtSourceInfo(pCatalogReq->pExtSourceCheck, &pMetaData->pExtSourceInfo);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = getAllExtTableMeta(pCatalogReq->pExtTableMeta, &pMetaData->pExtTableMetaRsp);
+    }
     return code;
   }
 
@@ -841,6 +847,176 @@ class MockCatalogServiceImpl {
   DnodeCache                    dnode_;
   DbCfgCache                    dbCfg_;
   bool                          havaCache_;
+
+  // Federated-query EXT registries.
+  // Key for extTables_: sourceName + '\x01' + mid0 + '\x01' + mid1 + '\x01' + tableName.
+  // Values are shared_ptr so the entries survive across multiple catalogGetAllMeta calls.
+  std::map<std::string, std::shared_ptr<SExtSourceInfo>>                   extSources_;
+  struct MockExtTableEntry {
+    SExtTableMeta                                  header;
+    std::vector<MockCatalogService::MockExtColDef> cols;
+  };
+  std::map<std::string, std::shared_ptr<MockExtTableEntry>> extTables_;
+
+  static std::string makeExtTableKey(const std::string& src, const std::string& m0, const std::string& m1,
+                                     const std::string& tbl) {
+    std::string k;
+    k.reserve(src.size() + m0.size() + m1.size() + tbl.size() + 4);
+    k.append(src).push_back('\x01');
+    k.append(m0).push_back('\x01');
+    k.append(m1).push_back('\x01');
+    k.append(tbl);
+    return k;
+  }
+
+ public:
+  void createExtSource(const string& sourceName, int8_t sourceType, const string& host, int32_t port,
+                       const string& user, const string& database, const string& schemaName = "") {
+    auto info = std::make_shared<SExtSourceInfo>();
+    memset(info.get(), 0, sizeof(SExtSourceInfo));
+    tstrncpy(info->source_name, sourceName.c_str(), TSDB_EXT_SOURCE_NAME_LEN);
+    info->type = sourceType;
+    tstrncpy(info->host, host.c_str(), TSDB_EXT_SOURCE_HOST_LEN);
+    info->port = port;
+    tstrncpy(info->user, user.c_str(), TSDB_EXT_SOURCE_USER_LEN);
+    tstrncpy(info->database, database.c_str(), TSDB_EXT_SOURCE_DATABASE_LEN);
+    tstrncpy(info->schema_name, schemaName.c_str(), TSDB_EXT_SOURCE_SCHEMA_LEN);
+    info->meta_version = 1;
+    info->create_time = 0;
+    // Mock-friendly capabilities — enable everything so translator picks the EXT branch.
+    info->capability.ext_can_pushdown_filter        = true;
+    info->capability.ext_can_pushdown_projection    = true;
+    info->capability.ext_can_pushdown_limit         = true;
+    info->capability.ext_can_pushdown_agg           = true;
+    info->capability.ext_can_pushdown_order         = true;
+    info->capability.ext_can_pushdown_in_const_list = true;
+    extSources_[sourceName] = info;
+  }
+
+  void createExtTable(const string& sourceName, const string& mid0, const string& mid1, const string& tableName,
+                      const std::vector<MockCatalogService::MockExtColDef>& cols, int8_t tsPrecision) {
+    auto entry = std::make_shared<MockExtTableEntry>();
+    memset(&entry->header, 0, sizeof(SExtTableMeta));
+    tstrncpy(entry->header.sourceName, sourceName.c_str(), TSDB_EXT_SOURCE_NAME_LEN);
+    tstrncpy(entry->header.schemaName, mid1.empty() ? mid0.c_str() : mid1.c_str(), TSDB_EXT_SOURCE_SCHEMA_LEN);
+    tstrncpy(entry->header.remoteTableName, tableName.c_str(), TSDB_TABLE_NAME_LEN);
+    entry->header.numOfCols = (int32_t)cols.size();
+    entry->header.tableType = TSDB_NORMAL_TABLE;
+    entry->header.tsPrecision = tsPrecision;
+    entry->header.fetched_at = 0;
+    // SName.dbname uses local-side "<sourceName>" (one logical DB per ext source for routing).
+    entry->header.name.type = TSDB_TABLE_NAME_T;
+    entry->header.name.acctId = 1;
+    tstrncpy(entry->header.name.dbname, sourceName.c_str(), TSDB_DB_NAME_LEN);
+    tstrncpy(entry->header.name.tname, tableName.c_str(), TSDB_TABLE_NAME_LEN);
+    entry->cols = cols;
+    extTables_[makeExtTableKey(sourceName, mid0, mid1, tableName)] = entry;
+  }
+
+  // Build the EXT-source SMetaRes array, one entry per element in pCatalogReq->pExtSourceCheck,
+  // index-aligned with parUtil.c:1209-1223.
+  int32_t getAllExtSourceInfo(SArray* pReq, SArray** pOut) const {
+    if (NULL == pReq) return TSDB_CODE_SUCCESS;
+    int32_t n = (int32_t)taosArrayGetSize(pReq);
+    *pOut = taosArrayInit(n, sizeof(SMetaRes));
+    if (NULL == *pOut) return TSDB_CODE_OUT_OF_MEMORY;
+    for (int32_t i = 0; i < n; ++i) {
+      const char* sourceName = (const char*)taosArrayGet(pReq, i);
+      SMetaRes res = {0};
+      auto it = extSources_.find(sourceName ? sourceName : "");
+      if (it == extSources_.end()) {
+        res.code = TSDB_CODE_EXT_SOURCE_NOT_FOUND;
+        res.pRes = NULL;
+      } else {
+        SExtSourceInfo* p = (SExtSourceInfo*)taosMemoryCalloc(1, sizeof(SExtSourceInfo));
+        if (NULL == p) {
+          taosArrayDestroyEx(*pOut, MockCatalogService::destoryMetaRes);
+          *pOut = NULL;
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+        memcpy(p, it->second.get(), sizeof(SExtSourceInfo));
+        res.code = TSDB_CODE_SUCCESS;
+        res.pRes = p;
+      }
+      if (NULL == taosArrayPush(*pOut, &res)) {
+        if (res.pRes) taosMemoryFree(res.pRes);
+        taosArrayDestroyEx(*pOut, MockCatalogService::destoryMetaRes);
+        *pOut = NULL;
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Build the EXT-table SMetaRes array, one entry per SExtTableMetaReq in pReq,
+  // index-aligned with parUtil.c:1226-1247.
+  int32_t getAllExtTableMeta(SArray* pReq, SArray** pOut) const {
+    if (NULL == pReq) return TSDB_CODE_SUCCESS;
+    int32_t n = (int32_t)taosArrayGetSize(pReq);
+    *pOut = taosArrayInit(n, sizeof(SMetaRes));
+    if (NULL == *pOut) return TSDB_CODE_OUT_OF_MEMORY;
+    for (int32_t i = 0; i < n; ++i) {
+      SExtTableMetaReq* preq = (SExtTableMetaReq*)taosArrayGet(pReq, i);
+      SMetaRes res = {0};
+      std::string key = makeExtTableKey(preq->sourceName, preq->rawMidSegs[0], preq->rawMidSegs[1], preq->tableName);
+      auto it = extTables_.find(key);
+      if (it == extTables_.end()) {
+        res.code = TSDB_CODE_EXT_TABLE_NOT_EXIST;
+        res.pRes = NULL;
+      } else {
+        const auto& entry = it->second;
+        SExtTableMeta* p = (SExtTableMeta*)taosMemoryCalloc(1, sizeof(SExtTableMeta));
+        if (NULL == p) {
+          taosArrayDestroyEx(*pOut, MockCatalogService::destoryMetaRes);
+          *pOut = NULL;
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+        memcpy(p, &entry->header, sizeof(SExtTableMeta));
+        if (!entry->cols.empty()) {
+          p->pCols = (SExtColumnDef*)taosMemoryCalloc(entry->cols.size(), sizeof(SExtColumnDef));
+          if (NULL == p->pCols) {
+            taosMemoryFree(p);
+            taosArrayDestroyEx(*pOut, MockCatalogService::destoryMetaRes);
+            *pOut = NULL;
+            return TSDB_CODE_OUT_OF_MEMORY;
+          }
+          for (size_t c = 0; c < entry->cols.size(); ++c) {
+            const auto& src = entry->cols[c];
+            SExtColumnDef& dst = p->pCols[c];
+            tstrncpy(dst.colName, src.colName.c_str(), TSDB_COL_NAME_LEN);
+            tstrncpy(dst.remoteColName, src.colName.c_str(), TSDB_COL_NAME_LEN);
+            // Pick a reasonable extTypeName for the mocked source.
+            if (src.type == TSDB_DATA_TYPE_TIMESTAMP) {
+              tstrncpy(dst.extTypeName, "timestamp", sizeof(dst.extTypeName));
+            } else if (src.type == TSDB_DATA_TYPE_DOUBLE || src.type == TSDB_DATA_TYPE_FLOAT) {
+              tstrncpy(dst.extTypeName, "double precision", sizeof(dst.extTypeName));
+            } else if (src.type == TSDB_DATA_TYPE_BIGINT || src.type == TSDB_DATA_TYPE_INT) {
+              tstrncpy(dst.extTypeName, "bigint", sizeof(dst.extTypeName));
+            } else {
+              tstrncpy(dst.extTypeName, "varchar", sizeof(dst.extTypeName));
+            }
+            dst.extCharsetName[0] = '\0';
+            dst.nullable = src.nullable;
+            dst.isTag = false;
+            dst.isPrimaryKey = src.isPrimaryKey;
+          }
+        }
+        res.code = TSDB_CODE_SUCCESS;
+        res.pRes = p;
+      }
+      if (NULL == taosArrayPush(*pOut, &res)) {
+        if (res.pRes) {
+          SExtTableMeta* p = (SExtTableMeta*)res.pRes;
+          if (p->pCols) taosMemoryFree(p->pCols);
+          taosMemoryFree(p);
+        }
+        taosArrayDestroyEx(*pOut, MockCatalogService::destoryMetaRes);
+        *pOut = NULL;
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
+    return TSDB_CODE_SUCCESS;
+  }
 };
 
 MockCatalogService::MockCatalogService() : impl_(new MockCatalogServiceImpl()) {}
@@ -867,6 +1043,19 @@ void MockCatalogService::createSmaIndex(const SMCreateSmaReq* pReq) { impl_->cre
 
 void MockCatalogService::createDnode(int32_t dnodeId, const string& host, int16_t port) {
   impl_->createDnode(dnodeId, host, port);
+}
+
+void MockCatalogService::createExtSource(const string& sourceName, int8_t sourceType, const string& host,
+                                         int32_t port, const string& user, const string& database,
+                                         const string& schemaName) {
+  impl_->createExtSource(sourceName, sourceType, host, port, user, database, schemaName);
+}
+
+void MockCatalogService::createExtTable(const string& sourceName, const string& mid0, const string& mid1,
+                                        const string& tableName,
+                                        const std::vector<MockCatalogService::MockExtColDef>& cols,
+                                        int8_t tsPrecision) {
+  impl_->createExtTable(sourceName, mid0, mid1, tableName, cols, tsPrecision);
 }
 
 void MockCatalogService::createDatabase(const string& db, bool rollup, int8_t cacheLast, int8_t precision) {
@@ -915,6 +1104,9 @@ void MockCatalogService::destoryTablesReq(void* p) {
 }
 
 void MockCatalogService::destoryCatalogReq(SCatalogReq* pReq) {
+  if (nullptr == pReq) {
+    return;
+  }
   taosArrayDestroy(pReq->pDbVgroup);
   taosArrayDestroy(pReq->pDbCfg);
   taosArrayDestroy(pReq->pDbInfo);
@@ -927,6 +1119,12 @@ void MockCatalogService::destoryCatalogReq(SCatalogReq* pReq) {
   taosArrayDestroy(pReq->pTableCfg);
   taosArrayDestroyEx(pReq->pView, destoryTablesReq);
   taosArrayDestroyEx(pReq->pTableTSMAs, destoryTablesReq);
+  taosArrayDestroy(pReq->pExtSourceCheck);
+  taosArrayDestroy(pReq->pExtTableMeta);
+  taosArrayDestroyEx(pReq->pTSMAs, destoryTablesReq);
+  taosArrayDestroyEx(pReq->pTableName, destoryTablesReq);
+  taosArrayDestroy(pReq->pTableTag);
+  taosArrayDestroy(pReq->pVStbRefDbs);
   delete pReq;
 }
 
@@ -940,7 +1138,31 @@ void MockCatalogService::destoryMetaArrayRes(void* p) {
   taosArrayDestroy((SArray*)pRes->pRes);
 }
 
+static void destoryExtTableMetaRes(void* p) {
+  SMetaRes* pRes = (SMetaRes*)p;
+  if (pRes->pRes) {
+    SExtTableMeta* pMeta = (SExtTableMeta*)pRes->pRes;
+    if (pMeta->pCols) taosMemoryFree(pMeta->pCols);
+    taosMemoryFree(pMeta);
+    pRes->pRes = NULL;
+  }
+}
+
+void MockCatalogService::destoryMetaTableTSMAInfo(void* p) {
+  SMetaRes* pRes = (SMetaRes*)p;
+  tFreeTableTSMAInfoRsp((STableTSMAInfoRsp*)pRes->pRes);
+  taosMemoryFree(pRes->pRes);
+}
+
+void MockCatalogService::destoryMetaVStbRefDbs(void* p) {
+  SMetaRes* pRes = (SMetaRes*)p;
+  taosArrayDestroyEx((SArray*)pRes->pRes, tDestroySVStbRefDbsRsp);
+}
+
 void MockCatalogService::destoryMetaData(SMetaData* pData) {
+  if (nullptr == pData) {
+    return;
+  }
   taosArrayDestroyEx(pData->pDbVgroup, destoryMetaRes);
   taosArrayDestroyEx(pData->pDbCfg, destoryMetaRes);
   taosArrayDestroyEx(pData->pDbInfo, destoryMetaRes);
@@ -952,8 +1174,14 @@ void MockCatalogService::destoryMetaData(SMetaData* pData) {
   taosArrayDestroyEx(pData->pUser, destoryMetaRes);
   taosArrayDestroyEx(pData->pQnodeList, destoryMetaRes);
   taosArrayDestroyEx(pData->pTableCfg, destoryMetaRes);
+  taosArrayDestroyEx(pData->pTableTag, destoryMetaArrayRes);
   taosArrayDestroyEx(pData->pDnodeList, destoryMetaArrayRes);
   taosArrayDestroyEx(pData->pView, destoryMetaRes);
+  taosArrayDestroyEx(pData->pExtSourceInfo, destoryMetaRes);
+  taosArrayDestroyEx(pData->pExtTableMetaRsp, destoryExtTableMetaRes);
+  taosArrayDestroyEx(pData->pTableTsmas, destoryMetaTableTSMAInfo);
+  taosArrayDestroyEx(pData->pTsmas, destoryMetaTableTSMAInfo);
+  taosArrayDestroyEx(pData->pVStbRefDbs, destoryMetaVStbRefDbs);
   taosMemoryFree(pData->pSvrVer);
   delete pData;
 }

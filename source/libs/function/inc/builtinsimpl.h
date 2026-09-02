@@ -165,6 +165,7 @@ int32_t           firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pB
 int32_t           firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t           lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t           getFirstLastInfoSize(int32_t resBytes, int32_t pkBytes);
+EFuncDataRequired maxDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
 EFuncDataRequired firstDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
 EFuncDataRequired lastDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
 
@@ -235,6 +236,7 @@ int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 bool    getTailFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t tailFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t tailFunction(SqlFunctionCtx* pCtx);
+int32_t tailFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool    getUniqueFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t uniqueFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);

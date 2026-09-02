@@ -26,8 +26,7 @@ class TestScalarInvalidType:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: TD-6925396284
 
         History:

@@ -26,7 +26,7 @@
 #include "tcompare.h"
 #include "tname.h"
 
-#define MND_CONSUMER_VER_NUMBER   3
+#define MND_CONSUMER_VER_NUMBER   4
 #define MND_CONSUMER_RESERVE_SIZE 64
 
 #define MND_MAX_GROUP_PER_TOPIC 100
@@ -332,7 +332,7 @@ END:
   return code;
 }
 
-static int32_t processEachTopicEp(SMnode *pMnode, SMqConsumerObj *pConsumer, char *topic, SMqAskEpRsp *rsp, int32_t epoch) {
+static int32_t processEachTopicEp(SMnode *pMnode, SMqConsumerObj *pConsumer, char *topic, SMqAskEpRsp *rsp) {
   int32_t         code = 0;
   int32_t         lino = 0;
   SMqSubscribeObj *pSub = NULL;
@@ -356,18 +356,19 @@ static int32_t processEachTopicEp(SMnode *pMnode, SMqConsumerObj *pConsumer, cha
 
   tstrncpy(topicEp.db, pSub->dbName, TSDB_DB_FNAME_LEN);
   for (int32_t j = 0; j < vgNum; j++) {
-    SMqVgEp *pVgEp = taosArrayGet(pConsumerEp->vgs, j);
-    if (pVgEp == NULL) {
+    int32_t *vgId = taosArrayGet(pConsumerEp->vgs, j);
+    if (vgId == NULL) {
       continue;
     }
-    if (epoch == -1) {
-      SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVgEp->vgId);
-      if (pVgroup) {
-        pVgEp->epSet = mndGetVgroupEpset(pMnode, pVgroup);
-        mndReleaseVgroup(pMnode, pVgroup);
-      }
+    SMqSubVgEp vgEp = {.epSet = {0}, .vgId = *vgId, .offset = -1};
+    SVgObj *pVgroup = mndAcquireVgroup(pMnode, *vgId);
+    if (pVgroup == NULL) {
+      mWarn("failed to acquire vgroup:%d", *vgId);
+      code = terrno;
+      goto END;
     }
-    SMqSubVgEp vgEp = {.epSet = pVgEp->epSet, .vgId = pVgEp->vgId, .offset = -1};
+    vgEp.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    mndReleaseVgroup(pMnode, pVgroup);
     MND_TMQ_NULL_CHECK(taosArrayPush(topicEp.vgs, &vgEp));
   }
   MND_TMQ_NULL_CHECK(taosArrayPush(rsp->topics, &topicEp));
@@ -383,7 +384,7 @@ END:
   return code;
 }
 
-static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t epoch, SMqAskEpRsp *rsp){
+static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, SMqAskEpRsp *rsp){
   if (pMnode == NULL || pConsumer == NULL || rsp == NULL){
     return TSDB_CODE_INVALID_PARA;
   }
@@ -398,7 +399,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
   // handle all topics subscribed by this consumer
   for (int32_t i = 0; i < numOfTopics; i++) {
     char            *topic = taosArrayGetP(pConsumer->currentTopics, i);
-    MND_TMQ_RETURN_CHECK(processEachTopicEp(pMnode, pConsumer, topic, rsp, epoch));
+    MND_TMQ_RETURN_CHECK(processEachTopicEp(pMnode, pConsumer, topic, rsp));
   }
 
 END:
@@ -474,7 +475,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
     if (epoch != serverEpoch) {
       mInfo("process ask ep, consumer:0x%" PRIx64 "(epoch %d) update with server epoch %d",
             consumerId, epoch, serverEpoch);
-      MND_TMQ_RETURN_CHECK(addEpSetInfo(pMnode, pConsumer, epoch, &rsp));
+      MND_TMQ_RETURN_CHECK(addEpSetInfo(pMnode, pConsumer, &rsp));
     }
   }
   code = buildAskEpRsp(pMsg, &rsp, serverEpoch, consumerId);
@@ -813,8 +814,6 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;  // TODO set correct error code
     goto CM_DECODE_OVER;
   }
-
-  tmsgUpdateDnodeEpSet(&pConsumer->ep);
 
 CM_DECODE_OVER:
   taosMemoryFreeClear(buf);

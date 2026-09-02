@@ -17,7 +17,7 @@ class TestTDgptBasic:
 
         Since: v3.3.2.16
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -52,7 +52,7 @@ class TestTDgptBasic:
 
         Since: v3.3.2.16
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -71,7 +71,7 @@ class TestTDgptBasic:
         # there are 17 analysis models for forecasting or anomaly-detection.
         tdSql.checkRows(17)
 
-        tdSql.execute("create database d0 vgroups 1")
+        tdSql.execute("create database if not exists d0 vgroups 1")
         tdSql.query("select * from information_schema.ins_databases")
 
         tdSql.checkRows(3)
@@ -266,7 +266,7 @@ class TestTDgptBasic:
 
         Since: v3.3.8.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -334,7 +334,7 @@ class TestTDgptBasic:
         
         Since: v3.3.8.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -388,10 +388,85 @@ class TestTDgptBasic:
 
         Since: v3.3.0.0
 
-        Labels: common,ci,ignore
+        Labels: common,ci,ignore,integration,functional
 
         History:
             - 2025-10-13 Alex Duan add doc
 
         """
         pass
+    
+    def test_imputation_function(self):
+        """TDgpt imputation function on stable child tables.
+
+        Create an anode, register the imputation algorithm, insert sample rows,
+        and verify imputation() and related explain queries execute successfully.
+
+        Since: v3.3.0.0
+
+        Labels: common, ci, integration, functional
+
+        Jira: None
+
+        Catalog:
+            - Functions:Scalar
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+        """
+        tdSql.execute("create database if not exists imputation vgroups 3")
+        tdSql.execute("use imputation")
+        
+        tdSql.execute("create stable st(ts timestamp, a int, b float, c double, d varchar(10), e tinyint, f int unsigned, g bool) tags(t1 int)")
+        tdSql.execute("create table t_1 using st tags(1)")
+        tdSql.execute("create table t_2 using st tags(2)")
+        tdSql.execute("create table t_3 using st tags(3)")
+        
+        tdSql.execute("insert into t_1 values(1786565760000, 1, 1.0, 123.1, 'abc', 12, 0, 0)") 
+        tdSql.execute("insert into t_1 values(1786566240000, 2, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786566960000, 3, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786567440000, 4, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786568160000, 5, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786568640000, 6, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786569360000, 7, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786569840000, 8, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786570560000, 9, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786571040000, 10, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786571760000, 11, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786572240000, 12, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786572960000, 13, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786573440000, 14, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786574160000, 15, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786574640000, 16, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786575360000, 17, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786575840000, 18, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786576560000, 19, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786577040000, 20, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786577760000, 21, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786578240000, 22, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786578960000, 23, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786579440000, 24, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786580160000, 25, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786580640000, 26, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786581360000, 27, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786581840000, 28, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786582560000, 29, 1.0, 123.1, 'abc', 12, 0, 0)")
+        
+        tdSql.query("show anodes")
+        tdSql.checkRows(0)
+        
+        tdSql.execute("create anode '192.168.2.90:6090'")
+        tdLog.info("create anode: 192.168.2.90:6090 successfully")
+        
+        tdSql.query("show anodes full")
+        tdSql.printResult()
+        
+        tdSql.checkData(14, 1, "imputation")
+        tdSql.checkData(14, 2, "moment")
+        tdSql.checkData(14, 3, "READY")
+        
+        tdSql.query("select _improwts, imputation(a, 'algo=moment, freq=4m') from t_1;")
+        tdSql.query("select _improwts, imputation(a, 'algo=moment, freq=4m') + 20 from t_1;")
+        
+        tdSql.query("explain verbose true select _frowts, forecast(a) from t_1;")
+        tdSql.query("explain verbose true select forecast(a)+20 from t_1;")

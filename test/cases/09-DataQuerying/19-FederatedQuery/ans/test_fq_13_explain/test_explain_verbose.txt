@@ -1,0 +1,779 @@
+### EXP-basic-01_mysql POS
+SQL: select * from fq_exp_mysql.sensor
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=150)
+      Output: columns=4 width=150
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: SELECT `time`, `voltage`, `current`, `region` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+---
+### EXP-basic-01_pg POS
+SQL: select * from fq_exp_pg.sensor
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65539)
+      Output: columns=4 width=65539
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage", "current", "region" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-basic-01_influx POS
+SQL: select * from fq_exp_influx.sensor
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65543)
+      Output: columns=4 width=65543
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "region", "current", "voltage" FROM "sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-basic-02_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor where `time` > '2024-01-01'
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`time` > '2024-01-01 00:00:00.000') ORDER BY `time` ASC
+---
+### EXP-basic-02_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor where `time` > '2024-01-01'
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("time" > '2024-01-01 00:00:00.000') ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-basic-02_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor where `time` > '2024-01-01'
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("time" > '2023-12-31 16:00:00.000') ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-basic-03_mysql POS
+SQL: select * from fq_exp_mysql.sensor
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=150)
+      Output: columns=4 width=150
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: SELECT `time`, `voltage`, `current`, `region` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+---
+### EXP-basic-03_pg POS
+SQL: select * from fq_exp_pg.sensor
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65539)
+      Output: columns=4 width=65539
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage", "current", "region" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-basic-03_influx POS
+SQL: select * from fq_exp_influx.sensor
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65543)
+      Output: columns=4 width=65543
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "region", "current", "voltage" FROM "sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-verbose-01_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+---
+### EXP-verbose-01_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-verbose-01_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-verbose-02_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor where `time` > '2024-01-01' order by `time` limit 10
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`time` > '2024-01-01 00:00:00.000') ORDER BY `time` ASC LIMIT 10
+---
+### EXP-verbose-02_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor where `time` > '2024-01-01' order by `time` limit 10
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("time" > '2024-01-01 00:00:00.000') ORDER BY "time" ASC NULLS FIRST LIMIT 10
+---
+### EXP-verbose-02_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor where `time` > '2024-01-01' order by `time` limit 10
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("time" > '2023-12-31 16:00:00.000') ORDER BY "time" ASC NULLS FIRST LIMIT 10
+---
+### EXP-verbose-03_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+---
+### EXP-verbose-03_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-verbose-03_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-push-01_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor where `time` >= '2024-01-01' order by `time` limit 3
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`time` >= '2024-01-01 00:00:00.000') ORDER BY `time` ASC LIMIT 3
+---
+### EXP-push-01_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor where `time` >= '2024-01-01' order by `time` limit 3
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("time" >= '2024-01-01 00:00:00.000') ORDER BY "time" ASC NULLS FIRST LIMIT 3
+---
+### EXP-push-01_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor where `time` >= '2024-01-01' order by `time` limit 3
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("time" >= '2023-12-31 16:00:00.000') ORDER BY "time" ASC NULLS FIRST LIMIT 3
+---
+### EXP-push-02_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor where voltage > 220.0
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 220) ORDER BY `time` ASC
+---
+### EXP-push-02_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor where voltage > 220.0
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("voltage" > 220) ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-push-02_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor where voltage > 220.0
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("voltage" > 220) ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-push-03_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor order by voltage desc
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `voltage` DESC
+---
+### EXP-push-03_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor order by voltage desc
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" ORDER BY "voltage" DESC NULLS LAST
+---
+### EXP-push-03_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor order by voltage desc
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" ORDER BY "voltage" DESC NULLS LAST
+---
+### EXP-push-04_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor limit 2
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC LIMIT 2
+---
+### EXP-push-04_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor limit 2
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST LIMIT 2
+---
+### EXP-push-04_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor limit 2
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" ORDER BY "time" ASC NULLS FIRST LIMIT 2
+---
+### EXP-push-05_mysql POS
+SQL: select count(*), region from fq_exp_mysql.sensor group by region
+RESULT
+-> GroupAggregate (functions=1 width=138 groups=1 input_order=unknown)
+      Output: columns=2 width=138 blocking=1
+      Merge ResBlocks: True
+   -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=138)
+         Output: columns=2 width=138
+         Source: 127.0.0.1:13306 user=root
+         Remote SQL: SELECT `region`, `time` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+---
+### EXP-push-05_pg POS
+SQL: select count(*), region from fq_exp_pg.sensor group by region
+RESULT
+-> GroupAggregate (functions=1 width=65527 groups=1 input_order=unknown)
+      Output: columns=2 width=65527 blocking=1
+      Merge ResBlocks: True
+   -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65527)
+         Output: columns=2 width=65527
+         Source: 127.0.0.1:15434 user=postgres
+         Remote SQL: SELECT "region", "time" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-push-05_influx POS
+SQL: select count(*), region from fq_exp_influx.sensor group by region
+RESULT
+-> GroupAggregate (functions=1 width=65527 groups=1 input_order=unknown)
+      Output: columns=2 width=65527 blocking=1
+      Merge ResBlocks: True
+   -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65527)
+         Output: columns=2 width=65527
+         Source: 127.0.0.1:18086 user=u
+         Remote SQL: SELECT "region", "time" FROM "sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-push-06_mysql POS
+SQL: select sum(voltage), avg(voltage), min(voltage), max(voltage) from fq_exp_mysql.sensor
+RESULT
+-> Aggregate (functions=4 width=32 input_order=unknown)
+      Output: columns=4 width=32 blocking=1
+      Merge ResBlocks: True
+   -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=8)
+         Output: columns=1 width=8
+         Source: 127.0.0.1:13306 user=root
+         Remote SQL: SELECT `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+---
+### EXP-push-06_pg POS
+SQL: select sum(voltage), avg(voltage), min(voltage), max(voltage) from fq_exp_pg.sensor
+RESULT
+-> Aggregate (functions=4 width=32 input_order=unknown)
+      Output: columns=4 width=32 blocking=1
+      Merge ResBlocks: True
+   -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=8)
+         Output: columns=1 width=8
+         Source: 127.0.0.1:15434 user=postgres
+         Remote SQL: SELECT "voltage" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-push-06_influx POS
+SQL: select sum(voltage), avg(voltage), min(voltage), max(voltage) from fq_exp_influx.sensor
+RESULT
+-> Aggregate (functions=4 width=32 input_order=unknown)
+      Output: columns=4 width=32 blocking=1
+      Merge ResBlocks: True
+   -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=8)
+         Output: columns=1 width=8
+         Source: 127.0.0.1:18086 user=u
+         Remote SQL: SELECT "voltage" FROM "sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-push-07_mysql POS
+SQL: select region, count(*) as cnt from fq_exp_mysql.sensor group by region having count(*) > 1
+RESULT
+-> GroupAggregate (functions=1 width=138 groups=1 input_order=unknown)
+      Output: columns=2 width=138 blocking=1
+      Filter: conditions=(`count(*)` > 1)
+      Merge ResBlocks: True
+   -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=138)
+         Output: columns=2 width=138
+         Source: 127.0.0.1:13306 user=root
+         Remote SQL: SELECT `region`, `time` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+---
+### EXP-push-07_pg POS
+SQL: select region, count(*) as cnt from fq_exp_pg.sensor group by region having count(*) > 1
+RESULT
+-> GroupAggregate (functions=1 width=65527 groups=1 input_order=unknown)
+      Output: columns=2 width=65527 blocking=1
+      Filter: conditions=(`count(*)` > 1)
+      Merge ResBlocks: True
+   -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65527)
+         Output: columns=2 width=65527
+         Source: 127.0.0.1:15434 user=postgres
+         Remote SQL: SELECT "region", "time" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-push-07_influx POS
+SQL: select region, count(*) as cnt from fq_exp_influx.sensor group by region having count(*) > 1
+RESULT
+-> GroupAggregate (functions=1 width=65527 groups=1 input_order=unknown)
+      Output: columns=2 width=65527 blocking=1
+      Filter: conditions=(`count(*)` > 1)
+      Merge ResBlocks: True
+   -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65527)
+         Output: columns=2 width=65527
+         Source: 127.0.0.1:18086 user=u
+         Remote SQL: SELECT "region", "time" FROM "sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-push-08_mysql POS
+SQL: select csum(voltage) from fq_exp_mysql.sensor
+RESULT
+-> Indefinite Rows Function (functions=1 width=8)
+      Output: columns=1 width=8
+   -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
+         Output: columns=2 width=16
+         Source: 127.0.0.1:13306 user=root
+         Remote SQL: SELECT `voltage`, `time` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+---
+### EXP-push-08_pg POS
+SQL: select csum(voltage) from fq_exp_pg.sensor
+RESULT
+-> Indefinite Rows Function (functions=1 width=8)
+      Output: columns=1 width=8
+   -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
+         Output: columns=2 width=16
+         Source: 127.0.0.1:15434 user=postgres
+         Remote SQL: SELECT "voltage", "time" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-push-08_influx POS
+SQL: select csum(voltage) from fq_exp_influx.sensor
+RESULT
+-> Indefinite Rows Function (functions=1 width=8)
+      Output: columns=1 width=8
+   -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
+         Output: columns=2 width=16
+         Source: 127.0.0.1:18086 user=u
+         Remote SQL: SELECT "voltage", "time" FROM "sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-push-09_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+---
+### EXP-push-09_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-push-09_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-dialect-01_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+---
+### EXP-dialect-02_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-dialect-03_influx POS
+SQL: select * from fq_exp_influx.sensor
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65543)
+      Output: columns=4 width=65543
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "region", "current", "voltage" FROM "sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-typemap-01_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-typemap-02_influx POS
+SQL: select * from fq_exp_influx.sensor
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65543)
+      Output: columns=4 width=65543
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "region", "current", "voltage" FROM "sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-security-01_mysql POS
+SQL: select * from fq_exp_mysql.sensor
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=150)
+      Output: columns=4 width=150
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: SELECT `time`, `voltage`, `current`, `region` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+---
+### EXP-security-01_pg POS
+SQL: select * from fq_exp_pg.sensor
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65539)
+      Output: columns=4 width=65539
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage", "current", "region" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-security-01_influx POS
+SQL: select * from fq_exp_influx.sensor
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65543)
+      Output: columns=4 width=65543
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "region", "current", "voltage" FROM "sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-join-01_mysql POS
+SQL: select s.`time`, s.voltage, r.area from fq_exp_mysql.sensor s join fq_exp_mysql.region_info r on s.`time` = r.`time` and s.region = r.region
+RESULT
+-> Projection (columns=3 width=20 input_order=unknown)
+      Output: columns=3 width=20
+      Output: Ignore Group Id: true
+      Merge ResBlocks: True
+   -> Inner Join (columns=5 width=280 input_order=asc algo=Merge)
+         Output: columns=5 width=280
+         Join Prim Cond: (`fq_exp_mysql`.`s`.`time` = `fq_exp_mysql`.`r`.`time`)
+         Left Equal Cond: `s`.`region` 
+         Right Equal Cond: `r`.`region` 
+         Join Full Cond: (`fq_exp_mysql`.`s`.`region` = `fq_exp_mysql`.`r`.`region`)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+            Output: columns=3 width=146
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+      -> Data Exchange 1:1 (width=142)
+            Output: columns=3 width=142
+         -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
+               Output: columns=3 width=142
+               Source: 127.0.0.1:13306 user=root
+               Remote SQL: SELECT `time`, `region`, `area` FROM `fq_explain_m`.`region_info` ORDER BY `time` ASC
+---
+### EXP-join-01_pg POS
+SQL: select s.`time`, s.voltage, r.area from fq_exp_pg.sensor s join fq_exp_pg.region_info r on s.`time` = r.`time` and s.region = r.region
+RESULT
+-> Projection (columns=3 width=20 input_order=unknown)
+      Output: columns=3 width=20
+      Output: Ignore Group Id: true
+      Merge ResBlocks: True
+   -> Inner Join (columns=5 width=131058 input_order=asc algo=Merge)
+         Output: columns=5 width=131058
+         Join Prim Cond: (`fq_exp_pg`.`s`.`time` = `fq_exp_pg`.`r`.`time`)
+         Left Equal Cond: `s`.`region` 
+         Right Equal Cond: `r`.`region` 
+         Join Full Cond: (`fq_exp_pg`.`s`.`region` = `fq_exp_pg`.`r`.`region`)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
+            Output: columns=3 width=65535
+            Source: 127.0.0.1:15434 user=postgres
+            Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST
+      -> Data Exchange 1:1 (width=65531)
+            Output: columns=3 width=65531
+         -> Federated Scan on fq_exp_pg.region_info (postgresql) (width=65531)
+               Output: columns=3 width=65531
+               Source: 127.0.0.1:15434 user=postgres
+               Remote SQL: SELECT "time", "region", "area" FROM "public"."region_info" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-join-02_mysql_pg POS
+SQL: select m.`time`, m.voltage, p.current from fq_exp_mysql.sensor m join fq_exp_pg.sensor p on m.`time` = p.`time` and m.region = p.region
+RESULT
+-> Projection (columns=3 width=20 input_order=unknown)
+      Output: columns=3 width=20
+      Output: Ignore Group Id: true
+      Merge ResBlocks: True
+   -> Inner Join (columns=5 width=65669 input_order=asc algo=Merge)
+         Output: columns=5 width=65669
+         Join Prim Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_pg`.`p`.`time`)
+         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
+         Join Col Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+            Output: columns=3 width=146
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+      -> Data Exchange 1:1 (width=65531)
+            Output: columns=3 width=65531
+         -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65531)
+               Output: columns=3 width=65531
+               Source: 127.0.0.1:15434 user=postgres
+               Remote SQL: SELECT "time", "region", "current" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-join-02_mysql_influx POS
+SQL: select m.`time`, m.voltage, p.current from fq_exp_mysql.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region
+RESULT
+-> Projection (columns=3 width=24 input_order=unknown)
+      Output: columns=3 width=24
+      Output: Ignore Group Id: true
+      Merge ResBlocks: True
+   -> Inner Join (columns=5 width=65673 input_order=asc algo=Merge)
+         Output: columns=5 width=65673
+         Join Prim Cond: (__timestamp_scale(`fq_exp_mysql`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`)
+         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+         Join Col Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=154)
+            Output: columns=3 width=146
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+      -> Data Exchange 1:1 (width=65535)
+            Output: columns=3 width=65535
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+               Output: columns=3 width=65535
+               Source: 127.0.0.1:18086 user=u
+               Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-join-02_pg_influx POS
+SQL: select m.`time`, m.voltage, p.current from fq_exp_pg.sensor m join fq_exp_influx.sensor p on m.`time` = p.`time` and m.region = p.region
+RESULT
+-> Projection (columns=3 width=24 input_order=unknown)
+      Output: columns=3 width=24
+      Output: Ignore Group Id: true
+      Merge ResBlocks: True
+   -> Inner Join (columns=5 width=131062 input_order=asc algo=Merge)
+         Output: columns=5 width=131062
+         Join Prim Cond: (__timestamp_scale(`fq_exp_pg`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`)
+         Left Equal Cond: `m`.`region` 
+         Right Equal Cond: `p`.`region` 
+         Join Full Cond: (`fq_exp_pg`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65543)
+            Output: columns=3 width=65535
+            Source: 127.0.0.1:15434 user=postgres
+            Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST
+      -> Data Exchange 1:1 (width=65535)
+            Output: columns=3 width=65535
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+               Output: columns=3 width=65535
+               Source: 127.0.0.1:18086 user=u
+               Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-combo-01_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor where voltage > 219.0 order by `time`
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 219) ORDER BY `time` ASC
+---
+### EXP-combo-01_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor where voltage > 219.0 order by `time`
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("voltage" > 219) ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-combo-01_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor where voltage > 219.0 order by `time`
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("voltage" > 219) ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-combo-02_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor order by `time` limit 2 offset 1
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC LIMIT 2 OFFSET 1
+---
+### EXP-combo-02_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor order by `time` limit 2 offset 1
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST LIMIT 2 OFFSET 1
+---
+### EXP-combo-02_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor order by `time` limit 2 offset 1
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" ORDER BY "time" ASC NULLS FIRST LIMIT 2 OFFSET 1
+---
+### EXP-combo-03_mysql POS
+SQL: select distinct region from fq_exp_mysql.sensor
+RESULT
+-> GroupAggregate (width=130 groups=1 input_order=unknown)
+      Output: columns=1 width=130 blocking=1
+      Merge ResBlocks: True
+   -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=130)
+         Output: columns=1 width=130
+         Source: 127.0.0.1:13306 user=root
+         Remote SQL: SELECT `region` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+---
+### EXP-combo-03_pg POS
+SQL: select distinct region from fq_exp_pg.sensor
+RESULT
+-> GroupAggregate (width=65519 groups=1 input_order=unknown)
+      Output: columns=1 width=65519 blocking=1
+      Merge ResBlocks: True
+   -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65519)
+         Output: columns=1 width=65519
+         Source: 127.0.0.1:15434 user=postgres
+         Remote SQL: SELECT "region" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-combo-03_influx POS
+SQL: select distinct region from fq_exp_influx.sensor
+RESULT
+-> GroupAggregate (width=65519 groups=1 input_order=unknown)
+      Output: columns=1 width=65519 blocking=1
+      Merge ResBlocks: True
+   -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65519)
+         Output: columns=1 width=65519
+         Source: 127.0.0.1:18086 user=u
+         Remote SQL: SELECT "region" FROM "sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-combo-04_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor where (voltage > 220.0 and region = 'north') or current < 1.2
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (((`voltage` > 220) AND (`region` = 'north')) OR (`current` < 1.2)) ORDER BY `time` ASC
+---
+### EXP-combo-04_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor where (voltage > 220.0 and region = 'north') or current < 1.2
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ((("voltage" > 220) AND ("region" = 'north')) OR ("current" < 1.2)) ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-combo-04_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor where (voltage > 220.0 and region = 'north') or current < 1.2
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ((("voltage" > 220) AND ("region" = 'north')) OR ("current" < 1.2)) ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-base-01_mysql POS
+SQL: select * from fq_exp_mysql.sensor
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=150)
+      Output: columns=4 width=150
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: SELECT `time`, `voltage`, `current`, `region` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+---
+### EXP-base-01_pg POS
+SQL: select * from fq_exp_pg.sensor
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65539)
+      Output: columns=4 width=65539
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage", "current", "region" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-base-01_influx POS
+SQL: select * from fq_exp_influx.sensor
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65543)
+      Output: columns=4 width=65543
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "region", "current", "voltage" FROM "sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-base-02_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor where voltage > 220.0 order by `time` limit 3
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: SELECT `time`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 220) ORDER BY `time` ASC LIMIT 3
+---
+### EXP-base-02_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor where voltage > 220.0 order by `time` limit 3
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: SELECT "time", "voltage" FROM "public"."sensor" WHERE ("voltage" > 220) ORDER BY "time" ASC NULLS FIRST LIMIT 3
+---
+### EXP-base-02_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor where voltage > 220.0 order by `time` limit 3
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: SELECT "time", "voltage" FROM "sensor" WHERE ("voltage" > 220) ORDER BY "time" ASC NULLS FIRST LIMIT 3
+---
+### EXP-subq-01_mysql POS
+SQL: select `time`, voltage from fq_exp_mysql.sensor where voltage > (select avg(voltage) from fq_exp_mysql.sensor)
+RESULT
+-> Federated Scan on fq_exp_mysql.sensor (mysql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:13306 user=root
+      Remote SQL: (generation failed, code=0x80006409 SQL syntax unsupported for external source)
+   InitPlan 1
+      -> Aggregate (functions=1 width=8 input_order=unknown)
+            Output: columns=1 width=8 blocking=1
+            Merge ResBlocks: True
+         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=8)
+               Output: columns=1 width=8
+               Source: 127.0.0.1:13306 user=root
+               Remote SQL: SELECT `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+---
+### EXP-subq-01_pg POS
+SQL: select `time`, voltage from fq_exp_pg.sensor where voltage > (select avg(voltage) from fq_exp_pg.sensor)
+RESULT
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:15434 user=postgres
+      Remote SQL: (generation failed, code=0x80006409 SQL syntax unsupported for external source)
+   InitPlan 1
+      -> Aggregate (functions=1 width=8 input_order=unknown)
+            Output: columns=1 width=8 blocking=1
+            Merge ResBlocks: True
+         -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=8)
+               Output: columns=1 width=8
+               Source: 127.0.0.1:15434 user=postgres
+               Remote SQL: SELECT "voltage" FROM "public"."sensor" ORDER BY "time" ASC NULLS FIRST
+---
+### EXP-subq-01_influx POS
+SQL: select `time`, voltage from fq_exp_influx.sensor where voltage > (select avg(voltage) from fq_exp_influx.sensor)
+RESULT
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=16)
+      Output: columns=2 width=16
+      Source: 127.0.0.1:18086 user=u
+      Remote SQL: (generation failed, code=0x80006409 SQL syntax unsupported for external source)
+   InitPlan 1
+      -> Aggregate (functions=1 width=8 input_order=unknown)
+            Output: columns=1 width=8 blocking=1
+            Merge ResBlocks: True
+         -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=8)
+               Output: columns=1 width=8
+               Source: 127.0.0.1:18086 user=u
+               Remote SQL: SELECT "voltage" FROM "sensor" ORDER BY "time" ASC NULLS FIRST
+---

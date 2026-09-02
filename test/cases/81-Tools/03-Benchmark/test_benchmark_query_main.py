@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool
+import glob
 import os
 import json
 import subprocess
@@ -232,6 +233,37 @@ class TestBenchmarkQueryMain:
         self.expectFailed(f"{benchmark} -f  {os.path.dirname(__file__)}/json/queryErrorBatchNoMix.json")
         self.expectFailed(f"{benchmark} -f  {os.path.dirname(__file__)}/json/queryErrorBatchRest.json")
 
+    def checkFileLines(self, fileName, expectedLines):
+        if not os.path.exists(fileName):
+            tdLog.exit(f"result file does not exist: {fileName}")
+
+        with open(fileName, "r") as file:
+            lines = file.readlines()
+
+        if len(lines) != expectedLines:
+            tdLog.exit(f"unexpected line count in {fileName}, expect:{expectedLines}, real:{len(lines)}, content:{lines}")
+
+        return lines
+
+    def do_mixed_batch_query_result_file(self, benchmark, tbRow):
+        for fileName in glob.glob("query_mix_result_switch*.txt-*"):
+            os.remove(fileName)
+
+        jsonFile = f"{os.path.dirname(__file__)}/json/queryModeSpecMixBatchResult.json"
+        output, error = self.runSeconds(f"{benchmark} -f {jsonFile}")
+        if "completed total queries: 3" not in output:
+            tdLog.exit(f"mixed batch query failed, output:\n{output}\nerror:\n{error}")
+
+        countLines = self.checkFileLines("query_mix_result_switch_count.txt-0", 1)
+        if countLines[0].strip() != str(tbRow):
+            tdLog.exit(f"unexpected count result: {countLines}")
+
+        lastLines = self.checkFileLines("query_mix_result_switch_last.txt-0", 1)
+        if len(lastLines[0].strip().split()) < 2:
+            tdLog.exit(f"unexpected last row result: {lastLines}")
+
+        print("mixed batch query result file ......................... [passed]")
+
     def test_query_main(self):
         """taosBenchmark query basic
 
@@ -241,12 +273,12 @@ class TestBenchmarkQueryMain:
             2) specified table mixed query
             3) super table query
         3. Validate the output of each query mode to ensure correct execution.
-        4. Perform exception tests to verify error handling.
+        4. Validate mixed batch query result files switch with each SQL.
+        5. Perform exception tests to verify error handling.
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -265,10 +297,10 @@ class TestBenchmarkQueryMain:
 
         # query mode test
         self.threeQueryMode(benchmark, tbCnt, tbRow)
+        self.do_mixed_batch_query_result_file(benchmark, tbRow)
 
         # exception test
         self.exceptTest(benchmark, tbCnt, tbRow);
-
 
 
 

@@ -1847,7 +1847,7 @@ requires-dist = [
     { name = "threadpool", specifier = ">=1.3.2" },
     { name = "toml", specifier = ">=0.10.2" },
     { name = "tomli", specifier = "==2.2.1" },
-    { name = "urllib3", specifier = "==2.6.3" },
+    { name = "urllib3", specifier = "==2.7.0" },
 ]
 
 [[package]]

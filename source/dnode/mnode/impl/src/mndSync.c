@@ -15,9 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "mndCluster.h"
+#include "mndMnode.h"
 #include "mndStream.h"
 #include "mndSync.h"
 #include "mndTrans.h"
+#include "mndTxnSeq.h"
 #include "mndUser.h"
 #include "mndXnode.h"
 #include "mndToken.h"
@@ -316,7 +318,14 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   } else {
     mInfo("vgId:1, sync restore finished");
   }
-  int32_t code = mndRefreshUserIpWhiteList(pMnode);
+
+  int32_t code = mndTxnSeqPrepare(pMnode);
+  if (code != 0) {
+    mError("vgId:1, failed to prepare txn seq since %s", tstrerror(code));
+    mndSetRestored(pMnode, false);
+  }
+
+  code = mndRefreshUserIpWhiteList(pMnode);
   if (code != 0) {
     mError("vgId:1, failed to refresh user ip white list since %s", tstrerror(code));
     mndSetRestored(pMnode, false);
@@ -342,6 +351,30 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   }
 }
 
+static int32_t mndTriggerEnsureDefault(SMnode *pMnode) {
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_ENSURE_DEFAULT, .info.ahandle = 0, .info.notFreeAhandle = 1};
+  SEpSet  epSet = {0};
+  mndGetMnodeEpSet(pMnode, &epSet);
+  int32_t code = tmsgSendReq(&epSet, &rpcMsg);
+  if (code != 0) {
+    mError("vgId:1, failed to trigger ensure-default since %s", tstrerror(code));
+  } else {
+    mInfo("vgId:1, ensure-default request posted to write queue");
+  }
+  TAOS_RETURN(code);
+}
+
+int32_t mndProcessEnsureDefaultReq(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  int32_t code = sdbEnsureDefaultData(pMnode->pSdb);
+  if (code != 0) {
+    mError("failed to ensure default data since %s", tstrerror(code));
+  } else {
+    mInfo("ensure default data finished");
+  }
+  TAOS_RETURN(code);
+}
+
 void mndAfterRestored(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   SMnode *pMnode = pFsm->data;
 
@@ -350,6 +383,25 @@ void mndAfterRestored(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
       mError("failed to prepare sdb while start mnode");
     }
     mInfo("vgId:1, sync restore finished and restore sdb success");
+
+    // Ensure default data only for an interrupted first deploy: a lone single-dnode
+    // cluster. Two guards, both required:
+    //   1. raft replicaNum == 1: a single-member group, which never takes the
+    //      "reset sdb -> receive snapshot" join path.
+    //   2. sdbGetSize(SDB_DNODE) <= 1: only one dnode in sdb, so it is a real
+    //      first deploy, not a multi-node cluster scaled down to a single mnode.
+    // Exception path guard 1 blocks: a joining replica resets its sdb and only
+    // gets the snapshot AFTER mndAfterRestored runs, so SDB_DNODE reads 0 here and
+    // (2) alone would falsely fire. Such a replica always joins a >=2 member group
+    // (replicaNum >= 2), so (1) rules it out; within replicaNum == 1 no reset
+    // happens and SDB_DNODE is trustworthy. The ensure pass creates transactions,
+    // so post it to the write worker.
+    if (pMnode->selfDnodeId <= 1 && sdbGetSize(pMnode->pSdb, SDB_DNODE) <= 1) {
+      SSyncCfg cfg = {0};
+      if (syncNodeGetConfig(pMnode->syncMgmt.sync, &cfg) == 0 && cfg.replicaNum == 1) {
+        (void)mndTriggerEnsureDefault(pMnode);
+      }
+    }
   }
 }
 
@@ -499,6 +551,8 @@ int32_t mndInitSync(SMnode *pMnode) {
   pMgmt->transSec = 0;
   pMgmt->transSeq = 0;
   (void)taosThreadMutexUnlock(&pMgmt->lock);
+
+  mndSetMsgHandle(pMnode, TDMT_MND_ENSURE_DEFAULT, mndProcessEnsureDefaultReq);
 
   SSyncInfo syncInfo = {
       .snapshotStrategy = SYNC_STRATEGY_STANDARD_SNAPSHOT,

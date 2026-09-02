@@ -26,6 +26,79 @@
 
 static SyncIndex syncNodeGetSnapBeginIndex(SSyncNode *ths);
 
+// global snapshot rate limiter
+static SSnapshotRateLimiter *gSnapshotRateLimiter = NULL;
+
+int32_t snapshotRateLimiterCreate(SSnapshotRateLimiter **ppLimiter) {
+  SSnapshotRateLimiter *pLimiter = taosMemoryCalloc(1, sizeof(SSnapshotRateLimiter));
+  if (pLimiter == NULL) {
+    return terrno;
+  }
+  int32_t code = taosThreadMutexInit(&pLimiter->mutex, NULL);
+  if (code != 0) {
+    taosMemoryFree(pLimiter);
+    return TAOS_SYSTEM_ERROR(code);
+  }
+  pLimiter->tokens = 0;
+  pLimiter->lastFillMs = 0;
+  *ppLimiter = pLimiter;
+  gSnapshotRateLimiter = pLimiter;
+  return 0;
+}
+
+void snapshotRateLimiterDestroy(SSnapshotRateLimiter **ppLimiter) {
+  if (ppLimiter == NULL || *ppLimiter == NULL) return;
+  SSnapshotRateLimiter *pLimiter = *ppLimiter;
+  (void)taosThreadMutexDestroy(&pLimiter->mutex);
+  taosMemoryFree(pLimiter);
+  *ppLimiter = NULL;
+  gSnapshotRateLimiter = NULL;
+}
+
+void snapshotRateLimiterCleanUp(void) { snapshotRateLimiterDestroy(&gSnapshotRateLimiter); }
+
+bool snapshotRateLimiterTryConsume(void) {
+  int32_t rateLimit = tsSnapshotRateLimit;
+  if (rateLimit <= 0) return true;
+
+  SSnapshotRateLimiter *pLimiter = gSnapshotRateLimiter;
+  if (pLimiter == NULL) return true;
+
+  bool allowed = false;
+  (void)taosThreadMutexLock(&pLimiter->mutex);
+
+  int64_t nowMs = taosGetTimestampMs();
+  if (pLimiter->lastFillMs == 0) {
+    pLimiter->lastFillMs = nowMs;
+    pLimiter->tokens = (int64_t)rateLimit * 1024 * 1024;
+  }
+
+  int64_t elapsedMs = nowMs - pLimiter->lastFillMs;
+  if (elapsedMs > 0) {
+    int64_t refill = elapsedMs * (int64_t)rateLimit * 1024 * 1024 / 1000;
+    int64_t cap = (int64_t)rateLimit * 1024 * 1024;  // 1 second cap
+    pLimiter->tokens = TMIN(pLimiter->tokens + refill, cap);
+    pLimiter->lastFillMs = nowMs;
+  }
+
+  allowed = (pLimiter->tokens > 0);
+
+  (void)taosThreadMutexUnlock(&pLimiter->mutex);
+  return allowed;
+}
+
+void snapshotRateLimiterDeduct(int32_t bytes) {
+  int32_t rateLimit = tsSnapshotRateLimit;
+  if (rateLimit <= 0) return;
+
+  SSnapshotRateLimiter *pLimiter = gSnapshotRateLimiter;
+  if (pLimiter == NULL) return;
+
+  (void)taosThreadMutexLock(&pLimiter->mutex);
+  pLimiter->tokens -= bytes;
+  (void)taosThreadMutexUnlock(&pLimiter->mutex);
+}
+
 static void syncSnapBufferReset(SSyncSnapBuffer *pBuf) {
   for (int64_t i = pBuf->start; i < pBuf->end; ++i) {
     if (pBuf->entryDeleteCb) {
@@ -276,9 +349,10 @@ _OUT:
 
 // when sender receive ack, call this function to send msg from seq
 // seq = ack + 1, already updated
-static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
+static int32_t snapshotSend(SSyncSnapshotSender *pSender, int32_t *pSentBytes) {
   int32_t        code = 0;
   SyncSnapBlock *pBlk = NULL;
+  if (pSentBytes) *pSentBytes = 0;
 
   if (pSender->seq < SYNC_SNAPSHOT_SEQ_END) {
     pSender->seq++;
@@ -336,6 +410,7 @@ static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
     pBlk = NULL;
     pSender->pSndBuf->end = TMAX(pSender->seq + 1, pSender->pSndBuf->end);
   }
+  if (pSentBytes) *pSentBytes = blockLen;
   pSender->lastSendTime = nowMs;
 
 _OUT:;
@@ -373,7 +448,7 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
   }
 
   if (pSender->seq != SYNC_SNAPSHOT_SEQ_END && pSndBuf->end <= pSndBuf->start) {
-    if ((code = snapshotSend(pSender)) != 0) {
+    if ((code = snapshotSend(pSender, NULL)) != 0) {
       goto _out;
     }
   }
@@ -1215,6 +1290,12 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
     TAOS_CHECK_GOTO(syncSnapSenderExchgSnapInfo(pSyncNode, pSender, pMsg), NULL, _out);
   }
 
+  // Convert the target replica index into the target follower's dnodeId and pass it down with the snapshot parameters,
+  // so the tsdb layer can bucketize transfer progress per target (the DID macro takes the low 32 bits of SRaftId.addr as the dnodeId).
+  pSender->snapshotParam.destDnodeId = DID(&pSyncNode->replicasId[pSender->replicaIndex]);
+  sSInfo(pSender, "snapshot start read, replicaIndex:%d destDnodeId:%d", pSender->replicaIndex,
+         pSender->snapshotParam.destDnodeId);
+
   code = pSyncNode->pFsm->FpSnapshotStartRead(pSyncNode->pFsm, &pSender->snapshotParam, &pSender->pReader);
   if (code != 0) {
     sSError(pSender, "prepare snapshot failed since %s", tstrerror(code));
@@ -1224,7 +1305,7 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
   // update next index
   syncIndexMgrSetIndex(pSyncNode->pNextIndex, &pMsg->srcId, snapshot.lastApplyIndex + 1);
 
-  code = snapshotSend(pSender);
+  code = snapshotSend(pSender, NULL);
 
 _out:
   (void)taosThreadMutexUnlock(&pSender->pSndBuf->mutex);
@@ -1295,13 +1376,42 @@ static int32_t syncSnapBufferSend(SSyncSnapshotSender *pSender, SyncSnapshotRsp 
   }
 
   while (pSender->seq != SYNC_SNAPSHOT_SEQ_END && pSender->seq - pSndBuf->start < tsSnapReplMaxWaitN) {
-    if ((code = snapshotSend(pSender)) != 0) {
+    if (!snapshotRateLimiterTryConsume()) {
+      // Insufficient tokens, trigger rate limiting. Note: pSndBuf->mutex is already held on entry to this function;
+      // calling taosMsleep while holding the lock would block other paths that need this sender's lock (e.g. handling subsequent ACKs, stopping the sender).
+      // So we release the lock before sleeping to let the token bucket refill at its rate, then re-acquire the lock after waking up.
+      // A small sleep granularity (10ms) is chosen to reduce burst jitter during rate limiting and make the send rate smoother.
+      sSDebug(pSender, "snapshot rate limited, current rate: %d MB/s, unlock and wait for tokens", tsSnapshotRateLimit);
+      (void)taosThreadMutexUnlock(&pSndBuf->mutex);
+      taosMsleep(10);
+      (void)taosThreadMutexLock(&pSndBuf->mutex);
+
+      // While sleeping the lock was released, so the sender's state may have changed (e.g. term change, leader switch, sender stopped,
+      // reader freed, etc.). After re-acquiring the lock, we must re-validate the signature and running state, and exit safely if it is no longer valid,
+      // to avoid continuing to send snapshot data on an already-invalid/stopped sender.
+      if (snapshotSenderSignatureCmp(pSender, pMsg) != 0) {
+        code = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
+        sError("failed to send snapshot data after rate-limit wait, since %s", tstrerror(code));
+        goto _out;
+      }
+      if (pSender->pReader == NULL || pSender->finish || !snapshotSenderIsStart(pSender)) {
+        code = TSDB_CODE_SYN_INTERNAL_ERROR;
+        sSError(pSender, "snapshot sender became invalid during rate-limit wait, pReader:%p, finish:%d",
+                pSender->pReader, pSender->finish);
+        goto _out;
+      }
+      continue;
+    }
+    int32_t sentBytes = 0;
+    if ((code = snapshotSend(pSender, &sentBytes)) != 0) {
       goto _out;
     }
+    sSDebug(pSender, "snapshot replication progress:5/8:leader:3/4, snapshot send, seq:%d, sentBytes:%d", pSender->seq, sentBytes);
+    snapshotRateLimiterDeduct(sentBytes);
   }
 
   if (pSender->seq == SYNC_SNAPSHOT_SEQ_END && pSndBuf->end <= pSndBuf->start) {
-    if ((code = snapshotSend(pSender)) != 0) {
+    if ((code = snapshotSend(pSender, NULL)) != 0) {
       goto _out;
     }
   }
@@ -1381,10 +1491,10 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   if (pMsg->ack >= SYNC_SNAPSHOT_SEQ_BEGIN && pMsg->ack < SYNC_SNAPSHOT_SEQ_END) {
     int64_t currentTimestamp = taosGetTimestampMs()/1000;
     if (currentTimestamp > lastSendPrintLog) {
-      sSInfo(pSender, "snapshot replication progress:5/8:leader:3/4, send buffer, msg:%s, snap ack:%d",
+      sSInfo(pSender, "snapshot replication progress:5/8:leader:3/4, receive rsp(going to send a batch), msg:%s, snap ack:%d",
              TMSG_INFO(pRpcMsg->msgType), pMsg->ack);
     } else {
-      sSDebug(pSender, "snapshot replication progress:5/8:leader:3/4, send buffer, msg:%s, snap ack:%d",
+      sSDebug(pSender, "snapshot replication progress:5/8:leader:3/4, receive rsp(going to send a batch), msg:%s, snap ack:%d",
               TMSG_INFO(pRpcMsg->msgType), pMsg->ack);
     }
     lastSendPrintLog = currentTimestamp;

@@ -6,7 +6,7 @@ import os
 import threading
 from enum import Enum
 
-from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom, tmqCom
 
 class actionType(Enum):
     CREATE_DATABASE = 0
@@ -70,19 +70,6 @@ class TestCase:
             resultList.append(tdSql.getData(i , 3))
 
         return resultList
-
-    def startTmqSimProcess(self,buildPath,cfgPath,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0):
-        shellCmd = 'nohup '
-        if valgrind == 1:
-            logFile = cfgPath + '/../log/valgrind-tmq.log'
-            shellCmd = 'nohup valgrind --log-file=' + logFile
-            shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
-
-        shellCmd += buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName)
-        shellCmd += "> /dev/null 2>&1 &"
-        tdLog.info(shellCmd)
-        os.system(shellCmd)
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=4,replica=1):
         if dropFlag == 1:
@@ -268,7 +255,7 @@ class TestCase:
         pollDelay = 10
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         time.sleep(3)
         tdLog.info("================= restart dnode ===========================")
@@ -335,7 +322,7 @@ class TestCase:
         pollDelay = 50
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("create some new child table and insert data ")
         parameterDict['batchNum'] = 100
@@ -410,7 +397,7 @@ class TestCase:
         pollDelay = 10
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         # tdLog.info("================= restart dnode ===========================")
         # tdDnodes.stop(1)
@@ -440,8 +427,7 @@ class TestCase:
 
         Since: xxx
 
-        Labels: xxx
-
+        Labels: common,ci,integration,functional
         Jira: xxx
 
         Catalog:

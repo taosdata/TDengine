@@ -5,16 +5,28 @@
 extern "C" {
 #endif
 
+#ifdef WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
 #include <sys/socket.h>
 #include <unistd.h>
+#endif
 
 #include "tmqttInt.h"
 #include "ttq.h"
 
+#ifdef WIN32
+#define COMPAT_CLOSE(a)    closesocket(a)
+#define COMPAT_ECONNRESET  WSAECONNRESET
+#define COMPAT_EINTR       WSAEINTR
+#define COMPAT_EWOULDBLOCK WSAEWOULDBLOCK
+#else
 #define COMPAT_CLOSE(a)    close(a)
 #define COMPAT_ECONNRESET  ECONNRESET
 #define COMPAT_EINTR       EINTR
 #define COMPAT_EWOULDBLOCK EWOULDBLOCK
+#endif
 
 /* For when not using winsock libraries. */
 #ifndef INVALID_SOCKET

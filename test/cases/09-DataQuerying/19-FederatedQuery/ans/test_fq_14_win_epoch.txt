@@ -1,0 +1,1348 @@
+### ewin-01 local
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_local.parity_t SESSION(time, 2m)
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000 |                     5 |                   150 |
+---
+### ewin-01 MySQL
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_m.parity_t SESSION(time, 2m)
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000 |                     5 |                   150 |
+---
+### ewin-01 PG
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_p.parity_t SESSION(time, 2m)
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000 |                     5 |                   150 |
+---
+### ewin-01 InfluxDB
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t SESSION(time, 2m)
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000000 |                     5 |                   150 |
+---
+### ewin-02 local
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_local.parity_t EVENT_WINDOW START WITH val > 20 END WITH val < 40 ORDER BY _wstart
+    _wstart     |       count(*)        |
+=========================================
+ 1704067320000 |                     1 |
+---
+### ewin-02 MySQL
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_m.parity_t EVENT_WINDOW START WITH val > 20 END WITH val < 40 ORDER BY _wstart
+    _wstart     |       count(*)        |
+=========================================
+ 1704067320000000 |                     1 |
+---
+### ewin-02 PG
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_p.parity_t EVENT_WINDOW START WITH val > 20 END WITH val < 40 ORDER BY _wstart
+    _wstart     |       count(*)        |
+=========================================
+ 1704067320000000 |                     1 |
+---
+### ewin-02 InfluxDB
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_i.parity_t EVENT_WINDOW START WITH val > 20 END WITH val < 40 ORDER BY _wstart
+    _wstart     |       count(*)        |
+=========================================
+ 1704067320000000000 |                     1 |
+---
+### ewin-03 local
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_local.parity_t COUNT_WINDOW(2) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000 |                     2 |                    30 |
+ 1704067320000 |                     2 |                    70 |
+ 1704067440000 |                     1 |                    50 |
+---
+### ewin-03 MySQL
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_m.parity_t COUNT_WINDOW(2) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000 |                     2 |                    30 |
+ 1704067320000000 |                     2 |                    70 |
+ 1704067440000000 |                     1 |                    50 |
+---
+### ewin-03 PG
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_p.parity_t COUNT_WINDOW(2) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000 |                     2 |                    30 |
+ 1704067320000000 |                     2 |                    70 |
+ 1704067440000000 |                     1 |                    50 |
+---
+### ewin-03 InfluxDB
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t COUNT_WINDOW(2) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000000 |                     2 |                    30 |
+ 1704067320000000000 |                     2 |                    70 |
+ 1704067440000000000 |                     1 |                    50 |
+---
+### ewin-04 local
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000 |                        10 |
+ 1704067230000 | NULL                      |
+ 1704067260000 |                        20 |
+ 1704067290000 | NULL                      |
+ 1704067320000 |                        30 |
+ 1704067350000 | NULL                      |
+ 1704067380000 |                        40 |
+ 1704067410000 | NULL                      |
+ 1704067440000 |                        50 |
+ 1704067470000 | NULL                      |
+---
+### ewin-04 MySQL
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_m.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 | NULL                      |
+ 1704067260000000 |                        20 |
+ 1704067290000000 | NULL                      |
+ 1704067320000000 |                        30 |
+ 1704067350000000 | NULL                      |
+ 1704067380000000 |                        40 |
+ 1704067410000000 | NULL                      |
+ 1704067440000000 |                        50 |
+ 1704067470000000 | NULL                      |
+---
+### ewin-04 PG
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_p.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 | NULL                      |
+ 1704067260000000 |                        20 |
+ 1704067290000000 | NULL                      |
+ 1704067320000000 |                        30 |
+ 1704067350000000 | NULL                      |
+ 1704067380000000 |                        40 |
+ 1704067410000000 | NULL                      |
+ 1704067440000000 |                        50 |
+ 1704067470000000 | NULL                      |
+---
+### ewin-04 InfluxDB
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000000 |                        10 |
+ 1704067230000000000 | NULL                      |
+ 1704067260000000000 |                        20 |
+ 1704067290000000000 | NULL                      |
+ 1704067320000000000 |                        30 |
+ 1704067350000000000 | NULL                      |
+ 1704067380000000000 |                        40 |
+ 1704067410000000000 | NULL                      |
+ 1704067440000000000 |                        50 |
+ 1704067470000000000 | NULL                      |
+---
+### ewin-05 local
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(VALUE, 0) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000 |                        10 |
+ 1704067230000 |                         0 |
+ 1704067260000 |                        20 |
+ 1704067290000 |                         0 |
+ 1704067320000 |                        30 |
+ 1704067350000 |                         0 |
+ 1704067380000 |                        40 |
+ 1704067410000 |                         0 |
+ 1704067440000 |                        50 |
+ 1704067470000 |                         0 |
+---
+### ewin-05 MySQL
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_m.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(VALUE, 0) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                         0 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                         0 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                         0 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                         0 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 |                         0 |
+---
+### ewin-05 PG
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_p.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(VALUE, 0) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                         0 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                         0 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                         0 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                         0 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 |                         0 |
+---
+### ewin-05 InfluxDB
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(VALUE, 0) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000000 |                        10 |
+ 1704067230000000000 |                         0 |
+ 1704067260000000000 |                        20 |
+ 1704067290000000000 |                         0 |
+ 1704067320000000000 |                        30 |
+ 1704067350000000000 |                         0 |
+ 1704067380000000000 |                        40 |
+ 1704067410000000000 |                         0 |
+ 1704067440000000000 |                        50 |
+ 1704067470000000000 |                         0 |
+---
+### ewin-06 local
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(PREV) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000 |                        10 |
+ 1704067230000 |                        10 |
+ 1704067260000 |                        20 |
+ 1704067290000 |                        20 |
+ 1704067320000 |                        30 |
+ 1704067350000 |                        30 |
+ 1704067380000 |                        40 |
+ 1704067410000 |                        40 |
+ 1704067440000 |                        50 |
+ 1704067470000 |                        50 |
+---
+### ewin-06 MySQL
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_m.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(PREV) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                        10 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                        20 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                        30 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                        40 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 |                        50 |
+---
+### ewin-06 PG
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_p.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(PREV) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                        10 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                        20 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                        30 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                        40 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 |                        50 |
+---
+### ewin-06 InfluxDB
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(PREV) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000000 |                        10 |
+ 1704067230000000000 |                        10 |
+ 1704067260000000000 |                        20 |
+ 1704067290000000000 |                        20 |
+ 1704067320000000000 |                        30 |
+ 1704067350000000000 |                        30 |
+ 1704067380000000000 |                        40 |
+ 1704067410000000000 |                        40 |
+ 1704067440000000000 |                        50 |
+ 1704067470000000000 |                        50 |
+---
+### ewin-07 local
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NEXT) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000 |                        10 |
+ 1704067230000 |                        20 |
+ 1704067260000 |                        20 |
+ 1704067290000 |                        30 |
+ 1704067320000 |                        30 |
+ 1704067350000 |                        40 |
+ 1704067380000 |                        40 |
+ 1704067410000 |                        50 |
+ 1704067440000 |                        50 |
+ 1704067470000 | NULL                      |
+---
+### ewin-07 MySQL
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_m.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NEXT) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                        20 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                        30 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                        40 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                        50 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 | NULL                      |
+---
+### ewin-07 PG
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_p.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NEXT) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                        20 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                        30 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                        40 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                        50 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 | NULL                      |
+---
+### ewin-07 InfluxDB
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NEXT) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000000 |                        10 |
+ 1704067230000000000 |                        20 |
+ 1704067260000000000 |                        20 |
+ 1704067290000000000 |                        30 |
+ 1704067320000000000 |                        30 |
+ 1704067350000000000 |                        40 |
+ 1704067380000000000 |                        40 |
+ 1704067410000000000 |                        50 |
+ 1704067440000000000 |                        50 |
+ 1704067470000000000 | NULL                      |
+---
+### ewin-08 local
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(LINEAR) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000 |                        10 |
+ 1704067230000 |                        15 |
+ 1704067260000 |                        20 |
+ 1704067290000 |                        25 |
+ 1704067320000 |                        30 |
+ 1704067350000 |                        35 |
+ 1704067380000 |                        40 |
+ 1704067410000 |                        45 |
+ 1704067440000 |                        50 |
+ 1704067470000 | NULL                      |
+---
+### ewin-08 MySQL
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_m.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(LINEAR) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                        15 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                        25 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                        35 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                        45 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 | NULL                      |
+---
+### ewin-08 PG
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_p.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(LINEAR) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                        15 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                        25 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                        35 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                        45 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 | NULL                      |
+---
+### ewin-08 InfluxDB
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(LINEAR) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000000 |                        10 |
+ 1704067230000000000 |                        15 |
+ 1704067260000000000 |                        20 |
+ 1704067290000000000 |                        25 |
+ 1704067320000000000 |                        30 |
+ 1704067350000000000 |                        35 |
+ 1704067380000000000 |                        40 |
+ 1704067410000000000 |                        45 |
+ 1704067440000000000 |                        50 |
+ 1704067470000000000 | NULL                      |
+---
+### ewin-09 local
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' PARTITION BY id INTERVAL(1m) ORDER BY id, _wstart
+    _wstart     |       count(*)        |
+=========================================
+ 1704067200000 |                     1 |
+ 1704067260000 |                     1 |
+ 1704067320000 |                     1 |
+ 1704067380000 |                     1 |
+ 1704067440000 |                     1 |
+---
+### ewin-09 MySQL
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_m.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' PARTITION BY id INTERVAL(1m) ORDER BY id, _wstart
+    _wstart     |       count(*)        |
+=========================================
+ 1704067200000000 |                     1 |
+ 1704067260000000 |                     1 |
+ 1704067320000000 |                     1 |
+ 1704067380000000 |                     1 |
+ 1704067440000000 |                     1 |
+---
+### ewin-09 PG
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_p.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' PARTITION BY id INTERVAL(1m) ORDER BY id, _wstart
+    _wstart     |       count(*)        |
+=========================================
+ 1704067200000000 |                     1 |
+ 1704067260000000 |                     1 |
+ 1704067320000000 |                     1 |
+ 1704067380000000 |                     1 |
+ 1704067440000000 |                     1 |
+---
+### ewin-09 InfluxDB
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_i.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' PARTITION BY id INTERVAL(1m) ORDER BY id, _wstart
+    _wstart     |       count(*)        |
+=========================================
+ 1704067200000000000 |                     1 |
+ 1704067260000000000 |                     1 |
+ 1704067320000000000 |                     1 |
+ 1704067380000000000 |                     1 |
+ 1704067440000000000 |                     1 |
+---
+### ewin-10 local
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_local.parity_t STATE_WINDOW(id) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000 |                     1 |                    10 |
+ 1704067260000 |                     1 |                    20 |
+ 1704067320000 |                     1 |                    30 |
+ 1704067380000 |                     1 |                    40 |
+ 1704067440000 |                     1 |                    50 |
+---
+### ewin-10 MySQL
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_m.parity_t STATE_WINDOW(id) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000 |                     1 |                    10 |
+ 1704067260000000 |                     1 |                    20 |
+ 1704067320000000 |                     1 |                    30 |
+ 1704067380000000 |                     1 |                    40 |
+ 1704067440000000 |                     1 |                    50 |
+---
+### ewin-10 PG
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_p.parity_t STATE_WINDOW(id) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000 |                     1 |                    10 |
+ 1704067260000000 |                     1 |                    20 |
+ 1704067320000000 |                     1 |                    30 |
+ 1704067380000000 |                     1 |                    40 |
+ 1704067440000000 |                     1 |                    50 |
+---
+### ewin-10 InfluxDB
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t STATE_WINDOW(id) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000000 |                     1 |                    10 |
+ 1704067260000000000 |                     1 |                    20 |
+ 1704067320000000000 |                     1 |                    30 |
+ 1704067380000000000 |                     1 |                    40 |
+ 1704067440000000000 |                     1 |                    50 |
+---
+### ewin-11 local
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_local.parity_t STATE_WINDOW(CASE WHEN val > 30 THEN 1 ELSE 0 END) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000 |                     3 |                    60 |
+ 1704067380000 |                     2 |                    90 |
+---
+### ewin-11 MySQL
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_m.parity_t STATE_WINDOW(CASE WHEN val > 30 THEN 1 ELSE 0 END) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000 |                     3 |                    60 |
+ 1704067380000000 |                     2 |                    90 |
+---
+### ewin-11 PG
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_p.parity_t STATE_WINDOW(CASE WHEN val > 30 THEN 1 ELSE 0 END) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000 |                     3 |                    60 |
+ 1704067380000000 |                     2 |                    90 |
+---
+### ewin-11 InfluxDB
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t STATE_WINDOW(CASE WHEN val > 30 THEN 1 ELSE 0 END) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000000 |                     3 |                    60 |
+ 1704067380000000000 |                     2 |                    90 |
+---
+### ewin-12 local
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NONE) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000 |                        10 |
+ 1704067260000 |                        20 |
+ 1704067320000 |                        30 |
+ 1704067380000 |                        40 |
+ 1704067440000 |                        50 |
+---
+### ewin-12 MySQL
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_m.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NONE) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067260000000 |                        20 |
+ 1704067320000000 |                        30 |
+ 1704067380000000 |                        40 |
+ 1704067440000000 |                        50 |
+---
+### ewin-12 PG
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_p.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NONE) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067260000000 |                        20 |
+ 1704067320000000 |                        30 |
+ 1704067380000000 |                        40 |
+ 1704067440000000 |                        50 |
+---
+### ewin-12 InfluxDB
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NONE) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000000 |                        10 |
+ 1704067260000000000 |                        20 |
+ 1704067320000000000 |                        30 |
+ 1704067380000000000 |                        40 |
+ 1704067440000000000 |                        50 |
+---
+### ewin-13 local
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NEAR) ORDER BY _wstart
+---
+### ewin-13 MySQL
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_m.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NEAR) ORDER BY _wstart
+---
+### ewin-13 PG
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_p.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NEAR) ORDER BY _wstart
+---
+### ewin-13 InfluxDB
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NEAR) ORDER BY _wstart
+---
+### ewin-14 local
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL_F) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000 |                        10 |
+ 1704067230000 | NULL                      |
+ 1704067260000 |                        20 |
+ 1704067290000 | NULL                      |
+ 1704067320000 |                        30 |
+ 1704067350000 | NULL                      |
+ 1704067380000 |                        40 |
+ 1704067410000 | NULL                      |
+ 1704067440000 |                        50 |
+ 1704067470000 | NULL                      |
+---
+### ewin-14 MySQL
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_m.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL_F) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 | NULL                      |
+ 1704067260000000 |                        20 |
+ 1704067290000000 | NULL                      |
+ 1704067320000000 |                        30 |
+ 1704067350000000 | NULL                      |
+ 1704067380000000 |                        40 |
+ 1704067410000000 | NULL                      |
+ 1704067440000000 |                        50 |
+ 1704067470000000 | NULL                      |
+---
+### ewin-14 PG
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_p.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL_F) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 | NULL                      |
+ 1704067260000000 |                        20 |
+ 1704067290000000 | NULL                      |
+ 1704067320000000 |                        30 |
+ 1704067350000000 | NULL                      |
+ 1704067380000000 |                        40 |
+ 1704067410000000 | NULL                      |
+ 1704067440000000 |                        50 |
+ 1704067470000000 | NULL                      |
+---
+### ewin-14 InfluxDB
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL_F) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000000 |                        10 |
+ 1704067230000000000 | NULL                      |
+ 1704067260000000000 |                        20 |
+ 1704067290000000000 | NULL                      |
+ 1704067320000000000 |                        30 |
+ 1704067350000000000 | NULL                      |
+ 1704067380000000000 |                        40 |
+ 1704067410000000000 | NULL                      |
+ 1704067440000000000 |                        50 |
+ 1704067470000000000 | NULL                      |
+---
+### ewin-15 local
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(VALUE_F, 0) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000 |                        10 |
+ 1704067230000 |                         0 |
+ 1704067260000 |                        20 |
+ 1704067290000 |                         0 |
+ 1704067320000 |                        30 |
+ 1704067350000 |                         0 |
+ 1704067380000 |                        40 |
+ 1704067410000 |                         0 |
+ 1704067440000 |                        50 |
+ 1704067470000 |                         0 |
+---
+### ewin-15 MySQL
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_m.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(VALUE_F, 0) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                         0 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                         0 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                         0 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                         0 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 |                         0 |
+---
+### ewin-15 PG
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_p.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(VALUE_F, 0) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                         0 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                         0 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                         0 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                         0 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 |                         0 |
+---
+### ewin-15 InfluxDB
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(VALUE_F, 0) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000000 |                        10 |
+ 1704067230000000000 |                         0 |
+ 1704067260000000000 |                        20 |
+ 1704067290000000000 |                         0 |
+ 1704067320000000000 |                        30 |
+ 1704067350000000000 |                         0 |
+ 1704067380000000000 |                        40 |
+ 1704067410000000000 |                         0 |
+ 1704067440000000000 |                        50 |
+ 1704067470000000000 |                         0 |
+---
+### ewin-16 local
+SQL: SELECT _wstart, _wend, _wduration, COUNT(*), SUM(val) FROM fq_parity_local.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_local.parity_t INTERVAL(2m)) w) ORDER BY _wstart
+    _wstart     |     _wend      |      _wduration       |       count(*)        |       sum(val)        |
+==========================================================================================================
+ 1704067200000 | 1704067320000 |                120000 |                     3 |                    60 |
+ 1704067320000 | 1704067440000 |                120000 |                     3 |                   120 |
+ 1704067440000 | 1704067560000 |                120000 |                     1 |                    50 |
+---
+### ewin-16 MySQL
+SQL: SELECT _wstart, _wend, _wduration, COUNT(*), SUM(val) FROM fq_parity_src_m.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_m.parity_t INTERVAL(2m)) w) ORDER BY _wstart
+    _wstart     |     _wend      |      _wduration       |       count(*)        |       sum(val)        |
+==========================================================================================================
+ 1704067200000000 | 1704067320000000 |             120000000 |                     3 |                    60 |
+ 1704067320000000 | 1704067440000000 |             120000000 |                     3 |                   120 |
+ 1704067440000000 | 1704067560000000 |             120000000 |                     1 |                    50 |
+---
+### ewin-16 PG
+SQL: SELECT _wstart, _wend, _wduration, COUNT(*), SUM(val) FROM fq_parity_src_p.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_p.parity_t INTERVAL(2m)) w) ORDER BY _wstart
+    _wstart     |     _wend      |      _wduration       |       count(*)        |       sum(val)        |
+==========================================================================================================
+ 1704067200000000 | 1704067320000000 |             120000000 |                     3 |                    60 |
+ 1704067320000000 | 1704067440000000 |             120000000 |                     3 |                   120 |
+ 1704067440000000 | 1704067560000000 |             120000000 |                     1 |                    50 |
+---
+### ewin-16 InfluxDB
+SQL: SELECT _wstart, _wend, _wduration, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_i.parity_t INTERVAL(2m)) w) ORDER BY _wstart
+    _wstart     |     _wend      |      _wduration       |       count(*)        |       sum(val)        |
+==========================================================================================================
+ 1704067200000000000 | 1704067320000000000 |          120000000000 |                     3 |                    60 |
+ 1704067320000000000 | 1704067440000000000 |          120000000000 |                     3 |                   120 |
+ 1704067440000000000 | 1704067560000000000 |          120000000000 |                     1 |                    50 |
+---
+### ewin-17 local
+SQL: SELECT _wstart, _wend, w.win_max, COUNT(*), AVG(val) FROM fq_parity_local.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend, MAX(val) win_max FROM fq_parity_local.parity_t INTERVAL(2m)) w) ORDER BY _wstart
+    _wstart     |     _wend      |   win_max   |       count(*)        |         avg(val)          |
+====================================================================================================
+ 1704067200000 | 1704067320000 |          20 |                     3 |                        20 |
+ 1704067320000 | 1704067440000 |          40 |                     3 |                        40 |
+ 1704067440000 | 1704067560000 |          50 |                     1 |                        50 |
+---
+### ewin-17 MySQL
+SQL: SELECT _wstart, _wend, w.win_max, COUNT(*), AVG(val) FROM fq_parity_src_m.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend, MAX(val) win_max FROM fq_parity_src_m.parity_t INTERVAL(2m)) w) ORDER BY _wstart
+    _wstart     |     _wend      |   win_max   |       count(*)        |         avg(val)          |
+====================================================================================================
+ 1704067200000000 | 1704067320000000 |          20 |                     3 |                        20 |
+ 1704067320000000 | 1704067440000000 |          40 |                     3 |                        40 |
+ 1704067440000000 | 1704067560000000 |          50 |                     1 |                        50 |
+---
+### ewin-17 PG
+SQL: SELECT _wstart, _wend, w.win_max, COUNT(*), AVG(val) FROM fq_parity_src_p.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend, MAX(val) win_max FROM fq_parity_src_p.parity_t INTERVAL(2m)) w) ORDER BY _wstart
+    _wstart     |     _wend      |   win_max   |       count(*)        |         avg(val)          |
+====================================================================================================
+ 1704067200000000 | 1704067320000000 |          20 |                     3 |                        20 |
+ 1704067320000000 | 1704067440000000 |          40 |                     3 |                        40 |
+ 1704067440000000 | 1704067560000000 |          50 |                     1 |                        50 |
+---
+### ewin-17 InfluxDB
+SQL: SELECT _wstart, _wend, w.win_max, COUNT(*), AVG(val) FROM fq_parity_src_i.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend, MAX(val) win_max FROM fq_parity_src_i.parity_t INTERVAL(2m)) w) ORDER BY _wstart
+    _wstart     |     _wend      |        win_max        |       count(*)        |         avg(val)          |
+==============================================================================================================
+ 1704067200000000000 | 1704067320000000000 |                    20 |                     3 |                        20 |
+ 1704067320000000000 | 1704067440000000000 |                    40 |                     3 |                        40 |
+ 1704067440000000000 | 1704067560000000000 |                    50 |                     1 |                        50 |
+---
+### ewin-18 local
+SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_local.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_local.parity_t EVENT_WINDOW START WITH val >= 20 END WITH val >= 40) w) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |       sum(val)        |
+==================================================================================
+ 1704067260000 | 1704067380000 |                     3 |                    90 |
+ 1704067440000 | 1704067440000 |                     1 |                    50 |
+---
+### ewin-18 MySQL
+SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_src_m.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_m.parity_t EVENT_WINDOW START WITH val >= 20 END WITH val >= 40) w) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |       sum(val)        |
+==================================================================================
+ 1704067260000000 | 1704067380000000 |                     3 |                    90 |
+ 1704067440000000 | 1704067440000000 |                     1 |                    50 |
+---
+### ewin-18 PG
+SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_src_p.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_p.parity_t EVENT_WINDOW START WITH val >= 20 END WITH val >= 40) w) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |       sum(val)        |
+==================================================================================
+ 1704067260000000 | 1704067380000000 |                     3 |                    90 |
+ 1704067440000000 | 1704067440000000 |                     1 |                    50 |
+---
+### ewin-18 InfluxDB
+SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_i.parity_t EVENT_WINDOW START WITH val >= 20 END WITH val >= 40) w) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |       sum(val)        |
+==================================================================================
+ 1704067260000000000 | 1704067380000000000 |                     3 |                    90 |
+ 1704067440000000000 | 1704067440000000000 |                     1 |                    50 |
+---
+### ewin-19 local
+SQL: SELECT _wstart, _wend, id, COUNT(*), SUM(val) FROM fq_parity_local.parity_t PARTITION BY id EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_local.parity_t INTERVAL(2m)) w) ORDER BY id, _wstart
+    _wstart     |     _wend      |     id      |       count(*)        |       sum(val)        |
+================================================================================================
+ 1704067200000 | 1704067320000 |           1 |                     1 |                    10 |
+ 1704067200000 | 1704067320000 |           2 |                     1 |                    20 |
+ 1704067200000 | 1704067320000 |           3 |                     1 |                    30 |
+ 1704067320000 | 1704067440000 |           3 |                     1 |                    30 |
+ 1704067320000 | 1704067440000 |           4 |                     1 |                    40 |
+ 1704067320000 | 1704067440000 |           5 |                     1 |                    50 |
+ 1704067440000 | 1704067560000 |           5 |                     1 |                    50 |
+---
+### ewin-19 MySQL
+SQL: SELECT _wstart, _wend, id, COUNT(*), SUM(val) FROM fq_parity_src_m.parity_t PARTITION BY id EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_m.parity_t INTERVAL(2m)) w) ORDER BY id, _wstart
+    _wstart     |     _wend      |     id      |       count(*)        |       sum(val)        |
+================================================================================================
+ 1704067200000000 | 1704067320000000 |           1 |                     1 |                    10 |
+ 1704067200000000 | 1704067320000000 |           2 |                     1 |                    20 |
+ 1704067200000000 | 1704067320000000 |           3 |                     1 |                    30 |
+ 1704067320000000 | 1704067440000000 |           3 |                     1 |                    30 |
+ 1704067320000000 | 1704067440000000 |           4 |                     1 |                    40 |
+ 1704067320000000 | 1704067440000000 |           5 |                     1 |                    50 |
+ 1704067440000000 | 1704067560000000 |           5 |                     1 |                    50 |
+---
+### ewin-19 PG
+SQL: SELECT _wstart, _wend, id, COUNT(*), SUM(val) FROM fq_parity_src_p.parity_t PARTITION BY id EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_p.parity_t INTERVAL(2m)) w) ORDER BY id, _wstart
+    _wstart     |     _wend      |     id      |       count(*)        |       sum(val)        |
+================================================================================================
+ 1704067200000000 | 1704067320000000 |           1 |                     1 |                    10 |
+ 1704067200000000 | 1704067320000000 |           2 |                     1 |                    20 |
+ 1704067200000000 | 1704067320000000 |           3 |                     1 |                    30 |
+ 1704067320000000 | 1704067440000000 |           3 |                     1 |                    30 |
+ 1704067320000000 | 1704067440000000 |           4 |                     1 |                    40 |
+ 1704067320000000 | 1704067440000000 |           5 |                     1 |                    50 |
+ 1704067440000000 | 1704067560000000 |           5 |                     1 |                    50 |
+---
+### ewin-19 InfluxDB
+SQL: SELECT _wstart, _wend, id, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t PARTITION BY id EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_i.parity_t INTERVAL(2m)) w) ORDER BY id, _wstart
+    _wstart     |     _wend      |          id           |       count(*)        |       sum(val)        |
+==========================================================================================================
+ 1704067200000000000 | 1704067320000000000 |                     1 |                     1 |                    10 |
+ 1704067200000000000 | 1704067320000000000 |                     2 |                     1 |                    20 |
+ 1704067200000000000 | 1704067320000000000 |                     3 |                     1 |                    30 |
+ 1704067320000000000 | 1704067440000000000 |                     3 |                     1 |                    30 |
+ 1704067320000000000 | 1704067440000000000 |                     4 |                     1 |                    40 |
+ 1704067320000000000 | 1704067440000000000 |                     5 |                     1 |                    50 |
+ 1704067440000000000 | 1704067560000000000 |                     5 |                     1 |                    50 |
+---
+### ewin-20 local
+SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_local.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_local.parity_t INTERVAL(2m)) w) HAVING COUNT(*) >= 2 ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |       sum(val)        |
+==================================================================================
+ 1704067200000 | 1704067320000 |                     3 |                    60 |
+ 1704067320000 | 1704067440000 |                     3 |                   120 |
+---
+### ewin-20 MySQL
+SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_src_m.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_m.parity_t INTERVAL(2m)) w) HAVING COUNT(*) >= 2 ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |       sum(val)        |
+==================================================================================
+ 1704067200000000 | 1704067320000000 |                     3 |                    60 |
+ 1704067320000000 | 1704067440000000 |                     3 |                   120 |
+---
+### ewin-20 PG
+SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_src_p.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_p.parity_t INTERVAL(2m)) w) HAVING COUNT(*) >= 2 ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |       sum(val)        |
+==================================================================================
+ 1704067200000000 | 1704067320000000 |                     3 |                    60 |
+ 1704067320000000 | 1704067440000000 |                     3 |                   120 |
+---
+### ewin-20 InfluxDB
+SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_i.parity_t INTERVAL(2m)) w) HAVING COUNT(*) >= 2 ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |       sum(val)        |
+==================================================================================
+ 1704067200000000000 | 1704067320000000000 |                     3 |                    60 |
+ 1704067320000000000 | 1704067440000000000 |                     3 |                   120 |
+---
+### ewin-21 local
+SQL: SELECT _wstart, _wend, COUNT(*), MAX(val), MIN(val) FROM fq_parity_local.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_local.parity_t INTERVAL(2m)) w) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |  max(val)   |  min(val)   |
+======================================================================================
+ 1704067200000 | 1704067320000 |                     3 |          30 |          10 |
+ 1704067320000 | 1704067440000 |                     3 |          50 |          30 |
+ 1704067440000 | 1704067560000 |                     1 |          50 |          50 |
+---
+### ewin-21 MySQL
+SQL: SELECT _wstart, _wend, COUNT(*), MAX(val), MIN(val) FROM fq_parity_src_m.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_m.parity_t INTERVAL(2m)) w) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |  max(val)   |  min(val)   |
+======================================================================================
+ 1704067200000000 | 1704067320000000 |                     3 |          30 |          10 |
+ 1704067320000000 | 1704067440000000 |                     3 |          50 |          30 |
+ 1704067440000000 | 1704067560000000 |                     1 |          50 |          50 |
+---
+### ewin-21 PG
+SQL: SELECT _wstart, _wend, COUNT(*), MAX(val), MIN(val) FROM fq_parity_src_p.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_p.parity_t INTERVAL(2m)) w) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |  max(val)   |  min(val)   |
+======================================================================================
+ 1704067200000000 | 1704067320000000 |                     3 |          30 |          10 |
+ 1704067320000000 | 1704067440000000 |                     3 |          50 |          30 |
+ 1704067440000000 | 1704067560000000 |                     1 |          50 |          50 |
+---
+### ewin-21 InfluxDB
+SQL: SELECT _wstart, _wend, COUNT(*), MAX(val), MIN(val) FROM fq_parity_src_i.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_i.parity_t INTERVAL(2m)) w) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |       max(val)        |       min(val)        |
+==========================================================================================================
+ 1704067200000000000 | 1704067320000000000 |                     3 |                    30 |                    10 |
+ 1704067320000000000 | 1704067440000000000 |                     3 |                    50 |                    30 |
+ 1704067440000000000 | 1704067560000000000 |                     1 |                    50 |                    50 |
+---
+### ewin-22 local
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_local.parity_t EVENT_WINDOW START WITH val > 20 END WITH val < 40 TRUE_FOR(1m)
+---
+### ewin-22 MySQL
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_m.parity_t EVENT_WINDOW START WITH val > 20 END WITH val < 40 TRUE_FOR(1m)
+---
+### ewin-22 PG
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_p.parity_t EVENT_WINDOW START WITH val > 20 END WITH val < 40 TRUE_FOR(1m)
+---
+### ewin-22 InfluxDB
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_i.parity_t EVENT_WINDOW START WITH val > 20 END WITH val < 40 TRUE_FOR(1m)
+---
+### ewin-23 local
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(2m) SLIDING(1m) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067140000 |                     1 |                    10 |
+ 1704067200000 |                     2 |                    30 |
+ 1704067260000 |                     2 |                    50 |
+ 1704067320000 |                     2 |                    70 |
+ 1704067380000 |                     2 |                    90 |
+ 1704067440000 |                     1 |                    50 |
+---
+### ewin-23 MySQL
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_m.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(2m) SLIDING(1m) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067140000000 |                     1 |                    10 |
+ 1704067200000000 |                     2 |                    30 |
+ 1704067260000000 |                     2 |                    50 |
+ 1704067320000000 |                     2 |                    70 |
+ 1704067380000000 |                     2 |                    90 |
+ 1704067440000000 |                     1 |                    50 |
+---
+### ewin-23 PG
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_p.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(2m) SLIDING(1m) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067140000000 |                     1 |                    10 |
+ 1704067200000000 |                     2 |                    30 |
+ 1704067260000000 |                     2 |                    50 |
+ 1704067320000000 |                     2 |                    70 |
+ 1704067380000000 |                     2 |                    90 |
+ 1704067440000000 |                     1 |                    50 |
+---
+### ewin-23 InfluxDB
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(2m) SLIDING(1m) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067140000000000 |                     1 |                    10 |
+ 1704067200000000000 |                     2 |                    30 |
+ 1704067260000000000 |                     2 |                    50 |
+ 1704067320000000000 |                     2 |                    70 |
+ 1704067380000000000 |                     2 |                    90 |
+ 1704067440000000000 |                     1 |                    50 |
+---
+### ewin-24 local
+SQL: SELECT _QSTART, _QEND, COUNT(*) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(1m) ORDER BY _wstart
+    _qstart     |     _qend      |       count(*)        |
+==========================================================
+ 1704067200000 | 1704067499999 |                     1 |
+ 1704067200000 | 1704067499999 |                     1 |
+ 1704067200000 | 1704067499999 |                     1 |
+ 1704067200000 | 1704067499999 |                     1 |
+ 1704067200000 | 1704067499999 |                     1 |
+---
+### ewin-24 MySQL
+SQL: SELECT _QSTART, _QEND, COUNT(*) FROM fq_parity_src_m.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(1m) ORDER BY _wstart
+    _qstart     |     _qend      |       count(*)        |
+==========================================================
+ 1704067200000000 | 1704067499999999 |                     1 |
+ 1704067200000000 | 1704067499999999 |                     1 |
+ 1704067200000000 | 1704067499999999 |                     1 |
+ 1704067200000000 | 1704067499999999 |                     1 |
+ 1704067200000000 | 1704067499999999 |                     1 |
+---
+### ewin-24 PG
+SQL: SELECT _QSTART, _QEND, COUNT(*) FROM fq_parity_src_p.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(1m) ORDER BY _wstart
+    _qstart     |     _qend      |       count(*)        |
+==========================================================
+ 1704067200000000 | 1704067499999999 |                     1 |
+ 1704067200000000 | 1704067499999999 |                     1 |
+ 1704067200000000 | 1704067499999999 |                     1 |
+ 1704067200000000 | 1704067499999999 |                     1 |
+ 1704067200000000 | 1704067499999999 |                     1 |
+---
+### ewin-24 InfluxDB
+SQL: SELECT _QSTART, _QEND, COUNT(*) FROM fq_parity_src_i.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(1m) ORDER BY _wstart
+    _qstart     |     _qend      |       count(*)        |
+==========================================================
+ 1704067200000000000 | 1704067499999999999 |                     1 |
+ 1704067200000000000 | 1704067499999999999 |                     1 |
+ 1704067200000000000 | 1704067499999999999 |                     1 |
+ 1704067200000000000 | 1704067499999999999 |                     1 |
+ 1704067200000000000 | 1704067499999999999 |                     1 |
+---
+### ewin-25 local
+SQL: SELECT _wstart, _wend, _wduration, COUNT(*), SUM(val) FROM fq_parity_local.parity_t INTERVAL(1m) ORDER BY _wstart
+    _wstart     |     _wend      |      _wduration       |       count(*)        |       sum(val)        |
+==========================================================================================================
+ 1704067200000 | 1704067260000 |                 60000 |                     1 |                    10 |
+ 1704067260000 | 1704067320000 |                 60000 |                     1 |                    20 |
+ 1704067320000 | 1704067380000 |                 60000 |                     1 |                    30 |
+ 1704067380000 | 1704067440000 |                 60000 |                     1 |                    40 |
+ 1704067440000 | 1704067500000 |                 60000 |                     1 |                    50 |
+---
+### ewin-25 MySQL
+SQL: SELECT _wstart, _wend, _wduration, COUNT(*), SUM(val) FROM fq_parity_src_m.parity_t INTERVAL(1m) ORDER BY _wstart
+    _wstart     |     _wend      |      _wduration       |       count(*)        |       sum(val)        |
+==========================================================================================================
+ 1704067200000000 | 1704067260000000 |              60000000 |                     1 |                    10 |
+ 1704067260000000 | 1704067320000000 |              60000000 |                     1 |                    20 |
+ 1704067320000000 | 1704067380000000 |              60000000 |                     1 |                    30 |
+ 1704067380000000 | 1704067440000000 |              60000000 |                     1 |                    40 |
+ 1704067440000000 | 1704067500000000 |              60000000 |                     1 |                    50 |
+---
+### ewin-25 PG
+SQL: SELECT _wstart, _wend, _wduration, COUNT(*), SUM(val) FROM fq_parity_src_p.parity_t INTERVAL(1m) ORDER BY _wstart
+    _wstart     |     _wend      |      _wduration       |       count(*)        |       sum(val)        |
+==========================================================================================================
+ 1704067200000000 | 1704067260000000 |              60000000 |                     1 |                    10 |
+ 1704067260000000 | 1704067320000000 |              60000000 |                     1 |                    20 |
+ 1704067320000000 | 1704067380000000 |              60000000 |                     1 |                    30 |
+ 1704067380000000 | 1704067440000000 |              60000000 |                     1 |                    40 |
+ 1704067440000000 | 1704067500000000 |              60000000 |                     1 |                    50 |
+---
+### ewin-25 InfluxDB
+SQL: SELECT _wstart, _wend, _wduration, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t INTERVAL(1m) ORDER BY _wstart
+    _wstart     |     _wend      |      _wduration       |       count(*)        |       sum(val)        |
+==========================================================================================================
+ 1704067200000000000 | 1704067260000000000 |           60000000000 |                     1 |                    10 |
+ 1704067260000000000 | 1704067320000000000 |           60000000000 |                     1 |                    20 |
+ 1704067320000000000 | 1704067380000000000 |           60000000000 |                     1 |                    30 |
+ 1704067380000000000 | 1704067440000000000 |           60000000000 |                     1 |                    40 |
+ 1704067440000000000 | 1704067500000000000 |           60000000000 |                     1 |                    50 |
+---
+### ewin-26 local
+SQL: SELECT _wstart, _wend, COUNT(*) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(2m, 30s) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |
+==========================================================
+ 1704067110000 | 1704067230000 |                     1 |
+ 1704067230000 | 1704067350000 |                     2 |
+ 1704067350000 | 1704067470000 |                     2 |
+---
+### ewin-26 MySQL
+SQL: SELECT _wstart, _wend, COUNT(*) FROM fq_parity_src_m.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(2m, 30s) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |
+==========================================================
+ 1704067110000000 | 1704067230000000 |                     1 |
+ 1704067230000000 | 1704067350000000 |                     2 |
+ 1704067350000000 | 1704067470000000 |                     2 |
+---
+### ewin-26 PG
+SQL: SELECT _wstart, _wend, COUNT(*) FROM fq_parity_src_p.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(2m, 30s) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |
+==========================================================
+ 1704067110000000 | 1704067230000000 |                     1 |
+ 1704067230000000 | 1704067350000000 |                     2 |
+ 1704067350000000 | 1704067470000000 |                     2 |
+---
+### ewin-26 InfluxDB
+SQL: SELECT _wstart, _wend, COUNT(*) FROM fq_parity_src_i.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(2m, 30s) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |
+==========================================================
+ 1704067110000000000 | 1704067230000000000 |                     1 |
+ 1704067230000000000 | 1704067350000000000 |                     2 |
+ 1704067350000000000 | 1704067470000000000 |                     2 |
+---
+### ewin-27 local
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_local.parity_t COUNT_WINDOW(3, 2) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000 |                     3 |                    60 |
+ 1704067320000 |                     3 |                   120 |
+ 1704067440000 |                     1 |                    50 |
+---
+### ewin-27 MySQL
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_m.parity_t COUNT_WINDOW(3, 2) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000 |                     3 |                    60 |
+ 1704067320000000 |                     3 |                   120 |
+ 1704067440000000 |                     1 |                    50 |
+---
+### ewin-27 PG
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_p.parity_t COUNT_WINDOW(3, 2) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000 |                     3 |                    60 |
+ 1704067320000000 |                     3 |                   120 |
+ 1704067440000000 |                     1 |                    50 |
+---
+### ewin-27 InfluxDB
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t COUNT_WINDOW(3, 2) ORDER BY _wstart
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067200000000000 |                     3 |                    60 |
+ 1704067320000000000 |                     3 |                   120 |
+ 1704067440000000000 |                     1 |                    50 |
+---
+### ewin-28 local
+SQL: SELECT label, _wstart, COUNT(*) FROM fq_parity_local.parity_t PARTITION BY label SESSION(time, 30s) ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |
+==========================================================================
+ east                           | 1704067440000 |                     1 |
+ north                          | 1704067200000 |                     1 |
+ north                          | 1704067320000 |                     1 |
+ south                          | 1704067260000 |                     1 |
+ south                          | 1704067380000 |                     1 |
+---
+### ewin-28 MySQL
+SQL: SELECT label, _wstart, COUNT(*) FROM fq_parity_src_m.parity_t PARTITION BY label SESSION(time, 30s) ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |
+==========================================================================
+ east                           | 1704067440000000 |                     1 |
+ north                          | 1704067200000000 |                     1 |
+ north                          | 1704067320000000 |                     1 |
+ south                          | 1704067260000000 |                     1 |
+ south                          | 1704067380000000 |                     1 |
+---
+### ewin-28 PG
+SQL: SELECT label, _wstart, COUNT(*) FROM fq_parity_src_p.parity_t PARTITION BY label SESSION(time, 30s) ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |
+==========================================================================
+ east                           | 1704067440000000 |                     1 |
+ north                          | 1704067200000000 |                     1 |
+ north                          | 1704067320000000 |                     1 |
+ south                          | 1704067260000000 |                     1 |
+ south                          | 1704067380000000 |                     1 |
+---
+### ewin-28 InfluxDB
+SQL: SELECT label, _wstart, COUNT(*) FROM fq_parity_src_i.parity_t PARTITION BY label SESSION(time, 30s) ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |
+==========================================================================
+ east                           | 1704067440000000000 |                     1 |
+ north                          | 1704067200000000000 |                     1 |
+ north                          | 1704067320000000000 |                     1 |
+ south                          | 1704067260000000000 |                     1 |
+ south                          | 1704067380000000000 |                     1 |
+---
+### ewin-29 local
+SQL: SELECT label, _wstart, COUNT(*), SUM(val) FROM fq_parity_local.parity_t PARTITION BY label EVENT_WINDOW START WITH val >= 20 END WITH val >= 40 ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |       sum(val)        |
+==================================================================================================
+ east                           | 1704067440000 |                     1 |                    50 |
+ south                          | 1704067260000 |                     2 |                    60 |
+---
+### ewin-29 MySQL
+SQL: SELECT label, _wstart, COUNT(*), SUM(val) FROM fq_parity_src_m.parity_t PARTITION BY label EVENT_WINDOW START WITH val >= 20 END WITH val >= 40 ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |       sum(val)        |
+==================================================================================================
+ east                           | 1704067440000000 |                     1 |                    50 |
+ south                          | 1704067260000000 |                     2 |                    60 |
+---
+### ewin-29 PG
+SQL: SELECT label, _wstart, COUNT(*), SUM(val) FROM fq_parity_src_p.parity_t PARTITION BY label EVENT_WINDOW START WITH val >= 20 END WITH val >= 40 ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |       sum(val)        |
+==================================================================================================
+ east                           | 1704067440000000 |                     1 |                    50 |
+ south                          | 1704067260000000 |                     2 |                    60 |
+---
+### ewin-29 InfluxDB
+SQL: SELECT label, _wstart, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t PARTITION BY label EVENT_WINDOW START WITH val >= 20 END WITH val >= 40 ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |       sum(val)        |
+==================================================================================================
+ east                           | 1704067440000000000 |                     1 |                    50 |
+ south                          | 1704067260000000000 |                     2 |                    60 |
+---
+### ewin-30 local
+SQL: SELECT label, _wstart, COUNT(*) FROM fq_parity_local.parity_t PARTITION BY label COUNT_WINDOW(2) ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |
+==========================================================================
+ east                           | 1704067440000 |                     1 |
+ north                          | 1704067200000 |                     2 |
+ south                          | 1704067260000 |                     2 |
+---
+### ewin-30 MySQL
+SQL: SELECT label, _wstart, COUNT(*) FROM fq_parity_src_m.parity_t PARTITION BY label COUNT_WINDOW(2) ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |
+==========================================================================
+ east                           | 1704067440000000 |                     1 |
+ north                          | 1704067200000000 |                     2 |
+ south                          | 1704067260000000 |                     2 |
+---
+### ewin-30 PG
+SQL: SELECT label, _wstart, COUNT(*) FROM fq_parity_src_p.parity_t PARTITION BY label COUNT_WINDOW(2) ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |
+==========================================================================
+ east                           | 1704067440000000 |                     1 |
+ north                          | 1704067200000000 |                     2 |
+ south                          | 1704067260000000 |                     2 |
+---
+### ewin-30 InfluxDB
+SQL: SELECT label, _wstart, COUNT(*) FROM fq_parity_src_i.parity_t PARTITION BY label COUNT_WINDOW(2) ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |
+==========================================================================
+ east                           | 1704067440000000000 |                     1 |
+ north                          | 1704067200000000000 |                     2 |
+ south                          | 1704067260000000000 |                     2 |
+---
+### ewin-31 local
+SQL: SELECT label, _wstart, COUNT(*), SUM(val) FROM fq_parity_local.parity_t PARTITION BY label STATE_WINDOW(val >= 30) ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |       sum(val)        |
+==================================================================================================
+ east                           | 1704067440000 |                     1 |                    50 |
+ north                          | 1704067200000 |                     1 |                    10 |
+ north                          | 1704067320000 |                     1 |                    30 |
+ south                          | 1704067260000 |                     1 |                    20 |
+ south                          | 1704067380000 |                     1 |                    40 |
+---
+### ewin-31 MySQL
+SQL: SELECT label, _wstart, COUNT(*), SUM(val) FROM fq_parity_src_m.parity_t PARTITION BY label STATE_WINDOW(val >= 30) ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |       sum(val)        |
+==================================================================================================
+ east                           | 1704067440000000 |                     1 |                    50 |
+ north                          | 1704067200000000 |                     1 |                    10 |
+ north                          | 1704067320000000 |                     1 |                    30 |
+ south                          | 1704067260000000 |                     1 |                    20 |
+ south                          | 1704067380000000 |                     1 |                    40 |
+---
+### ewin-31 PG
+SQL: SELECT label, _wstart, COUNT(*), SUM(val) FROM fq_parity_src_p.parity_t PARTITION BY label STATE_WINDOW(val >= 30) ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |       sum(val)        |
+==================================================================================================
+ east                           | 1704067440000000 |                     1 |                    50 |
+ north                          | 1704067200000000 |                     1 |                    10 |
+ north                          | 1704067320000000 |                     1 |                    30 |
+ south                          | 1704067260000000 |                     1 |                    20 |
+ south                          | 1704067380000000 |                     1 |                    40 |
+---
+### ewin-31 InfluxDB
+SQL: SELECT label, _wstart, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t PARTITION BY label STATE_WINDOW(val >= 30) ORDER BY label, _wstart
+             label              |    _wstart     |       count(*)        |       sum(val)        |
+==================================================================================================
+ east                           | 1704067440000000000 |                     1 |                    50 |
+ north                          | 1704067200000000000 |                     1 |                    10 |
+ north                          | 1704067320000000000 |                     1 |                    30 |
+ south                          | 1704067260000000000 |                     1 |                    20 |
+ south                          | 1704067380000000000 |                     1 |                    40 |
+---
+### ewin-32 local
+SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_local.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_local.parity_t SESSION(time, 30s)) w) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |       sum(val)        |
+==================================================================================
+ 1704067200000 | 1704067200000 |                     1 |                    10 |
+ 1704067260000 | 1704067260000 |                     1 |                    20 |
+ 1704067320000 | 1704067320000 |                     1 |                    30 |
+ 1704067380000 | 1704067380000 |                     1 |                    40 |
+ 1704067440000 | 1704067440000 |                     1 |                    50 |
+---
+### ewin-32 MySQL
+SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_src_m.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_m.parity_t SESSION(time, 30s)) w) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |       sum(val)        |
+==================================================================================
+ 1704067200000000 | 1704067200000000 |                     1 |                    10 |
+ 1704067260000000 | 1704067260000000 |                     1 |                    20 |
+ 1704067320000000 | 1704067320000000 |                     1 |                    30 |
+ 1704067380000000 | 1704067380000000 |                     1 |                    40 |
+ 1704067440000000 | 1704067440000000 |                     1 |                    50 |
+---
+### ewin-32 PG
+SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_src_p.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_p.parity_t SESSION(time, 30s)) w) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |       sum(val)        |
+==================================================================================
+ 1704067200000000 | 1704067200000000 |                     1 |                    10 |
+ 1704067260000000 | 1704067260000000 |                     1 |                    20 |
+ 1704067320000000 | 1704067320000000 |                     1 |                    30 |
+ 1704067380000000 | 1704067380000000 |                     1 |                    40 |
+ 1704067440000000 | 1704067440000000 |                     1 |                    50 |
+---
+### ewin-32 InfluxDB
+SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM fq_parity_src_i.parity_t SESSION(time, 30s)) w) ORDER BY _wstart
+    _wstart     |     _wend      |       count(*)        |       sum(val)        |
+==================================================================================
+ 1704067200000000000 | 1704067200000000000 |                     1 |                    10 |
+ 1704067260000000000 | 1704067260000000000 |                     1 |                    20 |
+ 1704067320000000000 | 1704067320000000000 |                     1 |                    30 |
+ 1704067380000000000 | 1704067380000000000 |                     1 |                    40 |
+ 1704067440000000000 | 1704067440000000000 |                     1 |                    50 |
+---
+### ewin-33 local
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_local.parity_t STATE_WINDOW(val >= 30) TRUE_FOR(2m)
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067320000 |                     3 |                   120 |
+---
+### ewin-33 MySQL
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_m.parity_t STATE_WINDOW(val >= 30) TRUE_FOR(2m)
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067320000000 |                     3 |                   120 |
+---
+### ewin-33 PG
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_p.parity_t STATE_WINDOW(val >= 30) TRUE_FOR(2m)
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067320000000 |                     3 |                   120 |
+---
+### ewin-33 InfluxDB
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM fq_parity_src_i.parity_t STATE_WINDOW(val >= 30) TRUE_FOR(2m)
+    _wstart     |       count(*)        |       sum(val)        |
+=================================================================
+ 1704067320000000000 |                     3 |                   120 |
+---
+### ewin-34 local
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_local.parity_t EVENT_WINDOW START WITH val > 10 END WITH val >= 40 TRUE_FOR(COUNT 2)
+    _wstart     |       count(*)        |
+=========================================
+ 1704067260000 |                     3 |
+---
+### ewin-34 MySQL
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_m.parity_t EVENT_WINDOW START WITH val > 10 END WITH val >= 40 TRUE_FOR(COUNT 2)
+    _wstart     |       count(*)        |
+=========================================
+ 1704067260000000 |                     3 |
+---
+### ewin-34 PG
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_p.parity_t EVENT_WINDOW START WITH val > 10 END WITH val >= 40 TRUE_FOR(COUNT 2)
+    _wstart     |       count(*)        |
+=========================================
+ 1704067260000000 |                     3 |
+---
+### ewin-34 InfluxDB
+SQL: SELECT _wstart, COUNT(*) FROM fq_parity_src_i.parity_t EVENT_WINDOW START WITH val > 10 END WITH val >= 40 TRUE_FOR(COUNT 2)
+    _wstart     |       count(*)        |
+=========================================
+ 1704067260000000000 |                     3 |
+---
+### ewin-35 local
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_local.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(PREV) SURROUND(1m, 0) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000 |                        10 |
+ 1704067230000 |                        10 |
+ 1704067260000 |                        20 |
+ 1704067290000 |                        20 |
+ 1704067320000 |                        30 |
+ 1704067350000 |                        30 |
+ 1704067380000 |                        40 |
+ 1704067410000 |                        40 |
+ 1704067440000 |                        50 |
+ 1704067470000 |                        50 |
+---
+### ewin-35 MySQL
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_m.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(PREV) SURROUND(1m, 0) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                        10 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                        20 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                        30 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                        40 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 |                        50 |
+---
+### ewin-35 PG
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_p.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(PREV) SURROUND(1m, 0) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000 |                        10 |
+ 1704067230000000 |                        10 |
+ 1704067260000000 |                        20 |
+ 1704067290000000 |                        20 |
+ 1704067320000000 |                        30 |
+ 1704067350000000 |                        30 |
+ 1704067380000000 |                        40 |
+ 1704067410000000 |                        40 |
+ 1704067440000000 |                        50 |
+ 1704067470000000 |                        50 |
+---
+### ewin-35 InfluxDB
+SQL: SELECT _wstart, AVG(val) FROM fq_parity_src_i.parity_t WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(PREV) SURROUND(1m, 0) ORDER BY _wstart
+    _wstart     |         avg(val)          |
+=============================================
+ 1704067200000000000 |                        10 |
+ 1704067230000000000 |                        10 |
+ 1704067260000000000 |                        20 |
+ 1704067290000000000 |                        20 |
+ 1704067320000000000 |                        30 |
+ 1704067350000000000 |                        30 |
+ 1704067380000000000 |                        40 |
+ 1704067410000000000 |                        40 |
+ 1704067440000000000 |                        50 |
+ 1704067470000000000 |                        50 |
+---

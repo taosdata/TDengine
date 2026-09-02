@@ -6,11 +6,50 @@ Covers GRANT/REVOKE functionality for CREATE/ALTER/DROP NODE, CREATE XNODE TASK,
 and SHOW/ALTER/DROP ON XNODE TASK privileges.
 """
 
+import http.server
+import os
 import random
-import uuid
+import socketserver
+import threading
 import time
+import uuid
 
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdDnodes, tdLog, tdSql
+
+TSDB_CODE_MND_NO_RIGHTS = 0x0303
+
+
+class XnodedMockHandler(http.server.BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def _send_json(self, payload: bytes):
+        content_length = int(self.headers.get("Content-Length", 0))
+        if content_length:
+            self.rfile.read(content_length)
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def do_GET(self):
+        self._send_json(b'{"status":"online"}')
+
+    def do_POST(self):
+        self._send_json(b"{}")
+
+    def do_DELETE(self):
+        self._send_json(b"{}")
+
+    def log_message(self, format, *args):
+        pass
+
+
+class ThreadingUnixHTTPServer(
+    socketserver.ThreadingMixIn, socketserver.UnixStreamServer
+):
+    daemon_threads = True
 
 
 class TestXnodePriv:
@@ -21,14 +60,125 @@ class TestXnodePriv:
     @classmethod
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
-        cls.suffix = uuid.uuid4().hex[:6]
         cls.test_user = "zgc"
         cls.test_pass = "tbase125!"
         cls.super_user = "root"
         cls.super_pass = "taosdata"
+        cls.xnoded_credentials_ready = False
+
+    def setup_method(self):
+        self.suffix = uuid.uuid4().hex[:8]
         tdSql.prepare(
-            dbname=f"xnode_priv_db_{cls.suffix}", drop=True, replica=cls.replicaVar
+            dbname=f"xnode_priv_db_{self.suffix}",
+            drop=True,
+            replica=self.replicaVar,
         )
+        self.xnoded_socket = self._get_xnoded_socket_path()
+        credentials_created = False
+        if self.xnoded_socket and not type(self).xnoded_credentials_ready:
+            # The first CREATE starts xnoded and unlinks its socket, so persist
+            # credentials before binding the mock.
+            tdSql.execute(
+                "CREATE XNODE 'localhost:6051' USER root PASS 'taosdata'",
+                queryTimes=1,
+            )
+            type(self).xnoded_credentials_ready = True
+            credentials_created = True
+        self._start_xnoded_mock()
+        if credentials_created:
+            self._stabilize_xnoded_mock()
+        self._cleanup_xnode_resources()
+
+    def _get_xnoded_socket_path(self):
+        if os.name == "nt":
+            return None
+
+        data_dir = tdDnodes.dnodes[0].dataDir
+        if isinstance(data_dir, list):
+            data_dir = data_dir[0].split()[0]
+        return os.path.join(data_dir, ".taosxnoded.sock")
+
+    def _start_xnoded_mock(self):
+        if os.name == "nt":
+            self.xnoded_mock = http.server.ThreadingHTTPServer(
+                ("", 6051), XnodedMockHandler
+            )
+        else:
+            if os.path.exists(self.xnoded_socket):
+                os.unlink(self.xnoded_socket)
+            self.xnoded_mock = ThreadingUnixHTTPServer(
+                self.xnoded_socket, XnodedMockHandler
+            )
+        self.xnoded_thread = threading.Thread(
+            target=self.xnoded_mock.serve_forever,
+            kwargs={"poll_interval": 0.05},
+            daemon=True,
+        )
+        self.xnoded_thread.start()
+
+    def _stabilize_xnoded_mock(self):
+        deadline = time.monotonic() + 5
+        stable_since = None
+        while time.monotonic() < deadline:
+            if os.path.exists(self.xnoded_socket):
+                if stable_since is None:
+                    stable_since = time.monotonic()
+                elif time.monotonic() - stable_since >= 0.5:
+                    return
+            else:
+                stable_since = None
+                self._stop_xnoded_mock()
+                self._start_xnoded_mock()
+            time.sleep(0.05)
+        raise RuntimeError(f"Xnoded mock socket did not stabilize: {self.xnoded_socket}")
+
+    def _stop_xnoded_mock(self):
+        self.xnoded_mock.shutdown()
+        self.xnoded_mock.server_close()
+        self.xnoded_thread.join(timeout=5)
+        if self.xnoded_socket and os.path.exists(self.xnoded_socket):
+            os.unlink(self.xnoded_socket)
+
+    def _restart_xnoded_mock(self):
+        self._stop_xnoded_mock()
+        self._start_xnoded_mock()
+        if self.xnoded_socket:
+            self._stabilize_xnoded_mock()
+
+    def teardown_method(self):
+        try:
+            tdSql.connect(user=self.super_user, password=self.super_pass)
+        except Exception:
+            pass
+        else:
+            self._cleanup_xnode_resources()
+            try:
+                users = tdSql.query("SHOW USERS", row_tag=True)
+                for row in users:
+                    user = row[0]
+                    if user == self.test_user or self.suffix in user:
+                        try:
+                            tdSql.execute(f"DROP USER `{user}`", queryTimes=1)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+            try:
+                databases = tdSql.query("SHOW DATABASES", row_tag=True)
+                for row in databases:
+                    database = row[0]
+                    if self.suffix in database:
+                        try:
+                            tdSql.execute(
+                                f"DROP DATABASE IF EXISTS `{database}`", queryTimes=1
+                            )
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+        finally:
+            self._stop_xnoded_mock()
 
     def _create_test_user(self):
         """Create test user if not exists"""
@@ -92,6 +242,22 @@ class TestXnodePriv:
         finally:
             if user:
                 tdSql.connect(user=self.super_user, password=self.super_pass)
+
+    def _assert_xnode_job_denied(self, job_id: int, xnode_id: int):
+        tdSql.error(
+            f"ALTER XNODE JOB {job_id} SET status 'running'",
+            expectedErrno=TSDB_CODE_MND_NO_RIGHTS,
+        )
+        tdSql.error(
+            f"REBALANCE XNODE JOB {job_id} WITH xnode_id {xnode_id}",
+            expectedErrno=TSDB_CODE_MND_NO_RIGHTS,
+        )
+        tdSql.error(
+            f"DROP XNODE JOB {job_id}",
+            expectedErrno=TSDB_CODE_MND_NO_RIGHTS,
+        )
+        rows = tdSql.query(f"SHOW XNODE JOBS WHERE id = {job_id}", row_tag=True)
+        assert len(rows) == 0
 
     def _cleanup_xnode_resources(self):
         """Clean up all xnode resources"""
@@ -158,7 +324,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -187,7 +353,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -224,7 +390,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -257,7 +423,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -291,7 +457,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -327,7 +493,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -366,7 +532,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -400,7 +566,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -437,7 +603,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -453,6 +619,7 @@ class TestXnodePriv:
         xnode_id = rs[0][0] if rs else 1
 
         tdSql.execute("ALTER XNODE SET USER root PASS 'taosdata'", queryTimes=1)
+        self._restart_xnoded_mock()
         tdSql.execute(f"DRAIN XNODE {xnode_id}", queryTimes=1)
         tdSql.execute("DROP XNODE 'localhost:6055'", queryTimes=1)
 
@@ -468,7 +635,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -508,7 +675,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -537,7 +704,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -576,7 +743,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -616,7 +783,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -654,7 +821,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -696,7 +863,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -746,7 +913,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -793,7 +960,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -856,7 +1023,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -909,7 +1076,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -966,7 +1133,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1027,7 +1194,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1084,7 +1251,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1139,7 +1306,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1190,7 +1357,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1240,7 +1407,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1298,7 +1465,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1356,7 +1523,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1414,7 +1581,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1472,7 +1639,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1530,7 +1697,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1580,6 +1747,283 @@ class TestXnodePriv:
 
         tdLog.success("Test 5.7 passed: Creator always has permission")
 
+    def do_task_privileges_after_creator_deleted(self):
+        self._create_test_user()
+        self._cleanup_xnode_resources()
+        tdSql.execute(
+            "CREATE XNODE 'localhost:6055' USER root PASS 'taosdata'",
+            queryTimes=1,
+        )
+
+        source_db = f"deleted_owner_source_{self.suffix}"
+        target_db = f"deleted_owner_target_{self.suffix}"
+        privileged_task = f"deleted_owner_priv_task_{self.suffix}"
+        root_task = f"deleted_owner_root_task_{self.suffix}"
+        authorized_user = f"xna_{self.suffix}"
+        unauthorized_user = f"xnu_{self.suffix}"
+        tdSql.execute(f"CREATE DATABASE {source_db}", queryTimes=1)
+        tdSql.execute(f"CREATE DATABASE {target_db}", queryTimes=1)
+        tdSql.execute(
+            f"CREATE USER {authorized_user} PASS '{self.test_pass}'", queryTimes=1
+        )
+        tdSql.execute(
+            f"CREATE USER {unauthorized_user} PASS '{self.test_pass}'", queryTimes=1
+        )
+        xnode_id = self._get_xnode_id()
+
+        tdSql.execute(f"GRANT CREATE XNODE TASK TO {self.test_user}", queryTimes=1)
+        tdSql.connect(
+            host=self.host,
+            port=self.port,
+            user=self.test_user,
+            password=self.test_pass,
+        )
+        try:
+            for task_name in (privileged_task, root_task):
+                tdSql.execute(
+                    f"CREATE XNODE TASK '{task_name}' "
+                    f"FROM 'taos://root:taosdata@{self.host}:{self.port}/{source_db}' "
+                    f"TO 'taos://root:taosdata@{self.host}:{self.port}/{target_db}' "
+                    f"WITH STATUS 'created' xnode_id {xnode_id}",
+                    queryTimes=1,
+                )
+        finally:
+            tdSql.connect(
+                host=self.host,
+                port=self.port,
+                user=self.super_user,
+                password=self.super_pass,
+            )
+
+        rows = tdSql.query(
+            f"SHOW XNODE TASKS WHERE name = '{privileged_task}'", row_tag=True
+        )
+        privileged_task_id = rows[0][0]
+        tdSql.connect(
+            host=self.host,
+            port=self.port,
+            user=self.test_user,
+            password=self.test_pass,
+        )
+        try:
+            tdSql.execute(
+                f"CREATE XNODE JOB ON {privileged_task_id} "
+                f"WITH CONFIG '{{\"owner\":true}}' xnode_id {xnode_id}",
+                queryTimes=1,
+            )
+        finally:
+            tdSql.connect(
+                host=self.host,
+                port=self.port,
+                user=self.super_user,
+                password=self.super_pass,
+            )
+        rows = tdSql.query(
+            f"SHOW XNODE JOBS WHERE task_id = {privileged_task_id}", row_tag=True
+        )
+        job_id = rows[0][0]
+        tdSql.execute(
+            f"GRANT ALTER ON XNODE TASK `{privileged_task_id}` TO {authorized_user}",
+            queryTimes=1,
+        )
+        tdSql.execute(
+            f"GRANT DROP ON XNODE TASK `{privileged_task_id}` TO {authorized_user}",
+            queryTimes=1,
+        )
+        tdSql.execute(f"DROP USER {self.test_user}", queryTimes=1)
+
+        # Recreating the same username must not restore the deleted user's owner rights.
+        tdSql.execute(
+            f"CREATE USER {self.test_user} PASS '{self.test_pass}'", queryTimes=1
+        )
+        tdSql.execute(f"GRANT CREATE XNODE TASK TO {self.test_user}", queryTimes=1)
+        tdSql.connect(
+            host=self.host,
+            port=self.port,
+            user=self.test_user,
+            password=self.test_pass,
+        )
+        try:
+            tdSql.error(
+                f"ALTER XNODE TASK '{privileged_task}' "
+                "WITH parser 'recreated_parser'",
+                expectedErrno=TSDB_CODE_MND_NO_RIGHTS,
+            )
+            tdSql.error(
+                f"START XNODE TASK '{privileged_task}'",
+                expectedErrno=TSDB_CODE_MND_NO_RIGHTS,
+            )
+            tdSql.error(
+                f"STOP XNODE TASK '{privileged_task}'",
+                expectedErrno=TSDB_CODE_MND_NO_RIGHTS,
+            )
+            tdSql.error(
+                f"DROP XNODE TASK '{privileged_task}'",
+                expectedErrno=TSDB_CODE_MND_NO_RIGHTS,
+            )
+            rows = tdSql.query(
+                f"SHOW XNODE TASKS WHERE name = '{privileged_task}'", row_tag=True
+            )
+            assert len(rows) == 0
+            tdSql.error(
+                f"CREATE XNODE JOB ON {privileged_task_id} "
+                f"WITH CONFIG '{{\"recreated\":true}}' xnode_id {xnode_id}",
+                expectedErrno=TSDB_CODE_MND_NO_RIGHTS,
+            )
+            self._assert_xnode_job_denied(job_id, xnode_id)
+        finally:
+            tdSql.connect(
+                host=self.host,
+                port=self.port,
+                user=self.super_user,
+                password=self.super_pass,
+            )
+
+        tdSql.connect(
+            host=self.host,
+            port=self.port,
+            user=unauthorized_user,
+            password=self.test_pass,
+        )
+        try:
+            tdSql.error(
+                f"ALTER XNODE TASK '{privileged_task}' "
+                "WITH parser 'unauthorized_parser'",
+                expectedErrno=TSDB_CODE_MND_NO_RIGHTS,
+            )
+            tdSql.error(
+                f"DROP XNODE TASK '{privileged_task}'",
+                expectedErrno=TSDB_CODE_MND_NO_RIGHTS,
+            )
+        finally:
+            tdSql.connect(
+                host=self.host,
+                port=self.port,
+                user=self.super_user,
+                password=self.super_pass,
+            )
+
+        tdSql.connect(
+            host=self.host,
+            port=self.port,
+            user=authorized_user,
+            password=self.test_pass,
+        )
+        try:
+            tdSql.execute(
+                f"ALTER XNODE TASK '{privileged_task}' "
+                "WITH parser 'authorized_parser'",
+                queryTimes=1,
+            )
+            tdSql.execute(
+                f"ALTER XNODE JOB {job_id} SET status 'running'", queryTimes=1
+            )
+        finally:
+            tdSql.connect(
+                host=self.host,
+                port=self.port,
+                user=self.super_user,
+                password=self.super_pass,
+            )
+
+        tdSql.execute(
+            f"ALTER XNODE TASK '{root_task}' WITH parser 'root_parser'",
+            queryTimes=1,
+        )
+        for task_name, expected_parser in (
+            (privileged_task, "authorized_parser"),
+            (root_task, "root_parser"),
+        ):
+            rows = tdSql.query(
+                f"SHOW XNODE TASKS WHERE name = '{task_name}'", row_tag=True
+            )
+            parser = rows[0][4]
+            if isinstance(parser, bytes):
+                parser = parser.decode()
+            assert parser == expected_parser
+
+        tdSql.connect(
+            host=self.host,
+            port=self.port,
+            user=authorized_user,
+            password=self.test_pass,
+        )
+        try:
+            tdSql.execute(f"DROP XNODE TASK '{privileged_task}'", queryTimes=1)
+        finally:
+            tdSql.connect(
+                host=self.host,
+                port=self.port,
+                user=self.super_user,
+                password=self.super_pass,
+            )
+
+        tdSql.connect(
+            host=self.host,
+            port=self.port,
+            user=self.test_user,
+            password=self.test_pass,
+        )
+        try:
+            self._assert_xnode_job_denied(job_id, xnode_id)
+            tdSql.execute(f"DROP XNODE JOB WHERE id = {job_id}", queryTimes=1)
+            tdSql.execute(
+                f"REBALANCE XNODE JOB WHERE id = {job_id}", queryTimes=1
+            )
+        finally:
+            tdSql.connect(
+                host=self.host,
+                port=self.port,
+                user=self.super_user,
+                password=self.super_pass,
+            )
+
+        rows = tdSql.query(f"SHOW XNODE JOBS WHERE id = {job_id}", row_tag=True)
+        assert len(rows) == 1
+        tdSql.execute(f"DROP XNODE JOB {job_id}", queryTimes=1)
+
+        tdSql.execute(f"DROP XNODE TASK '{root_task}'", queryTimes=1)
+        for task_name in (privileged_task, root_task):
+            rows = tdSql.query(
+                f"SHOW XNODE TASKS WHERE name = '{task_name}'", row_tag=True
+            )
+            assert len(rows) == 0
+
+        self._cleanup_xnode_resources()
+        tdSql.execute(f"DROP USER {self.test_user}", queryTimes=1)
+        tdSql.execute(f"DROP USER {authorized_user}", queryTimes=1)
+        tdSql.execute(f"DROP USER {unauthorized_user}", queryTimes=1)
+        tdSql.execute(f"DROP DATABASE {source_db}", queryTimes=1)
+        tdSql.execute(f"DROP DATABASE {target_db}", queryTimes=1)
+        tdLog.success("task privileges after creator deletion ........ [ passed ]")
+
+    def test_task_privileges_after_creator_deleted(self):
+        """Task and job privileges remain correct after the creator is deleted
+
+        1. Create xnode tasks and a job as a non-root user
+        2. Grant one user ALTER and DROP on one task
+        3. Delete and recreate the task creator with the same username
+        4. Reject implicit task and job access from the recreated user
+        5. Allow explicit task privileges to manage the associated job
+        6. Reject normal-user access after the job becomes orphaned
+        7. Allow root to inspect and delete the orphan job
+
+        Catalog:
+            - Xnode
+
+        Since: v3.4.1.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-08-24 Codex Created
+            - 2026-08-27 Codex Added job lifecycle and orphan checks
+
+        """
+        self.do_task_privileges_after_creator_deleted()
+
     # =============================================================================
     # Section 6: Object-level Privileges - XNode Task DROP
     # =============================================================================
@@ -1593,7 +2037,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1643,7 +2087,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1701,7 +2145,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1759,7 +2203,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1821,7 +2265,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1885,7 +2329,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1946,7 +2390,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1977,7 +2421,7 @@ class TestXnodePriv:
 
         # Get available xnode id
         xnode_id = self._get_xnode_id()
-        
+
         tdSql.execute(f"CREATE XNODE JOB ON {task_id} WITH CONFIG '{{\"test\":1}}' xnode_id {xnode_id}", queryTimes=1)
 
         rs = tdSql.query(f"SHOW XNODE JOBS WHERE task_id = {task_id}", row_tag=True)
@@ -2011,7 +2455,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2042,7 +2486,7 @@ class TestXnodePriv:
 
         # Get available xnode id
         xnode_id = self._get_xnode_id()
-        
+
         tdSql.execute(f"CREATE XNODE JOB ON {task_id} WITH CONFIG '{{\"test\":1}}' xnode_id {xnode_id}", queryTimes=1)
 
         rs = tdSql.query(f"SHOW XNODE JOBS WHERE task_id = {task_id}", row_tag=True)
@@ -2076,7 +2520,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2107,7 +2551,7 @@ class TestXnodePriv:
 
         # Get available xnode id
         xnode_id = self._get_xnode_id()
-        
+
         tdSql.execute(f"CREATE XNODE JOB ON {task_id} WITH CONFIG '{{\"test\":1}}' xnode_id {xnode_id}", queryTimes=1)
 
         rs = tdSql.query(f"SHOW XNODE JOBS WHERE task_id = {task_id}", row_tag=True)
@@ -2141,7 +2585,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2172,7 +2616,7 @@ class TestXnodePriv:
 
         # Get available xnode id
         xnode_id = self._get_xnode_id()
-        
+
         tdSql.execute(f"CREATE XNODE JOB ON {task_id} WITH CONFIG '{{\"test\":1}}' xnode_id {xnode_id}", queryTimes=1)
 
         rs = tdSql.query(f"SHOW XNODE JOBS WHERE task_id = {task_id}", row_tag=True)
@@ -2196,23 +2640,26 @@ class TestXnodePriv:
 
         tdLog.success("Test 7.6 passed: Rebalancing job requires task ALTER privilege")
 
-    def test_job_no_task_skips_priv_check(self):
-        """Test case 7.7: When associated task is deleted, job operations skip privilege check
+    def test_orphan_job_privilege_check(self):
+        """Test case 7.7: Orphan job operations remain fail-closed
 
         1. Create test databases, xnode, task and job as superuser
-        2. Delete the task
-        3. Try job operations (they should skip privilege check)
-        4. Verify operations proceed without privilege error
+        2. Delete the associated task to create an orphan job
+        3. Reject direct job operations from a normal user
+        4. Filter the orphan job from normal-user batch operations
+        5. Allow root to inspect and delete the orphan job
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
         History:
             - 2026-03-24 Created
+            - 2026-08-27 Codex Changed orphan job checks to fail-closed
         """
+        self._create_test_user()
         self._cleanup_xnode_resources()
         tdSql.execute("CREATE XNODE 'localhost:6055'", queryTimes=1)
 
@@ -2236,18 +2683,35 @@ class TestXnodePriv:
 
         # Get available xnode id
         xnode_id = self._get_xnode_id()
-        
+
         tdSql.execute(f"CREATE XNODE JOB ON {task_id} WITH CONFIG '{{\"test\":1}}' xnode_id {xnode_id}", queryTimes=1)
 
-        # Note: This test documents expected behavior; actual implementation may vary
-        # When task is deleted, job operations should skip privilege check
+        rows = tdSql.query(f"SHOW XNODE JOBS WHERE task_id = {task_id}", row_tag=True)
+        job_id = rows[0][0]
+        tdSql.execute(f"DROP XNODE TASK {task_id}", queryTimes=1)
+
+        tdSql.connect(user=self.test_user, password=self.test_pass)
+        try:
+            self._assert_xnode_job_denied(job_id, xnode_id)
+            tdSql.execute(f"DROP XNODE JOB WHERE id = {job_id}", queryTimes=1)
+            tdSql.execute(
+                f"REBALANCE XNODE JOB WHERE id = {job_id}", queryTimes=1
+            )
+        finally:
+            tdSql.connect(user=self.super_user, password=self.super_pass)
+
+        rows = tdSql.query(f"SHOW XNODE JOBS WHERE id = {job_id}", row_tag=True)
+        assert len(rows) == 1
+        tdSql.execute(f"DROP XNODE JOB {job_id}", queryTimes=1)
+        rows = tdSql.query(f"SHOW XNODE JOBS WHERE id = {job_id}", row_tag=True)
+        assert len(rows) == 0
 
         # Cleanup
         self._cleanup_xnode_resources()
         tdSql.execute(f"DROP DATABASE {test_db}", queryTimes=1)
         tdSql.execute(f"DROP DATABASE {zgc_db}", queryTimes=1)
 
-        tdLog.success("Test 7.7 passed: Job operations skip privilege check when task is deleted")
+        tdLog.success("Test 7.7 passed: Orphan job operations remain fail-closed")
 
     def test_show_jobs_permission_filter(self):
         """Test case 7.8: SHOW XNODE JOBS filters by task permissions
@@ -2259,7 +2723,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2296,7 +2760,7 @@ class TestXnodePriv:
         # Create jobs for both tasks
         # Get available xnode id
         xnode_id = self._get_xnode_id()
-        
+
         tdSql.execute(f"CREATE XNODE JOB ON {task1_id} WITH CONFIG '{{\"task\":1}}' xnode_id {xnode_id}", queryTimes=1)
 
         # Grant SHOW on only one task
@@ -2329,7 +2793,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2361,7 +2825,7 @@ class TestXnodePriv:
         # Create job
         # Get available xnode id
         xnode_id = self._get_xnode_id()
-        
+
         tdSql.execute(f"CREATE XNODE JOB ON {task_id} WITH CONFIG '{{\"test\":1}}' xnode_id {xnode_id}", queryTimes=1)
 
         # Grant DROP on task
@@ -2392,7 +2856,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2424,7 +2888,7 @@ class TestXnodePriv:
         # Create job
         # Get available xnode id
         xnode_id = self._get_xnode_id()
-        
+
         tdSql.execute(f"CREATE XNODE JOB ON {task_id} WITH CONFIG '{{\"test\":1}}' xnode_id {xnode_id}", queryTimes=1)
 
         # Grant ALTER on task
@@ -2457,7 +2921,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2483,7 +2947,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2509,7 +2973,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2535,7 +2999,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2561,7 +3025,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2587,7 +3051,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2613,7 +3077,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2638,7 +3102,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2664,7 +3128,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2690,7 +3154,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2718,7 +3182,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2749,7 +3213,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2796,7 +3260,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2824,7 +3288,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2885,7 +3349,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2913,7 +3377,7 @@ class TestXnodePriv:
 
         rs = tdSql.query(f"SHOW XNODE TASKS WHERE name = 'task_{self.suffix}'", row_tag=True)
         task_id = rs[0][0] if rs else 1
-        
+
         tdSql.execute(f"CREATE XNODE JOB ON {task_id} WITH CONFIG '{{\"test\":1}}' xnode_id {xnode_id}", queryTimes=1)
 
         # Try job operation without task permission
@@ -2941,7 +3405,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -2988,7 +3452,7 @@ class TestXnodePriv:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -3039,12 +3503,6 @@ class TestXnodePriv:
         # Drop test user
         try:
             tdSql.execute(f"DROP USER {cls.test_user}", queryTimes=1)
-        except:
-            pass
-
-        # Drop test database
-        try:
-            tdSql.execute(f"DROP DATABASE IF EXISTS xnode_priv_db_{cls.suffix}")
         except:
             pass
 

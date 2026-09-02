@@ -25,6 +25,8 @@
 #include "tss.h"
 #include "tanalytics.h"
 #include "stream.h"
+#include "extConnector.h"
+#include "tglobal.h"
 // clang-format on
 
 extern void cryptUnloadProviders();
@@ -201,8 +203,22 @@ int32_t dmInit() {
   if ((code = dmInitMonitor()) != 0) return code;
   if ((code = dmInitMetrics()) != 0) return code;
   if ((code = dmInitAudit()) != 0) return code;
+  if ((code = taosInitCpuAllocation()) != 0) return code;
   if ((code = dmInitDnode(pDnode)) != 0) return code;
   if ((code = InitRegexCache() != 0)) return code;
+
+#ifdef TD_ENTERPRISE
+  {
+    SExtConnectorModuleCfg extConnCfg = {
+      .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
+      .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
+      .query_timeout_ms         = tsFederatedQueryQueryTimeoutMs,
+      .idle_conn_ttl_s          = tsFederatedQueryIdleConnTtlSec,
+      .probe_timeout_ms         = tsFederatedQueryProbeTimeoutMs,
+    };
+    if ((code = extConnectorModuleInit(&extConnCfg)) != 0) return code;
+  }
+#endif
 
   gExecInfoInit(&pDnode->data, (getDnodeId_f)dmGetDnodeId, dmGetMnodeEpSet);
   if ((code = streamInit(&pDnode->data, (getDnodeId_f)dmGetDnodeId, dmGetMnodeEpSet, dmGetSynEpset)) != 0) return code;
@@ -229,6 +245,7 @@ void dmCleanup() {
 
   if (dmCheckRepeatCleanup(pDnode) != 0) return;
   dmCleanupDnode(pDnode);
+  extConnectorModuleDestroy();
   monCleanup();
   auditCleanup();
   syncCleanUp();
@@ -507,6 +524,7 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .getMnodeLoadsFp = dmGetMnodeLoads,
       .setMnodeSyncTimeoutFp = dmSetMnodeSyncTimeout,
       .getQnodeLoadsFp = dmGetQnodeLoads,
+      .collectVnodeTxnIdleFp = dmCollectVnodeTxnIdle,
       .stopDnodeFp = dmStop,
   };
 

@@ -1,0 +1,23 @@
+
+taos> set max_binary_display_width 300;
+taos> select tags local_group from td_tagref_select_tags.v0;
+ local_group |
+==============
+           1 |
+
+taos> select tags ref_city from td_tagref_select_tags.v2;
+                                      ref_city                                      |
+=====================================================================================
+ beijing                                                                            |
+
+taos> explain select tags local_group from td_tagref_select_tags.v0;
+                                                                                                                                                  QUERY_PLAN                                                                                                                                                  |
+===============================================================================================================================================================================================================================================================================================================
+ -> Tag Scan on v0 (pseudo_columns=6 width=4)                                                                                                                                                                                                                                                                 |
+
+taos> explain select tags ref_city from td_tagref_select_tags.v2;
+                                                                                                                                                  QUERY_PLAN                                                                                                                                                  |
+===============================================================================================================================================================================================================================================================================================================
+ -> Projection (columns=1 width=82 input_order=unknown)                                                                                                                                                                                                                                                       |
+    -> TagRefSource on td_tagref_select_tags.s_bj (columns=1 width=82)                                                                                                                                                                                                                                        |
+

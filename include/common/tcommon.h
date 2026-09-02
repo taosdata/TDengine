@@ -33,6 +33,8 @@ extern "C" {
   || x == TDMT_VND_ALTER_TABLE    \
   || x == TDMT_VND_DROP_TABLE     \
   || x == TDMT_VND_DELETE         \
+  || x == TDMT_VND_TXN_COMMIT     \
+  || x == TDMT_VND_TXN_ROLLBACK   \
 )
 // clang-format on
 
@@ -216,6 +218,7 @@ typedef struct SDataBlockInfo {
   uint8_t     scanFlag;
   bool        blankFill;
   SValue      pks[2];
+  SColumnDataAgg* pBlockAgg;  // borrowed block SMA for dynamic aggregate pruning; do not serialize or copy
 
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization
@@ -307,6 +310,7 @@ typedef struct STableBlockDistInfo {
   uint32_t numOfSttRows;
   uint32_t numOfVgroups;
   int32_t  blockRowsHisto[20];
+  int32_t  blockRowsHistoFixed[8];  // buckets: ≤64, ≤128, ≤256, ≤512, ≤1024, ≤2048, ≤4096, >4096
 } STableBlockDistInfo;
 
 int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDistInfo* pInfo);
@@ -412,6 +416,12 @@ typedef struct SExchangeExplainInfo {
 typedef struct SNonSortExecInfo {
   int32_t blkNums;
 } SNonSortExecInfo;
+
+typedef struct SFederatedScanExplainInfo {
+  int64_t fetchedRows;
+  int64_t fetchBlockCount;
+  int64_t elapsedTimeUs;
+} SFederatedScanExplainInfo;
 
 typedef struct STUidTagInfo {
   char*    name;

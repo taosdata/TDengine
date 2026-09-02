@@ -16,7 +16,7 @@
 #include <ttimer.h>
 #include "cJSON.h"
 #include "catalog.h"
-#include "clientInt.h"
+#include "extConnector.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
 #include "functionMgt.h"
@@ -30,6 +30,7 @@
 #include "tconv.h"
 #include "tglobal.h"
 #include "thttp.h"
+#include "tmisce.h"
 #include "tmsg.h"
 #include "tqueue.h"
 #include "tref.h"
@@ -355,6 +356,11 @@ static bool clientRpcTfp(int32_t code, tmsg_t msgType) {
   return false;
 }
 
+static bool clientRpcRetryOnOverload(int32_t code, tmsg_t msgType) {
+  if (code == TSDB_CODE_SYN_NEGOTIATION_WIN_FULL) return true;
+  return false;
+}
+
 // TODO refactor
 int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread, void **pDnodeConn) {
   SRpcInit rpcInit;
@@ -375,6 +381,10 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
   rpcInit.retryStepFactor = tsRedirectFactor;
   rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
   rpcInit.retryMaxTimeout = tsMaxRetryWaitTime;
+
+  rpcInit.retryOnOverloadBaseInterval = tsRetryOnOverloadBaseInterval;
+  rpcInit.retryOnOverloadTimeout = tsRetryOnOverloadTimeout;
+  rpcInit.retryOnOverloadFp = clientRpcRetryOnOverload;
 
   int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
   connLimitNum = TMAX(connLimitNum, 10);
@@ -500,6 +510,30 @@ void destroyTscObj(void *pObj) {
   // In any cases, we should not free app inst here. Or an race condition rises.
   /*int64_t connNum = */ (void)atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
 
+  // Best-effort rollback: if connection is destroyed with an active txn, notify MNode
+  // so it can clean up immediately rather than waiting for the timeout scan.
+#ifdef TD_ENTERPRISE
+  if (pTscObj->txnId != 0) {
+    tscBestEffortRollbackOrphanTxn(pTscObj, pTscObj->txnId, "destroyTscObj");
+  }
+#endif
+
+  tSimpleHashCleanup(pTscObj->pTxnVgSet);
+  pTscObj->pTxnVgSet = NULL;
+  // §34.2 #2: clean up pTxnTableMeta if connection closes with active txn
+  if (pTscObj->pTxnTableMeta) {
+    void *pIter = taosHashIterate(pTscObj->pTxnTableMeta, NULL);
+    while (pIter) {
+      STableMeta **ppMeta = (STableMeta **)pIter;
+      taosMemoryFreeClear(*ppMeta);
+      pIter = taosHashIterate(pTscObj->pTxnTableMeta, pIter);
+    }
+    taosHashCleanup(pTscObj->pTxnTableMeta);
+    pTscObj->pTxnTableMeta = NULL;
+  }
+  // pTxnSuidMap values are char[] copied inline by the hash — no per-entry free needed.
+  taosHashCleanup(pTscObj->pTxnSuidMap);
+  pTscObj->pTxnSuidMap = NULL;
   (void)taosThreadMutexDestroy(&pTscObj->mutex);
   taosMemoryFree(pTscObj);
 
@@ -522,6 +556,8 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
   (*pObj)->connType = connType;
   (*pObj)->pAppInfo = pAppInfo;
   (*pObj)->appHbMgrIdx = pAppInfo->pAppHbMgr->idx;
+  (*pObj)->optionInfo.userAppId = TD_APP_UNKNOWN;
+  (*pObj)->optionInfo.firstDayOfWeek = (int8_t)tsFirstDayOfWeek;
   if (user == NULL) {
     (*pObj)->user[0] = 0;
     (*pObj)->pass[0] = 0;
@@ -550,6 +586,11 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
   }
 
   (void)atomic_add_fetch_64(&(*pObj)->pAppInfo->numOfConns, 1);
+
+  /* Snapshot the current client timezone into the session timezone. ALTER LOCAL
+   * timezone is synchronized back to this connection after the local command
+   * succeeds. */
+  (void)tscInitSessionTimezone(*pObj);
 
   updateConnAccessInfo(&(*pObj)->sessInfo);
   tscInfo("conn:0x%" PRIx64 ", created, p:%p", (*pObj)->id, *pObj);
@@ -580,6 +621,10 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
     releaseTscObj(connId);
     TSC_ERR_JRET(TSDB_CODE_MND_USER_DISABLED);
   }
+  if (atomic_load_8(&pTscObj->passKilled) != 0) {
+    releaseTscObj(connId);
+    TSC_ERR_JRET(TSDB_CODE_MND_AUTH_FAILURE);
+  }
   SSyncQueryParam *interParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   if (interParam == NULL) {
     releaseTscObj(connId);
@@ -597,6 +642,7 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
 
   (*pRequest)->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
   (*pRequest)->body.resInfo.charsetCxt = pTscObj->optionInfo.charsetCxt;
+  (*pRequest)->body.resInfo.timezone = (void *)pTscObj->optionInfo.timezone;
   (*pRequest)->type = type;
   (*pRequest)->allocatorRefId = -1;
 
@@ -1154,6 +1200,19 @@ void taos_init_imp(void) {
 
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   ENV_ERR_RET(catalogInit(&cfg), "failed to init catalog");
+
+#ifdef TD_ENTERPRISE
+  {
+    SExtConnectorModuleCfg extConnCfg = {
+      .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
+      .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
+      .query_timeout_ms         = tsFederatedQueryQueryTimeoutMs,
+      .idle_conn_ttl_s          = tsFederatedQueryIdleConnTtlSec,
+      .probe_timeout_ms         = tsFederatedQueryProbeTimeoutMs,
+    };
+    ENV_ERR_RET(extConnectorModuleInit(&extConnCfg), "failed to init ext connector");
+  }
+#endif
   ENV_ERR_RET(schedulerInit(), "failed to init scheduler");
   ENV_ERR_RET(initClientId(), "failed to init clientId");
 

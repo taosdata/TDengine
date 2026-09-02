@@ -1,0 +1,150 @@
+## Quick Start
+
+### Open the Command Line
+
+TDengine provides the `taos` command-line tool for checking service status, running SQL, and managing databases and tables. After you enter the shell, you can try write and query operations immediately.
+
+On Linux or macOS, run:
+
+```shell
+taos
+```
+
+On Windows, run:
+
+```cmd
+taos.exe
+```
+
+After you enter the shell, the prompt looks like:
+
+```cmd
+taos>
+```
+
+In the shell, each SQL statement must end with a semicolon (`;`). The following example creates a database, inserts two rows, and queries the result:
+
+```sql
+CREATE DATABASE demo;
+USE demo;
+CREATE TABLE t (ts TIMESTAMP, speed INT);
+INSERT INTO t VALUES ('2019-07-15 00:00:00', 10);
+INSERT INTO t VALUES ('2019-07-15 01:00:00', 20);
+SELECT * FROM t;
+
+           ts            |    speed    |
+========================================
+ 2019-07-15 00:00:00.000 |          10 |
+ 2019-07-15 01:00:00.000 |          20 |
+
+Query OK, 2 row(s) in set (0.003128s)
+```
+
+Besides SQL, you can use the shell to check system status and manage users. The CLI and client drivers can also be installed separately on other machines. For details, see [TDengine CLI](../../../12-operations-and-tooling/04-tools/01-taos-cli.md).
+
+### Write Test Data
+
+`taosBenchmark` is a TDengine testing tool for generating sample data and trying write, query, and subscription features. It can simulate data from many devices and supports configuring the database, supertable, tag columns, data columns, subtable count, records per subtable, write interval, worker threads, and whether to write out-of-order data.
+
+After confirming that the TDengine service is running, run the following command in a terminal:
+
+```shell
+taosBenchmark -y
+```
+
+This automatically creates a supertable named `meters` in the `test` database. The supertable contains 10,000 subtables named `d0` through `d9999`, each with 10,000 records. Each record has four fields: `ts` (timestamp), `current`, `voltage`, and `phase`. Timestamps range from `2017-07-14 10:40:00.000` to `2017-07-14 10:40:09.999`. Each table also has two tags, `location` and `groupId`, where `groupId` is from 1 to 10 and `location` includes California cities such as `California.Campbell` and `California.Cupertino`.
+
+The command writes 100 million records. Elapsed time depends on hardware; even on a typical PC server, it usually takes only about ten seconds.
+
+`taosBenchmark` provides many options for customizing table count, record count, and other test settings. Run the following command to list all parameters:
+
+```shell
+taosBenchmark --help
+```
+
+For detailed usage, see [taosBenchmark Reference](../../../12-operations-and-tooling/04-tools/04-taosbenchmark.md).
+
+### Query Test Data
+
+After writing data with `taosBenchmark`, run the following queries in the shell to experience query performance.
+
+1. Count all records under the `meters` supertable:
+
+```sql
+SELECT COUNT(*) FROM test.meters;
+
+     count(*)     |
+===================
+        100000000 |
+
+Query OK, 1 row(s) in set (0.075247s)
+```
+
+2. Compute the average, maximum, and minimum over 100 million records:
+
+```sql
+SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters;
+
+   avg(current)   | max(voltage) | min(phase) |
+===============================================
+ 10.2084751316071 |          258 |        145 |
+
+Query OK, 1 row(s) in set (0.094037s)
+```
+
+3. Count records where `location = "California.SanFrancisco"`:
+
+```sql
+SELECT COUNT(*) FROM test.meters WHERE location = "California.SanFrancisco";
+
+     count(*)     |
+===================
+         10340000 |
+
+Query OK, 1 row(s) in set (0.050540s)
+```
+
+4. Compute the average, maximum, and minimum for all records where `groupId = 10`:
+
+```sql
+SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 10;
+
+   avg(current)   | max(voltage) | min(phase) |
+===============================================
+ 10.2084751316071 |          258 |        145 |
+
+Query OK, 1 row(s) in set (0.033754s)
+```
+
+5. Aggregate table `d1001` every 10 seconds for average, maximum, and minimum:
+
+```sql
+SELECT _wstart, AVG(current), MAX(voltage), MIN(phase)
+FROM test.d1001 INTERVAL(10s);
+
+         _wstart         |   avg(current)   | max(voltage) | min(phase) |
+=========================================================================
+ 2017-07-14 10:40:00.000 | 10.2084751316071 |          258 |        145 |
+
+Query OK, 1 row(s) in set (0.004716s)
+```
+
+In the query above, the system pseudocolumn `_wstart` is the start time of each window.
+
+### Go Further
+
+After finishing the steps above, continue with:
+
+- [Basic Concepts](../../02-basic-concepts.md)
+- [Data Modeling](../../03-data-modeling.md)
+- [Data Ingestion](../../04-write-data.md)
+- [Data Querying](../../05-query-and-aggregate.md)
+- [Data Subscription](../../06-data-subscription.md)
+- [Stream Processing](../../07-stream-processing.md)
+- [Visual Management](../../08-visual-management.md)
+- [Grafana Integration](../../09-grafana-integration.md)
+- [Zero-Code Data Ingestion](../../10-no-code-ingestion.md)
+
+## What to Do Next
+
+After this quick start, continue with later chapters to learn more about TDengine data modeling, writing, querying, data subscription, and stream processing.

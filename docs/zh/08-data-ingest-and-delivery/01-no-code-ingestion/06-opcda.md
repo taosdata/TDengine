@@ -1,0 +1,246 @@
+---
+title: OPC-DA
+sidebar_label: OPC-DA
+---
+本节讲述如何通过 taosExplorer 界面创建数据写入任务，从 OPC DA 服务器同步数据到当前 TDengine 集群。
+
+## 功能概述
+
+OPC 是工业自动化领域和其他行业中安全可靠地交换数据的互操作标准之一。OPC DA（数据访问）是一种经典的基于 COM 的规范，仅适用于 Windows。尽管 OPC DA 不是最新和最高效的数据通信规范，但它被广泛使用。这主要是因为一些旧设备只支持 OPC DA。
+
+TDengine 可以高效地从 OPC DA 服务器读取数据并将其写入 TDengine，以实现实时数据入库。
+
+## 创建任务
+
+### 新增数据源
+
+在数据写入页面中，点击 **+新增数据源** 按钮，进入新增数据源页面。
+
+![add.png](../../assets/opcda-01.png)
+
+### 配置基本信息
+
+在 **名称** 中输入任务名称，例如针对环境温湿度监控的任务，取名为 **environment-monitoring**。
+
+在 **类型** 下拉列表中选择 **OPC-DA**。
+
+如果 taosX 服务运行在 OPC-DA 所在服务器上，**代理** 不是必须的，否则需要配置 **代理**：在下拉框中选择指定的代理，也可以先点击右侧的 **+创建新的代理** 按钮创建一个新的代理，跟随提示进行代理的配置。
+
+在 **目标数据库** 下拉列表中选择一个目标数据库，也可以先点击右侧的 **+创建数据库** 按钮创建一个新的数据库。
+
+![basic.png](../../assets/opcda-02.png)
+
+### 配置连接信息
+
+在 **连接配置** 区域填写 **OPC-DA 服务地址**，例如：`127.0.0.1/Matrikon.OPC.Simulation.1`，并配置认证方式。
+
+点击 **连通性检查** 按钮，检查数据源是否可用。
+
+![endpoint.png](../../assets/opcda-03.png)
+
+### 配置点位集
+
+**点位集** 可选择使用 CSV 文件模板或 **选择所有点位**。
+
+#### 上传 CSV 配置文件
+
+你可以下载 CSV 空模板并按模板配置点位信息，然后上传 CSV 配置文件来配置点位；或者根据所配置的筛选条件下载数据点位，并以 CSV 模板所制定的格式下载。
+
+CSV 文件有如下规则：
+
+1. 文件编码
+
+用户上传的 CSV 文件的编码格式必须为以下格式中的一种：
+
+(1) UTF-8 with BOM
+
+(2) UTF-8（即：UTF-8 without BOM）
+
+2. Header 配置规则
+
+Header 是 CSV 文件的第一行，规则如下：
+
+(1) CSV 的 Header 中可以配置以下列：
+
+| 序号 | 列名                      | 描述                                                                                                                | 是否必填 | 默认行为                                                                                                                                                                                                          |
+|----|-------------------------|-------------------------------------------------------------------------------------------------------------------| -------- |---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1  | tag_name                | 数据点位在 OPC DA 服务器上的 id                                                                                             | 是       | 无                                                                                                                                                                                                             |
+| 2  | stable                  | 数据点位在 TDengine 中对应的超级表                                                                                            | 是       | 无                                                                                                                                                                                                             |
+| 3  | tbname                  | 数据点位在 TDengine 中对应的子表                                                                                             | 是       | 无                                                                                                                                                                                                             |
+| 4  | enable                  | 是否采集该点位的数据                                                                                                        | 否       | 使用统一的默认值`1`作为 enable 的值                                                                                                                                                                                       |
+| 5  | value_col               | 数据点位采集值在 TDengine 中对应的列名                                                                                          | 否       | 使用统一的默认值`val` 作为 value_col 的值                                                                                                                                                                                 |
+| 6  | value_transform         | 数据点位采集值在 taosX 中执行的变换函数                                                                                           | 否       | 统一不进行采集值的 transform                                                                                                                                                                                           |
+| 7  | type                    | 数据点位采集值的数据类型                                                                                                      | 否       | 统一使用采集值的原始类型作为 TDengine 中的数据类型                                                                                                                                                                                |
+| 8  | quality_col             | 数据点位采集值质量在 TDengine 中对应的列名                                                                                        | 否       | 统一不在 TDengine 添加 quality 列                                                                                                                                                                                    |
+| 9  | ts_col                  | 数据点位的原始时间戳在 TDengine 中对应的时间戳列                                                                                     | 否       | ts_col，request_ts，received_ts 这 3 列，当有 2 列以上存在时，以最左侧的列作为 TDengine 中的主键                                   |
+| 10 | request_ts_col          | 请求该点位采集值时的时间戳在 TDengine 中对应的时间戳列                                                                                  | 否       | ts_col，request_ts，received_ts 这 3 列，当有 2 列以上存在时，以最左侧的列作为 TDengine 中的主键                                  |
+| 11 | received_ts_col         | 接收到该点位采集值时的时间戳在 TDengine 中对应的时间戳列                                                                                 | 否       | ts_col，request_ts，received_ts 这 3 列，当有 2 列以上存在时，以最左侧的列作为 TDengine 中的主键                                           |
+| 12 | ts_transform            | 数据点位时间戳在 taosX 中执行的变换函数                                                                                           | 否       | 统一不进行数据点位原始时间戳的 transform                                                                                                                                                                                     |
+| 13 | request_ts_transform    | 数据点位请求时间戳在 taosX 中执行的变换函数                                                                                         | 否       | 统一不进行数据点位原始时间戳的 transform                                                                                                                                                                                     |
+| 14 | received_ts_transform   | 数据点位接收时间戳在 taosX 中执行的变换函数                                                                                         | 否       | 统一不进行数据点位接收时间戳的 transform                                                                                                                                                                                     |
+| 15 | tag::VARCHAR(200)::name | 数据点位在 TDengine 中对应的 Tag 列。其中`tag` 为保留关键字，表示该列为一个 tag 列；`VARCHAR(200)` 表示该 tag 的类型，也可以是其它合法的类型；`name` 是该 tag 的实际名称。 | 否       | 配置 1 个以上的 tag 列，则使用配置的 tag 列；没有配置任何 tag 列，且 stable 在 TDengine 中存在，使用 TDengine 中的 stable 的 tag；没有配置任何 tag 列，且 stable 在 TDengine 中不存在，则默认自动添加以下 2 个 tag 列：tag::VARCHAR(256)::point_idtag::VARCHAR(256)::point_name |
+
+(2) CSV Header 中，不能有重复的列；
+
+(3) CSV Header 中，类似`tag::VARCHAR(200)::name`这样的列可以配置多个，对应 TDengine 中的多个 Tag，但 Tag 的名称不能重复。
+
+(4) CSV Header 中，列的顺序不影响 CSV 文件校验规则；
+
+(5) CSV Header 中，可以配置不在上表中的列，例如：序号，这些列会被自动忽略。
+
+3. Row 配置规则
+
+CSV 文件中的每个 Row 配置一个 OPC 数据点位。Row 的规则如下：
+
+(1) 与 Header 中的列有如下对应关系
+
+| 序号 | Header 中的列              | 值的类型 | 值的范围                                                                                                                                                                                                                 | 是否必填 | 默认值          |
+|----|-------------------------| -------- |----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------|--------------|
+| 1  | tag_name                | String   | 类似`root.parent.temperature`这样的字符串，要满足 OPC DA 的 ID 规范                                                                                                                                                                 | 是    |              |
+| 2  | enable                  | int      | 0：不采集该点位，且在 OPC DataIn 任务开始前，删除 TDengine 中点位对应的子表；1：采集该点位，在 OPC DataIn 任务开始前，不删除子表。                                                                                                                                  | 否    | 1            |
+| 3  | stable                  | String   | 符合 TDengine 超级表命名规范的任何字符串；如果存在特殊字符`.`，使用下划线替换如果存在`{type}`，则：CSV 文件的 type 不为空，使用 type 的值进行替换 CSV 文件的 type 为空，使用采集值的原始类型进行替换                                                                                            | 是    |              |
+| 4  | tbname                  | String   | 符合 TDengine 子表命名规范的任何字符串；如果存在特殊字符`.`，使用下划线替换对于 OPC UA：如果存在`{ns}`，使用 point_id 中的 ns 替换如果存在`{id}`，使用 point_id 中的 id 替换对于 OPC DA：如果存在`{tag_name}`，使用 tag_name 替换                                                        | 是    |              |
+| 5  | value_col               | String   | 符合 TDengine 命名规范的列名                                                                                                                                                                                                  | 否    | val          |
+| 6  | value_transform         | String   | 符合 Rhai 引擎的计算表达式，例如：`(val + 10) / 1000 * 2.0`，`log(val) + 10`等；                                                                                                                                                      | 否    | None         |
+| 7  | type                    | String   | 支持类型包括：b/bool/i8/tinyint/i16/smallint/i32/int/i64/bigint/u8/tinyint unsigned/u16/smallint unsigned/u32/int unsigned/u64/bigint unsigned/f32/floatf64/double/timestamp/timestamp(ms)/timestamp(us)/timestamp(ns)/json | 否    | 数据点位采集值的原始类型 |
+| 8  | quality_col             | String   | 符合 TDengine 命名规范的列名                                                                                                                                                                                                  | 否    | None         |
+| 9  | ts_col                  | String   | 符合 TDengine 命名规范的列名                                                                                                                                                                                                  | 否    | ts           |
+| 10 | request_ts_col          | String   | 符合 TDengine 命名规范的列名                                                                                                                                                                                                  | 否    | qts          |
+| 11 | received_ts_col         | String   | 符合 TDengine 命名规范的列名                                                                                                                                                                                                  | 否    | rts          |
+| 12 | ts_transform            | String   | 支持 +、-、*、/、% 操作符，例如：ts / 1000* 1000，将一个 ms 单位的时间戳的最后 3 位置为 0；ts + 8 *3600* 1000，将一个 ms 精度的时间戳，增加 8 小时；ts - 8 *3600* 1000，将一个 ms 精度的时间戳，减去 8 小时；                              | 否    | None         |
+| 13 | request_ts_transform    | String   | 支持 +、-、*、/、% 操作符，例如：ts / 1000* 1000，将一个 ms 单位的时间戳的最后 3 位置为 0；qts + 8 *3600* 1000，将一个 ms 精度的时间戳，增加 8 小时；qts - 8 *3600* 1000，将一个 ms 精度的时间戳，减去 8 小时；                            | 否    | None         |
+| 14 | received_ts_transform   | String   | 支持 +、-、*、/、% 操作符，例如：ts / 1000* 1000，将一个 ms 单位的时间戳的最后 3 位置为 0；rts + 8 *3600* 1000，将一个 ms 精度的时间戳，增加 8 小时；rts - 8 *3600* 1000，将一个 ms 精度的时间戳，减去 8 小时；                             | 否    | None         |
+| 15 | tag::VARCHAR(200)::name | String   | tag 里的值，当 tag 的类型是 VARCHAR 时，可以是中文                                                                                                                                                                                   | 否    | NULL         |
+
+(2) tag_name 在整个 DataIn 任务中是唯一的，即：在一个 OPC DataIn 任务中，一个数据点位只能被写入到 TDengine 的一张子表。如果需要将一个数据点位写入多张子表，需要建多个 OPC DataIn 任务；
+
+(3) 当 tag_name 不同，但 tbname 相同时，value_col 必须不同。这种配置能够将不同数据类型的多个点位的数据写入同一张子表中不同的列。这种方式对应“OPC 数据入 TDengine 宽表”的使用场景。
+
+4. 其他规则
+
+(1) 如果 Header 和 Row 的列数不一致，校验失败，提示用户不满足要求的行号；
+
+(2) Header 在首行，且不能为空；
+
+(3) Row 为 1 行以上；
+
+#### 选择数据点位
+
+可以通过配置 **根节点 ID**、**节点 ID**、**节点名称** 作为过滤条件，对点位进行筛选。
+
+通过配置 **超级表名**、**表名称**，指定数据要写入的超级表、子表。
+
+配置 **主键列**，选择 origin_ts 表示使用 OPC 点位数据的原始时间戳作 TDengine 中的主键；选择 request_ts 表示使用数据的请求时间戳作 TDengine 中的主键；选择 received_ts 表示使用数据的接收时间戳作 TDengine 中的主键。配置 **主键别名**，指定 TDengine 时间戳列的名称。
+
+![point.png](../../assets/opcda-04.png)
+
+### 采集配置
+
+在采集配置中，配置当前任务的采集间隔、连接超时、采集超时等选项。
+
+![collect](../../assets/opcda-05.png)
+
+如图所示，其中：
+
+- **连接超时**：配置连接 OPC 服务器超时时间，默认为 10 秒。
+- **采集超时**：向 OPC 服务器读取点位数据时如果超过设定时间未返回数据，则读取失败，默认为 10 秒。
+- **采集间隔**：默认为 10 秒，数据点位采集间隔，从上次采集数据结束后开始计时，轮询读取点位最新值并写入 TDengine。
+
+:::note
+
+- 采集间隔是任务级参数：同一 OPC DA Data In 任务内的所有点位共用一个采集间隔，不支持在同一任务内按单个点位或点位分组设置不同扫描频率。
+- 若少数点位需要更高或更低的采集频率，请将它们拆到另一个 OPC DA 任务（可指向同一 OPC 服务器与同一目标库），并为该任务单独设置采集间隔。
+- 调整采集间隔、超时等采集参数时，在 taosExplorer 中编辑并提交该任务即可；无需在 OPC 服务器侧重新安装或重新部署 taosX-Agent。
+
+:::
+
+当 **点位集** 中使用 **选择数据点位** 方式时，采集配置中可以配置 **点位更新模式** 和 **点位更新间隔** 来启用动态点位更新。**动态点位更新** 是指，在任务运行期间，OPC Server 增加或删除了点位后，符合条件的点位会自动添加到当前任务中，不需要重启 OPC 任务。
+
+- 点位更新模式：可选择 `None`、`Append`、`Update`三种。
+  - None：不开启动态点位更新；
+  - Append：开启动态点位更新，但只追加；
+  - Update：开启动态点位更新，追加或删除；
+- 点位更新间隔：在“点位更新模式”为 `Append` 和 `Update` 时生效。单位：秒，默认值是 600，最小值：60，最大值：2147483647。
+
+### 高级选项
+
+![advance options](../../assets/opcua-08.png)
+
+如上图所示，配置高级选项对性能、日志等进行更加详尽的优化。
+
+**日志级别** 默认为 `info`，可选项有 `error`、`warn`、`info`、`debug`、`trace`。
+
+在 **最大写入并发数** 中设置写入 taosX 的最大并发数限制。默认值：0，表示 auto，自动配置并发数。
+
+在 **批次大小** 中设置每次写入的批次大小，即：单次发送的最大消息数量。
+
+在 **批次延时** 中设置单次发送最大延时（单位为秒），当超时结束时，只要有数据，即使不满足 **批次大小**，也立即发送。
+
+当 **缓存实时数据** 选项开启时，OPC 消费的数据会先存入本地文件中，本地文件的数据会被后台任务持续读出并发送给下游处理。当 OPC 数据流量巨大，下游无法及时处理造成数据消费卡顿导致数据丢弃时使用，即用于流量削峰，当数据消费完毕后，会自动清理文件。此功能默认关闭。关于该功能的详细原理和配置说明，请参考 [存储转发](../../12-operations-and-tooling/03-components/07-taosx-agent/store-and-forward.md)。
+
+在 **缓存数据存储目录** 中可填写数据缓存的存储目录路径，默认为 taosX 启动时配置的数据目录，也可以填写自定义目录。此选项仅在 **缓存实时数据** 选项开启时有效。
+
+在 **保存原始数据** 中选择是否保存原始数据。默认值：否。
+
+当保存原始数据时，以下 2 个参数配置生效。
+
+在 **最大保留天数** 中设置原始数据的最大保留天数。
+
+在 **原始数据存储目录** 中设置原始数据保存路径。若使用 Agent，则存储路径指的是 Agent 所在服务器上路径，否则是 taosX 服务器上路径。路径中可使用占位符 `$DATA_DIR` 和 `:id` 作为路径中的一部分。
+
+- Linux 平台，$DATA_DIR 为 /var/lib/taos/taosx，默认情况下存储路径为 `/var/lib/taos/taosx/tasks/<task_id>/rawdata` 。
+- Windows 平台， $DATA_DIR 为 C:\TDengine\data\taosx，默认情况下存储路径为 `C:\TDengine\data\taosx\tasks\<task_id>\rawdata` 。
+
+### 创建完成
+
+点击 **提交** 按钮，完成创建 OPC DA 到 TDengine 的数据同步任务，回到 **数据源列表** 页面可查看任务执行情况。
+
+## 点位与元数据维护
+
+### 增加数据点位
+
+在任务运行中，点击 **编辑**，点击 **增加数据点位** 按钮，追加数据点位到 CSV 文件中。适用于只需新增少量点位、不必重导全量点表的场景。
+
+![增加数据点位](../../assets/opcua-09.png)
+
+在弹出的表单中，填写数据点位的信息。
+
+![数据点位表单](../../assets/opcua-10.png)
+
+点击 **确定** 按钮，完成数据点位的追加。
+
+### 修改已有点位映射或启用状态
+
+- **点位标签 / 工业元数据**：描述、工程单位、量程、源路径等面向运维与资产侧的标签与属性维护，建议在 TDengine IDMP 中完成。IDMP 提供资产树与属性管理能力，更适合局部批量改点、按设备维护元数据，而无需反复导出/重导全量 OPC 点表。详见 [TDengine IDMP 文档](https://idmpdocs.taosdata.com/)。若未使用 IDMP、且元数据已作为库内 TAG 落库，可用 SQL [`ALTER TABLE … SET TAG`](../../05-tdengine-sql/02-ddl/02-table.md#修改标签值)，支持[批量修改标签值](../../05-tdengine-sql/02-ddl/02-table.md#批量修改标签值)。
+- **启用 / 停用采集**：在 CSV 中调整对应行的 `enable`（`1` 采集，`0` 不采集），重新上传该任务的 CSV 后生效。`enable=0` 时，任务启动前会删除该点位在 TDengine 中对应的子表（见上文 Row 规则）。
+- **修改接入映射列**（如 `stable`、`tbname`、`value_col`、`value_transform`）：下载当前点位 CSV，改所需行后重新上传。不必为改几个点而重建 Agent；任务仍绑定同一代理。
+
+### CSV 元数据与 TDengine 落库字段
+
+OPC DA 通过 CSV / 点位表单配置的内容，决定写入 TDengine 的表结构与标签；不会像 OPC UA 那样自动把服务器 Item 的 Description、Engineering Unit、Hi/Lo 量程等属性导入为 TAG。
+
+| 来源 | 可写入 / 影响 TDengine 的内容 |
+| --- | --- |
+| CSV 必填 / 常用列 | `tag_name`（OPC 点 id）、`stable`、`tbname`、采集值列与时间戳列等 |
+| CSV `enable` | 是否采集该点；停用时可删除对应子表 |
+| CSV `value_transform` | 写入前对数值做 Rhai 表达式变换（单位换算等），结果仍写入数值列 |
+| CSV `tag::TYPE::name` | 自定义 TAG；可手工填入描述、工程单位、量程、源路径等供应商 dump 中的字段 |
+| 默认 TAG | 未配任何 tag 列且超级表不存在，自动添加 `point_id`、`point_name` |
+
+若供应商提供含描述、单位、量程等字段的 dump，推荐流程：按 CSV 模板整理点位 → 将描述/单位/量程等写入自定义 `tag::…` 列 → 上传创建任务。点位接入后，标签与工业元数据的日常维护建议在 IDMP 中进行；未使用 IDMP 时，可用 SQL `SET TAG` 调整已入库 TAG。
+
+OPC UA 侧对 BrowseName / Description / Path 以及 Property→TAG 的自动映射，见 [OPC UA](./05-opcua/index.md) 与 [OPC UA CSV 映射参考](./05-opcua/02-csv-reference.md)。
+
+## 任务变更与 Agent
+
+Agent 在 OPC 服务器附近安装一次并保持运行即可。之后在 taosExplorer（或通过 [数据接入（Xnode）](../../05-tdengine-sql/08-cluster-management/02-xnode.md) SQL）上创建、编辑、启停 Data In 任务、调整采集参数、追加或更新点位 CSV，一般无需为点位变更重新打包或重装 Agent。
+
+仅在以下情况需要改动 Agent 本机配置或重装：更换 `endpoint` / `token`、升级 Agent 版本、调整 Agent 本机高级项（如存储转发目录）等。安装步骤见 [安装 taosX-Agent](./01-install-agent.md)。
+
+## 相关文档
+
+- [安装 taosX-Agent](./01-install-agent.md)：远程代理安装与连通
+- [OPC UA](./05-opcua/index.md)：UA 点位元数据自动映射与采集模式
+- [TDengine IDMP](../../19-tdengine-idmp/index.md)：点位标签与工业元数据管理（推荐）
+- [数据接入（Xnode）](../../05-tdengine-sql/08-cluster-management/02-xnode.md)：用 SQL 管理接入节点、任务与 Agent
+- [修改标签值](../../05-tdengine-sql/02-ddl/02-table.md#修改标签值)：未使用 IDMP 时批量更新已入库 TAG

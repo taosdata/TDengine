@@ -40,8 +40,7 @@ class TestStreamPrivilegesTwoDb:
 
         Since: v3.3.3.7
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional,security
         Jira: None
 
         History:

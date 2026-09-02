@@ -16,7 +16,7 @@ class TestTsdbForceRepairSttE2E(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         fixture = self._prepare_stt_fixture()
         dbname = fixture["dbname"]
@@ -51,7 +51,7 @@ class TestTsdbForceRepairSttE2E(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         dbname = f"tsdb_repair_log_{int(time.time())}"
         tdSql.execute(f"drop database if exists {dbname}")
@@ -114,7 +114,7 @@ class TestTsdbForceRepairSttE2E(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         fixture = self._prepare_stt_fixture()
         vnode_id = fixture["vnode_id"]

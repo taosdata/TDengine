@@ -26,6 +26,7 @@
   <br />
   <a href="./README.md">English</a> |
   <a href="./README-CN.md">简体中文</a> |
+  <a href="./README-JP.md">日本語</a> |
   <a href="https://cloud.tdengine.com">TDengine Cloud</a> |
   <a href="https://docs.tdengine.com">Documentation</a> |
   <a href="https://tdengine.com/time-series-database/">Learn more about TSDB</a>

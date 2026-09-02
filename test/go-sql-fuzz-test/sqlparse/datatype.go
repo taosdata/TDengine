@@ -1,0 +1,59 @@
+package sqlparser
+
+type DataTypeDescriptor struct {
+	DataType uint8
+	Bytes    int32
+	Name     string
+}
+
+const (
+	TSDB_DATA_TYPE_NULL       uint8 = 0  // 1 bytes
+	TSDB_DATA_TYPE_BOOL       uint8 = 1  // 1 bytes
+	TSDB_DATA_TYPE_TINYINT    uint8 = 2  // 1 byte
+	TSDB_DATA_TYPE_SMALLINT   uint8 = 3  // 2 bytes
+	TSDB_DATA_TYPE_INT        uint8 = 4  // 4 bytes
+	TSDB_DATA_TYPE_BIGINT     uint8 = 5  // 8 bytes
+	TSDB_DATA_TYPE_FLOAT      uint8 = 6  // 4 bytes
+	TSDB_DATA_TYPE_DOUBLE     uint8 = 7  // 8 bytes
+	TSDB_DATA_TYPE_VARCHAR    uint8 = 8  // string, alias for varchar
+	TSDB_DATA_TYPE_TIMESTAMP  uint8 = 9  // 8 bytes
+	TSDB_DATA_TYPE_NCHAR      uint8 = 10 // unicode string
+	TSDB_DATA_TYPE_UTINYINT   uint8 = 11 // 1 byte
+	TSDB_DATA_TYPE_USMALLINT  uint8 = 12 // 2 bytes
+	TSDB_DATA_TYPE_UINT       uint8 = 13 // 4 bytes
+	TSDB_DATA_TYPE_UBIGINT    uint8 = 14 // 8 bytes
+	TSDB_DATA_TYPE_JSON       uint8 = 15 // json string
+	TSDB_DATA_TYPE_VARBINARY  uint8 = 16 // binary
+	TSDB_DATA_TYPE_DECIMAL    uint8 = 17 // decimal
+	TSDB_DATA_TYPE_BLOB       uint8 = 18 // binary
+	TSDB_DATA_TYPE_MEDIUMBLOB uint8 = 19
+	TSDB_DATA_TYPE_BINARY           = TSDB_DATA_TYPE_VARCHAR // string
+	TSDB_DATA_TYPE_GEOMETRY   uint8 = 20                     // geometry
+	TSDB_DATA_TYPE_DECIMAL64  uint8 = 21                     // decimal64
+	TSDB_DATA_TYPE_MAX        uint8 = 22
+)
+
+var DataTypes = [TSDB_DATA_TYPE_MAX]DataTypeDescriptor{
+	{TSDB_DATA_TYPE_NULL, 2, "NOTYPE"},
+	{TSDB_DATA_TYPE_BOOL, 1, "BOOL"},
+	{TSDB_DATA_TYPE_TINYINT, 1, "TINYINT"},
+	{TSDB_DATA_TYPE_SMALLINT, 2, "SMALLINT"},
+	{TSDB_DATA_TYPE_INT, 4, "INT"},
+	{TSDB_DATA_TYPE_BIGINT, 8, "BIGINT"},
+	{TSDB_DATA_TYPE_FLOAT, 4, "FLOAT"},
+	{TSDB_DATA_TYPE_DOUBLE, 8, "DOUBLE"},
+	{TSDB_DATA_TYPE_VARCHAR, 1, "VARCHAR"},
+	{TSDB_DATA_TYPE_TIMESTAMP, 8, "TIMESTAMP"},
+	{TSDB_DATA_TYPE_NCHAR, 1, "NCHAR"},
+	{TSDB_DATA_TYPE_UTINYINT, 1, "TINYINT UNSIGNED"},
+	{TSDB_DATA_TYPE_USMALLINT, 2, "SMALLINT UNSIGNED"},
+	{TSDB_DATA_TYPE_UINT, 4, "INT UNSIGNED"},
+	{TSDB_DATA_TYPE_UBIGINT, 8, "BIGINT UNSIGNED"},
+	{TSDB_DATA_TYPE_JSON, 16384, "JSON"},
+	{TSDB_DATA_TYPE_VARBINARY, 1, "VARBINARY"},
+	{TSDB_DATA_TYPE_DECIMAL, 16, "DECIMAL"},
+	{TSDB_DATA_TYPE_BLOB, 1, "BLOB"},
+	{TSDB_DATA_TYPE_MEDIUMBLOB, 1, "MEDIUMBLOB"},
+	{TSDB_DATA_TYPE_GEOMETRY, 1, "GEOMETRY"},
+	{TSDB_DATA_TYPE_DECIMAL64, 8, "DECIMAL"},
+}

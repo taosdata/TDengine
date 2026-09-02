@@ -9,6 +9,7 @@ IF(NOT TD_DARWIN)
         ADD_EXECUTABLE(catalogTest ${SOURCE_LIST})
         DEP_ext_gtest(catalogTest)
         DEP_ext_cppstub(catalogTest)
+        target_compile_definitions(catalogTest PRIVATE BUILD_TEST)
         TARGET_LINK_LIBRARIES(
                 catalogTest
                 PUBLIC os util common nodes catalog transport qcom ${TAOS_NATIVE_LIB_STATIC}
@@ -18,6 +19,7 @@ IF(NOT TD_DARWIN)
                 catalogTest
                 PUBLIC "${TD_SOURCE_DIR}/include/libs/catalog/"
                 PRIVATE "${TD_SOURCE_DIR}/source/libs/catalog/inc"
+                PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
         )
 
         add_test(

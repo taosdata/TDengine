@@ -35,7 +35,10 @@ add_executable(varbinary_test varbinary_test.c)
 add_executable(blob_test blob_test.c)
 add_executable(replay_test replay_test.c)
 add_executable(timezone_test timezone_test.c)
+add_executable(timezone_normalize_test timezone_normalize_test.c)
 add_executable(tmq_blob tmq_blob.c)
+add_executable(tmq_base_on_test tmq_base_on_test.c)
+add_executable(tmq_taosx_txn tmq_taosx_txn.c)
 
 if(TD_LINUX)
     add_executable(tsz_test tsz_test.c)
@@ -280,6 +283,13 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+target_link_libraries(
+    tmq_base_on_test
+    PUBLIC ${TAOS_NATIVE_LIB}
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+)
 
 target_link_libraries(
     tmq_write_raw_with_blob_test 
@@ -328,16 +338,31 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
-
 target_link_libraries(
-    tmq_blob 
+    timezone_normalize_test
     PUBLIC taos
     PUBLIC util
     PUBLIC common
     PUBLIC os
 )
 
-if(TD_LINUX)
+target_link_libraries(
+    tmq_blob
+    PUBLIC taos
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+)
+
+target_link_libraries(
+    tmq_taosx_txn
+    PUBLIC ${TAOS_NATIVE_LIB}
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+)
+
+if(${TD_LINUX})
     target_link_libraries(
         tsz_test
         PUBLIC ${TAOS_NATIVE_LIB}
@@ -346,3 +371,4 @@ if(TD_LINUX)
         PUBLIC os
     )
 endif()
+

@@ -73,7 +73,8 @@ static void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus
 
 static int32_t resetAggregateOperatorState(SOperatorInfo* pOper);
 
-int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo,
+int32_t createAggregateOperatorInfo(SOperatorInfo** pDownstreams, int32_t numDownstreams,
+                                    SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo,
                                     SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
@@ -120,12 +121,12 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
   code = filterInitFromNode((SNode*)pAggNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
                             GET_STM_RTINFO(pTaskInfo));
   TSDB_CHECK_CODE(code, lino, _error);
+  filterSetExecContext(pOperator->exprSupp.pFilterInfo, pTaskInfo, isTaskKilled);
 
   pInfo->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
   pInfo->groupKeyOptimized = pAggNode->groupKeyOptimized;
   pInfo->groupId = UINT64_MAX;
-  pInfo->binfo.inputTsOrder = pAggNode->node.inputTsOrder;
-  pInfo->binfo.outputTsOrder = pAggNode->node.outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, &pAggNode->node);
   pInfo->hasCountFunc = pAggNode->hasCountLikeFunc;
   pInfo->pOperator = pOperator;
   pInfo->cleanGroupResInfo = false;
@@ -138,13 +139,13 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
 
   pOperator->pPhyNode = pAggNode;
 
-  if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
-    STableScanInfo* pTableScanInfo = downstream->info;
+  if (pDownstreams[0]->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    STableScanInfo* pTableScanInfo = pDownstreams[0]->info;
     pTableScanInfo->base.pdInfo.pExprSup = &pOperator->exprSupp;
     pTableScanInfo->base.pdInfo.pAggSup = &pInfo->aggSup;
   }
 
-  code = appendDownstream(pOperator, &downstream, 1);
+  code = appendDownstream(pOperator, pDownstreams, numDownstreams);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -157,7 +158,7 @@ _error:
   if (pInfo != NULL) {
     destroyAggOperatorInfo(pInfo);
   }
-  destroyOperatorAndDownstreams(pOperator, &downstream, 1);
+  destroyOperatorAndDownstreams(pOperator, pDownstreams, numDownstreams);
   pTaskInfo->code = code;
   return code;
 }
@@ -203,6 +204,127 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
 
   SExprSupp*   pSup = &pOperator->exprSupp;
   int32_t      order = pAggInfo->binfo.inputTsOrder;
+
+  // Mixed distinct mode: two downstream children
+  // child[0] feeds non-distinct functions, child[1] feeds distinct functions
+  // Detect mixed mode by numOfDownstream >= 2 (flag is a hint; downstream count is authoritative)
+  bool isMixedDistinct = (pOperator->numOfDownstream >= 2);
+  if (isMixedDistinct) {
+    int32_t numTotal = pSup->numOfExprs;
+
+    // Phase 1: pull all blocks from downstream[0], execute non-distinct functions
+    SSDataBlock* pBlock = NULL;
+    while (1) {
+      pBlock = getNextBlockFromDownstreamRemainDetach(pOperator, 0);
+      if (pBlock == NULL) {
+        if (!pAggInfo->hasValidBlock) {
+          code = createDataBlockForEmptyInput(pOperator, &pBlock);
+          QUERY_CHECK_CODE(code, lino, _end);
+          if (pBlock == NULL) break;
+          pAggInfo->hasValidBlock = true;
+          code = setExecutionContext(pOperator, numTotal, pBlock->info.id.groupId);
+          QUERY_CHECK_CODE(code, lino, _end);
+          code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
+          QUERY_CHECK_CODE(code, lino, _end);
+          // Execute only non-distinct functions
+          for (int32_t k = 0; k < numTotal; ++k) {
+            SExprInfo* pExprInfo = &pSup->pExprInfo[k];
+            if (pExprInfo->pExpr->nodeType == QUERY_NODE_FUNCTION &&
+                pExprInfo->pExpr->_function.pFunctNode &&
+                pExprInfo->pExpr->_function.pFunctNode->isDistinct) {
+              continue;
+            }
+            if (functionNeedToExecute(&pSup->pCtx[k]) && pSup->pCtx[k].fpSet.process != NULL) {
+              if (pSup->pCtx[k].input.pData[0] != NULL) {
+                code = pSup->pCtx[k].fpSet.process(&pSup->pCtx[k]);
+                QUERY_CHECK_CODE(code, lino, _end);
+              }
+            }
+          }
+          destroyDataBlockForEmptyInput(true, &pBlock);
+          break;
+        }
+        break;
+      }
+      pAggInfo->hasValidBlock = true;
+      pAggInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
+
+      if (pAggInfo->scalarExprSup.pExprInfo != NULL) {
+        SExprSupp* pSup1 = &pAggInfo->scalarExprSup;
+        code = projectApplyFunctions(pSup1->pExprInfo, pBlock, pBlock, pSup1->pCtx, pSup1->numOfExprs, NULL, GET_STM_RTINFO(pTaskInfo), pTaskInfo);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+
+      code = setExecutionContext(pOperator, numTotal, pBlock->info.id.groupId);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // Execute only non-distinct functions
+      for (int32_t k = 0; k < numTotal; ++k) {
+        SExprInfo* pExprInfo = &pSup->pExprInfo[k];
+        if (pExprInfo->pExpr->nodeType == QUERY_NODE_FUNCTION &&
+            pExprInfo->pExpr->_function.pFunctNode &&
+            pExprInfo->pExpr->_function.pFunctNode->isDistinct) {
+          continue;
+        }
+        if (functionNeedToExecute(&pSup->pCtx[k]) && pSup->pCtx[k].fpSet.process != NULL) {
+          if (pSup->pCtx[k].input.pData[0] == NULL) {
+            code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          code = pSup->pCtx[k].fpSet.process(&pSup->pCtx[k]);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+      }
+    }
+
+    // Phase 2: pull all blocks from downstream[1] (DistinctFilter), execute distinct functions
+    while (1) {
+      pBlock = getNextBlockFromDownstreamRemainDetach(pOperator, 1);
+      if (pBlock == NULL) break;
+
+      if (pAggInfo->scalarExprSup.pExprInfo != NULL) {
+        SExprSupp* pSup1 = &pAggInfo->scalarExprSup;
+        code = projectApplyFunctions(pSup1->pExprInfo, pBlock, pBlock, pSup1->pCtx, pSup1->numOfExprs, NULL, GET_STM_RTINFO(pTaskInfo), pTaskInfo);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+
+      code = setExecutionContext(pOperator, numTotal, pBlock->info.id.groupId);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // Execute only distinct functions
+      for (int32_t k = 0; k < numTotal; ++k) {
+        SExprInfo* pExprInfo = &pSup->pExprInfo[k];
+        if (!(pExprInfo->pExpr->nodeType == QUERY_NODE_FUNCTION &&
+              pExprInfo->pExpr->_function.pFunctNode &&
+              pExprInfo->pExpr->_function.pFunctNode->isDistinct)) {
+          continue;
+        }
+        if (functionNeedToExecute(&pSup->pCtx[k]) && pSup->pCtx[k].fpSet.process != NULL) {
+          if (pSup->pCtx[k].input.pData[0] == NULL) {
+            code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          code = pSup->pCtx[k].fpSet.process(&pSup->pCtx[k]);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+      }
+    }
+
+    if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    }
+
+    code = initGroupedResultInfo(&pAggInfo->groupResInfo, pAggInfo->aggSup.pResultRowHashTable, 0);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pAggInfo->cleanGroupResInfo = true;
+    return pAggInfo->hasValidBlock;
+  }
+
+  // Standard (non-mixed) path
   SSDataBlock* pBlock = pAggInfo->pNewGroupBlock;
 
   pAggInfo->cleanGroupResInfo = false;
@@ -249,7 +371,7 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     // there is an scalar expression that needs to be calculated before apply the group aggregation.
     if (pAggInfo->scalarExprSup.pExprInfo != NULL && !blockAllocated) {
       SExprSupp* pSup1 = &pAggInfo->scalarExprSup;
-      code = projectApplyFunctions(pSup1->pExprInfo, pBlock, pBlock, pSup1->pCtx, pSup1->numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
+      code = projectApplyFunctions(pSup1->pExprInfo, pBlock, pBlock, pSup1->pCtx, pSup1->numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
       if (code != TSDB_CODE_SUCCESS) {
         destroyDataBlockForEmptyInput(blockAllocated, &pBlock);
         T_LONG_JMP(pTaskInfo->env, code);

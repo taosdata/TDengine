@@ -1,0 +1,3501 @@
+### whr-01 POS
+SQL: SELECT id, val FROM {tbl} WHERE val > 20 ORDER BY time
+RESULT
+3|30
+4|40
+5|50
+---
+### whr-02 POS
+SQL: SELECT id, val FROM {tbl} WHERE val = 30 ORDER BY time
+RESULT
+3|30
+---
+### whr-03 POS
+SQL: SELECT id FROM {tbl} WHERE val <> 30 ORDER BY time
+RESULT
+1
+2
+4
+5
+---
+### whr-04 POS
+SQL: SELECT id, val FROM {tbl} WHERE val <= 30 ORDER BY time
+RESULT
+1|10
+2|20
+3|30
+---
+### whr-05 POS
+SQL: SELECT id, val FROM {tbl} WHERE val >= 30 ORDER BY time
+RESULT
+3|30
+4|40
+5|50
+---
+### whr-06 POS
+SQL: SELECT id, val FROM {tbl} WHERE val BETWEEN 20 AND 40 ORDER BY time
+RESULT
+2|20
+3|30
+4|40
+---
+### whr-07 POS
+SQL: SELECT id FROM {tbl} WHERE val NOT BETWEEN 20 AND 40 ORDER BY time
+RESULT
+1
+5
+---
+### whr-08 POS
+SQL: SELECT id FROM {tbl} WHERE label IN ('north', 'east') ORDER BY time
+RESULT
+1
+3
+5
+---
+### whr-09 POS
+SQL: SELECT id FROM {tbl} WHERE label NOT IN ('east') ORDER BY time
+RESULT
+1
+2
+3
+4
+---
+### whr-10 POS
+SQL: SELECT id FROM {tbl} WHERE label LIKE 'n%' ORDER BY time
+RESULT
+1
+3
+---
+### whr-11 POS
+SQL: SELECT id FROM {tbl} WHERE label LIKE '%th' ORDER BY time
+RESULT
+1
+2
+3
+4
+---
+### whr-12 POS
+SQL: SELECT id FROM {tbl} WHERE label NOT LIKE 'n%' ORDER BY time
+RESULT
+2
+4
+5
+---
+### whr-13 POS
+SQL: SELECT id FROM {tbl} WHERE label LIKE '_orth' ORDER BY time
+RESULT
+1
+3
+---
+### whr-14 POS
+SQL: SELECT id FROM {tbl} WHERE label LIKE '____' ORDER BY time
+RESULT
+5
+---
+### whr-15 POS
+SQL: SELECT id FROM {tbl} WHERE label IS NOT NULL ORDER BY time
+RESULT
+1
+2
+3
+4
+5
+---
+### whr-16 POS
+SQL: SELECT id FROM {tbl} WHERE label IS NULL ORDER BY time
+RESULT
+---
+### whr-17 POS
+SQL: SELECT id, val FROM {tbl} WHERE val > 20 AND val < 50 ORDER BY time
+RESULT
+3|30
+4|40
+---
+### whr-18 POS
+SQL: SELECT id, val FROM {tbl} WHERE val < 15 OR val > 45 ORDER BY time
+RESULT
+1|10
+5|50
+---
+### whr-19 POS
+SQL: SELECT id FROM {tbl} WHERE NOT (val > 30) ORDER BY time
+RESULT
+1
+2
+3
+---
+### whr-20 POS
+SQL: SELECT id FROM {tbl} WHERE (val < 20 OR val > 40) AND label <> 'east' ORDER BY id
+RESULT
+1
+---
+### whr-21 POS
+SQL: SELECT val FROM {tbl} WHERE val > 30 ORDER BY val
+RESULT
+40
+50
+---
+### whr-22 POS
+SQL: SELECT val FROM {tbl} WHERE val = 10 ORDER BY val
+RESULT
+10
+---
+### whr-23 POS
+SQL: SELECT val FROM {tbl} WHERE val != 30 ORDER BY val
+RESULT
+10
+20
+40
+50
+---
+### whr-24 POS
+SQL: SELECT val FROM {tbl} WHERE val < 30 ORDER BY val
+RESULT
+10
+20
+---
+### whr-25 POS
+SQL: SELECT val FROM {tbl} WHERE val IN (10, 30, 50) ORDER BY val
+RESULT
+10
+30
+50
+---
+### whr-26 POS
+SQL: SELECT val FROM {tbl} WHERE label LIKE 'n%' ORDER BY val
+RESULT
+10
+30
+---
+### whr-27 POS
+SQL: SELECT val FROM {tbl} WHERE val = 10 OR val = 50 ORDER BY val
+RESULT
+10
+50
+---
+### whr-28 POS
+SQL: SELECT COUNT(*) FROM {tbl} WHERE val IS NOT NULL
+RESULT
+5
+---
+### whr-29 POS
+SQL: SELECT val FROM {tbl} WHERE val > 20 AND id > 3 ORDER BY val
+RESULT
+40
+50
+---
+### whr-30 POS
+SQL: SELECT val FROM {tbl} WHERE NOT (id = 1) ORDER BY val
+RESULT
+20
+30
+40
+50
+---
+### whr-31 POS
+SQL: SELECT val FROM {tbl} WHERE label NOT LIKE 'n%' ORDER BY val
+RESULT
+20
+40
+50
+---
+### whr-32 POS
+SQL: SELECT val FROM {tbl} WHERE val NOT IN (10, 30, 50) ORDER BY val
+RESULT
+20
+40
+---
+### whr-33 POS
+SQL: SELECT val, ISNULL(label) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+10|False
+---
+### whr-34 POS
+SQL: SELECT val FROM {tbl} WHERE val BETWEEN 20 AND 40 ORDER BY val
+RESULT
+20
+30
+40
+---
+### whr-35 POS
+SQL: SELECT id, val FROM {tbl} WHERE label MATCH '^n' ORDER BY time
+RESULT
+1|10
+3|30
+---
+### whr-36 POS
+SQL: SELECT id, val FROM {tbl} WHERE label NMATCH '^n' ORDER BY time
+RESULT
+2|20
+4|40
+5|50
+---
+### whr-37 POS
+SQL: SELECT id FROM {tbl} WHERE label MATCH '.*th$' ORDER BY time
+RESULT
+1
+2
+3
+4
+---
+### whr-38 POS
+SQL: SELECT id FROM {tbl} WHERE label NMATCH '.*th$' ORDER BY time
+RESULT
+5
+---
+### whr-39 NEG
+SQL: SELECT id FROM {tbl} WHERE label->'key' = 'val' ORDER BY time
+ERROR -0x7fffd9ae: Only tag can be json type
+---
+### whr-40 NEG
+SQL: SELECT id FROM {tbl} WHERE label CONTAINS 'north'
+ERROR -0x7fffd9ae: Only tag can be json type
+---
+### whr-41 POS
+SQL: SELECT a.id, a.val FROM {tbl} a INNER JOIN {tbl} b ON a.time = b.time WHERE a.val > 20 ORDER BY a.id
+RESULT
+3|30
+4|40
+5|50
+---
+### whr-42 POS
+SQL: SELECT a.id, a.val FROM {tbl} a, {tbl} b WHERE a.time = b.time and a.val > 20 ORDER BY a.id
+RESULT
+3|30
+4|40
+5|50
+---
+### whr-43 POS
+SQL: SELECT a.id, a.val, b.label FROM {tbl} a INNER JOIN {tbl} b ON a.time = b.time WHERE a.val > 20 AND b.label = 'south' ORDER BY a.id
+RESULT
+4|40|south
+---
+### whr-44 POS
+SQL: SELECT id, val FROM {tbl} WHERE val > (SELECT AVG(val) FROM {tbl}) ORDER BY time
+RESULT
+4|40
+5|50
+---
+### whr-45 POS
+SQL: SELECT id FROM {tbl} WHERE val = (SELECT MAX(val) FROM {tbl}) ORDER BY time
+RESULT
+5
+---
+### whr-46 POS
+SQL: SELECT id, val FROM {tbl} WHERE val IN (SELECT val FROM {tbl} WHERE label = 'north') ORDER BY time
+RESULT
+1|10
+3|30
+---
+### whr-47 NEG
+SQL: SELECT id, val FROM {tbl} t1 WHERE val > (SELECT AVG(val) FROM {tbl} t2 WHERE t2.label = t1.label) ORDER BY time
+ERROR -0x7fffd95a: Not supported subquery as expr
+---
+### whr-48 NEG
+SQL: SELECT id FROM {tbl} t1 WHERE EXISTS (SELECT 1 FROM {tbl} t2 WHERE t2.id = t1.id AND t2.val > 30) ORDER BY time
+ERROR -0x7fffd95a: Not supported subquery as expr
+---
+### whr-49 POS
+SQL: SELECT COUNT(*) FROM {tbl} WHERE val > 20
+RESULT
+3
+---
+### whr-50 POS
+SQL: SELECT COUNT(*) FROM {tbl} WHERE val > 10 AND id > 2
+RESULT
+3
+---
+### whr-51 POS
+SQL: SELECT COUNT(*) FROM {tbl} WHERE val <= 30
+RESULT
+3
+---
+### whr-52 POS
+SQL: SELECT val FROM {tbl} WHERE val > 0 ORDER BY val LIMIT 3
+RESULT
+10
+20
+30
+---
+### whr-53 POS
+SQL: SELECT val FROM {tbl} WHERE val > 0 ORDER BY val ASC LIMIT 3
+RESULT
+10
+20
+30
+---
+### whr-54 POS
+SQL: SELECT COUNT(*) FROM {tbl} WHERE score > 0 AND val > 0
+RESULT
+5
+---
+### whr-55 POS
+SQL: SELECT id, val, score FROM {tbl} WHERE val >= 20 ORDER BY val
+RESULT
+2|20|2.5
+3|30|3.5
+4|40|4.5
+5|50|5.5
+---
+### cond-01 POS
+SQL: SELECT id, COALESCE(label, 'unknown') FROM {tbl} ORDER BY time
+RESULT
+1|north
+2|south
+3|north
+4|south
+5|east
+---
+### cond-02 POS
+SQL: SELECT id, NULLIF(val, 30) FROM {tbl} ORDER BY time
+RESULT
+1|10
+2|20
+3|NULL
+4|40
+5|50
+---
+### cond-03 POS
+SQL: SELECT id, IF(val > 30, 'high', 'low') AS cat FROM {tbl} ORDER BY time
+RESULT
+1|low
+2|low
+3|low
+4|high
+5|high
+---
+### cond-04 POS
+SQL: SELECT id, IFNULL(label, 'none') FROM {tbl} ORDER BY time
+RESULT
+1|north
+2|south
+3|north
+4|south
+5|east
+---
+### cond-05 POS
+SQL: SELECT id, CASE WHEN val >= 40 THEN 'high' WHEN val >= 20 THEN 'mid' ELSE 'low' END AS cat FROM {tbl} ORDER BY time
+RESULT
+1|low
+2|mid
+3|mid
+4|high
+5|high
+---
+### cond-06 POS
+SQL: SELECT id, CASE val WHEN 10 THEN 'ten' WHEN 20 THEN 'twenty' ELSE 'other' END AS lbl FROM {tbl} ORDER BY time
+RESULT
+1|ten
+2|twenty
+3|other
+4|other
+5|other
+---
+### cond-07 POS
+SQL: SELECT id, NULLIF(val, 30) FROM {tbl} ORDER BY time
+RESULT
+1|10
+2|20
+3|NULL
+4|40
+5|50
+---
+### cond-08 POS
+SQL: SELECT id, COALESCE(NULL, val) FROM {tbl} ORDER BY time
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### cond-09 POS
+SQL: SELECT id, NVL2(label, 'has_val', 'no_val') AS nv FROM {tbl} ORDER BY time
+RESULT
+1|has_val
+2|has_val
+3|has_val
+4|has_val
+5|has_val
+---
+### cond-10 POS
+SQL: SELECT id, NULLIF(val, 30) AS v FROM {tbl} ORDER BY v ASC NULLS FIRST
+RESULT
+3|NULL
+1|10
+2|20
+4|40
+5|50
+---
+### cond-11 POS
+SQL: SELECT id, NULLIF(val, 30) AS v FROM {tbl} ORDER BY v DESC NULLS LAST
+RESULT
+5|50
+4|40
+2|20
+1|10
+3|NULL
+---
+### cond-12 POS
+SQL: SELECT val, CASE WHEN val > 30 THEN 'high' ELSE 'low' END AS lvl FROM {tbl} ORDER BY val
+RESULT
+10|low
+20|low
+30|low
+40|high
+50|high
+---
+### cond-13 POS
+SQL: SELECT SUM(CASE WHEN id = 1 THEN val ELSE 0 END) AS s1 FROM {tbl}
+RESULT
+10
+---
+### cond-14 POS
+SQL: SELECT IFNULL(val, 0) FROM {tbl} WHERE val = 10
+RESULT
+10
+---
+### cond-15 POS
+SQL: SELECT COALESCE(val, 0) FROM {tbl} WHERE val = 10
+RESULT
+10
+---
+### cond-16 POS
+SQL: SELECT val, val / NULLIF(0, 0) FROM {tbl} WHERE val = 10
+RESULT
+10|NULL
+---
+### cond-17 POS
+SQL: SELECT val, CASE val WHEN 10 THEN 'ten' WHEN 20 THEN 'twenty' ELSE 'other' END AS lbl FROM {tbl} ORDER BY val
+RESULT
+10|ten
+20|twenty
+30|other
+40|other
+50|other
+---
+### arith-01 POS
+SQL: SELECT id, val * 2 + 1 FROM {tbl} ORDER BY time
+RESULT
+1|21.0
+2|41.0
+3|61.0
+4|81.0
+5|101.0
+---
+### arith-02 POS
+SQL: SELECT id, val * 3 FROM {tbl} ORDER BY time
+RESULT
+1|30.0
+2|60.0
+3|90.0
+4|120.0
+5|150.0
+---
+### arith-03 POS
+SQL: SELECT id, val / 4.0 FROM {tbl} ORDER BY time
+RESULT
+1|2.5
+2|5
+3|7.5
+4|10
+5|12.5
+---
+### arith-04 POS
+SQL: SELECT id, val % 3 FROM {tbl} ORDER BY time
+RESULT
+1|1.0
+2|2.0
+3|0.0
+4|1.0
+5|2.0
+---
+### arith-05 POS
+SQL: SELECT id, val & 3 FROM {tbl} ORDER BY time
+RESULT
+1|2
+2|0
+3|2
+4|0
+5|2
+---
+### arith-06 POS
+SQL: SELECT id, val | 1 FROM {tbl} ORDER BY time
+RESULT
+1|11
+2|21
+3|31
+4|41
+5|51
+---
+### arith-07 POS
+SQL: SELECT id, val * 2 AS dbl FROM {tbl} ORDER BY dbl
+RESULT
+1|20.0
+2|40.0
+3|60.0
+4|80.0
+5|100.0
+---
+### arith-08 POS
+SQL: SELECT val, val+1, val-1, val*2, val%3 FROM {tbl} ORDER BY val
+RESULT
+10|11.0|9.0|20.0|1.0
+20|21.0|19.0|40.0|2.0
+30|31.0|29.0|60.0|0.0
+40|41.0|39.0|80.0|1.0
+50|51.0|49.0|100.0|2.0
+---
+### arith-09 POS
+SQL: SELECT val, val / 2.0 FROM {tbl} ORDER BY val
+RESULT
+10|5
+20|10
+30|15
+40|20
+50|25
+---
+### arith-10 POS
+SQL: SELECT val, val * 2 AS doubled FROM {tbl} ORDER BY val
+RESULT
+10|20.0
+20|40.0
+30|60.0
+40|80.0
+50|100.0
+---
+### arith-11 POS
+SQL: SELECT val, val & 3 FROM {tbl} WHERE val = 50 ORDER BY time
+RESULT
+50|2
+---
+### arith-12 POS
+SQL: SELECT val, val | 8 FROM {tbl} WHERE val = 50 ORDER BY time
+RESULT
+50|58
+---
+### math-01 POS
+SQL: SELECT id, GREATEST(id, val) FROM {tbl} ORDER BY time
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### math-02 POS
+SQL: SELECT id, LEAST(id, val) FROM {tbl} ORDER BY time
+RESULT
+1|1
+2|2
+3|3
+4|4
+5|5
+---
+### math-03 POS
+SQL: SELECT id, TRUNCATE(PI(), 5) AS pi5 FROM {tbl} ORDER BY time
+RESULT
+1|3.14159
+2|3.14159
+3|3.14159
+4|3.14159
+5|3.14159
+---
+### math-04 POS
+SQL: SELECT id, ABS(20 - val) FROM {tbl} ORDER BY time
+RESULT
+1|10.0
+2|-0.0
+3|10.0
+4|20.0
+5|30.0
+---
+### math-05 POS
+SQL: SELECT id, CEIL(score) FROM {tbl} ORDER BY time
+RESULT
+1|2.0
+2|3.0
+3|4.0
+4|5.0
+5|6.0
+---
+### math-06 POS
+SQL: SELECT id, FLOOR(score) FROM {tbl} ORDER BY time
+RESULT
+1|1.0
+2|2.0
+3|3.0
+4|4.0
+5|5.0
+---
+### math-07 POS
+SQL: SELECT id, ROUND(score, 1) FROM {tbl} ORDER BY time
+RESULT
+1|1.5
+2|2.5
+3|3.5
+4|4.5
+5|5.5
+---
+### math-08 POS
+SQL: SELECT id, ROUND(score, 0) FROM {tbl} ORDER BY time
+RESULT
+1|2
+2|3
+3|4
+4|5
+5|6
+---
+### math-09 POS
+SQL: SELECT id, SQRT(val) FROM {tbl} ORDER BY time
+RESULT
+1|3.16228
+2|4.47214
+3|5.47723
+4|6.32456
+5|7.07107
+---
+### math-10 POS
+SQL: SELECT id, POW(id, 2) FROM {tbl} ORDER BY time
+RESULT
+1|1
+2|4
+3|9
+4|16
+5|25
+---
+### math-11 POS
+SQL: SELECT id, MOD(val, 3) FROM {tbl} ORDER BY time
+RESULT
+1|1.0
+2|2.0
+3|0.0
+4|1.0
+5|2.0
+---
+### math-12 POS
+SQL: SELECT id, SIGN(val - 25) FROM {tbl} ORDER BY time
+RESULT
+1|-1.0
+2|-1.0
+3|1.0
+4|1.0
+5|1.0
+---
+### math-13 POS
+SQL: SELECT id, EXP(id) FROM {tbl} ORDER BY time
+RESULT
+1|2.71828
+2|7.38906
+3|20.0855
+4|54.5982
+5|148.413
+---
+### math-14 POS
+SQL: SELECT id, LN(val) FROM {tbl} ORDER BY time
+RESULT
+1|2.30259
+2|2.99573
+3|3.4012
+4|3.68888
+5|3.91202
+---
+### math-15 POS
+SQL: SELECT id, LOG(val) FROM {tbl} ORDER BY time
+RESULT
+1|2.30259
+2|2.99573
+3|3.4012
+4|3.68888
+5|3.91202
+---
+### math-16 POS
+SQL: SELECT id, LOG(val, 10) FROM {tbl} ORDER BY time
+RESULT
+1|1
+2|1.30103
+3|1.47712
+4|1.60206
+5|1.69897
+---
+### math-17 POS
+SQL: SELECT id, TRUNCATE(score, 1) FROM {tbl} ORDER BY time
+RESULT
+1|1.5
+2|2.5
+3|3.5
+4|4.5
+5|5.5
+---
+### math-18 POS
+SQL: SELECT id, DEGREES(score) FROM {tbl} ORDER BY time
+RESULT
+1|85.9437
+2|143.239
+3|200.535
+4|257.831
+5|315.127
+---
+### math-19 POS
+SQL: SELECT id, RADIANS(val) FROM {tbl} ORDER BY time
+RESULT
+1|0.174533
+2|0.349066
+3|0.523599
+4|0.698132
+5|0.872665
+---
+### math-20 POS
+SQL: SELECT ABS(val - 30) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+20.0
+---
+### math-21 POS
+SQL: SELECT CEIL(score) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+2.0
+---
+### math-22 POS
+SQL: SELECT FLOOR(score) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+1.0
+---
+### math-23 POS
+SQL: SELECT ROUND(score, 0) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+2
+---
+### math-24 POS
+SQL: SELECT SQRT(val) FROM {tbl} WHERE val = 40 ORDER BY time
+RESULT
+6.32456
+---
+### math-25 POS
+SQL: SELECT POW(val, 2) FROM {tbl} WHERE val = 30 ORDER BY time
+RESULT
+900
+---
+### math-26 POS
+SQL: SELECT SIGN(val) FROM {tbl} WHERE val = 30 ORDER BY time
+RESULT
+1
+---
+### math-27 POS
+SQL: SELECT LOG(val, 2) FROM {tbl} WHERE val = 40 ORDER BY time
+RESULT
+5.32193
+---
+### math-28 POS
+SQL: SELECT TRUNCATE(score, 1) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+1.5
+---
+### math-29 POS
+SQL: SELECT LOG(val) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+2.30259
+---
+### math-30 POS
+SQL: SELECT MOD(val, 3) FROM {tbl} WHERE val = 50 ORDER BY time
+RESULT
+2.0
+---
+### math-31 POS
+SQL: SELECT GREATEST(val, 3), LEAST(val, 3) FROM {tbl} WHERE val = 50 ORDER BY time
+RESULT
+50|3
+---
+### math-32 POS
+SQL: SELECT GREATEST(val, 3), LEAST(val, 3) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+10|3
+---
+### trig-01 POS
+SQL: SELECT id, SIN(id) FROM {tbl} ORDER BY time
+RESULT
+1|0.841471
+2|0.909297
+3|0.14112
+4|-0.756802
+5|-0.958924
+---
+### trig-02 POS
+SQL: SELECT id, COS(id) FROM {tbl} ORDER BY time
+RESULT
+1|0.540302
+2|-0.416147
+3|-0.989992
+4|-0.653644
+5|0.283662
+---
+### trig-03 POS
+SQL: SELECT id, TAN(score) FROM {tbl} ORDER BY time
+RESULT
+1|14.1014
+2|-0.747022
+3|0.374586
+4|4.63733
+5|-0.995584
+---
+### trig-04 POS
+SQL: SELECT id, ASIN(score / 10.0) FROM {tbl} ORDER BY time
+RESULT
+1|0.150568
+2|0.25268
+3|0.357571
+4|0.466765
+5|0.582364
+---
+### trig-05 POS
+SQL: SELECT id, ACOS(score / 10.0) FROM {tbl} ORDER BY time
+RESULT
+1|1.42023
+2|1.31812
+3|1.21323
+4|1.10403
+5|0.988432
+---
+### trig-06 POS
+SQL: SELECT id, ATAN(id) FROM {tbl} ORDER BY time
+RESULT
+1|0.785398
+2|1.10715
+3|1.24905
+4|1.32582
+5|1.3734
+---
+### trig-07 POS
+SQL: SELECT COS(val - 10), SIN(val - 10), TAN(val - 10) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+1|0|0
+---
+### trig-08 POS
+SQL: SELECT ACOS(val - 10), ASIN(val / 10.0), ATAN(val / 10.0) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+1.5708|1.5708|0.785398
+---
+### trig-09 POS
+SQL: SELECT DEGREES(PI()), RADIANS(180), PI(), EXP(val - 10) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+180|3.14159|3.14159|1
+---
+### sfn-01 POS
+SQL: SELECT id, LOWER(label) FROM {tbl} ORDER BY time
+RESULT
+1|north
+2|south
+3|north
+4|south
+5|east
+---
+### sfn-02 POS
+SQL: SELECT id, UPPER(label) FROM {tbl} ORDER BY time
+RESULT
+1|NORTH
+2|SOUTH
+3|NORTH
+4|SOUTH
+5|EAST
+---
+### sfn-03 POS
+SQL: SELECT id, CHAR_LENGTH(label) FROM {tbl} ORDER BY time
+RESULT
+1|5
+2|5
+3|5
+4|5
+5|4
+---
+### sfn-04 POS
+SQL: SELECT id, LENGTH(label) FROM {tbl} ORDER BY time
+RESULT
+1|20
+2|20
+3|20
+4|20
+5|16
+---
+### sfn-05 POS
+SQL: SELECT id, LTRIM(CONCAT(' ', label)) FROM {tbl} ORDER BY time
+RESULT
+1|north
+2|south
+3|north
+4|south
+5|east
+---
+### sfn-06 POS
+SQL: SELECT id, RTRIM(CONCAT(label, ' ')) FROM {tbl} ORDER BY time
+RESULT
+1|north
+2|south
+3|north
+4|south
+5|east
+---
+### sfn-07 POS
+SQL: SELECT id, TRIM(CONCAT(' ', label, ' ')) FROM {tbl} ORDER BY time
+RESULT
+1|north
+2|south
+3|north
+4|south
+5|east
+---
+### sfn-08 POS
+SQL: SELECT id, CONCAT(label, '-', LOWER(label)) FROM {tbl} ORDER BY time
+RESULT
+1|north-north
+2|south-south
+3|north-north
+4|south-south
+5|east-east
+---
+### sfn-09 POS
+SQL: SELECT id, CONCAT_WS('-', label, LOWER(label)) FROM {tbl} ORDER BY time
+RESULT
+1|north-north
+2|south-south
+3|north-north
+4|south-south
+5|east-east
+---
+### sfn-10 POS
+SQL: SELECT id, SUBSTRING(label, 1, 3) FROM {tbl} ORDER BY time
+RESULT
+1|nor
+2|sou
+3|nor
+4|sou
+5|eas
+---
+### sfn-11 POS
+SQL: SELECT id, SUBSTR(label, -3, 3) FROM {tbl} ORDER BY time
+RESULT
+1|rth
+2|uth
+3|rth
+4|uth
+5|ast
+---
+### sfn-12 POS
+SQL: SELECT id, REPLACE(label, 'north', 'n') FROM {tbl} ORDER BY time
+RESULT
+1|n
+2|south
+3|n
+4|south
+5|east
+---
+### sfn-13 POS
+SQL: SELECT id, POSITION('o' IN label) FROM {tbl} ORDER BY time
+RESULT
+1|2
+2|2
+3|2
+4|2
+5|0
+---
+### sfn-14 POS
+SQL: SELECT id, REPEAT('x', id) FROM {tbl} ORDER BY time
+RESULT
+1|x
+2|xx
+3|xxx
+4|xxxx
+5|xxxxx
+---
+### sfn-15 POS
+SQL: SELECT id, ASCII(label) FROM {tbl} ORDER BY time
+RESULT
+1|110
+2|115
+3|110
+4|115
+5|101
+---
+### sfn-16 POS
+SQL: SELECT id, CHAR(65) FROM {tbl} ORDER BY time
+RESULT
+1|A
+2|A
+3|A
+4|A
+5|A
+---
+### sfn-17 POS
+SQL: SELECT id, FIND_IN_SET(label, 'north,south,east') AS pos FROM {tbl} ORDER BY time
+RESULT
+1|1
+2|2
+3|1
+4|2
+5|3
+---
+### sfn-18 POS
+SQL: SELECT id, SUBSTRING_INDEX(label, 'o', 1) AS si FROM {tbl} ORDER BY time
+RESULT
+1|n
+2|s
+3|n
+4|s
+5|east
+---
+### sfn-19 POS
+SQL: SELECT CONCAT(label, '_x') FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+north_x
+---
+### sfn-20 POS
+SQL: SELECT UPPER(label) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+NORTH
+---
+### sfn-21 POS
+SQL: SELECT LOWER(label) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+north
+---
+### sfn-22 POS
+SQL: SELECT REPLACE(label, 'north', 'omega') FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+omega
+---
+### sfn-23 POS
+SQL: SELECT LENGTH(label) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+20
+---
+### sfn-24 POS
+SQL: SELECT CHAR_LENGTH(label) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+5
+---
+### sfn-25 POS
+SQL: SELECT ASCII(label) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+110
+---
+### sfn-26 POS
+SQL: SELECT LTRIM(label), RTRIM(label), TRIM(label) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+north|north|north
+---
+### sfn-27 POS
+SQL: SELECT CONCAT_WS('-', label, 'b') FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+north-b
+---
+### sfn-28 POS
+SQL: SELECT REPEAT('x', 3) FROM {tbl} LIMIT 1
+RESULT
+xxx
+---
+### sfn-29 POS
+SQL: SELECT SUBSTRING(label, 1, 3) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+nor
+---
+### sfn-30 POS
+SQL: SELECT CHAR(65) FROM {tbl} LIMIT 1
+RESULT
+A
+---
+### sfn-31 POS
+SQL: SELECT POSITION('lp' IN label) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+0
+---
+### sfn-32 POS
+SQL: SELECT FIND_IN_SET('B', 'A,B,C') FROM {tbl} LIMIT 1
+RESULT
+2
+---
+### sfn-33 POS
+SQL: SELECT SUBSTRING_INDEX('www.taosdata.com', '.', 2) FROM {tbl} LIMIT 1
+RESULT
+www.taosdata
+---
+### sfn-34 POS
+SQL: SELECT LIKE_IN_SET(label, 'no%,so%') FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+0
+---
+### sfn-35 POS
+SQL: SELECT REGEXP_IN_SET(label, '^n.*,^s.*') FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+0
+---
+### sfn-36 POS
+SQL: SELECT MASK_NONE(label) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+north
+---
+### hash-01 POS
+SQL: SELECT id, MD5(CAST(label AS VARCHAR(32))) FROM {tbl} ORDER BY time
+RESULT
+1|8d8d1437907bca79900ac5f0ea1f5c73
+2|50fd76e33fe5b9617c5ca99008af8904
+3|8d8d1437907bca79900ac5f0ea1f5c73
+4|50fd76e33fe5b9617c5ca99008af8904
+5|320381dbf7cd2f31c04baa6b36e1c682
+---
+### hash-02 POS
+SQL: SELECT id, TO_BASE64(label) FROM {tbl} ORDER BY time
+RESULT
+1|bgAAAG8AAAByAAAAdAAAAGgAAAA=
+2|cwAAAG8AAAB1AAAAdAAAAGgAAAA=
+3|bgAAAG8AAAByAAAAdAAAAGgAAAA=
+4|cwAAAG8AAAB1AAAAdAAAAGgAAAA=
+5|ZQAAAGEAAABzAAAAdAAAAA==
+---
+### hash-03 POS
+SQL: SELECT id, FROM_BASE64(TO_BASE64(label)) AS decoded FROM {tbl} ORDER BY time
+RESULT
+1|n   o   r   t   h   
+2|s   o   u   t   h   
+3|n   o   r   t   h   
+4|s   o   u   t   h   
+5|e   a   s   t   
+---
+### hash-04 POS
+SQL: SELECT id, SHA1(CAST(label AS VARCHAR(32))) FROM {tbl} ORDER BY time
+RESULT
+1|3099447db4c86031e3abed926b0de38cf1ec852b
+2|7e3fb5d99b37e07fcb9f0c90fd94bfeb96f93045
+3|3099447db4c86031e3abed926b0de38cf1ec852b
+4|7e3fb5d99b37e07fcb9f0c90fd94bfeb96f93045
+5|25038d9da4649a8ff094569a1fd3242c375f5ff2
+---
+### hash-05 POS
+SQL: SELECT id, SHA2(CAST(label AS VARCHAR(32)), 256) FROM {tbl} ORDER BY time
+RESULT
+1|dc365e79d41cfae1c3c0d969319ae62165b81b1815a86c32bbc6c64cbdf2311b
+2|2daa8d4a05dfc643abb44c5d5966430ca30c976e437e0f786de55ffc864b9a98
+3|dc365e79d41cfae1c3c0d969319ae62165b81b1815a86c32bbc6c64cbdf2311b
+4|2daa8d4a05dfc643abb44c5d5966430ca30c976e437e0f786de55ffc864b9a98
+5|6bdb262b0201799aefb0ae4116c6fb88f549425e30cd85a7f75a06be246751cf
+---
+### hash-06 POS
+SQL: SELECT id, CRC32(label) FROM {tbl} ORDER BY time
+RESULT
+1|2424018343
+2|2994000288
+3|2424018343
+4|2994000288
+5|3671497243
+---
+### hash-07 POS
+SQL: SELECT SHA1(CAST(label AS VARCHAR(32))) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+3099447db4c86031e3abed926b0de38cf1ec852b
+---
+### hash-08 POS
+SQL: SELECT SHA2(CAST(label AS VARCHAR(32)), 256) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+dc365e79d41cfae1c3c0d969319ae62165b81b1815a86c32bbc6c64cbdf2311b
+---
+### agg-01 POS
+SQL: SELECT COUNT(*), SUM(val), MIN(val), MAX(val) FROM {tbl}
+RESULT
+5|150|10|50
+---
+### agg-02 POS
+SQL: SELECT AVG(val) FROM {tbl}
+RESULT
+30
+---
+### agg-03 POS
+SQL: SELECT STDDEV(val) FROM {tbl}
+RESULT
+14.1421
+---
+### agg-04 POS
+SQL: SELECT VARIANCE(val) FROM {tbl}
+RESULT
+200
+---
+### agg-05 POS
+SQL: SELECT STDDEV_SAMP(val) FROM {tbl}
+RESULT
+15.8114
+---
+### agg-06 POS
+SQL: SELECT VAR_SAMP(val) FROM {tbl}
+RESULT
+250
+---
+### agg-07 POS
+SQL: SELECT COUNT(DISTINCT val) FROM {tbl}
+RESULT
+5
+---
+### agg-08 POS
+SQL: SELECT COUNT(label) FROM {tbl}
+RESULT
+5
+---
+### agg-09 POS
+SQL: SELECT SUM(CASE WHEN label = 'north' THEN val ELSE 0 END) FROM {tbl}
+RESULT
+40
+---
+### agg-10 POS
+SQL: SELECT COUNT(*), SUM(val), AVG(val), MIN(val), MAX(val) FROM {tbl}
+RESULT
+5|150|30|10|50
+---
+### agg-11 POS
+SQL: SELECT PERCENTILE(val, 50) FROM {tbl}
+RESULT
+30
+---
+### agg-12 POS
+SQL: SELECT APERCENTILE(val, 50) FROM {tbl}
+RESULT
+25
+---
+### agg-13 POS
+SQL: SELECT SPREAD(val) FROM {tbl}
+RESULT
+40
+---
+### agg-14 POS
+SQL: SELECT LEASTSQUARES(val, 0, 1) FROM {tbl}
+RESULT
+{slop:10.000000, intercept:10.000000}
+---
+### agg-15 POS
+SQL: SELECT VAR_POP(val) FROM {tbl}
+RESULT
+200
+---
+### agg-16 POS
+SQL: SELECT STDDEV_POP(val) FROM {tbl}
+RESULT
+14.1421
+---
+### agg-17 POS
+SQL: SELECT STD(val) FROM {tbl}
+RESULT
+14.1421
+---
+### agg-18 POS
+SQL: SELECT GROUP_CONCAT(label, ',') FROM {tbl}
+RESULT
+north,south,north,south,east
+---
+### agg-19 POS
+SQL: SELECT COLS(MAX(val), label) FROM {tbl}
+RESULT
+east
+---
+### agg-20 POS
+SQL: SELECT COLS(MIN(val), label) FROM {tbl}
+RESULT
+north
+---
+### agg-21 POS
+SQL: SELECT COUNT(*), SUM(val) FROM {tbl} WHERE val BETWEEN 20 AND 40
+RESULT
+3|90
+---
+### agg-22 POS
+SQL: SELECT COUNT(*), AVG(score) FROM {tbl}
+RESULT
+5|3.5
+---
+### agg-23 POS
+SQL: SELECT COUNT(*) FROM {tbl} WHERE score > 0
+RESULT
+5
+---
+### agg-24 POS
+SQL: SELECT AVG(score) FROM {tbl} WHERE score > 0
+RESULT
+3.5
+---
+### agg-25 POS
+SQL: SELECT COUNT(*), AVG(val) FROM {tbl} WHERE val > 0
+RESULT
+5|30
+---
+### grp-01 POS
+SQL: SELECT label, COUNT(*) FROM {tbl} GROUP BY label ORDER BY label
+RESULT
+east|1
+north|2
+south|2
+---
+### grp-02 POS
+SQL: SELECT label, COUNT(*) FROM {tbl} GROUP BY label HAVING COUNT(*) > 1 ORDER BY label
+RESULT
+north|2
+south|2
+---
+### grp-03 POS
+SQL: SELECT label, SUM(val) FROM {tbl} GROUP BY label ORDER BY label
+RESULT
+east|50
+north|40
+south|60
+---
+### grp-04 POS
+SQL: SELECT label, AVG(val) FROM {tbl} GROUP BY label ORDER BY label
+RESULT
+east|50
+north|20
+south|30
+---
+### grp-05 POS
+SQL: SELECT label, MAX(val) FROM {tbl} GROUP BY label ORDER BY label
+RESULT
+east|50
+north|30
+south|40
+---
+### grp-06 POS
+SQL: SELECT label, MIN(val) FROM {tbl} GROUP BY label ORDER BY label
+RESULT
+east|50
+north|10
+south|20
+---
+### grp-07 POS
+SQL: SELECT label, COUNT(id) FROM {tbl} GROUP BY label ORDER BY label
+RESULT
+east|1
+north|2
+south|2
+---
+### grp-08 POS
+SQL: SELECT label, SUM(val) FROM {tbl} GROUP BY label HAVING SUM(val) > 30 ORDER BY label
+RESULT
+east|50
+north|40
+south|60
+---
+### grp-09 POS
+SQL: SELECT label, AVG(score) FROM {tbl} GROUP BY label HAVING AVG(score) > 2.0 ORDER BY label
+RESULT
+east|5.5
+north|2.5
+south|3.5
+---
+### grp-10 POS
+SQL: SELECT val / 20 AS bucket, COUNT(*) FROM {tbl} GROUP BY val / 20 ORDER BY bucket
+RESULT
+0.5|1
+1.0|1
+1.5|1
+2.0|1
+2.5|1
+---
+### grp-11 POS
+SQL: SELECT label, COUNT(*) AS cnt FROM {tbl} GROUP BY label ORDER BY 2 DESC
+RESULT
+north|2
+south|2
+east|1
+---
+### grp-12 POS
+SQL: SELECT label, COUNT(*), SUM(val), AVG(score) FROM {tbl} WHERE val >= 20 GROUP BY label ORDER BY label
+RESULT
+east|1|50|5.5
+north|1|30|3.5
+south|2|60|3.5
+---
+### grp-13 POS
+SQL: SELECT id, COUNT(*) AS cnt FROM {tbl} GROUP BY id ORDER BY id
+RESULT
+1|1
+2|1
+3|1
+4|1
+5|1
+---
+### grp-14 POS
+SQL: SELECT id, COUNT(*) AS cnt FROM {tbl} GROUP BY id HAVING COUNT(*) > 0 ORDER BY id
+RESULT
+1|1
+2|1
+3|1
+4|1
+5|1
+---
+### grp-15 POS
+SQL: SELECT label, COUNT(*) FROM {tbl} WHERE val > 0 GROUP BY label ORDER BY label LIMIT 10
+RESULT
+east|1
+north|2
+south|2
+---
+### grp-16 POS
+SQL: SELECT label, SUM(val) FROM {tbl} WHERE val > 0 GROUP BY label ORDER BY label
+RESULT
+east|50
+north|40
+south|60
+---
+### grp-17 POS
+SQL: SELECT label, COUNT(*), AVG(val) FROM {tbl} GROUP BY label ORDER BY label
+RESULT
+east|1|50
+north|2|20
+south|2|30
+---
+### grp-18 POS
+SQL: SELECT label, COUNT(*) FROM {tbl} GROUP BY label HAVING COUNT(*) >= 2 ORDER BY label
+RESULT
+north|2
+south|2
+---
+### grp-19 POS
+SQL: SELECT label, COUNT(*) FROM {tbl} GROUP BY 1 ORDER BY 1
+RESULT
+east|1
+north|2
+south|2
+---
+### grp-20 POS
+SQL: SELECT label AS lb, COUNT(*) FROM {tbl} GROUP BY lb ORDER BY lb
+RESULT
+east|1
+north|2
+south|2
+---
+### grp-21 POS
+SQL: SELECT val / 10 AS bucket, COUNT(*) FROM {tbl} PARTITION BY val / 10 ORDER BY bucket
+RESULT
+1.0|1
+2.0|1
+3.0|1
+4.0|1
+5.0|1
+---
+### grp-22 POS
+SQL: SELECT label, SUM(val) FROM {tbl} PARTITION BY 1 ORDER BY label
+RESULT
+east|50
+north|40
+south|60
+---
+### cast-01 POS
+SQL: SELECT id, CAST(val AS DOUBLE) FROM {tbl} ORDER BY time
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### cast-02 POS
+SQL: SELECT id, CHAR_LENGTH(CAST(val AS VARCHAR(10))) FROM {tbl} ORDER BY time
+RESULT
+1|2
+2|2
+3|2
+4|2
+5|2
+---
+### cast-03 POS
+SQL: SELECT id, CAST(score AS BIGINT) FROM {tbl} ORDER BY time
+RESULT
+1|1
+2|2
+3|3
+4|4
+5|5
+---
+### cast-04 POS
+SQL: SELECT CAST(val AS DOUBLE) FROM {tbl} WHERE val = 30 ORDER BY time
+RESULT
+30
+---
+### cast-05 POS
+SQL: SELECT CAST(score AS BINARY(16)) FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+1.5
+---
+### sort-01 POS
+SQL: SELECT id, val - 5 FROM {tbl} ORDER BY time
+RESULT
+1|5.0
+2|15.0
+3|25.0
+4|35.0
+5|45.0
+---
+### sort-02 POS
+SQL: SELECT id, val, score, label FROM {tbl} ORDER BY time
+RESULT
+1|10|1.5|north
+2|20|2.5|south
+3|30|3.5|north
+4|40|4.5|south
+5|50|5.5|east
+---
+### sort-03 POS
+SQL: SELECT id, val FROM {tbl} ORDER BY time LIMIT 3 OFFSET 1
+RESULT
+2|20
+3|30
+4|40
+---
+### sort-04 POS
+SQL: SELECT DISTINCT label FROM {tbl} ORDER BY label
+RESULT
+east
+north
+south
+---
+### sort-05 POS
+SQL: SELECT id, val FROM {tbl} ORDER BY val DESC
+RESULT
+5|50
+4|40
+3|30
+2|20
+1|10
+---
+### sort-06 POS
+SQL: SELECT id, -val FROM {tbl} ORDER BY time
+RESULT
+1|-10.0
+2|-20.0
+3|-30.0
+4|-40.0
+5|-50.0
+---
+### sort-07 POS
+SQL: SELECT id, label, val FROM {tbl} ORDER BY label, val
+RESULT
+5|east|50
+1|north|10
+3|north|30
+2|south|20
+4|south|40
+---
+### sort-08 POS
+SQL: SELECT DISTINCT label, val FROM {tbl} ORDER BY label, val
+RESULT
+east|50
+north|10
+north|30
+south|20
+south|40
+---
+### sort-09 POS
+SQL: SELECT val, score FROM {tbl} ORDER BY val
+RESULT
+10|1.5
+20|2.5
+30|3.5
+40|4.5
+50|5.5
+---
+### sort-10 POS
+SQL: SELECT val FROM {tbl} ORDER BY val DESC
+RESULT
+50
+40
+30
+20
+10
+---
+### sort-11 POS
+SQL: SELECT val FROM {tbl} ORDER BY val LIMIT 2 OFFSET 2
+RESULT
+30
+40
+---
+### sort-12 POS
+SQL: SELECT val FROM {tbl} ORDER BY val LIMIT 2 OFFSET 3
+RESULT
+40
+50
+---
+### sort-13 POS
+SQL: SELECT val FROM {tbl} ORDER BY val LIMIT 10 OFFSET 100
+RESULT
+---
+### sort-14 POS
+SQL: SELECT DISTINCT id FROM {tbl} ORDER BY id
+RESULT
+1
+2
+3
+4
+5
+---
+### sort-15 POS
+SQL: SELECT DISTINCT val, id FROM {tbl} ORDER BY val
+RESULT
+10|1
+20|2
+30|3
+40|4
+50|5
+---
+### sort-16 POS
+SQL: SELECT val FROM {tbl} ORDER BY val ASC LIMIT 2
+RESULT
+10
+20
+---
+### sort-17 POS
+SQL: SELECT val FROM {tbl} ORDER BY val DESC LIMIT 2
+RESULT
+50
+40
+---
+### sort-18 POS
+SQL: SELECT label, val FROM {tbl} ORDER BY LENGTH(label), val
+RESULT
+east|50
+north|10
+south|20
+north|30
+south|40
+---
+### sort-19 POS
+SQL: SELECT val FROM {tbl} ORDER BY val
+RESULT
+10
+20
+30
+40
+50
+---
+### sort-20 POS
+SQL: SELECT nullable_val FROM {tbl} ORDER BY nullable_val ASC NULLS LAST
+RESULT
+10
+30
+50
+NULL
+NULL
+---
+### sort-21 POS
+SQL: SELECT nullable_val FROM {tbl} ORDER BY nullable_val DESC NULLS FIRST
+RESULT
+NULL
+NULL
+50
+30
+10
+---
+### sort-22 POS
+SQL: SELECT /*+ para_tables_sort() */ val FROM {tbl} ORDER BY val
+RESULT
+10
+20
+30
+40
+50
+---
+### sort-23 POS
+SQL: SELECT val FROM {tbl} ORDER BY val LIMIT 1, 3
+RESULT
+20
+30
+40
+---
+### sort-24 POS
+SQL: SELECT time, id, val, score, label, nullable_val, lat, lon, wkt_point, wkt_poly, ts_str FROM {tbl} ORDER BY time LIMIT 2
+RESULT
+2024-01-01 00:00:00|1|10|1.5|north|10|116.4|39.9|POINT(5 5)|POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))|2024-01-01 00:00:00
+2024-01-01 00:01:00|2|20|2.5|south|NULL|121.5|31.2|POINT(15 15)|POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))|2024-01-01 00:01:00
+---
+### sort-25 POS
+SQL: SELECT /*+ SORT_FOR_GROUP() */ label, COUNT(*) FROM {tbl} PARTITION BY label ORDER BY label
+RESULT
+east|1
+north|2
+south|2
+---
+### sort-26 POS
+SQL: SELECT /*+ PARTITION_FIRST() */ label, SUM(val) FROM {tbl} PARTITION BY label ORDER BY label
+RESULT
+east|50
+north|40
+south|60
+---
+### sub-01 POS
+SQL: SELECT id FROM {tbl} WHERE val IN (SELECT val FROM {tbl} WHERE label = 'north') ORDER BY time
+RESULT
+1
+3
+---
+### sub-02 POS
+SQL: SELECT id FROM {tbl} WHERE val NOT IN (SELECT val FROM {tbl} WHERE label = 'east') ORDER BY time
+RESULT
+1
+2
+3
+4
+---
+### sub-03 NEG
+SQL: SELECT id FROM {tbl} t1 WHERE EXISTS (SELECT 1 FROM {tbl} t2 WHERE t2.id = t1.id AND t2.label = 'north') ORDER BY time
+ERROR -0x7fffd95a: Not supported subquery as expr
+---
+### sub-04 NEG
+SQL: SELECT id FROM {tbl} t1 WHERE NOT EXISTS (SELECT 1 FROM {tbl} t2 WHERE t2.id = t1.id AND t2.label = 'south') ORDER BY time
+ERROR -0x7fffd95a: Not supported subquery as expr
+---
+### sub-05 POS
+SQL: SELECT id FROM {tbl} WHERE val > ALL (SELECT val FROM {tbl} WHERE val < 20) ORDER BY time
+RESULT
+2
+3
+4
+5
+---
+### sub-06 POS
+SQL: SELECT id FROM {tbl} WHERE val > ANY (SELECT val FROM {tbl} WHERE val < 30) ORDER BY time
+RESULT
+2
+3
+4
+5
+---
+### sub-07 POS
+SQL: SELECT id FROM {tbl} WHERE val >= SOME (SELECT val FROM {tbl} WHERE val >= 30) ORDER BY time
+RESULT
+3
+4
+5
+---
+### sub-08 POS
+SQL: SELECT id, val, (SELECT AVG(val) FROM {tbl}) AS avg_val FROM {tbl} ORDER BY time
+RESULT
+1|10|30
+2|20|30
+3|30|30
+4|40|30
+5|50|30
+---
+### sub-09 POS
+SQL: SELECT id, val FROM {tbl} WHERE val > (SELECT AVG(val) FROM {tbl}) ORDER BY time
+RESULT
+4|40
+5|50
+---
+### sub-10 POS
+SQL: SELECT AVG(s) AS avg_sum FROM (SELECT SUM(val) AS s FROM {tbl} GROUP BY label) sub
+RESULT
+50
+---
+### sub-11 POS
+SQL: SELECT id, doubled FROM (SELECT id, val * 2 AS doubled FROM {tbl}) sub ORDER BY id
+RESULT
+1|20.0
+2|40.0
+3|60.0
+4|80.0
+5|100.0
+---
+### sub-12 POS
+SQL: SELECT id FROM {tbl} WHERE id IN (SELECT id FROM {tbl} WHERE val > 30) ORDER BY id
+RESULT
+4
+5
+---
+### sub-13 POS
+SQL: SELECT id FROM {tbl} WHERE id NOT IN (SELECT id FROM {tbl} WHERE val > 30) ORDER BY id
+RESULT
+1
+2
+3
+---
+### sub-14 POS
+SQL: SELECT AVG(v) FROM (SELECT val AS v FROM {tbl} WHERE val > 10) sub
+RESULT
+35
+---
+### sub-15 POS
+SQL: SELECT val, (SELECT MAX(val) FROM {tbl}) AS mx FROM {tbl} ORDER BY val
+RESULT
+10|50
+20|50
+30|50
+40|50
+50|50
+---
+### sub-16 POS
+SQL: SELECT val FROM {tbl} WHERE val > ALL (SELECT val FROM {tbl} WHERE val < 20) ORDER BY val
+RESULT
+20
+30
+40
+50
+---
+### sub-17 POS
+SQL: SELECT val FROM {tbl} WHERE val < ANY (SELECT val FROM {tbl} WHERE val = 50) ORDER BY val
+RESULT
+10
+20
+30
+40
+---
+### sub-18 POS
+SQL: SELECT val FROM {tbl} WHERE val IN (SELECT val FROM {tbl} WHERE id = 1) ORDER BY val
+RESULT
+10
+---
+### sub-19 POS
+SQL: SELECT val FROM {tbl} WHERE val NOT IN (SELECT val FROM {tbl} WHERE id = 1) ORDER BY val
+RESULT
+20
+30
+40
+50
+---
+### sub-20 POS
+SQL: SELECT id FROM {tbl} WHERE EXISTS (SELECT 1 FROM {tbl} WHERE val > 10) ORDER BY time
+RESULT
+1
+2
+3
+4
+5
+---
+### sub-21 POS
+SQL: SELECT id FROM {tbl} WHERE NOT EXISTS (SELECT 1 FROM {tbl} WHERE val > 999) ORDER BY time
+RESULT
+1
+2
+3
+4
+5
+---
+### sub-22 POS
+SQL: SELECT id FROM {tbl} WHERE NOT EXISTS (SELECT 1 FROM {tbl} WHERE val > 10) ORDER BY time
+RESULT
+---
+### sub-23 POS
+SQL: SELECT val FROM {tbl} WHERE val > SOME (SELECT val FROM {tbl} WHERE label = 'south') ORDER BY val
+RESULT
+30
+40
+50
+---
+### sub-24 POS
+SQL: SELECT val FROM (SELECT val, label FROM {tbl}) t ORDER BY val
+RESULT
+10
+20
+30
+40
+50
+---
+### sub-25 POS
+SQL: SELECT id FROM {tbl} WHERE val <= ALL (SELECT val FROM {tbl} WHERE val >= 40) ORDER BY time
+RESULT
+1
+2
+3
+4
+---
+### sub-26 POS
+SQL: SELECT id FROM {tbl} WHERE val <> ALL (SELECT val FROM {tbl} WHERE label = 'east') ORDER BY time
+RESULT
+1
+2
+3
+4
+---
+### sub-27 POS
+SQL: SELECT id FROM {tbl} WHERE val = ANY (SELECT val FROM {tbl} WHERE label = 'north') ORDER BY time
+RESULT
+1
+3
+---
+### sub-28 POS
+SQL: SELECT id, val - (SELECT MIN(val) FROM {tbl}) AS diff FROM {tbl} ORDER BY time
+RESULT
+1|0.0
+2|10.0
+3|20.0
+4|30.0
+5|40.0
+---
+### sub-29 POS
+SQL: SELECT id FROM {tbl} WHERE val IN (SELECT val FROM {tbl} WHERE id = 1 UNION SELECT val FROM {tbl} WHERE id = 5) ORDER BY time
+RESULT
+1
+5
+---
+### sub-30 POS
+SQL: SELECT id, CASE WHEN val > (SELECT AVG(val) FROM {tbl}) THEN 'high' ELSE 'low' END AS cat FROM {tbl} ORDER BY time
+RESULT
+1|low
+2|low
+3|low
+4|high
+5|high
+---
+### sub-31 POS
+SQL: SELECT label, SUM(val) AS s FROM {tbl} GROUP BY label HAVING SUM(val) > (SELECT AVG(val) FROM {tbl}) ORDER BY label
+RESULT
+east|50
+north|40
+south|60
+---
+### sub-32 POS
+SQL: SELECT id FROM (SELECT id, val FROM {tbl} WHERE val IN (SELECT val FROM {tbl} WHERE label = 'north')) sub ORDER BY id
+RESULT
+1
+3
+---
+### sub-33 POS
+SQL: SELECT id, CASE WHEN EXISTS (SELECT 1 FROM {tbl} WHERE val > 40) THEN 'yes' ELSE 'no' END AS flag FROM {tbl} ORDER BY time
+RESULT
+1|yes
+2|yes
+3|yes
+4|yes
+5|yes
+---
+### union-01 POS
+SQL: SELECT val FROM {tbl} WHERE id <= 2 UNION ALL SELECT val FROM {tbl} WHERE id <= 2 ORDER BY val
+RESULT
+10
+10
+20
+20
+---
+### union-02 POS
+SQL: SELECT label FROM {tbl} WHERE id IN (1,3) UNION SELECT label FROM {tbl} WHERE id IN (1,4) ORDER BY label
+RESULT
+north
+south
+---
+### union-03 POS
+SQL: SELECT id, label FROM {tbl} WHERE id <= 2 UNION ALL SELECT id, label FROM {tbl} WHERE id >= 4 ORDER BY id
+RESULT
+1|north
+2|south
+4|south
+5|east
+---
+### union-04 POS
+SQL: SELECT id, val FROM {tbl} WHERE id <= 2 UNION ALL SELECT id, val FROM {tbl} WHERE id BETWEEN 2 AND 4 UNION ALL SELECT id, val FROM {tbl} WHERE id >= 4 ORDER BY id, val
+RESULT
+1|10
+2|20
+2|20
+3|30
+4|40
+4|40
+5|50
+---
+### union-05 POS
+SQL: SELECT val FROM {tbl} WHERE val > 0 UNION ALL SELECT val FROM {tbl} WHERE val < 0 ORDER BY val
+RESULT
+10
+20
+30
+40
+50
+---
+### join-01 NEG
+SQL: SELECT a.id, a.val, b.label FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id ORDER BY a.id
+ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+---
+### join-02 NEG
+SQL: SELECT a.id, b.val FROM {tbl} a LEFT JOIN {tbl} b ON a.id = b.id AND b.val > 30 ORDER BY a.id
+ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+---
+### join-03 NEG
+SQL: SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.id = b.id AND a.val < 30 ORDER BY b.id
+ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+---
+### join-04 NEG
+SQL: SELECT a.id AS aid, b.id AS bid FROM {tbl} a FULL OUTER JOIN {tbl} b ON a.id = b.id + 3 ORDER BY a.id, b.id
+ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+---
+### join-05 NEG
+SQL: SELECT a.id AS aid, b.id AS bid FROM (SELECT id FROM {tbl} WHERE id <= 2) a CROSS JOIN (SELECT id FROM {tbl} WHERE id >= 4) b ORDER BY a.id, b.id
+ERROR -0x7fffda00: syntax error near "cross join (select id from fq_parity_local.parity_t where id >= 4) b order by a.id, b.id"
+---
+### join-06 NEG
+SQL: SELECT a.label, COUNT(*) AS cnt, SUM(b.val) AS sv FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id GROUP BY a.label ORDER BY a.label
+ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+---
+### join-07 NEG
+SQL: SELECT a.id, b.val, c.label FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id INNER JOIN {tbl} c ON b.id = c.id WHERE a.id <= 3 ORDER BY a.id
+ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+---
+### join-08 NEG
+SQL: SELECT a.id, a.val FROM {tbl} a LEFT SEMI JOIN {tbl} b ON a.id = b.id ORDER BY a.id
+ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+---
+### join-09 NEG
+SQL: SELECT a.id, a.val FROM {tbl} a LEFT ANTI JOIN {tbl} b ON a.id = b.id ORDER BY a.id
+ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+---
+### join-10 NEG
+SQL: SELECT b.id, b.val FROM {tbl} a RIGHT SEMI JOIN {tbl} b ON a.id = b.id ORDER BY b.id
+ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+---
+### join-11 NEG
+SQL: SELECT b.id, b.val FROM {tbl} a RIGHT ANTI JOIN {tbl} b ON a.id = b.id ORDER BY b.id
+ERROR -0x7fffd99c: Not supported join since 'Join requires valid time series input and primary timestamp equal condition'
+---
+### join-12 POS
+SQL: SELECT a.id, a.val, b.label FROM {tbl} a INNER JOIN {tbl} b ON a.time = b.time ORDER BY a.id
+RESULT
+1|10|north
+2|20|south
+3|30|north
+4|40|south
+5|50|east
+---
+### join-13 POS
+SQL: SELECT a.id, b.val FROM {tbl} a LEFT JOIN {tbl} b ON a.time = b.time ORDER BY a.id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### join-14 POS
+SQL: SELECT a.id, b.val FROM {tbl} a FULL OUTER JOIN {tbl} b ON a.time = b.time ORDER BY a.id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### join-15 POS
+SQL: SELECT b.id, a.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.time = b.time ORDER BY b.id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### join-16 POS
+SQL: SELECT a.id, b.val FROM {tbl} a LEFT OUTER JOIN {tbl} b ON a.time = b.time ORDER BY a.id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### join-17 POS
+SQL: SELECT a.id, a.val FROM {tbl} a LEFT SEMI JOIN {tbl} b ON a.time = b.time ORDER BY a.id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### join-18 POS
+SQL: SELECT b.id, b.val FROM {tbl} a RIGHT SEMI JOIN {tbl} b ON a.time = b.time ORDER BY b.id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### join-19 POS
+SQL: SELECT a.id, a.val FROM {tbl} a LEFT ANTI JOIN {tbl} b ON a.time = b.time ORDER BY a.id
+RESULT
+---
+### join-20 POS
+SQL: SELECT b.id, b.val FROM {tbl} a RIGHT ANTI JOIN {tbl} b ON a.time = b.time ORDER BY b.id
+RESULT
+---
+### join-21 POS
+SQL: SELECT a.id, b.val FROM {tbl} a INNER JOIN {tbl} b ON a.time = b.time AND a.val >= 30 ORDER BY a.id
+RESULT
+3|30
+4|40
+5|50
+---
+### join-22 POS
+SQL: SELECT a.id, b.val FROM {tbl} a LEFT JOIN {tbl} b ON a.time = b.time WHERE a.val > 20 ORDER BY a.id
+RESULT
+3|30
+4|40
+5|50
+---
+### join-23 POS
+SQL: SELECT COUNT(*) AS cnt, SUM(a.val) AS sv FROM {tbl} a INNER JOIN {tbl} b ON a.time = b.time WHERE a.val > 20
+RESULT
+3|120
+---
+### join-24 POS
+SQL: SELECT a.id, b.val, c.label FROM {tbl} a INNER JOIN {tbl} b ON a.time = b.time INNER JOIN {tbl} c ON b.time = c.time WHERE a.id <= 3 ORDER BY a.id
+RESULT
+1|10|north
+2|20|south
+3|30|north
+---
+### asof-01 POS
+SQL: SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT ASOF JOIN {tbl} b ON a.time >= b.time ORDER BY a.time
+RESULT
+1|10|10
+2|20|20
+3|30|30
+4|40|40
+5|50|50
+---
+### asof-02 POS
+SQL: SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT ASOF JOIN {tbl} b ON a.time >= b.time JLIMIT 1 ORDER BY a.time
+RESULT
+1|10|10
+2|20|20
+3|30|30
+4|40|40
+5|50|50
+---
+### asof-03 POS
+SQL: SELECT a.val, b.id, b.val AS b_val FROM {tbl} a RIGHT ASOF JOIN {tbl} b ON b.time >= a.time ORDER BY b.time
+RESULT
+10|1|10
+20|2|20
+30|3|30
+40|4|40
+50|5|50
+---
+### asof-04 POS
+SQL: SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT ASOF JOIN {tbl} b ORDER BY a.time
+RESULT
+1|10|10
+2|20|20
+3|30|30
+4|40|40
+5|50|50
+---
+### asof-05 POS
+SQL: SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT ASOF JOIN {tbl} b ON a.time > b.time ORDER BY a.time
+RESULT
+1|10|NULL
+2|20|10
+3|30|20
+4|40|30
+5|50|40
+---
+### asof-06 POS
+SQL: SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT ASOF JOIN {tbl} b ON a.time = b.time ORDER BY a.time
+RESULT
+1|10|10
+2|20|20
+3|30|30
+4|40|40
+5|50|50
+---
+### asof-07 POS
+SQL: SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT ASOF JOIN {tbl} b ON a.time < b.time ORDER BY a.time
+RESULT
+1|10|20
+2|20|30
+3|30|40
+4|40|50
+5|50|NULL
+---
+### asof-08 POS
+SQL: SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT ASOF JOIN {tbl} b ON a.time <= b.time ORDER BY a.time
+RESULT
+1|10|10
+2|20|20
+3|30|30
+4|40|40
+5|50|50
+---
+### asof-09 POS
+SQL: SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT ASOF JOIN {tbl} b ON a.time >= b.time WHERE a.val > 20 ORDER BY a.time
+RESULT
+3|30|30
+4|40|40
+5|50|50
+---
+### asof-10 POS
+SQL: SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT ASOF JOIN {tbl} b ON a.time >= b.time JLIMIT 2 ORDER BY a.time
+RESULT
+1|10|10
+2|20|10
+2|20|20
+3|30|20
+3|30|30
+4|40|30
+4|40|40
+5|50|40
+5|50|50
+---
+### wjoin-01 POS
+SQL: SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT WINDOW JOIN {tbl} b WINDOW_OFFSET(-2m, 2m) ORDER BY a.time, b.time
+RESULT
+1|10|10
+1|10|20
+1|10|30
+2|20|10
+2|20|20
+2|20|30
+2|20|40
+3|30|10
+3|30|20
+3|30|30
+3|30|40
+3|30|50
+4|40|20
+4|40|30
+4|40|40
+4|40|50
+5|50|30
+5|50|40
+5|50|50
+---
+### wjoin-02 POS
+SQL: SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT WINDOW JOIN {tbl} b WINDOW_OFFSET(-2m, 2m) JLIMIT 1 ORDER BY a.time
+RESULT
+1|10|10
+2|20|10
+3|30|10
+4|40|20
+5|50|30
+---
+### wjoin-03 POS
+SQL: SELECT a.val, b.id, b.val AS b_val FROM {tbl} a RIGHT WINDOW JOIN {tbl} b WINDOW_OFFSET(-2m, 2m) ORDER BY b.time, a.time
+RESULT
+10|1|10
+20|1|10
+30|1|10
+10|2|20
+20|2|20
+30|2|20
+40|2|20
+10|3|30
+20|3|30
+30|3|30
+40|3|30
+50|3|30
+20|4|40
+30|4|40
+40|4|40
+50|4|40
+30|5|50
+40|5|50
+50|5|50
+---
+### wjoin-04 POS
+SQL: SELECT a.id, a.val, COUNT(b.val) AS b_cnt, AVG(b.val) AS b_avg FROM {tbl} a LEFT WINDOW JOIN {tbl} b WINDOW_OFFSET(-1m, 1m) ORDER BY a.time
+RESULT
+1|10|2|15
+2|20|3|20
+3|30|3|30
+4|40|3|40
+5|50|2|45
+---
+### wjoin-05 POS
+SQL: SELECT a.id, a.val, AVG(b.val) AS b_avg FROM {tbl} a LEFT WINDOW JOIN {tbl} b WINDOW_OFFSET(-1m, 1m) HAVING AVG(b.val) > 20 ORDER BY a.time
+RESULT
+3|30|30
+4|40|40
+5|50|45
+---
+### wjoin-06 POS
+SQL: SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT WINDOW JOIN {tbl} b WINDOW_OFFSET(-2m, 2m) WHERE a.val > 20 ORDER BY a.time, b.time
+RESULT
+3|30|10
+3|30|20
+3|30|30
+3|30|40
+3|30|50
+4|40|20
+4|40|30
+4|40|40
+4|40|50
+5|50|30
+5|50|40
+5|50|50
+---
+### wjoin-07 POS
+SQL: SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT WINDOW JOIN {tbl} b WINDOW_OFFSET(-1m, 0s) ORDER BY a.time, b.time
+RESULT
+1|10|10
+2|20|10
+2|20|20
+3|30|20
+3|30|30
+4|40|30
+4|40|40
+5|50|40
+5|50|50
+---
+### win-01 POS
+SQL: SELECT COUNT(*) AS cnt FROM {tbl} INTERVAL(1m) ORDER BY _wstart
+RESULT
+1
+1
+1
+1
+1
+---
+### win-02 POS
+SQL: SELECT SUM(val) AS sv FROM {tbl} INTERVAL(1m) ORDER BY _wstart
+RESULT
+10
+20
+30
+40
+50
+---
+### win-03 POS
+SQL: SELECT AVG(score) AS avg_s FROM {tbl} INTERVAL(1m) ORDER BY _wstart
+RESULT
+1.5
+2.5
+3.5
+4.5
+5.5
+---
+### win-04 POS
+SQL: SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} INTERVAL(2m) ORDER BY _wstart
+RESULT
+2|30
+2|70
+1|50
+---
+### win-05 POS
+SQL: SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(NULL) ORDER BY _wstart
+ERROR -0x7fffd9c5: Start(end) time of query range required or time range too large
+---
+### win-06 POS
+SQL: SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(VALUE, 0) ORDER BY _wstart
+ERROR -0x7fffd9c5: Start(end) time of query range required or time range too large
+---
+### win-07 POS
+SQL: SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(PREV) ORDER BY _wstart
+ERROR -0x7fffd9c5: Start(end) time of query range required or time range too large
+---
+### win-08 POS
+SQL: SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(NEXT) ORDER BY _wstart
+ERROR -0x7fffd9c5: Start(end) time of query range required or time range too large
+---
+### win-09 POS
+SQL: SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(LINEAR) ORDER BY _wstart
+ERROR -0x7fffd9c5: Start(end) time of query range required or time range too large
+---
+### win-10 POS
+SQL: SELECT label, COUNT(*) AS cnt FROM {tbl} PARTITION BY label INTERVAL(1m) ORDER BY label, _wstart
+RESULT
+east|1
+north|1
+north|1
+south|1
+south|1
+---
+### win-11 POS
+SQL: SELECT COUNT(*) AS cnt FROM {tbl} SESSION(time, 30s) ORDER BY _wstart
+RESULT
+1
+1
+1
+1
+1
+---
+### win-12 POS
+SQL: SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} SESSION(time, 2m) ORDER BY _wstart
+RESULT
+5|150
+---
+### win-13 POS
+SQL: SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} STATE_WINDOW(val >= 30) ORDER BY _wstart
+RESULT
+2|30
+3|120
+---
+### win-14 POS
+SQL: SELECT COUNT(*) AS cnt FROM {tbl} STATE_WINDOW(label) ORDER BY _wstart
+RESULT
+1
+1
+1
+1
+1
+---
+### win-15 POS
+SQL: SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} EVENT_WINDOW START WITH val >= 30 END WITH val >= 50 ORDER BY _wstart
+RESULT
+3|120
+---
+### win-16 POS
+SQL: SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} COUNT_WINDOW(2) ORDER BY _wstart
+RESULT
+2|30
+2|70
+1|50
+---
+### win-17 POS
+SQL: SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} COUNT_WINDOW(3) ORDER BY _wstart
+RESULT
+3|60
+2|90
+---
+### win-18 POS
+SQL: SELECT SUM(val) AS sv FROM {tbl} INTERVAL(1m) HAVING SUM(val) > 25 ORDER BY _wstart
+RESULT
+30
+40
+50
+---
+### win-19 POS
+SQL: SELECT COUNT(*) AS cnt FROM {tbl} INTERVAL(1m) ORDER BY _wstart
+RESULT
+1
+1
+1
+1
+1
+---
+### win-20 POS
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} SESSION(time, 2m)
+RESULT
+2024-01-01 00:00:00|5|150
+---
+### win-21 POS
+SQL: SELECT _wstart, COUNT(*) FROM {tbl} EVENT_WINDOW START WITH val > 20 END WITH val < 40 ORDER BY _wstart
+RESULT
+2024-01-01 00:02:00|1
+---
+### win-22 POS
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} COUNT_WINDOW(2) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|2|30
+2024-01-01 00:02:00|2|70
+2024-01-01 00:04:00|1|50
+---
+### win-23 POS
+SQL: SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|10
+2024-01-01 00:00:30|NULL
+2024-01-01 00:01:00|20
+2024-01-01 00:01:30|NULL
+2024-01-01 00:02:00|30
+2024-01-01 00:02:30|NULL
+2024-01-01 00:03:00|40
+2024-01-01 00:03:30|NULL
+2024-01-01 00:04:00|50
+2024-01-01 00:04:30|NULL
+---
+### win-24 POS
+SQL: SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(VALUE, 0) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|10
+2024-01-01 00:00:30|0
+2024-01-01 00:01:00|20
+2024-01-01 00:01:30|0
+2024-01-01 00:02:00|30
+2024-01-01 00:02:30|0
+2024-01-01 00:03:00|40
+2024-01-01 00:03:30|0
+2024-01-01 00:04:00|50
+2024-01-01 00:04:30|0
+---
+### win-25 POS
+SQL: SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(PREV) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|10
+2024-01-01 00:00:30|10
+2024-01-01 00:01:00|20
+2024-01-01 00:01:30|20
+2024-01-01 00:02:00|30
+2024-01-01 00:02:30|30
+2024-01-01 00:03:00|40
+2024-01-01 00:03:30|40
+2024-01-01 00:04:00|50
+2024-01-01 00:04:30|50
+---
+### win-26 POS
+SQL: SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NEXT) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|10
+2024-01-01 00:00:30|20
+2024-01-01 00:01:00|20
+2024-01-01 00:01:30|30
+2024-01-01 00:02:00|30
+2024-01-01 00:02:30|40
+2024-01-01 00:03:00|40
+2024-01-01 00:03:30|50
+2024-01-01 00:04:00|50
+2024-01-01 00:04:30|NULL
+---
+### win-27 POS
+SQL: SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(LINEAR) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|10
+2024-01-01 00:00:30|15
+2024-01-01 00:01:00|20
+2024-01-01 00:01:30|25
+2024-01-01 00:02:00|30
+2024-01-01 00:02:30|35
+2024-01-01 00:03:00|40
+2024-01-01 00:03:30|45
+2024-01-01 00:04:00|50
+2024-01-01 00:04:30|NULL
+---
+### win-28 POS
+SQL: SELECT _wstart, COUNT(*) FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' PARTITION BY id INTERVAL(1m) ORDER BY id, _wstart
+RESULT
+2024-01-01 00:00:00|1
+2024-01-01 00:01:00|1
+2024-01-01 00:02:00|1
+2024-01-01 00:03:00|1
+2024-01-01 00:04:00|1
+---
+### win-29 POS
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} STATE_WINDOW(id) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|1|10
+2024-01-01 00:01:00|1|20
+2024-01-01 00:02:00|1|30
+2024-01-01 00:03:00|1|40
+2024-01-01 00:04:00|1|50
+---
+### win-30 POS
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} STATE_WINDOW(CASE WHEN val > 30 THEN 1 ELSE 0 END) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|3|60
+2024-01-01 00:03:00|2|90
+---
+### win-31 POS
+SQL: SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NONE) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|10
+2024-01-01 00:01:00|20
+2024-01-01 00:02:00|30
+2024-01-01 00:03:00|40
+2024-01-01 00:04:00|50
+---
+### win-32 POS
+SQL: SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NEAR) ORDER BY _wstart
+ERROR -0x7fffd954: FILL NEAR mode is not supported in window query
+---
+### win-33 POS
+SQL: SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL_F) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|10
+2024-01-01 00:00:30|NULL
+2024-01-01 00:01:00|20
+2024-01-01 00:01:30|NULL
+2024-01-01 00:02:00|30
+2024-01-01 00:02:30|NULL
+2024-01-01 00:03:00|40
+2024-01-01 00:03:30|NULL
+2024-01-01 00:04:00|50
+2024-01-01 00:04:30|NULL
+---
+### win-34 POS
+SQL: SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(VALUE_F, 0) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|10
+2024-01-01 00:00:30|0
+2024-01-01 00:01:00|20
+2024-01-01 00:01:30|0
+2024-01-01 00:02:00|30
+2024-01-01 00:02:30|0
+2024-01-01 00:03:00|40
+2024-01-01 00:03:30|0
+2024-01-01 00:04:00|50
+2024-01-01 00:04:30|0
+---
+### win-35 POS
+SQL: SELECT _wstart, _wend, _wduration, COUNT(*), SUM(val) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} INTERVAL(2m)) w) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|2024-01-01 00:02:00|120000|3|60
+2024-01-01 00:02:00|2024-01-01 00:04:00|120000|3|120
+2024-01-01 00:04:00|2024-01-01 00:06:00|120000|1|50
+---
+### win-36 POS
+SQL: SELECT _wstart, _wend, w.win_max, COUNT(*), AVG(val) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend, MAX(val) win_max FROM {tbl} INTERVAL(2m)) w) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|2024-01-01 00:02:00|20|3|20
+2024-01-01 00:02:00|2024-01-01 00:04:00|40|3|40
+2024-01-01 00:04:00|2024-01-01 00:06:00|50|1|50
+---
+### win-37 POS
+SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} EVENT_WINDOW START WITH val >= 20 END WITH val >= 40) w) ORDER BY _wstart
+RESULT
+2024-01-01 00:01:00|2024-01-01 00:03:00|3|90
+2024-01-01 00:04:00|2024-01-01 00:04:00|1|50
+---
+### win-38 POS
+SQL: SELECT _wstart, _wend, id, COUNT(*), SUM(val) FROM {tbl} PARTITION BY id EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} INTERVAL(2m)) w) ORDER BY id, _wstart
+RESULT
+2024-01-01 00:00:00|2024-01-01 00:02:00|1|1|10
+2024-01-01 00:00:00|2024-01-01 00:02:00|2|1|20
+2024-01-01 00:00:00|2024-01-01 00:02:00|3|1|30
+2024-01-01 00:02:00|2024-01-01 00:04:00|3|1|30
+2024-01-01 00:02:00|2024-01-01 00:04:00|4|1|40
+2024-01-01 00:02:00|2024-01-01 00:04:00|5|1|50
+2024-01-01 00:04:00|2024-01-01 00:06:00|5|1|50
+---
+### win-39 POS
+SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} INTERVAL(2m)) w) HAVING COUNT(*) >= 2 ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|2024-01-01 00:02:00|3|60
+2024-01-01 00:02:00|2024-01-01 00:04:00|3|120
+---
+### win-40 POS
+SQL: SELECT _wstart, _wend, COUNT(*), MAX(val), MIN(val) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} INTERVAL(2m)) w) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|2024-01-01 00:02:00|3|30|10
+2024-01-01 00:02:00|2024-01-01 00:04:00|3|50|30
+2024-01-01 00:04:00|2024-01-01 00:06:00|1|50|50
+---
+### win-41 POS
+SQL: SELECT _wstart, COUNT(*) FROM {tbl} EVENT_WINDOW START WITH val > 20 END WITH val < 40 TRUE_FOR(1m)
+RESULT
+---
+### win-42 POS
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(2m) SLIDING(1m) ORDER BY _wstart
+RESULT
+2023-12-31 23:59:00|1|10
+2024-01-01 00:00:00|2|30
+2024-01-01 00:01:00|2|50
+2024-01-01 00:02:00|2|70
+2024-01-01 00:03:00|2|90
+2024-01-01 00:04:00|1|50
+---
+### win-43 POS
+SQL: SELECT label, COUNT(*) AS cnt FROM {tbl} PARTITION BY label INTERVAL(1m) ORDER BY label, _wstart LIMIT 3
+RESULT
+east|1
+north|1
+north|1
+---
+### win-44 POS
+SQL: SELECT _QSTART, _QEND, COUNT(*) FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(1m) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|2024-01-01 00:04:59.999000|1
+2024-01-01 00:00:00|2024-01-01 00:04:59.999000|1
+2024-01-01 00:00:00|2024-01-01 00:04:59.999000|1
+2024-01-01 00:00:00|2024-01-01 00:04:59.999000|1
+2024-01-01 00:00:00|2024-01-01 00:04:59.999000|1
+---
+### win-45 POS
+SQL: SELECT _wstart, _wend, _wduration, COUNT(*), SUM(val) FROM {tbl} INTERVAL(1m) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|2024-01-01 00:01:00|60000|1|10
+2024-01-01 00:01:00|2024-01-01 00:02:00|60000|1|20
+2024-01-01 00:02:00|2024-01-01 00:03:00|60000|1|30
+2024-01-01 00:03:00|2024-01-01 00:04:00|60000|1|40
+2024-01-01 00:04:00|2024-01-01 00:05:00|60000|1|50
+---
+### win-46 POS
+SQL: SELECT _wstart, _wend, COUNT(*) FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(2m, 30s) ORDER BY _wstart
+RESULT
+2023-12-31 23:58:30|2024-01-01 00:00:30|1
+2024-01-01 00:00:30|2024-01-01 00:02:30|2
+2024-01-01 00:02:30|2024-01-01 00:04:30|2
+---
+### win-47 POS
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} COUNT_WINDOW(3, 2) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|3|60
+2024-01-01 00:02:00|3|120
+2024-01-01 00:04:00|1|50
+---
+### win-48 POS
+SQL: SELECT label, _wstart, COUNT(*) FROM {tbl} PARTITION BY label SESSION(time, 30s) ORDER BY label, _wstart
+RESULT
+east|2024-01-01 00:04:00|1
+north|2024-01-01 00:00:00|1
+north|2024-01-01 00:02:00|1
+south|2024-01-01 00:01:00|1
+south|2024-01-01 00:03:00|1
+---
+### win-49 POS
+SQL: SELECT label, _wstart, COUNT(*), SUM(val) FROM {tbl} PARTITION BY label EVENT_WINDOW START WITH val >= 20 END WITH val >= 40 ORDER BY label, _wstart
+RESULT
+east|2024-01-01 00:04:00|1|50
+south|2024-01-01 00:01:00|2|60
+---
+### win-50 POS
+SQL: SELECT label, _wstart, COUNT(*) FROM {tbl} PARTITION BY label COUNT_WINDOW(2) ORDER BY label, _wstart
+RESULT
+east|2024-01-01 00:04:00|1
+north|2024-01-01 00:00:00|2
+south|2024-01-01 00:01:00|2
+---
+### win-51 POS
+SQL: SELECT label, _wstart, COUNT(*), SUM(val) FROM {tbl} PARTITION BY label STATE_WINDOW(val >= 30) ORDER BY label, _wstart
+RESULT
+east|2024-01-01 00:04:00|1|50
+north|2024-01-01 00:00:00|1|10
+north|2024-01-01 00:02:00|1|30
+south|2024-01-01 00:01:00|1|20
+south|2024-01-01 00:03:00|1|40
+---
+### win-52 POS
+SQL: SELECT _wstart, _wend, COUNT(*), SUM(val) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} SESSION(time, 30s)) w) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|2024-01-01 00:00:00|1|10
+2024-01-01 00:01:00|2024-01-01 00:01:00|1|20
+2024-01-01 00:02:00|2024-01-01 00:02:00|1|30
+2024-01-01 00:03:00|2024-01-01 00:03:00|1|40
+2024-01-01 00:04:00|2024-01-01 00:04:00|1|50
+---
+### win-53 POS
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} STATE_WINDOW(val >= 30) TRUE_FOR(2m)
+RESULT
+2024-01-01 00:02:00|3|120
+---
+### win-54 POS
+SQL: SELECT _wstart, COUNT(*) FROM {tbl} EVENT_WINDOW START WITH val > 10 END WITH val >= 40 TRUE_FOR(COUNT 2)
+RESULT
+2024-01-01 00:01:00|3
+---
+### win-55 POS
+SQL: SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(PREV) SURROUND(1m, 0) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|10
+2024-01-01 00:00:30|10
+2024-01-01 00:01:00|20
+2024-01-01 00:01:30|20
+2024-01-01 00:02:00|30
+2024-01-01 00:02:30|30
+2024-01-01 00:03:00|40
+2024-01-01 00:03:30|40
+2024-01-01 00:04:00|50
+2024-01-01 00:04:30|50
+---
+### regex-01 POS
+SQL: SELECT val FROM {tbl} WHERE label MATCH '^n' ORDER BY val
+RESULT
+10
+30
+---
+### regex-02 POS
+SQL: SELECT val FROM {tbl} WHERE label NMATCH '^n' ORDER BY val
+RESULT
+20
+40
+50
+---
+### regex-03 POS
+SQL: SELECT val FROM {tbl} WHERE label REGEXP '^s' ORDER BY val
+RESULT
+20
+40
+---
+### regex-04 POS
+SQL: SELECT val FROM {tbl} WHERE label NOT REGEXP '^s' ORDER BY val
+RESULT
+10
+30
+50
+---
+### dt-01 POS
+SQL: SELECT TIMEDIFF('2024-01-01', '2024-01-01') FROM {tbl} LIMIT 1
+RESULT
+0
+---
+### dt-02 POS
+SQL: SELECT TIMETRUNCATE(time, 1h) FROM {tbl} ORDER BY time LIMIT 1
+RESULT
+2024-01-01 00:00:00
+---
+### dt-03 POS
+SQL: SELECT CAST(time AS BIGINT) FROM {tbl} ORDER BY time LIMIT 1
+RESULT
+1704067200000
+---
+### dt-04 POS
+SQL: SELECT TO_ISO8601(time) FROM {tbl} ORDER BY time LIMIT 1
+RESULT
+2024-01-01T00:00:00.000+0000
+---
+### dt-05 POS
+SQL: SELECT WEEKOFYEAR(time) FROM {tbl} ORDER BY time LIMIT 1
+RESULT
+1
+---
+### dt-06 POS
+SQL: SELECT TIMEZONE() FROM {tbl} LIMIT 1
+RESULT
+UTC (UTC, +0000)
+---
+### ts-01 POS
+SQL: SELECT FIRST(val) FROM {tbl}
+RESULT
+10
+---
+### ts-02 POS
+SQL: SELECT LAST(val) FROM {tbl}
+RESULT
+50
+---
+### ts-03 POS
+SQL: SELECT TOP(val, 2) FROM {tbl}
+RESULT
+40
+50
+---
+### ts-04 POS
+SQL: SELECT BOTTOM(val, 2) FROM {tbl}
+RESULT
+20
+10
+---
+### ts-05 POS
+SQL: SELECT ELAPSED(time) FROM {tbl}
+RESULT
+240000.0
+---
+### ts-06 POS
+SQL: SELECT ELAPSED(time, 1s) FROM {tbl}
+RESULT
+240.0
+---
+### ts-07 POS
+SQL: SELECT HYPERLOGLOG(val) FROM {tbl}
+RESULT
+5
+---
+### ts-08 POS
+SQL: SELECT DIFF(val) FROM {tbl}
+RESULT
+10
+10
+10
+10
+---
+### ts-09 POS
+SQL: SELECT CSUM(val) FROM {tbl}
+RESULT
+10
+30
+60
+100
+150
+---
+### ts-10 POS
+SQL: SELECT LAST_ROW(val) FROM {tbl}
+RESULT
+50
+---
+### ts-11 POS
+SQL: SELECT TAIL(val, 2) FROM {tbl}
+RESULT
+50
+40
+---
+### ts-12 POS
+SQL: SELECT TWA(val) FROM {tbl}
+RESULT
+30
+---
+### ts-13 POS
+SQL: SELECT HISTOGRAM(val, 'user_input', '[0, 60, 100]', 0) FROM {tbl}
+RESULT
+{"lower_bin":0, "upper_bin":60, "count":5}
+{"lower_bin":60, "upper_bin":100, "count":0}
+---
+### ts-14 POS
+SQL: SELECT * FROM (SELECT time, DIFF(val) AS d FROM {tbl})
+RESULT
+2024-01-01 00:01:00|10
+2024-01-01 00:02:00|10
+2024-01-01 00:03:00|10
+2024-01-01 00:04:00|10
+---
+### ts-15 POS
+SQL: SELECT DERIVATIVE(val, 1m, 0) FROM {tbl}
+RESULT
+10
+10
+10
+10
+---
+### ts-16 POS
+SQL: SELECT IRATE(val) FROM {tbl}
+RESULT
+0.166667
+---
+### ts-17 POS
+SQL: SELECT MAVG(val, 2) FROM {tbl}
+RESULT
+15
+25
+35
+45
+---
+### ts-18 POS
+SQL: SELECT STATECOUNT(val, 'GT', 20) FROM {tbl}
+RESULT
+-1
+-1
+1
+2
+3
+---
+### ts-19 POS
+SQL: SELECT STATEDURATION(val, 'GT', 20, 1s) FROM {tbl}
+RESULT
+-1
+-1
+0
+60
+120
+---
+### ts-20 POS
+SQL: SELECT _ROWTS, val FROM {tbl} ORDER BY time
+RESULT
+2024-01-01 00:00:00|10
+2024-01-01 00:01:00|20
+2024-01-01 00:02:00|30
+2024-01-01 00:03:00|40
+2024-01-01 00:04:00|50
+---
+### ts-21 POS
+SQL: SELECT UNIQUE(val) FROM {tbl}
+RESULT
+10
+20
+30
+40
+50
+---
+### ts-22 POS
+SQL: SELECT MODE(label) FROM {tbl} WHERE id <= 3
+RESULT
+north
+---
+### ts-23 POS
+SQL: SELECT MODE(val) FROM {tbl}
+VALIDATE_IN: [10, 20, 30, 40, 50]
+---
+### ts-24 POS
+SQL: SELECT SAMPLE(val, 3) FROM {tbl}
+VALIDATE_IN: [10, 20, 30, 40, 50]
+---
+### lag-01 POS
+SQL: SELECT val, LAG(val, 1) FROM {tbl} ORDER BY time
+RESULT
+10|NULL
+20|10
+30|20
+40|30
+50|40
+---
+### lag-02 POS
+SQL: SELECT val, LEAD(val, 1) FROM {tbl} ORDER BY time
+RESULT
+10|20
+20|30
+30|40
+40|50
+50|NULL
+---
+### pscol-01 NEG
+SQL: SELECT tags FROM {tbl}
+ERROR -0x7fffda00: syntax error near "from fq_parity_local.parity_t"
+---
+### pscol-02 POS
+SQL: SELECT _C0, val FROM {tbl} ORDER BY time
+RESULT
+2024-01-01 00:00:00|10
+2024-01-01 00:01:00|20
+2024-01-01 00:02:00|30
+2024-01-01 00:03:00|40
+2024-01-01 00:04:00|50
+---
+### mask-01 NEG
+SQL: SELECT MASK_FULL(label) FROM {tbl} ORDER BY val LIMIT 1
+ERROR -0x7fffd7ff: Invalid number of parameters : mask_full
+---
+### mask-02 POS
+SQL: SELECT MASK_FULL(label, 'X') FROM {tbl} ORDER BY val LIMIT 1
+RESULT
+X
+---
+### mask-03 NEG
+SQL: SELECT MASK_PARTIAL(label, 2, 'X') FROM {tbl} WHERE val = 10
+ERROR -0x7fffd7ff: Invalid number of parameters : mask_partial
+---
+### mask-04 POS
+SQL: SELECT label, MASK_PARTIAL(label, 0, 2, 'X') FROM {tbl} WHERE val = 10 ORDER BY time
+RESULT
+north|norXX
+---
+### slimit-01 POS
+SQL: SELECT id, AVG(val) FROM {tbl} PARTITION BY id ORDER BY id SLIMIT 5
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### slimit-02 POS
+SQL: SELECT id, AVG(val) FROM {tbl} PARTITION BY id ORDER BY id SLIMIT 3 SOFFSET 1
+RESULT
+---
+### null-01 POS
+SQL: SELECT id, IFNULL(nullable_val, 99) FROM {tbl} ORDER BY time
+RESULT
+1|10
+2|99
+3|30
+4|99
+5|50
+---
+### null-02 POS
+SQL: SELECT id, NVL(nullable_val, 99) FROM {tbl} ORDER BY time
+RESULT
+1|10
+2|99
+3|30
+4|99
+5|50
+---
+### null-03 POS
+SQL: SELECT id FROM {tbl} WHERE nullable_val IS NULL ORDER BY time
+RESULT
+2
+4
+---
+### null-04 POS
+SQL: SELECT id FROM {tbl} WHERE nullable_val IS NOT NULL ORDER BY time
+RESULT
+1
+3
+5
+---
+### null-05 POS
+SQL: SELECT id, COALESCE(nullable_val, 0) FROM {tbl} ORDER BY time
+RESULT
+1|10
+2|0
+3|30
+4|0
+5|50
+---
+### null-06 POS
+SQL: SELECT id, NVL2(nullable_val, 'has', 'no') FROM {tbl} ORDER BY time
+RESULT
+1|has
+2|no
+3|has
+4|no
+5|has
+---
+### null-07 POS
+SQL: SELECT id, NULLIF(nullable_val, 30) FROM {tbl} WHERE id IN (1, 3) ORDER BY time
+RESULT
+1|10
+3|NULL
+---
+### null-08 POS
+SQL: SELECT id, IF(nullable_val > 0, 'positive', 'other') FROM {tbl} ORDER BY time
+RESULT
+1|positive
+2|other
+3|positive
+4|other
+5|positive
+---
+### null-09 POS
+SQL: SELECT id, ISNOTNULL(nullable_val) FROM {tbl} ORDER BY time
+RESULT
+1|True
+2|False
+3|True
+4|False
+5|True
+---
+### null-10 POS
+SQL: SELECT FILL_FORWARD(nullable_val) FROM {tbl} ORDER BY time
+RESULT
+10
+10
+30
+30
+50
+---
+### null-11 POS
+SQL: SELECT id, nullable_val FROM {tbl} ORDER BY nullable_val NULLS FIRST
+RESULT
+2|NULL
+4|NULL
+1|10
+3|30
+5|50
+---
+### null-12 POS
+SQL: SELECT id, nullable_val FROM {tbl} ORDER BY nullable_val NULLS LAST
+RESULT
+1|10
+3|30
+5|50
+2|NULL
+4|NULL
+---
+### corr-01 POS
+SQL: SELECT CORR(val, score) FROM {tbl}
+RESULT
+1
+---
+### geo-01 POS
+SQL: SELECT id, SQRT(POW(lat - lat, 2) + POW(lon - lon, 2)) AS dist FROM {tbl} ORDER BY time
+RESULT
+1|0
+2|0
+3|0
+4|0
+5|0
+---
+### geo-02 POS
+SQL: SELECT SQRT(POW(lat - 116.4, 2) + POW(lon - 39.9, 2)) AS dist FROM {tbl} WHERE id = 1
+RESULT
+0
+---
+### geo-03 POS
+SQL: SELECT id, SQRT(POW(lat - 116.4, 2) + POW(lon - 39.9, 2)) AS dist FROM {tbl} WHERE id = 2 ORDER BY time
+RESULT
+2|10.0846
+---
+### geost-01 POS
+SQL: SELECT id, ST_Contains(ST_GeomFromText(wkt_poly), ST_GeomFromText(wkt_point)) FROM {tbl} ORDER BY time
+RESULT
+1|True
+2|False
+3|True
+4|False
+5|True
+---
+### geost-02 POS
+SQL: SELECT id, ST_ContainsProperly(ST_GeomFromText(wkt_poly), ST_GeomFromText(wkt_point)) FROM {tbl} ORDER BY time
+RESULT
+1|True
+2|False
+3|True
+4|False
+5|True
+---
+### geost-03 POS
+SQL: SELECT id, ST_Intersects(ST_GeomFromText(wkt_poly), ST_GeomFromText(wkt_point)) FROM {tbl} ORDER BY time
+RESULT
+1|True
+2|False
+3|True
+4|False
+5|True
+---
+### geost-04 POS
+SQL: SELECT id, ST_Equals(ST_GeomFromText(wkt_poly), ST_GeomFromText(wkt_poly)) FROM {tbl} ORDER BY time
+RESULT
+1|True
+2|True
+3|True
+4|True
+5|True
+---
+### geost-05 POS
+SQL: SELECT id, ST_Covers(ST_GeomFromText(wkt_poly), ST_GeomFromText(wkt_point)) FROM {tbl} ORDER BY time
+RESULT
+1|True
+2|False
+3|True
+4|False
+5|True
+---
+### geost-06 POS
+SQL: SELECT ST_Touches(ST_GeomFromText('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'), ST_GeomFromText('POINT(0 0)')) FROM {tbl} LIMIT 1
+RESULT
+True
+---
+### geost-07 POS
+SQL: SELECT ST_AsText(ST_GeomFromText(wkt_point)) FROM {tbl} WHERE id = 1
+RESULT
+POINT (5.000000 5.000000)
+---
+### geost-08 POS
+SQL: SELECT id, ST_AsText(ST_GeomFromText(wkt_poly)) FROM {tbl} ORDER BY time
+RESULT
+1|POLYGON ((0.000000 0.000000, 10.000000 0.000000, 10.000000 10.000000, 0.000000 10.000000, 0.000000 0.000000))
+2|POLYGON ((0.000000 0.000000, 10.000000 0.000000, 10.000000 10.000000, 0.000000 10.000000, 0.000000 0.000000))
+3|POLYGON ((0.000000 0.000000, 10.000000 0.000000, 10.000000 10.000000, 0.000000 10.000000, 0.000000 0.000000))
+4|POLYGON ((0.000000 0.000000, 10.000000 0.000000, 10.000000 10.000000, 0.000000 10.000000, 0.000000 0.000000))
+5|POLYGON ((0.000000 0.000000, 10.000000 0.000000, 10.000000 10.000000, 0.000000 10.000000, 0.000000 0.000000))
+---
+### enc-01 NEG
+SQL: SELECT MD5(label) FROM {tbl} WHERE id = 1
+ERROR -0x7fffd7fe: Invalid parameter data type : md5
+---
+### enc-02 NEG
+SQL: SELECT AES_ENCRYPT(label, 'mykeystring12345') FROM {tbl} WHERE id = 1
+ERROR -0x7fffd7fe: Invalid parameter data type : aes_encrypt
+---
+### enc-03 POS
+SQL: SELECT AES_DECRYPT(AES_ENCRYPT(CAST(label AS VARCHAR(32)), 'mykeystring12345'), 'mykeystring12345') FROM {tbl} WHERE id = 1
+RESULT
+north
+---
+### enc-04 POS
+SQL: SELECT SM4_DECRYPT(SM4_ENCRYPT(CAST(label AS VARCHAR(32)), 'mykeystring12345'), 'mykeystring12345') FROM {tbl} WHERE id = 1
+RESULT
+north
+---
+### enc-05 POS
+SQL: SELECT CRC32(CAST(label AS VARCHAR(32))) FROM {tbl} WHERE id = 1
+RESULT
+3693752514
+---
+### dtf-01 POS
+SQL: SELECT DATE(time) FROM {tbl} WHERE id = 1 ORDER BY time
+RESULT
+2024-01-01
+---
+### dtf-02 POS
+SQL: SELECT DAYOFWEEK(time) FROM {tbl} WHERE id = 1 ORDER BY time
+RESULT
+2
+---
+### dtf-03 POS
+SQL: SELECT WEEK(time) FROM {tbl} WHERE id = 1 ORDER BY time
+RESULT
+0
+---
+### dtf-04 POS
+SQL: SELECT WEEKDAY(time) FROM {tbl} WHERE id = 1 ORDER BY time
+RESULT
+0
+---
+### dtf-05 NEG
+SQL: SELECT YEAR(time) FROM {tbl} LIMIT 1
+ERROR -0x7ffffc8c: function 'year' is not defined
+---
+### dtf-06 NEG
+SQL: SELECT HOUR(time) FROM {tbl} LIMIT 1
+ERROR -0x7ffffc8c: function 'hour' is not defined
+---
+### dtf-07 NEG
+SQL: SELECT MINUTE(time) FROM {tbl} LIMIT 1
+ERROR -0x7ffffc8c: function 'minute' is not defined
+---
+### tochar-01 POS
+SQL: SELECT TO_CHAR(time, 'yyyy-MM-dd') FROM {tbl} WHERE id = 1 ORDER BY time
+RESULT
+2024-01-01
+---
+### tochar-02 POS
+SQL: SELECT TO_TIMESTAMP(ts_str, 'YYYY-MM-DD HH24:mi:ss') FROM {tbl} WHERE id = 1 ORDER BY time
+RESULT
+2024-01-01 00:00:00
+---
+### tochar-03 NEG
+SQL: SELECT TO_UNIXTIMESTAMP(time) FROM {tbl} WHERE id = 1
+ERROR -0x7fffd7fe: Invalid parameter data type : to_unixtimestamp
+---
+### interp-01 POS
+SQL: SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:00:00.000', '2024-01-01 00:04:00.000') EVERY(1m) FILL(linear)
+RESULT
+10
+20
+30
+40
+50
+---
+### interp-02 POS
+SQL: SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:00:00.000', '2024-01-01 00:04:00.000') EVERY(30s) FILL(prev)
+RESULT
+10
+10
+20
+20
+30
+30
+40
+40
+50
+---
+### interp-03 POS
+SQL: SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:00:00.000', '2024-01-01 00:04:00.000') EVERY(30s) FILL(next)
+RESULT
+10
+20
+20
+30
+30
+40
+40
+50
+50
+---
+### interp-04 POS
+SQL: SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:00:00.000', '2024-01-01 00:04:00.000') EVERY(30s) FILL(null)
+RESULT
+10
+NULL
+20
+NULL
+30
+NULL
+40
+NULL
+50
+---
+### interp-05 POS
+SQL: SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:01:30.000') FILL(linear) SURROUND(1)
+ERROR -0x7fffda00: syntax error near "surround(1)"
+---
+### interp-06 POS
+SQL: SELECT _IROWTS, interp(val) FROM {tbl} RANGE('2024-01-01 00:00:00.000', '2024-01-01 00:04:00.000') EVERY(1m) FILL(linear)
+RESULT
+2024-01-01 00:00:00|10
+2024-01-01 00:01:00|20
+2024-01-01 00:02:00|30
+2024-01-01 00:03:00|40
+2024-01-01 00:04:00|50
+---
+### interp-07 POS
+SQL: SELECT _IROWTS_ORIGIN, interp(val) FROM {tbl} RANGE('2024-01-01 00:00:00.000', '2024-01-01 00:04:00.000') EVERY(30s) FILL(PREV)
+RESULT
+2024-01-01 00:00:00|10
+2024-01-01 00:00:00|10
+2024-01-01 00:01:00|20
+2024-01-01 00:01:00|20
+2024-01-01 00:02:00|30
+2024-01-01 00:02:00|30
+2024-01-01 00:03:00|40
+2024-01-01 00:03:00|40
+2024-01-01 00:04:00|50
+---
+### interp-08 POS
+SQL: SELECT _IROWTS_ORIGIN, interp(val) FROM {tbl} RANGE('2024-01-01 00:00:00.000', '2024-01-01 00:04:00.000') EVERY(30s) FILL(NEXT)
+RESULT
+2024-01-01 00:00:00|10
+2024-01-01 00:01:00|20
+2024-01-01 00:01:00|20
+2024-01-01 00:02:00|30
+2024-01-01 00:02:00|30
+2024-01-01 00:03:00|40
+2024-01-01 00:03:00|40
+2024-01-01 00:04:00|50
+2024-01-01 00:04:00|50
+---
+### interp-09 POS
+SQL: SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:00:00.000', '2024-01-01 00:04:00.000') EVERY(30s) FILL(NEAR)
+RESULT
+10
+10
+20
+20
+30
+30
+40
+40
+50
+---
+### interp-10 POS
+SQL: SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:00:00.000', '2024-01-01 00:04:00.000') EVERY(30s) FILL(VALUE, 0)
+RESULT
+10
+0
+20
+0
+30
+0
+40
+0
+50
+---
+### sysfn-01 POS
+SQL: SELECT CLIENT_VERSION() FROM {tbl} LIMIT 1
+RESULT
+<DYNAMIC>
+---
+### sysfn-02 POS
+SQL: SELECT SERVER_VERSION() FROM {tbl} LIMIT 1
+RESULT
+<DYNAMIC>
+---
+### sysfn-03 POS
+SQL: SELECT CURRENT_USER() FROM {tbl} LIMIT 1
+RESULT
+<DYNAMIC>
+---
+### sysfn-04 POS
+SQL: SELECT DATABASE() FROM {tbl} LIMIT 1
+RESULT
+fq_parity_local
+---
+### sysfn-05 POS
+SQL: SELECT SERVER_STATUS() FROM {tbl} LIMIT 1
+RESULT
+1
+---
+### sysfn-06 POS
+SQL: SELECT USER() FROM {tbl} LIMIT 1
+RESULT
+<DYNAMIC>
+---
+### sysfn-07 POS
+SQL: SELECT NOW() FROM {tbl} LIMIT 1
+RESULT
+<DYNAMIC>
+---
+### sysfn-08 POS
+SQL: SELECT TODAY() FROM {tbl} LIMIT 1
+RESULT
+<DYNAMIC>
+---
+### sysfn-09 POS
+SQL: SELECT CASE WHEN NOW() > '2024-01-01 00:00:00' THEN 1 ELSE 0 END FROM {tbl} LIMIT 1
+RESULT
+1
+---
+### sysfn-10 POS
+SQL: SELECT CASE WHEN TODAY() >= '2024-01-01' THEN 1 ELSE 0 END FROM {tbl} LIMIT 1
+RESULT
+1
+---
+### json-01 NEG
+SQL: SELECT label->'k' FROM {tbl} WHERE id = 1
+ERROR -0x7fffd9ae: Only tag can be json type
+---
+### json-02 NEG
+SQL: SELECT id FROM {tbl} WHERE label CONTAINS 'num'
+ERROR -0x7fffd9ae: Only tag can be json type
+---
+### json-03 POS
+SQL: SELECT id FROM {tbl} WHERE label LIKE '%orth%' ORDER BY time
+RESULT
+1
+3
+---
+### json-04 NEG
+SQL: SELECT TO_JSON(label) FROM {tbl} WHERE id = 1
+ERROR -0x7fffd7fe: Invalid parameter data type : to_json
+---
+### grpconcat-01 POS
+SQL: SELECT id, GROUP_CONCAT(label, ',') AS g FROM {tbl} GROUP BY id ORDER BY id
+RESULT
+1|north
+2|south
+3|north
+4|south
+5|east
+---
+### grpconcat-02 POS
+SQL: SELECT id, GROUP_CONCAT(CAST(val AS VARCHAR(8)), '') AS g FROM {tbl} GROUP BY id ORDER BY id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---

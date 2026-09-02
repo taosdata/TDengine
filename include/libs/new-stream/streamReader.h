@@ -7,12 +7,61 @@
 #include "plannodes.h"
 #include "stream.h"
 #include "streamMsg.h"
+#include "tarray.h"
 #include "tdatablock.h"
 #include "thash.h"
+#include "tlockfree.h"
+#include "tsimplehash.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// Resolved column reference terminal item.
+// kind=COL: chain ends at a physical table column.
+// kind=TAG: chain ends at a child table tag value (carried by STagValue elsewhere).
+typedef struct SColResolveItem {
+  bool    hasRef;
+  char    refDbName   [TSDB_DB_NAME_LEN];
+  char    refTableName[TSDB_TABLE_NAME_LEN];
+  char    refColName  [TSDB_COL_NAME_LEN];
+} SColResolveItem;
+
+typedef struct STagValue {
+  int8_t   type;
+  int32_t  nLen;
+  char    *pData;       // owned, freed by destroy helper
+} STagValue;
+
+typedef struct SVTableResolveResult {
+  SSHashObj *colMap;    // key: virtual col cid (col_id_t), value: SColResolveItem*
+  SSHashObj *tagMap;    // key: virtual tag cid (col_id_t), value: STagValue*
+} SVTableResolveResult;
+
+// Per-table per-column resolved ref cache. Flat single-level hash keyed by
+// "dbName\0tableName\0colName"; value is the resolved SVTableRefResolveRspItem
+// (tagData deep-copied). Tags and columns cannot share a name within the same
+// physical table, so a single (db,table,col) key is unambiguous.
+typedef struct SStreamVTableInfoCache {
+  SRWLatch    lock;
+  SArray     *reqColCids;     // SArray<col_id_t>
+  SArray     *reqTagCids;     // SArray<col_id_t>
+  SSHashObj  *uid2Result;     // key: int64_t uid, value: SVTableResolveResult*
+  SHashObj   *dbVgInfo;       // key: dbFName, value: SUseDbRsp
+  SHashObj   *tblRefCache;    // key: "dbName\0tableName\0colName", value: SVTableRefResolveRspItem
+  int64_t     lastCheckMs;
+  // Sliced recheck cursor: every throttle tick scans at most
+  // STREAM_VTB_RECHECK_SLICE_SIZE uids from uidSlice[sliceCursor..]; when the
+  // cursor wraps to 0, uidSlice is rebuilt from the current uid2Result keys
+  // so newly-added uids are picked up on the next round.
+  SArray     *uidSlice;       // SArray<int64_t>: snapshot of uids to scan
+  int32_t     sliceCursor;
+  bool        valid;
+} SStreamVTableInfoCache;
+
+int32_t streamVTableInfoCacheInit   (SStreamVTableInfoCache *pCache);
+void    streamVTableInfoCacheDestroy(SStreamVTableInfoCache *pCache);
+void    streamVTableResolveResultDestroy(void *pRes);
 
 typedef struct SStreamTableKeyInfo {
   int64_t uid;
@@ -33,10 +82,13 @@ typedef struct SStreamTableMapElement {
   int32_t index;
 } SStreamTableMapElement;
 
+typedef enum { UIDMAP_SINGLE, UIDMAP_MULTI } EUidMapMode;
+
 typedef struct StreamTableListInfo {
   SArray*          pTableList;   // element type: SStreamTableKeyInfo*
   SHashObj*        gIdMap;       // key: groupId/suid, value: SStreamTableList
-  SHashObj*        uIdMap;       // key: uid, value: SStreamTableKeyInfo*,index
+  SHashObj*        uIdMap;       // SINGLE: uid -> SStreamTableMapElement; MULTI: uid -> SArray<SStreamTableMapElement>*
+  EUidMapMode      uIdMapMode;
   void*            pIter;        // iterator for gIdMap
   int64_t          version;
 } StreamTableListInfo;
@@ -56,6 +108,7 @@ typedef struct SStreamTriggerReaderInfo {
   SNode*       pTagIndexCond;
   SNode*       pConditions;
   SNodeList*   partitionCols;
+  SNodeList*   pRollupTagCols;  // SNodeList<SColumnNode>; NULL = not rollup
   SNodeList*   triggerCols;
   SNodeList*   triggerPseudoCols;
   SHashObj*    streamTaskMap;
@@ -82,12 +135,16 @@ typedef struct SStreamTriggerReaderInfo {
   SHashObj*    triggerTableSchemaMapVTable; // key: uid, value: STSchema*
   STSchema*    triggerTableSchema;
   bool         groupByTbname;
+  bool         isRollupReader;
+  char*        extraErrMsg;
   void*        pVnode;
   SStorageAPI  storageApi;
   SRWLatch     lock;
 
   StreamTableListInfo        tableList;
   StreamTableListInfo        vSetTableList;
+
+  SStreamVTableInfoCache *vtbCache;
 
 } SStreamTriggerReaderInfo;
 
@@ -99,10 +156,14 @@ typedef struct SStreamTriggerReaderCalcInfo {
   STargetNode* pTargetNodeTs;
   char*       calcScanPlan;
   bool        hasPlaceHolder;
+  bool                   requiresContextPolicy;
   qTaskInfo_t pTaskInfo;
   SStreamRuntimeInfo rtInfo;
   SStreamRuntimeFuncInfo tmpRtFuncInfo;
 } SStreamTriggerReaderCalcInfo;
+
+int32_t stProjectReaderCalcContext(const SStreamRuntimeFuncInfo* pSource, int32_t actualNodeId, int32_t readInfoIndex,
+                                   int32_t sourceParamIndex, SStreamRuntimeFuncInfo* pTarget);
 
 // typedef enum { STREAM_SCAN_GROUP_ONE_BY_ONE, STREAM_SCAN_ALL } EScanMode;
 
@@ -126,6 +187,8 @@ typedef struct {
   SSDataBlock*                         pResBlock;
   SSDataBlock*                         pResBlockDst;
   SStreamOptions*                      options;
+  SSHashObj*                           pRollupMetaByUid;
+  SSHashObj*                           pRollupMetaCount;
   char*                                idStr;
   SQueryTableDataCond                  cond;
 } SStreamReaderTaskInner;
@@ -145,8 +208,9 @@ int32_t createStreamTask(void* pVnode, SStreamOptions* options, SStreamReaderTas
                          SSDataBlock* pResBlock, STableKeyInfo* pList, int32_t pNum, SStorageAPI* storageApi);
 
 int32_t createStreamTaskForTs(SStreamOptions* options, SStreamReaderTaskInner** ppTask, SStorageAPI* api);
-         
-int32_t  initStreamTableListInfo(StreamTableListInfo* pTableListInfo);
+bool isRollupMultiReader(SStreamTriggerReaderInfo* sStreamReaderInfo);
+
+int32_t initStreamTableListInfo(StreamTableListInfo* pTableListInfo, EUidMapMode uIdMapMode);
 int32_t  qStreamGetTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t gid, STableKeyInfo** pKeyInfo, int32_t* size);
 void     qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo);
 void     qStreamClearTableInfo(StreamTableListInfo* pTableListInfo);
@@ -154,6 +218,7 @@ int32_t  qStreamCopyTableInfo(SStreamTriggerReaderInfo* sStreamReaderInfo, Strea
 int32_t  qStreamSetTableList(StreamTableListInfo* pTableListInfo, int64_t uid, uint64_t gid);
 int32_t  qStreamGetTableListGroupNum(SStreamTriggerReaderInfo* sStreamReaderInfo);
 int32_t  qStreamGetTableListNum(SStreamTriggerReaderInfo* sStreamReaderInfo);
+int32_t  qStreamGetGroupTableCount(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t gid);
 SArray*  qStreamGetTableArrayList(SStreamTriggerReaderInfo* sStreamReaderInfo);
 int32_t  qStreamIterTableList(StreamTableListInfo* sStreamReaderInfo, STableKeyInfo** pKeyInfo, int32_t* size, int64_t* suid);
 uint64_t qStreamGetGroupIdFromOrigin(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid);

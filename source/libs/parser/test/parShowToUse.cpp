@@ -244,6 +244,56 @@ TEST_F(ParserShowToUseTest, showVnodes) {
   run("SHOW VNODES");
 }
 
+TEST_F(ParserShowToUseTest, showXnodeBlobPredicates) {
+  useDb("root", "test");
+
+  run("SHOW XNODE TASKS WHERE parser = '{}' OR parser IS NULL");
+  run("SHOW XNODE TASKS WHERE parser != '{}' AND parser IS NOT NULL");
+  run("SHOW XNODE TASKS WHERE parser > '' AND parser <= '{}'");
+  run("SHOW XNODE TASKS WHERE '{}' = parser OR '' < parser");
+  run("SHOW XNODE TASKS WHERE parser LIKE '%a%' OR parser NOT LIKE '%b%'");
+  run("SHOW XNODE TASKS WHERE parser REGEXP '^a' OR parser NMATCH '^b'");
+  run("SHOW XNODE TASKS WHERE parser IN ('a', 'b') OR parser NOT IN ('c')");
+  run("SHOW XNODE TASKS WHERE parser BETWEEN 'a' AND 'z'");
+
+  run("SHOW XNODE JOBS WHERE config = '{}' OR config IS NULL");
+  run("SHOW XNODE JOBS WHERE config >= '' AND config < 'zzzz'");
+  run("SHOW XNODE JOBS WHERE '{}' != config OR 'zzzz' > config");
+  run("SHOW XNODE JOBS WHERE config LIKE '%a%' AND config REGEXP '.*'");
+  run("SHOW XNODE JOBS WHERE config NOT IN ('a', 'b')");
+  run("SHOW XNODE JOBS WHERE config NOT BETWEEN 'a' AND 'z'");
+
+  run("SELECT * FROM information_schema.ins_xnode_tasks WHERE parser = '{}'",
+      TSDB_CODE_BLOB_OP_NOT_SUPPORTED);
+  run("SHOW XNODE TASKS WHERE parser + 'x' = 'y'", TSDB_CODE_BLOB_OP_NOT_SUPPORTED);
+  run("SHOW XNODE TASKS WHERE 'beta' LIKE parser", TSDB_CODE_BLOB_OP_NOT_SUPPORTED);
+  run("SHOW XNODE TASKS WHERE 'beta' NOT LIKE parser", TSDB_CODE_BLOB_OP_NOT_SUPPORTED);
+  run("SHOW XNODE TASKS WHERE 'beta' REGEXP parser", TSDB_CODE_BLOB_OP_NOT_SUPPORTED);
+  run("SHOW XNODE TASKS WHERE 'beta' NMATCH parser", TSDB_CODE_BLOB_OP_NOT_SUPPORTED);
+  run("SHOW XNODE JOBS WHERE 'beta' LIKE config", TSDB_CODE_BLOB_OP_NOT_SUPPORTED);
+  run("SHOW XNODE JOBS WHERE 'beta' REGEXP config", TSDB_CODE_BLOB_OP_NOT_SUPPORTED);
+
+  run("SHOW XNODE TASKS WHERE parser REGEXP '['", TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR);
+  run("SHOW XNODE TASKS WHERE parser NMATCH '['", TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR);
+  run("SHOW XNODE JOBS WHERE config REGEXP '('", TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR);
+  run("SHOW XNODE JOBS WHERE config NMATCH '('", TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR);
+}
+
+TEST_F(ParserShowToUseTest, showXnodeBlobLikePatternSupportsBlobLimits) {
+  useDb("root", "test");
+
+  string largePattern(TSDB_MAX_FIELD_LEN + 1, 'a');
+
+  run("SHOW XNODE TASKS WHERE parser NOT LIKE '" + largePattern + "'");
+  run("SHOW XNODE JOBS WHERE config NOT LIKE '" + largePattern + "'");
+
+  string oversizedParserPattern(TSDB_XNODE_TASK_PARSER_MAX_LEN + 1, 'a');
+  string oversizedConfigPattern(TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN + 1, 'a');
+
+  run("SHOW XNODE TASKS WHERE parser NOT LIKE '" + oversizedParserPattern + "'", TSDB_CODE_PAR_VALUE_TOO_LONG);
+  run("SHOW XNODE JOBS WHERE config NOT LIKE '" + oversizedConfigPattern + "'", TSDB_CODE_PAR_VALUE_TOO_LONG);
+}
+
 TEST_F(ParserShowToUseTest, splitVgroup) {
   useDb("root", "test");
 
@@ -280,6 +330,7 @@ TEST_F(ParserShowToUseTest, trimDatabase) {
     ASSERT_EQ(tDeserializeSTrimDbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
     ASSERT_EQ(std::string(req.db), std::string(expect.db));
     ASSERT_EQ(req.maxSpeed, expect.maxSpeed);
+    tFreeSTrimDbReq(&req);
   });
 
   setTrimDbReq("wxy_db");

@@ -40,6 +40,7 @@ typedef struct {
   SArray       *logs;  // array of SMonLogItem
   SMonCfg       cfg;
   int64_t       lastTime;
+  int64_t       clusterId;
   SMonDmInfo    dmInfo;
   SMonMmInfo    mmInfo;
   SMonVmInfo    vmInfo;

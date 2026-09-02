@@ -102,15 +102,37 @@ _exit:
 
 void tsdbSttFileReaderClose(SSttFileReader **reader) {
   if (reader[0]) {
-    for (int32_t i = 0; i < ARRAY_SIZE(reader[0]->local); ++i) {
-      tBufferDestroy(reader[0]->local + i);
-    }
+    tsdbSttFileReaderTrimBuffers(reader[0]);
     tsdbCloseFile(&reader[0]->fd);
     TARRAY2_DESTROY(reader[0]->tombBlkArray, NULL);
     TARRAY2_DESTROY(reader[0]->statisBlkArray, NULL);
     TARRAY2_DESTROY(reader[0]->sttBlkArray, NULL);
     taosMemoryFree(reader[0]);
     reader[0] = NULL;
+  }
+}
+
+/*
+ * Release the reader's local page I/O buffers (reader->local[]) to reduce
+ * memory footprint when the reader is idle between groups in a Table Merge
+ * Scan.
+ *
+ * These buffers are temporary staging areas used during read operations
+ * (tsdbSttFileReadBlockData, tsdbSttFileReadStatisBlock, etc.).  They hold
+ * decompressed page data and are re-allocated on demand, so releasing them
+ * has no correctness impact.
+ *
+ * The file descriptor (fd), footer, block index arrays (sttBlkArray,
+ * statisBlkArray, tombBlkArray), and the SSttBlockLoadInfo (held separately
+ * in SLDataIter) are NOT touched — they remain valid and avoid the need to
+ * re-open the file or re-read metadata on the next access.
+ */
+void tsdbSttFileReaderTrimBuffers(SSttFileReader *reader) {
+  if (reader == NULL) {
+    return;
+  }
+  for (int32_t i = 0; i < ARRAY_SIZE(reader->local); ++i) {
+    tBufferDestroy(reader->local + i);
   }
 }
 

@@ -86,6 +86,13 @@ int32_t getTaskCode(void* pTaskInfo) { return ((SExecTaskInfo*)pTaskInfo)->code;
 
 bool isTaskKilled(void* pTaskInfo) { return (0 != ((SExecTaskInfo*)pTaskInfo)->code); }
 
+const char* qGetExtErrMsg(qTaskInfo_t tinfo) {
+  if (tinfo == NULL) return NULL;
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  if (pTaskInfo->extErrMsg[0] == '\0') return NULL;
+  return pTaskInfo->extErrMsg;
+}
+
 void setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode) {
   pTaskInfo->code = rspCode;
   (void)stopTableScanOperator(pTaskInfo->pRoot, pTaskInfo->id.str, &pTaskInfo->storageAPI);
@@ -157,6 +164,10 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
                            int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray** subEndPoints, bool enableExplain) {
   int32_t code = doCreateTask(pPlan->id.queryId, taskId, vgId, model, &pHandle->api, pTaskInfo);
   if (*pTaskInfo == NULL || code != 0) {
+      qError("%s failed at line %d, code:0x%x, error:%s, qid:0x%" PRIx64 ", "
+             "tid:0x%" PRIx64 ", vgId:%d, task:%p",
+             __func__, __LINE__, code, tstrerror(code), pPlan->id.queryId,
+             taskId, vgId, *pTaskInfo);
     nodesDestroyNode((SNode*)pPlan);
     return code;
   }
@@ -167,6 +178,8 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
     (*pTaskInfo)->sql = taosStrdup(sql);
     if (NULL == (*pTaskInfo)->sql) {
       code = terrno;
+      qError("%s failed at line %d, code:0x%x, error:%s, task:%s, reason:copy sql",
+             __func__, __LINE__, code, tstrerror(code), GET_TASKID(*pTaskInfo));
       doDestroyTask(*pTaskInfo);
       (*pTaskInfo) = NULL;
       return code;
@@ -174,12 +187,17 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
   }
 
   (*pTaskInfo)->pWorkerCb = pHandle->pWorkerCb;
+  (*pTaskInfo)->pMsgCb = pHandle->pMsgCb;
   (*pTaskInfo)->pStreamRuntimeInfo = pHandle->streamRtInfo;
   (*pTaskInfo)->enableExplain = enableExplain;
+  (*pTaskInfo)->txnId = pHandle->txnId;
 
   if (subEndPoints && taosArrayGetSize(*subEndPoints) > 0) {
     code = initTaskSubJobCtx(*pTaskInfo, subEndPoints, pHandle);
     if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d, code:0x%x, error:%s, task:%s, "
+             "reason:initTaskSubJobCtx",
+             __func__, __LINE__, code, tstrerror(code), GET_TASKID(*pTaskInfo));
       doDestroyTask(*pTaskInfo);
       (*pTaskInfo) = NULL;
       return code;
@@ -192,6 +210,12 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
                         pPlan->dbFName, &((*pTaskInfo)->pRoot), model);
 
   if (NULL == (*pTaskInfo)->pRoot || code != 0) {
+    int32_t phyNodeType = (pPlan && pPlan->pNode) ? nodeType(pPlan->pNode) : -1;
+      qError("%s failed at line %d, code:0x%x, error:%s, task:%s, root:%p, "
+             "phyNodeType:%d, qid:0x%" PRIx64 ", tid:0x%" PRIx64 ", vgId:%d",
+             __func__, __LINE__, code, tstrerror(code), GET_TASKID(*pTaskInfo),
+             (*pTaskInfo)->pRoot, phyNodeType,
+           pPlan->id.queryId, taskId, vgId);
     doDestroyTask(*pTaskInfo);
     (*pTaskInfo) = NULL;
   }
@@ -216,7 +240,7 @@ int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNo
 
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
 
-  pAPI->metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pAPI->metaFn);
+  pAPI->metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pAPI->metaFn, pHandle->txnId);
   int32_t code = pAPI->metaReaderFn.getEntryGetUidCache(&mr, pScanNode->uid);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to get the table meta, uid:0x%" PRIx64 ", suid:0x%" PRIx64 ", %s", pScanNode->uid, pScanNode->suid,

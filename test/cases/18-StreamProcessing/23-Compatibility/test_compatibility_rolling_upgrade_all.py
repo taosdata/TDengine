@@ -91,8 +91,7 @@ class TestCompatibilityRollingUpgradeAll:
 
         Since: v3.3.7.0
 
-        Labels: common, ci
-
+        Labels: common,ci,integration,functional,compatibility
         Jira: None
 
         History:
@@ -119,7 +118,7 @@ class TestCompatibilityRollingUpgradeAll:
         cPaths = self.getDnodePaths()
         
         # Stop all dnodes
-        tdCb.killAllDnodes()
+        tdCb.stopTaosdCompletely()
         
         # Install old version for rolling upgrade
         baseVersionExist = tdCb.installTaosdForRollingUpgrade(cPaths, lastBigVersion)

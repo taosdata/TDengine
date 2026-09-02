@@ -897,12 +897,27 @@ class TestFunCols:
         tdSql.error(f'select cols(first(ts+1), c0+2 cc0, c1 cc1) cc from {self.dbname}.meters')
         tdSql.error(f'select cols(last(ts)+1, c0+2 as cc0) as cc from {self.dbname}.meters')
         tdSql.error(f'select cols(ABS(c0), c1) from {self.dbname}.meters group by tbname')
+
+        # K-row selection functions are not valid as COLS first arg
+        # (COLS requires a single-row selector as anchor)
         tdSql.error(f'select cols(top(c0, 5), c1) from {self.dbname}.meters')
         tdSql.error(f'select cols(tail(c0, 5),c1) from {self.dbname}.meters')
         tdSql.error(f'select cols(BOTTOM(c0, 5),c1) from {self.dbname}.meters')
         tdSql.error(f'select cols(tail(ts, 5),c1) from {self.dbname}.meters')
         tdSql.error(f'select cols(UNIQUE(ts),c1) from {self.dbname}.meters')
         tdSql.error(f'select cols(sample(ts, 5),c1) from {self.dbname}.meters')
+
+        # Non-selection pipeline functions (N-row / N-1-row output) are not valid as COLS first arg
+        # These functions transform rows but do not select a specific row anchor
+        tdSql.error(f'select cols(diff(c0), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(derivative(c0, 1s, 0), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(csum(c0), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(mavg(c0, 2), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(lag(c0, 1, 0), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(lead(c0, 1, 0), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(fill_forward(c0), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(statecount(c0, "GE", 1), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(stateduration(c0, "GE", 1, 1s), c1) from {self.dbname}.meters')
         
         tdSql.error(f'select cols(last(ts)+1, ts) from {self.dbname}.meters')
         tdSql.error(f'select cols(last(ts)+10, c1+10) from {self.dbname}.meters group by tbname')
@@ -962,11 +977,23 @@ class TestFunCols:
         tdSql.checkCols(5)
         tdSql.checkData(0, 4, 2)
         
-        tdSql.error(f'select c0,  cols(first(ts), c0, c1) from test.meters state_window(c0) order by c0')
+        tdSql.query(f'select c0,  cols(first(ts), c0, c1) from test.meters state_window(c0) order by c0')
+        tdSql.checkRows(4)
+        tdSql.checkCols(3)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(3, 0, 4)
+        tdSql.checkData(3, 1, 4)
+        tdSql.checkData(3, 2, 4)
 
-        tdSql.error(f'select c0,  cols(first(ts), c0, c1), tbname from test.meters state_window(c0)')
+        tdSql.query(f'select c0,  cols(first(ts), c0, c1), tbname from test.meters state_window(c0)')
+        tdSql.checkRows(4)
+        tdSql.checkCols(4)
         
-        tdSql.error(f'select c0,  cols(first(ts), c0, c1), t1 from test.meters state_window(c0)')
+        tdSql.query(f'select c0,  cols(first(ts), c0, c1), t1 from test.meters state_window(c0)')
+        tdSql.checkRows(4)
+        tdSql.checkCols(4)
         
         tdSql.error(f'select tbname, c0,  cols(first(ts), c0, c1), cols(last(ts), c0) from test.meters state_window(c0)')
     
@@ -993,9 +1020,21 @@ class TestFunCols:
         tdSql.checkRows(2)
         tdSql.checkCols(4)
         
-        tdSql.error(f'select  cols(first(ts), c0, c1), first(ts),  count(1) from test.meters event_window start with c3=true end with c3!=true')
+        tdSql.query(f'select  cols(first(ts), c0, c1), first(ts),  count(1) from test.meters event_window start with c3=true end with c3!=true')
+        tdSql.checkRows(2)
+        tdSql.checkCols(4)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 3, 3)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(1, 1, 3)
+        tdSql.checkData(1, 3, 2)
         
-        tdSql.error(f'select   first(ts),  count(1) from test.meters event_window start with c3=true end with c3!=true')
+        tdSql.query(f'select   first(ts),  count(1) from test.meters event_window start with c3=true end with c3!=true')
+        tdSql.checkRows(2)
+        tdSql.checkCols(2)
+        tdSql.checkData(0, 1, 3)
+        tdSql.checkData(1, 1, 2)
         
 
     def join_test(self):
@@ -1400,8 +1439,7 @@ class TestFunCols:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1416,4 +1454,3 @@ class TestFunCols:
 
     def stop(self):
         tdSql.close()
-

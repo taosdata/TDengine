@@ -13,6 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#endif
+
 #include <gtest/gtest.h>
 #include <iostream>
 
@@ -27,9 +34,6 @@
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 #include <addr_any.h>
 
-#ifdef WINDOWS
-#define TD_USE_WINSOCK
-#endif
 #include "os.h"
 
 #include "filter.h"
@@ -38,9 +42,11 @@
 #include "scalar.h"
 #include "stub.h"
 #include "taos.h"
+#include "tcompare.h"
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
+#include "thash.h"
 #include "tlog.h"
 #include "tvariant.h"
 
@@ -48,6 +54,15 @@ namespace {
 
 int64_t flttLeftV = 21, flttRightV = 10;
 double  flttLeftVd = 21.0, flttRightVd = 10.0;
+
+class QDebugFlagGuard {
+ public:
+  explicit QDebugFlagGuard(int32_t flag) : previousFlag_(qDebugFlag) { qDebugFlag |= flag; }
+  ~QDebugFlagGuard() { qDebugFlag = previousFlag_; }
+
+ private:
+  int32_t previousFlag_;
+};
 
 void flttInitLogFile() {
   const char   *defaultLogFileNamePrefix = "taoslog";
@@ -73,21 +88,19 @@ int32_t flttMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
 
   if (IS_VAR_DATA_TYPE(dataType)) {
     if (IS_STR_DATA_BLOB(dataType)) {
-    vnode->datum.p = (char *)taosMemoryMalloc(blobDataTLen(value));
-    if (NULL == vnode->datum.p) {
-      FLT_ERR_RET(terrno);
-    }
-    blobDataCopy(vnode->datum.p, value);
-    vnode->node.resType.bytes = blobDataLen(value);
-
+      vnode->datum.p = (char *)taosMemoryMalloc(blobDataTLen(value));
+      if (NULL == vnode->datum.p) {
+        FLT_ERR_RET(terrno);
+      }
+      blobDataCopy(vnode->datum.p, value);
+      vnode->node.resType.bytes = blobDataTLen(value);
     } else {
-    vnode->datum.p = (char *)taosMemoryMalloc(varDataTLen(value));
-    if (NULL == vnode->datum.p) {
-      FLT_ERR_RET(terrno);
-    }
-    varDataCopy(vnode->datum.p, value);
-    vnode->node.resType.bytes = varDataLen(value);
-
+      vnode->datum.p = (char *)taosMemoryMalloc(varDataTLen(value));
+      if (NULL == vnode->datum.p) {
+        FLT_ERR_RET(terrno);
+      }
+      varDataCopy(vnode->datum.p, value);
+      vnode->node.resType.bytes = varDataLen(value);
     }
   } else {
     vnode->node.resType.bytes = tDataTypes[dataType].bytes;
@@ -99,7 +112,7 @@ int32_t flttMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
 }
 
 int32_t flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t rowNum,
-                        void *value) {
+                           void *value) {
   static uint64_t dbidx = 0;
 
   SNode       *node = NULL;
@@ -144,10 +157,9 @@ int32_t flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType,
       FLT_ERR_RET(colDataSetVal(pColumn, i, (const char *)value, false));
       if (IS_VAR_DATA_TYPE(dataType)) {
         if (IS_STR_DATA_BLOB(dataType)) {
-        value = (char *)value + blobDataTLen(value);
-
+          value = (char *)value + blobDataTLen(value);
         } else {
-        value = (char *)value + varDataTLen(value);
+          value = (char *)value + varDataTLen(value);
         }
       } else {
         value = (char *)value + dataBytes;
@@ -176,9 +188,9 @@ int32_t flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType,
       FLT_ERR_RET(colDataSetVal(pColumn, i, (const char *)value, false));
       if (IS_VAR_DATA_TYPE(dataType)) {
         if (IS_STR_DATA_BLOB(dataType)) {
-        value = (char *)value + blobDataTLen(value);
+          value = (char *)value + blobDataTLen(value);
         } else {
-        value = (char *)value + varDataTLen(value);
+          value = (char *)value + varDataTLen(value);
         }
       } else {
         value = (char *)value + dataBytes;
@@ -268,7 +280,302 @@ void initScalarParam(SScalarParam *pParam) {
   pParam->colAlloced = true;
 }
 
+void flttCheckBlobPredicate(EOperatorType opType, const char *pRightText, const bool *expected) {
+  SCOPED_TRACE(operatorTypeStr(opType));
+  const char  *values[] = {"beta", "alpha", "beta", "null"};
+  char         blobValues[128] = {0};
+  char        *pValue = blobValues;
+  SNode       *pLeft = NULL;
+  SNode       *pRight = NULL;
+  SNode       *pOperator = NULL;
+  SSDataBlock *pBlock = NULL;
+
+  for (int32_t i = 0; i < 4; ++i) {
+    size_t len = strlen(values[i]);
+    blobDataSetLen(pValue, len);
+    (void)memcpy(blobDataVal(pValue), values[i], len);
+    pValue += blobDataTLen(pValue);
+  }
+
+  int32_t code = flttMakeColumnNode(&pLeft, &pBlock, TSDB_DATA_TYPE_BLOB, 32, 4, blobValues);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(pBlock->pDataBlock);
+  ASSERT_NE(pColumn, nullptr);
+  ASSERT_EQ(colDataSetVal(pColumn, 3, NULL, true), TSDB_CODE_SUCCESS);
+
+  if (NULL != pRightText) {
+    char   rightValue[64] = {0};
+    size_t rightLen = strlen(pRightText);
+    blobDataSetLen(rightValue, rightLen);
+    (void)memcpy(blobDataVal(rightValue), pRightText, rightLen);
+    ASSERT_EQ(flttMakeValueNode(&pRight, TSDB_DATA_TYPE_BLOB, rightValue), TSDB_CODE_SUCCESS);
+  }
+
+  ASSERT_EQ(flttMakeOpNode(&pOperator, opType, TSDB_DATA_TYPE_BOOL, pLeft, pRight), TSDB_CODE_SUCCESS);
+
+  SFilterInfo *pFilter = NULL;
+  ASSERT_EQ(filterInitFromNode(pOperator, &pFilter, 0, NULL), TSDB_CODE_SUCCESS);
+
+  SFilterColumnParam param = {(int32_t)taosArrayGetSize(pBlock->pDataBlock), pBlock->pDataBlock};
+  ASSERT_EQ(filterSetDataFromSlotId(pFilter, &param), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData *pRowResult = NULL;
+  int32_t          resultStatus = 0;
+  ASSERT_EQ(filterExecute(pFilter, pBlock, &pRowResult, NULL, taosArrayGetSize(pBlock->pDataBlock), &resultStatus),
+            TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < 4; ++i) {
+    bool actual = FILTER_RESULT_ALL_QUALIFIED == resultStatus ||
+                  (FILTER_RESULT_PARTIAL_QUALIFIED == resultStatus && *((bool *)colDataGetData(pRowResult, i)));
+    ASSERT_EQ(actual, expected[i]);
+  }
+
+  colDataDestroy(pRowResult);
+  taosMemoryFree(pRowResult);
+  filterFreeInfo(pFilter);
+  nodesDestroyNode(pOperator);
+  blockDataDestroy(pBlock);
+}
+
+void flttCheckBlobFilterInit(EOperatorType opType, const char *pRightText) {
+  char   rightValue[64] = {0};
+  SNode *pLeft = NULL;
+  SNode *pRight = NULL;
+  SNode *pOperator = NULL;
+
+  size_t rightLen = strlen(pRightText);
+  blobDataSetLen(rightValue, rightLen);
+  (void)memcpy(blobDataVal(rightValue), pRightText, rightLen);
+
+  ASSERT_EQ(flttMakeColumnNode(&pLeft, NULL, TSDB_DATA_TYPE_BLOB, 32, 0, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(flttMakeValueNode(&pRight, TSDB_DATA_TYPE_BLOB, rightValue), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(flttMakeOpNode(&pOperator, opType, TSDB_DATA_TYPE_BOOL, pLeft, pRight), TSDB_CODE_SUCCESS);
+
+  SFilterInfo *pFilter = NULL;
+  ASSERT_EQ(filterInitFromNode(pOperator, &pFilter, 0, NULL), TSDB_CODE_SUCCESS);
+
+  filterFreeInfo(pFilter);
+  nodesDestroyNode(pOperator);
+}
+
+void flttCheckBlobLogicalPredicate(EOperatorType compareType, EOperatorType nullType,
+                                   ELogicConditionType conditionType) {
+  char   rightValue[64] = {0};
+  SNode *pCompareLeft = NULL;
+  SNode *pCompareRight = NULL;
+  SNode *pCompare = NULL;
+  SNode *pNullLeft = NULL;
+  SNode *pNull = NULL;
+  SNode *pLogic = NULL;
+
+  const char *rightText = "{}";
+  size_t      rightLen = strlen(rightText);
+  blobDataSetLen(rightValue, rightLen);
+  (void)memcpy(blobDataVal(rightValue), rightText, rightLen);
+
+  ASSERT_EQ(flttMakeColumnNode(&pCompareLeft, NULL, TSDB_DATA_TYPE_BLOB, 32, 0, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(flttMakeValueNode(&pCompareRight, TSDB_DATA_TYPE_BLOB, rightValue), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(flttMakeOpNode(&pCompare, compareType, TSDB_DATA_TYPE_BOOL, pCompareLeft, pCompareRight),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(flttMakeColumnNode(&pNullLeft, NULL, TSDB_DATA_TYPE_BLOB, 32, 0, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(flttMakeOpNode(&pNull, nullType, TSDB_DATA_TYPE_BOOL, pNullLeft, NULL), TSDB_CODE_SUCCESS);
+
+  SNode *parameters[] = {pCompare, pNull};
+  ASSERT_EQ(flttMakeLogicNode(&pLogic, conditionType, parameters, 2), TSDB_CODE_SUCCESS);
+
+  SFilterInfo *pFilter = NULL;
+  ASSERT_EQ(filterInitFromNode(pLogic, &pFilter, 0, NULL), TSDB_CODE_SUCCESS);
+
+  filterFreeInfo(pFilter);
+  nodesDestroyNode(pLogic);
+}
+
+void flttCheckBlobInPredicate(EOperatorType opType, const bool *expected) {
+  const char  *values[] = {"beta", "alpha", "beta", "null"};
+  const char  *setValues[] = {"beta", "gamma"};
+  char         blobValues[128] = {0};
+  char        *pValue = blobValues;
+  SNode       *pLeft = NULL;
+  SNode       *pRight = NULL;
+  SNode       *pOperator = NULL;
+  SNodeList   *pList = NULL;
+  SSDataBlock *pBlock = NULL;
+
+  for (int32_t i = 0; i < 4; ++i) {
+    size_t len = strlen(values[i]);
+    blobDataSetLen(pValue, len);
+    (void)memcpy(blobDataVal(pValue), values[i], len);
+    pValue += blobDataTLen(pValue);
+  }
+
+  ASSERT_EQ(flttMakeColumnNode(&pLeft, &pBlock, TSDB_DATA_TYPE_BLOB, 32, 4, blobValues), TSDB_CODE_SUCCESS);
+  SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(pBlock->pDataBlock);
+  ASSERT_NE(pColumn, nullptr);
+  ASSERT_EQ(colDataSetVal(pColumn, 3, NULL, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeList(&pList), TSDB_CODE_SUCCESS);
+
+  for (const char *pSetValue : setValues) {
+    char   blobValue[64] = {0};
+    size_t len = strlen(pSetValue);
+    blobDataSetLen(blobValue, len);
+    (void)memcpy(blobDataVal(blobValue), pSetValue, len);
+
+    SNode *pSetNode = NULL;
+    ASSERT_EQ(flttMakeValueNode(&pSetNode, TSDB_DATA_TYPE_BLOB, blobValue), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(nodesListStrictAppend(pList, pSetNode), TSDB_CODE_SUCCESS);
+  }
+  ASSERT_EQ(flttMakeListNode(&pRight, pList, TSDB_DATA_TYPE_BLOB), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(flttMakeOpNode(&pOperator, opType, TSDB_DATA_TYPE_BOOL, pLeft, pRight), TSDB_CODE_SUCCESS);
+
+  SFilterInfo *pFilter = NULL;
+  ASSERT_EQ(filterInitFromNode(pOperator, &pFilter, 0, NULL), TSDB_CODE_SUCCESS);
+  SFilterColumnParam param = {(int32_t)taosArrayGetSize(pBlock->pDataBlock), pBlock->pDataBlock};
+  ASSERT_EQ(filterSetDataFromSlotId(pFilter, &param), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData *pRowResult = NULL;
+  int32_t          resultStatus = 0;
+  ASSERT_EQ(filterExecute(pFilter, pBlock, &pRowResult, NULL, taosArrayGetSize(pBlock->pDataBlock), &resultStatus),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(resultStatus, FILTER_RESULT_PARTIAL_QUALIFIED);
+  for (int32_t i = 0; i < 4; ++i) {
+    ASSERT_EQ(*((bool *)colDataGetData(pRowResult, i)), expected[i]);
+  }
+
+  colDataDestroy(pRowResult);
+  taosMemoryFree(pRowResult);
+  filterFreeInfo(pFilter);
+  nodesDestroyNode(pOperator);
+  blockDataDestroy(pBlock);
+}
+
 }  // namespace
+
+TEST(columnTest, blob_column_supported_predicates) {
+  ASSERT_EQ(InitRegexCache(), TSDB_CODE_SUCCESS);
+  const bool equalExpected[] = {true, false, true, false};
+  const bool notEqualExpected[] = {false, true, false, false};
+  const bool greaterExpected[] = {true, false, true, false};
+  const bool greaterEqualExpected[] = {true, true, true, false};
+  const bool lowerExpected[] = {false, true, false, false};
+  const bool lowerEqualExpected[] = {true, true, true, false};
+  const bool likeExpected[] = {true, false, true, false};
+  const bool notLikeExpected[] = {false, true, false, false};
+  const bool isNullExpected[] = {false, false, false, true};
+  const bool isNotNullExpected[] = {true, true, true, false};
+
+  flttCheckBlobPredicate(OP_TYPE_EQUAL, "beta", equalExpected);
+  flttCheckBlobPredicate(OP_TYPE_NOT_EQUAL, "beta", notEqualExpected);
+  flttCheckBlobPredicate(OP_TYPE_GREATER_THAN, "alpha", greaterExpected);
+  flttCheckBlobPredicate(OP_TYPE_GREATER_EQUAL, "alpha", greaterEqualExpected);
+  flttCheckBlobPredicate(OP_TYPE_LOWER_THAN, "beta", lowerExpected);
+  flttCheckBlobPredicate(OP_TYPE_LOWER_EQUAL, "beta", lowerEqualExpected);
+  flttCheckBlobPredicate(OP_TYPE_LIKE, "%et%", likeExpected);
+  flttCheckBlobPredicate(OP_TYPE_NOT_LIKE, "%et%", notLikeExpected);
+  flttCheckBlobPredicate(OP_TYPE_MATCH, "^be.*", likeExpected);
+  flttCheckBlobPredicate(OP_TYPE_NMATCH, "^be.*", notLikeExpected);
+  flttCheckBlobPredicate(OP_TYPE_IS_NULL, NULL, isNullExpected);
+  flttCheckBlobPredicate(OP_TYPE_IS_NOT_NULL, NULL, isNotNullExpected);
+  DestoryThreadLocalRegComp();
+  DestroyRegexCache();
+}
+
+TEST(columnTest, blob_column_comparator_scope) {
+  struct SBlobComparatorCase {
+    EOperatorType opType;
+    __compar_fn_t  compareFunc;
+  };
+  const SBlobComparatorCase supported[] = {
+      {OP_TYPE_EQUAL, compareBlobVal},
+      {OP_TYPE_NOT_EQUAL, compareBlobVal},
+      {OP_TYPE_GREATER_THAN, compareBlobVal},
+      {OP_TYPE_GREATER_EQUAL, compareBlobVal},
+      {OP_TYPE_LOWER_THAN, compareBlobVal},
+      {OP_TYPE_LOWER_EQUAL, compareBlobVal},
+      {OP_TYPE_IS_NULL, compareBlobVal},
+      {OP_TYPE_IS_NOT_NULL, compareBlobVal},
+      {OP_TYPE_LIKE, compareBlobPatternMatch},
+      {OP_TYPE_NOT_LIKE, compareBlobPatternNMatch},
+      {OP_TYPE_MATCH, compareBlobRegexMatch},
+      {OP_TYPE_NMATCH, compareBlobRegexNMatch},
+      {OP_TYPE_IN, compareChkInBlob},
+      {OP_TYPE_NOT_IN, compareChkNotInBlob},
+  };
+  for (const SBlobComparatorCase &testCase : supported) {
+    __compar_fn_t compareFunc = NULL;
+    ASSERT_EQ(filterGetCompFunc(&compareFunc, TSDB_DATA_TYPE_BLOB, testCase.opType), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(compareFunc, testCase.compareFunc);
+  }
+
+  const EOperatorType unsupported[] = {OP_TYPE_ADD, OP_TYPE_JSON_GET_VALUE, OP_TYPE_JSON_CONTAINS};
+  for (EOperatorType opType : unsupported) {
+    __compar_fn_t compareFunc = NULL;
+    ASSERT_EQ(filterGetCompFunc(&compareFunc, TSDB_DATA_TYPE_BLOB, opType), TSDB_CODE_BLOB_OP_NOT_SUPPORTED);
+    ASSERT_EQ(compareFunc, nullptr);
+  }
+}
+
+TEST(columnTest, blob_column_in_predicates) {
+  const bool inExpected[] = {true, false, true, false};
+  const bool notInExpected[] = {false, true, false, false};
+
+  flttCheckBlobInPredicate(OP_TYPE_IN, inExpected);
+  flttCheckBlobInPredicate(OP_TYPE_NOT_IN, notInExpected);
+}
+
+TEST(columnTest, blob_like_accepts_pattern_above_varchar_limit) {
+  char left[BLOBSTR_HEADER_SIZE + 1] = {0};
+  blobDataSetLen(left, 1);
+  blobDataVal(left)[0] = 'a';
+
+  int32_t patternLen = TSDB_MAX_FIELD_LEN + 1;
+  char   *pPattern = (char *)taosMemoryCalloc(1, BLOBSTR_HEADER_SIZE + patternLen);
+  ASSERT_NE(pPattern, nullptr);
+  blobDataSetLen(pPattern, patternLen);
+  (void)memset(blobDataVal(pPattern), '%', patternLen);
+  blobDataVal(pPattern)[patternLen / 2] = 'a';
+
+  ASSERT_EQ(compareBlobPatternMatch(left, pPattern), 0);
+  taosMemoryFree(pPattern);
+}
+
+TEST(columnTest, blob_like_rejects_pattern_above_blob_limit) {
+  char left[BLOBSTR_HEADER_SIZE + 1] = {0};
+  blobDataSetLen(left, 1);
+  blobDataVal(left)[0] = 'a';
+
+  int32_t patternLen = TSDB_MAX_BLOB_LEN - BLOBSTR_HEADER_SIZE + 1;
+  char   *pPattern = (char *)taosMemoryCalloc(1, BLOBSTR_HEADER_SIZE + patternLen);
+  ASSERT_NE(pPattern, nullptr);
+  blobDataSetLen(pPattern, patternLen);
+  (void)memset(blobDataVal(pPattern), '%', patternLen);
+
+  ASSERT_EQ(compareBlobPatternMatch(left, pPattern), 1);
+  taosMemoryFree(pPattern);
+}
+
+TEST(columnTest, blob_column_default_hash_uses_full_value) {
+  char first[16] = {0};
+  char second[16] = {0};
+  blobDataSetLen(first, 4);
+  blobDataSetLen(second, 4);
+  (void)memcpy(blobDataVal(first), "beta", 4);
+  (void)memcpy(blobDataVal(second), "zeta", 4);
+
+  _hash_fn_t hashFunc = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BLOB);
+  ASSERT_NE(hashFunc(first, blobDataTLen(first)), hashFunc(second, blobDataTLen(second)));
+}
+
+TEST(columnTest, blob_column_debug_dump_predicates) {
+  QDebugFlagGuard debugFlagGuard(DEBUG_DEBUG);
+
+  const bool inExpected[] = {true, false, true, false};
+
+  flttCheckBlobFilterInit(OP_TYPE_EQUAL, "beta");
+  flttCheckBlobFilterInit(OP_TYPE_LIKE, "%et%");
+  flttCheckBlobFilterInit(OP_TYPE_MATCH, "^be.*");
+  flttCheckBlobInPredicate(OP_TYPE_IN, inExpected);
+  flttCheckBlobLogicalPredicate(OP_TYPE_EQUAL, OP_TYPE_IS_NULL, LOGIC_COND_TYPE_OR);
+  flttCheckBlobLogicalPredicate(OP_TYPE_NOT_EQUAL, OP_TYPE_IS_NOT_NULL, LOGIC_COND_TYPE_AND);
+}
 
 TEST(timerangeTest, greater) {
   SNode       *pcol = NULL, *pval = NULL, *opNode1 = NULL;

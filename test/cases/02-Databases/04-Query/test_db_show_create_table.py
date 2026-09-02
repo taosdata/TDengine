@@ -22,8 +22,7 @@ class TestDatabaseShowCreateTable:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -110,8 +109,7 @@ class TestDatabaseShowCreateTable:
 
         Since: v3.3.6.14
 
-        Labels: common,ci,nchar,tag
-
+        Labels: common,ci,nchar,tag,integration,functional
         Jira: TS-7526
 
         History:
@@ -134,3 +132,36 @@ class TestDatabaseShowCreateTable:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "ctb1")
         tdSql.checkData(0, 1, 'CREATE TABLE `ctb1` USING `stb` (`t1`, `gid`) TAGS ("测试", 1)')
+
+    def test_show_create_table_after_tag_drop_and_add(self):
+        """show create table keeps surviving tag values after a tag is replaced
+
+        1. Create a child table with four tag values
+        2. Drop two middle stable tags and add a replacement tag
+        3. Verify SHOW CREATE preserves the later tag value and emits NULL for the replacement tag
+
+        Catalog:
+            - Database:Query
+
+        Since: v3.3.6.35
+
+        Labels: common,ci,tag
+
+        Feishu: 7056595118
+
+        History:
+            - 2026-07-23 Codex created
+
+        """
+
+        tdSql.prepare(dbname="show_create_tag", drop=True)
+        tdSql.execute("create stable stb (ts timestamp, v int) tags(t1 int, t2 int, t3 int, t4 int)")
+        tdSql.execute("create table ctb using stb tags(1, 2, 3, 4)")
+        tdSql.execute("alter stable stb drop tag t2")
+        tdSql.execute("alter stable stb drop tag t3")
+        tdSql.execute("alter stable stb add tag t5 int")
+
+        tdSql.query("show create table ctb")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "ctb")
+        tdSql.checkData(0, 1, "CREATE TABLE `ctb` USING `stb` (`t1`, `t4`, `t5`) TAGS (1, 4, NULL)")

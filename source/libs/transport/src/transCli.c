@@ -323,12 +323,52 @@ static int32_t transHeapMayBalance(SHeap* heap, SCliConn* p);
 
 static FORCE_INLINE void logConnMissHit(SCliConn* pConn);
 
+// On Windows, a handle's uv_close() can (rarely, under a Windows/IOCP-level race on
+// heavy connect/disconnect churn) never complete because the completion packet for a
+// cancelled overlapped I/O is never delivered, leaving uv_run(UV_RUN_DEFAULT) blocked
+// in GetQueuedCompletionStatusEx forever. Bound the wait on Windows only so process
+// exit can't hang forever on this; see taos_hang_analysis_report.md. Linux/Darwin's
+// uv_close() (epoll_ctl/close()) is synchronous, so this race cannot occur there.
+#if defined(WINDOWS)
+#define CLI_RELEASE_UV_MAX_WAIT_MS 3000
+#define CLI_RELEASE_UV(loop)                                                                            \
+  do {                                                                                                  \
+    uv_walk(loop, cliWalkCb, NULL);                                                                     \
+    int64_t cliReleaseUvStart = taosGetTimestampMs();                                                   \
+    int32_t cliReleaseUvIter = 0;                                                                       \
+    tDebug("cli uv loop:%p start bounded close on exit, max wait:%dms", loop, CLI_RELEASE_UV_MAX_WAIT_MS); \
+    while (uv_loop_alive(loop) && taosGetTimestampMs() - cliReleaseUvStart < CLI_RELEASE_UV_MAX_WAIT_MS) { \
+      (TAOS_UNUSED(uv_run(loop, UV_RUN_NOWAIT)));                                                       \
+      cliReleaseUvIter++;                                                                               \
+      taosMsleep(1);                                                                                    \
+    }                                                                                                    \
+    int64_t cliReleaseUvElapse = taosGetTimestampMs() - cliReleaseUvStart;                              \
+    if (uv_loop_alive(loop)) {                                                                          \
+      tError(                                                                                           \
+          "cli uv loop:%p still alive after %" PRId64 "ms(cap:%dms,iter:%d,active_handles:%u) on exit, "  \
+          "skip uv_loop_close to avoid hang forever, likely hit the Windows/libuv close race described " \
+          "in taos_hang_analysis_report.md; process exit may be delayed by up to %dms because of this",  \
+          loop, cliReleaseUvElapse, CLI_RELEASE_UV_MAX_WAIT_MS, cliReleaseUvIter, loop->active_handles,   \
+          CLI_RELEASE_UV_MAX_WAIT_MS);                                                                  \
+    } else if (cliReleaseUvElapse >= 1000) {                                                             \
+      tWarn("cli uv loop:%p closed slowly on exit, took %" PRId64 "ms(iter:%d), see CLI_RELEASE_UV in "  \
+            "transCli.c if this becomes frequent",                                                      \
+            loop, cliReleaseUvElapse, cliReleaseUvIter);                                                \
+      (TAOS_UNUSED(uv_loop_close(loop)));                                                               \
+    } else {                                                                                            \
+      tDebug("cli uv loop:%p closed normally on exit, took %" PRId64 "ms(iter:%d)", loop, cliReleaseUvElapse, \
+             cliReleaseUvIter);                                                                         \
+      (TAOS_UNUSED(uv_loop_close(loop)));                                                               \
+    }                                                                                                    \
+  } while (0);
+#else
 #define CLI_RELEASE_UV(loop)                     \
   do {                                           \
     uv_walk(loop, cliWalkCb, NULL);              \
     (TAOS_UNUSED(uv_run(loop, UV_RUN_DEFAULT))); \
     (TAOS_UNUSED(uv_loop_close(loop)));          \
   } while (0);
+#endif
 
 // snprintf may cause performance problem
 #define CONN_CONSTRUCT_HASH_KEY(key, ip, port) \
@@ -677,6 +717,7 @@ void cliHandleResp(SCliConn* conn) {
   if ((code = transDecompressMsg((char**)&pHead, &msgLen)) < 0) {
     tDebug("%s conn:%p, recv invalid packet, failed to decompress", CONN_GET_INST_LABEL(conn), conn);
     // TODO: notify cb
+    taosMemoryFree(pHead);
     return;
   }
   int64_t qId = taosNtoh64(pHead->qid);
@@ -2471,6 +2512,7 @@ static void* cliWorkThread(void* arg) {
   tsEnableRandErr = true;
   TAOS_UNUSED(strtolower(threadName, pThrd->pInst->label));
   setThreadName(threadName);
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   TAOS_UNUSED(uv_run(pThrd->loop, UV_RUN_DEFAULT));
 
@@ -2593,7 +2635,7 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
   }
   pThrd->loopInited = 1;
 
-  int32_t nSync = 2;  // pInst->supportBatch ? 4 : 8;
+  int32_t nSync = 4;
   code = transAsyncPoolCreate(pThrd->loop, nSync, pThrd, cliAsyncCb, &pThrd->asyncPool);
   if (code != 0) {
     tError("failed to init async pool since:%s", tstrerror(code));
@@ -3022,6 +3064,103 @@ int32_t cliRetryDoSched(SCliReq* pReq, SCliThrd* pThrd) {
   return 0;
 }
 
+// Overload retry: for server-overload errors, retry with exponential backoff
+// (interval doubles each attempt) until max timeout is reached. Does NOT switch epset.
+bool cliMayRetryOnOverload(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
+  SCliThrd* pThrd = pConn->hostThrd;
+  STrans*   pInst = pThrd->pInst;
+  SReqCtx*  pCtx = pReq->ctx;
+  int32_t   code = pResp->code;
+
+  // pCtx must be checked before any dereference
+  if (pCtx == NULL) {
+    return false;
+  }
+
+  if (pInst->overloadRetryFp == NULL || !pInst->overloadRetryFp(code, pCtx->msgType)) {
+    return false;
+  }
+
+  if (pInst->retryOnOverloadBaseInterval <= 0) {
+    return false;
+  }
+
+  // Check if sync msg is already released before touching pResp; if so, do not retry.
+  if (pCtx->syncMsgRef != 0) {
+    STransSyncMsg* pSyncMsg = taosAcquireRef(transGetSyncMsgMgt(), pCtx->syncMsgRef);
+    if (pSyncMsg) {
+      TAOS_UNUSED(taosReleaseRef(transGetSyncMsgMgt(), pCtx->syncMsgRef));
+    } else {
+      tDebug("sync msg already release, not retry on overload");
+      return false;
+    }
+  }
+
+  // Initialize start timestamp on first retry
+  int64_t now = taosGetTimestampMs();
+  if (pCtx->overloadRetryStartTs == 0) {
+    pCtx->overloadRetryStartTs = now;
+    pCtx->overloadRetryLastInterval = 0;
+  }
+
+  // Check if max timeout exceeded
+  int64_t elapsed = now - pCtx->overloadRetryStartTs;
+  if (elapsed >= pInst->retryOnOverloadTimeout) {
+    tWarn("overload retry timeout, elapsed:%" PRId64 "ms, max:%dms",
+          elapsed, pInst->retryOnOverloadTimeout);
+    return false;
+  }
+
+  transFreeMsg(pResp->pCont);
+  pResp->pCont = NULL;
+  pResp->info.hasEpSet = 0;
+
+  // Exponential backoff: base interval doubles each retry, use int64 to prevent overflow
+  int64_t next;
+  if (pCtx->overloadRetryLastInterval == 0) {
+    next = pInst->retryOnOverloadBaseInterval;
+  } else {
+    next = (int64_t)pCtx->overloadRetryLastInterval * 2;
+  }
+
+  // Cap interval to remaining timeout budget
+  int64_t remaining = pInst->retryOnOverloadTimeout - elapsed;
+  if (next > remaining) {
+    next = remaining;
+  }
+  int32_t interval = (int32_t)TMIN(next, INT32_MAX);
+  pCtx->overloadRetryLastInterval = interval;
+
+  // Add 25% jitter to avoid thundering herd
+  int32_t jitter = interval / 4;
+  int32_t delay = interval + (int32_t)(taosRand() % (jitter > 0 ? (uint32_t)jitter : 1));
+
+  tInfo("overload retry scheduled, elapsed:%" PRId64 "ms, delay:%dms, msgType:%s",
+        elapsed, delay, TMSG_INFO(pCtx->msgType));
+
+  pReq->sent = 0;
+  pReq->seq = 0;
+
+  // Schedule retry directly, bypass shared retryNextInterval
+  STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
+  if (arg == NULL) {
+    pResp->code = TSDB_CODE_OUT_OF_MEMORY;
+    tError("failed to alloc overload retry task arg");
+    return false;
+  }
+  arg->param1 = pReq;
+  arg->param2 = pThrd;
+
+  SDelayTask* pTask = transDQSched(pThrd->delayQueue, doDelayTask, arg, delay);
+  if (pTask == NULL) {
+    taosMemoryFree(arg);
+    pResp->code = TSDB_CODE_OUT_OF_MEMORY;
+    tError("failed to sched overload retry task");
+    return false;
+  }
+  return true;
+}
+
 bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pInst = pThrd->pInst;
@@ -3215,6 +3354,9 @@ int32_t cliNotifyCb(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
   if (pReq != NULL) {
     removeReqFromSendQ(pReq);
     if (pResp->code != TSDB_CODE_SUCCESS) {
+      if (cliMayRetryOnOverload(pConn, pReq, pResp)) {
+        return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
+      }
       if (cliMayRetry(pConn, pReq, pResp)) {
         return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
       }

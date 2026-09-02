@@ -35,8 +35,12 @@
 #include "mndToken.h"
 #include "tbase64.h"
 #include "totp.h"
+#include "tpriv.h"
 #include "mndDnode.h"
 #include "mndVgroup.h"
+#ifdef USE_LIBGSASL
+#include <gsasl.h>
+#endif
 
 // clang-format on
 
@@ -159,6 +163,7 @@ static int32_t mndProcessDropTotpSecretReq(SRpcMsg *pReq);
 
 static int32_t createIpWhiteListFromOldVer(void *buf, int32_t len, SIpWhiteList **ppList);
 static int32_t tDerializeIpWhileListFromOldVer(void *buf, int32_t len, SIpWhiteList *pList);
+static int32_t mndBuildDnodeIpRanges(SMnode *pMnode, SIpRange **ppRanges, int32_t *pNum);
 
 typedef struct {
   SIpWhiteListDual   *wlIp;
@@ -171,6 +176,8 @@ typedef struct {
   int64_t        verIp;
   int64_t        verTime;
   char           auditLogUser[TSDB_USER_LEN];
+  SIpRange      *pDnodeRanges;      // cached resolved cluster dnode ip ranges, protected by rw
+  int32_t        numOfDnodeRanges;  // valid entry count in pDnodeRanges
   TdThreadRwlock rw;
 } SUserCache;
 
@@ -189,6 +196,8 @@ static int32_t userCacheInit() {
   userCache.verIp = 0;
   userCache.verTime = 0;
   userCache.auditLogUser[0] = '\0';
+  userCache.pDnodeRanges = NULL;
+  userCache.numOfDnodeRanges = 0;
 
   (void)taosThreadRwlockInit(&userCache.rw, NULL);
   TAOS_RETURN(0);
@@ -210,6 +219,10 @@ static void userCacheCleanup() {
     pIter = taosHashIterate(userCache.users, pIter);
   }
   taosHashCleanup(userCache.users);
+
+  taosMemoryFree(userCache.pDnodeRanges);
+  userCache.pDnodeRanges = NULL;
+  userCache.numOfDnodeRanges = 0;
 
   (void)taosThreadRwlockDestroy(&userCache.rw);
 }
@@ -370,7 +383,13 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t userCacheRebuildIpWhiteList(SMnode *pMnode) {
+// Rebuild the in-cache per-user IP white lists and install pre-resolved dnode IP ranges.
+// Must be called with userCache.rw write-lock held.
+// pDnodeRanges ownership is transferred to userCache on success; caller must not free it afterwards.
+// On failure the previous cache is left intact (fail-closed: verIp is not bumped).
+// NOTE: on failure the install block is never reached, so pDnodeRanges is NOT freed here;
+// the caller retains ownership and must free it on the error path.
+static int32_t userCacheRebuildIpWhiteList(SMnode *pMnode, SIpRange *pDnodeRanges, int32_t numOfDnodeRanges) {
   int32_t code = 0, lino = 0;
 
   SSdb *pSdb = pMnode->pSdb;
@@ -404,7 +423,13 @@ static int32_t userCacheRebuildIpWhiteList(SMnode *pMnode) {
     sdbRelease(pSdb, pUser);
   }
 
-  userCache.verIp++;
+  // Install the pre-resolved dnode ranges (resolved outside the lock to avoid holding the write lock
+  // during potentially slow DNS I/O). Ownership transfers to userCache here.
+  taosMemoryFree(userCache.pDnodeRanges);
+  userCache.pDnodeRanges = pDnodeRanges;
+  userCache.numOfDnodeRanges = numOfDnodeRanges;
+
+  // verIp is set by the caller (taosGetTimestampMs) after this function returns.
 
 _OVER:
   if (code < 0) {
@@ -413,24 +438,56 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+// Resolve dnode IPs outside the lock, acquire write lock, rebuild the cache, update verIp,
+// and release the lock. Shared by mndRefreshUserIpWhiteList and the cold-cache path in
+// mndGetIpWhiteListVersion to avoid duplicating the DNS-outside-lock + wrlock + rebuild pattern.
+static int32_t doRebuildIpWhiteListLocked(SMnode *pMnode) {
+  SIpRange *pDnodeRanges     = NULL;
+  int32_t   numOfDnodeRanges = 0;
+  int32_t   code = mndBuildDnodeIpRanges(pMnode, &pDnodeRanges, &numOfDnodeRanges);
+  if (code != 0) TAOS_RETURN(code);
+
+  (void)taosThreadRwlockWrlock(&userCache.rw);
+  code = userCacheRebuildIpWhiteList(pMnode, pDnodeRanges, numOfDnodeRanges);
+  if (code != 0) {
+    (void)taosThreadRwlockUnlock(&userCache.rw);
+    taosMemoryFree(pDnodeRanges);  // callee did NOT free on error; we still own it
+    TAOS_RETURN(code);
+  }
+  // pDnodeRanges ownership transferred to userCache on success.
+  userCache.verIp = taosGetTimestampMs();
+  (void)taosThreadRwlockUnlock(&userCache.rw);
+  TAOS_RETURN(0);
+}
+
+// Returns the current IP whitelist version (a timestamp-based int64).
+// Returns 0 in three distinct cases — callers cannot distinguish between them:
+//   1. IP whitelist is disabled (mndEnableIpWhiteList == 0 or tsEnableWhiteList is false)
+//   2. Cold-cache initialisation failed (DNS error, OOM, etc.) — mError is logged
+//   3. Cache is being rebuilt concurrently and verIp is transiently zero
+// On the hot path (cache already warm), this is a read-lock + return with no I/O.
 int64_t mndGetIpWhiteListVersion(SMnode *pMnode) {
   int64_t ver = 0;
   int32_t code = 0;
 
   if (mndEnableIpWhiteList(pMnode) != 0 && tsEnableWhiteList) {
-    (void)taosThreadRwlockWrlock(&userCache.rw);
-
-    if (userCache.verIp == 0) {
-      // get user and dnode ip white list
-      if ((code = userCacheRebuildIpWhiteList(pMnode)) != 0) {
-        (void)taosThreadRwlockUnlock(&userCache.rw);
-        mError("%s failed to update ip white list since %s", __func__, tstrerror(code));
-        return ver;
-      }
-      userCache.verIp = taosGetTimestampMs();
-    }
+    // Fast path: cache already warm — return without any DNS I/O.
+    (void)taosThreadRwlockRdlock(&userCache.rw);
     ver = userCache.verIp;
+    (void)taosThreadRwlockUnlock(&userCache.rw);
+    if (ver != 0) {
+      mDebug("ip-white-list on mnode ver: %" PRId64 " (cached)", ver);
+      return ver;
+    }
 
+    // Cold-cache path: delegate to shared helper (DNS outside lock + wrlock + rebuild).
+    if ((code = doRebuildIpWhiteListLocked(pMnode)) != 0) {
+      mError("%s failed to build ip white list since %s", __func__, tstrerror(code));
+      return ver;
+    }
+
+    (void)taosThreadRwlockRdlock(&userCache.rw);
+    ver = userCache.verIp;
     (void)taosThreadRwlockUnlock(&userCache.rw);
   }
 
@@ -439,17 +496,13 @@ int64_t mndGetIpWhiteListVersion(SMnode *pMnode) {
 }
 
 int32_t mndRefreshUserIpWhiteList(SMnode *pMnode) {
-  int32_t code = 0;
-  (void)taosThreadRwlockWrlock(&userCache.rw);
-
-  if ((code = userCacheRebuildIpWhiteList(pMnode)) != 0) {
-    (void)taosThreadRwlockUnlock(&userCache.rw);
-    TAOS_RETURN(code);
-  }
-  userCache.verIp = taosGetTimestampMs();
-  (void)taosThreadRwlockUnlock(&userCache.rw);
-
-  TAOS_RETURN(code);
+  // TODO(perf): this function is also called from the Raft apply/snapshot-restore path
+  // (mndSync.c:319). In large clusters (50+ dnodes), sequential DNS resolution here can
+  // block the Raft apply thread long enough to trigger spurious leader elections if DNS
+  // is slow or the network is partitioned. A future improvement is to move DNS resolution
+  // to an async worker thread with a short timeout and fall back to the cached ranges on
+  // timeout. For now the fix is deferred since internal DNS is typically sub-millisecond.
+  return doRebuildIpWhiteListLocked(pMnode);
 }
 
 static int32_t userCacheRebuildTimeWhiteList(SMnode *pMnode) {
@@ -534,6 +587,8 @@ int64_t mndGetTimeWhiteListVersion(SMnode *pMnode) {
   return ver;
 }
 
+static bool mndIsUpgradedBuiltinUsers(SMnode *pMnode) { return (upgradeSecurity == 0); }
+
 int32_t mndInitUser(SMnode *pMnode) {
   TAOS_CHECK_RETURN(userCacheInit());
 
@@ -547,6 +602,7 @@ int32_t mndInitUser(SMnode *pMnode) {
       .insertFp = (SdbInsertFp)mndUserActionInsert,
       .updateFp = (SdbUpdateFp)mndUserActionUpdate,
       .deleteFp = (SdbDeleteFp)mndUserActionDelete,
+      .isUpgradedFp = (SdbIsUpgradedFp)mndIsUpgradedBuiltinUsers,
   };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_USER, mndProcessCreateUserReq);
@@ -965,10 +1021,51 @@ static void dropOldPasswords(SUserObj *pUser) {
   pUser->passwords = taosMemoryRealloc(pUser->passwords, sizeof(SUserPassword) * pUser->numOfPasswords);
 }
 
+// Derive SCRAM-SHA-256 credentials (salt/StoredKey/ServerKey) from the already-hashed password
+// string and store them in pScram. passHash must be the SAME normalized string the client reproduces
+// at CONNECT time (taosEncryptPass_c output stored in passwords[].pass), so the handshake derives
+// identical keys. On any failure -- or when libgsasl is not compiled in -- pScram->algo is left as
+// TSDB_SCRAM_ALGO_NONE and the user transparently falls back to legacy password verification.
+static void mndGenScramCred(const char *passHash, SScramCred *pScram) {
+  memset(pScram, 0, sizeof(*pScram));
+#ifdef USE_LIBGSASL
+  char salt[TSDB_SCRAM_SALT_LEN] = {0};
+  char saltedPassword[TSDB_SCRAM_KEY_LEN] = {0};
+  char clientKey[TSDB_SCRAM_KEY_LEN] = {0};
+  char serverKey[TSDB_SCRAM_KEY_LEN] = {0};
+  char storedKey[TSDB_SCRAM_KEY_LEN] = {0};
+
+  if (gsasl_nonce(salt, sizeof(salt)) != GSASL_OK) {
+    mError("failed to generate SCRAM salt, fall back to legacy auth");
+    return;
+  }
+  int rc = gsasl_scram_secrets_from_password(GSASL_HASH_SHA256, passHash, TSDB_SCRAM_DEFAULT_ITER, salt, sizeof(salt),
+                                             saltedPassword, clientKey, serverKey, storedKey);
+  if (rc != GSASL_OK) {
+    mError("failed to derive SCRAM secrets since %s, fall back to legacy auth", gsasl_strerror(rc));
+    return;
+  }
+  pScram->algo = TSDB_SCRAM_ALGO_SHA256;
+  pScram->iter = TSDB_SCRAM_DEFAULT_ITER;
+  pScram->saltLen = sizeof(salt);
+  memcpy(pScram->salt, salt, sizeof(salt));
+  memcpy(pScram->storedKey, storedKey, sizeof(storedKey));
+  memcpy(pScram->serverKey, serverKey, sizeof(serverKey));
+#else
+  (void)passHash;
+#endif
+}
+
 static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char *pass) {
   int32_t  code = 0;
   int32_t  lino = 0;
   SUserObj userObj = {0};
+
+  SUserObj *pExist = NULL;
+  if (mndAcquireUser(pMnode, user, &pExist) == 0 && pExist != NULL) {
+    mndReleaseUser(pMnode, pExist);
+    TAOS_RETURN(0);
+  }
 
   userObj.passwords = taosMemCalloc(1, sizeof(SUserPassword));
   if (userObj.passwords == NULL) {
@@ -976,6 +1073,10 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   }
   taosEncryptPass_c((uint8_t *)pass, strlen(pass), userObj.passwords[0].pass);
   userObj.passwords[0].pass[sizeof(userObj.passwords[0].pass) - 1] = 0;
+  // derive SCRAM credentials from the hashed password before it is (optionally) encrypted at rest
+  if (tsForceScram) {
+    mndGenScramCred(userObj.passwords[0].pass, &userObj.scram);
+  }
   if (strlen(tsDataKey) > 0) {
     generateSalt(userObj.salt, sizeof(userObj.salt));
     TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino,
@@ -1459,11 +1560,25 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndProcessUpgradeUserRsp(SRpcMsg *pReq) { return 0;}
+static int32_t mndProcessUpgradeUserRsp(SRpcMsg *pReq) {
+  if (pReq->code == 0) {
+    upgradeSecurity = 0;
+    mInfo("upgrade users successfully");
+  } else {
+    mError("failed to upgrade users since %s", tstrerror(pReq->code));
+  }
+
+  return 0;
+}
 
 static int32_t mndUpgradeUsers(SMnode *pMnode, int32_t version) {
   int32_t code = 0, lino = 0;
-  if (upgradeSecurity == 0) return code;
+  if (upgradeSecurity == 0) {
+    mInfo("upgrade security is disabled");
+    return code;
+  } else {
+    mInfo("upgrade security is enabled, will upgrade users");
+  }
 
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPGRADE_USER, .info.ahandle = 0, .info.notFreeAhandle = 1};
   SEpSet  epSet = {0};
@@ -1513,6 +1628,14 @@ static int32_t tSerializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj) {
     char  *key = taosHashGetKey(pIter, &keyLen);  // key: dbFName
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, key));
   }
+
+  // SCRAM-SHA-256 credentials (appended last; forward-compatible -- decode guards with tDecodeIsEnd)
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pObj->scram.algo));
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pObj->scram.iter));
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pObj->scram.saltLen));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pObj->scram.salt, sizeof(pObj->scram.salt)));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pObj->scram.storedKey, sizeof(pObj->scram.storedKey)));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pObj->scram.serverKey, sizeof(pObj->scram.serverKey)));
 
   tEndEncode(&encoder);
   tlen = encoder.pos;
@@ -1570,6 +1693,21 @@ static int32_t tDeserializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj)
         TAOS_CHECK_EXIT(taosHashPut(pObj->ownedDbs, key, keyLen + 1, NULL, 0));
       }
     }
+  }
+
+  // SCRAM-SHA-256 credentials (optional trailing block; absent for users persisted before the feature)
+  if (!tDecodeIsEnd(&decoder)) {
+    uint8_t *pBin = NULL;
+    uint32_t binLen = 0;
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pObj->scram.algo));
+    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pObj->scram.iter));
+    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pObj->scram.saltLen));
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &pBin, &binLen));
+    if (binLen == sizeof(pObj->scram.salt)) memcpy(pObj->scram.salt, pBin, binLen);
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &pBin, &binLen));
+    if (binLen == sizeof(pObj->scram.storedKey)) memcpy(pObj->scram.storedKey, pBin, binLen);
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &pBin, &binLen));
+    if (binLen == sizeof(pObj->scram.serverKey)) memcpy(pObj->scram.serverKey, pBin, binLen);
   }
 
 _exit:
@@ -2406,7 +2544,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     }
     SDB_GET_BINARY(pRaw, dataPos, key, extLen, _OVER);
     TAOS_CHECK_GOTO(tDeserializeUserObjExt(key, extLen, pUser), &lino, _OVER);
-    if (pUser->superUser && taosHashGetSize(pUser->roles) == 0) {
+    if (pUser->superUser && (taosHashGetSize(pUser->roles) < TSDB_BUILTIN_BASIC_ROLE_NUM)) {
       upgradeSecurity = 1;
     }
   }
@@ -2809,6 +2947,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   TSWAP(pOld->passwords, pNew->passwords);
   (void)memcpy(pOld->salt, pNew->salt, sizeof(pOld->salt));
   (void)memcpy(pOld->totpsecret, pNew->totpsecret, sizeof(pOld->totpsecret));
+  pOld->scram = pNew->scram;  // carry refreshed SCRAM credentials after ALTER USER ... PASS
   pOld->sysPrivs = pNew->sysPrivs;
   TSWAP(pOld->ownedDbs, pNew->ownedDbs);
   TSWAP(pOld->objPrivs, pNew->objPrivs);
@@ -2968,11 +3107,17 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     memcpy(userObj.passwords[0].pass, pCreate->pass, TSDB_PASSWORD_LEN);
   } else {
     generateSalt(userObj.salt, sizeof(userObj.salt));
-    taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.passwords[0].pass);
+    memcpy(userObj.passwords[0].pass, pCreate->pass, sizeof(userObj.passwords[0].pass));
     userObj.passwords[0].pass[sizeof(userObj.passwords[0].pass) - 1] = 0;
+    if (tsForceScram) {
+      if (pCreate->scram.algo == TSDB_SCRAM_ALGO_SHA256) {
+        userObj.scram = pCreate->scram;
+      } else {
+        mndGenScramCred(userObj.passwords[0].pass, &userObj.scram);
+      }
+    }
     if (strlen(tsDataKey) > 0) {
-      TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino,
-                      _OVER);
+      TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino, _OVER);
     }
   }
   userObj.passwords[0].setTime = taosGetTimestampSec();
@@ -3166,8 +3311,14 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
+  // Assign the baseline SYSINFO role to match the requested sysInfo, so that
+  // `create user ... sysinfo {0|1}` stays consistent with the sysInfo<->role linkage
+  // enforced on the alter/upgrade paths (sysInfo==1 -> SYSINFO_1, sysInfo==0 -> SYSINFO_0).
+  // Previously this hardcoded TSDB_ROLE_DEFAULT, so `create ... sysinfo 0` still got SYSINFO_1.
   uint8_t flag = 0x01;
-  if ((code = taosHashPut(userObj.roles, TSDB_ROLE_DEFAULT, sizeof(TSDB_ROLE_DEFAULT), &flag, sizeof(flag))) != 0) {
+  if ((code = taosHashPut(userObj.roles, userObj.sysInfo == 1 ? TSDB_ROLE_SYSINFO_1 : TSDB_ROLE_SYSINFO_0,
+                          userObj.sysInfo == 1 ? sizeof(TSDB_ROLE_SYSINFO_1) : sizeof(TSDB_ROLE_SYSINFO_0), &flag,
+                          sizeof(flag))) != 0) {
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
@@ -3208,30 +3359,54 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndCheckPasswordFmt(const char *pwd) {
-  if (tsEnableAdvancedSecurity == 0 && strcmp(pwd, "taosdata") == 0) {
+static int32_t mndCheckCreateUserReqPasswordFmt(const SCreateUserReq* pReq) {
+  if (tsEnableAdvancedSecurity == 0 && pReq->isDefaultPass) {
     return 0;
   }
 
   if (tsEnableStrongPassword == 0) {
-    for (char c = *pwd; c != 0; c = *(++pwd)) {
-      if (c == ' ' || c == '\'' || c == '\"' || c == '`' || c == '\\') {
-        return TSDB_CODE_MND_INVALID_PASS_FORMAT;
-      }
+    if (pReq->isSimplePass) {
+      return 0;
     }
-    return 0;
+    return TSDB_CODE_MND_INVALID_PASS_FORMAT;
   }
 
-  int32_t len = strlen(pwd);
-  if (len < TSDB_PASSWORD_MIN_LEN) {
+  if (pReq->passLen < TSDB_PASSWORD_MIN_LEN) {
     return TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY;
   }
 
-  if (len > TSDB_PASSWORD_MAX_LEN) {
+  if (pReq->passLen > TSDB_PASSWORD_MAX_LEN) {
     return TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
   }
 
-  if (taosIsComplexString(pwd)) {
+  if (pReq->isComplexPass) {
+    return 0;
+  }
+
+  return TSDB_CODE_MND_INVALID_PASS_FORMAT;
+}
+
+static int32_t mndCheckAlterUserReqPasswordFmt(const SAlterUserReq* pReq) {
+  if (tsEnableAdvancedSecurity == 0 && pReq->isDefaultPass) {
+    return 0;
+  }
+
+  if (tsEnableStrongPassword == 0) {
+    if (pReq->isSimplePass) {
+      return 0;
+    }
+    return TSDB_CODE_MND_INVALID_PASS_FORMAT;
+  }
+
+  if (pReq->passLen < TSDB_PASSWORD_MIN_LEN) {
+    return TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY;
+  }
+
+  if (pReq->passLen > TSDB_PASSWORD_MAX_LEN) {
+    return TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+  }
+
+  if (pReq->isComplexPass) {
     return 0;
   }
 
@@ -3429,7 +3604,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   }
 
   if (createReq.isImport != 1) {
-    code = mndCheckPasswordFmt(createReq.pass);
+    code = mndCheckCreateUserReqPasswordFmt(&createReq);
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
@@ -3579,8 +3754,105 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+// Resolve every cluster dnode endpoint to an ip range. These ranges are merged into every user's
+// effective ip white list so that intra-cluster RPC (which is issued with the root identity and
+// originates from a dnode host) is never rejected by the white list. If any dnode endpoint cannot be
+// resolved the whole build fails (fail closed) so an incomplete list is never pushed.
+static int32_t mndBuildDnodeIpRanges(SMnode *pMnode, SIpRange **ppRanges, int32_t *pNum) {
+  *ppRanges = NULL;
+  *pNum = 0;
+
+  SSdb   *pSdb = pMnode->pSdb;
+  int32_t numOfDnodes = sdbGetSize(pSdb, SDB_DNODE);
+  if (numOfDnodes <= 0) {
+    return 0;
+  }
+
+  SIpRange *pRanges = taosMemoryCalloc(numOfDnodes, sizeof(SIpRange));
+  if (pRanges == NULL) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  int32_t    num = 0;
+  int32_t    code = 0;
+  void      *pIter = NULL;
+  SDnodeObj *pDnode = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) {
+      break;
+    }
+
+    if (num >= numOfDnodes) {
+      // Dnode set grew concurrently after the sdbGetSize() snapshot. Fail closed: an incomplete
+      // whitelist must not be pushed — return error so the caller keeps the previous consistent cache.
+      mWarn("dnode set grew during ip range build, aborting to avoid incomplete list");
+      code = TSDB_CODE_APP_ERROR;  // DNODE_ALREADY_EXIST is semantically wrong here — dnode set grew
+      goto _OVER;
+    }
+
+    SIpAddr addr = {0};
+    code = taosGetIpFromFqdn(tsEnableIpv6, pDnode->fqdn, &addr);
+    if (code != 0) {
+      // Fail closed: do not push a whitelist that is missing a cluster node's ip.
+      mError("failed to resolve dnode:%d fqdn:%s for ip white list since %s", pDnode->id, pDnode->fqdn,
+             tstrerror(code));
+      goto _OVER;
+    }
+
+    // Validate address type and set appropriate mask to prevent garbage values
+    if (addr.type == 0) {
+      addr.mask = 32;  // IPv4
+    } else if (addr.type == 1) {
+      addr.mask = 128;  // IPv6
+    } else {
+      mError("invalid addr type:%d from dnode:%d fqdn:%s for ip white list", addr.type, pDnode->id,
+             pDnode->fqdn);
+      code = TSDB_CODE_INVALID_PARA;
+      goto _OVER;
+    }
+
+    SIpRange range = {0};
+    if ((code = tIpStrToUint(&addr, &range)) != 0) {
+      mError("failed to convert dnode:%d fqdn:%s ip for ip white list since %s", pDnode->id, pDnode->fqdn,
+             tstrerror(code));
+      goto _OVER;
+    }
+
+    // Linear scan is acceptable: dnode count is small (typically < 100)
+    bool dup = false;
+    for (int32_t i = 0; i < num; ++i) {
+      if (memcmp(&pRanges[i], &range, sizeof(SIpRange)) == 0) {
+        dup = true;
+        break;
+      }
+    }
+    if (!dup) {
+      pRanges[num++] = range;
+    }
+    sdbRelease(pSdb, pDnode);
+    pDnode = NULL;
+  }
+
+  *ppRanges = pRanges;
+  *pNum = num;
+  return 0;
+
+_OVER:
+  if (pDnode) sdbRelease(pSdb, pDnode);
+  if (pIter) sdbCancelFetch(pSdb, pIter);
+  taosMemoryFree(pRanges);
+  TAOS_RETURN(code);
+}
+
 static int32_t buildRetrieveIpWhiteListRsp(SUpdateIpWhite *pUpdate) {
   (void)taosThreadRwlockRdlock(&userCache.rw);
+
+  // Dnode ip ranges were resolved and cached during the last white-list rebuild (CREATE/DROP DNODE,
+  // restore, config change). Read them straight from the cache here so the retrieve hot path never
+  // does DNS. The cache is owned by userCache and stays valid for the duration of this read lock.
+  const SIpRange *pDnodeRanges = userCache.pDnodeRanges;
+  int32_t         numOfDnodeRanges = userCache.numOfDnodeRanges;
 
   int32_t count = taosHashGetSize(userCache.users);
   pUpdate->pUserIpWhite = taosMemoryCalloc(count, sizeof(SUpdateUserIpWhite));
@@ -3593,7 +3865,11 @@ static int32_t buildRetrieveIpWhiteListRsp(SUpdateIpWhite *pUpdate) {
   void *pIter = taosHashIterate(userCache.users, NULL);
   while (pIter) {
     SIpWhiteListDual *wl = (*(SCachedUserInfo **)pIter)->wlIp;
-    if (wl == NULL || wl->num <= 0) {
+    // Skip only when there is nothing to inject: no per-user ranges AND no dnode ranges.
+    // Previously this skipped users with empty whitelists entirely, which meant those users
+    // never received dnode IP ranges — breaking intra-cluster RPC for those accounts.
+    int32_t wlNum = (wl != NULL) ? wl->num : 0;
+    if (wlNum <= 0 && numOfDnodeRanges <= 0) {
       pIter = taosHashIterate(userCache.users, pIter);
       continue;
     }
@@ -3605,14 +3881,21 @@ static int32_t buildRetrieveIpWhiteListRsp(SUpdateIpWhite *pUpdate) {
     char  *key = taosHashGetKey(pIter, &klen);
     (void)memcpy(pUser->user, key, klen);
 
-    pUser->numOfRange = wl->num;
-    pUser->pIpRanges = taosMemoryCalloc(wl->num, sizeof(SIpRange));
+    pUser->numOfRange = wlNum + numOfDnodeRanges;
+    pUser->pIpRanges = taosMemoryCalloc(pUser->numOfRange, sizeof(SIpRange));
     if (pUser->pIpRanges == NULL) {
+      pUpdate->numOfUser = count;  // let the caller's free helper release ranges already populated
+      taosHashCancelIterate(userCache.users, pIter);
       (void)taosThreadRwlockUnlock(&userCache.rw);
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
 
-    (void)memcpy(pUser->pIpRanges, wl->pIpRanges, wl->num * sizeof(SIpRange));
+    if (wlNum > 0) {
+      (void)memcpy(pUser->pIpRanges, wl->pIpRanges, wlNum * sizeof(SIpRange));
+    }
+    if (numOfDnodeRanges > 0) {
+      (void)memcpy(pUser->pIpRanges + wlNum, pDnodeRanges, numOfDnodeRanges * sizeof(SIpRange));
+    }
     count++;
     pIter = taosHashIterate(userCache.users, pIter);
   }
@@ -4228,13 +4511,20 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   if (pAlterReq->hasPassword) {
     auditLen += snprintf(auditLog, sizeof(auditLog), "password,");
 
-    TAOS_CHECK_GOTO(mndCheckPasswordFmt(pAlterReq->pass), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndCheckAlterUserReqPasswordFmt(pAlterReq), &lino, _OVER);
     if (newUser.salt[0] == 0) {
       generateSalt(newUser.salt, sizeof(newUser.salt));
     }
     char pass[TSDB_PASSWORD_LEN] = {0};
-    taosEncryptPass_c((uint8_t *)pAlterReq->pass, strlen(pAlterReq->pass), pass);
+    memcpy(pass, pAlterReq->pass, sizeof(pass));
     pass[sizeof(pass) - 1] = 0;
+    if (tsForceScram) {
+      if (pAlterReq->scram.algo == TSDB_SCRAM_ALGO_SHA256) {
+        newUser.scram = pAlterReq->scram;
+      } else {
+        mndGenScramCred(pass, &newUser.scram);
+      }
+    }
     if (strlen(tsDataKey) > 0) {
       TAOS_CHECK_GOTO(mndEncryptPass(pass, newUser.salt, &newUser.passEncryptAlgorithm), &lino, _OVER);
     }
@@ -4304,6 +4594,39 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   if (pAlterReq->hasSysinfo) {
     auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "sysinfo:%d,", pAlterReq->sysinfo);
     newUser.sysInfo = pAlterReq->sysinfo;
+#ifdef TD_ENTERPRISE
+    // `alter user ... sysinfo N` is an explicit override: force the flag regardless of roles,
+    // and mirror the change into the paired SYSINFO_0/SYSINFO_1 roles so the user does not have
+    // to adjust the role separately. Super users carry no SYSINFO_x role, so they are skipped.
+    if (!newUser.superUser && newUser.roles != NULL) {
+      uint8_t roleFlag = 0x01;
+      if (newUser.sysInfo == 1) {
+        // raised: ensure SYSINFO_1, remove the baseline SYSINFO_0
+        int32_t rmCode = taosHashRemove(newUser.roles, TSDB_ROLE_SYSINFO_0, sizeof(TSDB_ROLE_SYSINFO_0));
+        if (rmCode != 0 && rmCode != TSDB_CODE_NOT_FOUND) {
+          mWarn("user:%s, failed to remove role:%s at line %d since %s", newUser.user, TSDB_ROLE_SYSINFO_0, lino,
+                tstrerror(rmCode));
+        }
+        if (taosHashGet(newUser.roles, TSDB_ROLE_SYSINFO_1, sizeof(TSDB_ROLE_SYSINFO_1)) == NULL) {
+          TAOS_CHECK_GOTO(
+              taosHashPut(newUser.roles, TSDB_ROLE_SYSINFO_1, sizeof(TSDB_ROLE_SYSINFO_1), &roleFlag, sizeof(roleFlag)),
+              &lino, _OVER);
+        }
+      } else {
+        // lowered: ensure SYSINFO_0, remove the elevated SYSINFO_1 (if any)
+        int32_t rmCode = taosHashRemove(newUser.roles, TSDB_ROLE_SYSINFO_1, sizeof(TSDB_ROLE_SYSINFO_1));
+        if (rmCode != 0 && rmCode != TSDB_CODE_NOT_FOUND) {
+          mWarn("user:%s, failed to remove role:%s at line %d since %s", newUser.user, TSDB_ROLE_SYSINFO_1, lino,
+                tstrerror(rmCode));
+        }
+        if (taosHashGet(newUser.roles, TSDB_ROLE_SYSINFO_0, sizeof(TSDB_ROLE_SYSINFO_0)) == NULL) {
+          TAOS_CHECK_GOTO(
+              taosHashPut(newUser.roles, TSDB_ROLE_SYSINFO_0, sizeof(TSDB_ROLE_SYSINFO_0), &roleFlag, sizeof(roleFlag)),
+              &lino, _OVER);
+        }
+      }
+    }
+#endif
   }
 
 #ifdef TD_ENTERPRISE

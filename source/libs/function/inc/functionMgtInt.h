@@ -61,6 +61,12 @@ extern "C" {
 #define FUNC_MGT_SELECT_COLS_FUNC       FUNC_MGT_FUNC_CLASSIFICATION_MASK(32)
 #define FUNC_MGT_PLACE_HOLDER_FUNC      FUNC_MGT_FUNC_CLASSIFICATION_MASK(33)
 #define FUNC_MGT_RSMA_FUNC              FUNC_MGT_FUNC_CLASSIFICATION_MASK(34)
+#define FUNC_MGT_VOLATILE_FUNC          FUNC_MGT_FUNC_CLASSIFICATION_MASK(35)  // never constant-folded (e.g. SLEEP)
+#define FUNC_MGT_NO_PUSHDOWN_FUNC       FUNC_MGT_FUNC_CLASSIFICATION_MASK(36)  // must execute at coordinator, never pushed to vnode
+#define FUNC_MGT_SQL_WINDOW_FUNC       FUNC_MGT_FUNC_CLASSIFICATION_MASK(37)
+#define FUNC_MGT_SQL_WINDOW_ORDER_FUNC FUNC_MGT_FUNC_CLASSIFICATION_MASK(38)
+#define FUNC_MGT_SQL_WINDOW_AGG_FUNC   FUNC_MGT_FUNC_CLASSIFICATION_MASK(39)
+#define FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC FUNC_MGT_FUNC_CLASSIFICATION_MASK(40)
 
 #define FUNC_MGT_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
@@ -111,6 +117,10 @@ extern "C" {
 #define FUNC_PARAM_MUST_HAVE_COLUMN                    3
 #define FUNC_PARAM_MUST_BE_TIME_UNIT                   4
 #define FUNC_PARAM_VALUE_NODE_NOT_NULL                 5
+/* Like FUNC_PARAM_MUST_BE_TIME_UNIT but also accepts calendar units
+ * n/q/y with multiplier strictly 1 (i.e. 1n/1q/1y).  Nx (N>1) is invalid. */
+#define FUNC_PARAM_MUST_BE_TIME_UNIT_OR_CALENDAR       6
+#define FUNC_PARAM_MUST_BE_TS_COLUMN                   7  // any TIMESTAMP column, not necessarily primary key
 
 #define FUNC_PARAM_NO_SPECIFIC_VALUE                  0
 #define FUNC_PARAM_HAS_RANGE                          1

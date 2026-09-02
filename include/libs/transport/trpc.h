@@ -73,6 +73,7 @@ typedef struct SRpcHandleInfo {
   int64_t      qId;     // queryId Get from client, other req's qId = -1;
   int32_t      refIdMgt;
   int32_t      msgType;
+  txn_id_t     txnId;   // batch-meta-txn: non-zero when this message belongs to a transaction
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {
@@ -96,6 +97,7 @@ typedef bool (*RpcTfp)(int32_t code, tmsg_t msgType);
 typedef bool (*RpcFFfp)(tmsg_t msgType);
 typedef bool (*RpcNoDelayfp)(tmsg_t msgType);
 typedef void (*RpcDfp)(void *ahandle);
+typedef bool (*RpcRetryOnOverloadFp)(int32_t code, tmsg_t msgType);
 
 typedef struct SRpcInit {
   char     localFqdn[TSDB_FQDN_LEN];
@@ -111,6 +113,9 @@ typedef struct SRpcInit {
   int32_t retryStepFactor;   // retry interval factor
   int32_t retryMaxInterval;  // retry max interval
   int64_t retryMaxTimeout;
+
+  int32_t retryOnOverloadBaseInterval;   // base interval (ms) for overload retry, doubles each attempt
+  int32_t retryOnOverloadTimeout; // max total duration (ms) for overload retry
 
   int32_t failFastThreshold;
   int32_t failFastInterval;
@@ -137,6 +142,8 @@ typedef struct SRpcInit {
 
   RpcNoDelayfp noDelayFp;
 
+  // check if error code should trigger overload retry
+  RpcRetryOnOverloadFp retryOnOverloadFp;
   int32_t connLimitNum;
   int32_t connLimitLock;
   int32_t timeToGetConn;
@@ -296,6 +303,7 @@ typedef bool (*RpcTfp)(int32_t code, tmsg_t msgType);
 typedef bool (*RpcFFfp)(tmsg_t msgType);
 typedef bool (*RpcNoDelayfp)(tmsg_t msgType);
 typedef void (*RpcDfp)(void *ahandle);
+typedef bool (*RpcRetryOnOverloadFp)(int32_t code, tmsg_t msgType);
 
 typedef struct SRpcInit {
   char     localFqdn[TSDB_FQDN_LEN];
@@ -311,6 +319,9 @@ typedef struct SRpcInit {
   int32_t retryStepFactor;   // retry interval factor
   int32_t retryMaxInterval;  // retry max interval
   int64_t retryMaxTimeout;
+
+  int32_t retryOnOverloadBaseInterval;   // base interval (ms) for overload retry, doubles each attempt
+  int32_t retryOnOverloadTimeout; // max total duration (ms) for overload retry
 
   int32_t failFastThreshold;
   int32_t failFastInterval;
@@ -336,6 +347,9 @@ typedef struct SRpcInit {
   RpcFFfp ffp;
 
   RpcNoDelayfp noDelayFp;
+
+  // check if error code should trigger overload retry
+  RpcRetryOnOverloadFp retryOnOverloadFp;
 
   int32_t connLimitNum;
   int32_t connLimitLock;

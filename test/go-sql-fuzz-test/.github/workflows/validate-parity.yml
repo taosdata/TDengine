@@ -1,0 +1,46 @@
+name: Validate Parity
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate-parity:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: sqlparse/go.mod
+          cache-dependency-path: sqlparse/go.sum
+
+      - name: Install goyacc
+        run: |
+          go install golang.org/x/tools/cmd/goyacc@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+
+      - name: Ensure scripts are executable
+        working-directory: sqlparse
+        run: chmod +x tool/migrate/*.sh
+
+      - name: Run parity validation
+        working-directory: sqlparse
+        run: make validate-parity
+
+      - name: Upload parity reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: parity-reports
+          path: sqlparse/reports/final

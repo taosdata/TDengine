@@ -1310,7 +1310,7 @@ _end:
   return code;
 }
 
-int32_t doAdjustValidDataIters(SArray* pLDIterList, int32_t numOfFileObj) {
+int32_t doAdjustValidDataIters(SArray* pLDIterList, int32_t numOfFileObj, SSttBlockLoadCostInfo* pLoadCost) {
   int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     lino = 0;
   int32_t     size = 0;
@@ -1334,7 +1334,21 @@ int32_t doAdjustValidDataIters(SArray* pLDIterList, int32_t numOfFileObj) {
     inc = size - numOfFileObj;
 
     for (int32_t i = 0; i < inc; ++i) {
-      pIter = taosArrayPop(pLDIterList);
+      /*
+       * taosArrayPop returns the address of the popped slot (SLDataIter**),
+       * not the iterator pointer itself.
+       */
+      SLDataIter** ppIter = taosArrayPop(pLDIterList);
+      pIter = (ppIter != NULL) ? *ppIter : NULL;
+      /*
+       * Flush the iterator's accumulated STT block-load cost before destroying
+       * it; destroyLDataIter() frees pBlockLoadInfo (and its cost) without
+       * accounting for it, which would silently drop stt_load_blocks stats in
+       * EXPLAIN ANALYZE.
+       */
+      if (pIter != NULL && pIter->pBlockLoadInfo != NULL) {
+        tSttBlockLoadCostAdd(pLoadCost, &pIter->pBlockLoadInfo->cost);
+      }
       destroyLDataIter(pIter);
     }
   }
@@ -1346,7 +1360,7 @@ _end:
   return code;
 }
 
-int32_t adjustSttDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet) {
+int32_t adjustSttDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet, SSttBlockLoadCostInfo* pLoadCost) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
   int32_t  numOfLevels = 0;
@@ -1371,7 +1385,7 @@ int32_t adjustSttDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet) 
   for (int32_t j = 0; j < numOfLevels; ++j) {
     pSttLevel = pFileSet->lvlArr->data[j];
     pList = taosArrayGetP(pSttFileBlockIterArray, j);
-    code = doAdjustValidDataIters(pList, TARRAY2_SIZE(pSttLevel->fobjArr));
+    code = doAdjustValidDataIters(pList, TARRAY2_SIZE(pSttLevel->fobjArr), pLoadCost);
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
@@ -1397,8 +1411,11 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
     goto _end;
   }
 
-  // add the list/iter placeholder
-  code = adjustSttDataIters(pSttFileBlockIterArray, pFileSet);
+  /*
+   * add the list/iter placeholder. This is the planning rows-count path; it
+   * does not contribute to the query's reported I/O cost, so no accumulator.
+   */
+  code = adjustSttDataIters(pSttFileBlockIterArray, pFileSet, NULL);
   TSDB_CHECK_CODE(code, lino, _end);
 
   for (int32_t j = 0; j < numOfLevels; ++j) {

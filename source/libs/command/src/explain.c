@@ -97,6 +97,82 @@ char* qExplainGetTimerangeTargetStr(int32_t target) {
   return targetName[target];
 }
 
+/*
+ * Build comma-separated STATE_WINDOW key names with graceful truncation.
+ * The output always remains NUL-terminated and ends with "..." when truncated.
+ */
+static void qExplainBuildStateKeyDesc(const SNodeList* pStateKeys, char* pDesc, int32_t descSize) {
+  if (NULL == pDesc || descSize <= 0) {
+    return;
+  }
+
+  pDesc[0] = '\0';
+  if (NULL == pStateKeys || LIST_LENGTH(pStateKeys) <= 0) {
+    tstrncpy(pDesc, "<unknown>", descSize);
+    return;
+  }
+
+  size_t used = 0;
+  bool   truncated = false;
+  SNode* pKey = NULL;
+  FOREACH(pKey, pStateKeys) {
+    const char* pName = nodesGetNameFromColumnNode(pKey);
+    if (NULL == pName || '\0' == pName[0]) {
+      pName = "<unknown>";
+    }
+
+    bool   needSep = (used > 0);
+    size_t sepLen = needSep ? 1 : 0;
+    size_t nameLen = strlen(pName);
+    size_t remain = (size_t)descSize - used;
+
+    if (remain <= 1) {
+      truncated = true;
+      break;
+    }
+
+    if (sepLen + nameLen < remain) {
+      if (needSep) {
+        pDesc[used++] = ',';
+      }
+      (void)memcpy(pDesc + used, pName, nameLen);
+      used += nameLen;
+      pDesc[used] = '\0';
+      continue;
+    }
+
+    if (needSep && remain > 1) {
+      pDesc[used++] = ',';
+      remain = (size_t)descSize - used;
+    }
+
+    if (remain <= 1) {
+      truncated = true;
+      break;
+    }
+
+    if (remain > 4) {
+      size_t copyLen = remain - 4;
+      (void)memcpy(pDesc + used, pName, copyLen);
+      used += copyLen;
+      (void)memcpy(pDesc + used, "...", 3);
+      used += 3;
+    } else {
+      size_t dots = remain - 1;
+      (void)memset(pDesc + used, '.', dots);
+      used += dots;
+    }
+
+    pDesc[used] = '\0';
+    truncated = true;
+    break;
+  }
+
+  if ('\0' == pDesc[0]) {
+    tstrncpy(pDesc, truncated ? "..." : "<unknown>", descSize);
+  }
+}
+
 static bool qExplainRspMatchVgIds(const SExplainRsp* pRsp, const SArray* pVgIds) {
   if (NULL == pRsp || NULL == pVgIds || pRsp->numOfPlans <= 0 ||
       NULL == pRsp->subplanInfo) {
@@ -178,7 +254,7 @@ void qExplainFreeCtx(SExplainCtx *pCtx) {
   taosMemoryFree(pCtx);
 }
 
-static int32_t qExplainInitCtx(SExplainCtx **pCtx, bool verbose, double ratio, EExplainMode mode) {
+static int32_t qExplainInitCtx(SExplainCtx **pCtx, bool verbose, double ratio, EExplainMode mode, timezone_t tz) {
   int32_t      code = 0;
   SExplainCtx *ctx = taosMemoryCalloc(1, sizeof(SExplainCtx));
   if (NULL == ctx) {
@@ -201,6 +277,7 @@ static int32_t qExplainInitCtx(SExplainCtx **pCtx, bool verbose, double ratio, E
   ctx->mode = mode;
   ctx->verbose = verbose;
   ctx->ratio = ratio;
+  ctx->tz = tz;
   ctx->tbuf = tbuf;
   ctx->rows = rows;
 
@@ -328,6 +405,14 @@ static int32_t qExplainBufAppendExecInfo(SArray *pExecInfo, char *tbuf,
     maxExecInfo.execLastRow = TMAX(maxExecInfo.execLastRow, pExec->execLastRow);
     maxExecInfo.numOfRows = TMAX(maxExecInfo.numOfRows, pExec->numOfRows);
   }
+  /*
+   * Filter efficiency is the fraction of scanned rows that pass the filter
+   * (numOfRows = rows emitted, inputRows = rows scanned), so it is in [0, 100].
+   * numOfRows is the operator's OUTPUT-row count maintained by recordOpExecEnd;
+   * scan operators must not also add their scan-input rows to that counter (see
+   * getBlockForTableMergeScan), otherwise the ratio would spuriously exceed
+   * 100%.
+   */
   *filterEfficiency = execInfo.inputRows > 0 ?
                       (double)execInfo.numOfRows * 100.0 / (double)execInfo.inputRows : 100.0;
 
@@ -529,10 +614,10 @@ static int32_t qExplainExecAnalyze(const SExplainResNode *pResNode,
   }
 
   if (nodeNum == 1) {
-    if (formatTimestampLocal(createAvgTs, sizeof(createAvgTs), execInfo.execCreate,
-                             TSDB_TIME_PRECISION_MICRO) == NULL) {
+    if (formatTimestampTz(createAvgTs, sizeof(createAvgTs), execInfo.execCreate,
+                          TSDB_TIME_PRECISION_MICRO, ctx->tz) == NULL) {
       /*
-        If formatTimestampLocal fails, set the first char to '\0' to ensure
+        If formatTimestampTz fails, set the first char to '\0' to ensure
         createAvgTs is an empty string to avoid using uninitialized data.
       */
       createAvgTs[0] = '\0';
@@ -554,12 +639,12 @@ static int32_t qExplainExecAnalyze(const SExplainResNode *pResNode,
   } else if (nodeNum > 1) {
     int64_t createAvgUs = execInfo.execCreate / nodeNum;
     int64_t createMaxUs = maxExecInfo.execCreate;
-    if (formatTimestampLocal(createAvgTs, sizeof(createAvgTs), createAvgUs,
-                             TSDB_TIME_PRECISION_MICRO) == NULL) {
+    if (formatTimestampTz(createAvgTs, sizeof(createAvgTs), createAvgUs,
+                          TSDB_TIME_PRECISION_MICRO, ctx->tz) == NULL) {
       createAvgTs[0] = '\0';
     }
-    if (formatTimestampLocal(createMaxTs, sizeof(createMaxTs), createMaxUs,
-                             TSDB_TIME_PRECISION_MICRO) == NULL) {
+    if (formatTimestampTz(createMaxTs, sizeof(createMaxTs), createMaxUs,
+                          TSDB_TIME_PRECISION_MICRO, ctx->tz) == NULL) {
       createMaxTs[0] = '\0';
     }
     EXPLAIN_ROW_APPEND(EXPLAIN_COMPUTE_FORMAT_EXT,
@@ -736,6 +821,42 @@ static int32_t qExplainIOAnalyze(const SExplainResNode *pResNode,
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t qExplainAppendAnalysisFuncRow(SExplainResNode *pResNode, SExplainCtx *ctx,
+                                             int32_t level, const char* funcName,
+                                             const SDataBlockDescNode* pOutputDesc) {
+  int32_t tlen = 0;
+  char   *tbuf = ctx->tbuf;
+  bool    isVerboseLine = false;
+  bool    verbose = ctx->verbose;
+  double  filterEfficiency = 100;
+  bool    hasEfficiency = ctx->mode == EXPLAIN_MODE_ANALYZE && pResNode->pExecInfo;
+
+  EXPLAIN_ROW_NEW(level, "%s", funcName);
+  EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
+  if (pResNode->pExecInfo) {
+    QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+  }
+
+  EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pOutputDesc->totalRowSize);
+  EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
+  EXPLAIN_ROW_END();
+  QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
+
+  if (verbose) {
+    EXPLAIN_ROW_NEW(level + 1, EXPLAIN_OUTPUT_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT,
+                       nodesGetOutputNumFromSlotList(pOutputDesc->pSlots));
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pOutputDesc->outputRowSize);
+    EXPLAIN_ROW_END();
+    QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+    QRY_ERR_RET(qExplainExecAnalyze(pResNode, ctx, level));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, int32_t *pLevel) {
   int32_t     tlen = 0;
   bool        isVerboseLine = false;
@@ -802,6 +923,112 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       }
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE: {
+      STagRefSourcePhysiNode *pTagRefNode = (STagRefSourcePhysiNode *)pNode;
+      EXPLAIN_ROW_NEW(level, EXPLAIN_TAG_REF_SOURCE_FORMAT,
+                       pTagRefNode->sourceTableName.dbname, pTagRefNode->sourceTableName.tname);
+      EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
+      if (pResNode->pExecInfo) {
+        QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      }
+      if (pTagRefNode->pRefCols) {
+        EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT, pTagRefNode->pRefCols->length);
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      }
+      EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pTagRefNode->node.pOutputDataBlockDesc->totalRowSize);
+      EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
+      EXPLAIN_ROW_END();
+      QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
+
+      if (verbose) {
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_OUTPUT_FORMAT);
+        EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT,
+                           nodesGetOutputNumFromSlotList(pTagRefNode->node.pOutputDataBlockDesc->pSlots));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+        EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pTagRefNode->node.pOutputDataBlockDesc->outputRowSize);
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+      }
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN: {
+      SFederatedScanPhysiNode *pFedScanNode = (SFederatedScanPhysiNode *)pNode;
+      SExtTableNode *pExtTable = (SExtTableNode *)pFedScanNode->pExtTable;
+      const char *extTblName = (pExtTable != NULL) ? pExtTable->table.tableName : "";
+      const char *extSrcName = (pExtTable != NULL) ? pExtTable->sourceName : "";
+      const char *srcType    = "external";
+      switch ((EExtSourceType)pFedScanNode->sourceType) {
+        case EXT_SOURCE_MYSQL:      srcType = "mysql";      break;
+        case EXT_SOURCE_POSTGRESQL: srcType = "postgresql"; break;
+        case EXT_SOURCE_INFLUXDB:   srcType = "influxdb";   break;
+        default: break;
+      }
+      EXPLAIN_ROW_NEW(level, EXPLAIN_FEDERATED_SCAN_FORMAT, extSrcName, extTblName, srcType);
+      EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
+      if (pResNode->pExecInfo) {
+        QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      }
+      EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pFedScanNode->node.pOutputDataBlockDesc->totalRowSize);
+      EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
+      EXPLAIN_ROW_END();
+      QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
+
+      if (verbose) {
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_OUTPUT_FORMAT);
+        EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT,
+                           nodesGetOutputNumFromSlotList(pFedScanNode->node.pOutputDataBlockDesc->pSlots));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+        EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pFedScanNode->node.pOutputDataBlockDesc->outputRowSize);
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+
+        // Connection info (without password)
+        EXPLAIN_ROW_NEW(level + 1, "Source: %s:%d user=%s",
+                        pFedScanNode->srcHost, pFedScanNode->srcPort, pFedScanNode->srcUser);
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+
+        // Remote SQL — generated directly from the physical plan, shown even without EXPLAIN ANALYZE.
+        if (pFedScanNode->pRemotePlan != NULL) {
+          char*   remoteSql = NULL;
+          int32_t sqlCode   = nodesRemotePlanToSQL(
+              (const SPhysiNode*)pFedScanNode->pRemotePlan, pFedScanNode->sourceType,
+              NULL, &remoteSql);  // EXPLAIN has no subquery resolve context
+          if (sqlCode == TSDB_CODE_SUCCESS && remoteSql != NULL) {
+            EXPLAIN_ROW_NEW(level + 1, "Remote SQL: %s", remoteSql);
+            taosMemoryFree(remoteSql);
+          } else {
+            EXPLAIN_ROW_NEW(level + 1, "Remote SQL: (generation failed, code=0x%x %s)",
+                            sqlCode, tstrerror(sqlCode));
+          }
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        }
+
+        // Runtime stats — only available after EXPLAIN ANALYZE execution.
+        if (pResNode->pExecInfo && taosArrayGetSize(pResNode->pExecInfo) > 0) {
+          const SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
+          if (execInfo != NULL && execInfo->verboseInfo != NULL) {
+            const SFederatedScanExplainInfo *pFedInfo =
+                (const SFederatedScanExplainInfo *)execInfo->verboseInfo;
+            EXPLAIN_ROW_NEW(level + 1,
+                            "Remote rows=%" PRId64 ", blocks=%" PRId64 ", elapsed=%.3fms",
+                            pFedInfo->fetchedRows, pFedInfo->fetchBlockCount,
+                            (double)pFedInfo->elapsedTimeUs / 1000.0);
+            EXPLAIN_ROW_END();
+            QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+          }
+        }
+
+        QRY_ERR_RET(qExplainAppendFilterRow(ctx, level, pFedScanNode->node.pConditions,
+                                            &tlen, hasEfficiency ? &filterEfficiency : NULL));
+
+        QRY_ERR_RET(qExplainExecAnalyze(pResNode, ctx, level));
+      }
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN: {
       SVirtualScanPhysiNode *pVirtualTableScanNode = (SVirtualScanPhysiNode *)pNode;
       EXPLAIN_ROW_NEW(level, EXPLAIN_VIRTUAL_TABLE_SCAN_FORMAT, pVirtualTableScanNode->scan.tableName.tname);
@@ -810,7 +1037,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT, pVirtualTableScanNode->scan.pScanCols->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT, LIST_LENGTH(pVirtualTableScanNode->scan.pScanCols));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       if (pVirtualTableScanNode->scan.pScanPseudoCols) {
         EXPLAIN_ROW_APPEND(EXPLAIN_PSEUDO_COLUMNS_FORMAT, pVirtualTableScanNode->scan.pScanPseudoCols->length);
@@ -1576,9 +1803,15 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE: {
       SStateWindowPhysiNode *pStateNode = (SStateWindowPhysiNode *)pNode;
+      char                  stateKeyDesc[TSDB_EXPLAIN_RESULT_ROW_SIZE] = {0};
+      /* Reserve trailing space for row suffix such as function count / width / exec info. */
+      int32_t stateKeyDescCap = (int32_t)sizeof(stateKeyDesc) - EXPLAIN_STATE_KEY_DESC_RESERVED_SIZE;
+      if (stateKeyDescCap < 128) {
+        stateKeyDescCap = (int32_t)sizeof(stateKeyDesc);
+      }
+      qExplainBuildStateKeyDesc(pStateNode->pStateKeys, stateKeyDesc, stateKeyDescCap);
 
-      EXPLAIN_ROW_NEW(level, EXPLAIN_STATE_WINDOW_FORMAT,
-                      nodesGetNameFromColumnNode(pStateNode->pStateKey));
+      EXPLAIN_ROW_NEW(level, EXPLAIN_STATE_WINDOW_FORMAT, stateKeyDesc);
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
@@ -2281,6 +2514,39 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       }
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC: {
+      SWindowFuncPhysiNode* pWindow = (SWindowFuncPhysiNode*)pNode;
+      EXPLAIN_ROW_NEW(level, EXPLAIN_STRING_TYPE_FORMAT, "WindowFunc");
+      EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
+      if (pResNode->pExecInfo) {
+        QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      }
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, LIST_LENGTH(pWindow->pFuncs));
+      EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pWindow->node.pOutputDataBlockDesc->totalRowSize);
+      EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
+      EXPLAIN_ROW_END();
+      QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
+
+      if (verbose) {
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_OUTPUT_FORMAT);
+        EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT,
+                           nodesGetOutputNumFromSlotList(pWindow->node.pOutputDataBlockDesc->pSlots));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+        EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pWindow->node.pOutputDataBlockDesc->outputRowSize);
+        EXPLAIN_ROW_APPEND_LIMIT(pWindow->node.pLimit);
+        EXPLAIN_ROW_APPEND_SLIMIT(pWindow->node.pSlimit);
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+
+        QRY_ERR_RET(qExplainAppendFilterRow(ctx, level, pWindow->node.pConditions,
+                                            &tlen, hasEfficiency ? &filterEfficiency : NULL));
+
+        QRY_ERR_RET(qExplainExecAnalyze(pResNode, ctx, level));
+      }
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT: {
       SCountWindowPhysiNode *pCountNode = (SCountWindowPhysiNode *)pNode;
       EXPLAIN_ROW_NEW(level, EXPLAIN_COUNT_FORMAT);
@@ -2435,6 +2701,25 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
 
         QRY_ERR_RET(qExplainExecAnalyze(pResNode, ctx, level));
       }
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER: {
+      SDistinctFilterPhysiNode *pDistFilter = (SDistinctFilterPhysiNode *)pNode;
+      QRY_ERR_RET(qExplainAppendAnalysisFuncRow(pResNode, ctx, level, "Distinct Filter",
+                                                pDistFilter->node.pOutputDataBlockDesc));
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC: {
+      SGenericAnalysisPhysiNode *pAnalysisNode = (SGenericAnalysisPhysiNode *)pNode;
+      QRY_ERR_RET(qExplainAppendAnalysisFuncRow(pResNode, ctx, level, "Generic Analysis",
+                                                pAnalysisNode->node.pOutputDataBlockDesc));
+      break;
+    }
+
+    case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC: {
+      SForecastFuncPhysiNode *pForecastNode = (SForecastFuncPhysiNode *)pNode;
+      QRY_ERR_RET(qExplainAppendAnalysisFuncRow(pResNode, ctx, level, "Forecast",
+                                                pForecastNode->node.pOutputDataBlockDesc));
       break;
     }
     default:
@@ -2711,7 +2996,7 @@ static int32_t qExplainBuildCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {
     QRY_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  QRY_ERR_JRET(qExplainInitCtx(&ctx, pDag->explainInfo.verbose, pDag->explainInfo.ratio, pDag->explainInfo.mode));
+  QRY_ERR_JRET(qExplainInitCtx(&ctx, pDag->explainInfo.verbose, pDag->explainInfo.ratio, pDag->explainInfo.mode, pDag->explainInfo.tz));
 
   QRY_ERR_JRET(qExplainBuildPlanCtx(pDag, &ctx->planCtx));
   ctx->groupNum = ctx->planCtx.groupNum;
@@ -2901,4 +3186,3 @@ int32_t qExecExplainEnd(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) {
 SExplainPlanCtx* qExplainGetCurrPlan(SExplainCtx *pCtx, int32_t subJobId) {
   return EXPLAIN_GET_CUR_PLAN_CTX(pCtx, subJobId);
 }
-

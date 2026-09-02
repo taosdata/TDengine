@@ -99,8 +99,7 @@ class Test5dnode3mnodeStopConnect:
 
         Since: xxx
 
-        Labels: xxx
-
+        Labels: common,ci,integration,functional
         Jira: xxx
 
         Catalog:

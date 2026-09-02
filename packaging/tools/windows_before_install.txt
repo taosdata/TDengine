@@ -1,6 +1,4 @@
-TDengine is an open-source, cloud-native time-series database optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. With its built-in caching, stream processing, and data subscription capabilities, TDengine offers a simplified solution for time-series data processing.
+TDengine CLI will be installed in the directory selected in this wizard.
 
-TDengine will be installed under C:\TDengine, users can modify configuration file C:\TDengine\cfg\taos.cfg, set the log file path or other parameters.
-To start/stop TDengine with administrator privileges:  sc start/stop taosd
-To start/stop taosAdapter with administrator privileges: sc start/stop taosadapter
-Please manually remove C:\TDengine from your system PATH environment after you remove TDengine software.
+After installation, open a terminal and run taos to connect using the default settings.
+Run taos --help to view connection and authentication options.

@@ -226,6 +226,9 @@ typedef struct {
   int32_t retryCode;
   int8_t  retryInit;
   int8_t  epsetRetryCnt;
+
+  int64_t overloadRetryStartTs;   // timestamp when overload retry first started
+  int32_t overloadRetryLastInterval;  // last retry interval for exponential backoff
 } SReqCtx;
 typedef enum { Normal, Quit, Release, Register, Update, FreeById, ReloadTLS } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
@@ -609,8 +612,8 @@ int32_t transSendResp(const SRpcMsg* pMsg);
 enum { REQ_STATUS_INIT = 0, REQ_STATUS_PROCESSING };
 
 #if defined(WINDOWS) || defined(DARWIN)
-#define BUFFER_LIMIT       1
-#define STATE_BUFFER_LIMIT 1
+#define BUFFER_LIMIT       16
+#define STATE_BUFFER_LIMIT 16
 #else
 #define BUFFER_LIMIT       4
 #define STATE_BUFFER_LIMIT 8

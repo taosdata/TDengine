@@ -1670,6 +1670,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     tError("failed to read pip ");
     taosMemoryFree(buf->base);
     uv_close((uv_handle_t*)q, NULL);
+    return;
   }
 
   taosMemoryFree(buf->base);
@@ -1791,6 +1792,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
 void* transAcceptThread(void* arg) {
   // opt
   setThreadName("trans-accept");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   SServerObj* srv = (SServerObj*)arg;
   TAOS_UNUSED(uv_run(srv->loop, UV_RUN_DEFAULT));
 
@@ -1944,6 +1946,7 @@ static int32_t addHandleToAcceptloop(void* arg) {
 void* transWorkerThread(void* arg) {
   int32_t code = 0;
   setThreadName("trans-svr-work");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   SWorkThrd* pThrd = (SWorkThrd*)arg;
   tsEnableRandErr = true;
   code = uv_run(pThrd->loop, UV_RUN_DEFAULT);
@@ -2253,6 +2256,10 @@ void* transInitServer(SIpAddr* addr, char* label, int numOfThreads, void* fp, vo
 #elif defined(DARWIN)
   snprintf(pipeName, sizeof(pipeName), "%s%spipe.trans.rpc.%08d-%" PRIu64, tsTempDir, TD_DIRSEP, taosSafeRand(),
            taosGetSelfPthreadId());
+#endif
+
+#if defined(WINDOWS)
+  uv_pipe_pending_instances(&srv->pipeListen, numOfThreads);
 #endif
 
   ret = uv_pipe_bind(&srv->pipeListen, pipeName);

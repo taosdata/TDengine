@@ -1,8 +1,8 @@
-# encoding:utf-8
 # pylint: disable=c0103
 """prophet class definition"""
-from prophet import Prophet
+
 import pandas as pd
+from prophet import Prophet
 
 from taosanalytics.algo.forecast import insert_ts_list
 from taosanalytics.base import AbstractForecastService
@@ -10,6 +10,7 @@ from taosanalytics.base import AbstractForecastService
 
 class _ProphetService(AbstractForecastService):
     """Prophet algorithm to do forecast on input list"""
+
     name = "prophet"
     desc = "do time series data forecast using Facebook Prophet model"
     _builtins = True
@@ -27,13 +28,53 @@ class _ProphetService(AbstractForecastService):
         super().set_params(params)
 
         self.growth = params.get("growth", "linear")
-        self.yearly_seasonality = params.get("yearly_seasonality", "auto")
-        self.weekly_seasonality = params.get("weekly_seasonality", "auto")
-        self.daily_seasonality = params.get("daily_seasonality", "auto")
-        self.changepoint_prior_scale = float(params.get("changepoint_prior_scale", 0.05))
+
+        # Convert seasonality parameters: 'auto' | True | False | numeric value
+        self.yearly_seasonality = self._convert_seasonality(
+            params.get("yearly_seasonality", "auto")
+        )
+        self.weekly_seasonality = self._convert_seasonality(
+            params.get("weekly_seasonality", "auto")
+        )
+        self.daily_seasonality = self._convert_seasonality(
+            params.get("daily_seasonality", "auto")
+        )
+
+        self.changepoint_prior_scale = float(
+            params.get("changepoint_prior_scale", 0.05)
+        )
+
+    @staticmethod
+    def _convert_seasonality(value):
+        """
+        Convert seasonality parameter to valid Prophet format.
+        Valid inputs: 'auto', True, False, or numeric value
+        Returns: 'auto', True, False, or float
+        """
+        if isinstance(value, str):
+            if value.lower() == "auto":
+                return "auto"
+            elif value.lower() == "true":
+                return True
+            elif value.lower() == "false":
+                return False
+            else:
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return "auto"
+        elif isinstance(value, bool):
+            return value
+        elif value is None:
+            return "auto"
+        else:
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                return "auto"
 
     def get_params(self):
-        """ get the default value for fc algorithms """
+        """get the default value for fc algorithms"""
         p = super().get_params()
         p.update(
             {
@@ -41,13 +82,13 @@ class _ProphetService(AbstractForecastService):
                 "yearly_seasonality": self.yearly_seasonality,
                 "weekly_seasonality": self.weekly_seasonality,
                 "daily_seasonality": self.daily_seasonality,
-                "changepoint_prior_scale": self.changepoint_prior_scale
+                "changepoint_prior_scale": self.changepoint_prior_scale,
             }
         )
         return p
 
     def __do_forecast_helper(self, fc_rows):
-        """ do Prophet forecast """
+        """do Prophet forecast"""
         if self.time_step is None:
             raise ValueError("time_step must be specified for Prophet")
 
@@ -55,7 +96,7 @@ class _ProphetService(AbstractForecastService):
         time_index = pd.date_range(
             start=pd.Timestamp(self.ts_list[0], unit=self.precision),
             periods=len(self.list),
-            freq=pd.to_timedelta(self.time_step, unit=self.precision)
+            freq=pd.to_timedelta(self.time_step, unit=self.precision),
         )
 
         df = pd.DataFrame({"ds": time_index, "y": self.list})
@@ -66,15 +107,14 @@ class _ProphetService(AbstractForecastService):
             weekly_seasonality=self.weekly_seasonality,
             daily_seasonality=self.daily_seasonality,
             changepoint_prior_scale=self.changepoint_prior_scale,
-            interval_width=self.conf
+            interval_width=self.conf,
         )
 
         model.fit(df)
 
         # Make future dataframe
         future = model.make_future_dataframe(
-            periods=fc_rows,
-            freq=pd.to_timedelta(self.time_step, unit=self.precision)
+            periods=fc_rows, freq=pd.to_timedelta(self.time_step, unit=self.precision)
         )
 
         forecast = model.predict(future)
@@ -87,14 +127,10 @@ class _ProphetService(AbstractForecastService):
 
         res = [yhat, yhat_lower, yhat_upper] if self.return_conf else [yhat]
 
-        return (
-            res,
-            None,  # Prophet does not expose MSE by default
-            "Prophet"
-        )
+        return (res, None, "Prophet")  # Prophet does not expose MSE by default
 
     def execute(self):
-        """ do fc the time series data """
+        """do fc the time series data"""
         if self.list is None or len(self.list) < 2:
             raise ValueError("number of input data is less than 2")
 
@@ -108,8 +144,4 @@ class _ProphetService(AbstractForecastService):
 
         insert_ts_list(res, self.start_ts, self.time_step, self.rows)
 
-        return {
-            "mse": mse,
-            "model_info": model_info,
-            "res": res
-        }
+        return {"mse": mse, "model_info": model_info, "res": res}

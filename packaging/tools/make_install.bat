@@ -122,6 +122,7 @@ if /I "%Enterprise%"=="TRUE" (
 
 copy %binary_dir%\\build\\bin\\taosd.exe %target_dir% > nul
 copy %binary_dir%\\build\\bin\\taosudf.exe %target_dir% > nul
+copy %binary_dir%\\build\\bin\\taosmqtt.exe %target_dir% > nul
 rem // ── Archive PDB files for crash-dump symbolication ──────────────────────
 rem //   PDBs are NOT shipped to end-users.  They must be stored internally,
 rem //   keyed by version number, so that field crash dumps can be analysed.

@@ -1,3 +1,6 @@
+[files]
+extend-exclude = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.svg", "*.ico"]
+
 [default.extend-identifiers]
 DEFOMMNL049ba = "DEFOMMNL049ba"
 4c71ba2 = "4c71ba2"
@@ -10,3 +13,7 @@ OT = "OT"
 MAPE = "MAPE"
 mosquitto = "mosquitto"
 Sur = "Sur"
+webscoket = "webscoket"
+bse = "bse"
+matric1 = "matric1"
+matric = "matric"

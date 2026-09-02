@@ -10,8 +10,8 @@
   "create_table_thread_count": 4,
   "result_file": "./insert_res.txt",
   "confirm_parameter_prompt": "no",
-  "num_of_records_per_req": 10000,
-  "prepared_rand": 10000,
+  "num_of_records_per_req": 1000,
+  "prepared_rand": 1000,
   "chinese": "no",
   "escape_character": "yes",
   "continue_if_fail": "no",
@@ -35,7 +35,7 @@
           "insert_mode": "taosc",
           "non_stop_mode": "no",
           "line_protocol": "line",
-          "insert_rows": 100000,
+          "insert_rows": 10000,
           "childtable_limit": 0,
           "childtable_offset": 0,
           "interlace_rows": 0,
@@ -89,4 +89,3 @@
     }
   ]
 }
-

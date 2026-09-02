@@ -25,6 +25,7 @@ from .log import *
 from .sql import tdSql
 
 TAOS = "taos"
+OLD_TAOSDUMP = "old_taosdump"
 TAOSDUMP = "taosdump"
 TAOSBENCHMARK = "taosBenchmark"
 TAOSADAPTER = "taosadapter"

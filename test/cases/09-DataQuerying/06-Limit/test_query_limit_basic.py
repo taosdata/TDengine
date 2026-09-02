@@ -61,8 +61,7 @@ class TestLimit:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -279,7 +278,8 @@ class TestLimit:
 
         tdSql.error(f"select * from {tb} limit")
         tdSql.error(f"select * from {tb} offset")
-        tdSql.error(f"select * from {tb} offset 1")
+        tdSql.query(f"select * from {tb} offset 1")
+        tdSql.checkRows(rowNum - 1)
         tdSql.error(f"select * from {tb} offset 1 limit 5")
         tdSql.error(f"select * from {tb} offset 1 limit -1")
 
@@ -1478,7 +1478,8 @@ class TestLimit:
 
         tdSql.error(f"select * from {tb} limit")
         tdSql.error(f"select * from {tb} offset")
-        tdSql.error(f"select * from {tb} offset 1")
+        tdSql.query(f"select * from {tb} offset 1")
+        tdSql.checkRows(rowNum - 1)
         tdSql.error(f"select * from {tb} offset 1 limit 5")
         tdSql.error(f"select * from {tb} offset 1 limit -1")
 

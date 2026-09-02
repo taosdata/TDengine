@@ -74,7 +74,7 @@ class BeforeTest:
                 #process.wait()
                 result = taostest.main({"test_root": self.root_dir, "init": True})
                 if result != 0:
-                    tdLog.error(f"Error run taostest --init: {result}")
+                    tdLog.exit(f"Error run taostest --init: {result}")
             except Exception as e:
                 tdLog.exit(f"Error run taostest --init: {e}")
 
@@ -92,9 +92,9 @@ class BeforeTest:
             #subprocess.run([sys.executable, f"taostest --setup {yaml_file} --mnode-count {mnodes_num}"], check=True, text=True, shell=True, env=env_vars)
             result = taostest.main(setup_params)
             if result != 0:
-                tdLog.error(f"Error run taostest --setup {yaml_file}: {result}")
+                tdLog.exit(f"Error run taostest --setup {yaml_file}: {result}")
         except Exception as e:
-            tdLog.error(f"Exception run taostest --setup {yaml_file}: {e}")
+            tdLog.exit(f"Exception run taostest --setup {yaml_file}: {e}")
 
     def configure_test(self, yaml_file):
 
@@ -235,7 +235,7 @@ class BeforeTest:
         servers = []
         port_base = dnode_config_template["port"] if "port" in dnode_config_template else 6030
         yaml_data["settings"][0]["spec"]["config"]["firstEP"] = f"localhost:{port_base}"
-        mqttport_base = dnode_config_template["mqttPort"] if "mqttPort" in dnode_config_template else 6083
+        mqttport_base = dnode_config_template["mqttPort"] if "mqttPort" in dnode_config_template else 6057
         taosd_binary = "taosd.exe" if sys.platform == "win32" else "taosd"
         taosadapter_binary = "taosadapter.exe" if sys.platform == "win32" else "taosadapter"
         taoskeeper_binary = "taoskeeper.exe" if sys.platform == "win32" else "taoskeeper"
@@ -449,6 +449,8 @@ class BeforeTest:
         request.session.denodes_num = len(servers)
         request.session.create_dnode_num = len(servers)
         request.session.query_policy = 1
+        request.session.restful = False
+        request.session.asan = False
         request.session.yaml_data = yaml_data
         if setting.get("name") == "taosAdapter":
             request.session.adapter = adapter

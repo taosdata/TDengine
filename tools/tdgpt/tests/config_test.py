@@ -1,12 +1,9 @@
 """
 Tests for Config class
 """
+
 import importlib.util
 import os
-import tempfile
-import shutil
-
-import pytest
 
 
 class TestConfig:
@@ -55,7 +52,7 @@ class TestConfig:
 
         # Create a custom config file
         config_file = os.path.join(temp_dir, "custom.config.py")
-        with open(config_file, 'w') as f:
+        with open(config_file, "w") as f:
             f.write("""
 bind = '127.0.0.1:8080'
 workers = 4

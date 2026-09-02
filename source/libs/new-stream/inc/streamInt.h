@@ -133,20 +133,56 @@ void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, ES
 void smUndeployVgTasks(int32_t vgId, bool cleanup);
 int32_t smDeployStreams(SStreamDeployActions* actions);
 void stmDestroySStreamInfo(void* param);
-int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, SColumnInfo* colInfo, const char* pFromState,
-                                      const char* pToState, char** ppContent);
+int32_t streamBuildMultiStateNotifyContent(ESTriggerEventType eventType, const SArray* pStateCols,
+                                           const SArray* pFromStates, const bool* pFromDefined,
+                                           const SArray* pToStates, const bool* pToDefined,
+                                           char** ppContent);
 int32_t streamBuildIdleNotifyContent(ESTriggerEventType eventType, int64_t idleDurationMs, char** ppContent);
 int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t rowIdx,
                                       int32_t condIdx, int32_t winIdx, int64_t groupId, int64_t windowStart,
                                       int64_t parentWindowStart, char** ppContent);
 int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, const SSDataBlock* pBlock, char** ppContent,
-                                            const SArray* pFields, const int32_t startRow, const int32_t endRow);
+                                            const SArray* pFields, const int32_t startRow, const int32_t endRow,
+                                            bool* pHasNotifyRows);
 int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
                                 int64_t groupId, const SArray* pNotifyAddrUrls, int32_t addOptions,
                                 const SSTriggerCalcParam* pParams, int32_t nParam);
+int32_t streamSendNotifyContentWithResult(SStreamTask* pTask, const char* streamName, const char* tableName,
+                                          int32_t triggerType, int64_t groupId, const SArray* pNotifyAddrUrls,
+                                          int32_t addOptions, const SSTriggerCalcParam* pParams, int32_t nParam,
+                                          bool* pAttempted, bool* pDelivered);
+int32_t streamSendNestedResultNotifyContent(SStreamTask* pTask, const char* pStreamName, const char* pTableName,
+                                            int32_t triggerType, int64_t gid, const SArray* pNotifyAddrUrls,
+                                            int32_t addOptions, const SSTriggerCalcParam* pParams,
+                                            const char* const* pTriggerIds, int32_t nParam);
 
-int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int64_t groupId, TSKEY start,
-                            TSKEY end, void*** pppIter);
+int32_t stBuildNestedTriggerId(int64_t gid, const SWindowLineage* pLineage, TSKEY leafStart, int32_t windowIndex,
+                               char triggerId[STREAM_NESTED_TRIGGER_ID_LEN]);
+int32_t stResolveNestedLeafWindowIndex(int32_t runtimeTriggerType, const SLeafInstanceId* pLeafIdentity,
+                                       int32_t notifyType, const char* pExtraNotifyContent, int32_t* pWindowIndex);
+
+int32_t stTriggerNoticeBatchCreate(SStreamTriggerNoticeBatch** ppBatch);
+int32_t stTriggerNoticeBatchStageWindow(SStreamTriggerNoticeBatch* pBatch, const SStreamTriggerTask* pTask,
+                                        const char* pTableName, int64_t gid, int32_t triggerType,
+                                        const SStreamNestedPendingCalcEvent* pEvent);
+bool    stTriggerNoticeBatchHasItems(const SStreamTriggerNoticeBatch* pBatch);
+void    stTriggerNoticeBatchSend(SStreamTriggerNoticeBatch** ppBatch);
+void    stTriggerNoticeBatchAbort(SStreamTriggerNoticeBatch** ppBatch);
+
+int32_t streamBuildNestedTriggerWindowNotice(const SStreamTriggerTask* pTask, const char* pTableName, int64_t gid,
+                                             int32_t triggerType, const SStreamNestedPendingCalcEvent* pEvent,
+                                             char** ppPayload, int32_t* pPayloadLen);
+int32_t streamSendNotifyPayloadOnce(const char* pUrl, const char* pPayload, int32_t payloadLen);
+int32_t streamSendNotifyPayloadCached(const char* pUrl, const char* pPayload, int32_t payloadLen);
+int32_t streamEnqueueNotifyPayload(const char* pUrl, const char* pPayload, int32_t payloadLen);
+int32_t streamNoticeQueueInit(void);
+void    streamNoticeQueueCleanup(void);
+
+int32_t readStreamDataCache(SStreamCacheReadInfo* pInfo, bool* finished);
+int32_t stCreateCalcDataCacheIterMap(SHashObj** ppMap);
+int32_t stCleanupCalcDataCacheItersForRequest(SStreamTriggerTask* pTask, const SSTriggerCalcRequest* pReq);
+int32_t stBindStreamCacheReadScopeForTask(const SStreamRuntimeFuncInfo* pRuntime, bool nested, int32_t expectedNodeId,
+                                          SStreamCacheReadInfo* pReadInfo);
 void streamTimerCleanUp();
 void streamTmrWaitAllCallbacks(void);
 void smRemoveTaskPostCheck(int64_t streamId, SStreamInfo* pStream, bool* isLastTask);
