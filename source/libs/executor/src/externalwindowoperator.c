@@ -2375,7 +2375,7 @@ static void mergeAlignExtWinDo(SOperatorInfo* pOperator) {
       TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
     }
 
-    bool triggerGroupChanged = pStream->isMultiGroupCalc && pExtW->lastTGrpId != 0 &&
+    bool triggerGroupChanged = pStream != NULL && pStream->isMultiGroupCalc && pExtW->lastTGrpId != 0 &&
                                pExtW->lastTGrpId != pBlock->info.id.baseGId &&
                                !extWinGroupIsFinalized(pExtW, pExtW->lastTGrpId);
     bool calcGroupChanged = pExtW->lastCGrpId != pBlock->info.id.groupId;
