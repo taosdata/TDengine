@@ -24,7 +24,7 @@ SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
 hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT | FAST_INTERVAL | EX_INTERVAL
 
 select_list:
     select_expr [, select_expr] ...
@@ -164,6 +164,8 @@ Hints 用于控制单条语句的查询优化。当 Hint 不适用于当前查�
 | `SMALLDATA_TS_SORT`   | 无 | 超级表按时间戳排序时，查询列长度大于等于 256 但行数不多，可提升性能 | 超级表按时间戳排序时 |
 | `SMALLDATA_SCAN_SORT` | 无 | 超级表需要按时间戳有序扫描输出时，用普通表扫描加排序代替表合并扫描；每 vnode 数据量较小时更优。适用于引擎会用表合并扫描产生时间戳有序输出的场景，包括 `ORDER BY ts`，以及会话窗口 `SESSION`、状态窗口 `STATE_WINDOW`（无需显式 `ORDER BY`）；对时间窗口 `INTERVAL`（本身不使用表合并扫描）以及按非时间戳列的 `ORDER BY` 无效 | 小数据量超级表需要时间戳有序时 |
 | `SKIP_TSMA`           | 无 | 显式禁用 TSMA 查询优化 | 带聚合函数的查询语句 |
+| `FAST_INTERVAL`       | 无 | 对符合条件的固定窗口 `INTERVAL` 聚合查询启用 FAST 执行路径 | 无 `PARTITION BY`、`FILL`、窗口偏移或滑动，且不使用日/周/月/年自然时间单位的超级表 `INTERVAL` 聚合查询 |
+| `EX_INTERVAL`         | 无 | 对符合条件的固定窗口 `INTERVAL` 聚合查询启用 EX 执行路径 | 满足 `FAST_INTERVAL` 的基础窗口条件，且无 `LIMIT`、`SLIMIT`；查询仅有一个表扫描、所有 vgroup 位于同一 dnode，选择列表仅支持 `_wstart`、`_wend`、`_wduration`、`COUNT`、`SUM` 和 `AVG` 的受限组合 |
 
 示例：
 
@@ -174,6 +176,8 @@ SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
 SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_SCAN_SORT() */ * from stable1 order by ts;
+SELECT /*+ FAST_INTERVAL() */ _wstart, count(*), sum(c1) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
+SELECT /*+ EX_INTERVAL() */ _wstart, count(*), sum(c1), avg(c2) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
 ```
 
 ## SELECT 列表

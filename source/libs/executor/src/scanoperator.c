@@ -1277,6 +1277,16 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
     /* checkRows is accumulative */
     pOperator->cost.inputRows = pTableScanInfo->base.readRecorder.checkRows;
     pBlock->info.scanFlag = (uint8_t)pTableScanInfo->base.scanFlag;
+    if (pTableScanInfo->fastInterval) {
+      int32_t tableIndex = tableListFind(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid, 0);
+      if (tableIndex < 0) {
+        qError("%s FAST_INTERVAL cannot find table uid:%" PRIu64 " in table list", GET_TASKID(pTaskInfo),
+               pBlock->info.id.uid);
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      pBlock->info.id.uid = (uint64_t)tableIndex;
+    }
 
     (*ppRes) = pBlock;
     return code;
@@ -3213,6 +3223,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
 
   pInfo->tableEndIndex = -1;
   pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
+  pInfo->fastInterval = pTableScanNode->fastInterval;
   pInfo->hasGroupByTag = pTableScanNode->pGroupTags ? true : false;
 
   setOperatorInfo(pOperator, "TableScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, false, OP_NOT_OPENED, pInfo,

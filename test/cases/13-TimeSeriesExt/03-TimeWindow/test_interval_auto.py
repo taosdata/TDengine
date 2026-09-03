@@ -11,6 +11,10 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
+from new_test_framework.utils.interval_hints import (
+    assert_interval_hint_modes,
+    assert_supported_interval_hint_modes,
+)
 import time
 
 
@@ -66,6 +70,7 @@ class TestIntervalMore:
             - 2026-07-09 Tony Zhang Created
         """
         tdLog.info("test auto-offset with an empty ts range (must not hang).")
+        assert_supported_interval_hint_modes()
         tdSql.execute("drop database if exists auto_off")
         tdSql.execute("create database auto_off keep 3650")
         tdSql.execute("use auto_off")
@@ -110,6 +115,13 @@ class TestIntervalMore:
             "and ts < '2026-07-09 06:00:00' interval(28800s, auto)"
         )
         assert rows > 0, "auto-offset over non-empty range must return windows"
+        assert_interval_hint_modes(
+            "select _wstart, avg(col) from ct1 "
+            "where ts >= '2026-07-08 06:00:00' "
+            "and ts < '2026-07-09 06:00:00' interval(28800s, auto)",
+            False,
+            False,
+        )
 
         tdSql.execute("drop database if exists auto_off")
 
@@ -126,6 +138,7 @@ class TestIntervalMore:
         Since: v3.3.0.0
 
         Labels: interval,integration,functional
+
         History:
             - 2024-9-14 Jinqing Kuang Created
             - 2025-5-08 Huo Hong Migrated to new test framework

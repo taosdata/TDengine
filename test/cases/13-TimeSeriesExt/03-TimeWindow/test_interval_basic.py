@@ -1,6 +1,7 @@
 from new_test_framework.utils import (
     tdLog, tdSql, tdStream, sc, clusterComCheck, etool, StreamItem)
 from new_test_framework.utils.common import tdCom
+from new_test_framework.utils.interval_hints import assert_supported_interval_hint_modes
 
 
 class TestInterval:
@@ -93,6 +94,7 @@ class TestInterval:
         tdSql.checkRows(rowNum)
         tdSql.checkData(0, 5, 1)
         tdSql.checkData(0, 2, 60000)
+        assert_supported_interval_hint_modes()
 
         tdLog.info(f"================ step10")
         tdLog.info(f"-------- create database and table")
@@ -1940,6 +1942,7 @@ class TestInterval:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1969,6 +1972,7 @@ class TestInterval:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2026-01-19 Tony Zhang created
 

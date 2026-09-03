@@ -3199,7 +3199,8 @@ void checkJsonStringEqual(const char* pExpect, const char* pActual, const char* 
 }
 
 void checkExprJsonStringEqual(const char* pExpect, const char* pActual) {
-  const char* const ignoredFields[] = {"Flag", "IsDistinct", "TableId", "STableId"};
+  const char* const ignoredFields[] = {"Flag", "IsDistinct", "TableId", "STableId",
+                                       "FastInterval", "ExInterval", "DelayFreeTask"};
   checkJsonStringEqual(pExpect, pActual, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
 }
 
@@ -3215,7 +3216,8 @@ void checkCreateStreamTriggerScanPlan(SCMCreateStreamReq *expect, SCMCreateStrea
   const char* const ignoredFields[] = {"NodeAddr",        "GroupId",         "SubplanId", "DataBlockId",
                                        "Level",           "RequireDataOrder", "ResultDataOrder",
                                        "IsDistinct",      "Flag",            "TableId",
-                                       "STableId",        "InterpFillMode",  "UserAppId"};
+                                       "STableId",        "InterpFillMode",  "UserAppId",
+                                       "FastInterval",    "ExInterval",      "DelayFreeTask"};
   delete_all_specified_fields(j1, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   delete_all_specified_fields(j2, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
 
@@ -3239,7 +3241,8 @@ void checkCreateStreamCalcPlan(SCMCreateStreamReq *expect, SCMCreateStreamReq *r
 
   const char* const ignoredFields[] = {"Name",            "AliasName",       "ColName",  "RequireDataOrder",
                                        "ResultDataOrder", "IsDistinct",      "Flag",     "TableId",
-                                       "STableId",        "InterpFillMode",  "UserAppId"};
+                                       "STableId",        "InterpFillMode",  "UserAppId",
+                                       "FastInterval",    "ExInterval",      "DelayFreeTask"};
   delete_all_specified_fields(j1, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   delete_all_specified_fields(j2, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
 
@@ -3417,7 +3420,8 @@ void checkCreateStreamReq(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
     auto expectScan = (SStreamCalcScan *)taosArrayGet(expect->calcScanPlanList, i);
     ASSERT_EQ(pCalcScan->readFromCache, expectScan->readFromCache);
     const char* const ignoredFields[] = {"RequireDataOrder", "ResultDataOrder", "IsDistinct", "TableId",
-                                         "STableId", "InterpFillMode", "UserAppId"};
+                                         "STableId", "InterpFillMode", "UserAppId", "FastInterval",
+                                         "ExInterval", "DelayFreeTask"};
     checkJsonStringEqual((char*)expectScan->scanPlan, (char*)pCalcScan->scanPlan, ignoredFields,
                          sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   }

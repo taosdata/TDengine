@@ -235,6 +235,8 @@ typedef enum EHintOption {
   HINT_WIN_OPTIMIZE_BATCH,
   HINT_WIN_OPTIMIZE_SINGLE,
   HINT_SMALLDATA_SCAN_SORT,
+  HINT_FAST_INTERVAL,
+  HINT_EX_INTERVAL,
 } EHintOption;
 
 typedef struct SHintNode {

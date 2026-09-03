@@ -17,6 +17,7 @@
 #include "function.h"
 #include "functionMgt.h"
 #include "operator.h"
+#include "osLz4.h"
 #include "query.h"
 #include "querytask.h"
 #include "taoserror.h"
@@ -26,6 +27,7 @@
 #include "tdatablock.h"
 #include "tfill.h"
 #include "tglobal.h"
+#include "thash.h"
 #include "tlog.h"
 #include "ttime.h"
 
@@ -38,6 +40,1092 @@ typedef struct SOpenWindowInfo {
   SResultRowPosition pos;
   uint64_t           groupId;
 } SOpenWindowInfo;
+
+#define FAST_INTERVAL_LOCAL_RESULT_BATCH_ROWS 256
+
+typedef enum EExIntervalCellType {
+  EX_INTERVAL_CELL_WSTART = 1,
+  EX_INTERVAL_CELL_WEND,
+  EX_INTERVAL_CELL_WDURATION,
+  EX_INTERVAL_CELL_COUNT,
+  EX_INTERVAL_CELL_SUM,
+  EX_INTERVAL_CELL_AVG,
+} EExIntervalCellType;
+
+typedef struct SExIntervalCell {
+  double  sum;
+  int64_t count;
+} SExIntervalCell;
+
+typedef struct SExIntervalEntry {
+  int32_t          errCode;
+  int32_t          ready;
+  int32_t          numOfWindows;
+  int32_t          numOfAggs;
+  int32_t          activeCount;
+  int32_t          minActiveWindow;
+  int32_t          maxActiveWindow;
+  int64_t          firstWindowStart;
+  int64_t          interval;
+  int64_t*         pRows;
+  SExIntervalCell* pCells;
+  int16_t          slotIds[EX_INTERVAL_MAX_FUNCTIONS];
+  int8_t           cellTypes[EX_INTERVAL_MAX_FUNCTIONS];
+} SExIntervalEntry;
+
+typedef struct SExIntervalInfo {
+  SExIntervalEntry* pEntry;
+  double*           pLocalSums;
+  int64_t*          pLocalRows;
+  int64_t*          pLocalCounts;
+  int32_t*          pLocalWindowIndexes;
+  int32_t*          pLocalWindows;
+  int32_t            localCapacity;
+  int32_t            numOfLocalWindows;
+  int32_t            activeCount;
+  int32_t            minActiveWindow;
+  int32_t            maxActiveWindow;
+  void*             pHashEntry;
+  uint64_t          queryId;
+  int8_t            localSumIndex[EX_INTERVAL_MAX_FUNCTIONS];
+  int8_t            localCountIndex[EX_INTERVAL_MAX_FUNCTIONS];
+  int8_t            mergeCellIndex[EX_INTERVAL_MAX_FUNCTIONS];
+  int8_t            numOfLocalSums;
+  int8_t            numOfLocalCounts;
+  bool              root;
+  bool              finalized;
+} SExIntervalInfo;
+
+static SHashObj*   gExIntervalHash = NULL;
+static TdThreadOnce gExIntervalHashOnce = PTHREAD_ONCE_INIT;
+
+static bool exIntervalAddInt64(int64_t lhs, int64_t rhs, int64_t* pResult) {
+  if (NULL == pResult || (rhs > 0 && lhs > INT64_MAX - rhs) || (rhs < 0 && lhs < INT64_MIN - rhs)) {
+    return false;
+  }
+
+  *pResult = lhs + rhs;
+  return true;
+}
+
+static bool exIntervalMulInt64(int64_t lhs, int64_t rhs, int64_t* pResult) {
+  if (NULL == pResult) {
+    return false;
+  }
+  if (0 == lhs || 0 == rhs) {
+    *pResult = 0;
+    return true;
+  }
+
+  if ((lhs > 0 && ((rhs > 0 && lhs > INT64_MAX / rhs) || (rhs < 0 && rhs < INT64_MIN / lhs))) ||
+      (lhs < 0 && ((rhs > 0 && lhs < INT64_MIN / rhs) || (rhs < 0 && lhs < INT64_MAX / rhs)))) {
+    return false;
+  }
+
+  *pResult = lhs * rhs;
+  return true;
+}
+
+static void destroyExIntervalEntry(SExIntervalEntry* pEntry) {
+  if (NULL == pEntry) {
+    return;
+  }
+  taosMemoryFreeClear(pEntry->pRows);
+  taosMemoryFreeClear(pEntry->pCells);
+  taosMemoryFree(pEntry);
+}
+
+static void exIntervalAtomicMin(int32_t* pValue, int32_t value) {
+  int32_t current = atomic_load_32(pValue);
+  while (value < current) {
+    int32_t previous = atomic_val_compare_exchange_32(pValue, current, value);
+    if (previous == current) {
+      return;
+    }
+    current = previous;
+  }
+}
+
+static void exIntervalAtomicMax(int32_t* pValue, int32_t value) {
+  int32_t current = atomic_load_32(pValue);
+  while (value > current) {
+    int32_t previous = atomic_val_compare_exchange_32(pValue, current, value);
+    if (previous == current) {
+      return;
+    }
+    current = previous;
+  }
+}
+
+static void exIntervalPublishLocalRange(SExIntervalInfo* pExInfo) {
+  if (pExInfo == NULL || pExInfo->pEntry == NULL || pExInfo->activeCount <= 0) {
+    return;
+  }
+  atomic_add_fetch_32(&pExInfo->pEntry->activeCount, pExInfo->activeCount);
+  exIntervalAtomicMin(&pExInfo->pEntry->minActiveWindow, pExInfo->minActiveWindow);
+  exIntervalAtomicMax(&pExInfo->pEntry->maxActiveWindow, pExInfo->maxActiveWindow);
+}
+
+static void destroyExIntervalHashEntry(void* data) {
+  if (NULL != data) {
+    destroyExIntervalEntry(*(SExIntervalEntry**)data);
+  }
+}
+
+static void cleanupExIntervalHash(void) {
+  taosHashCleanup(gExIntervalHash);
+  gExIntervalHash = NULL;
+}
+
+static void initExIntervalHash(void) {
+  gExIntervalHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
+  if (NULL == gExIntervalHash) {
+    qError("EX_INTERVAL failed to initialize shared result hash, code:%s", tstrerror(terrno));
+    return;
+  }
+  taosHashSetFreeFp(gExIntervalHash, destroyExIntervalHashEntry);
+  if (0 != atexit(cleanupExIntervalHash)) {
+    qError("EX_INTERVAL failed to register shared result hash cleanup");
+    cleanupExIntervalHash();
+  }
+}
+
+static void releaseExIntervalInfo(void** ppInfo) {
+  SExIntervalInfo** ppExInfo = (SExIntervalInfo**)ppInfo;
+  if (NULL == ppExInfo || NULL == *ppExInfo) {
+    return;
+  }
+  SExIntervalInfo* pExInfo = *ppExInfo;
+  if (NULL != pExInfo->pHashEntry && NULL != gExIntervalHash) {
+    int32_t code = taosHashRemove(gExIntervalHash, &pExInfo->queryId, sizeof(pExInfo->queryId));
+    if (TSDB_CODE_SUCCESS != code && TSDB_CODE_NOT_FOUND != code) {
+      qError("EX_INTERVAL failed to discard shared result, qId:%" PRIu64 ", code:%s", pExInfo->queryId,
+             tstrerror(code));
+    }
+  }
+  if (NULL != pExInfo->pHashEntry) {
+    taosHashRelease(gExIntervalHash, pExInfo->pHashEntry);
+    pExInfo->pHashEntry = NULL;
+  }
+  taosMemoryFreeClear(pExInfo->pLocalSums);
+  taosMemoryFreeClear(pExInfo->pLocalRows);
+  taosMemoryFreeClear(pExInfo->pLocalCounts);
+  taosMemoryFreeClear(pExInfo->pLocalWindowIndexes);
+  taosMemoryFreeClear(pExInfo->pLocalWindows);
+  taosMemoryFreeClear(*ppExInfo);
+}
+
+static int32_t acquireExIntervalEntry(SExIntervalInfo* pExInfo) {
+  if (NULL == pExInfo || NULL == gExIntervalHash) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (NULL != pExInfo->pHashEntry && NULL != pExInfo->pEntry) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pExInfo->pHashEntry = taosHashAcquire(gExIntervalHash, &pExInfo->queryId, sizeof(pExInfo->queryId));
+  if (NULL == pExInfo->pHashEntry || NULL == *(SExIntervalEntry**)pExInfo->pHashEntry) {
+    if (NULL != pExInfo->pHashEntry) {
+      taosHashRelease(gExIntervalHash, pExInfo->pHashEntry);
+      pExInfo->pHashEntry = NULL;
+    }
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  pExInfo->pEntry = *(SExIntervalEntry**)pExInfo->pHashEntry;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void setExIntervalError(SExIntervalEntry* pEntry, int32_t code) {
+  if (NULL != pEntry && TSDB_CODE_SUCCESS != code) {
+    (void)atomic_val_compare_exchange_32(&pEntry->errCode, TSDB_CODE_SUCCESS, code);
+  }
+}
+
+static int32_t exIntervalGetFuncType(const SqlFunctionCtx* pCtx, int32_t* pFuncType) {
+  if (NULL == pCtx || NULL == pFuncType || NULL == pCtx->pExpr || NULL == pCtx->pExpr->pExpr ||
+      NULL == pCtx->pExpr->pExpr->_function.pFunctNode) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *pFuncType = pCtx->pExpr->pExpr->_function.pFunctNode->funcType;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t exIntervalGetCellType(const SqlFunctionCtx* pCtx, int8_t* pType) {
+  if (NULL == pType) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t funcType = 0;
+  int32_t code = exIntervalGetFuncType(pCtx, &funcType);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  switch (funcType) {
+    case FUNCTION_TYPE_WSTART:
+      *pType = EX_INTERVAL_CELL_WSTART;
+      break;
+    case FUNCTION_TYPE_WEND:
+      *pType = EX_INTERVAL_CELL_WEND;
+      break;
+    case FUNCTION_TYPE_WDURATION:
+      *pType = EX_INTERVAL_CELL_WDURATION;
+      break;
+    case FUNCTION_TYPE_COUNT:
+      *pType = EX_INTERVAL_CELL_COUNT;
+      break;
+    case FUNCTION_TYPE_SUM:
+      *pType = EX_INTERVAL_CELL_SUM;
+      break;
+    case FUNCTION_TYPE_AVG:
+    case FUNCTION_TYPE_AVG_PARTIAL:
+    case FUNCTION_TYPE_AVG_MERGE:
+      *pType = EX_INTERVAL_CELL_AVG;
+      break;
+    default:
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t exIntervalGetMergeSourceSlot(const SExprInfo* pExpr, int16_t* pSlot) {
+  if (NULL == pExpr || NULL == pSlot) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  for (int32_t i = 0; i < pExpr->base.numOfParams; ++i) {
+    const SFunctParam* pParam = &pExpr->base.pParam[i];
+    if (FUNC_PARAM_TYPE_COLUMN == pParam->type && NULL != pParam->pCol) {
+      *pSlot = pParam->pCol->slotId;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  *pSlot = pExpr->base.resSchema.slotId;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t exIntervalInitCells(SExIntervalEntry* pEntry, SExprSupp* pSup) {
+  if (NULL == pEntry || NULL == pSup || pSup->numOfExprs <= 0 || pSup->numOfExprs > EX_INTERVAL_MAX_FUNCTIONS) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  pEntry->numOfAggs = pSup->numOfExprs;
+  size_t cellCount = (size_t)pEntry->numOfWindows * pEntry->numOfAggs;
+  if (cellCount > SIZE_MAX / sizeof(SExIntervalCell)) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pEntry->pCells = taosMemoryCalloc(cellCount, sizeof(SExIntervalCell));
+  pEntry->pRows = taosMemoryCalloc((size_t)pEntry->numOfWindows, sizeof(int64_t));
+  if (NULL == pEntry->pCells || NULL == pEntry->pRows) {
+    return terrno;
+  }
+  for (int32_t i = 0; i < pEntry->numOfAggs; ++i) {
+    int8_t type = 0;
+    int32_t code = exIntervalGetCellType(&pSup->pCtx[i], &type);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    pEntry->slotIds[i] = pSup->pExprInfo[i].base.resSchema.slotId;
+    pEntry->cellTypes[i] = type;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t exIntervalInitEntry(SExIntervalEntry* pEntry, uint64_t count, int64_t firstWindowStart,
+                                   int64_t interval, SExprSupp* pSup) {
+  if (NULL == pEntry || count > EX_INTERVAL_MAX_WINDOWS || interval <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  pEntry->numOfWindows = (int32_t)count;
+  pEntry->firstWindowStart = firstWindowStart;
+  pEntry->interval = interval;
+  pEntry->activeCount = 0;
+  pEntry->minActiveWindow = pEntry->numOfWindows;
+  pEntry->maxActiveWindow = -1;
+  int32_t code = exIntervalInitCells(pEntry, pSup);
+  if (TSDB_CODE_SUCCESS == code) {
+    atomic_store_32(&pEntry->ready, 1);
+  }
+  return code;
+}
+
+static int32_t exIntervalInitLocalSums(SExIntervalInfo* pExInfo) {
+  if (NULL == pExInfo || NULL == pExInfo->pEntry) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SExIntervalEntry* pEntry = pExInfo->pEntry;
+  TAOS_MEMSET(pExInfo->localSumIndex, -1, sizeof(pExInfo->localSumIndex));
+  TAOS_MEMSET(pExInfo->localCountIndex, -1, sizeof(pExInfo->localCountIndex));
+  for (int32_t expr = 0; expr < pEntry->numOfAggs; ++expr) {
+    int8_t type = pEntry->cellTypes[expr];
+    if (EX_INTERVAL_CELL_SUM == type || EX_INTERVAL_CELL_AVG == type) {
+      pExInfo->localSumIndex[expr] = pExInfo->numOfLocalSums++;
+    }
+    if (EX_INTERVAL_CELL_COUNT == type || EX_INTERVAL_CELL_SUM == type || EX_INTERVAL_CELL_AVG == type) {
+      pExInfo->localCountIndex[expr] = pExInfo->numOfLocalCounts++;
+    }
+  }
+  pExInfo->pLocalWindowIndexes = taosMemoryCalloc((size_t)pEntry->numOfWindows, sizeof(int32_t));
+  return NULL == pExInfo->pLocalWindowIndexes ? terrno : TSDB_CODE_SUCCESS;
+}
+
+static int32_t exIntervalEnsureLocalCapacity(SExIntervalInfo* pExInfo, int32_t required) {
+  if (NULL == pExInfo || NULL == pExInfo->pEntry || required <= 0) return TSDB_CODE_INVALID_PARA;
+  if (required <= pExInfo->localCapacity) return TSDB_CODE_SUCCESS;
+
+  int32_t capacity = pExInfo->localCapacity > 0 ? pExInfo->localCapacity : 64;
+  while (capacity < required) {
+    if (capacity > pExInfo->pEntry->numOfWindows / 2) {
+      capacity = pExInfo->pEntry->numOfWindows;
+      break;
+    }
+    capacity *= 2;
+  }
+  if (capacity < required) return TSDB_CODE_OUT_OF_MEMORY;
+
+  int32_t* pWindows = taosMemoryRealloc(pExInfo->pLocalWindows, (size_t)capacity * sizeof(int32_t));
+  if (NULL == pWindows) return terrno;
+  pExInfo->pLocalWindows = pWindows;
+  int64_t* pRows = taosMemoryRealloc(pExInfo->pLocalRows, (size_t)capacity * sizeof(int64_t));
+  if (NULL == pRows) return terrno;
+  pExInfo->pLocalRows = pRows;
+  if (pExInfo->numOfLocalSums > 0) {
+    if ((size_t)capacity > SIZE_MAX / pExInfo->numOfLocalSums / sizeof(double)) return TSDB_CODE_OUT_OF_MEMORY;
+    double* pSums = taosMemoryRealloc(pExInfo->pLocalSums,
+                                      (size_t)capacity * pExInfo->numOfLocalSums * sizeof(double));
+    if (NULL == pSums) return terrno;
+    pExInfo->pLocalSums = pSums;
+  }
+  if (pExInfo->numOfLocalCounts > 0) {
+    if ((size_t)capacity > SIZE_MAX / pExInfo->numOfLocalCounts / sizeof(int64_t)) return TSDB_CODE_OUT_OF_MEMORY;
+    int64_t* pCounts = taosMemoryRealloc(pExInfo->pLocalCounts,
+                                         (size_t)capacity * pExInfo->numOfLocalCounts * sizeof(int64_t));
+    if (NULL == pCounts) return terrno;
+    pExInfo->pLocalCounts = pCounts;
+  }
+  pExInfo->localCapacity = capacity;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t exIntervalGetLocalWindow(SExIntervalInfo* pExInfo, int32_t window, int32_t* pLocalIndex) {
+  if (NULL == pExInfo || NULL == pExInfo->pEntry || NULL == pExInfo->pLocalWindowIndexes || NULL == pLocalIndex ||
+      window < 0 || window >= pExInfo->pEntry->numOfWindows) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t localIndex = pExInfo->pLocalWindowIndexes[window] - 1;
+  if (localIndex >= 0) {
+    *pLocalIndex = localIndex;
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code = exIntervalEnsureLocalCapacity(pExInfo, pExInfo->numOfLocalWindows + 1);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  localIndex = pExInfo->numOfLocalWindows++;
+  pExInfo->pLocalWindowIndexes[window] = localIndex + 1;
+  pExInfo->pLocalWindows[localIndex] = window;
+  pExInfo->pLocalRows[localIndex] = 0;
+  if (pExInfo->numOfLocalSums > 0) {
+    TAOS_MEMSET(&pExInfo->pLocalSums[(size_t)localIndex * pExInfo->numOfLocalSums], 0,
+                (size_t)pExInfo->numOfLocalSums * sizeof(double));
+  }
+  if (pExInfo->numOfLocalCounts > 0) {
+    TAOS_MEMSET(&pExInfo->pLocalCounts[(size_t)localIndex * pExInfo->numOfLocalCounts], 0,
+                (size_t)pExInfo->numOfLocalCounts * sizeof(int64_t));
+  }
+  pExInfo->activeCount = pExInfo->numOfLocalWindows;
+  if (window < pExInfo->minActiveWindow) pExInfo->minActiveWindow = window;
+  if (window > pExInfo->maxActiveWindow) pExInfo->maxActiveWindow = window;
+  *pLocalIndex = localIndex;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void exIntervalMergeLocalWindow(SExIntervalInfo* pExInfo, int32_t localIndex) {
+  SExIntervalEntry* pEntry = pExInfo->pEntry;
+  int32_t window = pExInfo->pLocalWindows[localIndex];
+  int64_t localRows = pExInfo->pLocalRows[localIndex];
+  if (localRows <= 0) return;
+  atomic_add_fetch_64(&pEntry->pRows[window], localRows);
+  for (int32_t expr = 0; expr < pEntry->numOfAggs; ++expr) {
+    SExIntervalCell* pCell = &pEntry->pCells[(size_t)window * pEntry->numOfAggs + expr];
+    int8_t countIndex = pExInfo->localCountIndex[expr];
+    if (countIndex >= 0) {
+      int64_t count = pExInfo->pLocalCounts[(size_t)localIndex * pExInfo->numOfLocalCounts + countIndex];
+      if (count > 0) atomic_add_fetch_64(&pCell->count, count);
+    }
+    int8_t sumIndex = pExInfo->localSumIndex[expr];
+    if (sumIndex >= 0) {
+      double sum = pExInfo->pLocalSums[(size_t)localIndex * pExInfo->numOfLocalSums + sumIndex];
+      if (sum != 0) atomic_fetch_add_double(&pCell->sum, sum);
+    }
+  }
+}
+
+static int32_t exIntervalMergeLocalSums(SExIntervalInfo* pExInfo) {
+  if (NULL == pExInfo || NULL == pExInfo->pEntry ||
+      (pExInfo->numOfLocalWindows > 0 && (NULL == pExInfo->pLocalWindows || NULL == pExInfo->pLocalRows)) ||
+      (pExInfo->numOfLocalWindows > 0 && pExInfo->numOfLocalSums > 0 && NULL == pExInfo->pLocalSums) ||
+      (pExInfo->numOfLocalWindows > 0 && pExInfo->numOfLocalCounts > 0 && NULL == pExInfo->pLocalCounts)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pExInfo->activeCount <= 0) return TSDB_CODE_SUCCESS;
+  for (int32_t localIndex = 0; localIndex < pExInfo->numOfLocalWindows; ++localIndex) {
+    exIntervalMergeLocalWindow(pExInfo, localIndex);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t exIntervalInitMergeCellIndexes(SExIntervalInfo* pExInfo, const SExprSupp* pSup) {
+  if (NULL == pExInfo || NULL == pExInfo->pEntry || NULL == pSup || pSup->numOfExprs <= 0 ||
+      pSup->numOfExprs > EX_INTERVAL_MAX_FUNCTIONS) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  TAOS_MEMSET(pExInfo->mergeCellIndex, -1, sizeof(pExInfo->mergeCellIndex));
+  if (pExInfo->pEntry->numOfAggs < pSup->numOfExprs) {
+    qError("EX_INTERVAL has fewer vnode expressions:%d than merge expressions:%d, qId:%" PRIu64,
+           pExInfo->pEntry->numOfAggs, pSup->numOfExprs, pExInfo->queryId);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  for (int32_t expr = 0; expr < pSup->numOfExprs; ++expr) {
+    int8_t expectedType = 0;
+    int32_t code = exIntervalGetCellType(&pSup->pCtx[expr], &expectedType);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    int16_t expectedSlot = 0;
+    code = exIntervalGetMergeSourceSlot(&pSup->pExprInfo[expr], &expectedSlot);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    int32_t cell = 0;
+    for (; cell < pExInfo->pEntry->numOfAggs; ++cell) {
+      if (pExInfo->pEntry->slotIds[cell] == expectedSlot) {
+        break;
+      }
+    }
+    if (cell >= pExInfo->pEntry->numOfAggs) {
+      qError("EX_INTERVAL failed to map merge expression:%d, inputSlot:%d, type:%d, qId:%" PRIu64, expr,
+             expectedSlot, expectedType, pExInfo->queryId);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    pExInfo->mergeCellIndex[expr] = (int8_t)cell;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t initExIntervalInfo(SIntervalAggOperatorInfo* pInfo, SOperatorInfo* pOperator, bool root) {
+  if (NULL == pInfo || NULL == pOperator || NULL == pOperator->pTaskInfo) return TSDB_CODE_INVALID_PARA;
+  int32_t code = taosThreadOnce(&gExIntervalHashOnce, initExIntervalHash);
+  if (TSDB_CODE_SUCCESS != code || NULL == gExIntervalHash) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  SExIntervalInfo* pExInfo = taosMemoryCalloc(1, sizeof(SExIntervalInfo));
+  if (NULL == pExInfo) return terrno;
+  pExInfo->queryId = pOperator->pTaskInfo->id.queryId;
+  pExInfo->root = root;
+
+  if (root) {
+    code = acquireExIntervalEntry(pExInfo);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosMemoryFree(pExInfo);
+      return code;
+    }
+    pInfo->pExInterval = pExInfo;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SExIntervalEntry* pNewEntry = taosMemoryCalloc(1, sizeof(SExIntervalEntry));
+  if (NULL == pNewEntry) {
+    taosMemoryFree(pExInfo);
+    return terrno;
+  }
+
+  SResultRowInfo dummy = {0};
+  dummy.cur.pageId = -1;
+  STimeWindow first = getActiveTimeWindow(NULL, &dummy, pInfo->interval.timeRange.skey, &pInfo->interval, TSDB_ORDER_ASC);
+  STimeWindow last = getActiveTimeWindow(NULL, &dummy, pInfo->interval.timeRange.ekey, &pInfo->interval, TSDB_ORDER_ASC);
+  if (pInfo->interval.interval <= 0 || last.skey < first.skey) {
+    destroyExIntervalEntry(pNewEntry);
+    taosMemoryFree(pExInfo);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  uint64_t count = ((uint64_t)last.skey - (uint64_t)first.skey) / (uint64_t)pInfo->interval.interval + 1;
+  if (count > EX_INTERVAL_MAX_WINDOWS) {
+    destroyExIntervalEntry(pNewEntry);
+    taosMemoryFree(pExInfo);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  bool entryInserted = false;
+  code = exIntervalInitEntry(pNewEntry, count, first.skey, pInfo->interval.interval, &pOperator->exprSupp);
+  if (TSDB_CODE_SUCCESS != code) { destroyExIntervalEntry(pNewEntry); taosMemoryFree(pExInfo); return code; }
+  code = taosHashPut(gExIntervalHash, &pExInfo->queryId, sizeof(pExInfo->queryId), &pNewEntry, sizeof(pNewEntry));
+  if (TSDB_CODE_SUCCESS == code) {
+    entryInserted = true;
+  } else if (HASH_NODE_EXIST(code)) {
+    destroyExIntervalEntry(pNewEntry);
+  } else {
+    destroyExIntervalEntry(pNewEntry);
+    taosMemoryFree(pExInfo);
+    return code;
+  }
+
+  code = acquireExIntervalEntry(pExInfo);
+  if (TSDB_CODE_SUCCESS != code) {
+    if (entryInserted) {
+      int32_t removeCode = taosHashRemove(gExIntervalHash, &pExInfo->queryId, sizeof(pExInfo->queryId));
+      if (TSDB_CODE_SUCCESS != removeCode && TSDB_CODE_NOT_FOUND != removeCode) {
+        qError("EX_INTERVAL failed to discard entry after acquire failure, qId:%" PRIu64 ", code:%s", pExInfo->queryId,
+               tstrerror(removeCode));
+      }
+    }
+    taosMemoryFree(pExInfo);
+    return code;
+  }
+  if (0 == atomic_load_32(&pExInfo->pEntry->ready)) {
+    code = exIntervalInitEntry(pExInfo->pEntry, count, first.skey, pInfo->interval.interval, &pOperator->exprSupp);
+    if (TSDB_CODE_SUCCESS != code) {
+      setExIntervalError(pExInfo->pEntry, code);
+      releaseExIntervalInfo((void**)&pExInfo);
+      return code;
+    }
+  }
+  code = exIntervalInitLocalSums(pExInfo);
+  if (TSDB_CODE_SUCCESS != code) {
+    releaseExIntervalInfo((void**)&pExInfo);
+    return code;
+  }
+  pExInfo->minActiveWindow = pExInfo->pEntry->numOfWindows;
+  pExInfo->maxActiveWindow = -1;
+  pInfo->pExInterval = pExInfo;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t exIntervalGetNumericValue(const SColumnInfoData* pCol, int32_t row, double* pValue) {
+  if (NULL == pCol || NULL == pValue) return TSDB_CODE_INVALID_PARA;
+  const void* pData = colDataGetData(pCol, row);
+  if (NULL == pData) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  if (TSDB_DATA_TYPE_FLOAT == pCol->info.type) {
+    *pValue = *(const float*)pData;
+  } else if (TSDB_DATA_TYPE_DOUBLE == pCol->info.type) {
+    *pValue = *(const double*)pData;
+  } else {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t processExIntervalBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+  SIntervalAggOperatorInfo* pInfo = pOperator->info;
+  SExIntervalInfo* pExInfo = pInfo->pExInterval;
+  SExIntervalEntry* pEntry = NULL == pExInfo ? NULL : pExInfo->pEntry;
+  SExprSupp* pSup = &pOperator->exprSupp;
+  if (NULL == pExInfo || NULL == pEntry || NULL == pBlock ||
+      NULL == pExInfo->pLocalWindowIndexes) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  int32_t code = atomic_load_32(&pEntry->errCode);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  if (NULL != pInfo->scalarSupp.pExprInfo) {
+    code = projectApplyFunctions(pInfo->scalarSupp.pExprInfo, pBlock, pBlock, pInfo->scalarSupp.pCtx,
+                                 pInfo->scalarSupp.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo),
+                                 pOperator->pTaskInfo);
+    if (TSDB_CODE_SUCCESS != code) return code;
+  }
+  code = setInputDataBlock(pSup, pBlock, pInfo->binfo.inputTsOrder, pBlock->info.scanFlag, true);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pInfo->primaryTsIndex);
+  if (NULL == pTsCol || TSDB_DATA_TYPE_TIMESTAMP != pTsCol->info.type) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  for (int32_t row = 0; row < pBlock->info.rows; ++row) {
+    int64_t ts = *(int64_t*)colDataGetData(pTsCol, row);
+    if (ts < pEntry->firstWindowStart) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    uint64_t windowIndex = ((uint64_t)ts - (uint64_t)pEntry->firstWindowStart) / (uint64_t)pEntry->interval;
+    if (windowIndex >= (uint64_t)pEntry->numOfWindows) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    int32_t localIndex = -1;
+    code = exIntervalGetLocalWindow(pExInfo, (int32_t)windowIndex, &localIndex);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    pExInfo->pLocalRows[localIndex] += 1;
+    for (int32_t expr = 0; expr < pSup->numOfExprs; ++expr) {
+      int8_t type = pEntry->cellTypes[expr];
+      if (EX_INTERVAL_CELL_WSTART == type || EX_INTERVAL_CELL_WEND == type || EX_INTERVAL_CELL_WDURATION == type) continue;
+      SqlFunctionCtx* pCtx = &pSup->pCtx[expr];
+      SColumnInfoData* pCol = pCtx->input.numOfInputCols > 0 ? pCtx->input.pData[0] : NULL;
+      bool isNull = NULL == pCol || colDataIsNull(pCol, pBlock->info.rows, row, NULL);
+      if (EX_INTERVAL_CELL_COUNT == type) {
+        if (!isNull) {
+          int8_t countIndex = pExInfo->localCountIndex[expr];
+          if (countIndex < 0) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+          pExInfo->pLocalCounts[(size_t)localIndex * pExInfo->numOfLocalCounts + countIndex] += 1;
+        }
+        continue;
+      }
+      if (isNull) continue;
+      double value = 0;
+      code = exIntervalGetNumericValue(pCol, row, &value);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      int8_t sumIndex = pExInfo->localSumIndex[expr];
+      int8_t countIndex = pExInfo->localCountIndex[expr];
+      if (sumIndex < 0 || countIndex < 0) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      pExInfo->pLocalSums[(size_t)localIndex * pExInfo->numOfLocalSums + sumIndex] += value;
+      pExInfo->pLocalCounts[(size_t)localIndex * pExInfo->numOfLocalCounts + countIndex] += 1;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t processExIntervalInput(SOperatorInfo* pOperator) {
+  SIntervalAggOperatorInfo* pInfo = pOperator->info;
+  SExIntervalInfo* pExInfo = pInfo->pExInterval;
+  if (NULL == pExInfo || NULL == pExInfo->pEntry) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  while (!isTaskKilled(pOperator->pTaskInfo)) {
+    SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
+    if (NULL == pBlock) break;
+    int32_t code = processExIntervalBlock(pOperator, pBlock);
+    if (TSDB_CODE_SUCCESS != code) {
+      setExIntervalError(pExInfo->pEntry, code);
+      return code;
+    }
+  }
+  if (isTaskKilled(pOperator->pTaskInfo)) {
+    int32_t code = pOperator->pTaskInfo->code;
+    setExIntervalError(pExInfo->pEntry, code);
+    return code;
+  }
+  exIntervalPublishLocalRange(pExInfo);
+  int32_t code = exIntervalMergeLocalSums(pExInfo);
+  if (TSDB_CODE_SUCCESS != code) setExIntervalError(pExInfo->pEntry, code);
+  else {
+    taosMemoryFreeClear(pExInfo->pLocalSums);
+    taosMemoryFreeClear(pExInfo->pLocalRows);
+    taosMemoryFreeClear(pExInfo->pLocalCounts);
+    taosMemoryFreeClear(pExInfo->pLocalWindowIndexes);
+    taosMemoryFreeClear(pExInfo->pLocalWindows);
+  }
+  return code;
+}
+
+// Tracks monotonic table/source progress and exposes the global minimum at the heap root.
+typedef struct SFastWatermarkHeap {
+  int64_t*  pValues;
+  uint8_t*  pSeen;
+  int32_t*  pHeap;
+  int32_t*  pHeapPos;
+  int32_t   numOfSlots;
+  int32_t   numOfSeen;
+} SFastWatermarkHeap;
+
+typedef struct SFastIntervalInfo {
+  char*              pRows;
+  int32_t*           pRowIndexes;
+  uint64_t*          pActiveBitmap;
+  SFastWatermarkHeap tableWatermarks;
+  int64_t            firstWindowStart;
+  int64_t            interval;
+  int64_t            watermark;
+  int32_t            numOfWindows;
+  int32_t            activeBitmapWords;
+  int32_t            activeCount;
+  int32_t            rowCapacity;
+  int32_t            minActiveWindow;
+  int32_t            maxActiveWindow;
+  bool               denseMode;
+  int32_t            nextResult;
+  int32_t            sealedWindowExclusive;
+  bool               inputCompleted;
+} SFastIntervalInfo;
+
+typedef struct SFastMergeIntervalInfo {
+  SSDataBlock*       pCachedRows;
+  int32_t*           pWindowRowCounts;
+  uint64_t*          pActiveBitmap;
+  SFastWatermarkHeap sourceProgress;
+  SResultRow*        pResultRow;
+  SResultRow*        pResultRows;
+  int32_t*           pActiveWindows;
+  int32_t            resultRowCapacity;
+  int64_t            firstWindowStart;
+  int64_t            interval;
+  int32_t            numOfWindows;
+  int32_t            numOfSources;
+  int32_t            activeBitmapWords;
+  int32_t            activeCount;
+  int32_t            minActiveWindow;
+  int32_t            maxActiveWindow;
+  bool               denseMode;
+  int32_t            nextWindow;
+  int32_t            sealedWindowExclusive;
+  bool               inputCompleted;
+  bool               resultRowActive;
+  bool               batchProcess;
+} SFastMergeIntervalInfo;
+
+static void cleanupFastWatermarkHeap(SFastWatermarkHeap* pHeap) {
+  if (pHeap == NULL) {
+    return;
+  }
+  taosMemoryFreeClear(pHeap->pValues);
+  taosMemoryFreeClear(pHeap->pSeen);
+  taosMemoryFreeClear(pHeap->pHeap);
+  taosMemoryFreeClear(pHeap->pHeapPos);
+  pHeap->numOfSlots = 0;
+  pHeap->numOfSeen = 0;
+}
+
+static int32_t initFastWatermarkHeap(SFastWatermarkHeap* pHeap, int32_t numOfSlots) {
+  if (pHeap == NULL || numOfSlots <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  pHeap->pValues = taosMemoryCalloc((size_t)numOfSlots, sizeof(int64_t));
+  pHeap->pSeen = taosMemoryCalloc((size_t)numOfSlots, sizeof(uint8_t));
+  pHeap->pHeap = taosMemoryCalloc((size_t)numOfSlots, sizeof(int32_t));
+  pHeap->pHeapPos = taosMemoryMalloc((size_t)numOfSlots * sizeof(int32_t));
+  if (pHeap->pValues == NULL || pHeap->pSeen == NULL || pHeap->pHeap == NULL || pHeap->pHeapPos == NULL) {
+    cleanupFastWatermarkHeap(pHeap);
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < numOfSlots; ++i) {
+    pHeap->pHeapPos[i] = -1;
+  }
+  pHeap->numOfSlots = numOfSlots;
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool fastWatermarkHeapLess(const SFastWatermarkHeap* pHeap, int32_t left, int32_t right) {
+  int64_t leftValue = pHeap->pValues[left];
+  int64_t rightValue = pHeap->pValues[right];
+  return leftValue < rightValue || (leftValue == rightValue && left < right);
+}
+
+static void fastWatermarkHeapSwap(SFastWatermarkHeap* pHeap, int32_t left, int32_t right) {
+  int32_t leftSlot = pHeap->pHeap[left];
+  pHeap->pHeap[left] = pHeap->pHeap[right];
+  pHeap->pHeap[right] = leftSlot;
+  pHeap->pHeapPos[pHeap->pHeap[left]] = left;
+  pHeap->pHeapPos[pHeap->pHeap[right]] = right;
+}
+
+static void fastWatermarkHeapSiftUp(SFastWatermarkHeap* pHeap, int32_t pos) {
+  while (pos > 0) {
+    int32_t parent = (pos - 1) / 2;
+    if (!fastWatermarkHeapLess(pHeap, pHeap->pHeap[pos], pHeap->pHeap[parent])) {
+      break;
+    }
+    fastWatermarkHeapSwap(pHeap, pos, parent);
+    pos = parent;
+  }
+}
+
+static void fastWatermarkHeapSiftDown(SFastWatermarkHeap* pHeap, int32_t pos) {
+  while (true) {
+    int32_t left = pos * 2 + 1;
+    if (left >= pHeap->numOfSeen) {
+      return;
+    }
+    int32_t right = left + 1;
+    int32_t smallest = left;
+    if (right < pHeap->numOfSeen && fastWatermarkHeapLess(pHeap, pHeap->pHeap[right], pHeap->pHeap[left])) {
+      smallest = right;
+    }
+    if (!fastWatermarkHeapLess(pHeap, pHeap->pHeap[smallest], pHeap->pHeap[pos])) {
+      return;
+    }
+    fastWatermarkHeapSwap(pHeap, pos, smallest);
+    pos = smallest;
+  }
+}
+
+static int32_t updateFastWatermarkHeap(SFastWatermarkHeap* pHeap, int32_t slot, int64_t value) {
+  if (pHeap == NULL || slot < 0 || slot >= pHeap->numOfSlots) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  if (!pHeap->pSeen[slot]) {
+    pHeap->pSeen[slot] = 1;
+    pHeap->pValues[slot] = value;
+    pHeap->pHeap[pHeap->numOfSeen] = slot;
+    pHeap->pHeapPos[slot] = pHeap->numOfSeen;
+    pHeap->numOfSeen += 1;
+    fastWatermarkHeapSiftUp(pHeap, pHeap->pHeapPos[slot]);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (value > pHeap->pValues[slot]) {
+    pHeap->pValues[slot] = value;
+    fastWatermarkHeapSiftDown(pHeap, pHeap->pHeapPos[slot]);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool getFastWatermarkHeapMin(const SFastWatermarkHeap* pHeap, int64_t* pWatermark) {
+  if (pHeap == NULL || pWatermark == NULL || pHeap->numOfSeen != pHeap->numOfSlots || pHeap->numOfSeen == 0) {
+    return false;
+  }
+  *pWatermark = pHeap->pValues[pHeap->pHeap[0]];
+  return true;
+}
+
+static void destroyFastIntervalInfo(SFastIntervalInfo* pFast) {
+  if (pFast == NULL) {
+    return;
+  }
+  taosMemoryFreeClear(pFast->pRows);
+  taosMemoryFreeClear(pFast->pRowIndexes);
+  taosMemoryFreeClear(pFast->pActiveBitmap);
+  cleanupFastWatermarkHeap(&pFast->tableWatermarks);
+  taosMemoryFree(pFast);
+}
+
+static int32_t ensureFastIntervalRowCapacity(SFastIntervalInfo* pFast, int32_t required, int32_t rowSize) {
+  if (NULL == pFast || required <= 0 || rowSize <= 0) return TSDB_CODE_INVALID_PARA;
+  if (required <= pFast->rowCapacity) return TSDB_CODE_SUCCESS;
+
+  int32_t capacity = pFast->rowCapacity > 0 ? pFast->rowCapacity : FAST_INTERVAL_LOCAL_RESULT_BATCH_ROWS;
+  while (capacity < required) {
+    if (capacity > pFast->numOfWindows / 2) {
+      capacity = pFast->numOfWindows;
+      break;
+    }
+    capacity *= 2;
+  }
+  if (capacity < required || (size_t)capacity > SIZE_MAX / rowSize) return TSDB_CODE_OUT_OF_MEMORY;
+  char* pRows = taosMemoryRealloc(pFast->pRows, (size_t)capacity * rowSize);
+  if (NULL == pRows) return terrno;
+  pFast->pRows = pRows;
+  pFast->rowCapacity = capacity;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t getFastIntervalRow(SAggSupporter* pAggSup, const STimeWindow* pWin, SResultRowInfo* pResultRowInfo,
+                                  SResultRow** ppRow) {
+  SFastIntervalInfo* pFast = pAggSup->pFastInterval;
+  if (pFast == NULL || pWin == NULL || ppRow == NULL || pWin->skey < pFast->firstWindowStart) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int64_t delta = pWin->skey - pFast->firstWindowStart;
+  if (pFast->interval <= 0 || delta % pFast->interval != 0) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int64_t index = delta / pFast->interval;
+  if (index < 0 || index >= pFast->numOfWindows) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int32_t rowIndex = pFast->pRowIndexes[index] - 1;
+  bool newRow = rowIndex < 0;
+  if (rowIndex < 0) {
+    int32_t code = ensureFastIntervalRowCapacity(pFast, pFast->activeCount + 1, pAggSup->resultRowSize);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    rowIndex = pFast->activeCount;
+    pFast->pRowIndexes[index] = rowIndex + 1;
+    ++pFast->activeCount;
+  }
+  SResultRow* pRow = (SResultRow*)(pFast->pRows + (size_t)rowIndex * pAggSup->resultRowSize);
+  if (newRow) {
+    memset(pRow, 0, pAggSup->resultRowSize);
+    pRow->pageId = 0;
+    pRow->offset = (int32_t)index;
+    TAOS_SET_POBJ_ALIGNED(&pRow->win, pWin);
+    if (index < pFast->minActiveWindow) pFast->minActiveWindow = (int32_t)index;
+    if (index > pFast->maxActiveWindow) pFast->maxActiveWindow = (int32_t)index;
+    if (!pFast->denseMode) {
+      pFast->pActiveBitmap[index >> 6] |= 1ULL << (index & 63);
+      if ((int64_t)pFast->activeCount * 5 >= pFast->numOfWindows) {
+        pFast->denseMode = true;
+      }
+    }
+  }
+  pResultRowInfo->cur = (SResultRowPosition){.pageId = 0, .offset = (int32_t)index};
+  *ppRow = pRow;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t initFastIntervalInfo(SIntervalAggOperatorInfo* pInfo, SOperatorInfo* pDownstream) {
+  if (pInfo == NULL || pDownstream == NULL || pDownstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  STableScanInfo* pScanInfo = pDownstream->info;
+  if (pScanInfo == NULL || !pScanInfo->fastInterval || pScanInfo->base.pTableListInfo == NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int32_t numOfTables = 0;
+  int32_t code = tableListGetSize(pScanInfo->base.pTableListInfo, &numOfTables);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  SFastIntervalInfo* pFast = taosMemoryCalloc(1, sizeof(SFastIntervalInfo));
+  if (pFast == NULL) {
+    return terrno;
+  }
+
+  SResultRowInfo dummy = {0};
+  dummy.cur.pageId = -1;
+  STimeWindow first = getActiveTimeWindow(NULL, &dummy, pInfo->interval.timeRange.skey, &pInfo->interval, TSDB_ORDER_ASC);
+  STimeWindow last = getActiveTimeWindow(NULL, &dummy, pInfo->interval.timeRange.ekey, &pInfo->interval, TSDB_ORDER_ASC);
+  if (last.skey < first.skey || pInfo->interval.interval <= 0) {
+    taosMemoryFree(pFast);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int64_t delta = last.skey - first.skey;
+  if (delta < 0 || delta % pInfo->interval.interval != 0) {
+    taosMemoryFree(pFast);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int64_t numOfWindows = delta / pInfo->interval.interval + 1;
+  if (numOfWindows <= 0 || numOfWindows > 100000 ||
+      numOfWindows > INT64_MAX / pInfo->aggSup.resultRowSize) {
+    taosMemoryFree(pFast);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pFast->pRowIndexes = taosMemoryCalloc((size_t)numOfWindows, sizeof(int32_t));
+  pFast->activeBitmapWords = (int32_t)(((uint64_t)numOfWindows + 63) / 64);
+  pFast->pActiveBitmap = taosMemoryCalloc((size_t)pFast->activeBitmapWords, sizeof(uint64_t));
+  if (numOfTables > 0) {
+    code = initFastWatermarkHeap(&pFast->tableWatermarks, numOfTables);
+  }
+  if (pFast->pRowIndexes == NULL || pFast->pActiveBitmap == NULL || code != TSDB_CODE_SUCCESS) {
+    destroyFastIntervalInfo(pFast);
+    return code != TSDB_CODE_SUCCESS ? code : terrno;
+  }
+
+  pFast->firstWindowStart = first.skey;
+  pFast->interval = pInfo->interval.interval;
+  pFast->numOfWindows = (int32_t)numOfWindows;
+  pFast->minActiveWindow = pFast->numOfWindows;
+  pFast->maxActiveWindow = -1;
+  pFast->watermark = INT64_MIN;
+  if (0 == numOfTables) {
+    // An empty vnode contributes no partial rows but must not fail the fast merge.
+    pFast->inputCompleted = true;
+    pFast->sealedWindowExclusive = pFast->numOfWindows;
+  }
+  pInfo->aggSup.pFastInterval = pFast;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void cleanupFastIntervalRows(SIntervalAggOperatorInfo* pInfo) {
+  SFastIntervalInfo* pFast = pInfo->aggSup.pFastInterval;
+  if (pFast == NULL) {
+    return;
+  }
+
+  SExprSupp* pSup = &pInfo->pOperator->exprSupp;
+  bool sparse = !pFast->denseMode && pFast->activeCount > 0 &&
+                (int64_t)pFast->activeCount * 5 < (int64_t)(pFast->maxActiveWindow - pFast->minActiveWindow + 1);
+  if (sparse) {
+    for (int32_t word = pFast->minActiveWindow >> 6; word < pFast->activeBitmapWords; ++word) {
+      uint64_t bits = pFast->pActiveBitmap[word];
+      if (word == (pFast->minActiveWindow >> 6)) bits &= (~0ULL << (pFast->minActiveWindow & 63));
+      while (bits != 0) {
+        int32_t i = (word << 6) + BUILDIN_CTZL(bits);
+        bits &= bits - 1;
+        if (i > pFast->maxActiveWindow) break;
+        int32_t rowIndex = pFast->pRowIndexes[i] - 1;
+        if (rowIndex < 0) continue;
+        SResultRow* pRow = (SResultRow*)(pFast->pRows + (size_t)rowIndex * pInfo->aggSup.resultRowSize);
+        for (int32_t j = 0; j < pSup->numOfExprs; ++j) {
+          pSup->pCtx[j].resultInfo = getResultEntryInfo(pRow, j, pSup->rowEntryInfoOffset);
+          if (pSup->pCtx[j].fpSet.cleanup != NULL) pSup->pCtx[j].fpSet.cleanup(&pSup->pCtx[j]);
+        }
+      }
+    }
+  } else {
+    for (int32_t i = pFast->minActiveWindow; i <= pFast->maxActiveWindow; ++i) {
+      int32_t rowIndex = pFast->pRowIndexes[i] - 1;
+      if (rowIndex < 0) continue;
+      SResultRow* pRow = (SResultRow*)(pFast->pRows + (size_t)rowIndex * pInfo->aggSup.resultRowSize);
+      for (int32_t j = 0; j < pSup->numOfExprs; ++j) {
+        pSup->pCtx[j].resultInfo = getResultEntryInfo(pRow, j, pSup->rowEntryInfoOffset);
+        if (pSup->pCtx[j].fpSet.cleanup != NULL) pSup->pCtx[j].fpSet.cleanup(&pSup->pCtx[j]);
+      }
+    }
+  }
+  destroyFastIntervalInfo(pFast);
+  pInfo->aggSup.pFastInterval = NULL;
+}
+
+static void cleanupFastIntervalLegacyStorage(SAggSupporter* pAggSup) {
+  tSimpleHashCleanup(pAggSup->pResultRowHashTable);
+  pAggSup->pResultRowHashTable = NULL;
+  destroyDiskbasedBuf(pAggSup->pResultBuf);
+  pAggSup->pResultBuf = NULL;
+}
+
+static int32_t fastIntervalNextActiveWindow(const SFastIntervalInfo* pFast, int32_t start) {
+  if (pFast == NULL || pFast->pActiveBitmap == NULL || start < 0 || start >= pFast->numOfWindows) {
+    return pFast == NULL ? -1 : pFast->numOfWindows;
+  }
+  int32_t word = start >> 6;
+  uint64_t bits = pFast->pActiveBitmap[word] & (~0ULL << (start & 63));
+  while (true) {
+    if (bits != 0) {
+      int32_t index = (word << 6) + BUILDIN_CTZL(bits);
+      return index < pFast->numOfWindows ? index : pFast->numOfWindows;
+    }
+    if (++word >= pFast->activeBitmapWords) return pFast->numOfWindows;
+    bits = pFast->pActiveBitmap[word];
+  }
+}
+
+static void cleanupFastMergeIntervalResultRow(SFastMergeIntervalInfo* pFast, SExprSupp* pSup) {
+  if (pFast == NULL || pFast->pResultRow == NULL || pSup == NULL || !pFast->resultRowActive) {
+    return;
+  }
+
+  for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
+    pSup->pCtx[i].resultInfo = getResultEntryInfo(pFast->pResultRow, i, pSup->rowEntryInfoOffset);
+    if (pSup->pCtx[i].fpSet.cleanup != NULL) {
+      pSup->pCtx[i].fpSet.cleanup(&pSup->pCtx[i]);
+    }
+    pSup->pCtx[i].resultInfo = NULL;
+  }
+  pFast->resultRowActive = false;
+}
+
+static void cleanupFastMergeResultRow(SResultRow* pResultRow, SExprSupp* pSup, const int32_t* rowEntryInfoOffset) {
+  if (pResultRow == NULL || pSup == NULL || rowEntryInfoOffset == NULL) {
+    return;
+  }
+  for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
+    pSup->pCtx[i].resultInfo = getResultEntryInfo(pResultRow, i, rowEntryInfoOffset);
+    if (pSup->pCtx[i].fpSet.cleanup != NULL) {
+      pSup->pCtx[i].fpSet.cleanup(&pSup->pCtx[i]);
+    }
+    pSup->pCtx[i].resultInfo = NULL;
+  }
+}
+
+static void cleanupFastMergeIntervalInfo(SMergeAlignedIntervalAggOperatorInfo* pMiaInfo) {
+  if (pMiaInfo == NULL || pMiaInfo->pFastInterval == NULL) {
+    return;
+  }
+
+  SFastMergeIntervalInfo* pFast = pMiaInfo->pFastInterval;
+  if (pMiaInfo->intervalAggOperatorInfo != NULL && pMiaInfo->intervalAggOperatorInfo->pOperator != NULL) {
+    cleanupFastMergeIntervalResultRow(pFast, &pMiaInfo->intervalAggOperatorInfo->pOperator->exprSupp);
+  }
+  blockDataDestroy(pFast->pCachedRows);
+  taosMemoryFreeClear(pFast->pWindowRowCounts);
+  taosMemoryFreeClear(pFast->pActiveBitmap);
+  cleanupFastWatermarkHeap(&pFast->sourceProgress);
+  taosMemoryFreeClear(pFast->pResultRow);
+  taosMemoryFreeClear(pFast->pResultRows);
+  taosMemoryFreeClear(pFast->pActiveWindows);
+  taosMemoryFree(pFast);
+  pMiaInfo->pFastInterval = NULL;
+}
 
 static int64_t* extractTsCol(SSDataBlock* pBlock, const SIntervalAggOperatorInfo* pInfo, SExecTaskInfo* pTaskInfo);
 
@@ -75,19 +1163,61 @@ static int32_t setTimeWindowOutputBuf(SResultRowInfo* pResultRowInfo, STimeWindo
                                       SResultRow** pResult, int64_t tableGroupId, SqlFunctionCtx* pCtx,
                                       int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup,
                                       SExecTaskInfo* pTaskInfo) {
-  SResultRow* pResultRow = doSetResultOutBufByKey(pAggSup->pResultBuf, pResultRowInfo, (char*)&win->skey, TSDB_KEYSIZE,
-                                                  masterscan, tableGroupId, pTaskInfo, true, pAggSup, true);
+  SResultRow* pResultRow = NULL;
+  int32_t     code = TSDB_CODE_SUCCESS;
+  if (pAggSup->pFastInterval != NULL) {
+    code = getFastIntervalRow(pAggSup, win, pResultRowInfo, &pResultRow);
+  } else {
+    pResultRow = doSetResultOutBufByKey(pAggSup->pResultBuf, pResultRowInfo, (char*)&win->skey, TSDB_KEYSIZE,
+                                         masterscan, tableGroupId, pTaskInfo, true, pAggSup, true);
+  }
 
-  if (pResultRow == NULL || pTaskInfo->code != 0) {
+  if (code != TSDB_CODE_SUCCESS || pResultRow == NULL || pTaskInfo->code != 0) {
     *pResult = NULL;
-    qError("failed to set result output buffer, error:%s", tstrerror(pTaskInfo->code));
-    return pTaskInfo->code;
+    qError("failed to set result output buffer, error:%s", tstrerror(code != TSDB_CODE_SUCCESS ? code : pTaskInfo->code));
+    return code != TSDB_CODE_SUCCESS ? code : pTaskInfo->code;
   }
 
   // set time window for current result
   TAOS_SET_POBJ_ALIGNED(&pResultRow->win, win);
   *pResult = pResultRow;
   return setResultRowInitCtx(pResultRow, pCtx, numOfOutput, rowEntryInfoOffset);
+}
+
+static FORCE_INLINE int32_t setFastIntervalOutputBuf(SResultRowInfo* pResultRowInfo, STimeWindow* win,
+                                                      SResultRow** pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput,
+                                                      int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup) {
+  SResultRow* pResultRow = NULL;
+  int32_t     code = getFastIntervalRow(pAggSup, win, pResultRowInfo, &pResultRow);
+  if (code != TSDB_CODE_SUCCESS || pResultRow == NULL) {
+    *pResult = NULL;
+    return code != TSDB_CODE_SUCCESS ? code : TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  TAOS_SET_POBJ_ALIGNED(&pResultRow->win, win);
+  *pResult = pResultRow;
+  return setResultRowInitCtx(pResultRow, pCtx, numOfOutput, rowEntryInfoOffset);
+}
+
+static FORCE_INLINE bool fastIntervalSingleRow(const SFastIntervalInfo* pFast, const SSDataBlock* pBlock,
+                                               const TSKEY* tsCols, int32_t startPos, TSKEY ekey, bool ascScan) {
+  if (pFast == NULL || pBlock == NULL || tsCols == NULL || startPos < 0 || startPos >= pBlock->info.rows) {
+    return false;
+  }
+  if (startPos + 1 >= pBlock->info.rows) {
+    return true;
+  }
+  return ascScan ? tsCols[startPos + 1] > ekey : tsCols[startPos + 1] < ekey;
+}
+
+static FORCE_INLINE bool fastIntervalNextWindow(const SFastIntervalInfo* pFast, const SSDataBlock* pBlock,
+                                                const TSKEY* tsCols, int32_t nextPos, const STimeWindow* pWin,
+                                                bool ascScan) {
+  if (pFast == NULL || pBlock == NULL || tsCols == NULL || pWin == NULL || nextPos < 0 ||
+      nextPos >= pBlock->info.rows) {
+    return false;
+  }
+  return ascScan ? tsCols[nextPos] > pWin->ekey : tsCols[nextPos] < pWin->skey;
 }
 
 void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, int32_t rowIndex, uint64_t groupId) {
@@ -708,6 +1838,16 @@ static bool tsKeyCompFn(void* l, void* r, void* param) {
 }
 
 static bool isCalculatedWin(SIntervalAggOperatorInfo* pInfo, const STimeWindow* win, uint64_t tableGroupId) {
+  if (pInfo->aggSup.pFastInterval != NULL) {
+    SFastIntervalInfo* pFast = pInfo->aggSup.pFastInterval;
+    if (win->skey < pFast->firstWindowStart) {
+      return false;
+    }
+    int64_t delta = win->skey - pFast->firstWindowStart;
+    int64_t index = delta / pFast->interval;
+    return delta % pFast->interval == 0 && index >= 0 && index < pFast->numOfWindows &&
+           pFast->pRowIndexes[index] > 0;
+  }
   char keyBuf[sizeof(TSKEY) + sizeof(uint64_t)] = {0};
   SET_RES_WINDOW_KEY(keyBuf, (char*)&win->skey, sizeof(TSKEY), tableGroupId);
   return tSimpleHashGet(pInfo->aggSup.pResultRowHashTable, keyBuf, GET_RES_WINDOW_KEY_LEN(sizeof(TSKEY))) != NULL;
@@ -834,8 +1974,11 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
     }
   }
 
-  STimeWindow win =
-      getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, ts, &pInfo->interval, pInfo->binfo.inputTsOrder);
+  SResultRowInfo fastDummy = {0};
+  fastDummy.cur.pageId = -1;
+  STimeWindow win = getActiveTimeWindow(pInfo->aggSup.pFastInterval != NULL ? NULL : pInfo->aggSup.pResultBuf,
+                                        pInfo->aggSup.pFastInterval != NULL ? &fastDummy : pResultRowInfo, ts,
+                                        &pInfo->interval, pInfo->binfo.inputTsOrder);
   if (filterWindowWithLimit(pInfo, &win, tableGroupId, pTaskInfo)) return false;
 
   TSKEY   ekey = ascScan ? win.ekey : win.skey;
@@ -846,9 +1989,12 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
     T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
   }
 
-  int32_t forwardRows = sorted ? getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey,
-                                                          NULL, pInfo->binfo.inputTsOrder)
-                               : getNumOfRowsInTimeWinUnsorted(&pBlock->info, tsCols, &win, startPos);
+  SFastIntervalInfo* pFast = pInfo->aggSup.pFastInterval;
+  int32_t forwardRows = sorted && fastIntervalSingleRow(pFast, pBlock, tsCols, startPos, ekey, ascScan)
+                            ? 1
+                            : (sorted ? getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey,
+                                                                 binarySearchForKey, NULL, pInfo->binfo.inputTsOrder)
+                                      : getNumOfRowsInTimeWinUnsorted(&pBlock->info, tsCols, &win, startPos));
 
   if (pInfo->indefRowsMode) {
     bool closeWindow = sorted && (startPos + forwardRows < pBlock->info.rows);
@@ -859,8 +2005,11 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
       T_LONG_JMP(pTaskInfo->env, ret);
     }
   } else {
-    ret = setTimeWindowOutputBuf(pResultRowInfo, &win, (scanFlag == MAIN_SCAN), &pResult, tableGroupId, pSup->pCtx,
-                                 numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
+    ret = pFast != NULL
+              ? setFastIntervalOutputBuf(pResultRowInfo, &win, &pResult, pSup->pCtx, numOfOutput,
+                                          pSup->rowEntryInfoOffset, &pInfo->aggSup)
+              : setTimeWindowOutputBuf(pResultRowInfo, &win, (scanFlag == MAIN_SCAN), &pResult, tableGroupId,
+                                       pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
     if (ret != TSDB_CODE_SUCCESS || pResult == NULL) {
       T_LONG_JMP(pTaskInfo->env, ret);
     }
@@ -900,10 +2049,18 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
 
   while (startPos < pBlock->info.rows) {
     if (sorted) {
-      startPos = getNextQualifiedWindow(&pInfo->interval, &nextWin, &pBlock->info, tsCols, forwardRows - 1 + startPos,
-                                        pInfo->binfo.inputTsOrder);
-      if (startPos < 0) {
+      int32_t nextPos = startPos + forwardRows;
+      if (pFast != NULL && fastIntervalNextWindow(pFast, pBlock, tsCols, nextPos, &nextWin, ascScan)) {
+        startPos = nextPos;
+        getInitialStartTimeWindow(&pInfo->interval, tsCols[startPos], &nextWin, ascScan);
+      } else if (pFast != NULL && nextPos >= pBlock->info.rows) {
         break;
+      } else {
+        startPos = getNextQualifiedWindow(&pInfo->interval, &nextWin, &pBlock->info, tsCols,
+                                          forwardRows - 1 + startPos, pInfo->binfo.inputTsOrder);
+        if (startPos < 0) {
+          break;
+        }
       }
     } else {
       pBlock->info.rows = forwardRows;
@@ -927,9 +2084,11 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
     }
 
     ekey = ascScan ? nextWin.ekey : nextWin.skey;
-    forwardRows = sorted ? getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL,
-                                                    pInfo->binfo.inputTsOrder)
-                         : getNumOfRowsInTimeWinUnsorted(&pBlock->info, tsCols, &nextWin, startPos);
+    forwardRows = sorted && fastIntervalSingleRow(pFast, pBlock, tsCols, startPos, ekey, ascScan)
+                      ? 1
+                      : (sorted ? getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey,
+                                                           NULL, pInfo->binfo.inputTsOrder)
+                                : getNumOfRowsInTimeWinUnsorted(&pBlock->info, tsCols, &nextWin, startPos));
     if (forwardRows == 0) continue;
 
     if (pInfo->indefRowsMode) {
@@ -942,8 +2101,12 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
       }
     } else {
       // null data, failed to allocate more memory buffer
-      int32_t code = setTimeWindowOutputBuf(pResultRowInfo, &nextWin, (scanFlag == MAIN_SCAN), &pResult, tableGroupId,
-                                            pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
+      int32_t code = pFast != NULL
+                         ? setFastIntervalOutputBuf(pResultRowInfo, &nextWin, &pResult, pSup->pCtx, numOfOutput,
+                                                     pSup->rowEntryInfoOffset, &pInfo->aggSup)
+                         : setTimeWindowOutputBuf(pResultRowInfo, &nextWin, (scanFlag == MAIN_SCAN), &pResult,
+                                                  tableGroupId, pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset,
+                                                  &pInfo->aggSup, pTaskInfo);
       if (code != TSDB_CODE_SUCCESS || pResult == NULL) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
@@ -1117,6 +2280,12 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
   int32_t scanFlag = MAIN_SCAN;
 
   pInfo->cleanGroupResInfo = false;
+  if (pInfo->aggSup.pFastInterval != NULL) {
+    // FAST_INTERVAL is pulled incrementally from doBuildIntervalResultNext().
+    OPTR_SET_OPENED(pOperator);
+    return TSDB_CODE_SUCCESS;
+  }
+
   while (1) {
     SSDataBlock* pBlock = getNextBlockFromDownstreamRemainDetach(pOperator, 0);
     if (pBlock == NULL) {
@@ -1162,6 +2331,95 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   return code;
+}
+
+static int32_t updateFastIntervalWatermark(SFastIntervalInfo* pFast, const SSDataBlock* pBlock) {
+  if (pFast == NULL || pBlock == NULL || pBlock->info.window.ekey == INT64_MIN ||
+      pBlock->info.id.uid > INT32_MAX) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int32_t code = updateFastWatermarkHeap(&pFast->tableWatermarks, (int32_t)pBlock->info.id.uid,
+                                         pBlock->info.window.ekey);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("FAST_INTERVAL invalid table index:%" PRIu64 ", tables:%d", pBlock->info.id.uid,
+           pFast->tableWatermarks.numOfSlots);
+    return code;
+  }
+
+  int64_t watermark = INT64_MIN;
+  if (getFastWatermarkHeapMin(&pFast->tableWatermarks, &watermark)) {
+    pFast->watermark = watermark;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t processFastIntervalInput(SOperatorInfo* pOperator) {
+  SIntervalAggOperatorInfo* pInfo = pOperator->info;
+  SFastIntervalInfo*        pFast = pInfo->aggSup.pFastInterval;
+  SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
+  SExprSupp*                pSup = &pOperator->exprSupp;
+  if (pFast == NULL || pFast->inputCompleted) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSDataBlock* pBlock = getNextBlockFromDownstreamRemainDetach(pOperator, 0);
+  if (pBlock == NULL) {
+    pFast->inputCompleted = true;
+    pFast->sealedWindowExclusive = pFast->numOfWindows;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
+  if (pInfo->scalarSupp.pExprInfo != NULL) {
+    SExprSupp* pExprSup = &pInfo->scalarSupp;
+    int32_t code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx,
+                                         pExprSup->numOfExprs, NULL, GET_STM_RTINFO(pTaskInfo), pTaskInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  int32_t code = trimNullTimelineRows(pBlock, pInfo->primaryTsIndex);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (pBlock->info.rows == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  code = blockDataUpdateTsWindow(pBlock, pInfo->primaryTsIndex);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  code = setInputDataBlock(pSup, pBlock, pInfo->binfo.inputTsOrder, pBlock->info.scanFlag, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, pBlock->info.scanFlag)) {
+    pFast->inputCompleted = true;
+    pFast->sealedWindowExclusive = pFast->numOfWindows;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  code = updateFastIntervalWatermark(pFast, pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (pFast->watermark != INT64_MIN) {
+    int64_t delta = pFast->watermark - pFast->firstWindowStart;
+    if (delta > 0) {
+      int64_t exclusive = delta / pFast->interval;
+      if (exclusive > pFast->numOfWindows) {
+        exclusive = pFast->numOfWindows;
+      }
+      if (exclusive > pFast->sealedWindowExclusive) {
+        pFast->sealedWindowExclusive = (int32_t)exclusive;
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 // start a new state window and record the start info
@@ -2160,6 +3418,66 @@ _end:
   return code;
 }
 
+static int32_t buildFastIntervalResultBlock(SOperatorInfo* pOperator, SIntervalAggOperatorInfo* pInfo) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SExprSupp*         pSup = &pOperator->exprSupp;
+  SSDataBlock*       pBlock = pInfo->binfo.pRes;
+  SFastIntervalInfo* pFast = pInfo->aggSup.pFastInterval;
+  int32_t            resultBatchRows = TMIN(pOperator->resultInfo.threshold, FAST_INTERVAL_LOCAL_RESULT_BATCH_ROWS);
+
+  blockDataCleanup(pBlock);
+  pBlock->info.version = pTaskInfo->version;
+  pBlock->info.dataLoad = 1;
+  if (pFast->inputCompleted && pFast->activeCount == 0) {
+    pFast->nextResult = pFast->numOfWindows;
+    setOperatorCompleted(pOperator);
+    return TSDB_CODE_SUCCESS;
+  }
+  bool sparse = !pFast->denseMode && pFast->activeCount > 0 &&
+                (int64_t)pFast->activeCount * 5 < (int64_t)(pFast->maxActiveWindow - pFast->minActiveWindow + 1);
+  while (pFast->nextResult < pFast->sealedWindowExclusive && pBlock->info.rows < resultBatchRows) {
+    int32_t index = pFast->nextResult;
+    if (sparse) {
+      index = fastIntervalNextActiveWindow(pFast, index);
+      if (index >= pFast->sealedWindowExclusive) {
+        pFast->nextResult = pFast->sealedWindowExclusive;
+        break;
+      }
+    }
+    pFast->nextResult = index + 1;
+    int32_t rowIndex = pFast->pRowIndexes[index] - 1;
+    if (rowIndex < 0) continue;
+
+    SResultRow* pRow = (SResultRow*)(pFast->pRows + (size_t)rowIndex * pInfo->aggSup.resultRowSize);
+    code = setResultRowInitCtx(pRow, pSup->pCtx, pSup->numOfExprs, pSup->rowEntryInfoOffset);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    doUpdateNumOfRows(pSup->pCtx, pRow, pSup->numOfExprs, pSup->rowEntryInfoOffset);
+    if (pRow->numOfRows == 0) {
+      continue;
+    }
+    if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
+      code = blockDataEnsureCapacity(pBlock, pBlock->info.rows + pRow->numOfRows);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+    updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pRow->win, 0);
+    code = copyResultrowToDataBlock(pSup->pExprInfo, pSup->numOfExprs, pRow, pSup->pCtx, pBlock,
+                                    pSup->rowEntryInfoOffset, pTaskInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    pBlock->info.rows += pRow->numOfRows;
+  }
+  if (pBlock->info.rows > 0) {
+    code = blockDataUpdateTsWindow(pBlock, 0);
+  }
+  return code;
+}
+
 static int32_t doBuildIntervalResultNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
@@ -2180,6 +3498,14 @@ static int32_t doBuildIntervalResultNext(SOperatorInfo* pOperator, SSDataBlock**
     pOperator->pOperatorGetParam = NULL;
   }
 
+  if (pInfo->pExInterval != NULL) {
+    code = processExIntervalInput(pOperator);
+    QUERY_CHECK_CODE(code, lino, _end);
+    setOperatorCompleted(pOperator);
+    *ppRes = NULL;
+    return code;
+  }
+
   SSDataBlock* pBlock = pInfo->binfo.pRes;
   code = pOperator->fpSet._openFn(pOperator);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -2189,6 +3515,29 @@ static int32_t doBuildIntervalResultNext(SOperatorInfo* pOperator, SSDataBlock**
     if ((*ppRes) == NULL) {
       setOperatorCompleted(pOperator);
     }
+    return code;
+  }
+
+  if (pInfo->aggSup.pFastInterval != NULL) {
+    while (1) {
+      SFastIntervalInfo* pFast = pInfo->aggSup.pFastInterval;
+      if (pFast->nextResult >= pFast->sealedWindowExclusive && !pFast->inputCompleted) {
+        code = processFastIntervalInput(pOperator);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      code = buildFastIntervalResultBlock(pOperator, pInfo);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pFast = pInfo->aggSup.pFastInterval;
+      if (pFast->nextResult >= pFast->numOfWindows) {
+        setOperatorCompleted(pOperator);
+      }
+      if (pBlock->info.rows > 0 || pOperator->status == OP_EXEC_DONE) {
+        break;
+      }
+    }
+    (*ppRes) = (pBlock->info.rows == 0) ? NULL : pBlock;
     return code;
   }
 
@@ -2269,11 +3618,16 @@ void destroyIntervalOperatorInfo(void* param) {
 
   SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)param;
 
+  releaseExIntervalInfo(&pInfo->pExInterval);
   cleanupBasicInfo(&pInfo->binfo);
   cleanupIndefRowsRuntime(&pInfo->indefRows, pInfo->pOperator);
   if (pInfo->pOperator) {
-    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
-                      pInfo->cleanGroupResInfo);
+    if (pInfo->aggSup.pFastInterval != NULL) {
+      cleanupFastIntervalRows(pInfo);
+    } else {
+      cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
+                        pInfo->cleanGroupResInfo);
+    }
     pInfo->pOperator = NULL;
   }
 
@@ -2385,11 +3739,21 @@ _end:
 static int32_t resetInterval(SOperatorInfo* pOper, SIntervalAggOperatorInfo* pIntervalInfo){
   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
   SIntervalPhysiNode* pPhynode = (SIntervalPhysiNode*)pOper->pPhyNode;
+  bool fastInterval = (pIntervalInfo->aggSup.pFastInterval != NULL);
+  bool exInterval = (pIntervalInfo->pExInterval != NULL);
   pOper->status = OP_NOT_OPENED;
 
+  if (exInterval) {
+    releaseExIntervalInfo(&pIntervalInfo->pExInterval);
+  }
+
   resetBasicOperatorState(&pIntervalInfo->binfo);
-  cleanupResultInfo(pIntervalInfo->pOperator->pTaskInfo, &pIntervalInfo->pOperator->exprSupp, &pIntervalInfo->groupResInfo, &pIntervalInfo->aggSup,
-    pIntervalInfo->cleanGroupResInfo);
+  if (fastInterval) {
+    cleanupFastIntervalRows(pIntervalInfo);
+  } else {
+    cleanupResultInfo(pIntervalInfo->pOperator->pTaskInfo, &pIntervalInfo->pOperator->exprSupp,
+                      &pIntervalInfo->groupResInfo, &pIntervalInfo->aggSup, pIntervalInfo->cleanGroupResInfo);
+  }
 
   colDataDestroy(&pIntervalInfo->twAggSup.timeWindowData);
   int32_t code = initExecTimeWindowInfo(&pIntervalInfo->twAggSup.timeWindowData, &pTaskInfo->window);
@@ -2401,6 +3765,16 @@ static int32_t resetInterval(SOperatorInfo* pOper, SIntervalAggOperatorInfo* pIn
   if (code == 0) {
     code = resetExprSupp(&pIntervalInfo->scalarSupp, pTaskInfo, pPhynode->window.pExprs, NULL,
                          &pTaskInfo->storageAPI.functionStore);
+  }
+  if (code == TSDB_CODE_SUCCESS && fastInterval) {
+    SOperatorInfo* pDownstream = pOper->numOfDownstream > 0 ? pOper->pDownstream[0] : NULL;
+    code = initFastIntervalInfo(pIntervalInfo, pDownstream);
+    if (code == TSDB_CODE_SUCCESS) {
+      cleanupFastIntervalLegacyStorage(&pIntervalInfo->aggSup);
+    }
+  }
+  if (code == TSDB_CODE_SUCCESS && exInterval) {
+    code = initExIntervalInfo(pIntervalInfo, pOper, false);
   }
 
   if (pIntervalInfo->binfo.resultRowInfo.openWindow != NULL){
@@ -2552,7 +3926,15 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
   setOperatorInfo(pOperator, "TimeIntervalAggOperator", QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
-
+  if (pPhyNode->fastInterval) {
+    code = initFastIntervalInfo(pInfo, downstream);
+    QUERY_CHECK_CODE(code, lino, _error);
+    cleanupFastIntervalLegacyStorage(&pInfo->aggSup);
+  }
+  if (pPhyNode->exInterval) {
+    code = initExIntervalInfo(pInfo, pOperator, false);
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
   if (downstream != NULL && downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pTableScanInfo = downstream->info;
     pTableScanInfo->base.pdInfo.interval = pInfo->interval;
@@ -3111,10 +4493,781 @@ _error:
   return code;
 }
 
+static int32_t setSingleOutputTupleBuf(SResultRowInfo* pResultRowInfo, STimeWindow* win, SResultRow** pResult,
+                                       SExprSupp* pExprSup, SAggSupporter* pAggSup);
+
+static int32_t initFastMergeIntervalInfo(SMergeAlignedIntervalAggOperatorInfo* pMiaInfo,
+                                         const SMergeAlignedIntervalPhysiNode* pNode) {
+  if (pMiaInfo == NULL || pNode == NULL || pMiaInfo->intervalAggOperatorInfo == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SPhysiNode* pChild = (SPhysiNode*)nodesListGetNode(pNode->window.node.pChildren, 0);
+  if (pChild == NULL || pChild->type != QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
+    qError("FAST_INTERVAL requires one root exchange child");
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pChild;
+  int32_t             numOfSources = LIST_LENGTH(pExchange->pSrcEndPoints);
+  if (numOfSources <= 0 || pExchange->seqRecvData || !pExchange->fastInterval ||
+      pExchange->node.pOutputDataBlockDesc == NULL) {
+    qError("FAST_INTERVAL requires a non-sequential exchange with source endpoints");
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  SIntervalAggOperatorInfo* pIaInfo = pMiaInfo->intervalAggOperatorInfo;
+  SInterval*                pInterval = &pIaInfo->interval;
+  SResultRowInfo            dummy = {0};
+  dummy.cur.pageId = -1;
+  STimeWindow first = getActiveTimeWindow(NULL, &dummy, pInterval->timeRange.skey, pInterval, TSDB_ORDER_ASC);
+  STimeWindow last = getActiveTimeWindow(NULL, &dummy, pInterval->timeRange.ekey, pInterval, TSDB_ORDER_ASC);
+  if (pInterval->interval <= 0 || last.skey < first.skey) {
+    qError("FAST_INTERVAL invalid interval range, interval:%" PRId64 ", first:%" PRId64 ", last:%" PRId64,
+           pInterval->interval, first.skey, last.skey);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int64_t delta = last.skey - first.skey;
+  if (delta % pInterval->interval != 0) {
+    qError("FAST_INTERVAL unaligned interval range, delta:%" PRId64 ", interval:%" PRId64, delta,
+           pInterval->interval);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int64_t numOfWindows = delta / pInterval->interval + 1;
+  if (numOfWindows <= 0 || numOfWindows > 100000 || numOfWindows > INT32_MAX / numOfSources) {
+    qError("FAST_INTERVAL invalid cache shape, windows:%" PRId64 ", sources:%d", numOfWindows, numOfSources);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  SFastMergeIntervalInfo* pFast = taosMemoryCalloc(1, sizeof(SFastMergeIntervalInfo));
+  if (pFast == NULL) {
+    return terrno;
+  }
+
+  pFast->pCachedRows = createDataBlockFromDescNode(pExchange->node.pOutputDataBlockDesc);
+  if (pFast->pCachedRows == NULL) {
+    code = terrno;
+    goto _error;
+  }
+
+  int32_t totalRows = (int32_t)(numOfWindows * numOfSources);
+  code = blockDataEnsureCapacity(pFast->pCachedRows, totalRows);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
+  pFast->pWindowRowCounts = taosMemoryCalloc((size_t)numOfWindows, sizeof(int32_t));
+  pFast->activeBitmapWords = (int32_t)(((uint64_t)numOfWindows + 63) / 64);
+  pFast->pActiveBitmap = taosMemoryCalloc((size_t)pFast->activeBitmapWords, sizeof(uint64_t));
+  code = initFastWatermarkHeap(&pFast->sourceProgress, numOfSources);
+  if (pFast->pWindowRowCounts == NULL || pFast->pActiveBitmap == NULL || code != TSDB_CODE_SUCCESS) {
+    if (code == TSDB_CODE_SUCCESS) {
+      code = terrno;
+    }
+    goto _error;
+  }
+
+  pFast->pResultRow = taosMemoryCalloc(1, pIaInfo->aggSup.resultRowSize);
+  if (pFast->pResultRow == NULL) {
+    code = terrno;
+    goto _error;
+  }
+
+  pFast->firstWindowStart = first.skey;
+  pFast->interval = pInterval->interval;
+  pFast->numOfWindows = (int32_t)numOfWindows;
+  pFast->numOfSources = numOfSources;
+  pFast->minActiveWindow = pFast->numOfWindows;
+  pFast->maxActiveWindow = -1;
+  pFast->resultRowCapacity = pIaInfo->pOperator->resultInfo.threshold;
+  pFast->pResultRows = taosMemoryCalloc((size_t)pFast->resultRowCapacity, pIaInfo->aggSup.resultRowSize);
+  pFast->pActiveWindows = taosMemoryCalloc((size_t)pFast->resultRowCapacity, sizeof(int32_t));
+  if (pFast->pResultRows == NULL || pFast->pActiveWindows == NULL) {
+    code = terrno;
+    goto _error;
+  }
+  pFast->batchProcess = true;
+  for (int32_t i = 0; i < pIaInfo->pOperator->exprSupp.numOfExprs; ++i) {
+    SqlFunctionCtx* pCtx = &pIaInfo->pOperator->exprSupp.pCtx[i];
+    if (pCtx->functionId != -1 &&
+        (pCtx->isPseudoFunc || fmIsPlaceHolderFunc(pCtx->functionId) || pCtx->fpSet.process == NULL)) {
+      pFast->batchProcess = false;
+      break;
+    }
+  }
+  pMiaInfo->pFastInterval = pFast;
+  return TSDB_CODE_SUCCESS;
+
+_error:
+  blockDataDestroy(pFast->pCachedRows);
+  taosMemoryFreeClear(pFast->pWindowRowCounts);
+  taosMemoryFreeClear(pFast->pActiveBitmap);
+  cleanupFastWatermarkHeap(&pFast->sourceProgress);
+  taosMemoryFreeClear(pFast->pResultRow);
+  taosMemoryFreeClear(pFast->pResultRows);
+  taosMemoryFreeClear(pFast->pActiveWindows);
+  taosMemoryFree(pFast);
+  return code;
+}
+
+static int32_t processFastPartialFunction(SExecTaskInfo* pTaskInfo, SqlFunctionCtx* pCtx, SResultRow* pResultRow,
+                                          int32_t exprIndex, int32_t offset,
+                                          int32_t numOfRows, int32_t numOfTotal, const int32_t* rowEntryInfoOffset) {
+  bool    savedHasAgg = pCtx->input.colDataSMAIsSet;
+  int32_t savedNumOfRows = pCtx->input.numOfRows;
+  int32_t savedStartOffset = pCtx->input.startRowIndex;
+  pCtx->resultInfo = getResultEntryInfo(pResultRow, exprIndex, rowEntryInfoOffset);
+  pCtx->input.startRowIndex = offset;
+  pCtx->input.numOfRows = numOfRows;
+  if (pCtx->input.colDataSMAIsSet && numOfRows < numOfTotal) {
+    pCtx->input.colDataSMAIsSet = false;
+  }
+
+  if (pCtx->functionId == -1) {
+    SColumnInfoData* pColInfoData = pCtx->input.pData[0];
+    int32_t rowIndex = offset < numOfTotal ? offset : 0;
+    if (pColInfoData == NULL || rowIndex < 0 || rowIndex >= numOfTotal) {
+      pCtx->resultInfo->isNullRes = 1;
+    } else if (colDataIsNull(pColInfoData, numOfTotal, rowIndex, NULL)) {
+      pCtx->resultInfo->isNullRes = 1;
+    } else {
+      char* dest = GET_ROWCELL_INTERBUF(pCtx->resultInfo);
+      char* data = colDataGetData(pColInfoData, rowIndex);
+      if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+        memcpy(dest, data, getJsonValueLen(data));
+      } else if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+        if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
+          blobDataCopy(dest, data);
+        } else {
+          varDataCopy(dest, data);
+        }
+      } else {
+        memcpy(dest, data, pColInfoData->info.bytes);
+      }
+      pCtx->resultInfo->isNullRes = 0;
+    }
+    pCtx->resultInfo->numOfRes = 1;
+    pCtx->input.colDataSMAIsSet = savedHasAgg;
+    pCtx->input.numOfRows = savedNumOfRows;
+    pCtx->input.startRowIndex = savedStartOffset;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (functionNeedToExecute(pCtx) && pCtx->input.pData[0] == NULL) {
+    qError("%s FAST_INTERVAL batch aggregate input is NULL, expr:%d", GET_TASKID(pTaskInfo), exprIndex);
+    pCtx->input.colDataSMAIsSet = savedHasAgg;
+    pCtx->input.numOfRows = savedNumOfRows;
+    pCtx->input.startRowIndex = savedStartOffset;
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  if (functionNeedToExecute(pCtx)) {
+    int32_t code = pCtx->fpSet.process(pCtx);
+    if (code != TSDB_CODE_SUCCESS) {
+      if (pCtx->fpSet.cleanup != NULL) {
+        pCtx->fpSet.cleanup(pCtx);
+      }
+      pCtx->input.colDataSMAIsSet = savedHasAgg;
+      pCtx->input.numOfRows = savedNumOfRows;
+      pCtx->input.startRowIndex = savedStartOffset;
+      return code;
+    }
+  }
+  pCtx->input.colDataSMAIsSet = savedHasAgg;
+  pCtx->input.numOfRows = savedNumOfRows;
+  pCtx->input.startRowIndex = savedStartOffset;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fastMergeIntervalNextActiveWindow(const SFastMergeIntervalInfo* pFast, int32_t start);
+
+static int32_t buildFastMergeIntervalBatch(SOperatorInfo* pOperator, SIntervalAggOperatorInfo* pIaInfo,
+                                            SFastMergeIntervalInfo* pFast) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SExprSupp*     pSup = &pOperator->exprSupp;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SSDataBlock*   pRes = pIaInfo->binfo.pRes;
+  int32_t startWindow = pFast->nextWindow;
+  int32_t endWindow = TMIN(pFast->sealedWindowExclusive, startWindow + pOperator->resultInfo.threshold);
+  int32_t numOfRows = endWindow - startWindow;
+  if (numOfRows <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SResultRow* pRows = pFast->pResultRows;
+  int32_t     initializedRows = 0;
+  if (pRows == NULL || numOfRows > pFast->resultRowCapacity) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  memset(pRows, 0, (size_t)numOfRows * pIaInfo->aggSup.resultRowSize);
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    SResultRow* pRow = (SResultRow*)((char*)pRows + (size_t)i * pIaInfo->aggSup.resultRowSize);
+    pRow->win.skey = pFast->firstWindowStart + (int64_t)(startWindow + i) * pFast->interval;
+    pRow->win.ekey = pRow->win.skey + pFast->interval - 1;
+    code = setResultRowInitCtx(pRow, pSup->pCtx, pSup->numOfExprs, pSup->rowEntryInfoOffset);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _cleanup;
+    }
+    initializedRows += 1;
+  }
+
+  for (int32_t expr = 0; expr < pSup->numOfExprs; ++expr) {
+    SqlFunctionCtx* pCtx = &pSup->pCtx[expr];
+    for (int32_t i = 0; i < numOfRows; ++i) {
+      int32_t windowIndex = startWindow + i;
+      int32_t partialRows = pFast->pWindowRowCounts[windowIndex];
+      if (partialRows == 0) {
+        continue;
+      }
+      SResultRow* pRow = (SResultRow*)((char*)pRows + (size_t)i * pIaInfo->aggSup.resultRowSize);
+      code = processFastPartialFunction(pTaskInfo, pCtx, pRow, expr, windowIndex * pFast->numOfSources, partialRows,
+                                         pFast->pCachedRows->info.rows, pSup->rowEntryInfoOffset);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _cleanup;
+      }
+    }
+  }
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    int32_t windowIndex = startWindow + i;
+    if (pFast->pWindowRowCounts[windowIndex] == 0) {
+      continue;
+    }
+    SResultRow* pRow = (SResultRow*)((char*)pRows + (size_t)i * pIaInfo->aggSup.resultRowSize);
+    doUpdateNumOfRows(pSup->pCtx, pRow, pSup->numOfExprs, pSup->rowEntryInfoOffset);
+    if (pRow->numOfRows == 0) {
+      continue;
+    }
+    updateTimeWindowInfo(&pIaInfo->twAggSup.timeWindowData, &pRow->win, 0);
+    code = copyResultrowToDataBlock(pSup->pExprInfo, pSup->numOfExprs, pRow, pSup->pCtx, pRes,
+                                    pSup->rowEntryInfoOffset, pTaskInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _cleanup;
+    }
+    pRes->info.rows += pRow->numOfRows;
+  }
+  pFast->nextWindow = endWindow;
+
+_cleanup:
+  for (int32_t i = 0; i < initializedRows; ++i) {
+    SResultRow* pRow = (SResultRow*)((char*)pRows + (size_t)i * pIaInfo->aggSup.resultRowSize);
+    cleanupFastMergeResultRow(pRow, pSup, pSup->rowEntryInfoOffset);
+  }
+  return code;
+}
+
+static int32_t buildFastMergeIntervalSparseBatch(SOperatorInfo* pOperator, SIntervalAggOperatorInfo* pIaInfo,
+                                                  SFastMergeIntervalInfo* pFast) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SExprSupp*     pSup = &pOperator->exprSupp;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SSDataBlock*   pRes = pIaInfo->binfo.pRes;
+  SResultRow*    pRows = pFast->pResultRows;
+  int32_t*       pWindows = pFast->pActiveWindows;
+  int32_t        numOfRows = 0;
+  int32_t        initializedRows = 0;
+
+  if (NULL == pRows || NULL == pWindows || pFast->resultRowCapacity <= 0) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int32_t nextWindow = pFast->nextWindow;
+  while (numOfRows < pFast->resultRowCapacity) {
+    int32_t windowIndex = fastMergeIntervalNextActiveWindow(pFast, nextWindow);
+    if (windowIndex >= pFast->sealedWindowExclusive) {
+      pFast->nextWindow = pFast->sealedWindowExclusive;
+      break;
+    }
+    pWindows[numOfRows++] = windowIndex;
+    nextWindow = windowIndex + 1;
+    pFast->nextWindow = nextWindow;
+  }
+  if (0 == numOfRows) return TSDB_CODE_SUCCESS;
+
+  TAOS_MEMSET(pRows, 0, (size_t)numOfRows * pIaInfo->aggSup.resultRowSize);
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    int32_t windowIndex = pWindows[i];
+    SResultRow* pRow = (SResultRow*)((char*)pRows + (size_t)i * pIaInfo->aggSup.resultRowSize);
+    pRow->win.skey = pFast->firstWindowStart + (int64_t)windowIndex * pFast->interval;
+    pRow->win.ekey = pRow->win.skey + pFast->interval - 1;
+    code = setResultRowInitCtx(pRow, pSup->pCtx, pSup->numOfExprs, pSup->rowEntryInfoOffset);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    ++initializedRows;
+  }
+
+  for (int32_t expr = 0; expr < pSup->numOfExprs; ++expr) {
+    SqlFunctionCtx* pCtx = &pSup->pCtx[expr];
+    for (int32_t i = 0; i < numOfRows; ++i) {
+      int32_t windowIndex = pWindows[i];
+      int32_t partialRows = pFast->pWindowRowCounts[windowIndex];
+      SResultRow* pRow = (SResultRow*)((char*)pRows + (size_t)i * pIaInfo->aggSup.resultRowSize);
+      code = processFastPartialFunction(pTaskInfo, pCtx, pRow, expr, windowIndex * pFast->numOfSources, partialRows,
+                                        pFast->pCachedRows->info.rows, pSup->rowEntryInfoOffset);
+      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    }
+  }
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    SResultRow* pRow = (SResultRow*)((char*)pRows + (size_t)i * pIaInfo->aggSup.resultRowSize);
+    doUpdateNumOfRows(pSup->pCtx, pRow, pSup->numOfExprs, pSup->rowEntryInfoOffset);
+    if (0 == pRow->numOfRows) continue;
+    updateTimeWindowInfo(&pIaInfo->twAggSup.timeWindowData, &pRow->win, 0);
+    code = copyResultrowToDataBlock(pSup->pExprInfo, pSup->numOfExprs, pRow, pSup->pCtx, pRes,
+                                    pSup->rowEntryInfoOffset, pTaskInfo);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    pRes->info.rows += pRow->numOfRows;
+  }
+
+_cleanup:
+  for (int32_t i = 0; i < initializedRows; ++i) {
+    SResultRow* pRow = (SResultRow*)((char*)pRows + (size_t)i * pIaInfo->aggSup.resultRowSize);
+    cleanupFastMergeResultRow(pRow, pSup, pSup->rowEntryInfoOffset);
+  }
+  return code;
+}
+
+static int32_t buildFastMergeIntervalSparseRows(SOperatorInfo* pOperator, SIntervalAggOperatorInfo* pIaInfo,
+                                                 SFastMergeIntervalInfo* pFast) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SExprSupp*     pSup = &pOperator->exprSupp;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SSDataBlock*   pRes = pIaInfo->binfo.pRes;
+  SResultRow*    pRows = pFast->pResultRows;
+  int32_t*       pWindows = pFast->pActiveWindows;
+  int32_t        numOfRows = 0;
+  int32_t        initializedRows = 0;
+
+  if (NULL == pRows || NULL == pWindows || pFast->resultRowCapacity <= 0) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int32_t nextWindow = pFast->nextWindow;
+  while (numOfRows < pFast->resultRowCapacity) {
+    int32_t windowIndex = fastMergeIntervalNextActiveWindow(pFast, nextWindow);
+    if (windowIndex >= pFast->sealedWindowExclusive) {
+      pFast->nextWindow = pFast->sealedWindowExclusive;
+      break;
+    }
+    pWindows[numOfRows++] = windowIndex;
+    nextWindow = windowIndex + 1;
+    pFast->nextWindow = nextWindow;
+  }
+  if (0 == numOfRows) return TSDB_CODE_SUCCESS;
+
+  TAOS_MEMSET(pRows, 0, (size_t)numOfRows * pIaInfo->aggSup.resultRowSize);
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    int32_t windowIndex = pWindows[i];
+    SResultRow* pRow = (SResultRow*)((char*)pRows + (size_t)i * pIaInfo->aggSup.resultRowSize);
+    STimeWindow win = {.skey = pFast->firstWindowStart + (int64_t)windowIndex * pFast->interval,
+                       .ekey = pFast->firstWindowStart + (int64_t)(windowIndex + 1) * pFast->interval - 1};
+    pRow->win = win;
+    code = setResultRowInitCtx(pRow, pSup->pCtx, pSup->numOfExprs, pSup->rowEntryInfoOffset);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    ++initializedRows;
+
+    updateTimeWindowInfo(&pIaInfo->twAggSup.timeWindowData, &win, 1);
+    code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pIaInfo->twAggSup.timeWindowData,
+                                           windowIndex * pFast->numOfSources, pFast->pWindowRowCounts[windowIndex],
+                                           pFast->pCachedRows->info.rows, pSup->numOfExprs);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+  }
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    SResultRow* pRow = (SResultRow*)((char*)pRows + (size_t)i * pIaInfo->aggSup.resultRowSize);
+    doUpdateNumOfRows(pSup->pCtx, pRow, pSup->numOfExprs, pSup->rowEntryInfoOffset);
+    if (0 == pRow->numOfRows) continue;
+    updateTimeWindowInfo(&pIaInfo->twAggSup.timeWindowData, &pRow->win, 0);
+    code = copyResultrowToDataBlock(pSup->pExprInfo, pSup->numOfExprs, pRow, pSup->pCtx, pRes,
+                                    pSup->rowEntryInfoOffset, pTaskInfo);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    pRes->info.rows += pRow->numOfRows;
+  }
+
+_cleanup:
+  for (int32_t i = 0; i < initializedRows; ++i) {
+    SResultRow* pRow = (SResultRow*)((char*)pRows + (size_t)i * pIaInfo->aggSup.resultRowSize);
+    cleanupFastMergeResultRow(pRow, pSup, pSup->rowEntryInfoOffset);
+  }
+  return code;
+}
+
+static int32_t cacheFastMergeIntervalRow(SFastMergeIntervalInfo* pFast, const SSDataBlock* pSource,
+                                         int32_t sourceRow, int32_t targetRow) {
+  int32_t sourceCols = taosArrayGetSize(pSource->pDataBlock);
+  int32_t targetCols = taosArrayGetSize(pFast->pCachedRows->pDataBlock);
+  if (sourceCols != targetCols || sourceRow < 0 || sourceRow >= pSource->info.rows || targetRow < 0 ||
+      targetRow >= pFast->numOfWindows * pFast->numOfSources) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  for (int32_t i = 0; i < sourceCols; ++i) {
+    SColumnInfoData* pSourceCol = taosArrayGet(pSource->pDataBlock, i);
+    SColumnInfoData* pTargetCol = taosArrayGet(pFast->pCachedRows->pDataBlock, i);
+    if (pSourceCol == NULL || pTargetCol == NULL || pSourceCol->info.type != pTargetCol->info.type ||
+        pSourceCol->info.bytes != pTargetCol->info.bytes) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+
+    bool isNull = colDataIsNull(pSourceCol, pSource->info.rows, sourceRow, NULL);
+    int32_t code = colDataSetVal(pTargetCol, targetRow, isNull ? NULL : colDataGetData(pSourceCol, sourceRow), isNull);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t collectFastMergeIntervalRows(SOperatorInfo* pOperator, bool* pWatermarkAdvanced) {
+  SMergeAlignedIntervalAggOperatorInfo* pMiaInfo = pOperator->info;
+  SIntervalAggOperatorInfo*             pIaInfo = pMiaInfo->intervalAggOperatorInfo;
+  SFastMergeIntervalInfo*               pFast = pMiaInfo->pFastInterval;
+  if (pFast == NULL || pWatermarkAdvanced == NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  *pWatermarkAdvanced = false;
+
+  SSDataBlock* pBlock = getNextBlockFromDownstreamRemainDetach(pOperator, 0);
+  if (pBlock == NULL) {
+    pFast->inputCompleted = true;
+    *pWatermarkAdvanced = pFast->sealedWindowExclusive < pFast->numOfWindows;
+    pFast->sealedWindowExclusive = pFast->numOfWindows;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SColumnInfoData* pWStartCol = taosArrayGet(pBlock->pDataBlock, pIaInfo->primaryTsIndex);
+  if (pWStartCol == NULL || pWStartCol->pData == NULL || pWStartCol->info.type != TSDB_DATA_TYPE_TIMESTAMP) {
+    qError("FAST_INTERVAL received a block without _wstart at slot:%d", pIaInfo->primaryTsIndex);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  if (pBlock->info.id.uid > INT32_MAX) {
+    qError("FAST_INTERVAL received an invalid source index:%" PRIu64, pBlock->info.id.uid);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  int32_t sourceSlot = (int32_t)pBlock->info.id.uid;
+  if (sourceSlot < 0 || sourceSlot >= pFast->numOfSources) {
+    qError("FAST_INTERVAL received source index:%d outside [0,%d)", sourceSlot, pFast->numOfSources);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int64_t maxWindowIndex = -1;
+
+  for (int32_t row = 0; row < pBlock->info.rows; ++row) {
+    if (colDataIsNull(pWStartCol, pBlock->info.rows, row, NULL)) {
+      qError("FAST_INTERVAL received NULL _wstart at row:%d", row);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+
+    int64_t wstart = *(int64_t*)colDataGetData(pWStartCol, row);
+    int64_t delta = wstart - pFast->firstWindowStart;
+    if (delta < 0 || delta % pFast->interval != 0) {
+      qError("FAST_INTERVAL received unaligned _wstart:%" PRId64, wstart);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+
+    int64_t windowIndex = delta / pFast->interval;
+    if (windowIndex >= pFast->numOfWindows) {
+      qError("FAST_INTERVAL received _wstart outside configured range:%" PRId64, wstart);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    maxWindowIndex = TMAX(maxWindowIndex, windowIndex);
+
+    int32_t sourceIndex = pFast->pWindowRowCounts[windowIndex]++;
+    if (sourceIndex == 0) {
+      ++pFast->activeCount;
+      if (windowIndex < pFast->minActiveWindow) pFast->minActiveWindow = (int32_t)windowIndex;
+      if (windowIndex > pFast->maxActiveWindow) pFast->maxActiveWindow = (int32_t)windowIndex;
+      if (!pFast->denseMode) {
+        pFast->pActiveBitmap[windowIndex >> 6] |= 1ULL << (windowIndex & 63);
+        if ((int64_t)pFast->activeCount * 5 >= pFast->numOfWindows) {
+          pFast->denseMode = true;
+        }
+      }
+    }
+    if (sourceIndex >= pFast->numOfSources) {
+      qError("FAST_INTERVAL received too many partial rows for window:%" PRId64, wstart);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+
+    int32_t targetRow = (int32_t)windowIndex * pFast->numOfSources + sourceIndex;
+    int32_t code = cacheFastMergeIntervalRow(pFast, pBlock, row, targetRow);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("FAST_INTERVAL failed to cache partial row, window:%" PRId64 ", source:%d, code:%s", wstart,
+             sourceIndex, tstrerror(code));
+      return code;
+    }
+  }
+
+  int64_t sourceProgress = maxWindowIndex + 1;
+  int32_t code = updateFastWatermarkHeap(&pFast->sourceProgress, sourceSlot, sourceProgress);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("FAST_INTERVAL failed to update source:%d progress:%" PRId64, sourceSlot, sourceProgress);
+    return code;
+  }
+
+  int64_t sealedWindowExclusive = 0;
+  if (getFastWatermarkHeapMin(&pFast->sourceProgress, &sealedWindowExclusive)) {
+    if (sealedWindowExclusive > pFast->sealedWindowExclusive) {
+      pFast->sealedWindowExclusive = (int32_t)TMIN(sealedWindowExclusive, pFast->numOfWindows);
+      *pWatermarkAdvanced = true;
+    }
+  }
+
+  pFast->pCachedRows->info.rows = pFast->numOfWindows * pFast->numOfSources;
+  pFast->pCachedRows->info.dataLoad = 1;
+  pFast->pCachedRows->info.scanFlag = MAIN_SCAN;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fastMergeIntervalNextActiveWindow(const SFastMergeIntervalInfo* pFast, int32_t start) {
+  if (pFast == NULL || pFast->pActiveBitmap == NULL || start < 0 || start >= pFast->numOfWindows) {
+    return pFast == NULL ? -1 : pFast->numOfWindows;
+  }
+  int32_t word = start >> 6;
+  uint64_t bits = pFast->pActiveBitmap[word] & (~0ULL << (start & 63));
+  while (true) {
+    if (bits != 0) {
+      int32_t index = (word << 6) + BUILDIN_CTZL(bits);
+      return index < pFast->numOfWindows ? index : pFast->numOfWindows;
+    }
+    if (++word >= pFast->activeBitmapWords) return pFast->numOfWindows;
+    bits = pFast->pActiveBitmap[word];
+  }
+}
+
+static int32_t buildFastMergeIntervalResultBlock(SOperatorInfo* pOperator) {
+  int32_t                               code = TSDB_CODE_SUCCESS;
+  SMergeAlignedIntervalAggOperatorInfo* pMiaInfo = pOperator->info;
+  SIntervalAggOperatorInfo*             pIaInfo = pMiaInfo->intervalAggOperatorInfo;
+  SFastMergeIntervalInfo*               pFast = pMiaInfo->pFastInterval;
+  SExprSupp*                            pSup = &pOperator->exprSupp;
+  SExecTaskInfo*                        pTaskInfo = pOperator->pTaskInfo;
+  SSDataBlock*                          pRes = pIaInfo->binfo.pRes;
+
+  blockDataCleanup(pRes);
+  pRes->info.version = pTaskInfo->version;
+  pRes->info.dataLoad = 1;
+  if (pFast->batchProcess) {
+    bool sparse = !pFast->denseMode && pFast->activeCount > 0 &&
+                  (int64_t)pFast->activeCount * 5 < (int64_t)(pFast->maxActiveWindow - pFast->minActiveWindow + 1);
+    if (pFast->activeCount == 0) {
+      pFast->nextWindow = pFast->numOfWindows;
+      setOperatorCompleted(pOperator);
+      return TSDB_CODE_SUCCESS;
+    }
+    if (sparse) {
+      code = buildFastMergeIntervalSparseBatch(pOperator, pIaInfo, pFast);
+    } else {
+      code = buildFastMergeIntervalBatch(pOperator, pIaInfo, pFast);
+    }
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (pFast->inputCompleted && pFast->nextWindow >= pFast->numOfWindows) {
+      setOperatorCompleted(pOperator);
+    }
+    return doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+  }
+  bool sparse = !pFast->denseMode && pFast->activeCount > 0 &&
+                (int64_t)pFast->activeCount * 5 < (int64_t)(pFast->maxActiveWindow - pFast->minActiveWindow + 1);
+  if (sparse) {
+    code = buildFastMergeIntervalSparseRows(pOperator, pIaInfo, pFast);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    if (pFast->inputCompleted && pFast->nextWindow >= pFast->numOfWindows) {
+      setOperatorCompleted(pOperator);
+    }
+    return doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+  }
+  while (pFast->nextWindow < pFast->sealedWindowExclusive && pRes->info.rows < pOperator->resultInfo.threshold) {
+    int32_t windowIndex = pFast->nextWindow;
+    if (sparse) {
+      windowIndex = fastMergeIntervalNextActiveWindow(pFast, windowIndex);
+      if (windowIndex >= pFast->sealedWindowExclusive) {
+        pFast->nextWindow = pFast->sealedWindowExclusive;
+        break;
+      }
+    }
+    pFast->nextWindow = windowIndex + 1;
+    int32_t numOfRows = pFast->pWindowRowCounts[windowIndex];
+    if (numOfRows == 0) {
+      continue;
+    }
+
+    STimeWindow win = {.skey = pFast->firstWindowStart + (int64_t)windowIndex * pFast->interval,
+                       .ekey = pFast->firstWindowStart + (int64_t)(windowIndex + 1) * pFast->interval - 1};
+    SResultRow* pResultRow = pFast->pResultRow;
+    if (pResultRow == NULL) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+
+    pResultRow->win = win;
+    pFast->resultRowActive = true;
+    code = setResultRowInitCtx(pResultRow, pSup->pCtx, pSup->numOfExprs, pSup->rowEntryInfoOffset);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _cleanup;
+    }
+
+    updateTimeWindowInfo(&pIaInfo->twAggSup.timeWindowData, &win, 1);
+    int32_t startRow = windowIndex * pFast->numOfSources;
+    code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pIaInfo->twAggSup.timeWindowData, startRow,
+                                           numOfRows, pFast->pCachedRows->info.rows, pSup->numOfExprs);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _cleanup;
+    }
+
+    doUpdateNumOfRows(pSup->pCtx, pResultRow, pSup->numOfExprs, pSup->rowEntryInfoOffset);
+    if (pResultRow->numOfRows > 0) {
+      code = blockDataEnsureCapacity(pRes, pRes->info.rows + pResultRow->numOfRows);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _cleanup;
+      }
+
+      updateTimeWindowInfo(&pIaInfo->twAggSup.timeWindowData, &win, 0);
+      code = copyResultrowToDataBlock(pSup->pExprInfo, pSup->numOfExprs, pResultRow, pSup->pCtx, pRes,
+                                      pSup->rowEntryInfoOffset, pTaskInfo);
+      if (code == TSDB_CODE_SUCCESS) {
+        pRes->info.rows += pResultRow->numOfRows;
+      }
+    }
+
+_cleanup:
+    cleanupFastMergeIntervalResultRow(pFast, pSup);
+    resetResultRow(pResultRow, pIaInfo->aggSup.resultRowSize - sizeof(SResultRow));
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  if (pFast->nextWindow >= pFast->numOfWindows) {
+    setOperatorCompleted(pOperator);
+  }
+  return doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+}
+
 void destroyMAIOperatorInfo(void* param) {
   SMergeAlignedIntervalAggOperatorInfo* miaInfo = (SMergeAlignedIntervalAggOperatorInfo*)param;
-  destroyIntervalOperatorInfo(miaInfo->intervalAggOperatorInfo);
+  if (miaInfo == NULL) {
+    return;
+  }
+  cleanupFastMergeIntervalInfo(miaInfo);
+  releaseExIntervalInfo(&miaInfo->pExInterval);
+  if (miaInfo->intervalAggOperatorInfo != NULL) {
+    destroyIntervalOperatorInfo(miaInfo->intervalAggOperatorInfo);
+  }
   taosMemoryFreeClear(param);
+}
+
+static int32_t exIntervalSetOutputValue(SColumnInfoData* pCol, int32_t row, int8_t type,
+                                        const SExIntervalCell* pCell, int64_t wstart, int64_t wend, int64_t wduration) {
+  if (NULL == pCol || NULL == pCell) return TSDB_CODE_INVALID_PARA;
+  if (EX_INTERVAL_CELL_WSTART == type) return colDataSetVal(pCol, row, (const char*)&wstart, false);
+  if (EX_INTERVAL_CELL_WEND == type) return colDataSetVal(pCol, row, (const char*)&wend, false);
+  if (EX_INTERVAL_CELL_WDURATION == type) return colDataSetVal(pCol, row, (const char*)&wduration, false);
+  int64_t count = atomic_load_64((int64_t*)&pCell->count);
+  if (EX_INTERVAL_CELL_COUNT == type) return colDataSetVal(pCol, row, (const char*)&count, false);
+  if (0 == count) return colDataSetVal(pCol, row, NULL, true);
+  double value = EX_INTERVAL_CELL_AVG == type ? pCell->sum / count : pCell->sum;
+  if (TSDB_DATA_TYPE_FLOAT == pCol->info.type) {
+    float result = (float)value;
+    return colDataSetVal(pCol, row, (const char*)&result, false);
+  }
+  if (TSDB_DATA_TYPE_DOUBLE == pCol->info.type) return colDataSetVal(pCol, row, (const char*)&value, false);
+  return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+}
+
+static int32_t buildExMergeIntervalResultBlock(SOperatorInfo* pOperator) {
+  SMergeAlignedIntervalAggOperatorInfo* pMiaInfo = pOperator->info;
+  SIntervalAggOperatorInfo* pIaInfo = pMiaInfo->intervalAggOperatorInfo;
+  SExIntervalInfo* pExInfo = pMiaInfo->pExInterval;
+  if (NULL == pIaInfo || NULL == pExInfo || pExInfo->finalized) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (NULL == pExInfo->pHashEntry || NULL == pExInfo->pEntry) {
+    code = acquireExIntervalEntry(pExInfo);
+  }
+  if (TSDB_CODE_SUCCESS != code || NULL == pExInfo->pHashEntry || NULL == pExInfo->pEntry) {
+    if (TSDB_CODE_SUCCESS == code) {
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    goto _return;
+  }
+  SExIntervalEntry* pEntry = pExInfo->pEntry;
+  int32_t entryCode = atomic_load_32(&pEntry->errCode);
+  if (0 == atomic_load_32(&pEntry->ready) || TSDB_CODE_SUCCESS != entryCode) {
+    qError("EX_INTERVAL shared result is invalid, qId:%" PRIu64 ", ready:%d, errCode:%s, aggs:%d",
+           pExInfo->queryId, atomic_load_32(&pEntry->ready), tstrerror(entryCode), pEntry->numOfAggs);
+    code = TSDB_CODE_SUCCESS == entryCode ? TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR : entryCode;
+    goto _return;
+  }
+  code = exIntervalInitMergeCellIndexes(pExInfo, &pOperator->exprSupp);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+  SSDataBlock* pRes = pIaInfo->binfo.pRes;
+  blockDataCleanup(pRes);
+  int32_t activeCount = atomic_load_32(&pEntry->activeCount);
+  int32_t minWindow = atomic_load_32(&pEntry->minActiveWindow);
+  int32_t maxWindow = atomic_load_32(&pEntry->maxActiveWindow);
+  if (activeCount <= 0 || minWindow > maxWindow) {
+    code = TSDB_CODE_SUCCESS;
+    goto _finalize;
+  }
+  code = blockDataEnsureCapacity(pRes, activeCount);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+  for (int32_t window = minWindow; window <= maxWindow; ++window) {
+    if (0 == atomic_load_64(&pEntry->pRows[window])) continue;
+    int32_t resultRow = pRes->info.rows;
+    int64_t windowOffset = 0;
+    int64_t wstart = 0;
+    int64_t wend = 0;
+    if (!exIntervalMulInt64((int64_t)window, pEntry->interval, &windowOffset) ||
+        !exIntervalAddInt64(pEntry->firstWindowStart, windowOffset, &wstart) ||
+        !exIntervalAddInt64(wstart, pEntry->interval, &wend)) {
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      goto _return;
+    }
+    for (int32_t expr = 0; expr < pOperator->exprSupp.numOfExprs; ++expr) {
+      SColumnInfoData* pCol = taosArrayGet(pRes->pDataBlock, pOperator->exprSupp.pExprInfo[expr].base.resSchema.slotId);
+      if (NULL == pCol) { code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR; goto _return; }
+      int8_t cellIndex = pExInfo->mergeCellIndex[expr];
+      if (cellIndex < 0 || cellIndex >= pEntry->numOfAggs) {
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        goto _return;
+      }
+      SExIntervalCell* pCell = &pEntry->pCells[(size_t)window * pEntry->numOfAggs + cellIndex];
+      code = exIntervalSetOutputValue(pCol, resultRow, pEntry->cellTypes[cellIndex], pCell, wstart, wend,
+                                      pEntry->interval);
+      if (TSDB_CODE_SUCCESS != code) goto _return;
+    }
+    pRes->info.rows += 1;
+  }
+  pRes->info.dataLoad = 1;
+  pRes->info.version = pOperator->pTaskInfo->version;
+  SColumnInfoData* pTsCol = taosArrayGet(pRes->pDataBlock, pIaInfo->primaryTsIndex);
+  if (pRes->info.rows > 0 && NULL != pTsCol && TSDB_DATA_TYPE_TIMESTAMP == pTsCol->info.type) {
+    code = blockDataUpdateTsWindow(pRes, pIaInfo->primaryTsIndex);
+    if (TSDB_CODE_SUCCESS != code) goto _return;
+  }
+_finalize:
+  code = taosHashRemove(gExIntervalHash, &pExInfo->queryId, sizeof(pExInfo->queryId));
+  if (TSDB_CODE_SUCCESS != code && TSDB_CODE_NOT_FOUND != code) goto _return;
+  code = TSDB_CODE_SUCCESS;
+  pExInfo->pEntry = NULL;
+  pExInfo->finalized = true;
+  code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+_return:
+  if (NULL != pExInfo->pHashEntry) {
+    int32_t removeCode = taosHashRemove(gExIntervalHash, &pExInfo->queryId, sizeof(pExInfo->queryId));
+    if (TSDB_CODE_SUCCESS != removeCode && TSDB_CODE_NOT_FOUND != removeCode && TSDB_CODE_SUCCESS == code) {
+      code = removeCode;
+    }
+    taosHashRelease(gExIntervalHash, pExInfo->pHashEntry);
+    pExInfo->pHashEntry = NULL;
+  }
+  pExInfo->pEntry = NULL;
+  return code;
 }
 
 static SResultRow* doSetSingleOutputTupleBuf(SResultRowInfo* pResultRowInfo, SAggSupporter* pSup) {
@@ -3332,6 +5485,59 @@ static int32_t mergeAlignedIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock
   }
 
   SSDataBlock* pRes = iaInfo->binfo.pRes;
+  if (pMiaInfo->pExInterval != NULL) {
+    code = acquireExIntervalEntry(pMiaInfo->pExInterval);
+    if (TSDB_CODE_SUCCESS != code) {
+      pTaskInfo->code = code;
+      return code;
+    }
+    while (getNextBlockFromDownstreamRemain(pOperator, 0) != NULL) {
+    }
+    code = buildExMergeIntervalResultBlock(pOperator);
+    if (TSDB_CODE_SUCCESS != code) {
+      pTaskInfo->code = code;
+      return code;
+    }
+    setOperatorCompleted(pOperator);
+    pOperator->resultInfo.totalRows += pRes->info.rows;
+    *ppRes = pRes->info.rows == 0 ? NULL : pRes;
+    return code;
+  }
+  if (pMiaInfo->pFastInterval != NULL) {
+    SFastMergeIntervalInfo* pFast = pMiaInfo->pFastInterval;
+    while (1) {
+      bool watermarkAdvanced = pFast->nextWindow < pFast->sealedWindowExclusive;
+      while (!watermarkAdvanced && !pFast->inputCompleted) {
+        code = collectFastMergeIntervalRows(pOperator, &watermarkAdvanced);
+        if (code != TSDB_CODE_SUCCESS) {
+          pTaskInfo->code = code;
+          return code;
+        }
+      }
+
+      if (!watermarkAdvanced && pFast->nextWindow >= pFast->sealedWindowExclusive) {
+        setOperatorCompleted(pOperator);
+        break;
+      }
+
+      code = setInputDataBlock(&pOperator->exprSupp, pFast->pCachedRows, iaInfo->binfo.inputTsOrder, MAIN_SCAN, true);
+      if (code != TSDB_CODE_SUCCESS) {
+        pTaskInfo->code = code;
+        return code;
+      }
+      code = buildFastMergeIntervalResultBlock(pOperator);
+      if (code != TSDB_CODE_SUCCESS) {
+        pTaskInfo->code = code;
+        return code;
+      }
+      if (pRes->info.rows > 0 || pOperator->status == OP_EXEC_DONE) {
+        break;
+      }
+    }
+    *ppRes = (pRes->info.rows == 0) ? NULL : pRes;
+    return code;
+  }
+
   blockDataCleanup(pRes);
 
   if (iaInfo->binfo.mergeResultBlock) {
@@ -3367,7 +5573,23 @@ static int32_t resetMergeAlignedIntervalOperState(SOperatorInfo* pOper) {
   pInfo->prefetchedBlock = NULL;
   pInfo->pResultRow = NULL;
 
-  return resetInterval(pOper, pInfo->intervalAggOperatorInfo);
+  bool fastInterval = (pInfo->pFastInterval != NULL);
+  bool exInterval = (pInfo->pExInterval != NULL);
+  if (exInterval) {
+    releaseExIntervalInfo(&pInfo->pExInterval);
+  }
+  cleanupFastMergeIntervalInfo(pInfo);
+  int32_t code = resetInterval(pOper, pInfo->intervalAggOperatorInfo);
+  if (code != TSDB_CODE_SUCCESS || !fastInterval) {
+    if (code != TSDB_CODE_SUCCESS || !exInterval) return code;
+    code = initExIntervalInfo(pInfo->intervalAggOperatorInfo, pOper, true);
+    if (TSDB_CODE_SUCCESS == code) {
+      pInfo->pExInterval = pInfo->intervalAggOperatorInfo->pExInterval;
+      pInfo->intervalAggOperatorInfo->pExInterval = NULL;
+    }
+    return code;
+  }
+  return initFastMergeIntervalInfo(pInfo, (SMergeAlignedIntervalPhysiNode*)pOper->pPhyNode);
 }
 
 int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMergeAlignedIntervalPhysiNode* pNode,
@@ -3458,7 +5680,16 @@ int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
   iaInfo->pOperator = pOperator;
   setOperatorInfo(pOperator, "TimeMergeAlignedIntervalAggOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL,
                   false, OP_NOT_OPENED, miaInfo, pTaskInfo);
-
+  if (pNode->fastInterval) {
+    code = initFastMergeIntervalInfo(miaInfo, pNode);
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
+  if (pNode->exInterval) {
+    code = initExIntervalInfo(iaInfo, pOperator, true);
+    QUERY_CHECK_CODE(code, lino, _error);
+    miaInfo->pExInterval = iaInfo->pExInterval;
+    iaInfo->pExInterval = NULL;
+  }
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, mergeAlignedIntervalAggNext, NULL, destroyMAIOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorResetStateFn(pOperator, resetMergeAlignedIntervalOperState);
