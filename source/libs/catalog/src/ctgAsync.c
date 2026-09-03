@@ -3197,7 +3197,13 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       // pOut->tbMeta is built from the response msg (never a cache object); the merge
       // realloc's it and inserts the vchild own columns in place.
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
-      CTG_ERR_JRET(ctgMergeVctbOwnMeta(&pOut->tbMeta, pOut->vctbMeta));
+      code = ctgMergeVctbOwnMeta(&pOut->tbMeta, pOut->vctbMeta);
+      if (TSDB_CODE_SUCCESS != code) {
+        queryFreeTableMeta(pOut->tbMeta);
+        pOut->tbMeta = NULL;
+        taosMemoryFreeClear(pOut->vctbMeta);
+        goto _return;
+      }
     } else  {
       // tbMeta is NULL, allocate as SVCTableMeta + colRef + tagRef
       // Note: SVCTableMeta and STableMeta have the same layout for the common fields
@@ -3445,7 +3451,13 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
       // pOut->tbMeta is built from the response msg (never a cache object); the merge
       // realloc's it and inserts the vchild own columns in place.
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
-      CTG_ERR_JRET(ctgMergeVctbOwnMeta(&pOut->tbMeta, pOut->vctbMeta));
+      code = ctgMergeVctbOwnMeta(&pOut->tbMeta, pOut->vctbMeta);
+      if (TSDB_CODE_SUCCESS != code) {
+        queryFreeTableMeta(pOut->tbMeta);
+        pOut->tbMeta = NULL;
+        taosMemoryFreeClear(pOut->vctbMeta);
+        goto _return;
+      }
     } else  {
       // tbMeta is NULL, allocate as SVCTableMeta + colRef + tagRef
       int32_t colRefSize = pOut->vctbMeta->numOfColRefs * sizeof(SColRef);
@@ -3459,6 +3471,10 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
       // Degenerate meta without a schema area: own columns/tags cannot be indexed here,
       // drop them (the packed ownSchemas/ownTagSchemas areas stay inside vctbMeta and are
       // freed with it).
+      if (pOut->vctbMeta->numOfOwnCols > 0 || pOut->vctbMeta->numOfOwnTags > 0) {
+        ctgError("vctb meta for %s carries %d own cols / %d own tags but tbMeta is NULL; dropping them",
+                 pOut->ctbName, pOut->vctbMeta->numOfOwnCols, pOut->vctbMeta->numOfOwnTags);
+      }
       pOut->tbMeta->numOfOwnCols = 0;
       pOut->tbMeta->ownSchemas = NULL;
       pOut->tbMeta->ownSchemaExt = NULL;
@@ -3691,7 +3707,13 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
       // pOut->tbMeta is built from the response msg (never a cache object); the merge
       // realloc's it and inserts the vchild own columns in place.
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
-      CTG_ERR_JRET(ctgMergeVctbOwnMeta(&pOut->tbMeta, pOut->vctbMeta));
+      code = ctgMergeVctbOwnMeta(&pOut->tbMeta, pOut->vctbMeta);
+      if (TSDB_CODE_SUCCESS != code) {
+        queryFreeTableMeta(pOut->tbMeta);
+        pOut->tbMeta = NULL;
+        taosMemoryFreeClear(pOut->vctbMeta);
+        goto _return;
+      }
     } else  {
       int32_t colRefSize = pOut->vctbMeta->numOfColRefs * sizeof(SColRef);
       int32_t tagRefSize = pOut->vctbMeta->numOfTagRefs * sizeof(SColRef);
@@ -3704,6 +3726,10 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
       // Degenerate meta without a schema area: own columns/tags cannot be indexed here,
       // drop them (the packed ownSchemas/ownTagSchemas areas stay inside vctbMeta and are
       // freed with it).
+      if (pOut->vctbMeta->numOfOwnCols > 0 || pOut->vctbMeta->numOfOwnTags > 0) {
+        ctgError("vctb meta for %s carries %d own cols / %d own tags but tbMeta is NULL; dropping them",
+                 pOut->ctbName, pOut->vctbMeta->numOfOwnCols, pOut->vctbMeta->numOfOwnTags);
+      }
       pOut->tbMeta->numOfOwnCols = 0;
       pOut->tbMeta->ownSchemas = NULL;
       pOut->tbMeta->ownSchemaExt = NULL;

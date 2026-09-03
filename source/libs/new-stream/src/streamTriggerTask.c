@@ -23092,8 +23092,8 @@ static int32_t stRealtimeGroupUpdateExecTime(SSTriggerRealtimeGroup *pGroup, int
       nextExecTime != INT64_MAX && nextExecTime > oldNextExecTime) {
     ST_TASK_DLOG("keep existing legacy next exec time for group %" PRId64 " old:%" PRId64 " candidate:%" PRId64
                  " now:%" PRId64 " pendingCalc:%" PRId64 " pendingParWin:%" PRId64,
-                 pGroup->gid, oldNextExecTime, nextExecTime, now, pGroup->pPendingCalcParams.neles,
-                 pGroup->pPendingParWinCalcParams.neles);
+                 pGroup->gid, oldNextExecTime, nextExecTime, now, (int64_t)pGroup->pPendingCalcParams.neles,
+                 (int64_t)pGroup->pPendingParWinCalcParams.neles);
     nextExecTime = TMIN(nextExecTime, oldNextExecTime);
   }
 
