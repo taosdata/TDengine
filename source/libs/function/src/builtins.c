@@ -7584,6 +7584,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = gconcatFunctionSetup,
     .processFunc  = gconcatFunction,
     .finalizeFunc = gconcatFinalize,
+    .cleanupFunc  = gconcatFunctionCleanupExt,
     /*
     .combineFunc  = gconcatCombine, // stream
     .pStateFunc = "group_concat",   // tsma

@@ -24521,6 +24521,43 @@ static int32_t createStreamReqSetDefaultOutCols(STranslateContext* pCxt, SCreate
     index++;
   }
 
+  if (!pColExists && pStmt->pCols) {
+    // GROUP_CONCAT declares its result as wide as the maximum field length, which can push the
+    // auto-derived output row over TSDB_MAX_BYTES_PER_ROW and get the stream rejected (#34504).
+    // Clamp such columns to what the output row can actually hold; a real value that still exceeds
+    // the (clamped) output column is rejected at write time instead of failing the stream creation.
+    int32_t rowSize = 0;
+    SNode*  pTmp = NULL;
+    FOREACH(pTmp, pStmt->pCols) { rowSize += ((SColumnDefNode*)pTmp)->dataType.bytes; }
+    if (rowSize > TSDB_MAX_BYTES_PER_ROW) {
+      int32_t idx = 0;
+      FOREACH(pTmp, pCalcProjection) {
+        if (idx >= bound || rowSize <= TSDB_MAX_BYTES_PER_ROW) {
+          break;
+        }
+        if (nodeType(pTmp) == QUERY_NODE_FUNCTION &&
+            ((SFunctionNode*)pTmp)->funcType == FUNCTION_TYPE_GROUP_CONCAT) {
+          SColumnDefNode* pColDef = (SColumnDefNode*)nodesListGetNode(pStmt->pCols, idx);
+          if (NULL == pColDef) {
+            break;
+          }
+          if (TSDB_DATA_TYPE_VARCHAR == pColDef->dataType.type || TSDB_DATA_TYPE_NCHAR == pColDef->dataType.type) {
+            int32_t reducible = pColDef->dataType.bytes - (VARSTR_HEADER_SIZE + 1);
+            int32_t reduce = rowSize - TSDB_MAX_BYTES_PER_ROW;
+            if (reduce > reducible) {
+              reduce = reducible;
+            }
+            if (reduce > 0) {
+              pColDef->dataType.bytes -= reduce;
+              rowSize -= reduce;
+            }
+          }
+        }
+        idx++;
+      }
+    }
+  }
+
   if (LIST_LENGTH(pCalcProjection) < TSDB_MIN_COLUMNS) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
                                          "The number of columns in stream output must be greater than 1"));
