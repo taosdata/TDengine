@@ -36,6 +36,72 @@ TDengine 在存储架构上采用了列式存储技术，这意味着在存储�
 
 TDengine 支持多种压缩算法，包括 LZ4、ZLIB、ZSTD、XZ 等，用户可以根据具体的应用场景和需求，在压缩率和写入速度之间进行灵活权衡，选择最适合的压缩方案。
 
+#### 使用硬件加速的二级压缩库（可选）
+
+二级压缩默认链接到打包在 TDengine 中的静态 zlib/zstd/lz4。如果部署环境提供了硬件加速的 ABI 兼容替代品（例如 Intel QAT/IAA 加速版 zlib、ISA-L 的 libz、ARM 上经过 SVE 优化的 zstd 等），可以让 taosd 在启动时把这些替代品挂入二级压缩 dispatch table，从而在不修改 SQL 的前提下获得加速；如果替代品不可用，自动回退到打包的静态实现。
+
+该能力仅在 Linux 平台、并且编译时显式开启 `BUILD_WITH_ACCEL_COMPRESS` 时生效：
+
+```bash
+# 编译
+mkdir build && cd build
+cmake -DBUILD_WITH_ACCEL_COMPRESS=ON ..
+make -j$(nproc)
+```
+
+启动时通过环境变量告诉 taosd 从哪里加载替代库：
+
+| 环境变量 | 取值 | 说明 |
+|---|---|---|
+| `TAOS_COMPRESS_ACCEL`      | 目录路径 / 不设置 | 设为目录则按惯例从 `<dir>/libz.so`、`<dir>/libzstd.so`、`<dir>/liblz4.so` 加载；不设置（或设为空）时使用内置实现 |
+| `TAOS_COMPRESS_ACCEL_ZLIB` | `.so` 完整路径 | 单独覆盖 zlib 路径，优先于 `TAOS_COMPRESS_ACCEL` |
+| `TAOS_COMPRESS_ACCEL_ZSTD` | `.so` 完整路径 | 同上，覆盖 zstd |
+| `TAOS_COMPRESS_ACCEL_LZ4`  | `.so` 完整路径 | 同上，覆盖 lz4 |
+
+**符号约定**：替代库必须导出与上游一致的公共符号，TDengine 启动时会 `dlsym` 它们：
+
+- libz：`compress2`、`uncompress`
+- libzstd：`ZSTD_compress`、`ZSTD_decompress`
+- liblz4：`LZ4_compress_default`、`LZ4_decompress_safe`
+
+ABI 必须与上游相同（参数顺序、返回值语义）。绝大多数硬件加速版本都是 drop-in 替换，无需关心。
+
+**失败回退**：任一步失败（环境变量未设、文件不存在、`dlopen` 失败、缺符号），都不会中断 taosd 启动；该 codec 继续使用静态打包的实现，并在日志中输出 `UTL WARN  accel <codec>: ...`。
+
+**确认加载成功**：taosd 启动日志会显示一行类似：
+
+```text
+UTL INFO  accel zlib: loaded from /opt/qat-zlib/libz.so, L2_ZLIB dispatch patched
+UTL INFO  accel zstd: loaded from /opt/qat-zlib/libzstd.so, L2_ZSTD dispatch patched
+```
+
+如果完全没设环境变量，则会看到：
+
+```text
+UTL INFO  accel compression: TAOS_COMPRESS_ACCEL{,_ZLIB,_ZSTD,_LZ4} unset; using stock L2 implementations
+```
+
+**评估加速效果**：与 `BUILD_TOOLS=ON` 一起编译会得到 `compressBench`，可以直接对二级压缩 dispatch table 做微基准（绕开 SQL、网络、WAL，结果只反映压缩本身）：
+
+```bash
+# Stock 基线（不设 TAOS_COMPRESS_ACCEL）
+./build/bin/compressBench --codec all --size 1 --iters 30 --warmup 5 \
+    --shape mixed --label stock --csv result.csv
+
+# 切换到加速库再跑一次，对比同 codec 的 throughput
+export TAOS_COMPRESS_ACCEL=/opt/qat-zlib
+./build/bin/compressBench --codec all --size 1 --iters 30 --warmup 5 \
+    --shape mixed --label accel --csv result.csv
+```
+
+输出每个 codec 的 mean / p50 / p95 / stdev 以及 MB/s 吞吐和压缩率，并把 `backend=stock|accel` 标在行尾以便对照。`--shape` 提供 `random / repeating / sequential / mixed` 四种数据形态，可分别评估高熵、低熵、单调时间戳和混合负载下的表现；`--size` 支持 0.004（4 KiB）、0.0625（64 KiB）、1（1 MiB）等，覆盖真实列块的常见尺寸。建议至少跑 30 轮 measure + 5 轮 warmup，并在不同空闲时段重复两次以排除瞬时干扰。
+
+**注意事项**：
+
+- 替代库会被 `dlopen` 一次并常驻整个 taosd 生命周期，因此磁盘上别在运行期间替换或删除该文件。
+- 如果替代库本身又依赖其他动态库（例如 QAT 用户态驱动），需要确保它们也能被 `dlopen` 找到——常规手段（`/etc/ld.so.conf.d/`、`LD_LIBRARY_PATH`）都适用。
+- TSZ（浮点有损压缩）和 XZ 不在替换范围内：前者是 TDengine 内部实现，后者使用的是 fast-lzma2 而非主流 xz，没有通用的 drop-in 加速版。
+
 ### 有损压缩
 
 TDengine 引擎为浮点数类型数据提供了无损压缩和有损压缩两种模式。浮点数的精度通常由其小数点后的位数决定。在某些情况下，设备采集的浮点数精度较高，但实际应用中关注的精度却较低，此时采用有损压缩可以有效地节约存储空间。TDengine 的有损压缩算法基于预测模型，其核心思想是利用前序数据点的趋势来预测后续数据点的走势。这种算法能够显著提高压缩率，相比之下，其压缩效果远超无损压缩。有损压缩算法的名称为 TSZ。

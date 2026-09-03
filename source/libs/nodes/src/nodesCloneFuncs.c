@@ -812,6 +812,8 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(sliding);
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
+  COPY_SCALAR_FIELD(fastInterval);
+  COPY_SCALAR_FIELD(exInterval);
   COPY_SCALAR_FIELD(firstDayOfWeek);
   COPY_SCALAR_FIELD(timezone);
   COPY_CHAR_ARRAY_FIELD(timezoneName);
@@ -975,6 +977,7 @@ static int32_t logicExchangeCopy(const SExchangeLogicNode* pSrc, SExchangeLogicN
   COPY_SCALAR_FIELD(srcEndGroupId);
   COPY_SCALAR_FIELD(seqRecvData);
   COPY_SCALAR_FIELD(dynTbname);
+  COPY_SCALAR_FIELD(fastInterval);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1021,6 +1024,8 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(endTrueForCount);
   COPY_SCALAR_FIELD(endTrueForDuration);
   COPY_SCALAR_FIELD(windowAlgo);
+  COPY_SCALAR_FIELD(fastInterval);
+  COPY_SCALAR_FIELD(exInterval);
   COPY_SCALAR_FIELD(windowCount);
   COPY_SCALAR_FIELD(windowSliding);
   COPY_SCALAR_FIELD(indefRowsFunc);
@@ -1380,6 +1385,8 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_SCALAR_FIELD(sliding);
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
+  COPY_SCALAR_FIELD(fastInterval);
+  COPY_SCALAR_FIELD(exInterval);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(igExpired);
@@ -1440,6 +1447,8 @@ static int32_t physiIntervalCopy(const SIntervalPhysiNode* pSrc, SIntervalPhysiN
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
   COPY_SCALAR_FIELD(firstDayOfWeek);
+  COPY_SCALAR_FIELD(fastInterval);
+  COPY_SCALAR_FIELD(exInterval);
   pDst->timezone = NULL;
   pDst->ownsTimezone = false;
   pDst->timezoneName[0] = '\0';
@@ -1580,6 +1589,7 @@ static int32_t physiSubplanCopy(const SSubplan* pSrc, SSubplan* pDst) {
   COPY_SCALAR_FIELD(dynamicRowThreshold);
   COPY_SCALAR_FIELD(rowsThreshold);
   COPY_SCALAR_FIELD(processOneBlock);
+  COPY_SCALAR_FIELD(delayFreeTask);
   COPY_SCALAR_FIELD(requiresAncestorContext);
   COPY_SCALAR_FIELD(inheritedMultiGroupJoin);
   COPY_SCALAR_FIELD(dynTbname);

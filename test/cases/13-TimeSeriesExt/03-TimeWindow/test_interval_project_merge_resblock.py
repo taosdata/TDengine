@@ -1,4 +1,5 @@
 from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.interval_hints import assert_supported_interval_hint_modes
 
 
 class TestIntervalProjectMergeResblock:
@@ -74,6 +75,8 @@ class TestIntervalProjectMergeResblock:
             "('2021-09-01 01:46:39.999', 2) "
             "('2021-12-24 12:06:20.001', 3)"
         )
+
+        assert_supported_interval_hint_modes()
 
         sql = (
             f"explain verbose true "

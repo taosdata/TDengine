@@ -25,6 +25,8 @@ extern "C" {
 #include "tname.h"
 
 #define SLOT_NAME_LEN TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN
+#define EX_INTERVAL_MAX_WINDOWS   100000
+#define EX_INTERVAL_MAX_FUNCTIONS 16
 
 typedef enum EDataOrderLevel {
   DATA_ORDER_LEVEL_NONE = 1,  // no timestamp order guarantee
@@ -123,6 +125,8 @@ typedef struct SScanLogicNode {
   int64_t            sliding;
   int8_t             intervalUnit;
   int8_t             slidingUnit;
+  bool               fastInterval;
+  bool               exInterval;
   int8_t             firstDayOfWeek;  /* 0-6, propagated from window logic node */
   void*              timezone;        /* timezone_t handle for interval alignment */
   char               timezoneName[TD_TIMEZONE_LEN]; /* IANA name for serialization */
@@ -415,6 +419,7 @@ typedef struct SExchangeLogicNode {
   int32_t    srcEndGroupId;
   bool       seqRecvData;
   bool       dynTbname;
+  bool       fastInterval;
 } SExchangeLogicNode;
 
 typedef struct SMergeLogicNode {
@@ -463,6 +468,8 @@ typedef struct SWindowLogicNode {
   SNode*                pTimeRange;
   SNode*                pTspk;
   EWindowAlgorithm      windowAlgo;
+  bool                  fastInterval;  // FAST_INTERVAL hint selected this node's dedicated execution path
+  bool                  exInterval;    // EX_INTERVAL hint selected this node's dedicated execution path
   SNodeList*            pTsmaSubplans;
   // for interval window
   int64_t               interval;
@@ -762,6 +769,8 @@ typedef struct STableScanPhysiNode {
   int64_t        sliding;
   int8_t         intervalUnit;
   int8_t         slidingUnit;
+  bool           fastInterval;
+  bool           exInterval;
   int8_t         firstDayOfWeek;  /* 0-6, propagated from interval logic node */
   void*          timezone;        /* timezone_t handle for interval alignment */
   char           timezoneName[TD_TIMEZONE_LEN]; /* IANA name for TLV serialization */
@@ -1039,6 +1048,7 @@ typedef struct SExchangePhysiNode {
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
   bool       seqRecvData;
   bool       dynTbname;
+  bool       fastInterval;
 } SExchangePhysiNode;
 
 typedef struct SMergePhysiNode {
@@ -1082,6 +1092,8 @@ typedef struct SIntervalPhysiNode {
   void*            timezone;        /* timezone_t handle; NULL → server default */
   char             timezoneName[TD_TIMEZONE_LEN]; /* IANA name for TLV serialization */
   bool             ownsTimezone;    /* true when timezone was tzalloc'd during deser */
+  bool             fastInterval;    /* FAST_INTERVAL execution path; false preserves the legacy operator */
+  bool             exInterval;      /* EX_INTERVAL execution path; false preserves the legacy operator */
   STimeWindow      timeRange;
 } SIntervalPhysiNode;
 
@@ -1285,6 +1297,8 @@ typedef struct SSubplan {
   bool           dynamicRowThreshold;
   int32_t        rowsThreshold;
   bool           processOneBlock;
+  // Keep completed vnode task resources until scheduler drops the task.
+  bool           delayFreeTask;
   bool           requiresAncestorContext;
   bool           inheritedMultiGroupJoin;
   bool           dynTbname;
