@@ -1137,6 +1137,7 @@ static const char* jkScanLogicPlanSmallDataTsSort = "SmallDataTsSort";
 // FQ (federated query) external-scan extension fields.
 static const char* jkScanLogicPlanExtTableNode = "ExtTableNode";
 static const char* jkScanLogicPlanRemoteLogicPlan = "RemoteLogicPlan";
+static const char* jkScanLogicPlanFastInterval = "FastInterval";
 
 static int32_t logicScanNodeToJson(const void* pObj, SJson* pJson) {
   const SScanLogicNode* pNode = (const SScanLogicNode*)pObj;
@@ -1197,6 +1198,9 @@ static int32_t logicScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkScanLogicPlanRemoteLogicPlan, nodeToJson, pNode->pRemoteLogicPlan);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->fastInterval) {
+    code = tjsonAddBoolToObject(pJson, jkScanLogicPlanFastInterval, true);
   }
   return code;
 }
@@ -1260,6 +1264,9 @@ static int32_t jsonToLogicScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkScanLogicPlanRemoteLogicPlan, &pNode->pRemoteLogicPlan);
+  }
+  if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkScanLogicPlanFastInterval) != NULL) {
+    code = tjsonGetBoolValue(pJson, jkScanLogicPlanFastInterval, &pNode->fastInterval);
   }
   return code;
 }
@@ -1341,6 +1348,7 @@ static int32_t jsonToLogicVnodeModifyNode(const SJson* pJson, void* pObj) {
 
 static const char* jkExchangeLogicPlanSrcStartGroupId = "SrcStartGroupId";
 static const char* jkExchangeLogicPlanSrcEndGroupId = "SrcEndGroupId";
+static const char* jkExchangeLogicPlanFastInterval = "FastInterval";
 
 static int32_t logicExchangeNodeToJson(const void* pObj, SJson* pJson) {
   const SExchangeLogicNode* pNode = (const SExchangeLogicNode*)pObj;
@@ -1351,6 +1359,9 @@ static int32_t logicExchangeNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkExchangeLogicPlanSrcEndGroupId, pNode->srcEndGroupId);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->fastInterval) {
+    code = tjsonAddBoolToObject(pJson, jkExchangeLogicPlanFastInterval, true);
   }
 
   return code;
@@ -1365,6 +1376,9 @@ static int32_t jsonToLogicExchangeNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkExchangeLogicPlanSrcEndGroupId, &pNode->srcEndGroupId);
+  }
+  if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkExchangeLogicPlanFastInterval) != NULL) {
+    code = tjsonGetBoolValue(pJson, jkExchangeLogicPlanFastInterval, &pNode->fastInterval);
   }
 
   return code;
@@ -2994,6 +3008,8 @@ static const char* jkTableScanPhysiPlanParaTablesSort = "ParaTablesSort";
 static const char* jkTableScanPhysiPlanSmallDataTsSort = "SmallDataTsSort";
 static const char* jkTableScanPhysiPlanFirstDayOfWeek = "FirstDayOfWeek";
 static const char* jkTableScanPhysiPlanTimezoneName = "TimezoneName";
+static const char* jkTableScanPhysiPlanFastInterval = "FastInterval";
+static const char* jkTableScanPhysiPlanExInterval = "ExInterval";
 
 static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   const STableScanPhysiNode* pNode = (const STableScanPhysiNode*)pObj;
@@ -3052,6 +3068,12 @@ static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkTableScanPhysiPlanSlidingUnit, pNode->slidingUnit);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->fastInterval) {
+    code = tjsonAddBoolToObject(pJson, jkTableScanPhysiPlanFastInterval, true);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->exInterval) {
+    code = tjsonAddBoolToObject(pJson, jkTableScanPhysiPlanExInterval, true);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkTableScanPhysiPlanTriggerType, pNode->triggerType);
@@ -3171,6 +3193,16 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetTinyIntValue(pJson, jkTableScanPhysiPlanSlidingUnit, &pNode->slidingUnit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pNode->fastInterval = false;
+    pNode->exInterval = false;
+    if (tjsonGetObjectItem(pJson, jkTableScanPhysiPlanFastInterval) != NULL) {
+      code = tjsonGetBoolValue(pJson, jkTableScanPhysiPlanFastInterval, &pNode->fastInterval);
+    }
+    if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkTableScanPhysiPlanExInterval) != NULL) {
+      code = tjsonGetBoolValue(pJson, jkTableScanPhysiPlanExInterval, &pNode->exInterval);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetTinyIntValue(pJson, jkTableScanPhysiPlanTriggerType, &pNode->triggerType);
@@ -4284,6 +4316,7 @@ static const char* jkExchangePhysiPlanSeqRecvData = "SeqRecvData";
 static const char* jkExchangePhysiPlanDynTbname = "DynTbname";
 static const char* jkExchangePhysiPlanSingleChannel = "GrpSingleChannel";
 static const char* jkExchangePhysiPlanSingleSrc = "SingleSource";
+static const char* jkExchangePhysiPlanFastInterval = "FastInterval";
 
 static int32_t vgIdToJson(const void* pObj, SJson* pJson) {
   return tjsonAddIntegerToObject(pJson, jkExchangePhysiPlanChildrenVgId, *(const int32_t*)pObj);
@@ -4321,6 +4354,9 @@ static int32_t physiExchangeNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkExchangePhysiPlanSingleSrc, pNode->singleSrc);
   }
+  if (TSDB_CODE_SUCCESS == code && pNode->fastInterval) {
+    code = tjsonAddBoolToObject(pJson, jkExchangePhysiPlanFastInterval, true);
+  }
 
   return code;
 }
@@ -4353,6 +4389,9 @@ static int32_t jsonToPhysiExchangeNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkExchangePhysiPlanSingleSrc, &pNode->singleSrc);
+  }
+  if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkExchangePhysiPlanFastInterval) != NULL) {
+    code = tjsonGetBoolValue(pJson, jkExchangePhysiPlanFastInterval, &pNode->fastInterval);
   }
 
   return code;
@@ -4764,6 +4803,8 @@ static const char* jkIntervalPhysiPlanIntervalUnit = "intervalUnit";
 static const char* jkIntervalPhysiPlanSlidingUnit = "slidingUnit";
 static const char* jkIntervalPhysiPlanFirstDayOfWeek = "firstDayOfWeek";
 static const char* jkIntervalPhysiPlanTimezoneName = "timezoneName";
+static const char* jkIntervalPhysiPlanFastInterval = "FastInterval";
+static const char* jkIntervalPhysiPlanExInterval = "ExInterval";
 static const char* jkIntervalPhysiPlanStartTime = "StartTime";
 static const char* jkIntervalPhysiPlanEndTime = "EndTime";
 
@@ -4791,6 +4832,12 @@ static int32_t physiIntervalNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
     code = tjsonAddStringToObject(pJson, jkIntervalPhysiPlanTimezoneName, pNode->timezoneName);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->fastInterval) {
+    code = tjsonAddBoolToObject(pJson, jkIntervalPhysiPlanFastInterval, true);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->exInterval) {
+    code = tjsonAddBoolToObject(pJson, jkIntervalPhysiPlanExInterval, true);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkIntervalPhysiPlanStartTime, pNode->timeRange.skey);
@@ -4837,6 +4884,16 @@ static int32_t jsonToPhysiIntervalNode(const SJson* pJson, void* pObj) {
       code = nodesDecodeTimezoneNameInPlace(pNode->timezoneName,
                                             &pNode->timezone,
                                             &pNode->ownsTimezone);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pNode->fastInterval = false;
+    pNode->exInterval = false;
+    if (tjsonGetObjectItem(pJson, jkIntervalPhysiPlanFastInterval) != NULL) {
+      code = tjsonGetBoolValue(pJson, jkIntervalPhysiPlanFastInterval, &pNode->fastInterval);
+    }
+    if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkIntervalPhysiPlanExInterval) != NULL) {
+      code = tjsonGetBoolValue(pJson, jkIntervalPhysiPlanExInterval, &pNode->exInterval);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -6350,6 +6407,7 @@ static const char* jkSubplanIsView = "IsView";
 static const char* jkSubplanIsAudit = "IsAudit";
 static const char* jkSubplanDynTbname = "DynTbname";
 static const char* jkSubplanProcessOneBlock = "ProcessOneBlock";
+static const char* jkSubplanDelayFreeTask = "DelayFreeTask";
 static const char* jkSubplanRequiresAncestorContext = "RequiresAncestorContext";
 static const char* jkSubplanInheritedMultiGroupJoin = "InheritedMultiGroupJoin";
 static const char* jkSubplanUserAppId = "UserAppId";
@@ -6417,6 +6475,9 @@ static int32_t subplanToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkSubplanProcessOneBlock, pNode->processOneBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->delayFreeTask) {
+    code = tjsonAddBoolToObject(pJson, jkSubplanDelayFreeTask, true);
   }
   if (TSDB_CODE_SUCCESS == code && pNode->requiresAncestorContext) {
     code = tjsonAddBoolToObject(pJson, jkSubplanRequiresAncestorContext, true);
@@ -6594,6 +6655,12 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkSubplanProcessOneBlock, &pNode->processOneBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pNode->delayFreeTask = false;
+    if (NULL != tjsonGetObjectItem(pJson, jkSubplanDelayFreeTask)) {
+      code = tjsonGetBoolValue(pJson, jkSubplanDelayFreeTask, &pNode->delayFreeTask);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     pNode->requiresAncestorContext = false;

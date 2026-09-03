@@ -949,13 +949,29 @@ static bool hasHint(SNodeList* pHintList, EHintOption hint) {
   return false;
 }
 
+static bool isFastIntervalHint(const SToken* pToken) {
+  static const char kFastIntervalHint[] = "FAST_INTERVAL";
+
+  return pToken->n == (int32_t)strlen(kFastIntervalHint) &&
+         0 == strncasecmp(pToken->z, kFastIntervalHint, pToken->n);
+}
+
+static bool isExIntervalHint(const SToken* pToken) {
+  static const char kExIntervalHint[] = "EX_INTERVAL";
+
+  return pToken->n == (int32_t)strlen(kExIntervalHint) &&
+         0 == strncasecmp(pToken->z, kExIntervalHint, pToken->n);
+}
+
 bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOption opt, SToken* paramList,
                        int32_t paramNum) {
   void* value = NULL;
   switch (opt) {
     case HINT_SKIP_TSMA:
     case HINT_BATCH_SCAN:
-    case HINT_NO_BATCH_SCAN: {
+    case HINT_NO_BATCH_SCAN:
+    case HINT_FAST_INTERVAL:
+    case HINT_EX_INTERVAL: {
       if (paramNum > 0) {
         return true;
       }
@@ -1145,6 +1161,24 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
         }
         break;
       case TK_NK_ID:
+        if (isFastIntervalHint(&t0)) {
+          lastComma = false;
+          if (0 != opt || inParamList) {
+            quit = true;
+            break;
+          }
+          opt = HINT_FAST_INTERVAL;
+          break;
+        }
+        if (isExIntervalHint(&t0)) {
+          lastComma = false;
+          if (0 != opt || inParamList) {
+            quit = true;
+            break;
+          }
+          opt = HINT_EX_INTERVAL;
+          break;
+        }
         lastComma = false;
         if (0 == opt || !inParamList) {
           quit = true;

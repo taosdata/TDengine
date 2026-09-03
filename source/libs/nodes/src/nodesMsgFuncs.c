@@ -3747,6 +3747,12 @@ static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEnc
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueI8(pEncoder, pNode->interpFillMode);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueBool(pEncoder, pNode->fastInterval);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueBool(pEncoder, pNode->exInterval);
+  }
   return code;
 }
 
@@ -3863,6 +3869,12 @@ static int32_t msgToPhysiTableScanNodeInline(STlvDecoder* pDecoder, void* pObj) 
     // plan from an older version without this field; 0 makes the executor
     // keep both ext-window sides, i.e. no fill-mode pruning
     pNode->interpFillMode = 0;
+  }
+  if (TSDB_CODE_SUCCESS == code && !tlvDecodeEnd(pDecoder)) {
+    code = tlvDecodeValueBool(pDecoder, &pNode->fastInterval);
+  }
+  if (TSDB_CODE_SUCCESS == code && !tlvDecodeEnd(pDecoder)) {
+    code = tlvDecodeValueBool(pDecoder, &pNode->exInterval);
   }
   return code;
 }
@@ -4499,6 +4511,7 @@ enum {
   PHY_EXCHANGE_CODE_SEQ_RECV_DATA,
   PHY_EXCHANGE_CODE_DYN_TBNAME,
   PHY_EXCHANGE_CODE_SINGLE_SOURCE,
+  PHY_EXCHANGE_CODE_FAST_INTERVAL,
 };
 
 static int32_t physiExchangeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4528,6 +4541,9 @@ static int32_t physiExchangeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_EXCHANGE_CODE_SINGLE_SOURCE, pNode->singleSrc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_EXCHANGE_CODE_FAST_INTERVAL, pNode->fastInterval);
   }
 
   return code;
@@ -4566,6 +4582,9 @@ static int32_t msgToPhysiExchangeNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_EXCHANGE_CODE_SINGLE_SOURCE:
         code = tlvDecodeBool(pTlv, &pNode->singleSrc);
+        break;
+      case PHY_EXCHANGE_CODE_FAST_INTERVAL:
+        code = tlvDecodeBool(pTlv, &pNode->fastInterval);
         break;
       default:
         break;
@@ -5056,6 +5075,13 @@ static int32_t physiIntervalNodeInlineToMsg(const void* pObj, STlvEncoder* pEnco
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueI8(pEncoder, pNode->firstDayOfWeek);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueBool(pEncoder, pNode->fastInterval);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueBool(pEncoder, pNode->exInterval);
+  }
+
   return code;
 }
 
@@ -5097,6 +5123,13 @@ static int32_t msgToPhysiIntervalNodeInline(STlvDecoder* pDecoder, void* pObj) {
   } else {
     pNode->firstDayOfWeek = tsDefaultFirstDayOfWeek;
   }
+  if (TSDB_CODE_SUCCESS == code && !tlvDecodeEnd(pDecoder)) {
+    code = tlvDecodeValueBool(pDecoder, &pNode->fastInterval);
+  }
+  if (TSDB_CODE_SUCCESS == code && !tlvDecodeEnd(pDecoder)) {
+    code = tlvDecodeValueBool(pDecoder, &pNode->exInterval);
+  }
+
   return code;
 }
 
@@ -6740,7 +6773,8 @@ enum {
   SUBPLAN_CODE_DATA_SINK,
   SUBPLAN_CODE_TAG_COND,
   SUBPLAN_CODE_TAG_INDEX_COND,
-  SUBPLAN_CODE_INHERITED_MULTI_GROUP_JOIN
+  SUBPLAN_CODE_INHERITED_MULTI_GROUP_JOIN,
+  SUBPLAN_CODE_DELAY_FREE_TASK
 };
 
 static int32_t subplanInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -6810,6 +6844,9 @@ static int32_t subplanToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, SUBPLAN_CODE_INHERITED_MULTI_GROUP_JOIN, pNode->inheritedMultiGroupJoin);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, SUBPLAN_CODE_DELAY_FREE_TASK, pNode->delayFreeTask);
   }
 
   return code;
@@ -6888,6 +6925,9 @@ static int32_t msgToSubplan(STlvDecoder* pDecoder, void* pObj) {
         break;
       case SUBPLAN_CODE_INHERITED_MULTI_GROUP_JOIN:
         code = tlvDecodeBool(pTlv, &pNode->inheritedMultiGroupJoin);
+        break;
+      case SUBPLAN_CODE_DELAY_FREE_TASK:
+        code = tlvDecodeBool(pTlv, &pNode->delayFreeTask);
         break;
       default:
         break;

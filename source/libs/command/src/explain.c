@@ -77,6 +77,10 @@ static void qExplainStripRemoteSqlAliasPattern(char *sql, const char *quoteToken
   }
 }
 
+static const char* qExplainIntervalMode(bool fastInterval, bool exInterval) {
+  return exInterval ? "ex" : (fastInterval ? "fast" : "normal");
+}
+
 static char *qExplainBuildRemoteSqlForDisplay(const char *remoteSql) {
   if (remoteSql == NULL || remoteSql[0] == '\0') {
     return NULL;
@@ -1715,7 +1719,13 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL: {
       SIntervalPhysiNode *pIntNode = (SIntervalPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_INTERVAL_FORMAT, nodesGetNameFromColumnNode(pIntNode->window.pTspk));
+      if (pIntNode->fastInterval || pIntNode->exInterval) {
+        EXPLAIN_ROW_NEW(level, EXPLAIN_INTERVAL_FORMAT_WITH_MODE,
+                        nodesGetNameFromColumnNode(pIntNode->window.pTspk),
+                        qExplainIntervalMode(pIntNode->fastInterval, pIntNode->exInterval));
+      } else {
+        EXPLAIN_ROW_NEW(level, EXPLAIN_INTERVAL_FORMAT, nodesGetNameFromColumnNode(pIntNode->window.pTspk));
+      }
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
@@ -1774,7 +1784,14 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL: {
       SMergeAlignedIntervalPhysiNode *pIntNode = (SMergeAlignedIntervalPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_MERGE_ALIGNED_INTERVAL_FORMAT, nodesGetNameFromColumnNode(pIntNode->window.pTspk));
+      if (pIntNode->fastInterval || pIntNode->exInterval) {
+        EXPLAIN_ROW_NEW(level, EXPLAIN_MERGE_ALIGNED_INTERVAL_FORMAT_WITH_MODE,
+                        nodesGetNameFromColumnNode(pIntNode->window.pTspk),
+                        qExplainIntervalMode(pIntNode->fastInterval, pIntNode->exInterval));
+      } else {
+        EXPLAIN_ROW_NEW(level, EXPLAIN_MERGE_ALIGNED_INTERVAL_FORMAT,
+                        nodesGetNameFromColumnNode(pIntNode->window.pTspk));
+      }
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
@@ -2308,7 +2325,14 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL: {
       SMergeIntervalPhysiNode *pIntNode = (SMergeIntervalPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_MERGE_INTERVAL_FORMAT, nodesGetNameFromColumnNode(pIntNode->window.pTspk));
+      if (pIntNode->fastInterval || pIntNode->exInterval) {
+        EXPLAIN_ROW_NEW(level, EXPLAIN_MERGE_INTERVAL_FORMAT_WITH_MODE,
+                        nodesGetNameFromColumnNode(pIntNode->window.pTspk),
+                        qExplainIntervalMode(pIntNode->fastInterval, pIntNode->exInterval));
+      } else {
+        EXPLAIN_ROW_NEW(level, EXPLAIN_MERGE_INTERVAL_FORMAT,
+                        nodesGetNameFromColumnNode(pIntNode->window.pTspk));
+      }
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
