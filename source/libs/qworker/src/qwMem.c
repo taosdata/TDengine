@@ -84,7 +84,10 @@ void qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session, bool 
 
   int32_t code = taosHashRemove(pJobInfo->pSessions, id, sizeof(id));
   if (TSDB_CODE_SUCCESS != code && needRemoveHashKey) {
-    QW_TASK_ELOG("fail to remove session from query session hash, error(0x%x):%s", code, tstrerror(code));
+    QW_TASK_ELOG("fail to remove session from query session hash, session:%p, job:%p, sessionHash:%p, hashSize:%d, "
+                 "remainSessions:%d, thread:%" PRId64 ", error(0x%x):%s",
+                 session, pJobInfo, pJobInfo->pSessions, taosHashGetSize(pJobInfo->pSessions),
+                 atomic_load_32(&pJobInfo->memInfo->remainSession), taosGetSelfPthreadId(), code, tstrerror(code));
     return;
   }
 
@@ -96,7 +99,8 @@ void qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session, bool 
     QW_UNLOCK(QW_WRITE, &pJobInfo->lock);
   }
   
-  QW_TASK_DLOG("task session destoryed, remainSessions:%d", remainSessions);
+  QW_TASK_DLOG("task session destoryed, session:%p, job:%p, remainSessions:%d, thread:%" PRId64, session, pJobInfo,
+               remainSessions, taosGetSelfPthreadId());
 
   if (0 == remainSessions) {
 //    if (/*0 == taosHashGetSize(pJobInfo->pSessions) && */0 == atomic_load_32(&pJobInfo->memInfo->remainSession)) {
@@ -204,14 +208,19 @@ int32_t qwInitSession(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppSession) {
     code = taosHashPut(pJob->pSessions, id, sizeof(id), &session, sizeof(session));
     if (TSDB_CODE_SUCCESS != code) {
       sessionKeyInHash = false;
-      QW_TASK_ELOG("fail to put session into query session hash, code: 0x%x", code);
+      QW_TASK_ELOG("fail to put session into query session hash, session:%p, job:%p, sessionHash:%p, hashSize:%d, "
+                   "remainSessions:%d, thread:%" PRId64 ", code: 0x%x",
+                   *ppSession, pJob, pJob->pSessions, taosHashGetSize(pJob->pSessions),
+                   atomic_load_32(&pJob->memInfo->remainSession), taosGetSelfPthreadId(), code);
       QW_ERR_JRET(code);
     }
 
     break;
   } while (true);
 
-  QW_TASK_DLOG_E("session initialized");
+  QW_TASK_DLOG("session initialized, session:%p, job:%p, sessionHash:%p, hashSize:%d, remainSessions:%d, thread:%" PRId64,
+               *ppSession, pJob, pJob->pSessions, taosHashGetSize(pJob->pSessions),
+               atomic_load_32(&pJob->memInfo->remainSession), taosGetSelfPthreadId());
 
 _return:
 
@@ -226,5 +235,3 @@ _return:
 
   return code;
 }
-
-

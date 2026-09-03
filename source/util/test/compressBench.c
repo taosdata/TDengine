@@ -8,7 +8,9 @@
  * warmup rounds, and outputs p50/p95/stdev so stock vs. accelerated backends
  * can be compared side-by-side.
  *
- * Build: linked via tools/compressBench/CMakeLists.txt (BUILD_TOOLS=ON).
+ * Manual test for the L2 compression dispatch table (see
+ * util/test/CMakeLists.txt; built with BUILD_TEST=ON on Linux, not registered
+ * with add_test and therefore not run by ctest / CI).
  * Run:   compressBench --help
  */
 
@@ -17,6 +19,7 @@
 // The escape hatch must be defined BEFORE any include that pulls in os/.
 #define ALLOW_FORBID_FUNC
 
+#include <errno.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -55,6 +58,20 @@ static double ns_to_ms(double ns) { return ns * 1e-6; }
 static double ns_to_mbs(double ns, size_t bytes) {
   /* MB/s = bytes / (ns * 1e-9) / 1e6 */
   return (ns > 0.0) ? ((double)bytes / ns * 1e3) : 0.0;
+}
+
+/* Render a byte count as "NB", "NKiB", or "NMiB" (exact multiples only). */
+static void format_bytes(char *buf, size_t buflen, size_t bytes) {
+  if (bytes % 1024 != 0) {
+    snprintf(buf, buflen, "%zuB", bytes);
+    return;
+  }
+  size_t kib = bytes / 1024;
+  if (kib % 1024 != 0) {
+    snprintf(buf, buflen, "%zuKiB", kib);
+    return;
+  }
+  snprintf(buf, buflen, "%zuMiB", kib / 1024);
 }
 
 /* xorshift64 – fast PRNG with good entropy, no deps */
@@ -326,12 +343,8 @@ static int run_bench(const BenchParams *p, const uint8_t *input, uint8_t *compre
 
   const char *backend = detect_backend(p->codec_idx);
 
-  double size_mib = (double)p->input_size / (1024.0 * 1024.0);
-  char   size_str[32];
-  if (size_mib >= 1.0)
-    snprintf(size_str, sizeof(size_str), "%.0fMiB", size_mib);
-  else
-    snprintf(size_str, sizeof(size_str), "%.0fKiB", size_mib * 1024.0);
+  char size_str[32];
+  format_bytes(size_str, sizeof(size_str), p->input_size);
 
   /* stdout summary */
   printf("BENCH %-6s size=%-7s lvl=%-6s shape=%-10s iters=%d\n"
@@ -373,12 +386,50 @@ static int run_bench(const BenchParams *p, const uint8_t *input, uint8_t *compre
  * CLI parsing
  * ---------------------------------------------------------------------- */
 
+/* Parse "--size <N>[k|K|m|M|g|G]" (or KiB/MiB/GiB) into a byte count.
+ * Integer only: a floating-point MiB value (the previous interface) is
+ * neither friendly to type nor exact (0.004 MiB != 4096 bytes). */
+static int parse_size_bytes(const char *s, size_t *out_bytes) {
+  if (s == NULL || s[0] == '\0' || s[0] == '-') return -1;
+
+  errno                = 0;
+  char                *end = NULL;
+  unsigned long long   v   = strtoull(s, &end, 10);
+  if (errno != 0 || end == s) return -1;
+
+  unsigned long long mult = 1;
+  if (*end != '\0') {
+    if      (strcmp(end, "KiB") == 0) mult = 1024ULL;
+    else if (strcmp(end, "MiB") == 0) mult = 1024ULL * 1024ULL;
+    else if (strcmp(end, "GiB") == 0) mult = 1024ULL * 1024ULL * 1024ULL;
+    else if (end[1] == '\0') {
+      switch (end[0]) {
+        case 'k':
+        case 'K': mult = 1024ULL; break;
+        case 'm':
+        case 'M': mult = 1024ULL * 1024ULL; break;
+        case 'g':
+        case 'G': mult = 1024ULL * 1024ULL * 1024ULL; break;
+        case 'b':
+        case 'B': mult = 1ULL; break;
+        default:  return -1;
+      }
+    } else {
+      return -1;
+    }
+  }
+
+  if (v > (unsigned long long)SIZE_MAX / mult) return -1;  /* overflow */
+  *out_bytes = (size_t)(v * mult);
+  return 0;
+}
+
 static void usage(const char *prog) {
   fprintf(stderr,
     "Usage: %s [options]\n"
     "\n"
     "  --codec {lz4|zlib|zstd|xz|all}         default: all\n"
-    "  --size <MiB>                             default: 1   (try 0.004 for 4KiB)\n"
+    "  --size <bytes>[k|K|m|M|g|G]            default: 1m   (e.g. 4096, 64k, 1m)\n"
     "  --iters <N>                              default: 30\n"
     "  --warmup <N>                             default: 5\n"
     "  --lvl {low|medium|high}                  default: medium\n"
@@ -394,7 +445,7 @@ int main(int argc, char **argv) {
   int         codec_all  = 1;
   int         codec_idx  = L2_LZ4; /* used when codec_all==0 */
   const char *codec_name = "lz4";
-  double      size_mib   = 1.0;
+  size_t      size_bytes = 1024 * 1024;  /* 1 MiB default */
   int         iters      = 30;
   int         warmup     = 5;
   uint8_t     lvl_enum   = L2_LVL_MEDIUM;
@@ -438,8 +489,12 @@ int main(int argc, char **argv) {
       }
     } else if (strcmp(argv[i], "--size") == 0) {
       NEED_ARG("--size");
-      size_mib = atof(argv[i]);
-      if (size_mib <= 0.0) { fprintf(stderr, "error: --size must be > 0\n"); return 1; }
+      if (parse_size_bytes(argv[i], &size_bytes) != 0 || size_bytes < 16) {
+        fprintf(stderr,
+                "error: invalid --size '%s' (integer >= 16 with optional k/K/m/M/g/G suffix, e.g. 4096, 64k, 1m)\n",
+                argv[i]);
+        return 1;
+      }
     } else if (strcmp(argv[i], "--iters") == 0) {
       NEED_ARG("--iters");
       iters = atoi(argv[i]);
@@ -481,15 +536,16 @@ int main(int argc, char **argv) {
   }
 
   /* Allocate buffers */
-  size_t input_size = (size_t)(size_mib * 1024.0 * 1024.0);
-  if (input_size < 16) input_size = 16;
+  size_t input_size = size_bytes;
   size_t out_buf_sz = input_size * 2 + 1024;
 
   uint8_t *input       = (uint8_t *)malloc(input_size);
   uint8_t *compressed  = (uint8_t *)malloc(out_buf_sz);
   uint8_t *decompressed= (uint8_t *)malloc(input_size);
   if (!input || !compressed || !decompressed) {
-    fprintf(stderr, "OOM: cannot allocate %.2f MiB benchmark buffers\n", size_mib);
+    char size_desc[32];
+    format_bytes(size_desc, sizeof(size_desc), input_size);
+    fprintf(stderr, "OOM: cannot allocate %s benchmark buffers\n", size_desc);
     free(input); free(compressed); free(decompressed);
     return 1;
   }
@@ -497,9 +553,10 @@ int main(int argc, char **argv) {
   fill_input(input, input_size, shape, seed);
 
   /* Print header */
-  double size_mib_act = (double)input_size / (1024.0 * 1024.0);
-  printf("compressBench: size=%.4f MiB iters=%d warmup=%d seed=%llu label=%s\n\n",
-         size_mib_act, iters, warmup, (unsigned long long)seed, label);
+  char size_hdr[32];
+  format_bytes(size_hdr, sizeof(size_hdr), input_size);
+  printf("compressBench: size=%s iters=%d warmup=%d seed=%llu label=%s\n\n",
+         size_hdr, iters, warmup, (unsigned long long)seed, label);
 
   /* Codec list for --codec=all */
   typedef struct { int idx; const char *name; } CodecEntry;

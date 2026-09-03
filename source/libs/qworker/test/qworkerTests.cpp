@@ -21,7 +21,9 @@
 #endif
 
 #include <gtest/gtest.h>
+#include <atomic>
 #include <iostream>
+#include <thread>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -50,6 +52,8 @@
 #include "trpc.h"
 #include "ttimer.h"
 #include "tvariant.h"
+
+extern "C" int32_t qwDropTaskCtx(QW_FPARAMS_DEF);
 
 namespace {
 
@@ -165,6 +169,34 @@ int qwtBuildDropReqMsg(STaskDropReq *dropMsg, SRpcMsg *dropRpc) {
   dropRpc->contLen = msgSize;
 
   return TSDB_CODE_SUCCESS;
+}
+
+void qwtInitMemPoolForTest() {
+  if (NULL != gMemPoolHandle) {
+    return;
+  }
+
+  SMemPoolCfg cfg = {0};
+  cfg.reserveSize = 50 * 1048576ULL;
+  cfg.jobQuota = &tsSingleQueryMaxMemorySize;
+  cfg.chunkSize = 1048576;
+  cfg.evicPolicy = E_EVICT_AUTO;
+  ASSERT_EQ(0, taosMemPoolOpen((char *)"qworkerTest", &cfg, &gMemPoolHandle));
+}
+
+void *qwtInitTaskSession(SQWorker *mgmt, uint64_t sId, uint64_t qId, uint64_t cId, uint64_t tId, int32_t eId) {
+  SQWTaskCtx *ctx = NULL;
+  int32_t code = qwAddAcquireTaskCtx(mgmt, sId, qId, cId, tId, 0, eId, &ctx);
+  EXPECT_EQ(0, code);
+  if (code != 0 || NULL == ctx) {
+    return NULL;
+  }
+
+  code = qwInitSession(mgmt, sId, qId, cId, tId, 0, eId, ctx, &ctx->memPoolSession);
+  EXPECT_EQ(0, code);
+  void *session = ctx->memPoolSession;
+  qwReleaseTaskCtx(mgmt, ctx);
+  return session;
 }
 
 int32_t qwtStringToPlan(const char *str, SSubplan **subplan) {
