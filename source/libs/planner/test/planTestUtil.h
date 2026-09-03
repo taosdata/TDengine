@@ -32,6 +32,7 @@ class PlannerTestBase : public testing::Test {
 
   void    useDb(const std::string& user, const std::string& db);
   void    run(const std::string& sql);
+  void    runStreamCalc(const std::string& sql);
   bool    findPlanNode(const std::string& nodeName) const;
   int32_t countPlanNode(const std::string& nodeName) const;
   bool    planContains(const std::string& text) const;

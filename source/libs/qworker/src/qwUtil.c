@@ -441,7 +441,10 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
   QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_DROP);
 
   if (taosHashRemove(mgmt->ctxHash, id, sizeof(id))) {
-    QW_TASK_ELOG_E("taosHashRemove from ctx hash failed");
+    QW_TASK_ELOG("taosHashRemove from ctx hash failed, ctx:%p, memPoolSession:%p, job:%p, taskHandle:%p, "
+                 "sinkHandle:%p, ctxHash:%p, ctxHashSize:%d, thread:%" PRId64,
+                 ctx, octx.memPoolSession, octx.pJobInfo, octx.taskHandle, octx.sinkHandle, mgmt->ctxHash,
+                 taosHashGetSize(mgmt->ctxHash), taosGetSelfPthreadId());
     return QW_CTX_NOT_EXISTS_ERR_CODE(mgmt);
   }
 

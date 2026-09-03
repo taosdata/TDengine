@@ -39,6 +39,10 @@ static int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t *
 static int32_t qExplainAppendGroupResRowsByVgIds(void *pCtx, int32_t groupId, int32_t *level,
                                                  bool grpSingleChannel, const SArray* pVgIds);
 
+static const char* qExplainIntervalMode(bool fastInterval, bool exInterval) {
+  return exInterval ? "ex" : (fastInterval ? "fast" : "normal");
+}
+
 /*
  * Convert dynamic-query control type to a printable explain label.
  *
@@ -1593,7 +1597,13 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL: {
       SIntervalPhysiNode *pIntNode = (SIntervalPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_INTERVAL_FORMAT, nodesGetNameFromColumnNode(pIntNode->window.pTspk));
+      if (pIntNode->fastInterval || pIntNode->exInterval) {
+        EXPLAIN_ROW_NEW(level, EXPLAIN_INTERVAL_FORMAT_WITH_MODE,
+                        nodesGetNameFromColumnNode(pIntNode->window.pTspk),
+                        qExplainIntervalMode(pIntNode->fastInterval, pIntNode->exInterval));
+      } else {
+        EXPLAIN_ROW_NEW(level, EXPLAIN_INTERVAL_FORMAT, nodesGetNameFromColumnNode(pIntNode->window.pTspk));
+      }
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
@@ -1652,7 +1662,14 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL: {
       SMergeAlignedIntervalPhysiNode *pIntNode = (SMergeAlignedIntervalPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_MERGE_ALIGNED_INTERVAL_FORMAT, nodesGetNameFromColumnNode(pIntNode->window.pTspk));
+      if (pIntNode->fastInterval || pIntNode->exInterval) {
+        EXPLAIN_ROW_NEW(level, EXPLAIN_MERGE_ALIGNED_INTERVAL_FORMAT_WITH_MODE,
+                        nodesGetNameFromColumnNode(pIntNode->window.pTspk),
+                        qExplainIntervalMode(pIntNode->fastInterval, pIntNode->exInterval));
+      } else {
+        EXPLAIN_ROW_NEW(level, EXPLAIN_MERGE_ALIGNED_INTERVAL_FORMAT,
+                        nodesGetNameFromColumnNode(pIntNode->window.pTspk));
+      }
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
@@ -2175,7 +2192,14 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL: {
       SMergeIntervalPhysiNode *pIntNode = (SMergeIntervalPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_MERGE_INTERVAL_FORMAT, nodesGetNameFromColumnNode(pIntNode->window.pTspk));
+      if (pIntNode->fastInterval || pIntNode->exInterval) {
+        EXPLAIN_ROW_NEW(level, EXPLAIN_MERGE_INTERVAL_FORMAT_WITH_MODE,
+                        nodesGetNameFromColumnNode(pIntNode->window.pTspk),
+                        qExplainIntervalMode(pIntNode->fastInterval, pIntNode->exInterval));
+      } else {
+        EXPLAIN_ROW_NEW(level, EXPLAIN_MERGE_INTERVAL_FORMAT,
+                        nodesGetNameFromColumnNode(pIntNode->window.pTspk));
+      }
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
