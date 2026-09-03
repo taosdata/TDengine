@@ -28,6 +28,7 @@
 // on each original-table vgroup (nodeId == org vgId), and the top-level merge exchange reads those
 // readers directly, so the org-vgId-keyed agg exchange param matches the source nodeId.
 #define SPLIT_FLAG_VTB_AGG_PUSHDOWN SPLIT_FLAG_MASK(2)
+#define FAST_INTERVAL_MAX_PARTIAL_ROW_BYTES 500
 
 #define SPLIT_FLAG_SET_MASK(val, mask)  (val) |= (mask)
 #define SPLIT_FLAG_TEST_MASK(val, mask) (((val) & (mask)) != 0)
@@ -908,6 +909,181 @@ static int32_t stbSplCreateMergeKeysByPrimaryKey(SNode* pPrimaryKey, EOrder orde
   return stbSplCreateMergeKeysByExpr(pPrimaryKey, order, pMergeKeys);
 }
 
+static bool stbSplIntervalBaseEligible(const SWindowLogicNode* pWindow) {
+  if (pWindow == NULL) {
+    return false;
+  }
+
+  if (pWindow->winType != WINDOW_TYPE_INTERVAL || (pWindow->partType & WINDOW_PART_HAS) ||
+      pWindow->interval <= 0 || pWindow->sliding != pWindow->interval ||
+      pWindow->slidingUnit != pWindow->intervalUnit || pWindow->offset != 0 ||
+      pWindow->node.groupAction == GROUP_ACTION_KEEP || LIST_LENGTH(pWindow->node.pChildren) != 1 ||
+      LIST_LENGTH(pWindow->pTsmaSubplans) != 0) {
+    return false;
+  }
+
+  for (const SLogicNode* pParent = pWindow->node.pParent; pParent != NULL; pParent = pParent->pParent) {
+    if (nodeType((const SNode*)pParent) == QUERY_NODE_LOGIC_PLAN_FILL) {
+      return false;
+    }
+  }
+
+  // Optimized interval paths index windows with (wstart - firstWindowStart) / interval.
+  // Calendar intervals require timezone-aware stepping and deliberately retain the legacy path.
+  if (pWindow->intervalUnit == 'd' || pWindow->intervalUnit == 'w' || pWindow->intervalUnit == 'n' ||
+      pWindow->intervalUnit == 'y') {
+    return false;
+  }
+
+  if (pWindow->timeRange.skey == INT64_MIN || pWindow->timeRange.ekey == INT64_MAX ||
+      pWindow->timeRange.ekey < pWindow->timeRange.skey) {
+    return false;
+  }
+
+  uint64_t span = (uint64_t)pWindow->timeRange.ekey - (uint64_t)pWindow->timeRange.skey;
+  return span / (uint64_t)pWindow->interval + 2 <= EX_INTERVAL_MAX_WINDOWS;
+}
+
+static bool stbSplFastIntervalEligible(const SWindowLogicNode* pWindow) {
+  if (NULL == pWindow || !stbSplIntervalBaseEligible(pWindow)) {
+    return false;
+  }
+
+  SLogicNode* pRoot = getLogicNodeRootNode((SLogicNode*)pWindow);
+  return getOptHint(pWindow->node.pHint, HINT_FAST_INTERVAL) ||
+         (NULL != pRoot && getOptHint(pRoot->pHint, HINT_FAST_INTERVAL));
+}
+
+static bool stbSplExIntervalSingleDnode(const SLogicNode* pNode, const SEp** ppDnode, int32_t* pNumOfScans) {
+  if (NULL == pNode || NULL == ppDnode || NULL == pNumOfScans) {
+    return false;
+  }
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    const SScanLogicNode* pScan = (const SScanLogicNode*)pNode;
+    if (NULL == pScan->pVgroupList || pScan->pVgroupList->numOfVgroups <= 0) {
+      return false;
+    }
+    for (int32_t i = 0; i < pScan->pVgroupList->numOfVgroups; ++i) {
+      const SEpSet* pEpSet = &pScan->pVgroupList->vgroups[i].epSet;
+      if (1 != pEpSet->numOfEps || 0 != pEpSet->inUse || '\0' == pEpSet->eps[0].fqdn[0] || 0 == pEpSet->eps[0].port) {
+        return false;
+      }
+      const SEp* pDnode = &pEpSet->eps[0];
+      if (NULL == *ppDnode) {
+        *ppDnode = pDnode;
+      } else if ((*ppDnode)->port != pDnode->port || 0 != strcmp((*ppDnode)->fqdn, pDnode->fqdn)) {
+        return false;
+      }
+    }
+    ++(*pNumOfScans);
+    return true;
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (!stbSplExIntervalSingleDnode((const SLogicNode*)pChild, ppDnode, pNumOfScans)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool stbSplExIntervalFunctionEligible(const SFunctionNode* pFunction) {
+  if (NULL == pFunction) {
+    return false;
+  }
+  if (fmIsWindowPseudoColumnFunc(pFunction->funcId)) {
+    return FUNCTION_TYPE_WSTART == pFunction->funcType || FUNCTION_TYPE_WEND == pFunction->funcType ||
+           FUNCTION_TYPE_WDURATION == pFunction->funcType;
+  }
+  if (1 != LIST_LENGTH(pFunction->pParameterList)) {
+    return false;
+  }
+  SNode* pParam = nodesListGetNode(pFunction->pParameterList, 0);
+  if (NULL == pParam || QUERY_NODE_COLUMN != nodeType(pParam)) {
+    return false;
+  }
+  const SColumnNode* pColumn = (const SColumnNode*)pParam;
+  if (FUNCTION_TYPE_COUNT == pFunction->funcType) {
+    return PRIMARYKEY_TIMESTAMP_COL_ID == pColumn->colId || COLUMN_TYPE_COLUMN == pColumn->colType;
+  }
+  return (FUNCTION_TYPE_SUM == pFunction->funcType || FUNCTION_TYPE_AVG == pFunction->funcType) &&
+         COLUMN_TYPE_COLUMN == pColumn->colType &&
+         (TSDB_DATA_TYPE_FLOAT == pColumn->node.resType.type || TSDB_DATA_TYPE_DOUBLE == pColumn->node.resType.type);
+}
+
+static bool stbSplExIntervalEligible(const SWindowLogicNode* pWindow) {
+  if (NULL == pWindow || !stbSplIntervalBaseEligible(pWindow) || NULL == pWindow->pFuncs ||
+      NULL != pWindow->node.pLimit || NULL != pWindow->node.pSlimit || (pWindow->partType & WINDOW_PART_HAS)) {
+    return false;
+  }
+  SLogicNode* pRoot = getLogicNodeRootNode((SLogicNode*)pWindow);
+  if (!getOptHint(pWindow->node.pHint, HINT_EX_INTERVAL) &&
+      (NULL == pRoot || !getOptHint(pRoot->pHint, HINT_EX_INTERVAL))) {
+    return false;
+  }
+  const SEp* pDnode = NULL;
+  int32_t    numOfScans = 0;
+  if (!stbSplExIntervalSingleDnode((const SLogicNode*)pWindow, &pDnode, &numOfScans) || NULL == pDnode || 1 != numOfScans) {
+    return false;
+  }
+  int32_t numOfFuncs = 0;
+  SNode* pFunc = NULL;
+  FOREACH(pFunc, pWindow->pFuncs) {
+    if (NULL == pFunc || QUERY_NODE_FUNCTION != nodeType(pFunc) || ++numOfFuncs > EX_INTERVAL_MAX_FUNCTIONS ||
+        !stbSplExIntervalFunctionEligible((const SFunctionNode*)pFunc)) {
+      return false;
+    }
+  }
+  return numOfFuncs > 0;
+}
+
+static bool stbSplFastIntervalPartialRowEligible(const SLogicNode* pPartWindow) {
+  if (pPartWindow == NULL || pPartWindow->pTargets == NULL) {
+    return false;
+  }
+
+  int64_t totalRowSize = 0;
+  SNode*  pTarget = NULL;
+  FOREACH(pTarget, pPartWindow->pTargets) {
+    if (pTarget == NULL) {
+      return false;
+    }
+
+    int32_t bytes = ((SExprNode*)pTarget)->resType.bytes;
+    if (bytes <= 0 || totalRowSize > INT64_MAX - bytes) {
+      return false;
+    }
+    totalRowSize += bytes;
+  }
+
+  // Keep the contiguous FAST_INTERVAL partial-row cache bounded; rows at or
+  // above this limit use legacy merging.
+  return totalRowSize < FAST_INTERVAL_MAX_PARTIAL_ROW_BYTES;
+}
+
+static int32_t stbSplMarkIntervalTableScan(SLogicNode* pNode, bool fastInterval, bool exInterval, int32_t* pNumOfScans) {
+  if (pNode == NULL || pNumOfScans == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+    ((SScanLogicNode*)pNode)->fastInterval = fastInterval;
+    ((SScanLogicNode*)pNode)->exInterval = exInterval;
+    *pNumOfScans += 1;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    int32_t code = stbSplMarkIntervalTableScan((SLogicNode*)pChild, fastInterval, exInterval, pNumOfScans);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   SWindowLogicNode* pWindow = (SWindowLogicNode*)pInfo->pSplitNode;
   if (pWindow->winType == WINDOW_TYPE_EXTERNAL) {
@@ -918,20 +1094,57 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
   }
   SLogicNode* pPartWindow = NULL;
   SNodeList*  pMergeKeys = NULL;
+  bool        isStreamCalc = inStreamCalcClause(pCxt->pPlanCxt);
+  bool        fastInterval = !isStreamCalc && stbSplFastIntervalEligible(pWindow);
+  bool        exInterval = !isStreamCalc && stbSplExIntervalEligible(pWindow);
   int32_t     code = stbSplCreatePartWindowNode(pCxt, pWindow,
                                                 &pPartWindow, &pMergeKeys);
   if (TSDB_CODE_SUCCESS == code) {
+    fastInterval = fastInterval && stbSplFastIntervalPartialRowEligible(pPartWindow);
+    bool optimizedInterval = fastInterval || exInterval;
     ((SWindowLogicNode*)pPartWindow)->windowAlgo = ((SWindowLogicNode*)pInfo->pSplitNode)->winType == WINDOW_TYPE_INTERVAL ? INTERVAL_ALGO_HASH : EXTERNAL_ALGO_HASH;
     ((SWindowLogicNode*)pInfo->pSplitNode)->windowAlgo = ((SWindowLogicNode*)pInfo->pSplitNode)->winType == WINDOW_TYPE_INTERVAL ? INTERVAL_ALGO_MERGE : EXTERNAL_ALGO_MERGE;
+    ((SWindowLogicNode*)pPartWindow)->fastInterval = fastInterval;
+    ((SWindowLogicNode*)pPartWindow)->exInterval = exInterval;
+    pWindow->fastInterval = fastInterval;
+    pWindow->exInterval = exInterval;
+    if (optimizedInterval) {
+      int32_t numOfScans = 0;
+      code = stbSplMarkIntervalTableScan(pPartWindow, fastInterval, exInterval, &numOfScans);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      if (numOfScans != 1) {
+        qError("interval optimization requires exactly one table scan, actual:%d", numOfScans);
+        return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      }
+    }
     // MergeAligned operator receives globally-sorted input from Merge(sort) and outputs unified
     // windows in monotonically increasing timestamp order. Without partition, all vnodes' data
     // merges into one group so output is globally ordered. With partition, output is per-group.
     if (!(((SWindowLogicNode*)pInfo->pSplitNode)->partType & WINDOW_PART_HAS)) {
       pInfo->pSplitNode->resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
     }
-    code = stbSplCreateMergeNode(pCxt, NULL, pInfo->pSplitNode, pMergeKeys, pPartWindow, true, true);
-    if (TSDB_CODE_SUCCESS != code) {
+    if (optimizedInterval) {
+      SExchangeLogicNode* pExchange = NULL;
+      code = splCreateExchangeNode(pCxt, pPartWindow, &pExchange);
+      if (TSDB_CODE_SUCCESS == code) {
+        if (fastInterval) {
+          pExchange->seqRecvData = false;
+          pExchange->fastInterval = true;
+        }
+        pExchange->node.pParent = pInfo->pSplitNode;
+        code = nodesListMakeAppend(&pInfo->pSplitNode->pChildren, (SNode*)pExchange);
+        if (TSDB_CODE_SUCCESS != code) {
+          nodesDestroyNode((SNode*)pExchange);
+        }
+      }
       nodesDestroyList(pMergeKeys);
+    } else {
+      code = stbSplCreateMergeNode(pCxt, NULL, pInfo->pSplitNode, pMergeKeys, pPartWindow, true, true);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyList(pMergeKeys);
+      }
     }
   }
   SLogicSubplan* pSplitSubPlan = NULL;
@@ -941,9 +1154,10 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
   }
   if (code == TSDB_CODE_SUCCESS) {
     SNode* pNode;
-    SMergeLogicNode* pMerge = (SMergeLogicNode*)pInfo->pSplitNode->pChildren->pHead->pNode;
+    bool optimizedInterval = fastInterval || exInterval;
+    SMergeLogicNode* pMerge = optimizedInterval ? NULL : (SMergeLogicNode*)pInfo->pSplitNode->pChildren->pHead->pNode;
     SWindowLogicNode* pWindow = (SWindowLogicNode*)pInfo->pSplitNode;
-    if (LIST_LENGTH(pWindow->pTsmaSubplans) > 0) {
+    if (!optimizedInterval && LIST_LENGTH(pWindow->pTsmaSubplans) > 0) {
       FOREACH(pNode, pWindow->pTsmaSubplans) {
         ++(pCxt->groupId);
         SLogicSubplan* pSubplan = (SLogicSubplan*)pNode;
@@ -960,7 +1174,12 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
       code = nodesListMakeStrictAppendList(&pInfo->pSubplan->pChildren, pWindow->pTsmaSubplans);
       pMerge->numOfSubplans = LIST_LENGTH(pInfo->pSubplan->pChildren) + 1;
     }
-    pMerge->srcEndGroupId = pCxt->groupId;
+    if (optimizedInterval) {
+      SExchangeLogicNode* pExchange = (SExchangeLogicNode*)pInfo->pSplitNode->pChildren->pHead->pNode;
+      pExchange->srcEndGroupId = pCxt->groupId;
+    } else {
+      pMerge->srcEndGroupId = pCxt->groupId;
+    }
   }
   if (code == TSDB_CODE_SUCCESS) {
     code = nodesListMakePushFront(&pInfo->pSubplan->pChildren, (SNode*)pSplitSubPlan);
