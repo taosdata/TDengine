@@ -241,6 +241,7 @@ typedef struct SMPCacheGroupInfo {
   int64_t        allocNum;
   int32_t        groupNum;
   SMPCacheGroup* pGrpHead;
+  SRWLatch       idleListLock;
   void*          pIdleList;
 } SMPCacheGroupInfo;
 

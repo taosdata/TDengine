@@ -21,7 +21,12 @@
 #endif
 
 #include <gtest/gtest.h>
+#include <atomic>
 #include <iostream>
+#include <mutex>
+#include <thread>
+#include <unordered_set>
+#include <vector>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -1557,6 +1562,90 @@ void mptFreeAddrList(void** pList, int32_t num) {
   for (int32_t i = 0; i < num; ++i) {
     TD_ALWAYS_ASSERT(pList[i]);
     taosMemFree(pList[i]);
+  }
+}
+
+TEST(poolFuncTest, SessionIdleListConcurrentReuse) {
+  constexpr int32_t threadNum = 32;
+  constexpr int32_t loopTimes = 20000;
+
+  mptInitLogFile();
+  mptInitPool();
+  tsMemPoolFullFunc = 0;
+
+  void* pJob = NULL;
+  TD_ALWAYS_ASSERT(0 == taosMemPoolCallocJob(0xabcdef, 0, (void**)&pJob));
+
+  std::atomic<bool> start{false};
+  std::atomic<bool> stop{false};
+  std::atomic<int32_t> ready{0};
+  std::atomic<int32_t> duplicateNum{0};
+  std::mutex activeLock;
+  std::unordered_set<void*> activeSessions;
+  std::vector<std::thread> threads;
+
+  threads.reserve(threadNum);
+  for (int32_t threadIdx = 0; threadIdx < threadNum; ++threadIdx) {
+    threads.emplace_back([&, threadIdx]() {
+      (void)ready.fetch_add(1);
+      while (!start.load(std::memory_order_acquire)) {
+        std::this_thread::yield();
+      }
+
+      for (int32_t i = 0; i < loopTimes && !stop.load(std::memory_order_acquire); ++i) {
+        char sessionId[64] = {0};
+        (void)snprintf(sessionId, sizeof(sessionId), "session-%d-%d", threadIdx, i);
+
+        void* pSession = NULL;
+        TD_ALWAYS_ASSERT(0 == taosMemPoolInitSession(gMemPoolHandle, &pSession, pJob, sessionId));
+        TD_ALWAYS_ASSERT(NULL != pSession);
+
+        bool inserted = false;
+        {
+          std::lock_guard<std::mutex> guard(activeLock);
+          inserted = activeSessions.insert(pSession).second;
+        }
+
+        if (!inserted) {
+          duplicateNum.fetch_add(1);
+          stop.store(true, std::memory_order_release);
+          continue;
+        }
+
+        void* p = taosMemPoolMalloc(gMemPoolHandle, pSession, 64, (char*)__FILE__, __LINE__);
+        TD_ALWAYS_ASSERT(NULL != p);
+        taosMemPoolFree(gMemPoolHandle, pSession, p, (char*)__FILE__, __LINE__);
+
+        {
+          std::lock_guard<std::mutex> guard(activeLock);
+          activeSessions.erase(pSession);
+        }
+
+        taosMemPoolDestroySession(gMemPoolHandle, pSession);
+      }
+    });
+  }
+
+  while (ready.load(std::memory_order_acquire) < threadNum) {
+    std::this_thread::yield();
+  }
+
+  start.store(true, std::memory_order_release);
+
+  for (std::thread& thread : threads) {
+    thread.join();
+  }
+
+  ASSERT_EQ(0, duplicateNum.load());
+  {
+    std::lock_guard<std::mutex> guard(activeLock);
+    EXPECT_TRUE(activeSessions.empty());
+  }
+
+  taosMemFree(pJob);
+  taosMemPoolClose(gMemPoolHandle);
+  while (gMemPoolHandle) {
+    taosMsleep(10);
   }
 }
 
