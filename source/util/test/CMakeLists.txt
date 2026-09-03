@@ -216,3 +216,38 @@ if(TD_LINUX)
         COMMAND queryAutoQWorkerTest
     )
 endif()
+
+# compressBench -- manual micro-benchmark / verifier for the L2 compression
+# dispatch table (stock vs. runtime-loaded accel backends). It is a C program
+# with its own main(), not a gtest, so it is built without DEP_ext_gtest.
+# Linux-only: links libm and calls libc clock_gettime directly.
+# Deliberately NOT registered via add_test(): it is a manual tool and must stay
+# out of ctest / CI for now. Run the built binary by hand, e.g.
+#   ./compressBench --codec all --size 1m --iters 30 --warmup 5 --shape mixed
+if(TD_LINUX)
+    add_executable(compressBench "compressBench.c")
+    target_link_libraries(compressBench PRIVATE util m)
+    target_include_directories(
+        compressBench
+        PRIVATE
+            ${TD_SOURCE_DIR}/include/util
+            ${TD_SOURCE_DIR}/include/common
+            ${TD_SOURCE_DIR}/include/os
+    )
+endif()
+
+# compressAccelTest -- verifies that the accelerated L2 backends are really
+# loaded: points TAOS_COMPRESS_ACCEL_ZLIB at the system libz (resolved at
+# runtime via dlopen/dlinfo, so no hard-coded path), then checks that the
+# dispatch table was rebound and that compress/decompress round-trips and
+# interoperates with the stock implementation. Skips when the system libz is
+# absent. Requires the accel code to be compiled in.
+if(TD_LINUX AND BUILD_WITH_ACCEL_COMPRESS)
+    add_executable(compressAccelTest "compressAccelTest.cpp")
+    DEP_ext_gtest(compressAccelTest)
+    target_link_libraries(compressAccelTest PRIVATE os util common)
+    add_test(
+        NAME compressAccelTest
+        COMMAND compressAccelTest
+    )
+endif()
