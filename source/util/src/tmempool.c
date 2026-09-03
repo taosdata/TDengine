@@ -116,20 +116,16 @@ void mpDestroyCacheGroup(SMPCacheGroupInfo* pInfo) {
 int32_t mpPopIdleNode(SMemPool* pPool, SMPCacheGroupInfo* pInfo, void** ppRes) {
   SMPCacheGroup* pGrp = NULL;
   SMPListNode* pNode = NULL;
-  
-  while (true) {
-    pNode = (SMPListNode*)atomic_load_ptr(&pInfo->pIdleList);
-    if (NULL == pNode) {
-      break;
-    }
 
-    if (atomic_val_compare_exchange_ptr(&pInfo->pIdleList, pNode, pNode->pNext) != pNode) {
-      continue;
-    }
-
+  taosWLockLatch(&pInfo->idleListLock);
+  pNode = (SMPListNode*)pInfo->pIdleList;
+  if (NULL != pNode) {
+    pInfo->pIdleList = pNode->pNext;
     pNode->pNext = NULL;
+    taosWUnLockLatch(&pInfo->idleListLock);
     goto _return;
   }
+  taosWUnLockLatch(&pInfo->idleListLock);
 
   while (true) {
     pGrp = atomic_load_ptr(&pInfo->pGrpHead);
@@ -152,19 +148,10 @@ _return:
 }
 
 void mpPushIdleNode(SMemPool* pPool, SMPCacheGroupInfo* pInfo, SMPListNode* pNode) {
-  SMPCacheGroup* pGrp = NULL;
-  SMPListNode* pOrig = NULL;
-  
-  while (true) {
-    pOrig = (SMPListNode*)atomic_load_ptr(&pInfo->pIdleList);
-    pNode->pNext = pOrig;
-    
-    if (atomic_val_compare_exchange_ptr(&pInfo->pIdleList, pOrig, pNode) != pOrig) {
-      continue;
-    }
-
-    break;
-  }
+  taosWLockLatch(&pInfo->idleListLock);
+  pNode->pNext = pInfo->pIdleList;
+  pInfo->pIdleList = pNode;
+  taosWUnLockLatch(&pInfo->idleListLock);
 }
 
 

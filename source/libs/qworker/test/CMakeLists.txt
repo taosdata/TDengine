@@ -18,5 +18,7 @@ IF(NOT TD_DARWIN)
                 qworkerTest
                 PUBLIC "${TD_SOURCE_DIR}/include/libs/qworker/"
                 PRIVATE "${TD_SOURCE_DIR}/source/libs/qworker/inc"
+                PRIVATE "${TD_SOURCE_DIR}/source/util/inc"
         )
+        TARGET_COMPILE_DEFINITIONS(qworkerTest PRIVATE -DBUILD_TEST)
 ENDIF()
