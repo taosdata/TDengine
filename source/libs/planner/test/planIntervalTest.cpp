@@ -89,3 +89,83 @@ TEST_F(PlanIntervalTest, smallDataScanSortHint) {
 
   run("SELECT /*+ smalldata_scan_sort() */ _WSTART, COUNT(*) FROM st1 PARTITION BY TBNAME INTERVAL(10s)");
 }
+
+TEST_F(PlanIntervalTest, fastIntervalHint) {
+  useDb("root", "test");
+
+  const char* range = " WHERE ts >= '2022-04-01 00:00:00' AND ts < '2022-04-01 01:00:00' ";
+  run(std::string("SELECT /*+ FAST_INTERVAL() */ _WSTART, COUNT(*), AVG(c1) FROM st1") + range + "INTERVAL(10s)");
+  ASSERT_TRUE(findPlanNode("MergeAlignedInterval"));
+  ASSERT_TRUE(findPlanNode("Exchange"));
+  ASSERT_TRUE(planContains("\"FastInterval\":true"));
+  ASSERT_FALSE(planContains("\"ExInterval\""));
+  ASSERT_FALSE(planContains("\"DelayFreeTask\""));
+  ASSERT_TRUE(planContains("\"SeqRecvData\":false"));
+
+  run(std::string("SELECT _WSTART, COUNT(*) FROM st1") + range + "INTERVAL(10s)");
+  ASSERT_TRUE(findPlanNode("Merge"));
+  ASSERT_FALSE(planContains("\"FastInterval\""));
+
+  run(std::string("SELECT /*+ FAST_INTERVAL() */ _WSTART, COUNT(*) FROM st1") + range + "INTERVAL(10s) SLIDING(5s)");
+  ASSERT_TRUE(findPlanNode("Merge"));
+  ASSERT_FALSE(planContains("\"FastInterval\""));
+
+  run(std::string("SELECT /*+ FAST_INTERVAL() */ _WSTART, COUNT(*) FROM st1") + range + "INTERVAL(10s, 1s)");
+  ASSERT_TRUE(findPlanNode("Merge"));
+  ASSERT_FALSE(planContains("\"FastInterval\""));
+
+  run(std::string("SELECT /*+ FAST_INTERVAL() */ _WSTART, COUNT(*) FROM st1") + range + "INTERVAL(10s) FILL(PREV)");
+  ASSERT_TRUE(findPlanNode("Merge"));
+  ASSERT_FALSE(planContains("\"FastInterval\""));
+
+  run(std::string("SELECT /*+ FAST_INTERVAL() */ _WSTART, COUNT(*) FROM st1") + range + "INTERVAL(1d)");
+  ASSERT_TRUE(findPlanNode("Merge"));
+  ASSERT_FALSE(planContains("\"FastInterval\""));
+
+  run(std::string("SELECT /*+ FAST_INTERVAL() */ _WSTART, COUNT(*) FROM st1") + range +
+      "PARTITION BY TBNAME INTERVAL(10s)");
+  ASSERT_FALSE(planContains("\"FastInterval\""));
+}
+
+TEST_F(PlanIntervalTest, exIntervalHint) {
+  useDb("root", "test");
+
+  const char* range = " WHERE ts >= '2022-04-01 00:00:00' AND ts < '2022-04-01 01:00:00' ";
+  run(std::string("SELECT /*+ EX_INTERVAL() */ _WSTART, _WEND, _WDURATION, COUNT(*), AVG(c1), SUM(c1) FROM st1") +
+      range + "INTERVAL(10s)");
+  // The mock catalog uses three replica endpoints per vgroup, so the
+  // single-endpoint EX_INTERVAL eligibility check intentionally falls back.
+  ASSERT_TRUE(findPlanNode("Merge"));
+  ASSERT_FALSE(planContains("\"ExInterval\":true"));
+  ASSERT_FALSE(planContains("\"FastInterval\""));
+  ASSERT_FALSE(planContains("\"DelayFreeTask\""));
+
+  run(std::string("SELECT /*+ EX_INTERVAL() */ _WSTART, SUM(c1) FROM st1") + range + "INTERVAL(10s)");
+  ASSERT_TRUE(findPlanNode("Merge"));
+  ASSERT_FALSE(planContains("\"ExInterval\""));
+
+  run(std::string("SELECT /*+ EX_INTERVAL() */ _WSTART, COUNT(*) FROM st1") + range + "INTERVAL(10s) LIMIT 1");
+  ASSERT_TRUE(findPlanNode("Merge"));
+  ASSERT_FALSE(planContains("\"ExInterval\""));
+  ASSERT_FALSE(planContains("\"DelayFreeTask\""));
+
+  run(std::string("SELECT /*+ EX_INTERVAL() */ _WSTART, COUNT(*) FROM st1") + range +
+      "PARTITION BY TBNAME INTERVAL(10s)");
+  ASSERT_FALSE(planContains("\"ExInterval\""));
+  ASSERT_FALSE(planContains("\"DelayFreeTask\""));
+}
+
+TEST_F(PlanIntervalTest, streamCalcDisablesIntervalHints) {
+  useDb("root", "test");
+
+  const char* range = " WHERE ts >= '2022-04-01 00:00:00' AND ts < '2022-04-01 01:00:00' ";
+  for (const char* hint : {"FAST_INTERVAL()", "EX_INTERVAL()"}) {
+    runStreamCalc(std::string("SELECT /*+ ") + hint + " */ _WSTART, COUNT(*), AVG(c1) FROM st1" + range +
+                  "INTERVAL(10s)");
+    ASSERT_TRUE(findPlanNode("Merge"));
+    ASSERT_FALSE(planContains("\"FastInterval\":true"));
+    ASSERT_FALSE(planContains("\"ExInterval\":true"));
+    ASSERT_FALSE(planContains("\"FastInterval\""));
+    ASSERT_FALSE(planContains("\"ExInterval\""));
+  }
+}
