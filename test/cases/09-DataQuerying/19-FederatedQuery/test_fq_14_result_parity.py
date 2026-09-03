@@ -1168,7 +1168,22 @@ class TestFq14ResultParity(ParityTestBase):
         self.run_epoch_parity_cases(_WIN_EPOCH_CASES, self._EPOCH_BASELINE_FILE)
 
     def test_fq_parity_mixed_case_identifiers(self):
-        """External column names follow each provider's identifier rules."""
+        """External column names follow each provider's identifier rules.
+
+        MySQL lowercases mixed-case columns, so DESC and SELECT treat
+        Mapped_Val as mapped_val. PostgreSQL and InfluxDB preserve the
+        original case, so unquoted mapped_val is rejected and quoted
+        Mapped_Val is required for metadata and binding.
+
+        Catalog: - Query:FederatedResultParity
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-09-01 xsren Mixed-case identifier parity for MySQL/PG/InfluxDB
+        """
         tables = dict(self._ext_sources())
 
         tdSql.query(f"DESC {tables['MySQL']}")
