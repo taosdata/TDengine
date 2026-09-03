@@ -18967,9 +18967,13 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calB
     field.typeMod = calcTypeMod(&pCol->dataType);
     tstrncpy(field.name, pCol->colName, TSDB_COL_NAME_LEN);
     if (pCol->pOptions) {
-      setColEncode(&field.compress, columnEncodeVal(((SColumnOptions*)pCol->pOptions)->encode));
-      setColCompress(&field.compress, columnCompressVal(((SColumnOptions*)pCol->pOptions)->compress));
-      setColLevel(&field.compress, columnLevelVal(((SColumnOptions*)pCol->pOptions)->compressLevel));
+      SColumnOptions* pOpt = (SColumnOptions*)pCol->pOptions;
+      code = setColCompressByOption(pCol->dataType.type, columnEncodeVal(pOpt->encode),
+                                    columnCompressVal(pOpt->compress), columnLevelVal(pOpt->compressLevel), false,
+                                    &field.compress);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
     }
     if (pCol->sma) {
       field.flags |= COL_SMA_ON;
@@ -34932,6 +34936,9 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
       int8_t code = setColCompressByOption(pReq->type, columnEncodeVal(pStmt->pColOptions->encode),
                                            columnCompressVal(pStmt->pColOptions->compress),
                                            columnLevelVal(pStmt->pColOptions->compressLevel), true, &pReq->compress);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
   }
 
