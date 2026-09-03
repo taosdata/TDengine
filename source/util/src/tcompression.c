@@ -338,8 +338,6 @@ void tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uin
   // global lossyColumns/lossyFloat/lossyDouble switches are no longer used.
   (void)lossyColumns;
   tdszInit(fPrecision, dPrecision, maxIntervals, intervals, ifAdtFse, compressor);
-  if (lossyFloat) uTrace("lossy compression float  is opened. ");
-  if (lossyDouble) uTrace("lossy compression double is opened. ");
   return;
 }
 // exit call
