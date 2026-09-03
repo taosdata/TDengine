@@ -33,6 +33,72 @@ After completing the specialized compression for specific data types, TDengine f
 
 TDengine supports multiple compression algorithms, including LZ4, ZLIB, ZSTD, XZ, etc. Users can flexibly balance between compression rate and write speed according to specific application scenarios and needs, choosing the most suitable compression scheme.
 
+#### Using Hardware-Accelerated Secondary Compression Libraries (Optional)
+
+Secondary compression is linked by default to the static zlib/zstd/lz4 bundled with TDengine. If the deployment environment provides ABI-compatible hardware-accelerated replacements (for example, Intel QAT/IAA-accelerated zlib, ISA-L's libz, or SVE-optimized zstd on ARM), taosd can load those replacements into the secondary-compression dispatch table at startup and accelerate compression without changing any SQL. If a replacement is unavailable, TDengine automatically falls back to the bundled static implementation.
+
+This capability is available only on Linux and only when TDengine is built with `BUILD_WITH_ACCEL_COMPRESS` explicitly enabled:
+
+```bash
+# Build
+mkdir build && cd build
+cmake -DBUILD_WITH_ACCEL_COMPRESS=ON ..
+make -j$(nproc)
+```
+
+At startup, use environment variables to tell taosd where to load the replacement libraries:
+
+| Environment variable | Value | Description |
+|---|---|---|
+| `TAOS_COMPRESS_ACCEL` | Directory path / unset | When set to a directory, libraries are loaded by convention from `<dir>/libz.so`, `<dir>/libzstd.so`, and `<dir>/liblz4.so`. When unset (or set to empty), the built-in implementations are used. |
+| `TAOS_COMPRESS_ACCEL_ZLIB` | Full path to a `.so` | Overrides the zlib path and takes precedence over `TAOS_COMPRESS_ACCEL`. |
+| `TAOS_COMPRESS_ACCEL_ZSTD` | Full path to a `.so` | Same as above, for zstd. |
+| `TAOS_COMPRESS_ACCEL_LZ4` | Full path to a `.so` | Same as above, for lz4. |
+
+**Symbol contract**: A replacement library must export the same public symbols as upstream. TDengine resolves them with `dlsym` at startup:
+
+- libz: `compress2`, `uncompress`
+- libzstd: `ZSTD_compress`, `ZSTD_decompress`
+- liblz4: `LZ4_compress_default`, `LZ4_decompress_safe`
+
+The ABI must match upstream (parameter order and return-value semantics). Most hardware-accelerated builds are drop-in replacements, so no extra work is required.
+
+**Failure fallback**: If any step fails (environment variable unset, file missing, `dlopen` failure, or a missing symbol), taosd startup is not interrupted. That codec continues to use the bundled static implementation, and a log line `UTL WARN  accel <codec>: ...` is written.
+
+**Confirm a successful load**: The taosd startup log includes lines similar to:
+
+```text
+UTL INFO  accel zlib: loaded from /opt/qat-zlib/libz.so, L2_ZLIB dispatch patched
+UTL INFO  accel zstd: loaded from /opt/qat-zlib/libzstd.so, L2_ZSTD dispatch patched
+```
+
+If no environment variables are set, you will see:
+
+```text
+UTL INFO  accel compression: TAOS_COMPRESS_ACCEL{,_ZLIB,_ZSTD,_LZ4} unset; using stock L2 implementations
+```
+
+**Measure the speedup**: Building with `BUILD_TOOLS=ON` also produces `compressBench`, which micro-benchmarks the secondary-compression dispatch table directly (bypassing SQL, the network, and WAL so the numbers reflect compression only):
+
+```bash
+# Stock baseline (do not set TAOS_COMPRESS_ACCEL)
+./build/bin/compressBench --codec all --size 1 --iters 30 --warmup 5 \
+    --shape mixed --label stock --csv result.csv
+
+# Switch to the accelerated libraries and run again to compare throughput for the same codec
+export TAOS_COMPRESS_ACCEL=/opt/qat-zlib
+./build/bin/compressBench --codec all --size 1 --iters 30 --warmup 5 \
+    --shape mixed --label accel --csv result.csv
+```
+
+The output reports mean / p50 / p95 / stdev, MB/s throughput, and compression ratio for each codec, and tags each line with `backend=stock|accel` for comparison. `--shape` provides four data patterns — `random / repeating / sequential / mixed` — so you can evaluate high-entropy, low-entropy, monotonic-timestamp, and mixed workloads separately. `--size` accepts values such as 0.004 (4 KiB), 0.0625 (64 KiB), and 1 (1 MiB), covering typical column-block sizes. Run at least 30 measurement iterations plus 5 warmup iterations, and repeat twice during different idle periods to exclude transient noise.
+
+**Notes**:
+
+- The replacement library is `dlopen`ed once and stays loaded for the entire taosd lifetime, so do not replace or delete the file on disk while taosd is running.
+- If the replacement library itself depends on other shared libraries (for example, a QAT user-space driver), those libraries must also be discoverable by `dlopen`. Standard mechanisms (`/etc/ld.so.conf.d/`, `LD_LIBRARY_PATH`) all apply.
+- TSZ (lossy floating-point compression) and XZ are not switchable: the former is a TDengine-internal implementation, and the latter uses fast-lzma2 rather than mainstream xz, so there is no common drop-in accelerated counterpart.
+
 ### Lossy Compression
 
 TDengine engine provides two modes for floating-point type data: lossless compression and lossy compression. The precision of floating-point numbers is usually determined by the number of digits after the decimal point. In some cases, the precision of floating-point numbers collected by devices is high, but the precision of interest in actual applications is low. In such cases, using lossy compression can effectively save storage space. TDengine's lossy compression algorithm is based on a prediction model, the core idea of which is to use the trend of previous data points to predict the trend of subsequent data points. This algorithm can significantly improve the compression rate, and its compression effect far exceeds that of lossless compression. The name of the lossy compression algorithm is TSZ.

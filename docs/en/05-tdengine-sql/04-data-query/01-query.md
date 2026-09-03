@@ -23,7 +23,7 @@ SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
 hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT | FAST_INTERVAL | EX_INTERVAL
 
 select_list:
     select_expr [, select_expr] ...
@@ -166,6 +166,8 @@ The currently supported Hints list is as follows:
 |  SMALLDATA_TS_SORT  | None          | When sorting supertable data by timestamp, if the query column length is greater than or equal to 256 but the number of rows is not large, using this hint can improve performance    | When sorting supertable data by timestamp       |
 | SMALLDATA_SCAN_SORT | None          | When a supertable query needs timestamp-ordered scan output, use a plain table scan plus a sort instead of a table merge scan; for small per-vnode data this can be faster. It applies wherever the engine would otherwise use a table merge scan to produce timestamp order: ORDER BY ts, and also SESSION / STATE_WINDOW (no explicit ORDER BY required). It has no effect on INTERVAL windows (which do not use a table merge scan), nor on ORDER BY of non-timestamp columns | Small per-vnode supertable data needing timestamp order |
 |      SKIP_TSMA      | None          | Explicitly disable TSMA query optimization                                                                                                                                            | Queries with Agg functions                      |
+|    FAST_INTERVAL    | None          | Enable the FAST execution path for eligible fixed-window `INTERVAL` aggregate queries                                                                                               | Supertable `INTERVAL` aggregate queries with no `PARTITION BY`, `FILL`, window offset, or sliding window, and without day/week/month/year calendar units |
+|     EX_INTERVAL     | None          | Enable the EX execution path for eligible fixed-window `INTERVAL` aggregate queries                                                                                                 | Queries meeting the base `FAST_INTERVAL` window conditions, without `LIMIT` or `SLIMIT`, with one table scan whose vgroups are on one dnode, and with a select list limited to `_wstart`, `_wend`, `_wduration`, and supported `COUNT`, `SUM`, or `AVG` expressions |
 
 Examples:
 
@@ -176,6 +178,8 @@ SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
 SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_SCAN_SORT() */ * from stable1 order by ts;
+SELECT /*+ FAST_INTERVAL() */ _wstart, count(*), sum(c1) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
+SELECT /*+ EX_INTERVAL() */ _wstart, count(*), sum(c1), avg(c2) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
 ```
 
 ## List

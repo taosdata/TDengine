@@ -255,6 +255,7 @@ typedef struct SExchangeInfo {
   bool         seqLoadData;      // sequential load data or not, false by default
   bool         dynamicOp;
   bool         dynTbname;         // %%tbname for stream    
+  bool         fastInterval;
   int32_t      current;
   SLoadRemoteDataInfo loadInfo;
   int64_t             self;
@@ -370,6 +371,7 @@ struct SAggSupporter {
   SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
   int32_t        resultRowSize;  // the result buffer size for each result row, with the meta data size for each row
   int32_t        currentPageId;  // current write page id
+  void*          pFastInterval;  // private FAST_INTERVAL contiguous result storage
 };
 
 typedef struct {
@@ -423,6 +425,7 @@ typedef struct STableScanInfo {
   int32_t         currentTable;
   int8_t          scanMode;
   int8_t          assignBlockUid;
+  bool            fastInterval;
   uint8_t         countState;  // empty table count state
   bool            hasGroupByTag;
   bool            filesetDelimited;
@@ -682,6 +685,7 @@ typedef struct SIntervalAggOperatorInfo {
   uint64_t      curGroupId;  // initialize to UINT64_MAX
   uint64_t      handledGroupNum;
   BoundedQueue* pBQ;
+  void*         pExInterval;
 } SIntervalAggOperatorInfo;
 
 typedef struct SMergeAlignedIntervalAggOperatorInfo {
@@ -691,6 +695,8 @@ typedef struct SMergeAlignedIntervalAggOperatorInfo {
   int64_t      curTs;    // current ts
   SSDataBlock* prefetchedBlock;
   SResultRow*  pResultRow;
+  void*        pFastInterval;  // private FAST_INTERVAL multi-source partial-result cache
+  void*        pExInterval;
 } SMergeAlignedIntervalAggOperatorInfo;
 
 typedef struct SOpCheckPointInfo {
