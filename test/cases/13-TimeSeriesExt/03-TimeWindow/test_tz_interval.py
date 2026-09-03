@@ -8,6 +8,9 @@ Covers:
 """
 
 from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.interval_hints import (
+    assert_supported_interval_hint_modes,
+)
 import pytest
 import sys
 
@@ -611,6 +614,7 @@ class _IntervalNaturalMixin:
 
         """
         self._setup_interval_natural_case()
+        assert_supported_interval_hint_modes()
         self.check_interval_1n_bucket_count()
         self.check_interval_1d_bucket_count()
         self.check_interval_1d_uses_session_timezone_not_client_local()
@@ -920,4 +924,14 @@ class TestTimezoneInterval(
     _IntervalWeekMixin,
     _IntervalQuarterMixin,
 ):
-    pass
+    def test_interval_timezone(self):
+        """Timezone interval coverage is grouped by natural, week, and quarter units.
+
+        The inherited test methods execute the natural-unit, week-alignment,
+        and quarter-boundary regression cases in this suite.
+
+        Since: v3.4.2.0
+
+        Labels: timezone,ci,integration
+        """
+        pass

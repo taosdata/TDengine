@@ -1099,6 +1099,7 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
 
   pInfo->seqLoadData = pExNode->seqRecvData;
   pInfo->dynTbname = pExNode->dynTbname;
+  pInfo->fastInterval = pExNode->fastInterval;
   if (pInfo->dynTbname) {
     pInfo->seqLoadData = true;
   }
@@ -2465,6 +2466,14 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
     if (code != 0) {
       clearSourceResponse(pDataInfo);
       goto _end;
+    }
+    if (pExchangeInfo->fastInterval) {
+      if (pDataInfo->index < 0) {
+        qError("FAST_INTERVAL invalid exchange source index:%d", pDataInfo->index);
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        goto _end;
+      }
+      pb->info.id.uid = (uint64_t)pDataInfo->index;
     }
 
     void* tmp = taosArrayPush(pExchangeInfo->pResultBlockList, &pb);

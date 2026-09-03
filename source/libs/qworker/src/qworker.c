@@ -74,7 +74,7 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 
 _return:
 
-  if ((!ctx->dynamicTask) && (!ctx->explain || ctx->explainRsped)) {
+  if (!ctx->dynamicTask && !ctx->delayFreeTask && (!ctx->explain || ctx->explainRsped)) {
     qwFreeTaskHandle(ctx);
   }
 
@@ -1031,6 +1031,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   (void)dsGetSinkFlags(sinkHandle, &flags);
 
   ctx->level = plan->level;
+  ctx->delayFreeTask = plan->delayFreeTask;
   ctx->dynamicTask = qIsDynamicExecTask(pTaskInfo);
   ctx->sinkWithMemPool = flags & DS_FLAG_USE_MEMPOOL;
   atomic_store_ptr(&ctx->taskHandle, pTaskInfo);
