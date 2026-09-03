@@ -216,6 +216,7 @@ class TestCompressTsz1:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -252,7 +253,19 @@ class TestCompressTszDdlAndData:
             time.sleep(3)
 
     def test_tsz_ddl_encode_disabled(self):
-        """DDL legality: tsz => encode must be DISABLED, other explicit encode/type rejected"""
+        """TSZ DDL rule: compress tsz forces the L1 encode to disabled
+
+        1. Create/alter float & double columns with COMPRESS 'tsz' (absent/disabled/default encode) succeed
+        2. Explicit L1 encode such as 'delta-d' combined with tsz is rejected on create, alter modify and add column
+        3. COMPRESS 'tsz' on non-float/double types (int/bool/varchar) is rejected
+        4. Both normal table and super table paths persist tsz columns with encode disabled
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+        """
         tdLog.debug(f"start to execute {__file__}")
         db = "tsz_ddl_rule"
         self._use_db(db)
@@ -290,7 +303,20 @@ class TestCompressTszDdlAndData:
         tdLog.info("tsz DDL encode-disabled rule check passed")
 
     def test_tsz_large_data_correctness(self):
-        """Large TSZ volume flush/compact -> read-back values stay within SZ tolerance"""
+        """Large TSZ volume flush/compact read-back stays within SZ tolerance
+
+        1. Create float & double columns with COMPRESS 'tsz' (encode normalized to disabled)
+        2. Insert a large volume (>= 3 on-disk blocks per table) so real SZ compress/decompress happens on disk
+        3. Flush database then compact database to force blocks to be re-decompressed and re-compressed
+        4. Read back rows and verify per-row values stay within SZ lossy tolerance
+        5. Verify row count and min/max/avg aggregates after compact
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+        """
         tdLog.debug(f"start to execute {__file__}")
         db = "tsz_large_correct"
         self._use_db(db)
