@@ -25,6 +25,9 @@
 #include "ttlist.h"
 #include "ttqMemory.h"
 
+static const char JSON_TABLE_NAME_KEY[] = "tbl";
+static const char JSON_META_TABLE_NAME_KEY[] = "$tbl";
+
 bool tmq_ctx_auth(struct tmq_ctx* context, const char* username, const char* password) {
   const char* host = "localhost";
   uint16_t    port = 6030;
@@ -490,7 +493,6 @@ static cJSON* tmq_ctx_do_topic(const char* topic_name, const char* db_name, cons
                                cJSON** ajson) {
   const char* json_topic_name_key = "topic";
   const char* json_db_name_key = "db";
-  const char* json_tbl_name_key = "tbl";
   const char* json_vid_name_key = "vid";
   const char* json_rows_key = "rows";
 
@@ -515,7 +517,7 @@ static cJSON* tmq_ctx_do_topic(const char* topic_name, const char* db_name, cons
   }
 
   if (tbl_name) {
-    if (NULL == cJSON_AddStringToObject(json, json_tbl_name_key, tbl_name)) {
+    if (NULL == cJSON_AddStringToObject(json, JSON_TABLE_NAME_KEY, tbl_name)) {
       bndError("json msg: out of memory.");
       cJSON_Delete(json);
       return NULL;
@@ -734,7 +736,6 @@ static void tmq_ctx_do_msg(struct tmqtt* ctxt, TAOS_RES* msg) {
   const char*     db_name = tmq_get_db_name(msg);
   const char*     tb_name = tmq_get_table_name(msg);
   int32_t         vgroup_id = tmq_get_vgroup_id(msg);
-  const char*     json_tbl_name_key = "$tbl";
 
   cJSON* json = tmq_ctx_do_topic(topic_name, db_name, tb_name, vgroup_id, &ajson);
   if (!json) {
@@ -772,7 +773,7 @@ static void tmq_ctx_do_msg(struct tmqtt* ctxt, TAOS_RES* msg) {
 
     const char *tbl_name = tmq_get_table_name(msg);
     if (tbl_name) {
-      if (NULL == cJSON_AddStringToObject(item, json_tbl_name_key, tbl_name)) {
+      if (NULL == cJSON_AddStringToObject(item, JSON_META_TABLE_NAME_KEY, tbl_name)) {
 	bndError("json msg: out of memory.");
 	cJSON_Delete(json);
 	return;
