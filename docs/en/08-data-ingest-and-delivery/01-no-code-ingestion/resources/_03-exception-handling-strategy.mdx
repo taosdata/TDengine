@@ -2,7 +2,7 @@ The **Exception Handling Strategy** section is collapsed by default. Click `>` t
 
 The common strategies are:
 
-- **Archive**: Write the invalid data to an archive file, by default under `${data_dir}/tasks/<id>/<datetime>`, without writing it to the target database.
+- **Archive**: Write the invalid data to an archive file, by default under `${data_dir}/tasks/<id>/<datetime>`, without writing it to the target database. Archive files are used for troubleshooting: only the first batch is kept for each failure reason in the same archive file, and the total number of invalid rows is reported by the task monitoring metrics. Use the [`taosx archive`](../../../12-operations-and-tooling/03-components/06-taosx.md#troubleshooting) command to inspect archive files.
 - **Discard**: Ignore the invalid data.
 - **Error**: Report an error.
 - **Cache**: For a target connection failure or resource shortage, write data to a cache file and ingest it after the target recovers.
