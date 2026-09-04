@@ -39,7 +39,7 @@ TDengine 支持细粒度的压缩配置。建表时可针对每一列指定是�
 | `BOOL` | `disabled` / `bit-packing` | `bit-packing` | `lz4` / `zlib` / `zstd` / `xz` | `zstd` | `medium` |
 | `DECIMAL` | `disabled` | `disabled` | `lz4` / `zlib` / `zstd` / `xz` | `zstd` | `medium` |
 
-其中，`tsz` 仅适用于 `FLOAT` 和 `DOUBLE`。
+注：`tsz` 仅适用于 `FLOAT` 和 `DOUBLE`，列设置压缩算法为 `tsz` 时，编码算法必须关闭，即设置为 `disabled`。
 
 ## 语法
 
