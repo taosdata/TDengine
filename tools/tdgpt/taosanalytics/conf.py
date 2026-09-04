@@ -18,8 +18,6 @@ try:
 except Exception:  # pragma: no cover
     keras = None
 
-_ANODE_SECTION_NAME = "taosanode"
-
 
 class Configure:
     """configuration class (singleton)"""
@@ -32,6 +30,9 @@ class Configure:
             if cls._instance is None:
                 instance = super().__new__(cls)
                 instance._conf = instance._get_default_conf()
+                env_resource_base_url = os.environ.get("TDGPT_RESOURCE_BASE_URL", "").strip()
+                if env_resource_base_url:
+                    instance._conf["resource_base_url"] = env_resource_base_url
                 instance.path = None
 
                 if conf_path is not None and os.path.exists(conf_path):
@@ -67,12 +68,6 @@ class Configure:
             cls()
         return cls._instance
 
-    # def _get_default_conf_windows(self):
-    #     # raw_path = r"%PROGRAMDATA%"
-    #     # base_path = os.path.join(os.path.expandvars(raw_path), "tdgpt")
-    #     # keep inline with the TDengine installation configuration
-    #
-    #     base_path = "c:/TDengine/taosanode/"
 
     def _get_default_conf_impl(self, base_path: str):
         return {
@@ -81,11 +76,13 @@ class Configure:
             "model_dir": os.path.join(base_path, "model"),
             "dynamic_model_dir": os.path.join(base_path, "model", "dynamic"),
             "img_dir": os.path.join(base_path, "img"),
+            "resource_dir": os.path.join(base_path, "resource"),
             "conf_path": os.path.join(base_path, "cfg", "taosanode.config.py"),
             "log_level": logging.DEBUG,
             "draw_result": False,
             "host": "0.0.0.0",
             "port": 6035,
+            "resource_base_url": "https://downloads.taosdata.com",
         }
 
     def _get_default_conf_linux(self):
@@ -95,10 +92,11 @@ class Configure:
             "model_dir": "/usr/local/taos/taosanode/model/",
             "dynamic_model_dir": "/usr/local/taos/taosanode/model/dynamic/",
             "img_dir": "/usr/local/taos/taosanode/img/",
+            "resource_dir": "/usr/local/taos/taosanode/resource/",
+            "resource_base_url": "https://downloads.taosdata.com",
             "conf_path": "/etc/taos/taosanode.config.py",
             "log_level": logging.DEBUG,
             "draw_result": False,
-            "host": "0.0.0.0",
             "port": 6035,
         }
 
@@ -135,7 +133,7 @@ class Configure:
 
     def get_model_directory(self):
         """return model directory"""
-        return self._conf["model_dir"]
+        return os.environ.get("TDGPT_MODEL_DIR", self._conf["model_dir"])
 
     def get_dynamic_model_directory(self):
         """return dynamic model directory, which is a subdirectory under model directory"""
@@ -205,6 +203,11 @@ class Configure:
             conf_vars.pop("bind")
 
         self._conf.update(conf_vars)
+
+        # Container/deployment configuration must override stale persisted URLs.
+        env_resource_base_url = os.environ.get("TDGPT_RESOURCE_BASE_URL", "").strip()
+        if env_resource_base_url:
+            self._conf["resource_base_url"] = env_resource_base_url
 
         # Auto-derive model service URLs from models configuration.
         # This makes models[x]["port"] + models[x]["endpoint"] the single

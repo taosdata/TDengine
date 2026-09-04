@@ -78,6 +78,9 @@ def mock_config(temp_dir):
     config.pid_file = os.path.join(temp_dir, "taosanode.pid")
     config.app_log = os.path.join(config.log_dir, "taosanode.app.log")
     config.model_dir = os.path.join(config.data_dir, "model")
+    config.tsfm_model_dir = os.path.join(config.model_dir, "tsfm")
+    config.model_venvs_dir = os.path.join(config.data_dir, "model_venvs")
+    config.tsfm_venv = os.path.join(config.model_venvs_dir, "tsfm")
     config.venv_dir = os.path.join(temp_dir, "venvs", "venv")
     config.timesfm_venv = config.venv_dir
     config.moirai_venv = config.venv_dir

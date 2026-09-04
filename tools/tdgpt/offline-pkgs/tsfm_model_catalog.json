@@ -1,0 +1,38 @@
+{
+  "chronos": {
+    "model_id": "amazon/chronos-bolt-base",
+    "model_version": "chronos-bolt-base",
+    "artifact_slug": "chronos-bolt-base",
+    "note": "Amazon Chronos-Bolt base model"
+  },
+  "moirai": {
+    "model_id": "Salesforce/moirai-moe-1.0-R-small",
+    "model_version": "moirai-moe-1.0-r-small",
+    "artifact_slug": "moirai-moe-1-0-r-small",
+    "note": "Salesforce Moirai-MoE 1.0 R small model"
+  },
+  "moment": {
+    "model_id": "AutonLab/MOMENT-1-base",
+    "model_version": "moment-1-base",
+    "artifact_slug": "moment-1-base",
+    "note": "AutonLab MOMENT-1 base model"
+  },
+  "tdtsfm": {
+    "model_id": "tdengine/tdtsfm-v1.0",
+    "model_version": "tdtsfm-v1.0",
+    "artifact_slug": "tdtsfm-v1-0",
+    "note": "TDengine time-series foundation model v1.0"
+  },
+  "timemoe": {
+    "model_id": "Maple728/TimeMoE-200M",
+    "model_version": "timemoe-200m",
+    "artifact_slug": "timemoe-200m",
+    "note": "Maple728 TimeMoE 200M model"
+  },
+  "timesfm": {
+    "model_id": "google/timesfm-2.5-200m-pytorch",
+    "model_version": "timesfm-2.5-200m-pytorch",
+    "artifact_slug": "timesfm-2-5-200m-pytorch",
+    "note": "Google TimesFM 2.5 200M PyTorch model"
+  }
+}

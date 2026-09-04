@@ -32,13 +32,18 @@ import os
 import platform
 import re
 import signal
+import socket
 import subprocess
 import sys
 import time
 import urllib.error
 import urllib.request
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from typing import Dict, List, Optional
+
+from resource_manager import DynamicResourceManager, ResourceImportError
+from resource_manifest import validate_tsfm_model, validate_tsfm_runtime
 
 # Platform detection
 IS_WINDOWS = platform.system().lower() == "windows"
@@ -50,23 +55,92 @@ _script_dir = os.path.dirname(os.path.abspath(__file__))
 _script_parent = os.path.dirname(_script_dir)
 if IS_WINDOWS:
     # Script is in <install_dir>\bin\ when installed via Inno Setup
-    DEFAULT_INSTALL_DIR = (
-        _script_parent
-        if os.path.basename(_script_dir).lower() == "bin"
-        else r"C:\TDengine\taosanode"
-    )
+    DEFAULT_INSTALL_DIR = _script_parent if os.path.basename(_script_dir).lower() == "bin" else r"C:\TDengine\taosanode"
 else:
-    DEFAULT_INSTALL_DIR = (
-        _script_parent
-        if os.path.basename(_script_dir) == "bin"
-        else "/usr/local/taos/taosanode"
-    )
-DEFAULT_DATA_DIR = os.path.join(DEFAULT_INSTALL_DIR, "data")
-DEFAULT_LOG_DIR = os.path.join(DEFAULT_INSTALL_DIR, "log")
+    DEFAULT_INSTALL_DIR = _script_parent if os.path.basename(_script_dir) == "bin" else "/usr/local/taos/taosanode"
+DEFAULT_DATA_DIR = os.path.join(DEFAULT_INSTALL_DIR, "data") if IS_WINDOWS else "/var/lib/taos/taosanode"
+DEFAULT_LOG_DIR = os.path.join(DEFAULT_INSTALL_DIR, "log") if IS_WINDOWS else "/var/log/taos/taosanode"
 SERVICE_LOG_FILE = os.path.join(DEFAULT_LOG_DIR, "taosanode-service.log")
 WINSW_EXE_NAME = "taosanode-winsw.exe"
 _redirect_stream = None
 DEFAULT_MODEL_ORDER = ["tdtsfm", "timemoe", "moirai", "chronos", "timesfm", "moment"]
+DEFAULT_TIMEOUTS = {
+    "service_startup": 180,
+    "model_startup": 180,
+    "shutdown": 30,
+}
+TCP_CONNECT_TIMEOUT = 1
+
+
+def _preferred_venv_path(install_dir: str, name: str) -> str:
+    if IS_WINDOWS:
+        return os.path.join(install_dir, "venvs", name)
+    return os.path.join(DEFAULT_DATA_DIR, name)
+
+
+def _legacy_venv_path(install_dir: str, name: str) -> str:
+    return os.path.join(install_dir, name)
+
+
+def _resolve_venv_path(preferred_path: str, legacy_path: Optional[str] = None) -> str:
+    if preferred_path and os.path.exists(preferred_path):
+        return preferred_path
+    if legacy_path and os.path.exists(legacy_path):
+        return legacy_path
+    return preferred_path
+
+
+def _default_model_dir(install_dir: str, data_dir: str) -> str:
+    if IS_WINDOWS:
+        return os.path.join(install_dir, "model")
+    return os.path.join(data_dir, "model")
+
+
+def _ensure_directory(path: str) -> None:
+    if os.path.isdir(path):
+        return
+    if os.path.lexists(path):
+        raise NotADirectoryError(errno.ENOTDIR, f"Path exists and is not a directory: {path}", path)
+    os.makedirs(path, exist_ok=True)
+
+
+def _read_log_tail(path: str, max_bytes: int = 32768) -> str:
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(0, os.SEEK_END)
+            size = fh.tell()
+            fh.seek(max(0, size - max_bytes), os.SEEK_SET)
+            chunk = fh.read()
+    except OSError:
+        return ""
+    return chunk.decode("utf-8", errors="replace")
+
+
+def _ensure_directory_with_fallback(
+    primary_path: str,
+    fallback_path: Optional[str] = None,
+    logger: Optional[logging.Logger] = None,
+    label: str = "directory",
+) -> str:
+    candidates = [primary_path]
+    if fallback_path and os.path.abspath(fallback_path) != os.path.abspath(primary_path):
+        candidates.append(fallback_path)
+
+    last_error: Optional[OSError] = None
+    for index, candidate in enumerate(candidates):
+        try:
+            _ensure_directory(candidate)
+            if index > 0 and logger is not None:
+                logger.warning(f"Falling back to {label}: {candidate}")
+            return candidate
+        except OSError as exc:
+            last_error = exc
+            if logger is not None:
+                logger.warning(f"Unable to use {label} {candidate}: {exc}")
+
+    if last_error is not None:
+        raise last_error
+    raise OSError(f"Unable to prepare {label}: {primary_path}")
 
 # PID file paths
 PID_FILE = os.path.join(DEFAULT_INSTALL_DIR, "taosanode.pid")
@@ -118,15 +192,15 @@ def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger
 
         file_handler = RotatingFileHandler(
             log_file,
-            maxBytes=10 * 1024 * 1024,  # 10MB
+            maxBytes=10*1024*1024,  # 10MB
             backupCount=5,
             encoding=get_windows_friendly_log_encoding(log_file),
             errors="replace",
         )
         file_handler.setLevel(level)
         file_formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
         )
         file_handler.setFormatter(file_formatter)
         logger.addHandler(file_handler)
@@ -136,7 +210,7 @@ def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger
     if os.environ.get("TAOSANODE_DISABLE_CONSOLE_LOG") != "1":
         console_handler = logging.StreamHandler()
         console_handler.setLevel(level)
-        console_formatter = logging.Formatter("%(levelname)s: %(message)s")
+        console_formatter = logging.Formatter('%(levelname)s: %(message)s')
         console_handler.setFormatter(console_formatter)
         logger.addHandler(console_handler)
 
@@ -184,7 +258,10 @@ class Config:
         self.cfg_dir = os.path.join(self.install_dir, "cfg")
 
         # All management loggers write to the same service log.
-        self.logger = setup_logger("Config", SERVICE_LOG_FILE)
+        self.logger = setup_logger(
+            'Config',
+            SERVICE_LOG_FILE
+        )
 
         # Try to load from taosanode.config.py
         self._load_config(config_path)
@@ -197,10 +274,18 @@ class Config:
         # Set attribute defaults so they always exist even if config file is missing
         self.pid_file = PID_FILE
         self.app_log = os.path.join(self.log_dir, "taosanode.app.log")
-        self.model_dir = os.path.join(self.data_dir, "model")
-        self.venv_dir = os.path.join(self.install_dir, "venvs", "venv")
+        self.model_dir = _default_model_dir(self.install_dir, self.data_dir)
+        self.tsfm_model_dir = os.path.join(self.model_dir, "tsfm")
+        self.model_venvs_dir = os.path.join(self.data_dir, "model_venvs")
+        self.tsfm_venv = os.path.join(self.model_venvs_dir, "tsfm")
+        self.python_runtime_dir = None
+        self.resource_base_url = os.environ.get(
+            "TDGPT_RESOURCE_BASE_URL", "https://downloads.taosdata.com"
+        )
+        self.venv_dir = _preferred_venv_path(self.install_dir, "venv")
         self.bind = "0.0.0.0:6035"
         self.workers = 2
+        self.timeouts = DEFAULT_TIMEOUTS.copy()
         self.timesfm_venv = self.venv_dir
         self.moirai_venv = self.venv_dir
         self.chronos_venv = self.venv_dir
@@ -218,46 +303,70 @@ class Config:
 
             # Import config module
             import importlib.util
-
-            spec = importlib.util.spec_from_file_location(
-                "taosanode_config", config_path
-            )
+            spec = importlib.util.spec_from_file_location("taosanode_config", config_path)
             config_module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(config_module)
 
             # Extract paths from config
-            if hasattr(config_module, "pidfile"):
+            if hasattr(config_module, 'pidfile'):
                 self.pid_file = config_module.pidfile
             else:
                 self.pid_file = PID_FILE
 
-            if hasattr(config_module, "app_log"):
+            if hasattr(config_module, 'app_log'):
                 self.app_log = config_module.app_log
             else:
                 self.app_log = os.path.join(self.log_dir, "taosanode.app.log")
 
-            if hasattr(config_module, "model_dir"):
+            if hasattr(config_module, 'model_dir'):
                 self.model_dir = config_module.model_dir
             else:
-                self.model_dir = os.path.join(self.data_dir, "model")
+                self.model_dir = _default_model_dir(self.install_dir, self.data_dir)
+
+            self.tsfm_model_dir = getattr(
+                config_module, 'tsfm_model_dir', os.path.join(self.model_dir, "tsfm")
+            )
+            self.model_venvs_dir = getattr(
+                config_module, 'model_venvs_dir', os.path.join(self.data_dir, "model_venvs")
+            )
+            self.tsfm_venv = getattr(
+                config_module,
+                'tsfm_venv',
+                os.path.join(self.model_venvs_dir, "tsfm"),
+            )
+            self.python_runtime_dir = getattr(config_module, "python_runtime_dir", None)
+            self.resource_base_url = getattr(
+                config_module, "resource_base_url", self.resource_base_url
+            )
+            # Deployment environment overrides a stale persisted config value.
+            env_resource_base_url = os.environ.get("TDGPT_RESOURCE_BASE_URL", "").strip()
+            if env_resource_base_url:
+                self.resource_base_url = env_resource_base_url
 
             # Get virtualenv path
-            if hasattr(config_module, "virtualenv"):
+            if hasattr(config_module, 'virtualenv'):
                 self.venv_dir = config_module.virtualenv
             else:
-                self.venv_dir = os.path.join(self.install_dir, "venvs", "venv")
+                self.venv_dir = _preferred_venv_path(self.install_dir, "venv")
 
             # Bind address
-            if hasattr(config_module, "bind"):
+            if hasattr(config_module, 'bind'):
                 self.bind = config_module.bind
             else:
                 self.bind = "0.0.0.0:6035"
 
             # Workers
-            if hasattr(config_module, "workers"):
+            if hasattr(config_module, 'workers'):
                 self.workers = config_module.workers
             else:
                 self.workers = 2
+
+            configured_timeouts = getattr(config_module, "timeouts", {})
+            if isinstance(configured_timeouts, dict):
+                for name in DEFAULT_TIMEOUTS:
+                    value = configured_timeouts.get(name)
+                    if isinstance(value, int) and value > 0:
+                        self.timeouts[name] = value
 
             # Model venv paths from config. Optional TSFM services share the main venv.
             self.timesfm_venv = getattr(config_module, "timesfm_venv", self.venv_dir)
@@ -266,7 +375,7 @@ class Config:
             self.moment_venv = getattr(config_module, "momentfm_venv", self.venv_dir)
 
             # Load model configurations from config file
-            if hasattr(config_module, "models"):
+            if hasattr(config_module, 'models'):
                 self.models = config_module.models
             else:
                 # Fallback to default models if not in config
@@ -276,11 +385,7 @@ class Config:
             if os.path.exists(enabled_models_file):
                 with open(enabled_models_file, "r", encoding="utf-8") as fh:
                     selected = [line.strip() for line in fh if line.strip()]
-                self.enabled_models = [
-                    name
-                    for name in DEFAULT_MODEL_ORDER
-                    if name in selected and name in self.models
-                ]
+                self.enabled_models = [name for name in DEFAULT_MODEL_ORDER if name in selected and name in self.models]
             else:
                 self.enabled_models = None
 
@@ -288,12 +393,40 @@ class Config:
             self.logger.warning(f"Failed to load config: {e}")
             self.pid_file = PID_FILE
             self.app_log = os.path.join(self.log_dir, "taosanode.app.log")
-            self.model_dir = os.path.join(self.data_dir, "model")
-            self.venv_dir = os.path.join(self.install_dir, "venvs", "venv")
+            self.model_dir = _default_model_dir(self.install_dir, self.data_dir)
+            self.tsfm_model_dir = os.path.join(self.model_dir, "tsfm")
+            self.model_venvs_dir = os.path.join(self.data_dir, "model_venvs")
+            self.tsfm_venv = os.path.join(self.model_venvs_dir, "tsfm")
+            self.venv_dir = _preferred_venv_path(self.install_dir, "venv")
             self.bind = "0.0.0.0:6035"
             self.workers = 2
+            self.timeouts = DEFAULT_TIMEOUTS.copy()
             self.models = self._get_default_models()
             self.enabled_models = None
+
+        self._resolve_venv_paths()
+
+    def _resolve_venv_paths(self) -> None:
+        self.venv_dir = _resolve_venv_path(
+            self.venv_dir,
+            _legacy_venv_path(self.install_dir, "venv"),
+        )
+        self.timesfm_venv = _resolve_venv_path(
+            self.timesfm_venv,
+            _legacy_venv_path(self.install_dir, "timesfm_venv"),
+        )
+        self.moirai_venv = _resolve_venv_path(
+            self.moirai_venv,
+            _legacy_venv_path(self.install_dir, "moirai_venv"),
+        )
+        self.chronos_venv = _resolve_venv_path(
+            self.chronos_venv,
+            _legacy_venv_path(self.install_dir, "chronos_venv"),
+        )
+        self.moment_venv = _resolve_venv_path(
+            self.moment_venv,
+            _legacy_venv_path(self.install_dir, "momentfm_venv"),
+        )
 
     def _get_default_models(self) -> Dict:
         """Get default model configurations"""
@@ -351,15 +484,24 @@ class ProcessManager:
     def __init__(self, config: Config):
         self.config = config
         self.model_pid_dir = os.path.join(self.config.data_dir, "pids")
-        self.logger = setup_logger(
-            "ProcessManager", os.path.join(config.log_dir, "taosanode-service.log")
-        )
+        self.logger = logging.getLogger('ProcessManager')
         self._ensure_dirs()
+        self.logger = setup_logger(
+            'ProcessManager',
+            os.path.join(config.log_dir, 'taosanode-service.log')
+        )
 
     def _ensure_dirs(self):
         """Ensure required directories exist"""
-        os.makedirs(self.config.log_dir, exist_ok=True)
+        fallback_log_dir = DEFAULT_LOG_DIR if IS_LINUX else None
+        self.config.log_dir = _ensure_directory_with_fallback(
+            self.config.log_dir,
+            fallback_path=fallback_log_dir,
+            logger=self.config.logger,
+            label="log directory",
+        )
         os.makedirs(self.config.data_dir, exist_ok=True)
+        self.model_pid_dir = os.path.join(self.config.data_dir, "pids")
         os.makedirs(self.model_pid_dir, exist_ok=True)
 
     def _get_python_exe(self, venv_dir: Optional[str] = None) -> str:
@@ -403,7 +545,7 @@ class ProcessManager:
         pid_file = self._get_pid_file(service_name)
         try:
             if os.path.exists(pid_file):
-                with open(pid_file, "r") as f:
+                with open(pid_file, 'r') as f:
                     return int(f.read().strip())
         except (ValueError, IOError):
             pass
@@ -413,7 +555,7 @@ class ProcessManager:
         """Write PID to file"""
         pid_file = self._get_pid_file(service_name)
         os.makedirs(os.path.dirname(pid_file), exist_ok=True)
-        with open(pid_file, "w") as f:
+        with open(pid_file, 'w') as f:
             f.write(str(pid))
 
     def remove_pid(self, service_name: str = "taosanode"):
@@ -425,7 +567,7 @@ class ProcessManager:
     def _get_windows_process_commandline(self, pid: int) -> str:
         """Return the command line for a Windows process when available."""
         ps_script = (
-            f'$p = Get-CimInstance Win32_Process -Filter \\"ProcessId = {pid}\\" '
+            f"$p = Get-CimInstance Win32_Process -Filter \\\"ProcessId = {pid}\\\" "
             f"-ErrorAction SilentlyContinue; if ($p) {{ $p.CommandLine }}"
         )
         try:
@@ -461,21 +603,13 @@ class ProcessManager:
             return any(marker in commandline for marker in markers)
 
         if service_name.startswith("model-"):
-            model_name = service_name[len("model-") :]
+            model_name = service_name[len("model-"):]
             model_config = self.config.models.get(model_name, {})
             script_name = str(model_config.get("script", "")).lower()
-            markers = [
-                script_name,
-                model_name.lower(),
-                "taosanalytics\\tsfmservice",
-                "taosanalytics/tsfmservice",
-            ]
+            markers = [script_name, model_name.lower(), "taosanalytics\\tsfmservice", "taosanalytics/tsfmservice"]
             if script_name and script_name in commandline:
                 return True
-            if (
-                any(marker and marker in commandline for marker in markers[1:])
-                and "python" in commandline
-            ):
+            if any(marker and marker in commandline for marker in markers[1:]) and "python" in commandline:
                 return True
             return False
 
@@ -492,12 +626,11 @@ class ProcessManager:
                 # Windows: use tasklist with precise parsing
                 result = subprocess.run(
                     ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
-                    capture_output=True,
-                    text=True,
+                    capture_output=True, text=True
                 )
                 # Parse output more precisely to avoid false positives
                 # tasklist output format: "imagename.exe    PID    Session Name    Session#    Memory Usage"
-                lines = result.stdout.strip().split("\n")
+                lines = result.stdout.strip().split('\n')
                 for line in lines:
                     if line.strip():
                         # Split by whitespace and check if PID matches exactly
@@ -506,9 +639,7 @@ class ProcessManager:
                             try:
                                 line_pid = int(parts[1])
                                 if line_pid == pid:
-                                    return self._matches_expected_process(
-                                        service_name, pid
-                                    )
+                                    return self._matches_expected_process(service_name, pid)
                             except ValueError:
                                 continue
                 return False
@@ -528,18 +659,45 @@ class ProcessManager:
             time.sleep(0.5)
         return False
 
+    def wait_for_tcp_port(
+        self, service_name: str, host: str, port: int, timeout: int = 30
+    ) -> bool:
+        """Wait until a model process both survives and listens on its TCP port."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if not self.is_running(service_name):
+                return False
+            try:
+                with socket.create_connection((host, port), timeout=TCP_CONNECT_TIMEOUT):
+                    return True
+            except OSError:
+                time.sleep(0.5)
+        return False
+
     def kill_process(self, pid: int, force: bool = False):
         """Kill a process by PID"""
         try:
             if IS_WINDOWS:
                 if force:
-                    subprocess.run(
-                        ["taskkill", "/F", "/PID", str(pid)], capture_output=True
-                    )
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
+                                 capture_output=True)
                 else:
-                    subprocess.run(["taskkill", "/PID", str(pid)], capture_output=True)
+                    subprocess.run(["taskkill", "/T", "/PID", str(pid)],
+                                 capture_output=True)
             else:
                 sig = signal.SIGKILL if force else signal.SIGTERM
+                try:
+                    pgid = os.getpgid(pid)
+                except (OSError, ProcessLookupError):
+                    pgid = None
+
+                if pgid and pgid > 0:
+                    try:
+                        os.killpg(pgid, sig)
+                        return
+                    except (OSError, ProcessLookupError):
+                        pass
+
                 os.kill(pid, sig)
         except (OSError, ProcessLookupError):
             pass
@@ -552,23 +710,20 @@ class TaosanodeService:
         self.config = config
         self.process_mgr = process_mgr
         self.logger = setup_logger(
-            "TaosanodeService", os.path.join(config.log_dir, "taosanode-service.log")
+            'TaosanodeService',
+            os.path.join(config.log_dir, 'taosanode-service.log')
         )
 
     def _get_waitress_settings(self) -> tuple:
         """Build the waitress launch settings for Windows."""
-        bind_host, bind_port = self.config.bind.split(":")
-        wc = getattr(
-            self.config,
-            "waitress_config",
-            {
-                "threads": 4,
-                "channel_timeout": 1200,
-                "connection_limit": 1000,
-                "cleanup_interval": 30,
-                "log_socket_errors": True,
-            },
-        )
+        bind_host, bind_port = self.config.bind.split(':')
+        wc = getattr(self.config, 'waitress_config', {
+            'threads': 4,
+            'channel_timeout': 1200,
+            'connection_limit': 1000,
+            'cleanup_interval': 30,
+            'log_socket_errors': True
+        })
         return bind_host, int(bind_port), wc
 
     def _ensure_waitress(self, python_exe: str):
@@ -580,42 +735,30 @@ class TaosanodeService:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                check=True,
+                check=True
             )
             if (result.stdout or "").strip():
-                self.logger.info(
-                    f"Waitress import probe stdout: {(result.stdout or '').strip()}"
-                )
+                self.logger.info(f"Waitress import probe stdout: {(result.stdout or '').strip()}")
             if (result.stderr or "").strip():
-                self.logger.warning(
-                    f"Waitress import probe stderr: {(result.stderr or '').strip()}"
-                )
+                self.logger.warning(f"Waitress import probe stderr: {(result.stderr or '').strip()}")
         except subprocess.CalledProcessError as exc:
             self.logger.info("Installing waitress...")
             if (exc.stdout or "").strip():
-                self.logger.warning(
-                    f"Waitress import failed stdout: {(exc.stdout or '').strip()}"
-                )
+                self.logger.warning(f"Waitress import failed stdout: {(exc.stdout or '').strip()}")
             if (exc.stderr or "").strip():
-                self.logger.warning(
-                    f"Waitress import failed stderr: {(exc.stderr or '').strip()}"
-                )
+                self.logger.warning(f"Waitress import failed stderr: {(exc.stderr or '').strip()}")
             install_result = subprocess.run(
                 [python_exe, "-m", "pip", "install", "waitress"],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                check=False,
+                check=False
             )
             if (install_result.stdout or "").strip():
-                self.logger.info(
-                    f"Waitress install stdout: {(install_result.stdout or '').strip()}"
-                )
+                self.logger.info(f"Waitress install stdout: {(install_result.stdout or '').strip()}")
             if (install_result.stderr or "").strip():
-                self.logger.warning(
-                    f"Waitress install stderr: {(install_result.stderr or '').strip()}"
-                )
+                self.logger.warning(f"Waitress install stderr: {(install_result.stderr or '').strip()}")
             if install_result.returncode != 0:
                 raise subprocess.CalledProcessError(
                     install_result.returncode,
@@ -630,9 +773,7 @@ class TaosanodeService:
         lib_root = os.path.join(self.config.install_dir, "lib")
         existing_pythonpath = env.get("PYTHONPATH", "").strip()
         env["PYTHONPATH"] = (
-            lib_root
-            if not existing_pythonpath
-            else lib_root + os.pathsep + existing_pythonpath
+            lib_root if not existing_pythonpath else lib_root + os.pathsep + existing_pythonpath
         )
         env["PYTHONIOENCODING"] = "utf-8"
         env.setdefault("PYTHONUTF8", "1")
@@ -644,9 +785,7 @@ class TaosanodeService:
             return str(returncode)
         return f"{returncode} (0x{returncode & 0xffffffff:08x})"
 
-    def _run_python_probe(
-        self, python_exe: str, env: Dict[str, str], cwd: str, label: str, code: str
-    ) -> subprocess.CompletedProcess:
+    def _run_python_probe(self, python_exe: str, env: Dict[str, str], cwd: str, label: str, code: str) -> subprocess.CompletedProcess:
         return subprocess.run(
             [python_exe, "-X", "faulthandler", "-c", code],
             env=env,
@@ -655,12 +794,10 @@ class TaosanodeService:
             text=True,
             encoding="utf-8",
             errors="replace",
-            check=False,
+            check=False
         )
 
-    def _log_probe_result(
-        self, label: str, result: subprocess.CompletedProcess
-    ) -> None:
+    def _log_probe_result(self, label: str, result: subprocess.CompletedProcess) -> None:
         stdout_text = (result.stdout or "").strip()
         stderr_text = (result.stderr or "").strip()
         if result.returncode == 0:
@@ -679,62 +816,41 @@ class TaosanodeService:
         if stderr_text:
             self.logger.warning(f"{label} stderr: {stderr_text}")
 
-    def _collect_preflight_diagnostics(
-        self, python_exe: str, env: Dict[str, str], cwd: str
-    ) -> None:
+    def _collect_preflight_diagnostics(self, python_exe: str, env: Dict[str, str], cwd: str) -> None:
         """Run focused import probes so startup failures identify the exact failing dependency."""
         self.logger.info("Collecting taosanode startup diagnostics...")
         lib_root = os.path.join(self.config.install_dir, "lib").replace("\\", "\\\\")
         discovered_modules = self._discover_runtime_dependencies("taosanalytics.app")
-        fallback_modules = [
-            "waitress",
-            "numpy",
-            "pandas",
-            "flask",
-            "torch",
-            "tensorflow",
-            "keras",
-        ]
+        fallback_modules = ["waitress", "numpy", "pandas", "flask", "torch", "tensorflow", "keras"]
         probe_modules = []
         for module_name in discovered_modules + fallback_modules:
             if module_name not in probe_modules:
                 probe_modules.append(module_name)
 
         self.logger.info(
-            "Dependency probes derived from taosanalytics.app: "
-            + (
-                ", ".join(discovered_modules)
-                if discovered_modules
-                else "none discovered"
-            )
+            "Dependency probes derived from taosanalytics.app: " +
+            (", ".join(discovered_modules) if discovered_modules else "none discovered")
         )
 
         probes = [
-            (
-                f"import {module_name}",
-                f"import {module_name}; print('{module_name} ok')",
-            )
+            (f"import {module_name}", f"import {module_name}; print('{module_name} ok')")
             for module_name in probe_modules
         ]
-        probes.extend(
-            [
-                (
-                    "import taosanalytics.conf",
-                    f"import sys; sys.path.insert(0, r'{lib_root}'); import taosanalytics.conf; print('conf ok')",
-                ),
-                (
-                    "import taosanalytics.app",
-                    f"import sys; sys.path.insert(0, r'{lib_root}'); from taosanalytics.app import app; print('app ok')",
-                ),
-            ]
-        )
+        probes.extend([
+            (
+                "import taosanalytics.conf",
+                f"import sys; sys.path.insert(0, r'{lib_root}'); import taosanalytics.conf; print('conf ok')"
+            ),
+            (
+                "import taosanalytics.app",
+                f"import sys; sys.path.insert(0, r'{lib_root}'); from taosanalytics.app import app; print('app ok')"
+            ),
+        ])
         for label, code in probes:
             try:
                 result = self._run_python_probe(python_exe, env, cwd, label, code)
             except Exception as exc:
-                self.logger.exception(
-                    f"Diagnostic probe failed to execute for {label}: {exc}"
-                )
+                self.logger.exception(f"Diagnostic probe failed to execute for {label}: {exc}")
                 continue
             self._log_probe_result(label, result)
 
@@ -746,9 +862,7 @@ class TaosanodeService:
         return os.path.join(self.config.log_dir, "taosanode-startup-diagnostics.json")
 
     def _get_startup_diagnostic_cooldown_seconds(self) -> int:
-        raw_value = os.environ.get(
-            "TAOSANODE_STARTUP_DIAGNOSTIC_COOLDOWN", "300"
-        ).strip()
+        raw_value = os.environ.get("TAOSANODE_STARTUP_DIAGNOSTIC_COOLDOWN", "300").strip()
         try:
             cooldown = int(raw_value)
         except ValueError:
@@ -790,9 +904,7 @@ class TaosanodeService:
                     {
                         "timestamp": now,
                         "reason": reason,
-                        "recorded_at": time.strftime(
-                            "%Y-%m-%d %H:%M:%S", time.localtime(now)
-                        ),
+                        "recorded_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now)),
                     },
                     fh,
                     ensure_ascii=True,
@@ -801,9 +913,7 @@ class TaosanodeService:
         except OSError as exc:
             self.logger.warning(f"Failed to write startup diagnostic stamp: {exc}")
 
-        self.logger.info(
-            f"Collecting full startup diagnostics after failed start: {reason}"
-        )
+        self.logger.info(f"Collecting full startup diagnostics after failed start: {reason}")
         self._collect_preflight_diagnostics(python_exe, env, cwd)
 
     @staticmethod
@@ -811,19 +921,9 @@ class TaosanodeService:
         return "\n".join(part for part in parts if part).lower()
 
     def _read_log_tail(self, path: str, max_bytes: int = 32768) -> str:
-        try:
-            with open(path, "rb") as fh:
-                fh.seek(0, os.SEEK_END)
-                size = fh.tell()
-                fh.seek(max(0, size - max_bytes), os.SEEK_SET)
-                chunk = fh.read()
-        except OSError:
-            return ""
-        return chunk.decode("utf-8", errors="replace")
+        return _read_log_tail(path, max_bytes)
 
-    def _is_import_or_native_failure(
-        self, exc: Optional[BaseException], text: str, phase: str
-    ) -> bool:
+    def _is_import_or_native_failure(self, exc: Optional[BaseException], text: str, phase: str) -> bool:
         if isinstance(exc, (ModuleNotFoundError, ImportError)):
             return True
 
@@ -893,12 +993,8 @@ class TaosanodeService:
         exc: Optional[BaseException] = None,
         detail_text: str = "",
     ) -> str:
-        failure_kind = self._classify_startup_failure(
-            phase, exc=exc, detail_text=detail_text
-        )
-        combined_text = "\n".join(
-            part for part in [reason, str(exc) if exc else "", detail_text] if part
-        )
+        failure_kind = self._classify_startup_failure(phase, exc=exc, detail_text=detail_text)
+        combined_text = "\n".join(part for part in [reason, str(exc) if exc else "", detail_text] if part)
         root_cause = self._extract_root_cause(combined_text)
         if root_cause:
             self.logger.error(f"Startup root cause: {root_cause}")
@@ -910,9 +1006,7 @@ class TaosanodeService:
         if should_collect_diagnostics:
             self._collect_startup_failure_diagnostics(python_exe, env, cwd, reason)
         else:
-            self.logger.info(
-                f"Skipping full startup diagnostics for failure category: {failure_kind}"
-            )
+            self.logger.info(f"Skipping full startup diagnostics for failure category: {failure_kind}")
         return failure_kind
 
     def _get_requested_preflight_mode(self, full_preflight: bool = False) -> str:
@@ -960,17 +1054,11 @@ class TaosanodeService:
         stdlib_names = getattr(sys, "stdlib_module_names", set())
         return module_name in stdlib_names
 
-    def _resolve_local_module_path(
-        self, module_name: str, package_root: str
-    ) -> Optional[str]:
+    def _resolve_local_module_path(self, module_name: str, package_root: str) -> Optional[str]:
         if not module_name.startswith("taosanalytics"):
             return None
         relative_parts = module_name.split(".")[1:]
-        base_path = (
-            os.path.join(package_root, *relative_parts)
-            if relative_parts
-            else package_root
-        )
+        base_path = os.path.join(package_root, *relative_parts) if relative_parts else package_root
         file_candidate = base_path + ".py"
         init_candidate = os.path.join(base_path, "__init__.py")
         if os.path.isfile(file_candidate):
@@ -979,9 +1067,7 @@ class TaosanodeService:
             return init_candidate
         return None
 
-    def _resolve_relative_module_name(
-        self, current_module: str, level: int, module_name: str
-    ) -> Optional[str]:
+    def _resolve_relative_module_name(self, current_module: str, level: int, module_name: str) -> Optional[str]:
         parts = current_module.split(".")
         if level > len(parts):
             return None
@@ -990,9 +1076,7 @@ class TaosanodeService:
             prefix_parts.extend(module_name.split("."))
         return ".".join(part for part in prefix_parts if part)
 
-    def _discover_runtime_dependencies(
-        self, entry_module: str = "taosanalytics.app"
-    ) -> List[str]:
+    def _discover_runtime_dependencies(self, entry_module: str = "taosanalytics.app") -> List[str]:
         package_root = os.path.join(self.config.install_dir, "lib", "taosanalytics")
         entry_path = self._resolve_local_module_path(entry_module, package_root)
         if not entry_path:
@@ -1013,9 +1097,7 @@ class TaosanodeService:
                 with open(module_path, "r", encoding="utf-8", errors="replace") as fh:
                     tree = ast.parse(fh.read(), filename=module_path)
             except Exception as exc:
-                self.logger.warning(
-                    f"Unable to analyze imports for {module_name}: {exc}"
-                )
+                self.logger.warning(f"Unable to analyze imports for {module_name}: {exc}")
                 return
 
             for node in ast.walk(tree):
@@ -1025,16 +1107,11 @@ class TaosanodeService:
                         top_level = imported.split(".")[0]
                         if top_level == "taosanalytics":
                             visit(imported)
-                        elif (
-                            top_level not in stdlib_exclusions
-                            and not self._is_stdlib_module(top_level)
-                        ):
+                        elif top_level not in stdlib_exclusions and not self._is_stdlib_module(top_level):
                             external_modules.add(top_level)
                 elif isinstance(node, ast.ImportFrom):
                     if node.level > 0:
-                        resolved = self._resolve_relative_module_name(
-                            module_name, node.level, node.module or ""
-                        )
+                        resolved = self._resolve_relative_module_name(module_name, node.level, node.module or "")
                     else:
                         resolved = node.module or ""
                     if not resolved:
@@ -1042,22 +1119,18 @@ class TaosanodeService:
                     top_level = resolved.split(".")[0]
                     if top_level == "taosanalytics":
                         visit(resolved)
-                    elif (
-                        top_level not in stdlib_exclusions
-                        and not self._is_stdlib_module(top_level)
-                    ):
+                    elif top_level not in stdlib_exclusions and not self._is_stdlib_module(top_level):
                         external_modules.add(top_level)
 
         visit(entry_module)
         return sorted(external_modules)
 
-    def _preflight_app_import(
-        self, python_exe: str, env: Dict[str, str], cwd: str
-    ) -> bool:
+    def _preflight_app_import(self, python_exe: str, env: Dict[str, str], cwd: str) -> bool:
         """Validate that taosanalytics.app can be imported before starting the service."""
         self.logger.info("Running taosanode import preflight check...")
         check_script = (
-            "from taosanalytics.app import app; " "print('taosanalytics.app import ok')"
+            "from taosanalytics.app import app; "
+            "print('taosanalytics.app import ok')"
         )
 
         try:
@@ -1069,12 +1142,10 @@ class TaosanodeService:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                check=False,
+                check=False
             )
         except Exception as exc:
-            self.logger.exception(
-                f"Taosanode import preflight failed to execute: {exc}"
-            )
+            self.logger.exception(f"Taosanode import preflight failed to execute: {exc}")
             return False
 
         stdout_text = (result.stdout or "").strip()
@@ -1097,13 +1168,7 @@ class TaosanodeService:
         self.logger.info("Taosanode import preflight succeeded")
         return True
 
-    def _run_preflight(
-        self,
-        python_exe: str,
-        env: Dict[str, str],
-        cwd: str,
-        full_preflight: bool = False,
-    ) -> bool:
+    def _run_preflight(self, python_exe: str, env: Dict[str, str], cwd: str, full_preflight: bool = False) -> bool:
         mode = self._get_requested_preflight_mode(full_preflight)
         if mode == "full":
             self.logger.info("Selected preflight mode: full")
@@ -1129,13 +1194,9 @@ class TaosanodeService:
                 reason=f"foreground bootstrap failure: {e}",
                 exc=e,
             )
-            self.logger.exception(
-                f"Error preparing taosanode runtime in foreground: {e}"
-            )
+            self.logger.exception(f"Error preparing taosanode runtime in foreground: {e}")
             return False
-        if not self._run_preflight(
-            python_exe, env, lib_dir, full_preflight=full_preflight
-        ):
+        if not self._run_preflight(python_exe, env, lib_dir, full_preflight=full_preflight):
             return False
 
         if lib_root not in sys.path:
@@ -1170,11 +1231,11 @@ class TaosanodeService:
                 app,
                 host=bind_host,
                 port=bind_port,
-                threads=wc.get("threads", 4),
-                channel_timeout=wc.get("channel_timeout", 1200),
-                connection_limit=wc.get("connection_limit", 1000),
-                cleanup_interval=wc.get("cleanup_interval", 30),
-                log_socket_errors=wc.get("log_socket_errors", True),
+                threads=wc.get('threads', 4),
+                channel_timeout=wc.get('channel_timeout', 1200),
+                connection_limit=wc.get('connection_limit', 1000),
+                cleanup_interval=wc.get('cleanup_interval', 30),
+                log_socket_errors=wc.get('log_socket_errors', True),
             )
             return True
         except Exception as e:
@@ -1191,6 +1252,40 @@ class TaosanodeService:
         finally:
             self.process_mgr.remove_pid("taosanode")
 
+    def _run_linux_foreground(self, full_preflight: bool = False) -> bool:
+        """Run taosanode in the current process for systemd-managed foreground mode."""
+        python_exe = self.process_mgr._get_python_exe()
+        lib_dir = os.path.join(self.config.install_dir, "lib", "taosanalytics")
+        env = self._build_runtime_env()
+
+        if not self._run_preflight(python_exe, env, lib_dir, full_preflight=full_preflight):
+            self.logger.error("Taosanode startup aborted because the import preflight failed")
+            return False
+
+        cmd = [
+            python_exe, "-m", "gunicorn",
+            "-c", os.path.join(self.config.cfg_dir, "taosanode.config.py"),
+        ]
+
+        try:
+            self.process_mgr.write_pid(os.getpid(), "taosanode")
+            self.logger.info(f"Taosanode starting in foreground with PID {os.getpid()}")
+            self.logger.info(f"Listening on {self.config.bind}")
+            os.chdir(lib_dir)
+            os.execvpe(python_exe, cmd, env)
+        except Exception as e:
+            self._handle_startup_failure(
+                python_exe,
+                env,
+                lib_dir,
+                phase="serve",
+                reason=f"foreground serve failure: {e}",
+                exc=e,
+            )
+            self.logger.exception(f"Error while serving taosanode in foreground: {e}")
+            self.process_mgr.remove_pid("taosanode")
+            return False
+
     def start(self, foreground: bool = False, full_preflight: bool = False) -> bool:
         """Start taosanode service"""
         if self.process_mgr.is_running("taosanode"):
@@ -1204,15 +1299,14 @@ class TaosanodeService:
             lib_dir = os.path.join(self.config.install_dir, "lib", "taosanalytics")
             env = self._build_runtime_env()
 
+            if IS_LINUX and foreground:
+                return self._run_linux_foreground(full_preflight=full_preflight)
+
             if IS_WINDOWS and foreground:
                 return self._run_windows_foreground(full_preflight=full_preflight)
 
-            if IS_WINDOWS and not self._run_preflight(
-                python_exe, env, lib_dir, full_preflight=full_preflight
-            ):
-                self.logger.error(
-                    "Taosanode startup aborted because the import preflight failed"
-                )
+            if IS_WINDOWS and not self._run_preflight(python_exe, env, lib_dir, full_preflight=full_preflight):
+                self.logger.error("Taosanode startup aborted because the import preflight failed")
                 return False
 
             if IS_WINDOWS:
@@ -1232,8 +1326,7 @@ class TaosanodeService:
                 bind_host, bind_port, wc = self._get_waitress_settings()
 
                 cmd = [
-                    python_exe,
-                    "-c",
+                    python_exe, "-c",
                     f"from waitress import serve; from taosanalytics.app import app; "
                     f"serve(app, "
                     f"host='{bind_host}', "
@@ -1242,30 +1335,32 @@ class TaosanodeService:
                     f"channel_timeout={wc.get('channel_timeout', 1200)}, "
                     f"connection_limit={wc.get('connection_limit', 1000)}, "
                     f"cleanup_interval={wc.get('cleanup_interval', 30)}, "
-                    f"log_socket_errors={wc.get('log_socket_errors', True)})",
+                    f"log_socket_errors={wc.get('log_socket_errors', True)})"
                 ]
             else:
                 # Linux: use gunicorn
                 cmd = [
-                    python_exe,
-                    "-m",
-                    "gunicorn",
-                    "-c",
-                    os.path.join(self.config.cfg_dir, "taosanode.config.py"),
+                    python_exe, "-m", "gunicorn",
+                    "-c", os.path.join(self.config.cfg_dir, "taosanode.config.py"),
                     "-D",  # Daemon mode
                 ]
 
             if IS_WINDOWS:
                 # Windows: redirect output to log file for debugging
                 log_file = os.path.join(self.config.log_dir, "taosanode-service.log")
-                with open(log_file, "a") as log:
+                with open(log_file, 'a') as log:
                     proc = subprocess.Popen(
                         cmd,
                         env=env,
                         cwd=lib_dir,
                         stdout=log,
                         stderr=subprocess.STDOUT,
-                        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                        creationflags=(
+                            getattr(subprocess, "DETACHED_PROCESS", 0) |
+                            getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0) |
+                            getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) |
+                            getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                        )
                     )
             else:
                 # Linux: daemon mode handled by gunicorn
@@ -1275,13 +1370,16 @@ class TaosanodeService:
                     cwd=lib_dir,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
+                    start_new_session=True,
                 )
 
             # Write PID immediately so is_running() can find the process
             self.process_mgr.write_pid(proc.pid, "taosanode")
 
             # Wait for service to start using polling (process existence check)
-            if self.process_mgr.wait_for_service("taosanode", timeout=30):
+            if self.process_mgr.wait_for_service(
+                "taosanode", timeout=self.config.timeouts["service_startup"]
+            ):
                 pid = self.process_mgr.read_pid("taosanode")
                 self.logger.info(f"Taosanode started with PID {pid}")
                 self.logger.info(f"Listening on {self.config.bind}")
@@ -1289,13 +1387,9 @@ class TaosanodeService:
             else:
                 exit_code = proc.poll()
                 if exit_code is None:
-                    self.logger.error(
-                        "Failed to start taosanode - service did not start within timeout"
-                    )
+                    self.logger.error("Failed to start taosanode - service did not start within timeout")
                 else:
-                    log_file = os.path.join(
-                        self.config.log_dir, "taosanode-service.log"
-                    )
+                    log_file = os.path.join(self.config.log_dir, "taosanode-service.log")
                     detail_text = self._read_log_tail(log_file)
                     self.logger.error(
                         f"Failed to start taosanode - child process exited early with code {exit_code}"
@@ -1319,6 +1413,17 @@ class TaosanodeService:
 
     def stop(self) -> bool:
         """Stop taosanode service"""
+        if IS_LINUX:
+            try:
+                subprocess.run(
+                    ["systemctl", "stop", "taosanoded"],
+                    capture_output=True,
+                    timeout=self.config.timeouts["shutdown"],
+                    check=False,
+                )
+            except Exception:
+                pass
+
         if not self.process_mgr.is_running("taosanode"):
             self.logger.info("Taosanode is not running")
             self.process_mgr.remove_pid("taosanode")
@@ -1359,9 +1464,7 @@ class TaosanodeService:
     def wait_ready(self, timeout: int = 30, interval: float = 1.0) -> bool:
         """Wait until the taosanode HTTP status endpoint is reachable."""
         bind_host, bind_port, _ = self._get_waitress_settings()
-        probe_host = (
-            "127.0.0.1" if bind_host in {"0.0.0.0", "::", "*", ""} else bind_host
-        )
+        probe_host = "127.0.0.1" if bind_host in {"0.0.0.0", "::", "*", ""} else bind_host
         status_url = f"http://{probe_host}:{bind_port}/status"
 
         self.logger.info(f"Waiting for taosanode readiness on {status_url}")
@@ -1372,9 +1475,7 @@ class TaosanodeService:
                 with urllib.request.urlopen(status_url, timeout=3) as response:
                     body = response.read().decode("utf-8", errors="replace")
                     if response.status == 200 and "ready" in body.lower():
-                        self.logger.info(
-                            f"Taosanode readiness check succeeded: {status_url}"
-                        )
+                        self.logger.info(f"Taosanode readiness check succeeded: {status_url}")
                         return True
             except Exception:
                 pass
@@ -1390,20 +1491,14 @@ class TaosanodeService:
                     time.sleep(max(0.2, interval))
                     continue
 
-                self.logger.warning(
-                    "Taosanode process is not running while waiting for readiness"
-                )
+                self.logger.warning("Taosanode process is not running while waiting for readiness")
                 return False
             time.sleep(max(0.2, interval))
 
-        self.logger.warning(
-            f"Taosanode readiness check timed out after {timeout} seconds: {status_url}"
-        )
+        self.logger.warning(f"Taosanode readiness check timed out after {timeout} seconds: {status_url}")
         return False
 
-    def _query_windows_service_state(
-        self, service_name: str = "Taosanode"
-    ) -> Optional[str]:
+    def _query_windows_service_state(self, service_name: str = "Taosanode") -> Optional[str]:
         """Best-effort SCM state lookup used while waiting for service readiness."""
         if not IS_WINDOWS:
             return None
@@ -1422,9 +1517,7 @@ class TaosanodeService:
         if result.returncode != 0:
             return None
 
-        match = re.search(
-            r"STATE\s*:\s*\d+\s+([A-Z_]+)", result.stdout or "", re.IGNORECASE
-        )
+        match = re.search(r"STATE\s*:\s*\d+\s+([A-Z_]+)", result.stdout or "", re.IGNORECASE)
         if not match:
             return None
         return match.group(1).upper()
@@ -1448,22 +1541,12 @@ class TaosanodeService:
                 check=False,
             )
             if query.returncode == 0:
-                subprocess.run(
-                    [service_exe, "stop"],
-                    capture_output=True,
-                    cwd=self.config.install_dir,
-                )
-                self.logger.info(
-                    "Service already installed; keeping existing registration."
-                )
-                self.logger.info(
-                    "Updated XML settings will be picked up on the next service start."
-                )
+                subprocess.run([service_exe, "stop"], capture_output=True, cwd=self.config.install_dir)
+                self.logger.info("Service already installed; keeping existing registration.")
+                self.logger.info("Updated XML settings will be picked up on the next service start.")
                 return True
 
-            subprocess.run(
-                [service_exe, "install"], check=True, cwd=self.config.install_dir
-            )
+            subprocess.run([service_exe, "install"], check=True, cwd=self.config.install_dir)
             self.logger.info("Service installed successfully")
             self.logger.info("To start the service: net start Taosanode")
             self.logger.info("Or use: taosanode_service.py start-service")
@@ -1478,23 +1561,29 @@ class TaosanodeService:
             self.logger.error("Service uninstallation is only supported on Windows")
             return False
 
-        service_exe = os.path.join(self.config.install_dir, "bin", WINSW_EXE_NAME)
-        if not os.path.exists(service_exe):
-            self.logger.warning("Service wrapper not found")
-            return True
-
         try:
-            # Stop service first
-            subprocess.run([service_exe, "stop"], capture_output=True)
-            time.sleep(2)
-
-            # Uninstall service
-            subprocess.run(
-                [service_exe, "uninstall"], check=True, cwd=self.config.install_dir
-            )
-            self.logger.info("Service uninstalled successfully")
-            return True
-        except subprocess.CalledProcessError as e:
+            service_exe = os.path.join(self.config.install_dir, "bin", WINSW_EXE_NAME)
+            if os.path.exists(service_exe):
+                subprocess.run([service_exe, "stop"], capture_output=True, check=False)
+                subprocess.run(
+                    [service_exe, "uninstall"],
+                    capture_output=True,
+                    check=False,
+                    cwd=self.config.install_dir,
+                )
+            subprocess.run(["sc", "stop", "Taosanode"], capture_output=True, check=False)
+            subprocess.run(["sc", "delete", "Taosanode"], capture_output=True, check=False)
+            for _ in range(15):
+                result = subprocess.run(
+                    ["sc", "query", "Taosanode"], capture_output=True, check=False
+                )
+                if result.returncode != 0:
+                    self.logger.info("Service uninstalled successfully")
+                    return True
+                time.sleep(1)
+            self.logger.error("ERROR: Taosanode service still exists after uninstall")
+            return False
+        except OSError as e:
             self.logger.error(f"ERROR: Failed to uninstall service: {e}")
             return False
 
@@ -1534,8 +1623,40 @@ class ModelService:
         self.config = config
         self.process_mgr = process_mgr
         self.logger = setup_logger(
-            "ModelService", os.path.join(config.log_dir, "taosanode-service.log")
+            'ModelService',
+            os.path.join(config.log_dir, 'taosanode-service.log')
         )
+        self._tsfm_runtime = None
+
+    def _get_dynamic_tsfm_runtime(self):
+        if self._tsfm_runtime is not None:
+            return self._tsfm_runtime
+        runtime_dir = self.config.tsfm_venv
+        try:
+            manifest, python_exe = validate_tsfm_runtime(Path(runtime_dir))
+            self._tsfm_runtime = (manifest, str(python_exe))
+            return self._tsfm_runtime
+        except (OSError, ValueError, json.JSONDecodeError, subprocess.SubprocessError) as exc:
+            self.logger.warning(f"TSFM runtime is unavailable: {exc}")
+            return None
+
+    def _resolve_dynamic_model(self, model_name: str):
+        model_dir = os.path.join(self.config.tsfm_model_dir, model_name)
+        if not os.path.isdir(model_dir):
+            return None
+        runtime = self._get_dynamic_tsfm_runtime()
+        if runtime is None:
+            self.logger.info(
+                f"Skipping model {model_name} - shared TSFM runtime is unavailable"
+            )
+            return False
+        runtime_manifest, python_exe = runtime
+        try:
+            validate_tsfm_model(Path(model_dir), model_name, runtime_manifest)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            self.logger.warning(f"Skipping model {model_name} - invalid resource: {exc}")
+            return False
+        return model_dir, python_exe
 
     def _get_model_venv(self) -> str:
         """Get virtual environment path for models"""
@@ -1544,13 +1665,19 @@ class ModelService:
     def _ordered_model_names(self) -> List[str]:
         return [name for name in DEFAULT_MODEL_ORDER if name in self.config.models]
 
-    def _build_model_args(self, model_name: str) -> List[str]:
+    def _model_directory_exists(self, model_name: str) -> bool:
+        return os.path.isdir(os.path.join(self.config.tsfm_model_dir, model_name)) or os.path.isdir(
+            os.path.join(self.config.model_dir, model_name)
+        )
+
+    def _build_model_args(self, model_name: str, model_dir: Optional[str] = None) -> List[str]:
         """构建模型启动参数"""
         model_config = self.config.models.get(model_name)
         if not model_config:
             raise ValueError(f"Unknown model: {model_name}")
 
-        model_dir = os.path.join(self.config.model_dir, model_name)
+        if model_dir is None:
+            model_dir = os.path.join(self.config.model_dir, model_name)
         args: List[str] = []
 
         # tdtsfm-server currently uses fixed host/port in script and accepts no CLI startup args.
@@ -1559,9 +1686,7 @@ class ModelService:
 
         default_model = model_config.get("default_model")
         if default_model:
-            args.extend(
-                ["--model-folder", model_dir, "--model-name", str(default_model)]
-            )
+            args.extend(["--model-folder", model_dir, "--model-name", str(default_model)])
         else:
             args.extend(["--model-index", "0"])
 
@@ -1571,34 +1696,69 @@ class ModelService:
 
         return args
 
-    def start(self, model_name: str) -> bool:
+    def _log_start_failure(
+        self,
+        model_name: str,
+        host: str,
+        port: Optional[int],
+        timeout: int,
+        log_file: str,
+        process_running: bool,
+    ) -> None:
+        if process_running:
+            self.logger.error(
+                f"Model startup timed out after {timeout} seconds: {model_name} "
+                f"is still running, but port {host}:{port} is not ready"
+            )
+        else:
+            self.logger.error(
+                f"Failed to start model {model_name}: process exited before "
+                f"port {host}:{port} became ready"
+            )
+        self.logger.error(f"Model log: {log_file}")
+        detail = _read_log_tail(log_file).strip()
+        if detail:
+            self.logger.error(f"Last model output:\n{detail}")
+
+    def start(self, model_name: str, timeout: Optional[int] = None) -> bool:
         """Start model service"""
         if model_name == "all":
-            return self._start_all()
+            return self._start_all(timeout)
+
+        startup_timeout = timeout
+        if startup_timeout is None:
+            startup_timeout = int(self.config.timeouts["model_startup"])
+        if startup_timeout <= 0:
+            self.logger.error("Model startup timeout must be greater than zero")
+            return False
 
         if model_name not in self.config.models:
             self.logger.error(f"Unknown model: {model_name}")
-            self.logger.error(
-                f"Supported models: {', '.join(self.config.models.keys())}"
-            )
+            self.logger.error(f"Supported models: {', '.join(self.config.models.keys())}")
             return False
 
         if self.process_mgr.is_running(f"model-{model_name}"):
             self.logger.info(f"Model {model_name} is already running")
             return True
 
-        model_dir = os.path.join(self.config.model_dir, model_name)
+        dynamic_model = self._resolve_dynamic_model(model_name)
+        if dynamic_model is False:
+            return False
+        if dynamic_model is None:
+            model_dir = os.path.join(self.config.model_dir, model_name)
+            python_exe = None
+        else:
+            model_dir, python_exe = dynamic_model
         if not os.path.exists(model_dir):
-            self.logger.info(
-                f"Skipping model {model_name} - directory not found: {model_dir}"
-            )
+            self.logger.info(f"Skipping model {model_name} - directory not found: {model_dir}")
             return True
 
         self.logger.info(f"Starting model service: {model_name}")
 
         # Get configuration
-        venv_dir = self._get_model_venv()
-        python_exe = self.process_mgr._get_pythonw_exe(venv_dir)
+        if python_exe is None:
+            venv_dir = self._get_model_venv()
+            python_exe = self.process_mgr._get_pythonw_exe(venv_dir)
         model_config = self.config.models[model_name]
 
         # Build command
@@ -1611,11 +1771,15 @@ class ModelService:
             self.logger.error(f"Script not found: {script_path}")
             return False
 
-        args = self._build_model_args(model_name)
+        args = self._build_model_args(model_name, model_dir)
         cmd = [python_exe, script_path] + args
+        worker_env = os.environ.copy()
+        worker_env["TDGPT_MODEL_DIR"] = os.path.dirname(model_dir)
 
         # Log file with rotation
-        log_file = os.path.join(self.config.log_dir, f"model_{model_name}.log")
+        log_file = os.path.join(
+            self.config.log_dir, f"model_{model_name}.log"
+        )
 
         # Setup rotating file handler for logging
         logger = logging.getLogger(f"model-{model_name}")
@@ -1627,12 +1791,12 @@ class ModelService:
         # Create rotating file handler (10MB per file, keep 5 backups)
         handler = RotatingFileHandler(
             log_file,
-            maxBytes=10 * 1024 * 1024,  # 10MB
+            maxBytes=10*1024*1024,  # 10MB
             backupCount=5,
             encoding=get_windows_friendly_log_encoding(log_file),
             errors="replace",
         )
-        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
@@ -1640,7 +1804,7 @@ class ModelService:
             # Start process
             with open(
                 log_file,
-                "a",
+                'a',
                 encoding=get_windows_friendly_log_encoding(log_file),
                 errors="replace",
             ) as log:
@@ -1648,12 +1812,16 @@ class ModelService:
                     startupinfo = subprocess.STARTUPINFO()
                     startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                     startupinfo.wShowWindow = 0
-                    creation_flags = getattr(
-                        subprocess, "CREATE_NEW_PROCESS_GROUP", 0
-                    ) | getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                    creation_flags = (
+                        getattr(subprocess, "DETACHED_PROCESS", 0) |
+                        getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0) |
+                        getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) |
+                        getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                    )
                     proc = subprocess.Popen(
                         cmd,
                         cwd=service_dir,
+                        env=worker_env,
                         stdout=log,
                         stderr=subprocess.STDOUT,
                         creationflags=creation_flags,
@@ -1661,29 +1829,56 @@ class ModelService:
                     )
                 else:
                     proc = subprocess.Popen(
-                        cmd, cwd=service_dir, stdout=log, stderr=subprocess.STDOUT
+                        cmd,
+                        cwd=service_dir,
+                        env=worker_env,
+                        stdout=log,
+                        stderr=subprocess.STDOUT,
+                        start_new_session=True,
                     )
 
                 # Write initial PID immediately after process creation
                 service_name = f"model-{model_name}"
                 self.process_mgr.write_pid(proc.pid, service_name)
 
-            # Wait and check using polling (timeout 15 seconds for model loading)
-            if self.process_mgr.wait_for_service(service_name, timeout=15):
+            port = model_config.get("port")
+            host = model_config.get("ip", "127.0.0.1")
+            self.logger.info(
+                f"Waiting up to {startup_timeout} seconds for model {model_name} "
+                f"readiness on {host}:{port}"
+            )
+            ready = (
+                self.process_mgr.wait_for_tcp_port(
+                    service_name, host, int(port), timeout=startup_timeout
+                )
+                if port
+                else self.process_mgr.wait_for_service(
+                    service_name, timeout=startup_timeout
+                )
+            )
+            if ready:
                 pid = self.process_mgr.read_pid(service_name)
-                self.logger.info(f"Model {model_name} started with PID {pid}")
+                self.logger.info(
+                    f"Model {model_name} started with PID {pid} and is listening on {host}:{port}"
+                )
                 return True
             else:
-                self.logger.error(
-                    f"Failed to start model {model_name} - service did not start within timeout"
+                self._log_start_failure(
+                    model_name,
+                    host,
+                    port,
+                    startup_timeout,
+                    log_file,
+                    self.process_mgr.is_running(service_name),
                 )
+                self.stop(model_name)
                 return False
 
         except Exception as e:
             self.logger.error(f"Error starting model {model_name}: {e}")
             return False
 
-    def _start_all(self) -> bool:
+    def _start_all(self, timeout: Optional[int] = None) -> bool:
         """Start all models concurrently and skip ones without model directories."""
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -1695,7 +1890,7 @@ class ModelService:
 
         with ThreadPoolExecutor(max_workers=3) as executor:
             future_to_model = {
-                executor.submit(self.start, model_name): model_name
+                executor.submit(self.start, model_name, timeout): model_name
                 for model_name in self._ordered_model_names()
             }
 
@@ -1705,8 +1900,7 @@ class ModelService:
                     result = future.result()
                     results[model_name] = result
 
-                    model_dir = os.path.join(self.config.model_dir, model_name)
-                    if not os.path.exists(model_dir):
+                    if not self._model_directory_exists(model_name):
                         skipped_models.append(model_name)
                     elif result:
                         started_models.append(model_name)
@@ -1730,9 +1924,7 @@ class ModelService:
         if failed_models:
             summary_lines.append(f"✗ Failed: {', '.join(failed_models)}")
 
-        summary_lines.append(
-            f"✓ Started: {started}/{total - len(skipped_models)} models"
-        )
+        summary_lines.append(f"✓ Started: {started}/{total - len(skipped_models)} models")
         summary_lines.append("=" * 50)
 
         if started_models:
@@ -1740,14 +1932,10 @@ class ModelService:
         else:
             summary_lines.append("Started: none")
         if skipped_models:
-            summary_lines.append(
-                f"Skipped (missing model directory): {', '.join(skipped_models)}"
-            )
+            summary_lines.append(f"Skipped (missing model directory): {', '.join(skipped_models)}")
         if failed_models:
             summary_lines.append(f"Failed: {', '.join(failed_models)}")
-        summary_lines.append(
-            f"Started: {started}/{max(0, total - len(skipped_models))} models"
-        )
+        summary_lines.append(f"Started: {started}/{max(0, total - len(skipped_models))} models")
         summary_lines.append("=" * 50)
 
         summary_lines = [
@@ -1760,9 +1948,7 @@ class ModelService:
         else:
             summary_lines.append("Started: none")
         if skipped_models:
-            summary_lines.append(
-                f"Skipped (missing model directory): {', '.join(skipped_models)}"
-            )
+            summary_lines.append(f"Skipped (missing model directory): {', '.join(skipped_models)}")
         if failed_models:
             summary_lines.append(f"Failed: {', '.join(failed_models)}")
         summary_lines.append(
@@ -1858,14 +2044,11 @@ class ModelService:
         else:
             summary_lines.append("Stopped: none")
         if already_stopped_models:
-            summary_lines.append(
-                f"Already stopped: {', '.join(already_stopped_models)}"
-            )
+            summary_lines.append(f"Already stopped: {', '.join(already_stopped_models)}")
         if failed_models:
             summary_lines.append(f"Failed: {', '.join(failed_models)}")
         summary_lines.append(
-            f"Summary: {len(stopped_models)} stopped, {len(already_stopped_models)} already stopped, "
-            f"{len(failed_models)} failed"
+            f"Summary: {len(stopped_models)} stopped, {len(already_stopped_models)} already stopped, {len(failed_models)} failed"
         )
         summary_lines.append("=" * 50)
         for line in summary_lines:
@@ -1885,14 +2068,12 @@ class ModelService:
             model_config = self.config.models.get(model_name, {})
             port = model_config.get("port", 0)
 
-            statuses.append(
-                {
-                    "model": model_name,
-                    "running": is_running,
-                    "pid": pid,
-                    "port": port if port else None,
-                }
-            )
+            statuses.append({
+                "model": model_name,
+                "running": is_running,
+                "pid": pid,
+                "port": port if port else None,
+            })
 
         return statuses
 
@@ -1913,10 +2094,32 @@ def print_status(status):
         print("-" * 50)
         print(f"Service: {status['service']}")
         print(f"Status: {'Running' if status['running'] else 'Stopped'}")
-        if status["pid"]:
+        if status['pid']:
             print(f"PID: {status['pid']}")
         print(f"Bind: {status['bind']}")
         print("-" * 50)
+
+
+def print_resource_table(result, check=False):
+    resources = result.get("resources", []) if check else result.get("models", [])
+    if check:
+        print(f"Release: {result.get('release', '-')}")
+        headers = ("NAME", "STATE", "VERSION", "SIZE", "DIGEST", "NOTE")
+        rows = [(item.get("name", "-"), item.get("state", "-"), item.get("version", "-"),
+                 str(item.get("size") or "-"), (item.get("digest") or "-")[:20], item.get("note", ""))
+                for item in resources]
+    else:
+        headers = ("NAME", "STATUS", "SERVICE", "VERSION", "SIZE", "PROGRESS", "NOTE")
+        rows = []
+        for item in resources:
+            done, total = item.get("bytes_done"), item.get("bytes_total")
+            progress = f"{done}/{total}" if done and total else "-"
+            rows.append((item.get("name", "-"), item.get("status", "-"), item.get("service_status", "-"),
+                         item.get("version", "-"), str(item.get("size") or "-"), progress, item.get("note", "")))
+    print("  ".join(headers))
+    print("  ".join("-" * len(header) for header in headers))
+    for row in rows:
+        print("  ".join(str(value) for value in row))
 
 
 def main():
@@ -1936,41 +2139,69 @@ Examples:
     %(prog)s uninstall-service        # Uninstall Windows service
     %(prog)s start-service            # Start Windows service
     %(prog)s stop-service             # Stop Windows service
-        """,
+        """
     )
 
     parser.add_argument(
         "command",
-        choices=[
-            "start",
-            "stop",
-            "status",
-            "model-start",
-            "model-stop",
-            "model-status",
-            "wait-ready",
-            "install-service",
-            "uninstall-service",
-            "start-service",
-            "stop-service",
-        ],
-        help="Command to execute",
+        choices=["start", "stop", "status", "model-start", "model-stop", "model-status", "wait-ready",
+                 "resource-import", "resource-check", "resource-apply",
+                 "resource-list", "resource-verify", "install-service",
+                 "uninstall-service", "start-service", "stop-service"],
+        help="Command to execute"
     )
     parser.add_argument(
-        "target", nargs="?", help="Target for model commands (model name or 'all')"
+        "target",
+        nargs="?",
+        help="Target for model commands (model name or 'all')"
     )
-    parser.add_argument("-c", "--config", help="Path to taosanode.config.py")
     parser.add_argument(
-        "--foreground", action="store_true", help="Run in foreground (for service mode)"
+        "-c", "--config",
+        help="Path to taosanode.config.py"
+    )
+    parser.add_argument(
+        "--foreground",
+        action="store_true",
+        help="Run in foreground (for service mode)"
     )
     parser.add_argument(
         "--full-preflight",
         action="store_true",
-        help="Run the full taosanalytics.app import preflight before startup",
+        help="Run the full taosanalytics.app import preflight before startup"
     )
     parser.add_argument(
-        "--timeout", type=int, default=30, help="Timeout in seconds for wait-ready"
+        "--timeout",
+        type=int,
+        default=None,
+        help="Timeout in seconds for service readiness or model startup"
     )
+    parser.add_argument(
+        "--package",
+        action="append",
+        default=[],
+        help="Local TSFM runtime or single-model resource archive for resource-import"
+    )
+    parser.add_argument(
+        "--expected-sha256",
+        default="",
+        help="Expected SHA-256 for a single resource archive"
+    )
+    parser.add_argument(
+        "--replace",
+        action="store_true",
+        help="Replace an existing dynamic resource after staging validation"
+    )
+    parser.add_argument(
+        "--python-runtime-dir",
+        help="Host Python runtime directory used to relocate imported TSFM venvs",
+    )
+    parser.add_argument("--release", default="1.0.0", help="Resource release version or manifest URL")
+    parser.add_argument(
+        "--resource-base-url",
+        default=None,
+        help="Base URL hosting TDgpt TSFM releases",
+    )
+    parser.add_argument("--format", choices=["table", "json"], default="table")
 
     args = parser.parse_args()
 
@@ -1983,9 +2214,7 @@ Examples:
 
     # Execute command
     if args.command == "start":
-        success = taosanode.start(
-            foreground=args.foreground, full_preflight=args.full_preflight
-        )
+        success = taosanode.start(foreground=args.foreground, full_preflight=args.full_preflight)
         sys.exit(0 if success else 1)
 
     elif args.command == "stop":
@@ -2001,7 +2230,7 @@ Examples:
             logger.error("model-start requires a target (model name or 'all')")
             logger.error(f"Supported models: {', '.join(config.models.keys())}")
             sys.exit(1)
-        success = models.start(args.target)
+        success = models.start(args.target, timeout=args.timeout)
         sys.exit(0 if success else 1)
 
     elif args.command == "model-stop":
@@ -2015,8 +2244,103 @@ Examples:
         status = models.status()
         print_status(status)
 
+    elif args.command == "resource-import":
+        if not args.package:
+            logger.error("resource-import requires at least one --package")
+            sys.exit(1)
+        if args.expected_sha256 and len(args.package) != 1:
+            logger.error("--expected-sha256 requires exactly one --package")
+            sys.exit(1)
+        try:
+            if args.replace:
+                manager = DynamicResourceManager(config)
+                running = {item["model"] for item in models.status() if item["running"]}
+                replacement_names = set()
+                replace_runtime = False
+                for package in args.package:
+                    kind, name = manager._classify(Path(package))
+                    replace_runtime = replace_runtime or kind == "runtime"
+                    replacement_names.add(name)
+                blocked = running if replace_runtime else running.intersection(replacement_names)
+                if blocked:
+                    scope = "all" if replace_runtime else ", ".join(sorted(blocked))
+                    raise ResourceImportError(f"resource replacement requires stopped model workers: {scope}")
+            if args.python_runtime_dir:
+                config.python_runtime_dir = args.python_runtime_dir
+            result = DynamicResourceManager(config).import_packages(
+                args.package, args.expected_sha256, args.replace
+            )
+            print(json.dumps(result, indent=2))
+            sys.exit(0)
+        except ResourceImportError as exc:
+            logger.error(f"Dynamic resource import failed: {exc}")
+            sys.exit(1)
+
+    elif args.command == "resource-list":
+        result = DynamicResourceManager(config).list_resources(args.target or "all")
+        model_status = {item["model"]: item for item in models.status()}
+        for item in result["models"]:
+            status = model_status.get(item["name"], {})
+            item["service_status"] = "running" if status.get("running") else "stopped"
+            operation_status = item.get("operation_status")
+            item["status"] = operation_status if operation_status in {
+                "downloading", "verifying", "importing", "failed"
+            } else (
+                item["service_status"]
+                if item["install_status"] == "installed"
+                else item["install_status"]
+            )
+            item["pid"] = status.get("pid")
+            item["port"] = status.get("port")
+        if args.format == "json":
+            print(json.dumps(result, indent=2))
+        else:
+            print_resource_table(result)
+
+    elif args.command == "resource-check":
+        try:
+            result = DynamicResourceManager(config).check_release(
+                args.release, args.resource_base_url or config.resource_base_url, args.target or "all"
+            )
+            if args.format == "json":
+                print(json.dumps(result, indent=2))
+            else:
+                print_resource_table(result, check=True)
+        except ResourceImportError as exc:
+            logger.error(f"Dynamic resource check failed: {exc}")
+            sys.exit(1)
+
+    elif args.command == "resource-apply":
+        try:
+            if args.python_runtime_dir:
+                config.python_runtime_dir = args.python_runtime_dir
+            manager = DynamicResourceManager(config)
+            target = args.target or "all"
+            if args.replace:
+                running = {item["model"] for item in models.status() if item["running"]}
+                base_url = args.resource_base_url or config.resource_base_url
+                runtime_replace = manager.requires_runtime_replacement(args.release, base_url, target)
+                blocked = running if runtime_replace or target == "all" else running.intersection({target})
+                if blocked:
+                    scope = "all" if runtime_replace or target == "all" else ", ".join(sorted(blocked))
+                    raise ResourceImportError(f"resource replacement requires stopped model workers: {scope}")
+            result = DynamicResourceManager(config).apply_release(
+                args.release, args.resource_base_url or config.resource_base_url, target, args.replace
+            )
+            print(json.dumps(result, indent=2))
+        except ResourceImportError as exc:
+            logger.error(f"Dynamic resource apply failed: {exc}")
+            sys.exit(1)
+
+    elif args.command == "resource-verify":
+        result = DynamicResourceManager(config).verify_resources(args.target or "all")
+        print(json.dumps(result, indent=2))
+        sys.exit(0 if result["valid"] else 1)
+
     elif args.command == "wait-ready":
-        success = taosanode.wait_ready(timeout=args.timeout)
+        success = taosanode.wait_ready(
+            timeout=args.timeout or config.timeouts["service_startup"]
+        )
         sys.exit(0 if success else 1)
 
     elif args.command == "install-service":
