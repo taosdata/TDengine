@@ -856,8 +856,7 @@ static int32_t taosDropTable(TAOS* taos, void* meta, uint32_t metaLen) {
     SVgroupInfo pInfo = {0};
     SName       pName = {0};
     toName(pTscObj->acctId, pRequest->pDb, pDropReq->name, &pName);
-    code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &pInfo);
-    PROCESS_TABLE_NOT_EXIST(code, pDropReq->name)
+    RAW_RETURN_CHECK(catalogGetTableHashVgroup(pCatalog, &conn, &pName, &pInfo));
     STableMeta* pTableMeta = NULL;
     code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
@@ -1802,9 +1801,8 @@ static int32_t tmqWriteRawCommon(TAOS* taos, void* data, uint32_t dataLen,
         pCreateReqDst = (SVCreateTbReq*)taosHashGet(pCreateTbHash, pName.tname, strlen(pName.tname));
       }
       STableMeta* pTableMeta = NULL;
-      code = processCacheMeta(pVgHash, pNameHash, pMetaHash, pCreateReqDst, pCatalog, &conn, &pName,
-                              &pTableMeta, pSW, rawData, retry);
-      PROCESS_TABLE_NOT_EXIST(code, tbName)
+      RAW_RETURN_CHECK(processCacheMeta(pVgHash, pNameHash, pMetaHash, pCreateReqDst, pCatalog, &conn, &pName,
+                              &pTableMeta, pSW, rawData, retry));
       char err[ERR_MSG_LEN] = {0};
       code = rawBlockBindData(pQuery, pTableMeta, rawData, pCreateReqDst, pSW, pSW->nCols, true, err, ERR_MSG_LEN, true);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1907,9 +1905,8 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
 
       // find schema data info
       STableMeta* pTableMeta = NULL;
-      code = processCacheMeta(pVgHash, pNameHash, pMetaHash, NULL, pCatalog, &conn, &pName, &pTableMeta, NULL,
-                                        NULL, retry);
-      PROCESS_TABLE_NOT_EXIST(code, tbName)
+      RAW_RETURN_CHECK(processCacheMeta(pVgHash, pNameHash, pMetaHash, NULL, pCatalog, &conn, &pName, &pTableMeta, NULL,
+                                        NULL, retry));
       char err[ERR_MSG_LEN] = {0};
       code = rawBlockBindRawData(pVgroupHash, pStmt->pVgDataBlocks, pTableMeta, rawData);
       if (code != TSDB_CODE_SUCCESS) {
