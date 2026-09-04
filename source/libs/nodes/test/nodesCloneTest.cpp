@@ -17,6 +17,8 @@
 
 #include <string>
 #include <vector>
+#include <cstring>
+#include <string>
 
 #include "nodes.h"
 #include "os.h"
@@ -25,6 +27,17 @@
 #include "tconv.h"
 
 extern "C" void nodesTestSetStrictAppendFailOnce(void);
+
+static void eraseJsonBoolField(std::string* pJson, const char* pField) {
+  const std::string field = std::string("\"") + pField + "\":";
+  const size_t      start = pJson->find(field);
+  ASSERT_NE(start, std::string::npos);
+  const size_t end = pJson->find(',', start);
+  ASSERT_NE(end, std::string::npos);
+  pJson->erase(start, end - start + 1);
+}
+
+static void freeTestBuffer(char* pBuffer) { taosMemoryFreeClear(pBuffer); }
 
 class NodesCloneTest : public testing::Test {
  public:
@@ -479,6 +492,163 @@ TEST_F(NodesCloneTest, logicSubplan) {
     SLogicSubplan* pNode = (SLogicSubplan*)srcNode.get();
     return srcNode.get();
   }());
+}
+
+TEST(NodesSubplanTest, delayFreeTaskCloneAndMessageRoundTrip) {
+  std::unique_ptr<SNode, void (*)(SNode*)> subplan(nullptr, nodesDestroyNode);
+  SNode* pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &pNew));
+  subplan.reset(pNew);
+  SSubplan* pSubplan = (SSubplan*)subplan.get();
+  pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
+  pSubplan->delayFreeTask = true;
+
+  std::unique_ptr<SNode, void (*)(SNode*)> interval(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL, &pNew));
+  interval.reset(pNew);
+  SIntervalPhysiNode* pInterval = (SIntervalPhysiNode*)interval.release();
+  pInterval->exInterval = true;
+  pSubplan->pNode = (SPhysiNode*)pInterval;
+
+  std::unique_ptr<SNode, void (*)(SNode*)> clone(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode((SNode*)pSubplan, &pNew));
+  clone.reset(pNew);
+  ASSERT_NE(clone, nullptr);
+  ASSERT_TRUE(((SSubplan*)clone.get())->delayFreeTask);
+  ASSERT_TRUE(((SIntervalPhysiNode*)((SSubplan*)clone.get())->pNode)->exInterval);
+
+  std::unique_ptr<char, void (*)(char*)> json(nullptr, freeTestBuffer);
+  int32_t jsonLen = 0;
+  char* pJson = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString((SNode*)pSubplan, false, &pJson, &jsonLen));
+  json.reset(pJson);
+  ASSERT_NE(json, nullptr);
+  ASSERT_NE(std::string(json.get()).find("\"DelayFreeTask\":true"), std::string::npos);
+  std::unique_ptr<SNode, void (*)(SNode*)> jsonNode(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(json.get(), &pNew));
+  jsonNode.reset(pNew);
+  ASSERT_TRUE(((SSubplan*)jsonNode.get())->delayFreeTask);
+
+  std::string legacyJson(json.get());
+  size_t delayPos = legacyJson.find("\"DelayFreeTask\":true,");
+  ASSERT_NE(delayPos, std::string::npos);
+  legacyJson.erase(delayPos, strlen("\"DelayFreeTask\":true,"));
+  jsonNode.reset();
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(legacyJson.c_str(), &pNew));
+  jsonNode.reset(pNew);
+  ASSERT_FALSE(((SSubplan*)jsonNode.get())->delayFreeTask);
+
+  std::unique_ptr<char, void (*)(char*)> msg(nullptr, freeTestBuffer);
+  int32_t msgLen = 0;
+  char* pMsg = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg((SNode*)pSubplan, &pMsg, &msgLen));
+  msg.reset(pMsg);
+  ASSERT_NE(msg, nullptr);
+  std::unique_ptr<SNode, void (*)(SNode*)> msgNode(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(msg.get(), msgLen, &pNew));
+  msgNode.reset(pNew);
+  ASSERT_TRUE(((SSubplan*)msgNode.get())->delayFreeTask);
+  ASSERT_FALSE(((SSubplan*)msgNode.get())->inheritedMultiGroupJoin);
+}
+
+TEST(NodesSubplanTest, subplanFlagsMessageRoundTrip) {
+  std::unique_ptr<SNode, void (*)(SNode*)> subplan(nullptr, nodesDestroyNode);
+  SNode* pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &pNew));
+  subplan.reset(pNew);
+  SSubplan* pSubplan = (SSubplan*)subplan.get();
+  pSubplan->delayFreeTask = true;
+  pSubplan->inheritedMultiGroupJoin = true;
+
+  std::unique_ptr<char, void (*)(char*)> msg(nullptr, freeTestBuffer);
+  int32_t msgLen = 0;
+  char* pMsg = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg((SNode*)pSubplan, &pMsg, &msgLen));
+  msg.reset(pMsg);
+  ASSERT_NE(msg, nullptr);
+
+  std::unique_ptr<SNode, void (*)(SNode*)> decoded(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(msg.get(), msgLen, &pNew));
+  decoded.reset(pNew);
+  ASSERT_TRUE(((SSubplan*)decoded.get())->delayFreeTask);
+  ASSERT_TRUE(((SSubplan*)decoded.get())->inheritedMultiGroupJoin);
+}
+
+TEST(NodesSubplanTest, intervalOptimizationFlagsDefaultWhenAbsentFromJson) {
+  std::unique_ptr<SNode, void (*)(SNode*)> subplan(nullptr, nodesDestroyNode);
+  SNode* pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &pNew));
+  subplan.reset(pNew);
+  SSubplan* pSubplan = (SSubplan*)subplan.get();
+
+  std::unique_ptr<SNode, void (*)(SNode*)> interval(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL, &pNew));
+  interval.reset(pNew);
+  SIntervalPhysiNode* pInterval = (SIntervalPhysiNode*)interval.release();
+  pInterval->fastInterval = true;
+  pInterval->exInterval = true;
+  pSubplan->pNode = (SPhysiNode*)pInterval;
+
+  std::unique_ptr<char, void (*)(char*)> json(nullptr, freeTestBuffer);
+  char* pJson = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString((SNode*)pSubplan, false, &pJson, NULL));
+  json.reset(pJson);
+  ASSERT_NE(json, nullptr);
+  std::string legacyJson(json.get());
+  eraseJsonBoolField(&legacyJson, "FastInterval");
+  eraseJsonBoolField(&legacyJson, "ExInterval");
+
+  std::unique_ptr<SNode, void (*)(SNode*)> decoded(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(legacyJson.c_str(), &pNew));
+  decoded.reset(pNew);
+  SIntervalPhysiNode* pDecodedInterval = (SIntervalPhysiNode*)((SSubplan*)decoded.get())->pNode;
+  ASSERT_FALSE(pDecodedInterval->fastInterval);
+  ASSERT_FALSE(pDecodedInterval->exInterval);
+}
+
+TEST(NodesSubplanTest, tableScanOptimizationFlagsDefaultWhenAbsentFromJson) {
+  std::unique_ptr<SNode, void (*)(SNode*)> subplan(nullptr, nodesDestroyNode);
+  SNode* pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &pNew));
+  subplan.reset(pNew);
+  SSubplan* pSubplan = (SSubplan*)subplan.get();
+
+  std::unique_ptr<SNode, void (*)(SNode*)> scan(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, &pNew));
+  scan.reset(pNew);
+  STableScanPhysiNode* pScan = (STableScanPhysiNode*)scan.release();
+  pScan->fastInterval = true;
+  pScan->exInterval = true;
+  pSubplan->pNode = (SPhysiNode*)pScan;
+
+  std::unique_ptr<char, void (*)(char*)> json(nullptr, freeTestBuffer);
+  char* pJson = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString((SNode*)pSubplan, false, &pJson, NULL));
+  json.reset(pJson);
+  ASSERT_NE(json, nullptr);
+  std::string legacyJson(json.get());
+  eraseJsonBoolField(&legacyJson, "FastInterval");
+  eraseJsonBoolField(&legacyJson, "ExInterval");
+
+  std::unique_ptr<SNode, void (*)(SNode*)> decoded(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(legacyJson.c_str(), &pNew));
+  decoded.reset(pNew);
+  STableScanPhysiNode* pDecodedScan = (STableScanPhysiNode*)((SSubplan*)decoded.get())->pNode;
+  ASSERT_FALSE(pDecodedScan->fastInterval);
+  ASSERT_FALSE(pDecodedScan->exInterval);
 }
 
 TEST_F(NodesCloneTest, physiScan) {

@@ -334,6 +334,10 @@ static const int32_t TEST_NUMBER = 1;
 bool lossyFloat = false;
 bool lossyDouble = false;
 
+// Defined in tcompression_accel.c. Compiled to a no-op stub when
+// BUILD_WITH_ACCEL_COMPRESS=OFF, so we can call it unconditionally.
+extern void tcompressionAccelInit(void);
+
 // init call
 void tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals, uint32_t intervals,
                     int32_t ifAdtFse, const char *compressor) {
@@ -344,7 +348,11 @@ void tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uin
   tdszInit(fPrecision, dPrecision, maxIntervals, intervals, ifAdtFse, compressor);
   if (lossyFloat) uTrace("lossy compression float  is opened. ");
   if (lossyDouble) uTrace("lossy compression double is opened. ");
-  return;
+
+  // Patch compressL2Dict[] with accelerated backends if TAOS_COMPRESS_ACCEL
+  // points at a drop-in shared object. Failure is non-fatal (logged) and the
+  // stock implementations remain in the dispatch table.
+  tcompressionAccelInit();
 }
 // exit call
 void tsCompressExit() { tdszExit(); }

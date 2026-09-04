@@ -1781,6 +1781,8 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->sliding = pScanLogicNode->sliding;
   pTableScan->intervalUnit = pScanLogicNode->intervalUnit;
   pTableScan->slidingUnit = pScanLogicNode->slidingUnit;
+  pTableScan->fastInterval = pScanLogicNode->fastInterval;
+  pTableScan->exInterval = pScanLogicNode->exInterval;
   pTableScan->firstDayOfWeek = pScanLogicNode->firstDayOfWeek;
   pTableScan->timezone = pScanLogicNode->timezone;
   tstrncpy(pTableScan->timezoneName, pScanLogicNode->timezoneName, sizeof(pTableScan->timezoneName));
@@ -5888,6 +5890,7 @@ static int32_t doCreateExchangePhysiNode(SPhysiPlanContext* pCxt, SExchangeLogic
   pExchange->srcEndGroupId = pExchangeLogicNode->srcEndGroupId;
   pExchange->seqRecvData = pExchangeLogicNode->seqRecvData;
   pExchange->dynTbname = pExchangeLogicNode->dynTbname;
+  pExchange->fastInterval = pExchangeLogicNode->fastInterval;
 
   int32_t code = setConditionsSlotId(pCxt, (const SLogicNode*)pExchangeLogicNode, (SPhysiNode*)pExchange);
   if (TSDB_CODE_SUCCESS == code) {
@@ -6020,6 +6023,8 @@ static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
   pInterval->slidingUnit = pWindowLogicNode->slidingUnit;
   pInterval->timeRange = pWindowLogicNode->timeRange;
   pInterval->firstDayOfWeek = pWindowLogicNode->firstDayOfWeek;
+  pInterval->fastInterval = pWindowLogicNode->fastInterval;
+  pInterval->exInterval = pWindowLogicNode->exInterval;
   pInterval->timezone = pWindowLogicNode->timezone;
   tstrncpy(pInterval->timezoneName, pWindowLogicNode->timezoneName, sizeof(pInterval->timezoneName));
   int32_t code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pInterval->window, pWindowLogicNode);
@@ -7270,6 +7275,12 @@ static int32_t createPhysiSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogic
       pSubplan->msgType = TDMT_SCH_MERGE_QUERY;
     }
     code = createPhysiNode(pCxt, pLogicSubplan->pNode, pSubplan, &pSubplan->pNode);
+    if (TSDB_CODE_SUCCESS == code &&
+        (SUBPLAN_TYPE_SCAN == pSubplan->subplanType || SUBPLAN_TYPE_HSYSSCAN == pSubplan->subplanType) &&
+        QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL == nodeType(pSubplan->pNode) &&
+        ((SIntervalPhysiNode*)pSubplan->pNode)->exInterval) {
+      pSubplan->delayFreeTask = true;
+    }
     if (TSDB_CODE_SUCCESS == code && !pCxt->pPlanCxt->topicQuery) {
       code = createDataDispatcher(pCxt, pSubplan->pNode, pSubplan->processOneBlock, &pSubplan->pDataSink);
     }

@@ -33,6 +33,21 @@ After completing the specialized compression for specific data types, TDengine f
 
 TDengine supports multiple compression algorithms, including LZ4, ZLIB, ZSTD, XZ, etc. Users can flexibly balance between compression rate and write speed according to specific application scenarios and needs, choosing the most suitable compression scheme.
 
+#### Using Hardware-Accelerated Secondary Compression Libraries (Linux Only)
+
+Secondary compression links to the static zlib/zstd/lz4 implementations bundled with TDengine by default. If the deployment environment provides compatible, hardware-accelerated replacements (for example, Intel QAT/IAA-accelerated zlib, ISA-L's libz, or SVE-optimized zstd on ARM), you can have taosd substitute them for the default implementations at startup and get the speedup without changing any SQL. If a replacement is unavailable, TDengine automatically falls back to the bundled static implementations.
+
+Set the following environment variables to specify the paths of the replacement secondary-compression libraries, then start or restart taosd to use them:
+
+| Environment variable | Description |
+|---|---|
+| `TAOS_COMPRESS_ACCEL` | Directory that contains the compression libraries |
+| `TAOS_COMPRESS_ACCEL_ZLIB` | Full path to `libz.so` |
+| `TAOS_COMPRESS_ACCEL_ZSTD` | Full path to `libzstd.so` |
+| `TAOS_COMPRESS_ACCEL_LZ4` | Full path to `liblz4.so` |
+
+Note the precedence between the full path and the directory: for a given compression library, if its full-path environment variable is set, taosd loads it from that full path only; only when the full path is unset and `TAOS_COMPRESS_ACCEL` is set does it load from that directory. If loading fails either way, taosd falls back to the default implementation.
+
 ### Lossy Compression
 
 TDengine engine provides two modes for floating-point type data: lossless compression and lossy compression. The precision of floating-point numbers is usually determined by the number of digits after the decimal point. In some cases, the precision of floating-point numbers collected by devices is high, but the precision of interest in actual applications is low. In such cases, using lossy compression can effectively save storage space. TDengine's lossy compression algorithm is based on a prediction model, the core idea of which is to use the trend of previous data points to predict the trend of subsequent data points. This algorithm can significantly improve the compression rate, and its compression effect far exceeds that of lossless compression. The name of the lossy compression algorithm is TSZ.

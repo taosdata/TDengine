@@ -103,7 +103,11 @@ class PlannerTestBaseImpl {
     caseEnv_.numOfLimitSql_ = g_limitSql;
   }
 
-  void run(const string& sql) {
+  void run(const string& sql) { run(sql, false); }
+
+  void runStreamCalc(const string& sql) { run(sql, true); }
+
+  void run(const string& sql, bool streamCalc) {
     ++sqlNo_;
     if (caseEnv_.numOfSkipSql_ > 0) {
       --(caseEnv_.numOfSkipSql_);
@@ -118,12 +122,12 @@ class PlannerTestBaseImpl {
       case QUERY_POLICY_VNODE:
       case QUERY_POLICY_HYBRID:
       case QUERY_POLICY_QNODE:
-        runImpl(sql, g_queryPolicy);
+        runImpl(sql, g_queryPolicy, streamCalc);
         break;
       default:
-        runImpl(sql, QUERY_POLICY_VNODE);
-        runImpl(sql, QUERY_POLICY_HYBRID);
-        runImpl(sql, QUERY_POLICY_QNODE);
+        runImpl(sql, QUERY_POLICY_VNODE, streamCalc);
+        runImpl(sql, QUERY_POLICY_HYBRID, streamCalc);
+        runImpl(sql, QUERY_POLICY_QNODE, streamCalc);
         break;
     }
   }
@@ -239,7 +243,7 @@ class PlannerTestBaseImpl {
     return count;
   }
 
-  void runImpl(const string& sql, int32_t queryPolicy) {
+  void runImpl(const string& sql, int32_t queryPolicy, bool streamCalc) {
     int64_t allocatorId = 0;
     if (g_useNodeAllocator) {
       ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCreateAllocator(sqlNo_, 32 * 1024, &allocatorId));
@@ -253,8 +257,16 @@ class PlannerTestBaseImpl {
       doParseSql(sql, query.get());
       SQuery* pQuery = *(query.get());
 
+      unique_ptr<SArray, void (*)(SArray*)> calcScanPlans(NULL, (void (*)(SArray*))taosArrayDestroy);
       SPlanContext cxt = {0};
       setPlanContext(pQuery, &cxt);
+      if (streamCalc) {
+        calcScanPlans.reset((SArray*)taosArrayInit(1, sizeof(SStreamCalcScan)));
+        ASSERT_NE(nullptr, calcScanPlans.get());
+        cxt.streamCxt.isCalc = true;
+        cxt.streamCxt.triggerWinType = QUERY_NODE_INTERVAL_WINDOW;
+        cxt.streamCxt.calcScanPlanArray = calcScanPlans.get();
+      }
 
       SLogicSubplan* pLogicSubplan = nullptr;
       doCreateLogicPlan(&cxt, &pLogicSubplan);
@@ -789,6 +801,8 @@ PlannerTestBase::~PlannerTestBase() {}
 void PlannerTestBase::useDb(const std::string& user, const std::string& db) { impl_->useDb(user, db); }
 
 void PlannerTestBase::run(const std::string& sql) { return impl_->run(sql); }
+
+void PlannerTestBase::runStreamCalc(const std::string& sql) { return impl_->runStreamCalc(sql); }
 
 bool PlannerTestBase::findPlanNode(const std::string& nodeName) const { return impl_->findPlanNode(nodeName); }
 
