@@ -3313,6 +3313,7 @@ typedef struct {
   char    dbName[TSDB_DB_FNAME_LEN];   // reserved: empty = whole cluster
   int8_t  hasPassword;
   char    password[TSDB_PASSWORD_LEN];
+  int32_t parallel;                    // vgroup backup parallelism; >= 1, 1 = serial
   int32_t sqlLen;
   char*   sql;
 } SBackupReq;
@@ -3369,6 +3370,7 @@ typedef struct {
   char    dbName[TSDB_DB_FNAME_LEN];  // reserved: empty = whole cluster
   int8_t  hasPassword;
   char    password[TSDB_PASSWORD_LEN];
+  int32_t parallel;                   // vgroup backup parallelism; >= 1, 1 = serial
   SArray *dnodes;                      // SBackupDnodeInfo, sorted ascending by id
   SArray *streamSnodes;                 // SBackupStreamSnodeInfo
   SArray *vgroups;                     // SBackupVgroupInfo
@@ -3394,7 +3396,6 @@ typedef struct {
   int64_t totalSize; // bytes written so far
   int32_t totalVgroups;
   int32_t finishedVgroups;
-  int32_t currentVgId;  // 0 when no vnode is being processed
   int32_t code;       // agent-side result code; 0 = success
 } SBackupProgressRsp;
 

@@ -429,6 +429,23 @@ static int32_t dmParseRestoreOption(int32_t argc, char const *argv[], int32_t *p
   }
 
   if (!matched) {
+    int64_t parallel = 0;
+    bool    optMatched = false;
+    int32_t code = dmParseRestoreIdOption(argc, argv, &index, "--parallel", &parallel, &optMatched);
+    if (code != 0) {
+      return code;
+    }
+    if (optMatched) {
+      if (pOpt->parallel != 0) {
+        printf("--parallel specified more than once\n");
+        return TSDB_CODE_INVALID_PARA;
+      }
+      pOpt->parallel = (int32_t)parallel;
+      matched = true;
+    }
+  }
+
+  if (!matched) {
     char    password[TSDB_PASSWORD_MAX_LEN + 1] = {0};
     bool    optMatched = false;
     int32_t code = dmParseLongOptionValue(argc, argv, &index, "--password", password, sizeof(password), &optMatched);
@@ -1095,7 +1112,7 @@ bool dmRepairNeedWalRepair(int32_t vnodeId) {
 static int32_t dmFinalizeRestoreOption(void) {
   SDmRestoreOption *pOpt = &global.restoreOpt;
   bool hasRestoreArgs = pOpt->backupChainPath[0] != '\0' || pOpt->lastBackupId != 0 || pOpt->dbName[0] != '\0' ||
-                         pOpt->hasVerify || pOpt->verbose || pOpt->hasPassword;
+                         pOpt->hasVerify || pOpt->verbose || pOpt->hasPassword || pOpt->parallel != 0;
 
   if (hasRestoreArgs && !pOpt->enabled) {
     printf("restore options must be used with '--restore'\n");
@@ -1111,6 +1128,9 @@ static int32_t dmFinalizeRestoreOption(void) {
   if (pOpt->backupChainPath[0] == '\0') {
     printf("--restore requires a backup chain path\n");
     return TSDB_CODE_INVALID_PARA;
+  }
+  if (pOpt->parallel == 0) {
+    pOpt->parallel = 1;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1331,7 +1351,7 @@ static void dmPrintHelp() {
   printf("%s%s%s%s\n", indent, "-E,", indent, DM_ENV_FILE);
   printf("%s%s%s%s\n", indent, "-r,", indent, DM_REPAIR_MODE);
 #ifdef TD_ENTERPRISE
-  printf("%s%s%s%s\n", indent, "--restore PATH [--password PASSWORD] [--verify=0|1|2]", indent, DM_RESTORE);
+  printf("%s%s%s%s\n", indent, "--restore PATH [--password PASSWORD] [--verify=0|1|2] [--parallel N]", indent, DM_RESTORE);
 #endif
   printf("%s%s%s%s\n", indent, "-k,", indent, DM_MACHINE_CODE);
 #if defined(LINUX)
