@@ -7,6 +7,11 @@ import java.util.ArrayList;
 import java.util.Random;
 
 // ANCHOR: para_bind
+/**
+ * @deprecated The extension interface is deprecated; use the standard JDBC parameter
+ * binding interface instead (see WSParameterBindingStdInterfaceDemo).
+ */
+@Deprecated
 public class WSParameterBindingExtendInterfaceDemo {
 
     // modify host to your own

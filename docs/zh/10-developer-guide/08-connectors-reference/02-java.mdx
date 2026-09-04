@@ -41,6 +41,7 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 
 | taos-jdbcdriver 版本 | 主要变化                                                                                                                                                                                                                                                                               | TDengine 版本 |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 3.9.1                | 1. WebSocket 查询时间戳支持纳秒精度。<br/>2. WebSocket 连接支持 PreparedStatement 缓存（stmtCacheSize），复用已预编译语句提升写入性能。                                                                                                                                                                                                                              | -                  |
 | 3.9.0                | 优化参数绑定缓存和序列化，以提升 TDengine TSDB Enterprise `v3.4.1.16` 及更高版本的写入性能                                                                                                                                                                                                                              | -                  |
 | 3.8.4                | 1. 支持 taosadapter 的高可用（HA）端点发现。<br/>2. 连接前对端点进行乱序。<br/>3. 修复 WebSocket 连接属性初始化 Catalog。                                                                                                                                                                                                                           | -                  |
 | 3.8.3                | 修复数据订阅令牌认证错误地要求用户名的 bug                                                                                                                                                                                                                               | -                  |
@@ -312,6 +313,7 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING [`varcharAsString`]：将 VARCHAR/BINARY 类型映射为 String，仅在使用 WebSocket 连接时生效。默认值为 false。
 - TSDBDriver.PROPERTY_KEY_APP_NAME [`app_name`]：App 名称，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为 java。
 - TSDBDriver.PROPERTY_KEY_APP_IP [`app_ip`]：App IP，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为空。
+- TSDBDriver.PROPERTY_KEY_STMT_CACHE_SIZE [`stmtCacheSize`]：PreparedStatement 缓存大小，缓存并复用已预编译的语句以提升重复写入性能。仅在使用 WebSocket 连接时生效。默认值为 5，高效写入模式（asyncWrite=stmt）下默认值为 2，设置为 0 表示关闭缓存。注意：缓存命中时驱动复用同一个语句对象，调用 `close()` 后不得再使用其引用；缓存的语句在空闲期间会占用服务端语句资源，高效写入模式下还会保活后台写入线程（每条缓存语句占用 backendWriteThreadNum 个线程）。
 
 ---
 
@@ -1324,6 +1326,8 @@ ParameterMetaData 提供了参数元数据接口：
   - **异常**：如果在获取参数模式的过程中发生错误，将抛出 `SQLException` 异常。
 
 #### 扩展接口  
+
+**注意**：扩展接口已不推荐使用，仅为兼容存量代码保留。新代码请使用 JDBC 标准接口，配合本文档推荐的 SQL 形式（`tbname` 作为绑定列）即可完成参数绑定。
 
 - `void setTableName(String name) throws SQLException`
   - **接口说明**：设置当前操作的表名。
