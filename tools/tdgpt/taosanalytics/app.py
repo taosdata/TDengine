@@ -29,6 +29,17 @@ from taosanalytics.handlers.regression import handle_regression
 from taosanalytics.log import AppLogger
 from taosanalytics.model_file_mgt import ModelFileManager
 from taosanalytics.service_registry import loader
+from taosanalytics.tsfmservice.foundation_model import (
+    delete_foundation_model,
+    download_foundation_model,
+    get_all_operations_stream,
+    get_model_info,
+    get_operation_status,
+    init_models_db,
+    list_all_tsfm,
+    start_foundation_model,
+    stop_foundation_model,
+)
 
 
 def _init_app():
@@ -45,6 +56,9 @@ def _init_app():
 
     # Register all services
     loader.register_all_services()
+
+    # Initialize foundation models catalog in database
+    init_models_db()
 
     AppLogger.info("TDgpt service initialized (config: %s)", conf.path)
 
@@ -155,6 +169,55 @@ def handle_association_req():
     """handle the association rule mining request"""
     AppLogger.info("recv association analysis request from %s", request.remote_addr)
     return handle_association(request, api_version="v1")
+
+
+# Foundation Model Management APIs
+@app.route("/api/v1/foundation-models", methods=["GET"])
+def handle_list_foundation_models_req():
+    """Get list of foundation models with their status"""
+    return list_all_tsfm(request)
+
+
+@app.route("/api/v1/foundation-models/<model_name>", methods=["GET"])
+def handle_get_model_info_req(model_name):
+    """Get information about a specific foundation model"""
+    return get_model_info(request, model_name)
+
+
+@app.route("/api/v1/foundation-models/download", methods=["POST"])
+def handle_download_foundation_model_req():
+    """Download a foundation model (async operation)"""
+    return download_foundation_model(request)
+
+
+@app.route("/api/v1/foundation-models/start", methods=["POST"])
+def handle_start_foundation_model_req():
+    """Start a foundation model service (async operation)"""
+    return start_foundation_model(request)
+
+
+@app.route("/api/v1/foundation-models/stop", methods=["POST"])
+def handle_stop_foundation_model_req():
+    """Stop a foundation model service (async operation)"""
+    return stop_foundation_model(request)
+
+
+@app.route("/api/v1/foundation-models/delete", methods=["POST"])
+def handle_delete_foundation_model_req():
+    """Delete a foundation model (async operation)"""
+    return delete_foundation_model(request)
+
+
+@app.route("/api/v1/foundation-models/<task_id>/status", methods=["GET"])
+def handle_get_operation_status_req(task_id):
+    """Get status of async operation by task_id"""
+    return get_operation_status(request, task_id)
+
+
+@app.route("/api/v1/foundation-models/status/stream/all", methods=["GET"])
+def handle_get_all_operations_stream_req():
+    """Stream all foundation model operations status via SSE"""
+    return get_all_operations_stream(request)
 
 
 if __name__ == "__main__":

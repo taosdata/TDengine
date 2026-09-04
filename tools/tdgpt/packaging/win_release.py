@@ -27,7 +27,8 @@ import sys
 # Configure logging
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(message)s", level=logging.DEBUG
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.DEBUG
 )
 
 
@@ -51,6 +52,8 @@ class InstallInfo:
         self.iscc_path = ""
         self.skip_model_check = False
         self.python_runtime_dir = ""
+        self.bundle_python_runtime = False
+        self.lite = False
         self.resource_package_version = ""
         self.resource_package_url = ""
 
@@ -70,12 +73,8 @@ def check_python_version():
     """Check if Python version meets requirements"""
     version = sys.version_info
     if version.major != 3 or version.minor not in [10, 11, 12]:
-        logging.error(
-            f"Python 3.10/3.11/3.12 required, found {version.major}.{version.minor}"
-        )
-        logging.error(
-            "Please install Python 3.10, 3.11, or 3.12 from https://www.python.org/"
-        )
+        logging.error(f"Python 3.10/3.11/3.12 required, found {version.major}.{version.minor}")
+        logging.error("Please install Python 3.10, 3.11, or 3.12 from https://www.python.org/")
         sys.exit(1)
     logging.info(f"Python {version.major}.{version.minor}.{version.micro} detected")
     return True
@@ -84,66 +83,35 @@ def check_python_version():
 def parse_arguments():
     """Parse command line arguments"""
 
-    parser = argparse.ArgumentParser(description="Release TDgpt on Windows")
-    parser.add_argument(
-        "-e",
-        "--edition",
-        type=str,
-        required=True,
-        help="Set edition type (enterprise or community)",
-    )
-    parser.add_argument(
-        "-v",
-        "--version",
-        type=str,
-        required=True,
-        help="Set version number (e.g., 3.4.0.11)",
-    )
-    parser.add_argument(
-        "-m", "--model-dir", type=str, default="", help="Set model files directory"
-    )
-    parser.add_argument(
-        "-a", "--all-models", action="store_true", help="Pack all models"
-    )
-    parser.add_argument(
-        "-o",
-        "--output",
-        type=str,
-        default="D:\\tdgpt-release",
-        help="Set output directory (default: D:\\tdgpt-release)",
-    )
-    parser.add_argument(
-        "--iscc-path",
-        type=str,
-        default=r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-        help="Path to Inno Setup compiler",
-    )
-    parser.add_argument(
-        "--skip-model-check",
-        action="store_true",
-        help="Skip model validation (for testing only, NOT for production)",
-    )
-    parser.add_argument(
-        "--python-runtime-dir",
-        type=str,
-        default="",
-        help="Existing Python runtime directory to bundle into install/python/runtime",
-    )
-    parser.add_argument(
-        "--resource-package-version",
-        type=str,
-        default=DEFAULT_RESOURCE_PACKAGE_VERSION,
-        help="Resource package version used to build the default resource package URL (default: 1.0)",
-    )
-    parser.add_argument(
-        "--resource-package-url",
-        type=str,
-        default="",
-        help="Default remote TDgpt resource package URL used by the installer UI; overrides "
-        "--resource-package-version when provided",
-    )
+    parser = argparse.ArgumentParser(description='Release TDgpt on Windows')
+    parser.add_argument('-e', '--edition', type=str, required=True,
+                        help='Set edition type (enterprise or community)')
+    parser.add_argument('-v', '--version', type=str, required=True,
+                        help='Set version number (e.g., 3.4.0.11)')
+    parser.add_argument('-m', '--model-dir', type=str, default="",
+                        help='Set model files directory')
+    parser.add_argument('-a', '--all-models', action='store_true',
+                        help='Pack all models')
+    parser.add_argument('-o', '--output', type=str, default="D:\\tdgpt-release",
+                        help='Set output directory (default: D:\\tdgpt-release)')
+    parser.add_argument('--iscc-path', type=str,
+                        default=r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+                        help='Path to Inno Setup compiler')
+    parser.add_argument('--skip-model-check', action='store_true',
+                        help='Skip model validation (for testing only, NOT for production)')
+    parser.add_argument('--python-runtime-dir', type=str, default="",
+                        help='Python runtime directory used as the source when --bundle-python-runtime is enabled')
+    parser.add_argument('--bundle-python-runtime', action='store_true',
+                        help='Bundle a Python runtime into install/python/runtime; disabled by default')
+    parser.add_argument('--lite', action='store_true',
+                        help='Build a Lite installer without model files or model dependencies')
+    parser.add_argument('--resource-package-version', type=str, default=DEFAULT_RESOURCE_PACKAGE_VERSION,
+                        help='Resource package version used to build the default resource package URL (default: 1.0)')
+    parser.add_argument('--resource-package-url', type=str, default="",
+                        help='Default remote TDgpt resource package URL used by the installer UI; '
+                             'overrides --resource-package-version when provided')
 
-    version_pattern = re.compile(r"^[0-9]+\.([0-9]+\.){1,3}[0-9]+$")
+    version_pattern = re.compile(r'^[0-9]+\.([0-9]+\.){1,3}[0-9]+$')
     args = parser.parse_args()
 
     # Validate version number
@@ -169,26 +137,23 @@ def parse_arguments():
     else:
         install_info.product_name = "tdengine-tdgpt-oss"
         install_info.app_name = "TDengine TDgpt-OSS"
-    install_info.product_full_name = (
-        f"{install_info.app_name} - TDengine Analytics Node"
-    )
+    if args.lite:
+        install_info.product_name += "-lite"
+        install_info.app_name += " Lite"
+    install_info.product_full_name = f"{install_info.app_name} - TDengine Analytics Node"
 
-    install_info.source_dir = os.path.dirname(
-        os.path.dirname(os.path.abspath(__file__))
-    )
+    install_info.source_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     install_info.release_dir = args.output
     install_info.install_dir = os.path.join(install_info.release_dir, "install")
-    install_info.package_name = (
-        f"{install_info.product_name}-{args.version}-windows-x64"
-    )
+    install_info.package_name = f"{install_info.product_name}-{args.version}-windows-x64"
     install_info.model_dir = args.model_dir
     install_info.all_models = args.all_models
     install_info.iscc_path = args.iscc_path
     install_info.skip_model_check = args.skip_model_check
     install_info.python_runtime_dir = args.python_runtime_dir
-    install_info.resource_package_version = (
-        args.resource_package_version.strip() or DEFAULT_RESOURCE_PACKAGE_VERSION
-    )
+    install_info.bundle_python_runtime = args.bundle_python_runtime
+    install_info.lite = args.lite
+    install_info.resource_package_version = args.resource_package_version.strip() or DEFAULT_RESOURCE_PACKAGE_VERSION
     install_info.resource_package_url = (
         args.resource_package_url.strip()
         or build_default_resource_package_url(install_info.resource_package_version)
@@ -213,15 +178,11 @@ def print_params():
     logging.info(f"Package Name: {install_info.package_name}")
     logging.info(f"Model Directory: {install_info.model_dir}")
     logging.info(f"All Models: {install_info.all_models}")
-    logging.info(
-        f"Python Runtime Directory: {install_info.python_runtime_dir or '(auto)'}"
-    )
-    logging.info(
-        f"Resource Package Version: {install_info.resource_package_version or '(custom url)'}"
-    )
-    logging.info(
-        f"Resource Package URL: {install_info.resource_package_url or '(none)'}"
-    )
+    logging.info(f"Python Runtime Directory: {install_info.python_runtime_dir or '(auto)'}")
+    logging.info(f"Bundle Python Runtime: {install_info.bundle_python_runtime}")
+    logging.info(f"Lite: {install_info.lite}")
+    logging.info(f"Resource Package Version: {install_info.resource_package_version or '(custom url)'}")
+    logging.info(f"Resource Package URL: {install_info.resource_package_url or '(none)'}")
     logging.info("=" * 60)
 
 
@@ -251,7 +212,7 @@ def resolve_python_runtime_source():
 
 
 def copy_packaged_python_runtime():
-    """Copy the packaged Python runtime that the installer always carries."""
+    """Copy the packaged Python runtime into install/python/runtime."""
     source_runtime = resolve_python_runtime_source()
     runtime_dir = os.path.join(install_info.install_dir, "python", "runtime")
     os.makedirs(os.path.dirname(runtime_dir), exist_ok=True)
@@ -262,11 +223,9 @@ def copy_packaged_python_runtime():
     shutil.copytree(
         source_runtime,
         runtime_dir,
-        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
+        ignore=shutil.ignore_patterns('__pycache__', '*.pyc', '*.pyo')
     )
-    logging.info(
-        f"Copied packaged Python runtime from {source_runtime} to {runtime_dir}"
-    )
+    logging.info(f"Copied packaged Python runtime from {source_runtime} to {runtime_dir}")
 
 
 def clean_release_dir():
@@ -301,7 +260,7 @@ def copy_config_files():
         "package_name": install_info.package_name,
         "product_name": install_info.product_name,
         "version": tdgpt_version.version,
-        "resource_package_url": install_info.resource_package_url,
+        "resource_package_url": "" if install_info.lite else install_info.resource_package_url,
     }
     metadata_file = os.path.join(cfg_dir, "package-metadata.json")
     with open(metadata_file, "w", encoding="utf-8") as file_obj:
@@ -327,22 +286,17 @@ def copy_python_files():
         shutil.rmtree(dst_analytics)
 
     # Copy directory, excluding __pycache__ and .pyc files
-    shutil.copytree(
-        src_analytics,
-        dst_analytics,
-        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".git*"),
-    )
+    shutil.copytree(src_analytics, dst_analytics,
+                    ignore=shutil.ignore_patterns('__pycache__', '*.pyc', '.git*'))
     logging.info(f"Copied taosanalytics to {dst_analytics}")
 
     # Update version in __init__.py
     init_file = os.path.join(dst_analytics, "__init__.py")
     if os.path.exists(init_file):
-        with open(init_file, "r", encoding="utf-8") as f:
+        with open(init_file, 'r', encoding='utf-8') as f:
             content = f.read()
-        content = re.sub(
-            r"^__version__ = .*", f"__version__ = '{tdgpt_version.version}'", content
-        )
-        with open(init_file, "w", encoding="utf-8") as f:
+        content = re.sub(r"^__version__ = .*", f"__version__ = '{tdgpt_version.version}'", content)
+        with open(init_file, 'w', encoding='utf-8') as f:
             f.write(content)
         logging.info(f"Updated version to {tdgpt_version.version} in __init__.py")
 
@@ -373,7 +327,8 @@ def copy_requirements():
     os.makedirs(requirements_dir, exist_ok=True)
 
     copied = 0
-    for req_file in os.listdir(source_dir):
+    requirement_names = ["requirements_docker.txt"] if install_info.lite else os.listdir(source_dir)
+    for req_file in requirement_names:
         if req_file.startswith("requirements") and req_file.endswith(".txt"):
             src = os.path.join(source_dir, req_file)
             if os.path.isfile(src):
@@ -384,13 +339,13 @@ def copy_requirements():
     if copied == 0:
         logging.warning("No requirements*.txt files found to package")
 
-
 def copy_model_files():
     """Copy packaged model archives if model directory is specified."""
+    if install_info.lite:
+        logging.info("Lite installer does not include model files")
+        return
     if not install_info.model_dir or not os.path.exists(install_info.model_dir):
-        logging.info(
-            "No model directory specified or directory does not exist, skipping model files"
-        )
+        logging.info("No model directory specified or directory does not exist, skipping model files")
         return
 
     model_dir = os.path.join(install_info.install_dir, "model")
@@ -421,9 +376,7 @@ def copy_model_files():
 
 def resolve_taos_internal_path(*parts):
     """Resolve paths under the GitLab monorepo taos-internal checkout."""
-    return os.path.join(
-        install_info.source_dir, "..", "..", "..", "taos-internal", *parts
-    )
+    return os.path.join(install_info.source_dir, "..", "..", "..", "taos-internal", *parts)
 
 
 def copy_enterprise_files():
@@ -435,9 +388,7 @@ def copy_enterprise_files():
     enterprise_src = resolve_taos_internal_path(
         "source", "kit", "tools", "tdgpt", "taosanalytics", "misc"
     )
-    enterprise_dst = os.path.join(
-        install_info.install_dir, "lib", "taosanalytics", "misc"
-    )
+    enterprise_dst = os.path.join(install_info.install_dir, "lib", "taosanalytics", "misc")
 
     if os.path.exists(enterprise_src) and os.path.exists(enterprise_dst):
         for item in os.listdir(enterprise_src):
@@ -461,6 +412,24 @@ def copy_service_scripts():
     if os.path.exists(src_service):
         shutil.copy2(src_service, dst_service)
         logging.info("Copied taosanode_service.py")
+
+    src_manifest = os.path.join(source_script_dir, "resource_manifest.py")
+    dst_manifest = os.path.join(bin_dir, "resource_manifest.py")
+    if os.path.exists(src_manifest):
+        shutil.copy2(src_manifest, dst_manifest)
+        logging.info("Copied resource_manifest.py")
+
+    src_resource_manager = os.path.join(source_script_dir, "resource_manager.py")
+    dst_resource_manager = os.path.join(bin_dir, "resource_manager.py")
+    if os.path.exists(src_resource_manager):
+        shutil.copy2(src_resource_manager, dst_resource_manager)
+        logging.info("Copied resource_manager.py")
+
+    src_ctl = os.path.join(source_script_dir, "taosanodectl.py")
+    dst_ctl = os.path.join(bin_dir, "taosanodectl.py")
+    if os.path.exists(src_ctl):
+        shutil.copy2(src_ctl, dst_ctl)
+        logging.info("Copied taosanodectl.py")
 
     # Copy install.py (installation script)
     src_install = os.path.join(source_script_dir, "install.py")
@@ -507,13 +476,10 @@ if not exist "%PYTHON_EXE%" (
 
     # start-taosanode.bat
     start_bat = os.path.join(bin_dir, "start-taosanode.bat")
-    with open(start_bat, "w", encoding="utf-8") as f:
-        f.write(
-            """@echo off
+    with open(start_bat, 'w', encoding='utf-8') as f:
+        f.write("""@echo off
 chcp 65001 >nul
-"""
-            + python_guard
-            + """    echo Press Enter to close this window.
+""" + python_guard + """    echo Press Enter to close this window.
     pause >nul
     exit /b 1
 )
@@ -558,19 +524,15 @@ if not errorlevel 1 (
 echo Press Enter to close this window.
 pause >nul
 exit /b %TDGPT_EXIT_CODE%
-"""
-        )
+""")
     logging.info("Created start-taosanode.bat")
 
     # stop-taosanode.bat
     stop_bat = os.path.join(bin_dir, "stop-taosanode.bat")
-    with open(stop_bat, "w", encoding="utf-8") as f:
-        f.write(
-            """@echo off
+    with open(stop_bat, 'w', encoding='utf-8') as f:
+        f.write("""@echo off
 chcp 65001 >nul
-"""
-            + python_guard
-            + """    exit /b 1
+""" + python_guard + """    exit /b 1
 )
 sc query Taosanode >nul 2>&1
 if not errorlevel 1 (
@@ -579,19 +541,15 @@ if not errorlevel 1 (
     "%PYTHON_EXE%" "%~dp0taosanode_service.py" stop %*
 )
 exit /b %errorlevel%
-"""
-        )
+""")
     logging.info("Created stop-taosanode.bat")
 
     # status-taosanode.bat
     status_bat = os.path.join(bin_dir, "status-taosanode.bat")
-    with open(status_bat, "w", encoding="utf-8") as f:
-        f.write(
-            """@echo off
+    with open(status_bat, 'w', encoding='utf-8') as f:
+        f.write("""@echo off
 chcp 65001 >nul
-"""
-            + python_guard
-            + """    pause
+""" + python_guard + """    pause
     exit /b 1
 )
 sc query Taosanode >nul 2>&1
@@ -603,19 +561,15 @@ if not errorlevel 1 (
 "%PYTHON_EXE%" "%~dp0taosanode_service.py" status %*
 pause
 exit /b %errorlevel%
-"""
-        )
+""")
     logging.info("Created status-taosanode.bat")
 
     # start-model.bat
     start_model_bat = os.path.join(bin_dir, "start-model.bat")
-    with open(start_model_bat, "w", encoding="utf-8") as f:
-        f.write(
-            """@echo off
+    with open(start_model_bat, 'w', encoding='utf-8') as f:
+        f.write("""@echo off
 chcp 65001 >nul
-"""
-            + python_guard
-            + """    echo Press Enter to close this window.
+""" + python_guard + """    echo Press Enter to close this window.
     pause >nul
     exit /b 1
 )
@@ -647,19 +601,15 @@ echo Logs are written under ..\\log\\model_*.log
 echo Press Enter to close this window.
 pause >nul
 exit /b %TDGPT_EXIT_CODE%
-"""
-        )
+""")
     logging.info("Created start-model.bat")
 
     # stop-model.bat
     stop_model_bat = os.path.join(bin_dir, "stop-model.bat")
-    with open(stop_model_bat, "w", encoding="utf-8") as f:
-        f.write(
-            """@echo off
+    with open(stop_model_bat, 'w', encoding='utf-8') as f:
+        f.write("""@echo off
 chcp 65001 >nul
-"""
-            + python_guard
-            + """    exit /b 1
+""" + python_guard + """    exit /b 1
 )
 if "%~1"=="" (
     echo No model name specified. Defaulting to "all".
@@ -686,35 +636,45 @@ echo Stop command:   stop-model.bat [model_name^|all]
 echo Press Enter to close this window.
 pause >nul
 exit /b %TDGPT_EXIT_CODE%
-"""
-        )
+""")
     logging.info("Created stop-model.bat")
 
     # status-model.bat
     status_model_bat = os.path.join(bin_dir, "status-model.bat")
-    with open(status_model_bat, "w", encoding="utf-8") as f:
-        f.write(
-            """@echo off
+    with open(status_model_bat, 'w', encoding='utf-8') as f:
+        f.write("""@echo off
 chcp 65001 >nul
-"""
-            + python_guard
-            + """    pause
+""" + python_guard + """    pause
     exit /b 1
 )
 "%PYTHON_EXE%" "%~dp0taosanode_service.py" model-status %*
 pause
 exit /b %errorlevel%
-"""
-        )
+""")
     logging.info("Created status-model.bat")
+
+    ctl_bat = os.path.join(bin_dir, "taosanodectl.bat")
+    with open(ctl_bat, 'w', encoding='utf-8') as f:
+        f.write("""@echo off
+chcp 65001 >nul
+set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
+if not exist "%PYTHON_EXE%" (
+    echo ERROR: Main Python environment not found: %PYTHON_EXE%
+    exit /b 1
+)
+"%PYTHON_EXE%" "%~dp0taosanodectl.py" %*
+exit /b %errorlevel%
+""")
+    logging.info("Created taosanodectl.bat")
 
 
 def create_install_script():
     """Create install.bat for post-installation setup"""
     install_bat = os.path.join(install_info.install_dir, "install.bat")
     all_models_flag = "-a" if install_info.all_models else ""
+    lite_flag = "--lite" if install_info.lite else ""
 
-    with open(install_bat, "w", encoding="utf-8") as f:
+    with open(install_bat, 'w', encoding='utf-8') as f:
         f.write(f"""@echo off
 chcp 65001 >nul
 setlocal enabledelayedexpansion
@@ -728,29 +688,49 @@ set "PROGRESS_FILE=%TDGPT_PROGRESS_FILE%"
 set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 set "TDGPT_LOG_REDIRECTED=1"
+set "TDGPT_PYTHON_RUNTIME_DIR=%TDGPT_PYTHON_RUNTIME_DIR%"
 set "EXISTING_VENV_PYTHON=%INSTALL_DIR%\\venvs\\venv\\Scripts\\python.exe"
 set "PACKAGED_PYTHON=%INSTALL_DIR%\\python\\runtime\\python.exe"
 set "PYTHON_CMD="
+set "PYTHON_RUNTIME_DIR="
+
+call :parse_runtime_arg %*
+if not defined PYTHON_RUNTIME_DIR if defined TDGPT_PYTHON_RUNTIME_DIR set "PYTHON_RUNTIME_DIR=%TDGPT_PYTHON_RUNTIME_DIR%"
 
 call :append_progress running 1 "Initializing {install_info.app_name} setup" "Preparing installation environment"
-REM Priority 1: packaged runtime Python carried by the installer.
+REM Priority 1: external runtime explicitly provided by the caller.
+if defined PYTHON_RUNTIME_DIR (
+    set "TDGPT_PYTHON_RUNTIME_DIR=%PYTHON_RUNTIME_DIR%"
+    if not exist "%PYTHON_RUNTIME_DIR%\\python.exe" (
+        echo ERROR: The requested external Python runtime is invalid: %PYTHON_RUNTIME_DIR%\\python.exe
+        call :append_progress error 100 "Installation failed" "External Python runtime not found"
+        exit /b 1
+    )
+    call :try_python "%PYTHON_RUNTIME_DIR%\\python.exe"
+    if defined PYTHON_CMD goto :run_install
+    echo ERROR: The requested external Python runtime could not be executed: %PYTHON_RUNTIME_DIR%\\python.exe
+    call :append_progress error 100 "Installation failed" "External Python runtime is unusable"
+    exit /b 1
+)
+
+REM Priority 2: packaged runtime Python carried by the installer.
 if exist "%PACKAGED_PYTHON%" (
     call :try_python "%PACKAGED_PYTHON%"
     if defined PYTHON_CMD goto :run_install
 )
 
-REM Priority 2: existing venv Python from a previous install.
+REM Priority 3: existing venv Python from a previous install.
 if exist "%EXISTING_VENV_PYTHON%" (
     call :try_python "%EXISTING_VENV_PYTHON%"
     if defined PYTHON_CMD goto :run_install
 )
 
-REM Priority 3: system Python in PATH as a last-resort fallback.
+REM Priority 4: system Python in PATH as a last-resort fallback.
 call :resolve_python
 if defined PYTHON_CMD goto :run_install
 
 echo ERROR: No Python interpreter available.
-echo The installer did not find its bundled Python runtime under python\\runtime.
+echo The installer did not find a usable external runtime, bundled runtime, existing venv Python, or system Python.
 echo Rebuild or reinstall the package, or provide Python 3.10/3.11/3.12 in PATH as a fallback.
 call :append_progress error 100 "Installation failed" "No Python interpreter available"
 exit /b 1
@@ -763,9 +743,10 @@ exit /b 1
 >> "%LOG_FILE%" echo Command args: %*
 
 if "%PROGRESS_FILE%"=="" (
-    "%PYTHON_CMD%" "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {all_models_flag} %* >> "%LOG_FILE%" 2>&1
+    "%PYTHON_CMD%" "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {all_models_flag} {lite_flag} %* >> "%LOG_FILE%" 2>&1
 ) else (
-    "%PYTHON_CMD%" "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {all_models_flag} --progress-file "%PROGRESS_FILE%" %* >> "%LOG_FILE%" 2>&1
+    "%PYTHON_CMD%" "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {all_models_flag} {lite_flag} ^
+        --progress-file "%PROGRESS_FILE%" %* >> "%LOG_FILE%" 2>&1
 )
 
 if errorlevel 1 (
@@ -782,6 +763,15 @@ exit /b 0
 if "%PROGRESS_FILE%"=="" exit /b 0
 >> "%PROGRESS_FILE%" echo %~1^|%~2^|%~3^|%~4
 exit /b 0
+
+:parse_runtime_arg
+if "%~1"=="" exit /b 0
+if /I "%~1"=="--python-runtime-dir" (
+    set "PYTHON_RUNTIME_DIR=%~2"
+    exit /b 0
+)
+shift
+goto :parse_runtime_arg
 
 :ensure_error_progress
 if "%PROGRESS_FILE%"=="" exit /b 0
@@ -819,7 +809,7 @@ exit /b 0
 def create_uninstall_script():
     """Create uninstall.bat - called by Inno Setup during uninstallation"""
     uninstall_bat = os.path.join(install_info.install_dir, "uninstall.bat")
-    with open(uninstall_bat, "w", encoding="utf-8") as f:
+    with open(uninstall_bat, 'w', encoding='utf-8') as f:
         f.write(f"""@echo off
 chcp 65001 >nul
 
@@ -850,8 +840,9 @@ if exist "%PACKAGED_PYTHON%" (
 REM Check if uninstall.py exists
 if exist "%INSTALL_DIR%\\uninstall.py" (
     "%PYTHON_CMD%" "%INSTALL_DIR%\\uninstall.py" --log-file "%LOG_FILE%" >> "%LOG_FILE%" 2>&1
+    set "TDGPT_UNINSTALL_EXIT_CODE=%errorlevel%"
     >> "%LOG_FILE%" echo [%date% %time%] uninstall.py completed
-    exit /b 0
+    exit /b %TDGPT_UNINSTALL_EXIT_CODE%
 )
 
 REM Fallback: Stop services using taosanode_service.py
@@ -913,32 +904,30 @@ def create_iss_script():
     iss_path = os.path.join(install_info.release_dir, "tdgpt.iss")
 
     # Read template file
-    template_path = os.path.join(os.path.dirname(__file__), "installer", "tdgpt.iss")
-    with open(template_path, "r", encoding="utf-8") as f:
+    template_name = "tdgpt-lite.iss" if install_info.lite else "tdgpt.iss"
+    template_path = os.path.join(os.path.dirname(__file__), "installer", template_name)
+    with open(template_path, 'r', encoding='utf-8') as f:
         iss_content = f.read()
 
     # Pre-process paths for Windows (use forward slashes for ISS file)
-    install_dir_iss = install_info.install_dir.replace("\\", "/")
-    release_dir_iss = install_info.release_dir.replace("\\", "/")
+    install_dir_iss = install_info.install_dir.replace('\\', '/')
+    release_dir_iss = install_info.release_dir.replace('\\', '/')
 
     # Icon file path (relative to install_dir)
-    icon_file = install_dir_iss + "/favicon.ico"
+    icon_file = install_dir_iss + '/favicon.ico'
 
     # Replace placeholders
-    iss_content = iss_content.replace("{{VERSION}}", tdgpt_version.version)
-    iss_content = iss_content.replace("{{APP_NAME}}", install_info.app_name)
-    iss_content = iss_content.replace(
-        "{{PRODUCT_FULL_NAME}}", install_info.product_full_name
-    )
-    iss_content = iss_content.replace("{{PACKAGE_NAME}}", install_info.package_name)
-    iss_content = iss_content.replace("{{SOURCE_DIR}}", install_dir_iss)
-    iss_content = iss_content.replace("{{OUTPUT_DIR}}", release_dir_iss)
-    iss_content = iss_content.replace("{{ICON_FILE}}", icon_file)
-    iss_content = iss_content.replace(
-        "{{RESOURCE_PACKAGE_URL}}", install_info.resource_package_url
-    )
+    iss_content = iss_content.replace('{{VERSION}}', tdgpt_version.version)
+    iss_content = iss_content.replace('{{APP_NAME}}', install_info.app_name)
+    iss_content = iss_content.replace('{{PRODUCT_FULL_NAME}}', install_info.product_full_name)
+    iss_content = iss_content.replace('{{PACKAGE_NAME}}', install_info.package_name)
+    iss_content = iss_content.replace('{{SOURCE_DIR}}', install_dir_iss)
+    iss_content = iss_content.replace('{{OUTPUT_DIR}}', release_dir_iss)
+    iss_content = iss_content.replace('{{ICON_FILE}}', icon_file)
+    iss_content = iss_content.replace('{{RESOURCE_PACKAGE_URL}}', install_info.resource_package_url)
+    iss_content = iss_content.replace('{{LITE}}', '1' if install_info.lite else '0')
 
-    with open(iss_path, "w", encoding="utf-8") as f:
+    with open(iss_path, 'w', encoding='utf-8') as f:
         f.write(iss_content)
 
     logging.info(f"Created Inno Setup script: {iss_path}")
@@ -957,16 +946,12 @@ def build_installer(iss_path):
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         if result.returncode == 0:
             logging.info("Installer built successfully!")
-            installer_path = os.path.join(
-                install_info.release_dir, f"{install_info.package_name}.exe"
-            )
+            installer_path = os.path.join(install_info.release_dir, f"{install_info.package_name}.exe")
             if os.path.exists(installer_path):
                 logging.info(f"Installer created: {installer_path}")
                 return True
             else:
-                logging.warning(
-                    "Installer may have been created, but file not found at expected location"
-                )
+                logging.warning("Installer may have been created, but file not found at expected location")
                 return True
         else:
             logging.error("Failed to build installer:")
@@ -976,6 +961,7 @@ def build_installer(iss_path):
     except Exception as e:
         logging.error(f"Error building installer: {e}")
         return False
+
 
 
 def download_winsw():
@@ -994,13 +980,10 @@ def download_winsw():
         return True
 
     # Download from GitHub if not in cache
-    winsw_url = (
-        "https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW.NET461.exe"
-    )
+    winsw_url = "https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW.NET461.exe"
     try:
         logging.info(f"Downloading winsw from {winsw_url}")
         import urllib.request
-
         urllib.request.urlretrieve(winsw_url, winsw_dest)
         logging.info(f"Downloaded winsw to {winsw_dest}")
 
@@ -1021,15 +1004,13 @@ def create_winsw_config():
     os.makedirs(bin_dir, exist_ok=True)
 
     # Read template file
-    template_path = os.path.join(
-        os.path.dirname(__file__), "installer", "taosanode-service.xml"
-    )
-    with open(template_path, "r", encoding="utf-8") as f:
+    template_path = os.path.join(os.path.dirname(__file__), "installer", "taosanode-service.xml")
+    with open(template_path, 'r', encoding='utf-8') as f:
         config_content = f.read()
 
     # Write to destination
     config_path = os.path.join(bin_dir, f"{WINSW_BASENAME}.xml")
-    with open(config_path, "w", encoding="utf-8") as f:
+    with open(config_path, 'w', encoding='utf-8') as f:
         f.write(config_content)
     logging.info(f"Created winsw config: {config_path}")
 
@@ -1048,7 +1029,10 @@ def main():
     copy_python_files()
     copy_resource_files()
     copy_requirements()
-    copy_packaged_python_runtime()
+    if install_info.bundle_python_runtime:
+        copy_packaged_python_runtime()
+    else:
+        logging.info("Skipping bundled Python runtime; installer will expect --python-runtime-dir or a compatible Python in PATH.")
     copy_model_files()
     copy_enterprise_files()
     copy_service_scripts()  # New unified service scripts
@@ -1066,9 +1050,7 @@ def main():
         logging.warning("This is for TESTING ONLY - NOT for production!")
         logging.warning("=" * 60)
     else:
-        logging.info(
-            "Base installer does not require bundled runtime, venv, or model validation."
-        )
+        logging.info("Base installer does not require bundled runtime, venv, or model validation.")
 
     # Create Inno Setup script and build installer
     iss_path = create_iss_script()
@@ -1076,9 +1058,7 @@ def main():
     if build_installer(iss_path):
         logging.info("=" * 60)
         logging.info("Packaging completed successfully!")
-        logging.info(
-            f"Installer: {os.path.join(install_info.release_dir, install_info.package_name + '.exe')}"
-        )
+        logging.info(f"Installer: {os.path.join(install_info.release_dir, install_info.package_name + '.exe')}")
         logging.info("=" * 60)
         return 0
     else:

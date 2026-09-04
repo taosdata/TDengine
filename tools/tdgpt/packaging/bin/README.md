@@ -1,36 +1,38 @@
-# Packaging Binary Cache
+# 打包工具二进制缓存
 
-This directory stores local helper binaries used by the Windows packaging scripts.
+本目录保存 Windows 打包脚本使用的本地辅助工具。
 
-## Files
+## 文件
 
 - `WinSW.exe`
-  Used by `packaging/win_release.py` as the local WinSW cache.
+  供 `packaging/win_release.py` 作为本地 WinSW 缓存使用。
 - `uv.exe`
-  Used by `packaging/build_offline_assets.py` to install/download a Python runtime when `--python-runtime-dir` is not provided.
+  未传入 `--python-runtime-dir` 时，供 `packaging/build_offline_assets.py`
+  安装或下载 Python runtime。
 
-## WinSW Behavior
+## WinSW 行为
 
-During packaging:
+打包时按以下顺序处理：
 
-1. `win_release.py` first checks `packaging/bin/WinSW.exe`
-2. If the file exists, it is copied into the staged installer payload
-3. Inside the installer payload, it is renamed to `taosanode-winsw.exe`
-4. If the cache file does not exist, the script downloads WinSW from GitHub and stores it here for later reuse
+1. `win_release.py` 首先检查 `packaging/bin/WinSW.exe`。
+2. 如果文件存在，则将它复制到安装包 staging 目录。
+3. 在安装包 staging 内容中，将它重命名为 `taosanode-winsw.exe`。
+4. 如果缓存文件不存在，脚本会从 GitHub 下载 WinSW，并将下载结果保存到本目录，
+   供后续打包复用。
 
-Download source:
+下载来源：
 
 - [WinSW.NET461.exe](https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW.NET461.exe)
 
-## uv Behavior
+## `uv` 行为
 
-During offline asset packaging:
+构建离线资源时按以下顺序查找：
 
-1. `build_offline_assets.py` first checks `packaging/bin/uv.exe`
-2. If `--uv-exe` is provided, that path takes precedence
-3. If neither is available, the script falls back to `where uv`
+1. `build_offline_assets.py` 首先检查 `packaging/bin/uv.exe`。
+2. 如果传入 `--uv-exe`，则优先使用参数指定的路径。
+3. 如果两处都没有可用文件，则回退到 `where uv` 查找宿主机上的 `uv`。
 
-## Notes
+## 说明
 
-- These files are build-time helpers, not the final installed location on the target machine
-- Keeping them here avoids repeated external downloads or host tool lookups during packaging
+- 这些文件仅供构建阶段使用，不是目标机器上的最终安装位置。
+- 将辅助工具保存在本目录，可以避免每次打包时重复下载或查找宿主机工具。
