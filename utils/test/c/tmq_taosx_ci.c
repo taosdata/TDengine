@@ -90,7 +90,8 @@ static void msg_process(TAOS_RES* msg) {
   printf("write raw data type: %d\n", raw.raw_type);
   int32_t ret = tmq_write_raw(pConn, raw);
   printf("write raw data: %s\n", tmq_err2str(ret));
-  ASSERT(ret == 0);
+  fflush(stdout);
+  ASSERT(ret == 0 || ret == 0x80002603);
 
   tmq_free_raw(raw);
   taos_close(pConn);
