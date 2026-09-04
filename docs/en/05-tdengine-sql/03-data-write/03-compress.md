@@ -39,7 +39,7 @@ Available algorithms and defaults for each data type:
 | `BOOL` | `disabled` / `bit-packing` | `bit-packing` | `lz4` / `zlib` / `zstd` / `xz` | `zstd` | `medium` |
 | `DECIMAL` | `disabled` | `disabled` | `lz4` / `zlib` / `zstd` / `xz` | `zstd` | `medium` |
 
-`tsz` applies only to `FLOAT` and `DOUBLE`.
+Note: `tsz` applies only to `FLOAT` and `DOUBLE`. When `tsz` is set as the compression algorithm of a column, the encoding algorithm must be disabled, that is, set to `disabled`.
 
 ## SQL Syntax
 
