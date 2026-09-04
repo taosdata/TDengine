@@ -104,6 +104,7 @@ class TestStreamNotifyTrigger:
         Since: v3.3.3.7
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -140,9 +141,18 @@ class TestStreamNotifyTrigger:
 
         tdStream.checkAll(streams)      
         stop_notify_server_background()
+        for stream in streams:
+            tdSql.execute(f"drop database {stream.db} force")
 
     def test_stream_notify_where_filter(self):
-        """Notify WHERE filters result rows and suppresses empty notifications."""
+        """Notify WHERE filters result rows
+
+        Verify WHERE filters retain matching rows and suppress notifications
+        when no result rows match.
+
+        Since: v3.4.2.0
+
+        """
 
         self.start_notify_server()
         try:
