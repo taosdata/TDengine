@@ -102,11 +102,15 @@ SWords shellCommands[] = {
     {"create index <anyword> on <stb_name> ()", 0, 0, NULL},
     {"create mnode on dnode <dnode_id>;", 0, 0, NULL},
     {"create qnode on dnode <dnode_id>;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"create bnode on dnode <dnode_id>;", 0, 0, NULL},
+#endif
     {"create anode <anyword>", 0, 0, NULL},
     {"create stream <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql
     {"create topic <anyword> as select", 0, 0, NULL},                  // 27 append sub sql
+#ifdef TD_ENTERPRISE
     {"create rsma <anyword> on <all_table> function interval <anyword>", 0, 0, NULL},
+#endif
     {"create tsma <anyword> on <all_table> function", 0, 0, NULL},
     {"create recursive tsma <anyword> on <tsma_name> interval(", 0, 0, NULL},
     {"create function <anyword> as <anyword> outputtype <data_types> language <udf_language>;", 0, 0, NULL},
@@ -137,7 +141,9 @@ SWords shellCommands[] = {
     {"drop dnode <dnode_id>;", 0, 0, NULL},
     {"drop mnode on dnode <dnode_id>;", 0, 0, NULL},
     {"drop qnode on dnode <dnode_id>;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"drop bnode on dnode <dnode_id>;", 0, 0, NULL},
+#endif
     {"drop anode <anode_id>;", 0, 0, NULL},
     {"drop user <user_name>;", 0, 0, NULL},
     // 40
@@ -146,13 +152,17 @@ SWords shellCommands[] = {
     {"drop topic <topic_name>;", 0, 0, NULL},
     {"drop stream <stream_name>;", 0, 0, NULL},
     {"drop tsma <tsma_name>;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"drop rsma <rsma_name>;", 0, 0, NULL},
+#endif
     {"explain select ", 0, 0, NULL},  // 44 append sub sql
     {"flush database <db_name>;", 0, 0, NULL},
     {"help;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"grant all on <anyword> to <user_name>;", 0, 0, NULL},
     {"grant read on <anyword> to <user_name>;", 0, 0, NULL},
     {"grant write on <anyword> to <user_name>;", 0, 0, NULL},
+#endif
     {"kill connection <anyword>;", 0, 0, NULL},
     {"kill retention ", 0, 0, NULL},
     {"kill query ", 0, 0, NULL},
@@ -169,6 +179,7 @@ SWords shellCommands[] = {
 #endif
     {"resume stream <stream_name>;", 0, 0, NULL},
     {"reset query cache;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"restore dnode <dnode_id>;", 0, 0, NULL},
     {"restore vnode on dnode <dnode_id>;", 0, 0, NULL},
     {"restore mnode on dnode <dnode_id>;", 0, 0, NULL},
@@ -178,6 +189,7 @@ SWords shellCommands[] = {
     {"revoke write on <anyword> from <user_name>;", 0, 0, NULL},
     {"rollup database <db_name>;", 0, 0, NULL},
     {"rollup database <db_name> vgroups in( <anyword>", 0, 0, NULL},
+#endif
     {"select * from <all_table>", 0, 0, NULL},
     {"select client_version();", 0, 0, NULL},
     // 60
@@ -219,10 +231,14 @@ SWords shellCommands[] = {
     // 80
     {"show query <anyword> ;", 0, 0, NULL},
     {"show qnodes;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"show bnodes;", 0, 0, NULL},
+#endif
     {"show retentions;", 0, 0, NULL},
     {"show retention <retention_id>;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"show security_policies;", 0, 0, NULL},
+#endif
     {"show stables;", 0, 0, NULL},
     {"show stables like ", 0, 0, NULL},
     {"show streams;", 0, 0, NULL},
@@ -242,14 +258,18 @@ SWords shellCommands[] = {
     {"show transaction orphans;", 0, 0, NULL},
     {"show indexes from <stb_name>;", 0, 0, NULL},
     {"show tsmas;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"show rsmas;", 0, 0, NULL},
     {"show roles;", 0, 0, NULL},
     {"show role privileges;", 0, 0, NULL},
     {"show role column privileges;", 0, 0, NULL},
+#endif
     {"show users;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"show users full;", 0, 0, NULL},
     {"show user privileges;", 0, 0, NULL},
     {"show user column privileges;", 0, 0, NULL},
+#endif
     {"show variables;", 0, 0, NULL},
     {"show local variables;", 0, 0, NULL},
     {"show vnodes;", 0, 0, NULL},
@@ -257,10 +277,10 @@ SWords shellCommands[] = {
     {"show vgroups;", 0, 0, NULL},
     {"show vtables;", 0, 0, NULL},
     {"show consumers;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"show grants;", 0, 0, NULL},
     {"show grants full;", 0, 0, NULL},
     {"show grants logs;", 0, 0, NULL},
-#ifdef TD_ENTERPRISE
     {"show views;", 0, 0, NULL},
     {"show arbgroups;", 0, 0, NULL},
     {"split vgroup <vgroup_id>;", 0, 0, NULL},
@@ -671,7 +691,6 @@ void showHelp() {
     create index <index_name> on <stb_name> (tag_column_name);\n\
     create mnode on dnode <dnode_id> ;\n\
     create qnode on dnode <dnode_id> ;\n\
-    create bnode on dnode <dnode_id> ;\n\
     create anode \"node_url\" ;\n\
     create stream <stream_name> into <stb_name> as select ...\n\
     create topic <topic_name> as select ...\n\
@@ -686,7 +705,6 @@ void showHelp() {
     drop dnode <dnode_id>;\n\
     drop mnode on dnode <dnode_id> ;\n\
     drop qnode on dnode <dnode_id> ;\n\
-    drop bnode on dnode <dnode_id> ;\n\
     drop anode <anode_id> ;\n\
     drop user <user_name> ;\n\
     drop function <udf_name>;\n\
@@ -695,7 +713,6 @@ void showHelp() {
     drop stream <stream_name> ;\n\
     drop index <index_name>;\n\
     drop tsma <tsma_name> ;\n\
-    drop rsma <rsma_name> ;\n\
   ----- E ----- \n\
     explain select clause ...\n\
   ----- F ----- \n\
@@ -705,10 +722,6 @@ void showHelp() {
   ----- I ----- \n\
     insert into <tb_name> values(...) ;\n\
     insert into <tb_name> using <stb_name> tags(...) values(...) ;\n\
-  ----- G ----- \n\
-    grant all   on <priv_level> to <user_name> ;\n\
-    grant read  on <priv_level> to <user_name> ;\n\
-    grant write on <priv_level> to <user_name> ;\n\
   ----- K ----- \n\
     kill connection <connection_id>; \n\
     kill query <query_id>; \n\
@@ -719,13 +732,6 @@ void showHelp() {
   ----- R ----- \n\
     resume stream <stream_name>;\n\
     reset query cache;\n\
-    restore dnode <dnode_id> ;\n\
-    restore vnode on dnode <dnode_id> ;\n\
-    restore mnode on dnode <dnode_id> ;\n\
-    restore qnode on dnode <dnode_id> ;\n\
-    revoke all   on <priv_level> from <user_name> ;\n\
-    revoke read  on <priv_level> from <user_name> ;\n\
-    revoke write on <priv_level> from <user_name> ;\n\
   ----- S ----- \n\
     select * from <all_table> where ... \n\
     select client_version();\n\
@@ -762,12 +768,10 @@ void showHelp() {
     show queries;\n\
     show query <query_id> ;\n\
     show qnodes;\n\
-    show bnodes;\n\
     show retentions;\n\
     show retention <retention_id>;\n\
     show scans;\n\
     show scan <scan_id>;\n\
-    show security_policies;\n\
     show snodes;\n\
     show stables;\n\
     show stables like \n\
@@ -785,14 +789,7 @@ void showHelp() {
     show transaction logs;\n\
     show transaction orphans;\n\
     show tsmas;\n\
-    show rsmas;\n\
-    show roles;\n\
-    show role privileges;\n\
-    show role column privileges;\n\
     show users;\n\
-    show users full;\n\
-    show user privileges;\n\
-    show user column privileges;\n\
     show variables;\n\
     show local variables;\n\
     show indexes from <stb_name>;\n\
@@ -801,9 +798,6 @@ void showHelp() {
     show vgroups;\n\
     show vtables;\n\
     show consumers;\n\
-    show grants;\n\
-    show grants full;\n\
-    show grants logs;\n\
   ----- T ----- \n\
     trim database <db_name>;\n\
   ----- U ----- \n\
@@ -820,24 +814,52 @@ void showHelp() {
     balance vgroup leader on <vgroup_id> \n\
     compact database <db_name>; \n\
     compact vgroups in (vgroupId,vgroupId, ...); \n\
-    create view <view_name> as select ...\n\
+    create bnode on dnode <dnode_id> ;\n\
     create mount <mount_name> on dnode <dnode_id> from <path>;\n\
+    create rsma <rsma_name> on <table_name> function ... ;\n\
     create token <token_name> from user <user_name> [token options];\n\
     create totp_secret for user <user_name>;\n\
+    create view <view_name> as select ...\n\
+    drop bnode on dnode <dnode_id> ;\n\
     drop mount <mount_name>;\n\
+    drop rsma <rsma_name> ;\n\
     drop token <token_name>;\n\
     drop totp_secret from user <user_name>;\n\
+    grant all   on <priv_level> to <user_name> ;\n\
+    grant read  on <priv_level> to <user_name> ;\n\
+    grant write on <priv_level> to <user_name> ;\n\
     redistribute vgroup <vgroup_id> dnode <dnode_id> ;\n\
-    split vgroup <vgroup_id>;\n\
-    ssmigrate database <db_name>;\n\
+    restore dnode <dnode_id> ;\n\
+    restore mnode on dnode <dnode_id> ;\n\
+    restore qnode on dnode <dnode_id> ;\n\
+    restore vnode on dnode <dnode_id> ;\n\
+    revoke all   on <priv_level> from <user_name> ;\n\
+    revoke read  on <priv_level> from <user_name> ;\n\
+    revoke write on <priv_level> from <user_name> ;\n\
+    rollup database <db_name>;\n\
+    rollup database <db_name> vgroups in (...);\n\
     show arbgroups;\n\
-    show compacts;\n\
+    show bnodes;\n\
     show compact \n\
-    show tokens;\n\
-    show ssmigrates;\n\
+    show compacts;\n\
+    show create view <all_table>;\n\
+    show grants;\n\
+    show grants full;\n\
+    show grants logs;\n\
     show mounts;\n\
+    show role column privileges;\n\
+    show role privileges;\n\
+    show roles;\n\
+    show rsmas;\n\
+    show security_policies;\n\
+    show ssmigrates;\n\
+    show tokens;\n\
+    show user column privileges;\n\
+    show user privileges;\n\
+    show users full;\n\
     show views;\n\
-    show create view <all_table>;");
+    split vgroup <vgroup_id>;\n\
+    ssmigrate database <db_name>;");
     
 #endif
 
