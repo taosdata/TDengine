@@ -202,6 +202,7 @@ typedef struct SQWTaskCtx {
   bool    queryEnd;
   bool    queryContinue;
   bool    queryExecDone;
+  bool    delayFreeTask;
   bool    queryInQueue;
   bool    explainRsped;
   bool    sinkWithMemPool;
@@ -581,6 +582,7 @@ void    qwClearExpiredSch(SQWorker *mgmt, SArray *pExpiredSch);
 int32_t qwAcquireScheduler(SQWorker *mgmt, uint64_t clientId, int32_t rwType, SQWSchStatus **sch);
 void    qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
 int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
+int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool processOneBlock);
 
 void    qwDbgDumpJobsInfo(void);
 void    qwDbgDumpMgmtInfo(SQWorker *mgmt);
