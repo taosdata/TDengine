@@ -18968,11 +18968,23 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calB
     tstrncpy(field.name, pCol->colName, TSDB_COL_NAME_LEN);
     if (pCol->pOptions) {
       SColumnOptions* pOpt = (SColumnOptions*)pCol->pOptions;
-      code = setColCompressByOption(pCol->dataType.type, columnEncodeVal(pOpt->encode),
-                                    columnCompressVal(pOpt->compress), columnLevelVal(pOpt->compressLevel), false,
-                                    &field.compress);
-      if (code != TSDB_CODE_SUCCESS) {
-        break;
+      uint8_t  type = pCol->dataType.type;
+      uint16_t l2   = columnCompressVal(pOpt->compress);
+      if (l2 == TSDB_COLVAL_COMPRESS_TSZ) {
+        // TSZ(SZ lossy) never carries an L1 encode: normalize/validate through
+        // setColCompressByOption (encode forced to DISABLED, invalid encode rejected).
+        code = setColCompressByOption(type, columnEncodeVal(pOpt->encode), l2,
+                                      columnLevelVal(pOpt->compressLevel), false, &field.compress);
+        if (code != TSDB_CODE_SUCCESS) {
+          break;
+        }
+      } else {
+        // Keep main's original bit-by-bit behavior for non-TSZ columns so that an
+        // explicit compress option without a LEVEL keeps the parser-defaulted level
+        // (e.g. `compress 'disabled'` stores the default level, not LEVEL_DISABLED).
+        setColEncode(&field.compress, columnEncodeVal(pOpt->encode));
+        setColCompress(&field.compress, l2);
+        setColLevel(&field.compress, columnLevelVal(pOpt->compressLevel));
       }
     }
     if (pCol->sma) {
