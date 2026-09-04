@@ -814,7 +814,7 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
                   TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, i, pCmpr->id, pSchema->colId, version);
         TAOS_RETURN(TSDB_CODE_INVALID_MSG);
       }
-      code = validColCmprByType(pSchema->type, pCmpr->alg);
+      code = validAndNormalizeColCmprByType(pSchema->type, &pCmpr->alg);
       if (code != TSDB_CODE_SUCCESS) {
         metaError("vgId:%d, %s failed at %s:%d since %s, col:%s version:%" PRId64,
                   TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
@@ -2794,7 +2794,8 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
     if (TSDB_ALTER_TABLE_ADD_COLUMN == pReq->action) {
       compress = createDefaultColCmprByType(pColumn->type);
     } else {
-      code = validColCmprByType(pColumn->type, pReq->compress);
+      compress = pReq->compress;
+      code = validAndNormalizeColCmprByType(pColumn->type, &compress);
       if (code != TSDB_CODE_SUCCESS) {
         metaError("vgId:%d, %s failed at %s:%d since %s, col:%s version:%" PRId64,
                   TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
@@ -2802,7 +2803,6 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
         metaFetchEntryFree(&pEntry);
         TAOS_RETURN(code);
       }
-      compress = pReq->compress;
     }
     code = updataTableColCmpr(&pEntry->colCmpr, pColumn, 1, compress);
     if (code) {
@@ -5084,10 +5084,11 @@ int32_t metaUpdateTableColCompress2(SMeta *pMeta, int64_t version, SVAlterTbReq 
     if (p->id == pReq->colId) {
       // validate the new compress algorithm
       bool foundInSchema = false;
+      uint32_t newCompress = pReq->compress;
       for (int32_t j = 0; j < pSchemaWrapper->nCols; j++) {
         if (pSchemaWrapper->pSchema[j].colId == pReq->colId) {
           foundInSchema = true;
-          code = validColCmprByType(pSchemaWrapper->pSchema[j].type, pReq->compress);
+          code = validAndNormalizeColCmprByType(pSchemaWrapper->pSchema[j].type, &newCompress);
           if (code != TSDB_CODE_SUCCESS) {
             metaError("vgId:%d, %s failed at %s:%d since %s, colId:%d version:%" PRId64,
                       TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
@@ -5105,7 +5106,7 @@ int32_t metaUpdateTableColCompress2(SMeta *pMeta, int64_t version, SVAlterTbReq 
         TAOS_RETURN(TSDB_CODE_VND_COL_NOT_EXISTS);
       }
       uint32_t dst = 0;
-      updated = tUpdateCompress(p->alg, pReq->compress, TSDB_COLVAL_COMPRESS_DISABLED, TSDB_COLVAL_LEVEL_DISABLED,
+      updated = tUpdateCompress(p->alg, newCompress, TSDB_COLVAL_COMPRESS_DISABLED, TSDB_COLVAL_LEVEL_DISABLED,
                                 TSDB_COLVAL_LEVEL_MEDIUM, &dst);
       if (updated > 0) {
         p->alg = dst;

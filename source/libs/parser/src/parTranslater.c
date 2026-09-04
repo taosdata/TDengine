@@ -18967,9 +18967,25 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calB
     field.typeMod = calcTypeMod(&pCol->dataType);
     tstrncpy(field.name, pCol->colName, TSDB_COL_NAME_LEN);
     if (pCol->pOptions) {
-      setColEncode(&field.compress, columnEncodeVal(((SColumnOptions*)pCol->pOptions)->encode));
-      setColCompress(&field.compress, columnCompressVal(((SColumnOptions*)pCol->pOptions)->compress));
-      setColLevel(&field.compress, columnLevelVal(((SColumnOptions*)pCol->pOptions)->compressLevel));
+      SColumnOptions* pOpt = (SColumnOptions*)pCol->pOptions;
+      uint8_t  type = pCol->dataType.type;
+      uint16_t l2   = columnCompressVal(pOpt->compress);
+      if (l2 == TSDB_COLVAL_COMPRESS_TSZ) {
+        // TSZ(SZ lossy) never carries an L1 encode: normalize/validate through
+        // setColCompressByOption (encode forced to DISABLED, invalid encode rejected).
+        code = setColCompressByOption(type, columnEncodeVal(pOpt->encode), l2,
+                                      columnLevelVal(pOpt->compressLevel), false, &field.compress);
+        if (code != TSDB_CODE_SUCCESS) {
+          break;
+        }
+      } else {
+        // Keep main's original bit-by-bit behavior for non-TSZ columns so that an
+        // explicit compress option without a LEVEL keeps the parser-defaulted level
+        // (e.g. `compress 'disabled'` stores the default level, not LEVEL_DISABLED).
+        setColEncode(&field.compress, columnEncodeVal(pOpt->encode));
+        setColCompress(&field.compress, l2);
+        setColLevel(&field.compress, columnLevelVal(pOpt->compressLevel));
+      }
     }
     if (pCol->sma) {
       field.flags |= COL_SMA_ON;
@@ -34932,6 +34948,9 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
       int8_t code = setColCompressByOption(pReq->type, columnEncodeVal(pStmt->pColOptions->encode),
                                            columnCompressVal(pStmt->pColOptions->compress),
                                            columnLevelVal(pStmt->pColOptions->compressLevel), true, &pReq->compress);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
   }
 

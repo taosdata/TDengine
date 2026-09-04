@@ -171,7 +171,7 @@ class TestQueryBugs:
             "create database ctg_tsdb cachemodel 'both' stt_trigger 1;",
             "use ctg_tsdb;",
             "CREATE STABLE `stb_sxny_cn` (`dt` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', \
-                `val` DOUBLE ENCODE 'delta-d' COMPRESS 'tsz' LEVEL 'medium') TAGS (`point` VARCHAR(50),  \
+                `val` DOUBLE COMPRESS 'tsz' LEVEL 'medium') TAGS (`point` VARCHAR(50),  \
                 `point_name` VARCHAR(64), `point_path` VARCHAR(2000), `index_name` VARCHAR(64),          \
                 `country_equipment_code` VARCHAR(64), `index_code` VARCHAR(64), `ps_code` VARCHAR(50),   \
                 `cnstationno` VARCHAR(255), `index_level` VARCHAR(10), `cz_flag` VARCHAR(255),           \
@@ -934,6 +934,7 @@ class TestQueryBugs:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
