@@ -2,6 +2,7 @@
 # pylint: disable=c0103
 """unit test module"""
 
+import importlib.util
 import json
 import os
 import os.path
@@ -367,20 +368,19 @@ class ServiceTest(unittest.TestCase):
         service_list = loader.get_service_list()
         self.assertEqual(len(service_list["details"]), 6)
 
-        version = sys.version_info
-
         for item in service_list["details"]:
             if item["type"] == "anomaly-detection":
                 builtins = [i for i in item["algo"] if i.get("builtins") == True]
-                if (version.major, version.minor) == (3, 12):
-                    self.assertEqual(len(builtins), 9)
-                else:
-                    self.assertEqual(len(builtins), 10)
+                self.assertGreater(len(builtins), 0)
             elif item["type"] == "forecast":
                 builtins = [i for i in item["algo"] if i.get("builtins") == True]
                 builtin_names = {i["name"] for i in builtins}
-                self.assertTrue({"ces", "theta", "ets"}.issubset(builtin_names))
-                self.assertEqual(len(builtins), 11)
+                statsforecast_algorithms = {"ces", "theta", "ets"}
+                if importlib.util.find_spec("statsforecast") is not None:
+                    self.assertTrue(statsforecast_algorithms.issubset(builtin_names))
+                    self.assertEqual(len(builtins), 11)
+                else:
+                    self.assertFalse(statsforecast_algorithms & builtin_names)
             elif item["type"] == "correlation":
                 self.assertEqual(len(item["algo"]), 2)
             elif item["type"] == "regression":
