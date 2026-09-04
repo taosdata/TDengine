@@ -75,6 +75,8 @@ resolve_config() {
 resolve_python() {
   local candidate
   for candidate in \
+    "${INSTALL_DIR}/data/venv/bin/python3" \
+    "${INSTALL_DIR}/data/venv/bin/python" \
     "${INSTALL_DIR}/venv/bin/python3" \
     "${INSTALL_DIR}/venv/bin/python"
   do
@@ -97,7 +99,7 @@ main() {
 
   local python_cmd
   python_cmd=$(resolve_python) || {
-    echo "ERROR: Main Python environment not found under ${INSTALL_DIR}/venv/bin/." >&2
+    echo "ERROR: Main Python environment not found under ${INSTALL_DIR}/data/venv/bin or ${INSTALL_DIR}/venv/bin." >&2
     echo "Run install.sh again to recreate the TDgpt environment." >&2
     exit 1
   }
