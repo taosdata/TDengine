@@ -335,7 +335,7 @@ SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart
 SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,
                                 SNode* pEnd, bool metaOnly, bool force);
 SNode* createBackupStmt(SAstCreateContext* pCxt, bool isFull, SToken* pDnodeId, SToken* pBackupRoot,
-                        SToken* pBackupChainId, SToken* pDbName, SToken* pPassword);
+                        SToken* pBackupChainId, SToken* pDbName, SToken* pPassword, int32_t parallel);
 SNode* createDefaultTableOptions(SAstCreateContext* pCxt);
 SNode* createAlterTableOptions(SAstCreateContext* pCxt);
 SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, void* pVal);

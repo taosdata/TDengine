@@ -50,19 +50,23 @@ class BackupRestoreTestBase:
     # backup lifecycle
     # ------------------------------------------------------------------
 
-    def _start_backup(self, tag, password=None):
+    def _start_backup(self, tag, password=None, parallel=None):
         """Take a full backup on backup_dnode and return the chain directory.
 
         The backup lands at <dir>/<chainId>/<backupId>/ where <dir> is the
         value of the TO clause; the restore tool expects the chain directory
         (<dir>/<chainId>) as its --restore argument.
+
+        When parallel is not None, appends " PARALLEL <n>" to the statement to
+        exercise the vgroup backup parallelism (1 = serial, >1 = parallel).
         """
         backup_dir = os.path.join(self.backup_root, tag)
         os.makedirs(self.backup_root, exist_ok=True)
         tdSql.query("SHOW BACKUPS")
         baseline = max((tdSql.getData(r, 0) for r in range(tdSql.queryRows)), default=0)
         pwd_sql = f" WITH PASSWORD '{password}'" if password else ""
-        tdSql.execute(f"CREATE FULL BACKUP ON DNODE {self.backup_dnode} TO '{backup_dir}'{pwd_sql}")
+        parallel_sql = f" PARALLEL {parallel}" if parallel is not None else ""
+        tdSql.execute(f"CREATE FULL BACKUP ON DNODE {self.backup_dnode} TO '{backup_dir}'{pwd_sql}{parallel_sql}")
         backup_id = self._wait_backup_record(baseline)
         self._wait_backup_done(backup_id)
         # chain id == backup id for a full backup; take the latest record
@@ -73,7 +77,7 @@ class BackupRestoreTestBase:
             bid = tdSql.getData(r, 0)
             if bid > max_id:
                 max_id = bid
-                total_size = tdSql.getData(r, 7)  # total_size column
+                total_size = tdSql.getData(r, 6)  # size column
         if max_id == 0:
             tdLog.exit("no backup record found after CREATE FULL BACKUP")
         tdLog.info(f"backup total_size: {total_size} bytes "
@@ -194,11 +198,14 @@ class BackupRestoreTestBase:
 
         self._stop_all_taosd()
 
-    def _restore(self, dnode_id, chain_path, password=None, confirmations=("YES",)):
+    def _restore(self, dnode_id, chain_path, password=None, confirmations=("YES",), parallel=None):
         """Run taosd --restore on one dnode, feeding the confirmation lines.
 
         The restore tool may prompt for two confirmations: the incompatible-
         version warning and the destructive data-clear warning.
+
+        When parallel is not None, appends "--parallel <n>" to restore the
+        local vnodes concurrently (1 = serial, >1 = parallel).
 
         Returns (exit_code, output).
         """
@@ -206,6 +213,8 @@ class BackupRestoreTestBase:
         args = [self._taosd_path(), "-c", cfg, "--restore", chain_path]
         if password:
             args += ["--password", password]
+        if parallel is not None:
+            args += ["--parallel", str(parallel)]
         confirm_str = "\n".join(confirmations) + "\n"
         tdLog.info(f"restore dnode{dnode_id} cmd: " + " ".join(args) + f" | stdin={confirmations}")
         proc = subprocess.run(args, input=confirm_str, capture_output=True, text=True, timeout=300)
@@ -215,10 +224,10 @@ class BackupRestoreTestBase:
             tdLog.info(f"restore dnode{dnode_id} stderr: {proc.stderr[-2000:]}")
         return proc.returncode, proc.stdout
 
-    def _restore_all(self, chain_path, password=None, confirmations=("YES",)):
+    def _restore_all(self, chain_path, password=None, confirmations=("YES",), parallel=None):
         """Run taosd --restore on every dnode. dnode 1 also restores the mnode."""
         for i in range(1, self.dnode_nums + 1):
-            code, out = self._restore(i, chain_path, password, confirmations)
+            code, out = self._restore(i, chain_path, password, confirmations, parallel)
             if code != 0:
                 tdLog.exit(f"restore dnode{i} from {chain_path} failed with exit code {code}: {out[-500:]}")
         tdLog.info("all dnodes restored")

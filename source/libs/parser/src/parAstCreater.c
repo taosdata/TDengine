@@ -3698,9 +3698,18 @@ _err:
 }
 
 SNode* createBackupStmt(SAstCreateContext* pCxt, bool isFull, SToken* pDnodeId, SToken* pBackupRoot,
-                        SToken* pBackupChainId, SToken* pDbName, SToken* pPassword) {
+                        SToken* pBackupChainId, SToken* pDbName, SToken* pPassword, int32_t parallel) {
   SCreateBackupStmt* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
+  // parallel_opt defaults to 0; for backup, 0 means the statement default of
+  // 1 (fully serial). Negative values are rejected.
+  if (parallel < 0) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_SMALL);
+    goto _err;
+  }
+  if (parallel == 0) {
+    parallel = 1;
+  }
   if (NULL != pDbName) {
     CHECK_NAME(checkDbName(pCxt, pDbName, false));
   }
@@ -3728,6 +3737,7 @@ SNode* createBackupStmt(SAstCreateContext* pCxt, bool isFull, SToken* pDnodeId, 
   if (pPassword != NULL && pPassword->z != NULL) {
     COPY_STRING_FORM_STR_TOKEN(pStmt->password, pPassword);
   }
+  pStmt->parallel = parallel;
   return (SNode*)pStmt;
 _err:
   return NULL;

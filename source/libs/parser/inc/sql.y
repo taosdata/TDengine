@@ -810,13 +810,14 @@ cmd ::= ALTER DNODE NK_INTEGER(A) NK_STRING(B) NK_STRING(C).                    
 cmd ::= ALTER DNODES RELOAD general_name(A).                                      { pCxt->pRootNode = createAlterAllDnodeTLSStmt(pCxt, &A);}
 cmd ::= ALTER ALL DNODES NK_STRING(A).                                            { pCxt->pRootNode = createAlterDnodeStmt(pCxt, NULL, &A, NULL); }
 cmd ::= ALTER ALL DNODES NK_STRING(A) NK_STRING(B).                               { pCxt->pRootNode = createAlterDnodeStmt(pCxt, NULL, &A, &B); }
-cmd ::= RESTORE DNODE NK_INTEGER(A) restore_parallel_opt(P).                     { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_DNODE_STMT, &A, P); }
+cmd ::= RESTORE DNODE NK_INTEGER(A) parallel_opt(P).                              { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_DNODE_STMT, &A, P); }
 
-// restore_parallel_opt: optional PARALLEL <n> argument, controls the upper limit on the number of vnodes restored in parallel. 0 = no limit.
-%type restore_parallel_opt                                                        { int32_t }
-%destructor restore_parallel_opt                                                  { }
-restore_parallel_opt(A) ::= .                                                     { A = 0; }
-restore_parallel_opt(A) ::= PARALLEL NK_INTEGER(B).                               { A = taosStr2Int32(B.z, NULL, 10); }
+// optional PARALLEL <n> argument, controls the upper limit of the number of parallel vnodes in restored or backup
+// but the default value differs in restore and backup, for restore, 0 = no limit, while for backup, 0 = 1.
+%type parallel_opt                                                                { int32_t }
+%destructor parallel_opt                                                          { }
+parallel_opt(A) ::= .                                                             { A = 0; }
+parallel_opt(A) ::= PARALLEL NK_INTEGER(B).                                       { A = taosStr2Int32(B.z, NULL, 10); }
 
 %type dnode_endpoint                                                              { SToken }
 %destructor dnode_endpoint                                                        { }
@@ -876,15 +877,15 @@ cmd ::= DROP MNODE ON DNODE NK_INTEGER(A).                                      
 cmd ::= RESTORE MNODE ON DNODE NK_INTEGER(A).                                     { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_MNODE_STMT, &A, 0); }
 
 /************************************************ restore vnode ***************************************************/
-cmd ::= RESTORE VNODE ON DNODE NK_INTEGER(A) restore_parallel_opt(P).             { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_VNODE_STMT, &A, P); }
-cmd ::= RESTORE VNODE ON DNODE NK_INTEGER(A) ON VGROUP NK_INTEGER(B).                                     { pCxt->pRootNode = createRestoreComponentNodeStmtWithVgId(pCxt, QUERY_NODE_RESTORE_VNODE_STMT, &A, &B); }
+cmd ::= RESTORE VNODE ON DNODE NK_INTEGER(A) parallel_opt(P).                     { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_VNODE_STMT, &A, P); }
+cmd ::= RESTORE VNODE ON DNODE NK_INTEGER(A) ON VGROUP NK_INTEGER(B).             { pCxt->pRootNode = createRestoreComponentNodeStmtWithVgId(pCxt, QUERY_NODE_RESTORE_VNODE_STMT, &A, &B); }
 
 /************************************************ create/drop/use database ********************************************/
 cmd ::= CREATE DATABASE not_exists_opt(A) db_name(B) db_options(C).               { pCxt->pRootNode = createCreateDatabaseStmt(pCxt, A, &B, C); }
 cmd ::= DROP DATABASE exists_opt(A) db_name(B) force_opt(C).                      { pCxt->pRootNode = createDropDatabaseStmt(pCxt, A, &B, C); }
 cmd ::= USE db_name(A).                                                           { pCxt->pRootNode = createUseDatabaseStmt(pCxt, &A); }
-cmd ::= USE db_name(A) NK_DOT db_name(B).                                        { pCxt->pRootNode = createUseExtSourceStmt(pCxt, &A, &B, NULL); }
-cmd ::= USE db_name(A) NK_DOT db_name(B) NK_DOT db_name(C).                     { pCxt->pRootNode = createUseExtSourceStmt(pCxt, &A, &B, &C); }
+cmd ::= USE db_name(A) NK_DOT db_name(B).                                         { pCxt->pRootNode = createUseExtSourceStmt(pCxt, &A, &B, NULL); }
+cmd ::= USE db_name(A) NK_DOT db_name(B) NK_DOT db_name(C).                       { pCxt->pRootNode = createUseExtSourceStmt(pCxt, &A, &B, &C); }
 cmd ::= ALTER DATABASE db_name(A) alter_db_options(B).                            { pCxt->pRootNode = createAlterDatabaseStmt(pCxt, &A, B); }
 cmd ::= FLUSH DATABASE db_name(A).                                                { pCxt->pRootNode = createFlushDatabaseStmt(pCxt, &A); }
 cmd ::= TRIM DATABASE db_name(A) speed_opt(B).                                    { pCxt->pRootNode = createTrimDatabaseStmt(pCxt, &A, B); }
@@ -896,20 +897,20 @@ cmd ::= SCAN DATABASE db_name(A) start_opt(B) end_opt(C).                       
 cmd ::= SCAN db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D).   { pCxt->pRootNode = createScanVgroupsStmt(pCxt, A, B, C, D); }
 
 /************************************************ create backup ***********************************************/
-cmd ::= CREATE backup_mode(A) BACKUP ON DNODE NK_INTEGER(B) TO NK_STRING(C) backup_password_opt(D).                                        { pCxt->pRootNode = createBackupStmt(pCxt, A, &B, &C, NULL, NULL, &D); }
-cmd ::= CREATE backup_mode(A) BACKUP ON DNODE NK_INTEGER(B) TO NK_STRING(C) NK_INTEGER(E) backup_password_opt(D).                          { pCxt->pRootNode = createBackupStmt(pCxt, A, &B, &C, &E, NULL, &D); }
-cmd ::= CREATE backup_mode(A) BACKUP ON DNODE NK_INTEGER(B) TO NK_STRING(C) FOR DATABASE db_name(D) backup_password_opt(E).                { pCxt->pRootNode = createBackupStmt(pCxt, A, &B, &C, NULL, &D, &E); }
-cmd ::= CREATE backup_mode(A) BACKUP ON DNODE NK_INTEGER(B) TO NK_STRING(C) NK_INTEGER(E) FOR DATABASE db_name(D) backup_password_opt(F).  { pCxt->pRootNode = createBackupStmt(pCxt, A, &B, &C, &E, &D, &F); }
+cmd ::= CREATE backup_mode(A) BACKUP ON DNODE NK_INTEGER(B) TO NK_STRING(C) backup_password_opt(D) parallel_opt(E).                                        { pCxt->pRootNode = createBackupStmt(pCxt, A, &B, &C, NULL, NULL, &D, E); }
+cmd ::= CREATE backup_mode(A) BACKUP ON DNODE NK_INTEGER(B) TO NK_STRING(C) NK_INTEGER(E) backup_password_opt(D) parallel_opt(F).                          { pCxt->pRootNode = createBackupStmt(pCxt, A, &B, &C, &E, NULL, &D, F); }
+cmd ::= CREATE backup_mode(A) BACKUP ON DNODE NK_INTEGER(B) TO NK_STRING(C) FOR DATABASE db_name(D) backup_password_opt(E) parallel_opt(F).                { pCxt->pRootNode = createBackupStmt(pCxt, A, &B, &C, NULL, &D, &E, F); }
+cmd ::= CREATE backup_mode(A) BACKUP ON DNODE NK_INTEGER(B) TO NK_STRING(C) NK_INTEGER(E) FOR DATABASE db_name(D) backup_password_opt(F) parallel_opt(G).  { pCxt->pRootNode = createBackupStmt(pCxt, A, &B, &C, &E, &D, &F, G); }
 
-%type backup_mode                                                                { bool }
-%destructor backup_mode                                                          { }
+%type backup_mode                                                                 { bool }
+%destructor backup_mode                                                           { }
 backup_mode(A) ::= FULL.                                                          { A = true; }
 backup_mode(A) ::= INCREMENTAL.                                                   { A = false; }
 
-%type backup_password_opt                                                        { SToken }
-%destructor backup_password_opt                                                  { }
-backup_password_opt(A) ::= .                                                     { A = nil_token; }
-backup_password_opt(A) ::= WITH PASSWORD NK_STRING(B).                          { A = B; }
+%type backup_password_opt                                                         { SToken }
+%destructor backup_password_opt                                                   { }
+backup_password_opt(A) ::= .                                                      { A = nil_token; }
+backup_password_opt(A) ::= WITH PASSWORD NK_STRING(B).                            { A = B; }
 
 %type meta_only                                                                  { bool }
 %destructor meta_only                                                            { }
