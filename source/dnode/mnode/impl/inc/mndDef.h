@@ -1460,6 +1460,14 @@ typedef struct {
   SArray* scanDetail;
 } SScanObj;
 
+// Backup lifecycle state persisted in SDB and surfaced in SHOW BACKUPS status.
+typedef enum {
+  BACKUP_STATE_RUNNING = 0,    // backup in progress
+  BACKUP_STATE_SUCCEEDED = 1,  // finished successfully
+  BACKUP_STATE_FAILED = 2,     // finished with error
+  BACKUP_STATE_CANCELLED = 3   // killed by user
+} EBackupState;
+
 // Cluster-level backup record persisted in SDB (drives SHOW BACKUPS history).
 // A record is keyed by backupId; chainId groups backups in the same chain.
 // code/bytesDone are updated by the backup progress timer; code holds the
@@ -1471,15 +1479,14 @@ typedef struct {
   char    backupRoot[TSDB_MOUNT_PATH_LEN];
   char    dbName[TSDB_DB_FNAME_LEN];  // empty means whole cluster
   int64_t startTime;
-  int64_t lastUpdateTime;  // most recent dnode progress report time
-  int64_t endTime;        // backup finish time; 0 while still running
+  int64_t updateTime;     // most recent dnode progress report time
   int64_t totalSize;      // bytes written so far
   int8_t  isFull;         // 1 = full, 0 = incremental
   int8_t  encrypted;      // 1 when the backup request included a password
-  int32_t code;           // final result code when endTime != 0; 0 = success
+  int32_t code;           // final result code when state != RUNNING; 0 = success
+  int32_t state;          // EBackupState
   int32_t totalVgroups;   // total number of vgroups to back up
   int32_t finishedVgroups;// number of vgroups already backed up
-  int32_t currentVgId;    // vgroup currently being processed; 0 = none
 } SBackupObj;
 
 typedef SCompactObj       SRetentionObj;        // reuse compact obj for retention

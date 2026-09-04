@@ -546,20 +546,16 @@ static const SSysDbTableSchema userCompactsSchema[] = {
 };
 
 static const SSysDbTableSchema userBackupsSchema[] = {
-    {.name = "backup_id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
-    {.name = "status", .bytes = 16 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "chain_id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
-    {.name = "backup_root", .bytes = TSDB_MOUNT_PATH_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "chain", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "database", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "full", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = false},
     {.name = "encrypted", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = false},
-    {.name = "total_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
-    {.name = "total_vgroups", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
-    {.name = "finished_vgroups", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
-    {.name = "current_vgroup", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "vgroups", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
-    {.name = "last_update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
-    {.name = "end_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
 };
 
 static const SSysDbTableSchema userEncryptAlgrSchema[] = {

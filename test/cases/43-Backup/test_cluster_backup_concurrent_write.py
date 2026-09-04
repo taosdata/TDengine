@@ -242,9 +242,10 @@ class TestClusterBackupConcurrentWrite(BackupRestoreTestBase):
            stable with taosBenchmark
         3. Create a state-window stream reading the meters stable; since the
            big data set was written before the stream, it is not recomputed
-        4. Start a background writer, then CREATE FULL BACKUP while the
-           writer keeps writing to the meters stable; report total_size
-        5. Stop the writer, stop taosd, clear data, restore
+        4. Start a background writer, then CREATE FULL BACKUP ... PARALLEL 2
+           while the writer keeps writing to the meters stable; report total_size
+        5. Stop the writer, stop taosd, clear data, restore with --parallel 2
+           (parallel vnode verification + parallel vnode restore)
         6. Verify the restored row count matches the pre-backup snapshot
         7. Verify the snode/stream survive and the instance accepts writes
 
@@ -277,10 +278,11 @@ class TestClusterBackupConcurrentWrite(BackupRestoreTestBase):
         if pre_rows < self.BULK_ROWS * self.BULK_TABLES:
             tdLog.exit(f"expected at least {self.BULK_ROWS * self.BULK_TABLES} rows, got {pre_rows}")
 
-        # 4. start the concurrent writer, then take the backup
+        # 4. start the concurrent writer, then take the backup with PARALLEL 2
+        #    (the big database has 2 vgroups, so both are backed up concurrently)
         writer, stop, state = self._start_concurrent_writer()
         try:
-            chain = self._start_backup("big_concurrent")
+            chain = self._start_backup("big_concurrent", parallel=2)
             tdLog.info(f"backup chain: {chain}")
         finally:
             self._stop_concurrent_writer(writer, stop)
@@ -289,11 +291,12 @@ class TestClusterBackupConcurrentWrite(BackupRestoreTestBase):
         self._wait_result_rows(self.RESULT_TABLE, timeout=60)
         tdLog.info("stream computed results from the concurrent writes")
 
-        # 5. stop, clear, rebuild, restore
+        # 5. stop, clear, rebuild, restore (parallel 2: parallel vnode
+        #    verification + parallel vnode restore)
         self._stop_all_taosd()
         self._clear_all_data()
         self._bootstrap_cluster_cfg()
-        self._restore_all(chain)
+        self._restore_all(chain, parallel=2)
         self._start_all_taosd()
 
         # 6. the restored data must match the pre-backup snapshot

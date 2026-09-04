@@ -148,8 +148,8 @@ static int64_t dmBackupFileReadRaw(SDmBackupFile *pBackupFile, void *buffer, int
     if (bytesRead == 0) {
       // In chunked plaintext mode, EOF of the current chunk moves on to the
       // next one. In encrypted mode chunk boundaries are driven by
-      // fileSize/block alignment inside dmBackupFileLoadEncryptedBlock, so we
-      // never cross chunks here.
+      // fileSize/block alignment inside dmBackupFileRead, so we never cross
+      // chunks here.
       if (pBackupFile->chunked && !pBackupFile->encrypted && pBackupFile->chunkIndex < pBackupFile->numOfChunks) {
         int32_t code = dmBackupFileOpenNextChunkRead(pBackupFile);
         if (code != TSDB_CODE_SUCCESS) {
@@ -164,45 +164,6 @@ static int64_t dmBackupFileReadRaw(SDmBackupFile *pBackupFile, void *buffer, int
     totalRead += bytesRead;
   }
   return totalRead;
-}
-
-static int32_t dmBackupFileLoadEncryptedBlock(SDmBackupFile *pBackupFile) {
-  uint8_t      encrypted[DM_BACKUP_SM4_BLOCK_SIZE] = {0};
-  unsigned int decryptedLen = 0;
-  int64_t      bytesRead = dmBackupFileReadRaw(pBackupFile, encrypted, sizeof(encrypted));
-
-  if (bytesRead != sizeof(encrypted) ||
-      SM4_CBC_Decrypt(pBackupFile->key, sizeof(pBackupFile->key), pBackupFile->iv, sizeof(pBackupFile->iv),
-                      encrypted, sizeof(encrypted), pBackupFile->buffer, &decryptedLen) != 0 ||
-      decryptedLen != sizeof(pBackupFile->buffer)) {
-    return TSDB_CODE_FILE_CORRUPTED;
-  }
-  memcpy(pBackupFile->iv, encrypted, sizeof(pBackupFile->iv));
-  pBackupFile->fileSize -= sizeof(encrypted);
-  pBackupFile->bufferLen = sizeof(pBackupFile->buffer);
-  if (pBackupFile->fileSize == 0) {
-    if (pBackupFile->chunked && pBackupFile->chunkIndex < pBackupFile->numOfChunks) {
-      // Chunk boundary reached (chunk size is a multiple of the SM4 block
-      // size, so a ciphertext block never straddles two chunk files).
-      int32_t code = dmBackupFileOpenNextChunkRead(pBackupFile);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-      return TSDB_CODE_SUCCESS;
-    }
-    uint8_t padding = pBackupFile->buffer[sizeof(pBackupFile->buffer) - 1];
-    if (padding == 0 || padding > sizeof(pBackupFile->buffer)) {
-      return TSDB_CODE_FILE_CORRUPTED;
-    }
-    for (int32_t i = sizeof(pBackupFile->buffer) - padding; i < sizeof(pBackupFile->buffer); ++i) {
-      if (pBackupFile->buffer[i] != padding) {
-        return TSDB_CODE_FILE_CORRUPTED;
-      }
-    }
-    pBackupFile->bufferLen -= padding;
-    pBackupFile->finalized = true;
-  }
-  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t dmBackupFileOpen(SDmBackupFile *pBackupFile, const char *path, const char *password) {
@@ -236,35 +197,103 @@ static int32_t dmBackupFileOpen(SDmBackupFile *pBackupFile, const char *path, co
 }
 
 static int64_t dmBackupFileRead(SDmBackupFile *pBackupFile, void *buffer, int64_t size) {
-  int64_t totalRead = 0;
-
   if (pBackupFile->pFile == NULL || buffer == NULL || size < 0) {
     terrno = TSDB_CODE_INVALID_PARA;
     return -1;
   }
+
   if (!pBackupFile->encrypted) {
     return dmBackupFileReadRaw(pBackupFile, buffer, size);
   }
-  while (totalRead < size) {
-    if (pBackupFile->bufferLen == 0) {
-      if (pBackupFile->finalized) {
-        break;
-      }
-      int32_t code = dmBackupFileLoadEncryptedBlock(pBackupFile);
-      if (code != TSDB_CODE_SUCCESS) {
-        terrno = code;
-        return -1;
-      }
-      continue;
-    }
-    int32_t copyLen = TMIN(size - totalRead, pBackupFile->bufferLen);
-    memcpy((uint8_t *)buffer + totalRead, pBackupFile->buffer, copyLen);
+
+  int64_t totalRead = 0;
+
+  // Serve the leftover plaintext tail (0..15 bytes) kept from a previous
+  // batch first; it never exceeds one SM4 block, so buffer is enough.
+  if (pBackupFile->bufferLen > 0) {
+    int32_t copyLen = TMIN((int32_t)(size), pBackupFile->bufferLen);
+    memcpy((uint8_t *)buffer, pBackupFile->buffer, copyLen);
     pBackupFile->bufferLen -= copyLen;
     if (pBackupFile->bufferLen > 0) {
       memmove(pBackupFile->buffer, pBackupFile->buffer + copyLen, pBackupFile->bufferLen);
     }
     totalRead += copyLen;
   }
+
+  while (totalRead < size && !pBackupFile->finalized) {
+    uint8_t cipher[4096], plain[4096];
+    int32_t want = (int32_t)TMIN((int64_t)sizeof(cipher), size - totalRead);
+    int32_t batchLen = (want + DM_BACKUP_SM4_BLOCK_SIZE - 1) & ~(DM_BACKUP_SM4_BLOCK_SIZE - 1);
+    batchLen = TMIN(batchLen, (int32_t)pBackupFile->fileSize);
+    if (batchLen <= 0) {
+      break;
+    }
+    if (dmBackupFileReadRaw(pBackupFile, cipher, batchLen) != batchLen) {
+      terrno = TSDB_CODE_FILE_CORRUPTED;
+      return -1;
+    }
+    unsigned int outLen = 0;
+    int ret = SM4_CBC_Decrypt(
+        pBackupFile->key,
+        sizeof(pBackupFile->key),
+        pBackupFile->iv,
+        sizeof(pBackupFile->iv),
+        cipher,
+        (unsigned int)batchLen,
+        plain,
+        &outLen
+      );
+    if (ret != 0 || outLen != (unsigned int)batchLen) {
+      terrno = TSDB_CODE_FILE_CORRUPTED;
+      return -1;
+    }
+    memcpy(pBackupFile->iv, cipher + batchLen - DM_BACKUP_SM4_BLOCK_SIZE, sizeof(pBackupFile->iv));
+    pBackupFile->fileSize -= batchLen;
+
+    int32_t avail = batchLen;  // plaintext bytes that may be consumed
+    if (pBackupFile->fileSize == 0) {
+      if (pBackupFile->chunked && pBackupFile->chunkIndex < pBackupFile->numOfChunks) {
+        // Chunk boundary reached (chunk size is a multiple of the SM4 block
+        // size, so a ciphertext block never straddles two chunk files). The
+        // padding block only lives in the final chunk.
+        int32_t code = dmBackupFileOpenNextChunkRead(pBackupFile);
+        if (code != TSDB_CODE_SUCCESS) {
+          terrno = code;
+          return -1;
+        }
+      } else {
+        // Logical end of the file: the final plaintext block carries the
+        // padding; validate it and shrink the consumable window so the padding
+        // is never handed to the caller.
+        uint8_t *pLast = plain + batchLen - DM_BACKUP_SM4_BLOCK_SIZE;
+        uint8_t  padding = pLast[DM_BACKUP_SM4_BLOCK_SIZE - 1];
+        if (padding == 0 || padding > DM_BACKUP_SM4_BLOCK_SIZE) {
+          terrno = TSDB_CODE_FILE_CORRUPTED;
+          return -1;
+        }
+        for (int32_t i = DM_BACKUP_SM4_BLOCK_SIZE - padding; i < DM_BACKUP_SM4_BLOCK_SIZE; ++i) {
+          if (pLast[i] != padding) {
+            terrno = TSDB_CODE_FILE_CORRUPTED;
+            return -1;
+          }
+        }
+        avail -= padding;
+        pBackupFile->finalized = true;
+      }
+    }
+
+    int32_t give = TMIN(avail, (int32_t)(size - totalRead));
+    memcpy((uint8_t *)buffer + totalRead, plain, give);
+    totalRead += give;
+    if (avail > give) {
+      // Keep the leftover plaintext (always < 16 bytes: the batch size is
+      // aligned up from the request and only the final block carries padding)
+      // in buffer for the next call.
+      pBackupFile->bufferLen = avail - give;
+      memcpy(pBackupFile->buffer, plain + give, pBackupFile->bufferLen);
+    }
+  }
+
   return totalRead;
 }
 
@@ -824,55 +853,123 @@ static int32_t dmRestoreVerifySnode(const char *backupDir, const SJson *pManifes
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t dmRestoreVerifyVnodes(const char *backupDir, const SJson *pManifest) {
+// Verify the checksum of one vnode backup: parse the manifest entry and
+// compare the recorded digest against the chunked vnode data on disk. Read
+// only, so it is safe to run concurrently for different vnodes.
+static int32_t dmRestoreVerifyOneVnode(const char *backupDir, const SJson *pVnode) {
+  const char *checksum = NULL;
+  int64_t     vgId = 0;
+  int64_t     snapshotIndex = 0;
+  int64_t     numOfChunks = 0;
+  int32_t     code = dmRestoreGetRequiredInt64(pVnode, "id", &vgId);
+  if (code != 0) {
+    return code;
+  }
+  code = dmRestoreGetRequiredInt64(pVnode, "endVersion", &snapshotIndex);
+  if (code != 0) {
+    return code;
+  }
+  code = dmRestoreGetRequiredInt64(pVnode, "numOfChunks", &numOfChunks);
+  if (code != 0) {
+    return code;
+  }
+  code = dmRestoreGetRequiredString(pVnode, "checksum", &checksum);
+  if (code != 0) {
+    return code;
+  }
+  if (vgId <= 0 || vgId > INT32_MAX || numOfChunks <= 0 || numOfChunks > INT32_MAX) {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+
+  uint8_t expected[SHA256_DIGEST_SIZE] = {0};
+  uint8_t actual[SHA256_DIGEST_SIZE] = {0};
+  code = dmRestoreParseDigest(checksum, expected);
+  if (code != 0) {
+    return code;
+  }
+  char baseName[TSDB_FILENAME_LEN] = {0};
+  snprintf(baseName, sizeof(baseName), "vnode%" PRId64, vgId);
+  code = dmRestoreReadChunkedDigest(backupDir, baseName, (int32_t)numOfChunks, actual);
+  if (code != 0) {
+    return code;
+  }
+  if (memcmp(expected, actual, sizeof(expected)) != 0) {
+    return TSDB_CODE_CHECKSUM_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef struct {
+  const char        *backupDir;
+  SJson             *pVnodes;       // manifest "vnodes" array (read only)
+  int32_t volatile   nextIndex;     // atomic index into pVnodes
+  int32_t volatile   failedCode;    // first failure, 0 = none; atomic CAS on write
+} SDmRestoreVerifyVnodeCtx;
+
+static void *dmRestoreVerifyVnodeWorkerFp(void *pParam) {
+  SDmRestoreVerifyVnodeCtx *pCtx = pParam;
+
+  while (true) {
+    if (atomic_load_32(&pCtx->failedCode) != 0) {
+      break;
+    }
+    int32_t idx = atomic_fetch_add_32(&pCtx->nextIndex, 1);
+    if (idx >= tjsonGetArraySize(pCtx->pVnodes)) {
+      break;
+    }
+    int32_t code = dmRestoreVerifyOneVnode(pCtx->backupDir, tjsonGetArrayItem(pCtx->pVnodes, idx));
+    if (code != 0) {
+      atomic_val_compare_exchange_32(&pCtx->failedCode, 0, code);
+      break;
+    }
+  }
+  return NULL;
+}
+
+// Verify the checksums of all vnodes in the manifest, up to pOpt->parallel
+// workers at a time. The per-vnode digest reads are independent, so they run
+// concurrently; the first failure is recorded atomically and propagated.
+static int32_t dmRestoreVerifyVnodes(const SDmRestoreOption *pOpt, const char *backupDir, const SJson *pManifest) {
   SJson *pVnodes = tjsonGetObjectItem(pManifest, "vnodes");
   if (pVnodes == NULL || !cJSON_IsArray(pVnodes)) {
     return TSDB_CODE_INVALID_DATA_FMT;
   }
 
-  for (int32_t i = 0; i < tjsonGetArraySize(pVnodes); ++i) {
-    SJson      *pVnode = tjsonGetArrayItem(pVnodes, i);
-    const char *checksum = NULL;
-    int64_t     vgId = 0;
-    int64_t     snapshotIndex = 0;
-    int64_t     numOfChunks = 0;
-    int32_t     code = dmRestoreGetRequiredInt64(pVnode, "id", &vgId);
-    if (code != 0) {
-      return code;
-    }
-    code = dmRestoreGetRequiredInt64(pVnode, "endVersion", &snapshotIndex);
-    if (code != 0) {
-      return code;
-    }
-    code = dmRestoreGetRequiredInt64(pVnode, "numOfChunks", &numOfChunks);
-    if (code != 0) {
-      return code;
-    }
-    code = dmRestoreGetRequiredString(pVnode, "checksum", &checksum);
-    if (code != 0) {
-      return code;
-    }
-    if (vgId <= 0 || vgId > INT32_MAX || numOfChunks <= 0 || numOfChunks > INT32_MAX) {
-      return TSDB_CODE_INVALID_DATA_FMT;
-    }
+  int32_t code = 0;
+  int32_t parallelism = TMIN(pOpt->parallel, tjsonGetArraySize(pVnodes));
+  parallelism = TMAX(parallelism, 1);
 
-    uint8_t expected[SHA256_DIGEST_SIZE] = {0};
-    uint8_t actual[SHA256_DIGEST_SIZE] = {0};
-    code = dmRestoreParseDigest(checksum, expected);
-    if (code != 0) {
-      return code;
-    }
-    char baseName[TSDB_FILENAME_LEN] = {0};
-    snprintf(baseName, sizeof(baseName), "vnode%" PRId64, vgId);
-    code = dmRestoreReadChunkedDigest(backupDir, baseName, (int32_t)numOfChunks, actual);
-    if (code != 0) {
-      return code;
-    }
-    if (memcmp(expected, actual, sizeof(expected)) != 0) {
-      return TSDB_CODE_CHECKSUM_ERROR;
-    }
+  SDmRestoreVerifyVnodeCtx ctx = {0};
+  ctx.backupDir = backupDir;
+  ctx.pVnodes = pVnodes;
+
+  TdThread *threads = taosMemoryCalloc(parallelism, sizeof(TdThread));
+  int32_t   created = 0;
+  if (threads == NULL) {
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
   }
-  return TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < parallelism; ++i) {
+    TdThreadAttr thAttr;
+    (void)taosThreadAttrInit(&thAttr);
+    (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+    if (taosThreadCreate(&threads[i], &thAttr, dmRestoreVerifyVnodeWorkerFp, &ctx) != 0) {
+      code = TAOS_SYSTEM_ERROR(ERRNO);
+      atomic_store_32(&ctx.failedCode, code);
+      (void)taosThreadAttrDestroy(&thAttr);
+      break;
+    }
+    (void)taosThreadAttrDestroy(&thAttr);
+    ++created;
+  }
+  for (int32_t i = 0; i < created; ++i) {
+    (void)taosThreadJoin(threads[i], NULL);
+  }
+  taosMemoryFree(threads);
+
+  if (code != 0) {
+    return code;
+  }
+  return atomic_load_32(&ctx.failedCode);
 }
 
 static int32_t dmRestoreReadManifest(const SDmRestoreOption *pOpt, const char *backupDir, SJson **ppManifest) {
@@ -920,7 +1017,7 @@ _exit:
   return code;
 }
 
-static int32_t dmRestoreVerifyBackup(const char *backupDir, const SJson *pManifest) {
+static int32_t dmRestoreVerifyBackup(const SDmRestoreOption *pOpt, const char *backupDir, const SJson *pManifest) {
   int32_t code = 0;
 
   code = dmRestoreVerifyMnode(backupDir, pManifest);
@@ -931,7 +1028,7 @@ static int32_t dmRestoreVerifyBackup(const char *backupDir, const SJson *pManife
   if (code != 0) {
     return code;
   }
-  code = dmRestoreVerifyVnodes(backupDir, pManifest);
+  code = dmRestoreVerifyVnodes(pOpt, backupDir, pManifest);
   return code;
 }
 
@@ -1457,9 +1554,15 @@ static int32_t dmRestoreReadVnodeConfig(const SDmRestoreOption *pOpt, const char
 
 _exit:
   taosMemoryFree(data);
-  int32_t closeCode = dmBackupFileCloseRead(&backupFile);
-  if (code == TSDB_CODE_SUCCESS && closeCode != TSDB_CODE_SUCCESS) {
-    code = closeCode;
+  // NOTE: do NOT use dmBackupFileCloseRead here. For an encrypted chunked
+  // backup it would drain the whole file (decrypt every remaining chunk,
+  // possibly tens of GB) just to validate the trailing padding and compute a
+  // checksum we do not need: this function only reads the leading config
+  // block. Integrity is verified by the (independently skippable) verify
+  // stage, and dmRestoreVnodeData validates the padding when it reads the
+  // file to the end. Just close the handle.
+  if (backupFile.pFile != NULL) {
+    (void)taosCloseFile(&backupFile.pFile);
   }
   return code;
 }
@@ -1614,14 +1717,22 @@ _exit:
   return code;
 }
 
-static int32_t dmRestoreRegisterVnode(int32_t vgId) {
-  char   path[PATH_MAX] = {0};
-  char  *content = NULL;
-  char  *output = NULL;
+typedef struct {
+  int32_t vgId;
+  int32_t numOfChunks;
+} SDmRestoreLocalVnode;
+
+// Register all restored vnodes in vnodes.json in one pass (single read-modify-
+// write of the shared file). The caller has already restored every vnode's
+// data; pLocalVnodes holds the (vgId, numOfChunks) list of this dnode.
+static int32_t dmRestoreRegisterVnodes(const SArray *pLocalVnodes) {
+  char    path[PATH_MAX] = {0};
+  char   *content = NULL;
+  char   *output = NULL;
   int32_t contentLen = 0;
   int32_t code = TSDB_CODE_SUCCESS;
-  SJson *pRoot = NULL;
-  SJson *pVnodes = NULL;
+  SJson  *pRoot = NULL;
+  SJson  *pVnodes = NULL;
 
   snprintf(path, sizeof(path), "%s%svnode%svnodes.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
   if (taosStatFile(path, NULL, NULL, NULL) < 0) {
@@ -1643,27 +1754,41 @@ static int32_t dmRestoreRegisterVnode(int32_t vgId) {
     goto _exit;
   }
 
-  for (int32_t i = 0; i < tjsonGetArraySize(pVnodes); ++i) {
-    int64_t registeredVgId = 0;
-    code = dmRestoreGetRequiredInt64(tjsonGetArrayItem(pVnodes, i), "vgId", &registeredVgId);
-    if (code != 0) {
-      goto _exit;
+  // Append every restored vnode, skipping any vgId that is already registered.
+  for (int32_t i = 0; i < taosArrayGetSize(pLocalVnodes); ++i) {
+    SDmRestoreLocalVnode *pVnode = taosArrayGet(pLocalVnodes, i);
+    int32_t vgId = pVnode->vgId;
+
+    bool alreadyRegistered = false;
+    for (int32_t j = 0; j < tjsonGetArraySize(pVnodes); ++j) {
+      int64_t registeredVgId = 0;
+      code = dmRestoreGetRequiredInt64(tjsonGetArrayItem(pVnodes, j), "vgId", &registeredVgId);
+      if (code != 0) {
+        goto _exit;
+      }
+      if (registeredVgId == vgId) {
+        alreadyRegistered = true;
+        break;
+      }
     }
-    if (registeredVgId == vgId) {
-      code = TSDB_CODE_SUCCESS;
+    if (alreadyRegistered) {
+      continue;
+    }
+
+    SJson *pVnodeJson = tjsonCreateObject();
+    if (pVnodeJson == NULL || tjsonAddDoubleToObject(pVnodeJson, "vgId", vgId) != 0 ||
+        tjsonAddDoubleToObject(pVnodeJson, "dropped", 0) != 0 ||
+        tjsonAddDoubleToObject(pVnodeJson, "vgVersion", 0) != 0 ||
+        tjsonAddDoubleToObject(pVnodeJson, "diskPrimary", 0) != 0 ||
+        tjsonAddDoubleToObject(pVnodeJson, "toVgId", 0) != 0 ||
+        tjsonAddIntegerToObject(pVnodeJson, "mountId", 0) != 0 ||
+        tjsonAddItemToArray(pVnodes, pVnodeJson) != 0) {
+      tjsonDelete(pVnodeJson);
+      code = terrno;
       goto _exit;
     }
   }
 
-  SJson *pVnode = tjsonCreateObject();
-  if (pVnode == NULL || tjsonAddDoubleToObject(pVnode, "vgId", vgId) != 0 ||
-      tjsonAddDoubleToObject(pVnode, "dropped", 0) != 0 || tjsonAddDoubleToObject(pVnode, "vgVersion", 0) != 0 ||
-      tjsonAddDoubleToObject(pVnode, "diskPrimary", 0) != 0 || tjsonAddDoubleToObject(pVnode, "toVgId", 0) != 0 ||
-      tjsonAddIntegerToObject(pVnode, "mountId", 0) != 0 || tjsonAddItemToArray(pVnodes, pVnode) != 0) {
-    tjsonDelete(pVnode);
-    code = terrno;
-    goto _exit;
-  }
   output = tjsonToString(pRoot);
   if (output == NULL) {
     code = terrno;
@@ -1710,47 +1835,15 @@ static int32_t dmRestoreAdjustVnodeConfig(SVnodeCfg *pCfg, int32_t dnodeId, cons
   return foundLocal ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_DATA_FMT;
 }
 
-static int32_t dmRestoreCountLocalVnodes(const SJson *pVnodes, int32_t dnodeId, const SArray *pDnodes,
-                                         int32_t *pNumOfVnodes) {
-  *pNumOfVnodes = 0;
-
-  for (int32_t i = 0; i < tjsonGetArraySize(pVnodes); ++i) {
-    SJson *pVnode = tjsonGetArrayItem(pVnodes, i);
-    SJson *pVnodeDnodes = pVnode == NULL ? NULL : tjsonGetObjectItem(pVnode, "dnodes");
-    if (pVnodeDnodes == NULL || !cJSON_IsArray(pVnodeDnodes)) {
-      return TSDB_CODE_INVALID_DATA_FMT;
-    }
-    for (int32_t j = 0; j < tjsonGetArraySize(pVnodeDnodes); ++j) {
-      int64_t manifestDnodeId = 0;
-      int32_t code = dmRestoreParseInt64(tjsonGetArrayItem(pVnodeDnodes, j), &manifestDnodeId);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-      if (manifestDnodeId <= 0 || manifestDnodeId > INT32_MAX) {
-        return TSDB_CODE_INVALID_DATA_FMT;
-      }
-      int32_t mappedDnodeId = mndRestoreMapDnodeId(pDnodes, (int32_t)manifestDnodeId);
-      if (mappedDnodeId < 0) {
-        return TSDB_CODE_INVALID_DATA_FMT;
-      }
-      if (mappedDnodeId == dnodeId) {
-        ++(*pNumOfVnodes);
-        break;
-      }
-    }
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t dmRestoreVnodes(const SDmRestoreOption *pOpt, const char *backupDir, const SJson *pManifest,
-                               int32_t dnodeId, const SArray *pDnodes, STfs *pTfs) {
-  SJson *pVnodes = tjsonGetObjectItem(pManifest, "vnodes");
-  int32_t numOfVnodes = 0;
-  int32_t restored = 0;
-
-  int32_t code = dmRestoreCountLocalVnodes(pVnodes, dnodeId, pDnodes, &numOfVnodes);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
+// Collect the vnodes that belong to this dnode (vgId + numOfChunks) from the
+// manifest in one pass. The manifest is read-only; the returned array is
+// consumed by the parallel workers.
+static int32_t dmRestoreCollectLocalVnodes(const SJson *pVnodes, int32_t dnodeId, const SArray *pDnodes,
+                                           SArray **ppLocalVnodes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray *pLocalVnodes = taosArrayInit(tjsonGetArraySize(pVnodes), sizeof(SDmRestoreLocalVnode));
+  if (pLocalVnodes == NULL) {
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
   }
 
   for (int32_t i = 0; i < tjsonGetArraySize(pVnodes); ++i) {
@@ -1761,27 +1854,31 @@ static int32_t dmRestoreVnodes(const SDmRestoreOption *pOpt, const char *backupD
     bool     isLocal = false;
     code = dmRestoreGetRequiredInt64(pVnode, "id", &manifestVgId);
     if (code != 0) {
-      return code;
+      goto _exit;
     }
     code = dmRestoreGetRequiredInt64(pVnode, "numOfChunks", &manifestNumOfChunks);
     if (code != 0 || manifestNumOfChunks <= 0 || manifestNumOfChunks > INT32_MAX) {
-      return code != 0 ? code : TSDB_CODE_INVALID_DATA_FMT;
+      code = code != 0 ? code : TSDB_CODE_INVALID_DATA_FMT;
+      goto _exit;
     }
     if (pVnodeDnodes == NULL || !cJSON_IsArray(pVnodeDnodes)) {
-      return TSDB_CODE_INVALID_DATA_FMT;
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      goto _exit;
     }
     for (int32_t j = 0; j < tjsonGetArraySize(pVnodeDnodes); ++j) {
       int64_t manifestDnodeId = 0;
       code = dmRestoreParseInt64(tjsonGetArrayItem(pVnodeDnodes, j), &manifestDnodeId);
       if (code != 0) {
-        return code;
+        goto _exit;
       }
       if (manifestDnodeId <= 0 || manifestDnodeId > INT32_MAX) {
-        return TSDB_CODE_INVALID_DATA_FMT;
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        goto _exit;
       }
       int32_t mappedDnodeId = mndRestoreMapDnodeId(pDnodes, (int32_t)manifestDnodeId);
       if (mappedDnodeId < 0) {
-        return TSDB_CODE_INVALID_DATA_FMT;
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        goto _exit;
       }
       if (mappedDnodeId == dnodeId) {
         isLocal = true;
@@ -1792,38 +1889,167 @@ static int32_t dmRestoreVnodes(const SDmRestoreOption *pOpt, const char *backupD
       continue;
     }
 
-    ++restored;
-    printf("  restoring vnode %d (%d/%d)\n", (int32_t)manifestVgId, restored, numOfVnodes);
-
-    SVnodeCfg cfg = {0};
-    code = dmRestoreReadVnodeConfig(pOpt, backupDir, (int32_t)manifestVgId, (int32_t)manifestNumOfChunks, &cfg);
-    if (code != 0) {
-      return code;
+    SDmRestoreLocalVnode local = {.vgId = (int32_t)manifestVgId, .numOfChunks = (int32_t)manifestNumOfChunks};
+    if (taosArrayPush(pLocalVnodes, &local) == NULL) {
+      code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
     }
-    code = dmRestoreAdjustVnodeConfig(&cfg, dnodeId, pDnodes);
-    if (code != 0) {
-      return code;
-    }
-    char vnodeRoot[PATH_MAX] = {0};
-    char vnodeDir[TSDB_FILENAME_LEN] = {0};
-    snprintf(vnodeRoot, sizeof(vnodeRoot), "%s%svnode", tsDataDir, TD_DIRSEP);
-    if ((code = taosMulMkDir(vnodeRoot)) != 0) {
-      return code;
-    }
-    snprintf(vnodeDir, sizeof(vnodeDir), "vnode%svnode%d", TD_DIRSEP, (int32_t)manifestVgId);
-    if ((code = vnodeCreate(vnodeDir, &cfg, 0, pTfs)) != 0) {
-      return code;
-    }
-    if ((code = dmRestoreVnodeData(pOpt, backupDir, (int32_t)manifestVgId, (int32_t)manifestNumOfChunks,
-                                   vnodeDir, pTfs)) != 0) {
-      return code;
-    }
-    if ((code = dmRestoreRegisterVnode((int32_t)manifestVgId)) != 0) {
-      return code;
-    }
-    printf("  vnode %d restored\n", (int32_t)manifestVgId);
   }
+
+  *ppLocalVnodes = pLocalVnodes;
   return TSDB_CODE_SUCCESS;
+
+_exit:
+  taosArrayDestroy(pLocalVnodes);
+  return code;
+}
+
+typedef struct {
+  const SDmRestoreOption *pOpt;
+  const char             *backupDir;
+  int32_t                 dnodeId;
+  const SArray           *pDnodes;
+  STfs                   *pTfs;
+  SArray                 *pLocalVnodes;   // SDmRestoreLocalVnode: vnodes to restore
+  int32_t volatile        nextIndex;       // shared atomic index into pLocalVnodes
+  int32_t volatile        restored;        // shared atomic progress counter
+  int32_t volatile        failedCode;      // first failure, 0 = none; atomic CAS on write
+} SDmRestoreVnodeCtx;
+
+// Restore one local vnode: read config, adjust it, create the vnode, and write
+// the snapshot data. Registration in vnodes.json is deferred until every
+// worker has finished (see dmRestoreVnodes), so no shared state is touched
+// here and the workers need no mutex.
+static int32_t dmRestoreOneVnode(SDmRestoreVnodeCtx *pCtx, SDmRestoreLocalVnode *pVnode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SVnodeCfg cfg = {0};
+  code = dmRestoreReadVnodeConfig(pCtx->pOpt, pCtx->backupDir, pVnode->vgId, pVnode->numOfChunks, &cfg);
+  if (code != 0) {
+    return code;
+  }
+  code = dmRestoreAdjustVnodeConfig(&cfg, pCtx->dnodeId, pCtx->pDnodes);
+  if (code != 0) {
+    return code;
+  }
+  char vnodeRoot[PATH_MAX] = {0};
+  char vnodeDir[TSDB_FILENAME_LEN] = {0};
+  snprintf(vnodeRoot, sizeof(vnodeRoot), "%s%svnode", tsDataDir, TD_DIRSEP);
+  if ((code = taosMulMkDir(vnodeRoot)) != 0) {
+    return code;
+  }
+  snprintf(vnodeDir, sizeof(vnodeDir), "vnode%svnode%d", TD_DIRSEP, pVnode->vgId);
+  if ((code = vnodeCreate(vnodeDir, &cfg, 0, pCtx->pTfs)) != 0) {
+    return code;
+  }
+  if ((code = dmRestoreVnodeData(pCtx->pOpt, pCtx->backupDir, pVnode->vgId, pVnode->numOfChunks, vnodeDir,
+                                 pCtx->pTfs)) != 0) {
+    return code;
+  }
+  return code;
+}
+
+static void *dmRestoreVnodeWorkerFp(void *pParam) {
+  SDmRestoreVnodeCtx *pCtx = pParam;
+
+  while (true) {
+    if (atomic_load_32(&pCtx->failedCode) != 0) {
+      break;
+    }
+    int32_t total = taosArrayGetSize(pCtx->pLocalVnodes);
+    int32_t idx = atomic_fetch_add_32(&pCtx->nextIndex, 1);
+    if (idx >= total) {
+      break;
+    }
+    SDmRestoreLocalVnode *pVnode = taosArrayGet(pCtx->pLocalVnodes, idx);
+    int32_t seq = atomic_fetch_add_32(&pCtx->restored, 1) + 1;
+    printf("  restoring vnode %d (%d/%d)\n", pVnode->vgId, seq, total);
+
+    int32_t code = dmRestoreOneVnode(pCtx, pVnode);
+    if (code != 0) {
+      printf("  failed to restore vnode %d: %s\n", pVnode->vgId, tstrerror(code));
+      // Record the first failure atomically; a concurrent failing worker
+      // keeps the already-stored code.
+      atomic_val_compare_exchange_32(&pCtx->failedCode, 0, code);
+      break;
+    }
+    printf("  vnode %d restored\n", pVnode->vgId);
+  }
+  return NULL;
+}
+
+static int32_t dmRestoreVnodes(const SDmRestoreOption *pOpt, const char *backupDir, const SJson *pManifest,
+                               int32_t dnodeId, const SArray *pDnodes, STfs *pTfs) {
+  SJson   *pVnodes = tjsonGetObjectItem(pManifest, "vnodes");
+  if (pVnodes == NULL || !cJSON_IsArray(pVnodes)) {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+
+  SArray  *pLocalVnodes = NULL;
+  int32_t  code = dmRestoreCollectLocalVnodes(pVnodes, dnodeId, pDnodes, &pLocalVnodes);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (taosArrayGetSize(pLocalVnodes) == 0) {
+    taosArrayDestroy(pLocalVnodes);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Parallel: one worker per slot, vnodes taken from a shared atomic index.
+  // vnodeCreate/vnodeOpen/dmRestoreVnodeData operate on per-vnode dirs and
+  // are safe to run concurrently; vnodes.json registration is deferred until
+  // all workers have joined, so the workers need no shared mutex.
+  int32_t parallelism = TMIN(pOpt->parallel, (int32_t)taosArrayGetSize(pLocalVnodes));
+  parallelism = TMAX(parallelism, 1);
+
+  SDmRestoreVnodeCtx ctx = {0};
+  ctx.pOpt = pOpt;
+  ctx.backupDir = backupDir;
+  ctx.dnodeId = dnodeId;
+  ctx.pDnodes = pDnodes;
+  ctx.pTfs = pTfs;
+  ctx.pLocalVnodes = pLocalVnodes;
+
+  TdThread *threads = taosMemoryCalloc(parallelism, sizeof(TdThread));
+  int32_t   created = 0;
+  if (threads == NULL) {
+    code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    taosArrayDestroy(pLocalVnodes);
+    return code;
+  }
+  for (int32_t i = 0; i < parallelism; ++i) {
+    TdThreadAttr thAttr;
+    (void)taosThreadAttrInit(&thAttr);
+    (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+    if (taosThreadCreate(&threads[i], &thAttr, dmRestoreVnodeWorkerFp, &ctx) != 0) {
+      code = TAOS_SYSTEM_ERROR(ERRNO);
+      atomic_store_32(&ctx.failedCode, code);
+      (void)taosThreadAttrDestroy(&thAttr);
+      break;
+    }
+    (void)taosThreadAttrDestroy(&thAttr);
+    ++created;
+  }
+  for (int32_t i = 0; i < created; ++i) {
+    (void)taosThreadJoin(threads[i], NULL);
+  }
+  taosMemoryFree(threads);
+
+  if (code != 0) {
+    taosArrayDestroy(pLocalVnodes);
+    return code;
+  }
+
+  code = atomic_load_32(&ctx.failedCode);
+  if (code != 0) {
+    taosArrayDestroy(pLocalVnodes);
+    return code;
+  }
+
+  // Register all restored vnode in vnodes.json
+  code = dmRestoreRegisterVnodes(pLocalVnodes);
+  taosArrayDestroy(pLocalVnodes);
+  return code;
 }
 
 static SArray* dmRestoreCollectBackups(const SDmRestoreOption *pOpt) {
@@ -1932,7 +2158,7 @@ static int32_t dmVerifyRestoreBackupChain(const SDmRestoreOption *pOpt, SArray* 
     }
 
     if (pOpt->verify != 0) {
-      code = dmRestoreVerifyBackup(backupDir, pManifest);
+      code = dmRestoreVerifyBackup(pOpt, backupDir, pManifest);
       if (code != 0) {
         printf("backup integrity check failed for '%s': %s\n", backupDir, tstrerror(code));
         tjsonDelete(pManifest);
