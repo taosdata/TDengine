@@ -22994,6 +22994,7 @@ static int32_t translateBackup(STranslateContext* pCxt, SCreateBackupStmt* pStmt
   backupReq.dnodeId = pStmt->dnodeId;
   backupReq.isFull = pStmt->isFull;
   backupReq.backupChainId = pStmt->backupChainId;
+  backupReq.parallel = pStmt->parallel;
   tstrncpy(backupReq.backupRoot, pStmt->backupRoot, sizeof(backupReq.backupRoot));
   tstrncpy(backupReq.dbName, pStmt->dbName, sizeof(backupReq.dbName));
   backupReq.hasPassword = pStmt->password[0] != '\0';

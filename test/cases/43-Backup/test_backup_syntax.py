@@ -29,12 +29,14 @@ class TestBackupSyntax:
 
         CREATE [FULL|INCREMENTAL] BACKUP ON DNODE <id> TO '<path>'
             [<chainId>] [FOR DATABASE <db>] [WITH PASSWORD '<pw>']
+            [PARALLEL <n>]
         SHOW BACKUPS
         KILL BACKUP <id>
 
     Phase 1 only accepts a cluster-level FULL backup without a target chain
     id and without FOR DATABASE; the parser itself rejects those variants.
-    Only one backup can run at a time.
+    Only one backup can run at a time. PARALLEL <n> controls the vgroup
+    backup parallelism (1 = serial, >1 = parallel, 0 is normalized to 1).
     """
 
     backup_dirs = None
@@ -155,7 +157,20 @@ class TestBackupSyntax:
         if status_b != "succeeded":
             tdLog.exit(f"backup B expected succeeded, got {status_b}")
 
-        # 6. both records are present in SHOW BACKUPS
+        # 6. PARALLEL 1 (explicit serial) and PARALLEL 0 (normalized to 1) are
+        # accepted; PARALLEL > 1 is accepted as well. Each backup is waited to
+        # finish before the next one starts (only one backup can run at a time).
+        backup_par1 = self._start_backup(self._unique_backup_dir('par1'), "PARALLEL 1")
+        if self._wait_backup_finished(backup_par1) != "succeeded":
+            tdLog.exit(f"backup {backup_par1} (PARALLEL 1) expected succeeded")
+        backup_par0 = self._start_backup(self._unique_backup_dir('par0'), "PARALLEL 0")
+        if self._wait_backup_finished(backup_par0) != "succeeded":
+            tdLog.exit(f"backup {backup_par0} (PARALLEL 0) expected succeeded")
+        backup_par2 = self._start_backup(self._unique_backup_dir('par2'), "PARALLEL 2")
+        if self._wait_backup_finished(backup_par2) != "succeeded":
+            tdLog.exit(f"backup {backup_par2} (PARALLEL 2) expected succeeded")
+
+        # 7. both records are present in SHOW BACKUPS
         tdSql.query("SHOW BACKUPS")
         if self._find_backup_row(backup_a) is None or self._find_backup_row(backup_b) is None:
             tdLog.exit("SHOW BACKUPS should contain both backup records")
@@ -166,9 +181,11 @@ class TestBackupSyntax:
         1. CREATE FULL BACKUP ON DNODE 1 TO '<path>'  -> success (backup C starts)
         2. KILL BACKUP <id>                           -> success (the kill txn commits)
         3. poll SHOW BACKUPS until backup C shows status 'cancelled'
+        4. CREATE FULL BACKUP ... (D), wait until it succeeds
+        5. KILL BACKUP <id D>                         -> rejected (backup not running)
 
-        The killed backup record is kept in SDB with code = BACKUP_CANCELLED
-        and a non-zero endTime, so it stays visible in SHOW BACKUPS with a
+        The killed backup record is kept in SDB with state = CANCELLED
+        (and code = BACKUP_CANCELLED), so it stays visible in SHOW BACKUPS with a
         'cancelled' status instead of being dropped.
 
         Since: v3.4.3.0
@@ -192,13 +209,24 @@ class TestBackupSyntax:
 
         # 3. poll until the killed backup shows status 'cancelled'
         deadline = time.time() + 30
+        cancelled = False
         while time.time() < deadline:
             tdSql.query("SHOW BACKUPS")
             row = self._find_backup_row(backup_c)
             if row is not None and tdSql.getData(row, COL_STATUS) == "cancelled":
-                return
+                cancelled = True
+                break
             time.sleep(1)
-        tdLog.exit(f"killed backup {backup_c} should show status 'cancelled' in SHOW BACKUPS")
+        if not cancelled:
+            tdLog.exit(f"killed backup {backup_c} should show status 'cancelled' in SHOW BACKUPS")
+
+        # 4. start another backup and wait until it finishes successfully
+        backup_d = self._start_backup(self._unique_backup_dir("kill-done"))
+        if self._wait_backup_finished(backup_d) != "succeeded":
+            tdLog.exit(f"backup {backup_d} expected to succeed before KILL BACKUP")
+
+        # 5. a backup that already finished must not be killed again
+        tdSql.error(f"KILL BACKUP {backup_d}")
 
     def test_backup_rejected_variants(self):
         """Backup statement error variants
@@ -231,6 +259,10 @@ class TestBackupSyntax:
 
         # backup on a non-existent dnode fails at the mnode layer
         tdSql.error(f"CREATE FULL BACKUP ON DNODE {self.missing_dnode_id} TO '{self._unique_backup_dir('node')}'")
+
+        # PARALLEL must be >= 1; 0 is normalized to 1 in the parser but a
+        # negative value is rejected
+        tdSql.error(f"CREATE FULL BACKUP ON DNODE {self.dnode_id} TO '{self._unique_backup_dir('par_neg')}' PARALLEL -1")
 
         # kill a non-existent backup
         tdSql.error("KILL BACKUP 12345")

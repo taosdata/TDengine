@@ -232,6 +232,7 @@ typedef struct SCreateBackupStmt {
   int64_t   backupChainId;              // target chain for incremental; 0 = latest
   char      dbName[TSDB_DB_NAME_LEN];  // empty means whole cluster
   char      password[TSDB_USER_PASSWORD_LONGLEN];
+  int32_t   parallel;                   // vgroup backup parallelism; >= 1, 1 = serial
 } SCreateBackupStmt;
 
 typedef struct SRollupDatabaseStmt {

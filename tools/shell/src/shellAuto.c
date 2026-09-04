@@ -120,7 +120,7 @@ SWords shellCommands[] = {
     {"compact database <db_name>", 0, 0, NULL},
     {"compact vgroups in( <anyword>", 0, 0, NULL},
     {"create mount <mount_name> on dnode <dnode_id> from <path>;", 0, 0, NULL},
-    {"create full backup on dnode <dnode_id> to ", 0, 0, NULL},
+    {"create full backup on dnode <dnode_id> to <anyword> with password <anyword> parallel <anyword>", 0, 0, NULL},
     // {"create incremental backup on dnode <dnode_id> to ", 0, 0, NULL}, // not implemented yet
     {"create token <anyword> from user <user_name> <token_opt> <anyword> <token_opt> <anyword> <token_opt> <anyword> <token_opt> <anyword> ;", 0, 0, NULL},
     {"create totp_secret for user <user_name>;", 0, 0, NULL},
@@ -830,7 +830,7 @@ void showHelp() {
     compact vgroups in (vgroupId,vgroupId, ...); \n\
     create view <view_name> as select ...\n\
     create mount <mount_name> on dnode <dnode_id> from <path>;\n\
-    create full backup on dnode <dnode_id> to <path> [with password '<password>'];\n\
+    create full backup on dnode <dnode_id> to <path> [with password '<password>'] [parallel <n>];\n\
     create token <token_name> from user <user_name> [token options];\n\
     create totp_secret for user <user_name>;\n\
     drop mount <mount_name>;\n\

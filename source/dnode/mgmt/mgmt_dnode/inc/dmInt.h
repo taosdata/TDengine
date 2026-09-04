@@ -96,6 +96,7 @@ typedef struct {
   char    password[TSDB_PASSWORD_LEN];
   int64_t lastBackupId;
   char    dbName[TSDB_DB_NAME_LEN];
+  int32_t parallel;   // max number of vnodes restored in parallel; >= 1, 1 = serial
 } SDmRestoreOption;
 
 typedef struct SDnodeMgmt {
@@ -142,7 +143,6 @@ struct SBackupTask {
   int64_t         totalSize;
   int32_t         totalVgroups;
   int32_t         finishedVgroups;
-  int32_t         currentVgId;
   int32_t         code;
   int64_t         endTime;
   uint8_t         mnodeChecksum[SHA256_DIGEST_SIZE];

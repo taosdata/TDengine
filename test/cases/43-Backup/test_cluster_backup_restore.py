@@ -299,24 +299,24 @@ class TestClusterBackupRestore(BackupRestoreTestBase):
             tdLog.exit(f"dnode{new_id} did not become ready within 60s")
         return new_id
 
-    def _full_restore_cycle(self, chain_path, password, rows_db1, rows_db2):
+    def _full_restore_cycle(self, chain_path, password, rows_db1, rows_db2, parallel=None):
         """Stop all taosd, clear all data, recreate dnode cfgs, restore all, restart, verify."""
         self._stop_all_taosd()
         self._clear_all_data()
         # the restore tool clears data again and needs each dnode.json to exist,
         # which is recreated by a normal taosd start/stop cycle
         self._bootstrap_cluster_cfg()
-        self._restore_all(chain_path, password)
+        self._restore_all(chain_path, password, parallel=parallel)
         self._start_all_taosd()
         self._verify_rows(rows_db1, rows_db2)
         self._verify_replicas()
         self._verify_write_after_restore(rows_db1, rows_db2)
 
     def test_backup_restore_plain(self):
-        """Backup and restore without encryption (cluster)
+        """Backup and restore without encryption (cluster), serial vgroup backup (PARALLEL 1)
 
         1. Create databases db1 and db2 (replica 3) with known row counts
-        2. CREATE FULL BACKUP (no password) -> success
+        2. CREATE FULL BACKUP ... PARALLEL 1 (no password) -> success
         3. Stop all taosd, clear all data
         4. Restore every dnode from the plain backup (no password) -> success
         5. Restart all taosd and verify the row counts match
@@ -331,16 +331,16 @@ class TestClusterBackupRestore(BackupRestoreTestBase):
             - 2026-08-20 Bomin Zhang created
 
         """
-        tdLog.info("=========== cluster backup/restore plain ===========")
+        tdLog.info("=========== cluster backup/restore plain (parallel 1) ===========")
         rows = self._prepare_databases()
-        self.backup_plain = self._start_backup("plain")
+        self.backup_plain = self._start_backup("plain", parallel=1)
         self._full_restore_cycle(self.backup_plain, None, rows[0], rows[1])
 
     def test_backup_restore_encrypted(self):
-        """Backup and restore with a password (cluster)
+        """Backup and restore with a password (cluster), parallel vgroup backup (PARALLEL 2)
 
         1. Create databases db1 and db2 (replica 3) with known row counts
-        2. CREATE FULL BACKUP WITH PASSWORD -> success
+        2. CREATE FULL BACKUP WITH PASSWORD ... PARALLEL 2 -> success
         3. Stop all taosd, clear all data
         4. Restore every dnode from the encrypted backup with the password -> success
         5. Restart all taosd and verify the row counts match
@@ -355,10 +355,10 @@ class TestClusterBackupRestore(BackupRestoreTestBase):
             - 2026-08-20 Bomin Zhang created
 
         """
-        tdLog.info("=========== cluster backup/restore encrypted ===========")
+        tdLog.info("=========== cluster backup/restore encrypted (parallel 2) ===========")
         rows = self._prepare_databases()
-        self.backup_enc = self._start_backup("enc", password="Taos@123")
-        self._full_restore_cycle(self.backup_enc, "Taos@123", rows[0], rows[1])
+        self.backup_enc = self._start_backup("enc", password="Taos@123", parallel=2)
+        self._full_restore_cycle(self.backup_enc, "Taos@123", rows[0], rows[1], parallel=2)
 
     def test_restore_wrong_password(self):
         """Restore failures (cluster): encrypted without/wrong password, plain with password

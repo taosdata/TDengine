@@ -9204,6 +9204,7 @@ int32_t tSerializeSBackupReq(void *buf, int32_t bufLen, SBackupReq *pReq) {
   if (pReq->hasPassword) {
     TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->password, sizeof(pReq->password)));
   }
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->parallel));
   ENCODESQL();
   tEndEncode(&encoder);
 
@@ -9235,6 +9236,7 @@ int32_t tDeserializeSBackupReq(void *buf, int32_t bufLen, SBackupReq *pReq) {
   } else {
     memset(pReq->password, 0, sizeof(pReq->password));
   }
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->parallel));
   DECODESQL();
   tEndDecode(&decoder);
 
@@ -9343,6 +9345,7 @@ int32_t tSerializeSBackupDnodeReq(void *buf, int32_t bufLen, SBackupDnodeReq *pR
   if (pReq->hasPassword) {
     TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->password, sizeof(pReq->password)));
   }
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->parallel));
   int32_t numOfDnodes = pReq->dnodes == NULL ? 0 : taosArrayGetSize(pReq->dnodes);
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, numOfDnodes));
   for (int32_t i = 0; i < numOfDnodes; ++i) {
@@ -9404,6 +9407,7 @@ int32_t tDeserializeSBackupDnodeReq(void *buf, int32_t bufLen, SBackupDnodeReq *
   } else {
     memset(pReq->password, 0, sizeof(pReq->password));
   }
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->parallel));
   int32_t numOfDnodes = 0;
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numOfDnodes));
   if (numOfDnodes < 0) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
@@ -9525,7 +9529,6 @@ int32_t tSerializeSBackupProgressRsp(void *buf, int32_t bufLen, SBackupProgressR
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->totalSize));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->totalVgroups));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->finishedVgroups));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->currentVgId));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->code));
   tEndEncode(&encoder);
 
@@ -9552,7 +9555,6 @@ int32_t tDeserializeSBackupProgressRsp(void *buf, int32_t bufLen, SBackupProgres
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->totalSize));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->totalVgroups));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->finishedVgroups));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->currentVgId));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->code));
   tEndDecode(&decoder);
 

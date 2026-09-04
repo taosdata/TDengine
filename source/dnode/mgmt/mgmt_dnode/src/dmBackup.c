@@ -23,6 +23,13 @@ typedef struct {
   SArray *vgIds;  // int32_t
 } SBackupDatabaseInfo;
 
+typedef struct {
+  SDnodeMgmt       *pMgmt;
+  SBackupTask      *pTask;
+  const char       *backupDir;
+  int32_t volatile nextVgIndex;  // shared atomic counter of the next vgroup
+} SBackupVgroupWorkerCtx;
+
 static void dmBackupChunkPath(const SDmBackupFile *pBackupFile, int32_t chunkIndex, char *path, size_t pathSize) {
   (void)snprintf(path, pathSize, "%s%s%s%s%08d", pBackupFile->chunkDir, TD_DIRSEP, pBackupFile->chunkBase,
                  TD_DIRSEP, chunkIndex);
@@ -54,48 +61,120 @@ static int32_t dmBackupFileNextChunk(SDmBackupFile *pBackupFile) {
   return 0;
 }
 
-static int32_t dmBackupFileWriteEncryptedBlock(SDmBackupFile *pBackupFile,
-                                               const uint8_t block[DM_BACKUP_SM4_BLOCK_SIZE]) {
-  uint8_t      encrypted[DM_BACKUP_SM4_BLOCK_SIZE] = {0};
-  unsigned int encryptedLen = 0;
+static int32_t writeDataToBackupFile(SDmBackupFile *pBackupFile, const void *data, int32_t dataLen) {
+  const uint8_t *input = data;
 
-  if (SM4_CBC_Encrypt(pBackupFile->key, sizeof(pBackupFile->key), pBackupFile->iv, sizeof(pBackupFile->iv),
-                      (uint8_t *)block, DM_BACKUP_SM4_BLOCK_SIZE, encrypted, &encryptedLen) != 0 ||
-      encryptedLen != sizeof(encrypted) ||
-      taosWriteFile(pBackupFile->pFile, encrypted, encryptedLen) != encryptedLen) {
-    return terrno != 0 ? terrno : TSDB_CODE_FAILED;
-  }
-  sha256_update(&pBackupFile->checksumCtx, encrypted, encryptedLen);
-  memcpy(pBackupFile->iv, encrypted, sizeof(pBackupFile->iv));
-  if (pBackupFile->chunked) {
-    pBackupFile->chunkWritten += sizeof(encrypted);
-    if (!pBackupFile->finalChunk && pBackupFile->chunkWritten >= pBackupFile->chunkSize) {
-      return dmBackupFileNextChunk(pBackupFile);
+  while (dataLen > 0) {
+    int32_t toWrite = dataLen;
+    if (pBackupFile->chunked && !pBackupFile->finalChunk) {
+      int64_t space = pBackupFile->chunkSize - pBackupFile->chunkWritten;
+      if (space <= 0) {
+        // current chunk is full; roll over before writing anything
+        int32_t code = dmBackupFileNextChunk(pBackupFile);
+        if (code != 0) {
+          return code;
+        }
+        space = pBackupFile->chunkSize;
+      }
+      toWrite = TMIN(toWrite, (int32_t)space);
+    }
+
+    if (taosWriteFile(pBackupFile->pFile, input, toWrite) != toWrite) {
+      return terrno != 0 ? terrno : TSDB_CODE_FAILED;
+    }
+    sha256_update(&pBackupFile->checksumCtx, input, toWrite);
+    input += toWrite;
+    dataLen -= toWrite;
+    pBackupFile->chunkWritten += toWrite;
+
+    if (!pBackupFile->chunked || pBackupFile->finalChunk) {
+      break;
     }
   }
+
   return 0;
 }
 
 static int32_t dmBackupFileWriteEncrypted(SDmBackupFile *pBackupFile, const void *data, int32_t dataLen) {
-  const uint8_t *input = data;
-
   if (pBackupFile->finalized || dataLen < 0 || (dataLen > 0 && data == NULL)) {
     return TSDB_CODE_INVALID_PARA;
   }
-  while (dataLen > 0) {
-    int32_t copyLen = TMIN(dataLen, DM_BACKUP_SM4_BLOCK_SIZE - pBackupFile->bufferLen);
+
+  const uint8_t *input = data;
+  uint8_t outBuf[16384];
+  unsigned int outBufLen = 0;
+
+  if (pBackupFile->bufferLen > 0) {
+    int32_t copyLen = TMIN(dataLen, sizeof(pBackupFile->buffer) - pBackupFile->bufferLen);
     memcpy(pBackupFile->buffer + pBackupFile->bufferLen, input, copyLen);
     pBackupFile->bufferLen += copyLen;
     input += copyLen;
     dataLen -= copyLen;
-    if (pBackupFile->bufferLen == DM_BACKUP_SM4_BLOCK_SIZE) {
-      int32_t code = dmBackupFileWriteEncryptedBlock(pBackupFile, pBackupFile->buffer);
-      if (code != 0) {
-        return code;
-      }
-      pBackupFile->bufferLen = 0;
+    if (pBackupFile->bufferLen < sizeof(pBackupFile->buffer)) {
+      return 0;
+    }
+
+    int ret = SM4_CBC_Encrypt(
+        pBackupFile->key,
+        sizeof(pBackupFile->key),
+        pBackupFile->iv,
+        sizeof(pBackupFile->iv),
+        pBackupFile->buffer,
+        sizeof(pBackupFile->buffer),
+        outBuf,
+        &outBufLen
+      );
+    if (ret != 0 || outBufLen != sizeof(pBackupFile->buffer)) {
+      return TSDB_CODE_FAILED;
+    }
+    // CBC chaining: the block just encrypted becomes the next IV.
+    memcpy(pBackupFile->iv, outBuf, sizeof(pBackupFile->iv));
+  }
+
+  while (dataLen >= sizeof(pBackupFile->buffer)) {
+    unsigned int inLen = TMIN(sizeof(outBuf) - outBufLen, dataLen) / DM_BACKUP_SM4_BLOCK_SIZE * DM_BACKUP_SM4_BLOCK_SIZE;
+    unsigned int outLen = 0;
+
+    int ret = SM4_CBC_Encrypt(
+        pBackupFile->key,
+        sizeof(pBackupFile->key),
+        pBackupFile->iv,
+        sizeof(pBackupFile->iv),
+        (uint8_t *)input,
+        inLen,
+        outBuf + outBufLen,
+        &outLen
+      );
+    if (ret != 0 || outLen != inLen) {
+      return TSDB_CODE_FAILED;
+    }
+
+    input += inLen;
+    dataLen -= inLen;
+    outBufLen += outLen;
+    // CBC chaining: the last ciphertext block of this batch becomes the next
+    // IV for the following batch (SM4_CBC_Encrypt never writes pIV back).
+    memcpy(pBackupFile->iv, outBuf + outBufLen - DM_BACKUP_SM4_BLOCK_SIZE, sizeof(pBackupFile->iv));
+
+    int32_t code = writeDataToBackupFile(pBackupFile, outBuf, outBufLen);
+    if (code != 0) {
+      return code;
+    }
+    outBufLen = 0;
+  }
+
+  if (outBufLen > 0) {
+    int32_t code = writeDataToBackupFile(pBackupFile, outBuf, outBufLen);
+    if (code != 0) {
+      return code;
     }
   }
+
+  if (dataLen > 0) {
+    memcpy(pBackupFile->buffer, input, dataLen);
+    pBackupFile->bufferLen = dataLen;
+  }
+
   return 0;
 }
 
@@ -105,16 +184,37 @@ static int32_t dmBackupFileFinal(SDmBackupFile *pBackupFile) {
   if (pBackupFile->finalized) {
     return TSDB_CODE_INVALID_PARA;
   }
+
   memset(pBackupFile->buffer + pBackupFile->bufferLen, padding, padding);
   // The padding block must stay in the final chunk file, even when it exactly
   // fills the chunk, so no empty trailing chunk is produced.
   pBackupFile->finalChunk = true;
-  int32_t code = dmBackupFileWriteEncryptedBlock(pBackupFile, pBackupFile->buffer);
-  if (code == 0) {
-    pBackupFile->bufferLen = 0;
-    pBackupFile->finalized = true;
+
+  uint8_t outBuf[sizeof(pBackupFile->buffer)];
+  unsigned int outBufLen = 0;
+
+  int ret = SM4_CBC_Encrypt(
+      pBackupFile->key,
+      sizeof(pBackupFile->key),
+      pBackupFile->iv,
+      sizeof(pBackupFile->iv),
+      pBackupFile->buffer,
+      sizeof(pBackupFile->buffer),
+      outBuf,
+      &outBufLen
+    );
+  if (ret != 0 || outBufLen != sizeof(pBackupFile->buffer)) {
+    return TSDB_CODE_FAILED;
   }
-  return code;
+
+  int32_t code = writeDataToBackupFile(pBackupFile, outBuf, outBufLen);
+  if (code != 0) {
+    return code;
+  }
+
+  pBackupFile->bufferLen = 0;
+  pBackupFile->finalized = true;
+  return 0;
 }
 
 static int32_t dmBackupFileCreate(SDmBackupFile *pBackupFile, const char *path, const char *password) {
@@ -188,29 +288,7 @@ static int32_t dmBackupFileWrite(SDmBackupFile *pBackupFile, const void *data, i
   if (pBackupFile->encrypted) {
     return dmBackupFileWriteEncrypted(pBackupFile, data, dataLen);
   }
-  const uint8_t *input = data;
-  int32_t        remaining = dataLen;
-  while (remaining > 0) {
-    int32_t space = pBackupFile->chunked ? (int32_t)(pBackupFile->chunkSize - pBackupFile->chunkWritten)
-                                         : remaining;
-    int32_t toWrite = TMIN(remaining, space);
-    if (toWrite > 0) {
-      if (taosWriteFile(pBackupFile->pFile, input, toWrite) != toWrite) {
-        return terrno != 0 ? terrno : TSDB_CODE_FAILED;
-      }
-      sha256_update(&pBackupFile->checksumCtx, input, toWrite);
-      input += toWrite;
-      remaining -= toWrite;
-      pBackupFile->chunkWritten += toWrite;
-    }
-    if (pBackupFile->chunked && pBackupFile->chunkWritten >= pBackupFile->chunkSize && remaining > 0) {
-      int32_t code = dmBackupFileNextChunk(pBackupFile);
-      if (code != 0) {
-        return code;
-      }
-    }
-  }
-  return 0;
+  return writeDataToBackupFile(pBackupFile, data, dataLen);
 }
 
 static int32_t dmBackupFileClose(SDmBackupFile *pBackupFile) {
@@ -576,6 +654,10 @@ static int32_t dmBackupCheckCancelled(SDnodeMgmt *pMgmt, const SBackupTask *pTas
   (void)taosThreadMutexLock(&pMgmt->backupMutex);
   if (pMgmt->pBackupTask == pTask && pTask->cancelled) {
     code = TSDB_CODE_BACKUP_CANCELLED;
+  } else if (pTask->code != 0) {
+    // A parallel vgroup worker failed: propagate its error so the other
+    // workers (and the serial mnode/snode stages) abort promptly.
+    code = pTask->code;
   }
   (void)taosThreadMutexUnlock(&pMgmt->backupMutex);
   return code;
@@ -1047,7 +1129,9 @@ static int32_t dmBackupPullVgroupSnapshot(SDnodeMgmt *pMgmt, SBackupTask *pTask,
   if ((code = dmBackupFileWrite(&backupFile, &header, sizeof(header))) != 0) {
     goto _exit;
   }
+  (void)taosThreadMutexLock(&pMgmt->backupMutex);
   pTask->totalSize += sizeof(header);
+  (void)taosThreadMutexUnlock(&pMgmt->backupMutex);
   tFreeSBackupVnodeSnapRsp(&snapRsp);
 
   snapReq.op = BACKUP_VNODE_SNAP_FETCH;
@@ -1067,7 +1151,11 @@ static int32_t dmBackupPullVgroupSnapshot(SDnodeMgmt *pMgmt, SBackupTask *pTask,
       tFreeSBackupVnodeSnapRsp(&snapRsp);
       goto _exit;
     }
-    pTask->totalSize += snapRsp.dataLen;
+    if (snapRsp.dataLen > 0) {
+      (void)taosThreadMutexLock(&pMgmt->backupMutex);
+      pTask->totalSize += snapRsp.dataLen;
+      (void)taosThreadMutexUnlock(&pMgmt->backupMutex);
+    }
     bool eof = snapRsp.eof;
     tFreeSBackupVnodeSnapRsp(&snapRsp);
     if (eof) {
@@ -1078,19 +1166,22 @@ static int32_t dmBackupPullVgroupSnapshot(SDnodeMgmt *pMgmt, SBackupTask *pTask,
   if (code != 0) {
     goto _exit;
   }
+  (void)taosThreadMutexLock(&pMgmt->backupMutex);
   if (pTask->vnodeSnapshots == NULL) {
     pTask->vnodeSnapshots = taosArrayInit(pTask->totalVgroups, sizeof(SBackupVnodeDigest));
     if (pTask->vnodeSnapshots == NULL) {
       code = terrno;
-      goto _exit;
     }
   }
   SBackupVnodeDigest digest = {.vgId = pVgroup->vgId,
                                .snapshotIndex = header.snapshotIndex,
                                .numOfChunks = backupFile.numOfChunks};
   memcpy(digest.digest, backupFile.checksum, sizeof(backupFile.checksum));
-  if (taosArrayPush(pTask->vnodeSnapshots, &digest) == NULL) {
+  if (code == 0 && taosArrayPush(pTask->vnodeSnapshots, &digest) == NULL) {
     code = terrno;
+  }
+  (void)taosThreadMutexUnlock(&pMgmt->backupMutex);
+  if (code != 0) {
     goto _exit;
   }
   dInfo("backup vgroup:%d snapshot written:%s chunks:%d leader dnode:%d", pVgroup->vgId, snapshotDir,
@@ -1110,6 +1201,97 @@ _exit:
     if (releaseCode != 0 && code == 0) {
       code = releaseCode;
     }
+  }
+  return code;
+}
+
+// One parallel vgroup backup worker. Takes vgroup indices from a shared
+// atomic counter, so any number of workers (even if some fail to start)
+// still covers every vgroup exactly once.
+static void *dmBackupVgroupWorkerFp(void *pParam) {
+  SBackupVgroupWorkerCtx *pCtx = pParam;
+  SBackupTask            *pTask = pCtx->pTask;
+
+  while (true) {
+    int32_t idx = atomic_fetch_add_32(&pCtx->nextVgIndex, 1);
+    if (idx >= pTask->totalVgroups) {
+      break;
+    }
+
+    int32_t code = dmBackupCheckCancelled(pCtx->pMgmt, pTask);
+    if (code != 0) {
+      // Propagate cancellation/error to other workers and the calling stage.
+      (void)taosThreadMutexLock(&pCtx->pMgmt->backupMutex);
+      if (pTask->code == 0) {
+        pTask->code = code;
+      }
+      (void)taosThreadMutexUnlock(&pCtx->pMgmt->backupMutex);
+      break;
+    }
+
+    SBackupVgroupInfo *pVgroup = taosArrayGet(pTask->req.vgroups, idx);
+
+    code = dmBackupPullVgroupSnapshot(pCtx->pMgmt, pTask, pVgroup, pCtx->backupDir);
+    if (code != 0) {
+      dError("failed to backup vgroup:%d since %s", pVgroup->vgId, tstrerror(code));
+      // Record the first failure; dmBackupCheckCancelled propagates it to
+      // the other workers so they abort on their next check point.
+      (void)taosThreadMutexLock(&pCtx->pMgmt->backupMutex);
+      if (pTask->code == 0) {
+        pTask->code = code;
+      }
+      (void)taosThreadMutexUnlock(&pCtx->pMgmt->backupMutex);
+      break;
+    }
+
+    (void)taosThreadMutexLock(&pCtx->pMgmt->backupMutex);
+    ++pTask->finishedVgroups;
+    (void)taosThreadMutexUnlock(&pCtx->pMgmt->backupMutex);
+  }
+  return NULL;
+}
+
+// Back up all vgroups with up to req.parallel concurrent workers.
+static int32_t dmBackupPullVgroups(SDnodeMgmt *pMgmt, SBackupTask *pTask, const char *backupDir) {
+  int32_t code = 0;
+  int32_t created = 0;
+  int32_t parallelism = pTask->req.parallel > 1 ? pTask->req.parallel : 1;
+  parallelism = TMIN(parallelism, pTask->totalVgroups);
+
+  TdThread *threads = taosMemoryCalloc(parallelism, sizeof(TdThread));
+  if (threads == NULL) {
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SBackupVgroupWorkerCtx workerCtx = {
+      .pMgmt = pMgmt,
+      .pTask = pTask,
+      .backupDir = backupDir,
+      .nextVgIndex = 0,
+  };
+
+  for (int32_t i = 0; i < parallelism; ++i) {
+    TdThreadAttr thAttr;
+    (void)taosThreadAttrInit(&thAttr);
+    (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+    if (taosThreadCreate(&threads[i], &thAttr, dmBackupVgroupWorkerFp, &workerCtx) != 0) {
+      code = TAOS_SYSTEM_ERROR(ERRNO);
+      dError("failed to create backup vgroup worker:%d since %s", i, tstrerror(code));
+      (void)taosThreadAttrDestroy(&thAttr);
+      break;
+    }
+    (void)taosThreadAttrDestroy(&thAttr);
+    ++created;
+  }
+
+  for (int32_t i = 0; i < created; ++i) {
+    (void)taosThreadJoin(threads[i], NULL);
+  }
+
+  taosMemoryFree(threads);
+
+  if (code == 0 && pTask->code != 0) {
+    code = pTask->code;
   }
   return code;
 }
@@ -1180,20 +1362,13 @@ int32_t dmProcessBackupTask(SDnodeMgmt *pMgmt, SBackupTask *pTask) {
   }
 
   pTask->totalVgroups = pReq->vgroups == NULL ? 0 : taosArrayGetSize(pReq->vgroups);
-  for (int32_t i = 0; i < pTask->totalVgroups; ++i) {
-    if ((code = dmBackupCheckCancelled(pMgmt, pTask)) != 0) {
-      goto _exit;
-    }
-    SBackupVgroupInfo *pVgroup = taosArrayGet(pReq->vgroups, i);
-    pTask->currentVgId = pVgroup->vgId;
-    code = dmBackupPullVgroupSnapshot(pMgmt, pTask, pVgroup, backupWriteDir);
+  if (pTask->totalVgroups > 0) {
+    code = dmBackupPullVgroups(pMgmt, pTask, backupWriteDir);
     if (code != 0) {
-      dError("failed to backup vgroup:%d since %s", pVgroup->vgId, tstrerror(code));
+      dError("failed to backup vgroups since %s", tstrerror(code));
       goto _exit;
     }
-    ++pTask->finishedVgroups;
   }
-  pTask->currentVgId = 0;
 
   if ((code = dmBackupWriteManifest(pTask, backupWriteDir)) != 0) {
     dError("failed to write backup manifest since %s", tstrerror(code));
@@ -1297,7 +1472,6 @@ int32_t dmProcessBackupProgressReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   rsp.totalSize = pTask->totalSize;
   rsp.totalVgroups = pTask->totalVgroups;
   rsp.finishedVgroups = pTask->finishedVgroups;
-  rsp.currentVgId = pTask->currentVgId;
   rsp.code = pTask->code;
   (void)taosThreadMutexUnlock(&pMgmt->backupMutex);
 
