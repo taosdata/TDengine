@@ -299,6 +299,17 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   req.pVloads = tsVinfo.pVloads;
   tsVinfo.pVloads = NULL;
+  if (req.pVloads == NULL) {
+    // No fresh vnode loads available: either the status-info thread (dmUpdateStatusInfo()) has not
+    // refilled tsVinfo.pVloads yet (startup race with the status thread, or it is slower than the
+    // heartbeat period), or collecting the loads failed (e.g. taosArrayInit() in vmGetVnodeLoads()).
+    // The status req will then carry an empty vnode-load list, which tells mnode nothing about the
+    // vnodes; log it loudly so an empty heartbeat can be traced back to this dnode.
+    dWarn("send status req to mnode, no vnode loads collected, statusSeq:%d", pMgmt->statusSeq);
+  } else {
+    dTrace("send status req to mnode, numOfVloads:%d, statusSeq:%d", (int32_t)taosArrayGetSize(req.pVloads),
+           pMgmt->statusSeq);
+  }
 
   dTrace("send status req to mnode, begin to get mnode loads, statusSeq:%d", pMgmt->statusSeq);
   req.mload = tsMLoad;

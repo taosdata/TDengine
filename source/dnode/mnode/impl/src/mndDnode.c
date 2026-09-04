@@ -1199,9 +1199,28 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     mndReleaseVgroup(pMnode, pVgroup);
   }
 
-  // Mark vnodes on this dnode that were NOT reported as OFFLINE (e.g. closed vnodes)
-  // Skip during reboot — vnodes may not all be ready in the first heartbeat after restart
-  if (!reboot) {
+  // Mark vnodes on this dnode that were NOT reported as OFFLINE (e.g. closed vnodes).
+  // Skip in two cases:
+  //  1) reboot — vnodes may not all be ready in the first heartbeats after restart.
+  //  2) the heartbeat carries no vnode load at all (numOfVloads == 0). An empty list only means
+  //     the dnode failed to collect the loads (NULL pVloads on the dnode side, taosArrayInit()
+  //     failure, ...); it says nothing about whether an individual vnode is alive. Interpreting
+  //     it as "no vnode reported" would mark every vnode of the dnode OFFLINE. A truly dead
+  //     dnode is detected by the mnode's own offline check (mndSetVgroupOffline(), driven by
+  //     tsStatusTimeoutMs), which is the authoritative path.
+  int32_t numOfVloads = taosArrayGetSize(statusReq.pVloads);
+  if (numOfVloads == 0) {
+    mWarn("dnode:%d, status msg carries no vnode load, skip not-reported check, reboot:%d, statusSeq:%d",
+          statusReq.dnodeId, reboot, statusReq.statusSeq);
+  }
+
+  // Grace window before a not-reported vnode is marked OFFLINE: tolerate 3 missed heartbeats,
+  // and never be shorter than tsStatusTimeoutMs so that this path never preempts the dnode-level
+  // offline detection (mndIsDnodeOnline()/mndSetVgroupOffline()).
+  int64_t offlineThresholdMs = 3 * (int64_t)tsStatusIntervalMs;
+  if (offlineThresholdMs < (int64_t)tsStatusTimeoutMs) offlineThresholdMs = tsStatusTimeoutMs;
+
+  if (!reboot && numOfVloads > 0) {
     SSdb *pSdb = pMnode->pSdb;
     void *pIter2 = NULL;
     while (1) {
@@ -1213,7 +1232,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         SVnodeGid *pGid = &pVgroup->vnodeGid[vg];
         if (pGid->dnodeId == statusReq.dnodeId && pGid->syncState != TAOS_SYNC_STATE_OFFLINE) {
           bool found = false;
-          for (int32_t v = 0; v < taosArrayGetSize(statusReq.pVloads); ++v) {
+          for (int32_t v = 0; v < numOfVloads; ++v) {
             SVnodeLoad *pVload = taosArrayGet(statusReq.pVloads, v);
             if (pVload->vgId == pVgroup->vgId) {
               found = true;
@@ -1221,14 +1240,16 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
             }
           }
           if (!found) {
-            // 该 vnode 本次心跳未被上报。为避免偶发的单次心跳缺失导致误判为 OFFLINE，
-            // 只有当距离最近一次上报（lastSeenMs）已超过 3 秒时，才将其标记为 OFFLINE。
-            int64_t offlineThresholdMs = 3000;
+            // This vnode was not reported by the current heartbeat. To avoid misjudging a single
+            // missed heartbeat as OFFLINE, only mark it OFFLINE when the time elapsed since the
+            // last report (lastSeenMs) exceeds the grace window computed above.
             int64_t elapsedMs = curMs - pGid->lastSeenMs;
             if (pGid->lastSeenMs > 0 && elapsedMs >= offlineThresholdMs) {
-              mInfo("vgId:%d, state changed to offline by status msg (not reported), dnode:%d, old state:%s, "
-                    "lastSeenMs:%" PRId64 " elapsedMs:%" PRId64,
-                    pVgroup->vgId, statusReq.dnodeId, syncStr(pGid->syncState), pGid->lastSeenMs, elapsedMs);
+              mInfo(
+                  "vgId:%d, state changed to offline by status msg (not reported), dnode:%d, old state:%s, "
+                  "lastSeenMs:%" PRId64 " elapsedMs:%" PRId64 " thresholdMs:%" PRId64,
+                  pVgroup->vgId, statusReq.dnodeId, syncStr(pGid->syncState), pGid->lastSeenMs, elapsedMs,
+                  offlineThresholdMs);
               pGid->syncState = TAOS_SYNC_STATE_OFFLINE;
               pGid->syncRestore = 0;
               pGid->syncCanRead = 0;
@@ -1240,10 +1261,13 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
               }
               mndReleaseDb(pMnode, pDb);
             } else {
-              // 未上报但距离上次上报还不足 3 秒，暂不置为离线，等待后续心跳确认
-              mDebug("vgId:%d, not reported by dnode:%d but within grace window, keep state:%s, "
-                     "lastSeenMs:%" PRId64 " elapsedMs:%" PRId64,
-                     pVgroup->vgId, statusReq.dnodeId, syncStr(pGid->syncState), pGid->lastSeenMs, elapsedMs);
+              // Not reported, but still inside the grace window — keep the current state and wait
+              // for the following heartbeats to confirm.
+              mDebug(
+                  "vgId:%d, not reported by dnode:%d but within grace window, keep state:%s, "
+                  "lastSeenMs:%" PRId64 " elapsedMs:%" PRId64 " thresholdMs:%" PRId64,
+                  pVgroup->vgId, statusReq.dnodeId, syncStr(pGid->syncState), pGid->lastSeenMs, elapsedMs,
+                  offlineThresholdMs);
             }
           }
           break;
