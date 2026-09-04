@@ -338,6 +338,11 @@ void tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uin
   // global lossyColumns/lossyFloat/lossyDouble switches are no longer used.
   (void)lossyColumns;
   tdszInit(fPrecision, dPrecision, maxIntervals, intervals, ifAdtFse, compressor);
+
+  // Patch compressL2Dict[] with accelerated backends if TAOS_COMPRESS_ACCEL
+  // points at a drop-in shared object. Failure is non-fatal (logged) and the
+  // stock implementations remain in the dispatch table.
+  tcompressionAccelInit();
   return;
 }
 // exit call
