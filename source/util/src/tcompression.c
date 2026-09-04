@@ -331,6 +331,10 @@ static const int32_t TEST_NUMBER = 1;
 
 #define safeInt64Add(a, b) (((a >= 0) && (b <= INT64_MAX - a)) || ((a < 0) && (b >= INT64_MIN - a)))
 
+// Defined in tcompression_accel.c. Compiled to a no-op stub when
+// BUILD_WITH_ACCEL_COMPRESS=OFF, so we can call it unconditionally.
+extern void tcompressionAccelInit(void);
+
 // init call
 void tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals, uint32_t intervals,
                     int32_t ifAdtFse, const char *compressor) {
@@ -343,7 +347,6 @@ void tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uin
   // points at a drop-in shared object. Failure is non-fatal (logged) and the
   // stock implementations remain in the dispatch table.
   tcompressionAccelInit();
-  return;
 }
 // exit call
 void tsCompressExit() { tdszExit(); }
