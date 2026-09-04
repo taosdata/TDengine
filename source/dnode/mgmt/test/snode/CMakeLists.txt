@@ -6,7 +6,7 @@ target_include_directories(
 )
 target_link_libraries(
     dsnodeTest
-    PUBLIC sut
+    PUBLIC sut parser nodes
 )
 
 add_test(
