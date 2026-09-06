@@ -148,6 +148,7 @@ TEST(osSystemTest, systemUUIDTest2) {
   ASSERT_EQ(strlen(uuid9), sizeof(uuid9) - 1);
 }
 
+#if defined(LINUX)
 // Tests for cgroup-aware resource detection (K8s/container environments)
 TEST(osSystemTest, cgroupCpuCoresTest) {
   // taosGetCpuCores with physical=false should return cgroup-aware value
@@ -231,6 +232,7 @@ TEST(osSystemTest, cgroupConsistencyTest) {
   ASSERT_LE(usedKB, totalKB);
   ASSERT_LE(freeKB, totalKB);
 }
+#endif
 
 TEST(osSystemTests, taosDllOperations) {
   // Test loading a system library (libc on Linux)

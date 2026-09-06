@@ -1,0 +1,29 @@
+diff --git a/src/stub.h b/src/stub.h
+--- a/src/stub.h
++++ b/src/stub.h
+@@ -386,0 +387,12 @@
++    static inline void cppstubWriteNearJump(unsigned char *write_fn,
++                                            unsigned char *exec_fn,
++                                            unsigned char *fn_stub)
++    {
++        unsigned char code[CODESIZE_MIN] = {0xE9};
++        intptr_t displacement = (intptr_t)fn_stub - (intptr_t)exec_fn -
++                                (intptr_t)CODESIZE_MIN;
++        int32_t relative = (int32_t)displacement;
++        std::memcpy(code + 1, &relative, sizeof(relative));
++        STUB_WRITE_BYTES(write_fn, code, CODESIZE_MIN);
++        CACHEFLUSH((char *)exec_fn, CODESIZE);
++    }
+@@ -391,0 +404,4 @@
++#if defined(__APPLE__)
++    #define REPLACE_NEAR_AT(t, write_fn, exec_fn, fn_stub)\
++        cppstubWriteNearJump(write_fn, exec_fn, fn_stub)
++#endif
+@@ -392,0 +409,4 @@
++#ifndef REPLACE_NEAR_AT
++    #define REPLACE_NEAR_AT(t, write_fn, exec_fn, fn_stub)\
++        REPLACE_NEAR(t, write_fn, fn_stub)
++#endif
+@@ -494 +514 @@
+-            REPLACE_NEAR(this, write_fn, fn_stub);
++            REPLACE_NEAR_AT(this, write_fn, pstub->fn, fn_stub);

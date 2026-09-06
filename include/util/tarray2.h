@@ -36,6 +36,12 @@ extern "C" {
     TYPE   *data;     \
   }
 
+typedef struct {
+  int32_t size;
+  int32_t capacity;
+  void   *data;
+} TArray2Base;
+
 typedef void (*TArray2Cb)(void *);
 
 #define TARRAY2_SIZE(a)       ((a)->size)
@@ -48,7 +54,7 @@ typedef void (*TArray2Cb)(void *);
 #define TARRAY2_DATA_LEN(a)   ((a)->size * sizeof(((a)->data[0])))
 
 static FORCE_INLINE int32_t tarray2_make_room(void *arr, int32_t expSize, int32_t eleSize) {
-  TARRAY2(void) *a = arr;
+  TArray2Base *a = (TArray2Base *)arr;
 
   int32_t capacity = (a->capacity > 0) ? (a->capacity << 1) : 32;
   while (capacity < expSize) {
@@ -63,17 +69,18 @@ static FORCE_INLINE int32_t tarray2_make_room(void *arr, int32_t expSize, int32_
 
 static FORCE_INLINE int32_t tarray2InsertBatch(void *arr, int32_t idx, const void *elePtr, int32_t numEle,
                                                int32_t eleSize) {
-  TARRAY2(uint8_t) *a = arr;
+  TArray2Base *a = (TArray2Base *)arr;
 
   int32_t ret = 0;
   if (a->size + numEle > a->capacity) {
     ret = tarray2_make_room(a, a->size + numEle, eleSize);
   }
   if (ret == 0) {
+    uint8_t *data = (uint8_t *)a->data;
     if (idx < a->size) {
-      (void)memmove(a->data + (idx + numEle) * eleSize, a->data + idx * eleSize, (a->size - idx) * eleSize);
+      (void)memmove(data + (idx + numEle) * eleSize, data + idx * eleSize, (a->size - idx) * eleSize);
     }
-    (void)memcpy(a->data + idx * eleSize, elePtr, numEle * eleSize);
+    (void)memcpy(data + idx * eleSize, elePtr, numEle * eleSize);
     a->size += numEle;
   }
   return ret;
@@ -81,13 +88,13 @@ static FORCE_INLINE int32_t tarray2InsertBatch(void *arr, int32_t idx, const voi
 
 static FORCE_INLINE void *tarray2Search(void *arr, const void *elePtr, int32_t eleSize, __compar_fn_t compar,
                                         int32_t flag) {
-  TARRAY2(void) *a = arr;
+  TArray2Base *a = (TArray2Base *)arr;
   return taosbsearch(elePtr, a->data, a->size, eleSize, compar, flag);
 }
 
 static FORCE_INLINE int32_t tarray2SearchIdx(void *arr, const void *elePtr, int32_t eleSize, __compar_fn_t compar,
                                              int32_t flag) {
-  TARRAY2(void) *a = arr;
+  TArray2Base *a = (TArray2Base *)arr;
   void *p = taosbsearch(elePtr, a->data, a->size, eleSize, compar, flag);
   if (p == NULL) {
     return -1;
@@ -97,7 +104,7 @@ static FORCE_INLINE int32_t tarray2SearchIdx(void *arr, const void *elePtr, int3
 }
 
 static FORCE_INLINE int32_t tarray2SortInsert(void *arr, const void *elePtr, int32_t eleSize, __compar_fn_t compar) {
-  TARRAY2(void) *a = arr;
+  TArray2Base *a = (TArray2Base *)arr;
   int32_t idx = tarray2SearchIdx(arr, elePtr, eleSize, compar, TD_GT);
   return tarray2InsertBatch(arr, idx < 0 ? a->size : idx, elePtr, 1, eleSize);
 }

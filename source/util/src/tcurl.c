@@ -21,10 +21,57 @@
 #include "tcurl.h"
 #include "tutil.h"
 
+#if !defined(WINDOWS)
+#include <poll.h>
+#endif
+
 static threadlocal SHashObj* tNotificationConnHash = NULL;  // key: url, value: CURL*
 static threadlocal bool      tInitialized = false;
 
 #define NOTIFICATION_SEND_TIMEOUT_SECONDS 10L
+
+static int32_t tcurlWaitWritable(CURL* pConn, int64_t deadlineMs) {
+  curl_socket_t curlSocket = CURL_SOCKET_BAD;
+  CURLcode      res = curl_easy_getinfo(pConn, CURLINFO_ACTIVESOCKET, &curlSocket);
+  if (res != CURLE_OK || curlSocket == CURL_SOCKET_BAD) {
+    return TSDB_CODE_FAILED;
+  }
+
+  while (true) {
+    int64_t remainingMs = deadlineMs - taosGetMonoTimestampMs();
+    if (remainingMs <= 0) {
+      return TSDB_CODE_FAILED;
+    }
+
+#if defined(WINDOWS)
+    fd_set writable;
+    FD_ZERO(&writable);
+    FD_SET(curlSocket, &writable);
+    struct timeval timeout = {.tv_sec = remainingMs / 1000, .tv_usec = (remainingMs % 1000) * 1000};
+    int32_t ready = select(0, NULL, &writable, NULL, &timeout);
+#else
+    struct pollfd writable = {.fd = curlSocket, .events = POLLOUT};
+    int32_t       ready = poll(&writable, 1, (int32_t)remainingMs);
+#endif
+    if (ready > 0) {
+#if defined(WINDOWS)
+      return TSDB_CODE_SUCCESS;
+#else
+      return (writable.revents & POLLOUT) != 0 ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
+#endif
+    }
+    if (ready == 0) {
+      return TSDB_CODE_FAILED;
+    }
+#if defined(WINDOWS)
+    if (WSAGetLastError() != WSAEINTR) {
+#else
+    if (errno != EINTR) {
+#endif
+      return TSDB_CODE_FAILED;
+    }
+  }
+}
 
 int32_t tcurlConnect(CURL** ppConn, const char* url) {
   int32_t  code = TSDB_CODE_SUCCESS;
@@ -154,13 +201,21 @@ _end:
 }
 
 int32_t tcurlSend(SCURL* scurl, const void* buffer, size_t buflen, size_t* sent, curl_off_t fragsize,
-                  unsigned int flags) {
-  CURLcode res = curl_ws_send(scurl->pConn, buffer, buflen, sent, fragsize, flags);
-  if (res != CURLE_OK) {
-    uError("[curl]send to:%s failed, res:%d", scurl->url, res);
-    return TSDB_CODE_FAILED;
+                  unsigned int flags, int64_t sendStartMonoMs) {
+  int64_t  deadlineMs = sendStartMonoMs + NOTIFICATION_SEND_TIMEOUT_SECONDS * 1000;
+  CURLcode res = CURLE_OK;
+  while (true) {
+    res = curl_ws_send(scurl->pConn, buffer, buflen, sent, fragsize, flags);
+    if (res == CURLE_OK || (res == CURLE_AGAIN && *sent > 0)) {
+      return TSDB_CODE_SUCCESS;
+    }
+    if (res != CURLE_AGAIN || tcurlWaitWritable(scurl->pConn, deadlineMs) != TSDB_CODE_SUCCESS) {
+      break;
+    }
   }
-  return TSDB_CODE_SUCCESS;
+
+  uError("[curl]send to:%s failed, res:%d", scurl->url, res);
+  return TSDB_CODE_FAILED;
 }
 
 void closeThreadNotificationConn() {

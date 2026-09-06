@@ -68,6 +68,7 @@ TEST(osSemaphoreTests, WaitTime1) {
   (void)tsem_init(&sem, 0, 1);
   EXPECT_EQ(tsem_timewait(&sem, 10000), 0);
   EXPECT_EQ(tsem_timewait(&sem, 1000), TSDB_CODE_TIMEOUT_ERROR);
+  (void)tsem_post(&sem);
   (void)tsem_destroy(&sem);
 }
 
@@ -76,6 +77,7 @@ TEST(osSemaphoreTests, WaitTime2) {
   (void)tsem2_init(&sem, 0, 1);
   EXPECT_EQ(tsem2_timewait(&sem, 10000), 0);
   EXPECT_EQ(tsem2_timewait(&sem, 1000), TSDB_CODE_TIMEOUT_ERROR);
+  (void)tsem2_post(&sem);
   (void)tsem2_destroy(&sem);
 }
 
@@ -295,6 +297,7 @@ TEST(osSemaphoreTests, Performance3_1) {
     tsem_t sem;
     (void)tsem_init(&sem, 0, 1);
     EXPECT_EQ(tsem_timewait(&sem, 1000), 0);
+    (void)tsem_post(&sem);
     (void)tsem_destroy(&sem);
   }
 }
@@ -306,6 +309,7 @@ TEST(osSemaphoreTests, Performance3_2) {
     tsem2_t sem;
     (void)tsem2_init(&sem, 0, 1);
     EXPECT_EQ(tsem2_timewait(&sem, 1000), 0);
+    (void)tsem2_post(&sem);
     (void)tsem2_destroy(&sem);
   }
 }
