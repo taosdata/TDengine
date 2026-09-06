@@ -544,7 +544,8 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 //        pOperator->status = OP_EXEC_RECV;
 //      }
 
-      if (pProjectInfo->inputIgnoreGroup) {
+      if (pProjectInfo->inputIgnoreGroup ||
+          (pProjectInfo->outputIgnoreGroup && pLimitInfo->limit.limit >= 0)) {
         pBlock->info.id.groupId = 0;
       }
 
