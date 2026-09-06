@@ -146,6 +146,17 @@ void freeSMqConsumerEp(void* data) {
   pConsumerEp->offsetRows = NULL;
 }
 
+static void freeVgDnodeId(void* data) {
+  if (data == NULL) {
+    return;
+  }
+  SArray **ppDnodeIds = (SArray **)data;
+  if (ppDnodeIds == NULL || *ppDnodeIds == NULL) {
+    return;
+  }
+  taosArrayDestroy(*ppDnodeIds);
+}
+
 static void *tDecodeSMqVgEp(const void *buf, int32_t *vgId, int8_t sver) {
   buf = taosDecodeFixedI32(buf, vgId);
   if (sver == 1) {
@@ -514,6 +525,9 @@ int32_t tNewSubscribeObj(const char *key, SMqSubscribeObj **ppSub) {
 
   pSubObj->unassignedVgs = taosArrayInit(0, sizeof(int32_t));
   MND_TMQ_NULL_CHECK(pSubObj->unassignedVgs);
+  pSubObj->vgDnodeId = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  MND_TMQ_NULL_CHECK(pSubObj->vgDnodeId);
+  taosHashSetFreeFp(pSubObj->vgDnodeId, freeVgDnodeId);
   *ppSub = pSubObj;
   pSubObj = NULL;
 
@@ -560,6 +574,28 @@ int32_t tCloneSubscribeObj(SMqSubscribeObj *pSub, SMqSubscribeObj **ppSub) {
   }
   pSubNew->unassignedVgs = taosArrayDup(pSub->unassignedVgs, NULL);
   MND_TMQ_NULL_CHECK(pSubNew->unassignedVgs);
+  pSubNew->vgDnodeId = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  MND_TMQ_NULL_CHECK(pSubNew->vgDnodeId);
+  taosHashSetFreeFp(pSubNew->vgDnodeId, freeVgDnodeId);
+  void *pVgIter = NULL;
+  while (1) {
+    pVgIter = taosHashIterate(pSub->vgDnodeId, pVgIter);
+    if (pVgIter == NULL) {
+      break;
+    }
+    int32_t *pVgId = (int32_t *)taosHashGetKey(pVgIter, NULL);
+    SArray **ppDnodeIds = (SArray **)pVgIter;
+    MND_TMQ_NULL_CHECK(pVgId);
+    MND_TMQ_NULL_CHECK(ppDnodeIds);
+    SArray *pDnodeIdsNew = taosArrayDup(*ppDnodeIds, NULL);
+    MND_TMQ_NULL_CHECK(pDnodeIdsNew);
+    if (taosHashPut(pSubNew->vgDnodeId, pVgId, sizeof(int32_t), &pDnodeIdsNew, sizeof(SArray*)) != 0) {
+      taosArrayDestroy(pDnodeIdsNew);
+      code = terrno;
+      lino = __LINE__;
+      goto END;
+    }
+  }
   
   pSubNew->offsetRows = taosArrayDup(pSub->offsetRows, NULL);
   MND_TMQ_CONDITION_CHECK(pSub->offsetRows == NULL || pSubNew->offsetRows != NULL, terrno);
@@ -578,6 +614,8 @@ void tDeleteSubscribeObj(SMqSubscribeObj *pSub) {
   pSub->unassignedVgs = NULL;
   taosArrayDestroy(pSub->offsetRows);
   pSub->offsetRows = NULL;
+  taosHashCleanup(pSub->vgDnodeId);
+  pSub->vgDnodeId = NULL;
 }
 
 int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
@@ -610,6 +648,30 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
     tlen += taosEncodeFixedI32(buf, *vgId);
   }
   tlen += taosEncodeString(buf, pSub->dbName);
+  int32_t vgDnodeNum = taosHashGetSize(pSub->vgDnodeId);
+  tlen += taosEncodeFixedI32(buf, vgDnodeNum);
+  pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pSub->vgDnodeId, pIter);
+    if (pIter == NULL) {
+      break;
+    }
+    int32_t *pVgId = (int32_t *)taosHashGetKey(pIter, NULL);
+    SArray **ppDnodeIds = (SArray **)pIter;
+    if (pVgId == NULL || ppDnodeIds == NULL || *ppDnodeIds == NULL) {
+      return -1;
+    }
+    int32_t dnodeNum = taosArrayGetSize(*ppDnodeIds);
+    tlen += taosEncodeFixedI32(buf, *pVgId);
+    tlen += taosEncodeFixedI32(buf, dnodeNum);
+    for (int32_t i = 0; i < dnodeNum; ++i) {
+      int32_t *pDnodeId = (int32_t *)taosArrayGet(*ppDnodeIds, i);
+      if (pDnodeId == NULL) {
+        return -1;
+      }
+      tlen += taosEncodeFixedI32(buf, *pDnodeId);
+    }
+  }
 
   tlen += tEncodeOffRows(buf, pSub->offsetRows);
   return tlen;
@@ -629,28 +691,35 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
 
   pSub->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (pSub->consumerHash == NULL) {
-    return NULL;
+    goto END;
   }
   taosHashSetFreeFp(pSub->consumerHash, freeSMqConsumerEp);
 
   for (int32_t i = 0; i < sz; i++) {
     SMqConsumerEp consumerEp = {0};
     buf = tDecodeSMqConsumerEp(buf, &consumerEp, sver);
+    if (buf == NULL) {
+      freeSMqConsumerEp(&consumerEp);
+      goto END;
+    }
     if (taosHashPut(pSub->consumerHash, &consumerEp.consumerId, sizeof(int64_t), &consumerEp, sizeof(SMqConsumerEp)) !=
-        0)
-      return NULL;
+        0) {
+      mError("failed to store subscribe consumer, consumerId:%" PRId64, consumerEp.consumerId);
+      freeSMqConsumerEp(&consumerEp);
+      goto END;
+    }
   }
 
   int32_t len = 0;
   buf = taosDecodeFixedI32(buf, &len);
   pSub->unassignedVgs = taosArrayInit(len, sizeof(int32_t));
   if (pSub->unassignedVgs == NULL) {
-    return NULL;
+    goto END;
   }
   for (int32_t i = 0; i < len; i++) {
     int32_t* vgId = taosArrayReserve(pSub->unassignedVgs, 1);
     if (vgId == NULL) {
-      return NULL;
+      goto END;
     }
     if (sver <= 3) {
       buf = tDecodeSMqVgEp(buf, vgId, sver);
@@ -661,10 +730,50 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
 
   buf = taosDecodeStringTo(buf, pSub->dbName);
 
+  pSub->vgDnodeId = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  if (pSub->vgDnodeId == NULL) {
+    goto END;
+  }
+  taosHashSetFreeFp(pSub->vgDnodeId, freeVgDnodeId);
+  if (sver > 4) {
+    int32_t vgDnodeNum = 0;
+    buf = taosDecodeFixedI32(buf, &vgDnodeNum);
+    for (int32_t i = 0; i < vgDnodeNum; ++i) {
+      int32_t vgId = 0;
+      int32_t dnodeNum = 0;
+      SArray *pDnodeIds = NULL;
+      buf = taosDecodeFixedI32(buf, &vgId);
+      buf = taosDecodeFixedI32(buf, &dnodeNum);
+      pDnodeIds = taosArrayInit(dnodeNum, sizeof(int32_t));
+      if (pDnodeIds == NULL) {
+        mError("failed to decode subscribe vg dnode ids, vgId:%d dnodeNum:%d", vgId, dnodeNum);
+        goto END;
+      }
+      for (int32_t j = 0; j < dnodeNum; ++j) {
+        int32_t *pDnodeId = taosArrayReserve(pDnodeIds, 1);
+        if (pDnodeId == NULL) {
+          mError("failed to decode subscribe dnode id, vgId:%d dnodeIndex:%d", vgId, j);
+          taosArrayDestroy(pDnodeIds);
+          goto END;
+        }
+        buf = taosDecodeFixedI32(buf, pDnodeId);
+      }
+      if (taosHashPut(pSub->vgDnodeId, &vgId, sizeof(int32_t), &pDnodeIds, sizeof(SArray*)) != 0) {
+        mError("failed to store subscribe vg dnode ids, vgId:%d dnodeNum:%d", vgId, dnodeNum);
+        taosArrayDestroy(pDnodeIds);
+        goto END;
+      }
+    }
+  }
+
   if (sver > 1) {
     buf = tDecodeOffRows(buf, &pSub->offsetRows, sver);
   }
   return (void *)buf;
+
+END:
+  tDeleteSubscribeObj(pSub);
+  return NULL;
 }
 
 int32_t mndInitConfigObj(SConfigItem *pItem, SConfigObj *pObj) {

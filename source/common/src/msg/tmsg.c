@@ -19184,6 +19184,8 @@ int32_t tEncodeSMqRebVgReq(SEncoder *pCoder, const SMqRebVgReq *pReq) {
   TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pReq->subKey));
   TAOS_CHECK_RETURN(tEncodeI8(pCoder, pReq->subType));
   TAOS_CHECK_RETURN(tEncodeI8(pCoder, pReq->withMeta));
+  uTrace("encode mq rebalance vg req, version:%" PRId64 " vgId:%d subType:%d withMeta:%d", pReq->leftForVer,
+         pReq->vgId, pReq->subType, pReq->withMeta);
 
   if (pReq->subType == TOPIC_SUB_TYPE__COLUMN) {
     TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pReq->qmsg));
@@ -19203,6 +19205,11 @@ int32_t tDecodeSMqRebVgReq(SDecoder *pCoder, SMqRebVgReq *pReq) {
   TAOS_CHECK_EXIT(tStartDecode(pCoder));
 
   TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pReq->leftForVer));
+  if (pReq->leftForVer < 0 || pReq->leftForVer > SMQ_REB_VG_REQ_VERSION) {
+    uError("invalid mq rebalance vg req version:%" PRId64 ", current version:%d", pReq->leftForVer,
+           SMQ_REB_VG_REQ_VERSION);
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
 
   TAOS_CHECK_EXIT(tDecodeI32(pCoder, &pReq->vgId));
   TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pReq->oldConsumerId));
@@ -19210,6 +19217,8 @@ int32_t tDecodeSMqRebVgReq(SDecoder *pCoder, SMqRebVgReq *pReq) {
   TAOS_CHECK_EXIT(tDecodeCStrTo(pCoder, pReq->subKey));
   TAOS_CHECK_EXIT(tDecodeI8(pCoder, &pReq->subType));
   TAOS_CHECK_EXIT(tDecodeI8(pCoder, &pReq->withMeta));
+  uTrace("decode mq rebalance vg req, version:%" PRId64 " vgId:%d subType:%d withMeta:%d", pReq->leftForVer,
+         pReq->vgId, pReq->subType, pReq->withMeta);
 
   if (pReq->subType == TOPIC_SUB_TYPE__COLUMN) {
     TAOS_CHECK_EXIT(tDecodeCStr(pCoder, &pReq->qmsg));
