@@ -260,7 +260,7 @@ class TMQCom:
         tdLog.info(f"consume info sql: {sql}")
         tdSql.query(sql)
 
-    def selectConsumeResult(self, expectRows, cdbName="cdb", pollInterval=0.5):
+    def selectConsumeResult(self, expectRows, cdbName="cdb", pollInterval=1):
         resultList = []
         while 1:
             tdSql.query(f"select * from {cdbName}.consumeresult")
@@ -269,6 +269,7 @@ class TMQCom:
                 break
             else:
                 time.sleep(pollInterval)
+                tdLog.info(f"selectConsumeResult sleep ...")
 
         for i in range(expectRows):
             tdLog.info(
