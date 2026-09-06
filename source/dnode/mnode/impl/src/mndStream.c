@@ -1223,6 +1223,7 @@ static int32_t mndStreamClassifyExtTrigger(const SCMCreateStreamReq *pCreate, co
   return TSDB_CODE_SUCCESS;
 }
 
+#ifdef TD_ENTERPRISE
 static int32_t mndStreamRejectAuthoritativeExtTrigger(SMnode *pMnode, const SCMCreateStreamReq *pCreate,
                                                       const char *pSourceName, int8_t sourceType) {
 #ifdef TD_ENTERPRISE
@@ -1248,6 +1249,7 @@ static int32_t mndStreamRejectAuthoritativeExtTrigger(SMnode *pMnode, const SCMC
   return TSDB_CODE_EXT_SOURCE_NOT_FOUND;
 #endif
 }
+#endif
 
 static int32_t mndStreamBuildStbMetaSnapshot(SMnode *pMnode, const SCMCreateStreamReq *pCreate, SDbObj *pDb,
                                              SStbObj *pStb, STableMetaRsp *pMeta) {
@@ -1387,8 +1389,9 @@ static int32_t mndStreamValidateColumnLists(SCMCreateStreamReq *pCreate, const S
                                             SStreamWindowPlanValidationCtx *pValidationCtx) {
   SNodeList *pList = NULL;
   int32_t    code = TSDB_CODE_SUCCESS;
+  int32_t    lino = 0;
   if (pCreate->partitionCols != NULL) {
-    TAOS_CHECK_GOTO(nodesStringToList(pCreate->partitionCols, &pList), NULL, _exit);
+    TAOS_CHECK_GOTO(nodesStringToList(pCreate->partitionCols, &pList), &lino, _exit);
     SStreamColumnValidationCtx ctx = {
         .pMeta = pMeta,
         .hasCompositePrimaryKey = pValidationCtx->hasCompositePrimaryKey,
@@ -1407,7 +1410,7 @@ static int32_t mndStreamValidateColumnLists(SCMCreateStreamReq *pCreate, const S
     pValidationCtx->partitionByTag = ctx.partitionByTag;
     char   *pNormalized = NULL;
     int32_t normalizedLen = 0;
-    TAOS_CHECK_GOTO(nodesListToString(pList, false, &pNormalized, &normalizedLen), NULL, _exit);
+    TAOS_CHECK_GOTO(nodesListToString(pList, false, &pNormalized, &normalizedLen), &lino, _exit);
     taosMemoryFree(pCreate->partitionCols);
     pCreate->partitionCols = pNormalized;
     nodesDestroyList(pList);
@@ -1415,7 +1418,7 @@ static int32_t mndStreamValidateColumnLists(SCMCreateStreamReq *pCreate, const S
   }
 
   if (pCreate->rollupTagCols != NULL) {
-    TAOS_CHECK_GOTO(nodesStringToList(pCreate->rollupTagCols, &pList), NULL, _exit);
+    TAOS_CHECK_GOTO(nodesStringToList(pCreate->rollupTagCols, &pList), &lino, _exit);
     SNode *pNode = NULL;
     FOREACH(pNode, pList) {
       if (nodeType(pNode) != QUERY_NODE_COLUMN) {
@@ -1424,7 +1427,7 @@ static int32_t mndStreamValidateColumnLists(SCMCreateStreamReq *pCreate, const S
       }
       bool           isTag = false;
       const SSchema *pSchema = NULL;
-      TAOS_CHECK_GOTO(mndStreamFindAuthoritativeColumn(pMeta, (SColumnNode *)pNode, &isTag, &pSchema), NULL, _exit);
+      TAOS_CHECK_GOTO(mndStreamFindAuthoritativeColumn(pMeta, (SColumnNode *)pNode, &isTag, &pSchema), &lino, _exit);
       if (!isTag || (pSchema->type != TSDB_DATA_TYPE_VARCHAR && pSchema->type != TSDB_DATA_TYPE_NCHAR)) {
         code = TSDB_CODE_INVALID_PARA;
         goto _exit;
@@ -1434,7 +1437,7 @@ static int32_t mndStreamValidateColumnLists(SCMCreateStreamReq *pCreate, const S
     pValidationCtx->hasRollup = LIST_LENGTH(pList) > 0;
     char   *pNormalized = NULL;
     int32_t normalizedLen = 0;
-    TAOS_CHECK_GOTO(nodesListToString(pList, false, &pNormalized, &normalizedLen), NULL, _exit);
+    TAOS_CHECK_GOTO(nodesListToString(pList, false, &pNormalized, &normalizedLen), &lino, _exit);
     taosMemoryFree(pCreate->rollupTagCols);
     pCreate->rollupTagCols = pNormalized;
   }
@@ -2399,7 +2402,13 @@ static int32_t mndStreamDispatchNestedCreate(SRpcMsg *pReq, const SCMCreateStrea
   bool        isExtTrigger = false;
   int32_t     code = mndStreamClassifyExtTrigger(pCreate, &pSourceName, &sourceType, &isExtTrigger);
   if (code != TSDB_CODE_SUCCESS) return code;
-  if (isExtTrigger) return mndStreamRejectAuthoritativeExtTrigger(pMnode, pCreate, pSourceName, sourceType);
+  if (isExtTrigger) {
+#ifdef TD_ENTERPRISE
+    return mndStreamRejectAuthoritativeExtTrigger(pMnode, pCreate, pSourceName, sourceType);
+#else
+    return TSDB_CODE_STREAM_EXT_DISABLED;
+#endif
+  }
 
   if (pCreate->triggerDB == NULL || pCreate->triggerTblName == NULL) return TSDB_CODE_INVALID_PARA;
   SDbObj *pDb = mndAcquireDb(pMnode, pCreate->triggerDB);

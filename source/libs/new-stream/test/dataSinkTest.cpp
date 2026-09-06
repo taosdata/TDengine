@@ -19,6 +19,7 @@
 #include <atomic>
 #include <cerrno>
 #include <chrono>
+#include <cstdlib>
 #include <condition_variable>
 #include <mutex>
 #include <queue>
@@ -1987,6 +1988,10 @@ TEST(dataSinkTest, RetiredManagerReleaseDoesNotReadFreedState) {
 }  // namespace
 
 int main(int argc, char** argv) {
+  const char* testConfigDir = std::getenv("TAOS_TEST_CONFIG_DIR");
+  if (testConfigDir != nullptr && testConfigDir[0] != '\0') {
+    taos_options(TSDB_OPTION_CONFIGDIR, testConfigDir);
+  }
   taos_init();
   const bool runAllTests = argc == 1;
   ::testing::InitGoogleTest(&argc, argv);

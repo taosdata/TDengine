@@ -1114,12 +1114,12 @@ inline uint256 mulmod(const uint256& x, const uint256& y, const uint256& mod) no
 }
 
 
-constexpr uint256 operator"" _u256(const char* s) noexcept
+constexpr uint256 operator""_u256(const char* s) noexcept
 {
     return from_string<uint256>(s);
 }
 
-constexpr uint512 operator"" _u512(const char* s) noexcept
+constexpr uint512 operator""_u512(const char* s) noexcept
 {
     return from_string<uint512>(s);
 }

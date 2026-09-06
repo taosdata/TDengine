@@ -2,15 +2,19 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <gtest/gtest.h>
 #include <netinet/in.h>
 #include <openssl/evp.h>
 #include <openssl/sha.h>
 #include <poll.h>
+#include <sys/resource.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include <algorithm>
+#include <cstdarg>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -55,11 +59,42 @@ struct TcurlSendState {
 
 TcurlSendState gTcurlSendState;
 int32_t        gCurlWsSendCalls = 0;
+curl_socket_t  gCurlActiveSocket = CURL_SOCKET_BAD;
 
 CURLcode FailCurlWsSend(CURL*, const void*, size_t, size_t* sent, curl_off_t, unsigned int) {
   ++gCurlWsSendCalls;
   *sent = 0;
   return CURLE_SEND_ERROR;
+}
+
+CURLcode RetryCurlWsSend(CURL*, const void*, size_t buflen, size_t* sent, curl_off_t, unsigned int) {
+  ++gCurlWsSendCalls;
+  if (gCurlWsSendCalls == 1) {
+    *sent = 0;
+    return CURLE_AGAIN;
+  }
+
+  *sent = buflen;
+  return CURLE_OK;
+}
+
+CURLcode PartiallySendBeforeAgain(CURL*, const void*, size_t buflen, size_t* sent, curl_off_t, unsigned int) {
+  ++gCurlWsSendCalls;
+  *sent = buflen - 1;
+  return CURLE_AGAIN;
+}
+
+CURLcode MockCurlEasyGetinfo(CURL*, int info, ...) {
+  if (info != CURLINFO_ACTIVESOCKET) {
+    return CURLE_BAD_FUNCTION_ARGUMENT;
+  }
+
+  va_list args;
+  va_start(args, info);
+  curl_socket_t* socket = va_arg(args, curl_socket_t*);
+  va_end(args);
+  *socket = gCurlActiveSocket;
+  return CURLE_OK;
 }
 
 int32_t MockTcurlConnect(CURL** ppConn, const char*) {
@@ -383,7 +418,8 @@ TEST(TcurlSendTest, SendFailureKeepsConnectionForMessageLevelRecovery) {
   const char payload[] = "payload";
   size_t     sent = 0;
   gCurlWsSendCalls = 0;
-  EXPECT_EQ(tcurlSend(&conn, payload, sizeof(payload) - 1, &sent, sizeof(payload) - 1, CURLWS_TEXT | CURLWS_OFFSET),
+  EXPECT_EQ(tcurlSend(&conn, payload, sizeof(payload) - 1, &sent, sizeof(payload) - 1, CURLWS_TEXT | CURLWS_OFFSET,
+                      taosGetMonoTimestampMs()),
             TSDB_CODE_FAILED);
   EXPECT_EQ(gCurlWsSendCalls, 1);
   EXPECT_EQ(sent, 0);
@@ -394,6 +430,126 @@ TEST(TcurlSendTest, SendFailureKeepsConnectionForMessageLevelRecovery) {
     conn.pConn = nullptr;
   }
   taosMemoryFreeClear(conn.url);
+}
+
+TEST(TcurlSendTest, RetryAfterSocketBecomesWritable) {
+  int sockets[2] = {-1, -1};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+  Stub wsSendStub;
+  Stub getinfoStub;
+  wsSendStub.set(curl_ws_send, RetryCurlWsSend);
+  getinfoStub.set(curl_easy_getinfo, MockCurlEasyGetinfo);
+
+  SCURL conn = {};
+  conn.pConn = reinterpret_cast<CURL*>(1);
+  conn.url = const_cast<char*>("ws://unused/retry");
+  const char payload[] = "payload";
+  size_t     sent = 0;
+  gCurlWsSendCalls = 0;
+  gCurlActiveSocket = sockets[0];
+
+  EXPECT_EQ(tcurlSend(&conn, payload, sizeof(payload) - 1, &sent, sizeof(payload) - 1, CURLWS_TEXT | CURLWS_OFFSET,
+                      taosGetMonoTimestampMs()),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCurlWsSendCalls, 2);
+  EXPECT_EQ(sent, sizeof(payload) - 1);
+
+  close(sockets[0]);
+  close(sockets[1]);
+  gCurlActiveSocket = CURL_SOCKET_BAD;
+}
+
+TEST(TcurlSendTest, RetrySupportsSocketOutsideSelectFdSet) {
+  struct rlimit originalLimit = {};
+  ASSERT_EQ(getrlimit(RLIMIT_NOFILE, &originalLimit), 0);
+  bool limitRaised = false;
+  if (originalLimit.rlim_cur <= FD_SETSIZE) {
+    struct rlimit raisedLimit = originalLimit;
+    raisedLimit.rlim_cur = std::min<rlim_t>(originalLimit.rlim_max, FD_SETSIZE + 1);
+    if (raisedLimit.rlim_cur <= FD_SETSIZE) {
+      GTEST_SKIP() << "hard file descriptor limit is too low";
+    }
+    ASSERT_EQ(setrlimit(RLIMIT_NOFILE, &raisedLimit), 0);
+    limitRaised = true;
+  }
+
+  int sockets[2] = {-1, -1};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+  int highSocket = fcntl(sockets[0], F_DUPFD, FD_SETSIZE);
+  ASSERT_GE(highSocket, FD_SETSIZE);
+  close(sockets[0]);
+
+  Stub wsSendStub;
+  Stub getinfoStub;
+  wsSendStub.set(curl_ws_send, RetryCurlWsSend);
+  getinfoStub.set(curl_easy_getinfo, MockCurlEasyGetinfo);
+
+  SCURL conn = {};
+  conn.pConn = reinterpret_cast<CURL*>(1);
+  conn.url = const_cast<char*>("ws://unused/high-fd-retry");
+  const char payload[] = "payload";
+  size_t     sent = 0;
+  gCurlWsSendCalls = 0;
+  gCurlActiveSocket = highSocket;
+
+  EXPECT_EQ(tcurlSend(&conn, payload, sizeof(payload) - 1, &sent, sizeof(payload) - 1, CURLWS_TEXT | CURLWS_OFFSET,
+                      taosGetMonoTimestampMs()),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCurlWsSendCalls, 2);
+
+  close(highSocket);
+  close(sockets[1]);
+  if (limitRaised) {
+    EXPECT_EQ(setrlimit(RLIMIT_NOFILE, &originalLimit), 0);
+  }
+  gCurlActiveSocket = CURL_SOCKET_BAD;
+}
+
+TEST(TcurlSendTest, ExpiredMessageDeadlineStopsRetry) {
+  int sockets[2] = {-1, -1};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+  Stub wsSendStub;
+  Stub getinfoStub;
+  wsSendStub.set(curl_ws_send, RetryCurlWsSend);
+  getinfoStub.set(curl_easy_getinfo, MockCurlEasyGetinfo);
+
+  SCURL conn = {};
+  conn.pConn = reinterpret_cast<CURL*>(1);
+  conn.url = const_cast<char*>("ws://unused/expired-retry");
+  const char payload[] = "payload";
+  size_t     sent = 0;
+  gCurlWsSendCalls = 0;
+  gCurlActiveSocket = sockets[0];
+
+  int64_t sendStartMonoMs = taosGetMonoTimestampMs() - 11000;
+  EXPECT_EQ(tcurlSend(&conn, payload, sizeof(payload) - 1, &sent, sizeof(payload) - 1, CURLWS_TEXT | CURLWS_OFFSET,
+                      sendStartMonoMs),
+            TSDB_CODE_FAILED);
+  EXPECT_EQ(gCurlWsSendCalls, 1);
+
+  close(sockets[0]);
+  close(sockets[1]);
+  gCurlActiveSocket = CURL_SOCKET_BAD;
+}
+
+TEST(TcurlSendTest, PartialProgressBeforeAgainIsReportedToCaller) {
+  Stub stub;
+  stub.set(curl_ws_send, PartiallySendBeforeAgain);
+
+  SCURL conn = {};
+  conn.pConn = reinterpret_cast<CURL*>(1);
+  conn.url = const_cast<char*>("ws://unused/partial-progress");
+  const char payload[] = "payload";
+  size_t     sent = 0;
+  gCurlWsSendCalls = 0;
+
+  EXPECT_EQ(tcurlSend(&conn, payload, sizeof(payload) - 1, &sent, sizeof(payload) - 1, CURLWS_TEXT | CURLWS_OFFSET,
+                      taosGetMonoTimestampMs()),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCurlWsSendCalls, 1);
+  EXPECT_EQ(sent, sizeof(payload) - 2);
 }
 
 TEST_F(StreamNotifyTest, SmallNotificationUsesOneFinalTextFrame) {
