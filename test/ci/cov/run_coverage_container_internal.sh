@@ -280,12 +280,14 @@ fi
 ulimit -c unlimited
 
 TMP_DIR=$WORKDIR/tmp
-SOURCEDIR=$WORKDIR/src
 MOUNT_DIR=""
 
 # 清理和创建必要的目录
 rm -rf ${TMP_DIR}/thread_volume/$thread_no/sim
-mkdir -p $SOURCEDIR
+_CI_SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=../compat_packages_mount.sh
+source "${_CI_SCRIPT_DIR}/../compat_packages_mount.sh"
+SOURCEDIR=$(prepare_compat_packages_sourcedir "$WORKDIR")
 mkdir -p ${TMP_DIR}/thread_volume/$thread_no/sim/var_taoslog
 mkdir -p ${TMP_DIR}/thread_volume/$thread_no/sim/tsim
 mkdir -p ${TMP_DIR}/thread_volume/$thread_no/coredump

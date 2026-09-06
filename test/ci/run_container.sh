@@ -156,17 +156,13 @@ fi
 ulimit -c unlimited
 
 TMP_DIR=$WORKDIR/tmp
-SOURCEDIR=$WORKDIR/src
 MOUNT_DIR=""
 # packageName="TDengine-server-3.0.1.0-Linux-x64.tar.gz"
 rm -rf ${TMP_DIR}/thread_volume/$thread_no/sim
-# 若宿主机预置了兼容性测试安装包缓存目录，则将 SOURCEDIR 指向它，
-# 避免测试时从公网重复下载（兼容 large-mem runner 预置包场景）。
-if [ -d "/data0/compat-packages" ]; then
-    ln -sfn /data0/compat-packages "$SOURCEDIR"
-else
-    mkdir -p "$SOURCEDIR"
-fi
+_CI_SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=compat_packages_mount.sh
+source "${_CI_SCRIPT_DIR}/compat_packages_mount.sh"
+SOURCEDIR=$(prepare_compat_packages_sourcedir "$WORKDIR")
 
 function _needs_fq_ext_env_cache() {
     local case_cmd="$1"
