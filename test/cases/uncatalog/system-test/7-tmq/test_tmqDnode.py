@@ -55,21 +55,6 @@ class TestCase:
         tdLog.info("consume info sql: %s"%sql)
         tdSql.query(sql)
 
-    def selectConsumeResult(self,expectRows,cdbName='cdb'):
-        resultList=[]
-        while 1:
-            tdSql.query("select * from %s.consumeresult"%cdbName)
-            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
-            if tdSql.getRows() == expectRows:
-                break
-            else:
-                time.sleep(5)
-
-        for i in range(expectRows):
-            tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
-            resultList.append(tdSql.getData(i , 3))
-
-        return resultList
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=4,replica=1):
         if dropFlag == 1:
@@ -265,7 +250,7 @@ class TestCase:
 
         tdLog.info("insert process end, and start to check consume result")
         expectRows = 1
-        resultList = self.selectConsumeResult(expectRows)
+        resultList = tmqCom.selectConsumeResult(expectRows, pollInterval=5)
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
@@ -335,7 +320,7 @@ class TestCase:
 
         tdLog.info("insert process end, and start to check consume result")
         expectRows = 1
-        resultList = self.selectConsumeResult(expectRows)
+        resultList = tmqCom.selectConsumeResult(expectRows, pollInterval=5)
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
@@ -406,7 +391,7 @@ class TestCase:
 
         tdLog.info("insert process end, and start to check consume result")
         expectRows = 1
-        resultList = self.selectConsumeResult(expectRows)
+        resultList = tmqCom.selectConsumeResult(expectRows, pollInterval=5)
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
@@ -428,6 +413,7 @@ class TestCase:
         Since: xxx
 
         Labels: common,ci,integration,functional
+
         Jira: xxx
 
         Catalog:

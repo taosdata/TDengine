@@ -148,21 +148,6 @@ class TestViewBasic:
         self.insert_data(tdSql, para_dic["dbName"], para_dic["ctbPrefix"], para_dic["ctbNum"], para_dic["rowsPerTbl"], para_dic["batchNum"], para_dic["startTs"])
         tdLog.info("Finish to prepare the tmq data")
     
-    def selectConsumeResult(self,expectRows,cdbName='cdb'):
-        resultList=[]
-        while 1:
-            tdSql.query("select * from %s.consumeresult"%cdbName)
-            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
-            if tdSql.getRows() == expectRows:
-                break
-            else:
-                time.sleep(0.5)
-
-        for i in range(expectRows):
-            tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
-            resultList.append(tdSql.getData(i , 3))
-
-        return resultList
         
     def check_view_num(self, num):
         tdSql.query("show views;")
@@ -709,7 +694,7 @@ class TestViewBasic:
 
         tdLog.info("wait the consume result")
         expectRows = 1
-        resultList = self.selectConsumeResult(expectRows)
+        resultList = tmqCom.selectConsumeResult(expectRows, pollInterval=0.5)
         if expectRowsList[0] != resultList[0]:
             tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[0], resultList[0]))
             tdLog.exit("1 tmq consume rows error!")
@@ -873,6 +858,3 @@ class TestViewBasic:
         self.run_query_from_view()
         self.run_tmq_from_view()
         self.run_view_interp()
-
-
-
