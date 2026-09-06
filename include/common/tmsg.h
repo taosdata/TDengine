@@ -6751,6 +6751,8 @@ typedef struct SVUpdateCheckpointInfoReq {
   int8_t   dropRelHTask;
 } SVUpdateCheckpointInfoReq;
 
+#define SMQ_REB_VG_REQ_VERSION                 1
+
 typedef struct {
   int64_t        leftForVer;
   int32_t        vgId;

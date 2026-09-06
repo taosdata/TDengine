@@ -2267,7 +2267,10 @@ bool DoFloat(float* floats, int cnt, int algorithm, bool lossy) {
 
   cost_start();
   int ret_len = 0;
-  ret_len = tsCompressFloat((void*)input, input_len, cnt, output, output_len, algorithm, buff, buff_len);
+  if (algorithm == 2)
+    ret_len = tsCompressFloat((void*)input, input_len, cnt, output, output_len, algorithm, buff, buff_len);
+  else
+    ret_len = tsCompressFloatLossy((void*)input, input_len, cnt, output, output_len, algorithm, buff, buff_len);
 
   if (ret_len == -1) {
     printf(" compress error.\n");
@@ -2285,7 +2288,10 @@ bool DoFloat(float* floats, int cnt, int algorithm, bool lossy) {
   float* ft2 = (float*)taosMemoryMalloc(input_len);
   cost_start();
   int code = 0;
-  code = tsDecompressFloat(output, ret_len, cnt, (char*)ft2, input_len, algorithm, buff, buff_len);
+  if (algorithm == 2)
+    code = tsDecompressFloat(output, ret_len, cnt, (char*)ft2, input_len, algorithm, buff, buff_len);
+  else
+    code = tsDecompressFloatLossy(output, ret_len, cnt, (char*)ft2, input_len, algorithm, buff, buff_len);
 
   double use_ms2 = cost_end("Decompress");
   printf(" Decompress return length=%d \n", code);
@@ -2716,8 +2722,6 @@ void test_same_double(int algo) {
 }
 
 extern char tsLossyColumns[];
-extern bool lossyDouble;
-extern bool lossyFloat;
 
 extern double   tsFPrecision;  // float column precision
 extern double   tsDPrecision;  // double column precision
@@ -2742,7 +2746,6 @@ int main(int argc, char* argv[]) {
   // strcpy(Compressor, "GZIP_COMPRESSOR");
 
   tsCompressInit(tsLossyColumns, tsFPrecision, tsDPrecision, tsMaxRange, tsCurRange, (int)tsIfAdtFse, tsCompressor);
-  lossyFloat = lossyDouble = true;
 
   printf(" fPrecision=%.15f\n", tsFPrecision);
 
@@ -2756,12 +2759,10 @@ int main(int argc, char* argv[]) {
     // t
     if (strcmp(argv[1], "-tone") == 0 || strcmp(argv[1], "-t") == 0) {
       algo = ONE_STAGE_COMP;
-      lossyFloat = lossyDouble = true;
     }
     if (strcmp(argv[1], "-tw") == 0) {
       algo = TWO_STAGE_COMP;
       lossy = false;
-      lossyFloat = lossyDouble = false;
     }
 
     if (strcmp(argv[1], "-sf") == 0) {

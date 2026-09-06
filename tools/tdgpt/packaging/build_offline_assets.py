@@ -235,6 +235,7 @@ def create_manifest_lines(
     main_venv_dir: Optional[Path],
     extra_venvs: Iterable[Path],
     bundle_kind: str,
+    flavor: str,
 ) -> str:
     lines = [
         "TDgpt offline assets manifest",
@@ -242,6 +243,7 @@ def create_manifest_lines(
         "generated_at="
         + datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         f"bundle_kind={bundle_kind}",
+        f"flavor={flavor}",
         f"main_venv={main_venv_dir or ''}",
         "runtime=provided-by-installer",
     ]
@@ -270,6 +272,7 @@ def build_bundle(
     main_venv_dir: Optional[Path],
     extra_venvs: list[Path],
     bundle_kind: str,
+    flavor: str,
 ) -> Path:
     output_file.parent.mkdir(parents=True, exist_ok=True)
     if output_file.exists():
@@ -334,7 +337,7 @@ def build_bundle(
             info(f"Copied {copied} members from seed package")
 
         manifest = create_manifest_lines(
-            seed_package, main_venv_dir, extra_venvs, bundle_kind
+            seed_package, main_venv_dir, extra_venvs, bundle_kind, flavor
         )
         data = manifest.encode("utf-8")
         info("Adding offline assets manifest")
@@ -356,6 +359,12 @@ def parse_args() -> argparse.Namespace:
         default="combined",
         help="Bundle type: venv = only venvs/venv, model = model payloads and optional model venvs, "
         "combined = legacy combined bundle.",
+    )
+    parser.add_argument(
+        "--flavor",
+        choices=["standard", "lite"],
+        default="standard",
+        help="Offline asset flavor recorded in offline-assets-manifest.txt.",
     )
     parser.add_argument(
         "--output-file",
@@ -399,7 +408,12 @@ def main() -> int:
     ]
 
     bundle_path = build_bundle(
-        output_file, seed_package, main_venv_dir, extra_venvs, args.bundle_kind
+        output_file,
+        seed_package,
+        main_venv_dir,
+        extra_venvs,
+        args.bundle_kind,
+        args.flavor,
     )
 
     ok(f"Offline assets package created: {bundle_path}")
