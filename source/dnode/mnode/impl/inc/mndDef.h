@@ -1223,6 +1223,7 @@ typedef struct {
   SArray*   unassignedVgs;  // SArray<vgId>
   SArray*   offsetRows;
   char      dbName[TSDB_DB_FNAME_LEN];
+  SHashObj* vgDnodeId;      // vgId -> SArray<dnodeId>
   SRWLatch  lock;
 } SMqSubscribeObj;
 
@@ -1249,7 +1250,6 @@ typedef struct {
   SArray*          removedConsumers;  // SArray<int64_t>
   SArray*          modifyConsumers;   // SArray<int64_t>
   SMqSubscribeObj* pSub;
-  bool             isReload;
 } SMqRebOutputObj;
 
 typedef struct SStreamRecalcPersistReq {

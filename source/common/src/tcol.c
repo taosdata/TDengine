@@ -342,6 +342,21 @@ void setColLevel(uint32_t* compress, uint8_t level) {
 int32_t setColCompressByOption(uint8_t type, uint8_t encode, uint16_t compressType, uint8_t level, bool check,
                                uint32_t* compress) {
   if (compress == NULL) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+
+  // TSZ(SZ lossy) compresses the whole column and never uses an L1 encode: encode must be DISABLED.
+  // Absent/NOCHANGE encode is normalized to DISABLED; any other explicit encode is rejected.
+  if (compressType == TSDB_COLVAL_COMPRESS_TSZ) {
+    // TSZ(SZ lossy) compresses the whole column and never uses an L1 encode: encode is normalized
+    // to DISABLED. An absent/NOCHANGE encode or the type's own default encode (meaningless here,
+    // e.g. bss auto-filled for float/double) is accepted and forced to DISABLED; any other
+    // explicit L1 encode is rejected.
+    if (encode != TSDB_COLVAL_ENCODE_NOCHANGE && encode != TSDB_COLVAL_ENCODE_DISABLED &&
+        encode != getDefaultEncode(type)) {
+      return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+    }
+    encode = TSDB_COLVAL_ENCODE_DISABLED;
+  }
+
   if (check && !validColEncode(type, encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
   setColEncode(compress, encode);
 
@@ -465,4 +480,25 @@ int32_t validColCmprByType(uint8_t type, uint32_t cmpr) {
     return TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+// TSZ(SZ lossy) compresses the whole column and must not carry an L1 encode.
+// This authoritative check validates a user-supplied column compression value and
+// normalizes it in place: when L2 is TSZ, only {DISABLED, NOCHANGE, the type's own
+// default encode} are accepted (all normalized to DISABLED) -- any other explicit L1
+// encode (e.g. delta-d/bss-from-option) is rejected. Non-TSZ values are validated and
+// passed through unchanged.
+int32_t validAndNormalizeColCmprByType(uint8_t type, uint32_t* cmpr) {
+  if (cmpr == NULL) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+
+  uint32_t v = *cmpr;
+  if (COMPRESS_L2_TYPE_U32(v) == TSDB_COLVAL_COMPRESS_TSZ) {
+    uint8_t l1 = COMPRESS_L1_TYPE_U32(v);
+    if (l1 != TSDB_COLVAL_ENCODE_DISABLED && l1 != TSDB_COLVAL_ENCODE_NOCHANGE && l1 != getDefaultEncode(type)) {
+      return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+    }
+    setColEncode(&v, TSDB_COLVAL_ENCODE_DISABLED);
+    *cmpr = v;
+  }
+  return validColCmprByType(type, *cmpr);
 }

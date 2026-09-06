@@ -158,16 +158,13 @@ int32_t l2ComressInitImpl_tsz(char *lossyColumns, float fPrecision, double dPrec
 }
 int32_t l2CompressImpl_tsz(const char *const input, const int32_t inputSize, char *const output, int32_t outputSize,
                            const char type, int8_t lvl) {
+  // TSZ(SZ lossy) is now selected purely per column (l2 == TSZ); the legacy global
+  // lossyColumns/lossyFloat/lossyDouble switch is gone, so a tsz column always SZ-compresses.
   if (type == TSDB_DATA_TYPE_FLOAT) {
-    if (lossyFloat) {
-      return tsCompressFloatLossyImp(input, inputSize, output);
-    }
+    return tsCompressFloatLossyImp(input, inputSize / sizeof(float), output);
   } else if (type == TSDB_DATA_TYPE_DOUBLE) {
-    if (lossyDouble) {
-      return tsCompressDoubleLossyImp(input, inputSize, output);
-    }
+    return tsCompressDoubleLossyImp(input, inputSize / sizeof(double), output);
   }
-
   return l2CompressImpl_lz4(input, inputSize, output, outputSize, type, lvl);
 }
 
@@ -175,7 +172,10 @@ int32_t l2DecompressImpl_tsz(const char *const input, const int32_t inputSize, c
                              const char type) {
   if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE) {
     if (HEAD_ALGO(((uint8_t *)input)[0]) == ALGO_SZ_LOSSY) {
-      return tsDecompressFloatLossyImp(input, inputSize, outputSize, output);
+      if (type == TSDB_DATA_TYPE_FLOAT) {
+        return tsDecompressFloatLossyImp(input, inputSize, outputSize / sizeof(float), output);
+      }
+      return tsDecompressDoubleLossyImp(input, inputSize, outputSize / sizeof(double), output);
     }
   }
 
@@ -331,9 +331,6 @@ static const int32_t TEST_NUMBER = 1;
 
 #define safeInt64Add(a, b) (((a >= 0) && (b <= INT64_MAX - a)) || ((a < 0) && (b >= INT64_MIN - a)))
 
-bool lossyFloat = false;
-bool lossyDouble = false;
-
 // Defined in tcompression_accel.c. Compiled to a no-op stub when
 // BUILD_WITH_ACCEL_COMPRESS=OFF, so we can call it unconditionally.
 extern void tcompressionAccelInit(void);
@@ -341,13 +338,10 @@ extern void tcompressionAccelInit(void);
 // init call
 void tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals, uint32_t intervals,
                     int32_t ifAdtFse, const char *compressor) {
-  // config
-  lossyFloat = strstr(lossyColumns, "float") != NULL;
-  lossyDouble = strstr(lossyColumns, "double") != NULL;
-
+  // Lossy (TSZ/SZ) compression is controlled per column by compress = 'tsz' only; the legacy
+  // global lossyColumns/lossyFloat/lossyDouble switches are no longer used.
+  (void)lossyColumns;
   tdszInit(fPrecision, dPrecision, maxIntervals, intervals, ifAdtFse, compressor);
-  if (lossyFloat) uTrace("lossy compression float  is opened. ");
-  if (lossyDouble) uTrace("lossy compression double is opened. ");
 
   // Patch compressL2Dict[] with accelerated backends if TAOS_COMPRESS_ACCEL
   // points at a drop-in shared object. Failure is non-fatal (logged) and the
@@ -1480,19 +1474,15 @@ int32_t tsDecompressTimestamp(void *pIn, int32_t nIn, int32_t nEle, void *pOut, 
 // Float =====================================================
 int32_t tsCompressFloat(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
                         int32_t nBuf) {
-  // lossy mode
-  if (lossyFloat) {
-    return tsCompressFloatLossyImp(pIn, nEle, pOut);
-    // lossless mode
+  // legacy (ONE/TWO_STAGE) float compress is lossless; lossy SZ is only used via the per-column
+  // TSZ path (encode disabled + compress tsz).
+  if (cmprAlg == ONE_STAGE_COMP) {
+    return tsCompressFloatImp(pIn, nEle, pOut);
+  } else if (cmprAlg == TWO_STAGE_COMP) {
+    int32_t len = tsCompressFloatImp(pIn, nEle, pBuf);
+    return tsCompressStringImp(pBuf, len, pOut, nOut);
   } else {
-    if (cmprAlg == ONE_STAGE_COMP) {
-      return tsCompressFloatImp(pIn, nEle, pOut);
-    } else if (cmprAlg == TWO_STAGE_COMP) {
-      int32_t len = tsCompressFloatImp(pIn, nEle, pBuf);
-      return tsCompressStringImp(pBuf, len, pOut, nOut);
-    } else {
-      return TSDB_CODE_INVALID_PARA;
-    }
+    return TSDB_CODE_INVALID_PARA;
   }
 }
 
@@ -1518,19 +1508,15 @@ int32_t tsDecompressFloat(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int3
 // Double =====================================================
 int32_t tsCompressDouble(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
                          int32_t nBuf) {
-  if (lossyDouble) {
-    // lossy mode
-    return tsCompressDoubleLossyImp(pIn, nEle, pOut);
+  // legacy (ONE/TWO_STAGE) double compress is lossless; lossy SZ is only used via the per-column
+  // TSZ path (encode disabled + compress tsz).
+  if (cmprAlg == ONE_STAGE_COMP) {
+    return tsCompressDoubleImp(pIn, nEle, pOut);
+  } else if (cmprAlg == TWO_STAGE_COMP) {
+    int32_t len = tsCompressDoubleImp(pIn, nEle, pBuf);
+    return tsCompressStringImp(pBuf, len, pOut, nOut);
   } else {
-    // lossless mode
-    if (cmprAlg == ONE_STAGE_COMP) {
-      return tsCompressDoubleImp(pIn, nEle, pOut);
-    } else if (cmprAlg == TWO_STAGE_COMP) {
-      int32_t len = tsCompressDoubleImp(pIn, nEle, pBuf);
-      return tsCompressStringImp(pBuf, len, pOut, nOut);
-    } else {
-      return TSDB_CODE_INVALID_PARA;
-    }
+    return TSDB_CODE_INVALID_PARA;
   }
 }
 
@@ -1792,7 +1778,7 @@ int32_t tsDecompressTimestamp2(void *pIn, int32_t nIn, int32_t nEle, void *pOut,
 int32_t tsCompressFloat2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                          int32_t nBuf) {
   DEFINE_VAR(cmprAlg)
-  if (l2 == L2_TSZ && lvl != 0 && lossyFloat) {
+  if (l2 == L2_TSZ && lvl != 0) {
     return tsCompressFloatLossyImp(pIn, nEle, pOut);
   }
   FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_FLOAT, 1);
@@ -1801,7 +1787,7 @@ int32_t tsCompressFloat2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32
 int32_t tsDecompressFloat2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                            int32_t nBuf) {
   DEFINE_VAR(cmprAlg)
-  if (lvl != 0 && HEAD_ALGO(((uint8_t *)pIn)[0]) == ALGO_SZ_LOSSY && l1 != L1_BSS) {
+  if (lvl != 0 && l2 == L2_TSZ && HEAD_ALGO(((uint8_t *)pIn)[0]) == ALGO_SZ_LOSSY) {
     return tsDecompressFloatLossyImp(pIn, nIn, nEle, pOut);
   }
   FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_FLOAT, 0);
@@ -1811,7 +1797,7 @@ int32_t tsDecompressFloat2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
 int32_t tsCompressDouble2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                           int32_t nBuf) {
   DEFINE_VAR(cmprAlg)
-  if (l2 == L2_TSZ && lvl != 0 && lossyDouble) {
+  if (l2 == L2_TSZ && lvl != 0) {
     // lossy mode
     return tsCompressDoubleLossyImp(pIn, nEle, pOut);
   }
@@ -1821,7 +1807,7 @@ int32_t tsCompressDouble2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int3
 int32_t tsDecompressDouble2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
                             void *pBuf, int32_t nBuf) {
   DEFINE_VAR(cmprAlg)
-  if (lvl != 0 && HEAD_ALGO(((uint8_t *)pIn)[0]) == ALGO_SZ_LOSSY && l1 != L1_BSS) {
+  if (lvl != 0 && l2 == L2_TSZ && HEAD_ALGO(((uint8_t *)pIn)[0]) == ALGO_SZ_LOSSY) {
     // decompress lossy
     return tsDecompressDoubleLossyImp(pIn, nIn, nEle, pOut);
   }

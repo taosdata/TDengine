@@ -1034,10 +1034,18 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       /* TQ */
 #if defined(USE_TQ) || defined(USE_STREAM)
     case TDMT_VND_TMQ_SUBSCRIBE:
+      // if (!pVnode->restored) {
+      //   vWarn("vgId:%d, skip tmq subscribe during restore, ver:%" PRId64, TD_VID(pVnode), ver);
+      //   break;
+      // }
       code = tqProcessSubscribeReq(pVnode->pTq, ver, pReq, len);
       TSDB_CHECK_CODE(code, lino, _err);
       break;
     case TDMT_VND_TMQ_DELETE_SUB:
+      // if (!pVnode->restored) {
+      //   vWarn("vgId:%d, skip tmq subscribe during restore, ver:%" PRId64, TD_VID(pVnode), ver);
+      //   break;
+      // }
       code = tqProcessDeleteSubReq(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen);
       TSDB_CHECK_CODE(code, lino, _err);
       break;
@@ -1160,16 +1168,6 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   const STraceId *trace = &pMsg->info.traceId;
   vDebug("vgId:%d, msg:%s, %p in vnode query queue is processing, %" PRIx64 ":%" PRIx64, 
     pVnode->config.vgId, TMSG_INFO(pMsg->msgType), pMsg, TRACE_GET_ROOTID(trace), TRACE_GET_MSGID(trace));
-
-  if (pMsg->msgType == TDMT_VND_TMQ_CONSUME && !syncIsReadyForRead(pVnode->sync)) {
-    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
-    return 0;
-  }
-
-  if (pMsg->msgType == TDMT_VND_TMQ_CONSUME && !pVnode->restored) {
-    vnodeRedirectRpcMsg(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
-    return 0;
-  }
 
   SReadHandle handle = {0};
   handle.vnode = pVnode;

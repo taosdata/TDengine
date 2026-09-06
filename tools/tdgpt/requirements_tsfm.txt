@@ -3,19 +3,23 @@
 # TimesFM, and MOMENT. Model-specific requirements must not downgrade them.
 
 --find-links https://download.pytorch.org/whl/torch/
-# x86/x64平台
-torch==2.4.1+cpu ; platform_machine == "x86_64"
+# x86/x64 platforms. Windows reports AMD64, while Linux reports x86_64.
+torch==2.4.1+cpu ; platform_machine == "x86_64" or (platform_system == "Windows" and platform_machine == "AMD64")
 # ARM平台 (aarch64)
 torch==2.4.1 ; platform_machine == "aarch64"
 
 transformers==4.40.1
 accelerate==0.34.2
-huggingface-hub==0.36.2
+# 0.31.x keeps hf-xet optional; newer releases require an arm64 wheel that
+# is incompatible with Ubuntu 18.04 / glibc 2.27.
+huggingface-hub==0.31.4
 fsspec==2023.10.0
 numpy==1.26.4
 pandas==2.1.4
 scipy==1.11.4
 scikit-learn==1.5.2
+# Keep a wheel-compatible line for Python 3.12 on Linux arm64.
+pyarrow==18.1.0
 flask==3.0.3
 matplotlib==3.9.2
 

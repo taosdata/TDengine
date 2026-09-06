@@ -862,7 +862,9 @@ void loop_consume(SThreadInfo* pInfo) {
                  code == TSDB_CODE_SYN_NOT_LEADER ||
                  code == TSDB_CODE_APP_IS_STARTING ||
                  code == TSDB_CODE_APP_IS_STOPPING ||
-                 code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+                 code == TSDB_CODE_RPC_NETWORK_UNAVAIL ||
+                 code == TSDB_CODE_SYN_RESTORING ||
+                 code == TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST) {
         taosFprintfFile(g_fp, "%s poll err:%s, continue\n", getCurrentTimeString(tmpString), taos_errstr(NULL));
       } else {
         taosFprintfFile(g_fp, "%s poll err:%s, break\n", getCurrentTimeString(tmpString), taos_errstr(NULL));

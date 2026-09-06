@@ -216,6 +216,7 @@ class TestCompressTsz1:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -225,3 +226,185 @@ class TestCompressTsz1:
         """
         self.do_compress_tsz1()
         self.do_compress_tsz2()
+
+
+#
+# ------------------- TSZ encode-disabled DDL rule + large-volume correctness (regression) ----------------
+#
+
+
+class TestCompressTszDdlAndData:
+    """
+    Regression for the TSZ encode/decode mismatch:
+      1. DDL rule: compress=tsz must not carry an explicit L1 encode (only DISABLED), enforced at CREATE/ALTER.
+      2. Large-volume TSZ write -> flush/compact -> read-back correctness (covers the BSS+tsz decompress crash).
+    """
+
+    def _use_db(self, db):
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} precision 'us'")
+        tdSql.execute(f"use {db}")
+
+    def _wait_compact(self):
+        for _ in range(60):
+            tdSql.query("show compacts;")
+            if tdSql.getRows() == 0:
+                break
+            time.sleep(3)
+
+    def test_tsz_ddl_encode_disabled(self):
+        """TSZ DDL rule: compress tsz forces the L1 encode to disabled
+
+        1. Create/alter float & double columns with COMPRESS 'tsz' (absent/disabled/default encode) succeed
+        2. Explicit L1 encode such as 'delta-d' combined with tsz is rejected on create, alter modify and add column
+        3. COMPRESS 'tsz' on non-float/double types (int/bool/varchar) is rejected
+        4. Both normal table and super table paths persist tsz columns with encode disabled
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+        """
+        tdLog.debug(f"start to execute {__file__}")
+        db = "tsz_ddl_rule"
+        self._use_db(db)
+
+        # allowed: absent encode defaults to DISABLED; explicit disabled; any level
+        tdSql.execute(
+            f"create table {db}.t_ok1 (ts timestamp, c1 float COMPRESS 'tsz', c2 double COMPRESS 'tsz')"
+        )
+        tdSql.execute(
+            f"create table {db}.t_ok2 (ts timestamp, c2 double ENCODE 'disabled' COMPRESS 'tsz' LEVEL 'high')"
+        )
+        tdSql.execute(
+            f"create table {db}.t_ok3 (ts timestamp, c2 double ENCODE 'disabled' COMPRESS 'tsz' LEVEL 'low')"
+        )
+
+        # rejected: explicit L1 encode (other than disabled) cannot be combined with tsz
+        tdSql.error(f"create table {db}.t_bad_enc1 (ts timestamp, c2 double ENCODE 'delta-d' COMPRESS 'tsz')")
+        tdSql.error(f"create table {db}.t_bad_enc2 (ts timestamp, c2 float ENCODE 'delta-d' COMPRESS 'tsz')")
+
+        # rejected: tsz is only valid on float/double columns
+        tdSql.error(f"create table {db}.t_bad_int (ts timestamp, i int COMPRESS 'tsz')")
+        tdSql.error(f"create table {db}.t_bad_bool (ts timestamp, b bool COMPRESS 'tsz')")
+        tdSql.error(f"create table {db}.t_bad_str (ts timestamp, s varchar(10) COMPRESS 'tsz')")
+
+        # alter: switch an existing float/double column to/from tsz keeps encode sane
+        tdSql.execute(f"create table {db}.t_alt (ts timestamp, c2 double)")
+        tdSql.execute(f"alter table {db}.t_alt modify column c2 compress 'tsz'")
+        tdSql.execute(f"alter table {db}.t_alt modify column c2 compress 'zlib'")
+
+        # alter add column: same rule applies
+        tdSql.execute(f"alter table {db}.t_alt add column c3 double ENCODE 'disabled' COMPRESS 'tsz'")
+        tdSql.execute(f"alter table {db}.t_alt add column c4 double COMPRESS 'tsz'")
+        tdSql.error(f"alter table {db}.t_alt add column c5 double ENCODE 'delta-d' COMPRESS 'tsz'")
+
+        tdLog.info("tsz DDL encode-disabled rule check passed")
+
+    def test_tsz_large_data_correctness(self):
+        """Large TSZ volume flush/compact read-back stays within SZ tolerance
+
+        1. Create float & double columns with COMPRESS 'tsz' (encode normalized to disabled)
+        2. Insert a large volume (>= 3 on-disk blocks per table) so real SZ compress/decompress happens on disk
+        3. Flush database then compact database to force blocks to be re-decompressed and re-compressed
+        4. Read back rows and verify per-row values stay within SZ lossy tolerance
+        5. Verify row count and min/max/avg aggregates after compact
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+        """
+        tdLog.debug(f"start to execute {__file__}")
+        db = "tsz_large_correct"
+        self._use_db(db)
+
+        rows_per_blk = 4096  # default max rows per file block
+        nblk = 3
+        rows = rows_per_blk * nblk  # 12288 rows => >=3 on-disk blocks per table
+        batch = 1024
+        base = 1680000000000000
+
+        tdSql.execute(
+            f"create table {db}.t (ts timestamp, c1 float COMPRESS 'tsz', c2 double COMPRESS 'tsz')"
+        )
+        # t1: float + double tsz columns
+        for s in range(0, rows, batch):
+            e = min(s + batch, rows)
+            ts = base + s
+            vals = []
+            for i in range(s, e):
+                ts += 1
+                f = math.sin(i * 0.01) * 100.0
+                d = 1000.0 + math.cos(i * 0.001) * 50.0
+                vals.append(f"({ts},{f:.6f},{d:.6f})")
+            tdSql.execute(f"insert into {db}.t values " + ",".join(vals))
+        tdSql.execute(f"flush database {db}")
+
+        # t2: double-only tsz column, different range/timestamps
+        tdSql.execute(f"create table {db}.t2 (ts timestamp, c2 double COMPRESS 'tsz')")
+        base2 = 1700000000000000
+        for s in range(0, rows, batch):
+            e = min(s + batch, rows)
+            ts = base2 + s
+            vals = []
+            for i in range(s, e):
+                ts += 1
+                d = 2000.0 + math.cos(i * 0.001) * 30.0
+                vals.append(f"({ts},{d:.6f})")
+            tdSql.execute(f"insert into {db}.t2 values " + ",".join(vals))
+        tdSql.execute(f"flush database {db}")
+
+        # compact (merge) so blocks are re-decompressed/re-compressed; then read again
+        tdSql.execute(f"compact database {db}")
+        self._wait_compact()
+        tdSql.execute(f"flush database {db}")
+
+        # ---- verify t ----
+        tdSql.query(f"select count(*) from {db}.t")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, rows)
+
+        # row-level spot check (forces per-block decompression of tsz columns)
+        tdSql.query(f"select ts, c1, c2 from {db}.t order by ts")
+        res = tdSql.queryResult
+        assert res is not None
+        rowCnt = tdSql.getRows()
+        tdLog.debug(f"tsz large: fetched rows={rowCnt}")
+        if rowCnt != rows:
+            tdLog.exit(f"row count mismatch: {rowCnt} != {rows}")
+        for idx in range(0, rowCnt, 64):
+            r = res[idx]
+            exp1 = math.sin(idx * 0.01) * 100.0
+            exp2 = 1000.0 + math.cos(idx * 0.001) * 50.0
+            if not math.isclose(float(r[1]), exp1, rel_tol=1e-3, abs_tol=5e-3):
+                tdLog.exit(f"c1 mismatch at idx {idx}: got={r[1]} expect={exp1}")
+            if not math.isclose(float(r[2]), exp2, rel_tol=1e-5, abs_tol=1e-2):
+                tdLog.exit(f"c2 mismatch at idx {idx}: got={r[2]} expect={exp2}")
+
+        # aggregates sanity for t
+        tdSql.query(f"select min(c2), max(c2), avg(c2) from {db}.t")
+        res = tdSql.queryResult
+        assert res is not None
+        mn, mx, avg = res[0][0], res[0][1], res[0][2]
+        if not (950.0 - 0.1 <= float(mn) and float(mx) <= 1050.0 + 0.1 and 990.0 <= float(avg) <= 1010.0):
+            tdLog.exit(f"c2 aggregate out of range: min={mn} max={mx} avg={avg}")
+
+        # ---- verify t2 ----
+        tdSql.query(f"select count(*), min(c2), max(c2) from {db}.t2")
+        res = tdSql.queryResult
+        assert res is not None
+        cnt, mn2, mx2 = res[0][0], res[0][1], res[0][2]
+        if int(cnt) != rows:
+            tdLog.exit(f"t2 count mismatch: {cnt} != {rows}")
+        if not (1970.0 - 0.1 <= float(mn2) and float(mx2) <= 2030.0 + 0.1):
+            tdLog.exit(f"t2 c2 range out of expected: min={mn2} max={mx2}")
+
+        # full second read after compact (all blocks decompressed)
+        tdSql.query(f"select count(*) from {db}.t")
+        tdSql.checkData(0, 0, rows)
+
+        tdLog.info(f"tsz large-volume correctness check passed, rows per table = {rows}")
+

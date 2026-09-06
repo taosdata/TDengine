@@ -1,0 +1,16 @@
+ARG PYTHON_BASE=python:3.12.12-slim-trixie
+ARG PIP_INDEX_URL=
+
+FROM ${PYTHON_BASE}
+ARG PIP_INDEX_URL
+
+COPY ./requirements_docker.txt /tmp/requirements_docker.txt
+RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update -y && \
+    apt-get install -y --no-install-recommends gcc libc-dev procps && \
+    PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
+    pip3 install --upgrade pip && \
+    pip3 install --no-cache-dir -r /tmp/requirements_docker.txt ${PIP_INDEX_ARG} && \
+    python3.12 -m venv --system-site-packages /var/lib/taos/taosanode/venv && \
+    find /usr/local/lib/python3.12 -depth -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null || true && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/requirements_docker.txt

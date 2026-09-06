@@ -167,6 +167,51 @@ class TestCompressBasic:
 
         tdLog.info("check default encode compress and level successfully.")
 
+    def defaultLevelWithCompressNoLevel(self):
+        """Check default level when COMPRESS is set but LEVEL is omitted
+
+        1. Create a super table whose data columns set COMPRESS (including 'disabled')
+           but omit LEVEL
+        2. Describe and verify the default LEVEL is 'medium' for every such column
+        3. Verify the specified COMPRESS and the type-default ENCODE are preserved
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+        Jira: None
+        """
+        tb = f"{self.db}.tb_lvl_default"
+        tdSql.execute(f"drop table if exists {tb}")
+        tdSql.execute(
+            f"create table {tb} (ts timestamp,"
+            f" bc bool encode 'disabled' compress 'disabled',"
+            f" c1 bool compress 'disabled',"
+            f" c2 int compress 'disabled',"
+            f" c3 float compress 'disabled',"
+            f" c4 double compress 'zstd',"
+            f" c5 bigint compress 'xz',"
+            f" c6 binary(8) compress 'zlib',"
+            f" c7 int compress 'zstd') tags(t int)"
+        )
+        # [column name, default encode, compress set]; LEVEL must default to medium
+        expects = [
+            ("bc", "disabled", "disabled"),
+            ("c1", "bit-packing", "disabled"),
+            ("c2", "simple8b", "disabled"),
+            ("c3", "bss", "disabled"),
+            ("c4", "bss", "zstd"),
+            ("c5", "simple8b", "xz"),
+            ("c6", "disabled", "zlib"),
+            ("c7", "simple8b", "zstd"),
+        ]
+        tdSql.query(f"describe {tb}")
+        for i, (name, enc, cpr) in enumerate(expects, start=1):
+            tdLog.info(f"check default level of {name}: encode={enc} compress={cpr} level=medium")
+            tdSql.checkData(i, 4, enc)
+            tdSql.checkData(i, 5, cpr)
+            tdSql.checkData(i, 6, "medium")
+        tdLog.info("check default level with COMPRESS but no LEVEL successfully.")
+
     def checkDataDesc(self, tbname, row, col, value):
         sql = f"describe {tbname}"
         tdSql.query(sql)
@@ -315,6 +360,9 @@ class TestCompressBasic:
         # check default value corrent
         self.defaultCorrect()
 
+        # check default level with explicit COMPRESS but no LEVEL
+        self.defaultLevelWithCompressNoLevel()
+
         # check alter and write
         self.checkAlter()
 
@@ -353,10 +401,12 @@ class TestCompressBasic:
         6. Add columns with encode/compress/level and insert data
         7. Check all data is correct
         8. Check error create/alter/add column with encode/compress/level
+        9. Check default level is medium when COMPRESS set but LEVEL omitted
 
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

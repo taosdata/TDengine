@@ -166,26 +166,54 @@ class WindowsUninstaller:
                     f"Failed to terminate PID from {pid_file.name}: {exc}"
                 )
 
-    def uninstall_service(self) -> None:
+    def uninstall_service(self) -> bool:
         self.print_info("Uninstalling Windows service...")
         service_script = self.install_dir / "bin" / "taosanode_service.py"
         python_exe = self.venvs_dir / "venv" / "Scripts" / "python.exe"
 
         if not service_script.exists() or not python_exe.exists():
-            self.print_info(
-                "Service wrapper or Python runtime is missing, skip service uninstall."
+            query = subprocess.run(
+                ["sc", "query", "Taosanode"], capture_output=True, timeout=30, check=False
             )
-            return
+            if query.returncode != 0:
+                self.print_info("Taosanode service is already absent.")
+                return True
+            result = subprocess.run(
+                ["sc", "delete", "Taosanode"], capture_output=True, timeout=30, check=False
+            )
+            if result.returncode == 0:
+                self.print_info("Removed remaining Taosanode service registration.")
+                return True
+            self.print_error("Service wrapper or Python runtime is missing; cannot verify service removal.")
+            return False
 
         try:
-            subprocess.run(
+            result = subprocess.run(
                 [str(python_exe), str(service_script), "uninstall-service"],
                 capture_output=True,
                 timeout=120,
                 check=False,
             )
+            if result.returncode == 0:
+                return True
+            detail = (result.stderr or result.stdout or "unknown error").strip()
+            query = subprocess.run(
+                ["sc", "query", "Taosanode"],
+                capture_output=True,
+                timeout=30,
+                check=False,
+            )
+            if query.returncode != 0:
+                self.print_warning(
+                    "Taosanode uninstall command returned "
+                    f"{result.returncode}, but the service is absent: {detail}"
+                )
+                return True
+            self.print_error(f"Taosanode service uninstall failed: {detail}")
+            return False
         except Exception as exc:
-            self.print_warning(f"Service uninstall command failed: {exc}")
+            self.print_error(f"Service uninstall command failed: {exc}")
+            return False
 
     def remove_files(self) -> None:
         self.print_info("Removing packaged files...")
@@ -276,7 +304,9 @@ class WindowsUninstaller:
         self.print_info("=" * 60)
 
         self.stop_services()
-        self.uninstall_service()
+        if not self.uninstall_service():
+            self.print_error("Uninstall aborted because the Taosanode service remains registered.")
+            return False
         self.remove_files()
         self.append_uninstall_summary()
         self.print_success(f"{APP_DISPLAY_NAME} uninstall flow completed.")

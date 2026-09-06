@@ -1461,13 +1461,14 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
 
     SColCmpr *pColCmpr = &pDst->pCmpr[i];
     pColCmpr->id = pSchema->colId;
-    if (pField->compress != 0) {
-      code = validColCmprByType(pSchema->type, pField->compress);
+    uint32_t nc = pField->compress;
+    if (nc != 0) {
+      code = validAndNormalizeColCmprByType(pSchema->type, &nc);
       if (code != TSDB_CODE_SUCCESS) {
         TAOS_RETURN(code);
       }
     }
-    pColCmpr->alg = pField->compress;
+    pColCmpr->alg = nc;
   }
 
   if (hasTypeMods) {
@@ -2225,11 +2226,12 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
     if (pField->compress == 0) {
       p->alg = createDefaultColCmprByType(pSchema->type);
     } else {
-      code = validColCmprByType(pSchema->type, pField->compress);
+      uint32_t nc = pField->compress;
+      code = validAndNormalizeColCmprByType(pSchema->type, &nc);
       if (code != TSDB_CODE_SUCCESS) {
         TAOS_RETURN(code);
       }
-      p->alg = pField->compress;
+      p->alg = nc;
     }
     if (pField->flags & COL_HAS_TYPE_MOD) {
       pDst->pExtSchemas[i].typeMod = pField->typeMod;
@@ -3095,7 +3097,8 @@ static int32_t mndUpdateSuperTableColumnCompress(SMnode *pMnode, const SStbObj *
   col_id_t colId = pTarget->colId;
 
   TAOS_CHECK_RETURN(mndAllocStbSchemas(pOld, pNew));
-  code = validColCmprByType(pTarget->type, p->bytes);
+  uint32_t newCompress = p->bytes;
+  code = validAndNormalizeColCmprByType(pTarget->type, &newCompress);
   if (code != TSDB_CODE_SUCCESS) {
     TAOS_RETURN(code);
   }
@@ -3105,7 +3108,7 @@ static int32_t mndUpdateSuperTableColumnCompress(SMnode *pMnode, const SStbObj *
     SColCmpr *pCmpr = &pNew->pCmpr[i];
     if (pCmpr->id == colId) {
       uint32_t dst = 0;
-      updated = tUpdateCompress(pCmpr->alg, p->bytes, TSDB_COLVAL_COMPRESS_DISABLED, TSDB_COLVAL_LEVEL_DISABLED,
+      updated = tUpdateCompress(pCmpr->alg, newCompress, TSDB_COLVAL_COMPRESS_DISABLED, TSDB_COLVAL_LEVEL_DISABLED,
                                 TSDB_COLVAL_LEVEL_MEDIUM, &dst);
       if (updated > 0) pCmpr->alg = dst;
       break;
@@ -3182,11 +3185,12 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const 
 
       SColCmpr *pCmpr = &pNew->pCmpr[pOld->numOfColumns + i];
       pCmpr->id = pSchema->colId;
-      code = validColCmprByType(pSchema->type, pField->compress);
+      uint32_t nc = pField->compress;
+      code = validAndNormalizeColCmprByType(pSchema->type, &nc);
       if (code != TSDB_CODE_SUCCESS) {
         TAOS_RETURN(code);
       }
-      pCmpr->alg = pField->compress;
+      pCmpr->alg = nc;
       mInfo("stb:%s, start to add column %s", pNew->name, pSchema->name);
     } else {
       SField *pField = taosArrayGet(pReq->pFields, i);

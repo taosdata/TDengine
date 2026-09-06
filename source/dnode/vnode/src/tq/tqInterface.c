@@ -34,10 +34,23 @@ static bool tqOffsetEqual(const STqOffset* pLeft, const STqOffset* pRight) {
          pLeft->val.version == pRight->val.version;
 }
 
+bool vnodeIsReady(SVnode *pVnode) {
+  return syncIsReadyForRead(pVnode->sync);
+}
+
+bool vnodeRestoreFinished(SVnode *pVnode) {
+  if (!pVnode->restored) {
+    terrno = TSDB_CODE_SYN_RESTORING;
+    return false;
+  }
+  return true;
+}
+
 int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   if (pTq == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+
   SMqVgOffset vgOffset = {0};
   int32_t     vgId = TD_VID(pTq->pVnode);
 
@@ -95,6 +108,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   if (pTq == NULL || pMsg == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+  if (!vnodeIsReady(pTq->pVnode)) return terrno;
+  if (!vnodeRestoreFinished(pTq->pVnode)) return terrno;
+
   SMqPollReq req = {0};
   int        code = tDeserializeSMqPollReq(pMsg->pCont, pMsg->contLen, &req);
   if (code < 0) {
@@ -178,6 +194,9 @@ int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   if (pTq == NULL || pMsg == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+  if (!vnodeIsReady(pTq->pVnode)) return terrno;
+  if (!vnodeRestoreFinished(pTq->pVnode)) return terrno;
+
   void*   data = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t len = pMsg->contLen - sizeof(SMsgHead);
 
@@ -228,6 +247,9 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   if (pTq == NULL || pMsg == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+  if (!vnodeIsReady(pTq->pVnode)) return terrno;
+  if (!vnodeRestoreFinished(pTq->pVnode)) return terrno;
+
   int32_t    code = 0;
   SMqPollReq req = {0};
   if (tDeserializeSMqPollReq(pMsg->pCont, pMsg->contLen, &req) < 0) {
@@ -316,6 +338,8 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   if (pTq == NULL || msg == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+  if (!vnodeRestoreFinished(pTq->pVnode)) return terrno;
+
   SMqVDeleteReq* pReq = (SMqVDeleteReq*)msg;
   int32_t        vgId = TD_VID(pTq->pVnode);
 
@@ -365,6 +389,8 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   if (pTq == NULL || msg == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+  if (!vnodeRestoreFinished(pTq->pVnode)) return terrno;
+
   int         ret = 0;
   SMqRebVgReq req = {0};
   SDecoder    dc = {0};
@@ -431,7 +457,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
         tqInfo("vgId:%d, reload subscribe req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
          req.oldConsumerId, req.newConsumerId);
       } else if (pHandle->consumerId == req.newConsumerId) {  // do nothing
-        tqInfo("vgId:%d no switch consumer:0x%" PRIx64 " remains, because redo wal log", req.vgId, req.newConsumerId);
+        tqInfo("vgId:%d no switch consumer:0x%" PRIx64 " remains, because same consumer", req.vgId, req.newConsumerId);
       } else {
         tqInfo("vgId:%d switch consumer from Id:0x%" PRIx64 " to Id:0x%" PRIx64, req.vgId, pHandle->consumerId,
                req.newConsumerId);

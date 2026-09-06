@@ -75,7 +75,7 @@ class TestCase:
                     'rowsPerTbl': 10000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  600,
+                    'pollDelay':  60,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   1}
@@ -222,6 +222,7 @@ class TestCase:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
