@@ -86,29 +86,44 @@ for debug_entry in "${DEBUG_DIRS[@]}"; do
     INFO_FILE_PATH="${COVERAGE_OUTPUT_DIR}/${INFO_FILENAME}"
     
     echo "生成覆盖率信息: $INFO_FILENAME"
-    
-    # 执行 lcov 命令 - 关键：使用正确的源码路径
-    LCOV_CMD="cd ${DEBUG_PATH} && lcov --quiet -d . -capture \
-        --rc lcov_branch_coverage=0 \
-        --rc genhtml_branch_coverage=0 \
-        --no-external \
-        -b /home/TDinternal/community/ \
-        -o ${INFO_FILE_PATH}"
-    
-    echo "执行 lcov 命令: $LCOV_CMD"
-    
-    if eval "$LCOV_CMD" 2>/dev/null; then
-        if [ -s "$INFO_FILE_PATH" ]; then
-            FILE_SIZE=$(stat -c%s "$INFO_FILE_PATH" 2>/dev/null || echo "0")
-            echo "✓ 成功生成: $INFO_FILENAME (大小: $FILE_SIZE 字节)"
-            GENERATED_FILES+=("$INFO_FILE_PATH")
-        else
-            echo "✗ 生成的文件为空: $INFO_FILENAME"
-            rm -f "$INFO_FILE_PATH"
+
+    # ASAN+gcov and parallel tests may produce negative hit counts or missing
+    # generated sources (e.g. parser sql.c); ignore those for CI capture.
+    LCOV_IGNORE="--ignore-errors negative,inconsistent,deprecated,source,count,usage,missing,unused"
+    LCOV_RC="--rc lcov_branch_coverage=0 --rc max_message_count=0"
+
+    # Scoped dirs keep per-case capture ~2min instead of ~7min full tree scan.
+    LCOV_DIR_ARGS=()
+    for rel in community/source/dnode community/source/client community/source/common \
+               community/source/libs community/source/util source/plugins source; do
+        if find "${DEBUG_PATH}/${rel}" -name '*.gcda' -print -quit 2>/dev/null | grep -q .; then
+            LCOV_DIR_ARGS+=("-d" "${rel}")
         fi
+    done
+
+    if [ ${#LCOV_DIR_ARGS[@]} -eq 0 ]; then
+        echo "目录 $DEBUG_PATH 中没有可采集的 GCDA 子目录，跳过"
+        continue
+    fi
+
+    LCOV_LOG="${COVERAGE_OUTPUT_DIR}/lcov_${CASE_NAME}.log"
+    LCOV_CMD="cd ${DEBUG_PATH} && lcov --quiet ${LCOV_DIR_ARGS[*]} -capture ${LCOV_RC} ${LCOV_IGNORE} --no-external -b /home/TDinternal -o ${INFO_FILE_PATH}"
+
+    echo "执行 lcov 命令: $LCOV_CMD"
+
+    LCOV_OUTPUT=$(eval "$LCOV_CMD" 2>&1)
+    lcov_ret=$?
+    echo "$LCOV_OUTPUT" | tee "$LCOV_LOG" | tail -30
+
+    if [ $lcov_ret -eq 0 ] && [ -s "$INFO_FILE_PATH" ]; then
+        FILE_SIZE=$(stat -c%s "$INFO_FILE_PATH" 2>/dev/null || echo "0")
+        echo "✓ 成功生成: $INFO_FILENAME (大小: $FILE_SIZE 字节)"
+        GENERATED_FILES+=("$INFO_FILE_PATH")
+    elif [ $lcov_ret -eq 0 ]; then
+        echo "✗ 生成的文件为空: $INFO_FILENAME"
+        rm -f "$INFO_FILE_PATH"
     else
-        echo "✗ lcov 执行失败: $DEBUG_PATH"
-        # 调试：显示一些文件示例
+        echo "✗ lcov 执行失败: $DEBUG_PATH (详见 $LCOV_LOG)"
         echo "调试：显示 GCDA 文件示例:"
         find "$DEBUG_PATH" -name "*.gcda" -type f | head -5
         echo "调试：显示 GCNO 文件示例:"
@@ -122,27 +137,28 @@ if [ "${#GENERATED_FILES[@]}" -gt 1 ]; then
     MERGED_FILE="${COVERAGE_OUTPUT_DIR}/coverage_${CASE_NAME}_merged.info"
     
     # 构建合并命令
-    MERGE_CMD="lcov --quiet --rc lcov_branch_coverage=0"
+    MERGE_CMD="lcov --quiet --rc lcov_branch_coverage=0 ${LCOV_IGNORE}"
     for info_file in "${GENERATED_FILES[@]}"; do
         MERGE_CMD="$MERGE_CMD --add-tracefile '$info_file'"
     done
     MERGE_CMD="$MERGE_CMD -o '$MERGED_FILE'"
     
     echo "执行合并命令: $MERGE_CMD"
-    if eval "$MERGE_CMD" 2>/dev/null; then
-        if [ -s "$MERGED_FILE" ]; then
-            MERGED_SIZE=$(stat -c%s "$MERGED_FILE" 2>/dev/null || echo "0")
-            echo "✓ 成功合并: coverage_${CASE_NAME}_merged.info (大小: $MERGED_SIZE 字节)"
-            
-            # 删除单独文件，保留合并文件
-            for info_file in "${GENERATED_FILES[@]}"; do
-                rm -f "$info_file"
-            done
-            GENERATED_FILES=("$MERGED_FILE")
-        else
-            echo "✗ 合并文件为空，保留单独文件"
-            rm -f "$MERGED_FILE"
-        fi
+    MERGE_OUTPUT=$(eval "$MERGE_CMD" 2>&1)
+    merge_ret=$?
+    echo "$MERGE_OUTPUT" | tail -20
+    if [ $merge_ret -eq 0 ] && [ -s "$MERGED_FILE" ]; then
+        MERGED_SIZE=$(stat -c%s "$MERGED_FILE" 2>/dev/null || echo "0")
+        echo "✓ 成功合并: coverage_${CASE_NAME}_merged.info (大小: $MERGED_SIZE 字节)"
+
+        # 删除单独文件，保留合并文件
+        for info_file in "${GENERATED_FILES[@]}"; do
+            rm -f "$info_file"
+        done
+        GENERATED_FILES=("$MERGED_FILE")
+    elif [ $merge_ret -eq 0 ]; then
+        echo "✗ 合并文件为空，保留单独文件"
+        rm -f "$MERGED_FILE"
     else
         echo "✗ 合并失败，保留单独文件"
     fi
