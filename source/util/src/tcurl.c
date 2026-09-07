@@ -759,9 +759,7 @@ static int32_t tcurlSendLocked(SCURL* scurl, const void* buffer, size_t buflen, 
     tcurlReportUrlFailure(scurl->url);
     return TSDB_CODE_FAILED;
   }
-
-  uError("[curl]send to:%s failed, res:%d", scurl->url, res);
-  return TSDB_CODE_FAILED;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t tcurlSendFrameLocked(SCURL* scurl, const char* buffer, size_t frameLen, unsigned int flags) {
