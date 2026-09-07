@@ -41,7 +41,11 @@ if(TD_ENTERPRISE)
 
   if(BUILD_WITH_LIBPQ)
     target_compile_definitions(extconnector PRIVATE HAVE_LIBPQ)
-    DEP_ext_libpq(extconnector)
+    # Headers only. DEP_ext_libpq() would also link libpq, which Darwin records
+    # as LC_LOAD_DYLIB even when no symbols are referenced. Linux GNU ld drops
+    # the unused NEEDED entry via --as-needed, so taosd starts without libpq;
+    # macOS does not. Keep the same load-time independence as MariaDB.
+    DEP_ext_libpq_INC(extconnector)
     message(STATUS "ExtConnector: PostgreSQL provider enabled with runtime libpq loading")
   else()
     message(STATUS "ExtConnector: BUILD_WITH_LIBPQ=OFF — PostgreSQL provider disabled")
