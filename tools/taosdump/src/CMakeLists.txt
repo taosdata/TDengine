@@ -103,6 +103,7 @@ ADD_EXECUTABLE(
         main.c
         # core
         core/bckUtil.c
+        core/bckName.c
         core/bckArgs.c
         core/bckLog.c
         core/bckFile.c
@@ -134,6 +135,14 @@ SET_TARGET_PROPERTIES(taosdump PROPERTIES LINKER_LANGUAGE CXX)
 
 # C++ standard required by Arrow C++ headers
 target_compile_features(taosdump PRIVATE cxx_std_17)
+
+# Use the wide-char path APIs so non-ASCII (e.g. CJK) file names round-trip
+# correctly on Windows.  The symbol mapping itself is gated on WINDOWS in
+# osFile.h/osDir.h, so on Linux taosdump links the plain APIs and never
+# references the *W symbols -- keeping Linux unaffected by these additions.
+if(TD_WINDOWS)
+    target_compile_definitions(taosdump PRIVATE TAOS_OS_WIDE_PATH)
+endif()
 
 # Arrow include directory (set by INIT_EXT in external.cmake)
 target_include_directories(taosdump PRIVATE "${ext_arrow_static_inc_dir}")

@@ -1,5 +1,11 @@
-# taosdump test CMakeLists.txt
-# Placeholder for test directory
+# taosdump unit tests
 
-# Add test executables here if needed
-# For now, this is just a placeholder to satisfy the build system
+# bckName: percent-encoding of backup path components (db/stb/tb names).
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/../inc)
+
+add_executable(taosdumpTests taosdumpTests.cpp ../src/core/bckName.c)
+DEP_ext_gtest(taosdumpTests)
+add_test(
+    NAME taosdumpTests
+    COMMAND taosdumpTests
+)

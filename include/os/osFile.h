@@ -147,6 +147,19 @@ bool    lastErrorIsFileNotExist();
 
 int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt);
 
+#ifdef WINDOWS
+// Wide-char path variants: interpret the path as UTF-8 on Windows (via wide
+// Win32 APIs) so non-ASCII (e.g. CJK) names round-trip correctly.  On POSIX
+// the paths are already UTF-8 byte strings, so these delegate to the plain
+// APIs.
+TdFilePtr taosOpenFileW(const char *path, int32_t tdFileOptions);
+int32_t   taosRemoveFileW(const char *path);
+int32_t   taosRenameFileW(const char *oldName, const char *newName);
+int32_t   taosStatFileW(const char *path, int64_t *size, int64_t *mtime, int64_t *atime);
+bool      taosCheckAccessFileW(const char *pathname, int32_t mode);
+bool      taosCheckExistFileW(const char *pathname);
+#endif
+
 #ifdef BUILD_WITH_RAND_ERR
 #define STUB_RAND_NETWORK_ERR(ret)                                        \
   do {                                                                    \
@@ -160,6 +173,15 @@ int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt);
     while (0)
 #else
 #define STUB_RAND_NETWORK_ERR(status)
+#endif
+
+#if defined(TAOS_OS_WIDE_PATH) && defined(WINDOWS)
+#define taosOpenFile        taosOpenFileW
+#define taosRemoveFile      taosRemoveFileW
+#define taosRenameFile      taosRenameFileW
+#define taosStatFile        taosStatFileW
+#define taosCheckAccessFile taosCheckAccessFileW
+#define taosCheckExistFile  taosCheckExistFileW
 #endif
 
 #ifdef __cplusplus
