@@ -383,7 +383,7 @@ void prepareBindData(char ***table_name, TAOS_STMT2_BIND ***tags, TAOS_STMT2_BIN
       struct timeval tv;
       taosGetTimeOfDay(&tv);
       ts[j] = tv.tv_sec * 1000LL + tv.tv_usec / 1000 + j;
-      current[j] = (float)taosRand() / RAND_MAX_TEMP * 30;
+      current[j] = (float)((double)taosRand() / RAND_MAX_TEMP * 30);
       voltage[j] = taosRand() % 300;
       // phase[j] = (char *)malloc(20 * sizeof(char));
 

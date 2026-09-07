@@ -22,6 +22,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdarg>
+#include <cstdlib>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -43,6 +44,7 @@
 
 #include "cJSON.h"
 #include "stub.h"
+#include "taos.h"
 #include "trpc.h"
 
 extern "C" {
@@ -8106,7 +8108,7 @@ static char* makeNestedHistoryVirtualScanPlan(bool   calcProjection = false,
 
 class OwnedDecodedPull {
  public:
-  OwnedDecodedPull() = default;
+  OwnedDecodedPull() { std::memset(&request_, 0, sizeof(request_)); }
   ~OwnedDecodedPull() { tDestroySTriggerPullRequest(&request_); }
   OwnedDecodedPull(const OwnedDecodedPull&) = delete;
   OwnedDecodedPull& operator=(const OwnedDecodedPull&) = delete;
@@ -8442,7 +8444,6 @@ static int32_t captureNestedVtableOrderedInput(SSTriggerNewVtableMerger* pMerger
   pProbe->stub.reset(stNewVtableMergerSetData);
   int32_t code = stNewVtableMergerSetData(pMerger, vtbUid, tsSlotId, pkSlotId, pReadRange, pTableUids, pTableColRefs,
                                           pMetas, pSlices, orderedInput);
-  pProbe->stub.set(stNewVtableMergerSetData, captureNestedVtableOrderedInput);
   return code;
 }
 
@@ -8450,7 +8451,7 @@ class ScopedNestedVtableOrderedInputProbe {
  public:
   ScopedNestedVtableOrderedInputProbe() {
     gNestedVtableOrderedInputProbe = &probe_;
-    probe_.stub.set(stNewVtableMergerSetData, captureNestedVtableOrderedInput);
+    install();
   }
 
   ~ScopedNestedVtableOrderedInputProbe() {
@@ -8459,6 +8460,8 @@ class ScopedNestedVtableOrderedInputProbe {
   }
 
   const std::vector<bool>& orderedInputs() const { return probe_.orderedInputs; }
+
+  void install() { probe_.stub.set(stNewVtableMergerSetData, captureNestedVtableOrderedInput); }
 
  private:
   NestedVtableOrderedInputProbe probe_;
@@ -10799,11 +10802,13 @@ TEST_F(StreamNestedRealtimeTest, NestedVirtualCountStepDoesNotForceOrderedSource
   ASSERT_NE(nullptr, pSource1);
   ScopedNestedVtableOrderedInputProbe probe;
   ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondBlock(*pSource0, NestedRouteRuntimeFixture::kEventTs, 101));
-  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondBlock(*pSource1, NestedRouteRuntimeFixture::kEventTs, 202));
+  ASSERT_EQ(probe.orderedInputs().size(), 1);
+  EXPECT_FALSE(probe.orderedInputs()[0]);
 
-  ASSERT_FALSE(probe.orderedInputs().empty());
-  EXPECT_TRUE(
-      std::all_of(probe.orderedInputs().begin(), probe.orderedInputs().end(), [](bool ordered) { return !ordered; }));
+  probe.install();
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondBlock(*pSource1, NestedRouteRuntimeFixture::kEventTs, 202));
+  ASSERT_EQ(probe.orderedInputs().size(), 2);
+  EXPECT_FALSE(probe.orderedInputs()[1]);
 }
 
 TEST_F(StreamNestedRealtimeTest, ActiveNestedCacheScopeDoesNotAllocateGcScratchHashes) {
@@ -29564,6 +29569,10 @@ TEST(StreamCalcRequestAdmissionProducerTest, CreateOnlyMultiGroupShapeIsRejected
 }  // namespace
 
 int main(int argc, char** argv) {
+  const char* testConfigDir = std::getenv("TAOS_TEST_CONFIG_DIR");
+  if (testConfigDir != nullptr && testConfigDir[0] != '\0') {
+    taos_options(TSDB_OPTION_CONFIGDIR, testConfigDir);
+  }
   taos_init();
 
   // This test binary has no stream timer, so keep trigger environment timers disabled.

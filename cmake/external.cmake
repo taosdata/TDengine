@@ -568,15 +568,23 @@ if(BUILD_TEST)           # {
         INC_DIR          include
     )
     get_from_local_if_exists(
-        "https://github.com/coolxv/cpp-stub/archive/3137465194014d66a8402941e80d2bccc6346f51.tar.gz"
-        "cpp-stub-3137465.tar.gz"
+        "https://github.com/coolxv/cpp-stub/archive/e6bc1c3d5a6ae0c8903b6be65ac4e55509fef394.tar.gz"
+        "cpp-stub-e6bc1c3.tar.gz"
     )
+    set(_cppstub_patch_arg "")
+    if(TD_LINUX OR TD_DARWIN)
+        set(_cppstub_patch_arg
+            PATCH_COMMAND
+                COMMAND patch -p1 -i "${TD_SOURCE_DIR}/cmake/cppstub-x86-alias.patch"
+        )
+    endif()
     ExternalProject_Add(ext_cppstub
         URL ${_url}
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND ""
+        ${_cppstub_patch_arg}
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${ext_cppstub_source}/src/stub.h ${_ins}/include/stub.h
@@ -586,6 +594,20 @@ if(BUILD_TEST)           # {
         VERBATIM
     )
     add_dependencies(build_externals ext_cppstub)     # this is for github workflow in cache-miss step.
+
+    if(TD_DARWIN)
+        set(ext_cppstub_macos_enable_tool "${ext_cppstub_source}/tool/macos_enable_stub.sh")
+        macro(DEP_ext_cppstub tgt)
+            cmake_language(CALL DEP_ext_cppstub_INC ${tgt})
+            cmake_language(CALL DEP_ext_cppstub_LIB ${tgt})
+            target_link_libraries(${tgt} PUBLIC stdc++)
+            add_custom_command(TARGET ${tgt} POST_BUILD
+                COMMAND "${ext_cppstub_macos_enable_tool}" "$<TARGET_FILE:${tgt}>"
+                COMMENT "cppstub: enabling runtime patching for ${tgt}"
+                VERBATIM
+            )
+        endmacro()
+    endif()
 endif()        # }
 
 # lz4
