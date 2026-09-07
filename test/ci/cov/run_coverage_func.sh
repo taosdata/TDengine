@@ -539,7 +539,7 @@ function run_thread() {
             else
                 cmd="cp -rf ${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
             fi
-            bash -c "$cmd" >/dev/null
+            bash -c "$cmd" >/dev/null 2>&1 || true
 
             collect_coverage_data "$index" "$thread_no" "$case_file" "$log_dir" "failed"
 
@@ -583,19 +583,23 @@ function run_thread() {
             else
                 cmd="cd $remote_sim_dir; tar -czf sim.tar.gz sim"
             fi
-            bash -c "$cmd"
+            bash -c "$cmd" >/dev/null 2>&1 || true
             local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
             local remote_case_sql_file="${workdirs[index]}/tmp/thread_volume/$thread_no/${case_sql_file}"
             if ! is_local_host "${hosts[index]}"; then
                 cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
-                bash -c "$cmd"
-                cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
-                bash -c "$cmd"
+                bash -c "$cmd" >/dev/null 2>&1 || true
+                if [ -f "$remote_case_sql_file" ]; then
+                    cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
+                    bash -c "$cmd" >/dev/null 2>&1 || true
+                fi
             else
                 cmd="cp -f ${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
-                bash -c "$cmd"
-                cmd="cp -f ${remote_case_sql_file} $log_dir/${case_file}.sql"
-                bash -c "$cmd"
+                bash -c "$cmd" >/dev/null 2>&1 || true
+                if [ -f "$remote_case_sql_file" ]; then
+                    cmd="cp -f ${remote_case_sql_file} $log_dir/${case_file}.sql"
+                    bash -c "$cmd" >/dev/null 2>&1 || true
+                fi
             fi
             # # backup source code (disabled)
             # source_tar_dir=$log_dir/TDengine_${hosts[index]}
