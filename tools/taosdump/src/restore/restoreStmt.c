@@ -536,12 +536,13 @@ int restoreOneParquetFile(TAOS_STMT **stmtPtr, TAOS *conn, const char *dbName,
     if (baseName) baseName++; else baseName = filePath;
 
     char tbName[TSDB_TABLE_NAME_LEN] = {0};
-    const char *dot = strrchr(baseName, '.');
-    if (dot && (dot - baseName) < TSDB_TABLE_NAME_LEN) {
-        memcpy(tbName, baseName, dot - baseName);
-        tbName[dot - baseName] = '\0';
-    } else {
-        snprintf(tbName, sizeof(tbName), "%s", baseName);
+
+    // Data file basename is {encodedTb}.{ext}; decode to the real table name.
+    // The encoded stem can exceed TSDB_TABLE_NAME_LEN ("%XX" expansion), so
+    // decode via the worst-case safe helper.
+    if (bckNameDecodeFileStem(baseName, tbName, sizeof(tbName)) != 0) {
+        logError("failed to decode table name from file: %s", filePath);
+        return TSDB_CODE_BCK_INVALID_FILE;
     }
 
     logDebug("restore parquet file: %s -> table: %s.%s", filePath, dbName, tbName);
@@ -625,12 +626,13 @@ int restoreOneDataFile(StmtRestoreCtx *ctx,
     if (baseName) baseName++; else baseName = filePath;
 
     char tbName[TSDB_TABLE_NAME_LEN] = {0};
-    const char *dot = strrchr(baseName, '.');
-    if (dot && (dot - baseName) < TSDB_TABLE_NAME_LEN) {
-        memcpy(tbName, baseName, dot - baseName);
-        tbName[dot - baseName] = '\0';
-    } else {
-        snprintf(tbName, sizeof(tbName), "%s", baseName);
+
+    // Data file basename is {encodedTb}.{ext}; decode to the real table name.
+    // The encoded stem can exceed TSDB_TABLE_NAME_LEN ("%XX" expansion), so
+    // decode via the worst-case safe helper.
+    if (bckNameDecodeFileStem(baseName, tbName, sizeof(tbName)) != 0) {
+        logError("failed to decode table name from file: %s", filePath);
+        return TSDB_CODE_BCK_INVALID_FILE;
     }
 
     logDebug("restore data file: %s -> table: %s.%s", filePath, ctx->dbName, tbName);

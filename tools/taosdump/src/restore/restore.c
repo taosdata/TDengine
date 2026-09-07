@@ -157,6 +157,11 @@ static char** scanBackupDatabases(int *count) {
 
         if (!hasDbSql) continue;
 
+        // Decode the percent-encoded db directory name back to the real database name.
+        char decDb[TSDB_DB_NAME_LEN] = {0};
+        const char *dec = bckNameDecode(entryName, decDb, sizeof(decDb));
+        if (dec == NULL) dec = entryName;
+
         if (*count >= capacity) {
             capacity *= 2;
             char **tmp = (char **)taosMemoryRealloc(names, (capacity + 1) * sizeof(char *));
@@ -167,7 +172,7 @@ static char** scanBackupDatabases(int *count) {
             }
             names = tmp;
         }
-        names[*count] = taosStrdup(entryName);
+        names[*count] = taosStrdup(dec);
         (*count)++;
     }
     names[*count] = NULL;

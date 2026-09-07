@@ -1929,3 +1929,184 @@ int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt) {
 // ============================================================================
 // Encrypted File Operations Implementation
 // ============================================================================
+
+// ============================================================================
+// Wide-char path file APIs
+//
+// Mirror the plain APIs but interpret the path as UTF-8 on Windows (via
+// _wfopen / CreateFileW / DeleteFileW / MoveFileExW / _wstati64 / _waccess),
+// so non-ASCII (e.g. CJK) file names round-trip correctly.  On POSIX the
+// paths are already UTF-8 byte strings, so these delegate to the plain APIs.
+// ============================================================================
+
+#ifdef WINDOWS
+static WCHAR *taosPathToWide(const char *path, WCHAR *wide, int32_t cap) {
+  if (path == NULL || wide == NULL || cap <= 0) return NULL;
+  if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wide, cap) == 0) return NULL;
+  return wide;
+}
+
+TdFilePtr taosOpenFileW(const char *path, int32_t tdFileOptions) {
+  if (path == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  WCHAR wpath[MAX_PATH] = {0};
+  if (taosPathToWide(path, wpath, MAX_PATH) == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+
+  STUB_RAND_IO_ERR(NULL)
+  FILE  *fp = NULL;
+  HANDLE hFile = NULL;
+
+  if (tdFileOptions & TD_FILE_STREAM) {
+    if (tdFileOptions & TD_FILE_EXCL) {
+      terrno = TSDB_CODE_INVALID_PARA;
+      return NULL;
+    }
+    char *mode = NULL;
+    if (tdFileOptions & TD_FILE_APPEND) {
+      mode = (tdFileOptions & TD_FILE_TEXT) ? "at+" : "ab+";
+    } else if (tdFileOptions & TD_FILE_TRUNC) {
+      mode = (tdFileOptions & TD_FILE_TEXT) ? "wt+" : "wb+";
+    } else if ((tdFileOptions & TD_FILE_READ) && !(tdFileOptions & TD_FILE_WRITE)) {
+      mode = (tdFileOptions & TD_FILE_TEXT) ? "rt" : "rb";
+    } else {
+      mode = (tdFileOptions & TD_FILE_TEXT) ? "rt+" : "rb+";
+    }
+    WCHAR wmode[16] = {0};
+    MultiByteToWideChar(CP_ACP, 0, mode, -1, wmode, 16);
+    fp = _wfopen(wpath, wmode);
+    if (fp == NULL) {
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
+      return NULL;
+    }
+  } else {
+    DWORD openMode = 0, access = 0, fileFlag = FILE_ATTRIBUTE_NORMAL, shareMode = FILE_SHARE_READ;
+    openMode = OPEN_EXISTING;
+    if (tdFileOptions & TD_FILE_EXCL) {
+      openMode = CREATE_NEW;
+    } else if ((tdFileOptions & TD_FILE_CREATE) && (tdFileOptions & TD_FILE_TRUNC)) {
+      openMode = CREATE_ALWAYS;
+      access |= GENERIC_WRITE;
+    } else if (tdFileOptions & TD_FILE_CREATE) {
+      openMode = OPEN_ALWAYS;
+    } else if (tdFileOptions & TD_FILE_TRUNC) {
+      openMode = TRUNCATE_EXISTING;
+      access |= GENERIC_WRITE;
+    }
+    if (tdFileOptions & TD_FILE_APPEND) access |= FILE_APPEND_DATA;
+    if (tdFileOptions & TD_FILE_WRITE) access |= GENERIC_WRITE;
+    shareMode |= FILE_SHARE_WRITE;
+    access |= GENERIC_READ;
+    if (tdFileOptions & TD_FILE_AUTO_DEL) fileFlag |= FILE_ATTRIBUTE_TEMPORARY;
+    if (tdFileOptions & TD_FILE_WRITE_THROUGH) fileFlag |= FILE_FLAG_WRITE_THROUGH;
+    hFile = CreateFileW(wpath, access, shareMode, NULL, openMode, fileFlag, NULL);
+    if (hFile != INVALID_HANDLE_VALUE && (tdFileOptions & TD_FILE_APPEND) && (tdFileOptions & TD_FILE_WRITE)) {
+      SetFilePointer(hFile, 0, NULL, FILE_END);
+    }
+    if (hFile == INVALID_HANDLE_VALUE) {
+      DWORD dwError = GetLastError();
+      terrno = TAOS_SYSTEM_WINAPI_ERROR(dwError);
+      return NULL;
+    }
+  }
+
+  TdFilePtr pFile = (TdFilePtr)taosMemoryMalloc(sizeof(TdFile));
+  if (pFile == NULL) {
+    if (hFile != NULL) CloseHandle(hFile);
+    if (fp != NULL) (void)fclose(fp);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+#if FILE_WITH_LOCK
+  (void)taosThreadRwlockInit(&(pFile->rwlock), NULL);
+#endif
+  pFile->fp = fp;
+  pFile->hFile = hFile;
+  pFile->tdFileOptions = tdFileOptions;
+  return pFile;
+}
+
+int32_t taosRemoveFileW(const char *path) {
+  if (path == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  WCHAR wpath[MAX_PATH] = {0};
+  if (taosPathToWide(path, wpath, MAX_PATH) == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  if (!DeleteFileW(wpath)) {
+    DWORD dwError = GetLastError();
+    ERRNO = dwError;
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(dwError);
+    return terrno;
+  }
+  return 0;
+}
+
+int32_t taosRenameFileW(const char *oldName, const char *newName) {
+  if (oldName == NULL || newName == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  WCHAR wOld[MAX_PATH] = {0};
+  WCHAR wNew[MAX_PATH] = {0};
+  if (taosPathToWide(oldName, wOld, MAX_PATH) == NULL || taosPathToWide(newName, wNew, MAX_PATH) == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  if (!MoveFileExW(wOld, wNew, MOVEFILE_REPLACE_EXISTING)) {
+    DWORD dwError = GetLastError();
+    ERRNO = dwError;
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(dwError);
+    return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t taosStatFileW(const char *path, int64_t *size, int64_t *mtime, int64_t *atime) {
+  if (path == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  WCHAR wpath[MAX_PATH] = {0};
+  if (taosPathToWide(path, wpath, MAX_PATH) == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  struct _stati64 fileStat;
+  if (_wstati64(wpath, &fileStat) == -1) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return terrno;
+  }
+  if (size != NULL) *size = fileStat.st_size;
+  if (mtime != NULL) *mtime = fileStat.st_mtime;
+  if (atime != NULL) *atime = fileStat.st_atime;
+  return 0;
+}
+
+bool taosCheckAccessFileW(const char *pathname, int32_t tdFileAccessOptions) {
+  if (pathname == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return false;
+  }
+  int flags = 0;
+  if (tdFileAccessOptions & TD_FILE_ACCESS_EXIST_OK) flags |= F_OK;
+  if (tdFileAccessOptions & TD_FILE_ACCESS_READ_OK) flags |= R_OK;
+  if (tdFileAccessOptions & TD_FILE_ACCESS_WRITE_OK) flags |= W_OK;
+  if (tdFileAccessOptions & TD_FILE_ACCESS_EXEC_OK) flags |= X_OK;
+  WCHAR wpath[MAX_PATH] = {0};
+  if (taosPathToWide(pathname, wpath, MAX_PATH) == NULL) return false;
+  return _waccess(wpath, flags) == 0;
+}
+
+bool taosCheckExistFileW(const char *pathname) {
+  return taosCheckAccessFileW(pathname, TD_FILE_ACCESS_EXIST_OK);
+}
+#endif
