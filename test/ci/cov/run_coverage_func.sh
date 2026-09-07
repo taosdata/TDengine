@@ -532,19 +532,21 @@ function run_thread() {
             else
                 flock -x "$lock_file" -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  log file: ${case_log_file}\" >>${failed_case_file}"
             fi
-            mkdir -p "${log_dir}"/"${case_file}".coredump
             local remote_coredump_dir="${workdirs[index]}/tmp/thread_volume/$thread_no/coredump"
-            if ! is_local_host "${hosts[index]}"; then
-                cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
-            else
-                cmd="cp -rf ${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+            if [ "$(ls -A ${remote_coredump_dir} 2>/dev/null)" ]; then
+                mkdir -p "${log_dir}"/"${case_file}".coredump
+                if ! is_local_host "${hosts[index]}"; then
+                    cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+                else
+                    cmd="cp -rf ${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+                fi
+                bash -c "$cmd" >/dev/null 2>&1 || true
             fi
-            bash -c "$cmd" >/dev/null 2>&1 || true
 
             collect_coverage_data "$index" "$thread_no" "$case_file" "$log_dir" "failed"
 
             local corefile
-            corefile=$(ls "$log_dir/${case_file}.coredump/")
+            corefile=$(ls "$log_dir/${case_file}.coredump/" 2>/dev/null)
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[31m failed\e[0m"
             echo "=========================log============================"
             cat "$case_log_file"
@@ -559,29 +561,27 @@ function run_thread() {
             local build_dir=$log_dir/build_${hosts[index]}
             local remote_build_dir="${workdirs[index]}/${DEBUGPATH}/build"
             local remote_unit_test_log_dir="${workdirs[index]}/${DEBUGPATH}/Testing/Temporary/"
-            mkdir "$build_dir" >/dev/null
-            if [ $? -eq 0 ]; then
-                if ! is_local_host "${hosts[index]}"; then
-                    cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    bash -c "$cmd" >/dev/null
-                    cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    bash -c "$cmd" >/dev/null
-                else
-                    cmd="cp -rf ${remote_build_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    bash -c "$cmd" >/dev/null
-                    cmd="cp -rf ${remote_unit_test_log_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    bash -c "$cmd" >/dev/null
-                fi
+            mkdir -p "$build_dir" >/dev/null 2>&1 || true
+            if ! is_local_host "${hosts[index]}"; then
+                cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
+                echo "$cmd"
+                bash -c "$cmd" >/dev/null 2>&1 || true
+                cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
+                echo "$cmd"
+                bash -c "$cmd" >/dev/null 2>&1 || true
+            else
+                cmd="cp -rf ${remote_build_dir}/* ${build_dir}/"
+                echo "$cmd"
+                bash -c "$cmd" >/dev/null 2>&1 || true
+                cmd="cp -rf ${remote_unit_test_log_dir}/* ${build_dir}/"
+                echo "$cmd"
+                bash -c "$cmd" >/dev/null 2>&1 || true
             fi
             local remote_sim_dir="${workdirs[index]}/tmp/thread_volume/$thread_no"
             if ! is_local_host "${hosts[index]}"; then
-                cmd="$runcase_script \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
+                cmd="$runcase_script \"cd $remote_sim_dir; tar --exclude='*.sock*' -czf sim.tar.gz sim\""
             else
-                cmd="cd $remote_sim_dir; tar -czf sim.tar.gz sim"
+                cmd="cd $remote_sim_dir; tar --exclude='*.sock*' -czf sim.tar.gz sim"
             fi
             bash -c "$cmd" >/dev/null 2>&1 || true
             local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
