@@ -480,6 +480,25 @@ static void taosLogConvError(ConvType type, void *charsetCxt,
          inputLen > num ? " ..." : "");
 }
 
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
+static int32_t taosValidateUcs4(const TdUcs4 *ucs4, int32_t ucs4Len) {
+  if (ucs4Len % (int32_t)sizeof(*ucs4) != 0) {
+    return EINVAL;
+  }
+
+  int32_t numOfCodePoints = ucs4Len / (int32_t)sizeof(*ucs4);
+  for (int32_t i = 0; i < numOfCodePoints; ++i) {
+    uint32_t codePoint = 0;
+    (void)memcpy(&codePoint, (const char *)ucs4 + i * sizeof(*ucs4), sizeof(codePoint));
+    if (codePoint > 0x10FFFF || (codePoint >= 0xD800 && codePoint <= 0xDFFF)) {
+      return EILSEQ;
+    }
+  }
+
+  return 0;
+}
+#endif
+
 bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len, void* charsetCxt) {
   if (ucs4_max_len == 0) {
     return true;
@@ -549,6 +568,12 @@ static int32_t taosUcs4ToMbsImpl(TdUcs4 *ucs4, int32_t ucs4_max_len,
   terrno = TSDB_CODE_APP_ERROR;
   return terrno;
 #else
+
+  int32_t errnoCode = taosValidateUcs4(ucs4, ucs4_max_len);
+  if (errnoCode != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errnoCode);
+    return terrno;
+  }
 
   int32_t idx = -1;
   int32_t code = 0;
@@ -695,6 +720,12 @@ int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_t c
   terrno = TSDB_CODE_APP_ERROR;
   return terrno;
 #else
+
+  int32_t errnoCode = taosValidateUcs4(ucs4, ucs4_max_len);
+  if (errnoCode != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errnoCode);
+    return terrno;
+  }
 
   size_t ucs4_input_len = ucs4_max_len;
   size_t outLen = ucs4_max_len;

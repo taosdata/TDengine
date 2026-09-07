@@ -1729,10 +1729,11 @@ int32_t streamSendNotifyPayloadCached(const char* pUrl, const char* pPayload, in
 
   size_t totalLen = (size_t)payloadLen;
   size_t sentLen = 0;
+  int64_t sendStartMonoMs = taosGetMonoTimestampMs();
   while (sentLen < totalLen) {
     size_t nbytes = 0;
     code = tcurlSend(pConnection, pPayload + sentLen, totalLen - sentLen, &nbytes,
-                     sentLen == 0 ? (curl_off_t)totalLen : 0, CURLWS_TEXT | CURLWS_OFFSET);
+                     sentLen == 0 ? (curl_off_t)totalLen : 0, CURLWS_TEXT | CURLWS_OFFSET, sendStartMonoMs);
     if (code != TSDB_CODE_SUCCESS || nbytes == 0 || nbytes > totalLen - sentLen) {
       closeThreadNotificationConn();
       return TSDB_CODE_RPC_NETWORK_UNAVAIL;
@@ -1976,13 +1977,15 @@ int32_t streamSendNestedResultNotifyContent(SStreamTask* pTask, const char* pStr
 
     size_t   totalLen = sb.pos;
     size_t   sentLen = 0;
+    int64_t  sendStartMonoMs = taosGetMonoTimestampMs();
     CURLcode res = CURLE_OK;
     while (sentLen < totalLen) {
       size_t nbytes = 0;
       if (sentLen == 0) {
-        res = tcurlSend(&conn, pMsg, totalLen, &nbytes, totalLen, CURLWS_TEXT | CURLWS_OFFSET);
+        res = tcurlSend(&conn, pMsg, totalLen, &nbytes, totalLen, CURLWS_TEXT | CURLWS_OFFSET, sendStartMonoMs);
       } else {
-        res = tcurlSend(&conn, pMsg + sentLen, totalLen - sentLen, &nbytes, 0, CURLWS_TEXT | CURLWS_OFFSET);
+        res = tcurlSend(&conn, pMsg + sentLen, totalLen - sentLen, &nbytes, 0, CURLWS_TEXT | CURLWS_OFFSET,
+                        sendStartMonoMs);
       }
       if (res != CURLE_OK || nbytes == 0 || nbytes > totalLen - sentLen) {
         if (res == CURLE_OK) {
@@ -2362,6 +2365,7 @@ static int32_t streamSendNotifyMsgToUrls(const char* msg, size_t msgLen, const S
     size_t  totalLen = msgLen;
     size_t  sentLen = 0;
     size_t  frameSize = (size_t)tsStreamNotifyFrameSize * 1024;
+    int64_t sendStartMonoMs = taosGetMonoTimestampMs();
     int32_t res = TSDB_CODE_SUCCESS;
     while (sentLen < totalLen) {
       size_t frameLen = totalLen - sentLen;
@@ -2378,7 +2382,7 @@ static int32_t streamSendNotifyMsgToUrls(const char* msg, size_t msgLen, const S
       while (frameSentLen < frameLen) {
         size_t nbytes = 0;
         res = tcurlSend(&conn, msg + sentLen + frameSentLen, frameLen - frameSentLen, &nbytes,
-                        frameSentLen == 0 ? (curl_off_t)frameLen : 0, flags);
+                        frameSentLen == 0 ? (curl_off_t)frameLen : 0, flags, sendStartMonoMs);
         if (res != TSDB_CODE_SUCCESS) {
           break;
         }

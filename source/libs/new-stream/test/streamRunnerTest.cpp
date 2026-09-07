@@ -4,6 +4,7 @@
 #include <atomic>
 #include <cerrno>
 #include <chrono>
+#include <cstdlib>
 #include <cstdarg>
 #include <cstdio>
 #include <initializer_list>
@@ -5663,6 +5664,10 @@ TEST_F(StreamRunnerTest, LegacyCacheReadErrorRestoresGroupIdle) {
 }  // namespace
 
 int main(int argc, char **argv) {
+  const char* testConfigDir = std::getenv("TAOS_TEST_CONFIG_DIR");
+  if (testConfigDir != nullptr && testConfigDir[0] != '\0') {
+    taos_options(TSDB_OPTION_CONFIGDIR, testConfigDir);
+  }
   taos_init();
   testing::InitGoogleTest(&argc, argv);
   int32_t code = RUN_ALL_TESTS();
