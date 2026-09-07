@@ -96,11 +96,16 @@ ADD_SUBDIRECTORY(compatible)
 # include
 INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
 INCLUDE_DIRECTORIES(../inc)
+# shared tools helpers (tools/inc/pub.h + tools/src/pub.c): connect-mode / DSN /
+# default-port rules used by taos CLI & taosBenchmark too, keeping all three
+# tools' connection semantics identical
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/../../inc)
 
 # src
 ADD_EXECUTABLE(
         taosdump
         main.c
+        ../../src/pub.c
         # core
         core/bckUtil.c
         core/bckName.c
