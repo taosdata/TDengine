@@ -145,3 +145,87 @@ add_test(
   NAME xnodeAgentTest
   COMMAND xnodeAgentTest
 )
+
+if(TD_WINDOWS)
+  message(STATUS "Skipping envelopeCryptoTest: Windows does not support OpenSSL")
+else()
+  include(CheckCSourceCompiles)
+
+  set(_envelope_crypto_previous_try_compile_target_type
+      "${CMAKE_TRY_COMPILE_TARGET_TYPE}")
+  if(DEFINED CMAKE_TRY_COMPILE_TARGET_TYPE)
+    set(_envelope_crypto_try_compile_target_type_was_defined TRUE)
+  else()
+    set(_envelope_crypto_try_compile_target_type_was_defined FALSE)
+  endif()
+  if(DEFINED CMAKE_REQUIRED_INCLUDES)
+    set(_envelope_crypto_required_includes_was_defined TRUE)
+  else()
+    set(_envelope_crypto_required_includes_was_defined FALSE)
+  endif()
+  set(_envelope_crypto_previous_required_includes
+      "${CMAKE_REQUIRED_INCLUDES}")
+  set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+  set(CMAKE_REQUIRED_INCLUDES "${TD_SOURCE_DIR}/include/libs/crypt")
+  unset(ENVELOPE_CRYPTO_HAS_PUBLIC_FIELD_PRIMITIVE CACHE)
+  check_c_source_compiles(
+    "#include <envelope_crypto.h>\nint main(void) { (void)&envelopeEncrypt; return 0; }"
+    ENVELOPE_CRYPTO_HAS_PUBLIC_FIELD_PRIMITIVE
+  )
+  if(_envelope_crypto_try_compile_target_type_was_defined)
+    set(CMAKE_TRY_COMPILE_TARGET_TYPE
+        "${_envelope_crypto_previous_try_compile_target_type}")
+  else()
+    unset(CMAKE_TRY_COMPILE_TARGET_TYPE)
+  endif()
+  if(_envelope_crypto_required_includes_was_defined)
+    set(CMAKE_REQUIRED_INCLUDES
+        "${_envelope_crypto_previous_required_includes}")
+  else()
+    unset(CMAKE_REQUIRED_INCLUDES)
+  endif()
+  unset(_envelope_crypto_required_includes_was_defined)
+  unset(_envelope_crypto_previous_required_includes)
+  unset(_envelope_crypto_try_compile_target_type_was_defined)
+  unset(_envelope_crypto_previous_try_compile_target_type)
+  if(ENVELOPE_CRYPTO_HAS_PUBLIC_FIELD_PRIMITIVE)
+    message(FATAL_ERROR
+            "envelope_crypto.h must not expose envelopeEncrypt")
+  endif()
+  unset(ENVELOPE_CRYPTO_HAS_PUBLIC_FIELD_PRIMITIVE CACHE)
+
+  set(
+    ENVELOPE_CRYPTO_FIXTURE_LOCAL_PATH
+    "${CMAKE_CURRENT_SOURCE_DIR}/xnode-dsn-v1-fixtures.json"
+  )
+  if(NOT EXISTS "${ENVELOPE_CRYPTO_FIXTURE_LOCAL_PATH}")
+    message(FATAL_ERROR
+            "envelopeCryptoTest fixture is missing at ${ENVELOPE_CRYPTO_FIXTURE_LOCAL_PATH}")
+  endif()
+  set(
+    ENVELOPE_CRYPTO_FIXTURE_PATH
+    "${CMAKE_CURRENT_BINARY_DIR}/xnode-dsn-v1-fixtures.json"
+  )
+  configure_file(
+    "${ENVELOPE_CRYPTO_FIXTURE_LOCAL_PATH}"
+    "${ENVELOPE_CRYPTO_FIXTURE_PATH}"
+    COPYONLY
+  )
+
+  add_executable(envelopeCryptoTest "envelopeCryptoTest.cpp")
+  DEP_ext_gtest(envelopeCryptoTest)
+  DEP_ext_ssl(envelopeCryptoTest)
+  target_compile_definitions(
+    envelopeCryptoTest
+    PRIVATE ENVELOPE_CRYPTO_FIXTURE_PATH="${ENVELOPE_CRYPTO_FIXTURE_PATH}"
+  )
+  target_link_libraries(
+    envelopeCryptoTest
+    PUBLIC crypt util os
+  )
+
+  add_test(
+    NAME envelopeCryptoTest
+    COMMAND envelopeCryptoTest
+  )
+endif()
