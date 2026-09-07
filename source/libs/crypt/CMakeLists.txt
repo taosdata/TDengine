@@ -1,5 +1,9 @@
 aux_source_directory(src CRYPT_SRC)
 
+if(TD_WINDOWS)
+  list(FILTER CRYPT_SRC EXCLUDE REGEX "envelope_crypto[.]c$")
+endif()
+
 IF(TD_ENTERPRISE)
   LIST(APPEND CRYPT_SRC ${TD_ENTERPRISE_DIR}/source/plugins/crypt/cryptImpl.c)
 ENDIF()
@@ -13,6 +17,6 @@ target_include_directories(
 
 target_link_libraries(crypt PRIVATE common PRIVATE sm4)
 
-if (NOT ${TD_WINDOWS})
+if(NOT TD_WINDOWS)
   DEP_ext_ssl(crypt)
 endif()
