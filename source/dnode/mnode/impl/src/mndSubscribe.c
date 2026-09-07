@@ -1321,7 +1321,8 @@ static int32_t rebalanceOneSub(SRpcMsg *pMsg, SMqSubscribeObj *pSub, const SArra
   SMqRebOutputObj rebOutput = {0};
 
   PRINT_LOG_START
-  mDebug("%s sub:%s transformVgNum:%d", __func__, pSub->key, vgIds == NULL ? -1 : taosArrayGetSize(vgIds));
+  int64_t transformVgNum = vgIds == NULL ? INT64_C(-1) : (int64_t)taosArrayGetSize(vgIds);
+  mDebug("%s sub:%s transformVgNum:%" PRId64, __func__, pSub->key, transformVgNum);
   MND_TMQ_RETURN_CHECK(tCloneSubscribeObj(pSub, &rebOutput.pSub));
   MND_TMQ_RETURN_CHECK(collectVgs(&rebOutput, vgIds));
   code = mndPersistRebResult(pMnode, pMsg, &rebOutput);
