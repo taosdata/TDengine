@@ -7,6 +7,9 @@ GREEN_DARK='\033[0;32m'
 GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 
+# tdengine-ci:0.3 ships lcov 2.0, which treats inconsistent/corrupt trace data as fatal during merge.
+LCOV_QUIET="lcov --quiet --rc lcov_branch_coverage=0 --rc branch_coverage=0 --ignore-errors negative,inconsistent,deprecated,source,count,usage,missing,unused,corrupt"
+
 function print_color() {
     local color="$1"
     local message="$2"
@@ -77,7 +80,7 @@ function collect_info_from_tests_single() {
         echo "$filtered_info_files" > "$info_files_list"
         
         # 构建合并命令并显示文件列表
-        local merge_cmd="lcov --quiet --rc lcov_branch_coverage=0"
+        local merge_cmd="$LCOV_QUIET"
         local file_index=0
         
         echo "合并文件列表:"
@@ -260,7 +263,7 @@ function merge_files_uniform_batch() {
                 fi
             else
                 # 多文件批次，使用lcov合并
-                local merge_cmd="lcov --quiet --rc lcov_branch_coverage=0"
+                local merge_cmd="$LCOV_QUIET"
                 local actual_files=0
                 
                 while IFS= read -r file_path; do
@@ -423,7 +426,7 @@ function merge_files_uniform_batch() {
                         echo "  [最终-批次${batch_no}] ✓ 单文件复制"
                     fi
                 else
-                    local merge_cmd="lcov --quiet --rc lcov_branch_coverage=0"
+                    local merge_cmd="$LCOV_QUIET"
                     while IFS= read -r file_path; do
                         if [ -f "$file_path" ]; then
                             merge_cmd="$merge_cmd --add-tracefile '$file_path'"
@@ -600,8 +603,7 @@ function lcovFunc {
             # echo "执行排除过滤..."
             # echo "排除命令: lcov --quiet --remove coverage_tdengine_raw.info $exclude_patterns --rc lcov_branch_coverage=0 -o coverage_tdengine.info"
 
-            eval "lcov --quiet --remove coverage_tdengine_raw.info $exclude_patterns \
-                --rc lcov_branch_coverage=0 \
+            eval "$LCOV_QUIET --remove coverage_tdengine_raw.info $exclude_patterns \
                 -o coverage_tdengine.info"
             
             if [ -s "coverage_tdengine.info" ]; then
@@ -645,7 +647,7 @@ function lcovFunc {
 
     # generate result
     echo "generate result"
-    lcov --quiet -l --rc lcov_branch_coverage=0 coverage_tdengine.info 
+    $LCOV_QUIET -l coverage_tdengine.info 
     
     # 修正路径以确保与 TDengine 仓库根目录匹配    
     sed -i "s|SF:/home/TDinternal/community/|SF:|g" $TDENGINE_DIR/coverage_tdengine.info
