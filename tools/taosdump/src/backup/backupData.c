@@ -30,7 +30,11 @@ static bool g_backResumeMode = false;
 // The file is created when a database backup finishes successfully and
 // deleted at the start of the next run so the next run knows to start fresh.
 static void backCompleteFlagPath(const char *dbName, char *buf, int bufsz) {
-    snprintf(buf, bufsz, "%s/%s/backup_complete.flag", argOutPath(), dbName);
+    // Percent-encode the db name (':' '\\' etc. are illegal in Windows file names).
+    char encDb[MAX_PATH_LEN] = {0};
+    const char *encDbName = bckNameEncode(dbName, encDb, sizeof(encDb));
+    if (encDbName == NULL) encDbName = dbName;
+    snprintf(buf, bufsz, "%s/%s/backup_complete.flag", argOutPath(), encDbName);
 }
 
 //
@@ -67,8 +71,12 @@ int backChildTableData(DataThread* thread, const char *childTableName) {
 
     // Use pre-built directory path (created once per stb in backDataThread)
     const char *ext = (format == BINARY_PARQUET) ? "par" : "dat";
+    // Percent-encode the child table name (':' '\\' etc. are illegal in Windows file names).
+    char encTb[TSDB_TABLE_NAME_LEN * 3 + 1] = {0};
+    const char *encTbName = bckNameEncode(childTableName, encTb, sizeof(encTb));
+    if (encTbName == NULL) encTbName = childTableName;
     char pathFile[MAX_PATH_LEN];
-    snprintf(pathFile, sizeof(pathFile), "%s/%s.%s", thread->stbDirPath, childTableName, ext);
+    snprintf(pathFile, sizeof(pathFile), "%s/%s.%s", thread->stbDirPath, encTbName, ext);
 
     // global file count
     atomic_add_fetch_64(&g_backDataFiles, 1);
@@ -501,8 +509,12 @@ static int backNormalOneTable(DataThread* thread, const char *tableName) {
     }
 
     // file path: {outPath}/{db}/_ntb_data{N}/{tableName}.dat
+    // Percent-encode the normal table name (see backChildTableData).
+    char encTb[TSDB_TABLE_NAME_LEN * 3 + 1] = {0};
+    const char *encTbName = bckNameEncode(tableName, encTb, sizeof(encTb));
+    if (encTbName == NULL) encTbName = tableName;
     char pathFile[MAX_PATH_LEN];
-    snprintf(pathFile, sizeof(pathFile), "%s/%s.%s", dirPath, tableName, ext);
+    snprintf(pathFile, sizeof(pathFile), "%s/%s.%s", dirPath, encTbName, ext);
 
     atomic_add_fetch_64(&g_backDataFiles, 1);
 
@@ -570,12 +582,15 @@ static void* backNtbDataThread(void *arg) {
         argBuildInClause("table_name", inClause, sizeof(inClause));
         snprintf(specFilter, sizeof(specFilter), " AND %s", inClause);
     }
+    char escDb[TSDB_DB_NAME_LEN * 2 + 1] = {0};
+    const char *eDb = bckSqlEscape(dbName, escDb, sizeof(escDb));
+    if (eDb == NULL) eDb = dbName;
     snprintf(sql, sizeof(sql), 
              "SELECT table_name FROM information_schema.ins_tables "
              "WHERE db_name='%s' AND stable_name IS NULL"
              " AND type NOT LIKE 'VIRTUAL%%'%s "
              "ORDER BY table_name LIMIT %d OFFSET %d;",
-             dbName, specFilter, thread->limit, thread->offset);
+             eDb, specFilter, thread->limit, thread->offset);
 
     TAOS *conn = getConnection(&thread->code);
     if (!conn) {
