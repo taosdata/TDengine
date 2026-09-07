@@ -454,7 +454,13 @@ TagThread * splitTaskTag(DBInfo *dbInfo, StbInfo *stbInfo, int *code, int *outCo
         argBuildInClause("table_name", inClause, sizeof(inClause));
         snprintf(specFilter, sizeof(specFilter), " AND %s", inClause);
     }
-    snprintf(sql, sizeof(sql), "select count(*) from information_schema.ins_tables where db_name='%s' and stable_name='%s'%s;", dbName, stbName, specFilter);
+    char escDb[TSDB_DB_NAME_LEN * 2 + 1] = {0};
+    char escStb[TSDB_TABLE_NAME_LEN * 2 + 1] = {0};
+    const char *eDb = bckSqlEscape(dbName, escDb, sizeof(escDb));
+    const char *eStb = bckSqlEscape(stbName, escStb, sizeof(escStb));
+    if (eDb == NULL) eDb = dbName;
+    if (eStb == NULL) eStb = stbName;
+    snprintf(sql, sizeof(sql), "select count(*) from information_schema.ins_tables where db_name='%s' and stable_name='%s'%s;", eDb, eStb, specFilter);
     int tableCnt = 0;
     
     // query table count

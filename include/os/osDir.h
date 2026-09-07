@@ -113,8 +113,42 @@ bool          taosDirEntryIsDir(TdDirEntryPtr pDirEntry);
 char         *taosGetDirEntryName(TdDirEntryPtr pDirEntry);
 int32_t       taosCloseDir(TdDirPtr *ppDir);
 
+#ifdef WINDOWS
+// Wide-char path variants: on Windows these use the wide Win32 directory APIs
+// (FindFirstFileW / FindNextFileW) and convert names back to UTF-8, so
+// non-ASCII (e.g. CJK) names round-trip correctly.
+typedef struct TdDirW      *TdDirWPtr;
+typedef struct TdDirWEntry *TdDirWEntryPtr;
+
+TdDirWPtr      taosOpenDirW(const char *dirname);
+TdDirWEntryPtr taosReadDirW(TdDirWPtr pDir);
+bool           taosDirEntryIsDirW(TdDirWEntryPtr pDirEntry);
+char          *taosGetDirEntryNameW(TdDirWEntryPtr pDirEntry);
+int32_t        taosCloseDirW(TdDirWPtr *ppDir);
+int32_t        taosMkDirW(const char *dirname);
+int32_t        taosMulMkDirW(const char *dirname);
+void           taosClearDirW(const char *dirname);
+void           taosRemoveDirW(const char *dirname);
+bool           taosDirExistW(const char *dirname);
+#endif
+
 int32_t taosAppPath(char *path, int32_t maxLen);
 int32_t taosGetDirSize(const char *path, int64_t *size);
+
+#if defined(TAOS_OS_WIDE_PATH) && defined(WINDOWS)
+#define TdDirPtr            TdDirWPtr
+#define TdDirEntryPtr       TdDirWEntryPtr
+#define taosOpenDir         taosOpenDirW
+#define taosReadDir         taosReadDirW
+#define taosDirEntryIsDir   taosDirEntryIsDirW
+#define taosGetDirEntryName taosGetDirEntryNameW
+#define taosCloseDir        taosCloseDirW
+#define taosMkDir           taosMkDirW
+#define taosMulMkDir        taosMulMkDirW
+#define taosClearDir        taosClearDirW
+#define taosRemoveDir       taosRemoveDirW
+#define taosDirExist        taosDirExistW
+#endif
 
 #ifdef __cplusplus
 }

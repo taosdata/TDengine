@@ -155,6 +155,23 @@ int obtainFileName(BackFileType fileType,
     const char * ext = (format == BINARY_TAOS) ? "dat" : "par";
     int dirIndex = fileCount/FOLDER_MAXFILE;
 
+    // Percent-encode name components with platform-illegal filename chars (Windows is the most restrictive).
+    char encDb[MAX_PATH_LEN]  = {0};
+    char encStb[MAX_PATH_LEN] = {0};
+    char encTb[MAX_PATH_LEN]  = {0};
+    if (dbName != NULL) {
+        const char *e = bckNameEncode(dbName, encDb, sizeof(encDb));
+        if (e) dbName = e;
+    }
+    if (stbName != NULL) {
+        const char *e = bckNameEncode(stbName, encStb, sizeof(encStb));
+        if (e) stbName = e;
+    }
+    if (tbName != NULL) {
+        const char *e = bckNameEncode(tbName, encTb, sizeof(encTb));
+        if (e) tbName = e;
+    }
+
     switch (fileType) {
     case BACK_DIR_DB:
         snprintf(fileName, len, "%s/%s", outPath, dbName);
