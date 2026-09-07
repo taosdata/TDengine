@@ -649,8 +649,9 @@ function lcovFunc {
     echo "generate result"
     $LCOV_QUIET -l coverage_tdengine.info 
     
-    # 修正路径以确保与 TDengine 仓库根目录匹配    
+    # 修正路径以确保与 TDengine 仓库根目录匹配
     sed -i "s|SF:/home/TDinternal/community/|SF:|g" $TDENGINE_DIR/coverage_tdengine.info
+    sed -i "s|SF:/home/TDinternal/source/|SF:../source/|g" $TDENGINE_DIR/coverage_tdengine.info
 
     # 文件检查
     echo "=== 文件检查 ==="

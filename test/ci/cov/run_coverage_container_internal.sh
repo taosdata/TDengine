@@ -92,10 +92,9 @@ for debug_entry in "${DEBUG_DIRS[@]}"; do
     LCOV_IGNORE="--ignore-errors negative,inconsistent,deprecated,source,count,usage,missing,unused"
     LCOV_RC="--rc lcov_branch_coverage=0 --rc max_message_count=0"
 
-    # Scoped dirs keep per-case capture ~2min instead of ~7min full tree scan.
+    # Product-code dirs equivalent to main's "lcov -d .", but skip contrib/externals.
     LCOV_DIR_ARGS=()
-    for rel in community/source/dnode community/source/client community/source/common \
-               community/source/libs community/source/util source/plugins source; do
+    for rel in community/source community/tools community/utils source; do
         if find "${DEBUG_PATH}/${rel}" -name '*.gcda' -print -quit 2>/dev/null | grep -q .; then
             LCOV_DIR_ARGS+=("-d" "${rel}")
         fi
