@@ -1549,6 +1549,9 @@ _mysql_init() {
     # Truncate (not append) init.log so a previous stuck run cannot fill disk.
     : > "${log}/init.log"
 
+    # Parallel CI containers exhaust Linux aio slots (io_setup EAGAIN); use sync IO.
+    local aio_arg="--innodb-use-native-aio=0"
+
     # --initialize-insecure: root@localhost with empty password.  MySQL 8.x
     # initialization can exceed 120s in constrained CI containers.
     local init_timeout="${FQ_MYSQL_INIT_TIMEOUT_S:-300}"
@@ -1558,12 +1561,14 @@ _mysql_init() {
             --basedir="$base" \
             --datadir="$data" \
             $user_opt \
+            $aio_arg \
             2>"${log}/init.log" || _init_rc=$?
     else
         _fq_env_clean timeout "$init_timeout" "$mysqld" --initialize-insecure \
             --basedir="$base" \
             --datadir="$data" \
             $user_opt \
+            $aio_arg \
             2>"${log}/init.log" || _init_rc=$?
     fi
     if [[ "$_init_rc" -ne 0 ]]; then
@@ -1622,6 +1627,7 @@ _mysql_start() {
     # Fix timezone: tests assume MySQL interprets DATETIME values as CST (UTC+8).
     # Without this, a UTC container would mis-align timestamps vs TDengine epochs.
     local tz_arg="--default-time-zone=+08:00"
+    local aio_arg="--innodb-use-native-aio=0"
 
     if [[ -n "$_ldlp_prefix" ]]; then
         _start_daemon "$pidfile" "${log}/mysqld.log" \
@@ -1636,6 +1642,7 @@ _mysql_start() {
                 --log-error="${log}/error.log" \
                 $user_opt \
                 $tz_arg \
+                $aio_arg \
                 "${tls_args[@]}"
     else
         _start_daemon "$pidfile" "${log}/mysqld.log" \
@@ -1649,6 +1656,7 @@ _mysql_start() {
                 --log-error="${log}/error.log" \
                 $user_opt \
                 $tz_arg \
+                $aio_arg \
                 "${tls_args[@]}"
     fi
 }
