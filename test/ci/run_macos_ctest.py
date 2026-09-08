@@ -9,8 +9,10 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 
-SERIAL_TESTS = "sessionTest|clientTest|connectOptionsTest|timerTest|streamTriggerTaskTest"
-PARALLEL_EXCLUDES = f"{SERIAL_TESTS}|pcre.*|example.*"
+# Match Linux unit-test: sessionTest is compiled but not executed in CI.
+# Linux puts it in CTEST_EXCLUDE and does not re-run it after parallel ctest.
+SERIAL_TESTS = "clientTest|connectOptionsTest|timerTest|streamTriggerTaskTest"
+PARALLEL_EXCLUDES = f"{SERIAL_TESTS}|sessionTest|pcre.*|example.*"
 TAOSD_STOP_TIMEOUT = 10
 
 
