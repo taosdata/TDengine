@@ -104,10 +104,11 @@ int argDataThread();
 int argTagThread();
 
 // connection args
-char*  argHost();
-int    argPort();
-char*  argUser();
-char*  argPassword();
+char*  argHost();        // NULL if -h not given (engine resolves host)
+int    argPort();        // explicit -P/DSN port, else 0 (driver default)
+int    argPortDisplay(); // explicit port, else driver default (6030 native / 6041 WS)
+char*  argUser();        // NULL if -u not given (engine default user)
+char*  argPassword();    // NULL if no password (engine default password)
 
 // format
 extern StorageFormat g_storageFormat;

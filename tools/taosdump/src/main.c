@@ -14,6 +14,7 @@
 #include "restore.h"
 #include "bckArgs.h"
 #include "bckProgress.h"
+#include "../../inc/pub.h"  // shared tools: setConnMode/workingMode/STR_* (relative path avoids TSZ contrib/pub.h shadowing)
 
 // global interrupt flag
 volatile sig_atomic_t g_interrupted = 0;
@@ -112,16 +113,19 @@ static void logRedactedCommand(int argc, char *argv[]) {
 //
 static void printStartSummary(int argc, char *argv[], enum ActionType action,
                                const char *serverVersion, int64_t startMs) {
-    bool wsMode = (argDriver() == CONN_MODE_WEBSOCKET) ||
-                  (argDriver() == CONN_MODE_INVALID && argIsDsn());
+    // Effective driver: explicit -Z wins, DSN implies WebSocket, else native.
+    // (workingMode/setConnMode live in tools/src/pub.c, shared with the tools.)
+    char        *dsn      = (char *)argDsn();
+    int8_t       mode     = workingMode(argDriver(), dsn);
+    const char  *modeName = (mode == CONN_MODE_NATIVE) ? STR_NATIVE : STR_WEBSOCKET;
     logTee("\n");
     logTee("===========================================================================\n");
     logTee("  taosdump - %s\n", action == ACTION_BACKUP ? "BACKUP" : "RESTORE");
     logTee("===========================================================================\n");
 
     // ── Group 1: data scope ──
-    logTee("  Connect Mode : %s\n", wsMode ? "WebSocket" : "Native");
-    logTee("  Server       : %s:%d\n", argHost() ? argHost() : "(firstEp from cfg)", argPort());
+    logTee("  Connect Mode : %s\n", modeName);
+    logTee("  Server       : %s:%d\n", argHost() ? argHost() : "(firstEp from cfg)", argPortDisplay());
     if (argIsDsn()) {
         logTee("  DSN          : %s\n", argDsn());
     }
@@ -189,7 +193,7 @@ static void printStartSummary(int argc, char *argv[], enum ActionType action,
     logTee("\n");
     logRedactedCommand(argc, argv);
     logTee("  Server Ver.  : %s\n", (serverVersion && serverVersion[0]) ? serverVersion : "(unknown)");
-    logTee("  User         : %s\n", argUser());
+    logTee("  User         : %s\n", argUser() ? argUser() : "(engine default)");
     {
         char dtBuf[32];
         formatDateTime(startMs, dtBuf, sizeof(dtBuf));
@@ -325,15 +329,12 @@ int main(int argc, char *argv[]) {
 
     printVersion(false);
     // Determine and apply connection driver before any connection is opened.
-    // Priority: explicit -Z > auto-from-DSN > default (native).
+    // Shared with taos CLI / taosBenchmark (setConnMode in tools/src/pub.c):
+    // explicit -Z wins, DSN implies WebSocket, else native.
     {
-        int8_t drv = argDriver();
-        bool useWs = (drv == CONN_MODE_WEBSOCKET) ||
-                     (drv == CONN_MODE_INVALID && argIsDsn());
-        const char *drvName = useWs ? "websocket" : "native";
-        int rc = taos_options(TSDB_OPTION_DRIVER, drvName);
+        int rc = setConnMode(argDriver(), (char *)argDsn(), false);
         if (rc != 0) {
-            logError("failed to set driver '%s'(0x%08X, %s)", drvName, rc, taos_errstr(NULL));
+            logError("failed to set driver (0x%08X, %s)", rc, taos_errstr(NULL));
             argsDestroy();
             return -1;
         }
