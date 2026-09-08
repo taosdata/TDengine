@@ -640,6 +640,78 @@ int32_t insTryAddTableVgroupInfo(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuild
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t insPutStmtTableVgUid(SStbInterlaceInfo* pBuildInfo, const char* tbName,
+                                    const STableVgUid* pTbInfo) {
+  TdThreadMutex* pMutex = (TdThreadMutex*)pBuildInfo->pTableHashMutex;
+  if (pMutex != NULL) {
+    (void)taosThreadMutexLock(pMutex);
+  }
+
+  int32_t code = tSimpleHashPut(pBuildInfo->pTableHash, tbName, strlen(tbName), pTbInfo, sizeof(*pTbInfo));
+
+  if (pMutex != NULL) {
+    (void)taosThreadMutexUnlock(pMutex);
+  }
+  return code;
+}
+
+static void insRemoveStmtTableVgUid(SStbInterlaceInfo* pBuildInfo, const char* tbName) {
+  TdThreadMutex* pMutex = (TdThreadMutex*)pBuildInfo->pTableHashMutex;
+  if (pMutex != NULL) {
+    (void)taosThreadMutexLock(pMutex);
+  }
+
+  int32_t code = tSimpleHashRemove(pBuildInfo->pTableHash, tbName, strlen(tbName));
+  if (code != TSDB_CODE_SUCCESS) {
+    parserError("QID:0x%" PRIx64
+                ", failed to remove stmt2 interlace table metadata from cache, dbName:%s, "
+                "tbName:%s, code:0x%" PRIx32 "(%s).",
+                pBuildInfo->requestId, pBuildInfo->dbname, tbName, (uint32_t)code, tstrerror(code));
+  }
+
+  if (pMutex != NULL) {
+    (void)taosThreadMutexUnlock(pMutex);
+  }
+}
+
+// A suid mismatch may be caused by stale child-table metadata left by an external DROP.
+// Force-refresh once so the caller can distinguish a missing table from a real cross-stable conflict.
+static int32_t insRefreshStmtTableVgUid(SStbInterlaceInfo* pBuildInfo, STableColsData* pTbData,
+                                        STableVgUid* pTbInfo) {
+  SName sname = {0};
+  int32_t code = qCreateSName2(&sname, pTbData->tbName, pBuildInfo->acctId, pBuildInfo->dbname, NULL, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  SRequestConnInfo conn = {.pTrans = pBuildInfo->transport,
+                           .requestId = pBuildInfo->requestId,
+                           .requestObjRefId = pBuildInfo->requestSelf,
+                           .mgmtEps = pBuildInfo->mgmtEpSet};
+  STableMeta* pTableMeta = NULL;
+  code = catalogRefreshGetTableMeta((SCatalog*)pBuildInfo->pCatalog, &conn, &sname, &pTableMeta, -1);
+  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+    taosMemoryFreeClear(pTableMeta);
+    insRemoveStmtTableVgUid(pBuildInfo, pTbData->tbName);
+    parserWarn("stmt2 async refresh did not find table:%s.%s, try auto create table", sname.dbname, sname.tname);
+    return code;
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFreeClear(pTableMeta);
+    parserError("stmt2 async refresh table meta:%s.%s failed, code:%d", sname.dbname, sname.tname, code);
+    return code;
+  }
+  if (pTableMeta == NULL) {
+    return TSDB_CODE_CTG_INTERNAL_ERROR;
+  }
+
+  *pTbInfo =
+      (STableVgUid){.uid = pTableMeta->uid, .vgid = pTableMeta->vgId, .suid = pTableMeta->suid};
+  code = insPutStmtTableVgUid(pBuildInfo, pTbData->tbName, pTbInfo);
+  taosMemoryFree(pTableMeta);
+  return code;
+}
+
 int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo, STableColsData* pTbData,
                              uint64_t* uid, int32_t* vgId, uint64_t* suid) {
   STableVgUid tbInfo = {0};
@@ -691,15 +763,7 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
     *suid = pTableMeta->suid;
 
     tbInfo = (STableVgUid){.uid = *uid, .vgid = *vgId, .suid = *suid};
-    TdThreadMutex* pMutex = (TdThreadMutex*)pBuildInfo->pTableHashMutex;
-    if (pMutex != NULL) {
-      (void)taosThreadMutexLock(pMutex);
-    }
-    code =
-        tSimpleHashPut(pBuildInfo->pTableHash, pTbData->tbName, strlen(pTbData->tbName), &tbInfo, sizeof(tbInfo));
-    if (pMutex != NULL) {
-      (void)taosThreadMutexUnlock(pMutex);
-    }
+    code = insPutStmtTableVgUid(pBuildInfo, pTbData->tbName, &tbInfo);
     if (TSDB_CODE_SUCCESS == code) {
       code = insTryAddTableVgroupInfo(pAllVgHash, pBuildInfo, vgId, pTbData, &sname);
     }
@@ -877,6 +941,23 @@ int32_t insAppendStmt2TableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData
   pTbCtx->pData->pBlobSet = pTbData->pBlobSet;
 
   code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId, &suid);
+  if (code == TSDB_CODE_SUCCESS && pTbCtx->pData->suid != suid) {
+    STableVgUid refreshed = {0};
+    code = insRefreshStmtTableVgUid(pBuildInfo, pTbData, &refreshed);
+    if (code == TSDB_CODE_SUCCESS) {
+      uid = refreshed.uid;
+      vgId = refreshed.vgid;
+      suid = refreshed.suid;
+
+      if (pTbCtx->pData->suid == suid) {
+        SName sname = {0};
+        code = qCreateSName2(&sname, pTbData->tbName, pBuildInfo->acctId, pBuildInfo->dbname, NULL, 0);
+        if (code == TSDB_CODE_SUCCESS) {
+          code = insTryAddTableVgroupInfo(pAllVgHash, pBuildInfo, &vgId, pTbData, &sname);
+        }
+      }
+    }
+  }
   if (ctbReq != NULL && code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
     pTbCtx->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
     vgId = (int32_t)ctbReq->uid;
