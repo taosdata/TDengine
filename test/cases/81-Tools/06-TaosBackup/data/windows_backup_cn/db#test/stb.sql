@@ -1,0 +1,1 @@
+CREATE STABLE `tbl(v1)_传感器` (`ts` TIMESTAMP, `c#1` INT, `描述` NCHAR(20)) TAGS (`t#region` NCHAR(8)) SECURITY_LEVEL 0 SECURE_DELETE 0

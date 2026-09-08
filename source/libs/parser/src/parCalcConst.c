@@ -724,6 +724,57 @@ static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subque
 }
 
 
+static void replaceSetOpWithChild(SNode** ppStmt, SSetOperator* pSetOp, bool keepLeft) {
+  SNode* pKeep = keepLeft ? pSetOp->pLeft : pSetOp->pRight;
+  SNode* pDrop = keepLeft ? pSetOp->pRight : pSetOp->pLeft;
+
+  pSetOp->pLeft = NULL;
+  pSetOp->pRight = NULL;
+  nodesDestroyNode(pDrop);
+  nodesDestroyList(pSetOp->pProjectionList);
+  pSetOp->pProjectionList = NULL;
+  nodesDestroyNode((SNode*)pSetOp);
+
+  *ppStmt = pKeep;
+}
+
+static int32_t pruneEmptyUnionAllBranches(SNode** ppStmt) {
+  if (NULL == ppStmt || NULL == *ppStmt) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  switch (nodeType(*ppStmt)) {
+    case QUERY_NODE_EXPLAIN_STMT:
+      return pruneEmptyUnionAllBranches(&((SExplainStmt*)*ppStmt)->pQuery);
+    case QUERY_NODE_SET_OPERATOR:
+      break;
+    default:
+      return TSDB_CODE_SUCCESS;
+  }
+
+  SSetOperator* pSetOp = (SSetOperator*)*ppStmt;
+  int32_t       code = pruneEmptyUnionAllBranches(&pSetOp->pLeft);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = pruneEmptyUnionAllBranches(&pSetOp->pRight);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (SET_OP_TYPE_UNION_ALL != pSetOp->opType || NULL != pSetOp->pOrderByList || NULL != pSetOp->pLimit) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  bool leftEmpty = isEmptyResultQuery(pSetOp->pLeft);
+  bool rightEmpty = isEmptyResultQuery(pSetOp->pRight);
+  if (leftEmpty == rightEmpty) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  replaceSetOpWithChild(ppStmt, pSetOp, !leftEmpty);
+  return TSDB_CODE_SUCCESS;
+}
+
 static void resetProjectNullTypeImpl(SNodeList* pProjects) {
   SNode* pProj = NULL;
   FOREACH(pProj, pProjects) {
@@ -772,6 +823,9 @@ int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery) {
 
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstQuery(&cxt, pQuery->pRoot, false);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = pruneEmptyUnionAllBranches(&pQuery->pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
     resetProjectNullType(pQuery->pRoot);

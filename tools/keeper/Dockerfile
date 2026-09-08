@@ -1,4 +1,4 @@
-FROM golang:1.18.6-alpine as builder
+FROM golang:1.26.6-alpine as builder
 LABEL maintainer = "Linhe Huo <linhe.huo@gmail.com>"
 
 WORKDIR /usr/src/taoskeeper

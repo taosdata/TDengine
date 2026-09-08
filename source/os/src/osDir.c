@@ -682,3 +682,195 @@ _OVER:
   TAOS_UNUSED(taosCloseDir(&pDir));
   return code;
 }
+
+// ============================================================================
+// Wide-char path directory APIs
+//
+// Mirror the plain APIs but interpret the path as UTF-8 on Windows (via
+// FindFirstFileW / FindNextFileW / _wmkdir / RemoveDirectoryW), converting
+// entry names back to UTF-8, so non-ASCII (e.g. CJK) names round-trip
+// correctly.  On POSIX the paths are already UTF-8 byte strings, so these
+// delegate to the plain APIs.
+// ============================================================================
+
+#ifdef WINDOWS
+typedef struct TdDirWEntry {
+  WIN32_FIND_DATAW findFileData;   // MUST stay first (pointer identity with TdDirWEntry)
+  char             utf8Name[TDDIRMAXLEN * 3];
+} TdDirWEntry;
+
+typedef struct TdDirW {
+  TdDirWEntry entry;
+  HANDLE      hFind;
+} TdDirW;
+
+static WCHAR *taosPathToWide(const char *path, WCHAR *wide, int32_t cap) {
+  if (path == NULL || wide == NULL || cap <= 0) return NULL;
+  if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wide, cap) == 0) return NULL;
+  return wide;
+}
+
+TdDirWPtr taosOpenDirW(const char *dirname) {
+  if (dirname == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  char  szFind[MAX_PATH];
+  WCHAR wFind[MAX_PATH] = {0};
+  snprintf(szFind, sizeof(szFind), "%s%s", dirname, "\\*.*");
+  if (taosPathToWide(szFind, wFind, MAX_PATH) == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  TdDirWPtr pDir = (TdDirWPtr)taosMemoryMalloc(sizeof(TdDirW));
+  if (pDir == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  pDir->hFind = FindFirstFileW(wFind, &(pDir->entry.findFileData));
+  if (INVALID_HANDLE_VALUE == pDir->hFind) {
+    DWORD errorCode = GetLastError();
+    taosMemoryFree(pDir);
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(errorCode);
+    return NULL;
+  }
+  return pDir;
+}
+
+TdDirWEntryPtr taosReadDirW(TdDirWPtr pDir) {
+  if (pDir == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  if (!FindNextFileW(pDir->hFind, &(pDir->entry.findFileData))) {
+    return NULL;
+  }
+  return (TdDirWEntryPtr)&(pDir->entry);
+}
+
+bool taosDirEntryIsDirW(TdDirWEntryPtr pDirEntry) {
+  if (pDirEntry == NULL) return false;
+  if (pDirEntry->findFileData.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+    return false;
+  }
+  return (pDirEntry->findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+}
+
+char *taosGetDirEntryNameW(TdDirWEntryPtr pDirEntry) {
+  if (pDirEntry == NULL) return NULL;
+  WideCharToMultiByte(CP_UTF8, 0, pDirEntry->findFileData.cFileName, -1, pDirEntry->utf8Name,
+                      sizeof(pDirEntry->utf8Name), NULL, NULL);
+  return pDirEntry->utf8Name;
+}
+
+int32_t taosCloseDirW(TdDirWPtr *ppDir) {
+  int32_t code = 0;
+  if (ppDir == NULL || *ppDir == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  if (!FindClose((*ppDir)->hFind)) {
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    return terrno;
+  }
+  taosMemoryFree(*ppDir);
+  *ppDir = NULL;
+  return code;
+}
+
+int32_t taosMkDirW(const char *dirname) {
+  if (taosDirExistW(dirname)) return 0;
+  WCHAR wdir[MAX_PATH] = {0};
+  if (taosPathToWide(dirname, wdir, MAX_PATH) == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  if (_wmkdir(wdir) == -1) {
+    if (ERRNO == EEXIST) return 0;
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return terrno;
+  }
+  return 0;
+}
+
+int32_t taosMulMkDirW(const char *dirname) {
+  if (dirname == NULL || strlen(dirname) >= TDDIRMAXLEN) return -1;
+  char    temp[TDDIRMAXLEN];
+  char   *pos = temp;
+  int32_t code = 0;
+  if (_fullpath(temp, dirname, TDDIRMAXLEN) == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return terrno;
+  }
+  if (temp[1] == ':') pos += 3;
+
+  if (taosDirExistW(temp)) return 0;
+
+  if (strncmp(temp, TD_DIRSEP, 1) == 0) {
+    pos += 1;
+  } else if (strncmp(temp, "." TD_DIRSEP, 2) == 0) {
+    pos += 2;
+  }
+
+  for (; *pos != '\0'; pos++) {
+    if (*pos == TD_DIRSEP[0]) {
+      *pos = '\0';
+      code = taosMkDirW(temp);
+      if (code != 0) {
+        terrno = code;
+        return code;
+      }
+      *pos = TD_DIRSEP[0];
+    }
+  }
+
+  if (*(pos - 1) != TD_DIRSEP[0]) {
+    code = taosMkDirW(temp);
+    if (code != 0) {
+      terrno = code;
+      return code;
+    }
+  }
+
+  return 0;
+}
+
+void taosRemoveDirW(const char *dirname) {
+  taosClearDirW(dirname);
+  WCHAR wdir[MAX_PATH] = {0};
+  if (taosPathToWide(dirname, wdir, MAX_PATH) == NULL) return;
+  TAOS_UNUSED(RemoveDirectoryW(wdir));
+}
+
+void taosClearDirW(const char *dirname) {
+  TdDirWPtr pDir = taosOpenDirW(dirname);
+  if (pDir == NULL) return;
+
+  TdDirWEntryPtr de = NULL;
+  while ((de = taosReadDirW(pDir)) != NULL) {
+    char *name = taosGetDirEntryNameW(de);
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+
+    char filename[1024] = {0};
+    (void)snprintf(filename, sizeof(filename), "%s%s%s", dirname, TD_DIRSEP, name);
+    if (taosDirEntryIsDirW(de)) {
+      taosRemoveDirW(filename);
+    } else if (de->findFileData.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+      // Remove junction/symlink directory without following it.
+      WCHAR wfilename[MAX_PATH] = {0};
+      if (taosPathToWide(filename, wfilename, MAX_PATH) != NULL) {
+        TAOS_UNUSED(RemoveDirectoryW(wfilename));
+      }
+    } else {
+      TAOS_UNUSED(taosRemoveFileW(filename));
+    }
+  }
+
+  TAOS_UNUSED(taosCloseDirW(&pDir));
+}
+
+bool taosDirExistW(const char *dirname) {
+  if (dirname == NULL || strlen(dirname) >= TDDIRMAXLEN) return false;
+  return taosCheckExistFileW(dirname);
+}
+#endif
