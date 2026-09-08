@@ -478,12 +478,14 @@ TEST(charsetCase, charset_Test) {
   char zhongGbk[32] = {0};
   char zhongguoUtf8[32] = {0};
   char guoUtf8[32] = {0};
+  char guoGbk[32] = {0};
   char zhongguoGbk[32] = {0};
   snprintf(invalidGbk, sizeof(invalidGbk), "%c%c", 0x81, 0x30);
   snprintf(fenUtf8, sizeof(fenUtf8), "%c%c%c", 0xE8, 0x8A, 0xAC);
   snprintf(fenGbk, sizeof(fenGbk), "%c%c", 0xB7, 0xD2);
   snprintf(zhongguoUtf8, sizeof(zhongguoUtf8), "%c%c%c%c%c%c", 0xE4, 0xB8, 0xAD, 0xE5, 0x9B, 0xBD);
   snprintf(guoUtf8, sizeof(guoUtf8), "%c%c%c", 0xE5, 0x9B, 0xBD);
+  snprintf(guoGbk, sizeof(guoGbk), "%c%c", 0xB9, 0xFA);
   snprintf(zhongguoGbk, sizeof(zhongguoGbk), "%c%c%c%c", 0xD6, 0xD0, 0xB9, 0xFA);
   snprintf(zhongGbk, sizeof(zhongGbk), "%c%c", 0xD6, 0xD0);
 
@@ -521,9 +523,12 @@ TEST(charsetCase, charset_Test) {
   char zhongguofenGbk[32] = {0};
   snprintf(zhongguofenGbk, sizeof(zhongguofenGbk), "%s%s", zhongguoGbk, fenGbk);
   char sql[256] = {0};
-  snprintf(sql, sizeof(sql), "select concat(c1, '%s') from db1.ctb1", fenGbk);
-  execQueryFail(pConnGbk, sql);
+  // On a GBK connection the string literal is decoded with the client charset,
+  // so the UTF-8 bytes of '芬' are invalid GBK and the query fails, while the
+  // GBK bytes decode cleanly and concat yields '中国芬' in GBK.
   snprintf(sql, sizeof(sql), "select concat(c1, '%s') from db1.ctb1", fenUtf8);
+  execQueryFail(pConnGbk, sql);
+  snprintf(sql, sizeof(sql), "select concat(c1, '%s') from db1.ctb1", fenGbk);
   check_sql_result(pConnGbk, sql, zhongguofenGbk);
 
   // 7.2 trim
@@ -531,12 +536,16 @@ TEST(charsetCase, charset_Test) {
   check_sql_result(pConnGbk, sql, zhongguofenGbk);
   char zhongguofenUtf8[32] = {0};
   snprintf(zhongguofenUtf8, sizeof(zhongguofenUtf8), "%s%s", zhongguoUtf8, fenUtf8);
+  // GBK connection: the UTF-8-byte literal decodes to a GBK string that does
+  // not share c1's leading run, so nothing is trimmed and it returns unchanged.
   snprintf(sql, sizeof(sql), "select trim(LEADING c1 from '%s') from db1.ctb1", zhongguofenUtf8);
-  check_sql_result(pConnGbk, sql, fenUtf8);
+  check_sql_result(pConnGbk, sql, zhongguofenUtf8);
 
   check_sql_result(pConnGbk, "select char(c1) from db1.ctb1", "");
 
-  check_sql_result_integer(pConnGbk, "select ascii(c1) from db1.ctb1", 0xE4);
+  // ascii() returns the first byte of c1 rendered in the connection charset:
+  // GBK '中' starts with 0xD6, UTF-8 '中' with 0xE4.
+  check_sql_result_integer(pConnGbk, "select ascii(c1) from db1.ctb1", 0xD6);
   check_sql_result_integer(pConnUTF8, "select ascii(c1) from db1.ctb1", 0xE4);
   check_sql_result_integer(pConnGbk, "select LENGTH(c1) from db1.ctb1", 8);
   check_sql_result_integer(pConnUTF8, "select LENGTH(c1) from db1.ctb1", 8);
@@ -552,8 +561,13 @@ TEST(charsetCase, charset_Test) {
   snprintf(sql, sizeof(sql), "select position('%s' in c1) from db1.ctb1", guoUtf8);
   check_sql_result_integer(pConnUTF8, sql, 2);
 
-  snprintf(sql, sizeof(sql), "select replace(c1, '%s', 'a') from db1.ctb1", zhongguoGbk);
+  // GBK connection matches c1 against the GBK-decoded literal, so replacing
+  // '中国' with the GBK literal succeeds, while the UTF-8 literal is undecodable
+  // as GBK and fails.
+  snprintf(sql, sizeof(sql), "select replace(c1, '%s', 'a') from db1.ctb1", zhongguoUtf8);
   execQueryFail(pConnGbk, sql);
+  snprintf(sql, sizeof(sql), "select replace(c1, '%s', 'a') from db1.ctb1", zhongguoGbk);
+  check_sql_result(pConnGbk, sql, "a");
 
   snprintf(sql, sizeof(sql), "select replace(c1, '%s', 'a') from db1.ctb1", zhongguoUtf8);
   check_sql_result(pConnUTF8, sql, "a");
@@ -561,11 +575,15 @@ TEST(charsetCase, charset_Test) {
   snprintf(sql, sizeof(sql), "%s%s", zhongguoGbk, zhongguoGbk);
   check_sql_result(pConnGbk, "select repeat(c1, 2) from db1.ctb1", sql);
 
-  check_sql_result(pConnGbk, "select cast(c1 as binary(32)) from db1.ctb1", zhongguoUtf8);
+  // Casting NCHAR to BINARY renders c1 in the connection charset, so a GBK
+  // connection yields the GBK bytes of '中国'.
+  check_sql_result(pConnGbk, "select cast(c1 as binary(32)) from db1.ctb1", zhongguoGbk);
 
   check_sql_result(pConnUTF8, "select substr(c1,2,1) from db1.ctb1", guoUtf8);
 
-  snprintf(sql, sizeof(sql), "select SUBSTRING_INDEX(c1,'%s',1) from db1.ctb1", guoUtf8);
+  // GBK connection: use the GBK-encoded '国' so the delimiter decodes cleanly;
+  // SUBSTRING_INDEX then returns the part before it, '中' in GBK.
+  snprintf(sql, sizeof(sql), "select SUBSTRING_INDEX(c1,'%s',1) from db1.ctb1", guoGbk);
   check_sql_result(pConnGbk, sql, zhongGbk);
 
   // 8. test default charset
