@@ -12,6 +12,7 @@
 #include "bckArgs.h"
 #include "bck.h"
 #include "cus_name.h"
+#include "../../../inc/pub.h"  // shared tools: getConnMode/workingMode + DEFAULT_PORT_* (relative path avoids TSZ contrib/pub.h shadowing)
 
 //
 // ---------------- global args state ----------------
@@ -22,9 +23,10 @@
 static enum ActionType g_action    = ACTION_BACKUP;
 static char  g_outPath[MAX_PATH_LEN]   = "./output";
 static char  g_host[256]           = "";
-static int   g_port                = 6030;
-static char  g_user[128]           = "root";
-static char  g_password[128]       = "taosdata";
+static int   g_port                = 0;
+static bool  g_portSet             = false;  // -P/--port (or DSN host:port) given explicitly
+static char  g_user[128]           = "";     // "" (NULL) => engine default user
+static char  g_password[128]       = "";     // "" (NULL) => engine default password
 static int   g_dataThread          = 8;
 static int   g_tagThread           = 2;
 static int   g_retryCount          = 10;
@@ -275,6 +277,10 @@ static void applyDsn(const char *dsn) {
     } else {
         g_port = defaultPort;
     }
+    // A DSN always pins the connection target (host + port), so mark the port
+    // as explicitly set: argPort()/argPortDisplay() must return it verbatim
+    // instead of the 0/engine-default used when the user gives no port at all.
+    g_portSet = true;
 
     snprintf(g_host, sizeof(g_host), "%s", tmp);
     if (userKey && userKey[0]) snprintf(g_user,     sizeof(g_user),     "%s", userKey);
@@ -578,6 +584,7 @@ int argsInit(int argc, char *argv[]) {
                 return -1;
             }
             g_port = pval;
+            g_portSet = true;
         }
         // ---- user ----
         else if ((strcmp(argv[i], "-u") == 0 && i + 1 < argc && (val = argv[++i])) ||
@@ -709,15 +716,8 @@ int argsInit(int argc, char *argv[]) {
         // ---- driver ----
         else if ((strcmp(argv[i], "-Z") == 0 && i + 1 < argc && (val = argv[++i])) ||
                  (val = matchLong(argc, argv, &i, "--driver", 1))) {
-            // reuse exact same logic as getConnMode() in pub.c / taosdump
-            if (strcasecmp(val, "native") == 0 || strcmp(val, "0") == 0) {
-                g_driver = CONN_MODE_NATIVE;
-            } else if (strcasecmp(val, "websocket") == 0 || strcmp(val, "1") == 0) {
-                g_driver = CONN_MODE_WEBSOCKET;
-            } else {
-                fprintf(stderr, "invalid input %s for option -Z, only support: Native (0) or WebSocket (1)\n", val);
-                exit(-1);
-            }
+            // shared with taos CLI / taosBenchmark (getConnMode in tools/src/pub.c)
+            g_driver = getConnMode((char *)val);
         }
         // ---- version ----
         else if (strcmp(argv[i], "-V") == 0 || matchLong(argc, argv, &i, "--version", 0)) {
@@ -971,15 +971,27 @@ char* argHost() {
 }
 
 int argPort() {
-    return g_port;
+    // Explicit -P/--port or a DSN host:port is honoured verbatim.  Without it,
+    // return 0 so taos_connect() lets the selected driver pick the default
+    // (native -> 6030 / config firstEp; WebSocket -> 6041).  This is the same
+    // "unset == engine default" contract used by taos CLI & taosBenchmark.
+    return g_portSet ? g_port : 0;
+}
+
+// Human-readable port for logs/summary: resolve the driver default when the
+// connect port is 0 (driver-chosen), mirroring defaultPort()/workingMode().
+int argPortDisplay() {
+    if (g_portSet) return g_port;
+    int8_t mode = workingMode(g_driver, g_dsn);
+    return (mode == CONN_MODE_NATIVE) ? DEFAULT_PORT_NATIVE : DEFAULT_PORT_WS_LOCAL;
 }
 
 char* argUser() {
-    return g_user;
+    return g_user[0] ? g_user : NULL;
 }
 
 char* argPassword() {
-    return g_password;
+    return g_password[0] ? g_password : NULL;
 }
 
 const char* argRenameDb(const char *oldName) {

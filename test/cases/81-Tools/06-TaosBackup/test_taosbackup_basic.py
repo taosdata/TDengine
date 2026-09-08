@@ -166,6 +166,228 @@ class TestTaosBackupBasic:
         tdLog.info("do_taosbackup_basic ......................... [passed]")
 
     #
+    # ------------------- do_taosbackup_connmode ----------------
+    #
+    def do_taosbackup_connmode(self):
+        """Backup/restore round-trips over Native and WebSocket connections.
+
+        Regression guard for the taosdump connect-parameter change: when -h/-P/
+        -u/-p are omitted, taosdump hands NULL host/user/password and port 0 to
+        taos_connect(), letting the engine/driver pick the defaults (Native ->
+        6030 / config firstEp, WebSocket -> 6041).  Before the fix `-Z WebSocket`
+        still forced port 6030, so it could never reach taosadapter on 6041.
+
+        Every round reuses the same backup/restore flow; only the connection
+        arguments differ, covering:
+          - driver spellings: "Native"/"WebSocket" and the numeric aliases
+            "-Z 0"/"-Z 1" ("-Z 1" == WebSocket, as used by `taos -Z 1`);
+          - backup/restore mode combos (same-mode, cross-mode, numeric alias);
+          - explicit "-P 6041"/"-P 6030" (port is passed to taos_connect as-is);
+          - no "-h" (host resolved by the engine/driver default);
+          - explicit "-u root" (user given, password still engine default).
+        Omitted knobs exercise the default path: host NULL / port 0 / engine
+        default user & password.  Where "-h 127.0.0.1" is present, it pins the
+        target deterministically (taosd:6030 / taosadapter:6041).
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-09-07 Alex Duan Created
+
+        """
+        tmproot = "./taosbackuptest/tmpdir_connmode"
+
+        binPath = etool.taosDumpFile()
+        if binPath == "":
+            tdLog.exit("taosBackup not found!")
+        else:
+            tdLog.info("taosBackup found in %s" % binPath)
+
+        def setup_source():
+            """(Re)create the source db with fixed, deterministic data."""
+            tdSql.execute("drop database if exists cmdb")
+            tdSql.execute("drop database if exists cmdb_rst")
+            tdSql.execute("create database cmdb keep 3649")
+            tdSql.execute("use cmdb")
+            tdSql.execute(
+                "create table st(ts timestamp, c1 INT, c2 NCHAR(16)) "
+                "tags(tid INT, loc NCHAR(8))"
+            )
+            tdSql.execute("create table t1 using st tags(1, 'beijing')")
+            tdSql.execute("create table t2 using st tags(2, 'shanghai')")
+            tdSql.execute("create table nt1(ts timestamp, c1 INT)")
+            tdSql.execute(
+                "insert into t1 values"
+                "(1640000000000, 1, 'row1')"
+                "(1640000000001, 2, NULL)"
+                "(1640000000002, 3, 'row3')"
+            )
+            tdSql.execute(
+                "insert into t2 values"
+                "(1640000000000, 10, 'a')"
+                "(1640000000001, 20, 'b')"
+            )
+            tdSql.execute(
+                "insert into nt1 values"
+                "(1640000000000, 100)"
+                "(1640000000001, 200)"
+            )
+
+        def verify(dst):
+            """Assert restored db `dst` matches the expected source content."""
+            tdSql.execute("use %s" % dst)
+            tdSql.query("show stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
+            tdSql.query("show tables")
+            tdSql.checkRows(3)
+
+            # row counts
+            tdSql.query("select count(*) from %s.t1" % dst)
+            tdSql.checkData(0, 0, 3)
+            tdSql.query("select count(*) from %s.t2" % dst)
+            tdSql.checkData(0, 0, 2)
+            tdSql.query("select count(*) from %s.nt1" % dst)
+            tdSql.checkData(0, 0, 2)
+
+            # aggregates
+            tdSql.query("select sum(c1) from %s.t1" % dst)
+            tdSql.checkData(0, 0, 6)
+            tdSql.query("select sum(c1) from %s.t2" % dst)
+            tdSql.checkData(0, 0, 30)
+            tdSql.query("select sum(c1) from %s.nt1" % dst)
+            tdSql.checkData(0, 0, 300)
+
+            # NULL value preserved
+            tdSql.query("select c2 from %s.t1 where c1 = 2" % dst)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, None)
+
+            # tags preserved
+            tdSql.query("select tid, loc from %s.t1 limit 1" % dst)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, "beijing")
+            tdSql.query("select tid, loc from %s.t2 limit 1" % dst)
+            tdSql.checkData(0, 0, 2)
+            tdSql.checkData(0, 1, "shanghai")
+
+            # exact row content
+            tdSql.query("select c1, c2 from %s.t1 where ts = 1640000000002" % dst)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 3)
+            tdSql.checkData(0, 1, "row3")
+
+        # (backup flags, restore flags, backup-is-websocket, restore-is-websocket, label)
+        # Each entry is the FULL taosdump connect-option string for that leg
+        # (driver -Z plus host/port/user).  Everything else in the command is
+        # identical, so every round is "same flow, different connect args".
+        # Covers:
+        #   - driver spellings: "Native"/"WebSocket" and the numeric aliases
+        #     "-Z 0"/"-Z 1" (`taos -Z 1` also means WebSocket);
+        #   - same-mode / cross-mode / numeric-alias backup-restore combos;
+        #   - explicit "-P 6041"/"-P 6030" (argPort() returns the given port);
+        #   - no "-h" (host resolved by the engine/driver default, e.g. config
+        #     firstEp / localhost);
+        #   - explicit "-u root" (password still the engine default).
+        # Any omitted knob goes through the default path: host NULL / port 0 /
+        # engine-default user & password.
+        combos = [
+            # ---- string aliases + explicit host (default port/user/password) ----
+            ("-Z Native -h 127.0.0.1", "-Z Native -h 127.0.0.1", False, False,
+             "native/native"),
+            ("-Z WebSocket -h 127.0.0.1", "-Z WebSocket -h 127.0.0.1", True, True,
+             "websocket/websocket"),
+            ("-Z Native -h 127.0.0.1", "-Z WebSocket -h 127.0.0.1", False, True,
+             "native/websocket"),
+            ("-Z WebSocket -h 127.0.0.1", "-Z Native -h 127.0.0.1", True, False,
+             "websocket/native"),
+            # ---- numeric aliases -Z 0 / -Z 1 ----
+            ("-Z 1 -h 127.0.0.1", "-Z 1 -h 127.0.0.1", True, True,
+             "websocket1/websocket1"),
+            ("-Z 0 -h 127.0.0.1", "-Z 0 -h 127.0.0.1", False, False,
+             "native0/native0"),
+            # ---- explicit -P (port handed to taos_connect as-is) ----
+            ("-Z 1 -h 127.0.0.1 -P 6041", "-Z 1 -h 127.0.0.1 -P 6041", True, True,
+             "ws(-Z1 -P6041)/ws(-Z1 -P6041)"),
+            ("-Z Native -h 127.0.0.1 -P 6030", "-Z Native -h 127.0.0.1 -P 6030",
+             False, False, "native(-P6030)/native(-P6030)"),
+            # ---- no -h: host resolved by engine/driver default ----
+            ("-Z Native", "-Z Native", False, False,
+             "native-nohost/native-nohost"),
+            ("-Z 1", "-Z 1", True, True,
+             "ws(-Z1)-nohost/ws(-Z1)-nohost"),
+            # ---- explicit -u (password still the engine default) ----
+            ("-Z WebSocket -h localhost -u root -P 6041",
+             "-Z WebSocket -u root -P 6041", True, True,
+             "ws(-u root -P6041)/ws(-u root -P6041)"),
+            ("-Z Native -h 127.0.0.1 -u root",
+             "-Z Native -h 127.0.0.1 -u root", False, False,
+             "native(-u root)/native(-u root)"),
+        ]
+
+        # Build the source db ONCE.  This test validates connect modes for
+        # backup/restore - not data writes - so the source data is created a
+        # single time and reused by every round (only the restore target is
+        # dropped/recreated each round).
+        setup_source()
+
+        for idx, (bckFlags, rstFlags, bckWs, rstWs, label) in enumerate(combos):
+            tmpdir = "%s/case%d" % (tmproot, idx)
+            self.makeDir(tmpdir)
+            tdLog.info("connmode round-trip [%s]: backup=%s restore=%s"
+                       % (label, bckFlags, rstFlags))
+
+            # ---- backup (connect knobs come from bckFlags) ----
+            out = etool.taosdump("%s -D cmdb -o %s -T 1" % (bckFlags, tmpdir))
+            banner = "\n".join(out)
+            if bckWs:
+                assert "Connect Mode : WebSocket" in banner, \
+                    "[%s] WebSocket backup did not select the WebSocket driver" % label
+                assert ":6041" in banner, \
+                    "[%s] WebSocket backup did not default to port 6041" % label
+            else:
+                assert "Connect Mode : Native" in banner, \
+                    "[%s] Native backup did not select the native driver" % label
+                assert ":6030" in banner, \
+                    "[%s] Native backup did not default to port 6030" % label
+
+            # ---- restore into a fresh name (the shared source db stays intact) ----
+            tdSql.execute("drop database if exists cmdb_rst")
+            out = etool.taosdump(
+                '%s -i %s -T 1 -W "cmdb=cmdb_rst"' % (rstFlags, tmpdir)
+            )
+            banner = "\n".join(out)
+            if rstWs:
+                assert "Connect Mode : WebSocket" in banner, \
+                    "[%s] WebSocket restore did not select the WebSocket driver" % label
+            else:
+                assert "Connect Mode : Native" in banner, \
+                    "[%s] Native restore did not select the native driver" % label
+
+            assert self.dbFound("cmdb_rst"), \
+                "[%s] database 'cmdb_rst' not found after restore" % label
+
+            # correctness of the restored database
+            verify("cmdb_rst")
+
+            # drop the restore target so the next round can restore again
+            tdSql.execute("drop database if exists cmdb_rst")
+            tdLog.info("connmode round-trip [%s] .................. [passed]" % label)
+
+        # the shared source db survived every round untouched
+        tdSql.query("select count(*) from cmdb.st")
+        tdSql.checkData(0, 0, 5)
+
+        tdSql.execute("drop database if exists cmdb")
+        os.system("rm -rf %s" % tmproot)
+        tdLog.info("do_taosbackup_connmode .................... [passed]")
+
+    #
     # ------------------- do_taosbackup_rename_db ----------------
     #
     def do_taosbackup_rename_db(self):
@@ -1812,6 +2034,9 @@ class TestTaosBackupBasic:
         19. Table-level backup with positional args: multi-CTB, cross-STB, mixed CTB+NTB, NTB-only
         20. backup.log/restore.log audit logging: truncate vs append, log-open
             failure resilience, no SQL truncation on failure paths
+        21. Connect-mode round-trips (Native/WebSocket, numeric -Z 0/1):
+            default host/port/user resolution, explicit -P 6041/6030, no -h,
+            explicit -u, incl. cross backup/restore mode combos
 
         Since: v3.0.0.0
 
@@ -1824,6 +2049,7 @@ class TestTaosBackupBasic:
 
         """
         self.do_taosbackup_basic()
+        self.do_taosbackup_connmode()
         self.do_taosbackup_rename_db()
         self.do_taosbackup_schemaonly()
         self.do_taosbackup_db_ntb()
@@ -1842,4 +2068,4 @@ class TestTaosBackupBasic:
         self.do_taosbackup_prefilter_empty_ctb_time_filter()
         self.do_taosbackup_prefilter_spec_tables_time_filter()
         self.do_taosbackup_table_level()
-        self.do_taosbackup_log()
+        self.do_taosbackup_log()        

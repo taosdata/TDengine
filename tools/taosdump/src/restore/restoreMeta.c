@@ -1081,8 +1081,12 @@ static char** findVtagFiles(const char *dbName, const char *vstbName, int *count
         return NULL;
     }
 
-    char prefix[TSDB_TABLE_NAME_LEN + 16];
-    snprintf(prefix, sizeof(prefix), "%s_data", vstbName);
+    // vtag files embed the percent-encoded vstb name; scan with encoded prefix
+    char encStb[TSDB_TABLE_NAME_LEN * 3 + 1] = {0};
+    const char *encStbName = bckNameEncode(vstbName, encStb, sizeof(encStb));
+    if (encStbName == NULL) encStbName = vstbName;
+    char prefix[TSDB_TABLE_NAME_LEN * 3 + 16];
+    snprintf(prefix, sizeof(prefix), "%s_data", encStbName);
     int prefixLen = (int)strlen(prefix);
 
     int   capacity = 8;
@@ -2206,9 +2210,12 @@ static char** findTagFiles(const char *dbName, const char *stbName, int *count) 
         return NULL;
     }
 
-    // prefix: {stbName}_data
-    char prefix[TSDB_TABLE_NAME_LEN + 16];
-    snprintf(prefix, sizeof(prefix), "%s_data", stbName);
+    // prefix: {enc(stbName)}_data  (tag files embed the percent-encoded name)
+    char encStb[TSDB_TABLE_NAME_LEN * 3 + 1] = {0};
+    const char *encStbName = bckNameEncode(stbName, encStb, sizeof(encStb));
+    if (encStbName == NULL) encStbName = stbName;
+    char prefix[TSDB_TABLE_NAME_LEN * 3 + 16];
+    snprintf(prefix, sizeof(prefix), "%s_data", encStbName);
     int prefixLen = strlen(prefix);
 
     TdDirEntryPtr entry;
@@ -2351,9 +2358,15 @@ static bool stbTagFilesHaveSpecMatch(const char *dbName, const char *stbName) {
 // otherwise be logged for no functional reason.
 static bool stbExistsOnServer(const char *targetDb, const char *stbName) {
     char sql[TSDB_TABLE_FNAME_LEN + 64];
+    char escDb[TSDB_DB_NAME_LEN * 2 + 1] = {0};
+    char escStb[TSDB_TABLE_NAME_LEN * 2 + 1] = {0};
+    const char *eDb = bckSqlEscape(targetDb, escDb, sizeof(escDb));
+    const char *eStb = bckSqlEscape(stbName, escStb, sizeof(escStb));
+    if (eDb == NULL) eDb = targetDb;
+    if (eStb == NULL) eStb = stbName;
     snprintf(sql, sizeof(sql),
              "SELECT count(*) FROM information_schema.ins_stables "
-             "WHERE db_name='%s' AND stable_name='%s'", targetDb, stbName);
+             "WHERE db_name='%s' AND stable_name='%s'", eDb, eStb);
     int32_t cnt = 0;
     if (queryValueInt(sql, 0, &cnt) != TSDB_CODE_SUCCESS) return true;  // unsure -> don't skip
     return cnt > 0;
@@ -2621,10 +2634,17 @@ int validateSpecTablesForRestore(const char *dbName) {
                 char *us = strstr(en, "_data");
                 if (!us) continue;
                 int stbLen = (int)(us - en);
-                if (stbLen <= 0 || stbLen >= TSDB_TABLE_NAME_LEN) continue;
-                char stbName[TSDB_TABLE_NAME_LEN];
-                memcpy(stbName, en, stbLen);
-                stbName[stbLen] = '\0';
+                if (stbLen <= 0 || stbLen >= BCK_NAME_ENC_STEM_MAX) continue;
+                // Tag files embed the percent-encoded stb name; decode it.
+                // The encoded stem can exceed TSDB_TABLE_NAME_LEN ("%XX"
+                // expansion), so decode via a worst-case sized buffer first.
+                char encStb[BCK_NAME_ENC_STEM_MAX];
+                memcpy(encStb, en, stbLen);
+                encStb[stbLen] = '\0';
+                if (bckNameDecodeInPlace(encStb, sizeof(encStb)) == NULL) continue;
+                char stbName[TSDB_TABLE_NAME_LEN] = {0};
+                strncpy(stbName, encStb, TSDB_TABLE_NAME_LEN - 1);
+                stbName[TSDB_TABLE_NAME_LEN - 1] = '\0';
 
                 // Add the STB name itself (might not be in stb.sql for edge cases)
                 collectorAdd(&c, stbName);
@@ -2774,8 +2794,12 @@ static char** getBackupStbNames(const char *dbName, int *code) {
     *code = TSDB_CODE_SUCCESS;
 
     char *outPath = argOutPath();
+    // The on-disk db directory embeds the percent-encoded database name.
+    char encDb[MAX_PATH_LEN] = {0};
+    const char *encDbName = bckNameEncode(dbName, encDb, sizeof(encDb));
+    if (encDbName == NULL) encDbName = dbName;
     char dbDir[MAX_PATH_LEN];
-    snprintf(dbDir, sizeof(dbDir), "%s/%s", outPath, dbName);
+    snprintf(dbDir, sizeof(dbDir), "%s/%s", outPath, encDbName);
 
     TdDirPtr dir = taosOpenDir(dbDir);
     if (dir == NULL) {
@@ -2813,12 +2837,11 @@ static char** getBackupStbNames(const char *dbName, int *code) {
                 }
                 names = tmp;
             }
-            // extract stb name (remove .csv)
+            // extract stb name (remove .csv) and decode the percent-encoded stem.
+            // The encoded stem can exceed TSDB_TABLE_NAME_LEN ("%XX" expansion),
+            // so decode via the worst-case safe helper.
             char stbName[TSDB_TABLE_NAME_LEN] = {0};
-            int stbNameLen = nameLen - 4;
-            if (stbNameLen >= TSDB_TABLE_NAME_LEN) stbNameLen = TSDB_TABLE_NAME_LEN - 1;
-            memcpy(stbName, entryName, stbNameLen);
-            stbName[stbNameLen] = '\0';
+            if (bckNameDecodeFileStem(entryName, stbName, sizeof(stbName)) != 0) continue;
             names[count++] = taosStrdup(stbName);
         }
     }

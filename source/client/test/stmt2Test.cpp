@@ -20,6 +20,8 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <cstdlib>
+#include <string>
 #include <thread>
 #include "clientInt.h"
 #include "geosWrapper.h"
@@ -45,6 +47,27 @@ const char* STMT_STATUS_NAMES[] = {
 };
 
 namespace {
+constexpr const char* STMT2_DROP_REPREPARE_TABLES_ARG = "--stmt2-drop-reprepare-tables";
+const char*           stmt2TestExecutable = NULL;
+
+int dropReprepareTables() {
+  TAOS* taos2 = taos_connect("localhost", "root", "taosdata", "", 0);
+  if (taos2 == NULL) {
+    return 1;
+  }
+
+  TAOS_RES* result = taos_query(taos2,
+                                "drop table stmt2_testdb_reprepare_stable.ctb1, stmt2_testdb_reprepare_stable.ctb2, "
+                                "stmt2_testdb_reprepare_stable.ctb3");
+  int       code = taos_errno(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    fprintf(stderr, "failed to drop child tables: %s\n", taos_errstr(result));
+  }
+  taos_free_result(result);
+  taos_close(taos2);
+  return code == TSDB_CODE_SUCCESS ? 0 : 1;
+}
+
 bool isCreateDatabaseSql(const char* sql) {
   if (sql == nullptr) {
     return false;
@@ -680,6 +703,11 @@ void expectSnapshotsEqual(const Stmt2ResultSnapshot& expected, const Stmt2Result
 }  // namespace
 
 int main(int argc, char** argv) {
+  if (argc == 2 && strcmp(argv[1], STMT2_DROP_REPREPARE_TABLES_ARG) == 0) {
+    return dropReprepareTables();
+  }
+
+  stmt2TestExecutable = argv[0];
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
@@ -9372,6 +9400,96 @@ TEST(stmt2Case, stmt2_interlace_pTableCols_close_error_repro) {
   (void)tsem_destroy(&aa.sem);
   do_query(taos, "drop database if exists stmt2_testdb_1");
   taos_close(taos);
+}
+
+TEST(stmt2Case, interlace_reprepare_table_in_other_stable) {
+  TAOS* taos1 = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos1, nullptr);
+
+  do_query(taos1, "drop database if exists stmt2_testdb_reprepare_stable");
+  do_query(taos1, "create database stmt2_testdb_reprepare_stable");
+  do_query(taos1, "create stable stmt2_testdb_reprepare_stable.stb1 (ts timestamp, c1 int) tags(t1 int)");
+  do_query(taos1, "create stable stmt2_testdb_reprepare_stable.stb2 (ts timestamp, c1 int) tags(t1 int)");
+
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos1, &option);
+  ASSERT_NE(stmt, nullptr);
+
+  int code =
+      taos_stmt2_prepare(stmt, "insert into stmt2_testdb_reprepare_stable.stb1 (tbname,ts,c1,t1) values(?,?,?,?)", 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  char*   tbnames[3] = {"ctb1", "ctb2", "ctb3"};
+  int32_t tag_values[3] = {1, 2, 3};
+  int32_t tag_lengths[3] = {sizeof(int32_t), sizeof(int32_t), sizeof(int32_t)};
+  int64_t ts_values[3] = {1591060628000, 1591060628001, 1591060628002};
+  int32_t ts_lengths[3] = {sizeof(int64_t), sizeof(int64_t), sizeof(int64_t)};
+  int32_t col_values[3] = {10, 20, 30};
+  int32_t col_lengths[3] = {sizeof(int32_t), sizeof(int32_t), sizeof(int32_t)};
+
+  TAOS_STMT2_BIND  tag_params[3];
+  TAOS_STMT2_BIND  col_params[3][2];
+  TAOS_STMT2_BIND* tags[3];
+  TAOS_STMT2_BIND* cols[3];
+  for (int i = 0; i < 3; ++i) {
+    tag_params[i] = {TSDB_DATA_TYPE_INT, &tag_values[i], &tag_lengths[i], NULL, 1};
+    col_params[i][0] = {TSDB_DATA_TYPE_TIMESTAMP, &ts_values[i], &ts_lengths[i], NULL, 1};
+    col_params[i][1] = {TSDB_DATA_TYPE_INT, &col_values[i], &col_lengths[i], NULL, 1};
+    tags[i] = &tag_params[i];
+    cols[i] = &col_params[i][0];
+  }
+
+  TAOS_STMT2_BINDV bindv = {3, &tbnames[0], &tags[0], &cols[0]};
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  int affected_rows = 0;
+  code = taos_stmt2_exec(stmt, &affected_rows);
+  checkError(stmt, code, __FILE__, __LINE__);
+  ASSERT_EQ(affected_rows, 3);
+
+  ASSERT_NE(stmt2TestExecutable, nullptr);
+  std::string drop_command = "\"" + std::string(stmt2TestExecutable) + "\" " + STMT2_DROP_REPREPARE_TABLES_ARG;
+  ASSERT_EQ(std::system(drop_command.c_str()), 0);
+
+  code =
+      taos_stmt2_prepare(stmt, "insert into stmt2_testdb_reprepare_stable.stb2 (tbname,ts,c1,t1) values(?,?,?,?)", 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  checkError(stmt, code, __FILE__, __LINE__);
+  affected_rows = 0;
+  code = taos_stmt2_exec(stmt, &affected_rows);
+  checkError(stmt, code, __FILE__, __LINE__);
+  ASSERT_EQ(affected_rows, 3);
+
+  TAOS_RES* result = taos_query(taos1, "select count(*) from stmt2_testdb_reprepare_stable.stb2");
+  ASSERT_EQ(taos_errno(result), TSDB_CODE_SUCCESS);
+  TAOS_ROW row = taos_fetch_row(result);
+  ASSERT_NE(row, nullptr);
+  ASSERT_EQ(*(int64_t*)row[0], 3);
+  taos_free_result(result);
+
+  do_query(taos1, "create table stmt2_testdb_reprepare_stable.conflict1 "
+                  "using stmt2_testdb_reprepare_stable.stb1 tags(1)");
+  do_query(taos1, "create table stmt2_testdb_reprepare_stable.conflict2 "
+                  "using stmt2_testdb_reprepare_stable.stb1 tags(2)");
+  do_query(taos1, "create table stmt2_testdb_reprepare_stable.conflict3 "
+                  "using stmt2_testdb_reprepare_stable.stb1 tags(3)");
+
+  char*            conflict_names[3] = {"conflict1", "conflict2", "conflict3"};
+  TAOS_STMT2_BINDV conflict_bindv = {3, &conflict_names[0], &tags[0], &cols[0]};
+  code = taos_stmt2_bind_param(stmt, &conflict_bindv, -1);
+  if (code == TSDB_CODE_SUCCESS) {
+    affected_rows = 0;
+    code = taos_stmt2_exec(stmt, &affected_rows);
+  }
+  ASSERT_EQ(code, TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE);
+  ASSERT_STREQ(tstrerror(code), "Table already exists in other stables");
+
+  taos_stmt2_close(stmt);
+  do_query(taos1, "drop database if exists stmt2_testdb_reprepare_stable");
+  taos_close(taos1);
 }
 
 #pragma GCC diagnostic pop

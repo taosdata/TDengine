@@ -142,7 +142,11 @@ static void freeCkptHashTable() {
 }
 
 void loadRestoreCheckpoint(const char *dbName) {
-    snprintf(g_ckptPath, sizeof(g_ckptPath), "%s/%s/restore_checkpoint.txt", argOutPath(), dbName);
+    // Percent-encode the db name to match the on-disk directory name.
+    char encDb[MAX_PATH_LEN] = {0};
+    const char *encDbName = bckNameEncode(dbName, encDb, sizeof(encDb));
+    if (encDbName == NULL) encDbName = dbName;
+    snprintf(g_ckptPath, sizeof(g_ckptPath), "%s/%s/restore_checkpoint.txt", argOutPath(), encDbName);
     g_allowWriteCP = true;
     // Initialize the mutex on first call (safe because restore is single-threaded at this point)
     taosThreadMutexInit(&g_ckptMutex, NULL);
