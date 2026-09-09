@@ -3621,15 +3621,11 @@ void destroyIntervalOperatorInfo(void* param) {
   releaseExIntervalInfo(&pInfo->pExInterval);
   cleanupBasicInfo(&pInfo->binfo);
   cleanupIndefRowsRuntime(&pInfo->indefRows, pInfo->pOperator);
-  if (pInfo->pOperator) {
-    if (pInfo->aggSup.pFastInterval != NULL) {
-      cleanupFastIntervalRows(pInfo);
-    } else {
-      cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
-                        pInfo->cleanGroupResInfo);
-    }
-    pInfo->pOperator = NULL;
-  }
+  // Per-result-row state is released by cleanupIntervalRowState(), invoked from destroyOperator()
+  // before cleanupExprSupp(). Doing it here would be too late: the supp is memset by then, so
+  // numOfExprs is 0 and cleanupResultInfo() walks nothing -- silently leaking the DISTINCT dedup
+  // set, spill pages and temp file of every row never emitted (early cancel, LIMIT short-circuit).
+  pInfo->pOperator = NULL;
 
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSupp);
@@ -3646,6 +3642,21 @@ void destroyIntervalOperatorInfo(void* param) {
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   destroyBoundedQueue(pInfo->pBQ);
   taosMemoryFreeClear(param);
+}
+
+// Runs from destroyOperator() before cleanupExprSupp(), the only point where both the expression
+// supp and the result rows are still valid.
+static void cleanupIntervalRowState(void* param) {
+  SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)param;
+  if (pInfo == NULL || pInfo->pOperator == NULL) {
+    return;
+  }
+  if (pInfo->aggSup.pFastInterval != NULL) {
+    cleanupFastIntervalRows(pInfo);
+  } else {
+    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
+                      pInfo->cleanGroupResInfo);
+  }
 }
 
 static int32_t initWindowInterpPrevVal(SIntervalAggOperatorInfo* pInfo) {
@@ -3944,6 +3955,7 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
 
   pOperator->fpSet = createOperatorFpSet(doOpenIntervalAgg, doBuildIntervalResultNext, NULL, destroyIntervalOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorRowStateCleanupFn(pOperator, cleanupIntervalRowState);
   setOperatorResetStateFn(pOperator, resetIntervalOperState);
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {

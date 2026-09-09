@@ -467,8 +467,7 @@ static bool stbSplNeedSplit(SFindSplitNodeCtx* pCtx, SLogicNode* pNode) {
         SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
         if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pChild) &&
             WINDOW_TYPE_EXTERNAL == ((SWindowLogicNode*)pChild)->winType &&
-            !((SWindowLogicNode*)pChild)->calcWithPartition &&
-            stbSplNeedSplitWindow(pChild)) {
+            !((SWindowLogicNode*)pChild)->calcWithPartition) {
           return false;
         }
       }
