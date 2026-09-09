@@ -89,6 +89,14 @@ fi
 
 # 构建 Docker 挂载参数
 DOCKER_MOUNTS="-v $TDINTERNAL_DIR:$CONTAINER_TDINTERNAL_DIR"
+CONTAINER_GCDA_DIR="/home/TDinternal/debug"
+
+# 挂载 debugSan/build 产物目录，供最终全量 GCDA 采集
+DEBUGSAN_DIR=$WORKDIR/debugSan
+if [ -d "$DEBUGSAN_DIR" ]; then
+    DOCKER_MOUNTS="$DOCKER_MOUNTS -v $DEBUGSAN_DIR:$CONTAINER_GCDA_DIR"
+    echo "Mounting debugSan for full GCDA capture: $DEBUGSAN_DIR -> $CONTAINER_GCDA_DIR"
+fi
 
 # 挂载测试日志目录（如果存在）- 这里包含所有case的.info文件
 if [ -n "$test_log_dir" ] && [ -d "$test_log_dir" ]; then
@@ -101,6 +109,9 @@ echo "Docker mounts: $DOCKER_MOUNTS"
 
 # 构建覆盖率命令参数
 COVERAGE_ARGS="-b $branch_name_id"
+if [ -d "$DEBUGSAN_DIR" ]; then
+    COVERAGE_ARGS="$COVERAGE_ARGS -f $CONTAINER_GCDA_DIR"
+fi
 if [ -n "$test_log_dir" ] && [ -d "$test_log_dir" ]; then
     COVERAGE_ARGS="$COVERAGE_ARGS -l $CONTAINER_LOG_DIR"
 fi

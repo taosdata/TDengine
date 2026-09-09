@@ -534,18 +534,153 @@ function merge_files_uniform_batch() {
     rm -rf "$temp_dir"
 }
 
+function capture_full_gcda_coverage() {
+    local gcda_dir="$1"
+    local output_file="$2"
+
+    if [ -z "$gcda_dir" ] || [ ! -d "$gcda_dir" ]; then
+        echo "GCDA 目录不存在，跳过全量采集: $gcda_dir"
+        return 1
+    fi
+
+    local gcda_count
+    gcda_count=$(find "$gcda_dir" -name "*.gcda" -type f 2>/dev/null | wc -l)
+    if [ "$gcda_count" -eq 0 ]; then
+        echo "GCDA 目录中没有 .gcda 文件，跳过全量采集: $gcda_dir"
+        return 1
+    fi
+
+    echo "=== 全量 GCDA 采集 ==="
+    echo "目录: $gcda_dir (共 $gcda_count 个 .gcda 文件)"
+
+    local lcov_dir_args=()
+    local rel=""
+    for rel in community/source community/tools community/utils source; do
+        if [ -d "${gcda_dir}/${rel}" ] && find "${gcda_dir}/${rel}" -name '*.gcda' -print -quit 2>/dev/null | grep -q .; then
+            lcov_dir_args+=("-d" "${rel}")
+        fi
+    done
+
+    if [ ${#lcov_dir_args[@]} -eq 0 ]; then
+        echo "未找到可采集的产品代码 GCDA 子目录"
+        return 1
+    fi
+
+    local start_time
+    start_time=$(date +%s)
+    local lcov_cmd="cd '${gcda_dir}' && lcov --quiet ${lcov_dir_args[*]} -capture --rc lcov_branch_coverage=0 --rc branch_coverage=0 --rc max_message_count=0 --rc check_data_consistency=0 --ignore-errors negative,inconsistent,deprecated,source,count,usage,missing,unused,corrupt --no-external -b /home/TDinternal -o '${output_file}'"
+
+    echo "执行全量 lcov: $lcov_cmd"
+    local lcov_output lcov_ret
+    lcov_output=$(eval "$lcov_cmd" 2>&1)
+    lcov_ret=$?
+    echo "$lcov_output" | tail -20
+    if [ $lcov_ret -eq 0 ] && [ -s "$output_file" ]; then
+        local end_time duration file_size source_files
+        end_time=$(date +%s)
+        duration=$((end_time - start_time))
+        file_size=$(stat -c%s "$output_file" 2>/dev/null || echo "0")
+        source_files=$(grep "^SF:" "$output_file" | wc -l || echo "0")
+        echo "✓ 全量 GCDA 采集完成 (用时: ${duration}s, 大小: ${file_size} 字节, 源文件: ${source_files})"
+        return 0
+    fi
+
+    echo "✗ 全量 GCDA 采集失败或输出为空"
+    rm -f "$output_file"
+    return 1
+}
+
+function merge_coverage_raw_inputs() {
+    local output_file="coverage_tdengine_raw.info"
+    local inputs=()
+
+    if [ -s "coverage_tdengine_full.info" ]; then
+        inputs+=("coverage_tdengine_full.info")
+    fi
+    if [ -s "coverage_tdengine_cases.info" ]; then
+        inputs+=("coverage_tdengine_cases.info")
+    fi
+
+    if [ ${#inputs[@]} -eq 0 ]; then
+        echo "错误: 没有可用的覆盖率输入文件"
+        return 1
+    fi
+
+    if [ ${#inputs[@]} -eq 1 ]; then
+        cp "${inputs[0]}" "$output_file"
+        echo "使用单一覆盖率输入: ${inputs[0]}"
+        return 0
+    fi
+
+    echo "合并 ${#inputs[@]} 个覆盖率输入 (全量 GCDA + per-case)..."
+    local merge_cmd="$LCOV_QUIET"
+    local input=""
+    for input in "${inputs[@]}"; do
+        merge_cmd="$merge_cmd --add-tracefile '$input'"
+    done
+    merge_cmd="$merge_cmd -o '$output_file'"
+
+    if eval "$merge_cmd" 2>/dev/null && [ -s "$output_file" ]; then
+        echo "✓ 覆盖率输入合并完成"
+        return 0
+    fi
+
+    echo "✗ 覆盖率输入合并失败，回退到全量 GCDA 文件"
+    if [ -s "coverage_tdengine_full.info" ]; then
+        cp "coverage_tdengine_full.info" "$output_file"
+        return 0
+    fi
+    if [ -s "coverage_tdengine_cases.info" ]; then
+        cp "coverage_tdengine_cases.info" "$output_file"
+        return 0
+    fi
+    return 1
+}
+
+function resolve_capture_gcda_dir() {
+    local candidate=""
+    for candidate in \
+        "$CAPTURE_GCDA_DIR" \
+        "$TDINTERNAL_DIR/debug" \
+        "$(dirname "$TDINTERNAL_DIR")/debugSan" \
+        "/var/lib/jenkins/workspace/debugSan"; do
+        if [ -n "$candidate" ] && [ -d "$candidate" ] && \
+            find "$candidate" -name '*.gcda' -print -quit 2>/dev/null | grep -q .; then
+            CAPTURE_GCDA_DIR="$candidate"
+            echo "Resolved CAPTURE_GCDA_DIR=$CAPTURE_GCDA_DIR"
+            return 0
+        fi
+    done
+    return 1
+}
+
 function lcovFunc {
     echo "collect data by lcov func"
     cd $TDENGINE_DIR || exit
 
-    # 收集并合并所有测试case的覆盖率信息文件
+    rm -f coverage_tdengine_cases.info coverage_tdengine_full.info coverage_tdengine_raw.info
+
+    # 收集并合并所有测试 case 的 per-case .info 文件
     if [ -n "$TEST_LOG_DIR" ]; then
-        if ! collect_info_from_tests "$TEST_LOG_DIR"; then
-            echo "错误: 收集覆盖率信息文件失败"
-            exit 1
+        if collect_info_from_tests "$TEST_LOG_DIR"; then
+            mv -f coverage_tdengine_raw.info coverage_tdengine_cases.info
+            echo "Per-case 覆盖率已保存到 coverage_tdengine_cases.info"
+        else
+            echo "警告: per-case 覆盖率信息收集失败，将依赖全量 GCDA 采集"
         fi
     else
-        echo "警告: 未指定测试日志目录，无法收集覆盖率信息"
+        echo "警告: 未指定测试日志目录，跳过 per-case 覆盖率收集"
+    fi
+
+    # 全量 GCDA 采集，补齐 interval 跳过及失败 case 遗漏的覆盖率
+    if resolve_capture_gcda_dir; then
+        capture_full_gcda_coverage "$CAPTURE_GCDA_DIR" "$TDENGINE_DIR/coverage_tdengine_full.info" || true
+    else
+        echo "警告: 未找到含 GCDA 的 debug 目录，跳过全量采集"
+    fi
+
+    if ! merge_coverage_raw_inputs; then
+        echo "错误: 无法生成 coverage_tdengine_raw.info"
         exit 1
     fi
 
