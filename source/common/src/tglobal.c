@@ -154,6 +154,7 @@ int32_t tsNumOfSnodeStreamThreads = 4;
 int32_t tsNumOfSnodeWriteThreads = 1;
 int32_t tsPQSortMemThreshold = 16;    // M
 int32_t tsRetentionSpeedLimitMB = 0;  // unlimited
+int32_t tsCompactSpeedLimitMB = 0;   // unlimited
 int32_t tsNumOfMnodeStreamMgmtThreads = 2;
 int32_t tsNumOfStreamMgmtThreads = 2;
 int32_t tsNumOfVnodeStreamReaderThreads = 16;
@@ -1089,6 +1090,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "readCpuCores", tsReadCpuCores, 1, 256, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "otherCpuCores", tsOtherCpuCores, 1, 256, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "retentionSpeedLimitMB", tsRetentionSpeedLimitMB, 0, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "compactSpeedLimitMB", tsCompactSpeedLimitMB, 0, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "queryUseMemoryPool", tsQueryUseMemoryPool, CFG_SCOPE_SERVER, CFG_DYN_BOTH_LAZY,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM) != 0);
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "memPoolFullFunc", tsMemPoolFullFunc, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM) != 0);
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "singleQueryMaxMemorySize", tsSingleQueryMaxMemorySize, 0, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_BOTH_LAZY,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM) != 0);
@@ -2045,6 +2047,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "retentionSpeedLimitMB");
   tsRetentionSpeedLimitMB = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "compactSpeedLimitMB");
+  tsCompactSpeedLimitMB = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfMnodeReadThreads");
   tsNumOfMnodeReadThreads = pItem->i32;
@@ -3364,6 +3369,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"telemetryInterval", &tsTelemInterval},
 
                                          {"retentionSpeedLimitMB", &tsRetentionSpeedLimitMB},
+                                         {"compactSpeedLimitMB", &tsCompactSpeedLimitMB},
                                          {"ttlChangeOnWrite", &tsTtlChangeOnWrite},
 
                                          {"logKeepDays", &tsLogKeepDays},
