@@ -26,18 +26,19 @@ extern "C" {
 //
 typedef struct SFSetWriter SFSetWriter;
 typedef struct {
-  STsdb  *tsdb;
-  bool    toSttOnly;
-  int64_t compactVersion;
-  int32_t minRow;
-  int32_t maxRow;
-  int32_t szPage;
-  int8_t  cmprAlg;
-  int32_t fid;
-  int64_t cid;
-  int32_t expLevel;
-  int32_t level;
-  int32_t lcn;
+  STsdb     *tsdb;
+  bool       toSttOnly;
+  int64_t    compactVersion;
+  int32_t    minRow;
+  int32_t    maxRow;
+  int32_t    szPage;
+  int8_t     cmprAlg;
+  int32_t    fid;
+  int64_t    cid;
+  int32_t    expLevel;
+  int32_t    level;
+  int32_t    lcn;
+  SThrottle *throttle;  // write throttle, may be NULL (no limit)
   struct {
     bool   exist;
     STFile file;

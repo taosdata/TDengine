@@ -107,6 +107,7 @@ toc_max_heading_level: 4
 | ttlChangeOnWrite | taosd | ttl 到期时间是否伴随表的修改操作改变 |
 | ttlBatchDropNum | taosd | ttl 一批删除子表的数目 |
 | retentionSpeedLimitMB | taosd | 数据在不同级别硬盘上迁移时的速度限制 |
+| compactSpeedLimitMB | taosd | compact 写盘时的速度限制 |
 | maxTsmaNum | taosd | 集群内可创建的 TSMA 个数 |
 | tmqMaxTopicNum | taosd | 订阅最多可建立的 topic 数量 |
 | audit | taosd | 审计功能开关 |

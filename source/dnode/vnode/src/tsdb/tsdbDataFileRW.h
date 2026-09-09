@@ -66,18 +66,36 @@ int32_t tsdbDataFileReadBlockSma(SDataFileReader *reader, const SBrinRecord *rec
 int32_t tsdbDataFileReadTombBlk(SDataFileReader *reader, const TTombBlkArray **tombBlkArray);
 int32_t tsdbDataFileReadTombBlock(SDataFileReader *reader, const STombBlk *tombBlk, STombBlock *tData);
 
+// SThrottle ===============================================
+// Simple deadline-based throttle shared by all compact tasks at process level:
+// each consume advances a "next allowed" deadline by the quota consumed
+// (bytes / limitBytes seconds) and, if the current time is earlier than the
+// deadline, sleeps until it. A sub-ms remainder is carried over across writes
+// so that a long run of tiny writes (each too small to move the ms deadline by
+// itself) still accumulates and stays throttled on average. This keeps the
+// total write rate of all compact tasks at limitBytes/s. limitBytes <= 0
+// means no limit. Full struct definition lives in tsdbDataFileRW.c.
+typedef struct SThrottle SThrottle;
+
+// returns the process-level throttle bucket shared by all compact tasks
+// (compact/rollup/ss migrate)
+SThrottle *tsdbCompactThrottle(void);
+
+void tsdbThrottleConsume(SThrottle *throttle, int64_t bytes);
+
 // SDataFileWriter =============================================
 typedef struct SDataFileWriter SDataFileWriter;
 typedef struct SDataFileWriterConfig {
-  STsdb   *tsdb;
-  uint32_t cmprAlg;
-  int32_t  maxRow;
-  int32_t  szPage;
-  int32_t  fid;
-  int64_t  cid;
-  int32_t  expLevel;
-  int64_t  compactVersion;
-  int32_t  lcn;
+  STsdb     *tsdb;
+  uint32_t   cmprAlg;
+  int32_t    maxRow;
+  int32_t    szPage;
+  int32_t    fid;
+  int64_t    cid;
+  int32_t    expLevel;
+  int64_t    compactVersion;
+  int32_t    lcn;
+  SThrottle *throttle;  // write throttle, may be NULL (no limit)
   struct {
     bool   exist;
     STFile file;
