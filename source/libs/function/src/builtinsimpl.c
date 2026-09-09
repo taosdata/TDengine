@@ -31,6 +31,8 @@
 #include "tglobal.h"
 #include "thistogram.h"
 #include "tpercentile.h"
+#include "spillDistinctSet.h"
+#include "tsimplehash.h"
 #include "ttime.h"
 #include "ttypes.h"
 
@@ -455,6 +457,182 @@ bool funcInputGetNextRowIndex(SInputColumnInfoData* pInput, int32_t from, bool f
 
 static bool firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst);
 
+// COUNT(DISTINCT) state. The count is only authoritative while the set is resident; once the set
+// spills it is recomputed by countDistinctFinalize() replaying the spilled values.
+typedef struct SDistinctCountState {
+  int64_t                   count;
+  struct SSpillDistinctSet* pSet;
+} SDistinctCountState;
+
+// Width of one dedup key. BLOB/MEDIUMBLOB satisfy IS_VAR_DATA_TYPE but carry a 32-bit length
+// header, so varDataTLen() would read the low 16 bits and truncate the key -- two blobs differing
+// only past that point would collapse into one value.
+static int32_t distinctKeyLen(const SColumnInfoData* pCol, const char* pData) {
+  if (IS_STR_DATA_BLOB(pCol->info.type)) {
+    return (int32_t)blobDataTLen(pData);
+  }
+  if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+    return (int32_t)varDataTLen(pData);
+  }
+  return pCol->info.bytes;
+}
+
+#define DISTINCT_PER_ROW_MEM_THRESHOLD (64 * 1024)
+
+// Shared DISTINCT dedup helpers. Declared in builtinsimpl.h so aggregates in other translation
+// units (AVG lives in detail/tavgfunction.c) use the same set layout and lifecycle.
+int32_t distinctValueSetExtraSize(const SFunctionNode* pFunc) {
+  return (pFunc != NULL && pFunc->isDistinct) ? (int32_t)sizeof(SDistinctValueSet) : 0;
+}
+
+SDistinctValueSet* distinctValueSetGet(SqlFunctionCtx* pCtx, int32_t baseSize) {
+  if (pCtx == NULL || pCtx->resultInfo == NULL) {
+    return NULL;
+  }
+  // Use the flag cached on the ctx, never the buffer size. sizeof(SDecimalSumRes) happens to equal
+  // sizeof(SSumRes) + sizeof(SDistinctValueSet) exactly (40 == 32 + 8), and the AVG pair collides
+  // too (72 >= 56 + 8), so a size-based test declares a plain SUM/AVG(decimal) to be a DISTINCT
+  // variant, reads the result struct's own tail as a set handle and dedups a non-DISTINCT
+  // aggregate -- it silently returned a too-small sum. The same collision is possible for any
+  // future result struct, so size must never be the discriminator.
+  //
+  // The flag is cached rather than read from pFunctNode here because this function is also called
+  // from the cleanup path, which can run after the plan node has been freed.
+  if (!pCtx->isDistinctFunc) {
+    return NULL;
+  }
+  // The set is appended after the function's own state; baseSize guards against a buffer that is
+  // somehow too small to hold both.
+  if (pCtx->resDataInfo.interBufSize < baseSize + (int32_t)sizeof(SDistinctValueSet)) {
+    return NULL;
+  }
+  char* pBuf = GET_ROWCELL_INTERBUF(pCtx->resultInfo);
+  return (SDistinctValueSet*)(pBuf + pCtx->resDataInfo.interBufSize - sizeof(SDistinctValueSet));
+}
+
+bool distinctValueSetNeedsReplay(const SDistinctValueSet* pSet) {
+  return pSet != NULL && spillDistinctSetSpilled(pSet->pSet) && !spillDistinctSetFinalized(pSet->pSet);
+}
+
+// Returns true only when the caller should accumulate this row now. On allocation failure *pCode is
+// set; the caller propagates it.
+int32_t distinctValueSetCheckAdd(SDistinctValueSet* pSet, SColumnInfoData* pCol, int32_t rowIdx,
+                                 SqlFunctionCtx* pCtx, bool* pAccumulate) {
+  if (pAccumulate == NULL || pCol == NULL || pCtx == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *pAccumulate = false;
+  if (pSet == NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  char*   pData = colDataGetData(pCol, rowIdx);
+  if (IS_VAR_DATA_TYPE(pCol->info.type) || IS_STR_DATA_BLOB(pCol->info.type)) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+  int32_t keyLen = distinctKeyLen(pCol, pData);
+
+  if (pSet->pSet == NULL) {
+    // One set per result row, so keep the pages small when the query has windows or groups.
+    bool    perResultRow = pCtx->hasWindowOrGroup;
+    int64_t threshold = pCtx->hasWindowOrGroup ? DISTINCT_PER_ROW_MEM_THRESHOLD : 0;
+    int32_t code = spillDistinctSetCreateWithBuf(&pSet->pSet, pCol->info.type, pCol->info.bytes,
+                                                 threshold, perResultRow, "aggDistinct",
+                                                 &pCtx->pDistinctBuf);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    pCtx->needCleanup = true;
+  }
+
+  bool    isNew = false;
+  int32_t code = spillDistinctSetAdd(pSet->pSet, pData, keyLen, &isNew);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  // Once spilled, membership is unknown here; finalize replays instead.
+  *pAccumulate = isNew;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Adapts the aggregate's accumulator to the set's callback signature.
+typedef struct SDistinctReplayCtx {
+  SqlFunctionCtx*  pCtx;
+  FDistinctAccumFn fn;
+} SDistinctReplayCtx;
+
+static int32_t distinctReplayTrampoline(void* param, const char* pData, int32_t UNUSED_PARAM(len)) {
+  SDistinctReplayCtx* p = (SDistinctReplayCtx*)param;
+  // The length is dropped deliberately: the set knows each value's stored width, but the
+  // accumulators derive it from pCtx->inputType so the resident and replayed paths cannot diverge.
+  return p->fn(p->pCtx, pData);
+}
+
+int32_t distinctValueSetReplay(SqlFunctionCtx* pCtx, SDistinctValueSet* pSet, FDistinctAccumFn fn) {
+  if (pSet == NULL || pSet->pSet == NULL || fn == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pCtx == NULL || IS_VAR_DATA_TYPE(pCtx->inputType) || IS_STR_DATA_BLOB(pCtx->inputType)) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+  SDistinctReplayCtx ctx = {.pCtx = pCtx, .fn = fn};
+  return spillDistinctSetFinalize(pSet->pSet, distinctReplayTrampoline, &ctx);
+}
+
+void distinctValueSetCleanup(SqlFunctionCtx* pCtx, int32_t baseSize) {
+  SDistinctValueSet* pSet = distinctValueSetGet(pCtx, baseSize);
+  if (pSet != NULL && pSet->pSet != NULL) {
+    spillDistinctSetDestroy(pSet->pSet);
+    pSet->pSet = NULL;
+  }
+}
+
+
+static bool isCountDistinctCtx(SqlFunctionCtx* pCtx) {
+  if (pCtx == NULL || fmGetFuncTypeFromId(pCtx->functionId) != FUNCTION_TYPE_COUNT) {
+    return false;
+  }
+  // Use the cached flag rather than inferring from the buffer size: an exact size match happens to
+  // be unambiguous for COUNT today, but the equivalent test for SUM collided with the decimal
+  // result struct and silently deduped a non-DISTINCT aggregate.
+  if (!pCtx->isDistinctFunc) {
+    return false;
+  }
+  return pCtx->resDataInfo.interBufSize >= (int32_t)sizeof(SDistinctCountState);
+}
+
+static void cleanupDistinctCountState(SqlFunctionCtx* pCtx) {
+  if (!isCountDistinctCtx(pCtx) || pCtx->resultInfo == NULL) {
+    return;
+  }
+
+  SDistinctCountState* pState = (SDistinctCountState*)GET_ROWCELL_INTERBUF(pCtx->resultInfo);
+  if (pState->pSet != NULL) {
+    spillDistinctSetDestroy(pState->pSet);
+    pState->pSet = NULL;
+  }
+  pState->count = 0;
+}
+
+static void cleanupDistinctStateBeforeInit(SqlFunctionCtx* pCtx) {
+  if (pCtx == NULL) {
+    return;
+  }
+  switch (fmGetFuncTypeFromId(pCtx->functionId)) {
+    case FUNCTION_TYPE_COUNT:
+      cleanupDistinctCountState(pCtx);
+      break;
+    case FUNCTION_TYPE_SUM:
+      distinctValueSetCleanup(pCtx, (int32_t)sizeof(SSumRes));
+      break;
+    case FUNCTION_TYPE_AVG:
+      distinctValueSetCleanup(pCtx, (int32_t)sizeof(SAvgRes));
+      break;
+    default:
+      break;
+  }
+}
+
 int32_t functionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
   if (pResultInfo->initialized) {
     return TSDB_CODE_SUCCESS;  // already initialized
@@ -464,6 +642,12 @@ int32_t functionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
     (void)memset(pCtx->pOutput, 0, (size_t)pCtx->resDataInfo.bytes);
   }
 
+  // Release any DISTINCT set left by a previous use of this result row. This must run BEFORE
+  // initResultRowEntry(), which memsets the whole inter-buffer: zeroing first would erase the set
+  // handle and leak it. Reading the handle here is safe because the entry area is zeroed when the
+  // result row is allocated (see executil.c memset of pEntryInfo), so an unused slot holds NULL
+  // rather than garbage, and cleanupDistinctCountState() tolerates NULL.
+  cleanupDistinctStateBeforeInit(pCtx);
   initResultRowEntry(pResultInfo, pCtx->resDataInfo.interBufSize);
   return TSDB_CODE_SUCCESS;
 }
@@ -515,6 +699,10 @@ int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock,
 }
 
 EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
+  if (pFunc != NULL && pFunc->isDistinct) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+
   SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
   if (QUERY_NODE_COLUMN == nodeType(pParam) && PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pParam)->colId) {
     return FUNC_DATA_REQUIRED_NOT_LOAD;
@@ -522,10 +710,12 @@ EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWind
   return FUNC_DATA_REQUIRED_SMA_LOAD;
 }
 
-bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize = sizeof(int64_t);
+bool getCountFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = (pFunc != NULL && pFunc->isDistinct) ? sizeof(SDistinctCountState) : sizeof(int64_t);
   return true;
 }
+
+void countFunctionCleanup(SqlFunctionCtx* pCtx) { cleanupDistinctCountState(pCtx); }
 
 static int64_t getNumOfElems(SqlFunctionCtx* pCtx) {
   int64_t numOfElem = 0;
@@ -559,11 +749,110 @@ static int64_t getNumOfElems(SqlFunctionCtx* pCtx) {
   return numOfElem;
 }
 
+static int32_t countDistinctRows(SqlFunctionCtx* pCtx) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pCol = pInput->pData[0];
+  if (pCol == NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  // Empty-table scans use one blank-fill row to carry tag values. It is not a
+  // real input row and must not enter the DISTINCT set.
+  if (pInput->numOfRows == 1 && pInput->blankFill) {
+    SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+    SET_VAL(pResInfo, 0, 1);
+    if (tsCountAlwaysReturnValue) {
+      pResInfo->numOfRes = 1;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SDistinctCountState* pState = (SDistinctCountState*)GET_ROWCELL_INTERBUF(pResInfo);
+  if (pState->pSet == NULL) {
+    // One set per result row, so keep pages small when the query has windows or groups.
+    int64_t threshold = pCtx->hasWindowOrGroup ? DISTINCT_PER_ROW_MEM_THRESHOLD : 0;
+    int32_t code = spillDistinctSetCreateWithBuf(&pState->pSet, pCol->info.type, pCol->info.bytes,
+                                                 threshold, pCtx->hasWindowOrGroup,
+                                                 "countDistinct", &pCtx->pDistinctBuf);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    pCtx->needCleanup = true;
+  }
+
+  for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pCol, i)) {
+      continue;
+    }
+
+    char*   pData = colDataGetData(pCol, i);
+    int32_t keyLen = distinctKeyLen(pCol, pData);
+    bool    isNew = false;
+    int32_t code = spillDistinctSetAdd(pState->pSet, pData, keyLen, &isNew);
+    if (code != TSDB_CODE_SUCCESS) {
+      spillDistinctSetDestroy(pState->pSet);
+      pState->pSet = NULL;
+      pState->count = 0;
+      return code;
+    }
+    // Once spilled, isNew is always false and the running count stops being meaningful; the true
+    // count is recomputed in countDistinctFinalize().
+    if (isNew) {
+      ++pState->count;
+    }
+  }
+
+  if (tsCountAlwaysReturnValue) {
+    pResInfo->numOfRes = 1;
+  } else {
+    SET_VAL(pResInfo, pState->count, 1);  // SET_VAL is a no-op at count 0; matches plain count()
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Recount by replaying the spilled values. Used only when the set spilled. The value itself is
+// irrelevant here -- being called at all means one more distinct value exists.
+static int32_t countDistinctReplayFn(void* param, const char* UNUSED_PARAM(pData),
+                                     int32_t UNUSED_PARAM(len)) {
+  ++(*(int64_t*)param);
+  return TSDB_CODE_SUCCESS;
+}
+
+// COUNT(DISTINCT) finalize: fold in the spilled values before emitting.
+int32_t countDistinctFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  if (isCountDistinctCtx(pCtx)) {
+    SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+    SDistinctCountState* pState = (SDistinctCountState*)GET_ROWCELL_INTERBUF(pResInfo);
+    // pSet is NULL when no non-NULL value was ever seen (the set is created lazily on first add).
+    // Check it explicitly rather than relying on spillDistinctSetSpilled() tolerating NULL, matching
+    // distinctValueSetNeedsReplay().
+    if (pState->pSet != NULL && spillDistinctSetSpilled(pState->pSet) &&
+        !spillDistinctSetFinalized(pState->pSet)) {
+      int64_t total = 0;
+      int32_t code = spillDistinctSetFinalize(pState->pSet, countDistinctReplayFn, &total);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      pState->count = total;
+      SET_VAL(pResInfo, total, 1);  // ditto: no row is produced when total is 0
+      if (tsCountAlwaysReturnValue) {
+        pResInfo->numOfRes = 1;
+      }
+    }
+  }
+  return functionFinalize(pCtx, pBlock);
+}
+
 /*
  * count function does need the finalize, if data is missing, the default value, which is 0, is used
  * count function does not use the pCtx->interResBuf to keep the intermediate buffer
  */
 int32_t countFunction(SqlFunctionCtx* pCtx) {
+  if (isCountDistinctCtx(pCtx)) {
+    return countDistinctRows(pCtx);
+  }
+
   int64_t numOfElem = 0;
 
   SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
@@ -593,6 +882,9 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
 }
 
 int32_t combineFunction(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  if (pDestCtx == NULL || pSourceCtx == NULL || pDestCtx->isDistinctFunc || pSourceCtx->isDistinctFunc) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
   char*                pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
 
@@ -604,7 +896,151 @@ int32_t combineFunction(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
+// DISTINCT variant of SUM. Kept separate from sumFunctionImpl() because the SMA fast path is
+// unusable here: block pre-aggregates are already summed, so duplicate values cannot be identified.
+// Always walk the real rows and skip values already seen for this result row.
+static int32_t sumFunctionImpl(SqlFunctionCtx* pCtx);
+static int32_t sumAccumOneValue(SqlFunctionCtx* pCtx, const char* pData);
+
+static int32_t sumDistinctRows(SqlFunctionCtx* pCtx, SDistinctValueSet* pSet) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pCol = pInput->pData[0];
+  if (pCol == NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int32_t type = pCol->info.type;
+  pCtx->inputType = type;
+
+  void* pSumRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  SUM_RES_SET_TYPE(pSumRes, pCtx->inputType, type);
+
+  if (IS_NULL_TYPE(type)) {
+    SET_VAL(GET_RES_INFO(pCtx), 0, 1);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (IS_DECIMAL_TYPE(type)) {
+    SUM_RES_SET_TYPE(pSumRes, pCtx->inputType, TSDB_DATA_TYPE_DECIMAL);
+  }
+
+  int32_t numOfElem = 0;
+  for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pCol, i)) {
+      continue;
+    }
+    bool    accumulate = false;
+    int32_t code = distinctValueSetCheckAdd(pSet, pCol, i, pCtx, &accumulate);
+    if (code != TSDB_CODE_SUCCESS) {
+      spillDistinctSetDestroy(pSet->pSet);
+      pSet->pSet = NULL;
+      return code;
+    }
+    if (!accumulate) {
+      continue;
+    }
+
+    // Same helper the spilled replay uses, so the two paths cannot drift.
+    char* pData = colDataGetData(pCol, i);
+    code = sumAccumOneValue(pCtx, pData);
+    if (code != TSDB_CODE_SUCCESS) {
+      spillDistinctSetDestroy(pSet->pSet);
+      pSet->pSet = NULL;
+      return code;
+    }
+    ++numOfElem;
+  }
+
+  // Mirror sumFunctionImpl(): a float sum that overflowed to Inf/NaN emits no row, so plain SUM
+  // and SUM(DISTINCT) agree when accumulation of finite inputs is not finite.
+  if (IS_FLOAT_TYPE(type) && (isinf(SUM_RES_GET_DSUM(pSumRes)) || isnan(SUM_RES_GET_DSUM(pSumRes)))) {
+    numOfElem = 0;
+  }
+
+  SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+// Folds one value into the running sum. Shared by the inline accumulate loop and the spilled
+// replay, so both paths cannot drift.
+static int32_t sumAccumOneValue(SqlFunctionCtx* pCtx, const char* pData) {
+  int32_t type = pCtx->inputType;
+  void*   pSumRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  if (IS_DECIMAL_TYPE(type)) {
+    // SUM_RES_INC_DECIMAL_SUM picks the word count from the input type and checks for overflow
+    // before adding; it assigns to a local named `overflow` that must be in scope.
+    bool overflow = false;
+    SUM_RES_INC_DECIMAL_SUM(pSumRes, (const void*)pData, type);
+    if (overflow) {
+      return TSDB_CODE_DECIMAL_OVERFLOW;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
+    int64_t v = 0;
+    GET_TYPED_DATA(v, int64_t, type, pData, 0);
+    SUM_RES_INC_ISUM(pSumRes, v);
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    uint64_t v = 0;
+    GET_TYPED_DATA(v, uint64_t, type, pData, 0);
+    SUM_RES_INC_USUM(pSumRes, v);
+  } else if (IS_FLOAT_TYPE(type)) {
+    double v = 0;
+    GET_TYPED_DATA(v, double, type, pData, 0);
+    SUM_RES_INC_DSUM(pSumRes, v);
+  } else {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// SUM(DISTINCT) finalize: when the set spilled the inline sum is incomplete, so reset the
+// accumulator and refold the true distinct values.
+int32_t sumDistinctFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SDistinctValueSet* pSet = distinctValueSetGet(pCtx, (int32_t)sizeof(SSumRes));
+  if (distinctValueSetNeedsReplay(pSet)) {
+    SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+    void*                pSumRes = GET_ROWCELL_INTERBUF(pResInfo);
+    int16_t              savedType = SUM_RES_GET_TYPE(pSumRes, pCtx->inputType);
+
+    // Clear only the function's own state, never the trailing set handle. The decimal variant is
+    // the wider struct, so pick the size from the input type rather than assuming SSumRes.
+    memset(pSumRes, 0, (size_t)(SUM_RES_GET_SIZE(pCtx->inputType)));
+    SUM_RES_SET_TYPE(pSumRes, pCtx->inputType, savedType);
+
+    int32_t code = distinctValueSetReplay(pCtx, pSet, sumAccumOneValue);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    // Same non-finite suppression as the resident path and plain SUM: an overflowed float sum
+    // emits no row rather than Inf.
+    int16_t sumType = SUM_RES_GET_TYPE(pSumRes, pCtx->inputType);
+    if (IS_FLOAT_TYPE(sumType) &&
+        (isinf(SUM_RES_GET_DSUM(pSumRes)) || isnan(SUM_RES_GET_DSUM(pSumRes)))) {
+      SET_VAL(pResInfo, 0, 1);
+    } else {
+      SET_VAL(pResInfo, 1, 1);
+    }
+  }
+  return functionFinalize(pCtx, pBlock);
+}
+
 int32_t sumFunction(SqlFunctionCtx* pCtx) {
+  if (pCtx == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SDistinctValueSet* pDistinctSet = distinctValueSetGet(pCtx, (int32_t)sizeof(SSumRes));
+  if (pCtx->isDistinctFunc && pDistinctSet == NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  if (pDistinctSet != NULL) {
+    return sumDistinctRows(pCtx, pDistinctSet);
+  }
+  return sumFunctionImpl(pCtx);
+}
+
+static int32_t sumFunctionImpl(SqlFunctionCtx* pCtx) {
   int32_t numOfElem = 0;
 
   // Only the pre-computing information loaded and actual data does not loaded
@@ -699,6 +1135,9 @@ _sum_over:
 }
 
 int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  if (pDestCtx == NULL || pSourceCtx == NULL || pDestCtx->isDistinctFunc || pSourceCtx->isDistinctFunc) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
   void*                pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
   int16_t              type = SUM_RES_GET_TYPE(pDBuf, pDestCtx->inputType);
@@ -723,8 +1162,19 @@ int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
 }
 
 bool getSumFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize = SUM_RES_GET_SIZE(pFunc->node.resType.type);
+  // SUM_RES_GET_SIZE expands to a bare ternary, so the parentheses are required: without them the
+  // added bytes would bind to the non-decimal branch only and a DISTINCT sum over a decimal column
+  // would overrun its inter-buffer.
+  pEnv->calcMemSize =
+      (int32_t)(SUM_RES_GET_SIZE(pFunc->node.resType.type)) + distinctValueSetExtraSize(pFunc);
   return true;
+}
+
+void sumFunctionCleanup(SqlFunctionCtx* pCtx) {
+  // The set is addressed from the end of the inter-buffer, so baseSize is only a lower bound used
+  // to reject non-DISTINCT ctxs. SSumRes is the smaller of the two result structs, so it is the
+  // safe bound for both the plain and decimal variants.
+  distinctValueSetCleanup(pCtx, (int32_t)sizeof(SSumRes));
 }
 
 static bool funcNotSupportStringSma(SFunctionNode* pFunc) {
@@ -757,6 +1207,13 @@ EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWin
     return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
   return FUNC_DATA_REQUIRED_SMA_LOAD;
+}
+
+EFuncDataRequired distinctStatisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
+  if (pFunc != NULL && pFunc->isDistinct) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+  return statisDataRequired(pFunc, pTimeWindow);
 }
 
 int32_t minmaxFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {

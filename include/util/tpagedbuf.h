@@ -167,6 +167,13 @@ int32_t dBufSetBufPageRecycled(SDiskbasedBuf* pBuf, void* pPage);
 int32_t dBufRecyclePageById(SDiskbasedBuf* pBuf, int32_t pageId);
 
 /**
+ * Recycle a page and remove its metadata from the buffer.
+ * @param pBuf
+ * @param pageId
+ */
+int32_t dBufRemovePageById(SDiskbasedBuf* pBuf, int32_t pageId);
+
+/**
  * Print the statistics when closing this buffer
  * @param pBuf
  */
