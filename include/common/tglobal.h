@@ -139,6 +139,7 @@ extern int64_t tsQueueMemoryUsed;
 extern int64_t tsApplyMemoryAllowed;
 extern int64_t tsApplyMemoryUsed;
 extern int32_t tsRetentionSpeedLimitMB;
+extern int32_t tsCompactSpeedLimitMB;
 extern int32_t tsNumOfMnodeStreamMgmtThreads;
 extern int32_t tsNumOfStreamMgmtThreads;
 extern int32_t tsNumOfVnodeStreamReaderThreads;
