@@ -139,63 +139,34 @@ static void destroyGroupOperatorInfo(void* param) {
   taosArrayDestroyEx(pInfo->pGroupColVals, freeGroupKey);
   cleanupExprSupp(&pInfo->scalarSup);
 
-  if (pInfo->pOperator != NULL) {
-    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
-                      false);
-    pInfo->pOperator = NULL;
-  }
+  // Per-result-row state is released by cleanupGroupbyRowState(), invoked from destroyOperator()
+  // before cleanupExprSupp(). Doing it here would be too late: the supp is memset by then, so
+  // numOfExprs is 0 and cleanupResultInfo() walks nothing -- silently leaking the DISTINCT dedup
+  // set, spill pages and temp file of every row never emitted (early cancel, LIMIT/SLIMIT).
+  pInfo->pOperator = NULL;
 
   cleanupGroupResInfo(&pInfo->groupResInfo);
   cleanupAggSup(&pInfo->aggSup);
   taosMemoryFreeClear(param);
 }
 
-// Paged page layout, private to this operator.
-//
-// Rows arrive one at a time and each is appended to whichever group it
-// belongs to, so a page cannot hold a serialized block: appending a row to
-// a compactly packed page would shift every column after it. Instead each
-// column gets a region sized by the page's row capacity, and a row is
-// written by a few memcpys at known offsets:
-//
-//   [rows int32][groupId uint64]
-//   per column: [var: offset[capacity] | fixed: bitmap BitmapLen(capacity)]
-//               [colLength int32]
-//               [payload: reserved bytes * capacity, colLength of it used]
-//
-// setupColumnOffset computes the per-column starts, doHashPartition writes
-// rows into them, and blockDataFromPagedBuf reads a page back. Spilling
-// converts a page to the compact blockDataToBuf layout, which is what
-// drops the reserved-but-unused space.
-static int32_t blockDataGetPagedColumnReservedBytes(
-    const SColumnInfoData* pColumnInfoData) {
-  return pColumnInfoData->info.bytes;
+// Runs from destroyOperator() before cleanupExprSupp(), the only point where both the expression
+// supp and the result rows are still valid.
+static void cleanupGroupbyRowState(void* param) {
+  SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
+  if (pInfo == NULL || pInfo->pOperator == NULL || pInfo->aggSup.pResultRowHashTable == NULL) {
+    return;
+  }
+  cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
+                    false);
 }
 
-// Bytes a column reserves ahead of its colLength prefix: an offset per row
-// for var columns, a null bitmap for fixed ones. Page copying and initial
-// layout setup share this rule so their calculations cannot drift.
-static int32_t blockDataGetPagedColumnMetaSize(
-    const SColumnInfoData* pColumnInfoData, int32_t capacity) {
-  return IS_VAR_DATA_TYPE(pColumnInfoData->info.type)
-             ? (int32_t)(capacity * sizeof(int32_t))
-             : BitmapLen(capacity);
-}
-
-// Reads one page back into pBlock. capacity must be the row capacity the
-// page was laid out with, and the caller must have sized pBlock already.
-// Not interchangeable with blockDataFromBuf: that one reads the compact
-// layout. Both are usually handed a SDiskbasedBuf page, so the difference
-// is the layout written into the page, not where the page lives.
-STATIC_EXCEPT_TEST int32_t blockDataFromPagedBuf(SSDataBlock* pBlock,
-                                                 const char*  buf,
-                                                 size_t       capacity) {
-  pBlock->info.rows = *(int32_t*)buf;
-  pBlock->info.id.groupId = *(uint64_t*)(buf + sizeof(int32_t));
-
-  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
-
-  const char* pStart = buf + sizeof(uint32_t) + sizeof(uint64_t);
+static int32_t getPartitionPageRowCapacity(const SSDataBlock* pBlock, size_t pageSize, int32_t extraSize) {
+  size_t  numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  int32_t payloadSize = pageSize - extraSize;
+  int32_t payloadRowSize = 0;
+  int32_t numVarCols = 0;
+  int32_t numFixCols = 0;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
@@ -877,6 +848,12 @@ static SSDataBlock* buildGroupResultDataBlockByHash(SOperatorInfo* pOperator) {
 
     if (!hasRemainResultByHash(pOperator) || slimitReached(pLimitInfo)) {
       setOperatorCompleted(pOperator);
+      // Release per-result-row function state before dropping the hash. On the SLIMIT path rows are
+      // left unemitted, and once the table is freed and NULLed below there is no way to reach them:
+      // the teardown hook would find pResultRowHashTable == NULL and walk nothing, leaking each
+      // row's DISTINCT dedup set along with its spill pages and temp file.
+      cleanupResultInfoInHashMap(pTaskInfo, &pOperator->exprSupp, pInfo->aggSup.pResultBuf,
+                                 &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
       // clean hash after completed
       tSimpleHashCleanup(pInfo->aggSup.pResultRowHashTable);
       pInfo->aggSup.pResultRowHashTable = NULL;
@@ -1067,6 +1044,7 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashGroupbyAggregateNext, NULL, destroyGroupOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorRowStateCleanupFn(pOperator, cleanupGroupbyRowState);
   setOperatorResetStateFn(pOperator, resetGroupOperState);
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);

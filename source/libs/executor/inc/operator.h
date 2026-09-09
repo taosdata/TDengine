@@ -64,6 +64,10 @@ typedef struct SOperatorFpSet {
   __optr_state_fn_t       reloadStreamStateFn;
   __optr_reset_state_fn_t _resetFn;  // DO NOT invoke this function directly
   __optr_reset_state_fn_t resetStateFn;
+  // Releases per-result-row function state (DISTINCT dedup sets and their spill files). Invoked by
+  // destroyOperator() before cleanupExprSupp(), the only point where both the expression supp and
+  // the result rows are still valid.
+  __optr_close_fn_t rowStateCleanupFn;
 } SOperatorFpSet;
 
 enum {
@@ -193,6 +197,7 @@ SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, 
                                    __optr_explain_fn_t explain, __optr_get_ext_fn_t nextExtFn, __optr_notify_fn_t notifyFn);
 void           setOperatorStreamStateFn(SOperatorInfo* pOperator, __optr_state_fn_t relaseFn, __optr_state_fn_t reloadFn);
 void           setOperatorResetStateFn(SOperatorInfo* pOperator, __optr_reset_state_fn_t resetFn);
+void           setOperatorRowStateCleanupFn(SOperatorInfo* pOperator, __optr_close_fn_t cleanupFn);
 int32_t        optrDummyOpenFn(SOperatorInfo* pOperator);
 int32_t        appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num);
 void           setOperatorCompleted(SOperatorInfo* pOperator);

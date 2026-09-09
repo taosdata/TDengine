@@ -6737,14 +6737,23 @@ static int32_t validateDistinctFunc(STranslateContext* pCxt, SFunctionNode* pFun
   if (nodeType(pParam) == QUERY_NODE_COLUMN && ((SColumnNode*)pParam)->colName[0] == '*') {
     return TSDB_CODE_PAR_FUNC_NOT_SUPPORT_DISTINCT;
   }
-  // Only INTERVAL windows support DISTINCT aggregates. distinctAggFilterShouldOptimize()
-  // skips inserting the DistinctFilter node for any other window type, which would silently
-  // ignore DISTINCT and return non-deduplicated results. Mirror that condition here so new
-  // window types are rejected by default rather than returning wrong results.
+  // DISTINCT aggregates keep their dedup set in the result row's inter-buffer, so a window operator
+  // may only be allowed once it releases that state as each window closes. INTERVAL does so through
+  // the shared result-fetch path (doCopyToSDataBlock), and COUNT_WINDOW and EXTERNAL_WINDOW call
+  // cleanupResultRowFunctionState() explicitly.
+  //
+  // This is an allowlist on purpose. As a denylist it silently admitted ANOMALY_WINDOW, which only
+  // calls clearResultRowInitFlag() between windows: the next functionSetup() then overwrites the set
+  // pointer without freeing it, leaking one set per window. A new window type must be added here
+  // deliberately, after its build/reset/close path is checked.
   if (isSelectStmt(pCxt->pCurrStmt)) {
     SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
-    if (pSelect->pWindow != NULL && QUERY_NODE_INTERVAL_WINDOW != nodeType(pSelect->pWindow)) {
-      return TSDB_CODE_PAR_FUNC_NOT_SUPPORT_DISTINCT;
+    if (pSelect->pWindow != NULL) {
+      ENodeType winType = nodeType(pSelect->pWindow);
+      if (QUERY_NODE_INTERVAL_WINDOW != winType && QUERY_NODE_COUNT_WINDOW != winType &&
+          QUERY_NODE_EXTERNAL_WINDOW != winType) {
+        return TSDB_CODE_PAR_FUNC_NOT_SUPPORT_DISTINCT;
+      }
     }
   }
   // MIN/MAX DISTINCT is a no-op (MySQL compat) — clear the flag so optimizer ignores it

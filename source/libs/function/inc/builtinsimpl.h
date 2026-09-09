@@ -40,13 +40,81 @@ int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, char* finalResult);
 int32_t combineFunction(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
+// ---- shared DISTINCT dedup for aggregates that keep a result struct in their inter-buffer ----
+//
+// The set handle is appended after the function's own state, so that state keeps offset 0 and its
+// existing accessors are unaffected:
+//
+//   [ SSumRes | SAvgRes | ... ]  [ SDistinctValueSet ]
+//
+// Each result row owns its own set, so per-window and per-group dedup fall out naturally, and two
+// DISTINCT aggregates on different columns each keep their own set rather than contending over one
+// shared DistinctFilter key.
+//
+// Memory is bounded by SSpillDistinctSet, which spills to tsTempDir past a byte budget. That makes
+// accumulation two-phase:
+//
+//   * while resident, distinctValueSetCheckAdd() answers authoritatively and the caller accumulates
+//     inline as usual;
+//   * once spilled it can no longer answer, so it reports "do not accumulate" for every row and the
+//     values are recorded on disk instead. The caller must then zero its accumulator before
+//     folding the true distinct values in its finalize step via distinctValueSetReplay().
+//
+// distinctValueSetNeedsReplay() reports which phase applies.
+typedef struct SDistinctValueSet {
+  struct SSpillDistinctSet* pSet;
+} SDistinctValueSet;
+
+// Fold one distinct value into the aggregate's state. Called once per value from the replay, and
+// also directly from each aggregate's in-line accumulate loop.
+//
+// pData is borrowed for the duration of the call only: on the replay path it points into a page
+// buffer that is released once the page has been walked, and in-line it points into the input
+// column. Accumulate from it; do not retain it.
+//
+// No length is passed: the aggregates using this hook (SUM/AVG) accept numeric and decimal input
+// exclusively, so every value is fixed-width and the width is recoverable from pCtx->inputType.
+// Taking a length here would be actively unsafe -- the in-line accumulate loop has no stored length
+// to give, so it would have to pass a placeholder while the spilled replay passed the real one, and
+// an implementation that read it would then behave differently on the two paths. A var-width
+// aggregate must add the parameter and make BOTH call sites supply a truthful value.
+typedef int32_t (*FDistinctAccumFn)(SqlFunctionCtx* pCtx, const char* pData);
+
+// Extra bytes a DISTINCT variant adds to a function's calcMemSize (0 when not DISTINCT).
+int32_t distinctValueSetExtraSize(const struct SFunctionNode* pFunc);
+// Returns NULL when this ctx is not a DISTINCT variant, so it doubles as the "is distinct" test.
+// baseSize is the function's own state size, used only as a lower bound.
+SDistinctValueSet* distinctValueSetGet(SqlFunctionCtx* pCtx, int32_t baseSize);
+// Records the value at rowIdx and reports via *pAccumulate whether the caller should accumulate it
+// now: true only when the set is still resident and the value was absent. Always false once
+// spilled -- see distinctValueSetNeedsReplay().
+//
+// Returns a code so a failure cannot be mistaken for "duplicate". *pAccumulate is only meaningful
+// on TSDB_CODE_SUCCESS; on any error the value was not recorded and the whole accumulation must
+// abort.
+int32_t distinctValueSetCheckAdd(SDistinctValueSet* pSet, SColumnInfoData* pCol, int32_t rowIdx,
+                                 SqlFunctionCtx* pCtx, bool* pAccumulate);
+// True when the set spilled, so inline accumulation is incomplete and finalize must replay.
+bool    distinctValueSetNeedsReplay(const SDistinctValueSet* pSet);
+// Replays every distinct value through fn. Call from finalize when needsReplay() is true; the
+// caller is responsible for having zeroed its accumulator beforehand.
+int32_t distinctValueSetReplay(SqlFunctionCtx* pCtx, SDistinctValueSet* pSet, FDistinctAccumFn fn);
+void    distinctValueSetCleanup(SqlFunctionCtx* pCtx, int32_t baseSize);
+
+
 EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 bool              getCountFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t           countFunction(SqlFunctionCtx* pCtx);
+void              countFunctionCleanup(SqlFunctionCtx* pCtx);
+int32_t           countDistinctFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
+EFuncDataRequired distinctStatisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 bool              getSumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+void              sumFunctionCleanup(SqlFunctionCtx* pCtx);
+void              avgFunctionCleanup(SqlFunctionCtx* pCtx);
 int32_t           sumFunction(SqlFunctionCtx* pCtx);
+int32_t           sumDistinctFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
@@ -63,6 +131,7 @@ int32_t avgFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo)
 int32_t avgFunction(SqlFunctionCtx* pCtx);
 int32_t avgFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t avgDistinctFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t avgPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);

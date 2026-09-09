@@ -23,6 +23,17 @@ if(NOT TD_DARWIN)
         NAME functionMgtTest
         COMMAND functionMgtTest
     )
+
+    add_executable(spillDistinctSetTest spillDistinctSetTest.cpp)
+    DEP_ext_gtest(spillDistinctSetTest)
+    target_link_libraries(
+        spillDistinctSetTest
+        PRIVATE os util common nodes function
+    )
+    add_test(
+        NAME spillDistinctSetTest
+        COMMAND spillDistinctSetTest
+    )
 endif()
 endif(${BUILD_TEST})
 
