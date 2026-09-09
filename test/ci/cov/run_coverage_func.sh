@@ -496,9 +496,6 @@ function run_thread() {
             if grep -q "Unable to establish connection" "$case_log_file"; then
                 redo=1
             fi
-            if [ $redo_count -lt "$case_redo_time" ]; then
-                redo=1
-            fi
             if [ $redo -eq 0 ]; then
                 break
             fi

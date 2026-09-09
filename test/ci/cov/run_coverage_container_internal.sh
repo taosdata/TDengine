@@ -32,12 +32,33 @@ THREAD_NO="$2"
 CASE_NAME="$3"
 CONTAINER_TESTDIR="$4"
 DEBUGPATH="$5"
+TEST_EXIT="${6:-0}"
 
 echo "=== 在容器内生成覆盖率信息 ==="
 echo "WORKDIR: $WORKDIR"
 echo "THREAD_NO: $THREAD_NO"
 echo "CASE_NAME: $CASE_NAME"
 echo "DEBUGPATH: $DEBUGPATH"
+echo "TEST_EXIT: $TEST_EXIT"
+
+if [ "$TEST_EXIT" -ne 0 ]; then
+    echo "Skip lcov: test exit code=$TEST_EXIT"
+    exit 0
+fi
+
+COVERAGE_LCOV_EVERY="${COVERAGE_LCOV_EVERY:-5}"
+LCOV_COUNTER="${CONTAINER_TESTDIR}/test/.coverage_lcov_counter"
+GCDA_STAMP="${CONTAINER_TESTDIR}/test/.coverage_gcda_stamp"
+count=0
+if [ -f "$LCOV_COUNTER" ]; then
+    count=$(cat "$LCOV_COUNTER" 2>/dev/null || echo 0)
+fi
+count=$((count + 1))
+echo "$count" > "$LCOV_COUNTER"
+if [ "$COVERAGE_LCOV_EVERY" -gt 1 ] && [ $((count % COVERAGE_LCOV_EVERY)) -ne 0 ]; then
+    echo "Skip lcov: counter=$count interval=$COVERAGE_LCOV_EVERY"
+    exit 0
+fi
 
 # 定义输出目录
 COVERAGE_OUTPUT_DIR="${CONTAINER_TESTDIR}/test/coverage_info"
@@ -93,11 +114,20 @@ for debug_entry in "${DEBUG_DIRS[@]}"; do
     LCOV_RC="--rc lcov_branch_coverage=0 --rc max_message_count=0"
 
     # Product-code dirs equivalent to main's "lcov -d .", but skip contrib/externals.
+    # Incremental: only capture subdirs whose gcda changed during this case.
     LCOV_DIR_ARGS=()
     for rel in community/source community/tools community/utils source; do
-        if find "${DEBUG_PATH}/${rel}" -name '*.gcda' -print -quit 2>/dev/null | grep -q .; then
-            LCOV_DIR_ARGS+=("-d" "${rel}")
+        if [ ! -d "${DEBUG_PATH}/${rel}" ]; then
+            continue
         fi
+        if [ -f "$GCDA_STAMP" ]; then
+            if ! find "${DEBUG_PATH}/${rel}" -name '*.gcda' -type f -newer "$GCDA_STAMP" -print -quit 2>/dev/null | grep -q .; then
+                continue
+            fi
+        elif ! find "${DEBUG_PATH}/${rel}" -name '*.gcda' -print -quit 2>/dev/null | grep -q .; then
+            continue
+        fi
+        LCOV_DIR_ARGS+=("-d" "${rel}")
     done
 
     if [ ${#LCOV_DIR_ARGS[@]} -eq 0 ]; then
@@ -244,6 +274,8 @@ if [ -z "$thread_no" ]; then
     exit 1
 fi
 
+export COVERAGE_LCOV_EVERY="${COVERAGE_LCOV_EVERY:-5}"
+
 #select whether the compilation environment  includes sanitizer
 if [ "${buildSan}" == "y" ]; then
     DEBUGPATH="debugSan"
@@ -323,11 +355,12 @@ if [ -z "$coredump_dir" ] || [ "$coredump_dir" = "." ]; then
 fi
 
 # 修改：创建一个复合命令，先运行测试，然后生成覆盖率信息
-composite_cmd="$CONTAINER_TESTDIR/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param; coverage_exit_code=\$?; echo \"Test execution completed with exit code: \$coverage_exit_code\"; if [ -f $CONTAINER_TESTDIR/test/generate_coverage.sh ]; then echo \"Generating coverage information...\"; bash $CONTAINER_TESTDIR/test/generate_coverage.sh \"$WORKDIR\" \"$thread_no\" \"$case_name\" \"$CONTAINER_TESTDIR\" \"$DEBUGPATH\"; coverage_gen_code=\$?; echo \"Coverage generation completed with exit code: \$coverage_gen_code\"; else echo \"Coverage generation script not found\"; fi; exit \$coverage_exit_code"
+composite_cmd="GCDA_STAMP=${CONTAINER_TESTDIR}/test/.coverage_gcda_stamp; date +%s > \"\${GCDA_STAMP}\"; ${CONTAINER_TESTDIR}/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param; coverage_exit_code=\$?; echo \"Test execution completed with exit code: \$coverage_exit_code\"; if [ -f ${CONTAINER_TESTDIR}/test/generate_coverage.sh ]; then echo \"Generating coverage information...\"; bash ${CONTAINER_TESTDIR}/test/generate_coverage.sh \"$WORKDIR\" \"$thread_no\" \"$case_name\" \"$CONTAINER_TESTDIR\" \"$DEBUGPATH\" \"\$coverage_exit_code\"; coverage_gen_code=\$?; echo \"Coverage generation completed with exit code: \$coverage_gen_code\"; else echo \"Coverage generation script not found\"; fi; exit \$coverage_exit_code"
 
 echo "执行复合命令: $composite_cmd"
 
 docker run \
+    -e COVERAGE_LCOV_EVERY="${COVERAGE_LCOV_EVERY}" \
     -v $REP_MOUNT_PARAM \
     -v $REP_MOUNT_DEBUG \
     -v $REP_MOUNT_LIB \

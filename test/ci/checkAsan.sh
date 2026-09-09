@@ -108,10 +108,13 @@ openssl_internal_pat="CRYPTO_|ERR_|BIO_(new_file|meth_new)|def_load|NCONF_load|C
 # libpq.so.5 may bundle OpenSSL symbols under the taos-community build path.
 # Keep this filter tied to libpq so TDengine-owned frames remain visible.
 libpq_openssl_internal_pat="(X509_[A-Za-z0-9_]+|by_file_ctrl_ex).*/libpq\\.so\\.5"
+# FQ runtime staging copies libcrypto/libssl into debug/build/lib; ASAN stacks from
+# those shared objects are not TDengine product bugs.
+staged_runtime_lib_pat="/debug/build/lib/lib(crypto|ssl|pq|mariadb|mysqlclient)\\.so"
 python_taos_error=$(
   cat "${LOG_DIR}"/*.info |
   grep -E  "#[0-9]+ 0x[0-9a-f]+ .*(TDinternal|TDengine|/taosws/|/mnt/tsdb/source/taos-community/)" |
-  grep -E -v "venv|taosws.abi3.so|__gcov|gcov_do_dump|_GLOBAL__sub_D|sml_test|tmq_get_meta_json|replay_test|tmq_sim|tmq_taosx_ci|${openssl_internal_pat}|${libpq_openssl_internal_pat}" |
+  grep -E -v "venv|taosws.abi3.so|__gcov|gcov_do_dump|_GLOBAL__sub_D|sml_test|tmq_get_meta_json|replay_test|tmq_sim|tmq_taosx_ci|${openssl_internal_pat}|${libpq_openssl_internal_pat}|${staged_runtime_lib_pat}" |
   wc -l
 )
 
