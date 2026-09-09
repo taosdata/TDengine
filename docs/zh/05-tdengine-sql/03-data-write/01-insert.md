@@ -193,3 +193,5 @@ INSERT INTO meters(tbname, location, groupId, ts, current, voltage, phase)
 INSERT INTO meters(tbname, location, groupId, ts, current, voltage, phase)
                 FILE '/tmp/csvfile_21002.csv'
 ```
+
+**注意：** CSV 文件必须使用 UTF-8 编码。

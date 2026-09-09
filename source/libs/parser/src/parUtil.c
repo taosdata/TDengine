@@ -378,6 +378,27 @@ int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char*
   return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
 }
 
+int32_t checkCsvFileBom(const char* pBuf, size_t bufLen) {
+  if (pBuf == NULL || bufLen == 0) {
+    return 0;
+  }
+
+  const uint8_t* b = (const uint8_t*)pBuf;
+  if (bufLen >= 3 && 0xEF == b[0] && 0xBB == b[1] && 0xBF == b[2]) {
+    // UTF-8 BOM, skip it
+    return 3;
+  }
+  if (bufLen >= 2 && ((0xFF == b[0] && 0xFE == b[1]) || (0xFE == b[0] && 0xFF == b[1]))) {
+    // UTF-16 LE/BE BOM (UTF-32 LE shares the same FF FE prefix)
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+  if (bufLen >= 4 && 0x00 == b[0] && 0x00 == b[1] && 0xFE == b[2] && 0xFF == b[3]) {
+    // UTF-32 BE BOM
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+  return 0;
+}
+
 SSchema* getTableColumnSchema(const STableMeta* pTableMeta) { return (SSchema*)pTableMeta->schema; }
 
 SSchemaExt* getTableColumnExtSchema(const STableMeta* pTableMeta) { return pTableMeta->schemaExt; }
