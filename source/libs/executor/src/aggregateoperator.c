@@ -280,6 +280,16 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     }
 
     // Phase 2: pull all blocks from downstream[1] (DistinctFilter), execute distinct functions
+    // Legacy physical plans already deduplicate in DistinctFilter. Normalize the context so the
+    // function layer does not build a second SSpillDistinctSet for the same rows.
+    for (int32_t k = 0; k < numTotal; ++k) {
+      SExprInfo* pExprInfo = &pSup->pExprInfo[k];
+      if (pExprInfo->pExpr->nodeType == QUERY_NODE_FUNCTION &&
+          pExprInfo->pExpr->_function.pFunctNode &&
+          pExprInfo->pExpr->_function.pFunctNode->isDistinct) {
+        pSup->pCtx[k].isDistinctFunc = false;
+      }
+    }
     while (1) {
       pBlock = getNextBlockFromDownstreamRemainDetach(pOperator, 1);
       if (pBlock == NULL) break;
@@ -794,6 +804,9 @@ void cleanupResultInfoInGroupResInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, 
 
 void cleanupResultInfoInHashMap(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
                        SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap) {
+  if (pHashmap == NULL) {
+    return;
+  }
   int32_t         numOfExprs = pSup->numOfExprs;
   int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
   SqlFunctionCtx* pCtx = pSup->pCtx;

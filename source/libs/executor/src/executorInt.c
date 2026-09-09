@@ -35,6 +35,7 @@
 #include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"
+#include "tpagedbuf.h"
 
 #define SET_REVERSE_SCAN_FLAG(runtime)    ((runtime)->scanFlag = REVERSE_SCAN)
 #define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) != TSDB_ORDER_DESC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
@@ -591,6 +592,33 @@ void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   }
 }
 
+void cleanupResultRowFunctionState(SExprSupp* pSup, SResultRow* pRow) {
+  if (pSup == NULL || pRow == NULL) {
+    return;
+  }
+
+  for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
+    SqlFunctionCtx* pCtx = &pSup->pCtx[i];
+    // Point the ctx at this row's entry just long enough to release the function's state, then put
+    // back whatever was there. Leaving it NULL breaks callers that keep using the same ctx array
+    // afterwards: clearResultRowInitFlag() skips NULL entries, so the stale initialized/numOfRes
+    // flags survive into the next result row (this silently corrupted RSMA rollup output).
+    SResultRowEntryInfo* pSaved = pCtx->resultInfo;
+    pCtx->resultInfo = getResultEntryInfo(pRow, i, pSup->rowEntryInfoOffset);
+    if (pCtx->fpSet.cleanup != NULL) {
+      pCtx->fpSet.cleanup(pCtx);
+    }
+    // The result-row storage is reused by reset paths. Mark the entry uninitialized after
+    // releasing any heap-backed state so a later cleanup cannot revisit a stale handle.
+    SResultRowEntryInfo* pEntry = pCtx->resultInfo;
+    pEntry->initialized = false;
+    pEntry->numOfRes = 0;
+    pEntry->isNullRes = 0;
+    pEntry->complete = false;
+    pCtx->resultInfo = pSaved;
+  }
+}
+
 int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo, SColumnInfoData** pRet) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -870,6 +898,7 @@ void doCopyToSDataBlockByHash(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SEx
       pGroupResInfo->iter = iter;
       pGroupResInfo->dataPos = pData;
 
+      cleanupResultRowFunctionState(pSup, pRow);
       releaseBufPage(pBuf, page);
       continue;
     }
@@ -899,10 +928,12 @@ void doCopyToSDataBlockByHash(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SEx
     pGroupResInfo->iter = iter;
     pGroupResInfo->dataPos = pData;
 
+    int32_t resultRows = pRow->numOfRows;
     code = copyResultrowToDataBlock(pExprInfo, numOfExprs, pRow, pCtx, pBlock, rowEntryOffset, pTaskInfo);
+    cleanupResultRowFunctionState(pSup, pRow);
     releaseBufPage(pBuf, page);
     QUERY_CHECK_CODE(code, lino, _end);
-    pBlock->info.rows += pRow->numOfRows;
+    pBlock->info.rows += resultRows;
     if (pBlock->info.rows >= threshold) {
       break;
     }
@@ -947,6 +978,7 @@ void doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp
     // no results, continue to check the next one
     if (pRow->numOfRows == 0) {
       pGroupResInfo->index += 1;
+      cleanupResultRowFunctionState(pSup, pRow);
       releaseBufPage(pBuf, page);
       continue;
     }
@@ -955,6 +987,7 @@ void doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp
       qDebug("skip small window, groupId: %" PRId64 ", skey: %" PRId64 ", ekey: %" PRId64 ", nrows: %u", pPos->groupId,
              pRow->win.skey, pRow->win.ekey, pRow->nOrigRows);
       pGroupResInfo->index += 1;
+      cleanupResultRowFunctionState(pSup, pRow);
       releaseBufPage(pBuf, page);
       continue;
     }
@@ -981,11 +1014,13 @@ void doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp
     }
 
     pGroupResInfo->index += 1;
+    int32_t resultRows = pRow->numOfRows;
     code = copyResultrowToDataBlock(pExprInfo, numOfExprs, pRow, pCtx, pBlock, rowEntryOffset, pTaskInfo);
+    cleanupResultRowFunctionState(pSup, pRow);
     releaseBufPage(pBuf, page);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    pBlock->info.rows += pRow->numOfRows;
+    pBlock->info.rows += resultRows;
     if (pBlock->info.rows >= threshold) {
       break;
     }
@@ -1121,6 +1156,11 @@ void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOf
 
     if(pCtx[i].fpSet.cleanup) {
       pCtx[i].fpSet.cleanup(&pCtx[i]);
+    }
+
+    if (pCtx[i].pDistinctBuf != NULL) {
+      destroyDiskbasedBuf(pCtx[i].pDistinctBuf);
+      pCtx[i].pDistinctBuf = NULL;
     }
 
     taosMemoryFreeClear(pCtx[i].subsidiaries.pCtx);
