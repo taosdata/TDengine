@@ -907,6 +907,7 @@ int32_t appendResolvedTagVal(SArray* pResolvedTags, col_id_t dstColId, const SSc
 int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput,
                             int32_t* rowEntryInfoOffset);
 void    clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);
+void    cleanupResultRowFunctionState(SExprSupp* pSup, SResultRow* pRow);
 
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo, char* pData,
                                    int32_t bytes, bool masterscan, uint64_t groupId, SExecTaskInfo* pTaskInfo,
