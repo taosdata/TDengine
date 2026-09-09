@@ -91,15 +91,26 @@ static void destroyGroupOperatorInfo(void* param) {
   taosArrayDestroyEx(pInfo->pGroupColVals, freeGroupKey);
   cleanupExprSupp(&pInfo->scalarSup);
 
-  if (pInfo->pOperator != NULL) {
-    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
-                      false);
-    pInfo->pOperator = NULL;
-  }
+  // Per-result-row state is released by cleanupGroupbyRowState(), invoked from destroyOperator()
+  // before cleanupExprSupp(). Doing it here would be too late: the supp is memset by then, so
+  // numOfExprs is 0 and cleanupResultInfo() walks nothing -- silently leaking the DISTINCT dedup
+  // set, spill pages and temp file of every row never emitted (early cancel, LIMIT/SLIMIT).
+  pInfo->pOperator = NULL;
 
   cleanupGroupResInfo(&pInfo->groupResInfo);
   cleanupAggSup(&pInfo->aggSup);
   taosMemoryFreeClear(param);
+}
+
+// Runs from destroyOperator() before cleanupExprSupp(), the only point where both the expression
+// supp and the result rows are still valid.
+static void cleanupGroupbyRowState(void* param) {
+  SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
+  if (pInfo == NULL || pInfo->pOperator == NULL || pInfo->aggSup.pResultRowHashTable == NULL) {
+    return;
+  }
+  cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
+                    false);
 }
 
 static int32_t getPartitionPageRowCapacity(const SSDataBlock* pBlock, size_t pageSize, int32_t extraSize) {
@@ -566,6 +577,12 @@ static SSDataBlock* buildGroupResultDataBlockByHash(SOperatorInfo* pOperator) {
 
     if (!hasRemainResultByHash(pOperator) || slimitReached(pLimitInfo)) {
       setOperatorCompleted(pOperator);
+      // Release per-result-row function state before dropping the hash. On the SLIMIT path rows are
+      // left unemitted, and once the table is freed and NULLed below there is no way to reach them:
+      // the teardown hook would find pResultRowHashTable == NULL and walk nothing, leaking each
+      // row's DISTINCT dedup set along with its spill pages and temp file.
+      cleanupResultInfoInHashMap(pTaskInfo, &pOperator->exprSupp, pInfo->aggSup.pResultBuf,
+                                 &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
       // clean hash after completed
       tSimpleHashCleanup(pInfo->aggSup.pResultRowHashTable);
       pInfo->aggSup.pResultRowHashTable = NULL;
@@ -756,6 +773,7 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashGroupbyAggregateNext, NULL, destroyGroupOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorRowStateCleanupFn(pOperator, cleanupGroupbyRowState);
   setOperatorResetStateFn(pOperator, resetGroupOperState);
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);

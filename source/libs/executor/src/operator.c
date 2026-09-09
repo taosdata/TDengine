@@ -98,6 +98,10 @@ void setOperatorResetStateFn(SOperatorInfo* pOperator, __optr_reset_state_fn_t r
   pOperator->fpSet.resetStateFn = (resetFn != NULL) ? optrResetStateFnWithExecRecord : NULL;
 }
 
+void setOperatorRowStateCleanupFn(SOperatorInfo* pOperator, __optr_close_fn_t cleanupFn) {
+  pOperator->fpSet.rowStateCleanupFn = cleanupFn;
+}
+
 static int32_t buildTagRefSourceScanNode(SReadHandle* pHandle, STagRefSourcePhysiNode* pTagRefSourceNode,
                                          SExecTaskInfo* pTaskInfo, SScanPhysiNode* pScanNode) {
   if (pHandle == NULL || pTagRefSourceNode == NULL || pTaskInfo == NULL || pScanNode == NULL) {
@@ -829,6 +833,22 @@ void destroyOperator(SOperatorInfo* pOperator) {
 
     taosMemoryFreeClear(pOperator->pDownstream);
     pOperator->numOfDownstream = 0;
+  }
+
+  // Three-phase teardown, because per-result-row function state needs both the expression supp and
+  // the result-row buffer alive at once:
+  //
+  //   1. cleanupFn  -- release per-result-row state (DISTINCT dedup sets and their spill files).
+  //                    Both exprSupp and the result rows are still valid here.
+  //   2. cleanupExprSupp -- destroySqlFunctionCtx() dereferences pCtx->resultInfo, which points into
+  //                    the result-row buffer, so this must precede closeFn.
+  //   3. closeFn    -- frees the result-row buffer itself (cleanupAggSup) and the operator info.
+  //
+  // Doing (1) from closeFn instead would be too late: cleanupExprSupp() memsets the supp, leaving
+  // numOfExprs == 0, so cleanupResultRowFunctionState() would iterate nothing and silently leak
+  // every set still attached to an unemitted row on an early cancel or LIMIT short-circuit.
+  if (pOperator->fpSet.rowStateCleanupFn != NULL && pOperator->info != NULL) {
+    pOperator->fpSet.rowStateCleanupFn(pOperator->info);
   }
 
   cleanupExprSupp(&pOperator->exprSupp);

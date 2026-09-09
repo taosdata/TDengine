@@ -43,11 +43,11 @@ class TestExternal:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
             - 2026-02-06 xs Ren Created file
-
         """
 
         tdLog.debug(f"start to execute {__file__}")
@@ -85,11 +85,17 @@ class TestExternal:
         This protects the unordered fallback path after inputHasOrder is derived
         from actual upstream order properties.
 
+        Catalog:
+            - TimeSeriesExt:ExternalWindow
+
         Since: v3.4.0.0
 
         Labels: common,ci
 
         Jira: None
+
+        History:
+            - 2026-09-01 Jin Minglei Created
         """
 
         tdLog.debug(f"start to execute {__file__} multi-table order level regression")
@@ -1485,12 +1491,10 @@ class TestExternal:
             fullMatched=False,
         )
 
-        # DISTINCT aggregates are not supported with EXTERNAL_WINDOW
-        tdSql.error(
+        tdSql.noError(
             "select cast(_wstart as bigint) as ws, count(distinct v) "
             "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
-            "order by ws",
-            fullMatched=False,
+            "order by ws"
         )
 
         tdSql.error(
@@ -1538,6 +1542,8 @@ class TestExternal:
             ("select cast(_wstart as bigint) as ws, elapsed(ts) as el from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
             # LEASTSQUARES on child table
             ("select cast(_wstart as bigint) as ws, leastsquares(v, 1, 1) as ls from ext_cx_src_1 external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            # COUNT DISTINCT
+            ("select t1, cast(_wstart as bigint) as ws, count(distinct v) as cd from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w);", 8),
             # partition by + SPREAD
             ("select t1, cast(_wstart as bigint) as ws, spread(v) as sp from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w);", 8),
             # partition by + GROUP_CONCAT
@@ -1549,22 +1555,27 @@ class TestExternal:
             ("select cast(_wstart as bigint) as ws, leastsquares(v, 1, 1) as ls from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
         ])
 
-        # DISTINCT aggregates are not supported with EXTERNAL_WINDOW, with or
-        # without PARTITION BY.
-        tdSql.error(
+        tdSql.query(
             "select t1, cast(_wstart as bigint) as ws, count(distinct v) as cd "
             "from ext_cx_src partition by t1 "
             "external_window((select ts, endtime, mark from ext_cx_win) w) "
-            "order by t1, ws",
-            fullMatched=False,
+            "order by t1, ws"
         )
-        tdSql.error(
-            "select cast(_wstart as bigint) as ws, sum(distinct v) as sd "
-            "from ext_cx_src "
-            "external_window((select ts, endtime, mark from ext_cx_win) w) "
-            "order by ws",
-            fullMatched=False,
-        )
+        tdSql.checkRows(8)
+        expected = [
+            (1, 1700400000000, 2),
+            (1, 1700400300000, 2),
+            (1, 1700400600000, 1),
+            (1, 1700400900000, 1),
+            (2, 1700400000000, 1),
+            (2, 1700400300000, 2),
+            (2, 1700400600000, 1),
+            (2, 1700400900000, 1),
+        ]
+        for row, (t1, ws, cd) in enumerate(expected):
+            tdSql.checkData(row, 0, t1)
+            tdSql.checkData(row, 1, ws)
+            tdSql.checkData(row, 2, cd)
 
         # HISTOGRAM produces multi-row output per group, not compatible with window queries
         tdSql.error(
@@ -1591,7 +1602,77 @@ class TestExternal:
         self.function_matrix_no_sort()
         self.special_function_negative_matrix()
         self.agg_function_coverage_no_sort()
+        self.external_window_count_distinct_dedup_regression()
         self.complex_partition_and_having_no_sort()
+
+    def external_window_count_distinct_dedup_regression(self):
+        """Verify global and partitioned COUNT(DISTINCT) deduplication.
+
+        Since: v3.4.2.3
+        """
+        tdLog.info("=============== external window: count distinct dedup regression")
+        tdSql.execute(f"use {self.dbName}")
+
+        tdSql.execute("drop table if exists ext_cd_src")
+        tdSql.execute("drop table if exists ext_cd_win")
+        tdSql.execute("create table ext_cd_src (ts timestamp, v int) tags(t1 int)")
+        tdSql.execute("create table ext_cd_win (ts timestamp, endtime timestamp, mark int)")
+        tdSql.execute("create table ext_cd_src_1 using ext_cd_src tags(1)")
+        tdSql.execute("create table ext_cd_src_2 using ext_cd_src tags(2)")
+
+        t0 = 1700600000000
+        tdSql.execute(
+            f"insert into ext_cd_win values"
+            f"({t0}, {t0 + 300000}, 1)"
+            f"({t0 + 300000}, {t0 + 600000}, 2)"
+        )
+        tdSql.execute(
+            f"insert into ext_cd_src_1 values"
+            f"({t0 + 60000}, 1)"
+            f"({t0 + 120000}, 1)"
+            f"({t0 + 180000}, 2)"
+            f"({t0 + 360000}, 3)"
+            f"({t0 + 420000}, 3)"
+            f"({t0 + 480000}, 4)"
+        )
+        tdSql.execute(
+            f"insert into ext_cd_src_2 values"
+            f"({t0 + 60000}, 2)"
+            f"({t0 + 120000}, 2)"
+            f"({t0 + 180000}, 3)"
+            f"({t0 + 360000}, 4)"
+            f"({t0 + 420000}, 4)"
+            f"({t0 + 480000}, 5)"
+        )
+
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(distinct v) as cd "
+            "from ext_cd_src external_window((select ts, endtime, mark from ext_cd_win) w) "
+            "order by ws"
+        )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, t0)
+        tdSql.checkData(0, 1, 3)
+        tdSql.checkData(1, 0, t0 + 300000)
+        tdSql.checkData(1, 1, 3)
+
+        tdSql.query(
+            "select t1, cast(_wstart as bigint) as ws, count(distinct v) as cd "
+            "from ext_cd_src partition by t1 "
+            "external_window((select ts, endtime, mark from ext_cd_win) w) "
+            "order by t1, ws"
+        )
+        tdSql.checkRows(4)
+        expected = [
+            (1, t0, 2),
+            (1, t0 + 300000, 2),
+            (2, t0, 2),
+            (2, t0 + 300000, 2),
+        ]
+        for row, (t1, ws, cd) in enumerate(expected):
+            tdSql.checkData(row, 0, t1)
+            tdSql.checkData(row, 1, ws)
+            tdSql.checkData(row, 2, cd)
 
     def cross_mix_and_join_regression(self):
         tdLog.info("=============== external window: cross mix and join regression")
