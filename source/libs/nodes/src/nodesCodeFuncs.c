@@ -5254,6 +5254,7 @@ static const char* jkInterpFuncPhysiPlanFillValues = "FillValues";
 static const char* jkInterpFuncPhysiPlanTimeSeries = "TimeSeries";
 static const char* jkInterpFuncPhysiPlanTimelineSource = "TimelineSource";
 static const char* jkInterpFuncPhysiPlanSurroundingTime = "SurroundingTime";
+static const char* jkInterpFuncPhysiPlanMergeDataBlock = "MergeDataBlock";
 
 static int32_t physiInterpFuncNodeToJson(const void* pObj, SJson* pJson) {
   const SInterpFuncPhysiNode* pNode = (const SInterpFuncPhysiNode*)pObj;
@@ -5297,6 +5298,10 @@ static int32_t physiInterpFuncNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkInterpFuncPhysiPlanSurroundingTime, pNode->surroundingTime);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkInterpFuncPhysiPlanMergeDataBlock,
+                                pNode->mergeDataBlock);
   }
 
   return code;
@@ -5348,6 +5353,10 @@ static int32_t jsonToPhysiInterpFuncNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkInterpFuncPhysiPlanSurroundingTime, &pNode->surroundingTime);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkInterpFuncPhysiPlanMergeDataBlock,
+                             &pNode->mergeDataBlock);
   }
 
   return code;

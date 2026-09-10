@@ -5615,6 +5615,7 @@ enum {
   PHY_INTERP_FUNC_CODE_PRECISION,
   PHY_INTERP_FUNC_CODE_TIMEZONE_NAME,
   PHY_INTERP_FUNC_CODE_TIMELINE_SOURCE,
+  PHY_INTERP_FUNC_CODE_MERGE_DATA_BLOCK,
 };
 
 static int32_t physiInterpFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -5662,6 +5663,10 @@ static int32_t physiInterpFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder)
     code = tlvEncodeCStr(pEncoder, PHY_INTERP_FUNC_CODE_TIMEZONE_NAME,
                          pNode->timezoneName);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_INTERP_FUNC_CODE_MERGE_DATA_BLOCK,
+                         pNode->mergeDataBlock);
+  }
 
   return code;
 }
@@ -5705,6 +5710,9 @@ static int32_t msgToPhysiInterpFuncNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_INTERP_FUNC_CODE_TIMELINE_SOURCE:
         code = tlvDecodeI8(pTlv, &pNode->timelineSource);
+        break;
+      case PHY_INTERP_FUNC_CODE_MERGE_DATA_BLOCK:
+        code = tlvDecodeBool(pTlv, &pNode->mergeDataBlock);
         break;
       case PHY_INTERP_FUNC_CODE_SURROUNDING_TIME:
         code = tlvDecodeI64(pTlv, &pNode->surroundingTime);
