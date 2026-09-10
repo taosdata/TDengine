@@ -1222,8 +1222,14 @@ void* varObtainThread(void* param) {
 
   // check need call auto tab
   if (cnt > 0 && waitAutoFill) {
+#ifdef WINDOWS
+    // on Windows the console owns the input line, which can only be modified by
+    // the shell thread: wake it up so that it performs the completion
+    shellWinReTriggerTab();
+#else
     // press tab key by program
     firstMatchCommand(varCon, varCmd);
+#endif
   }
 
   setThreadNull(type);
@@ -1589,10 +1595,6 @@ bool firstMatchCommand(TAOS* con, SShellCmd* cmd) {
 
   // print to screen
   printScreen(con, cmd, match);
-#ifdef WINDOWS
-  printf("\r");
-  shellShowOnScreen(cmd);
-#endif
   freeCommand(input);
   taosMemoryFree(input);
   return true;
@@ -1695,10 +1697,6 @@ bool nextMatchCommand(TAOS* con, SShellCmd* cmd, SWords* firstMatch) {
 
   // print to screen
   printScreen(con, cmd, match);
-#ifdef WINDOWS
-  printf("\r");
-  shellShowOnScreen(cmd);
-#endif
 
   // free
   freeCommand(input);
@@ -2237,9 +2235,6 @@ _return:
 
 // main key press tab
 void pressTabKey(SShellCmd* cmd) {
-#ifdef WINDOWS
-  return ;
-#endif
   // check empty tab key
   if (cmd->commandSize == 0) {
     // have multi line tab key
@@ -2283,10 +2278,6 @@ void pressTabKey(SShellCmd* cmd) {
 
 // press othr key
 void pressOtherKey(char c) {
-#ifdef WINDOWS
-  return ;
-#endif
-
   // reset global variant
   firstMatchIndex = -1;
   lastMatchIndex = -1;
