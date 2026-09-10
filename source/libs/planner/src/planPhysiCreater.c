@@ -4024,6 +4024,9 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
     return terrno;
   }
 
+  pInterpFunc->mergeDataBlock = !forceNoMergeDataBlock(pCxt) &&
+      GROUP_ACTION_KEEP != pFuncLogicNode->node.groupAction;
+
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pFuncs = NULL;
   int32_t    code = rewritePrecalcExprs(pCxt, pFuncLogicNode->pFuncs, &pPrecalcExprs, &pFuncs);

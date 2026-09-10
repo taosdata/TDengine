@@ -896,6 +896,7 @@ typedef struct SInterpFuncPhysiNode {
   void*             timezone;        // timezone_t handle; EVERY calendar units (d/w) are calendar/DST aware
   char              timezoneName[TD_TIMEZONE_LEN]; /* IANA name for TLV serialization */
   bool              ownsTimezone;    /* true when timezone was tzalloc'd during deser */
+  bool              mergeDataBlock;
 } SInterpFuncPhysiNode;
 
 typedef struct SForecastFuncPhysiNode {
