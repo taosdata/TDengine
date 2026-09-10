@@ -298,5 +298,7 @@ TEST(spillDistinctSetTest, sharedBufferSupportsIndependentSets) {
   EXPECT_EQ(firstValues.values.size(), 256U);
   EXPECT_EQ(secondValues.values.size(), 256U);
 
+  firstGuard.reset();
+  secondGuard.reset();
   destroyDiskbasedBuf(shared);
 }

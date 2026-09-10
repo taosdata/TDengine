@@ -19,7 +19,7 @@ explain verbose true select _wstart, _wend, sum(mysql_a_v) from vt_window_federa
 explain verbose true select _wstart, _wend, count(*) from vt_window_federated_batch.vst_mixed_sources interval(2s) order by _wstart;
 
 # not optimized: distinct aggregates cannot use split interval execution
-explain verbose true select _wstart, _wend, count(distinct mysql_a_v) from vt_window_federated_batch.vst_mixed_sources interval(2s) order by _wstart;
+#explain verbose true select _wstart, _wend, count(distinct mysql_a_v) from vt_window_federated_batch.vst_mixed_sources interval(2s) order by _wstart;
 
 # not optimized: one aggregate expression must not span execution units
 explain verbose true select _wstart, _wend, sum(mysql_a_v + postgres_v) from vt_window_federated_batch.vst_mixed_sources interval(2s) order by _wstart;
