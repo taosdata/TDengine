@@ -2963,7 +2963,7 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   setOperatorInfo(pOperator, "MergeAlignedExternalWindowOperator", QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW, false, OP_NOT_OPENED, pMAExtW, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, mergeAlignExtWinNext, NULL,
                                          destroyMergeAlignedExternalWindowOperator, optrDefaultBufFn, NULL,
-                                         optrDefaultGetNextExtFn, NULL);
+                                         mergeAlignExtWinNextExt, NULL);
   if (pExtW->mode == EEXT_MODE_AGG) {
     setOperatorRowStateCleanupFn(pOperator, cleanupMergeAlignedExternalWindowRowState);
   }

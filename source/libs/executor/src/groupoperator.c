@@ -150,24 +150,53 @@ static void destroyGroupOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-// Runs from destroyOperator() before cleanupExprSupp(), the only point where both the expression
-// supp and the result rows are still valid.
-static void cleanupGroupbyRowState(void* param) {
-  SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
-  if (pInfo == NULL || pInfo->pOperator == NULL || pInfo->aggSup.pResultRowHashTable == NULL) {
-    return;
-  }
-  cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
-                    false);
+// Paged page layout, private to this operator.
+//
+// Rows arrive one at a time and each is appended to whichever group it
+// belongs to, so a page cannot hold a serialized block: appending a row to
+// a compactly packed page would shift every column after it. Instead each
+// column gets a region sized by the page's row capacity, and a row is
+// written by a few memcpys at known offsets:
+//
+//   [rows int32][groupId uint64]
+//   per column: [var: offset[capacity] | fixed: bitmap BitmapLen(capacity)]
+//               [colLength int32]
+//               [payload: reserved bytes * capacity, colLength of it used]
+//
+// setupColumnOffset computes the per-column starts, doHashPartition writes
+// rows into them, and blockDataFromPagedBuf reads a page back. Spilling
+// converts a page to the compact blockDataToBuf layout, which is what
+// drops the reserved-but-unused space.
+static int32_t blockDataGetPagedColumnReservedBytes(
+    const SColumnInfoData* pColumnInfoData) {
+  return pColumnInfoData->info.bytes;
 }
 
-static int32_t getPartitionPageRowCapacity(const SSDataBlock* pBlock, size_t pageSize, int32_t extraSize) {
-  size_t  numOfCols = taosArrayGetSize(pBlock->pDataBlock);
-  int32_t payloadSize = pageSize - extraSize;
-  int32_t payloadRowSize = 0;
-  int32_t numVarCols = 0;
-  int32_t numFixCols = 0;
+// Bytes a column reserves ahead of its colLength prefix: an offset per row
+// for var columns, a null bitmap for fixed ones. Page copying and initial
+// layout setup share this rule so their calculations cannot drift.
+static int32_t blockDataGetPagedColumnMetaSize(
+    const SColumnInfoData* pColumnInfoData, int32_t capacity) {
+  return IS_VAR_DATA_TYPE(pColumnInfoData->info.type)
+             ? (int32_t)(capacity * sizeof(int32_t))
+             : BitmapLen(capacity);
+}
 
+// Reads one page back into pBlock. capacity must be the row capacity the
+// page was laid out with, and the caller must have sized pBlock already.
+// Not interchangeable with blockDataFromBuf: that one reads the compact
+// layout. Both are usually handed a SDiskbasedBuf page, so the difference
+// is the layout written into the page, not where the page lives.
+STATIC_EXCEPT_TEST int32_t blockDataFromPagedBuf(SSDataBlock* pBlock,
+                                                 const char*  buf,
+                                                 size_t       capacity) {
+  pBlock->info.rows = *(int32_t*)buf;
+  pBlock->info.id.groupId = *(uint64_t*)(buf + sizeof(int32_t));
+
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+
+  const char* pStart = buf + sizeof(uint32_t) + sizeof(uint64_t);
+  
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
     if (pCol == NULL) {
@@ -220,6 +249,64 @@ static int32_t getPartitionPageRowCapacity(const SSDataBlock* pBlock, size_t pag
 
   return TSDB_CODE_SUCCESS;
 }
+  
+// Runs from destroyOperator() before cleanupExprSupp(), the only point where both the expression
+// supp and the result rows are still valid.
+static void cleanupGroupbyRowState(void* param) {
+  SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
+  if (pInfo == NULL || pInfo->pOperator == NULL || pInfo->aggSup.pResultRowHashTable == NULL) {
+    return;
+  }
+  cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
+                    false);
+}
+
+static int32_t getPartitionPageRowCapacity(const SSDataBlock* pBlock, size_t pageSize, int32_t extraSize) {
+  size_t  numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  int32_t payloadSize = pageSize - extraSize;
+  int32_t payloadRowSize = 0;
+  int32_t numVarCols = 0;
+  int32_t numFixCols = 0;
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (pCol == NULL) {
+      terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      return -1;
+    }
+
+    payloadRowSize += blockDataGetPagedColumnReservedBytes(pCol);
+    if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+      ++numVarCols;
+    } else {
+      ++numFixCols;
+    }
+  }
+
+  int32_t nRows = payloadSize / payloadRowSize;
+  if (nRows < 1) {
+    uError("rows %d in page is too small, payloadSize:%d, rowSize:%d", nRows, payloadSize, payloadRowSize);
+    terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    return -1;
+  }
+
+  int32_t result = -1;
+  int32_t start = 1;
+  int32_t end = nRows;
+  while (start <= end) {
+    int32_t mid = start + (end - start) / 2;
+    int64_t midSize = (int64_t)payloadRowSize * mid + (int64_t)numVarCols * sizeof(int32_t) * mid +
+                      (int64_t)numFixCols * BitmapLen(mid);
+    if (midSize > payloadSize) {
+      result = mid;
+      end = mid - 1;
+    } else {
+      start = mid + 1;
+    }
+  }
+
+  return (result != -1) ? result - 1 : nRows;
+}
 
 // Per-row cost of the paged layout, hoisted out of the block so both the
 // rows-for-a-page and the page-for-N-rows directions share one formula.
@@ -257,42 +344,6 @@ static int64_t partitionPagedSizeForRows(const SPartitionPageLayout* pLayout,
   return (int64_t)pLayout->payloadRowSize * rows +
          (int64_t)pLayout->numVarCols * sizeof(int32_t) * rows +
          (int64_t)pLayout->numFixCols * BitmapLen(rows);
-}
-
-static int32_t getPartitionPageRowCapacity(const SSDataBlock* pBlock,
-                                           size_t pageSize,
-                                           int32_t extraSize) {
-  SPartitionPageLayout layout = {0};
-  int32_t              payloadSize = pageSize - extraSize;
-
-  int32_t code = partitionGetPageLayout(pBlock, &layout);
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-    return -1;
-  }
-
-  int32_t nRows = payloadSize / layout.payloadRowSize;
-  if (nRows < 1) {
-    uError("rows %d in page is too small, payloadSize:%d, rowSize:%d",
-           nRows, payloadSize, layout.payloadRowSize);
-    terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-    return -1;
-  }
-
-  int32_t result = -1;
-  int32_t start = 1;
-  int32_t end = nRows;
-  while (start <= end) {
-    int32_t mid = start + (end - start) / 2;
-    if (partitionPagedSizeForRows(&layout, mid) > payloadSize) {
-      result = mid;
-      end = mid - 1;
-    } else {
-      start = mid + 1;
-    }
-  }
-
-  return (result != -1) ? result - 1 : nRows;
 }
 
 // Sizes class 0's page to hold PARTITION_TARGET_PAGE_ROWS rows: layout

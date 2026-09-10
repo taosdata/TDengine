@@ -5484,7 +5484,17 @@ static bool planOptNodeListHasTbname(SNodeList* pKeys) {
   return hasCol;
 }
 
-static bool isImplicitPartitionKeyList(SNodeList* pKeys);
+static bool isImplicitPartitionKeyList(SNodeList* pKeys) {
+  if (1 != LIST_LENGTH(pKeys)) {
+    return false;
+  }
+  // The translator removes user-written constant keys before planning, so a
+  // value key with this reserved alias can only come from implicit HAVING.
+  SNode* pKey = nodesListGetNode(pKeys, 0);
+  return QUERY_NODE_VALUE == nodeType(pKey) &&
+         0 == strcmp(((SExprNode*)pKey)->aliasName,
+                     IMPLICIT_PARTITION_KEY_ALIAS);
+}
 
 static bool partTagsIsOptimizableNode(SLogicNode* pNode) {
   bool ret = 1 == LIST_LENGTH(pNode->pChildren) &&
@@ -15363,6 +15373,8 @@ static const SOptimizeRule optimizeRuleSet[] = {
   //   - EliminateNotNullCond: explicit SCAN_TYPE_EXTERNAL guard
   {.pName = "FqPushdown",                 .optimizeFunc = fqPushdownOptimize},
   {.pName = "FqInterp",                   .optimizeFunc = fqInterpOptimize},
+  {.pName = "FqUnionAll",                 .optimizeFunc = fqUnionAllOptimize},
+  {.pName = "FqUnionDedup",               .optimizeFunc = fqUnionDeduplicateOptimize},
   {.pName = "JoinCondOptimize",           .optimizeFunc = joinCondOptimize},
   {.pName = "AsofJoinCondOptimize",       .optimizeFunc = asofJoinCondOptimize},
   {.pName = "HashJoin",                   .optimizeFunc = hashJoinOptimize},
@@ -15386,7 +15398,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "Tsma",                       .optimizeFunc = tsmaOptimize},
   {.pName = "EliminateVirtualScan",       .optimizeFunc = eliminateVirtualScanOptimize},
   {.pName = "PushDownAgg",                .optimizeFunc = pdaOptimize},
-  //{.pName = "VtableWindow",               .optimizeFunc = vtableWindowOptimize},
+  {.pName = "VtableWindow",               .optimizeFunc = vtableWindowOptimize},
   {.pName = "VStableWindow",              .optimizeFunc = vstableWindowOptimize},
   {.pName = "VStableWindowSort",          .optimizeFunc = vstableWindowSortOptimize},
   {.pName = "VtableTagScan",              .optimizeFunc = vtableTagScanOptimize},
@@ -15395,65 +15407,6 @@ static const SOptimizeRule optimizeRuleSet[] = {
 // clang-format on
 
 static const int32_t optimizeRuleNum = (sizeof(optimizeRuleSet) / sizeof(SOptimizeRule));
-
-static int32_t dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
-  int32_t code = 0;
-  if (!tsQueryPlannerTrace) {
-    return code;
-  }
-  char* pStr = NULL;
-  code = nodesNodeToString((SNode*)pSubplan, false, &pStr, NULL);
-  if (TSDB_CODE_SUCCESS == code) {
-    if (NULL == pRuleName) {
-      qDebugL("before optimize, JsonPlan: %s", pStr);
-    } else {
-      qDebugL("apply optimize %s rule, JsonPlan: %s", pRuleName, pStr);
-    }
-    taosMemoryFree(pStr);
-  }
-  return code;
-}
-
-static int32_t applyOptimizeRule(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  SOptimizeContext cxt = {.pPlanCxt = pCxt, .optimized = false};
-  bool             optimized = false;
-  int32_t          code = dumpLogicSubplan(NULL, pLogicSubplan);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
-  }
-  do {
-    optimized = false;
-    for (int32_t i = 0; i < optimizeRuleNum; ++i) {
-      cxt.optimized = false;
-      int32_t code = optimizeRuleSet[i].optimizeFunc(&cxt, pLogicSubplan);
-      if (TSDB_CODE_SUCCESS != code) {
-        planError("optimize rule [%s] failed, code:%s", optimizeRuleSet[i].pName, tstrerror(code));
-        return code;
-      }
-      if (cxt.optimized) {
-        optimized = true;
-        code = dumpLogicSubplan(optimizeRuleSet[i].pName, pLogicSubplan);
-        break;
-      }
-    }
-  } while (optimized && (TSDB_CODE_SUCCESS == code));
-  return code;
-}
-
-static bool nodeHasExternalScan(const SLogicNode* pNode) {
-  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
-    if (((const SScanLogicNode*)pNode)->scanType == SCAN_TYPE_EXTERNAL) {
-      return true;
-    }
-  }
-  SNode* pChild = NULL;
-  FOREACH(pChild, pNode->pChildren) {
-    if (nodeHasExternalScan((const SLogicNode*)pChild)) {
-      return true;
-    }
-  }
-  return false;
-}
 
 static bool subplanHasExternalScan(SLogicSubplan* pSubplan) {
   return pSubplan->pNode != NULL && nodeHasExternalScan(pSubplan->pNode);
@@ -21834,75 +21787,6 @@ int32_t postSplitOptimize(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
   if (NULL == pLogicSubplan || NULL == pLogicSubplan->pNode) return TSDB_CODE_SUCCESS;
   return postSplitEliminateSortImpl(pLogicSubplan, pLogicSubplan->pNode);
 }
-
-// clang-format off
-static const SOptimizeRule optimizeRuleSet[] = {
-  {.pName = "RewriteTail",                .optimizeFunc = rewriteTailOptimize},
-  {.pName = "RewriteUnique",              .optimizeFunc = rewriteUniqueOptimize},
-  {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize},
-  {.pName = "PushDownCondition",          .optimizeFunc = pdcOptimize},
-  {.pName = "EliminateNotNullCond",       .optimizeFunc = eliminateNotNullCondOptimize},
-  // FqPushdown is registered here (mid-pipeline, NOT at the end as the DS
-  // suggests).  By stripping the Sort/Project/Limit/Agg chain into
-  // pRemoteLogicPlan early, all downstream rules that walk those operators
-  // (PushDownLimit, EliminateProject, MergeProjects, sortNonPriKey,
-  // SortForJoin, etc.) become natural no-ops for the FQ subtree -- which
-  // avoids retrofitting an ExternalScan guard into every one of them.
-  //
-  // Rules ABOVE FqPushdown are audited and have explicit guards:
-  //   - RewriteTail/RewriteUnique: only match IndefRowsFunc nodes (N/A)
-  //   - ScanPath:               explicit SCAN_TYPE_EXTERNAL guard
-  //   - PushDownCondition:      all generic pushdown entry points keep node/scan
-  //                             conditions in-place when the subtree contains
-  //                             an external scan, so FQ collect sees the
-  //                             original per-layer predicates
-  //   - EliminateNotNullCond:   explicit SCAN_TYPE_EXTERNAL guard
-  //
-  // Rules BELOW FqPushdown that touch SCAN nodes directly (and therefore
-  // need explicit guards rather than relying on the strip-side-effect):
-  //   - JoinCondOptimize:       guard in joinCondMayBeOptimized
-  //   - StableJoin:             guard in stbJoinOptShouldBeOptimized
-  //   - SortPrimaryKey / PushDownLimit / PartitionTags: explicit guards
-  // All other downstream rules either operate above SCAN level (and thus
-  // see nothing after FqPushdown strips the chain) or target unrelated
-  // node types (vtable / SMA / TSMA / cache-last).
-  {.pName = "FqPushdown",                 .optimizeFunc = fqPushdownOptimize},
-  {.pName = "FqInterp",                   .optimizeFunc = fqInterpOptimize},
-  {.pName = "FqUnionAll",                 .optimizeFunc = fqUnionAllOptimize},
-  {.pName = "FqUnionDedup",               .optimizeFunc = fqUnionDeduplicateOptimize},
-  {.pName = "JoinCondOptimize",           .optimizeFunc = joinCondOptimize},
-  {.pName = "AsofJoinCondOptimize",       .optimizeFunc = asofJoinCondOptimize},
-  {.pName = "HashJoin",                   .optimizeFunc = hashJoinOptimize},
-  {.pName = "StableJoin",                 .optimizeFunc = stableJoinOptimize},
-  {.pName = "GroupJoin",                  .optimizeFunc = groupJoinOptimize},
-  {.pName = "sortNonPriKeyOptimize",      .optimizeFunc = sortNonPriKeyOptimize},
-  {.pName = "SortPrimaryKey",             .optimizeFunc = sortPrimaryKeyOptimize},
-  {.pName = "SortForjoin",                .optimizeFunc = sortForJoinOptimize},
-  {.pName = "SmaIndex",                   .optimizeFunc = smaIndexOptimize},
-  {.pName = "PushDownLimit",              .optimizeFunc = pushDownLimitOptimize},
-  {.pName = "PartitionTags",              .optimizeFunc = partTagsOptimize},
-  {.pName = "MergeProjects",              .optimizeFunc = mergeProjectsOptimize},
-  {.pName = "LastSmaNotNull",             .optimizeFunc = lastSmaNotNullPrefilterOptimize},
-  {.pName = "splitCacheLastFunc",         .optimizeFunc = splitCacheLastFuncOptimize},
-  {.pName = "LastRowScan",                .optimizeFunc = lastRowScanOptimize},
-  {.pName = "TagScan",                    .optimizeFunc = tagScanOptimize},
-  {.pName = "TableCountScan",             .optimizeFunc = tableCountScanOptimize},
-  {.pName = "EliminateProject",           .optimizeFunc = eliminateProjOptimize},
-  {.pName = "EliminateSetOperator",       .optimizeFunc = eliminateSetOpOptimize},
-  {.pName = "PartitionCols",              .optimizeFunc = partitionColsOpt},
-  {.pName = "Tsma",                       .optimizeFunc = tsmaOptimize},
-  {.pName = "EliminateVirtualScan",       .optimizeFunc = eliminateVirtualScanOptimize},
-  {.pName = "PushDownAgg",                .optimizeFunc = pdaOptimize},
-  {.pName = "VtableWindow",                .optimizeFunc = vtableWindowOptimize},
-  {.pName = "VStableWindow",              .optimizeFunc = vstableWindowOptimize},
-  {.pName = "VStableWindowSort",          .optimizeFunc = vstableWindowSortOptimize},
-  {.pName = "VtableTagScan",              .optimizeFunc = vtableTagScanOptimize},
-  {.pName = "VStableAgg",                 .optimizeFunc = vstableAggOptimize},
-  {.pName = "DistinctAggFilter",          .optimizeFunc = distinctAggFilterOptimize},
-};
-// clang-format on
-
-static const int32_t optimizeRuleNum = (sizeof(optimizeRuleSet) / sizeof(SOptimizeRule));
 
 static int32_t dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
   int32_t code = TSDB_CODE_SUCCESS;
