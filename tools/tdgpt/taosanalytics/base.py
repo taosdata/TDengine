@@ -386,3 +386,63 @@ class AbstractClassificationService(AbstractAnalyticsService, ABC):
         Returns:
             list[int] or list[str]: Predicted class labels, one per input sample
         """
+
+
+class AbstractClusteringService(AbstractAnalyticsService, ABC):
+    """Abstract clustering service base class.
+
+    All clustering algorithms (KMeans, DBSCAN, GMM) should inherit from this class.
+
+    Responsibilities:
+    - Load and manage input feature data
+    - Execute clustering analysis
+    - Return cluster labels, centers, and evaluation metrics
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.type = "clustering"
+        self.input_data = None  # Feature matrix: list of sample rows
+        self.params = {}  # Algorithm-specific parameters
+
+    def set_input_data(self, input_data: list, input_ts_list: list = None):
+        """Set the input feature data for clustering.
+
+        Args:
+            input_data: Feature matrix (list of sample rows, each row is a list of feature values)
+            input_ts_list: Optional timestamps for tracking clusters over time
+        """
+        self.input_data = input_data
+        self.ts_list = input_ts_list
+
+    def set_params(self, params: dict) -> None:
+        """Set clustering parameters. Override in subclass if needed.
+
+        Args:
+            params: Algorithm-specific parameters (n_clusters, eps, etc.)
+        """
+        super().set_params(params)
+        if params:
+            self.params = params
+
+    def get_params(self):
+        """Return current parameters."""
+        return self.params.copy()
+
+    @abstractmethod
+    def execute(self) -> dict:
+        """Execute clustering and return results.
+
+        Returns:
+            dict with keys:
+            - labels: list[int] — cluster label for each sample (-1 for noise/unclustered)
+            - centers: list[list[float]] — cluster center coordinates
+            - n_clusters: int — number of actual clusters found
+            - metrics: dict — evaluation metrics
+                - silhouette: float (range: [-1, 1])
+                - davies_bouldin: float (lower is better)
+                - calinski_harabasz: float (higher is better)
+                - [algorithm-specific: inertia for KMeans, etc.]
+            - ts_list: list (optional) — preserved timestamps if provided
+        """
+

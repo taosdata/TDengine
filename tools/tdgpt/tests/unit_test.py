@@ -26,6 +26,7 @@ from taosanalytics.handlers.dynamic import DynamicAnomalyService, DynamicForecas
 from taosanalytics.service_registry import ServiceRegistry, loader
 from taosanalytics.util import (
     convert_results_to_windows,
+    get_algo,
     is_stationary,
     is_white_noise,
     parse_options,
@@ -113,6 +114,14 @@ class UtilTest(unittest.TestCase):
             validate_pay_load(
                 {"data": [list(range(10))], "schema": [["val", "DOUBLE", 8]]}
             )
+
+    def test_get_algo(self):
+        self.assertEqual(get_algo({}, "holtwinters"), "holtwinters")
+        self.assertEqual(get_algo({"algo": "DTW"}, "unused"), "dtw")
+
+        for algo in (None, 1):
+            with self.assertRaisesRegex(ValueError, '"algo" must be a string'):
+                get_algo({"algo": algo}, "unused")
 
     @pytest.mark.skip(
         reason="validate_forecast_input_data helper is not implemented in taosanalytics.util"
@@ -366,7 +375,7 @@ class ServiceTest(unittest.TestCase):
 
     def test_get_all_algos(self):
         service_list = loader.get_service_list()
-        self.assertEqual(len(service_list["details"]), 6)
+        self.assertEqual(len(service_list["details"]), 7)
 
         for item in service_list["details"]:
             if item["type"] == "anomaly-detection":
@@ -389,6 +398,8 @@ class ServiceTest(unittest.TestCase):
                 self.assertEqual(len(item["algo"]), 1)
             elif item["type"] == "classification":
                 self.assertEqual(len(item["algo"]), 0)
+            elif item["type"] == "clustering":
+                self.assertEqual(len(item["algo"]), 3)
 
     def test_dynamic_load_service(self):
         """test dynamic load service by name"""
