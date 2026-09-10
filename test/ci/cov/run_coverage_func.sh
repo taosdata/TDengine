@@ -472,28 +472,8 @@ function run_thread() {
                 break
             fi
             redo=0
-
-            if grep -q "wait too long for taosd start" "$case_log_file"; then
-                redo=1
-            fi
-
-            if grep -q "kex_exchange_identification: Connection closed by remote host" "$case_log_file"; then
-                redo=1
-            fi
-
-            if grep -q "ssh_exchange_identification: Connection closed by remote host" "$case_log_file"; then
-                redo=1
-            fi
-
-            if grep -q "kex_exchange_identification: read: Connection reset by peer" "$case_log_file"; then
-                redo=1
-            fi
-
-            if grep -q "Database not ready" "$case_log_file"; then
-                redo=1
-            fi
-
-            if grep -q "Unable to establish connection" "$case_log_file"; then
+            # Only retry timeout failures (exit 124 from run_case.sh) once.
+            if [ $ret -eq 124 ]; then
                 redo=1
             fi
             if [ $redo -eq 0 ]; then
