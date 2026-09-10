@@ -3,6 +3,7 @@ import html
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,32 @@ BUILD_BINARIES = ("taosd.exe", "taos.exe", "taosBenchmark.exe", "taosadapter.exe
 SERIAL_CTEST_PATTERN = "timerTest|cunit_test|pcre.*|example.*|clientTest|connectOptionsTest|tmqTest|taoscTest|cosTest|tcs_test|osFileTests|idxFstTest"
 CTEST_READY_TIMEOUT_SECONDS = 300
 GIT_LOCK_WAIT_SECONDS = 60
+
+
+def print_host_identity():
+    print(f"[windows-ci] hostname: {socket.gethostname()}", flush=True)
+    command = (
+        "$ErrorActionPreference = 'Stop'; "
+        "Get-NetIPAddress -AddressFamily IPv4 | "
+        "Where-Object { $_.IPAddress -notlike '127.*' } | "
+        "ForEach-Object { '[windows-ci] IPv4: {0} ({1})' -f $_.IPAddress, $_.InterfaceAlias }"
+    )
+    try:
+        result = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+        if result.stdout:
+            print(result.stdout.strip(), flush=True)
+        if result.returncode or not result.stdout.strip():
+            print("[windows-ci] unable to determine local IPv4 addresses; continuing", flush=True)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        print(f"[windows-ci] unable to determine local IPv4 addresses: {error}; continuing", flush=True)
 
 
 def run(command, *, cwd=None, env=None, stdout=None, stderr=None):
@@ -504,6 +531,7 @@ def main():
     parser.add_argument("--skip-build", action="store_true", default=os.environ.get("WIN_SKIP_BUILD", "").lower() in {"1", "true", "yes"})
     parser.add_argument("--skip-pytest", action="store_true", default=os.environ.get("WIN_SKIP_PYTEST", "").lower() in {"1", "true", "yes"})
     arguments = parser.parse_args()
+    print_host_identity()
     result = 1
     ctest_result = 1
     ctest_failures = []
