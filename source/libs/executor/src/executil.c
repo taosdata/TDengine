@@ -3116,6 +3116,10 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
       pCtx->functionId = pExpr->pExpr->_function.pFunctNode->funcId;
       pCtx->isPseudoFunc = fmIsWindowPseudoColumnFunc(pCtx->functionId) || fmIsPlaceHolderFunc(pCtx->functionId);
       pCtx->isNotNullFunc = fmIsNotNullOutputFunc(pCtx->functionId);
+      // Cache the DISTINCT flag now, while the plan node is still alive. The cleanup path must not
+      // reach back into pFunctNode: some operators (e.g. tdRollupCtxCleanup) destroy the target
+      // node list before calling cleanupExprSupp, so reading it there is a use-after-free.
+      pCtx->isDistinctFunc = pExpr->pExpr->_function.pFunctNode->isDistinct;
 
       bool isUdaf = fmIsUserDefinedFunc(pCtx->functionId);
       if (fmIsAggFunc(pCtx->functionId) || fmIsIndefiniteRowsFunc(pCtx->functionId) ||

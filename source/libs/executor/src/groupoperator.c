@@ -139,11 +139,11 @@ static void destroyGroupOperatorInfo(void* param) {
   taosArrayDestroyEx(pInfo->pGroupColVals, freeGroupKey);
   cleanupExprSupp(&pInfo->scalarSup);
 
-  if (pInfo->pOperator != NULL) {
-    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
-                      false);
-    pInfo->pOperator = NULL;
-  }
+  // Per-result-row state is released by cleanupGroupbyRowState(), invoked from destroyOperator()
+  // before cleanupExprSupp(). Doing it here would be too late: the supp is memset by then, so
+  // numOfExprs is 0 and cleanupResultInfo() walks nothing -- silently leaking the DISTINCT dedup
+  // set, spill pages and temp file of every row never emitted (early cancel, LIMIT/SLIMIT).
+  pInfo->pOperator = NULL;
 
   cleanupGroupResInfo(&pInfo->groupResInfo);
   cleanupAggSup(&pInfo->aggSup);
@@ -196,7 +196,7 @@ STATIC_EXCEPT_TEST int32_t blockDataFromPagedBuf(SSDataBlock* pBlock,
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
 
   const char* pStart = buf + sizeof(uint32_t) + sizeof(uint64_t);
-
+  
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
     if (pCol == NULL) {
@@ -249,6 +249,64 @@ STATIC_EXCEPT_TEST int32_t blockDataFromPagedBuf(SSDataBlock* pBlock,
 
   return TSDB_CODE_SUCCESS;
 }
+  
+// Runs from destroyOperator() before cleanupExprSupp(), the only point where both the expression
+// supp and the result rows are still valid.
+static void cleanupGroupbyRowState(void* param) {
+  SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
+  if (pInfo == NULL || pInfo->pOperator == NULL || pInfo->aggSup.pResultRowHashTable == NULL) {
+    return;
+  }
+  cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
+                    false);
+}
+
+static int32_t getPartitionPageRowCapacity(const SSDataBlock* pBlock, size_t pageSize, int32_t extraSize) {
+  size_t  numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  int32_t payloadSize = pageSize - extraSize;
+  int32_t payloadRowSize = 0;
+  int32_t numVarCols = 0;
+  int32_t numFixCols = 0;
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (pCol == NULL) {
+      terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      return -1;
+    }
+
+    payloadRowSize += blockDataGetPagedColumnReservedBytes(pCol);
+    if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+      ++numVarCols;
+    } else {
+      ++numFixCols;
+    }
+  }
+
+  int32_t nRows = payloadSize / payloadRowSize;
+  if (nRows < 1) {
+    uError("rows %d in page is too small, payloadSize:%d, rowSize:%d", nRows, payloadSize, payloadRowSize);
+    terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    return -1;
+  }
+
+  int32_t result = -1;
+  int32_t start = 1;
+  int32_t end = nRows;
+  while (start <= end) {
+    int32_t mid = start + (end - start) / 2;
+    int64_t midSize = (int64_t)payloadRowSize * mid + (int64_t)numVarCols * sizeof(int32_t) * mid +
+                      (int64_t)numFixCols * BitmapLen(mid);
+    if (midSize > payloadSize) {
+      result = mid;
+      end = mid - 1;
+    } else {
+      start = mid + 1;
+    }
+  }
+
+  return (result != -1) ? result - 1 : nRows;
+}
 
 // Per-row cost of the paged layout, hoisted out of the block so both the
 // rows-for-a-page and the page-for-N-rows directions share one formula.
@@ -286,42 +344,6 @@ static int64_t partitionPagedSizeForRows(const SPartitionPageLayout* pLayout,
   return (int64_t)pLayout->payloadRowSize * rows +
          (int64_t)pLayout->numVarCols * sizeof(int32_t) * rows +
          (int64_t)pLayout->numFixCols * BitmapLen(rows);
-}
-
-static int32_t getPartitionPageRowCapacity(const SSDataBlock* pBlock,
-                                           size_t pageSize,
-                                           int32_t extraSize) {
-  SPartitionPageLayout layout = {0};
-  int32_t              payloadSize = pageSize - extraSize;
-
-  int32_t code = partitionGetPageLayout(pBlock, &layout);
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-    return -1;
-  }
-
-  int32_t nRows = payloadSize / layout.payloadRowSize;
-  if (nRows < 1) {
-    uError("rows %d in page is too small, payloadSize:%d, rowSize:%d",
-           nRows, payloadSize, layout.payloadRowSize);
-    terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-    return -1;
-  }
-
-  int32_t result = -1;
-  int32_t start = 1;
-  int32_t end = nRows;
-  while (start <= end) {
-    int32_t mid = start + (end - start) / 2;
-    if (partitionPagedSizeForRows(&layout, mid) > payloadSize) {
-      result = mid;
-      end = mid - 1;
-    } else {
-      start = mid + 1;
-    }
-  }
-
-  return (result != -1) ? result - 1 : nRows;
 }
 
 // Sizes class 0's page to hold PARTITION_TARGET_PAGE_ROWS rows: layout
@@ -877,6 +899,12 @@ static SSDataBlock* buildGroupResultDataBlockByHash(SOperatorInfo* pOperator) {
 
     if (!hasRemainResultByHash(pOperator) || slimitReached(pLimitInfo)) {
       setOperatorCompleted(pOperator);
+      // Release per-result-row function state before dropping the hash. On the SLIMIT path rows are
+      // left unemitted, and once the table is freed and NULLed below there is no way to reach them:
+      // the teardown hook would find pResultRowHashTable == NULL and walk nothing, leaking each
+      // row's DISTINCT dedup set along with its spill pages and temp file.
+      cleanupResultInfoInHashMap(pTaskInfo, &pOperator->exprSupp, pInfo->aggSup.pResultBuf,
+                                 &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
       // clean hash after completed
       tSimpleHashCleanup(pInfo->aggSup.pResultRowHashTable);
       pInfo->aggSup.pResultRowHashTable = NULL;
@@ -1067,6 +1095,7 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashGroupbyAggregateNext, NULL, destroyGroupOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorRowStateCleanupFn(pOperator, cleanupGroupbyRowState);
   setOperatorResetStateFn(pOperator, resetGroupOperState);
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);
