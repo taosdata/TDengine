@@ -122,6 +122,13 @@ void generateInformationSchema(MockCatalogService* mcs) {
     .addColumn("message", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
     .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
     .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_XNODES, TSDB_SYSTEM_TABLE, 5)
+      .addColumn("id", TSDB_DATA_TYPE_INT)
+      .addColumn("url", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_URL_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("status", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("update_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .done();
   mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_XNODE_TASKS, TSDB_SYSTEM_TABLE, 13)
       .addColumn("id", TSDB_DATA_TYPE_INT)
       .addColumn("name", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_TASK_NAME_LEN + VARSTR_HEADER_SIZE)
@@ -146,6 +153,14 @@ void generateInformationSchema(MockCatalogService* mcs) {
       .addColumn("xnode_id", TSDB_DATA_TYPE_INT)
       .addColumn("status", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE)
       .addColumn("reason", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_TASK_REASON_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("update_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_XNODE_AGENTS, TSDB_SYSTEM_TABLE, 6)
+      .addColumn("id", TSDB_DATA_TYPE_INT)
+      .addColumn("name", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_AGENT_NAME_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("token", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_AGENT_TOKEN_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("status", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_AGENT_STATUS_LEN + VARSTR_HEADER_SIZE)
       .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
       .addColumn("update_time", TSDB_DATA_TYPE_TIMESTAMP)
       .done();

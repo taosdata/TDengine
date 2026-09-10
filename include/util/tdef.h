@@ -140,6 +140,12 @@ extern const int32_t TYPE_BYTES[22];
 
 #define TSDB_INS_USER_STABLES_DBNAME_COLID 2
 
+// Key column ids of the xnode system tables, used to recognize pushdown-able equality filters.
+// Must stay in sync with [xnodeTasksSchema] and [xnodeTaskJobSchema] in common/src/systable.c:
+// inserting a column ahead of these shifts the ids and would silently filter the wrong column.
+#define TSDB_INS_XNODE_TASKS_ID_COLID    1
+#define TSDB_INS_XNODE_JOBS_TASKID_COLID 2
+
 static const int64_t TICK_PER_SECOND[] = {
     1000LL,        // MILLISECOND
     1000000LL,     // MICROSECOND

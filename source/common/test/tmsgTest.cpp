@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "streamMsg.h"
+#include "systable.h"
 #include "tmsg.h"
 #include "tsimplehash.h"
 
@@ -2885,4 +2886,196 @@ TEST(td_msg_test, federated_scan_op_param_codec) {
   taosArrayDestroy(pOut->colMap);
   taosMemoryFree(pOut->tagCond);
   taosMemoryFree(pOut);
+}
+
+TEST(td_msg_test, retrieve_table_req_xnode_fields_roundtrip) {
+  SRetrieveTableReq input = {0};
+  input.showId = 7;
+  input.xnodeDsnOutputMode = XNODE_DSN_OUTPUT_ENCRYPTED;
+  input.xnodeRetrieveFilterType = XNODE_RETRIEVE_FILTER_TASK_ID_EQ;
+  input.xnodeRetrieveFilterValue = 42;
+  tstrncpy(input.tb, TSDB_INS_TABLE_XNODE_JOBS, sizeof(input.tb));
+
+  int32_t size = tSerializeSRetrieveTableReq(NULL, 0, &input);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> buf(size);
+  ASSERT_EQ(tSerializeSRetrieveTableReq(buf.data(), size, &input), size);
+
+  SRetrieveTableReq output = {0};
+  ASSERT_EQ(tDeserializeSRetrieveTableReq(buf.data(), size, &output), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(output.xnodeDsnOutputMode, XNODE_DSN_OUTPUT_ENCRYPTED);
+  EXPECT_EQ(output.xnodeRetrieveFilterType, XNODE_RETRIEVE_FILTER_TASK_ID_EQ);
+  EXPECT_EQ(output.xnodeRetrieveFilterValue, 42);
+}
+
+static int32_t serializeRetrieveTableReqWire(const SRetrieveTableReq& req, void* buf, int32_t bufLen,
+                                             bool includeOutputMode, bool includeFilterType, bool includeFilterValue) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, (uint8_t*)buf, bufLen);
+  if (tStartEncode(&encoder) != 0 || tEncodeI64(&encoder, req.showId) != 0 || tEncodeCStr(&encoder, req.db) != 0 ||
+      tEncodeCStr(&encoder, req.tb) != 0 || tEncodeCStr(&encoder, req.filterTb) != 0 ||
+      tEncodeCStr(&encoder, req.user) != 0 || tEncodeI64(&encoder, req.compactId) != 0 ||
+      tEncodeI8(&encoder, req.withFull) != 0 || tEncodeI64(&encoder, req.txnId) != 0) {
+    tEncoderClear(&encoder);
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (includeOutputMode && tEncodeI8(&encoder, req.xnodeDsnOutputMode) != 0) {
+    tEncoderClear(&encoder);
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (includeFilterType && tEncodeI8(&encoder, req.xnodeRetrieveFilterType) != 0) {
+    tEncoderClear(&encoder);
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (includeFilterValue && tEncodeI64(&encoder, req.xnodeRetrieveFilterValue) != 0) {
+    tEncoderClear(&encoder);
+    return TSDB_CODE_INVALID_MSG;
+  }
+  tEndEncode(&encoder);
+  int32_t size = encoder.pos;
+  tEncoderClear(&encoder);
+  return size;
+}
+
+// A sender that predates the xnode retrieve fields omits them entirely. Such a message must still
+// decode -- otherwise every system table retrieve breaks during a rolling upgrade, not just xnode's.
+TEST(td_msg_test, retrieve_table_req_xnode_fields_are_optional) {
+  struct TruncatedWire {
+    const char* name;
+    bool        includeOutputMode;
+    bool        includeFilterType;
+    bool        includeFilterValue;
+  } wires[] = {
+      {"no xnode fields at all", false, false, false},
+      {"output mode only", true, false, false},
+      {"output mode and filter type", true, true, false},
+  };
+
+  for (const auto& wire : wires) {
+    SRetrieveTableReq input = {0};
+    input.showId = 11;
+    input.compactId = 5;
+    input.txnId = 9;
+    tstrncpy(input.tb, TSDB_INS_TABLE_XNODE_TASKS, sizeof(input.tb));
+
+    int32_t size = serializeRetrieveTableReqWire(input, NULL, 0, wire.includeOutputMode, wire.includeFilterType,
+                                                 wire.includeFilterValue);
+    ASSERT_GT(size, 0) << wire.name;
+    std::vector<uint8_t> buf(size);
+    ASSERT_EQ(serializeRetrieveTableReqWire(input, buf.data(), size, wire.includeOutputMode, wire.includeFilterType,
+                                            wire.includeFilterValue),
+              size)
+        << wire.name;
+
+    // Poison the output so we can tell the decoder actually wrote the defaults.
+    SRetrieveTableReq output = {0};
+    output.xnodeDsnOutputMode = XNODE_DSN_OUTPUT_ENCRYPTED;
+    output.xnodeRetrieveFilterType = XNODE_RETRIEVE_FILTER_ID_EQ;
+    output.xnodeRetrieveFilterValue = 123;
+
+    EXPECT_EQ(tDeserializeSRetrieveTableReq(buf.data(), size, &output), TSDB_CODE_SUCCESS) << wire.name;
+    EXPECT_EQ(output.showId, 11) << wire.name;
+    EXPECT_EQ(output.txnId, 9) << wire.name;
+    EXPECT_EQ(output.xnodeDsnOutputMode, XNODE_DSN_OUTPUT_DEFAULT) << wire.name;
+    EXPECT_EQ(output.xnodeRetrieveFilterType, XNODE_RETRIEVE_FILTER_NONE) << wire.name;
+    EXPECT_EQ(output.xnodeRetrieveFilterValue, 0) << wire.name;
+    // Defaults must pass validation, or the tolerant decode buys us nothing.
+    EXPECT_EQ(tValidateSRetrieveTableReq(&output), TSDB_CODE_SUCCESS) << wire.name;
+  }
+}
+
+// The legal combinations matter more than the illegal ones: rejecting a valid request here breaks
+// SHOW for every system table, so keep this matrix exhaustive.
+TEST(td_msg_test, retrieve_table_req_accepts_valid_xnode_combinations) {
+  struct ValidRequest {
+    const char* table;
+    int8_t      outputMode;
+    int8_t      filterType;
+    int64_t     filterValue;
+  } requests[] = {
+      {TSDB_INS_TABLE_XNODE_TASKS, XNODE_DSN_OUTPUT_DEFAULT, XNODE_RETRIEVE_FILTER_NONE, 0},
+      {TSDB_INS_TABLE_XNODE_TASKS, XNODE_DSN_OUTPUT_DEFAULT, XNODE_RETRIEVE_FILTER_ID_EQ, 1},
+      {TSDB_INS_TABLE_XNODE_TASKS, XNODE_DSN_OUTPUT_DEFAULT, XNODE_RETRIEVE_FILTER_ID_EQ, INT32_MAX},
+      {TSDB_INS_TABLE_XNODE_TASKS, XNODE_DSN_OUTPUT_ENCRYPTED, XNODE_RETRIEVE_FILTER_NONE, 0},
+      {TSDB_INS_TABLE_XNODE_TASKS, XNODE_DSN_OUTPUT_ENCRYPTED, XNODE_RETRIEVE_FILTER_ID_EQ, 7},
+      {TSDB_INS_TABLE_XNODE_JOBS, XNODE_DSN_OUTPUT_DEFAULT, XNODE_RETRIEVE_FILTER_NONE, 0},
+      {TSDB_INS_TABLE_XNODE_JOBS, XNODE_DSN_OUTPUT_DEFAULT, XNODE_RETRIEVE_FILTER_TASK_ID_EQ, 1},
+      {TSDB_INS_TABLE_XNODE_JOBS, XNODE_DSN_OUTPUT_DEFAULT, XNODE_RETRIEVE_FILTER_TASK_ID_EQ, INT32_MAX},
+      {TSDB_INS_TABLE_XNODE_JOBS, XNODE_DSN_OUTPUT_ENCRYPTED, XNODE_RETRIEVE_FILTER_NONE, 0},
+      {TSDB_INS_TABLE_XNODE_JOBS, XNODE_DSN_OUTPUT_ENCRYPTED, XNODE_RETRIEVE_FILTER_TASK_ID_EQ, 7},
+      {TSDB_INS_TABLE_XNODES, XNODE_DSN_OUTPUT_DEFAULT, XNODE_RETRIEVE_FILTER_NONE, 0},
+      {TSDB_INS_TABLE_XNODE_AGENTS, XNODE_DSN_OUTPUT_DEFAULT, XNODE_RETRIEVE_FILTER_NONE, 0},
+      // Non-xnode tables: the ordinary SHOW path, which must keep working untouched.
+      {TSDB_INS_TABLE_DNODE_VARIABLES, XNODE_DSN_OUTPUT_DEFAULT, XNODE_RETRIEVE_FILTER_NONE, 0},
+      {TSDB_INS_TABLE_TABLES, XNODE_DSN_OUTPUT_DEFAULT, XNODE_RETRIEVE_FILTER_NONE, 0},
+      {TSDB_INS_TABLE_USERS, XNODE_DSN_OUTPUT_DEFAULT, XNODE_RETRIEVE_FILTER_NONE, 0},
+      {"", XNODE_DSN_OUTPUT_DEFAULT, XNODE_RETRIEVE_FILTER_NONE, 0},
+  };
+
+  for (const auto& valid : requests) {
+    SRetrieveTableReq input = {0};
+    tstrncpy(input.tb, valid.table, sizeof(input.tb));
+    input.xnodeDsnOutputMode = valid.outputMode;
+    input.xnodeRetrieveFilterType = valid.filterType;
+    input.xnodeRetrieveFilterValue = valid.filterValue;
+
+    EXPECT_EQ(tValidateSRetrieveTableReq(&input), TSDB_CODE_SUCCESS) << valid.table;
+
+    int32_t size = tSerializeSRetrieveTableReq(NULL, 0, &input);
+    ASSERT_GT(size, 0) << valid.table;
+    std::vector<uint8_t> buf(size);
+    ASSERT_EQ(tSerializeSRetrieveTableReq(buf.data(), size, &input), size) << valid.table;
+
+    SRetrieveTableReq output = {0};
+    ASSERT_EQ(tDeserializeSRetrieveTableReq(buf.data(), size, &output), TSDB_CODE_SUCCESS) << valid.table;
+    EXPECT_EQ(output.xnodeDsnOutputMode, valid.outputMode) << valid.table;
+    EXPECT_EQ(output.xnodeRetrieveFilterType, valid.filterType) << valid.table;
+    EXPECT_EQ(output.xnodeRetrieveFilterValue, valid.filterValue) << valid.table;
+  }
+}
+
+TEST(td_msg_test, retrieve_table_req_rejects_invalid_xnode_combinations) {
+  struct InvalidRequest {
+    const char* table;
+    int8_t      outputMode;
+    int8_t      filterType;
+    int64_t     filterValue;
+  } requests[] = {
+      {TSDB_INS_TABLE_XNODE_TASKS, 2, XNODE_RETRIEVE_FILTER_NONE, 0},
+      {TSDB_INS_TABLE_XNODE_TASKS, XNODE_DSN_OUTPUT_DEFAULT, 3, 0},
+      {TSDB_INS_TABLE_XNODE_TASKS, XNODE_DSN_OUTPUT_DEFAULT, XNODE_RETRIEVE_FILTER_NONE, 1},
+      {TSDB_INS_TABLE_XNODE_TASKS, XNODE_DSN_OUTPUT_DEFAULT, XNODE_RETRIEVE_FILTER_ID_EQ, -1},
+      {TSDB_INS_TABLE_XNODE_TASKS, XNODE_DSN_OUTPUT_DEFAULT, XNODE_RETRIEVE_FILTER_ID_EQ, (int64_t)INT32_MAX + 1},
+      {TSDB_INS_TABLE_XNODE_TASKS, XNODE_DSN_OUTPUT_DEFAULT, XNODE_RETRIEVE_FILTER_TASK_ID_EQ, 1},
+      {TSDB_INS_TABLE_XNODE_JOBS, XNODE_DSN_OUTPUT_DEFAULT, XNODE_RETRIEVE_FILTER_ID_EQ, 1},
+      {TSDB_INS_TABLE_XNODE_AGENTS, XNODE_DSN_OUTPUT_ENCRYPTED, XNODE_RETRIEVE_FILTER_NONE, 0},
+      {TSDB_INS_TABLE_XNODES, XNODE_DSN_OUTPUT_DEFAULT, XNODE_RETRIEVE_FILTER_ID_EQ, 1},
+      {TSDB_INS_TABLE_DNODE_VARIABLES, XNODE_DSN_OUTPUT_ENCRYPTED, XNODE_RETRIEVE_FILTER_NONE, 0},
+  };
+
+  for (const auto& invalid : requests) {
+    SRetrieveTableReq input = {0};
+    tstrncpy(input.tb, invalid.table, sizeof(input.tb));
+    input.xnodeDsnOutputMode = invalid.outputMode;
+    input.xnodeRetrieveFilterType = invalid.filterType;
+    input.xnodeRetrieveFilterValue = invalid.filterValue;
+
+    EXPECT_EQ(tValidateSRetrieveTableReq(&input), TSDB_CODE_INVALID_MSG) << invalid.table;
+    // Serializing an inconsistent request fails up front, so a well-behaved sender cannot emit one.
+    EXPECT_EQ(tSerializeSRetrieveTableReq(NULL, 0, &input), TSDB_CODE_INVALID_MSG) << invalid.table;
+
+    // A hostile sender can still put one on the wire. The codec now decodes it (it no longer
+    // second-guesses the payload), so the consumer-side validation is what has to catch it.
+    int32_t size = serializeRetrieveTableReqWire(input, NULL, 0, true, true, true);
+    ASSERT_GT(size, 0);
+    std::vector<uint8_t> buf(size);
+    ASSERT_EQ(serializeRetrieveTableReqWire(input, buf.data(), size, true, true, true), size);
+    SRetrieveTableReq output = {0};
+    ASSERT_EQ(tDeserializeSRetrieveTableReq(buf.data(), size, &output), TSDB_CODE_SUCCESS) << invalid.table;
+    EXPECT_EQ(tValidateSRetrieveTableReq(&output), TSDB_CODE_INVALID_MSG) << invalid.table;
+  }
+}
+
+TEST(td_msg_test, retrieve_table_req_validate_rejects_null) {
+  EXPECT_EQ(tValidateSRetrieveTableReq(NULL), TSDB_CODE_INVALID_MSG);
 }
