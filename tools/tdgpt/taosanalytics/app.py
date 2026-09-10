@@ -12,6 +12,7 @@ from flask import Flask, request
 import taosanalytics
 from taosanalytics.conf import Configure
 from taosanalytics.handlers.anomaly import handle_anomaly
+from taosanalytics.handlers.clustering import handle_clustering
 from taosanalytics.handlers.correlation import handle_correlation
 from taosanalytics.handlers.forecast import handle_forecast
 from taosanalytics.handlers.imputation import handle_imputation
@@ -128,6 +129,13 @@ def handle_regression_req():
     """handle the regression request"""
     AppLogger.info("recv regression request from %s", request.remote_addr)
     return handle_regression(request)
+
+
+@app.route("/clustering", methods=["POST"])
+def handle_clustering_req():
+    """handle the clustering request"""
+    AppLogger.info("recv clustering request from %s", request.remote_addr)
+    return handle_clustering(request)
 
 
 # Keep both routes mapped to this handler so existing clients using the legacy endpoint continue to work, while

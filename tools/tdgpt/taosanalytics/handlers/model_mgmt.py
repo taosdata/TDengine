@@ -15,7 +15,6 @@ from taosanalytics.util import safely_remove_directory, safely_remove_file
 
 MODEL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 
-
 def _is_valid_model_name(model_name):
     # Allow a conservative filename subset and block traversal-like names.
     return (
