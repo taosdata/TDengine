@@ -6,7 +6,7 @@ from taosanalytics.algo.imputation import (
     do_set_imputation_params,
 )
 from taosanalytics.log import AppLogger
-from taosanalytics.util import do_check_before_exec, parse_options
+from taosanalytics.util import do_check_before_exec, get_algo, parse_options
 
 
 def handle_imputation(request):
@@ -30,9 +30,8 @@ def handle_imputation(request):
         AppLogger.error("invalid imputation params: %s", e)
         return {"msg": f"{e}", "rows": -1}
 
-    algo = req_json["algo"].lower() if "algo" in req_json else "moment"
-
     try:
+        algo = get_algo(req_json, "moment")
         freq = req_json["freq"] if "freq" in req_json else "1ms"
         prec = req_json["prec"] if "prec" in req_json else "ms"
         check_freq_param(payload[ts_index], freq, prec)

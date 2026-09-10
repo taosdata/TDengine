@@ -2,7 +2,7 @@
 
 from taosanalytics.algo.anomaly import do_ad_check
 from taosanalytics.log import AppLogger
-from taosanalytics.util import do_check_before_exec, parse_options
+from taosanalytics.util import do_check_before_exec, get_algo, parse_options
 
 
 def handle_anomaly(request):
@@ -24,9 +24,8 @@ def handle_anomaly(request):
         AppLogger.error("failed to do anomaly-detection, %s", str(e))
         return {"msg": str(e), "rows": -1}
 
-    algo = req_json["algo"].lower() if "algo" in req_json else "ksigma"
-
     try:
+        algo = get_algo(req_json, "ksigma")
         ts_list = payload[ts_index].copy()
         payload.pop(ts_index)
     except (IndexError, TypeError, ValueError) as e:

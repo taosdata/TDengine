@@ -17,6 +17,14 @@ from taosanalytics.log import AppLogger
 SINGLE_COLUMN_ERROR_MSG = "only one column provided, more columns are expected"
 
 
+def get_algo(json_obj, default):
+    """get and normalize the algorithm name from a request"""
+    algo = json_obj.get("algo", default)
+    if not isinstance(algo, str):
+        raise ValueError('\"algo\" must be a string')
+    return algo.lower()
+
+
 def validate_pay_load(json_obj, check_rows=True):
     """validate the input payload"""
     if "data" not in json_obj:
