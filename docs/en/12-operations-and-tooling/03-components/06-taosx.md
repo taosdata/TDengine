@@ -155,7 +155,7 @@ taosx run \
 taosx run -f 'taos:///db1?mode=all' -t 'taos:///db2' -v
 ```
 
-1. Configure data synchronization through --transform or -T (only supports synchronization between 2.6 to 3.0 and within 3.0) for operations on table names and table fields during the process. It cannot be set through Explorer yet. Configuration instructions are as follows:
+1. Configure data synchronization through `--transform` or `-T` (only supports synchronization between 2.6 to 3.0 and within 3.0) for operations on table names and table fields during the process. You can also configure supported taosExplorer Data In tasks with [Transform Actions](../../08-data-ingest-and-delivery/01-no-code-ingestion/02-migrate.md#transform-actions). The command-line configuration is as follows:
 
   ```shell
   1.AddTag, add tag to a table. Setting example: -T add-tag:<tag1>=<value1>.
