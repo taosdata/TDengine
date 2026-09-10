@@ -58,6 +58,7 @@ typedef struct SPlanContext {
   bool        topicQuery;
   bool        rSmaQuery;
   bool        showRewrite;
+  int8_t      xnodeDsnOutputMode;
   bool        isView;
   bool        isAudit;
   bool        hasScan;

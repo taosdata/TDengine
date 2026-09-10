@@ -3698,6 +3698,7 @@ enum {
   PHY_SYSTABLE_SCAN_CODE_ACCOUNT_ID,
   PHY_SYSTABLE_SCAN_CODE_SYS_INFO,
   PHY_SYSTABLE_SCAN_CODE_PRIV_INFO,
+  PHY_SYSTABLE_SCAN_CODE_XNODE_DSN_OUTPUT_MODE,
 };
 
 static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3719,6 +3720,9 @@ static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncode
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeU16(pEncoder, PHY_SYSTABLE_SCAN_CODE_PRIV_INFO, pNode->privInfo);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI8(pEncoder, PHY_SYSTABLE_SCAN_CODE_XNODE_DSN_OUTPUT_MODE, pNode->xnodeDsnOutputMode);
+  }
 
   return code;
 }
@@ -3738,6 +3742,9 @@ static int32_t msgToPhysiSysTableScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_SYSTABLE_SCAN_CODE_SHOW_REWRITE:
         code = tlvDecodeBool(pTlv, &pNode->showRewrite);
+        break;
+      case PHY_SYSTABLE_SCAN_CODE_XNODE_DSN_OUTPUT_MODE:
+        code = tlvDecodeI8(pTlv, &pNode->xnodeDsnOutputMode);
         break;
       case PHY_SYSTABLE_SCAN_CODE_ACCOUNT_ID:
         code = tlvDecodeI32(pTlv, &pNode->accountId);

@@ -4896,7 +4896,8 @@ _err:
   return NULL;
 }
 
-SNode* createShowXNodeResourcesWhereStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere) {
+SNode* createShowXNodeResourcesWhereStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType,
+                                         int8_t xnodeDsnOutputMode, SNode* pWhere) {
   CHECK_PARSER_STATUS(pCxt);
   SShowStmt* pStmt = NULL;
   ENodeType  type;
@@ -4916,12 +4917,34 @@ SNode* createShowXNodeResourcesWhereStmt(SAstCreateContext* pCxt, EXnodeResource
       goto _err;
   }
 
+  if (xnodeDsnOutputMode != XNODE_DSN_OUTPUT_DEFAULT && resourceType != XNODE_TASK && resourceType != XNODE_JOB) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "WITH ENCRYPTED is only supported for xnode tasks and jobs");
+    goto _err;
+  }
+
   pStmt = (SShowStmt*)createShowXnodeStmtWithCond(pCxt, type, pWhere);
   CHECK_MAKE_NODE(pStmt);
+  pStmt->xnodeDsnOutputMode = xnodeDsnOutputMode;
 
   return (SNode*)pStmt;
 _err:
+  nodesDestroyNode(pWhere);
   return NULL;
+}
+
+int8_t parseXnodeDsnOutputMode(SAstCreateContext* pCxt, const SToken* pMode) {
+  CHECK_PARSER_STATUS(pCxt);
+  static const char* kEncryptedMode = "encrypted";
+  if (pMode != NULL && pMode->n == (int32_t)strlen(kEncryptedMode) &&
+      strncasecmp(pMode->z, kEncryptedMode, pMode->n) == 0) {
+    return XNODE_DSN_OUTPUT_ENCRYPTED;
+  }
+
+  pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                          "Invalid xnode show output mode");
+_err:
+  return XNODE_DSN_OUTPUT_DEFAULT;
 }
 
 SNode* createShowStmtWithFull(SAstCreateContext* pCxt, ENodeType type) {
