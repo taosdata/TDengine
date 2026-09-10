@@ -4,6 +4,7 @@ from taosanalytics.algo.forecast import add_forecast_params, do_forecast
 from taosanalytics.log import AppLogger
 from taosanalytics.util import (
     do_check_before_exec,
+    get_algo,
     get_dynamic_data,
     get_past_dynamic_data,
     parse_options,
@@ -36,9 +37,8 @@ def handle_forecast(request):
         return {"msg": f"{e}", "rows": -1}
 
     # holt-winters by default
-    algo = req_json["algo"].lower() if "algo" in req_json else "holtwinters"
-
     try:
+        algo = get_algo(req_json, "holtwinters")
         res1 = do_forecast(
             payload[data_index],
             payload[ts_index],
