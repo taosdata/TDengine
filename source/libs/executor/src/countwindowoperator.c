@@ -55,6 +55,24 @@ typedef struct SCountWindowOperatorInfo {
   struct SOperatorInfo* pOperator;
 } SCountWindowOperatorInfo;
 
+// Runs from destroyOperator() before cleanupExprSupp(), so exprSupp and the window buffers are both
+// still valid. Releasing this from destroyCountWindowOperatorInfo() (the closeFn) would be too late:
+// the supp is memset by then, numOfExprs is 0, and the loop below would silently iterate nothing --
+// leaking every DISTINCT dedup set still held by an unemitted window.
+void cleanupCountWindowOperatorState(void* param) {
+  SCountWindowOperatorInfo* pInfo = (SCountWindowOperatorInfo*)param;
+  if (pInfo == NULL || pInfo->pOperator == NULL || pInfo->countSup.pWinStates == NULL) {
+    return;
+  }
+  int32_t numOfBuff = taosArrayGetSize(pInfo->countSup.pWinStates);
+  for (int32_t i = 0; i < numOfBuff; ++i) {
+    SCountWindowResult* pBuff = taosArrayGet(pInfo->countSup.pWinStates, i);
+    if (pBuff != NULL) {
+      cleanupResultRowFunctionState(&pInfo->pOperator->exprSupp, &pBuff->row);
+    }
+  }
+}
+
 void destroyCountWindowOperatorInfo(void* param) {
   SCountWindowOperatorInfo* pInfo = (SCountWindowOperatorInfo*)param;
   if (pInfo == NULL) {
@@ -247,6 +265,7 @@ void doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       pInfo->preStateIndex = pInfo->countSup.curStateIndex;
       if (!pInfo->indefRowsMode) {
         clearResultRowInitFlag(pExprSup->pCtx, pExprSup->numOfExprs);
+        cleanupResultRowFunctionState(pExprSup, pInfo->pRow);
       }
     }
     i += step;
@@ -307,6 +326,7 @@ static void buildCountResult(SOperatorInfo* pOperator, SCountWindowOperatorInfo*
     clearWinStateBuff(pBuff);
     if (!pInfo->indefRowsMode) {
       clearResultRowInitFlag(pExprSup->pCtx, pExprSup->numOfExprs);
+      cleanupResultRowFunctionState(pExprSup, pResultRow);
     }
   }
   if (!pInfo->indefRowsMode) {
@@ -453,6 +473,7 @@ static int32_t resetCountWindowOperatorState(SOperatorInfo* pOper) {
   for (int32_t i = 0; i < numOfBuff; ++i) {
     SCountWindowResult* pBuff = taosArrayGet(pCount->countSup.pWinStates, i);
     if (pBuff != NULL) {
+      cleanupResultRowFunctionState(&pOper->exprSupp, &pBuff->row);
       clearWinStateBuff(pBuff);
       memset(&pBuff->row, 0, pCount->aggSup.resultRowSize);
     }
@@ -565,6 +586,7 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, countWindowAggregateNext, NULL, destroyCountWindowOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorRowStateCleanupFn(pOperator, cleanupCountWindowOperatorState);
   setOperatorResetStateFn(pOperator, resetCountWindowOperatorState);                                    
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
