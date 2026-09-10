@@ -606,6 +606,12 @@ The configuration parameters for the connection pool are as follows:
 - **`pool.waitTimeout`**: Timeout for obtaining a connection from the pool, default is set to 60 seconds. If a connection is not obtained within the timeout period, HTTP status code 503 will be returned. This parameter is available starting from version 3.3.3.0.
 - **`pool.maxWait`**: The maximum number of requests waiting to get a connection in the pool, default is 0, which means no limit. When the number of queued requests exceeds this value, new requests will return HTTP status code 503. This parameter is available starting from version 3.3.3.0.
 
+### Query Result Set Configuration
+
+taosAdapter can automatically release query result sets that stay idle for a long time on the WebSocket interface (`/ws`), preventing result sets from being retained when a client stops fetching data, for example after a client-side query timeout.
+
+- **`queryResult.idleTimeout`**: Idle timeout for query result sets, default is 1 hour. This configuration applies to result sets created by the `query` action and by stmt/stmt2 `use_result` on the `/ws` interface. The idle timer starts from the last fetch of a result set (or from its creation if it has never been fetched) and is reset on every fetch. A result set that stays idle longer than this duration is released automatically; afterwards, fetch requests for its id fail with a "result is nil" error. Set to 0 to disable this cleanup. This configuration does not affect the RESTful interface, which returns all results within the request.
+
 ### HTTP Response Code Configuration
 
 taosAdapter uses the parameter `httpCodeServerError` to set whether to return a non-200 HTTP status code when the C interface returns an error. When set to true, it will return different HTTP status codes based on the error code returned by C. See [HTTP Response Codes](../../10-developer-guide/08-connectors-reference/10-rest-api.mdx) for details.
@@ -1311,6 +1317,7 @@ Configuration Parameters and their corresponding environment variables:
 | `pool.waitTimeout`                    | `TAOS_ADAPTER_POOL_WAIT_TIMEOUT`                      |
 | `P`, `port`                           | `TAOS_ADAPTER_PORT`                                   |
 | `prometheus.enable`                   | `TAOS_ADAPTER_PROMETHEUS_ENABLE`                      |
+| `queryResult.idleTimeout`             | `TAOS_ADAPTER_QUERY_RESULT_IDLE_TIMEOUT`              |
 | `register.description`                | `TAOS_ADAPTER_REGISTER_DESCRIPTION`                   |
 | `register.duration`                   | `TAOS_ADAPTER_REGISTER_DURATION`                      |
 | `register.expire`                     | `TAOS_ADAPTER_REGISTER_EXPIRE`                        |
