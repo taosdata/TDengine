@@ -16,6 +16,7 @@ from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 from new_test_framework.utils.common import TDCom, tdCom
 import os
 import re
+from datetime import datetime, timedelta
 from random import randrange
 import subprocess
 from tzlocal import get_localzone
@@ -41,6 +42,9 @@ class TestInterpFill:
         "qDebugFlag": 135
     }
     check_failed: bool = False
+    merge_groups = 8201
+    merge_start = 1788192000000
+    merge_start_time = datetime.fromtimestamp(merge_start / 1000)
 
     def setup_class(cls):
         tdLog.printNoPrefix("==========step1:create table")
@@ -175,6 +179,7 @@ class TestInterpFill:
         Since: v3.3.0.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2024-10-30 Jing Sima Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -199,6 +204,7 @@ class TestInterpFill:
         Since: v3.3.0.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2024-10-30 Jing Sima Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -243,6 +249,7 @@ class TestInterpFill:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2025-12-12 Tony Zhang created
 
@@ -267,6 +274,7 @@ class TestInterpFill:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2025-12-22 Tony Zhang created
 
@@ -348,6 +356,7 @@ class TestInterpFill:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2025-12-22 Tony Zhang created
 
@@ -939,6 +948,7 @@ class TestInterpFill:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2026-01-08 Tony Zhang created
 
@@ -1302,6 +1312,7 @@ class TestInterpFill:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2026-01-12 Tony Zhang created
 
@@ -1594,6 +1605,235 @@ class TestInterpFill:
 
         tdSql.execute("drop database interp_tbname_scan")
 
+    def do_merge_prepare(self):
+        tdSql.prepare("interp_merge_resblock", drop=True, vgroups=2)
+        tdSql.execute(
+            "create stable meters(ts timestamp, current int, voltage int) "
+            "tags(t int)"
+        )
+        for start in range(0, self.merge_groups, 100):
+            tables = []
+            for i in range(start, min(start + 100, self.merge_groups)):
+                current = "null" if i % 7 == 0 else str(i)
+                voltage = "null" if i % 3 == 0 else str(i * 10)
+                tables.append(
+                    f"d{i} using meters tags({i}) values"
+                    f"({self.merge_start},{current},{voltage})"
+                    f"({self.merge_start + 2000},{i + 4},{i * 10 + 20})"
+                )
+            tdSql.execute("insert into " + " ".join(tables))
+
+    def merge_point_sql(self, mode):
+        return (
+            "select _irowts,tbname,interp(current),interp(voltage) "
+            "from meters partition by tbname "
+            f"range({self.merge_start + 1000}) fill({mode})"
+        )
+
+    def check_interp_merge_flag(self, sql, expected):
+        tdSql.query("explain verbose true " + sql)
+        interp = False
+        flags = []
+        for row in tdSql.queryResult:
+            line = row[0]
+            if "-> " in line:
+                interp = "-> Interp " in line
+            elif interp and "Merge ResBlocks:" in line:
+                flags.append("True" in line)
+        assert flags and all(flag == expected for flag in flags), (
+            sql, tdSql.queryResult
+        )
+
+    def do_merge_point_results(self):
+        for mode in ("prev", "next", "linear", "null", "value,17,23"):
+            sql = self.merge_point_sql(mode)
+            self.check_interp_merge_flag(sql, True)
+            tdSql.query(sql)
+            tdSql.checkRows(self.merge_groups)
+            seen = set()
+            for ts, name, current, voltage in tdSql.queryResult:
+                i = int(name[1:])
+                assert i not in seen
+                seen.add(i)
+                assert ts == self.merge_start_time + timedelta(seconds=1)
+                if mode == "next":
+                    expected = (i + 4, i * 10 + 20)
+                elif mode == "null":
+                    expected = (None, None)
+                elif mode == "value,17,23":
+                    expected = (17, 23)
+                else:
+                    delta = 2 if mode == "linear" else 0
+                    expected = (
+                        None if i % 7 == 0 else i + delta,
+                        None if i % 3 == 0 else i * 10 + delta * 5,
+                    )
+                assert (current, voltage) == expected, (mode, name)
+            assert seen == set(range(self.merge_groups))
+        tdLog.info("interp merged point results ................ [passed]")
+
+    def do_merge_block_count(self):
+        tdSql.query(
+            "explain analyze verbose true " + self.merge_point_sql("prev")
+        )
+        plan = [row[0] for row in tdSql.queryResult]
+        assert "-> Data Exchange" in plan[0], plan
+        exchange_cost = next(line for line in plan if "Exec cost:" in line)
+        calls = float(re.search(r"times=([\d.]+)", exchange_cost)[1])
+        assert calls < self.merge_groups / 100, plan
+        tdLog.info("interp merged exchange block count .......... [passed]")
+
+    def do_merge_range_and_tail(self):
+        sql = (
+            "select _irowts,tbname,interp(current) from meters "
+            "partition by tbname "
+            f"range({self.merge_start},{self.merge_start + 3000}) "
+            "every(1s) fill(prev) order by tbname,_irowts"
+        )
+        self.check_interp_merge_flag(sql, True)
+        tdSql.query(sql)
+        tdSql.checkRows(self.merge_groups * 4)
+        expected_names = sorted(f"d{i}" for i in range(self.merge_groups))
+        for group, name in enumerate(expected_names):
+            i = int(name[1:])
+            for step in range(4):
+                ts, actual_name, value = tdSql.queryResult[group * 4 + step]
+                assert actual_name == name
+                assert ts == self.merge_start_time + timedelta(seconds=step)
+                expected = i + 4 if step >= 2 else (
+                    None if i % 7 == 0 else i
+                )
+                assert value == expected, (name, step, value)
+
+        tdSql.query(
+            "select _irowts,interp(current) from d1 "
+            f"range({self.merge_start},{self.merge_start + 10000}) "
+            "every(1a) fill(prev)"
+        )
+        tdSql.checkRows(10001)
+        for index, (ts, value) in enumerate(tdSql.queryResult):
+            assert ts == self.merge_start_time + timedelta(milliseconds=index)
+            assert value == (1 if index < 2000 else 5)
+        tdLog.info("interp range, large group and tail .......... [passed]")
+
+    def do_merge_consumer_requirements(self):
+        sql = self.merge_point_sql("prev")
+        for suffix in (" limit 1", " slimit 2", " limit 1 offset 1"):
+            self.check_interp_merge_flag(sql + suffix, False)
+
+        inner = (
+            "select _irowts as ts,tbname as name,interp(current) as v "
+            "from meters partition by tbname "
+            f"range({self.merge_start + 1000}) fill(prev)"
+        )
+        aggregate = f"select count(*),sum(v) from ({inner})"
+        self.check_interp_merge_flag(aggregate, False)
+        tdSql.query(aggregate)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, self.merge_groups)
+        tdSql.checkData(0, 1, sum(i for i in range(self.merge_groups) if i % 7))
+
+        for predicate in ("v > 8180", "v < 0"):
+            filtered = f"select * from ({inner}) where {predicate}"
+            self.check_interp_merge_flag(filtered, True)
+            tdSql.query(filtered)
+            expected = [i for i in range(8181, self.merge_groups) if i % 7]
+            if predicate == "v < 0":
+                expected = []
+            assert sorted(row[2] for row in tdSql.queryResult) == expected
+
+        inner = (
+            "select _irowts as ts,tbname as name,interp(current) as v "
+            "from meters where t in (1,2) partition by tbname "
+            f"range({self.merge_start},{self.merge_start + 2000}) "
+            "every(1s) fill(prev)"
+        )
+        diff = f"select name,diff(v) from ({inner}) partition by name"
+        self.check_interp_merge_flag(diff, False)
+        tdSql.query(diff)
+        assert sorted(tdSql.queryResult) == [
+            ("d1", 0), ("d1", 4), ("d2", 0), ("d2", 4)
+        ]
+        interval = (
+            f"select name,_wstart,count(*) from ({inner}) "
+            "partition by name interval(1s)"
+        )
+        self.check_interp_merge_flag(interval, False)
+        tdSql.query(interval)
+        expected = [
+            (name, self.merge_start_time + timedelta(seconds=step), 1)
+            for name in ("d1", "d2") for step in range(3)
+        ]
+        assert sorted(tdSql.queryResult) == expected
+        tdLog.info("interp consumer requirements and filtering .. [passed]")
+
+    def do_merge_dense_input(self):
+        tdSql.execute(
+            "create stable dense_meters(ts timestamp, v int) tags(t int)"
+        )
+        counts = (1, 10001, 10001)
+        for group, count in enumerate(counts):
+            for start in range(0, count, 500):
+                values = "".join(
+                    f"({self.merge_start + i},{group * 20000 + i})"
+                    for i in range(start, min(start + 500, count))
+                )
+                tdSql.execute(
+                    f"insert into m{group} using dense_meters "
+                    f"tags({group}) values {values}"
+                )
+
+        sql = (
+            "select _irowts,tbname,interp(v) from dense_meters "
+            "partition by tbname "
+            f"range({self.merge_start},{self.merge_start + 10000}) "
+            "every(1a) fill(next)"
+        )
+        self.check_interp_merge_flag(sql, True)
+        tdSql.query(sql)
+        tdSql.checkRows(sum(counts))
+        expected = [
+            (self.merge_start_time + timedelta(milliseconds=i), f"m{group}",
+             group * 20000 + i)
+            for group, count in enumerate(counts) for i in range(count)
+        ]
+        assert sorted(tdSql.queryResult) == sorted(expected)
+
+        ordered = sql + " order by _irowts desc,tbname"
+        self.check_interp_merge_flag(ordered, True)
+        tdSql.query(ordered)
+        expected.sort(key=lambda row: row[1])
+        expected.sort(key=lambda row: row[0], reverse=True)
+        assert tdSql.queryResult == expected
+        tdLog.info("interp dense input, group switch and order .. [passed]")
+
+    def test_interp_merge_resblock(self):
+        """Interp: merge result blocks across independent groups
+
+        1. Check values, NULLs and group keys across merged blocks
+        2. Check Exchange calls, multiple points and the final partial block
+        3. Preserve consumer grouping requirements and filtered results
+        4. Resume dense input across blocks and preserve global sorting
+
+        Catalog:
+            - Query
+
+        Since: v3.4.2.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-09 Add interpolation result block merge coverage
+        """
+        self.do_merge_prepare()
+        self.do_merge_point_results()
+        self.do_merge_block_count()
+        self.do_merge_range_and_tail()
+        self.do_merge_consumer_requirements()
+        self.do_merge_dense_input()
+
     #
     # ------------------- extend ----------------
     #
@@ -1723,6 +1963,7 @@ class TestInterpFill:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -2123,6 +2364,7 @@ class TestInterpFill:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2026-01-19 Tony Zhang created
 
@@ -2148,6 +2390,7 @@ class TestInterpFill:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2026-01-19 Tony Zhang created
 
@@ -2257,6 +2500,7 @@ class TestInterpFill:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2026-01-19 Tony Zhang created
 
