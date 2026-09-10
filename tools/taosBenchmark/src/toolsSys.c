@@ -25,15 +25,6 @@
 
 #include <toolsdef.h>
 
-int64_t atomic_add_fetch_64(int64_t volatile* ptr, int64_t val) {
-#ifdef WINDOWS
-    return InterlockedExchangeAdd64((int64_t volatile*)(ptr), (int64_t)(val)) + (int64_t)(val);
-#elif defined(_TD_NINGSI_60)
-    return __sync_add_and_fetch((ptr), (val));
-#else
-    return __atomic_add_fetch((ptr), (val), __ATOMIC_SEQ_CST);
-#endif
-}
 
 FORCE_INLINE int32_t toolsGetNumberOfCores() {
 #ifdef WINDOWS
