@@ -151,7 +151,7 @@ taosx run \
 taosx run -f 'taos:///db1?mode=all' -t 'taos:///db2' -v
 ```
 
-5. 通过 --transform 或 -T 配置数据同步（仅支持 2.6 到 3.0 以及 3.0 之间同步）过程中对于表名及表字段的一些操作。暂无法通过 taosExplorer 进行设置。配置说明如下：
+5. 通过 `--transform` 或 `-T` 配置数据同步（仅支持 2.6 到 3.0 以及 3.0 之间同步）过程中对于表名及表字段的一些操作。创建或编辑支持的 taosExplorer 数据写入任务时，也可通过[转换参数](../../08-data-ingest-and-delivery/01-no-code-ingestion/02-migrate.md#转换参数)进行配置。命令行配置说明如下：
 
   ```shell
   1.AddTag，为表添加 TAG。设置示例：-T add-tag:<tag1>=<value1>。
