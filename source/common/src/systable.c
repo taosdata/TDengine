@@ -805,6 +805,8 @@ static const SSysDbTableSchema xnodesSchema[] = {
 };
 
 /** Migrate task table from old taosx */
+/** NOTE: "id" is column 1 (TSDB_INS_XNODE_TASKS_ID_COLID) and the executor recognizes equality
+ *  filters on it by that id -- do not insert columns ahead of it without updating tdef.h. */
 static const SSysDbTableSchema xnodeTasksSchema[] = {
     {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "name", .bytes = TSDB_XNODE_TASK_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
@@ -822,6 +824,8 @@ static const SSysDbTableSchema xnodeTasksSchema[] = {
     {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
 };
 /** For xnode task slices, one task may have multiple slices. */
+/** NOTE: "task_id" is column 2 (TSDB_INS_XNODE_JOBS_TASKID_COLID) and the executor recognizes
+ *  equality filters on it by that id -- do not insert columns ahead of it without updating tdef.h. */
 static const SSysDbTableSchema xnodeTaskJobSchema[] = {
     {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "task_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
@@ -1113,4 +1117,65 @@ const SSysTableMeta* getSysTableMeta(const char* dbName, const char* tbName) {
     }
   }
   return NULL;
+}
+
+/**
+ * Validate the xnode retrieve options against the system table being retrieved.
+ *
+ * Lives here rather than in the message codec because the rules are derived from the schemas
+ * declared above: only [xnodeTasksSchema] and [xnodeTaskJobSchema] expose an encryptable DSN,
+ * and each accepts only the filter that matches its own key column.
+ *
+ * Note this deliberately does NOT require the fields to be present on the wire -- a sender that
+ * predates them decodes to DEFAULT/NONE/0, which this function accepts for every table.
+ */
+int32_t tValidateSRetrieveTableReq(const SRetrieveTableReq* pReq) {
+  if (pReq == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  const bool isTasks = strcasecmp(pReq->tb, TSDB_INS_TABLE_XNODE_TASKS) == 0;
+  const bool isJobs = strcasecmp(pReq->tb, TSDB_INS_TABLE_XNODE_JOBS) == 0;
+  const bool isXnode = isTasks || isJobs || strcasecmp(pReq->tb, TSDB_INS_TABLE_XNODES) == 0 ||
+                       strcasecmp(pReq->tb, TSDB_INS_TABLE_XNODE_AGENTS) == 0;
+
+  if (pReq->xnodeDsnOutputMode != XNODE_DSN_OUTPUT_DEFAULT &&
+      pReq->xnodeDsnOutputMode != XNODE_DSN_OUTPUT_ENCRYPTED) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (pReq->xnodeRetrieveFilterType != XNODE_RETRIEVE_FILTER_NONE &&
+      pReq->xnodeRetrieveFilterType != XNODE_RETRIEVE_FILTER_ID_EQ &&
+      pReq->xnodeRetrieveFilterType != XNODE_RETRIEVE_FILTER_TASK_ID_EQ) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (pReq->xnodeRetrieveFilterType == XNODE_RETRIEVE_FILTER_NONE) {
+    if (pReq->xnodeRetrieveFilterValue != 0) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+  } else if (pReq->xnodeRetrieveFilterValue < 0 || pReq->xnodeRetrieveFilterValue > INT32_MAX) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  if (!isXnode) {
+    return (pReq->xnodeDsnOutputMode == XNODE_DSN_OUTPUT_DEFAULT &&
+            pReq->xnodeRetrieveFilterType == XNODE_RETRIEVE_FILTER_NONE &&
+            pReq->xnodeRetrieveFilterValue == 0)
+               ? TSDB_CODE_SUCCESS
+               : TSDB_CODE_INVALID_MSG;
+  }
+  if (pReq->xnodeDsnOutputMode == XNODE_DSN_OUTPUT_ENCRYPTED && !isTasks && !isJobs) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (isTasks && pReq->xnodeRetrieveFilterType != XNODE_RETRIEVE_FILTER_NONE &&
+      pReq->xnodeRetrieveFilterType != XNODE_RETRIEVE_FILTER_ID_EQ) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (isJobs && pReq->xnodeRetrieveFilterType != XNODE_RETRIEVE_FILTER_NONE &&
+      pReq->xnodeRetrieveFilterType != XNODE_RETRIEVE_FILTER_TASK_ID_EQ) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (!isTasks && !isJobs && pReq->xnodeRetrieveFilterType != XNODE_RETRIEVE_FILTER_NONE) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  return TSDB_CODE_SUCCESS;
 }

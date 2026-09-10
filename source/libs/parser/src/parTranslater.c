@@ -38344,6 +38344,7 @@ static int32_t rewriteShowXnodeStmt(STranslateContext* pCxt, SQuery* pQuery) {
     }
     pCxt->showRewrite = true;
     pQuery->showRewrite = true;
+    pQuery->xnodeDsnOutputMode = pShow->xnodeDsnOutputMode;
     nodesDestroyNode(pQuery->pRoot);
     pQuery->pRoot = (SNode*)pSelect;
   } else {

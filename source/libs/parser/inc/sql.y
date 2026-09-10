@@ -753,6 +753,11 @@ cmd ::= DRAIN XNODE NK_INTEGER(A).                                              
 %destructor xnode_resource_type                                                   { }
 xnode_resource_type(A) ::= NK_ID(B).                                              { A = setXnodeResourceType(pCxt, &B); }
 
+%type xnode_dsn_output_opt                                                        { int8_t }
+%destructor xnode_dsn_output_opt                                                  { }
+xnode_dsn_output_opt(A) ::= .                                                     { A = XNODE_DSN_OUTPUT_DEFAULT; }
+xnode_dsn_output_opt(A) ::= WITH NK_ID(B).                                        { A = parseXnodeDsnOutputMode(pCxt, &B); }
+
 /* create xnode agent 'a1' */
 cmd ::= CREATE XNODE xnode_resource_type(A) NK_STRING(B) with_task_options_opt(E).
                                                                                   { pCxt->pRootNode = createXnodeTaskWithOptions(pCxt, A, &B, NULL, NULL, E); }
@@ -793,7 +798,8 @@ cmd ::= SHOW XNODES where_clause_opt(B).                                        
 /* show xnode tasks; or show xnode tasks where ...*/
 /* show xnode agents; show xnode agents where ... */
 /* show xnode jobs; show xnode jobs where ... */
-cmd ::= SHOW XNODE xnode_resource_type(A) where_clause_opt(B).                    { pCxt->pRootNode = createShowXNodeResourcesWhereStmt(pCxt, A, B); }
+cmd ::= SHOW XNODE xnode_resource_type(A) xnode_dsn_output_opt(B) where_clause_opt(C).
+                                                                                  { pCxt->pRootNode = createShowXNodeResourcesWhereStmt(pCxt, A, B, C); }
 
 /************************************************ create/drop/alter/restore dnode *********************************************/
 cmd ::= CREATE DNODE dnode_endpoint(A).                                           { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, NULL); }
