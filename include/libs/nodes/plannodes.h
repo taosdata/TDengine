@@ -117,6 +117,7 @@ typedef struct SScanLogicNode {
   SNode*             pPrimaryCond;   // for remote node, splited from filter conditions
   SName              tableName;
   bool               showRewrite;
+  int8_t             xnodeDsnOutputMode;
   double             ratio;
   SNodeList*         pDynamicScanFuncs;
   int32_t            dataRequired;
@@ -730,6 +731,7 @@ typedef struct SSystemTableScanPhysiNode {
   SEpSet         mgmtEpSet;
   int32_t        accountId;
   bool           showRewrite;
+  int8_t         xnodeDsnOutputMode;
   bool           sysInfo;
   union {
     uint16_t privInfo;

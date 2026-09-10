@@ -559,6 +559,7 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
   tstrncpy(pScan->tableName.dbname, pRealTable->table.dbName, TSDB_DB_NAME_LEN);
   tstrncpy(pScan->tableName.tname, pRealTable->table.tableName, TSDB_TABLE_NAME_LEN);
   pScan->showRewrite = pCxt->pPlanCxt->showRewrite;
+  pScan->xnodeDsnOutputMode = pCxt->pPlanCxt->xnodeDsnOutputMode;
   pScan->ratio = pRealTable->ratio;
   pScan->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD;
   pScan->cacheLastMode = pRealTable->cacheLastMode;
@@ -631,6 +632,7 @@ static int32_t createExternalScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
 
   pScan->scanSeq[0] = pSelect->hasRepeatScanFuncs ? 2 : 1;
   pScan->showRewrite = pCxt->pPlanCxt->showRewrite;
+  pScan->xnodeDsnOutputMode = pCxt->pPlanCxt->xnodeDsnOutputMode;
   pScan->placeholderType = pRealTable->placeholderType;
 
   // Collect all columns referenced in this table alias (no tag/pseudo split for external)
@@ -3159,6 +3161,7 @@ static int32_t createTagScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   tstrncpy(pScan->tableName.dbname, pVirtualScan->tableName.dbname, TSDB_DB_NAME_LEN);
   tstrncpy(pScan->tableName.tname, pVirtualScan->tableName.tname, TSDB_TABLE_NAME_LEN);
   pScan->showRewrite = pCxt->pPlanCxt->showRewrite;
+  pScan->xnodeDsnOutputMode = pCxt->pPlanCxt->xnodeDsnOutputMode;
   pScan->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD;
   pScan->node.groupAction = GROUP_ACTION_NONE;
   pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
