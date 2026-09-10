@@ -555,7 +555,7 @@ function capture_full_gcda_coverage() {
 
     local lcov_dir_args=()
     local rel=""
-    for rel in community/source community/tools community/utils source; do
+    for rel in community/source community/tools community/utils; do
         if [ -d "${gcda_dir}/${rel}" ] && find "${gcda_dir}/${rel}" -name '*.gcda' -print -quit 2>/dev/null | grep -q .; then
             lcov_dir_args+=("-d" "${rel}")
         fi
@@ -733,6 +733,11 @@ function lcovFunc {
         ((exclude_count++))
         echo "处理排除模式 $exclude_count: *.cpp (排除所有 C++ 文件)"
 
+        # Align with 3.0: embedded build collects enterprise plugins, but Coveralls scope is community-only.
+        exclude_patterns="$exclude_patterns '*/source/plugins/*' '*source/plugins/*'"
+        ((exclude_count++))
+        echo "处理排除模式 $exclude_count: source/plugins/* (排除 enterprise 插件)"
+
         if [ -n "$exclude_patterns" ]; then
             # 使用 lcov --remove 排除指定的文件
             # echo "执行排除过滤..."
@@ -786,7 +791,6 @@ function lcovFunc {
     
     # 修正路径以确保与 TDengine 仓库根目录匹配
     sed -i "s|SF:/home/TDinternal/community/|SF:|g" $TDENGINE_DIR/coverage_tdengine.info
-    sed -i "s|SF:/home/TDinternal/source/|SF:../source/|g" $TDENGINE_DIR/coverage_tdengine.info
 
     # 文件检查
     echo "=== 文件检查 ==="

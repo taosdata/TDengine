@@ -113,7 +113,7 @@ for debug_entry in "${DEBUG_DIRS[@]}"; do
 
     # Product-code dirs equivalent to main's "lcov -d .", but skip contrib/externals.
     LCOV_DIR_ARGS=()
-    for rel in community/source community/tools community/utils source; do
+    for rel in community/source community/tools community/utils; do
         if [ ! -d "${DEBUG_PATH}/${rel}" ]; then
             continue
         fi
