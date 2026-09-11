@@ -33,6 +33,7 @@ class Test_IDMP_Meters:
         Since: v3.3.7.0
 
         Labels: common,ci,integration,functional
+        
         Jira: None
 
         History:
@@ -327,6 +328,8 @@ class Test_IDMP_Meters:
         print("writeTriggerDataAgain ...")
         # stream4
         self.trigger_stream4_again()
+        # stream5
+        self.trigger_stream5_again()
         # stream6
         self.trigger_stream6_again()
         # stream7
@@ -344,6 +347,8 @@ class Test_IDMP_Meters:
 
         # stream4
         self.verify_stream4_again()
+        # stream5
+        self.verify_stream5_again()
         # stream6
         self.verify_stream6_again()
         # stream7
@@ -370,6 +375,7 @@ class Test_IDMP_Meters:
     #
     # trigger
     def triggerC_all(self):
+        self.triggerC_stream5()
         self.triggerC_stream6()
         self.triggerC_stream7()
 
@@ -378,6 +384,8 @@ class Test_IDMP_Meters:
         print("wait 2s ...")
         time.sleep(2)
         print("verify C results ...")
+        # stream5
+        self.verifyC_stream5()
 
         # stream6
         self.verifyC_stream6()
@@ -623,7 +631,7 @@ class Test_IDMP_Meters:
         ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
         # save span ts
-        spanTs = ts
+        self.stream5_spanTs = ts
 
         # blank 30 triggered
         ts += 30 * step
@@ -633,21 +641,35 @@ class Test_IDMP_Meters:
         vals = "40,500,300"
         ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
-        time.sleep(5)
+    #
+    #  stream5 trigger again1
+    #
+    def trigger_stream5_again(self):
+        table = "asset01.`em-5`"
+        step = 1 * 60 * 1000  # 1 minute
+        cols = "ts,current,voltage,power"
+
         # disorder write 2 rows from spanTs
         count = 2
-        disTs = spanTs + 3 * step
+        disTs = self.stream5_spanTs + 3 * step
         orderVals = [36, 406, 206]
-        disTs = tdSql.insertOrderVal(table, disTs, step, count, cols, orderVals)
+        self.stream5_disTs = tdSql.insertOrderVal(table, disTs, step, count, cols, orderVals)
 
         # blank 12
-        disTs += 12 * step
+        self.stream5_disTs += 12 * step
 
-        time.sleep(5)
+    #
+    #  stream5 triggerC
+    #
+    def triggerC_stream5(self):
+        table = "asset01.`em-5`"
+        step = 1 * 60 * 1000  # 1 minute
+        cols = "ts,current,voltage,power"
+
         # disorder write 1 rows
         count = 2
         vals = "39,200,200"
-        disTs = tdSql.insertFixedVal(table, disTs, step, count, cols, vals)
+        self.stream5_disTs = tdSql.insertFixedVal(table, self.stream5_disTs, step, count, cols, vals)
 
     #
     #  stream6 trigger
@@ -1225,6 +1247,38 @@ class Test_IDMP_Meters:
         )
         print("verify stream5 ................................. successfully.")
 
+    #
+    # verify stream5 again
+    #
+    def verify_stream5_again(self):
+        # result_stream5
+        sql = "select * from tdasset.`result_stream5`"
+        data = [
+            # ts, cnt, last current
+            [1752574200000, 6, 32]
+        ]
+        tdSql.checkResultsByFunc (
+            sql  = sql,
+            func = lambda: tdSql.getRows() == len(data)
+        )
+        tdSql.checkDataMemLoop(sql, data)
+
+        # result_stream5_sub1
+        sql = "select * from tdasset.`result_stream5_sub1`"
+        data = [
+            # ts, cnt, last current
+            [1752574200000, 8, 37]
+        ]
+        tdSql.checkResultsByFunc (
+            sql  = sql,
+            func = lambda: tdSql.getRows() == len(data)
+        )
+        tdSql.checkDataMemLoop(sql, data)
+
+    #
+    # verify stream5 again
+    #
+    def verifyC_stream5(self):
         # sub
         self.verify_stream5_sub1()
         self.verify_stream5_sub2()
