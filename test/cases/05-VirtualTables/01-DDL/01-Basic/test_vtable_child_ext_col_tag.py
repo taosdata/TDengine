@@ -14,6 +14,7 @@ from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes
 import pytest
 
 DB = "test_vct_ext"
+COL_ALREADY_EXISTS = 0x0525
 
 # Test-first cases for: ALTER VTABLE <vchild> ADD COLUMN ... FROM ... / ADD TAG
 # Own (extended) columns/tags live only on the virtual child table, not on the
@@ -761,14 +762,14 @@ class TestVtableChildExtColTag:
         tdSql.execute("alter vtable vctb9 set tag ext_city = 'beijing';")
 
         # 1. vstb add column/tag with a name used by vctb9's own column/tag must fail
-        tdSql.error("alter stable vstb3 add column ext_ev bigint;")
-        tdSql.error("alter stable vstb3 add column ext_city int;")
-        tdSql.error("alter stable vstb3 add tag ext_city int;")
-        tdSql.error("alter stable vstb3 add tag ext_ev int;")
+        tdSql.error("alter stable vstb3 add column ext_ev bigint;", expectedErrno=COL_ALREADY_EXISTS)
+        tdSql.error("alter stable vstb3 add column ext_city int;", expectedErrno=COL_ALREADY_EXISTS)
+        tdSql.error("alter stable vstb3 add tag ext_city int;", expectedErrno=COL_ALREADY_EXISTS)
+        tdSql.error("alter stable vstb3 add tag ext_ev int;", expectedErrno=COL_ALREADY_EXISTS)
 
         # 2. vstb rename column/tag into an own name must fail
-        tdSql.error("alter stable vstb3 rename column v ext_ev;")
-        tdSql.error("alter stable vstb3 rename tag loc ext_city;")
+        tdSql.error("alter stable vstb3 rename column v ext_ev;", expectedErrno=COL_ALREADY_EXISTS)
+        tdSql.error("alter stable vstb3 rename tag loc ext_city;", expectedErrno=COL_ALREADY_EXISTS)
 
         # 3. the failed stb alters above must leave the own schema intact
         #    (no half-applied stb schema, own column/tag still queryable)
@@ -829,11 +830,17 @@ class TestVtableChildExtColTag:
 
         # 1. in-txn ADD COLUMN / ADD TAG / RENAME claiming an own name must be
         #    rejected by the precheck (not deferred to commit)
-        tdSql.execute("BEGIN")
-        tdSql.error("alter stable vstb4 add column ext_ev bigint;")
-        tdSql.error("alter stable vstb4 add tag ext_city int;")
-        tdSql.error("alter stable vstb4 rename tag loc ext_city;")
-        tdSql.execute("ROLLBACK")
+        for sql in [
+            "alter stable vstb4 add column ext_ev bigint;",
+            "alter stable vstb4 add tag ext_city int;",
+            "alter stable vstb4 rename column v ext_ev;",
+            "alter stable vstb4 rename tag loc ext_city;",
+        ]:
+            tdSql.execute("BEGIN")
+            try:
+                tdSql.error(sql, expectedErrno=COL_ALREADY_EXISTS)
+            finally:
+                tdSql.execute("ROLLBACK")
 
         # 2. a valid in-txn alter (no conflict) still works end to end
         tdSql.execute("BEGIN")
@@ -1483,9 +1490,9 @@ class TestVtableChildExtColTag:
     def test_vct_ext_stb_name_conflicts_in_txn(self):
         """VChildExtColTag: vstb alter name conflicts inside a batch meta txn
 
-        In-txn (txnId != 0) ALTER STABLE ADD COLUMN/ADD TAG/RENAME TAG claiming a
-        vchild own member name is rejected by the precheck before the shadow op is
-        recorded; no shadow residue is left and valid in-txn alters still work.
+        In-txn (txnId != 0) ALTER STABLE ADD COLUMN/ADD TAG/RENAME COLUMN/RENAME TAG
+        claiming a vchild own member name is rejected with a name-conflict error.
+        After rollback, valid in-txn alters still work.
 
         Catalog:
             - VirtualTable

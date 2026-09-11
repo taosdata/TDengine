@@ -2913,6 +2913,28 @@ TEST(StreamFetchGroupProjectionTest, FetchRoundTripKeepsLineageSplitEntriesPerGi
   tDestroyStRtFuncInfo(&runtime);
 }
 
+template <typename MeasureCpuTicks>
+void expectLinearProjectionScaling(MeasureCpuTicks measureCpuTicks) {
+  constexpr int32_t kSmallCount = 4096;
+  constexpr int32_t kLargeCount = 8192;
+  std::array<double, 5> smallTicks = {};
+  std::array<double, 5> largeTicks = {};
+
+  // Warm both sizes, then use paired samples to limit allocator and CI load noise.
+  measureCpuTicks(kSmallCount);
+  measureCpuTicks(kLargeCount);
+  for (size_t i = 0; i < smallTicks.size(); ++i) {
+    smallTicks[i] = measureCpuTicks(kSmallCount);
+    largeTicks[i] = measureCpuTicks(kLargeCount);
+  }
+  std::sort(smallTicks.begin(), smallTicks.end());
+  std::sort(largeTicks.begin(), largeTicks.end());
+  const double small = smallTicks[smallTicks.size() / 2];
+  const double large = largeTicks[largeTicks.size() / 2];
+  ASSERT_GT(small, 0);
+  EXPECT_LT(large, small * 3.25);
+}
+
 TEST(StreamFetchGroupProjectionTest, ActualNodeProjectionScalesLinearly) {
   const auto measureCpuTicks = [](int32_t paramCount) {
     SStreamRuntimeFuncInfo  runtime = makeDenseActualNodeMultiGroupFetchRuntime(paramCount);
@@ -2927,10 +2949,7 @@ TEST(StreamFetchGroupProjectionTest, ActualNodeProjectionScalesLinearly) {
     return elapsed;
   };
 
-  const double small = measureCpuTicks(4096);
-  const double large = measureCpuTicks(8192);
-  ASSERT_GT(small, 0);
-  EXPECT_LT(large, small * 3.25);
+  expectLinearProjectionScaling(measureCpuTicks);
 }
 
 TEST(StreamFetchGroupProjectionTest, GroupParamLookupScalesLinearly) {
@@ -2948,10 +2967,7 @@ TEST(StreamFetchGroupProjectionTest, GroupParamLookupScalesLinearly) {
     return elapsed;
   };
 
-  const double small = measureCpuTicks(4096);
-  const double large = measureCpuTicks(8192);
-  ASSERT_GT(small, 0);
-  EXPECT_LT(large, small * 3.25);
+  expectLinearProjectionScaling(measureCpuTicks);
 }
 
 TEST(StreamFetchGroupProjectionTest, AllGroupsBuildsIndependentAdmittedViews) {
@@ -3005,10 +3021,7 @@ TEST(StreamFetchGroupProjectionTest, AllGroupsProjectionScalesLinearly) {
     return elapsed;
   };
 
-  const double small = measureCpuTicks(4096);
-  const double large = measureCpuTicks(8192);
-  ASSERT_GT(small, 0);
-  EXPECT_LT(large, small * 3.25);
+  expectLinearProjectionScaling(measureCpuTicks);
 }
 
 TEST(StreamFetchGroupProjectionTest, FetchRejectsMissingCalcForAnyNodeRead) {

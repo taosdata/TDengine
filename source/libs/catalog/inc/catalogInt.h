@@ -336,7 +336,6 @@ typedef struct SCtgVStbRefDbsCtx {
   int32_t         resDoneNum;
   SArray*         pSubTablesList; // first-hop vnode rsp, SArray<SVSubTablesRsp>
   SArray*         pLayerRefs;     // current resolving layer refs, SArray<SCtgVStbLayerRef>
-  SArray*         pColRefs;       // current resolving column refs, SArray<SColRef>
   SArray*         pLayerReqs;     // current layer batch-meta reqs, SArray<STablesReq>
   SHashObj*       pFinalDbs;      // referenced db set across all resolved layers, key/value is db name
   SHashObj*       pFinalExtSources;  // referenced external source set across all resolved layers, key is source name
@@ -344,6 +343,7 @@ typedef struct SCtgVStbRefDbsCtx {
   int32_t         resIdx;
   int32_t         numOfColRefs;
   SRefColInfo*    pColRefCols;
+  SColRef*        pResolvedColRefs;
   // Synthesized tag ref info from first child table
   int32_t         numOfTagRefs;
   SRefColInfo*    pTagRefCols;

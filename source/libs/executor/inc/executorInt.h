@@ -272,7 +272,7 @@ typedef struct SExchangeInfo {
 // ---------------------------------------------------------------------------
 
 // Separators and decimal forms of all fixed-width fields in the cache key.
-#define FED_SCAN_TABLE_KEY_SUFFIX_LEN 192
+#define FED_SCAN_TABLE_KEY_SUFFIX_LEN 256
 #define FED_SCAN_TABLE_KEY_LEN \
   (TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + \
    FED_SCAN_TABLE_KEY_SUFFIX_LEN)

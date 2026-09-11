@@ -14,12 +14,15 @@
  */
 
 #include "cmdnodes.h"
+#include "decimal.h"
+#include "extTypeMap.h"
 #include "functionMgt.h"
 #include "nodes.h"
 #include "nodesUtil.h"
 #include "ttime.h"
 #include "osMemory.h"
 #include "plannodes.h"
+#include "query.h"
 #include "querynodes.h"
 #include "taos.h"
 #include "taoserror.h"
@@ -29,6 +32,7 @@
 #include "thash.h"
 #include "tmsg.h"
 #include "tref.h"
+#include "tutil.h"
 
 typedef struct SNodeMemChunk {
   int32_t               availableSize;
@@ -1523,7 +1527,9 @@ static void destroyTableCfg(STableCfg* pCfg) {
   taosMemoryFree(pCfg->pComment);
   taosMemoryFree(pCfg->pSchemas);
   taosMemoryFree(pCfg->pSchemaExt);
+  queryFreeColRefTagConds(pCfg->pColRefs, pCfg->numOfColumns);
   taosMemoryFree(pCfg->pColRefs);
+  queryFreeColRefTagConds(pCfg->pTagRefs, pCfg->numOfTagRefs);
   taosMemoryFree(pCfg->pTagRefs);
   taosMemoryFree(pCfg->pTags);
   taosMemoryFree(pCfg);
@@ -1675,7 +1681,8 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_REAL_TABLE: {
       SRealTableNode* pReal = (SRealTableNode*)pNode;
-      taosMemoryFreeClear(pReal->pMeta);
+      queryFreeTableMeta(pReal->pMeta);
+      pReal->pMeta = NULL;
       taosMemoryFreeClear(pReal->pVgroupList);
       taosArrayDestroyEx(pReal->pSmaIndexes, destroySmaIndex);
       taosArrayDestroyP(pReal->tsmaTargetTbVgInfo, NULL);
@@ -1685,7 +1692,8 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_VIRTUAL_TABLE: {
       SVirtualTableNode* pVirtual = (SVirtualTableNode*)pNode;
-      taosMemoryFreeClear(pVirtual->pMeta);
+      queryFreeTableMeta(pVirtual->pMeta);
+      pVirtual->pMeta = NULL;
       taosMemoryFreeClear(pVirtual->pVgroupList);
       nodesDestroyList(pVirtual->refTables);
       taosArrayDestroyP(pVirtual->pExtSourceNames, NULL);
@@ -1717,7 +1725,8 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PLACE_HOLDER_TABLE: {
       SPlaceHolderTableNode* pPlaceHolder = (SPlaceHolderTableNode*)pNode;
-      taosMemoryFreeClear(pPlaceHolder->pMeta);
+      queryFreeTableMeta(pPlaceHolder->pMeta);
+      pPlaceHolder->pMeta = NULL;
       taosMemoryFreeClear(pPlaceHolder->pVgroupList);
       break;
     }
@@ -1862,6 +1871,8 @@ void nodesDestroyNode(SNode* pNode) {
       SColumnOptions* pOptions = (SColumnOptions*)pNode;
       nodesDestroyNode(pOptions->pTagCond);
       pOptions->pTagCond = NULL;
+      nodesDestroyNode(pOptions->pFilterCond);
+      pOptions->pFilterCond = NULL;
       break;
     }
     case QUERY_NODE_INDEX_OPTIONS: {
@@ -1920,6 +1931,8 @@ void nodesDestroyNode(SNode* pNode) {
       SColumnRefNode* pRef = (SColumnRefNode*)pNode;
       nodesDestroyNode(pRef->pTagCond);
       pRef->pTagCond = NULL;
+      nodesDestroyNode(pRef->pFilterCond);
+      pRef->pFilterCond = NULL;
       break;
     }
     case QUERY_NODE_WHEN_THEN: {
@@ -2184,6 +2197,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->pColOptions);
       nodesDestroyNode((SNode*)pStmt->pVal);
       nodesDestroyNode(pStmt->pWhere);
+      nodesDestroyNode(pStmt->pFilterCond);
       nodesDestroyList(pStmt->pList);
       break;
     }
@@ -2291,7 +2305,8 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_DESCRIBE_STMT:
-      taosMemoryFree(((SDescribeStmt*)pNode)->pMeta);
+      queryFreeTableMeta(((SDescribeStmt*)pNode)->pMeta);
+      ((SDescribeStmt*)pNode)->pMeta = NULL;
       break;
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:  // no pointer field
       break;
@@ -3520,6 +3535,712 @@ void nodesClearList(SNodeList* pList) {
     nodesFree(tmp);
   }
   nodesFree(pList);
+}
+
+static int32_t parseTimeFromValueNode(SValueNode* pVal, void* charsetCxt, bool strict) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  if (IS_NUMERIC_TYPE(pVal->node.resType.type) || TSDB_DATA_TYPE_BOOL == pVal->node.resType.type) {
+    if (!pVal->translate) {
+      code = nodesConvertValueLiteral(pVal, pVal->node.resType, charsetCxt, false);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+    int64_t value = 0;
+    if (IS_UNSIGNED_NUMERIC_TYPE(pVal->node.resType.type)) {
+      value = pVal->datum.u;
+    } else if (IS_FLOAT_TYPE(pVal->node.resType.type)) {
+      value = pVal->datum.d;
+    } else if (TSDB_DATA_TYPE_BOOL == pVal->node.resType.type) {
+      value = pVal->datum.b;
+    } else {
+      value = pVal->datum.i;
+    }
+    pVal->datum.i = value;
+  } else if (IS_VAR_DATA_TYPE(pVal->node.resType.type) || TSDB_DATA_TYPE_TIMESTAMP == pVal->node.resType.type) {
+    if (TSDB_CODE_SUCCESS ==
+        taosParseTime(pVal->literal, &pVal->datum.i, strlen(pVal->literal), pVal->node.resType.precision, pVal->tz)) {
+      goto _return;
+    }
+    char* pEnd = NULL;
+    if (strict) ERRNO = 0;
+    pVal->datum.i = taosStr2Int64(pVal->literal, &pEnd, 10);
+    QUERY_CHECK_CONDITION(NULL != pEnd && '\0' == *pEnd, code, lino, _return, TSDB_CODE_PAR_WRONG_VALUE_TYPE);
+    QUERY_CHECK_CONDITION(!strict || (pEnd != pVal->literal && ERRNO != ERANGE), code, lino, _return,
+                          TSDB_CODE_PAR_WRONG_VALUE_TYPE);
+  } else {
+    code = TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t parseBoolFromValueNode(SValueNode* pVal) {
+  if (IS_VAR_DATA_TYPE(pVal->node.resType.type) || TSDB_DATA_TYPE_BOOL == pVal->node.resType.type) {
+    pVal->datum.b = (0 == strcasecmp(pVal->literal, "true"));
+    return TSDB_CODE_SUCCESS;
+  } else if (IS_INTEGER_TYPE(pVal->node.resType.type)) {
+    pVal->datum.b = (0 != taosStr2Int64(pVal->literal, NULL, 10));
+    return TSDB_CODE_SUCCESS;
+  } else if (IS_FLOAT_TYPE(pVal->node.resType.type)) {
+    pVal->datum.b = (0 != taosStr2Double(pVal->literal, NULL));
+    return TSDB_CODE_SUCCESS;
+  } else {
+    return TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+  }
+}
+
+int32_t nodesConvertValueLiteral(SValueNode* pVal, SDataType targetDt, void* charsetCxt, bool strict) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  void*   pHexData = NULL;
+
+  QUERY_CHECK_NULL(pVal, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pVal->literal, code, lino, _return, TSDB_CODE_PAR_WRONG_VALUE_TYPE);
+  switch (targetDt.type) {
+    case TSDB_DATA_TYPE_BOOL:
+      if (TSDB_CODE_SUCCESS != parseBoolFromValueNode(pVal)) {
+        code = TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      *(bool*)&pVal->typeData = pVal->datum.b;
+      break;
+    case TSDB_DATA_TYPE_TINYINT: {
+      code = toInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.i);
+      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_TINYINT(pVal->datum.i))) {
+        code = TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      *(int8_t*)&pVal->typeData = pVal->datum.i;
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      code = toInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.i);
+      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_SMALLINT(pVal->datum.i))) {
+        code = TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      *(int16_t*)&pVal->typeData = pVal->datum.i;
+      break;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      code = toInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.i);
+      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_INT(pVal->datum.i))) {
+        code = TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      *(int32_t*)&pVal->typeData = pVal->datum.i;
+      break;
+    }
+    case TSDB_DATA_TYPE_BIGINT: {
+      code = toInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.i);
+      if (strict && TSDB_CODE_SUCCESS != code) {
+        code = TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      *(int64_t*)&pVal->typeData = pVal->datum.i;
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      code = toUInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.u);
+      if (strict && (TSDB_CODE_SUCCESS != code || pVal->datum.u > UINT8_MAX)) {
+        code = TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      *(uint8_t*)&pVal->typeData = pVal->datum.u;
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      code = toUInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.u);
+      if (strict && (TSDB_CODE_SUCCESS != code || pVal->datum.u > UINT16_MAX)) {
+        code = TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      *(uint16_t*)&pVal->typeData = pVal->datum.u;
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT: {
+      code = toUInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.u);
+      if (strict && (TSDB_CODE_SUCCESS != code || pVal->datum.u > UINT32_MAX)) {
+        code = TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      *(uint32_t*)&pVal->typeData = pVal->datum.u;
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      code = toUInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.u);
+      if (strict && TSDB_CODE_SUCCESS != code) {
+        code = TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      *(uint64_t*)&pVal->typeData = pVal->datum.u;
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      pVal->datum.d = taosStr2Double(pVal->literal, NULL);
+      if (strict && !IS_VALID_FLOAT(pVal->datum.d)) {
+        code = TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      *(float*)&pVal->typeData = pVal->datum.d;
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      pVal->datum.d = taosStr2Double(pVal->literal, NULL);
+      if (strict && (((pVal->datum.d == HUGE_VAL || pVal->datum.d == -HUGE_VAL) && ERRNO == ERANGE) ||
+                     isinf(pVal->datum.d) || isnan(pVal->datum.d))) {
+        code = TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      *(double*)&pVal->typeData = pVal->datum.d;
+      break;
+    }
+    case TSDB_DATA_TYPE_VARBINARY: {
+      if (pVal->node.resType.type != TSDB_DATA_TYPE_BINARY) {
+        code = TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+
+      void*    data = NULL;
+      uint32_t size = 0;
+      uint32_t vlen = strlen(pVal->literal);
+      bool     isHexChar = isHex(pVal->literal, vlen);
+      if (isHexChar) {
+        if (!isValidateHex(pVal->literal, vlen)) {
+          code = TSDB_CODE_PAR_INVALID_VARBINARY;
+          QUERY_CHECK_CODE(code, lino, _return);
+        }
+        code = taosHex2Ascii(pVal->literal, vlen, &pHexData, &size);
+        QUERY_CHECK_CONDITION(code >= 0, code, lino, _return, TSDB_CODE_OUT_OF_MEMORY);
+        data = pHexData;
+      } else {
+        size = vlen;
+        data = pVal->literal;
+      }
+
+      if (size + VARSTR_HEADER_SIZE > targetDt.bytes) {
+        code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      pVal->datum.p = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
+      QUERY_CHECK_NULL(pVal->datum.p, code, lino, _return, terrno);
+      varDataSetLen(pVal->datum.p, size);
+      memcpy(varDataVal(pVal->datum.p), data, size);
+      break;
+    }
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_GEOMETRY: {
+      int32_t vlen = IS_VAR_DATA_TYPE(pVal->node.resType.type) ? pVal->node.resType.bytes : strlen(pVal->literal);
+      if (strict && (vlen > targetDt.bytes - VARSTR_HEADER_SIZE)) {
+        code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      int32_t len = TMIN(targetDt.bytes - VARSTR_HEADER_SIZE, vlen);
+      pVal->datum.p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE + 1);
+      QUERY_CHECK_NULL(pVal->datum.p, code, lino, _return, terrno);
+      varDataSetLen(pVal->datum.p, len);
+      tstrncpy(varDataVal(pVal->datum.p), pVal->literal, len + 1);
+      break;
+    }
+    case TSDB_DATA_TYPE_TIMESTAMP: {
+      if (TSDB_CODE_SUCCESS != parseTimeFromValueNode(pVal, charsetCxt, strict)) {
+        code = TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      *(int64_t*)&pVal->typeData = pVal->datum.i;
+      break;
+    }
+    case TSDB_DATA_TYPE_NCHAR: {
+      pVal->datum.p = taosMemoryCalloc(1, targetDt.bytes + 1);
+      QUERY_CHECK_NULL(pVal->datum.p, code, lino, _return, terrno);
+
+      int32_t len = 0;
+      if (!taosMbsToUcs4(pVal->literal, strlen(pVal->literal), (TdUcs4*)varDataVal(pVal->datum.p),
+                         targetDt.bytes - VARSTR_HEADER_SIZE, &len, charsetCxt)) {
+        taosMemoryFreeClear(pVal->datum.p);
+        code = TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      varDataSetLen(pVal->datum.p, len);
+      break;
+    }
+    case TSDB_DATA_TYPE_DECIMAL64: {
+      uint8_t   precision = targetDt.precision;
+      uint8_t   scale = (uint8_t)targetDt.scale;
+      Decimal64 dec = {0};
+      int32_t   rc = decimal64FromStr(pVal->literal, strlen(pVal->literal), precision, scale, &dec);
+      if (TSDB_CODE_SUCCESS != rc) {
+        code = TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      *(int64_t*)&pVal->typeData = DECIMAL64_GET_VALUE(&dec);
+      break;
+    }
+    case TSDB_DATA_TYPE_DECIMAL: {
+      uint8_t    precision = targetDt.precision;
+      uint8_t    scale = (uint8_t)targetDt.scale;
+      Decimal128 dec = {0};
+      int32_t    rc = decimal128FromStr(pVal->literal, strlen(pVal->literal), precision, scale, &dec);
+      if (TSDB_CODE_SUCCESS != rc) {
+        code = TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      pVal->datum.p = taosMemoryCalloc(1, sizeof(Decimal128));
+      QUERY_CHECK_NULL(pVal->datum.p, code, lino, _return, terrno);
+      memcpy(pVal->datum.p, &dec, sizeof(Decimal128));
+      break;
+    }
+    case TSDB_DATA_TYPE_BLOB:
+      code = TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+      QUERY_CHECK_CODE(code, lino, _return);
+    default:
+      break;
+  }
+  code = TSDB_CODE_SUCCESS;
+_return:
+  taosMemoryFree(pHexData);
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+typedef struct SExternalFilterColState {
+  bool          seen;
+  EOperatorType opType;
+} SExternalFilterColState;
+
+typedef struct SExternalFilterCxt {
+  EExtSourceType           sourceType;
+  const SExtTableMeta*     pExtMeta;
+  SExternalFilterColState* pColStates;
+  timezone_t               timezone;
+  void*                    charsetCxt;
+  char*                    pMsg;
+  int32_t                  msgLen;
+  bool                     storedFilter;
+  int32_t                  code;
+} SExternalFilterCxt;
+
+static int32_t externalFilterError(SExternalFilterCxt* pCxt, int32_t code, const char* pFormat, ...) {
+  if (NULL != pCxt->pMsg && pCxt->msgLen > 0) {
+    va_list args;
+    va_start(args, pFormat);
+    (void)vsnprintf(pCxt->pMsg, pCxt->msgLen, pFormat, args);
+    va_end(args);
+  }
+  return code;
+}
+
+static bool isExternalFilterOperator(EOperatorType opType) {
+  return OP_TYPE_EQUAL == opType || OP_TYPE_NOT_EQUAL == opType || OP_TYPE_GREATER_THAN == opType ||
+         OP_TYPE_GREATER_EQUAL == opType || OP_TYPE_LOWER_THAN == opType || OP_TYPE_LOWER_EQUAL == opType;
+}
+
+static bool isExternalFilterLiteral(const SValueNode* pValue) {
+  if (NULL == pValue || NULL == pValue->literal || pValue->isNull || pValue->placeholderNo > 0 || 0 != pValue->flag) {
+    return false;
+  }
+
+  int8_t type = pValue->node.resType.type;
+  return IS_NUMERIC_TYPE(type) || TSDB_DATA_TYPE_BOOL == type || TSDB_DATA_TYPE_BINARY == type ||
+         TSDB_DATA_TYPE_VARCHAR == type || TSDB_DATA_TYPE_NCHAR == type;
+}
+
+static bool isExternalFilterStringLiteral(const SValueNode* pValue) {
+  int8_t type = pValue->node.resType.type;
+  return TSDB_DATA_TYPE_BINARY == type || TSDB_DATA_TYPE_VARCHAR == type || TSDB_DATA_TYPE_NCHAR == type;
+}
+
+static int32_t findExternalFilterColumn(EExtSourceType sourceType, const SExtTableMeta* pExtMeta, const char* colName) {
+  for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
+    bool equal = EXT_SOURCE_MYSQL == sourceType ? 0 == strcasecmp(pExtMeta->pCols[i].colName, colName)
+                                                : 0 == strcmp(pExtMeta->pCols[i].colName, colName);
+    if (equal) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+typedef struct SExternalFilterLiteralCxt {
+  bool    forDdl;
+  int32_t code;
+} SExternalFilterLiteralCxt;
+
+static EDealRes restoreExternalFilterLiteral(SNode** ppNode, void* pContext) {
+  if (QUERY_NODE_VALUE != nodeType(*ppNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SExternalFilterLiteralCxt* pCxt = pContext;
+  SValueNode*                pValue = (SValueNode*)*ppNode;
+  if (!pCxt->forDdl && TSDB_DATA_TYPE_TIMESTAMP != pValue->node.resType.type) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     lino = 0;
+  SValueNode* pLiteral = NULL;
+  char*       literal = pValue->literal;
+  // The JSON decoder omits the literal for an empty string.
+  if (NULL == literal && pValue->translate && IS_VAR_DATA_TYPE(pValue->node.resType.type) && NULL != pValue->datum.p &&
+      0 == varDataLen(pValue->datum.p)) {
+    literal = "";
+  }
+  QUERY_CHECK_NULL(literal, code, lino, _return, TSDB_CODE_VTABLE_INVALID_EXT_FILTER);
+  // Stored date/time strings belong to the remote column, not the DDL or query session timezone.
+  // SHOW CREATE also restores other literals for replay through DDL type conversion.
+  code = nodesMakeValueNodeFromString(literal, &pLiteral);
+  QUERY_CHECK_CODE(code, lino, _return);
+  nodesDestroyNode(*ppNode);
+  *ppNode = (SNode*)pLiteral;
+
+_return:
+  pCxt->code = code;
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return TSDB_CODE_SUCCESS == code ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
+}
+
+int32_t nodesRestoreExternalFilterLiterals(SNode** ppFilterCond, bool forDdl) {
+  SExternalFilterLiteralCxt cxt = {.forDdl = forDdl, .code = TSDB_CODE_SUCCESS};
+  nodesRewriteExpr(ppFilterCond, restoreExternalFilterLiteral, &cxt);
+  return cxt.code;
+}
+
+static int32_t resetStoredExternalFilterValue(SExternalFilterCxt* pCxt, SValueNode* pValue) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  QUERY_CHECK_NULL(pValue, code, lino, _return, TSDB_CODE_VTABLE_INVALID_EXT_FILTER);
+  QUERY_CHECK_CONDITION(!pValue->isNull && pValue->placeholderNo <= 0 && 0 == pValue->flag, code, lino, _return,
+                        TSDB_CODE_VTABLE_INVALID_EXT_FILTER);
+  // The node JSON decoder omits literal when LiteralSize is zero.
+  if (NULL == pValue->literal && pValue->translate && IS_VAR_DATA_TYPE(pValue->node.resType.type) &&
+      NULL != pValue->datum.p && 0 == varDataLen(pValue->datum.p)) {
+    pValue->literal = taosStrdup("");
+    QUERY_CHECK_NULL(pValue->literal, code, lino, _return, terrno);
+  }
+  QUERY_CHECK_NULL(pValue->literal, code, lino, _return, TSDB_CODE_VTABLE_INVALID_EXT_FILTER);
+
+  int8_t oldType = pValue->node.resType.type;
+  if (IS_VAR_DATA_TYPE(oldType) || TSDB_DATA_TYPE_DECIMAL == oldType) {
+    taosMemoryFreeClear(pValue->datum.p);
+  }
+  memset(&pValue->datum, 0, sizeof(pValue->datum));
+  pValue->typeData = 0;
+  pValue->unit = 0;
+  pValue->node.resType = (SDataType){
+      .type = TSDB_DATA_TYPE_BINARY,
+      .bytes = (int32_t)strlen(pValue->literal),
+  };
+  pValue->translate = false;
+  pValue->tz = pCxt->timezone;
+  pValue->charsetCxt = pCxt->charsetCxt;
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    externalFilterError(pCxt, code, "saved external column filter contains an invalid literal");
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t validateExternalFilterOperator(SExternalFilterCxt* pCxt, SOperatorNode* pOp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  if (!isExternalFilterOperator(pOp->opType) || NULL == pOp->pLeft || NULL == pOp->pRight ||
+      QUERY_NODE_COLUMN != nodeType(pOp->pLeft) || QUERY_NODE_VALUE != nodeType(pOp->pRight)) {
+    code = externalFilterError(
+        pCxt, TSDB_CODE_VTABLE_INVALID_EXT_FILTER,
+        "external column filter must compare an unqualified column with a literal using =, !=, <, <=, > or >=");
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  SColumnNode* pColumn = (SColumnNode*)pOp->pLeft;
+  if ('\0' != pColumn->dbName[0] || '\0' != pColumn->tableName[0] || '\0' != pColumn->tableAlias[0]) {
+    code = externalFilterError(pCxt, TSDB_CODE_VTABLE_INVALID_EXT_FILTER,
+                               "external column filter column '%s' must be unqualified", pColumn->colName);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  int32_t colIdx = findExternalFilterColumn(pCxt->sourceType, pCxt->pExtMeta, pColumn->colName);
+  if (colIdx < 0) {
+    code = externalFilterError(pCxt, TSDB_CODE_EXT_COLUMN_NOT_EXIST, "filter column '%s' not found in external table",
+                               pColumn->colName);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+  if (pCxt->pColStates[colIdx].seen) {
+    code = externalFilterError(pCxt, TSDB_CODE_VTABLE_DUPLICATE_EXT_FILTER_COLUMN,
+                               "external column filter contains duplicate column '%s'", pColumn->colName);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  SValueNode* pValue = (SValueNode*)pOp->pRight;
+  if (pCxt->storedFilter) {
+    code = resetStoredExternalFilterValue(pCxt, pValue);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+  if (!isExternalFilterLiteral(pValue)) {
+    code = externalFilterError(pCxt, TSDB_CODE_VTABLE_INVALID_EXT_FILTER,
+                               "external column filter value for '%s' must be a number, string or boolean literal",
+                               pColumn->colName);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  const SExtColumnDef* pExtCol = &pCxt->pExtMeta->pCols[colIdx];
+  SDataType            mappedType = {0};
+  code = extTypeNameToTDengineType(pCxt->sourceType, pExtCol->extTypeName, pExtCol->extCharsetName, &mappedType);
+  QUERY_CHECK_CODE(code, lino, _return);
+  if (TSDB_DATA_TYPE_TIMESTAMP == mappedType.type && !isExternalFilterStringLiteral(pValue)) {
+    code = externalFilterError(pCxt, TSDB_CODE_VTABLE_INVALID_EXT_FILTER,
+                               "timestamp filter value for '%s' must be a string literal", pColumn->colName);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+  if (IS_NUMERIC_TYPE(mappedType.type)) {
+    double value = 0;
+    if ('\0' == pValue->literal[0] ||
+        (IS_FLOAT_TYPE(mappedType.type) &&
+         TSDB_CODE_SUCCESS != toDoubleEx(pValue->literal, strlen(pValue->literal), 0, &value))) {
+      code = externalFilterError(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "invalid numeric filter value for column '%s'",
+                                 pColumn->colName);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+  } else if (TSDB_DATA_TYPE_BOOL == mappedType.type &&
+             (isExternalFilterStringLiteral(pValue) || TSDB_DATA_TYPE_BOOL == pValue->node.resType.type) &&
+             0 != strcasecmp(pValue->literal, "true") && 0 != strcasecmp(pValue->literal, "false")) {
+    code = externalFilterError(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "invalid boolean filter value for column '%s'",
+                               pColumn->colName);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+  SDataType valueType = mappedType;
+  if (TSDB_DATA_TYPE_BINARY == valueType.type) {
+    valueType.type = TSDB_DATA_TYPE_VARCHAR;
+  }
+  pValue->node.resType.precision = valueType.precision;
+  pValue->tz = pCxt->timezone;
+  pValue->charsetCxt = pCxt->charsetCxt;
+  code = nodesConvertValueLiteral(pValue, valueType, pCxt->charsetCxt, true);
+  // Keep ownership consistent with the converted datum, including on conversion failure.
+  pValue->node.resType = valueType;
+  pValue->translate = true;
+  if (TSDB_CODE_SUCCESS != code) {
+    externalFilterError(pCxt, code, "invalid external column filter value '%s' for column '%s': %s", pValue->literal,
+                        pColumn->colName, tstrerror(code));
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+  if (IS_VAR_DATA_TYPE(valueType.type)) {
+    // A value carries its actual payload size, not the remote column capacity.
+    pValue->node.resType.bytes = varDataTLen(pValue->datum.p);
+  } else if (TSDB_DATA_TYPE_BOOL == valueType.type) {
+    // Revalidation reads the literal again; retain the converted boolean value.
+    char* pLiteral = taosStrdup(pValue->datum.b ? "true" : "false");
+    QUERY_CHECK_NULL(pLiteral, code, lino, _return, terrno);
+    taosMemoryFree(pValue->literal);
+    pValue->literal = pLiteral;
+  }
+
+  tstrncpy(pColumn->colName, pExtCol->colName, sizeof(pColumn->colName));
+  pColumn->colType = COLUMN_TYPE_COLUMN;
+  pColumn->node.resType = mappedType;
+  pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+  pCxt->pColStates[colIdx].seen = true;
+  pCxt->pColStates[colIdx].opType = pOp->opType;
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static EDealRes validateExternalFilterWalker(SNode* pNode, void* pContext) {
+  SExternalFilterCxt* pCxt = pContext;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_CONDITION: {
+      SLogicConditionNode* pLogic = (SLogicConditionNode*)pNode;
+      if (LOGIC_COND_TYPE_AND == pLogic->condType && NULL != pLogic->pParameterList &&
+          LIST_LENGTH(pLogic->pParameterList) >= 2) {
+        pLogic->node.resType.type = TSDB_DATA_TYPE_BOOL;
+        pLogic->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+        return DEAL_RES_CONTINUE;
+      }
+      pCxt->code = externalFilterError(pCxt, TSDB_CODE_VTABLE_INVALID_EXT_FILTER,
+                                       "external column filter only supports comparison expressions joined by AND");
+      return DEAL_RES_ERROR;
+    }
+    case QUERY_NODE_OPERATOR:
+      pCxt->code = validateExternalFilterOperator(pCxt, (SOperatorNode*)pNode);
+      return TSDB_CODE_SUCCESS == pCxt->code ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR;
+    default:
+      pCxt->code = externalFilterError(pCxt, TSDB_CODE_VTABLE_INVALID_EXT_FILTER,
+                                       "external column filter must contain only comparison expressions");
+      return DEAL_RES_ERROR;
+  }
+}
+
+static int32_t validateExternalFilterBinding(SExternalFilterCxt* pCxt, SNode* pFilterCond,
+                                             int32_t* pTsPrimaryKeyIndex) {
+  int32_t              code = TSDB_CODE_SUCCESS;
+  int32_t              lino = 0;
+  bool                 hasRemotePrimaryKey = false;
+  int32_t              tsPrimaryKeyCount = 0;
+  int32_t              tsPrimaryKeyIndex = -1;
+  const SExtTableMeta* pExtMeta = pCxt->pExtMeta;
+
+  QUERY_CHECK_NULL(pTsPrimaryKeyIndex, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  *pTsPrimaryKeyIndex = -1;
+  QUERY_CHECK_NULL(pExtMeta, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pExtMeta->pCols, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(pExtMeta->numOfCols > 0, code, lino, _return, TSDB_CODE_INVALID_PARA);
+
+  if (EXT_SOURCE_MYSQL != pCxt->sourceType && EXT_SOURCE_POSTGRESQL != pCxt->sourceType) {
+    if (NULL != pFilterCond) {
+      code =
+          externalFilterError(pCxt, TSDB_CODE_VTABLE_EXT_FILTER_NOT_SUPPORTED,
+                              "external column filters are supported only for direct MySQL or PostgreSQL references");
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+    goto _return;
+  }
+
+  for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
+    const SExtColumnDef* pCol = &pExtMeta->pCols[i];
+    if (!pCol->isRemotePrimaryKey) {
+      continue;
+    }
+    hasRemotePrimaryKey = true;
+
+    SDataType mappedType = {0};
+    code = extTypeNameToTDengineType(pCxt->sourceType, pCol->extTypeName, pCol->extCharsetName, &mappedType);
+    QUERY_CHECK_CODE(code, lino, _return);
+    if (TSDB_DATA_TYPE_TIMESTAMP == mappedType.type) {
+      ++tsPrimaryKeyCount;
+      tsPrimaryKeyIndex = i;
+    }
+  }
+
+  if (!hasRemotePrimaryKey) {
+    code = externalFilterError(pCxt, TSDB_CODE_EXT_NO_TS_PRIMARY_KEY, "external table has no primary key");
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+  if (1 != tsPrimaryKeyCount) {
+    code = externalFilterError(pCxt, TSDB_CODE_EXT_NO_TS_PRIMARY_KEY,
+                               "external table primary key must contain exactly one timestamp column");
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  pCxt->pColStates = taosMemoryCalloc(pExtMeta->numOfCols, sizeof(SExternalFilterColState));
+  QUERY_CHECK_NULL(pCxt->pColStates, code, lino, _return, terrno);
+  if (NULL != pFilterCond) {
+    nodesWalkExpr(pFilterCond, validateExternalFilterWalker, pCxt);
+    code = pCxt->code;
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
+    if (!pExtMeta->pCols[i].isRemotePrimaryKey || i == tsPrimaryKeyIndex) {
+      continue;
+    }
+    if (!pCxt->pColStates[i].seen) {
+      code = externalFilterError(pCxt, TSDB_CODE_VTABLE_INCOMPLETE_EXT_PK_FILTER,
+                                 "external column filter does not cover primary key column '%s'",
+                                 pExtMeta->pCols[i].colName);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+    if (OP_TYPE_EQUAL != pCxt->pColStates[i].opType) {
+      code =
+          externalFilterError(pCxt, TSDB_CODE_VTABLE_INCOMPLETE_EXT_PK_FILTER,
+                              "primary key filter column '%s' must use = with a literal", pExtMeta->pCols[i].colName);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+  }
+  *pTsPrimaryKeyIndex = tsPrimaryKeyIndex;
+
+_return:
+  taosMemoryFreeClear(pCxt->pColStates);
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t nodesValidateExternalFilter(EExtSourceType sourceType, const SExtTableMeta* pExtMeta, SNode* pFilterCond,
+                                    timezone_t timezone, void* charsetCxt, char* pMsg, int32_t msgLen,
+                                    int32_t* pTsPrimaryKeyIndex) {
+  SExternalFilterCxt cxt = {
+      .sourceType = sourceType,
+      .pExtMeta = pExtMeta,
+      .timezone = timezone,
+      .charsetCxt = charsetCxt,
+      .pMsg = pMsg,
+      .msgLen = msgLen,
+  };
+  return validateExternalFilterBinding(&cxt, pFilterCond, pTsPrimaryKeyIndex);
+}
+
+int32_t nodesValidateExternalFilterCurrentMeta(EExtSourceType sourceType, const SExtTableMeta* pExtMeta,
+                                               const char* pFilterCondJson, int32_t filterCondLen, timezone_t timezone,
+                                               void* charsetCxt, char* pMsg, int32_t msgLen,
+                                               int32_t* pTsPrimaryKeyIndex) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            lino = 0;
+  SNode*             pFilterCond = NULL;
+  SExternalFilterCxt cxt = {
+      .sourceType = sourceType,
+      .pExtMeta = pExtMeta,
+      .timezone = timezone,
+      .charsetCxt = charsetCxt,
+      .pMsg = pMsg,
+      .msgLen = msgLen,
+      .storedFilter = true,
+  };
+
+  QUERY_CHECK_NULL(pTsPrimaryKeyIndex, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  *pTsPrimaryKeyIndex = -1;
+  if (filterCondLen < 0 ||
+      (filterCondLen > 0 &&
+       (NULL == pFilterCondJson || strnlen(pFilterCondJson, (size_t)filterCondLen + 1) != filterCondLen))) {
+    code = externalFilterError(&cxt, TSDB_CODE_VTABLE_INVALID_EXT_FILTER, "saved external column filter is invalid");
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+  if (filterCondLen > 0) {
+    code = nodesStringToNode(pFilterCondJson, &pFilterCond);
+    if (TSDB_CODE_SUCCESS != code && TSDB_CODE_OUT_OF_MEMORY != code) {
+      code = externalFilterError(&cxt, TSDB_CODE_VTABLE_INVALID_EXT_FILTER,
+                                 "saved external column filter cannot be decoded: %s", tstrerror(code));
+    }
+    QUERY_CHECK_CODE(code, lino, _return);
+    QUERY_CHECK_NULL(pFilterCond, code, lino, _return, TSDB_CODE_VTABLE_INVALID_EXT_FILTER);
+  }
+  code = validateExternalFilterBinding(&cxt, pFilterCond, pTsPrimaryKeyIndex);
+  switch (code) {
+    case TSDB_CODE_EXT_COLUMN_NOT_EXIST:
+    case TSDB_CODE_EXT_TYPE_NOT_MAPPABLE:
+    case TSDB_CODE_EXT_NO_TS_PRIMARY_KEY:
+    case TSDB_CODE_PAR_WRONG_VALUE_TYPE:
+    case TSDB_CODE_PAR_VALUE_TOO_LONG:
+    case TSDB_CODE_PAR_INVALID_VARBINARY:
+      code = TSDB_CODE_EXT_SCHEMA_CHANGED;
+      break;
+    default:
+      break;
+  }
+  QUERY_CHECK_CODE(code, lino, _return);
+
+_return:
+  nodesDestroyNode(pFilterCond);
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 void* nodesGetValueFromNode(SValueNode* pNode) {

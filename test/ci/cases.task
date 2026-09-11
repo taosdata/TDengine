@@ -283,6 +283,7 @@
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_alter_ext_source.py
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_drop_ext_source.py
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_ddl_persistence.py
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_filter_ext_source.py
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_meta_ext_source.py
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_series_ext_source.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/03-Insert/test_vtable_insert.py
@@ -316,6 +317,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbBasic
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxCtb
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlCtb
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_filter_batch.py
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_filter.py
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgCtb
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxMixedCtb
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlMixedCtb

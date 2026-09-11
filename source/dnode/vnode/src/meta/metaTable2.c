@@ -1932,6 +1932,7 @@ static int32_t metaCheckAlterTableColumnReq(SMeta *pMeta, int64_t version, SVAlt
 static int32_t metaAddVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, SMetaEntry *pEntry,
                                       STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
 
   // an own data column of a vchild must carry an origin reference
   if (NULL == pReq->refDbName || NULL == pReq->refTbName || NULL == pReq->refColName ||
@@ -1964,7 +1965,7 @@ static int32_t metaAddVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbRe
       metaError("vgId:%d, %s failed at %s:%d since column %s already exists in super table %s, version:%" PRId64,
                 TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colName, pSuper->name, version);
       code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
-      goto _exit;
+      goto _return;
     }
     rowSize += pColumn->bytes;
   }
@@ -1974,7 +1975,7 @@ static int32_t metaAddVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbRe
       metaError("vgId:%d, %s failed at %s:%d since column %s already exists as tag in super table %s, version:%" PRId64,
                 TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colName, pSuper->name, version);
       code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
-      goto _exit;
+      goto _return;
     }
   }
   col_id_t maxOwnColId = TSDB_VCHILD_OWN_COL_ID_BASE - 1;
@@ -1984,7 +1985,7 @@ static int32_t metaAddVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbRe
       metaError("vgId:%d, %s failed at %s:%d since column %s already exists in table %s, version:%" PRId64,
                 TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colName, pReq->tbName, version);
       code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
-      goto _exit;
+      goto _return;
     }
     rowSize += pColumn->bytes;
     if (pColumn->colId > maxOwnColId) {
@@ -1997,7 +1998,7 @@ static int32_t metaAddVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbRe
       metaError("vgId:%d, %s failed at %s:%d since column %s already exists as own tag in table %s, version:%" PRId64,
                 TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colName, pReq->tbName, version);
       code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
-      goto _exit;
+      goto _return;
     }
     if (pTag->colId > maxOwnColId) {
       maxOwnColId = pTag->colId;
@@ -2009,14 +2010,14 @@ static int32_t metaAddVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbRe
     metaError("vgId:%d, %s failed at %s:%d since row size %d + %d > %d, version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, rowSize, pReq->bytes, TSDB_MAX_BYTES_PER_ROW_VIRTUAL, version);
     code = TSDB_CODE_PAR_INVALID_ROW_LENGTH;
-    goto _exit;
+    goto _return;
   }
   if (pStbSchema->nCols + pEntry->own.nOwnCols + 1 > TSDB_MAX_COLUMNS) {
     metaError("vgId:%d, %s failed at %s:%d since column count %d + %d + 1 > %d, version:%" PRId64,
               TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pStbSchema->nCols, pEntry->own.nOwnCols,
               TSDB_MAX_COLUMNS, version);
     code = TSDB_CODE_PAR_TOO_MANY_COLUMNS;
-    goto _exit;
+    goto _return;
   }
 
   int32_t newColId = (int32_t)maxOwnColId + 1;
@@ -2024,7 +2025,7 @@ static int32_t metaAddVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbRe
     metaError("vgId:%d, %s failed at %s:%d since column id %d exceeds max column id %d, version:%" PRId64,
               TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, newColId, INT16_MAX, version);
     code = TSDB_CODE_VND_EXCEED_MAX_COL_ID;
-    goto _exit;
+    goto _return;
   }
 
   // append the own column schema
@@ -2064,7 +2065,7 @@ static int32_t metaAddVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbRe
     taosMemoryFree(pNewSchemas);
     taosMemoryFree(pNewRefs);
     taosMemoryFree(pNewExt);
-    goto _exit;
+    goto _return;
   }
   taosMemoryFree(pEntry->own.pOwnColSchemas);
   taosMemoryFree(pEntry->own.pOwnColRefs);
@@ -2095,6 +2096,13 @@ static int32_t metaAddVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbRe
   tstrncpy(pOwnRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pOwnRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN);
   pEntry->own.nOwnCols = nOwnCols + 1;
+  QUERY_CHECK_CONDITION(pReq->filterCondLen >= 0, code, lino, _return, TSDB_CODE_INVALID_MSG);
+  if (pReq->filterCondLen > 0) {
+    QUERY_CHECK_NULL(pReq->filterCondJson, code, lino, _return, TSDB_CODE_INVALID_MSG);
+    pOwnRef->filterCondJson = taosStrdup(pReq->filterCondJson);
+    QUERY_CHECK_NULL(pOwnRef->filterCondJson, code, lino, _return, terrno);
+    pOwnRef->filterCondLen = pReq->filterCondLen;
+  }
 
   pEntry->version = version;
   pEntry->colRef.version++;  // rversion bump: drives client catalog cache invalidation
@@ -2104,7 +2112,7 @@ static int32_t metaAddVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbRe
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
-    goto _exit;
+    goto _return;
   }
   metaInfo("vgId:%d, table %s uid %" PRId64 " added own column %s colId %d, version:%" PRId64, TD_VID(pMeta->pVnode),
            pReq->tbName, pEntry->uid, pReq->colName, newColId, version);
@@ -2117,7 +2125,10 @@ static int32_t metaAddVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbRe
               __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
   }
 
-_exit:
+_return:
+  if (TSDB_CODE_SUCCESS != code && lino != 0) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   metaFetchEntryFree(&pSuper);
   metaFetchEntryFree(&pEntry);
   TAOS_RETURN(code);
@@ -2151,9 +2162,8 @@ static int32_t metaDropVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbR
   // position-aligned); skipping the ext shift would pair the surviving decimal column with the
   // dropped column's typeMod slot and persist it as DECIMAL(0,0)
   int32_t nOwnCols = pEntry->own.nOwnCols;
-  // release the dropped slot's tagCondJson before it is overwritten (own column refs are origin
-  // refs and never set it, but stay defensive)
-  taosMemoryFreeClear(pEntry->own.pOwnColRefs[idx].tagCondJson);
+  // Release owned conditions before this slot is moved or removed.
+  tFreeSColRefArray(&pEntry->own.pOwnColRefs[idx], 1);
   if (nOwnCols - idx - 1 > 0) {
     memmove(pEntry->own.pOwnColSchemas + idx, pEntry->own.pOwnColSchemas + idx + 1,
             (nOwnCols - idx - 1) * sizeof(SSchema));
@@ -2740,12 +2750,10 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
   extSchema.typeMod = pReq->typeMod;
   tstrncpy(pColumn->name, pReq->colName, TSDB_COL_NAME_LEN);
   if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
-    SColRef tmpRef;
+    SColRef tmpRef = {0};
     if (TSDB_ALTER_TABLE_ADD_COLUMN == pReq->action) {
       tmpRef.hasRef = false;
       tmpRef.id = pColumn->colId;
-      tmpRef.tagCondLen = 0;
-      tmpRef.tagCondJson = NULL;
     } else {
       tmpRef.hasRef = true;
       tmpRef.id = pColumn->colId;
@@ -2761,6 +2769,14 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
       tstrncpy(tmpRef.refColName, pReq->refColName, TSDB_COL_NAME_LEN);
       tmpRef.tagCondLen = 0;
       tmpRef.tagCondJson = NULL;
+      if (pReq->filterCondLen > 0 && pReq->filterCondJson) {
+        tmpRef.filterCondJson = taosStrdup(pReq->filterCondJson);
+        if (NULL == tmpRef.filterCondJson) {
+          metaFetchEntryFree(&pEntry);
+          TAOS_RETURN(terrno);
+        }
+        tmpRef.filterCondLen = pReq->filterCondLen;
+      }
       if (pReq->refType == 1 && pEntry->series.nSeries > 0) {
         for (int32_t i = 0; i < pEntry->series.nSeries; i++) {
           SSeriesEntry *s = &pEntry->series.pSeries[i];
@@ -2784,6 +2800,7 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
     }
     code = updataTableColRef(&pEntry->colRef, pColumn, 1, &tmpRef);
     taosMemoryFreeClear(tmpRef.tagCondJson);
+    taosMemoryFreeClear(tmpRef.filterCondJson);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
                 __LINE__, tstrerror(code), version);
@@ -2882,7 +2899,7 @@ static int32_t metaEnsureTagRefSize(SColRefWrapper *pColRef, SSchemaWrapper *pTa
   pColRef->pTagRef = pNew;
   for (int32_t i = pColRef->nTagRefs; i < nTags; i++) {
     SColRef *p = &pColRef->pTagRef[i];
-    memset(p, 0, sizeof(SColRef));  // zero all fields incl. ext (refType/refSourceName/refSchemaName/tagCondLen/tagCondJson) — tEncodeSColRefExt reads them when hasRef
+    memset(p, 0, sizeof(SColRef));  // zero all fields including owned condition pointers
     p->id = pTagSchema->pSchema[i].colId;
   }
   pColRef->nTagRefs = nTags;
@@ -3127,6 +3144,7 @@ int32_t metaDropTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STab
     for (int32_t i = 0; i < pColRef->nTagRefs; i++) {
       if (pColRef->pTagRef[i].id == dropColId) {
         taosMemoryFreeClear(pColRef->pTagRef[i].tagCondJson);  // free owned tag-cond JSON before the slot is moved/forgotten
+        taosMemoryFreeClear(pColRef->pTagRef[i].filterCondJson);
         if (i < pColRef->nTagRefs - 1) {
           memmove(&pColRef->pTagRef[i], &pColRef->pTagRef[i + 1], sizeof(SColRef) * (pColRef->nTagRefs - 1 - i));
         }
@@ -4115,6 +4133,8 @@ static int32_t metaUpdateNtbTagValueImpl(SMeta *pMeta, SMetaEntry *pTable, SSche
             // Free the owned tag-cond JSON before clearing the ref, same as metaDropTableTag,
             // otherwise a ref carrying a tag condition leaks it on every such conversion.
             taosMemoryFreeClear(pTable->colRef.pTagRef[r].tagCondJson);
+            taosMemoryFreeClear(pTable->colRef.pTagRef[r].filterCondJson);
+            pTable->colRef.pTagRef[r].filterCondLen = 0;
             pTable->colRef.pTagRef[r].tagCondLen = 0;
             memset(pTable->colRef.pTagRef[r].refDbName, 0, TSDB_DB_NAME_LEN);
             memset(pTable->colRef.pTagRef[r].refTableName, 0, TSDB_TABLE_NAME_LEN);
@@ -5227,6 +5247,15 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
   }
 
   // do update column ref
+  char *pFilterCondJson = NULL;
+  if (pReq->filterCondLen > 0 && pReq->filterCondJson) {
+    pFilterCondJson = taosStrdup(pReq->filterCondJson);
+    if (NULL == pFilterCondJson) {
+      metaFetchEntryFree(&pEntry);
+      metaFetchEntryFree(&pSuper);
+      TAOS_RETURN(terrno);
+    }
+  }
   pEntry->version = version;
   pColRef->hasRef = true;
   pColRef->id = pSchema->pSchema[iColumn].colId;
@@ -5236,6 +5265,9 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
   tstrncpy(pColRef->refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(pColRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pColRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN);
+  taosMemoryFreeClear(pColRef->filterCondJson);
+  pColRef->filterCondJson = pFilterCondJson;
+  pColRef->filterCondLen = pReq->filterCondLen;
 
   // If external ref, look up matching series for tag condition
   taosMemoryFreeClear(pColRef->tagCondJson);
@@ -5370,6 +5402,8 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
   pEntry->version = version;
   pColRef->hasRef = false;
   pColRef->id = pSchema->pSchema[iColumn].colId;
+  taosMemoryFreeClear(pColRef->filterCondJson);
+  pColRef->filterCondLen = 0;
   pSchema->version++;
   pEntry->colRef.version++;
 

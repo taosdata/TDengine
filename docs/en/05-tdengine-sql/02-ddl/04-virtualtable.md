@@ -109,12 +109,21 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
     vtb_col_name column_definition
 
   column_definition:
-    type_name [FROM [db_name.]table_name.col_name]
+    type_name [FROM column_reference]
+
+  column_reference:
+    [db_name.]table_name.col_name
+    | ext_source_name.db_name.table_name.col_name [WHERE filter_condition]
+    | series_alias.col_name
 
   vtag_def:
     tag_name type_name = const_value
     | tag_name type_name FROM [db_name.]table_name.tag_name
 ```
+
+For a TDengine table or an existing virtual table, `column_reference` is `[db_name.]table_name.col_name`, so the column definition remains `type_name [FROM [db_name.]table_name.col_name]`. `ext_source_name` names an existing external data source, and `series_alias` names an InfluxDB `SERIES` declaration. For the optional `WHERE filter_condition` on external references, see [External Column Reference Filters](#external-column-reference-filters).
+
+The same `column_reference` definition applies to virtual-subtable column reference lists and to `ALTER VTABLE` with `ADD COLUMN ... FROM` or `ALTER COLUMN ... SET`.
 
 When creating a virtual basic table, you can declare tags with the `TAGS` clause; see the "Virtual Basic Table Tags" section below.
 
@@ -130,8 +139,8 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
         (tag_name = 'tag_value' [, tag_name = 'tag_value'] ...) ...]
 
   create_definition:
-     [stb_col_name FROM] [db_name.]table_name.col_name
-     | owned_col_name type_name FROM [db_name.]table_name.col_name
+     [stb_col_name FROM] column_reference
+     | owned_col_name type_name FROM column_reference
   tag_definition:
      tag_name
      | owned_tag_name type_name
@@ -213,13 +222,61 @@ Usage Notes:
 10. Virtual supertables only support creating virtual subtables, and virtual subtables can only use virtual supertables as templates.
 11. Ensure virtual tables' column/tag data types match their source columns/tags.
 12. Virtual table names must be unique within a database and cannot conflict with table names, and it is recommended that view names do not duplicate virtual table names (not enforced). When a view and a virtual table have the same name, operations such as writing, querying, granting, and revoking permissions prioritize the virtual table with the same name.
-13. When creating virtual subtables or virtual basic tables, `FROM` columns can come from regular tables, subtables, or existing virtual tables. Supertables and views are not supported as direct sources, and tables with composite primary keys are not supported.
+13. When creating virtual subtables or virtual basic tables, `FROM` columns can come from regular tables, subtables, or existing virtual tables. TDengine supertables, views, and TDengine tables with composite primary keys are not supported as direct sources. For MySQL and PostgreSQL external tables, see [External Column Reference Filters](#external-column-reference-filters).
 14. In `TAGS (...)` for a virtual subtable, each tag can be a literal value or a tag-ref. Supported tag-ref forms are `table.tag`, `FROM table.tag`, and `tag_name FROM table.tag`. Use `db_name.table.tag` for cross-database references.
 15. Reference-related limits and behaviors are described in the "Virtual-Table Reference Capabilities" section below.
 16. Rules for virtual basic table tags (the `TAGS` clause) are described in the "Virtual Basic Table Tags" section below.
 17. An owned column must carry a `FROM` data-source reference; purely local data columns are not supported. The reference target must be a data column (not a tag column), its type must match the declared type, and reference cycles are not allowed.
 18. Owned tags do not support the `JSON` or `DECIMAL` types. If the virtual supertable has a single `JSON` tag, no owned tag can be declared on its virtual subtables.
 19. Column names and tag names share a single namespace: owned column/tag names must not duplicate the virtual supertable's columns, tags, or existing owned members. In addition, if a new column/tag name introduced by `ALTER STABLE` on a virtual supertable is already used by an owned member of any virtual subtable, that `ALTER` fails.
+
+### External Column Reference Filters
+
+Virtual basic tables and virtual subtables can reference data columns in MySQL or PostgreSQL external tables and append `WHERE` to each column reference. The condition is saved in the virtual-table definition. Each query filters the external rows before aligning the referenced columns by timestamp.
+
+```sql
+filter_condition:
+    column_name comparison_operator literal
+    | (filter_condition)
+    | filter_condition AND filter_condition
+
+comparison_operator: = | != | <> | < | <= | > | >=
+```
+
+**Filter constraints**
+
+- `WHERE` is supported only for direct data-column references to MySQL or PostgreSQL external tables. It cannot be appended to references to TDengine tables, other virtual tables, tag columns, or InfluxDB `SERIES`. Indirect references through other virtual tables retain filters already saved on the underlying references.
+- The external table must have a primary key containing exactly one column that maps to TDengine `TIMESTAMP`. Every other primary-key column must be covered by `column = literal` in each reference's `WHERE`, ensuring at most one row per timestamp after filtering. `WHERE` is optional when the timestamp column is the entire primary key.
+- Each comparison must have an unqualified column name from the current external table on the left and a numeric, string, or boolean literal on the right. The filter may use external columns that are not referenced by the virtual table. Literals must convert to the external column's data type; timestamp values must be string literals.
+- Each external column may appear only once in a filter. MySQL column matching is case insensitive. PostgreSQL column matching is case sensitive: identifiers without backticks are converted to lowercase, so use backticks to preserve column names containing uppercase letters. For example, PostgreSQL columns named `device` and `Device` are distinct and may both appear in the same filter. Non-timestamp primary-key columns require `=`; other columns support the comparison operators listed above. Multiple comparisons must be joined by `AND`; parentheses are allowed.
+- `OR`, `NOT`, `IN`, `LIKE`, `IS NULL`, `NULL` values, functions, arithmetic expressions, subqueries, and parameter placeholders are not supported. `BETWEEN` expands into two comparisons of the same column and is therefore also unsupported.
+- A query's `WHERE` cannot replace the primary-key filter required in a column definition. Different columns can reference different filtered results from the same external table. Filters apply independently; timestamps are the union of the filtered results for references involved in the query, with missing values filled with `NULL`.
+
+Assume an existing MySQL external data source named `mysql_src` contains `metrics.readings` with columns `ts`, `device`, `tenant`, `v`, and `w`. Its primary key is `(ts, device, tenant)`; `ts` maps to `TIMESTAMP`, and `v` and `w` map to `INT`:
+
+```sql
+CREATE VTABLE filtered_readings (
+    ts TIMESTAMP,
+    a INT FROM mysql_src.metrics.readings.v WHERE device = 'd1' AND tenant = 1,
+    b INT FROM mysql_src.metrics.readings.w WHERE device = 'd2' AND tenant = 1
+);
+
+CREATE STABLE filtered_stable (ts TIMESTAMP, a INT) TAGS (site INT) VIRTUAL 1;
+CREATE VTABLE filtered_child (
+    a FROM mysql_src.metrics.readings.v WHERE device = 'd1' AND tenant = 1
+) USING filtered_stable TAGS (1);
+
+ALTER VTABLE filtered_readings ADD COLUMN c INT
+    FROM mysql_src.metrics.readings.v WHERE device = 'd1' AND tenant = 1 AND v >= 10;
+ALTER VTABLE filtered_readings ALTER COLUMN a SET
+    mysql_src.metrics.readings.v WHERE device = 'd2' AND tenant = 1;
+ALTER VTABLE filtered_readings ALTER COLUMN b SET NULL;
+SHOW CREATE VTABLE filtered_readings;
+```
+
+`ALTER COLUMN ... SET` replaces the entire reference and its condition; there is no separate operation to edit only `WHERE`. Omitting `WHERE` when rebinding clears the old condition, but the new reference must still satisfy the primary-key requirements. In this example, the composite key requires equality conditions for both `device` and `tenant`. `SET NULL` clears both the reference and its filter. `SHOW CREATE VTABLE` includes the saved `WHERE` so that the definition can be recreated.
+
+Queries revalidate saved conditions against the current external metadata. Removing a filter column, changing a type so that a literal is incompatible, or changing the primary key so that the filter no longer covers it causes affected queries to fail. Failure to execute the external filter also fails the query instead of returning unfiltered data.
 
 ### Virtual Basic Table Tags
 
@@ -290,7 +347,7 @@ In a virtual table, a referenced column or tag does not store copied data. Inste
 
 - A tag-ref must point to a tag column, not a data column, and the source tag type must match the target virtual tag type.
 - A col-ref must point to a data column, not a tag column, and the source column type must match the target virtual column type.
-- Supertables, views, and tables with composite primary keys are not supported as reference sources.
+- TDengine supertables, views, and TDengine tables with composite primary keys are not supported as reference sources. MySQL and PostgreSQL external tables can use composite primary keys that meet the [filter requirements](#external-column-reference-filters).
 - Reference cycles are not allowed and are rejected during validation.
 - The total reference-chain depth cannot exceed 32 hops; validation or query execution returns `0x8000620C` when the chain exceeds that limit.
 
@@ -486,9 +543,9 @@ Since the original tables t1 and t2 (corresponding to columns c1 and c2) lack th
 ALTER VTABLE [db_name.]vtb_name alter_table_clause
 
 alter_table_clause: {
-  ADD COLUMN vtb_col_name vtb_column_type [FROM table_name.col_name]
+  ADD COLUMN vtb_col_name vtb_column_type [FROM column_reference]
   | DROP COLUMN vtb_col_name
-  | ALTER COLUMN vtb_col_name SET {table_name.col_name | NULL }
+  | ALTER COLUMN vtb_col_name SET {column_reference | NULL}
   | MODIFY COLUMN col_name column_type
   | RENAME COLUMN old_col_name new_col_name
   | ADD TAG tag_name tag_type [FROM [db_name.]table_name.tag_name]
@@ -513,7 +570,7 @@ For virtual basic tables, the following modifications are supported:
 ### Add Column
 
 ```sql
-ALTER VTABLE vtb_name ADD COLUMN vtb_col_name vtb_col_type [FROM [db_name].table_name.col_name]
+ALTER VTABLE vtb_name ADD COLUMN vtb_col_name vtb_col_type [FROM column_reference]
 ```
 
 ### Drop Column
@@ -537,7 +594,7 @@ ALTER VTABLE vtb_name RENAME COLUMN old_col_name new_col_name
 ### Change Column Source
 
 ```sql
-ALTER VTABLE vtb_name ALTER COLUMN vtb_col_name SET {[db_name.]table_name.col_name | NULL}
+ALTER VTABLE vtb_name ALTER COLUMN vtb_col_name SET {column_reference | NULL}
 ```
 
 ### Add Tag
@@ -574,8 +631,8 @@ ALTER VTABLE vtb_name DROP TAG tag_name;
 ALTER VTABLE [db_name.]vtb_name alter_table_clause
 
 alter_table_clause: {
-  ALTER COLUMN vtb_col_name SET table_name.col_name
-  | ADD COLUMN owned_col_name type_name FROM [db_name.]table_name.col_name
+  ALTER COLUMN vtb_col_name SET {column_reference | NULL}
+  | ADD COLUMN owned_col_name type_name FROM column_reference
   | ADD TAG owned_tag_name type_name
   | SET TAG tag_name = {new_tag_value | [db_name.]table_name.tag_name}
   | DROP COLUMN owned_col_name
@@ -637,13 +694,13 @@ When a virtual subtable's tag is one link of a multi-hop chain (for example, `v2
 ### Change Column Source
 
 ```sql
-ALTER VTABLE vtb_name ALTER COLUMN vtb_col_name SET {[db_name.]table_name.col_name | NULL}
+ALTER VTABLE vtb_name ALTER COLUMN vtb_col_name SET {column_reference | NULL}
 ```
 
 ### Add an Owned Column
 
 ```sql
-ALTER VTABLE vtb_name ADD COLUMN owned_col_name type_name FROM [db_name.]table_name.col_name
+ALTER VTABLE vtb_name ADD COLUMN owned_col_name type_name FROM column_reference
 ```
 
 Appends an owned column to a virtual subtable. The `FROM` data-source reference is mandatory — omitting it fails. The reference target must be a data column, its type must match the declared type, and validation follows the same rules as at creation time.

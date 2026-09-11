@@ -741,6 +741,11 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000620D | Virtual table query cannot resolve ref column                              | 虚拟表查询在递归解析引用列时，找不到合法的下一跳引用或最终引用列               | 检查虚拟表引用链和元数据定义，必要时联系开发处理 |
 | 0x8000620E | Virtual table circular reference detected                                  | 虚拟表查询在递归解析引用链时，检测到循环引用（A→B→...→A）                | 检查虚拟表引用链，消除循环依赖             |
 | 0x8000620F | No valid epSet for virtual super table data source node                    | 虚拟超级表查询使用了过期的数据源 vgroup 路由，执行器找不到对应 endpoint       | 客户端会刷新相关数据库元数据并自动重试；若持续失败，请检查集群状态和客户端日志 |
+| 0x80006210 | Invalid external column filter expression | 外部列过滤条件结构非法，或保存的条件无法解析 | 仅使用未限定列名与字面量进行比较，并通过 `AND` 连接；日期和时间使用字符串字面量 |
+| 0x80006211 | Duplicate column in external column filter | 外部列过滤条件中重复使用同一列，列名比较不区分大小写 | 确保每个条件列只出现一次 |
+| 0x80006212 | External column filter must constrain every business primary key column with an equality literal | 保存的外部列条件未通过等值字面量约束全部业务主键列 | 在列引用的过滤条件中为每个非时间戳主键列指定一次 `=` 字面量条件；查询的 `WHERE` 不能替代该条件 |
+| 0x80006213 | External column filters require a direct MySQL or PostgreSQL column reference | 对非 MySQL/PostgreSQL 外部源或间接虚拟表引用指定了新的列过滤条件 | 仅在直接引用 MySQL/PostgreSQL 外部表列时指定条件；虚拟表链使用叶子列保存的条件 |
+| 0x80006214 | Cannot generate or execute remote SQL with the stored external column filter | 无法生成带保存条件的远端 SQL，或外部数据库拒绝执行该 SQL | 根据错误详情检查列过滤条件和远端数据库支持的语法；保存条件必须在远端执行，不能降级为本地过滤 |
 
 #### federated query
 

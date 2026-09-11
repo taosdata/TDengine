@@ -1,0 +1,202 @@
+
+taos> alter local "timezone" "UTC";
+
+taos> select a from vfilter_query.filter_normal where a = 10;
+
+taos> select a from vfilter_query.filter_normal where a != 11;
+
+taos> select bounded from vfilter_query.filter_normal where bounded < 11;
+
+taos> select c from vfilter_query.filter_normal where ts < 1704067201000;
+
+taos> select count(*) as rows_n, count(bounded) as bounded_n, sum(bounded) as bounded_sum from vfilter_query.filter_normal where bounded < 11;
+ rows_n | bounded_n | bounded_sum |
+================
+ 0 | 0 | NULL |
+
+taos> select cast(ts as bigint) as ts_ms, a, bounded, c from vfilter_query.filter_normal where a <= 11 and bounded <= 11 and ts <= 1704067201000 order by ts;
+ ts_ms | a | bounded | c |
+================
+ 1704067201000 | 11 | 11 | 11 |
+
+taos> select bounded from vfilter_query.filter_normal where bounded < 11 or bounded = 13 order by ts;
+ bounded |
+================
+ 13 |
+
+taos> select cast(ts as bigint) as ts_ms, b, c from vfilter_query.filter_normal where ts < 1704067201000 order by ts, b;
+ ts_ms | b | c |
+================
+ 1704067200000 | 100 | NULL |
+
+taos> select a from vfilter_query.child_1 where a = 10;
+
+taos> select a from vfilter_query.child_1 where a != 11;
+
+taos> select bounded from vfilter_query.child_1 where bounded < 11;
+
+taos> select c from vfilter_query.child_1 where ts < 1704067201000;
+
+taos> select count(*) as rows_n, count(bounded) as bounded_n, sum(bounded) as bounded_sum from vfilter_query.child_1 where bounded < 11;
+ rows_n | bounded_n | bounded_sum |
+================
+ 0 | 0 | NULL |
+
+taos> select cast(ts as bigint) as ts_ms, a, bounded, c from vfilter_query.child_1 where a <= 11 and bounded <= 11 and ts <= 1704067201000 order by ts;
+ ts_ms | a | bounded | c |
+================
+ 1704067201000 | 11 | 11 | 11 |
+
+taos> select bounded from vfilter_query.child_1 where bounded < 11 or bounded = 13 order by ts;
+ bounded |
+================
+ 13 |
+
+taos> select cast(ts as bigint) as ts_ms, b, c from vfilter_query.child_1 where ts < 1704067201000 order by ts, b;
+ ts_ms | b | c |
+================
+ 1704067200000 | 100 | NULL |
+
+taos> select a from vfilter_query.child_2 where a = 10;
+
+taos> select a from vfilter_query.child_2 where a != 11;
+
+taos> select bounded from vfilter_query.child_2 where bounded < 11;
+
+taos> select c from vfilter_query.child_2 where ts < 1704067201000;
+
+taos> select count(*) as rows_n, count(bounded) as bounded_n, sum(bounded) as bounded_sum from vfilter_query.child_2 where bounded < 11;
+ rows_n | bounded_n | bounded_sum |
+================
+ 0 | 0 | NULL |
+
+taos> select cast(ts as bigint) as ts_ms, a, bounded, c from vfilter_query.child_2 where a <= 11 and bounded <= 11 and ts <= 1704067201000 order by ts;
+ ts_ms | a | bounded | c |
+================
+ 1704067201000 | 11 | 11 | 11 |
+
+taos> select bounded from vfilter_query.child_2 where bounded < 11 or bounded = 13 order by ts;
+ bounded |
+================
+ 13 |
+
+taos> select cast(ts as bigint) as ts_ms, b, c from vfilter_query.child_2 where ts < 1704067201000 order by ts, b;
+ ts_ms | b | c |
+================
+ 1704067200000 | 200 | NULL |
+
+taos> select a from vfilter_query.filter_stable where a = 10;
+
+taos> select a from vfilter_query.filter_stable where a != 11;
+
+taos> select bounded from vfilter_query.filter_stable where bounded < 11;
+
+taos> select c from vfilter_query.filter_stable where ts < 1704067201000;
+
+taos> select count(*) as rows_n, count(bounded) as bounded_n, sum(bounded) as bounded_sum from vfilter_query.filter_stable where bounded < 11;
+ rows_n | bounded_n | bounded_sum |
+================
+ 0 | 0 | NULL |
+
+taos> select cast(ts as bigint) as ts_ms, a, bounded, c from vfilter_query.filter_stable where a <= 11 and bounded <= 11 and ts <= 1704067201000 order by ts;
+ ts_ms | a | bounded | c |
+================
+ 1704067201000 | 11 | 11 | 11 |
+ 1704067201000 | 11 | 11 | 11 |
+
+taos> select bounded from vfilter_query.filter_stable where bounded < 11 or bounded = 13 order by ts;
+ bounded |
+================
+ 13 |
+ 13 |
+
+taos> select cast(ts as bigint) as ts_ms, b, c from vfilter_query.filter_stable where ts < 1704067201000 order by ts, b;
+ ts_ms | b | c |
+================
+ 1704067200000 | 100 | NULL |
+ 1704067200000 | 200 | NULL |
+
+taos> select a from vfilter_query.chain where a = 10;
+
+taos> select a from vfilter_query.chain where a != 11;
+
+taos> select bounded from vfilter_query.chain where bounded < 11;
+
+taos> select c from vfilter_query.chain where ts < 1704067201000;
+
+taos> select count(*) as rows_n, count(bounded) as bounded_n, sum(bounded) as bounded_sum from vfilter_query.chain where bounded < 11;
+ rows_n | bounded_n | bounded_sum |
+================
+ 0 | 0 | NULL |
+
+taos> select cast(ts as bigint) as ts_ms, a, bounded, c from vfilter_query.chain where a <= 11 and bounded <= 11 and ts <= 1704067201000 order by ts;
+ ts_ms | a | bounded | c |
+================
+ 1704067201000 | 11 | 11 | 11 |
+
+taos> select bounded from vfilter_query.chain where bounded < 11 or bounded = 13 order by ts;
+ bounded |
+================
+ 13 |
+
+taos> select cast(ts as bigint) as ts_ms, b, c from vfilter_query.chain where ts < 1704067201000 order by ts, b;
+ ts_ms | b | c |
+================
+ 1704067200000 | 100 | NULL |
+
+taos> select a from vfilter_query.chain_child where a = 10;
+
+taos> select a from vfilter_query.chain_child where a != 11;
+
+taos> select bounded from vfilter_query.chain_child where bounded < 11;
+
+taos> select c from vfilter_query.chain_child where ts < 1704067201000;
+
+taos> select count(*) as rows_n, count(bounded) as bounded_n, sum(bounded) as bounded_sum from vfilter_query.chain_child where bounded < 11;
+ rows_n | bounded_n | bounded_sum |
+================
+ 0 | 0 | NULL |
+
+taos> select cast(ts as bigint) as ts_ms, a, bounded, c from vfilter_query.chain_child where a <= 11 and bounded <= 11 and ts <= 1704067201000 order by ts;
+ ts_ms | a | bounded | c |
+================
+ 1704067201000 | 11 | 11 | 11 |
+
+taos> select bounded from vfilter_query.chain_child where bounded < 11 or bounded = 13 order by ts;
+ bounded |
+================
+ 13 |
+
+taos> select cast(ts as bigint) as ts_ms, b, c from vfilter_query.chain_child where ts < 1704067201000 order by ts, b;
+ ts_ms | b | c |
+================
+ 1704067200000 | 100 | NULL |
+
+taos> select a from vfilter_query.chain_stable where a = 10;
+
+taos> select a from vfilter_query.chain_stable where a != 11;
+
+taos> select bounded from vfilter_query.chain_stable where bounded < 11;
+
+taos> select c from vfilter_query.chain_stable where ts < 1704067201000;
+
+taos> select count(*) as rows_n, count(bounded) as bounded_n, sum(bounded) as bounded_sum from vfilter_query.chain_stable where bounded < 11;
+ rows_n | bounded_n | bounded_sum |
+================
+ 0 | 0 | NULL |
+
+taos> select cast(ts as bigint) as ts_ms, a, bounded, c from vfilter_query.chain_stable where a <= 11 and bounded <= 11 and ts <= 1704067201000 order by ts;
+ ts_ms | a | bounded | c |
+================
+ 1704067201000 | 11 | 11 | 11 |
+
+taos> select bounded from vfilter_query.chain_stable where bounded < 11 or bounded = 13 order by ts;
+ bounded |
+================
+ 13 |
+
+taos> select cast(ts as bigint) as ts_ms, b, c from vfilter_query.chain_stable where ts < 1704067201000 order by ts, b;
+ ts_ms | b | c |
+================
+ 1704067200000 | 100 | NULL |
+

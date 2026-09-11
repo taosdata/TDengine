@@ -697,6 +697,9 @@ int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta) 
   QUERY_PARAM_CHECK(pMeta);
   QUERY_PARAM_CHECK(msg->pColRefs);
 
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
   // The vchild response carries the merged column/tag view: vstb columns (colId <
   // TSDB_VCHILD_OWN_COL_ID_BASE) followed by the child's own columns (colId >=
   // TSDB_VCHILD_OWN_COL_ID_BASE), then vstb tags followed by the child's own tags.
@@ -754,12 +757,7 @@ int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta) 
 
   SVCTableMeta *pTableMeta = taosMemoryCalloc(
       1, sizeof(SVCTableMeta) + pColRefSize + pTagRefSize + ownSchemaSize + ownTagSchemaSize + ownSchemaExtSize);
-  if (NULL == pTableMeta) {
-    qError("calloc size[%d] failed",
-           (int32_t)sizeof(SVCTableMeta) + pColRefSize + pTagRefSize + ownSchemaSize + ownTagSchemaSize +
-               ownSchemaExtSize);
-    return terrno;
-  }
+  QUERY_CHECK_NULL(pTableMeta, code, lino, _return, terrno);
 
   pTableMeta->vgId = msg->vgId;
   pTableMeta->tableType = msg->tableType;
@@ -772,19 +770,15 @@ int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta) 
 
   pTableMeta->colRef = (SColRef *)((char *)pTableMeta + sizeof(SVCTableMeta));
   memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
-  for (int32_t i = 0; i < msg->numOfColRefs; ++i) {
-    pTableMeta->colRef[i].tagCondJson = NULL;
-    if (msg->pColRefs[i].tagCondJson) { pTableMeta->colRef[i].tagCondJson = taosStrdup(msg->pColRefs[i].tagCondJson); }
-  }
+  code = queryCloneColRefTagConds(msg->pColRefs, msg->numOfColRefs, pTableMeta->colRef);
+  QUERY_CHECK_CODE(code, lino, _return);
 
   if (pTagRefSize > 0) {
     pTableMeta->tagRef = (SColRef *)((char *)pTableMeta + sizeof(SVCTableMeta) + pColRefSize);
     memcpy(pTableMeta->tagRef, msg->pTagRefs, pTagRefSize);
     pTableMeta->numOfTagRefs = msg->numOfTagRefs;
-    for (int32_t i = 0; i < msg->numOfTagRefs; ++i) {
-      pTableMeta->tagRef[i].tagCondJson = NULL;
-      if (msg->pTagRefs[i].tagCondJson) { pTableMeta->tagRef[i].tagCondJson = taosStrdup(msg->pTagRefs[i].tagCondJson); }
-    }
+    code = queryCloneColRefTagConds(msg->pTagRefs, msg->numOfTagRefs, pTableMeta->tagRef);
+    QUERY_CHECK_CODE(code, lino, _return);
   } else {
     pTableMeta->tagRef = NULL;
     pTableMeta->numOfTagRefs = 0;
@@ -853,7 +847,17 @@ int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta) 
          (pTableMeta)->tableType, (pTableMeta)->vgId, msg->dbFName, (pTableMeta)->suid);
 
   *pMeta = pTableMeta;
-  return TSDB_CODE_SUCCESS;
+  return code;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  if (pTableMeta != NULL) {
+    queryFreeColRefTagConds(pTableMeta->colRef, pTableMeta->numOfColRefs);
+    queryFreeColRefTagConds(pTableMeta->tagRef, pTableMeta->numOfTagRefs);
+    queryFreeSeriesEntries(pTableMeta->seriesEntries, pTableMeta->numOfSeries);
+    taosMemoryFree(pTableMeta);
+  }
+  return code;
 }
 
 // Count the vstb (non-own, colId < TSDB_VCHILD_OWN_COL_ID_BASE) columns/tags of a virtual
@@ -906,6 +910,8 @@ static void queryPackVstbSchema(const STableMetaRsp *msg, SSchema *dstSchema, SS
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta **pMeta) {
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(pMeta);
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   // A virtual child response carries the merged column/tag view (vstb columns/tags
   // followed by the child's own ones with colId >= TSDB_VCHILD_OWN_COL_ID_BASE). The
   // stb-side meta must hold the pure vstb schema: it is cached as the shared vstb entry,
@@ -930,10 +936,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
 
   int32_t sz = metaSize + schemaExtSize + pColRefSize + pTagRefSize;
   STableMeta *pTableMeta = taosMemoryCalloc(1, sz);
-  if (NULL == pTableMeta) {
-    qError("calloc size[%d] failed since %s", sz, tstrerror(terrno));
-    return terrno;
-  }
+  QUERY_CHECK_NULL(pTableMeta, code, lino, _return, terrno);
   SSchemaExt *pSchemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
   // SColRef    *pColRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
   // SColRef    *pTagRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize + pColRefSize);
@@ -986,10 +989,8 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   if (hasColRef(msg->tableType) && msg->pColRefs && !isStb) {
     pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
     memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
-    for (int32_t i = 0; i < msg->numOfColRefs; ++i) {
-      pTableMeta->colRef[i].tagCondJson = NULL;
-      if (msg->pColRefs[i].tagCondJson) { pTableMeta->colRef[i].tagCondJson = taosStrdup(msg->pColRefs[i].tagCondJson); }
-    }
+    code = queryCloneColRefTagConds(msg->pColRefs, msg->numOfColRefs, pTableMeta->colRef);
+    QUERY_CHECK_CODE(code, lino, _return);
   } else {
     pTableMeta->colRef = NULL;
   }
@@ -998,10 +999,8 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
     pTableMeta->tagRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize + pColRefSize);
     memcpy(pTableMeta->tagRef, msg->pTagRefs, pTagRefSize);
     pTableMeta->numOfTagRefs = msg->numOfTagRefs;
-    for (int32_t i = 0; i < msg->numOfTagRefs; ++i) {
-      pTableMeta->tagRef[i].tagCondJson = NULL;
-      if (msg->pTagRefs[i].tagCondJson) { pTableMeta->tagRef[i].tagCondJson = taosStrdup(msg->pTagRefs[i].tagCondJson); }
-    }
+    code = queryCloneColRefTagConds(msg->pTagRefs, msg->numOfTagRefs, pTableMeta->tagRef);
+    QUERY_CHECK_CODE(code, lino, _return);
   } else {
     pTableMeta->tagRef = NULL;
     pTableMeta->numOfTagRefs = 0;
@@ -1048,12 +1047,19 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
          pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.precision, pTableMeta->tableInfo.rowSize);
 
   *pMeta = pTableMeta;
-  return TSDB_CODE_SUCCESS;
+  return code;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  queryFreeTableMeta(pTableMeta);
+  return code;
 }
 
 int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta **pMeta) {
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(pMeta);
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   // See queryCreateTableMetaFromMsg: strip the vchild own columns/tags when building the
   // stb-side meta so the shared vstb cache entry keeps the pure vstb schema.
   bool    stripOwn = isStb && msg->tableType == TSDB_VIRTUAL_CHILD_TABLE && NULL != msg->pSchemas;
@@ -1073,10 +1079,7 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
 
 
   STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + pColRefSize + tbNameSize);
-  if (NULL == pTableMeta) {
-    qError("calloc size[%d] failed", metaSize);
-    return terrno;
-  }
+  QUERY_CHECK_NULL(pTableMeta, code, lino, _return, terrno);
   SSchemaExt *pSchemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
   SColRef    *pColRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
 
@@ -1114,10 +1117,8 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   if (hasColRef(msg->tableType) && msg->pColRefs && !isStb) {
     pTableMeta->colRef = pColRef;
     memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
-    for (int32_t i = 0; i < msg->numOfColRefs; ++i) {
-      pTableMeta->colRef[i].tagCondJson = NULL;
-      if (msg->pColRefs[i].tagCondJson) { pTableMeta->colRef[i].tagCondJson = taosStrdup(msg->pColRefs[i].tagCondJson); }
-    }
+    code = queryCloneColRefTagConds(msg->pColRefs, msg->numOfColRefs, pTableMeta->colRef);
+    QUERY_CHECK_CODE(code, lino, _return);
   } else {
     pTableMeta->colRef = NULL;
   }
@@ -1166,7 +1167,12 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
          pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.precision, pTableMeta->tableInfo.rowSize);
 
   *pMeta = pTableMeta;
-  return TSDB_CODE_SUCCESS;
+  return code;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  queryFreeTableMeta(pTableMeta);
+  return code;
 }
 
 int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {

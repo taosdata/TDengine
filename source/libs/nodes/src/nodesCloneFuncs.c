@@ -16,6 +16,7 @@
 #include "cmdnodes.h"
 #include "nodesUtil.h"
 #include "plannodes.h"
+#include "query.h"
 #include "querynodes.h"
 #include "taos.h"
 #include "taoserror.h"
@@ -160,6 +161,38 @@ static int32_t columnDefNodeCopy(const SColumnDefNode* pSrc, SColumnDefNode* pDs
   COPY_SCALAR_FIELD(sma);;
   CLONE_NODE_FIELD(pOptions);
   CLONE_NODE_FIELD(pTagVal);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t columnOptionsCopy(const SColumnOptions* pSrc, SColumnOptions* pDst) {
+  COPY_SCALAR_FIELD(commentNull);
+  COPY_CHAR_ARRAY_FIELD(comment);
+  COPY_CHAR_ARRAY_FIELD(encode);
+  COPY_CHAR_ARRAY_FIELD(compress);
+  COPY_CHAR_ARRAY_FIELD(compressLevel);
+  COPY_SCALAR_FIELD(bPrimaryKey);
+  COPY_SCALAR_FIELD(hasRef);
+  COPY_SCALAR_FIELD(refType);
+  COPY_CHAR_ARRAY_FIELD(refSourceName);
+  COPY_CHAR_ARRAY_FIELD(refDb);
+  COPY_CHAR_ARRAY_FIELD(refTable);
+  COPY_CHAR_ARRAY_FIELD(refColumn);
+  CLONE_NODE_FIELD(pTagCond);
+  CLONE_NODE_FIELD(pFilterCond);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t columnReferenceCopy(const SColumnRefNode* pSrc, SColumnRefNode* pDst) {
+  COPY_CHAR_ARRAY_FIELD(colName);
+  COPY_SCALAR_FIELD(hasDataType);
+  COPY_OBJECT_FIELD(dataType, sizeof(SDataType));
+  COPY_SCALAR_FIELD(refType);
+  COPY_CHAR_ARRAY_FIELD(refDbName);
+  COPY_CHAR_ARRAY_FIELD(refTableName);
+  COPY_CHAR_ARRAY_FIELD(refColName);
+  COPY_CHAR_ARRAY_FIELD(refSourceName);
+  CLONE_NODE_FIELD(pTagCond);
+  CLONE_NODE_FIELD(pFilterCond);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -312,13 +345,17 @@ static int32_t tableNodeCopy(const STableNode* pSrc, STableNode* pDst) {
 }
 
 static STableMeta* tableMetaClone(const STableMeta* pSrc) {
-  int32_t     len = TABLE_META_FULL_SIZE(pSrc);
-  STableMeta* pDst = taosMemoryMalloc(len);
-  if (NULL == pDst) {
-    return NULL;
+  STableMeta* pDst = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  code = cloneTableMeta(pSrc, &pDst);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    terrno = code;
+    qError("%s failed at line %d, code:%s", __func__, lino, tstrerror(code));
   }
-  memcpy(pDst, pSrc, len);
-  tableMetaResetPointers(pDst);
   return pDst;
 }
 
@@ -673,6 +710,7 @@ static int32_t sqlNamedWindowCopy(const SNamedWindowNode* pSrc, SNamedWindowNode
 
 static int32_t virtualTableNodeCopy(const SVirtualTableNode * pSrc, SVirtualTableNode* pDst) {
   COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
+  COPY_SCALAR_FIELD(hasFilterCond);
   CLONE_OBJECT_FIELD(pMeta, tableMetaClone);
   CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
   CLONE_NODE_LIST_FIELD(refTables);
@@ -785,6 +823,29 @@ static int32_t alterTableUpdateTagValClauseCopy(const SAlterTableUpdateTagValCla
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t alterTableStmtCopy(const SAlterTableStmt* pSrc, SAlterTableStmt* pDst) {
+  COPY_CHAR_ARRAY_FIELD(dbName);
+  COPY_CHAR_ARRAY_FIELD(tableName);
+  COPY_SCALAR_FIELD(alterType);
+  COPY_CHAR_ARRAY_FIELD(colName);
+  COPY_CHAR_ARRAY_FIELD(newColName);
+  CLONE_NODE_FIELD(pOptions);
+  COPY_OBJECT_FIELD(dataType, sizeof(SDataType));
+  CLONE_NODE_FIELD(pVal);
+  CLONE_NODE_FIELD(pColOptions);
+  CLONE_NODE_LIST_FIELD(pList);
+  COPY_CHAR_ARRAY_FIELD(refSourceName);
+  COPY_CHAR_ARRAY_FIELD(refDbName);
+  COPY_CHAR_ARRAY_FIELD(refTableName);
+  COPY_CHAR_ARRAY_FIELD(refColName);
+  COPY_SCALAR_FIELD(refType);
+  CLONE_NODE_FIELD(pWhere);
+  CLONE_NODE_FIELD(pFilterCond);
+  CLONE_NODE_FIELD(pSeriesDecl);
+  COPY_CHAR_ARRAY_FIELD(seriesAlias);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pTargets);
   CLONE_NODE_FIELD(pConditions);
@@ -886,6 +947,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
 
 static int32_t logicVirtualScanCopy(const SVirtualScanLogicNode * pSrc, SVirtualScanLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  COPY_SCALAR_FIELD(hasFilterCond);
   COPY_SCALAR_FIELD(scanAllCols);
   CLONE_NODE_LIST_FIELD(pScanCols);
   CLONE_NODE_LIST_FIELD(pScanPseudoCols);
@@ -1863,6 +1925,12 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_COLUMN_DEF:
       code = columnDefNodeCopy((const SColumnDefNode*)pNode, (SColumnDefNode*)pDst);
       break;
+    case QUERY_NODE_COLUMN_OPTIONS:
+      code = columnOptionsCopy((const SColumnOptions*)pNode, (SColumnOptions*)pDst);
+      break;
+    case QUERY_NODE_COLUMN_REF:
+      code = columnReferenceCopy((const SColumnRefNode*)pNode, (SColumnRefNode*)pDst);
+      break;
     case QUERY_NODE_VALUE:
       code = valueNodeCopy((const SValueNode*)pNode, (SValueNode*)pDst);
       ((SValueNode*)pDst)->flag &= ~VALUE_FLAG_REMOTE_PLAN;
@@ -2004,6 +2072,11 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE:
       code = alterTableUpdateTagValClauseCopy((const SAlterTableUpdateTagValClause*)pNode, (SAlterTableUpdateTagValClause*)pDst);
+      break;
+    case QUERY_NODE_ALTER_TABLE_STMT:
+    case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
+    case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
+      code = alterTableStmtCopy((const SAlterTableStmt*)pNode, (SAlterTableStmt*)pDst);
       break;
     case QUERY_NODE_TRUE_FOR:
       code = trueForNodeCopy((const STrueForNode*)pNode, (STrueForNode*)pDst);

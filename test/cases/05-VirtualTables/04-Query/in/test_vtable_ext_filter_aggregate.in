@@ -1,0 +1,9 @@
+alter local "timezone" "UTC";
+select count(*) as rows_n, count(a) as a_n, count(b) as b_n, count(c) as c_n, count(empty_v) as empty_n, sum(a) as a_sum, sum(c) as c_sum from vfilter_query.filter_normal;
+select min(a) as a_min, max(a) as a_max, min(c) as c_min, max(c) as c_max from vfilter_query.chain;
+select scenario, count(a) as a_n, count(b) as b_n, count(c) as c_n, sum(a) as a_sum, sum(c) as c_sum from vfilter_query.filter_stable group by scenario order by scenario;
+select scenario, sum(a) as a_sum, sum(c) as c_sum from vfilter_query.filter_stable group by scenario having sum(a) > 50 order by scenario;
+select count(*) as rows_n, count(a) as a_n, sum(a) as a_sum, count(c) as c_n, sum(c) as c_sum from vfilter_query.chain_stable;
+select cast(_wstart as bigint) as start_ms, sum(a) as a_sum, sum(c) as c_sum, count(a) as a_n, count(c) as c_n from vfilter_query.filter_normal interval(2s) order by _wstart;
+select scenario, cast(_wstart as bigint) as start_ms, sum(a) as a_sum, sum(c) as c_sum from vfilter_query.filter_stable partition by scenario interval(2s) order by scenario, _wstart;
+select count(*) as rows_n, count(a) as a_n, sum(a) as a_sum from vfilter_query.filter_normal where a > 100;

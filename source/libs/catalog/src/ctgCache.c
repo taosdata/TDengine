@@ -4507,7 +4507,7 @@ int32_t ctgRemoveTbMetaFromCache(SCatalog *pCtg, SName *pTableName, bool syncReq
 
 _return:
 
-  taosMemoryFreeClear(tblMeta);
+  queryFreeTableMeta(tblMeta);
 
   CTG_RET(code);
 }

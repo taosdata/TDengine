@@ -64,6 +64,130 @@ void registerExternalTimelineTable(const std::string& sourceName) {
 
 }  // namespace
 
+TEST_F(ParserSelectDdlTest, externalColumnFilterValidation) {
+  FederatedFlagGuard guard;
+  login("root");
+  g_mockCatalogService->createDatabase("vfilter", false, 0, TSDB_TIME_PRECISION_MICRO);
+  useDb("root", "vfilter");
+
+  std::vector<MockCatalogService::MockExtColDef> columns = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "timestamp"},
+      {"device", TSDB_DATA_TYPE_BIGINT, true, false, false, "bigint"},
+      {"value", TSDB_DATA_TYPE_DOUBLE, false, true, false, "double precision"},
+      {"active", TSDB_DATA_TYPE_BOOL, false, true, false, "boolean"},
+      {"created_at", TSDB_DATA_TYPE_TIMESTAMP, false, true, false, "timestamp"},
+      {"time_of_day", TSDB_DATA_TYPE_BIGINT, false, true, false, "time"},
+  };
+  g_mockCatalogService->createExtSource("ext_filter_pg", EXT_SOURCE_POSTGRESQL, "127.0.0.1", 5432,
+                                        "fake_user", "fake_db", "public");
+  g_mockCatalogService->createExtTable("ext_filter_pg", "fake_db", "", "metrics", columns,
+                                       TSDB_TIME_PRECISION_MICRO);
+
+  runAsyncOnly("create vtable v_filter_ok (ts timestamp, value double from "
+               "ext_filter_pg.fake_db.metrics.value where (device = 7) and value >= 1.5 and active = true and "
+               "created_at < '2026-01-01' and time_of_day >= 45000000000)");
+  runAsyncOnly("create vtable test.v_filter_low_precision (ts timestamp, value double from "
+               "ext_filter_pg.fake_db.metrics.value where device = 7)",
+               TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE);
+  runAsyncOnly("create vtable v_filter_bad_time (ts timestamp, value double from "
+               "ext_filter_pg.fake_db.metrics.value where device = 7 and time_of_day >= '12:30:00')",
+               TSDB_CODE_PAR_WRONG_VALUE_TYPE);
+  runAsyncOnly("create vtable v_filter_missing_pk (ts timestamp, value double from "
+               "ext_filter_pg.fake_db.metrics.value)",
+               TSDB_CODE_VTABLE_INCOMPLETE_EXT_PK_FILTER);
+  runAsyncOnly("create vtable v_filter_pk_non_eq (ts timestamp, value double from "
+               "ext_filter_pg.fake_db.metrics.value where device > 7)",
+               TSDB_CODE_VTABLE_INCOMPLETE_EXT_PK_FILTER);
+  runAsyncOnly("create vtable v_filter_duplicate (ts timestamp, value double from "
+               "ext_filter_pg.fake_db.metrics.value where device = 7 and device = 8)",
+               TSDB_CODE_VTABLE_DUPLICATE_EXT_FILTER_COLUMN);
+  runAsyncOnly("create vtable v_filter_or (ts timestamp, value double from "
+               "ext_filter_pg.fake_db.metrics.value where device = 7 or active = true)",
+               TSDB_CODE_VTABLE_INVALID_EXT_FILTER);
+  runAsyncOnly("create vtable v_filter_rhs_col (ts timestamp, value double from "
+               "ext_filter_pg.fake_db.metrics.value where device = value)",
+               TSDB_CODE_VTABLE_INVALID_EXT_FILTER);
+  runAsyncOnly("create vtable v_filter_qualified (ts timestamp, value double from "
+               "ext_filter_pg.fake_db.metrics.value where metrics.device = 7)",
+               TSDB_CODE_VTABLE_INVALID_EXT_FILTER);
+  runAsyncOnly("create vtable v_filter_bad_timestamp (ts timestamp, value double from "
+               "ext_filter_pg.fake_db.metrics.value where device = 7 and created_at = 1)",
+               TSDB_CODE_VTABLE_INVALID_EXT_FILTER);
+  runAsyncOnly("create vtable v_filter_bad_value (ts timestamp, value double from "
+               "ext_filter_pg.fake_db.metrics.value where device = 'abc')",
+               TSDB_CODE_PAR_WRONG_VALUE_TYPE);
+  runAsyncOnly("create vtable v_filter_bad_float (ts timestamp, value double from "
+               "ext_filter_pg.fake_db.metrics.value where device = 7 and value = 'abc')",
+               TSDB_CODE_PAR_WRONG_VALUE_TYPE);
+  runAsyncOnly("create vtable v_filter_bad_bool (ts timestamp, value double from "
+               "ext_filter_pg.fake_db.metrics.value where device = 7 and active = 'not_bool')",
+               TSDB_CODE_PAR_WRONG_VALUE_TYPE);
+  runAsyncOnly("create vtable v_filter_local (ts timestamp, value int from test.t1.c1 where c2 = 1)",
+               TSDB_CODE_VTABLE_EXT_FILTER_NOT_SUPPORTED);
+
+  std::vector<MockCatalogService::MockExtColDef> influxColumns = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "Timestamp"},
+      {"device", TSDB_DATA_TYPE_NCHAR, false, true, true, "Utf8"},
+      {"value", TSDB_DATA_TYPE_DOUBLE, false, true, false, "Float64"},
+  };
+  g_mockCatalogService->createExtSource("ext_filter_influx", EXT_SOURCE_INFLUXDB, "127.0.0.1", 8086,
+                                        "fake_user", "fake_db", "");
+  g_mockCatalogService->createExtTable("ext_filter_influx", "fake_db", "", "metrics", influxColumns,
+                                       TSDB_TIME_PRECISION_NANO);
+  runAsyncOnly("create vtable v_filter_influx (ts timestamp, value double from "
+               "ext_filter_influx.fake_db.metrics.value where device = 'd1')",
+               TSDB_CODE_VTABLE_EXT_FILTER_NOT_SUPPORTED);
+
+  ITableBuilder& alterTable =
+      g_mockCatalogService->createTableBuilder("vfilter", "v_filter_alter", TSDB_VIRTUAL_NORMAL_TABLE, 2)
+          .setPrecision(TSDB_TIME_PRECISION_MICRO)
+          .setVgid(2)
+          .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+          .addColumn("value", TSDB_DATA_TYPE_DOUBLE);
+  alterTable.done();
+  runAsyncOnly("alter vtable v_filter_alter add column value2 double from "
+               "ext_filter_pg.fake_db.metrics.value where device = 8");
+  runAsyncOnly("alter vtable v_filter_alter alter column value set "
+               "ext_filter_pg.fake_db.metrics.value where device = 9");
+  runAsyncOnly("alter vtable v_filter_alter alter column value set null");
+
+  std::vector<MockCatalogService::MockExtColDef> timestampOnlyColumns = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "timestamp"},
+      {"value", TSDB_DATA_TYPE_DOUBLE, false, true, false, "double precision"},
+  };
+  g_mockCatalogService->createExtSource("ext_filter_single_pk", EXT_SOURCE_POSTGRESQL, "127.0.0.1", 5432,
+                                        "fake_user", "fake_db", "public");
+  g_mockCatalogService->createExtTable("ext_filter_single_pk", "fake_db", "", "metrics", timestampOnlyColumns,
+                                       TSDB_TIME_PRECISION_MICRO);
+  runAsyncOnly("create vtable v_filter_no_cond (ts timestamp, value double from "
+               "ext_filter_single_pk.fake_db.metrics.value)");
+
+  std::vector<MockCatalogService::MockExtColDef> noPrimaryKeyColumns = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, false, false, false, "timestamp"},
+      {"value", TSDB_DATA_TYPE_DOUBLE, false, true, false, "double precision"},
+  };
+  g_mockCatalogService->createExtSource("ext_filter_no_pk", EXT_SOURCE_POSTGRESQL, "127.0.0.1", 5432,
+                                        "fake_user", "fake_db", "public");
+  g_mockCatalogService->createExtTable("ext_filter_no_pk", "fake_db", "", "metrics", noPrimaryKeyColumns,
+                                       TSDB_TIME_PRECISION_MICRO);
+  runAsyncOnly("create vtable v_filter_no_pk (ts timestamp, value double from "
+               "ext_filter_no_pk.fake_db.metrics.value)",
+               TSDB_CODE_EXT_NO_TS_PRIMARY_KEY);
+
+  std::vector<MockCatalogService::MockExtColDef> twoTimestampPrimaryKeys = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "timestamp"},
+      {"ts2", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "timestamp"},
+      {"value", TSDB_DATA_TYPE_DOUBLE, false, true, false, "double precision"},
+  };
+  g_mockCatalogService->createExtSource("ext_filter_two_ts", EXT_SOURCE_POSTGRESQL, "127.0.0.1", 5432,
+                                        "fake_user", "fake_db", "public");
+  g_mockCatalogService->createExtTable("ext_filter_two_ts", "fake_db", "", "metrics", twoTimestampPrimaryKeys,
+                                       TSDB_TIME_PRECISION_MICRO);
+  runAsyncOnly("create vtable v_filter_two_ts (ts timestamp, value double from "
+               "ext_filter_two_ts.fake_db.metrics.value)",
+               TSDB_CODE_EXT_NO_TS_PRIMARY_KEY);
+}
+
 TEST_F(ParserSelectTest, basic) {
   useDb("root", "test");
 

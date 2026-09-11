@@ -4669,12 +4669,18 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
 
 // ---------------------------------------------------------------------------
 // nodesExprToExtSQL — public API (fixed-buffer; kept for external callers)
+// Passing buf == NULL and bufLen == 0 queries the required payload length.
+// A non-NULL buffer must include one extra byte for the trailing '\0'.
 // ---------------------------------------------------------------------------
 int32_t nodesExprToExtSQL(const SNode* pExpr, EExtSQLDialect dialect, char* buf, int32_t bufLen,
                            int32_t* pLen) {
   if (!pExpr) {
     if (pLen) *pLen = 0;
+    if (buf != NULL && bufLen > 0) buf[0] = '\0';
     return TSDB_CODE_SUCCESS;
+  }
+  if ((buf == NULL && bufLen != 0) || (buf != NULL && bufLen <= 0)) {
+    return TSDB_CODE_INVALID_PARA;
   }
   SDynSQL s;
   dynSQLInit(&s);
@@ -4688,13 +4694,20 @@ int32_t nodesExprToExtSQL(const SNode* pExpr, EExtSQLDialect dialect, char* buf,
     dynSQLFree(&s);
     return err;
   }
-  // Copy into caller-provided buffer (truncate silently if too small — caller responsibility)
-  int32_t written = s.pos < bufLen - 1 ? s.pos : (bufLen > 0 ? bufLen - 1 : 0);
-  if (bufLen > 0 && buf) {
-    memcpy(buf, s.buf ? s.buf : "", written);
-    buf[written] = '\0';
+  if (pLen) *pLen = s.pos;
+  if (buf == NULL) {
+    dynSQLFree(&s);
+    return TSDB_CODE_SUCCESS;
   }
-  if (pLen) *pLen = written;
+
+  if (bufLen <= s.pos) {
+    buf[0] = '\0';
+    dynSQLFree(&s);
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  memcpy(buf, s.buf ? s.buf : "", s.pos);
+  buf[s.pos] = '\0';
   dynSQLFree(&s);
   return TSDB_CODE_SUCCESS;
 }

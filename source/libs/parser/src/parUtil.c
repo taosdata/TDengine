@@ -463,6 +463,7 @@ SExtSourceInfo* extSourceInfoDup(const SExtSourceInfo* pInfo) {
 }
 
 STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
+  int32_t code = TSDB_CODE_SUCCESS;
   int32_t numOfFields = TABLE_TOTAL_COL_NUM(pTableMeta);
   if (numOfFields > TSDB_MAX_COLUMNS || numOfFields < TSDB_MIN_COLUMNS) {
     return NULL;
@@ -481,6 +482,9 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   if (NULL == p) return NULL;
 
   memcpy(p, pTableMeta, baseSize);
+  p->colRef = NULL;
+  p->tagRef = NULL;
+  p->seriesEntries = NULL;
   if (hasSchemaExt) {
     p->schemaExt = (SSchemaExt*)(((char*)p) + baseSize);
     memcpy(p->schemaExt, pTableMeta->schemaExt, schemaExtSize);
@@ -490,17 +494,24 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   if (bHasColRef) {
     p->colRef = (SColRef*)(((char*)p) + baseSize + schemaExtSize);
     memcpy(p->colRef, pTableMeta->colRef, colRefSize);
+    PAR_ERR_JRET(queryCloneColRefTagConds(pTableMeta->colRef, pTableMeta->numOfColRefs, p->colRef));
   } else {
     p->colRef = NULL;
   }
   if (bHasTagRef) {
     p->tagRef = (SColRef*)(((char*)p) + baseSize + schemaExtSize + colRefSize);
     memcpy(p->tagRef, pTableMeta->tagRef, tagRefSize);
+    PAR_ERR_JRET(queryCloneColRefTagConds(pTableMeta->tagRef, pTableMeta->numOfTagRefs, p->tagRef));
   } else {
     p->tagRef = NULL;
     p->numOfTagRefs = 0;
   }
+  PAR_ERR_JRET(queryCloneSeriesEntries(pTableMeta->seriesEntries, pTableMeta->numOfSeries, &p->seriesEntries));
   return p;
+
+_return:
+  queryFreeTableMeta(p);
+  return NULL;
 }
 
 int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen) {
@@ -1827,6 +1838,7 @@ _return:
 }
 
 STableCfg* tableCfgDup(STableCfg* pCfg) {
+  int32_t    code = TSDB_CODE_SUCCESS;
   STableCfg* pNew = taosMemoryMalloc(sizeof(*pNew));
   if (!pNew) {
     return NULL;
@@ -1841,23 +1853,23 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   pNew->pTagRefs = NULL;
   if (NULL != pCfg->pComment) {
     pNew->pComment = taosMemoryCalloc(pNew->commentLen + 1, 1);
-    if (!pNew->pComment) goto err;
+    if (!pNew->pComment) PAR_ERR_JRET(terrno);
     memcpy(pNew->pComment, pCfg->pComment, pNew->commentLen);
   }
   if (NULL != pCfg->pFuncs) {
     pNew->pFuncs = taosArrayDup(pCfg->pFuncs, NULL);
-    if (!pNew->pFuncs) goto err;
+    if (!pNew->pFuncs) PAR_ERR_JRET(terrno);
   }
   if (NULL != pCfg->pTags) {
     pNew->pTags = taosMemoryCalloc(pCfg->tagsLen + 1, 1);
-    if (!pNew->pTags) goto err;
+    if (!pNew->pTags) PAR_ERR_JRET(terrno);
     memcpy(pNew->pTags, pCfg->pTags, pNew->tagsLen);
   }
 
   int32_t schemaSize = (pCfg->numOfColumns + pCfg->numOfTags) * sizeof(SSchema);
 
   SSchema* pSchema = taosMemoryMalloc(schemaSize);
-  if (!pSchema) goto err;
+  if (!pSchema) PAR_ERR_JRET(terrno);
   memcpy(pSchema, pCfg->pSchemas, schemaSize);
   pNew->pSchemas = pSchema;
 
@@ -1865,7 +1877,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   if (withExtSchema(pCfg->tableType) && pCfg->pSchemaExt) {
     int32_t schemaExtSize = pCfg->numOfColumns * sizeof(SSchemaExt);
     pSchemaExt = taosMemoryMalloc(schemaExtSize);
-    if (!pSchemaExt) goto err;
+    if (!pSchemaExt) PAR_ERR_JRET(terrno);
     memcpy(pSchemaExt, pCfg->pSchemaExt, schemaExtSize);
   }
 
@@ -1875,8 +1887,10 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   if (hasColRef(pCfg->tableType) && pCfg->pColRefs) {
     int32_t colRefSize = pCfg->numOfColumns * sizeof(SColRef);
     pColRef = taosMemoryMalloc(colRefSize);
-    if (!pColRef) goto err;
+    if (!pColRef) PAR_ERR_JRET(terrno);
+    pNew->pColRefs = pColRef;
     memcpy(pColRef, pCfg->pColRefs, colRefSize);
+    PAR_ERR_JRET(queryCloneColRefTagConds(pCfg->pColRefs, pCfg->numOfColumns, pColRef));
   }
 
   pNew->pColRefs = pColRef;
@@ -1885,20 +1899,28 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   if (hasTagRef(pCfg->tableType) && pCfg->pTagRefs && pCfg->numOfTagRefs > 0) {
     int32_t tagRefSize = pCfg->numOfTagRefs * sizeof(SColRef);
     pTagRef = taosMemoryMalloc(tagRefSize);
-    if (!pTagRef) goto err;
+    if (!pTagRef) PAR_ERR_JRET(terrno);
+    pNew->pTagRefs = pTagRef;
     memcpy(pTagRef, pCfg->pTagRefs, tagRefSize);
+    PAR_ERR_JRET(queryCloneColRefTagConds(pCfg->pTagRefs, pCfg->numOfTagRefs, pTagRef));
   }
   pNew->pTagRefs = pTagRef;
 
   return pNew;
-err:
+_return:
   if (pNew->pComment) taosMemoryFreeClear(pNew->pComment);
   if (pNew->pFuncs) taosArrayDestroy(pNew->pFuncs);
   if (pNew->pTags) taosMemoryFreeClear(pNew->pTags);
   if (pNew->pSchemas) taosMemoryFreeClear(pNew->pSchemas);
   if (pNew->pSchemaExt) taosMemoryFreeClear(pNew->pSchemaExt);
-  if (pNew->pColRefs) taosMemoryFreeClear(pNew->pColRefs);
-  if (pNew->pTagRefs) taosMemoryFreeClear(pNew->pTagRefs);
+  if (pNew->pColRefs) {
+    queryFreeColRefTagConds(pNew->pColRefs, pNew->numOfColumns);
+    taosMemoryFreeClear(pNew->pColRefs);
+  }
+  if (pNew->pTagRefs) {
+    queryFreeColRefTagConds(pNew->pTagRefs, pNew->numOfTagRefs);
+    taosMemoryFreeClear(pNew->pTagRefs);
+  }
   taosMemoryFreeClear(pNew);
   return NULL;
 }

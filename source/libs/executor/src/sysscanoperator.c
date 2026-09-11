@@ -3259,6 +3259,21 @@ static int32_t sysTableScanFillRequestedVirtualTableCol(SOperatorInfo* pOperator
   QUERY_CHECK_NULL(colRef, code, lino, _return, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
   code = findVirtualTableColIndex(schemaRow, pReq->colName, &colIdx);
+  if (code != TSDB_CODE_SUCCESS && smrTable.me.type == TSDB_VIRTUAL_CHILD_TABLE && smrTable.me.own.nOwnCols > 0) {
+    SVChildOwnSchema* pOwn = &smrTable.me.own;
+    SSchemaWrapper ownSchema = {.nCols = pOwn->nOwnCols, .pSchema = pOwn->pOwnColSchemas};
+    SColRefWrapper ownRefs = {
+        .nCols = pOwn->nOwnCols, .version = colRef->version, .pColRef = pOwn->pOwnColRefs};
+    QUERY_CHECK_NULL(ownSchema.pSchema, code, lino, _return, TSDB_CODE_INVALID_MSG);
+    QUERY_CHECK_NULL(ownRefs.pColRef, code, lino, _return, TSDB_CODE_INVALID_MSG);
+    code = findVirtualTableColIndex(&ownSchema, pReq->colName, &colIdx);
+    if (code == TSDB_CODE_SUCCESS) {
+      code = sysTableUserColsFillOneVirtualTableCol(dbname, pNumOfRows, dataBlock, tableName, stableName, &ownSchema,
+                                                    &ownRefs, smrTable.me.uid, pReq->vgId, colIdx);
+      QUERY_CHECK_CODE(code, lino, _return);
+      goto _return;
+    }
+  }
   if (code == TSDB_CODE_SUCCESS && colIdx >= 0) {
     code = sysTableUserColsFillOneVirtualTableCol(dbname, pNumOfRows, dataBlock, tableName, stableName, schemaRow,
                                                   colRef, smrTable.me.uid, pReq->vgId, colIdx);

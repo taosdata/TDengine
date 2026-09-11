@@ -29,7 +29,7 @@ if _FQ_DIR not in sys.path:
 from federated_query_common import ExtSrcEnv  # noqa: E402
 from ext_source_helpers import (  # noqa: E402
     create_ext_source, create_remote_db, create_pg_table, create_mysql_table,
-    create_influx_measurement)
+    create_influx_measurement, extract_show_create_sql as _extract_show_create_sql)
 
 
 _LOCAL_DB = "vpers_local"
@@ -65,16 +65,6 @@ def _ensure_sources():
     create_ext_source(_PG_SRC, "postgresql", _PG_DB)
     create_ext_source(_MY_SRC, "mysql", _MY_DB)
     create_ext_source(_INF_SRC, "influxdb", _INF_DB)
-
-
-def _extract_show_create_sql(sql):
-    tdSql.query(sql)
-    tdSql.checkRows(1)
-    for col in range(tdSql.queryCols):
-        value = tdSql.getData(0, col)
-        if isinstance(value, str) and "CREATE" in value.upper():
-            return value
-    tdLog.exit(f"no CREATE statement in SHOW output: {sql}")
 
 
 # ===========================================================================
@@ -140,6 +130,24 @@ class TestVtableDDLPersistence:
         return True
 
     def test_restart_preserves_ext_source_and_vtable(self):
+        """Preserve external sources and normal virtual-table metadata after restart
+
+        1. Restart the dnode and restore the query node
+        2. Verify all three external sources and the normal virtual table remain registered
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing persistence coverage
+
+        """
         if not self._restart_dnode():
             return
         tdSql.execute(f"USE {_LOCAL_DB}")
@@ -151,6 +159,24 @@ class TestVtableDDLPersistence:
         tdSql.checkData(0, 0, 1)
 
     def test_restart_then_query(self):
+        """Query an external-backed normal virtual table after restart
+
+        1. Restart the dnode and restore the query node
+        2. Verify the persisted virtual table returns at least two rows
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing post-restart query coverage
+
+        """
         if not self._restart_dnode():
             return
         tdSql.execute(f"USE {_LOCAL_DB}")
@@ -162,6 +188,24 @@ class TestVtableDDLPersistence:
     # -------------------------------------------------------------------
 
     def test_restart_preserves_vstb_and_children(self):
+        """Preserve a virtual super table and its children after restart
+
+        1. Restart the dnode and restore the query node
+        2. Verify the virtual super table and both external-backed children remain registered
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing super-table persistence coverage
+
+        """
         if not self._restart_dnode():
             return
         tdSql.execute(f"USE {_LOCAL_DB}")
@@ -173,6 +217,24 @@ class TestVtableDDLPersistence:
         tdSql.checkData(0, 0, 2)
 
     def test_restart_cross_source_aggregation_stable(self):
+        """Preserve cross-source virtual-super-table aggregate results after restart
+
+        1. Record row counts and averages grouped by the PostgreSQL and MySQL backend tags
+        2. Restart the dnode and compare every aggregate result with the saved values
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing aggregate persistence coverage
+
+        """
         # Before / after restart, the same aggregation must return matching rows.
         tdSql.execute(f"USE {_LOCAL_DB}")
         tdSql.query("SELECT backend, count(*), avg(v) FROM vstb_persist "
@@ -191,6 +253,24 @@ class TestVtableDDLPersistence:
                 tdSql.checkData(row, col, value)
 
     def test_restart_preserves_series_metadata_and_query(self):
+        """Preserve InfluxDB SERIES metadata and query results after restart
+
+        1. Restart the dnode and verify SERIES clauses in normal and child SHOW CREATE output
+        2. Verify the normal table, child table, and super table each return two rows
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing SERIES persistence coverage
+
+        """
         if not self._restart_dnode():
             return
         tdSql.execute(f"USE {_LOCAL_DB}")
@@ -213,6 +293,24 @@ class TestVtableDDLPersistence:
     # -------------------------------------------------------------------
 
     def test_concurrent_alter_stable_serializes(self):
+        """Serialize concurrent column additions on a virtual super table
+
+        1. Add distinct columns concurrently through separate connections, retrying transaction conflicts
+        2. Verify both workers finish and both columns appear in the super-table schema
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing concurrent ALTER coverage
+
+        """
         # Two threads each ADD a different COLUMN simultaneously. Each thread
         # MUST use its own TAOS* connection — the C client connection handle
         # is not thread-safe (sharing it across threads races the internal
@@ -296,6 +394,24 @@ class TestVtableDDLPersistence:
     # -------------------------------------------------------------------
 
     def test_drop_source_does_not_crash_dnode(self):
+        """Keep the dnode responsive while dropping a source used by queries
+
+        1. Repeatedly drop and recreate the PostgreSQL source while querying its virtual table
+        2. Allow transient operation errors and verify the worker finishes and SELECT 1 succeeds
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing source-churn coverage
+
+        """
         errors = []
 
         def churn_source():

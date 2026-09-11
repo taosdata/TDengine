@@ -92,7 +92,7 @@ static int32_t macCheckTableAccess(SAuthCxt* pCxt, const char* dbName, const cha
   int32_t     code = getTargetMetaImpl(pParseCxt, pCxt->pMetaCache, &name, &pTableMeta, true);
   if (TSDB_CODE_SUCCESS == code && pTableMeta != NULL) {
     int8_t secLvl = pTableMeta->secLvl;
-    taosMemoryFree(pTableMeta);
+    queryFreeTableMeta(pTableMeta);
     return macCheckBySecLvl(pCxt, secLvl, checkNWD);
   }
   return TSDB_CODE_SUCCESS;
@@ -436,7 +436,7 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
       // MAC NRU: user.maxSecLevel must be >= table.securityLevel for SELECT.
       // Reuse secLvl from this already-fetched table meta to avoid extra metadata round-trips.
       if (pAuthCxt->pParseCxt->macMode && macCheckBySecLvl(pAuthCxt, pTableMeta->secLvl, false) != TSDB_CODE_SUCCESS) {
-        taosMemoryFree(pTableMeta);
+        queryFreeTableMeta(pTableMeta);
         pAuthCxt->errCode = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
         return DEAL_RES_ERROR;
       }
@@ -444,14 +444,14 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
         isAudit = true;
       } else if (!pTableMeta->isAudit && (pTableMeta->ownerId == pAuthCxt->pParseCxt->userId)) {
         // owner has all privileges on the table he owns except audit table
-        taosMemoryFree(pTableMeta);
+        queryFreeTableMeta(pTableMeta);
         return DEAL_RES_CONTINUE;
       }
       if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
         isView = true;
       }
     }
-    taosMemoryFree(pTableMeta);
+    queryFreeTableMeta(pTableMeta);
 #endif
     if (!isView) {
       pAuthCxt->errCode =

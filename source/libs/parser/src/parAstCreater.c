@@ -3916,15 +3916,21 @@ EColumnOptionType getColumnOptionType(const char* optionType) {
 SNode* setColumnReference(SAstCreateContext* pCxt, SNode* pOptions, SNode* pRef) {
   CHECK_PARSER_STATUS(pCxt);
 
-  ((SColumnOptions*)pOptions)->hasRef = true;
-  ((SColumnOptions*)pOptions)->refType = ((SColumnRefNode*)pRef)->refType;
-  tstrncpy(((SColumnOptions*)pOptions)->refSourceName, ((SColumnRefNode*)pRef)->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
-  tstrncpy(((SColumnOptions*)pOptions)->refDb, ((SColumnRefNode*)pRef)->refDbName, TSDB_DB_NAME_LEN);
-  tstrncpy(((SColumnOptions*)pOptions)->refTable, ((SColumnRefNode*)pRef)->refTableName, TSDB_TABLE_NAME_LEN);
-  tstrncpy(((SColumnOptions*)pOptions)->refColumn, ((SColumnRefNode*)pRef)->refColName, TSDB_COL_NAME_LEN);
+  SColumnOptions* pColOptions = (SColumnOptions*)pOptions;
+  SColumnRefNode* pColRef = (SColumnRefNode*)pRef;
+  pColOptions->hasRef = true;
+  pColOptions->refType = pColRef->refType;
+  tstrncpy(pColOptions->refSourceName, pColRef->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  tstrncpy(pColOptions->refDb, pColRef->refDbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pColOptions->refTable, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pColOptions->refColumn, pColRef->refColName, TSDB_COL_NAME_LEN);
+  pColOptions->pFilterCond = pColRef->pFilterCond;
+  pColRef->pFilterCond = NULL;
+  nodesDestroyNode(pRef);
   return pOptions;
 _err:
   nodesDestroyNode(pOptions);
+  nodesDestroyNode(pRef);
   return NULL;
 }
 
@@ -3996,6 +4002,8 @@ SNode* createColumnRefNodeByNode(SAstCreateContext* pCxt, SToken* pColName, SNod
   tstrncpy(pCol->refTableName, ((SColumnRefNode*)pRef)->refTableName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pCol->refColName, ((SColumnRefNode*)pRef)->refColName, TSDB_COL_NAME_LEN);
   tstrncpy(pCol->refSourceName, ((SColumnRefNode*)pRef)->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  pCol->pFilterCond = ((SColumnRefNode*)pRef)->pFilterCond;
+  ((SColumnRefNode*)pRef)->pFilterCond = NULL;
   nodesDestroyNode(pRef);
   return (SNode*)pCol;
 _err:
@@ -4082,11 +4090,13 @@ _err:
   return NULL;
 }
 
-SNode* createColumnRefNodeByName(SAstCreateContext* pCxt, STokenTriplet* pTokenTri) {
+SNode* createColumnRefNodeByName(SAstCreateContext* pCxt, STokenTriplet* pTokenTri, SNode* pFilterCond) {
   SColumnRefNode* pCol = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN_REF, (SNode**)&pCol);
   CHECK_MAKE_NODE(pCol);
+  pCol->pFilterCond = pFilterCond;
+  pFilterCond = NULL;
 
   switch (pTokenTri->numOfName) {
     case 2: {
@@ -4134,6 +4144,7 @@ SNode* createColumnRefNodeByName(SAstCreateContext* pCxt, STokenTriplet* pTokenT
 _err:
   taosMemFree(pTokenTri);
   nodesDestroyNode((SNode*)pCol);
+  nodesDestroyNode(pFilterCond);
   return NULL;
 }
 
@@ -4654,6 +4665,8 @@ SNode* createAlterTableAddTagRef(SAstCreateContext* pCxt, SNode* pRealTable, int
   tstrncpy(pStmt->refDbName, pColRef->refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(pStmt->refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pStmt->refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
+  pStmt->pFilterCond = pColRef->pFilterCond;
+  pColRef->pFilterCond = NULL;
   nodesDestroyNode(pRef);
   return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
 _err:
@@ -4764,9 +4777,9 @@ _err:
 
 SNode* createAlterTableAlterColRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
                                    SNode* pRef) {
+  SAlterTableStmt* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkColumnName(pCxt, pColName));
-  SAlterTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->alterType = alterType;
@@ -4776,9 +4789,14 @@ SNode* createAlterTableAlterColRef(SAstCreateContext* pCxt, SNode* pRealTable, i
   tstrncpy(pStmt->refDbName, ((SColumnRefNode*)pRef)->refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(pStmt->refTableName, ((SColumnRefNode*)pRef)->refTableName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pStmt->refColName, ((SColumnRefNode*)pRef)->refColName, TSDB_COL_NAME_LEN);
+  pStmt->pFilterCond = ((SColumnRefNode*)pRef)->pFilterCond;
+  ((SColumnRefNode*)pRef)->pFilterCond = NULL;
+  nodesDestroyNode(pRef);
   return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
 _err:
+  nodesDestroyNode((SNode*)pStmt);
   nodesDestroyNode(pRealTable);
+  nodesDestroyNode(pRef);
   return NULL;
 }
 
@@ -4799,9 +4817,9 @@ _err:
 
 SNode* createAlterTableAlterTagRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pTagName,
                                    SNode* pRef) {
+  SAlterTableStmt* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkColumnName(pCxt, pTagName));
-  SAlterTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->alterType = alterType;
@@ -4809,9 +4827,14 @@ SNode* createAlterTableAlterTagRef(SAstCreateContext* pCxt, SNode* pRealTable, i
   tstrncpy(pStmt->refDbName, ((SColumnRefNode*)pRef)->refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(pStmt->refTableName, ((SColumnRefNode*)pRef)->refTableName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pStmt->refColName, ((SColumnRefNode*)pRef)->refColName, TSDB_COL_NAME_LEN);
+  pStmt->pFilterCond = ((SColumnRefNode*)pRef)->pFilterCond;
+  ((SColumnRefNode*)pRef)->pFilterCond = NULL;
+  nodesDestroyNode(pRef);
   return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
 _err:
+  nodesDestroyNode((SNode*)pStmt);
   nodesDestroyNode(pRealTable);
+  nodesDestroyNode(pRef);
   return NULL;
 }
 

@@ -2121,12 +2121,14 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
       if (pFsParam) {
         taosArrayDestroy(pFsParam->colMap);
         taosMemoryFreeClear(pFsParam->tagCond);
+        taosMemoryFreeClear(pFsParam->filterCondJson);
         nodesDestroyNode(pFsParam->pPushedCond);
         if (pFsParam->pBatchTables) {
           for (int32_t i = 0; i < taosArrayGetSize(pFsParam->pBatchTables); ++i) {
             SForeignTableInfo* pTable = taosArrayGet(pFsParam->pBatchTables, i);
             taosArrayDestroy(pTable->colMap);
             taosMemoryFreeClear(pTable->tagCond);
+            taosMemoryFreeClear(pTable->filterCondJson);
             taosMemoryFreeClear(pTable->pPushedCondJson);
             nodesDestroyNode(pTable->pPushedCond);
             taosArrayDestroyEx(pTable->pVtbTagList, destroyTagVal);

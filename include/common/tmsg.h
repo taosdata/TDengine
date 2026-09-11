@@ -608,6 +608,7 @@ typedef struct SExtColumnDef {
   bool nullable;
   bool isTag;          // InfluxDB only
   bool isPrimaryKey;   // true if this column maps to the TDengine primary key (timestamp)
+  bool isRemotePrimaryKey;  // original remote primary-key column
 } SExtColumnDef;
 
 typedef struct SExtTableMeta {
@@ -1259,6 +1260,8 @@ typedef struct {
   char     refColName[TSDB_COL_NAME_LEN];
   int32_t  tagCondLen;
   char     *tagCondJson; // serialized series tag condition (JSON string from nodesNodeToString), or NULL
+  int32_t  filterCondLen;
+  char     *filterCondJson;  // serialized MySQL/PostgreSQL column filter, or NULL
   char     colName[TSDB_COL_NAME_LEN];     // for tmq get json
 } SColRef;
 
@@ -1303,6 +1306,7 @@ typedef struct {
   char    refTableName[TSDB_TABLE_NAME_LEN];
   char    refColName[TSDB_COL_NAME_LEN];
   char    refSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // external source name, empty for internal refs
+  bool    hasFilterCond;  // saved external-column filter, including resolved leaf refs
 } SRefColInfo;
 
 typedef struct SVCTableRefCols {
@@ -1694,6 +1698,8 @@ static FORCE_INLINE int32_t tEncodeSColRef(SEncoder* pEncoder, const SColRef* pC
 static FORCE_INLINE int32_t tDecodeSColRef(SDecoder* pDecoder, SColRef* pColRef) {
   pColRef->tagCondLen = 0;
   pColRef->tagCondJson = NULL;
+  pColRef->filterCondLen = 0;
+  pColRef->filterCondJson = NULL;
   pColRef->refType = 0;
   pColRef->refSourceName[0] = '\0';
   pColRef->refSchemaName[0] = '\0';
@@ -1744,6 +1750,34 @@ static FORCE_INLINE int32_t tDecodeSColRefExt(SDecoder* pDecoder, SColRef* pColR
   }
 
   return 0;
+}
+
+static FORCE_INLINE int32_t tEncodeSColRefFilterCond(SEncoder* pEncoder, const SColRef* pColRef) {
+  int32_t len = pColRef->hasRef ? pColRef->filterCondLen : 0;
+  if (len < 0 || (len > 0 && NULL == pColRef->filterCondJson)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, len));
+  if (len > 0) {
+    TAOS_CHECK_RETURN(tEncodeBinary(pEncoder, (const uint8_t*)pColRef->filterCondJson, len));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static FORCE_INLINE int32_t tDecodeSColRefFilterCondRaw(SDecoder* pDecoder, SColRef* pColRef, uint8_t** ppBuf) {
+  *ppBuf = NULL;
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pColRef->filterCondLen));
+  if (pColRef->filterCondLen < 0 || (!pColRef->hasRef && pColRef->filterCondLen > 0)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (pColRef->filterCondLen > 0) {
+    uint32_t len = 0;
+    TAOS_CHECK_RETURN(tDecodeBinary(pDecoder, ppBuf, &len));
+    if (len != (uint32_t)pColRef->filterCondLen) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static FORCE_INLINE int32_t taosEncodeSSchemaWrapper(void** buf, const SSchemaWrapper* pSW) {
@@ -2794,6 +2828,7 @@ typedef struct {
   // Not serialized in vnode wire format.
   int32_t      numOfColRefs;
   SRefColInfo* pColRefCols;  // Array[numOfColRefs]
+  SColRef*     pResolvedColRefs;  // leaf refs, Array[numOfColRefs], catalog-local only
   // Tag ref info synthesized from first child (local only, not serialized in vnode wire format)
   int32_t      numOfTagRefs;
   SRefColInfo* pTagRefCols;  // Array[numOfTagRefs]
@@ -5420,6 +5455,12 @@ typedef struct SVTagCondEntry {
   char*    tagCondJson;  // heap, owned by SVTagCondRsp
 } SVTagCondEntry;
 
+typedef struct SVtbColFilterCond {
+  col_id_t colId;
+  int32_t  filterCondLen;
+  char*    filterCondJson;  // heap, owned by SVTagCondRsp
+} SVtbColFilterCond;
+
 typedef struct SVTagCondReq {
   SMsgHead header;
   char     dbFName[TSDB_DB_FNAME_LEN];
@@ -5429,6 +5470,8 @@ typedef struct SVTagCondReq {
 typedef struct SVTagCondRsp {
   int32_t numOfRefs;
   SArray* pEntries;  // SArray<SVTagCondEntry>
+  int32_t numOfFilterConds;
+  SArray* pFilterConds;  // optional tail extension: SArray<SVtbColFilterCond>
 } SVTagCondRsp;
 
 int32_t tSerializeSVTagCondReq(void* buf, int32_t bufLen, SVTagCondReq* pReq);
@@ -5476,6 +5519,9 @@ typedef struct SForeignSourceInfo {
   SArray* colMap;   // SArray<SColIdNameKV>
   char*   tagCond;  // heap, owned; external series filter shared by this group (may be NULL)
   int32_t tagCondLen;
+  uint64_t scanParamId;    // stable identity of one external scan parameter group
+  int32_t  filterCondLen;
+  char*    filterCondJson;  // serialized external column filter, heap owned
   int64_t rowLimit;  // optional per-stream top-N limit for VStb remote SQL; <=0 means unset
   SNode*  pPushedCond;  // heap, owned; VStb local filter fragment safe to push to this foreign source
   uint64_t virtualChildUid;  // virtual child whose row is reconstructed from this remote table
@@ -5556,6 +5602,9 @@ typedef struct SForeignTableInfo {
   int8_t  dstPrecision;
   char*   tagCond;      // heap, owned
   int32_t tagCondLen;
+  uint64_t scanParamId;
+  int32_t  filterCondLen;
+  char*    filterCondJson;  // serialized external column filter, heap owned
   int64_t rowLimit;
   char*   pPushedCondJson;  // serialized SNode, heap owned
   SNode*  pPushedCond;      // runtime-only SNode, heap owned
@@ -5576,6 +5625,9 @@ typedef struct SForeignScanOperatorParam {
   int8_t  dstPrecision;
   char*   tagCond;  // heap, owned; external series filter pushed into the remote SQL (may be NULL)
   int32_t tagCondLen;
+  uint64_t scanParamId;
+  int32_t  filterCondLen;
+  char*    filterCondJson;  // serialized external column filter, heap owned in standalone params
   int64_t rowLimit;  // optional per-stream top-N limit for VStb remote SQL; <=0 means unset
   SNode*  pPushedCond;  // heap, owned; optional VStb data filter pushed into the remote SQL
   SArray* pBatchTables;  // SArray<SForeignTableInfo>, owned in batch mode
@@ -6258,6 +6310,8 @@ typedef struct SVAlterTbReq {
   char* refColName;
   char* refSourceName;
   int8_t refType;  // 0=local, 1=external
+  int32_t filterCondLen;
+  char*   filterCondJson;
   // TSDB_ALTER_TABLE_REMOVE_COLUMN_REF
   // TSDB_ALTER_TABLE_ADD_SERIES
   char*   seriesAlias;

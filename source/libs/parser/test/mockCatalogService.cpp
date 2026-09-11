@@ -962,6 +962,10 @@ class MockCatalogServiceImpl {
         res.pRes = NULL;
       } else {
         const auto& entry = it->second;
+        const auto sourceIt = extSources_.find(entry->header.sourceName);
+        const bool isRelationalSource = sourceIt != extSources_.end() &&
+                                        (EXT_SOURCE_MYSQL == sourceIt->second->type ||
+                                         EXT_SOURCE_POSTGRESQL == sourceIt->second->type);
         SExtTableMeta* p = (SExtTableMeta*)taosMemoryCalloc(1, sizeof(SExtTableMeta));
         if (NULL == p) {
           taosArrayDestroyEx(*pOut, MockCatalogService::destoryMetaRes);
@@ -996,7 +1000,8 @@ class MockCatalogServiceImpl {
             dst.extCharsetName[0] = '\0';
             dst.nullable = src.nullable;
             dst.isTag = src.isTag;
-            dst.isPrimaryKey = src.isPrimaryKey;
+            dst.isPrimaryKey = !isRelationalSource && src.isPrimaryKey;
+            dst.isRemotePrimaryKey = isRelationalSource && src.isPrimaryKey;
           }
         }
         res.code = TSDB_CODE_SUCCESS;
