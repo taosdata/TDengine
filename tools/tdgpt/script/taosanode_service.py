@@ -2231,6 +2231,7 @@ Examples:
             logger.error(f"Supported models: {', '.join(config.models.keys())}")
             sys.exit(1)
         success = models.start(args.target, timeout=args.timeout)
+        logger.error(f"start model subprocess exit, success: {success}, timeout: {args.timeout}")
         sys.exit(0 if success else 1)
 
     elif args.command == "model-stop":

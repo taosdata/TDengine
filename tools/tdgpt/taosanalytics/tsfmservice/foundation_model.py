@@ -5,12 +5,13 @@ ResourceManager for real downloads and taosanode_service for process management.
 """
 
 import json
+import os
 import subprocess
 import sys
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
-from multiprocessing import Pool
 from pathlib import Path
 
 from taosanalytics.conf import Configure
@@ -39,13 +40,29 @@ class OperationType(Enum):
     START = "start"
     STOP = "stop"
     DELETE = "delete"
+    # Combined operation: download the model, then automatically start it once
+    # the download finishes. Tracked as a single async operation so clients can
+    # watch one task from "queued" all the way to the model being running.
+    DOWNLOAD_START = "download_start"
 
 
-# Global process pools for async operations — lazily initialized to avoid
-# re-creating Pool inside a forked worker process (gunicorn/multiprocessing).
-# Separate pools prevent blocking between long-running downloads and responsive service operations.
-_DOWNLOAD_POOL = None
-_SERVICE_POOL = None
+# Global background executors for async operations — lazily initialized to
+# avoid re-creating them inside a forked worker process (gunicorn/multiprocessing).
+# Downloads and service operations both only orchestrate a short-lived
+# taosanodectl subprocess (the heavy disk/network work runs in that child), so
+# both run on dedicated single-thread executors and stay isolated from each
+# other (a long download never blocks start/stop/delete and vice versa).
+#
+# Cross-process single-flight for downloads is guaranteed by an OS file lock
+# (flock): each gunicorn worker has its own download executor (1 worker), so a
+# request submits its download into the local executor queue, and the runner
+# waits on the shared flock before marking the op running. Only one download
+# actually applies system-wide; the rest stay `queued` in the shared
+# async_operations table (visible via /status & SSE) and run once the lock is
+# free. No scheduler thread is needed — the executor queue + flock arbitration
+# handle ordering, and a restart simply drops queued tasks (startup cleanup).
+_DOWNLOAD_EXECUTOR = None
+_SERVICE_EXECUTOR = None
 _MODELS_INITIALIZED = False
 
 
@@ -126,29 +143,138 @@ def init_models_db():
     _MODELS_INITIALIZED = True
     AppLogger.info("Models database initialization complete")
 
+def _get_download_executor():
+    """Return the download thread executor, creating it on first use.
 
-def _get_download_pool():
-    """Return the download process pool, creating it on first use."""
-    global _DOWNLOAD_POOL
-    if _DOWNLOAD_POOL is None:
-        AppLogger.info("Initializing download pool with 1 worker")
-        _DOWNLOAD_POOL = Pool(processes=1)
-        AppLogger.info("Download pool initialized: %s", _DOWNLOAD_POOL)
-    return _DOWNLOAD_POOL
-
-
-def _get_service_pool():
-    """Return the service process pool, creating it on first use.
-
-    Service operations (start, stop, delete) are handled separately from downloads
-    to prevent long download operations from blocking responsive service actions.
+    A single worker keeps downloads serialized within this process. Cross-process
+    single-flight is enforced separately by an OS file lock (flock), so a thread
+    executor is enough here: the heavy work runs in a taosanodectl subprocess.
     """
-    global _SERVICE_POOL
-    if _SERVICE_POOL is None:
-        AppLogger.info("Initializing service pool with 1 worker")
-        _SERVICE_POOL = Pool(processes=1)
-        AppLogger.info("Service pool initialized: %s", _SERVICE_POOL)
-    return _SERVICE_POOL
+    global _DOWNLOAD_EXECUTOR
+    if _DOWNLOAD_EXECUTOR is None:
+        AppLogger.info("Initializing download executor with 1 worker")
+        _DOWNLOAD_EXECUTOR = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="tsfm-download"
+        )
+        AppLogger.info("Download executor initialized: %s", _DOWNLOAD_EXECUTOR)
+    return _DOWNLOAD_EXECUTOR
+
+
+def _download_lock_path() -> str:
+    """Return the shared lock file path used for download single-flight."""
+    config = Configure.get_instance()
+    resource_dir = config._conf.get("resource_dir", "")
+    root = Path(resource_dir) if resource_dir else Path(config.get_model_directory())
+    root.mkdir(parents=True, exist_ok=True)
+    return str(root / ".tdgpt-download.lock")
+
+
+def _try_acquire_download_lock():
+    """Try to acquire the cross-process download lock (non-blocking).
+
+    Returns:
+        int: open fd holding the lock, or None if another download holds it.
+    """
+    path = _download_lock_path()
+    fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        if os.name == "nt":
+            # Windows: lock a single byte via msvcrt (advisory, cross-process).
+            import msvcrt
+            os.lseek(fd, 0, os.SEEK_SET)
+            if os.fstat(fd).st_size == 0:
+                os.write(fd, b"\x00")
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return fd
+    except (OSError, ImportError):
+        os.close(fd)
+        return None
+
+
+def _release_download_lock(fd):
+    """Release a download lock previously acquired via _try_acquire_download_lock."""
+    try:
+        if os.name == "nt":
+            import msvcrt
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+
+
+def _submit_download_task(worker_fn, args, task_id, model_name, operation):
+    """Submit one download-family task to the download thread executor.
+
+    The executor's single worker acts as a local queue: downloads submitted to
+    this process run one at a time. Cross-process single-flight is enforced
+    inside the worker (it waits on the shared flock before applying), so a
+    download that loses the race simply stays queued and runs once the lock is
+    free — it never fails because another worker is downloading.
+
+    Args:
+        worker_fn: Worker function taking *args and returning a result dict
+        args: Positional args for worker_fn
+        task_id: Unique identifier for tracking this operation
+        model_name: Name of the model being operated on
+        operation: Operation name (download, download_start)
+    """
+    executor = _get_download_executor()
+
+    def _on_done(future):
+        """Called when the runner finishes (success or failure)."""
+        try:
+            result = future.result()
+        except Exception as exc:
+            AppLogger.error(
+                "%s task raised exception: task_id=%s, model=%s, exc=%s",
+                operation, task_id, model_name, exc,
+            )
+            _complete_async_operation(task_id, model_name, operation, "failed", str(exc))
+            return
+
+        status = result.get("status", "failed") if result else "failed"
+        error = result.get("error") if result else ("Worker returned no result" if status == "failed" else None)
+        _complete_async_operation(task_id, model_name, operation, status, error)
+
+    AppLogger.info(
+        "Submitting %s task to download executor: task_id=%s, model=%s, executor=%s",
+        operation, task_id, model_name, executor,
+    )
+    future = executor.submit(worker_fn, *args)
+    future.add_done_callback(_on_done)
+    AppLogger.info(
+        "%s task submitted to download executor: task_id=%s",
+        operation.capitalize(), task_id,
+    )
+
+
+def _get_service_executor():
+    """Return the service thread executor, creating it on first use.
+
+    Service operations (start, stop, delete) only coordinate a short-lived
+    taosanodectl subprocess, so they run on a dedicated thread executor. Keeping
+    them separate from the download executor prevents long downloads from
+    blocking responsive service actions (and vice versa). A single worker keeps
+    service operations serialized, matching the previous one-per-pool semantics.
+    """
+    global _SERVICE_EXECUTOR
+    if _SERVICE_EXECUTOR is None:
+        AppLogger.info("Initializing service executor with 1 worker")
+        _SERVICE_EXECUTOR = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="tsfm-service"
+        )
+        AppLogger.info("Service executor initialized: %s", _SERVICE_EXECUTOR)
+    return _SERVICE_EXECUTOR
 
 
 def _update_model_state(model_name, downloaded=None, running=None):
@@ -214,6 +340,10 @@ def _complete_async_operation(task_id, model_name, operation, status, error=None
             _update_model_state(model_name, downloaded=True)
         elif operation == OperationType.START.value:
             _update_model_state(model_name, running=True)
+        elif operation == OperationType.DOWNLOAD_START.value:
+            # Combined operation: a successful completion means the model was
+            # downloaded AND its service started.
+            _update_model_state(model_name, downloaded=True, running=True)
         elif operation == OperationType.STOP.value:
             _update_model_state(model_name, running=False)
         elif operation == OperationType.DELETE.value:
@@ -256,14 +386,66 @@ def _get_taosanodectl_cmd():
 
 
 def _run_download_task(task_id, model_name, release, resource_base_url, replace):
-    """Worker function for process pool to download model via taosanodectl.
+    """Worker function for the download executor: apply a model via taosanodectl.
 
-    This runs in a separate process, so it needs all necessary context passed in.
-    Uses Popen to monitor download progress via resource manager task files.
+    Runs in an executor thread. Cross-process single-flight is enforced here:
+    the task waits until it holds the shared download file lock, then marks the
+    operation running and drives a taosanodectl subprocess while polling task
+    files for progress. While it waits for the lock the op stays `queued` in the
+    shared async_operations table — it never races the underlying
+    resource-manager file lock (which would report an error).
     """
+    # Cross-process single-flight: only one download may apply system-wide.
+    # There is deliberately no wall-clock wait timeout: a slow network can make
+    # a download (and thus the queue ahead of it) legitimately take hours, and
+    # only a user action cancels a download — the system never force-kills one.
+    # So while waiting for the lock the task is aborted only if it is no longer
+    # valid: the row was deleted or its status changed away from 'queued'
+    # (cancelled/cleaned up). The op stays `queued` in the shared table so the
+    # client can still observe it via /status & SSE.
+
+    dao = get_dao()
+    lock_fd = _try_acquire_download_lock()
+
+    # 若为持久性错误（非互斥占用）应立即失败，避免无限等待
+    while lock_fd is None:
+        op = dao.get_async_operation(task_id)
+        if op is None or op.status != TaskStatus.QUEUED.value:
+            AppLogger.info(
+                "Download task no longer active, aborting wait: task_id=%s, model=%s",
+                task_id,
+                model_name,
+            )
+            return {
+                "status": TaskStatus.INTERRUPTED.value,
+                "error": "Task no longer active (cancelled/removed); download aborted",
+            }
+        AppLogger.info(
+            "Download queued behind another download (waiting for flock): task_id=%s, model=%s",
+            task_id,
+            model_name,
+        )
+        time.sleep(5)
+        lock_fd = _try_acquire_download_lock()
+
+    # The task may have been cancelled in the window between the last validity
+    # check and actually winning the lock — re-check before running, and if it
+    # is gone hand the lock to the next waiter instead of downloading.
+    op = dao.get_async_operation(task_id)
+    if op is None or op.status != TaskStatus.QUEUED.value:
+        AppLogger.info(
+            "Download task cancelled after lock acquired, releasing lock: task_id=%s, model=%s",
+            task_id,
+            model_name,
+        )
+        _release_download_lock(lock_fd)
+        return {
+            "status": TaskStatus.INTERRUPTED.value,
+            "error": "Task no longer active (cancelled/removed); download aborted",
+        }
+
     try:
-        # Mark task as running at the start of the worker process
-        dao = get_dao()
+        # Mark task as running only once the download lock is actually held.
         dao.update_async_operation(task_id, status=TaskStatus.RUNNING.value, started_at=time.time())
 
         taosanodectl = _get_taosanodectl_cmd()
@@ -324,7 +506,6 @@ def _run_download_task(task_id, model_name, release, resource_base_url, replace)
             AppLogger.error("Download failed for task_id: %s, model: %s, error: %s", task_id, model_name, error_msg)
             return {"status": "failed", "error": error_msg}
 
-
     except subprocess.TimeoutExpired:
         error_msg = "Download timeout (>1 hour)"
         AppLogger.error("Download timeout for task_id: %s, model: %s", task_id, model_name)
@@ -338,10 +519,19 @@ def _run_download_task(task_id, model_name, release, resource_base_url, replace)
             error_msg,
         )
         return {"status": "failed", "error": error_msg}
+    finally:
+        # Release the download lock so the next queued download can proceed.
+        _release_download_lock(lock_fd)
 
 
 def _trigger_model_download_background(task_id, model_name, release, resource_base_url, replace):
-    """Submit download task to process pool.
+    """Dispatch a download to the download thread executor.
+
+    Executes: taosanodectl resource apply <model_name> ... inside the executor.
+    The worker waits on the shared download flock before applying (cross-process
+    single-flight); it never races the resource-manager file lock (which would
+    report an error). Requests that arrive while another download runs simply
+    stay queued in the executor / async_operations table until the lock is free.
 
     Args:
         task_id: Unique identifier for tracking this operation
@@ -349,36 +539,93 @@ def _trigger_model_download_background(task_id, model_name, release, resource_ba
         release: Release version (e.g., '1.0.0')
         resource_base_url: Base URL for resource repository
         replace: Whether to replace existing model
-
-    The process pool handles async execution; caller monitors progress via get_operation_status(task_id)
     """
-
-    def callback(result):
-        """Called in the main process when the worker finishes (success or failure)."""
-        status = result.get("status", TaskStatus.FAILED.value) if result else TaskStatus.FAILED.value
-        error = result.get("error") if result else "Worker process returned no result" if status == TaskStatus.FAILED.value else None
-        _complete_async_operation(task_id, model_name, OperationType.DOWNLOAD.value, status, error)
-
-    def error_callback(exc):
-        """Called in the main process when the worker raises an unhandled exception."""
-        AppLogger.error(
-            "Download task raised exception: task_id=%s, model=%s, exc=%s",
-            task_id, model_name, exc,
-        )
-        _complete_async_operation(task_id, model_name, "download", "failed", str(exc))
-
-    pool = _get_download_pool()
-    AppLogger.info(
-        "Submitting download task to pool: task_id=%s, model=%s, pool=%s",
-        task_id, model_name, pool,
-    )
-    pool.apply_async(
+    _submit_download_task(
         _run_download_task,
         args=(task_id, model_name, release, resource_base_url, replace),
-        callback=callback,
-        error_callback=error_callback,
+        task_id=task_id,
+        model_name=model_name,
+        operation=OperationType.DOWNLOAD.value,
     )
-    AppLogger.info("Download task submitted to pool: task_id=%s", task_id)
+
+
+def _resolve_resource_settings(request=None, payload=None):
+    """Resolve resource repository settings used for taosanodectl invocations.
+
+    Reads the configured defaults (``resource_base_url`` and
+    ``tsfm_resource_exec_timeout``) and allows a per-request override of the
+    base URL — taken from the query string for GET handlers or from the JSON
+    body for POST handlers.
+
+    Args:
+        request: Optional Flask request. ``resource_base_url`` may be supplied
+            as a query argument.
+        payload: Optional request JSON dict. ``resource_base_url`` may be
+            supplied in the body.
+
+    Returns:
+        tuple: (resource_base_url, exec_timeout)
+    """
+    config = Configure.get_instance()
+    default_resource_url = config._conf.get(
+        "resource_base_url", "https://download.taosdata.com"
+    )
+
+    if payload is not None:
+        resource_base_url = payload.get("resource_base_url", default_resource_url)
+    elif request is not None:
+        resource_base_url = request.args.get("resource_base_url", default_resource_url)
+    else:
+        resource_base_url = default_resource_url
+
+    exec_timeout = config._conf.get("tsfm_resource_exec_timeout", 120)
+    return resource_base_url, exec_timeout
+
+
+# Deadline (seconds) for a model to become ready after `taosanodectl model start`
+# is invoked. Used both as the child's readiness deadline (`--timeout`) and as the
+# basis of the outer wait in `_run_model_start_task`.
+_DEFAULT_MODEL_START_TIMEOUT = 300
+
+# Extra grace (seconds) added on top of the model start deadline for the outer
+# wait, so the child process always has a chance to report its result and exit
+# before the parent gives up on it.
+_MODEL_START_GRACE_SECONDS = 30
+
+
+def _resolve_model_start_timeout():
+    """Resolve the model start timeout used by `taosanodectl model start`.
+
+    Reads ``tsfm_model_start_timeout`` from configuration. The value must be
+    greater than or equal to the model readiness deadline
+    (``timeouts['model_startup']``, default 180s) so that a slow-starting model
+    is not reported as started before it is actually ready.
+
+    Returns:
+        int: Deadline in seconds for the model readiness wait.
+    """
+    config = Configure.get_instance()
+    try:
+        start_timeout = int(
+            config._conf.get("tsfm_model_start_timeout", _DEFAULT_MODEL_START_TIMEOUT)
+        )
+    except (TypeError, ValueError):
+        AppLogger.warning(
+            "Invalid tsfm_model_start_timeout %r, falling back to %d seconds",
+            config._conf.get("tsfm_model_start_timeout"),
+            _DEFAULT_MODEL_START_TIMEOUT,
+        )
+        return _DEFAULT_MODEL_START_TIMEOUT
+
+    if start_timeout <= 0:
+        AppLogger.warning(
+            "Non-positive tsfm_model_start_timeout %d, falling back to %d seconds",
+            start_timeout,
+            _DEFAULT_MODEL_START_TIMEOUT,
+        )
+        return _DEFAULT_MODEL_START_TIMEOUT
+
+    return start_timeout
 
 
 def list_all_tsfm(request):
@@ -407,9 +654,7 @@ def list_all_tsfm(request):
     try:
         # Get parameters from query string
         release = request.args.get("release", "1.0.0")
-        config = Configure.get_instance()
-        default_resource_url = config._conf.get("resource_base_url", "https://download.taosdata.com")
-        resource_base_url = request.args.get("resource_base_url", default_resource_url)
+        resource_base_url, exec_timeout = _resolve_resource_settings(request=request)
 
         # Construct taosanodectl command
         try:
@@ -438,7 +683,7 @@ def list_all_tsfm(request):
             request.remote_addr,
         )
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=exec_timeout)
 
         if result.returncode == 0:
             try:
@@ -523,10 +768,10 @@ def list_all_tsfm(request):
             }, 500
 
     except subprocess.TimeoutExpired:
-        AppLogger.error("Resource check timeout (>30s), ip:%s", request.remote_addr)
+        AppLogger.error("Resource check timeout (>%ds), ip:%s", exec_timeout, request.remote_addr)
         return {
             "status": "error",
-            "error": "Resource check timeout (exceeded 30 seconds)",
+            "error": f"Resource check timeout (exceeded {exec_timeout} seconds)",
         }, 504
     except Exception as e:
         AppLogger.error("Error checking available models: %s, ip:%s", str(e), request.remote_addr)
@@ -573,9 +818,7 @@ def get_model_info(request, model_name):
     try:
         # Get parameters from query string
         release = request.args.get("release", "1.0.0")
-        config = Configure.get_instance()
-        default_resource_url = config._conf.get("resource_base_url", "https://download.taosdata.com")
-        resource_base_url = request.args.get("resource_base_url", default_resource_url)
+        resource_base_url, exec_timeout = _resolve_resource_settings(request=request)
 
         # Execute taosanodectl resource list to get real-time model info
         try:
@@ -605,7 +848,7 @@ def get_model_info(request, model_name):
             request.remote_addr,
         )
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=exec_timeout)
 
         if result.returncode == 0:
             try:
@@ -713,6 +956,7 @@ def _validate_model_in_repository(model_name, release, resource_base_url):
         - error_message: Error description (if invalid)
     """
     try:
+        _, exec_timeout = _resolve_resource_settings()
         try:
             taosanodectl = _get_taosanodectl_cmd()
         except FileNotFoundError as e:
@@ -729,7 +973,7 @@ def _validate_model_in_repository(model_name, release, resource_base_url):
             resource_base_url,
         ]
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=exec_timeout)
 
         if result.returncode != 0:
             error_msg = result.stderr or "Failed to check resources"
@@ -754,9 +998,53 @@ def _validate_model_in_repository(model_name, release, resource_base_url):
             return False, None, f"Failed to parse repository data: {e!s}"
 
     except subprocess.TimeoutExpired:
-        return False, None, "Repository check timeout (>30s)"
+        return False, None, f"Repository check timeout (>{exec_timeout})"
     except Exception as e:
         return False, None, f"Error validating model: {e!s}"
+
+
+_DOWNLOAD_FAMILY = frozenset({OperationType.DOWNLOAD.value, OperationType.DOWNLOAD_START.value})
+
+
+def _get_active_download_op(model_name):
+    """Return the active (queued/running) download-family op for a model, if any.
+
+    Matches both DOWNLOAD and DOWNLOAD_START so that a concurrent download of
+    either variant is detected and reused, preventing the same model from being
+    downloaded twice.
+
+    Args:
+        model_name: Name of the model
+
+    Returns:
+        AsyncOperation or None
+    """
+    dao = get_dao()
+    for op in dao.list_async_operations(model_name=model_name, active_only=True):
+        if op.operation in _DOWNLOAD_FAMILY and op.status in (
+            TaskStatus.QUEUED.value,
+            TaskStatus.RUNNING.value,
+        ):
+            return op
+    return None
+
+
+def _reuse_download_response(active_op, model_name):
+    """Build a response that reuses an already in-progress download task."""
+    detail = _build_operation_response(active_op)
+    return {
+        "status": "success",
+        "reused": True,
+        "message": (
+            f"Model '{model_name}' download already in progress "
+            f"(status={active_op.status}); reusing task '{active_op.task_id}'"
+        ),
+        "task_id": active_op.task_id,
+        "operation": active_op.operation,
+        "model_name": model_name,
+        "download_status": active_op.status,
+        "data": detail,
+    }, 200
 
 
 def download_foundation_model(request):
@@ -794,9 +1082,7 @@ def download_foundation_model(request):
     release = payload.get("release", "1.0.0")
 
     # Use provided resource_base_url or fall back to configured default
-    config = Configure.get_instance()
-    default_resource_url = config._conf.get("resource_base_url", "https://download.taosdata.com")
-    resource_base_url = payload.get("resource_base_url", default_resource_url)
+    resource_base_url, _ = _resolve_resource_settings(payload=payload)
     replace = payload.get("replace", False)
 
     if not model_name:
@@ -839,6 +1125,13 @@ def download_foundation_model(request):
         )
         dao.create_model(model)
         AppLogger.info("Added new model to database from repository: %s", model_name)
+
+    # Deduplicate: if this model already has a download queued/running, return
+    # the existing task instead of enqueuing another (only one download applies
+    # system-wide anyway).
+    active_op = _get_active_download_op(model_name)
+    if active_op:
+        return _reuse_download_response(active_op, model_name)
 
     if model.downloaded and not replace:
         AppLogger.warning(
@@ -924,8 +1217,53 @@ def download_foundation_model(request):
     }, 202
 
 
+def _submit_service_task(worker_fn, args, task_id, model_name, operation):
+    """Submit a service operation (start/stop/delete) to the service executor.
+
+    Service workers return a dict like {"status": "completed"|"failed", "error": ...}.
+    Completion (including unhandled worker exceptions) is applied via
+    _complete_async_operation, running in the executor thread. A single service
+    executor keeps service operations serialized and independent of downloads.
+
+    Args:
+        worker_fn: Worker function taking *args and returning a result dict
+        args: Positional args for worker_fn
+        task_id: Unique identifier for tracking this operation
+        model_name: Name of the model being operated on
+        operation: Operation name (start, stop, delete)
+    """
+
+    def _on_done(future):
+        """Called in the executor thread when the worker finishes."""
+        try:
+            result = future.result()
+        except Exception as exc:
+            AppLogger.error(
+                "%s task raised exception: task_id=%s, model=%s, exc=%s",
+                operation, task_id, model_name, exc,
+            )
+            _complete_async_operation(task_id, model_name, operation, "failed", str(exc))
+            return
+
+        status = result.get("status", "failed") if result else "failed"
+        error = result.get("error") if result else ("Worker returned no result" if status == "failed" else None)
+        _complete_async_operation(task_id, model_name, operation, status, error)
+
+    executor = _get_service_executor()
+    AppLogger.info(
+        "Submitting %s task to service executor: task_id=%s, model=%s, executor=%s",
+        operation, task_id, model_name, executor,
+    )
+    future = executor.submit(worker_fn, *args)
+    future.add_done_callback(_on_done)
+    AppLogger.info(
+        "%s task submitted to service executor: task_id=%s",
+        operation.capitalize(), task_id,
+    )
+
+
 def _trigger_model_start_background(task_id, model_name):
-    """Submit model start task to process pool.
+    """Submit model start task to the service thread executor.
 
     Executes: python ./taosanodectl.py model start <model_name>
 
@@ -933,42 +1271,22 @@ def _trigger_model_start_background(task_id, model_name):
         task_id: Unique identifier for tracking this operation
         model_name: Name of the model to start (e.g., 'moirai')
 
-    The process pool handles async execution; caller monitors progress via get_operation_status(task_id)
+    The executor handles async execution; caller monitors progress via get_operation_status(task_id)
     """
-
-    def callback(result):
-        """Called in the main process when the worker finishes."""
-        status = result.get("status", "failed") if result else "failed"
-        error = result.get("error") if result else "Worker process returned no result" if status == "failed" else None
-        _complete_async_operation(task_id, model_name, "start", status, error)
-
-    def error_callback(exc):
-        """Called in the main process when the worker raises an unhandled exception."""
-        AppLogger.error(
-            "Start task raised exception: task_id=%s, model=%s, exc=%s",
-            task_id, model_name, exc,
-        )
-        _complete_async_operation(task_id, model_name, "start", "failed", str(exc))
-
-    pool = _get_service_pool()
-    AppLogger.info(
-        "Submitting start task to pool: task_id=%s, model=%s, pool=%s",
-        task_id, model_name, pool,
-    )
-    pool.apply_async(
+    _submit_service_task(
         _run_model_start_task,
         args=(task_id, model_name),
-        callback=callback,
-        error_callback=error_callback,
+        task_id=task_id,
+        model_name=model_name,
+        operation="start",
     )
-    AppLogger.info("Start task submitted to pool: task_id=%s", task_id)
 
 
 def _run_model_delete_task(task_id, model_name):
-    """Worker function for process pool to delete foundation model via taosanodectl.
+    """Worker function for the service thread executor to delete a model via taosanodectl.
 
-    This runs in a separate process, so it needs all necessary context passed in.
-    Cannot access _ASYNC_OPERATIONS directly; updates are applied after completion.
+    This runs in an executor thread; completion is applied by the caller via
+    _complete_async_operation after this returns its result dict.
     """
     try:
         dao = get_dao()
@@ -989,7 +1307,8 @@ def _run_model_delete_task(task_id, model_name):
             " ".join(cmd),
         )
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        _, exec_timeout = _resolve_resource_settings()
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=exec_timeout)
 
         if result.returncode == 0:
             AppLogger.info(
@@ -1009,7 +1328,7 @@ def _run_model_delete_task(task_id, model_name):
             return {"status": "failed", "error": error_msg}
 
     except subprocess.TimeoutExpired:
-        error_msg = "Model delete timeout (>5 minutes)"
+        error_msg = f"Model delete timeout {exec_timeout}sec"
         AppLogger.error("Model delete timeout for task_id: %s, model: %s", task_id, model_name)
         return {"status": "failed", "error": error_msg}
     except Exception as e:
@@ -1024,7 +1343,7 @@ def _run_model_delete_task(task_id, model_name):
 
 
 def _trigger_model_delete_background(task_id, model_name):
-    """Submit model delete task to process pool.
+    """Submit model delete task to the service thread executor.
 
     Executes: python ./taosanodectl.py resource delete <model_name>
 
@@ -1032,63 +1351,51 @@ def _trigger_model_delete_background(task_id, model_name):
         task_id: Unique identifier for tracking this operation
         model_name: Name of the model to delete (e.g., 'moirai')
 
-    The process pool handles async execution; caller monitors progress via get_operation_status(task_id)
+    The executor handles async execution; caller monitors progress via get_operation_status(task_id)
     """
-
-    def callback(result):
-        """Called in the main process when the worker finishes."""
-        status = result.get("status", "failed") if result else "failed"
-        error = result.get("error") if result else "Worker process returned no result" if status == "failed" else None
-        _complete_async_operation(task_id, model_name, "delete", status, error)
-
-    def error_callback(exc):
-        """Called in the main process when the worker raises an unhandled exception."""
-        AppLogger.error(
-            "Delete task raised exception: task_id=%s, model=%s, exc=%s",
-            task_id, model_name, exc,
-        )
-        _complete_async_operation(task_id, model_name, "delete", "failed", str(exc))
-
-    pool = _get_service_pool()
-    AppLogger.info(
-        "Submitting delete task to pool: task_id=%s, model=%s, pool=%s",
-        task_id, model_name, pool,
-    )
-    pool.apply_async(
+    _submit_service_task(
         _run_model_delete_task,
         args=(task_id, model_name),
-        callback=callback,
-        error_callback=error_callback,
+        task_id=task_id,
+        model_name=model_name,
+        operation="delete",
     )
-    AppLogger.info("Delete task submitted to pool: task_id=%s", task_id)
 
 
 def _run_model_start_task(task_id, model_name):
-    """Worker function for process pool to start foundation model via taosanodectl.
+    """Worker function for the service thread executor to start a model via taosanodectl.
 
-    This runs in a separate process, so it needs all necessary context passed in.
-    Cannot access _ASYNC_OPERATIONS directly; updates are applied after completion.
+    This runs in an executor thread; completion is applied by the caller via
+    _complete_async_operation after this returns its result dict.
 
     Uses Popen with start_new_session=True so the model service process is detached
     from the RESTful server's process group. This prevents the model service from
     being killed when the RESTful server stops (SIGHUP/SIGTERM to process group).
+
+    The readiness deadline is read from the ``tsfm_model_start_timeout`` config
+    setting and forwarded to ``taosanodectl model start --timeout``, so the
+    parent's wait and the child's own readiness check share one value.
     """
     try:
         dao = get_dao()
         dao.update_async_operation(task_id, status=TaskStatus.RUNNING.value, started_at=time.time())
 
         taosanodectl = _get_taosanodectl_cmd()
+        start_timeout = _resolve_model_start_timeout()
 
         cmd = taosanodectl + [
             "model",
             "start",
             model_name,
+            "--timeout",
+            str(start_timeout),
         ]
 
         AppLogger.info(
-            "Starting model process for task_id: %s, model: %s, cmd: %s",
+            "Starting model process for task_id: %s, model: %s, timeout: %ds, cmd: %s",
             task_id,
             model_name,
+            start_timeout,
             " ".join(cmd),
         )
 
@@ -1109,22 +1416,31 @@ def _run_model_start_task(task_id, model_name):
             proc.pid,
         )
 
-        # Wait briefly to detect immediate startup failures (bad args, missing files).
-        # A long-running service will still be alive after this window.
+        # `taosanodectl model start` performs the real readiness check (the model
+        # service must accept TCP connections) and exits with 0/1, so a successful
+        # start returns as soon as the model is ready rather than blocking for the
+        # whole window. The outer deadline is slightly larger than the child's own
+        # readiness deadline so the child can always report its verdict first.
+        outer_timeout = start_timeout + _MODEL_START_GRACE_SECONDS
         try:
-            stdout, stderr = proc.communicate(timeout=10)
+            _, stderr = proc.communicate(timeout=outer_timeout)
             returncode = proc.returncode
         except subprocess.TimeoutExpired:
-            # Process is still running after 10s — this means it started successfully
-            # as a long-running service. Do not kill it.
-            AppLogger.info(
-                "Model start process still running after 10s — treating as successful daemon: "
-                "task_id=%s, model=%s, pid=%d",
+            # The child did not report an outcome within the deadline, so the real
+            # startup state is unknown. Leave the detached process running (do not
+            # kill it) but never report success for an unknown result.
+            error_msg = (
+                f"Model start timed out after {outer_timeout}sec "
+                f"(start timeout {start_timeout}sec)"
+            )
+            AppLogger.error(
+                "Model start timeout: task_id=%s, model=%s, pid=%d, timeout=%dsec",
                 task_id,
                 model_name,
                 proc.pid,
+                outer_timeout,
             )
-            return {"status": "completed", "error": None}
+            return {"status": "failed", "error": error_msg}
 
         if returncode == 0:
             AppLogger.info(
@@ -1297,6 +1613,239 @@ def start_foundation_model(request):
     )
 
 
+def _run_download_and_start_task(task_id, model_name, release, resource_base_url, replace):
+    """Worker function for the download executor: download then auto-start a model.
+
+    This runs in an executor thread. It composes the existing download and start
+    workers: the model is downloaded first (flock-gated like any download) and,
+    only on a successful download, the model service is started.
+
+    Args:
+        task_id: Unique identifier for tracking this operation
+        model_name: Name of the model to download and start (e.g., 'moirai')
+        release: Release version (e.g., '1.0.0')
+        resource_base_url: Base URL for resource repository
+        replace: Whether to replace an existing (downloaded) model
+
+    Returns:
+        dict: Result with {"status": "completed"|"failed", "error": ...}
+    """
+    # Phase 1: download the model
+    download_result = _run_download_task(task_id, model_name, release, resource_base_url, replace)
+    if not download_result or download_result.get("status") != TaskStatus.COMPLETED.value:
+        # If the whole download_start op was cancelled/removed while waiting for
+        # the download lock, keep the interrupted semantics instead of masking
+        # it as a generic download failure.
+        if download_result and download_result.get("status") == TaskStatus.INTERRUPTED.value:
+            return download_result
+
+        error = (download_result or {}).get("error") or "Download phase failed"
+        AppLogger.error(
+            "download_start: download phase failed, task_id: %s, model: %s, error: %s",
+            task_id,
+            model_name,
+            error,
+        )
+        return {"status": TaskStatus.FAILED.value, "error": error}
+
+    # Mark model as downloaded in the database before starting it, so that a
+    # start-phase failure still leaves the model downloaded and usable.
+    _update_model_state(model_name, downloaded=True)
+    AppLogger.info(
+        "download_start: download completed for task_id: %s, model: %s, auto-starting model service",
+        task_id,
+        model_name,
+    )
+
+    # Phase 2: start the model service via the service executor so that this
+    # start is serialized with any concurrent stop/delete on the same model.
+    # Submitting here and blocking (future.result()) keeps the download executor
+    # thread occupied only during the brief start window, without any deadlock
+    # risk (both executors are independent single-thread pools).
+    service_executor = _get_service_executor()
+    future = service_executor.submit(_run_model_start_task, task_id, model_name)
+    return future.result()
+
+
+def _trigger_model_download_start_background(task_id, model_name, release, resource_base_url, replace):
+    """Dispatch a combined download-then-start task to the download executor.
+
+    Executes: taosanodectl resource apply <model_name> then model start, inside
+    the executor. The download phase is flock-gated for cross-process
+    single-flight like any plain download; the model is auto-started only after
+    the download succeeds.
+
+    Args:
+        task_id: Unique identifier for tracking this operation
+        model_name: Name of the model to download and start (e.g., 'moirai')
+        release: Release version (e.g., '1.0.0')
+        resource_base_url: Base URL for resource repository
+        replace: Whether to replace existing model
+    """
+    _submit_download_task(
+        _run_download_and_start_task,
+        args=(task_id, model_name, release, resource_base_url, replace),
+        task_id=task_id,
+        model_name=model_name,
+        operation=OperationType.DOWNLOAD_START.value,
+    )
+
+
+def download_and_start_foundation_model(request):
+    """Download a foundation model and automatically start it once downloaded.
+
+    Combines the download (download_foundation_model) and start
+    (start_foundation_model) flows into a single async operation. If the model
+    is already downloaded (and replace is not requested), only the start step is
+    performed and the download step is skipped.
+
+    Expected payload:
+    {
+        "model_name": "moirai",
+        "release": "1.0.0",                    # optional, default: "1.0.0"
+        "resource_base_url": "https://...",   # optional, uses config default
+        "replace": false                       # optional, allow overwrite + redownload
+    }
+
+    Returns:
+        JSON response with task_id for async tracking (HTTP 202)
+    """
+    AppLogger.debug("Received foundation model download-and-start request, ip:%s", request.remote_addr)
+
+    payload = request.get_json(silent=True) or {}
+    model_name = payload.get("model_name")
+    release = payload.get("release", "1.0.0")
+
+    # Use provided resource_base_url or fall back to configured default
+    resource_base_url, _ = _resolve_resource_settings(payload=payload)
+    replace = payload.get("replace", False)
+
+    if not model_name:
+        AppLogger.error("Download-and-start request missing model_name, ip:%s", request.remote_addr)
+        return {
+            "status": "error",
+            "error": "Missing required field: model_name",
+        }, 400
+
+    dao = get_dao()
+    model = dao.get_model(model_name)
+
+    # A running model cannot be replaced or started again.
+    if model and model.running:
+        AppLogger.error(
+            "Download-and-start request for already running model: %s, ip:%s",
+            model_name,
+            request.remote_addr,
+        )
+        return {
+            "status": "error",
+            "error": f"Model '{model_name}' is already running. Stop it first.",
+        }, 400
+
+    # Already downloaded and no forced redownload requested: skip the download
+    # step and simply start the model service.
+    if model and model.downloaded and not replace:
+        AppLogger.info(
+            "Download-and-start request for already downloaded model: %s — download skipped, starting service, ip:%s",
+            model_name,
+            request.remote_addr,
+        )
+        response, code = start_foundation_model(request)
+        if isinstance(response, dict) and response.get("status") == "queued":
+            response["message"] = (
+                f"Model '{model_name}' is already downloaded; start initiated (download skipped)"
+            )
+        return response, code
+
+    # Validate the model exists in the repository (real-time check). Only needed
+    # when a download is actually going to run.
+    is_valid, model_info, error_msg = _validate_model_in_repository(model_name, release, resource_base_url)
+    if not is_valid:
+        AppLogger.error(
+            "Download-and-start request for invalid model: %s, error: %s, ip:%s",
+            model_name,
+            error_msg,
+            request.remote_addr,
+        )
+        return {
+            "status": "error",
+            "error": error_msg,
+        }, 404
+
+    # If the model is not in the database yet, add it from the repository info.
+    if not model:
+        size_bytes = model_info.get("size", 0)
+        model = FoundationModel(
+            name=model_name,
+            model_id=model_info.get("model_id", ""),
+            package=model_info.get("name", ""),
+            type="forecast",
+            description=model_info.get("note", ""),
+            size_gb=size_bytes / (1024**3) if size_bytes else 0,
+        )
+        dao.create_model(model)
+        AppLogger.info("Added new model to database from repository: %s", model_name)
+
+    # Deduplicate: if this model already has a download-and-start queued/running,
+    # reuse that task instead of enqueuing a duplicate.
+    active_op = _get_active_download_op(model_name)
+    if active_op:
+        return _reuse_download_response(active_op, model_name)
+
+    dao.cleanup_download_operations(model_name)
+
+    # Generate a unique task ID for async tracking.
+    task_id = f"download-start-{model_name}-{uuid.uuid4().hex[:8]}"
+
+    # Record the combined async operation. The worker downloads the model and,
+    # only on success, starts the model service.
+    operation = AsyncOperation(
+        task_id=task_id,
+        operation=OperationType.DOWNLOAD_START.value,
+        model_name=model_name,
+        status=TaskStatus.QUEUED.value,
+        data={
+            "model_id": model.model_id,
+            "package": model.package,
+            "release": release,
+            "resource_base_url": resource_base_url,
+            "replace": replace,
+        }
+    )
+    dao.create_async_operation(operation)
+
+    # Spawn the background download-then-start task.
+    _trigger_model_download_start_background(
+        task_id, model_name, release, resource_base_url, replace
+    )
+
+    AppLogger.info(
+        "Download-and-start initiated for model '%s' (package: %s, release: %s, resource_url: %s, "
+        "replace: %s), task_id: %s, ip:%s",
+        model_name,
+        model.package,
+        release,
+        resource_base_url,
+        replace,
+        task_id,
+        request.remote_addr,
+    )
+
+    return {
+        "status": "queued",
+        "task_id": task_id,
+        "message": f"Download initiated for model '{model_name}'; it will start automatically once the download completes",
+        "model_name": model_name,
+        "model_id": model.model_id,
+        "package": model.package,
+        "size_gb": model.size_gb,
+        "release": release,
+        "resource_base_url": resource_base_url,
+        "auto_start": True,
+        "next_action": f"Query progress: GET /api/v1/foundation-models/{task_id}/status",
+    }, 202
+
+
 def delete_foundation_model(request):
     """Delete a foundation model.
 
@@ -1389,16 +1938,17 @@ def delete_foundation_model(request):
 
 
 def _run_model_stop_task(task_id, model_name):
-    """Worker function for process pool to stop foundation model via taosanodectl.
+    """Worker function for the service thread executor to stop a model via taosanodectl.
 
-    This runs in a separate process, so it needs all necessary context passed in.
-    Cannot access _ASYNC_OPERATIONS directly; updates are applied after completion.
+    This runs in an executor thread; completion is applied by the caller via
+    _complete_async_operation after this returns its result dict.
     """
     try:
         dao = get_dao()
         dao.update_async_operation(task_id, status=TaskStatus.RUNNING.value, started_at=time.time())
 
         taosanodectl = _get_taosanodectl_cmd()
+        _, exec_timeout = _resolve_resource_settings()
 
         cmd = taosanodectl + [
             "model",
@@ -1413,7 +1963,7 @@ def _run_model_stop_task(task_id, model_name):
             " ".join(cmd),
         )
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=exec_timeout)
 
         if result.returncode == 0:
             AppLogger.info(
@@ -1433,7 +1983,7 @@ def _run_model_stop_task(task_id, model_name):
             return {"status": "failed", "error": error_msg}
 
     except subprocess.TimeoutExpired:
-        error_msg = "Model stop timeout (>5 minutes)"
+        error_msg = f"Model stop timeout {exec_timeout}sec"
         AppLogger.error("Model stop timeout for task_id: %s, model: %s", task_id, model_name)
         return {"status": "failed", "error": error_msg}
     except Exception as e:
@@ -1448,7 +1998,7 @@ def _run_model_stop_task(task_id, model_name):
 
 
 def _trigger_model_stop_background(task_id, model_name):
-    """Submit model stop task to process pool.
+    """Submit model stop task to the service thread executor.
 
     Executes: python ./taosanodectl.py model stop <model_name>
 
@@ -1456,35 +2006,15 @@ def _trigger_model_stop_background(task_id, model_name):
         task_id: Unique identifier for tracking this operation
         model_name: Name of the model to stop (e.g., 'moirai')
 
-    The process pool handles async execution; caller monitors progress via get_operation_status(task_id)
+    The executor handles async execution; caller monitors progress via get_operation_status(task_id)
     """
-
-    def callback(result):
-        """Called in the main process when the worker finishes."""
-        status = result.get("status", "failed") if result else "failed"
-        error = result.get("error") if result else "Worker process returned no result" if status == "failed" else None
-        _complete_async_operation(task_id, model_name, "stop", status, error)
-
-    def error_callback(exc):
-        """Called in the main process when the worker raises an unhandled exception."""
-        AppLogger.error(
-            "Stop task raised exception: task_id=%s, model=%s, exc=%s",
-            task_id, model_name, exc,
-        )
-        _complete_async_operation(task_id, model_name, "stop", "failed", str(exc))
-
-    pool = _get_service_pool()
-    AppLogger.info(
-        "Submitting stop task to pool: task_id=%s, model=%s, pool=%s",
-        task_id, model_name, pool,
-    )
-    pool.apply_async(
+    _submit_service_task(
         _run_model_stop_task,
         args=(task_id, model_name),
-        callback=callback,
-        error_callback=error_callback,
+        task_id=task_id,
+        model_name=model_name,
+        operation="stop",
     )
-    AppLogger.info("Stop task submitted to pool: task_id=%s", task_id)
 
 
 def stop_foundation_model(request):
@@ -1541,7 +2071,7 @@ def _build_operation_response(operation_info):
         "status": operation_info.status,
     }
 
-    if operation == OperationType.DOWNLOAD.value:
+    if operation in (OperationType.DOWNLOAD.value, OperationType.DOWNLOAD_START.value):
         data = operation_info.data or {}
         response_data.update({
             "model_id": data.get("model_id", ""),
@@ -1550,6 +2080,9 @@ def _build_operation_response(operation_info):
             "resource_base_url": data.get("resource_base_url", ""),
             "replace": data.get("replace", False),
         })
+
+    if operation == OperationType.DOWNLOAD_START.value:
+        response_data["auto_start"] = True
 
     if operation_info.status == TaskStatus.FAILED.value:
         response_data["error"] = operation_info.error or "Unknown error"
