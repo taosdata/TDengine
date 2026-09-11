@@ -9,7 +9,6 @@ on_github_actions = bool(_os.environ.get("GITHUB_ACTIONS"))
 # Auto-detect install directory from this config file's location:
 # cfg/taosanode.config.py → parent dir is <install_dir>
 _cfg_dir = _os.path.dirname(_os.path.abspath(__file__))
-_install_dir = _os.path.dirname(_cfg_dir)
 
 base_dir = _os.path.dirname(_cfg_dir) if (on_windows or on_github_actions) else '/usr/local/taos/taosanode/'
 log_dir = _os.path.join(base_dir, 'log') if (on_windows or on_github_actions) else '/var/log/taos/taosanode/'
@@ -84,6 +83,10 @@ model_dir = _os.path.join(base_dir, 'model') if (on_windows or on_github_actions
 # and can be added or removed at any time without restarting the server
 dynamic_model_dir = _os.path.join(model_dir, 'dynamic')
 
+img_dir = _os.path.join(base_dir, 'img', '') if (on_windows or on_github_actions) else _os.path.join(data_dir, 'img', '')
+
+resource_dir = _os.path.join(base_dir, 'resource', '') if (on_windows or on_github_actions) else _os.path.join(data_dir, 'resource', '')
+
 # Dynamically installed TSFM models and their shared Python runtime.
 tsfm_model_dir = _os.path.join(model_dir, 'tsfm')
 model_venvs_dir = _os.path.join(base_dir, 'model_venvs') if (on_windows or on_github_actions) else _os.path.join(data_dir, 'model_venvs')
@@ -95,9 +98,14 @@ log_level = 'DEBUG'
 # draw the query results
 draw_result = False
 
-img_dir = _os.path.join(base_dir, 'img', '') if (on_windows or on_github_actions) else _os.path.join(data_dir, 'img', '')
+# tsfm execution time out
+tsfm_resource_exec_timeout = 120
 
-resource_dir = _os.path.join(base_dir, 'resource', '') if (on_windows or on_github_actions) else _os.path.join(data_dir, 'resource', '')
+# Deadline (in seconds) for starting a tsfm model and waiting until it reports
+# readiness. It is forwarded to `taosanodectl model start --timeout` and must be
+# greater than the model readiness deadline (`timeouts['model_startup']`, default
+# 180s), otherwise a slow-starting model could be treated as started too early.
+tsfm_model_start_timeout = 300
 
 # Model configuration - defines all available models
 # Required models: tdtsfm, timemoe (must exist, error if missing)
