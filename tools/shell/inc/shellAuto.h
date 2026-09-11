@@ -61,6 +61,7 @@ void showHelp();
 //
 bool fieldOptionsArea(char* p);
 bool isCreateFieldsArea(char* p);
+bool matchCreateTable(TAOS* con, SShellCmd* cmd);
 
 #ifdef __cplusplus
 }
