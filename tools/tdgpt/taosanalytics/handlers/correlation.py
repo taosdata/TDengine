@@ -2,7 +2,12 @@
 
 from taosanalytics.algo.correlation import do_dtw, do_tlcc
 from taosanalytics.log import AppLogger
-from taosanalytics.util import do_check_before_exec, get_more_data_list, parse_options
+from taosanalytics.util import (
+    do_check_before_exec,
+    get_algo,
+    get_more_data_list,
+    parse_options,
+)
 
 
 def handle_correlation(request):
@@ -25,9 +30,8 @@ def handle_correlation(request):
     if "algo" not in req_json:
         return {"msg": "algo is missing in requests", "rows": -1}
 
-    algo = req_json["algo"].lower()
-
     try:
+        algo = get_algo(req_json, None)
         second_list = get_more_data_list(payload, req_json["schema"])
 
         if algo == "dtw":

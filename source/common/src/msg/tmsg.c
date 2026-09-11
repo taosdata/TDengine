@@ -11577,6 +11577,10 @@ int32_t tSerializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableReq
   int32_t  code = 0;
   int32_t  lino;
   int32_t  tlen;
+  code = tValidateSRetrieveTableReq(pReq);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
@@ -11588,6 +11592,9 @@ int32_t tSerializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableReq
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->compactId));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->withFull));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->txnId));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->xnodeDsnOutputMode));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->xnodeRetrieveFilterType));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->xnodeRetrieveFilterValue));
   tEndEncode(&encoder);
 
 _exit:
@@ -11604,6 +11611,10 @@ int32_t tDeserializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableR
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
+
+  if (pReq == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
 
   tDecoderInit(&decoder, buf, bufLen);
 
@@ -11623,6 +11634,23 @@ int32_t tDeserializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableR
   }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->txnId));
+  }
+  // Appended fields: tolerate absence so that senders from before these fields existed stay
+  // decodable during a rolling upgrade. Consumers validate the values via tValidateSRetrieveTableReq.
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->xnodeDsnOutputMode));
+  } else {
+    pReq->xnodeDsnOutputMode = XNODE_DSN_OUTPUT_DEFAULT;
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->xnodeRetrieveFilterType));
+  } else {
+    pReq->xnodeRetrieveFilterType = XNODE_RETRIEVE_FILTER_NONE;
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->xnodeRetrieveFilterValue));
+  } else {
+    pReq->xnodeRetrieveFilterValue = 0;
   }
   tEndDecode(&decoder);
 _exit:

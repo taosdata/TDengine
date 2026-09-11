@@ -897,6 +897,7 @@ typedef struct SShowStmt {
   EOperatorType tableCondType;
   EShowKind     showKind;  // show databases: user/system, show tables: normal/child, others NULL
   bool          withFull;  // for show users full;
+  int8_t        xnodeDsnOutputMode;
   SNode*        pWhere;    // WHERE clause
 } SShowStmt;
 

@@ -2405,6 +2405,10 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         EXPLAIN_ROW_APPEND_SLIMIT(pInterpNode->node.pSlimit);
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_MERGEBLOCKS_FORMAT,
+                        pInterpNode->mergeDataBlock ? "True" : "False");
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         if (pInterpNode->pFillValues) {
           SNodeListNode *pValues = (SNodeListNode *)pInterpNode->pFillValues;
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILL_VALUE_FORMAT);

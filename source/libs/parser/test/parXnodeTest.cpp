@@ -190,6 +190,65 @@ TEST_F(ParserXnodeTest, emptyTaskIoIsRejected) {
   }
 }
 
+TEST_F(ParserXnodeTest, showXnodeDsnOutputModeIsPropagated) {
+  login("root");
+  useDb("root", "test");
+
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SELECT_STMT);
+    ASSERT_EQ(pQuery->xnodeDsnOutputMode, XNODE_DSN_OUTPUT_ENCRYPTED);
+  });
+
+  run("SHOW XNODE TASKS WITH ENCRYPTED WHERE id = 1");
+  run("show xnode jobs with encrypted where task_id = 1");
+
+  runParseOnly("SHOW XNODE AGENTS WITH ENCRYPTED", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("SHOW XNODES WITH ENCRYPTED", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("SHOW XNODE TASKS WHERE id = 1 WITH ENCRYPTED", TSDB_CODE_PAR_SYNTAX_ERROR);
+}
+
+// parseXnodeDsnOutputMode only recognizes "encrypted"; any other bare identifier after WITH must
+// be rejected rather than silently falling back to the default output mode.
+TEST_F(ParserXnodeTest, showXnodeRejectsUnknownDsnOutputMode) {
+  login("root");
+  useDb("root", "test");
+
+  runParseOnly("SHOW XNODE TASKS WITH FOO", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("SHOW XNODE TASKS WITH ENCRYPT", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("SHOW XNODE TASKS WITH ENCRYPTEDX", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("SHOW XNODE TASKS WITH FOO WHERE id = 1", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("SHOW XNODE JOBS WITH FOO", TSDB_CODE_PAR_SYNTAX_ERROR);
+}
+
+// The default (no WITH clause) path must stay untouched.
+TEST_F(ParserXnodeTest, showXnodeDefaultsToPlainDsnOutputMode) {
+  login("root");
+  useDb("root", "test");
+
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    ASSERT_EQ(pQuery->xnodeDsnOutputMode, XNODE_DSN_OUTPUT_DEFAULT);
+  });
+
+  run("SHOW XNODE TASKS");
+  run("SHOW XNODE JOBS WHERE task_id = 1");
+  run("SHOW XNODE AGENTS");
+  run("SHOW XNODES");
+}
+
+TEST_F(ParserXnodeTest, showXnodeDsnOutputModeSurvivesAstClone) {
+  login("root");
+  useDb("root", "test");
+
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    ASSERT_EQ(pQuery->xnodeDsnOutputMode, XNODE_DSN_OUTPUT_ENCRYPTED);
+  });
+
+  runClonedAst("SHOW XNODE TASKS WITH ENCRYPTED");
+}
+
 TEST_F(ParserXnodeTest, createOptionFailuresReleaseInputsOnce) {
   login("root");
   useDb("root", "test");

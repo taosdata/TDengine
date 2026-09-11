@@ -13,6 +13,7 @@ from pathlib import Path
 from taosanalytics.base import (
     AbstractAnomalyDetectionService,
     AbstractClassificationService,
+    AbstractClusteringService,
     AbstractCorrelationService,
     AbstractForecastService,
     AbstractImputationService,
@@ -47,6 +48,7 @@ class ServiceRegistry:
         "logistic_regression",
         "decision_tree",
     ]
+    _clustering_models = ["kmeans", "dbscan", "gmm"]
 
     _base_class_name = [
         AbstractAnomalyDetectionService.__name__,
@@ -55,6 +57,7 @@ class ServiceRegistry:
         AbstractCorrelationService.__name__,
         AbstractRegressionService.__name__,
         AbstractClassificationService.__name__,
+        AbstractClusteringService.__name__,
     ]
 
     def __init__(self):
@@ -222,6 +225,7 @@ class ServiceRegistry:
                 self.get_corr_algo_list(),
                 self.get_regression_algo_list(),
                 self.get_classification_algo_list(),
+                self.get_clustering_algo_list(),
             ],
         }
 
@@ -253,6 +257,9 @@ class ServiceRegistry:
             "type": "classification",
             "algo": self.get_typed_services("classification"),
         }
+
+    def get_clustering_algo_list(self):
+        return {"type": "clustering", "algo": self.get_typed_services("clustering")}
 
     def register_service_from_file(self, config_file: str):
         """Load and register algorithms from a single json file.
@@ -523,6 +530,10 @@ class ServiceRegistry:
         )
         self._register_services_in_dir(
             current_directory, "taosanalytics.algo.correl.", "algo/correl/", True
+        )
+
+        self._register_services_in_dir(
+            current_directory, "taosanalytics.algo.cluster.", "algo/cluster/", True
         )
 
         # load user defined ML model-driven script.

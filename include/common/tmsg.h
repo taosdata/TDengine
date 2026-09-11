@@ -4375,7 +4375,21 @@ typedef struct {
   int64_t compactId;  // for compact
   int64_t txnId;      // batch meta txn: same-txn visibility
   bool    withFull;   // for show users full
+  int8_t  xnodeDsnOutputMode;
+  int8_t  xnodeRetrieveFilterType;
+  int64_t xnodeRetrieveFilterValue;
 } SRetrieveTableReq;
+
+typedef enum {
+  XNODE_DSN_OUTPUT_DEFAULT = 0,
+  XNODE_DSN_OUTPUT_ENCRYPTED = 1,
+} EXnodeDsnOutputMode;
+
+typedef enum {
+  XNODE_RETRIEVE_FILTER_NONE = 0,
+  XNODE_RETRIEVE_FILTER_ID_EQ = 1,
+  XNODE_RETRIEVE_FILTER_TASK_ID_EQ = 2,
+} EXnodeRetrieveFilterType;
 
 typedef struct SSysTableSchema {
   int8_t   type;
@@ -4385,6 +4399,9 @@ typedef struct SSysTableSchema {
 
 int32_t tSerializeSRetrieveTableReq(void* buf, int32_t bufLen, SRetrieveTableReq* pReq);
 int32_t tDeserializeSRetrieveTableReq(void* buf, int32_t bufLen, SRetrieveTableReq* pReq);
+// Checks that the xnode retrieve options are consistent with the requested system table.
+// Defined in common/src/systable.c, next to the schemas the rules are derived from.
+int32_t tValidateSRetrieveTableReq(const SRetrieveTableReq* pReq);
 
 #define RETRIEVE_TABLE_RSP_VERSION         0
 #define RETRIEVE_TABLE_RSP_TMQ_VERSION     1

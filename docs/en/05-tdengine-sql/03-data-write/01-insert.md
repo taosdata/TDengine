@@ -193,3 +193,5 @@ Create subtables for the supertable based on the contents of the CSV file, and p
 INSERT INTO meters(tbname, location, groupId, ts, current, voltage, phase)
                 FILE '/tmp/csvfile_21002.csv'
 ```
+
+**NOTE:** Only UTF-8 encoded CSV files are supported.

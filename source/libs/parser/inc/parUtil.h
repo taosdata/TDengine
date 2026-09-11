@@ -121,6 +121,21 @@ int32_t buildInvalidOperationMsg(SMsgBuf* pMsgBuf, const char* msg);
 int32_t buildInvalidOperationMsgExt(SMsgBuf* pBuf, const char* pFormat, ...);
 int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char* sourceStr);
 
+/*
+ * Check the head of a csv file for a BOM (byte order mark) header.
+ *
+ * @param pBuf    the leading bytes read from the csv file
+ * @param bufLen  the number of valid bytes in pBuf
+ *
+ * @return 0                             no BOM is present, data starts at offset 0
+ * @return positive value (3)            a UTF-8 BOM (EF BB BF) is present, these leading bytes
+ *                                       should be skipped
+ * @return TSDB_CODE_TSC_INVALID_INPUT   the file starts with the BOM of an unsupported encoding
+ *                                       (UTF-16 LE/BE or UTF-32 LE/BE), i.e. the csv file is not
+ *                                       in UTF-8
+ */
+int32_t checkCsvFileBom(const char* pBuf, size_t bufLen);
+
 SSchema*      getTableColumnSchema(const STableMeta* pTableMeta);
 SSchemaExt*   getTableColumnExtSchema(const STableMeta* pTableMeta);
 SSchema*      getTableTagSchema(const STableMeta* pTableMeta);

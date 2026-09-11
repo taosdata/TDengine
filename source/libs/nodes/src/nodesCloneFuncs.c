@@ -832,6 +832,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   CLONE_NODE_FIELD(pPrimaryCond);
   COPY_OBJECT_FIELD(tableName, sizeof(SName));
   COPY_SCALAR_FIELD(showRewrite);
+  COPY_SCALAR_FIELD(xnodeDsnOutputMode);
   COPY_SCALAR_FIELD(ratio);
   CLONE_NODE_LIST_FIELD(pDynamicScanFuncs);
   COPY_SCALAR_FIELD(dataRequired);
@@ -1467,6 +1468,7 @@ static int32_t physiSysTableScanCopy(const SSystemTableScanPhysiNode* pSrc, SSys
   COPY_BASE_OBJECT_FIELD(scan, physiScanCopy);
   COPY_OBJECT_FIELD(mgmtEpSet, sizeof(SEpSet));
   COPY_SCALAR_FIELD(showRewrite);
+  COPY_SCALAR_FIELD(xnodeDsnOutputMode);
   COPY_SCALAR_FIELD(accountId);
   COPY_SCALAR_FIELD(sysInfo);
   COPY_SCALAR_FIELD(privInfo);
@@ -1829,6 +1831,17 @@ static int32_t trueForNodeCopy(const STrueForNode* pSrc, STrueForNode* pDst) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t showStmtCopy(const SShowStmt* pSrc, SShowStmt* pDst) {
+  COPY_SCALAR_FIELD(tableCondType);
+  COPY_SCALAR_FIELD(showKind);
+  COPY_SCALAR_FIELD(withFull);
+  COPY_SCALAR_FIELD(xnodeDsnOutputMode);
+  CLONE_NODE_FIELD(pDbName);
+  CLONE_NODE_FIELD(pTbName);
+  CLONE_NODE_FIELD(pWhere);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
   if (NULL == pNode) {
     return TSDB_CODE_SUCCESS;
@@ -1997,6 +2010,12 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_SET_OPERATOR:
       code = setOperatorCopy((const SSetOperator*)pNode, (SSetOperator*)pDst);
+      break;
+    case QUERY_NODE_SHOW_XNODES_STMT:
+    case QUERY_NODE_SHOW_XNODE_TASKS_STMT:
+    case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
+    case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
+      code = showStmtCopy((const SShowStmt*)pNode, (SShowStmt*)pDst);
       break;
     case QUERY_NODE_SELECT_STMT:
       code = selectStmtCopy((const SSelectStmt*)pNode, (SSelectStmt*)pDst);

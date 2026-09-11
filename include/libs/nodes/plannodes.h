@@ -117,6 +117,7 @@ typedef struct SScanLogicNode {
   SNode*             pPrimaryCond;   // for remote node, splited from filter conditions
   SName              tableName;
   bool               showRewrite;
+  int8_t             xnodeDsnOutputMode;
   double             ratio;
   SNodeList*         pDynamicScanFuncs;
   int32_t            dataRequired;
@@ -744,6 +745,7 @@ typedef struct SSystemTableScanPhysiNode {
   SEpSet         mgmtEpSet;
   int32_t        accountId;
   bool           showRewrite;
+  int8_t         xnodeDsnOutputMode;
   bool           sysInfo;
   union {
     uint16_t privInfo;
@@ -927,6 +929,7 @@ typedef struct SInterpFuncPhysiNode {
   void*             timezone;        // timezone_t handle; EVERY calendar units (d/w) are calendar/DST aware
   char              timezoneName[TD_TIMEZONE_LEN]; /* IANA name for TLV serialization */
   bool              ownsTimezone;    /* true when timezone was tzalloc'd during deser */
+  bool              mergeDataBlock;
 } SInterpFuncPhysiNode;
 
 typedef struct SForecastFuncPhysiNode {

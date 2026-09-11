@@ -27,6 +27,7 @@
 
 typedef struct STimeSliceOperatorInfo {
   SSDataBlock*         pRes;
+  SSDataBlock*         pMergedRes;
   STimeWindow          win;
   SNode*               pWin;        // for stream
   SInterval            interval;
@@ -1351,6 +1352,42 @@ _finished:
   return code;
 }
 
+static int32_t doTimesliceNextMerged(SOperatorInfo* pOperator,
+                                     SSDataBlock** ppRes) {
+  STimeSliceOperatorInfo* pInfo = pOperator->info;
+  SSDataBlock* pMerged = pInfo->pMergedRes;
+
+  *ppRes = NULL;
+  blockDataCleanup(pMerged);
+  while (pMerged->info.rows < pOperator->resultInfo.threshold) {
+    SSDataBlock* pBlock = NULL;
+    int32_t code = doTimesliceNext(pOperator, &pBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    if (pBlock == NULL) {
+      break;
+    }
+    if (pMerged->info.rows == 0 &&
+        pBlock->info.rows >= pOperator->resultInfo.threshold) {
+      pBlock->info.id.groupId = 0;
+      *ppRes = pBlock;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    code = blockDataMerge(pMerged, pBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    pMerged->info.scanFlag = pBlock->info.scanFlag;
+    pMerged->info.version = pBlock->info.version;
+  }
+
+  pMerged->info.id.groupId = 0;
+  *ppRes = pMerged->info.rows == 0 ? NULL : pMerged;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t resetTimeSliceOperState(SOperatorInfo* pOper) {
   STimeSliceOperatorInfo* pInfo = pOper->info;
   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
@@ -1373,6 +1410,7 @@ static int32_t resetTimeSliceOperState(SOperatorInfo* pOper) {
   pInfo->pRemainRes = NULL;
   pInfo->remainIndex = 0;
   blockDataCleanup(pInfo->pRes);
+  blockDataCleanup(pInfo->pMergedRes);
 
   // These keepers/cache are built lazily from the input block layout. Drop
   // them on reset so the next execution rebuilds them from fresh input state.
@@ -1449,6 +1487,11 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream,
   pInfo->pLinearInfo = NULL;
   pInfo->pRes = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
+  if (pInterpPhyNode->mergeDataBlock &&
+      pTaskInfo->execModel == OPTR_EXEC_MODEL_BATCH) {
+    code = createOneDataBlock(pInfo->pRes, false, &pInfo->pMergedRes);
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
   pInfo->win = pInterpPhyNode->timeRange;
   code = nodesCloneNode(pInterpPhyNode->pTimeRange, &pInfo->pWin);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -1490,13 +1533,31 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream,
   setOperatorInfo(pOperator, "TimeSliceOperator",
                   QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTimesliceNext,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn,
+                                         pInfo->pMergedRes != NULL ?
+                                           doTimesliceNextMerged :
+                                           doTimesliceNext,
                                          NULL, destroyTimeSliceOperatorInfo,
                                          optrDefaultBufFn, NULL,
                                          optrDefaultGetNextExtFn, NULL);
 
   code = blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _error);
+  if (pInfo->pMergedRes != NULL) {
+    // The merged block accumulates one source block at a time, and
+    // colDataMergeCol reallocs to the exact new size, so without a hint every
+    // group grows it again. Pre-size it for a typical full round (threshold
+    // plus one more source block) to take the fixed-length columns and the
+    // var-length offset arrays out of that path. This is only a hint, not a
+    // bound: gap and tail interpolation can emit larger blocks, and
+    // blockDataMerge still grows the block when it is exceeded. Note the
+    // var-length payloads are NOT covered -- colDataReserve is private to
+    // tdatablock.c, so those still realloc per group.
+    code = blockDataEnsureCapacity(pInfo->pMergedRes,
+                                   pOperator->resultInfo.threshold +
+                                     pOperator->resultInfo.capacity);
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
 
   //  int32_t code = initKeeperInfo(pSliceInfo, pBlock, &pOperator->exprSupp);
   setOperatorResetStateFn(pOperator, resetTimeSliceOperState);
@@ -1522,6 +1583,7 @@ void destroyTimeSliceOperatorInfo(void* param) {
 
   blockDataDestroy(pInfo->pRes);
   pInfo->pRes = NULL;
+  blockDataDestroy(pInfo->pMergedRes);
 
   destroyRowsKeeper(&pInfo->pPrevRow);
   destroyRowsKeeper(&pInfo->pNextRow);

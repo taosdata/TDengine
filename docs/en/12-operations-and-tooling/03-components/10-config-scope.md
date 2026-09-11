@@ -107,6 +107,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | ttlChangeOnWrite | taosd | Whether ttl expiration time changes with table modification |
 | ttlBatchDropNum | taosd | Number of subtables deleted in a batch for ttl |
 | retentionSpeedLimitMB | taosd | Speed limit for data migration across different levels of disks |
+| compactSpeedLimitMB | taosd | Speed limit for compact write |
 | maxTsmaNum | taosd | Maximum number of TSMAs that can be created in the cluster |
 | tmqMaxTopicNum | taosd | Maximum number of topics that can be established for subscription |
 | audit | taosd | Audit feature switch |

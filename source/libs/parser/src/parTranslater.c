@@ -34791,6 +34791,7 @@ _OUT:
 typedef struct SParseFileContext {
   SArray*     aTagNames;
   bool        tagNameFilled;
+  bool        bomChecked;  // whether the BOM at the head of the csv file is checked
   STableMeta* pStbMeta;
   SArray*     aTagIndexs;
 
@@ -34911,6 +34912,29 @@ static int32_t parseCsvFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt, SParseFi
   int64_t readLen = 0;
   int32_t lineCount = 0;
   while (TSDB_CODE_SUCCESS == code && (readLen = taosGetLineFile(fp, &pLine)) != -1) {
+    // A csv file may start with a BOM header, which is only possible at the first line of
+    // the file (later batches continue reading from where the previous batch stopped, so a
+    // flag kept in the context is used to check the file head only once). A UTF-8 BOM
+    // (EF BB BF) is skipped so that the content after it is parsed normally; if the file
+    // starts with the BOM of any other encoding (UTF-16/UTF-32 etc.), the csv file is not
+    // in UTF-8 and an error is returned.
+    if (!pParFileCxt->bomChecked) {
+      pParFileCxt->bomChecked = true;
+      int32_t skipBytes = checkCsvFileBom(pLine, (size_t)readLen);
+      if (skipBytes < 0) {
+        code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                    "csv file contains an unsupported BOM: only utf-8 encoded csv is supported");
+        break;
+      }
+      if (skipBytes > 0) {
+        // skip the leading UTF-8 BOM
+        memmove(pLine, pLine + skipBytes, (size_t)readLen - skipBytes);
+        readLen -= skipBytes;
+      }
+    }
+
+    if (readLen == 0) continue;
+
     if (('\r' == pLine[readLen - 1]) || ('\n' == pLine[readLen - 1])) {
       pLine[--readLen] = '\0';
     }
@@ -34983,6 +35007,7 @@ static int32_t constructParseFileContext(SCreateSubTableFromFileClause* pStmt, S
   if (!pParFileCxt) return terrno;
   pParFileCxt->pStbMeta = pSuperTableMeta;
   pParFileCxt->tagNameFilled = false;
+  pParFileCxt->bomChecked = false;
   pParFileCxt->pTag = NULL;
   pParFileCxt->ctbName.type = TSDB_TABLE_NAME_T;
   pParFileCxt->ctbName.acctId = acctId;
@@ -39811,6 +39836,7 @@ static int32_t rewriteShowXnodeStmt(STranslateContext* pCxt, SQuery* pQuery) {
     }
     pCxt->showRewrite = true;
     pQuery->showRewrite = true;
+    pQuery->xnodeDsnOutputMode = pShow->xnodeDsnOutputMode;
     nodesDestroyNode(pQuery->pRoot);
     pQuery->pRoot = (SNode*)pSelect;
   } else {
