@@ -2541,9 +2541,8 @@ static int32_t streamConsumeOneHopResults(SVnode *pVnode, int32_t hop, SArray *w
       // ref-col missing, tag changed, etc.) is propagated upward.
       stError("vgId:%d %s hop=%d uid=%" PRId64 " kind=%d cid=%d rspCode=0x%x -> propagate",
               TD_VID(pVnode), __func__, hop, w->originVtbUid, w->kind, w->originCid, r->code);
-      int32_t rspCode = r->code;
       taosMemoryFreeClear(r->tagData);
-      return rspCode;
+      continue;
     }
 
     if (r->terminated) {
