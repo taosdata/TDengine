@@ -177,24 +177,24 @@ TEST(shellUtil, trimStr) {
 
 
 // create table / stable / vtable share the same field / tags completion
-extern "C" bool matchCreateTable(TAOS* con, SShellCmd* cmd);
-extern "C" int  cntDel;
-
 static bool createTableCompletion(const char* sql) {
-  static char buffer[64];
+  char        buffer[512] = {0};
   char        command[512] = {0};
   SShellCmd   cmd;
 
   memset(&cmd, 0, sizeof(cmd));
   strncpy(command, sql, sizeof(command) - 1);
+  strncpy(buffer, command, sizeof(buffer) - 1);
   cmd.buffer = buffer;
+  cmd.bufferSize = (uint32_t)strlen(buffer);
   cmd.command = command;
   cmd.commandSize = (uint32_t)strlen(command);
   cmd.cursorOffset = cmd.commandSize;
   cmd.screenOffset = cmd.commandSize;
   cmd.endOffset = cmd.commandSize;
 
-  cntDel = 0;  // no auto fill left over from the previous TAB
+  // reset the global auto completion state, it is otherwise shared between calls
+  pressOtherKey(0);
   return matchCreateTable(NULL, &cmd);
 }
 

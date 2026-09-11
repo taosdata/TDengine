@@ -490,8 +490,13 @@ static void shellWinSyncCommand(SShellCmd *cmd, TdWchar *line, uint32_t chars) {
   int32_t bytes = 0;
   if (chars > 0) {
     bytes = WideCharToMultiByte(CP_UTF8, 0, line, (int32_t)chars, utf8, SHELL_MAX_COMMAND_SIZE - 1, NULL, NULL);
+    if (bytes <= 0) {
+      // conversion failed, keep the command buffer as it is instead of replacing
+      // it with an undefined/empty content
+      taosMemoryFree(utf8);
+      return;
+    }
   }
-  if (bytes < 0) bytes = 0;
   utf8[bytes] = 0;
 
   bool changed = (cmd->commandSize != (uint32_t)bytes) || (memcmp(utf8, cmd->command, (size_t)bytes) != 0);
@@ -519,8 +524,12 @@ static void shellWinPrepareConsoleLine(const char *utf8, int32_t bytes) {
   int32_t chars = 0;
   if (bytes > 0) {
     chars = MultiByteToWideChar(CP_UTF8, 0, utf8, bytes, g_winConsoleLine, SHELL_INPUT_MAX_COMMAND_SIZE - 1);
+    if (chars <= 0) {
+      // the line does not fit into the console line buffer, keep the line the
+      // console holds already instead of handing an empty one back
+      return;
+    }
   }
-  if (chars < 0) chars = 0;
 
   g_winConsoleLine[chars] = L'\0';
   g_winConsoleChars = (uint32_t)chars;
@@ -609,7 +618,7 @@ char taosGetConsoleChar() {
   // find out what ended the read: TAB (completion) or ENTER
   uint32_t end = (uint32_t)bufLen;
   char     trigger = '\n';
-  if (g_winConsoleLine[end - 1] == (TdWchar)TAB_KEY) {
+  if (end > 0 && g_winConsoleLine[end - 1] == (TdWchar)TAB_KEY) {
     trigger = (char)TAB_KEY;
     end--;
   } else {

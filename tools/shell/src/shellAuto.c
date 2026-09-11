@@ -106,6 +106,8 @@ SWords shellCommands[] = {
     {"create bnode on dnode <dnode_id>;", 0, 0, NULL},
 #endif
     {"create anode <anyword>", 0, 0, NULL},
+    {"create snode on dnode <dnode_id>;", 0, 0, NULL},
+    // create stream <stream_name> <trigger window> [from <tb_name>] into <out_table> as select ...
     {"create stream <anyword> interval(", 0, 0, NULL},
     {"create stream <anyword> <anyword> sliding(", 0, 0, NULL},
     {"create stream <anyword> period(", 0, 0, NULL},
@@ -113,11 +115,11 @@ SWords shellCommands[] = {
     {"create stream <anyword> state_window(", 0, 0, NULL},
     {"create stream <anyword> event_window(", 0, 0, NULL},
     {"create stream <anyword> count_window(", 0, 0, NULL},
+    // the additional <anyword> stands for the trigger window, the single token form
+    // has to be listed before the two token form of interval() sliding()
     {"create stream <anyword> <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql
     {"create stream <anyword> <anyword> from <all_table>", 0, 0, NULL},
     {"create stream <anyword> <anyword> <anyword> from <all_table>", 0, 0, NULL},
-    // output table and sub query, the extra <anyword> stands for the trigger window
-    {"create stream <anyword> <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql
     {"create stream <anyword> <anyword> <anyword> into <anyword> as select", 0, 0, NULL},
     {"create topic <anyword> as select", 0, 0, NULL},                  // 27 append sub sql
 #ifdef TD_ENTERPRISE
@@ -318,7 +320,6 @@ SWords shellCommands[] = {
     // create table / stable / vtable, the fields are completed by matchCreateTable
     {"create stable <anyword> (", 0, 0, NULL},
     {"create vtable <anyword> (", 0, 0, NULL},
-    {"create snode on dnode <dnode_id>;", 0, 0, NULL},
     // alter table / stable / vtable
     {"alter stable <stb_name> <tb_actions> <anyword> ;", 0, 0, NULL},
     {"alter vtable <tb_name> <tb_actions> <anyword> ;", 0, 0, NULL},
@@ -1564,6 +1565,9 @@ bool matchVarWord(SWord* word1, SWord* word2) {
 
   char* str = NULL;
   if (word1->type == WT_VAR_ANYWORD) {
+    // ANYWORD: accept the word typed by the user as it is, there is no var list to
+    // complete it from. Only accept a match that changes the line, else an empty or
+    // partially typed word would shadow a later pattern.
     if (word2->len == 0) {
       if (word1->end) return false;
     } else if (!word1->end) {
