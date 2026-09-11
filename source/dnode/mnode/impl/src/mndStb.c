@@ -4659,7 +4659,6 @@ static int32_t mndCollectAlterStbNewNames(const SMAlterStbReq *pAlter, SArray **
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
     case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
-    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
       first = 1;  // pFields[1] holds the rename target name
       break;
     default:
