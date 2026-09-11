@@ -53,7 +53,12 @@ if [ -f "$LCOV_COUNTER" ]; then
 fi
 count=$((count + 1))
 echo "$count" > "$LCOV_COUNTER"
-if [ "$COVERAGE_LCOV_EVERY" -gt 1 ] && [ $((count % COVERAGE_LCOV_EVERY)) -ne 0 ]; then
+force_lcov=0
+if [[ "$CASE_NAME" == *UnitTest* ]] || [[ "$CASE_NAME" == *82-UnitTest* ]]; then
+    force_lcov=1
+    echo "Force lcov for UnitTest case: $CASE_NAME"
+fi
+if [ "$force_lcov" -eq 0 ] && [ "$COVERAGE_LCOV_EVERY" -gt 1 ] && [ $((count % COVERAGE_LCOV_EVERY)) -ne 0 ]; then
     echo "Skip lcov: counter=$count interval=$COVERAGE_LCOV_EVERY"
     exit 0
 fi
