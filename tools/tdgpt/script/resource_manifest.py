@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import platform
 import re
 import subprocess
@@ -14,6 +15,24 @@ from typing import Any, Dict, Tuple
 SCHEMA_VERSION = 1
 COMPLETION_FILE = ".tdgpt-install-complete.json"
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+
+# Default timeout for probing a venv's Python version. Under a debugger
+# (debugpy/pydevd) interpreter startup is far slower, so allow overriding this
+# per-invocation via the TDGPT_PYTHON_PROBE_TIMEOUT env var (inherited by all
+# spawned subprocesses). A value <= 0 falls back to the default below.
+DEFAULT_PYTHON_PROBE_TIMEOUT = 60
+
+
+def python_probe_timeout() -> int:
+    """Return the timeout (seconds) for probing a venv Python version."""
+    raw = os.environ.get("TDGPT_PYTHON_PROBE_TIMEOUT", "")
+    try:
+        timeout = int(raw)
+    except (TypeError, ValueError):
+        timeout = DEFAULT_PYTHON_PROBE_TIMEOUT
+    if timeout <= 0:
+        timeout = DEFAULT_PYTHON_PROBE_TIMEOUT
+    return timeout
 
 
 def normalized_platform() -> str:
@@ -77,13 +96,15 @@ def validate_tsfm_runtime(
     if not SHA256_PATTERN.fullmatch(expected_hash) or not lock_file.is_file() or sha256_file(lock_file) != expected_hash:
         raise ValueError("runtime requirements.lock does not match its manifest")
     python_exe = _venv_python(runtime_dir)
+
     result = subprocess.run(
         [str(python_exe), "-c", "import platform; print(platform.python_version())"],
         capture_output=True,
         text=True,
         check=False,
-        timeout=15,
+        timeout=python_probe_timeout(),
     )
+
     if result.returncode or result.stdout.strip() != _required_string(manifest, "python_version"):
         raise ValueError("runtime Python version does not match its manifest")
     return manifest, python_exe
