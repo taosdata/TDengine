@@ -195,6 +195,31 @@ TEST(spillDistinctSetTest, wideValuesExceedDefaultPage) {
   spillDistinctSetDestroy(pSet);
 }
 
+// Scalar expressions can advertise a width beyond the table-column limit. Runtime VARCHAR values
+// are still bounded by their 16-bit length header, so creation must normalize that capacity rather
+// than reject the aggregate.
+TEST(spillDistinctSetTest, normalizesVariableScalarWidth) {
+  SSpillDistinctSet* pSet = nullptr;
+  ASSERT_EQ(spillDistinctSetCreate(&pSet, TSDB_DATA_TYPE_VARCHAR, 65544, 4096, true,
+                                   "scalarVar"),
+            TSDB_CODE_SUCCESS);
+
+  const int32_t maxEncodedBytes = UINT16_MAX + VARSTR_HEADER_SIZE;
+  std::string   value(maxEncodedBytes, 'v');
+  for (int32_t round = 0; round < 2; ++round) {
+    ASSERT_EQ(spillDistinctSetAdd(pSet, value.data(), maxEncodedBytes, nullptr),
+              TSDB_CODE_SUCCESS);
+  }
+
+  ASSERT_TRUE(spillDistinctSetSpilled(pSet));
+  Collector collector;
+  ASSERT_EQ(spillDistinctSetFinalize(pSet, collect, &collector), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(collector.values.size(), 1u);
+  EXPECT_EQ(collector.values.count(value), 1u);
+
+  spillDistinctSetDestroy(pSet);
+}
+
 // The finalize pass is itself bounded: a partition too large to dedup in one in-memory hash is
 // re-partitioned to disk on the next hash slice and finalized recursively. A tiny budget forces
 // that path for every partition, so this exercises the recursion rather than the fast path.
@@ -242,9 +267,9 @@ TEST(spillDistinctSetTest, rejectsInvalidValueBytes) {
             TSDB_CODE_INVALID_PARA);
   EXPECT_EQ(pSet, nullptr);
 
-  // Past TSDB_MAX_FIELD_LEN: no column can be this wide, and accepting it would overflow the
-  // page-size arithmetic.
-  EXPECT_EQ(spillDistinctSetCreate(&pSet, TSDB_DATA_TYPE_BINARY, INT32_MAX, 4096, false, "huge"),
+  // A fixed-width declaration cannot be normalized from its runtime encoding and must remain
+  // strictly rejected before page-size arithmetic.
+  EXPECT_EQ(spillDistinctSetCreate(&pSet, TSDB_DATA_TYPE_INT, INT32_MAX, 4096, false, "huge"),
             TSDB_CODE_INVALID_PARA);
   EXPECT_EQ(pSet, nullptr);
 
