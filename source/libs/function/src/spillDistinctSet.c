@@ -75,15 +75,24 @@ int32_t spillDistinctSetCreateWithBuf(SSpillDistinctSet** ppSet, int8_t type, in
     return TSDB_CODE_INVALID_PARA;
   }
   // valueBytes drives the minimum page size, so a non-positive value would size pages below one
-  // record and a wildly large one would overflow that arithmetic. Every current caller derives it
-  // from a column width, but this is a reusable allocator and should not depend on that.
-  //
-  // The ceiling is type-dependent: an ordinary column is capped at TSDB_MAX_FIELD_LEN, but a
-  // BLOB/MEDIUMBLOB may legitimately be up to TSDB_MAX_BLOB_LEN (4 MiB), and rejecting those would
-  // fail the query outright.
-  int32_t maxValueBytes = IS_STR_DATA_BLOB(type) ? TSDB_MAX_BLOB_LEN : TSDB_MAX_FIELD_LEN;
-  if (valueBytes <= 0 || valueBytes > maxValueBytes) {
+  // record and a wildly large fixed-width value would overflow that arithmetic. Variable-width
+  // scalar expressions are different from table columns: their declared result width can exceed
+  // the storage-field limit, while every runtime value remains bounded by its encoded length
+  // header. Size those sets for the widest encodable value instead of rejecting a valid query.
+  int32_t maxValueBytes = TSDB_MAX_FIELD_LEN;
+  if (IS_STR_DATA_BLOB(type)) {
+    maxValueBytes = TSDB_MAX_BLOB_LEN;
+  } else if (IS_VAR_DATA_TYPE(type)) {
+    maxValueBytes = UINT16_MAX + VARSTR_HEADER_SIZE;
+  }
+  if (valueBytes <= 0) {
     return TSDB_CODE_INVALID_PARA;
+  }
+  if (valueBytes > maxValueBytes) {
+    if (!IS_VAR_DATA_TYPE(type)) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    valueBytes = maxValueBytes;
   }
   *ppSet = NULL;
 
