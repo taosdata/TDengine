@@ -3973,6 +3973,7 @@ static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncode
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeCStr(pEncoder, PHY_SYSTABLE_SCAN_CODE_CHARSET_NAME,
                          pNode->charsetName);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI8(pEncoder, PHY_SYSTABLE_SCAN_CODE_XNODE_DSN_OUTPUT_MODE, pNode->xnodeDsnOutputMode);
   }
