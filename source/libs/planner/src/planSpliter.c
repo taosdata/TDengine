@@ -194,36 +194,6 @@ _return:
   return code;
 }
 
-// LEASTSQUARES(expr, start_val, step_val) assigns its synthetic independent variable
-// (x = start_val + i*step_val for the i-th row) by row processing order, NOT by the
-// actual timestamp. When such an aggregate's input spans multiple vgroups through a
-// Data Exchange, the per-vgroup blocks arrive in a timing-dependent order and each
-// run can produce a different slope/intercept. Force the exchange to sequential
-// receive mode (consume the vgroups one at a time, in source order) so the result
-// is deterministic.
-static bool splAggHasLeastSquares(SLogicNode* pNode) {
-  if (NULL == pNode) {
-    return false;
-  }
-
-  for (SLogicNode* pCur = pNode; pCur != NULL; pCur = pCur->pParent) {
-    if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pCur)) {
-      continue;
-    }
-
-    SAggLogicNode* pAgg = (SAggLogicNode*)pCur;
-    SNode*         pFunc = NULL;
-    FOREACH(pFunc, pAgg->pAggFuncs) {
-      if (QUERY_NODE_FUNCTION == nodeType(pFunc) &&
-          FUNCTION_TYPE_LEASTSQUARES == ((SFunctionNode*)pFunc)->funcType) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
 static int32_t splCreateExchangeNodeForSubplan(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pSplitNode,
                                                ESubplanType subplanType, bool seqScan) {
   SExchangeLogicNode* pExchange = NULL;
@@ -232,11 +202,7 @@ static int32_t splCreateExchangeNodeForSubplan(SSplitContext* pCxt, SLogicSubpla
   PLAN_ERR_JRET(splCreateExchangeNode(pCxt, pSplitNode, &pExchange));
 
   pExchange->dynTbname = nodeType(pSplitNode) == QUERY_NODE_LOGIC_PLAN_SCAN ? ((SScanLogicNode*)pSplitNode)->phTbnameScan : false;
-  // Only force sequential receive for static (non-dynamic) exchanges. Dynamic
-  // exchanges (virtual-table, federated, stream, ...) discover their sources at
-  // runtime; forcing seqRecvData there drops or misorders rows. See
-  // splAggHasLeastSquares().
-  pExchange->seqRecvData = seqScan || (splAggHasLeastSquares(pSplitNode) && !pExchange->node.dynamicOp);
+  pExchange->seqRecvData = seqScan;
 
   PLAN_ERR_JRET(replaceLogicNode(pSubplan, pSplitNode, (SLogicNode*)pExchange));
   pSubplan->subplanType = subplanType;
@@ -912,12 +878,6 @@ static int32_t stbSplCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pParent
   SExchangeLogicNode* pExchange = NULL;
   int32_t             code = splCreateExchangeNode(pCxt, pPartChild, &pExchange);
   if (TSDB_CODE_SUCCESS == code) {
-    // Cross-vgroup aggregate: when the parent aggregate contains LEASTSQUARES,
-    // the partial results must reach the merge aggregate in a fixed order or the
-    // slope/intercept is non-deterministic. See splAggHasLeastSquares().
-    // Only static exchanges: dynamic ones (virtual-table, ...) rely on runtime
-    // source discovery and must keep concurrent receive (seqRecvData=false).
-    pExchange->seqRecvData = splAggHasLeastSquares(pParent) && !pExchange->node.dynamicOp;
     pExchange->node.pParent = pParent;
     code = nodesListMakeAppend(&pParent->pChildren, (SNode*)pExchange);
   }
@@ -3176,7 +3136,71 @@ static bool needSplitSubplan(SLogicSubplan* pLogicSubplan) {
   return (MODIFY_TABLE_TYPE_INSERT == pModify->modifyType && NULL != pModify->node.pChildren);
 }
 
+static bool interpCanMergeDataBlock(SPlanContext* pCxt,
+                                   const SInterpFuncLogicNode* pInterp) {
+  if (pCxt->forceNoMergeDataBlock || inStreamCalcClause(pCxt) ||
+      inStreamTriggerClause(pCxt) ||
+      GROUP_ACTION_KEEP == pInterp->node.groupAction) {
+    return false;
+  }
+
+  // requireDataOrder states the input order interp needs, not a group count,
+  // so this is a conservative cut-off rather than an exact single-group test.
+  // It is GLOBAL when there is no partition-by -- one group, nothing to merge
+  // -- and also whenever a consumer raised the requirement to global order,
+  // where relaxing resultDataOrder/outputTsOrder below would be wrong anyway.
+  if (DATA_ORDER_LEVEL_GLOBAL == pInterp->node.requireDataOrder) {
+    return false;
+  }
+
+  for (const SLogicNode* pParent = pInterp->node.pParent; pParent != NULL;
+       pParent = pParent->pParent) {
+    if (GROUP_ACTION_KEEP == pParent->groupAction ||
+        DATA_ORDER_LEVEL_NONE != pParent->requireDataOrder) {
+      return false;
+    }
+    switch (nodeType(pParent)) {
+      case QUERY_NODE_LOGIC_PLAN_PROJECT:
+        if (pParent->pSlimit != NULL ||
+            (pParent->pLimit != NULL &&
+             !((const SProjectLogicNode*)pParent)->inputIgnoreGroup)) {
+          return false;
+        }
+        break;
+      case QUERY_NODE_LOGIC_PLAN_SORT:
+        if (((const SSortLogicNode*)pParent)->groupSort) {
+          return false;
+        }
+        break;
+      default:
+        return false;
+    }
+  }
+  return true;
+}
+
+static void setInterpMergeDecision(SPlanContext* pCxt, SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_INTERP_FUNC == nodeType(pNode)) {
+    if (interpCanMergeDataBlock(pCxt, (const SInterpFuncLogicNode*)pNode)) {
+      pNode->resultDataOrder = DATA_ORDER_LEVEL_NONE;
+      pNode->outputTsOrder = TSDB_ORDER_NONE;
+    } else {
+      pNode->groupAction = GROUP_ACTION_KEEP;
+    }
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    setInterpMergeDecision(pCxt, (SLogicNode*)pChild);
+  }
+}
+
 int32_t splitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  // Preserve consumer requirements before splitting severs parent links.
+  // Only terminal output through projections or global sorts can lose groups
+  // and their timestamp ordering guarantees.
+  setInterpMergeDecision(pCxt, pLogicSubplan->pNode);
+
   if (!needSplitSubplan(pLogicSubplan)) {
     setVgroupsInfo(pLogicSubplan->pNode, pLogicSubplan);
     return TSDB_CODE_SUCCESS;

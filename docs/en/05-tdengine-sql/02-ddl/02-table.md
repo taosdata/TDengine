@@ -113,6 +113,7 @@ Parameter Description:
 1. `FILE` syntax indicates that the data comes from a CSV file (separated by English commas, with each value enclosed in English single quotes), and the CSV file does not need a header. The CSV file should contain only `tbname` and tag values. If you need to insert data, see [Data Writing](../03-data-write/01-insert.md).
 2. Create subtables for the specified stb_name, which must already exist.
 3. The order of the field list must be consistent with the order of the columns in the CSV file. The list must not contain duplicates and must include `tbname`. It may contain zero or more tag columns already defined in the supertable. Tag values not included in the list will be set to `NULL`.
+4. The encoding of the CSV file must be UTF-8.
 
 ## Modify basic tables
 

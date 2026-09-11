@@ -544,7 +544,8 @@ struct SSttFileWriter {
 
 static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, SColCompressInfo *info,
                                            int64_t *fileSize, TSttBlkArray *sttBlkArray, SBuffer *buffers,
-                                           SVersionRange *range, SEncryptData *encryptData) {
+                                           SVersionRange *range, SEncryptData *encryptData,
+                                           SThrottle *throttle) {
   if (blockData->nRow == 0) return 0;
 
   int32_t code = 0;
@@ -575,6 +576,7 @@ static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, S
   sttBlk->bInfo.szBlock = buffers[2].size + buffers[3].size + sttBlk->bInfo.szKey;
   for (int i = 0; i < 4; i++) {
     if (buffers[i].size) {
+      tsdbThrottleConsume(throttle, buffers[i].size);
       TAOS_CHECK_RETURN(tsdbWriteFile(fd, *fileSize, buffers[i].data, buffers[i].size, encryptData));
       *fileSize += buffers[i].size;
     }
@@ -599,7 +601,8 @@ static int32_t tsdbSttFileDoWriteBlockData(SSttFileWriter *writer) {
   SEncryptData *pEncryptData = &(writer->config->tsdb->pVnode->config.tsdbCfg.encryptData);
 
   TAOS_CHECK_GOTO(tsdbFileDoWriteSttBlockData(writer->fd, writer->blockData, &info, &writer->file->size,
-                                              writer->sttBlkArray, writer->buffers, &writer->ctx->range, pEncryptData),
+                                              writer->sttBlkArray, writer->buffers, &writer->ctx->range, pEncryptData,
+                                              writer->config->throttle),
                   &lino, _exit);
 
 _exit:

@@ -113,6 +113,7 @@ CREATE TABLE [IF NOT EXISTS] USING [db_name.]stb_name (tbname [, tag_name] ...) 
 1. `FILE` 语法表示数据来自 CSV 文件（英文逗号分隔、英文单引号括住每个值），CSV 文件无需表头。CSV 文件中应仅包含 `tbname` 与标签值。如需插入数据，参见 [数据写入](../03-data-write/01-insert.md)。
 2. 为指定的 `stb_name` 创建子表，该超级表必须已经存在。
 3. 字段列表顺序与 CSV 文件各列内容顺序一致。列表中不允许出现重复项，且必须包含 `tbname`，可包含零个或多个超级表中已定义的标签列。未包含在列表中的标签值将被设置为 `NULL`。
+4. CSV 文件必须使用 UTF-8 编码。
 
 ## 修改表
 

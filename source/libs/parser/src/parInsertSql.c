@@ -3892,6 +3892,11 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFree(pStmt->pCsvParser);
       pStmt->pCsvParser = NULL;
+      if (code == TSDB_CODE_TSC_INVALID_INPUT) {
+        return generateSyntaxErrMsgExt(
+            &pCxt->msg, TSDB_CODE_TSC_SQL_SYNTAX_ERROR,
+            "csv file contains an unsupported BOM: only utf-8 encoded csv is supported");
+      }
       return code;
     }
   }
@@ -5060,6 +5065,7 @@ static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile) {
   // Fill initial buffer to detect quote type
   int32_t code = csvParserFillBuffer(parser);
   if (code != TSDB_CODE_SUCCESS) {
+    csvParserDestroy(parser);
     return code;
   }
 
@@ -5091,8 +5097,17 @@ static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile) {
 
   // If no quotes found, keep default (single quote for TDengine compatibility)
 
-  // Reset buffer position for actual parsing
-  parser->bufferPos = 0;
+  // A csv file may start with a BOM header. A UTF-8 BOM (EF BB BF) is skipped so that the
+  // content following it is parsed normally; if the file starts with the BOM of any other
+  // encoding (UTF-16/UTF-32 etc.), the csv file is not in UTF-8 and an error is returned.
+  int32_t skipBytes = checkCsvFileBom(parser->buffer, parser->bufferLen);
+  if (skipBytes < 0) {
+    csvParserDestroy(parser);
+    return skipBytes;
+  }
+
+  // Reset buffer position for actual parsing (skip the leading UTF-8 BOM if any)
+  parser->bufferPos = skipBytes;
 
   return TSDB_CODE_SUCCESS;
 }

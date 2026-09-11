@@ -1115,6 +1115,7 @@ typedef struct SQuery {
   int8_t          precision;
   bool            haveResultSet;
   bool            showRewrite;
+  int8_t          xnodeDsnOutputMode;
   bool            stableQuery;
   SNode*          pPrevRoot;
   SNode*          pRoot;

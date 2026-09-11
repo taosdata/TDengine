@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 #include <cstring>
+#include <memory>
 #include <string>
 
 #include "nodes.h"
@@ -32,9 +33,21 @@ static void eraseJsonBoolField(std::string* pJson, const char* pField) {
   const std::string field = std::string("\"") + pField + "\":";
   const size_t      start = pJson->find(field);
   ASSERT_NE(start, std::string::npos);
-  const size_t end = pJson->find(',', start);
-  ASSERT_NE(end, std::string::npos);
-  pJson->erase(start, end - start + 1);
+  // The member ends at whichever comes first: the next separator, or the
+  // closing brace when it is the last member of its object.
+  const size_t comma = pJson->find(',', start);
+  const size_t brace = pJson->find('}', start);
+  ASSERT_NE(brace, std::string::npos);
+  if (comma < brace) {
+    pJson->erase(start, comma - start + 1);
+    return;
+  }
+  // Last member: there is no trailing separator, so consume the leading one
+  // instead -- unless this is the object's only member, where '{' precedes it
+  // and erasing that would break the braces.
+  ASSERT_GT(start, 0u);
+  const size_t from = ('{' == (*pJson)[start - 1]) ? start : start - 1;
+  pJson->erase(from, brace - from);
 }
 
 static void freeTestBuffer(char* pBuffer) { taosMemoryFreeClear(pBuffer); }
@@ -649,6 +662,59 @@ TEST(NodesSubplanTest, tableScanOptimizationFlagsDefaultWhenAbsentFromJson) {
   STableScanPhysiNode* pDecodedScan = (STableScanPhysiNode*)((SSubplan*)decoded.get())->pNode;
   ASSERT_FALSE(pDecodedScan->fastInterval);
   ASSERT_FALSE(pDecodedScan->exInterval);
+}
+
+TEST(NodesSubplanTest, eraseJsonBoolFieldHandlesLastAndOnlyMembers) {
+  std::string middle = R"({"A":1,"Flag":false,"B":2})";
+  eraseJsonBoolField(&middle, "Flag");
+  EXPECT_EQ(middle, R"({"A":1,"B":2})");
+
+  std::string last = R"({"O":{"X":1,"Flag":true},"After":9})";
+  eraseJsonBoolField(&last, "Flag");
+  EXPECT_EQ(last, R"({"O":{"X":1},"After":9})");
+
+  std::string only = R"({"Flag":true})";
+  eraseJsonBoolField(&only, "Flag");
+  EXPECT_EQ(only, R"({})");
+
+  std::string nestedOnly = R"({"O":{"Flag":true},"After":9})";
+  eraseJsonBoolField(&nestedOnly, "Flag");
+  EXPECT_EQ(nestedOnly, R"({"O":{},"After":9})");
+}
+
+TEST(InterpNodesTest, mergeFlagSerialization) {
+  SNode* pNode = nullptr;
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, &pNode));
+  std::unique_ptr<SNode, void (*)(SNode*)> node(pNode, nodesDestroyNode);
+  auto* pInterp = reinterpret_cast<SInterpFuncPhysiNode*>(pNode);
+
+  for (bool merge : {false, true}) {
+    pInterp->mergeDataBlock = merge;
+    char* pBuffer = nullptr;
+    int32_t length = 0;
+    ASSERT_EQ(0, nodesNodeToMsg(pNode, &pBuffer, &length));
+    std::unique_ptr<char, void (*)(char*)> message(pBuffer, freeTestBuffer);
+    SNode* pDecoded = nullptr;
+    ASSERT_EQ(0, nodesMsgToNode(message.get(), length, &pDecoded));
+    std::unique_ptr<SNode, void (*)(SNode*)> decoded(pDecoded,
+                                                     nodesDestroyNode);
+    auto* pDecodedInterp = reinterpret_cast<SInterpFuncPhysiNode*>(pDecoded);
+    EXPECT_EQ(merge, pDecodedInterp->mergeDataBlock);
+
+    ASSERT_EQ(0, nodesNodeToString(pNode, false, &pBuffer, nullptr));
+    std::unique_ptr<char, void (*)(char*)> json(pBuffer, freeTestBuffer);
+    ASSERT_EQ(0, nodesStringToNode(json.get(), &pDecoded));
+    decoded.reset(pDecoded);
+    pDecodedInterp = reinterpret_cast<SInterpFuncPhysiNode*>(pDecoded);
+    EXPECT_EQ(merge, pDecodedInterp->mergeDataBlock);
+
+    std::string legacy(json.get());
+    eraseJsonBoolField(&legacy, "MergeDataBlock");
+    ASSERT_EQ(0, nodesStringToNode(legacy.c_str(), &pDecoded));
+    decoded.reset(pDecoded);
+    EXPECT_FALSE(
+        reinterpret_cast<SInterpFuncPhysiNode*>(pDecoded)->mergeDataBlock);
+  }
 }
 
 TEST_F(NodesCloneTest, physiScan) {

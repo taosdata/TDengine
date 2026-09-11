@@ -6675,6 +6675,97 @@ static int32_t getSysTableDbNameColId(const char* pTable) {
   return TSDB_INS_USER_STABLES_DBNAME_COLID;
 }
 
+static bool isXnodeRetrieveTargetColumn(const SSystemTableScanPhysiNode* pScanPhyNode, const SColumnNode* pColumn,
+                                        int8_t* pFilterType) {
+  const char* tableName = tNameGetTableName(&pScanPhyNode->scan.tableName);
+  if (pColumn->tableId != pScanPhyNode->scan.uid || pColumn->tableType != TSDB_SYSTEM_TABLE) {
+    return false;
+  }
+  if (strcasecmp(tableName, TSDB_INS_TABLE_XNODE_TASKS) == 0 && pColumn->colId == TSDB_INS_XNODE_TASKS_ID_COLID) {
+    *pFilterType = XNODE_RETRIEVE_FILTER_ID_EQ;
+    return true;
+  }
+  if (strcasecmp(tableName, TSDB_INS_TABLE_XNODE_JOBS) == 0 && pColumn->colId == TSDB_INS_XNODE_JOBS_TASKID_COLID) {
+    *pFilterType = XNODE_RETRIEVE_FILTER_TASK_ID_EQ;
+    return true;
+  }
+  return false;
+}
+
+static bool getXnodeRetrieveFilterValue(const SValueNode* pValue, int64_t* pFilterValue) {
+  if (pValue == NULL || pValue->isNull || pValue->placeholderNo > 0 || (pValue->flag & VALUE_FLAG_VAL_UNSET) ||
+      !IS_INTEGER_TYPE(pValue->node.resType.type)) {
+    return false;
+  }
+
+  if (IS_UNSIGNED_NUMERIC_TYPE(pValue->node.resType.type)) {
+    if (pValue->datum.u > INT32_MAX) {
+      return false;
+    }
+    *pFilterValue = (int64_t)pValue->datum.u;
+  } else {
+    if (pValue->datum.i < 0 || pValue->datum.i > INT32_MAX) {
+      return false;
+    }
+    *pFilterValue = pValue->datum.i;
+  }
+  return true;
+}
+
+static bool extractXnodeRetrieveFilterFromOperator(const SSystemTableScanPhysiNode* pScanPhyNode,
+                                                   const SOperatorNode* pOperator, int8_t* pFilterType,
+                                                   int64_t* pFilterValue) {
+  if (pOperator == NULL || pOperator->opType != OP_TYPE_EQUAL) {
+    return false;
+  }
+
+  const SColumnNode* pColumn = NULL;
+  const SValueNode* pValue = NULL;
+  if (nodeType(pOperator->pLeft) == QUERY_NODE_COLUMN && nodeType(pOperator->pRight) == QUERY_NODE_VALUE) {
+    pColumn = (const SColumnNode*)pOperator->pLeft;
+    pValue = (const SValueNode*)pOperator->pRight;
+  } else if (nodeType(pOperator->pRight) == QUERY_NODE_COLUMN && nodeType(pOperator->pLeft) == QUERY_NODE_VALUE) {
+    pColumn = (const SColumnNode*)pOperator->pRight;
+    pValue = (const SValueNode*)pOperator->pLeft;
+  } else {
+    return false;
+  }
+
+  int8_t filterType = XNODE_RETRIEVE_FILTER_NONE;
+  if (!isXnodeRetrieveTargetColumn(pScanPhyNode, pColumn, &filterType) ||
+      !getXnodeRetrieveFilterValue(pValue, pFilterValue)) {
+    return false;
+  }
+  *pFilterType = filterType;
+  return true;
+}
+
+static bool extractXnodeRetrieveFilterFromCondition(const SSystemTableScanPhysiNode* pScanPhyNode,
+                                                    const SNode* pCondition, int8_t* pFilterType,
+                                                    int64_t* pFilterValue) {
+  if (pCondition == NULL) {
+    return false;
+  }
+  if (nodeType(pCondition) == QUERY_NODE_OPERATOR) {
+    return extractXnodeRetrieveFilterFromOperator(pScanPhyNode, (const SOperatorNode*)pCondition, pFilterType,
+                                                  pFilterValue);
+  }
+  if (nodeType(pCondition) != QUERY_NODE_LOGIC_CONDITION) {
+    return false;
+  }
+  const SLogicConditionNode* pLogic = (const SLogicConditionNode*)pCondition;
+  if (pLogic->condType != LOGIC_COND_TYPE_AND) {
+    return false;
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pLogic->pParameterList) {
+    if (extractXnodeRetrieveFilterFromCondition(pScanPhyNode, pChild, pFilterType, pFilterValue)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static EDealRes getDBNameFromConditionWalker(SNode* pNode, void* pContext) {
   int32_t   code = TSDB_CODE_SUCCESS;
   ENodeType nType = nodeType(pNode);
@@ -6866,14 +6957,19 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     pInfo->req.txnId = pInfo->readHandle.txnId;
 
     int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &pInfo->req);
+    if (contLen < 0) {
+      pTaskInfo->code = contLen;
+      return NULL;
+    }
     char*   buf1 = taosMemoryCalloc(1, contLen);
     if (!buf1) {
       return NULL;
     }
     int32_t tempRes = tSerializeSRetrieveTableReq(buf1, contLen, &pInfo->req);
     if (tempRes < 0) {
-      code = terrno;
+      code = tempRes;
       taosMemoryFree(buf1);
+      pTaskInfo->code = code;
       return NULL;
     }
 
@@ -7086,6 +7182,12 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   // renderers below map to the server default tsCharsetCxt.
   code = nodesDecodeCharsetName(pScanPhyNode->charsetName, &pInfo->charsetCxt);
   QUERY_CHECK_CODE(code, lino, _error);
+  pInfo->req.xnodeDsnOutputMode = pScanPhyNode->xnodeDsnOutputMode;
+  if (pInfo->showRewrite) {
+    (void)extractXnodeRetrieveFilterFromCondition(pScanPhyNode, pScanNode->node.pConditions,
+                                                  &pInfo->req.xnodeRetrieveFilterType,
+                                                  &pInfo->req.xnodeRetrieveFilterValue);
+  }
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
 

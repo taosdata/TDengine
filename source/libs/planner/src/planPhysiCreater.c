@@ -1809,6 +1809,7 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
 
   pSubplan->showRewrite = pScanLogicNode->showRewrite;
   pScan->showRewrite = pScanLogicNode->showRewrite;
+  pScan->xnodeDsnOutputMode = pScanLogicNode->xnodeDsnOutputMode;
   pScan->accountId = pCxt->pPlanCxt->acctId;
   pScan->sysInfo = pCxt->pPlanCxt->sysInfo;
   pScan->privInfo = pCxt->pPlanCxt->privInfo;
@@ -5559,6 +5560,9 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
   if (NULL == pInterpFunc) {
     return terrno;
   }
+
+  pInterpFunc->mergeDataBlock = !forceNoMergeDataBlock(pCxt) &&
+      GROUP_ACTION_KEEP != pFuncLogicNode->node.groupAction;
 
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pFuncs = NULL;

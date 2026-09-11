@@ -605,6 +605,12 @@ taosAdapter 使用连接池管理与 TDengine 的连接，以提高并发性能�
 - **`pool.waitTimeout`**：从连接池获取连接的超时时间，默认设置为 60 秒。如果在超时时间内未能获取连接，将返回 HTTP 状态码 503。该参数从 `v3.3.3.0` 开始提供。
 - **`pool.maxWait`**：连接池中等待获取连接的请求数上限，默认值为 0，表示不限制。当排队请求数超过此值时，新的请求将返回 HTTP 状态码 503。该参数从 `v3.3.3.0` 开始提供。
 
+### 查询结果集配置
+
+taosAdapter 支持自动释放 WebSocket 接口（`/ws`）中长期空闲的查询结果集，避免客户端因查询超时等原因不再拉取数据而导致结果集驻留。
+
+- **`queryResult.idleTimeout`**：查询结果集空闲超时时间，默认值为 1 小时。该配置适用于 `/ws` 接口的 `query` 以及 stmt/stmt2 的 `use_result` 产生的结果集。计时自结果集上一次 fetch 起算（从未 fetch 过的自创建时刻起算），每次 fetch 会重新计时；空闲超过该时长的结果集将被自动释放，此后客户端再 fetch 该结果集会收到 "result is nil" 错误。设置为 0 表示关闭该功能。该配置不影响 RESTful 接口，RESTful 接口在请求内即返回全部结果。
+
 ### HTTP 返回码配置
 
 taosAdapter 通过参数 `httpCodeServerError` 来控制当底层 C 接口返回错误时，是否在 RESTful 接口请求中返回非 200 的 HTTP 状态码。当设置为 `true` 时，taosAdapter 会根据 C 接口返回的错误码映射为相应的 HTTP 状态码。具体映射规则请参考 [HTTP 响应码](../../10-developer-guide/08-connectors-reference/10-rest-api.mdx#http-响应码)。
@@ -1304,6 +1310,7 @@ rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i
 | `pool.waitTimeout`                    | `TAOS_ADAPTER_POOL_WAIT_TIMEOUT`                      |
 | `P`, `port`                           | `TAOS_ADAPTER_PORT`                                   |
 | `prometheus.enable`                   | `TAOS_ADAPTER_PROMETHEUS_ENABLE`                      |
+| `queryResult.idleTimeout`             | `TAOS_ADAPTER_QUERY_RESULT_IDLE_TIMEOUT`              |
 | `register.description`                | `TAOS_ADAPTER_REGISTER_DESCRIPTION`                   |
 | `register.duration`                   | `TAOS_ADAPTER_REGISTER_DURATION`                      |
 | `register.expire`                     | `TAOS_ADAPTER_REGISTER_EXPIRE`                        |

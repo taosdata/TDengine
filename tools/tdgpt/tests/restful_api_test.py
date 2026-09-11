@@ -56,7 +56,26 @@ class RestfulTest(TestCase):
         self.assertEqual(res["protocol"], 1.0)
 
         d = res["details"]
-        self.assertEqual(len(d), 6)
+        self.assertEqual(len(d), 7)
+
+    def test_clustering_all_noise(self):
+        """test clustering api returns an empty centers list for all noise"""
+        response = self.client.post(
+            "/clustering",
+            json={
+                "algo": "dbscan",
+                "data": [[0], [10], [20]],
+                "params": {"eps": 0.1, "min_samples": 2},
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        result = response.json
+        self.assertEqual(result["rows"], 3)
+        self.assertEqual(result["labels"], [-1, -1, -1])
+        self.assertEqual(result["n_clusters"], 0)
+        self.assertEqual(result["n_noise"], 3)
+        self.assertEqual(result["centers"], [])
 
     def test_forecast(self):
         """test forecast api"""

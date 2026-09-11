@@ -3946,6 +3946,7 @@ enum {
   PHY_SYSTABLE_SCAN_CODE_SYS_INFO,
   PHY_SYSTABLE_SCAN_CODE_PRIV_INFO,
   PHY_SYSTABLE_SCAN_CODE_CHARSET_NAME,
+  PHY_SYSTABLE_SCAN_CODE_XNODE_DSN_OUTPUT_MODE,
 };
 
 static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3972,6 +3973,8 @@ static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncode
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeCStr(pEncoder, PHY_SYSTABLE_SCAN_CODE_CHARSET_NAME,
                          pNode->charsetName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI8(pEncoder, PHY_SYSTABLE_SCAN_CODE_XNODE_DSN_OUTPUT_MODE, pNode->xnodeDsnOutputMode);
   }
 
   return code;
@@ -3992,6 +3995,9 @@ static int32_t msgToPhysiSysTableScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_SYSTABLE_SCAN_CODE_SHOW_REWRITE:
         code = tlvDecodeBool(pTlv, &pNode->showRewrite);
+        break;
+      case PHY_SYSTABLE_SCAN_CODE_XNODE_DSN_OUTPUT_MODE:
+        code = tlvDecodeI8(pTlv, &pNode->xnodeDsnOutputMode);
         break;
       case PHY_SYSTABLE_SCAN_CODE_ACCOUNT_ID:
         code = tlvDecodeI32(pTlv, &pNode->accountId);
@@ -5956,6 +5962,7 @@ enum {
   PHY_INTERP_FUNC_CODE_PRECISION,
   PHY_INTERP_FUNC_CODE_TIMEZONE_NAME,
   PHY_INTERP_FUNC_CODE_TIMELINE_SOURCE,
+  PHY_INTERP_FUNC_CODE_MERGE_DATA_BLOCK,
 };
 
 static int32_t physiInterpFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -6003,6 +6010,10 @@ static int32_t physiInterpFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder)
     code = tlvEncodeCStr(pEncoder, PHY_INTERP_FUNC_CODE_TIMEZONE_NAME,
                          pNode->timezoneName);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_INTERP_FUNC_CODE_MERGE_DATA_BLOCK,
+                         pNode->mergeDataBlock);
+  }
 
   return code;
 }
@@ -6046,6 +6057,9 @@ static int32_t msgToPhysiInterpFuncNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_INTERP_FUNC_CODE_TIMELINE_SOURCE:
         code = tlvDecodeI8(pTlv, &pNode->timelineSource);
+        break;
+      case PHY_INTERP_FUNC_CODE_MERGE_DATA_BLOCK:
+        code = tlvDecodeBool(pTlv, &pNode->mergeDataBlock);
         break;
       case PHY_INTERP_FUNC_CODE_SURROUNDING_TIME:
         code = tlvDecodeI64(pTlv, &pNode->surroundingTime);

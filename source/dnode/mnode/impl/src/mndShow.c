@@ -301,6 +301,9 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   mDebug("mndProcessRetrieveSysTableReq start");
   SRetrieveTableReq retrieveReq = {0};
   TAOS_CHECK_RETURN(tDeserializeSRetrieveTableReq(pReq->pCont, pReq->contLen, &retrieveReq));
+  // The codec tolerates senders that predate the xnode retrieve options; reject inconsistent
+  // combinations here, where they are actually consumed.
+  TAOS_CHECK_RETURN(tValidateSRetrieveTableReq(&retrieveReq));
 
   mDebug("process to retrieve systable req db:%s, tb:%s, compactId:%" PRId64, retrieveReq.db, retrieveReq.tb,
          retrieveReq.compactId);

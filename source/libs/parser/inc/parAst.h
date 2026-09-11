@@ -422,7 +422,8 @@ SNode* createShowStmtWithFull(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowStmtWithLike(SAstCreateContext* pCxt, ENodeType type, SNode* pLikePattern);
 SNode* createShowStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbName,
                               EOperatorType tableCondType);
-SNode* createShowXNodeResourcesWhereStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere);
+SNode* createShowXNodeResourcesWhereStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType,
+                                         int8_t xnodeDsnOutputMode, SNode* pWhere);
 SNode* createShowXnodeStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pWhere);
 SNode* createShowTablesStmt(SAstCreateContext* pCxt, SShowTablesOption option, SNode* pTbName,
                             EOperatorType tableCondType);
@@ -475,6 +476,7 @@ SNode* setBnodeOption(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pO
 
 /** @section xnode XNode Statements */
 EXnodeResourceType setXnodeResourceType(SAstCreateContext* pCxt, const SToken* pResourceId);
+int8_t parseXnodeDsnOutputMode(SAstCreateContext* pCxt, const SToken* pMode);
 
 SNode* createXnodeSourceAsDsn(SAstCreateContext* pCxt, const SToken* pToken);
 SNode* createXnodeSourceAsDatabase(SAstCreateContext* pCxt, const SToken* pToken);
