@@ -525,6 +525,7 @@ int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta);
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 int32_t queryCreateTableMetaExFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 void    queryFreeSeriesEntries(SSeriesEntry* pSeries, int32_t nSeries);
+// Legacy names: both helpers handle every owned condition string in SColRef.
 void    queryFreeColRefTagConds(SColRef* pColRef, int32_t nCols);
 void    queryFreeTableMeta(STableMeta* pMeta);
 int32_t queryCloneColRefTagConds(const SColRef* pSrc, int32_t nCols, SColRef* pDst);
@@ -538,7 +539,7 @@ int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_
 void    parseTagDatatoJson(void* p, char** jsonStr, void *charsetCxt);
 int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* refColName, char* refTableName,
                   char* refDbName, int8_t refType, const char* refSourceName, const char* tagCondJson, int32_t tagCondLen);
-int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
+int32_t cloneTableMeta(const STableMeta* pSrc, STableMeta** pDst);
 void    getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType);
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);
 int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst);

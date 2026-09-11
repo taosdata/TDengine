@@ -2511,6 +2511,7 @@ static const char* jkVirtualTableScanLogicPlanRefTagCols = "RefTagCols";
 static const char* jkVirtualTableScanLogicPlanTagFilterCond = "TagFilterCond";
 static const char* jkVirtualTableScanLogicPlanHasTagRef = "HasTagRef";
 static const char* jkVirtualTableScanLogicPlanHasLocalTag = "HasLocalTag";
+static const char* jkVirtualTableScanLogicPlanHasFilterCond = "HasFilterCond";
 static const char* jkTagRefSourceLogicPlanSourceTableName = "SourceTableName";
 static const char* jkTagRefSourceLogicPlanSourceSuid = "SourceSuid";
 static const char* jkTagRefSourceLogicPlanSourceId = "SourceId";
@@ -2562,6 +2563,9 @@ static int32_t logicVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkVirtualTableScanLogicPlanHasLocalTag, pNode->hasLocalTag);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkVirtualTableScanLogicPlanHasFilterCond, pNode->hasFilterCond);
+  }
   return code;
 }
 
@@ -2608,6 +2612,9 @@ static int32_t jsonToLogicVirtualTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkVirtualTableScanLogicPlanHasLocalTag, &pNode->hasLocalTag);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkVirtualTableScanLogicPlanHasFilterCond, &pNode->hasFilterCond);
   }
   return code;
 }
@@ -7676,7 +7683,9 @@ static int32_t jsonToDatum(const SJson* pJson, void* pObj) {
           taosMemoryFree(buf);
           break;
         }
-        code = taosHexDecode(buf, varDataVal(pNode->datum.p), pNode->node.resType.bytes - VARSTR_HEADER_SIZE);
+        if (pNode->node.resType.bytes > VARSTR_HEADER_SIZE) {
+          code = taosHexDecode(buf, varDataVal(pNode->datum.p), pNode->node.resType.bytes - VARSTR_HEADER_SIZE);
+        }
         if (code != TSDB_CODE_SUCCESS) {
           taosMemoryFree(buf);
           break;
@@ -8544,6 +8553,7 @@ static const char* jkVirtuaTableMeta = "Meta";
 static const char* jkVirtuaTableVgroupsInfoSize = "VgroupsInfoSize";
 static const char* jkVirtuaTableVgroupsInfo = "VgroupsInfo";
 static const char* jkVirtuaTableRefTables = "RefTables";
+static const char* jkVirtualTableHasFilterCond = "HasFilterCond";
 
 static int32_t virtualTableNodeToJson(const void* pObj, SJson* pJson) {
   const SVirtualTableNode* pNode = (const SVirtualTableNode*)pObj;
@@ -8563,6 +8573,9 @@ static int32_t virtualTableNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkVirtuaTableRefTables, pNode->refTables);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkVirtualTableHasFilterCond, pNode->hasFilterCond);
   }
 
   return code;
@@ -8588,6 +8601,9 @@ static int32_t jsonToVirtualTableNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkVirtuaTableRefTables, &pNode->refTables);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkVirtualTableHasFilterCond, &pNode->hasFilterCond);
   }
 
   return code;
@@ -9953,11 +9969,19 @@ static int32_t jsonToTableOptions(const SJson* pJson, void* pObj) {
 static const char* jkColumnOptionsEncode = "encode";
 static const char* jkColumnOptionsCompress = "compress";
 static const char* jkColumnOptionsLevel = "level";
+static const char* jkColumnOptionsFilterCond = "FilterCond";
 static int32_t     columnOptionsToJson(const void* pObj, SJson* pJson) {
   const SColumnOptions* pNode = (const SColumnOptions*)pObj;
   int32_t               code = tjsonAddStringToObject(pJson, jkColumnOptionsEncode, pNode->encode);
-  code = tjsonAddStringToObject(pJson, jkColumnOptionsCompress, pNode->compress);
-  code = tjsonAddStringToObject(pJson, jkColumnOptionsLevel, pNode->compressLevel);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkColumnOptionsCompress, pNode->compress);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkColumnOptionsLevel, pNode->compressLevel);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkColumnOptionsFilterCond, nodeToJson, pNode->pFilterCond);
+  }
   return code;
 }
 
@@ -9965,8 +9989,15 @@ static int32_t jsonToColumnOptions(const SJson* pJson, void* pObj) {
   SColumnOptions* pNode = (SColumnOptions*)pObj;
 
   int32_t code = tjsonGetStringValue1(pJson, jkColumnOptionsEncode, pNode->encode, sizeof(pNode->encode));
-  code = tjsonGetStringValue1(pJson, jkColumnOptionsCompress, pNode->compress, sizeof(pNode->compress));
-  code = tjsonGetStringValue1(pJson, jkColumnOptionsLevel, pNode->compressLevel, sizeof(pNode->compressLevel));
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue1(pJson, jkColumnOptionsCompress, pNode->compress, sizeof(pNode->compress));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue1(pJson, jkColumnOptionsLevel, pNode->compressLevel, sizeof(pNode->compressLevel));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkColumnOptionsFilterCond, &pNode->pFilterCond);
+  }
   return code;
 }
 
@@ -10085,6 +10116,7 @@ static const char* jkColumnReferenceColumnName = "ColumnName";
 static const char* jkColumnReferenceRefDbName = "RefDbName";
 static const char* jkColumnReferenceRefTableName = "RefTableName";
 static const char* jkColumnReferenceRefColumnName = "RefColumnName";
+static const char* jkColumnReferenceFilterCond = "FilterCond";
 static int32_t     columnReferenceToJson(const void* pObj, SJson* pJson) {
   const SColumnRefNode* pNode = (const SColumnRefNode*)pObj;
   int32_t               code = tjsonAddStringToObject(pJson, jkColumnReferenceColumnName, pNode->colName);
@@ -10096,6 +10128,9 @@ static int32_t     columnReferenceToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkColumnReferenceRefColumnName, pNode->refColName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkColumnReferenceFilterCond, nodeToJson, pNode->pFilterCond);
   }
   return code;
 }
@@ -10112,6 +10147,9 @@ static int32_t jsonToColumnReference(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue1(pJson, jkColumnReferenceRefColumnName, pNode->refColName, sizeof(pNode->refColName));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkColumnReferenceFilterCond, &pNode->pFilterCond);
   }
   return code;
 }
@@ -11123,6 +11161,7 @@ static const char* jkAlterTableStmtNewColName = "NewColName";
 static const char* jkAlterTableStmtOptions = "Options";
 static const char* jkAlterTableStmtNewDataType = "NewDataType";
 static const char* jkAlterTableStmtNewTagVal = "NewTagVal";
+static const char* jkAlterTableStmtFilterCond = "FilterCond";
 
 static int32_t alterTableStmtToJson(const void* pObj, SJson* pJson) {
   const SAlterTableStmt* pNode = (const SAlterTableStmt*)pObj;
@@ -11148,6 +11187,9 @@ static int32_t alterTableStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkAlterTableStmtOptions, nodeToJson, pNode->pVal);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkAlterTableStmtFilterCond, nodeToJson, pNode->pFilterCond);
   }
 
   return code;
@@ -11177,6 +11219,9 @@ static int32_t jsonToAlterTableStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkAlterTableStmtOptions, (SNode**)&pNode->pVal);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkAlterTableStmtFilterCond, &pNode->pFilterCond);
   }
 
   return code;

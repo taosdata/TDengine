@@ -11,9 +11,10 @@ TARGET_INCLUDE_DIRECTORIES(
         commandTest
         PUBLIC "${TD_SOURCE_DIR}/include/libs/command/"
         PRIVATE "${TD_SOURCE_DIR}/source/libs/command/inc"
+        PRIVATE "${TD_SOURCE_DIR}/source/libs/parser/inc"
 )
 
 TARGET_LINK_LIBRARIES(
         commandTest
-        PUBLIC os util common nodes parser catalog transport function qcom
+        PUBLIC command os util common nodes parser catalog transport function qcom
 )

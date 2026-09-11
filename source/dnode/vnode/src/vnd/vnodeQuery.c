@@ -80,18 +80,21 @@ void vnodeDebugTableMeta(STableMetaRsp *pMeta) {
 }
 
 int32_t fillTableColRef(SMetaReader *reader, SColRef *pRef, int32_t numOfCol) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t line = 0;
   int8_t tblType = reader->me.type;
   if (hasColRef(tblType)) {
     SColRefWrapper *p = &(reader->me.colRef);
     if (numOfCol != p->nCols) {
       vError("fillTableColRef table type:%d, col num:%d, col cmpr num:%d mismatch", tblType, numOfCol, p->nCols);
-      return TSDB_CODE_APP_ERROR;
+      code = TSDB_CODE_APP_ERROR;
+      goto _return;
     }
     for (int i = 0; i < p->nCols; i++) {
       SColRef *pColRef = &p->pColRef[i];
       pRef[i].hasRef = pColRef->hasRef;
       pRef[i].id = pColRef->id;
-      if(pRef[i].hasRef) {
+      if (pRef[i].hasRef) {
         pRef[i].refType = pColRef->refType;
         tstrncpy(pRef[i].refSourceName, pColRef->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
         tstrncpy(pRef[i].refSchemaName, pColRef->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
@@ -101,14 +104,28 @@ int32_t fillTableColRef(SMetaReader *reader, SColRef *pRef, int32_t numOfCol) {
         if (pColRef->tagCondLen > 0 && pColRef->tagCondJson) {
           pRef[i].tagCondLen = pColRef->tagCondLen;
           pRef[i].tagCondJson = taosStrdup(pColRef->tagCondJson);
+          QUERY_CHECK_NULL(pRef[i].tagCondJson, code, line, _return, terrno);
         } else {
           pRef[i].tagCondLen = 0;
           pRef[i].tagCondJson = NULL;
         }
+        if (pColRef->filterCondLen > 0 && pColRef->filterCondJson) {
+          pRef[i].filterCondLen = pColRef->filterCondLen;
+          pRef[i].filterCondJson = taosStrdup(pColRef->filterCondJson);
+          QUERY_CHECK_NULL(pRef[i].filterCondJson, code, line, _return, terrno);
+        } else {
+          pRef[i].filterCondLen = 0;
+          pRef[i].filterCondJson = NULL;
+        }
       }
     }
   }
-  return 0;
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed since %s", __func__, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t fillTableTagRef(SMetaReader *reader, SColRef *pRef, int32_t numOfTagRefs) {
@@ -403,9 +420,7 @@ _exit:
   taosMemoryFreeClear(pMergedCols);
   taosMemoryFreeClear(pMergedTags);
   if (pMergedRefs) {
-    for (int32_t i = 0; i < nMergedCols; i++) {
-      taosMemoryFreeClear(pMergedRefs[i].tagCondJson);
-    }
+    tFreeSColRefArray(pMergedRefs, nMergedCols);
     taosMemoryFreeClear(pMergedRefs);
   }
   tFreeSTableMetaRsp(&metaRsp);
@@ -644,6 +659,14 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
             cfgRsp.pColRefs[i].tagCondJson = NULL;
           }
         }
+        if (pRef->filterCondLen > 0 && pRef->filterCondJson) {
+          cfgRsp.pColRefs[i].filterCondLen = pRef->filterCondLen;
+          cfgRsp.pColRefs[i].filterCondJson = taosStrdup(pRef->filterCondJson);
+          if (NULL == cfgRsp.pColRefs[i].filterCondJson) {
+            code = terrno;
+            goto _exit;
+          }
+        }
       }
     }
 
@@ -674,6 +697,14 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
             cfgRsp.pTagRefs[i].tagCondLen = pRef->tagCondLen;
             cfgRsp.pTagRefs[i].tagCondJson = taosStrdup(pRef->tagCondJson);
             if (NULL == cfgRsp.pTagRefs[i].tagCondJson) {
+              code = terrno;
+              goto _exit;
+            }
+          }
+          if (pRef->filterCondLen > 0 && pRef->filterCondJson) {
+            cfgRsp.pTagRefs[i].filterCondLen = pRef->filterCondLen;
+            cfgRsp.pTagRefs[i].filterCondJson = taosStrdup(pRef->filterCondJson);
+            if (NULL == cfgRsp.pTagRefs[i].filterCondJson) {
               code = terrno;
               goto _exit;
             }
@@ -751,9 +782,7 @@ _exit:
   taosMemoryFreeClear(pMergedCols);
   taosMemoryFreeClear(pMergedTags);
   if (pMergedRefs) {
-    for (int32_t i = 0; i < nMergedCols; i++) {
-      taosMemoryFreeClear(pMergedRefs[i].tagCondJson);
-    }
+    tFreeSColRefArray(pMergedRefs, nMergedCols);
     taosMemoryFreeClear(pMergedRefs);
   }
   metaReaderClear(&mer2);
@@ -980,6 +1009,7 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
       }
 
       pTb->refCols[refColsNum].colId = mr.me.colRef.pColRef[j].id;
+      pTb->refCols[refColsNum].hasFilterCond = mr.me.colRef.pColRef[j].filterCondLen > 0;
       tstrncpy(pTb->refCols[refColsNum].refColName, mr.me.colRef.pColRef[j].refColName, TSDB_COL_NAME_LEN);
       tstrncpy(pTb->refCols[refColsNum].refTableName, mr.me.colRef.pColRef[j].refTableName, TSDB_TABLE_NAME_LEN);
       tstrncpy(pTb->refCols[refColsNum].refDbName, mr.me.colRef.pColRef[j].refDbName, TSDB_DB_NAME_LEN);
@@ -1323,7 +1353,7 @@ _return:
 }
 
 int32_t vnodeGetVTbTagCond(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
-  int32_t      code = 0;
+  int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      line = 0;
   int32_t      rspSize = 0;
   SVTagCondReq req = {0};
@@ -1344,26 +1374,43 @@ int32_t vnodeGetVTbTagCond(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   rsp.pEntries = taosArrayInit(8, sizeof(SVTagCondEntry));
   QUERY_CHECK_NULL(rsp.pEntries, code, line, _return, terrno);
+  rsp.pFilterConds = taosArrayInit(8, sizeof(SVtbColFilterCond));
+  QUERY_CHECK_NULL(rsp.pFilterConds, code, line, _return, terrno);
 
   if (hasColRef(mer.me.type)) {
     SColRefWrapper *p = &(mer.me.colRef);
-    for (int32_t i = 0; i < p->nCols; ++i) {
-      SColRef *pColRef = &p->pColRef[i];
+    int32_t nOwnCols = mer.me.type == TSDB_VIRTUAL_CHILD_TABLE ? mer.me.own.nOwnCols : 0;
+    for (int32_t i = 0; i < p->nCols + nOwnCols; ++i) {
+      SColRef *pColRef = i < p->nCols ? &p->pColRef[i] : &mer.me.own.pOwnColRefs[i - p->nCols];
       if (pColRef->hasRef && pColRef->tagCondLen > 0 && pColRef->tagCondJson != NULL) {
         SVTagCondEntry entry = {0};
         entry.colId = pColRef->id;
         entry.tagCondLen = pColRef->tagCondLen;
         entry.tagCondJson = taosStrdup(pColRef->tagCondJson);
         QUERY_CHECK_NULL(entry.tagCondJson, code, line, _return, terrno);
-        if (taosArrayPush(rsp.pEntries, &entry) == NULL) {
-          taosMemoryFree(entry.tagCondJson);
-          code = terrno;
-          QUERY_CHECK_CODE(code, line, _return);
+        void *pResult = taosArrayPush(rsp.pEntries, &entry);
+        if (NULL == pResult) {
+          taosMemoryFreeClear(entry.tagCondJson);
         }
+        QUERY_CHECK_NULL(pResult, code, line, _return, terrno);
+      }
+
+      if (pColRef->hasRef && pColRef->filterCondLen > 0 && pColRef->filterCondJson != NULL) {
+        SVtbColFilterCond filterCond = {0};
+        filterCond.colId = pColRef->id;
+        filterCond.filterCondLen = pColRef->filterCondLen;
+        filterCond.filterCondJson = taosStrdup(pColRef->filterCondJson);
+        QUERY_CHECK_NULL(filterCond.filterCondJson, code, line, _return, terrno);
+        void *pResult = taosArrayPush(rsp.pFilterConds, &filterCond);
+        if (NULL == pResult) {
+          taosMemoryFreeClear(filterCond.filterCondJson);
+        }
+        QUERY_CHECK_NULL(pResult, code, line, _return, terrno);
       }
     }
   }
   rsp.numOfRefs = taosArrayGetSize(rsp.pEntries);
+  rsp.numOfFilterConds = taosArrayGetSize(rsp.pFilterConds);
 
   rspSize = tSerializeSVTagCondRsp(NULL, 0, &rsp);
   if (rspSize < 0) {
@@ -1392,7 +1439,7 @@ _return:
   rspMsg.code = code;
   rspMsg.msgType = pMsg->msgType;
   if (code) {
-    qError("vnodeGetVTbTagCond failed since %s", tstrerror(code));
+    qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
   }
   if (direct) {
     tmsgSendRsp(&rspMsg);

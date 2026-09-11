@@ -12455,6 +12455,7 @@ static bool vstableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   SNode *pVirtualScan = nodesListGetNode(((SLogicNode*)pDynCtrl)->pChildren, 0);
   if (NULL == pVirtualScan || nodeType(pVirtualScan) != QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN ||
       LIST_LENGTH(((SLogicNode*)pVirtualScan)->pChildren) < 1 ||
+      ((SVirtualScanLogicNode*)pVirtualScan)->hasFilterCond ||
       NULL != ((SVirtualScanLogicNode*)pVirtualScan)->node.pConditions) {
     return false;
   }
@@ -14433,6 +14434,10 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
       SLogicNode* pFirst = (SLogicNode*)nodesListGetNode(pDynCtrl->node.pChildren, 0);
       if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pFirst)) {
         SVirtualScanLogicNode* pVscan = (SVirtualScanLogicNode*)pFirst;
+        // Filter groups can overlap in time; aggregate only after VirtualScan reconstructs each row.
+        if (pVscan->hasFilterCond) {
+          return false;
+        }
         if ((pVscan->hasTagRef || isStreamCalc) && pFirst->pConditions) {
           return false;
         }
@@ -18739,14 +18744,6 @@ static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan, bool preserveScanWhere) 
     if (pLeafScan->pRemoteLogicPlan != NULL) {
       nodesDestroyNode(pLeafScan->pRemoteLogicPlan);
       pLeafScan->pRemoteLogicPlan = NULL;
-    }
-    if (preserveScanWhere && pLeafScan->node.pConditions == NULL && pLeafScan->pPushedConditions != NULL) {
-      code = nodesCloneNode(pLeafScan->pPushedConditions, &pLeafScan->node.pConditions);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode((SNode*)pLeafScan);
-        nodesDestroyNode((SNode*)pSortLogic);
-        return code;
-      }
     }
     if (!preserveScanWhere && pLeafScan->node.pConditions != NULL) {
       planDebug("FQ-injectPkOrderBy: clear local-only scan WHERE from injected raw leaf scan=%p", pLeafScan);

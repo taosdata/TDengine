@@ -3427,7 +3427,13 @@ column_options(A) ::= column_options(B) COMPOSITE KEY.                          
 column_options(A) ::= column_options(B) NK_ID(C) NK_STRING(D).                    { A = setColumnOptions(pCxt, B, &C, &D); }
 column_options(A) ::= column_options(B) FROM column_ref(C).                       { A = setColumnReference(pCxt, B, C); }
 
-column_ref(A) ::= column_name_triplet(B).                                            { A = createColumnRefNodeByName(pCxt, B); }
+column_ref(A) ::= column_name_triplet(B) external_col_filter_opt(C).
+                                                                                     { A = createColumnRefNodeByName(pCxt, B, C); }
+
+%type external_col_filter_opt                                                        { SNode* }
+%destructor external_col_filter_opt                                                  { nodesDestroyNode($$); }
+external_col_filter_opt(A) ::= .                                                     { A = NULL; }
+external_col_filter_opt(A) ::= WHERE search_condition(B).                           { A = B; }
 
 %type column_name_triplet                                                            { STokenTriplet* }
 %destructor column_name_triplet                                                      { }

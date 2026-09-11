@@ -96,6 +96,7 @@ class TestQuantifiedSubQuery6b2:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -105,6 +106,40 @@ class TestQuantifiedSubQuery6b2:
 
         self.prepareData()
         self.execCase()
+
+    def test_invalid_subquery_cleanup(self):
+        """Reject invalid nested subqueries without double-freeing metadata
+
+        1. Check the expected parser error for nested quantified subqueries.
+        2. Check valid query results after each rejected statement.
+
+        Catalog:
+            - Querying:SubQuery
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Added metadata cleanup regression coverage
+
+        """
+        self.do_invalid_subquery_cleanup()
+
+    def do_invalid_subquery_cleanup(self):
+        self.prepareData()
+        query = "select (select f1 < any (select f1 from tb3)) from tb3"
+        for prefix in ("", "explain ", "explain verbose true ",
+                       "explain analyze verbose true "):
+            tdSql.error(prefix + query, expectedErrno=0x26A6)
+            tdSql.query("select f1 from tb3 where f1 < any "
+                        "(select f1 from tb3) order by f1")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 4)
+            tdSql.checkData(1, 0, 5)
+        print("invalid nested subquery cleanup ................ [ passed ]")
      
     def prepareData(self):
         tdLog.info("create database db1")
@@ -182,4 +217,3 @@ class TestQuantifiedSubQuery6b2:
         self.rmoveSqlTmpFiles()
 
         return True
-

@@ -123,8 +123,8 @@ int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t ad
     pWp->pColRef = p;
 
     SColRef *pCol = p + nCols;
-    // The element comes from realloc and is uninitialized; zero it so that
-    // pointer fields such as tagCondJson are NULL on every code path below.
+    // The element comes from realloc and is uninitialized; zero it so owned
+    // condition pointers are NULL on every code path below.
     memset(pCol, 0, sizeof(SColRef));
     if (NULL == pColRef) {
       pCol->hasRef = false;
@@ -142,9 +142,23 @@ int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t ad
         if (pColRef->tagCondLen > 0) {
           pCol->tagCondLen = pColRef->tagCondLen;
           pCol->tagCondJson = taosStrdup(pColRef->tagCondJson);
+          if (NULL == pCol->tagCondJson) {
+            pCol->tagCondLen = 0;
+            return terrno;
+          }
         } else {
           pCol->tagCondLen = 0;
           pCol->tagCondJson = NULL;
+        }
+        if (pColRef->filterCondLen > 0) {
+          pCol->filterCondLen = pColRef->filterCondLen;
+          pCol->filterCondJson = taosStrdup(pColRef->filterCondJson);
+          if (NULL == pCol->filterCondJson) {
+            taosMemoryFreeClear(pCol->tagCondJson);
+            pCol->tagCondLen = 0;
+            pCol->filterCondLen = 0;
+            return terrno;
+          }
         }
       }
     }
@@ -155,6 +169,7 @@ int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t ad
       SColRef *pOColRef = &pWp->pColRef[i];
       if (pOColRef->id == pSchema->colId) {
         taosMemoryFreeClear(pOColRef->tagCondJson);
+        taosMemoryFreeClear(pOColRef->filterCondJson);
         int32_t left = (nCols - i - 1) * sizeof(SColRef);
         if (left) {
           memmove(pWp->pColRef + i, pWp->pColRef + i + 1, left);
@@ -218,49 +233,48 @@ static int32_t metaFillRspSchemaExt(const SSchemaWrapper *pSchema, const SExtSch
 }
 
 static int32_t metaCopyColRefEntries(const SColRef *pSrc, int32_t nRefs, SColRef *pDst) {
-  if (nRefs > 0 && pSrc == NULL) {
-    return TSDB_CODE_APP_ERROR;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t copied = 0;
+  QUERY_CHECK_CONDITION(nRefs >= 0, code, lino, _return, TSDB_CODE_APP_ERROR);
+  if (nRefs > 0) {
+    QUERY_CHECK_NULL(pSrc, code, lino, _return, TSDB_CODE_APP_ERROR);
+    QUERY_CHECK_NULL(pDst, code, lino, _return, TSDB_CODE_APP_ERROR);
   }
   for (int32_t i = 0; i < nRefs; i++) {
     pDst[i] = pSrc[i];
     pDst[i].tagCondJson = NULL;
+    pDst[i].filterCondJson = NULL;
+    copied++;
+    QUERY_CHECK_CONDITION(pSrc[i].tagCondLen >= 0 && pSrc[i].filterCondLen >= 0, code, lino, _return,
+                          TSDB_CODE_APP_ERROR);
+    // Persisted lengths count payload bytes only; both copies retain a trailing NUL.
     if (pSrc[i].tagCondLen > 0) {
-      // tagCondLen>0 with a NULL tagCondJson is an inconsistent/corrupted entry: rather than
-      // silently zeroing the length (which would drop the tag condition and change downstream
-      // query semantics), surface it as an error. Free the copies made so far, matching the
-      // malloc-failure path below, so the error return stays self-contained (FreeClear leaves
-      // entries NULL; callers that also walk pDst on error do not double-free).
-      if (pSrc[i].tagCondJson == NULL) {
-        for (int32_t j = 0; j < i; j++) {
-          taosMemoryFreeClear(pDst[j].tagCondJson);
-        }
-        // reset entry i as well (the shallow copy above left tagCondLen > 0 with a NULL
-        // json) so the output array stays self-consistent for any caller walking it
-        pDst[i].tagCondLen = 0;
-        return TSDB_CODE_APP_ERROR;
-      }
-      // copy by tagCondLen instead of taosStrdup: downstream consumers index/parse tagCondJson
-      // by tagCondLen, so the copied buffer must stay consistent with the stored length (this
-      // also matches the decoder allocation pattern in metaDecodeSColRefExt). This assumes the
-      // producer convention that pSrc[i].tagCondJson holds at least tagCondLen bytes (upheld by
-      // updataTableColRef's strdup-by-length and metaDecodeSColRefExt's malloc(tagCondLen+1)).
-      pDst[i].tagCondJson = (char *)taosMemoryMalloc(pSrc[i].tagCondLen + 1);
-      if (NULL == pDst[i].tagCondJson) {
-        // release the copies made so far so the failure exit is self-contained; FreeClear leaves
-        // them NULL, so callers that also walk pDst on error (metaBuildMergedColView's _error,
-        // tFreeSTableMetaRsp via metaUpdateVtbMetaRsp) do not double-free
-        for (int32_t j = 0; j < i; j++) {
-          taosMemoryFreeClear(pDst[j].tagCondJson);
-        }
-        return terrno;
-      }
+      QUERY_CHECK_NULL(pSrc[i].tagCondJson, code, lino, _return, TSDB_CODE_APP_ERROR);
+      pDst[i].tagCondJson = taosMemoryMalloc((size_t)pSrc[i].tagCondLen + 1);
+      QUERY_CHECK_NULL(pDst[i].tagCondJson, code, lino, _return, terrno);
       memcpy(pDst[i].tagCondJson, pSrc[i].tagCondJson, pSrc[i].tagCondLen);
       pDst[i].tagCondJson[pSrc[i].tagCondLen] = '\0';
-    } else {
-      pDst[i].tagCondLen = 0;
+    }
+    if (pSrc[i].filterCondLen > 0) {
+      QUERY_CHECK_NULL(pSrc[i].filterCondJson, code, lino, _return, TSDB_CODE_APP_ERROR);
+      pDst[i].filterCondJson = taosMemoryMalloc((size_t)pSrc[i].filterCondLen + 1);
+      QUERY_CHECK_NULL(pDst[i].filterCondJson, code, lino, _return, terrno);
+      memcpy(pDst[i].filterCondJson, pSrc[i].filterCondJson, pSrc[i].filterCondLen);
+      pDst[i].filterCondJson[pSrc[i].filterCondLen] = '\0';
     }
   }
-  return TSDB_CODE_SUCCESS;
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    tFreeSColRefArray(pDst, copied);
+    for (int32_t i = 0; i < copied; i++) {
+      pDst[i].tagCondLen = 0;
+      pDst[i].filterCondLen = 0;
+    }
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t metaBuildMergedColView(const SMetaEntry *pEntry, const SSchemaWrapper *pRowSchema,
@@ -339,9 +353,7 @@ int32_t metaBuildMergedColView(const SMetaEntry *pEntry, const SSchemaWrapper *p
 
 _error:
   if (pColRefs) {
-    for (int32_t i = 0; i < nMerged; i++) {
-      taosMemoryFreeClear(pColRefs[i].tagCondJson);
-    }
+    tFreeSColRefArray(pColRefs, nMerged);
     taosMemoryFreeClear(pColRefs);
   }
   taosMemoryFreeClear(pSchemas);
@@ -397,9 +409,8 @@ int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, const SSchemaWrap
                              const SSchemaWrapper *pTagSchema, const SColRefWrapper *pRef,
                              const SExtSchema *pExtSchemas, int64_t ownerId, STableMetaRsp *pMetaRsp, int8_t tableType) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (!pRef) {
-    return TSDB_CODE_INVALID_PARA;
-  }
+  int32_t line = 0;
+  QUERY_CHECK_NULL(pRef, code, line, _return, TSDB_CODE_INVALID_PARA);
 
   // For a virtual child table the response carries the merged view: vstb row schema followed
   // by the vchild's own (extension) columns, and persisted colRef followed by own col refs.
@@ -542,10 +553,7 @@ int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, const SSchemaWrap
   if (pEntry->series.nSeries > 0) {
     pMetaRsp->numOfSeries = pEntry->series.nSeries;
     pMetaRsp->pSeries = taosMemoryCalloc(pEntry->series.nSeries, sizeof(SSeriesEntry));
-    if (NULL == pMetaRsp->pSeries) {
-      code = terrno;
-      goto _return;
-    }
+    QUERY_CHECK_NULL(pMetaRsp->pSeries, code, line, _return, terrno);
     for (int32_t i = 0; i < pEntry->series.nSeries; i++) {
       SSeriesEntry *src = &pEntry->series.pSeries[i];
       SSeriesEntry *dst = &pMetaRsp->pSeries[i];
@@ -554,16 +562,21 @@ int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, const SSchemaWrap
       tstrncpy(dst->dbName, src->dbName, TSDB_DB_NAME_LEN);
       tstrncpy(dst->measurementName, src->measurementName, TSDB_TABLE_NAME_LEN);
       dst->tagCondLen = src->tagCondLen;
-      dst->tagCondJson = src->tagCondJson ? taosStrdup(src->tagCondJson) : NULL;
+      if (src->tagCondJson) {
+        dst->tagCondJson = taosStrdup(src->tagCondJson);
+        QUERY_CHECK_NULL(dst->tagCondJson, code, line, _return, terrno);
+      }
     }
   } else {
     pMetaRsp->numOfSeries = 0;
     pMetaRsp->pSeries = NULL;
   }
 
-  return code;
 _return:
-  tFreeSTableMetaRsp(pMetaRsp);
+  if (TSDB_CODE_SUCCESS != code) {
+    tFreeSTableMetaRsp(pMetaRsp);
+    qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
+  }
   return code;
 }
 

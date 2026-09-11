@@ -726,6 +726,8 @@ int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* re
     colRef->tagCondJson = NULL;
     colRef->tagCondLen = 0;
   }
+  colRef->filterCondJson = NULL;
+  colRef->filterCondLen = 0;
   if (colName) {
     tstrncpy(colRef->colName, colName, TSDB_COL_NAME_LEN);
   } else {
@@ -769,6 +771,7 @@ int32_t queryCloneColRefTagConds(const SColRef* pSrc, int32_t nCols, SColRef* pD
 
   for (int32_t i = 0; i < nCols; ++i) {
     pDst[i].tagCondJson = NULL;
+    pDst[i].filterCondJson = NULL;
   }
 
   if (NULL == pSrc) {
@@ -780,6 +783,13 @@ int32_t queryCloneColRefTagConds(const SColRef* pSrc, int32_t nCols, SColRef* pD
       pDst[i].tagCondJson = taosStrdup(pSrc[i].tagCondJson);
       if (NULL == pDst[i].tagCondJson) {
         queryFreeColRefTagConds(pDst, i);
+        return terrno;
+      }
+    }
+    if (pSrc[i].filterCondJson) {
+      pDst[i].filterCondJson = taosStrdup(pSrc[i].filterCondJson);
+      if (NULL == pDst[i].filterCondJson) {
+        queryFreeColRefTagConds(pDst, i + 1);
         return terrno;
       }
     }
@@ -815,7 +825,7 @@ int32_t queryCloneSeriesEntries(const SSeriesEntry* pSrc, int32_t nSeries, SSeri
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
+int32_t cloneTableMeta(const STableMeta* pSrc, STableMeta** pDst) {
   QUERY_PARAM_CHECK(pDst);
   if (NULL == pSrc) {
     *pDst = NULL;
@@ -840,6 +850,7 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
 
   int32_t code = queryCloneColRefTagConds(pSrc->colRef, pSrc->numOfColRefs, (*pDst)->colRef);
   if (TSDB_CODE_SUCCESS != code) {
+    (*pDst)->tagRef = NULL;
     queryFreeTableMeta(*pDst);
     *pDst = NULL;
     return code;

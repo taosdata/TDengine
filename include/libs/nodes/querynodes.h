@@ -22,6 +22,7 @@ extern "C" {
 #endif
 
 #include "nodes.h"
+#include "osTimezone.h"
 #include "tmsg.h"
 #include "tsimplehash.h"
 #include "tvariant.h"
@@ -125,6 +126,7 @@ typedef struct SColumnRefNode {
   // Non-empty refSourceName indicates an external (4-segment path) reference.
   char      refSourceName[TSDB_EXT_SOURCE_NAME_LEN];    // 4-segment first token (external source name)
   SNode*    pTagCond;           // series tag condition (SOperatorNode or SLogicConditionNode), or NULL
+  SNode*    pFilterCond;        // MySQL/PostgreSQL external-column filter, or NULL
   // Own (extension) column declaration of a virtual child table: set when the col_ref
   // carries an explicit type (`name TYPE FROM db.tb.col`), meaning the column is not
   // defined in the vstb schema. Only valid in CREATE VTABLE specific_column_ref_list.
@@ -472,6 +474,7 @@ typedef struct SVirtualTableNode {
   SVgroupsInfo*      pVgroupList;
   SNodeList*         refTables;
   SArray*            pExtSourceNames;  // SArray<char*> external source names (super table path)
+  bool               hasFilterCond;  // any child column or referenced leaf has a saved external filter
 } SVirtualTableNode;
 
 typedef struct SViewNode {
@@ -1165,11 +1168,28 @@ bool nodesIsBitwiseOp(const SOperatorNode* pOp);
 bool nodesExprHasColumn(SNode* pNode);
 bool nodesExprsHasColumn(SNodeList* pList);
 
+// Validate and normalize a DDL filter in place, returning the timestamp primary-key column index.
+int32_t nodesValidateExternalFilter(EExtSourceType sourceType, const SExtTableMeta* pExtMeta, SNode* pFilterCond,
+                                    timezone_t timezone, void* charsetCxt, char* pMsg, int32_t msgLen,
+                                    int32_t* pTsPrimaryKeyIndex);
+
+// Revalidate a saved filter against current metadata without changing the saved JSON.
+// A non-relational source without a filter succeeds with a timestamp index of -1.
+int32_t nodesValidateExternalFilterCurrentMeta(EExtSourceType sourceType, const SExtTableMeta* pExtMeta,
+                                               const char* pFilterCondJson, int32_t filterCondLen, timezone_t timezone,
+                                               void* charsetCxt, char* pMsg, int32_t msgLen,
+                                               int32_t* pTsPrimaryKeyIndex);
+
+// Restore saved timestamp strings for remote SQL, or all original literals for SHOW CREATE replay.
+int32_t nodesRestoreExternalFilterLiterals(SNode** ppFilterCond, bool forDdl);
+
 void*   nodesGetValueFromNode(SValueNode* pNode);
 int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value);
 int32_t nodesSetValueNodeValueExt(SValueNode* pNode, void* value, bool* needFree);
 char*   nodesGetStrValueFromNode(SValueNode* pNode);
 int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
+// Convert a literal into datum/typeData; callers retain responsibility for resType and translate.
+int32_t nodesConvertValueLiteral(SValueNode* pValue, SDataType targetType, void* charsetCxt, bool strict);
 // Release nested resources owned by a value node without freeing its storage.
 void    nodesClearValueNode(SValueNode* pValue);
 int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode);

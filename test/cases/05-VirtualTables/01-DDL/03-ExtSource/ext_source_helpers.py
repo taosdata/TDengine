@@ -12,7 +12,7 @@ create EXTERNAL SOURCE objects, avoiding duplication across test files.
 import os
 import sys
 
-from new_test_framework.utils import tdSql
+from new_test_framework.utils import tdLog, tdSql
 
 _FQ_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__),
@@ -20,6 +20,16 @@ _FQ_DIR = os.path.abspath(
 if _FQ_DIR not in sys.path:
     sys.path.insert(0, _FQ_DIR)
 from federated_query_common import ExtSrcEnv  # noqa: E402
+
+
+def extract_show_create_sql(sql):
+    tdSql.query(sql)
+    tdSql.checkRows(1)
+    for col in range(tdSql.queryCols):
+        value = tdSql.getData(0, col)
+        if isinstance(value, str) and "CREATE" in value.upper():
+            return value
+    tdLog.exit(f"no CREATE statement in SHOW output: {sql}")
 
 
 # ---------------------------------------------------------------------------

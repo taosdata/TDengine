@@ -1160,6 +1160,8 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       taosHashCleanup(taskCtx->pFinalExtSources);
       taskCtx->pFinalExtSources = NULL;
       taosMemoryFreeClear(taskCtx->pColRefCols);
+      tFreeSColRefArray(taskCtx->pResolvedColRefs, taskCtx->numOfColRefs);
+      taosMemoryFreeClear(taskCtx->pResolvedColRefs);
       taskCtx->numOfColRefs = 0;
       taosMemoryFreeClear(taskCtx->pTagRefCols);
       taskCtx->numOfTagRefs = 0;

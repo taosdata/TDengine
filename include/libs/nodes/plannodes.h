@@ -91,12 +91,13 @@ typedef enum EScanType {
 
 // ---- Federated query pushdown bit masks ----
 // Used by Optimizer to mark what can be pushed to remote; Phase 1 = all 0 (no pushdown)
-#define FQ_PUSHDOWN_FILTER     (1u << 0)
-#define FQ_PUSHDOWN_PROJECTION (1u << 1)
-#define FQ_PUSHDOWN_LIMIT      (1u << 2)
-#define FQ_PUSHDOWN_AGG        (1u << 3)
-#define FQ_PUSHDOWN_ORDER      (1u << 4)
-#define FQ_PUSHDOWN_JOIN       (1u << 5)
+#define FQ_PUSHDOWN_FILTER          (1u << 0)
+#define FQ_PUSHDOWN_PROJECTION      (1u << 1)
+#define FQ_PUSHDOWN_LIMIT           (1u << 2)
+#define FQ_PUSHDOWN_AGG             (1u << 3)
+#define FQ_PUSHDOWN_ORDER           (1u << 4)
+#define FQ_PUSHDOWN_JOIN            (1u << 5)
+#define FQ_PUSHDOWN_REQUIRED_FILTER (1u << 6)
 
 typedef struct SScanLogicNode {
   SLogicNode         node;
@@ -175,10 +176,9 @@ typedef struct SScanLogicNode {
   // bottommost has pChildren=NULL — the scan itself is NOT in this chain).
   // Physical plan generation converts this to SFederatedScanPhysiNode.pRemotePlan.
   SNode*      pRemoteLogicPlan;
-  // WHERE conditions fully pushed to the remote source (e.g. EXISTS with RAW_SQL_FRAG).
-  // Set by fqHarvestConditions; clears node.pConditions so the outer physical scan
-  // gets pConditions=NULL. Physical plan creation puts these into the leaf's pConditions
-  // for nodesRemotePlanToSQL, but NOT into the outer scan operator.
+  // Saved external-column filters that must run remotely, independent of optional
+  // query pushdown. Physical planning moves them into the remote leaf's pConditions
+  // before serialization; they must never become local scan conditions.
   SNode*      pPushedConditions;
 } SScanLogicNode;
 
@@ -243,6 +243,7 @@ typedef struct SVirtualScanLogicNode {
   // Flags
   bool          hasTagRef;        // true if has tag references
   bool          hasLocalTag;      // true if has local tags
+  bool          hasFilterCond;    // saved external filters require virtual-row merging before agg/window
 } SVirtualScanLogicNode;
 
 // Tag reference column information

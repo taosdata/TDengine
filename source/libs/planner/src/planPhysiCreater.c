@@ -2727,12 +2727,43 @@ static int32_t fqInitFederatedScanSource(SFederatedScanPhysiNode* pScan,
   return TSDB_CODE_SUCCESS;
 }
 
+// Consume required filters only in the remote-plan copy, after optional pushdown.
+static int32_t fqAttachRequiredScanConditions(SLogicNode* pNode, uint32_t* pPushdownFlags) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    if (NULL != pScan->pPushedConditions) {
+      if (NULL != pNode->pConditions) {
+        code = nodesMergeNode(&pScan->pPushedConditions, &pNode->pConditions);
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      TSWAP(pNode->pConditions, pScan->pPushedConditions);
+      *pPushdownFlags |= FQ_PUSHDOWN_REQUIRED_FILTER;
+    }
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    code = fqAttachRequiredScanConditions((SLogicNode*)pChild, pPushdownFlags);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 // createFederatedScanPhysiNode: builds SFederatedScanPhysiNode from a logic
 // node whose scanType == SCAN_TYPE_EXTERNAL.
 // ---------------------------------------------------------------------------
 static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan,
                                             SScanLogicNode* pScanLogicNode, SPhysiNode** pPhyNode) {
   int32_t                     code = TSDB_CODE_SUCCESS;
+  int32_t                     lino = 0;
   SFederatedScanPhysiNode*    pScan = NULL;
   SNodeList*                  pReordered = NULL;
   SNodeList*                  pReserveSlotCols = NULL;
@@ -3147,11 +3178,10 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     // pTargets only when a WHERE subquery (REMOTE_*) is present — exactly the
     // failing case.
     PLAN_ERR_JRET(nodesCloneList(pScan->pScanCols, &pLeaf->pScanCols));
-    // WHERE: the fallback flat leaf is built only when NOTHING was pushed into a
-    // remote plan (pRemoteLogicPlan == NULL).  In that case the scan's WHERE is
-    // non-pushable and stays local on the outer FedScan (node.pConditions), so the
-    // remote leaf gets no WHERE.  Pushable WHERE always flows through a commit-built
-    // remote SCAN leaf (a separate node owning its node.pConditions), never here.
+    // Optional query conditions stay local in this fallback. Saved binding filters
+    // still belong to the remote leaf, even when no optimizer rule runs.
+    code = nodesCloneNode(pScanLogicNode->pPushedConditions, &pLeaf->pPushedConditions);
+    QUERY_CHECK_CODE(code, lino, _return);
     // LIMIT: makePhysiNode moved pScanLogicNode->pLimit to pScan->node.pLimit.
     if (pScan->node.pLimit != NULL) {
       PLAN_ERR_JRET(nodesCloneNode(pScan->node.pLimit, &pLeaf->node.pLimit));
@@ -3163,6 +3193,8 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   }
 
   if (pRemoteRoot != NULL) {
+    code = fqAttachRequiredScanConditions((SLogicNode*)pRemoteRoot, &pScan->pushdownFlags);
+    QUERY_CHECK_CODE(code, lino, _return);
     PLAN_ERR_JRET(fqRefreshRemoteOutputTargets(pRemoteRoot));
 
     SLogicNode* pRemoteLogicRoot = (SLogicNode*)pRemoteRoot;

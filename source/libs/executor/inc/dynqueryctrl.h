@@ -85,6 +85,8 @@ typedef struct {
   int8_t   extRefType;    // 0: internal reference, 1: external reference
   char*    tagCondJson;   // heap, owned; external ref series filter (may be NULL)
   int32_t  tagCondLen;
+  int32_t  filterCondLen;
+  char*    filterCondJson;  // heap, owned; MySQL/PostgreSQL column filter
 } SColRefInfo;
 
 typedef struct SVtbAggDispatchScope {
@@ -112,7 +114,7 @@ typedef struct SVtbScanDynCtrlInfo {
   tsem_t           ready;
   SEpSet           epSet;
   SUseDbRsp*       pRsp;
-  SVTagCondRsp*    pTagCondRsp;  // scratch: decoded VTB_TAG_COND rsp, freed after fetch
+  SVTagCondRsp*    pTagCondRsp;  // scratch: decoded VTB column conditions, freed after fetch
   uint64_t         suid;
   uint64_t         uid;
   uint64_t         dynTbUid;
@@ -137,7 +139,8 @@ typedef struct SVtbScanDynCtrlInfo {
   SHashObj*        curOrgTbVg; // key: vgId, value: NULL
   SMsgCb*          pMsgCb;
   SHashObj*        otbNameToOtbInfoMap; // key: orgTbFName, value: SOrgTbInfo
-  SHashObj*        foreignSourceMap; // key: "source.db.table", value: SForeignSourceInfo
+  SHashObj*        foreignSourceMap; // binary external scan-group key, value: SForeignSourceInfo
+  SHashObj*        extTableMetaCache; // query-local raw schemas, keyed by source/db/table
   SHashObj*        otbVgIdToOtbInfoArrayMap; // key: vgId, value: SArray<SOrgTbInfo>
   SHashObj*        vtbUidToVgIdMapMap; // key: vtbUid, value: SHashObj <key: vgId, value: SArray<SOrgTbInfo>>
   SHashObj*        vtbGroupIdToVgIdMapMap; // key: vtbGroupId, value: SHashObj <key: vgId, value: SArray<SOrgTbInfo>>

@@ -48,6 +48,7 @@ typedef struct SLogicPlanContext {
   SPlanContext* pPlanCxt;
   SLogicNode*   pCurrRoot;
   SSHashObj*    pChildTables;
+  int32_t       nextExtScanAliasId;
   bool          streamExtWindowTreeChecked;
   bool          streamExtWindowTreeEnabled;
 } SLogicPlanContext;
@@ -1703,6 +1704,82 @@ static void buildExtRefTableKey(char* buf, size_t bufSize, const char* sourceNam
   }
 }
 
+static int32_t buildExtScanGroupKey(const SColRef* pColRef, uint8_t** ppKey, int32_t* pKeyLen) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  uint8_t* pKey = NULL;
+  TSlice   key = {0};
+
+  QUERY_CHECK_NULL(pColRef, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(ppKey, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pKeyLen, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(pColRef->filterCondLen >= 0 &&
+                            (0 == pColRef->filterCondLen || NULL != pColRef->filterCondJson) &&
+                            pColRef->tagCondLen >= 0 && (0 == pColRef->tagCondLen || NULL != pColRef->tagCondJson),
+                        code, lino, _return, TSDB_CODE_INVALID_MSG);
+
+  *ppKey = NULL;
+  *pKeyLen = 0;
+
+  uint32_t sourceNameLen = (uint32_t)strnlen(pColRef->refSourceName, sizeof(pColRef->refSourceName));
+  uint32_t dbNameLen = (uint32_t)strnlen(pColRef->refDbName, sizeof(pColRef->refDbName));
+  uint32_t tableNameLen = (uint32_t)strnlen(pColRef->refTableName, sizeof(pColRef->refTableName));
+  QUERY_CHECK_CONDITION(sourceNameLen > 0 && sourceNameLen < sizeof(pColRef->refSourceName) &&
+                            dbNameLen > 0 && dbNameLen < sizeof(pColRef->refDbName) &&
+                            tableNameLen > 0 && tableNameLen < sizeof(pColRef->refTableName),
+                        code, lino, _return, TSDB_CODE_INVALID_PARA);
+
+  int64_t keySize = 0;
+  keySize += sizeof(sourceNameLen) + sourceNameLen;
+  keySize += sizeof(dbNameLen) + dbNameLen;
+  keySize += sizeof(tableNameLen) + tableNameLen;
+  keySize += sizeof(pColRef->tagCondLen) + pColRef->tagCondLen;
+  keySize += sizeof(pColRef->filterCondLen) + pColRef->filterCondLen;
+  QUERY_CHECK_CONDITION(keySize < INT32_MAX, code, lino, _return, TSDB_CODE_INVALID_PARA);
+
+  pKey = taosMemoryMalloc((size_t)keySize + 1);
+  QUERY_CHECK_NULL(pKey, code, lino, _return, terrno);
+  sliceInit(&key, (char*)pKey, (int32_t)keySize + 1);
+
+  // Preserve quoted identifier case, matching buildExtRefTableKey.
+  code = sliceAppend(&key, (const char*)&sourceNameLen, sizeof(sourceNameLen));
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = sliceAppend(&key, pColRef->refSourceName, sourceNameLen);
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = sliceAppend(&key, (const char*)&dbNameLen, sizeof(dbNameLen));
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = sliceAppend(&key, pColRef->refDbName, dbNameLen);
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = sliceAppend(&key, (const char*)&tableNameLen, sizeof(tableNameLen));
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = sliceAppend(&key, pColRef->refTableName, tableNameLen);
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = sliceAppend(&key, (const char*)&pColRef->tagCondLen, sizeof(pColRef->tagCondLen));
+  QUERY_CHECK_CODE(code, lino, _return);
+  if (pColRef->tagCondLen > 0) {
+    code = sliceAppend(&key, pColRef->tagCondJson, pColRef->tagCondLen);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+  code = sliceAppend(&key, (const char*)&pColRef->filterCondLen, sizeof(pColRef->filterCondLen));
+  QUERY_CHECK_CODE(code, lino, _return);
+  if (pColRef->filterCondLen > 0) {
+    code = sliceAppend(&key, pColRef->filterCondJson, pColRef->filterCondLen);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+  QUERY_CHECK_CONDITION(key.len == keySize, code, lino, _return, TSDB_CODE_APP_ERROR);
+
+  *ppKey = pKey;
+  *pKeyLen = key.len;
+  pKey = NULL;
+
+_return:
+  taosMemoryFree(pKey);
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t findRefTableNode(SHashObj* pRefTableMap, const char* dbName, const char* tableName,
                                 SNode** pRefTable) {
   char tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
@@ -1748,9 +1825,13 @@ static int32_t scanAddCol(SLogicNode* pLogicNode, SColRef* colRef, STableNode* p
     tstrncpy(pRefTableScanCol->tableName, pVirtualTableNode->tableName, sizeof(pRefTableScanCol->tableName));
     tstrncpy(pRefTableScanCol->colName, pSchema->name, sizeof(pRefTableScanCol->colName));
   }
+  if (SCAN_TYPE_EXTERNAL == pLogicScan->scanType) {
+    SExtTableNode* pExtTable = (SExtTableNode*)pLogicScan->pExtTableNode;
+    tstrncpy(pRefTableScanCol->tableAlias, pExtTable->table.tableAlias, sizeof(pRefTableScanCol->tableAlias));
+  }
 
   if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-    SNode *pTsCol = nodesListGetNode(pLogicScan->pScanCols, 0);
+    SNode* pTsCol = nodesListGetNode(pLogicScan->pScanCols, 0);
     tstrncpy(((SColumnNode*)pTsCol)->dbName, pRefTableScanCol->dbName, sizeof(((SColumnNode*)pTsCol)->dbName));
     ((SColumnNode*)pTsCol)->hasRef = false;
     ((SColumnNode*)pTsCol)->hasDep = true;
@@ -2066,7 +2147,7 @@ static int32_t addExtPrimaryTsCol(SScanLogicNode* pExtScan, SNodeList** pCols) {
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTsCol));
 
   tstrncpy(pTsCol->colName, pPkCol->colName, sizeof(pTsCol->colName));
-  tstrncpy(pTsCol->tableAlias, pExtScan->tableName.tname, sizeof(pTsCol->tableAlias));
+  tstrncpy(pTsCol->tableAlias, pExtTblNode->table.tableAlias, sizeof(pTsCol->tableAlias));
   tstrncpy(pTsCol->dbName, pExtScan->tableName.dbname, sizeof(pTsCol->dbName));
   tstrncpy(pTsCol->tableName, pExtScan->tableName.tname, sizeof(pTsCol->tableName));
   pTsCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
@@ -2089,88 +2170,116 @@ _return:
   return code;
 }
 
+static int32_t mergeExtScanFilterCond(SScanLogicNode* pExtScan, const SColRef* pColRef) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SNode*  pFilterCond = NULL;
+
+  QUERY_CHECK_NULL(pExtScan, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pColRef, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(pColRef->filterCondLen >= 0 &&
+                            (0 == pColRef->filterCondLen || NULL != pColRef->filterCondJson),
+                        code, lino, _return, TSDB_CODE_INVALID_MSG);
+  if (0 == pColRef->filterCondLen) {
+    goto _return;
+  }
+
+  code = nodesStringToNode(pColRef->filterCondJson, &pFilterCond);
+  QUERY_CHECK_CODE(code, lino, _return);
+  QUERY_CHECK_NULL(pFilterCond, code, lino, _return, TSDB_CODE_INVALID_MSG);
+  code = nodesRestoreExternalFilterLiterals(&pFilterCond, false);
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = nodesMergeNode(&pExtScan->pPushedConditions, &pFilterCond);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+_return:
+  nodesDestroyNode(pFilterCond);
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t addExternalSubScanNodeByColRef(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
                                               SVirtualTableNode* pVirtualTable, SColRef* pColRef,
                                               int32_t schemaIndex, SHashObj* refTablesMap,
                                               SHashObj* refTableNodeMap) {
-  int32_t          code = TSDB_CODE_SUCCESS;
-  SScanLogicNode*  pExtScan = NULL;
-  bool             put = false;
+  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
+  SScanLogicNode* pExtScan = NULL;
+  SNode*          pTagCond = NULL;
+  bool            created = false;
+  bool            put = false;
+  uint8_t*        pGroupKey = NULL;
+  int32_t         groupKeyLen = 0;
 
-  // Build grouping key: source.db.table + tagCondJson (if present).
-  // Different tag conditions must produce separate scan nodes / SQL queries.
   char tableNameKey[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 4] = {0};
   buildExtRefTableKey(tableNameKey, sizeof(tableNameKey), pColRef->refSourceName, pColRef->refDbName,
                       pColRef->refTableName);
-  if (tableNameKey[0] == '\0') {
-    PLAN_ERR_JRET(TSDB_CODE_INVALID_PARA);
-  }
+  QUERY_CHECK_CONDITION(tableNameKey[0] != '\0', code, lino, _return, TSDB_CODE_INVALID_PARA);
+  code = buildExtScanGroupKey(pColRef, &pGroupKey, &groupKeyLen);
+  QUERY_CHECK_CODE(code, lino, _return);
 
-  // Append tagCondJson to the key to differentiate scans by series tag condition
-  char* fullKey = NULL;
-  int32_t fullKeyLen = 0;
-  if (pColRef->tagCondLen > 0 && pColRef->tagCondJson) {
-    int32_t baseLen = (int32_t)strlen(tableNameKey);
-    fullKeyLen = baseLen + 1 + pColRef->tagCondLen;
-    fullKey = taosMemoryMalloc(fullKeyLen + 1);
-    if (NULL == fullKey) {
-      PLAN_ERR_JRET(terrno);
-    }
-    memcpy(fullKey, tableNameKey, baseLen);
-    fullKey[baseLen] = '#';
-    memcpy(fullKey + baseLen + 1, pColRef->tagCondJson, pColRef->tagCondLen);
-    fullKey[fullKeyLen] = '\0';
-  } else {
-    fullKey = tableNameKey;
-    fullKeyLen = (int32_t)strlen(tableNameKey);
-  }
-
-  SScanLogicNode** ppRefScan = (SScanLogicNode**)taosHashGet(refTablesMap, fullKey, fullKeyLen);
+  SScanLogicNode** ppRefScan = (SScanLogicNode**)taosHashGet(refTablesMap, pGroupKey, groupKeyLen);
   if (NULL == ppRefScan) {
     SNode** ppExtNode = (SNode**)taosHashGet(refTableNodeMap, tableNameKey, strlen(tableNameKey));
-    if (NULL == ppExtNode || NULL == *ppExtNode) {
-      PLAN_ERR_JRET(TSDB_CODE_NOT_FOUND);
-    }
+    QUERY_CHECK_NULL(ppExtNode, code, lino, _return, TSDB_CODE_NOT_FOUND);
+    QUERY_CHECK_NULL(*ppExtNode, code, lino, _return, TSDB_CODE_NOT_FOUND);
     SExtTableNode* pExtTableNode = (SExtTableNode*)*ppExtNode;
     if (pColRef->tagCondLen > 0 && pColRef->tagCondJson != NULL) {
       extScanTryRefreshInfluxMeta(pExtTableNode);
     }
 
-    PLAN_ERR_JRET(makeExtScanLogicNode(pCxt, (SNode*)pExtTableNode, pColRef->refDbName,
-                                        pColRef->refTableName, &pExtScan));
+    code = makeExtScanLogicNode(pCxt, (SNode*)pExtTableNode, pColRef->refDbName, pColRef->refTableName, &pExtScan);
+    QUERY_CHECK_CODE(code, lino, _return);
+    created = true;
     pExtScan->scanSeq[0] = pSelect->hasRepeatScanFuncs ? 2 : 1;
     pExtScan->node.precision = pVirtualTable->pMeta->tableInfo.precision;
+    if (EXT_SOURCE_MYSQL == pExtTableNode->sourceType || EXT_SOURCE_POSTGRESQL == pExtTableNode->sourceType) {
+      SExtTableNode* pScanTable = (SExtTableNode*)pExtScan->pExtTableNode;
+      // Keep each condition group's slot identity distinct without changing the remote table name.
+      snprintf(pScanTable->table.tableAlias, sizeof(pScanTable->table.tableAlias), "_vtb_ext_%d",
+               pCxt->nextExtScanAliasId++);
+    }
 
     // Deserialize the SERIES tag condition and merge it into the scan WHERE.
     // InfluxDB materializes missing tags as empty strings in SQL results, so when a
     // SERIES predates tag growth we pin every newly-appeared tag to ''.
     if (pColRef->tagCondLen > 0 && pColRef->tagCondJson) {
-      SNode* pTagCond = NULL;
-      int32_t tcCode = nodesStringToNode(pColRef->tagCondJson, &pTagCond);
-      if (tcCode == TSDB_CODE_SUCCESS && pTagCond != NULL) {
-        if (pExtTableNode->sourceType == EXT_SOURCE_INFLUXDB) {
-          PLAN_ERR_JRET(extScanAugmentInfluxSeriesCond(&pTagCond, pExtTableNode->pExtMeta));
-        }
-        PLAN_ERR_JRET(nodesMergeNode(&pExtScan->node.pConditions, &pTagCond));
+      code = nodesStringToNode(pColRef->tagCondJson, &pTagCond);
+      QUERY_CHECK_CODE(code, lino, _return);
+      QUERY_CHECK_NULL(pTagCond, code, lino, _return, TSDB_CODE_INVALID_MSG);
+      if (pExtTableNode->sourceType == EXT_SOURCE_INFLUXDB) {
+        code = extScanAugmentInfluxSeriesCond(&pTagCond, pExtTableNode->pExtMeta);
+        QUERY_CHECK_CODE(code, lino, _return);
       }
+      code = nodesMergeNode(&pExtScan->node.pConditions, &pTagCond);
+      QUERY_CHECK_CODE(code, lino, _return);
     }
+    code = mergeExtScanFilterCond(pExtScan, pColRef);
+    QUERY_CHECK_CODE(code, lino, _return);
 
-    PLAN_ERR_JRET(scanAddCol((SLogicNode*)pExtScan, pColRef, &pVirtualTable->table,
-                             &pVirtualTable->pMeta->schema[schemaIndex], 0, NULL, false));
-    PLAN_ERR_JRET(taosHashPut(refTablesMap, fullKey, fullKeyLen, &pExtScan, POINTER_BYTES));
+    code = scanAddCol((SLogicNode*)pExtScan, pColRef, &pVirtualTable->table,
+                      &pVirtualTable->pMeta->schema[schemaIndex], 0, NULL, false);
+    QUERY_CHECK_CODE(code, lino, _return);
+    code = taosHashPut(refTablesMap, pGroupKey, groupKeyLen, &pExtScan, POINTER_BYTES);
+    QUERY_CHECK_CODE(code, lino, _return);
     put = true;
   } else {
     pExtScan = *ppRefScan;
-    PLAN_ERR_JRET(scanAddCol((SLogicNode*)pExtScan, pColRef, &pVirtualTable->table,
-                             &pVirtualTable->pMeta->schema[schemaIndex], 0, NULL, false));
+    code = scanAddCol((SLogicNode*)pExtScan, pColRef, &pVirtualTable->table,
+                      &pVirtualTable->pMeta->schema[schemaIndex], 0, NULL, false);
+    QUERY_CHECK_CODE(code, lino, _return);
   }
 
 _return:
-  if (fullKey != NULL && fullKey != tableNameKey) {
-    taosMemoryFree(fullKey);
-  }
-  if (code != TSDB_CODE_SUCCESS && !put) {
+  taosMemoryFree(pGroupKey);
+  nodesDestroyNode(pTagCond);
+  if (TSDB_CODE_SUCCESS != code && created && !put) {
     nodesDestroyNode((SNode*)pExtScan);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -2308,6 +2417,7 @@ static int32_t makeVirtualScanLogicNode(SLogicPlanContext* pCxt, SVirtualTableNo
   pScan->tableId = pVirtualTable->pMeta->uid;
   pScan->stableId = pVirtualTable->pMeta->suid;
   pScan->tableType = pVirtualTable->pMeta->tableType;
+  pScan->hasFilterCond = pVirtualTable->hasFilterCond;
   pScan->node.precision = pVirtualTable->pMeta->tableInfo.precision;
   pScan->tableName.type = TSDB_TABLE_NAME_T;
   pScan->tableName.acctId = pCxt->pPlanCxt->acctId;
@@ -2381,10 +2491,16 @@ static int32_t findColRefIndexByName(SColRef* pColRef, SVirtualTableNode* pVirtu
 
 typedef struct {
   SVirtualTableNode* pVirtualTable;
+  SHashObj*          pRefTablesMap;
+  int32_t            code;
 } SSyncVTableColRefCxt;
 
 static bool isSameVirtualTableCol(SVirtualTableNode* pVirtualTable, SColumnNode* pCol) {
   if (NULL == pVirtualTable || NULL == pCol) {
+    return false;
+  }
+  if ('\0' != pCol->tableAlias[0] && '\0' != pVirtualTable->table.tableAlias[0] &&
+      0 != strcmp(pCol->tableAlias, pVirtualTable->table.tableAlias)) {
     return false;
   }
 
@@ -2397,13 +2513,22 @@ static bool isSameVirtualTableCol(SVirtualTableNode* pVirtualTable, SColumnNode*
 }
 
 static EDealRes syncVirtualTableColRefImpl(SNode* pNode, void* pContext) {
-  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
-    return DEAL_RES_CONTINUE;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN:
+      break;
+    default:
+      return DEAL_RES_CONTINUE;
   }
 
   SSyncVTableColRefCxt* pCxt = (SSyncVTableColRefCxt*)pContext;
   SColumnNode*          pCol = (SColumnNode*)pNode;
   SColRef*              pRef = NULL;
+  uint8_t*              pGroupKey = NULL;
+  int32_t               groupKeyLen = 0;
+  int32_t               code = pCxt->code;
+  int32_t               lino = 0;
+
+  QUERY_CHECK_CODE(code, lino, _return);
 
   if (!isSameVirtualTableCol(pCxt->pVirtualTable, pCol)) {
     return DEAL_RES_CONTINUE;
@@ -2431,6 +2556,19 @@ static EDealRes syncVirtualTableColRefImpl(SNode* pNode, void* pContext) {
     tstrncpy(pCol->refDbName, pRef->refDbName, sizeof(pCol->refDbName));
     tstrncpy(pCol->refTableName, pRef->refTableName, sizeof(pCol->refTableName));
     tstrncpy(pCol->refColName, pRef->refColName, sizeof(pCol->refColName));
+    if (NULL != pCxt->pRefTablesMap && '\0' != pRef->refSourceName[0] &&
+        PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId && !pCol->isPrimTs) {
+      code = buildExtScanGroupKey(pRef, &pGroupKey, &groupKeyLen);
+      QUERY_CHECK_CODE(code, lino, _return);
+      SScanLogicNode** ppScan = taosHashGet(pCxt->pRefTablesMap, pGroupKey, groupKeyLen);
+      QUERY_CHECK_NULL(ppScan, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR);
+      QUERY_CHECK_NULL(*ppScan, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR);
+      SExtTableNode* pScanTable = (SExtTableNode*)(*ppScan)->pExtTableNode;
+      QUERY_CHECK_NULL(pScanTable, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR);
+      tstrncpy(pCol->refSourceName, pScanTable->sourceName, sizeof(pCol->refSourceName));
+      tstrncpy(pCol->refDbName, pScanTable->table.dbName, sizeof(pCol->refDbName));
+      tstrncpy(pCol->refTableName, pScanTable->table.tableAlias, sizeof(pCol->refTableName));
+    }
   } else {
     pCol->hasRef = false;
     pCol->refSourceName[0] = '\0';
@@ -2439,23 +2577,31 @@ static EDealRes syncVirtualTableColRefImpl(SNode* pNode, void* pContext) {
     pCol->refColName[0] = '\0';
   }
 
+_return:
+  taosMemoryFree(pGroupKey);
+  pCxt->code = code;
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    return DEAL_RES_ERROR;
+  }
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t syncVirtualTableColRefs(SNodeList* pExprs, SVirtualTableNode* pVirtualTable) {
+static int32_t syncVirtualTableColRefs(SNodeList* pExprs, SVirtualTableNode* pVirtualTable, SHashObj* pRefTablesMap) {
   if (NULL == pExprs) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SSyncVTableColRefCxt cxt = {.pVirtualTable = pVirtualTable};
+  SSyncVTableColRefCxt cxt = {.pVirtualTable = pVirtualTable, .pRefTablesMap = pRefTablesMap};
   nodesWalkExprs(pExprs, syncVirtualTableColRefImpl, &cxt);
-  return TSDB_CODE_SUCCESS;
+  return cxt.code;
 }
 
-static int32_t syncVirtualTableStmtColRefs(SSelectStmt* pSelect, SVirtualTableNode* pVirtualTable) {
-  SSyncVTableColRefCxt cxt = {.pVirtualTable = pVirtualTable};
+static int32_t syncVirtualTableStmtColRefs(SSelectStmt* pSelect, SVirtualTableNode* pVirtualTable,
+                                           SHashObj* pRefTablesMap) {
+  SSyncVTableColRefCxt cxt = {.pVirtualTable = pVirtualTable, .pRefTablesMap = pRefTablesMap};
   nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, syncVirtualTableColRefImpl, &cxt);
-  return TSDB_CODE_SUCCESS;
+  return cxt.code;
 }
 
 static int32_t syncVirtualTablePrimaryTsRef(SVirtualTableNode* pVirtualTable) {
@@ -2748,17 +2894,8 @@ typedef struct SVtbSingleRefTsCxt {
 } SVtbSingleRefTsCxt;
 
 static bool isVtbPrimaryTsCol(SColumnNode* pCol, SVirtualTableNode* pVirtualTable) {
-  if (NULL == pCol || NULL == pVirtualTable || (!pCol->isPrimTs && pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID)) {
-    return false;
-  }
-
-  if (pCol->tableId == pVirtualTable->pMeta->uid) {
-    return true;
-  }
-
-  return 0 == strncmp(pCol->tableAlias, pVirtualTable->table.tableAlias, TSDB_TABLE_NAME_LEN) &&
-         0 == strncmp(pCol->tableName, pVirtualTable->table.tableName, TSDB_TABLE_NAME_LEN) &&
-         0 == strncmp(pCol->colName, pVirtualTable->pMeta->schema[0].name, TSDB_COL_NAME_LEN);
+  return NULL != pCol && (pCol->isPrimTs || PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) &&
+         isSameVirtualTableCol(pVirtualTable, pCol);
 }
 
 static EDealRes setSelectVtbTsRefInfo(SNode* pNode, void* pContext) {
@@ -4163,9 +4300,9 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   }
 
   PLAN_ERR_JRET(syncVirtualTablePrimaryTsRef(pVirtualTable));
-  PLAN_ERR_JRET(syncVirtualTableStmtColRefs(pSelect, pVirtualTable));
-  PLAN_ERR_JRET(syncVirtualTableColRefs(pVtableScan->pScanCols, pVirtualTable));
-  PLAN_ERR_JRET(syncVirtualTableColRefs(pVtableScan->pScanPseudoCols, pVirtualTable));
+  PLAN_ERR_JRET(syncVirtualTableStmtColRefs(pSelect, pVirtualTable, NULL));
+  PLAN_ERR_JRET(syncVirtualTableColRefs(pVtableScan->pScanCols, pVirtualTable, NULL));
+  PLAN_ERR_JRET(syncVirtualTableColRefs(pVtableScan->pScanPseudoCols, pVirtualTable, NULL));
 
   // ====================================================================
   // TagRef Processing for Virtual Child Table
@@ -4416,6 +4553,9 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
     }
   }
 
+  PLAN_ERR_JRET(syncVirtualTableStmtColRefs(pSelect, pVirtualTable, pRefTablesMap));
+  PLAN_ERR_JRET(syncVirtualTableColRefs(pVtableScan->pScanCols, pVirtualTable, pRefTablesMap));
+  PLAN_ERR_JRET(syncVirtualTableColRefs(pVtableScan->pScanPseudoCols, pVirtualTable, pRefTablesMap));
   PLAN_ERR_JRET(replaceVtbTsWithSingleRefTs(pSelect, pVirtualTable, pVtableScan, pRefTablesMap));
 
   // Iterate the table map, build scan logic node for each origin table and add these node to vtable scan's child list.

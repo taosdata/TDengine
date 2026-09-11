@@ -527,6 +527,8 @@ struct TableMetaFrameLayout {
   std::vector<MetaSection>     optionalSections;
   MetaVarField                 firstRefConditionBinaryLength = {};
   MetaVarField                 firstSeriesConditionLength = {};
+  MetaVarField                 filterCount = {};
+  size_t                       filterSectionOffset = 0;
   size_t                       numTagsOffset = 0;
   size_t                       numColumnsOffset = 0;
   size_t                       tableTypeOffset = 0;
@@ -615,6 +617,8 @@ std::vector<uint8_t> makeProducerTableMetaFrame(bool partialRefs = false) {
 
     tagRefs[i] = colRefs[i];
     tagRefs[i].id = schemas[i + 2].colId;
+    colRefs[i].filterCondJson = const_cast<char*>(i == 0 ? "filter_a" : "filter_b");
+    colRefs[i].filterCondLen = static_cast<int32_t>(strlen(colRefs[i].filterCondJson));
   }
 
   SSeriesEntry series[2] = {};
@@ -837,6 +841,22 @@ TableMetaFrameLayout describeProducerTableMetaFrame(const std::vector<uint8_t>& 
   }
   layout.optionalSections.push_back({refExtStart, cursor.pos()});
   layout.compatiblePrefixEnds.push_back(cursor.pos());
+  layout.filterSectionOffset = cursor.pos();
+  layout.filterCount = cursor.readVar();
+  EXPECT_EQ(static_cast<uint32_t>(numColRefs) * 2, layout.filterCount.value);
+  for (int32_t i = 0; i < numColRefs; ++i) {
+    const size_t lengthOffset = cursor.pos();
+    const int32_t length = cursor.readI32();
+    if (length == 0) continue;
+    EXPECT_TRUE(colHasRef[i]);
+    MetaVarField binaryLength = cursor.readVar();
+    EXPECT_EQ(length, static_cast<int32_t>(binaryLength.value));
+    cursor.skip(binaryLength.value);
+    layout.refConditionLengthOffsets.push_back(lengthOffset);
+    layout.refConditionBinaryLengths.push_back(binaryLength);
+  }
+  layout.optionalSections.push_back({layout.filterSectionOffset, cursor.pos()});
+  layout.compatiblePrefixEnds.push_back(cursor.pos());
   EXPECT_EQ(frame.size(), cursor.pos());
   return layout;
 }
@@ -938,11 +958,16 @@ TEST(td_msg_test, table_meta_rsp_public_decoder_accepts_producer_and_compatible_
     ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSTableMetaRsp(const_cast<uint8_t*>(valid.data()), valid.size(), &decoded));
     EXPECT_EQ(2, decoded.numOfColumns);
     EXPECT_EQ(2, decoded.numOfTags);
+    ASSERT_NE(nullptr, decoded.pColRefs);
+    EXPECT_STREQ("filter_a", decoded.pColRefs[0].filterCondJson);
+    EXPECT_EQ(static_cast<int32_t>(strlen("filter_a")), decoded.pColRefs[0].filterCondLen);
     if (partialRefs) {
       ASSERT_NE(nullptr, decoded.pColRefs);
       ASSERT_NE(nullptr, decoded.pTagRefs);
       EXPECT_FALSE(decoded.pColRefs[1].hasRef);
       EXPECT_FALSE(decoded.pTagRefs[1].hasRef);
+      EXPECT_EQ(0, decoded.pColRefs[1].filterCondLen);
+      EXPECT_EQ(nullptr, decoded.pColRefs[1].filterCondJson);
     }
     tFreeSTableMetaRsp(&decoded);
 
@@ -954,6 +979,10 @@ TEST(td_msg_test, table_meta_rsp_public_decoder_accepts_producer_and_compatible_
       STableMetaRsp prefixDecoded = {};
       EXPECT_EQ(TSDB_CODE_SUCCESS,
                 tDeserializeSTableMetaRsp(prefix.data(), static_cast<int32_t>(prefix.size()), &prefixDecoded));
+      if (prefixEnd <= layout.filterSectionOffset && prefixDecoded.pColRefs != nullptr) {
+        EXPECT_EQ(0, prefixDecoded.pColRefs[0].filterCondLen);
+        EXPECT_EQ(nullptr, prefixDecoded.pColRefs[0].filterCondJson);
+      }
       tFreeSTableMetaRsp(&prefixDecoded);
     }
   }
@@ -1137,6 +1166,7 @@ TEST(td_msg_test, table_meta_rsp_public_decoder_rejects_noncanonical_varints) {
   for (const auto& field : layout.refNames) u32Fields.push_back(&field.length);
   for (const auto& field : layout.seriesNames) u32Fields.push_back(&field.length);
   for (const auto& field : layout.refConditionBinaryLengths) u32Fields.push_back(&field);
+  u32Fields.push_back(&layout.filterCount);
   fieldIndex = 0;
   for (const auto* field : u32Fields) {
     const auto cases = malformedVarints(valid, *field, false);
@@ -1375,6 +1405,9 @@ TEST(td_msg_test, destroy_sv_create_tb_req_frees_tag_ref) {
   req.colRef.nCols = 1;
   req.colRef.pColRef = (SColRef*)taosMemoryCalloc(1, sizeof(SColRef));
   ASSERT_NE(req.colRef.pColRef, nullptr);
+  req.colRef.pColRef[0].filterCondJson = taosStrdup("FILTER_COND");
+  ASSERT_NE(req.colRef.pColRef[0].filterCondJson, nullptr);
+  req.colRef.pColRef[0].filterCondLen = (int32_t)strlen(req.colRef.pColRef[0].filterCondJson);
   req.colRef.nTagRefs = 2;
   req.colRef.pTagRef = (SColRef*)taosMemoryCalloc(2, sizeof(SColRef));
   ASSERT_NE(req.colRef.pTagRef, nullptr);
@@ -1535,6 +1568,8 @@ TEST(td_msg_test, decode_old_scol_ref_wrapper_defaults_federated_fields) {
   ASSERT_STREQ(out.pColRef[0].refSchemaName, "");
   ASSERT_EQ(out.pColRef[0].tagCondLen, 0);
   ASSERT_EQ(out.pColRef[0].tagCondJson, nullptr);
+  ASSERT_EQ(out.pColRef[0].filterCondLen, 0);
+  ASSERT_EQ(out.pColRef[0].filterCondJson, nullptr);
 
   ASSERT_EQ(out.pColRef[1].id, 11);
   ASSERT_STREQ(out.pColRef[1].refDbName, "old_db1");
@@ -1576,6 +1611,8 @@ TEST(td_msg_test, scol_ref_wrapper_roundtrips_federated_fields_at_tail) {
   tstrncpy(in.pColRef[0].refColName, "col0", sizeof(in.pColRef[0].refColName));
   in.pColRef[0].tagCondJson = (char*)"TAG_COND";
   in.pColRef[0].tagCondLen = (int32_t)strlen(in.pColRef[0].tagCondJson);
+  in.pColRef[0].filterCondJson = (char*)"FILTER_COND";
+  in.pColRef[0].filterCondLen = (int32_t)strlen(in.pColRef[0].filterCondJson);
 
   SEncoder encoder = {0};
   tEncoderInit(&encoder, NULL, 0);
@@ -1606,10 +1643,48 @@ TEST(td_msg_test, scol_ref_wrapper_roundtrips_federated_fields_at_tail) {
   ASSERT_STREQ(out.pColRef[0].refSchemaName, "schema0");
   ASSERT_EQ(out.pColRef[0].tagCondLen, (int32_t)strlen("TAG_COND"));
   ASSERT_STREQ(out.pColRef[0].tagCondJson, "TAG_COND");
+  ASSERT_EQ(out.pColRef[0].filterCondLen, (int32_t)strlen("FILTER_COND"));
+  ASSERT_STREQ(out.pColRef[0].filterCondJson, "FILTER_COND");
 
   tFreeSColRefArray(out.pColRef, out.nCols);
   taosMemoryFree(out.pColRef);
   taosMemoryFree(in.pColRef);
+}
+
+TEST(td_msg_test, alter_column_ref_roundtrips_filter_condition_at_tail) {
+  SVAlterTbReq in = {0};
+  in.tbName = (char*)"vt";
+  in.action = TSDB_ALTER_TABLE_ALTER_COLUMN_REF;
+  in.colName = (char*)"value";
+  in.refDbName = (char*)"db0";
+  in.refTbName = (char*)"tb0";
+  in.refColName = (char*)"value";
+  in.refSourceName = (char*)"mysql0";
+  in.refType = 1;
+  in.filterCondJson = (char*)"FILTER_COND";
+  in.filterCondLen = (int32_t)strlen(in.filterCondJson);
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tEncodeSVAlterTbReq(&encoder, &in), 0);
+  int32_t size = encoder.pos;
+  tEncoderClear(&encoder);
+  ASSERT_GT(size, 0);
+
+  std::vector<char> buf(size, 0);
+  tEncoderInit(&encoder, (uint8_t*)buf.data(), size);
+  ASSERT_EQ(tEncodeSVAlterTbReq(&encoder, &in), 0);
+  tEncoderClear(&encoder);
+
+  SVAlterTbReq out = {0};
+  SDecoder      decoder = {0};
+  tDecoderInit(&decoder, (uint8_t*)buf.data(), size);
+  ASSERT_EQ(tDecodeSVAlterTbReq(&decoder, &out), 0);
+  tDecoderClear(&decoder);
+
+  ASSERT_EQ(out.filterCondLen, (int32_t)strlen("FILTER_COND"));
+  ASSERT_STREQ(out.filterCondJson, "FILTER_COND");
+  destroyAlterTbReq(&out);
 }
 
 TEST(td_msg_test, destroy_sv_submit_create_tb_req_frees_tag_ref) {
@@ -2919,6 +2994,20 @@ TEST(td_msg_test, vtb_tag_cond_codec) {
   ASSERT_NE(taosArrayPush(rsp.pEntries, &e2), nullptr);
   rsp.numOfRefs = 2;
 
+  rsp.pFilterConds = taosArrayInit(2, sizeof(SVtbColFilterCond));
+  ASSERT_NE(rsp.pFilterConds, nullptr);
+  SVtbColFilterCond f1 = {0};
+  f1.colId = 2;
+  f1.filterCondJson = (char*)"FILTER_COND_A";
+  f1.filterCondLen = (int32_t)strlen(f1.filterCondJson);
+  ASSERT_NE(taosArrayPush(rsp.pFilterConds, &f1), nullptr);
+  SVtbColFilterCond f2 = {0};
+  f2.colId = 7;
+  f2.filterCondJson = (char*)"FILTER_COND_B2";
+  f2.filterCondLen = (int32_t)strlen(f2.filterCondJson);
+  ASSERT_NE(taosArrayPush(rsp.pFilterConds, &f2), nullptr);
+  rsp.numOfFilterConds = 2;
+
   int32_t rspSize = tSerializeSVTagCondRsp(NULL, 0, &rsp);
   ASSERT_GT(rspSize, 0);
   std::vector<char> rspBuf(rspSize, 0);
@@ -2935,8 +3024,42 @@ TEST(td_msg_test, vtb_tag_cond_codec) {
   ASSERT_EQ(p1->colId, 5);
   ASSERT_STREQ(p1->tagCondJson, "COND_JSON_B2");
 
+  ASSERT_EQ(rspOut.numOfFilterConds, 2);
+  ASSERT_EQ((int32_t)taosArrayGetSize(rspOut.pFilterConds), 2);
+  SVtbColFilterCond* pFilter0 = (SVtbColFilterCond*)taosArrayGet(rspOut.pFilterConds, 0);
+  SVtbColFilterCond* pFilter1 = (SVtbColFilterCond*)taosArrayGet(rspOut.pFilterConds, 1);
+  ASSERT_EQ(pFilter0->colId, 2);
+  ASSERT_EQ(pFilter0->filterCondLen, (int32_t)strlen("FILTER_COND_A"));
+  ASSERT_STREQ(pFilter0->filterCondJson, "FILTER_COND_A");
+  ASSERT_EQ(pFilter1->colId, 7);
+  ASSERT_EQ(pFilter1->filterCondLen, (int32_t)strlen("FILTER_COND_B2"));
+  ASSERT_STREQ(pFilter1->filterCondJson, "FILTER_COND_B2");
+
   taosArrayDestroy(rsp.pEntries);   // shallow: e1/e2 json are literals
+  taosArrayDestroy(rsp.pFilterConds);  // shallow: f1/f2 json are literals
   tDestroySVTagCondRsp(&rspOut);    // deep free decoded copies
+}
+
+TEST(td_msg_test, vtb_tag_cond_rsp_decodes_legacy_payload_without_filter_extension) {
+  std::vector<uint8_t> buf(256, 0);
+  SEncoder             encoder = {0};
+  tEncoderInit(&encoder, buf.data(), (int32_t)buf.size());
+  ASSERT_EQ(tStartEncode(&encoder), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 1), 0);
+  ASSERT_EQ(tEncodeI16(&encoder, 3), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 4), 0);
+  ASSERT_EQ(tEncodeBinary(&encoder, (const uint8_t*)"COND", 4), 0);
+  tEndEncode(&encoder);
+  int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+
+  SVTagCondRsp rsp = {0};
+  ASSERT_EQ(tDeserializeSVTagCondRsp(buf.data(), len, &rsp), 0);
+  ASSERT_EQ(rsp.numOfRefs, 1);
+  ASSERT_EQ((int32_t)taosArrayGetSize(rsp.pEntries), 1);
+  ASSERT_EQ(rsp.numOfFilterConds, 0);
+  ASSERT_EQ(rsp.pFilterConds, nullptr);
+  tDestroySVTagCondRsp(&rsp);
 }
 
 TEST(td_msg_test, federated_scan_op_param_codec) {
@@ -2964,6 +3087,10 @@ TEST(td_msg_test, federated_scan_op_param_codec) {
   const char* cond = "host='h1' AND region='r2'";
   fsParam.tagCond = (char*)cond;
   fsParam.tagCondLen = (int32_t)strlen(cond);
+  const char* filterCond = "device='d1'";
+  fsParam.scanParamId = 1001;
+  fsParam.filterCondJson = (char*)filterCond;
+  fsParam.filterCondLen = (int32_t)strlen(filterCond);
   param.value = &fsParam;
 
   SEncoder encoder = {0};
@@ -3026,10 +3153,14 @@ TEST(td_msg_test, federated_scan_op_param_codec) {
   ASSERT_STREQ(o2->colName, "idle");
   ASSERT_EQ(pOut->tagCondLen, (int32_t)strlen(cond));
   ASSERT_STREQ(pOut->tagCond, cond);
+  ASSERT_EQ(pOut->scanParamId, 1001);
+  ASSERT_EQ(pOut->filterCondLen, (int32_t)strlen(filterCond));
+  ASSERT_STREQ(pOut->filterCondJson, filterCond);
 
   taosArrayDestroy(fsParam.colMap);
   taosArrayDestroy(pOut->colMap);
   taosMemoryFree(pOut->tagCond);
+  taosMemoryFree(pOut->filterCondJson);
   taosMemoryFree(pOut);
 }
 
@@ -3049,6 +3180,9 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
   tstrncpy(table1.tableName, "sensor_a", sizeof(table1.tableName));
   table1.dstPrecision = TSDB_TIME_PRECISION_MILLI;
   table1.virtualChildUid = 101;
+  table1.scanParamId = 1001;
+  table1.filterCondJson = (char*)"device='d1'";
+  table1.filterCondLen = (int32_t)strlen(table1.filterCondJson);
   table1.pPushedCondJson = taosStrdup("{\"type\":1}");
   ASSERT_NE(table1.pPushedCondJson, nullptr);
   table1.colMap = taosArrayInit(1, sizeof(SColIdNameKV));
@@ -3065,6 +3199,9 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
   table2.dstPrecision = TSDB_TIME_PRECISION_MICRO;
   table2.rowLimit = 128;
   table2.virtualChildUid = 202;
+  table2.scanParamId = 2002;
+  table2.filterCondJson = (char*)"device='d2'";
+  table2.filterCondLen = (int32_t)strlen(table2.filterCondJson);
   table2.colMap = taosArrayInit(1, sizeof(SColIdNameKV));
   ASSERT_NE(table2.colMap, nullptr);
   SColIdNameKV col2 = {0};
@@ -3144,6 +3281,9 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
   ASSERT_STREQ(pOut1->dbName, "metrics");
   ASSERT_STREQ(pOut1->tableName, "sensor_a");
   ASSERT_EQ(pOut1->virtualChildUid, 101);
+  ASSERT_EQ(pOut1->scanParamId, 1001);
+  ASSERT_EQ(pOut1->filterCondLen, table1.filterCondLen);
+  ASSERT_STREQ(pOut1->filterCondJson, table1.filterCondJson);
   ASSERT_STREQ(pOut1->pPushedCondJson, "{\"type\":1}");
   ASSERT_EQ(pOut1->pPushedCond, nullptr);
   ASSERT_STREQ(((SColIdNameKV*)taosArrayGet(pOut1->colMap, 0))->colName, "value");
@@ -3151,6 +3291,9 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
   ASSERT_STREQ(pOut2->tableName, "sensor_b");
   ASSERT_EQ(pOut2->rowLimit, 128);
   ASSERT_EQ(pOut2->virtualChildUid, 202);
+  ASSERT_EQ(pOut2->scanParamId, 2002);
+  ASSERT_EQ(pOut2->filterCondLen, table2.filterCondLen);
+  ASSERT_STREQ(pOut2->filterCondJson, table2.filterCondJson);
 
   for (int32_t i = 0; i < taosArrayGetSize(fsParam.pBatchTables); ++i) {
     SForeignTableInfo* pTable = (SForeignTableInfo*)taosArrayGet(fsParam.pBatchTables, i);
@@ -3162,6 +3305,7 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
     SForeignTableInfo* pTable = (SForeignTableInfo*)taosArrayGet(pOut->pBatchTables, i);
     taosArrayDestroy(pTable->colMap);
     taosMemoryFree(pTable->tagCond);
+    taosMemoryFree(pTable->filterCondJson);
     taosMemoryFree(pTable->pPushedCondJson);
   }
   taosArrayDestroy(pOut->pBatchTables);
@@ -3228,6 +3372,8 @@ TEST(td_msg_test, federated_scan_batch_op_param_cleans_partial_decode) {
   ASSERT_EQ(tEncodeI64(&encoder, 0), 0);
   ASSERT_EQ(tEncodeCStr(&encoder, ""), 0);
   ASSERT_EQ(tEncodeU64(&encoder, 101), 0);
+  ASSERT_EQ(tEncodeU64(&encoder, 1001), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
 
   // Start the second table but truncate it before tableName is encoded.
   ASSERT_EQ(tEncodeCStr(&encoder, "db2"), 0);
@@ -3246,6 +3392,48 @@ TEST(td_msg_test, federated_scan_batch_op_param_cleans_partial_decode) {
   taosMemoryFree(out.value);
 }
 
+TEST(td_msg_test, table_cfg_decode_clears_partial_column_filters) {
+  SSchema     schemas[2] = {};
+  SSchemaExt  schemaExt[2] = {};
+  SColRef     refs[2] = {};
+  const char* filters[] = {"FILTER_FIRST", "FILTER_SECOND"};
+  for (int32_t i = 0; i < 2; ++i) {
+    schemas[i].type = TSDB_DATA_TYPE_INT;
+    schemas[i].bytes = sizeof(int32_t);
+    schemas[i].colId = i + 1;
+    schemaExt[i].colId = schemas[i].colId;
+    refs[i].hasRef = true;
+    refs[i].id = schemas[i].colId;
+    refs[i].filterCondJson = const_cast<char*>(filters[i]);
+    refs[i].filterCondLen = strlen(filters[i]);
+  }
+  STableCfgRsp source = {};
+  source.tableType = TSDB_VIRTUAL_NORMAL_TABLE;
+  source.numOfColumns = 2;
+  source.pSchemas = schemas;
+  source.pSchemaExt = schemaExt;
+  source.pColRefs = refs;
+  int32_t size = tSerializeSTableCfgRsp(nullptr, 0, &source);
+  ASSERT_GT(size, 0);
+  std::vector<char> frame(size);
+  ASSERT_EQ(tSerializeSTableCfgRsp(frame.data(), size, &source), size);
+
+  // The final field contains the second filter. Corrupt its declared length
+  // after the decoder has already allocated the first filter's owned string.
+  size_t payload = std::string(frame.data(), frame.size()).find(filters[1]);
+  ASSERT_NE(payload, std::string::npos);
+  ASSERT_GE(payload, sizeof(int32_t) + 1);
+  int32_t invalidLength = strlen(filters[1]) + 1;
+  memcpy(frame.data() + payload - sizeof(int32_t) - 1, &invalidLength, sizeof(invalidLength));
+  STableCfgRsp decoded = {};
+  EXPECT_EQ(tDeserializeSTableCfgRsp(frame.data(), frame.size(), &decoded), TSDB_CODE_INVALID_MSG);
+  ASSERT_NE(decoded.pColRefs, nullptr);
+  for (int32_t i = 0; i < decoded.numOfColumns; ++i) {
+    EXPECT_EQ(decoded.pColRefs[i].filterCondJson, nullptr);
+    EXPECT_EQ(decoded.pColRefs[i].filterCondLen, 0);
+  }
+  tFreeSTableCfgRsp(&decoded);
+}
 TEST(td_msg_test, retrieve_table_req_xnode_fields_roundtrip) {
   SRetrieveTableReq input = {0};
   input.showId = 7;

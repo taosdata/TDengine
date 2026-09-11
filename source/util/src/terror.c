@@ -1211,6 +1211,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED,      "Virtual table refer
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_REF_COLUMN,      "Virtual table query cannot resolve ref column")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_CIRCULAR_REF,            "Virtual table circular reference detected")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_DATA_SRC_EP_MISS,         "No valid epSet for virtual super table data source node")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_EXT_FILTER,     "Invalid external column filter expression")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_DUPLICATE_EXT_FILTER_COLUMN, "Duplicate column in external column filter")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INCOMPLETE_EXT_PK_FILTER, "External column filter must constrain every business primary key column with an equality literal")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_EXT_FILTER_NOT_SUPPORTED, "External column filters require a direct MySQL or PostgreSQL column reference")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_EXT_FILTER_SQL_FAILED, "Cannot generate or execute remote SQL with the stored external column filter")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_SEQ_NOT_FOUND, "Blob seq not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT_TAG, "Blob type not support on tag")

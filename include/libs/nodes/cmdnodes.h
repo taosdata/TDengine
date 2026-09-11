@@ -327,6 +327,7 @@ typedef struct SColumnOptions {
   char      refTable[TSDB_TABLE_NAME_LEN];
   char      refColumn[TSDB_COL_NAME_LEN];
   SNode     *pTagCond;        // series tag condition (SOperatorNode or SLogicConditionNode), or NULL
+  SNode     *pFilterCond;     // MySQL/PostgreSQL external-column filter, or NULL
 } SColumnOptions;
 
 typedef struct SColumnDefNode {
@@ -475,6 +476,7 @@ typedef struct SAlterTableStmt {
   char            refColName[TSDB_COL_NAME_LEN];
   int8_t          refType;  // 0=local, 1=external
   SNode*          pWhere;
+  SNode*          pFilterCond;  // MySQL/PostgreSQL external-column filter, or NULL
   SNode*          pSeriesDecl;  // SSeriesDeclNode* for ADD SERIES
   char            seriesAlias[TSDB_COL_NAME_LEN]; // for REMOVE SERIES
 } SAlterTableStmt;
