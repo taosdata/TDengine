@@ -328,6 +328,177 @@ class TestStartFoundationModel:
             assert "task_id" in status
 
 
+class TestDownloadAndStartFoundationModel:
+    """Test download_and_start_foundation_model endpoint."""
+
+    def test_missing_model_name(self):
+        """Test download-and-start request without model_name."""
+        mock_request = Mock()
+        mock_request.remote_addr = "127.0.0.1"
+        mock_request.get_json.return_value = {}
+
+        status, code = foundation_model.download_and_start_foundation_model(mock_request)
+
+        assert code == 400
+        assert status["status"] == "error"
+        assert "model_name" in status["error"]
+
+    def test_invalid_model(self):
+        """Test download-and-start request for non-existent model."""
+        mock_request = Mock()
+        mock_request.remote_addr = "127.0.0.1"
+        mock_request.get_json.return_value = {"model_name": "nonexistent"}
+
+        with patch(
+            "taosanalytics.tsfmservice.foundation_model._validate_model_in_repository"
+        ) as mock_validate:
+            mock_validate.return_value = (False, None, "Model not found")
+
+            status, code = foundation_model.download_and_start_foundation_model(mock_request)
+
+            assert code == 404
+            assert status["status"] == "error"
+
+    def test_already_running_model(self):
+        """Test download-and-start request for already running model."""
+        mock_request = Mock()
+        mock_request.remote_addr = "127.0.0.1"
+        mock_request.get_json.return_value = {"model_name": "moirai"}
+
+        from taosanalytics.tsfmservice.foundation_models_db import get_dao
+        dao = get_dao()
+        dao.update_model("moirai", downloaded=True, running=True)
+
+        status, code = foundation_model.download_and_start_foundation_model(mock_request)
+
+        assert code == 400
+        assert "already running" in status["error"].lower()
+
+    def test_already_downloaded_starts_without_download(self):
+        """Test already-downloaded model triggers start only (download skipped)."""
+        mock_request = Mock()
+        mock_request.remote_addr = "127.0.0.1"
+        mock_request.get_json.return_value = {"model_name": "moirai"}
+
+        from taosanalytics.tsfmservice.foundation_models_db import get_dao
+        dao = get_dao()
+        dao.update_model("moirai", downloaded=True, running=False)
+
+        with patch(
+            "taosanalytics.tsfmservice.foundation_model._trigger_model_start_background"
+        ):
+            status, code = foundation_model.download_and_start_foundation_model(mock_request)
+
+            assert code == 202
+            assert status["status"] == "queued"
+            assert "download skipped" in status["message"].lower()
+            assert status["task_id"].startswith("start-")
+            # Only a start operation is created (no download_start operation).
+            operations = dao.list_async_operations(model_name="moirai")
+            assert len(operations) == 1
+            assert operations[0].operation == "start"
+
+    def test_download_and_start_success(self, reset_foundation_models):
+        """Test successful combined download-and-start initiation."""
+        mock_request = Mock()
+        mock_request.remote_addr = "127.0.0.1"
+        mock_request.get_json.return_value = {"model_name": "moirai"}
+
+        with patch(
+            "taosanalytics.tsfmservice.foundation_model._validate_model_in_repository"
+        ) as mock_validate, patch(
+            "taosanalytics.tsfmservice.foundation_model._trigger_model_download_start_background"
+        ):
+            dao = reset_foundation_models
+            mock_validate.return_value = (True, {"name": "moirai"}, None)
+
+            status, code = foundation_model.download_and_start_foundation_model(mock_request)
+
+            assert code == 202
+            assert status["status"] == "queued"
+            assert status["auto_start"] is True
+            assert "task_id" in status
+            assert "download-start" in status["task_id"]
+            operations = dao.list_async_operations(model_name="moirai")
+            assert len(operations) == 1
+            assert operations[0].operation == "download_start"
+            assert operations[0].task_id == status["task_id"]
+
+
+class TestRunDownloadTaskCancellation:
+    """Test _run_download_task abort handling while waiting for the download lock."""
+
+    @staticmethod
+    def _make_queued_op(dao, task_id="download-moirai-wait1"):
+        dao.create_async_operation(AsyncOperation(
+            task_id=task_id,
+            operation="download",
+            model_name="moirai",
+            status=foundation_model.TaskStatus.QUEUED.value,
+            data={"release": "1.0.0", "resource_base_url": "", "replace": False},
+        ))
+        return task_id
+
+    def test_aborts_wait_when_op_deleted(self, reset_foundation_models):
+        """Waiting for the lock aborts if the op row is deleted while waiting."""
+        dao = reset_foundation_models
+        task_id = self._make_queued_op(dao)
+        # Simulate the task being cancelled/removed while it waits for the lock.
+        dao.delete_async_operation(task_id)
+
+        with patch(
+            "taosanalytics.tsfmservice.foundation_model._try_acquire_download_lock",
+            return_value=None,
+        ) as mock_lock:
+            result = foundation_model._run_download_task(
+                task_id, "moirai", "1.0.0", "https://example.com", False
+            )
+
+        assert result["status"] == foundation_model.TaskStatus.INTERRUPTED.value
+        mock_lock.assert_called_once()
+
+    def test_aborts_wait_when_op_no_longer_queued(self, reset_foundation_models):
+        """Waiting for the lock aborts if the op is no longer 'queued' (cancelled)."""
+        dao = reset_foundation_models
+        task_id = self._make_queued_op(dao)
+        # Simulate a cancellation that flips the status away from queued.
+        dao.update_async_operation(
+            task_id, status=foundation_model.TaskStatus.INTERRUPTED.value
+        )
+
+        with patch(
+            "taosanalytics.tsfmservice.foundation_model._try_acquire_download_lock",
+            return_value=None,
+        ):
+            result = foundation_model._run_download_task(
+                task_id, "moirai", "1.0.0", "https://example.com", False
+            )
+
+        assert result["status"] == foundation_model.TaskStatus.INTERRUPTED.value
+
+    def test_aborts_after_lock_when_op_invalid(self, reset_foundation_models):
+        """After winning the lock, a stale/cancelled op is not executed."""
+        dao = reset_foundation_models
+        task_id = self._make_queued_op(dao)
+        dao.delete_async_operation(task_id)
+
+        with patch(
+            "taosanalytics.tsfmservice.foundation_model._try_acquire_download_lock",
+            return_value=1234,
+        ), patch(
+            "taosanalytics.tsfmservice.foundation_model._release_download_lock"
+        ) as mock_release, patch(
+            "taosanalytics.tsfmservice.foundation_model._get_taosanodectl_cmd"
+        ) as mock_cmd:
+            result = foundation_model._run_download_task(
+                task_id, "moirai", "1.0.0", "https://example.com", False
+            )
+
+        assert result["status"] == foundation_model.TaskStatus.INTERRUPTED.value
+        mock_release.assert_called_once_with(1234)
+        mock_cmd.assert_not_called()
+
+
 class TestStopFoundationModel:
     """Test stop_foundation_model endpoint."""
 
