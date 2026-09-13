@@ -1148,7 +1148,8 @@ int32_t pyOpen(SScriptUdfEnvItem *items, int numItems) {
   }
 
   fs::path logPath = logDir / "taospyudf.log";
-  plog::init(plog::info, logPath.c_str(), 50 * 1024 * 1024, 5);
+  std::string logPathString = logPath.string();
+  plog::init(plog::info, logPathString.c_str(), 50 * 1024 * 1024, 5);
 
 #ifdef TAOSPYUDF_SELF_DSO
   if (!selfDsoErr.empty()) {
