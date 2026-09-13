@@ -864,6 +864,28 @@ if(NOT TD_WINDOWS)       # {
         set(ext_tz_static libtz.a)
         set(_c_flags_list -fPIC -DHAVE_GETTEXT=0 -DTHREAD_SAFE=1) # TODO: brew install gettext?
     endif()
+    # NOTE: tzcode(libtz.a) is built by tz's own hand-written Makefile via
+    #       `make "CFLAGS=${_c_flags}"`, NOT by CMake. So CMAKE_BUILD_TYPE never
+    #       reaches it, and the command-line CFLAGS overrides the Makefile
+    #       default -- without an explicit -O it compiles at -O0, which makes
+    #       mktime() about 2.2x slower than an optimized build.
+    #       Mirror the main project's per-config flags so libtz.a matches the
+    #       outer CMAKE_BUILD_TYPE (Release -> -O3 -DNDEBUG, Debug -> -g, ...)
+    if(TD_CONFIG_NAME_RESOLVED STREQUAL "Release")
+        set(_tz_config_flags "${CMAKE_C_FLAGS_RELEASE}")
+    elseif(TD_CONFIG_NAME_RESOLVED STREQUAL "RelWithDebInfo")
+        set(_tz_config_flags "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
+    elseif(TD_CONFIG_NAME_RESOLVED STREQUAL "MinSizeRel")
+        set(_tz_config_flags "${CMAKE_C_FLAGS_MINSIZEREL}")
+    else()
+        set(_tz_config_flags "${CMAKE_C_FLAGS_DEBUG}")
+    endif()
+    # Never leave libtz.a unoptimized, even if the config flags are emptied.
+    if(_tz_config_flags STREQUAL "")
+        set(_tz_config_flags "-O2")
+    endif()
+    separate_arguments(_tz_config_flags_list UNIX_COMMAND "${_tz_config_flags}")
+    list(APPEND _c_flags_list ${_tz_config_flags_list})
     INIT_EXT(ext_tz
         INC_DIR          include
         LIB              usr/lib/${ext_tz_static}
