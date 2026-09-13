@@ -15558,7 +15558,7 @@ static bool fqProjectIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pSc
     fqDiagDumpExprList("project.targets", pProj->node.pTargets);
   }
   if (OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_FQ_UNIQUE_LOCAL)) {
-    planDebug("FQ-push: Project NOT pushable — rewritten UNIQUE must keep local semantics project=%p",
+    planDebug("FQ-push: Project NOT pushable - rewritten UNIQUE must keep local semantics project=%p",
               pProj);
     return false;
   }
@@ -15568,14 +15568,14 @@ static bool fqProjectIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pSc
     // Local execution can honor that metadata, but remote SQL rendering would
     // collapse them back to bare source columns and lose CAST/TO_ISO8601
     // semantics. Keep these branch wrappers local for cross-source merges.
-    planDebug("FQ-push: Project NOT pushable — cross-source set-op branch normalization must stay local project=%p",
+    planDebug("FQ-push: Project NOT pushable - cross-source set-op branch normalization must stay local project=%p",
               pProj);
     return false;
   }
   if (pProj->isSetOpProj && pNode->pChildren != NULL && LIST_LENGTH(pNode->pChildren) > 1) {
     const SExtTableNode* pRefExt = (const SExtTableNode*)pScan->pExtTableNode;
     if (NULL == pRefExt) {
-      planDebug("FQ-push: SetOp Project NOT pushable — reference ext table missing");
+      planDebug("FQ-push: SetOp Project NOT pushable - reference ext table missing");
       return false;
     }
 
@@ -15584,14 +15584,14 @@ static bool fqProjectIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pSc
     FOREACH(pBranch, pNode->pChildren) {
       SScanLogicNode* pBranchScan = fqFindExternalLogicLeafScan((SLogicNode*)pBranch);
       if (NULL == pBranchScan || NULL == pBranchScan->pExtTableNode) {
-        planDebug("FQ-push: SetOp Project NOT pushable — branch[%d] missing external scan", branchIdx);
+        planDebug("FQ-push: SetOp Project NOT pushable - branch[%d] missing external scan", branchIdx);
         return false;
       }
 
       const SExtTableNode* pBranchExt = (const SExtTableNode*)pBranchScan->pExtTableNode;
       if (pBranchExt->sourceType != pRefExt->sourceType ||
           0 != strncmp(pBranchExt->sourceName, pRefExt->sourceName, TSDB_EXT_SOURCE_NAME_LEN)) {
-        planDebug("FQ-push: SetOp Project NOT pushable — branch[%d] cross-source ref=(%d,%s) branch=(%d,%s)",
+        planDebug("FQ-push: SetOp Project NOT pushable - branch[%d] cross-source ref=(%d,%s) branch=(%d,%s)",
                   branchIdx, (int)pRefExt->sourceType, pRefExt->sourceName,
                   (int)pBranchExt->sourceType, pBranchExt->sourceName);
         return false;
@@ -15619,7 +15619,7 @@ static bool fqProjectIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pSc
     }
     planDebug("FQ-push: Project expr[%d] nodeType=%d pushable=%d", idx, (int)nodeType(pInner), (int)ok);
     if (!ok) {
-      planDebug("FQ-push: Project NOT pushable — expr[%d] blocked (nodeType=%d)", idx, (int)nodeType(pInner));
+      planDebug("FQ-push: Project NOT pushable - expr[%d] blocked (nodeType=%d)", idx, (int)nodeType(pInner));
       return false;
     }
     idx++;
@@ -15632,7 +15632,7 @@ static bool fqProjectIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pSc
       bool ok = fqExprIsPushable(pInner, pScan, pCap, pOverlay, pPlanCxt);
       planDebug("FQ-push: Project target[%d] nodeType=%d pushable=%d", idx, (int)nodeType(pInner), (int)ok);
       if (!ok) {
-        planDebug("FQ-push: Project NOT pushable — target[%d] blocked (nodeType=%d)", idx, (int)nodeType(pInner));
+        planDebug("FQ-push: Project NOT pushable - target[%d] blocked (nodeType=%d)", idx, (int)nodeType(pInner));
         return false;
       }
       idx++;
@@ -15657,7 +15657,7 @@ static bool fqProjectCanPartiallyPushdown(const SProjectLogicNode* pProj, SScanL
     return false;
   }
   if (fqProjectIsCrossSourceSetOpBranch(pProj, pScan)) {
-    planDebug("FQ-partialProject: skip — cross-source set-op branch normalization must stay local project=%p",
+    planDebug("FQ-partialProject: skip - cross-source set-op branch normalization must stay local project=%p",
               pProj);
     return false;
   }
@@ -15727,7 +15727,7 @@ static bool fqSortAllKeysPushdownable(const SLogicNode* pNode, SScanLogicNode* p
   EExtClauseKind orderClause = EXT_CLAUSE_ORDER;
   if (!fqClauseIsPushable(orderClause, pCap ? pCap->dialect : -1, pOverlay) ||
       capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &orderClause)) {
-    planDebug("FQ-push: Sort NOT pushable — ORDER clause disabled by capability");
+    planDebug("FQ-push: Sort NOT pushable - ORDER clause disabled by capability");
     return false;
   }
 
@@ -15740,7 +15740,7 @@ static bool fqSortAllKeysPushdownable(const SLogicNode* pNode, SScanLogicNode* p
       pInner = ((const SOrderByExprNode*)pInner)->pExpr;
     }
     if (pInner == NULL) {
-      planDebug("FQ-push: Sort NOT pushable — key[%d] expr is NULL", kidx);
+      planDebug("FQ-push: Sort NOT pushable - key[%d] expr is NULL", kidx);
       return false;
     }
     // colId==0 indicates a synthetic/precalculated column — not pushable
@@ -15752,19 +15752,19 @@ static bool fqSortAllKeysPushdownable(const SLogicNode* pNode, SScanLogicNode* p
              kidx, pCol->colName, (int)pCol->colId, (int)aboveAgg,
              (int)((const SExprNode*)pInner)->resType.type);
       if (pCol->colId == 0 && !aboveAgg) {
-        planDebug("FQ-push: Sort NOT pushable — key[%d] col=%s colId==0 (synthetic, not above AGG)", kidx, pCol->colName);
+        planDebug("FQ-push: Sort NOT pushable - key[%d] col=%s colId==0 (synthetic, not above AGG)", kidx, pCol->colName);
         return false;
       }
       int8_t keyType = (int8_t)((const SExprNode*)pInner)->resType.type;
       if (keyType > 0 && capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_TYPE, &keyType)) {
-        planDebug("FQ-push: Sort NOT pushable — key[%d] col=%s type=%d disabled by capability", kidx, pCol->colName, (int)keyType);
+        planDebug("FQ-push: Sort NOT pushable - key[%d] col=%s type=%d disabled by capability", kidx, pCol->colName, (int)keyType);
         return false;
       }
     } else {
       bool ok = fqExprIsPushable((SNode*)pInner, pScan, pCap, pOverlay, pPlanCxt);
       planDebug("FQ-push: Sort key[%d] non-col nodeType=%d pushable=%d", kidx, (int)nodeType(pInner), (int)ok);
       if (!ok) {
-        planDebug("FQ-push: Sort NOT pushable — key[%d] non-col expr (nodeType=%d) not pushable", kidx, (int)nodeType(pInner));
+        planDebug("FQ-push: Sort NOT pushable - key[%d] non-col expr (nodeType=%d) not pushable", kidx, (int)nodeType(pInner));
         return false;
       }
     }
@@ -15799,7 +15799,7 @@ static bool fqAggIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
   if (nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_AGG) return true;
   const SAggLogicNode* pAgg = (const SAggLogicNode*)pNode;
   if (OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_FQ_UNIQUE_LOCAL)) {
-    planDebug("FQ-push: AGG NOT pushable — rewritten UNIQUE must keep local semantics agg=%p",
+    planDebug("FQ-push: AGG NOT pushable - rewritten UNIQUE must keep local semantics agg=%p",
               pAgg);
     return false;
   }
@@ -15811,7 +15811,7 @@ static bool fqAggIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
   // single-branch DISTINCT/GROUP BY remote SQL. Keep these containers for the
   // dedicated FqUnionDedup rule, which builds a multi-child remote set-op plan.
   if (pNode->pChildren != NULL && LIST_LENGTH(pNode->pChildren) > 1) {
-    planDebug("FQ-push: AGG NOT pushable — multi-branch dedup/set-op container children=%d handled by FqUnionDedup",
+    planDebug("FQ-push: AGG NOT pushable - multi-branch dedup/set-op container children=%d handled by FqUnionDedup",
               (int)LIST_LENGTH(pNode->pChildren));
     return false;
   }
@@ -15820,7 +15820,7 @@ static bool fqAggIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
   EExtClauseKind aggClause = EXT_CLAUSE_AGG;
   if (!fqClauseIsPushable(aggClause, pCap ? pCap->dialect : -1, pOverlay) ||
       capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &aggClause)) {
-    planDebug("FQ-push: AGG NOT pushable — AGG clause disabled by capability");
+    planDebug("FQ-push: AGG NOT pushable - AGG clause disabled by capability");
     return false;
   }
 
@@ -15830,7 +15830,7 @@ static bool fqAggIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
     EExtClauseKind distClause = EXT_CLAUSE_DISTINCT;
     if (!fqClauseIsPushable(distClause, pCap ? pCap->dialect : -1, pOverlay) ||
         capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &distClause)) {
-      planDebug("FQ-push: AGG NOT pushable — DISTINCT clause disabled by capability");
+      planDebug("FQ-push: AGG NOT pushable - DISTINCT clause disabled by capability");
       return false;
     }
   }
@@ -15847,7 +15847,7 @@ static bool fqAggIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
     bool ok = fqExprIsPushable(pExpr, pScan, pCap, pOverlay, pPlanCxt);
     planDebug("FQ-push: AGG groupKey[%d] nodeType=%d pushable=%d", kidx, (int)nodeType(pExpr), (int)ok);
     if (!ok) {
-      planDebug("FQ-push: AGG NOT pushable — groupKey[%d] blocked (nodeType=%d)", kidx, (int)nodeType(pExpr));
+      planDebug("FQ-push: AGG NOT pushable - groupKey[%d] blocked (nodeType=%d)", kidx, (int)nodeType(pExpr));
       return false;
     }
     kidx++;
@@ -15874,7 +15874,7 @@ static bool fqAggIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
       planDebug("FQ-push: AGG func[%d] nodeType=%d pushable=%d", fidx, (int)nodeType(pFunc), (int)ok);
     }
     if (!ok) {
-      planDebug("FQ-push: AGG NOT pushable — func[%d] blocked (nodeType=%d)", fidx, (int)nodeType(pFunc));
+      planDebug("FQ-push: AGG NOT pushable - func[%d] blocked (nodeType=%d)", fidx, (int)nodeType(pFunc));
       return false;
     }
     fidx++;
@@ -15885,13 +15885,13 @@ static bool fqAggIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
     EExtClauseKind havingClause = EXT_CLAUSE_HAVING;
     if (!fqClauseIsPushable(havingClause, pCap ? pCap->dialect : -1, pOverlay) ||
         capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &havingClause)) {
-      planDebug("FQ-push: AGG NOT pushable — HAVING clause disabled by capability");
+      planDebug("FQ-push: AGG NOT pushable - HAVING clause disabled by capability");
       return false;
     }
     bool ok = fqExprIsPushable(pAgg->node.pConditions, pScan, pCap, pOverlay, pPlanCxt);
     planDebug("FQ-push: AGG HAVING nodeType=%d pushable=%d", (int)nodeType(pAgg->node.pConditions), (int)ok);
     if (!ok) {
-      planDebug("FQ-push: AGG NOT pushable — HAVING expr blocked");
+      planDebug("FQ-push: AGG NOT pushable - HAVING expr blocked");
       return false;
     }
   }
@@ -15913,7 +15913,7 @@ static bool fqAggIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
     planDebug("FQ-push: AGG guard scanWhere nodeType=%d whereClauseEnabled=%d whereExprPushable=%d",
               (int)nodeType(pScan->node.pConditions), (int)whereClauseEnabled, (int)whereExprPushable);
     if (!whereExprPushable) {
-      planDebug("FQ-push: AGG NOT pushable — scan WHERE must stay local");
+      planDebug("FQ-push: AGG NOT pushable - scan WHERE must stay local");
       return false;
     }
   }
@@ -15942,7 +15942,7 @@ static bool fqIndefIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan
              fidx, ((SFunctionNode*)pFunc)->functionName, (int)ok);
     }
     if (!ok) {
-      planDebug("FQ-push: INDEF NOT pushable — func[%d] blocked", fidx);
+      planDebug("FQ-push: INDEF NOT pushable - func[%d] blocked", fidx);
       return false;
     }
     fidx++;
@@ -16252,21 +16252,21 @@ static bool fqLogicTreeUsesOnlySourceRecursive(const SLogicNode* pNode, int32_t 
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType((SNode*)pNode)) {
     const SScanLogicNode* pScan = (const SScanLogicNode*)pNode;
     if (SCAN_TYPE_EXTERNAL != pScan->scanType) {
-      planDebug("FQ-subq: subQIdx:%d same-source failed — non-external scan node=%p scanType=%d",
+      planDebug("FQ-subq: subQIdx:%d same-source failed - non-external scan node=%p scanType=%d",
                 ownerSubQIdx, pScan, (int)pScan->scanType);
       return false;
     }
 
     const SExtTableNode* pExt = (const SExtTableNode*)pScan->pExtTableNode;
     if (NULL == pExt) {
-      planDebug("FQ-subq: subQIdx:%d same-source failed — external scan missing ext node=%p",
+      planDebug("FQ-subq: subQIdx:%d same-source failed - external scan missing ext node=%p",
                 ownerSubQIdx, pScan);
       return false;
     }
 
     if (pExt->sourceType != sourceType ||
         0 != strncmp(pExt->sourceName, pSourceName, TSDB_EXT_SOURCE_NAME_LEN)) {
-      planDebug("FQ-subq: subQIdx:%d same-source failed — scan=%p source=(%d,%s) expected=(%d,%s)",
+      planDebug("FQ-subq: subQIdx:%d same-source failed - scan=%p source=(%d,%s) expected=(%d,%s)",
                 ownerSubQIdx, pScan, (int)pExt->sourceType, pExt->sourceName,
                 (int)sourceType, NULL != pSourceName ? pSourceName : "(null)");
       return false;
@@ -16275,7 +16275,7 @@ static bool fqLogicTreeUsesOnlySourceRecursive(const SLogicNode* pNode, int32_t 
     if (NULL != pScan->pRemoteLogicPlan &&
         !fqLogicTreeUsesOnlySourceRecursive((const SLogicNode*)pScan->pRemoteLogicPlan, ownerSubQIdx,
                                             sourceType, pSourceName)) {
-      planDebug("FQ-subq: subQIdx:%d same-source failed — nested remote logic on scan=%p",
+      planDebug("FQ-subq: subQIdx:%d same-source failed - nested remote logic on scan=%p",
                 ownerSubQIdx, pScan);
       return false;
     }
@@ -16386,13 +16386,13 @@ static bool fqSubqueryLogicIsPushable(const SPlanContext* pPlanCxt, int32_t subQ
 
   const SExtTableNode* pOuterExt = (NULL != pScan) ? (const SExtTableNode*)pScan->pExtTableNode : NULL;
   if (NULL == pOuterExt) {
-    planDebug("FQ-subq: subQIdx:%d not pushable — outer scan missing external source info outerScan=%p",
+    planDebug("FQ-subq: subQIdx:%d not pushable - outer scan missing external source info outerScan=%p",
               subQIdx, pScan);
     return false;
   }
 
   if (!fqLogicTreeUsesOnlySourceRecursive(pLogicRoot, subQIdx, pOuterExt->sourceType, pOuterExt->sourceName)) {
-    planDebug("FQ-subq: subQIdx:%d not pushable — subquery source differs from outer source=(%d,%s)",
+    planDebug("FQ-subq: subQIdx:%d not pushable - subquery source differs from outer source=(%d,%s)",
               subQIdx, (int)pOuterExt->sourceType, pOuterExt->sourceName);
     return false;
   }
@@ -16729,7 +16729,7 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
       }
       planDebug("FQ-push: REMOTE_VALUE_LIST dialect=%d directOk=%d", dialect, (int)directOk);
       if (!directOk) {
-        planDebug("FQ-push: REMOTE_VALUE_LIST not pushable — IN_SUBQUERY disabled by capability");
+        planDebug("FQ-push: REMOTE_VALUE_LIST not pushable - IN_SUBQUERY disabled by capability");
         return false;
       }
       SRemoteValueListNode* pRVL = (SRemoteValueListNode*)pExpr;
@@ -16745,7 +16745,7 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
                 pScan ? pScan->tableName.tname : "(null)");
       }
       if (!subqueryPushable) {
-        planDebug("FQ-push: REMOTE_VALUE_LIST not pushable — descendant logic plan blocked (subQIdx=%d)", subQIdx);
+        planDebug("FQ-push: REMOTE_VALUE_LIST not pushable - descendant logic plan blocked (subQIdx=%d)", subQIdx);
         return false;
       }
       bool renderModeOk =
@@ -16756,7 +16756,7 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
                 pRVL, subQIdx, (int)renderModeOk, (int)pRVL->renderMode);
       }
       if (!renderModeOk) {
-        planDebug("FQ-push: REMOTE_VALUE_LIST not pushable — translated inner body unsupported for dialect=%d (subQIdx=%d)",
+        planDebug("FQ-push: REMOTE_VALUE_LIST not pushable - translated inner body unsupported for dialect=%d (subQIdx=%d)",
                   dialect, subQIdx);
         return false;
       }
@@ -16770,7 +16770,7 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
       bool directOk = fqClauseIsPushable(scalarClause, dialect, pOverlay) &&
                       !capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &scalarClause);
       if (!directOk) {
-        planDebug("FQ-push: REMOTE_VALUE not pushable — SCALAR_SUBQUERY disabled by capability");
+        planDebug("FQ-push: REMOTE_VALUE not pushable - SCALAR_SUBQUERY disabled by capability");
         return false;
       }
       SRemoteValueNode* pRV = (SRemoteValueNode*)pExpr;
@@ -16778,11 +16778,11 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
       planDebug("FQ-push: REMOTE_VALUE collect subQIdx:%d ownerSubQIdx:%d", subQIdx,
                 pPlanCxt ? pPlanCxt->subqueryIndex : -2);
       if (!fqSubqueryLogicIsPushable(pPlanCxt, subQIdx, QUERY_NODE_REMOTE_VALUE, pScan, pCap, pOverlay)) {
-        planDebug("FQ-push: REMOTE_VALUE not pushable — descendant logic plan blocked (subQIdx=%d)", subQIdx);
+        planDebug("FQ-push: REMOTE_VALUE not pushable - descendant logic plan blocked (subQIdx=%d)", subQIdx);
         return false;
       }
       if (!fqAssignNodeRenderMode((SNode*)pRV, scalarClause, dialect, pPlanCxt, subQIdx, &pRV->renderMode)) {
-        planDebug("FQ-push: REMOTE_VALUE not pushable — translated inner body unsupported for dialect=%d (subQIdx=%d)",
+        planDebug("FQ-push: REMOTE_VALUE not pushable - translated inner body unsupported for dialect=%d (subQIdx=%d)",
                   dialect, subQIdx);
         return false;
       }
@@ -16803,7 +16803,7 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
       bool directOk = fqClauseIsPushable(allAnyClause, dialect, pOverlay) &&
                       !capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &allAnyClause);
       if (!directOk) {
-        planDebug("FQ-push: REMOTE_ROW not pushable — ALL_ANY_SUBQUERY disabled by capability");
+        planDebug("FQ-push: REMOTE_ROW not pushable - ALL_ANY_SUBQUERY disabled by capability");
         return false;
       }
       SRemoteRowNode* pRR = (SRemoteRowNode*)pExpr;
@@ -16811,11 +16811,11 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
       planDebug("FQ-push: REMOTE_ROW collect subQIdx:%d ownerSubQIdx:%d", subQIdx,
                 pPlanCxt ? pPlanCxt->subqueryIndex : -2);
       if (!fqSubqueryLogicIsPushable(pPlanCxt, subQIdx, QUERY_NODE_REMOTE_ROW, pScan, pCap, pOverlay)) {
-        planDebug("FQ-push: REMOTE_ROW not pushable — descendant logic plan blocked (subQIdx=%d)", subQIdx);
+        planDebug("FQ-push: REMOTE_ROW not pushable - descendant logic plan blocked (subQIdx=%d)", subQIdx);
         return false;
       }
       if (!fqAssignNodeRenderMode((SNode*)pRR, allAnyClause, dialect, pPlanCxt, subQIdx, &pRR->renderMode)) {
-        planDebug("FQ-push: REMOTE_ROW not pushable — translated inner body unsupported for dialect=%d (subQIdx=%d)",
+        planDebug("FQ-push: REMOTE_ROW not pushable - translated inner body unsupported for dialect=%d (subQIdx=%d)",
                   dialect, subQIdx);
         return false;
       }
@@ -16831,7 +16831,7 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
       bool directOk = fqClauseIsPushable(existsClause, dialect, pOverlay) &&
                       !capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &existsClause);
       if (!directOk) {
-        planDebug("FQ-push: REMOTE_ZERO_ROWS not pushable — EXISTS_SUBQUERY disabled by capability");
+        planDebug("FQ-push: REMOTE_ZERO_ROWS not pushable - EXISTS_SUBQUERY disabled by capability");
         return false;
       }
       SRemoteZeroRowsNode* pRZ = (SRemoteZeroRowsNode*)pExpr;
@@ -16839,11 +16839,11 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
       planDebug("FQ-push: REMOTE_ZERO_ROWS collect subQIdx:%d ownerSubQIdx:%d", subQIdx,
                 pPlanCxt ? pPlanCxt->subqueryIndex : -2);
       if (!fqSubqueryLogicIsPushable(pPlanCxt, subQIdx, QUERY_NODE_REMOTE_ZERO_ROWS, pScan, pCap, pOverlay)) {
-        planDebug("FQ-push: REMOTE_ZERO_ROWS not pushable — descendant logic plan blocked (subQIdx=%d)", subQIdx);
+        planDebug("FQ-push: REMOTE_ZERO_ROWS not pushable - descendant logic plan blocked (subQIdx=%d)", subQIdx);
         return false;
       }
       if (!fqAssignNodeRenderMode((SNode*)pRZ, existsClause, dialect, pPlanCxt, subQIdx, &pRZ->renderMode)) {
-        planDebug("FQ-push: REMOTE_ZERO_ROWS not pushable — translated inner body unsupported for dialect=%d (subQIdx=%d)",
+        planDebug("FQ-push: REMOTE_ZERO_ROWS not pushable - translated inner body unsupported for dialect=%d (subQIdx=%d)",
                   dialect, subQIdx);
         return false;
       }
@@ -16854,7 +16854,7 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
       SFunctionNode* pFunc = (SFunctionNode*)pExpr;
       int32_t dialect = pCap ? pCap->dialect : -1;
       if (fqShouldKeepAnalyzeInfluxScalarAggLocal(pFunc, dialect, pPlanCxt)) {
-        planDebug("FQ-push: func=%s funcId=%d dialect=%d keep local — explain analyze keeps aggregate with scalar subquery local",
+        planDebug("FQ-push: func=%s funcId=%d dialect=%d keep local - explain analyze keeps aggregate with scalar subquery local",
                   pFunc->functionName, pFunc->funcId, dialect);
         return false;
       }
@@ -16867,12 +16867,12 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
       if (capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_FUNC, pFunc->functionName)) return false;
       if (fqFuncArgIsType(pFunc, 0, TSDB_DATA_TYPE_NCHAR) &&
           !fqFuncArg0NcharIsPushable(pFunc->funcId, dialect, pOverlay)) {
-        planDebug("FQ-push: func=%s funcId=%d dialect=%d keep local — arg0 NCHAR disabled by function capability matrix to preserve TDengine UCS4 byte semantics",
+        planDebug("FQ-push: func=%s funcId=%d dialect=%d keep local - arg0 NCHAR disabled by function capability matrix to preserve TDengine UCS4 byte semantics",
                   pFunc->functionName, pFunc->funcId, dialect);
         return false;
       }
       if (!fqWeekFuncIsPushable(pFunc, dialect)) {
-        planDebug("FQ-push: func=%s funcId=%d dialect=%d keep local — non-ISO WEEK semantics are not equivalent on this dialect",
+        planDebug("FQ-push: func=%s funcId=%d dialect=%d keep local - non-ISO WEEK semantics are not equivalent on this dialect",
                   pFunc->functionName, pFunc->funcId, dialect);
         return false;
       }
@@ -16957,7 +16957,7 @@ static int32_t fqFoldNowTodayInExpr(SNode** ppNode, int32_t prec, timezone_t tz)
         if (TSDB_CODE_SUCCESS != code) return code;
         nodesDestroyNode(pNode);
         *ppNode = pVal;
-        planDebug("FQ-fold: folded %s() → %" PRId64 " (prec=%d)",
+        planDebug("FQ-fold: folded %s() -> %" PRId64 " (prec=%d)",
                   ft == FUNCTION_TYPE_NOW ? "NOW" : "TODAY", ts, prec);
         return TSDB_CODE_SUCCESS;
       }
@@ -18351,7 +18351,7 @@ static int32_t fqCloneRemotePkColRef(const SScanLogicNode* pDockScan, SColumnNod
   SExtTableNode* pExtNode = (SExtTableNode*)pDockScan->pExtTableNode;
   if (NULL == pExtNode->pExtMeta || pExtNode->tsPrimaryColIdx < 0 ||
       pExtNode->tsPrimaryColIdx >= pExtNode->pExtMeta->numOfCols) {
-    planDebug("FQ-gc-order: skip clone pk col — no ext primary key metadata dockScan=%p", pDockScan);
+    planDebug("FQ-gc-order: skip clone pk col - no ext primary key metadata dockScan=%p", pDockScan);
     *ppPkCol = NULL;
     return TSDB_CODE_SUCCESS;
   }
@@ -18602,7 +18602,7 @@ static int32_t fqPrepareRemoteGroupConcatOrder(SScanLogicNode* pScan) {
   int32_t code = fqCloneRemotePkColRef(pScan, &pPkCol);
   if (TSDB_CODE_SUCCESS != code || NULL == pPkCol) {
     if (TSDB_CODE_SUCCESS == code) {
-      planDebug("FQ-gc-order: skip remote group_concat order prep scan=%p — no pk col cloned", pScan);
+      planDebug("FQ-gc-order: skip remote group_concat order prep scan=%p - no pk col cloned", pScan);
     }
     return code;
   }
@@ -18985,7 +18985,7 @@ static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   EExtClauseKind interpClause = EXT_CLAUSE_INTERP;
   if (!fqClauseIsPushable(interpClause, dialect, pCxt->pSessionOverlay) ||
       capDisabled(pCxt->pExtCapability, pCxt->pSessionOverlay, EXT_DEMOTE_KIND_CLAUSE, &interpClause)) {
-    planDebug("FqInterp: skip — INTERP clause disabled by capability matrix dialect=%d subQIdx=%d",
+    planDebug("FqInterp: skip - INTERP clause disabled by capability matrix dialect=%d subQIdx=%d",
               dialect, pCxt->pPlanCxt ? pCxt->pPlanCxt->subqueryIndex : -2);
     return TSDB_CODE_SUCCESS;
   }
@@ -18995,14 +18995,14 @@ static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   // the scan in an earlier rule round.
   SScanLogicNode* pScan = fqFindInterpExternalScan(pLogicSubplan->pNode);
   if (NULL == pScan) {
-    planDebug("FqInterp: skip — no external scan found under local INTERP subtree");
+    planDebug("FqInterp: skip - no external scan found under local INTERP subtree");
     return TSDB_CODE_SUCCESS;
   }
 
   // Find INTERP ancestor above the scan
   SInterpFuncLogicNode* pInterp = fqFindInterpAboveScan(pScan);
   if (NULL == pInterp) {
-    planDebug("FqInterp: skip — matched external scan=%p but no INTERP ancestor remains", pScan);
+    planDebug("FqInterp: skip - matched external scan=%p but no INTERP ancestor remains", pScan);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -19169,7 +19169,7 @@ static void fqLogPushdownResult(const SScanLogicNode* pScan, int32_t dialect) {
     const char* name = (rtype == QUERY_NODE_LOGIC_PLAN_SORT)    ? "Sort" :
                        (rtype == QUERY_NODE_LOGIC_PLAN_PROJECT)  ? "Project" :
                        (rtype == QUERY_NODE_LOGIC_PLAN_AGG)      ? "Agg" : "?";
-    chainOff += snprintf(chainBuf + chainOff, sizeof(chainBuf) - (size_t)chainOff - 1, "%s→", name);
+    chainOff += snprintf(chainBuf + chainOff, sizeof(chainBuf) - (size_t)chainOff - 1, "%s->", name);
     if (chainOff >= (int)sizeof(chainBuf) - 2) break;
     const SNodeList* pCh = ((const SLogicNode*)pRLP)->pChildren;
     pRLP = (pCh && LIST_LENGTH(pCh) > 0) ? nodesListGetNode((SNodeList*)pCh, 0) : NULL;
@@ -19252,7 +19252,7 @@ static int32_t fqPushLimit(SScanLogicNode* pScan, int32_t dialect,
   bool hasOffset = (pLim->offset != NULL && pLim->offset->datum.i > 0);
   if (hasOffset && (!fqClauseIsPushable(offsetClause, dialect, pCxt->pSessionOverlay) ||
       capDisabled(pCxt->pExtCapability, pCxt->pSessionOverlay, EXT_DEMOTE_KIND_CLAUSE, &offsetClause))) {
-    planDebug("FqPushLimit: OFFSET disabled — keeping LIMIT+OFFSET local");
+    planDebug("FqPushLimit: OFFSET disabled - keeping LIMIT+OFFSET local");
     // Clear pLimit from pRemoteLogicPlan so it is not rendered there.
     SNode* pCurr = pScan->pRemoteLogicPlan;
     while (pCurr != NULL) {
@@ -19318,7 +19318,7 @@ static bool fqWindowIntervalIsPushable(const SWindowLogicNode* pWin, SScanLogicN
 
   if (pPlanCxt != NULL && pPlanCxt->subqueryIndex >= 0 &&
       planIsExternalWindowSubquery(pPlanCxt, pPlanCxt->subqueryIndex)) {
-    planDebug("FqWindowIntervalIsPushable: no — subQIdx=%d is EXTERNAL_WINDOW subquery, keep INTERVAL local",
+    planDebug("FqWindowIntervalIsPushable: no - subQIdx=%d is EXTERNAL_WINDOW subquery, keep INTERVAL local",
               pPlanCxt->subqueryIndex);
     return false;
   }
@@ -19326,7 +19326,7 @@ static bool fqWindowIntervalIsPushable(const SWindowLogicNode* pWin, SScanLogicN
   // 1. No explicit FILL clause.  FILL(NONE) has no Fill logic node, but must
   // follow the same local interval plan as all other FILL modes.
   if (intervalWindowHasFill(pWin)) {
-    planDebug("FqWindowIntervalIsPushable: no — FILL clause (keep INTERVAL local)");
+    planDebug("FqWindowIntervalIsPushable: no - FILL clause (keep INTERVAL local)");
     return false;
   }
 
@@ -19335,7 +19335,7 @@ static bool fqWindowIntervalIsPushable(const SWindowLogicNode* pWin, SScanLogicN
     EExtClauseKind slidingClause = EXT_CLAUSE_INTERVAL_SLIDING;
     if (!fqClauseIsPushable(slidingClause, pCap ? pCap->dialect : -1, pOverlay) ||
         capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &slidingClause)) {
-      planDebug("FqWindowIntervalIsPushable: no — SLIDING not pushable");
+      planDebug("FqWindowIntervalIsPushable: no - SLIDING not pushable");
       return false;
     }
   }
@@ -19345,12 +19345,12 @@ static bool fqWindowIntervalIsPushable(const SWindowLogicNode* pWin, SScanLogicN
   EExtClauseKind intervalClause = EXT_CLAUSE_INTERVAL_TUMBLING;
   if (!fqClauseIsPushable(aggClause, pCap ? pCap->dialect : -1, pOverlay) ||
       capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &aggClause)) {
-    planDebug("FqWindowIntervalIsPushable: no — AGG clause disabled");
+    planDebug("FqWindowIntervalIsPushable: no - AGG clause disabled");
     return false;
   }
   if (!fqClauseIsPushable(intervalClause, pCap ? pCap->dialect : -1, pOverlay) ||
       capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &intervalClause)) {
-    planDebug("FqWindowIntervalIsPushable: no — INTERVAL_TUMBLING clause disabled");
+    planDebug("FqWindowIntervalIsPushable: no - INTERVAL_TUMBLING clause disabled");
     return false;
   }
 
@@ -19366,7 +19366,7 @@ static bool fqWindowIntervalIsPushable(const SWindowLogicNode* pWin, SScanLogicN
       continue;
     }
     if (!fqFuncIsPushable(pFunc->funcId, pCap ? pCap->dialect : -1, pOverlay)) {
-      planDebug("FqWindowIntervalIsPushable: no — func type %d not pushable", (int)pFunc->funcType);
+      planDebug("FqWindowIntervalIsPushable: no - func type %d not pushable", (int)pFunc->funcType);
       return false;
     }
   }
@@ -19376,13 +19376,13 @@ static bool fqWindowIntervalIsPushable(const SWindowLogicNode* pWin, SScanLogicN
   SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
   if (pExtNode->pExtMeta == NULL || pExtNode->tsPrimaryColIdx < 0 ||
       pExtNode->tsPrimaryColIdx >= pExtNode->pExtMeta->numOfCols) {
-    planDebug("FqWindowIntervalIsPushable: no — no ts primary key in ext meta");
+    planDebug("FqWindowIntervalIsPushable: no - no ts primary key in ext meta");
     return false;
   }
 
   // 6. interval must be positive.
   if (pWin->interval <= 0) {
-    planDebug("FqWindowIntervalIsPushable: no — interval<=0");
+    planDebug("FqWindowIntervalIsPushable: no - interval<=0");
     return false;
   }
   return true;
@@ -19402,7 +19402,7 @@ static bool fqClauseGateOpen(EExtClauseKind clause, const SExtSourceCapability* 
 static bool fqJoinNodeClausePushable(const SJoinLogicNode* pJoin, const SExtSourceCapability* pCap,
                                      const SExtCapSessionOverlay* pOverlay) {
   if (!fqClauseGateOpen(EXT_CLAUSE_JOIN, pCap, pOverlay)) {
-    planDebug("FqJoinNodeClausePushable: no — main JOIN gate closed join=%p", pJoin);
+    planDebug("FqJoinNodeClausePushable: no - main JOIN gate closed join=%p", pJoin);
     return false;
   }
 
@@ -19430,12 +19430,12 @@ static bool fqJoinNodeClausePushable(const SJoinLogicNode* pJoin, const SExtSour
     case JOIN_TYPE_RIGHT: joinSubClause = EXT_CLAUSE_RIGHT_JOIN;      break;
     case JOIN_TYPE_FULL:  joinSubClause = EXT_CLAUSE_FULL_OUTER_JOIN; break;
     default:
-      planDebug("FqJoinNodeClausePushable: no — unknown joinType=%d join=%p", (int)pJoin->joinType, pJoin);
+      planDebug("FqJoinNodeClausePushable: no - unknown joinType=%d join=%p", (int)pJoin->joinType, pJoin);
       return false;
   }
 
   if (!fqClauseGateOpen(joinSubClause, pCap, pOverlay)) {
-    planDebug("FqJoinNodeClausePushable: no — joinSubClause=%d gated off join=%p", (int)joinSubClause, pJoin);
+    planDebug("FqJoinNodeClausePushable: no - joinSubClause=%d gated off join=%p", (int)joinSubClause, pJoin);
     return false;
   }
 
@@ -19446,24 +19446,24 @@ static bool fqJoinLegSubtreePushable(SLogicNode* pNode, const SExtSourceCapabili
                                      const SExtCapSessionOverlay* pOverlay,
                                      int8_t sourceType, const char* pSourceName) {
   if (NULL == pNode) {
-    planDebug("FqJoinLegSubtreePushable: no — NULL subtree");
+    planDebug("FqJoinLegSubtreePushable: no - NULL subtree");
     return false;
   }
 
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType((SNode*)pNode)) {
     SScanLogicNode* pScan = (SScanLogicNode*)pNode;
     if (SCAN_TYPE_EXTERNAL != pScan->scanType) {
-      planDebug("FqJoinLegSubtreePushable: no — non-external scan=%p", pScan);
+      planDebug("FqJoinLegSubtreePushable: no - non-external scan=%p", pScan);
       return false;
     }
     SExtTableNode* pExt = (SExtTableNode*)pScan->pExtTableNode;
     if (NULL == pExt) {
-      planDebug("FqJoinLegSubtreePushable: no — scan ext table missing scan=%p", pScan);
+      planDebug("FqJoinLegSubtreePushable: no - scan ext table missing scan=%p", pScan);
       return false;
     }
     if (pExt->sourceType != sourceType ||
         0 != strncmp(pExt->sourceName, pSourceName, TSDB_EXT_SOURCE_NAME_LEN)) {
-      planDebug("FqJoinLegSubtreePushable: no — cross-source scan=%p source=%s expected=%s type=%d expectedType=%d",
+      planDebug("FqJoinLegSubtreePushable: no - cross-source scan=%p source=%s expected=%s type=%d expectedType=%d",
                 pScan, pExt->sourceName, pSourceName, (int)pExt->sourceType, (int)sourceType);
       return false;
     }
@@ -19473,11 +19473,11 @@ static bool fqJoinLegSubtreePushable(SLogicNode* pNode, const SExtSourceCapabili
   if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType((SNode*)pNode)) {
     SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
     if (!fqJoinNodeClausePushable(pJoin, pCap, pOverlay)) {
-      planDebug("FqJoinLegSubtreePushable: no — nested join clause gate failed join=%p", pJoin);
+      planDebug("FqJoinLegSubtreePushable: no - nested join clause gate failed join=%p", pJoin);
       return false;
     }
     if (NULL == pJoin->node.pChildren || LIST_LENGTH(pJoin->node.pChildren) != 2) {
-      planDebug("FqJoinLegSubtreePushable: no — nested join child count=%d join=%p",
+      planDebug("FqJoinLegSubtreePushable: no - nested join child count=%d join=%p",
                 pJoin->node.pChildren ? (int)LIST_LENGTH(pJoin->node.pChildren) : 0, pJoin);
       return false;
     }
@@ -19487,7 +19487,7 @@ static bool fqJoinLegSubtreePushable(SLogicNode* pNode, const SExtSourceCapabili
            fqJoinLegSubtreePushable(pRight, pCap, pOverlay, sourceType, pSourceName);
   }
 
-  planDebug("FqJoinLegSubtreePushable: no — unsupported nodeType=%d node=%p", (int)nodeType((SNode*)pNode), pNode);
+  planDebug("FqJoinLegSubtreePushable: no - unsupported nodeType=%d node=%p", (int)nodeType((SNode*)pNode), pNode);
   return false;
 }
 
@@ -19509,13 +19509,13 @@ static bool fqJoinIsPushable(SLogicNode* pNode, SScanLogicNode* pScan,
   SLogicNode* pR = (SLogicNode*)nodesListGetNode(pNode->pChildren, 1);
   SScanLogicNode* pFirstLeaf = fqFindExternalLogicLeafScan(pL);
   if (NULL == pFirstLeaf || NULL == pFirstLeaf->pExtTableNode) {
-    planDebug("FqJoinIsPushable: no — left subtree has no external leaf");
+    planDebug("FqJoinIsPushable: no - left subtree has no external leaf");
     return false;
   }
   SExtTableNode* pBaseExt = (SExtTableNode*)pFirstLeaf->pExtTableNode;
   if (!fqJoinLegSubtreePushable(pL, pCap, pOverlay, pBaseExt->sourceType, pBaseExt->sourceName) ||
       !fqJoinLegSubtreePushable(pR, pCap, pOverlay, pBaseExt->sourceType, pBaseExt->sourceName)) {
-    planDebug("FqJoinIsPushable: no — child subtree not pushable/same-source join=%p", pJoin);
+    planDebug("FqJoinIsPushable: no - child subtree not pushable/same-source join=%p", pJoin);
     return false;
   }
   return true;
@@ -19542,12 +19542,12 @@ static bool fqPartitionIsPushable(SLogicNode* pNode, SScanLogicNode* pScan,
     if (nodeType(pUp) == QUERY_NODE_LOGIC_PLAN_WINDOW) {
       const SWindowLogicNode* pWin = (const SWindowLogicNode*)pUp;
       if (pWin->winType != WINDOW_TYPE_INTERVAL) {
-        planDebug("FqPartitionIsPushable: no — non-INTERVAL WINDOW above PARTITION (winType=%d)",
+        planDebug("FqPartitionIsPushable: no - non-INTERVAL WINDOW above PARTITION (winType=%d)",
                   (int)pWin->winType);
         return false;
       }
       if (!fqWindowIntervalIsPushable(pWin, pScan, pCap, pOverlay, pPlanCxt)) {
-        planDebug("FqPartitionIsPushable: no — INTERVAL WINDOW above PARTITION is not pushable");
+        planDebug("FqPartitionIsPushable: no - INTERVAL WINDOW above PARTITION is not pushable");
         return false;
       }
       pIntervalWinAbove = pWin;
@@ -19571,12 +19571,12 @@ static bool fqPartitionIsPushable(SLogicNode* pNode, SScanLogicNode* pScan,
                         nodeType(pPart->node.pParent) == QUERY_NODE_LOGIC_PLAN_AGG) ||
                        (pIntervalWinAbove != NULL);
   if (!followedByAgg) {
-    planDebug("FqPartitionIsPushable: no — PARTITION not followed by aggregation (per-partition semantics, local)");
+    planDebug("FqPartitionIsPushable: no - PARTITION not followed by aggregation (per-partition semantics, local)");
     return false;
   }
 
   if (pIntervalWinAbove != NULL) {
-    planDebug("FqPartitionIsPushable: yes — INTERVAL WINDOW above PARTITION can be merged into one remote GROUP BY");
+    planDebug("FqPartitionIsPushable: yes - INTERVAL WINDOW above PARTITION can be merged into one remote GROUP BY");
   }
 
   bool hasTbname = keysHasTbname(pPart->pPartitionKeys);
@@ -19604,7 +19604,7 @@ static bool fqPartitionIsPushable(SLogicNode* pNode, SScanLogicNode* pScan,
     }
     if (pExpr == NULL) return false;
     if (!fqExprIsPushable(pExpr, (SScanLogicNode*)pScan, pCap, pOverlay, pPlanCxt)) {
-      planDebug("FqPartitionIsPushable: no — partition key not renderable (nodeType=%d)", (int)nodeType(pExpr));
+      planDebug("FqPartitionIsPushable: no - partition key not renderable (nodeType=%d)", (int)nodeType(pExpr));
       return false;
     }
   }
@@ -19704,28 +19704,28 @@ static bool fqLayerIsPushable(SLogicNode* pNode, SScanLogicNode* pScan,
                               const SPlanContext* pPlanCxt) {
   int idx = FQ_NODE_RULE_IDX(nodeType(pNode));
   if (idx < 0 || idx >= FQ_NODE_RULE_NUM) {
-    planDebug("FQ-layer: node type=%d out of rule-table range → not pushable", (int)nodeType(pNode));
+    planDebug("FQ-layer: node type=%d out of rule-table range -> not pushable", (int)nodeType(pNode));
     return false;
   }
   const SFqNodePushRule* pRule = &kFqNodePushTable[idx];
   if (!pRule->mapped) {
-    planDebug("FQ-layer: node type=%d not mapped → local", (int)nodeType(pNode));
+    planDebug("FQ-layer: node type=%d not mapped -> local", (int)nodeType(pNode));
     return false;
   }
   for (int i = 0; i < FQ_RULE_MAX_CLAUSES; ++i) {
     if (pRule->clauses[i] == EXT_CLAUSE_MAX) break;  // end of list
     if (!fqClauseGateOpen(pRule->clauses[i], pCap, pOverlay)) {
-      planDebug("FQ-layer: node type=%d → NOT pushable (clause %d gated off)", (int)nodeType(pNode), (int)pRule->clauses[i]);
+      planDebug("FQ-layer: node type=%d -> NOT pushable (clause %d gated off)", (int)nodeType(pNode), (int)pRule->clauses[i]);
       return false;
     }
   }
   if (pRule->judge != NULL) {
     bool ok = pRule->judge(pNode, pScan, pCap, pOverlay, pPlanCxt);
-    planDebug("FQ-layer: node type=%d clause-gates passed, judge=%d → %s",
+    planDebug("FQ-layer: node type=%d clause-gates passed, judge=%d -> %s",
               (int)nodeType(pNode), (int)ok, ok ? "PUSHABLE" : "not pushable");
     return ok;
   }
-  planDebug("FQ-layer: node type=%d → PUSHABLE (clause gates only, no finer judge)", (int)nodeType(pNode));
+  planDebug("FQ-layer: node type=%d -> PUSHABLE (clause gates only, no finer judge)", (int)nodeType(pNode));
   return true;
 }
 
@@ -19754,7 +19754,7 @@ static int32_t fqCollectPushChain(SScanLogicNode* pScan, const SExtSourceCapabil
   // (node.pConditions) must be pushable, else nothing pushes.
   if (pScan->node.pConditions != NULL &&
       !fqExprIsPushable(pScan->node.pConditions, pScan, pCap, pOverlay, pPlanCxt)) {
-    planDebug("FQ-collect: scan WHERE not pushable — nothing pushes");
+    planDebug("FQ-collect: scan WHERE not pushable - nothing pushes");
     return TSDB_CODE_SUCCESS;
   }
   SLogicNode* pBoundary = (SLogicNode*)pScan;  // scan always in the subtree
@@ -19771,7 +19771,7 @@ static int32_t fqCollectPushChain(SScanLogicNode* pScan, const SExtSourceCapabil
     }
     if (nodeType(pParent) == QUERY_NODE_LOGIC_PLAN_JOIN) {
       if (!fqLayerIsPushable(pParent, pScan, pCap, pOverlay, pPlanCxt)) {
-        planDebug("FQ-collect: stop — JOIN not pushable (capability/structure)");
+        planDebug("FQ-collect: stop - JOIN not pushable (capability/structure)");
         break;
       }
       SLogicNode* pOther = NULL;
@@ -19780,14 +19780,14 @@ static int32_t fqCollectPushChain(SScanLogicNode* pScan, const SExtSourceCapabil
         if ((SLogicNode*)pCh != pChildInChain) { pOther = (SLogicNode*)pCh; break; }
       }
       if (pOther == NULL) {
-        planDebug("FQ-collect: stop — JOIN missing other leg");
+        planDebug("FQ-collect: stop - JOIN missing other leg");
         break;
       }
       // JOIN's own post-join WHERE must be pushable (renderJoinLegWhere emits it
       // into the JOIN's combined WHERE); else the filter would be lost.
       if (pParent->pConditions != NULL &&
           !fqExprIsPushable(pParent->pConditions, pScan, pCap, pOverlay, pPlanCxt)) {
-        planDebug("FQ-collect: stop — JOIN own WHERE not pushable");
+        planDebug("FQ-collect: stop - JOIN own WHERE not pushable");
         break;
       }
       pBoundary = pParent;
@@ -19808,14 +19808,14 @@ static int32_t fqCollectPushChain(SScanLogicNode* pScan, const SExtSourceCapabil
       layerPushable = fqLayerIsPushable(pParent, pScan, pCap, pOverlay, pPlanCxt);
     }
     if (!layerPushable) {
-      planDebug("FQ-collect: stop — layer type=%d not pushable", (int)nodeType(pParent));
+      planDebug("FQ-collect: stop - layer type=%d not pushable", (int)nodeType(pParent));
       break;
     }
     // A node's own WHERE must be pushable to push the node.  AGG's pConditions is
     // HAVING (judged by fqAggIsPushdownable), so exempt it here.
     if (pParent->pConditions != NULL && nodeType(pParent) != QUERY_NODE_LOGIC_PLAN_AGG &&
         !fqExprIsPushable(pParent->pConditions, pScan, pCap, pOverlay, pPlanCxt)) {
-      planDebug("FQ-collect: stop — layer type=%d WHERE not pushable", (int)nodeType(pParent));
+      planDebug("FQ-collect: stop - layer type=%d WHERE not pushable", (int)nodeType(pParent));
       break;
     }
     pBoundary = pParent;
@@ -19985,7 +19985,7 @@ static int32_t fqRewriteRemoteTbnameTags(SLogicNode* pRemoteNode, SNode* pRemote
     }
     nodesDestroyList(*ppKeys);
     *ppKeys = pNewKeys;
-    planDebug("FQ-tagRewrite: tagless source — dropped TBNAME from remote grouping keys");
+    planDebug("FQ-tagRewrite: tagless source - dropped TBNAME from remote grouping keys");
     return TSDB_CODE_SUCCESS;
   }
 
@@ -20040,7 +20040,7 @@ static int32_t fqRewriteRemoteTbnameTags(SLogicNode* pRemoteNode, SNode* pRemote
   }
   nodesDestroyList(*ppKeys);
   *ppKeys = pNewKeys;
-  planDebug("FQ-tagRewrite: tag-aware source — TBNAME→tag-cols in remote grouping keys + leaf pScanCols");
+  planDebug("FQ-tagRewrite: tag-aware source - TBNAME->tag-cols in remote grouping keys + leaf pScanCols");
   return TSDB_CODE_SUCCESS;
 }
 
@@ -20808,7 +20808,7 @@ static int32_t fqBuildRemoteSubtree(SLogicNode* pNode, SScanLogicNode* pScanForM
 static int32_t fqCommitPushChain(SOptimizeContext* pCxt, SScanLogicNode* pScan,
                                  SLogicSubplan* pLogicSubplan, SLogicNode* pBoundary) {
   if (pBoundary == NULL) {
-    planDebug("FQ-commit: nothing pushable — scan stays fully local");
+    planDebug("FQ-commit: nothing pushable - scan stays fully local");
     return TSDB_CODE_SUCCESS;
   }
   int32_t code = TSDB_CODE_SUCCESS;
@@ -20924,7 +20924,7 @@ static int32_t fqCommitPushChain(SOptimizeContext* pCxt, SScanLogicNode* pScan,
 
   pScan->pRemoteLogicPlan = (SNode*)pRemoteSubtree;
   pRemoteSubtree->pParent = NULL;
-  planDebug("FQ-commit: done — pScan=%p pRemoteLogicPlan=%p type=%d",
+  planDebug("FQ-commit: done - pScan=%p pRemoteLogicPlan=%p type=%d",
             pScan, pRemoteSubtree, (int)nodeType(pRemoteSubtree));
   return TSDB_CODE_SUCCESS;
 }
@@ -21019,7 +21019,7 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 
   // Idempotency guard: fqPushdownOptimize may be called multiple times for the
   // same logical plan (e.g. different sub-tasks with LIMIT).  If
-  planDebug("FQ-push: optimize start — scan=%p dialect=%d", pScan, dialect);
+  planDebug("FQ-push: optimize start - scan=%p dialect=%d", pScan, dialect);
   // DIAG: log pScanCols at entry to fqOptimizeScan
   {
     char _scBuf[512] = {0}; int _scOff = 0;
@@ -21050,14 +21050,14 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
   if (NULL != pCxt->pExtCapability &&
       extCapShouldUseBaseline(pCxt->pExtCapability, pCxt->pSessionOverlay)) {
     skipCollectCommit = true;
-    planDebug("FQ-push: skip collect/commit — baseline mode enabled (dialect=%d)", dialect);
+    planDebug("FQ-push: skip collect/commit - baseline mode enabled (dialect=%d)", dialect);
   }
 
   if (!skipCollectCommit) {
     for (SLogicNode* pUp = pScan->node.pParent; pUp != NULL; pUp = pUp->pParent) {
       if (pUp->pSlimit != NULL) {
         skipCollectCommit = true;
-        planDebug("FQ-push: skip collect/commit — ancestor carries SLIMIT/SOFFSET and remote render has no slimit clause support ancestor=%p type=%s",
+        planDebug("FQ-push: skip collect/commit - ancestor carries SLIMIT/SOFFSET and remote render has no slimit clause support ancestor=%p type=%s",
                   pUp, nodesNodeName(nodeType((SNode*)pUp)));
         break;
       }
@@ -21358,7 +21358,7 @@ static int32_t fqUnionAllOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
   FOREACH(pBranchNode, pSetOp->node.pChildren) {
     SScanLogicNode* pScan = fqGetWholePushBranchScan((SLogicNode*)pBranchNode);
     if (NULL == pScan) {
-      planDebug("FQ-UNION-ALL: branch is not a whole-push scan node — keep local set-op merge branchType=%d",
+      planDebug("FQ-UNION-ALL: branch is not a whole-push scan node - keep local set-op merge branchType=%d",
                 (int)nodeType((SNode*)pBranchNode));
       OPTIMIZE_FLAG_SET_MASK(pSetOp->node.optimizedFlag, OPTIMIZE_FLAG_FQ_UNION_ALL);
       return TSDB_CODE_SUCCESS;
@@ -21369,7 +21369,7 @@ static int32_t fqUnionAllOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
     }
     SExtTableNode* pExt = (SExtTableNode*)pScan->pExtTableNode;
     if (NULL == pExt) {
-      planDebug("FQ-UNION-ALL: branch pExtTableNode NULL — skip");
+      planDebug("FQ-UNION-ALL: branch pExtTableNode NULL - skip");
       OPTIMIZE_FLAG_SET_MASK(pSetOp->node.optimizedFlag, OPTIMIZE_FLAG_FQ_UNION_ALL);
       return TSDB_CODE_SUCCESS;
     }
@@ -21381,7 +21381,7 @@ static int32_t fqUnionAllOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
       // Cross-source check
       if ((int32_t)pExt->sourceType != sourceType ||
           strncmp(pExt->sourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN) != 0) {
-        planDebug("FQ-UNION-ALL: cross-source union — skip (local merge)");
+        planDebug("FQ-UNION-ALL: cross-source union - skip (local merge)");
         OPTIMIZE_FLAG_SET_MASK(pSetOp->node.optimizedFlag, OPTIMIZE_FLAG_FQ_UNION_ALL);
         return TSDB_CODE_SUCCESS;
       }
@@ -21551,7 +21551,7 @@ static int32_t fqUnionDeduplicateOptimize(SOptimizeContext* pCxt, SLogicSubplan*
   FOREACH(pBranchNode, pDedup->node.pChildren) {
     SScanLogicNode* pScan = fqGetWholePushBranchScan((SLogicNode*)pBranchNode);
     if (NULL == pScan) {
-      planDebug("FQ-UNION-DEDUP: branch is not a whole-push scan node — skip branchType=%d",
+      planDebug("FQ-UNION-DEDUP: branch is not a whole-push scan node - skip branchType=%d",
                 (int)nodeType((SNode*)pBranchNode));
       OPTIMIZE_FLAG_SET_MASK(pDedup->node.optimizedFlag, OPTIMIZE_FLAG_FQ_UNION_DEDUP);
       return TSDB_CODE_SUCCESS;
@@ -21562,7 +21562,7 @@ static int32_t fqUnionDeduplicateOptimize(SOptimizeContext* pCxt, SLogicSubplan*
     }
     SExtTableNode* pExt = (SExtTableNode*)pScan->pExtTableNode;
     if (NULL == pExt) {
-      planDebug("FQ-UNION-DEDUP: branch pExtTableNode NULL — skip");
+      planDebug("FQ-UNION-DEDUP: branch pExtTableNode NULL - skip");
       OPTIMIZE_FLAG_SET_MASK(pDedup->node.optimizedFlag, OPTIMIZE_FLAG_FQ_UNION_DEDUP);
       return TSDB_CODE_SUCCESS;
     }
@@ -21573,7 +21573,7 @@ static int32_t fqUnionDeduplicateOptimize(SOptimizeContext* pCxt, SLogicSubplan*
     } else {
       if ((int32_t)pExt->sourceType != sourceType ||
           strncmp(pExt->sourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN) != 0) {
-        planDebug("FQ-UNION-DEDUP: cross-source union — skip (local)");
+        planDebug("FQ-UNION-DEDUP: cross-source union - skip (local)");
         OPTIMIZE_FLAG_SET_MASK(pDedup->node.optimizedFlag, OPTIMIZE_FLAG_FQ_UNION_DEDUP);
         return TSDB_CODE_SUCCESS;
       }
