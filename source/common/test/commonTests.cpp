@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <iostream>
+#include <string>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -19,6 +20,99 @@
 #include "tvariant.h"
 #include "tanalytics.h"
 #include "tglobal.h"
+#include "envelope_crypto.h"
+
+#include <openssl/bio.h>
+#include <openssl/buffer.h>
+#include <openssl/evp.h>
+#include <openssl/pem.h>
+#include <openssl/rsa.h>
+
+#include <unistd.h>
+
+#undef close
+
+namespace {
+
+class ScopedTempPath {
+ public:
+  explicit ScopedTempPath(const std::string &path) : path_(path) {}
+  ~ScopedTempPath() {
+    if (!path_.empty()) {
+      (void)unlink(path_.c_str());
+    }
+  }
+
+ private:
+  std::string path_;
+};
+
+std::string createTemporaryRsaPublicKey() {
+  EVP_PKEY_CTX *context = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, nullptr);
+  if (context == nullptr || EVP_PKEY_keygen_init(context) != 1 ||
+      EVP_PKEY_CTX_set_rsa_keygen_bits(context, 2048) != 1) {
+    EVP_PKEY_CTX_free(context);
+    return {};
+  }
+
+  EVP_PKEY *key = nullptr;
+  if (EVP_PKEY_keygen(context, &key) != 1) {
+    EVP_PKEY_CTX_free(context);
+    return {};
+  }
+  EVP_PKEY_CTX_free(context);
+
+  BIO *bio = BIO_new(BIO_s_mem());
+  if (bio == nullptr || PEM_write_bio_PUBKEY(bio, key) != 1) {
+    BIO_free(bio);
+    EVP_PKEY_free(key);
+    return {};
+  }
+
+  BUF_MEM *buffer = nullptr;
+  BIO_get_mem_ptr(bio, &buffer);
+  if (buffer == nullptr || buffer->data == nullptr || buffer->length == 0) {
+    BIO_free(bio);
+    EVP_PKEY_free(key);
+    return {};
+  }
+
+  const size_t pem_length = buffer->length;
+
+  char path[] = "/tmp/taos-xnode-public-XXXXXX";
+  const int file_descriptor = mkstemp(path);
+  if (file_descriptor < 0) {
+    BIO_free(bio);
+    EVP_PKEY_free(key);
+    return {};
+  }
+
+  const ssize_t written = write(file_descriptor, buffer->data, buffer->length);
+  const int close_result = close(file_descriptor);
+  BIO_free(bio);
+  EVP_PKEY_free(key);
+  if (written != static_cast<ssize_t>(pem_length) || close_result != 0) {
+    unlink(path);
+    return {};
+  }
+  return path;
+}
+
+SArray *createServerConfigArgs() {
+  SArray *args = taosArrayInit(1, sizeof(SConfigPair));
+  if (args == nullptr) {
+    return nullptr;
+  }
+
+  SConfigPair data_dir = {.name = "dataDir", .value = TD_TMP_DIR_PATH};
+  if (taosArrayPush(args, &data_dir) == nullptr) {
+    taosArrayDestroy(args);
+    return nullptr;
+  }
+  return args;
+}
+
+}  // namespace
 
 #ifdef TD_ENTERPRISE
 namespace {
@@ -52,6 +146,9 @@ class ClsConfigDynamicTest : public ::testing::Test {
 #endif
 
 int main(int argc, char** argv) {
+  if (osDefaultInit() != TSDB_CODE_SUCCESS) {
+    return 1;
+  }
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
@@ -84,6 +181,149 @@ TEST(testCase, colDataAssignNRows_clears_stale_null_bitmap) {
 
   colDataDestroy(&src);
   colDataDestroy(&dst);
+}
+
+TEST(XnodeDsnConfigTest, RegistersServerOnlyDisabledByDefault) {
+  taosCleanupCfg();
+  SArray *args = createServerConfigArgs();
+  ASSERT_NE(args, nullptr);
+  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+
+  SConfigItem *protection = cfgGetItem(taosGetCfg(), "xnodeDsnProtection");
+  SConfigItem *public_key = cfgGetItem(taosGetCfg(), "xnodeDsnPublicKeyFile");
+  SConfigItem *private_key = cfgGetItem(taosGetCfg(), "xnodedDsnPrivateKeyFile");
+  ASSERT_NE(protection, nullptr);
+  ASSERT_NE(public_key, nullptr);
+  ASSERT_NE(private_key, nullptr);
+  EXPECT_EQ(protection->i32, 0);
+  EXPECT_EQ(protection->scope, CFG_SCOPE_SERVER);
+  EXPECT_EQ(protection->dynScope, CFG_DYN_NONE);
+  EXPECT_EQ(public_key->scope, CFG_SCOPE_SERVER);
+  EXPECT_EQ(public_key->dynScope, CFG_DYN_NONE);
+  EXPECT_EQ(public_key->category, CFG_CATEGORY_LOCAL);
+  EXPECT_EQ(private_key->scope, CFG_SCOPE_SERVER);
+  EXPECT_EQ(private_key->dynScope, CFG_DYN_NONE);
+  EXPECT_EQ(private_key->category, CFG_CATEGORY_LOCAL);
+  EXPECT_STREQ(public_key->str, "");
+  EXPECT_STREQ(private_key->str, "");
+  taosArrayDestroy(args);
+  taosCleanupCfg();
+}
+
+TEST(XnodeDsnConfigTest, ProtectionAcceptsOnlyZeroOrOne) {
+  taosCleanupCfg();
+  SArray *args = createServerConfigArgs();
+  ASSERT_NE(args, nullptr);
+  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  SConfig *config = taosGetCfg();
+  ASSERT_NE(config, nullptr);
+  EXPECT_EQ(cfgSetItem(config, "xnodeDsnProtection", "1", CFG_STYPE_CFG_FILE, true), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(cfgSetItem(config, "xnodeDsnProtection", "2", CFG_STYPE_CFG_FILE, true), TSDB_CODE_OUT_OF_RANGE);
+  EXPECT_EQ(cfgSetItem(config, "xnodeDsnProtection", "true", CFG_STYPE_CFG_FILE, true),
+            TSDB_CODE_INVALID_CFG_VALUE);
+  taosArrayDestroy(args);
+  taosCleanupCfg();
+}
+
+TEST(XnodeDsnConfigTest, DisabledProtectionDoesNotReadPublicKey) {
+  taosCleanupCfg();
+  SArray *args = createServerConfigArgs();
+  ASSERT_NE(args, nullptr);
+  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  SConfig *config = taosGetCfg();
+  ASSERT_NE(config, nullptr);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnPublicKeyFile", "/missing/xnode-public.pem", CFG_STYPE_CFG_FILE, true),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(taosApplyCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  taosArrayDestroy(args);
+  taosCleanupCfg();
+}
+
+TEST(XnodeDsnConfigTest, RejectsPathsThatDoNotFitGlobalBuffers) {
+  taosCleanupCfg();
+  SArray *args = createServerConfigArgs();
+  ASSERT_NE(args, nullptr);
+  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  SConfig *config = taosGetCfg();
+  ASSERT_NE(config, nullptr);
+
+  const std::string oversized_path(PATH_MAX, 'a');
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnPublicKeyFile", oversized_path.c_str(), CFG_STYPE_CFG_FILE, true),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(taosApplyCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_INVALID_CFG_VALUE);
+
+  taosArrayDestroy(args);
+  taosCleanupCfg();
+}
+
+TEST(XnodeDsnConfigTest, EnabledProtectionRejectsMissingPublicKey) {
+  taosCleanupCfg();
+  SArray *args = createServerConfigArgs();
+  ASSERT_NE(args, nullptr);
+  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  SConfig *config = taosGetCfg();
+  ASSERT_NE(config, nullptr);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnProtection", "1", CFG_STYPE_CFG_FILE, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnPublicKeyFile", "/missing/xnode-public.pem", CFG_STYPE_CFG_FILE, true),
+            TSDB_CODE_SUCCESS);
+  EXPECT_NE(taosApplyCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  taosArrayDestroy(args);
+  taosCleanupCfg();
+}
+
+TEST(XnodeDsnConfigTest, EnabledProtectionLoadsValidPublicKey) {
+  const std::string public_key_path = createTemporaryRsaPublicKey();
+  ScopedTempPath cleanup(public_key_path);
+  ASSERT_FALSE(public_key_path.empty());
+
+  taosCleanupCfg();
+  SArray *args = createServerConfigArgs();
+  ASSERT_NE(args, nullptr);
+  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  SConfig *config = taosGetCfg();
+  ASSERT_NE(config, nullptr);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnProtection", "1", CFG_STYPE_CFG_FILE, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnPublicKeyFile", public_key_path.c_str(), CFG_STYPE_CFG_FILE, true),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(taosApplyCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  EXPECT_NE(taosGetXnodeDsnPublicKey(), nullptr);
+  taosArrayDestroy(args);
+  taosCleanupCfg();
+}
+
+TEST(XnodeDsnConfigTest, LaterConfigSyncKeepsStartupPublicKey) {
+  const std::string public_key_path = createTemporaryRsaPublicKey();
+  ScopedTempPath cleanup(public_key_path);
+  ASSERT_FALSE(public_key_path.empty());
+
+  taosCleanupCfg();
+  SArray *args = createServerConfigArgs();
+  ASSERT_NE(args, nullptr);
+  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  SConfig *config = taosGetCfg();
+  ASSERT_NE(config, nullptr);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnProtection", "1", CFG_STYPE_CFG_FILE, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnPublicKeyFile", public_key_path.c_str(), CFG_STYPE_CFG_FILE, true),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(cfgSetItem(config, "xnodedDsnPrivateKeyFile", "/startup/private-key.pem", CFG_STYPE_CFG_FILE, true),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taosApplyCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+
+  const SEnvelopePublicKey *startup_key = taosGetXnodeDsnPublicKey();
+  ASSERT_NE(startup_key, nullptr);
+  ASSERT_EQ(unlink(public_key_path.c_str()), 0);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnPublicKeyFile", "/missing/reloaded-key.pem", CFG_STYPE_CFG_FILE, true),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(cfgSetItem(config, "xnodedDsnPrivateKeyFile", "/reloaded/private-key.pem", CFG_STYPE_CFG_FILE, true),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(setAllConfigs(config), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(taosGetXnodeDsnPublicKey(), startup_key);
+  EXPECT_EQ(tsXnodeDsnProtection, 1);
+  EXPECT_STREQ(tsXnodeDsnPublicKeyFile, public_key_path.c_str());
+  EXPECT_STREQ(tsXnodedDsnPrivateKeyFile, "/startup/private-key.pem");
+
+  taosArrayDestroy(args);
+  taosCleanupCfg();
 }
 
 TEST(testCase, toUIntegerEx_test) {

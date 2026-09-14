@@ -8,6 +8,7 @@ if(TD_LINUX)
     add_executable(commonTest "commonTests.cpp")
     DEP_ext_gtest(commonTest)
     target_link_libraries(commonTest PRIVATE os util common)
+    DEP_ext_ssl(commonTest)
     target_include_directories(
         commonTest
         PUBLIC "${TD_SOURCE_DIR}/include/libs/common/"

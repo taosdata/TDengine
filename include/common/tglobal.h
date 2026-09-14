@@ -86,6 +86,14 @@ extern char tsTLSSvrCertPath[];
 extern char tsTLSSvrKeyPath[];
 extern char tsTLSCliCertPath[];
 extern char tsTLSCliKeyPath[];
+
+typedef struct SEnvelopePublicKey SEnvelopePublicKey;
+
+extern int32_t tsXnodeDsnProtection;
+extern char    tsXnodeDsnPublicKeyFile[];
+extern char    tsXnodedDsnPrivateKeyFile[];
+
+const SEnvelopePublicKey *taosGetXnodeDsnPublicKey(void);
 extern int8_t tsEnableTLS;
 extern int8_t tsEnableSasl;
 
