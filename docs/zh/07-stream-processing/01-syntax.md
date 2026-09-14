@@ -78,7 +78,7 @@ tag_definition:
     tag_name type_name AS expr
 ```
 
-流任务时间配置、自然时间单位（如 `PERIOD`/`SLIDING`/`INTERVAL` 中的周/月/季/年）在不同版本的支持范围，详见 [流式计算时间配置](../05-tdengine-sql/10-time/01-timezone.md#流式计算时间配置)。
+从 `v3.4.3` 起，创建流时会把时区和一周起始日写入流定义；`PERIOD`、`SLIDING`、`INTERVAL` 对日、周、月、季、年的支持范围也有扩展。详见 [时区与自然时间单位](../05-tdengine-sql/10-time/01-timezone.md#流式计算时间配置)。
 
 ### 流式计算的触发方式
 
@@ -96,8 +96,8 @@ PERIOD(period_time[, offset_time])
 
 定时触发通过系统时间的固定间隔来驱动，本质上就是我们常说的定时任务。定时触发不属于窗口触发。各参数含义如下：
 
-- period_time：定时间隔，支持的时间单位详见[时间单位](../05-tdengine-sql/01-datatype.md#时间单位)（支持毫秒至年），支持的时间范围为 `[10a, 3650d]`。
-- offset_time：可选，定时偏移。其接受范围、规范化和合法性比较复用普通查询 INTERVAL 的 offset 规则：拒绝 `AUTO` 和负值，且必须严格小于 `period_time`；`q` 先转为 `3n`，自然月与其他单位混合比较时按每月 28 天保守换算。
+- period_time：定时间隔，支持的时间单位详见 [时间单位](../05-tdengine-sql/01-datatype.md#时间单位)（毫秒至年），支持的时间范围为 `[10a, 3650d]`。
+- offset_time：可选，把触发时刻从对齐点向后平移。不支持 `AUTO` 和负值，且必须严格小于 `period_time`。规则与查询语句中 `INTERVAL` 的偏移相同：月与天等不同单位一起比较时，按每月 28 天估算。
 
 使用说明：
 
@@ -105,12 +105,12 @@ PERIOD(period_time[, offset_time])
   - 定时间隔为 5 小时 30 分钟，那么当天的触发时刻为 `[00:00, 05:30, 11:00, 16:30, 22:00]`，后续每一天的触发时刻都是相同的。
   - 同样的定时间隔，如果指定时间偏移为 1 分钟，那么当天的触发时刻为 `[00:01, 05:31, 11:01, 16:31, 22:01]`，后续每一天的触发时刻都是相同的。
   - 同样条件下，如果建流时当前系统时间为 `12:00`，那么当天的触发时刻为 `[16:31, 22:01]`，后续每一天内的触发时刻为 `[00:01, 05:31, 11:01, 16:31, 22:01]`。
-- 定时间隔大于等于 1 天时，基准时间点为流固化时间配置下的 Unix epoch（1970-01-01 00:00:00）加定时偏移，按触发间隔整除对齐。创建后修改服务端或连接时区不会改变已有流。周单位的边界由固化的 `firstDayOfWeek` 决定。例如：
-  - 定时间隔为 2 天，所有使用该间隔的任务都会在距离 epoch 整数倍 2 天的时刻触发（如 1970-01-03 00:00:00, 1970-01-05 00:00:00, ...），确保全局对齐。
-  - `firstDayOfWeek = 1` 时，定时间隔为 1 周（`PERIOD(1w)`）的触发时刻对齐周一 00:00:00；`PERIOD(1w, 1d)` 则在周二 00:00:00 触发。
-  - 定时间隔为 1 月（`PERIOD(1n)`），触发时刻对齐每月 1 日 00:00:00；`PERIOD(1n, 14d)` 则在每月 15 日 00:00:00 触发。
-  - 定时间隔为 1 年（`PERIOD(1y)`），触发时刻对齐每年 1 月 1 日 00:00:00；`PERIOD(1y, 31d)` 则在每年 2 月 1 日 00:00:00 触发。
-  - `v3.4.3` 起支持 `PERIOD(1q)`；`q` 会规范化为 `3n`，并对齐到每季度首日。
+- 定时间隔大于等于 1 天时，基准时间点为该流定义中保存的时区下的 Unix epoch（1970-01-01 00:00:00）加定时偏移，再按触发间隔对齐。创建后修改服务端或连接时区，不会改变已经创建的流。周单位的起点由流定义中保存的 `firstDayOfWeek` 决定。例如：
+  - 定时间隔为 2 天时，触发时刻对齐到距离 epoch 整数倍 2 天的时刻（如 1970-01-03 00:00:00、1970-01-05 00:00:00）。
+  - `firstDayOfWeek = 1` 时，`PERIOD(1w)` 对齐周一 00:00:00；`PERIOD(1w, 1d)` 在周二 00:00:00 触发。
+  - `PERIOD(1n)` 对齐每月 1 日 00:00:00；`PERIOD(1n, 14d)` 在每月 15 日 00:00:00 触发。
+  - `PERIOD(1y)` 对齐每年 1 月 1 日 00:00:00；`PERIOD(1y, 31d)` 在每年 2 月 1 日 00:00:00 触发。
+  - `PERIOD(1q)`，`q` 按 3 个月计算，并对齐到每季度首日。
 
 适用场景：需要按照系统时间连续定时驱动计算的场景，例如每小时计算生成一次当天的统计数据，每天定时发送统计报告等。
 
@@ -125,13 +125,13 @@ SLIDING(sliding_val[, offset_time])
 各参数含义如下：
 
 - sliding_val：必选，事件时间的滑动时长。
-- offset_time：可选，指定滑动触发的时间偏移。其接受范围、规范化和合法性比较复用普通查询 INTERVAL 的 offset 规则：拒绝 `AUTO` 和负值，且必须严格小于 `sliding_val`；`q` 先转为 `3n`，自然月与其他单位混合比较时按每月 28 天保守换算。
+- offset_time：可选，把滑动触发时刻从对齐点向后平移。不支持 `AUTO` 和负值，且必须严格小于 `sliding_val`。规则与查询语句中 `INTERVAL` 的偏移相同：月与天等不同单位一起比较时，按每月 28 天估算。
 
 使用说明：
 
 - 必须指定触发表，触发表为超级表时支持按标签、子表分组，支持不分组。
 - 支持对写入数据进行处理过滤后（有条件）的滑动触发。
-- `v3.4.3` 起，独立 `SLIDING` 支持自然单位 `n`、`q`、`y`；`q` 会规范化为 `3n`。其调度器仍独立于 `INTERVAL` 的边界算法；自然单位对齐（包括 `w` 的周边界）在适用处使用流固化的时区和 `firstDayOfWeek`。
+- 不带 `INTERVAL` 的 `SLIDING` 可以使用月、季、年（`n`/`q`/`y`）。滑动触发按事件时间、按间隔推进，和 `INTERVAL` 按窗口划分不是同一种写法。按周、月等自然边界对齐时，使用该流保存的时区和一周起始日。
 
 适用场景：需要按照事件时间连续定时驱动计算的场景，例如每小时计算生成一次当天的统计数据，每天定时发送统计报告等场景。
 
@@ -141,21 +141,21 @@ SLIDING(sliding_val[, offset_time])
 INTERVAL(interval_val[, interval_offset]) [SLIDING(sliding_val)]
 ```
 
-时间窗口触发是指对触发表的写入数据按照事件时间和固定窗口大小滑动而形成的触发，必须指定 `INTERVAL` 窗口，属于窗口触发，必须指定触发表。与仅使用 `SLIDING` 的[滑动触发](#滑动触发)不同，此处 `INTERVAL` 为构成该触发类型的必需部分。
+时间窗口触发是指对触发表的写入数据按照事件时间和固定窗口大小滑动而形成的触发，必须指定 `INTERVAL` 窗口，属于窗口触发，必须指定触发表。与仅使用 `SLIDING` 的 [滑动触发](#滑动触发) 不同，此处 `INTERVAL` 为构成该触发类型的必需部分。
 
 时间窗口触发的起始时间点是窗口的起始点，窗口默认是从 Unix time 0（1970-01-01 00:00:00 UTC）开始划分，可以通过指定窗口时间偏移的方式来改变窗口的划分起始点。各参数含义如下：
 
 - interval_val：必选，时间窗口的时长。
-- interval_offset：可选，时间窗口的划分偏移。其接受范围、规范化和合法性比较复用普通查询 INTERVAL 的 offset 规则：拒绝 `AUTO` 和负值，且必须严格小于 `interval_val`；`q` 先转为 `3n`，自然月与其他单位混合比较时按每月 28 天保守换算。
-- sliding_val：可选，事件时间的滑动时长。省略时为翻滚窗口。
+- interval_offset：可选，把窗口划分起点向后平移。不支持 `AUTO` 和负值，且必须严格小于 `interval_val`。规则与查询语句中 `INTERVAL` 的偏移相同：月与天等不同单位一起比较时，按每月 28 天估算。
+- sliding_val：可选，事件时间的滑动步长。不写时，窗口步长等于窗口宽度，相邻窗口不重叠。
 
 使用说明：
 
 - 必须指定触发表，触发表为超级表时支持按标签、子表分组，支持不分组。
 - 支持对写入数据进行处理过滤后（有条件）的时间窗口触发。
-- `v3.4.3` 起，`interval_val` 支持 `a/s/m/h/d/w/n/q/y`；`q` 会规范化为 `3n`。显式 `sliding_val` 接受 `a/s/m/h/d/w`，拒绝变长月类单位 `n/q/y`，且可以大于 `interval_val`。
-- 三类 offset 使用相同规则。例如，`PERIOD(1n, 27d)`、`SLIDING(1q, 83d)` 和 `INTERVAL(29d, 1n)` 合法；`PERIOD(1n, 28d)`、`SLIDING(1q, 84d)`、`INTERVAL(1w, AUTO)` 和任何负 offset 非法。自然单位 INTERVAL 边界在适用处使用流固化的时区和 `firstDayOfWeek`；这不改变独立 PERIOD 或独立 SLIDING 的调度器。
-- 显式组合中的 `SLIDING` 只接受一个 `sliding_val`；需要偏移窗口边界时，应写为 `INTERVAL(interval_val, interval_offset) SLIDING(sliding_val)`。
+- `interval_val` 支持 `a`/`s`/`m`/`h`/`d`/`w`/`n`/`q`/`y`。`q` 按 3 个月计算。写出 `sliding_val` 时只支持 `a`/`s`/`m`/`h`/`d`/`w`，不支持月、季、年。因此 `INTERVAL(1n)` 合法，`INTERVAL(1n) SLIDING(1n)` 不合法；需要按自然月划分、窗口互不重叠时，写成 `INTERVAL(1n)`。流里显式写出的滑动步长只需大于 0，可以大于窗口宽度（窗口之间会有空隙），也不要求达到窗口宽度的 1%。这与查询语句中的 `INTERVAL ... SLIDING` 不同。
+- `PERIOD`、不带 `INTERVAL` 的 `SLIDING` 和 `INTERVAL` 的偏移规则相同。例如 `PERIOD(1n, 27d)`、`SLIDING(1q, 83d)`、`INTERVAL(29d, 1n)` 合法；`PERIOD(1n, 28d)`、`SLIDING(1q, 84d)`、`INTERVAL(1w, AUTO)` 以及任何负偏移都不合法。按日、周、月等划分 `INTERVAL` 窗口时，使用该流保存的时区和一周起始日。即使单位相同，`PERIOD`、不带 `INTERVAL` 的 `SLIDING` 和 `INTERVAL` 的触发时刻也不一定相同。
+- 写出 `INTERVAL(...) SLIDING(...)` 时，`SLIDING` 只能写滑动步长。需要移动窗口起点时，把偏移写在 `INTERVAL` 里：`INTERVAL(interval_val, interval_offset) SLIDING(sliding_val)`。
 
 适用场景：需要按照事件时间定时窗口计算的场景，例如每小时计算生成该小时内的统计数据，每隔 1 小时计算最后 5 分钟窗口内的数据等场景。
 
@@ -563,7 +563,7 @@ stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISOR
 config_item: {timezone = timezone_name | firstDayOfWeek = first_day_of_week}
 ```
 
-控制选项用于控制触发和计算行为，可以多选。除 `CONFIG` 外，同一个选项不可以多次指定；允许多个 `CONFIG` 块。包括：
+控制选项用于控制触发和计算行为，可以多选。除 `CONFIG` 外，同一个选项不可以写多次。`CONFIG` 可以写多次，同一键以最后一次为准。包括：
 
 - WATERMARK(duration_time)：指定数据乱序的容忍时长，超过该时长的数据会被当做乱序数据，根据不同触发方式的乱序数据处理策略和用户配置进行处理，未指定时默认 `duration_time` 值为 0。
 - EXPIRED_TIME(exp_time) ：指定过期数据间隔并忽略过期数据，未指定时无过期数据。不需要感知超过一定时间范围的数据写入或更新时可以指定。`exp_time` 为过期时间间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)。
@@ -589,17 +589,18 @@ config_item: {timezone = timezone_name | firstDayOfWeek = first_day_of_week}
 - IDLE_TIMEOUT(duration_time)：开启分组空闲检测，指定空闲超时时长。当某个分组超过该时长未收到任何新数据时，视为进入空闲状态并触发 IDLE 事件；当空闲分组重新收到数据时触发 RESUME 事件。需与 `EVENT_TYPE(IDLE)` 和（或）`EVENT_TYPE(RESUME)` 配合使用。`duration_time` 支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)，有效范围为 `[1s, 10d]`。空闲检测基于 processing time（数据到达并被处理的时间），使用单调时钟计算间隔，不受系统时钟跳变影响。
 - FLUSH_ON_OUTER_CLOSE：只适用于嵌套窗口。默认情况下，祖先窗口关闭时会丢弃尚未完成的叶层窗口。启用该选项后，仅当 `EVENT_TYPE` 包含 `WINDOW_CLOSE` 时，才使用即将关闭的祖先上下文提前关闭每个未完成的叶层窗口。该选项不会增加事件类型，也不会绕过叶层的 `TRUE_FOR` 条件；仅启用 `WINDOW_OPEN` 时该选项不生效。
 
-#### 时间配置（自 `v3.4.3`）
+#### 时间配置
 
-`CONFIG` 只能写在 `STREAM_OPTIONS` 中；不存在独立的流 `TIMEZONE` 子句：
+流的时区和一周起始日只能写在 `STREAM_OPTIONS` 的 `CONFIG` 中。没有单独的流 `TIMEZONE` 子句，也不支持用 `ALTER STREAM` 修改。未写 `CONFIG` 时，系统仍会把创建时当前连接已经生效的时区和一周起始日写入流。更完整的规则、单位支持和升级说明见 [时区与自然时间单位](../05-tdengine-sql/10-time/01-timezone.md#流式计算时间配置)。
 
 ```sql
 STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1))
 ```
 
-`timezone` 为字符串，`firstDayOfWeek` 为 `0` 到 `6` 的整数（`0` 为周日，`1` 为周一）。键名大小写不敏感，但只接受规范名 `timezone` 和 `firstDayOfWeek`，不接受别名；`CONFIG()` 非法。同一键多次出现时，无论位于同一个 `CONFIG` 块内还是跨多个 `CONFIG` 块，该键都独立地以最后一次为准；缺少某个键时，该键继承当前连接的有效值。
-
-创建时，完整的键值对会统一校验和规范化一次，随后持久化并固化。新流的 CREATE SQL 存储一个完整规范的 `CONFIG(timezone = '...', firstDayOfWeek = N)` 块，因此生命周期操作、重启、`SHOW CREATE`、`INS_STREAMS` SQL、导出和恢复都保持相同行为。要修改任一值必须重建流；之后修改连接或服务端设置不会改变已有流。
+- `timezone` 为字符串，格式与 `SET TIMEZONE` 相同；`firstDayOfWeek` 为 `0` 到 `6` 的整数（`0` 为周日，`1` 为周一）。
+- 键名大小写不敏感，但只能写 `timezone` 和 `firstDayOfWeek`，不能写 `tz`、`first_day_of_week` 等别名。`CONFIG()` 不能为空。
+- 可以写多个 `CONFIG`。同一键多次出现时，以最后一次为准；只写了其中一个键时，另一个取当前连接已经生效的值。
+- 创建成功后，这两项写入流定义。`SHOW CREATE STREAM` 会看到补全后的一个完整 `CONFIG`。之后停止、启动、重启、导出再恢复都继续使用保存的值；修改当前连接或服务端时区不会改变已经创建的流。若要修改，需要删除后重新创建。
 
 ### 流式计算的通知机制
 
@@ -887,7 +888,7 @@ SELECT stream_name, timezone, first_day_of_week, sql
 FROM information_schema.ins_streams;
 ```
 
-新流的 `sql` 包含完整规范的 `CONFIG` 块，两个时间字段保存其固化值。离线升级后的旧流保留 NULL 时间字段、未注入 `CONFIG` 的原始 SQL，以及原有动态运行时回退行为。
+`v3.4.3` 及之后创建的用户流，`sql` 含完整的 `CONFIG`，`timezone` 和 `first_day_of_week` 为创建时保存的值。升级前已经存在的用户流这两列为 `NULL`，`sql` 仍是原来的 `CREATE STREAM`，运行时仍可能随当时环境变化。`CREATE TSMA` 对象这两列也可以是 `NULL`，但 `sql` 为 `CREATE TSMA`，不要把它当成升级前遗留的用户流。
 
 重算相关记录见 [`INS_STREAM_RECALCULATES`](../05-tdengine-sql/09-system-info/01-meta.md#ins_stream_recalculates)。
 
