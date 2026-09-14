@@ -41,6 +41,14 @@ extern "C" {
 #include <stdint.h>
 #include "txnode.h"
 
+#define XNODED_XNODE_DSN_PRIVATE_KEY_FILE "XNODED_XNODE_DSN_PRIVATE_KEY_FILE"
+#define XNODED_PRIVATE_KEY_CONFIG_EXIT_CODE 78
+
+int32_t txnodeBuildXnodedEnvironment(const char *const *inherited, int32_t inherited_count,
+                                     const char *const *overrides, int32_t override_count, char ***environment);
+void    txnodeFreeEnvironment(char **environment);
+bool    txnodeShouldRestartXnoded(int64_t exitStatus, int32_t termSignal, bool isStopped);
+
 #ifdef __cplusplus
 }
 #endif

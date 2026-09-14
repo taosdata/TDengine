@@ -32,6 +32,7 @@ from taosanalytics.model_file_mgt import ModelFileManager
 from taosanalytics.service_registry import loader
 from taosanalytics.tsfmservice.foundation_model import (
     delete_foundation_model,
+    download_and_start_foundation_model,
     download_foundation_model,
     get_all_operations_stream,
     get_model_info,
@@ -196,6 +197,12 @@ def handle_get_model_info_req(model_name):
 def handle_download_foundation_model_req():
     """Download a foundation model (async operation)"""
     return download_foundation_model(request)
+
+
+@app.route("/api/v1/foundation-models/download-start", methods=["POST"])
+def handle_download_start_foundation_model_req():
+    """Download a foundation model and auto-start it once the download completes (async operation)"""
+    return download_and_start_foundation_model(request)
 
 
 @app.route("/api/v1/foundation-models/start", methods=["POST"])

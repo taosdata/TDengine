@@ -24,8 +24,6 @@
 
 // clang-format on
 
-extern char **environ;
-
 #ifdef WINDOWS
 #define XNODED_DEFAULT_PATH_1    "C:\\TDengine"
 #define XNODED_DEFAULT_PATH_2    "C:\\TDengine"
@@ -62,6 +60,164 @@ SXnodedData xnodedGlobal = {0};
 
 static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData);
 
+bool txnodeShouldRestartXnoded(int64_t exitStatus, int32_t termSignal, bool isStopped) {
+  if (isStopped || (exitStatus == XNODED_PRIVATE_KEY_CONFIG_EXIT_CODE && termSignal == 0)) {
+    return false;
+  }
+  return !(exitStatus == 0 && (termSignal == 0 || termSignal == SIGINT || termSignal == SIGTERM));
+}
+
+static bool txnodeEnvironmentNameEquals(const char *left, size_t left_len, const char *right, size_t right_len) {
+  if (left_len != right_len) {
+    return false;
+  }
+#ifdef WINDOWS
+  return strncasecmp(left, right, left_len) == 0;
+#else
+  return strncmp(left, right, left_len) == 0;
+#endif
+}
+
+static bool txnodeEnvironmentOverridesName(const char *name, size_t name_len, const char *const *overrides,
+                                           int32_t override_count) {
+  for (int32_t index = 0; index < override_count; ++index) {
+    const char *override = overrides[index];
+    if (override == NULL || override[0] == '\0') {
+      continue;
+    }
+    const char *separator = strchr(override, '=');
+    if (separator == NULL) {
+      continue;
+    }
+    size_t override_name_len = (size_t)(separator - override);
+    if (txnodeEnvironmentNameEquals(name, name_len, override, override_name_len)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void txnodeFreeEnvironment(char **environment) {
+  if (environment == NULL) {
+    return;
+  }
+  for (int32_t index = 0; environment[index] != NULL; ++index) {
+    taosMemoryFree(environment[index]);
+  }
+  taosMemoryFree(environment);
+}
+
+int32_t txnodeBuildXnodedEnvironment(const char *const *inherited, int32_t inherited_count,
+                                     const char *const *overrides, int32_t override_count, char ***environment) {
+  if (inherited_count < 0 || override_count < 0 || overrides == NULL || environment == NULL ||
+      (inherited_count > 0 && inherited == NULL) || *environment != NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  uint64_t environment_slots = (uint64_t)inherited_count + (uint64_t)override_count + 1;
+  if (environment_slots > SIZE_MAX / sizeof(char *)) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  char **result = taosMemoryCalloc((size_t)environment_slots, sizeof(char *));
+  if (result == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t output_index = 0;
+  for (int32_t index = 0; index < inherited_count; ++index) {
+    const char *entry = inherited[index];
+    if (entry == NULL || entry[0] == '\0') {
+      continue;
+    }
+    const char *separator = strchr(entry, '=');
+    if (separator == NULL) {
+      continue;
+    }
+    size_t name_len = (size_t)(separator - entry);
+    if (txnodeEnvironmentOverridesName(entry, name_len, overrides, override_count)) {
+      continue;
+    }
+    size_t length = strlen(entry) + 1;
+    result[output_index] = taosMemoryCalloc(length, 1);
+    if (result[output_index] == NULL) {
+      txnodeFreeEnvironment(result);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    tstrncpy(result[output_index], entry, length);
+    ++output_index;
+  }
+
+  for (int32_t index = 0; index < override_count; ++index) {
+    if (overrides[index] == NULL || overrides[index][0] == '\0') {
+      continue;
+    }
+    size_t length = strlen(overrides[index]) + 1;
+    result[output_index] = taosMemoryCalloc(length, 1);
+    if (result[output_index] == NULL) {
+      txnodeFreeEnvironment(result);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    tstrncpy(result[output_index], overrides[index], length);
+    ++output_index;
+  }
+
+  result[output_index] = NULL;
+  *environment = result;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t txnodeInheritProcessEnvironment(char ***environment, int32_t *environment_count) {
+  *environment = NULL;
+  *environment_count = 0;
+
+  uv_env_item_t *items = NULL;
+  int            item_count = 0;
+  int            uv_error = uv_os_environ(&items, &item_count);
+  if (uv_error != 0) {
+    if (items != NULL) {
+      uv_os_free_environ(items, item_count);
+    }
+    xndError("failed to read process environment for xnoded: %s", uv_strerror(uv_error));
+    return TSDB_CODE_XNODE_UV_EXEC_FAILURE;
+  }
+
+  char **result = taosMemoryCalloc((size_t)item_count + 1, sizeof(char *));
+  if (result == NULL) {
+    uv_os_free_environ(items, item_count);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t output_index = 0;
+  for (int32_t index = 0; index < item_count; ++index) {
+    const char *name = items[index].name;
+    const char *value = items[index].value;
+    if (name == NULL || value == NULL) {
+      continue;
+    }
+    size_t name_len = strlen(name);
+    size_t value_len = strlen(value);
+    if (name_len > SIZE_MAX - value_len - 2) {
+      txnodeFreeEnvironment(result);
+      uv_os_free_environ(items, item_count);
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
+    size_t length = name_len + value_len + 2;
+    result[output_index] = taosMemoryCalloc(length, 1);
+    if (result[output_index] == NULL) {
+      txnodeFreeEnvironment(result);
+      uv_os_free_environ(items, item_count);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    (void)snprintf(result[output_index], length, "%s=%s", name, value);
+    ++output_index;
+  }
+
+  uv_os_free_environ(items, item_count);
+  *environment = result;
+  *environment_count = output_index;
+  return TSDB_CODE_SUCCESS;
+}
+
 static void getXnodedPidPath(char *pipeName, int32_t size) {
   int32_t len = strlen(tsDataDir);
 
@@ -86,8 +242,7 @@ static void    xnodeMgmtXnodedExit(uv_process_t *process, int64_t exitStatus, in
     xndError("xnoded process data is NULL");
     return;
   }
-  if ((exitStatus == 0 && (termSignal == 0 || termSignal == SIGINT || termSignal == SIGTERM)) ||
-      atomic_load_32(&pData->isStopped)) {
+  if (!txnodeShouldRestartXnoded(exitStatus, termSignal, atomic_load_32(&pData->isStopped))) {
     if (uv_async_send(&pData->stopAsync) != 0) {
       xndError("stop xnoded: failed to send stop async");
     }
@@ -101,7 +256,11 @@ static void    xnodeMgmtXnodedExit(uv_process_t *process, int64_t exitStatus, in
     memset(pidPath, 0, PATH_MAX);
     getXnodedPidPath(pidPath, PATH_MAX);
     (void)taosRemoveFile(pidPath);
-    xndInfo("xnoded process exit success");
+    if (exitStatus == XNODED_PRIVATE_KEY_CONFIG_EXIT_CODE && termSignal == 0) {
+      xndError("xnoded exited due to invalid private key configuration; restart disabled");
+    } else {
+      xndInfo("xnoded process exit success");
+    }
   } else {
     xndInfo("xnoded process restart, exit status %" PRId64 ", signal %d", exitStatus, termSignal);
     int32_t code = xnodeMgmtSpawnXnoded(pData);
@@ -268,6 +427,11 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   snprintf(xnodeClusterId, 64, "%s=%" PRIu64, "XNODED_CLUSTER_ID", pData->clusterId);
   char xnodePipeSocket[PATH_MAX + 32] = {0};
   snprintf(xnodePipeSocket, PATH_MAX + 32, "%s=%s", "XNODED_LISTEN", xnodedPipeSocket);
+  char xnodedDsnPrivateKeyFile[PATH_MAX + 64] = {0};
+  if (tsXnodedDsnPrivateKeyFile[0] != '\0') {
+    snprintf(xnodedDsnPrivateKeyFile, sizeof(xnodedDsnPrivateKeyFile), "%s=%s",
+             XNODED_XNODE_DSN_PRIVATE_KEY_FILE, tsXnodedDsnPrivateKeyFile);
+  }
 
   char xnodedLogLevel[32] = {0};
   if (xndDebugFlag & DEBUG_INFO) {
@@ -283,54 +447,26 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   xndDebug("txnode env: leader ep: %s, pipe socket:%s, log level:%s, cluster_id: %s", dnodeIdEnvItem, xnodePipeSocket,
            xnodedLogLevel, xnodeClusterId);
 
-  char *envXnoded[] = {xnodedCfgDir,    xnodedLogDir,   dnodeIdEnvItem,
-                       xnodedUserPass,  xnodedToken,    xnodeClusterId,
-                       xnodePipeSocket, xnodedLogLevel, NULL};
+  const char *envXnoded[] = {xnodedCfgDir,           xnodedLogDir,   dnodeIdEnvItem,
+                             xnodedUserPass,         xnodedToken,    xnodeClusterId,
+                             xnodePipeSocket,        xnodedLogLevel, xnodedDsnPrivateKeyFile,
+                             NULL};
 
   char **envXnodedWithPEnv = NULL;
-  if (environ != NULL) {
-    int32_t lenEnvXnoded = ARRAY_SIZE(envXnoded);
-    int32_t numEnviron = 0;
-    while (environ[numEnviron] != NULL) {
-      numEnviron++;
-    }
-
-    envXnodedWithPEnv = (char **)taosMemoryCalloc(numEnviron + lenEnvXnoded, sizeof(char *));
-    if (envXnodedWithPEnv == NULL) {
-      err = TSDB_CODE_OUT_OF_MEMORY;
-      goto _OVER;
-    }
-
-    for (int32_t i = 0; i < numEnviron; i++) {
-      int32_t len = strlen(environ[i]) + 1;
-      xndDebug("xnoded exec env: %s", environ[i]);
-      envXnodedWithPEnv[i] = (char *)taosMemoryCalloc(len, 1);
-      if (envXnodedWithPEnv[i] == NULL) {
-        err = TSDB_CODE_OUT_OF_MEMORY;
-        goto _OVER;
-      }
-
-      tstrncpy(envXnodedWithPEnv[i], environ[i], len);
-    }
-
-    for (int32_t i = 0, j = 0; i < lenEnvXnoded; i++) {
-      if (envXnoded[i] != NULL && envXnoded[i][0] != '\0') {
-        int32_t len = strlen(envXnoded[i]) + 1;
-        envXnodedWithPEnv[numEnviron + j] = (char *)taosMemoryCalloc(len, 1);
-        if (envXnodedWithPEnv[numEnviron + j] == NULL) {
-          err = TSDB_CODE_OUT_OF_MEMORY;
-          goto _OVER;
-        }
-        tstrncpy(envXnodedWithPEnv[numEnviron + j], envXnoded[i], len);
-        j++;
-      }
-    }
-    envXnodedWithPEnv[numEnviron + lenEnvXnoded - 1] = NULL;
-
-    options.env = envXnodedWithPEnv;
-  } else {
-    options.env = envXnoded;
+  char **inheritedEnvironment = NULL;
+  int32_t inheritedEnvironmentCount = 0;
+  err = txnodeInheritProcessEnvironment(&inheritedEnvironment, &inheritedEnvironmentCount);
+  if (err != TSDB_CODE_SUCCESS) {
+    goto _OVER;
   }
+  err = txnodeBuildXnodedEnvironment((const char *const *)inheritedEnvironment, inheritedEnvironmentCount, envXnoded,
+                                     ARRAY_SIZE(envXnoded) - 1, &envXnodedWithPEnv);
+  txnodeFreeEnvironment(inheritedEnvironment);
+  inheritedEnvironment = NULL;
+  if (err != TSDB_CODE_SUCCESS) {
+    goto _OVER;
+  }
+  options.env = envXnodedWithPEnv;
 
   err = uv_spawn(&pData->loop, &pData->process, &options);
   pData->process.data = (void *)pData;
@@ -342,14 +478,7 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   }
 
 _OVER:
-  if (envXnodedWithPEnv != NULL) {
-    int32_t i = 0;
-    while (envXnodedWithPEnv[i] != NULL) {
-      taosMemoryFree(envXnodedWithPEnv[i]);
-      i++;
-    }
-    taosMemoryFree(envXnodedWithPEnv);
-  }
+  txnodeFreeEnvironment(envXnodedWithPEnv);
 
   return err;
 }

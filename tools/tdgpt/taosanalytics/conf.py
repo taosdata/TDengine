@@ -83,6 +83,8 @@ class Configure:
             "host": "0.0.0.0",
             "port": 6035,
             "resource_base_url": "https://downloads.taosdata.com",
+            "tsfm_resource_exec_timeout": 120,
+            "tsfm_model_start_timeout": 300,
         }
 
     def _get_default_conf_linux(self):
@@ -98,6 +100,8 @@ class Configure:
             "log_level": logging.DEBUG,
             "draw_result": False,
             "port": 6035,
+            "tsfm_resource_exec_timeout": 120,
+            "tsfm_model_start_timeout": 300,
         }
 
     def _get_default_conf(self) -> dict:
