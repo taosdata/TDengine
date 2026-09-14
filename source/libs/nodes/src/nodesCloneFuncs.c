@@ -329,6 +329,7 @@ static int32_t functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) 
   // lazily when the function is evaluated.
   pDst->tz = NULL;
   pDst->tzAllocated = false;
+  COPY_SCALAR_FIELD(firstDayOfWeek);
   COPY_SCALAR_FIELD(charsetCxt);
   return TSDB_CODE_SUCCESS;
 }
@@ -600,6 +601,54 @@ static int32_t intervalWindowNodeCopy(const SIntervalWindowNode* pSrc, SInterval
   CLONE_NODE_FIELD(pSOffset);
   CLONE_NODE_FIELD(pFill);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  pDst->timezone = NULL;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t streamTriggerOptionsCopy(const SStreamTriggerOptions* pSrc, SStreamTriggerOptions* pDst) {
+  CLONE_NODE_FIELD(pPreFilter);
+  CLONE_NODE_FIELD(pWaterMark);
+  CLONE_NODE_FIELD(pMaxDelay);
+  CLONE_NODE_FIELD(pExpiredTime);
+  CLONE_NODE_FIELD(pFillHisStartTime);
+  CLONE_NODE_FIELD(pIdleTimeout);
+  COPY_SCALAR_FIELD(pEventType);
+  COPY_SCALAR_FIELD(fillHistoryStartTime);
+  COPY_SCALAR_FIELD(ignoreDisorder);
+  COPY_SCALAR_FIELD(deleteRecalc);
+  COPY_SCALAR_FIELD(deleteOutputTable);
+  COPY_SCALAR_FIELD(fillHistory);
+  COPY_SCALAR_FIELD(fillHistoryFirst);
+  COPY_SCALAR_FIELD(calcNotifyOnly);
+  COPY_SCALAR_FIELD(lowLatencyCalc);
+  COPY_SCALAR_FIELD(forceOutput);
+  COPY_SCALAR_FIELD(ignoreNoDataTrigger);
+  COPY_SCALAR_FIELD(flushOnOuterClose);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t streamNotifyOptionsCopy(const SStreamNotifyOptions* pSrc, SStreamNotifyOptions* pDst) {
+  CLONE_NODE_LIST_FIELD(pAddrUrls);
+  CLONE_NODE_FIELD(pWhere);
+  COPY_SCALAR_FIELD(eventType);
+  COPY_SCALAR_FIELD(notifyType);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t streamTriggerNodeCopy(const SStreamTriggerNode* pSrc, SStreamTriggerNode* pDst) {
+  CLONE_NODE_FIELD(pTriggerWindow);
+  CLONE_NODE_FIELD(pTrigerTable);
+  CLONE_NODE_FIELD(pOptions);
+  CLONE_NODE_FIELD(pNotify);
+  CLONE_NODE_LIST_FIELD(pPartitionList);
+  CLONE_NODE_LIST_FIELD(pRollupTagList);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t streamTagDefNodeCopy(const SStreamTagDefNode* pSrc, SStreamTagDefNode* pDst) {
+  COPY_CHAR_ARRAY_FIELD(tagName);
+  COPY_OBJECT_FIELD(dataType, sizeof(SDataType));
+  CLONE_NODE_FIELD(pTagExpr);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1869,6 +1918,7 @@ static int32_t setOperatorCopy(const SSetOperator* pSrc, SSetOperator* pDst) {
   COPY_SCALAR_FIELD(opType);
   COPY_SCALAR_FIELD(subQType);
   COPY_SCALAR_FIELD(quantify);
+  CLONE_NODE_LIST_FIELD(pSubQueries);
   CLONE_NODE_LIST_FIELD(pProjectionList);
   CLONE_NODE_FIELD(pLeft);
   CLONE_NODE_FIELD(pRight);
@@ -1878,6 +1928,7 @@ static int32_t setOperatorCopy(const SSetOperator* pSrc, SSetOperator* pDst) {
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(timeLineResMode);
   COPY_SCALAR_FIELD(timeLineFromOrderBy);
+  COPY_SCALAR_FIELD(joinContains);
   COPY_CHAR_POINT_FIELD(pOrigSubquerySql);
 
   return TSDB_CODE_SUCCESS;
@@ -1901,6 +1952,223 @@ static int32_t showStmtCopy(const SShowStmt* pSrc, SShowStmt* pDst) {
   CLONE_NODE_FIELD(pDbName);
   CLONE_NODE_FIELD(pTbName);
   CLONE_NODE_FIELD(pWhere);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t cloneStreamCreateTimeInfo(const SStreamCreateTimeInfo* pSrc, SStreamCreateTimeInfo** ppDst) {
+  if (pSrc == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SStreamCreateTimeInfo* pDst = taosMemoryCalloc(1, sizeof(SStreamCreateTimeInfo));
+  if (pDst == NULL) {
+    return terrno;
+  }
+  *pDst = *pSrc;
+  pDst->pNonConfigOptionSpans = NULL;
+  pDst->timezone = NULL;
+
+  if (pSrc->pNonConfigOptionSpans != NULL) {
+    pDst->pNonConfigOptionSpans = taosArrayDup(pSrc->pNonConfigOptionSpans, NULL);
+    if (pDst->pNonConfigOptionSpans == NULL) {
+      taosMemoryFree(pDst);
+      return terrno;
+    }
+  }
+  if (pSrc->timezone != NULL) {
+    pDst->timezone = tzalloc(pSrc->config.timezone);
+    if (pDst->timezone == NULL) {
+      taosArrayDestroy(pDst->pNonConfigOptionSpans);
+      taosMemoryFree(pDst);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  *ppDst = pDst;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void rebindStreamCreateTimeQuery(SNode* pNode, SStreamCreateTimeInfo* pInfo);
+
+static EDealRes rebindStreamCreateTimeNode(SNode* pNode, void* pContext) {
+  SStreamCreateTimeInfo* pInfo = (SStreamCreateTimeInfo*)pContext;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_VALUE:
+      ((SValueNode*)pNode)->tz = pInfo->timezone;
+      break;
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode* pOperator = (SOperatorNode*)pNode;
+      if (pOperator->ownsTimezone && pOperator->tz != NULL) {
+        tzfree(pOperator->tz);
+      }
+      pOperator->tz = pInfo->timezone;
+      tstrncpy(pOperator->timezoneName, pInfo->config.timezone, sizeof(pOperator->timezoneName));
+      pOperator->ownsTimezone = false;
+      break;
+    }
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunction = (SFunctionNode*)pNode;
+      if (pFunction->tzAllocated && pFunction->tz != NULL) {
+        tzfree(pFunction->tz);
+      }
+      pFunction->tz = pInfo->timezone;
+      tstrncpy(pFunction->tzName, pInfo->config.timezone, sizeof(pFunction->tzName));
+      pFunction->tzAllocated = false;
+      pFunction->firstDayOfWeek = pInfo->config.firstDayOfWeek;
+      break;
+    }
+    case QUERY_NODE_CASE_WHEN:
+      ((SCaseWhenNode*)pNode)->tz = pInfo->timezone;
+      break;
+    case QUERY_NODE_STREAM_TRIGGER:
+      nodesWalkExpr(((SStreamTriggerNode*)pNode)->pNotify, rebindStreamCreateTimeNode, pInfo);
+      break;
+    case QUERY_NODE_STREAM_TRIGGER_OPTIONS: {
+      SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pNode;
+      nodesWalkExpr(pOptions->pWaterMark, rebindStreamCreateTimeNode, pInfo);
+      nodesWalkExpr(pOptions->pMaxDelay, rebindStreamCreateTimeNode, pInfo);
+      nodesWalkExpr(pOptions->pExpiredTime, rebindStreamCreateTimeNode, pInfo);
+      nodesWalkExpr(pOptions->pFillHisStartTime, rebindStreamCreateTimeNode, pInfo);
+      nodesWalkExpr(pOptions->pIdleTimeout, rebindStreamCreateTimeNode, pInfo);
+      break;
+    }
+    case QUERY_NODE_STREAM_NOTIFY_OPTIONS:
+      nodesWalkExpr(((SStreamNotifyOptions*)pNode)->pWhere, rebindStreamCreateTimeNode, pInfo);
+      return DEAL_RES_IGNORE_CHILD;
+    case QUERY_NODE_STREAM_TAG_DEF:
+      nodesWalkExpr(((SStreamTagDefNode*)pNode)->pTagExpr, rebindStreamCreateTimeNode, pInfo);
+      return DEAL_RES_IGNORE_CHILD;
+    case QUERY_NODE_TEMP_TABLE:
+      rebindStreamCreateTimeQuery(((STempTableNode*)pNode)->pSubquery, pInfo);
+      return DEAL_RES_IGNORE_CHILD;
+    case QUERY_NODE_SELECT_STMT:
+    case QUERY_NODE_SET_OPERATOR:
+      rebindStreamCreateTimeQuery(pNode, pInfo);
+      return DEAL_RES_IGNORE_CHILD;
+    case QUERY_NODE_JOIN_TABLE: {
+      SJoinTableNode* pJoin = (SJoinTableNode*)pNode;
+      nodesWalkExpr(pJoin->pWindowOffset, rebindStreamCreateTimeNode, pInfo);
+      nodesWalkExpr(pJoin->pJLimit, rebindStreamCreateTimeNode, pInfo);
+      nodesWalkExpr(pJoin->addPrimCond, rebindStreamCreateTimeNode, pInfo);
+      break;
+    }
+    case QUERY_NODE_EXTERNAL_WINDOW: {
+      SExternalWindowNode* pExternal = (SExternalWindowNode*)pNode;
+      pExternal->timezone = pInfo->timezone;
+      nodesWalkExprs(pExternal->pProjectionList, rebindStreamCreateTimeNode, pInfo);
+      nodesWalkExprs(pExternal->pAggFuncList, rebindStreamCreateTimeNode, pInfo);
+      nodesWalkExpr(pExternal->pTimeRange, rebindStreamCreateTimeNode, pInfo);
+      rebindStreamCreateTimeQuery(pExternal->pSubquery, pInfo);
+      nodesWalkExpr(pExternal->pFill, rebindStreamCreateTimeNode, pInfo);
+      break;
+    }
+    case QUERY_NODE_INTERVAL_WINDOW:
+      ((SIntervalWindowNode*)pNode)->timezone = pInfo->timezone;
+      nodesWalkExpr(((SIntervalWindowNode*)pNode)->pSOffset, rebindStreamCreateTimeNode, pInfo);
+      break;
+    case QUERY_NODE_FILL:
+      nodesWalkExpr(((SFillNode*)pNode)->pTimeRange, rebindStreamCreateTimeNode, pInfo);
+      break;
+    case QUERY_NODE_SLIDING_WINDOW: {
+      SSlidingWindowNode* pSliding = (SSlidingWindowNode*)pNode;
+      nodesWalkExpr(pSliding->pSlidingVal, rebindStreamCreateTimeNode, pInfo);
+      nodesWalkExpr(pSliding->pOffset, rebindStreamCreateTimeNode, pInfo);
+      return DEAL_RES_IGNORE_CHILD;
+    }
+    case QUERY_NODE_WINDOW_OFFSET: {
+      SWindowOffsetNode* pOffset = (SWindowOffsetNode*)pNode;
+      nodesWalkExpr(pOffset->pStartOffset, rebindStreamCreateTimeNode, pInfo);
+      nodesWalkExpr(pOffset->pEndOffset, rebindStreamCreateTimeNode, pInfo);
+      return DEAL_RES_IGNORE_CHILD;
+    }
+    case QUERY_NODE_RANGE_AROUND: {
+      SRangeAroundNode* pRange = (SRangeAroundNode*)pNode;
+      nodesWalkExpr(pRange->pRange, rebindStreamCreateTimeNode, pInfo);
+      nodesWalkExpr(pRange->pInterval, rebindStreamCreateTimeNode, pInfo);
+      return DEAL_RES_IGNORE_CHILD;
+    }
+    case QUERY_NODE_TIME_RANGE: {
+      STimeRangeNode* pRange = (STimeRangeNode*)pNode;
+      nodesWalkExpr(pRange->pStart, rebindStreamCreateTimeNode, pInfo);
+      nodesWalkExpr(pRange->pEnd, rebindStreamCreateTimeNode, pInfo);
+      return DEAL_RES_IGNORE_CHILD;
+    }
+    case QUERY_NODE_LIMIT: {
+      SLimitNode* pLimit = (SLimitNode*)pNode;
+      nodesWalkExpr((SNode*)pLimit->limit, rebindStreamCreateTimeNode, pInfo);
+      nodesWalkExpr((SNode*)pLimit->offset, rebindStreamCreateTimeNode, pInfo);
+      return DEAL_RES_IGNORE_CHILD;
+    }
+    default:
+      break;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static void rebindStreamCreateTimeQuery(SNode* pNode, SStreamCreateTimeInfo* pInfo) {
+  if (pNode == NULL) {
+    return;
+  }
+
+  if (QUERY_NODE_SELECT_STMT == nodeType(pNode)) {
+    SSelectStmt* pSelect = (SSelectStmt*)pNode;
+    nodesWalkExprs(pSelect->pProjectionList, rebindStreamCreateTimeNode, pInfo);
+    nodesWalkExprs(pSelect->pProjectionBindList, rebindStreamCreateTimeNode, pInfo);
+    nodesWalkExpr(pSelect->pFromTable, rebindStreamCreateTimeNode, pInfo);
+    nodesWalkExpr(pSelect->pWhere, rebindStreamCreateTimeNode, pInfo);
+    nodesWalkExpr(pSelect->pTimeRange, rebindStreamCreateTimeNode, pInfo);
+    nodesWalkExprs(pSelect->pPartitionByList, rebindStreamCreateTimeNode, pInfo);
+    nodesWalkExpr(pSelect->pWindow, rebindStreamCreateTimeNode, pInfo);
+    nodesWalkExprs(pSelect->pWindowList, rebindStreamCreateTimeNode, pInfo);
+    nodesWalkExprs(pSelect->pGroupByList, rebindStreamCreateTimeNode, pInfo);
+    nodesWalkExpr(pSelect->pHaving, rebindStreamCreateTimeNode, pInfo);
+    nodesWalkExpr(pSelect->pRange, rebindStreamCreateTimeNode, pInfo);
+    nodesWalkExpr(pSelect->pRangeAround, rebindStreamCreateTimeNode, pInfo);
+    nodesWalkExpr(pSelect->pEvery, rebindStreamCreateTimeNode, pInfo);
+    nodesWalkExpr(pSelect->pFill, rebindStreamCreateTimeNode, pInfo);
+    nodesWalkExprs(pSelect->pOrderByList, rebindStreamCreateTimeNode, pInfo);
+    nodesWalkExpr((SNode*)pSelect->pLimit, rebindStreamCreateTimeNode, pInfo);
+    nodesWalkExpr((SNode*)pSelect->pSlimit, rebindStreamCreateTimeNode, pInfo);
+    SNode* pSubquery = NULL;
+    FOREACH(pSubquery, pSelect->pSubQueries) { rebindStreamCreateTimeQuery(pSubquery, pInfo); }
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pNode)) {
+    SSetOperator* pSet = (SSetOperator*)pNode;
+    nodesWalkExprs(pSet->pProjectionList, rebindStreamCreateTimeNode, pInfo);
+    rebindStreamCreateTimeQuery(pSet->pLeft, pInfo);
+    rebindStreamCreateTimeQuery(pSet->pRight, pInfo);
+    nodesWalkExprs(pSet->pOrderByList, rebindStreamCreateTimeNode, pInfo);
+    nodesWalkExpr(pSet->pLimit, rebindStreamCreateTimeNode, pInfo);
+    SNode* pSubquery = NULL;
+    FOREACH(pSubquery, pSet->pSubQueries) { rebindStreamCreateTimeQuery(pSubquery, pInfo); }
+  }
+}
+
+static void rebindStreamCreateTimeInfo(SCreateStreamStmt* pStmt) {
+  if (pStmt->pTimeInfo == NULL || pStmt->pTimeInfo->timezone == NULL) {
+    return;
+  }
+  nodesWalkExpr(pStmt->pTrigger, rebindStreamCreateTimeNode, pStmt->pTimeInfo);
+  nodesWalkExpr(pStmt->pSubtable, rebindStreamCreateTimeNode, pStmt->pTimeInfo);
+  nodesWalkExprs(pStmt->pTags, rebindStreamCreateTimeNode, pStmt->pTimeInfo);
+  rebindStreamCreateTimeQuery(pStmt->pQuery, pStmt->pTimeInfo);
+}
+
+static int32_t createStreamStmtCopy(const SCreateStreamStmt* pSrc, SCreateStreamStmt* pDst) {
+  COPY_CHAR_ARRAY_FIELD(streamDbName);
+  COPY_CHAR_ARRAY_FIELD(streamName);
+  COPY_CHAR_ARRAY_FIELD(targetDbName);
+  COPY_CHAR_ARRAY_FIELD(targetTabName);
+  COPY_SCALAR_FIELD(ignoreExists);
+  COPY_SCALAR_FIELD(nodelayCreateSubtable);
+  int32_t code = cloneStreamCreateTimeInfo(pSrc->pTimeInfo, &pDst->pTimeInfo);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  CLONE_NODE_FIELD(pTrigger);
+  CLONE_NODE_FIELD(pQuery);
+  CLONE_NODE_FIELD(pSubtable);
+  CLONE_NODE_LIST_FIELD(pTags);
+  CLONE_NODE_LIST_FIELD(pCols);
+  rebindStreamCreateTimeInfo(pDst);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2004,6 +2272,18 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_STREAM_WINDOW_LAYER:
       code = streamWindowLayerNodeCopy((const SStreamWindowLayerNode*)pNode, (SStreamWindowLayerNode*)pDst);
       break;
+    case QUERY_NODE_STREAM_TRIGGER:
+      code = streamTriggerNodeCopy((const SStreamTriggerNode*)pNode, (SStreamTriggerNode*)pDst);
+      break;
+    case QUERY_NODE_STREAM_TRIGGER_OPTIONS:
+      code = streamTriggerOptionsCopy((const SStreamTriggerOptions*)pNode, (SStreamTriggerOptions*)pDst);
+      break;
+    case QUERY_NODE_STREAM_NOTIFY_OPTIONS:
+      code = streamNotifyOptionsCopy((const SStreamNotifyOptions*)pNode, (SStreamNotifyOptions*)pDst);
+      break;
+    case QUERY_NODE_STREAM_TAG_DEF:
+      code = streamTagDefNodeCopy((const SStreamTagDefNode*)pNode, (SStreamTagDefNode*)pDst);
+      break;
     case QUERY_NODE_NODE_LIST:
       code = nodeListNodeCopy((const SNodeListNode*)pNode, (SNodeListNode*)pDst);
       break;
@@ -2092,6 +2372,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_SELECT_STMT:
       code = selectStmtCopy((const SSelectStmt*)pNode, (SSelectStmt*)pDst);
+      break;
+    case QUERY_NODE_CREATE_STREAM_STMT:
+      code = createStreamStmtCopy((const SCreateStreamStmt*)pNode, (SCreateStreamStmt*)pDst);
       break;
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       code = logicScanCopy((const SScanLogicNode*)pNode, (SScanLogicNode*)pDst);

@@ -17,7 +17,7 @@ options: {
 trigger_type: {
     PERIOD(period_time[, offset_time])
   | SLIDING(sliding_val[, offset_time]) 
-  | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time]) 
+  | INTERVAL(interval_val[, interval_offset]) [SLIDING(sliding_val)]
   | SESSION(ts_col, session_val)
   | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
@@ -32,7 +32,7 @@ leaf_window: nested_window_type [AS layer_name]
 
 nested_window_type: {
     SLIDING(sliding_val[, offset_time])
-  | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time])
+  | INTERVAL(interval_val[, interval_offset]) [SLIDING(sliding_val)]
   | SESSION(ts_col, session_val)
   | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
@@ -60,7 +60,9 @@ limit_expr: {
   | duration_time OR COUNT count_val
 }
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
+
+config_item: {timezone = timezone_name | firstDayOfWeek = first_day_of_week}
 
 notification_definition:
     NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
@@ -76,7 +78,7 @@ tag_definition:
     tag_name type_name AS expr
 ```
 
-For version-specific support of stream timezones and natural time units (such as weeks, months, quarters, and years in `PERIOD`, `SLIDING`, and `INTERVAL`), see [Stream Timezone](../05-tdengine-sql/10-time/01-timezone.md#stream-timezone).
+For version-specific support of stream time configuration and natural time units (such as weeks, months, quarters, and years in `PERIOD`, `SLIDING`, and `INTERVAL`), see [Stream Time Configuration](../05-tdengine-sql/10-time/01-timezone.md#stream-time-configuration).
 
 ### Trigger Methods in Stream Processing
 
@@ -95,7 +97,7 @@ PERIOD(period_time[, offset_time])
 A scheduled trigger is driven by a fixed interval based on the system time, essentially functioning as a scheduled task. It does not belong to the category of window triggers. Parameter definitions are as follows:
 
 - period_time: The scheduling interval. Supported time units are listed in [Time Units](../05-tdengine-sql/01-datatype.md#time-units) (supports milliseconds through years). The supported range is [10a, 3650d].
-- offset_time: (Optional) The scheduling offset. Supported units include milliseconds (a), seconds (s), minutes (m), hours (h), and days (d). For week/month/year units, the offset must be strictly less than the trigger period; for month units, validation is based on 28 days/month (e.g., `PERIOD(1n, 28d)` is invalid).
+- offset_time: (Optional) The scheduling offset. Its accepted range, normalization, and validity comparison reuse ordinary query INTERVAL offset rules: `AUTO` and negative values are rejected, and it must be strictly less than `period_time`; `q` is converted to `3n` first, and mixed calendar-month and other-unit values use a conservative 28 days per month.
 
 Usage Notes:
 
@@ -103,11 +105,12 @@ Usage Notes:
   - If the scheduling interval is 5 hours 30 minutes, the trigger times for the day will be [00:00, 05:30, 11:00, 16:30, 22:00]. The trigger times for subsequent days will be the same.
   - With the same interval but an offset of 1 minute, the trigger times will be [00:01, 05:31, 11:01, 16:31, 22:01] each day.
   - Under the same conditions, if the stream is created when the system time is 12:00, the trigger times for the current day will be [16:31, 22:01]. From the next day onwards, the trigger times will be [00:01, 05:31, 11:01, 16:31, 22:01].
-- When the scheduling interval is greater than or equal to 1 day, the base time is calculated from the server timezone's Unix epoch (1970-01-01 00:00:00) plus the scheduling offset, aligned by integer multiples of the trigger interval to ensure global consistency across all tasks. For example:
+- When the scheduling interval is greater than or equal to 1 day, the base time is calculated from the stream's frozen time configuration and its Unix epoch (1970-01-01 00:00:00) plus the scheduling offset, aligned by integer multiples of the trigger interval. Changes to server or connection timezone settings after CREATE do not change an existing stream. For week units, the frozen `firstDayOfWeek` determines the week boundary. For example:
   - With a scheduling interval of 2 days, all tasks using this interval will trigger at times that are integer multiples of 2 days from the epoch (e.g., 1970-01-03 00:00:00, 1970-01-05 00:00:00, ...), ensuring global alignment.
-  - With a scheduling interval of 1 week (`PERIOD(1w)`), triggers align to every Monday at 00:00:00; `PERIOD(1w, 1d)` triggers every Tuesday at 00:00:00.
+  - With a scheduling interval of 1 week (`PERIOD(1w)`) and `firstDayOfWeek = 1`, triggers align to Monday at 00:00:00; `PERIOD(1w, 1d)` triggers on Tuesday at 00:00:00.
   - With a scheduling interval of 1 month (`PERIOD(1n)`), triggers align to the 1st of each month at 00:00:00; `PERIOD(1n, 14d)` triggers on the 15th of each month at 00:00:00.
   - With a scheduling interval of 1 year (`PERIOD(1y)`), triggers align to January 1st at 00:00:00 each year; `PERIOD(1y, 31d)` triggers on February 1st at 00:00:00 each year.
+  - `PERIOD(1q)` is supported from v3.4.3. `q` is normalized as `3n`, and aligns to the first day of a quarter.
 
 Applicable scenarios: Situations requiring scheduled computation driven continuously by system time, such as generating daily statistics every hour, or sending scheduled statistical reports once a day.
 
@@ -122,19 +125,20 @@ A sliding trigger drives execution based on a fixed interval of event time for d
 Parameter definitions are as follows:
 
 - sliding_val: Required. The sliding duration based on event time.
-- offset_time: Optional. The time offset for the sliding trigger. Supported time units include milliseconds (a), seconds (s), minutes (m), and hours (h).
+- offset_time: Optional. The time offset for the sliding trigger. Its accepted range, normalization, and validity comparison reuse ordinary query INTERVAL offset rules: `AUTO` and negative values are rejected, and it must be strictly less than `sliding_val`; `q` is converted to `3n` first, and mixed calendar-month and other-unit values use a conservative 28 days per month.
 
 Usage Notes:
 
 - A trigger table must be specified. When the trigger table is a supertable, grouping by tags or subtables is supported, as well as no grouping.
 - Supports sliding triggers after processing and filtering the incoming data (conditional triggers).
+- From v3.4.3, standalone `SLIDING` also supports natural units `n`, `q`, and `y`; `q` is normalized as `3n`. Its scheduler remains distinct from the `INTERVAL` boundary algorithm. Natural-unit alignment, including the `w` week boundary, uses the stream's frozen timezone and `firstDayOfWeek` where relevant.
 
 Applicable scenarios: Situations where calculations need to be driven continuously and periodically based on event time, such as generating daily statistical data every hour or sending scheduled reports each day.
 
 ##### Time Window Trigger
 
 ```sql
-INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time])
+INTERVAL(interval_val[, interval_offset]) [SLIDING(sliding_val)]
 ```
 
 A time window trigger refers to triggering based on incoming data written to the trigger table, using event time and a fixed window size that slides over time. The INTERVAL window must be specified. This is a type of window trigger, and a trigger table must be specified.
@@ -142,14 +146,16 @@ A time window trigger refers to triggering based on incoming data written to the
 The starting point for a time window trigger is the beginning of the window. By default, windows are divided starting from Unix time 0 (1970-01-01 00:00:00 UTC). You can change the starting point of the window division by specifying a window time offset. Parameter definitions are as follows:
 
 - interval_val: Required. The duration of the interval window.
-- interval_offset: Optional. The time offset for the interval window.
-- sliding_val: Required. The sliding duration based on event time.
-- offset_time: Optional. The time offset for the sliding trigger, with the same meaning as for a sliding trigger.
+- interval_offset: Optional. The time offset for the interval window. Its accepted range, normalization, and validity comparison reuse ordinary query INTERVAL offset rules: `AUTO` and negative values are rejected, and it must be strictly less than `interval_val`; `q` is converted to `3n` first, and mixed calendar-month and other-unit values use a conservative 28 days per month.
+- sliding_val: Optional. The sliding duration based on event time. If omitted, the interval is a tumbling window.
 
 Usage Notes:
 
 - A trigger table must be specified. When the trigger table is a supertable, grouping by tags or subtables is supported, as well as no grouping.
 - Supports conditional time window triggers after processing and filtering the incoming data.
+- From v3.4.3, `interval_val` supports `a/s/m/h/d/w/n/q/y`; `q` is normalized as `3n`. An explicit `sliding_val` accepts `a/s/m/h/d/w`, rejects the variable-month units `n/q/y`, and may exceed `interval_val`.
+- All three offset positions use the same rules. For example, `PERIOD(1n, 27d)`, `SLIDING(1q, 83d)`, and `INTERVAL(29d, 1n)` are valid; `PERIOD(1n, 28d)`, `SLIDING(1q, 84d)`, `INTERVAL(1w, AUTO)`, and any negative offset are invalid. Natural-unit INTERVAL boundaries use the stream's frozen timezone and `firstDayOfWeek` where relevant. This does not change the independent PERIOD or standalone SLIDING schedulers.
+- In an explicit combination, `SLIDING` accepts only one `sliding_val`. To offset the window boundary, use `INTERVAL(interval_val, interval_offset) SLIDING(sliding_val)`.
 
 Applicable Scenarios: Suitable for event-time-based scheduled window calculations, such as generating hourly statistics for that hour, or calculating data within the last 5-minute window every hour.
 
@@ -552,10 +558,12 @@ Usage Restrictions:
 ```sql
 [STREAM_OPTIONS(stream_option [|...])]
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
+
+config_item: {timezone = timezone_name | firstDayOfWeek = first_day_of_week}
 ```
 
-Control options are used to manage trigger and computation behavior. Multiple options can be specified, but the same option cannot be specified more than once. The available options include:
+Control options are used to manage trigger and computation behavior. Multiple options can be specified. Except for `CONFIG`, an option cannot be specified more than once; multiple `CONFIG` blocks are allowed. The available options include:
 
 - WATERMARK(duration_time) specifies the tolerance duration for out-of-order data. Data arriving later than this duration is treated as out-of-order and processed according to the out-of-order handling strategy of the trigger type and user configuration. Default: duration_time = 0 (no tolerance).
 - EXPIRED_TIME(exp_time) specifies an expiration interval after which data is ignored. If not set, no data is considered expired. This option can be used when data writes or updates older than a certain time range are irrelevant. exp_time defines the expiration interval. Supported time units: milliseconds (a), seconds (s), minutes (m), hours (h), days (d).
@@ -580,6 +588,18 @@ Control options are used to manage trigger and computation behavior. Multiple op
   - Default: If not specified, triggers will occur even when no input data is present.
 - IDLE_TIMEOUT(duration_time) enables group idle detection and specifies the idle timeout duration. When a group has not received any new data for longer than this duration, it is considered idle and an IDLE event is triggered; when the idle group receives new data again, a RESUME event is triggered. Must be used together with `EVENT_TYPE(IDLE)` and/or `EVENT_TYPE(RESUME)`. Supported time units: milliseconds (a), seconds (s), minutes (m), hours (h), days (d). Valid range: `[1s, 10d]`. Idle detection is based on processing time (the time data arrives and is processed by the stream), using a monotonic clock to avoid being affected by system clock adjustments.
 - FLUSH_ON_OUTER_CLOSE applies only to nested window plans. By default, unfinished leaf windows are discarded when an ancestor closes. With this option, each unfinished leaf window is closed early using the closing ancestor context, but only when `EVENT_TYPE` includes `WINDOW_CLOSE`. The option does not add event types or bypass the leaf window's `TRUE_FOR` condition; it has no effect when only `WINDOW_OPEN` is enabled.
+
+#### Time Configuration [v3.4.3]
+
+Use `CONFIG` only inside `STREAM_OPTIONS`; there is no standalone stream `TIMEZONE` clause:
+
+```sql
+STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1))
+```
+
+`timezone` is a string and `firstDayOfWeek` is an integer from `0` to `6` (`0` is Sunday and `1` is Monday). Key matching is case-insensitive, but the only accepted keys are the canonical names `timezone` and `firstDayOfWeek`; aliases are not accepted. `CONFIG()` is invalid. If a key occurs more than once, whether within one `CONFIG` block or across multiple `CONFIG` blocks, its last occurrence wins independently of the other key. A missing key inherits that key's effective value from the current connection.
+
+At CREATE, the complete pair is validated and normalized once, then persisted and frozen. New streams store one canonical full `CONFIG(timezone = '...', firstDayOfWeek = N)` block in their CREATE SQL, so lifecycle operations, restart, `SHOW CREATE`, `INS_STREAMS` SQL, dump, and restore preserve the same behavior. To change either value, recreate the stream; later connection or server setting changes do not modify it.
 
 ### Notification Mechanism in Stream Processing
 
@@ -861,8 +881,11 @@ SHOW CREATE STREAM [db_name.]stream_name;
 For more detailed information, query [`INS_STREAMS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_streams):
 
 ```sql
-SELECT * from information_schema.`ins_streams`;
+SELECT stream_name, timezone, first_day_of_week, sql
+FROM information_schema.ins_streams;
 ```
+
+For a new stream, `sql` contains the canonical full `CONFIG` block and the two time fields contain its frozen values. A legacy stream upgraded while offline retains NULL time fields, its original SQL without an injected `CONFIG` block, and its previous dynamic runtime fallback behavior.
 
 For recalculation records, see [`INS_STREAM_RECALCULATES`](../05-tdengine-sql/09-system-info/01-meta.md#ins_stream_recalculates).
 

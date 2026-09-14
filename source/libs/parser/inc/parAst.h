@@ -28,13 +28,16 @@ extern "C" {
 #include "tmsg.h"
 
 typedef struct SAstCreateContext {
-  SParseContext* pQueryCxt;
-  SMsgBuf        msgBuf;
-  bool           notSupport;
-  SNode*         pRootNode;
-  int16_t        placeholderNo;
-  SArray*        pPlaceholderValues;
-  int32_t        errCode;
+  SParseContext*         pQueryCxt;
+  SMsgBuf                msgBuf;
+  bool                   notSupport;
+  SNode*                 pRootNode;
+  int16_t                placeholderNo;
+  SArray*                pPlaceholderValues;
+  int32_t                errCode;
+  int32_t                lookaheadPos;
+  int32_t                trailingTriviaPos;
+  SStreamCreateTimeInfo* pStreamTimeInfo;
 } SAstCreateContext;
 
 typedef enum EStreamOptionType {
@@ -54,6 +57,7 @@ typedef enum EStreamOptionType {
   STREAM_TRIGGER_OPTION_IGNORE_NODATA_TRIGGER,
   STREAM_TRIGGER_OPTION_IDLE_TIMEOUT,
   STREAM_TRIGGER_OPTION_FLUSH_ON_OUTER_CLOSE,
+  STREAM_TRIGGER_OPTION_CONFIG,
 } EStreamOptionType;
 
 typedef enum EDatabaseOptionType {
@@ -138,6 +142,8 @@ typedef struct SStreamTriggerOption {
   int64_t flag;
   SToken  val;
   SNode*  pNode;
+  SToken  first;
+  SToken  last;
 } SStreamTriggerOption;
 
 typedef struct STokenPair {
@@ -553,6 +559,11 @@ SNode* createDropFunctionStmt(SAstCreateContext* pCxt, bool ignoreNotExists, con
 SNode* createStreamTagDefNode(SAstCreateContext* pCxt, SToken* pTagName, SDataType dataType, SNode* tagExpression);
 SNode* createStreamTriggerOptions(SAstCreateContext* pCxt);
 SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStreamTriggerOption* pStreamOptionUnit);
+void   setStreamConfigKeyword(SAstCreateContext* pCxt, const SToken* pKeyword);
+void   setStreamConfigItem(SAstCreateContext* pCxt, const SToken* pKey, const SToken* pValue, bool timezoneKey,
+                           bool stringValue);
+void   setStreamOptionsSpan(SAstCreateContext* pCxt, const SToken* pFirst, const SToken* pLast);
+void   setStreamOptionsInsertPos(SAstCreateContext* pCxt);
 SNode* createStreamNotifyOptions(SAstCreateContext* pCxt, SNodeList* pAddrUrls, int64_t eventType, SNode* pWhere,
                                  int64_t notifyType);
 SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pStream, SNode* pTrigger,

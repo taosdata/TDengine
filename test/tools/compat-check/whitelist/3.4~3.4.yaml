@@ -96,6 +96,8 @@ modified_tables:
   - output_rows_per_sec_1m
   - runner_result_latency_avg_1m_ms
   - history_progress_pct
+  - timezone
+  - first_day_of_week
 - table: INS_STREAM_RECALCULATES
   added_columns:
   - status

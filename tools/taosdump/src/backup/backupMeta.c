@@ -853,6 +853,65 @@ int backVirtualTablesSql(const char *dbName) {
 //
 // stream create sql
 //
+static int32_t flattenStreamDdl(const char *ddl, int32_t ddlLen, char *buf) {
+    int32_t n = 0;
+    char    quote = 0;
+    bool    inLineComment = false;
+    bool    inBlockComment = false;
+
+    // Each input byte emits at most one output byte.
+    for (int32_t i = 0; i < ddlLen; ++i) {
+        char c = ddl[i];
+
+        if (inLineComment) {
+            if (c == '\n') {
+                inLineComment = false;
+                buf[n++] = ' ';
+            }
+            continue;
+        }
+
+        if (inBlockComment) {
+            buf[n++] = (c == '\n' || c == '\r') ? ' ' : c;
+            if (c == '*' && i + 1 < ddlLen && ddl[i + 1] == '/') {
+                buf[n++] = ddl[++i];
+                inBlockComment = false;
+            }
+            continue;
+        }
+
+        if (quote != 0) {
+            buf[n++] = (c == '\n' || c == '\r') ? ' ' : c;
+            if (quote != '`' && c == '\\' && i + 1 < ddlLen) {
+                c = ddl[++i];
+                buf[n++] = (c == '\n' || c == '\r') ? ' ' : c;
+            } else if (c == quote) {
+                if (i + 1 < ddlLen && ddl[i + 1] == quote) {
+                    buf[n++] = ddl[++i];
+                } else {
+                    quote = 0;
+                }
+            }
+            continue;
+        }
+
+        if (c == '-' && i + 1 < ddlLen && ddl[i + 1] == '-') {
+            inLineComment = true;
+            ++i;
+            buf[n++] = ' ';
+        } else if (c == '/' && i + 1 < ddlLen && ddl[i + 1] == '*') {
+            inBlockComment = true;
+            buf[n++] = c;
+            buf[n++] = ddl[++i];
+        } else {
+            if (c == '\'' || c == '"' || c == '`') quote = c;
+            buf[n++] = (c == '\n' || c == '\r') ? ' ' : c;
+        }
+    }
+
+    return n;
+}
+
 int backStreamsSql(const char *dbName) {
     int code = TSDB_CODE_SUCCESS;
 
@@ -908,13 +967,10 @@ int backStreamsSql(const char *dbName) {
         int ddlLen = lens[0];
         char *ddl = (char *)row[0];
 
-        // replace embedded newlines with spaces to keep one DDL per line
+        // Remove line comments outside quoted text before flattening newlines.
         char *buf = (char *)taosMemoryMalloc(ddlLen + 2);
         if (buf) {
-            int n = 0;
-            for (int j = 0; j < ddlLen; j++) {
-                buf[n++] = (ddl[j] == '\n' || ddl[j] == '\r') ? ' ' : ddl[j];
-            }
+            int32_t n = flattenStreamDdl(ddl, ddlLen, buf);
             buf[n++] = '\n';
             if (taosWriteFile(fp, buf, n) != n) {
                 logError("write stream DDL to file failed: %s", sqlFile);

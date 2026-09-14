@@ -14,6 +14,7 @@
  */
 
 #include "parTranslater.h"
+#include <ctype.h>
 #include <stdint.h>
 #include "cJSON.h"
 #include "extConnector.h"
@@ -6075,15 +6076,36 @@ static int32_t rewriteFuncToValue(STranslateContext* pCxt, char** pLiteral, SNod
   return pCxt->errCode;
 }
 
-static int32_t rewriteTimezoneFunc(STranslateContext* pCxt, SNode** pNode) {
-  timezone_t sessionTz = pCxt->pParseCxt->timezone;
-  char*      pTzName = NULL;
-  if (sessionTz != NULL && pTimezoneNameMap != NULL) {
-    char* tzName = (char*)taosHashGet(pTimezoneNameMap, &sessionTz, sizeof(timezone_t));
-    pTzName = taosStrdup(tzName ? tzName : tsTimezoneStr);
-  } else {
-    pTzName = taosStrdup(tsTimezoneStr);  /* L3→L5 fallback */
+static timezone_t getEffectiveTimezone(const STranslateContext* pCxt) {
+  return pCxt->pStreamTimeConfig != NULL ? pCxt->streamTimezone : pCxt->pParseCxt->timezone;
+}
+
+static const char* getEffectiveTimezoneName(const STranslateContext* pCxt) {
+  if (pCxt->pStreamTimeConfig != NULL) {
+    return pCxt->pStreamTimeConfig->timezone;
   }
+
+  timezone_t timezone = getEffectiveTimezone(pCxt);
+  if (timezone != NULL && pTimezoneNameMap != NULL) {
+    char* pName = (char*)taosHashGet(pTimezoneNameMap, &timezone, sizeof(timezone_t));
+    if (pName != NULL) {
+      return pName;
+    }
+  }
+  return tsTimezoneStr;
+}
+
+static int8_t getEffectiveFirstDayOfWeek(const STranslateContext* pCxt) {
+  if (pCxt->pStreamTimeConfig != NULL) {
+    return pCxt->pStreamTimeConfig->firstDayOfWeek;
+  }
+
+  int8_t firstDayOfWeek = pCxt->pParseCxt->firstDayOfWeek;
+  return firstDayOfWeek >= 0 && firstDayOfWeek <= 6 ? firstDayOfWeek : tsFirstDayOfWeek;
+}
+
+static int32_t rewriteTimezoneFunc(STranslateContext* pCxt, SNode** pNode) {
+  char* pTzName = taosStrdup(getEffectiveTimezoneName(pCxt));
   if (pTzName == NULL) {
     return terrno;
   }
@@ -6094,9 +6116,7 @@ static int32_t rewriteTimezoneFunc(STranslateContext* pCxt, SNode** pNode) {
 
 static int32_t rewriteFirstDayOfWeekFunc(STranslateContext* pCxt, SNode** pNode) {
   char    fdowBuf[8] = {0};
-  int32_t fdow = (pCxt->pParseCxt->firstDayOfWeek >= 0 && pCxt->pParseCxt->firstDayOfWeek <= 6)
-                     ? pCxt->pParseCxt->firstDayOfWeek
-                     : tsFirstDayOfWeek;
+  int32_t fdow = getEffectiveFirstDayOfWeek(pCxt);
 
   if (snprintf(fdowBuf, sizeof(fdowBuf), "%d", fdow) <= 0) {
     return TSDB_CODE_FAILED;
@@ -14227,10 +14247,12 @@ static int32_t getMonthsFromTimeVal(int64_t val, int32_t fromPrecision, char uni
       *pMonth = days / 28.0;
       return code;
     case 'n':
+    case 'N':
       *pMonth = val;
       return code;
     case 'y':
-      *pMonth = val * 12;
+    case 'Y':
+      *pMonth = (double)val * 12.0;
       return code;
     default:
       code = TSDB_CODE_INVALID_PARA;
@@ -14265,6 +14287,21 @@ static int64_t getPrecisionMultiple(uint8_t precision) {
       break;
   }
   return 1;
+}
+
+static int32_t checkStreamNaturalDurationRepresentable(STranslateContext* pCxt, const SValueNode* pDuration,
+                                                       uint8_t precision, const char* name) {
+  if (!IS_CALENDAR_TIME_DURATION(pDuration->unit)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int64_t value = 0;
+  if (convertCalendarTimeFromUnitToPrecision(pDuration->datum.i, pDuration->unit, precision, &value) !=
+      TSDB_CODE_SUCCESS) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_BIG, "%s is too large for %s precision",
+                                   name, getPrecisionStr(precision));
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t convertVarDuration(SValueNode* pOffset, uint8_t precision) {
@@ -14443,8 +14480,54 @@ static int32_t checkTimeGreater(SValueNode* pLeftTime, SValueNode* pRightTime, u
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkStreamWindowOffset(STranslateContext* pCxt, const SValueNode* pBase, SValueNode* pOffset,
+                                       uint8_t precision) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (pOffset->datum.i == AUTO_DURATION_VALUE || pOffset->datum.i < 0) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_NEGATIVE);
+  }
+
+  if (pBase->unit == 'n' && pOffset->unit == 'y') {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_UNIT);
+  }
+
+  PAR_ERR_RET(checkStreamNaturalDurationRepresentable(pCxt, pBase, precision, "window value"));
+  PAR_ERR_RET(checkStreamNaturalDurationRepresentable(pCxt, pOffset, precision, "window offset"));
+
+  bool fixed = !IS_CALENDAR_TIME_DURATION(pBase->unit) && !IS_CALENDAR_TIME_DURATION(pOffset->unit);
+  if (fixed) {
+    if (pOffset->datum.i >= pBase->datum.i) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
+    }
+  } else {
+    double baseMonth = 0;
+    double offsetMonth = 0;
+    code = getMonthsFromTimeVal(pBase->datum.i, precision, pBase->unit, &baseMonth);
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+    code = getMonthsFromTimeVal(pOffset->datum.i, precision, pOffset->unit, &offsetMonth);
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+    if (offsetMonth >= baseMonth) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
+    }
+  }
+
+  if (pOffset->unit == 'n' || pOffset->unit == 'y') {
+    if (convertVarDuration(pOffset, precision) != TSDB_CODE_SUCCESS) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_BIG,
+                                     "interval offset is too large for %s precision", getPrecisionStr(precision));
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+
+_exit:
+  parserError("line %d: failed to check stream window offset, %s", lino, tstrerror(code));
+  return code;
+}
+
 static int32_t checkStreamIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pInterval) {
-  int32_t     code = TSDB_CODE_SUCCESS;
   uint8_t     precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
   SValueNode* pInter = (SValueNode*)pInterval->pInterval;
   SValueNode* pOffset = (SValueNode*)pInterval->pOffset;
@@ -14473,25 +14556,11 @@ static int32_t checkStreamIntervalWindow(STranslateContext* pCxt, SIntervalWindo
                                           "Interval offset without interval"));
     }
 
-    if (pOffset->datum.i < 0) {
-      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_NEGATIVE));
-    }
-
-    if (pInter->unit == 'n' && pOffset->unit == 'y') {
-      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_UNIT));
-    }
-
-    bool greater = false;
-    code = checkTimeGreater(pInter, pOffset, precision, false, &greater);
-    if ((code != TSDB_CODE_SUCCESS)) {
-      return code;
-    } else if (!greater) {
-      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG));
-    }
+    PAR_ERR_RET(checkStreamWindowOffset(pCxt, pInter, pOffset, precision));
   }
 
   if (pSliding) {
-    if (IS_CALENDAR_TIME_DURATION(pSliding->unit)) {
+    if (pInter && IS_CALENDAR_TIME_DURATION(pSliding->unit)) {
       PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_UNIT));
     }
 
@@ -14499,8 +14568,11 @@ static int32_t checkStreamIntervalWindow(STranslateContext* pCxt, SIntervalWindo
       PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL,
                                           "sliding value must be greater than 0"));
     }
+    if (!pInter) {
+      PAR_ERR_RET(checkStreamNaturalDurationRepresentable(pCxt, pSliding, precision, "sliding value"));
+    }
     // Stream interval triggers support dense overlap and do not use the query-only 1% sliding limit.
-  } else {
+  } else if (!pInter) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                         "Sliding window is required for stream query"));
   }
@@ -14516,21 +14588,7 @@ static int32_t checkStreamIntervalWindow(STranslateContext* pCxt, SIntervalWindo
                                           "Sliding offset cannot be used with interval"));
     }
 
-    if (pSOffset->datum.i < 0) {
-      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_NEGATIVE));
-    }
-
-    if (pSOffset->unit != 'a' && pSOffset->unit != 's' && pSOffset->unit != 'm' && pSOffset->unit != 'h') {
-      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_UNIT));
-    }
-
-    bool greater = false;
-    code = checkTimeGreater(pSliding, pSOffset, precision, false, &greater);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    } else if (!greater) {
-      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG));
-    }
+    PAR_ERR_RET(checkStreamWindowOffset(pCxt, pSliding, pSOffset, precision));
   }
 
   return TSDB_CODE_SUCCESS;
@@ -14614,15 +14672,16 @@ static const int64_t periodUpperBound = (int64_t)3650 * 24 * 60 * 60 * 1000;  //
  *       - Month: [1n, 120n] (10 years)
  *       - Year: [1y, 10y]
  *       - Fixed units: [10a, 3650d]
- * @note Offset validation:
- *       - Supported units: a, s, m, h, d (week/month/year not allowed)
+ * @note Offset validation is shared with stream INTERVAL and independent SLIDING:
+ *       - AUTO and negative values are rejected
  *       - Must satisfy: offset < period (strict inequality)
- *       - Month unit special case: offset < N * 28 days (shortest month)
+ *       - Fixed/natural comparisons conservatively use 28 days per month
+ *       - Natural offsets are normalized to the trigger precision
  */
 static int32_t checkPeriodWindow(STranslateContext* pCxt, SPeriodWindowNode* pPeriod) {
-  uint8_t     precision = TSDB_TIME_PRECISION_MILLI;
   SValueNode* pPer = (SValueNode*)pPeriod->pPeroid;
   SValueNode* pOffset = (SValueNode*)pPeriod->pOffset;
+  uint8_t     precision = pPer ? pPer->node.resType.precision : TSDB_TIME_PRECISION_MILLI;
 
   if (pPer) {
     if (pPer->unit != 'a' && pPer->unit != 's' && pPer->unit != 'm' && pPer->unit != 'h' && pPer->unit != 'd' &&
@@ -14678,38 +14737,7 @@ static int32_t checkPeriodWindow(STranslateContext* pCxt, SPeriodWindowNode* pPe
       PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "Offset without period"));
     }
 
-    if (pOffset->datum.i < 0) {
-      PAR_ERR_RET(
-          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "Negative period offset value"));
-    }
-
-    if (pOffset->unit != 'a' && pOffset->unit != 's' && pOffset->unit != 'm' && pOffset->unit != 'h' &&
-        pOffset->unit != 'd') {
-      char errMsg[256];
-      snprintf(errMsg, sizeof(errMsg),
-               "Invalid time unit '%c' in PERIOD offset. "
-               "Supported offset units: a (millisecond), s (second), m (minute), h (hour), d (day)",
-               pOffset->unit);
-      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OFFSET_UNIT, errMsg));
-    }
-
-    // Validate offset < period (strict inequality)
-    // Note: offset datum.i is already converted by getDuration() to target precision
-    //       period datum.i is converted for non-natural units, original value for 'n'/'y'
-    // Convert both to milliseconds for comparison
-    int64_t offsetValue = pOffset->datum.i;
-    int64_t periodValue = pPer->datum.i;
-    if (pPer->unit == 'n') {
-      periodValue = convertTimePrecision(periodValue * 28LL * MILLISECOND_PER_DAY, TSDB_TIME_PRECISION_MILLI,
-                                         precision);  // Convert N months to milliseconds using 28 days/month
-    } else if (pPer->unit == 'y') {
-      periodValue = convertTimePrecision(periodValue * 365LL * MILLISECOND_PER_DAY, TSDB_TIME_PRECISION_MILLI,
-                                         precision);  // Convert N years to milliseconds using 365 days/year
-    }
-    if (offsetValue >= periodValue) {
-      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OFFSET_VALUE,
-                                          "Offset must be strictly less than period"));
-    }
+    PAR_ERR_RET(checkStreamWindowOffset(pCxt, pPer, pOffset, precision));
   }
 
   return TSDB_CODE_SUCCESS;
@@ -23626,6 +23654,250 @@ static SNode* getStreamNestedLeafWindow(SStreamWindowPlanNode* pPlan) {
   return pLeaf == NULL ? NULL : pLeaf->pWindow;
 }
 
+static int32_t getConnectionTimezoneName(const STranslateContext* pCxt, char* pTimezone, int32_t timezoneLen) {
+  if (pCxt->pParseCxt->timezoneName[0] != '\0') {
+    tstrncpy(pTimezone, pCxt->pParseCxt->timezoneName, timezoneLen);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  const char* pName = getEffectiveTimezoneName(pCxt);
+  if (pName[0] != '\0') {
+    tstrncpy(pTimezone, pName, timezoneLen);
+  } else {
+    TAOS_CHECK_RETURN(taosGetSystemTimezone(pTimezone));
+  }
+  truncateTimezoneString(pTimezone);
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool isValidStreamSqlSpan(const SParseContext* pParseCxt, SStreamSqlSpan span) {
+  return pParseCxt->pSql != NULL && span.begin >= 0 && span.end > span.begin && (size_t)span.end <= pParseCxt->sqlLen;
+}
+
+static int32_t resolveCreateStreamTimeContext(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
+  SStreamCreateTimeInfo* pInfo = pStmt->pTimeInfo;
+  if (pInfo == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  pCxt->streamTimezone = NULL;
+  pCxt->pStreamTimeConfig = NULL;
+  if (pInfo->timezone != NULL) {
+    tzfree(pInfo->timezone);
+    pInfo->timezone = NULL;
+  }
+
+  int64_t firstDayOfWeek = pCxt->pParseCxt->firstDayOfWeek;
+  if (firstDayOfWeek < 0 || firstDayOfWeek > 6) {
+    firstDayOfWeek = tsFirstDayOfWeek;
+  }
+  if (pInfo->hasFirstDayOfWeek) {
+    SStreamSqlSpan span = pInfo->firstDayOfWeekValue;
+    if (!isValidStreamSqlSpan(pCxt->pParseCxt, span) ||
+        TSDB_CODE_SUCCESS !=
+            toInteger(pCxt->pParseCxt->pSql + span.begin, span.end - span.begin, 10, &firstDayOfWeek)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK,
+                                     "Invalid firstDayOfWeek in STREAM_OPTIONS CONFIG, must be 0-6");
+    }
+  }
+  if (firstDayOfWeek < 0 || firstDayOfWeek > 6) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK, (int32_t)firstDayOfWeek);
+  }
+
+  char        connectionTimezone[TD_TIMEZONE_LEN] = {0};
+  char*       pTimezone = NULL;
+  const char* pTimezoneSource = connectionTimezone;
+  if (pInfo->hasTimezone) {
+    SStreamSqlSpan span = pInfo->timezoneValue;
+    if (!isValidStreamSqlSpan(pCxt->pParseCxt, span)) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    pTimezone = taosStrndup(pCxt->pParseCxt->pSql + span.begin, span.end - span.begin);
+    if (pTimezone == NULL) {
+      return terrno;
+    }
+    (void)strdequote(pTimezone);
+    pTimezoneSource = pTimezone;
+  } else {
+    TAOS_CHECK_RETURN(getConnectionTimezoneName(pCxt, connectionTimezone, sizeof(connectionTimezone)));
+  }
+
+  int32_t           code = TSDB_CODE_SUCCESS;
+  timezone_t        timezone = NULL;
+  SStreamTimeConfig config = {.timezone = {0}, .firstDayOfWeek = (int8_t)firstDayOfWeek};
+  code = taosValidateAndNormalizeTimezone(pTimezoneSource, config.timezone, sizeof(config.timezone), &timezone);
+  taosMemoryFree(pTimezone);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  pInfo->config = config;
+  pInfo->timezone = timezone;
+  pCxt->streamTimezone = pInfo->timezone;
+  pCxt->pStreamTimeConfig = &pInfo->config;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void rebindStreamTimeQuery(SNode* pNode, STranslateContext* pCxt);
+
+static EDealRes rebindStreamTimeNode(SNode* pNode, void* pContext) {
+  STranslateContext* pCxt = (STranslateContext*)pContext;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_VALUE:
+      ((SValueNode*)pNode)->tz = pCxt->streamTimezone;
+      break;
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode* pOperator = (SOperatorNode*)pNode;
+      if (pOperator->ownsTimezone && pOperator->tz != NULL) {
+        tzfree(pOperator->tz);
+      }
+      pOperator->tz = pCxt->streamTimezone;
+      tstrncpy(pOperator->timezoneName, pCxt->pStreamTimeConfig->timezone, sizeof(pOperator->timezoneName));
+      pOperator->ownsTimezone = false;
+      break;
+    }
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunction = (SFunctionNode*)pNode;
+      if (pFunction->tzAllocated && pFunction->tz != NULL) {
+        tzfree(pFunction->tz);
+      }
+      pFunction->tz = pCxt->streamTimezone;
+      tstrncpy(pFunction->tzName, pCxt->pStreamTimeConfig->timezone, sizeof(pFunction->tzName));
+      pFunction->tzAllocated = false;
+      pFunction->firstDayOfWeek = pCxt->pStreamTimeConfig->firstDayOfWeek;
+      break;
+    }
+    case QUERY_NODE_CASE_WHEN:
+      ((SCaseWhenNode*)pNode)->tz = pCxt->streamTimezone;
+      break;
+    case QUERY_NODE_TEMP_TABLE:
+      rebindStreamTimeQuery(((STempTableNode*)pNode)->pSubquery, pCxt);
+      return DEAL_RES_IGNORE_CHILD;
+    case QUERY_NODE_SELECT_STMT:
+    case QUERY_NODE_SET_OPERATOR:
+      rebindStreamTimeQuery(pNode, pCxt);
+      return DEAL_RES_IGNORE_CHILD;
+    case QUERY_NODE_JOIN_TABLE: {
+      SJoinTableNode* pJoin = (SJoinTableNode*)pNode;
+      nodesWalkExpr(pJoin->pWindowOffset, rebindStreamTimeNode, pCxt);
+      nodesWalkExpr(pJoin->pJLimit, rebindStreamTimeNode, pCxt);
+      nodesWalkExpr(pJoin->addPrimCond, rebindStreamTimeNode, pCxt);
+      break;
+    }
+    case QUERY_NODE_EXTERNAL_WINDOW: {
+      SExternalWindowNode* pExternal = (SExternalWindowNode*)pNode;
+      pExternal->timezone = pCxt->streamTimezone;
+      nodesWalkExprs(pExternal->pProjectionList, rebindStreamTimeNode, pCxt);
+      nodesWalkExprs(pExternal->pAggFuncList, rebindStreamTimeNode, pCxt);
+      nodesWalkExpr(pExternal->pTimeRange, rebindStreamTimeNode, pCxt);
+      rebindStreamTimeQuery(pExternal->pSubquery, pCxt);
+      nodesWalkExpr(pExternal->pFill, rebindStreamTimeNode, pCxt);
+      break;
+    }
+    case QUERY_NODE_INTERVAL_WINDOW:
+      ((SIntervalWindowNode*)pNode)->timezone = pCxt->streamTimezone;
+      nodesWalkExpr(((SIntervalWindowNode*)pNode)->pSOffset, rebindStreamTimeNode, pCxt);
+      break;
+    case QUERY_NODE_FILL:
+      nodesWalkExpr(((SFillNode*)pNode)->pTimeRange, rebindStreamTimeNode, pCxt);
+      break;
+    case QUERY_NODE_SLIDING_WINDOW: {
+      SSlidingWindowNode* pSliding = (SSlidingWindowNode*)pNode;
+      nodesWalkExpr(pSliding->pSlidingVal, rebindStreamTimeNode, pCxt);
+      nodesWalkExpr(pSliding->pOffset, rebindStreamTimeNode, pCxt);
+      return DEAL_RES_IGNORE_CHILD;
+    }
+    case QUERY_NODE_WINDOW_OFFSET: {
+      SWindowOffsetNode* pOffset = (SWindowOffsetNode*)pNode;
+      nodesWalkExpr(pOffset->pStartOffset, rebindStreamTimeNode, pCxt);
+      nodesWalkExpr(pOffset->pEndOffset, rebindStreamTimeNode, pCxt);
+      return DEAL_RES_IGNORE_CHILD;
+    }
+    case QUERY_NODE_RANGE_AROUND: {
+      SRangeAroundNode* pRange = (SRangeAroundNode*)pNode;
+      nodesWalkExpr(pRange->pRange, rebindStreamTimeNode, pCxt);
+      nodesWalkExpr(pRange->pInterval, rebindStreamTimeNode, pCxt);
+      return DEAL_RES_IGNORE_CHILD;
+    }
+    case QUERY_NODE_TIME_RANGE: {
+      STimeRangeNode* pRange = (STimeRangeNode*)pNode;
+      nodesWalkExpr(pRange->pStart, rebindStreamTimeNode, pCxt);
+      nodesWalkExpr(pRange->pEnd, rebindStreamTimeNode, pCxt);
+      return DEAL_RES_IGNORE_CHILD;
+    }
+    case QUERY_NODE_LIMIT: {
+      SLimitNode* pLimit = (SLimitNode*)pNode;
+      nodesWalkExpr((SNode*)pLimit->limit, rebindStreamTimeNode, pCxt);
+      nodesWalkExpr((SNode*)pLimit->offset, rebindStreamTimeNode, pCxt);
+      return DEAL_RES_IGNORE_CHILD;
+    }
+    default:
+      break;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static void rebindStreamTimeQuery(SNode* pNode, STranslateContext* pCxt) {
+  if (pNode == NULL) {
+    return;
+  }
+
+  if (QUERY_NODE_SELECT_STMT == nodeType(pNode)) {
+    SSelectStmt* pSelect = (SSelectStmt*)pNode;
+    nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, rebindStreamTimeNode, pCxt);
+    nodesWalkExpr(pSelect->pTimeRange, rebindStreamTimeNode, pCxt);
+    nodesWalkExpr(pSelect->pRange, rebindStreamTimeNode, pCxt);
+    nodesWalkExpr(pSelect->pRangeAround, rebindStreamTimeNode, pCxt);
+    nodesWalkExpr(pSelect->pEvery, rebindStreamTimeNode, pCxt);
+    nodesWalkExpr((SNode*)pSelect->pLimit, rebindStreamTimeNode, pCxt);
+    nodesWalkExpr((SNode*)pSelect->pSlimit, rebindStreamTimeNode, pCxt);
+    SNode* pSubquery = NULL;
+    FOREACH(pSubquery, pSelect->pSubQueries) { rebindStreamTimeQuery(pSubquery, pCxt); }
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pNode)) {
+    SSetOperator* pSet = (SSetOperator*)pNode;
+    nodesWalkExprs(pSet->pProjectionList, rebindStreamTimeNode, pCxt);
+    rebindStreamTimeQuery(pSet->pLeft, pCxt);
+    rebindStreamTimeQuery(pSet->pRight, pCxt);
+    nodesWalkExprs(pSet->pOrderByList, rebindStreamTimeNode, pCxt);
+    nodesWalkExpr(pSet->pLimit, rebindStreamTimeNode, pCxt);
+    SNode* pSubquery = NULL;
+    FOREACH(pSubquery, pSet->pSubQueries) { rebindStreamTimeQuery(pSubquery, pCxt); }
+  }
+}
+
+static int32_t rebindCreateStreamTimeContext(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
+  if (pCxt->streamTimezone == NULL || pCxt->pStreamTimeConfig == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
+  if (pTrigger != NULL) {
+    nodesWalkExpr(pTrigger->pTriggerWindow, rebindStreamTimeNode, pCxt);
+    nodesWalkExprs(pTrigger->pPartitionList, rebindStreamTimeNode, pCxt);
+    nodesWalkExprs(pTrigger->pRollupTagList, rebindStreamTimeNode, pCxt);
+
+    SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pTrigger->pOptions;
+    if (pOptions != NULL) {
+      nodesWalkExpr(pOptions->pPreFilter, rebindStreamTimeNode, pCxt);
+      nodesWalkExpr(pOptions->pWaterMark, rebindStreamTimeNode, pCxt);
+      nodesWalkExpr(pOptions->pMaxDelay, rebindStreamTimeNode, pCxt);
+      nodesWalkExpr(pOptions->pExpiredTime, rebindStreamTimeNode, pCxt);
+      nodesWalkExpr(pOptions->pFillHisStartTime, rebindStreamTimeNode, pCxt);
+      nodesWalkExpr(pOptions->pIdleTimeout, rebindStreamTimeNode, pCxt);
+    }
+
+    SStreamNotifyOptions* pNotify = (SStreamNotifyOptions*)pTrigger->pNotify;
+    if (pNotify != NULL) {
+      nodesWalkExpr(pNotify->pWhere, rebindStreamTimeNode, pCxt);
+    }
+  }
+  nodesWalkExpr(pStmt->pSubtable, rebindStreamTimeNode, pCxt);
+  SNode* pTag = NULL;
+  FOREACH(pTag, pStmt->pTags) { nodesWalkExpr(((SStreamTagDefNode*)pTag)->pTagExpr, rebindStreamTimeNode, pCxt); }
+  rebindStreamTimeQuery(pStmt->pQuery, pCxt);
+  return TSDB_CODE_SUCCESS;
+}
+
 // check the validity of CREATE STREAM statement
 static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   SStreamTriggerNode*    pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
@@ -24864,6 +25136,7 @@ static int32_t createStreamReqBuildTriggerSessionWindow(STranslateContext* pCxt,
 static int32_t createStreamReqBuildTriggerIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pTriggerWindow,
                                                          SCMCreateStreamReq* pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pSliding = NULL != pTriggerWindow->pSliding ? pTriggerWindow->pSliding : pTriggerWindow->pInterval;
   pReq->triggerType = WINDOW_TYPE_INTERVAL;
   PAR_ERR_RET(checkStreamIntervalWindow(pCxt, pTriggerWindow));
   if (pTriggerWindow->pInterval && pTriggerWindow->pSliding) {
@@ -24878,11 +25151,11 @@ static int32_t createStreamReqBuildTriggerIntervalWindow(STranslateContext* pCxt
   pReq->trigger.sliding.precision = ((SColumnNode*)pTriggerWindow->pCol)->node.resType.precision;
   pReq->trigger.sliding.intervalUnit = createStreamReqWindowGetUnit(pTriggerWindow->pInterval);
   pReq->trigger.sliding.offsetUnit = createStreamReqWindowGetUnit(pTriggerWindow->pOffset);
-  pReq->trigger.sliding.slidingUnit = createStreamReqWindowGetUnit(pTriggerWindow->pSliding);
+  pReq->trigger.sliding.slidingUnit = createStreamReqWindowGetUnit(pSliding);
   pReq->trigger.sliding.soffsetUnit = createStreamReqWindowGetUnit(pTriggerWindow->pSOffset);
   pReq->trigger.sliding.interval = createStreamReqWindowGetBigInt(pTriggerWindow->pInterval);
   pReq->trigger.sliding.offset = createStreamReqWindowGetBigInt(pTriggerWindow->pOffset);
-  pReq->trigger.sliding.sliding = createStreamReqWindowGetBigInt(pTriggerWindow->pSliding);
+  pReq->trigger.sliding.sliding = createStreamReqWindowGetBigInt(pSliding);
   pReq->trigger.sliding.soffset = createStreamReqWindowGetBigInt(pTriggerWindow->pSOffset);
   return TSDB_CODE_SUCCESS;
 }
@@ -25447,19 +25720,45 @@ static SColumnNode* getStreamWindowTimestampColumn(SNode* pWindow) {
   }
 }
 
+// Trigger scans and calc scans split into standalone subplans have no window parent, so the planner's
+// window-to-scan propagation cannot populate these serialized roots.
+static void setCreateStreamPhysicalScanTimeContext(SPhysiNode* pNode, const SStreamCreateTimeInfo* pTimeInfo) {
+  if (NULL == pNode || NULL == pTimeInfo) {
+    return;
+  }
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN: {
+      STableScanPhysiNode* pScan = (STableScanPhysiNode*)pNode;
+      pScan->timezone = pTimeInfo->timezone;
+      pScan->firstDayOfWeek = pTimeInfo->config.firstDayOfWeek;
+      tstrncpy(pScan->timezoneName, pTimeInfo->config.timezone, sizeof(pScan->timezoneName));
+      break;
+    }
+    default:
+      break;
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) { setCreateStreamPhysicalScanTimeContext((SPhysiNode*)pChild, pTimeInfo); }
+}
+
 // build trigger query plan in create stream request
 static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSelectStmt* pTriggerSelect,
                                                     SCMCreateStreamReq* pReq, SHashObj** pTriggerSlotHash,
                                                     SNode* pTriggerWindow, SNodeList* pTriggerPartition,
-                                                    SNodeList* pRollupTagList, SStreamNestedWindowContext* pNested) {
+                                                    SNodeList* pRollupTagList, SStreamNestedWindowContext* pNested,
+                                                    const SStreamCreateTimeInfo* pTimeInfo) {
   int32_t             code = TSDB_CODE_SUCCESS;
   SQueryPlan*         pTriggerPlan = NULL;
   SScanPhysiNode*     pScanNode = NULL;
   SNode*              pNode = NULL;
   SDataBlockDescNode* pScanTuple = NULL;
-  SPlanContext        cxt = {.pAstRoot = (SNode*)pTriggerSelect,
-                             .streamCxt.isTrigger = true,
-                             .charsetCxt = pCxt->pParseCxt->charsetCxt};
+  SPlanContext        cxt = {
+             .pAstRoot = (SNode*)pTriggerSelect, .streamCxt.isTrigger = true, .charsetCxt = pCxt->pParseCxt->charsetCxt};
   SNode*              pTriggerFilter = NULL;
 
   SNodeList* pTriggerCols = NULL;
@@ -25471,6 +25770,12 @@ static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSe
   int32_t    rollupTagListLen = 0;
   int32_t    pFilterColsLen = 0;
 
+  if (NULL != pTimeInfo) {
+    cxt.timezone = pTimeInfo->timezone;
+    cxt.firstDayOfWeek = pTimeInfo->config.firstDayOfWeek;
+    cxt.timezoneExplicit = true;
+    tstrncpy(cxt.timezoneName, pTimeInfo->config.timezone, sizeof(cxt.timezoneName));
+  }
   PAR_ERR_JRET(qCreateQueryPlan(&cxt, &pTriggerPlan, NULL));
   if (!cxt.streamCxt.triggerScanSubplan) {
     PAR_ERR_JRET(
@@ -25487,6 +25792,9 @@ static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSe
                                          "Trigger plan must contain exactly one scan"));
   }
   pScanNode = scanSearch.pScan;
+  if (NULL != pTimeInfo) {
+    setCreateStreamPhysicalScanTimeContext((SPhysiNode*)pScanNode, pTimeInfo);
+  }
   pScanTuple = (pScanNode->node.pOutputDataBlockDesc);
 
   PAR_ERR_JRET(nodesCloneNode(pScanNode->node.pConditions, &pTriggerFilter));
@@ -26729,7 +27037,8 @@ static int32_t createStreamReqBuildTriggerPlan(STranslateContext* pCxt, SCreateS
   }
 
   PAR_ERR_JRET(createStreamReqBuildTriggerBuildPlan(pCxt, *pTriggerSelect, pReq, pTriggerSlotHash, pTriggerWindow,
-                                                    pTriggerPartition, pTrigger->pRollupTagList, pNested));
+                                                    pTriggerPartition, pTrigger->pRollupTagList, pNested,
+                                                    pStmt->pTimeInfo));
   PAR_ERR_JRET(
       createStreamReqBuildTriggerBuildWindowInfo(pCxt, pNested == NULL ? pTriggerWindow : pNested->pLeafWindow, pReq));
   PAR_ERR_JRET(createStreamReqCheckPlaceHolder(pCxt, pReq, pReq->placeHolderBitmap, pTriggerPartition));
@@ -27375,6 +27684,13 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
                           .streamCxt.hasForceOutput = taosArrayGetSize(pReq->forceOutCols) > 0,
                           .charsetCxt = pCxt->pParseCxt->charsetCxt};
 
+  if (NULL != pStmt->pTimeInfo) {
+    calcCxt.timezone = pStmt->pTimeInfo->timezone;
+    calcCxt.firstDayOfWeek = pStmt->pTimeInfo->config.firstDayOfWeek;
+    calcCxt.timezoneExplicit = true;
+    tstrncpy(calcCxt.timezoneName, pStmt->pTimeInfo->config.timezone, sizeof(calcCxt.timezoneName));
+  }
+
   if (nodeType(pTriggerWindow) == QUERY_NODE_INTERVAL_WINDOW) {
     SIntervalWindowNode* pIntervalWindow = (SIntervalWindowNode*)pTriggerWindow;
     if (!pIntervalWindow->pInterval) {
@@ -27384,6 +27700,15 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
 
   PAR_ERR_JRET(qCreateQueryPlan(&calcCxt, &calcPlan, NULL));
   pReq->vtableCalc = (int8_t)calcCxt.streamCxt.isVtableCalc;
+
+  if (NULL != pStmt->pTimeInfo) {
+    for (int32_t i = 0; i < taosArrayGetSize(pScanPlanArray); ++i) {
+      SStreamCalcScan* pCalcScan = taosArrayGet(pScanPlanArray, i);
+      if (NULL != pCalcScan && NULL != pCalcScan->scanPlan) {
+        setCreateStreamPhysicalScanTimeContext(((SSubplan*)pCalcScan->scanPlan)->pNode, pStmt->pTimeInfo);
+      }
+    }
+  }
 
   pReq->enableMultiGroupCalc = calcCxt.streamCxt.enableMultiGroupCalc;
 
@@ -27447,6 +27772,131 @@ static int32_t createStreamReqBuildDefaultReq(STranslateContext* pCxt, SCreateSt
   return TSDB_CODE_SUCCESS;
 }
 
+static bool validCreateStreamSqlSpan(SStreamSqlSpan span, int32_t sqlLen) {
+  return 0 <= span.begin && span.begin <= span.end && span.end <= sqlLen;
+}
+
+static int32_t quoteCreateStreamSqlLiteral(const char* pValue, char** ppLiteral) {
+  size_t valueLen = strlen(pValue);
+  char*  pLiteral = taosMemoryMalloc(2 * valueLen + 3);
+  if (NULL == pLiteral) {
+    return terrno;
+  }
+
+  char* pDst = pLiteral;
+  *pDst++ = '\'';
+  for (const char* pSrc = pValue; '\0' != *pSrc; ++pSrc) {
+    if ('\'' == *pSrc) {
+      *pDst++ = '\'';
+    }
+    *pDst++ = *pSrc;
+  }
+  *pDst++ = '\'';
+  *pDst = '\0';
+  *ppLiteral = pLiteral;
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool createStreamSqlNeedsSpaceBefore(char ch) { return !isspace((unsigned char)ch) && '(' != ch; }
+
+static bool createStreamSqlNeedsSpaceAfter(char ch) {
+  return !isspace((unsigned char)ch) && ';' != ch && ')' != ch && ',' != ch;
+}
+
+int32_t normalizeCreateStreamSql(STranslateContext* pCxt, const SCreateStreamStmt* pStmt, char** ppSql) {
+  static const char optionsPrefix[] = "STREAM_OPTIONS(CONFIG(timezone = ";
+  static const char fdowPrefix[] = ", firstDayOfWeek = ";
+  static const char optionSeparator[] = " | ";
+  if (NULL == pCxt || NULL == pCxt->pParseCxt || NULL == pCxt->pParseCxt->pSql || NULL == pStmt ||
+      NULL == pStmt->pTimeInfo || NULL == ppSql) {
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
+  *ppSql = NULL;
+  const char*                  pSource = pCxt->pParseCxt->pSql;
+  int32_t                      sqlLen = pCxt->pParseCxt->sqlLen;
+  const SStreamCreateTimeInfo* pTimeInfo = pStmt->pTimeInfo;
+  bool                         hasOptions = -1 != pTimeInfo->streamOptions.begin || -1 != pTimeInfo->streamOptions.end;
+  if (sqlLen < 0 || (hasOptions && !validCreateStreamSqlSpan(pTimeInfo->streamOptions, sqlLen)) ||
+      (!hasOptions && (pTimeInfo->streamOptionsInsertPos < 0 || pTimeInfo->streamOptionsInsertPos > sqlLen))) {
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
+  int32_t retainedCount =
+      NULL == pTimeInfo->pNonConfigOptionSpans ? 0 : taosArrayGetSize(pTimeInfo->pNonConfigOptionSpans);
+  size_t retainedLen = 0;
+  for (int32_t i = 0; i < retainedCount; ++i) {
+    const SStreamSqlSpan* pSpan = taosArrayGet(pTimeInfo->pNonConfigOptionSpans, i);
+    if (NULL == pSpan || !validCreateStreamSqlSpan(*pSpan, sqlLen)) {
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    }
+    retainedLen += sizeof(optionSeparator) - 1 + (size_t)(pSpan->end - pSpan->begin);
+  }
+
+  char*   pQuotedTimezone = NULL;
+  int32_t code = quoteCreateStreamSqlLiteral(pTimeInfo->config.timezone, &pQuotedTimezone);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  char    fdow[16] = {0};
+  int32_t fdowLen = snprintf(fdow, sizeof(fdow), "%d", (int32_t)pTimeInfo->config.firstDayOfWeek);
+  if (fdowLen < 0 || fdowLen >= (int32_t)sizeof(fdow)) {
+    taosMemoryFree(pQuotedTimezone);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
+  size_t optionsLen =
+      sizeof(optionsPrefix) - 1 + strlen(pQuotedTimezone) + sizeof(fdowPrefix) - 1 + (size_t)fdowLen + 2 + retainedLen;
+  int32_t prefixLen = hasOptions ? pTimeInfo->streamOptions.begin : pTimeInfo->streamOptionsInsertPos;
+  int32_t suffixPos = hasOptions ? pTimeInfo->streamOptions.end : pTimeInfo->streamOptionsInsertPos;
+  bool    addSpaceBefore = !hasOptions && prefixLen > 0 && createStreamSqlNeedsSpaceBefore(pSource[prefixLen - 1]);
+  bool    addSpaceAfter = !hasOptions && suffixPos < sqlLen && createStreamSqlNeedsSpaceAfter(pSource[suffixPos]);
+  size_t  outputLen = (size_t)prefixLen + (addSpaceBefore ? 1 : 0) + optionsLen + (addSpaceAfter ? 1 : 0) +
+                     (size_t)(sqlLen - suffixPos);
+  char* pOutput = taosMemoryMalloc(outputLen + 1);
+  if (NULL == pOutput) {
+    taosMemoryFree(pQuotedTimezone);
+    return terrno;
+  }
+
+  char* pDst = pOutput;
+  memcpy(pDst, pSource, prefixLen);
+  pDst += prefixLen;
+  if (addSpaceBefore) {
+    *pDst++ = ' ';
+  }
+  memcpy(pDst, optionsPrefix, sizeof(optionsPrefix) - 1);
+  pDst += sizeof(optionsPrefix) - 1;
+  size_t timezoneLen = strlen(pQuotedTimezone);
+  memcpy(pDst, pQuotedTimezone, timezoneLen);
+  pDst += timezoneLen;
+  memcpy(pDst, fdowPrefix, sizeof(fdowPrefix) - 1);
+  pDst += sizeof(fdowPrefix) - 1;
+  memcpy(pDst, fdow, fdowLen);
+  pDst += fdowLen;
+  *pDst++ = ')';
+  for (int32_t i = 0; i < retainedCount; ++i) {
+    const SStreamSqlSpan* pSpan = taosArrayGet(pTimeInfo->pNonConfigOptionSpans, i);
+    memcpy(pDst, optionSeparator, sizeof(optionSeparator) - 1);
+    pDst += sizeof(optionSeparator) - 1;
+    size_t spanLen = (size_t)(pSpan->end - pSpan->begin);
+    memcpy(pDst, pSource + pSpan->begin, spanLen);
+    pDst += spanLen;
+  }
+  *pDst++ = ')';
+  if (addSpaceAfter) {
+    *pDst++ = ' ';
+  }
+  memcpy(pDst, pSource + suffixPos, sqlLen - suffixPos);
+  pDst += sqlLen - suffixPos;
+  *pDst = '\0';
+
+  taosMemoryFree(pQuotedTimezone);
+  *ppSql = pOutput;
+  return TSDB_CODE_SUCCESS;
+}
+
 // build stream name and id
 static int32_t createStreamReqBuildNameAndId(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
                                              SCMCreateStreamReq* pReq) {
@@ -27460,7 +27910,11 @@ static int32_t createStreamReqBuildNameAndId(STranslateContext* pCxt, SCreateStr
   // name and sql
   pReq->streamDB = taosMemoryMalloc(TSDB_DB_FNAME_LEN);
   pReq->name = taosMemoryCalloc(1, TSDB_STREAM_FNAME_LEN);
-  pReq->sql = taosStrdup(pCxt->pParseCxt->pSql);
+  if (NULL != pStmt->pTimeInfo) {
+    PAR_ERR_JRET(normalizeCreateStreamSql(pCxt, pStmt, &pReq->sql));
+  } else {
+    pReq->sql = taosStrdup(pCxt->pParseCxt->pSql);
+  }
 
   if (NULL == pReq->sql || NULL == pReq->streamDB || NULL == pReq->name) {
     parserError("buildCreateStreamReq failed to allocate memory, streamDb:%p, streamName:%p sql:%p", pReq->streamDB,
@@ -28086,6 +28540,9 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
     }
   }
   parserDebug("buildCreateStreamReq step: DefaultReq done");
+  if (NULL != pStmt->pTimeInfo) {
+    pReq->timeConfig = pStmt->pTimeInfo->config;
+  }
   PAR_ERR_JRET(createStreamReqBuildNameAndId(pCxt, pStmt, pReq));
   parserDebug("buildCreateStreamReq step: NameAndId done");
   PAR_ERR_JRET(createStreamReqBuildNotifyOptions(pCxt, pNotifyOptions, &pNotifyCond, pReq));
@@ -28152,6 +28609,8 @@ static int32_t translateCreateStream(STranslateContext* pCxt, SCreateStreamStmt*
   int32_t            code = TSDB_CODE_SUCCESS;
   SCMCreateStreamReq createReq = {0};
 
+  PAR_ERR_JRET(resolveCreateStreamTimeContext(pCxt, pStmt));
+  PAR_ERR_JRET(rebindCreateStreamTimeContext(pCxt, pStmt));
   PAR_ERR_JRET(checkCreateStream(pCxt, pStmt));
   PAR_ERR_JRET(buildCreateStreamReq(pCxt, pStmt, &createReq));
   PAR_ERR_JRET(collectCreateStreamTriggerTable(pCxt, pStmt));
@@ -29710,6 +30169,8 @@ static int32_t buildCreateTSMAReqBuildStreamQueryCondition(STranslateContext* pC
 
     // where tbname == %%n
     PAR_ERR_JRET(createOperatorNode(OP_TYPE_EQUAL, "tbname", (SNode*)phColFunc, &tbnameCond));
+    nodesDestroyNode((SNode*)phColFunc);
+    phColFunc = NULL;
   } else {
     PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&phTbFunc));
     tstrncpy(phTbFunc->functionName, "_placeholder_tbname", TSDB_FUNC_NAME_LEN);
@@ -29717,12 +30178,20 @@ static int32_t buildCreateTSMAReqBuildStreamQueryCondition(STranslateContext* pC
 
     // where tbname == %%tbname
     PAR_ERR_JRET(createOperatorNodeByNode(OP_TYPE_EQUAL, (SNode*)phTbFunc, (SNode*)tbnameFunc, &tbnameCond));
+    nodesDestroyNode((SNode*)phTbFunc);
+    phTbFunc = NULL;
+    nodesDestroyNode((SNode*)tbnameFunc);
+    tbnameFunc = NULL;
   }
 
   // ts >= _twstart
   PAR_ERR_JRET(createTsOperatorNode(OP_TYPE_GREATER_EQUAL, (SNode*)twstartFunc, &tsStartCond));
+  nodesDestroyNode((SNode*)twstartFunc);
+  twstartFunc = NULL;
   // ts < _twend
   PAR_ERR_JRET(createTsOperatorNode(OP_TYPE_LOWER_THAN, (SNode*)twendFunc, &tsEndCond));
+  nodesDestroyNode((SNode*)twendFunc);
+  twendFunc = NULL;
 
   PAR_ERR_RET(nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pCond));
   ((SLogicConditionNode*)pCond)->condType = LOGIC_COND_TYPE_AND;
@@ -31941,6 +32410,8 @@ static int32_t updateStreamSubquery(STranslateContext* pCxt, STranslateContext* 
 
   if (inStreamCalcClause(pCxt)) {
     pSubCxt->streamInfo = pCxt->streamInfo;
+    pSubCxt->streamTimezone = pCxt->streamTimezone;
+    pSubCxt->pStreamTimeConfig = pCxt->pStreamTimeConfig;
   }
 
   return code;

@@ -1577,6 +1577,17 @@ static void destroySqlWindowSpec(SWindowSpecNode* pNode) {
 
 static void destroySqlNamedWindow(SNamedWindowNode* pNode) { nodesDestroyNode(pNode->pSpec); }
 
+static void destroyStreamCreateTimeInfo(SStreamCreateTimeInfo* pInfo) {
+  if (pInfo == NULL) {
+    return;
+  }
+  if (pInfo->timezone != NULL) {
+    tzfree(pInfo->timezone);
+  }
+  taosArrayDestroy(pInfo->pNonConfigOptionSpans);
+  taosMemoryFree(pInfo);
+}
+
 void nodesClearValueNode(SValueNode* pValue) {
   if (NULL == pValue) {
     return;
@@ -1986,7 +1997,6 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pExternal->pAggFuncList);
       nodesDestroyList(pExternal->pProjectionList);
       nodesDestroyNode(pExternal->pTimeRange);
-      taosMemoryFreeClear(pExternal->timezone);
       nodesDestroyNode(pExternal->pCol);
       nodesDestroyNode(pExternal->pSubquery);
       nodesDestroyNode(pExternal->pFill);
@@ -2365,6 +2375,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pStmt->pCols);
       nodesDestroyNode(pStmt->pSubtable);
       nodesDestroyNode(pStmt->pTrigger);
+      destroyStreamCreateTimeInfo(pStmt->pTimeInfo);
       break;
     }
     case QUERY_NODE_DROP_STREAM_STMT:

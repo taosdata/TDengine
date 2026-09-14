@@ -705,7 +705,7 @@ typedef struct SExternalWindowNode {
   SNodeList*  pAggFuncList;
   STimeWindow timeRange;
   SNode*      pTimeRange;
-  void*       timezone;
+  void*       timezone;  // borrowed timezone_t handle
   SNode*      pSubquery;
   SNode*      pFill;
   char        aliasName[TSDB_COL_NAME_LEN];

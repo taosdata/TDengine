@@ -17,6 +17,7 @@
 #define TDENGINE_TSTREAM_H
 
 #include "common/tmsg.h"
+#include "osTimezone.h"
 #include "streamRecalcTracker.h"
 #include "streamTaskStats.h"
 #include "streamTriggerMerger.h"
@@ -798,6 +799,8 @@ typedef struct SStreamTriggerTask {
 
   // trigger options
   EStreamTriggerType triggerType;
+  timezone_t         timezone;        // task-owned; SInterval.timezone borrows this handle for time triggers
+  int8_t             firstDayOfWeek;  // task-owned time context, including nested time windows
   union {
     SInterval interval;  // for sliding window
     int64_t   gap;       // for session window

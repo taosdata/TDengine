@@ -79,6 +79,17 @@ int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placehol
   return TSDB_CODE_SUCCESS;
 }
 
+static void destroyParserStreamTimeInfo(SStreamCreateTimeInfo* pInfo) {
+  if (pInfo == NULL) {
+    return;
+  }
+  if (pInfo->timezone != NULL) {
+    tzfree(pInfo->timezone);
+  }
+  taosArrayDestroy(pInfo->pNonConfigOptionSpans);
+  taosMemoryFree(pInfo);
+}
+
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
@@ -88,6 +99,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   while (1) {
     SToken t0 = {0};
     if (cxt.pQueryCxt->pSql[i] == 0) {
+      cxt.lookaheadPos = cxt.trailingTriviaPos >= 0 ? cxt.trailingTriviaPos : pParseCxt->sqlLen;
       Parse(pParser, 0, t0, &cxt);
       goto abort_parse;
     }
@@ -104,9 +116,13 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
     switch (t0.type) {
       case TK_NK_SPACE:
       case TK_NK_COMMENT: {
+        if (cxt.trailingTriviaPos < 0) {
+          cxt.trailingTriviaPos = i - (int32_t)t0.n;
+        }
         break;
       }
       case TK_NK_SEMI: {
+        cxt.lookaheadPos = cxt.trailingTriviaPos >= 0 ? cxt.trailingTriviaPos : i - (int32_t)t0.n;
         Parse(pParser, 0, t0, &cxt);
         goto abort_parse;
       }
@@ -122,6 +138,8 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
       }
       default:
         // ParseTrace(stdout, "");
+        cxt.lookaheadPos = i - (int32_t)t0.n;
+        cxt.trailingTriviaPos = -1;
         Parse(pParser, t0.type, t0, &cxt);
         if (TSDB_CODE_SUCCESS != cxt.errCode) {
           goto abort_parse;
@@ -153,6 +171,9 @@ abort_parse:
                   pSel->pWindow ? (int)nodeType(pSel->pWindow) : -1,
                   (int)pSel->hasAggFuncs);
     }
+  }
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    destroyParserStreamTimeInfo(cxt.pStreamTimeInfo);
   }
   taosArrayDestroy(cxt.pPlaceholderValues);
   return cxt.errCode;

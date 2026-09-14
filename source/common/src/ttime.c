@@ -37,6 +37,7 @@ static int32_t parseLocaltimeDst(char* timestr, int32_t len, int64_t* utime, int
 static char*   forwardToTimeStringEnd(char* str);
 static bool    checkTzPresent(const char* str, int32_t len);
 static int32_t parseTimezone(char* str, int64_t* tzOffset);
+static int64_t taosDaysFromCivil(int32_t y, int32_t m, int32_t d);
 
 static int32_t tzallocErrorCode(void) {
   int32_t errnoCode = ERRNO;
@@ -1088,24 +1089,32 @@ int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecisi
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+static bool convertSecondsToTicks(int64_t seconds, int64_t fraction, int64_t factor, int64_t* ticks);
+
 /**
- * @brief Align timestamp to natural calendar boundary (Monday/Month start/Year start)
+ * @brief Align timestamp to natural calendar boundary (week start/Month start/Year start)
  *
  * @param timestamp Input timestamp in specified precision
  * @param unit Time unit: 'w' (week), 'n' (month), 'y' (year)
  * @param value Period multiplier (e.g., 2 for 2 weeks)
  * @param offset Offset from boundary in same precision as timestamp
  * @param precision Time precision (TSDB_TIME_PRECISION_MILLI/MICRO/NANO)
+ * @param firstDayOfWeek Week start (0=Sunday through 6=Saturday)
  * @param tz Timezone for calendar calculations
  * @return Aligned timestamp at natural boundary + offset
  *
  * Examples:
- * - alignToNaturalBoundary(ts, 'w', 1, 0, ...) -> Monday 00:00:00
+ * - alignToNaturalBoundary(ts, 'w', 1, 0, ..., 1, ...) -> Monday 00:00:00
  * - alignToNaturalBoundary(ts, 'n', 1, 0, ...) -> 1st of month 00:00:00
  * - alignToNaturalBoundary(ts, 'y', 1, 0, ...) -> Jan 1st 00:00:00
  */
 int64_t alignToNaturalBoundary(int64_t timestamp, char unit, int64_t value, int64_t offset, int32_t precision,
-                               timezone_t tz) {
+                               int8_t firstDayOfWeek, timezone_t tz) {
+  if (firstDayOfWeek < 0 || firstDayOfWeek > 6) {
+    uError("%s invalid first day of week:%d", __FUNCTION__, firstDayOfWeek);
+    return timestamp;
+  }
+
   // Convert timestamp to seconds for calendar calculations
   int64_t   precisionFactor = TSDB_TICK_PER_SECOND(precision);
   time_t    t = timestamp / precisionFactor;
@@ -1119,33 +1128,40 @@ int64_t alignToNaturalBoundary(int64_t timestamp, char unit, int64_t value, int6
 
   switch (unit) {
     case 'w': {
-      // Align to Monday 00:00:00
-      int daysSinceMonday = (tm.tm_wday + 6) % 7;  // Convert Sunday=0 to Monday=0
-      tm.tm_mday -= daysSinceMonday;
+      // Align to the configured week start at 00:00:00
+      int daysSinceFirstDayOfWeek = (tm.tm_wday - firstDayOfWeek + 7) % 7;
       tm.tm_hour = 0;
       tm.tm_min = 0;
       tm.tm_sec = 0;
+      tm.tm_isdst = -1;
 
       // For multi-week periods, align based on epoch
-      time_t mondayTime = taosMktime(&tm, tz);
       if (value > 1) {
-        // Calculate epoch Monday (1970-01-05 00:00:00) in the same timezone
-        struct tm epochTm = {0};
-        epochTm.tm_year = 70;   // 1970
-        epochTm.tm_mon = 0;     // January
-        epochTm.tm_mday = 5;    // 5th (first Monday)
-        epochTm.tm_hour = 0;
-        epochTm.tm_min = 0;
-        epochTm.tm_sec = 0;
-        epochTm.tm_isdst = -1;
-        time_t epochMonday = taosMktime(&epochTm, tz);
-
-        int64_t weeksSinceEpoch = (mondayTime - epochMonday) / (7 * 86400);
-        int64_t alignedWeeks = (weeksSinceEpoch / value) * value;
-        mondayTime = epochMonday + alignedWeeks * 7 * 86400;
+        if (value > INT64_MAX / 7) {
+          return timestamp;
+        }
+        int64_t periodDays = value * 7;
+        int32_t epochAnchorDay = (firstDayOfWeek - UNIX_EPOCH_WDAY + 7) % 7;
+        int64_t currentDay = taosDaysFromCivil(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
+        int64_t epochDay = taosDaysFromCivil(1970, 1, 1 + epochAnchorDay);
+        int64_t daysBack = (currentDay - epochDay) % periodDays;
+        if (daysBack < 0) {
+          daysBack += periodDays;
+        }
+        if (daysBack > INT32_MAX) {
+          return timestamp;
+        }
+        tm.tm_mday -= (int32_t)daysBack;
+      } else {
+        tm.tm_mday -= daysSinceFirstDayOfWeek;
       }
 
-      aligned = (int64_t)mondayTime * precisionFactor;
+      time_t weekStartTime = taosMktime(&tm, tz);
+      if (TAOS_MKTIME_FAILED(weekStartTime) ||
+          !convertSecondsToTicks((int64_t)weekStartTime, 0, precisionFactor, &aligned)) {
+        uError("%s failed to align week boundary, code:%d", __FUNCTION__, ERRNO);
+        return timestamp;
+      }
       break;
     }
 
@@ -1245,6 +1261,11 @@ int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* durati
   }
 
   *unit = token[tokenLen - 1];
+  if (*unit == 'N') {
+    *unit = 'n';
+  } else if (*unit == 'Y') {
+    *unit = 'y';
+  }
   if (*unit == 'q' || *unit == 'Q') {
     if (*duration > INT64_MAX / 3 || *duration < INT64_MIN / 3) {
       TAOS_RETURN(TSDB_CODE_INVALID_PARA);
@@ -1262,7 +1283,7 @@ int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* durati
   return getDuration(*duration, *unit, duration, timePrecision);
 }
 
-static bool taosIsLeapYear(int32_t year) { return (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)); }
+static bool taosIsLeapYear(int64_t year) { return (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)); }
 
 static bool convertSecondsToTicks(int64_t seconds, int64_t fraction, int64_t factor, int64_t* ticks) {
   if (seconds > INT64_MAX / factor || seconds < INT64_MIN / factor) {
@@ -1356,7 +1377,14 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
   }
 
   // The following code handles the y/n time duration
-  int64_t numOfMonth = (unit == 'y') ? duration * 12 : duration;
+  int64_t numOfMonth = duration;
+  if (unit == 'y' || unit == 'Y') {
+    if (duration > INT64_MAX / 12 || duration < INT64_MIN / 12) {
+      uError("time overflow, t:%" PRId64 ", duration:%" PRId64 ", unit:%c, precision:%d", t, duration, unit, precision);
+      return t;
+    }
+    numOfMonth *= 12;
+  }
   int64_t fraction = t % TSDB_TICK_PER_SECOND(precision);
 
   struct tm  tm;
@@ -1365,17 +1393,27 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
     uError("failed to convert time to gm time, code:%d", ERRNO);
     return t;
   }
-  int64_t mon = tm.tm_year * 12 + tm.tm_mon + (int32_t)numOfMonth;
-  int32_t y = mon / 12;
-  int32_t m = mon % 12;
+  int64_t currentMonth = (int64_t)tm.tm_year * 12 + tm.tm_mon;
+  if ((numOfMonth > 0 && currentMonth > INT64_MAX - numOfMonth) ||
+      (numOfMonth < 0 && currentMonth < INT64_MIN - numOfMonth)) {
+    uError("time overflow, t:%" PRId64 ", duration:%" PRId64 ", unit:%c, precision:%d", t, duration, unit, precision);
+    return t;
+  }
+  int64_t mon = currentMonth + numOfMonth;
+  int64_t y = mon / 12;
+  int32_t m = (int32_t)(mon % 12);
   if (m < 0) {
     m += 12;
     y -= 1;
   }
-  tm.tm_year = y;
+  if (y < INT32_MIN || y > INT32_MAX) {
+    uError("time overflow, t:%" PRId64 ", duration:%" PRId64 ", unit:%c, precision:%d", t, duration, unit, precision);
+    return t;
+  }
+  tm.tm_year = (int32_t)y;
   tm.tm_mon = m;
   int daysOfMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-  if (taosIsLeapYear(1900 + tm.tm_year)) {
+  if (taosIsLeapYear(1900LL + tm.tm_year)) {
     daysOfMonth[1] = 29;
   }
   if (tm.tm_mday > daysOfMonth[tm.tm_mon]) {

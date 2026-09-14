@@ -1100,6 +1100,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->leaderSnodeId = pStream->mainSnodeId;
   pMsg->streamName = pInfo->streamName;
   pMsg->nodelayCreateSubtable = pStream->pCreate->nodelayCreateSubtable;
+  pMsg->timeConfig = pStream->pCreate->timeConfig;
 
   if (0 == pInfo->runnerNum) {
     mstsDebug("no runner task, skip set trigger's runner list, deployNum:%d", pInfo->runnerDeploys);

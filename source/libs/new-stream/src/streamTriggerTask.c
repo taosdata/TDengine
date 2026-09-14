@@ -3055,7 +3055,7 @@ static void stHistoryContextAbortNestedLeafEffects(SSTriggerHistoryContext *pCon
  *       - ekey: end of window (next boundary, trigger time)
  *
  * @note For natural units (week/month/year):
- *       - Week: Window aligns to Monday 00:00:00 + offset
+ *       - Week: Window aligns to the configured first weekday at 00:00:00 + offset
  *       - Month: Window aligns to 1st of month 00:00:00 + offset
  *       - Year: Window aligns to Jan 1st 00:00:00 + offset
  *       - Multi-period: Aligns to epoch-based boundaries (e.g., 2w, 3n, 2y)
@@ -3063,8 +3063,8 @@ static void stHistoryContextAbortNestedLeafEffects(SSTriggerHistoryContext *pCon
  * @note For regular units (a/s/m/h/d):
  *       - Window aligns based on interval and sliding configuration
  *
- * @example PERIOD(1w): Returns window [last Monday + 1, next Monday]
- * @example PERIOD(1w, 1d): Returns window [last Tuesday + 1, next Tuesday]
+ * @example PERIOD(1w): Returns one configured-week window using closed boundaries
+ * @example PERIOD(1w, 1d): Applies the offset to the configured-week boundary
  * @example PERIOD(1n): Returns window [1st of last month + 1, 1st of next month]
  */
 STimeWindow stTriggerTaskGetTimeWindow(SStreamTriggerTask *pTask, int64_t ts) {
@@ -3092,10 +3092,10 @@ STimeWindow stTriggerTaskGetTimeWindow(SStreamTriggerTask *pTask, int64_t ts) {
         if (periodCount < 1) periodCount = 1;
       }
 
-      int64_t boundary =
-          alignToNaturalBoundary(ts, unit, periodCount, pInterval->offset, pInterval->precision, pInterval->timezone);
-      if (boundary == ts) {
-        // ts is exactly on boundary, return previous window [prevBoundary + 1, boundary]
+      int64_t boundary = alignToNaturalBoundary(ts, unit, periodCount, pInterval->offset, pInterval->precision,
+                                                pInterval->firstDayOfWeek, pInterval->timezone);
+      if (boundary >= ts) {
+        // ts is on or before the offset boundary, return the previous window
         int64_t prevBoundary = 0;
         if (unit == 'w') {
           prevBoundary = boundary - pInterval->sliding;
@@ -3120,9 +3120,11 @@ STimeWindow stTriggerTaskGetTimeWindow(SStreamTriggerTask *pTask, int64_t ts) {
                             .slidingUnit = pInterval->slidingUnit,
                             .offsetUnit = pInterval->offsetUnit,
                             .precision = pInterval->precision,
+                            .firstDayOfWeek = pInterval->firstDayOfWeek,
                             .interval = pInterval->sliding,
                             .sliding = pInterval->sliding,
-                            .offset = pInterval->offset};
+                            .offset = pInterval->offset,
+                            .timezone = pInterval->timezone};
       int64_t   boundary = taosTimeTruncate(ts, &interval);
       if (boundary == ts) {
         int64_t prevBoundary = boundary - pInterval->sliding;
@@ -3139,8 +3141,10 @@ STimeWindow stTriggerTaskGetTimeWindow(SStreamTriggerTask *pTask, int64_t ts) {
                             .slidingUnit = 'd',
                             .offsetUnit = pInterval->offsetUnit,
                             .precision = pInterval->precision,
+                            .firstDayOfWeek = pInterval->firstDayOfWeek,
                             .interval = day,
-                            .sliding = day};
+                            .sliding = day,
+                            .timezone = pInterval->timezone};
       int64_t   first = taosTimeTruncate(ts, &interval) + pInterval->offset;
       if (first >= ts) {
         int64_t prev = first - day;
@@ -3159,12 +3163,7 @@ void stTriggerTaskPrevTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow
   SInterval *pInterval = &pTask->interval;
 
   if (pInterval->interval > 0) {
-    TSKEY prevStart = taosTimeAdd(pWindow->skey, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision,
-                                  pInterval->timezone);
-    prevStart = taosTimeAdd(prevStart, -1 * pInterval->sliding, pInterval->slidingUnit, pInterval->precision,
-                            pInterval->timezone);
-    prevStart =
-        taosTimeAdd(prevStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision, pInterval->timezone);
+    TSKEY prevStart = getNextTimeWindowStart(pInterval, pWindow->skey, TSDB_ORDER_DESC);
     pWindow->skey = prevStart;
     pWindow->ekey = taosTimeGetIntervalEnd(prevStart, pInterval);
   } else {
@@ -3202,8 +3201,10 @@ void stTriggerTaskPrevTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow
                             .slidingUnit = 'd',
                             .offsetUnit = pInterval->offsetUnit,
                             .precision = pInterval->precision,
+                            .firstDayOfWeek = pInterval->firstDayOfWeek,
                             .interval = day,
-                            .sliding = day};
+                            .sliding = day,
+                            .timezone = pInterval->timezone};
       int64_t   first = taosTimeTruncate(pWindow->skey, &interval) + pInterval->offset;
       if (first > pWindow->skey) {
         first -= day;
@@ -3244,12 +3245,7 @@ void stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow
   SInterval *pInterval = &pTask->interval;
 
   if (pInterval->interval > 0) {
-    TSKEY nextStart = taosTimeAdd(pWindow->skey, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision,
-                                  pInterval->timezone);
-    nextStart =
-        taosTimeAdd(nextStart, pInterval->sliding, pInterval->slidingUnit, pInterval->precision, pInterval->timezone);
-    nextStart =
-        taosTimeAdd(nextStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision, pInterval->timezone);
+    TSKEY nextStart = getNextTimeWindowStart(pInterval, pWindow->skey, TSDB_ORDER_ASC);
     pWindow->skey = nextStart;
     pWindow->ekey = taosTimeGetIntervalEnd(nextStart, pInterval);
   } else {
@@ -3287,8 +3283,10 @@ void stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow
                             .slidingUnit = 'd',
                             .offsetUnit = pInterval->offsetUnit,
                             .precision = pInterval->precision,
+                            .firstDayOfWeek = pInterval->firstDayOfWeek,
                             .interval = day,
-                            .sliding = day};
+                            .sliding = day,
+                            .timezone = pInterval->timezone};
       int64_t   first = taosTimeTruncate(pWindow->ekey, &interval) + pInterval->offset;
       if (first > pWindow->skey && first < pWindow->ekey) {
         pWindow->ekey = first;
@@ -5874,8 +5872,9 @@ static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTr
 
   if (!pReq->isHistory && BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) {
     QUERY_CHECK_NULL(pTask->pWindowPlan, code, lino, _end, TSDB_CODE_INVALID_PARA);
-    code = stWindowChainBuildRecalcImpactDomain(pTask->pWindowPlan, pReq->gid, &pReq->scanRange, &pReq->calcRange,
-                                                &pReq->impactDomain);
+    const SWindowChainPolicy policy = {.timezone = pTask->timezone, .firstDayOfWeek = pTask->firstDayOfWeek};
+    code = stWindowChainBuildRecalcImpactDomain(pTask->pWindowPlan, pReq->gid, &policy, &pReq->scanRange,
+                                                &pReq->calcRange, &pReq->impactDomain);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -7130,6 +7129,56 @@ static int32_t stTriggerTaskValidateWindowPlan(const SStreamTriggerTask *pTask, 
   return code;
 }
 
+static bool stTriggerTaskUsesTimeContext(EWindowType type) {
+  return type == WINDOW_TYPE_INTERVAL || type == WINDOW_TYPE_PERIOD;
+}
+
+static bool stWindowPlanUsesTimeContext(const SStreamWindowPlan *pPlan) {
+  if (pPlan == NULL || pPlan->pLayers == NULL) return false;
+  for (int32_t i = 0; i < taosArrayGetSize(pPlan->pLayers); ++i) {
+    const SStreamWindowLayerSpec *pLayer = taosArrayGet(pPlan->pLayers, i);
+    if (pLayer != NULL && pLayer->triggerType == WINDOW_TYPE_INTERVAL) return true;
+  }
+  return false;
+}
+
+static int32_t stTriggerTaskInitTimeContext(SStreamTriggerTask *pTask, const SStreamTimeConfig *pConfig,
+                                            bool bindIntervalContext) {
+  pTask->timezone = NULL;
+  if (bindIntervalContext) {
+    pTask->interval.timezone = NULL;
+  }
+  if (pConfig->timezone[0] == '\0') {
+    pTask->firstDayOfWeek = 1;
+    if (bindIntervalContext) {
+      pTask->interval.firstDayOfWeek = 1;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pTask->timezone = tzalloc(pConfig->timezone);
+  if (pTask->timezone == NULL) {
+    return TSDB_CODE_STREAM_TIMEZONE_LOAD_FAILED;
+  }
+
+  pTask->firstDayOfWeek = pConfig->firstDayOfWeek;
+  if (bindIntervalContext) {
+    pTask->interval.timezone = pTask->timezone;
+    pTask->interval.firstDayOfWeek = pConfig->firstDayOfWeek;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void stTriggerTaskCleanupTimeContext(SStreamTriggerTask *pTask) {
+  if (pTask->timezone != NULL) {
+    tzfree(pTask->timezone);
+    pTask->timezone = NULL;
+    if (pTask->triggerType == STREAM_TRIGGER_SLIDING || pTask->triggerType == STREAM_TRIGGER_PERIOD) {
+      pTask->interval.timezone = NULL;
+    }
+  }
+}
+
 int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *pMsg) {
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    lino = 0;
@@ -7148,14 +7197,18 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->pReaderProgressSnapshots = taosArrayInit(0, sizeof(SStreamReaderProgressSnapshot));
   QUERY_CHECK_NULL(pTask->pReaderProgressSnapshots, code, lino, _end, terrno);
 
+  if (stTriggerTaskUsesTimeContext(pMsg->triggerType) || stWindowPlanUsesTimeContext(pMsg->pWindowPlan)) {
+    code = stTriggerTaskInitTimeContext(pTask, &pMsg->timeConfig, stTriggerTaskUsesTimeContext(pMsg->triggerType));
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
   EWindowType type = pMsg->triggerType;
   switch (pMsg->triggerType) {
     case WINDOW_TYPE_INTERVAL: {
       pTask->triggerType = STREAM_TRIGGER_SLIDING;
       const SSlidingTrigger *pSliding = &pMsg->trigger.sliding;
       SInterval             *pInterval = &pTask->interval;
-      pInterval->timezone = NULL;
-      pInterval->intervalUnit = pSliding->intervalUnit;
+      pInterval->intervalUnit = pSliding->interval > 0 ? pSliding->intervalUnit : pSliding->slidingUnit;
       pInterval->slidingUnit = pSliding->slidingUnit;
       pInterval->offsetUnit = pSliding->offsetUnit;
       pInterval->precision = pSliding->precision;
@@ -7246,13 +7299,14 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
       pTask->triggerType = STREAM_TRIGGER_PERIOD;
       const SPeriodTrigger *pPeriod = &pMsg->trigger.period;
       SInterval            *pInterval = &pTask->interval;
-      pInterval->timezone = NULL;
       pInterval->intervalUnit = pPeriod->periodUnit;
       pInterval->slidingUnit = pPeriod->periodUnit;
       pInterval->offsetUnit = pPeriod->offsetUnit;
       pInterval->precision = TSDB_TIME_PRECISION_NANO;
       pInterval->interval = 0;
-      pInterval->sliding = convertTimePrecision(pPeriod->period, pPeriod->precision, TSDB_TIME_PRECISION_NANO);
+      pInterval->sliding = IS_CALENDAR_TIME_DURATION(pPeriod->periodUnit)
+                               ? pPeriod->period
+                               : convertTimePrecision(pPeriod->period, pPeriod->precision, TSDB_TIME_PRECISION_NANO);
       pInterval->offset = convertTimePrecision(pPeriod->offset, pPeriod->precision, TSDB_TIME_PRECISION_NANO);
       pInterval->timeRange = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MIN};
       break;
@@ -7464,6 +7518,15 @@ _end:
   }
   nodesDestroyNode(pRawStartCond);
   if (code != TSDB_CODE_SUCCESS) {
+    if (code == TSDB_CODE_STREAM_TIMEZONE_LOAD_FAILED) {
+      char extraErrMsg[TD_TIMEZONE_LEN + 32] = {0};
+      tsnprintf(extraErrMsg, sizeof(extraErrMsg), "failed to load timezone '%s'", pMsg->timeConfig.timezone);
+      pTask->task.errorCode = code;
+      pTask->task.status = STREAM_STATUS_FAILED;
+      taosMemoryFreeClear(pTask->task.extraErrMsg);
+      pTask->task.extraErrMsg = taosStrdup(extraErrMsg);
+    }
+    stTriggerTaskCleanupTimeContext(pTask);
     if (pTask->triggerType == STREAM_TRIGGER_EVENT && pTask->pEventTree != NULL) {
       stEventTreeDestroy(pTask->pEventTree);
       pTask->pEventTree = NULL;
@@ -7549,6 +7612,7 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
   if (pTask->pRealtimeBundle != NULL) {
     stRealtimeBundleDestroy(&pTask->pRealtimeBundle);
   }
+  stTriggerTaskCleanupTimeContext(pTask);
 
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
     if (pTask->pStateZeroths != NULL) {
@@ -9393,6 +9457,8 @@ static int32_t stRealtimeGroupInitNestedInputOwner(SSTriggerRealtimeGroup *pGrou
                                                   (pGroup->recalcNextWindow ? STRIGGER_EVENT_WINDOW_CLOSE : 0),
                                 .leafNotifyEventTypes = pTask->notifyEventType,
                                 .maxDelayNs = pTask->maxDelayNs,
+                                .timezone = pTask->timezone,
+                                .firstDayOfWeek = pTask->firstDayOfWeek,
                                 .pEventStartCondCols = pTask->pStartCondCols,
                                 .pEventEndCondCols = pTask->pEndCondCols};
 
@@ -22774,11 +22840,23 @@ static int32_t stRealtimeGroupMergeWindows(SSTriggerRealtimeGroup *pGroup) {
     pWin++;
   }
 
-  QUERY_CHECK_CONDITION(
-      pGroup->windows.neles <= 1 ||
-          (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval > pTask->interval.sliding) ||
-          (pTask->triggerType == STREAM_TRIGGER_COUNT && pTask->windowCount > pTask->windowSliding),
-      code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  bool allowMultipleIntervalWindows = false;
+  if (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval > 0 && pGroup->windows.neles > 1) {
+    SSTriggerWindow *pPrevWin = NULL;
+    allowMultipleIntervalWindows = true;
+    taosObjListInitIter(&pGroup->windows, &iter, TOBJLIST_ITER_FORWARD);
+    while ((pTmpWin = taosObjListIterNext(&iter)) != NULL) {
+      if (pPrevWin != NULL && pPrevWin->range.ekey < pTmpWin->range.skey) {
+        allowMultipleIntervalWindows = false;
+        break;
+      }
+      pPrevWin = pTmpWin;
+    }
+  }
+
+  QUERY_CHECK_CONDITION(pGroup->windows.neles <= 1 || allowMultipleIntervalWindows ||
+                            (pTask->triggerType == STREAM_TRIGGER_COUNT && pTask->windowCount > pTask->windowSliding),
+                        code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
   // add pending open window for TRUE FOR condition
   STrueForInfo *pTrueForInfo = NULL;
@@ -23653,6 +23731,8 @@ static int32_t stHistoryGroupInit(SSTriggerHistoryGroup *pGroup, SSTriggerHistor
                                  .leafEventTypes = pTask->calcEventType | historyNotifyEventTypes,
                                  .leafNotifyEventTypes = historyNotifyEventTypes,
                                  .maxDelayNs = 0,
+                                 .timezone = pTask->timezone,
+                                 .firstDayOfWeek = pTask->firstDayOfWeek,
                                  .pEventStartCondCols = pTask->pStartCondCols,
                                  .pEventEndCondCols = pTask->pEndCondCols};
     code = stWindowChainCreate(pTask->pWindowPlan, gid, &policy, &pGroup->pWindowChain);
