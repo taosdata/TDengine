@@ -16,6 +16,10 @@ target_link_libraries(
     PRIVATE os util common nodes transport
 )
 
+if(BUILD_WITH_UV)
+    DEP_ext_libuv(txnode)
+endif()
+
 find_path(HAVE_SYS_EPOLL_H sys/epoll.h)
 if (HAVE_SYS_EPOLL_H)
 	add_definitions("-DWITH_EPOLL")
@@ -23,6 +27,5 @@ endif()
 
 # test
 if(${BUILD_TEST})
-    #add_subdirectory(test)
+    add_subdirectory(test)
 endif()
-

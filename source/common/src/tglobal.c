@@ -16,6 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "cJSON.h"
 #include "defines.h"
+#ifndef WINDOWS
+#include "envelope_crypto.h"
+#endif
 #include "os.h"
 #include "osString.h"
 #include "tconfig.h"
@@ -88,6 +91,44 @@ char tsTLSSvrKeyPath[PATH_MAX] = {0};
 
 char tsTLSCliCertPath[PATH_MAX] = {0};
 char tsTLSCliKeyPath[PATH_MAX] = {0};
+
+int32_t tsXnodeDsnProtection = 0;
+char    tsXnodeDsnPublicKeyFile[PATH_MAX] = {0};
+char    tsXnodedDsnPrivateKeyFile[PATH_MAX] = {0};
+static SEnvelopePublicKey *tsXnodeDsnPublicKey = NULL;
+static bool                tsXnodeDsnConfigInitialized = false;
+
+static void taosReleaseXnodeDsnPublicKey(void) {
+#ifndef WINDOWS
+  if (tsXnodeDsnPublicKey != NULL) {
+    (void)envelopeReleasePublicKey(&tsXnodeDsnPublicKey);
+  }
+#else
+  tsXnodeDsnPublicKey = NULL;
+#endif
+}
+
+#ifndef WINDOWS
+static int32_t taosValidateXnodeDsnPublicKey(const SEnvelopePublicKey *key) {
+  static const uint8_t self_test_plaintext[] = "xnode-dsn-key-self-test";
+  SEnvelopeBatch *batch = NULL;
+  char           *encoded = NULL;
+  uint32_t        encoded_len = 0;
+  int32_t         code = envelopeBatchBegin(key, &batch);
+  if (code == ENVELOPE_CRYPTO_SUCCESS) {
+    code = envelopeBatchEncryptField(batch, self_test_plaintext, sizeof(self_test_plaintext) - 1,
+                                      ENVELOPE_CRYPTO_NO_ROLE_CAP, &encoded, &encoded_len);
+  }
+  if (batch != NULL) {
+    int32_t finish_code = envelopeBatchFinish(&batch);
+    if (code == ENVELOPE_CRYPTO_SUCCESS) {
+      code = finish_code;
+    }
+  }
+  taosMemoryFree(encoded);
+  return code;
+}
+#endif
 
 int8_t tsEnableTLS = 0;
 int8_t tsEnableSasl = 0;
@@ -1068,6 +1109,12 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptAlgorithm", tsEncryptAlgorithm, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptScope", tsEncryptScope, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "xnodeDsnProtection", 0, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_NONE,
+                                CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "xnodeDsnPublicKeyFile", tsXnodeDsnPublicKeyFile, CFG_SCOPE_SERVER,
+                                 CFG_DYN_NONE, CFG_CATEGORY_LOCAL, CFG_PRIV_SECURITY));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "xnodedDsnPrivateKeyFile", tsXnodedDsnPrivateKeyFile, CFG_SCOPE_SERVER,
+                                 CFG_DYN_NONE, CFG_CATEGORY_LOCAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "encryptExtDir", tsEncryptExtDir, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableStrongPassword", tsEnableStrongPassword, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableAdvancedSecurity", tsEnableAdvancedSecurity, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
@@ -1885,9 +1932,12 @@ static int32_t taosSetSystemCfg(SConfig *pCfg) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+const SEnvelopePublicKey *taosGetXnodeDsnPublicKey(void) { return tsXnodeDsnPublicKey; }
+
 // for server configs
 static int32_t taosSetServerCfg(SConfig *pCfg) {
   SConfigItem *pItem = NULL;
+  bool         initializeXnodeDsnConfig = !tsXnodeDsnConfigInitialized;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minimalDataDirGB");
   tsDataSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
@@ -1945,6 +1995,48 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableGrantLegacySyntax");
   tsEnableGrantLegacySyntax = pItem->i32;
+
+  if (initializeXnodeDsnConfig) {
+    TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "xnodeDsnProtection");
+    tsXnodeDsnProtection = pItem->i32;
+
+    TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "xnodeDsnPublicKeyFile");
+    if (strlen(pItem->str) >= PATH_MAX) {
+      TAOS_RETURN(TSDB_CODE_INVALID_CFG_VALUE);
+    }
+    tstrncpy(tsXnodeDsnPublicKeyFile, pItem->str, PATH_MAX);
+
+    TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "xnodedDsnPrivateKeyFile");
+    if (strlen(pItem->str) >= PATH_MAX) {
+      TAOS_RETURN(TSDB_CODE_INVALID_CFG_VALUE);
+    }
+    tstrncpy(tsXnodedDsnPrivateKeyFile, pItem->str, PATH_MAX);
+
+#ifdef WINDOWS
+    if (tsXnodeDsnProtection != 0) {
+      uError("xnode DSN protection is not supported on Windows");
+      TAOS_RETURN(TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS);
+    }
+#else
+    taosReleaseXnodeDsnPublicKey();
+    if (tsXnodeDsnProtection != 0) {
+      if (tsXnodeDsnPublicKeyFile[0] == '\0') {
+        uError("xnode DSN protection requires a public key");
+        TAOS_RETURN(TSDB_CODE_INVALID_CFG_VALUE);
+      }
+      int32_t keyCode = envelopeLoadPublicKey(tsXnodeDsnPublicKeyFile, &tsXnodeDsnPublicKey);
+      if (keyCode == ENVELOPE_CRYPTO_SUCCESS) {
+        keyCode = taosValidateXnodeDsnPublicKey(tsXnodeDsnPublicKey);
+      }
+      if (keyCode != ENVELOPE_CRYPTO_SUCCESS) {
+        const char *errorId = envelopeCryptoCanonicalId(keyCode);
+        uError("xnode DSN public key validation failed: %s", errorId == NULL ? "invalid key" : errorId);
+        taosReleaseXnodeDsnPublicKey();
+        TAOS_RETURN(TSDB_CODE_INVALID_CFG_VALUE);
+      }
+    }
+#endif
+  }
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfRpcThreads");
   tsNumOfRpcThreads = pItem->i32;
@@ -3035,6 +3127,9 @@ int32_t taosApplyCfg(const char *cfgDir, const char **envCmd, const char *envFil
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
+  if (!tsc) {
+    tsXnodeDsnConfigInitialized = true;
+  }
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
     uError("failed to apply cfg at %d since %s", lino, tstrerror(code));
@@ -3054,6 +3149,8 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
   TAOS_CHECK_GOTO(taosApplyCfg(cfgDir, envCmd, envFile, apolloUrl, pArgs, tsc), &lino, _exit);
 _exit:
   if (TSDB_CODE_SUCCESS != code) {
+    taosReleaseXnodeDsnPublicKey();
+    tsXnodeDsnConfigInitialized = false;
     cfgCleanup(tsCfg);
     tsCfg = NULL;
     (void)printf("failed to init cfg at %d since %s\n", lino, tstrerror(code));
@@ -3063,6 +3160,8 @@ _exit:
 }
 
 void taosCleanupCfg() {
+  taosReleaseXnodeDsnPublicKey();
+  tsXnodeDsnConfigInitialized = false;
   if (tsCfg) {
     cfgCleanup(tsCfg);
     tsCfg = NULL;
