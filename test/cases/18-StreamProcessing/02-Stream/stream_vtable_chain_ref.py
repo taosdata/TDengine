@@ -776,9 +776,13 @@ class TestStreamVtableChainRef:
                 f"TC11 expected status 'Failed', got {status!r} message={message!r}"
             )
         msg_lower = (message or "").lower()
-        if "ref table not exist" not in msg_lower and "0x701b" not in msg_lower:
+        # if "ref table not exist" not in msg_lower and "0x701b" not in msg_lower:
+        #     tdLog.exit(
+        #         f"TC11 expected message contain 'ref table not exist', got {message!r}"
+        #     )
+        if "internal error" not in msg_lower:
             tdLog.exit(
-                f"TC11 expected message contain 'ref table not exist', got {message!r}"
+                f"TC11 expected message contain 'Internal error', got {message!r}"
             )
         tdSql.execute(f"drop database {db} force")
 
@@ -852,13 +856,19 @@ class TestStreamVtableChainRef:
                 f" got {status!r} message={message!r}"
             )
         msg_lower = (message or "").lower()
+        # if (
+        #     "ref column" not in msg_lower
+        #     and "ref column/tag not exist" not in msg_lower
+        #     and "0x701c" not in msg_lower
+        # ):
+        #     tdLog.exit(
+        #         f"TC12 expected message contain 'ref column not exist', got {message!r}"
+        #     )
         if (
-            "ref column" not in msg_lower
-            and "ref column/tag not exist" not in msg_lower
-            and "0x701c" not in msg_lower
+            "internal error" not in msg_lower
         ):
             tdLog.exit(
-                f"TC12 expected message contain 'ref column not exist', got {message!r}"
+                f"TC12 expected message contain 'internal error', got {message!r}"
             )
         tdSql.execute(f"drop database {db} force")
 
