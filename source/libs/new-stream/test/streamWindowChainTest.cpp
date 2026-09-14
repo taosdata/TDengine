@@ -6,6 +6,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -238,12 +239,15 @@ using Chain = std::unique_ptr<SWindowChainState, ChainDeleter>;
 
 Chain createChain(const Plan& plan, int64_t eventTypes = STRIGGER_EVENT_WINDOW_CLOSE, int64_t maxDelayNs = 0,
                   bool flushOnOuterClose = false, int64_t notifyEventTypes = INT64_MIN,
-                  const SNodeList* eventStartCondCols = nullptr, const SNodeList* eventEndCondCols = nullptr) {
+                  const SNodeList* eventStartCondCols = nullptr, const SNodeList* eventEndCondCols = nullptr,
+                  timezone_t timezone = nullptr, int8_t firstDayOfWeek = 0) {
   SWindowChainPolicy policy = {};
   policy.flushOnOuterClose = flushOnOuterClose;
   policy.leafEventTypes = eventTypes;
   policy.leafNotifyEventTypes = notifyEventTypes == INT64_MIN ? eventTypes : notifyEventTypes;
   policy.maxDelayNs = maxDelayNs;
+  policy.timezone = timezone;
+  policy.firstDayOfWeek = firstDayOfWeek;
   policy.pEventStartCondCols = eventStartCondCols;
   policy.pEventEndCondCols = eventEndCondCols;
   SWindowChainState* state = nullptr;
@@ -1436,6 +1440,31 @@ TEST(StreamWindowChainTimeTest, naturalMonthRangeMatchesSingleWindowSemantics) {
   EXPECT_TRUE(found);
 }
 
+TEST(StreamWindowChainTimeTest, NestedIntervalUsesPolicyTimezone) {
+  constexpr int64_t                                                         day = 24LL * 60 * 60 * 1000;
+  std::unique_ptr<std::remove_pointer<timezone_t>::type, decltype(&tzfree)> timezoneGuard(tzalloc("America/New_York"),
+                                                                                          tzfree);
+  timezone_t                                                                timezone = timezoneGuard.get();
+  ASSERT_NE(nullptr, timezone);
+  Plan  plan({intervalLayer(day, day, 0, TIME_UNIT_DAY, TIME_UNIT_DAY), stateLayer()});
+  Chain chain = createChain(plan, STRIGGER_EVENT_WINDOW_OPEN, 0, false, INT64_MIN, nullptr, nullptr, timezone, 1);
+
+  int64_t timestamp = 0;
+  int64_t expectedStart = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime("2024-01-01 00:30:00", &timestamp, strlen("2024-01-01 00:30:00"),
+                                             TSDB_TIME_PRECISION_MILLI, timezone));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime("2024-01-01 00:00:00", &expectedStart, strlen("2024-01-01 00:00:00"),
+                                             TSDB_TIME_PRECISION_MILLI, timezone));
+
+  std::vector<Block> blocks;
+  SubmitResult       result = submitData(chain.get(), {timestamp, 7, false, 0, 0}, 10, &blocks);
+  ASSERT_EQ(1, taosArrayGetSize(result.value().pCandidates));
+  const auto* candidate = static_cast<const SLeafEventCandidate*>(taosArrayGet(result.value().pCandidates, 0));
+  ASSERT_NE(nullptr, candidate);
+  EXPECT_EQ(expectedStart, candidate->rootImpactExtent.skey);
+  EXPECT_EQ(expectedStart + day - 1, candidate->rootImpactExtent.ekey);
+}
+
 TEST(StreamWindowChainTimeTest, sessionExactGapBoundaryStaysInClosedRange) {
   Plan               plan({sessionLayer(20000), sessionLayer(5000)});
   Chain              chain = createChain(plan);
@@ -1890,8 +1919,10 @@ TEST(StreamWindowChainImpactDomainTest, FixedRootExpandsToCompleteScopes) {
   const STimeWindow   scanRange = {500, 3500};
   const STimeWindow   calcRange = {1700, 2300};
   SRecalcImpactDomain domain = {};
+  const SWindowChainPolicy policy = {};
 
-  ASSERT_EQ(TSDB_CODE_SUCCESS, stWindowChainBuildRecalcImpactDomain(plan.get(), kGid, &scanRange, &calcRange, &domain));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stWindowChainBuildRecalcImpactDomain(plan.get(), kGid, &policy, &scanRange, &calcRange, &domain));
   ASSERT_NE(nullptr, domain.pRootExtents);
   ASSERT_EQ(1, taosArrayGetSize(domain.pRootExtents));
   const auto* extent = static_cast<const STimeWindow*>(taosArrayGet(domain.pRootExtents, 0));
@@ -1902,13 +1933,45 @@ TEST(StreamWindowChainImpactDomainTest, FixedRootExpandsToCompleteScopes) {
   stDestroyRecalcImpactDomain(&domain);
 }
 
+TEST(StreamWindowChainImpactDomainTest, FixedRootUsesPolicyTimezone) {
+  constexpr int64_t                                                         day = 24LL * 60 * 60 * 1000;
+  std::unique_ptr<std::remove_pointer<timezone_t>::type, decltype(&tzfree)> timezoneGuard(tzalloc("America/New_York"),
+                                                                                          tzfree);
+  timezone_t                                                                timezone = timezoneGuard.get();
+  ASSERT_NE(nullptr, timezone);
+  Plan                     plan({intervalLayer(day, day, 0, TIME_UNIT_DAY, TIME_UNIT_DAY), stateLayer()});
+  const SWindowChainPolicy policy = {.timezone = timezone, .firstDayOfWeek = 1};
+  int64_t                  timestamp = 0;
+  int64_t                  expectedStart = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime("2024-01-01 00:30:00", &timestamp, strlen("2024-01-01 00:30:00"),
+                                             TSDB_TIME_PRECISION_MILLI, timezone));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime("2024-01-01 00:00:00", &expectedStart, strlen("2024-01-01 00:00:00"),
+                                             TSDB_TIME_PRECISION_MILLI, timezone));
+  const STimeWindow   scanRange = {timestamp - 1, timestamp + 1};
+  const STimeWindow   calcRange = {timestamp, timestamp};
+  SRecalcImpactDomain domain = {};
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stWindowChainBuildRecalcImpactDomain(plan.get(), kGid, &policy, &scanRange, &calcRange, &domain));
+  ASSERT_NE(nullptr, domain.pRootExtents);
+  ASSERT_EQ(1, taosArrayGetSize(domain.pRootExtents));
+  const auto* extent = static_cast<const STimeWindow*>(taosArrayGet(domain.pRootExtents, 0));
+  ASSERT_NE(nullptr, extent);
+  EXPECT_EQ(expectedStart, extent->skey);
+  EXPECT_EQ(expectedStart + day - 1, extent->ekey);
+
+  stDestroyRecalcImpactDomain(&domain);
+}
+
 TEST(StreamWindowChainImpactDomainTest, DataDrivenRootUsesReplayAnchorAndFrontier) {
   Plan                plan({sessionLayer(10000), stateLayer()});
   const STimeWindow   scanRange = {100, 500};
   const STimeWindow   calcRange = {200, 400};
   SRecalcImpactDomain domain = {};
+  const SWindowChainPolicy policy = {};
 
-  ASSERT_EQ(TSDB_CODE_SUCCESS, stWindowChainBuildRecalcImpactDomain(plan.get(), kGid, &scanRange, &calcRange, &domain));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stWindowChainBuildRecalcImpactDomain(plan.get(), kGid, &policy, &scanRange, &calcRange, &domain));
   ASSERT_NE(nullptr, domain.pRootExtents);
   ASSERT_EQ(1, taosArrayGetSize(domain.pRootExtents));
   const auto* extent = static_cast<const STimeWindow*>(taosArrayGet(domain.pRootExtents, 0));

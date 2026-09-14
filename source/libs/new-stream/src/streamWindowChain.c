@@ -714,9 +714,10 @@ static void stWindowChainFinishMutation(SWindowChainMutationJournal *pJournal, b
   *pJournal = (SWindowChainMutationJournal){0};
 }
 
-static SInterval stBuildInterval(const SSlidingTrigger *pSliding, bool pureSliding) {
+static SInterval stBuildInterval(const SSlidingTrigger *pSliding, bool pureSliding, const SWindowChainPolicy *pPolicy) {
   SInterval interval = {0};
-  interval.timezone = NULL;
+  interval.timezone = pPolicy->timezone;
+  interval.firstDayOfWeek = pPolicy->firstDayOfWeek;
   interval.intervalUnit = pureSliding ? pSliding->slidingUnit : pSliding->intervalUnit;
   interval.slidingUnit = pSliding->slidingUnit;
   interval.offsetUnit = pureSliding ? pSliding->soffsetUnit : pSliding->offsetUnit;
@@ -733,8 +734,9 @@ static int32_t stPushRange(SArray *pRanges, TSKEY start, TSKEY end) {
   return taosArrayPush(pRanges, &range) == NULL ? stWindowChainAllocError() : TSDB_CODE_SUCCESS;
 }
 
-static int32_t stPureSlidingRange(const SSlidingTrigger *pSliding, TSKEY ts, STimeWindow *pRange) {
-  SInterval interval = stBuildInterval(pSliding, true);
+static int32_t stPureSlidingRange(const SSlidingTrigger *pSliding, const SWindowChainPolicy *pPolicy, TSKEY ts,
+                                  STimeWindow *pRange) {
+  SInterval interval = stBuildInterval(pSliding, true, pPolicy);
   TSKEY     boundary = taosTimeTruncate(ts, &interval);
   if (boundary == ts) {
     TSKEY previous = getNextTimeWindowStart(&interval, boundary, TSDB_ORDER_DESC);
@@ -750,16 +752,17 @@ static int32_t stPureSlidingRange(const SSlidingTrigger *pSliding, TSKEY ts, STi
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t stIntervalRanges(const SWindowChainLayerState *pLayer, TSKEY ts, SArray *pRanges) {
+static int32_t stIntervalRanges(const SWindowChainLayerState *pLayer, const SWindowChainPolicy *pPolicy, TSKEY ts,
+                                SArray *pRanges) {
   const SSlidingTrigger *pSliding = &pLayer->pSpec->trigger.sliding;
   if (pLayer->pureSliding) {
     STimeWindow range = {0};
-    int32_t     code = stPureSlidingRange(pSliding, ts, &range);
+    int32_t     code = stPureSlidingRange(pSliding, pPolicy, ts, &range);
     if (code != TSDB_CODE_SUCCESS) return code;
     return stPushRange(pRanges, range.skey, range.ekey);
   }
 
-  SInterval interval = stBuildInterval(pSliding, false);
+  SInterval interval = stBuildInterval(pSliding, false, pPolicy);
   TSKEY     start = taosTimeTruncate(ts, &interval);
   while (true) {
     TSKEY end = taosTimeGetIntervalEnd(start, &interval);
@@ -774,14 +777,15 @@ static int32_t stIntervalRanges(const SWindowChainLayerState *pLayer, TSKEY ts, 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t stNextTimeRange(const SWindowChainLayerState *pLayer, const STimeWindow *pCurrent, STimeWindow *pNext) {
+static int32_t stNextTimeRange(const SWindowChainLayerState *pLayer, const SWindowChainPolicy *pPolicy,
+                               const STimeWindow *pCurrent, STimeWindow *pNext) {
   const SSlidingTrigger *pSliding = &pLayer->pSpec->trigger.sliding;
   if (pLayer->pureSliding) {
     if (pCurrent->ekey == INT64_MAX) return TSDB_CODE_INVALID_PARA;
-    int32_t code = stPureSlidingRange(pSliding, pCurrent->ekey + 1, pNext);
+    int32_t code = stPureSlidingRange(pSliding, pPolicy, pCurrent->ekey + 1, pNext);
     if (code != TSDB_CODE_SUCCESS) return code;
   } else {
-    SInterval interval = stBuildInterval(pSliding, false);
+    SInterval interval = stBuildInterval(pSliding, false, pPolicy);
     TSKEY     start = getNextTimeWindowStart(&interval, pCurrent->skey, TSDB_ORDER_ASC);
     if (start == INT64_MIN || start == INT64_MAX || start <= pCurrent->skey) return TSDB_CODE_INVALID_PARA;
     *pNext = (STimeWindow){.skey = start, .ekey = taosTimeGetIntervalEnd(start, &interval)};
@@ -797,7 +801,7 @@ static int32_t stWindowLayerApply(SWindowChainState *pState, int32_t layerIndex,
 
   switch (pLayer->runtimeType) {
     case STREAM_TRIGGER_SLIDING: {
-      int32_t code = stIntervalRanges(pLayer, pInput->ts, pTransitions->pRanges);
+      int32_t code = stIntervalRanges(pLayer, &pState->policy, pInput->ts, pTransitions->pRanges);
       if (code != TSDB_CODE_SUCCESS || pInput->type == WINDOW_LAYER_INPUT_FRONTIER) return code;
       const STimeWindow *pTarget = taosArrayGet(pTransitions->pRanges, 0);
       if (pCurrent != NULL && (pTarget == NULL || pCurrent->start != pTarget->skey)) {
@@ -1345,7 +1349,7 @@ static int32_t stBuildAncestorSnapshotsFromInstances(const SWindowChainState    
         .layerIndex = i, .triggerType = pLayer->pSpec->triggerType, .placeholderMask = pLayer->pSpec->placeholderMask};
     if (pLayer->pureSliding) {
       STimeWindow next = {0};
-      int32_t     code = stPureSlidingRange(&pLayer->pSpec->trigger.sliding,
+      int32_t     code = stPureSlidingRange(&pLayer->pSpec->trigger.sliding, &pState->policy,
                                         pInstance->end == INT64_MAX ? pInstance->end : pInstance->end + 1, &next);
       if (code != TSDB_CODE_SUCCESS) {
         taosArrayDestroy(pSnapshots);
@@ -1370,14 +1374,15 @@ static int32_t stBuildAncestorSnapshotsFromInstances(const SWindowChainState    
   return TSDB_CODE_SUCCESS;
 }
 
-static void stFillLeafParam(const SWindowChainLayerState *pLeaf, const SWindowChainInstance *pInstance,
-                            int32_t eventType, int64_t nowNs, SSTriggerCalcParam *pParam) {
+static void stFillLeafParam(const SWindowChainState *pState, const SWindowChainInstance *pInstance, int32_t eventType,
+                            int64_t nowNs, SSTriggerCalcParam *pParam) {
+  const SWindowChainLayerState *pLeaf = &pState->layers[pState->numLayers - 1];
   pParam->triggerTime = nowNs;
   pParam->notifyType = eventType;
   if (pLeaf->pureSliding) {
     STimeWindow next = {0};
-    if (pInstance->end != INT64_MAX &&
-        stPureSlidingRange(&pLeaf->pSpec->trigger.sliding, pInstance->end + 1, &next) == TSDB_CODE_SUCCESS) {
+    if (pInstance->end != INT64_MAX && stPureSlidingRange(&pLeaf->pSpec->trigger.sliding, &pState->policy,
+                                                          pInstance->end + 1, &next) == TSDB_CODE_SUCCESS) {
       pParam->nextTs = next.ekey;
     }
     pParam->prevTs = pInstance->start;
@@ -1517,7 +1522,7 @@ static int32_t stAppendMaterializedCandidateWithContent(const SWindowChainState 
   candidate.rootImpactExtent = (STimeWindow){.skey = pRoot->start, .ekey = pRoot->end};
   candidate.eventType = eventType;
   candidate.rowCount = pInstance->rownum;
-  stFillLeafParam(pLeaf, pInstance, eventType, nowNs, &candidate.leafParam);
+  stFillLeafParam(pState, pInstance, eventType, nowNs, &candidate.leafParam);
   code = stBuildCandidateCalcDataRange(pState, pInstance, candidate.pAncestorSnapshots, &candidate.calcDataRange);
   if (code != TSDB_CODE_SUCCESS) goto _exit;
   if (pNotifyContent != NULL) {
@@ -1538,10 +1543,11 @@ _exit:
   return code;
 }
 
-int32_t stWindowChainBuildRecalcImpactDomain(const SStreamWindowPlan *pPlan, int64_t gid, const STimeWindow *pScanRange,
+int32_t stWindowChainBuildRecalcImpactDomain(const SStreamWindowPlan *pPlan, int64_t gid,
+                                             const SWindowChainPolicy *pPolicy, const STimeWindow *pScanRange,
                                              const STimeWindow *pCalcRange, SRecalcImpactDomain *pDomain) {
-  if (pPlan == NULL || pPlan->pLayers == NULL || taosArrayGetSize(pPlan->pLayers) <= 0 || pScanRange == NULL ||
-      pCalcRange == NULL || pDomain == NULL || pScanRange->skey > pScanRange->ekey ||
+  if (pPlan == NULL || pPlan->pLayers == NULL || taosArrayGetSize(pPlan->pLayers) <= 0 || pPolicy == NULL ||
+      pScanRange == NULL || pCalcRange == NULL || pDomain == NULL || pScanRange->skey > pScanRange->ekey ||
       pCalcRange->skey > pCalcRange->ekey) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -1563,12 +1569,12 @@ int32_t stWindowChainBuildRecalcImpactDomain(const SStreamWindowPlan *pPlan, int
     STimeWindow first = {0};
     STimeWindow last = {0};
     if (pureSliding) {
-      code = stPureSlidingRange(&pRoot->trigger.sliding, pCalcRange->skey, &first);
+      code = stPureSlidingRange(&pRoot->trigger.sliding, pPolicy, pCalcRange->skey, &first);
       if (code == TSDB_CODE_SUCCESS) {
-        code = stPureSlidingRange(&pRoot->trigger.sliding, pCalcRange->ekey, &last);
+        code = stPureSlidingRange(&pRoot->trigger.sliding, pPolicy, pCalcRange->ekey, &last);
       }
     } else {
-      SInterval interval = stBuildInterval(&pRoot->trigger.sliding, false);
+      SInterval interval = stBuildInterval(&pRoot->trigger.sliding, false, pPolicy);
       first.skey = taosTimeTruncate(pCalcRange->skey, &interval);
       first.ekey = taosTimeGetIntervalEnd(first.skey, &interval);
       last.skey = taosTimeTruncate(pCalcRange->ekey, &interval);
@@ -1875,7 +1881,7 @@ static int32_t stAdvanceTimeLeafRanges(SWindowChainState *pState, TSKEY progress
       break;
     }
     STimeWindow next = {0};
-    int32_t     code = stNextTimeRange(pLeaf, &pLeaf->nextTimeRange, &next);
+    int32_t     code = stNextTimeRange(pLeaf, &pState->policy, &pLeaf->nextTimeRange, &next);
     if (code != TSDB_CODE_SUCCESS) return code;
     pLeaf->nextTimeRange = next;
   }
@@ -2720,7 +2726,7 @@ static int32_t stRouteRow(SWindowChainState *pState, int32_t layerIndex, const S
     code = stSettleAndResetDescendants(pState, layerIndex, pCurrent, nowNs, pCandidates);
     if (code != TSDB_CODE_SUCCESS) goto _exit;
     STimeWindow next = {0};
-    code = stPureSlidingRange(&pLayer->pSpec->trigger.sliding,
+    code = stPureSlidingRange(&pLayer->pSpec->trigger.sliding, &pState->policy,
                               pCurrent->end == INT64_MAX ? pCurrent->end : pCurrent->end + 1, &next);
     if (code != TSDB_CODE_SUCCESS) goto _exit;
     uint64_t generation = 0;
@@ -2958,7 +2964,7 @@ static int32_t stAdvanceLayer(SWindowChainState *pState, int32_t layerIndex, TSK
   if (pLayer->pureSliding) {
     if (pCurrent == NULL) {
       STimeWindow range = {0};
-      int32_t     code = stPureSlidingRange(&pLayer->pSpec->trigger.sliding, frontier, &range);
+      int32_t     code = stPureSlidingRange(&pLayer->pSpec->trigger.sliding, &pState->policy, frontier, &range);
       if (code != TSDB_CODE_SUCCESS) return code;
       code = stOpenInstance(pState, pLayer->pInstances, &range, nowNs, &pCurrent);
       if (code != TSDB_CODE_SUCCESS) return code;
@@ -2971,7 +2977,7 @@ static int32_t stAdvanceLayer(SWindowChainState *pState, int32_t layerIndex, TSK
       int32_t code = stSettleAndResetDescendants(pState, layerIndex, pCurrent, nowNs, pCandidates);
       if (code != TSDB_CODE_SUCCESS) return code;
       STimeWindow next = {0};
-      code = stPureSlidingRange(&pLayer->pSpec->trigger.sliding,
+      code = stPureSlidingRange(&pLayer->pSpec->trigger.sliding, &pState->policy,
                                 pCurrent->end == INT64_MAX ? pCurrent->end : pCurrent->end + 1, &next);
       if (code != TSDB_CODE_SUCCESS) return code;
       uint64_t generation = 0;

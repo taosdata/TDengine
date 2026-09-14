@@ -1155,6 +1155,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_ts_7622.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_window_true_for.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_period_natural_units.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_stream_natural_time_units.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_true_for_start_end.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_stream_tmq_client_charset.py
 ## 04-Options
@@ -1167,6 +1168,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_options_ns.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_options_us.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_options_vtable.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_stream_time_config.py
 ## 05-Notify
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/05-Notify/test_external_window_multigroup_notify.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/05-Notify/test_nested_window_notify.py
@@ -1237,6 +1239,7 @@
 ## 22-Performance
 ## 23-Compatibility
 
+,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_stream_time_config_upgrade.py
 ,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_cross_version.py
 ,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_new_stream_compatibility.py
 ## 30-OldPyCases
@@ -1617,6 +1620,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_with_csv.py
 
 ## 04-Taosdump
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_stream_time_config.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_basic.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_bugs.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_compa.py

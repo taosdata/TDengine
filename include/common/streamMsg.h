@@ -75,6 +75,7 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_FETCH_RESET_MODE_FRAME_MAGIC   UINT32_C(0x4e574652)
 #define STREAM_OPTION_FLUSH_ON_OUTER_CLOSE BIT_FLAG_MASK(4)
 #define STREAM_OPTION_NESTED_WINDOW_PLAN   BIT_FLAG_MASK(5)
+#define STREAM_OPTION_TIME_CONFIG_PRESENT     BIT_FLAG_MASK(6)
 
 typedef enum EStreamRunnerFetchType {
   STREAM_RUNNER_FETCH_LEGACY = 0,
@@ -217,6 +218,11 @@ typedef union {
   SCountTrigger    count;
   SPeriodTrigger   period;
 } SStreamTrigger;
+
+typedef struct SStreamTimeConfig {
+  char   timezone[TD_TIMEZONE_LEN];
+  int8_t firstDayOfWeek;
+} SStreamTimeConfig;
 
 typedef struct {
   int16_t tsSlotId;
@@ -430,6 +436,7 @@ typedef struct {
   SArray* colCids;       // array of SStreamCidCol, only available when colCids is not empty
   SArray* tagCids;       // array of SStreamCidTag, only available when tagCids is not empty
   int8_t  nodelayCreateSubtable;  // 1 = create sub-tables at stream create time; 0 = default
+  SStreamTimeConfig timeConfig;
 
   // Federated query: external source trigger / calc reader specs.
   // Built by parser (Pt A4) when the stream references any EXTERNAL SOURCE
@@ -917,6 +924,7 @@ typedef struct {
   int32_t leaderSnodeId;
   char*   streamName;
   int8_t  nodelayCreateSubtable;  // 1 = create sub-tables at stream create time; 0 = create on the fly during trigger
+  SStreamTimeConfig timeConfig;
 } SStreamTriggerDeployMsg;
 
 typedef struct SStreamRunnerDeployMsg {

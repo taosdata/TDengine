@@ -1348,6 +1348,10 @@ _exit:
 int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerDeployMsg* pMsg) {
   int32_t code = 0;
   int32_t lino;
+  int32_t addOptions = pMsg->addOptions;
+  if (pMsg->timeConfig.timezone[0] != '\0') {
+    BIT_FLAG_SET_MASK(addOptions, STREAM_OPTION_TIME_CONFIG_PRESENT);
+  }
 
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->triggerType));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->igDisorder));
@@ -1371,7 +1375,7 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
     TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, url, NULL == url ? 0 : (int32_t)strlen(url) + 1));
   }
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMsg->notifyEventTypes));
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMsg->addOptions));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, addOptions));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->notifyHistory));
 
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->maxDelay));
@@ -1501,6 +1505,10 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->streamName, (int32_t)strlen(pMsg->streamName) + 1));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->precision));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->nodelayCreateSubtable));
+  if (BIT_FLAG_TEST_MASK(addOptions, STREAM_OPTION_TIME_CONFIG_PRESENT)) {
+    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pMsg->timeConfig.timezone));
+    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->timeConfig.firstDayOfWeek));
+  }
 
 _exit:
 
@@ -2126,6 +2134,7 @@ _exit:
 int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployMsg* pMsg) {
   int32_t code = 0;
   int32_t lino;
+  bool    timeConfigPresent = false;
 
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->triggerType));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->igDisorder));
@@ -2152,6 +2161,8 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
   }
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pMsg->notifyEventTypes));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pMsg->addOptions));
+  timeConfigPresent = BIT_FLAG_TEST_MASK(pMsg->addOptions, STREAM_OPTION_TIME_CONFIG_PRESENT);
+  BIT_FLAG_UNSET_MASK(pMsg->addOptions, STREAM_OPTION_TIME_CONFIG_PRESENT);
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->notifyHistory));
 
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->maxDelay));
@@ -2291,6 +2302,10 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
   }
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->nodelayCreateSubtable));
+  }
+  if (timeConfigPresent) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pMsg->timeConfig.timezone));
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->timeConfig.firstDayOfWeek));
   }
 
 _exit:

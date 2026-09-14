@@ -47,6 +47,20 @@ add_test(
     COMMAND ttimeNaturalUnitsTest
 )
 
+# streamMsgTest.cpp
+add_executable(streamMsgTest "streamMsgTest.cpp")
+DEP_ext_gtest(streamMsgTest)
+target_link_libraries(streamMsgTest PRIVATE os util common)
+target_include_directories(
+    streamMsgTest
+    PUBLIC "${TD_SOURCE_DIR}/include/common"
+    PUBLIC "${TD_SOURCE_DIR}/include/util"
+)
+add_test(
+    NAME streamMsgTest
+    COMMAND streamMsgTest
+)
+
 # ttimeQuarterParseTest.cpp
 add_executable(ttimeQuarterParseTest "ttimeQuarterParseTest.cpp")
 DEP_ext_gtest(ttimeQuarterParseTest)

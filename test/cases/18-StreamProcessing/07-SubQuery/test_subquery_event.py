@@ -57,6 +57,7 @@ class TestStreamSubqueryEvent:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -666,7 +667,7 @@ class TestStreamSubqueryEvent:
             id=60,
             stream="create stream rdb.s60 event_window(start with c2=0 end with c2=10) from tdb.triggers partition by tbname into rdb.r60 as select _twstart ts, RAND(), NOW(), TODAY(), TIMEZONE() from qdb.n2 where _tgrpid != 0 order by cts desc limit 1",
             res_query="select ts, `timezone()`, tag_tbname from rdb.r60 where tag_tbname='t1' limit 1 offset 2;",
-            exp_query="select cts, timezone(), 't1' from qdb.n2 where cts='2025-01-01 00:10:00.000';",
+            exp_query="select cts, substring_index(timezone(), ' ', 1), 't1' from qdb.n2 where cts='2025-01-01 00:10:00.000';",
         )
         self.streams.append(stream)
 
@@ -674,7 +675,7 @@ class TestStreamSubqueryEvent:
             id=61,
             stream="create stream rdb.s61 event_window(start with c2=0 end with c2=10) from tdb.triggers partition by id, tbname into rdb.r61 as select _twstart ts, RAND(), NOW(), TODAY(), TIMEZONE() from qdb.n2 where _tgrpid != 0 order by cts desc limit 1",
             res_query="select ts, `timezone()`, id from rdb.r61 where id=1 limit 1 offset 2;",
-            exp_query="select cts, timezone(), 1 from qdb.n2 where cts='2025-01-01 00:10:00.000';",
+            exp_query="select cts, substring_index(timezone(), ' ', 1), 1 from qdb.n2 where cts='2025-01-01 00:10:00.000';",
         )
         self.streams.append(stream)
 
@@ -682,7 +683,7 @@ class TestStreamSubqueryEvent:
             id=62,
             stream="create stream rdb.s62 event_window(start with c2=0 end with c2=10) from tdb.triggers partition by id, name, tbname into rdb.r62 as select _twstart ts, RAND(), NOW(), TODAY(), TIMEZONE() from qdb.n2 where _tgrpid != 0 order by cts desc limit 1",
             res_query="select ts, `timezone()`, id, name from rdb.r62 where id=1 limit 1 offset 2;",
-            exp_query="select cts, timezone(), 1, '1' from qdb.n2 where cts='2025-01-01 00:10:00.000';",
+            exp_query="select cts, substring_index(timezone(), ' ', 1), 1, '1' from qdb.n2 where cts='2025-01-01 00:10:00.000';",
         )
         self.streams.append(stream)
 

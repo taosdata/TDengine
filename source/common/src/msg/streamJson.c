@@ -560,6 +560,16 @@ static const char* jkStreamWindowLayerInputConditionSlotIds = "conditionSlotIds"
 static const char* jkCreateStreamReqColCids = "colCids";
 static const char* jkCreateStreamReqTagCids = "tagCids";
 static const char* jkCreateStreamReqNodelayCreateSubtable = "nodelayCreateSubtable";
+static const char* jkCreateStreamReqTimeConfig = "TimeConfig";
+static const char* jkStreamTimeConfigTimezone = "Timezone";
+static const char* jkStreamTimeConfigFirstDayOfWeek = "FirstDayOfWeek";
+
+static int32_t streamTimeConfigToJson(const void* pObj, SJson* pJson) {
+  const SStreamTimeConfig* pTimeConfig = (const SStreamTimeConfig*)pObj;
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkStreamTimeConfigTimezone, pTimeConfig->timezone));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkStreamTimeConfigFirstDayOfWeek, pTimeConfig->firstDayOfWeek));
+  return TSDB_CODE_SUCCESS;
+}
 
 /* === Federated query: extSpecs JSON keys (Pt A6) ===
  * Wire format mirrors SStreamExtTriggerSpec (streamMsg.h). This is the sole
@@ -1193,6 +1203,9 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
       pReq->tagCids ? pReq->tagCids->size : 0));
   TAOS_CHECK_RETURN(
       tjsonAddIntegerToObject(pJson, jkCreateStreamReqNodelayCreateSubtable, pReq->nodelayCreateSubtable));
+  if (pReq->timeConfig.timezone[0] != '\0') {
+    TAOS_CHECK_RETURN(tjsonAddObject(pJson, jkCreateStreamReqTimeConfig, streamTimeConfigToJson, &pReq->timeConfig));
+  }
 
   if (pReq->pWindowPlan != NULL) {
     TAOS_CHECK_RETURN(tjsonAddObject(pJson, jkCreateStreamReqWindowPlan, streamWindowPlanToJson, pReq->pWindowPlan));
@@ -1451,6 +1464,13 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
   TAOS_CHECK_RETURN(tjsonToTArray(pJson, jkCreateStreamReqColCids, jsonToInt16, &pReq->colCids, sizeof(int16_t)));
   TAOS_CHECK_RETURN(tjsonToTArray(pJson, jkCreateStreamReqTagCids, jsonToInt16, &pReq->tagCids, sizeof(int16_t)));
   (void)tjsonGetTinyIntValue(pJson, jkCreateStreamReqNodelayCreateSubtable, &pReq->nodelayCreateSubtable);
+  const SJson* pTimeConfig = tjsonGetObjectItem(pJson, jkCreateStreamReqTimeConfig);
+  if (pTimeConfig != NULL) {
+    TAOS_CHECK_RETURN(tjsonGetStringValue1(pTimeConfig, jkStreamTimeConfigTimezone, pReq->timeConfig.timezone,
+                                           sizeof(pReq->timeConfig.timezone)));
+    TAOS_CHECK_RETURN(
+        tjsonGetTinyIntValue(pTimeConfig, jkStreamTimeConfigFirstDayOfWeek, &pReq->timeConfig.firstDayOfWeek));
+  }
 
   /* Pt A6: decode extSpecs array (optional — absent on streams without
    * EXTERNAL sources and on messages from older taosc). */

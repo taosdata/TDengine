@@ -26,45 +26,48 @@ extern "C" {
 #include "parser.h"
 
 typedef struct STranslateContext {
-  SParseContext*   pParseCxt;
-  int32_t          errCode;
-  ESubQueryType    expSubQueryType;
-  SMsgBuf          msgBuf;
-  SArray*          pNsLevel;  // element is SArray*, the element of this subarray is STableNode*
-  SNodeList*       pSubQueries; // sub queries NOT from FROM clause， SNodeList<SNode*>
-  int32_t          currLevel;
-  int32_t          levelNo;
-  ESqlClause       currClause;
-  SNode*           pCurrStmt;
-  SCmdMsgInfo*     pCmdMsg;
-  SHashObj*        pDbs;
-  SHashObj*        pTables;
-  SHashObj*        pTargetTables;
-  SExplainOptions* pExplainOpt;
-  SParseMetaCache* pMetaCache;
-  bool             isExprSubQ;
-  bool             isCorrelatedSubQ;
-  bool             hasNonLocalSubQ;
-  bool             hasLocalSubQ;
-  bool             hasVolatileFunc;  // query/statement contains a volatile function (e.g. SLEEP)
-  bool             stableQuery;
-  bool             showRewrite;
-  bool             withOpt;
-  SNode*           pPrevRoot;
-  SNode*           pPostRoot;
-  bool             dual;  // whether select stmt without from stmt, true for without.
-  bool             skipCheck;
-  bool             refTable;
-  bool             isCurrOpIn;
-  ENodeType        origStmtType;
-  SParseStreamInfo streamInfo;
+  SParseContext*           pParseCxt;
+  int32_t                  errCode;
+  ESubQueryType            expSubQueryType;
+  SMsgBuf                  msgBuf;
+  SArray*                  pNsLevel;     // element is SArray*, the element of this subarray is STableNode*
+  SNodeList*               pSubQueries;  // sub queries NOT from FROM clause， SNodeList<SNode*>
+  int32_t                  currLevel;
+  int32_t                  levelNo;
+  ESqlClause               currClause;
+  SNode*                   pCurrStmt;
+  SCmdMsgInfo*             pCmdMsg;
+  SHashObj*                pDbs;
+  SHashObj*                pTables;
+  SHashObj*                pTargetTables;
+  SExplainOptions*         pExplainOpt;
+  SParseMetaCache*         pMetaCache;
+  bool                     isExprSubQ;
+  bool                     isCorrelatedSubQ;
+  bool                     hasNonLocalSubQ;
+  bool                     hasLocalSubQ;
+  bool                     hasVolatileFunc;  // query/statement contains a volatile function (e.g. SLEEP)
+  bool                     stableQuery;
+  bool                     showRewrite;
+  bool                     withOpt;
+  SNode*                   pPrevRoot;
+  SNode*                   pPostRoot;
+  bool                     dual;  // whether select stmt without from stmt, true for without.
+  bool                     skipCheck;
+  bool                     refTable;
+  bool                     isCurrOpIn;
+  ENodeType                origStmtType;
+  timezone_t               streamTimezone;     // borrowed from the current CREATE STREAM statement
+  const SStreamTimeConfig* pStreamTimeConfig;  // borrowed from the current CREATE STREAM statement
+  SParseStreamInfo         streamInfo;
   // When a correlated EXISTS/NOT EXISTS is allowed because both outer and inner
   // FROM tables are from the same external source, this flag is set so that
   // rewriteExprSubQuery can pre-render the EXISTS SQL for pushdown rather than
   // creating a separate inner subquery plan.
-  bool             sameExtSourceCorrelatedExists;
+  bool sameExtSourceCorrelatedExists;
 } STranslateContext;
 
+int32_t normalizeCreateStreamSql(STranslateContext* pCxt, const SCreateStreamStmt* pStmt, char** ppSql);
 int32_t biRewriteToTbnameFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRet);
 int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect);
 int32_t biCheckCreateTableTbnameCol(STranslateContext* pCxt, SNodeList* pTags, SNodeList* pCols);

@@ -107,6 +107,7 @@ static SStreamTriggerTask* createMockTriggerTask(char unit, int64_t interval, in
   pTask->interval.offset = offset;
   pTask->interval.offsetUnit = 'a';  // milliseconds
   pTask->interval.precision = precision;
+  pTask->interval.firstDayOfWeek = 1;
   pTask->interval.timezone = NULL;
 
   return pTask;
@@ -800,6 +801,47 @@ class StreamTriggerTaskTest : public ::testing::Test {
     }
   }
 
+  int64_t makeTimestampAt(int year, int month, int day, int hour, int minute, int second, timezone_t timezone,
+                          int8_t precision = TSDB_TIME_PRECISION_MILLI) {
+    struct tm tm = {0};
+    tm.tm_year = year - 1900;
+    tm.tm_mon = month - 1;
+    tm.tm_mday = day;
+    tm.tm_hour = hour;
+    tm.tm_min = minute;
+    tm.tm_sec = second;
+    tm.tm_isdst = -1;
+
+    time_t timestamp = taosMktime(&tm, timezone);
+    return static_cast<int64_t>(timestamp) * TSDB_TICK_PER_SECOND(precision);
+  }
+
+  void expectIntervalWindowParity(const SInterval& interval, int64_t timestamp) {
+    SStreamTriggerTask task = {};
+    task.triggerType = STREAM_TRIGGER_SLIDING;
+    task.interval = interval;
+
+    STimeWindow query = getAlignQueryTimeWindow(&interval, timestamp);
+    STimeWindow stream = stTriggerTaskGetTimeWindow(&task, timestamp);
+    EXPECT_EQ(stream.skey, query.skey);
+    EXPECT_EQ(stream.ekey, query.ekey);
+
+    STimeWindow expected = query;
+    expected.skey = getNextTimeWindowStart(&interval, expected.skey, TSDB_ORDER_DESC);
+    expected.ekey = taosTimeGetIntervalEnd(expected.skey, &interval);
+    stTriggerTaskPrevTimeWindow(&task, &stream);
+    EXPECT_EQ(stream.skey, expected.skey);
+    EXPECT_EQ(stream.ekey, expected.ekey);
+
+    expected = query;
+    expected.skey = getNextTimeWindowStart(&interval, expected.skey, TSDB_ORDER_ASC);
+    expected.ekey = taosTimeGetIntervalEnd(expected.skey, &interval);
+    stream = query;
+    stTriggerTaskNextTimeWindow(&task, &stream);
+    EXPECT_EQ(stream.skey, expected.skey);
+    EXPECT_EQ(stream.ekey, expected.ekey);
+  }
+
   /**
    * Helper function to verify window boundaries
    * @param win Window to verify
@@ -872,6 +914,465 @@ class StreamTriggerTaskTest : public ::testing::Test {
     }
   }
 };
+
+static int32_t     gTimezoneAllocCalls = 0;
+static int32_t     gTimezoneFreeCalls = 0;
+static bool        gFailTimezoneAlloc = false;
+static std::string gAllocatedTimezone;
+static char        gTimezoneHandleStorage = 0;
+
+static timezone_t countTimezoneAlloc(const char* timezone) {
+  ++gTimezoneAllocCalls;
+  gAllocatedTimezone = timezone == nullptr ? "" : timezone;
+  return gFailTimezoneAlloc ? nullptr : reinterpret_cast<timezone_t>(&gTimezoneHandleStorage);
+}
+
+static void countTimezoneFree(timezone_t timezone) {
+  if (timezone == reinterpret_cast<timezone_t>(&gTimezoneHandleStorage)) {
+    ++gTimezoneFreeCalls;
+  }
+}
+
+static void noOpTriggerUndeploy(void*) {}
+
+static SStreamTriggerDeployMsg makeTimeTriggerDeployMsg(EWindowType type, bool independentSliding = false) {
+  static char streamName[] = "task-8-trigger";
+
+  SStreamTriggerDeployMsg msg = {};
+  msg.triggerType = static_cast<int8_t>(type);
+  msg.streamName = streamName;
+  msg.precision = TSDB_TIME_PRECISION_MILLI;
+  if (type == WINDOW_TYPE_PERIOD) {
+    msg.trigger.period.periodUnit = 'n';
+    msg.trigger.period.offsetUnit = 'a';
+    msg.trigger.period.precision = TSDB_TIME_PRECISION_NANO;
+    msg.trigger.period.period = 1;
+  } else {
+    msg.trigger.sliding.intervalUnit = 's';
+    msg.trigger.sliding.slidingUnit = 's';
+    msg.trigger.sliding.offsetUnit = 'a';
+    msg.trigger.sliding.soffsetUnit = 'a';
+    msg.trigger.sliding.precision = TSDB_TIME_PRECISION_MILLI;
+    msg.trigger.sliding.interval = independentSliding ? 0 : 1000;
+    msg.trigger.sliding.sliding = independentSliding ? 1000 : 0;
+  }
+  return msg;
+}
+
+static SStreamTriggerDeployMsg makeNonTimeTriggerDeployMsg(EWindowType type) {
+  static char streamName[] = "task-8-non-time-trigger";
+
+  SStreamTriggerDeployMsg msg = {};
+  msg.triggerType = static_cast<int8_t>(type);
+  msg.streamName = streamName;
+  msg.precision = TSDB_TIME_PRECISION_MILLI;
+  return msg;
+}
+
+static char* makeSerializedColumnNode(int16_t slotId) {
+  SNode* pNode = nullptr;
+  if (nodesMakeNode(QUERY_NODE_COLUMN, &pNode) != TSDB_CODE_SUCCESS) {
+    return nullptr;
+  }
+
+  SColumnNode* pColumn = reinterpret_cast<SColumnNode*>(pNode);
+  pColumn->slotId = slotId;
+  pColumn->colId = slotId + 1;
+  pColumn->node.resType.type = TSDB_DATA_TYPE_INT;
+  pColumn->node.resType.bytes = sizeof(int32_t);
+  tstrncpy(pColumn->colName, "c1", sizeof(pColumn->colName));
+
+  char*   serialized = nullptr;
+  int32_t code = nodesNodeToString(pNode, false, &serialized, nullptr);
+  nodesDestroyNode(pNode);
+  return code == TSDB_CODE_SUCCESS ? serialized : nullptr;
+}
+
+static void cleanupTriggerDeployTestTask(SStreamTriggerTask* task) {
+  task->task.undeployCb = noOpTriggerUndeploy;
+  SStreamTriggerTask* taskPtr = task;
+  EXPECT_EQ(stTriggerTaskUndeploy(&taskPtr, true), TSDB_CODE_SUCCESS);
+  streamTaskStatsHandleLifecycle(&task->pStats, STREAM_TASK_STATS_OWNER_DESTROYED);
+  taosMemoryFreeClear(task->task.extraErrMsg);
+}
+
+TEST_F(StreamTriggerTaskTest, DeployOwnsOneTimezoneForEachTimeTrigger) {
+  const struct {
+    EWindowType type;
+    bool        independentSliding;
+  } cases[] = {
+      {WINDOW_TYPE_INTERVAL, false},
+      {WINDOW_TYPE_INTERVAL, true},
+      {WINDOW_TYPE_PERIOD, false},
+  };
+
+  for (const auto& testCase : cases) {
+    SCOPED_TRACE(testCase.independentSliding ? "independent sliding" : std::to_string(testCase.type));
+    gTimezoneAllocCalls = 0;
+    gTimezoneFreeCalls = 0;
+    gFailTimezoneAlloc = false;
+    gAllocatedTimezone.clear();
+
+    Stub stub;
+    stub.set(tzalloc, countTimezoneAlloc);
+    stub.set(tzfree, countTimezoneFree);
+
+    SStreamTriggerTask task = {};
+    task.task.type = STREAM_TRIGGER_TASK;
+    SStreamTriggerDeployMsg msg = makeTimeTriggerDeployMsg(testCase.type, testCase.independentSliding);
+    tstrncpy(msg.timeConfig.timezone, "Asia/Shanghai", sizeof(msg.timeConfig.timezone));
+    msg.timeConfig.firstDayOfWeek = 4;
+
+    int32_t code = stTriggerTaskDeploy(&task, &msg);
+    EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+    EXPECT_EQ(gTimezoneAllocCalls, 1);
+    EXPECT_EQ(gAllocatedTimezone, "Asia/Shanghai");
+    EXPECT_EQ(task.timezone, task.interval.timezone);
+    EXPECT_NE(task.interval.timezone, nullptr);
+    EXPECT_EQ(task.interval.firstDayOfWeek, 4);
+    if (!testCase.independentSliding && testCase.type == WINDOW_TYPE_INTERVAL) {
+      EXPECT_EQ(task.interval.sliding, task.interval.interval);
+    }
+
+    cleanupTriggerDeployTestTask(&task);
+    EXPECT_EQ(gTimezoneFreeCalls, 1);
+    EXPECT_EQ(task.timezone, nullptr);
+    EXPECT_EQ(task.interval.timezone, nullptr);
+  }
+}
+
+TEST_F(StreamTriggerTaskTest, LegacyTimeTriggersUseDynamicTimezoneAndMonday) {
+  const struct {
+    EWindowType type;
+    bool        independentSliding;
+  } cases[] = {
+      {WINDOW_TYPE_INTERVAL, false},
+      {WINDOW_TYPE_INTERVAL, true},
+      {WINDOW_TYPE_PERIOD, false},
+  };
+
+  for (const auto& testCase : cases) {
+    SCOPED_TRACE(testCase.independentSliding ? "independent sliding" : std::to_string(testCase.type));
+    gTimezoneAllocCalls = 0;
+    gTimezoneFreeCalls = 0;
+    gFailTimezoneAlloc = false;
+
+    Stub stub;
+    stub.set(tzalloc, countTimezoneAlloc);
+    stub.set(tzfree, countTimezoneFree);
+
+    SStreamTriggerTask task = {};
+    task.task.type = STREAM_TRIGGER_TASK;
+    SStreamTriggerDeployMsg msg = makeTimeTriggerDeployMsg(testCase.type, testCase.independentSliding);
+    msg.timeConfig.firstDayOfWeek = 6;
+
+    int32_t code = stTriggerTaskDeploy(&task, &msg);
+    EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+    EXPECT_EQ(gTimezoneAllocCalls, 0);
+    EXPECT_EQ(task.interval.timezone, nullptr);
+    EXPECT_EQ(task.interval.firstDayOfWeek, 1);
+
+    cleanupTriggerDeployTestTask(&task);
+    EXPECT_EQ(gTimezoneFreeCalls, 0);
+  }
+}
+
+TEST_F(StreamTriggerTaskTest, TimezoneLoadFailureLeavesReportableFailedTask) {
+  gTimezoneAllocCalls = 0;
+  gTimezoneFreeCalls = 0;
+  gFailTimezoneAlloc = true;
+  gAllocatedTimezone.clear();
+
+  Stub stub;
+  stub.set(tzalloc, countTimezoneAlloc);
+  stub.set(tzfree, countTimezoneFree);
+
+  SStreamTriggerTask task = {};
+  task.task.type = STREAM_TRIGGER_TASK;
+  SStreamTriggerDeployMsg msg = makeTimeTriggerDeployMsg(WINDOW_TYPE_INTERVAL);
+  tstrncpy(msg.timeConfig.timezone, "Missing/Timezone", sizeof(msg.timeConfig.timezone));
+  msg.timeConfig.firstDayOfWeek = 1;
+
+  int32_t code = stTriggerTaskDeploy(&task, &msg);
+  EXPECT_EQ(code, TSDB_CODE_STREAM_TIMEZONE_LOAD_FAILED);
+  EXPECT_EQ(gTimezoneAllocCalls, 1);
+  EXPECT_EQ(gTimezoneFreeCalls, 0);
+  EXPECT_EQ(task.task.status, STREAM_STATUS_FAILED);
+  EXPECT_EQ(task.task.errorCode, TSDB_CODE_STREAM_TIMEZONE_LOAD_FAILED);
+  EXPECT_NE(task.task.extraErrMsg, nullptr);
+  if (task.task.extraErrMsg != nullptr) {
+    EXPECT_NE(strstr(task.task.extraErrMsg, "Missing/Timezone"), nullptr);
+    EXPECT_EQ(strstr(task.task.extraErrMsg, "invalid CONFIG"), nullptr);
+  }
+  EXPECT_EQ(task.interval.timezone, nullptr);
+
+  cleanupTriggerDeployTestTask(&task);
+  EXPECT_EQ(gTimezoneFreeCalls, 0);
+}
+
+TEST_F(StreamTriggerTaskTest, LaterDeployFailureReleasesTimezoneExactlyOnce) {
+  gTimezoneAllocCalls = 0;
+  gTimezoneFreeCalls = 0;
+  gFailTimezoneAlloc = false;
+
+  Stub stub;
+  stub.set(tzalloc, countTimezoneAlloc);
+  stub.set(tzfree, countTimezoneFree);
+
+  SStreamTriggerTask task = {};
+  task.task.type = STREAM_TRIGGER_TASK;
+  SStreamTriggerDeployMsg msg = makeTimeTriggerDeployMsg(WINDOW_TYPE_INTERVAL);
+  tstrncpy(msg.timeConfig.timezone, "Asia/Shanghai", sizeof(msg.timeConfig.timezone));
+  msg.timeConfig.firstDayOfWeek = 1;
+  msg.enableMultiGroupCalc = true;
+  msg.placeHolderBitmap = PLACE_HOLDER_PARTITION_ROWS;
+
+  int32_t code = stTriggerTaskDeploy(&task, &msg);
+  EXPECT_EQ(code, TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gTimezoneAllocCalls, 1);
+  EXPECT_EQ(gTimezoneFreeCalls, 1);
+  EXPECT_EQ(task.timezone, nullptr);
+  EXPECT_EQ(task.interval.timezone, nullptr);
+
+  cleanupTriggerDeployTestTask(&task);
+  EXPECT_EQ(gTimezoneFreeCalls, 1);
+}
+
+TEST_F(StreamTriggerTaskTest, IndependentNaturalDeployUsesParserSlidingUnit) {
+  constexpr int64_t kHour = 60LL * 60 * 1000;
+  struct TestCase {
+    const char* name;
+    char        unit;
+    int64_t     value;
+    int64_t     offset;
+    char        offsetUnit;
+    int32_t     inputMonth;
+    int32_t     expectedStartMonth;
+    int32_t     expectedEndYear;
+    int32_t     expectedEndMonth;
+  };
+  const TestCase testCases[] = {
+      {"one month with offset", 'n', 1, 3 * kHour, 'h', 2, 2, 2024, 3},
+      {"normalized quarter", 'n', 3, 0, 0, 2, 1, 2024, 4},
+      {"one year", 'y', 1, 0, 0, 6, 1, 2025, 1},
+  };
+
+  for (const TestCase& testCase : testCases) {
+    SCOPED_TRACE(testCase.name);
+    SStreamTriggerDeployMsg msg = makeTimeTriggerDeployMsg(WINDOW_TYPE_INTERVAL, true);
+    msg.trigger.sliding = {};
+    msg.trigger.sliding.slidingUnit = testCase.unit;
+    msg.trigger.sliding.soffsetUnit = testCase.offsetUnit;
+    msg.trigger.sliding.precision = TSDB_TIME_PRECISION_MILLI;
+    msg.trigger.sliding.sliding = testCase.value;
+    msg.trigger.sliding.soffset = testCase.offset;
+    tstrncpy(msg.timeConfig.timezone, "UTC", sizeof(msg.timeConfig.timezone));
+    msg.timeConfig.firstDayOfWeek = 4;
+    ASSERT_EQ(msg.trigger.sliding.intervalUnit, 0);
+
+    SStreamTriggerTask task = {};
+    task.task.type = STREAM_TRIGGER_TASK;
+    ASSERT_EQ(stTriggerTaskDeploy(&task, &msg), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(task.interval.interval, 0);
+    EXPECT_EQ(task.interval.intervalUnit, testCase.unit);
+    EXPECT_EQ(task.interval.slidingUnit, testCase.unit);
+    EXPECT_EQ(task.interval.sliding, testCase.value);
+    EXPECT_EQ(task.interval.offset, testCase.offset);
+    EXPECT_EQ(task.interval.firstDayOfWeek, 4);
+
+    int64_t     timestamp = makeTimestampAt(2024, testCase.inputMonth, 15, 12, 0, 0, task.timezone);
+    STimeWindow window = stTriggerTaskGetTimeWindow(&task, timestamp);
+    EXPECT_EQ(
+        window.skey,
+        makeTimestampAt(2024, testCase.expectedStartMonth, 1, testCase.offset == 0 ? 0 : 3, 0, 0, task.timezone) + 1);
+    EXPECT_EQ(window.ekey, makeTimestampAt(testCase.expectedEndYear, testCase.expectedEndMonth, 1,
+                                           testCase.offset == 0 ? 0 : 3, 0, 0, task.timezone));
+
+    cleanupTriggerDeployTestTask(&task);
+  }
+}
+
+TEST_F(StreamTriggerTaskTest, IndependentNaturalOffsetBeforeBoundaryUsesPreviousWindow) {
+  constexpr int64_t       kHour = 60LL * 60 * 1000;
+  SStreamTriggerDeployMsg msg = makeTimeTriggerDeployMsg(WINDOW_TYPE_INTERVAL, true);
+  msg.trigger.sliding = {};
+  msg.trigger.sliding.slidingUnit = TIME_UNIT_MONTH;
+  msg.trigger.sliding.soffsetUnit = TIME_UNIT_HOUR;
+  msg.trigger.sliding.precision = TSDB_TIME_PRECISION_MILLI;
+  msg.trigger.sliding.sliding = 1;
+  msg.trigger.sliding.soffset = kHour;
+  tstrncpy(msg.timeConfig.timezone, "UTC", sizeof(msg.timeConfig.timezone));
+  msg.timeConfig.firstDayOfWeek = 1;
+
+  SStreamTriggerTask task = {};
+  task.task.type = STREAM_TRIGGER_TASK;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskDeploy(&task, &msg));
+
+  const int64_t     timestamp = makeTimestampAt(2024, 1, 1, 0, 30, 0, task.timezone);
+  const STimeWindow window = stTriggerTaskGetTimeWindow(&task, timestamp);
+  EXPECT_EQ(makeTimestampAt(2023, 12, 1, 1, 0, 0, task.timezone) + 1, window.skey);
+  EXPECT_EQ(makeTimestampAt(2024, 1, 1, 1, 0, 0, task.timezone), window.ekey);
+  EXPECT_LE(window.skey, timestamp);
+  EXPECT_LE(timestamp, window.ekey);
+
+  cleanupTriggerDeployTestTask(&task);
+}
+
+TEST_F(StreamTriggerTaskTest, PeriodCalendarCountsSurviveMilliAndMicroDeploy) {
+  struct TestCase {
+    const char* name;
+    char        unit;
+    int64_t     value;
+    int32_t     inputMonth;
+    int32_t     expectedStartMonth;
+    int32_t     expectedEndYear;
+    int32_t     expectedEndMonth;
+  };
+  const TestCase testCases[] = {
+      {"one month", 'n', 1, 2, 2, 2024, 3},
+      {"normalized quarter", 'n', 3, 2, 1, 2024, 4},
+      {"one year", 'y', 1, 6, 1, 2025, 1},
+  };
+  const int8_t precisions[] = {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO};
+
+  for (int8_t sourcePrecision : precisions) {
+    for (const TestCase& testCase : testCases) {
+      SCOPED_TRACE(std::to_string(sourcePrecision) + ":" + testCase.name);
+      SStreamTriggerDeployMsg msg = makeTimeTriggerDeployMsg(WINDOW_TYPE_PERIOD);
+      msg.trigger.period.periodUnit = testCase.unit;
+      msg.trigger.period.precision = sourcePrecision;
+      msg.trigger.period.period = testCase.value;
+      msg.trigger.period.offset = 0;
+      tstrncpy(msg.timeConfig.timezone, "UTC", sizeof(msg.timeConfig.timezone));
+      msg.timeConfig.firstDayOfWeek = 1;
+
+      SStreamTriggerTask task = {};
+      task.task.type = STREAM_TRIGGER_TASK;
+      ASSERT_EQ(stTriggerTaskDeploy(&task, &msg), TSDB_CODE_SUCCESS);
+      EXPECT_EQ(task.interval.precision, TSDB_TIME_PRECISION_NANO);
+      EXPECT_EQ(task.interval.sliding, testCase.value);
+
+      int64_t timestamp =
+          makeTimestampAt(2024, testCase.inputMonth, 15, 12, 0, 0, task.timezone, TSDB_TIME_PRECISION_NANO);
+      STimeWindow window = stTriggerTaskGetTimeWindow(&task, timestamp);
+      EXPECT_EQ(
+          window.skey,
+          makeTimestampAt(2024, testCase.expectedStartMonth, 1, 0, 0, 0, task.timezone, TSDB_TIME_PRECISION_NANO) + 1);
+      EXPECT_EQ(window.ekey, makeTimestampAt(testCase.expectedEndYear, testCase.expectedEndMonth, 1, 0, 0, 0,
+                                             task.timezone, TSDB_TIME_PRECISION_NANO));
+
+      cleanupTriggerDeployTestTask(&task);
+    }
+  }
+}
+
+TEST_F(StreamTriggerTaskTest, PeriodFixedDayAndWeekTicksConvertToNano) {
+  constexpr int64_t kNanoPerMilli = 1000LL * 1000;
+  constexpr int64_t kMillisPerDay = 24LL * 60 * 60 * 1000;
+  struct TestCase {
+    char    unit;
+    int64_t millis;
+  };
+  const TestCase testCases[] = {
+      {'a', 1},
+      {'d', kMillisPerDay},
+      {'w', 7 * kMillisPerDay},
+  };
+  const int8_t precisions[] = {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO};
+
+  for (int8_t sourcePrecision : precisions) {
+    for (const TestCase& testCase : testCases) {
+      SCOPED_TRACE(std::to_string(sourcePrecision) + ":" + testCase.unit);
+      SStreamTriggerDeployMsg msg = makeTimeTriggerDeployMsg(WINDOW_TYPE_PERIOD);
+      msg.trigger.period.periodUnit = testCase.unit;
+      msg.trigger.period.precision = sourcePrecision;
+      msg.trigger.period.period =
+          sourcePrecision == TSDB_TIME_PRECISION_MILLI ? testCase.millis : testCase.millis * 1000;
+      tstrncpy(msg.timeConfig.timezone, "UTC", sizeof(msg.timeConfig.timezone));
+      msg.timeConfig.firstDayOfWeek = 1;
+
+      SStreamTriggerTask task = {};
+      task.task.type = STREAM_TRIGGER_TASK;
+      ASSERT_EQ(stTriggerTaskDeploy(&task, &msg), TSDB_CODE_SUCCESS);
+      EXPECT_EQ(task.interval.sliding, testCase.millis * kNanoPerMilli);
+      cleanupTriggerDeployTestTask(&task);
+    }
+  }
+}
+
+TEST_F(StreamTriggerTaskTest, StateDeployUndeployPreservesUnionUntilStateCleanup) {
+  SStreamTriggerDeployMsg msg = makeNonTimeTriggerDeployMsg(WINDOW_TYPE_STATE);
+  msg.trigger.stateWin.pSlotIds = taosArrayInit(1, sizeof(int16_t));
+  ASSERT_NE(msg.trigger.stateWin.pSlotIds, nullptr);
+  int16_t slotId = 0;
+  ASSERT_NE(taosArrayPush(msg.trigger.stateWin.pSlotIds, &slotId), nullptr);
+
+  SStreamTriggerTask task = {};
+  task.task.type = STREAM_TRIGGER_TASK;
+  ASSERT_EQ(stTriggerTaskDeploy(&task, &msg), TSDB_CODE_SUCCESS);
+  ASSERT_NE(task.pStateSlotIds, nullptr);
+
+  cleanupTriggerDeployTestTask(&task);
+  EXPECT_EQ(task.pStateSlotIds, nullptr);
+  taosArrayDestroy(msg.trigger.stateWin.pSlotIds);
+}
+
+TEST_F(StreamTriggerTaskTest, StatePartialFailurePreservesUnionForUndeploy) {
+  SStreamTriggerDeployMsg msg = makeNonTimeTriggerDeployMsg(WINDOW_TYPE_STATE);
+  msg.trigger.stateWin.pSlotIds = taosArrayInit(1, sizeof(int16_t));
+  ASSERT_NE(msg.trigger.stateWin.pSlotIds, nullptr);
+  int16_t slotId = 0;
+  ASSERT_NE(taosArrayPush(msg.trigger.stateWin.pSlotIds, &slotId), nullptr);
+  msg.enableMultiGroupCalc = true;
+  msg.placeHolderBitmap = PLACE_HOLDER_PARTITION_ROWS;
+
+  SStreamTriggerTask task = {};
+  task.task.type = STREAM_TRIGGER_TASK;
+  EXPECT_EQ(stTriggerTaskDeploy(&task, &msg), TSDB_CODE_INVALID_PARA);
+  EXPECT_NE(task.pStateSlotIds, nullptr);
+
+  cleanupTriggerDeployTestTask(&task);
+  EXPECT_EQ(task.pStateSlotIds, nullptr);
+  taosArrayDestroy(msg.trigger.stateWin.pSlotIds);
+}
+
+TEST_F(StreamTriggerTaskTest, EventDeployUndeployPreservesUnionUntilEventCleanup) {
+  SStreamTriggerDeployMsg msg = makeNonTimeTriggerDeployMsg(WINDOW_TYPE_EVENT);
+  msg.trigger.event.startCond = makeSerializedColumnNode(0);
+  msg.trigger.event.endCond = makeSerializedColumnNode(0);
+  ASSERT_NE(msg.trigger.event.startCond, nullptr);
+  ASSERT_NE(msg.trigger.event.endCond, nullptr);
+
+  SStreamTriggerTask task = {};
+  task.task.type = STREAM_TRIGGER_TASK;
+  ASSERT_EQ(stTriggerTaskDeploy(&task, &msg), TSDB_CODE_SUCCESS);
+  ASSERT_NE(task.pStartCond, nullptr);
+
+  cleanupTriggerDeployTestTask(&task);
+  EXPECT_EQ(task.pStartCond, nullptr);
+  taosMemoryFreeClear(msg.trigger.event.startCond);
+  taosMemoryFreeClear(msg.trigger.event.endCond);
+}
+
+TEST_F(StreamTriggerTaskTest, EventPartialFailurePreservesUnionForUndeploy) {
+  SStreamTriggerDeployMsg msg = makeNonTimeTriggerDeployMsg(WINDOW_TYPE_EVENT);
+  msg.trigger.event.startCond = makeSerializedColumnNode(0);
+  msg.trigger.event.endCond = makeSerializedColumnNode(0);
+  ASSERT_NE(msg.trigger.event.startCond, nullptr);
+  ASSERT_NE(msg.trigger.event.endCond, nullptr);
+  msg.enableMultiGroupCalc = true;
+  msg.placeHolderBitmap = PLACE_HOLDER_PARTITION_ROWS;
+
+  SStreamTriggerTask task = {};
+  task.task.type = STREAM_TRIGGER_TASK;
+  EXPECT_EQ(stTriggerTaskDeploy(&task, &msg), TSDB_CODE_INVALID_PARA);
+  EXPECT_NE(task.pStartCond, nullptr);
+
+  cleanupTriggerDeployTestTask(&task);
+  EXPECT_EQ(task.pStartCond, nullptr);
+  taosMemoryFreeClear(msg.trigger.event.startCond);
+  taosMemoryFreeClear(msg.trigger.event.endCond);
+}
 
 TEST_F(StreamTriggerTaskTest, EventNotifyUsesConditionPathPayload) {
   SSDataBlock* pBlock = createEventNotifyTestBlock();
@@ -22334,6 +22835,71 @@ TEST_F(StreamTriggerTaskTest, DeployKeepsNestedPlanSeparateFromMultiGroupFlag) {
   }
 }
 
+TEST_F(StreamTriggerTaskTest, DeployInitializesTimeContextForNestedIntervalLayer) {
+  SMStreamHbRspMsg         heartbeat = makeDeployHeartbeat(false);
+  SStreamTriggerDeployMsg* pMsg = deployTrigger(&heartbeat);
+  ASSERT_NE(nullptr, pMsg);
+  ASSERT_NE(nullptr, pMsg->pWindowPlan);
+  auto* pRoot = static_cast<SStreamWindowLayerSpec*>(taosArrayGet(pMsg->pWindowPlan->pLayers, 0));
+  ASSERT_NE(nullptr, pRoot);
+  *pRoot = {};
+  tstrncpy(pRoot->name, "outer", sizeof(pRoot->name));
+  pRoot->triggerType = WINDOW_TYPE_INTERVAL;
+  pRoot->trigger.sliding.intervalUnit = TIME_UNIT_DAY;
+  pRoot->trigger.sliding.slidingUnit = TIME_UNIT_DAY;
+  pRoot->trigger.sliding.offsetUnit = TIME_UNIT_MILLISECOND;
+  pRoot->trigger.sliding.soffsetUnit = TIME_UNIT_MILLISECOND;
+  pRoot->trigger.sliding.precision = TSDB_TIME_PRECISION_MILLI;
+  pRoot->trigger.sliding.interval = 24LL * 60 * 60 * 1000;
+  pRoot->trigger.sliding.sliding = pRoot->trigger.sliding.interval;
+  tstrncpy(pMsg->timeConfig.timezone, "America/New_York", sizeof(pMsg->timeConfig.timezone));
+  pMsg->timeConfig.firstDayOfWeek = 2;
+
+  SStreamTriggerTask task = {};
+  task.task.undeployCb = releaseStackTask;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskDeploy(&task, pMsg));
+  EXPECT_NE(nullptr, task.timezone);
+  EXPECT_EQ(2, task.firstDayOfWeek);
+
+  tDeepFreeSMStreamHbRspMsg(&heartbeat);
+  SStreamTriggerTask* pTask = &task;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskUndeploy(&pTask, true));
+  EXPECT_EQ(nullptr, pTask);
+}
+
+TEST_F(StreamTriggerTaskTest, DeployUndeployDestroysEventConditionWithNestedIntervalTimeContext) {
+  SMStreamHbRspMsg         heartbeat = makeDeployHeartbeat(false);
+  SStreamTriggerDeployMsg* pMsg = deployTrigger(&heartbeat);
+  ASSERT_NE(nullptr, pMsg);
+  ASSERT_NE(nullptr, pMsg->pWindowPlan);
+  auto* pRoot = static_cast<SStreamWindowLayerSpec*>(taosArrayGet(pMsg->pWindowPlan->pLayers, 0));
+  ASSERT_NE(nullptr, pRoot);
+  *pRoot = {};
+  tstrncpy(pRoot->name, "outer", sizeof(pRoot->name));
+  pRoot->triggerType = WINDOW_TYPE_INTERVAL;
+  pRoot->trigger.sliding.intervalUnit = TIME_UNIT_DAY;
+  pRoot->trigger.sliding.slidingUnit = TIME_UNIT_DAY;
+  pRoot->trigger.sliding.offsetUnit = TIME_UNIT_MILLISECOND;
+  pRoot->trigger.sliding.soffsetUnit = TIME_UNIT_MILLISECOND;
+  pRoot->trigger.sliding.precision = TSDB_TIME_PRECISION_MILLI;
+  pRoot->trigger.sliding.interval = 24LL * 60 * 60 * 1000;
+  pRoot->trigger.sliding.sliding = pRoot->trigger.sliding.interval;
+  setDeployEventTrigger(pMsg, true, true);
+  tstrncpy(pMsg->timeConfig.timezone, "America/New_York", sizeof(pMsg->timeConfig.timezone));
+  pMsg->timeConfig.firstDayOfWeek = 2;
+
+  SStreamTriggerTask task = {};
+  task.task.undeployCb = releaseStackTask;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskDeploy(&task, pMsg));
+  EXPECT_NE(nullptr, task.timezone);
+  EXPECT_NE(nullptr, task.pStartCond);
+
+  tDeepFreeSMStreamHbRspMsg(&heartbeat);
+  SStreamTriggerTask* pTask = &task;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskUndeploy(&pTask, true));
+  EXPECT_EQ(nullptr, pTask);
+}
+
 TEST_F(StreamTriggerTaskTest, DeployWindowPlanAcceptsBareTbnameWithTagAndTransfersOwnership) {
   SMStreamHbRspMsg heartbeat = makeDeployHeartbeat(false);
   ASSERT_NE(nullptr, heartbeat.deploy.streamList);
@@ -23260,6 +23826,259 @@ TEST_F(StreamTriggerTaskTest, MultiPeriodYearAlignment) {
   freeMockTriggerTask(pTask);
 }
 
+TEST_F(StreamTriggerTaskTest, IntervalWindowsMatchQueryAcrossSupportedRuntimeVectors) {
+  constexpr int64_t kSecond = 1000;
+  constexpr int64_t kMinute = 60 * kSecond;
+  constexpr int64_t kHour = 60 * kMinute;
+  constexpr int64_t kDay = 24 * kHour;
+
+  struct TestCase {
+    const char* name;
+    const char* timezone;
+    char        intervalUnit;
+    char        slidingUnit;
+    char        offsetUnit;
+    int64_t     interval;
+    int64_t     sliding;
+    int64_t     offset;
+  };
+  const TestCase testCases[] = {
+      {"fixed interval and sliding", "UTC", 's', 's', 'a', 10 * kSecond, 2 * kSecond, kSecond},
+      {"omitted sliding derived from interval", "UTC", 's', 's', 'a', 30 * kSecond, 30 * kSecond, 0},
+      {"month interval with fixed offset", "UTC", 'n', 'd', 'h', 1, kDay, 2 * kHour},
+      {"normalized quarter with natural offset", "UTC", 'n', 'd', 'n', 3, kDay, 1},
+      {"year interval with natural offset", "UTC", 'y', 'd', 'n', 1, 7 * kDay, 3},
+      {"east fixed UTC offset", "UTC+8", 'd', 'h', 'm', kDay, 6 * kHour, 30 * kMinute},
+      {"west fixed UTC offset", "UTC-5:30", 'd', 'h', 'm', kDay, 6 * kHour, 30 * kMinute},
+      {"gapped one-second two-second window", "UTC", 's', 's', 'a', kSecond, 2 * kSecond, 0},
+      {"sub-one-percent sliding", "UTC", 's', 'a', 'a', 100 * kSecond, 500, 0},
+  };
+
+  for (const TestCase& testCase : testCases) {
+    SCOPED_TRACE(testCase.name);
+    timezone_t timezone = tzalloc(testCase.timezone);
+    ASSERT_NE(timezone, nullptr);
+
+    SInterval interval = {};
+    interval.timezone = timezone;
+    interval.intervalUnit = testCase.intervalUnit;
+    interval.slidingUnit = testCase.slidingUnit;
+    interval.offsetUnit = testCase.offsetUnit;
+    interval.precision = TSDB_TIME_PRECISION_MILLI;
+    interval.firstDayOfWeek = 1;
+    interval.interval = testCase.interval;
+    interval.sliding = testCase.sliding;
+    interval.offset = testCase.offset;
+    interval.timeRange = {INT64_MIN, INT64_MAX};
+
+    expectIntervalWindowParity(interval, makeTimestampAt(2024, 5, 17, 13, 14, 15, timezone));
+    tzfree(timezone);
+  }
+}
+
+TEST_F(StreamTriggerTaskTest, IntervalPrevNextMatchQueryAcrossNewYorkDstWithOffset) {
+  constexpr int64_t kHour = 60LL * 60 * 1000;
+  constexpr int64_t kDay = 24 * kHour;
+  timezone_t        timezone = tzalloc("America/New_York");
+  ASSERT_NE(timezone, nullptr);
+
+  SInterval interval = {};
+  interval.timezone = timezone;
+  interval.intervalUnit = 'n';
+  interval.slidingUnit = 'd';
+  interval.offsetUnit = 'h';
+  interval.precision = TSDB_TIME_PRECISION_MILLI;
+  interval.firstDayOfWeek = 1;
+  interval.interval = 1;
+  interval.sliding = kDay;
+  interval.offset = 3 * kHour;
+  interval.timeRange = {INT64_MIN, INT64_MAX};
+
+  struct TestCase {
+    const char* name;
+    int32_t     order;
+    int32_t     fromMonth;
+    int32_t     fromDay;
+    int32_t     expectedMonth;
+    int32_t     expectedDay;
+  };
+  const TestCase testCases[] = {
+      {"spring next", TSDB_ORDER_ASC, 3, 9, 3, 10},
+      {"spring prev", TSDB_ORDER_DESC, 3, 10, 3, 9},
+      {"fall next", TSDB_ORDER_ASC, 11, 2, 11, 3},
+      {"fall prev", TSDB_ORDER_DESC, 11, 3, 11, 2},
+  };
+  for (const TestCase& testCase : testCases) {
+    SCOPED_TRACE(testCase.name);
+    SStreamTriggerTask task = {};
+    task.triggerType = STREAM_TRIGGER_SLIDING;
+    task.interval = interval;
+    STimeWindow window = {};
+    window.skey = makeTimestampAt(2024, testCase.fromMonth, testCase.fromDay, 3, 0, 0, timezone);
+    window.ekey = taosTimeGetIntervalEnd(window.skey, &interval);
+
+    int64_t expectedStart = getNextTimeWindowStart(&interval, window.skey, testCase.order);
+    EXPECT_EQ(expectedStart, makeTimestampAt(2024, testCase.expectedMonth, testCase.expectedDay, 3, 0, 0, timezone));
+    if (testCase.order == TSDB_ORDER_ASC) {
+      stTriggerTaskNextTimeWindow(&task, &window);
+    } else {
+      stTriggerTaskPrevTimeWindow(&task, &window);
+    }
+    EXPECT_EQ(window.skey, expectedStart);
+    EXPECT_EQ(window.ekey, taosTimeGetIntervalEnd(expectedStart, &interval));
+  }
+
+  tzfree(timezone);
+}
+
+TEST_F(StreamTriggerTaskTest, IntervalWeekWindowsMatchQueryForEveryFirstDayAcrossDst) {
+  constexpr int64_t kDay = 24LL * 60 * 60 * 1000;
+  timezone_t        timezone = tzalloc("America/New_York");
+  ASSERT_NE(timezone, nullptr);
+
+  const int64_t timestamps[] = {
+      makeTimestampAt(2024, 3, 12, 15, 30, 0, timezone),
+      makeTimestampAt(2024, 11, 5, 15, 30, 0, timezone),
+  };
+  for (int8_t firstDayOfWeek = 0; firstDayOfWeek <= 6; ++firstDayOfWeek) {
+    for (int64_t timestamp : timestamps) {
+      SCOPED_TRACE(std::to_string(firstDayOfWeek) + ":" + std::to_string(timestamp));
+      SInterval interval = {};
+      interval.timezone = timezone;
+      interval.intervalUnit = 'w';
+      interval.slidingUnit = 'd';
+      interval.offsetUnit = 'a';
+      interval.precision = TSDB_TIME_PRECISION_MILLI;
+      interval.firstDayOfWeek = firstDayOfWeek;
+      interval.interval = 7 * kDay;
+      interval.sliding = kDay;
+      interval.timeRange = {INT64_MIN, INT64_MAX};
+
+      expectIntervalWindowParity(interval, timestamp);
+    }
+  }
+  tzfree(timezone);
+}
+
+TEST_F(StreamTriggerTaskTest, PeriodQuarterMatchesThreeMonthsAndKeepsClosedBoundaries) {
+  int64_t quarterValue = 0;
+  int64_t monthsValue = 0;
+  char    quarterUnit = 0;
+  char    monthsUnit = 0;
+  ASSERT_EQ(parseNatualDuration("1q", 2, &quarterValue, &quarterUnit, TSDB_TIME_PRECISION_MILLI, false),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(parseNatualDuration("3n", 2, &monthsValue, &monthsUnit, TSDB_TIME_PRECISION_MILLI, false),
+            TSDB_CODE_SUCCESS);
+
+  timezone_t timezone = tzalloc("UTC");
+  ASSERT_NE(timezone, nullptr);
+  SStreamTriggerTask quarter = {};
+  quarter.triggerType = STREAM_TRIGGER_PERIOD;
+  quarter.interval.timezone = timezone;
+  quarter.interval.intervalUnit = quarterUnit;
+  quarter.interval.slidingUnit = quarterUnit;
+  quarter.interval.precision = TSDB_TIME_PRECISION_MILLI;
+  quarter.interval.firstDayOfWeek = 1;
+  quarter.interval.sliding = quarterValue;
+
+  SStreamTriggerTask months = quarter;
+  months.interval.intervalUnit = monthsUnit;
+  months.interval.slidingUnit = monthsUnit;
+  months.interval.sliding = monthsValue;
+
+  int64_t     timestamp = makeTimestampAt(2024, 2, 15, 12, 0, 0, timezone);
+  STimeWindow quarterWindow = stTriggerTaskGetTimeWindow(&quarter, timestamp);
+  STimeWindow monthsWindow = stTriggerTaskGetTimeWindow(&months, timestamp);
+  EXPECT_EQ(quarterWindow.skey, monthsWindow.skey);
+  EXPECT_EQ(quarterWindow.ekey, monthsWindow.ekey);
+  EXPECT_EQ(quarterWindow.skey, makeTimestampAt(2024, 1, 1, 0, 0, 0, timezone) + 1);
+  EXPECT_EQ(quarterWindow.ekey, makeTimestampAt(2024, 4, 1, 0, 0, 0, timezone));
+
+  SInterval queryInterval = quarter.interval;
+  queryInterval.interval = quarterValue;
+  STimeWindow queryWindow = getAlignQueryTimeWindow(&queryInterval, timestamp);
+  EXPECT_EQ(queryWindow.skey, quarterWindow.skey - 1);
+  EXPECT_EQ(queryWindow.ekey, quarterWindow.ekey - 1);
+  tzfree(timezone);
+}
+
+TEST_F(StreamTriggerTaskTest, IndependentNaturalWindowsAdvanceByTheirExistingScheduler) {
+  timezone_t timezone = tzalloc("UTC");
+  ASSERT_NE(timezone, nullptr);
+
+  struct TestCase {
+    const char* name;
+    char        unit;
+    int64_t     value;
+    int32_t     nextYear;
+    int32_t     nextMonth;
+    int32_t     nextDay;
+  };
+  const TestCase testCases[] = {
+      {"one month", 'n', 1, 2024, 4, 1},
+      {"one normalized quarter", 'n', 3, 2024, 7, 1},
+      {"one year", 'y', 1, 2026, 1, 1},
+  };
+
+  for (const TestCase& testCase : testCases) {
+    SCOPED_TRACE(testCase.name);
+    SStreamTriggerTask task = {};
+    task.triggerType = STREAM_TRIGGER_SLIDING;
+    task.interval.timezone = timezone;
+    task.interval.intervalUnit = testCase.unit;
+    task.interval.slidingUnit = testCase.unit;
+    task.interval.precision = TSDB_TIME_PRECISION_MILLI;
+    task.interval.firstDayOfWeek = 1;
+    task.interval.sliding = testCase.value;
+
+    int32_t     inputYear = 2024;
+    int32_t     inputMonth = testCase.unit == 'y' ? 6 : 2;
+    STimeWindow window =
+        stTriggerTaskGetTimeWindow(&task, makeTimestampAt(inputYear, inputMonth, 15, 12, 0, 0, timezone));
+    int64_t previousEnd = window.ekey;
+    stTriggerTaskNextTimeWindow(&task, &window);
+    EXPECT_EQ(window.skey, previousEnd + 1);
+    EXPECT_EQ(window.ekey, makeTimestampAt(testCase.nextYear, testCase.nextMonth, testCase.nextDay, 0, 0, 0, timezone));
+  }
+  tzfree(timezone);
+}
+
+TEST_F(StreamTriggerTaskTest, PeriodAndIndependentWeekWindowsHonorFirstDayAcrossDst) {
+  constexpr int64_t kWeek = 7LL * 24 * 60 * 60 * 1000;
+  timezone_t        timezone = tzalloc("America/New_York");
+  ASSERT_NE(timezone, nullptr);
+
+  const EStreamTriggerType triggerTypes[] = {STREAM_TRIGGER_PERIOD, STREAM_TRIGGER_SLIDING};
+  const int64_t            timestamps[] = {
+      makeTimestampAt(2024, 3, 12, 15, 30, 0, timezone),
+      makeTimestampAt(2024, 11, 5, 15, 30, 0, timezone),
+  };
+  for (EStreamTriggerType triggerType : triggerTypes) {
+    for (int8_t firstDayOfWeek = 0; firstDayOfWeek <= 6; ++firstDayOfWeek) {
+      for (int64_t timestamp : timestamps) {
+        SCOPED_TRACE(std::to_string(triggerType) + ":" + std::to_string(firstDayOfWeek) + ":" +
+                     std::to_string(timestamp));
+        SStreamTriggerTask task = {};
+        task.triggerType = triggerType;
+        task.interval.timezone = timezone;
+        task.interval.intervalUnit = 'w';
+        task.interval.slidingUnit = 'w';
+        task.interval.precision = TSDB_TIME_PRECISION_MILLI;
+        task.interval.firstDayOfWeek = firstDayOfWeek;
+        task.interval.sliding = kWeek;
+
+        int64_t boundary =
+            alignToNaturalBoundary(timestamp, 'w', 1, 0, TSDB_TIME_PRECISION_MILLI, firstDayOfWeek, timezone);
+        EXPECT_NE(boundary, timestamp);
+        STimeWindow window = stTriggerTaskGetTimeWindow(&task, timestamp);
+        EXPECT_EQ(window.skey, boundary + 1);
+        EXPECT_EQ(window.ekey, boundary + kWeek);
+      }
+    }
+  }
+  tzfree(timezone);
+}
+
 namespace {
 
 void DestroyRecalcDetails(SArray* details) {
@@ -24061,6 +24880,40 @@ class StreamTriggerRowObservabilityTest : public ::testing::Test {
     return code;
   }
 
+  void ConfigureInterval(int64_t interval, int8_t intervalUnit, int64_t sliding, int8_t slidingUnit) {
+    constexpr TSKEY kFirstTs = 1705276800000LL;
+
+    timezone_ = tzalloc("UTC");
+    ASSERT_NE(timezone_, nullptr);
+
+    task_.triggerType = STREAM_TRIGGER_SLIDING;
+    task_.interval = {};
+    task_.interval.timezone = timezone_;
+    task_.interval.intervalUnit = intervalUnit;
+    task_.interval.slidingUnit = slidingUnit;
+    task_.interval.offsetUnit = 'a';
+    task_.interval.precision = TSDB_TIME_PRECISION_MILLI;
+    task_.interval.firstDayOfWeek = 1;
+    task_.interval.interval = interval;
+    task_.interval.sliding = sliding;
+    task_.interval.timeRange = {.skey = INT64_MIN, .ekey = INT64_MIN};
+
+    auto* pTsCol = static_cast<SColumnInfoData*>(taosArrayGet(block_->pDataBlock, 0));
+    ASSERT_NE(pTsCol, nullptr);
+    for (int32_t i = 0; i < 6; ++i) {
+      TSKEY ts = kFirstTs + i;
+      ASSERT_EQ(colDataSetVal(pTsCol, i, reinterpret_cast<const char*>(&ts), false), TSDB_CODE_SUCCESS);
+    }
+
+    auto* pMeta = static_cast<SSTriggerMetaData*>(taosObjListGetHead(metas_));
+    ASSERT_NE(pMeta, nullptr);
+    pMeta->skey = kFirstTs;
+    pMeta->ekey = kFirstTs + 5;
+    group_.oldThreshold = kFirstTs - 1;
+    group_.newThreshold = kFirstTs + 5;
+    group_.prevWindow = {.skey = INT64_MIN, .ekey = INT64_MIN};
+  }
+
   void TearDown() override {
     taosObjListClear(metas_);
     taosObjListClear(&group_.pPendingParWinCalcParams);
@@ -24099,6 +24952,9 @@ class StreamTriggerRowObservabilityTest : public ::testing::Test {
     taosArrayDestroy(task_.readerList);
     blockDataDestroy(block_);
     stTaskStatsDestroy(&task_.pStats);
+    if (timezone_ != nullptr) {
+      tzfree(timezone_);
+    }
   }
 
   Stub                     stub_;
@@ -24110,6 +24966,7 @@ class StreamTriggerRowObservabilityTest : public ::testing::Test {
   SObjList*                metas_ = nullptr;
   SSDataBlock*             block_ = nullptr;
   int64_t                  statsStartMonoUs_ = 0;
+  timezone_t               timezone_ = nullptr;
 };
 
 TEST_F(StreamTriggerRowObservabilityTest, FilteredRowsCountOnceWithoutWindowFanoutOrCalcReentry) {
@@ -24149,6 +25006,66 @@ TEST_F(StreamNestedHistoryRangeTest, CountPendingRangeWaitsUntilDetermined) {
   EXPECT_EQ(104, request->calcRange.ekey);
   tSimpleHashCleanup(request->pTsdbVersions);
   taosMemoryFree(request);
+}
+
+class StreamTriggerIntervalMergeTest : public StreamTriggerRowObservabilityTest {
+ protected:
+  void ExpectCalendarOverlapAccepted(int64_t interval, int8_t intervalUnit) {
+    constexpr int64_t kWeekMs = 7LL * 24 * 60 * 60 * 1000;
+    ConfigureInterval(interval, intervalUnit, kWeekMs, 'd');
+
+    ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+    ASSERT_GT(group_.windows.neles, 1);
+
+    SObjListIter     iter = {};
+    SSTriggerWindow* pPrevious = nullptr;
+    taosObjListInitIter(&group_.windows, &iter, TOBJLIST_ITER_FORWARD);
+    while (auto* pWindow = static_cast<SSTriggerWindow*>(taosObjListIterNext(&iter))) {
+      if (pPrevious != nullptr) {
+        EXPECT_LE(pWindow->range.skey, pPrevious->range.ekey);
+      }
+      pPrevious = pWindow;
+    }
+  }
+};
+
+TEST_F(StreamTriggerIntervalMergeTest, MonthWithFixedSlidingAcceptsOverlappingOpenWindows) {
+  ExpectCalendarOverlapAccepted(1, 'n');
+}
+
+TEST_F(StreamTriggerIntervalMergeTest, QuarterWithFixedSlidingAcceptsOverlappingOpenWindows) {
+  ExpectCalendarOverlapAccepted(3, 'n');
+}
+
+TEST_F(StreamTriggerIntervalMergeTest, YearWithFixedSlidingAcceptsOverlappingOpenWindows) {
+  ExpectCalendarOverlapAccepted(1, 'y');
+}
+
+TEST_F(StreamTriggerIntervalMergeTest, FixedNonOverlappingIntervalKeepsAtMostOneOpenWindow) {
+  constexpr int64_t kWeekMs = 7LL * 24 * 60 * 60 * 1000;
+  ConfigureInterval(kWeekMs, 'd', kWeekMs, 'd');
+
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  EXPECT_LE(group_.windows.neles, 1);
+}
+
+TEST_F(StreamTriggerIntervalMergeTest, FixedGappedIntervalKeepsAtMostOneOpenWindow) {
+  constexpr int64_t kDayMs = 24LL * 60 * 60 * 1000;
+  ConfigureInterval(kDayMs, 'd', 7 * kDayMs, 'd');
+
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  EXPECT_LE(group_.windows.neles, 1);
+}
+
+TEST_F(StreamTriggerIntervalMergeTest, ExistingWindowRangeMismatchRemainsAnInternalError) {
+  ConfigureInterval(100, 'a', 50, 'a');
+
+  SSTriggerWindow existing = {.range = {.skey = 100, .ekey = 199}};
+  ASSERT_EQ(taosObjListAppend(&group_.windows, &existing), TSDB_CODE_SUCCESS);
+  SSTriggerNotifyWindow regenerated = {.range = {.skey = 101, .ekey = 200}};
+  ASSERT_NE(taosArrayPush(context_.pWindows, &regenerated), nullptr);
+
+  EXPECT_EQ(StartCheck(), TSDB_CODE_INTERNAL_ERROR);
 }
 
 struct CreateTableRequestState {
@@ -29229,10 +30146,11 @@ static void expectMergedRequestCovers(CountRecalcFixture* fixture, SSTriggerReca
                                       STimeWindow firstRange, STimeWindow secondRange) {
   ASSERT_NE(nullptr, request);
   ASSERT_NE(nullptr, request->impactDomain.pRootExtents);
+  const SWindowChainPolicy policy = {};
   for (const STimeWindow range : {firstRange, secondRange}) {
     SRecalcImpactDomain child = {};
     ASSERT_EQ(TSDB_CODE_SUCCESS, stWindowChainBuildRecalcImpactDomain(fixture->task_.pWindowPlan, fixture->group_.gid,
-                                                                      &request->scanRange, &range, &child));
+                                                                      &policy, &request->scanRange, &range, &child));
     EXPECT_EQ(child.gid, request->impactDomain.gid);
     EXPECT_GE(child.replayAnchor, request->impactDomain.replayAnchor);
     EXPECT_LE(child.capturedFrontier, request->impactDomain.capturedFrontier);
@@ -29376,11 +30294,15 @@ TEST_F(StreamNestedRecalcTest, NestedSlidingLeafKeepsChainReplayBaseline) {
 
 TEST(StreamTriggerTaskRecalcTest, NonNestedSlidingKeepsLegacyWindowAlignment) {
   CountRecalcFixture fixture;
+  timezone_t         timezone = tzalloc("UTC");
+  ASSERT_NE(timezone, nullptr);
   fixture.task_.triggerType = STREAM_TRIGGER_SLIDING;
+  fixture.task_.interval.timezone = timezone;
   fixture.task_.interval.intervalUnit = TIME_UNIT_MILLISECOND;
   fixture.task_.interval.slidingUnit = TIME_UNIT_MILLISECOND;
   fixture.task_.interval.offsetUnit = TIME_UNIT_MILLISECOND;
   fixture.task_.interval.precision = TSDB_TIME_PRECISION_MILLI;
+  fixture.task_.interval.firstDayOfWeek = 1;
   fixture.task_.interval.interval = 0;
   fixture.task_.interval.sliding = 10;
 
@@ -29393,6 +30315,7 @@ TEST(StreamTriggerTaskRecalcTest, NonNestedSlidingKeepsLegacyWindowAlignment) {
   EXPECT_EQ(91, request->scanRange.skey);
   EXPECT_EQ(110, request->scanRange.ekey);
   stTriggerTaskDestroyRecalcRequest(&request);
+  tzfree(timezone);
 }
 
 static int32_t failTask14ReadyListAppend(SList*, const void*) { return TSDB_CODE_OUT_OF_MEMORY; }

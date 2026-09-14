@@ -1068,10 +1068,22 @@ _OVER:
   return code;
 }
 
+int32_t mndValidateStreamTimeConfig(const SCMCreateStreamReq *pCreate) {
+  if (pCreate->tsmaId != 0) return TSDB_CODE_SUCCESS;
+  if (pCreate->timeConfig.timezone[0] == '\0' || pCreate->timeConfig.firstDayOfWeek < 0 ||
+      pCreate->timeConfig.firstDayOfWeek > 6) {
+    return TSDB_CODE_MND_STREAM_INVALID_TIME_CONFIG;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t mndStreamValidateCreate(SMnode *pMnode, SRpcMsg *pReq, SCMCreateStreamReq* pCreate) {
   int32_t code = 0, lino = 0;
   int64_t streamId = pCreate->streamId;
   char   *pUser = RPC_MSG_USER(pReq);
+
+  code = mndValidateStreamTimeConfig(pCreate);
+  TSDB_CHECK_CODE(code, lino, _OVER);
 
 #ifdef TD_ENTERPRISE
   /* Reject EXT-driven stream creation when federatedQueryEnable=false on the server.

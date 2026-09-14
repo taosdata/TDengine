@@ -1108,9 +1108,9 @@ timezone_t tzalloc(const char* tzname) {
   // Parse timezone name and calculate offset
   int32_t code = parseTimezoneOffset(tzname, &tz_obj->offset_seconds, tz_obj->name, TD_TIMEZONE_LEN);
   if (code != TSDB_CODE_SUCCESS) {
-    // Parse failed, default to UTC
-    tz_obj->offset_seconds = 0;
-    tstrncpy(tz_obj->name, "UTC (UTC, +0000)", TD_TIMEZONE_LEN);
+    taosThreadMutexDestroy(&tz_obj->mutex);
+    taosMemoryFree(tz_obj);
+    return NULL;
   }
 
   uDebug("tzalloc(%s) -> offset=%lld, name=%s", tzname, tz_obj->offset_seconds, tz_obj->name);

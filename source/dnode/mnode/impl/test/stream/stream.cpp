@@ -64,11 +64,20 @@ extern "C" void    msmChkHandleTriggerOperations(SStmGrpCtx *pCtx, SStmTaskStatu
 extern "C" int32_t msmWatchRecordNewTask(SStmGrpCtx *pCtx, SStmTaskStatusMsg *pTask);
 extern "C" int32_t msmAssignTaskSnodeId(SMnode *pMnode, SStreamObj *pStream, bool isStatic);
 extern "C" void    msmDestroyRuntimeInfo(SMnode *pMnode);
+extern "C" void    msmCheckLoopStreamMap(SMnode *pMnode);
 extern "C" int32_t mstSetStreamTaskResBlock(SStreamObj *pStream, SStmTaskStatus *pTask, SSDataBlock *pBlock,
                                             int32_t numOfRows);
 extern "C" void    monReportStreamFailure(int64_t ts, int64_t streamId, const char *streamName, int32_t errorCode);
 
 namespace {
+
+constexpr int32_t kStreamRealtimeLagColumn = 10;
+constexpr int32_t kStreamInputRateColumn = 11;
+constexpr int32_t kStreamOutputRateColumn = 12;
+constexpr int32_t kStreamResultLatencyColumn = 13;
+constexpr int32_t kStreamHistoryProgressColumn = 14;
+constexpr int32_t kStreamTimezoneColumn = 15;
+constexpr int32_t kStreamFirstDayOfWeekColumn = 16;
 
 struct CapturedStreamFailure {
   int32_t     calls = 0;
@@ -264,9 +273,11 @@ class MndStreamHeartbeatTest : public ::testing::Test {
     savedActionQ_ = mStreamMgmt.actionQ;
     savedStreamMap_ = mStreamMgmt.streamMap;
     savedDnodeMap_ = mStreamMgmt.dnodeMap;
+    savedTaskMap_ = mStreamMgmt.taskMap;
     savedActionQLock_ = mStreamMgmt.actionQLock;
     savedToDeployVgTaskNum_ = mStreamMgmt.toDeployVgTaskNum;
     savedToDeploySnodeTaskNum_ = mStreamMgmt.toDeploySnodeTaskNum;
+    savedCurrentTs_ = mStreamMgmt.hCtx.currentTs;
 
     queue_.head = static_cast<SStmQNode *>(taosMemoryCalloc(1, sizeof(SStmQNode)));
     ASSERT_NE(queue_.head, nullptr);
@@ -280,6 +291,8 @@ class MndStreamHeartbeatTest : public ::testing::Test {
     ASSERT_NE(mStreamMgmt.streamMap, nullptr);
     mStreamMgmt.dnodeMap = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
     ASSERT_NE(mStreamMgmt.dnodeMap, nullptr);
+    mStreamMgmt.taskMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    ASSERT_NE(mStreamMgmt.taskMap, nullptr);
   }
 
   void TearDown() override {
@@ -290,13 +303,16 @@ class MndStreamHeartbeatTest : public ::testing::Test {
     queue_.tail = nullptr;
 
     taosHashCleanup(mStreamMgmt.dnodeMap);
+    taosHashCleanup(mStreamMgmt.taskMap);
     taosHashCleanup(mStreamMgmt.streamMap);
     mStreamMgmt.actionQ = savedActionQ_;
     mStreamMgmt.streamMap = savedStreamMap_;
     mStreamMgmt.dnodeMap = savedDnodeMap_;
+    mStreamMgmt.taskMap = savedTaskMap_;
     mStreamMgmt.actionQLock = savedActionQLock_;
     mStreamMgmt.toDeployVgTaskNum = savedToDeployVgTaskNum_;
     mStreamMgmt.toDeploySnodeTaskNum = savedToDeploySnodeTaskNum_;
+    mStreamMgmt.hCtx.currentTs = savedCurrentTs_;
   }
 
   SStmActionQ queue_ = {};
@@ -305,9 +321,11 @@ class MndStreamHeartbeatTest : public ::testing::Test {
   SStmActionQ *savedActionQ_ = nullptr;
   SHashObj    *savedStreamMap_ = nullptr;
   SHashObj    *savedDnodeMap_ = nullptr;
+  SHashObj    *savedTaskMap_ = nullptr;
   SRWLatch     savedActionQLock_ = 0;
   int32_t      savedToDeployVgTaskNum_ = 0;
   int32_t      savedToDeploySnodeTaskNum_ = 0;
+  int64_t      savedCurrentTs_ = 0;
 };
 
 SStreamTaskMetricsEntry makeMetricEntry(int32_t index, int64_t streamId, int64_t taskId, int64_t seriousId,
@@ -333,6 +351,96 @@ SStmTaskStatusMsg makeStatusMessage(int64_t streamId, int64_t taskId, int64_t se
   msg.nodeId = 1;
   msg.status = STREAM_STATUS_RUNNING;
   return msg;
+}
+
+bool reportStreamExists(SSdb *, ESdbType, const void *) { return true; }
+
+TEST_F(MndStreamHeartbeatTest, TimezoneLoadFailureKeepsFatalCodeAndPostsDeployAfterBackoff) {
+  constexpr int64_t kStreamId = 0x1234;
+  constexpr int64_t kTaskId = 0x5678;
+  constexpr int64_t kSeriousId = 7;
+  constexpr int64_t kHeartbeatTs = 1787068800123;
+  char              streamName[] = "1.db.timezone_retry";
+
+  SStmTaskStatus trigger = {};
+  trigger.type = STREAM_TRIGGER_TASK;
+  trigger.id.taskId = kTaskId;
+  trigger.id.seriousId = kSeriousId;
+  trigger.id.nodeId = 3;
+  trigger.status = STREAM_STATUS_INIT;
+
+  SStmStatus stream = {};
+  stream.streamName = streamName;
+  stream.triggerTask = &trigger;
+  ASSERT_EQ(taosHashPut(mStreamMgmt.streamMap, &kStreamId, sizeof(kStreamId), &stream, sizeof(stream)),
+            TSDB_CODE_SUCCESS);
+  auto *stored = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamId, sizeof(kStreamId)));
+  ASSERT_NE(stored, nullptr);
+  trigger.pStream = stored;
+
+  SStmTaskStatus *storedTrigger = &trigger;
+  int64_t         taskKey[2] = {kStreamId, kTaskId};
+  ASSERT_EQ(taosHashPut(mStreamMgmt.taskMap, taskKey, sizeof(taskKey), &storedTrigger, POINTER_BYTES),
+            TSDB_CODE_SUCCESS);
+
+  SStmTaskStatusMsg failed = {};
+  failed.type = STREAM_TRIGGER_TASK;
+  failed.streamId = kStreamId;
+  failed.taskId = kTaskId;
+  failed.seriousId = kSeriousId;
+  failed.nodeId = trigger.id.nodeId;
+  failed.status = STREAM_STATUS_FAILED;
+  failed.detailStatus = -1;
+  failed.errorCode = TSDB_CODE_STREAM_TIMEZONE_LOAD_FAILED;
+  failed.extraErrMsg = taosStrdup("failed to load timezone 'Missing/Timezone'");
+  ASSERT_NE(failed.extraErrMsg, nullptr);
+
+  SStreamHbMsg request = {};
+  request.pStreamStatus = taosArrayInit(1, sizeof(SStmTaskStatusMsg));
+  ASSERT_NE(request.pStreamStatus, nullptr);
+  ASSERT_NE(taosArrayPush(request.pStreamStatus, &failed), nullptr);
+
+  SStmGrpCtx ctx = {};
+  ctx.currTs = kHeartbeatTs;
+  ctx.pReq = &request;
+  StreamFailureStubGuard reportGuard;
+  ASSERT_EQ(msmNormalHandleStatusUpdate(&ctx), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(atomic_load_8(&stored->stopped), 1);
+  EXPECT_EQ(stored->fatalError, TSDB_CODE_STREAM_TIMEZONE_LOAD_FAILED);
+  EXPECT_EQ(stored->fatalRetryDuration, MST_ISOLATION_DURATION);
+  EXPECT_EQ(stored->fatalRetryTs, kHeartbeatTs + MST_ISOLATION_DURATION);
+  EXPECT_EQ(stored->stat.lastError, TSDB_CODE_STREAM_TIMEZONE_LOAD_FAILED);
+  EXPECT_STREQ(stored->extraErrMsg, "failed to load timezone 'Missing/Timezone'");
+  EXPECT_EQ(trigger.status, STREAM_STATUS_FAILED);
+  EXPECT_EQ(trigger.errCode, TSDB_CODE_STREAM_TIMEZONE_LOAD_FAILED);
+  EXPECT_EQ(gCapturedStreamFailure.calls, 1);
+  EXPECT_EQ(gCapturedStreamFailure.errorCode, TSDB_CODE_STREAM_TIMEZONE_LOAD_FAILED);
+
+  SSdb   sdb = {};
+  SMnode mnode = {};
+  mnode.pSdb = &sdb;
+  Stub streamExistsStub;
+  streamExistsStub.set(sdbCheckExists, reportStreamExists);
+
+  mStreamMgmt.hCtx.currentTs = stored->fatalRetryTs - 1;
+  msmCheckLoopStreamMap(&mnode);
+  EXPECT_EQ(atomic_load_64(reinterpret_cast<volatile int64_t *>(&queue_.qRemainNum)), 0);
+
+  mStreamMgmt.hCtx.currentTs = stored->fatalRetryTs;
+  msmCheckLoopStreamMap(&mnode);
+  ASSERT_EQ(atomic_load_64(reinterpret_cast<volatile int64_t *>(&queue_.qRemainNum)), 1);
+  SStmQNode *pNode = nullptr;
+  ASSERT_TRUE(mndStreamActionDequeue(&queue_, &pNode));
+  ASSERT_NE(pNode, nullptr);
+  EXPECT_EQ(pNode->type, STREAM_ACT_DEPLOY);
+  EXPECT_TRUE(pNode->streamAct);
+  EXPECT_EQ(pNode->action.stream.streamId, kStreamId);
+  EXPECT_STREQ(pNode->action.stream.streamName, streamName);
+
+  tCleanupStreamHbMsg(&request, true);
+  taosMemoryFreeClear(trigger.extraErrMsg);
+  taosMemoryFreeClear(stored->extraErrMsg);
 }
 
 SArray *failTaosArrayDup(const SArray *, __array_item_dup_fn_t) {
@@ -6218,6 +6326,34 @@ TEST_F(StreamObjSdbUpdateTest, RecalcAppendEncodesPrivateTupleUnderLiveStreamLoc
   tFreeStreamObj(&newer);
 }
 
+TEST(StreamTimeConfigTest, RejectsIncompleteUserRequest) {
+  SCMCreateStreamReq req = {0};
+  req.tsmaId = 0;
+  EXPECT_EQ(TSDB_CODE_MND_STREAM_INVALID_TIME_CONFIG, mndValidateStreamTimeConfig(&req));
+
+  tstrncpy(req.timeConfig.timezone, "UTC", sizeof(req.timeConfig.timezone));
+  req.timeConfig.firstDayOfWeek = -1;
+  EXPECT_EQ(TSDB_CODE_MND_STREAM_INVALID_TIME_CONFIG, mndValidateStreamTimeConfig(&req));
+
+  req.timeConfig.firstDayOfWeek = 7;
+  EXPECT_EQ(TSDB_CODE_MND_STREAM_INVALID_TIME_CONFIG, mndValidateStreamTimeConfig(&req));
+
+  req.timeConfig.firstDayOfWeek = 0;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, mndValidateStreamTimeConfig(&req));
+}
+
+TEST(StreamTimeConfigTest, ExemptsTsmaBackingStream) {
+  SCMCreateStreamReq req = {0};
+  req.tsmaId = 42;
+  req.timeConfig.firstDayOfWeek = 127;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, mndValidateStreamTimeConfig(&req));
+}
+
+TEST(StreamTimeConfigTest, ReportsDistinctValidationAndLoadErrors) {
+  EXPECT_NE(TSDB_CODE_MND_STREAM_INVALID_TIME_CONFIG, TSDB_CODE_STREAM_TIMEZONE_LOAD_FAILED);
+  EXPECT_STRNE(tstrerror(TSDB_CODE_MND_STREAM_INVALID_TIME_CONFIG), tstrerror(TSDB_CODE_STREAM_TIMEZONE_LOAD_FAILED));
+}
+
 TEST_F(MndStreamTest, StreamMetricsKeepIndependentValidity) {
   SStmStatus stream = {};
   stream.runnerDeploys = 1;
@@ -6365,21 +6501,26 @@ TEST_F(MndStreamTest, StreamMetricTotalsDoNotWrap) {
   taosArrayDestroy(stream.runners[1]);
 }
 
-TEST_F(MndStreamTest, RuntimeMetricSchemasAppendExpectedColumns) {
+TEST_F(MndStreamTest, StreamSchemaPreservesMetricIndexesAndAppendsTimeConfig) {
   const SSysTableMeta *pStreams = getSysTableMeta("information_schema", TSDB_INS_TABLE_STREAMS);
   ASSERT_NE(pStreams, nullptr);
-  ASSERT_GE(pStreams->colNum, 5);
-  const int32_t streamBase = pStreams->colNum - 5;
-  EXPECT_STREQ(pStreams->schema[streamBase].name, "realtime_lag_ms");
-  EXPECT_EQ(pStreams->schema[streamBase].type, TSDB_DATA_TYPE_BIGINT);
-  EXPECT_STREQ(pStreams->schema[streamBase + 1].name, "input_rows_per_sec_1m");
-  EXPECT_EQ(pStreams->schema[streamBase + 1].type, TSDB_DATA_TYPE_DOUBLE);
-  EXPECT_STREQ(pStreams->schema[streamBase + 2].name, "output_rows_per_sec_1m");
-  EXPECT_EQ(pStreams->schema[streamBase + 2].type, TSDB_DATA_TYPE_DOUBLE);
-  EXPECT_STREQ(pStreams->schema[streamBase + 3].name, "runner_result_latency_avg_1m_ms");
-  EXPECT_EQ(pStreams->schema[streamBase + 3].type, TSDB_DATA_TYPE_DOUBLE);
-  EXPECT_STREQ(pStreams->schema[streamBase + 4].name, "history_progress_pct");
-  EXPECT_EQ(pStreams->schema[streamBase + 4].type, TSDB_DATA_TYPE_INT);
+  ASSERT_EQ(pStreams->colNum, 17);
+  EXPECT_STREQ(pStreams->schema[kStreamRealtimeLagColumn].name, "realtime_lag_ms");
+  EXPECT_EQ(pStreams->schema[kStreamRealtimeLagColumn].type, TSDB_DATA_TYPE_BIGINT);
+  EXPECT_STREQ(pStreams->schema[kStreamInputRateColumn].name, "input_rows_per_sec_1m");
+  EXPECT_EQ(pStreams->schema[kStreamInputRateColumn].type, TSDB_DATA_TYPE_DOUBLE);
+  EXPECT_STREQ(pStreams->schema[kStreamOutputRateColumn].name, "output_rows_per_sec_1m");
+  EXPECT_EQ(pStreams->schema[kStreamOutputRateColumn].type, TSDB_DATA_TYPE_DOUBLE);
+  EXPECT_STREQ(pStreams->schema[kStreamResultLatencyColumn].name, "runner_result_latency_avg_1m_ms");
+  EXPECT_EQ(pStreams->schema[kStreamResultLatencyColumn].type, TSDB_DATA_TYPE_DOUBLE);
+  EXPECT_STREQ(pStreams->schema[kStreamHistoryProgressColumn].name, "history_progress_pct");
+  EXPECT_EQ(pStreams->schema[kStreamHistoryProgressColumn].type, TSDB_DATA_TYPE_INT);
+  EXPECT_STREQ(pStreams->schema[kStreamTimezoneColumn].name, "timezone");
+  EXPECT_EQ(pStreams->schema[kStreamTimezoneColumn].bytes, TD_TIMEZONE_LEN + VARSTR_HEADER_SIZE);
+  EXPECT_EQ(pStreams->schema[kStreamTimezoneColumn].type, TSDB_DATA_TYPE_VARCHAR);
+  EXPECT_STREQ(pStreams->schema[kStreamFirstDayOfWeekColumn].name, "first_day_of_week");
+  EXPECT_EQ(pStreams->schema[kStreamFirstDayOfWeekColumn].bytes, 4);
+  EXPECT_EQ(pStreams->schema[kStreamFirstDayOfWeekColumn].type, TSDB_DATA_TYPE_INT);
 
   const SSysTableMeta *pTasks = getSysTableMeta("information_schema", TSDB_INS_TABLE_STREAM_TASKS);
   ASSERT_NE(pTasks, nullptr);
@@ -6393,11 +6534,59 @@ TEST_F(MndStreamTest, RuntimeMetricSchemasAppendExpectedColumns) {
   EXPECT_EQ(pTasks->schema[taskBase + 2].type, TSDB_DATA_TYPE_DOUBLE);
 }
 
+TEST_F(MndStreamTest, StreamTimeConfigColumnsPreserveValuesAndLegacyNulls) {
+  const SSysTableMeta *pMeta = getSysTableMeta("information_schema", TSDB_INS_TABLE_STREAMS);
+  ASSERT_NE(pMeta, nullptr);
+  ASSERT_GE(pMeta->colNum, kStreamFirstDayOfWeekColumn + 1);
+  SSDataBlock *pBlock = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 2);
+  ASSERT_NE(pBlock, nullptr);
+
+  char               streamName[] = "test.stream";
+  char               streamDb[] = "test";
+  char               sql[] = "select 1";
+  SCMCreateStreamReq createReq = {};
+  createReq.name = streamName;
+  createReq.streamDB = streamDb;
+  createReq.sql = sql;
+  createReq.streamId = 42;
+  tstrncpy(createReq.timeConfig.timezone, "Asia/Shanghai", sizeof(createReq.timeConfig.timezone));
+  createReq.timeConfig.firstDayOfWeek = 6;
+  SStreamObj stream = {};
+  tstrncpy(stream.name, streamName, sizeof(stream.name));
+  stream.pCreate = &createReq;
+
+  char               legacyName[] = "test.legacy";
+  SCMCreateStreamReq legacyReq = createReq;
+  legacyReq.name = legacyName;
+  legacyReq.streamId = 43;
+  legacyReq.timeConfig.timezone[0] = '\0';
+  legacyReq.timeConfig.firstDayOfWeek = 5;
+  SStreamObj legacyStream = {};
+  tstrncpy(legacyStream.name, legacyName, sizeof(legacyStream.name));
+  legacyStream.pCreate = &legacyReq;
+
+  StreamMapGuard streamMap;
+  ASSERT_NE(streamMap.get(), nullptr);
+  SnodeLookupStubGuard snodeLookup;
+  SMnode               mnode = {};
+  ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream, pBlock, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &legacyStream, pBlock, 1), TSDB_CODE_SUCCESS);
+
+  EXPECT_FALSE(isNullValue(pBlock, kStreamTimezoneColumn, 0, 2));
+  EXPECT_EQ(getVarCharValue(pBlock, kStreamTimezoneColumn, 0), "Asia/Shanghai");
+  EXPECT_FALSE(isNullValue(pBlock, kStreamFirstDayOfWeekColumn, 0, 2));
+  EXPECT_EQ(getInt32Value(pBlock, kStreamFirstDayOfWeekColumn, 0), 6);
+  EXPECT_TRUE(isNullValue(pBlock, kStreamTimezoneColumn, 1, 2));
+  EXPECT_TRUE(isNullValue(pBlock, kStreamFirstDayOfWeekColumn, 1, 2));
+
+  blockDataDestroy(pBlock);
+}
+
 TEST_F(MndStreamRecalcTest, RuntimeProgressSchemasAppendExpectedColumns) {
   const SSysTableMeta *pStreams = getSysTableMeta("information_schema", TSDB_INS_TABLE_STREAMS);
   ASSERT_NE(pStreams, nullptr);
-  EXPECT_STREQ(pStreams->schema[pStreams->colNum - 1].name, "history_progress_pct");
-  EXPECT_EQ(pStreams->schema[pStreams->colNum - 1].type, TSDB_DATA_TYPE_INT);
+  EXPECT_STREQ(pStreams->schema[kStreamHistoryProgressColumn].name, "history_progress_pct");
+  EXPECT_EQ(pStreams->schema[kStreamHistoryProgressColumn].type, TSDB_DATA_TYPE_INT);
 
   const SSysTableMeta *pRecalculates = getSysTableMeta("information_schema", TSDB_INS_TABLE_STREAM_RECALCULATES);
   ASSERT_NE(pRecalculates, nullptr);
@@ -6964,7 +7153,7 @@ TEST_F(MndStreamRecalcTest, OldTriggerProgressFeedsLegacyColumnsWithNullStatus) 
   SSDataBlock         *pStreamBlock = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
   ASSERT_NE(pStreamBlock, nullptr);
   ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream_, pStreamBlock, 0), TSDB_CODE_SUCCESS);
-  EXPECT_EQ(getInt32Value(pStreamBlock, taosArrayGetSize(pStreamBlock->pDataBlock) - 1, 0), 37);
+  EXPECT_EQ(getInt32Value(pStreamBlock, kStreamHistoryProgressColumn, 0), 37);
   blockDataDestroy(pStreamBlock);
 
   SSDataBlock *pRecalcBlock = QueryRecalculates();
@@ -6988,14 +7177,14 @@ TEST_F(MndStreamRecalcTest, TypedHistoryInvalidityOverridesLegacyProgress) {
   SSDataBlock         *pBlock = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
   ASSERT_NE(pBlock, nullptr);
   ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream_, pBlock, 0), TSDB_CODE_SUCCESS);
-  EXPECT_TRUE(isNullValue(pBlock, taosArrayGetSize(pBlock->pDataBlock) - 1, 0, 1));
+  EXPECT_TRUE(isNullValue(pBlock, kStreamHistoryProgressColumn, 0, 1));
   blockDataDestroy(pBlock);
 
   mstInvalidateTaskMetrics(&trigger_);
   pBlock = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
   ASSERT_NE(pBlock, nullptr);
   ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream_, pBlock, 0), TSDB_CODE_SUCCESS);
-  EXPECT_TRUE(isNullValue(pBlock, taosArrayGetSize(pBlock->pDataBlock) - 1, 0, 1));
+  EXPECT_TRUE(isNullValue(pBlock, kStreamHistoryProgressColumn, 0, 1));
   blockDataDestroy(pBlock);
 }
 
@@ -7112,16 +7301,11 @@ TEST_F(MndStreamTest, StreamMetricColumnsPreserveIndependentNullability) {
   SMnode               mnode = {};
   ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream, pBlock, 0), TSDB_CODE_SUCCESS);
 
-  const int32_t lagColumn = pMeta->colNum - 5;
-  const int32_t inputColumn = pMeta->colNum - 4;
-  const int32_t outputColumn = pMeta->colNum - 3;
-  const int32_t latencyColumn = pMeta->colNum - 2;
-  const int32_t historyColumn = pMeta->colNum - 1;
-  EXPECT_EQ(getInt64Value(pBlock, lagColumn, 0), 1234);
-  EXPECT_DOUBLE_EQ(getDoubleValue(pBlock, inputColumn, 0), 10.0);
-  EXPECT_TRUE(isNullValue(pBlock, outputColumn, 0, 1));
-  EXPECT_TRUE(isNullValue(pBlock, latencyColumn, 0, 1));
-  EXPECT_TRUE(isNullValue(pBlock, historyColumn, 0, 1));
+  EXPECT_EQ(getInt64Value(pBlock, kStreamRealtimeLagColumn, 0), 1234);
+  EXPECT_DOUBLE_EQ(getDoubleValue(pBlock, kStreamInputRateColumn, 0), 10.0);
+  EXPECT_TRUE(isNullValue(pBlock, kStreamOutputRateColumn, 0, 1));
+  EXPECT_TRUE(isNullValue(pBlock, kStreamResultLatencyColumn, 0, 1));
+  EXPECT_TRUE(isNullValue(pBlock, kStreamHistoryProgressColumn, 0, 1));
 
   taosArrayDestroy(status.runners[7]);
   blockDataDestroy(pBlock);
@@ -7201,10 +7385,8 @@ TEST_F(MndStreamTest, FinalRunnerTopologyDrivesStreamAndTaskMetrics) {
   SnodeLookupStubGuard snodeLookup;
   SMnode               mnode = {};
   ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream, pStreamBlock, 0), TSDB_CODE_SUCCESS);
-  const int32_t streamOutputColumn = pStreamMeta->colNum - 3;
-  const int32_t streamLatencyColumn = pStreamMeta->colNum - 2;
-  EXPECT_DOUBLE_EQ(getDoubleValue(pStreamBlock, streamOutputColumn, 0), 2.0);
-  EXPECT_DOUBLE_EQ(getDoubleValue(pStreamBlock, streamLatencyColumn, 0), 1000.0);
+  EXPECT_DOUBLE_EQ(getDoubleValue(pStreamBlock, kStreamOutputRateColumn, 0), 2.0);
+  EXPECT_DOUBLE_EQ(getDoubleValue(pStreamBlock, kStreamResultLatencyColumn, 0), 1000.0);
 
   ASSERT_EQ(mstSetStreamTaskResBlock(&stream, storedIntermediate, pTaskBlock, 0), TSDB_CODE_SUCCESS);
   ASSERT_EQ(mstSetStreamTaskResBlock(&stream, storedFinal0, pTaskBlock, 1), TSDB_CODE_SUCCESS);
@@ -8305,13 +8487,19 @@ TEST(MndStreamWatchTest, RunnerBuilderRejectsUnknownReplica) {
 TEST(MndStreamWatchTest, TriggerDeployBuilderPropagatesRunnerTargetError) {
   SCMCreateStreamReq createReq = {0};
   createReq.streamId = 42;
+  std::memset(createReq.timeConfig.timezone, 0xA5, sizeof(createReq.timeConfig.timezone));
+  std::memcpy(createReq.timeConfig.timezone, "Asia/Shanghai", sizeof("Asia/Shanghai"));
+  createReq.timeConfig.firstDayOfWeek = 6;
+  SCMCreateStreamReq statusCreateReq = createReq;
+  tstrncpy(statusCreateReq.timeConfig.timezone, "UTC", sizeof(statusCreateReq.timeConfig.timezone));
+  statusCreateReq.timeConfig.firstDayOfWeek = 1;
 
   SSdb   sdb = {0};
   SMnode mnode = {0};
   mnode.pSdb = &sdb;
 
   SStmStatus status = {0};
-  status.pCreate = &createReq;
+  status.pCreate = &statusCreateReq;
   status.runnerNum = 1;
   atomic_store_32(&status.runnerReplica, MND_STREAM_RUNNER_REPLICA_UNKNOWN);
   status.trigReaders = taosArrayInit(1, sizeof(SStmTaskStatus));
@@ -8326,6 +8514,7 @@ TEST(MndStreamWatchTest, TriggerDeployBuilderPropagatesRunnerTargetError) {
 
   SStmTaskDeploy deploy = {};
   EXPECT_EQ(msmBuildTriggerDeployInfo(&mnode, &status, &deploy, &stream), TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+  EXPECT_EQ(std::memcmp(&deploy.msg.trigger.timeConfig, &createReq.timeConfig, sizeof(createReq.timeConfig)), 0);
   EXPECT_EQ(deploy.msg.trigger.readerList, nullptr);
   EXPECT_EQ(deploy.msg.trigger.runnerList, nullptr);
 
@@ -8939,6 +9128,8 @@ class MndStreamCreateMetadataTest : public testing::Test {
     req.triTsSlotId = -1;
     req.calcPkSlotId = -1;
     req.triPkSlotId = -1;
+    tstrncpy(req.timeConfig.timezone, "UTC", sizeof(req.timeConfig.timezone));
+    req.timeConfig.firstDayOfWeek = 1;
     req.pWindowPlan = makeSessionPlan();
     return req;
   }
