@@ -477,7 +477,7 @@ taosc 和 taosd 存在许多同名参数，虽然名称相同但作用范围可�
 
 - 说明：时区
 - 默认值：从系统中动态获取当前的时区设置
-- 动态修改：支持通过 SQL 修改，立即生效；支持会话级修改，仅影响当前连接，具体请参考 [时区与自然时间单位](../../05-tdengine-sql/10-time/01-timezone.md#set-timezone-v342)
+- 动态修改：支持通过 SQL 修改，立即生效；支持会话级修改，仅影响当前连接，具体请参考 [设置当前时区](../../05-tdengine-sql/10-time/01-timezone.md#设置当前时区)
 - 支持版本：从 `v3.1.0.0` 版本开始引入
 
 #### firstDayOfWeek
@@ -487,7 +487,7 @@ taosc 和 taosd 存在许多同名参数，虽然名称相同但作用范围可�
   - Linux：通过 locale 的 `LC_TIME` 配置每周起始日。
   - macOS：通过系统设置修改每周起始日；如需脚本化调整，可修改系统偏好项 `AppleFirstWeekday`。若两者不一致，优先读取 `AppleFirstWeekday`；该项不可用（未配置）时，回退到当前系统日历设置。
   - Windows：通过系统区域设置修改每周起始日。
-- 动态修改：支持通过 SQL 修改，立即生效；支持会话级修改，仅影响当前连接，具体请参考 [SET_FIRST_DAY_OF_WEEK](../../05-tdengine-sql/10-time/01-timezone.md#set-first_day_of_week-v342)
+- 动态修改：支持通过 SQL 修改，立即生效；支持会话级修改，仅影响当前连接，具体请参考 [设置当前周起始日](../../05-tdengine-sql/10-time/01-timezone.md#设置当前周起始日)
 - 支持版本：从 `v3.4.2.0` 版本开始引入
 
 #### locale
