@@ -1088,7 +1088,10 @@ void cfgDumpCfgImpl(SArray *array, bool tsc, bool dump) {
     SConfigItem *pItem = taosArrayGet(array, i);
     if (tsc && pItem->scope == CFG_SCOPE_SERVER) continue;
     if (dump && strcmp(pItem->name, "scriptDir") == 0) continue;
-    if (strcmp(pItem->name, "ssAccessString") == 0) continue; // contains sensitive information
+    if (strcmp(pItem->name, "ssAccessString") == 0 || strcmp(pItem->name, "xnodeDsnPublicKeyFile") == 0 ||
+        strcmp(pItem->name, "xnodedDsnPrivateKeyFile") == 0) {
+      continue;
+    }
 
     tstrncpy(src, cfgStypeStr(pItem->stype), CFG_SRC_PRINT_LEN);
     for (int32_t j = 0; j < CFG_SRC_PRINT_LEN; ++j) {
