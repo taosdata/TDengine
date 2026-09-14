@@ -57,6 +57,7 @@ class TestStreamSubquerySliding:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -641,7 +642,7 @@ class TestStreamSubquerySliding:
             id=60,
             stream="create stream rdb.s60 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r60 as select _twstart ts, RAND(), NOW(), TODAY(), TIMEZONE() from qdb.n2 where _tgrpid != 0 order by cts desc limit 1",
             res_query="select ts, `timezone()`, tag_tbname from rdb.r60 where tag_tbname='t1' limit 1 offset 3;",
-            exp_query="select cast('2025-01-01 00:15:00.000' as timestamp), timezone(), 't1' from qdb.n2 where cts='2025-01-01 00:15:00.000';",
+            exp_query="select cast('2025-01-01 00:15:00.000' as timestamp), substring_index(timezone(), ' ', 1), 't1' from qdb.n2 where cts='2025-01-01 00:15:00.000';",
         )
         self.streams.append(stream)
 
@@ -649,7 +650,7 @@ class TestStreamSubquerySliding:
             id=61,
             stream="create stream rdb.s61 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r61 as select _twstart ts, RAND(), NOW(), TODAY(), TIMEZONE() from qdb.n2 where _tgrpid != 0 order by cts desc limit 1",
             res_query="select ts, `timezone()`, id from rdb.r61 where id=1 limit 1 offset 3;",
-            exp_query="select cast('2025-01-01 00:15:00.000' as timestamp), timezone(), 1 from qdb.n2 where cts='2025-01-01 00:15:00.000';",
+            exp_query="select cast('2025-01-01 00:15:00.000' as timestamp), substring_index(timezone(), ' ', 1), 1 from qdb.n2 where cts='2025-01-01 00:15:00.000';",
         )
         self.streams.append(stream)
 
@@ -657,7 +658,7 @@ class TestStreamSubquerySliding:
             id=62,
             stream="create stream rdb.s62 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r62 as select _twstart ts, RAND(), NOW(), TODAY(), TIMEZONE() from qdb.n2 where _tgrpid != 0 order by cts desc limit 1",
             res_query="select ts, `timezone()`, id, name from rdb.r62 where id=1 limit 1 offset 3;",
-            exp_query="select cast('2025-01-01 00:15:00.000' as timestamp), timezone(), 1, '1' from qdb.n2 where cts='2025-01-01 00:15:00.000';",
+            exp_query="select cast('2025-01-01 00:15:00.000' as timestamp), substring_index(timezone(), ' ', 1), 1, '1' from qdb.n2 where cts='2025-01-01 00:15:00.000';",
         )
         self.streams.append(stream)
 

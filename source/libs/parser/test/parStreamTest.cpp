@@ -23,9 +23,12 @@
 
 #include "cJSON.h"
 #include "mockCatalogService.h"
-#include "parInt.h"
 #include "nodes.h"
+#include "osEnv.h"
+#include "osTimezone.h"
+#include "parInt.h"
 #include "parTestUtil.h"
+#include "planner.h"
 #include "plannodes.h"
 #include "stub.h"
 
@@ -833,6 +836,35 @@ TEST_F(ParserStreamTest, NestedWindowParsesFlushOnOuterCloseOption) {
       "flush_on_outer_close | flush_on_outer_close) into stream_outdb.stream_out "
       "as select _twstart from stream_querydb.stream_t2",
       TSDB_CODE_PAR_SYNTAX_ERROR);
+}
+
+TEST_F(ParserStreamTest, CreateStreamClonePreservesFlushOnOuterClose) {
+  pstParseStreamOnly(
+      "create stream stream_streamdb.s_nested_flush_clone window ("
+      "interval(2m) sliding(2m) as w_outer, count_window(2,1)) "
+      "from stream_triggerdb.stream_t1 stream_options(flush_on_outer_close) "
+      "into stream_outdb.stream_out as select _twstart from stream_querydb.stream_t2",
+      [&](const SQuery* pQuery, ParserStage stage) {
+        ASSERT_EQ(PARSER_STAGE_PARSE, stage);
+        const auto* pStmt = (const SCreateStreamStmt*)pQuery->pRoot;
+
+        SNode* pClone = nullptr;
+        ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode((const SNode*)pStmt, &pClone));
+        unique_ptr<SNode, decltype(&nodesDestroyNode)> cloneGuard(pClone, nodesDestroyNode);
+        ASSERT_NE(nullptr, pClone);
+
+        const auto* pCloneStmt = (const SCreateStreamStmt*)pClone;
+        const auto* pTrigger = (const SStreamTriggerNode*)pStmt->pTrigger;
+        const auto* pCloneTrigger = (const SStreamTriggerNode*)pCloneStmt->pTrigger;
+        ASSERT_NE(nullptr, pTrigger->pOptions);
+        ASSERT_NE(nullptr, pCloneTrigger->pOptions);
+        auto* pCloneOptions = (SStreamTriggerOptions*)pCloneTrigger->pOptions;
+        EXPECT_TRUE(pCloneOptions->flushOnOuterClose);
+        EXPECT_TRUE(nodesEqualNode(pTrigger->pOptions, pCloneTrigger->pOptions));
+
+        pCloneOptions->flushOnOuterClose = false;
+        EXPECT_FALSE(nodesEqualNode(pTrigger->pOptions, pCloneTrigger->pOptions));
+      });
 }
 
 TEST_F(ParserStreamTest, NestedWindowGrammarRejectsInvalidLayerShapes) {
@@ -2463,7 +2495,8 @@ static void pstCheckParsedStreamRollupTagCol(const char* pSql, const char* pExpe
   pstCheckParsedStreamRollupTagCols(pSql, expectedColNames, 1);
 }
 
-static int32_t pstTranslateCreateStreamSql(const char* pSql, SQuery** ppQuery, char* pMsg, int32_t msgLen) {
+static int32_t pstTranslateCreateStreamSql(const char* pSql, SQuery** ppQuery, char* pMsg, int32_t msgLen,
+                                           const char* pTimezone = "UTC", int8_t firstDayOfWeek = 1) {
   SParseContext cxt = {0};
   cxt.acctId = 0;
   cxt.db = "stream_streamdb";
@@ -2475,23 +2508,1218 @@ static int32_t pstTranslateCreateStreamSql(const char* pSql, SQuery** ppQuery, c
   cxt.sqlLen = strlen(pSql);
   cxt.pMsg = pMsg;
   cxt.msgLen = msgLen;
+  cxt.firstDayOfWeek = firstDayOfWeek;
 
-  int32_t code = parse(&cxt, ppQuery);
+  timezone_t timezone = nullptr;
+  int32_t    code = taosValidateAndNormalizeTimezone(pTimezone, cxt.timezoneName, sizeof(cxt.timezoneName), &timezone);
   if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  cxt.timezone = timezone;
+
+  code = parse(&cxt, ppQuery);
+  if (TSDB_CODE_SUCCESS != code) {
+    tzfree(timezone);
     return code;
   }
   code = authenticate(&cxt, *ppQuery, NULL);
   if (TSDB_CODE_SUCCESS != code) {
     qDestroyQuery(*ppQuery);
     *ppQuery = nullptr;
+    tzfree(timezone);
     return code;
   }
   code = translate(&cxt, *ppQuery, NULL);
-  if (TSDB_CODE_SUCCESS != code) {
-    qDestroyQuery(*ppQuery);
-    *ppQuery = nullptr;
-  }
+  tzfree(timezone);
   return code;
+}
+
+static SCreateStreamStmt* pstParseCreateStreamOnly(const char* pSql, SQuery** ppQuery, char* pMsg, int32_t msgLen) {
+  SParseContext cxt = {0};
+  cxt.acctId = 0;
+  cxt.db = "stream_streamdb";
+  cxt.pUser = "wangxiaoyu";
+  cxt.pSql = pSql;
+  cxt.sqlLen = strlen(pSql);
+  cxt.pMsg = pMsg;
+  cxt.msgLen = msgLen;
+
+  if (TSDB_CODE_SUCCESS != parse(&cxt, ppQuery) || nullptr == *ppQuery ||
+      QUERY_NODE_CREATE_STREAM_STMT != nodeType((*ppQuery)->pRoot)) {
+    return nullptr;
+  }
+  return (SCreateStreamStmt*)(*ppQuery)->pRoot;
+}
+
+static int32_t pstParseOnlyCode(const char* pSql, SQuery** ppQuery, char* pMsg, int32_t msgLen) {
+  SParseContext cxt = {0};
+  cxt.acctId = 0;
+  cxt.db = "stream_streamdb";
+  cxt.pUser = "wangxiaoyu";
+  cxt.pSql = pSql;
+  cxt.sqlLen = strlen(pSql);
+  cxt.pMsg = pMsg;
+  cxt.msgLen = msgLen;
+  return parse(&cxt, ppQuery);
+}
+
+static string pstStreamSqlSlice(const char* pSql, SStreamSqlSpan span) {
+  return string(pSql + span.begin, span.end - span.begin);
+}
+
+struct PstStreamTimeBorrowerAudit {
+  timezone_t  timezone;
+  const char* timezoneName;
+  int8_t      firstDayOfWeek;
+  int32_t     valueNodes;
+  int32_t     operatorNodes;
+  int32_t     functionNodes;
+  int32_t     caseWhenNodes;
+  int32_t     intervalWindowNodes;
+  int32_t     externalWindowNodes;
+  bool        valid;
+};
+
+struct PstStreamTimeBindContext {
+  timezone_t               timezone;
+  const SStreamTimeConfig* pConfig;
+};
+
+static EDealRes pstBindStreamTimeBorrower(SNode* pNode, void* pContext) {
+  PstStreamTimeBindContext* pBind = (PstStreamTimeBindContext*)pContext;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_VALUE:
+      ((SValueNode*)pNode)->tz = pBind->timezone;
+      break;
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode* pOperator = (SOperatorNode*)pNode;
+      pOperator->tz = pBind->timezone;
+      tstrncpy(pOperator->timezoneName, pBind->pConfig->timezone, sizeof(pOperator->timezoneName));
+      pOperator->ownsTimezone = false;
+      break;
+    }
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunction = (SFunctionNode*)pNode;
+      pFunction->tz = pBind->timezone;
+      tstrncpy(pFunction->tzName, pBind->pConfig->timezone, sizeof(pFunction->tzName));
+      pFunction->tzAllocated = false;
+      pFunction->firstDayOfWeek = pBind->pConfig->firstDayOfWeek;
+      break;
+    }
+    case QUERY_NODE_CASE_WHEN:
+      ((SCaseWhenNode*)pNode)->tz = pBind->timezone;
+      break;
+    case QUERY_NODE_INTERVAL_WINDOW:
+      ((SIntervalWindowNode*)pNode)->timezone = pBind->timezone;
+      break;
+    case QUERY_NODE_EXTERNAL_WINDOW:
+      ((SExternalWindowNode*)pNode)->timezone = pBind->timezone;
+      break;
+    default:
+      break;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static EDealRes pstAuditStreamTimeBorrower(SNode* pNode, void* pContext) {
+  PstStreamTimeBorrowerAudit* pAudit = (PstStreamTimeBorrowerAudit*)pContext;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_VALUE:
+      ++pAudit->valueNodes;
+      pAudit->valid = pAudit->valid && ((SValueNode*)pNode)->tz == pAudit->timezone;
+      break;
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode* pOperator = (SOperatorNode*)pNode;
+      ++pAudit->operatorNodes;
+      pAudit->valid = pAudit->valid && pOperator->tz == pAudit->timezone && !pOperator->ownsTimezone &&
+                      strcmp(pOperator->timezoneName, pAudit->timezoneName) == 0;
+      break;
+    }
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunction = (SFunctionNode*)pNode;
+      ++pAudit->functionNodes;
+      pAudit->valid = pAudit->valid && pFunction->tz == pAudit->timezone && !pFunction->tzAllocated &&
+                      strcmp(pFunction->tzName, pAudit->timezoneName) == 0 &&
+                      pFunction->firstDayOfWeek == pAudit->firstDayOfWeek;
+      break;
+    }
+    case QUERY_NODE_CASE_WHEN:
+      ++pAudit->caseWhenNodes;
+      pAudit->valid = pAudit->valid && ((SCaseWhenNode*)pNode)->tz == pAudit->timezone;
+      break;
+    case QUERY_NODE_INTERVAL_WINDOW:
+      ++pAudit->intervalWindowNodes;
+      pAudit->valid = pAudit->valid && ((SIntervalWindowNode*)pNode)->timezone == pAudit->timezone;
+      break;
+    case QUERY_NODE_EXTERNAL_WINDOW:
+      ++pAudit->externalWindowNodes;
+      pAudit->valid = pAudit->valid && ((SExternalWindowNode*)pNode)->timezone == pAudit->timezone;
+      break;
+    default:
+      break;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static void pstWalkCreateStreamTimeBorrowers(SCreateStreamStmt* pStmt, FNodeWalker walker, void* pContext) {
+  nodesWalkExpr(pStmt->pTrigger, walker, pContext);
+  nodesWalkExpr(pStmt->pSubtable, walker, pContext);
+  nodesWalkExprs(pStmt->pTags, walker, pContext);
+  if (pStmt->pQuery != nullptr && nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT) {
+    nodesWalkSelectStmt((SSelectStmt*)pStmt->pQuery, SQL_CLAUSE_FROM, walker, pContext);
+  } else {
+    nodesWalkExpr(pStmt->pQuery, walker, pContext);
+  }
+}
+
+static const SValueNode* pstFindProjectionValue(const SCreateStreamStmt* pStmt, const char* pAlias) {
+  if (pStmt->pQuery == nullptr || nodeType(pStmt->pQuery) != QUERY_NODE_SELECT_STMT) {
+    return nullptr;
+  }
+
+  SNode* pProjection = nullptr;
+  FOREACH(pProjection, ((SSelectStmt*)pStmt->pQuery)->pProjectionList) {
+    if (nodeType(pProjection) == QUERY_NODE_VALUE && strcmp(((SExprNode*)pProjection)->userAlias, pAlias) == 0) {
+      return (const SValueNode*)pProjection;
+    }
+  }
+  return nullptr;
+}
+
+void checkCreateStreamReq(SCMCreateStreamReq* expect, SCMCreateStreamReq* req, bool checkNormalizedSql);
+
+struct PstPhysicalTimeContextAudit {
+  const SStreamTimeConfig* pConfig;
+  int32_t                  scanNodes;
+  int32_t                  intervalNodes;
+  int32_t                  federatedNodes;
+  bool                     timezoneFolded;
+  bool                     firstDayOfWeekFolded;
+};
+
+static void pstAuditPhysicalTimeContext(const SPhysiNode* pNode, PstPhysicalTimeContextAudit* pAudit) {
+  if (nullptr == pNode) {
+    return;
+  }
+
+  switch (nodeType((const SNode*)pNode)) {
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN: {
+      const STableScanPhysiNode* pScan = (const STableScanPhysiNode*)pNode;
+      ++pAudit->scanNodes;
+      EXPECT_STREQ(pScan->timezoneName, pAudit->pConfig->timezone);
+      EXPECT_EQ(pScan->firstDayOfWeek, pAudit->pConfig->firstDayOfWeek);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL: {
+      const SIntervalPhysiNode* pInterval = (const SIntervalPhysiNode*)pNode;
+      ++pAudit->intervalNodes;
+      EXPECT_STREQ(pInterval->timezoneName, pAudit->pConfig->timezone);
+      EXPECT_EQ(pInterval->firstDayOfWeek, pAudit->pConfig->firstDayOfWeek);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN: {
+      const SFederatedScanPhysiNode* pScan = (const SFederatedScanPhysiNode*)pNode;
+      ++pAudit->federatedNodes;
+      EXPECT_STREQ(pScan->timezone, pAudit->pConfig->timezone);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
+      SNode* pProjection = nullptr;
+      FOREACH(pProjection, ((const SProjectPhysiNode*)pNode)->pProjections) {
+        if (QUERY_NODE_TARGET != nodeType(pProjection)) {
+          continue;
+        }
+        const SNode* pExpr = ((const STargetNode*)pProjection)->pExpr;
+        if (QUERY_NODE_VALUE != nodeType(pExpr)) {
+          continue;
+        }
+        const SValueNode* pValue = (const SValueNode*)pExpr;
+        if (0 == strcmp(pValue->node.userAlias, "frozen_timezone")) {
+          EXPECT_STREQ(pValue->literal, pAudit->pConfig->timezone);
+          pAudit->timezoneFolded = true;
+        } else if (0 == strcmp(pValue->node.userAlias, "frozen_fdow")) {
+          EXPECT_EQ(pValue->datum.i, pAudit->pConfig->firstDayOfWeek);
+          pAudit->firstDayOfWeekFolded = true;
+        }
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) { pstAuditPhysicalTimeContext((const SPhysiNode*)pChild, pAudit); }
+}
+
+static void pstAuditQueryPlanTimeContext(const SQueryPlan* pPlan, PstPhysicalTimeContextAudit* pAudit) {
+  if (nullptr == pPlan) {
+    return;
+  }
+
+  SNode* pLevelNode = nullptr;
+  FOREACH(pLevelNode, pPlan->pSubplans) {
+    const SNodeListNode* pLevel = (const SNodeListNode*)pLevelNode;
+    SNode*               pSubplanNode = nullptr;
+    FOREACH(pSubplanNode, pLevel->pNodeList) {
+      pstAuditPhysicalTimeContext(((const SSubplan*)pSubplanNode)->pNode, pAudit);
+    }
+  }
+
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pPlan->pChildren) { pstAuditQueryPlanTimeContext((const SQueryPlan*)pChild, pAudit); }
+}
+
+TEST_F(ParserStreamTest, CreateStreamNormalizesPersistedSql) {
+  struct TestCase {
+    const char* sql;
+    const char* expected;
+  };
+  const array<TestCase, 6> cases = {{
+      {"create stream stream_streamdb.s_norm_notify interval(1s) sliding(1s) "
+       "from stream_triggerdb.stream_t1 notify('ws://x/AS') on (window_close) "
+       "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2",
+       "create stream stream_streamdb.s_norm_notify interval(1s) sliding(1s) "
+       "from stream_triggerdb.stream_t1 STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1)) "
+       "notify('ws://x/AS') on (window_close) into stream_outdb.stream_out as select _twstart, avg(c1) "
+       "from stream_querydb.stream_t2"},
+      {"create stream stream_streamdb.s_norm_into interval(1s) sliding(1s) "
+       "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+       "as select _twstart, avg(c1) from stream_querydb.stream_t2",
+       "create stream stream_streamdb.s_norm_into interval(1s) sliding(1s) "
+       "from stream_triggerdb.stream_t1 STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1)) "
+       "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2"},
+      {"create stream stream_streamdb.s_norm_mixed interval(1s) sliding(1s) "
+       "from stream_triggerdb.stream_t1 stream_options(watermark(2s) | "
+       "config(timezone='Asia/Shanghai', firstDayOfWeek=1) | pre_filter(c1 > 0)) "
+       "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2",
+       "create stream stream_streamdb.s_norm_mixed interval(1s) sliding(1s) "
+       "from stream_triggerdb.stream_t1 STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1) | "
+       "watermark(2s) | pre_filter(c1 > 0)) into stream_outdb.stream_out "
+       "as select _twstart, avg(c1) from stream_querydb.stream_t2"},
+      {"create stream stream_streamdb.s_norm_multiple interval(1s) sliding(1s) "
+       "from stream_triggerdb.stream_t1 stream_options(config(timezone='UTC') | watermark(2s) | "
+       "config(timezone='Asia/Shanghai', firstDayOfWeek=1)) into stream_outdb.stream_out "
+       "as select _twstart, avg(c1) from stream_querydb.stream_t2",
+       "create stream stream_streamdb.s_norm_multiple interval(1s) sliding(1s) "
+       "from stream_triggerdb.stream_t1 STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1) | "
+       "watermark(2s)) into stream_outdb.stream_out as select _twstart, avg(c1) "
+       "from stream_querydb.stream_t2"},
+      {"create stream stream_streamdb.s_norm_case interval(1s) sliding(1s) "
+       "from stream_triggerdb.stream_t1 stream_options(CoNfIg(TIMEZONE='Asia/Shanghai', FIRSTDAYOFWEEK=1)) "
+       "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2",
+       "create stream stream_streamdb.s_norm_case interval(1s) sliding(1s) "
+       "from stream_triggerdb.stream_t1 STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1)) "
+       "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2"},
+      {"create stream stream_streamdb.s_norm_offset interval(1s) sliding(1s) "
+       "from stream_triggerdb.stream_t1 stream_options(config(timezone='+08:00', firstDayOfWeek=1)) "
+       "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2",
+       "create stream stream_streamdb.s_norm_offset interval(1s) sliding(1s) "
+       "from stream_triggerdb.stream_t1 STREAM_OPTIONS(CONFIG(timezone = 'UTC+8', firstDayOfWeek = 1)) "
+       "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2"},
+  }};
+
+  for (const TestCase& testCase : cases) {
+    array<char, 1024> msgBuf = {0};
+    SQuery*           pQuery = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              pstTranslateCreateStreamSql(testCase.sql, &pQuery, msgBuf.data(), msgBuf.max_size(), "Asia/Shanghai", 1))
+        << testCase.sql << ": " << msgBuf.data();
+    unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+
+    SCMCreateStreamReq req = {0};
+    ASSERT_NE(pQuery->pCmdMsg, nullptr);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+    ASSERT_NE(req.sql, nullptr);
+    SCMCreateStreamReq expected = req;
+    expected.sql = const_cast<char*>(testCase.expected);
+    checkCreateStreamReq(&expected, &req, true);
+  }
+}
+
+static int32_t pstNormalizeParsedCreateStream(const char* pSql, SCreateStreamStmt* pStmt, char** ppNormalizedSql) {
+  SParseContext parseCxt = {0};
+  parseCxt.pSql = pSql;
+  parseCxt.sqlLen = strlen(pSql);
+  STranslateContext translateCxt = {0};
+  translateCxt.pParseCxt = &parseCxt;
+  return normalizeCreateStreamSql(&translateCxt, pStmt, ppNormalizedSql);
+}
+
+TEST_F(ParserStreamTest, NormalizeCreateStreamSqlUsesParserInsertionAnchors) {
+  struct TestCase {
+    const char* sql;
+    const char* expected;
+  };
+  const array<TestCase, 3> cases = {{
+      {"create stream s interval(1s) sliding(1s) from t as select * from t",
+       "create stream s interval(1s) sliding(1s) from t "
+       "STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1)) as select * from t"},
+      {"create stream s interval(1s) sliding(1s) from t;",
+       "create stream s interval(1s) sliding(1s) from t "
+       "STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1));"},
+      {"create stream s interval(1s) sliding(1s) from t",
+       "create stream s interval(1s) sliding(1s) from t "
+       "STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1))"},
+  }};
+
+  for (const TestCase& testCase : cases) {
+    array<char, 1024>  msgBuf = {0};
+    SQuery*            pQuery = nullptr;
+    SCreateStreamStmt* pStmt = pstParseCreateStreamOnly(testCase.sql, &pQuery, msgBuf.data(), msgBuf.max_size());
+    unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+    ASSERT_NE(pStmt, nullptr) << testCase.sql << ": " << msgBuf.data();
+    ASSERT_NE(pStmt->pTimeInfo, nullptr);
+    tstrncpy(pStmt->pTimeInfo->config.timezone, "Asia/Shanghai", sizeof(pStmt->pTimeInfo->config.timezone));
+    pStmt->pTimeInfo->config.firstDayOfWeek = 1;
+
+    char* pNormalizedSql = nullptr;
+    EXPECT_EQ(TSDB_CODE_SUCCESS, pstNormalizeParsedCreateStream(testCase.sql, pStmt, &pNormalizedSql));
+    EXPECT_STREQ(pNormalizedSql, testCase.expected);
+    taosMemoryFree(pNormalizedSql);
+  }
+}
+
+TEST_F(ParserStreamTest, NormalizeCreateStreamSqlInsertsBeforeTrailingTrivia) {
+  struct TestCase {
+    const char* sql;
+    const char* expected;
+  };
+  const array<TestCase, 4> cases = {{
+      {"create stream s period(1s) from t -- keep",
+       "create stream s period(1s) from t "
+       "STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1)) -- keep"},
+      {"create stream s period(1s) from t /* keep */",
+       "create stream s period(1s) from t "
+       "STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1)) /* keep */"},
+      {"create stream s period(1s) from t; -- keep",
+       "create stream s period(1s) from t "
+       "STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1)); -- keep"},
+      {"create stream s period(1s) from t -- keep\n;",
+       "create stream s period(1s) from t "
+       "STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1)) -- keep\n;"},
+  }};
+
+  for (const TestCase& testCase : cases) {
+    array<char, 1024>  msgBuf = {0};
+    SQuery*            pQuery = nullptr;
+    SCreateStreamStmt* pStmt = pstParseCreateStreamOnly(testCase.sql, &pQuery, msgBuf.data(), msgBuf.max_size());
+    unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+    ASSERT_NE(pStmt, nullptr) << testCase.sql << ": " << msgBuf.data();
+    ASSERT_NE(pStmt->pTimeInfo, nullptr);
+    tstrncpy(pStmt->pTimeInfo->config.timezone, "Asia/Shanghai", sizeof(pStmt->pTimeInfo->config.timezone));
+    pStmt->pTimeInfo->config.firstDayOfWeek = 1;
+
+    char* pNormalizedSql = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, pstNormalizeParsedCreateStream(testCase.sql, pStmt, &pNormalizedSql));
+    auto                                          freeNormalizedSql = [](char* pSql) { taosMemoryFree(pSql); };
+    unique_ptr<char, decltype(freeNormalizedSql)> normalizedGuard(pNormalizedSql, freeNormalizedSql);
+    ASSERT_STREQ(pNormalizedSql, testCase.expected);
+
+    array<char, 1024>  reparseMsgBuf = {0};
+    SQuery*            pReparsedQuery = nullptr;
+    SCreateStreamStmt* pReparsedStmt =
+        pstParseCreateStreamOnly(pNormalizedSql, &pReparsedQuery, reparseMsgBuf.data(), reparseMsgBuf.max_size());
+    unique_ptr<SQuery, decltype(&qDestroyQuery)> reparseGuard(pReparsedQuery, qDestroyQuery);
+    ASSERT_NE(pReparsedStmt, nullptr) << pNormalizedSql << ": " << reparseMsgBuf.data();
+    ASSERT_NE(pReparsedStmt->pTimeInfo, nullptr);
+    EXPECT_TRUE(pReparsedStmt->pTimeInfo->hasTimezone);
+    EXPECT_TRUE(pReparsedStmt->pTimeInfo->hasFirstDayOfWeek);
+    EXPECT_EQ(pstStreamSqlSlice(pNormalizedSql, pReparsedStmt->pTimeInfo->timezoneValue), "'Asia/Shanghai'");
+    EXPECT_EQ(pstStreamSqlSlice(pNormalizedSql, pReparsedStmt->pTimeInfo->firstDayOfWeekValue), "1");
+  }
+}
+
+TEST_F(ParserStreamTest, NormalizeCreateStreamSqlEscapesTimezoneLiteral) {
+  const char* sql =
+      "create stream s interval(1s) sliding(1s) from t "
+      "stream_options(watermark(1s) | config(timezone='UTC'))";
+  array<char, 1024>  msgBuf = {0};
+  SQuery*            pQuery = nullptr;
+  SCreateStreamStmt* pStmt = pstParseCreateStreamOnly(sql, &pQuery, msgBuf.data(), msgBuf.max_size());
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  ASSERT_NE(pStmt, nullptr) << msgBuf.data();
+  ASSERT_NE(pStmt->pTimeInfo, nullptr);
+  tstrncpy(pStmt->pTimeInfo->config.timezone, "Etc/'X", sizeof(pStmt->pTimeInfo->config.timezone));
+  pStmt->pTimeInfo->config.firstDayOfWeek = 1;
+
+  char* pNormalizedSql = nullptr;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, pstNormalizeParsedCreateStream(sql, pStmt, &pNormalizedSql));
+  EXPECT_STREQ(pNormalizedSql,
+               "create stream s interval(1s) sliding(1s) from t "
+               "STREAM_OPTIONS(CONFIG(timezone = 'Etc/''X', firstDayOfWeek = 1) | watermark(1s))");
+  taosMemoryFree(pNormalizedSql);
+}
+
+TEST_F(ParserStreamTest, NormalizeCreateStreamSqlRejectsInvalidSpans) {
+  const char* sql =
+      "create stream s interval(1s) sliding(1s) from t "
+      "stream_options(watermark(1s) | config(timezone='UTC'))";
+  array<char, 1024>  msgBuf = {0};
+  SQuery*            pQuery = nullptr;
+  SCreateStreamStmt* pStmt = pstParseCreateStreamOnly(sql, &pQuery, msgBuf.data(), msgBuf.max_size());
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  ASSERT_NE(pStmt, nullptr) << msgBuf.data();
+  ASSERT_NE(pStmt->pTimeInfo, nullptr);
+  ASSERT_NE(pStmt->pTimeInfo->pNonConfigOptionSpans, nullptr);
+  ASSERT_GT(taosArrayGetSize(pStmt->pTimeInfo->pNonConfigOptionSpans), 0);
+  tstrncpy(pStmt->pTimeInfo->config.timezone, "UTC", sizeof(pStmt->pTimeInfo->config.timezone));
+  pStmt->pTimeInfo->config.firstDayOfWeek = 1;
+
+  const SStreamSqlSpan originalOptions = pStmt->pTimeInfo->streamOptions;
+  pStmt->pTimeInfo->streamOptions.end = (int32_t)strlen(sql) + 1;
+  char* pNormalizedSql = nullptr;
+  EXPECT_EQ(TSDB_CODE_STREAM_INTERNAL_ERROR, pstNormalizeParsedCreateStream(sql, pStmt, &pNormalizedSql));
+  EXPECT_EQ(pNormalizedSql, nullptr);
+  pStmt->pTimeInfo->streamOptions = originalOptions;
+
+  SStreamSqlSpan* pRetained = (SStreamSqlSpan*)taosArrayGet(pStmt->pTimeInfo->pNonConfigOptionSpans, 0);
+  ASSERT_NE(pRetained, nullptr);
+  const SStreamSqlSpan originalRetained = *pRetained;
+  pRetained->begin = -1;
+  EXPECT_EQ(TSDB_CODE_STREAM_INTERNAL_ERROR, pstNormalizeParsedCreateStream(sql, pStmt, &pNormalizedSql));
+  EXPECT_EQ(pNormalizedSql, nullptr);
+  *pRetained = originalRetained;
+
+  pStmt->pTimeInfo->streamOptions = {-1, -1};
+  pStmt->pTimeInfo->streamOptionsInsertPos = (int32_t)strlen(sql) + 1;
+  EXPECT_EQ(TSDB_CODE_STREAM_INTERNAL_ERROR, pstNormalizeParsedCreateStream(sql, pStmt, &pNormalizedSql));
+  EXPECT_EQ(pNormalizedSql, nullptr);
+}
+
+TEST_F(ParserStreamTest, CreateStreamFreezesRequestAndPhysicalPlans) {
+  const char* sql =
+      "create stream stream_streamdb.s_frozen interval(1n) from stream_triggerdb.stream_t1 "
+      "stream_options(config(timezone='Asia/Shanghai', firstDayOfWeek=2)) "
+      "into stream_outdb.stream_out as select _wstart, timezone() as frozen_timezone, "
+      "first_day_of_week() as frozen_fdow, avg(c1) from stream_querydb.stream_t2 interval(1n)";
+  array<char, 1024> msgBuf = {0};
+  SQuery*           pQuery = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, pstTranslateCreateStreamSql(sql, &pQuery, msgBuf.data(), msgBuf.max_size()))
+      << msgBuf.data();
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+
+  const SCreateStreamStmt*   pStmt = (const SCreateStreamStmt*)pQuery->pRoot;
+  const SStreamTriggerNode*  pTrigger = (const SStreamTriggerNode*)pStmt->pTrigger;
+  const SIntervalWindowNode* pTriggerWindow = (const SIntervalWindowNode*)pTrigger->pTriggerWindow;
+  ASSERT_EQ(nodeType((const SNode*)pTriggerWindow), QUERY_NODE_INTERVAL_WINDOW);
+  EXPECT_EQ(pTriggerWindow->pSliding, nullptr);
+
+  SCMCreateStreamReq req = {0};
+  ASSERT_NE(pQuery->pCmdMsg, nullptr);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+  unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+  EXPECT_STREQ(req.timeConfig.timezone, "Asia/Shanghai");
+  EXPECT_EQ(req.timeConfig.firstDayOfWeek, 2);
+  EXPECT_EQ(req.trigger.sliding.sliding, req.trigger.sliding.interval);
+  EXPECT_EQ(req.trigger.sliding.slidingUnit, req.trigger.sliding.intervalUnit);
+
+  SNode* pTriggerPlanNode = nullptr;
+  ASSERT_NE(req.triggerScanPlan, nullptr);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)req.triggerScanPlan, &pTriggerPlanNode));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> triggerPlanGuard(pTriggerPlanNode, nodesDestroyNode);
+  ASSERT_EQ(nodeType(pTriggerPlanNode), QUERY_NODE_PHYSICAL_SUBPLAN);
+  PstPhysicalTimeContextAudit triggerAudit = {&req.timeConfig, 0, 0, 0, false, false};
+  {
+    SCOPED_TRACE("trigger scan plan");
+    pstAuditPhysicalTimeContext(((const SSubplan*)pTriggerPlanNode)->pNode, &triggerAudit);
+  }
+  EXPECT_GT(triggerAudit.scanNodes, 0);
+
+  SNode* pCalcPlanNode = nullptr;
+  ASSERT_NE(req.calcPlan, nullptr);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)req.calcPlan, &pCalcPlanNode));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> calcPlanGuard(pCalcPlanNode, nodesDestroyNode);
+  ASSERT_EQ(nodeType(pCalcPlanNode), QUERY_NODE_PHYSICAL_PLAN);
+  PstPhysicalTimeContextAudit calcAudit = {&req.timeConfig, 0, 0, 0, false, false};
+  {
+    SCOPED_TRACE("calc plan");
+    pstAuditQueryPlanTimeContext((const SQueryPlan*)pCalcPlanNode, &calcAudit);
+  }
+  EXPECT_GT(calcAudit.intervalNodes, 0);
+  EXPECT_TRUE(calcAudit.timezoneFolded);
+  EXPECT_TRUE(calcAudit.firstDayOfWeekFolded);
+
+  PstPhysicalTimeContextAudit calcScanAudit = {&req.timeConfig, 0, 0, 0, false, false};
+  SCOPED_TRACE("calc scan plans");
+  for (int32_t i = 0; i < taosArrayGetSize(req.calcScanPlanList); ++i) {
+    const SStreamCalcScan* pCalcScan = (const SStreamCalcScan*)taosArrayGet(req.calcScanPlanList, i);
+    ASSERT_NE(pCalcScan, nullptr);
+    ASSERT_NE(pCalcScan->scanPlan, nullptr);
+    SNode* pCalcScanPlanNode = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)pCalcScan->scanPlan, &pCalcScanPlanNode));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> calcScanPlanGuard(pCalcScanPlanNode, nodesDestroyNode);
+    ASSERT_EQ(nodeType(pCalcScanPlanNode), QUERY_NODE_PHYSICAL_SUBPLAN);
+    pstAuditPhysicalTimeContext(((const SSubplan*)pCalcScanPlanNode)->pNode, &calcScanAudit);
+  }
+  EXPECT_GT(calcScanAudit.scanNodes, 0);
+}
+
+TEST_F(ParserStreamTest, CreateTsmaPreservesLegacyEmbeddedStreamRequest) {
+  const char* sql = "create tsma tsma_frozen_guard on test.st1 function(avg(c1)) interval(1m)";
+  useDb("root", "test");
+  setAsyncFlag("-1");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_TSMA_STMT);
+    ASSERT_NE(pQuery->pCmdMsg, nullptr);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_CREATE_TSMA);
+
+    SMCreateSmaReq tsmaReq = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &tsmaReq));
+    unique_ptr<SMCreateSmaReq, decltype(&tFreeSMCreateSmaReq)> tsmaReqGuard(&tsmaReq, tFreeSMCreateSmaReq);
+    ASSERT_NE(tsmaReq.createStreamReq, nullptr);
+    ASSERT_GT(tsmaReq.streamReqLen, 0);
+
+    SCMCreateStreamReq streamReq = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tDeserializeSCMCreateStreamReq(tsmaReq.createStreamReq, tsmaReq.streamReqLen, &streamReq));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> streamReqGuard(&streamReq,
+                                                                                      tFreeSCMCreateStreamReq);
+    EXPECT_STREQ(streamReq.sql, sql);
+    EXPECT_STREQ(streamReq.timeConfig.timezone, "");
+    EXPECT_EQ(streamReq.timeConfig.firstDayOfWeek, 0);
+
+    SNode* pTriggerPlanNode = nullptr;
+    ASSERT_NE(streamReq.triggerScanPlan, nullptr);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)streamReq.triggerScanPlan, &pTriggerPlanNode));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> triggerPlanGuard(pTriggerPlanNode, nodesDestroyNode);
+    ASSERT_EQ(nodeType(pTriggerPlanNode), QUERY_NODE_PHYSICAL_SUBPLAN);
+    PstPhysicalTimeContextAudit triggerAudit = {&streamReq.timeConfig, 0, 0, 0, false, false};
+    pstAuditPhysicalTimeContext(((const SSubplan*)pTriggerPlanNode)->pNode, &triggerAudit);
+    EXPECT_GT(triggerAudit.scanNodes, 0);
+
+    PstPhysicalTimeContextAudit calcScanAudit = {&streamReq.timeConfig, 0, 0, 0, false, false};
+    ASSERT_GT(taosArrayGetSize(streamReq.calcScanPlanList), 0);
+    for (int32_t i = 0; i < taosArrayGetSize(streamReq.calcScanPlanList); ++i) {
+      const SStreamCalcScan* pCalcScan = (const SStreamCalcScan*)taosArrayGet(streamReq.calcScanPlanList, i);
+      ASSERT_NE(pCalcScan, nullptr);
+      ASSERT_NE(pCalcScan->scanPlan, nullptr);
+      SNode* pCalcScanPlanNode = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)pCalcScan->scanPlan, &pCalcScanPlanNode));
+      unique_ptr<SNode, decltype(&nodesDestroyNode)> calcScanPlanGuard(pCalcScanPlanNode, nodesDestroyNode);
+      ASSERT_EQ(nodeType(pCalcScanPlanNode), QUERY_NODE_PHYSICAL_SUBPLAN);
+      pstAuditPhysicalTimeContext(((const SSubplan*)pCalcScanPlanNode)->pNode, &calcScanAudit);
+    }
+    EXPECT_GT(calcScanAudit.scanNodes, 0);
+  });
+
+  run(sql);
+}
+
+TEST_F(ParserStreamTest, CreateStreamResolvesFinalTimeContextValues) {
+  struct TestCase {
+    const char* options;
+    const char* timezone;
+    int8_t      firstDayOfWeek;
+  };
+  const array<TestCase, 5> cases = {{
+      {"", "UTC", 1},
+      {"stream_options(config(timezone='Asia/Shanghai')) ", "Asia/Shanghai", 1},
+      {"stream_options(config(firstDayOfWeek=0)) ", "UTC", 0},
+      {"stream_options(config(timezone='+08:00')) ", "UTC+8", 1},
+      {"stream_options(config(firstDayOfWeek=8) | config(firstDayOfWeek=2)) ", "UTC", 2},
+  }};
+
+  for (const TestCase& testCase : cases) {
+    const string sql =
+        "create stream stream_streamdb.s_time_context interval(1s) sliding(1s) "
+        "from stream_triggerdb.stream_t1 " +
+        string(testCase.options) +
+        "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2";
+    array<char, 1024> msgBuf = {0};
+    SQuery*           pQuery = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, pstTranslateCreateStreamSql(sql.c_str(), &pQuery, msgBuf.data(), msgBuf.max_size()))
+        << sql << ": " << msgBuf.data();
+    unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+    ASSERT_NE(pQuery, nullptr);
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+    const SCreateStreamStmt* pStmt = (const SCreateStreamStmt*)pQuery->pRoot;
+    ASSERT_NE(pStmt->pTimeInfo, nullptr);
+    ASSERT_NE(pStmt->pTimeInfo->timezone, nullptr);
+    EXPECT_STREQ(pStmt->pTimeInfo->config.timezone, testCase.timezone) << sql;
+    EXPECT_EQ(pStmt->pTimeInfo->config.firstDayOfWeek, testCase.firstDayOfWeek) << sql;
+  }
+}
+
+TEST_F(ParserStreamTest, CreateStreamRejectsInvalidFinalTimeContextBeforeCommand) {
+  struct TestCase {
+    const char* sql;
+    int32_t     error;
+  };
+  const array<TestCase, 2> cases = {{
+      {"create stream stream_streamdb.s_bad_timezone interval(1s) sliding(1s) "
+       "from stream_triggerdb.stream_t1 stream_options(config(timezone='Bad/Zone')) "
+       "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2",
+       TSDB_CODE_PAR_INVALID_TIMEZONE},
+      {"create stream stream_streamdb.s_bad_fdow interval(1s) sliding(1s) "
+       "from stream_triggerdb.stream_t1 stream_options(config(firstDayOfWeek=7)) "
+       "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2",
+       TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK},
+  }};
+
+  for (const TestCase& testCase : cases) {
+    array<char, 1024> msgBuf = {0};
+    SQuery*           pQuery = nullptr;
+    EXPECT_EQ(testCase.error, pstTranslateCreateStreamSql(testCase.sql, &pQuery, msgBuf.data(), msgBuf.max_size()))
+        << testCase.sql << ": " << msgBuf.data();
+    unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+    ASSERT_NE(pQuery, nullptr);
+    EXPECT_EQ(pQuery->pCmdMsg, nullptr);
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+    const SCreateStreamStmt* pStmt = (const SCreateStreamStmt*)pQuery->pRoot;
+    ASSERT_NE(pStmt->pTimeInfo, nullptr);
+    EXPECT_EQ(pStmt->pTimeInfo->timezone, nullptr);
+  }
+}
+
+TEST_F(ParserStreamTest, CreateStreamRebindsCompleteAstBeforeValidation) {
+  const char* sql =
+      "create stream stream_streamdb.s_rebind interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "partition by timetruncate(ts, 1d) rollup by c1 "
+      "stream_options(pre_filter(cast(ts as bigint) > 0 and ts > '2020-01-01') | "
+      "config(timezone='Asia/Shanghai', firstDayOfWeek=2)) "
+      "notify('ws://x/AS') where ts < '2021-01-01' "
+      "into stream_outdb.stream_out output_subtable(concat('t_', c1)) "
+      "tags(tag1 varchar(64) as cast(c1 as varchar(64))) "
+      "as select case when ts > '2020-01-01' then timetruncate(ts, 1d) else ts end, "
+      "timezone(), first_day_of_week() from stream_querydb.stream_t2";
+  array<char, 1024> msgBuf = {0};
+  SParseContext     cxt = {0};
+  cxt.acctId = 0;
+  cxt.db = "stream_streamdb";
+  cxt.pUser = "wangxiaoyu";
+  cxt.isSuperUser = true;
+  cxt.enableSysInfo = true;
+  cxt.privInfo = UINT16_MAX;
+  cxt.pSql = sql;
+  cxt.sqlLen = strlen(sql);
+  cxt.pMsg = msgBuf.data();
+  cxt.msgLen = msgBuf.max_size();
+  cxt.firstDayOfWeek = 1;
+  timezone_t connectionTimezone = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            taosValidateAndNormalizeTimezone("UTC", cxt.timezoneName, sizeof(cxt.timezoneName), &connectionTimezone));
+  unique_ptr<remove_pointer<timezone_t>::type, decltype(&tzfree)> timezoneGuard(connectionTimezone, tzfree);
+  cxt.timezone = connectionTimezone;
+
+  SQuery* pQuery = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, parse(&cxt, &pQuery)) << msgBuf.data();
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  ASSERT_NE(pQuery, nullptr);
+  ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+  SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pQuery->pRoot;
+  ASSERT_EQ(nodeType(pStmt->pQuery), QUERY_NODE_SELECT_STMT);
+
+  SExternalWindowNode* pExternal = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, (SNode**)&pExternal));
+  ((SSelectStmt*)pStmt->pQuery)->pWindow = (SNode*)pExternal;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeValueNodeFromInt64(1, &pExternal->pCol));
+  SFunctionNode* pExternalFunction = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pExternalFunction));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&pExternal->pProjectionList, (SNode*)pExternalFunction));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, authenticate(&cxt, pQuery, nullptr));
+  EXPECT_EQ(TSDB_CODE_STREAM_INVALID_SUBTABLE, translate(&cxt, pQuery, nullptr)) << msgBuf.data();
+  EXPECT_EQ(pQuery->pCmdMsg, nullptr);
+  ASSERT_NE(pStmt->pTimeInfo, nullptr);
+  ASSERT_NE(pStmt->pTimeInfo->timezone, nullptr);
+  EXPECT_STREQ(pStmt->pTimeInfo->config.timezone, "Asia/Shanghai");
+  EXPECT_EQ(pStmt->pTimeInfo->config.firstDayOfWeek, 2);
+
+  PstStreamTimeBorrowerAudit audit = {0};
+  audit.timezone = pStmt->pTimeInfo->timezone;
+  audit.timezoneName = pStmt->pTimeInfo->config.timezone;
+  audit.firstDayOfWeek = pStmt->pTimeInfo->config.firstDayOfWeek;
+  audit.valid = true;
+  SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
+  nodesWalkExpr(pTrigger->pTriggerWindow, pstAuditStreamTimeBorrower, &audit);
+  nodesWalkExpr(((SStreamTriggerOptions*)pTrigger->pOptions)->pPreFilter, pstAuditStreamTimeBorrower, &audit);
+  nodesWalkExpr(((SStreamNotifyOptions*)pTrigger->pNotify)->pWhere, pstAuditStreamTimeBorrower, &audit);
+  nodesWalkExprs(pTrigger->pPartitionList, pstAuditStreamTimeBorrower, &audit);
+  nodesWalkExprs(pTrigger->pRollupTagList, pstAuditStreamTimeBorrower, &audit);
+  nodesWalkExpr(pStmt->pSubtable, pstAuditStreamTimeBorrower, &audit);
+  nodesWalkExpr(((SStreamTagDefNode*)nodesListGetNode(pStmt->pTags, 0))->pTagExpr, pstAuditStreamTimeBorrower, &audit);
+  nodesWalkSelectStmt((SSelectStmt*)pStmt->pQuery, SQL_CLAUSE_FROM, pstAuditStreamTimeBorrower, &audit);
+  nodesWalkExprs(pExternal->pProjectionList, pstAuditStreamTimeBorrower, &audit);
+  EXPECT_TRUE(audit.valid);
+  EXPECT_GT(audit.valueNodes, 0);
+  EXPECT_GT(audit.operatorNodes, 0);
+  EXPECT_GT(audit.functionNodes, 0);
+  EXPECT_GT(audit.caseWhenNodes, 0);
+  EXPECT_GT(audit.intervalWindowNodes, 0);
+  EXPECT_EQ(audit.externalWindowNodes, 1);
+}
+
+TEST_F(ParserStreamTest, CreateStreamSystemInfoFunctionsUseResolvedContext) {
+  const char* sql =
+      "create stream stream_streamdb.s_fold interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "stream_options(config(timezone='Asia/Shanghai', firstDayOfWeek=2) | calc_notify_only) "
+      "as select ts, timezone() as tz_context, first_day_of_week() as fdow_context "
+      "from stream_querydb.stream_t2";
+  array<char, 1024> msgBuf = {0};
+  SQuery*           pQuery = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, pstTranslateCreateStreamSql(sql, &pQuery, msgBuf.data(), msgBuf.max_size()))
+      << msgBuf.data();
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  ASSERT_NE(pQuery, nullptr);
+  const SCreateStreamStmt* pStmt = (const SCreateStreamStmt*)pQuery->pRoot;
+  const SValueNode*        pTimezone = pstFindProjectionValue(pStmt, "tz_context");
+  const SValueNode*        pFirstDayOfWeek = pstFindProjectionValue(pStmt, "fdow_context");
+  ASSERT_NE(pTimezone, nullptr);
+  ASSERT_NE(pFirstDayOfWeek, nullptr);
+  EXPECT_STREQ(pTimezone->literal, "Asia/Shanghai");
+  EXPECT_EQ(pFirstDayOfWeek->datum.i, 2);
+}
+
+TEST_F(ParserStreamTest, CreateStreamScalarSubqueriesInheritResolvedTimeContext) {
+  const char* sql =
+      "create stream stream_streamdb.s_subquery_context interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 "
+      "stream_options(config(timezone='Asia/Shanghai', firstDayOfWeek=2) | calc_notify_only) "
+      "as select ts, (select timezone() from stream_querydb.stream_t1 limit 1) as subquery_timezone, "
+      "(select first_day_of_week() from stream_querydb.stream_t1 limit 1) as subquery_fdow "
+      "from stream_querydb.stream_t2";
+  array<char, 1024> msgBuf = {0};
+  SQuery*           pQuery = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, pstTranslateCreateStreamSql(sql, &pQuery, msgBuf.data(), msgBuf.max_size()))
+      << msgBuf.data();
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  ASSERT_NE(pQuery, nullptr);
+  ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+  const SCreateStreamStmt* pStmt = (const SCreateStreamStmt*)pQuery->pRoot;
+  ASSERT_EQ(nodeType(pStmt->pQuery), QUERY_NODE_SELECT_STMT);
+  const SSelectStmt* pSelect = (const SSelectStmt*)pStmt->pQuery;
+  ASSERT_NE(pSelect->pSubQueries, nullptr);
+  ASSERT_EQ(LIST_LENGTH(pSelect->pSubQueries), 2);
+
+  const SSelectStmt* pTimezoneSubquery = (const SSelectStmt*)nodesListGetNode(pSelect->pSubQueries, 0);
+  ASSERT_EQ(nodeType((const SNode*)pTimezoneSubquery), QUERY_NODE_SELECT_STMT);
+  const SNode* pTimezone = nodesListGetNode(pTimezoneSubquery->pProjectionList, 0);
+  ASSERT_EQ(nodeType(pTimezone), QUERY_NODE_VALUE);
+  EXPECT_STREQ(((const SValueNode*)pTimezone)->literal, "Asia/Shanghai");
+
+  const SSelectStmt* pFdowSubquery = (const SSelectStmt*)nodesListGetNode(pSelect->pSubQueries, 1);
+  ASSERT_EQ(nodeType((const SNode*)pFdowSubquery), QUERY_NODE_SELECT_STMT);
+  const SNode* pFdow = nodesListGetNode(pFdowSubquery->pProjectionList, 0);
+  ASSERT_EQ(nodeType(pFdow), QUERY_NODE_VALUE);
+  EXPECT_EQ(((const SValueNode*)pFdow)->datum.i, 2);
+}
+
+TEST_F(ParserStreamTest, CreateStreamSetCloneRetainsSubqueriesAndJoinState) {
+  const char* sql =
+      "create stream stream_streamdb.s_set_clone interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 "
+      "stream_options(config(timezone='Asia/Shanghai', firstDayOfWeek=2) | calc_notify_only) "
+      "as (select a.ts, (select max(c1) from stream_querydb.stream_t1) as scalar_value "
+      "from stream_querydb.stream_t1 a join stream_querydb.stream_t2 b on a.ts = b.ts) "
+      "union all (select ts, c1 from stream_querydb.stream_t2)";
+  array<char, 1024> msgBuf = {0};
+  SQuery*           pQuery = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, pstTranslateCreateStreamSql(sql, &pQuery, msgBuf.data(), msgBuf.max_size()))
+      << msgBuf.data();
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  ASSERT_NE(pQuery, nullptr);
+  ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+  const SCreateStreamStmt* pStmt = (const SCreateStreamStmt*)pQuery->pRoot;
+  ASSERT_EQ(nodeType(pStmt->pQuery), QUERY_NODE_SET_OPERATOR);
+  const SSetOperator* pSet = (const SSetOperator*)pStmt->pQuery;
+  ASSERT_NE(pSet->pSubQueries, nullptr);
+  ASSERT_EQ(LIST_LENGTH(pSet->pSubQueries), 1);
+  ASSERT_TRUE(pSet->joinContains);
+
+  SNode* pClone = nullptr;
+  ASSERT_EQ(nodesCloneNode((const SNode*)pStmt, &pClone), TSDB_CODE_SUCCESS);
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> cloneGuard(pClone, nodesDestroyNode);
+  ASSERT_NE(pClone, nullptr);
+
+  queryGuard.reset();
+  pStmt = nullptr;
+  pSet = nullptr;
+
+  SCreateStreamStmt* pCloneStmt = (SCreateStreamStmt*)pClone;
+  ASSERT_EQ(nodeType(pCloneStmt->pQuery), QUERY_NODE_SET_OPERATOR);
+  SSetOperator* pCloneSet = (SSetOperator*)pCloneStmt->pQuery;
+  ASSERT_NE(pCloneSet->pSubQueries, nullptr);
+  ASSERT_EQ(LIST_LENGTH(pCloneSet->pSubQueries), 1);
+  EXPECT_TRUE(pCloneSet->joinContains);
+
+  array<char, 1024> planMsg = {0};
+  SPlanContext      planCxt = {0};
+  planCxt.queryId = 1;
+  planCxt.pAstRoot = pCloneStmt->pQuery;
+  planCxt.pMsg = planMsg.data();
+  planCxt.msgLen = planMsg.max_size();
+  planCxt.pUser = "root";
+  planCxt.timezone = pCloneStmt->pTimeInfo->timezone;
+  planCxt.firstDayOfWeek = pCloneStmt->pTimeInfo->config.firstDayOfWeek;
+  planCxt.timezoneExplicit = true;
+  tstrncpy(planCxt.timezoneName, pCloneStmt->pTimeInfo->config.timezone, sizeof(planCxt.timezoneName));
+
+  SQueryPlan* pPlan = nullptr;
+  ASSERT_EQ(qCreateQueryPlan(&planCxt, &pPlan, nullptr), TSDB_CODE_SUCCESS) << planMsg.data();
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard((SNode*)pPlan, nodesDestroyNode);
+  ASSERT_NE(pPlan, nullptr);
+}
+
+TEST_F(ParserStreamTest, ConfigKeepsLastValuesAndExactRewriteSpans) {
+  const char* sql =
+      "create stream s interval(1s) sliding(1s) from t "
+      "stream_options(watermark(1s) | "
+      "config(timezone='Bad/Zone', firstDayOfWeek=8) | "
+      "config(FIRSTDAYOFWEEK=2, TIMEZONE='Asia/Shanghai')) "
+      "notify('ws://x/AS') into out as select * from t";
+  array<char, 1024>  msgBuf = {0};
+  SQuery*            pQuery = nullptr;
+  SCreateStreamStmt* pStmt = pstParseCreateStreamOnly(sql, &pQuery, msgBuf.data(), msgBuf.max_size());
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+
+  ASSERT_NE(pStmt, nullptr) << msgBuf.data();
+  ASSERT_NE(pStmt->pTimeInfo, nullptr);
+  EXPECT_TRUE(pStmt->pTimeInfo->hasTimezone);
+  EXPECT_TRUE(pStmt->pTimeInfo->hasFirstDayOfWeek);
+  EXPECT_EQ(pstStreamSqlSlice(sql, pStmt->pTimeInfo->timezoneValue), "'Asia/Shanghai'");
+  EXPECT_EQ(pstStreamSqlSlice(sql, pStmt->pTimeInfo->firstDayOfWeekValue), "2");
+  EXPECT_EQ(pstStreamSqlSlice(sql, pStmt->pTimeInfo->streamOptions),
+            "stream_options(watermark(1s) | config(timezone='Bad/Zone', firstDayOfWeek=8) | "
+            "config(FIRSTDAYOFWEEK=2, TIMEZONE='Asia/Shanghai'))");
+  ASSERT_NE(pStmt->pTimeInfo->pNonConfigOptionSpans, nullptr);
+  ASSERT_EQ(taosArrayGetSize(pStmt->pTimeInfo->pNonConfigOptionSpans), 1);
+  const SStreamSqlSpan* pWatermark = (const SStreamSqlSpan*)taosArrayGet(pStmt->pTimeInfo->pNonConfigOptionSpans, 0);
+  ASSERT_NE(pWatermark, nullptr);
+  EXPECT_EQ(pstStreamSqlSlice(sql, *pWatermark), "watermark(1s)");
+}
+
+TEST_F(ParserStreamTest, MissingStreamOptionsUsesCurrentLookaheadAsInsertionAnchor) {
+  const array<pair<const char*, const char*>, 5> cases = {{
+      {"create stream s interval(1s) sliding(1s) from t notify('ws://x/AS')", "notify"},
+      {"create stream s interval(1s) sliding(1s) from t into out", "into"},
+      {"create stream s interval(1s) sliding(1s) from t as select * from t", "as select"},
+      {"create stream s interval(1s) sliding(1s) from t;", ";"},
+      {"create stream s interval(1s) sliding(1s) from t", nullptr},
+  }};
+
+  for (const auto& testCase : cases) {
+    array<char, 1024>  msgBuf = {0};
+    SQuery*            pQuery = nullptr;
+    SCreateStreamStmt* pStmt = pstParseCreateStreamOnly(testCase.first, &pQuery, msgBuf.data(), msgBuf.max_size());
+    unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+
+    ASSERT_NE(pStmt, nullptr) << testCase.first << ": " << msgBuf.data();
+    ASSERT_NE(pStmt->pTimeInfo, nullptr);
+    const int32_t expectedPos = nullptr == testCase.second
+                                    ? static_cast<int32_t>(strlen(testCase.first))
+                                    : static_cast<int32_t>(string(testCase.first).find(testCase.second));
+    EXPECT_EQ(pStmt->pTimeInfo->streamOptionsInsertPos, expectedPos) << testCase.first;
+    EXPECT_EQ(pStmt->pTimeInfo->streamOptions.begin, -1) << testCase.first;
+    EXPECT_EQ(pStmt->pTimeInfo->streamOptions.end, -1) << testCase.first;
+  }
+}
+
+TEST_F(ParserStreamTest, ConfigRejectsEmptyUnknownAliasAndWrongValueTypes) {
+  const array<const char*, 5> invalidSql = {{
+      "create stream s interval(1s) sliding(1s) from t stream_options(config())",
+      "create stream s interval(1s) sliding(1s) from t stream_options(config(unknown='x'))",
+      "create stream s interval(1s) sliding(1s) from t stream_options(config(FIRST_DAY_OF_WEEK=2))",
+      "create stream s interval(1s) sliding(1s) from t stream_options(config(timezone=8))",
+      "create stream s interval(1s) sliding(1s) from t stream_options(config(firstDayOfWeek='2'))",
+  }};
+
+  for (const char* sql : invalidSql) {
+    array<char, 1024> msgBuf = {0};
+    SQuery*           pQuery = nullptr;
+    EXPECT_NE(pstParseOnlyCode(sql, &pQuery, msgBuf.data(), msgBuf.max_size()), TSDB_CODE_SUCCESS) << sql;
+    qDestroyQuery(pQuery);
+  }
+}
+
+TEST_F(ParserStreamTest, CreateStreamCloneOwnsMetadataAndExistingChildren) {
+  SNode* pNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT, &pNode), TSDB_CODE_SUCCESS);
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> nodeGuard(pNode, nodesDestroyNode);
+  SCreateStreamStmt*                             pStmt = (SCreateStreamStmt*)pNode;
+  tstrncpy(pStmt->streamDbName, "stream_streamdb", sizeof(pStmt->streamDbName));
+  tstrncpy(pStmt->streamName, "s", sizeof(pStmt->streamName));
+  tstrncpy(pStmt->targetDbName, "stream_streamdb", sizeof(pStmt->targetDbName));
+  tstrncpy(pStmt->targetTabName, "out", sizeof(pStmt->targetTabName));
+  pStmt->ignoreExists = true;
+  pStmt->nodelayCreateSubtable = 1;
+  ASSERT_EQ(nodesMakeValueNodeFromInt64(1, &pStmt->pTrigger), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeValueNodeFromInt64(2, &pStmt->pQuery), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeValueNodeFromInt64(3, &pStmt->pSubtable), TSDB_CODE_SUCCESS);
+  SNode* pTag = nullptr;
+  ASSERT_EQ(nodesMakeValueNodeFromInt64(4, &pTag), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListMakeStrictAppend(&pStmt->pTags, pTag), TSDB_CODE_SUCCESS);
+  SNode* pCol = nullptr;
+  ASSERT_EQ(nodesMakeValueNodeFromInt64(5, &pCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListMakeStrictAppend(&pStmt->pCols, pCol), TSDB_CODE_SUCCESS);
+
+  pStmt->pTimeInfo = (SStreamCreateTimeInfo*)taosMemoryCalloc(1, sizeof(SStreamCreateTimeInfo));
+  ASSERT_NE(pStmt->pTimeInfo, nullptr);
+  pStmt->pTimeInfo->hasTimezone = true;
+  pStmt->pTimeInfo->hasFirstDayOfWeek = true;
+  pStmt->pTimeInfo->timezoneValue = {10, 25};
+  pStmt->pTimeInfo->firstDayOfWeekValue = {43, 44};
+  pStmt->pTimeInfo->streamOptions = {5, 50};
+  pStmt->pTimeInfo->streamOptionsInsertPos = -1;
+  pStmt->pTimeInfo->pNonConfigOptionSpans = taosArrayInit(1, sizeof(SStreamSqlSpan));
+  ASSERT_NE(pStmt->pTimeInfo->pNonConfigOptionSpans, nullptr);
+  const SStreamSqlSpan span = {7, 9};
+  ASSERT_NE(taosArrayPush(pStmt->pTimeInfo->pNonConfigOptionSpans, &span), nullptr);
+  tstrncpy(pStmt->pTimeInfo->config.timezone, "Asia/Shanghai", sizeof(pStmt->pTimeInfo->config.timezone));
+  pStmt->pTimeInfo->config.firstDayOfWeek = 2;
+  pStmt->pTimeInfo->timezone = tzalloc(pStmt->pTimeInfo->config.timezone);
+  ASSERT_NE(pStmt->pTimeInfo->timezone, nullptr);
+
+  SNode* pClone = nullptr;
+  ASSERT_EQ(nodesCloneNode(pNode, &pClone), TSDB_CODE_SUCCESS);
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> cloneGuard(pClone, nodesDestroyNode);
+  ASSERT_NE(pClone, nullptr);
+  ASSERT_TRUE(nodesEqualNode(pNode, pClone));
+
+  SCreateStreamStmt* pCloneStmt = (SCreateStreamStmt*)pClone;
+  ASSERT_NE(pCloneStmt->pTimeInfo, nullptr);
+  EXPECT_NE(pCloneStmt->pTimeInfo, pStmt->pTimeInfo);
+  EXPECT_NE(pCloneStmt->pTimeInfo->pNonConfigOptionSpans, pStmt->pTimeInfo->pNonConfigOptionSpans);
+  EXPECT_NE(pCloneStmt->pTimeInfo->timezone, pStmt->pTimeInfo->timezone);
+  EXPECT_NE(pCloneStmt->pTrigger, pStmt->pTrigger);
+  EXPECT_NE(pCloneStmt->pQuery, pStmt->pQuery);
+  EXPECT_NE(pCloneStmt->pSubtable, pStmt->pSubtable);
+  EXPECT_NE(pCloneStmt->pTags, pStmt->pTags);
+  EXPECT_NE(pCloneStmt->pCols, pStmt->pCols);
+
+  pCloneStmt->pTimeInfo->timezoneValue.begin++;
+  EXPECT_FALSE(nodesEqualNode(pNode, pClone));
+}
+
+TEST_F(ParserStreamTest, CreateStreamCloneRebindsCompleteAstToClonedTimezoneOwner) {
+  const char* sql =
+      "create stream s interval(1s) sliding(1s) from t "
+      "partition by timetruncate(ts, 1s) rollup by c1 "
+      "stream_options(pre_filter(ts > '2020-01-01') | watermark(1s)) "
+      "notify('ws://x/AS') where ts < '2021-01-01' "
+      "into out output_subtable(concat('t_', c1)) "
+      "tags(tag1 varchar(64) as cast(c1 as varchar(64))) "
+      "as select case when ts > '2020-01-01' then timetruncate(ts, 1d) else ts end from t";
+  array<char, 1024>  msgBuf = {0};
+  SQuery*            pQuery = nullptr;
+  SCreateStreamStmt* pStmt = pstParseCreateStreamOnly(sql, &pQuery, msgBuf.data(), msgBuf.max_size());
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  ASSERT_NE(pStmt, nullptr) << msgBuf.data();
+  ASSERT_NE(pStmt->pTimeInfo, nullptr);
+  ASSERT_EQ(nodeType(pStmt->pTrigger), QUERY_NODE_STREAM_TRIGGER);
+  ASSERT_NE(pStmt->pSubtable, nullptr);
+  ASSERT_NE(pStmt->pTags, nullptr);
+  ASSERT_EQ(nodeType(pStmt->pQuery), QUERY_NODE_SELECT_STMT);
+
+  tstrncpy(pStmt->pTimeInfo->config.timezone, "Asia/Shanghai", sizeof(pStmt->pTimeInfo->config.timezone));
+  pStmt->pTimeInfo->config.firstDayOfWeek = 2;
+  pStmt->pTimeInfo->timezone = tzalloc(pStmt->pTimeInfo->config.timezone);
+  ASSERT_NE(pStmt->pTimeInfo->timezone, nullptr);
+  PstStreamTimeBindContext bindContext = {pStmt->pTimeInfo->timezone, &pStmt->pTimeInfo->config};
+
+  SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
+  ASSERT_NE(pTrigger->pTriggerWindow, nullptr);
+  ASSERT_NE(pTrigger->pOptions, nullptr);
+  ASSERT_NE(pTrigger->pNotify, nullptr);
+  ASSERT_NE(pTrigger->pPartitionList, nullptr);
+  ASSERT_NE(pTrigger->pRollupTagList, nullptr);
+  SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pTrigger->pOptions;
+  ASSERT_EQ(pOptions->pMaxDelay, nullptr);
+  ASSERT_EQ(pOptions->pExpiredTime, nullptr);
+  ASSERT_EQ(pOptions->pFillHisStartTime, nullptr);
+  ASSERT_EQ(pOptions->pIdleTimeout, nullptr);
+  ASSERT_EQ(nodesMakeValueNodeFromInt64(2, &pOptions->pMaxDelay), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeValueNodeFromInt64(3, &pOptions->pExpiredTime), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeValueNodeFromInt64(4, &pOptions->pFillHisStartTime), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeValueNodeFromInt64(5, &pOptions->pIdleTimeout), TSDB_CODE_SUCCESS);
+  nodesWalkExpr(pTrigger->pTriggerWindow, pstBindStreamTimeBorrower, &bindContext);
+  nodesWalkExpr(pOptions->pPreFilter, pstBindStreamTimeBorrower, &bindContext);
+  nodesWalkExpr(pOptions->pWaterMark, pstBindStreamTimeBorrower, &bindContext);
+  nodesWalkExpr(pOptions->pMaxDelay, pstBindStreamTimeBorrower, &bindContext);
+  nodesWalkExpr(pOptions->pExpiredTime, pstBindStreamTimeBorrower, &bindContext);
+  nodesWalkExpr(pOptions->pFillHisStartTime, pstBindStreamTimeBorrower, &bindContext);
+  nodesWalkExpr(pOptions->pIdleTimeout, pstBindStreamTimeBorrower, &bindContext);
+  nodesWalkExpr(((SStreamNotifyOptions*)pTrigger->pNotify)->pWhere, pstBindStreamTimeBorrower, &bindContext);
+  nodesWalkExprs(pTrigger->pPartitionList, pstBindStreamTimeBorrower, &bindContext);
+  nodesWalkExprs(pTrigger->pRollupTagList, pstBindStreamTimeBorrower, &bindContext);
+  nodesWalkExpr(pStmt->pSubtable, pstBindStreamTimeBorrower, &bindContext);
+  SNode* pTag = nullptr;
+  FOREACH(pTag, pStmt->pTags) {
+    ASSERT_EQ(nodeType(pTag), QUERY_NODE_STREAM_TAG_DEF);
+    nodesWalkExpr(((SStreamTagDefNode*)pTag)->pTagExpr, pstBindStreamTimeBorrower, &bindContext);
+  }
+  nodesWalkSelectStmt((SSelectStmt*)pStmt->pQuery, SQL_CLAUSE_FROM, pstBindStreamTimeBorrower, &bindContext);
+
+  SExternalWindowNode* pExternal = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, (SNode**)&pExternal), TSDB_CODE_SUCCESS);
+  ((SSelectStmt*)pStmt->pQuery)->pWindow = (SNode*)pExternal;
+  pExternal->timezone = pStmt->pTimeInfo->timezone;
+  ASSERT_EQ(nodesMakeValueNodeFromInt64(1, &pExternal->pCol), TSDB_CODE_SUCCESS);
+  ((SValueNode*)pExternal->pCol)->tz = pStmt->pTimeInfo->timezone;
+  SFunctionNode* pExternalFunction = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pExternalFunction), TSDB_CODE_SUCCESS);
+  pExternalFunction->tz = pStmt->pTimeInfo->timezone;
+  tstrncpy(pExternalFunction->tzName, bindContext.pConfig->timezone, sizeof(pExternalFunction->tzName));
+  pExternalFunction->firstDayOfWeek = bindContext.pConfig->firstDayOfWeek;
+  ASSERT_EQ(nodesListMakeStrictAppend(&pExternal->pProjectionList, (SNode*)pExternalFunction), TSDB_CODE_SUCCESS);
+  SSelectStmt* pNestedSelect = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_SELECT_STMT, (SNode**)&pNestedSelect), TSDB_CODE_SUCCESS);
+  pExternal->pSubquery = (SNode*)pNestedSelect;
+  SCaseWhenNode* pNestedCase = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CASE_WHEN, (SNode**)&pNestedCase), TSDB_CODE_SUCCESS);
+  pNestedCase->tz = pStmt->pTimeInfo->timezone;
+  ASSERT_EQ(nodesListMakeStrictAppend(&pNestedSelect->pProjectionList, (SNode*)pNestedCase), TSDB_CODE_SUCCESS);
+
+  SNode* pClone = nullptr;
+  ASSERT_EQ(nodesCloneNode((SNode*)pStmt, &pClone), TSDB_CODE_SUCCESS);
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> cloneGuard(pClone, nodesDestroyNode);
+  ASSERT_NE(pClone, nullptr);
+  SCreateStreamStmt* pCloneStmt = (SCreateStreamStmt*)pClone;
+  ASSERT_NE(pCloneStmt->pTimeInfo, nullptr);
+  ASSERT_NE(pCloneStmt->pTimeInfo->timezone, nullptr);
+  EXPECT_NE(pCloneStmt->pTimeInfo->timezone, pStmt->pTimeInfo->timezone);
+
+  queryGuard.reset();
+  pStmt = nullptr;
+
+  SStreamTriggerNode* pCloneTrigger = (SStreamTriggerNode*)pCloneStmt->pTrigger;
+  ASSERT_NE(pCloneTrigger, nullptr);
+  EXPECT_NE(pCloneTrigger->pTriggerWindow, nullptr);
+  EXPECT_NE(pCloneTrigger->pOptions, nullptr);
+  EXPECT_NE(pCloneTrigger->pNotify, nullptr);
+  EXPECT_NE(pCloneTrigger->pPartitionList, nullptr);
+  EXPECT_NE(pCloneTrigger->pRollupTagList, nullptr);
+  EXPECT_NE(((SStreamTriggerOptions*)pCloneTrigger->pOptions)->pPreFilter, nullptr);
+  EXPECT_NE(((SStreamTriggerOptions*)pCloneTrigger->pOptions)->pWaterMark, nullptr);
+  SStreamTriggerOptions* pCloneOptions = (SStreamTriggerOptions*)pCloneTrigger->pOptions;
+  EXPECT_EQ(((SValueNode*)pCloneOptions->pWaterMark)->tz, pCloneStmt->pTimeInfo->timezone);
+  EXPECT_EQ(((SValueNode*)pCloneOptions->pMaxDelay)->tz, pCloneStmt->pTimeInfo->timezone);
+  EXPECT_EQ(((SValueNode*)pCloneOptions->pExpiredTime)->tz, pCloneStmt->pTimeInfo->timezone);
+  EXPECT_EQ(((SValueNode*)pCloneOptions->pFillHisStartTime)->tz, pCloneStmt->pTimeInfo->timezone);
+  EXPECT_EQ(((SValueNode*)pCloneOptions->pIdleTimeout)->tz, pCloneStmt->pTimeInfo->timezone);
+  EXPECT_NE(((SStreamNotifyOptions*)pCloneTrigger->pNotify)->pWhere, nullptr);
+  ASSERT_NE(pCloneStmt->pTags, nullptr);
+  EXPECT_EQ(nodeType(nodesListGetNode(pCloneStmt->pTags, 0)), QUERY_NODE_STREAM_TAG_DEF);
+  EXPECT_NE(((SStreamTagDefNode*)nodesListGetNode(pCloneStmt->pTags, 0))->pTagExpr, nullptr);
+
+  PstStreamTimeBorrowerAudit specializedAudit = {0};
+  specializedAudit.timezone = pCloneStmt->pTimeInfo->timezone;
+  specializedAudit.timezoneName = pCloneStmt->pTimeInfo->config.timezone;
+  specializedAudit.firstDayOfWeek = pCloneStmt->pTimeInfo->config.firstDayOfWeek;
+  specializedAudit.valid = true;
+  nodesWalkExpr(((SStreamNotifyOptions*)pCloneTrigger->pNotify)->pWhere, pstAuditStreamTimeBorrower, &specializedAudit);
+  nodesWalkExpr(((SStreamTagDefNode*)nodesListGetNode(pCloneStmt->pTags, 0))->pTagExpr, pstAuditStreamTimeBorrower,
+                &specializedAudit);
+
+  SExternalWindowNode* pCloneExternal = (SExternalWindowNode*)((SSelectStmt*)pCloneStmt->pQuery)->pWindow;
+  ASSERT_NE(pCloneExternal, nullptr);
+  ASSERT_EQ(nodeType((SNode*)pCloneExternal), QUERY_NODE_EXTERNAL_WINDOW);
+  EXPECT_EQ(pCloneExternal->timezone, pCloneStmt->pTimeInfo->timezone);
+  nodesWalkExpr(pCloneExternal->pCol, pstAuditStreamTimeBorrower, &specializedAudit);
+  nodesWalkExprs(pCloneExternal->pProjectionList, pstAuditStreamTimeBorrower, &specializedAudit);
+  ASSERT_EQ(nodeType(pCloneExternal->pSubquery), QUERY_NODE_SELECT_STMT);
+  nodesWalkExprs(((SSelectStmt*)pCloneExternal->pSubquery)->pProjectionList, pstAuditStreamTimeBorrower,
+                 &specializedAudit);
+  EXPECT_TRUE(specializedAudit.valid);
+  EXPECT_GT(specializedAudit.valueNodes, 0);
+  EXPECT_GT(specializedAudit.operatorNodes, 0);
+  EXPECT_GT(specializedAudit.functionNodes, 0);
+  EXPECT_GT(specializedAudit.caseWhenNodes, 0);
+
+  PstStreamTimeBorrowerAudit audit = {0};
+  audit.timezone = pCloneStmt->pTimeInfo->timezone;
+  audit.timezoneName = pCloneStmt->pTimeInfo->config.timezone;
+  audit.firstDayOfWeek = pCloneStmt->pTimeInfo->config.firstDayOfWeek;
+  audit.valid = true;
+  pstWalkCreateStreamTimeBorrowers(pCloneStmt, pstAuditStreamTimeBorrower, &audit);
+  EXPECT_TRUE(audit.valid);
+  EXPECT_GT(audit.valueNodes, 0);
+  EXPECT_GT(audit.operatorNodes, 0);
+  EXPECT_GT(audit.functionNodes, 0);
+  EXPECT_GT(audit.caseWhenNodes, 0);
+  EXPECT_GT(audit.intervalWindowNodes, 0);
+  EXPECT_EQ(audit.externalWindowNodes, 1);
+
+  const time_t epoch = 0;
+  struct tm    local = {0};
+  EXPECT_NE(taosLocalTime(&epoch, &local, nullptr, 0, pCloneStmt->pTimeInfo->timezone), nullptr);
+}
+
+TEST_F(ParserStreamTest, TranslatedTimeRangeCloneBorrowsClonedTimezoneOwner) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  const char* sql =
+      "create stream stream_streamdb.s_time_range interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select a.te, a.cnt, b.minv from "
+      "(select _twend te, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) a join "
+      "(select _twend te, min(c1) minv from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) b on a.te = b.te";
+  array<char, 1024> msgBuf = {0};
+  SQuery*           pQuery = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, pstTranslateCreateStreamSql(sql, &pQuery, msgBuf.data(), msgBuf.max_size()))
+      << msgBuf.data();
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  ASSERT_NE(pQuery, nullptr);
+  ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+  SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pQuery->pRoot;
+  ASSERT_NE(pStmt->pTimeInfo, nullptr);
+  ASSERT_EQ(nodeType(pStmt->pQuery), QUERY_NODE_SELECT_STMT);
+  SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
+  ASSERT_NE(pSelect->pTimeRange, nullptr);
+  ASSERT_EQ(nodeType(pSelect->pTimeRange), QUERY_NODE_TIME_RANGE);
+  STimeRangeNode* pTimeRange = (STimeRangeNode*)pSelect->pTimeRange;
+  ASSERT_NE(pTimeRange->pStart, nullptr);
+  ASSERT_NE(pTimeRange->pEnd, nullptr);
+
+  tzfree(pStmt->pTimeInfo->timezone);
+  tstrncpy(pStmt->pTimeInfo->config.timezone, "Asia/Shanghai", sizeof(pStmt->pTimeInfo->config.timezone));
+  pStmt->pTimeInfo->config.firstDayOfWeek = 2;
+  pStmt->pTimeInfo->timezone = tzalloc(pStmt->pTimeInfo->config.timezone);
+  ASSERT_NE(pStmt->pTimeInfo->timezone, nullptr);
+  PstStreamTimeBindContext bindContext = {pStmt->pTimeInfo->timezone, &pStmt->pTimeInfo->config};
+  nodesWalkExpr(pTimeRange->pStart, pstBindStreamTimeBorrower, &bindContext);
+  nodesWalkExpr(pTimeRange->pEnd, pstBindStreamTimeBorrower, &bindContext);
+
+  SNode* pClone = nullptr;
+  ASSERT_EQ(nodesCloneNode((SNode*)pStmt, &pClone), TSDB_CODE_SUCCESS);
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> cloneGuard(pClone, nodesDestroyNode);
+  ASSERT_NE(pClone, nullptr);
+  SCreateStreamStmt* pCloneStmt = (SCreateStreamStmt*)pClone;
+  ASSERT_NE(pCloneStmt->pTimeInfo, nullptr);
+  ASSERT_NE(pCloneStmt->pTimeInfo->timezone, nullptr);
+  EXPECT_NE(pCloneStmt->pTimeInfo->timezone, pStmt->pTimeInfo->timezone);
+
+  queryGuard.reset();
+  pStmt = nullptr;
+
+  ASSERT_EQ(nodeType(pCloneStmt->pQuery), QUERY_NODE_SELECT_STMT);
+  SNode* pCloneTimeRange = ((SSelectStmt*)pCloneStmt->pQuery)->pTimeRange;
+  ASSERT_NE(pCloneTimeRange, nullptr);
+  ASSERT_EQ(nodeType(pCloneTimeRange), QUERY_NODE_TIME_RANGE);
+  PstStreamTimeBorrowerAudit audit = {0};
+  audit.timezone = pCloneStmt->pTimeInfo->timezone;
+  audit.timezoneName = pCloneStmt->pTimeInfo->config.timezone;
+  audit.firstDayOfWeek = pCloneStmt->pTimeInfo->config.firstDayOfWeek;
+  audit.valid = true;
+  nodesWalkExpr(((STimeRangeNode*)pCloneTimeRange)->pStart, pstAuditStreamTimeBorrower, &audit);
+  nodesWalkExpr(((STimeRangeNode*)pCloneTimeRange)->pEnd, pstAuditStreamTimeBorrower, &audit);
+  EXPECT_TRUE(audit.valid);
+  EXPECT_GT(audit.valueNodes + audit.operatorNodes + audit.functionNodes + audit.caseWhenNodes, 0);
 }
 
 static void pstCheckCreateStreamReqRollupTagCols(const char* pSql, const char* const* pExpectedColNames,
@@ -3369,7 +4597,8 @@ void checkJsonStringEqual(const char* pExpect, const char* pActual, const char* 
 }
 
 void checkExprJsonStringEqual(const char* pExpect, const char* pActual) {
-  const char* const ignoredFields[] = {"Flag", "IsDistinct", "TableId", "STableId", "RefSource", "FastInterval", "ExInterval", "DelayFreeTask"};
+  const char* const ignoredFields[] = {"Flag",         "IsDistinct", "TableId",       "STableId",     "RefSource",
+                                       "FastInterval", "ExInterval", "DelayFreeTask", "TimezoneName", "TzName"};
   checkJsonStringEqual(pExpect, pActual, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
 }
 
@@ -3382,11 +4611,11 @@ void checkCreateStreamTriggerScanPlan(SCMCreateStreamReq *expect, SCMCreateStrea
     ASSERT_TRUE(false);
   }
 
-  const char* const ignoredFields[] = {"NodeAddr",        "GroupId",         "SubplanId", "DataBlockId",
-                                       "Level",           "RequireDataOrder", "ResultDataOrder",
-                                       "IsDistinct",      "Flag",            "TableId",
-                                       "STableId",        "InterpFillMode",  "UserAppId",
-                                       "OutputTsPrecision", "RefSource", "FastInterval",    "ExInterval",      "DelayFreeTask"};
+  const char* const ignoredFields[] = {"NodeAddr",       "GroupId",           "SubplanId",       "DataBlockId",
+                                       "Level",          "RequireDataOrder",  "ResultDataOrder", "IsDistinct",
+                                       "Flag",           "TableId",           "STableId",        "InterpFillMode",
+                                       "UserAppId",      "OutputTsPrecision", "RefSource",       "TimezoneName",
+                                       "FirstDayOfWeek", "FastInterval",      "ExInterval",      "DelayFreeTask"};
   delete_all_specified_fields(j1, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   delete_all_specified_fields(j2, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   delete_expression_charset_name_fields(j1);
@@ -3410,10 +4639,25 @@ void checkCreateStreamCalcPlan(SCMCreateStreamReq *expect, SCMCreateStreamReq *r
     ASSERT_TRUE(false);
   }
 
-  const char* const ignoredFields[] = {"Name",            "AliasName",       "ColName",  "RequireDataOrder",
-                                       "ResultDataOrder", "IsDistinct",      "Flag",     "TableId",
-                                       "STableId",        "InterpFillMode",  "UserAppId",
-                                       "OutputTsPrecision", "RefSource", "FastInterval",    "ExInterval",      "DelayFreeTask"};
+  const char* const ignoredFields[] = {"Name",
+                                       "AliasName",
+                                       "ColName",
+                                       "TzName",
+                                       "RequireDataOrder",
+                                       "ResultDataOrder",
+                                       "IsDistinct",
+                                       "Flag",
+                                       "TableId",
+                                       "STableId",
+                                       "InterpFillMode",
+                                       "UserAppId",
+                                       "OutputTsPrecision",
+                                       "RefSource",
+                                       "FastInterval",
+                                       "ExInterval",
+                                       "DelayFreeTask",
+                                       "TimezoneName",
+                                       "FirstDayOfWeek"};
   delete_all_specified_fields(j1, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   delete_all_specified_fields(j2, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   delete_expression_charset_name_fields(j1);
@@ -3433,12 +4677,14 @@ void checkCreateStreamCalcPlan(SCMCreateStreamReq *expect, SCMCreateStreamReq *r
   ASSERT_EQ(expectCalcPlan, reqCalcPlan);
 }
 
-void checkCreateStreamReq(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
+void checkCreateStreamReq(SCMCreateStreamReq* expect, SCMCreateStreamReq* req, bool checkNormalizedSql) {
   // stream name part
   cout << "checkCreateStreamReq: " << expect->sql << endl;
   ASSERT_NE(req->streamId, 0);
   ASSERT_EQ(std::string(req->name), std::string(expect->name));
-  ASSERT_EQ(std::string(req->sql), std::string(expect->sql));
+  if (checkNormalizedSql) {
+    ASSERT_EQ(std::string(req->sql), std::string(expect->sql));
+  }
   ASSERT_EQ(std::string(req->streamDB), std::string(expect->streamDB));
   ASSERT_EQ(std::string(req->triggerDB), std::string(expect->triggerDB));
   ASSERT_EQ(std::string(req->outDB), std::string(expect->outDB));
@@ -3597,10 +4843,10 @@ void checkCreateStreamReq(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
     auto pCalcScan = (SStreamCalcScan *)taosArrayGet(req->calcScanPlanList, i);
     auto expectScan = (SStreamCalcScan *)taosArrayGet(expect->calcScanPlanList, i);
     ASSERT_EQ(pCalcScan->readFromCache, expectScan->readFromCache);
-    const char* const ignoredFields[] = {"RequireDataOrder", "ResultDataOrder", "IsDistinct", "TableId",
-                                         "STableId", "InterpFillMode", "UserAppId", "OutputTsPrecision",
-                                         "RefSource", "UserAppId", "FastInterval",
-                                         "ExInterval", "DelayFreeTask"};
+    const char* const ignoredFields[] = {"RequireDataOrder", "ResultDataOrder", "IsDistinct",     "TableId",
+                                         "STableId",         "InterpFillMode",  "UserAppId",      "OutputTsPrecision",
+                                         "RefSource",        "TimezoneName",    "FirstDayOfWeek", "FastInterval",
+                                         "ExInterval",       "DelayFreeTask"};
     checkJsonStringEqual((char*)expectScan->scanPlan, (char*)pCalcScan->scanPlan, ignoredFields,
                          sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   }
@@ -3635,7 +4881,6 @@ void checkCreateStreamReq(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
       ASSERT_EQ(std::string((char*)pOutCols->expr), std::string((char*)expectOutCols->expr));
     }
   }
-
 }
 
 TEST_F(ParserStreamTest, TestName) {
@@ -3652,7 +4897,7 @@ TEST_F(ParserStreamTest, TestName) {
     SCMCreateStreamReq req = {0};
     ASSERT_TRUE(TSDB_CODE_SUCCESS ==
                 tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
-    checkCreateStreamReq(&expect, &req);
+    checkCreateStreamReq(&expect, &req, false);
     tFreeSCMCreateStreamReq(&req);
   });
 
@@ -3739,7 +4984,7 @@ TEST_F(ParserStreamTest, TestTriggerOption) {
     SCMCreateStreamReq req = {0};
     ASSERT_TRUE(TSDB_CODE_SUCCESS ==
                tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
-    checkCreateStreamReq(&expect, &req);
+    checkCreateStreamReq(&expect, &req, false);
     tFreeSCMCreateStreamReq(&req);
  });
 
@@ -3987,7 +5232,7 @@ TEST_F(ParserStreamTest, TestTriggerType) {
     SCMCreateStreamReq req = {0};
     ASSERT_TRUE(TSDB_CODE_SUCCESS ==
                tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
-    checkCreateStreamReq(&expect, &req);
+    checkCreateStreamReq(&expect, &req, false);
     tFreeSCMCreateStreamReq(&req);
  });
 
@@ -4161,7 +5406,7 @@ TEST_F(ParserStreamTest, TestTriggerPartition) {
     SCMCreateStreamReq req = {0};
     ASSERT_TRUE(TSDB_CODE_SUCCESS ==
                tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
-    checkCreateStreamReq(&expect, &req);
+    checkCreateStreamReq(&expect, &req, false);
     tFreeSCMCreateStreamReq(&req);
  });
 
@@ -4368,7 +5613,7 @@ TEST_F(ParserStreamTest, TestNotify) {
     SCMCreateStreamReq req = {0};
     ASSERT_TRUE(TSDB_CODE_SUCCESS ==
                tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
-    checkCreateStreamReq(&expect, &req);
+    checkCreateStreamReq(&expect, &req, false);
     tFreeSCMCreateStreamReq(&req);
  });
 
@@ -4477,7 +5722,7 @@ TEST_F(ParserStreamTest, TestOutTable) {
     SCMCreateStreamReq req = {0};
     ASSERT_TRUE(TSDB_CODE_SUCCESS ==
                tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
-    checkCreateStreamReq(&expect, &req);
+    checkCreateStreamReq(&expect, &req, false);
     tFreeSCMCreateStreamReq(&req);
  });
 
@@ -4592,7 +5837,7 @@ TEST_F(ParserStreamTest, TestQuery) {
     SCMCreateStreamReq req = {0};
     ASSERT_TRUE(TSDB_CODE_SUCCESS ==
                tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
-    checkCreateStreamReq(&expect, &req);
+    checkCreateStreamReq(&expect, &req, false);
     tFreeSCMCreateStreamReq(&req);
  });
 
@@ -4889,7 +6134,7 @@ TEST_F(ParserStreamTest, TestQuery) {
     SCMCreateStreamReq req = {0};
     ASSERT_TRUE(TSDB_CODE_SUCCESS ==
                tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
-    checkCreateStreamReq(&expectOrderBy, &req);
+    checkCreateStreamReq(&expectOrderBy, &req, false);
     tFreeSCMCreateStreamReq(&req);
  });
   setCreateStreamTriggerTable(&expectOrderBy, "0.stream_triggerdb", "st1", WINDOW_TYPE_INTERVAL, TSDB_SUPER_TABLE, 42, 0, 1);
@@ -6181,6 +7426,222 @@ TEST_F(ParserStreamTest, TestErrorName) {
 
 }
 
+TEST_F(ParserStreamTest, CreateStreamAcceptsNaturalTriggerMatrix) {
+  enum class NaturalValue { kNone, kInterval, kSliding, kPeriod };
+  struct TestCase {
+    const char*  trigger;
+    NaturalValue naturalValue;
+    bool         omittedSliding;
+  };
+  const array<TestCase, 22> accepted = {{
+      {"interval(1n)", NaturalValue::kInterval, true},
+      {"interval(1q)", NaturalValue::kInterval, true},
+      {"interval('1q')", NaturalValue::kInterval, true},
+      {"interval(1y)", NaturalValue::kInterval, true},
+      {"interval(1n) sliding(1s)", NaturalValue::kInterval, false},
+      {"interval(1s) sliding(2s)", NaturalValue::kNone, false},
+      {"interval(100s) sliding(500a)", NaturalValue::kNone, false},
+      {"sliding(1n)", NaturalValue::kSliding, false},
+      {"sliding(1q)", NaturalValue::kSliding, false},
+      {"sliding('1q')", NaturalValue::kSliding, false},
+      {"sliding(1y)", NaturalValue::kSliding, false},
+      {"period(1q)", NaturalValue::kPeriod, false},
+      {"period('1q')", NaturalValue::kPeriod, false},
+      {"interval(1n, 27d)", NaturalValue::kNone, true},
+      {"period(1n, 27d)", NaturalValue::kNone, false},
+      {"sliding(1n, 27d)", NaturalValue::kNone, false},
+      {"interval(29d, 1n)", NaturalValue::kNone, true},
+      {"period(29d, 1n)", NaturalValue::kNone, false},
+      {"sliding(29d, 1n)", NaturalValue::kNone, false},
+      {"interval(1q, 83d)", NaturalValue::kInterval, true},
+      {"period(1q, 83d)", NaturalValue::kPeriod, false},
+      {"sliding(1q, 83d)", NaturalValue::kSliding, false},
+  }};
+
+  for (const TestCase& testCase : accepted) {
+    const string sql = "create stream stream_streamdb.s_natural_matrix " + string(testCase.trigger) +
+                       " from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+                       "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2";
+    array<char, 1024> msgBuf = {0};
+    SQuery*           pQuery = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, pstTranslateCreateStreamSql(sql.c_str(), &pQuery, msgBuf.data(), msgBuf.max_size()))
+        << sql << ": " << msgBuf.data();
+    unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+    ASSERT_NE(pQuery, nullptr);
+
+    const SCreateStreamStmt*  pStmt = (const SCreateStreamStmt*)pQuery->pRoot;
+    const SStreamTriggerNode* pTrigger = (const SStreamTriggerNode*)pStmt->pTrigger;
+    ASSERT_NE(pTrigger, nullptr);
+    ASSERT_NE(pTrigger->pTriggerWindow, nullptr);
+
+    const SValueNode* pNatural = nullptr;
+    if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pTrigger->pTriggerWindow)) {
+      const SIntervalWindowNode* pWindow = (const SIntervalWindowNode*)pTrigger->pTriggerWindow;
+      if (testCase.omittedSliding) {
+        EXPECT_EQ(pWindow->pSliding, nullptr) << sql;
+      }
+      if (NaturalValue::kInterval == testCase.naturalValue) {
+        pNatural = (const SValueNode*)pWindow->pInterval;
+      } else if (NaturalValue::kSliding == testCase.naturalValue) {
+        pNatural = (const SValueNode*)pWindow->pSliding;
+      }
+    } else if (NaturalValue::kPeriod == testCase.naturalValue) {
+      ASSERT_EQ(QUERY_NODE_PERIOD_WINDOW, nodeType(pTrigger->pTriggerWindow));
+      pNatural = (const SValueNode*)((const SPeriodWindowNode*)pTrigger->pTriggerWindow)->pPeroid;
+    }
+
+    if (nullptr != strstr(testCase.trigger, "1q")) {
+      ASSERT_NE(pNatural, nullptr) << sql;
+      EXPECT_EQ(pNatural->datum.i, 3) << sql;
+      EXPECT_EQ(pNatural->unit, 'n') << sql;
+    }
+  }
+}
+
+TEST_F(ParserStreamTest, CreateStreamRejectsNaturalTriggerMatrix) {
+  const array<const char*, 19> rejected = {{
+      "interval(1n) sliding(1n)", "interval(1s) sliding(0a)", "interval(1n, auto)", "period(1n, -1d)",
+      "sliding(1n, auto)",        "period(1n, auto)",         "sliding(1n, 1n)",    "interval(1s, 1s)",
+      "period(1s, 1s)",           "sliding(1s, 1s)",          "interval(1n, 28d)",  "period(1n, 28d)",
+      "sliding(1n, 28d)",         "interval(28d, 1n)",        "period(28d, 1n)",    "sliding(28d, 1n)",
+      "interval(1q, 84d)",        "period(1q, 84d)",          "sliding(1q, 84d)",
+  }};
+
+  for (const char* trigger : rejected) {
+    const string sql = "create stream stream_streamdb.s_natural_matrix " + string(trigger) +
+                       " from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+                       "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2";
+    array<char, 1024> msgBuf = {0};
+    SQuery*           pQuery = nullptr;
+    EXPECT_NE(TSDB_CODE_SUCCESS, pstTranslateCreateStreamSql(sql.c_str(), &pQuery, msgBuf.data(), msgBuf.max_size()))
+        << sql;
+    unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  }
+}
+
+TEST_F(ParserStreamTest, CreateStreamChecksNaturalSlidingRepresentability) {
+  const array<const char*, 3> accepted = {{
+      "sliding(3509654504n)",
+      "sliding(292471208y)",
+      "sliding(1169884834q)",
+  }};
+  const array<const char*, 7> rejected = {{
+      "sliding(3509654505n)",
+      "sliding(292471209y)",
+      "sliding(1169884835q)",
+      "sliding(9223372036854775807n)",
+      "sliding(9223372036854775807y)",
+      "sliding(292471208y, 292471209y)",
+      "sliding(292471208y, 9223372036854775807y)",
+  }};
+
+  for (const char* trigger : accepted) {
+    const string sql = "create stream stream_streamdb.s_natural_limit " + string(trigger) +
+                       " from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+                       "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2";
+    array<char, 1024> msgBuf = {0};
+    SQuery*           pQuery = nullptr;
+    EXPECT_EQ(TSDB_CODE_SUCCESS, pstTranslateCreateStreamSql(sql.c_str(), &pQuery, msgBuf.data(), msgBuf.max_size()))
+        << sql << ": " << msgBuf.data();
+    qDestroyQuery(pQuery);
+  }
+
+  for (const char* trigger : rejected) {
+    const string sql = "create stream stream_streamdb.s_natural_limit " + string(trigger) +
+                       " from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+                       "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2";
+    array<char, 1024> msgBuf = {0};
+    SQuery*           pQuery = nullptr;
+    EXPECT_EQ(TSDB_CODE_PAR_INTER_VALUE_TOO_BIG,
+              pstTranslateCreateStreamSql(sql.c_str(), &pQuery, msgBuf.data(), msgBuf.max_size()))
+        << sql << ": " << msgBuf.data();
+    qDestroyQuery(pQuery);
+  }
+}
+
+TEST_F(ParserStreamTest, CreateStreamNormalizesNaturalOffsets) {
+  struct TestCase {
+    const char* trigger;
+    int64_t     expected;
+  };
+  const array<TestCase, 4> testCases = {{
+      {"interval(29d, 1n)", 2678400000LL},
+      {"period(29d, 1n)", 2678400000LL},
+      {"sliding(29d, 1n)", 2678400000LL},
+      {"interval('4n', '1q')", 8035200000LL},
+  }};
+
+  for (const TestCase& testCase : testCases) {
+    const string sql = "create stream stream_streamdb.s_natural_offset " + string(testCase.trigger) +
+                       " from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+                       "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2";
+    array<char, 1024> msgBuf = {0};
+    SQuery*           pQuery = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, pstTranslateCreateStreamSql(sql.c_str(), &pQuery, msgBuf.data(), msgBuf.max_size()))
+        << sql << ": " << msgBuf.data();
+    unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+
+    const SCreateStreamStmt*  pStmt = (const SCreateStreamStmt*)pQuery->pRoot;
+    const SStreamTriggerNode* pStreamTrigger = (const SStreamTriggerNode*)pStmt->pTrigger;
+    const SNode*              pWindow = pStreamTrigger->pTriggerWindow;
+    const SValueNode*         pOffset = nullptr;
+    if (QUERY_NODE_PERIOD_WINDOW == nodeType(pWindow)) {
+      pOffset = (const SValueNode*)((const SPeriodWindowNode*)pWindow)->pOffset;
+    } else {
+      const SIntervalWindowNode* pInterval = (const SIntervalWindowNode*)pWindow;
+      pOffset = (const SValueNode*)(pInterval->pOffset ? pInterval->pOffset : pInterval->pSOffset);
+    }
+
+    ASSERT_NE(pOffset, nullptr) << sql;
+    EXPECT_EQ(pOffset->datum.i, testCase.expected) << sql;
+    EXPECT_EQ(pOffset->unit, 'a') << sql;
+  }
+}
+
+TEST_F(ParserStreamTest, CreateStreamCanonicalizesUppercaseNaturalUnitsInRequest) {
+  struct TestCase {
+    const char* trigger;
+    int64_t     expectedValue;
+    char        expectedUnit;
+    int64_t     expectedOffset;
+    char        expectedOffsetUnit;
+    bool        period;
+  };
+  const array<TestCase, 3> testCases = {{
+      {"sliding(2y, 1Y)", 2, 'y', 31536000000LL, 'a', false},
+      {"sliding(2Y)", 2, 'y', 0, 0, false},
+      {"period(2Y)", 2, 'y', 0, 0, true},
+  }};
+
+  for (const TestCase& testCase : testCases) {
+    const string sql = "create stream stream_streamdb.s_uppercase_natural " + string(testCase.trigger) +
+                       " from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+                       "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2";
+    array<char, 1024> msgBuf = {0};
+    SQuery*           pQuery = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, pstTranslateCreateStreamSql(sql.c_str(), &pQuery, msgBuf.data(), msgBuf.max_size()))
+        << sql << ": " << msgBuf.data();
+    unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+
+    SCMCreateStreamReq req = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req))
+        << sql;
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+
+    if (testCase.period) {
+      ASSERT_EQ(req.triggerType, WINDOW_TYPE_PERIOD) << sql;
+      EXPECT_EQ(req.trigger.period.period, testCase.expectedValue) << sql;
+      EXPECT_EQ(req.trigger.period.periodUnit, testCase.expectedUnit) << sql;
+    } else {
+      ASSERT_EQ(req.triggerType, WINDOW_TYPE_INTERVAL) << sql;
+      EXPECT_EQ(req.trigger.sliding.sliding, testCase.expectedValue) << sql;
+      EXPECT_EQ(req.trigger.sliding.slidingUnit, testCase.expectedUnit) << sql;
+      EXPECT_EQ(req.trigger.sliding.soffset, testCase.expectedOffset) << sql;
+      EXPECT_EQ(req.trigger.sliding.soffsetUnit, testCase.expectedOffsetUnit) << sql;
+    }
+  }
+}
+
 TEST_F(ParserStreamTest, TestErrorTriggerWindow) {
   setAsyncFlag("-1");
 
@@ -6220,24 +7681,9 @@ TEST_F(ParserStreamTest, TestErrorTriggerWindow) {
 
   // invalid interval window
 
-  // interval without sliding
-  run("create stream stream_streamdb.s1 interval(1s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
-  run("create stream stream_streamdb.s1 interval(2s, 1s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
-
-  // invalid sliding unit
-  run("create stream stream_streamdb.s1 sliding(1n) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_SLIDING_UNIT);
-  run("create stream stream_streamdb.s1 sliding(1y) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_SLIDING_UNIT);
   run("create stream stream_streamdb.s1 sliding(0) from stream_triggerdb.stream_t1 into "
       "stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
       TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL);
-
-  // invalid sliding offset unit
-  run("create stream stream_streamdb.s1 sliding(1s, 1n) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_OFFSET_UNIT);
-  run("create stream stream_streamdb.s1 sliding(1s, 1y) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_OFFSET_UNIT);
-  run("create stream stream_streamdb.s1 sliding(1s, 1u) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_OFFSET_UNIT);
-  run("create stream stream_streamdb.s1 sliding(1s, 1d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_OFFSET_UNIT);
-  run("create stream stream_streamdb.s1 sliding(1s, 1w) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_OFFSET_UNIT);
-  run("create stream stream_streamdb.s1 sliding(1s, 1b) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_OFFSET_UNIT);
 
   // sliding offset bigger than sliding
   run("create stream stream_streamdb.s1 sliding(1s, 2s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
@@ -6684,28 +8130,35 @@ TEST_F(ParserStreamTest, TestPeriodOffset) {
 
   // Invalid offset cases
   // offset >= period (should fail)
-  run("create stream stream_streamdb.s1 period(1w, 7d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1w)", TSDB_CODE_PAR_INVALID_OFFSET_VALUE);
+  run("create stream stream_streamdb.s1 period(1w, 7d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1w)",
+      TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
 
   // offset > period (should fail)
-  run("create stream stream_streamdb.s1 period(1w, 8d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1w)", TSDB_CODE_PAR_INVALID_OFFSET_VALUE);
+  run("create stream stream_streamdb.s1 period(1w, 8d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1w)",
+      TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
 
   // Month unit offset overflow (>= 28 days for 1 month)
-  run("create stream stream_streamdb.s1 period(1n, 28d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1n)", TSDB_CODE_PAR_INVALID_OFFSET_VALUE);
+  run("create stream stream_streamdb.s1 period(1n, 28d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1n)",
+      TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
 
   // Month unit offset overflow (>= 56 days for 2 months)
-  run("create stream stream_streamdb.s1 period(2n, 56d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(2n)", TSDB_CODE_PAR_INVALID_OFFSET_VALUE);
+  run("create stream stream_streamdb.s1 period(2n, 56d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(2n)",
+      TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
 
   // Valid month offset (< 28 days)
   run("create stream stream_streamdb.s1 period(1n, 27d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1n)");
 
-  // Invalid offset unit (week not allowed for offset)
-  run("create stream stream_streamdb.s1 period(1n, 1w) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1n)", TSDB_CODE_PAR_INVALID_OFFSET_UNIT);
-
-  // Invalid offset unit (month not allowed for offset)
-  run("create stream stream_streamdb.s1 period(1y, 1n) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1y)", TSDB_CODE_PAR_INVALID_OFFSET_UNIT);
-
-  // Invalid offset unit (year not allowed for offset)
-  run("create stream stream_streamdb.s1 period(1y, 1y) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1y)", TSDB_CODE_PAR_INVALID_OFFSET_UNIT);
+  run("create stream stream_streamdb.s1 period(1n, 1w) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1n)");
+  run("create stream stream_streamdb.s1 period(1y, 1n) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1y)");
+  run("create stream stream_streamdb.s1 period(1y, 1y) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1y)",
+      TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
 
   // Multi-unit combinations
   // Week + various offset units
@@ -6878,6 +8331,19 @@ class FederatedFlagGuard {
  private:
   bool prev_;
 };
+
+class GlobalTimezoneStringGuard {
+ public:
+  explicit GlobalTimezoneStringGuard(const char* pTimezone) {
+    tstrncpy(previous_, tsTimezoneStr, sizeof(previous_));
+    tstrncpy(tsTimezoneStr, pTimezone, TD_TIMEZONE_LEN);
+  }
+
+  ~GlobalTimezoneStringGuard() { tstrncpy(tsTimezoneStr, previous_, TD_TIMEZONE_LEN); }
+
+ private:
+  char previous_[TD_TIMEZONE_LEN] = {0};
+};
 }  // namespace
 
 TEST_F(ParserStreamTest, NestedWindowRejectsExtTrigger) {
@@ -6917,6 +8383,7 @@ TEST_F(ParserStreamTest, TestFederatedStreamExtTriggerBasic) {
   // Pt-Followup F1: re-enabled to drive systematic fix of trigger-side EXT path.
   useDb("root", "stream_streamdb");
   FederatedFlagGuard guard(true);
+  GlobalTimezoneStringGuard timezoneGuard("UTC");
   registerExtPgMetrics();
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
@@ -6928,12 +8395,35 @@ TEST_F(ParserStreamTest, TestFederatedStreamExtTriggerBasic) {
     ASSERT_EQ(code, 0);
     EXPECT_GE(req.numOfExtSpecs, 1);
     EXPECT_TRUE(req.flags & CREATE_STREAM_FLAG_REF_EXT_SOURCE);
+    EXPECT_STREQ(req.timeConfig.timezone, "Asia/Shanghai");
+    EXPECT_EQ(req.timeConfig.firstDayOfWeek, 2);
+
+    SNode* pTriggerPlanNode = nullptr;
+    ASSERT_NE(req.triggerScanPlan, nullptr);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)req.triggerScanPlan, &pTriggerPlanNode));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> triggerPlanGuard(pTriggerPlanNode, nodesDestroyNode);
+    ASSERT_EQ(nodeType(pTriggerPlanNode), QUERY_NODE_PHYSICAL_SUBPLAN);
+    PstPhysicalTimeContextAudit triggerAudit = {&req.timeConfig, 0, 0, 0, false, false};
+    pstAuditPhysicalTimeContext(((const SSubplan*)pTriggerPlanNode)->pNode, &triggerAudit);
+    EXPECT_GT(triggerAudit.federatedNodes, 0);
+
+    SNode* pCalcPlanNode = nullptr;
+    ASSERT_NE(req.calcPlan, nullptr);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)req.calcPlan, &pCalcPlanNode));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> calcPlanGuard(pCalcPlanNode, nodesDestroyNode);
+    ASSERT_EQ(nodeType(pCalcPlanNode), QUERY_NODE_PHYSICAL_PLAN);
+    PstPhysicalTimeContextAudit calcAudit = {&req.timeConfig, 0, 0, 0, false, false};
+    pstAuditQueryPlanTimeContext((const SQueryPlan*)pCalcPlanNode, &calcAudit);
+    EXPECT_TRUE(calcAudit.timezoneFolded);
+    EXPECT_TRUE(calcAudit.firstDayOfWeekFolded);
     tFreeSCMCreateStreamReq(&req);
   });
-  runAsyncOnly("create stream stream_streamdb.s_fed_t1 interval(10m) sliding(10m) "
-      "from ext_pg.metrics "
+  runAsyncOnly(
+      "create stream stream_streamdb.s_fed_t1 interval(10m) sliding(10m) "
+      "from ext_pg.metrics stream_options(config(timezone='Asia/Shanghai', firstDayOfWeek=2)) "
       "into stream_outdb.stream_out "
-      "as select _twstart ts, count(*) cnt from stream_querydb.stream_t2 "
+      "as select _twstart ts, timezone() as frozen_timezone, "
+      "first_day_of_week() as frozen_fdow, count(*) cnt from stream_querydb.stream_t2 "
       "where ts >= _twstart and ts < _twend");
 #endif
 }

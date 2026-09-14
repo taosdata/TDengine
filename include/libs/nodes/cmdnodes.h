@@ -1193,8 +1193,26 @@ typedef struct SStreamNotifyOptions {
   int64_t    notifyType;
 } SStreamNotifyOptions;
 
+typedef struct SStreamSqlSpan {
+  int32_t begin;  // inclusive byte offset in SParseContext.pSql
+  int32_t end;    // exclusive byte offset in SParseContext.pSql
+} SStreamSqlSpan;
+
+typedef struct SStreamCreateTimeInfo {
+  // pNonConfigOptionSpans and timezone are owned; do not shallow-copy this struct.
+  bool              hasTimezone;
+  bool              hasFirstDayOfWeek;
+  SStreamSqlSpan    timezoneValue;           // {-1, -1} when absent
+  SStreamSqlSpan    firstDayOfWeekValue;     // {-1, -1} when absent
+  SStreamSqlSpan    streamOptions;           // {-1, -1} when absent
+  int32_t           streamOptionsInsertPos;  // -1 when streamOptions is present
+  SArray*           pNonConfigOptionSpans;   // owned SArray<SStreamSqlSpan>
+  SStreamTimeConfig config;
+  timezone_t        timezone;  // owned timezone handle
+} SStreamCreateTimeInfo;
+
 typedef struct SCreateStreamStmt {
-  ENodeType  type;
+  ENodeType              type;
   char       streamDbName[TSDB_DB_NAME_LEN];
   char       streamName[TSDB_TABLE_NAME_LEN];
   char       targetDbName[TSDB_DB_NAME_LEN];
@@ -1205,6 +1223,7 @@ typedef struct SCreateStreamStmt {
   SNode*     pSubtable;
   SNodeList* pTags;  // SStreamTagDefNode
   SNodeList* pCols;  // SColumnDefNode
+  SStreamCreateTimeInfo* pTimeInfo;
   int8_t     nodelayCreateSubtable;  // 1 = create sub-tables at stream create; 0 = default
 } SCreateStreamStmt;
 

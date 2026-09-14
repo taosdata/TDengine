@@ -555,6 +555,7 @@ int32_t  doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnC
                        const char *pMsg, STrans **pTrans1);
 int32_t  mndPersistTransLog(SStreamObj *pStream, STrans *pTrans, int32_t status);
 SSdbRaw *mndStreamActionEncode(SStreamObj *pStream);
+int32_t  mndValidateStreamTimeConfig(const SCMCreateStreamReq* pCreate);
 
 int32_t mndGetStreamObj(SMnode *pMnode, int64_t streamId, SStreamObj **pStream);
 int32_t mndCheckForSnode(SMnode *pMnode, SDbObj *pSrcDb);

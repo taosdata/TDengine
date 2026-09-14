@@ -782,6 +782,116 @@ TEST(NodesCollectTest, collectColumnsAppendFailureDoesNotDoubleFree) {
   EXPECT_EQ(pCols, nullptr);
 }
 
+static SNode* makeNamedCollectNode(ENodeType type, const char* pName, int32_t funcId = 0) {
+  SNode* pNode = nullptr;
+  if (TSDB_CODE_SUCCESS != nodesMakeNode(type, &pNode)) {
+    return nullptr;
+  }
+  if (QUERY_NODE_COLUMN == type) {
+    SColumnNode* pColumn = (SColumnNode*)pNode;
+    pColumn->colType = COLUMN_TYPE_COLUMN;
+    tstrncpy(pColumn->colName, pName, sizeof(pColumn->colName));
+  } else {
+    SFunctionNode* pFunction = (SFunctionNode*)pNode;
+    pFunction->funcId = funcId;
+    tstrncpy(pFunction->functionName, pName, sizeof(pFunction->functionName));
+  }
+  return pNode;
+}
+
+static bool collectEveryFunction(int32_t funcId) {
+  (void)funcId;
+  return true;
+}
+
+static SSelectStmt* makeCollectSelect(const char* pColumnName, const char* pFunctionName, int32_t funcId) {
+  SSelectStmt* pSelect = nullptr;
+  if (TSDB_CODE_SUCCESS != nodesMakeNode(QUERY_NODE_SELECT_STMT, (SNode**)&pSelect)) {
+    return nullptr;
+  }
+  if (TSDB_CODE_SUCCESS !=
+      nodesListMakeStrictAppend(&pSelect->pProjectionList, makeNamedCollectNode(QUERY_NODE_COLUMN, pColumnName))) {
+    nodesDestroyNode((SNode*)pSelect);
+    return nullptr;
+  }
+  if (TSDB_CODE_SUCCESS !=
+      nodesListMakeStrictAppend(&pSelect->pProjectionList,
+                                makeNamedCollectNode(QUERY_NODE_FUNCTION, pFunctionName, funcId))) {
+    nodesDestroyNode((SNode*)pSelect);
+    return nullptr;
+  }
+  return pSelect;
+}
+
+static SSelectStmt* makeOuterCollectSelect() {
+  SSelectStmt* pOuter = makeCollectSelect("outer_col", "outer_func", 1);
+  if (pOuter == nullptr) {
+    return nullptr;
+  }
+
+  STempTableNode* pTempTable = nullptr;
+  if (TSDB_CODE_SUCCESS != nodesMakeNode(QUERY_NODE_TEMP_TABLE, (SNode**)&pTempTable)) {
+    nodesDestroyNode((SNode*)pOuter);
+    return nullptr;
+  }
+  SSetOperator* pSet = nullptr;
+  if (TSDB_CODE_SUCCESS != nodesMakeNode(QUERY_NODE_SET_OPERATOR, (SNode**)&pSet)) {
+    nodesDestroyNode((SNode*)pTempTable);
+    nodesDestroyNode((SNode*)pOuter);
+    return nullptr;
+  }
+  if (TSDB_CODE_SUCCESS !=
+          nodesListMakeStrictAppend(&pSet->pProjectionList, makeNamedCollectNode(QUERY_NODE_COLUMN, "inner_set_col")) ||
+      TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pSet->pProjectionList,
+                                                     makeNamedCollectNode(QUERY_NODE_FUNCTION, "inner_set_func", 2))) {
+    nodesDestroyNode((SNode*)pSet);
+    nodesDestroyNode((SNode*)pTempTable);
+    nodesDestroyNode((SNode*)pOuter);
+    return nullptr;
+  }
+  pTempTable->pSubquery = (SNode*)pSet;
+  pOuter->pFromTable = (SNode*)pTempTable;
+
+  SSelectStmt* pScalarSubquery = makeCollectSelect("inner_scalar_col", "inner_scalar_func", 3);
+  if (pScalarSubquery == nullptr) {
+    nodesDestroyNode((SNode*)pOuter);
+    return nullptr;
+  }
+  if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pOuter->pSubQueries, (SNode*)pScalarSubquery)) {
+    nodesDestroyNode((SNode*)pOuter);
+    return nullptr;
+  }
+  return pOuter;
+}
+
+TEST(NodesCollectTest, columnsStayWithinOuterQueryBlock) {
+  std::unique_ptr<SNode, void (*)(SNode*)> selectGuard((SNode*)makeOuterCollectSelect(), nodesDestroyNode);
+  ASSERT_NE(selectGuard.get(), nullptr);
+
+  SNodeList* pColumns = nullptr;
+  ASSERT_EQ(
+      nodesCollectColumns((SSelectStmt*)selectGuard.get(), SQL_CLAUSE_FROM, nullptr, COLLECT_COL_TYPE_ALL, &pColumns),
+      TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNodeList, void (*)(SNodeList*)> columnsGuard(pColumns, nodesDestroyList);
+  ASSERT_NE(pColumns, nullptr);
+  ASSERT_EQ(LIST_LENGTH(pColumns), 1);
+  EXPECT_STREQ(((SColumnNode*)nodesListGetNode(pColumns, 0))->colName, "outer_col");
+}
+
+TEST(NodesCollectTest, functionsStayWithinOuterQueryBlock) {
+  std::unique_ptr<SNode, void (*)(SNode*)> selectGuard((SNode*)makeOuterCollectSelect(), nodesDestroyNode);
+  ASSERT_NE(selectGuard.get(), nullptr);
+
+  SNodeList* pFunctions = nullptr;
+  ASSERT_EQ(
+      nodesCollectFuncs((SSelectStmt*)selectGuard.get(), SQL_CLAUSE_FROM, nullptr, collectEveryFunction, &pFunctions),
+      TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNodeList, void (*)(SNodeList*)> functionsGuard(pFunctions, nodesDestroyList);
+  ASSERT_NE(pFunctions, nullptr);
+  ASSERT_EQ(LIST_LENGTH(pFunctions), 1);
+  EXPECT_STREQ(((SFunctionNode*)nodesListGetNode(pFunctions, 0))->functionName, "outer_func");
+}
+
 TEST_F(NodesCloneTest, physiPartition) {
   registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
     ASSERT_EQ(nodeType(pSrc), nodeType(pDst));

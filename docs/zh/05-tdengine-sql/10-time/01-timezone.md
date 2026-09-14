@@ -89,7 +89,7 @@ TDengine 采用五层时区优先级体系，高层覆盖低层：
 
 | 优先级 | 名称 | 设定方式 | 说明 |
 | --- | --- | --- | --- |
-| 最高 | SQL 级 | 函数时区参数（如 `TO_ISO8601(ts, '+09:00')`）；`TO_ISO8601` IANA 参数 `v3.4.2`；流任务 `TIMEZONE` 子句 `v3.4.3` | 仅影响本条 SQL 或本流任务 |
+| 最高 | SQL 级 | 函数时区参数（如 `TO_ISO8601(ts, '+09:00')`）；`TO_ISO8601` IANA 参数 `v3.4.2`；流任务 `STREAM_OPTIONS(CONFIG(...))` `v3.4.3` | 函数参数仅影响本条 SQL；流 CONFIG 在创建时固化到单个流 |
 | 高 | 连接级 | C API `taos_options_connection`；`SET TIMEZONE` `v3.4.2` | 影响当前连接的所有 SQL |
 | 中 | 客户端全局 | 客户端侧 `taos.cfg` 中 `timezone` | 仅影响客户端本地时间展示 |
 | 低 | 服务端全局 | 服务端侧 `taos.cfg` 中 `timezone` | 连接未设时区时服务端计算的回退 |
@@ -344,120 +344,83 @@ INTERVAL(2w)   -- 双周窗口（自 `v3.4.2`）
 
 **闰年/变长月**：窗口宽度自动适应实际天数（如 2 月窗口 28 或 29 天）。`FILL` 填充边界逐月/逐季推进。
 
-## 流式计算时区
+## 流式计算时间配置
 
-### 流任务 TIMEZONE 子句（自 `v3.4.3`）
+### 流 CONFIG（自 `v3.4.3`）
 
-`v3.4.3` 之前，流式计算触发侧自然时间边界对齐始终使用服务端全局时区，无法为单个流任务指定独立时区。`v3.4.3` 起新增 `TIMEZONE` 子句，为流任务指定独立时区，适用于 **所有触发类型**：
+流不存在独立的 `TIMEZONE` 子句；只能使用 `STREAM_OPTIONS(CONFIG(...))` 配置流时间上下文：
 
 ```sql
--- PERIOD 触发：东京时区每周触发
-CREATE STREAM weekly_tokyo TRIGGER PERIOD(1w) TIMEZONE 'Asia/Tokyo'
-  INTO tokyo_weekly AS SELECT AVG(current) FROM meters;
+-- PERIOD：季度对齐使用固化的完整配置。
+CREATE STREAM quarterly_tokyo PERIOD(1q)
+  STREAM_OPTIONS(CONFIG(timezone = 'Asia/Tokyo', firstDayOfWeek = 1))
+  INTO tokyo_quarterly AS SELECT CAST(_tlocaltime / 1000000 AS TIMESTAMP) AS ts,
+    AVG(current) FROM meters;
 
--- SLIDING 触发：纽约时区每季度滑动
-CREATE STREAM slide_ny TRIGGER SLIDING(1q) TIMEZONE 'America/New_York'
-  FROM meters
+-- 独立 SLIDING：v3.4.3 起支持自然单位。
+CREATE STREAM slide_ny SLIDING(1q) FROM meters
+  STREAM_OPTIONS(CONFIG(timezone = 'America/New_York', firstDayOfWeek = 0))
   INTO ny_quarterly AS SELECT _tprev_ts, _tcurrent_ts, AVG(current) FROM %%trows;
 
--- INTERVAL 触发：伦敦时区月窗口
-CREATE STREAM monthly_uk TRIGGER INTERVAL(1n) SLIDING(1w) TIMEZONE 'Europe/London'
-  FROM meters
-  INTO uk_monthly AS SELECT _wstart, _wend, AVG(current) FROM %%trows;
+-- 翻滚 INTERVAL：省略 SLIDING 时以 interval_val 为步长。
+CREATE STREAM monthly_uk INTERVAL(1n) FROM meters
+  STREAM_OPTIONS(CONFIG(timezone = 'Europe/London', firstDayOfWeek = 1))
+  INTO uk_monthly AS SELECT _twstart, _twend, AVG(current) FROM %%trows;
 
--- EVENT 触发：计算侧使用东京时区
-CREATE STREAM event_tokyo TRIGGER EVENT_WINDOW(START WITH voltage > 220 END WITH voltage <= 220)
-  TIMEZONE 'Asia/Tokyo'
-  FROM meters PARTITION BY tbname
-  INTO event_out AS SELECT _twstart, _twend, AVG(current) FROM %%trows;
+-- 显式步长 INTERVAL：sliding 值可以大于 interval_val。
+CREATE STREAM fixed_slide INTERVAL(1h) SLIDING(2h) FROM meters
+  STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1))
+  INTO fixed_out AS SELECT _twstart, _twend, AVG(current) FROM %%trows;
 ```
 
-**固化行为**：`TIMEZONE` 在创建时固化到流元数据。后续修改全局时区不影响已有流任务。
+`timezone` 为字符串，`firstDayOfWeek` 为 `0..6` 的整数。CONFIG 键名大小写不敏感，但只接受 `timezone` 和 `firstDayOfWeek` 这两个规范名；别名和 `CONFIG()` 均被拒绝。重复出现时每个键独立地以最后一个值为准；缺少某个键时，该键继承当前连接的有效值。
 
-**未指定 TIMEZONE 时**：按连接时区 → 服务端全局时区 → OS 时区的顺序解析后固化。
+创建时，完整键值对统一校验并规范化一次，然后持久化、固化。新流 SQL 恰好保存一个完整规范的 `CONFIG(timezone = '...', firstDayOfWeek = N)` 块。生命周期操作、重启、`SHOW CREATE`、`INS_STREAMS` SQL、导出和恢复都会保留它。要改变任一值必须重建流。旧流在离线升级后保留 NULL 时间元数据、未注入 CONFIG 的原始 SQL，以及原有动态运行时回退行为。
 
-### 流式计算时区的影响
+### 流时间配置的影响
 
-| 影响位置 | 说明 |
-| --- | --- |
-| 触发侧（PERIOD/SLIDING/INTERVAL） | 自然单位（d/w/n/q/y）的日历边界对齐使用固化时区 |
-| 计算侧（AS subquery） | INTERVAL 自然单位窗口切分使用固化时区和 firstDayOfWeek |
+固化的时区和每周首日会在适用处参与流日历对齐。PERIOD 和独立 SLIDING 仍各自使用原有调度器，不能认为二者使用 INTERVAL 的边界算法。`w` 的周边界由固化的 `firstDayOfWeek` 决定；`q` 会规范化为 `3n`。
 
-### 流触发自然单位支持
+### 流触发单位矩阵
 
-以下表格列出 PERIOD、SLIDING、INTERVAL 三种触发类型支持的时间单位及其版本：
+| 位置 | 原有单位 | `v3.4.3` 正式支持或扩展规则 | 说明 |
+| --- | --- | --- | --- |
+| `PERIOD(period_time)` | `a/s/m/h/d/w/n/y`；源码已能解析 `q` | 将 `q` 纳入正式支持和回归保证 | 使用自己的调度器；`q` 为 `3n`。 |
+| 独立 `SLIDING(sliding_val)` | `a/s/m/h/d/w` | 新增 `n/q/y` | 使用自己的调度器；`q` 为 `3n`。 |
+| `INTERVAL(interval_val)` | `a/s/m/h` | 新增 `d/w/n/q/y` | 可省略 `SLIDING`，形成翻滚窗口。 |
+| 显式 `INTERVAL ... SLIDING(sliding_val)` | `a/s/m/h/d/w` | 拒绝 `n/q/y` | 显式 sliding 值可以大于 interval_val。 |
 
-**PERIOD 触发**
+`PERIOD(period_time[, offset_time])`、独立 `SLIDING(sliding_val[, offset_time])`
+和 `INTERVAL(interval_val[, interval_offset])` 的 offset 均复用普通查询
+INTERVAL 的接受范围、规范化和合法性比较。它们拒绝 `AUTO` 和负值，且 offset
+必须严格小于对应基值。比较前先将 `q` 规范化为 `3n`；自然月与其他单位混合
+比较时按每月 28 天保守换算。因此 `PERIOD(1n, 27d)` 合法，
+`SLIDING(1q, 83d)` 合法，而 `INTERVAL(1n, 28d)`、
+`PERIOD(1w, AUTO)` 和负 offset 非法。自然单位 INTERVAL 边界在适用处使用
+固化时间配置；PERIOD 和独立 SLIDING 仍使用各自的调度器。
 
-| 单位 | 含义 | 版本 |
-| --- | --- | --- |
-| `a` | 毫秒 | 已支持 |
-| `s` | 秒 | 已支持 |
-| `m` | 分钟 | 已支持 |
-| `h` | 小时 | 已支持 |
-| `d` | 天 | 已支持 |
-| `w` | 周 | 已支持 |
-| `n` | 月 | 已支持 |
-| `y` | 年 | 已支持 |
-| `q` | 季度 | `v3.4.3` |
+### 平台、TSMA 与升级约束
 
-**offset 示例**
+流只固化时区标识，不固化或分发 tzdb 规则。运行节点无法加载该标识时，流
+进入失败状态且不回退到服务端全局时区、操作系统时区或 UTC；修复节点时区
+数据后，由现有重试或重新部署机制恢复。完整 IANA/DST 语义沿用 Linux/macOS
+已有时区后端，本特性不扩展 Windows 时区能力。
+
+`CREATE TSMA` 生成的 backing stream 不使用本特性：其时间配置为空，
+`ins_streams` 的 `timezone` 和 `first_day_of_week` 为 NULL，SQL 保持
+`CREATE TSMA`。不能仅凭 NULL 时间列把它识别为旧用户流。
+
+本版本只支持客户端和集群整体离线升级，不支持新旧版本混合运行。创建带新
+时间元数据的流后，不支持直接降级并继续使用原数据；回滚必须恢复升级前备份。
+
+### 查看流时间配置（自 `v3.4.3`）
 
 ```sql
-PERIOD(1w, 1d)       -- 每周二 00:00:00 触发
-PERIOD(1n, 14d)      -- 每月 15 日 00:00:00 触发
-PERIOD(1y, 31d)      -- 每年 2 月 1 日 00:00:00 触发
-PERIOD(1q)           -- 每季度首月 1 日 00:00:00 触发（自 `v3.4.3`）
-PERIOD(1q, 15d)      -- 每季度第 16 日触发（自 `v3.4.3`）
+SELECT stream_name, timezone, first_day_of_week, sql
+FROM information_schema.ins_streams;
 ```
 
-**SLIDING 触发**
-
-| 单位 | 含义 | 版本 |
-| --- | --- | --- |
-| `a` | 毫秒 | 已支持 |
-| `s` | 秒 | 已支持 |
-| `m` | 分钟 | 已支持 |
-| `h` | 小时 | 已支持 |
-| `d` | 天 | 已支持 |
-| `w` | 周 | 已支持 |
-| `n` | 月 | `v3.4.3` |
-| `q` | 季度 | `v3.4.3` |
-| `y` | 年 | `v3.4.3` |
-
-```sql
-SLIDING(1n)          -- 每月滑动触发（自 `v3.4.3`）
-SLIDING(1q)          -- 每季度滑动触发（自 `v3.4.3`）
-SLIDING(1y)          -- 每年滑动触发（自 `v3.4.3`）
-SLIDING(1q, 15d)     -- 每季度第 16 日滑动触发（自 `v3.4.3`）
-```
-
-**INTERVAL 窗口触发**（interval_val 和 sliding_val 均适用）：
-
-| 单位 | 含义 | 版本 |
-| --- | --- | --- |
-| `a` | 毫秒 | 已支持 |
-| `s` | 秒 | 已支持 |
-| `m` | 分钟 | 已支持 |
-| `h` | 小时 | 已支持 |
-| `d` | 天 | `v3.4.3` |
-| `w` | 周 | `v3.4.3` |
-| `n` | 月 | `v3.4.3` |
-| `q` | 季度 | `v3.4.3` |
-| `y` | 年 | `v3.4.3` |
-
-```sql
-INTERVAL(1n) SLIDING(1w)    -- 月窗口，每周滑动（自 `v3.4.3`）
-INTERVAL(1q) SLIDING(1n)    -- 季度窗口，每月滑动（自 `v3.4.3`）
-INTERVAL(1y) SLIDING(1q)    -- 年窗口，每季度滑动（自 `v3.4.3`）
-INTERVAL(1w) SLIDING(1d)    -- 周窗口，每天滑动（自 `v3.4.3`）
-```
-
-### 查看流任务时区（自 `v3.4.3`）
-
-```sql
-SELECT stream_name, timezone, first_day_of_week FROM information_schema.ins_streams;
-```
+新流的 `sql` 包含规范 CONFIG 块，时间列保存固化值。旧流保留 NULL 时间列、原始 SQL 和动态回退行为。
 
 ## 各场景时区来源速查
 
@@ -469,7 +432,7 @@ SELECT stream_name, timezone, first_day_of_week FROM information_schema.ins_stre
 | `TIMETRUNCATE`        | SQL 参数 → 连接 → 服务端全局 → OS | `d`/`w` 已支持；`n`/`q`/`y` 为 `v3.4.2`；时区字符串参数为 `v3.4.2` |
 | `INTERVAL` 查询窗口    | 连接 → 服务端全局 → OS | `d` 已支持；`w`/`n`/`q`/`y` 为 `v3.4.2` |
 | `SHOW` / `EXPLAIN`    | 连接 → 客户端全局 → OS | 连接级回退为 `v3.4.2` 起支持（此前仅用 OS 时区） |
-| 流式计算触发与计算      | 服务端全局 → OS；`v3.4.3` 起支持 `TIMEZONE` 子句 → 连接 → 服务端全局 → OS（创建时固化） | `v3.4.3` 前使用服务端时区；`v3.4.3` 起支持固化 |
+| 流式计算触发与计算      | `v3.4.3` 流 `CONFIG` → 缺少键时取当前连接值（创建时固化） | 新流持久化完整固化配置；旧流保留动态回退 |
 
 ## 配置参数一览
 
@@ -506,7 +469,7 @@ SELECT stream_name, timezone, first_day_of_week FROM information_schema.ins_stre
 | `INTERVAL` 查询 `w`/`n`/`q`/`y` 窗口         |      ❌      |    ✅     |    ✅     |
 | 普通列读取使用连接时区                        |      ❌      |    ✅     |    ✅     |
 | SHOW/EXPLAIN 使用连接时区                     |      ❌      |    ✅     |    ✅     |
-| 流任务 `TIMEZONE` 子句                       |      ❌      |    ❌     |    ✅     |
+| 流任务 `STREAM_OPTIONS(CONFIG(...))`         |      ❌      |    ❌     |    ✅     |
 | 流任务时区/firstDayOfWeek 固化                |      ❌      |    ❌     |    ✅     |
 | PERIOD 触发 `q` 季度                          |      ❌      |    ❌     |    ✅     |
 | SLIDING 触发 `n`/`q`/`y`                     |      ❌      |    ❌     |    ✅     |

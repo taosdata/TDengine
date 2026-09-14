@@ -109,6 +109,20 @@ add_test(
     COMMAND streamTriggerTaskTest
 )
 
+ADD_EXECUTABLE(streamMgmtTest streamMgmtTest.cpp)
+DEP_ext_gtest(streamMgmtTest)
+DEP_ext_cppstub(streamMgmtTest)
+TARGET_INCLUDE_DIRECTORIES(
+  streamMgmtTest
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/qcom"
+  PUBLIC "${TD_SOURCE_DIR}/include/common"
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+TARGET_LINK_LIBRARIES(streamMgmtTest PUBLIC taos os common executor function index new-stream)
+add_test(NAME streamMgmtTest COMMAND streamMgmtTest)
+
 ADD_EXECUTABLE(streamTaskStatsTest streamTaskStatsTest.cpp)
 DEP_ext_gtest(streamTaskStatsTest)
 DEP_ext_cppstub(streamTaskStatsTest)

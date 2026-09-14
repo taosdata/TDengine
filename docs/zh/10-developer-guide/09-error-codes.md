@@ -809,6 +809,8 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80007016 | Stream output table name calc failed  | 输出表名计算失败                         | 检查建流语句中输出表名规则是否正确，是否有 NULL 值存在 |
 | 0x80007017 | Stream vtable calculate need redeploy | 流式计算语句中的虚拟表的原始表分布发生变更 | 流会自动处理该错误，无需处理                           |
 | 0x80007018 | Stream info contains invalid JSON format messages | 流式计算内部编码兼容性问题 | 保留现场和日志，github 上报         |
+| 0x8000701E | Invalid stream time configuration | 流任务时区或一周起始日缺失或无效 | 修正 `STREAM_OPTIONS(CONFIG(...))` 配置后重新创建流 |
+| 0x8000701F | Failed to load stream timezone | 执行节点无法加载流任务配置的时区 | 安装所需时区数据，或改用节点支持的 IANA 时区 |
 | 0x80004100 | Stream task not exist                 | 流式计算任务不存在                    | 具体查看 server 端的错误日志       |
 | 0x80004118 | Stream rollup tag path is illegal     | ROLLUP BY 标签路径非法              | 检查并修正 rollup 标签路径         |
 | 0x80004119 | Invalid ROLLUP BY clause              | 流的 ROLLUP BY 子句非法             | 检查并修正建流语句                 |

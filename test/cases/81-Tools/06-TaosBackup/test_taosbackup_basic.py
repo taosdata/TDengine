@@ -1671,7 +1671,7 @@ class TestTaosBackupBasic:
         tdSql.execute_ignore_error("drop snode on dnode 1")
         tdSql.execute("create snode on dnode 1")
         tdSql.execute(
-            f"create stream if not exists dblog.{streamName} interval(1s) sliding(1s) "
+            f"create stream dblog.{streamName} interval(1s) sliding(1s) "
             f"from dblog.t1 into dblog.stream_out as "
             f"select _twstart as ts, avg(v) as avg_v from %%trows"
         )

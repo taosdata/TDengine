@@ -220,16 +220,24 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
     code = stTriggerTaskDeploy(pTask, &pDeploy->triggerTask->msg.trigger);
     if (code) {
       ST_TASK_ELOG("trigger task fail to deploy, error:%s", tstrerror(code));
-      TAOS_UNUSED(taosHashRemove(gStreamMgmt.taskMap, &pSrc->streamId, sizeof(pSrc->streamId) + sizeof(pSrc->taskId)));
+      if (code == TSDB_CODE_STREAM_TIMEZONE_LOAD_FAILED) {
+        (void)atomic_add_fetch_32(&pStream->taskNum, 1);
+        streamReleaseTask(taskAddr);
+        taskAddr = NULL;
+        code = TSDB_CODE_SUCCESS;
+      } else {
+        TAOS_UNUSED(
+            taosHashRemove(gStreamMgmt.taskMap, &pSrc->streamId, sizeof(pSrc->streamId) + sizeof(pSrc->taskId)));
+        streamReleaseTask(taskAddr);
+        taosMemoryFree(tdListPopHead(pStream->triggerList));
+        TAOS_CHECK_EXIT(code);
+      }
+    } else {
+      ST_TASK_DLOG("trigger task deploy succeed, tidx:%d flags:%" PRId64, pSrc->taskIdx, pTask->task.flags);
+
+      (void)atomic_add_fetch_32(&pStream->taskNum, 1);
       streamReleaseTask(taskAddr);
-      taosMemoryFree(tdListPopHead(pStream->triggerList));
-      TAOS_CHECK_EXIT(code);
     }
-
-    ST_TASK_DLOG("trigger task deploy succeed, tidx:%d flags:%" PRId64, pSrc->taskIdx, pTask->task.flags);
-
-    (void)atomic_add_fetch_32(&pStream->taskNum, 1);
-    streamReleaseTask(taskAddr);
   }
 
   if (pDeploy->runnerTasks) {

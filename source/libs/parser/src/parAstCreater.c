@@ -150,6 +150,9 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
   pCxt->placeholderNo = 0;
   pCxt->pPlaceholderValues = NULL;
   pCxt->errCode = TSDB_CODE_SUCCESS;
+  pCxt->lookaheadPos = -1;
+  pCxt->trailingTriviaPos = -1;
+  pCxt->pStreamTimeInfo = NULL;
 }
 
 static void trimEscape(SAstCreateContext* pCxt, SToken* pName, bool trimStar) {
@@ -1219,7 +1222,7 @@ SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) 
   CHECK_MAKE_NODE(val);
   if (pLiteral->type == TK_NK_STRING) {
     // like '100s' or "100d"
-    // check format: ^[0-9]+[smwbauhdny]$'
+    // check format: ^[0-9]+[smqwbauhdny]$'
     if (pLiteral->n < 4) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, pLiteral->z);
       nodesDestroyNode((SNode*)val);
@@ -1232,6 +1235,7 @@ SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) 
       case 'd':
       case 'h':
       case 'm':
+      case 'q':
       case 's':
       case 'u':
       case 'w':
@@ -8506,6 +8510,86 @@ _err:
   return NULL;
 }
 
+static SStreamCreateTimeInfo* getStreamCreateTimeInfo(SAstCreateContext* pCxt) {
+  if (pCxt->pStreamTimeInfo != NULL) {
+    return pCxt->pStreamTimeInfo;
+  }
+
+  pCxt->pStreamTimeInfo = taosMemoryCalloc(1, sizeof(SStreamCreateTimeInfo));
+  if (pCxt->pStreamTimeInfo == NULL) {
+    pCxt->errCode = terrno;
+    return NULL;
+  }
+  pCxt->pStreamTimeInfo->timezoneValue = (SStreamSqlSpan){-1, -1};
+  pCxt->pStreamTimeInfo->firstDayOfWeekValue = (SStreamSqlSpan){-1, -1};
+  pCxt->pStreamTimeInfo->streamOptions = (SStreamSqlSpan){-1, -1};
+  pCxt->pStreamTimeInfo->streamOptionsInsertPos = -1;
+  return pCxt->pStreamTimeInfo;
+}
+
+static SStreamSqlSpan streamSqlSpan(const SAstCreateContext* pCxt, const SToken* pFirst, const SToken* pLast) {
+  return (SStreamSqlSpan){.begin = (int32_t)(pFirst->z - pCxt->pQueryCxt->pSql),
+                          .end = (int32_t)(pLast->z + pLast->n - pCxt->pQueryCxt->pSql)};
+}
+
+static bool streamTokenEquals(const SToken* pToken, const char* pText) {
+  size_t len = strlen(pText);
+  return pToken->n == len && taosStrncasecmp(pToken->z, pText, len) == 0;
+}
+
+void setStreamConfigKeyword(SAstCreateContext* pCxt, const SToken* pKeyword) {
+  if (TSDB_CODE_SUCCESS != pCxt->errCode || streamTokenEquals(pKeyword, "config")) {
+    return;
+  }
+  pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                          "unknown STREAM_OPTIONS option: %.*s", pKeyword->n, pKeyword->z);
+}
+
+void setStreamConfigItem(SAstCreateContext* pCxt, const SToken* pKey, const SToken* pValue, bool timezoneKey,
+                         bool stringValue) {
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    return;
+  }
+
+  SStreamCreateTimeInfo* pInfo = getStreamCreateTimeInfo(pCxt);
+  if (pInfo == NULL) {
+    return;
+  }
+
+  if (timezoneKey) {
+    pInfo->hasTimezone = true;
+    pInfo->timezoneValue = streamSqlSpan(pCxt, pValue, pValue);
+    return;
+  }
+  if (!streamTokenEquals(pKey, "firstDayOfWeek")) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "unknown STREAM_OPTIONS CONFIG key: %.*s", pKey->n, pKey->z);
+    return;
+  }
+  if (stringValue) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "STREAM_OPTIONS CONFIG firstDayOfWeek requires an integer");
+    return;
+  }
+  pInfo->hasFirstDayOfWeek = true;
+  pInfo->firstDayOfWeekValue = streamSqlSpan(pCxt, pValue, pValue);
+}
+
+void setStreamOptionsSpan(SAstCreateContext* pCxt, const SToken* pFirst, const SToken* pLast) {
+  SStreamCreateTimeInfo* pInfo = getStreamCreateTimeInfo(pCxt);
+  if (pInfo != NULL) {
+    pInfo->streamOptions = streamSqlSpan(pCxt, pFirst, pLast);
+    pInfo->streamOptionsInsertPos = -1;
+  }
+}
+
+void setStreamOptionsInsertPos(SAstCreateContext* pCxt) {
+  SStreamCreateTimeInfo* pInfo = getStreamCreateTimeInfo(pCxt);
+  if (pInfo != NULL) {
+    pInfo->streamOptionsInsertPos = pCxt->lookaheadPos;
+  }
+}
+
 SNode* createStreamTagDefNode(SAstCreateContext* pCxt, SToken* pTagName, SDataType dataType, SNode* tagExpression) {
   SStreamTagDefNode* pTagDef = NULL;
   CHECK_PARSER_STATUS(pCxt);
@@ -8526,7 +8610,19 @@ _err:
 SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStreamTriggerOption* pOptionUnit) {
   CHECK_PARSER_STATUS(pCxt);
   SStreamTriggerOptions* pStreamOptions = (SStreamTriggerOptions*)pOptions;
+  if (pOptionUnit->type != STREAM_TRIGGER_OPTION_CONFIG) {
+    SStreamCreateTimeInfo* pInfo = getStreamCreateTimeInfo(pCxt);
+    CHECK_OUT_OF_MEM(pInfo);
+    if (pInfo->pNonConfigOptionSpans == NULL) {
+      pInfo->pNonConfigOptionSpans = taosArrayInit(1, sizeof(SStreamSqlSpan));
+      CHECK_OUT_OF_MEM(pInfo->pNonConfigOptionSpans);
+    }
+    SStreamSqlSpan span = streamSqlSpan(pCxt, &pOptionUnit->first, &pOptionUnit->last);
+    CHECK_OUT_OF_MEM(taosArrayPush(pInfo->pNonConfigOptionSpans, &span));
+  }
   switch (pOptionUnit->type) {
+    case STREAM_TRIGGER_OPTION_CONFIG:
+      break;
     case STREAM_TRIGGER_OPTION_CALC_NOTIFY_ONLY:
       if (pStreamOptions->calcNotifyOnly) {
         pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -8748,6 +8844,8 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode*
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
+  pStmt->pTimeInfo = pCxt->pStreamTimeInfo;
+  pCxt->pStreamTimeInfo = NULL;
 
   if (pOutTable && ((SStreamOutTableNode*)pOutTable)->pOutTable) {
     tstrncpy(pStmt->targetDbName, ((SRealTableNode*)((SStreamOutTableNode*)pOutTable)->pOutTable)->table.dbName,

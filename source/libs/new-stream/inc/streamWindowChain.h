@@ -66,6 +66,8 @@ typedef struct {
   int64_t          leafEventTypes;
   int64_t          leafNotifyEventTypes;
   int64_t          maxDelayNs;
+  timezone_t       timezone; /* Borrowed from the trigger task. */
+  int8_t           firstDayOfWeek;
   const SNodeList *pEventStartCondCols; /* Borrowed from the trigger task. */
   const SNodeList *pEventEndCondCols;   /* Borrowed from the trigger task. */
 } SWindowChainPolicy;
@@ -115,7 +117,8 @@ bool    stWindowChainGetInputRetentionRange(const SWindowChainState *pState, STi
 bool    stWindowChainGetFirstOpenCountLeafRange(const SWindowChainState *pState, STimeWindow *pRange);
 bool    stWindowChainCanRepairCountDisorder(const SWindowChainState *pState, const STimeWindow *pRange);
 void    stWindowChainSuppressOpenCountLeafBefore(SWindowChainState *pState, TSKEY firstUnaffectedStart);
-int32_t stWindowChainBuildRecalcImpactDomain(const SStreamWindowPlan *pPlan, int64_t gid, const STimeWindow *pScanRange,
+int32_t stWindowChainBuildRecalcImpactDomain(const SStreamWindowPlan *pPlan, int64_t gid,
+                                             const SWindowChainPolicy *pPolicy, const STimeWindow *pScanRange,
                                              const STimeWindow *pCalcRange, SRecalcImpactDomain *pDomain);
 int32_t stCloneRecalcImpactDomain(const SRecalcImpactDomain *pSrc, SRecalcImpactDomain *pDst);
 int32_t stUnionRecalcImpactDomains(const SRecalcImpactDomain *pLeft, const SRecalcImpactDomain *pRight,

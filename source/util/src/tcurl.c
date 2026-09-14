@@ -736,7 +736,7 @@ int32_t tcurlEnsureAlive(SCURL* scurl) {
 }
 
 static int32_t tcurlSendLocked(SCURL* scurl, const void* buffer, size_t buflen, size_t* sent, curl_off_t fragsize,
-                               unsigned int flags) {
+                               unsigned int flags, int64_t deadlineMs) {
   if (scurl == NULL) {
     return TSDB_CODE_FAILED;
   }
@@ -746,8 +746,17 @@ static int32_t tcurlSendLocked(SCURL* scurl, const void* buffer, size_t buflen, 
       return code != TSDB_CODE_SUCCESS ? code : TSDB_CODE_FAILED;
     }
   }
-  CURLcode res = curl_ws_send(scurl->pConn, buffer, buflen, sent, fragsize, flags);
-  if (res != CURLE_OK) {
+  CURLcode res = CURLE_OK;
+  while (true) {
+    res = curl_ws_send(scurl->pConn, buffer, buflen, sent, fragsize, flags);
+    if (res == CURLE_OK || (res == CURLE_AGAIN && *sent > 0)) {
+      break;
+    }
+    if (res != CURLE_AGAIN || tcurlWaitWritable(scurl->pConn, deadlineMs) != TSDB_CODE_SUCCESS) {
+      break;
+    }
+  }
+  if (res != CURLE_OK && !(res == CURLE_AGAIN && *sent > 0)) {
     // Only the caller knows the complete message boundary. Reconnecting here
     // could resume a fragmented message on a new WebSocket connection.
     uError("[curl]send to:%s failed, res:%d", scurl->url, res);
@@ -762,12 +771,13 @@ static int32_t tcurlSendLocked(SCURL* scurl, const void* buffer, size_t buflen, 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tcurlSendFrameLocked(SCURL* scurl, const char* buffer, size_t frameLen, unsigned int flags) {
+static int32_t tcurlSendFrameLocked(SCURL* scurl, const char* buffer, size_t frameLen, unsigned int flags,
+                                    int64_t deadlineMs) {
   size_t frameSentLen = 0;
   while (frameSentLen < frameLen) {
-    size_t nbytes = 0;
+    size_t  nbytes = 0;
     int32_t code = tcurlSendLocked(scurl, buffer + frameSentLen, frameLen - frameSentLen, &nbytes,
-                                   frameSentLen == 0 ? (curl_off_t)frameLen : 0, flags);
+                                   frameSentLen == 0 ? (curl_off_t)frameLen : 0, flags, deadlineMs);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -789,15 +799,16 @@ static int32_t tcurlSendMessageLocked(SCURL* scurl, const void* buffer, size_t b
     frameSize = buflen;
   }
 
-  size_t sentLen = 0;
+  size_t  sentLen = 0;
+  int64_t deadlineMs = taosGetMonoTimestampMs() + NOTIFICATION_SEND_TIMEOUT_SECONDS * 1000;
   while (sentLen < buflen) {
-    size_t frameLen = TMIN(frameSize, buflen - sentLen);
+    size_t       frameLen = TMIN(frameSize, buflen - sentLen);
     unsigned int flags = CURLWS_TEXT | CURLWS_OFFSET;
     if (sentLen + frameLen < buflen) {
       flags |= CURLWS_CONT;
     }
 
-    int32_t code = tcurlSendFrameLocked(scurl, (const char*)buffer + sentLen, frameLen, flags);
+    int32_t code = tcurlSendFrameLocked(scurl, (const char*)buffer + sentLen, frameLen, flags, deadlineMs);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
