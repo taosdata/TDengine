@@ -571,6 +571,30 @@ TEST(TcurlSendTest, RetryAfterSocketBecomesWritable) {
   gCurlActiveSocket = CURL_SOCKET_BAD;
 }
 
+TEST(TcurlSendTest, MessageRetryAfterSocketBecomesWritable) {
+  int sockets[2] = {-1, -1};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+  Stub wsSendStub;
+  Stub getinfoStub;
+  wsSendStub.set(curl_ws_send, RetryCurlWsSend);
+  getinfoStub.set(curl_easy_getinfo, MockCurlEasyGetinfo);
+
+  SCURL conn = {};
+  conn.pConn = reinterpret_cast<CURL*>(1);
+  conn.url = const_cast<char*>("ws://unused/message-retry");
+  const char payload[] = "payload";
+  gCurlWsSendCalls = 0;
+  gCurlActiveSocket = sockets[0];
+
+  EXPECT_EQ(tcurlSendMessage(&conn, payload, sizeof(payload) - 1, sizeof(payload) - 1), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCurlWsSendCalls, 2);
+
+  close(sockets[0]);
+  close(sockets[1]);
+  gCurlActiveSocket = CURL_SOCKET_BAD;
+}
+
 TEST(TcurlSendTest, RetrySupportsSocketOutsideSelectFdSet) {
   struct rlimit originalLimit = {};
   ASSERT_EQ(getrlimit(RLIMIT_NOFILE, &originalLimit), 0);

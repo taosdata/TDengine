@@ -1105,6 +1105,10 @@ if(${TD_WINDOWS})
         VERBATIM
     )
 else()
+    find_program(_EXT_CURL_PATCH_EXECUTABLE NAMES patch)
+    if(NOT _EXT_CURL_PATCH_EXECUTABLE)
+        message(FATAL_ERROR "The patch utility is required to build ext_curl")
+    endif()
     string(JOIN " " _c_flags ${_c_flags_list})
     set(_ext_curl_configure_env
         "CFLAGS=${_c_flags}"
@@ -1141,6 +1145,8 @@ else()
         DEPENDS ext_ssl
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
+        PATCH_COMMAND
+            COMMAND sh -c "grep -q sendbuf_payload lib/ws.h && grep -q 'buffer + ws->sendbuf_payload' lib/ws.c || '${_EXT_CURL_PATCH_EXECUTABLE}' -p1 -i '${TD_SOURCE_DIR}/cmake/curl-8.11.1-websocket-send.patch'"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND

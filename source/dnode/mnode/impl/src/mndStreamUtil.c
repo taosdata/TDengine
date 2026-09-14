@@ -1434,6 +1434,22 @@ int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj* pStream, SSDataBloc
       colDataSetVal(pColInfo, numOfRows, (const char*)&metricView.historyProgressPct, !metricView.historyProgressValid);
   TSDB_CHECK_CODE(code, lino, _end);
 
+  bool timeConfigMissing = pStream->pCreate->timeConfig.timezone[0] == '\0';
+  char timezone[TD_TIMEZONE_LEN + VARSTR_HEADER_SIZE] = {0};
+  if (!timeConfigMissing) {
+    STR_WITH_MAXSIZE_TO_VARSTR(timezone, pStream->pCreate->timeConfig.timezone, sizeof(timezone));
+  }
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, timeConfigMissing ? NULL : timezone, timeConfigMissing);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  int32_t firstDayOfWeek = pStream->pCreate->timeConfig.firstDayOfWeek;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, timeConfigMissing ? NULL : (const char*)&firstDayOfWeek, timeConfigMissing);
+  TSDB_CHECK_CODE(code, lino, _end);
+
 _end:
   if (code) {
     mError("error happens when build stream attr result block, lino:%d, code:%s", lino, tstrerror(code));

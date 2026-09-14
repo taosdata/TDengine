@@ -205,6 +205,8 @@ static const SSysDbTableSchema streamSchema[] = {
     {.name = "output_rows_per_sec_1m", .bytes = 8, .type = TSDB_DATA_TYPE_DOUBLE, .sysInfo = false},
     {.name = "runner_result_latency_avg_1m_ms", .bytes = 8, .type = TSDB_DATA_TYPE_DOUBLE, .sysInfo = false},
     {.name = "history_progress_pct", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "timezone", .bytes = TD_TIMEZONE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "first_day_of_week", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
 };
 
 static const SSysDbTableSchema streamTaskSchema[] = {
