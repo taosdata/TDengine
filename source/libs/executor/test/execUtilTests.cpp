@@ -1,7 +1,9 @@
 #include "gtest/gtest.h"
 
 #include <algorithm>
+#include <array>
 #include <cstring>
+#include <map>
 #include <new>
 #include <string>
 #include <tuple>
@@ -10,7 +12,9 @@
 #include "executil.h"
 #include "executor.h"
 #include "executorInt.h"
+#include "filter.h"
 #include "functionMgt.h"
+#include "interpResultStore.h"
 #include "libs/new-stream/dataSink.h"
 #include "operator.h"
 #include "osEnv.h"
@@ -20,7 +24,10 @@
 #include "querytask.h"
 #include "streamMsg.h"
 #include "stub.h"
+#include "tcompare.h"
 #include "tdatablock.h"
+#include "ttime.h"
+#include "tsort.h"
 #include "windowfunc.h"
 
 extern "C" SHashObj *gStreamGrpTableHash;
@@ -111,6 +118,11 @@ extern "C" int32_t createStreamMultiGrpTableListInfo(SScanPhysiNode *pScanNode, 
                                                      SReadHandle *pHandle, STableListInfo *pTableListInfo,
                                                      SNode *pTagCond, SNode *pTagIndexCond, SExecTaskInfo *pTaskInfo,
                                                      SHashObj *groupIdMap);
+extern "C" int32_t doTableScanNext(SOperatorInfo* pOperator,
+                                    SSDataBlock** ppRes);
+extern "C" int32_t doTableMergeScanNext(SOperatorInfo* pOperator,
+                                         SSDataBlock** ppRes);
+extern "C" int32_t openSortMergeOperator(SOperatorInfo* pOperator);
 
 namespace {
 
@@ -326,6 +338,720 @@ SStreamContextPolicy *makeFetchProjectionPolicy(int64_t gid, int32_t paramIndex)
   return policy;
 }
 
+int32_t execRecordTestNext(SOperatorInfo* pOperator,
+                           SSDataBlock** ppBlock) {
+  *ppBlock = static_cast<SSDataBlock*>(pOperator->info);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t execRecordTestNextExt(SOperatorInfo* pOperator, SOperatorParam*,
+                              SSDataBlock** ppBlock) {
+  *ppBlock = static_cast<SSDataBlock*>(pOperator->info);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t execRecordTestLongJmpNext(SOperatorInfo* pOperator,
+                                  SSDataBlock**) {
+  T_LONG_JMP(pOperator->pTaskInfo->env, TSDB_CODE_FAILED);
+  return TSDB_CODE_FAILED;
+}
+
+int32_t execRecordTestPullDownstream(SOperatorInfo* pOperator,
+                                     SSDataBlock** ppBlock) {
+  return pOperator->pDownstream[0]->fpSet.getNextFn(
+      pOperator->pDownstream[0], ppBlock);
+}
+
+int32_t createInterpStoreSequenceBlock(uint64_t groupId,
+                                       int32_t firstValue,
+                                       int32_t rows,
+                                       SSDataBlock** ppBlock) {
+  SSDataBlock* pBlock = nullptr;
+  int32_t code = createDataBlock(&pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  SColumnInfoData col =
+      createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    return code;
+  }
+
+  code = blockDataEnsureCapacity(pBlock, rows);
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    return code;
+  }
+
+  SColumnInfoData* pCol =
+      static_cast<SColumnInfoData*>(taosArrayGet(pBlock->pDataBlock, 0));
+  for (int32_t i = 0; i < rows; ++i) {
+    int32_t value = firstValue + i;
+    code = colDataSetVal(pCol, i,
+                         reinterpret_cast<const char*>(&value), false);
+    if (code != TSDB_CODE_SUCCESS) {
+      blockDataDestroy(pBlock);
+      return code;
+    }
+  }
+
+  pBlock->info.rows = rows;
+  pBlock->info.id.groupId = groupId;
+  *ppBlock = pBlock;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t createInterpStoreTestBlock(uint64_t groupId, int32_t firstValue,
+                                   SSDataBlock** ppBlock) {
+  return createInterpStoreSequenceBlock(groupId, firstValue, 2,
+                                        ppBlock);
+}
+
+int32_t interpStoreFirstValue(const SSDataBlock* pBlock) {
+  SColumnInfoData* pCol =
+      static_cast<SColumnInfoData*>(taosArrayGet(pBlock->pDataBlock, 0));
+  return *reinterpret_cast<int32_t*>(colDataGetData(pCol, 0));
+}
+
+int32_t createInterpStoreVarBlock(uint64_t groupId, int32_t seed,
+                                  int32_t rows,
+                                  SSDataBlock** ppBlock) {
+  SSDataBlock* pBlock = nullptr;
+  int32_t code = createDataBlock(&pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  SColumnInfoData intCol =
+      createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  SColumnInfoData strCol =
+      createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 64, 2);
+  code = blockDataAppendColInfo(pBlock, &intCol);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = blockDataAppendColInfo(pBlock, &strCol);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    code = blockDataEnsureCapacity(pBlock, rows);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    return code;
+  }
+
+  SColumnInfoData* pInt = static_cast<SColumnInfoData*>(
+      taosArrayGet(pBlock->pDataBlock, 0));
+  SColumnInfoData* pStr = static_cast<SColumnInfoData*>(
+      taosArrayGet(pBlock->pDataBlock, 1));
+  if (pInt == nullptr || pStr == nullptr) {
+    blockDataDestroy(pBlock);
+    return terrno;
+  }
+
+  for (int32_t row = 0; row < rows; ++row) {
+    int32_t intValue = seed + row;
+    char strValue[64] = {0};
+    int32_t strLen = 24 + row % 16;
+    varDataSetLen(strValue, strLen);
+    memset(varDataVal(strValue), 'a' + (seed + row) % 26, strLen);
+    code = colDataSetVal(pInt, row,
+                         reinterpret_cast<const char*>(&intValue),
+                         row % 4 == 1);
+    if (code == TSDB_CODE_SUCCESS) {
+      code = colDataSetVal(pStr, row, strValue, row % 3 == 2);
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      blockDataDestroy(pBlock);
+      return code;
+    }
+  }
+
+  pBlock->info.rows = rows;
+  pBlock->info.window = {seed, seed + rows - 1};
+  pBlock->info.id.uid = groupId - 1;
+  pBlock->info.id.groupId = groupId;
+  pBlock->info.id.baseGId = groupId + 1;
+  pBlock->info.dataLoad = 1;
+  pBlock->info.scanFlag = 7;
+  pBlock->info.scanPhase = SCAN_PHASE_PREV;
+  pBlock->info.blankFill = true;
+  pBlock->info.pks[0].type = TSDB_DATA_TYPE_INT;
+  pBlock->info.pks[0].val = seed;
+  pBlock->info.pks[1].type = TSDB_DATA_TYPE_INT;
+  pBlock->info.pks[1].val = seed + rows - 1;
+  pBlock->info.version = seed + 1000;
+  pBlock->info.childId = seed + 2000;
+  pBlock->info.calWin = {seed - 1, seed + rows};
+  pBlock->info.watermark = seed + 3000;
+  tstrncpy(pBlock->info.parTbName, "interp_store_source",
+           sizeof(pBlock->info.parTbName));
+  *ppBlock = pBlock;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t setInterpStoreVarPks(SSDataBlock* pBlock,
+                             const char* pFirst,
+                             const char* pLast) {
+  uint32_t firstLen = (uint32_t)strlen(pFirst) + 1;
+  uint32_t lastLen = (uint32_t)strlen(pLast) + 1;
+  uint8_t* pFirstCopy =
+      static_cast<uint8_t*>(taosMemoryMalloc(firstLen));
+  if (pFirstCopy == nullptr) {
+    return terrno;
+  }
+  uint8_t* pLastCopy =
+      static_cast<uint8_t*>(taosMemoryMalloc(lastLen));
+  if (pLastCopy == nullptr) {
+    int32_t code = terrno;
+    taosMemoryFree(pFirstCopy);
+    return code;
+  }
+
+  memcpy(pFirstCopy, pFirst, firstLen);
+  memcpy(pLastCopy, pLast, lastLen);
+  pBlock->info.pks[0].type = TSDB_DATA_TYPE_VARCHAR;
+  pBlock->info.pks[0].nData = firstLen;
+  pBlock->info.pks[0].pData = pFirstCopy;
+  pBlock->info.pks[1].type = TSDB_DATA_TYPE_VARCHAR;
+  pBlock->info.pks[1].nData = lastLen;
+  pBlock->info.pks[1].pData = pLastCopy;
+  return TSDB_CODE_SUCCESS;
+}
+
+void expectInterpStoreBlocksEqual(const SSDataBlock* pExpected,
+                                  const SSDataBlock* pActual) {
+  ASSERT_NE(pExpected, nullptr);
+  ASSERT_NE(pActual, nullptr);
+  EXPECT_EQ(pActual->info.rows, pExpected->info.rows);
+  EXPECT_EQ(pActual->info.window.skey, pExpected->info.window.skey);
+  EXPECT_EQ(pActual->info.window.ekey, pExpected->info.window.ekey);
+  EXPECT_EQ(pActual->info.id.uid, pExpected->info.id.uid);
+  EXPECT_EQ(pActual->info.id.groupId, pExpected->info.id.groupId);
+  EXPECT_EQ(pActual->info.id.baseGId, pExpected->info.id.baseGId);
+  EXPECT_EQ(pActual->info.rowSize, pExpected->info.rowSize);
+  EXPECT_EQ(pActual->info.hasVarCol, pExpected->info.hasVarCol);
+  EXPECT_EQ(pActual->info.dataLoad, pExpected->info.dataLoad);
+  EXPECT_EQ(pActual->info.scanFlag, pExpected->info.scanFlag);
+  EXPECT_EQ(pActual->info.scanPhase, pExpected->info.scanPhase);
+  EXPECT_EQ(pActual->info.blankFill, pExpected->info.blankFill);
+  EXPECT_EQ(pActual->info.pks[0].type, pExpected->info.pks[0].type);
+  EXPECT_EQ(pActual->info.pks[1].type, pExpected->info.pks[1].type);
+  if (IS_VAR_DATA_TYPE(pExpected->info.pks[0].type)) {
+    ASSERT_EQ(pActual->info.pks[0].nData,
+              pExpected->info.pks[0].nData);
+    ASSERT_EQ(pActual->info.pks[1].nData,
+              pExpected->info.pks[1].nData);
+    EXPECT_EQ(memcmp(pActual->info.pks[0].pData,
+                     pExpected->info.pks[0].pData,
+                     pExpected->info.pks[0].nData), 0);
+    EXPECT_EQ(memcmp(pActual->info.pks[1].pData,
+                     pExpected->info.pks[1].pData,
+                     pExpected->info.pks[1].nData), 0);
+  } else {
+    EXPECT_EQ(pActual->info.pks[0].val,
+              pExpected->info.pks[0].val);
+    EXPECT_EQ(pActual->info.pks[1].val,
+              pExpected->info.pks[1].val);
+  }
+  EXPECT_EQ(pActual->info.version, pExpected->info.version);
+  EXPECT_EQ(pActual->info.childId, pExpected->info.childId);
+  EXPECT_EQ(pActual->info.calWin.skey, pExpected->info.calWin.skey);
+  EXPECT_EQ(pActual->info.calWin.ekey, pExpected->info.calWin.ekey);
+  EXPECT_EQ(pActual->info.watermark, pExpected->info.watermark);
+  EXPECT_STREQ(pActual->info.parTbName, pExpected->info.parTbName);
+
+  int32_t cols = taosArrayGetSize(pExpected->pDataBlock);
+  ASSERT_EQ(taosArrayGetSize(pActual->pDataBlock), cols);
+  for (int32_t col = 0; col < cols; ++col) {
+    SColumnInfoData* pExpectedCol = static_cast<SColumnInfoData*>(
+        taosArrayGet(pExpected->pDataBlock, col));
+    SColumnInfoData* pActualCol = static_cast<SColumnInfoData*>(
+        taosArrayGet(pActual->pDataBlock, col));
+    ASSERT_NE(pExpectedCol, nullptr);
+    ASSERT_NE(pActualCol, nullptr);
+    EXPECT_EQ(pActualCol->info.type, pExpectedCol->info.type);
+    EXPECT_EQ(pActualCol->info.bytes, pExpectedCol->info.bytes);
+    EXPECT_EQ(pActualCol->info.slotId, pExpectedCol->info.slotId);
+    EXPECT_EQ(pActualCol->info.precision,
+              pExpectedCol->info.precision);
+    EXPECT_EQ(pActualCol->info.scale, pExpectedCol->info.scale);
+    EXPECT_EQ(pActualCol->info.pk, pExpectedCol->info.pk);
+    EXPECT_EQ(pActualCol->info.noData, pExpectedCol->info.noData);
+    for (int32_t row = 0; row < pExpected->info.rows; ++row) {
+      bool expectedNull = colDataIsNull_s(pExpectedCol, row);
+      ASSERT_EQ(colDataIsNull_s(pActualCol, row), expectedNull);
+      if (expectedNull) {
+        continue;
+      }
+      const char* pExpectedValue = colDataGetData(pExpectedCol, row);
+      const char* pActualValue = colDataGetData(pActualCol, row);
+      if (IS_VAR_DATA_TYPE(pExpectedCol->info.type)) {
+        ASSERT_EQ(varDataTLen(pActualValue),
+                  varDataTLen(pExpectedValue));
+        EXPECT_EQ(memcmp(pActualValue, pExpectedValue,
+                         varDataTLen(pExpectedValue)), 0);
+      } else {
+        EXPECT_EQ(memcmp(pActualValue, pExpectedValue,
+                         pExpectedCol->info.bytes), 0);
+      }
+    }
+  }
+}
+
+struct InterpMergeTempDirGuard {
+  char       savedPath[PATH_MAX] = {0};
+  SDiskSpace savedSpace = {};
+  int32_t    code = TSDB_CODE_SUCCESS;
+
+  InterpMergeTempDirGuard() {
+    tstrncpy(savedPath, tsTempDir, sizeof(savedPath));
+    savedSpace = tsTempSpace;
+    tstrncpy(tsTempDir, "/tmp", PATH_MAX);
+    code = osUpdate();
+  }
+
+  ~InterpMergeTempDirGuard() {
+    tstrncpy(tsTempDir, savedPath, PATH_MAX);
+    tsTempSpace = savedSpace;
+  }
+};
+
+struct InterpMergeFakeSource {
+  std::vector<SSDataBlock*> blocks;
+  size_t                    index = 0;
+};
+
+struct InterpOutputGroupCounter {
+  STableListInfo list = {};
+  int32_t        calls = 0;
+};
+
+int32_t interpCountOutputGroups(const STableListInfo* pList) {
+  auto* pCounter = reinterpret_cast<InterpOutputGroupCounter*>(
+      const_cast<STableListInfo*>(pList));
+  ++pCounter->calls;
+  return pCounter->list.numOfOuputGroups;
+}
+
+struct InterpOrdinaryScanFixture {
+  InterpOutputGroupCounter groups;
+  SExecTaskInfo            task = {};
+  STableScanInfo           scanInfo = {};
+  STableScanPhysiNode      scanNode = {};
+  SOperatorInfo            root = {};
+  SSDataBlock*             pResult = nullptr;
+  char                     taskId[32] = "ordinary-phase-skip";
+
+  InterpOrdinaryScanFixture() {
+    groups.list.numOfOuputGroups = 3;
+    task.id.str = taskId;
+
+    scanInfo.base.cond.mainFirst = true;
+    scanInfo.base.pTableListInfo = &groups.list;
+    scanInfo.scanInfo.numOfAsc = 1;
+    scanInfo.scanInfo.numOfDesc = 0;
+    scanInfo.currentGroupId = -1;
+    scanInfo.currentPhase = SCAN_PHASE_MAIN;
+    scanInfo.groupSort = true;
+    STimeWindow emptyWindow = {INT64_MAX, INT64_MIN};
+    scanInfo.base.cond.twindows = emptyWindow;
+    scanInfo.base.cond.extTwindows[0] = emptyWindow;
+    scanInfo.base.cond.extTwindows[1] = emptyWindow;
+
+    scanNode.interpMode = INTERP_MODE_MAIN_FIRST;
+    scanNode.groupSort = true;
+
+    setOperatorInfo(&root, "TableScan",
+                    QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, false,
+                    OP_OPENED, &scanInfo, &task);
+    root.pPhyNode = reinterpret_cast<SPhysiNode*>(&scanNode);
+    root.fpSet._openFn = optrDummyOpenFn;
+  }
+
+  int32_t next() {
+    Stub stub;
+    stub.set(tableListGetOutputGroups, interpCountOutputGroups);
+    return doTableScanNext(&root, &pResult);
+  }
+};
+
+// Minimal remote-task fixture for the component test. The root operator,
+// parameter dispatch, sort handle, and task execution all use production
+// implementations; only RPC transport and storage fetch are replaced.
+struct InterpRemoteScanFixture {
+  SExecTaskInfo task = {};
+  SOperatorInfo root = {};
+  SSubplan subplan = {};
+  STableMergeScanInfo scanInfo = {};
+  STableScanPhysiNode scanNode = {};
+  SOperatorParam* downstreamParam = nullptr;
+  SArray* pSortInfo = nullptr;
+  SSDataBlock* pScanBlock = nullptr;
+  char taskId[64] = {0};
+  uint64_t remoteTaskId = 0;
+  uint64_t expectedOuterEpoch = 0;
+  uint64_t expectedScanGroupId = 0;
+  TSKEY expectedNotifyTs = 0;
+  int8_t expectedPhase = SCAN_PHASE_MAIN;
+  int32_t notifyCount = 0;
+  int32_t readCount = 0;
+  int32_t execCode = TSDB_CODE_SUCCESS;
+};
+
+// Pass the mock registry through Exchange's transport pointer so each test
+// owns its remote fixtures without process-global mutable state.
+struct InterpRemoteTransport {
+  std::vector<InterpRemoteScanFixture*> scans;
+};
+
+// Mock only the storage-facing fetch callback used by the real sort handle.
+// If early-stop is not consumed first, returning one block increments
+// readCount and makes the unwanted scan observable to the test.
+int32_t interpRemoteMergeScanFetch(void* param, SSDataBlock** ppBlock) {
+  InterpRemoteScanFixture* pScan =
+      static_cast<InterpRemoteScanFixture*>(param);
+  ++pScan->readCount;
+  *ppBlock = pScan->readCount == 1 ? pScan->pScanBlock : nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t interpUnexpectedReaderOpen(void* pVnode, SQueryTableDataCond*,
+                                   void*, int32_t, SSDataBlock*, void**,
+                                   const char*, SHashObj**) {
+  int32_t* pOpenCount = static_cast<int32_t*>(pVnode);
+  ++*pOpenCount;
+  return TSDB_CODE_FAILED;
+}
+
+// Replace asynchronous RPC delivery while retaining the production request
+// codec, operator-param update, and one-block task execution path. This keeps
+// ownership equivalent to qworker: decoded pOpParam moves into the task, and
+// the send request is destroyed after the simulated remote execution.
+int32_t interpRemoteSend(void* param, SEpSet*, int64_t* pTransporterId,
+                         SMsgSendInfo* pSendInfo) {
+  if (pTransporterId != nullptr) {
+    *pTransporterId = 0;
+  }
+
+  SResFetchReq req = {};
+  int32_t code = tDeserializeSResFetchReq(
+      pSendInfo->msgInfo.pData, pSendInfo->msgInfo.len, &req);
+  if (code < 0) {
+    destroySendMsgInfo(pSendInfo);
+    return code;
+  }
+
+  InterpRemoteScanFixture* pRemote = nullptr;
+  InterpRemoteTransport* pTransport =
+      static_cast<InterpRemoteTransport*>(param);
+  if (pTransport != nullptr) {
+    for (InterpRemoteScanFixture* pCandidate : pTransport->scans) {
+      if (pCandidate->remoteTaskId == req.taskId) {
+        pRemote = pCandidate;
+        break;
+      }
+    }
+  }
+
+  if (pRemote != nullptr) {
+    if (req.pOpParam != nullptr) {
+      SOperatorParam* pParam = req.pOpParam;
+      if (pParam->opType == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN &&
+          pParam->value != nullptr) {
+        STableScanOperatorParam* pNotify =
+            static_cast<STableScanOperatorParam*>(pParam->value);
+        bool matched =
+            pNotify->paramType == NOTIFY_TYPE_SCAN_PARAM &&
+            pNotify->notifyToProcess &&
+            pNotify->groupid == pRemote->expectedOuterEpoch &&
+            pNotify->notifyPhase == pRemote->expectedPhase &&
+            pNotify->notifyScanGroupId ==
+                pRemote->expectedScanGroupId &&
+            pNotify->notifyTs == pRemote->expectedNotifyTs;
+        pRemote->notifyCount += matched ? 1 : 0;
+      }
+      qUpdateOperatorParam(&pRemote->task, req.pOpParam);
+      req.pOpParam = nullptr;
+    }
+    SArray* pResults = taosArrayInit(1, POINTER_BYTES);
+    if (pResults == nullptr) {
+      pRemote->execCode = terrno;
+    } else {
+      uint64_t useconds = 0;
+      bool hasMore = false;
+      // processOneBlock=true matches one qworker fetch dispatch. A delivered
+      // notification must complete PREV before the sort fetch callback runs.
+      pRemote->execCode = qExecTaskOpt(
+          &pRemote->task, pResults, &useconds, &hasMore, nullptr, true);
+      taosArrayDestroy(pResults);
+    }
+    // Dispatched parameters are owned, and may be freed, by the operator.
+    if (!pRemote->task.paramSet) {
+      qDestroyOperatorParam(pRemote->task.pOpParam);
+    }
+    pRemote->task.pOpParam = nullptr;
+  } else if (req.pOpParam != nullptr) {
+    qDestroyOperatorParam(req.pOpParam);
+    req.pOpParam = nullptr;
+  }
+
+  tDestroySResFetchReq(&req);
+  destroySendMsgInfo(pSendInfo);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t interpMergeFakeNext(SOperatorInfo* pOperator,
+                            SSDataBlock** ppBlock) {
+  InterpMergeFakeSource* pSource =
+      static_cast<InterpMergeFakeSource*>(pOperator->info);
+  *ppBlock = pSource->index < pSource->blocks.size()
+                 ? pSource->blocks[pSource->index++]
+                 : nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t createInterpMergeTestBlock(int64_t ts, int8_t phase,
+                                   SSDataBlock** ppBlock,
+                                   uint64_t groupId = 77) {
+  SSDataBlock* pBlock = nullptr;
+  int32_t code = createDataBlock(&pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  SColumnInfoData col = createColumnInfoData(
+      TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = blockDataEnsureCapacity(pBlock, 1);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    SColumnInfoData* pCol = static_cast<SColumnInfoData*>(
+        taosArrayGet(pBlock->pDataBlock, 0));
+    code = colDataSetVal(pCol, 0,
+                         reinterpret_cast<const char*>(&ts), false);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    pBlock->info.rows = 1;
+    pBlock->info.id.groupId = groupId;
+    pBlock->info.scanPhase = phase;
+    code = blockDataUpdateTsWindow(pBlock, 0);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    return code;
+  }
+  *ppBlock = pBlock;
+  return TSDB_CODE_SUCCESS;
+}
+
+SDataBlockDescNode* createInterpMergeTestDesc(int64_t blockId) {
+  SDataBlockDescNode* pDesc = nullptr;
+  if (nodesMakeNode(QUERY_NODE_DATABLOCK_DESC,
+                    reinterpret_cast<SNode**>(&pDesc)) != 0) {
+    return nullptr;
+  }
+  pDesc->dataBlockId = blockId;
+  pDesc->totalRowSize = sizeof(int64_t);
+  pDesc->outputRowSize = sizeof(int64_t);
+
+  SSlotDescNode* pSlot = nullptr;
+  if (nodesMakeNode(QUERY_NODE_SLOT_DESC,
+                    reinterpret_cast<SNode**>(&pSlot)) != 0) {
+    nodesDestroyNode(reinterpret_cast<SNode*>(pDesc));
+    return nullptr;
+  }
+  pSlot->slotId = 0;
+  pSlot->dataType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  pSlot->dataType.bytes = sizeof(int64_t);
+  pSlot->output = true;
+  if (nodesListMakeStrictAppend(
+          &pDesc->pSlots, reinterpret_cast<SNode*>(pSlot)) != 0) {
+    nodesDestroyNode(reinterpret_cast<SNode*>(pDesc));
+    return nullptr;
+  }
+  return pDesc;
+}
+
+SMergePhysiNode* createInterpMergeTestPhysNode(bool groupSort = false) {
+  SMergePhysiNode* pMerge = nullptr;
+  if (nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_MERGE,
+                    reinterpret_cast<SNode**>(&pMerge)) != 0) {
+    return nullptr;
+  }
+  pMerge->type = MERGE_TYPE_SORT;
+  pMerge->groupSort = groupSort;
+  pMerge->inputWithGroupId = true;
+  pMerge->node.inputTsOrder = ORDER_ASC;
+  pMerge->node.outputTsOrder = ORDER_ASC;
+  pMerge->node.pOutputDataBlockDesc = createInterpMergeTestDesc(1);
+  if (pMerge->node.pOutputDataBlockDesc == nullptr) {
+    nodesDestroyNode(reinterpret_cast<SNode*>(pMerge));
+    return nullptr;
+  }
+
+  SPhysiNode* pChild = nullptr;
+  int32_t code = nodesMakeNode(
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
+      reinterpret_cast<SNode**>(&pChild));
+  if (code == 0) {
+    code = nodesCloneNode(
+        reinterpret_cast<SNode*>(pMerge->node.pOutputDataBlockDesc),
+        reinterpret_cast<SNode**>(&pChild->pOutputDataBlockDesc));
+  }
+  if (code == 0) {
+    code = nodesListMakeStrictAppend(
+        &pMerge->node.pChildren, reinterpret_cast<SNode*>(pChild));
+    pChild = nullptr;
+  }
+  if (code != 0) {
+    nodesDestroyNode(reinterpret_cast<SNode*>(pChild));
+    nodesDestroyNode(reinterpret_cast<SNode*>(pMerge));
+    return nullptr;
+  }
+
+  SColumnNode* pColumn = nullptr;
+  STargetNode* pTarget = nullptr;
+  SOrderByExprNode* pOrder = nullptr;
+  code = nodesMakeNode(QUERY_NODE_COLUMN,
+                       reinterpret_cast<SNode**>(&pColumn));
+  if (code == 0) {
+    pColumn->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    pColumn->node.resType.bytes = sizeof(int64_t);
+    pColumn->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+    pColumn->slotId = 0;
+    pColumn->dataBlockId = 1;
+    pColumn->isPrimTs = true;
+    code = nodesMakeNode(QUERY_NODE_TARGET,
+                         reinterpret_cast<SNode**>(&pTarget));
+  }
+  if (code == 0) {
+    pTarget->dataBlockId = 1;
+    pTarget->slotId = 0;
+    pTarget->pExpr = reinterpret_cast<SNode*>(pColumn);
+    pColumn = nullptr;
+    code = nodesListMakeStrictAppend(
+        &pMerge->pTargets, reinterpret_cast<SNode*>(pTarget));
+    pTarget = nullptr;
+  }
+  if (code == 0) {
+    code = nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR,
+                         reinterpret_cast<SNode**>(&pOrder));
+  }
+  if (code == 0) {
+    code = nodesCloneNode(
+        reinterpret_cast<SNode*>(
+            reinterpret_cast<STargetNode*>(
+                nodesListGetNode(pMerge->pTargets, 0))->pExpr),
+        &pOrder->pExpr);
+  }
+  if (code == 0) {
+    pOrder->order = ORDER_ASC;
+    pOrder->nullOrder = NULL_ORDER_FIRST;
+    code = nodesListMakeStrictAppend(
+        &pMerge->pMergeKeys, reinterpret_cast<SNode*>(pOrder));
+    pOrder = nullptr;
+  }
+  if (code != 0) {
+    nodesDestroyNode(reinterpret_cast<SNode*>(pColumn));
+    nodesDestroyNode(reinterpret_cast<SNode*>(pTarget));
+    nodesDestroyNode(reinterpret_cast<SNode*>(pOrder));
+    nodesDestroyNode(reinterpret_cast<SNode*>(pMerge));
+    return nullptr;
+  }
+  return pMerge;
+}
+
+struct InterpNodeDestroySpy {
+  static InterpNodeDestroySpy* active;
+  Stub stub;
+  SNode* failed = nullptr;
+  int32_t destroys = 0;
+
+  InterpNodeDestroySpy() {
+    active = this;
+    stub.set(nodesDestroyNode, destroy);
+  }
+
+  ~InterpNodeDestroySpy() { active = nullptr; }
+
+  static void destroy(SNode* node) {
+    if (node != nullptr && node == active->failed &&
+        ++active->destroys > 1) {
+      return;
+    }
+    active->stub.reset(nodesDestroyNode);
+    nodesDestroyNode(node);
+    active->stub.set(nodesDestroyNode, destroy);
+  }
+};
+
+InterpNodeDestroySpy* InterpNodeDestroySpy::active = nullptr;
+
+template <ENodeType failType>
+int32_t failInterpNodeAppend(SNodeList** ppList, SNode* pNode) {
+  // Keep StrictAppend's consume-on-failure contract in the injected failure.
+  bool fail = nodeType(pNode) == failType;
+  if (fail) {
+    InterpNodeDestroySpy::active->failed = pNode;
+  }
+  int32_t code = fail
+                     ? TSDB_CODE_OUT_OF_MEMORY
+                     : nodesListMakeAppend(ppList, pNode);
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode(pNode);
+  }
+  return code;
+}
+
+void* failInterpStoreCalloc(int64_t, int64_t) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+Stub*   gSortMergeCleanupStub = nullptr;
+int32_t gSortMergeDestroyCalls = 0;
+
+int32_t failSortMergeOpen(SSortHandle*) {
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
+
+void countAndDestroySortMergeHandle(SSortHandle* pHandle) {
+  ++gSortMergeDestroyCalls;
+  gSortMergeCleanupStub->reset(tsortDestroySortHandle);
+  tsortDestroySortHandle(pHandle);
+}
+
+struct SortMergeCleanupStubGuard {
+  Stub stub;
+
+  SortMergeCleanupStubGuard() {
+    gSortMergeCleanupStub = &stub;
+    stub.set(tsortOpen, failSortMergeOpen);
+    stub.set(tsortDestroySortHandle,
+             countAndDestroySortMergeHandle);
+  }
+
+  ~SortMergeCleanupStubGuard() {
+    gSortMergeCleanupStub = nullptr;
+  }
+};
+
+int64_t makeInterpTestTimestamp(timezone_t timezone, int32_t year,
+                                int32_t month, int32_t day,
+                                int32_t hour = 0) {
+  struct tm local = {};
+  local.tm_year = year - 1900;
+  local.tm_mon = month - 1;
+  local.tm_mday = day;
+  local.tm_hour = hour;
+  local.tm_isdst = -1;
+  time_t seconds = taosMktime(&local, timezone);
+  EXPECT_NE(seconds, static_cast<time_t>(-1));
+  return static_cast<int64_t>(seconds) * 1000;
+}
+
 struct StableTagFilterWarmupMock {
   int32_t getCacheCalls = 0;
   int32_t warmupCalls = 0;
@@ -445,6 +1171,210 @@ SNode *makeEqualCond(SNode *pLeft, SNode *pRight) {
 }
 
 }  // namespace
+
+namespace {
+
+class OperatorParamOwnershipTest : public testing::Test {
+ protected:
+  static OperatorParamOwnershipTest* active;
+  Stub stub;
+  SExecTaskInfo* task = nullptr;
+  SOperatorInfo root = {};
+  SOperatorParam* params[2] = {};
+  std::array<void*, 4> allocations = {};
+  std::array<int, 4> freeCounts = {};
+
+  static void recordFree(void* ptr) {
+    for (size_t i = 0; i < active->allocations.size(); ++i) {
+      if (ptr != nullptr && ptr == active->allocations[i]) {
+        ++active->freeCounts[i];
+      }
+    }
+    active->stub.reset(taosMemFree);
+    taosMemFree(ptr);
+    active->stub.set(taosMemFree, recordFree);
+  }
+
+  void SetUp() override {
+    task = static_cast<SExecTaskInfo*>(
+        taosMemoryCalloc(1, sizeof(SExecTaskInfo)));
+    ASSERT_NE(task, nullptr);
+    root.operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+    task->pRoot = &root;
+    for (size_t i = 0; i < 2; ++i) {
+      params[i] = static_cast<SOperatorParam*>(
+          taosMemoryCalloc(1, sizeof(SOperatorParam)));
+      allocations[2 * i] = params[i];
+      ASSERT_NE(params[i], nullptr);
+      params[i]->opType = root.operatorType;
+      params[i]->value = taosMemoryCalloc(1, sizeof(STableScanOperatorParam));
+      allocations[2 * i + 1] = params[i]->value;
+      ASSERT_NE(params[i]->value, nullptr);
+    }
+    active = this;
+    stub.set(taosMemFree, recordFree);
+  }
+
+  void destroyTask() {
+    task->pRoot = nullptr;
+    doDestroyTask(task);
+    task = nullptr;
+  }
+
+  void expectFrees(int first, int second) {
+    EXPECT_EQ(freeCounts[0], first);
+    EXPECT_EQ(freeCounts[1], first);
+    EXPECT_EQ(freeCounts[2], second);
+    EXPECT_EQ(freeCounts[3], second);
+  }
+
+  void TearDown() override {
+    if (task != nullptr) {
+      destroyTask();
+    }
+    stub.reset(taosMemFree);
+    active = nullptr;
+    // Release allocations left unowned by a failed assertion or reUse.
+    for (size_t i = 0; i < allocations.size(); ++i) {
+      if (freeCounts[i] == 0) {
+        taosMemoryFree(allocations[i]);
+      }
+    }
+  }
+};
+
+OperatorParamOwnershipTest* OperatorParamOwnershipTest::active = nullptr;
+
+}  // namespace
+
+TEST_F(OperatorParamOwnershipTest, ReplacesPendingAndDestroysLatestParam) {
+  qUpdateOperatorParam(task, params[0]);
+  qUpdateOperatorParam(task, params[1]);
+
+  EXPECT_EQ(task->pOpParam, params[1]);
+  EXPECT_FALSE(task->paramSet);
+  expectFrees(1, 0);
+  destroyTask();
+  expectFrees(1, 1);
+}
+
+TEST_F(OperatorParamOwnershipTest, LeavesDispatchedParamWithOperator) {
+  qUpdateOperatorParam(task, params[0]);
+  root.pOperatorGetParam = params[0];
+  task->paramSet = true;
+  qUpdateOperatorParam(task, params[1]);
+
+  EXPECT_EQ(task->pOpParam, params[1]);
+  EXPECT_FALSE(task->paramSet);
+  expectFrees(0, 0);
+  freeOperatorParam(root.pOperatorGetParam, OP_GET_PARAM);
+  root.pOperatorGetParam = nullptr;
+  destroyTask();
+  expectFrees(1, 1);
+}
+
+TEST_F(OperatorParamOwnershipTest, DoesNotFreeDispatchedParamAgain) {
+  qUpdateOperatorParam(task, params[0]);
+  task->paramSet = true;
+  freeOperatorParam(params[0], OP_GET_PARAM);
+  qUpdateOperatorParam(task, params[1]);
+
+  expectFrees(1, 0);
+  destroyTask();
+  expectFrees(1, 1);
+}
+
+TEST_F(OperatorParamOwnershipTest, RejectsMismatchWithoutReplacingPending) {
+  qUpdateOperatorParam(task, params[0]);
+  params[1]->opType = QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
+  qUpdateOperatorParam(task, params[1]);
+
+  EXPECT_EQ(task->pOpParam, params[0]);
+  EXPECT_FALSE(task->paramSet);
+  expectFrees(0, 1);
+  destroyTask();
+  expectFrees(1, 1);
+}
+
+TEST_F(OperatorParamOwnershipTest, KeepsRepeatedPendingPointerAlive) {
+  qUpdateOperatorParam(task, params[0]);
+  qUpdateOperatorParam(task, params[0]);
+
+  EXPECT_EQ(task->pOpParam, params[0]);
+  EXPECT_FALSE(task->paramSet);
+  expectFrees(0, 0);
+  destroyTask();
+  expectFrees(1, 0);
+}
+
+TEST_F(OperatorParamOwnershipTest, PreservesReusableParamOwnership) {
+  params[0]->reUse = true;
+  qUpdateOperatorParam(task, params[0]);
+  qUpdateOperatorParam(task, params[1]);
+
+  expectFrees(0, 0);
+  params[0]->reUse = false;
+  freeOperatorParam(params[0], OP_GET_PARAM);
+  destroyTask();
+  expectFrees(1, 1);
+}
+
+static void checkGetNextExtRecordsOutputOnce(__optr_get_ext_fn_t nextExt) {
+  SExecTaskInfo task = {};
+  task.enableExplain = true;
+
+  SSDataBlock block = {};
+  block.info.rows = 3;
+
+  SOperatorInfo op = {};
+  op.info = &block;
+  op.pTaskInfo = &task;
+  op.fpSet = createOperatorFpSet(
+      nullptr, execRecordTestNext, nullptr, nullptr, nullptr, nullptr,
+      nextExt, nullptr);
+
+  SSDataBlock* pResult = nullptr;
+  ASSERT_EQ(op.fpSet.getNextExtFn(&op, nullptr, &pResult),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pResult, &block);
+  EXPECT_EQ(op.resultInfo.totalRows, 3);
+  EXPECT_EQ(op.cost.execTimes, 1);
+}
+
+TEST(execUtilTest, defaultGetNextExtRecordsOutputOnce) {
+  checkGetNextExtRecordsOutputOnce(optrDefaultGetNextExtFn);
+}
+
+TEST(execUtilTest, customGetNextExtRecordsOutputOnce) {
+  checkGetNextExtRecordsOutputOnce(execRecordTestNextExt);
+}
+
+TEST(execUtilTest, longJmpClearsNestedOperatorExecDepth) {
+  SExecTaskInfo task = {};
+  task.id.str = "exec-depth-test";
+
+  SOperatorInfo child = {};
+  child.pTaskInfo = &task;
+  child.fpSet = createOperatorFpSet(
+      nullptr, execRecordTestLongJmpNext, nullptr, nullptr, nullptr,
+      nullptr, nullptr, nullptr);
+
+  SOperatorInfo root = {};
+  SOperatorInfo* downstream[] = {&child};
+  root.pTaskInfo = &task;
+  root.numOfDownstream = 1;
+  root.pDownstream = downstream;
+  root.fpSet = createOperatorFpSet(
+      nullptr, execRecordTestPullDownstream, nullptr, nullptr, nullptr,
+      nullptr, nullptr, nullptr);
+  task.pRoot = &root;
+
+  SSDataBlock* pResult = nullptr;
+  uint64_t useconds = 0;
+  EXPECT_EQ(qExecTask(&task, &pResult, &useconds), TSDB_CODE_FAILED);
+  EXPECT_EQ(root.cost.execDepth, 0);
+  EXPECT_EQ(child.cost.execDepth, 0);
+}
 
 TEST(execUtilTest, federatedScanInitializesResultBlockCapacity) {
   SFederatedScanPhysiNode scanNode = {};
@@ -10680,4 +11610,3296 @@ TEST(StreamExchangeMultiGroupTest, StrictFirstEventRequiresNonEmptyCanonicalOrde
   auto data = makeStrictExchangeDataResponse(101, {10}, {{1, 0}});
   EXPECT_EQ(exchangeTestAcceptSourceFetchResponse(owner.handle, 0, data.bytes.data(), data.bytes.size()),
             TSDB_CODE_INVALID_MSG);
+}
+
+TEST(execUtilTest, interpMergeNodeBuildersHandleAppendFailure) {
+  using AppendFn = int32_t (*)(SNodeList**, SNode*);
+  const AppendFn failures[] = {
+      failInterpNodeAppend<QUERY_NODE_SLOT_DESC>,
+      failInterpNodeAppend<QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN>,
+      failInterpNodeAppend<QUERY_NODE_TARGET>,
+      failInterpNodeAppend<QUERY_NODE_ORDER_BY_EXPR>,
+  };
+  for (size_t i = 0; i < sizeof(failures) / sizeof(failures[0]); ++i) {
+    SCOPED_TRACE(i);
+    InterpNodeDestroySpy spy;
+    spy.stub.set(nodesListMakeStrictAppend, failures[i]);
+    auto* plan = createInterpMergeTestPhysNode();
+    EXPECT_EQ(plan, nullptr);
+    nodesDestroyNode(reinterpret_cast<SNode*>(plan));
+    EXPECT_NE(spy.failed, nullptr);
+    EXPECT_EQ(spy.destroys, 1);
+  }
+}
+
+// The three phase windows must saturate at the timestamp limits instead of
+// wrapping INT64_MIN - 1 or INT64_MAX + 1 into a nonempty side window.
+TEST(execUtilTest, interpPhaseWindowsSaturateTimestampLimits) {
+  SQueryTableDataCond cond = {0};
+  cond.twindows = {INT64_MIN, INT64_MAX};
+  STimeWindow range = {INT64_MIN, INT64_MAX};
+
+  ASSERT_EQ(initInterpPhaseWindows(&cond, &range,
+                                   INTERP_MODE_MAIN_FIRST,
+                                   FILL_MODE_LINEAR),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(cond.twindows.skey, INT64_MIN);
+  EXPECT_EQ(cond.twindows.ekey, INT64_MAX);
+  EXPECT_GT(cond.extTwindows[0].skey, cond.extTwindows[0].ekey);
+  EXPECT_GT(cond.extTwindows[1].skey, cond.extTwindows[1].ekey);
+
+  cond.twindows = range;
+  ASSERT_EQ(initInterpPhaseWindows(&cond, &range,
+                                   INTERP_MODE_LEGACY,
+                                   FILL_MODE_LINEAR),
+            TSDB_CODE_SUCCESS);
+  EXPECT_GT(cond.extTwindows[0].skey, cond.extTwindows[0].ekey);
+  EXPECT_GT(cond.extTwindows[1].skey, cond.extTwindows[1].ekey);
+}
+
+// MAIN_FIRST retains side-only groups for NULL fill, while MULTI_GROUP has a
+// closed MAIN membership and can statically prune both reference windows.
+TEST(execUtilTest, interpPhaseWindowsApplyModeAwarePruning) {
+  const STimeWindow whereRange = {0, 99};
+  const STimeWindow interpRange = {20, 79};
+  SQueryTableDataCond mainFirst = {0};
+  mainFirst.twindows = whereRange;
+
+  ASSERT_EQ(initInterpPhaseWindows(&mainFirst, &interpRange,
+                                   INTERP_MODE_MAIN_FIRST,
+                                   FILL_MODE_NULL),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mainFirst.twindows.skey, 20);
+  EXPECT_EQ(mainFirst.twindows.ekey, 79);
+  EXPECT_EQ(mainFirst.extTwindows[0].skey, 0);
+  EXPECT_EQ(mainFirst.extTwindows[0].ekey, 19);
+  EXPECT_EQ(mainFirst.extTwindows[1].skey, 80);
+  EXPECT_EQ(mainFirst.extTwindows[1].ekey, 99);
+
+  SQueryTableDataCond multiGroup = {0};
+  multiGroup.twindows = whereRange;
+  ASSERT_EQ(initInterpPhaseWindows(&multiGroup, &interpRange,
+                                   INTERP_MODE_MULTI_GROUP,
+                                   FILL_MODE_NULL),
+            TSDB_CODE_SUCCESS);
+  EXPECT_GT(multiGroup.extTwindows[0].skey,
+            multiGroup.extTwindows[0].ekey);
+  EXPECT_GT(multiGroup.extTwindows[1].skey,
+            multiGroup.extTwindows[1].ekey);
+
+  multiGroup.twindows = whereRange;
+  ASSERT_EQ(initInterpPhaseWindows(&multiGroup, &interpRange,
+                                   INTERP_MODE_MULTI_GROUP,
+                                   FILL_MODE_VALUE_F),
+            TSDB_CODE_SUCCESS);
+  EXPECT_GT(multiGroup.extTwindows[0].skey,
+            multiGroup.extTwindows[0].ekey);
+  EXPECT_GT(multiGroup.extTwindows[1].skey,
+            multiGroup.extTwindows[1].ekey);
+}
+
+// One-sided fill pruning remains mode-independent: PREV never consumes the
+// NEXT window, and NEXT never consumes the PREV window.
+TEST(execUtilTest, interpPhaseWindowsPruneUnusedFillSide) {
+  const STimeWindow whereRange = {0, 99};
+  const STimeWindow interpRange = {20, 79};
+  SQueryTableDataCond cond = {0};
+  cond.twindows = whereRange;
+
+  ASSERT_EQ(initInterpPhaseWindows(&cond, &interpRange,
+                                   INTERP_MODE_MAIN_FIRST,
+                                   FILL_MODE_PREV),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(cond.extTwindows[0].skey, 0);
+  EXPECT_EQ(cond.extTwindows[0].ekey, 19);
+  EXPECT_GT(cond.extTwindows[1].skey, cond.extTwindows[1].ekey);
+
+  cond.twindows = whereRange;
+  ASSERT_EQ(initInterpPhaseWindows(&cond, &interpRange,
+                                   INTERP_MODE_MAIN_FIRST,
+                                   FILL_MODE_NEXT),
+            TSDB_CODE_SUCCESS);
+  EXPECT_GT(cond.extTwindows[0].skey, cond.extTwindows[0].ekey);
+  EXPECT_EQ(cond.extTwindows[1].skey, 80);
+  EXPECT_EQ(cond.extTwindows[1].ekey, 99);
+}
+
+TEST(execUtilTest, interpMainFirstEdgeReferenceRequirements) {
+  EXPECT_FALSE(interpGroupNeedsPrev(TSDB_FILL_PREV, false));
+  EXPECT_FALSE(interpGroupNeedsNext(TSDB_FILL_NEXT, false));
+
+  EXPECT_TRUE(interpGroupNeedsPrev(TSDB_FILL_PREV, true));
+  EXPECT_FALSE(interpGroupNeedsNext(TSDB_FILL_PREV, true));
+  EXPECT_FALSE(interpGroupNeedsPrev(TSDB_FILL_NEXT, true));
+  EXPECT_TRUE(interpGroupNeedsNext(TSDB_FILL_NEXT, true));
+
+  EXPECT_TRUE(interpGroupNeedsPrev(TSDB_FILL_LINEAR, true));
+  EXPECT_TRUE(interpGroupNeedsNext(TSDB_FILL_LINEAR, true));
+  EXPECT_TRUE(interpGroupNeedsPrev(TSDB_FILL_NEAR, true));
+  EXPECT_TRUE(interpGroupNeedsNext(TSDB_FILL_NEAR, true));
+
+  EXPECT_FALSE(interpGroupNeedsPrev(TSDB_FILL_NULL, true));
+  EXPECT_FALSE(interpGroupNeedsNext(TSDB_FILL_NULL, true));
+  EXPECT_FALSE(interpGroupNeedsPrev(TSDB_FILL_NULL_F, true));
+  EXPECT_FALSE(interpGroupNeedsNext(TSDB_FILL_NULL_F, true));
+  EXPECT_FALSE(interpGroupNeedsPrev(TSDB_FILL_SET_VALUE, true));
+  EXPECT_FALSE(interpGroupNeedsNext(TSDB_FILL_SET_VALUE, true));
+  EXPECT_FALSE(interpGroupNeedsPrev(TSDB_FILL_SET_VALUE_F, true));
+  EXPECT_FALSE(interpGroupNeedsNext(TSDB_FILL_SET_VALUE_F, true));
+}
+
+TEST(execUtilTest, interpMainFirstEdgeProductionRequirementsMatchFill) {
+  EXPECT_FALSE(interpMainFirstEdgeCanProduce(TSDB_FILL_LINEAR, false,
+                                             true, true));
+  EXPECT_TRUE(interpMainFirstEdgeCanProduce(TSDB_FILL_LINEAR, true,
+                                            false, false));
+  EXPECT_FALSE(interpMainFirstEdgeCanProduce(TSDB_FILL_PREV, true,
+                                             false, true));
+  EXPECT_TRUE(interpMainFirstEdgeCanProduce(TSDB_FILL_PREV, true,
+                                            true, false));
+  EXPECT_FALSE(interpMainFirstEdgeCanProduce(TSDB_FILL_NEXT, true,
+                                             true, false));
+  EXPECT_TRUE(interpMainFirstEdgeCanProduce(TSDB_FILL_NEXT, true,
+                                            false, true));
+  EXPECT_FALSE(interpMainFirstEdgeCanProduce(TSDB_FILL_NEAR, true,
+                                             false, false));
+  EXPECT_TRUE(interpMainFirstEdgeCanProduce(TSDB_FILL_NEAR, true,
+                                            true, false));
+  EXPECT_TRUE(interpMainFirstEdgeCanProduce(TSDB_FILL_NEAR, true,
+                                            false, true));
+  EXPECT_TRUE(interpMainFirstEdgeCanProduce(TSDB_FILL_NULL, false,
+                                            false, false));
+  EXPECT_TRUE(interpMainFirstEdgeCanProduce(TSDB_FILL_NULL_F, false,
+                                            false, false));
+  EXPECT_TRUE(interpMainFirstEdgeCanProduce(TSDB_FILL_SET_VALUE, false,
+                                            false, false));
+  EXPECT_TRUE(interpMainFirstEdgeCanProduce(TSDB_FILL_SET_VALUE_F, false,
+                                            false, false));
+  EXPECT_FALSE(interpMainFirstEdgeCanProduce(TSDB_FILL_NONE, true,
+                                             true, true));
+}
+
+TEST(execUtilTest, interpMainFirstLeadHoleLocatesWideFixedGrid) {
+  SInterval interval = {};
+  interval.interval = 10;
+
+  STimeWindow hole = {};
+  int64_t nextTs = 0;
+  bool hasHole = false;
+  ASSERT_EQ(interpMainFirstGetLeadHole(0, 1000000000005LL,
+                                       &interval, &hole, &nextTs,
+                                       &hasHole),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(hasHole);
+  EXPECT_EQ(hole.skey, 0);
+  EXPECT_EQ(hole.ekey, 1000000000000LL);
+  EXPECT_EQ(nextTs, 1000000000010LL);
+
+  ASSERT_EQ(interpMainFirstGetLeadHole(0, 100, &interval, &hole,
+                                       &nextTs, &hasHole),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(hole.ekey, 90);
+  EXPECT_EQ(nextTs, 100);
+
+  ASSERT_EQ(interpMainFirstGetLeadHole(100, 100, &interval, &hole,
+                                       &nextTs, &hasHole),
+            TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(hasHole);
+  EXPECT_EQ(nextTs, 100);
+
+  interval.interval = 2;
+  ASSERT_EQ(interpMainFirstGetLeadHole(INT64_MAX - 2, INT64_MAX,
+                                       &interval, &hole, &nextTs,
+                                       &hasHole),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(hole.ekey, INT64_MAX - 2);
+  EXPECT_EQ(nextTs, INT64_MAX);
+
+  interval.interval = 3;
+  ASSERT_EQ(interpMainFirstGetLeadHole(INT64_MIN, INT64_MAX,
+                                       &interval, &hole, &nextTs,
+                                       &hasHole),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(hole.ekey, INT64_MAX - 3);
+  EXPECT_EQ(nextTs, INT64_MAX);
+
+  interval.interval = 3;
+  EXPECT_EQ(interpMainFirstGetLeadHole(INT64_MAX - 2, INT64_MAX,
+                                       &interval, &hole, &nextTs,
+                                       &hasHole),
+            TSDB_CODE_TIME_ERROR);
+}
+
+TEST(execUtilTest, interpMainFirstLeadHolePreservesCalendarSequence) {
+  timezone_t utc = tzalloc("UTC");
+  timezone_t ny = tzalloc("America/New_York");
+  ASSERT_NE(utc, nullptr);
+  ASSERT_NE(ny, nullptr);
+
+  STimeWindow hole = {};
+  int64_t nextTs = 0;
+  bool hasHole = false;
+  SInterval interval = {};
+  interval.interval = 1;
+  interval.intervalUnit = TIME_UNIT_MONTH;
+  interval.precision = TSDB_TIME_PRECISION_MILLI;
+  interval.timezone = utc;
+  int64_t start = makeInterpTestTimestamp(utc, 2024, 1, 31);
+  int64_t first = makeInterpTestTimestamp(utc, 2024, 4, 15);
+  ASSERT_EQ(interpMainFirstGetLeadHole(start, first, &interval,
+                                       &hole, &nextTs, &hasHole),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(hasHole);
+  EXPECT_EQ(hole.ekey,
+            makeInterpTestTimestamp(utc, 2024, 3, 29));
+  EXPECT_EQ(nextTs, makeInterpTestTimestamp(utc, 2024, 4, 29));
+
+  interval.intervalUnit = TIME_UNIT_YEAR;
+  start = makeInterpTestTimestamp(utc, 2020, 2, 29);
+  first = makeInterpTestTimestamp(utc, 2024, 2, 20);
+  ASSERT_EQ(interpMainFirstGetLeadHole(start, first, &interval,
+                                       &hole, &nextTs, &hasHole),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(hole.ekey,
+            makeInterpTestTimestamp(utc, 2023, 2, 28));
+  EXPECT_EQ(nextTs, makeInterpTestTimestamp(utc, 2024, 2, 28));
+
+  interval.interval = 86400LL * 1000;
+  interval.intervalUnit = TIME_UNIT_DAY;
+  interval.timezone = ny;
+  start = makeInterpTestTimestamp(ny, 2024, 3, 9);
+  first = makeInterpTestTimestamp(ny, 2024, 3, 10, 12);
+  ASSERT_EQ(interpMainFirstGetLeadHole(start, first, &interval,
+                                       &hole, &nextTs, &hasHole),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(hole.ekey,
+            makeInterpTestTimestamp(ny, 2024, 3, 10));
+  EXPECT_EQ(nextTs, makeInterpTestTimestamp(ny, 2024, 3, 11));
+  EXPECT_EQ(nextTs - hole.ekey, 23LL * 3600 * 1000);
+
+  tzfree(utc);
+  tzfree(ny);
+}
+
+TEST(execUtilTest, interpMainFirstPendingGroupsUseReadinessFifo) {
+  SInterpMainFirstReadiness first = {};
+  first.fillType = TSDB_FILL_LINEAR;
+  first.firstMainRowSet = true;
+  first.groupRowSet = true;
+  first.mainFinalized = true;
+  first.leadHoleSet = true;
+  first.trailHoleSet = true;
+  first.extNextRowSet = true;
+
+  SInterpMainFirstReadiness second = first;
+  second.extPrevRowSet = true;
+  EXPECT_FALSE(interpMainFirstGroupIsReady(&first));
+  EXPECT_TRUE(interpMainFirstGroupIsReady(&second));
+
+  SArray* pCompleted = taosArrayInit(2, sizeof(uint64_t));
+  ASSERT_NE(pCompleted, nullptr);
+  uint64_t secondId = 22;
+  ASSERT_NE(taosArrayPush(pCompleted, &secondId), nullptr);
+  first.extPrevRowSet = true;
+  ASSERT_TRUE(interpMainFirstGroupIsReady(&first));
+  uint64_t firstId = 11;
+  ASSERT_NE(taosArrayPush(pCompleted, &firstId), nullptr);
+
+  int32_t index = 0;
+  uint64_t groupId = 0;
+  ASSERT_TRUE(interpMainFirstNextCompletedGroup(pCompleted, &index,
+                                                &groupId));
+  EXPECT_EQ(groupId, secondId);
+  ASSERT_TRUE(interpMainFirstNextCompletedGroup(pCompleted, &index,
+                                                &groupId));
+  EXPECT_EQ(groupId, firstId);
+  EXPECT_FALSE(interpMainFirstNextCompletedGroup(pCompleted, &index,
+                                                 &groupId));
+  taosArrayDestroy(pCompleted);
+}
+
+TEST(execUtilTest, interpMainFirstEmittedGroupsAreNotReentered) {
+  SHashObj* pEmittedGroups =
+      taosHashInit(4,
+                   taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT),
+                   false, HASH_NO_LOCK);
+  ASSERT_NE(pEmittedGroups, nullptr);
+
+  uint64_t emittedGroupId = 11;
+  uint64_t otherGroupId = 22;
+  EXPECT_FALSE(interpMainFirstGroupWasEmitted(pEmittedGroups,
+                                               emittedGroupId));
+  uint8_t emitted = 1;
+  ASSERT_EQ(taosHashPut(pEmittedGroups, &emittedGroupId,
+                        sizeof(emittedGroupId), &emitted,
+                        sizeof(emitted)), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(interpMainFirstGroupWasEmitted(pEmittedGroups,
+                                              emittedGroupId));
+  EXPECT_FALSE(interpMainFirstGroupWasEmitted(pEmittedGroups,
+                                               otherGroupId));
+
+  taosHashCleanup(pEmittedGroups);
+}
+
+TEST(execUtilTest, interpMainFirstEmittedGroupNotifiesEachSideOnce) {
+  SHashObj* pEmittedGroups = taosHashInit(
+      4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT),
+      false, HASH_NO_LOCK);
+  ASSERT_NE(pEmittedGroups, nullptr);
+
+  uint64_t groupId = 42;
+  uint8_t emitted = 1;
+  ASSERT_EQ(taosHashPut(pEmittedGroups, &groupId, sizeof(groupId),
+                        &emitted, sizeof(emitted)),
+            TSDB_CODE_SUCCESS);
+
+  EXPECT_TRUE(interpMainFirstEmittedGroupNeedsNotify(
+      pEmittedGroups, groupId, SCAN_PHASE_NEXT));
+  EXPECT_FALSE(interpMainFirstEmittedGroupNeedsNotify(
+      pEmittedGroups, groupId, SCAN_PHASE_NEXT));
+  EXPECT_TRUE(interpMainFirstEmittedGroupNeedsNotify(
+      pEmittedGroups, groupId, SCAN_PHASE_PREV));
+  EXPECT_FALSE(interpMainFirstEmittedGroupNeedsNotify(
+      pEmittedGroups, groupId, SCAN_PHASE_PREV));
+  EXPECT_FALSE(interpMainFirstEmittedGroupNeedsNotify(
+      pEmittedGroups, groupId, SCAN_PHASE_MAIN));
+  EXPECT_FALSE(interpMainFirstEmittedGroupNeedsNotify(
+      pEmittedGroups, groupId + 1, SCAN_PHASE_PREV));
+
+  taosHashCleanup(pEmittedGroups);
+}
+
+TEST(execUtilTest, interpMultiGroupUsesPhaseScopedEarlyStop) {
+  EXPECT_FALSE(interpModeUsesPhasedProtocol(INTERP_MODE_LEGACY));
+  EXPECT_TRUE(interpModeUsesPhasedProtocol(INTERP_MODE_MAIN_FIRST));
+  EXPECT_TRUE(interpModeUsesPhasedProtocol(INTERP_MODE_MULTI_GROUP));
+  EXPECT_TRUE(interpModeUsesPhasedProtocol(INTERP_MODE_GROUP_FIRST));
+
+  EXPECT_TRUE(interpModeCanEarlyStop(INTERP_MODE_LEGACY));
+  EXPECT_TRUE(interpModeCanEarlyStop(INTERP_MODE_MAIN_FIRST));
+  EXPECT_TRUE(interpModeCanEarlyStop(INTERP_MODE_MULTI_GROUP));
+  EXPECT_TRUE(interpModeCanEarlyStop(INTERP_MODE_GROUP_FIRST));
+}
+
+TEST(execUtilTest, interpMultiGroupSideBlocksUseClosedMainMembership) {
+  EXPECT_EQ(INTERP_SIDE_GROUP_CREATE,
+            interpSideGroupAction(INTERP_MODE_MAIN_FIRST, false, false));
+  EXPECT_EQ(INTERP_SIDE_GROUP_DROP,
+            interpSideGroupAction(INTERP_MODE_MULTI_GROUP, false, false));
+
+  EXPECT_EQ(INTERP_SIDE_GROUP_PROCESS,
+            interpSideGroupAction(INTERP_MODE_MAIN_FIRST, true, false));
+  EXPECT_EQ(INTERP_SIDE_GROUP_PROCESS,
+            interpSideGroupAction(INTERP_MODE_MULTI_GROUP, true, false));
+
+  EXPECT_EQ(INTERP_SIDE_GROUP_NOTIFY,
+            interpSideGroupAction(INTERP_MODE_MAIN_FIRST, false, true));
+  EXPECT_EQ(INTERP_SIDE_GROUP_DROP,
+            interpSideGroupAction(INTERP_MODE_MULTI_GROUP, false, true));
+}
+
+TEST(execUtilTest, interpMainFirstSideOnlyGroupWaitsAcrossBlocks) {
+  SInterpMainFirstReadiness readiness = {};
+  readiness.fillType = TSDB_FILL_NEXT;
+  readiness.groupRowSet = true;
+  readiness.mainFinalized = true;
+
+  // A side-only NEXT group stays pending until its required reference arrives.
+  EXPECT_FALSE(interpMainFirstGroupIsReady(&readiness));
+  readiness.extNextRowSet = true;
+  EXPECT_TRUE(interpMainFirstGroupIsReady(&readiness));
+}
+
+TEST(execUtilTest, interpMainFirstSkippedPhaseReleasesGroup) {
+  SInterpMainFirstReadiness readiness = {};
+  readiness.fillType = TSDB_FILL_LINEAR;
+  readiness.firstMainRowSet = true;
+  readiness.groupRowSet = true;
+  readiness.mainFinalized = true;
+  readiness.leadHoleSet = true;
+  readiness.trailHoleSet = true;
+  readiness.extPrevRowSet = true;
+
+  EXPECT_FALSE(interpMainFirstGroupIsReady(&readiness));
+  readiness.nextPhaseClosed = true;
+  EXPECT_TRUE(interpMainFirstGroupIsReady(&readiness));
+}
+
+TEST(execUtilTest, interpMainFirstEarlyStopIsScopedPerGroup) {
+  SInterpMainFirstReadiness completed = {};
+  completed.fillType = TSDB_FILL_NEXT;
+  completed.groupRowSet = true;
+  completed.mainFinalized = true;
+  completed.extNextRowSet = true;
+
+  SInterpMainFirstReadiness pending = completed;
+  pending.extNextRowSet = false;
+  EXPECT_TRUE(interpMainFirstGroupIsReady(&completed));
+  EXPECT_FALSE(interpMainFirstGroupIsReady(&pending));
+
+  completed.queued = true;
+  EXPECT_FALSE(interpMainFirstGroupIsReady(&completed));
+  EXPECT_FALSE(interpMainFirstGroupIsReady(&pending));
+
+  pending.extNextRowSet = true;
+  EXPECT_TRUE(interpMainFirstGroupIsReady(&pending));
+}
+
+TEST(execUtilTest, interpMainFirstNaturalEofReleasesPendingGroup) {
+  SInterpMainFirstReadiness readiness = {};
+  readiness.fillType = TSDB_FILL_LINEAR;
+  readiness.groupRowSet = true;
+  readiness.mainFinalized = true;
+
+  EXPECT_FALSE(interpMainFirstGroupIsReady(&readiness));
+  readiness.nextPhaseClosed = true;
+  EXPECT_FALSE(interpMainFirstGroupIsReady(&readiness));
+  readiness.prevPhaseClosed = true;
+  EXPECT_TRUE(interpMainFirstGroupIsReady(&readiness));
+
+  readiness.queued = true;
+  EXPECT_FALSE(interpMainFirstGroupIsReady(&readiness));
+}
+
+TEST(execUtilTest, interpMainFirstPhaseTransitionsAreMonotonic) {
+  EXPECT_EQ(TSDB_CODE_SUCCESS,
+            interpValidatePhaseTransition(SCAN_PHASE_MAIN,
+                                          SCAN_PHASE_MAIN));
+  EXPECT_EQ(TSDB_CODE_SUCCESS,
+            interpValidatePhaseTransition(SCAN_PHASE_MAIN,
+                                          SCAN_PHASE_NEXT));
+  EXPECT_EQ(TSDB_CODE_SUCCESS,
+            interpValidatePhaseTransition(SCAN_PHASE_MAIN,
+                                          SCAN_PHASE_PREV));
+  EXPECT_EQ(TSDB_CODE_SUCCESS,
+            interpValidatePhaseTransition(SCAN_PHASE_NEXT,
+                                          SCAN_PHASE_PREV));
+
+  EXPECT_EQ(TSDB_CODE_PLAN_INTERNAL_ERROR,
+            interpValidatePhaseTransition(SCAN_PHASE_NEXT,
+                                          SCAN_PHASE_MAIN));
+  EXPECT_EQ(TSDB_CODE_PLAN_INTERNAL_ERROR,
+            interpValidatePhaseTransition(SCAN_PHASE_PREV,
+                                          SCAN_PHASE_NEXT));
+  EXPECT_EQ(TSDB_CODE_PLAN_INTERNAL_ERROR,
+            interpValidatePhaseTransition(-1, SCAN_PHASE_MAIN));
+  EXPECT_EQ(TSDB_CODE_PLAN_INTERNAL_ERROR,
+            interpValidatePhaseTransition(SCAN_PHASE_MAIN,
+                                          SCAN_PHASE_PREV + 1));
+}
+
+TEST(execUtilTest, interpMainFirstNotifyMatchesActivePhaseBoundary) {
+  STimeWindow mainWin = {};
+  mainWin.skey = 10;
+  mainWin.ekey = 20;
+  STimeWindow nextWin = {};
+  nextWin.skey = 21;
+  nextWin.ekey = 30;
+  STimeWindow prevWin = {};
+  prevWin.skey = 0;
+  prevWin.ekey = 9;
+
+  // Adjacent phases share boundary timestamp 21. The caller supplies the
+  // active phase; this helper validates its window, not notify identity.
+  EXPECT_TRUE(interpMainFirstNotifyMatchesPhase(
+      SCAN_PHASE_MAIN, &mainWin, 0, 0, 21));
+  EXPECT_FALSE(interpMainFirstNotifyMatchesPhase(
+      SCAN_PHASE_MAIN, &mainWin, 0, 0, 20));
+  EXPECT_TRUE(interpMainFirstNotifyMatchesPhase(
+      SCAN_PHASE_NEXT, &nextWin, 0, 0, 21));
+  EXPECT_FALSE(interpMainFirstNotifyMatchesPhase(
+      SCAN_PHASE_NEXT, &nextWin, 0, 0, 20));
+  EXPECT_TRUE(interpMainFirstNotifyMatchesPhase(
+      SCAN_PHASE_PREV, &prevWin, 0, 0, 9));
+  EXPECT_FALSE(interpMainFirstNotifyMatchesPhase(
+      SCAN_PHASE_PREV, &prevWin, 0, 1, 9));
+}
+
+TEST(execUtilTest, interpMainFirstNotifyMatchesRemoteSourceIdentity) {
+  STimeWindow nextWin = {};
+  nextWin.skey = 21;
+  nextWin.ekey = 30;
+  STableScanOperatorParam notify = {};
+  notify.groupid = 42;
+  notify.notifyPhase = SCAN_PHASE_NEXT;
+  notify.notifyScanGroupId = 77;
+  notify.notifyTs = 21;
+
+  EXPECT_TRUE(interpMainFirstNotifyMatchesSource(
+      SCAN_PHASE_NEXT, 77, &nextWin, 42, &notify));
+  EXPECT_FALSE(interpMainFirstNotifyMatchesSource(
+      SCAN_PHASE_MAIN, 77, &nextWin, 42, &notify));
+  EXPECT_FALSE(interpMainFirstNotifyMatchesSource(
+      SCAN_PHASE_NEXT, 78, &nextWin, 42, &notify));
+  EXPECT_FALSE(interpMainFirstNotifyMatchesSource(
+      SCAN_PHASE_NEXT, 77, &nextWin, 43, &notify));
+}
+
+TEST(execUtilTest, interpMainFirstNotifyAcceptsProjectAndPartition) {
+  SOperatorInfo tableScan = {};
+  tableScan.operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+
+  SOperatorInfo* partitionChildren[] = {&tableScan};
+  SOperatorInfo partition = {};
+  partition.operatorType = QUERY_NODE_PHYSICAL_PLAN_PARTITION;
+  partition.numOfDownstream = 1;
+  partition.pDownstream = partitionChildren;
+
+  EXPECT_EQ(interpMainFirstResolveNotifyTarget(&partition), &tableScan);
+
+  SOperatorInfo* projectChildren[] = {&partition};
+  SOperatorInfo project = {};
+  project.operatorType = QUERY_NODE_PHYSICAL_PLAN_PROJECT;
+  project.numOfDownstream = 1;
+  project.pDownstream = projectChildren;
+
+  EXPECT_EQ(interpMainFirstResolveNotifyTarget(&project), &tableScan);
+
+  projectChildren[0] = &tableScan;
+  EXPECT_EQ(interpMainFirstResolveNotifyTarget(&project), &tableScan);
+
+  SOperatorInfo* sortChildren[] = {&tableScan};
+  SOperatorInfo sort = {};
+  sort.operatorType = QUERY_NODE_PHYSICAL_PLAN_SORT;
+  sort.numOfDownstream = 1;
+  sort.pDownstream = sortChildren;
+  EXPECT_EQ(interpMainFirstResolveNotifyTarget(&sort), nullptr);
+
+  SOperatorInfo* projectFanout[] = {&tableScan, &tableScan};
+  project.numOfDownstream = 2;
+  project.pDownstream = projectFanout;
+  EXPECT_EQ(interpMainFirstResolveNotifyTarget(&project), nullptr);
+
+  partition.numOfDownstream = 2;
+  partition.pDownstream = projectFanout;
+  EXPECT_EQ(interpMainFirstResolveNotifyTarget(&partition), nullptr);
+}
+
+TEST(execUtilTest, interpMultiGroupNotifyBuildsPartitionScanTree) {
+  const int32_t scanTypes[] = {
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN,
+  };
+
+  for (int32_t scanType : scanTypes) {
+    SOperatorInfo scan = {};
+    scan.operatorType = scanType;
+    SOperatorInfo* partitionChildren[] = {&scan};
+    SOperatorInfo partition = {};
+    partition.operatorType = QUERY_NODE_PHYSICAL_PLAN_PARTITION;
+    partition.numOfDownstream = 1;
+    partition.pDownstream = partitionChildren;
+
+    SOperatorParam* pRoot = nullptr;
+    ASSERT_EQ(interpMainFirstBuildNotifyParam(
+                  &partition, 0, 0, SCAN_PHASE_NEXT, 0, 123, &pRoot),
+              TSDB_CODE_SUCCESS);
+    ASSERT_NE(pRoot, nullptr);
+    EXPECT_EQ(pRoot->opType, QUERY_NODE_PHYSICAL_PLAN_PARTITION);
+    EXPECT_TRUE(pRoot->reUse);
+    ASSERT_NE(pRoot->pChildren, nullptr);
+    ASSERT_EQ(taosArrayGetSize(pRoot->pChildren), 1);
+
+    SOperatorParam* pChild = static_cast<SOperatorParam*>(
+        taosArrayGetP(pRoot->pChildren, 0));
+    ASSERT_NE(pChild, nullptr);
+    EXPECT_EQ(pChild->opType, scanType);
+    EXPECT_EQ(pChild->downstreamIdx, 0);
+    EXPECT_FALSE(pChild->reUse);
+    STableScanOperatorParam* pScan =
+        static_cast<STableScanOperatorParam*>(pChild->value);
+    ASSERT_NE(pScan, nullptr);
+    EXPECT_EQ(pScan->paramType, NOTIFY_TYPE_SCAN_PARAM);
+    EXPECT_TRUE(pScan->notifyToProcess);
+    EXPECT_EQ(pScan->groupid, 0);
+    EXPECT_EQ(pScan->notifyPhase, SCAN_PHASE_NEXT);
+    EXPECT_EQ(pScan->notifyScanGroupId, 0);
+    EXPECT_EQ(pScan->notifyTs, 123);
+
+    interpPrepareNotifyParamForDispatch(pRoot);
+    EXPECT_TRUE(pChild->reUse);
+    pRoot->reUse = false;
+    pChild->reUse = false;
+    freeOperatorParam(pRoot, OP_GET_PARAM);
+  }
+}
+
+namespace {
+
+struct InterpRoutingParamFixture {
+  SOperatorInfo leaf = {};
+  SOperatorInfo* downstream[1] = {&leaf};
+  SOperatorInfo op = {};
+  SOperatorParam* pPending = nullptr;
+
+  explicit InterpRoutingParamFixture(
+      int32_t type = QUERY_NODE_PHYSICAL_PLAN_PARTITION) {
+    leaf.name = const_cast<char*>("leaf");
+    op.name = const_cast<char*>("routing");
+    op.operatorType = type;
+    op.numOfDownstream = 1;
+    op.pDownstream = downstream;
+  }
+
+  ~InterpRoutingParamFixture() {
+    freeOperatorParam(pPending, OP_GET_PARAM);
+    freeResetOperatorParams(&op, OP_GET_PARAM, true);
+  }
+
+  void build(int32_t childType = QUERY_NODE_PHYSICAL_PLAN_PROJECT,
+             int32_t childCount = 1) {
+    pPending = static_cast<SOperatorParam*>(
+        taosMemoryCalloc(1, sizeof(SOperatorParam)));
+    ASSERT_NE(pPending, nullptr);
+    pPending->opType = op.operatorType;
+    if (childCount == 0) {
+      return;
+    }
+    pPending->pChildren =
+        taosArrayInit(childCount, sizeof(SOperatorParam*));
+    ASSERT_NE(pPending->pChildren, nullptr);
+    for (int32_t i = 0; i < childCount; ++i) {
+      SOperatorParam* pChild = static_cast<SOperatorParam*>(
+          taosMemoryCalloc(1, sizeof(SOperatorParam)));
+      ASSERT_NE(pChild, nullptr);
+      if (childType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
+        pChild->value =
+            taosMemoryCalloc(1, sizeof(SExchangeOperatorParam));
+        if (pChild->value == nullptr) {
+          taosMemoryFree(pChild);
+          FAIL() << "failed to allocate exchange parameter";
+        }
+      }
+      pChild->opType = childType;
+      if (taosArrayPush(pPending->pChildren, &pChild) == nullptr) {
+        freeOperatorParam(pChild, OP_GET_PARAM);
+        FAIL() << "failed to append routing child";
+      }
+    }
+  }
+
+  SOperatorParam* child(int32_t index = 0) {
+    return static_cast<SOperatorParam*>(
+        taosArrayGetP(pPending->pChildren, index));
+  }
+
+  int32_t dispatch() {
+    SOperatorParam* pParam = pPending;
+    pPending = nullptr;
+    return setOperatorParams(&op, pParam, OP_GET_PARAM);
+  }
+};
+
+}  // namespace
+
+TEST(execUtilTest, partitionRoutesAndReleasesOperatorParamTree) {
+  InterpRoutingParamFixture fixture;
+  ASSERT_NO_FATAL_FAILURE(fixture.build());
+  SOperatorInfo& partition = fixture.op;
+  SOperatorParam* pRoot = fixture.pPending;
+  SOperatorParam* pChild = fixture.child();
+
+  ASSERT_EQ(fixture.dispatch(), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(partition.pOperatorGetParam, pRoot);
+  EXPECT_EQ(pRoot->pChildren, nullptr);
+  ASSERT_NE(partition.pDownstreamGetParams, nullptr);
+  EXPECT_EQ(partition.pDownstreamGetParams[0], pChild);
+
+  detachOperatorRoutingParam(&partition);
+  EXPECT_EQ(partition.pOperatorGetParam, nullptr);
+  EXPECT_EQ(partition.pDownstreamGetParams[0], pChild);
+  InterpRoutingParamFixture unconsumed;
+  ASSERT_NO_FATAL_FAILURE(unconsumed.build());
+}
+
+TEST(execUtilTest, partitionRejectsMergeableMultipleChildren) {
+  InterpRoutingParamFixture fixture;
+  ASSERT_NO_FATAL_FAILURE(
+      fixture.build(QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, 2));
+  SOperatorInfo& partition = fixture.op;
+  SOperatorParam* pRoot = fixture.pPending;
+  for (int32_t i = 0; i < 2; ++i) {
+    auto* pValue = static_cast<SExchangeOperatorParam*>(
+        fixture.child(i)->value);
+    ASSERT_NE(pValue, nullptr);
+    pValue->basic.paramType = DYN_TYPE_EXCHANGE_PARAM;
+    pValue->basic.vgId = i + 1;
+  }
+
+  EXPECT_EQ(fixture.dispatch(), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(partition.pOperatorGetParam, pRoot);
+  EXPECT_NE(pRoot->pChildren, nullptr);
+  ASSERT_NE(partition.pDownstreamGetParams, nullptr);
+  EXPECT_EQ(partition.pDownstreamGetParams[0], nullptr);
+}
+
+TEST(execUtilTest, partitionHandlesEmptyAndInvalidParamTrees) {
+  InterpRoutingParamFixture fixture;
+  ASSERT_NO_FATAL_FAILURE(
+      fixture.build(QUERY_NODE_PHYSICAL_PLAN_PROJECT, 0));
+  SOperatorInfo& partition = fixture.op;
+  ASSERT_EQ(fixture.dispatch(), TSDB_CODE_SUCCESS);
+  ASSERT_NE(partition.pDownstreamGetParams, nullptr);
+  EXPECT_EQ(partition.pDownstreamGetParams[0], nullptr);
+  detachOperatorRoutingParam(&partition);
+  EXPECT_EQ(partition.pOperatorGetParam, nullptr);
+  freeResetOperatorParams(&partition, OP_GET_PARAM, true);
+
+  ASSERT_NO_FATAL_FAILURE(fixture.build());
+  SOperatorParam* pRoot = fixture.pPending;
+  fixture.child()->downstreamIdx = 1;
+  EXPECT_EQ(fixture.dispatch(), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(partition.pOperatorGetParam, pRoot);
+  EXPECT_NE(pRoot->pChildren, nullptr);
+  ASSERT_NE(partition.pDownstreamGetParams, nullptr);
+  EXPECT_EQ(partition.pDownstreamGetParams[0], nullptr);
+}
+
+TEST(execUtilTest, routingMergeFailureKeepsParamTreeOwned) {
+  InterpRoutingParamFixture fixture(QUERY_NODE_PHYSICAL_PLAN_MERGE);
+  ASSERT_NO_FATAL_FAILURE(
+      fixture.build(QUERY_NODE_PHYSICAL_PLAN_PROJECT, 2));
+  SOperatorInfo& merge = fixture.op;
+  SOperatorParam* pRoot = fixture.pPending;
+
+  EXPECT_EQ(fixture.dispatch(), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(merge.pOperatorGetParam, pRoot);
+  EXPECT_NE(pRoot->pChildren, nullptr);
+  ASSERT_NE(merge.pDownstreamGetParams, nullptr);
+  EXPECT_EQ(merge.pDownstreamGetParams[0], nullptr);
+}
+
+TEST(execUtilTest, interpMainFirstNotifyKeepsExistingLeafTargets) {
+  SOperatorInfo target = {};
+  const int32_t targetTypes[] = {
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN,
+      QUERY_NODE_PHYSICAL_PLAN_EXCHANGE,
+      QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN,
+  };
+
+  for (int32_t targetType : targetTypes) {
+    target.operatorType = targetType;
+    EXPECT_EQ(interpMainFirstResolveNotifyTarget(&target), &target);
+  }
+  EXPECT_EQ(interpMainFirstResolveNotifyTarget(nullptr), nullptr);
+}
+
+TEST(execUtilTest, interpMainFirstNotifyBuildsMergeExchangeTree) {
+  SOperatorInfo firstExchange = {};
+  firstExchange.operatorType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
+  SOperatorInfo secondExchange = firstExchange;
+  SOperatorInfo* mergeChildren[] = {
+      &firstExchange,
+      &secondExchange,
+  };
+  SOperatorInfo merge = {};
+  merge.operatorType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
+  merge.numOfDownstream = 2;
+  merge.pDownstream = mergeChildren;
+
+  EXPECT_EQ(interpMainFirstResolveNotifyTarget(&merge), &merge);
+  SOperatorParam* pRoot = nullptr;
+  ASSERT_EQ(interpMainFirstBuildNotifyParam(
+                &merge, 0, 42, SCAN_PHASE_NEXT, 77, 123, &pRoot),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(pRoot, nullptr);
+  EXPECT_EQ(pRoot->opType, QUERY_NODE_PHYSICAL_PLAN_MERGE);
+  EXPECT_TRUE(pRoot->reUse);
+  ASSERT_NE(pRoot->pChildren, nullptr);
+  ASSERT_EQ(taosArrayGetSize(pRoot->pChildren), 2);
+
+  for (int32_t i = 0; i < 2; ++i) {
+    SOperatorParam* pChild = static_cast<SOperatorParam*>(
+        taosArrayGetP(pRoot->pChildren, i));
+    ASSERT_NE(pChild, nullptr);
+    EXPECT_EQ(pChild->opType, QUERY_NODE_PHYSICAL_PLAN_EXCHANGE);
+    EXPECT_EQ(pChild->downstreamIdx, i);
+    SExchangeOperatorParam* pExchange =
+        static_cast<SExchangeOperatorParam*>(pChild->value);
+    ASSERT_NE(pExchange, nullptr);
+    EXPECT_FALSE(pExchange->multiParams);
+    EXPECT_EQ(pExchange->basic.paramType,
+              NOTIFY_TYPE_EXCHANGE_PARAM);
+    EXPECT_EQ(pExchange->basic.srcOpType,
+              QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN);
+    EXPECT_EQ(pExchange->basic.groupid, 42);
+    EXPECT_EQ(pExchange->basic.notifyPhase, SCAN_PHASE_NEXT);
+    EXPECT_EQ(pExchange->basic.notifyScanGroupId, 77);
+    EXPECT_EQ(pExchange->basic.notifyTs, 123);
+    EXPECT_FALSE(pChild->reUse);
+  }
+
+  interpPrepareNotifyParamForDispatch(pRoot);
+  ASSERT_EQ(setOperatorParams(&merge, pRoot, OP_GET_PARAM),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(merge.pOperatorGetParam, pRoot);
+  EXPECT_EQ(pRoot->pChildren, nullptr);
+  pRoot->reUse = false;
+  detachOperatorRoutingParam(&merge);
+  EXPECT_EQ(merge.pOperatorGetParam, nullptr);
+  for (int32_t i = 0; i < 2; ++i) {
+    SOperatorParam* pChild = merge.pDownstreamGetParams[i];
+    ASSERT_NE(pChild, nullptr);
+    EXPECT_FALSE(pChild->reUse);
+  }
+  freeResetOperatorParams(&merge, OP_GET_PARAM, true);
+}
+
+TEST(execUtilTest, interpMainFirstRemoteNotifyRequiresMergeScanType) {
+  SOperatorParam* pParam = nullptr;
+  EXPECT_EQ(buildTableScanOperatorParamNotify(
+                &pParam, 0, 42, SCAN_PHASE_NEXT, 77, 123),
+            TSDB_CODE_INVALID_PARA);
+  if (pParam != nullptr) {
+    freeOperatorParam(pParam, OP_GET_PARAM);
+    pParam = nullptr;
+  }
+
+  ASSERT_EQ(buildTableScanOperatorParamNotify(
+                &pParam, QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN,
+                42, SCAN_PHASE_NEXT, 77, 123),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(pParam, nullptr);
+  EXPECT_EQ(pParam->opType,
+            QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN);
+  STableScanOperatorParam* pNotify =
+      static_cast<STableScanOperatorParam*>(pParam->value);
+  ASSERT_NE(pNotify, nullptr);
+  EXPECT_EQ(pNotify->groupid, 42);
+  EXPECT_EQ(pNotify->notifyPhase, SCAN_PHASE_NEXT);
+  EXPECT_EQ(pNotify->notifyScanGroupId, 77);
+  EXPECT_EQ(pNotify->notifyTs, 123);
+  freeOperatorParam(pParam, OP_GET_PARAM);
+}
+
+TEST(execUtilTest, interpMainFirstExchangeNotifyRequiresSingleSource) {
+  SExchangeInfo info = {};
+  info.pSources = taosArrayInit(2, sizeof(SDownstreamSourceNode));
+  ASSERT_NE(info.pSources, nullptr);
+  SDownstreamSourceNode source = {};
+  ASSERT_NE(taosArrayPush(info.pSources, &source), nullptr);
+
+  SExchangePhysiNode exchangeNode = {};
+  exchangeNode.singleSrc = true;
+  SExecTaskInfo task = {};
+  SExchangeOperatorParam exchangeParam = {};
+  exchangeParam.basic.paramType = NOTIFY_TYPE_EXCHANGE_PARAM;
+  exchangeParam.basic.srcOpType =
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
+  exchangeParam.basic.groupid = 42;
+  exchangeParam.basic.notifyPhase = SCAN_PHASE_NEXT;
+  exchangeParam.basic.notifyScanGroupId = 77;
+  exchangeParam.basic.notifyTs = 123;
+  SOperatorParam getParam = {};
+  getParam.opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
+  getParam.value = &exchangeParam;
+
+  SOperatorInfo op = {};
+  op.info = &info;
+  op.pTaskInfo = &task;
+  op.pPhyNode = reinterpret_cast<SPhysiNode*>(&exchangeNode);
+  op.pOperatorGetParam = &getParam;
+  ASSERT_EQ(storeExchangeNotifyInfo(&op), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(info.notifyToSend);
+  EXPECT_EQ(info.notifySrcOpType,
+            QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN);
+  EXPECT_EQ(info.notifyGroupId, 42);
+  EXPECT_EQ(info.notifyPhase, SCAN_PHASE_NEXT);
+  EXPECT_EQ(info.notifyScanGroupId, 77);
+  EXPECT_EQ(info.notifyTs, 123);
+
+  ASSERT_NE(taosArrayPush(info.pSources, &source), nullptr);
+  info.notifyToSend = false;
+  EXPECT_EQ(storeExchangeNotifyInfo(&op), TSDB_CODE_INVALID_PARA);
+  EXPECT_FALSE(info.notifyToSend);
+  taosArrayDestroy(info.pSources);
+}
+
+TEST(execUtilTest, interpLegacyExchangeNotifyAllowsMultipleTableScans) {
+  SExchangeInfo info = {};
+  info.pSources = taosArrayInit(2, sizeof(SDownstreamSourceNode));
+  ASSERT_NE(info.pSources, nullptr);
+  SDownstreamSourceNode source = {};
+  ASSERT_NE(taosArrayPush(info.pSources, &source), nullptr);
+  ASSERT_NE(taosArrayPush(info.pSources, &source), nullptr);
+
+  SExchangePhysiNode exchangeNode = {};
+  SExecTaskInfo task = {};
+  SExchangeOperatorParam exchangeParam = {};
+  exchangeParam.basic.paramType = NOTIFY_TYPE_EXCHANGE_PARAM;
+  exchangeParam.basic.srcOpType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  exchangeParam.basic.notifyPhase = SCAN_PHASE_MAIN;
+  exchangeParam.basic.notifyTs = 123;
+  SOperatorParam getParam = {};
+  getParam.opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
+  getParam.value = &exchangeParam;
+
+  SOperatorInfo op = {};
+  op.info = &info;
+  op.pTaskInfo = &task;
+  op.pPhyNode = reinterpret_cast<SPhysiNode*>(&exchangeNode);
+  op.pOperatorGetParam = &getParam;
+
+  ASSERT_EQ(storeExchangeNotifyInfo(&op), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(info.notifyToSend);
+  EXPECT_EQ(info.notifySrcOpType,
+            QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+  EXPECT_EQ(info.notifyTs, 123);
+  taosArrayDestroy(info.pSources);
+}
+
+TEST(execUtilTest, interpRemoteSendPropagatesDeserializeFailure) {
+  SMsgSendInfo* pSendInfo = static_cast<SMsgSendInfo*>(
+      taosMemoryCalloc(1, sizeof(SMsgSendInfo)));
+  ASSERT_NE(pSendInfo, nullptr);
+
+  pSendInfo->msgInfo.len = sizeof(SMsgHead);
+  pSendInfo->msgInfo.pData =
+      taosMemoryCalloc(1, pSendInfo->msgInfo.len);
+  if (pSendInfo->msgInfo.pData == nullptr) {
+    destroySendMsgInfo(pSendInfo);
+    FAIL() << "failed to allocate malformed fetch request";
+  }
+
+  EXPECT_LT(interpRemoteSend(nullptr, nullptr, nullptr, pSendInfo), 0);
+}
+
+namespace {
+
+class InterpRemoteParamOwnershipTest : public testing::Test {
+ protected:
+  static InterpRemoteParamOwnershipTest* active;
+  Stub stub;
+  InterpRemoteScanFixture remote;
+  InterpRemoteTransport transport;
+  SMsgSendInfo* pSendInfo = nullptr;
+  std::array<void*, 2> allocations = {};
+  std::array<int, 2> freeCounts = {};
+  bool failResults = false;
+
+  static SArray* initArray(size_t size, size_t elemSize) {
+    SOperatorParam* pParam = active->remote.task.pOpParam;
+    // The first allocation after ownership reaches the task is pResults.
+    if (pParam != nullptr && active->allocations[0] == nullptr) {
+      active->allocations = {pParam, pParam->value};
+      if (active->failResults) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return nullptr;
+      }
+    }
+    active->stub.reset(taosArrayInit);
+    SArray* pArray = taosArrayInit(size, elemSize);
+    active->stub.set(taosArrayInit, initArray);
+    return pArray;
+  }
+
+  static void recordFree(void* ptr) {
+    for (size_t i = 0; i < active->allocations.size(); ++i) {
+      if (ptr != nullptr && ptr == active->allocations[i]) {
+        ++active->freeCounts[i];
+      }
+    }
+    active->stub.reset(taosMemFree);
+    taosMemFree(ptr);
+    active->stub.set(taosMemFree, recordFree);
+  }
+
+  void SetUp() override {
+    remote.remoteTaskId = 0x101;
+    remote.task.id.str = remote.taskId;
+    remote.task.pRoot = &remote.root;
+    remote.root.operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
+    transport.scans.push_back(&remote);
+
+    STableScanOperatorParam notify = {};
+    notify.paramType = NOTIFY_TYPE_SCAN_PARAM;
+    notify.notifyToProcess = true;
+    SOperatorParam param = {};
+    param.opType = remote.root.operatorType;
+    param.value = &notify;
+    SResFetchReq req = {};
+    req.taskId = remote.remoteTaskId;
+    req.pOpParam = &param;
+
+    int32_t len = tSerializeSResFetchReq(nullptr, 0, &req, false, false);
+    ASSERT_GT(len, 0);
+    pSendInfo = static_cast<SMsgSendInfo*>(
+        taosMemoryCalloc(1, sizeof(SMsgSendInfo)));
+    ASSERT_NE(pSendInfo, nullptr);
+    pSendInfo->msgInfo.len = len;
+    pSendInfo->msgInfo.pData = taosMemoryCalloc(1, len);
+    ASSERT_NE(pSendInfo->msgInfo.pData, nullptr);
+    ASSERT_EQ(tSerializeSResFetchReq(pSendInfo->msgInfo.pData, len, &req,
+                                     false, false),
+              len);
+
+    active = this;
+    stub.set(taosArrayInit, initArray);
+    stub.set(taosMemFree, recordFree);
+  }
+
+  void sendAndCheck(int32_t expectedCode) {
+    SMsgSendInfo* pRequest = pSendInfo;
+    pSendInfo = nullptr;
+    EXPECT_EQ(interpRemoteSend(&transport, nullptr, nullptr, pRequest),
+              TSDB_CODE_SUCCESS);
+    EXPECT_EQ(remote.execCode, expectedCode);
+    EXPECT_EQ(remote.notifyCount, 1);
+    EXPECT_FALSE(remote.task.paramSet);
+    EXPECT_EQ(remote.task.pOpParam, nullptr);
+    for (size_t i = 0; i < allocations.size(); ++i) {
+      EXPECT_NE(allocations[i], nullptr);
+      EXPECT_EQ(freeCounts[i], 1);
+    }
+  }
+
+  void TearDown() override {
+    stub.reset(taosArrayInit);
+    stub.reset(taosMemFree);
+    active = nullptr;
+    destroySendMsgInfo(pSendInfo);
+    // Keep failing ownership assertions from leaking the decoded payload.
+    for (size_t i = 0; i < allocations.size(); ++i) {
+      if (freeCounts[i] == 0) {
+        taosMemoryFree(allocations[i]);
+      }
+    }
+  }
+};
+
+InterpRemoteParamOwnershipTest* InterpRemoteParamOwnershipTest::active =
+    nullptr;
+
+}  // namespace
+
+TEST_F(InterpRemoteParamOwnershipTest, FreesParamOnResultArrayAllocationOom) {
+  failResults = true;
+  sendAndCheck(TSDB_CODE_OUT_OF_MEMORY);
+}
+
+TEST_F(InterpRemoteParamOwnershipTest, FreesParamWhenKilledBeforeDispatch) {
+  remote.task.code = TSDB_CODE_TSC_QUERY_KILLED;
+  sendAndCheck(TSDB_CODE_TSC_QUERY_KILLED);
+}
+
+TEST(execUtilTest, interpOrdinaryScanSkipsEmptyPhasesWithoutWalkingGroups) {
+  InterpOrdinaryScanFixture fixture;
+
+  EXPECT_EQ(fixture.next(), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(fixture.pResult, nullptr);
+  EXPECT_EQ(fixture.root.status, OP_EXEC_DONE);
+  EXPECT_EQ(fixture.scanInfo.currentGroupId, 0);
+  EXPECT_EQ(fixture.scanInfo.currentPhase, SCAN_PHASE_PREV);
+  EXPECT_EQ(fixture.groups.calls, 1);
+}
+
+TEST(execUtilTest, interpOrdinaryEarlyStopRemainsGroupScoped) {
+  InterpOrdinaryScanFixture fixture;
+  fixture.scanInfo.currentGroupId = 2;
+  fixture.scanInfo.groupDone = true;
+  fixture.scanInfo.base.cond.twindows = {0, 1};
+
+  EXPECT_EQ(fixture.next(), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(fixture.pResult, nullptr);
+  EXPECT_EQ(fixture.root.status, OP_EXEC_DONE);
+  EXPECT_EQ(fixture.scanInfo.currentGroupId, 0);
+  EXPECT_EQ(fixture.scanInfo.currentPhase, SCAN_PHASE_PREV);
+  EXPECT_EQ(fixture.groups.calls, 2);
+}
+
+TEST(execUtilTest, interpGroupFirstScanFinishesEveryEmptyGroup) {
+  InterpOrdinaryScanFixture fixture;
+  fixture.scanNode.interpMode = INTERP_MODE_GROUP_FIRST;
+  EXPECT_EQ(fixture.next(), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(fixture.pResult, nullptr);
+  EXPECT_EQ(fixture.root.status, OP_EXEC_DONE);
+  EXPECT_EQ(fixture.scanInfo.currentGroupId, 3);
+  EXPECT_EQ(fixture.scanInfo.currentPhase, SCAN_PHASE_MAIN);
+}
+
+TEST(execUtilTest, interpMixedMergeScanSkipsAllEmptyGroups) {
+  SExecTaskInfo task = {};
+  char taskId[] = "mixed-empty-groups";
+  task.id.str = taskId;
+
+  int32_t openCount = 0;
+  task.storageAPI.tsdReader.tsdReaderOpen = interpUnexpectedReaderOpen;
+
+  STableMergeScanInfo scanInfo = {};
+  scanInfo.base.readHandle.vnode = &openCount;
+  scanInfo.base.cond.mainFirst = true;
+  scanInfo.base.cond.order = TSDB_ORDER_ASC;
+  scanInfo.currentPhase = SCAN_PHASE_MAIN;
+  scanInfo.scanInfo.numOfAsc = 1;
+  scanInfo.scanInfo.numOfDesc = 0;
+  STimeWindow emptyWindow = {INT64_MAX, INT64_MIN};
+  for (int32_t phase = SCAN_PHASE_MAIN;
+       phase <= SCAN_PHASE_PREV; ++phase) {
+    scanInfo.phaseWins[phase] = emptyWindow;
+  }
+  scanInfo.base.cond.twindows = emptyWindow;
+  scanInfo.base.pTableListInfo = tableListCreate();
+  ASSERT_NE(scanInfo.base.pTableListInfo, nullptr);
+  ASSERT_EQ(tableListAddTableInfo(scanInfo.base.pTableListInfo, 1, 10),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tableListAddTableInfo(scanInfo.base.pTableListInfo, 2, 10),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tableListAddTableInfo(scanInfo.base.pTableListInfo, 3, 20),
+            TSDB_CODE_SUCCESS);
+
+  STableScanPhysiNode scanNode = {};
+  scanNode.interpMode = INTERP_MODE_MULTI_GROUP;
+  scanNode.groupSort = true;
+
+  SOperatorInfo root = {};
+  setOperatorInfo(&root, "TableMergeScan",
+                  QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN, false,
+                  OP_OPENED, &scanInfo, &task);
+  root.pPhyNode = reinterpret_cast<SPhysiNode*>(&scanNode);
+  root.fpSet._openFn = optrDummyOpenFn;
+  root.resultInfo.capacity = 1;
+
+  SSDataBlock* pResult = nullptr;
+  int32_t jmpCode = setjmp(task.env);
+  if (jmpCode == TSDB_CODE_SUCCESS) {
+    EXPECT_EQ(doTableMergeScanNext(&root, &pResult),
+              TSDB_CODE_SUCCESS);
+  } else {
+    ADD_FAILURE() << "empty groups opened storage, code " << jmpCode;
+  }
+
+  EXPECT_EQ(openCount, 0);
+  EXPECT_EQ(pResult, nullptr);
+  EXPECT_EQ(root.status, OP_EXEC_DONE);
+
+  tableListDestroy(scanInfo.base.pTableListInfo);
+  taosArrayDestroy(scanInfo.pSortInfo);
+}
+
+// The notify identity a remote merge scan must match. Mixed grouping carries
+// a nonzero outer epoch with scanGroupId 0; the other phased modes carry the
+// scan group id with epoch 0. Both halves of that pair need coverage.
+struct InterpRemoteNotifyScenario {
+  int8_t   interpMode;
+  bool     groupSort;
+  uint64_t outerEpoch;
+  uint64_t scanGroupId;
+};
+
+// Component path under test:
+//   interpMainFirstBuildNotifyParam
+//     -> real Exchange stores the notification
+//     -> real Exchange attaches it to SResFetchReq
+//     -> real request serialization
+//     -> mocked asynchronous transport
+//     -> real request deserialization
+//     -> real qUpdateOperatorParam
+//     -> real qExecTaskOpt(processOneBlock=true)
+//     -> real TableMergeScan consumes the notification and stops the group
+//     -> mocked storage fetch remains uncalled
+//
+// The scenario directly triggers notification construction, so it does not
+// cover the TimeSlice readiness decision. It also replaces the RPC/qworker
+// transport shell and physical storage read, while retaining their executor
+// boundaries.
+static void interpRunRemoteNotifyScenario(
+    const InterpRemoteNotifyScenario& scenario) {
+  constexpr int32_t kRemoteCount = 3;
+  constexpr TSKEY kNotifyTs = 123;
+  constexpr int8_t kNotifyPhase = SCAN_PHASE_PREV;
+  // The scan only stores its own group id. consumeTableMergeScanNotify reads
+  // it back as the outer epoch under mixed grouping, as the scan group id
+  // otherwise, so one field carries whichever identity the mode uses.
+  const uint64_t kGroupId =
+      scenario.groupSort ? scenario.outerEpoch : scenario.scanGroupId;
+
+  ASSERT_EQ(qExecutorInit(), TSDB_CODE_SUCCESS);
+
+  std::array<InterpRemoteScanFixture, kRemoteCount> remotes;
+  InterpRemoteTransport transport;
+  for (int32_t i = 0; i < kRemoteCount; ++i) {
+    InterpRemoteScanFixture& remote = remotes[i];
+    remote.remoteTaskId = 0x101 + i;
+    remote.expectedOuterEpoch = scenario.outerEpoch;
+    remote.expectedScanGroupId = scenario.scanGroupId;
+    remote.expectedNotifyTs = kNotifyTs;
+    remote.expectedPhase = kNotifyPhase;
+    snprintf(remote.taskId, sizeof(remote.taskId),
+             "remote-vgroup-%d", i);
+    remote.task.id.str = remote.taskId;
+    remote.task.id.taskId = remote.remoteTaskId;
+    remote.task.pSubplan = &remote.subplan;
+    remote.task.pResultBlockList = taosArrayInit(1, POINTER_BYTES);
+    ASSERT_NE(remote.task.pResultBlockList, nullptr);
+    remote.scanInfo.base.cond.mainFirst = true;
+    remote.scanInfo.currentPhase = kNotifyPhase;
+    remote.scanInfo.groupId = kGroupId;
+    remote.scanInfo.hasGroupId = true;
+    remote.scanInfo.tableStartIndex = 0;
+    remote.scanInfo.tableEndIndex = 0;
+    remote.scanInfo.phaseWins[kNotifyPhase] = {100, kNotifyTs};
+    remote.scanInfo.base.cond.twindows =
+        remote.scanInfo.phaseWins[kNotifyPhase];
+    remote.scanInfo.scanInfo.numOfAsc = 1;
+    remote.scanInfo.scanInfo.numOfDesc = 0;
+    remote.scanInfo.base.pTableListInfo = tableListCreate();
+    ASSERT_NE(remote.scanInfo.base.pTableListInfo, nullptr);
+    ASSERT_EQ(tableListAddTableInfo(remote.scanInfo.base.pTableListInfo,
+                                    i + 1, kGroupId),
+              TSDB_CODE_SUCCESS);
+    remote.scanNode.interpMode = scenario.interpMode;
+    remote.scanNode.groupSort = scenario.groupSort;
+    setOperatorInfo(&remote.root, "TableMergeScan",
+                    QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN, false,
+                    OP_OPENED, &remote.scanInfo, &remote.task);
+    remote.root.pPhyNode =
+        reinterpret_cast<SPhysiNode*>(&remote.scanNode);
+    // The scan is already positioned in PREV for this scenario's identity.
+    // Skip physical reader setup but retain the real scan and transition
+    // logic.
+    remote.root.fpSet._openFn = optrDummyOpenFn;
+    remote.root.fpSet.getNextFn = doTableMergeScanNext;
+    remote.root.fpSet.getNextExtFn = optrDefaultGetNextExtFn;
+    remote.root.pDownstreamGetParams = &remote.downstreamParam;
+    remote.root.resultInfo.capacity = 1;
+    remote.task.pRoot = &remote.root;
+    ASSERT_EQ(createInterpMergeTestBlock(
+                  i, kNotifyPhase, &remote.pScanBlock, kGroupId),
+              TSDB_CODE_SUCCESS);
+    ASSERT_EQ(createInterpMergeTestBlock(
+                  0, kNotifyPhase, &remote.scanInfo.pResBlock, kGroupId),
+              TSDB_CODE_SUCCESS);
+    SBlockOrderInfo orderInfo = {};
+    orderInfo.order = TSDB_ORDER_DESC;
+    orderInfo.slotId = 0;
+    orderInfo.compFn = reinterpret_cast<void*>(
+        getKeyComparFunc(TSDB_DATA_TYPE_TIMESTAMP, TSDB_ORDER_DESC));
+    remote.pSortInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
+    ASSERT_NE(remote.pSortInfo, nullptr);
+    ASSERT_NE(taosArrayPush(remote.pSortInfo, &orderInfo), nullptr);
+    ASSERT_EQ(tsortCreateSortHandle(
+                  remote.pSortInfo, SORT_BLOCK_TS_MERGE, 1024, 4,
+                  remote.pScanBlock, remote.taskId, 0, 0, 0,
+                  &remote.scanInfo.pSortHandle),
+              TSDB_CODE_SUCCESS);
+    // Inject the only storage fake beneath the production sort handle.
+    tsortSetFetchRawDataFp(remote.scanInfo.pSortHandle,
+                           interpRemoteMergeScanFetch, nullptr, nullptr);
+    SSortSource* pSource = static_cast<SSortSource*>(
+        taosMemoryCalloc(1, sizeof(SSortSource)));
+    ASSERT_NE(pSource, nullptr);
+    pSource->param = &remote;
+    pSource->onlyRef = true;
+    ASSERT_EQ(tsortAddSource(remote.scanInfo.pSortHandle, pSource),
+              TSDB_CODE_SUCCESS);
+    tsortSetSingleTableMerge(remote.scanInfo.pSortHandle);
+    transport.scans.push_back(&remote);
+  }
+
+  SExecTaskInfo exchangeTask = {};
+  char exchangeTaskId[] = "coordinator-exchange";
+  exchangeTask.id.str = exchangeTaskId;
+  exchangeTask.id.queryId = 0xabc;
+  exchangeTask.stopInfo.pStopInfo =
+      taosArrayInit(kRemoteCount, sizeof(SExchangeOpStopInfo));
+  ASSERT_NE(exchangeTask.stopInfo.pStopInfo, nullptr);
+
+  std::array<SOperatorInfo*, kRemoteCount> exchanges = {};
+  std::array<SExchangePhysiNode*, kRemoteCount> exchangeNodes = {};
+  {
+    Stub stub;
+    // Intercept only the network entry point. Exchange request construction,
+    // notification attachment, and serialization remain production code.
+    stub.set(asyncSendMsgToServer, interpRemoteSend);
+    for (int32_t i = 0; i < kRemoteCount; ++i) {
+      SExchangePhysiNode* pExchangeNode = nullptr;
+      ASSERT_EQ(nodesMakeNode(
+                    QUERY_NODE_PHYSICAL_PLAN_EXCHANGE,
+                    reinterpret_cast<SNode**>(&pExchangeNode)),
+                TSDB_CODE_SUCCESS);
+      exchangeNodes[i] = pExchangeNode;
+      pExchangeNode->singleSrc = true;
+      pExchangeNode->node.pOutputDataBlockDesc =
+          createInterpMergeTestDesc(i + 10);
+      ASSERT_NE(pExchangeNode->node.pOutputDataBlockDesc, nullptr);
+
+      SDownstreamSourceNode* pSource = nullptr;
+      ASSERT_EQ(nodesMakeNode(
+                    QUERY_NODE_DOWNSTREAM_SOURCE,
+                    reinterpret_cast<SNode**>(&pSource)),
+                TSDB_CODE_SUCCESS);
+      pSource->addr.nodeId = i + 1;
+      pSource->taskId = remotes[i].remoteTaskId;
+      pSource->fetchMsgType = TDMT_SCH_FETCH;
+      ASSERT_EQ(nodesListMakeStrictAppend(
+                    &pExchangeNode->pSrcEndPoints,
+                    reinterpret_cast<SNode*>(pSource)),
+                TSDB_CODE_SUCCESS);
+
+      ASSERT_EQ(createExchangeOperatorInfo(
+                    &transport, pExchangeNode, &exchangeTask,
+                    &exchanges[i]),
+                TSDB_CODE_SUCCESS);
+      ASSERT_NE(exchanges[i], nullptr);
+
+      SOperatorParam* pNotify = nullptr;
+      ASSERT_EQ(interpMainFirstBuildNotifyParam(
+                    exchanges[i], 0, scenario.outerEpoch, kNotifyPhase,
+                    scenario.scanGroupId, kNotifyTs, &pNotify),
+                TSDB_CODE_SUCCESS);
+      ASSERT_NE(pNotify, nullptr);
+      exchanges[i]->pOperatorGetParam = pNotify;
+      ASSERT_EQ(exchanges[i]->fpSet._openFn(exchanges[i]),
+                TSDB_CODE_SUCCESS);
+      EXPECT_FALSE(static_cast<SExchangeInfo*>(
+                       exchanges[i]->info)->notifyToSend);
+      freeOperatorParam(pNotify, OP_GET_PARAM);
+    }
+  }
+
+  for (const InterpRemoteScanFixture& remote : remotes) {
+    EXPECT_EQ(remote.execCode, TSDB_CODE_SUCCESS);
+    EXPECT_EQ(remote.notifyCount, 1);
+    EXPECT_TRUE(remote.task.paramSet);
+    EXPECT_EQ(remote.task.pOpParam, nullptr);
+    EXPECT_EQ(remote.root.pOperatorGetParam, nullptr);
+    EXPECT_EQ(remote.readCount, 0);
+    EXPECT_EQ(remote.root.status, OP_EXEC_DONE);
+    EXPECT_EQ(remote.scanInfo.pSortHandle, nullptr);
+  }
+
+  for (int32_t i = 0; i < kRemoteCount; ++i) {
+    destroyOperator(exchanges[i]);
+    nodesDestroyNode(reinterpret_cast<SNode*>(exchangeNodes[i]));
+    InterpRemoteScanFixture& remote = remotes[i];
+    for (int32_t j = 0;
+         j < taosArrayGetSize(remote.task.pResultBlockList); ++j) {
+      SSDataBlock** ppBlock = static_cast<SSDataBlock**>(
+          taosArrayGet(remote.task.pResultBlockList, j));
+      blockDataDestroy(*ppBlock);
+    }
+    taosArrayDestroy(remote.task.pResultBlockList);
+    tsortDestroySortHandle(remote.scanInfo.pSortHandle);
+    tableListDestroy(remote.scanInfo.base.pTableListInfo);
+    blockDataDestroy(remote.scanInfo.pResBlock);
+    taosArrayDestroy(remote.pSortInfo);
+    blockDataDestroy(remote.pScanBlock);
+  }
+  taosArrayDestroy(exchangeTask.stopInfo.pStopInfo);
+}
+
+TEST(execUtilTest, interpMainFirstNotifyReachesThreeRemoteVgroups) {
+  // Group-within-phase identity: the scan group id carries the notification
+  // and the outer epoch stays 0.
+  interpRunRemoteNotifyScenario(
+      {INTERP_MODE_MAIN_FIRST, false, 0, 77});
+}
+
+TEST(execUtilTest, interpMainFirstNotifyReachesMixedRemoteVgroups) {
+  // Phase-within-outer-group identity: the outer epoch carries the
+  // notification and the scan group id stays 0.
+  interpRunRemoteNotifyScenario(
+      {INTERP_MODE_MULTI_GROUP, true, 42, 0});
+}
+
+namespace {
+
+struct InterpMergeInput {
+  int64_t ts;
+  uint64_t groupId;
+  int8_t phase;
+};
+
+struct InterpMergeFixture {
+  InterpMergeTempDirGuard tempDir;
+  SExecTaskInfo task = {};
+  std::vector<InterpMergeFakeSource> sources;
+  std::vector<SOperatorInfo*> pendingDownstreams;
+  SMergePhysiNode* pMergeNode = nullptr;
+  SOperatorInfo* pMergeOp = nullptr;
+  std::vector<std::pair<uint64_t, int8_t>> cursors;
+  std::vector<std::vector<int64_t>> values;
+
+  ~InterpMergeFixture() {
+    destroyOperator(pMergeOp);
+    for (SOperatorInfo* pSourceOp : pendingDownstreams) {
+      destroyOperator(pSourceOp);
+    }
+    for (const auto& source : sources) {
+      for (SSDataBlock* pBlock : source.blocks) {
+        blockDataDestroy(pBlock);
+      }
+    }
+    nodesDestroyNode(reinterpret_cast<SNode*>(pMergeNode));
+  }
+
+  void init(const std::vector<std::vector<InterpMergeInput>>& inputs,
+            bool groupSort = false, bool outerGroupPhaseMode = false) {
+    ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
+    sources.resize(inputs.size());
+    pendingDownstreams.resize(inputs.size(), nullptr);
+    for (size_t i = 0; i < inputs.size(); ++i) {
+      for (const auto& input : inputs[i]) {
+        SSDataBlock* pBlock = nullptr;
+        ASSERT_EQ(createInterpMergeTestBlock(
+                      input.ts, input.phase, &pBlock, input.groupId),
+                  TSDB_CODE_SUCCESS);
+        sources[i].blocks.push_back(pBlock);
+      }
+      auto*& pSourceOp = pendingDownstreams[i];
+      pSourceOp = static_cast<SOperatorInfo*>(
+          taosMemoryCalloc(1, sizeof(SOperatorInfo)));
+      ASSERT_NE(pSourceOp, nullptr);
+      setOperatorInfo(pSourceOp, "InterpMergeFake",
+                      QUERY_NODE_PHYSICAL_PLAN_PROJECT, false,
+                      OP_RES_TO_RETURN, &sources[i], &task);
+      pSourceOp->fpSet.getNextFn = interpMergeFakeNext;
+    }
+
+    pMergeNode = createInterpMergeTestPhysNode(groupSort);
+    ASSERT_NE(pMergeNode, nullptr);
+    if (outerGroupPhaseMode) {
+      pMergeNode->outerGroupPhaseMode = true;
+    }
+    int32_t code = createMultiwayMergeOperatorInfo(
+        pendingDownstreams.data(), pendingDownstreams.size(),
+        pMergeNode, &task, &pMergeOp);
+    // The constructor consumes downstreams on both success and failure.
+    pendingDownstreams.clear();
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    ASSERT_NE(pMergeOp, nullptr);
+  }
+
+  void collect() {
+    int32_t jmpCode = setjmp(task.env);
+    ASSERT_EQ(jmpCode, TSDB_CODE_SUCCESS)
+        << "merge aborted with code " << jmpCode;
+    while (true) {
+      SSDataBlock* pResult = nullptr;
+      ASSERT_EQ(pMergeOp->fpSet.getNextFn(pMergeOp, &pResult),
+                TSDB_CODE_SUCCESS);
+      if (pResult == nullptr) {
+        break;
+      }
+      cursors.emplace_back(pResult->info.id.groupId,
+                           pResult->info.scanPhase);
+      values.emplace_back();
+      SColumnInfoData* pTsCol = static_cast<SColumnInfoData*>(
+          taosArrayGet(pResult->pDataBlock, 0));
+      ASSERT_NE(pTsCol, nullptr);
+      for (int32_t i = 0; i < pResult->info.rows; ++i) {
+        values.back().push_back(
+            *reinterpret_cast<int64_t*>(colDataGetData(pTsCol, i)));
+      }
+    }
+  }
+
+  void expectSourcesConsumed() const {
+    for (const auto& source : sources) {
+      EXPECT_EQ(source.index, source.blocks.size());
+    }
+  }
+};
+
+}  // namespace
+
+TEST(execUtilTest, interpMainFirstMergeKeepsOutputPhasePure) {
+  InterpMergeFixture fixture;
+  ASSERT_NO_FATAL_FAILURE(fixture.init({
+      {{10, 1, SCAN_PHASE_MAIN}, {20, 2, SCAN_PHASE_MAIN},
+       {30, 1, SCAN_PHASE_NEXT}, {40, 2, SCAN_PHASE_NEXT},
+       {9, 1, SCAN_PHASE_PREV}, {19, 2, SCAN_PHASE_PREV}},
+      {{11, 1, SCAN_PHASE_MAIN}, {21, 2, SCAN_PHASE_MAIN},
+       {8, 1, SCAN_PHASE_PREV}, {18, 2, SCAN_PHASE_PREV}},
+  }, true));
+  ASSERT_NO_FATAL_FAILURE(fixture.collect());
+
+  const std::vector<std::pair<uint64_t, int8_t>> expected = {
+      {1, SCAN_PHASE_MAIN}, {2, SCAN_PHASE_MAIN},
+      {1, SCAN_PHASE_NEXT}, {2, SCAN_PHASE_NEXT},
+      {1, SCAN_PHASE_PREV}, {2, SCAN_PHASE_PREV}};
+  ASSERT_EQ(fixture.cursors.size(), 6);
+  EXPECT_EQ(fixture.cursors, expected);
+  EXPECT_EQ(fixture.values, (std::vector<std::vector<int64_t>>{
+      {10, 11}, {20, 21}, {30}, {40}, {9, 8}, {19, 18}}));
+  fixture.expectSourcesConsumed();
+
+  SSDataBlock* pFinal = nullptr;
+  EXPECT_EQ(fixture.pMergeOp->fpSet.getNextFn(fixture.pMergeOp, &pFinal),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pFinal, nullptr);
+}
+
+TEST(execUtilTest, interpMergeGroupIdsDoNotEnableOuterCursor) {
+  InterpMergeFixture fixture;
+  ASSERT_NO_FATAL_FAILURE(fixture.init({
+      {{10, 10, SCAN_PHASE_MAIN}, {20, 20, SCAN_PHASE_MAIN},
+       {30, 10, SCAN_PHASE_NEXT}, {9, 10, SCAN_PHASE_PREV}},
+  }));
+  EXPECT_FALSE(fixture.pMergeNode->outerGroupPhaseMode);
+  ASSERT_NO_FATAL_FAILURE(fixture.collect());
+
+  const std::vector<std::pair<uint64_t, int8_t>> expected = {
+      {10, SCAN_PHASE_MAIN}, {20, SCAN_PHASE_MAIN},
+      {10, SCAN_PHASE_NEXT}, {10, SCAN_PHASE_PREV}};
+  EXPECT_EQ(fixture.cursors, expected);
+}
+
+TEST(execUtilTest, interpMixedMergeBarriersOuterGroups) {
+  InterpMergeFixture fixture;
+  ASSERT_NO_FATAL_FAILURE(fixture.init({
+      {{10, 10, SCAN_PHASE_MAIN}, {30, 10, SCAN_PHASE_NEXT},
+       {9, 10, SCAN_PHASE_PREV}, {310, 30, SCAN_PHASE_MAIN},
+       {309, 30, SCAN_PHASE_PREV}},
+      {{11, 10, SCAN_PHASE_MAIN}, {8, 10, SCAN_PHASE_PREV},
+       {210, 20, SCAN_PHASE_MAIN}, {230, 20, SCAN_PHASE_NEXT},
+       {209, 20, SCAN_PHASE_PREV}, {311, 30, SCAN_PHASE_MAIN},
+       {308, 30, SCAN_PHASE_PREV}},
+      {{211, 20, SCAN_PHASE_MAIN}, {231, 20, SCAN_PHASE_NEXT},
+       {208, 20, SCAN_PHASE_PREV}},
+  }, false, true));
+  ASSERT_NO_FATAL_FAILURE(fixture.collect());
+
+  const std::vector<std::pair<uint64_t, int8_t>> expected = {
+      {10, SCAN_PHASE_MAIN}, {10, SCAN_PHASE_NEXT},
+      {10, SCAN_PHASE_PREV}, {20, SCAN_PHASE_MAIN},
+      {20, SCAN_PHASE_NEXT}, {20, SCAN_PHASE_PREV},
+      {30, SCAN_PHASE_MAIN}, {30, SCAN_PHASE_PREV}};
+  EXPECT_EQ(fixture.cursors, expected);
+  ASSERT_EQ(fixture.values.size(), expected.size());
+  EXPECT_EQ(fixture.values, (std::vector<std::vector<int64_t>>{
+      {10, 11}, {30}, {9, 8}, {210, 211}, {230, 231}, {209, 208},
+      {310, 311}, {309, 308}}));
+  fixture.expectSourcesConsumed();
+}
+
+TEST(execUtilTest, sortMergeOpenFailureDestroysPartialHandle) {
+  InterpMergeFixture fixture;
+  ASSERT_NO_FATAL_FAILURE(fixture.init({{}}));
+
+  gSortMergeDestroyCalls = 0;
+  {
+    SortMergeCleanupStubGuard cleanupStub;
+    EXPECT_EQ(openSortMergeOperator(fixture.pMergeOp),
+              TSDB_CODE_OUT_OF_MEMORY);
+    EXPECT_EQ(gSortMergeDestroyCalls, 1);
+  }
+}
+
+TEST(execUtilTest, interpMainFirstTimelineDirectionIsExplicit) {
+  EXPECT_TRUE(interpTimestampFollows(TSDB_ORDER_ASC, 10, 11));
+  EXPECT_FALSE(interpTimestampFollows(TSDB_ORDER_ASC, 10, 10));
+  EXPECT_FALSE(interpTimestampFollows(TSDB_ORDER_ASC, 10, 9));
+
+  EXPECT_TRUE(interpTimestampFollows(TSDB_ORDER_DESC, 10, 9));
+  EXPECT_FALSE(interpTimestampFollows(TSDB_ORDER_DESC, 10, 10));
+  EXPECT_FALSE(interpTimestampFollows(TSDB_ORDER_DESC, 10, 11));
+  EXPECT_FALSE(interpTimestampFollows(0, 10, 11));
+}
+
+TEST(execUtilTest, interpLegacyMembershipWaitsForMainTimestamp) {
+  STimeWindow win = {100, 200};
+  bool mainSeen = false;
+
+  EXPECT_FALSE(interpTimestampInMainRange(&win, 99));
+  EXPECT_FALSE(interpLegacyGroupCanEmit(true, mainSeen));
+
+  mainSeen = interpTimestampInMainRange(&win, 150);
+  EXPECT_TRUE(mainSeen);
+  EXPECT_TRUE(interpLegacyGroupCanEmit(true, mainSeen));
+}
+
+TEST(execUtilTest, interpLegacyMembershipDropsSideOnlyGroup) {
+  STimeWindow win = {100, 200};
+  bool mainSeen = interpTimestampInMainRange(&win, 99) ||
+                  interpTimestampInMainRange(&win, 201);
+
+  EXPECT_FALSE(mainSeen);
+  EXPECT_FALSE(interpLegacyGroupCanEmit(true, mainSeen));
+  EXPECT_TRUE(interpLegacyGroupCanEmit(false, mainSeen));
+}
+
+TEST(execUtilTest, interpLegacyMembershipGatesResultBlock) {
+  SSDataBlock* pBlock = nullptr;
+  ASSERT_EQ(createInterpStoreTestBlock(1, 10, &pBlock),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(pBlock->info.rows, 2);
+
+  EXPECT_FALSE(interpLegacyApplyGroupMembership(true, false, pBlock));
+  EXPECT_EQ(pBlock->info.rows, 0);
+  blockDataDestroy(pBlock);
+
+  ASSERT_EQ(createInterpStoreTestBlock(2, 20, &pBlock),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(interpLegacyApplyGroupMembership(true, true, pBlock));
+  EXPECT_EQ(pBlock->info.rows, 2);
+  blockDataDestroy(pBlock);
+
+  ASSERT_EQ(createInterpStoreTestBlock(3, 30, &pBlock),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(interpLegacyApplyGroupMembership(false, false, pBlock));
+  EXPECT_EQ(pBlock->info.rows, 2);
+  blockDataDestroy(pBlock);
+}
+
+class InterpTimeSliceTest : public testing::Test {
+ protected:
+  SExecTaskInfo task = {};
+  struct Source : InterpMergeFakeSource {
+    std::vector<STableScanOperatorParam> notifications;
+    std::vector<size_t> notifiedAt;
+  } source;
+  SInterpFuncPhysiNode* plan = nullptr;
+  SOperatorInfo* op = nullptr;
+  char taskId[32] = "interp-streaming";
+
+  virtual EFillMode fillMode() { return FILL_MODE_LINEAR; }
+
+  virtual EInterpMode interpMode() { return INTERP_MODE_GROUP_FIRST; }
+
+  virtual int32_t scanType() { return QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN; }
+
+  virtual bool ignoreNull() { return false; }
+
+  virtual __optr_get_ext_fn_t pullFn() { return optrDefaultGetNextExtFn; }
+
+  virtual void configurePlan() {}
+
+  void SetUp() override {
+    task.id.str = taskId;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC,
+                            reinterpret_cast<SNode**>(&plan)), 0);
+    plan->interpMode = interpMode();
+    plan->fillMode = fillMode();
+    if (plan->fillMode == FILL_MODE_VALUE) {
+      SNodeListNode* values = nullptr;
+      ASSERT_EQ(nodesMakeNode(QUERY_NODE_NODE_LIST,
+                              reinterpret_cast<SNode**>(&values)), 0);
+      plan->pFillValues = reinterpret_cast<SNode*>(values);
+      ASSERT_EQ(nodesListMakeStrictAppend(&values->pNodeList,
+                                          makeIntValue(99)), 0);
+    }
+    plan->interval = 1;
+    plan->timeRange = {0, 7};
+    plan->node.pOutputDataBlockDesc = createInterpMergeTestDesc(2);
+    ASSERT_NE(plan->node.pOutputDataBlockDesc, nullptr);
+    auto* slot = reinterpret_cast<SSlotDescNode*>(
+        nodesListGetNode(plan->node.pOutputDataBlockDesc->pSlots, 0));
+    slot->dataType.type = TSDB_DATA_TYPE_DOUBLE;
+
+    SColumnNode* ts = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN,
+                            reinterpret_cast<SNode**>(&ts)), 0);
+    ts->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    ts->node.resType.bytes = sizeof(int64_t);
+    ts->dataBlockId = 1;
+    ts->slotId = 0;
+    ts->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+    ts->isPrimTs = true;
+    plan->pTimeSeries = reinterpret_cast<SNode*>(ts);
+
+    SFunctionNode* func = nullptr;
+    SColumnNode* value = nullptr;
+    STargetNode* target = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_FUNCTION,
+                            reinterpret_cast<SNode**>(&func)), 0);
+    tstrncpy(func->functionName, "interp", TSDB_FUNC_NAME_LEN);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN,
+                            reinterpret_cast<SNode**>(&value)), 0);
+    value->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
+    value->node.resType.bytes = sizeof(double);
+    value->dataBlockId = 1;
+    value->slotId = 1;
+    value->colId = 2;
+    ASSERT_EQ(nodesListMakeStrictAppend(&func->pParameterList,
+                                        reinterpret_cast<SNode*>(value)),
+              0);
+    if (ignoreNull()) {
+      ASSERT_EQ(nodesListMakeStrictAppend(&func->pParameterList,
+                                          makeIntValue(1)), 0);
+    }
+    ASSERT_EQ(fmGetFuncInfo(func, nullptr, 0), 0);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_TARGET,
+                            reinterpret_cast<SNode**>(&target)), 0);
+    target->dataBlockId = 2;
+    target->slotId = 0;
+    target->pExpr = reinterpret_cast<SNode*>(func);
+    ASSERT_EQ(nodesListMakeStrictAppend(&plan->pFuncs,
+                                        reinterpret_cast<SNode*>(target)), 0);
+
+    ASSERT_NO_FATAL_FAILURE(configurePlan());
+
+    auto* downstream = static_cast<SOperatorInfo*>(
+        taosMemoryCalloc(1, sizeof(SOperatorInfo)));
+    ASSERT_NE(downstream, nullptr);
+    setOperatorInfo(downstream, "TestSource", scanType(), false, OP_OPENED,
+                    &source, &task);
+    downstream->fpSet =
+        createOperatorFpSet(optrDummyOpenFn, interpMergeFakeNext, nullptr,
+                            nullptr, optrDefaultBufFn, nullptr, pullFn(),
+                            nullptr);
+    ASSERT_EQ(createTimeSliceOperatorInfo(downstream,
+                                          reinterpret_cast<SPhysiNode*>(plan),
+                                          &task, &op), 0);
+    op->resultInfo.threshold = 3;
+  }
+
+  void TearDown() override {
+    destroyOperator(op);
+    nodesDestroyNode(reinterpret_cast<SNode*>(plan));
+    for (auto* block : source.blocks) {
+      blockDataDestroy(block);
+    }
+  }
+
+  void addBlock(uint64_t group, int8_t phase, int64_t first, int32_t rows,
+                bool nullValue = false) {
+    SSDataBlock* block = nullptr;
+    ASSERT_EQ(createDataBlock(&block), 0);
+    SColumnInfoData ts = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP,
+                                             sizeof(int64_t), 0);
+    SColumnInfoData value = createColumnInfoData(TSDB_DATA_TYPE_DOUBLE,
+                                                sizeof(double), 1);
+    ASSERT_EQ(blockDataAppendColInfo(block, &ts), 0);
+    ASSERT_EQ(blockDataAppendColInfo(block, &value), 0);
+    ASSERT_EQ(blockDataEnsureCapacity(block, rows), 0);
+    auto* tsCol = static_cast<SColumnInfoData*>(
+        taosArrayGet(block->pDataBlock, 0));
+    auto* valCol = static_cast<SColumnInfoData*>(
+        taosArrayGet(block->pDataBlock, 1));
+    for (int32_t i = 0; i < rows; ++i) {
+      int64_t time = first + i;
+      double val = time;
+      ASSERT_EQ(colDataSetVal(tsCol, i,
+                              reinterpret_cast<const char*>(&time), false),
+                0);
+      ASSERT_EQ(colDataSetVal(valCol, i,
+                              reinterpret_cast<const char*>(&val),
+                              nullValue),
+                0);
+    }
+    block->info.rows = rows;
+    block->info.id.blockId = 1;
+    block->info.id.groupId = group;
+    block->info.scanPhase = phase;
+    source.blocks.push_back(block);
+  }
+
+  int32_t next(SSDataBlock** result) {
+    int32_t code = setjmp(task.env);
+    return code == 0 ? op->fpSet.getNextFn(op, result) : code;
+  }
+};
+
+class InterpLegacyGroupTest : public InterpTimeSliceTest {
+ protected:
+  EInterpMode interpMode() override { return INTERP_MODE_LEGACY; }
+};
+
+TEST_F(InterpLegacyGroupTest, PreservesGroupIdAcrossBatchesAndGroups) {
+  addBlock(17, SCAN_PHASE_MAIN, 0, 2);
+  addBlock(17, SCAN_PHASE_MAIN, 2, 6);
+  addBlock(42, SCAN_PHASE_MAIN, 0, 8);
+
+  std::map<uint64_t, int32_t> groupRows;
+  std::vector<uint64_t> groups;
+  int32_t blocks = 0;
+  while (true) {
+    SSDataBlock* result = nullptr;
+    ASSERT_EQ(next(&result), 0);
+    if (result == nullptr) {
+      break;
+    }
+    ASSERT_LT(++blocks, 20);
+    uint64_t group = result->info.id.groupId;
+    ASSERT_TRUE(group == 17 || group == 42);
+    if (groups.empty() || groups.back() != group) {
+      groups.push_back(group);
+    }
+    auto* value = static_cast<SColumnInfoData*>(
+        taosArrayGet(result->pDataBlock, 0));
+    for (int32_t i = 0; i < result->info.rows; ++i) {
+      ASSERT_FALSE(colDataIsNull_s(value, i));
+      EXPECT_DOUBLE_EQ(*reinterpret_cast<double*>(colDataGetData(value, i)),
+                       groupRows[group]++);
+    }
+  }
+  EXPECT_EQ(groups, (std::vector<uint64_t>{17, 42}));
+  EXPECT_EQ(groupRows[17], 8);
+  EXPECT_EQ(groupRows[42], 8);
+  EXPECT_GT(blocks, 2);
+}
+
+class InterpSideStopTest : public InterpTimeSliceTest,
+                           public testing::WithParamInterface<int> {
+ protected:
+  virtual bool multiGroup() { return GetParam() >= 2; }
+
+  EInterpMode interpMode() override {
+    return multiGroup() ? INTERP_MODE_MULTI_GROUP : INTERP_MODE_MAIN_FIRST;
+  }
+
+  int32_t scanType() override {
+    return GetParam() % 2 == 0 ? QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN
+                               : QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
+  }
+
+  bool ignoreNull() override { return true; }
+
+  __optr_get_ext_fn_t pullFn() override { return pull; }
+
+  uint64_t expectedScanGroup() { return multiGroup() ? 0 : 42; }
+
+  static int32_t pull(SOperatorInfo* scan, SOperatorParam* param,
+                     SSDataBlock** result) {
+    auto* src = static_cast<Source*>(scan->info);
+    if (param != nullptr && param->value != nullptr) {
+      EXPECT_EQ(param->opType, scan->operatorType);
+      src->notifications.push_back(
+          *static_cast<STableScanOperatorParam*>(param->value));
+      src->notifiedAt.push_back(src->index);
+    }
+    return optrDefaultGetNextExtFn(scan, param, result);
+  }
+
+  void drain(int32_t expectedRows) {
+    int32_t rows = 0;
+    std::map<uint64_t, int32_t> groupRows;
+    while (true) {
+      SSDataBlock* result = nullptr;
+      ASSERT_EQ(next(&result), 0);
+      if (result == nullptr) {
+        break;
+      }
+      auto* value = static_cast<SColumnInfoData*>(
+          taosArrayGet(result->pDataBlock, 0));
+      for (int32_t i = 0; i < result->info.rows; ++i) {
+        EXPECT_FALSE(colDataIsNull_s(value, i));
+        EXPECT_DOUBLE_EQ(*reinterpret_cast<double*>(
+                             colDataGetData(value, i)),
+                         groupRows[result->info.id.groupId]++);
+      }
+      rows += result->info.rows;
+    }
+    EXPECT_EQ(rows, expectedRows);
+  }
+
+  void expectNotify(int8_t phase, uint64_t group, size_t at) {
+    int32_t count = 0;
+    for (size_t i = 0; i < source.notifications.size(); ++i) {
+      const auto& notify = source.notifications[i];
+      if (notify.notifyPhase == phase &&
+          notify.notifyScanGroupId == group) {
+        EXPECT_EQ(source.notifiedAt[i], at);
+        EXPECT_TRUE(notify.notifyToProcess);
+        ++count;
+      }
+    }
+    EXPECT_EQ(count, 1);
+  }
+};
+
+TEST_P(InterpSideStopTest, stopsNextWhilePrevIsPending) {
+  addBlock(42, SCAN_PHASE_MAIN, 1, 7);
+  addBlock(42, SCAN_PHASE_NEXT, 8, 1, true);
+  addBlock(42, SCAN_PHASE_NEXT, 9, 1, true);
+  addBlock(42, SCAN_PHASE_PREV, -1, 1);
+  drain(8);
+  expectNotify(SCAN_PHASE_NEXT, expectedScanGroup(), 2);
+}
+
+TEST_P(InterpSideStopTest, waitsForNeededNextReference) {
+  addBlock(42, SCAN_PHASE_MAIN, 1, 6);
+  addBlock(42, SCAN_PHASE_NEXT, 8, 1, true);
+  addBlock(42, SCAN_PHASE_NEXT, 9, 1);
+  addBlock(42, SCAN_PHASE_PREV, -1, 1);
+  drain(8);
+  expectNotify(SCAN_PHASE_NEXT, expectedScanGroup(), 3);
+}
+
+TEST_P(InterpSideStopTest, allNullMainStillNeedsBothReferences) {
+  addBlock(42, SCAN_PHASE_MAIN, 0, 8, true);
+  addBlock(42, SCAN_PHASE_NEXT, 8, 1, true);
+  addBlock(42, SCAN_PHASE_NEXT, 9, 1);
+  addBlock(42, SCAN_PHASE_PREV, -1, 1);
+  drain(8);
+  expectNotify(SCAN_PHASE_NEXT, expectedScanGroup(), 3);
+  expectNotify(SCAN_PHASE_PREV, expectedScanGroup(), 4);
+}
+
+TEST_P(InterpSideStopTest, otherGroupKeepsNeededSideOpen) {
+  addBlock(42, SCAN_PHASE_MAIN, 1, 7);
+  addBlock(7, SCAN_PHASE_MAIN, 1, 6);
+  addBlock(42, SCAN_PHASE_NEXT, 8, 1, true);
+  addBlock(7, SCAN_PHASE_NEXT, 8, 1, true);
+  addBlock(7, SCAN_PHASE_NEXT, 9, 1);
+  addBlock(42, SCAN_PHASE_PREV, -1, 1);
+  addBlock(7, SCAN_PHASE_PREV, -1, 1);
+  drain(16);
+  if (GetParam() < 2) {
+    expectNotify(SCAN_PHASE_NEXT, 42, 3);
+    expectNotify(SCAN_PHASE_NEXT, 7, 5);
+  } else {
+    expectNotify(SCAN_PHASE_NEXT, 0, 5);
+  }
+}
+
+TEST_P(InterpSideStopTest, stopsPrevWithoutLeadingHole) {
+  addBlock(42, SCAN_PHASE_MAIN, 0, 7);
+  addBlock(42, SCAN_PHASE_NEXT, 8, 1);
+  addBlock(42, SCAN_PHASE_PREV, -1, 1, true);
+  addBlock(42, SCAN_PHASE_PREV, -2, 1, true);
+  drain(8);
+  expectNotify(SCAN_PHASE_PREV, expectedScanGroup(), 3);
+}
+
+TEST_P(InterpSideStopTest, emptyMainPreservesGroupMembership) {
+  addBlock(42, SCAN_PHASE_NEXT, 8, 1, true);
+  addBlock(42, SCAN_PHASE_NEXT, 9, 1);
+  addBlock(42, SCAN_PHASE_PREV, -1, 1);
+  drain(GetParam() < 2 ? 8 : 0);
+  expectNotify(SCAN_PHASE_NEXT, expectedScanGroup(),
+               GetParam() < 2 ? 2 : 1);
+}
+
+INSTANTIATE_TEST_SUITE_P(ScanTypes, InterpSideStopTest,
+                         testing::Values(0, 1, 2, 3));
+
+class InterpConstantSideStopTest : public InterpSideStopTest {
+ protected:
+  EFillMode fillMode() override {
+    return GetParam() < 2 ? FILL_MODE_NULL : FILL_MODE_VALUE;
+  }
+
+  bool multiGroup() override { return false; }
+
+  void drainFilledGroups(const std::vector<uint64_t>& groups,
+                         bool hasMain = false) {
+    std::map<uint64_t, int32_t> groupRows;
+    while (true) {
+      SSDataBlock* result = nullptr;
+      ASSERT_EQ(next(&result), 0);
+      if (result == nullptr) {
+        break;
+      }
+      const auto group = result->info.id.groupId;
+      ASSERT_NE(std::find(groups.begin(), groups.end(), group), groups.end());
+      auto* value = static_cast<SColumnInfoData*>(
+          taosArrayGet(result->pDataBlock, 0));
+      for (int32_t i = 0; i < result->info.rows; ++i) {
+        int32_t row = groupRows[group]++;
+        ASSERT_LT(row, 8);
+        bool mainRow = hasMain && row > 0 && row < 7;
+        if (!mainRow && fillMode() == FILL_MODE_NULL) {
+          EXPECT_TRUE(colDataIsNull_s(value, i));
+        } else {
+          ASSERT_FALSE(colDataIsNull_s(value, i));
+          EXPECT_DOUBLE_EQ(*reinterpret_cast<double*>(
+                               colDataGetData(value, i)),
+                           mainRow ? row : 99);
+        }
+      }
+    }
+    for (uint64_t group : groups) {
+      EXPECT_EQ(groupRows[group], 8);
+    }
+  }
+};
+
+TEST_P(InterpConstantSideStopTest, discoversNextOnlyGroupsWithoutReferences) {
+  addBlock(42, SCAN_PHASE_NEXT, 8, 1, true);
+  addBlock(42, SCAN_PHASE_NEXT, 9, 1, true);
+  addBlock(7, SCAN_PHASE_NEXT, 8, 1, true);
+  addBlock(7, SCAN_PHASE_NEXT, 9, 1, true);
+  addBlock(42, SCAN_PHASE_PREV, -1, 1, true);
+  addBlock(7, SCAN_PHASE_PREV, -1, 1, true);
+  drainFilledGroups({42, 7});
+  expectNotify(SCAN_PHASE_NEXT, 42, 1);
+  expectNotify(SCAN_PHASE_NEXT, 7, 3);
+  expectNotify(SCAN_PHASE_PREV, 42, 5);
+  expectNotify(SCAN_PHASE_PREV, 7, 6);
+  EXPECT_EQ(source.notifications.size(), 4);
+}
+
+TEST_P(InterpConstantSideStopTest, discoversPrevOnlyGroupsWithoutReferences) {
+  addBlock(42, SCAN_PHASE_PREV, -1, 1, true);
+  addBlock(42, SCAN_PHASE_PREV, -2, 1, true);
+  addBlock(7, SCAN_PHASE_PREV, -1, 1, true);
+  addBlock(7, SCAN_PHASE_PREV, -2, 1, true);
+  drainFilledGroups({42, 7});
+  expectNotify(SCAN_PHASE_PREV, 42, 1);
+  expectNotify(SCAN_PHASE_PREV, 7, 3);
+  EXPECT_EQ(source.notifications.size(), 2);
+}
+
+TEST_P(InterpConstantSideStopTest, fillsMainHolesWithoutSideReferences) {
+  addBlock(42, SCAN_PHASE_MAIN, 1, 6);
+  addBlock(42, SCAN_PHASE_NEXT, 8, 1, true);
+  addBlock(42, SCAN_PHASE_NEXT, 9, 1, true);
+  addBlock(42, SCAN_PHASE_PREV, -1, 1, true);
+  addBlock(42, SCAN_PHASE_PREV, -2, 1, true);
+  drainFilledGroups({42}, true);
+  expectNotify(SCAN_PHASE_NEXT, 42, 2);
+  expectNotify(SCAN_PHASE_PREV, 42, 4);
+  EXPECT_EQ(source.notifications.size(), 2);
+}
+
+TEST_P(InterpConstantSideStopTest, resetAllowsSameGroupToNotifyAgain) {
+  addBlock(42, SCAN_PHASE_NEXT, 8, 1, true);
+  addBlock(42, SCAN_PHASE_NEXT, 9, 1, true);
+  addBlock(42, SCAN_PHASE_PREV, -1, 1, true);
+  for (int32_t run = 0; run < 2; ++run) {
+    drainFilledGroups({42});
+    expectNotify(SCAN_PHASE_NEXT, 42, 1);
+    expectNotify(SCAN_PHASE_PREV, 42, 3);
+    EXPECT_EQ(source.notifications.size(), 2);
+    if (run == 0) {
+      ASSERT_EQ(op->fpSet.resetStateFn(op), 0);
+      source.index = 0;
+      source.notifications.clear();
+      source.notifiedAt.clear();
+    }
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(ScanTypes, InterpConstantSideStopTest,
+                         testing::Values(0, 1, 2, 3));
+
+class InterpGroupFirstTest : public InterpTimeSliceTest {
+ protected:
+  void checkBoundaries(bool needPrev, bool needNext) {
+    const uint64_t groups[] = {42, 7};
+    for (uint64_t group : groups) {
+      int32_t first = needPrev ? 1 : 0;
+      int32_t end = needNext ? 6 : 7;
+      for (int32_t ts = first; ts <= end; ts += 2) {
+        addBlock(group, SCAN_PHASE_MAIN, ts, TMIN(2, end - ts + 1));
+      }
+      if (needNext) {
+        addBlock(group, SCAN_PHASE_NEXT, 8, 1);
+      }
+      if (needPrev) {
+        addBlock(group, SCAN_PHASE_PREV, -1, 1);
+      }
+    }
+    int32_t row = 0;
+    while (true) {
+      SSDataBlock* result = nullptr;
+      ASSERT_EQ(next(&result), 0);
+      if (result == nullptr) {
+        break;
+      }
+      if (row == 0 && !needPrev) {
+        EXPECT_EQ(source.index, 2);
+      }
+      auto* value = static_cast<SColumnInfoData*>(
+          taosArrayGet(result->pDataBlock, 0));
+      for (int32_t i = 0; i < result->info.rows; ++i, ++row) {
+        ASSERT_LT(row, 16);
+        EXPECT_EQ(result->info.id.groupId, groups[row / 8]);
+        EXPECT_DOUBLE_EQ(*reinterpret_cast<double*>(
+                             colDataGetData(value, i)), row % 8);
+      }
+    }
+    EXPECT_EQ(row, 16);
+  }
+};
+
+class InterpGroupNextTest : public InterpGroupFirstTest {
+ protected:
+  EFillMode fillMode() override { return FILL_MODE_NEXT; }
+};
+
+TEST_F(InterpGroupNextTest, interpStreamsLeadingFillWithoutPrev) {
+  for (int32_t first = 1; first < 8; first += 2) {
+    addBlock(42, SCAN_PHASE_MAIN, first, TMIN(2, 8 - first));
+  }
+  SSDataBlock* result = nullptr;
+  ASSERT_EQ(next(&result), 0);
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(result->info.rows, 4);
+  EXPECT_EQ(source.index, 2);
+  auto* value = static_cast<SColumnInfoData*>(
+      taosArrayGet(result->pDataBlock, 0));
+  const double expected[] = {1, 1, 2, 3};
+  for (int32_t i = 0; i < 4; ++i) {
+    EXPECT_DOUBLE_EQ(*reinterpret_cast<double*>(colDataGetData(value, i)),
+                     expected[i]);
+  }
+}
+
+TEST_F(InterpGroupFirstTest, interpMainOnlyKeepsGroupsContinuous) {
+  checkBoundaries(false, false);
+}
+
+TEST_F(InterpGroupFirstTest, interpMainNextStreamsBeforeTailResolution) {
+  checkBoundaries(false, true);
+}
+
+TEST_F(InterpGroupFirstTest, interpMainPrevWaitsForLeadingReference) {
+  checkBoundaries(true, false);
+}
+
+TEST_F(InterpGroupFirstTest, interpMainNextPrevKeepsAllThreeStagesOrdered) {
+  checkBoundaries(true, true);
+}
+
+TEST_F(InterpGroupFirstTest, interpStreamsPartiallyConsumedMainBlock) {
+  addBlock(42, SCAN_PHASE_MAIN, 0, 8);
+  for (int32_t first : {0, 4}) {
+    SSDataBlock* result = nullptr;
+    ASSERT_EQ(next(&result), 0);
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(result->info.rows, 4);
+    EXPECT_EQ(source.index, 1);
+    auto* value = static_cast<SColumnInfoData*>(
+        taosArrayGet(result->pDataBlock, 0));
+    EXPECT_DOUBLE_EQ(*reinterpret_cast<double*>(colDataGetData(value, 0)),
+                     first);
+  }
+  SSDataBlock* result = nullptr;
+  ASSERT_EQ(next(&result), 0);
+  EXPECT_EQ(result, nullptr);
+}
+
+TEST_F(InterpGroupFirstTest, interpStreamsMainBeforeItsLastInputBlock) {
+  for (int32_t first = 0; first < 8; first += 2) {
+    addBlock(42, SCAN_PHASE_MAIN, first, 2);
+  }
+  SSDataBlock* result = nullptr;
+  ASSERT_EQ(next(&result), 0);
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(result->info.rows, 4);
+  EXPECT_EQ(source.index, 2);
+  auto* value = static_cast<SColumnInfoData*>(
+      taosArrayGet(result->pDataBlock, 0));
+  EXPECT_DOUBLE_EQ(*reinterpret_cast<double*>(colDataGetData(value, 0)), 0);
+  EXPECT_DOUBLE_EQ(*reinterpret_cast<double*>(colDataGetData(value, 3)), 3);
+}
+
+TEST_F(InterpGroupFirstTest, interpResetDiscardsPartialMainInput) {
+  addBlock(42, SCAN_PHASE_MAIN, 0, 8);
+  SSDataBlock* result = nullptr;
+  ASSERT_EQ(next(&result), 0);
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(result->info.rows, 4);
+  ASSERT_EQ(op->fpSet.resetStateFn(op), 0);
+  source.index = 0;
+  int32_t rows = 0;
+  while (true) {
+    ASSERT_EQ(next(&result), 0);
+    if (result == nullptr) {
+      break;
+    }
+    auto* value = static_cast<SColumnInfoData*>(
+        taosArrayGet(result->pDataBlock, 0));
+    for (int32_t i = 0; i < result->info.rows; ++i) {
+      EXPECT_DOUBLE_EQ(*reinterpret_cast<double*>(
+                           colDataGetData(value, i)), rows++);
+    }
+  }
+  EXPECT_EQ(rows, 8);
+}
+
+TEST_F(InterpGroupFirstTest, interpFilteredPrefixDoesNotReturnFalseEof) {
+  SValueNode* condition = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_VALUE,
+                         reinterpret_cast<SNode**>(&condition)), 0);
+  condition->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  condition->node.resType.bytes = sizeof(bool);
+  bool value = false;
+  ASSERT_EQ(nodesSetValueNodeValue(condition, &value), 0);
+  condition->translate = true;
+  ASSERT_EQ(filterInitFromNode(reinterpret_cast<SNode*>(condition),
+                              &op->exprSupp.pFilterInfo, 0, nullptr), 0);
+  nodesDestroyNode(reinterpret_cast<SNode*>(condition));
+  addBlock(42, SCAN_PHASE_MAIN, 0, 8);
+  addBlock(7, SCAN_PHASE_MAIN, 0, 8);
+  SSDataBlock* result = nullptr;
+  ASSERT_EQ(next(&result), 0);
+  EXPECT_EQ(result, nullptr);
+  EXPECT_EQ(source.index, 2);
+  EXPECT_EQ(op->status, OP_EXEC_DONE);
+}
+
+class InterpGroupGapTest : public InterpGroupFirstTest {
+ protected:
+  static constexpr int64_t anchor = 8192;
+
+  EFillMode fillMode() override { return FILL_MODE_NEXT; }
+
+  virtual int64_t rangeEnd() { return anchor; }
+
+  virtual int64_t timeStep() { return 1; }
+
+  void configurePlan() override {
+    plan->timeRange.ekey = rangeEnd();
+    plan->interval = timeStep();
+    plan->timelineSource = TIME_LINE_SOURCE_DEGRADED_TS;
+
+    SSlotDescNode* slot = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_SLOT_DESC,
+                           reinterpret_cast<SNode**>(&slot)), 0);
+    slot->slotId = 1;
+    slot->dataType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    slot->dataType.bytes = sizeof(int64_t);
+    slot->output = true;
+    auto* desc = plan->node.pOutputDataBlockDesc;
+    ASSERT_EQ(nodesListMakeStrictAppend(&desc->pSlots,
+                                       reinterpret_cast<SNode*>(slot)), 0);
+    desc->totalRowSize += sizeof(int64_t);
+    desc->outputRowSize += sizeof(int64_t);
+
+    SFunctionNode* func = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_FUNCTION,
+                           reinterpret_cast<SNode**>(&func)), 0);
+    tstrncpy(func->functionName, "_irowts", TSDB_FUNC_NAME_LEN);
+    ASSERT_EQ(fmGetFuncInfo(func, nullptr, 0), 0);
+    STargetNode* target = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_TARGET,
+                           reinterpret_cast<SNode**>(&target)), 0);
+    target->dataBlockId = 2;
+    target->slotId = 1;
+    target->pExpr = reinterpret_cast<SNode*>(func);
+    ASSERT_EQ(nodesListMakeStrictAppend(&plan->pFuncs,
+                                       reinterpret_cast<SNode*>(target)), 0);
+  }
+
+  void SetUp() override {
+    ASSERT_NO_FATAL_FAILURE(InterpGroupFirstTest::SetUp());
+    ASSERT_NE(op, nullptr);
+    op->resultInfo.threshold = 31;
+    ASSERT_GT(anchor, op->resultInfo.capacity);
+  }
+
+  void addSparseBlock(uint64_t group) {
+    ASSERT_NO_FATAL_FAILURE(addBlock(group, SCAN_PHASE_MAIN, 0, 2));
+    auto* block = source.blocks.back();
+    auto* ts = static_cast<SColumnInfoData*>(
+        taosArrayGet(block->pDataBlock, 0));
+    auto* value = static_cast<SColumnInfoData*>(
+        taosArrayGet(block->pDataBlock, 1));
+    int64_t time = anchor;
+    double val = anchor;
+    ASSERT_EQ(colDataSetVal(ts, 1, reinterpret_cast<const char*>(&time),
+                           false), 0);
+    ASSERT_EQ(colDataSetVal(value, 1, reinterpret_cast<const char*>(&val),
+                           false), 0);
+  }
+
+  virtual double expectedValue(int64_t time, bool realAtStart) {
+    if (time == rangeEnd() || (realAtStart && time == 0)) {
+      return time;
+    }
+    return fillMode() == FILL_MODE_VALUE ? 99 : anchor;
+  }
+
+  void drain(const std::vector<uint64_t>& groups, bool realAtStart = false,
+             int64_t first = 0) {
+    for (uint64_t group : groups) {
+      int64_t time = first;
+      while (time <= rangeEnd()) {
+        SSDataBlock* result = nullptr;
+        ASSERT_EQ(next(&result), 0);
+        ASSERT_NE(result, nullptr);
+        ASSERT_GT(result->info.rows, 0);
+        ASSERT_LE(result->info.rows, op->resultInfo.threshold + 1);
+        ASSERT_EQ(result->info.capacity, op->resultInfo.capacity);
+        ASSERT_EQ(result->info.id.groupId, group);
+        auto* value = static_cast<SColumnInfoData*>(
+            taosArrayGet(result->pDataBlock, 0));
+        auto* ts = static_cast<SColumnInfoData*>(
+            taosArrayGet(result->pDataBlock, 1));
+        for (int32_t i = 0; i < result->info.rows;
+             ++i, time += timeStep()) {
+          ASSERT_LE(time, rangeEnd());
+          ASSERT_FALSE(colDataIsNull_s(ts, i));
+          EXPECT_EQ(*reinterpret_cast<int64_t*>(colDataGetData(ts, i)),
+                    time);
+          bool real = time == rangeEnd() || (realAtStart && time == 0);
+          if (fillMode() == FILL_MODE_NULL && !real) {
+            EXPECT_TRUE(colDataIsNull_s(value, i));
+          } else {
+            ASSERT_FALSE(colDataIsNull_s(value, i));
+            EXPECT_DOUBLE_EQ(*reinterpret_cast<double*>(
+                                 colDataGetData(value, i)),
+                             expectedValue(time, realAtStart));
+          }
+        }
+      }
+    }
+    SSDataBlock* result = nullptr;
+    ASSERT_EQ(next(&result), 0);
+    EXPECT_EQ(result, nullptr);
+  }
+};
+
+constexpr int64_t InterpGroupGapTest::anchor;
+
+class InterpGroupLeadingGapTest
+    : public InterpGroupGapTest,
+      public testing::WithParamInterface<EFillMode> {
+ protected:
+  EFillMode fillMode() override { return GetParam(); }
+};
+
+TEST_P(InterpGroupLeadingGapTest, boundsLeadingFillAcrossGroups) {
+  addBlock(42, SCAN_PHASE_MAIN, anchor, 1);
+  addBlock(7, SCAN_PHASE_MAIN, anchor, 1);
+  drain({42, 7});
+}
+
+TEST_P(InterpGroupLeadingGapTest, resumesGapBeforeLastInputRow) {
+  addSparseBlock(42);
+  drain({42}, true);
+}
+
+TEST_P(InterpGroupLeadingGapTest, resetDiscardsPartiallyFilledGap) {
+  addBlock(42, SCAN_PHASE_MAIN, anchor, 1);
+  SSDataBlock* result = nullptr;
+  ASSERT_EQ(next(&result), 0);
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(result->info.rows, 32);
+  ASSERT_EQ(result->info.capacity, op->resultInfo.capacity);
+  ASSERT_EQ(source.index, 1);
+  ASSERT_EQ(op->fpSet.resetStateFn(op), 0);
+  source.index = 0;
+  drain({42});
+}
+
+TEST_P(InterpGroupLeadingGapTest, filteredGapResumesToRealRows) {
+  SColumnNode* ts = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN,
+                         reinterpret_cast<SNode**>(&ts)), 0);
+  ts->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  ts->node.resType.bytes = sizeof(int64_t);
+  ts->dataBlockId = 2;
+  ts->slotId = 1;
+  SNode* condition = makeEqualCond(reinterpret_cast<SNode*>(ts),
+                                 makeIntValue(anchor));
+  plan->node.pConditions = condition;
+  ASSERT_EQ(filterInitFromNode(condition, &op->exprSupp.pFilterInfo,
+                              0, nullptr), 0);
+  addBlock(42, SCAN_PHASE_MAIN, anchor, 1);
+  addBlock(7, SCAN_PHASE_MAIN, anchor, 1);
+  drain({42, 7}, false, anchor);
+  EXPECT_EQ(source.index, 2);
+  EXPECT_EQ(op->status, OP_EXEC_DONE);
+}
+
+INSTANTIATE_TEST_SUITE_P(FillModes, InterpGroupLeadingGapTest,
+                         testing::Values(FILL_MODE_NEXT, FILL_MODE_NULL,
+                                         FILL_MODE_VALUE));
+
+class InterpGroupLinearGapTest : public InterpGroupGapTest {
+ protected:
+  EFillMode fillMode() override { return FILL_MODE_LINEAR; }
+
+  int64_t rangeEnd() override { return 2 * anchor; }
+
+  double expectedValue(int64_t time, bool realAtStart) override {
+    return time <= anchor ? time : anchor + 2 * (time - anchor);
+  }
+};
+
+TEST_F(InterpGroupLinearGapTest, preservesAnchorsAcrossRepeatedGapResumes) {
+  addSparseBlock(42);
+  addBlock(42, SCAN_PHASE_MAIN, 2 * anchor, 1);
+  auto* value = static_cast<SColumnInfoData*>(
+      taosArrayGet(source.blocks.back()->pDataBlock, 1));
+  double val = 3 * anchor;
+  ASSERT_EQ(colDataSetVal(value, 0, reinterpret_cast<const char*>(&val),
+                         false), 0);
+  drain({42}, true);
+}
+
+class InterpGroupUnalignedGapTest : public InterpGroupLinearGapTest {
+ protected:
+  int64_t rangeEnd() override { return 192; }
+
+  int64_t timeStep() override { return 2; }
+
+  double expectedValue(int64_t time, bool realAtStart) override {
+    if (time <= 63) {
+      return time;
+    }
+    return time <= 129 ? 63 + 3 * (time - 63) : 261 + 2 * (time - 129);
+  }
+};
+
+TEST_F(InterpGroupUnalignedGapTest, preservesReferencesPastNonGridAlignedRow) {
+  const int64_t times[] = {0, 63, 129, 192};
+  const double values[] = {0, 63, 261, 387};
+  for (size_t i = 0; i < 4; ++i) {
+    addBlock(42, SCAN_PHASE_MAIN, times[i], 1);
+    auto* value = static_cast<SColumnInfoData*>(
+        taosArrayGet(source.blocks.back()->pDataBlock, 1));
+    ASSERT_EQ(colDataSetVal(value, 0,
+                           reinterpret_cast<const char*>(&values[i]),
+                           false), 0);
+  }
+  drain({42}, true);
+}
+
+TEST_F(InterpGroupGapTest, rejectsDuplicateTimestampAfterResumedRow) {
+  addBlock(42, SCAN_PHASE_MAIN, anchor - 1, 1);
+  addBlock(42, SCAN_PHASE_MAIN, anchor - 1, 2);
+  SSDataBlock* result = nullptr;
+  for (int32_t block = 0; block < anchor / 32; ++block) {
+    ASSERT_EQ(next(&result), 0);
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(result->info.rows, 32);
+    ASSERT_EQ(result->info.capacity, op->resultInfo.capacity);
+  }
+  EXPECT_EQ(next(&result), TSDB_CODE_FUNC_DUP_TIMESTAMP);
+}
+
+namespace {
+
+struct InterpStoredSequenceOutput {
+  SInterpMainFirstOutputTestCtx* context = nullptr;
+  std::vector<SSDataBlock*> sources;
+
+  ~InterpStoredSequenceOutput() {
+    interpTestDestroyMainFirstOutput(context);
+    for (SSDataBlock* source : sources) {
+      blockDataDestroy(source);
+    }
+  }
+};
+
+void expectInterpStoredSequenceOutput(
+    const std::vector<int32_t>& fragmentRows, int32_t capacity,
+    int32_t threshold, const std::vector<int32_t>& expectedRows) {
+  constexpr uint64_t groupId = 42;
+  constexpr uint64_t baseGroupId = 420;
+  constexpr int32_t scanFlag = 7;
+  InterpStoredSequenceOutput output;
+  output.sources.resize(fragmentRows.size(), nullptr);
+
+  int32_t firstValue = 0;
+  for (size_t i = 0; i < output.sources.size(); ++i) {
+    ASSERT_EQ(createInterpStoreSequenceBlock(
+                  groupId, firstValue, fragmentRows[i],
+                  &output.sources[i]),
+              TSDB_CODE_SUCCESS);
+    output.sources[i]->info.id.baseGId = baseGroupId;
+    output.sources[i]->info.scanFlag = scanFlag;
+    output.sources[i]->info.scanPhase = SCAN_PHASE_MAIN;
+    firstValue += fragmentRows[i];
+  }
+
+  ASSERT_EQ(interpTestCreateMainFirstOutput(
+                output.sources.data(),
+                static_cast<int32_t>(output.sources.size()),
+                capacity, threshold, &output.context),
+            TSDB_CODE_SUCCESS);
+  for (SSDataBlock* pSource : output.sources) {
+    blockDataDestroy(pSource);
+  }
+  output.sources.clear();
+
+  int32_t expectedValue = 0;
+  for (int32_t rows : expectedRows) {
+    SSDataBlock* pOutput = nullptr;
+    ASSERT_EQ(interpTestNextMainFirstOutput(output.context, &pOutput),
+              TSDB_CODE_SUCCESS);
+    ASSERT_NE(pOutput, nullptr);
+    ASSERT_EQ(pOutput->info.rows, rows);
+    EXPECT_EQ(pOutput->info.capacity, capacity);
+    EXPECT_EQ(pOutput->info.id.groupId, groupId);
+    EXPECT_EQ(pOutput->info.id.baseGId, baseGroupId);
+    EXPECT_EQ(pOutput->info.scanFlag, scanFlag);
+    EXPECT_EQ(pOutput->info.scanPhase, SCAN_PHASE_MAIN);
+
+    SColumnInfoData* pColumn = static_cast<SColumnInfoData*>(
+        taosArrayGet(pOutput->pDataBlock, 0));
+    ASSERT_NE(pColumn, nullptr);
+    for (int32_t row = 0; row < rows; ++row) {
+      ASSERT_FALSE(colDataIsNull_s(pColumn, row));
+      EXPECT_EQ(*reinterpret_cast<int32_t*>(
+                    colDataGetData(pColumn, row)),
+                expectedValue++);
+    }
+  }
+
+  SSDataBlock* pOutput = nullptr;
+  ASSERT_EQ(interpTestNextMainFirstOutput(output.context, &pOutput),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pOutput, nullptr);
+  EXPECT_EQ(expectedValue, firstValue);
+}
+
+void expectInterpStoredGroup(SInterpResultStore* pStore, uint64_t groupId,
+                            const std::vector<SSDataBlock*>& expected) {
+  ASSERT_EQ(interpResultStoreOpenRead(pStore, groupId), TSDB_CODE_SUCCESS);
+  SSDataBlock* pRead = nullptr;
+  for (SSDataBlock* pExpected : expected) {
+    ASSERT_EQ(interpResultStoreNextBlock(pStore, &pRead),
+              TSDB_CODE_SUCCESS);
+    ASSERT_NO_FATAL_FAILURE(expectInterpStoreBlocksEqual(pExpected, pRead));
+  }
+  ASSERT_EQ(interpResultStoreNextBlock(pStore, &pRead), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(pRead, nullptr);
+  ASSERT_EQ(interpResultStoreDropGroup(pStore, groupId), TSDB_CODE_SUCCESS);
+}
+
+}  // namespace
+
+TEST(execUtilTest, interpMainFirstCoalescesStoredFragmentsToOutputLimit) {
+  ASSERT_NO_FATAL_FAILURE(
+      expectInterpStoredSequenceOutput({4, 5, 4}, 10, 9, {10, 3}));
+}
+
+TEST(execUtilTest, interpMainFirstSplitsOneOversizedStoredBlock) {
+  ASSERT_NO_FATAL_FAILURE(
+      expectInterpStoredSequenceOutput({13}, 10, 9, {10, 3}));
+}
+
+TEST(execUtilTest, interpMainFirstTreatsThresholdAsSoftLimit) {
+  ASSERT_NO_FATAL_FAILURE(
+      expectInterpStoredSequenceOutput({4, 7}, 20, 9, {11}));
+}
+
+TEST(execUtilTest, interpMainFirstCoalescesManyStoredFragments) {
+  ASSERT_NO_FATAL_FAILURE(expectInterpStoredSequenceOutput(
+      std::vector<int32_t>(100, 10), 1024, 1000, {1000}));
+}
+
+TEST(execUtilTest, interpMainFirstNormalizesDerivedOutputMetadata) {
+  SSDataBlock* pSource = nullptr;
+  ASSERT_EQ(createInterpStoreVarBlock(42, 100, 4, &pSource),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(setInterpStoreVarPks(pSource, "first-pk", "last-pk"),
+            TSDB_CODE_SUCCESS);
+
+  SInterpMainFirstOutputTestCtx* pCtx = nullptr;
+  ASSERT_EQ(interpTestCreateMainFirstOutput(
+                &pSource, 1, 10, 9, &pCtx),
+            TSDB_CODE_SUCCESS);
+  blockDataDestroy(pSource);
+
+  SSDataBlock* pOutput = nullptr;
+  ASSERT_EQ(interpTestNextMainFirstOutput(pCtx, &pOutput),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(pOutput, nullptr);
+  EXPECT_EQ(pOutput->info.window.skey, 0);
+  EXPECT_EQ(pOutput->info.window.ekey, 0);
+  EXPECT_EQ(pOutput->info.dataLoad, 0);
+  EXPECT_FALSE(pOutput->info.blankFill);
+  EXPECT_EQ(pOutput->info.pks[0].type, 0);
+  EXPECT_EQ(pOutput->info.pks[1].type, 0);
+  EXPECT_EQ(pOutput->info.pks[0].pData, nullptr);
+  EXPECT_EQ(pOutput->info.pks[1].pData, nullptr);
+  EXPECT_EQ(pOutput->info.pBlockAgg, nullptr);
+  EXPECT_EQ(pOutput->pBlockAgg, nullptr);
+  EXPECT_STREQ(pOutput->info.parTbName, "");
+  EXPECT_EQ(pOutput->info.id.groupId, 42);
+  EXPECT_EQ(pOutput->info.id.baseGId, 43);
+  EXPECT_EQ(pOutput->info.scanFlag, 7);
+  EXPECT_EQ(pOutput->info.scanPhase, SCAN_PHASE_PREV);
+  interpTestDestroyMainFirstOutput(pCtx);
+}
+
+TEST(execUtilTest, interpMainFirstMergesVariableColumnsAndNulls) {
+  const std::array<int32_t, 3> fragmentRows = {4, 5, 4};
+  std::array<SSDataBlock*, 3> sources = {};
+  std::vector<int32_t> expectedValues;
+  std::vector<bool> expectedIntNulls;
+  std::vector<bool> expectedStrNulls;
+  std::vector<std::string> expectedStrings;
+
+  int32_t seed = 0;
+  for (size_t i = 0; i < sources.size(); ++i) {
+    ASSERT_EQ(createInterpStoreVarBlock(
+                  42, seed, fragmentRows[i], &sources[i]),
+              TSDB_CODE_SUCCESS);
+    std::string firstPk = "first-" + std::to_string(i);
+    std::string lastPk = "last-" + std::to_string(i);
+    ASSERT_EQ(setInterpStoreVarPks(
+                  sources[i], firstPk.c_str(), lastPk.c_str()),
+              TSDB_CODE_SUCCESS);
+    for (int32_t row = 0; row < fragmentRows[i]; ++row) {
+      int32_t value = seed + row;
+      int32_t strLen = 24 + row % 16;
+      expectedValues.push_back(value);
+      expectedIntNulls.push_back(row % 4 == 1);
+      expectedStrNulls.push_back(row % 3 == 2);
+      expectedStrings.emplace_back(
+          strLen, static_cast<char>('a' + value % 26));
+    }
+    seed += fragmentRows[i];
+  }
+
+  SInterpMainFirstOutputTestCtx* pCtx = nullptr;
+  ASSERT_EQ(interpTestCreateMainFirstOutput(
+                sources.data(), static_cast<int32_t>(sources.size()),
+                10, 9, &pCtx),
+            TSDB_CODE_SUCCESS);
+  for (SSDataBlock* pSource : sources) {
+    blockDataDestroy(pSource);
+  }
+
+  const std::array<int32_t, 2> outputRows = {10, 3};
+  int32_t expectedIndex = 0;
+  for (int32_t rows : outputRows) {
+    SSDataBlock* pOutput = nullptr;
+    ASSERT_EQ(interpTestNextMainFirstOutput(pCtx, &pOutput),
+              TSDB_CODE_SUCCESS);
+    ASSERT_NE(pOutput, nullptr);
+    ASSERT_EQ(pOutput->info.rows, rows);
+    EXPECT_EQ(pOutput->info.pks[0].type, 0);
+    EXPECT_EQ(pOutput->info.pks[1].type, 0);
+
+    SColumnInfoData* pInt = static_cast<SColumnInfoData*>(
+        taosArrayGet(pOutput->pDataBlock, 0));
+    SColumnInfoData* pStr = static_cast<SColumnInfoData*>(
+        taosArrayGet(pOutput->pDataBlock, 1));
+    ASSERT_NE(pInt, nullptr);
+    ASSERT_NE(pStr, nullptr);
+    for (int32_t row = 0; row < rows; ++row, ++expectedIndex) {
+      EXPECT_EQ(colDataIsNull_s(pInt, row),
+                expectedIntNulls[expectedIndex]);
+      EXPECT_EQ(colDataIsNull_s(pStr, row),
+                expectedStrNulls[expectedIndex]);
+      if (!expectedIntNulls[expectedIndex]) {
+        EXPECT_EQ(*reinterpret_cast<int32_t*>(
+                      colDataGetData(pInt, row)),
+                  expectedValues[expectedIndex]);
+      }
+      if (!expectedStrNulls[expectedIndex]) {
+        char* pValue = colDataGetData(pStr, row);
+        std::string actual(varDataVal(pValue),
+                           varDataLen(pValue));
+        EXPECT_EQ(actual, expectedStrings[expectedIndex]);
+      }
+    }
+  }
+  EXPECT_EQ(expectedIndex, 13);
+  interpTestDestroyMainFirstOutput(pCtx);
+}
+
+TEST(execUtilTest, interpMainFirstSealsIncompatibleStoredMetadata) {
+  std::array<SSDataBlock*, 2> sources = {};
+  ASSERT_EQ(createInterpStoreSequenceBlock(42, 0, 4, &sources[0]),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createInterpStoreSequenceBlock(42, 4, 5, &sources[1]),
+            TSDB_CODE_SUCCESS);
+  sources[0]->info.id.baseGId = 420;
+  sources[1]->info.id.baseGId = 421;
+
+  SInterpMainFirstOutputTestCtx* pCtx = nullptr;
+  ASSERT_EQ(interpTestCreateMainFirstOutput(
+                sources.data(), static_cast<int32_t>(sources.size()),
+                10, 9, &pCtx),
+            TSDB_CODE_SUCCESS);
+  for (SSDataBlock* pSource : sources) {
+    blockDataDestroy(pSource);
+  }
+
+  const std::array<int32_t, 2> expectedRows = {4, 5};
+  const std::array<uint64_t, 2> expectedBaseGroups = {420, 421};
+  for (size_t i = 0; i < expectedRows.size(); ++i) {
+    SSDataBlock* pOutput = nullptr;
+    ASSERT_EQ(interpTestNextMainFirstOutput(pCtx, &pOutput),
+              TSDB_CODE_SUCCESS);
+    ASSERT_NE(pOutput, nullptr);
+    EXPECT_EQ(pOutput->info.rows, expectedRows[i]);
+    EXPECT_EQ(pOutput->info.id.baseGId, expectedBaseGroups[i]);
+  }
+
+  SSDataBlock* pOutput = nullptr;
+  ASSERT_EQ(interpTestNextMainFirstOutput(pCtx, &pOutput),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pOutput, nullptr);
+  interpTestDestroyMainFirstOutput(pCtx);
+}
+
+TEST(execUtilTest, interpMainFirstContinuesAfterFilterRemovesBatch) {
+  std::array<SSDataBlock*, 2> sources = {};
+  ASSERT_EQ(createInterpStoreSequenceBlock(42, 0, 13, &sources[0]),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createInterpStoreSequenceBlock(7, 100, 4, &sources[1]),
+            TSDB_CODE_SUCCESS);
+
+  SInterpMainFirstOutputTestCtx* pCtx = nullptr;
+  ASSERT_EQ(interpTestCreateMainFirstOutput(
+                sources.data(), static_cast<int32_t>(sources.size()),
+                10, 9, &pCtx),
+            TSDB_CODE_SUCCESS);
+  for (SSDataBlock* pSource : sources) {
+    blockDataDestroy(pSource);
+  }
+  ASSERT_EQ(interpTestSetMainFirstOutputFilterFalse(pCtx),
+            TSDB_CODE_SUCCESS);
+  EXPECT_GT(interpTestMainFirstOutputStoreBytes(pCtx), 0);
+
+  SSDataBlock* pOutput = nullptr;
+  ASSERT_EQ(interpTestNextMainFirstOutput(pCtx, &pOutput),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pOutput, nullptr);
+  EXPECT_EQ(interpTestMainFirstOutputStoreBytes(pCtx), 0);
+  interpTestDestroyMainFirstOutput(pCtx);
+}
+
+TEST(execUtilTest, interpMainFirstResetClearsPartialStoredCursor) {
+  SSDataBlock* pSource = nullptr;
+  ASSERT_EQ(createInterpStoreSequenceBlock(42, 0, 13, &pSource),
+            TSDB_CODE_SUCCESS);
+
+  SInterpMainFirstOutputTestCtx* pCtx = nullptr;
+  ASSERT_EQ(interpTestCreateMainFirstOutput(
+                &pSource, 1, 10, 9, &pCtx),
+            TSDB_CODE_SUCCESS);
+  blockDataDestroy(pSource);
+
+  SSDataBlock* pOutput = nullptr;
+  ASSERT_EQ(interpTestNextMainFirstOutput(pCtx, &pOutput),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(pOutput, nullptr);
+  ASSERT_EQ(pOutput->info.rows, 10);
+  EXPECT_GT(interpTestMainFirstOutputStoreBytes(pCtx), 0);
+
+  interpTestResetMainFirstOutput(pCtx);
+  EXPECT_EQ(interpTestMainFirstOutputStoreBytes(pCtx), 0);
+  ASSERT_EQ(interpTestNextMainFirstOutput(pCtx, &pOutput),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pOutput, nullptr);
+  interpTestDestroyMainFirstOutput(pCtx);
+}
+
+TEST(execUtilTest, interpMainFirstDoesNotCoalesceAcrossGroups) {
+  constexpr int64_t outputVersion = 101;
+  constexpr int32_t outputChildId = 102;
+  constexpr int64_t outputCalStart = 103;
+  constexpr int64_t outputCalEnd = 104;
+  constexpr int64_t outputWatermark = 105;
+  std::array<SSDataBlock*, 4> sources = {};
+  const std::array<uint64_t, 4> groupIds = {42, 42, 7, 7};
+  const std::array<int32_t, 4> firstValues = {0, 4, 100, 103};
+  const std::array<int32_t, 4> rows = {4, 5, 3, 4};
+  for (size_t i = 0; i < sources.size(); ++i) {
+    ASSERT_EQ(createInterpStoreSequenceBlock(
+                  groupIds[i], firstValues[i], rows[i], &sources[i]),
+              TSDB_CODE_SUCCESS);
+    sources[i]->info.id.baseGId = groupIds[i] * 10;
+    sources[i]->info.version = i < 2 ? outputVersion : 201;
+    sources[i]->info.childId = i < 2 ? outputChildId : 202;
+    sources[i]->info.calWin =
+        i < 2 ? STimeWindow{outputCalStart, outputCalEnd}
+              : STimeWindow{203, 204};
+    sources[i]->info.watermark =
+        i < 2 ? outputWatermark : 205;
+  }
+
+  SInterpMainFirstOutputTestCtx* pCtx = nullptr;
+  ASSERT_EQ(interpTestCreateMainFirstOutput(
+                sources.data(), static_cast<int32_t>(sources.size()),
+                10, 9, &pCtx),
+            TSDB_CODE_SUCCESS);
+  for (SSDataBlock* pSource : sources) {
+    blockDataDestroy(pSource);
+  }
+
+  const std::array<uint64_t, 2> expectedGroups = {42, 7};
+  const std::array<int32_t, 2> expectedRows = {9, 7};
+  for (size_t i = 0; i < expectedGroups.size(); ++i) {
+    SSDataBlock* pOutput = nullptr;
+    ASSERT_EQ(interpTestNextMainFirstOutput(pCtx, &pOutput),
+              TSDB_CODE_SUCCESS);
+    ASSERT_NE(pOutput, nullptr);
+    EXPECT_EQ(pOutput->info.id.groupId, expectedGroups[i]);
+    EXPECT_EQ(pOutput->info.id.baseGId, expectedGroups[i] * 10);
+    EXPECT_EQ(pOutput->info.rows, expectedRows[i]);
+    EXPECT_EQ(pOutput->info.version, outputVersion);
+    EXPECT_EQ(pOutput->info.childId, outputChildId);
+    EXPECT_EQ(pOutput->info.calWin.skey, outputCalStart);
+    EXPECT_EQ(pOutput->info.calWin.ekey, outputCalEnd);
+    EXPECT_EQ(pOutput->info.watermark, outputWatermark);
+  }
+
+  SSDataBlock* pOutput = nullptr;
+  ASSERT_EQ(interpTestNextMainFirstOutput(pCtx, &pOutput),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pOutput, nullptr);
+  interpTestDestroyMainFirstOutput(pCtx);
+}
+
+TEST(execUtilTest, interpResultStoreCopiesAndReadsGroupsSerially) {
+  SInterpResultStore* pStore = nullptr;
+  ASSERT_EQ(interpResultStoreCreate(&pStore), TSDB_CODE_SUCCESS);
+
+  SSDataBlock* pGroup42First = nullptr;
+  SSDataBlock* pGroup42Second = nullptr;
+  SSDataBlock* pGroup7First = nullptr;
+  SSDataBlock* pGroup7Second = nullptr;
+  ASSERT_EQ(createInterpStoreTestBlock(42, 10, &pGroup42First),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createInterpStoreTestBlock(42, 20, &pGroup42Second),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createInterpStoreTestBlock(7, 30, &pGroup7First),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createInterpStoreTestBlock(7, 40, &pGroup7Second),
+            TSDB_CODE_SUCCESS);
+
+  int64_t group42Bytes = blockDataGetSize(pGroup42First) +
+                         blockDataGetSize(pGroup42Second);
+  int64_t group7Bytes = blockDataGetSize(pGroup7First) +
+                        blockDataGetSize(pGroup7Second);
+  ASSERT_EQ(interpResultStoreAppend(pStore, 42, pGroup42First),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(interpResultStoreAppend(pStore, 42, pGroup42Second),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(interpResultStoreAppend(pStore, 7, pGroup7First),
+            TSDB_CODE_SUCCESS);
+
+  SColumnInfoData* pSourceCol = static_cast<SColumnInfoData*>(
+      taosArrayGet(pGroup42First->pDataBlock, 0));
+  int32_t changed = 999;
+  ASSERT_EQ(colDataSetVal(pSourceCol, 0,
+                          reinterpret_cast<const char*>(&changed), false),
+            TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(interpResultStoreBytesUsed(pStore),
+            group42Bytes + blockDataGetSize(pGroup7First));
+  ASSERT_EQ(interpResultStoreOpenRead(pStore, 42), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(interpResultStoreOpenRead(pStore, 7),
+            TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(interpResultStoreAppend(pStore, 42, pGroup42First),
+            TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(interpResultStoreDropGroup(pStore, 42),
+            TSDB_CODE_INVALID_PARA);
+
+  SSDataBlock* pRead = nullptr;
+  ASSERT_EQ(interpResultStoreNextBlock(pStore, &pRead),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(pRead, nullptr);
+  EXPECT_EQ(interpStoreFirstValue(pRead), 10);
+
+  ASSERT_EQ(interpResultStoreAppend(pStore, 7, pGroup7Second),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(interpStoreFirstValue(pRead), 10);
+
+  ASSERT_EQ(interpResultStoreNextBlock(pStore, &pRead),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(pRead, nullptr);
+  EXPECT_EQ(interpStoreFirstValue(pRead), 20);
+  ASSERT_EQ(interpResultStoreNextBlock(pStore, &pRead),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pRead, nullptr);
+  EXPECT_EQ(interpResultStoreDropGroup(pStore, 7),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(interpResultStoreDropGroup(pStore, 42), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(interpResultStoreBytesUsed(pStore), group7Bytes);
+
+  ASSERT_EQ(interpResultStoreOpenRead(pStore, 7), TSDB_CODE_SUCCESS);
+  for (int32_t expected : {30, 40}) {
+    ASSERT_EQ(interpResultStoreNextBlock(pStore, &pRead),
+              TSDB_CODE_SUCCESS);
+    ASSERT_NE(pRead, nullptr);
+    EXPECT_EQ(interpStoreFirstValue(pRead), expected);
+  }
+  ASSERT_EQ(interpResultStoreNextBlock(pStore, &pRead),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pRead, nullptr);
+  ASSERT_EQ(interpResultStoreDropGroup(pStore, 7), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(interpResultStoreBytesUsed(pStore), 0);
+
+  blockDataDestroy(pGroup42First);
+  blockDataDestroy(pGroup42Second);
+  blockDataDestroy(pGroup7First);
+  blockDataDestroy(pGroup7Second);
+  interpResultStoreDestroy(pStore);
+}
+
+TEST(execUtilTest, interpResultStoreResetClearsReaderAndLogicalBytes) {
+  SInterpResultStore* pStore = nullptr;
+  SSDataBlock* pBlock = nullptr;
+  ASSERT_EQ(interpResultStoreCreate(&pStore), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createInterpStoreTestBlock(UINT64_MAX, 50, &pBlock),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(interpResultStoreAppend(pStore, UINT64_MAX, pBlock),
+            TSDB_CODE_SUCCESS);
+  ASSERT_GT(interpResultStoreBytesUsed(pStore), 0);
+  ASSERT_EQ(interpResultStoreOpenRead(pStore, UINT64_MAX),
+            TSDB_CODE_SUCCESS);
+
+  SSDataBlock* pRead = nullptr;
+  ASSERT_EQ(interpResultStoreNextBlock(pStore, &pRead),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(pRead, nullptr);
+  interpResultStoreReset(pStore);
+
+  EXPECT_EQ(interpResultStoreBytesUsed(pStore), 0);
+  EXPECT_EQ(interpResultStoreNextBlock(pStore, &pRead),
+            TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(interpResultStoreOpenRead(pStore, UINT64_MAX),
+            TSDB_CODE_INVALID_PARA);
+
+  blockDataDestroy(pBlock);
+  interpResultStoreDestroy(pStore);
+}
+
+TEST(execUtilTest,
+     interpResultStoreRejectsInvalidInputWithoutChangingStoredGroups) {
+  SInterpResultStore* pStore = nullptr;
+  SSDataBlock* pGoodBlock = nullptr;
+  SSDataBlock* pMalformedBlock = nullptr;
+  EXPECT_EQ(interpResultStoreCreate(nullptr), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(interpResultStoreCreate(&pStore), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createInterpStoreTestBlock(1, 10, &pGoodBlock),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createInterpStoreTestBlock(2, 20, &pMalformedBlock),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(interpResultStoreAppend(pStore, 1, pGoodBlock),
+            TSDB_CODE_SUCCESS);
+  int64_t logicalBytes = interpResultStoreBytesUsed(pStore);
+  ASSERT_GT(logicalBytes, 0);
+
+  EXPECT_EQ(interpResultStoreAppend(nullptr, 1, pGoodBlock),
+            TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(interpResultStoreAppend(pStore, 1, nullptr),
+            TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(interpResultStoreOpenRead(pStore, 3),
+            TSDB_CODE_INVALID_PARA);
+  SSDataBlock* pRead = nullptr;
+  EXPECT_EQ(interpResultStoreNextBlock(pStore, &pRead),
+            TSDB_CODE_INVALID_PARA);
+
+  blockDataCleanup(pMalformedBlock);
+  EXPECT_EQ(interpResultStoreAppend(pStore, 2, pMalformedBlock),
+            TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(interpResultStoreBytesUsed(pStore), logicalBytes);
+
+  ASSERT_EQ(interpResultStoreOpenRead(pStore, 1), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(interpResultStoreNextBlock(pStore, &pRead),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(pRead, nullptr);
+  EXPECT_EQ(interpStoreFirstValue(pRead), 10);
+  ASSERT_EQ(interpResultStoreNextBlock(pStore, &pRead),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pRead, nullptr);
+  ASSERT_EQ(interpResultStoreDropGroup(pStore, 1), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(interpResultStoreBytesUsed(pStore), 0);
+
+  blockDataDestroy(pGoodBlock);
+  blockDataDestroy(pMalformedBlock);
+  interpResultStoreDestroy(pStore);
+  interpResultStoreReset(nullptr);
+  interpResultStoreDestroy(nullptr);
+  EXPECT_EQ(interpResultStoreBytesUsed(nullptr), 0);
+}
+
+TEST(execUtilTest, interpResultStoreAllocationFailuresPreserveState) {
+  SInterpResultStore* pStore = nullptr;
+  {
+    Stub stub;
+    stub.set(taosMemCalloc, failInterpStoreCalloc);
+    EXPECT_EQ(interpResultStoreCreate(&pStore),
+              TSDB_CODE_OUT_OF_MEMORY);
+  }
+  EXPECT_EQ(pStore, nullptr);
+
+  SSDataBlock* pBlock = nullptr;
+  ASSERT_EQ(interpResultStoreCreate(&pStore), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createInterpStoreTestBlock(1, 10, &pBlock),
+            TSDB_CODE_SUCCESS);
+  {
+    Stub stub;
+    stub.set(taosMemCalloc, failInterpStoreCalloc);
+    EXPECT_EQ(interpResultStoreAppend(pStore, 1, pBlock),
+              TSDB_CODE_OUT_OF_MEMORY);
+  }
+  EXPECT_EQ(interpResultStoreBytesUsed(pStore), 0);
+  EXPECT_EQ(interpResultStoreOpenRead(pStore, 1),
+            TSDB_CODE_INVALID_PARA);
+
+  ASSERT_EQ(interpResultStoreAppend(pStore, 1, pBlock),
+            TSDB_CODE_SUCCESS);
+  EXPECT_GT(interpResultStoreBytesUsed(pStore), 0);
+
+  blockDataDestroy(pBlock);
+  interpResultStoreDestroy(pStore);
+}
+
+TEST(execUtilTest, interpResultStorePagedRoundTripPreservesBlocks) {
+  InterpMergeTempDirGuard tempDir;
+  ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
+
+  SInterpResultStore* pStore = nullptr;
+  ASSERT_EQ(interpResultStoreTestCreate(&pStore, 128, 256),
+            TSDB_CODE_SUCCESS);
+
+  const uint64_t firstGroup = UINT64_MAX - 9;
+  const uint64_t secondGroup = 17;
+  SSDataBlock* sources[3] = {nullptr, nullptr, nullptr};
+  SSDataBlock* expected[3] = {nullptr, nullptr, nullptr};
+  ASSERT_EQ(createInterpStoreVarBlock(firstGroup, 100, 12,
+                                      &sources[0]),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createInterpStoreVarBlock(secondGroup, 200, 9,
+                                      &sources[1]),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createInterpStoreVarBlock(firstGroup, 300, 15,
+                                      &sources[2]),
+            TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < 3; ++i) {
+    ASSERT_EQ(createOneDataBlock(sources[i], true, &expected[i]),
+              TSDB_CODE_SUCCESS);
+    expected[i]->info.pks[0] = sources[i]->info.pks[0];
+    expected[i]->info.pks[1] = sources[i]->info.pks[1];
+  }
+
+  ASSERT_EQ(interpResultStoreAppend(pStore, firstGroup, sources[0]),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(interpResultStoreAppend(pStore, secondGroup, sources[1]),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(interpResultStoreAppend(pStore, firstGroup, sources[2]),
+            TSDB_CODE_SUCCESS);
+  EXPECT_GT(interpResultStoreTestActivePages(pStore), 3);
+
+  SColumnInfoData* pInt = static_cast<SColumnInfoData*>(
+      taosArrayGet(sources[0]->pDataBlock, 0));
+  SColumnInfoData* pStr = static_cast<SColumnInfoData*>(
+      taosArrayGet(sources[0]->pDataBlock, 1));
+  ASSERT_NE(pInt, nullptr);
+  ASSERT_NE(pStr, nullptr);
+  sources[0]->info.version = -1;
+  sources[0]->info.pks[0].val = -1;
+  pInt->info.slotId = -1;
+  int32_t changed = -1;
+  char changedStr[16] = {0};
+  varDataSetLen(changedStr, 7);
+  memcpy(varDataVal(changedStr), "changed", 7);
+  ASSERT_EQ(colDataSetVal(pInt, 0,
+                          reinterpret_cast<const char*>(&changed), false),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataSetVal(pStr, 0, changedStr, false),
+            TSDB_CODE_SUCCESS);
+
+  ASSERT_NO_FATAL_FAILURE(
+      expectInterpStoredGroup(pStore, firstGroup, {expected[0], expected[2]}));
+  ASSERT_NO_FATAL_FAILURE(
+      expectInterpStoredGroup(pStore, secondGroup, {expected[1]}));
+  EXPECT_EQ(interpResultStoreBytesUsed(pStore), 0);
+
+  for (int32_t i = 0; i < 3; ++i) {
+    blockDataDestroy(sources[i]);
+    blockDataDestroy(expected[i]);
+  }
+  interpResultStoreDestroy(pStore);
+}
+
+TEST(execUtilTest,
+     interpResultStoreSpillsWithinPagePayloadBudgetAndReusesPages) {
+  InterpMergeTempDirGuard tempDir;
+  ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
+
+  SInterpResultStore* pStore = nullptr;
+  SSDataBlock* pFirst = nullptr;
+  SSDataBlock* pSecond = nullptr;
+  ASSERT_EQ(interpResultStoreTestCreate(&pStore, 128, 256),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createInterpStoreVarBlock(1, 400, 20, &pFirst),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createInterpStoreVarBlock(2, 500, 20, &pSecond),
+            TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(interpResultStoreAppend(pStore, 1, pFirst),
+            TSDB_CODE_SUCCESS);
+  EXPECT_GT(interpResultStoreTestActivePages(pStore), 2);
+  EXPECT_GT(interpResultStoreResidentPagePayloadBytes(pStore), 0);
+  EXPECT_LE(interpResultStoreResidentPagePayloadBytes(pStore), 256);
+  EXPECT_GT(interpResultStoreSpillBytes(pStore), 0);
+  int32_t registeredPages =
+      interpResultStoreTestRegisteredPages(pStore);
+
+  ASSERT_NO_FATAL_FAILURE(expectInterpStoredGroup(pStore, 1, {pFirst}));
+  EXPECT_EQ(interpResultStoreTestActivePages(pStore), 0);
+  EXPECT_EQ(interpResultStoreResidentPagePayloadBytes(pStore), 0);
+
+  ASSERT_EQ(interpResultStoreAppend(pStore, 2, pSecond),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(interpResultStoreTestRegisteredPages(pStore),
+            registeredPages);
+  ASSERT_NO_FATAL_FAILURE(expectInterpStoredGroup(pStore, 2, {pSecond}));
+
+  blockDataDestroy(pFirst);
+  blockDataDestroy(pSecond);
+  interpResultStoreDestroy(pStore);
+}
+
+TEST(execUtilTest, interpResultStoreRollsBackPagedAppendFailures) {
+  InterpMergeTempDirGuard tempDir;
+  ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
+
+  SInterpResultStore* pStore = nullptr;
+  SSDataBlock* pGood = nullptr;
+  SSDataBlock* pFailed = nullptr;
+  ASSERT_EQ(interpResultStoreTestCreate(&pStore, 128, 256),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createInterpStoreVarBlock(1, 600, 12, &pGood),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createInterpStoreVarBlock(2, 700, 20, &pFailed),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(interpResultStoreAppend(pStore, 1, pGood),
+            TSDB_CODE_SUCCESS);
+  int64_t committedBytes = interpResultStoreBytesUsed(pStore);
+  int32_t committedPages = interpResultStoreTestActivePages(pStore);
+
+  interpResultStoreTestFailPageAllocAfter(pStore, 1);
+  EXPECT_EQ(interpResultStoreAppend(pStore, 2, pFailed),
+            TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(interpResultStoreBytesUsed(pStore), committedBytes);
+  EXPECT_EQ(interpResultStoreTestActivePages(pStore), committedPages);
+  EXPECT_EQ(interpResultStoreOpenRead(pStore, 2),
+            TSDB_CODE_INVALID_PARA);
+
+  interpResultStoreTestFailNextDirectoryCommit(pStore);
+  EXPECT_EQ(interpResultStoreAppend(pStore, 3, pFailed),
+            TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(interpResultStoreBytesUsed(pStore), committedBytes);
+  EXPECT_EQ(interpResultStoreTestActivePages(pStore), committedPages);
+  EXPECT_EQ(interpResultStoreOpenRead(pStore, 3),
+            TSDB_CODE_INVALID_PARA);
+
+  ASSERT_NO_FATAL_FAILURE(expectInterpStoredGroup(pStore, 1, {pGood}));
+
+  interpResultStoreReset(pStore);
+  EXPECT_EQ(interpResultStoreBytesUsed(pStore), 0);
+  EXPECT_EQ(interpResultStoreResidentPagePayloadBytes(pStore), 0);
+  EXPECT_EQ(interpResultStoreSpillBytes(pStore), 0);
+  EXPECT_EQ(interpResultStoreTestActivePages(pStore), 0);
+  EXPECT_EQ(interpResultStoreTestRegisteredPages(pStore), 0);
+  ASSERT_EQ(interpResultStoreAppend(pStore, 2, pFailed),
+            TSDB_CODE_SUCCESS);
+
+  blockDataDestroy(pGood);
+  blockDataDestroy(pFailed);
+  interpResultStoreDestroy(pStore);
+}
+
+TEST(execUtilTest, interpResultStoreSpillWriteFailurePreservesGroup) {
+  InterpMergeTempDirGuard tempDir;
+  ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
+
+  SInterpResultStore* pStore = nullptr;
+  SSDataBlock* pGood = nullptr;
+  SSDataBlock* pFailed = nullptr;
+  ASSERT_EQ(interpResultStoreTestCreate(&pStore, 128, 256),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createInterpStoreVarBlock(1, 800, 20, &pGood),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createInterpStoreVarBlock(2, 900, 12, &pFailed),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(interpResultStoreAppend(pStore, 1, pGood),
+            TSDB_CODE_SUCCESS);
+
+  int64_t committedBytes = interpResultStoreBytesUsed(pStore);
+  int64_t committedPayloadBytes =
+      interpResultStoreResidentPagePayloadBytes(pStore);
+  int64_t committedSpill = interpResultStoreSpillBytes(pStore);
+  int32_t committedPages = interpResultStoreTestActivePages(pStore);
+  int32_t committedRegisteredPages =
+      interpResultStoreTestRegisteredPages(pStore);
+  ASSERT_EQ(committedPayloadBytes, 256);
+
+  interpResultStoreTestFailNextSpillWrite(pStore);
+  EXPECT_EQ(interpResultStoreAppend(pStore, 2, pFailed),
+            TSDB_CODE_APP_ERROR);
+  EXPECT_EQ(interpResultStoreBytesUsed(pStore), committedBytes);
+  EXPECT_EQ(interpResultStoreResidentPagePayloadBytes(pStore),
+            committedPayloadBytes);
+  EXPECT_EQ(interpResultStoreSpillBytes(pStore), committedSpill);
+  EXPECT_EQ(interpResultStoreTestActivePages(pStore),
+            committedPages);
+  EXPECT_EQ(interpResultStoreTestRegisteredPages(pStore),
+            committedRegisteredPages);
+  EXPECT_EQ(interpResultStoreOpenRead(pStore, 2),
+            TSDB_CODE_INVALID_PARA);
+
+  ASSERT_NO_FATAL_FAILURE(expectInterpStoredGroup(pStore, 1, {pGood}));
+  EXPECT_EQ(interpResultStoreBytesUsed(pStore), 0);
+  EXPECT_EQ(interpResultStoreTestActivePages(pStore), 0);
+
+  interpResultStoreReset(pStore);
+  EXPECT_EQ(interpResultStoreResidentPagePayloadBytes(pStore), 0);
+  EXPECT_EQ(interpResultStoreSpillBytes(pStore), 0);
+  ASSERT_EQ(interpResultStoreAppend(pStore, 3, pFailed),
+            TSDB_CODE_SUCCESS);
+
+  blockDataDestroy(pGood);
+  blockDataDestroy(pFailed);
+  interpResultStoreDestroy(pStore);
+}
+
+TEST(execUtilTest, interpResultStoreRejectsPageCountOverflow) {
+  const int32_t pageSize = 128;
+  const int64_t maxBudget = (int64_t)INT32_MAX * pageSize;
+  SSDataBlock* pBlock = nullptr;
+  ASSERT_EQ(createInterpStoreTestBlock(1, 10, &pBlock),
+            TSDB_CODE_SUCCESS);
+
+  SInterpResultStore* pStore = nullptr;
+  ASSERT_EQ(interpResultStoreTestCreate(&pStore, pageSize,
+                                        maxBudget),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(interpResultStoreAppend(pStore, 1, pBlock),
+            TSDB_CODE_SUCCESS);
+  interpResultStoreDestroy(pStore);
+
+  pStore = nullptr;
+  ASSERT_EQ(interpResultStoreTestCreate(&pStore, pageSize,
+                                        maxBudget + pageSize),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(interpResultStoreAppend(pStore, 1, pBlock),
+            TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(interpResultStoreBytesUsed(pStore), 0);
+
+  blockDataDestroy(pBlock);
+  interpResultStoreDestroy(pStore);
+}
+
+TEST(execUtilTest, interpResultStoreDeepCopiesVariablePksAcrossCleanup) {
+  SInterpResultStore* pStore = nullptr;
+  SSDataBlock* pSource = nullptr;
+  SSDataBlock* pExpected = nullptr;
+  ASSERT_EQ(interpResultStoreCreate(&pStore), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createInterpStoreVarBlock(1, 1000, 4, &pSource),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(setInterpStoreVarPks(pSource, "first-key", "last-key"),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createOneDataBlock(pSource, true, &pExpected),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(interpResultStoreAppend(pStore, 1, pSource),
+            TSDB_CODE_SUCCESS);
+  memset(pSource->info.pks[0].pData, 'x',
+         pSource->info.pks[0].nData);
+  blockDataDestroy(pSource);
+  pSource = nullptr;
+
+  ASSERT_NO_FATAL_FAILURE(expectInterpStoredGroup(pStore, 1, {pExpected}));
+
+  ASSERT_EQ(createInterpStoreVarBlock(2, 1100, 4, &pSource),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(setInterpStoreVarPks(pSource, "reset-first", "reset-last"),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(interpResultStoreAppend(pStore, 2, pSource),
+            TSDB_CODE_SUCCESS);
+  blockDataDestroy(pSource);
+  pSource = nullptr;
+  interpResultStoreReset(pStore);
+  EXPECT_EQ(interpResultStoreBytesUsed(pStore), 0);
+
+  ASSERT_EQ(createInterpStoreVarBlock(3, 1200, 4, &pSource),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(setInterpStoreVarPks(pSource, "destroy-first",
+                                 "destroy-last"),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(interpResultStoreAppend(pStore, 3, pSource),
+            TSDB_CODE_SUCCESS);
+  blockDataDestroy(pSource);
+  blockDataDestroy(pExpected);
+  interpResultStoreDestroy(pStore);
 }

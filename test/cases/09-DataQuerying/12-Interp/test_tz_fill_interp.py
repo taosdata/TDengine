@@ -154,25 +154,7 @@ class _FillDstMixin:
             f"interval={interval_starts}, fill={fill_starts}"
         )
 
-    def test_fill_dst(self):
-        """summary: FILL(...) INTERVAL(1d) honors session-timezone DST calendar days.
-
-        description: FILL(NULL/PREV) over spring-forward / fall-back days must
-            advance filled window boundaries by calendar days (23h / 25h) using
-            the session timezone, not a fixed 24h.
-
-        Since: v3.4.2.0
-
-        Labels: timezone
-
-        Jira: None
-
-        Catalog:
-            - Function:timezone
-
-        History:
-            - 2026-06-05: Tony Zhang created
-        """
+    def do_fill_dst(self):
         self._setup_fill_dst_case()
         self.check_fill_null_1d_spring_forward_boundaries()
         self.check_fill_prev_1d_fall_back_boundaries()
@@ -300,25 +282,7 @@ class _InterpDstMixin:
             f"INTERP EVERY(24h) must stay fixed-duration (24h each): got {deltas}"
         )
 
-    def test_interp_dst(self):
-        """summary: INTERP timezone behavior across DST.
-
-        description: INTERP RANGE boundaries follow the session timezone; EVERY(1d)
-            advances by calendar days (DST-aware, 23h/25h), while EVERY(24h) stays
-            fixed-duration.
-
-        Since: v3.4.2.0
-
-        Labels: timezone
-
-        Jira: None
-
-        Catalog:
-            - Function:timezone
-
-        History:
-            - 2026-06-05: Tony Zhang created
-        """
+    def do_interp_dst(self):
         self._setup_interp_dst_case()
         self.check_interp_range_honors_session_timezone()
         self.check_interp_every_1d_spring_forward()
@@ -330,4 +294,44 @@ class TestTimezoneFillInterp(
     _FillDstMixin,
     _InterpDstMixin,
 ):
-    pass
+    def test_fill_dst(self):
+        """FILL daily intervals honor session-timezone DST transitions
+
+        1. Check NULL and PREV fill across spring-forward and fall-back days
+        2. Match filled daily boundaries with the interval operator
+
+        Catalog:
+            - Function:timezone
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        History:
+            - 2026-06-05 Tony Zhang created
+
+        """
+        self.do_fill_dst()
+
+    def test_interp_dst(self):
+        """INTERP range and EVERY honor session-timezone DST semantics
+
+        1. Parse RANGE boundaries in the session timezone
+        2. Keep EVERY(1d) calendar-aware and EVERY(24h) fixed-duration
+
+        Catalog:
+            - Function:timezone
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        History:
+            - 2026-06-05 Tony Zhang created
+
+        """
+        self.do_interp_dst()

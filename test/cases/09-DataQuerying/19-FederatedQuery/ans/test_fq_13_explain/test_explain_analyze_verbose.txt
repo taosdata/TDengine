@@ -5193,6 +5193,7 @@ SQL: select interp(voltage) from fq_exp_mysql.sensor range('2024-01-01 00:00:00'
 RESULT
 -> Interp (cost=<COST> rows=5 functions=1 mode=linear)
       Output: columns=1 width=8
+      Merge ResBlocks: False
       Time Range: [1704067200000000, 1704067500000000]
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
    -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=16)
@@ -5209,6 +5210,7 @@ SQL: select interp(voltage) from fq_exp_pg.sensor range('2024-01-01 00:00:00', '
 RESULT
 -> Interp (cost=<COST> rows=5 functions=1 mode=linear)
       Output: columns=1 width=8
+      Merge ResBlocks: False
       Time Range: [1704067200000000, 1704067500000000]
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
    -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=16)
@@ -5225,6 +5227,7 @@ SQL: select interp(voltage) from fq_exp_influx.sensor range('2024-01-01 00:00:00
 RESULT
 -> Interp (cost=<COST> rows=5 functions=1 mode=linear)
       Output: columns=1 width=8
+      Merge ResBlocks: False
       Time Range: [1704067200000000000, 1704067500000000000]
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
    -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=16)

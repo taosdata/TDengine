@@ -77,6 +77,18 @@ typedef struct SPartitionWritePage {
 static int32_t tsPartitionSpillWriteCalls = 0;
 static int32_t tsPartitionSpillReadCalls = 0;
 static int32_t tsPartitionSpillWriteBatchLimit = 0;
+static int32_t tsPartitionPrepareOutputFailure = TSDB_CODE_SUCCESS;
+static int32_t tsPartitionPageAllocationFailure = TSDB_CODE_SUCCESS;
+static int32_t tsPartitionPageAllocationFailuresRemaining = 0;
+static int32_t tsPartitionSpillReadFailure = TSDB_CODE_SUCCESS;
+static int32_t tsPartitionSpillCryptFailure = TSDB_CODE_SUCCESS;
+static int32_t tsPartitionSpillCryptFailuresRemaining = 0;
+
+static int32_t partitionTestConsumeFailure(int32_t* pCode) {
+  int32_t code = *pCode;
+  *pCode = TSDB_CODE_SUCCESS;
+  return code;
+}
 
 void partitionSpillTestResetIoCalls(void) {
   tsPartitionSpillWriteCalls = 0;
@@ -95,6 +107,28 @@ void partitionSpillTestGetIoCalls(int32_t* pWriteCalls,
 
 void partitionSpillTestSetWriteBatchLimit(int32_t writeBatchLimit) {
   tsPartitionSpillWriteBatchLimit = writeBatchLimit;
+}
+
+void partitionTestSetPrepareOutputFailure(int32_t code) {
+  tsPartitionPrepareOutputFailure = code;
+}
+
+void partitionTestSetPageAllocationFailure(int32_t code) {
+  tsPartitionPageAllocationFailure = code;
+  // An OOM allocation is retried after a forced spill, so fail both attempts.
+  tsPartitionPageAllocationFailuresRemaining =
+      code == TSDB_CODE_SUCCESS ? 0 : 2;
+}
+
+void partitionTestSetSpillReadFailure(int32_t code) {
+  tsPartitionSpillReadFailure = code;
+}
+
+void partitionTestSetSpillCryptFailure(int32_t code) {
+  tsPartitionSpillCryptFailure = code;
+  // An OOM spill setup is retried by spilling the current group directly.
+  tsPartitionSpillCryptFailuresRemaining =
+      code == TSDB_CODE_SUCCESS ? 0 : 2;
 }
 #endif
 
@@ -1211,6 +1245,11 @@ STATIC_EXCEPT_TEST int32_t partitionReadAt(TdFilePtr pFile, int64_t offset,
                                            void* pData, int32_t length) {
 #if defined(BUILD_TEST)
   tsPartitionSpillReadCalls += 1;
+  int32_t failure =
+      partitionTestConsumeFailure(&tsPartitionSpillReadFailure);
+  if (failure != TSDB_CODE_SUCCESS) {
+    return failure;
+  }
 #endif
   if (taosLSeekFile(pFile, offset, SEEK_SET) < 0) {
     return terrno;
@@ -1250,7 +1289,16 @@ static int32_t partitionEnsureSpillFile(SPartitionOperatorInfo* pInfo) {
     return terrno;
   }
   if (taosSpillCryptEnabled()) {
-    int32_t code = taosCreateSpillCryptCtx(&pInfo->spill.pCryptCtx, 0);
+    int32_t code = TSDB_CODE_SUCCESS;
+#if defined(BUILD_TEST)
+    if (tsPartitionSpillCryptFailuresRemaining > 0) {
+      tsPartitionSpillCryptFailuresRemaining -= 1;
+      code = tsPartitionSpillCryptFailure;
+    }
+#endif
+    if (code == TSDB_CODE_SUCCESS) {
+      code = taosCreateSpillCryptCtx(&pInfo->spill.pCryptCtx, 0);
+    }
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s %s failed at line %d, create spill crypt ctx, since %s",
              GET_TASKID(pInfo->pTaskInfo), __func__, __LINE__,
@@ -2190,6 +2238,13 @@ static int32_t partitionGetNewPage(SPartitionOperatorInfo* pInfo,
   if (classIndex < 0 || classIndex >= pInfo->numPageClasses) {
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
+#if defined(BUILD_TEST)
+  if (tsPartitionPageAllocationFailuresRemaining > 0) {
+    tsPartitionPageAllocationFailuresRemaining -= 1;
+    terrno = tsPartitionPageAllocationFailure;
+    return tsPartitionPageAllocationFailure;
+  }
+#endif
 
   SPartitionPageClass* pClass = &pInfo->pageClasses[classIndex];
   int32_t code = TSDB_CODE_SUCCESS;
@@ -2334,7 +2389,16 @@ STATIC_EXCEPT_TEST void doHashPartition(SOperatorInfo* pOperator,
       if (len == 0) {
         len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
       }
-      pGroupInfo->groupId = calcGroupId(pInfo->keyBuf, len);
+      uint64_t keyGroupId = calcGroupId(pInfo->keyBuf, len);
+      // outerEpoch stays 0 until an outer-grouped block arrives, so a
+      // non-zero epoch alone marks the composite-key mode.
+      if (pInfo->phasedMode && pInfo->outerEpoch != 0) {
+        uint64_t fullGroupKey[] = {pInfo->outerEpoch, keyGroupId};
+        pGroupInfo->groupId = calcGroupId((char*)fullGroupKey,
+                                          sizeof(fullGroupKey));
+      } else {
+        pGroupInfo->groupId = keyGroupId;
+      }
     }
 
     if (pBlock->info.dataLoad) {
@@ -2803,7 +2867,11 @@ static void* partitionGetWritablePageForRows(
     return NULL;
   }
   pInfo->spillStat.forcedCurrentSpills += 1;
-  return partitionAllocatePage(pInfo, pGroupInfo, 0, ppClass);
+  pPage = partitionAllocatePage(pInfo, pGroupInfo, 0, ppClass);
+  if (pPage != NULL) {
+    terrno = TSDB_CODE_SUCCESS;
+  }
+  return pPage;
 }
 
 #if defined(BUILD_TEST)
@@ -2913,11 +2981,35 @@ static void partitionClearPageClassBuffers(SPartitionOperatorInfo* pInfo) {
   }
 }
 
-static void clearPartitionOperator(SPartitionOperatorInfo* pInfo) {
+static void partitionCleanupSortedGroups(SPartitionOperatorInfo* pInfo) {
+  int32_t size = taosArrayGetSize(pInfo->sortedGroupArray);
+  for (int32_t i = 0; i < size; ++i) {
+    SPartitionDataInfo* pGroup =
+        taosArrayGet(pInfo->sortedGroupArray, i);
+    cleanupPartitionGroupInfo(pGroup);
+  }
+  taosArrayClear(pInfo->sortedGroupArray);
+}
+
+// Clears batch-owned output while retaining reusable containers and page
+// classes. Shared by the per-batch reset and the full operator clear.
+static void partitionClearOutputResources(SPartitionOperatorInfo* pInfo) {
+  partitionCleanupSortedGroups(pInfo);
+  partitionClearPageClassBuffers(pInfo);
+  pInfo->numResidentPages = 0;
+  pInfo->residentBytes = 0;
+  pInfo->spillStat.residentRows = 0;
+}
+
+STATIC_EXCEPT_TEST void clearPartitionOperator(
+    SPartitionOperatorInfo* pInfo) {
   int32_t size = taosArrayGetSize(pInfo->sortedGroupArray);
   if (pInfo->spillStat.spillCount > 0 || pInfo->spillStat.spillFailures > 0) {
     int64_t flushPages = 0;
     int64_t loadPages = 0;
+    int64_t reportedFileSize = pInfo->phasedMode
+                                   ? pInfo->spillStat.spillBytes
+                                   : pInfo->spill.fileSize;
     partitionGetPageClassIoStats(pInfo, &flushPages, &loadPages);
 
     // Class 0 is the initial allocation rather than a growth, so the counts
@@ -2948,21 +3040,13 @@ static void clearPartitionOperator(SPartitionOperatorInfo* pInfo) {
            pInfo->spillStat.peakResidentRows,
            pInfo->spillStat.spillBatchCount, pInfo->spillStat.spillCount,
            pInfo->spillStat.spillPages, pInfo->spillStat.spillRows,
-           pInfo->spillStat.spillBytes, pInfo->spill.fileSize,
+           pInfo->spillStat.spillBytes, reportedFileSize,
            pInfo->spillStat.loadCount, pInfo->spillStat.loadBytes,
            pInfo->spillStat.encryptedSpillCount, flushPages, loadPages,
            pInfo->spillStat.spillFailures, grows,
            pInfo->spillStat.forcedCurrentSpills);
   }
-  for (int32_t i = 0; i < size; ++i) {
-    SPartitionDataInfo* pGroup = taosArrayGet(pInfo->sortedGroupArray, i);
-    cleanupPartitionGroupInfo(pGroup);
-  }
-  taosArrayClear(pInfo->sortedGroupArray);
-  partitionClearPageClassBuffers(pInfo);
-  pInfo->numResidentPages = 0;
-  pInfo->residentBytes = 0;
-
+  partitionClearOutputResources(pInfo);
   partitionFreeSpillResources(&pInfo->spill);
   memset(&pInfo->spillStat, 0, sizeof(pInfo->spillStat));
 }
@@ -2998,6 +3082,18 @@ static void partitionResetFragmentCursor(SPartitionSpillInfo* pSpill) {
   pSpill->fragmentDecodedRows = 0;
 }
 
+static void partitionResetSpillBatchResources(SPartitionSpillInfo* pSpill) {
+  if (pSpill->pFile != NULL) {
+    (void)taosCloseFile(&pSpill->pFile);
+  }
+  pSpill->fileSize = 0;
+  taosDestroySpillCryptCtx(&pSpill->pCryptCtx);
+  blockDataCleanup(pSpill->pBlock);
+  taosArrayClear(pSpill->pBatchGroups);
+  pSpill->fragmentIndex = 0;
+  partitionResetFragmentCursor(pSpill);
+}
+
 /*
  * Loads the next block from the current fragment and advances the read
  * cursor. A fragment's first read primes the cursor from the in-memory
@@ -3017,9 +3113,10 @@ STATIC_EXCEPT_TEST int32_t partitionReadFragmentBlock(
 
   SPartitionFragment* pFragment =
       taosArrayGet(pGroup->fragments, pInfo->spill.fragmentIndex);
-  QUERY_CHECK_CONDITION(pFragment != NULL && pInfo->spill.pFile != NULL,
-                        code, lino, _end,
-                        TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  QUERY_CHECK_CONDITION(
+      pFragment != NULL && pInfo->spill.pFile != NULL &&
+          pInfo->spill.pBlock != NULL,
+      code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
   QUERY_CHECK_CONDITION(
       pFragment->offset >= 0 && pFragment->length > 0 &&
           pFragment->offset <= INT64_MAX - pFragment->length,
@@ -3121,7 +3218,19 @@ STATIC_EXCEPT_TEST int32_t partitionReadFragmentBlock(
       code, lino, _end, TSDB_CODE_FILE_CORRUPTED);
 
   blockDataCleanup(pInfo->binfo.pRes);
+  // Spill records keep the full column layout. Decode every column so a
+  // reserved slot cannot shift the cursor, then restore its output schema.
+  for (int32_t i = 0; i < numCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pInfo->binfo.pRes->pDataBlock, i);
+    pCol->info.noData = false;
+  }
   code = blockDataFromBufBounded(pInfo->binfo.pRes, pBlockData, plainSize);
+  for (int32_t i = 0; i < numCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pInfo->binfo.pRes->pDataBlock, i);
+    SColumnInfoData* pEncoded = taosArrayGet(
+        pInfo->spill.pBlock->pDataBlock, i);
+    pCol->info.noData = pEncoded->info.noData;
+  }
   QUERY_CHECK_CODE(code, lino, _end);
   pInfo->binfo.pRes->info.id.groupId = pGroup->groupId;
   pInfo->binfo.pRes->info.dataLoad = 1;
@@ -3160,6 +3269,9 @@ static SSDataBlock* partitionLoadNextBlock(SOperatorInfo* pOperator) {
       pInfo->spill.fragmentIndex = 0;
     }
     if (pInfo->groupIndex >= taosArrayGetSize(pInfo->sortedGroupArray)) {
+      if (pInfo->phasedMode) {
+        return NULL;
+      }
       setOperatorCompleted(pOperator);
       clearPartitionOperator(pInfo);
       return NULL;
@@ -3259,6 +3371,315 @@ _end:
   return pInfo->binfo.pRes;
 }
 
+static int32_t partitionSetOutputOrder(SPartitionOperatorInfo* pInfo) {
+  if (!pInfo->phasedMode || pInfo->pOrderInfoArr == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SBlockOrderInfo* pOrder = taosArrayGet(pInfo->pOrderInfoArr, 0);
+  if (pOrder == NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  pOrder->order = pInfo->curPhase == SCAN_PHASE_PREV
+                      ? ORDER_DESC
+                      : ORDER_ASC;
+  pOrder->pColData = NULL;
+  pOrder->compFn = NULL;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t partitionPrepareOutput(SOperatorInfo* pOperator) {
+  SPartitionOperatorInfo* pInfo = pOperator->info;
+  SArray* pOldGroups = pInfo->sortedGroupArray;
+  if (pOldGroups != NULL && taosArrayGetSize(pOldGroups) != 0) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int32_t code = blockDataEnsureCapacity(pInfo->binfo.pRes, 4096);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  code = partitionSetOutputOrder(pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  int32_t numGroups = taosHashGetSize(pInfo->pGroupSet);
+  bool    newGroups = pOldGroups == NULL;
+  SArray* pGroups = pOldGroups;
+  if (newGroups) {
+    pGroups = taosArrayInit(numGroups, sizeof(SPartitionDataInfo));
+    if (pGroups == NULL) {
+      return terrno;
+    }
+  } else {
+    code = taosArrayEnsureCap(pGroups, numGroups);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  void* pGroupIter = taosHashIterate(pInfo->pGroupSet, NULL);
+  while (pGroupIter != NULL) {
+    SPartitionDataInfo group = *(SPartitionDataInfo*)pGroupIter;
+    group.pSpillBucket = NULL;
+    group.pSpillPrev = NULL;
+    group.pSpillNext = NULL;
+    if (taosArrayPush(pGroups, &group) == NULL) {
+      code = terrno;
+      taosHashCancelIterate(pInfo->pGroupSet, pGroupIter);
+      goto _error;
+    }
+#if defined(BUILD_TEST)
+    if (tsPartitionPrepareOutputFailure != TSDB_CODE_SUCCESS) {
+      code = tsPartitionPrepareOutputFailure;
+      tsPartitionPrepareOutputFailure = TSDB_CODE_SUCCESS;
+      taosHashCancelIterate(pInfo->pGroupSet, pGroupIter);
+      goto _error;
+    }
+#endif
+    pGroupIter = taosHashIterate(pInfo->pGroupSet, pGroupIter);
+  }
+
+  taosArraySort(pGroups, compareDataGroupInfo);
+  pInfo->sortedGroupArray = pGroups;
+  pInfo->groupIndex = -1;
+  partitionClearSpillBuckets(pInfo);
+  pInfo->pLastGroupInfo = NULL;
+  taosHashClear(pInfo->pGroupSet);
+
+  pOperator->status = OP_RES_TO_RETURN;
+  return TSDB_CODE_SUCCESS;
+
+_error:
+  taosArrayClear(pGroups);
+  if (newGroups) {
+    taosArrayDestroy(pGroups);
+  }
+  return code;
+}
+
+static int32_t partitionProcessInputBlock(SOperatorInfo* pOperator,
+                                          SSDataBlock* pBlock) {
+  SPartitionOperatorInfo* pInfo = pOperator->info;
+  pInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
+  if (pInfo->scalarSup.pExprInfo != NULL) {
+    int32_t code = projectApplyFunctions(
+        pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
+        pInfo->scalarSup.numOfExprs, NULL,
+        GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  terrno = TSDB_CODE_SUCCESS;
+  doHashPartition(pOperator, pBlock);
+  return terrno;
+}
+
+static int32_t partitionHoldPhaseBlock(SPartitionOperatorInfo* pInfo,
+                                       const SSDataBlock* pBlock) {
+  if (pInfo->pHeldBlock != NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int32_t code = createOneDataBlock(pBlock, true, &pInfo->pHeldBlock);
+  if (code == TSDB_CODE_SUCCESS) {
+    pInfo->phaseState = PARTITION_PHASE_DRAINED;
+  }
+  return code;
+}
+
+static int32_t partitionValidateInputCursor(
+    SPartitionOperatorInfo* pInfo, const SSDataBlock* pBlock,
+    bool* pOuterBoundary) {
+  uint64_t inputOuterEpoch = pBlock->info.id.groupId;
+  *pOuterBoundary = false;
+
+  if (!pInfo->outerEpochSet) {
+    pInfo->outerEpoch = inputOuterEpoch;
+    pInfo->outerEpochSet = true;
+  } else if (inputOuterEpoch < pInfo->outerEpoch) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  } else {
+    // A new epoch restarts the phase sequence, so validate against MAIN.
+    *pOuterBoundary = inputOuterEpoch > pInfo->outerEpoch;
+  }
+
+  return interpValidatePhaseTransition(
+      *pOuterBoundary ? SCAN_PHASE_MAIN : pInfo->curPhase,
+      pBlock->info.scanPhase);
+}
+
+static int32_t partitionCollectPhasedBatch(SOperatorInfo* pOperator) {
+  SPartitionOperatorInfo* pInfo = pOperator->info;
+
+  while (pInfo->phaseState == PARTITION_PHASE_READING) {
+    bool ownedBlock = pInfo->pHeldBlock != NULL;
+    SSDataBlock* pBlock = pInfo->pHeldBlock;
+    if (!ownedBlock) {
+      pBlock = getNextBlockFromDownstream(pOperator, 0);
+    }
+
+    if (pBlock == NULL) {
+      pInfo->inputDone = true;
+      pInfo->phaseState = PARTITION_PHASE_DRAINED;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (pBlock->info.dataLoad != 1) {
+      if (ownedBlock) {
+        blockDataDestroy(pInfo->pHeldBlock);
+        pInfo->pHeldBlock = NULL;
+      }
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+
+    int8_t inputPhase = pBlock->info.scanPhase;
+    bool outerBoundary = false;
+    int32_t code = partitionValidateInputCursor(
+        pInfo, pBlock, &outerBoundary);
+    if (code != TSDB_CODE_SUCCESS) {
+      if (ownedBlock) {
+        blockDataDestroy(pInfo->pHeldBlock);
+        pInfo->pHeldBlock = NULL;
+      }
+      return code;
+    }
+    if (outerBoundary || inputPhase > pInfo->curPhase) {
+      if (ownedBlock) {
+        blockDataDestroy(pInfo->pHeldBlock);
+        pInfo->pHeldBlock = NULL;
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      return partitionHoldPhaseBlock(pInfo, pBlock);
+    }
+
+    code = partitionProcessInputBlock(pOperator, pBlock);
+    if (ownedBlock) {
+      blockDataDestroy(pInfo->pHeldBlock);
+      pInfo->pHeldBlock = NULL;
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    if (pInfo->curPhase != SCAN_PHASE_MAIN &&
+        ++pInfo->batchBlockCount >= PARTITION_SIDE_BATCH_BLOCKS) {
+      pInfo->phaseState = PARTITION_PHASE_BATCH_DRAINED;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+}
+
+static void partitionClearPhasedBatch(SPartitionOperatorInfo* pInfo) {
+  partitionClearSpillBuckets(pInfo);
+  partitionCleanupGroupSet(pInfo->pGroupSet);
+  taosHashClear(pInfo->pGroupSet);
+  pInfo->pLastGroupInfo = NULL;
+  partitionClearOutputResources(pInfo);
+  partitionResetSpillBatchResources(&pInfo->spill);
+
+  pInfo->groupIndex = 0;
+  pInfo->pageIndex = 0;
+  pInfo->remainRows = 0;
+  pInfo->orderedRows = 0;
+  blockDataCleanup(pInfo->binfo.pRes);
+}
+
+static int32_t partitionFinishPhasedDrain(SOperatorInfo* pOperator) {
+  SPartitionOperatorInfo* pInfo = pOperator->info;
+  EPartitionPhaseState drainedState = pInfo->phaseState;
+
+  partitionClearPhasedBatch(pInfo);
+  pOperator->status = OP_OPENED;
+  pInfo->batchBlockCount = 0;
+
+  if (drainedState == PARTITION_PHASE_BATCH_DRAINED) {
+    pInfo->phaseState = PARTITION_PHASE_READING;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (drainedState != PARTITION_PHASE_DRAINED) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  if (pInfo->pHeldBlock != NULL) {
+    uint64_t nextOuterEpoch = pInfo->pHeldBlock->info.id.groupId;
+    int8_t nextPhase = pInfo->pHeldBlock->info.scanPhase;
+    if (nextOuterEpoch < pInfo->outerEpoch ||
+        nextPhase < SCAN_PHASE_MAIN || nextPhase > SCAN_PHASE_PREV) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    if (nextOuterEpoch == pInfo->outerEpoch &&
+        nextPhase <= pInfo->curPhase) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    pInfo->outerEpoch = nextOuterEpoch;
+    pInfo->curPhase = nextPhase;
+    pInfo->phaseState = PARTITION_PHASE_READING;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (!pInfo->inputDone) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  pInfo->phaseState = PARTITION_PHASE_DONE;
+  setOperatorCompleted(pOperator);
+  clearPartitionOperator(pInfo);
+  return TSDB_CODE_SUCCESS;
+}
+
+STATIC_EXCEPT_TEST int32_t phasedHashPartitionNext(
+    SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  QRY_PARAM_CHECK(ppRes);
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SPartitionOperatorInfo* pInfo = pOperator->info;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  *ppRes = NULL;
+
+  detachOperatorRoutingParam(pOperator);
+  if (pOperator->status == OP_EXEC_DONE ||
+      pInfo->phaseState == PARTITION_PHASE_DONE) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  while (true) {
+    if (pOperator->status == OP_RES_TO_RETURN) {
+      SSDataBlock* pBlock = buildPartitionResult(pOperator);
+      if (pBlock != NULL) {
+        pBlock->info.scanPhase = pInfo->curPhase;
+        pBlock->info.id.baseGId = pInfo->outerEpoch;
+        *ppRes = pBlock;
+        return TSDB_CODE_SUCCESS;
+      }
+
+      code = partitionFinishPhasedDrain(pOperator);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (pInfo->phaseState == PARTITION_PHASE_DONE) {
+        return TSDB_CODE_SUCCESS;
+      }
+      continue;
+    }
+
+    code = partitionCollectPhasedBatch(pOperator);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = partitionPrepareOutput(pOperator);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  qError("%s failed at line %d since %s", __func__, lino,
+         tstrerror(code));
+  pTaskInfo->code = code;
+  T_LONG_JMP(pTaskInfo->env, code);
+  return code;
+}
+
 static int32_t hashPartitionNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   if (pOperator->status == OP_EXEC_DONE) {
     (*ppRes) = NULL;
@@ -3269,7 +3690,6 @@ static int32_t hashPartitionNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
   int32_t                 lino = 0;
   SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
   SPartitionOperatorInfo* pInfo = pOperator->info;
-  SSDataBlock*            pRes = pInfo->binfo.pRes;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
     (*ppRes) = buildPartitionResult(pOperator);
@@ -3299,27 +3719,7 @@ static int32_t hashPartitionNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
     }
   }
 
-  SArray* groupArray = taosArrayInit(taosHashGetSize(pInfo->pGroupSet),
-                                     sizeof(SPartitionDataInfo));
-  QUERY_CHECK_NULL(groupArray, code, lino, _end, terrno);
-
-  void* pGroupIter = taosHashIterate(pInfo->pGroupSet, NULL);
-  while (pGroupIter != NULL) {
-    SPartitionDataInfo* pGroupInfo = pGroupIter;
-    void*           tmp = taosArrayPush(groupArray, pGroupInfo);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
-    pGroupIter = taosHashIterate(pInfo->pGroupSet, pGroupIter);
-  }
-
-  taosArraySort(groupArray, compareDataGroupInfo);
-  pInfo->sortedGroupArray = groupArray;
-  pInfo->groupIndex = -1;
-  partitionClearSpillBuckets(pInfo);
-  pInfo->pLastGroupInfo = NULL;
-  taosHashClear(pInfo->pGroupSet);
-
-  pOperator->status = OP_RES_TO_RETURN;
-  code = blockDataEnsureCapacity(pRes, 4096);
+  code = partitionPrepareOutput(pOperator);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
@@ -3347,8 +3747,10 @@ static void partitionDestroyPageClasses(SPartitionOperatorInfo* pInfo) {
   pInfo->numPageClasses = 0;
 }
 
-static void destroyPartitionOperatorInfo(void* param) {
+STATIC_EXCEPT_TEST void destroyPartitionOperatorInfo(void* param) {
   SPartitionOperatorInfo* pInfo = (SPartitionOperatorInfo*)param;
+  blockDataDestroy(pInfo->pHeldBlock);
+  pInfo->pHeldBlock = NULL;
   cleanupBasicInfo(&pInfo->binfo);
   taosArrayDestroy(pInfo->pGroupCols);
 
@@ -3360,11 +3762,7 @@ static void destroyPartitionOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->pGroupColVals);
   taosMemoryFree(pInfo->keyBuf);
 
-  int32_t size = taosArrayGetSize(pInfo->sortedGroupArray);
-  for (int32_t i = 0; i < size; ++i) {
-    SPartitionDataInfo* pGroup = taosArrayGet(pInfo->sortedGroupArray, i);
-    cleanupPartitionGroupInfo(pGroup);
-  }
+  partitionCleanupSortedGroups(pInfo);
   taosArrayDestroy(pInfo->sortedGroupArray);
 
   partitionClearSpillBuckets(pInfo);
@@ -3377,7 +3775,7 @@ static void destroyPartitionOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-static int32_t resetPartitionOperState(SOperatorInfo* pOper) {
+STATIC_EXCEPT_TEST int32_t resetPartitionOperState(SOperatorInfo* pOper) {
   SPartitionOperatorInfo* pInfo = pOper->info;
   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
   SPartitionPhysiNode* pPhynode = (SPartitionPhysiNode*)pOper->pPhyNode;
@@ -3402,6 +3800,14 @@ static int32_t resetPartitionOperState(SOperatorInfo* pOper) {
   partitionResetFragmentCursor(&pInfo->spill);
   pInfo->remainRows = 0;
   pInfo->orderedRows = 0;
+  blockDataDestroy(pInfo->pHeldBlock);
+  pInfo->pHeldBlock = NULL;
+  pInfo->curPhase = SCAN_PHASE_MAIN;
+  pInfo->outerEpoch = 0;
+  pInfo->outerEpochSet = false;
+  pInfo->phaseState = PARTITION_PHASE_READING;
+  pInfo->batchBlockCount = 0;
+  pInfo->inputDone = false;
   return 0;
 }
 
@@ -3465,6 +3871,9 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
   initOperatorCostInfo(pOperator);
   pInfo->pTaskInfo = pTaskInfo;
   pInfo->memBudgetBytes = PARTITION_DEFAULT_BUF_SIZE;
+  pInfo->phasedMode = pPartNode->phasedMode;
+  pInfo->curPhase = SCAN_PHASE_MAIN;
+  pInfo->phaseState = PARTITION_PHASE_READING;
 
   pOperator->pPhyNode = pPartNode;
   int32_t    numOfCols = 0;
@@ -3532,8 +3941,11 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
   setOperatorInfo(pOperator, "PartitionOperator", QUERY_NODE_PHYSICAL_PLAN_PARTITION, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashPartitionNext, NULL, destroyPartitionOperatorInfo,
-                                         optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  __optr_fn_t nextFn = pInfo->phasedMode ? phasedHashPartitionNext
+                                         : hashPartitionNext;
+  pOperator->fpSet = createOperatorFpSet(
+      optrDummyOpenFn, nextFn, NULL, destroyPartitionOperatorInfo,
+      optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   setOperatorResetStateFn(pOperator, resetPartitionOperState);
   code = appendDownstream(pOperator, &downstream, 1);

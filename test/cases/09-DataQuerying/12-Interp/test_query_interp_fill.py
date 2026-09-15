@@ -1389,30 +1389,33 @@ class TestInterpFill:
 
         # ctb0: 500,000 rows, one per second,
         # 2026-01-01 00:00:00.000 .. 2026-01-06 18:53:19.000
-        sql = """select _irowts, interp(v) from ctb0
-                 range('2026-01-01 00:00:00', '2026-01-06 18:00:00')
-                 every(7d) fill(prev)"""
-        tdSql.query(sql)
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "2026-01-01 00:00:00.000")
+        queries = (
+            (
+                """select _irowts, interp(v) from ctb0
+                   range('2026-01-01 00:00:00',
+                         '2026-01-06 18:00:00')
+                   every(7d) fill(prev)""",
+                "2026-01-01 00:00:00.000",
+            ),
+            (
+                """select _irowts, interp(v) from ctb0
+                   range('2026-01-01 00:00:00.500',
+                         '2026-01-06 18:00:00')
+                   every(7d) fill(next)""",
+                "2026-01-01 00:00:00.500",
+            ),
+        )
 
-        check_rows = self.get_table_scan_check_rows(sql)
-        assert check_rows < 100000, \
-            f"main-window scan was not stopped early, check_rows={check_rows}"
+        for sql, expected_ts in queries:
+            tdSql.query(sql)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, expected_ts)
 
-        # same shape with fill(next): the single point is filled from the
-        # first row at/after the range start, the rest of the main window is
-        # still skippable
-        sql = """select _irowts, interp(v) from ctb0
-                 range('2026-01-01 00:00:00.500', '2026-01-06 18:00:00')
-                 every(7d) fill(next)"""
-        tdSql.query(sql)
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "2026-01-01 00:00:00.500")
-
-        check_rows = self.get_table_scan_check_rows(sql)
-        assert check_rows < 100000, \
-            f"main-window scan was not stopped early, check_rows={check_rows}"
+            check_rows = self.get_table_scan_check_rows(sql)
+            assert check_rows < 100000, (
+                "main-window scan was not stopped early, "
+                f"check_rows={check_rows}"
+            )
 
     def test_ext_window_early_stop(self):
         """Interp early-stop on the prev/next external-reader segments
@@ -1448,52 +1451,71 @@ class TestInterpFill:
         tdSql.execute("use fill_interp_test")
         # the prev/next finalize markers are emitted by the tsdb reader
         tdSql.execute("alter dnode 1 'tsdbDebugFlag 135'")
+        try:
+            # Work relative to the first row so the test is timezone
+            # independent.
+            tdSql.query("select cast(first(ts) as bigint) from ctb0")
+            t0 = tdSql.queryResult[0][0]
+            # A sub-second instant 100,000s into the data has no exact row.
+            inst = t0 + 100000 * 1000 + 500
 
-        # work relative to the first row so the test is timezone independent
-        tdSql.query("select cast(first(ts) as bigint) from ctb0")
-        t0 = tdSql.queryResult[0][0]
-        # a sub-second instant 100,000s into the data: no exact row (rows are
-        # one per second), so the main window [inst, inst] holds nothing and
-        # the fill reference must come from a prev/next extension row
-        inst = t0 + 100000 * 1000 + 500
+            tdSql.query(f"select v from ctb0 where ts = {inst - 500}")
+            prev_ref = tdSql.queryResult[0][0]
+            tdSql.query(f"select v from ctb0 where ts = {inst + 500}")
+            next_ref = tdSql.queryResult[0][0]
 
-        tdSql.query(f"select v from ctb0 where ts = {inst - 500}")
-        prev_ref = tdSql.queryResult[0][0]
-        tdSql.query(f"select v from ctb0 where ts = {inst + 500}")
-        next_ref = tdSql.queryResult[0][0]
+            # fill(next): reference in NEXT, then NEXT -> DONE.
+            next_done_base = findTaosdLog(
+                "step: NEXT done", retry=1
+            )
+            sql = (
+                "select cast(_irowts as bigint), _isfilled, "
+                f"interp(v) from ctb0 range({inst}) fill(next)"
+            )
+            tdSql.query(f"explain {sql}")
+            has_exchange = any(
+                "Exchange" in str(row[0])
+                for row in tdSql.queryResult
+            )
+            # One bounded remote fetch can already be in flight.
+            scan_limit = 65536 if has_exchange else 50000
+            tdSql.query(sql)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, inst)
+            tdSql.checkData(0, 1, True)
+            assert tdSql.queryResult[0][2] == next_ref, (
+                "fill(next) did not take the next-extension reference row"
+            )
 
-        # --- 1. fill(next): reference in the NEXT extension, NEXT -> DONE ---
-        next_done_base = findTaosdLog("step: NEXT done", retry=1)
-        sql = f"""select cast(_irowts as bigint), _isfilled, interp(v)
-                  from ctb0 range({inst}) fill(next)"""
-        tdSql.query(sql)
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, inst)
-        tdSql.checkData(0, 1, True)
-        assert tdSql.queryResult[0][2] == next_ref, \
-            "fill(next) did not take the next-extension reference row"
+            check_rows = self.get_table_scan_check_rows(sql)
+            assert check_rows < scan_limit, (
+                "next-extension scan was not stopped early, "
+                f"check_rows={check_rows}, limit={scan_limit}"
+            )
+            assert (
+                findTaosdLog("step: NEXT done") > next_done_base
+            ), "NEXT step did not finalize"
 
-        check_rows = self.get_table_scan_check_rows(sql)
-        assert check_rows < 50000, \
-            f"next-extension scan was not stopped early, check_rows={check_rows}"
-        assert findTaosdLog("step: NEXT done") > next_done_base, \
-            "NEXT step did not finalize to EXTERNAL_ROWS_DONE (Issue 2 fix)"
+            # fill(prev): stop after the PREV reference is resolved.
+            sql = (
+                "select cast(_irowts as bigint), _isfilled, "
+                f"interp(v) from ctb0 range({inst}) fill(prev)"
+            )
+            tdSql.query(sql)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, inst)
+            tdSql.checkData(0, 1, True)
+            assert tdSql.queryResult[0][2] == prev_ref, (
+                "fill(prev) did not take the prev-extension reference row"
+            )
 
-        # --- 2. fill(prev): reference in the PREV extension, stop at it ---
-        sql = f"""select cast(_irowts as bigint), _isfilled, interp(v)
-                  from ctb0 range({inst}) fill(prev)"""
-        tdSql.query(sql)
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, inst)
-        tdSql.checkData(0, 1, True)
-        assert tdSql.queryResult[0][2] == prev_ref, \
-            "fill(prev) did not take the prev-extension reference row"
-
-        check_rows = self.get_table_scan_check_rows(sql)
-        assert check_rows < 50000, \
-            f"prev-extension scan was not stopped early, check_rows={check_rows}"
-
-        tdSql.execute("alter dnode 1 'tsdbDebugFlag 131'")
+            check_rows = self.get_table_scan_check_rows(sql)
+            assert check_rows < scan_limit, (
+                "prev-extension scan was not stopped early, "
+                f"check_rows={check_rows}, limit={scan_limit}"
+            )
+        finally:
+            tdSql.execute("alter dnode 1 'tsdbDebugFlag 131'")
 
     def get_scan_operator_type(self, sql: str) -> str:
         """Run `explain` and return 'merge' if the scan is a Table Merge Scan,
@@ -2396,6 +2418,7 @@ class TestInterpFill:
 
         """
         tdSql.execute("use test_surround")
+        tdStream.ensureSnode()
         tdSql.execute("create table triggertb (ts timestamp, c1 int)")
         streams: list[StreamItem] = []
 

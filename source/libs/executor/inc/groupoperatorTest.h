@@ -28,6 +28,15 @@ extern "C" {
 #define PARTITION_SPILL_TEST_MAX_PAGES 8
 #define PARTITION_SPILL_TEST_FRAGMENT_BATCHES 2
 #define PARTITION_SPILL_TEST_BATCH_GROUPS     10
+#define PARTITION_PHASE_TEST_MAX_OUTPUTS      64
+#define PARTITION_PHASE_TEST_MAX_ROWS         4096
+#define PARTITION_PHASE_TEST_PAGE_SIZE_SMALL  4096
+#define PARTITION_PHASE_TEST_PAGE_SIZE_LARGE  8192
+// Two pages, one per configured page class, matching the class sizes
+// partitionPhaseTestInit constructs.
+#define PARTITION_PHASE_TEST_PAGE_BUDGET                            \
+  (PARTITION_PHASE_TEST_PAGE_SIZE_SMALL +                           \
+   PARTITION_PHASE_TEST_PAGE_SIZE_LARGE)
 
 typedef struct SPartitionSpillTestGroup {
   uint64_t groupId;
@@ -235,6 +244,73 @@ typedef struct SPartitionSpillTestNullResult {
   int64_t spilledValueSum;
 } SPartitionSpillTestNullResult;
 
+// phase must be a valid EScanPhase value.
+typedef struct SPartitionPhaseTestBlock {
+  int8_t  phase;
+  int32_t groupValue;
+  int32_t rows;
+  int64_t firstTs;
+  int64_t tsStep;
+  bool    metadataOnly;
+  uint64_t outerEpoch;
+  uint64_t nullGroupRowMask;
+} SPartitionPhaseTestBlock;
+
+// Zero-initialize this config. A success code disables failure injection.
+typedef struct SPartitionPhaseTestConfig {
+  int64_t memBudgetBytes;
+  bool    encryptSpill;
+  bool    reserveColumn;
+  int32_t prepareOutputFailureCode;
+  int32_t pageAllocationFailureCode;
+  int32_t spillReadFailureCode;
+  int32_t spillCryptFailureCode;
+} SPartitionPhaseTestConfig;
+
+typedef struct SPartitionPhaseTestOutput {
+  int8_t   phase;
+  int32_t  rows;
+  int32_t  pulledBlocks;
+  uint64_t groupId;
+  uint64_t baseGId;
+  int64_t  firstTs;
+  int64_t  lastTs;
+} SPartitionPhaseTestOutput;
+
+// This result is about 50 KiB; callers must allocate it on the heap.
+typedef struct SPartitionPhaseTestResult {
+  int32_t outputCount;
+  int32_t totalPulledBlocks;
+  int32_t rowCount;
+  int32_t spillCountBeforeSecondBatch;
+  int32_t encryptedSpillCountBeforeSecondBatch;
+  bool    spillScratchRetainedBeforeSecondBatch;
+  bool    spillCryptReleasedBeforeSecondBatch;
+  int32_t spillCountDuringOutput;
+  int32_t encryptedSpillCountDuringOutput;
+  int32_t hashGroupCountOnExit;
+  int32_t sortedGroupCountOnExit;
+  int32_t residentPageCountOnExit;
+  bool    spillFileOpenOnExit;
+  int64_t timestamps[PARTITION_PHASE_TEST_MAX_ROWS];
+  int32_t groupValues[PARTITION_PHASE_TEST_MAX_ROWS];
+  SPartitionPhaseTestOutput outputs[PARTITION_PHASE_TEST_MAX_OUTPUTS];
+} SPartitionPhaseTestResult;
+
+typedef enum EPartitionPhaseTestLifecycleAction {
+  PARTITION_PHASE_TEST_RESET = 1,
+  PARTITION_PHASE_TEST_DESTROY,
+} EPartitionPhaseTestLifecycleAction;
+
+typedef struct SPartitionPhaseTestLifecycleResult {
+  bool    heldBeforeAction;
+  bool    heldAfterAction;
+  bool    destroyed;
+  int8_t  phaseAfterAction;
+  bool    readingAfterAction;
+  bool    inputDoneAfterAction;
+} SPartitionPhaseTestLifecycleResult;
+
 int32_t partitionSpillTestSelectGroup(const SPartitionSpillTestGroup* pGroups,
                                       int32_t                         numGroups,
                                       uint64_t* pSelectedGroupId);
@@ -276,6 +352,18 @@ int32_t partitionTestSelectGrowthClass(const int32_t* pRowCapacities,
 bool partitionTestNeedsRunSize(const int32_t* pRowCapacities,
                                int32_t numClasses, int32_t currentClass,
                                int64_t residentRows, bool hasPage);
+// These helpers temporarily override process-global spill settings. They
+// restore them before returning and must not run concurrently in one process.
+int32_t partitionTestRunPhased(
+    const SPartitionPhaseTestBlock* pBlocks, int32_t numBlocks,
+    SPartitionPhaseTestResult* pResult);
+int32_t partitionTestRunPhasedWithConfig(
+    const SPartitionPhaseTestBlock* pBlocks, int32_t numBlocks,
+    const SPartitionPhaseTestConfig* pConfig,
+    SPartitionPhaseTestResult* pResult);
+int32_t partitionTestHeldBlockLifecycle(
+    EPartitionPhaseTestLifecycleAction action,
+    SPartitionPhaseTestLifecycleResult* pResult);
 
 #ifdef __cplusplus
 }

@@ -1610,4 +1610,526 @@ bool partitionTestNeedsRunSize(const int32_t* pRowCapacities,
   return needsRunSize;
 }
 
+typedef struct SPartitionPhaseTestSource {
+  SSDataBlock**              pBlocks;
+  int32_t                    numBlocks;
+  int32_t                    nextBlock;
+  SPartitionOperatorInfo*    pPartitionInfo;
+  SPartitionPhaseTestResult* pResult;
+} SPartitionPhaseTestSource;
+
+typedef struct SPartitionPhaseTestContext {
+  SExecTaskInfo             task;
+  SPartitionOperatorInfo*   pInfo;
+  SPartitionPhysiNode       phyNode;
+  SOperatorInfo             partition;
+  SOperatorInfo             source;
+  SOperatorInfo*            downstream[1];
+  SPartitionPhaseTestSource sourceInfo;
+  SExprInfo                 exprs[2];
+  SFunctParam               params[2];
+  SColumn                   exprCols[2];
+} SPartitionPhaseTestContext;
+
+static int32_t partitionPhaseTestSourceNext(SOperatorInfo* pOperator,
+                                            SSDataBlock** ppRes) {
+  SPartitionPhaseTestSource* pSource = pOperator->info;
+  if (ppRes == NULL || pSource == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Sample the spill state exactly at the side-batch boundary, before the
+  // first block of the second batch is handed out.
+  if (pSource->nextBlock == PARTITION_SIDE_BATCH_BLOCKS &&
+      pSource->pPartitionInfo != NULL && pSource->pResult != NULL) {
+    SPartitionSpillInfo* pSpill = &pSource->pPartitionInfo->spill;
+    pSource->pResult->spillCountBeforeSecondBatch =
+        pSource->pPartitionInfo->spillStat.spillCount;
+    pSource->pResult->encryptedSpillCountBeforeSecondBatch =
+        pSource->pPartitionInfo->spillStat.encryptedSpillCount;
+    pSource->pResult->spillScratchRetainedBeforeSecondBatch =
+        pSpill->pBuf != NULL && pSpill->pBatchBuf != NULL &&
+        pSpill->pBatchGroups != NULL && pSpill->pBlock != NULL;
+    pSource->pResult->spillCryptReleasedBeforeSecondBatch =
+        pSpill->pCryptCtx == NULL;
+  }
+
+  if (pSource->nextBlock >= pSource->numBlocks) {
+    *ppRes = NULL;
+  } else {
+    *ppRes = pSource->pBlocks[pSource->nextBlock++];
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t partitionPhaseTestCreateBlock(
+    const SPartitionPhaseTestBlock* pInput, SSDataBlock** ppBlock) {
+  if (pInput == NULL || ppBlock == NULL || pInput->rows <= 0 ||
+      pInput->phase < SCAN_PHASE_MAIN ||
+      pInput->phase > SCAN_PHASE_PREV) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SSDataBlock* pBlock = NULL;
+  int32_t code = createDataBlock(&pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  SColumnInfoData tsCol = createColumnInfoData(
+      TSDB_DATA_TYPE_TIMESTAMP, sizeof(TSKEY), 1);
+  SColumnInfoData groupCol = createColumnInfoData(
+      TSDB_DATA_TYPE_INT, sizeof(int32_t), 2);
+  code = blockDataAppendColInfo(pBlock, &tsCol);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = blockDataAppendColInfo(pBlock, &groupCol);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    code = blockDataEnsureCapacity(pBlock, pInput->rows);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    return code;
+  }
+
+  SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, 0);
+  SColumnInfoData* pGroupCol = taosArrayGet(pBlock->pDataBlock, 1);
+  if (pTsCol == NULL || pGroupCol == NULL) {
+    blockDataDestroy(pBlock);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  for (int32_t i = 0; i < pInput->rows; ++i) {
+    int64_t ts = pInput->firstTs + pInput->tsStep * i;
+    code = colDataSetVal(pTsCol, i, (const char*)&ts, false);
+    if (code == TSDB_CODE_SUCCESS) {
+      bool isNull = i < sizeof(pInput->nullGroupRowMask) * CHAR_BIT &&
+                    (pInput->nullGroupRowMask & (UINT64_C(1) << i)) != 0;
+      code = colDataSetVal(pGroupCol, i,
+                           (const char*)&pInput->groupValue, isNull);
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      blockDataDestroy(pBlock);
+      return code;
+    }
+  }
+
+  pBlock->info.rows = pInput->rows;
+  pBlock->info.dataLoad = pInput->metadataOnly ? 0 : 1;
+  pBlock->info.scanPhase = pInput->phase;
+  pBlock->info.id.groupId = pInput->outerEpoch;
+  code = blockDataUpdateTsWindow(pBlock, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    return code;
+  }
+  *ppBlock = pBlock;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t partitionPhaseTestInit(SPartitionPhaseTestContext* pCtx,
+                                      int32_t numBlocks,
+                                      SPartitionPhaseTestResult* pResult,
+                                      bool reserveColumn) {
+  pCtx->pInfo = taosMemoryCalloc(1, sizeof(*pCtx->pInfo));
+  if (pCtx->pInfo == NULL) {
+    return terrno;
+  }
+
+  SPartitionOperatorInfo* pInfo = pCtx->pInfo;
+  SOperatorInfo* pPartition = &pCtx->partition;
+  pInfo->pTaskInfo = &pCtx->task;
+  pInfo->phasedMode = true;
+  pInfo->curPhase = SCAN_PHASE_MAIN;
+  pInfo->phaseState = PARTITION_PHASE_READING;
+
+  int32_t code = createDataBlock(&pInfo->binfo.pRes);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  SColumnInfoData tsCol = createColumnInfoData(
+      TSDB_DATA_TYPE_TIMESTAMP, sizeof(TSKEY), 1);
+  SColumnInfoData groupCol = createColumnInfoData(
+      TSDB_DATA_TYPE_INT, sizeof(int32_t), 2);
+  code = blockDataAppendColInfo(pInfo->binfo.pRes, &tsCol);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = blockDataAppendColInfo(pInfo->binfo.pRes, &groupCol);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (reserveColumn) {
+    SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_DOUBLE,
+                                                   sizeof(double), 3);
+    column.info.noData = true;
+    code = blockDataAppendColInfo(pInfo->binfo.pRes, &column);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  int32_t numPages = TMAX(4, numBlocks + 2);
+  code = partitionSpillTestInitPageClass(
+      pInfo, 0, PARTITION_PHASE_TEST_PAGE_SIZE_SMALL, 64, numPages);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  code = partitionSpillTestInitPageClass(
+      pInfo, 1, PARTITION_PHASE_TEST_PAGE_SIZE_LARGE, 128, numPages);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  pInfo->memBudgetBytes =
+      (int64_t)PARTITION_PHASE_TEST_PAGE_BUDGET * numPages;
+
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  pInfo->pGroupSet = taosHashInit(8, hashFn, false, HASH_NO_LOCK);
+  if (pInfo->pGroupSet == NULL) {
+    return terrno;
+  }
+
+  pInfo->pGroupCols = taosArrayInit(1, sizeof(SColumn));
+  if (pInfo->pGroupCols == NULL) {
+    return terrno;
+  }
+  SColumn partitionCol = {
+      .slotId = 1,
+      .type = TSDB_DATA_TYPE_INT,
+      .bytes = sizeof(int32_t),
+  };
+  if (taosArrayPush(pInfo->pGroupCols, &partitionCol) == NULL) {
+    return terrno;
+  }
+  code = initGroupOptrInfo(&pInfo->pGroupColVals, &pInfo->groupKeyLen,
+                           &pInfo->keyBuf, pInfo->pGroupCols);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  pInfo->pOrderInfoArr = taosArrayInit(1, sizeof(SBlockOrderInfo));
+  if (pInfo->pOrderInfoArr == NULL) {
+    return terrno;
+  }
+  SBlockOrderInfo order = {
+      .order = ORDER_ASC,
+      .nullFirst = false,
+      .slotId = 0,
+  };
+  if (taosArrayPush(pInfo->pOrderInfoArr, &order) == NULL) {
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < 2; ++i) {
+    pCtx->exprCols[i] = (SColumn){
+        .slotId = i,
+        .type = i == 0 ? TSDB_DATA_TYPE_TIMESTAMP : TSDB_DATA_TYPE_INT,
+        .bytes = i == 0 ? sizeof(TSKEY) : sizeof(int32_t),
+    };
+    pCtx->params[i].type = FUNC_PARAM_TYPE_COLUMN;
+    pCtx->params[i].pCol = &pCtx->exprCols[i];
+    pCtx->exprs[i].base.numOfParams = 1;
+    pCtx->exprs[i].base.pParam = &pCtx->params[i];
+  }
+  pPartition->exprSupp.numOfExprs = 2;
+  pPartition->exprSupp.pExprInfo = pCtx->exprs;
+  setOperatorInfo(pPartition, "PartitionPhaseTest",
+                  QUERY_NODE_PHYSICAL_PLAN_PARTITION, false, OP_OPENED,
+                  pInfo, &pCtx->task);
+  pPartition->pPhyNode = (SPhysiNode*)&pCtx->phyNode;
+
+  pCtx->sourceInfo.numBlocks = numBlocks;
+  pCtx->sourceInfo.pPartitionInfo = pInfo;
+  pCtx->sourceInfo.pResult = pResult;
+  pCtx->sourceInfo.pBlocks = taosMemoryCalloc(
+      TMAX(1, numBlocks), sizeof(SSDataBlock*));
+  if (pCtx->sourceInfo.pBlocks == NULL) {
+    return terrno;
+  }
+  setOperatorInfo(&pCtx->source, "PartitionPhaseSource", 0, false,
+                  OP_OPENED, &pCtx->sourceInfo, &pCtx->task);
+  pCtx->source.fpSet.getNextFn = partitionPhaseTestSourceNext;
+  pCtx->downstream[0] = &pCtx->source;
+  pPartition->pDownstream = pCtx->downstream;
+  pPartition->numOfDownstream = 1;
+  pPartition->numOfRealDownstream = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void partitionPhaseTestCleanup(SPartitionPhaseTestContext* pCtx) {
+  SPartitionOperatorInfo* pInfo = pCtx->pInfo;
+  if (pInfo != NULL) {
+    blockDataDestroy(pInfo->pHeldBlock);
+    pInfo->pHeldBlock = NULL;
+
+    clearPartitionOperator(pInfo);
+    taosArrayDestroy(pInfo->sortedGroupArray);
+    pInfo->sortedGroupArray = NULL;
+    partitionClearSpillBuckets(pInfo);
+    if (pInfo->pGroupSet != NULL) {
+      partitionCleanupGroupSet(pInfo->pGroupSet);
+      taosHashCleanup(pInfo->pGroupSet);
+      pInfo->pGroupSet = NULL;
+    }
+
+    taosArrayDestroy(pInfo->pGroupCols);
+    taosArrayDestroyEx(pInfo->pGroupColVals, freeGroupKey);
+    taosMemoryFreeClear(pInfo->keyBuf);
+    taosArrayDestroy(pInfo->pOrderInfoArr);
+    partitionFreeSpillResources(&pInfo->spill);
+    partitionSpillTestDestroyPageClasses(pInfo);
+    blockDataDestroy(pInfo->binfo.pRes);
+    taosMemoryFreeClear(pCtx->pInfo);
+  }
+
+  if (pCtx->sourceInfo.pBlocks != NULL) {
+    for (int32_t i = 0; i < pCtx->sourceInfo.numBlocks; ++i) {
+      blockDataDestroy(pCtx->sourceInfo.pBlocks[i]);
+    }
+  }
+  taosMemoryFreeClear(pCtx->sourceInfo.pBlocks);
+}
+
+static int32_t partitionPhaseTestCaptureOutput(
+    SPartitionPhaseTestContext* pCtx, const SSDataBlock* pBlock,
+    SPartitionPhaseTestResult* pResult) {
+  if (pBlock == NULL || pBlock->info.rows <= 0 ||
+      pBlock->info.rows > INT32_MAX ||
+      pResult->outputCount >= PARTITION_PHASE_TEST_MAX_OUTPUTS) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, 0);
+  SColumnInfoData* pGroupCol = taosArrayGet(pBlock->pDataBlock, 1);
+  if (pTsCol == NULL || pGroupCol == NULL ||
+      colDataIsNull_s(pTsCol, 0) ||
+      colDataIsNull_s(pTsCol, pBlock->info.rows - 1)) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  if (pResult->rowCount >
+      PARTITION_PHASE_TEST_MAX_ROWS - pBlock->info.rows) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+    if (colDataIsNull_s(pTsCol, i) || colDataIsNull_s(pGroupCol, i)) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+  }
+
+  pResult->spillCountDuringOutput = TMAX(
+      pResult->spillCountDuringOutput, pCtx->pInfo->spillStat.spillCount);
+  pResult->encryptedSpillCountDuringOutput = TMAX(
+      pResult->encryptedSpillCountDuringOutput,
+      pCtx->pInfo->spillStat.encryptedSpillCount);
+
+  SPartitionPhaseTestOutput* pOutput =
+      &pResult->outputs[pResult->outputCount++];
+  pOutput->phase = pBlock->info.scanPhase;
+  pOutput->rows = (int32_t)pBlock->info.rows;
+  pOutput->pulledBlocks = pCtx->sourceInfo.nextBlock;
+  pOutput->groupId = pBlock->info.id.groupId;
+  pOutput->baseGId = pBlock->info.id.baseGId;
+  memcpy(&pOutput->firstTs, colDataGetData(pTsCol, 0), sizeof(int64_t));
+  memcpy(&pOutput->lastTs,
+         colDataGetData(pTsCol, pBlock->info.rows - 1), sizeof(int64_t));
+
+  for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+    memcpy(&pResult->timestamps[pResult->rowCount++],
+           colDataGetData(pTsCol, i), sizeof(int64_t));
+    memcpy(&pResult->groupValues[pResult->rowCount - 1],
+           colDataGetData(pGroupCol, i), sizeof(int32_t));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t partitionTestRunPhasedWithConfig(
+    const SPartitionPhaseTestBlock* pBlocks, int32_t numBlocks,
+    const SPartitionPhaseTestConfig* pConfig,
+    SPartitionPhaseTestResult* pResult) {
+  if (numBlocks < 0 || (numBlocks > 0 && pBlocks == NULL) ||
+      pResult == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  memset(pResult, 0, sizeof(*pResult));
+
+  // The context outlives longjmp state restoration, so its mutated fields
+  // remain defined when the recovery path inspects and releases them.
+  SPartitionPhaseTestContext* pCtx =
+      taosMemoryCalloc(1, sizeof(*pCtx));
+  if (pCtx == NULL) {
+    return terrno;
+  }
+
+  char savedTempDir[PATH_MAX];
+  EEncryptScope savedScope = tsiEncryptScope;
+  tstrncpy(savedTempDir, tsTempDir, sizeof(savedTempDir));
+  tstrncpy(tsTempDir, TD_TMP_DIR_PATH, PATH_MAX);
+
+  pCtx->task.id.str = "partitionPhaseTest";
+  bool reserveColumn = pConfig != NULL && pConfig->reserveColumn;
+  int32_t code = partitionPhaseTestInit(pCtx, numBlocks, pResult,
+                                        reserveColumn);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _cleanup;
+  }
+  if (pConfig != NULL) {
+    if (pConfig->memBudgetBytes > 0) {
+      pCtx->pInfo->memBudgetBytes = pConfig->memBudgetBytes;
+    }
+    if (pConfig->encryptSpill) {
+      tsiEncryptScope = (EEncryptScope)(savedScope | DND_CS_QUERY_SPILL);
+    }
+    partitionTestSetPrepareOutputFailure(pConfig->prepareOutputFailureCode);
+    partitionTestSetPageAllocationFailure(
+        pConfig->pageAllocationFailureCode);
+    partitionTestSetSpillReadFailure(pConfig->spillReadFailureCode);
+    partitionTestSetSpillCryptFailure(pConfig->spillCryptFailureCode);
+  }
+
+  for (int32_t i = 0; i < numBlocks; ++i) {
+    code = partitionPhaseTestCreateBlock(
+        &pBlocks[i], &pCtx->sourceInfo.pBlocks[i]);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _cleanup;
+    }
+  }
+
+  int32_t jmpCode = setjmp(pCtx->task.env);
+  if (jmpCode != TSDB_CODE_SUCCESS) {
+    code = jmpCode;
+    goto _cleanup;
+  }
+
+  while (true) {
+    SSDataBlock* pOutput = NULL;
+    code = phasedHashPartitionNext(&pCtx->partition, &pOutput);
+    if (code != TSDB_CODE_SUCCESS || pOutput == NULL) {
+      break;
+    }
+    code = partitionPhaseTestCaptureOutput(pCtx, pOutput, pResult);
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
+    if (reserveColumn) {
+      // colDataAssign in a parent expression clears the reserved flag.
+      SColumnInfoData* pCol = taosArrayGet(pOutput->pDataBlock, 2);
+      pCol->info.noData = false;
+    }
+  }
+
+_cleanup:
+  pResult->totalPulledBlocks = pCtx->sourceInfo.nextBlock;
+  pResult->hashGroupCountOnExit =
+      pCtx->pInfo != NULL && pCtx->pInfo->pGroupSet != NULL
+          ? taosHashGetSize(pCtx->pInfo->pGroupSet)
+          : 0;
+  pResult->sortedGroupCountOnExit = pCtx->pInfo != NULL
+                                        ? taosArrayGetSize(
+                                              pCtx->pInfo->sortedGroupArray)
+                                        : 0;
+  pResult->residentPageCountOnExit =
+      pCtx->pInfo != NULL ? pCtx->pInfo->numResidentPages : 0;
+  pResult->spillFileOpenOnExit =
+      pCtx->pInfo != NULL && pCtx->pInfo->spill.pFile != NULL;
+  partitionTestSetPrepareOutputFailure(TSDB_CODE_SUCCESS);
+  partitionTestSetPageAllocationFailure(TSDB_CODE_SUCCESS);
+  partitionTestSetSpillReadFailure(TSDB_CODE_SUCCESS);
+  partitionTestSetSpillCryptFailure(TSDB_CODE_SUCCESS);
+  tsiEncryptScope = savedScope;
+  partitionPhaseTestCleanup(pCtx);
+  taosMemoryFree(pCtx);
+  tstrncpy(tsTempDir, savedTempDir, PATH_MAX);
+  return code;
+}
+
+int32_t partitionTestRunPhased(
+    const SPartitionPhaseTestBlock* pBlocks, int32_t numBlocks,
+    SPartitionPhaseTestResult* pResult) {
+  return partitionTestRunPhasedWithConfig(pBlocks, numBlocks, NULL, pResult);
+}
+
+int32_t partitionTestHeldBlockLifecycle(
+    EPartitionPhaseTestLifecycleAction action,
+    SPartitionPhaseTestLifecycleResult* pResult) {
+  if ((action != PARTITION_PHASE_TEST_RESET &&
+       action != PARTITION_PHASE_TEST_DESTROY) ||
+      pResult == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  memset(pResult, 0, sizeof(*pResult));
+
+  const SPartitionPhaseTestBlock blocks[] = {
+      {SCAN_PHASE_MAIN, 1, 1, 10, 0, false},
+      {SCAN_PHASE_NEXT, 1, 1, 11, 0, false},
+  };
+  SPartitionPhaseTestContext* pCtx =
+      taosMemoryCalloc(1, sizeof(*pCtx));
+  if (pCtx == NULL) {
+    return terrno;
+  }
+  pCtx->task.id.str = "partitionPhaseLifecycleTest";
+  SPartitionPhaseTestResult* pPhaseResult =
+      taosMemoryCalloc(1, sizeof(*pPhaseResult));
+  if (pPhaseResult == NULL) {
+    taosMemoryFree(pCtx);
+    return terrno;
+  }
+
+  char savedTempDir[PATH_MAX];
+  tstrncpy(savedTempDir, tsTempDir, sizeof(savedTempDir));
+  tstrncpy(tsTempDir, TD_TMP_DIR_PATH, PATH_MAX);
+
+  int32_t code = partitionPhaseTestInit(pCtx, 2, pPhaseResult, false);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _cleanup;
+  }
+  for (int32_t i = 0; i < 2; ++i) {
+    code = partitionPhaseTestCreateBlock(
+        &blocks[i], &pCtx->sourceInfo.pBlocks[i]);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _cleanup;
+    }
+  }
+
+  int32_t jmpCode = setjmp(pCtx->task.env);
+  if (jmpCode != TSDB_CODE_SUCCESS) {
+    code = jmpCode;
+    goto _cleanup;
+  }
+
+  SSDataBlock* pOutput = NULL;
+  code = phasedHashPartitionNext(&pCtx->partition, &pOutput);
+  if (code != TSDB_CODE_SUCCESS || pOutput == NULL ||
+      pCtx->pInfo->pHeldBlock == NULL) {
+    code = code != TSDB_CODE_SUCCESS
+               ? code
+               : TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    goto _cleanup;
+  }
+  pResult->heldBeforeAction = true;
+
+  if (action == PARTITION_PHASE_TEST_RESET) {
+    code = resetPartitionOperState(&pCtx->partition);
+    if (code == TSDB_CODE_SUCCESS) {
+      pResult->heldAfterAction = pCtx->pInfo->pHeldBlock != NULL;
+      pResult->phaseAfterAction = pCtx->pInfo->curPhase;
+      pResult->readingAfterAction =
+          pCtx->pInfo->phaseState == PARTITION_PHASE_READING;
+      pResult->inputDoneAfterAction = pCtx->pInfo->inputDone;
+    }
+  } else {
+    destroyPartitionOperatorInfo(pCtx->pInfo);
+    pCtx->pInfo = NULL;
+    pCtx->partition.info = NULL;
+    pResult->destroyed = true;
+  }
+
+_cleanup:
+  partitionPhaseTestCleanup(pCtx);
+  taosMemoryFree(pCtx);
+  taosMemoryFree(pPhaseResult);
+  tstrncpy(tsTempDir, savedTempDir, PATH_MAX);
+  return code;
+}
+
 #endif  // BUILD_TEST

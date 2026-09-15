@@ -67,5 +67,6 @@ target_link_libraries(
 )
 
 if(BUILD_TEST)
+    target_compile_definitions(util PRIVATE BUILD_TEST)
     ADD_SUBDIRECTORY(test)
 endif()

@@ -15,11 +15,438 @@
 
 #include "gtest/gtest.h"
 
+#include <memory>
 #include <vector>
 
 #include "groupoperatorTest.h"
 #include "taoserror.h"
 #include "tdatablock.h"
+
+namespace {
+
+using PartitionPhaseResultPtr =
+    std::unique_ptr<SPartitionPhaseTestResult>;
+
+PartitionPhaseResultPtr makePartitionPhaseResult() {
+  return PartitionPhaseResultPtr(new SPartitionPhaseTestResult{});
+}
+
+int32_t runPhased(const std::vector<SPartitionPhaseTestBlock>& blocks,
+                  const SPartitionPhaseTestConfig& config,
+                  SPartitionPhaseTestResult* pResult) {
+  return partitionTestRunPhasedWithConfig(
+      blocks.data(), static_cast<int32_t>(blocks.size()), &config, pResult);
+}
+
+void expectOutputsInPhase(const SPartitionPhaseTestResult& result,
+                          int8_t phase) {
+  for (int32_t i = 0; i < result.outputCount; ++i) {
+    EXPECT_EQ(result.outputs[i].phase, phase) << "output " << i;
+    EXPECT_NE(result.outputs[i].groupId, 0) << "output " << i;
+    EXPECT_EQ(result.outputs[i].baseGId, 0) << "output " << i;
+  }
+}
+
+}  // namespace
+
+TEST(partitionPhaseTest, drainsMainAndSideBatchesWithoutIntermediateNull) {
+  std::vector<SPartitionPhaseTestBlock> blocks = {
+      {SCAN_PHASE_MAIN, 1, 2, 10, 1},
+  };
+  for (int32_t i = 0; i < 17; ++i) {
+    blocks.push_back({SCAN_PHASE_NEXT, 1, 1, 20 + i, 0});
+  }
+  blocks.push_back({SCAN_PHASE_PREV, 1, 3, 9, -1});
+
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+  int32_t numBlocks = static_cast<int32_t>(blocks.size());
+  ASSERT_EQ(partitionTestRunPhased(blocks.data(), numBlocks, &result),
+            TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(result.outputCount, 4);
+  EXPECT_EQ(result.totalPulledBlocks, numBlocks);
+
+  EXPECT_EQ(result.outputs[0].phase, SCAN_PHASE_MAIN);
+  EXPECT_EQ(result.outputs[0].rows, 2);
+  EXPECT_EQ(result.outputs[0].pulledBlocks, 2);
+  EXPECT_EQ(result.outputs[0].firstTs, 10);
+  EXPECT_EQ(result.outputs[0].lastTs, 11);
+
+  EXPECT_EQ(result.outputs[1].phase, SCAN_PHASE_NEXT);
+  EXPECT_EQ(result.outputs[1].rows, 16);
+  EXPECT_EQ(result.outputs[1].pulledBlocks, 17);
+  EXPECT_EQ(result.outputs[1].firstTs, 20);
+  EXPECT_EQ(result.outputs[1].lastTs, 35);
+
+  EXPECT_EQ(result.outputs[2].phase, SCAN_PHASE_NEXT);
+  EXPECT_EQ(result.outputs[2].rows, 1);
+  EXPECT_EQ(result.outputs[2].pulledBlocks, 19);
+  EXPECT_EQ(result.outputs[2].firstTs, 36);
+  EXPECT_EQ(result.outputs[2].lastTs, 36);
+
+  EXPECT_EQ(result.outputs[3].phase, SCAN_PHASE_PREV);
+  EXPECT_EQ(result.outputs[3].rows, 3);
+  EXPECT_EQ(result.outputs[3].pulledBlocks, 19);
+  EXPECT_EQ(result.outputs[3].firstTs, 9);
+  EXPECT_EQ(result.outputs[3].lastTs, 7);
+}
+
+TEST(partitionPhaseTest, skipsEmptyPhasesWithoutReturningNull) {
+  const SPartitionPhaseTestBlock blocks[] = {
+      {SCAN_PHASE_PREV, 7, 2, 9, -1},
+  };
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+
+  ASSERT_EQ(partitionTestRunPhased(blocks, 1, &result),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(result.outputCount, 1);
+  EXPECT_EQ(result.outputs[0].phase, SCAN_PHASE_PREV);
+  EXPECT_EQ(result.outputs[0].rows, 2);
+  EXPECT_EQ(result.outputs[0].firstTs, 9);
+  EXPECT_EQ(result.outputs[0].lastTs, 8);
+}
+
+TEST(partitionPhaseTest, finishesEmptyInputWithoutOutput) {
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+
+  ASSERT_EQ(partitionTestRunPhased(nullptr, 0, &result),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(result.outputCount, 0);
+  EXPECT_EQ(result.totalPulledBlocks, 0);
+}
+
+TEST(partitionPhaseTest, rejectsPhaseRegression) {
+  const SPartitionPhaseTestBlock blocks[] = {
+      {SCAN_PHASE_MAIN, 1, 1, 10, 0},
+      {SCAN_PHASE_PREV, 1, 1, 9, 0},
+      {SCAN_PHASE_NEXT, 1, 1, 11, 0},
+  };
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+
+  EXPECT_EQ(partitionTestRunPhased(blocks, 3, &result),
+            TSDB_CODE_PLAN_INTERNAL_ERROR);
+}
+
+TEST(partitionPhaseTest, drainsEachOuterEpochBeforeTheNext) {
+  const SPartitionPhaseTestBlock blocks[] = {
+      {SCAN_PHASE_MAIN, 7, 1, 10, 0, false, 10},
+      {SCAN_PHASE_NEXT, 7, 1, 11, 0, false, 10},
+      {SCAN_PHASE_PREV, 7, 1, 9, 0, false, 10},
+      {SCAN_PHASE_MAIN, 7, 1, 20, 0, false, 20},
+      {SCAN_PHASE_PREV, 7, 1, 19, 0, false, 20},
+  };
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+
+  ASSERT_EQ(partitionTestRunPhased(blocks, 5, &result),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(result.outputCount, 5);
+  const int8_t expectedPhases[] = {
+      SCAN_PHASE_MAIN,
+      SCAN_PHASE_NEXT,
+      SCAN_PHASE_PREV,
+      SCAN_PHASE_MAIN,
+      SCAN_PHASE_PREV,
+  };
+  for (int32_t i = 0; i < result.outputCount; ++i) {
+    EXPECT_EQ(result.outputs[i].phase, expectedPhases[i]);
+    EXPECT_EQ(result.outputs[i].baseGId, i < 3 ? 10 : 20);
+  }
+  EXPECT_EQ(result.outputs[0].groupId, result.outputs[1].groupId);
+  EXPECT_EQ(result.outputs[0].groupId, result.outputs[2].groupId);
+  EXPECT_EQ(result.outputs[3].groupId, result.outputs[4].groupId);
+  EXPECT_NE(result.outputs[0].groupId, result.outputs[3].groupId);
+}
+
+TEST(partitionPhaseTest, rejectsOuterEpochRegression) {
+  const SPartitionPhaseTestBlock blocks[] = {
+      {SCAN_PHASE_MAIN, 7, 1, 10, 0, false, 20},
+      {SCAN_PHASE_MAIN, 7, 1, 20, 0, false, 10},
+  };
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+
+  EXPECT_EQ(partitionTestRunPhased(blocks, 2, &result),
+            TSDB_CODE_PLAN_INTERNAL_ERROR);
+}
+
+TEST(partitionPhaseTest, rejectsInvalidPhaseValue) {
+  constexpr int8_t kInvalidPhase = INT8_MAX;
+  const SPartitionPhaseTestBlock blocks[] = {
+      {kInvalidPhase, 1, 1, 10, 0},
+  };
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+
+  EXPECT_EQ(partitionTestRunPhased(blocks, 1, &result),
+            TSDB_CODE_INVALID_PARA);
+}
+
+TEST(partitionPhaseTest, rejectsMetadataOnlyInput) {
+  const SPartitionPhaseTestBlock blocks[] = {
+      {SCAN_PHASE_MAIN, 1, 1, 10, 0, true},
+  };
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+
+  EXPECT_EQ(partitionTestRunPhased(blocks, 1, &result),
+            TSDB_CODE_PLAN_INTERNAL_ERROR);
+}
+
+TEST(partitionPhaseTest, invalidOutputDoesNotPartiallyUpdateResult) {
+  SPartitionPhaseTestBlock block = {
+      SCAN_PHASE_MAIN, 1, 3, 10, 1,
+  };
+  block.nullGroupRowMask = uint64_t{1} << 1;
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+
+  EXPECT_EQ(partitionTestRunPhased(&block, 1, &result),
+            TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  EXPECT_EQ(result.outputCount, 1);
+  EXPECT_EQ(result.rowCount, 2);
+  EXPECT_EQ(result.spillCountDuringOutput, 0);
+  EXPECT_EQ(result.encryptedSpillCountDuringOutput, 0);
+}
+
+TEST(partitionPhaseTest, resetReleasesHeldBoundaryBlock) {
+  SPartitionPhaseTestLifecycleResult result = {0};
+
+  ASSERT_EQ(partitionTestHeldBlockLifecycle(PARTITION_PHASE_TEST_RESET,
+                                            &result),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(result.heldBeforeAction);
+  EXPECT_FALSE(result.heldAfterAction);
+  EXPECT_FALSE(result.destroyed);
+  EXPECT_EQ(result.phaseAfterAction, SCAN_PHASE_MAIN);
+  EXPECT_TRUE(result.readingAfterAction);
+  EXPECT_FALSE(result.inputDoneAfterAction);
+}
+
+TEST(partitionPhaseTest, destroyReleasesHeldBoundaryBlock) {
+  SPartitionPhaseTestLifecycleResult result = {0};
+
+  ASSERT_EQ(partitionTestHeldBlockLifecycle(PARTITION_PHASE_TEST_DESTROY,
+                                            &result),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(result.heldBeforeAction);
+  EXPECT_TRUE(result.destroyed);
+}
+
+TEST(partitionPhaseTest, prepareFailureLeavesHashAsSoleOwner) {
+  const SPartitionPhaseTestBlock blocks[] = {
+      {SCAN_PHASE_PREV, 7, 1, 10, 0},
+  };
+  SPartitionPhaseTestConfig config = {0};
+  config.prepareOutputFailureCode = TSDB_CODE_OUT_OF_MEMORY;
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+
+  EXPECT_EQ(partitionTestRunPhasedWithConfig(
+                blocks, 1, &config, &result),
+            TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(result.hashGroupCountOnExit, 1);
+  EXPECT_EQ(result.sortedGroupCountOnExit, 0);
+}
+
+TEST(partitionPhaseTest, pageAllocationFailureLeavesNoResidentPage) {
+  const SPartitionPhaseTestBlock blocks[] = {
+      {SCAN_PHASE_MAIN, 7, 1, 10, 0},
+  };
+  SPartitionPhaseTestConfig config = {0};
+  config.pageAllocationFailureCode = TSDB_CODE_OUT_OF_MEMORY;
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+
+  EXPECT_EQ(partitionTestRunPhasedWithConfig(
+                blocks, 1, &config, &result),
+            TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(result.hashGroupCountOnExit, 1);
+  EXPECT_EQ(result.sortedGroupCountOnExit, 0);
+  EXPECT_EQ(result.residentPageCountOnExit, 0);
+}
+
+TEST(partitionPhaseTest,
+     spillReadFailureLeavesTransferredGroupOwnedForCleanup) {
+  std::vector<SPartitionPhaseTestBlock> blocks;
+  for (int32_t i = 0; i < 5; ++i) {
+    blocks.push_back({SCAN_PHASE_PREV, 7, 64, 1000 - i * 64, -1});
+  }
+  SPartitionPhaseTestConfig config = {0};
+  config.memBudgetBytes = PARTITION_PHASE_TEST_PAGE_BUDGET;
+  config.spillReadFailureCode = TSDB_CODE_FAILED;
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+
+  EXPECT_EQ(runPhased(blocks, config, &result), TSDB_CODE_FAILED);
+  EXPECT_EQ(result.hashGroupCountOnExit, 0);
+  EXPECT_EQ(result.sortedGroupCountOnExit, 1);
+  EXPECT_EQ(result.residentPageCountOnExit, 1);
+  EXPECT_TRUE(result.spillFileOpenOnExit);
+}
+
+TEST(partitionPhaseTest, spillCryptFailureClosesPartialFile) {
+  std::vector<SPartitionPhaseTestBlock> blocks;
+  for (int32_t i = 0; i < 5; ++i) {
+    blocks.push_back({SCAN_PHASE_PREV, 7, 64, 1000 - i * 64, -1});
+  }
+  SPartitionPhaseTestConfig config = {0};
+  config.memBudgetBytes = PARTITION_PHASE_TEST_PAGE_BUDGET;
+  config.encryptSpill = true;
+  config.spillCryptFailureCode = TSDB_CODE_OUT_OF_MEMORY;
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+
+  EXPECT_EQ(runPhased(blocks, config, &result),
+            TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(result.hashGroupCountOnExit, 1);
+  EXPECT_EQ(result.sortedGroupCountOnExit, 0);
+  EXPECT_FALSE(result.spillFileOpenOnExit);
+}
+
+TEST(partitionPhaseTest, retainsSpillStateAcrossSideBatches) {
+  std::vector<SPartitionPhaseTestBlock> blocks;
+  constexpr int32_t kRowsPerBlock = 64;
+  constexpr int32_t kBlockCount = 17;
+  constexpr int64_t kFirstTs = 2000;
+  for (int32_t i = 0; i < kBlockCount; ++i) {
+    blocks.push_back({SCAN_PHASE_PREV, 7, kRowsPerBlock,
+                      kFirstTs - (int64_t)i * kRowsPerBlock, -1});
+  }
+
+  SPartitionPhaseTestConfig config = {0};
+  config.memBudgetBytes = PARTITION_PHASE_TEST_PAGE_BUDGET;
+  config.encryptSpill = true;
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+  ASSERT_EQ(runPhased(blocks, config, &result), TSDB_CODE_SUCCESS);
+
+  EXPECT_GT(result.spillCountBeforeSecondBatch, 0);
+  EXPECT_GT(result.encryptedSpillCountBeforeSecondBatch, 0);
+  EXPECT_TRUE(result.spillScratchRetainedBeforeSecondBatch);
+  EXPECT_TRUE(result.spillCryptReleasedBeforeSecondBatch);
+  EXPECT_GT(result.spillCountDuringOutput, 0);
+  EXPECT_GT(result.encryptedSpillCountDuringOutput, 0);
+  ASSERT_EQ(result.rowCount, kRowsPerBlock * kBlockCount);
+  for (int32_t i = 0; i < result.rowCount; ++i) {
+    EXPECT_EQ(result.timestamps[i], kFirstTs - i) << "row " << i;
+  }
+  expectOutputsInPhase(result, SCAN_PHASE_PREV);
+}
+
+TEST(partitionPhaseTest, spillsEveryPhaseWithOrderedOutput) {
+  const int8_t phases[] = {
+      SCAN_PHASE_MAIN,
+      SCAN_PHASE_NEXT,
+      SCAN_PHASE_PREV,
+  };
+  constexpr int32_t kRowsPerBlock = 64;
+  constexpr int32_t kBlockCount = 5;
+  for (int8_t phase : phases) {
+    SCOPED_TRACE(testing::Message() << "phase="
+                                    << static_cast<int32_t>(phase));
+    int64_t firstTs = phase == SCAN_PHASE_PREV ? 3000 : 1000;
+    int64_t step = phase == SCAN_PHASE_PREV ? -1 : 1;
+    std::vector<SPartitionPhaseTestBlock> blocks;
+    std::vector<int64_t> expected;
+    for (int32_t i = 0; i < kBlockCount; ++i) {
+      int64_t blockFirst = firstTs + step * i * kRowsPerBlock;
+      blocks.push_back({phase, 7, kRowsPerBlock, blockFirst, step});
+      for (int32_t row = 0; row < kRowsPerBlock; ++row) {
+        expected.push_back(blockFirst + step * row);
+      }
+    }
+
+    SPartitionPhaseTestConfig config = {0};
+    config.memBudgetBytes = PARTITION_PHASE_TEST_PAGE_BUDGET;
+    auto resultOwner = makePartitionPhaseResult();
+    SPartitionPhaseTestResult& result = *resultOwner;
+    ASSERT_EQ(runPhased(blocks, config, &result),
+              TSDB_CODE_SUCCESS);
+
+    EXPECT_GT(result.spillCountDuringOutput, 0);
+    ASSERT_EQ(result.rowCount, static_cast<int32_t>(expected.size()));
+    for (int32_t i = 0; i < result.rowCount; ++i) {
+      EXPECT_EQ(result.timestamps[i], expected[i]) << "row " << i;
+      EXPECT_EQ(result.groupValues[i], 7) << "row " << i;
+    }
+    expectOutputsInPhase(result, phase);
+  }
+}
+
+TEST(partitionPhaseTest, replaysSpilledBlocksWithReservedColumn) {
+  for (bool encrypted : {false, true}) {
+    SCOPED_TRACE(encrypted);
+    std::vector<SPartitionPhaseTestBlock> blocks;
+    for (int32_t i = 0; i < 5; ++i) {
+      blocks.push_back({SCAN_PHASE_MAIN, 7, 64, 1000 + i * 64, 1});
+    }
+    SPartitionPhaseTestConfig config = {0};
+    config.memBudgetBytes = PARTITION_PHASE_TEST_PAGE_BUDGET;
+    config.encryptSpill = encrypted;
+    config.reserveColumn = true;
+    auto result = makePartitionPhaseResult();
+    ASSERT_EQ(runPhased(blocks, config, result.get()), TSDB_CODE_SUCCESS);
+    EXPECT_GT(result->outputCount, 1);
+    EXPECT_GT(result->spillCountDuringOutput, 0);
+    if (encrypted) {
+      EXPECT_GT(result->encryptedSpillCountDuringOutput, 0);
+    }
+    ASSERT_EQ(result->rowCount, 320);
+    for (int32_t i = 0; i < result->rowCount; ++i) {
+      EXPECT_EQ(result->timestamps[i], 1000 + i);
+      EXPECT_EQ(result->groupValues[i], 7);
+    }
+  }
+}
+
+TEST(partitionPhaseTest, ordersMultipleSpilledGroupsAcrossFragments) {
+  std::vector<SPartitionPhaseTestBlock> blocks;
+  std::vector<int64_t> expectedGroup7;
+  std::vector<int64_t> expectedGroup8;
+  constexpr int32_t kRowsPerBlock = 64;
+  constexpr int32_t kBlockCount = 17;
+  constexpr int64_t kFirstTs = 4000;
+  for (int32_t i = 0; i < kBlockCount; ++i) {
+    int32_t groupValue = 7 + i % 2;
+    int64_t firstTs = kFirstTs - (int64_t)i * kRowsPerBlock;
+    blocks.push_back({SCAN_PHASE_PREV, groupValue, kRowsPerBlock,
+                      firstTs, -1});
+    std::vector<int64_t>& expected =
+        groupValue == 7 ? expectedGroup7 : expectedGroup8;
+    for (int32_t row = 0; row < kRowsPerBlock; ++row) {
+      expected.push_back(firstTs - row);
+    }
+  }
+
+  SPartitionPhaseTestConfig config = {0};
+  config.memBudgetBytes = PARTITION_PHASE_TEST_PAGE_BUDGET;
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+  ASSERT_EQ(runPhased(blocks, config, &result), TSDB_CODE_SUCCESS);
+
+  EXPECT_GT(result.spillCountDuringOutput, 2);
+  ASSERT_EQ(result.rowCount, kRowsPerBlock * kBlockCount);
+  std::vector<int64_t> actualGroup7;
+  std::vector<int64_t> actualGroup8;
+  for (int32_t i = 0; i < result.rowCount; ++i) {
+    if (result.groupValues[i] == 7) {
+      actualGroup7.push_back(result.timestamps[i]);
+    } else if (result.groupValues[i] == 8) {
+      actualGroup8.push_back(result.timestamps[i]);
+    } else {
+      ADD_FAILURE() << "unexpected group value "
+                    << result.groupValues[i];
+    }
+  }
+  EXPECT_EQ(actualGroup7, expectedGroup7);
+  EXPECT_EQ(actualGroup8, expectedGroup8);
+  expectOutputsInPhase(result, SCAN_PHASE_PREV);
+}
 
 TEST(partitionSpillTest, selectsGroupWithHighestGrowthLevel) {
   // Growth level, resident rows, and total rows deliberately rank different.
@@ -542,6 +969,105 @@ TEST(partitionSpillTest, metadataOnlyBlockDoesNotAllocatePage) {
   EXPECT_EQ(result.outputGroupId, result.groupId);
 }
 
+TEST(blockDataFromBufBoundedTest, serializesReservedColumnsInFullLayout) {
+  for (int8_t type : {TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_VARCHAR}) {
+    for (int32_t reserved = 0; reserved < 3; ++reserved) {
+      SCOPED_TRACE(testing::Message() << "type=" << static_cast<int>(type)
+                                      << " reserved=" << reserved);
+      SSDataBlock* pBlock = nullptr;
+      ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+      for (int32_t i = 0; i < 3; ++i) {
+        SColumnInfoData col = createColumnInfoData(
+            i == reserved ? type : TSDB_DATA_TYPE_INT, 4, i);
+        col.info.noData = i == reserved;
+        col.info.precision = i;
+        col.info.scale = i + 1;
+        ASSERT_EQ(blockDataAppendColInfo(pBlock, &col), TSDB_CODE_SUCCESS);
+      }
+      ASSERT_EQ(blockDataEnsureCapacity(pBlock, 2), TSDB_CODE_SUCCESS);
+      pBlock->info.rows = 2;
+      for (int32_t i = 0; i < 3; ++i) {
+        auto col = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
+        if (col->info.type == TSDB_DATA_TYPE_VARCHAR) {
+          char value[4] = {0};
+          varDataSetLen(value, 2);
+          memcpy(varDataVal(value), "xy", 2);
+          ASSERT_EQ(colDataSetVal(col, 0, value, false),
+                    TSDB_CODE_SUCCESS);
+        } else {
+          int32_t value = 123 + i;
+          ASSERT_EQ(colDataSetVal(col, 0, (char*)&value, false),
+                    TSDB_CODE_SUCCESS);
+        }
+        colDataSetNULL(col, 1);
+        ASSERT_TRUE(colDataIsNull_s(col, 1));
+      }
+      constexpr size_t kRows = 2;
+      constexpr size_t kRowCountBytes = sizeof(uint32_t);
+      constexpr size_t kColumnMetadataBytes = 2 * sizeof(uint8_t);
+      constexpr size_t kColumnLengthBytes = sizeof(int32_t);
+      constexpr size_t kIntValueBytes = kRows * sizeof(int32_t);
+      const size_t kIntColumnBytes =
+          kColumnMetadataBytes + BitmapLen(kRows) +
+          kColumnLengthBytes + kIntValueBytes;
+      // One non-NULL varchar stores a two-byte header and the two-byte "xy".
+      const size_t kVarColumnBytes =
+          kColumnMetadataBytes + kRows * sizeof(int32_t) +
+          kColumnLengthBytes + 4;
+      // noData remains a full writer-side column. It only controls whether
+      // a reader consumes that column from the serialized layout.
+      const size_t expectedSize =
+          kRowCountBytes +
+          (type == TSDB_DATA_TYPE_INT
+               ? 3 * kIntColumnBytes
+               : 2 * kIntColumnBytes + kVarColumnBytes);
+      const size_t size = blockDataGetBufSize(pBlock);
+      ASSERT_EQ(size, expectedSize);
+      std::vector<char> buf(size + 1, '\x5a');
+      ASSERT_EQ(blockDataToBuf(buf.data(), pBlock), TSDB_CODE_SUCCESS);
+      EXPECT_EQ(buf[size], '\x5a');
+      SSDataBlock* pDecode = nullptr;
+      ASSERT_EQ(createOneDataBlock(pBlock, false, &pDecode),
+                TSDB_CODE_SUCCESS);
+      for (int32_t i = 0; i < 3; ++i) {
+        auto col = (SColumnInfoData*)taosArrayGet(pDecode->pDataBlock, i);
+        col->info.noData = false;
+      }
+      for (size_t length = 0; length < size; ++length) {
+        EXPECT_EQ(blockDataFromBufBounded(pDecode, buf.data(), length),
+                  TSDB_CODE_FILE_CORRUPTED);
+      }
+      EXPECT_EQ(blockDataFromBufBounded(pDecode, buf.data(), size + 1),
+                TSDB_CODE_FILE_CORRUPTED);
+      blockDataCleanup(pDecode);
+      ASSERT_EQ(blockDataFromBufBounded(pDecode, buf.data(), size),
+                TSDB_CODE_SUCCESS);
+      EXPECT_EQ(pDecode->info.rows, 2);
+      for (int32_t i = 0; i < 3; ++i) {
+        auto col = (SColumnInfoData*)taosArrayGet(pDecode->pDataBlock, i);
+        EXPECT_EQ(col->info.precision, i);
+        EXPECT_EQ(col->info.scale, i + 1);
+        EXPECT_FALSE(col->info.noData);
+        if (col->info.type == TSDB_DATA_TYPE_VARCHAR) {
+          EXPECT_EQ(varDataLen(colDataGetData(col, 0)), 2);
+          EXPECT_EQ(memcmp(varDataVal(colDataGetData(col, 0)), "xy", 2), 0);
+        } else {
+          EXPECT_EQ(*(int32_t*)colDataGetData(col, 0), 123 + i);
+        }
+        if (IS_VAR_DATA_TYPE(col->info.type)) {
+          EXPECT_FALSE(colDataIsNull_s(col, 0));
+          EXPECT_TRUE(colDataIsNull_s(col, 1));
+        } else {
+          EXPECT_FALSE(colDataIsNull_f(col, 0));
+          EXPECT_TRUE(colDataIsNull_f(col, 1));
+        }
+      }
+      blockDataDestroy(pDecode);
+      blockDataDestroy(pBlock);
+    }
+  }
+}
+
 TEST(blockDataFromBufBoundedTest, rejectsCorruptVarBlocks) {
   SSDataBlock* pBlock = NULL;
   ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
@@ -602,8 +1128,8 @@ TEST(blockDataFromBufBoundedTest, rejectsCorruptVarBlocks) {
   EXPECT_EQ(blockDataFromBufBounded(pDecode, corrupt, bufSize),
             TSDB_CODE_FILE_CORRUPTED);
 
-  // noData schemas have no consistent bounded parse (blockDataToBuf writes
-  // such columns, blockDataFromBuf skips them) and are rejected up front.
+  // The full writer layout cannot be parsed with a target schema that skips
+  // a column because every later column would start at the wrong offset.
   SColumnInfoData* pDecodeCol =
       (SColumnInfoData*)taosArrayGet(pDecode->pDataBlock, 0);
   ASSERT_NE(pDecodeCol, nullptr);

@@ -1745,6 +1745,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   memcpy(pTableScan->scanSeq, pScanLogicNode->scanSeq, sizeof(pScanLogicNode->scanSeq));
   pTableScan->scanRange = pScanLogicNode->scanRange;
   TSWAP(pTableScan->pExtScanRange, pScanLogicNode->pExtScanRange);
+  pTableScan->interpMode = pScanLogicNode->interpMode;
   pTableScan->interpFillMode = pScanLogicNode->interpFillMode;
   pTableScan->ratio = pScanLogicNode->ratio;
   if (pScanLogicNode->pVgroupList) {
@@ -5625,6 +5626,9 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
     pInterpFunc->interval = pFuncLogicNode->interval;
     pInterpFunc->fillMode = pFuncLogicNode->fillMode;
     pInterpFunc->timelineSource = pFuncLogicNode->timelineSource;
+    pInterpFunc->interpMode = pFuncLogicNode->interpMode;
+    pInterpFunc->requireMainMembership =
+        pFuncLogicNode->requireMainMembership;
     pInterpFunc->intervalUnit = pFuncLogicNode->intervalUnit;
     pInterpFunc->precision = pFuncLogicNode->node.precision;
     pInterpFunc->timezone = pFuncLogicNode->timezone;
@@ -6657,6 +6661,7 @@ static int32_t createPartitionPhysiNodeImpl(SPhysiPlanContext* pCxt, SNodeList* 
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pPartitionKeys = NULL;
   int32_t    code = rewritePrecalcExprs(pCxt, pPartLogicNode->pPartitionKeys, &pPrecalcExprs, &pPartitionKeys);
+  pPart->phasedMode = pPartLogicNode->phasedMode;
   pPart->needBlockOutputTsOrder = pPartLogicNode->needBlockOutputTsOrder;
   SDataBlockDescNode* pChildTupe = NULL;
   if (TSDB_CODE_SUCCESS == code) {
@@ -6869,6 +6874,7 @@ static int32_t createMergePhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildre
   pMerge->groupSort = pMergeLogicNode->groupSort;
   pMerge->ignoreGroupId = pMergeLogicNode->ignoreGroupId;
   pMerge->inputWithGroupId = pMergeLogicNode->inputWithGroupId;
+  pMerge->outerGroupPhaseMode = pMergeLogicNode->outerGroupPhaseMode;
 
   if (!pMergeLogicNode->colsMerge) {
     PLAN_ERR_JRET(addDataBlockSlots(pCxt, pMergeLogicNode->pInputs, pMerge->node.pOutputDataBlockDesc));

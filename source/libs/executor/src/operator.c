@@ -1067,20 +1067,29 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInpu
   if (childrenNum <= 0) {
     return TSDB_CODE_SUCCESS;
   }
+  if ((*ppParam)->opType == QUERY_NODE_PHYSICAL_PLAN_PARTITION &&
+      childrenNum != 1) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
+  int32_t code = TSDB_CODE_SUCCESS;
   for (int32_t i = 0; i < childrenNum; ++i) {
-    SOperatorParam* pChild = *(SOperatorParam**)taosArrayGet((*ppParam)->pChildren, i);
-    if (pChild == NULL) {
-      return terrno;
+    SOperatorParam* pChild =
+        *(SOperatorParam**)taosArrayGet((*ppParam)->pChildren, i);
+    if (pChild == NULL || pChild->downstreamIdx < 0 ||
+        pChild->downstreamIdx >= pOperator->numOfDownstream) {
+      code = TSDB_CODE_INVALID_PARA;
+      goto _error;
     }
 
-    if ((*pppDownstramParam)[pChild->downstreamIdx]) {
-      int32_t code = mergeOperatorParams((*pppDownstramParam)[pChild->downstreamIdx], pChild);
+    SOperatorParam** ppSlot = &(*pppDownstramParam)[pChild->downstreamIdx];
+    if (*ppSlot != NULL) {
+      code = mergeOperatorParams(*ppSlot, pChild);
       if (code) {
-        return code;
+        goto _error;
       }
     } else {
-      (*pppDownstramParam)[pChild->downstreamIdx] = pChild;
+      *ppSlot = pChild;
     }
   }
 
@@ -1088,6 +1097,28 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInpu
   (*ppParam)->pChildren = NULL;
 
   return TSDB_CODE_SUCCESS;
+
+_error:
+  // Route nothing on failure, so the child tree stays solely owned by
+  // (*ppParam)->pChildren and is freed exactly once with its parent.
+  memset(*pppDownstramParam, 0, pOperator->numOfDownstream * POINTER_BYTES);
+  return code;
+}
+
+void detachOperatorRoutingParam(SOperatorInfo* pOperator) {
+  SOperatorParam* pParam = pOperator->pOperatorGetParam;
+  if (pParam == NULL || pParam->value != NULL ||
+      pParam->pChildren != NULL) {
+    return;
+  }
+
+  // A reused routing shell is still owned by the parent pull.
+  bool shouldFreeHere = !pParam->reUse;
+  pParam->reUse = false;
+  pOperator->pOperatorGetParam = NULL;
+  if (shouldFreeHere) {
+    freeOperatorParam(pParam, OP_GET_PARAM);
+  }
 }
 
 SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx) {
@@ -1343,6 +1374,12 @@ void initOperatorCostInfo(SOperatorInfo* pOperator) {
   Only record the metrics in explain analyze mode.
 */
 void recordOpExecBegin(SOperatorInfo* pOperator) {
+  if (pOperator->cost.execDepth++ > 0) {
+    // A nested public next call belongs to the same pull. The outermost call
+    // records the complete execution, so skip duplicate accounting here.
+    return;
+  }
+
   if (QUERY_ENABLE_EXPLAIN(pOperator->pTaskInfo)) {
     pOperator->cost.startTs = taosGetTimestampUs();
     // calculate output wait time (time since last call returned)
@@ -1404,6 +1441,14 @@ void recordOpExecAfterDownstream(SOperatorInfo* pOperator, size_t inputRows) {
   Only record the metrics in explain analyze mode.
 */
 void recordOpExecEnd(SOperatorInfo* pOperator, size_t rows) {
+  if (pOperator->cost.execDepth == 0) {
+    return;
+  }
+
+  if (--pOperator->cost.execDepth > 0) {
+    return;
+  }
+
   if (QUERY_ENABLE_EXPLAIN(pOperator->pTaskInfo)) {
     pOperator->cost.endTs = taosGetTimestampUs();
     pOperator->cost.execTimes++;
@@ -1428,6 +1473,7 @@ void recordOpExecEnd(SOperatorInfo* pOperator, size_t rows) {
 */
 void resetOperatorCostInfo(SOperatorInfo* pOperator) {
   /* keep execCreate UNCHANGED!!! */
+  pOperator->cost.execDepth = 0;
   pOperator->cost.execStart = 0;
   pOperator->cost.execFirstRow = 0;
   pOperator->cost.execLastRow = 0;

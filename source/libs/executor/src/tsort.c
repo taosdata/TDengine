@@ -1275,6 +1275,7 @@ int32_t tsortAppendTupleToBlock(SSortHandle* pHandle, SSDataBlock* pBlock, STupl
     tsortGetBlockInfo(pTupleHandle, &info);
 
     pBlock->info.scanFlag = info.scanFlag;
+    pBlock->info.scanPhase = info.scanPhase;
     pBlock->info.rows += 1;
 
   } else {
@@ -1304,6 +1305,7 @@ int32_t tsortAppendTupleToBlock(SSortHandle* pHandle, SSDataBlock* pBlock, STupl
     tsortGetBlockInfo(pTupleHandle, &info);
 
     pBlock->info.scanFlag = info.scanFlag;
+    pBlock->info.scanPhase = info.scanPhase;
     pBlock->info.rows += 1;
   }
 

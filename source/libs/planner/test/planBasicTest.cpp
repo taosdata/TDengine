@@ -15,8 +15,13 @@
 
 #include "planTestUtil.h"
 
+#include <cstring>
+
+#include "functionMgt.h"
+#include "mockCatalogService.h"
 #include "planInt.h"
 #include "planner.h"
+#include "stub.h"
 
 using namespace std;
 
@@ -149,6 +154,53 @@ class MultiParentLogicPlanOwner {
   SQueryLogicPlan* pPlan_;
   SLogicSubplan*   pSecondaryParent_;
 };
+
+int32_t compositePrimaryKeyCatalogGetTableMeta(
+    SCatalog*, SRequestConnInfo*, const SName* pTableName,
+    STableMeta** ppTableMeta) {
+  int32_t code =
+      g_mockCatalogService->catalogGetTableMeta(pTableName, ppTableMeta);
+  if (code == TSDB_CODE_SUCCESS && ppTableMeta != nullptr &&
+      *ppTableMeta != nullptr &&
+      strcmp(tNameGetTableName(pTableName), "t1") == 0) {
+    if ((*ppTableMeta)->tableInfo.numOfColumns <= 1) {
+      ADD_FAILURE() << "composite primary-key mock requires two columns";
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+    (*ppTableMeta)->tableInfo.numOfPKs = 1;
+    (*ppTableMeta)->schema[1].flags |= COL_IS_KEY;
+  }
+  return code;
+}
+
+class CompositePrimaryKeyMetaGuard {
+ public:
+  CompositePrimaryKeyMetaGuard() {
+    stub_.set(catalogGetTableMeta,
+              compositePrimaryKeyCatalogGetTableMeta);
+  }
+
+  ~CompositePrimaryKeyMetaGuard() {
+    stub_.reset(catalogGetTableMeta);
+  }
+
+ private:
+  Stub stub_;
+};
+
+void addCompositePrimaryKeyScanColumn(SScanLogicNode* pScan) {
+  SNode* pNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &pNode), TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> columnGuard(pNode,
+                                                       nodesDestroyNode);
+  SColumnNode* pColumn = reinterpret_cast<SColumnNode*>(pNode);
+  pColumn->isPrimTs = true;
+  pColumn->tableHasPk = true;
+  pColumn->numOfPKs = 1;
+  ASSERT_EQ(nodesListMakeStrictAppend(&pScan->pScanCols, pNode),
+            TSDB_CODE_SUCCESS);
+  columnGuard.release();
+}
 
 }  // namespace
 
@@ -798,6 +850,681 @@ TEST_F(PlanBasicTest, interpFunc) {
 
   run("SELECT TBNAME, _IROWTS, INTERP(c1) FROM t1 PARTITION BY TBNAME "
       "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR)");
+}
+
+struct SInterpUnsupportedScanCase {
+  uint8_t numOfAsc;
+  uint8_t numOfDesc;
+  bool    dynamicOp;
+};
+
+static void checkInterpMainFirstPostSplit(
+    const SInterpUnsupportedScanCase& scanCase,
+    bool compositePrimaryKey, bool expectFinalized) {
+  SNode* pNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN, &pNode),
+            TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> subplanGuard(
+      pNode, nodesDestroyNode);
+  SLogicSubplan* pSubplan = reinterpret_cast<SLogicSubplan*>(pNode);
+
+  pNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_INTERP_FUNC, &pNode),
+            TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> interpGuard(
+      pNode, nodesDestroyNode);
+  SInterpFuncLogicNode* pInterp =
+      reinterpret_cast<SInterpFuncLogicNode*>(pNode);
+
+  pNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, &pNode),
+            TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> scanGuard(
+      pNode, nodesDestroyNode);
+  SScanLogicNode* pScan = reinterpret_cast<SScanLogicNode*>(pNode);
+
+  pInterp->interpMode = INTERP_MODE_MAIN_FIRST;
+  pScan->interpMode = INTERP_MODE_MAIN_FIRST;
+  pScan->scanType = SCAN_TYPE_TABLE;
+  pScan->scanSeq[0] = scanCase.numOfAsc;
+  pScan->scanSeq[1] = scanCase.numOfDesc;
+  pScan->node.dynamicOp = scanCase.dynamicOp;
+  if (compositePrimaryKey) {
+    addCompositePrimaryKeyScanColumn(pScan);
+  }
+  pScan->node.pParent = reinterpret_cast<SLogicNode*>(pInterp);
+  ASSERT_EQ(nodesListMakeAppend(&pInterp->node.pChildren, pNode),
+            TSDB_CODE_SUCCESS);
+  scanGuard.release();
+
+  pSubplan->pNode = reinterpret_cast<SLogicNode*>(pInterp);
+  interpGuard.release();
+  ASSERT_EQ(postSplitOptimize(nullptr, pSubplan), TSDB_CODE_SUCCESS);
+  int8_t expectedMode = expectFinalized ? INTERP_MODE_GROUP_FIRST
+                                        : INTERP_MODE_LEGACY;
+  EXPECT_EQ(pInterp->interpMode, expectedMode);
+  EXPECT_EQ(pScan->interpMode, expectedMode);
+}
+
+TEST(PlanPostSplitTest,
+     interpMainFirstFinalizesCompositePrimaryKeyAtomically) {
+  checkInterpMainFirstPostSplit({1, 0, false}, true, true);
+}
+
+TEST(PlanPostSplitTest, interpMainFirstRejectsUnsupportedScanExecution) {
+  const SInterpUnsupportedScanCase cases[] = {
+      {0, 1, false},
+      {2, 0, false},
+      {1, 0, true},
+  };
+
+  for (const SInterpUnsupportedScanCase& scanCase : cases) {
+    SCOPED_TRACE(testing::Message()
+                 << "asc=" << static_cast<int32_t>(scanCase.numOfAsc)
+                 << ", desc=" << static_cast<int32_t>(scanCase.numOfDesc)
+                 << ", dynamic=" << scanCase.dynamicOp);
+    checkInterpMainFirstPostSplit(scanCase, false, false);
+  }
+}
+
+static void checkInterpMultiGroupPostSplit(EScanType scanType,
+                                           bool dynamicOp,
+                                           bool compositePrimaryKey,
+                                           bool expectFinalized) {
+  SNode* pNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN, &pNode),
+            TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> subplanGuard(
+      pNode, nodesDestroyNode);
+  SLogicSubplan* pSubplan = reinterpret_cast<SLogicSubplan*>(pNode);
+
+  pNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_INTERP_FUNC, &pNode),
+            TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> interpGuard(
+      pNode, nodesDestroyNode);
+  SInterpFuncLogicNode* pInterp =
+      reinterpret_cast<SInterpFuncLogicNode*>(pNode);
+
+  pNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PARTITION, &pNode),
+            TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> partitionGuard(
+      pNode, nodesDestroyNode);
+  SPartitionLogicNode* pPartition =
+      reinterpret_cast<SPartitionLogicNode*>(pNode);
+
+  pNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, &pNode),
+            TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> scanGuard(
+      pNode, nodesDestroyNode);
+  SScanLogicNode* pScan = reinterpret_cast<SScanLogicNode*>(pNode);
+
+  pInterp->interpMode = INTERP_MODE_MULTI_GROUP;
+  pPartition->phasedMode = true;
+  pScan->interpMode = INTERP_MODE_MULTI_GROUP;
+  pScan->scanType = scanType;
+  pScan->scanSeq[0] = 1;
+  pScan->node.dynamicOp = dynamicOp;
+  pScan->dataRequired = FUNC_DATA_REQUIRED_NOT_LOAD;
+  if (compositePrimaryKey) {
+    addCompositePrimaryKeyScanColumn(pScan);
+  }
+  pScan->pExtScanRange = static_cast<STimeWindow*>(
+      taosMemoryCalloc(1, sizeof(STimeWindow)));
+  ASSERT_NE(pScan->pExtScanRange, nullptr);
+
+  SNode* pKey = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &pKey), TSDB_CODE_SUCCESS);
+  reinterpret_cast<SColumnNode*>(pKey)->colType = COLUMN_TYPE_COLUMN;
+  ASSERT_EQ(nodesListMakeStrictAppend(&pPartition->pPartitionKeys, pKey),
+            TSDB_CODE_SUCCESS);
+
+  pScan->node.pParent = reinterpret_cast<SLogicNode*>(pPartition);
+  ASSERT_EQ(nodesListMakeAppend(&pPartition->node.pChildren, pNode),
+            TSDB_CODE_SUCCESS);
+  scanGuard.release();
+
+  pPartition->node.pParent = reinterpret_cast<SLogicNode*>(pInterp);
+  ASSERT_EQ(nodesListMakeAppend(&pInterp->node.pChildren,
+                                reinterpret_cast<SNode*>(pPartition)),
+            TSDB_CODE_SUCCESS);
+  partitionGuard.release();
+
+  pSubplan->pNode = reinterpret_cast<SLogicNode*>(pInterp);
+  interpGuard.release();
+  ASSERT_EQ(postSplitOptimize(nullptr, pSubplan), TSDB_CODE_SUCCESS);
+
+  if (expectFinalized) {
+    EXPECT_EQ(pInterp->interpMode, INTERP_MODE_MULTI_GROUP);
+    EXPECT_EQ(pScan->interpMode, INTERP_MODE_MULTI_GROUP);
+    EXPECT_TRUE(pPartition->phasedMode);
+    EXPECT_EQ(pScan->dataRequired, FUNC_DATA_REQUIRED_DATA_LOAD);
+  } else {
+    EXPECT_EQ(pInterp->interpMode, INTERP_MODE_LEGACY);
+    EXPECT_EQ(pScan->interpMode, INTERP_MODE_LEGACY);
+    EXPECT_FALSE(pPartition->phasedMode);
+    EXPECT_EQ(pScan->dataRequired, FUNC_DATA_REQUIRED_NOT_LOAD);
+  }
+}
+
+TEST(PlanPostSplitTest, interpMultiGroupFinalizesSingleVgroupAtomically) {
+  checkInterpMultiGroupPostSplit(SCAN_TYPE_TABLE, false, false, true);
+  checkInterpMultiGroupPostSplit(SCAN_TYPE_TABLE_MERGE, false, false,
+                                 true);
+}
+
+TEST(PlanPostSplitTest, interpMultiGroupDowngradesAtomically) {
+  checkInterpMultiGroupPostSplit(SCAN_TYPE_TABLE, true, false, false);
+}
+
+TEST(PlanPostSplitTest,
+     interpMultiGroupFinalizesCompositePrimaryKeyAtomically) {
+  checkInterpMultiGroupPostSplit(SCAN_TYPE_TABLE, false, true, true);
+}
+
+TEST(PlanPostSplitTest, interpPendingSplitRollsBackAfterAdjacencyChange) {
+  SNode* pNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN, &pNode),
+            TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> subplanGuard(
+      pNode, nodesDestroyNode);
+  SLogicSubplan* pSubplan = reinterpret_cast<SLogicSubplan*>(pNode);
+
+  pNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_INTERP_FUNC, &pNode),
+            TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> interpGuard(
+      pNode, nodesDestroyNode);
+  SInterpFuncLogicNode* pInterp =
+      reinterpret_cast<SInterpFuncLogicNode*>(pNode);
+
+  pNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PROJECT, &pNode),
+            TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> projectGuard(
+      pNode, nodesDestroyNode);
+  SLogicNode* pProject = reinterpret_cast<SLogicNode*>(pNode);
+
+  pNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PARTITION, &pNode),
+            TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> partitionGuard(
+      pNode, nodesDestroyNode);
+  SPartitionLogicNode* pPartition =
+      reinterpret_cast<SPartitionLogicNode*>(pNode);
+
+  pNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, &pNode),
+            TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> scanGuard(
+      pNode, nodesDestroyNode);
+  SScanLogicNode* pScan = reinterpret_cast<SScanLogicNode*>(pNode);
+
+  pInterp->interpMode = INTERP_MODE_MULTI_GROUP;
+  pPartition->phasedMode = true;
+  pScan->interpMode = INTERP_MODE_MULTI_GROUP;
+  pScan->groupSort = true;
+
+  SNode* pKey = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &pKey),
+            TSDB_CODE_SUCCESS);
+  reinterpret_cast<SColumnNode*>(pKey)->colType = COLUMN_TYPE_TAG;
+  ASSERT_EQ(nodesListMakeStrictAppend(
+                &pPartition->pInterpPreSplitPartitionKeys, pKey),
+            TSDB_CODE_SUCCESS);
+
+  pKey = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &pKey),
+            TSDB_CODE_SUCCESS);
+  reinterpret_cast<SColumnNode*>(pKey)->colType = COLUMN_TYPE_COLUMN;
+  ASSERT_EQ(nodesListMakeStrictAppend(
+                &pPartition->pInterpPreSplitPartitionKeys, pKey),
+            TSDB_CODE_SUCCESS);
+
+  pKey = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &pKey),
+            TSDB_CODE_SUCCESS);
+  reinterpret_cast<SColumnNode*>(pKey)->colType = COLUMN_TYPE_COLUMN;
+  ASSERT_EQ(nodesListMakeStrictAppend(&pPartition->pPartitionKeys, pKey),
+            TSDB_CODE_SUCCESS);
+
+  pKey = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &pKey),
+            TSDB_CODE_SUCCESS);
+  reinterpret_cast<SColumnNode*>(pKey)->colType = COLUMN_TYPE_TAG;
+  ASSERT_EQ(nodesListMakeStrictAppend(&pScan->pGroupTags, pKey),
+            TSDB_CODE_SUCCESS);
+
+  pScan->node.pParent = reinterpret_cast<SLogicNode*>(pPartition);
+  ASSERT_EQ(nodesListMakeAppend(&pPartition->node.pChildren, pNode),
+            TSDB_CODE_SUCCESS);
+  scanGuard.release();
+
+  pPartition->node.pParent = pProject;
+  ASSERT_EQ(nodesListMakeAppend(
+                &pProject->pChildren,
+                reinterpret_cast<SNode*>(pPartition)),
+            TSDB_CODE_SUCCESS);
+  partitionGuard.release();
+
+  pProject->pParent = reinterpret_cast<SLogicNode*>(pInterp);
+  ASSERT_EQ(nodesListMakeAppend(
+                &pInterp->node.pChildren,
+                reinterpret_cast<SNode*>(pProject)),
+            TSDB_CODE_SUCCESS);
+  projectGuard.release();
+
+  pSubplan->pNode = reinterpret_cast<SLogicNode*>(pInterp);
+  interpGuard.release();
+
+  ASSERT_EQ(postSplitOptimize(nullptr, pSubplan), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pInterp->interpMode, INTERP_MODE_LEGACY);
+  EXPECT_FALSE(pPartition->phasedMode);
+  EXPECT_EQ(pPartition->pInterpPreSplitPartitionKeys, nullptr);
+  EXPECT_EQ(pScan->pGroupTags, nullptr);
+  EXPECT_FALSE(pScan->groupSort);
+  ASSERT_EQ(LIST_LENGTH(pPartition->pPartitionKeys), 2);
+  EXPECT_EQ(reinterpret_cast<SColumnNode*>(
+                nodesListGetNode(pPartition->pPartitionKeys, 0))->colType,
+            COLUMN_TYPE_TAG);
+  EXPECT_EQ(reinterpret_cast<SColumnNode*>(
+                nodesListGetNode(pPartition->pPartitionKeys, 1))->colType,
+            COLUMN_TYPE_COLUMN);
+}
+
+static SLogicNode* findPostSplitNode(SLogicNode* pNode,
+                                     ENodeType type) {
+  if (nullptr == pNode || nodeType(pNode) == type) {
+    return pNode;
+  }
+
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) {
+    SLogicNode* pFound = findPostSplitNode(
+        reinterpret_cast<SLogicNode*>(pChild), type);
+    if (nullptr != pFound) {
+      return pFound;
+    }
+  }
+  return nullptr;
+}
+
+static SLogicNode* findPostSplitNode(SLogicSubplan* pSubplan,
+                                     ENodeType type) {
+  if (nullptr == pSubplan) {
+    return nullptr;
+  }
+
+  SLogicNode* pFound = findPostSplitNode(pSubplan->pNode, type);
+  if (nullptr != pFound) {
+    return pFound;
+  }
+
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pSubplan->pChildren) {
+    pFound = findPostSplitNode(
+        reinterpret_cast<SLogicSubplan*>(pChild), type);
+    if (nullptr != pFound) {
+      return pFound;
+    }
+  }
+  return nullptr;
+}
+
+static void rejectPostSplitMultiGroupProducer(SLogicSubplan* pSubplan) {
+  SLogicNode* pNode = findPostSplitNode(
+      pSubplan, QUERY_NODE_LOGIC_PLAN_SCAN);
+  ASSERT_NE(pNode, nullptr);
+  SScanLogicNode* pScan = reinterpret_cast<SScanLogicNode*>(pNode);
+  ASSERT_EQ(pScan->interpMode, INTERP_MODE_MULTI_GROUP);
+  pScan->node.dynamicOp = true;
+}
+
+static void checkMixedPartitionDowngrade(
+    SLogicSubplan* pSubplan, int8_t staticKeyType,
+    const char* pStaticKeyName) {
+  SLogicNode* pNode = findPostSplitNode(
+      pSubplan, QUERY_NODE_LOGIC_PLAN_INTERP_FUNC);
+  ASSERT_NE(pNode, nullptr);
+  EXPECT_EQ(reinterpret_cast<SInterpFuncLogicNode*>(pNode)->interpMode,
+            INTERP_MODE_LEGACY);
+
+  pNode = findPostSplitNode(
+      pSubplan, QUERY_NODE_LOGIC_PLAN_PARTITION);
+  ASSERT_NE(pNode, nullptr);
+  SPartitionLogicNode* pPartition =
+      reinterpret_cast<SPartitionLogicNode*>(pNode);
+  EXPECT_FALSE(pPartition->phasedMode);
+  EXPECT_EQ(pPartition->pInterpPreSplitPartitionKeys, nullptr);
+  EXPECT_EQ(pPartition->pInterpPreSplitGroupTags, nullptr);
+  ASSERT_EQ(LIST_LENGTH(pPartition->pPartitionKeys), 2);
+
+  SNode* pTagKey = nodesListGetNode(pPartition->pPartitionKeys, 0);
+  ASSERT_EQ(nodeType(pTagKey), QUERY_NODE_COLUMN);
+  EXPECT_EQ(reinterpret_cast<SColumnNode*>(pTagKey)->colType,
+            staticKeyType);
+  EXPECT_STREQ(reinterpret_cast<SColumnNode*>(pTagKey)->colName,
+               pStaticKeyName);
+
+  SNode* pColumnKey = nodesListGetNode(
+      pPartition->pPartitionKeys, 1);
+  ASSERT_EQ(nodeType(pColumnKey), QUERY_NODE_COLUMN);
+  EXPECT_EQ(reinterpret_cast<SColumnNode*>(pColumnKey)->colType,
+            COLUMN_TYPE_COLUMN);
+  EXPECT_STREQ(reinterpret_cast<SColumnNode*>(pColumnKey)->colName,
+               "c2");
+
+  pNode = findPostSplitNode(pSubplan, QUERY_NODE_LOGIC_PLAN_SCAN);
+  ASSERT_NE(pNode, nullptr);
+  SScanLogicNode* pScan = reinterpret_cast<SScanLogicNode*>(pNode);
+  EXPECT_EQ(pScan->interpMode, INTERP_MODE_LEGACY);
+  EXPECT_EQ(pScan->pGroupTags, nullptr);
+  EXPECT_FALSE(pScan->groupSort);
+}
+
+static void checkMixedTagPartitionDowngrade(
+    SLogicSubplan* pSubplan) {
+  checkMixedPartitionDowngrade(
+      pSubplan, COLUMN_TYPE_TAG, "tag1");
+}
+
+static void checkMixedTbnamePartitionDowngrade(
+    SLogicSubplan* pSubplan) {
+  checkMixedPartitionDowngrade(
+      pSubplan, COLUMN_TYPE_TBNAME, "tbname");
+}
+
+TEST_F(PlanBasicTest, interpMixedPartitionDowngradeRestoresGrouping) {
+  useDb("root", "test");
+
+  runWithPostSplitHooks(
+      "SELECT tag1, c2, INTERP(c1) FROM st1 "
+      "PARTITION BY tag1, c2 "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)",
+      rejectPostSplitMultiGroupProducer,
+      checkMixedTagPartitionDowngrade);
+
+  runWithPostSplitHooks(
+      "SELECT TBNAME, c2, INTERP(c1) FROM st1 "
+      "PARTITION BY TBNAME, c2 "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)",
+      rejectPostSplitMultiGroupProducer,
+      checkMixedTbnamePartitionDowngrade);
+}
+
+static void checkSortForGroupKeepsMixedKeys(SLogicSubplan* pSubplan) {
+  // PartitionCols turns the Partition into a calcGroupId Sort under
+  // sort_for_group(), so the interp split must never start: a destroyed
+  // Partition takes the rollback state with it and would strand the tag in
+  // the scan group tags while the Sort groups by the column alone.
+  EXPECT_EQ(findPostSplitNode(pSubplan, QUERY_NODE_LOGIC_PLAN_PARTITION),
+            nullptr);
+
+  SLogicNode* pNode = findPostSplitNode(
+      pSubplan, QUERY_NODE_LOGIC_PLAN_INTERP_FUNC);
+  ASSERT_NE(pNode, nullptr);
+  EXPECT_EQ(reinterpret_cast<SInterpFuncLogicNode*>(pNode)->interpMode,
+            INTERP_MODE_LEGACY);
+
+  pNode = findPostSplitNode(pSubplan, QUERY_NODE_LOGIC_PLAN_SORT);
+  ASSERT_NE(pNode, nullptr);
+  SSortLogicNode* pSort = reinterpret_cast<SSortLogicNode*>(pNode);
+  ASSERT_EQ(LIST_LENGTH(pSort->pSortKeys), 2);
+
+  const char* pExpected[] = {"tag1", "c2"};
+  int32_t     index = 0;
+  SNode*      pKey = nullptr;
+  FOREACH(pKey, pSort->pSortKeys) {
+    SNode* pExpr = reinterpret_cast<SOrderByExprNode*>(pKey)->pExpr;
+    ASSERT_EQ(nodeType(pExpr), QUERY_NODE_COLUMN);
+    EXPECT_STREQ(reinterpret_cast<SColumnNode*>(pExpr)->colName,
+                 pExpected[index++]);
+  }
+
+  pNode = findPostSplitNode(pSubplan, QUERY_NODE_LOGIC_PLAN_SCAN);
+  ASSERT_NE(pNode, nullptr);
+  SScanLogicNode* pScan = reinterpret_cast<SScanLogicNode*>(pNode);
+  EXPECT_EQ(pScan->pGroupTags, nullptr);
+  EXPECT_FALSE(pScan->groupSort);
+  EXPECT_EQ(pScan->interpMode, INTERP_MODE_LEGACY);
+}
+
+TEST_F(PlanBasicTest, interpMixedPartitionSkipsSplitForSortForGroup) {
+  useDb("root", "test");
+
+  runWithPostSplitHooks(
+      "SELECT /*+ sort_for_group() */ tag1, c2, INTERP(c1) FROM st1 "
+      "PARTITION BY tag1, c2 "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)",
+      nullptr, checkSortForGroupKeepsMixedKeys);
+}
+
+TEST_F(PlanBasicTest, interpBatchModeSelection) {
+  useDb("root", "test");
+  auto expectLegacy = [this]() {
+    EXPECT_GE(countPhysiPlanText("\"InterpMode\":\"0\""), 2);
+    EXPECT_EQ(0, countPhysiPlanText("\"InterpMode\":\"1\""));
+    EXPECT_EQ(0, countPhysiPlanText("\"InterpMode\":\"2\""));
+    EXPECT_EQ(0, countPhysiPlanText("\"InterpMode\":\"3\""));
+  };
+  auto expectMainFirst = [this]() {
+    EXPECT_GE(countPhysiPlanText("\"InterpMode\":\"1\""), 2);
+    EXPECT_EQ(0, countPhysiPlanText("\"InterpMode\":\"2\""));
+    EXPECT_EQ(0, countPhysiPlanText("\"InterpMode\":\"3\""));
+  };
+  auto expectGroupFirst = [this]() {
+    EXPECT_TRUE(findPlanNode("TableScan"));
+    EXPECT_GE(countPostSplitPlanText("\"InterpMode\":\"3\""), 2);
+    EXPECT_EQ(0, countPostSplitPlanText("\"InterpMode\":\"1\""));
+    EXPECT_GE(countPhysiPlanText("\"InterpMode\":\"3\""), 2);
+    EXPECT_EQ(0, countPhysiPlanText("\"InterpMode\":\"1\""));
+    EXPECT_EQ(0, countPhysiPlanText("\"InterpMode\":\"2\""));
+  };
+  auto expectMultiGroupPhase = [this, &expectLegacy](
+                                   const char* scenario,
+                                   bool expectFinalized) {
+    SCOPED_TRACE(scenario);
+    EXPECT_GE(countOptimizedPlanText("\"InterpMode\":\"2\""), 2);
+    EXPECT_GE(countOptimizedPlanText("\"PhasedMode\":true"), 1);
+    EXPECT_GE(countOptimizedPlanText(
+                  "\"RequireMainMembership\":true"),
+              1);
+    if (expectFinalized) {
+      EXPECT_GE(countPostSplitPlanText("\"InterpMode\":\"2\""), 2);
+      EXPECT_GE(countPostSplitPlanText("\"PhasedMode\":true"), 1);
+      EXPECT_GE(countPostSplitPlanText("\"DataRequired\":\"1\""), 1);
+      EXPECT_GE(countPhysiPlanText("\"InterpMode\":\"2\""), 2);
+      EXPECT_GE(countPhysiPlanText("\"PhasedMode\":true"), 1);
+      EXPECT_GE(countPhysiPlanText("\"DataRequired\":\"1\""), 1);
+    } else {
+      EXPECT_EQ(0, countPostSplitPlanText("\"InterpMode\":\"2\""));
+      EXPECT_EQ(0, countPostSplitPlanText("\"PhasedMode\":true"));
+      expectLegacy();
+    }
+    EXPECT_GE(countPostSplitPlanText(
+                  "\"RequireMainMembership\":true"),
+              1);
+    EXPECT_GE(countPhysiPlanText("\"RequireMainMembership\":true"), 1);
+    EXPECT_EQ(0, countPostSplitPlanText("\"InterpMode\":\"3\""));
+    EXPECT_EQ(0, countPhysiPlanText("\"InterpMode\":\"3\""));
+  };
+
+  // Batch interpolation selection must not opt a non-interp scan into the
+  // phased producer protocol.
+  run("SELECT c1 FROM t1");
+  EXPECT_GE(countPhysiPlanText("\"InterpMode\":\"0\""), 1);
+  EXPECT_EQ(0, countPhysiPlanText("\"InterpMode\":\"1\""));
+  EXPECT_EQ(0, countPhysiPlanText("\"InterpMode\":\"2\""));
+  EXPECT_EQ(0, countPhysiPlanText("\"InterpMode\":\"3\""));
+
+  // MAIN_FIRST remains the semantic candidate until the final ordinary
+  // TableScan selects GROUP_FIRST for both Interp and its producer.
+  run("SELECT INTERP(c1) FROM t1 "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)");
+  EXPECT_GE(countOptimizedPlanText("\"InterpMode\":\"1\""), 2);
+  EXPECT_GE(countSplitPlanText("\"InterpMode\":\"1\""), 2);
+  expectGroupFirst();
+
+  run("SELECT INTERP(c1) FROM "
+      "(SELECT ts, c1 FROM t1 WHERE c1 >= 0) "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)");
+  expectGroupFirst();
+
+  run("SELECT INTERP(c1) FROM "
+      "(SELECT * FROM t1 ORDER BY ts DESC) "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)");
+  expectLegacy();
+
+  run("SELECT INTERP(c1) FROM t1 PARTITION BY c1 "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)");
+  EXPECT_GE(countOptimizedPlanText("\"DataRequired\":\"1\""), 1);
+  EXPECT_GE(countSplitPlanText("\"InterpMode\":\"2\""), 2);
+  EXPECT_GE(countSplitPlanText("\"PhasedMode\":true"), 1);
+  EXPECT_GE(countSplitPlanText("\"DataRequired\":\"1\""), 1);
+  EXPECT_GE(countSplitPlanText("\"RequireMainMembership\":true"), 1);
+  expectMultiGroupPhase("column partition", true);
+
+  // Independent tag and column keys split into outer scan groups and inner
+  // Partition groups.
+  run("SELECT tag1, c2, INTERP(c1) FROM st1 "
+      "PARTITION BY tag1, c2 "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)");
+  EXPECT_GE(countOptimizedPlanText("\"GroupTags\":["), 1);
+  EXPECT_GE(countPhysiPlanText("\"GroupSort\":true"), 1);
+  EXPECT_GE(countPhysiPlanText("\"InputWithGroupId\":true"), 1);
+  EXPECT_GE(countPhysiPlanText("\"OuterGroupPhaseMode\":true"), 1);
+  expectMultiGroupPhase("mixed tag and column partition", true);
+
+  run("SELECT TBNAME, c2, INTERP(c1) FROM st1 "
+      "PARTITION BY TBNAME, c2 "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)");
+  EXPECT_GE(countOptimizedPlanText("\"GroupTags\":["), 1);
+  EXPECT_GE(countPhysiPlanText("\"GroupSort\":true"), 1);
+  EXPECT_GE(countPhysiPlanText("\"InputWithGroupId\":true"), 1);
+  EXPECT_GE(countPhysiPlanText("\"OuterGroupPhaseMode\":true"), 1);
+  expectMultiGroupPhase("mixed tbname and column partition", true);
+
+  // A single expression that mixes tag and data columns cannot be split.
+  run("SELECT tag1 + c2, INTERP(c1) FROM st1 "
+      "PARTITION BY tag1 + c2 "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)");
+  expectMultiGroupPhase("inseparable mixed partition expression", false);
+
+  for (const char* fill : {"PREV", "NEXT", "LINEAR", "NEAR", "NULL"}) {
+    SCOPED_TRACE(fill);
+    run(std::string("SELECT c2, INTERP(c1) FROM st1 PARTITION BY c2 ") +
+        "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') " +
+        "EVERY(5s) FILL(" + fill + ")");
+    EXPECT_TRUE(planNodeAppearsAbove("InterpFunc", "Partition"));
+    EXPECT_TRUE(planNodeAppearsAbove("Partition", "Merge"));
+    EXPECT_TRUE(planNodeAppearsAbove("Merge", "Exchange"));
+    EXPECT_TRUE(exchangeSubplansContain("TableMergeScan"));
+    expectMultiGroupPhase("multi-vgroup column partition", true);
+  }
+
+  // Scalar partition expressions remain owned by Partition in T3.1.
+  run("SELECT c1 + 1, INTERP(c1) FROM t1 "
+      "PARTITION BY c1 + 1 "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)");
+  expectMultiGroupPhase("scalar expression partition", true);
+
+  // T2.5 keeps the phase protocol across the central Merge/Exchange shape.
+  run("SELECT INTERP(c1) FROM st1 "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)");
+  EXPECT_GE(countSplitPlanText("\"InterpMode\":\"1\""), 2);
+  EXPECT_GE(countPostSplitPlanText("\"InterpMode\":\"1\""), 2);
+  EXPECT_TRUE(findPlanNode("Exchange"));
+  EXPECT_GE(countPhysiPlanText("\"SingleSource\":true"), 1);
+  expectMainFirst();
+
+  // A tag partition keeps each group time-ordered across remote sources.
+  run("SELECT tag1, INTERP(c1) FROM st1 PARTITION BY tag1 "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)");
+  EXPECT_TRUE(findPlanNode("Exchange"));
+  EXPECT_GE(countPhysiPlanText("\"SingleSource\":true"), 1);
+  expectMainFirst();
+
+  // A stable contained by one vgroup has a direct TableMergeScan producer.
+  run("SELECT INTERP(c1) FROM interp_single_vg.interp_st_single "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)");
+  EXPECT_TRUE(findPlanNode("TableMergeScan"));
+  EXPECT_FALSE(findPlanNode("Exchange"));
+  expectMainFirst();
+
+  run("SELECT c1, INTERP(c1) FROM "
+      "interp_single_vg.interp_st_single PARTITION BY c1 "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)");
+  EXPECT_TRUE(findPlanNode("TableMergeScan"));
+  EXPECT_FALSE(findPlanNode("Exchange"));
+  expectMultiGroupPhase("single-vgroup column partition", true);
+
+  for (const char* staticKey : {"tag1", "TBNAME"}) {
+    SCOPED_TRACE(staticKey);
+    run(std::string("SELECT ") + staticKey + ", c1, INTERP(c1) FROM " +
+        "interp_single_vg.interp_st_single PARTITION BY " + staticKey +
+        ", c1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') " +
+        "EVERY(5s) FILL(LINEAR)");
+    EXPECT_FALSE(findPlanNode("Exchange"));
+    EXPECT_GE(countPhysiPlanText("\"GroupSort\":true"), 1);
+    expectMultiGroupPhase("single-vgroup mixed partition", true);
+  }
+
+  // groupSort keeps an ordinary TableScan and selects GROUP_FIRST.
+  run("SELECT TBNAME, INTERP(c1) FROM st1 PARTITION BY TBNAME "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)");
+  expectGroupFirst();
+
+  run("SELECT /*+ para_tables_sort() */ INTERP(c1) FROM st1 "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)");
+  expectLegacy();
+}
+
+TEST_F(PlanBasicTest, interpCompositePrimaryKeyUsesRangePruning) {
+  CompositePrimaryKeyMetaGuard guard;
+  useDb("root", "test");
+
+  auto expectGroupFirst = [this](const char* scenario) {
+    SCOPED_TRACE(scenario);
+    EXPECT_GE(countOptimizedPlanText("\"InterpMode\":\"1\""), 2);
+    EXPECT_EQ(0, countOptimizedPlanText("\"InterpMode\":\"2\""));
+    EXPECT_GE(countSplitPlanText("\"InterpMode\":\"1\""), 2);
+    EXPECT_TRUE(findPlanNode("TableScan"));
+    EXPECT_GE(countPostSplitPlanText("\"InterpMode\":\"3\""), 2);
+    EXPECT_EQ(0, countPostSplitPlanText("\"InterpMode\":\"1\""));
+    EXPECT_GE(countPhysiPlanText("\"InterpMode\":\"3\""), 2);
+    EXPECT_EQ(0, countPhysiPlanText("\"InterpMode\":\"1\""));
+    EXPECT_EQ(0, countPhysiPlanText("\"InterpMode\":\"2\""));
+  };
+
+  run("SELECT INTERP(c3) FROM t1 "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)");
+  expectGroupFirst("direct table");
+
+  run("SELECT INTERP(c3) FROM "
+      "(SELECT ts, c3 FROM t1 WHERE c3 IS NOT NULL) "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') "
+      "EVERY(5s) FILL(LINEAR)");
+  expectGroupFirst("project over scan");
 }
 
 TEST_F(PlanBasicTest, lastRowFuncWithoutCache) {

@@ -819,8 +819,12 @@ void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
     qDestroyOperatorParam((SOperatorParam*)pParam);
     return;
   }
-  TSWAP(pParam, pTask->pOpParam);
-  ((SExecTaskInfo*)tinfo)->paramSet = false;
+  if (!pTask->paramSet && pTask->pOpParam != pNewParam) {
+    qDestroyOperatorParam(pTask->pOpParam);
+  }
+
+  pTask->pOpParam = pNewParam;
+  pTask->paramSet = false;
 }
 
 int32_t qExecutorInit(void) {
@@ -927,6 +931,17 @@ static void freeBlock(void* param) {
   blockDataDestroy(pBlock);
 }
 
+static void resetOperatorExecDepth(SOperatorInfo* pOperator) {
+  if (pOperator == NULL) {
+    return;
+  }
+
+  pOperator->cost.execDepth = 0;
+  for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+    resetOperatorExecDepth(pOperator->pDownstream[i]);
+  }
+}
+
 int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal,
                      bool processOneBlock) {
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -961,6 +976,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   int32_t ret = setjmp(pTaskInfo->env);
   if (ret != TSDB_CODE_SUCCESS) {
     pTaskInfo->code = ret;
+    resetOperatorExecDepth(pTaskInfo->pRoot);
     qClearStreamFetchRuntime(pTaskInfo->pStreamRuntimeInfo);
     (void)cleanUpUdfs();
 
@@ -1124,6 +1140,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
   int32_t ret = setjmp(pTaskInfo->env);
   if (ret != TSDB_CODE_SUCCESS) {
     pTaskInfo->code = ret;
+    resetOperatorExecDepth(pTaskInfo->pRoot);
     qClearStreamFetchRuntime(pTaskInfo->pStreamRuntimeInfo);
     (void)cleanUpUdfs();
     qDebug("%s task abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
@@ -1908,6 +1925,7 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppRes, bool* finished
   int32_t ret = setjmp(pTaskInfo->env);
   if (ret != TSDB_CODE_SUCCESS) {
     pTaskInfo->code = ret;
+    resetOperatorExecDepth(pTaskInfo->pRoot);
     qClearStreamFetchRuntime(pTaskInfo->pStreamRuntimeInfo);
     (void)cleanUpUdfs();
     qDebug("%s task abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));

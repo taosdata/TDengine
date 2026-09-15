@@ -89,6 +89,20 @@ typedef enum EScanType {
   SCAN_TYPE_EXTERNAL,  // federated query: external data source scan
 } EScanType;
 
+typedef enum EInterpMode {
+  // Existing PREV -> MAIN -> NEXT protocol. Zero also leaves calloc-initialized
+  // non-interp scans unaffected.
+  INTERP_MODE_LEGACY = 0,
+  // MAIN -> NEXT -> PREV for groups enumerated statically by Scan, including
+  // no partition, BY tbname, and BY tags.
+  INTERP_MODE_MAIN_FIRST,
+  // Same phased scan order, while interpC concurrently manages groups derived
+  // from PARTITION BY data columns. This does not mean multiple vgroups.
+  INTERP_MODE_MULTI_GROUP,
+  // Complete each static group before advancing; MAIN prefixes may stream.
+  INTERP_MODE_GROUP_FIRST,
+} EInterpMode;
+
 // ---- Federated query pushdown bit masks ----
 // Used by Optimizer to mark what can be pushed to remote; Phase 1 = all 0 (no pushdown)
 #define FQ_PUSHDOWN_FILTER          (1u << 0)
@@ -111,6 +125,9 @@ typedef struct SScanLogicNode {
   uint8_t            scanSeq[2];  // first is scan count, and second is reverse scan count
   STimeWindow        scanRange;
   STimeWindow*       pExtScanRange;
+  // Producer selector; scans not feeding interp must remain LEGACY.
+  // Remove only after every interp scan path uses main-first.
+  int8_t             interpMode;        // EInterpMode
   int8_t             interpFillMode;    // EFillMode of the interp above this scan; the ext-window scan
                                         // for the side a fill mode does not consume is skipped (0 = both)
   SNode*             pTimeRange;  // for create stream
@@ -316,6 +333,9 @@ typedef struct SInterpFuncLogicNode {
   SNode*        pFillValues;  // SNodeListNode
   SNode*        pTimeSeries;  // SColumnNode
   int8_t        timelineSource;
+  int8_t        interpMode;  // EInterpMode
+  // Column-group membership remains required after interpMode fallback.
+  bool          requireMainMembership;
   // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
   int64_t       surroundingTime;
   void*         timezone;        // timezone_t handle for calendar/DST-aware EVERY stepping (d/w)
@@ -440,6 +460,7 @@ typedef struct SMergeLogicNode {
   bool       groupSort;
   bool       ignoreGroupId;
   bool       inputWithGroupId;
+  bool       outerGroupPhaseMode;
 } SMergeLogicNode;
 
 typedef enum EWindowAlgorithm {
@@ -597,7 +618,12 @@ typedef struct SPartitionLogicNode {
   SNodeList* pTags;
   SNode*     pSubtable;
   SNodeList* pAggFuncs;
+  // Rollback state for a mixed-key interp rewrite until post-split approval.
+  SNodeList* pInterpPreSplitPartitionKeys;
+  SNodeList* pInterpPreSplitGroupTags;
 
+  bool     interpPreSplitGroupSort;
+  bool     phasedMode;  // true for interp phase-aware partition execution
   bool     needBlockOutputTsOrder;  // if true, partition output block will have ts order maintained
   int32_t  pkTsColId;
   uint64_t pkTsColTbId;
@@ -774,6 +800,9 @@ typedef struct STableScanPhysiNode {
   uint8_t        scanSeq[2];  // first is scan count, and second is reverse scan count
   STimeWindow    scanRange;
   STimeWindow*   pExtScanRange;
+  // Producer selector; scans not feeding interp must remain LEGACY.
+  // Remove only after every interp scan path uses main-first.
+  int8_t         interpMode;        // EInterpMode
   int8_t         interpFillMode;    // see SScanLogicNode
   SNode*         pTimeRange;  // for create stream
   SNode*         pExtTimeRange;  // for create stream
@@ -925,6 +954,9 @@ typedef struct SInterpFuncPhysiNode {
   SNode*            pFillValues;  // SNodeListNode
   SNode*            pTimeSeries;  // SColumnNode
   int8_t            timelineSource;
+  int8_t            interpMode;  // EInterpMode
+  // Column-group membership remains required after interpMode fallback.
+  bool              requireMainMembership;
   // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
   int64_t           surroundingTime;
   void*             timezone;        // timezone_t handle; EVERY calendar units (d/w) are calendar/DST aware
@@ -1101,6 +1133,7 @@ typedef struct SMergePhysiNode {
   bool       groupSort;
   bool       ignoreGroupId;
   bool       inputWithGroupId;
+  bool       outerGroupPhaseMode;
 } SMergePhysiNode;
 
 typedef struct SWindowPhysiNode {
@@ -1275,6 +1308,7 @@ typedef struct SPartitionPhysiNode {
   SNodeList* pPartitionKeys;
   SNodeList* pTargets;
 
+  bool    phasedMode;  // true for interp phase-aware partition execution
   bool    needBlockOutputTsOrder;
   int32_t tsSlotId;
 } SPartitionPhysiNode;

@@ -5555,8 +5555,10 @@ typedef struct STableScanOperatorParam {
   STimeWindow            window;
   ETableScanDynType      dynType;
   /* for notifying source step done */
-  bool                   notifyToProcess;  // received notify STEP DONE message
-  TSKEY                  notifyTs;         // notify timestamp
+  bool     notifyToProcess;    // received notify STEP DONE message
+  TSKEY    notifyTs;           // notify timestamp
+  int8_t   notifyPhase;        // EScanPhase of the source scan
+  uint64_t notifyScanGroupId;  // source scan group identity
 } STableScanOperatorParam;
 
 typedef struct STagScanOperatorParam {

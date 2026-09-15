@@ -46,6 +46,7 @@ enum DumpModule {
   DUMP_MODULE_LOGIC,
   DUMP_MODULE_OPTIMIZED,
   DUMP_MODULE_SPLIT,
+  DUMP_MODULE_POST_SPLIT,
   DUMP_MODULE_SCALED,
   DUMP_MODULE_PHYSICAL,
   DUMP_MODULE_SUBPLAN,
@@ -72,6 +73,8 @@ void setDumpModule(const char* pModule) {
     g_dumpModule = DUMP_MODULE_OPTIMIZED;
   } else if (0 == strncasecmp(pModule, "split", strlen(pModule))) {
     g_dumpModule = DUMP_MODULE_SPLIT;
+  } else if (0 == strncasecmp(pModule, "postsplit", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_POST_SPLIT;
   } else if (0 == strncasecmp(pModule, "scaled", strlen(pModule))) {
     g_dumpModule = DUMP_MODULE_SCALED;
   } else if (0 == strncasecmp(pModule, "physical", strlen(pModule))) {
@@ -103,11 +106,22 @@ class PlannerTestBaseImpl {
     caseEnv_.numOfLimitSql_ = g_limitSql;
   }
 
-  void run(const string& sql) { run(sql, false); }
+  void run(const string& sql) {
+    run(sql, false, nullptr, nullptr);
+  }
 
-  void runStreamCalc(const string& sql) { run(sql, true); }
+  void runStreamCalc(const string& sql) {
+    run(sql, true, nullptr, nullptr);
+  }
 
-  void run(const string& sql, bool streamCalc) {
+  void runWithPostSplitHooks(const string& sql,
+                             FLogicPlanHook before,
+                             FLogicPlanHook after) {
+    run(sql, false, before, after);
+  }
+
+  void run(const string& sql, bool streamCalc, FLogicPlanHook before,
+           FLogicPlanHook after) {
     ++sqlNo_;
     if (caseEnv_.numOfSkipSql_ > 0) {
       --(caseEnv_.numOfSkipSql_);
@@ -122,12 +136,12 @@ class PlannerTestBaseImpl {
       case QUERY_POLICY_VNODE:
       case QUERY_POLICY_HYBRID:
       case QUERY_POLICY_QNODE:
-        runImpl(sql, g_queryPolicy, streamCalc);
+        runImpl(sql, g_queryPolicy, streamCalc, before, after);
         break;
       default:
-        runImpl(sql, QUERY_POLICY_VNODE, streamCalc);
-        runImpl(sql, QUERY_POLICY_HYBRID, streamCalc);
-        runImpl(sql, QUERY_POLICY_QNODE, streamCalc);
+        runImpl(sql, QUERY_POLICY_VNODE, streamCalc, before, after);
+        runImpl(sql, QUERY_POLICY_HYBRID, streamCalc, before, after);
+        runImpl(sql, QUERY_POLICY_QNODE, streamCalc, before, after);
         break;
     }
   }
@@ -160,6 +174,36 @@ class PlannerTestBaseImpl {
 
   bool rawLogicPlanHasPartTagAgg() const {
     return res_.rawLogicPlanHasPartTagAgg_;
+  }
+
+  static int32_t countTextOccurrences(const string& haystack,
+                                      const string& text) {
+    if (text.empty()) {
+      return 0;
+    }
+    int32_t count = 0;
+    size_t  pos = haystack.find(text);
+    while (pos != string::npos) {
+      ++count;
+      pos = haystack.find(text, pos + text.length());
+    }
+    return count;
+  }
+
+  int32_t countOptimizedPlanText(const string& text) const {
+    return countTextOccurrences(res_.optimizedLogicPlan_, text);
+  }
+
+  int32_t countSplitPlanText(const string& text) const {
+    return countTextOccurrences(res_.splitLogicPlan_, text);
+  }
+
+  int32_t countPostSplitPlanText(const string& text) const {
+    return countTextOccurrences(res_.postSplitLogicPlan_, text);
+  }
+
+  int32_t countPhysiPlanText(const string& text) const {
+    return countTextOccurrences(res_.physiPlan_, text);
   }
 
   bool planNodeAppearsAbove(const string& upperNodeName, const string& lowerNodeName) const {
@@ -243,7 +287,9 @@ class PlannerTestBaseImpl {
     return count;
   }
 
-  void runImpl(const string& sql, int32_t queryPolicy, bool streamCalc) {
+  void runImpl(const string& sql, int32_t queryPolicy, bool streamCalc,
+               FLogicPlanHook beforePostSplit,
+               FLogicPlanHook afterPostSplit) {
     int64_t allocatorId = 0;
     if (g_useNodeAllocator) {
       ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCreateAllocator(sqlNo_, 32 * 1024, &allocatorId));
@@ -276,6 +322,13 @@ class PlannerTestBaseImpl {
       doOptimizeLogicPlan(&cxt, pLogicSubplan);
 
       doSplitLogicPlan(&cxt, pLogicSubplan);
+      if (nullptr != beforePostSplit) {
+        beforePostSplit(pLogicSubplan);
+      }
+      doPostSplitOptimize(&cxt, pLogicSubplan);
+      if (nullptr != afterPostSplit) {
+        afterPostSplit(pLogicSubplan);
+      }
 
       SQueryLogicPlan* pLogicPlan = nullptr;
       doScaleOutLogicPlan(&cxt, pLogicSubplan, &pLogicPlan);
@@ -345,6 +398,7 @@ class PlannerTestBaseImpl {
       doOptimizeLogicPlan(&cxt, pLogicSubplan);
 
       doSplitLogicPlan(&cxt, pLogicSubplan);
+      doPostSplitOptimize(&cxt, pLogicSubplan);
 
       SQueryLogicPlan* pLogicPlan = nullptr;
       doScaleOutLogicPlan(&cxt, pLogicSubplan, &pLogicPlan);
@@ -393,6 +447,7 @@ class PlannerTestBaseImpl {
     bool           rawLogicPlanHasPartTagAgg_;
     string         optimizedLogicPlan_;
     string         splitLogicPlan_;
+    string         postSplitLogicPlan_;
     string         scaledLogicPlan_;
     string         physiPlan_;
     vector<string> physiSubplans_;
@@ -418,6 +473,7 @@ class PlannerTestBaseImpl {
     res_.rawLogicPlanHasPartTagAgg_ = false;
     res_.optimizedLogicPlan_.clear();
     res_.splitLogicPlan_.clear();
+    res_.postSplitLogicPlan_.clear();
     res_.scaledLogicPlan_.clear();
     res_.physiPlan_.clear();
     res_.physiSubplans_.clear();
@@ -457,6 +513,11 @@ class PlannerTestBaseImpl {
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_SPLIT == module) {
       cout << "+++++++++++++++++++++split logic plan : " << endl;
       cout << res_.splitLogicPlan_ << endl;
+    }
+
+    if (DUMP_MODULE_ALL == module || DUMP_MODULE_POST_SPLIT == module) {
+      cout << "+++++++++++++++++++++post-split logic plan : " << endl;
+      cout << res_.postSplitLogicPlan_ << endl;
     }
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_SCALED == module) {
@@ -539,6 +600,12 @@ class PlannerTestBaseImpl {
   void doSplitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
     DO_WITH_THROW(splitLogicPlan, pCxt, pLogicSubplan);
     res_.splitLogicPlan_ = toString((SNode*)(pLogicSubplan));
+  }
+
+  void doPostSplitOptimize(SPlanContext* pCxt,
+                           SLogicSubplan* pLogicSubplan) {
+    DO_WITH_THROW(postSplitOptimize, pCxt, pLogicSubplan);
+    res_.postSplitLogicPlan_ = toString((SNode*)pLogicSubplan);
   }
 
   void doScaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan) {
@@ -802,13 +869,28 @@ void PlannerTestBase::useDb(const std::string& user, const std::string& db) { im
 
 void PlannerTestBase::run(const std::string& sql) { return impl_->run(sql); }
 
-void PlannerTestBase::runStreamCalc(const std::string& sql) { return impl_->runStreamCalc(sql); }
+void PlannerTestBase::runWithPostSplitHooks(const std::string& sql,
+                                            FLogicPlanHook before,
+                                            FLogicPlanHook after) {
+  impl_->runWithPostSplitHooks(sql, before, after);
+}
+
+void PlannerTestBase::runStreamCalc(const std::string& sql) {
+  impl_->runStreamCalc(sql);
+}
 
 bool PlannerTestBase::findPlanNode(const std::string& nodeName) const { return impl_->findPlanNode(nodeName); }
 
 int32_t PlannerTestBase::countPlanNode(const std::string& nodeName) const { return impl_->countPlanNode(nodeName); }
 
-bool PlannerTestBase::planContains(const std::string& text) const { return impl_->planContains(text); }
+bool PlannerTestBase::planContains(const std::string& text) const {
+  return impl_->planContains(text);
+}
+
+int32_t PlannerTestBase::countOptimizedPlanText(
+    const std::string& text) const {
+  return impl_->countOptimizedPlanText(text);
+}
 
 int32_t PlannerTestBase::countRawLogicPlanNode(
     const std::string& nodeName) const {
@@ -825,6 +907,21 @@ bool PlannerTestBase::rawLogicPlanHasPartTableAgg() const {
 
 bool PlannerTestBase::rawLogicPlanHasPartTagAgg() const {
   return impl_->rawLogicPlanHasPartTagAgg();
+}
+
+int32_t PlannerTestBase::countSplitPlanText(
+    const std::string& text) const {
+  return impl_->countSplitPlanText(text);
+}
+
+int32_t PlannerTestBase::countPostSplitPlanText(
+    const std::string& text) const {
+  return impl_->countPostSplitPlanText(text);
+}
+
+int32_t PlannerTestBase::countPhysiPlanText(
+    const std::string& text) const {
+  return impl_->countPhysiPlanText(text);
 }
 
 bool PlannerTestBase::planNodeAppearsAbove(const std::string& upperNodeName, const std::string& lowerNodeName) const {

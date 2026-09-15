@@ -4611,11 +4611,12 @@ void checkCreateStreamTriggerScanPlan(SCMCreateStreamReq *expect, SCMCreateStrea
     ASSERT_TRUE(false);
   }
 
-  const char* const ignoredFields[] = {"NodeAddr",       "GroupId",           "SubplanId",       "DataBlockId",
-                                       "Level",          "RequireDataOrder",  "ResultDataOrder", "IsDistinct",
-                                       "Flag",           "TableId",           "STableId",        "InterpFillMode",
-                                       "UserAppId",      "OutputTsPrecision", "RefSource",       "TimezoneName",
-                                       "FirstDayOfWeek", "FastInterval",      "ExInterval",      "DelayFreeTask"};
+  const char* const ignoredFields[] = {
+      "NodeAddr", "GroupId", "SubplanId", "DataBlockId", "Level",
+      "RequireDataOrder", "ResultDataOrder", "IsDistinct", "Flag",
+      "TableId", "STableId", "InterpFillMode", "InterpMode", "UserAppId",
+      "OutputTsPrecision", "RefSource", "TimezoneName", "FirstDayOfWeek",
+      "FastInterval", "ExInterval", "DelayFreeTask"};
   delete_all_specified_fields(j1, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   delete_all_specified_fields(j2, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   delete_expression_charset_name_fields(j1);
@@ -4639,25 +4640,12 @@ void checkCreateStreamCalcPlan(SCMCreateStreamReq *expect, SCMCreateStreamReq *r
     ASSERT_TRUE(false);
   }
 
-  const char* const ignoredFields[] = {"Name",
-                                       "AliasName",
-                                       "ColName",
-                                       "TzName",
-                                       "RequireDataOrder",
-                                       "ResultDataOrder",
-                                       "IsDistinct",
-                                       "Flag",
-                                       "TableId",
-                                       "STableId",
-                                       "InterpFillMode",
-                                       "UserAppId",
-                                       "OutputTsPrecision",
-                                       "RefSource",
-                                       "FastInterval",
-                                       "ExInterval",
-                                       "DelayFreeTask",
-                                       "TimezoneName",
-                                       "FirstDayOfWeek"};
+  const char* const ignoredFields[] = {
+      "Name", "AliasName", "ColName", "TzName", "RequireDataOrder",
+      "ResultDataOrder", "IsDistinct", "Flag", "TableId", "STableId",
+      "InterpFillMode", "InterpMode", "UserAppId", "OutputTsPrecision",
+      "RefSource", "FastInterval", "ExInterval", "DelayFreeTask",
+      "TimezoneName", "FirstDayOfWeek"};
   delete_all_specified_fields(j1, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   delete_all_specified_fields(j2, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   delete_expression_charset_name_fields(j1);
@@ -4843,10 +4831,11 @@ void checkCreateStreamReq(SCMCreateStreamReq* expect, SCMCreateStreamReq* req, b
     auto pCalcScan = (SStreamCalcScan *)taosArrayGet(req->calcScanPlanList, i);
     auto expectScan = (SStreamCalcScan *)taosArrayGet(expect->calcScanPlanList, i);
     ASSERT_EQ(pCalcScan->readFromCache, expectScan->readFromCache);
-    const char* const ignoredFields[] = {"RequireDataOrder", "ResultDataOrder", "IsDistinct",     "TableId",
-                                         "STableId",         "InterpFillMode",  "UserAppId",      "OutputTsPrecision",
-                                         "RefSource",        "TimezoneName",    "FirstDayOfWeek", "FastInterval",
-                                         "ExInterval",       "DelayFreeTask"};
+    const char* const ignoredFields[] = {
+        "RequireDataOrder", "ResultDataOrder", "IsDistinct", "TableId",
+        "STableId", "InterpFillMode", "InterpMode", "UserAppId",
+        "OutputTsPrecision", "RefSource", "TimezoneName", "FirstDayOfWeek",
+        "FastInterval", "ExInterval", "DelayFreeTask"};
     checkJsonStringEqual((char*)expectScan->scanPlan, (char*)pCalcScan->scanPlan, ignoredFields,
                          sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   }

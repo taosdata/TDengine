@@ -471,9 +471,17 @@ _end:
   return code;
 }
 
-void resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step) {
+int32_t resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts,
+                                  int32_t step,
+                                  const SBlockLoadSuppInfo* pSupp) {
+  int32_t               code = TSDB_CODE_SUCCESS;
+  int32_t               lino = 0;
   STableBlockScanInfo** p = NULL;
   int32_t               iter = 0;
+  bool                  asc = step > 0;
+
+  TSDB_CHECK_NULL(pTableMap, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_NULL(pSupp, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   while ((p = tSimpleHashIterate(pTableMap, p, &iter)) != NULL) {
     STableBlockScanInfo* pInfo = *p;
@@ -495,15 +503,28 @@ void resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step) {
 
     taosArrayDestroy(pInfo->delSkyline);
     pInfo->delSkyline = NULL;
-    pInfo->lastProcKey.ts = ts;
+    code = initRowKey(&pInfo->lastProcKey, ts, pSupp->numOfPks,
+                      pSupp->pk.type, pSupp->pk.bytes, asc);
+    TSDB_CHECK_CODE(code, lino, _end);
+
     // todo check the nextProcKey info
     if ((ts == INT64_MAX && step > 0) || (ts == INT64_MIN && step < 0)) {
       tsdbError("%s nextProcKey ts overflow, ts:%" PRId64 ", step:%" PRId32,
                 __func__, ts, step);
     } else {
-      pInfo->sttKeyInfo.nextProcKey.ts = ts + step;
+      code = initRowKey(&pInfo->sttKeyInfo.nextProcKey, ts + step,
+                        pSupp->numOfPks, pSupp->pk.type,
+                        pSupp->pk.bytes, asc);
+      TSDB_CHECK_CODE(code, lino, _end);
     }
   }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("%s failed at line %d since %s", __func__, lino,
+              tstrerror(code));
+  }
+  return code;
 }
 
 // keep the lastProcKey/sttRange/nextProcKey info

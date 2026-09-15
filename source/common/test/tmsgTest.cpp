@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "streamMsg.h"
+#include "tcommon.h"
 #include "systable.h"
 #include "tmsg.h"
 #include "tsimplehash.h"
@@ -3390,6 +3391,68 @@ TEST(td_msg_test, federated_scan_batch_op_param_cleans_partial_decode) {
   ASSERT_EQ(pOut->pBatchTables, nullptr);
   tDecoderClear(&decoder);
   taosMemoryFree(out.value);
+}
+
+TEST(td_msg_test, table_merge_notify_op_param_codec) {
+  STableScanOperatorParam notify = {};
+  notify.paramType = NOTIFY_TYPE_SCAN_PARAM;
+  notify.groupid = 42;
+  notify.notifyToProcess = true;
+  notify.notifyTs = 12345;
+  notify.notifyPhase = SCAN_PHASE_NEXT;
+  notify.notifyScanGroupId = 77;
+
+  SOperatorParam child = {0};
+  child.opType = QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
+  child.value = &notify;
+
+  SOperatorParam root = {0};
+  root.opType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
+  root.pChildren = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(root.pChildren, nullptr);
+  SOperatorParam* pChild = &child;
+  ASSERT_NE(taosArrayPush(root.pChildren, &pChild), nullptr);
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, nullptr, 0);
+  ASSERT_EQ(tSerializeSOperatorParam(&encoder, &root), 0);
+  int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+
+  std::vector<uint8_t> buf(len, 0);
+  tEncoderInit(&encoder, buf.data(), len);
+  ASSERT_EQ(tSerializeSOperatorParam(&encoder, &root), 0);
+  ASSERT_EQ(encoder.pos, len);
+  tEncoderClear(&encoder);
+
+  SOperatorParam out = {0};
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf.data(), len);
+  ASSERT_EQ(tDeserializeSOperatorParam(&decoder, &out), 0);
+  tDecoderClear(&decoder);
+
+  ASSERT_NE(out.pChildren, nullptr);
+  ASSERT_EQ(taosArrayGetSize(out.pChildren), 1);
+  SOperatorParam* pOutChild =
+      static_cast<SOperatorParam*>(taosArrayGetP(out.pChildren, 0));
+  ASSERT_NE(pOutChild, nullptr);
+  EXPECT_EQ(pOutChild->opType,
+            QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN);
+  STableScanOperatorParam* pOutNotify =
+      static_cast<STableScanOperatorParam*>(pOutChild->value);
+  ASSERT_NE(pOutNotify, nullptr);
+  EXPECT_EQ(pOutNotify->paramType, NOTIFY_TYPE_SCAN_PARAM);
+  EXPECT_EQ(pOutNotify->groupid, 42);
+  EXPECT_TRUE(pOutNotify->notifyToProcess);
+  EXPECT_EQ(pOutNotify->notifyTs, 12345);
+  EXPECT_EQ(pOutNotify->notifyPhase, SCAN_PHASE_NEXT);
+  EXPECT_EQ(pOutNotify->notifyScanGroupId, 77);
+
+  taosMemoryFree(pOutNotify);
+  taosArrayDestroy(pOutChild->pChildren);
+  taosMemoryFree(pOutChild);
+  taosArrayDestroy(out.pChildren);
+  taosArrayDestroy(root.pChildren);
 }
 
 TEST(td_msg_test, table_cfg_decode_clears_partial_column_filters) {

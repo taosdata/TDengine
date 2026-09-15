@@ -163,4 +163,3 @@ class TestTS_3404:
         """
         self.do_ts_3404()
         self.do_interp_stmt()
-    

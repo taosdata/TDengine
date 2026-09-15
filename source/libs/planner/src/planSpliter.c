@@ -2050,7 +2050,30 @@ static int32_t stbSplCreateMergeKeysForPartitionNode(SLogicNode* pPart, SNodeLis
   return code;
 }
 
+static bool stbSplIsPhasedColumnPartition(SLogicNode* pNode) {
+  if (NULL == pNode ||
+      QUERY_NODE_LOGIC_PLAN_PARTITION != nodeType(pNode) ||
+      NULL == pNode->pParent ||
+      QUERY_NODE_LOGIC_PLAN_INTERP_FUNC != nodeType(pNode->pParent)) {
+    return false;
+  }
+
+  SPartitionLogicNode* pPartition = (SPartitionLogicNode*)pNode;
+  SInterpFuncLogicNode* pInterp =
+      (SInterpFuncLogicNode*)pNode->pParent;
+  return pPartition->phasedMode &&
+         INTERP_MODE_MULTI_GROUP == pInterp->interpMode &&
+         partitionKeysAreOrdinaryColumns(pPartition->pPartitionKeys);
+}
+
 static int32_t stbSplSplitPartitionNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+  if (stbSplIsPhasedColumnPartition(pInfo->pSplitNode)) {
+    SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(
+        pInfo->pSplitNode->pChildren, 0);
+    return stbSplSplitMergeScanNode(
+        pCxt, pInfo->pSubplan, pScan, false, pInfo);
+  }
+
   int32_t    code = TSDB_CODE_SUCCESS;
   SNodeList* pMergeKeys = NULL;
   if (pInfo->pSplitNode->requireDataOrder >= DATA_ORDER_LEVEL_IN_GROUP) {

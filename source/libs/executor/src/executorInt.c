@@ -2142,6 +2142,10 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
       type == OP_GET_PARAM ? freeInterpFuncGetOperatorParam(pParam) : freeInterpFuncNotifyOperatorParam(pParam);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      freeOperatorParamImpl(pParam, type);
+      break;
     default:
       qError("%s unsupported op %d param, param type %d, param:%p value:%p children:%p reuse:%d",
              __func__, pParam->opType, type, pParam, pParam->value, pParam->pChildren, pParam->reUse);

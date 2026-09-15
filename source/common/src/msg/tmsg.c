@@ -16491,6 +16491,10 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
           // notify info
           TAOS_CHECK_RETURN(tEncodeBool(pEncoder, pScan->notifyToProcess));
           TAOS_CHECK_RETURN(tEncodeI64(pEncoder, (int64_t)(pScan->notifyTs)));
+          TAOS_CHECK_RETURN(tEncodeU64(pEncoder, pScan->groupid));
+          TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pScan->notifyPhase));
+          TAOS_CHECK_RETURN(tEncodeU64(pEncoder,
+                                      pScan->notifyScanGroupId));
           break;
         }
         default:
@@ -16765,6 +16769,10 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
           // notify info
           TAOS_CHECK_RETURN(tDecodeBool(pDecoder, &pScan->notifyToProcess));
           TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pScan->notifyTs));
+          TAOS_CHECK_RETURN(tDecodeU64(pDecoder, &pScan->groupid));
+          TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pScan->notifyPhase));
+          TAOS_CHECK_RETURN(tDecodeU64(pDecoder,
+                                      &pScan->notifyScanGroupId));
           break;
         }
         default:

@@ -24,6 +24,7 @@
 
 class PlannerTestBaseImpl;
 struct TAOS_MULTI_BIND;
+using FLogicPlanHook = void (*)(SLogicSubplan*);
 
 class PlannerTestBase : public testing::Test {
  public:
@@ -32,6 +33,9 @@ class PlannerTestBase : public testing::Test {
 
   void    useDb(const std::string& user, const std::string& db);
   void    run(const std::string& sql);
+  void    runWithPostSplitHooks(const std::string& sql,
+                                FLogicPlanHook before,
+                                FLogicPlanHook after);
   void    runStreamCalc(const std::string& sql);
   bool    findPlanNode(const std::string& nodeName) const;
   int32_t countPlanNode(const std::string& nodeName) const;
@@ -40,6 +44,10 @@ class PlannerTestBase : public testing::Test {
   bool    rawLogicPlanContains(const std::string& text) const;
   bool    rawLogicPlanHasPartTableAgg() const;
   bool    rawLogicPlanHasPartTagAgg() const;
+  int32_t countOptimizedPlanText(const std::string& text) const;
+  int32_t countSplitPlanText(const std::string& text) const;
+  int32_t countPostSplitPlanText(const std::string& text) const;
+  int32_t countPhysiPlanText(const std::string& text) const;
   bool    planNodeAppearsAbove(const std::string& upperNodeName, const std::string& lowerNodeName) const;
   bool    exchangeSubplansContain(const std::string& nodeName) const;
   bool    aggOutputsMatchFuncs() const;

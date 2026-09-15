@@ -169,6 +169,15 @@ TEST_F(TsdbReaderResetTest, EmptyOpenReturnsCompleteDeferredReader) {
   EXPECT_EQ(0, snapshotStubState_.takeCalls);
 }
 
+TEST_F(TsdbReaderResetTest, ContainedOpenDoesNotPinEndVersion) {
+  auto cond = makeCond(10, 9);
+  cond.mainFirst = true;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, openReader(&cond));
+
+  EXPECT_EQ(-1, cond.endVersion);
+}
+
 TEST_F(TsdbReaderResetTest, EmptyReaderAppliesLaterNonemptyCondition) {
   auto empty = makeCond(10, 9);
   ASSERT_EQ(TSDB_CODE_SUCCESS, openReader(&empty));

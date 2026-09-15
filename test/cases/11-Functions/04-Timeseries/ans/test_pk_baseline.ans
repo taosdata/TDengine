@@ -962,6 +962,7 @@ DB error: Invalid timeline in function [0x80002816]
 taos> SELECT interp(val) FROM t_dup RANGE('2024-01-01 00:00:01', '2024-01-01 00:00:03') EVERY(1s) FILL(LINEAR);
  interp(val) |
 ==============
+          10 |
           20 |
           30 |
 

@@ -99,6 +99,26 @@
     }                                                                            \
   } while (0)
 
+// The timezone handle is never shared with the source node: the clone
+// re-decodes its own handle from the name and owns it.
+#define CLONE_TIMEZONE_FIELD()                                              \
+  do {                                                                      \
+    (pDst)->timezone = NULL;                                                \
+    (pDst)->ownsTimezone = false;                                           \
+    (pDst)->timezoneName[0] = '\0';                                         \
+    if ((pSrc)->timezoneName[0] != '\0') {                                  \
+      int32_t code =                                                        \
+          nodesDecodeTimezoneName((pSrc)->timezoneName,                     \
+                                  (pDst)->timezoneName,                     \
+                                  sizeof((pDst)->timezoneName),             \
+                                  &((pDst)->timezone),                      \
+                                  &((pDst)->ownsTimezone));                 \
+      if (TSDB_CODE_SUCCESS != code) {                                      \
+        return code;                                                        \
+      }                                                                     \
+    }                                                                       \
+  } while (0)
+
 static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   COPY_OBJECT_FIELD(resType, sizeof(SDataType));
   COPY_CHAR_ARRAY_FIELD(aliasName);
@@ -936,6 +956,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_OBJECT_FIELD(scanSeq[0], sizeof(uint8_t) * 2);
   COPY_OBJECT_FIELD(scanRange, sizeof(STimeWindow));
   CLONE_OBJECT_FIELD(pExtScanRange, timeWindowClone);
+  COPY_SCALAR_FIELD(interpMode);
   COPY_SCALAR_FIELD(interpFillMode);
   CLONE_NODE_FIELD(pTimeRange);
   CLONE_NODE_FIELD(pExtTimeRange);
@@ -1138,6 +1159,7 @@ static int32_t logicMergeCopy(const SMergeLogicNode* pSrc, SMergeLogicNode* pDst
   COPY_SCALAR_FIELD(groupSort);
   COPY_SCALAR_FIELD(ignoreGroupId);
   COPY_SCALAR_FIELD(inputWithGroupId);
+  COPY_SCALAR_FIELD(outerGroupPhaseMode);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1244,6 +1266,10 @@ static int32_t logicPartitionCopy(const SPartitionLogicNode* pSrc, SPartitionLog
   CLONE_NODE_LIST_FIELD(pTags);
   CLONE_NODE_FIELD(pSubtable);
   CLONE_NODE_LIST_FIELD(pAggFuncs);
+  CLONE_NODE_LIST_FIELD(pInterpPreSplitPartitionKeys);
+  CLONE_NODE_LIST_FIELD(pInterpPreSplitGroupTags);
+  COPY_SCALAR_FIELD(interpPreSplitGroupSort);
+  COPY_SCALAR_FIELD(phasedMode);
   COPY_SCALAR_FIELD(needBlockOutputTsOrder);
   COPY_SCALAR_FIELD(pkTsColId);
   COPY_SCALAR_FIELD(pkTsColTbId);
@@ -1287,6 +1313,8 @@ static int32_t logicInterpFuncCopy(const SInterpFuncLogicNode* pSrc, SInterpFunc
   CLONE_NODE_FIELD(pFillValues);
   CLONE_NODE_FIELD(pTimeSeries);
   COPY_SCALAR_FIELD(timelineSource);
+  COPY_SCALAR_FIELD(interpMode);
+  COPY_SCALAR_FIELD(requireMainMembership);
   COPY_SCALAR_FIELD(surroundingTime);
   COPY_SCALAR_FIELD(timezone);  // borrowed from the plan context; logic nodes never own it
   COPY_CHAR_ARRAY_FIELD(timezoneName);
@@ -1540,6 +1568,7 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_OBJECT_FIELD(scanSeq[0], sizeof(uint8_t) * 2);
   COPY_OBJECT_FIELD(scanRange, sizeof(STimeWindow));
   CLONE_OBJECT_FIELD(pExtScanRange, timeWindowClone);
+  COPY_SCALAR_FIELD(interpMode);
   COPY_SCALAR_FIELD(interpFillMode);
   CLONE_NODE_FIELD(pTimeRange);
   CLONE_NODE_FIELD(pExtTimeRange);
@@ -1562,16 +1591,28 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_SCALAR_FIELD(paraTablesSort);
   COPY_SCALAR_FIELD(smallDataTsSort);
   COPY_SCALAR_FIELD(firstDayOfWeek);
-  pDst->timezone = NULL;
-  pDst->ownsTimezone = false;
-  pDst->timezoneName[0] = '\0';
-  if (pSrc->timezoneName[0] != '\0') {
-    int32_t code = nodesDecodeTimezoneName(pSrc->timezoneName, pDst->timezoneName, sizeof(pDst->timezoneName),
-                                           &pDst->timezone, &pDst->ownsTimezone);
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
-    }
-  }
+  CLONE_TIMEZONE_FIELD();
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t physiInterpFuncCopy(const SInterpFuncPhysiNode* pSrc,
+                                   SInterpFuncPhysiNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
+  CLONE_NODE_LIST_FIELD(pExprs);
+  CLONE_NODE_LIST_FIELD(pFuncs);
+  COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  CLONE_NODE_FIELD(pTimeRange);
+  COPY_SCALAR_FIELD(interval);
+  COPY_SCALAR_FIELD(intervalUnit);
+  COPY_SCALAR_FIELD(precision);
+  COPY_SCALAR_FIELD(fillMode);
+  CLONE_NODE_FIELD(pFillValues);
+  CLONE_NODE_FIELD(pTimeSeries);
+  COPY_SCALAR_FIELD(timelineSource);
+  COPY_SCALAR_FIELD(interpMode);
+  COPY_SCALAR_FIELD(requireMainMembership);
+  COPY_SCALAR_FIELD(surroundingTime);
+  CLONE_TIMEZONE_FIELD();
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1618,16 +1659,7 @@ static int32_t physiIntervalCopy(const SIntervalPhysiNode* pSrc, SIntervalPhysiN
   COPY_SCALAR_FIELD(firstDayOfWeek);
   COPY_SCALAR_FIELD(fastInterval);
   COPY_SCALAR_FIELD(exInterval);
-  pDst->timezone = NULL;
-  pDst->ownsTimezone = false;
-  pDst->timezoneName[0] = '\0';
-  if (pSrc->timezoneName[0] != '\0') {
-    int32_t code = nodesDecodeTimezoneName(pSrc->timezoneName, pDst->timezoneName, sizeof(pDst->timezoneName),
-                                           &pDst->timezone, &pDst->ownsTimezone);
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
-    }
-  }
+  CLONE_TIMEZONE_FIELD();
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
   return TSDB_CODE_SUCCESS;
 }
@@ -1721,6 +1753,7 @@ static int32_t physiPartitionCopy(const SPartitionPhysiNode* pSrc, SPartitionPhy
   CLONE_NODE_LIST_FIELD(pExprs);
   CLONE_NODE_LIST_FIELD(pPartitionKeys);
   CLONE_NODE_LIST_FIELD(pTargets);
+  COPY_SCALAR_FIELD(phasedMode);
   COPY_SCALAR_FIELD(needBlockOutputTsOrder);
   COPY_SCALAR_FIELD(tsSlotId);
   return TSDB_CODE_SUCCESS;
@@ -2471,6 +2504,10 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       code = physiPartitionCopy((const SPartitionPhysiNode*)pNode, (SPartitionPhysiNode*)pDst);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+      code = physiInterpFuncCopy((const SInterpFuncPhysiNode*)pNode,
+                                 (SInterpFuncPhysiNode*)pDst);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
       code = physiVirtualTableScanCopy((const SVirtualScanPhysiNode*)pNode, (SVirtualScanPhysiNode*)pDst);

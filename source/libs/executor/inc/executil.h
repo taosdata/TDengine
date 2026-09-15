@@ -247,7 +247,22 @@ SColumn   extractColumnFromColumnNode(SColumnNode* pColNode);
 
 int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, STableScanPhysiNode* pTableScanNode,
                                const SReadHandle* readHandle, bool applyExtWin);
+// Build the MAIN, PREV, and NEXT windows and apply mode-aware side pruning.
+int32_t initInterpPhaseWindows(SQueryTableDataCond* pCond,
+                               const STimeWindow* pRange,
+                               int8_t interpMode,
+                               int8_t interpFillMode);
+bool    interpMainFirstNotifyMatchesPhase(int8_t phase,
+                                          const STimeWindow* pWindow,
+                                          uint64_t currentEpoch,
+                                          uint64_t notifyEpoch,
+                                          TSKEY notifyTs);
+bool    interpMainFirstNotifyMatchesSource(
+            int8_t currentPhase, uint64_t currentScanGroupId,
+            const STimeWindow* pWindow, uint64_t currentEpoch,
+            const STableScanOperatorParam* pNotify);
 void    interpPruneExtWindows(int8_t interpFillMode, STimeWindow* extTwindows);
+const char* interpNotifyTargetOpName(int32_t operatorType);
 int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTableDataCond* pOrgCond,
                                      const SReadHandle* readHandle, SArray* colArray);
 
