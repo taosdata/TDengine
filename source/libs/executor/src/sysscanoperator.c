@@ -126,6 +126,25 @@ typedef struct SSysTableScanInfo {
   STableListInfo* pSubTableListInfo;
   SArray*         pVtbRefReqs;   // SArray<SSysTableScanVtbRefReq> used by layered vc-cols lookup
   int32_t         vtbRefReqIdx;  // next request index in pVtbRefReqs
+
+  // task-level caches for ins_tags ref-tag resolution (sysTagsFetchRemoteCfg):
+  // without them every ref tag of every child table costs one GET_DB_INFO plus
+  // one TABLE_CFG RPC, which turns a scan over hundreds of thousands of
+  // tag-ref children into tens of millions of sequential blocking RPCs
+  SHashObj* pRefDbVgInfoCache;   // refDbName -> SDBVgInfo* (hash-owned)
+  SHashObj* pRefTableCfgCache;   // "refDbName.refTableName" -> SRefTableCfgCacheEntry
+
+  // tag_name equality pre-filter, extracted from pCondition per scan call (same
+  // helper as the db_name/stable_name pre-filter): the tag name is known from
+  // the local tag schema before any ref resolution, so the fill loop can skip
+  // tags the block-level filter would discard without firing ref-fetch RPCs
+  bool hasCondTagName;
+  char condTagName[TSDB_COL_NAME_LEN];
+
+  // tag_type equality pre-filter, same idea: the formatted type string is
+  // derived from the local schema before any ref resolution
+  bool hasCondTagType;
+  char condTagType[32];
 } SSysTableScanInfo;
 
 // Lightweight wrapper passed as RPC callback param; stores only the ref ID so
@@ -616,6 +635,60 @@ static bool sysTableIsCondOnOneTable(SNode* pCond, char* condTable) {
 
   if (QUERY_NODE_OPERATOR == nodeType(pCond)) {
     return sysTableIsOperatorCondOnOneTable(pCond, condTable);
+  }
+
+  return false;
+}
+
+// Generic form of sysTableIsOperatorCondOnOneTable: matches `<colName> = 'literal'`.
+// Compares colName (falling back to userAlias) rather than
+// nodesGetNameFromColumnNode alone: after the planner's setConditionsSlotId
+// the serialized physical plan arrives with userAlias empty (see the same
+// workaround in sysTableScanUserTables).
+// VARCHAR literals only: an uncoerced NCHAR literal is UCS4-encoded and would
+// byte-mismatch the stored UTF-8 name — better to fall back to the block-level
+// filter than to skip matching rows.
+static bool sysTableIsOperatorCondOnColumn(SNode* pCond, const char* colName, char* condVal, int32_t valBufLen) {
+  SOperatorNode* node = (SOperatorNode*)pCond;
+  if (node->opType == OP_TYPE_EQUAL) {
+    if (nodeType(node->pLeft) == QUERY_NODE_COLUMN && nodeType(node->pRight) == QUERY_NODE_VALUE) {
+      SColumnNode* pCol = (SColumnNode*)node->pLeft;
+      const char*  pColName = pCol->colName[0] ? pCol->colName : pCol->node.userAlias;
+      if (strcasecmp(pColName, colName) == 0) {
+        SValueNode* pValue = (SValueNode*)node->pRight;
+        if (pValue->node.resType.type == TSDB_DATA_TYPE_VARCHAR) {
+          char* value = nodesGetValueFromNode(pValue);
+          tstrncpy(condVal, varDataVal(value), valBufLen);
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+// Extracts a top-level ANDed equality literal on colName; anything more
+// complex (OR/NOT/range) yields false and the caller falls back to the
+// block-level filter.
+static bool sysTableIsCondOnColumn(SNode* pCond, const char* colName, char* condVal, int32_t valBufLen) {
+  if (pCond == NULL) {
+    return false;
+  }
+  if (nodeType(pCond) == QUERY_NODE_LOGIC_CONDITION) {
+    SLogicConditionNode* node = (SLogicConditionNode*)pCond;
+    if (LOGIC_COND_TYPE_AND == node->condType) {
+      SNode* pChild = NULL;
+      FOREACH(pChild, node->pParameterList) {
+        if (QUERY_NODE_OPERATOR == nodeType(pChild) &&
+            sysTableIsOperatorCondOnColumn(pChild, colName, condVal, valBufLen)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  if (QUERY_NODE_OPERATOR == nodeType(pCond)) {
+    return sysTableIsOperatorCondOnColumn(pCond, colName, condVal, valBufLen);
   }
 
   return false;
@@ -1868,9 +1941,24 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
   varDataSetLen(dbname, strlen(varDataVal(dbname)));
 
+  // Extract the top-level ANDed tag_name equality once per scan call; the fill
+  // loop consults it to skip non-matching tags before any ref resolution.
+  pInfo->hasCondTagName =
+      pInfo->pCondition != NULL &&
+      sysTableIsCondOnColumn(pInfo->pCondition, "tag_name", pInfo->condTagName, sizeof(pInfo->condTagName));
+
+  // Same for tag_type: the output-format type string is built from the local
+  // schema in the fill loop, ahead of any ref resolution.
+  pInfo->hasCondTagType =
+      pInfo->pCondition != NULL &&
+      sysTableIsCondOnColumn(pInfo->pCondition, "tag_type", pInfo->condTagType, sizeof(pInfo->condTagType));
+
   char condTableName[TSDB_TABLE_NAME_LEN] = {0};
   // optimize when sql like where table_name='tablename' and xxx.
-  if (pInfo->pCondition && sysTableIsCondOnOneTable(pInfo->pCondition, condTableName)) {
+  // (colName-based extraction: the old sysTableIsCondOnOneTable relies on
+  // userAlias, which is empty in the serialized plan, so it never matched)
+  if (pInfo->pCondition &&
+      sysTableIsCondOnColumn(pInfo->pCondition, "table_name", condTableName, sizeof(condTableName))) {
     char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(tableName, condTableName);
 
@@ -1959,6 +2047,52 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
   }
 
+  // Cheap pre-filter for the full scan below: top-level ANDed db_name /
+  // stable_name equalities let us skip tables (or the whole vnode scan) before
+  // the tag fill, which otherwise resolves ref tags via blocking cross-vnode
+  // RPCs for rows the block-level filter would discard anyway.
+  char condDbName[TSDB_DB_NAME_LEN] = {0};
+  char condStableName[TSDB_TABLE_NAME_LEN] = {0};
+  bool hasCondDbName =
+      pInfo->pCondition != NULL &&
+      sysTableIsCondOnColumn(pInfo->pCondition, "db_name", condDbName, sizeof(condDbName));
+  bool hasCondStableName =
+      pInfo->pCondition != NULL &&
+      sysTableIsCondOnColumn(pInfo->pCondition, "stable_name", condStableName, sizeof(condStableName));
+
+  // A db_name equality that doesn't match this vnode's db empties the scan.
+  if (hasCondDbName && strcmp(varDataVal(dbname), condDbName) != 0) {
+    blockDataDestroy(dataBlock);
+    pInfo->loadInfo.totalRows = 0;
+    setOperatorCompleted(pOperator);
+    return NULL;
+  }
+
+  // Resolve the stable_name equality to the stable's uid once, so the scan
+  // loop can skip non-matching children by suid without fetching the super
+  // table meta per child. stable_name is NULL for normal/virtual-normal
+  // tables, so the equality excludes them. A stable absent from this vnode
+  // (or a non-super table of that name) means no row can match here.
+  uint64_t condSuid = 0;
+  if (hasCondStableName) {
+    SMetaReader smrCondStable = {0};
+    pAPI->metaReaderFn.initReader(&smrCondStable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn,
+                                  pInfo->readHandle.txnId);
+    smrCondStable.txnId = pInfo->readHandle.txnId;
+    int32_t stableCode = pAPI->metaReaderFn.getTableEntryByName(&smrCondStable, condStableName);
+    bool    stableMatches = stableCode == TSDB_CODE_SUCCESS && smrCondStable.me.type == TSDB_SUPER_TABLE;
+    if (stableMatches) {
+      condSuid = smrCondStable.me.uid;
+    }
+    pAPI->metaReaderFn.clearReader(&smrCondStable);
+    if (!stableMatches) {
+      blockDataDestroy(dataBlock);
+      pInfo->loadInfo.totalRows = 0;
+      setOperatorCompleted(pOperator);
+      return NULL;
+    }
+  }
+
   int32_t ret = 0;
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
@@ -1970,6 +2104,19 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
   }
 
   while ((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_SUPER_TABLE)) == 0) {
+    // A single block fill may iterate hundreds of thousands of children, and
+    // ref-tag resolution fires blocking RPCs per child — check the kill flag
+    // per table, otherwise a killed/cancelled query keeps scanning to the very
+    // end (the per-block check in doSysTableScanNext never gets a chance)
+    if (isTaskKilled(pTaskInfo)) {
+      qInfo("%s user tags scan aborted since query killed", GET_TASKID(pTaskInfo));
+      pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+      pInfo->pCur = NULL;
+      blockDataDestroy(dataBlock);
+      dataBlock = NULL;
+      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_TSC_QUERY_KILLED);
+    }
+
     int8_t entryType = pInfo->pCur->mr.me.type;
     bool   isChild = (entryType == TSDB_CHILD_TABLE || entryType == TSDB_VIRTUAL_CHILD_TABLE);
     bool   isNtb = (entryType == TSDB_NORMAL_TABLE || entryType == TSDB_VIRTUAL_NORMAL_TABLE);
@@ -1978,6 +2125,13 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     }
     // Tag-less normal/virtual-normal table produces no ins_tags rows.
     if (isNtb && pInfo->pCur->mr.me.ntbEntry.schemaTag.nCols == 0) {
+      continue;
+    }
+
+    // suid pre-filter from the stable_name equality (resolved before the
+    // loop): skips non-matching children without fetching the super meta, and
+    // excludes all normal/virtual-normal tables (their stable_name is NULL).
+    if (hasCondStableName && (!isChild || pInfo->pCur->mr.me.ctbEntry.suid != condSuid)) {
       continue;
     }
 
@@ -2240,6 +2394,52 @@ static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId
                                  SExecTaskInfo* pTaskInfo, SDBVgInfo** ppVgInfo);
 static int32_t vtbRefGetVgId(SDBVgInfo* dbInfo, const char* dbFName, const char* tbName, int32_t* pVgId,
                              SEpSet* pEpSet);
+static void    vtbRefBuildRemoteCacheKey(char* buf, int32_t size, const char* dbName, const char* tableName);
+
+// Cache entry for one fetched remote table cfg in the ins_tags ref-tag path.
+// code caches negative outcomes too (e.g. dropped source table), so repeated
+// refs to the same source never re-issue the RPC within a scan; pRspCont is
+// the serialized STableCfgRsp on success, allocated with rpcMallocCont.
+typedef struct SRefTableCfgCacheEntry {
+  int32_t code;
+  void*   pRspCont;
+  int32_t contLen;
+} SRefTableCfgCacheEntry;
+
+// Bound on distinct source tables cached per scan; past the cap fetches pass
+// through uncached instead of growing memory without limit
+#define SYS_TAGS_REF_CFG_CACHE_MAX_NUM 100000
+
+static void sysTagsRefCfgCacheEntryFree(void* p) {
+  SRefTableCfgCacheEntry* pEntry = (SRefTableCfgCacheEntry*)p;
+  if (pEntry != NULL) {
+    rpcFreeCont(pEntry->pRspCont);
+    pEntry->pRspCont = NULL;
+  }
+}
+
+// Lazy-init the task-level ref-resolution caches on first use (best effort:
+// on allocation failure the scan falls back to uncached fetches). pInfo is
+// logically mutable operator state; the const in the callers' signatures is
+// only a scan-semantics convention. Runs on the single scan worker thread, so
+// no extra locking beyond HASH_NO_LOCK.
+static void sysTagsEnsureRefCaches(const SSysTableScanInfo* pInfo) {
+  SSysTableScanInfo* pMutable = (SSysTableScanInfo*)pInfo;
+  if (pMutable->pRefDbVgInfoCache == NULL) {
+    pMutable->pRefDbVgInfoCache = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    if (pMutable->pRefDbVgInfoCache == NULL) {
+      qError("failed to create ref db vgInfo cache since %s", tstrerror(terrno));
+    }
+  }
+  if (pMutable->pRefTableCfgCache == NULL) {
+    pMutable->pRefTableCfgCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    if (pMutable->pRefTableCfgCache == NULL) {
+      qError("failed to create ref table cfg cache since %s", tstrerror(terrno));
+    } else {
+      taosHashSetFreeFp(pMutable->pRefTableCfgCache, sysTagsRefCfgCacheEntryFree);
+    }
+  }
+}
 
 static int32_t sysTagsExtractFromTagData(const STag* pTag, const SSchema* pSrcSchema,
                                           char** ppTagData, uint32_t* pTagLen, bool* pResolved) {
@@ -2276,11 +2476,54 @@ static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acc
   SDBVgInfo* pDbVgInfo = NULL;
   void*      clientRpc = pInfo->readHandle.pMsgCb->clientRpc;
 
-  code = vtbRefGetDbVgInfo(clientRpc, (SEpSet*)&pInfo->epSet, acctId, refDbName, reqId, pTaskInfo, &pDbVgInfo);
-  if (code != TSDB_CODE_SUCCESS || pDbVgInfo == NULL) {
-    code = (code != TSDB_CODE_SUCCESS) ? code : terrno;
-    qDebug("sysTagsFetchRemoteCfg: failed to get db vg info for %s, code=%s", refDbName, tstrerror(code));
-    return code;
+  sysTagsEnsureRefCaches(pInfo);
+
+  // cfg cache: the same source table is fetched at most once per scan, no
+  // matter how many ref tags (of how many child tables) point at it
+  char cacheKey[TSDB_DB_FNAME_LEN + TSDB_TABLE_NAME_LEN + 2];
+  vtbRefBuildRemoteCacheKey(cacheKey, sizeof(cacheKey), refDbName, refTableName);
+  if (pInfo->pRefTableCfgCache != NULL) {
+    SRefTableCfgCacheEntry* pEntry = taosHashGet(pInfo->pRefTableCfgCache, cacheKey, strlen(cacheKey));
+    if (pEntry != NULL) {
+      if (pEntry->code != TSDB_CODE_SUCCESS) {
+        qDebug("sysTagsFetchRemoteCfg: cached failure for %s.%s, code=%s", refDbName, refTableName,
+               tstrerror(pEntry->code));
+        return pEntry->code;
+      }
+      code = tDeserializeSTableCfgRsp(pEntry->pRspCont, pEntry->contLen, pCfgRsp);
+      if (code != TSDB_CODE_SUCCESS) {
+        qDebug("sysTagsFetchRemoteCfg: deserialize cached cfg failed for %s.%s", refDbName, refTableName);
+      }
+      return code;
+    }
+  }
+
+  // vgInfo cache: one GET_DB_INFO per ref db per scan
+  bool vgInfoCached = false;
+  if (pInfo->pRefDbVgInfoCache != NULL) {
+    SDBVgInfo** ppCached = taosHashGet(pInfo->pRefDbVgInfoCache, refDbName, strlen(refDbName));
+    if (ppCached != NULL) {
+      pDbVgInfo = *ppCached;
+      vgInfoCached = true;
+    }
+  }
+
+  if (pDbVgInfo == NULL) {
+    code = vtbRefGetDbVgInfo(clientRpc, (SEpSet*)&pInfo->epSet, acctId, refDbName, reqId, pTaskInfo, &pDbVgInfo);
+    if (code != TSDB_CODE_SUCCESS || pDbVgInfo == NULL) {
+      code = (code != TSDB_CODE_SUCCESS) ? code : terrno;
+      qDebug("sysTagsFetchRemoteCfg: failed to get db vg info for %s, code=%s", refDbName, tstrerror(code));
+      return code;
+    }
+    if (pInfo->pRefDbVgInfoCache != NULL) {
+      int32_t putCode =
+          taosHashPut(pInfo->pRefDbVgInfoCache, refDbName, strlen(refDbName), &pDbVgInfo, POINTER_BYTES);
+      if (putCode == TSDB_CODE_SUCCESS) {
+        vgInfoCached = true;  // ownership moved to the hash
+      }
+      // put failures: fall back to uncached semantics, freed below
+      // (the cache hash enables update, so put never returns TSDB_CODE_DUP_KEY)
+    }
   }
 
   char    dbFName[TSDB_DB_FNAME_LEN] = {0};
@@ -2289,12 +2532,13 @@ static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acc
   (void)snprintf(dbFName, sizeof(dbFName), "%d.%s", acctId, refDbName);
 
   code = vtbRefGetVgId(pDbVgInfo, dbFName, refTableName, &vgId, &vnodeEpSet);
+  if (!vgInfoCached) {
+    freeVgInfo(pDbVgInfo);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     qDebug("sysTagsFetchRemoteCfg: failed to get vgId for %s.%s, code=%s", refDbName, refTableName, tstrerror(code));
-    freeVgInfo(pDbVgInfo);
     return code;
   }
-  freeVgInfo(pDbVgInfo);
 
   STableCfgReq req = {0};
   req.header.vgId = vgId;
@@ -2327,17 +2571,37 @@ static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acc
   }
 
   if (rpcRsp.code != TSDB_CODE_SUCCESS) {
-    qDebug("sysTagsFetchRemoteCfg: table %s.%s vgId %d returned %s",
-           refDbName, refTableName, vgId, tstrerror(rpcRsp.code));
-    rpcFreeCont(rpcRsp.pCont);
-    return rpcRsp.code;
+    code = rpcRsp.code;
+  } else if (rpcRsp.pCont == NULL || rpcRsp.contLen <= 0) {
+    code = TSDB_CODE_APP_ERROR;
   }
 
-  if (rpcRsp.pCont == NULL || rpcRsp.contLen <= 0) {
-    qDebug("sysTagsFetchRemoteCfg: invalid rpc response for %s.%s vgId %d",
-           refDbName, refTableName, vgId);
+  // cache the server-answered outcome (payload or server-side error such as
+  // dropped table) so later refs to this source skip the RPC; transport-level
+  // failures above are deliberately not cached
+  if (pInfo->pRefTableCfgCache != NULL &&
+      taosHashGetSize(pInfo->pRefTableCfgCache) < SYS_TAGS_REF_CFG_CACHE_MAX_NUM) {
+    SRefTableCfgCacheEntry entry = {.code = code, .pRspCont = NULL, .contLen = 0};
+    if (code == TSDB_CODE_SUCCESS) {
+      entry.pRspCont = rpcMallocCont(rpcRsp.contLen);
+      if (entry.pRspCont != NULL) {
+        (void)memcpy(entry.pRspCont, rpcRsp.pCont, rpcRsp.contLen);
+        entry.contLen = rpcRsp.contLen;
+      } else {
+        entry.code = terrno;
+      }
+    }
+    int32_t putCode = taosHashPut(pInfo->pRefTableCfgCache, cacheKey, strlen(cacheKey), &entry, sizeof(entry));
+    if (putCode != TSDB_CODE_SUCCESS) {
+      rpcFreeCont(entry.pRspCont);  // not cached, ownership stays with us
+    }
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    qDebug("sysTagsFetchRemoteCfg: table %s.%s vgId %d failed, code=%s",
+           refDbName, refTableName, vgId, tstrerror(code));
     rpcFreeCont(rpcRsp.pCont);
-    return TSDB_CODE_APP_ERROR;
+    return code;
   }
 
   code = tDeserializeSTableCfgRsp(rpcRsp.pCont, rpcRsp.contLen, pCfgRsp);
@@ -2477,6 +2741,13 @@ static int32_t sysTableUserTagsFillTags(const SSysTableScanInfo* pInfo, const SS
 
   int32_t numOfTags = pTagSchema->nCols;
   for (int32_t i = 0; i < numOfTags; ++i) {
+    // tag_name equality pre-filter: this row would be discarded by the
+    // block-level filter anyway, and skipping here also avoids the ref-tag
+    // resolution (blocking cross-vnode RPC) below
+    if (pInfo->hasCondTagName && strcmp(pTagSchema->pSchema[i].name, pInfo->condTagName) != 0) {
+      continue;
+    }
+
     SColumnInfoData* pColInfoData = NULL;
 
     // table name
@@ -2531,6 +2802,13 @@ static int32_t sysTableUserTagsFillTags(const SSysTableScanInfo* pInfo, const SS
                              (int32_t)(pTagSchema->pSchema[i].bytes - VARSTR_HEADER_SIZE));
     }
     varDataSetLen(tagTypeStr, tagTypeLen);
+
+    // tag_type equality pre-filter: compares the exact output-format type
+    // string, still ahead of the ref-tag resolution below
+    if (pInfo->hasCondTagType && strcmp(varDataVal(tagTypeStr), pInfo->condTagType) != 0) {
+      continue;
+    }
+
     code = colDataSetVal(pColInfoData, numOfRows, (char*)tagTypeStr, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
@@ -7317,6 +7595,22 @@ static void doDestroySysTableScanInfo(void* param) {
   if (pInfo->pExtSchema) {
     taosHashCleanup(pInfo->pExtSchema);
     pInfo->pExtSchema = NULL;
+  }
+  if (pInfo->pRefDbVgInfoCache) {
+    void* pIter = taosHashIterate(pInfo->pRefDbVgInfoCache, NULL);
+    while (pIter) {
+      SDBVgInfo** ppVgInfo = (SDBVgInfo**)pIter;
+      if (*ppVgInfo) {
+        freeVgInfo(*ppVgInfo);
+      }
+      pIter = taosHashIterate(pInfo->pRefDbVgInfoCache, pIter);
+    }
+    taosHashCleanup(pInfo->pRefDbVgInfoCache);
+    pInfo->pRefDbVgInfoCache = NULL;
+  }
+  if (pInfo->pRefTableCfgCache) {
+    taosHashCleanup(pInfo->pRefTableCfgCache);  // freeFp releases each entry's rpc cont
+    pInfo->pRefTableCfgCache = NULL;
   }
   destroySysTableScanVtbRefReqs(pInfo);
   tableListDestroy(pInfo->pSubTableListInfo);
