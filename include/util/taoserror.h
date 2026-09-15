@@ -119,6 +119,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_REF_NOT_EXIST                 TAOS_DEF_ERROR_CODE(0, 0x010A) // internal
 #define TSDB_CODE_DLL_NOT_LOAD                  TAOS_DEF_ERROR_CODE(0, 0x010B) 
 #define TSDB_CODE_DLL_FUNC_NOT_LOAD             TAOS_DEF_ERROR_CODE(0, 0x010C)
+#define TSDB_CODE_OSS_NOT_SUPPORT               TAOS_DEF_ERROR_CODE(0, 0x010D)
 
 #define TSDB_CODE_APP_ERROR                     TAOS_DEF_ERROR_CODE(0, 0x0110) //
 #define TSDB_CODE_ACTION_IN_PROGRESS            TAOS_DEF_ERROR_CODE(0, 0x0111) // internal
