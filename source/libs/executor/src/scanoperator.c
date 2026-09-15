@@ -642,7 +642,11 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
 
   // A block crossing interval boundaries must be read as data. Its SMA cannot
   // prune the per-window aggregation, so avoid a redundant SMA read.
-  if (!overlap && !maxInterval && !smaLoadAttempted &&
+  // Only TableScan receives the aggregate result state used by dynamic
+  // pruning. TableMergeScan still uses the shared filter-SMA path above.
+  bool aggDynamicPrune =
+      pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  if (aggDynamicPrune && !overlap && !maxInterval && !smaLoadAttempted &&
       (needsLastNullSmaForDynamicPrune(pOperator, pBlock) || needsMaxSmaForDynamicPrune(pOperator))) {
     bool success = false;
     taosMemoryFreeClear(pBlock->pBlockAgg);
@@ -655,7 +659,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     }
   }
 
-  if (!maxInterval) {
+  if (aggDynamicPrune && !maxInterval) {
     code = doDynamicPruneDataBlock(pOperator, pBlock, status);
   }
   taosMemoryFreeClear(pBlock->pBlockAgg);
@@ -1150,6 +1154,74 @@ static SSDataBlock* getBlockForEmptyTable(SOperatorInfo* pOperator, const STable
   return pBlock;
 }
 
+static bool isEmptyQueryTimeWindow(const STimeWindow* pWindow) {
+  return (pWindow == NULL) || (pWindow->skey > pWindow->ekey);
+}
+
+static bool isMainFirstGroupSort(const STableScanInfo* pInfo) {
+  return pInfo->base.cond.mainFirst && pInfo->groupSort;
+}
+
+// The window the current MAIN_FIRST phase scans. Sole owner of the
+// phase -> condition window mapping.
+static const STimeWindow* currentPhaseWindow(const STableScanInfo* pInfo) {
+  if (pInfo->currentPhase == SCAN_PHASE_NEXT) {
+    return &pInfo->base.cond.extTwindows[1];
+  }
+  if (pInfo->currentPhase == SCAN_PHASE_PREV) {
+    return &pInfo->base.cond.extTwindows[0];
+  }
+  return &pInfo->base.cond.twindows;
+}
+
+static int8_t tableScanInterpMode(const SOperatorInfo* pOperator) {
+  const STableScanPhysiNode* pScanNode =
+      (const STableScanPhysiNode*)pOperator->pPhyNode;
+  return pScanNode == NULL ? INTERP_MODE_LEGACY
+                           : pScanNode->interpMode;
+}
+
+// A grouped MAIN_FIRST multi-group scan drains every phase of one outer
+// group before moving to the next. The table scan and the table merge scan
+// share that contract, so they share one predicate. A NULL phys node maps
+// to INTERP_MODE_LEGACY, so the mode test already covers it.
+static bool interpUsesOuterGroupCursor(const SOperatorInfo* pOperator,
+                                       const STableScanBase* pBase) {
+  const STableScanPhysiNode* pScanNode =
+      (const STableScanPhysiNode*)pOperator->pPhyNode;
+  return tableScanInterpMode(pOperator) == INTERP_MODE_MULTI_GROUP &&
+         pBase->cond.mainFirst && pScanNode->groupSort;
+}
+
+static bool tableScanNotifyMatchesSource(
+    const SOperatorInfo* pOperator,
+    const STableScanOperatorParam* pNotify) {
+  const STableScanInfo* pInfo = pOperator->info;
+  uint64_t scanGroupId = 0;
+  uint64_t outerEpoch = 0;
+  bool multiGroup =
+      tableScanInterpMode(pOperator) == INTERP_MODE_MULTI_GROUP;
+  if (!multiGroup || interpUsesOuterGroupCursor(pOperator, &pInfo->base)) {
+    STableKeyInfo* pGroup = NULL;
+    int32_t numOfTables = 0;
+    if (tableListGetGroupList(
+            pInfo->base.pTableListInfo, pInfo->currentGroupId,
+            &pGroup, &numOfTables) != TSDB_CODE_SUCCESS ||
+        pGroup == NULL || numOfTables <= 0) {
+      return false;
+    }
+    if (multiGroup) {
+      outerEpoch = pGroup->groupId;
+    } else {
+      scanGroupId = pGroup->groupId;
+    }
+  }
+
+  return interpMainFirstNotifyMatchesSource(
+      pInfo->currentPhase, scanGroupId, currentPhaseWindow(pInfo),
+      outerEpoch, pNotify);
+}
+
 /**
   @brief prepare table scan, if the get param contains notify info,
   notify the table scan operator's reader that current step is done
@@ -1170,9 +1242,39 @@ static int32_t prepareTableScan(SOperatorInfo* pOperator) {
     STableScanInfo* pTableScanInfo = pOperator->info;
     SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
     SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
-    code = pAPI->tsdReader.tsdReaderStepDone(pTableScanInfo->base.dataReader,
-                                             pNotify->notifyTs);
-    QUERY_CHECK_CODE(code, lino, _end);
+    bool            notifyConsumed = false;
+    if (pTableScanInfo->base.cond.mainFirst) {
+      if (tableScanNotifyMatchesSource(pOperator, pNotify)) {
+        if (isMainFirstGroupSort(pTableScanInfo)) {
+          // groupSort opens one contained reader per cursor. Resolving the
+          // active cursor makes the next fetch advance the configured
+          // group/phase order.
+          pTableScanInfo->groupDone = true;
+        } else {
+          code = pAPI->tsdReader.tsdReaderStepDone(
+              pTableScanInfo->base.dataReader, pNotify->notifyTs);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        notifyConsumed = true;
+      } else {
+        qDebug("%s discarded stale scan notification outerEpoch=%" PRIu64
+               " phase=%d scanGroupId=%" PRIu64 " notifyTs=%" PRId64,
+               GET_TASKID(pTaskInfo), pNotify->groupid,
+               pNotify->notifyPhase, pNotify->notifyScanGroupId,
+               pNotify->notifyTs);
+      }
+    } else {
+      code = pAPI->tsdReader.tsdReaderStepDone(
+          pTableScanInfo->base.dataReader, pNotify->notifyTs);
+      QUERY_CHECK_CODE(code, lino, _end);
+      notifyConsumed = true;
+    }
+
+    if (notifyConsumed && pTableScanInfo->base.cond.mainFirst) {
+      qDebug("%s MAIN_FIRST early-stop consumed target=table "
+             "notifyTs=%" PRId64,
+             GET_TASKID(pTaskInfo), pNotify->notifyTs);
+    }
 
     if (!pGetParam->reUse) {
       freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
@@ -1277,6 +1379,11 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
     /* checkRows is accumulative */
     pOperator->cost.inputRows = pTableScanInfo->base.readRecorder.checkRows;
     pBlock->info.scanFlag = (uint8_t)pTableScanInfo->base.scanFlag;
+    if (pTableScanInfo->base.cond.mainFirst &&
+        !pTableScanInfo->groupSort) {
+      pTableScanInfo->currentPhase = pBlock->info.scanPhase;
+    }
+
     if (pTableScanInfo->fastInterval) {
       int32_t tableIndex = tableListFind(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid, 0);
       if (tableIndex < 0) {
@@ -1518,8 +1625,34 @@ static int32_t doInitReader(STableScanInfo* pInfo, SExecTaskInfo* pTaskInfo, int
     return code;
   }
 
+  // The phase window and order are applied in place because tsdbReaderOpen2
+  // pins the effective endVersion back through pCond; a local copy would drop
+  // that pin for the following group and phase reopens.
+  SQueryTableDataCond* pCond = &pInfo->base.cond;
+  int32_t              savedType = pCond->type;
+  int32_t              savedOrder = pCond->order;
+  STimeWindow          savedWindow = pCond->twindows;
+
+  if (isMainFirstGroupSort(pInfo)) {
+    pCond->type = TIMEWINDOW_RANGE_CONTAINED;
+    pCond->twindows = *currentPhaseWindow(pInfo);
+    if (pInfo->currentPhase == SCAN_PHASE_NEXT) {
+      pCond->order = TSDB_ORDER_ASC;
+    } else if (pInfo->currentPhase == SCAN_PHASE_PREV) {
+      pCond->order = TSDB_ORDER_DESC;
+    } else if (pInfo->currentPhase == SCAN_PHASE_MAIN) {
+      pCond->order = TSDB_ORDER_ASC;
+    }
+  }
+
   bool opened = false;
-  code = openOrRebindTableReader(&pInfo->base, *pList, *pNum, pInfo->pResBlock, idStr, &pInfo->pIgnoreTables, &opened);
+  code = openOrRebindTableReader(&pInfo->base, *pList, *pNum,
+                                 pInfo->pResBlock, idStr,
+                                 &pInfo->pIgnoreTables, &opened);
+
+  pCond->type = savedType;
+  pCond->order = savedOrder;
+  pCond->twindows = savedWindow;
   if (code) {
     qError("%s failed to initialize tsdbReader, code:%s at line:%d", idStr, tstrerror(code), __LINE__);
   }
@@ -2381,6 +2514,195 @@ _end:
   return code;
 }
 
+static int32_t flushAndCloseTmsReader(STableScanBase* pBase,
+                                      STsdbReader** ppReader,
+                                      bool sharedReader);
+
+static int32_t startMainFirstGroup(SOperatorInfo* pOperator,
+                                   bool* pStarted) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
+  STableScanInfo* pInfo = pOperator->info;
+  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
+  int32_t         num = 0;
+  STableKeyInfo*  pList = NULL;
+
+  *pStarted = false;
+  if (pInfo->currentGroupId >=
+      tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
+    return code;
+  }
+
+  pOperator->status = OP_OPENED;
+  resetLimitInfoForNextGroup(&pInfo->base.limitInfo);
+  taosHashClear(pInfo->pIgnoreTables);
+
+  taosRLockLatch(&pTaskInfo->lock);
+  code = doInitReader(pInfo, pTaskInfo, &num, &pList);
+  taosRUnLockLatch(&pTaskInfo->lock);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  if (pInfo->filesetDelimited) {
+    pAPI->tsdReader.tsdSetFilesetDelimited(pInfo->base.dataReader);
+  }
+  if (pInfo->pResBlock->info.capacity > pOperator->resultInfo.capacity) {
+    pOperator->resultInfo.capacity = pInfo->pResBlock->info.capacity;
+  }
+  if (pInfo->currentPhase != SCAN_PHASE_MAIN) {
+    pInfo->countState = TABLE_COUNT_STATE_END;
+  }
+  pInfo->scanTimes = 0;
+  *pStarted = true;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino,
+           tstrerror(code));
+    pTaskInfo->code = code;
+  }
+  return code;
+}
+
+// GROUP_FIRST and mixed grouping drain phases within each group. Existing
+// MAIN_FIRST plans retain their group-within-phase cursor.
+static int32_t advanceMainFirstGroupCursor(SOperatorInfo* pOperator) {
+  STableScanInfo* pInfo = pOperator->info;
+  int32_t numGroups =
+      tableListGetOutputGroups(pInfo->base.pTableListInfo);
+
+  pInfo->groupDone = false;
+  int32_t code = flushAndCloseTmsReader(
+      &pInfo->base, &pInfo->base.dataReader, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (tableScanInterpMode(pOperator) == INTERP_MODE_GROUP_FIRST ||
+      interpUsesOuterGroupCursor(pOperator, &pInfo->base)) {
+    // Phase within group: drain every phase, then step to the next group.
+    if (pInfo->currentPhase < SCAN_PHASE_PREV) {
+      pInfo->currentPhase += 1;
+      return TSDB_CODE_SUCCESS;
+    }
+    pInfo->currentPhase = SCAN_PHASE_MAIN;
+    pInfo->currentGroupId += 1;
+    if (pInfo->currentGroupId >= numGroups) {
+      setOperatorCompleted(pOperator);
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Group within phase: drain every group, then step to the next phase.
+  pInfo->currentGroupId += 1;
+  if (pInfo->currentGroupId < numGroups) {
+    return TSDB_CODE_SUCCESS;
+  }
+  pInfo->currentGroupId = 0;
+  if (pInfo->currentPhase == SCAN_PHASE_PREV) {
+    setOperatorCompleted(pOperator);
+    return TSDB_CODE_SUCCESS;
+  }
+  pInfo->currentPhase += 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+// An empty phase is global for the ordinary group-within-phase cursor, so
+// advance it without walking every group. The outer cursor cannot use this
+// shortcut because it drains phases within each outer group.
+static int32_t advanceMainFirstEmptyPhase(SOperatorInfo* pOperator) {
+  STableScanInfo* pInfo = pOperator->info;
+
+  pInfo->groupDone = false;
+  pInfo->currentGroupId = 0;
+  int32_t code = flushAndCloseTmsReader(
+      &pInfo->base, &pInfo->base.dataReader, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (pInfo->currentPhase == SCAN_PHASE_PREV) {
+    setOperatorCompleted(pOperator);
+    return TSDB_CODE_SUCCESS;
+  }
+  pInfo->currentPhase += 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+// groupSort never returns NULL at a phase or group boundary. GROUP_FIRST and
+// mixed grouping finish one group before starting the next group's MAIN.
+static int32_t mainFirstGroupSeqTableScan(SOperatorInfo* pOperator,
+                                          SSDataBlock** ppResBlock) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
+  STableScanInfo* pInfo = pOperator->info;
+
+  // scanInfo counts outer passes from physical scanSeq, not phase reader
+  // directions. MAIN_FIRST owns one outer ASC pass and opens PREV with DESC
+  // internally. Repeated or runtime-fed scans cannot share that lifecycle.
+  QUERY_CHECK_CONDITION(pInfo->scanInfo.numOfAsc == 1 &&
+                            pInfo->scanInfo.numOfDesc == 0 &&
+                            !pOperator->dynamicTask,
+                        code, lino, _end,
+                        TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+
+  if (pInfo->currentGroupId < 0) {
+    pInfo->currentGroupId = 0;
+  }
+  if (tableListGetOutputGroups(pInfo->base.pTableListInfo) <= 0) {
+    setOperatorCompleted(pOperator);
+  }
+
+  while (pOperator->status != OP_EXEC_DONE) {
+    if (isEmptyQueryTimeWindow(currentPhaseWindow(pInfo))) {
+      if (tableScanInterpMode(pOperator) == INTERP_MODE_GROUP_FIRST ||
+          interpUsesOuterGroupCursor(pOperator, &pInfo->base)) {
+        code = advanceMainFirstGroupCursor(pOperator);
+      } else {
+        code = advanceMainFirstEmptyPhase(pOperator);
+      }
+      QUERY_CHECK_CODE(code, lino, _end);
+      continue;
+    }
+
+    if (pInfo->groupDone) {
+      code = advanceMainFirstGroupCursor(pOperator);
+      QUERY_CHECK_CODE(code, lino, _end);
+      continue;
+    }
+
+    if (pInfo->base.dataReader == NULL) {
+      bool started = false;
+      code = startMainFirstGroup(pOperator, &started);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (!started) {
+        code = advanceMainFirstGroupCursor(pOperator);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      continue;
+    }
+
+    SSDataBlock* pResult = NULL;
+    code = doGroupedTableScan(pOperator, &pResult);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (pResult != NULL) {
+      pResult->info.scanPhase = pInfo->currentPhase;
+      *ppResBlock = pResult;
+      return code;
+    }
+
+    code = advanceMainFirstGroupCursor(pOperator);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino,
+           tstrerror(code));
+    pOperator->pTaskInfo->code = code;
+  }
+  return code;
+}
+
 static int32_t groupSeqTableScan(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
@@ -2393,6 +2715,10 @@ static int32_t groupSeqTableScan(SOperatorInfo* pOperator, SSDataBlock** pResBlo
   const char*     idStr = GET_TASKID(pTaskInfo);
 
   QRY_PARAM_CHECK(pResBlock);
+
+  if (isMainFirstGroupSort(pInfo)) {
+    return mainFirstGroupSeqTableScan(pOperator, pResBlock);
+  }
 
   if (pInfo->currentGroupId == -1) {
     if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
@@ -2448,10 +2774,6 @@ _end:
   }
 
   return code;
-}
-
-static bool isEmptyQueryTimeWindow(STimeWindow* pWindow) {
-  return (pWindow == NULL) || (pWindow->skey > pWindow->ekey);
 }
 
 static int32_t doStbJoinDynamicTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
@@ -3246,6 +3568,8 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   pInfo->tableStartIndex = 0;
   pInfo->currentTable = 0;
   pInfo->scanMode = 0;
+  pInfo->currentPhase = SCAN_PHASE_MAIN;
+  pInfo->groupDone = false;
   pInfo->countState = 0;
   pInfo->base.scanFlag = (pInfo->scanInfo.numOfAsc > 1) ? PRE_SCAN : MAIN_SCAN;
 
@@ -3382,6 +3706,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   filterSetExecContext(pOperator->exprSupp.pFilterInfo, pTaskInfo, isTaskKilled);
 
   pInfo->currentGroupId = -1;
+  pInfo->currentPhase = SCAN_PHASE_MAIN;
 
   pInfo->tableEndIndex = -1;
   pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
@@ -3409,6 +3734,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   }
 
   pInfo->filesetDelimited = pTableScanNode->filesetDelimited;
+  pInfo->groupSort = pTableScanNode->groupSort;
 
   pOperator->fpSet = createOperatorFpSet(prepareTableScan, doTableScanNext,
                                          NULL, destroyTableScanOperatorInfo,
@@ -5398,9 +5724,28 @@ static void stopSubTablesTableMergeScan(STableMergeScanInfo* pInfo) {
   }
 }
 
+static void cleanupTableMergeDurationState(STableMergeScanInfo* pInfo) {
+  for (int32_t i = 0; i < pInfo->numNextDurationBlocks; ++i) {
+    blockDataDestroy(pInfo->nextDurationBlocks[i]);
+    pInfo->nextDurationBlocks[i] = NULL;
+  }
+
+  pInfo->bNewFilesetEvent = false;
+  pInfo->bNextDurationBlockEvent = false;
+  pInfo->numNextDurationBlocks = 0;
+  pInfo->rtnNextDurationBlocks = false;
+  pInfo->nextDurationBlocksIdx = 0;
+}
+
+static void consumeTableMergeScanNotify(SOperatorInfo* pOperator);
+
 void stopDurationForGroupTableMergeScan(SOperatorInfo* pOperator) {
   STableMergeScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
+  if (pInfo->pSortHandle == NULL) {
+    return;
+  }
+
   qDebug("%s table merge scan stop duration ", GET_TASKID(pTaskInfo));
 
   SSortExecInfo sortExecInfo = tsortGetSortExecInfo(pInfo->pSortHandle);
@@ -5445,17 +5790,7 @@ static int32_t createVTableMergeScanInfoFromBatchParam(SOperatorInfo* pOperator)
   code = flushAndCloseTmsReader(&pInfo->base, &pInfo->base.dataReader, true);
   QUERY_CHECK_CODE(code, lino, _return);
 
-  for (int32_t i = 0; i < pInfo->numNextDurationBlocks; ++i) {
-    if (pInfo->nextDurationBlocks[i]) {
-      blockDataDestroy(pInfo->nextDurationBlocks[i]);
-      pInfo->nextDurationBlocks[i] = NULL;
-    }
-  }
-  pInfo->numNextDurationBlocks = 0;
-  pInfo->nextDurationBlocksIdx = 0;
-  pInfo->rtnNextDurationBlocks = false;
-  pInfo->bNewFilesetEvent = false;
-  pInfo->bNextDurationBlockEvent = false;
+  cleanupTableMergeDurationState(pInfo);
   taosHashCleanup(pInfo->mSkipTables);
   pInfo->mSkipTables = NULL;
 
@@ -5537,8 +5872,14 @@ int32_t doTableMergeScanParaSubTablesNext(SOperatorInfo* pOperator, SSDataBlock*
 
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
   STableMergeScanInfo* pInfo = pOperator->info;
+  const STableScanPhysiNode* pScanNode = pOperator->pPhyNode;
 
   QRY_PARAM_CHECK(ppRes);
+  QUERY_CHECK_CONDITION(
+      !interpModeUsesPhasedProtocol(pScanNode->interpMode) &&
+          !pInfo->base.cond.mainFirst,
+      code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  consumeTableMergeScanNotify(pOperator);
 
   if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
     *ppRes = NULL;
@@ -5857,6 +6198,50 @@ _end:
   return code;
 }
 
+static void initTableMergeScanPhaseState(STableMergeScanInfo* pInfo) {
+  pInfo->currentPhase = SCAN_PHASE_MAIN;
+  pInfo->groupDone = false;
+  pInfo->phaseDone = false;
+  if (!pInfo->base.cond.mainFirst) {
+    return;
+  }
+
+  pInfo->phaseWins[SCAN_PHASE_MAIN] = pInfo->base.cond.twindows;
+  pInfo->phaseWins[SCAN_PHASE_NEXT] = pInfo->base.cond.extTwindows[1];
+  pInfo->phaseWins[SCAN_PHASE_PREV] = pInfo->base.cond.extTwindows[0];
+  pInfo->base.cond.type = TIMEWINDOW_RANGE_CONTAINED;
+  pInfo->base.cond.twindows = pInfo->phaseWins[SCAN_PHASE_MAIN];
+  pInfo->base.cond.order = TSDB_ORDER_ASC;
+}
+
+static int32_t rebuildTableMergeSortInfo(STableMergeScanInfo* pInfo,
+                                         int32_t order) {
+  SArray* pSortInfo = NULL;
+  int32_t code = generateSortByTsPkInfo(pInfo->base.matchInfo.pList, order,
+                                        &pSortInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  taosArrayDestroy(pInfo->pSortInfo);
+  pInfo->pSortInfo = pSortInfo;
+  pInfo->base.cond.order = order;
+  return code;
+}
+
+static int32_t setTableMergeScanPhase(STableMergeScanInfo* pInfo,
+                                      int8_t phase) {
+  int32_t order = phase == SCAN_PHASE_PREV
+                      ? TSDB_ORDER_DESC
+                      : TSDB_ORDER_ASC;
+  pInfo->currentPhase = phase;
+  pInfo->base.cond.twindows = pInfo->phaseWins[phase];
+  if (pInfo->base.cond.order != order) {
+    return rebuildTableMergeSortInfo(pInfo, order);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 void tableMergeScanTsdbNotifyCb(ETsdReaderNotifyType type, STsdReaderNotifyInfo* info, void* param) {
   STableMergeScanInfo* pTmsInfo = param;
   if (type == TSD_READER_NOTIFY_DURATION_START) {
@@ -5922,6 +6307,9 @@ int32_t startDurationForGroupTableMergeScan(SOperatorInfo* pOperator) {
   if (numOfTable == 1) {
     tsortSetSingleTableMerge(pInfo->pSortHandle);
   } else {
+    // Multi-table sorting may pull the current duration before its first
+    // output. MAIN_FIRST early-stop skips later work after notification, but
+    // does not cancel data already pulled into this sort handle.
     code = tsortOpen(pInfo->pSortHandle);
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -5933,6 +6321,37 @@ _end:
   return code;
 }
 
+static int32_t resolveTableMergeScanGroupRange(
+    STableMergeScanInfo* pInfo, int32_t tableListSize) {
+  if (pInfo->tableStartIndex < 0 ||
+      pInfo->tableStartIndex >= tableListSize) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  STableKeyInfo* pStartKey = tableListGetInfo(
+      pInfo->base.pTableListInfo, pInfo->tableStartIndex);
+  if (pStartKey == NULL) {
+    return terrno;
+  }
+  pInfo->groupId = pStartKey->groupId;
+  pInfo->baseGroupId = pStartKey->baseGId;
+
+  int32_t tableIndex = pInfo->tableStartIndex + 1;
+  for (; tableIndex < tableListSize; ++tableIndex) {
+    STableKeyInfo* pKeyInfo = tableListGetInfo(
+        pInfo->base.pTableListInfo, tableIndex);
+    if (pKeyInfo == NULL) {
+      return terrno;
+    }
+    if (pKeyInfo->groupId != pInfo->groupId ||
+        pKeyInfo->baseGId != pInfo->baseGroupId) {
+      break;
+    }
+  }
+  pInfo->tableEndIndex = tableIndex - 1;
+  return TSDB_CODE_SUCCESS;
+}
+
 void startGroupTableMergeScan(SOperatorInfo* pOperator) {
   int32_t              code = TSDB_CODE_SUCCESS;
   int32_t              lino = 0;
@@ -5942,21 +6361,6 @@ void startGroupTableMergeScan(SOperatorInfo* pOperator) {
   qDebug("%s table merge scan start group %" PRIu64 ":%" PRIu64, GET_TASKID(pTaskInfo), pInfo->baseGroupId,
          pInfo->groupId);
 
-  {
-    int32_t numOfTables = 0;
-    code = tableListGetSize(pInfo->base.pTableListInfo, &numOfTables);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    int32_t i = pInfo->tableStartIndex + 1;
-    for (; i < numOfTables; ++i) {
-      STableKeyInfo* tableKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, i);
-      QUERY_CHECK_NULL(tableKeyInfo, code, lino, _end, terrno);
-      if (tableKeyInfo->groupId != pInfo->groupId || tableKeyInfo->baseGId != pInfo->baseGroupId) {
-        break;
-      }
-    }
-    pInfo->tableEndIndex = i - 1;
-  }
   pInfo->bGroupProcessed = false;
   int32_t tableStartIdx = pInfo->tableStartIndex;
   int32_t tableEndIdx = pInfo->tableEndIndex;
@@ -6001,19 +6405,174 @@ void stopGroupTableMergeScan(SOperatorInfo* pOperator) {
    * destroyTableMergeScanOperatorInfo when the operator is destroyed.
    */
 
-  for (int32_t i = 0; i < pInfo->numNextDurationBlocks; ++i) {
-    if (pInfo->nextDurationBlocks[i]) {
-      blockDataDestroy(pInfo->nextDurationBlocks[i]);
-      pInfo->nextDurationBlocks[i] = NULL;
-    }
-    pInfo->numNextDurationBlocks = 0;
-    pInfo->nextDurationBlocksIdx = 0;
-  }
+  cleanupTableMergeDurationState(pInfo);
   resetLimitInfoForNextGroup(&pInfo->limitInfo);
   taosHashCleanup(pInfo->mSkipTables);
   pInfo->mSkipTables = NULL;
   qDebug("%s table merge scan stop group %" PRIu64 ":%" PRIu64, GET_TASKID(pTaskInfo), pInfo->baseGroupId,
          pInfo->groupId);
+}
+
+static int32_t advanceTableMergeScanPhase(SOperatorInfo* pOperator) {
+  STableMergeScanInfo* pInfo = pOperator->info;
+
+  pInfo->groupDone = false;
+  pInfo->phaseDone = false;
+  pInfo->hasGroupId = false;
+  pInfo->tableStartIndex = 0;
+  pInfo->tableEndIndex = 0;
+  cleanupTableMergeDurationState(pInfo);
+  int32_t code = flushAndCloseTmsReader(
+      &pInfo->base, &pInfo->base.dataReader, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (!pInfo->base.cond.mainFirst ||
+      pInfo->currentPhase == SCAN_PHASE_PREV) {
+    setOperatorCompleted(pOperator);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return setTableMergeScanPhase(
+      pInfo, (int8_t)(pInfo->currentPhase + 1));
+}
+
+static int32_t advanceMixedTableMergeScanCursor(
+    SOperatorInfo* pOperator, int32_t tableListSize) {
+  STableMergeScanInfo* pInfo = pOperator->info;
+
+  stopGroupTableMergeScan(pOperator);
+  int32_t code = flushAndCloseTmsReader(
+      &pInfo->base, &pInfo->base.dataReader, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  pInfo->groupDone = false;
+  pInfo->phaseDone = false;
+
+  int8_t nextPhase = (int8_t)(pInfo->currentPhase + 1);
+  if (pInfo->currentPhase == SCAN_PHASE_PREV) {
+    if (pInfo->tableEndIndex >= tableListSize - 1) {
+      setOperatorCompleted(pOperator);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    pInfo->tableStartIndex = pInfo->tableEndIndex + 1;
+    code = resolveTableMergeScanGroupRange(pInfo, tableListSize);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    nextPhase = SCAN_PHASE_MAIN;
+  }
+
+  return setTableMergeScanPhase(pInfo, nextPhase);
+}
+
+static int32_t advanceTableMergeScanGroup(SOperatorInfo* pOperator,
+                                          int32_t tableListSize) {
+  STableMergeScanInfo* pInfo = pOperator->info;
+
+  if (interpUsesOuterGroupCursor(pOperator, &pInfo->base)) {
+    return advanceMixedTableMergeScanCursor(pOperator, tableListSize);
+  }
+
+  stopGroupTableMergeScan(pOperator);
+  if (pInfo->tableEndIndex >= tableListSize - 1) {
+    return advanceTableMergeScanPhase(pOperator);
+  }
+
+  pInfo->tableStartIndex = pInfo->tableEndIndex + 1;
+  int32_t code = resolveTableMergeScanGroupRange(pInfo, tableListSize);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  startGroupTableMergeScan(pOperator);
+  return TSDB_CODE_SUCCESS;
+}
+
+// MAIN_FIRST walks the (outer group, phase) cursor when the scan is grouped,
+// and the global phase otherwise.
+static int32_t advanceTableMergeScanCursor(SOperatorInfo* pOperator,
+                                           int32_t tableListSize) {
+  STableMergeScanInfo* pInfo = pOperator->info;
+
+  if (interpUsesOuterGroupCursor(pOperator, &pInfo->base)) {
+    return advanceTableMergeScanGroup(pOperator, tableListSize);
+  }
+  return advanceTableMergeScanPhase(pOperator);
+}
+
+// Point the cursor at the first table group. Reports an empty table list
+// through pEmpty after completing the operator.
+static int32_t tableMergeScanOpenFirstGroup(SOperatorInfo* pOperator,
+                                            int32_t tableListSize,
+                                            bool* pEmpty) {
+  STableMergeScanInfo* pInfo = pOperator->info;
+
+  pInfo->hasGroupId = true;
+  *pEmpty = tableListSize == 0;
+  if (*pEmpty) {
+    setOperatorCompleted(pOperator);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pInfo->tableStartIndex = 0;
+  return resolveTableMergeScanGroupRange(pInfo, tableListSize);
+}
+
+static void consumeTableMergeScanNotify(SOperatorInfo* pOperator) {
+  SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
+  if (pGetParam == NULL || pGetParam->value == NULL) {
+    return;
+  }
+
+  STableScanOperatorParam* pNotify = pGetParam->value;
+  if (pNotify->paramType != NOTIFY_TYPE_SCAN_PARAM ||
+      !pNotify->notifyToProcess) {
+    return;
+  }
+
+  STableMergeScanInfo* pInfo = pOperator->info;
+  bool multiGroup =
+      tableScanInterpMode(pOperator) == INTERP_MODE_MULTI_GROUP;
+  uint64_t outerEpoch =
+      interpUsesOuterGroupCursor(pOperator, &pInfo->base) ? pInfo->groupId
+                                                          : 0;
+  uint64_t scanGroupId = multiGroup ? 0 : pInfo->groupId;
+  if (pInfo->base.cond.mainFirst &&
+      interpMainFirstNotifyMatchesSource(
+          pInfo->currentPhase, scanGroupId,
+          &pInfo->phaseWins[pInfo->currentPhase], outerEpoch,
+          pNotify)) {
+    if (multiGroup) {
+      pInfo->phaseDone = true;
+    } else {
+      pInfo->groupDone = true;
+    }
+    qDebug("%s MAIN_FIRST early-stop consumed target=table_merge "
+           "notifyTs=%" PRId64 " outerEpoch=%" PRIu64
+           " phase=%d scanGroupId=%" PRIu64,
+           GET_TASKID(pOperator->pTaskInfo), pNotify->notifyTs,
+           pNotify->groupid,
+           pNotify->notifyPhase,
+           pNotify->notifyScanGroupId);
+  } else if (pInfo->base.cond.mainFirst) {
+    qDebug("%s discarded stale table_merge notification "
+           "outerEpoch=%" PRIu64 " phase=%d scanGroupId=%" PRIu64
+           " notifyTs=%" PRId64,
+           GET_TASKID(pOperator->pTaskInfo), pNotify->groupid,
+           pNotify->notifyPhase,
+           pNotify->notifyScanGroupId, pNotify->notifyTs);
+  }
+
+  if (!pGetParam->reUse) {
+    freeOperatorParam(pGetParam, OP_GET_PARAM);
+  } else {
+    pGetParam->reUse = false;
+  }
+  pOperator->pOperatorGetParam = NULL;
 }
 
 // all data produced by this function only belongs to one group
@@ -6065,15 +6624,28 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
 }
 
 int32_t doTableMergeScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
-  if (pOperator->status == OP_EXEC_DONE) {
-    (*ppRes) = NULL;
-    return TSDB_CODE_SUCCESS;
-  }
-
   int32_t              code = TSDB_CODE_SUCCESS;
   int32_t              lino = 0;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
   STableMergeScanInfo* pInfo = pOperator->info;
+  SSDataBlock*         pBlock = NULL;
+
+  QRY_PARAM_CHECK(ppRes);
+  consumeTableMergeScanNotify(pOperator);
+  if (pOperator->status == OP_EXEC_DONE) {
+    *ppRes = NULL;
+    return code;
+  }
+
+  if (pInfo->base.cond.mainFirst) {
+    const STableScanPhysiNode* pScanNode = pOperator->pPhyNode;
+    QUERY_CHECK_CONDITION(pInfo->scanInfo.numOfAsc == 1 &&
+                              pInfo->scanInfo.numOfDesc == 0 &&
+                              !pScanNode->paraTablesSort &&
+                              !pScanNode->scan.node.dynamicOp,
+                          code, lino, _end,
+                          TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  }
 
   code = pOperator->fpSet._openFn(pOperator);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -6081,63 +6653,97 @@ int32_t doTableMergeScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t tableListSize = 0;
   code = tableListGetSize(pInfo->base.pTableListInfo, &tableListSize);
   QUERY_CHECK_CODE(code, lino, _end);
+  bool outerCursor = interpUsesOuterGroupCursor(pOperator, &pInfo->base);
 
-  if (!pInfo->hasGroupId) {
-    pInfo->hasGroupId = true;
-
-    if (tableListSize == 0) {
-      setOperatorCompleted(pOperator);
-      (*ppRes) = NULL;
-      return code;
-    }
-    pInfo->tableStartIndex = 0;
-    STableKeyInfo* tmp = (STableKeyInfo*)tableListGetInfo(pInfo->base.pTableListInfo, pInfo->tableStartIndex);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
-    pInfo->groupId = tmp->groupId;
-    pInfo->baseGroupId = tmp->baseGId;
-    startGroupTableMergeScan(pOperator);
-  }
-
-  SSDataBlock* pBlock = NULL;
-  while (pInfo->tableStartIndex < tableListSize) {
+  while (pOperator->status != OP_EXEC_DONE) {
     if (isTaskKilled(pTaskInfo)) {
       goto _end;
     }
 
-    pBlock = getSortedTableMergeScanBlockData(pInfo->pSortHandle, pInfo->pResBlock, pOperator->resultInfo.capacity,
-                                              pOperator);
-    if (pBlock == NULL && !pInfo->bGroupProcessed && pInfo->needCountEmptyTable) {
-      STableKeyInfo* tbInfo = tableListGetInfo(pInfo->base.pTableListInfo, pInfo->tableStartIndex);
+    if (pInfo->phaseDone) {
+      int8_t stoppedPhase = pInfo->currentPhase;
+      if (!outerCursor && pInfo->hasGroupId) {
+        stopGroupTableMergeScan(pOperator);
+      }
+      qDebug("%s MAIN_FIRST early-stop skipped table_merge phase:%d",
+             GET_TASKID(pTaskInfo), stoppedPhase);
+      code = advanceTableMergeScanCursor(pOperator, tableListSize);
+      QUERY_CHECK_CODE(code, lino, _end);
+      continue;
+    }
+
+    bool emptyTableList = false;
+    // The outer cursor advances per group, so the group must be resolved
+    // before the empty-window check can step it.
+    if (outerCursor && !pInfo->hasGroupId) {
+      code = tableMergeScanOpenFirstGroup(pOperator, tableListSize,
+                                          &emptyTableList);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (emptyTableList) {
+        break;
+      }
+    }
+
+    if (pInfo->base.cond.mainFirst &&
+        isEmptyQueryTimeWindow(&pInfo->base.cond.twindows)) {
+      code = advanceTableMergeScanCursor(pOperator, tableListSize);
+      QUERY_CHECK_CODE(code, lino, _end);
+      continue;
+    }
+
+    if (!pInfo->hasGroupId) {
+      code = tableMergeScanOpenFirstGroup(pOperator, tableListSize,
+                                          &emptyTableList);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (emptyTableList) {
+        break;
+      }
+      startGroupTableMergeScan(pOperator);
+    } else if (outerCursor && pInfo->pSortHandle == NULL) {
+      startGroupTableMergeScan(pOperator);
+    }
+
+    if (pInfo->groupDone) {
+      pInfo->groupDone = false;
+      qDebug("%s MAIN_FIRST early-stop skipped table_merge group "
+             "phase:%d scanGroupId:%" PRIu64,
+             GET_TASKID(pTaskInfo), pInfo->currentPhase,
+             pInfo->groupId);
+      code = advanceTableMergeScanGroup(pOperator, tableListSize);
+      QUERY_CHECK_CODE(code, lino, _end);
+      continue;
+    }
+
+    pBlock = getSortedTableMergeScanBlockData(
+        pInfo->pSortHandle, pInfo->pResBlock,
+        pOperator->resultInfo.capacity, pOperator);
+    bool countEmptyTable = !pInfo->base.cond.mainFirst ||
+                           pInfo->currentPhase == SCAN_PHASE_MAIN;
+    if (pBlock == NULL && !pInfo->bGroupProcessed &&
+        pInfo->needCountEmptyTable && countEmptyTable) {
+      STableKeyInfo* tbInfo = tableListGetInfo(
+          pInfo->base.pTableListInfo, pInfo->tableStartIndex);
       QUERY_CHECK_NULL(tbInfo, code, lino, _end, terrno);
-      pBlock = getOneRowResultBlock(pTaskInfo, &pInfo->base, pInfo->pResBlock, tbInfo);
+      pBlock = getOneRowResultBlock(pTaskInfo, &pInfo->base,
+                                    pInfo->pResBlock, tbInfo);
     }
     if (pBlock != NULL) {
       pBlock->info.id.groupId = pInfo->groupId;
       pBlock->info.id.baseGId = pInfo->baseGroupId;
+      pBlock->info.scanPhase = pInfo->currentPhase;
       pInfo->bGroupProcessed = true;
       break;
-    } else {
-      if (pInfo->bNewFilesetEvent) {
-        stopDurationForGroupTableMergeScan(pOperator);
-        code = startDurationForGroupTableMergeScan(pOperator);
-        QUERY_CHECK_CODE(code, lino, _end);
-      } else {
-        // Data of this group are all dumped, let's try the next group
-        stopGroupTableMergeScan(pOperator);
-        if (pInfo->tableEndIndex >= tableListSize - 1) {
-          setOperatorCompleted(pOperator);
-          break;
-        }
-
-        pInfo->tableStartIndex = pInfo->tableEndIndex + 1;
-        STableKeyInfo* tmp = tableListGetInfo(pInfo->base.pTableListInfo, pInfo->tableStartIndex);
-        QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
-        pInfo->groupId = tmp->groupId;
-        pInfo->baseGroupId = tmp->baseGId;
-        startGroupTableMergeScan(pOperator);
-        resetLimitInfoForNextGroup(&pInfo->limitInfo);
-      }
     }
+
+    if (pInfo->bNewFilesetEvent) {
+      stopDurationForGroupTableMergeScan(pOperator);
+      code = startDurationForGroupTableMergeScan(pOperator);
+      QUERY_CHECK_CODE(code, lino, _end);
+      continue;
+    }
+
+    code = advanceTableMergeScanGroup(pOperator, tableListSize);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   /*
@@ -6176,12 +6782,7 @@ void destroyTableMergeScanOperatorInfo(void* param) {
     forceCloseTableScanReader(&pTableScanInfo->base);
   }
 
-  for (int32_t i = 0; i < pTableScanInfo->numNextDurationBlocks; ++i) {
-    if (pTableScanInfo->nextDurationBlocks[i] != NULL) {
-      blockDataDestroy(pTableScanInfo->nextDurationBlocks[i]);
-      pTableScanInfo->nextDurationBlocks[i] = NULL;
-    }
-  }
+  cleanupTableMergeDurationState(pTableScanInfo);
 
   tsortDestroySortHandle(pTableScanInfo->pSortHandle);
   pTableScanInfo->pSortHandle = NULL;
@@ -6296,33 +6897,32 @@ static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
 
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
   cleanupQueryTableDataCond(&pInfo->base.cond);
-  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, &pInfo->base.readHandle, false);
+  bool phased =
+      interpModeUsesPhasedProtocol(pTableScanNode->interpMode);
+  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode,
+                                &pInfo->base.readHandle, phased);
   if (code) {
     qError("%s failed to initQueryTableDataCond, code:%s", __func__, tstrerror(code));
     return code;
   }
+  initTableMergeScanPhaseState(pInfo);
 
   tsortDestroySortHandle(pInfo->pSortHandle);
   pInfo->pSortHandle = NULL;
+  if (pInfo->base.cond.mainFirst) {
+    code = rebuildTableMergeSortInfo(pInfo, TSDB_ORDER_ASC);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
 
   taosHashCleanup(pInfo->mSkipTables);
   pInfo->mSkipTables = NULL;
   pOper->resultInfo.totalRows = 0;
   
   pInfo->bGroupProcessed = false;
-  pInfo->bNewFilesetEvent = false;
-  pInfo->bNextDurationBlockEvent = false;
-  pInfo->rtnNextDurationBlocks = false;
-  pInfo->nextDurationBlocksIdx = 0;
+  cleanupTableMergeDurationState(pInfo);
   pInfo->bSortRowId = false;
-
-  for (int32_t i = 0; i < pInfo->numNextDurationBlocks; ++i) {
-    if (pInfo->nextDurationBlocks[i] != NULL) {
-      blockDataDestroy(pInfo->nextDurationBlocks[i]);
-      pInfo->nextDurationBlocks[i] = NULL;
-    }
-  }
-  pInfo->numNextDurationBlocks = 0;
 
   stopSubTablesTableMergeScan(pInfo);
 
@@ -6358,8 +6958,12 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
                              &pInfo->base.matchInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, readHandle, false);
+  bool phased =
+      interpModeUsesPhasedProtocol(pTableScanNode->interpMode);
+  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode,
+                                readHandle, phased);
   QUERY_CHECK_CODE(code, lino, _error);
+  initTableMergeScanPhaseState(pInfo);
 
   if (pTableScanNode->scan.pScanPseudoCols != NULL) {
     SExprSupp* pSup = &pInfo->base.pseudoSup;

@@ -86,6 +86,7 @@ add_test(
 
 # pageBufferTest
 add_executable(pageBufferTest "pageBufferTest.cpp")
+target_compile_definitions(pageBufferTest PRIVATE BUILD_TEST)
 DEP_ext_gtest(pageBufferTest)
 target_link_libraries(pageBufferTest PRIVATE os util)
 add_test(

@@ -460,6 +460,67 @@ void testEncryptedFlushAndReadBackBuffer() {
   tsiEncryptScope = savedScope;
 }
 
+void testEvictionWriteFailurePreservesResidentPages() {
+  const int32_t pageSize = 128;
+  SDiskbasedBuf* pBuf = nullptr;
+  ASSERT_EQ(createDiskbasedBuf(&pBuf, pageSize, pageSize * 2,
+                               "flush_failure", TD_TMP_DIR_PATH),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(setBufPageCompressOnDisk(pBuf, true), TSDB_CODE_SUCCESS);
+
+  std::vector<char> first(pageSize, 0x11);
+  std::vector<char> second(pageSize, 0x22);
+  int32_t pageId1 = -1;
+  char* pPage1 = static_cast<char*>(getNewBufPage(pBuf, &pageId1));
+  ASSERT_NE(pPage1, nullptr);
+  memcpy(pPage1, first.data(), first.size());
+  setBufPageDirty(pPage1, true);
+  releaseBufPage(pBuf, pPage1);
+
+  int32_t pageId2 = -1;
+  char* pPage2 = static_cast<char*>(getNewBufPage(pBuf, &pageId2));
+  ASSERT_NE(pPage2, nullptr);
+  memcpy(pPage2, second.data(), second.size());
+  setBufPageDirty(pPage2, true);
+  releaseBufPage(pBuf, pPage2);
+
+  dbgFailNextDiskbasedBufFlushWrite(pBuf);
+  terrno = TSDB_CODE_SUCCESS;
+  int32_t pageId3 = -1;
+  EXPECT_EQ(getNewBufPage(pBuf, &pageId3), nullptr);
+  EXPECT_EQ(terrno, TSDB_CODE_APP_ERROR);
+  EXPECT_EQ(getDBufStatis(pBuf).flushPages, 0);
+
+  pPage1 = static_cast<char*>(getBufPage(pBuf, pageId1));
+  ASSERT_NE(pPage1, nullptr);
+  EXPECT_EQ(memcmp(pPage1, first.data(), first.size()), 0);
+  releaseBufPage(pBuf, pPage1);
+
+  pPage2 = static_cast<char*>(getBufPage(pBuf, pageId2));
+  ASSERT_NE(pPage2, nullptr);
+  EXPECT_EQ(memcmp(pPage2, second.data(), second.size()), 0);
+  releaseBufPage(pBuf, pPage2);
+
+  dbgShortNextDiskbasedBufFlushWrite(pBuf);
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  char* pPage3 = static_cast<char*>(getNewBufPage(pBuf, &pageId3));
+  ASSERT_EQ(pPage3, nullptr);
+  EXPECT_EQ(terrno, TSDB_CODE_APP_ERROR);
+  EXPECT_EQ(getDBufStatis(pBuf).flushPages, 0);
+
+  pPage1 = static_cast<char*>(getBufPage(pBuf, pageId1));
+  ASSERT_NE(pPage1, nullptr);
+  EXPECT_EQ(memcmp(pPage1, first.data(), first.size()), 0);
+  releaseBufPage(pBuf, pPage1);
+
+  pPage2 = static_cast<char*>(getBufPage(pBuf, pageId2));
+  ASSERT_NE(pPage2, nullptr);
+  EXPECT_EQ(memcmp(pPage2, second.data(), second.size()), 0);
+  releaseBufPage(pBuf, pPage2);
+
+  destroyDiskbasedBuf(pBuf);
+}
+
 }  // namespace
 
 TEST(testCase, resultBufferTest) {
@@ -472,6 +533,7 @@ TEST(testCase, resultBufferTest) {
   testGetBufPageNoLRU();
   testPinnedPagesSetOutOfMemory();
   testEncryptedFlushAndReadBackBuffer();
+  testEvictionWriteFailurePreservesResidentPages();
 }
 
 #pragma GCC diagnostic pop

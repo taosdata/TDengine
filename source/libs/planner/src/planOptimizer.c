@@ -4053,31 +4053,150 @@ _return:
   return code;
 }
 
-static int32_t pdcDealInterp(SOptimizeContext* pCxt, SInterpFuncLogicNode* pInterp) {
-  int32_t code = 0, lino = 0;
-  if (OPTIMIZE_FLAG_TEST_MASK(pInterp->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
-    return TSDB_CODE_SUCCESS;
+static bool pdcInterpInputEligible(const SLogicNode* pInput) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pInput)) {
+    return true;
   }
-  
-  // TODO: remove it after full implementation of pushing down to child
-  if (1 != LIST_LENGTH(pInterp->node.pChildren)) {
-    return TSDB_CODE_SUCCESS;
+
+  if (QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pInput)) {
+    // A remaining filter means the project has not been fully pushed down.
+    // A surviving ordered subquery must also preserve the ASC timeline that
+    // the MAIN_FIRST scan protocol requires.
+    return NULL == pInput->pConditions &&
+           ORDER_ASC == pInput->outputTsOrder;
   }
-  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pInterp->node.pChildren, 0);
-  if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
-    if (1 != LIST_LENGTH(pChild->pChildren)) {
-      return TSDB_CODE_SUCCESS;
+
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pInput)) {
+    return true;
+  }
+
+  return false;
+}
+
+static bool pdcInterpInputNeedsMultiGroup(const SLogicNode* pInput) {
+  if (NULL == pInput ||
+      QUERY_NODE_LOGIC_PLAN_PARTITION != nodeType(pInput)) {
+    return false;
+  }
+
+  const SPartitionLogicNode* pPartition =
+      (const SPartitionLogicNode*)pInput;
+  return keysHasCol(pPartition->pPartitionKeys);
+}
+
+static bool pdcInterpScanFromVirtualTable(const SScanLogicNode* pScan) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pScan->pScanCols) {
+    if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+      continue;
     }
 
-    pChild = (SLogicNode*)nodesListGetNode(pChild->pChildren, 0);  
+    int8_t tableType = ((SColumnNode*)pNode)->tableType;
+    if (TSDB_VIRTUAL_NORMAL_TABLE == tableType ||
+        TSDB_VIRTUAL_CHILD_TABLE == tableType) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// T5.1a provides the in-memory result store and the MAIN_FIRST consumer for
+// final ordinary TableScan shapes. Later shapes keep their own final gates.
+static const bool pdcInterpMainFirstConsumerReady = true;
+
+// Locate the scan feeding an interp node through at most one unary node.
+// This topology-only lookup also serves legacy predicate pushdown. MAIN_FIRST
+// callers must validate the direct input with pdcInterpInputEligible().
+// ppInput is optional and receives that direct input.
+static SScanLogicNode* pdcInterpFindScan(SInterpFuncLogicNode* pInterp,
+                                         SLogicNode** ppInput) {
+  if (1 != LIST_LENGTH(pInterp->node.pChildren)) {
+    return NULL;
+  }
+
+  SLogicNode* pInput =
+      (SLogicNode*)nodesListGetNode(pInterp->node.pChildren, 0);
+  if (NULL != ppInput) {
+    *ppInput = pInput;
+  }
+  SLogicNode* pChild = pInput;
+  if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+    if (1 != LIST_LENGTH(pChild->pChildren)) {
+      return NULL;
+    }
+    pChild = (SLogicNode*)nodesListGetNode(pChild->pChildren, 0);
   }
 
   if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+    return NULL;
+  }
+
+  return (SScanLogicNode*)pChild;
+}
+
+// Pre-split optimization only marks semantic candidates. splitLogicPlan may
+// still promote a table scan or fan it out into child subplans, so the final
+// mode is decided by postSplitOptimize.
+static int8_t pdcGetInterpCandidateMode(const SOptimizeContext* pCxt,
+                                        const SInterpFuncLogicNode* pInterp,
+                                        const SLogicNode* pInput,
+                                        const SScanLogicNode* pScan) {
+  if (inStreamCalcClause(pCxt->pPlanCxt) ||
+      pInterp->timelineSource != TIME_LINE_SOURCE_PRIMARY_TS ||
+      !pdcInterpInputEligible(pInput) || pScan->paraTablesSort ||
+      pScan->virtualStableScan || pdcInterpScanFromVirtualTable(pScan) ||
+      pScan->scanType == SCAN_TYPE_STREAM ||
+      pScan->scanType == SCAN_TYPE_EXTERNAL) {
+    return INTERP_MODE_LEGACY;
+  }
+
+  if (NULL == pScan->pExtScanRange && NULL == pScan->pExtTimeRange) {
+    return INTERP_MODE_LEGACY;
+  }
+
+  return pdcInterpInputNeedsMultiGroup(pInput)
+             ? INTERP_MODE_MULTI_GROUP
+             : INTERP_MODE_MAIN_FIRST;
+}
+
+static void pdcSetInterpCandidateMode(const SOptimizeContext* pCxt,
+                                      SInterpFuncLogicNode* pInterp) {
+  SLogicNode*     pInput = NULL;
+  SScanLogicNode* pScan = pdcInterpFindScan(pInterp, &pInput);
+  pInterp->requireMainMembership =
+      pdcInterpInputNeedsMultiGroup(pInput);
+
+  pInterp->interpMode = (NULL == pScan)
+                            ? INTERP_MODE_LEGACY
+                            : pdcGetInterpCandidateMode(pCxt, pInterp, pInput,
+                                                        pScan);
+  if (NULL != pScan) {
+    pScan->interpMode = pInterp->interpMode;
+  }
+  if (NULL != pInput &&
+      QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pInput)) {
+    SPartitionLogicNode* pPartition = (SPartitionLogicNode*)pInput;
+    pPartition->phasedMode =
+        INTERP_MODE_MULTI_GROUP == pInterp->interpMode;
+  }
+}
+
+static int32_t pdcDealInterp(SOptimizeContext* pCxt,
+                             SInterpFuncLogicNode* pInterp) {
+  int32_t code = 0, lino = 0;
+  if (OPTIMIZE_FLAG_TEST_MASK(pInterp->node.optimizedFlag,
+                              OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SScanLogicNode* pScan = (SScanLogicNode*)pChild;
-  bool            interpOnPrimaryTs = (pInterp->timelineSource == TIME_LINE_SOURCE_PRIMARY_TS);
+  // TODO: remove it after full implementation of pushing down to child
+  SScanLogicNode* pScan = pdcInterpFindScan(pInterp, NULL);
+  if (NULL == pScan) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  bool interpOnPrimaryTs =
+      (pInterp->timelineSource == TIME_LINE_SOURCE_PRIMARY_TS);
 
   // let the scan skip the one ext-window FILL(PREV)/FILL(NEXT) never reads
   // (see interpPruneExtWindows; other modes keep both sides)
@@ -4157,6 +4276,12 @@ static int32_t pdcOptimizeImpl(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
         break;
       }
     }
+  }
+  if (TSDB_CODE_SUCCESS == code &&
+      QUERY_NODE_LOGIC_PLAN_INTERP_FUNC == nodeType(pLogicNode)) {
+    // Decided after the subtree is pushed down: eligibility reads the
+    // child's post-pushdown shape (see pdcInterpInputEligible).
+    pdcSetInterpCandidateMode(pCxt, (SInterpFuncLogicNode*)pLogicNode);
   }
   return code;
 }
@@ -5575,12 +5700,56 @@ static bool partTagsOptAreSupportedFuncs(SNodeList* pFuncs) {
   return true;
 }
 
+static bool partTagsOptCanSplitInterpPartition(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION != nodeType(pNode) ||
+      NULL == pNode->pParent ||
+      QUERY_NODE_LOGIC_PLAN_INTERP_FUNC != nodeType(pNode->pParent)) {
+    return false;
+  }
+
+  SPartitionLogicNode* pPartition = (SPartitionLogicNode*)pNode;
+  SInterpFuncLogicNode* pInterp =
+      (SInterpFuncLogicNode*)pNode->pParent;
+  if (!pPartition->phasedMode ||
+      INTERP_MODE_MULTI_GROUP != pInterp->interpMode) {
+    return false;
+  }
+
+  // PartitionCols runs after PartitionTags in optimizeRuleSet[]. Under
+  // sort_for_group() it replaces a column-keyed Partition with a Sort and
+  // destroys the node, taking the pre-split rollback state with it. The
+  // post-split check would then find no Partition to commit or roll back,
+  // leaving the static keys stranded in the scan group tags while the Sort
+  // computes group ids from the column keys alone. Never start the split
+  // when that rule can fire.
+  SLogicNode* pRoot = getLogicNodeRootNode(pNode);
+  if (NULL != pRoot && getSortForGroupOptHint(pRoot->pHint)) {
+    return false;
+  }
+
+  bool hasColumnKey = false;
+  bool hasStaticKey = false;
+  SNode* pKey = NULL;
+  FOREACH(pKey, pPartition->pPartitionKeys) {
+    bool hasColumn = partitionKeyHasOrdinaryColumn(pKey);
+    bool hasStatic = partitionKeyHasTagOrTbname(pKey);
+    if (hasColumn == hasStatic) {
+      return false;
+    }
+    hasColumnKey |= hasColumn;
+    hasStaticKey |= hasStatic;
+  }
+  return hasColumnKey && hasStaticKey;
+}
+
 static bool partTagsOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (!partTagsIsOptimizableNode(pNode)) {
     return false;
   }
 
-  return !keysHasCol(partTagsGetPartKeys(pNode)) && partTagsOptAreSupportedFuncs(partTagsGetFuncs(pNode));
+  return partTagsOptCanSplitInterpPartition(pNode) ||
+         (!keysHasCol(partTagsGetPartKeys(pNode)) &&
+          partTagsOptAreSupportedFuncs(partTagsGetFuncs(pNode)));
 }
 
 static int32_t partTagsOptRebuildTbanme(SNodeList* pPartKeys) {
@@ -5924,6 +6093,123 @@ static int32_t partTagsOptRemovePseudoCols(SScanLogicNode* pScan) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t partTagsOptSplitInterpPartition(
+    SPartitionLogicNode* pPartition, SScanLogicNode* pScan) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SNodeList* pColumnKeys = NULL;
+  SNodeList* pGroupTags = NULL;
+
+  code = nodesCloneList(pScan->pGroupTags, &pGroupTags);
+  SNode* pKey = NULL;
+  FOREACH(pKey, pPartition->pPartitionKeys) {
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+
+    SNode* pClone = NULL;
+    code = nodesCloneNode(pKey, &pClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+    SNodeList** ppTarget = partitionKeyHasOrdinaryColumn(pKey)
+                               ? &pColumnKeys
+                               : &pGroupTags;
+    code = nodesListMakeStrictAppend(ppTarget, pClone);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = partTagsOptRebuildTbanme(pGroupTags);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pPartition->pInterpPreSplitPartitionKeys =
+        pPartition->pPartitionKeys;
+    pPartition->pInterpPreSplitGroupTags = pScan->pGroupTags;
+    pPartition->interpPreSplitGroupSort = pScan->groupSort;
+    pPartition->pPartitionKeys = pColumnKeys;
+    pScan->pGroupTags = pGroupTags;
+    pScan->groupSort = true;
+    pColumnKeys = NULL;
+    pGroupTags = NULL;
+  }
+
+  nodesDestroyList(pColumnKeys);
+  nodesDestroyList(pGroupTags);
+  return code;
+}
+
+static bool partTagsOptHasPendingInterpSplit(
+    const SPartitionLogicNode* pPartition) {
+  return NULL != pPartition->pInterpPreSplitPartitionKeys;
+}
+
+static int32_t partTagsOptSyncMergeTargets(
+    SMergeLogicNode* pMerge, const SScanLogicNode* pScan) {
+  if (NULL == pMerge) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SNodeList* pInputs = NULL;
+  SNodeList* pTargets = NULL;
+  code = nodesCloneList(pScan->node.pTargets, &pInputs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCloneList(pScan->node.pTargets, &pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    nodesDestroyList(pMerge->pInputs);
+    nodesDestroyList(pMerge->node.pTargets);
+    pMerge->pInputs = pInputs;
+    pMerge->node.pTargets = pTargets;
+    pInputs = NULL;
+    pTargets = NULL;
+  }
+  nodesDestroyList(pInputs);
+  nodesDestroyList(pTargets);
+  return code;
+}
+
+static int32_t partTagsOptCommitInterpSplit(
+    SPartitionLogicNode* pPartition, SMergeLogicNode* pMerge,
+    SScanLogicNode* pScan) {
+  if (!partTagsOptHasPendingInterpSplit(pPartition)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = partTagsOptRemovePseudoCols(pScan);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = partTagsOptSyncMergeTargets(pMerge, pScan);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    nodesDestroyList(pPartition->pInterpPreSplitPartitionKeys);
+    nodesDestroyList(pPartition->pInterpPreSplitGroupTags);
+    pPartition->pInterpPreSplitPartitionKeys = NULL;
+    pPartition->pInterpPreSplitGroupTags = NULL;
+    pPartition->interpPreSplitGroupSort = false;
+  }
+  return code;
+}
+
+static int32_t partTagsOptRollbackInterpSplit(
+    SPartitionLogicNode* pPartition, SScanLogicNode* pScan) {
+  if (!partTagsOptHasPendingInterpSplit(pPartition)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL == pScan) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  nodesDestroyList(pPartition->pPartitionKeys);
+  nodesDestroyList(pScan->pGroupTags);
+  pPartition->pPartitionKeys =
+      pPartition->pInterpPreSplitPartitionKeys;
+  pScan->pGroupTags = pPartition->pInterpPreSplitGroupTags;
+  pScan->groupSort = pPartition->interpPreSplitGroupSort;
+  pPartition->pInterpPreSplitPartitionKeys = NULL;
+  pPartition->pInterpPreSplitGroupTags = NULL;
+  pPartition->interpPreSplitGroupSort = false;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SLogicNode* pNode = optFindPossibleNode(pLogicSubplan->pNode, partTagsOptMayBeOptimized, NULL);
   if (NULL == pNode) {
@@ -5932,6 +6218,13 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
 
   int32_t         code = TSDB_CODE_SUCCESS;
   SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  if (partTagsOptCanSplitInterpPartition(pNode)) {
+    code = partTagsOptSplitInterpPartition(
+        (SPartitionLogicNode*)pNode, pScan);
+    pCxt->optimized = TSDB_CODE_SUCCESS == code;
+    return code;
+  }
+
   if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
     // The partition node is destroyed below without inspecting pConditions, so
     // any filter still attached to it would be dropped silently. That is safe
@@ -21780,9 +22073,364 @@ static int32_t postSplitEliminateSortImpl(SLogicSubplan* pSubplan, SLogicNode* p
   return code;
 }
 
+static void postSplitDowngradeInterpProducers(SLogicNode* pNode) {
+  if (NULL == pNode) {
+    return;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    if (INTERP_MODE_LEGACY != pScan->interpMode) {
+      pScan->interpMode = INTERP_MODE_LEGACY;
+    }
+  } else if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
+    ((SPartitionLogicNode*)pNode)->phasedMode = false;
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    postSplitDowngradeInterpProducers((SLogicNode*)pChild);
+  }
+}
+
+static bool postSplitInterpScanExecutionReady(const SScanLogicNode* pScan) {
+  // MAIN_FIRST owns its per-phase reader directions. The physical scan must
+  // contribute exactly one static ASC pass.
+  return NULL != pScan && 1 == pScan->scanSeq[0] &&
+         0 == pScan->scanSeq[1] && !pScan->node.dynamicOp;
+}
+
+// Pure plan-shape check: is pInterp a finalizable interp-over-scan? Callers
+// decide separately whether the MAIN_FIRST consumer is enabled yet.
+static bool postSplitInterpShapeReady(SInterpFuncLogicNode* pInterp,
+                                      SScanLogicNode** ppScan) {
+  if (INTERP_MODE_MAIN_FIRST != pInterp->interpMode &&
+      INTERP_MODE_GROUP_FIRST != pInterp->interpMode) {
+    return false;
+  }
+
+  SLogicNode*     pInput = NULL;
+  SScanLogicNode* pScan = pdcInterpFindScan(pInterp, &pInput);
+  if (NULL == pScan) {
+    return false;
+  }
+
+  bool scanReady = postSplitInterpScanExecutionReady(pScan) &&
+                   (SCAN_TYPE_TABLE == pScan->scanType ||
+                    SCAN_TYPE_TABLE_MERGE == pScan->scanType);
+  if (!scanReady || !pdcInterpInputEligible(pInput)) {
+    return false;
+  }
+
+  *ppScan = pScan;
+  return true;
+}
+
+static bool postSplitMultiGroupShapeReady(
+    SInterpFuncLogicNode* pInterp,
+    SPartitionLogicNode** ppPartition,
+    SScanLogicNode** ppScan) {
+  if (INTERP_MODE_MULTI_GROUP != pInterp->interpMode) {
+    return false;
+  }
+
+  SLogicNode*     pInput = NULL;
+  SScanLogicNode* pScan = pdcInterpFindScan(pInterp, &pInput);
+  if (NULL == pScan || NULL == pInput ||
+      QUERY_NODE_LOGIC_PLAN_PARTITION != nodeType(pInput)) {
+    return false;
+  }
+
+  bool scanReady =
+      partitionKeysAreOrdinaryColumns(
+          ((SPartitionLogicNode*)pInput)->pPartitionKeys) &&
+      postSplitInterpScanExecutionReady(pScan) &&
+      (SCAN_TYPE_TABLE == pScan->scanType ||
+       SCAN_TYPE_TABLE_MERGE == pScan->scanType) &&
+      !pScan->paraTablesSort && !pScan->virtualStableScan &&
+      !pdcInterpScanFromVirtualTable(pScan) &&
+      (NULL != pScan->pExtScanRange ||
+       NULL != pScan->pExtTimeRange) &&
+      (NULL == pScan->pGroupTags || pScan->groupSort);
+  if (!scanReady) {
+    return false;
+  }
+
+  *ppPartition = (SPartitionLogicNode*)pInput;
+  *ppScan = pScan;
+  return true;
+}
+
+static SLogicSubplan* postSplitFindChildSubplan(
+    SLogicSubplan* pSubplan, int32_t groupId) {
+  SNode* pChild = NULL;
+  FOREACH(pChild, pSubplan->pChildren) {
+    SLogicSubplan* pChildSubplan = (SLogicSubplan*)pChild;
+    if (pChildSubplan->id.groupId == groupId) {
+      return pChildSubplan;
+    }
+  }
+  return NULL;
+}
+
+static SPartitionLogicNode* postSplitFindPendingInterpSplit(
+    SInterpFuncLogicNode* pInterp) {
+  if (1 != LIST_LENGTH(pInterp->node.pChildren)) {
+    return NULL;
+  }
+
+  SLogicNode* pInput = (SLogicNode*)nodesListGetNode(
+      pInterp->node.pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION != nodeType(pInput)) {
+    return NULL;
+  }
+
+  SPartitionLogicNode* pPartition = (SPartitionLogicNode*)pInput;
+  return partTagsOptHasPendingInterpSplit(pPartition)
+             ? pPartition
+             : NULL;
+}
+
+static SScanLogicNode* postSplitFindInterpSplitScan(
+    SLogicSubplan* pSubplan, SPartitionLogicNode* pPartition) {
+  if (1 != LIST_LENGTH(pPartition->node.pChildren)) {
+    return NULL;
+  }
+
+  SLogicNode* pInput = (SLogicNode*)nodesListGetNode(
+      pPartition->node.pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pInput)) {
+    return (SScanLogicNode*)pInput;
+  }
+  if (QUERY_NODE_LOGIC_PLAN_MERGE != nodeType(pInput)) {
+    return NULL;
+  }
+
+  SLogicSubplan* pSourceSubplan = postSplitFindChildSubplan(
+      pSubplan, ((SMergeLogicNode*)pInput)->srcGroupId);
+  if (NULL == pSourceSubplan || NULL == pSourceSubplan->pNode ||
+      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pSourceSubplan->pNode)) {
+    return NULL;
+  }
+  return (SScanLogicNode*)pSourceSubplan->pNode;
+}
+
+static bool postSplitDistributedInterpShapeReady(
+    SLogicSubplan* pSubplan, SInterpFuncLogicNode* pInterp,
+    SScanLogicNode** ppScan) {
+  if (INTERP_MODE_MAIN_FIRST != pInterp->interpMode ||
+      1 != LIST_LENGTH(pInterp->node.pChildren)) {
+    return false;
+  }
+
+  SLogicNode* pInput = (SLogicNode*)nodesListGetNode(
+      pInterp->node.pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_MERGE != nodeType(pInput)) {
+    return false;
+  }
+
+  SMergeLogicNode* pMerge = (SMergeLogicNode*)pInput;
+  if (!pMerge->needSort || pMerge->numOfChannels <= 0 ||
+      pMerge->srcGroupId != pMerge->srcEndGroupId ||
+      pMerge->node.outputTsOrder != ORDER_ASC ||
+      pMerge->node.resultDataOrder < DATA_ORDER_LEVEL_IN_GROUP ||
+      !pMerge->groupSort || pMerge->ignoreGroupId) {
+    return false;
+  }
+
+  SLogicSubplan* pSourceSubplan = postSplitFindChildSubplan(
+      pSubplan, pMerge->srcGroupId);
+  if (pSourceSubplan == NULL || pSourceSubplan->pNode == NULL ||
+      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pSourceSubplan->pNode)) {
+    return false;
+  }
+
+  SScanLogicNode* pScan = (SScanLogicNode*)pSourceSubplan->pNode;
+  if (!postSplitInterpScanExecutionReady(pScan) ||
+      pScan->scanType != SCAN_TYPE_TABLE_MERGE ||
+      pScan->paraTablesSort || pScan->virtualStableScan ||
+      (pScan->pExtScanRange == NULL && pScan->pExtTimeRange == NULL)) {
+    return false;
+  }
+  if (pMerge->node.resultDataOrder == DATA_ORDER_LEVEL_IN_GROUP &&
+      pScan->pGroupTags == NULL) {
+    return false;
+  }
+
+  *ppScan = pScan;
+  return true;
+}
+
+static bool postSplitDistributedMultiGroupShapeReady(
+    SLogicSubplan* pSubplan, SInterpFuncLogicNode* pInterp,
+    SPartitionLogicNode** ppPartition,
+    SMergeLogicNode** ppMerge,
+    SScanLogicNode** ppScan) {
+  if (INTERP_MODE_MULTI_GROUP != pInterp->interpMode ||
+      1 != LIST_LENGTH(pInterp->node.pChildren)) {
+    return false;
+  }
+
+  SLogicNode* pInput = (SLogicNode*)nodesListGetNode(
+      pInterp->node.pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION != nodeType(pInput)) {
+    return false;
+  }
+
+  SPartitionLogicNode* pPartition = (SPartitionLogicNode*)pInput;
+  if (!partitionKeysAreOrdinaryColumns(pPartition->pPartitionKeys) ||
+      1 != LIST_LENGTH(pPartition->node.pChildren)) {
+    return false;
+  }
+
+  SLogicNode* pPartitionInput = (SLogicNode*)nodesListGetNode(
+      pPartition->node.pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_MERGE != nodeType(pPartitionInput)) {
+    return false;
+  }
+
+  SMergeLogicNode* pMerge = (SMergeLogicNode*)pPartitionInput;
+  if (!pMerge->needSort || pMerge->numOfChannels <= 0 ||
+      pMerge->srcGroupId != pMerge->srcEndGroupId ||
+      pMerge->node.outputTsOrder != ORDER_ASC ||
+      pMerge->groupSort || pMerge->ignoreGroupId ||
+      0 == LIST_LENGTH(pMerge->pMergeKeys)) {
+    return false;
+  }
+
+  SLogicSubplan* pSourceSubplan = postSplitFindChildSubplan(
+      pSubplan, pMerge->srcGroupId);
+  if (NULL == pSourceSubplan || NULL == pSourceSubplan->pNode ||
+      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pSourceSubplan->pNode)) {
+    return false;
+  }
+
+  SScanLogicNode* pScan = (SScanLogicNode*)pSourceSubplan->pNode;
+  if (!postSplitInterpScanExecutionReady(pScan) ||
+      SCAN_TYPE_TABLE_MERGE != pScan->scanType ||
+      pScan->paraTablesSort || pScan->virtualStableScan ||
+      pdcInterpScanFromVirtualTable(pScan) ||
+      (NULL != pScan->pGroupTags && !pScan->groupSort) ||
+      (NULL == pScan->pExtScanRange &&
+       NULL == pScan->pExtTimeRange)) {
+    return false;
+  }
+
+  *ppPartition = pPartition;
+  *ppMerge = pMerge;
+  *ppScan = pScan;
+  return true;
+}
+
+static int32_t postSplitFinalizeInterpNodes(SLogicSubplan* pSubplan,
+                                            SLogicNode* pNode) {
+  if (NULL == pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (QUERY_NODE_LOGIC_PLAN_INTERP_FUNC == nodeType(pNode)) {
+    SInterpFuncLogicNode* pInterp = (SInterpFuncLogicNode*)pNode;
+    SScanLogicNode*       pScan = NULL;
+    SPartitionLogicNode*  pPartition = NULL;
+    SMergeLogicNode*      pMerge = NULL;
+    bool mainFirstReady =
+        pdcInterpMainFirstConsumerReady &&
+        (postSplitInterpShapeReady(pInterp, &pScan) ||
+         postSplitDistributedInterpShapeReady(
+             pSubplan, pInterp, &pScan));
+    bool multiGroupReady =
+        postSplitMultiGroupShapeReady(
+            pInterp, &pPartition, &pScan) ||
+        postSplitDistributedMultiGroupShapeReady(
+            pSubplan, pInterp, &pPartition, &pMerge, &pScan);
+    if (mainFirstReady) {
+      pInterp->interpMode = pScan->scanType == SCAN_TYPE_TABLE
+                                ? INTERP_MODE_GROUP_FIRST
+                                : INTERP_MODE_MAIN_FIRST;
+      pScan->interpMode = pInterp->interpMode;
+    } else if (multiGroupReady) {
+      pScan->interpMode = INTERP_MODE_MULTI_GROUP;
+      pScan->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD;
+      pPartition->phasedMode = true;
+      if (NULL != pMerge && NULL != pScan->pGroupTags) {
+        pMerge->inputWithGroupId = true;
+        pMerge->outerGroupPhaseMode = true;
+      }
+    } else if (INTERP_MODE_LEGACY != pInterp->interpMode) {
+      pInterp->interpMode = INTERP_MODE_LEGACY;
+    }
+
+    SPartitionLogicNode* pPendingPartition =
+        postSplitFindPendingInterpSplit(pInterp);
+    if (NULL != pPendingPartition) {
+      if (multiGroupReady) {
+        code = partTagsOptCommitInterpSplit(
+            pPendingPartition, pMerge, pScan);
+      } else {
+        SScanLogicNode* pPendingScan =
+            postSplitFindInterpSplitScan(pSubplan,
+                                         pPendingPartition);
+        code = partTagsOptRollbackInterpSplit(
+            pPendingPartition, pPendingScan);
+      }
+    }
+  } else if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode) &&
+             partTagsOptHasPendingInterpSplit(
+                 (SPartitionLogicNode*)pNode)) {
+    // This Partition was not finalized through direct Interp adjacency.
+    SPartitionLogicNode* pPartition = (SPartitionLogicNode*)pNode;
+    code = partTagsOptRollbackInterpSplit(
+        pPartition,
+        postSplitFindInterpSplitScan(pSubplan, pPartition));
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+    code = postSplitFinalizeInterpNodes(
+        pSubplan, (SLogicNode*)pChild);
+  }
+  return code;
+}
+
+static int32_t postSplitFinalizeInterpSubplans(SLogicSubplan* pSubplan) {
+  if (NULL == pSubplan) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode* pChild = NULL;
+  FOREACH(pChild, pSubplan->pChildren) {
+    code = postSplitFinalizeInterpSubplans(
+        (SLogicSubplan*)pChild);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+
+  // Child subplans are cleared first so a parent Interp can re-enable only
+  // the TableMergeScan selected by its Merge source group.
+  postSplitDowngradeInterpProducers(pSubplan->pNode);
+  return postSplitFinalizeInterpNodes(pSubplan, pSubplan->pNode);
+}
+
 int32_t postSplitOptimize(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  if (NULL == pLogicSubplan || NULL == pLogicSubplan->pNode) return TSDB_CODE_SUCCESS;
-  return postSplitEliminateSortImpl(pLogicSubplan, pLogicSubplan->pNode);
+  if (NULL == pLogicSubplan) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (NULL != pLogicSubplan->pNode) {
+    code = postSplitEliminateSortImpl(pLogicSubplan,
+                                      pLogicSubplan->pNode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = postSplitFinalizeInterpSubplans(pLogicSubplan);
+  }
+  return code;
 }
 
 static int32_t dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {

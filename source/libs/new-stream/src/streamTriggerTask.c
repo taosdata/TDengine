@@ -12278,7 +12278,8 @@ static int32_t stAppendEventStateCols(SStreamTriggerTask *pTask, SSDataBlock *pD
     pEndCol = taosArrayGetLast(pDataBlock->pDataBlock);
     QUERY_CHECK_NULL(pEndCol, code, lino, _end, terrno);
     if (pTask->pEventTree != NULL) {
-      ST_TASK_DLOG("calculate event tree end column for realtime trigger data, rows:%"PRIzu,
+      ST_TASK_DLOG("calculate event tree end column for realtime trigger "
+                   "data, rows:%" PRIzu,
                     blockDataGetNumOfRows(pDataBlock));
     } else {
       pStartCol = pEndCol - 1;

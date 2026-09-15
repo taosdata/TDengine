@@ -80,7 +80,7 @@ static int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code)
 static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex);
 static int32_t getCompletedSources(const SArray* pArray, int32_t* pRes);
 static int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator);
-static void    storeNotifyInfo(SOperatorInfo* pOperator);
+int32_t        storeExchangeNotifyInfo(SOperatorInfo* pOperator);
 static int32_t seqLoadRemoteData(SOperatorInfo* pOperator);
 static int32_t prepareLoadRemoteData(SOperatorInfo* pOperator);
 static int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock,
@@ -972,6 +972,12 @@ int32_t resetExchangeOperState(SOperatorInfo* pOper) {
   (void)atomic_add_fetch_64(&pInfo->seqId, 1);
   pOper->status = OP_NOT_OPENED;
   pInfo->current = 0;
+  pInfo->notifyToSend = false;
+  pInfo->notifySrcOpType = 0;
+  pInfo->notifyGroupId = 0;
+  pInfo->notifyPhase = SCAN_PHASE_MAIN;
+  pInfo->notifyScanGroupId = 0;
+  pInfo->notifyTs = 0;
   pInfo->loadInfo.totalElapsed = 0;
   pInfo->loadInfo.totalRows = 0;
   pInfo->loadInfo.totalSize = 0;
@@ -1388,8 +1394,13 @@ _return:
   @brief build the table scan operator param for notify message
 */
 int32_t buildTableScanOperatorParamNotify(SOperatorParam** ppRes,
-                                          int32_t srcOpType, TSKEY notifyTs) {
-  if (srcOpType != 0 && srcOpType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+                                          int32_t srcOpType,
+                                          uint64_t notifyGroupId,
+                                          int8_t notifyPhase,
+                                          uint64_t notifyScanGroupId,
+                                          TSKEY notifyTs) {
+  if (srcOpType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
+      srcOpType != QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
     qWarn("%s, invalid srcOpType:%d", __func__, srcOpType);
     return TSDB_CODE_INVALID_PARA;
   }
@@ -1405,13 +1416,15 @@ int32_t buildTableScanOperatorParamNotify(SOperatorParam** ppRes,
   pTsParam->paramType = NOTIFY_TYPE_SCAN_PARAM;
   pTsParam->notifyToProcess = true;
   pTsParam->notifyTs = notifyTs;
+  pTsParam->groupid = notifyGroupId;
+  pTsParam->notifyPhase = notifyPhase;
+  pTsParam->notifyScanGroupId = notifyScanGroupId;
 
-  (*ppRes)->opType = srcOpType != 0 ? srcOpType :
-                                      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  (*ppRes)->opType = srcOpType;
   (*ppRes)->downstreamIdx = 0;
   (*ppRes)->value = pTsParam;
   (*ppRes)->pChildren = NULL;
-  /* param is not reusable when it is transferred by message */
+  // A message transfers ownership of the parameter to the receiver.
   (*ppRes)->reUse = false;
 
 _return:
@@ -2017,9 +2030,12 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
         }
         if (pExchangeInfo->notifyToSend) {
           if (NULL == req.pOpParam) {
-            code = buildTableScanOperatorParamNotify(&req.pOpParam,
-                                                     pDataInfo->srcOpType,
-                                                     pExchangeInfo->notifyTs);
+            code = buildTableScanOperatorParamNotify(
+                &req.pOpParam, pExchangeInfo->notifySrcOpType,
+                pExchangeInfo->notifyGroupId,
+                pExchangeInfo->notifyPhase,
+                pExchangeInfo->notifyScanGroupId,
+                pExchangeInfo->notifyTs);
             QUERY_CHECK_CODE(code, lino, _end);
           } else {
             /**
@@ -2032,6 +2048,15 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
             return pTaskInfo->code;
           }
           pExchangeInfo->notifyToSend = false;
+          qDebug("%s Exchange attached notify exchange:%p target:%s "
+                 "outerEpoch:%" PRIu64 " phase:%d scanGroupId:%" PRIu64
+                 " pending:0 source:%d remoteTask:0x%" PRIx64,
+                 GET_TASKID(pTaskInfo), pExchangeInfo,
+                 interpNotifyTargetOpName(pExchangeInfo->notifySrcOpType),
+                 pExchangeInfo->notifyGroupId,
+                 pExchangeInfo->notifyPhase,
+                 pExchangeInfo->notifyScanGroupId, sourceIndex,
+                 pSource->taskId);
         }
         break;
       }
@@ -2165,6 +2190,7 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
     pRes->info.dataLoad = 1;
     pRes->info.rows = pBlock->info.rows;
     pRes->info.scanFlag = pBlock->info.scanFlag;
+    pRes->info.scanPhase = pBlock->info.scanPhase;
     pRes->info.id.groupId = pBlock->info.id.groupId;
     pRes->info.id.baseGId = pBlock->info.id.baseGId;
     code = relocateColumnData(pRes, pColList, pBlock->pDataBlock, false);
@@ -2249,26 +2275,65 @@ int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator) {
 /**
   @brief store STEP DONE notification info
 */
-void storeNotifyInfo(SOperatorInfo* pOperator) {
+int32_t storeExchangeNotifyInfo(SOperatorInfo* pOperator) {
   SExchangeInfo*  pExchangeInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
 
+  if (pGetParam == NULL ||
+      pGetParam->opType != QUERY_NODE_PHYSICAL_PLAN_EXCHANGE ||
+      pGetParam->value == NULL ||
+      pOperator->pPhyNode == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   SExchangeOperatorParam* pParam = (SExchangeOperatorParam*)pGetParam->value;
-  if (!pParam->multiParams) {
-    SExchangeOperatorBasicParam* pBasic = &pParam->basic;
-    if (pBasic->paramType != NOTIFY_TYPE_EXCHANGE_PARAM) {
-      qWarn("%s, %s found invalid exchange operator param type %d",
-             GET_TASKID(pTaskInfo), __func__, pBasic->paramType);
-      return;
-    }
-
-    pExchangeInfo->notifyToSend = true;
-    pExchangeInfo->notifyTs = pBasic->notifyTs;
-  } else {
+  if (pParam->multiParams) {
     qWarn("%s, %s found multi params are not supported for notify msg",
            GET_TASKID(pTaskInfo), __func__);
+    return TSDB_CODE_INVALID_PARA;
   }
+
+  SExchangeOperatorBasicParam* pBasic = &pParam->basic;
+  if (pBasic->paramType != NOTIFY_TYPE_EXCHANGE_PARAM ||
+      (pBasic->srcOpType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
+       pBasic->srcOpType !=
+           QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) ||
+      pBasic->notifyPhase < SCAN_PHASE_MAIN ||
+      pBasic->notifyPhase > SCAN_PHASE_PREV) {
+    qWarn("%s, %s found invalid exchange notify param, type:%d "
+          "srcOpType:%d phase:%d",
+          GET_TASKID(pTaskInfo), __func__, pBasic->paramType,
+          pBasic->srcOpType, pBasic->notifyPhase);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SExchangePhysiNode* pExchangeNode =
+      (SExchangePhysiNode*)pOperator->pPhyNode;
+  if (pBasic->srcOpType ==
+          QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN &&
+      (!pExchangeNode->singleSrc ||
+       taosArrayGetSize(pExchangeInfo->pSources) != 1)) {
+    qWarn("%s, %s requires one exchange source, singleSrc:%d sources:%d",
+          GET_TASKID(pTaskInfo), __func__, pExchangeNode->singleSrc,
+          (int32_t)taosArrayGetSize(pExchangeInfo->pSources));
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  pExchangeInfo->notifyToSend = true;
+  pExchangeInfo->notifySrcOpType = pBasic->srcOpType;
+  pExchangeInfo->notifyGroupId = pBasic->groupid;
+  pExchangeInfo->notifyPhase = pBasic->notifyPhase;
+  pExchangeInfo->notifyScanGroupId = pBasic->notifyScanGroupId;
+  pExchangeInfo->notifyTs = pBasic->notifyTs;
+  qDebug("%s Exchange stored notify exchange:%p target:%s "
+         "outerEpoch:%" PRIu64 " phase:%d scanGroupId:%" PRIu64
+         " pending:1",
+         GET_TASKID(pTaskInfo), pExchangeInfo,
+         interpNotifyTargetOpName(pExchangeInfo->notifySrcOpType),
+         pExchangeInfo->notifyGroupId,
+         pExchangeInfo->notifyPhase,
+         pExchangeInfo->notifyScanGroupId);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t decodeStrictMultiGroupFetchResponse(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo,
@@ -3426,7 +3491,19 @@ int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
 
   if (NULL != pOperator->pOperatorGetParam) {
     SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
-    storeNotifyInfo(pOperator);
+    QUERY_CHECK_CONDITION(
+        pGetParam->opType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE &&
+            pGetParam->value != NULL,
+        code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+    SExchangeOperatorParam* pParam = pGetParam->value;
+    // Dynamic query control owns single and batched dynamic parameters.
+    // Only early-stop parameters should update Exchange notification state.
+    if (!pParam->multiParams &&
+        pParam->basic.paramType != DYN_TYPE_EXCHANGE_PARAM) {
+      code = storeExchangeNotifyInfo(pOperator);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
 
     if (!pGetParam->reUse) {
       freeOperatorParam(pGetParam, OP_GET_PARAM);

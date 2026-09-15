@@ -69,6 +69,21 @@ static int32_t      projectApplyFunctionsWithLineage(SExprInfo* pExpr, SSDataBlo
 int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId,
                              int64_t* numOfRows, bool createNewColModel, const void* pExtraParams);
 
+static bool isMainFirstScanOperator(const SOperatorInfo* pOperator) {
+  if (pOperator == NULL || pOperator->pPhyNode == NULL) {
+    return false;
+  }
+  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
+      pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
+    return false;
+  }
+
+  const STableScanPhysiNode* pScanNode =
+      (const STableScanPhysiNode*)pOperator->pPhyNode;
+  return pScanNode->interpMode == INTERP_MODE_MAIN_FIRST ||
+         pScanNode->interpMode == INTERP_MODE_GROUP_FIRST;
+}
+
 static bool hasLagLeadFunc(const SExprSupp* pSup) {
   if (pSup == NULL || pSup->pCtx == NULL) {
     return false;
@@ -854,6 +869,11 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
       pInfo->mergeDataBlocks = pProjPhyNode->mergeDataBlock;
     }
   }
+  if (isMainFirstScanOperator(downstream)) {
+    // scanPhase is a block boundary. Combining phases would relabel earlier
+    // rows with the last input block's phase before TimeSlice sees them.
+    pInfo->mergeDataBlocks = false;
+  }
 
   int32_t numOfRows = 4096;
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
@@ -1000,6 +1020,12 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SColumnInfoData*      pFilterRes = NULL;
 
   *pResBlock = NULL;
+  detachOperatorRoutingParam(pOperator);
+  if (pOperator->numOfDownstream > 0 &&
+      pOperator->pDownstreamGetParams != NULL &&
+      pOperator->pDownstreamGetParams[0] != NULL) {
+    pOperator->pDownstreamGetParams[0]->reUse = true;
+  }
   blockDataCleanup(pFinalRes);
   SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
   SStreamRuntimeFuncInfo* pStream = GET_STM_RTINFO(pTaskInfo);
@@ -1137,8 +1163,10 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
       if (mergeProjectOutput) {
         pFinalRes->info.scanFlag = scanFlag = pBlock->info.scanFlag;
+        pFinalRes->info.scanPhase = pBlock->info.scanPhase;
       } else {
         pRes->info.scanFlag = scanFlag = pBlock->info.scanFlag;
+        pRes->info.scanPhase = pBlock->info.scanPhase;
       }
 
       SArray* pProjectedWinIdx = NULL;

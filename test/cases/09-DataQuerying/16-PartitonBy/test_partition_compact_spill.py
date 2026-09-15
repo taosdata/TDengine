@@ -7,11 +7,16 @@ pytestmark = pytest.mark.timeout(360)
 
 
 class TestPartitionCompactSpill:
-    updatecfgDict = {"encryptAlgorithm": "sm4", "encryptScope": "query_spill"}
+    updatecfgDict = {
+        "encryptAlgorithm": "sm4",
+        "encryptScope": "query_spill",
+    }
 
     DB_NAME = "test_partition_compact_spill"
     TABLE_NAME = "data"
     BATCH_SIZE = 500
+    # Exceed 100 MiB even with the minimum 512-byte Partition page.
+    GROUP_COUNT = 205600
     BASE_TS = 1700000000000
 
     def setup_class(cls):
@@ -74,15 +79,15 @@ class TestPartitionCompactSpill:
 
         for _ in range(100):
             append_row(-1, "hot-value")
-        for gid in range(25600):
+        for gid in range(self.GROUP_COUNT - 800):
             append_row(gid, f"value-{gid}")
         for _ in range(100):
             append_row(-1, "hot-value")
-        for gid in range(25600, 26000):
+        for gid in range(self.GROUP_COUNT - 800, self.GROUP_COUNT - 400):
             append_row(gid, f"value-{gid}")
         for _ in range(100):
             append_row(-1, "hot-value")
-        for gid in range(26000, 26400):
+        for gid in range(self.GROUP_COUNT - 400, self.GROUP_COUNT):
             append_row(gid, f"value-{gid}")
         flush_batch()
 
@@ -123,6 +128,24 @@ class TestPartitionCompactSpill:
         tdSql.checkData(0, 3, self.expected_metric_sum)
         print("partition compact spill nulls .................. [ passed ]")
 
+    def do_interp_reserved_column_spill(self):
+        start = self.BASE_TS
+        end = start + self.expected_rows
+        sql = (
+            "select gid + 1, cast(_irowts as bigint), interp(gid, 1) "
+            f"from {self.TABLE_NAME} partition by gid + 1 "
+            f"range({start}, {end}) "
+            f"every({self.expected_rows}a) fill(prev)"
+        )
+        tdSql.query("explain " + sql)
+        assert any("Partition" in str(row) for row in tdSql.queryResult)
+        tdSql.query(sql, queryTimes=1)
+        expected = [(0, start, -1)] + [
+            (gid + 1, end, gid) for gid in range(-1, self.GROUP_COUNT)
+        ]
+        assert sorted(map(tuple, tdSql.queryResult)) == expected
+        print("interp reserved spill ............... [ passed ]")
+
     # --- main ---
 
     def test_partition_compact_spill(self):
@@ -133,6 +156,8 @@ class TestPartitionCompactSpill:
         3. Verify encrypted variable-length fragments are replayed correctly
         4. Verify NULLs in both a var-length and a fixed-length column
            survive the spill round trip
+        5. Verify expression grouping with fill(prev) replays reserved
+           columns through encrypted Partition spill files
 
         Catalog:
             - Query:PartitionBy
@@ -147,8 +172,10 @@ class TestPartitionCompactSpill:
             - 2026-07-30 Tony Add compact spill regression coverage
             - 2026-07-30 Tony Cap the regression runtime at six minutes
             - 2026-08-03 Tony Cover NULL round trip through the spill path
+            - 2026-09-10 Tony Cover reserved columns in INTERP spill replay
 
         """
         self.prepare_data()
         self.do_compact_spill()
         self.do_compact_spill_nulls()
+        self.do_interp_reserved_column_spill()

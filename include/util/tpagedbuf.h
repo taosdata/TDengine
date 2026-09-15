@@ -141,6 +141,10 @@ int32_t getBufPageSize(const SDiskbasedBuf* pBuf);
  */
 int32_t getNumOfInMemBufPages(const SDiskbasedBuf* pBuf);
 
+// Return resident page count. Each page contributes getBufPageSize() payload
+// bytes; allocator and bookkeeping overhead are excluded.
+int32_t getNumOfResidentBufPages(const SDiskbasedBuf* pBuf);
+
 /**
  *
  * @param pBuf
@@ -201,6 +205,13 @@ SDiskbasedBufStatis getDBufStatis(const SDiskbasedBuf* pBuf);
  * @return bytes read, or -1.
  */
 int64_t dbgReadDiskbasedBufFile(SDiskbasedBuf* pBuf, char* out, int64_t cap);
+
+#if defined(BUILD_TEST)
+// Test-only: fail the next spill write from the eviction flush path.
+void dbgFailNextDiskbasedBufFlushWrite(SDiskbasedBuf* pBuf);
+// Test-only: short-write the next spill page without setting terrno.
+void dbgShortNextDiskbasedBufFlushWrite(SDiskbasedBuf* pBuf);
+#endif
 
 /**
  * Print the buffer statistics information

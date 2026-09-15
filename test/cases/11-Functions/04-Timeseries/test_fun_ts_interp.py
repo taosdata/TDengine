@@ -21,7 +21,7 @@ class TestInterp:
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
-        
+
     #
     # ------------------ test_interp.py ------------------
     #
@@ -7016,6 +7016,7 @@ class TestInterp:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

@@ -207,7 +207,9 @@ typedef struct SExchangeOperatorBasicParam {
   STimeWindow           window;
   SDownstreamSourceNode newDeployedSrc; // used with isNewDeployed
   /* notify scan params */
-  TSKEY notifyTs;
+  TSKEY    notifyTs;
+  int8_t   notifyPhase;
+  uint64_t notifyScanGroupId;
 } SExchangeOperatorBasicParam;
 
 typedef struct SExchangeOperatorBatchParam {
@@ -265,6 +267,10 @@ typedef struct SExchangeInfo {
   SArray*             pFetchRpcHandles;
   bool                notifyToSend;  // need to send notify STEP DONE message
   TSKEY               notifyTs;      // notify timestamp
+  int32_t             notifySrcOpType;
+  uint64_t            notifyGroupId;
+  int8_t              notifyPhase;
+  uint64_t            notifyScanGroupId;
 } SExchangeInfo;
 
 // ---------------------------------------------------------------------------
@@ -451,6 +457,9 @@ typedef struct STableScanInfo {
   STimeWindow     cachedTimeWindow;
   SArray*         cachedTagList;
   uint64_t        cachedGroupId;
+  int8_t          currentPhase;  // EScanPhase for MAIN_FIRST groupSort
+  bool            groupSort;  // scan table groups sequentially
+  bool            groupDone;  // early-stop the current MAIN_FIRST group
 } STableScanInfo;
 
 typedef enum ESubTableInputType {
@@ -497,6 +506,10 @@ typedef struct STableMergeScanInfo {
   bool            hasGroupId;
   uint64_t        groupId;
   uint64_t        baseGroupId;
+  int8_t          currentPhase;
+  bool            groupDone;
+  bool            phaseDone;
+  STimeWindow     phaseWins[SCAN_PHASE_PREV + 1];
   STableScanBase  base;
   int32_t         bufPageSize;
   uint32_t        sortBufSize;  // max buffer size for in-memory sort
@@ -994,11 +1007,20 @@ int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc);
 int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq);
 int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window, bool isNewParam, ETableScanDynType type);
 int32_t buildTableScanOperatorParamNotify(SOperatorParam** ppRes,
-                                          int32_t srcOpType, TSKEY notifyTs);
+                                          int32_t srcOpType,
+                                          uint64_t notifyGroupId,
+                                          int8_t notifyPhase,
+                                          uint64_t notifyScanGroupId,
+                                          TSKEY notifyTs);
+int32_t storeExchangeNotifyInfo(struct SOperatorInfo* pOperator);
 int32_t setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId,
                          const char* name);
 void    freeExchangeGetBasicOperatorParam(void* pParam);
+int32_t setOperatorParams(struct SOperatorInfo* pOperator,
+                          SOperatorParam* pInput,
+                          SOperatorParamType type);
 void    freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);
+void    detachOperatorRoutingParam(struct SOperatorInfo* pOperator);
 int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam,
                                        SSDataBlock** pResBlock);
 
@@ -1016,12 +1038,97 @@ int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBl
 int32_t extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status);
 STrueForInfo* getTrueForInfo(struct SOperatorInfo* pOperator);
 
+bool interpGroupNeedsPrev(int32_t fillType, bool hasLeadHole);
+bool interpGroupNeedsNext(int32_t fillType, bool hasTrailHole);
+bool interpTimestampInMainRange(const STimeWindow* pWin, int64_t ts);
+bool interpLegacyGroupCanEmit(bool requireMainMembership, bool mainSeen);
+bool interpLegacyApplyGroupMembership(bool requireMainMembership,
+                                      bool mainSeen,
+                                      SSDataBlock* pResult);
+bool interpModeUsesPhasedProtocol(int8_t interpMode);
+bool interpModeCanEarlyStop(int8_t interpMode);
+bool interpTimestampFollows(int32_t order, int64_t previous, int64_t current);
+// Accepts valid, nondecreasing MAIN/NEXT/PREV input. Invalid phases or a
+// phase regression return TSDB_CODE_PLAN_INTERNAL_ERROR; no result is
+// retryable.
+int32_t interpValidatePhaseTransition(int8_t currentPhase, int8_t inputPhase);
+// Returns a supported leaf, or a MERGE whose branches all resolve to
+// EXCHANGE. NULL input and unsupported or ambiguous shapes return NULL.
+struct SOperatorInfo* interpMainFirstResolveNotifyTarget(
+    struct SOperatorInfo* pDownstream);
+// pDownstream and ppParam must be non-NULL, and notifyPhase must be valid.
+// The caller owns the returned pending parameter tree. A direct FEDERATED_SCAN
+// is a successful no-op and leaves *ppParam NULL.
+int32_t interpMainFirstBuildNotifyParam(
+    struct SOperatorInfo* pDownstream, int32_t downstreamIdx,
+    uint64_t notifyGroupId, int8_t notifyPhase,
+    uint64_t notifyScanGroupId, TSKEY notifyTs,
+    SOperatorParam** ppParam);
+void interpPrepareNotifyParamForDispatch(SOperatorParam* pParam);
+
+// Per-call value snapshot assembled from one group and current phase state.
+// Callers initialize every field before evaluating it; it is never retained.
+typedef struct SInterpMainFirstReadiness {
+  int32_t fillType;
+  bool    firstMainRowSet;
+  bool    groupRowSet;
+  bool    mainFinalized;
+  bool    queued;
+  bool    leadHoleSet;
+  bool    trailHoleSet;
+  bool    extPrevRowSet;
+  bool    extNextRowSet;
+  bool    prevPhaseClosed;
+  bool    nextPhaseClosed;
+} SInterpMainFirstReadiness;
+
+typedef enum EInterpSideGroupAction {
+  INTERP_SIDE_GROUP_DROP = 0,
+  INTERP_SIDE_GROUP_CREATE,
+  INTERP_SIDE_GROUP_PROCESS,
+  INTERP_SIDE_GROUP_NOTIFY,
+} EInterpSideGroupAction;
+
+bool interpMainFirstGroupIsReady(const SInterpMainFirstReadiness* pReadiness);
+bool interpMainFirstNextCompletedGroup(const SArray* pGroups,
+                                       int32_t* pIndex,
+                                       uint64_t* pGroupId);
+bool interpMainFirstGroupWasEmitted(SHashObj* pEmittedGroups,
+                                    uint64_t groupId);
+bool interpMainFirstEmittedGroupNeedsNotify(SHashObj* pEmittedGroups,
+                                            uint64_t groupId, int8_t phase);
+EInterpSideGroupAction interpSideGroupAction(int8_t interpMode,
+                                             bool groupExists,
+                                             bool groupEmitted);
+bool interpMainFirstEdgeCanProduce(int32_t fillType, bool linearReady,
+                                   bool prevRowSet, bool nextRowSet);
+int32_t interpMainFirstGetLeadHole(int64_t startTs, int64_t firstTs,
+                                   const SInterval* pInterval,
+                                   STimeWindow* pHole, int64_t* pNextTs,
+                                   bool* pHasHole);
+
 void    destroyTmqScanOperatorInfo(void* param);
 void    resetBasicOperatorState(SOptrBasicInfo* pBasicInfo);
 
 int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size);
 
 #if defined(BUILD_TEST)
+typedef struct SInterpMainFirstOutputTestCtx
+    SInterpMainFirstOutputTestCtx;
+int32_t interpTestCreateMainFirstOutput(
+    SSDataBlock* const* ppBlocks, int32_t numBlocks,
+    int32_t capacity, int32_t threshold,
+    SInterpMainFirstOutputTestCtx** ppCtx);
+int32_t interpTestNextMainFirstOutput(
+    SInterpMainFirstOutputTestCtx* pCtx, SSDataBlock** ppBlock);
+int32_t interpTestSetMainFirstOutputFilterFalse(
+    SInterpMainFirstOutputTestCtx* pCtx);
+void interpTestResetMainFirstOutput(
+    SInterpMainFirstOutputTestCtx* pCtx);
+int64_t interpTestMainFirstOutputStoreBytes(
+    const SInterpMainFirstOutputTestCtx* pCtx);
+void interpTestDestroyMainFirstOutput(
+    SInterpMainFirstOutputTestCtx* pCtx);
 int32_t extWinTestTakeReusableBlock(SList* pFreeBlocks, SList* pTargetBlocks, int32_t rows, SSDataBlock** ppBlock,
                                     SArray** ppIdx);
 bool    extWinTestBlockNodeInvariantHolds(SList* pList, SListNode* pNode, SListNode* pExpectedPrev, SSDataBlock* pBlock,

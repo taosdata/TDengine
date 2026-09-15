@@ -14,6 +14,8 @@ class TestTableMergeScanSttReuse:
 
     DB = "test_stt_reuse"
     STB = "meters"
+    MERGE_GROUP_ROWS = 1024
+    MERGE_VGROUPS = 3
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -492,6 +494,96 @@ class TestTableMergeScanSttReuse:
         print("limit offset .......................... [passed]")
 
     # ------------------------------------------------------------------
+    # 7.1-6: central Merge group boundary at exact output block capacity
+    # ------------------------------------------------------------------
+
+    def do_merge_group_limit_boundary(self):
+        self._create_db(duration="1d", vgroups=self.MERGE_VGROUPS)
+        self._create_stb()
+
+        specs = []
+        for group_index in range(2):
+            for table_index in range(30):
+                specs.append(
+                    (
+                        f"boundary{group_index}_{table_index}",
+                        f"g{group_index}",
+                        group_index,
+                        table_index,
+                    )
+                )
+        self._create_ctables(specs)
+
+        tdSql.query(
+            "select table_name, vgroup_id from "
+            "information_schema.ins_tables "
+            f"where db_name = '{self.DB}' "
+            f"and stable_name = '{self.STB}'"
+        )
+        tables = {0: {}, 1: {}}
+        for table_name, vgroup_id in tdSql.queryResult:
+            prefix = str(table_name).split("_")[0]
+            group_index = int(prefix[-1])
+            tables[group_index].setdefault(
+                int(vgroup_id), str(table_name)
+            )
+
+        for group_index in range(2):
+            assert len(tables[group_index]) == self.MERGE_VGROUPS, (
+                f"group {group_index} must cover every vgroup: "
+                f"{tables[group_index]}"
+            )
+            table_names = list(tables[group_index].values())
+            rows_per_table, remainder = divmod(
+                self.MERGE_GROUP_ROWS, len(table_names)
+            )
+            inserted_rows = 0
+            for table_index, table_name in enumerate(table_names):
+                count = rows_per_table + (table_index < remainder)
+                start_ts = (
+                    1700000000000
+                    + group_index * 10000000
+                    + inserted_rows
+                )
+                self._insert_rows(
+                    table_name, start_ts, count=count, step_ms=1
+                )
+                inserted_rows += count
+            assert inserted_rows == self.MERGE_GROUP_ROWS
+
+        tdSql.query(
+            f"select site, count(*) from {self.STB} partition by site"
+        )
+        counts = {str(row[0]): int(row[1]) for row in tdSql.queryResult}
+        assert counts == {
+            "g0": self.MERGE_GROUP_ROWS,
+            "g1": self.MERGE_GROUP_ROWS,
+        }
+
+        sql = (
+            f"select /*+ sort_for_group() */ ts, vi, site from {self.STB} "
+            f"partition by site limit {self.MERGE_GROUP_ROWS}"
+        )
+        tdSql.query(f"explain verbose true {sql}")
+        lines = [str(row[0]) for row in tdSql.queryResult]
+        plan = "\n".join(lines)
+        assert lines[0].lstrip().startswith("-> Merge"), plan
+        assert f"limit={self.MERGE_GROUP_ROWS}" in lines[1], plan
+        assert plan.count("Data Exchange") == self.MERGE_VGROUPS, plan
+
+        tdSql.query(sql)
+        expected_rows = self.MERGE_GROUP_ROWS * 2
+        assert tdSql.queryRows == expected_rows, (
+            "LIMIT must restart when Merge begins the next group; "
+            f"expected {expected_rows} rows, got {tdSql.queryRows}"
+        )
+        groups = [str(row[2]) for row in tdSql.queryResult]
+        assert groups.count("g0") == self.MERGE_GROUP_ROWS
+        assert groups.count("g1") == self.MERGE_GROUP_ROWS
+
+        print("merge group limit boundary ............ [passed]")
+
+    # ------------------------------------------------------------------
     # 7.1-extra: single group (no regression on degenerate case)
     # ------------------------------------------------------------------
 
@@ -568,6 +660,7 @@ class TestTableMergeScanSttReuse:
         5. LIMIT / OFFSET in merge scan path
         6. single group (degenerate, no regression)
         7. STT-only data (no data file blocks)
+        8. central Merge LIMIT reset at an exact output-block boundary
 
         Catalog:
             - Query:partition
@@ -580,6 +673,7 @@ class TestTableMergeScanSttReuse:
 
         History:
             - 2026-05-29 Tony Zhang Created for Phase 1 STT reuse optimization
+            - 2026-08-27 Tony Zhang Added central Merge group-boundary case
 
         """
         self.do_state_window_partition_by_tags()
@@ -587,5 +681,6 @@ class TestTableMergeScanSttReuse:
         self.do_empty_group()
         self.do_union_all()
         self.do_limit_offset()
+        self.do_merge_group_limit_boundary()
         self.do_single_group()
         self.do_stt_only()

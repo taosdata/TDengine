@@ -1139,6 +1139,45 @@ bool keysHasCol(SNodeList* pKeys) {
   return hasCol;
 }
 
+bool partitionKeyHasOrdinaryColumn(SNode* pKey) {
+  bool hasCol = false;
+  nodesWalkExpr(pKey, partTagsOptHasColImpl, &hasCol);
+  return hasCol;
+}
+
+static EDealRes keysHasTagOrTbnameImpl(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    int32_t funcType = ((SFunctionNode*)pNode)->funcType;
+    if (FUNCTION_TYPE_TAGS == funcType || FUNCTION_TYPE_TBNAME == funcType) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
+  } else if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    int8_t colType = ((SColumnNode*)pNode)->colType;
+    if (COLUMN_TYPE_TAG == colType || COLUMN_TYPE_TBNAME == colType) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+bool keysHasTagOrTbname(SNodeList* pKeys) {
+  bool hasTagOrTbname = false;
+  nodesWalkExprs(pKeys, keysHasTagOrTbnameImpl, &hasTagOrTbname);
+  return hasTagOrTbname;
+}
+
+bool partitionKeyHasTagOrTbname(SNode* pKey) {
+  bool hasTagOrTbname = false;
+  nodesWalkExpr(pKey, keysHasTagOrTbnameImpl, &hasTagOrTbname);
+  return hasTagOrTbname;
+}
+
+bool partitionKeysAreOrdinaryColumns(SNodeList* pKeys) {
+  return keysHasCol(pKeys) && !keysHasTagOrTbname(pKeys);
+}
+
 bool planAggFuncsHasFirst(SNodeList* pFuncs) {
   SNode* pNode = NULL;
   FOREACH(pNode, pFuncs) {

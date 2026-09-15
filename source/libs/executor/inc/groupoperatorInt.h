@@ -53,6 +53,8 @@ typedef struct SPartitionSpillBucket SPartitionSpillBucket;
 
 enum {
   PARTITION_MAX_PAGE_CLASSES = 6,
+  // Blocks a side phase accumulates before the batch is drained.
+  PARTITION_SIDE_BATCH_BLOCKS = 16,
 };
 
 // Packed (class-index, page-id) reference into pInfo->pageClasses. Opaque
@@ -119,6 +121,15 @@ typedef struct SPartitionSpillStat {
   int32_t forcedCurrentSpills;  // metric: spills forced by OOM on write
 } SPartitionSpillStat;
 
+typedef enum EPartitionPhaseState {
+  PARTITION_PHASE_READING = 0,
+  // A full output batch is ready; continue the same phase after draining it.
+  PARTITION_PHASE_BATCH_DRAINED,
+  // The phase input is exhausted; advance after draining buffered rows.
+  PARTITION_PHASE_DRAINED,
+  PARTITION_PHASE_DONE,
+} EPartitionPhaseState;
+
 typedef struct SPartitionOperatorInfo {
   SOptrBasicInfo binfo;
   SArray*        pGroupCols;
@@ -141,6 +152,15 @@ typedef struct SPartitionOperatorInfo {
   int32_t remainRows;
   int32_t orderedRows;
   SArray* pOrderInfoArr;
+
+  bool                 phasedMode;
+  int8_t               curPhase;
+  uint64_t             outerEpoch;
+  bool                 outerEpochSet;
+  EPartitionPhaseState phaseState;
+  int32_t              batchBlockCount;
+  bool                 inputDone;
+  SSDataBlock*         pHeldBlock;
 
   int32_t      numResidentPages;  // pages held by all groups, any class
   int64_t      residentBytes;     // bytes held by those pages; drives spilling
@@ -166,6 +186,9 @@ int32_t      initGroupOptrInfo(SArray** pGroupColVals, int32_t* keyLen,
                                char** keyBuf, const SArray* pGroupColList);
 void         partitionCleanupGroupSet(SHashObj* pGroupSet);
 void         partitionFreeSpillResources(SPartitionSpillInfo* pSpill);
+void         clearPartitionOperator(SPartitionOperatorInfo* pInfo);
+void         destroyPartitionOperatorInfo(void* param);
+int32_t      resetPartitionOperState(SOperatorInfo* pOper);
 int32_t      partitionGetOrCreateGroupInfo(SPartitionOperatorInfo* pInfo,
                                            SPartitionDataInfo**    pGroupInfo,
                                            int32_t                 len);
@@ -174,6 +197,8 @@ int64_t      partitionGetSpillBatchTargetBytes(int64_t residentBytes);
 int32_t      partitionSpillGroupBatch(SPartitionOperatorInfo* pInfo);
 void*        partitionGetWritablePage(SPartitionOperatorInfo* pInfo,
                                       SPartitionDataInfo*     pGroupInfo);
+int32_t      phasedHashPartitionNext(SOperatorInfo* pOperator,
+                                     SSDataBlock** ppRes);
 int32_t      partitionReadAt(TdFilePtr pFile, int64_t offset, void* pData,
                              int32_t length);
 int32_t      partitionReadFragmentBlock(SPartitionOperatorInfo* pInfo,
@@ -219,6 +244,10 @@ bool partitionSpillTestConsumeRecycleFailure(int32_t pageIndex);
 void partitionSpillTestResetIoCalls(void);
 void partitionSpillTestGetIoCalls(int32_t* pWriteCalls, int32_t* pReadCalls);
 void partitionSpillTestSetWriteBatchLimit(int32_t writeBatchLimit);
+void partitionTestSetPrepareOutputFailure(int32_t code);
+void partitionTestSetPageAllocationFailure(int32_t code);
+void partitionTestSetSpillReadFailure(int32_t code);
+void partitionTestSetSpillCryptFailure(int32_t code);
 #endif
 
 #ifdef __cplusplus

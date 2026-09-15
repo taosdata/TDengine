@@ -3294,8 +3294,6 @@ SColumn extractColumnFromColumnNode(SColumnNode* pColNode) {
 static int32_t getQueryExtWindow(const STimeWindow* cond, const STimeWindow* range, STimeWindow* twindow,
                                  STimeWindow* extTwindows) {
   int32_t     code = TSDB_CODE_SUCCESS;
-  int32_t     lino = 0;
-  STimeWindow tempWindow;
 
   if (cond->skey > cond->ekey || range->skey > range->ekey) {
     *twindow = extTwindows[0] = extTwindows[1] = TSWINDOW_DESC_INITIALIZER;
@@ -3318,10 +3316,90 @@ static int32_t getQueryExtWindow(const STimeWindow* cond, const STimeWindow* ran
   extTwindows[0] = extTwindows[1] = *cond;
   twindow->skey = TMAX(cond->skey, range->skey);
   twindow->ekey = TMIN(cond->ekey, range->ekey);
-  extTwindows[0].ekey = twindow->skey - 1;
-  extTwindows[1].skey = twindow->ekey + 1;
+  // skey == INT64_MIN has no earlier time to extend into, and skey - 1
+  // would underflow; mark the PREV window empty instead of wrapping around.
+  if (twindow->skey == INT64_MIN) {
+    extTwindows[0] = TSWINDOW_DESC_INITIALIZER;
+  } else {
+    extTwindows[0].ekey = twindow->skey - 1;
+  }
+
+  // Symmetric guard: ekey == INT64_MAX has no later time to extend into,
+  // and ekey + 1 would overflow; mark the NEXT window empty.
+  if (twindow->ekey == INT64_MAX) {
+    extTwindows[1] = TSWINDOW_DESC_INITIALIZER;
+  } else {
+    extTwindows[1].skey = twindow->ekey + 1;
+  }
 
   return code;
+}
+
+// Initialize the three scan windows without changing the caller's WHERE
+// range. MULTI_GROUP does not need side rows for NULL or VALUE fill; other
+// non-column modes retain both sides so side-only groups remain discoverable.
+int32_t initInterpPhaseWindows(SQueryTableDataCond* pCond,
+                               const STimeWindow* pRange,
+                               int8_t interpMode,
+                               int8_t interpFillMode) {
+  int32_t code = getQueryExtWindow(&pCond->twindows, pRange,
+                                   &pCond->twindows,
+                                   pCond->extTwindows);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  bool pruneBothSides = interpFillMode == FILL_MODE_NULL ||
+                        interpFillMode == FILL_MODE_NULL_F ||
+                        interpFillMode == FILL_MODE_VALUE ||
+                        interpFillMode == FILL_MODE_VALUE_F;
+  if (interpMode == INTERP_MODE_MULTI_GROUP && pruneBothSides) {
+    // MULTI_GROUP only emits groups whose key appears in MAIN; a group
+    // visible solely through side (PREV/NEXT) data is never output. So
+    // unlike the general path below, NULL/VALUE fill gains nothing from
+    // scanning either side here and both can be pruned.
+    pCond->extTwindows[0] = TSWINDOW_DESC_INITIALIZER;
+    pCond->extTwindows[1] = TSWINDOW_DESC_INITIALIZER;
+  } else {
+    interpPruneExtWindows(interpFillMode, pCond->extTwindows);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+bool interpMainFirstNotifyMatchesPhase(int8_t phase,
+                                       const STimeWindow* pWindow,
+                                       uint64_t currentEpoch,
+                                       uint64_t notifyEpoch,
+                                       TSKEY notifyTs) {
+  if (pWindow == NULL || pWindow->skey > pWindow->ekey ||
+      currentEpoch != notifyEpoch) {
+    return false;
+  }
+
+  switch (phase) {
+    case SCAN_PHASE_MAIN:
+      return notifyTs > pWindow->ekey;
+    case SCAN_PHASE_NEXT:
+      return notifyTs >= pWindow->skey;
+    case SCAN_PHASE_PREV:
+      return notifyTs <= pWindow->ekey;
+    default:
+      return false;
+  }
+}
+
+bool interpMainFirstNotifyMatchesSource(
+    int8_t currentPhase, uint64_t currentScanGroupId,
+    const STimeWindow* pWindow, uint64_t currentEpoch,
+    const STableScanOperatorParam* pNotify) {
+  if (pNotify == NULL || pNotify->notifyPhase != currentPhase ||
+      pNotify->notifyScanGroupId != currentScanGroupId) {
+    return false;
+  }
+  return interpMainFirstNotifyMatchesPhase(
+      currentPhase, pWindow, currentEpoch, pNotify->groupid,
+      pNotify->notifyTs);
 }
 
 // @brief Empty the prev (extTwindows[0]) or next (extTwindows[1]) ext window
@@ -3341,6 +3419,23 @@ void interpPruneExtWindows(int8_t interpFillMode, STimeWindow* extTwindows) {
   } else if (FILL_MODE_NEXT == interpFillMode) {
     extTwindows[0] = TSWINDOW_DESC_INITIALIZER;  // never reads the prev side
   }
+}
+
+// Debug-log-only operator type name used by interp notify tracing.
+const char* interpNotifyTargetOpName(int32_t operatorType) {
+  if (operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    return "table";
+  }
+  if (operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
+    return "table_merge";
+  }
+  if (operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
+    return "exchange";
+  }
+  if (operatorType == QUERY_NODE_PHYSICAL_PLAN_MERGE) {
+    return "merge_exchange";
+  }
+  return "other";
 }
 
 static EDealRes condHasRemoteValueWalker(SNode* pNode, void* pContext) {
@@ -3467,6 +3562,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, STableScanPhysiNode* 
   pCond->type = TIMEWINDOW_RANGE_CONTAINED;
   pCond->startVersion = -1;
   pCond->endVersion = -1;
+  pCond->mainFirst = false;
   pCond->skipRollup = readHandle->skipRollup;
   if (readHandle->winRangeValid) {
     pCond->twindows = readHandle->winRange;
@@ -3503,13 +3599,26 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, STableScanPhysiNode* 
   if (applyExtWin) {
     if (NULL != pTableScanNode->pExtScanRange) {
       pCond->type = TIMEWINDOW_RANGE_EXTERNAL;
-      code = getQueryExtWindow(&pCond->twindows, pTableScanNode->pExtScanRange, &pCond->twindows, pCond->extTwindows);
-      interpPruneExtWindows(pTableScanNode->interpFillMode, pCond->extTwindows);
+      code = initInterpPhaseWindows(pCond, pTableScanNode->pExtScanRange,
+                                    pTableScanNode->interpMode,
+                                    pTableScanNode->interpFillMode);
     } else if (readHandle->extWinRangeValid) {
       pCond->type = TIMEWINDOW_RANGE_EXTERNAL;
-      code = getQueryExtWindow(&pCond->twindows, &readHandle->extWinRange, &pCond->twindows, pCond->extTwindows);
+      if (pTableScanNode->interpMode == INTERP_MODE_LEGACY) {
+        code = getQueryExtWindow(&pCond->twindows,
+                                 &readHandle->extWinRange,
+                                 &pCond->twindows,
+                                 pCond->extTwindows);
+      } else {
+        code = initInterpPhaseWindows(pCond, &readHandle->extWinRange,
+                                      pTableScanNode->interpMode,
+                                      pTableScanNode->interpFillMode);
+      }
     }
   }
+
+  pCond->mainFirst = pCond->type == TIMEWINDOW_RANGE_EXTERNAL &&
+                     pTableScanNode->interpMode != INTERP_MODE_LEGACY;
 
   if (pTableScanNode->pPrimaryCond) {
     bool isStrict = false;

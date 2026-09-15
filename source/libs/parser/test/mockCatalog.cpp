@@ -297,6 +297,20 @@ void generateTestStables(MockCatalogService* mcs, const std::string& db) {
   }
 }
 
+void generateSingleVgroupInterpStable(MockCatalogService* mcs,
+                                      const std::string& db) {
+  ITableBuilder& builder =
+      mcs->createTableBuilder(db, "interp_st_single", TSDB_SUPER_TABLE,
+                              2, 1)
+          .setPrecision(TSDB_TIME_PRECISION_MILLI)
+          .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+          .addColumn("c1", TSDB_DATA_TYPE_INT)
+          .addTag("tag1", TSDB_DATA_TYPE_INT);
+  builder.done();
+  mcs->createSubTable(db, "interp_st_single", "interp_st_single_1", 2);
+  mcs->createSubTable(db, "interp_st_single", "interp_st_single_2", 2);
+}
+
 void generateFunctions(MockCatalogService* mcs) {
   mcs->createFunction("udf1", TSDB_FUNC_TYPE_SCALAR, TSDB_DATA_TYPE_INT, tDataTypes[TSDB_DATA_TYPE_INT].bytes, 0);
   mcs->createFunction("udf2", TSDB_FUNC_TYPE_AGGREGATE, TSDB_DATA_TYPE_DOUBLE, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes,
@@ -340,6 +354,10 @@ void generateDatabases(MockCatalogService* mcs) {
   generateTestStables(g_mockCatalogService.get(), "stream_triggerdb_2");
   generateTestTables(g_mockCatalogService.get(), "stream_outdb");
   generateTestStables(g_mockCatalogService.get(), "stream_outdb");
+
+  mcs->createDatabase("interp_single_vg");
+  generateSingleVgroupInterpStable(g_mockCatalogService.get(),
+                                   "interp_single_vg");
 }
 
 }  // namespace

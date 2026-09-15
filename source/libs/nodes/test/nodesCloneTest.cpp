@@ -29,7 +29,7 @@
 
 extern "C" void nodesTestSetStrictAppendFailOnce(void);
 
-static void eraseJsonBoolField(std::string* pJson, const char* pField) {
+static void eraseJsonField(std::string* pJson, const char* pField) {
   const std::string field = std::string("\"") + pField + "\":";
   const size_t      start = pJson->find(field);
   ASSERT_NE(start, std::string::npos);
@@ -131,6 +131,252 @@ TEST(NodesCodeTest, queryPlanJsonRoundTripPreservesAllSubplanLevels) {
   ASSERT_EQ((SNode*)pRoundTripChild2, nodesListGetNode(pRoundTripParent->pChildren, 1));
   ASSERT_EQ((SNode*)pRoundTripParent, nodesListGetNode(pRoundTripChild1->pParents, 0));
   ASSERT_EQ((SNode*)pRoundTripParent, nodesListGetNode(pRoundTripChild2->pParents, 0));
+}
+
+static int8_t* interpModeRef(SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_SCAN:
+      return &((SScanLogicNode*)pNode)->interpMode;
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      return &((SInterpFuncLogicNode*)pNode)->interpMode;
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
+      return &((STableScanPhysiNode*)pNode)->interpMode;
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+      return &((SInterpFuncPhysiNode*)pNode)->interpMode;
+    default:
+      return nullptr;
+  }
+}
+
+// The msg codec only covers physical plan nodes, so logic nodes are checked
+// through clone + JSON only.
+template <typename T>
+static void checkNodeFieldRoundTrips(ENodeType type, bool checkMsg,
+                                     T expected,
+                                     T* (*fieldRef)(SNode*)) {
+  SNode* pNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(type, &pNode));
+  std::unique_ptr<SNode, void (*)(SNode*)> src(pNode, nodesDestroyNode);
+  ASSERT_NE(nullptr, fieldRef(src.get()));
+  *fieldRef(src.get()) = expected;
+
+  SNode* pClone = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(src.get(), &pClone));
+  std::unique_ptr<SNode, void (*)(SNode*)> clone(pClone, nodesDestroyNode);
+  ASSERT_EQ(type, nodeType(clone.get()));
+  ASSERT_NE(nullptr, fieldRef(clone.get()));
+  EXPECT_EQ(expected, *fieldRef(clone.get()));
+
+  char*   pStr = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesNodeToString(src.get(), false, &pStr, &len));
+  SNode* pJsonNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(pStr, &pJsonNode));
+  taosMemoryFreeClear(pStr);
+  std::unique_ptr<SNode, void (*)(SNode*)> jsonNode(pJsonNode,
+                                                    nodesDestroyNode);
+  ASSERT_EQ(type, nodeType(jsonNode.get()));
+  ASSERT_NE(nullptr, fieldRef(jsonNode.get()));
+  EXPECT_EQ(expected, *fieldRef(jsonNode.get()));
+
+  if (!checkMsg) {
+    return;
+  }
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(src.get(), &pStr, &len));
+  SNode* pMsgNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(pStr, len, &pMsgNode));
+  taosMemoryFreeClear(pStr);
+  std::unique_ptr<SNode, void (*)(SNode*)> msgNode(pMsgNode,
+                                                   nodesDestroyNode);
+  ASSERT_EQ(type, nodeType(msgNode.get()));
+  ASSERT_NE(nullptr, fieldRef(msgNode.get()));
+  EXPECT_EQ(expected, *fieldRef(msgNode.get()));
+}
+
+static void checkInterpModeRoundTrips(ENodeType type, bool checkMsg) {
+  for (int8_t mode : {INTERP_MODE_MULTI_GROUP, INTERP_MODE_GROUP_FIRST}) {
+    checkNodeFieldRoundTrips(type, checkMsg, mode, interpModeRef);
+  }
+}
+
+TEST(NodesInterpModeTest, cloneAndSerializationRoundTrips) {
+  checkInterpModeRoundTrips(QUERY_NODE_LOGIC_PLAN_SCAN, false);
+  checkInterpModeRoundTrips(QUERY_NODE_LOGIC_PLAN_INTERP_FUNC, false);
+  checkInterpModeRoundTrips(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, true);
+  checkInterpModeRoundTrips(QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, true);
+}
+
+TEST(NodesInterpModeTest, missingJsonFieldDefaultsToLegacy) {
+  for (ENodeType type : {QUERY_NODE_LOGIC_PLAN_SCAN,
+                         QUERY_NODE_LOGIC_PLAN_INTERP_FUNC,
+                         QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
+                         QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC}) {
+    SNode* pNode = nullptr;
+    ASSERT_EQ(nodesMakeNode(type, &pNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> src(pNode, nodesDestroyNode);
+    ASSERT_NE(nullptr, interpModeRef(src.get()));
+    *interpModeRef(src.get()) = INTERP_MODE_MULTI_GROUP;
+
+    char*   pStr = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(nodesNodeToString(src.get(), false, &pStr, &len),
+              TSDB_CODE_SUCCESS);
+    std::string json(pStr);
+    taosMemoryFreeClear(pStr);
+
+    eraseJsonField(&json, "InterpMode");
+
+    SNode* pDecoded = nullptr;
+    ASSERT_EQ(nodesStringToNode(json.c_str(), &pDecoded),
+              TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> decoded(
+        pDecoded, nodesDestroyNode);
+    ASSERT_EQ(nodeType(decoded.get()), type);
+    ASSERT_NE(nullptr, interpModeRef(decoded.get()));
+    EXPECT_EQ(*interpModeRef(decoded.get()), INTERP_MODE_LEGACY);
+  }
+}
+
+static bool* interpRequireMainMembershipRef(SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      return &((SInterpFuncLogicNode*)pNode)->requireMainMembership;
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+      return &((SInterpFuncPhysiNode*)pNode)->requireMainMembership;
+    default:
+      return nullptr;
+  }
+}
+
+static void checkInterpRequireMainMembershipRoundTrips(ENodeType type,
+                                                       bool checkMsg) {
+  checkNodeFieldRoundTrips(type, checkMsg, true,
+                           interpRequireMainMembershipRef);
+}
+
+TEST(NodesInterpMembershipTest, cloneAndSerializationRoundTrips) {
+  checkInterpRequireMainMembershipRoundTrips(
+      QUERY_NODE_LOGIC_PLAN_INTERP_FUNC, false);
+  checkInterpRequireMainMembershipRoundTrips(
+      QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, true);
+}
+
+TEST(NodesInterpMembershipTest, missingJsonFieldDefaultsToFalse) {
+  for (ENodeType type : {QUERY_NODE_LOGIC_PLAN_INTERP_FUNC,
+                         QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC}) {
+    SNode* pNode = nullptr;
+    ASSERT_EQ(nodesMakeNode(type, &pNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> src(pNode, nodesDestroyNode);
+    ASSERT_NE(nullptr, interpRequireMainMembershipRef(src.get()));
+    *interpRequireMainMembershipRef(src.get()) = true;
+
+    char*   pStr = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(nodesNodeToString(src.get(), false, &pStr, &len),
+              TSDB_CODE_SUCCESS);
+    std::string json(pStr);
+    taosMemoryFreeClear(pStr);
+
+    eraseJsonField(&json, "RequireMainMembership");
+
+    SNode* pDecoded = nullptr;
+    ASSERT_EQ(nodesStringToNode(json.c_str(), &pDecoded),
+              TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> decoded(
+        pDecoded, nodesDestroyNode);
+    ASSERT_EQ(nodeType(decoded.get()), type);
+    ASSERT_NE(nullptr, interpRequireMainMembershipRef(decoded.get()));
+    EXPECT_FALSE(*interpRequireMainMembershipRef(decoded.get()));
+  }
+}
+
+static bool* partitionPhasedModeRef(SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+      return &((SPartitionLogicNode*)pNode)->phasedMode;
+    case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
+      return &((SPartitionPhysiNode*)pNode)->phasedMode;
+    default:
+      return nullptr;
+  }
+}
+
+static void checkPartitionPhasedModeRoundTrips(ENodeType type,
+                                               bool checkMsg) {
+  checkNodeFieldRoundTrips(type, checkMsg, true, partitionPhasedModeRef);
+}
+
+TEST(NodesPartitionPhasedModeTest, cloneAndSerializationRoundTrips) {
+  checkPartitionPhasedModeRoundTrips(QUERY_NODE_LOGIC_PLAN_PARTITION, false);
+  checkPartitionPhasedModeRoundTrips(QUERY_NODE_PHYSICAL_PLAN_PARTITION,
+                                     true);
+}
+
+// checkNodeFieldRoundTrips is unusable here: QUERY_NODE_PHYSICAL_PLAN_MERGE
+// has no clone case in nodesCloneFuncs.c, and the logic node's JSON codec
+// carries neither field. Clone is checked on the logic node, JSON and msg
+// on the physical node.
+TEST(NodesMergeOuterGroupPhaseModeTest,
+     cloneAndSerializationRoundTrips) {
+  SNode* pLogicNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesMakeNode(QUERY_NODE_LOGIC_PLAN_MERGE, &pLogicNode));
+  std::unique_ptr<SNode, void (*)(SNode*)> logicNode(
+      pLogicNode, nodesDestroyNode);
+  SMergeLogicNode* pLogic = (SMergeLogicNode*)logicNode.get();
+  pLogic->inputWithGroupId = true;
+  pLogic->outerGroupPhaseMode = true;
+
+  SNode* pLogicClone = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesCloneNode(logicNode.get(), &pLogicClone));
+  std::unique_ptr<SNode, void (*)(SNode*)> logicClone(
+      pLogicClone, nodesDestroyNode);
+  ASSERT_EQ(QUERY_NODE_LOGIC_PLAN_MERGE, nodeType(logicClone.get()));
+  SMergeLogicNode* pClonedLogic =
+      (SMergeLogicNode*)logicClone.get();
+  EXPECT_TRUE(pClonedLogic->inputWithGroupId);
+  EXPECT_TRUE(pClonedLogic->outerGroupPhaseMode);
+
+  SNode* pPhysiNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_MERGE, &pPhysiNode));
+  std::unique_ptr<SNode, void (*)(SNode*)> physiNode(
+      pPhysiNode, nodesDestroyNode);
+  SMergePhysiNode* pPhysi = (SMergePhysiNode*)physiNode.get();
+  pPhysi->inputWithGroupId = true;
+  pPhysi->outerGroupPhaseMode = true;
+
+  char* pEncoded = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesNodeToString(physiNode.get(), false, &pEncoded, &len));
+  SNode* pJsonNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesStringToNode(pEncoded, &pJsonNode));
+  taosMemoryFreeClear(pEncoded);
+  std::unique_ptr<SNode, void (*)(SNode*)> jsonNode(
+      pJsonNode, nodesDestroyNode);
+  ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_MERGE, nodeType(jsonNode.get()));
+  SMergePhysiNode* pJsonMerge =
+      (SMergePhysiNode*)jsonNode.get();
+  EXPECT_TRUE(pJsonMerge->inputWithGroupId);
+  EXPECT_TRUE(pJsonMerge->outerGroupPhaseMode);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesNodeToMsg(physiNode.get(), &pEncoded, &len));
+  SNode* pMsgNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesMsgToNode(pEncoded, len, &pMsgNode));
+  taosMemoryFreeClear(pEncoded);
+  std::unique_ptr<SNode, void (*)(SNode*)> msgNode(
+      pMsgNode, nodesDestroyNode);
+  ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_MERGE, nodeType(msgNode.get()));
+  SMergePhysiNode* pMsgMerge = (SMergePhysiNode*)msgNode.get();
+  EXPECT_TRUE(pMsgMerge->inputWithGroupId);
+  EXPECT_TRUE(pMsgMerge->outerGroupPhaseMode);
 }
 
 TEST_F(NodesCloneTest, tempTable) {
@@ -617,8 +863,8 @@ TEST(NodesSubplanTest, intervalOptimizationFlagsDefaultWhenAbsentFromJson) {
   json.reset(pJson);
   ASSERT_NE(json, nullptr);
   std::string legacyJson(json.get());
-  eraseJsonBoolField(&legacyJson, "FastInterval");
-  eraseJsonBoolField(&legacyJson, "ExInterval");
+  eraseJsonField(&legacyJson, "FastInterval");
+  eraseJsonField(&legacyJson, "ExInterval");
 
   std::unique_ptr<SNode, void (*)(SNode*)> decoded(nullptr, nodesDestroyNode);
   pNew = NULL;
@@ -652,8 +898,8 @@ TEST(NodesSubplanTest, tableScanOptimizationFlagsDefaultWhenAbsentFromJson) {
   json.reset(pJson);
   ASSERT_NE(json, nullptr);
   std::string legacyJson(json.get());
-  eraseJsonBoolField(&legacyJson, "FastInterval");
-  eraseJsonBoolField(&legacyJson, "ExInterval");
+  eraseJsonField(&legacyJson, "FastInterval");
+  eraseJsonField(&legacyJson, "ExInterval");
 
   std::unique_ptr<SNode, void (*)(SNode*)> decoded(nullptr, nodesDestroyNode);
   pNew = NULL;
@@ -664,21 +910,21 @@ TEST(NodesSubplanTest, tableScanOptimizationFlagsDefaultWhenAbsentFromJson) {
   ASSERT_FALSE(pDecodedScan->exInterval);
 }
 
-TEST(NodesSubplanTest, eraseJsonBoolFieldHandlesLastAndOnlyMembers) {
+TEST(NodesSubplanTest, eraseJsonFieldHandlesLastAndOnlyMembers) {
   std::string middle = R"({"A":1,"Flag":false,"B":2})";
-  eraseJsonBoolField(&middle, "Flag");
+  eraseJsonField(&middle, "Flag");
   EXPECT_EQ(middle, R"({"A":1,"B":2})");
 
   std::string last = R"({"O":{"X":1,"Flag":true},"After":9})";
-  eraseJsonBoolField(&last, "Flag");
+  eraseJsonField(&last, "Flag");
   EXPECT_EQ(last, R"({"O":{"X":1},"After":9})");
 
   std::string only = R"({"Flag":true})";
-  eraseJsonBoolField(&only, "Flag");
+  eraseJsonField(&only, "Flag");
   EXPECT_EQ(only, R"({})");
 
   std::string nestedOnly = R"({"O":{"Flag":true},"After":9})";
-  eraseJsonBoolField(&nestedOnly, "Flag");
+  eraseJsonField(&nestedOnly, "Flag");
   EXPECT_EQ(nestedOnly, R"({"O":{},"After":9})");
 }
 
@@ -709,7 +955,7 @@ TEST(InterpNodesTest, mergeFlagSerialization) {
     EXPECT_EQ(merge, pDecodedInterp->mergeDataBlock);
 
     std::string legacy(json.get());
-    eraseJsonBoolField(&legacy, "MergeDataBlock");
+    eraseJsonField(&legacy, "MergeDataBlock");
     ASSERT_EQ(0, nodesStringToNode(legacy.c_str(), &pDecoded));
     decoded.reset(pDecoded);
     EXPECT_FALSE(

@@ -3675,6 +3675,7 @@ enum {
   PHY_TABLE_SCAN_CODE_EXT_TIME_RANGE_EXPR,
   PHY_TABLE_SCAN_CODE_PRIM_COND_EXPR,
   PHY_TABLE_SCAN_CODE_TIMEZONE_NAME,
+  PHY_TABLE_SCAN_CODE_INTERP_MODE,
 };
 
 static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3789,6 +3790,10 @@ static int32_t physiTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   }
   if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
     code = tlvEncodeCStr(pEncoder, PHY_TABLE_SCAN_CODE_TIMEZONE_NAME, pNode->timezoneName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI8(pEncoder, PHY_TABLE_SCAN_CODE_INTERP_MODE,
+                       pNode->interpMode);
   }
 
   return code;
@@ -3930,6 +3935,9 @@ static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
                                                 &pNode->ownsTimezone);
         }
         break;
+      case PHY_TABLE_SCAN_CODE_INTERP_MODE:
+        code = tlvDecodeI8(pTlv, &pNode->interpMode);
+        break;
       default:
         break;
     }
@@ -3975,7 +3983,9 @@ static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncode
                          pNode->charsetName);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI8(pEncoder, PHY_SYSTABLE_SCAN_CODE_XNODE_DSN_OUTPUT_MODE, pNode->xnodeDsnOutputMode);
+    code = tlvEncodeI8(pEncoder,
+                       PHY_SYSTABLE_SCAN_CODE_XNODE_DSN_OUTPUT_MODE,
+                       pNode->xnodeDsnOutputMode);
   }
 
   return code;
@@ -4611,6 +4621,7 @@ enum {
   PHY_MERGE_CODE_IGNORE_GROUP_ID,
   PHY_MERGE_CODE_INPUT_WITH_GROUP_ID,
   PHY_MERGE_CODE_TYPE,
+  PHY_MERGE_CODE_OUTER_GROUP_PHASE_MODE,
 };
 
 static int32_t physiMergeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4640,6 +4651,11 @@ static int32_t physiMergeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, PHY_MERGE_CODE_TYPE, pNode->type);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder,
+                         PHY_MERGE_CODE_OUTER_GROUP_PHASE_MODE,
+                         pNode->outerGroupPhaseMode);
   }
 
   return code;
@@ -4678,6 +4694,9 @@ static int32_t msgToPhysiMergeNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_MERGE_CODE_TYPE:
         code = tlvDecodeI32(pTlv, (int32_t*)&pNode->type);
+        break;
+      case PHY_MERGE_CODE_OUTER_GROUP_PHASE_MODE:
+        code = tlvDecodeBool(pTlv, &pNode->outerGroupPhaseMode);
         break;
       default:
         break;
@@ -5849,7 +5868,8 @@ enum {
   PHY_PARTITION_CODE_KEYS,
   PHY_PARTITION_CODE_TARGETS,
   PHY_PARTITION_CODE_HAS_OUTPUT_TS_ORDER,
-  PHY_PARTITION_CODE_TS_SLOTID
+  PHY_PARTITION_CODE_TS_SLOTID,
+  PHY_PARTITION_CODE_PHASED_MODE,
 };
 
 static int32_t physiPartitionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -5870,6 +5890,10 @@ static int32_t physiPartitionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, PHY_PARTITION_CODE_TS_SLOTID, pNode->tsSlotId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_PARTITION_CODE_PHASED_MODE,
+                         pNode->phasedMode);
   }
 
   return code;
@@ -5899,6 +5923,9 @@ static int32_t msgToPhysiPartitionNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_PARTITION_CODE_TS_SLOTID:
         code = tlvDecodeI32(pTlv, &pNode->tsSlotId);
+        break;
+      case PHY_PARTITION_CODE_PHASED_MODE:
+        code = tlvDecodeBool(pTlv, &pNode->phasedMode);
         break;
       default:
         break;
@@ -5964,6 +5991,8 @@ enum {
   PHY_INTERP_FUNC_CODE_TIMEZONE_NAME,
   PHY_INTERP_FUNC_CODE_TIMELINE_SOURCE,
   PHY_INTERP_FUNC_CODE_MERGE_DATA_BLOCK,
+  PHY_INTERP_FUNC_CODE_INTERP_MODE,
+  PHY_INTERP_FUNC_CODE_REQUIRE_MAIN_MEMBERSHIP,
 };
 
 static int32_t physiInterpFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -6002,6 +6031,15 @@ static int32_t physiInterpFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder)
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI64(pEncoder, PHY_INTERP_FUNC_CODE_SURROUNDING_TIME, pNode->surroundingTime);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI8(pEncoder, PHY_INTERP_FUNC_CODE_INTERP_MODE,
+                       pNode->interpMode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(
+        pEncoder, PHY_INTERP_FUNC_CODE_REQUIRE_MAIN_MEMBERSHIP,
+        pNode->requireMainMembership);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI8(pEncoder, PHY_INTERP_FUNC_CODE_PRECISION, 
@@ -6064,6 +6102,12 @@ static int32_t msgToPhysiInterpFuncNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_INTERP_FUNC_CODE_SURROUNDING_TIME:
         code = tlvDecodeI64(pTlv, &pNode->surroundingTime);
+        break;
+      case PHY_INTERP_FUNC_CODE_INTERP_MODE:
+        code = tlvDecodeI8(pTlv, &pNode->interpMode);
+        break;
+      case PHY_INTERP_FUNC_CODE_REQUIRE_MAIN_MEMBERSHIP:
+        code = tlvDecodeBool(pTlv, &pNode->requireMainMembership);
         break;
       case PHY_INTERP_FUNC_CODE_PRECISION:
         code = tlvDecodeI8(pTlv, &pNode->precision);
@@ -7369,6 +7413,7 @@ enum {
   LOGIC_PARTITION_CODE_BASE_NODE = 1,
   LOGIC_PARTITION_CODE_PARTITION_KEYS,
   LOGIC_PARTITION_CODE_AGG_FUNCS,
+  LOGIC_PARTITION_CODE_PHASED_MODE,
 };
 
 static int32_t logicPartitionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -7379,6 +7424,10 @@ static int32_t logicPartitionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   }
   if (TSDB_CODE_SUCCESS == code && pNode->pAggFuncs != NULL) {
     code = tlvEncodeObj(pEncoder, LOGIC_PARTITION_CODE_AGG_FUNCS, nodeListToMsg, pNode->pAggFuncs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, LOGIC_PARTITION_CODE_PHASED_MODE,
+                         pNode->phasedMode);
   }
   return code;
 }
@@ -7397,6 +7446,9 @@ static int32_t msgToLogicPartitionNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case LOGIC_PARTITION_CODE_AGG_FUNCS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pAggFuncs);
+        break;
+      case LOGIC_PARTITION_CODE_PHASED_MODE:
+        code = tlvDecodeBool(pTlv, &pNode->phasedMode);
         break;
       default:
         break;

@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <iostream>
+#include <vector>
 #include <string>
 
 #pragma GCC diagnostic push
@@ -181,6 +182,274 @@ TEST(testCase, colDataAssignNRows_clears_stale_null_bitmap) {
 
   colDataDestroy(&src);
   colDataDestroy(&dst);
+}
+
+namespace {
+
+// These literals independently describe the legacy wire contract so an
+// implementation layout change remains visible to the compatibility tests.
+constexpr size_t kBlockFlagSegmentOffset = sizeof(int32_t) * 4;
+constexpr uint32_t kBlockColumnInfoFlag = 1u << 31;
+constexpr uint32_t kBlockScanPhaseMask = 3u << 29;
+
+class DataBlockGuard {
+ public:
+  DataBlockGuard() = default;
+  DataBlockGuard(const DataBlockGuard&) = delete;
+  DataBlockGuard& operator=(const DataBlockGuard&) = delete;
+  ~DataBlockGuard() { blockDataDestroy(pBlock_); }
+
+  SSDataBlock* get() const { return pBlock_; }
+  SSDataBlock** put() { return &pBlock_; }
+  SSDataBlock* operator->() const { return pBlock_; }
+
+ private:
+  SSDataBlock* pBlock_ = nullptr;
+};
+
+// Creates a timestamp block tagged with the requested scan phase.
+int32_t createScanPhaseTestBlock(int8_t scanPhase,
+                                 SSDataBlock** ppBlock) {
+  int32_t code = createDataBlock(ppBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  SColumnInfoData col =
+      createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(TSKEY),
+                           PRIMARYKEY_TIMESTAMP_COL_ID);
+  code = blockDataAppendColInfo(*ppBlock, &col);
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(*ppBlock);
+    *ppBlock = nullptr;
+    return code;
+  }
+
+  constexpr int32_t kRows = 3;
+  code = blockDataEnsureCapacity(*ppBlock, kRows);
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(*ppBlock);
+    *ppBlock = nullptr;
+    return code;
+  }
+
+  SColumnInfoData* pCol =
+      static_cast<SColumnInfoData*>(taosArrayGet((*ppBlock)->pDataBlock, 0));
+  if (pCol == nullptr) {
+    code = terrno;
+    blockDataDestroy(*ppBlock);
+    *ppBlock = nullptr;
+    return code;
+  }
+
+  TSKEY values[kRows] = {10, 20, 30};
+  for (int32_t i = 0; i < kRows; ++i) {
+    code = colDataSetVal(pCol, i,
+                         reinterpret_cast<const char*>(&values[i]), false);
+    if (code != TSDB_CODE_SUCCESS) {
+      blockDataDestroy(*ppBlock);
+      *ppBlock = nullptr;
+      return code;
+    }
+  }
+
+  (*ppBlock)->info.rows = kRows;
+  (*ppBlock)->info.scanPhase = scanPhase;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Reads the flag segment without assuming the encoded buffer is aligned.
+uint32_t getBlockFlagSegment(const std::vector<char>& encoded) {
+  uint32_t flagSegment = 0;
+  memcpy(&flagSegment, encoded.data() + kBlockFlagSegmentOffset,
+         sizeof(flagSegment));
+  return flagSegment;
+}
+
+// Rewrites the flag segment to emulate a legacy wire layout.
+void setBlockFlagSegment(std::vector<char>* encoded,
+                         uint32_t flagSegment) {
+  memcpy(encoded->data() + kBlockFlagSegmentOffset, &flagSegment,
+         sizeof(flagSegment));
+}
+
+}  // namespace
+
+// Verifies that new and cleaned blocks default to MAIN, while block-copy APIs
+// preserve a source block's non-MAIN phase.
+TEST(ScanPhaseTest, DefaultsAndCopies) {
+  DataBlockGuard empty;
+  ASSERT_EQ(createDataBlock(empty.put()), TSDB_CODE_SUCCESS);
+  ASSERT_NE(empty.get(), nullptr);
+  EXPECT_EQ(empty->info.scanPhase, SCAN_PHASE_MAIN);
+
+  empty->info.scanPhase = SCAN_PHASE_PREV;
+  blockDataCleanup(empty.get());
+  EXPECT_EQ(empty->info.scanPhase, SCAN_PHASE_MAIN);
+
+  DataBlockGuard source;
+  ASSERT_EQ(createScanPhaseTestBlock(SCAN_PHASE_PREV, source.put()),
+            TSDB_CODE_SUCCESS);
+
+  DataBlockGuard created;
+  ASSERT_EQ(createOneDataBlock(source.get(), true, created.put()),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(created.get(), nullptr);
+  EXPECT_EQ(created->info.scanPhase, SCAN_PHASE_PREV);
+
+  created->info.scanPhase = SCAN_PHASE_MAIN;
+  ASSERT_EQ(copyDataBlock(created.get(), source.get()), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(created->info.scanPhase, SCAN_PHASE_PREV);
+
+  DataBlockGuard assigned;
+  ASSERT_EQ(createDataBlock(assigned.put()), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(assignOneDataBlock(assigned.get(), source.get()),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(assigned->info.scanPhase, SCAN_PHASE_PREV);
+}
+
+TEST(ScanPhaseTest, ResetRestoresMainPhase) {
+  DataBlockGuard block;
+  ASSERT_EQ(createScanPhaseTestBlock(SCAN_PHASE_PREV, block.put()),
+            TSDB_CODE_SUCCESS);
+
+  blockDataReset(block.get());
+  EXPECT_EQ(block->info.scanPhase, SCAN_PHASE_MAIN);
+}
+
+// Verifies the internal codec's phase round trip and wire compatibility: the
+// column-info bit remains visible to legacy decoders, and legacy blocks with
+// zero phase bits decode as MAIN.
+TEST(ScanPhaseTest, InternalCodecAndOldFormatCompatibility) {
+  DataBlockGuard source;
+  ASSERT_EQ(createScanPhaseTestBlock(SCAN_PHASE_PREV, source.put()),
+            TSDB_CODE_SUCCESS);
+
+  int32_t encodedSize = blockGetInternalEncodeSize(source.get());
+  ASSERT_GT(encodedSize, 0);
+  std::vector<char> encoded(encodedSize);
+  int32_t encodedLen =
+      blockEncodeInternal(source.get(), encoded.data(), encoded.size(), 1);
+  ASSERT_GT(encodedLen, 0);
+
+  uint32_t flagSegment = getBlockFlagSegment(encoded);
+  EXPECT_EQ(flagSegment >> 31, 1u);
+  EXPECT_EQ(flagSegment & kBlockScanPhaseMask,
+            (uint32_t)SCAN_PHASE_PREV << 29);
+
+  DataBlockGuard decoded;
+  ASSERT_EQ(createOneDataBlock(source.get(), false, decoded.put()),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDecodeInternal(decoded.get(), encoded.data(), nullptr),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decoded->info.scanPhase, SCAN_PHASE_PREV);
+
+  flagSegment &= ~kBlockScanPhaseMask;
+  setBlockFlagSegment(&encoded, flagSegment);
+  blockDataCleanup(decoded.get());
+  ASSERT_EQ(blockDecodeInternal(decoded.get(), encoded.data(), nullptr),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decoded->info.scanPhase, SCAN_PHASE_MAIN);
+  EXPECT_NE(flagSegment & kBlockColumnInfoFlag, 0u);
+}
+
+// Verifies that the row-oriented codec pair carries scan phase independently
+// of the internal codec and applies the same legacy zero-to-MAIN fallback.
+TEST(ScanPhaseTest, RowCodecRoundTrip) {
+  DataBlockGuard source;
+  ASSERT_EQ(createScanPhaseTestBlock(SCAN_PHASE_PREV, source.put()),
+            TSDB_CODE_SUCCESS);
+
+  int32_t encodedSize = blockGetEncodeSizeOfRows(source.get(), 0, 2);
+  ASSERT_GT(encodedSize, 0);
+  std::vector<char> encoded(encodedSize);
+  int32_t encodedLen = 0;
+  ASSERT_EQ(blockEncodeAsRows(source.get(), encoded.data(), encoded.size(),
+                              1, 0, 2, &encodedLen),
+            TSDB_CODE_SUCCESS);
+  ASSERT_GT(encodedLen, 0);
+
+  DataBlockGuard decoded;
+  ASSERT_EQ(createOneDataBlock(source.get(), false, decoded.put()),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockSpecialDecodeLaterPart(decoded.get(), encoded.data(), 0, 10,
+                                        30),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decoded->info.scanPhase, SCAN_PHASE_PREV);
+
+  uint32_t flagSegment =
+      getBlockFlagSegment(encoded) & ~kBlockScanPhaseMask;
+  setBlockFlagSegment(&encoded, flagSegment);
+  blockDataCleanup(decoded.get());
+  ASSERT_EQ(blockSpecialDecodeLaterPart(decoded.get(), encoded.data(), 0, 10,
+                                        30),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decoded->info.scanPhase, SCAN_PHASE_MAIN);
+}
+
+TEST(ScanPhaseTest, InternalCodecRejectsInvalidPhases) {
+  constexpr int8_t kReservedPhase = 3;
+  DataBlockGuard source;
+  ASSERT_EQ(createScanPhaseTestBlock(kReservedPhase, source.put()),
+            TSDB_CODE_SUCCESS);
+
+  int32_t encodedSize = blockGetInternalEncodeSize(source.get());
+  ASSERT_GT(encodedSize, 0);
+  std::vector<char> encoded(encodedSize);
+  EXPECT_EQ(blockEncodeInternal(source.get(), encoded.data(), encoded.size(),
+                                1),
+            -1);
+  EXPECT_EQ(terrno, TSDB_CODE_INVALID_PARA);
+
+  source->info.scanPhase = SCAN_PHASE_MAIN;
+  ASSERT_GT(blockEncodeInternal(source.get(), encoded.data(), encoded.size(),
+                                1),
+            0);
+  uint32_t flagSegment =
+      getBlockFlagSegment(encoded) | kBlockScanPhaseMask;
+  setBlockFlagSegment(&encoded, flagSegment);
+
+  DataBlockGuard decoded;
+  ASSERT_EQ(createOneDataBlock(source.get(), false, decoded.put()),
+            TSDB_CODE_SUCCESS);
+  terrno = TSDB_CODE_SUCCESS;
+  EXPECT_EQ(blockDecodeInternal(decoded.get(), encoded.data(), nullptr),
+            TSDB_CODE_MSG_DECODE_ERROR);
+  EXPECT_EQ(terrno, TSDB_CODE_MSG_DECODE_ERROR);
+}
+
+TEST(ScanPhaseTest, RowCodecRejectsInvalidPhases) {
+  constexpr int8_t kReservedPhase = 3;
+  DataBlockGuard source;
+  ASSERT_EQ(createScanPhaseTestBlock(kReservedPhase, source.put()),
+            TSDB_CODE_SUCCESS);
+
+  int32_t encodedSize = blockGetEncodeSizeOfRows(source.get(), 0, 2);
+  ASSERT_GT(encodedSize, 0);
+  std::vector<char> encoded(encodedSize);
+  int32_t encodedLen = 0;
+  terrno = TSDB_CODE_SUCCESS;
+  EXPECT_EQ(blockEncodeAsRows(source.get(), encoded.data(), encoded.size(), 1,
+                              0, 2, &encodedLen),
+            TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(terrno, TSDB_CODE_INVALID_PARA);
+
+  source->info.scanPhase = SCAN_PHASE_MAIN;
+  ASSERT_EQ(blockEncodeAsRows(source.get(), encoded.data(), encoded.size(), 1,
+                              0, 2, &encodedLen),
+            TSDB_CODE_SUCCESS);
+  uint32_t flagSegment =
+      getBlockFlagSegment(encoded) | kBlockScanPhaseMask;
+  setBlockFlagSegment(&encoded, flagSegment);
+
+  DataBlockGuard decoded;
+  ASSERT_EQ(createOneDataBlock(source.get(), false, decoded.put()),
+            TSDB_CODE_SUCCESS);
+  terrno = TSDB_CODE_SUCCESS;
+  EXPECT_EQ(blockSpecialDecodeLaterPart(decoded.get(), encoded.data(), 0, 10,
+                                        30),
+            TSDB_CODE_MSG_DECODE_ERROR);
+  EXPECT_EQ(terrno, TSDB_CODE_MSG_DECODE_ERROR);
 }
 
 TEST(XnodeDsnConfigTest, RegistersServerOnlyDisabledByDefault) {
@@ -624,17 +893,17 @@ TEST(testCase, Datablock_test_inc) {
 }
 
 TEST(testCase, Datablock_test) {
-  SSDataBlock* b = NULL;
-  int32_t      code = createDataBlock(&b);
+  DataBlockGuard b;
+  int32_t code = createDataBlock(b.put());
   ASSERT(code == 0);
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 1);
   taosArrayPush(b->pDataBlock, &infoData);
-  blockDataAppendColInfo(b, &infoData);
+  blockDataAppendColInfo(b.get(), &infoData);
 
   SColumnInfoData infoData1 = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 40, 2);
-  blockDataAppendColInfo(b, &infoData1);
-  blockDataEnsureCapacity(b, 40);
+  blockDataAppendColInfo(b.get(), &infoData1);
+  blockDataEnsureCapacity(b.get(), 40);
 
   char* str = "the value of: %d";
   char  buf[128] = {0};
@@ -676,8 +945,8 @@ TEST(testCase, Datablock_test) {
 
   printf("binary column length:%d\n", *(int32_t*)p1->pData);
 
-  ASSERT_EQ(blockDataGetNumOfCols(b), 3);
-  ASSERT_EQ(blockDataGetNumOfRows(b), 40);
+  ASSERT_EQ(blockDataGetNumOfCols(b.get()), 3);
+  ASSERT_EQ(blockDataGetNumOfRows(b.get()), 40);
 
   char* pData = colDataGetData(p1, 3);
   printf("the second row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
@@ -686,8 +955,7 @@ TEST(testCase, Datablock_test) {
   SBlockOrderInfo order = {true, TSDB_ORDER_ASC, 0, NULL};
   taosArrayPush(pOrderInfo, &order);
 
-  blockDataSort(b, pOrderInfo);
-  blockDataDestroy(b);
+  blockDataSort(b.get(), pOrderInfo);
 
   taosArrayDestroy(pOrderInfo);
 }
@@ -751,17 +1019,17 @@ TEST(testCase, non_var_dataBlock_split_test) {
 TEST(testCase, var_dataBlock_split_test) {
   int32_t numOfRows = 1000000;
 
-  SSDataBlock* b = NULL;
-  int32_t      code = createDataBlock(&b);
+  DataBlockGuard b;
+  int32_t code = createDataBlock(b.put());
   ASSERT(code == 0);
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 1);
-  blockDataAppendColInfo(b, &infoData);
+  blockDataAppendColInfo(b.get(), &infoData);
 
   SColumnInfoData infoData1 = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 40, 2);
-  blockDataAppendColInfo(b, &infoData1);
+  blockDataAppendColInfo(b.get(), &infoData1);
 
-  blockDataEnsureCapacity(b, numOfRows);
+  blockDataEnsureCapacity(b.get(), numOfRows);
 
   char buf[41] = {0};
   char buf1[100] = {0};
@@ -789,7 +1057,7 @@ TEST(testCase, var_dataBlock_split_test) {
   int32_t stopIndex = 0;
   int32_t count = 1;
   while (1) {
-    blockDataSplitRows(b, true, startIndex, &stopIndex, pageSize);
+    blockDataSplitRows(b.get(), true, startIndex, &stopIndex, pageSize);
     printf("the %d split, from: %d to %d\n", count++, startIndex, stopIndex);
 
     if (stopIndex == numOfRows - 1) {
@@ -798,8 +1066,6 @@ TEST(testCase, var_dataBlock_split_test) {
 
     startIndex = stopIndex + 1;
   }
-
-  blockDataDestroy(b);
 }
 
 void check_tm(const STm* tm, int32_t y, int32_t mon, int32_t d, int32_t h, int32_t m, int32_t s, int64_t fsec) {

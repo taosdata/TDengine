@@ -62,6 +62,63 @@ void colDataUpdateHasNull(SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
   }
 }
 
+// flagSegment wire layout: bit 31 indicates that column metadata is present,
+// and bits 30-29 encode EScanPhase. Bits 28-0 are reserved and remain zero.
+// Keeping phase below bit 31 preserves decoders that only inspect bit 31.
+enum {
+  BLOCK_FLAG_COLUMN_INFO_SHIFT = 31,
+  BLOCK_FLAG_SCAN_PHASE_SHIFT = 29,
+  BLOCK_FLAG_SCAN_PHASE_VALUE_MASK = 3,
+};
+
+static bool blockScanPhaseValid(int8_t scanPhase) {
+  return scanPhase >= SCAN_PHASE_MAIN && scanPhase < SCAN_PHASE_COUNT;
+}
+
+// Packs column-info presence and scan phase into the wire flag segment.
+static int32_t blockEncodeFlagSegment(const SSDataBlock* pBlock,
+                                      uint32_t* pFlagSegment) {
+  // Keep value 3 reserved and the phase bits below column-info bit 31.
+  COMPILE_TIME_ASSERT(SCAN_PHASE_MAIN == 0);
+  COMPILE_TIME_ASSERT(SCAN_PHASE_NEXT == SCAN_PHASE_MAIN + 1);
+  COMPILE_TIME_ASSERT(SCAN_PHASE_PREV == SCAN_PHASE_NEXT + 1);
+  COMPILE_TIME_ASSERT(
+      (uint32_t)SCAN_PHASE_COUNT <=
+      (uint32_t)BLOCK_FLAG_SCAN_PHASE_VALUE_MASK);
+  COMPILE_TIME_ASSERT(
+      (((uint32_t)BLOCK_FLAG_SCAN_PHASE_VALUE_MASK
+        << BLOCK_FLAG_SCAN_PHASE_SHIFT) &
+       (1u << BLOCK_FLAG_COLUMN_INFO_SHIFT)) == 0);
+
+  if (!blockScanPhaseValid(pBlock->info.scanPhase)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  uint32_t scanPhase = (uint32_t)pBlock->info.scanPhase;
+  *pFlagSegment = (1u << BLOCK_FLAG_COLUMN_INFO_SHIFT) |
+                  (scanPhase << BLOCK_FLAG_SCAN_PHASE_SHIFT);
+  return TSDB_CODE_SUCCESS;
+}
+
+// Extracts the column-info presence flag from the wire flag segment.
+static int32_t blockDecodeHasColumnInfo(uint32_t flagSegment) {
+  return (int32_t)(flagSegment >> BLOCK_FLAG_COLUMN_INFO_SHIFT);
+}
+
+// Extracts scan phase; zero phase bits in legacy blocks decode as MAIN.
+static int32_t blockDecodeScanPhase(uint32_t flagSegment,
+                                    int8_t* pScanPhase) {
+  int8_t scanPhase =
+      (int8_t)((flagSegment >> BLOCK_FLAG_SCAN_PHASE_SHIFT) &
+               BLOCK_FLAG_SCAN_PHASE_VALUE_MASK);
+  if (!blockScanPhaseValid(scanPhase)) {
+    return TSDB_CODE_MSG_DECODE_ERROR;
+  }
+
+  *pScanPhase = scanPhase;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     if (pColumnInfoData->reassigned) {
@@ -1240,9 +1297,9 @@ static int32_t blockDataValidateSerialized(const SSDataBlock* pBlock,
       continue;
     }
     if (pCol->info.noData) {
-      // No consistent bounded parse exists for noData columns:
-      // blockDataToBuf serializes them but blockDataFromBuf skips them,
-      // which would misalign every following column. Reject the schema.
+      // noData is a reader-side skip flag, while blockDataToBuf preserves
+      // the full column layout. The caller must provide a materialized
+      // decode schema when using the bounded reader.
       return TSDB_CODE_INVALID_PARA;
     }
 
@@ -1251,8 +1308,6 @@ static int32_t blockDataValidateSerialized(const SSDataBlock* pBlock,
     bool    isVarType = IS_VAR_DATA_TYPE(pCol->info.type);
     int64_t metaSize = isVarType ? (int64_t)numOfRows * sizeof(int32_t)
                                  : (((int64_t)numOfRows + 7) >> 3);
-    // Each column starts with precision(1) + scale(1); they are read
-    // unconditionally by blockDataFromBuf, before its noData skip.
     int64_t colHeadSize = 2 * (int64_t)sizeof(uint8_t);
     if (cursor + colHeadSize + metaSize + (int64_t)sizeof(int32_t) >
         bufSize) {
@@ -1352,8 +1407,7 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
     pStart += sizeof(uint8_t);
 
     if (pCol->info.noData) {
-      // Nothing was serialized for this column, so there is no metadata to
-      // derive hasNull from; it keeps whatever the caller left.
+      // The caller requested that this column not be decoded.
       continue;
     }
 
@@ -1890,6 +1944,7 @@ void blockDataCleanup(SSDataBlock* pDataBlock) {
   SDataBlockInfo* pInfo = &pDataBlock->info;
   pInfo->id.uid = 0;
   pInfo->id.groupId = 0;
+  pInfo->scanPhase = SCAN_PHASE_MAIN;
 }
 
 void blockDataEmpty(SSDataBlock* pDataBlock) {
@@ -1945,6 +2000,7 @@ void blockDataReset(SSDataBlock* pDataBlock) {
   pInfo->window.skey = 0;
   pInfo->id.uid = 0;
   pInfo->id.groupId = 0;
+  pInfo->scanPhase = SCAN_PHASE_MAIN;
 }
 
 /*
@@ -2525,6 +2581,7 @@ int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pSrcBlock, const SSDat
   pDstBlock->info.window = pSrcBlock->info.window;
   pDstBlock->info.dataLoad = pSrcBlock->info.dataLoad;
   pDstBlock->info.scanFlag = pSrcBlock->info.scanFlag;
+  pDstBlock->info.scanPhase = pSrcBlock->info.scanPhase;
 
   *pResBlock = pDstBlock;
   return code;
@@ -2547,6 +2604,8 @@ int32_t createDataBlock(SSDataBlock** pResBlock) {
     taosMemoryFree(pBlock);
     return code;
   }
+
+  pBlock->info.scanPhase = SCAN_PHASE_MAIN;
 
   *pResBlock = pBlock;
   return 0;
@@ -3588,10 +3647,13 @@ int32_t blockEncodeImpl(const SSDataBlock* pBlock, char* data, size_t dataBuflen
   *cols = numOfCols;
   data += sizeof(int32_t);
 
-  // flag segment.
-  // the inital bit is for column info
-  int32_t* flagSegment = (int32_t*)data;
-  *flagSegment = (1 << 31);
+  // The top bit carries column-info presence; bits 30-29 carry scan phase.
+  uint32_t* flagSegment = (uint32_t*)data;
+  code = blockEncodeFlagSegment(pBlock, flagSegment);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return -1;
+  }
 
   data += sizeof(int32_t);
 
@@ -3769,9 +3831,15 @@ int32_t blockDecodeImpl(SSDataBlock* pBlock, const char* pData, const char** pEn
   int32_t numOfCols = *(int32_t*)pStart;
   pStart += sizeof(int32_t);
 
-  // has column info segment
-  int32_t flagSeg = *(int32_t*)pStart;
-  int32_t hasColumnInfo = (flagSeg >> 31);
+  // Decode column-info presence and scan phase from the flag segment.
+  uint32_t flagSeg = *(uint32_t*)pStart;
+  int32_t  hasColumnInfo = blockDecodeHasColumnInfo(flagSeg);
+  int32_t phaseCode =
+      blockDecodeScanPhase(flagSeg, &pBlock->info.scanPhase);
+  if (phaseCode != TSDB_CODE_SUCCESS) {
+    terrno = phaseCode;
+    return phaseCode;
+  }
   pStart += sizeof(int32_t);
 
   // group id sizeof(uint64_t)
@@ -4752,10 +4820,13 @@ int32_t blockEncodeAsRows(const SSDataBlock* pBlock, char* data, size_t dataBufl
   *cols = numOfCols;
   data += sizeof(int32_t);
 
-  // flag segment.
-  // the inital bit is for column info
-  int32_t* flagSegment = (int32_t*)data;
-  *flagSegment = (1 << 31);
+  // The top bit carries column-info presence; bits 30-29 carry scan phase.
+  uint32_t* flagSegment = (uint32_t*)data;
+  code = blockEncodeFlagSegment(pBlock, flagSegment);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return code;
+  }
 
   data += sizeof(int32_t);
 
@@ -4902,9 +4973,14 @@ int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int3
   int32_t numOfCols = *(int32_t*)pStart;
   pStart += sizeof(int32_t);
 
-  // has column info segment
-  int32_t flagSeg = *(int32_t*)pStart;
-  int32_t hasColumnInfo = (flagSeg >> 31);
+  // Decode column-info presence and scan phase from the flag segment.
+  uint32_t flagSeg = *(uint32_t*)pStart;
+  int32_t  hasColumnInfo = blockDecodeHasColumnInfo(flagSeg);
+  code = blockDecodeScanPhase(flagSeg, &pBlock->info.scanPhase);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return code;
+  }
   pStart += sizeof(int32_t);
 
   // group id sizeof(uint64_t)

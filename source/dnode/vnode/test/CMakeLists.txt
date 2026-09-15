@@ -138,6 +138,24 @@ TARGET_INCLUDE_DIRECTORIES(
          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 IF(NOT TD_WINDOWS)
+    ADD_EXECUTABLE(tsdbReadPhaseTest tsdbReadPhaseTest.cpp)
+    DEP_ext_gtest(tsdbReadPhaseTest)
+    TARGET_LINK_LIBRARIES(
+             tsdbReadPhaseTest
+             PUBLIC os util common vnode
+    )
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(tsdbReadPhaseTest
+                               PRIVATE -fpermissive -Wno-error)
+    endif()
+    TARGET_INCLUDE_DIRECTORIES(
+             tsdbReadPhaseTest
+             PUBLIC "${TD_SOURCE_DIR}/include/common"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    add_test(NAME tsdbReadPhaseTest COMMAND tsdbReadPhaseTest)
+
     ADD_EXECUTABLE(tsdbCacheTest tsdbCacheTest.cpp)
     DEP_ext_gtest(tsdbCacheTest)
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")

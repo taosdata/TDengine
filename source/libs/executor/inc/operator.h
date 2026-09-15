@@ -33,6 +33,7 @@ typedef struct SOperatorCostInfo {
   TSKEY  inputWaitElapsed;
   TSKEY  outputWaitElapsed;
   uint64_t inputRows;
+  uint32_t execDepth;  // nested public next-interface call depth
   TSKEY  startTs;   // helper variable to record the start time of the operator
   TSKEY  endTs;     // helper variable to record the end time of the operator
 } SOperatorCostInfo;

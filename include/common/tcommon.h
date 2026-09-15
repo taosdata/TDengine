@@ -207,6 +207,16 @@ typedef struct SPkInfo {
   } ekey;
 } SPkInfo;
 
+// Identifies the source scan window for a block. Values follow scan order so
+// consumers can detect phase advances numerically. MAIN must remain zero for
+// calloc-created blocks and blocks encoded before scanPhase was introduced.
+typedef enum EScanPhase {
+  SCAN_PHASE_MAIN = 0,
+  SCAN_PHASE_NEXT = 1,
+  SCAN_PHASE_PREV = 2,
+  SCAN_PHASE_COUNT,
+} EScanPhase;
+
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rowSize;
@@ -216,6 +226,7 @@ typedef struct SDataBlockInfo {
   int16_t     hasVarCol;
   int16_t     dataLoad;  // denote if the data is loaded or not
   uint8_t     scanFlag;
+  int8_t      scanPhase;  // EScanPhase serialized in the block flag segment
   bool        blankFill;
   SValue      pks[2];
   SColumnDataAgg* pBlockAgg;  // borrowed block SMA for dynamic aggregate pruning; do not serialize or copy
@@ -268,6 +279,7 @@ typedef struct SQueryTableDataCond {
   int64_t      endVersion;
   bool         notLoadData;  // response the actual data, not only the rows in the attribute of info.row of ssdatablock
   bool         cacheSttStatis;
+  bool         mainFirst;  // scan external windows in MAIN/NEXT/PREV order
 } SQueryTableDataCond;
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);

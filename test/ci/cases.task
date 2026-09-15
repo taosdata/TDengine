@@ -679,6 +679,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/11-PseudoColumn/test_query_pseudo_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/11-PseudoColumn/test_query_pseudo_tbname.py
 ## 12-Interp
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_interp_main_first.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_interp_legacy_routing.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_interp_mixed_partition.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_interp_multivgroup.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_query_interp_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_query_interp_fill.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_query_interp_fill.py -Q 3

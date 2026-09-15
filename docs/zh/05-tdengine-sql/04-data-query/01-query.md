@@ -532,6 +532,7 @@ INTERVAL(1h);
 - INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2) 字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
 - INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 参见 [时间单位](../01-datatype.md#时间单位)（仅支持毫秒至周，不支持月/季/年）。例如 EVERY(500a) 将对于指定数据每 500 毫秒间隔进行一次插值。
 - INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](#fill-子句)。注意：插值时所使用的采样数据并非限制于 RANGE 字段的约束，而是满足 WHERE 子句条件的全部数据，如果没有指定 WHERE 子句，则为全表数据；FILL 子句的参数为 PREV/NEXT/NEAR 时，会使用相邻的有效数据进行插值，NULL 数据能否被认定为有效数据，取决于 INTERP 函数的 ignore_null_values 参数。若想限制采样数据的范围，可以使用 SURROUND 子句。
+- INTERP 与 PARTITION BY 联用时，如果分组键包含普通列或普通列表达式，只有经过 WHERE 过滤后、在 RANGE 范围内至少存在一条源数据的组才参与输出；仅在 RANGE 两侧存在数据的组不会输出。如果分组键仅由标签、TBNAME 等静态键组成，候选组由满足 WHERE 条件的数据确定，因此 RANGE 内没有数据的组也可能输出。该组最终能否产生结果仍取决于 FILL 模式及可用的相邻参照数据。（v3.4.3.0 及以后支持）
 - INTERP 可以在 RANGE 字段中只指定唯一的时间戳对单个时间点进行插值，在这种情况下，EVERY 字段可以省略。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear)`。
 - INTERP 查询支持 NEAR FILL 模式，即当需要 FILL 时，使用距离当前时间点最近的有效数据进行插值，当前后时间戳与当前时间断面一样近时，FILL 前一行的值。此模式在窗口查询中不支持。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR)` (`v3.3.4.9` 及以后支持)。
 

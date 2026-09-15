@@ -65,6 +65,20 @@ typedef enum {
   EXTERNAL_ROWS_DONE = 0x4,
 } EContentData;
 
+// Return the next phase in the selected external-reader order.
+EContentData tsdbReaderNextExternalStep(bool mainFirst,
+                                        EContentData currentStep);
+// Map an external-reader step to the block phase visible to consumers.
+int8_t tsdbReaderExternalStepPhase(bool mainFirst,
+                                   EContentData currentStep);
+// Materialize the two side-reader conditions without changing the main one.
+void tsdbReaderInitExternalConds(const SQueryTableDataCond* pMainCond,
+                                 SQueryTableDataCond* pFirstCond,
+                                 SQueryTableDataCond* pLastCond);
+// Clip and persist the version shared by all optimized scan phases.
+void tsdbReaderPinEndVersion(SQueryTableDataCond* pCond,
+                             int64_t appliedVersion);
+
 typedef struct STsdbReaderInfo {
   uint64_t      suid;
   STSchema*     pSchema;
@@ -312,7 +326,12 @@ struct STsdbReader {
   int64_t             sttCacheSkipCnt;
   TsdReaderNotifyCbFn notifyFn;
   void*               notifyParam;
+  bool                mainFirst;  // MAIN/NEXT/PREV external-reader order
+  STsdbReader*        pLastActiveReader;  // owns live external scan state
 };
+
+// Return the reader whose live resources suspend must release.
+STsdbReader* tsdbReaderGetExternalSuspendReader(STsdbReader* pReader);
 
 typedef struct SBrinRecordIter {
   SArray*          pBrinBlockList;
@@ -341,7 +360,9 @@ int32_t initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSH
 void    clearBlockScanInfo(STableBlockScanInfo* p);
 void    clearBlockScanInfoLoadInfo(STableBlockScanInfo* p);
 void    destroyAllBlockScanInfo(SSHashObj** pTableMap);
-void    resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step);
+int32_t resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts,
+                                  int32_t step,
+                                  const SBlockLoadSuppInfo* pSupp);
 void    cleanupInfoForNextFileset(SSHashObj* pTableMap);
 int32_t ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables);
 void    clearBlockScanInfoBuf(SBlockInfoBuf* pBuf);

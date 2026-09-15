@@ -2762,6 +2762,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pTags);
       nodesDestroyNode(pLogicNode->pSubtable);
       nodesDestroyList(pLogicNode->pAggFuncs);
+      nodesDestroyList(pLogicNode->pInterpPreSplitPartitionKeys);
+      nodesDestroyList(pLogicNode->pInterpPreSplitGroupTags);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_DISTINCT_FILTER: {
