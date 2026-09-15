@@ -24,6 +24,11 @@ extern "C" {
 
 #define TAB_KEY 0x09
 
+#ifdef WINDOWS
+// shellCommand.c: wake a pending console read up with a synthetic TAB keystroke
+void shellWinReTriggerTab(void);
+#endif
+
 // press tab key
 void pressTabKey(SShellCmd* cmd);
 
@@ -56,6 +61,7 @@ void showHelp();
 //
 bool fieldOptionsArea(char* p);
 bool isCreateFieldsArea(char* p);
+bool matchCreateTable(TAOS* con, SShellCmd* cmd);
 
 #ifdef __cplusplus
 }

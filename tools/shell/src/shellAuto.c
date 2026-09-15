@@ -106,7 +106,21 @@ SWords shellCommands[] = {
     {"create bnode on dnode <dnode_id>;", 0, 0, NULL},
 #endif
     {"create anode <anyword>", 0, 0, NULL},
-    {"create stream <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql
+    {"create snode on dnode <dnode_id>;", 0, 0, NULL},
+    // create stream <stream_name> <trigger window> [from <tb_name>] into <out_table> as select ...
+    {"create stream <anyword> interval(", 0, 0, NULL},
+    {"create stream <anyword> <anyword> sliding(", 0, 0, NULL},
+    {"create stream <anyword> period(", 0, 0, NULL},
+    {"create stream <anyword> session(", 0, 0, NULL},
+    {"create stream <anyword> state_window(", 0, 0, NULL},
+    {"create stream <anyword> event_window(", 0, 0, NULL},
+    {"create stream <anyword> count_window(", 0, 0, NULL},
+    // the additional <anyword> stands for the trigger window, the single token form
+    // has to be listed before the two token form of interval() sliding()
+    {"create stream <anyword> <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql
+    {"create stream <anyword> <anyword> from <all_table>", 0, 0, NULL},
+    {"create stream <anyword> <anyword> <anyword> from <all_table>", 0, 0, NULL},
+    {"create stream <anyword> <anyword> <anyword> into <anyword> as select", 0, 0, NULL},
     {"create topic <anyword> as select", 0, 0, NULL},                  // 27 append sub sql
 #ifdef TD_ENTERPRISE
     {"create rsma <anyword> on <all_table> function interval <anyword>", 0, 0, NULL},
@@ -297,6 +311,95 @@ SWords shellCommands[] = {
     {"use <db_name>;", 0, 0, NULL},
     {"update all anodes;", 0, 0, NULL},
     {"update anode <anyword>;", 0, 0, NULL},
+    {"flush mnode;", 0, 0, NULL},
+    // transaction
+    {"begin;", 0, 0, NULL},
+    {"start transaction;", 0, 0, NULL},
+    {"commit;", 0, 0, NULL},
+    {"rollback;", 0, 0, NULL},
+    // create table / stable / vtable, the fields are completed by matchCreateTable
+    {"create stable <anyword> (", 0, 0, NULL},
+    {"create vtable <anyword> (", 0, 0, NULL},
+    // alter table / stable / vtable
+    {"alter stable <stb_name> <tb_actions> <anyword> ;", 0, 0, NULL},
+    {"alter vtable <tb_name> <tb_actions> <anyword> ;", 0, 0, NULL},
+    {"alter dnodes reload tls;", 0, 0, NULL},
+    {"alter vgroup <vgroup_id> set keep <anyword>;", 0, 0, NULL},
+    // drop table / stable / vtable
+    {"drop stable <stb_name>;", 0, 0, NULL},
+    {"drop vtable <all_table>;", 0, 0, NULL},
+    {"drop snode on dnode <dnode_id>;", 0, 0, NULL},
+    // stream and topic management
+    {"start stream <stream_name>;", 0, 0, NULL},
+    {"stop stream <stream_name>;", 0, 0, NULL},
+    {"recalculate stream <stream_name> from <anyword>;", 0, 0, NULL},
+    {"recalculate stream <stream_name> from <anyword> to <anyword>;", 0, 0, NULL},
+    {"reload topic <topic_name> as select", 0, 0, NULL},
+    // vnode maintenance
+    {"close vnode <anyword> on dnode <dnode_id>;", 0, 0, NULL},
+    {"open vnode <anyword> on dnode <dnode_id>;", 0, 0, NULL},
+    {"assign leader force;", 0, 0, NULL},
+    {"kill scan <anyword>;", 0, 0, NULL},
+    // show
+    {"show cluster variables like ", 0, 0, NULL},
+    {"show create stream <stream_name> \\G;", 0, 0, NULL},
+    {"show create vtable <tb_name> \\G;", 0, 0, NULL},
+    {"show instances;", 0, 0, NULL},
+    {"show instances like ", 0, 0, NULL},
+    {"show cpu_allocation;", 0, 0, NULL},
+    {"show vtable validate for <tb_name>;", 0, 0, NULL},
+    {"show vtable inherits;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
+    // view
+    {"drop view <all_table>;", 0, 0, NULL},
+    // rsma
+    {"alter rsma <rsma_name> function(", 0, 0, NULL},
+    {"show create rsma <rsma_name> \\G;", 0, 0, NULL},
+    // kill
+    {"kill compact <anyword>;", 0, 0, NULL},
+    {"kill ssmigrate <anyword>;", 0, 0, NULL},
+    // role and privilege
+    {"create role <anyword>;", 0, 0, NULL},
+    {"drop role <anyword>;", 0, 0, NULL},
+    {"lock role <anyword>;", 0, 0, NULL},
+    {"unlock role <anyword>;", 0, 0, NULL},
+    {"grant role <anyword> to <user_name>;", 0, 0, NULL},
+    {"revoke role <anyword> from <user_name>;", 0, 0, NULL},
+    // transparent encryption
+    {"create encrypt_key <anyword>;", 0, 0, NULL},
+    {"create encrypt_algr <anyword> algr_name <anyword> desc <anyword> algr_type <anyword> ossl_algr_name <anyword>;", 0, 0, NULL},
+    {"drop encrypt_algr <anyword>;", 0, 0, NULL},
+    {"alter system set svr_key <anyword>;", 0, 0, NULL},
+    {"alter system set db_key <anyword>;", 0, 0, NULL},
+    {"alter system set key_expiration <anyword> days strategy <anyword>;", 0, 0, NULL},
+    {"show encryptions;", 0, 0, NULL},
+    {"show encrypt_algorithms;", 0, 0, NULL},
+    {"show encrypt_status;", 0, 0, NULL},
+    // external source (federated query)
+    {"create external source <db_name>", 0, 0, NULL},
+    {"alter external source <db_name> set ", 0, 0, NULL},
+    {"drop external source <db_name>;", 0, 0, NULL},
+    {"describe external source <db_name>;", 0, 0, NULL},
+    {"refresh external source <db_name>;", 0, 0, NULL},
+    {"show external sources;", 0, 0, NULL},
+    // xnode
+    {"create xnode <anyword>;", 0, 0, NULL},
+    {"create xnode agent <anyword>;", 0, 0, NULL},
+    {"create xnode task <anyword> from <anyword> to <anyword>;", 0, 0, NULL},
+    {"create xnode job on <anyword>;", 0, 0, NULL},
+    {"alter xnode set token <anyword>;", 0, 0, NULL},
+    {"alter xnode set user <user_name> pass <anyword>;", 0, 0, NULL},
+    {"alter xnode <anyword> <anyword>;", 0, 0, NULL},
+    {"drop xnode <anyword>;", 0, 0, NULL},
+    {"drop xnode force <anyword>;", 0, 0, NULL},
+    {"drop xnode <anyword> <anyword>;", 0, 0, NULL},
+    {"drain xnode <anyword>;", 0, 0, NULL},
+    {"start xnode <anyword> <anyword>;", 0, 0, NULL},
+    {"stop xnode <anyword> <anyword>;", 0, 0, NULL},
+    {"rebalance xnode <anyword> <anyword>;", 0, 0, NULL},
+    {"show xnodes;", 0, 0, NULL},
+    {"show xnode <anyword>;", 0, 0, NULL},
+#endif
     {"quit", 0, 0, NULL}};
 
 // where keyword
@@ -676,14 +779,24 @@ void showHelp() {
     alter all dnodes \"debugFlag\" \n\
     alter all dnodes \"asynclog\" \"0\";\n\
     alter all dnodes \"asynclog\" \"1\";\n\
+    alter dnodes reload tls;\n\
+    alter stable <stb_name> <tb_actions> ...;\n\
     alter table <tb_name> <tb_actions> ;\n\
+    alter vtable <tb_name> <tb_actions> ...;\n\
     alter local \"resetlog\";\n\
     alter local \"DebugFlag\" \"143\";\n\
     alter local \"asynclog\" \"0\";\n\
     alter local \"asynclog\" \"1\";\n\
     alter topic\n\
     alter user <user_name> <user_actions> ...\n\
+    alter vgroup <vgroup_id> set keep <version>;\n\
+    assign leader force;\n\
+  ----- B ----- \n\
+    begin;\n\
   ----- C ----- \n\
+    close vnode <vnode_id> on dnode <dnode_id>;\n\
+    commit;\n\
+    create stable <stb_name> (columns) tags (tags) ...;\n\
     create table <tb_name> using <stb_name> tags ...\n\
     create vtable <tb_name> using <stb_name> tags ...\n\
     create database <db_name> <db_options>  ...\n\
@@ -692,20 +805,28 @@ void showHelp() {
     create mnode on dnode <dnode_id> ;\n\
     create qnode on dnode <dnode_id> ;\n\
     create anode \"node_url\" ;\n\
-    create stream <stream_name> into <stb_name> as select ...\n\
+    create snode on dnode <dnode_id> ;\n\
+    create stream <stream_name> <trigger window> [from <tb_name> [partition by tbname]] into <db_name>.<out_table> as select ...;\n\
     create topic <topic_name> as select ...\n\
+    create tsma <tsma_name> on <stb_name> function ... interval ... ;\n\
+    create recursive tsma <tsma_name> on <tsma_name> interval ... ;\n\
     create function <udf_name> as <file_name> outputtype <data_types> language \'C\' | \'Python\' ;\n\
     create aggregate function  <udf_name> as <file_name> outputtype <data_types> bufsize <bufsize_bytes> language \'C\' | \'Python\';\n\
+    create or replace <udf_name> as <file_name> outputtype <data_types> language \'C\' | \'Python\' ;\n\
+    create or replace aggregate function <udf_name> as <file_name> outputtype <data_types> bufsize <bufsize_bytes> language \'C\' | \'Python\';\n\
     create user <user_name> pass <password> ...\n\
   ----- D ----- \n\
     describe <all_table>\n\
     delete from <all_table> where ...\n\
     drop database <db_name>;\n\
+    drop stable <stb_name>;\n\
     drop table <all_table>;\n\
+    drop vtable <table_name>;\n\
     drop dnode <dnode_id>;\n\
     drop mnode on dnode <dnode_id> ;\n\
     drop qnode on dnode <dnode_id> ;\n\
     drop anode <anode_id> ;\n\
+    drop snode on dnode <dnode_id> ;\n\
     drop user <user_name> ;\n\
     drop function <udf_name>;\n\
     drop consumer group ... \n\
@@ -717,6 +838,7 @@ void showHelp() {
     explain select clause ...\n\
   ----- F ----- \n\
     flush database <db_name>;\n\
+    flush mnode;\n\
   ----- H ----- \n\
     help;\n\
   ----- I ----- \n\
@@ -726,13 +848,22 @@ void showHelp() {
     kill connection <connection_id>; \n\
     kill query <query_id>; \n\
     kill retention <retention_id>; \n\
+    kill scan <scan_id>;\n\
     kill transaction <transaction_id>;\n\
+  ----- O ----- \n\
+    open vnode <vnode_id> on dnode <dnode_id>;\n\
   ----- P ----- \n\
     pause stream <stream_name>;\n\
+  ----- Q ----- \n\
+    quit;\n\
   ----- R ----- \n\
+    recalculate stream <stream_name> from <time_point> [to <time_point>];\n\
+    reload topic <topic_name> as select ...;\n\
     resume stream <stream_name>;\n\
     reset query cache;\n\
+    rollback;\n\
   ----- S ----- \n\
+    scan database <db_name>;\n\
     select * from <all_table> where ... \n\
     select client_version();\n\
     select current_user();\n\
@@ -746,6 +877,9 @@ void showHelp() {
     set first_day_of_week ...\n\
     set max_binary_display_width ...\n\
     set timezone ...\n\
+    start stream <stream_name>;\n\
+    start transaction;\n\
+    stop stream <stream_name>;\n\
     subscribe <topic_name> -g <group_id> [-c <client_id>] [-o latest|earliest] [-n <count>] [-t <timeout_ms>]\n\
     show apps;\n\
     show alive;\n\
@@ -753,16 +887,21 @@ void showHelp() {
     show anodes full;\n\
     show create database <db_name>;\n\
     show create stable <stb_name>;\n\
+    show create stream <stream_name>;\n\
     show create table <tb_name>;\n\
+    show create vtable <tb_name>;\n\
     show connections;\n\
     show cluster;\n\
     show cluster alive;\n\
     show cluster machines;\n\
+    show cluster variables ...;\n\
+    show cpu_allocation;\n\
     show databases;\n\
     show dnodes;\n\
     show dnode <dnode_id> variables;\n\
     show disk_info;\n\
     show functions;\n\
+    show instances;\n\
     show licences;\n\
     show mnodes;\n\
     show queries;\n\
@@ -796,6 +935,8 @@ void showHelp() {
     show vnodes;\n\
     show vnodes on dnode <dnode_id>;\n\
     show vgroups;\n\
+    show vtable inherits;\n\
+    show vtable validate for <tb_name>;\n\
     show vtables;\n\
     show consumers;\n\
   ----- T ----- \n\
@@ -809,32 +950,63 @@ void showHelp() {
   printf(
       "\n\n\
   ----- special commands on enterpise version ----- \n\
+    alter external source <db_name> set ...;\n\
+    alter rsma <rsma_name> function ... ;\n\
+    alter system set db_key <key>;\n\
+    alter system set key_expiration <n> days strategy <strategy>;\n\
+    alter system set svr_key <key>;\n\
     alter token <token_name> [token options];\n\
+    alter xnode set token ...;\n\
+    alter xnode set user ...;\n\
     balance vgroup ;\n\
     balance vgroup leader on <vgroup_id> \n\
     compact database <db_name>; \n\
     compact vgroups in (vgroupId,vgroupId, ...); \n\
     create bnode on dnode <dnode_id> ;\n\
+    create encrypt_algr <algr_name> ...;\n\
+    create encrypt_key <key>;\n\
+    create external source <db_name> type=... host=... port=... user=... ...;\n\
     create mount <mount_name> on dnode <dnode_id> from <path>;\n\
+    create role <role_name>;\n\
     create rsma <rsma_name> on <table_name> function ... ;\n\
     create token <token_name> from user <user_name> [token options];\n\
     create totp_secret for user <user_name>;\n\
     create view <view_name> as select ...\n\
+    create xnode <endpoint> [user <user_name> pass <password> | token <token>];\n\
+    create xnode agent <agent_dsn> ;\n\
+    create xnode job on <agent_id>;\n\
+    create xnode task <task_name> from <source> to <sink>;\n\
+    describe external source <db_name>;\n\
+    drain xnode <xnode_id>;\n\
     drop bnode on dnode <dnode_id> ;\n\
+    drop encrypt_algr <algr_name>;\n\
+    drop external source <db_name>;\n\
     drop mount <mount_name>;\n\
+    drop role <role_name>;\n\
     drop rsma <rsma_name> ;\n\
     drop token <token_name>;\n\
     drop totp_secret from user <user_name>;\n\
+    drop view <view_name>;\n\
+    drop xnode [agent|task|job] <name>;\n\
+    drop xnode force <endpoint>;\n\
     grant all   on <priv_level> to <user_name> ;\n\
     grant read  on <priv_level> to <user_name> ;\n\
+    grant role <role_name> to <user_name> ;\n\
     grant write on <priv_level> to <user_name> ;\n\
+    kill compact <compact_id>;\n\
+    kill ssmigrate <ssmigrate_id>;\n\
+    lock role <role_name>;\n\
+    merge vgroup <vgroup_id> <vgroup_id>;\n\
+    rebalance xnode ...;\n\
     redistribute vgroup <vgroup_id> dnode <dnode_id> ;\n\
+    refresh external source <db_name>;\n\
     restore dnode <dnode_id> ;\n\
     restore mnode on dnode <dnode_id> ;\n\
     restore qnode on dnode <dnode_id> ;\n\
     restore vnode on dnode <dnode_id> ;\n\
     revoke all   on <priv_level> from <user_name> ;\n\
     revoke read  on <priv_level> from <user_name> ;\n\
+    revoke role <role_name> from <user_name> ;\n\
     revoke write on <priv_level> from <user_name> ;\n\
     rollup database <db_name>;\n\
     rollup database <db_name> vgroups in (...);\n\
@@ -842,7 +1014,12 @@ void showHelp() {
     show bnodes;\n\
     show compact \n\
     show compacts;\n\
+    show create rsma <rsma_name>;\n\
     show create view <all_table>;\n\
+    show encrypt_algorithms;\n\
+    show encrypt_status;\n\
+    show encryptions;\n\
+    show external sources;\n\
     show grants;\n\
     show grants full;\n\
     show grants logs;\n\
@@ -858,8 +1035,13 @@ void showHelp() {
     show user privileges;\n\
     show users full;\n\
     show views;\n\
+    show xnode <resource_type>;\n\
+    show xnodes;\n\
     split vgroup <vgroup_id>;\n\
-    ssmigrate database <db_name>;");
+    ssmigrate database <db_name>;\n\
+    start xnode ...;\n\
+    stop xnode ...;\n\
+    unlock role <role_name>;");
     
 #endif
 
@@ -1222,8 +1404,14 @@ void* varObtainThread(void* param) {
 
   // check need call auto tab
   if (cnt > 0 && waitAutoFill) {
+#ifdef WINDOWS
+    // on Windows the console owns the input line, which can only be modified by
+    // the shell thread: wake it up so that it performs the completion
+    shellWinReTriggerTab();
+#else
     // press tab key by program
     firstMatchCommand(varCon, varCmd);
+#endif
   }
 
   setThreadNull(type);
@@ -1376,7 +1564,17 @@ bool matchVarWord(SWord* word1, SWord* word2) {
   pre[word2->len] = 0;
 
   char* str = NULL;
-  if (word1->type == WT_VAR_ALLTABLE) {
+  if (word1->type == WT_VAR_ANYWORD) {
+    // ANYWORD: accept the word typed by the user as it is, there is no var list to
+    // complete it from. Only accept a match that changes the line, else an empty or
+    // partially typed word would shadow a later pattern.
+    if (word2->len == 0) {
+      if (word1->end) return false;
+    } else if (!word1->end) {
+      return false;
+    }
+    str = taosStrdup(pre);
+  } else if (word1->type == WT_VAR_ALLTABLE) {
     // ALL_TABLE
     str = tireSearchWord(WT_VAR_STABLE, pre);
     if (str == NULL) {
@@ -1548,7 +1746,7 @@ void printScreen(TAOS* con, SShellCmd* cmd, SWords* match) {
     lastWordBytes = word->len;
   }
 
-  if (word->end && str[strLen - 1] != ';') {
+  if (word->end && (strLen == 0 || str[strLen - 1] != ';')) {
     // append end ';'
     char* p = taosMemoryCalloc(strLen + 8, 1);
     if (p) {
@@ -1589,10 +1787,6 @@ bool firstMatchCommand(TAOS* con, SShellCmd* cmd) {
 
   // print to screen
   printScreen(con, cmd, match);
-#ifdef WINDOWS
-  printf("\r");
-  shellShowOnScreen(cmd);
-#endif
   freeCommand(input);
   taosMemoryFree(input);
   return true;
@@ -1695,10 +1889,6 @@ bool nextMatchCommand(TAOS* con, SShellCmd* cmd, SWords* firstMatch) {
 
   // print to screen
   printScreen(con, cmd, match);
-#ifdef WINDOWS
-  printf("\r");
-  shellShowOnScreen(cmd);
-#endif
 
   // free
   freeCommand(input);
@@ -2064,13 +2254,21 @@ bool matchCreateTable(TAOS* con, SShellCmd* cmd) {
     return false;
   }
 
-  // select and from
-  if (strncasecmp(p, "create table ", 13) != 0) {
-    // not select query clause
+  // create table / stable / vtable, fields, tags and table options are
+  // completed in the same way
+  int32_t prefixLen = 0;
+  if (strncasecmp(p, "create table ", 13) == 0) {
+    prefixLen = 13;
+  } else if (strncasecmp(p, "create stable ", 14) == 0) {
+    prefixLen = 14;
+  } else if (strncasecmp(p, "create vtable ", 14) == 0) {
+    prefixLen = 14;
+  } else {
+    // not a create table / stable / vtable clause
     return false;
   }
-  p += 13;
-  len -= 13;
+  p += prefixLen;
+  len -= prefixLen;
 
   char* ps = taosStrndup(p, len);
   bool  ret = false;
@@ -2237,9 +2435,6 @@ _return:
 
 // main key press tab
 void pressTabKey(SShellCmd* cmd) {
-#ifdef WINDOWS
-  return ;
-#endif
   // check empty tab key
   if (cmd->commandSize == 0) {
     // have multi line tab key
@@ -2283,10 +2478,6 @@ void pressTabKey(SShellCmd* cmd) {
 
 // press othr key
 void pressOtherKey(char c) {
-#ifdef WINDOWS
-  return ;
-#endif
-
   // reset global variant
   firstMatchIndex = -1;
   lastMatchIndex = -1;
