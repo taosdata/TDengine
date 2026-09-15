@@ -1874,7 +1874,8 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
          * {0,0} so the ext reader does a full table scan — the calc SQL has
          * no time range filter or uses _twstart/_twend which are evaluated
          * on the runner side after fetching. */
-        if (req.pStRtFuncInfo->withExternalWindow) {
+        if (req.pStRtFuncInfo->withExternalWindow &&
+            req.pStRtFuncInfo->triggerType != STREAM_TRIGGER_PERIOD) {
           SArray *pVals = req.pStRtFuncInfo->pStreamPesudoFuncVals;
           int32_t nWin = (int32_t)taosArrayGetSize(pVals);
           if (nWin > 0) {
@@ -1883,6 +1884,10 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
             req.pStRtFuncInfo->curWindow.skey = p0->wstart;
             req.pStRtFuncInfo->curWindow.ekey = pN->wend;
           }
+        }
+        if (req.pStRtFuncInfo->triggerType == STREAM_TRIGGER_PERIOD) {
+          req.pStRtFuncInfo->curWindow = (STimeWindow){0};
+          qDebug("%s stream fetch ext skips dynamic period bounds", GET_TASKID(pTaskInfo));
         }
         needStreamRtInfo = true;
         needStreamGrpInfo = false;
