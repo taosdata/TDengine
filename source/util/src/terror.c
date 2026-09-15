@@ -1302,6 +1302,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NAME_DUPLICATE,           "Xnode name dupl
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_PARSER_TOO_LONG,     "Xnode task parser too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NO_PRIV,                  "No privilege to access xnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_NO_PRIV,             "No privilege to access xnode task")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED,    "Xnode DSN protection failed")
 
 
 #ifdef TAOS_ERROR_C

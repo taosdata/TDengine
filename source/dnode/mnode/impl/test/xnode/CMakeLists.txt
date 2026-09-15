@@ -146,6 +146,31 @@ add_test(
   COMMAND xnodeAgentTest
 )
 
+# Show protection tests - uses REAL show protection functions from mndXnode.c
+add_executable(xnodeShowProtectionTest "xnodeShowProtectionTest.cpp")
+DEP_ext_gtest(xnodeShowProtectionTest)
+target_include_directories(
+  xnodeShowProtectionTest
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/common"
+  "${TD_SOURCE_DIR}/include/dnode/mnode"
+  "${TD_SOURCE_DIR}/include/dnode/mgmt"
+  "${TD_SOURCE_DIR}/include/dnode/xnode"
+  "${TD_SOURCE_DIR}/include/dnode/impl/inc"
+  "${TD_SOURCE_DIR}/source/dnode/mnode/impl/inc"
+)
+target_link_libraries(
+  xnodeShowProtectionTest
+  PUBLIC
+  mnode
+  xnode
+  mgmt_xnode
+)
+add_test(
+  NAME xnodeShowProtectionTest
+  COMMAND xnodeShowProtectionTest
+)
+
 if(TD_WINDOWS)
   message(STATUS "Skipping envelopeCryptoTest: Windows does not support OpenSSL")
 else()
