@@ -3041,7 +3041,7 @@ static int32_t seqStableJoinComposeRes(SStbJoinDynCtrlInfo* pStbJoin, SSDataBloc
         SColumnInfoData colInfo = createColumnInfoData(pSlot->dataType.type, pSlot->dataType.bytes, pSlot->slotId);
         colInfo.info.precision = pSlot->dataType.precision;
         colInfo.info.scale = pSlot->dataType.scale;
-        int32_t code = colInfoDataEnsureCapacity(&colInfo, pBlock->info.rows, true);
+        int32_t code = colInfoDataEnsureCapacity(&colInfo, pBlock->info.capacity, true);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
