@@ -1112,8 +1112,8 @@ Provides the source, target, status, labels, and creator of Xnode data-ingestion
 | --- | ------------- | ------------- | --- |
 | 1   | `id`          | INT           | ID |
 | 2   | `name`        | VARCHAR(64)   | Name |
-| 3   | `from`        | VARCHAR(4096) | Source |
-| 4   | `to`          | VARCHAR(2048) | Target |
+| 3   | `from`        | VARCHAR(8192) | Source |
+| 4   | `to`          | VARCHAR(4096) | Target |
 | 5   | `parser`      | VARCHAR(48)   | Parser configuration |
 | 6   | `via`         | INT           | Transit node |
 | 7   | `xnode_id`    | INT           | Xnode ID |
