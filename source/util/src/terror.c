@@ -78,6 +78,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_REF_ALREADY_EXIST,            "Ref is already there"
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_NOT_EXIST,                "Ref is not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_DLL_NOT_LOAD,                 "Driver was not loaded")
 TAOS_DEFINE_ERROR(TSDB_CODE_DLL_FUNC_NOT_LOAD,            "Function was not loaded from the driver")
+TAOS_DEFINE_ERROR(TSDB_CODE_OSS_NOT_SUPPORT,              "Operation not supported in community edition")
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_ERROR,                    "Unexpected generic error")
 TAOS_DEFINE_ERROR(TSDB_CODE_ACTION_IN_PROGRESS,           "Action in progress")
 TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_RANGE,                 "Out of range")

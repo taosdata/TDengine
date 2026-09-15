@@ -316,6 +316,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
              "or PREV/NEXT/NEAR mode with surrounding time";
     case TSDB_CODE_PAR_EXT_WIN_COL_IN_WHERE:
       return "WHERE clause cannot reference EXTERNAL_WINDOW column: %s";
+    case TSDB_CODE_OSS_NOT_SUPPORT:
+      return "Operation not supported in community edition: %s";
     default:
       return "Unknown error";
   }
