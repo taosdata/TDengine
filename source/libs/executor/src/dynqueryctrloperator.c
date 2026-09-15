@@ -2220,7 +2220,7 @@ static int32_t seqStableJoinComposeRes(SStbJoinDynCtrlInfo* pStbJoin, SSDataBloc
           return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         }
         SColumnInfoData colInfo = createColumnInfoData(pSlot->dataType.type, pSlot->dataType.bytes, pSlot->slotId);
-        int32_t code = colInfoDataEnsureCapacity(&colInfo, pBlock->info.rows, true);
+        int32_t code = colInfoDataEnsureCapacity(&colInfo, pBlock->info.capacity, true);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
