@@ -38316,7 +38316,7 @@ static int32_t markXnodeBlobFilterOperators(SNode* pWhere, ENodeType showType) {
       break;
     case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
       cxt.pColumnName = "config";
-      cxt.maxDataLen = TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN;
+      cxt.maxDataLen = TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN;
       break;
     case QUERY_NODE_SHOW_XNODES_STMT:
     case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
