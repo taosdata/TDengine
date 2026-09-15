@@ -4811,6 +4811,58 @@ TEST_F(ParserStreamTest, TestStreamExternalWindowDerivedAggFilterUsesPhysiExtern
       "where cnt >= 5");
 }
 
+TEST_F(ParserStreamTest, TestStreamExternalWindowSessionDerivedAggregateEnabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanHashExternalWindowCount(pQuery, stage, 1); });
+
+  run("create stream stream_streamdb.s1 session(ts, 1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select ts, cnt from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) where cnt > 0");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowCountDerivedAggregateEnabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanHashExternalWindowCount(pQuery, stage, 1); });
+
+  run("create stream stream_streamdb.s1 count_window(2) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select ts, cnt from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) where cnt > 0");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowStateDerivedAggregateEnabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanHashExternalWindowCount(pQuery, stage, 1); });
+
+  run("create stream stream_streamdb.s1 state_window(c1) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select ts, cnt from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) where cnt > 0");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowEventDerivedAggregateEnabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanHashExternalWindowCount(pQuery, stage, 1); });
+
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 0 end with c1 <= 0) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select ts, cnt from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend) where cnt > 0");
+}
+
 TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinExprSubqueryDisabled) {
   setAsyncFlag("-1");
   useDb("root", "stream_streamdb");
@@ -5921,6 +5973,109 @@ TEST_F(ParserStreamTest, TestStreamExternalWindowIndefiniteRowsFunctionDisabled)
       "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
       "select _twstart, csum(c1) from stream_querydb.stream_t2 "
       "where ts >= _twstart and ts < _twend");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDerivedWrapperIndefiniteRowsFunctionDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s_derived_indefinite_rows interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select ts, csum(cnt) from (select _twstart ts, count(*) cnt from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend)");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDerivedWrapperNoAggregateEnabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 1); });
+
+  run("create stream stream_streamdb.s_derived_wrapper_no_agg interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select ts, cnt from (select _twstart ts, count(*) cnt from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) where cnt > 0");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDerivedWrapperAggregateDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  /* The derived wrapper has no external window node of its own, so an outer aggregate is
+   * materialized as a plain table aggregate above the inner external window node. That operator
+   * only switches aggregation context on groupId, never on the external-window row lineage
+   * (pStreamBlkWinIdx), so several trigger windows carried by one calc request would be merged
+   * into a single result. Keep external window disabled for this shape. */
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s_derived_wrapper_agg interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select ts, max(cnt) from (select _twstart ts, count(*) cnt from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend)");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDirectSelectDistinctDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  /* SELECT DISTINCT is materialized as a plain hash aggregate stacked above the external window
+   * node. That operator switches aggregation context on groupId only, never on the external-window
+   * row lineage, so distinct sets belonging to different trigger windows carried by one calc
+   * request would be merged. The general auto-enable check must reject DISTINCT for every select
+   * level, including a direct base table select. */
+  run("create stream stream_streamdb.s_direct_select_distinct interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select distinct _twstart, avg(c1) from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDerivedWrapperDistinctDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  /* The distinct wrapper parent owns no external window node of its own, so its DISTINCT is
+   * materialized as a plain table aggregate above the inner external window node and merges the
+   * trigger windows carried by a single calc request. */
+  run("create stream stream_streamdb.s_derived_wrapper_distinct interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select distinct ts, cnt from (select _twstart ts, count(*) cnt from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) where cnt > 0");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowDerivedInnerDistinctDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  /* The recursive tree check visits every select level, so a DISTINCT placed on the derived inner
+   * select must disable external window for the whole statement as well. */
+  run("create stream stream_streamdb.s_derived_inner_distinct interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select ts, cnt from (select distinct _twstart ts, count(*) cnt from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend) where cnt > 0");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowAggFuncDistinctStillEnabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 1); });
+
+  /* Only the statement-level SELECT DISTINCT disables external window. An aggregate-function-level
+   * DISTINCT such as count(distinct c1) is evaluated inside the lineage aware stream aggregate
+   * (pFunction->isDistinct), so the external window must stay enabled for that shape. */
+  run("create stream stream_streamdb.s_agg_func_distinct interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select ts, cnt from (select _twstart ts, count(distinct c1) cnt from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend)");
 }
 
 TEST_F(ParserStreamTest, TestStreamExternalWindowDirectBaseTableForeignPartitionPlaceholderDisabled) {
