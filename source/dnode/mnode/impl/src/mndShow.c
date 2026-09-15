@@ -18,6 +18,7 @@
 #include "mndInt.h"
 #include "mndPrivilege.h"
 #include "mndUser.h"
+#include "mndXnode.h"
 #include "systable.h"
 #include "tmsg.h"
 
@@ -234,6 +235,19 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   (void)memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
   tstrncpy(showObj.filterTb, pReq->filterTb, TSDB_TABLE_NAME_LEN);
   showObj.txnId = pReq->txnId;
+  showObj.xnodeOutputMode = XNODE_SHOW_OUTPUT_PLAINTEXT;
+  showObj.xnodeRetrieveFilterType = XNODE_RETRIEVE_FILTER_NONE;
+  showObj.xnodeRetrieveFilterValue = 0;
+  if (showObj.type == TSDB_MGMT_TABLE_XNODE_TASKS || showObj.type == TSDB_MGMT_TABLE_XNODE_JOBS) {
+    int32_t resolveCode = mndXnodeResolveShowMode(tsXnodeDsnProtection, pReq->xnodeDsnOutputMode,
+                                                  &showObj.xnodeOutputMode);
+    if (resolveCode != TSDB_CODE_SUCCESS) {
+      terrno = resolveCode;
+      return NULL;
+    }
+    showObj.xnodeRetrieveFilterType = pReq->xnodeRetrieveFilterType;
+    showObj.xnodeRetrieveFilterValue = pReq->xnodeRetrieveFilterValue;
+  }
 
   int32_t   keepTime = tsShellActivityTimer * 6 * 1000;
   SShowObj *pShow = taosCachePut(pMgmt->cache, &showId, sizeof(int64_t), &showObj, size, keepTime);
@@ -261,6 +275,8 @@ static void mndFreeShowObj(SShowObj *pShow) {
       pShow->pIter = NULL;
     }
   }
+
+  mndXnodeCleanupShowProtection(pShow);
 
   mTrace("show:0x%" PRIx64 ", is destroyed, data:%p", pShow->id, pShow);
 }
@@ -298,6 +314,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   int32_t    rowsToRead = SHOW_STEP_SIZE;
   int32_t    size = 0;
   int32_t    rowsRead = 0;
+  SRetrieveMetaTableRsp *pRsp = NULL;
   mDebug("mndProcessRetrieveSysTableReq start");
   SRetrieveTableReq retrieveReq = {0};
   TAOS_CHECK_RETURN(tDeserializeSRetrieveTableReq(pReq->pCont, pReq->contLen, &retrieveReq));
@@ -337,6 +354,13 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
   }
 
+  if (pShow->xnodeProtectionFailed) {
+    code = TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED;
+    mndXnodeCleanupShowProtection(pShow);
+    mndReleaseShowObj(pShow, false);
+    TAOS_RETURN(code);
+  }
+
   // expend capacity for ins_columns and privileges
   if (pShow->type == TSDB_MGMT_TABLE_COL) {
     rowsToRead = SHOW_COLS_STEP_SIZE;
@@ -346,6 +370,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   }
   ShowRetrieveFp retrieveFp = pMgmt->retrieveFps[pShow->type];
   if (retrieveFp == NULL) {
+    mndXnodeCleanupShowProtection(pShow);
     mndReleaseShowObj(pShow, false);
     code = TSDB_CODE_MSG_NOT_PROCESSED;
     mError("show:0x%" PRIx64 ", failed to retrieve data since %s: retrieveFp is NULL", pShow->id, tstrerror(code));
@@ -361,6 +386,8 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   code = -1;
   if (retrieveReq.db[0] &&
       (code = mndCheckShowPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pShow->type, retrieveReq.db)) != 0) {
+    mndXnodeCleanupShowProtection(pShow);
+    mndReleaseShowObj(pShow, false);
     TAOS_RETURN(code);
   }
 #if 0
@@ -378,6 +405,13 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   SSDataBlock *pBlock = NULL;
   code = createDataBlock(&pBlock);
   if (code) {
+    if ((pShow->type == TSDB_MGMT_TABLE_XNODE_TASKS || pShow->type == TSDB_MGMT_TABLE_XNODE_JOBS) &&
+        pShow->xnodeOutputMode != XNODE_SHOW_OUTPUT_PLAINTEXT) {
+      pShow->xnodeProtectionFailed = true;
+      code = TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED;
+    }
+    mndXnodeCleanupShowProtection(pShow);
+    mndReleaseShowObj(pShow, false);
     TAOS_RETURN(code);
   }
 
@@ -389,10 +423,10 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     idata.info.bytes = p->bytes;
     idata.info.type = p->type;
     idata.info.colId = p->colId;
-    TAOS_CHECK_RETURN(blockDataAppendColInfo(pBlock, &idata));
+    TAOS_CHECK_GOTO(blockDataAppendColInfo(pBlock, &idata), NULL, _exit);
   }
 
-  TAOS_CHECK_RETURN(blockDataEnsureCapacity(pBlock, rowsToRead));
+  TAOS_CHECK_GOTO(blockDataEnsureCapacity(pBlock, rowsToRead), NULL, _exit);
 
   if (mndCheckRetrieveFinished(pShow)) {
     mDebug("show:0x%" PRIx64 ", read finished, numOfRows:%d", pShow->id, pShow->numOfRows);
@@ -402,6 +436,8 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     if (rowsRead < 0) {
       code = rowsRead;
       mDebug("show:0x%" PRIx64 ", retrieve completed", pShow->id);
+      if (pShow->xnodeProtectionFailed) code = TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED;
+      mndXnodeCleanupShowProtection(pShow);
       mndReleaseShowObj(pShow, true);
       blockDataDestroy(pBlock);
       TAOS_RETURN(code);
@@ -411,11 +447,23 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     mDebug("show:0x%" PRIx64 ", stop retrieve data, rowsRead:%d numOfRows:%d", pShow->id, rowsRead, pShow->numOfRows);
   }
 
+  const bool retrieveFinished = rowsRead == 0 || mndCheckRetrieveFinished(pShow);
+  // Per-page batch: every page must finish its envelope batch before the page is
+  // delivered, so encoded fields never reach the client ahead of a successful
+  // envelopeBatchFinish(). The next page lazily begins a fresh batch.
+  if (mndXnodeFinishShowProtection(pShow) != TSDB_CODE_SUCCESS) {
+    pShow->xnodeProtectionFailed = true;
+    mndXnodeCleanupShowProtection(pShow);
+    mndReleaseShowObj(pShow, false);
+    blockDataDestroy(pBlock);
+    TAOS_RETURN(TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED);
+  }
+
   size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
   size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * pShow->pMeta->numOfColumns +
          dataEncodeBufSize;
 
-  SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
+  pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
     mError("show:0x%" PRIx64 ", failed to retrieve data since %s: pRsp is NULL", pShow->id, tstrerror(terrno));
     code = terrno;
@@ -445,7 +493,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
       mError("show:0x%" PRIx64 ", failed to retrieve data since %s: block len(%d) < 0", pShow->id, tstrerror(terrno),
              len);
       code = terrno;
-      return code;
+      goto _exit;
     }
   }
 
@@ -454,9 +502,10 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = size;
 
-  if (rowsRead == 0 || mndCheckRetrieveFinished(pShow)) {
+  if (retrieveFinished) {
     pRsp->completed = 1;
     mDebug("show:0x%" PRIx64 ", retrieve completed", pShow->id);
+    mndXnodeCleanupShowProtection(pShow);
     mndReleaseShowObj(pShow, true);
   } else {
     mDebug("show:0x%" PRIx64 ", retrieve not completed yet", pShow->id);
@@ -466,6 +515,13 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   blockDataDestroy(pBlock);
   return TSDB_CODE_SUCCESS;
 _exit:
+  if (pShow != NULL &&
+      (pShow->type == TSDB_MGMT_TABLE_XNODE_TASKS || pShow->type == TSDB_MGMT_TABLE_XNODE_JOBS) &&
+      pShow->xnodeOutputMode != XNODE_SHOW_OUTPUT_PLAINTEXT && code != TSDB_CODE_SUCCESS) {
+    pShow->xnodeProtectionFailed = true;
+    code = TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED;
+  }
+  mndXnodeCleanupShowProtection(pShow);
   mndReleaseShowObj(pShow, false);
   blockDataDestroy(pBlock);
   if (pRsp) {

@@ -1089,7 +1089,7 @@ TEST(td_msg_test, table_meta_rsp_public_decoder_accepts_producer_series_above_co
 
 TEST(td_msg_test, table_meta_rsp_public_decoder_accepts_system_table_blob_widths) {
   for (const int32_t bytes : {TSDB_XNODE_TASK_PARSER_MAX_LEN + BLOBSTR_HEADER_SIZE,
-                              TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN + BLOBSTR_HEADER_SIZE}) {
+                              TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN + BLOBSTR_HEADER_SIZE}) {
     SSchema schema = {.type = TSDB_DATA_TYPE_BLOB, .colId = 1, .bytes = bytes};
     tstrncpy(schema.name, "payload", sizeof(schema.name));
 

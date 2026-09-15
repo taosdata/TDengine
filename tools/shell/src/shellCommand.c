@@ -436,38 +436,201 @@ void shellShowOnScreen(SShellCmd *cmd) {
   fflush(stdout);
 }
 
+#ifdef WINDOWS
+// ---------------------------------------------------------------------------
+// Windows TAB completion support
+//
+// On Windows the console (conhost) owns the input line: it echoes the typed
+// characters and performs all in-line editing (backspace, cursor movement,
+// command history, ...).  The shell therefore cannot get the characters one by
+// one, it only receives the content of the line back when
+//   * the user presses ENTER, or
+//   * the user presses TAB, because TAB is part of the wakeup mask below, so
+//     that it interrupts the console read and can be completed by the shell.
+//
+// The console line is the single source of truth: every read result is
+// resynchronized into the shell command buffer.  After a completion the line is
+// drawn on the screen and handed back to the console through
+// CONSOLE_READCONSOLE_CONTROL.nInitialChars, so that the console keeps editing
+// the completed line (and not an empty one) afterwards.
+// ---------------------------------------------------------------------------
+
+static TdWchar       g_winConsoleLine[SHELL_INPUT_MAX_COMMAND_SIZE];  // line currently edited by the console
+static uint32_t      g_winConsoleChars = 0;                           // chars of it already owned by the console
+static SShellCmd    *g_winConsoleCmd = NULL;                          // command line read by the shell
+static volatile bool g_winReadPending = false;                        // a console read is being waited for (read by other threads)
+
+// clear the row the prompt line is on, so that a shorter redrawn command
+// cannot leave stale characters behind
+static void shellWinClearLine(void) {
+  HANDLE  out = GetStdHandle(STD_OUTPUT_HANDLE);
+  CONSOLE_SCREEN_BUFFER_INFO csbi;
+  COORD   pos;
+  DWORD   written = 0;
+
+  if (out == NULL || out == INVALID_HANDLE_VALUE || GetConsoleScreenBufferInfo(out, &csbi) == 0) {
+    return;
+  }
+
+  pos = csbi.dwCursorPosition;
+  pos.X = 0;
+  (void)FillConsoleOutputCharacterW(out, L' ', (DWORD)csbi.dwSize.X, pos, &written);
+  (void)SetConsoleCursorPosition(out, pos);
+}
+
+// resynchronize the shell command buffer with the content of the console line.
+// the console keeps the caret at the end of the line, so the shell cursor always
+// points to the end of the command
+static void shellWinSyncCommand(SShellCmd *cmd, TdWchar *line, uint32_t chars) {
+  if (cmd == NULL) return;
+
+  char *utf8 = (char *)taosMemoryMalloc(SHELL_MAX_COMMAND_SIZE);
+  if (utf8 == NULL) return;
+
+  int32_t bytes = 0;
+  if (chars > 0) {
+    bytes = WideCharToMultiByte(CP_UTF8, 0, line, (int32_t)chars, utf8, SHELL_MAX_COMMAND_SIZE - 1, NULL, NULL);
+    if (bytes <= 0) {
+      // conversion failed, keep the command buffer as it is instead of replacing
+      // it with an undefined/empty content
+      taosMemoryFree(utf8);
+      return;
+    }
+  }
+  utf8[bytes] = 0;
+
+  bool changed = (cmd->commandSize != (uint32_t)bytes) || (memcmp(utf8, cmd->command, (size_t)bytes) != 0);
+
+  memcpy(cmd->command, utf8, (size_t)bytes + 1);
+  taosMemoryFree(utf8);
+
+  int32_t width = (chars > 0) ? taosWcharsWidth(line, (int32_t)chars) : 0;
+  if (width < 0) width = bytes;
+
+  cmd->commandSize = (uint32_t)bytes;
+  cmd->cursorOffset = (uint32_t)bytes;
+  cmd->screenOffset = (uint32_t)width;
+  cmd->endOffset = (uint32_t)width;
+
+  if (changed) {
+    // the line has been modified, matches of the previous TAB are obsolete
+    pressOtherKey(0);
+  }
+}
+
+// hand the line the console has to keep editing back to it.  Its content must
+// already be displayed on the screen, the console only keeps track of it
+static void shellWinPrepareConsoleLine(const char *utf8, int32_t bytes) {
+  int32_t chars = 0;
+  if (bytes > 0) {
+    chars = MultiByteToWideChar(CP_UTF8, 0, utf8, bytes, g_winConsoleLine, SHELL_INPUT_MAX_COMMAND_SIZE - 1);
+    if (chars <= 0) {
+      // the line does not fit into the console line buffer, keep the line the
+      // console holds already instead of handing an empty one back
+      return;
+    }
+  }
+
+  g_winConsoleLine[chars] = L'\0';
+  g_winConsoleChars = (uint32_t)chars;
+}
+
+// redraw the command line after a TAB completion and give it back to the
+// console, so that it continues editing the completed command
+static void shellWinRedrawCommandLine(SShellCmd *cmd) {
+  fflush(stdout);
+  shellWinClearLine();
+  shellShowOnScreen(cmd);  // prints the prompt and the command
+  shellWinPrepareConsoleLine(cmd->command, (int32_t)cmd->commandSize);
+}
+
+// the variable names requested by the previous TAB are available now, but the
+// completion must be performed by the shell thread: the console input line can
+// only be modified there.  Wake the pending read up with a synthetic TAB
+// keystroke and let the normal TAB handling do the completion
+void shellWinReTriggerTab(void) {
+  INPUT_RECORD recs[2];
+  HANDLE       in = NULL;
+  DWORD        written = 0;
+
+  // only do this when the shell is really waiting for input on a non empty
+  // command, otherwise the completion is obsolete already
+  if (!g_winReadPending || g_winConsoleCmd == NULL || g_winConsoleCmd->commandSize == 0) return;
+
+  in = GetStdHandle(STD_INPUT_HANDLE);
+  if (in == NULL || in == INVALID_HANDLE_VALUE) return;
+
+  memset(recs, 0, sizeof(recs));
+  for (int32_t i = 0; i < 2; ++i) {
+    recs[i].EventType = KEY_EVENT;
+    recs[i].Event.KeyEvent.bKeyDown = (i == 0);
+    recs[i].Event.KeyEvent.wRepeatCount = 1;
+    recs[i].Event.KeyEvent.wVirtualKeyCode = (WORD)TAB_KEY;
+    recs[i].Event.KeyEvent.wVirtualScanCode = (WORD)MapVirtualKeyW(VK_TAB, MAPVK_VK_TO_VSC);
+    recs[i].Event.KeyEvent.uChar.UnicodeChar = (WCHAR)TAB_KEY;
+  }
+
+  (void)WriteConsoleInputW(in, recs, 2, &written);
+}
+#endif
+
 char taosGetConsoleChar() {
 #ifdef WINDOWS
   static void *console = NULL;
+  static bool  consoleModeChecked = false;
   if (console == NULL) {
     console = GetStdHandle(STD_INPUT_HANDLE);
   }
-  static TdWchar buf[SHELL_INPUT_MAX_COMMAND_SIZE];
-  static char mbStr[5];
-  static unsigned long bufLen = 0;
-  static uint16_t bufIndex = 0, mbStrIndex = 0, mbStrLen = 0;
-  CONSOLE_READCONSOLE_CONTROL inputControl={ sizeof(CONSOLE_READCONSOLE_CONTROL), 0, 0, 0 };
+  if (!consoleModeChecked) {
+    // the console line handling below and the intermediate read
+    // (dwCtrlWakeupMask) both require the console to be in cooked mode
+    DWORD mode = 0;
+    consoleModeChecked = true;
+    if (console != NULL && console != INVALID_HANDLE_VALUE && GetConsoleMode(console, &mode) != 0) {
+      if ((mode & ENABLE_LINE_INPUT) == 0) {
+        (void)SetConsoleMode(console, mode | ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT);
+      }
+    }
+  }
+
+  CONSOLE_READCONSOLE_CONTROL inputControl = {sizeof(CONSOLE_READCONSOLE_CONTROL), 0, 0, 0};
+  // wake the read up when TAB is pressed, so that the command can be completed
+  inputControl.dwCtrlWakeupMask = (ULONG)(1UL << TAB_KEY);
+
+  unsigned long bufLen = 0;
   while (bufLen == 0) {
-    ReadConsoleW(console, buf, SHELL_INPUT_MAX_COMMAND_SIZE, &bufLen, &inputControl);
-    if (bufLen > 0 && buf[0] == 0) bufLen = 0;
-    bufIndex = 0;
-  }
-  if (mbStrLen == 0){
-    if (buf[bufIndex] == '\r') {
-      bufIndex++;
-    }
-    mbStrLen = WideCharToMultiByte(CP_UTF8, 0, &buf[bufIndex], 1, mbStr, sizeof(mbStr), NULL, NULL);
-    mbStrIndex = 0;
-    bufIndex++;
-  }
-  mbStrIndex++;
-  if (mbStrIndex == mbStrLen) {
-    mbStrLen = 0;
-    if (bufIndex == bufLen) {
+    // the g_winConsoleChars characters at the beginning of the buffer are the
+    // line the console is editing, they are not read from the keyboard
+    inputControl.nInitialChars = (ULONG)g_winConsoleChars;
+    g_winReadPending = true;
+    BOOL ret = ReadConsoleW(console, g_winConsoleLine, SHELL_INPUT_MAX_COMMAND_SIZE, &bufLen, &inputControl);
+    g_winReadPending = false;
+    if (ret == 0) {
+      // the read has been aborted (e.g. ctrl+c), continue with an empty line
+      g_winConsoleChars = 0;
       bufLen = 0;
+      continue;
+    }
+    if (bufLen > 0 && g_winConsoleLine[0] == 0) bufLen = 0;
+  }
+  g_winConsoleChars = 0;
+
+  // find out what ended the read: TAB (completion) or ENTER
+  uint32_t end = (uint32_t)bufLen;
+  char     trigger = '\n';
+  if (end > 0 && g_winConsoleLine[end - 1] == (TdWchar)TAB_KEY) {
+    trigger = (char)TAB_KEY;
+    end--;
+  } else {
+    while (end > 0 && (g_winConsoleLine[end - 1] == L'\r' || g_winConsoleLine[end - 1] == L'\n')) {
+      end--;
     }
   }
-  return mbStr[mbStrIndex-1];
+
+  // the console echoes the typed characters itself, only the resulting line of
+  // the read is needed here
+  shellWinSyncCommand(g_winConsoleCmd, g_winConsoleLine, end);
+  return trigger;
 #else
   return (char)getchar();  // getchar() return an 'int32_t' value
 #endif
@@ -481,6 +644,10 @@ int32_t shellReadCommand(char *command) {
 
   cmd.buffer = (char *)taosMemoryCalloc(1, SHELL_MAX_COMMAND_SIZE);
   cmd.command = (char *)taosMemoryCalloc(1, SHELL_MAX_COMMAND_SIZE);
+#ifdef WINDOWS
+  // the console line synchronization needs the command buffer being edited
+  g_winConsoleCmd = &cmd;
+#endif
   shellShowOnScreen(&cmd);
 
   // Read input.
@@ -491,6 +658,9 @@ int32_t shellReadCommand(char *command) {
     if (c == (char)EOF) {
       taosMemoryFreeClear(cmd.buffer);
       taosMemoryFreeClear(cmd.command);
+#ifdef WINDOWS
+      g_winConsoleCmd = NULL;
+#endif
       return c;
     }
 
@@ -507,6 +677,11 @@ int32_t shellReadCommand(char *command) {
     } else if (c == TAB_KEY) {
       // press TAB key
       pressTabKey(&cmd);
+#ifdef WINDOWS
+      // the console owns the input line, redraw the completed command and give
+      // it back to the console
+      shellWinRedrawCommandLine(&cmd);
+#endif
     } else if (c < '\033') {
       pressOtherKey(c);
       // Ctrl keys.  TODO: Implement ctrl combinations
@@ -530,6 +705,9 @@ int32_t shellReadCommand(char *command) {
           printf("\r\n");
           taosMemoryFreeClear(cmd.buffer);
           taosMemoryFreeClear(cmd.command);
+#ifdef WINDOWS
+          g_winConsoleCmd = NULL;
+#endif
           return -1;
         case 5:  // ctrl E
           shellPositionCursorEnd(&cmd);
@@ -547,6 +725,9 @@ int32_t shellReadCommand(char *command) {
             sprintf(command, "%s%s", cmd.buffer, cmd.command);
             taosMemoryFreeClear(cmd.buffer);
             taosMemoryFreeClear(cmd.command);
+#ifdef WINDOWS
+            g_winConsoleCmd = NULL;
+#endif
             return 0;
           } else {
             shellUpdateBuffer(&cmd);

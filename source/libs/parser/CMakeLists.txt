@@ -48,6 +48,7 @@ add_custom_target(lemon_sql
 
 add_library(parser STATIC ${PARSER_SRC})
 add_dependencies(parser lemon_sql)
+set_property(TARGET parser PROPERTY LINK_INTERFACE_MULTIPLICITY 3)
 target_include_directories(
         parser
         PUBLIC "${TD_SOURCE_DIR}/include/libs/parser"

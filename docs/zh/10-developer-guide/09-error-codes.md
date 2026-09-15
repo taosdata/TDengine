@@ -854,6 +854,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80008023 | Xnode task parser too long                            | 任务 parser 字段过长                                  | 检查任务的 parser 字段是否过长                   |
 | 0x80008024 | No privilege to access xnode                          | 没有权限操作 xnode                                    | 检查当前用户是否有权限操作 xnode                 |
 | 0x80008025 | No privilege to access xnode task                     | 没有权限操作 xnode 的任务                             | 检查当前用户是否有权限操作 xnode 任务            |
+| 0x80008026 | Xnode DSN protection failed                           | Xnode DSN 保护校验失败                                | 检查 DSN 配置及数据源保护策略后重试              |
 
 #### 备份/恢复
 

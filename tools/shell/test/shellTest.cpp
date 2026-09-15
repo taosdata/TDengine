@@ -176,6 +176,43 @@ TEST(shellUtil, trimStr) {
 }
 
 
+// create table / stable / vtable share the same field / tags completion
+static bool createTableCompletion(const char* sql) {
+  char        buffer[512] = {0};
+  char        command[512] = {0};
+  SShellCmd   cmd;
+
+  memset(&cmd, 0, sizeof(cmd));
+  strncpy(command, sql, sizeof(command) - 1);
+  strncpy(buffer, command, sizeof(buffer) - 1);
+  cmd.buffer = buffer;
+  cmd.bufferSize = (uint32_t)strlen(buffer);
+  cmd.command = command;
+  cmd.commandSize = (uint32_t)strlen(command);
+  cmd.cursorOffset = cmd.commandSize;
+  cmd.screenOffset = cmd.commandSize;
+  cmd.endOffset = cmd.commandSize;
+
+  // reset the global auto completion state, it is otherwise shared between calls
+  pressOtherKey(0);
+  return matchCreateTable(NULL, &cmd);
+}
+
+TEST(createTableCompletion, fieldsOfTableStableAndVtable) {
+  shellAutoInit();
+
+  // the field data types are completed for table, stable and vtable
+  EXPECT_TRUE(createTableCompletion("create table st(ts ti"));
+  EXPECT_TRUE(createTableCompletion("create stable st(ts ti"));
+  EXPECT_TRUE(createTableCompletion("create vtable vt(ts ti"));
+
+  // other statements must not be handled by the create table matching
+  EXPECT_FALSE(createTableCompletion("create stream s1 as select "));
+  EXPECT_FALSE(createTableCompletion("create topic tp1 as select "));
+  EXPECT_FALSE(createTableCompletion("drop stable st;"));
+  EXPECT_FALSE(createTableCompletion("alter stable st add column c1 int;"));
+}
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

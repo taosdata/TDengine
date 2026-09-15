@@ -711,6 +711,40 @@ TEST(EnvelopeCryptoTest, DoesNotReuseWrappedKeyAcrossBatches) {
   EXPECT_EQ(envelopeReleasePublicKey(&key), ENVELOPE_CRYPTO_SUCCESS);
 }
 
+TEST(EnvelopeCryptoTest, PerPageBatchesAreIndependentlyDecryptable) {
+  SEnvelopePublicKey *key = loadReferencePublicKey();
+  ASSERT_NE(key, nullptr);
+  PkeyPtr private_key = referencePrivateKey();
+  ASSERT_NE(private_key.get(), nullptr);
+
+  const std::string page_plaintexts[] = {"taos://alice:secret@example/db", "taos://bob:token@example/db2"};
+  ParsedEnvelope    pages[2] = {};
+
+  // Each SHOW page finishes its own batch before delivery and the next page
+  // begins a fresh batch, so every page is self-contained on the wire.
+  for (int index = 0; index < 2; ++index) {
+    SEnvelopeBatch *batch = nullptr;
+    char           *encoded = nullptr;
+    uint32_t        encoded_len = 0;
+    ASSERT_EQ(envelopeBatchBegin(key, &batch), ENVELOPE_CRYPTO_SUCCESS);
+    ASSERT_EQ(envelopeBatchEncryptField(batch, reinterpret_cast<const uint8_t *>(page_plaintexts[index].data()),
+                                        static_cast<uint32_t>(page_plaintexts[index].size()), 4096, &encoded,
+                                        &encoded_len),
+              ENVELOPE_CRYPTO_SUCCESS);
+    ASSERT_EQ(envelopeBatchFinish(&batch), ENVELOPE_CRYPTO_SUCCESS);
+    EXPECT_EQ(batch, nullptr);
+    ASSERT_TRUE(parseEnvelope(encoded, encoded_len, &pages[index]));
+    releaseEncoded(&encoded);
+  }
+
+  EXPECT_NE(pages[0].wrapped_key, pages[1].wrapped_key);
+  for (int index = 0; index < 2; ++index) {
+    const std::vector<uint8_t> decrypted = decryptEnvelope(pages[index], private_key.get());
+    EXPECT_EQ(decrypted, std::vector<uint8_t>(page_plaintexts[index].begin(), page_plaintexts[index].end()));
+  }
+  EXPECT_EQ(envelopeReleasePublicKey(&key), ENVELOPE_CRYPTO_SUCCESS);
+}
+
 TEST(EnvelopeCryptoTest, EnforcesRoleCapsAndInvalidatesFailedBatch) {
   SEnvelopePublicKey *key = loadReferencePublicKey();
   ASSERT_NE(key, nullptr);
