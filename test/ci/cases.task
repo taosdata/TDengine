@@ -1704,6 +1704,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/02-Repair/test_copy_repair.py
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/02-Repair/test_copy_accuracy.py
 
+## 50-Others
+,,y,.,./ci/pytest.sh pytest cases/50-Others/test_enterprise_feature_reminder.py
+
 ## 43-Backup
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_backup_syntax.py
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_backup_privilege.py
