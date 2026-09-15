@@ -810,8 +810,8 @@ static const SSysDbTableSchema xnodesSchema[] = {
 static const SSysDbTableSchema xnodeTasksSchema[] = {
     {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "name", .bytes = TSDB_XNODE_TASK_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "from", .bytes = TSDB_XNODE_TASK_SOURCE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "to", .bytes = TSDB_XNODE_TASK_SINK_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "from", .bytes = (TSDB_XNODE_TASK_SOURCE_LEN * 2) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "to", .bytes = (TSDB_XNODE_TASK_SINK_LEN * 2) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "parser", .bytes = TSDB_XNODE_TASK_PARSER_MAX_LEN + BLOBSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BLOB, .sysInfo = false},
     /// Agent ID.
     {.name = "via", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
@@ -829,7 +829,7 @@ static const SSysDbTableSchema xnodeTasksSchema[] = {
 static const SSysDbTableSchema xnodeTaskJobSchema[] = {
     {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "task_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
-    {.name = "config", .bytes = TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN + BLOBSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BLOB, .sysInfo = false},
+    {.name = "config", .bytes = TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN + BLOBSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BLOB, .sysInfo = false},
     {.name = "via", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "xnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "status", .bytes = TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},

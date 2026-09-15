@@ -287,8 +287,11 @@ TEST_F(ParserShowToUseTest, showXnodeBlobLikePatternSupportsBlobLimits) {
   run("SHOW XNODE TASKS WHERE parser NOT LIKE '" + largePattern + "'");
   run("SHOW XNODE JOBS WHERE config NOT LIKE '" + largePattern + "'");
 
+  string maxConfigPattern(TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN, 'a');
+  run("SHOW XNODE JOBS WHERE config NOT LIKE '" + maxConfigPattern + "'");
+
   string oversizedParserPattern(TSDB_XNODE_TASK_PARSER_MAX_LEN + 1, 'a');
-  string oversizedConfigPattern(TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN + 1, 'a');
+  string oversizedConfigPattern(TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN + 1, 'a');
 
   run("SHOW XNODE TASKS WHERE parser NOT LIKE '" + oversizedParserPattern + "'", TSDB_CODE_PAR_VALUE_TOO_LONG);
   run("SHOW XNODE JOBS WHERE config NOT LIKE '" + oversizedConfigPattern + "'", TSDB_CODE_PAR_VALUE_TOO_LONG);
