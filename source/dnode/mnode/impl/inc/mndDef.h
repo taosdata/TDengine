@@ -1138,6 +1138,11 @@ typedef struct {
   char           db[TSDB_DB_FNAME_LEN];
   char           filterTb[TSDB_TABLE_NAME_LEN];
   int64_t        txnId;  // batch meta txn: same-txn visibility
+  int8_t         xnodeOutputMode;
+  int8_t         xnodeRetrieveFilterType;
+  int64_t        xnodeRetrieveFilterValue;
+  bool           xnodeProtectionFailed;
+  void*          pXnodeBatch;
 } SShowObj;
 
 typedef struct {

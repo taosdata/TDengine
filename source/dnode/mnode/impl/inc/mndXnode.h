@@ -22,6 +22,20 @@
 extern "C" {
 #endif
 
+typedef enum {
+  XNODE_SHOW_OUTPUT_PLAINTEXT = 0,
+  XNODE_SHOW_OUTPUT_MASKED = 1,
+  XNODE_SHOW_OUTPUT_ENCRYPTED = 2,
+} EXnodeShowOutputMode;
+
+int32_t mndXnodeResolveShowMode(int32_t protection, int8_t requestMode, int8_t *effectiveMode);
+bool    mndXnodeShowFilterMatches(int8_t filterType, int64_t filterValue, int32_t taskId, int32_t jobTaskId);
+int32_t mndXnodeMaskDsnForShow(const char *dsn, int32_t dsnLen, char **masked, int32_t *maskedLen);
+int32_t mndXnodeProjectJobConfigForShow(SShowObj *pShow, const char *config, int32_t configLen, char **projected,
+                                        int32_t *projectedLen);
+int32_t mndXnodeFinishShowProtection(SShowObj *pShow);
+void    mndXnodeCleanupShowProtection(SShowObj *pShow);
+
 #define TSDB_XNODE_VER_NUMBER   1
 
 int32_t mndInitXnode(SMnode* pMnode);

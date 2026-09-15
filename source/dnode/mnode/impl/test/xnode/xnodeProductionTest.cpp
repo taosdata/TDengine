@@ -519,7 +519,7 @@ TEST_F(XnodeProductionTest, XnodeJobObj_RealEncodeDecode_MaxConfig) {
   EXPECT_EQ(memcmp(pDecoded->config, obj.config, obj.configLen), 0);
 
   SColumnInfoData column =
-      createColumnInfoData(TSDB_DATA_TYPE_BLOB, TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN + BLOBSTR_HEADER_SIZE, 1);
+      createColumnInfoData(TSDB_DATA_TYPE_BLOB, TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN + BLOBSTR_HEADER_SIZE, 1);
   ASSERT_EQ(colInfoDataEnsureCapacity(&column, 3, true), TSDB_CODE_SUCCESS);
   ASSERT_EQ(mndSetXnodeBlobColumn(&column, 0, pDecoded->config, pDecoded->configLen),
             TSDB_CODE_SUCCESS);
