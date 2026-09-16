@@ -38,8 +38,14 @@
 #include "mndXnode.h"
 #include "sdb.h"
 #include "taoserror.h"
+#include "tglobal.h"
 #include "tjson.h"
 #include "xnode.h"
+#include "osMemory.h"
+#include <cJSON.h>
+#ifndef WINDOWS
+#include "envelope_crypto.h"
+#endif
 
 #define TSDB_XNODE_RESERVE_SIZE 64
 #ifdef WINDOWS
@@ -2304,6 +2310,806 @@ int32_t mndSetXnodeBlobColumn(SColumnInfoData *pColInfo, int32_t row, const char
   return varColSetVarData(pColInfo, row, data, contentLen, false);
 }
 
+static int32_t mndXnodeProtectionError(void) { return TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED; }
+
+#define XNODE_SHOW_MASK_VALUE     "******"
+#define XNODE_SHOW_MASK_VALUE_LEN 6
+// The hand-rolled JSON scanner below replaced the cJSON document parse and must
+// keep the same nesting bound the DOM parser used to enforce (CJSON_NESTING_LIMIT).
+#define XNODE_SHOW_JSON_MAX_DEPTH 1000
+
+static int32_t mndXnodeHexValue(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  return -1;
+}
+
+static bool mndXnodePercentValid(const char *value, int32_t len) {
+  for (int32_t i = 0; i < len; ++i) {
+    if (value[i] == '%' && (i + 2 >= len || mndXnodeHexValue(value[i + 1]) < 0 || mndXnodeHexValue(value[i + 2]) < 0)) {
+      return false;
+    }
+    if (value[i] == '%') i += 2;
+  }
+  return true;
+}
+
+static bool mndXnodeUtf8Valid(const char *value, int32_t len) {
+  if (value == NULL || len < 0) return false;
+  for (int32_t i = 0; i < len;) {
+    const uint8_t first = (uint8_t)value[i++];
+    if (first <= 0x7f) continue;
+    int32_t extra = 0;
+    uint32_t codepoint = 0;
+    if (first >= 0xc2 && first <= 0xdf) {
+      extra = 1;
+      codepoint = first & 0x1f;
+    } else if (first >= 0xe0 && first <= 0xef) {
+      extra = 2;
+      codepoint = first & 0x0f;
+    } else if (first >= 0xf0 && first <= 0xf4) {
+      extra = 3;
+      codepoint = first & 0x07;
+    } else {
+      return false;
+    }
+    if (len - i < extra) return false;
+    for (int32_t j = 0; j < extra; ++j) {
+      const uint8_t next = (uint8_t)value[i++];
+      if ((next & 0xc0) != 0x80) return false;
+      codepoint = (codepoint << 6) | (next & 0x3f);
+    }
+    if ((extra == 1 && codepoint < 0x80) || (extra == 2 && codepoint < 0x800) ||
+        (extra == 3 && codepoint < 0x10000) || codepoint > 0x10ffff ||
+        (codepoint >= 0xd800 && codepoint <= 0xdfff)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static int32_t mndXnodePercentDecode(const char *value, int32_t len, char **decoded, int32_t *decodedLen) {
+  if (value == NULL || len < 0 || decoded == NULL || decodedLen == NULL || *decoded != NULL) {
+    return mndXnodeProtectionError();
+  }
+  *decodedLen = 0;
+  if (!mndXnodePercentValid(value, len)) return mndXnodeProtectionError();
+  char *out = taosMemoryMalloc((size_t)len + 1);
+  if (out == NULL) return mndXnodeProtectionError();
+  int32_t outLen = 0;
+  for (int32_t i = 0; i < len; ++i) {
+    if (value[i] == '%') {
+      out[outLen++] = (char)((mndXnodeHexValue(value[i + 1]) << 4) | mndXnodeHexValue(value[i + 2]));
+      i += 2;
+    } else {
+      out[outLen++] = value[i];
+    }
+  }
+  for (int32_t i = 0; i < outLen; ++i) {
+    if ((unsigned char)out[i] == 0) {
+      taosMemoryFree(out);
+      return mndXnodeProtectionError();
+    }
+  }
+  out[outLen] = 0;
+  *decoded = out;
+  *decodedLen = outLen;
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool mndXnodeSensitiveKey(char *key, int32_t len) {
+  int32_t outLen = 0;
+  for (int32_t i = 0; i < len; ++i) {
+    char c = key[i];
+    if (c == '_' || c == '-' || c == '.') continue;
+    if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+    key[outLen++] = c;
+  }
+  key[outLen] = 0;
+  return strstr(key, "password") != NULL || strstr(key, "passwd") != NULL || strstr(key, "privatekey") != NULL ||
+         strstr(key, "secret") != NULL || strstr(key, "apikey") != NULL || strstr(key, "accessid") != NULL ||
+         strstr(key, "accesskey") != NULL || strstr(key, "totpcode") != NULL || strcmp(key, "token") == 0 ||
+         (outLen >= 5 && strcmp(key + outLen - 5, "token") == 0);
+}
+
+static int32_t mndXnodeMaskDsnInternal(const char *dsn, int32_t dsnLen, char **masked, int32_t *maskedLen) {
+  if (dsn == NULL || dsnLen < 0 || masked == NULL || maskedLen == NULL || *masked != NULL) {
+    return mndXnodeProtectionError();
+  }
+  *maskedLen = 0;
+  if (!mndXnodeUtf8Valid(dsn, dsnLen)) return mndXnodeProtectionError();
+  for (int32_t i = 0; i < dsnLen; ++i) {
+    if ((unsigned char)dsn[i] == 0) return mndXnodeProtectionError();
+  }
+
+  int32_t replacements = 0;
+  int32_t queryPos = -1;
+  int32_t fragmentPos = dsnLen;
+  for (int32_t i = 0; i < dsnLen; ++i) {
+    if (dsn[i] == '#' && fragmentPos == dsnLen) fragmentPos = i;
+    if (dsn[i] == '?' && queryPos < 0) queryPos = i;
+  }
+  if (queryPos >= fragmentPos) queryPos = -1;
+
+  int32_t schemeEnd = -1;
+  for (int32_t i = 0; i + 2 < dsnLen && i < fragmentPos && (queryPos < 0 || i < queryPos); ++i) {
+    if (dsn[i] == '/' || dsn[i] == '#') break;
+    if (dsn[i] == ':' && dsn[i + 1] == '/' && dsn[i + 2] == '/') {
+      schemeEnd = i + 3;
+      break;
+    }
+  }
+  if (schemeEnd >= 0) {
+    int32_t authorityEnd = dsnLen;
+    for (int32_t i = schemeEnd; i < dsnLen; ++i) {
+      if (dsn[i] == '/' || dsn[i] == '?' || dsn[i] == '#') {
+        authorityEnd = i;
+        break;
+      }
+    }
+    // The last '@' separates userinfo from host, matching the taosx DSN parser,
+    // so passwords containing '@' remain maskable instead of failing closed.
+    int32_t at = -1;
+    for (int32_t i = schemeEnd; i < authorityEnd; ++i) {
+      if (dsn[i] == '@') {
+        at = i;
+      }
+    }
+    if (authorityEnd == schemeEnd || (at >= 0 && (at == schemeEnd || at + 1 == authorityEnd))) {
+      return mndXnodeProtectionError();
+    }
+    if (at > schemeEnd) {
+      int32_t colon = -1;
+      for (int32_t i = schemeEnd; i < at; ++i) {
+        if (dsn[i] == ':') {
+          colon = i;
+          break;
+        }
+      }
+      if (colon >= schemeEnd && colon < at) replacements += 1;
+    }
+  }
+
+  if (queryPos >= 0) {
+    int32_t pos = queryPos + 1;
+    while (pos < fragmentPos) {
+      int32_t end = pos;
+      while (end < fragmentPos && dsn[end] != '&' && dsn[end] != ';') ++end;
+      int32_t equal = pos;
+      while (equal < end && dsn[equal] != '=') ++equal;
+      char *key = NULL;
+      int32_t keyLen = 0;
+      int32_t code = mndXnodePercentDecode(dsn + pos, equal - pos, &key, &keyLen);
+      // A key that cannot be decoded cannot be classified; mask its value
+      // conservatively instead of failing the whole DSN.
+      bool sensitive = equal < end && (code != TSDB_CODE_SUCCESS || mndXnodeSensitiveKey(key, keyLen));
+      taosMemoryFree(key);
+      if (sensitive) replacements += 1;
+      pos = end + 1;
+    }
+  }
+
+  int64_t outputLen = (int64_t)dsnLen + (int64_t)replacements * XNODE_SHOW_MASK_VALUE_LEN;
+  if (outputLen > INT32_MAX) return mndXnodeProtectionError();
+  char *out = taosMemoryMalloc((size_t)outputLen + 1);
+  if (out == NULL) return mndXnodeProtectionError();
+  int32_t outPos = 0;
+  int32_t pos = 0;
+  while (pos < dsnLen) {
+    if (schemeEnd >= 0 && pos == schemeEnd) {
+      int32_t authorityEnd = dsnLen;
+      for (int32_t i = schemeEnd; i < dsnLen; ++i) {
+        if (dsn[i] == '/' || dsn[i] == '?' || dsn[i] == '#') {
+          authorityEnd = i;
+          break;
+        }
+      }
+      int32_t at = -1;
+      for (int32_t i = schemeEnd; i < authorityEnd; ++i) if (dsn[i] == '@') at = i;
+      if (at > schemeEnd) {
+        int32_t colon = -1;
+        for (int32_t i = schemeEnd; i < at; ++i) {
+          if (dsn[i] == ':') {
+            colon = i;
+            break;
+          }
+        }
+        if (colon >= schemeEnd && colon < at) {
+          memcpy(out + outPos, dsn + pos, (size_t)(colon + 1 - pos));
+          outPos += colon + 1 - pos;
+          memcpy(out + outPos, XNODE_SHOW_MASK_VALUE, XNODE_SHOW_MASK_VALUE_LEN);
+          outPos += XNODE_SHOW_MASK_VALUE_LEN;
+          pos = at;
+          continue;
+        }
+      }
+    }
+    // The query branch requires at least one query byte: with an empty query
+    // (queryPos + 1 == fragmentPos, e.g. "dsn?#frag") pos would not advance and
+    // the loop would spin forever, so such a fragment is copied verbatim instead.
+    if (queryPos >= 0 && pos == queryPos + 1 && queryPos + 1 < fragmentPos) {
+      int32_t q = pos;
+      while (q < fragmentPos) {
+        int32_t itemEnd = q;
+        while (itemEnd < fragmentPos && dsn[itemEnd] != '&' && dsn[itemEnd] != ';') ++itemEnd;
+        int32_t equal = q;
+        while (equal < itemEnd && dsn[equal] != '=') ++equal;
+        char *key = NULL;
+        int32_t keyLen = 0;
+        int32_t code = mndXnodePercentDecode(dsn + q, equal - q, &key, &keyLen);
+        bool sensitive = equal < itemEnd && (code != TSDB_CODE_SUCCESS || mndXnodeSensitiveKey(key, keyLen));
+        taosMemoryFree(key);
+        int32_t valueStart = equal < itemEnd ? equal + 1 : itemEnd;
+        memcpy(out + outPos, dsn + q, (size_t)(valueStart - q));
+        outPos += valueStart - q;
+        if (sensitive) {
+          memcpy(out + outPos, XNODE_SHOW_MASK_VALUE, XNODE_SHOW_MASK_VALUE_LEN);
+          outPos += XNODE_SHOW_MASK_VALUE_LEN;
+        } else {
+          memcpy(out + outPos, dsn + valueStart, (size_t)(itemEnd - valueStart));
+          outPos += itemEnd - valueStart;
+        }
+        if (itemEnd < fragmentPos) out[outPos++] = dsn[itemEnd];
+        q = itemEnd + 1;
+      }
+      pos = fragmentPos;
+      continue;
+    }
+    out[outPos++] = dsn[pos++];
+  }
+  out[outPos] = 0;
+  *masked = out;
+  *maskedLen = outPos;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mndXnodeMaskDsnForShow(const char *dsn, int32_t dsnLen, char **masked, int32_t *maskedLen) {
+  return mndXnodeMaskDsnInternal(dsn, dsnLen, masked, maskedLen);
+}
+
+int32_t mndXnodeResolveShowMode(int32_t protection, int8_t requestMode, int8_t *effectiveMode) {
+  if (effectiveMode == NULL || (requestMode != XNODE_DSN_OUTPUT_DEFAULT && requestMode != XNODE_DSN_OUTPUT_ENCRYPTED)) {
+    return mndXnodeProtectionError();
+  }
+  if (protection == 0) {
+    // With protection disabled, even an explicit WITH ENCRYPTED request is
+    // intentionally downgraded to plaintext and reported as success.
+    *effectiveMode = XNODE_SHOW_OUTPUT_PLAINTEXT;
+#ifdef WINDOWS
+  } else {
+    return TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS;
+#else
+  } else {
+    *effectiveMode = requestMode == XNODE_DSN_OUTPUT_ENCRYPTED ? XNODE_SHOW_OUTPUT_ENCRYPTED : XNODE_SHOW_OUTPUT_MASKED;
+#endif
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+bool mndXnodeShowFilterMatches(int8_t filterType, int64_t filterValue, int32_t taskId, int32_t jobTaskId) {
+  if (filterType == XNODE_RETRIEVE_FILTER_NONE) return filterValue == 0;
+  if (filterValue < 0 || filterValue > INT32_MAX) return false;
+  if (filterType == XNODE_RETRIEVE_FILTER_ID_EQ) return taskId == (int32_t)filterValue;
+  if (filterType == XNODE_RETRIEVE_FILTER_TASK_ID_EQ) return jobTaskId == (int32_t)filterValue;
+  return false;
+}
+
+typedef struct {
+  int32_t start;
+  int32_t end;
+  bool    present;
+} SXnodeJsonSpan;
+
+static int32_t mndXnodeSkipJsonString(const char *input, int32_t len, int32_t *pos) {
+  if (*pos >= len || input[*pos] != '"') return mndXnodeProtectionError();
+  ++(*pos);
+  while (*pos < len) {
+    unsigned char c = (unsigned char)input[*pos];
+    if (c == '"') {
+      ++(*pos);
+      return TSDB_CODE_SUCCESS;
+    }
+    if (c < 0x20) return mndXnodeProtectionError();
+    if (c == '\\') {
+      ++(*pos);
+      if (*pos >= len) return mndXnodeProtectionError();
+      c = (unsigned char)input[(*pos)++];
+      if (c == 'u') {
+        if (len - *pos < 4) return mndXnodeProtectionError();
+        for (int32_t i = 0; i < 4; ++i) {
+          if (mndXnodeHexValue(input[*pos + i]) < 0) return mndXnodeProtectionError();
+        }
+        if (input[*pos] == '0' && input[*pos + 1] == '0' && input[*pos + 2] == '0' && input[*pos + 3] == '0') {
+          return mndXnodeProtectionError();
+        }
+        *pos += 4;
+      } else if (c != '"' && c != '\\' && c != '/' && c != 'b' && c != 'f' && c != 'n' && c != 'r' && c != 't') {
+        return mndXnodeProtectionError();
+      }
+    } else {
+      ++(*pos);
+    }
+  }
+  return mndXnodeProtectionError();
+}
+
+static void mndXnodeSkipJsonWhitespace(const char *input, int32_t len, int32_t *pos) {
+  while (*pos < len &&
+         (input[*pos] == ' ' || input[*pos] == '\t' || input[*pos] == '\r' || input[*pos] == '\n')) {
+    ++(*pos);
+  }
+}
+
+// Bare scalars must be strict RFC 8259 literals (true, false, null, or
+// -?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?); the removed cJSON document parse used
+// to provide this strictness, so the scanner now enforces it itself.
+static int32_t mndXnodeSkipJsonLiteral(const char *input, int32_t len, int32_t *pos) {
+  const int32_t start = *pos;
+  const char    c = input[start];
+  if (c == 't' || c == 'f' || c == 'n') {
+    const char   *word = c == 't' ? "true" : c == 'f' ? "false" : "null";
+    const int32_t wordLen = c == 'f' ? 5 : 4;
+    if (len - start < wordLen || memcmp(input + start, word, (size_t)wordLen) != 0) {
+      return mndXnodeProtectionError();
+    }
+    *pos = start + wordLen;
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t p = start;
+  if (input[p] == '-') ++p;
+  if (p >= len) return mndXnodeProtectionError();
+  if (input[p] == '0') {
+    ++p;
+  } else if (input[p] >= '1' && input[p] <= '9') {
+    while (p < len && input[p] >= '0' && input[p] <= '9') ++p;
+  } else {
+    return mndXnodeProtectionError();
+  }
+  if (p < len && input[p] == '.') {
+    ++p;
+    if (p >= len || input[p] < '0' || input[p] > '9') return mndXnodeProtectionError();
+    while (p < len && input[p] >= '0' && input[p] <= '9') ++p;
+  }
+  if (p < len && (input[p] == 'e' || input[p] == 'E')) {
+    ++p;
+    if (p < len && (input[p] == '+' || input[p] == '-')) ++p;
+    if (p >= len || input[p] < '0' || input[p] > '9') return mndXnodeProtectionError();
+    while (p < len && input[p] >= '0' && input[p] <= '9') ++p;
+  }
+  *pos = p;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndXnodeSkipJsonValue(const char *input, int32_t len, int32_t *pos, int32_t depth) {
+  if (depth > XNODE_SHOW_JSON_MAX_DEPTH) return mndXnodeProtectionError();
+  if (*pos >= len) return mndXnodeProtectionError();
+  if (input[*pos] == '"') return mndXnodeSkipJsonString(input, len, pos);
+  if (input[*pos] == '{' || input[*pos] == '[') {
+    const char open = input[(*pos)++];
+    const char close = open == '{' ? '}' : ']';
+    bool first = true;
+    while (true) {
+      mndXnodeSkipJsonWhitespace(input, len, pos);
+      if (*pos >= len) return mndXnodeProtectionError();
+      if (input[*pos] == close) {
+        ++(*pos);
+        return TSDB_CODE_SUCCESS;
+      }
+      if (!first) {
+        if (input[(*pos)++] != ',') return mndXnodeProtectionError();
+        mndXnodeSkipJsonWhitespace(input, len, pos);
+      }
+      if (open == '{') {
+        if (mndXnodeSkipJsonString(input, len, pos) != TSDB_CODE_SUCCESS) return mndXnodeProtectionError();
+        mndXnodeSkipJsonWhitespace(input, len, pos);
+        if (*pos >= len || input[(*pos)++] != ':') return mndXnodeProtectionError();
+        mndXnodeSkipJsonWhitespace(input, len, pos);
+      }
+      if (mndXnodeSkipJsonValue(input, len, pos, depth + 1) != TSDB_CODE_SUCCESS) return mndXnodeProtectionError();
+      first = false;
+    }
+  }
+  return mndXnodeSkipJsonLiteral(input, len, pos);
+}
+
+static int32_t mndXnodeFindJobConfigSpans(const char *config, int32_t configLen, SXnodeJsonSpan *from,
+                                          SXnodeJsonSpan *to) {
+  int32_t pos = 0;
+  mndXnodeSkipJsonWhitespace(config, configLen, &pos);
+  if (pos >= configLen || config[pos++] != '{') return mndXnodeProtectionError();
+  bool first = true;
+  while (true) {
+    mndXnodeSkipJsonWhitespace(config, configLen, &pos);
+    if (pos >= configLen) return mndXnodeProtectionError();
+    if (config[pos] == '}') {
+      ++pos;
+      break;
+    }
+    if (!first) {
+      if (config[pos++] != ',') return mndXnodeProtectionError();
+      mndXnodeSkipJsonWhitespace(config, configLen, &pos);
+    }
+    int32_t keyStart = pos;
+    if (mndXnodeSkipJsonString(config, configLen, &pos) != TSDB_CODE_SUCCESS) return mndXnodeProtectionError();
+    int32_t keyEnd = pos;
+    for (int32_t i = keyStart + 1; i + 1 < keyEnd; ++i) {
+      if (config[i] == '\\') return mndXnodeProtectionError();
+    }
+    mndXnodeSkipJsonWhitespace(config, configLen, &pos);
+    if (pos >= configLen || config[pos++] != ':') {
+      return mndXnodeProtectionError();
+    }
+    mndXnodeSkipJsonWhitespace(config, configLen, &pos);
+    const int32_t keyLen = keyEnd - keyStart - 2;
+    bool          isFrom = keyLen == 4 && memcmp(config + keyStart + 1, "from", 4) == 0;
+    bool          isTo = keyLen == 2 && memcmp(config + keyStart + 1, "to", 2) == 0;
+    int32_t valueStart = pos;
+    if (mndXnodeSkipJsonValue(config, configLen, &pos, 1) != TSDB_CODE_SUCCESS) return mndXnodeProtectionError();
+    if (isFrom || isTo) {
+      if (config[valueStart] != '"') return mndXnodeProtectionError();
+      SXnodeJsonSpan *span = isFrom ? from : to;
+      if (span->present) return mndXnodeProtectionError();
+      span->start = valueStart;
+      span->end = pos;
+      span->present = true;
+    }
+    first = false;
+  }
+  mndXnodeSkipJsonWhitespace(config, configLen, &pos);
+  return pos == configLen ? TSDB_CODE_SUCCESS : mndXnodeProtectionError();
+}
+
+static int32_t mndXnodeDecodeJsonString(const char *raw, int32_t rawLen, char **decoded, int32_t *decodedLen) {
+  if (decoded == NULL || decodedLen == NULL || *decoded != NULL || raw == NULL || rawLen <= 1) {
+    return mndXnodeProtectionError();
+  }
+  *decodedLen = 0;
+  for (int32_t i = 0; i < rawLen; ++i) {
+    if ((unsigned char)raw[i] == 0) return mndXnodeProtectionError();
+    if (raw[i] == '\\' && i + 5 < rawLen && raw[i + 1] == 'u' && raw[i + 2] == '0' && raw[i + 3] == '0' &&
+        raw[i + 4] == '0' && raw[i + 5] == '0') {
+      int32_t precedingSlashes = 0;
+      for (int32_t j = i - 1; j >= 0 && raw[j] == '\\'; --j) ++precedingSlashes;
+      if ((precedingSlashes & 1) == 0) return mndXnodeProtectionError();
+    }
+  }
+  cJSON *value = cJSON_ParseWithLength(raw, rawLen);
+  if (value == NULL || !cJSON_IsString(value) || value->valuestring == NULL) {
+    if (value != NULL) cJSON_Delete(value);
+    return mndXnodeProtectionError();
+  }
+  int32_t len = (int32_t)strlen(value->valuestring);
+  char *copy = taosMemoryMalloc((size_t)len + 1);
+  if (copy == NULL) {
+    cJSON_Delete(value);
+    return mndXnodeProtectionError();
+  }
+  memcpy(copy, value->valuestring, (size_t)len);
+  copy[len] = 0;
+  cJSON_Delete(value);
+  *decoded = copy;
+  *decodedLen = len;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndXnodeJsonEscape(const char *value, int32_t valueLen, char **escaped, int32_t *escapedLen) {
+  int64_t capacity = (int64_t)valueLen * 6 + 1;
+  if (capacity > INT32_MAX || escaped == NULL || escapedLen == NULL || *escaped != NULL) {
+    return mndXnodeProtectionError();
+  }
+  char *out = taosMemoryMalloc((size_t)capacity);
+  if (out == NULL) return mndXnodeProtectionError();
+  int32_t pos = 0;
+  for (int32_t i = 0; i < valueLen; ++i) {
+    unsigned char c = (unsigned char)value[i];
+    if (c == '"' || c == '\\') {
+      out[pos++] = '\\';
+      out[pos++] = (char)c;
+    } else if (c == '\b' || c == '\f' || c == '\n' || c == '\r' || c == '\t') {
+      out[pos++] = '\\';
+      out[pos++] = c == '\b' ? 'b' : c == '\f' ? 'f' : c == '\n' ? 'n' : c == '\r' ? 'r' : 't';
+    } else if (c < 0x20) {
+      static const char hex[] = "0123456789abcdef";
+      out[pos++] = '\\';
+      out[pos++] = 'u';
+      out[pos++] = '0';
+      out[pos++] = '0';
+      out[pos++] = hex[c >> 4];
+      out[pos++] = hex[c & 0xf];
+    } else {
+      out[pos++] = (char)c;
+    }
+  }
+  out[pos] = 0;
+  *escaped = out;
+  *escapedLen = pos;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndXnodeJsonQuote(const char *value, int32_t valueLen, char **quoted, int32_t *quotedLen) {
+  if (quoted == NULL || quotedLen == NULL || *quoted != NULL || value == NULL || valueLen < 0) {
+    return mndXnodeProtectionError();
+  }
+  *quotedLen = 0;
+  if (valueLen > INT32_MAX - 3) return mndXnodeProtectionError();
+
+  char *out = taosMemoryMalloc((size_t)valueLen + 3);
+  if (out == NULL) return mndXnodeProtectionError();
+  out[0] = '"';
+  if (valueLen > 0) memcpy(out + 1, value, (size_t)valueLen);
+  out[valueLen + 1] = '"';
+  out[valueLen + 2] = 0;
+  *quoted = out;
+  *quotedLen = valueLen + 2;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndXnodeEncryptDsnForShow(SShowObj *pShow, const char *dsn, int32_t dsnLen, uint32_t maxPlainLen,
+                                         char **encoded, int32_t *encodedLen) {
+#ifdef WINDOWS
+  (void)pShow;
+  (void)dsn;
+  (void)dsnLen;
+  (void)maxPlainLen;
+  if (encoded != NULL) *encoded = NULL;
+  if (encodedLen != NULL) *encodedLen = 0;
+  return mndXnodeProtectionError();
+#else
+  if (pShow == NULL || encoded == NULL || encodedLen == NULL || *encoded != NULL || dsn == NULL || dsnLen < 0) {
+    return mndXnodeProtectionError();
+  }
+  *encodedLen = 0;
+  if (pShow->pXnodeBatch == NULL) {
+    const SEnvelopePublicKey *key = taosGetXnodeDsnPublicKey();
+    SEnvelopeBatch           *batch = NULL;
+    if (key == NULL || envelopeBatchBegin(key, &batch) != ENVELOPE_CRYPTO_SUCCESS) {
+      return mndXnodeProtectionError();
+    }
+    if (pShow->pXnodeBatch != NULL) {
+      // A concurrent retrieve on the same show object began a batch first: free
+      // this duplicate instead of overwriting the live batch, which would leak
+      // its key material. (Concurrent retrieves of one show object race exactly
+      // like the pre-existing SShowObj.pIter access; that class is not new.)
+      (void)envelopeBatchAbort(&batch);
+    } else {
+      pShow->pXnodeBatch = batch;
+    }
+  }
+  uint32_t length = 0;
+  int32_t code = envelopeBatchEncryptField((SEnvelopeBatch *)pShow->pXnodeBatch, (const uint8_t *)dsn,
+                                           (uint32_t)dsnLen, maxPlainLen, encoded, &length);
+  if (code != ENVELOPE_CRYPTO_SUCCESS) return mndXnodeProtectionError();
+  *encodedLen = (int32_t)length;
+  return TSDB_CODE_SUCCESS;
+#endif
+}
+
+// Decodes one top-level from/to string span and rewrites it for the show output
+// mode (masked + re-escaped, or envelope-encrypted). Failures are logged with the
+// show id and the failing stage; the config content itself is never logged.
+static int32_t mndXnodeProjectConfigDsnValue(SShowObj *pShow, const char *name, const char *raw, int32_t rawLen,
+                                             char **replacement, int32_t *replacementLen) {
+  const char *stage = "decode";
+  char       *decoded = NULL;
+  int32_t     decodedLen = 0;
+  int32_t     code = mndXnodeDecodeJsonString(raw, rawLen, &decoded, &decodedLen);
+  if (code == TSDB_CODE_SUCCESS && pShow->xnodeOutputMode == XNODE_SHOW_OUTPUT_MASKED) {
+    stage = "mask";
+    char   *masked = NULL;
+    int32_t maskedLen = 0;
+    code = mndXnodeMaskDsnInternal(decoded, decodedLen, &masked, &maskedLen);
+    if (code == TSDB_CODE_SUCCESS) {
+      stage = "escape";
+      char   *escaped = NULL;
+      int32_t escapedLen = 0;
+      code = mndXnodeJsonEscape(masked, maskedLen, &escaped, &escapedLen);
+      if (code == TSDB_CODE_SUCCESS) {
+        stage = "quote";
+        code = mndXnodeJsonQuote(escaped, escapedLen, replacement, replacementLen);
+      }
+      taosMemoryFree(escaped);
+    }
+    taosMemoryFree(masked);
+  } else if (code == TSDB_CODE_SUCCESS) {
+    stage = "encrypt";
+    char   *encrypted = NULL;
+    int32_t encryptedLen = 0;
+    code = mndXnodeEncryptDsnForShow(pShow, decoded, decodedLen, TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN, &encrypted,
+                                     &encryptedLen);
+    if (code == TSDB_CODE_SUCCESS) {
+      stage = "quote";
+      code = mndXnodeJsonQuote(encrypted, encryptedLen, replacement, replacementLen);
+    }
+    taosMemoryFree(encrypted);
+  }
+  taosMemoryFree(decoded);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("show:0x%" PRIx64 ", xnode job config protection failed at %s-%s, code:%s", pShow->id, name, stage,
+           tstrerror(code));
+  }
+  return code;
+}
+
+int32_t mndXnodeProjectJobConfigForShow(SShowObj *pShow, const char *config, int32_t configLen, char **projected,
+                                        int32_t *projectedLen) {
+  if (pShow == NULL || configLen < 0 || projected == NULL || projectedLen == NULL || *projected != NULL ||
+      (config == NULL && configLen != 0)) {
+    return mndXnodeProtectionError();
+  }
+  *projectedLen = 0;
+  int32_t contentLen = configLen;
+  if (pShow->xnodeOutputMode != XNODE_SHOW_OUTPUT_PLAINTEXT && pShow->xnodeOutputMode != XNODE_SHOW_OUTPUT_MASKED &&
+      pShow->xnodeOutputMode != XNODE_SHOW_OUTPUT_ENCRYPTED) {
+    return mndXnodeProtectionError();
+  }
+  if (config == NULL) {
+    return pShow->xnodeOutputMode == XNODE_SHOW_OUTPUT_PLAINTEXT ? TSDB_CODE_SUCCESS : mndXnodeProtectionError();
+  }
+  while (contentLen > 0 && config[contentLen - 1] == '\0') --contentLen;
+  if (pShow->xnodeOutputMode == XNODE_SHOW_OUTPUT_PLAINTEXT) {
+    // An empty payload is only a valid BLOB in PLAINTEXT mode; protected modes
+    // fail closed below because an empty payload is not a valid JSON object.
+    char *copy = taosMemoryMalloc((size_t)contentLen + 1);
+    if (copy == NULL) return mndXnodeProtectionError();
+    if (contentLen > 0) memcpy(copy, config, (size_t)contentLen);
+    copy[contentLen] = 0;
+    *projected = copy;
+    *projectedLen = contentLen;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  const char   *stage = "size";
+  int32_t       code = TSDB_CODE_SUCCESS;
+  SXnodeJsonSpan from = {0};
+  SXnodeJsonSpan to = {0};
+  char         *fromReplacement = NULL;
+  char         *toReplacement = NULL;
+  int32_t       fromReplacementLen = 0;
+  int32_t       toReplacementLen = 0;
+
+  if (contentLen > TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN) goto _err;
+  stage = "content";
+  for (int32_t i = 0; i < contentLen; ++i) {
+    if ((unsigned char)config[i] == 0) goto _err;
+  }
+  if (!mndXnodeUtf8Valid(config, contentLen)) goto _err;
+  stage = "schema";
+  code = mndXnodeFindJobConfigSpans(config, contentLen, &from, &to);
+  if (code != TSDB_CODE_SUCCESS) goto _err;
+  if (from.present) {
+    code = mndXnodeProjectConfigDsnValue(pShow, "from", config + from.start, from.end - from.start, &fromReplacement,
+                                         &fromReplacementLen);
+    if (code != TSDB_CODE_SUCCESS) goto _err_logged;
+  }
+  if (to.present) {
+    code = mndXnodeProjectConfigDsnValue(pShow, "to", config + to.start, to.end - to.start, &toReplacement,
+                                         &toReplacementLen);
+    if (code != TSDB_CODE_SUCCESS) goto _err_logged;
+  }
+
+  stage = "assemble";
+  {
+    int64_t resultLen = contentLen;
+    if (from.present) resultLen += fromReplacementLen - (from.end - from.start);
+    if (to.present) resultLen += toReplacementLen - (to.end - to.start);
+    if (resultLen < 0 || resultLen > TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN || resultLen > INT32_MAX) goto _err;
+    char *out = taosMemoryMalloc((size_t)resultLen + 1);
+    if (out == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+    int32_t outPos = 0;
+    int32_t inputPos = 0;
+    SXnodeJsonSpan spans[2] = {from, to};
+    char   *replacements[2] = {fromReplacement, toReplacement};
+    int32_t replacementLens[2] = {fromReplacementLen, toReplacementLen};
+    if (spans[0].present && spans[1].present && spans[1].start < spans[0].start) {
+      SXnodeJsonSpan span = spans[0];
+      spans[0] = spans[1];
+      spans[1] = span;
+      char *replacement = replacements[0];
+      replacements[0] = replacements[1];
+      replacements[1] = replacement;
+      int32_t replacementLen = replacementLens[0];
+      replacementLens[0] = replacementLens[1];
+      replacementLens[1] = replacementLen;
+    }
+    for (int32_t i = 0; i < 2; ++i) {
+      if (!spans[i].present) continue;
+      memcpy(out + outPos, config + inputPos, (size_t)(spans[i].start - inputPos));
+      outPos += spans[i].start - inputPos;
+      memcpy(out + outPos, replacements[i], (size_t)replacementLens[i]);
+      outPos += replacementLens[i];
+      inputPos = spans[i].end;
+    }
+    memcpy(out + outPos, config + inputPos, (size_t)(contentLen - inputPos));
+    outPos += contentLen - inputPos;
+    out[outPos] = 0;
+    taosMemoryFree(fromReplacement);
+    taosMemoryFree(toReplacement);
+    *projected = out;
+    *projectedLen = outPos;
+    return TSDB_CODE_SUCCESS;
+  }
+
+_err:
+  if (code == TSDB_CODE_SUCCESS) code = mndXnodeProtectionError();
+  mError("show:0x%" PRIx64 ", failed to project xnode job config at %s, code:%s", pShow->id, stage, tstrerror(code));
+_err_logged:
+  taosMemoryFree(fromReplacement);
+  taosMemoryFree(toReplacement);
+  return mndXnodeProtectionError();
+}
+
+void mndXnodeCleanupShowProtection(SShowObj *pShow) {
+  if (pShow == NULL || pShow->pXnodeBatch == NULL) return;
+#ifndef WINDOWS
+  (void)envelopeBatchAbort((SEnvelopeBatch **)&pShow->pXnodeBatch);
+#else
+  pShow->pXnodeBatch = NULL;
+#endif
+}
+
+int32_t mndXnodeFinishShowProtection(SShowObj *pShow) {
+  if (pShow == NULL) return mndXnodeProtectionError();
+  if (pShow->pXnodeBatch == NULL) return TSDB_CODE_SUCCESS;
+#ifndef WINDOWS
+  return envelopeBatchFinish((SEnvelopeBatch **)&pShow->pXnodeBatch) == ENVELOPE_CRYPTO_SUCCESS
+             ? TSDB_CODE_SUCCESS
+             : mndXnodeProtectionError();
+#else
+  return mndXnodeProtectionError();
+#endif
+}
+
+static int32_t mndXnodeSetDsnShowColumn(SShowObj *pShow, SColumnInfoData *pColInfo, int32_t row, const char *dsn,
+                                        int32_t dsnLen, uint32_t maxPlainLen) {
+  if (dsn == NULL || dsnLen < 0 || pShow == NULL || pColInfo == NULL) return mndXnodeProtectionError();
+  const char *stage = "copy";
+  char       *output = NULL;
+  int32_t     outputLen = 0;
+  int32_t     code = TSDB_CODE_SUCCESS;
+  if (pShow->xnodeOutputMode == XNODE_SHOW_OUTPUT_PLAINTEXT) {
+    output = taosMemoryMalloc((size_t)dsnLen + 1);
+    if (output == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      memcpy(output, dsn, (size_t)dsnLen);
+      output[dsnLen] = 0;
+      outputLen = dsnLen;
+    }
+  } else if (pShow->xnodeOutputMode == XNODE_SHOW_OUTPUT_MASKED) {
+    stage = "mask";
+    code = mndXnodeMaskDsnForShow(dsn, dsnLen, &output, &outputLen);
+  } else if (pShow->xnodeOutputMode == XNODE_SHOW_OUTPUT_ENCRYPTED) {
+    stage = "encrypt";
+    code = mndXnodeEncryptDsnForShow(pShow, dsn, dsnLen, maxPlainLen, &output, &outputLen);
+  } else {
+    stage = "mode";
+    code = mndXnodeProtectionError();
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    int32_t maxLen = pColInfo->info.bytes - VARSTR_HEADER_SIZE;
+    if (outputLen > maxLen) {
+      stage = "length";
+      code = mndXnodeProtectionError();
+    }
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    stage = "set-column";
+    code = varColSetVarData(pColInfo, row, output, outputLen, false);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    // Log the stage and the original code before normalizing; the DSN content
+    // itself must never be logged.
+    mError("show:0x%" PRIx64 ", failed to set xnode dsn show column at %s, code:%s", pShow->id, stage,
+           tstrerror(code));
+  }
+  taosMemoryFree(output);
+  return code == TSDB_CODE_SUCCESS ? TSDB_CODE_SUCCESS : mndXnodeProtectionError();
+}
+
 static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode        *pMnode = pReq->info.node;
   SSdb          *pSdb = pMnode->pSdb;
@@ -2339,6 +3145,11 @@ static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
     }
 
+    if (!mndXnodeShowFilterMatches(pShow->xnodeRetrieveFilterType, pShow->xnodeRetrieveFilterValue, pObj->id, 0)) {
+      sdbRelease(pSdb, pObj);
+      continue;
+    }
+
     cols = 0;
     // id
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -2353,18 +3164,38 @@ static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     if (code != 0) goto _end;
 
     // from
-    buf[0] = 0;
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->sourceDsn, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
-    if (code != 0) goto _end;
+    if (pObj->sourceDsnLen > 0 && pObj->sourceDsn != NULL) {
+      if (pShow->xnodeOutputMode == XNODE_SHOW_OUTPUT_PLAINTEXT) {
+        // PLAINTEXT keeps the zero-allocation stack path. buf holds at most the
+        // stored DSN limit; the show schema is wider (2x) to fit protected output.
+        buf[0] = 0;
+        STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->sourceDsn, VARSTR_HEADER_SIZE + TSDB_XNODE_TASK_SOURCE_LEN);
+        code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+      } else {
+        code = mndXnodeSetDsnShowColumn(pShow, pColInfo, numOfRows, pObj->sourceDsn, pObj->sourceDsnLen - 1,
+                                        TSDB_XNODE_TASK_SOURCE_LEN);
+      }
+      if (code != 0) goto _end;
+    } else {
+      colDataSetNULL(pColInfo, numOfRows);
+    }
 
     // to
-    buf[0] = 0;
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->sinkDsn, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
-    if (code != 0) goto _end;
+    if (pObj->sinkDsnLen > 0 && pObj->sinkDsn != NULL) {
+      if (pShow->xnodeOutputMode == XNODE_SHOW_OUTPUT_PLAINTEXT) {
+        buf[0] = 0;
+        STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->sinkDsn, VARSTR_HEADER_SIZE + TSDB_XNODE_TASK_SINK_LEN);
+        code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+      } else {
+        code = mndXnodeSetDsnShowColumn(pShow, pColInfo, numOfRows, pObj->sinkDsn, pObj->sinkDsnLen - 1,
+                                        TSDB_XNODE_TASK_SINK_LEN);
+      }
+      if (code != 0) goto _end;
+    } else {
+      colDataSetNULL(pColInfo, numOfRows);
+    }
 
     // parser
     if (pObj->parserLen > 0 && pObj->parser != NULL) {
@@ -2464,6 +3295,13 @@ _end:
     mError("failed to retrieve xnode tasks, code:%s", tstrerror(code));
   }
   mndReleaseUser(pMnode, pOperUser);
+
+  // Only failures reported by the protection helpers carry the normalized code
+  // and turn the show object sticky; unrelated failures keep their original code.
+  if (code == TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED) {
+    pShow->xnodeProtectionFailed = true;
+    return code;
+  }
 
   pShow->numOfRows += numOfRows;
   return numOfRows;
@@ -3913,8 +4751,9 @@ _OVER:
  *
  *  {.name = "jid", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "tid", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
-    {.name = "config", .bytes = TSDB_XNODE_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo =
- false},
+    {.name = "config",
+     .bytes = TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN + BLOBSTR_HEADER_SIZE,
+     .type = TSDB_DATA_TYPE_BLOB, .sysInfo = false},
     {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     // {.name = "reason", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
@@ -3952,6 +4791,12 @@ static int32_t mndRetrieveXnodeJobs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       }
     }
 
+    if (!mndXnodeShowFilterMatches(pShow->xnodeRetrieveFilterType, pShow->xnodeRetrieveFilterValue, pObj->id,
+                                   pObj->taskId)) {
+      sdbRelease(pSdb, pObj);
+      continue;
+    }
+
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     // id
@@ -3964,8 +4809,23 @@ static int32_t mndRetrieveXnodeJobs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 
     // config
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = mndSetXnodeBlobColumn(pColInfo, numOfRows, pObj->config, pObj->configLen);
-    if (code != 0) goto _end;
+    if (pShow->xnodeOutputMode == XNODE_SHOW_OUTPUT_PLAINTEXT) {
+      // PLAINTEXT keeps the zero-allocation direct write into the column buffer.
+      code = mndSetXnodeBlobColumn(pColInfo, numOfRows, pObj->config, pObj->configLen);
+      if (code != 0) goto _end;
+    } else if (pObj->config == NULL) {
+      colDataSetNULL(pColInfo, numOfRows);
+    } else {
+      char   *projectedConfig = NULL;
+      int32_t projectedConfigLen = 0;
+      code = mndXnodeProjectJobConfigForShow(pShow, pObj->config, pObj->configLen, &projectedConfig,
+                                             &projectedConfigLen);
+      if (code == TSDB_CODE_SUCCESS) {
+        code = varColSetVarData(pColInfo, numOfRows, projectedConfig, projectedConfigLen, false);
+      }
+      taosMemoryFree(projectedConfig);
+      if (code != 0) goto _end;
+    }
 
     // via
     if (pObj->via != 0) {
@@ -4028,6 +4888,13 @@ static int32_t mndRetrieveXnodeJobs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 _end:
   if (code != 0) sdbRelease(pSdb, pObj);
   mndReleaseUser(pMnode, pOperUser);
+
+  // Only failures reported by the protection helpers carry the normalized code
+  // and turn the show object sticky; unrelated failures keep their original code.
+  if (code == TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED) {
+    pShow->xnodeProtectionFailed = true;
+    return code;
+  }
 
   pShow->numOfRows += numOfRows;
   return numOfRows;

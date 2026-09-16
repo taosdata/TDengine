@@ -1,6 +1,8 @@
+import os
 import time
 
 from new_test_framework.utils import tdLog, tdSql, tdStream
+from new_test_framework.utils.srvCtl import sc
 
 
 class TestSubqueryCountWindowNoOutput:
@@ -26,6 +28,48 @@ class TestSubqueryCountWindowNoOutput:
             f"stream {self.case_db}.{self.stream_name} result row count mismatch, "
             f"expected {expected_rows}, actual {actual_rows}"
         )
+
+    def reset_taosd_log(self):
+        log_files = [sc.dnodeLogPath(1) + f"/taosdlog.{index}" for index in range(2)]
+        previous_mtimes = {}
+        for log_file in log_files:
+            try:
+                previous_mtimes[log_file] = os.stat(log_file).st_mtime_ns
+            except FileNotFoundError:
+                previous_mtimes[log_file] = None
+
+        tdSql.execute("alter all dnodes 'resetlog'")
+        marker = "reset log file"
+        for _ in range(self.wait_seconds):
+            active_logs = []
+            for log_file in log_files:
+                try:
+                    stat_result = os.stat(log_file)
+                    if stat_result.st_mtime_ns == previous_mtimes[log_file]:
+                        continue
+                    with open(log_file, "r", encoding="utf-8", errors="ignore") as log:
+                        if marker in log.read():
+                            active_logs.append((stat_result.st_mtime_ns, log_file))
+                except FileNotFoundError:
+                    continue
+            if active_logs:
+                active_log = max(active_logs)[1]
+                tdLog.info(f"active taosd log after reset: {active_log}")
+                return active_log
+            time.sleep(1)
+        tdLog.exit(f"cannot find active taosd log containing {marker}")
+
+    def check_ext_window_log(self, log_file):
+        pattern = "extWindow:1"
+        for _ in range(self.wait_seconds):
+            try:
+                with open(log_file, "r", encoding="utf-8", errors="ignore") as log:
+                    if pattern in log.read():
+                        return
+            except FileNotFoundError:
+                tdLog.info(f"taosd log file does not exist yet: {log_file}")
+            time.sleep(1)
+        tdLog.exit(f"taosd log {log_file} does not contain {pattern}")
 
     def stream_sql(self):
         return f"""
@@ -80,7 +124,7 @@ class TestSubqueryCountWindowNoOutput:
         tdSql.execute(self.stream_sql())
         tdStream.waitStreamStatus(self.case_db, self.stream_name, "Running")
 
-    def check_result(self):
+    def check_result(self, log_file):
         tdLog.info("check count_window subquery stream result")
         self.wait_result_rows(2)
         tdSql.query(f"select `cnt`, f_ip from `{self.case_db}`.`{self.result_table}` order by `ts`")
@@ -89,15 +133,17 @@ class TestSubqueryCountWindowNoOutput:
         tdSql.checkData(0, 1, 12)
         tdSql.checkData(1, 0, 1)
         tdSql.checkData(1, 1, 12)
+        self.check_ext_window_log(log_file)
 
         print("count_window subquery no output regression ......................... [ passed ]")
 
     def do_count_window_subquery_no_output(self):
         self.create_snode()
         self.prepare_schema()
+        log_file = self.reset_taosd_log()
         self.create_stream()
         self.write_trigger_data()
-        self.check_result()
+        self.check_result(log_file)
 
     # --- main ---
     def test_subquery_count_window_no_output(self):

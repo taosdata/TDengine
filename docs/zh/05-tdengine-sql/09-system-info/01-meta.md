@@ -1112,8 +1112,8 @@ SELECT `vgroups` FROM information_schema.ins_databases WHERE name = 'test';
 | --- | ------------- | ------------- | --- |
 | 1   | `id`          | INT           | ID |
 | 2   | `name`        | VARCHAR(64)   | 名称 |
-| 3   | `from`        | VARCHAR(4096) | 源 |
-| 4   | `to`          | VARCHAR(2048) | 目标 |
+| 3   | `from`        | VARCHAR(8192) | 源 |
+| 4   | `to`          | VARCHAR(4096) | 目标 |
 | 5   | `parser`      | VARCHAR(48)   | 解析配置 |
 | 6   | `via`         | INT           | 经由节点 |
 | 7   | `xnode_id`    | INT           | Xnode ID |
