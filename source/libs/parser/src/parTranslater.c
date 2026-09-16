@@ -74,11 +74,20 @@
 // NOTE: getSyntaxErrFormat() is file-static to parUtil.c, so the detailed
 // format must be reached through generateSyntaxErrMsg() instead of a direct
 // call.
+// The TD_ENTERPRISE switch is folded into the macro so that call sites need no
+// #ifndef/#endif of their own: in an enterprise build the statement compiles
+// away to nothing and the surrounding code is kept as usual.
+#ifdef TD_ENTERPRISE
+#define PAR_ENTERPRISE_ONLY(pCxt, feature) \
+  do {                                     \
+  } while (0)
+#else
 #define PAR_ENTERPRISE_ONLY(pCxt, feature)                                              \
   do {                                                                                  \
     parserError("%s: %s", tstrerror(TSDB_CODE_OSS_NOT_SUPPORT), (feature));             \
     return generateSyntaxErrMsg(&(pCxt)->msgBuf, TSDB_CODE_OSS_NOT_SUPPORT, (feature)); \
   } while (0)
+#endif
 
 typedef struct SRewriteTbNameContext {
   int32_t errCode;
@@ -19729,9 +19738,7 @@ static int32_t translateTrimDbWal(STranslateContext* pCxt, STrimDbWalStmt* pStmt
 }
 
 static int32_t translateCreateToken(STranslateContext* pCxt, SCreateTokenStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "CREATE TOKEN");
-#endif
   SCreateTokenReq req = {0};
 
   tstrncpy(req.name, pStmt->name, sizeof(req.name));
@@ -19748,9 +19755,7 @@ static int32_t translateCreateToken(STranslateContext* pCxt, SCreateTokenStmt* p
 }
 
 static int32_t translateAlterToken(STranslateContext* pCxt, SAlterTokenStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "ALTER TOKEN");
-#endif
   SAlterTokenReq req = {0};
   STokenOptions* opts = pStmt->pTokenOptions;
 
@@ -19775,9 +19780,7 @@ static int32_t translateAlterToken(STranslateContext* pCxt, SAlterTokenStmt* pSt
 }
 
 static int32_t translateDropToken(STranslateContext* pCxt, SDropTokenStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "DROP TOKEN");
-#endif
   SDropTokenReq req = {0};
   tstrncpy(req.name, pStmt->name, sizeof(req.name));
   req.ignoreNotExists = pStmt->ignoreNotExists;
@@ -19787,9 +19790,7 @@ static int32_t translateDropToken(STranslateContext* pCxt, SDropTokenStmt* pStmt
 }
 
 static int32_t translateCreateTotpSecret(STranslateContext* pCxt, SCreateTotpSecretStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "CREATE TOTP SECRET");
-#endif
   SCreateTotpSecretReq req = {0};
   tstrncpy(req.user, pStmt->user, sizeof(req.user));
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_TOTP_SECRET, (FSerializeFunc)tSerializeSCreateTotpSecretReq, &req);
@@ -19798,9 +19799,7 @@ static int32_t translateCreateTotpSecret(STranslateContext* pCxt, SCreateTotpSec
 }
 
 static int32_t translateDropTotpSecret(STranslateContext* pCxt, SDropTotpSecretStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "DROP TOTP SECRET");
-#endif
   SDropTotpSecretReq req = {0};
   tstrncpy(req.user, pStmt->user, sizeof(req.user));
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_TOTP_SECRET, (FSerializeFunc)tSerializeSDropTotpSecretReq, &req);
@@ -22041,9 +22040,7 @@ static int32_t translateDropEncryptAlgr(STranslateContext* pCxt, SDropEncryptAlg
 }
 
 static int32_t translateCreateAnode(STranslateContext* pCxt, SCreateAnodeStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "CREATE ANODE");
-#endif
   SMCreateAnodeReq createReq = {0};
   createReq.urlLen = strlen(pStmt->url) + 1;
   if (createReq.urlLen > TSDB_ANALYTIC_ANODE_URL_LEN) {
@@ -22063,9 +22060,7 @@ static int32_t translateCreateAnode(STranslateContext* pCxt, SCreateAnodeStmt* p
 }
 
 static int32_t translateDropAnode(STranslateContext* pCxt, SDropAnodeStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "DROP ANODE");
-#endif
   SMDropAnodeReq dropReq = {0};
   dropReq.anodeId = pStmt->anodeId;
 
@@ -22075,9 +22070,7 @@ static int32_t translateDropAnode(STranslateContext* pCxt, SDropAnodeStmt* pStmt
 }
 
 static int32_t translateUpdateAnode(STranslateContext* pCxt, SUpdateAnodeStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "UPDATE ANODE");
-#endif
   SMUpdateAnodeReq updateReq = {0};
   updateReq.anodeId = pStmt->anodeId;
 
@@ -22705,9 +22698,7 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
 }
 
 static int32_t translateRestoreDnode(STranslateContext* pCxt, SRestoreComponentNodeStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "RESTORE DNODE");
-#endif
   SRestoreDnodeReq restoreReq = {0};
   restoreReq.dnodeId = pStmt->dnodeId;
   restoreReq.vgId = pStmt->vgId;
@@ -22747,9 +22738,7 @@ static int32_t translateAlterCluster(STranslateContext* pCxt, SAlterClusterStmt*
 }
 
 static int32_t translateAlterEncryptKey(STranslateContext* pCxt, SAlterEncryptKeyStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "ALTER ENCRYPT KEY");
-#endif
   SMAlterEncryptKeyReq alterReq = {0};
   alterReq.keyType = pStmt->keyType;
   tstrncpy(alterReq.newKey, pStmt->newKey, sizeof(alterReq.newKey));
@@ -22768,9 +22757,7 @@ static int32_t translateAlterEncryptKey(STranslateContext* pCxt, SAlterEncryptKe
 }
 
 static int32_t translateAlterKeyExpiration(STranslateContext* pCxt, SAlterKeyExpirationStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "ALTER KEY EXPIRATION");
-#endif
   SMAlterKeyExpirationReq alterReq = {0};
   alterReq.days = pStmt->days;
   tstrncpy(alterReq.strategy, pStmt->strategy, sizeof(alterReq.strategy));
@@ -23368,9 +23355,7 @@ static int32_t translateTimeRange(STranslateContext* pCxt, const char* dbName, S
 }
 
 static int32_t translateBackup(STranslateContext* pCxt, SCreateBackupStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "BACKUP DATABASE");
-#endif
   // Phase 1: only cluster-level FULL backup is accepted; incremental and
   // database-level backups are reserved for a later phase.
   // A target backup chain id only applies to incremental backup, so specifying
@@ -23410,9 +23395,7 @@ static int32_t translateBackup(STranslateContext* pCxt, SCreateBackupStmt* pStmt
 }
 
 static int32_t translateKillBackup(STranslateContext* pCxt, SKillBackupStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "KILL BACKUP");
-#endif
   SKillBackupReq killReq = {0};
   killReq.backupId = pStmt->targetId;
 
@@ -23422,9 +23405,7 @@ static int32_t translateKillBackup(STranslateContext* pCxt, SKillBackupStmt* pSt
 }
 
 static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "COMPACT DATABASE");
-#endif
   SCompactDbReq compactReq = {
       .metaOnly = pStmt->metaOnly,
       .force = pStmt->force,
@@ -23558,9 +23539,7 @@ static int32_t translateVgroupList(STranslateContext* pCxt, SNodeList* vgroupLis
 }
 
 static int32_t translateCompactVgroups(STranslateContext* pCxt, SCompactVgroupsStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "COMPACT VGROUPS");
-#endif
   int32_t       code = TSDB_CODE_SUCCESS;
   SName         name;
   SCompactDbReq req = {
@@ -23660,9 +23639,7 @@ static int32_t translateKillConnection(STranslateContext* pCxt, SKillStmt* pStmt
 }
 
 static int32_t translateKillCompact(STranslateContext* pCxt, SKillStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "KILL COMPACT");
-#endif
   SKillCompactReq killReq = {0};
   killReq.compactId = pStmt->targetId;
   killReq.force = pStmt->force ? 1 : 0;
@@ -28839,9 +28816,7 @@ static int32_t validateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStm
 }
 
 static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "CREATE VIEW");
-#endif
 
   SParseSqlRes res = {.resType = PARSE_SQL_RES_SCHEMA};
   SName        name = {0};
@@ -29766,9 +29741,7 @@ static int32_t translateAssignLeader(STranslateContext* pCxt, SAssignLeaderStmt*
 }
 
 static int32_t translateBalanceVgroupLeader(STranslateContext* pCxt, SBalanceVgroupLeaderStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "BALANCE VGROUP LEADER");
-#endif
   SBalanceVgroupLeaderReq req = {0};
   req.vgId = pStmt->vgId;
   // Reuse the pre-existing `reserved` field to carry the force flag for full
@@ -29838,9 +29811,7 @@ static int32_t translateRedistributeVgroup(STranslateContext* pCxt, SRedistribut
 }
 
 static int32_t translateSplitVgroup(STranslateContext* pCxt, SSplitVgroupStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "SPLIT VGROUP");
-#endif
   SSplitVgroupReq req = {.vgId = pStmt->vgId, .force = pStmt->force};
   return buildCmdMsg(pCxt, TDMT_MND_SPLIT_VGROUP, (FSerializeFunc)tSerializeSSplitVgroupReq, &req);
 }
@@ -31619,9 +31590,7 @@ static void normalizeQuotedEmptyValue(char* value) {
 }
 
 static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourceStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "CREATE EXTERNAL SOURCE");
-#endif
   if (!tsFederatedQueryEnable) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
                                    "Federated query is disabled (set federatedQueryEnable=1)");
@@ -31706,9 +31675,7 @@ static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourc
 }
 
 static int32_t translateAlterExtSource(STranslateContext* pCxt, SAlterExtSourceStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "ALTER EXTERNAL SOURCE");
-#endif
   if (!tsFederatedQueryEnable) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
                                    "Federated query is disabled");
@@ -31835,9 +31802,7 @@ static int32_t translateAlterExtSource(STranslateContext* pCxt, SAlterExtSourceS
 }
 
 static int32_t translateDropExtSource(STranslateContext* pCxt, SDropExtSourceStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "DROP EXTERNAL SOURCE");
-#endif
   if (!tsFederatedQueryEnable) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
                                    "Federated query is disabled");
@@ -31860,9 +31825,7 @@ static int32_t translateDropExtSource(STranslateContext* pCxt, SDropExtSourceStm
 }
 
 static int32_t translateRefreshExtSource(STranslateContext* pCxt, SRefreshExtSourceStmt* pStmt) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "REFRESH EXTERNAL SOURCE");
-#endif
   if (!tsFederatedQueryEnable) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
                                    "Federated query is disabled");
@@ -40440,9 +40403,7 @@ static int32_t rewriteShowXnodeStmt(STranslateContext* pCxt, SQuery* pQuery) {
 // ============================================================
 
 static int32_t rewriteShowExtSources(STranslateContext* pCxt, SQuery* pQuery) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "SHOW EXTERNAL SOURCES");
-#endif
   if (!tsFederatedQueryEnable) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
                                    "Federated query is disabled (set federatedQueryEnable=1)");
@@ -40462,9 +40423,7 @@ static int32_t rewriteShowExtSources(STranslateContext* pCxt, SQuery* pQuery) {
 }
 
 static int32_t rewriteDescribeExtSource(STranslateContext* pCxt, SQuery* pQuery) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "DESCRIBE EXTERNAL SOURCE");
-#endif
   if (!tsFederatedQueryEnable) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
                                    "Federated query is disabled (set federatedQueryEnable=1)");
@@ -40504,9 +40463,7 @@ static int32_t rewriteDescribeExtSource(STranslateContext* pCxt, SQuery* pQuery)
 }
 
 static int32_t rewriteShowExtSourceCapability(STranslateContext* pCxt, SQuery* pQuery) {
-#ifndef TD_ENTERPRISE
   PAR_ENTERPRISE_ONLY(pCxt, "SHOW EXTERNAL SOURCE CAPABILITY");
-#endif
   if (!tsFederatedQueryEnable) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
                                    "Federated query is disabled (set federatedQueryEnable=1)");
