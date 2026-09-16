@@ -13,7 +13,7 @@ Prepare the following environment:
 - Start taosAdapter. For details, see the [taosAdapter Reference](../../12-operations-and-tooling/03-components/03-taosadapter.md).
 - [Download and install FineBI](https://www.finebi.com/product/download).
 - Download the [`fine_conf_entity` plugin](https://market.fanruan.com/plugin/1052a471-0239-4cd8-b832-045d53182c5d), which enables JDBC driver uploads.
-- Download a recent TDengine JDBC connector from Maven Central. This example uses `taos-jdbcdriver-3.4.0-dist.jar`.
+- Download a recent TDengine JDBC connector from Maven Central. This example uses `taos-jdbcdriver-3.9.1-dist.jar`.
 
 ## Configure the Data Source
 
@@ -32,7 +32,7 @@ Prepare the following environment:
 
    <!-- ![Create a FineBI driver](../../assets/finebi-02.webp) -->
 
-1. Choose **Upload File** and upload the TDengine Java connector, such as `taos-jdbcdriver-3.4.0-dist.jar`. Select `com.taosdata.jdbc.ws.WebSocketDriver` from the driver list and save the driver.
+1. Choose **Upload File** and upload the TDengine Java connector, such as `taos-jdbcdriver-3.9.1-dist.jar`. Select `com.taosdata.jdbc.ws.WebSocketDriver` from the driver list and save the driver.
 
    <!-- ![Upload the TDengine JDBC driver](../../assets/finebi-03.webp) -->
 

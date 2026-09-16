@@ -41,6 +41,7 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 
 | taos-jdbcdriver 版本 | 主要变化                                                                                                                                                                                                                                                                               | TDengine 版本 |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 3.9.2                | WebSocket 连接支持 `setTimezone`/`getTimezone` 接口，可在运行时动态设置连接时区。 | - |
 | 3.9.1                | 1. WebSocket 查询时间戳支持纳秒精度。<br/>2. WebSocket 连接支持 PreparedStatement 缓存（stmtCacheSize），复用已预编译语句提升写入性能。                                                                                                                                                                                                                              | -                  |
 | 3.9.0                | 优化参数绑定缓存和序列化，以提升 TDengine TSDB Enterprise `v3.4.1.16` 及更高版本的写入性能                                                                                                                                                                                                                              | -                  |
 | 3.8.4                | 1. 支持 taosadapter 的高可用（HA）端点发现。<br/>2. 连接前对端点进行乱序。<br/>3. 修复 WebSocket 连接属性初始化 Catalog。                                                                                                                                                                                                                           | -                  |
@@ -283,7 +284,7 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_LOCALE [`locale`]：仅在使用 JDBC 原生连接时生效。客户端语言环境，默认值系统当前 locale。
 - TSDBDriver.PROPERTY_KEY_TIME_ZONE [`timezone`]：
   - 原生连接：客户端使用的时区，默认值为系统当前时区，全局生效。因为历史的原因，我们只支持 POSIX 标准的部分规范，如 UTC-8(代表中国上海), GMT-8，Asia/Shanghai 这几种形式。
-  - WebSocket 连接：客户端使用的时区，连接上生效，默认值为系统时区。仅支持 IANA 时区，即 Asia/Shanghai 这种形式。推荐不设置，使用系统时区性能更好。
+  - WebSocket 连接：客户端使用的时区，连接上生效，默认值为系统时区。仅支持 IANA 时区，即 Asia/Shanghai 这种形式。推荐不设置，使用系统时区性能更好。建立连接后也可通过 `setTimezone` 接口在运行时修改时区，详见下文`设置时区`。
 - TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE [`batchErrorIgnore`]：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 
 ---
@@ -658,6 +659,20 @@ JDBC 驱动支持创建连接，返回支持 JDBC 标准的 `Connection` 接口�
 - `Properties getClientInfo() throws SQLException`
   - **接口说明**：获取所有客户端信息属性。
   - **返回值**：包含所有客户端信息属性的 `Properties` 对象。
+  - **异常**：操作失败抛出 `SQLException` 异常。
+
+#### 设置时区
+
+注：以下 abstract 类型接口会被具体实现类实现，因此建立连接后得到连接对象可以直接调用。仅 WebSocket 连接支持，原生连接和 REST 连接调用会抛出 `SQLFeatureNotSupportedException` 异常。
+
+- `abstract void setTimezone(String timezone) throws SQLException`
+  - **接口说明**：在运行时设置当前连接的时区。新时区从下一次执行的 SQL 开始生效，已经打开的结果集不受影响；`PreparedStatement` 绑定参数中的时间戳按绑定（bind）时刻的时区进行转换。`setTimezone` 应在 `PreparedStatement` 开始绑定参数之前调用，绑定过程中修改时区属于使用错误，驱动不保证已绑定数据的时区解释。
+  - **参数说明**：
+    - `timezone`：IANA 时区名，例如 `Asia/Shanghai`；传入 `null` 或空串表示清除时区设置，回退到 JVM 默认时区。
+  - **异常**：时区名非法或设置失败抛出 `SQLException` 异常。
+- `abstract String getTimezone() throws SQLException`
+  - **接口说明**：获取当前连接设置的时区。
+  - **返回值**：IANA 时区名；未设置时区（使用 JVM 默认时区）时返回 `null`。
   - **异常**：操作失败抛出 `SQLException` 异常。
 
 #### 无模式写入
