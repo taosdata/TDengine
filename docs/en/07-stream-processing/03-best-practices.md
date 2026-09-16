@@ -56,6 +56,85 @@ In the stream status display (query the table information_schema.ins_streams), s
 
 ### Stream Creation Example
 
+#### Filter Notifications by Condition {#notify-where}
+
+`NOTIFY ... WHERE` selects which computation result rows appear in notifications while preserving the complete results in the output table. The following examples filter notifications by average current and by quality flags in the source data. For syntax and filter scope, see [Notification Mechanism in Stream Processing](./01-syntax.md#notification-mechanism-in-stream-processing).
+
+Before running the examples, ensure that an snode is available and start a WebSocket receiver at `ws://localhost:8080/notify`. Here, `localhost` refers to the host running taosd. The examples use `Asia/Shanghai` (UTC+8) for both the client and server timezones and millisecond database precision. Create the empty table and both streams first, wait until the streams are ready, and then insert the sample data.
+
+```sql
+CREATE DATABASE notify_demo VGROUPS 1 PRECISION 'ms' KEEP 3650;
+USE notify_demo;
+CREATE TABLE measurements (ts TIMESTAMP, current DOUBLE, quality INT);
+```
+
+**Example 1: Filter notifications by computation results**
+
+Compute the average current when each 10-second window closes and send a result notification only when the average exceeds 20:
+
+```sql
+CREATE STREAM avg_alarm
+  INTERVAL(10s) SLIDING(10s) FROM measurements
+  NOTIFY('ws://localhost:8080/notify')
+    ON(WINDOW_CLOSE) WHERE avg_current > 20
+  INTO avg_results
+  AS SELECT _twstart AS window_start,
+            AVG(current) AS avg_current
+     FROM %%trows;
+```
+
+`avg_current` is an output alias in the computation query. Results whose average does not exceed 20 are still written to `avg_results`; they are simply excluded from result notifications.
+
+**Example 2: Filter notifications based on source column values**
+
+Suppose `quality = 0` marks an abnormal reading. Send a notification if a window contains at least one abnormal row, while computing the average current over all rows in the window. Add an abnormal-row count, `bad_rows`, to the computation results and use it in the notification condition:
+
+```sql
+CREATE STREAM quality_alarm
+  INTERVAL(10s) SLIDING(10s) FROM measurements
+  NOTIFY('ws://localhost:8080/notify')
+    ON(WINDOW_CLOSE) WHERE bad_rows > 0
+  INTO quality_results
+  AS SELECT _twstart AS window_start,
+            AVG(current) AS avg_current,
+            SUM(CASE WHEN quality = 0 THEN 1 ELSE 0 END) AS bad_rows
+     FROM %%trows;
+```
+
+This condition means that at least one row in the window is abnormal. It does not mean that the last row, or every row, is abnormal. `bad_rows` is an explicit output column, so it appears in both `quality_results` and matching notification results. If the computation query does not output `quality`, directly specifying `NOTIFY ... WHERE quality = 0` is rejected.
+
+**Insert data and check the results**
+
+Query the task status and confirm that the `Trigger` tasks for both streams are `Running` before inserting data:
+
+```sql
+SELECT stream_name, status FROM information_schema.ins_stream_tasks
+WHERE type = 'Trigger';
+
+INSERT INTO measurements VALUES
+    ('2025-12-09 00:00:00', 10, 0)
+    ('2025-12-09 00:00:01', 20, 1)
+    ('2025-12-09 00:00:10', 30, 1)
+    ('2025-12-09 00:00:11', 50, 1)
+    ('2025-12-09 00:00:20', 0, 1);
+```
+
+The last row advances event time to `00:00:20`, closing the first two 10-second windows. The row itself belongs to the third window, which remains open. The first two windows produce the following results and notifications:
+
+| window_start | avg_current | bad_rows | avg_alarm result notification | quality_alarm result notification |
+| --- | --- | --- | --- | --- |
+| 2025-12-09 00:00:00.000 | 15 | 1 | Not sent | Sent |
+| 2025-12-09 00:00:10.000 | 40 | 0 | Sent | Not sent |
+
+Both output tables store the results for both windows; only `quality_alarm` outputs `bad_rows`. Query the output tables and compare them with the notifications received over WebSocket for each stream:
+
+```sql
+SELECT * FROM avg_results ORDER BY window_start;
+SELECT * FROM quality_results ORDER BY window_start;
+```
+
+The first window's `avg_current = 15` shows that the row with `quality = 1` still contributes to the average. `NOTIFY ... WHERE` is not equivalent to `PRE_FILTER` or a `WHERE` clause in the computation query: those filter trigger data or computation input, respectively, while the notification condition filters only result notifications.
+
 #### Count Window Trigger
 
 - Each time one row is written into table tb1, compute the average value of column col1 in table tb2 over the past 5 minutes up to that moment, and write the result into table tb3.
