@@ -40,6 +40,7 @@ The JDBC driver implementation for TDengine strives to be consistent with relati
 
 | taos-jdbcdriver Version | Major Changes                                                                                                                                                                                                                                                                                                                                                                                                                              | TDengine Version   |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
+| 3.9.2                   | WebSocket connections support the `setTimezone`/`getTimezone` interfaces to dynamically set the connection time zone at runtime. | - |
 | 3.9.1                   | 1. Support nanosecond precision for WebSocket query timestamps. <br/> 2. Support PreparedStatement caching (stmtCacheSize) on WebSocket connections, reusing prepared statements to improve write performance.                                                                                                                                                                                                                                                                                                                                       | -                  |
 | 3.9.0                   | Optimize parameter binding caching and serialization to improve write performance for TDengine TSDB Enterprise 3.4.1.16 and later.                                                                                                                                                                                                                                                                                                                                       | -                  |
 | 3.8.4                   | 1. Support HA endpoint discovery for taosadapter. <br/> 2. Shuffle the endpoints before connecting. <br/> 3. Initialize the WebSocket catalog from connection properties.                                                                                                                                                                                                                                                                                                                                             | -                  |
@@ -281,7 +282,7 @@ The configuration parameters in properties are as follows:
 - TSDBDriver.PROPERTY_KEY_LOCALE [`locale`]: Effective only when using native JDBC connections. Client locale, default value is the current system locale.
 - TSDBDriver.PROPERTY_KEY_TIME_ZONE [`timezone`]:
   - Native connections: Client time zone, default value is the current system time zone. Effective globally. Due to historical reasons, we only support part of the POSIX standard, such as UTC-8 (representing Shanghai, China), GMT-8, Asia/Shanghai.
-  - WebSocket connections: Client time zone, default value is the current system time zone. Effective on the connection. Only IANA time zones are supported, such as Asia/Shanghai. It is recommended not to set this parameter, as using the system time zone provides better performance.
+  - WebSocket connections: Client time zone, default value is the current system time zone. Effective on the connection. Only IANA time zones are supported, such as Asia/Shanghai. It is recommended not to set this parameter, as using the system time zone provides better performance. After the connection is established, the time zone can also be changed at runtime via the `setTimezone` interface; see `Set Time Zone` below.
 
 ---
 
@@ -656,6 +657,20 @@ The JDBC driver supports creating connections, returning objects that support th
 - `Properties getClientInfo() throws SQLException`
   - **Interface Description**: Retrieves all client information properties.
   - **Return Value**: A `Properties` object containing all client information properties.
+  - **Exception**: Throws `SQLException` if the operation fails.
+
+#### Set Time Zone
+
+Note: The abstract type interfaces below will be implemented by specific implementation classes, so the connection object obtained after establishing a connection can be called directly. These interfaces are only supported on WebSocket connections; calling them on a native or REST connection throws `SQLFeatureNotSupportedException`.
+
+- `abstract void setTimezone(String timezone) throws SQLException`
+  - **Interface Description**: Sets the time zone of the current connection at runtime. The new time zone takes effect from the next executed SQL statement; result sets that are already open are not affected. For `PreparedStatement`, timestamp values in bound parameters are converted using the time zone in effect at bind time. `setTimezone` should be called before binding parameters on a `PreparedStatement`; changing the time zone in the middle of binding is a usage error, and the driver does not guarantee how already-bound data is interpreted.
+  - **Parameter Description**:
+    - `timezone`: An IANA time zone name, e.g. `Asia/Shanghai`. Passing `null` or an empty string clears the time zone setting and falls back to the JVM default time zone.
+  - **Exception**: Throws `SQLException` if the time zone name is invalid or the operation fails.
+- `abstract String getTimezone() throws SQLException`
+  - **Interface Description**: Gets the time zone currently set on the connection.
+  - **Return Value**: The IANA time zone name, or `null` if no time zone is set (the JVM default time zone is used).
   - **Exception**: Throws `SQLException` if the operation fails.
 
 #### Schemaless Write
