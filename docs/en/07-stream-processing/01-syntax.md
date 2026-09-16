@@ -563,10 +563,14 @@ Details:
   - IDLE: Group idle event; sent when a group enters idle state. Requires `IDLE_TIMEOUT` to be configured in `STREAM_OPTIONS`.
   - RESUME: Group resume event; sent when an idle group receives data again. Requires `IDLE_TIMEOUT` to be configured in `STREAM_OPTIONS`.
   - For `PERIOD` and plain `SLIDING` triggers, the notification payload uses `ON_TIME` as its `eventType`. `ON_TIME` is a payload value and cannot be specified in the `ON (...)` list.
-- [WHERE condition]: Specifies a condition that must be met for a notification to be sent. The condition may reference only columns from the computation result and/or constants.
+- [WHERE condition]: Filters notification content by computation result row, retaining only rows for which the condition is `TRUE`. Rows for which it is `FALSE` or `NULL` are excluded. If no result rows from a computation match, no result notification is sent for that computation. The condition may reference only columns or expressions output by the computation query (including aliases defined in `SELECT`) and constants. It cannot directly reference source columns that the query does not output. A stream using this condition must include an `AS subquery` computation statement.
 - [NOTIFY_OPTIONS(notify_option[|notify_option])]: Optional. Specifies notification behavior. The currently supported option is:
   - NOTIFY_HISTORY: Send notifications during historical computation. Default: not sent.
   - `ON_FAILURE_PAUSE` is not currently supported; see [Rules and Limitations](./02-instructions.md#rules-and-limitations).
+
+`NOTIFY ... WHERE` filters result notifications without changing trigger windows, the source rows used in computation, or the computed results written to the output table. To base a notification on source column values, first output the column or a derived condition result in the computation query, then reference it in the notification condition. For aggregate queries, specify whether the condition concerns any row, all rows, or the last row in the window. For complete SQL and expected results, see [Filter Notifications by Condition](./03-best-practices.md#notify-where).
+
+Notifications that contain only event information, with no computation for that event, do not pass through this result condition. For example, computation runs only on `WINDOW_CLOSE` by default. With `NOTIFY ... ON(WINDOW_OPEN | WINDOW_CLOSE) WHERE ...`, the `WINDOW_OPEN` notifications that contain only event information are not subject to the result condition. Use `ON(WINDOW_CLOSE)` for alerts based on window computation results.
 
 When a specified event is triggered, taosd sends a POST request to the configured URL. The message body is in JSON format. A single request may contain events from multiple streams, and the event types may vary.
 The event information included depends on the window type:
