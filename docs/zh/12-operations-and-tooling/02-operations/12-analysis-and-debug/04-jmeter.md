@@ -52,7 +52,7 @@ toc_max_heading_level: 4
 
   ```bash
   # JMETER_HOME 为 jmeter 安装目录，如 /opt/apache-jmeter-5.6.3/
-  cp taos-jdbcdriver-3.8.1-dist.jar $JMETER_HOME/lib/ext/
+  cp taos-jdbcdriver-3.9.1-dist.jar $JMETER_HOME/lib/ext/
   ```
 
 - 方式 2：在 JMX 文件中指定 Classpath（不推荐，仅作为备选）
@@ -60,7 +60,7 @@ toc_max_heading_level: 4
   在 TestPlan 元素中配置：
 
   ```xml
-  <stringProp name="TestPlan.user_define_classpath">/absolute/path/to/taos-jdbcdriver-3.8.1-dist.jar</stringProp>
+  <stringProp name="TestPlan.user_define_classpath">/absolute/path/to/taos-jdbcdriver-3.9.1-dist.jar</stringProp>
   ```
 
 > **注意**：CLI 模式下强烈推荐方式 1。
