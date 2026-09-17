@@ -17,7 +17,7 @@ toc_max_heading_level: 4
 - TDengine `v3.3.2.0` 以上版本集群已部署并正常运行（企业及社区版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../12-operations-and-tooling/03-components/03-taosadapter.md)。
 - 确保永洪 BI 已经安装并运行（如果未安装，请到永洪科技官方下载页面下载）。  
-- 安装 JDBC 驱动。从 maven.org 下载较新的 TDengine JDBC 连接器（文档示例基于 `taos-jdbcdriver-3.4.0-dist.jar`）。
+- 安装 JDBC 驱动。从 maven.org 下载较新的 TDengine JDBC 连接器（文档示例基于 `taos-jdbcdriver-3.9.1-dist.jar`）。
 
 ## 配置数据源
 
@@ -25,7 +25,7 @@ toc_max_heading_level: 4
 
 **第 1 步**，在打开的永洪 BI 中点击【添加数据源】按钮，选择 SQL 数据源中的“GENERIC”类型。
 
-**第 2 步**，点击【选择自定义驱动】按钮，在【驱动管理】对话框中点击【驱动列表】旁边的“+”，输入名称“MyTDengine”。然后点击【上传文件】按钮，上传刚刚下载的 TDengine JDBC 连接器文件 `taos-jdbcdriver-3.4.0-dist.jar`，并选择 `com.taosdata.jdbc.ws.WebSocketDriver` 驱动，最后点击“确定”按钮，完成驱动添加步骤。  
+**第 2 步**，点击【选择自定义驱动】按钮，在【驱动管理】对话框中点击【驱动列表】旁边的“+”，输入名称“MyTDengine”。然后点击【上传文件】按钮，上传刚刚下载的 TDengine JDBC 连接器文件 `taos-jdbcdriver-3.9.1-dist.jar`，并选择 `com.taosdata.jdbc.ws.WebSocketDriver` 驱动，最后点击“确定”按钮，完成驱动添加步骤。  
 
 **第 3 步**，复制下面的内容到【URL】字段。  
 

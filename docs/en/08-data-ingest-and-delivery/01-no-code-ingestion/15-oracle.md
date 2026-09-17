@@ -24,7 +24,7 @@ TDengine can efficiently read data from Oracle and write it to TDengine, enablin
 
 Fill in the *`connection information for the source Oracle database`* in the **Connection Configuration** area, as shown below:
 
-![Configure connection information](../../assets/oracle-01.png)
+![Configure connection information](../../assets/oracle-01.webp)
 
 ### Configure Authentication Information
 
@@ -32,7 +32,7 @@ Fill in the *`connection information for the source Oracle database`* in the **C
 
 **Password** Enter the login password for the user mentioned above in the source Oracle database.
 
-![Configure authentication information](../../assets/oracle-02.png)
+![Configure authentication information](../../assets/oracle-02.webp)
 
 Then click the **Check Connectivity** button, where users can click this button to check if the information filled in above can normally access data from the source Oracle database.
 
@@ -62,7 +62,7 @@ Then click the **Check Connectivity** button, where users can click this button 
 
 **Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writes, each synchronization task will read data from before the delay duration.
 
-![Configure data collection](../../assets/oracle-03.png)
+![Configure data collection](../../assets/oracle-03.webp)
 
 ### Configure Data Mapping
 
@@ -78,7 +78,7 @@ In **Mapping**, select the supertable in TDengine to map to, and the columns to 
 
 Click **Preview** to view the results of the mapping.
 
-![Configure data mapping](../../assets/oracle-04.png)
+![Configure data mapping](../../assets/oracle-04.webp)
 
 ### Configure Advanced Options
 
@@ -88,7 +88,7 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 **Batch Size** The maximum number of messages or rows sent at once. The default is 10000.
 
-![Configure advanced options](../../assets/oracle-05.png)
+![Configure advanced options](../../assets/oracle-05.webp)
 
 ### Configure Exception Handling
 

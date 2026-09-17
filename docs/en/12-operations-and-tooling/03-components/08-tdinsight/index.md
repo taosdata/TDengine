@@ -34,7 +34,7 @@ For steps on installing the Grafana TDengine data source plugin and configuring 
 ## Import TDinsightV3 Dashboard
 
 - **Recommended Method**: After configuring the data source, click "Dashboards" next to "Settings" — this will display the dashboard built into the data source. Then select "Import" next to "TDengine for 3.x" to import it.  
-![TDinsight V3 import](../../../assets/tdinsight-01.png)  
+![TDinsight V3 import](../../../assets/tdinsight-01.webp)  
 
 - Import via Dashboard ID: On the left side of the Grafana main interface, click the "Dashboards" Tab, then select "Import" under the "New" option in the top right corner. Enter the Dashboard ID `18180` for the "TDengine for 3.x" dashboard to complete the import.
 - Import via JSON Configuration:
@@ -53,7 +53,7 @@ It mainly includes Cluster Status, DNodes Overview, MNode Overview, Requests, Da
 
 This section includes current information and status of the cluster.
 
-![Cluster status section](../../../assets/tdinsight-02.png)
+![Cluster status section](../../../assets/tdinsight-02.webp)
 
 Metric details (from top to bottom, left to right):
 
@@ -72,7 +72,7 @@ Metric details (from top to bottom, left to right):
 
 This section includes basic information about the cluster's dnodes.
 
-![Dnode overview section](../../../assets/tdinsight-03.png)
+![Dnode overview section](../../../assets/tdinsight-03.webp)
 
 Metric details:
 
@@ -83,7 +83,7 @@ Metric details:
 
 This section includes basic information about the cluster's mnode.
 
-![Mnode overview section](../../../assets/tdinsight-04.png)
+![Mnode overview section](../../../assets/tdinsight-04.webp)
 
 Metric details:
 
@@ -94,7 +94,7 @@ Metric details:
 
 This section includes statistical metrics for SQL execution in the cluster.
 
-![SQL request overview](../../../assets/tdinsight-05.png)
+![SQL request overview](../../../assets/tdinsight-05.webp)
 
 Metric details:
 
@@ -108,7 +108,7 @@ Metric details:
 
 This section includes statistical metrics for tables in the cluster.
 
-![Table statistics section](../../../assets/tdinsight-06.png)
+![Table statistics section](../../../assets/tdinsight-06.webp)
 
 Metric details:
 
@@ -121,7 +121,7 @@ Metric details:
 
 This section includes a display of resource usage for all data nodes in the cluster, with each data node shown as a Row.
 
-![Dnode resource usage section](../../../assets/tdinsight-07.png)
+![Dnode resource usage section](../../../assets/tdinsight-07.webp)
 
 Metric details (from top to bottom, left to right):
 
@@ -143,7 +143,7 @@ Metric details (from top to bottom, left to right):
 
 This section includes detailed statistics for taosAdapter rest and websocket requests.
 
-![taosAdapter section](../../../assets/tdinsight-08.png)
+![taosAdapter section](../../../assets/tdinsight-08.webp)
 
 Metric details:
 

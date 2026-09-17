@@ -8181,7 +8181,8 @@ static int32_t dnodeToVgroupsInfo(SArray* pDnodes, SVgroupsInfo** pVgsInfo) {
 static bool sysTableFromVnode(const char* pTable) {
   return ((0 == strcmp(pTable, TSDB_INS_TABLE_TABLES)) || (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS)) ||
           (0 == strcmp(pTable, TSDB_INS_TABLE_COLS)) || 0 == strcmp(pTable, TSDB_INS_TABLE_VC_COLS) ||
-          0 == strcmp(pTable, TSDB_INS_DISK_USAGE) || (0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)) ||
+          0 == strcmp(pTable, TSDB_INS_DISK_USAGE) || (0 == strcmp(pTable, TSDB_INS_TABLE_LAST_CACHE_STATS)) ||
+          (0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)) ||
           (0 == strcmp(pTable, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING)) ||
           (0 == strcmp(pTable, TSDB_INS_TABLE_TABLE_FIXED_DISTRIBUTED)));
 }
@@ -8279,6 +8280,7 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
       ((0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) && !hasUserDbCond) ||
        0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS) ||
        (0 == strcmp(pRealTable->table.tableName, TSDB_INS_DISK_USAGE) && !hasUserDbCond) ||
+       (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_LAST_CACHE_STATS) && !hasUserDbCond) ||
        0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS) ||
        0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING) ||
        (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLE_FIXED_DISTRIBUTED) && !hasUserDbCond))) {
@@ -8493,6 +8495,7 @@ static bool isSingleTable(SRealTableNode* pRealTable) {
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TAGS) &&
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS) &&
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_DISK_USAGE) &&
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_LAST_CACHE_STATS) &&
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS) &&
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_VC_COLS) &&
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING) &&

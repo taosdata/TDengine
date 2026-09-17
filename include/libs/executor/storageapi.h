@@ -381,6 +381,7 @@ typedef struct SStoreMeta {
                        int64_t* numOfNormalTables);
   int8_t (*getSecurityLevel)(void* pVnode);
   int32_t (*getDBSize)(void* pVnode, SDbSizeStatisInfo* pInfo);
+  int32_t (*getLastCacheStats)(void* pVnode, SLastCacheStats* pStats);
 
   SMCtbCursor* (*openCtbCursor)(void* pVnode, tb_uid_t uid, int lock, int64_t txnId);
   int32_t (*resumeCtbCursor)(SMCtbCursor* pCtbCur, int8_t first);

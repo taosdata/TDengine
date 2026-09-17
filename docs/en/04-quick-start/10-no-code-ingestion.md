@@ -43,7 +43,7 @@ Under broker / connection settings, use the public MQTT broker:
 - **MQTT Host**: `broker.emqx.io`
 - **Port**: `1883`
 
-![Configure MQTT connection](../assets/mqtt-01.png)
+![Configure MQTT connection](../assets/mqtt-01.webp)
 
 ## Configure Connection and Authentication
 
@@ -86,7 +86,7 @@ In **Payload Transformation**, find the sample message body and enter the follow
 
 Click **Identify** / the preview icon under parsing to confirm JSON fields are extracted.
 
-![Payload parsing results](../assets/mqtt-04.png)
+![Payload parsing results](../assets/mqtt-04.webp)
 
 Then under **Mapping**, select or create the target supertable `meters`.
 
@@ -106,7 +106,7 @@ After the supertable is created and selected, complete mapping:
 1. On the **SubTableName** (`Tablename`) row, set Expression to `t_{id}` so the subtable name is built from the message `id` (for example `id` `1` → `t_1`).
 2. Map the remaining columns to the matching JSON fields (`ts`, `current`, `voltage`, `phase`, `groupid`, `location`).
 
-![Table mapping](../assets/mqtt-10.png)
+![Table mapping](../assets/mqtt-10.webp)
 
 Click **Submit**. You return to the **Data In Task** list.
 

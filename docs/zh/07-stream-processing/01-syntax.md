@@ -627,10 +627,14 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
   - IDLE：分组空闲事件，当分组进入空闲状态时发送通知，需同时在 `STREAM_OPTIONS` 中配置 `IDLE_TIMEOUT`。
   - RESUME：分组恢复事件，当空闲分组重新收到数据时发送通知，需同时在 `STREAM_OPTIONS` 中配置 `IDLE_TIMEOUT`。
   - 说明：`PERIOD` / 纯 `SLIDING` 触发时，通知消息中的 `eventType` 固定为 `ON_TIME`，该值仅出现在消息体中，不能写在 `ON (...)` 列表里。
-- [WHERE condition]：指定通知需要满足的条件，`condition` 中只能指定含计算结果列和（或）常量的条件。
+- [WHERE condition]：按计算结果行筛选通知内容，只保留条件值为 `TRUE` 的行；条件值为 `FALSE` 或 `NULL` 的行不进入通知。如果一次计算没有任何结果行满足条件，则不发送该次计算的结果通知。条件只能引用计算查询输出的列或表达式（可使用 `SELECT` 中定义的别名）以及常量，不能直接引用未输出的原始表列。使用此条件时，流必须包含 `AS subquery` 计算语句。
 - [NOTIFY_OPTIONS(notify_option[|notify_option])]：可选，指定通知选项用于控制通知行为。当前语法仅支持：
   - NOTIFY_HISTORY：指定计算历史数据时是否发送通知，未指定时默认不发送。
   - 说明：`ON_FAILURE_PAUSE` 暂不支持，参见 [运维与限制](./02-instructions.md#规则和限制)。
+
+`NOTIFY ... WHERE` 只筛选计算结果通知，不改变触发窗口、参与计算的原始数据或写入输出表的计算结果。若需要根据原始列值决定是否通知，应先在计算查询中输出该列或相应的判断结果，再在通知条件中引用；聚合场景需明确是判断窗口内任意一条、全部记录还是最后一条记录。完整 SQL 和结果对照见 [按条件发送通知](./03-best-practices.md#notify-where)。
+
+未执行计算、只发送事件信息的通知不经过上述结果条件。例如，默认只在 `WINDOW_CLOSE` 时执行计算，即使配置了 `NOTIFY ... ON(WINDOW_OPEN | WINDOW_CLOSE) WHERE ...`，其中仅包含事件信息的 `WINDOW_OPEN` 通知也不受结果条件限制。按窗口计算结果告警时，可以使用 `ON(WINDOW_CLOSE)`。
 
 当触发指定的事件时，taosd 会向指定的 URL 发送 POST 请求，消息体为 JSON 格式。一个请求可能包含若干个流的若干个事件，且事件类型不一定相同。
 事件信息视窗口类型而定：

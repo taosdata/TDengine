@@ -9,7 +9,7 @@ toc_max_heading_level: 4
 
 The architecture of TDengine's stream processing is illustrated in the following diagram. When a user inputs SQL to create a stream, first, the SQL is parsed on the client side, generating the logical execution plan and its related attribute information required for stream processing execution. Next, the client sends this information to the mnode. The mnode uses the vgroups information from the database where the data source (super) table is located, dynamically converts the logical execution plan into a physical execution plan, and further generates a Directed Acyclic Graph (DAG) for the stream task. Finally, the mnode initiates a distributed transaction, distributing the task to each vgroup, thereby starting the entire stream processing process.
 
-![Stream processing architecture](../assets/stream-01.png)
+![Stream processing architecture](../assets/stream-01.webp)
 
 The mnode contains the following four logical modules related to stream processing.
 
@@ -66,7 +66,7 @@ Whether out-of-order writing affects the stream processing results of the corres
 
 Each activated stream processing instance consists of multiple stream tasks distributed across different vnodes. These stream tasks show similarities in their overall architecture, each containing an all-memory resident input queue and output queue, a time-series data executor system, and a storage system for storing local state, as shown in the following diagram. This design ensures high performance and low latency of stream processing tasks, while also providing good scalability and fault tolerance.
 
-![Composition of stream processing tasks](../assets/stream-02.png)
+![Composition of stream processing tasks](../assets/stream-02.webp)
 
 Depending on the different roles of stream tasks, they can be divided into 3 categories—source task, agg task, and sink task.
 
@@ -84,7 +84,7 @@ The sink task is responsible for receiving the output results from the agg task 
 
 The above three types of tasks each play their roles in the stream processing architecture, distributed at different levels. Clearly, the number of source tasks directly depends on the number of vnodes, with each source task independently handling the data in its vnode without interference from other source tasks, and there are no sequential constraints. However, it is worth noting that if the final stream processing results converge to one table, then only one sink task will be deployed on the vnode where that table is located. The collaborative relationship between these three types of tasks is shown in the following diagram, together forming the complete execution process of stream processing tasks.
 
-![Relationships between tasks](../assets/stream-03.png)
+![Relationships between tasks](../assets/stream-03.webp)
 
 ## Stream Processing Nodes
 

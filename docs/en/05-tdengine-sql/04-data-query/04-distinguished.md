@@ -53,7 +53,7 @@ window_clause: {
 }
 ```
 
-Here, `interval_val` and `sliding_val` both represent time periods, and `interval_offset` represents the window offset, which must be less than `interval_val`. The syntax supports three forms, explained as follows:
+Here, `interval_val` and `sliding_val` both represent time periods, and `interval_offset` represents the window offset. An explicit offset duration must satisfy `0 <= interval_offset < interval_val`. The syntax supports three forms, explained as follows:
 
 - INTERVAL(1s, 500a) SLIDING(1s), with time units in single character form. See [Time Units](../01-datatype.md#time-units).
 - INTERVAL(1000, 500) SLIDING(1000), without time units, using the time precision of the query library as the default time unit, and when multiple libraries are present, the one with higher precision is used by default.
@@ -78,12 +78,12 @@ The following rules apply to the five window types SESSION, STATE_WINDOW, INTERV
 
 Time windows can be divided into sliding time windows and tumbling time windows.
 
-The INTERVAL clause is used to generate windows of equal time periods, and SLIDING is used to specify the time the window slides forward. Each executed query is a time window, and the time window slides forward as time flows. When defining continuous queries, it is necessary to specify the size of the time window (time window) and the forward sliding times for each execution. As shown, [t0s, t0e], [t1s, t1e], [t2s, t2e] are the time window ranges for three continuous queries, and the sliding time range is indicated by sliding time. Query filtering, aggregation, and other operations are performed independently for each time window. When SLIDING is equal to INTERVAL, the sliding window becomes a tumbling window. By default, windows begin at Unix time 0 (1970-01-01 00:00:00 UTC). If interval_offset is specified, the windows start from "Unix time 0 + interval_offset".
+The INTERVAL clause is used to generate windows of equal time periods, and SLIDING is used to specify the time the window slides forward. Each executed query is a time window, and the time window slides forward as time flows. When defining continuous queries, it is necessary to specify the size of the time window (time window) and the forward sliding times for each execution. As shown, [t0s, t0e], [t1s, t1e], [t2s, t2e] are the time window ranges for three continuous queries, and the sliding time range is indicated by sliding time. Query filtering, aggregation, and other operations are performed independently for each time window. When SLIDING is equal to INTERVAL, the sliding window becomes a tumbling window. For windows expressed in fixed-duration units such as hours, minutes, or seconds, the default alignment reference is Unix time 0 (1970-01-01 00:00:00 UTC). An explicit interval_offset shifts this reference to "Unix time 0 + interval_offset". Units such as days, weeks, months, and years also involve timezone and calendar boundaries; see [Timezone and Natural Time Units](../10-time/01-timezone.md).
 
 When the query object is a super table, the aggregate functions will apply to all data that meets the filtering conditions from all tables under that super table, and the results will be strictly monotonically increasing according to the window start time.
 If the query uses a PARTITION BY statement for grouping, the results will be strictly monotonically increasing according to the window start time within each PARTITION.
 
-![Time window](../../assets/distinguished-01.png)
+![Time window](../../assets/distinguished-01.webp)
 
 `INTERVAL` and `SLIDING` are usually used with aggregate and selection functions. In [window projection mode](#window-projection-mode), original columns can also be output.
 
@@ -93,26 +93,106 @@ The forward sliding time of SLIDING cannot exceed the time range of one window. 
 SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 ```
 
-The INTERVAL clause allows the use of the AUTO keyword to specify the window offset (Supported in version 3.3.5.0 and later). If the WHERE condition provides a clear applicable start time limit, the required offset will be automatically calculated, dividing the time window from that point; otherwise, it defaults to an offset of 0. Here are some simple examples:
+#### Window Boundaries and the Query Range
+
+The `WHERE` condition limits the source rows used in the calculation. By default, it does not restart window partitioning at the query start time. `_wstart` is the window's starting boundary, so it can precede the start time specified in `WHERE`. This does not mean that source rows before that time are included in the query.
+
+The following examples use `Asia/Shanghai` (UTC+8) for both the client and server timezones and millisecond database precision. They omit `SLIDING`, so the windows are non-overlapping tumbling windows. They also omit `FILL`, so windows without data produce no aggregate results.
 
 ```sql
--- With a start time limit, divide the time window from '2018-10-03 14:38:05'
-SELECT COUNT(*) FROM meters WHERE _rowts >= '2018-10-03 14:38:05' INTERVAL (1m, AUTO);
+CREATE DATABASE interval_demo PRECISION 'ms' KEEP 3650;
+USE interval_demo;
+CREATE TABLE samples (ts TIMESTAMP, v INT);
+INSERT INTO samples VALUES
+    ('2025-12-08 23:30:00', 100)
+    ('2025-12-09 00:00:00', 10)
+    ('2025-12-09 01:00:00', 20)
+    ('2025-12-09 02:00:00', 30)
+    ('2025-12-09 03:00:00', 40)
+    ('2025-12-09 08:00:00', 50)
+    ('2025-12-10 00:00:00', 60);
 
--- Without a start time limit, defaults to an offset of 0
-SELECT COUNT(*) FROM meters WHERE _rowts < '2018-10-03 15:00:00' INTERVAL (1m, AUTO);
-
--- Unclear start time limit, defaults to an offset of 0
-SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
+SELECT _wstart, COUNT(*) AS n, SUM(v) AS total
+FROM samples
+WHERE ts >= '2025-12-09 00:00:00'
+  AND ts <  '2025-12-10 00:00:00'
+INTERVAL(3h);
 ```
 
-The INTERVAL clause supports using the FILL clause to specify the data
-filling method when data is missing, except for the NEAR filling mode. For how to use the FILL clause,
-please refer to [FILL Clause](./01-query.md#fill-clause).
+The query returns:
+
+| _wstart | n | total |
+| --- | --- | --- |
+| 2025-12-08 23:00:00.000 | 2 | 30 |
+| 2025-12-09 02:00:00.000 | 2 | 70 |
+| 2025-12-09 08:00:00.000 | 1 | 50 |
+
+`3h` is `10800` seconds. The query start, `2025-12-09 00:00:00`, corresponds to Unix timestamp `1765209600` seconds. Rounding down to a multiple of `10800` gives `1765206000` seconds, or `2025-12-08 23:00:00` in UTC+8. Subsequent windows start at `02:00`, `05:00`, `08:00`, and so on, rather than every 3 hours from the query start.
+
+The first window is `[2025-12-08 23:00:00, 2025-12-09 02:00:00)`. Only the rows at `00:00` and `01:00` satisfy `WHERE`, so `n = 2` and `total = 30`. The row at `23:30` on the previous day is excluded. The row at `02:00` belongs to the next window. The window starting at `05:00` has no data and is omitted from the results.
+
+The condition `ts < '2025-12-10 00:00:00'` excludes midnight on the next day. Using `<=`, or `BETWEEN` with that inclusive upper bound, also includes the row at midnight and can add another result window.
+
+#### Aligning Windows with the Query Start
+
+`interval_offset` is a duration that shifts window alignment, not an absolute start time. Passing a full Unix timestamp as the offset exceeds the window width, for example:
+
+```sql
+-- Invalid: 1765209600 seconds exceeds 24 hours
+SELECT COUNT(*) FROM samples INTERVAL(24h, 1765209600s);
+```
+
+This statement returns `Interval offset should be shorter than interval`. An offset equal to the window width, such as `INTERVAL(3h, 3h)`, is also invalid.
+
+To align windows with the query start, use `AUTO` (supported since `v3.3.5.0`). For the query above, which omits `SLIDING`, if `WHERE` provides a clear applicable lower time bound, `AUTO` calculates the offset needed to start partitioning windows at that bound:
+
+```sql
+SELECT _wstart, COUNT(*) AS n, SUM(v) AS total
+FROM samples
+WHERE ts >= '2025-12-09 00:00:00'
+  AND ts <  '2025-12-10 00:00:00'
+INTERVAL(3h, AUTO);
+```
+
+The results become:
+
+| _wstart | n | total |
+| --- | --- | --- |
+| 2025-12-09 00:00:00.000 | 3 | 60 |
+| 2025-12-09 03:00:00.000 | 1 | 40 |
+| 2025-12-09 06:00:00.000 | 1 | 50 |
+
+Using `INTERVAL(3h, 1h)` in this query produces the same results. Here, the offset is the remainder of the query start's Unix timestamp divided by the window width: `1765209600 % 10800 = 3600` seconds. This remainder calculation applies to the fixed-duration windows in this example, without `SLIDING`; do not apply it directly to calendar-based windows.
+
+If no clear applicable lower time bound can be extracted from `WHERE`, `AUTO` has no effect and the offset remains `0`. For example, this query specifies only an upper time bound:
+
+```sql
+SELECT _wstart, COUNT(*) FROM samples
+WHERE ts < '2025-12-10 00:00:00'
+INTERVAL(3h, AUTO);
+```
+
+#### Differences Between `24h` and `1d`
+
+In the UTC+8 environment above, `INTERVAL(24h)` aligns fixed 24-hour durations relative to Unix time 0, placing boundaries at `08:00` local time each day. `INTERVAL(1d)` partitions by day with timezone adjustment, placing boundaries at local midnight. The two forms therefore produce different window boundaries.
+
+Keep the first query's `WHERE` condition and replace `INTERVAL(3h)` with `INTERVAL(24h)` and then `INTERVAL(1d)`. The results are:
+
+| Window clause | _wstart | n | total |
+| --- | --- | --- | --- |
+| `INTERVAL(24h)` | 2025-12-08 08:00:00.000 | 4 | 100 |
+| `INTERVAL(24h)` | 2025-12-09 08:00:00.000 | 1 | 50 |
+| `INTERVAL(1d)` | 2025-12-09 00:00:00.000 | 5 | 150 |
+
+Although the first `INTERVAL(24h)` window starts at `08:00` on the previous day, it aggregates only the 4 rows within the query range. `INTERVAL(1d)` places all 5 matching rows in the same daily window. Changing the upper bound to `<= '2025-12-10 00:00:00'` adds a second `INTERVAL(1d)` result window starting at midnight on the next day, with `n = 1` and `total = 60`.
+
+#### Filling Empty Windows and Usage Restrictions
+
+The `INTERVAL` clause supports `FILL` to specify how to fill missing data, except for the `NEAR` mode. `FILL` does not change window alignment. For example, appending `FILL(PREV)` to `INTERVAL(3h)` in the first query fills empty windows such as the one at `05:00`, but the first `_wstart` remains `23:00` on the previous day. For details, see [FILL Clause](./01-query.md#fill-clause).
 
 When using time windows, note:
 
-- The window width is specified by `INTERVAL`. The minimum allowed value is constrained by the client configuration parameter [`minIntervalTime`](../../12-operations-and-tooling/03-components/02-taosc.md#query-related) (default `1`, in the same unit as the database time precision). An offset (`interval_offset`, must be less than the interval) is also supported; it is the offset of the time-window division relative to “UTC time 0”. `SLIDING` specifies how far each window advances.
+- The window width is specified by `INTERVAL`. The minimum allowed value is constrained by the client configuration parameter [`minIntervalTime`](../../12-operations-and-tooling/03-components/02-taosc.md#query-related) (default `1`, in the same unit as the database time precision). Use `interval_offset` to adjust window alignment. An explicit offset duration must satisfy `0 <= interval_offset < interval_val`. `SLIDING` specifies how far each window advances.
 - When using the INTERVAL statement, unless in very special cases, it is required to configure the timezone parameter in the taos.cfg configuration files of both the client and server to the same value to avoid frequent cross-time zone conversions by time processing functions, which can cause severe performance impacts.
 - The returned results have a strictly monotonically increasing time-series.
 - When using AUTO as the window offset, if the WHERE time condition is complex, such as multiple AND/OR/IN combinations, AUTO may not take effect. In such cases, you can manually specify the window offset to resolve the issue.
@@ -122,7 +202,7 @@ When using time windows, note:
 
 State windows are divided according to the continuity of one or more state keys. Multiple state keys have been supported since v3.4.2.0. State keys support integers, booleans, and strings, and can also be expressions that return these types, such as `CASE WHEN`, `IF`, comparison expressions, `IN`, `BETWEEN`, `IS NULL` / `IS NOT NULL`, and logical expressions composed with `AND`, `OR`, and `NOT`. Adjacent rows compare state keys in the order they are written in SQL. If any key changes, the current window closes and a new one starts. The diagram below shows a single-key example, where the two resulting windows are [2019-04-28 14:22:07, 2019-04-28 14:22:10] and [2019-04-28 14:22:11, 2019-04-28 14:22:12].
 
-![State windows](../../assets/distinguished-02.png)
+![State windows](../../assets/distinguished-02.webp)
 
 The syntax is:
 
@@ -342,7 +422,7 @@ SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR 
 
 The session window is determined based on the timestamp primary key values of the records. As shown in the diagram below, if the continuous interval of the timestamps is set to be less than or equal to 12 seconds, the following 6 records form 2 session windows, which are: [2019-04-28 14:22:10, 2019-04-28 14:22:30] and [2019-04-28 14:23:10, 2019-04-28 14:23:30]. This is because the interval between 2019-04-28 14:22:30 and 2019-04-28 14:23:10 is 40 seconds, exceeding the continuous interval (12 seconds).
 
-![Session windows](../../assets/distinguished-03.png)
+![Session windows](../../assets/distinguished-03.webp)
 
 Results within the tol_value time interval are considered to belong to the same window; if the time between two consecutive records exceeds tol_val, the next window automatically starts.
 
@@ -376,7 +456,7 @@ Take the following SQL statement as an example, the event window segmentation is
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
 ```
 
-![Event windows](../../assets/distinguished-04.png)
+![Event windows](../../assets/distinguished-04.webp)
 
 The event window supports using the TRUE_FOR parameter to set window-level filtering conditions and open/close streak thresholds. All three sub-parameters are optional and may appear in any order, at most once each:
 
@@ -437,7 +517,7 @@ Take the following SQL statement as an example, the count window segmentation is
 select _wstart, _wend, count(*) from t count_window(4);
 ```
 
-![Count windows](../../assets/distinguished-05.png)
+![Count windows](../../assets/distinguished-05.webp)
 
 ### External Window
 

@@ -1186,6 +1186,84 @@ charset 的有效值是 UTF-8。
 - 动态修改：仅在企业版支持通过 SQL 修改，立即生效。
 - 支持版本：从 `v3.3.7.0` 版本开始引入
 
+### 缓存相关
+
+当 `CACHEMODEL` 不为 `none` 时，除内存中的 LRU 缓存外，每个 `vnode` 还会打开一个独立的 RocksDB 实例作为持久化 last cache 引擎，用于在内存缓存未命中或重启后继续服务 `last`/`last_row` 查询。以下参数用于调优该引擎的行为，均为 dnode 级参数。除 `CACHESIZE`（详见 [CACHESIZE](../../05-tdengine-sql/02-ddl/01-database.md#cachesize)，用于设置该引擎的 block cache 容量，支持立即生效）外，以下参数在打开 `vnode` 时一次性绑定到 RocksDB 的 `Options`，修改后需重启 `dnode`（或重新打开受影响的 `vnode`）才能生效。可以通过 [`INS_LAST_CACHE_STATS`](../../05-tdengine-sql/09-system-info/01-meta.md#ins_last_cache_stats) 系统表查看该引擎按 `vgroup` 的运行状态。
+
+#### sLastCacheWriteBufferSize
+
+- 说明：last cache 引擎（基于 RocksDB）单个 memtable 的写缓冲区大小
+- 类型：整数
+- 单位：MB
+- 默认值：8
+- 最小值：1
+- 最大值：1048576
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，重启生效。
+- 支持版本：从 `v3.4.2.11` 版本开始引入
+
+#### sLastCacheMaxWriteBufferNumber
+
+- 说明：last cache 引擎（基于 RocksDB）允许同时存在的最大 memtable 个数
+- 类型：整数
+- 默认值：2
+- 最小值：1
+- 最大值：64
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，重启生效。
+- 支持版本：从 `v3.4.2.11` 版本开始引入
+
+#### sLastCacheBackgroundThreads
+
+- 说明：last cache 引擎（基于 RocksDB）用于 flush/compaction 的后台线程数，每个 `vnode` 拥有独立的该规格线程池
+- 类型：整数
+- 默认值：2
+- 最小值：1
+- 最大值：256
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，重启生效。
+- 支持版本：从 `v3.4.2.11` 版本开始引入
+
+#### sLastCacheBloomFilterBits
+
+- 说明：last cache 引擎（基于 RocksDB）每个 key 使用的布隆过滤器位数，用于减少点查时不必要的 SST 文件读取；为 `0` 时表示关闭布隆过滤器
+- 类型：整数
+- 默认值：10
+- 最小值：0
+- 最大值：32
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，重启生效。
+- 支持版本：从 `v3.4.2.11` 版本开始引入
+
+#### sLastCacheMaxOpenFiles
+
+- 说明：last cache 引擎（基于 RocksDB）允许打开的最大文件描述符数量，`-1` 表示不限制
+- 类型：整数
+- 默认值：-1
+- 最小值：-1
+- 最大值：1048576
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，重启生效。
+- 支持版本：从 `v3.4.2.11` 版本开始引入
+
+#### sLastCacheCompressionType
+
+- 说明：last cache 引擎（基于 RocksDB）使用的压缩算法，可选值取决于编译时链接的压缩库
+- 类型：字符串
+- 默认值：none
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，重启生效。
+- 支持版本：从 `v3.4.2.11` 版本开始引入
+
+#### sLastCacheOptionsOverride
+
+- 说明：以原始 RocksDB `Options` 字符串形式（形如 `key1=value1;key2=value2;...`，通过 RocksDB `GetOptionsFromString` 解析）覆盖以上参数，优先级最低，供高级场景使用；其中与某个显式 `sLastCacheXxx` 参数重叠的选项（如 `write_buffer_size`、`max_write_buffer_number`、`max_background_jobs`、`filter_policy`、`max_open_files`、`compression`、`block_cache` 等）会被该显式参数的取值覆盖而不生效，须改用对应的 `sLastCacheXxx` 参数设置。例如，若要调整这些显式参数未覆盖到的 L0 文件数写停滞阈值，可设置为 `level0_slowdown_writes_trigger=32;level0_stop_writes_trigger=48`
+- 类型：字符串
+- 默认值：（空）
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，重启生效。
+- 支持版本：从 `v3.4.2.11` 版本开始引入
+
 ### 集群相关
 
 #### supportVnodes

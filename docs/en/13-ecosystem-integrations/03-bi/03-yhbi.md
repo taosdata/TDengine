@@ -13,12 +13,12 @@ Prepare the following environment:
 - Deploy and start TDengine v3.3.2.0 or later (Enterprise or Community Edition).
 - Start taosAdapter. For details, see the [taosAdapter Reference](../../12-operations-and-tooling/03-components/03-taosadapter.md).
 - Install and start YHBI.
-- Download a recent TDengine JDBC connector from Maven Central. This example uses `taos-jdbcdriver-3.4.0-dist.jar`.
+- Download a recent TDengine JDBC connector from Maven Central. This example uses `taos-jdbcdriver-3.9.1-dist.jar`.
 
 ## Configure the Data Source
 
 1. In YHBI, choose **Add Data Source**, and select **GENERIC** under SQL data sources.
-1. Choose **Select Custom Driver**. In **Driver Management**, choose **+** next to the driver list and enter a name such as `MyTDengine`. Upload `taos-jdbcdriver-3.4.0-dist.jar`, select `com.taosdata.jdbc.ws.WebSocketDriver`, and confirm the driver.
+1. Choose **Select Custom Driver**. In **Driver Management**, choose **+** next to the driver list and enter a name such as `MyTDengine`. Upload `taos-jdbcdriver-3.9.1-dist.jar`, select `com.taosdata.jdbc.ws.WebSocketDriver`, and confirm the driver.
 1. Copy the following value into the **URL** field:
 
    ```text

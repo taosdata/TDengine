@@ -33,7 +33,7 @@ Earlier solutions collected field data in conventional real-time databases and t
 
 TDengine addressed these problems with high write and query performance, compression, horizontal scaling, lifecycle management, and security controls. Its one-measurement-point-one-table and supertable model lets each business domain define a supertable, create one subtable per well, and attach static tags such as production plant and business unit.
 
-<!-- ![TDengine data model for a smart oilfield](../assets/oil-1.png) -->
+<!-- ![TDengine data model for a smart oilfield](../assets/oil-1.webp) -->
 
 After migration from Oracle to TDengine, the project achieved:
 
@@ -44,7 +44,7 @@ After migration from Oracle to TDengine, the project achieved:
 
 Oilfield organizations often consolidate plant-level real-time data at a company or group headquarters for AI research, data mining, and predictive maintenance. TDengine and taosX can synchronize historical and newly generated data from distributed edge clusters to a central cluster.
 
-<!-- ![Smart-oilfield edge-cloud synchronization](../assets/oil-2.png) -->
+<!-- ![Smart-oilfield edge-cloud synchronization](../assets/oil-2.webp) -->
 
 For example, the following command synchronizes historical and real-time data from `db1` to local database `db2`:
 

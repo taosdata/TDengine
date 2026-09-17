@@ -14,7 +14,7 @@ TDengine TSDB in three-replica configuration uses the Raft algorithm to ensure c
 
 For details on how multi-replica mechanisms work, see [Data Writing and Replication Process](../../../15-internals/01-arch.md#data-writing-and-replication-process).
 
-![Three-replica cluster](../../../assets/replica3-01.png)
+![Three-replica cluster](../../../assets/replica3-01.webp)
 
 ## Cluster Configuration
 

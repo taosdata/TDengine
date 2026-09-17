@@ -23,7 +23,7 @@ Microsoft SQL Server is one of the most popular relational databases. Many syste
 
 Fill in the *`connection information for the source Microsoft SQL Server database`* in the **Connection Configuration** area, as shown below:
 
-![Configure connection information](../../assets/mssql-01.png)
+![Configure connection information](../../assets/mssql-01.webp)
 
 ### Configure Authentication Information
 
@@ -31,7 +31,7 @@ Fill in the *`connection information for the source Microsoft SQL Server databas
 
 **Password** Enter the login password for the user mentioned above in the source Microsoft SQL Server database.
 
-![Configure authentication information](../../assets/mssql-02.png)
+![Configure authentication information](../../assets/mssql-02.webp)
 
 ### Configure Connection Options
 
@@ -45,7 +45,7 @@ Fill in the *`connection information for the source Microsoft SQL Server databas
 
 **Trust Certificate CA** Set whether to trust the server's certificate CA. If a CA file is uploaded, the server certificate will be verified based on the provided CA certificate in addition to the system trust store.
 
-![Configure connection options](../../assets/mssql-03.png)
+![Configure connection options](../../assets/mssql-03.webp)
 
 Then click the **Check Connectivity** button. Users can click this button to check if the information filled in above can normally retrieve data from the source Microsoft SQL Server database.
 
@@ -77,7 +77,7 @@ Then click the **Check Connectivity** button. Users can click this button to che
 
 **Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writing, each synchronization task will read data from before the delay duration.
 
-![Configure data collection](../../assets/mssql-04.png)
+![Configure data collection](../../assets/mssql-04.webp)
 
 ### Configure Data Mapping
 
@@ -93,7 +93,7 @@ In **Mapping**, select the supertable in TDengine to which you want to map, and 
 
 Click **Preview** to view the results of the mapping.
 
-![Configure data mapping](../../assets/mssql-05.png)
+![Configure data mapping](../../assets/mssql-05.webp)
 
 ### Configure Advanced Options
 
@@ -103,7 +103,7 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 **Batch Size** The maximum number of messages or rows sent at once. The default is 10000.
 
-![Configure advanced options](../../assets/mssql-06.png)
+![Configure advanced options](../../assets/mssql-06.webp)
 
 ### Configure Exception Handling
 

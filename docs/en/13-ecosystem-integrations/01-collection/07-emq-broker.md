@@ -36,13 +36,13 @@ Since the configuration interface differs across EMQX versions, this section is 
 
 Open the URL `http://IP:18083` in a browser and log in to the EMQX Dashboard. The initial username is `admin` and the password is: `public`.
 
-![Log in to EMQX dashboard](../../assets/emq-broker-01.png)
+![Log in to EMQX dashboard](../../assets/emq-broker-01.webp)
 
 ### Create a Rule (Rule)
 
 Select "Rule Engine (Rule Engine)" on the left, then "Rule (Rule)" and click the "Create (Create)" button:
 
-![Create a rule](../../assets/emq-broker-02.png)
+![Create a rule](../../assets/emq-broker-02.webp)
 
 ### Edit SQL Field
 
@@ -57,15 +57,15 @@ FROM
 
 Where `payload` represents the entire message body, `sensor/data` is the message topic selected for this rule.
 
-![Edit SQL](../../assets/emq-broker-03.png)
+![Edit SQL](../../assets/emq-broker-03.webp)
 
 ### Add "Action Handler (action handler)"
 
-![Add action handler](../../assets/emq-broker-04.png)
+![Add action handler](../../assets/emq-broker-04.webp)
 
 ### Add "Resource (Resource)"
 
-![Add resource](../../assets/emq-broker-05.png)
+![Add resource](../../assets/emq-broker-05.webp)
 
 Select "Send Data to Web Service" and click the "Create Resource" button:
 
@@ -75,7 +75,7 @@ Select "WebHook" and fill in the "Request URL" with the address provided by taos
 
 Please keep other properties at their default values.
 
-![Edit resource](../../assets/emq-broker-06.png)
+![Edit resource](../../assets/emq-broker-06.webp)
 
 ### Edit "Action"
 
@@ -106,7 +106,7 @@ INSERT INTO test.sensor_data VALUES(
 )
 ```
 
-![Edit action](../../assets/emq-broker-07.png)
+![Edit action](../../assets/emq-broker-07.webp)
 
 Finally, click the "Create" button at the bottom left to save the rule.
 
@@ -118,7 +118,7 @@ Finally, click the "Create" button at the bottom left to save the rule.
 
 Note: In the code, CLIENT_NUM can be set to a smaller value at the start of the test to avoid hardware performance not being able to fully handle a large number of concurrent clients.
 
-![CLIENT_NUM in test program](../../assets/emq-broker-08.png)
+![CLIENT_NUM in test program](../../assets/emq-broker-08.webp)
 
 ## Execute Test Simulation Sending MQTT Data
 
@@ -127,18 +127,18 @@ npm install mqtt mockjs --save --registry=https://registry.npm.taobao.org
 node mock.js
 ```
 
-![Run test simulation](../../assets/emq-broker-09.png)
+![Run test simulation](../../assets/emq-broker-09.webp)
 
 ## Verify EMQX Received Data
 
 Refresh the EMQX Dashboard rule engine interface to see how many records were correctly received:
 
-![Verify that data is received by EMQX](../../assets/emq-broker-10.png)
+![Verify that data is received by EMQX](../../assets/emq-broker-10.webp)
 
 ## Verify Data Written to TDengine
 
 Use the TDengine CLI program to log in and query the relevant database and table to verify that the data has been correctly written to TDengine:
 
-![Verify that data is written to TDengine](../../assets/emq-broker-11.png)
+![Verify that data is written to TDengine](../../assets/emq-broker-11.webp)
 
 For detailed usage of EMQX, please refer to [EMQX Official Documentation](https://docs.emqx.com/en/emqx/v4.4/rule/rule-engine.html).
