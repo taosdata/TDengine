@@ -541,7 +541,7 @@ int32_t appendResolvedTagVal(SArray* pResolvedTags, col_id_t dstColId, const SSc
   STagVal dstVal = {.cid = dstColId, .type = pSchema->type};
 
   // JSON tag: the value is the whole STag blob (same convention as metaGetTableTagVal), so it
-  // cannot be looked up with tTagGet — that binary-searches a JSON blob by key and would
+  // cannot be looked up with tTagGet  -  that binary-searches a JSON blob by key and would
   // dereference the unset srcVal.pKey. Copy the blob outright; a JSON-null blob means NULL.
   if (pSchema->type == TSDB_DATA_TYPE_JSON) {
     if (pTagData == NULL || !tTagIsJson(pTagData) || tTagIsJsonNull((void*)pTagData)) {
@@ -3278,7 +3278,7 @@ _return:
  * Resolve tag values for a virtual child table.
  *
  * This function only processes TagRef column references (refType == 1).
- * Non-TagRef references are ignored — they are handled by data-scan operators.
+ * Non-TagRef references are ignored  -  they are handled by data-scan operators.
  *
  * TagRef projection output is handled separately by TagRefSource planner nodes
  * (see STagRefSourceLogicNode/PhysiNode). This function serves the DynQueryCtrl
@@ -3523,7 +3523,7 @@ static int32_t resolveTagValsForVtbChild(SOperatorInfo* pOperator, SArray* pColR
     code = cloneTagList(pTagList, ppResolvedTags);
     if (code != TSDB_CODE_SUCCESS) goto _error;
   }
-  // else: pTagList == NULL for dynamic VSTB scan — resolved by tag-ref chain below
+  // else: pTagList == NULL for dynamic VSTB scan  -  resolved by tag-ref chain below
 
   // Step 3: Resolve TagRef columns by following the ref chain to physical tables
   for (int32_t i = 0; i < taosArrayGetSize(pColRefInfo); ++i) {
@@ -5977,7 +5977,7 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
       SName               name = {0};
       char                orgTbFName[TSDB_TABLE_FNAME_LEN] = {0};
 
-      // External column ref (source.db.table.col) → federated foreign source map.
+      // External column ref (source.db.table.col)  ->  federated foreign source map.
       // External refs cannot be resolved as internal col-refs, so handle them first.
       if (pKV->extRefType == 1) {
         char* refSourceName = NULL;
@@ -7166,7 +7166,7 @@ static int32_t filterChildTableListByTagRef(SVtbScanDynCtrlInfo* pVtbScan) {
       SColRefInfo* pRef = (SColRefInfo*)taosArrayGet(pColRefArray, j);
       if (!pRef) continue;
       if (pRef->refType == 1 && pRef->colrefName) {
-        // colrefName format: "db.table.column" — extract column name (last part after second dot)
+        // colrefName format: "db.table.column"  -  extract column name (last part after second dot)
         const char* firstDot = strchr(pRef->colrefName, '.');
         if (!firstDot) continue;
         const char* tbStart = firstDot + 1;
@@ -7192,7 +7192,7 @@ static int32_t filterChildTableListByTagRef(SVtbScanDynCtrlInfo* pVtbScan) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // Compact childTableList in-place and build old→new index mapping
+  // Compact childTableList in-place and build old -> new index mapping
   int32_t* indexMap = taosMemoryCalloc(total, sizeof(int32_t));
   if (!indexMap) {
     taosMemoryFree(keepBits);
@@ -7462,7 +7462,7 @@ static int32_t evaluateTagRefFilter(SVtbScanDynCtrlInfo* pVtbScan, SArray* pReso
   gTaskScalarExtra.pStreamRange = NULL;
   code = scalarCalculate(pVtbScan->pTagRefFilterCond, pBlockList, &output, &gTaskScalarExtra);
   if (code != TSDB_CODE_SUCCESS) {
-    // Evaluation failed — conservatively pass
+    // Evaluation failed  -  conservatively pass
     qWarn("tag-ref filter eval failed: %s, passing child through", tstrerror(code));
     code = TSDB_CODE_SUCCESS;
     *pPasses = true;

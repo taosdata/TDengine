@@ -3494,7 +3494,7 @@ static int32_t extractStaticTimeRangeFromAndCond(SNode* pCond, STimeWindow* pExt
       pProbe = pOnly;
     }
   } else if (condHasRemoteValue(pProbe)) {
-    // Non-AND node that is itself remote — no static bound extractable.
+    // Non-AND node that is itself remote  -  no static bound extractable.
     nodesDestroyNode(pProbe);
     return TSDB_CODE_SUCCESS;
   }
@@ -5840,7 +5840,7 @@ _retry:
   while (true) {
     int32_t ret = tsem_timewait(&ctx->ready, 1000);  // 1s timeout
     if (ret == 0) {
-      break;  // semaphore posted — got response
+      break;  // semaphore posted  -  got response
     }
     if (isTaskKilled(ctx->pTaskInfo)) {
       qWarn("%s task killed while waiting for remote fetch response", ctx->idStr);

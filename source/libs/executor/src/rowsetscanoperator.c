@@ -23,18 +23,18 @@
 #include "tdatablock.h"
 #include "tutil.h"
 
-// ────────────────────────────────────────────────────────────────────────────────
+// --------------------------------------------------------------------------------
 // Internal state
-// ────────────────────────────────────────────────────────────────────────────────
+// --------------------------------------------------------------------------------
 
 typedef struct SRowsetSourceInfo {
-  SArray*   pBlocks;    // SArray<SSDataBlock*> — pre-deserialized blocks
+  SArray*   pBlocks;    // SArray<SSDataBlock*>  -  pre-deserialized blocks
   int32_t   curBlock;   // next block index to return
 } SRowsetSourceInfo;
 
-// ────────────────────────────────────────────────────────────────────────────────
+// --------------------------------------------------------------------------------
 // Helpers
-// ────────────────────────────────────────────────────────────────────────────────
+// --------------------------------------------------------------------------------
 
 static SSDataBlock* createRowsetDataBlock(const SRowsetSourcePhysiNode* pPhyNode) {
   SDataBlockDescNode* pDesc = pPhyNode->node.pOutputDataBlockDesc;
@@ -113,9 +113,9 @@ static void destroyRowsetSourceOperatorInfo(void* param) {
   taosMemoryFree(pInfo);
 }
 
-// ────────────────────────────────────────────────────────────────────────────────
+// --------------------------------------------------------------------------------
 // Operator callbacks
-// ────────────────────────────────────────────────────────────────────────────────
+// --------------------------------------------------------------------------------
 
 static int32_t doRowsetSourceNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SRowsetSourceInfo* pInfo = pOperator->info;
@@ -142,10 +142,10 @@ static int32_t doRowsetSourceNext(SOperatorInfo* pOperator, SSDataBlock** pResBl
   return TSDB_CODE_SUCCESS;
 }
 
-// ────────────────────────────────────────────────────────────────────────────────
-// Deserialization: length-prefix multi-block binary → SArray<SSDataBlock*>
+// --------------------------------------------------------------------------------
+// Deserialization: length-prefix multi-block binary  ->  SArray<SSDataBlock*>
 // Format: [uint32_t blockSize][blockDataToBuf output] repeated numBlocks times
-// ────────────────────────────────────────────────────────────────────────────────
+// --------------------------------------------------------------------------------
 
 static int32_t deserializeRowsetBlocks(const SRowsetSourcePhysiNode* pPhyNode,
                                        SArray** ppBlocks) {
@@ -227,9 +227,9 @@ _error:
   return code;
 }
 
-// ────────────────────────────────────────────────────────────────────────────────
+// --------------------------------------------------------------------------------
 // Public: create operator
-// ────────────────────────────────────────────────────────────────────────────────
+// --------------------------------------------------------------------------------
 
 int32_t createRowsetSourceOperatorInfo(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                        SOperatorInfo** pOptrInfo) {

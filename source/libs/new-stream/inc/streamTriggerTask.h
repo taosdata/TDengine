@@ -262,7 +262,7 @@ typedef struct SSTriggerRealtimeGroup {
       char                 *pFirstSubWinOpenNotify;
       int32_t               numSubWindows;
       int32_t               conditionIdx;
-      // streak state (start/end, always scalar — sub-event + start/end is rejected at parse time)
+      // streak state (start/end, always scalar  -  sub-event + start/end is rejected at parse time)
       int32_t startCondCount;
       TSKEY   startCondFirstTs;
       int32_t endCondCount;
@@ -480,7 +480,7 @@ typedef struct SStreamTriggerHistoryDebugGauges {
  * driver. Sibling of SSTriggerWalProgress; lives in SSTriggerRealtimeContext
  * .pReaderExtProgress as SSHashObj<int64_t taskId, SSTriggerExtProgress*>.
  * P0 only defines the struct; producer/consumer is added in P3.
- * See DS §6.2.2 for full field semantics. */
+ * See DS section 6.2.2 for full field semantics. */
 typedef struct SSTriggerExtProgress {
   SStreamTaskAddr *pTaskAddr;            // EXT reader task address
   SSHashObj       *triggerSideUidMaxTs;  // SSHashObj<int64_t uid, int64_t maxTs>;
@@ -560,7 +560,7 @@ struct SSTriggerRealtimeContext {
   ESTriggerContextStatus     status;
 
   SSHashObj                  *pReaderWalProgress;  // SSHashObj<vgId, SSTriggerWalProgress>
-  SSHashObj                  *pReaderExtProgress;  // SSHashObj<int64_t taskId, SSTriggerExtProgress*>; NULL until P3 producer is introduced (DS §6.1.3)
+  SSHashObj                  *pReaderExtProgress;  // SSHashObj<int64_t taskId, SSTriggerExtProgress*>; NULL until P3 producer is introduced (DS section 6.1.3)
   int32_t                     curReaderIdx;
   bool                        catchUp;  // whether all readers have caught up the latest wal data
   bool                        continueToFetch;

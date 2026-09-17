@@ -62,9 +62,9 @@ static int32_t macCheckBySecLvl(SAuthCxt* pCxt, int8_t secLvl, bool checkNWD) {
  *
  * Uses a 3-layer fast-path strategy to avoid expensive metadata fetches
  * in the common case where MAC is not actively used:
- *   Layer 1: User-level — if user's security range covers all levels, skip entirely.
- *   Layer 2: (DB-level — handled in checkAuthByOwner for PRIV_DB_USE, zero extra cost.)
- *   Layer 3: Table-level — fetch table meta from cache only when needed.
+ *   Layer 1: User-level  -  if user's security range covers all levels, skip entirely.
+ *   Layer 2: (DB-level  -  handled in checkAuthByOwner for PRIV_DB_USE, zero extra cost.)
+ *   Layer 3: Table-level  -  fetch table meta from cache only when needed.
  *
  * @param pCxt      Auth context
  * @param dbName    Database name
@@ -75,17 +75,17 @@ static int32_t macCheckBySecLvl(SAuthCxt* pCxt, int8_t secLvl, bool checkNWD) {
 static int32_t macCheckTableAccess(SAuthCxt* pCxt, const char* dbName, const char* tableName, bool checkNWD) {
   SParseContext* pParseCxt = pCxt->pParseCxt;
 
-  // Fast-path: MAC not yet activated cluster-wide — skip all checks
+  // Fast-path: MAC not yet activated cluster-wide  -  skip all checks
   if (!pParseCxt->macMode) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // Layer 1: User-level fast-path — skip if user's security range guarantees MAC pass
+  // Layer 1: User-level fast-path  -  skip if user's security range guarantees MAC pass
   if (pCxt->macNruGuaranteed && (!checkNWD || pCxt->macNwdGuaranteed)) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // Layer 3: Table-level — fetch secLvl from metadata cache
+  // Layer 3: Table-level  -  fetch secLvl from metadata cache
   SName name = {0};
   toName(pParseCxt->acctId, dbName, tableName, &name);
   STableMeta* pTableMeta = NULL;
@@ -146,7 +146,7 @@ static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserA
           return code;
         }
 #ifdef TD_ENTERPRISE
-        // Layer 2 MAC: DB-level NRU check — piggybacked on already-fetched SDbCfgInfo
+        // Layer 2 MAC: DB-level NRU check  -  piggybacked on already-fetched SDbCfgInfo
         // Only for DB_USE to avoid blocking admin ops (ALTER/DROP by SYSSEC)
         // Skip when MAC is not yet activated cluster-wide
         if (pParseCxt->macMode && pAuthInfo->privType == PRIV_DB_USE && dbCfgInfo.securityLevel > 0 &&
@@ -569,7 +569,7 @@ static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) 
   // return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_READ, &pTagCond);
   PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
 #ifdef TD_ENTERPRISE
-  // MAC NRU: table-level check — user.maxSecLevel must be >= table.securityLevel
+  // MAC NRU: table-level check  -  user.maxSecLevel must be >= table.securityLevel
   PAR_ERR_RET(macCheckTableAccess(pCxt, pStmt->dbName, pStmt->tableName, false));
 #endif
   return authObjPrivileges(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_SHOW_CREATE, PRIV_OBJ_TBL);
@@ -597,7 +597,7 @@ static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {
   PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
   int32_t code = authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB);
 #ifdef TD_ENTERPRISE
-  // Per FS §4.2.1.4: specifying SECURITY_LEVEL > 0 requires PRIV_SECURITY_POLICY_ALTER regardless
+  // Per FS section 4.2.1.4: specifying SECURITY_LEVEL > 0 requires PRIV_SECURITY_POLICY_ALTER regardless
   // of MAC activation state. SECURITY_LEVEL = 0 is equivalent to the default and always allowed.
   if (TSDB_CODE_SUCCESS == code) {
     if (pStmt->pOptions && pStmt->pOptions->securityLevel > 0) {
@@ -838,7 +838,7 @@ static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
     PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
     int32_t code = checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
     // reference alters additionally read the source table: require SELECT on it (mirrors
-    // authAlterVTable — the ALTER TABLE form of the same statements must not bypass it)
+    // authAlterVTable  -  the ALTER TABLE form of the same statements must not bypass it)
     if (TSDB_CODE_SUCCESS == code &&
         (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
          pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF ||
@@ -1055,7 +1055,7 @@ static int32_t authShowCreateStream(SAuthCxt* pCxt, SShowCreateStreamStmt* pStmt
 static int32_t authCreateDatabase(SAuthCxt* pCxt, SCreateDatabaseStmt* pStmt) {
   int32_t code = authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_DB_CREATE);
 #ifdef TD_ENTERPRISE
-  // Per FS §4.2.1.4: specifying SECURITY_LEVEL > 0 requires PRIV_SECURITY_POLICY_ALTER regardless
+  // Per FS section 4.2.1.4: specifying SECURITY_LEVEL > 0 requires PRIV_SECURITY_POLICY_ALTER regardless
   // of MAC activation state. SECURITY_LEVEL = 0 is equivalent to the default and always allowed.
   if (TSDB_CODE_SUCCESS == code) {
     if (pStmt->pOptions && pStmt->pOptions->securityLevel > 0) {

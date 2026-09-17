@@ -1482,7 +1482,7 @@ int32_t applyIndefRowsFuncOnWindowState(SOperatorInfo* pOperator, SIndefRowsRunt
       pOperator->exprSupp.pCtx[i].pOutput = NULL;
     }
   } else {
-    // Only update ekey — groupId and skey already matched by find
+    // Only update ekey  -  groupId and skey already matched by find
     pState->win.ekey = pWin->ekey;
     pState->pRow->win.ekey = pWin->ekey;
   }
@@ -1581,7 +1581,7 @@ int32_t closeIndefRowsWindowState(SOperatorInfo* pOperator, SIndefRowsRuntime* p
     pState->pCurBlock = NULL;
   }
 
-  // Phase 2: Process each block — fill pseudo cols, filter, push to readyBlocks
+  // Phase 2: Process each block  -  fill pseudo cols, filter, push to readyBlocks
   SListNode* pNode = NULL;
   while ((pNode = tdListPopHead(pState->pSealedBlocks)) != NULL) {
     SSDataBlock* pBlock = *(SSDataBlock**)pNode->data;
@@ -1615,7 +1615,7 @@ int32_t closeIndefRowsWindowState(SOperatorInfo* pOperator, SIndefRowsRuntime* p
     }
   }
 
-  // Phase 3: All succeeded — remove from open states and destroy the state shell
+  // Phase 3: All succeeded  -  remove from open states and destroy the state shell
   removeIndefRowsOpenState(pRuntime->pOpenStatesMap, pState);
   cleanupIndefRowsResultRow(pOperator, pState->pRow);
   taosMemoryFreeClear(pState->pRow);
@@ -1625,13 +1625,13 @@ int32_t closeIndefRowsWindowState(SOperatorInfo* pOperator, SIndefRowsRuntime* p
   return TSDB_CODE_SUCCESS;
 
 _error:
-  // Seal failed — state still intact in openStates, let dropAll clean up
+  // Seal failed  -  state still intact in openStates, let dropAll clean up
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;
 
 _cleanup:
   // Some blocks already pushed to readyBlocks (they'll be consumed normally).
-  // Remaining blocks still in pSealedBlocks — destroy them along with state.
+  // Remaining blocks still in pSealedBlocks  -  destroy them along with state.
   removeIndefRowsOpenState(pRuntime->pOpenStatesMap, pState);
   destroyIndefRowsWindowState(pOperator, pState);
   return code;

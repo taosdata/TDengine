@@ -5382,7 +5382,7 @@ static int32_t getAllVinfo(SVnode* pVnode, SStreamMsgVTableInfo* vTableInfo, SSH
     SVTableResolveResult* r  = *(SVTableResolveResult**)iter;
 
     if (sStreamReaderInfo->isRollupReader) {
-      // vstb rollup: one uid → multiple rollup gids
+      // vstb rollup: one uid  ->  multiple rollup gids
       SArray* rollupGids = NULL;
       code = collectRollupGids(pVnode, sStreamReaderInfo, uid, __func__, &rollupGids);
       if (code != 0) return code;
@@ -5395,7 +5395,7 @@ static int32_t getAllVinfo(SVnode* pVnode, SStreamMsgVTableInfo* vTableInfo, SSH
       }
       taosArrayDestroy(rollupGids);
     } else {
-      // regular vtable stream: one uid → one groupId
+      // regular vtable stream: one uid  ->  one groupId
       taosRLockLatch(&sStreamReaderInfo->lock);
       uint64_t groupId = qStreamGetGroupIdFromOrigin(sStreamReaderInfo, uid);
       taosRUnLockLatch(&sStreamReaderInfo->lock);
@@ -5424,7 +5424,7 @@ static int32_t getSpicificVinfo(SVnode* pVnode, SStreamMsgVTableInfo* vTableInfo
     if (pp == NULL || *pp == NULL) continue;
 
     if (sStreamReaderInfo->isRollupReader) {
-      // vstb rollup: one uid → multiple rollup gids
+      // vstb rollup: one uid  ->  multiple rollup gids
       SArray* rollupGids = NULL;
       code = collectRollupGids(pVnode, sStreamReaderInfo, uid, __func__, &rollupGids);
       if (code != 0) return code;
@@ -5437,7 +5437,7 @@ static int32_t getSpicificVinfo(SVnode* pVnode, SStreamMsgVTableInfo* vTableInfo
       }
       taosArrayDestroy(rollupGids);
     } else {
-      // regular vtable stream: one uid → one groupId
+      // regular vtable stream: one uid  ->  one groupId
       taosRLockLatch(&sStreamReaderInfo->lock);
       uint64_t groupId = qStreamGetGroupIdFromOrigin(sStreamReaderInfo, uid);
       taosRUnLockLatch(&sStreamReaderInfo->lock);
@@ -5666,7 +5666,7 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
       STREAM_CHECK_NULL_GOTO(taosArrayPush(tagOnly, &cid), terrno);
     }
 
-    // PSEUDO_COL bypasses cache — pass NULL so resolver does not read/write it.
+    // PSEUDO_COL bypasses cache  -  pass NULL so resolver does not read/write it.
     code = streamResolveVTableRefChain(pVnode, NULL, sStreamReaderInfo,
                                        req->virTablePseudoColReq.ver,
                                        singleUid, emptyCols, tagOnly, &uid2Result);

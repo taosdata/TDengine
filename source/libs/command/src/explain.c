@@ -1052,7 +1052,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
 
-        // Remote SQL — prefer the runtime SQL actually executed by FederatedScan
+        // Remote SQL - prefer the runtime SQL actually executed by FederatedScan
         // during EXPLAIN ANALYZE; fall back to local rendering only when runtime
         // verbose info is unavailable.
         bool emittedRuntimeRemoteSql = false;

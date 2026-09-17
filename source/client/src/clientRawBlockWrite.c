@@ -258,7 +258,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
   // target cluster reconstructs the inheritance. The names on the wire are the
   // *source* cluster's full names (acctId.db.table); re-stamp each with the target
   // acctId + target db (inheritance is same-db only, so parents share the child's
-  // db). suids are source-local and intentionally dropped — the target mnode
+  // db). suids are source-local and intentionally dropped  -  the target mnode
   // re-resolves names to its own suids on CREATE.
   pReq.numParents = req.numParents;
   pReq.ownColStart = req.ownColStart;

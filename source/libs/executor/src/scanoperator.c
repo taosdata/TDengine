@@ -761,7 +761,7 @@ static int32_t createTableCacheVal(const SMetaReader* pMetaReader, STableCachedV
   QUERY_CHECK_NULL(pVal->pName, code, lino, _end, terrno);
 
   // only child table has tag value in ctbEntry; normal/virtual-normal tables keep owned tags in
-  // ntbEntry.pTags (same union — reading ctbEntry.pTags there is garbage)
+  // ntbEntry.pTags (same union  -  reading ctbEntry.pTags there is garbage)
   if (pMetaReader->me.type == TSDB_CHILD_TABLE || pMetaReader->me.type == TSDB_VIRTUAL_CHILD_TABLE) {
     STag* pTag = (STag*)pMetaReader->me.ctbEntry.pTags;
     if (pTag != NULL) {
@@ -852,7 +852,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
     val.pName = mr.me.name;
     // ctbEntry/ntbEntry share a union: child tables carry tags in ctbEntry.pTags, normal and
-    // virtual-normal tables carry owned tags in ntbEntry.pTags — pick by entry type.
+    // virtual-normal tables carry owned tags in ntbEntry.pTags  -  pick by entry type.
     if (mr.me.type == TSDB_NORMAL_TABLE || mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
       val.pTags = (STag*)mr.me.ntbEntry.pTags;
     } else {

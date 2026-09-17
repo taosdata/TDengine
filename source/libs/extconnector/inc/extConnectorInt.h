@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// extConnectorInt.h — module-internal types for the External Connector
+// extConnectorInt.h  -  module-internal types for the External Connector
 //
 // Location: source/libs/extconnector/inc/extConnectorInt.h
 // Included by: enterprise connector source files only; NOT exported in the public API.
@@ -38,7 +38,7 @@ extern "C" {
 #include "osTimezone.h"
 
 // ============================================================
-// Provider SPI (Strategy pattern — DS §4.2 + §6.1.2)
+// Provider SPI (Strategy pattern  -  DS section 4.2 + section 6.1.2)
 // ============================================================
 
 // Forward declarations for SExtProvider callback parameters
@@ -48,30 +48,30 @@ typedef struct SExtProvider {
   EExtSourceType type;
   const char    *name;  // "mysql" / "postgresql" / "influxdb"
 
-  // Connection management (DS §6.1.2.2)
+  // Connection management (DS section 6.1.2.2)
   // password in cfg is AES-encrypted; providers must decrypt before connecting
   int32_t (*connect)(const SExtSourceCfg *cfg, void **ppConn);
   void    (*disconnect)(void *pConn);
   bool    (*isAlive)(void *pConn);  // probe conn before reuse; NULL = skip probe
 
-  // Metadata (DS §6.1.2.3) — keep extTypeName as raw external type name
+  // Metadata (DS section 6.1.2.3)  -  keep extTypeName as raw external type name
   int32_t (*getTableSchema)(void *pConn, const SExtTableNode *pTable, SExtTableMeta **ppOut);
   int32_t (*getCapabilities)(void *pConn, const SExtTableNode *pTable,
                              SExtSourceCapability *pOut);
 
-  // Query execution (DS §6.1.2.4)
+  // Query execution (DS section 6.1.2.4)
   int32_t (*execQuery)(void *pConn, const char *sql, timezone_t clientTz, void **ppResult);
   int32_t (*fetchBlock)(void *pResult, const SExtColTypeMapping *pColMappings,
                         int32_t numColMappings, SSDataBlock **ppOut);
   void    (*closeResult)(void *pResult);
 
-  // Namespace (database/schema) existence check (FS §3.5.7)
+  // Namespace (database/schema) existence check (FS section 3.5.7)
   // dbName: database name (MySQL/InfluxDB) or schema name (PG).
   // schemaName: only used for PG 3-seg form (USE src.db.schema); NULL for others.
   // Returns TSDB_CODE_SUCCESS, TSDB_CODE_EXT_DB_NOT_EXIST, or TSDB_CODE_OPS_NOT_SUPPORT.
   int32_t (*checkNamespace)(void *pConn, const char *dbName, const char *schemaName);
 
-  // Error mapping (DS §5.3.11): fills pOutErr from native driver state
+  // Error mapping (DS section 5.3.11): fills pOutErr from native driver state
   int32_t (*mapError)(void *pConn, SExtConnectorError *pOutErr);
 
   // Return whether this connection can convert timezone-naive values using
@@ -80,7 +80,7 @@ typedef struct SExtProvider {
                                         bool *pSupported);
 } SExtProvider;
 
-// EXT_SOURCE_TYPE_COUNT — must match the EExtSourceType enum in tmsg.h
+// EXT_SOURCE_TYPE_COUNT  -  must match the EExtSourceType enum in tmsg.h
 #define EXT_SOURCE_TYPE_COUNT  4   // MYSQL=0, POSTGRESQL=1, INFLUXDB=2, TDENGINE=3(reserved)
 
 // Global provider table (indexed by EExtSourceType)
@@ -108,7 +108,7 @@ typedef enum {
 typedef struct SExtPoolEntry {
   struct SExtPoolEntry *idleNext;       // idleList Treiber stack link
   struct SExtPoolEntry *freeNext;       // freeList Treiber stack link
-  volatile int32_t      state;          // EExtEntryState — modified only via atomic CAS
+  volatile int32_t      state;          // EExtEntryState  -  modified only via atomic CAS
   void                 *pConn;          // native connection handle
   int64_t               lastActiveTime; // ms timestamp of last use
   int64_t               generation;     // drainGeneration value at open() time
@@ -117,7 +117,7 @@ typedef struct SExtPoolEntry {
 } SExtPoolEntry;
 
 // ============================================================
-// Memory slab — fixed array of entries
+// Memory slab  -  fixed array of entries
 //
 // Slabs are allocated on demand and freed only by destroyPool.
 // The slab chain (slabHead) is append-only; once attached via CAS
@@ -135,16 +135,16 @@ typedef struct SExtSlab {
 // Per-source connection pool (fully lock-free, no mutex)
 //
 // Concurrency model:
-//   idleHead   — Treiber stack (idleNext links).  May contain FREE zombies
+//   idleHead    -  Treiber stack (idleNext links).  May contain FREE zombies
 //                after eviction.  open() discards zombies via CAS on state.
-//   freeHead   — Treiber stack (freeNext links).  Always contains FREE entries.
-//   slabHead   — append-only slab chain.  Traversed by eviction and destroyPool.
-//   idleCount  — accurate: incremented on every IDLE←IN_USE transition,
-//                decremented on every IDLE→IN_USE or IDLE→FREE transition.
-//   inUseCount — accurate: incremented on successful open(), decremented on close().
-//   cfgVersion — CAS in open() ensures only one thread calls checkAndDrainPool.
-//   drainGeneration — bumped on conn-field change; entry.generation < this → drain.
-//   destroying — set to 1 before destroyPool; causes open() to fail fast and
+//   freeHead    -  Treiber stack (freeNext links).  Always contains FREE entries.
+//   slabHead    -  append-only slab chain.  Traversed by eviction and destroyPool.
+//   idleCount   -  accurate: incremented on every IDLE <- IN_USE transition,
+//                decremented on every IDLE -> IN_USE or IDLE -> FREE transition.
+//   inUseCount  -  accurate: incremented on successful open(), decremented on close().
+//   cfgVersion  -  CAS in open() ensures only one thread calls checkAndDrainPool.
+//   drainGeneration  -  bumped on conn-field change; entry.generation < this  ->  drain.
+//   destroying  -  set to 1 before destroyPool; causes open() to fail fast and
 //                close() to recycle to freeList instead of idleList.
 // ============================================================
 
@@ -154,8 +154,8 @@ typedef struct SExtConnPool {
   volatile int64_t cfgVersion;      // meta_version at last pool update
   volatile int64_t drainGeneration; // bumped on conn-field change
   SExtProvider    *pProvider;       // pointer into gExtProviders[]
-  SExtPoolEntry   *idleHead;        // Treiber stack — IDLE entries (may have FREE zombies)
-  SExtPoolEntry   *freeHead;        // Treiber stack — guaranteed FREE entries
+  SExtPoolEntry   *idleHead;        // Treiber stack  -  IDLE entries (may have FREE zombies)
+  SExtPoolEntry   *freeHead;        // Treiber stack  -  guaranteed FREE entries
   SExtSlab        *slabHead;        // append-only slab chain
   volatile int32_t idleCount;       // approximate count of IDLE entries (used for soft cap only)
   volatile int32_t inUseCount;      // accurate count of IN_USE entries
@@ -177,7 +177,7 @@ struct SExtQueryHandle {
   SExtConnectorHandle *pConnHandle;
   void                *pResult;    // native result set handle
   SExtProvider        *pProvider;
-  timezone_t           clientTz;   // client timezone for no-tz type conversion (DS §5.1 bullet 11)
+  timezone_t           clientTz;   // client timezone for no-tz type conversion (DS section 5.1 bullet 11)
   bool                 ownsTz;     // whether clientTz was allocated by us (must tzfree on close)
   bool                 eof;
 };

@@ -1533,7 +1533,7 @@ static int32_t extTableNodeCopy(const SExtTableNode* pSrc, SExtTableNode* pDst) 
   COPY_CHAR_ARRAY_FIELD(remoteTableName);
   COPY_SCALAR_FIELD(srcNameFromPath);
   // pExtMeta: deep-copied so the planner can translate TDengine column names to
-  // remote column names (e.g. 'ts' → 'time' for InfluxDB) before serialization.
+  // remote column names (e.g. 'ts'  ->  'time' for InfluxDB) before serialization.
   if (pSrc->pExtMeta) {
     pDst->pExtMeta = (SExtTableMeta*)taosMemoryMalloc(sizeof(SExtTableMeta));
     if (!pDst->pExtMeta) return TSDB_CODE_OUT_OF_MEMORY;

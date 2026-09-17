@@ -1715,9 +1715,9 @@ static int32_t stExtBuildTriggerColumns(SStreamReaderTask *pTask,
  * stExtCollectScanCols -- iterate a pScanCols node-list and fill
  * pExtSpec->calcColumns + pExtSpec->pCalcMappings.
  *
- * pFedScan != NULL  →  federated-scan path (unwrap STargetNode, use
+ * pFedScan != NULL   ->   federated-scan path (unwrap STargetNode, use
  *                      pColTypeMappings when available).
- * pFedScan == NULL  →  table-scan path (raw SColumnNode entries).
+ * pFedScan == NULL   ->   table-scan path (raw SColumnNode entries).
  * --------------------------------------------------------------------------- */
 static int32_t stExtCollectScanCols(SStreamReaderTask *pTask,
                                     SStreamExtTriggerSpec *pExtSpec,

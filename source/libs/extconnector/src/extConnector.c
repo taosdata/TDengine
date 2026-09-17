@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// extConnector.c — community edition stub
+// extConnector.c  -  community edition stub
 //
 // All public APIs return TSDB_CODE_OPS_NOT_SUPPORT in the community edition.
 // extConnectorModuleInit() / extConnectorModuleDestroy() are no-ops (succeed

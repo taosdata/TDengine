@@ -401,7 +401,7 @@ end:
 // The cache (STxnCacheSlot) owns the SArray and its SWalContCopy elements;
 // this handle must NOT free or destroy them.  Pass pMsgs=NULL to clear.
 static void tqHandleResetTxnPending(STqHandle* pHandle, SArray* pMsgs, int64_t nextFetchVer) {
-  // Drop the old borrow — do NOT free contents or destroy the array.
+  // Drop the old borrow  -  do NOT free contents or destroy the array.
   pHandle->pTxnPendingMsgs = pMsgs;
   pHandle->txnPendingIdx = 0;
   pHandle->txnPendingFetchVer = nextFetchVer;
@@ -452,10 +452,10 @@ static int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, ui
 
           pHead = &(pHandle->pWalReader->pHead->head);
           // txn-atomic CDC: skip individual DDL entries that belong to a transaction.
-          // They are part of a BEGIN…COMMIT block and will be delivered atomically by
+          // They are part of a BEGIN...COMMIT block and will be delivered atomically by
           // STxnWalManager when TXN_COMMIT is processed below.  Delivering them here
           // would cause double-delivery (PRE_CREATE then NORMAL) to the consumer.
-          // TXN_COMMIT and TXN_ROLLBACK are not skipped — they trigger the atomic delivery
+          // TXN_COMMIT and TXN_ROLLBACK are not skipped  -  they trigger the atomic delivery
           // path (COMMIT) or are skipped cleanly (ROLLBACK).
           if (WAL_IS_TXN_MSG(pHead) &&
               pHead->msgType != TDMT_VND_TXN_COMMIT &&
@@ -479,7 +479,7 @@ static int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, ui
               }
               // TXN_COMMIT: fetch cached message sequence from manager.
               // Cache is fully populated at startup (eager load) and by the live producer.
-              // If a slot is not ready, hold the offset and retry the next poll — the producer
+              // If a slot is not ready, hold the offset and retry the next poll  -  the producer
               // will write the slot before this consumer can advance past this TXN_COMMIT.
               // After TXN_NOT_READY_MAX_RETRIES consecutive missed polls, treat as lost/corrupted.
 #define TXN_NOT_READY_MAX_RETRIES 10
@@ -511,7 +511,7 @@ static int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, ui
                 goto END;
               }
               if (r == 0 || pMsgs == NULL || taosArrayGetSize(pMsgs) == 0) {
-                // rolledBack or empty txn — skip and reset retry counter
+                // rolledBack or empty txn  -  skip and reset retry counter
                 pHandle->txnNotReadyRetries = 0;
                 offset++;
                 code = -1;
@@ -2547,7 +2547,7 @@ static int32_t tqExtractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle
         taosMemoryFree(pTmpHead);
 
         if (matched) {
-          // Found a matching meta msg — ship it.
+          // Found a matching meta msg  -  ship it.
           // pHandle->pWalReader->pHead has NOT been updated; build the response
           // directly from btMetaRsp / taosxRsp paths used below.
           // For non-batch mode, send a single-meta response immediately.
@@ -2584,7 +2584,7 @@ static int32_t tqExtractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle
         }
       }
     txnPendingDone:
-      // All pending msgs consumed — free the queue and advance fetchVer.
+      // All pending msgs consumed  -  free the queue and advance fetchVer.
       if (pHandle->pTxnPendingMsgs != NULL && pHandle->txnPendingIdx >= taosArrayGetSize(pHandle->pTxnPendingMsgs)) {
         int64_t nextVer = pHandle->txnPendingFetchVer;
         tqHandleClearTxnPending(pHandle);

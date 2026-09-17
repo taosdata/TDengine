@@ -1509,7 +1509,7 @@ static int32_t stCheckDualSideCompatible(
 
 /*
  * Commit pending partial-NULL rows to current (old) window:
- * copy pendingStateVals → pStateVals for defined columns,
+ * copy pendingStateVals  ->  pStateVals for defined columns,
  * sync stateKeyDefined from pending pDefined.
  *
  * KEEP IN SYNC with commitPendingToOldWindow() in timewindowoperator.c.
@@ -1637,7 +1637,7 @@ typedef struct SStateCutResult {
  *
  * KEEP IN SYNC with doKeepCurStateWindowEndInfo() and
  * shouldSplitDeferredPartialStandalone() in timewindowoperator.c.
- * The decision table (dualSide × EXTEND) must produce identical results.
+ * The decision table (dualSide x EXTEND) must produce identical results.
  *
  * The caller must clear any unclosed mask from *pOldWinEkey before calling.
  * Window-specific operations (zeroth check, close, open) remain in the caller.
@@ -1788,9 +1788,9 @@ _end:
  * Two-phase per-column compare.
  *
  * Phase 1 (read-only): detect whether any column changed.
- *   ri NULL                    → skip
- *   ri non-NULL, pi undefined  → not a change
- *   ri non-NULL, pi defined    → compare, differ ⇒ changed
+ *   ri NULL                     ->  skip
+ *   ri non-NULL, pi undefined   ->  not a change
+ *   ri non-NULL, pi defined     ->  compare, differ  =>  changed
  *
  * "Defined" means committed (pDefined[i]) OR initialized
  * by a deferred partial-NULL row (pTouched[i]).  This keeps
@@ -3239,7 +3239,7 @@ void stTriggerTaskPrevTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow
  * @note For regular units (a/s/m/h/d):
  *       - Advances by sliding interval
  *
- * @example Current window [2026-03-01 + 1, 2026-04-01] → Next window [2026-04-01 + 1, 2026-05-01]
+ * @example Current window [2026-03-01 + 1, 2026-04-01]  ->  Next window [2026-04-01 + 1, 2026-05-01]
  */
 void stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow) {
   SInterval *pInterval = &pTask->interval;
@@ -8114,7 +8114,7 @@ _end:
  * Processes a TDMT_STREAM_TRIGGER_PULL_EXT response received by the trigger task.
  *
  * Three-stage EXT pull state machine:
- *   LAST_TS_EXT → first META pull (META_EXT or META_DATA_EXT) → DATA_EXT → next META
+ *   LAST_TS_EXT  ->  first META pull (META_EXT or META_DATA_EXT)  ->  DATA_EXT  ->  next META
  *
  * Error transparency (d4):
  *   - Any non-zero code: call streamHandleTaskError (task enters FAILED state).
@@ -8164,7 +8164,7 @@ static int32_t stRealtimeContextProcExtPullRsp(SSTriggerRealtimeContext *pContex
     }
   }
 
-  // d4: errors — unrecoverable; propagate to task-level error handler.
+  // d4: errors  -  unrecoverable; propagate to task-level error handler.
   // TSDB_CODE_STREAM_NO_DATA is a normal "empty poll" signal (same as WAL path),
   // so treat it as SUCCESS here and let the handler dispatch normally.
   if (pRsp->code != TSDB_CODE_SUCCESS &&
@@ -8242,7 +8242,7 @@ static int32_t stRealtimeContextProcExtPullRsp(SSTriggerRealtimeContext *pContex
   stDebug("ext: PULL_EXT rsp pullType:%d metaRows:%d hasMore(inferred):%d reader task:%" PRIx64,
           (int32_t)rspPullType, metaRows, (int32_t)hasMore, pProgress->pTaskAddr->taskId);
 
-  // d3: LAST_TS_EXT — derive initial triggerSideUidMaxTs from per-uid last timestamps.
+  // d3: LAST_TS_EXT  -  derive initial triggerSideUidMaxTs from per-uid last timestamps.
   if (rspPullType == STRIGGER_PULL_LAST_TS_EXT) {
     if (pExtRsp->pLastTsArr != NULL) {
       int32_t nLastTs = (int32_t)taosArrayGetSize(pExtRsp->pLastTsArr);
@@ -8271,7 +8271,7 @@ static int32_t stRealtimeContextProcExtPullRsp(SSTriggerRealtimeContext *pContex
     goto _end;
   }
 
-  // GROUP_COL_VALUE_EXT — reader resolved the PARTITION BY tag value(s) for one gid.
+  // GROUP_COL_VALUE_EXT  -  reader resolved the PARTITION BY tag value(s) for one gid.
   // Store into pContext->pGroupColVals exactly like the non-EXT STRIGGER_PULL_GROUP_COL_VALUE
   // response path does, then resume the state machine.
   if (rspPullType == STRIGGER_PULL_GROUP_COL_VALUE_EXT) {
@@ -8289,7 +8289,7 @@ static int32_t stRealtimeContextProcExtPullRsp(SSTriggerRealtimeContext *pContex
     goto _end;
   }
 
-  // DATA_EXT — actual row data returned after META_EXT.
+  // DATA_EXT  -  actual row data returned after META_EXT.
   // If rows > 0: create/update realtime groups and enqueue them for calc;
   // then re-issue META_EXT to continue polling.
   // If rows == 0: no data fetched for the window; skip calc, continue polling.
@@ -8340,7 +8340,7 @@ static int32_t stRealtimeContextProcExtPullRsp(SSTriggerRealtimeContext *pContex
     goto _end;
   }
 
-  // d2b: CALC_DATA_EXT — aggregate-input rows returned for %%trows.
+  // d2b: CALC_DATA_EXT  -  aggregate-input rows returned for %%trows.
   // Mirror WAL_CALC_DATA_NEW: populate pSlices + pAllCalcTableUids, then re-enter
   // stRealtimeContextCheck so the pCurParam loop can call putStreamDataCache.
   if (rspPullType == STRIGGER_PULL_CALC_DATA_EXT) {
@@ -14985,7 +14985,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
         // No ext reader had any calc data this tick (e.g. a PERIOD force-fire with
         // no new trigger rows): fall through to the pCurParam loop below with an
         // empty pAllCalcTableUids, exactly like the non-EXT WAL branch always does
-        // regardless of whether pGroup->pWalMetas has anything — so the runner
+        // regardless of whether pGroup->pWalMetas has anything  -  so the runner
         // still gets dispatched with zero %%trows rows instead of being skipped.
       }
 
@@ -16132,16 +16132,16 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
   // P3 (d2): EXT PULL sub-loop for federated streams. Bypasses all WAL PULL paths,
   // UNLESS:
   //   a) groups are already queued for calc (DATA_EXT has arrived and populated
-  //      groupsToCheck) — fall through to the _check: loop first.
-  //   b) status is SEND_CALC_REQ — a CALC_DATA_EXT response just arrived and the
+  //      groupsToCheck)  -  fall through to the _check: loop first.
+  //   b) status is SEND_CALC_REQ  -  a CALC_DATA_EXT response just arrived and the
   //      pMinGroup calc loop must resume to write data to cache and send the runner
   //      request.  Skip the EXT short-circuit so pMinGroup is processed below.
-  //   c) any ext reader has a pending pCalcUidWindow — CALC_DATA_EXT has not been
+  //   c) any ext reader has a pending pCalcUidWindow  -  CALC_DATA_EXT has not been
   //      sent yet (deferred calc path); fall through so stRealtimeContextSendCalcReq
   //      can dispatch CALC_DATA_EXT.  Without this check, the bypass fires on every
   //      session resume and the pCalcUidWindow is never consumed.
   //   d) a deferred group in pMaxDelayHeap has matured (nextExecTime <= now) and
-  //      has pending calc params — EXT SLIDING streams batch-delay their dispatch
+  //      has pending calc params  -  EXT SLIDING streams batch-delay their dispatch
   //      via the heap; if we always bypass here those groups are never processed.
   bool hasCalcUidWindow = false;
   if (pContext->pReaderExtProgress != NULL) {
@@ -16268,7 +16268,7 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
       pContext->status = STRIGGER_CONTEXT_FETCH_META;
       if (pContext->pReaderExtProgress != NULL) {
         /* EXT stream: always dispatch via stRealtimeContextCheckExt, which sends
-         * STRIGGER_PULL_*_EXT requests to genuinely re-poll the external source —
+         * STRIGGER_PULL_*_EXT requests to genuinely re-poll the external source --
          * regardless of ignoreNoDataTrigger. The "fire on schedule even with no
          * new data" semantics is handled inside stRealtimeContextProcExtPullRsp's
          * empty-poll exits (via stRealtimeContextForcePeriodGroupsToCheck), not
@@ -16742,7 +16742,7 @@ _calc_done:
       pContext->status = STRIGGER_CONTEXT_FETCH_META;
       if (pContext->pReaderExtProgress != NULL) {
         /* EXT stream: after calc round, restart EXT polling via stRealtimeContextCheckExt.
-         * pReaderWalProgress is always empty for EXT streams — never fall through to WAL pull. */
+         * pReaderWalProgress is always empty for EXT streams  -  never fall through to WAL pull. */
         ST_TASK_DLOG("ext: post-calc, restarting EXT poll via stRealtimeContextCheckExt %s", "");
         code = stRealtimeContextCheckExt(pContext, now);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -18121,7 +18121,7 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
           (SSTriggerPendingCreateTableEntry *)taosArrayGet(pContext->pPendingCreateTableGids, 0);
       if (pFirst != NULL) {
         // Slot-freed retry path: STRIGGER_PULL_GROUP_COL_VALUE may not have run for this gid, so pGroupColVals
-        // can lack an entry; stTriggerTaskSendCreateTableReq only fills from hash — pull first if missing.
+        // can lack an entry; stTriggerTaskSendCreateTableReq only fills from hash  -  pull first if missing.
         bool needTagForCreate = stTriggerTaskNeedGroupColVals(pTask, true);
         if (needTagForCreate && pContext->pGroupColVals != NULL) {
           void *hx = tSimpleHashGet(pContext->pGroupColVals, &pFirst->gid, sizeof(int64_t));
@@ -22202,7 +22202,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
                 &pGroup->ds.lastDeferredPartialNullTs, pTsData[i]);
             QUERY_CHECK_CODE(code, lino, _end_block);
           } else {
-            /* not compatible with old window → cut */
+            /* not compatible with old window  ->  cut */
             bool dualSide = false;
             code = stCheckDualSideCompatible(pGroup->ds.pPendingStateVals, pStateCols, i,
                                               pGroup->ds.pendingColTouched, pGroup->ds.hasPendingPartialNull, &dualSide);
@@ -22295,7 +22295,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
             code = stCompareStateValuesWithRow(pGroup->ds.pPendingStateVals, pStateCols, i, pGroup->ds.stateKeyDefined, pGroup->ds.pendingColTouched, &stateEqual);
             QUERY_CHECK_CODE(code, lino, _end_block);
             if (stateEqual) {
-              /* flush pending → commit to current window */
+              /* flush pending  ->  commit to current window */
               stCommitPendingToState(pGroup->ds.pStateVals, pGroup->ds.pPendingStateVals,
                                      pGroup->ds.stateKeyDefined, pGroup->ds.pendingColTouched,
                                      stateKeyCnt, &pGroup->ds.hasPendingPartialNull);
@@ -22305,7 +22305,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
                                          &pGroup->ds.firstDeferredPartialNullTs,
                                          &pGroup->ds.lastDeferredPartialNullTs);
             } else {
-              /* not compatible → resolve pending, then cut */
+              /* not compatible  ->  resolve pending, then cut */
               bool dualSide = false;
               code = stCheckDualSideCompatible(pGroup->ds.pPendingStateVals, pStateCols, i,
                                                 pGroup->ds.pendingColTouched, pGroup->ds.hasPendingPartialNull, &dualSide);
@@ -25727,7 +25727,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
                 &pGroup->ds.lastDeferredPartialNullTs, pTsData[r]);
             QUERY_CHECK_CODE(code, lino, _end_block);
           } else {
-            /* not compatible with old window → cut */
+            /* not compatible with old window  ->  cut */
             bool dualSide = false;
             code = stCheckDualSideCompatible(pGroup->ds.pPendingStateVals, pStateCols, r,
                                               pGroup->ds.pendingColTouched, pGroup->ds.hasPendingPartialNull, &dualSide);

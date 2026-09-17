@@ -1488,9 +1488,9 @@ int32_t getViewMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, ST
   return code;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Federated query — ext source metadata cache helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
+// Federated query  -  ext source metadata cache helpers
+// -----------------------------------------------------------------------------
 
 // Build the composite key used for pExtTableMeta hash.
 // Format:  "sourceName\x01<numMidSegs>\x01mid0\x01mid1\x01tableName"

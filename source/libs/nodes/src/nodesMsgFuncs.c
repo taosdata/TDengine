@@ -7069,7 +7069,7 @@ static int32_t msgToQueryPlan(STlvDecoder* pDecoder, void* pObj) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Logic-plan node TLV (de)serialization — FQ remotePlan support.
+// Logic-plan node TLV (de)serialization - FQ remotePlan support.
 //
 // SFederatedScanPhysiNode.pRemotePlan carries a *logic* sub-tree (SCAN/PROJECT/
 // SORT/AGG/INDEF) that is serialized over the wire (TLV) to the executor, which

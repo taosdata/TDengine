@@ -51,8 +51,8 @@ int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, const char* toke
     }
   }
 
-  // FLUSH MNODE triggers a WAL-truncating snapshot on the mnode leader; per FS §4.1/§6
-  // ("FLUSH MNODE 需要 sysinfo 权限, 防止普通用户触发集群重启") it is gated on the sysinfo
+  // FLUSH MNODE triggers a WAL-truncating snapshot on the mnode leader; per FS section 4.1/section 6
+  // FLUSH MNODE requires sysinfo privileges to prevent ordinary users from restarting the cluster; it is gated on the sysinfo
   // flag, same as SHOW MNODES/SHOW DNODES visibility elsewhere in this file's siblings.
   if (operType == MND_OPER_FLUSH_MNODE) {
     if ((!pUser->superUser) && (!pUser->sysInfo)) {

@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// extConnectorError.c — error retryability helper (community + enterprise)
+// extConnectorError.c  -  error retryability helper (community + enterprise)
 //
 // Error-code mapping functions for MySQL, PG, and InfluxDB are implemented
 // in the enterprise provider files (extConnectorMySQL.c, extConnectorPG.c,
@@ -24,7 +24,7 @@
 #include "extError.h"
 #include "taoserror.h"
 
-// extConnectorIsRetryable — DS §5.3.9 retryability rules
+// extConnectorIsRetryable  -  DS section 5.3.9 retryability rules
 //
 // Connection-related and resource-exhaustion errors are transient and may be
 // retried by the caller.  Authentication / access-denied errors are permanent

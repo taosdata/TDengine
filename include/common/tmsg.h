@@ -31,7 +31,7 @@
 #include "tsimplehash.h"
 #include "tuuid.h"
 
-// Forward declaration — full definition in libs/nodes/nodes.h
+// Forward declaration  -  full definition in libs/nodes/nodes.h
 typedef struct SNode SNode;
 
 #ifdef __cplusplus
@@ -149,7 +149,7 @@ enum {
   HEARTBEAT_KEY_VIEWINFO,
   HEARTBEAT_KEY_TSMA,
   HEARTBEAT_KEY_TXN_KEEPALIVE,
-  HEARTBEAT_KEY_TXN_KILLED,  // MNode → client: txn was forcibly rolled back due to inactivity timeout
+  HEARTBEAT_KEY_TXN_KILLED,  // MNode  ->  client: txn was forcibly rolled back due to inactivity timeout
   HEARTBEAT_KEY_EXTSOURCE,  // federated query: external source change notifications
 };
 
@@ -300,7 +300,7 @@ typedef enum EExtClauseKind {
   EXT_CLAUSE_ORDER_NULLS_LAST,    // NULLS LAST ordering  (MySQL default: disabled)
   EXT_CLAUSE_OFFSET,              // OFFSET keyword
   EXT_CLAUSE_DISTINCT,            // SELECT DISTINCT
-  // JOIN subtypes — dialect defaults only; disabling any subtype must also
+  // JOIN subtypes - dialect defaults only; disabling any subtype must also
   // explicitly disable the parent EXT_CLAUSE_JOIN gate in the defaults table.
   EXT_CLAUSE_INNER_JOIN,
   EXT_CLAUSE_LEFT_JOIN,
@@ -314,39 +314,39 @@ typedef enum EExtClauseKind {
   EXT_CLAUSE_INTERVAL_SLIDING,    // TDengine INTERVAL(…) SLIDING window
   EXT_CLAUSE_PARTITION_TBNAME,    // PARTITION BY tbname
   EXT_CLAUSE_PARTITION_COLUMN,    // PARTITION BY <column>
-  // SQL feature flags — set in common/dialect defaults; no error-based demote.
+  // SQL feature flags - set in common/dialect defaults; no error-based demote.
   EXT_CLAUSE_FEAT_CTE,            // WITH (common table expressions; common default: disabled)
   EXT_CLAUSE_FEAT_WINDOW_FUNCTIONS, // window functions (common default: disabled)
   EXT_CLAUSE_FEAT_LARGE_IN_LIST,  // remote handles large IN (v1,…,vN) lists (common default: disabled)
-  // Subquery expression types — dialect defaults only.
+  // Subquery expression types - dialect defaults only.
   // EXISTS/NOT EXISTS are tracked at the operator layer (disabledOps).
-  EXT_CLAUSE_IN_SUBQUERY,         // IN/NOT IN (subquery) — InfluxDB default: disabled
-  EXT_CLAUSE_ALL_ANY_SUBQUERY,    // ALL/ANY/SOME subquery — InfluxDB default: disabled
-  // Additional JOIN subtypes — always local for all current dialects.
+  EXT_CLAUSE_IN_SUBQUERY,         // IN/NOT IN (subquery) - InfluxDB default: disabled
+  EXT_CLAUSE_ALL_ANY_SUBQUERY,    // ALL/ANY/SOME subquery - InfluxDB default: disabled
+  // Additional JOIN subtypes - always local for all current dialects.
   // Disabling these does not require disabling the parent EXT_CLAUSE_JOIN gate
   // because they are never pushed down regardless.
-  EXT_CLAUSE_ASOF_JOIN,           // ASOF Join — always local (common default: disabled)
-  EXT_CLAUSE_WINDOW_JOIN,         // Window Join — always local (common default: disabled)
-  // TDengine-specific window types — always local for all current dialects.
+  EXT_CLAUSE_ASOF_JOIN,           // ASOF Join - always local (common default: disabled)
+  EXT_CLAUSE_WINDOW_JOIN,         // Window Join - always local (common default: disabled)
+  // TDengine-specific window types - always local for all current dialects.
   // (INTERVAL tumbling/sliding are above; state/session/event/count are below.)
-  EXT_CLAUSE_STATE_WINDOW,        // STATE_WINDOW — always local (common default: disabled)
-  EXT_CLAUSE_SESSION_WINDOW,      // SESSION — always local (common default: disabled)
-  EXT_CLAUSE_EVENT_WINDOW,        // EVENT_WINDOW — always local (common default: disabled)
-  EXT_CLAUSE_COUNT_WINDOW,        // COUNT_WINDOW — always local (common default: disabled)
-  // TDengine-specific sub-clauses — always local for all current dialects.
-  EXT_CLAUSE_FILL,                // FILL clause (window fill) — always local (common default: disabled)
-  EXT_CLAUSE_INTERP,              // INTERP + RANGE/EVERY — always local (common default: disabled)
-  EXT_CLAUSE_SLIMIT,              // SLIMIT/SOFFSET (per-partition limit) — always local (common default: disabled)
-  EXT_CLAUSE_EXISTS_SUBQUERY,     // EXISTS/NOT EXISTS (subquery) — InfluxDB default: disabled
+  EXT_CLAUSE_STATE_WINDOW,        // STATE_WINDOW - always local (common default: disabled)
+  EXT_CLAUSE_SESSION_WINDOW,      // SESSION - always local (common default: disabled)
+  EXT_CLAUSE_EVENT_WINDOW,        // EVENT_WINDOW - always local (common default: disabled)
+  EXT_CLAUSE_COUNT_WINDOW,        // COUNT_WINDOW - always local (common default: disabled)
+  // TDengine-specific sub-clauses - always local for all current dialects.
+  EXT_CLAUSE_FILL,                // FILL clause (window fill) - always local (common default: disabled)
+  EXT_CLAUSE_INTERP,              // INTERP + RANGE/EVERY - always local (common default: disabled)
+  EXT_CLAUSE_SLIMIT,              // SLIMIT/SOFFSET (per-partition limit) - always local (common default: disabled)
+  EXT_CLAUSE_EXISTS_SUBQUERY,     // EXISTS/NOT EXISTS (subquery) - InfluxDB default: disabled
 
   EXT_CLAUSE_MAX,
 } EExtClauseKind;
 
 // FQ subquery render mode (v2 two-state pushdown model).  Decided in the
 // collect phase, carried on each REMOTE_* node, consumed by nodesRemotePlanToSQL.
-//   FQ_SUBQ_RENDER_DIRECT_SQL   — clause directly pushable AND inner SELECT needs
+//   FQ_SUBQ_RENDER_DIRECT_SQL   - clause directly pushable AND inner SELECT needs
 //                                 no transform: inline the user's original SQL.
-//   FQ_SUBQ_RENDER_ORIG_TYPE_2B — keep the original predicate form (IN/ALL/ANY/
+//   FQ_SUBQ_RENDER_ORIG_TYPE_2B - keep the original predicate form (IN/ALL/ANY/
 //                                 EXISTS) but render the inner SELECT with dialect
 //                                 transforms (function mapping, federated-name →
 //                                 schema/db/remoteTableName translation).
@@ -413,7 +413,7 @@ typedef struct SExtPushdownDiagnostic {
 // A single option value budget (value length boundary remains 4095 chars).
 #define TSDB_EXT_SOURCE_OPTION_VALUE_LEN 4096
 
-// SExtSourceCapability — push-down ability flags for an external source.
+// SExtSourceCapability  -  push-down ability flags for an external source.
 // Defined here (tmsg.h) so that SExtSourceInfo below and extConnector.h both
 // share the same declaration without a circular-include.
 typedef struct SExtSourceCapability {
@@ -464,9 +464,9 @@ bool           extClauseIsGate(EExtClauseKind kind);
 
 int32_t tEncodeSExtPushdownDiagnostic(SEncoder* pEncoder, const SExtPushdownDiagnostic* pDiag);
 int32_t tDecodeSExtPushdownDiagnostic(SDecoder* pDecoder, SExtPushdownDiagnostic* pDiag);
-// EExtSQLDialect — SQL dialect selector for remote SQL generation.
+// EExtSQLDialect - SQL dialect selector for remote SQL generation.
 // Defined here (alongside EExtSourceType) so that nodes/plannodes.h can reference
-// it without including extConnector.h, breaking the nodes → extconnector dependency.
+// it without including extConnector.h, breaking the nodes  ->  extconnector dependency.
 typedef enum EExtSQLDialect {
   EXT_SQL_DIALECT_MYSQL    = 0,
   EXT_SQL_DIALECT_POSTGRES = 1,
@@ -478,7 +478,7 @@ typedef enum EExtSQLDialect {
 // extInitInfluxTagPartition / fetchDataBatchInflux column-type mappings) and
 // when the stream parser auto-derives an output TAG from a PARTITION BY tag
 // column (parTranslater.c's createStreamReqSetDefaultTag).  Keeping both sides
-// on this single constant prevents them drifting apart — InfluxDB tags have no
+// on this single constant prevents them drifting apart  -  InfluxDB tags have no
 // declared TDengine-side width, so the two call sites must agree on one.
 #define EXT_INFLUX_TAG_NCHAR_CHARS (257 * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE)
 #define EXT_INFLUX_KEY_NCHAR_CHARS ((TSDB_COL_NAME_LEN - 1) * TSDB_NCHAR_SIZE)
@@ -486,13 +486,13 @@ typedef enum EExtSQLDialect {
 
 // ── FQ push-down capability bitmap ──────────────────────────────────────────
 // uint16_t bitmap encoding:
-//   bits [2:0]  — default capability per dialect (0 = not pushable)
-//   bits [5:3]  — session-level override (1 = force-disable for that dialect)
+//   bits [2:0]  - default capability per dialect (0 = not pushable)
+//   bits [5:3]  - session-level override (1 = force-disable for that dialect)
 //
 // fqPushCap bitmap layout (uint16_t):
 //
-//   Low byte  (bits 0-7)  — static/global capability defaults
-//   High byte (bits 8-15) — session-level overrides (set to force-disable)
+//   Low byte  (bits 0-7)  - static/global capability defaults
+//   High byte (bits 8-15) - session-level overrides (set to force-disable)
 //
 //   The high byte mirrors the low byte: each bit in the high byte disables the
 //   corresponding bit position in the low byte at session level.
@@ -555,11 +555,11 @@ static inline uint16_t fqDialectBit(int32_t dialect) {
 // clause (by EExtClauseKind) is pushable for the given dialect, taking
 // session-level overrides into account.
 //
-// fqFuncCapBitmap  — returns the uint16_t bitmap; FQ_CAP_NONE for UDFs/unknown.
-// fqFuncArg0NcharCapBitmap — returns the arg0==NCHAR-specific bitmap when
+// fqFuncCapBitmap  - returns the uint16_t bitmap; FQ_CAP_NONE for UDFs/unknown.
+// fqFuncArg0NcharCapBitmap - returns the arg0==NCHAR-specific bitmap when
 // configured, otherwise inherits fqFuncCapBitmap(funcId).
-// fqOpCapBitmap    — lookup in gFqOpCap[]; FQ_CAP_NONE for unmapped ops.
-// fqClauseCapBitmap — lookup in gFqClauseCap[]; FQ_CAP_NONE for unknown kinds.
+// fqOpCapBitmap    - lookup in gFqOpCap[]; FQ_CAP_NONE for unmapped ops.
+// fqClauseCapBitmap - lookup in gFqClauseCap[]; FQ_CAP_NONE for unknown kinds.
 uint16_t fqFuncCapBitmap(int32_t funcId);
 uint16_t fqFuncArg0NcharCapBitmap(int32_t funcId);
 uint16_t fqOpCapBitmap(EOperatorType opType);
@@ -594,9 +594,9 @@ bool fqClauseTransformIsPushable(EExtClauseKind clauseKind, int32_t dialect,
 // AND the session-override bit is NOT set.
 bool fqFuncSubCapIsPushable(int32_t funcId, int32_t subCapShift, int32_t dialect,
                              const SExtCapSessionOverlay* pOverlay);
-// SExtColumnDef / SExtTableMeta — external table metadata types.
+// SExtColumnDef / SExtTableMeta - external table metadata types.
 // Defined here so that nodes/querynodes.h and nodes source files can use them
-// without depending on extConnector.h, which would create a nodes → extconnector
+// without depending on extConnector.h, which would create a nodes  ->  extconnector
 // build dependency.
 typedef struct SExtColumnDef {
   char colName[TSDB_COL_NAME_LEN];        // connector-normalized column name
@@ -930,7 +930,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_CREATE_STREAM_STMT,
   QUERY_NODE_KILL_BACKUP_STMT,
 
-  // DDL statement nodes for federated query (external source) — 240-249 reserved
+  // DDL statement nodes for federated query (external source)  -  240-249 reserved
   QUERY_NODE_CREATE_EXT_SOURCE_STMT   = 240,
   QUERY_NODE_ALTER_EXT_SOURCE_STMT,
   QUERY_NODE_DROP_EXT_SOURCE_STMT,
@@ -1252,7 +1252,7 @@ int32_t tPrintFixedSchemaSubmitReq(SSubmitReq* pReq, STSchema* pSchema);
 typedef struct {
   bool     hasRef;
   col_id_t id;
-  int8_t   refType;                                   // 0=internal, 1=external (DS §6.2.7)
+  int8_t   refType;                                   // 0=internal, 1=external (DS section 6.2.7)
   char     refSourceName[TSDB_EXT_SOURCE_NAME_LEN];   // external source name (refType=1)
   char     refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // external schema captured at virtual-table creation (PG only)
   char     refDbName[TSDB_DB_NAME_LEN];
@@ -2233,7 +2233,7 @@ bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm);
 
 
 // SCRAM-SHA-256 credentials. When algo==TSDB_SCRAM_ALGO_SHA256, the client has
-// pre-derived the credentials locally and the server stores them directly — the
+// pre-derived the credentials locally and the server stores them directly  -  the
 // password hash is never sent over the wire.
 typedef struct {
   int8_t  algo;     // TSDB_SCRAM_ALGO_*
@@ -4074,7 +4074,7 @@ typedef struct {
 int32_t tSerializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
 int32_t tDeserializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
 
-// Snap send progress query (mnode → dnode, dnode → mnode RSP)
+// Snap send progress query (mnode  ->  dnode, dnode  ->  mnode RSP)
 typedef struct {
   int32_t fid;
   int32_t fileCount;
@@ -5598,8 +5598,8 @@ typedef struct SVTableScanOperatorParam {
   SOperatorParam* pTagScanOp;
   int32_t         tagDownStreamId;
   char            tbName[TSDB_TABLE_NAME_LEN];
-  SArray*         pOpParamArray;       // SArray<SOperatorParam> — internal Exchange params
-  SArray*         pForeignParamArray;  // SArray<SOperatorParam> — external FederatedScan params
+  SArray*         pOpParamArray;       // SArray<SOperatorParam>  -  internal Exchange params
+  SArray*         pForeignParamArray;  // SArray<SOperatorParam>  -  external FederatedScan params
   SArray*         pRefColGroups;       // SArray<SRefColIdGroup>
   SArray*         pResolvedTags;       // SArray<STagVal>, resolved tag values from source tables
 } SVTableScanOperatorParam;
@@ -6345,7 +6345,7 @@ typedef struct SVAlterTbReq {
   char*   seriesMeasurementName;
   int32_t seriesTagCondLen;
   char*   seriesTagCondJson;
-  // TSDB_ALTER_TABLE_REMOVE_SERIES — uses seriesAlias above
+  // TSDB_ALTER_TABLE_REMOVE_SERIES  -  uses seriesAlias above
   int64_t txnId;  // batch meta txn ID (0 = not in txn)
 } SVAlterTbReq;
 
@@ -6997,7 +6997,7 @@ typedef struct {
   int8_t     clientStage;
   txn_id_t   txnId;
   int64_t    connId;
-  SSHashObj* pVgSet;                      // Hash set of int32_t vgId → dummy, client-tracked participant VGroups
+  SSHashObj* pVgSet;                      // Hash set of int32_t vgId  ->  dummy, client-tracked participant VGroups
   char       dbFName[TSDB_DB_FNAME_LEN];  // participating DB fullName (replicated txn COMMIT/ROLLBACK)
 } SMTransReq;
 
@@ -7016,13 +7016,13 @@ typedef struct {
   txn_id_t txnId;
 } SMndTxnRegRsp;
 
-// MNode → VNode: COMMIT instruction for a single transaction
+// MNode  ->  VNode: COMMIT instruction for a single transaction
 typedef struct {
   txn_id_t  txnId;
   int64_t   term;    // current MNode Raft term (SyncTerm); used for VNode-side fencing
 } SVTxnCommitReq;
 
-// MNode → VNode: ROLLBACK instruction for a single transaction
+// MNode  ->  VNode: ROLLBACK instruction for a single transaction
 typedef struct {
   txn_id_t  txnId;
   int64_t   term;    // current MNode Raft term (SyncTerm); used for VNode-side fencing
@@ -7038,7 +7038,7 @@ int32_t tDeserializeSVTxnCommitReq(void* buf, int32_t bufLen, SVTxnCommitReq* pR
 int32_t tSerializeSVTxnRollbackReq(void* buf, int32_t bufLen, SVTxnRollbackReq* pReq);
 int32_t tDeserializeSVTxnRollbackReq(void* buf, int32_t bufLen, SVTxnRollbackReq* pReq);
 
-// VNode → DNode → MNode keepalive query (piggy-backed onto SStatusReq)
+// VNode  ->  DNode  ->  MNode keepalive query (piggy-backed onto SStatusReq)
 typedef struct {
   txn_id_t  txnId;
   int32_t   vgId;  // VNode issuing the query
@@ -8206,7 +8206,7 @@ int32_t tSerializeSRefreshExtSourceReq(void* buf, int32_t bufLen, SRefreshExtSou
 int32_t tDeserializeSRefreshExtSourceReq(void* buf, int32_t bufLen, SRefreshExtSourceReq* pReq);
 void    tFreeSRefreshExtSourceReq(SRefreshExtSourceReq* pReq);
 
-// Catalog → Mnode: query a single external source (on cache miss)
+// Catalog  ->  Mnode: query a single external source (on cache miss)
 typedef struct SGetExtSourceReq {
   char source_name[TSDB_EXT_SOURCE_NAME_LEN];
 } SGetExtSourceReq;
@@ -8215,7 +8215,7 @@ int32_t tSerializeSGetExtSourceReq(void* buf, int32_t bufLen, SGetExtSourceReq* 
 int32_t tDeserializeSGetExtSourceReq(void* buf, int32_t bufLen, SGetExtSourceReq* pReq);
 void    tFreeSGetExtSourceReq(SGetExtSourceReq* pReq);
 
-// Mnode → Catalog: external source info response (password decrypted by mnode for internal RPC)
+// Mnode  ->  Catalog: external source info response (password decrypted by mnode for internal RPC)
 typedef struct SGetExtSourceRsp {
   char    source_name[TSDB_EXT_SOURCE_NAME_LEN];
   int8_t  type;          // EExtSourceType
@@ -8262,7 +8262,7 @@ void    tFreeSExtSourceHbRsp(SExtSourceHbRsp *pRsp);
 // See SQueryTableRsp definition above; tSerializeSQueryTableRsp / tDeserializeSQueryTableRsp
 // encode/decode both fields with dedicated has-* flags after all existing fields.
 
-// SExtTableMetaReq — identifies an external table to be resolved by catalog.
+// SExtTableMetaReq  -  identifies an external table to be resolved by catalog.
 // Parser registers one per external table reference during collectMetaKey.
 // sourceName matches the ext source name; rawMidSegs holds 0-2 intermediate
 // path segments (db / schema) whose interpretation depends on source type;

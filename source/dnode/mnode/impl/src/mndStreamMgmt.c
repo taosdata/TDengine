@@ -1459,7 +1459,7 @@ int32_t msmAssignTaskSnodeId(SMnode* pMnode, SStreamObj* pStream, bool isStatic)
       mstsDebug("msmAssignTaskSnodeId: federated stream picked snode=%d (least-ext-reader)", snodeId);
       goto _exit;
     }
-    mDebug("msmAssignTaskSnodeId: federated stream — no alive snode via least-ext-reader, fallback");
+    mDebug("msmAssignTaskSnodeId: federated stream - no alive snode via least-ext-reader, fallback");
   }
 
   snodeId = isStatic ? msmRetrieveStaticSnodeId(pMnode, pStream) : msmAssignRandomSnodeId(pMnode, streamId);

@@ -753,7 +753,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
           if (pTscObj->txnId == killedTxnId && pTscObj->txnState == UTXN_STAGE_ACTIVE) {
             atomic_store_8(&pTscObj->txnState, UTXN_STAGE_TIMEOUT_KILLED);
             tscWarn("conn:0x%" PRIx64 ", txn:%" PRIi64
-                    " timeout-killed by MNode; state → TIMEOUT_KILLED; "
+                    " timeout-killed by MNode; state -> TIMEOUT_KILLED; "
                     "all operations will fail until ROLLBACK is issued",
                     pTscObj->id, killedTxnId);
           }
@@ -1523,7 +1523,7 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
     }
 
 #ifdef TD_ENTERPRISE
-    // FH-1: collect expired ext source versions — only when federated query is enabled
+    // FH-1: collect expired ext source versions  -  only when federated query is enabled
     if (tsFederatedQueryEnable) {
       code = hbGetExpiredExtSourceInfo(connKey, pCatalog, req);
       if (TSDB_CODE_SUCCESS != code) {

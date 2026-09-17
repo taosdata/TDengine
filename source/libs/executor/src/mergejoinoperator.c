@@ -920,7 +920,7 @@ static int32_t mJoinInitFuncPrimExprCtx(SMJoinPrimExprCtx* pCtx, STargetNode* pT
   }
 
   if (FUNCTION_TYPE_TIMESTAMP_SCALE == pFunc->funcType) {
-    // __timestamp_scale(expr, target_precision) — 2 parameters
+    // __timestamp_scale(expr, target_precision)  -  2 parameters
     if (2 != pFunc->pParameterList->length) {
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }

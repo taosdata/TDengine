@@ -105,9 +105,9 @@ static int32_t validateTimeUnitParamEx(uint8_t dbPrec, const SValueNode* pVal) {
 
 /* Following are valid ISO-8601 timezone format:
  * 1 z/Z
- * 2 ±hh:mm
- * 3 ±hhmm
- * 4 ±hh
+ * 2 +/-hh:mm
+ * 3 +/-hhmm
+ * 4 +/-hh
  */
 static bool validateTimezoneFormat(const SValueNode* pVal) {
   if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
@@ -193,7 +193,7 @@ static bool extractUtcOffsetFromTzDisplay(const char* display, char* out, int32_
     return false;
   }
 
-  /* Find ", +" or ", -" — the comma-space before the sign of the offset */
+  /* Find ", +" or ", -"  -  the comma-space before the sign of the offset */
   const char* p = strstr(display, ", +");
   if (p == NULL) {
     p = strstr(display, ", -");
@@ -230,7 +230,7 @@ static void flipTimezoneOffsetSign(char* offset) {
 /*
  * Heuristic: treat a timezone name as an IANA region-based name iff it
  * contains '/'.  Examples: "Asia/Shanghai", "America/New_York", "Europe/London".
- * Everything else — "+0800", "UTC-2", "GMT+5", "CST", etc. — is treated as
+ * Everything else  -  "+0800", "UTC-2", "GMT+5", "CST", etc.  -  is treated as
  * non-IANA and uses POSIX sign convention which must be converted for ISO 8601.
  *
  * Known limitations of the '/' test (acceptable because inputs come from the
@@ -298,7 +298,7 @@ static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISO
            * TO_ISO8601 path: save original tz name for format matching,
            * then extract ISO 8601 offset from display string so the sign
            * is consistent with what the scalar function expects
-           * (local = UTC + offset).  E.g. session "UTC-8" → inject "+0800".
+           * (local = UTC + offset).  E.g. session "UTC-8"  ->  inject "+0800".
            */
           tstrncpy(origTzName, buf, sizeof(origTzName));
           char isoBuf[8] = {0};
@@ -396,9 +396,9 @@ static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISO
   /* For TO_ISO8601: match output offset format to the original SET TIMEZONE
    * input format.  The scalar function's fixed-offset path echoes tzStr
    * verbatim, so Z and colon must already be present in the injected param.
-   * - Z/z input  → output Z/z
-   * - colon input (e.g. +08:00) → insert colon into ±HHMM → ±HH:MM
-   * - otherwise  → keep ±HHMM as-is */
+   * - Z/z input   ->  output Z/z
+   * - colon input (e.g. +08:00)  ->  insert colon into +/-HHMM  ->  +/-HH:MM
+   * - otherwise   ->  keep +/-HHMM as-is */
   if (useISOOffset && origTzName[0] != '\0') {
     if (origTzName[0] == 'Z' || origTzName[0] == 'z') {
       buf[0] = origTzName[0];
@@ -813,7 +813,7 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
     cJSON* width = cJSON_GetObjectItem(binDesc, "width");
     cJSON* count = cJSON_GetObjectItem(binDesc, "count");
     cJSON* infinity = cJSON_GetObjectItem(binDesc, "infinity");
-    /* infinity is optional — treat absent as false */
+    /* infinity is optional - treat absent as false */
     bool infinityVal = (cJSON_IsBool(infinity) && infinity->valueint != 0);
 
     if (!cJSON_IsNumber(start) || !cJSON_IsNumber(count) ||
@@ -1507,7 +1507,7 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
 
     if (!deferValidation) {
       if (pPatVal->datum.p != NULL) {
-        // datum.p is a length-prefixed vardata buffer — not NUL-terminated.
+        // datum.p is a length-prefixed vardata buffer - not NUL-terminated.
         // Build a NUL-terminated copy for regcomp().
         int32_t patBytes = varDataLen(pPatVal->datum.p);
         patternBuf = taosMemoryMalloc(patBytes + 1);
@@ -1530,7 +1530,7 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
       if (ret != 0) {
         char msgbuf[256] = {0};
         (void)regerror(ret, NULL, msgbuf, sizeof(msgbuf));
-        // do not call regfree — regcomp failed, re is partially initialised (POSIX)
+        // do not call regfree - regcomp failed, re is partially initialised (POSIX)
         taosMemoryFree(patternBuf);
         return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,
                                "Invalid regex pattern for regexp_extract: %s", msgbuf);
@@ -1557,7 +1557,7 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
       if (!IS_INTEGER_TYPE(idxType)) {
         return invaildFuncParaTypeErrMsg(pErrBuf, len, "regexp_extract: group_idx must be an integer");
       }
-      // Skip range validation for prepared-statement placeholders — the bound value
+      // Skip range validation for prepared-statement placeholders  -  the bound value
       // is not yet known; the runtime check in regexpExtractFunction applies instead.
       if (pIdxVal->placeholderNo == 0) {
         int64_t groupIdx = pIdxVal->datum.i;
@@ -2483,13 +2483,13 @@ static int32_t translateToTimestamp(SFunctionNode* pFunc, char* pErrBuf, int32_t
  * downstream consumers (sclfunc, hash join, merge join) can use
  * fixed indices:
  *
- *   [0] ts           — the timestamp expression
- *   [1] unit         — truncation interval (ticks)
- *   [2] use_curr_tz  — integer 0 or 1
- *   [3] precision    — database time precision
- *   [4] tz_name      — timezone IANA name / offset string
- *   [5] fdow         — firstDayOfWeek (0-6)
- *   [6] unitCh       — unit character (n/y/w/d/…)
+ *   [0] ts            -  the timestamp expression
+ *   [1] unit          -  truncation interval (ticks)
+ *   [2] use_curr_tz   -  integer 0 or 1
+ *   [3] precision     -  database time precision
+ *   [4] tz_name       -  timezone IANA name / offset string
+ *   [5] fdow          -  firstDayOfWeek (0-6)
+ *   [6] unitCh        -  unit character (n/y/w/d/...)
  */
 static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
@@ -2528,7 +2528,7 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
       pNewVal->typeData = 1;
       pCell->pNode = (SNode*)pNewVal;
     } else if (IS_INTEGER_TYPE(pValue->node.resType.type)) {
-      /* integer 0/1 — validate value */
+      /* integer 0/1  -  validate value */
       if (pValue->datum.i != 0 && pValue->datum.i != 1) {
         return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                                "TIMETRUNCATE third parameter should be 0/1 or a timezone string");
@@ -2539,7 +2539,7 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
     }
   }
 
-  /* [2] use_curr_tz — when user provided only 2 params, default to 1 */
+  /* [2] use_curr_tz  -  when user provided only 2 params, default to 1 */
   int32_t code = TSDB_CODE_SUCCESS;
   if (numOfParams == 2) {
     code = addUint8Param(&pFunc->pParameterList, 1);
@@ -2557,7 +2557,7 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
     return code;
   }
 
-  /* [4] tz_name — re-use saved user string or inject connection timezone */
+  /* [4] tz_name  -  re-use saved user string or inject connection timezone */
   if (hasStringTz && pSavedTzNode != NULL) {
     code = nodesListMakeAppend(&pFunc->pParameterList, pSavedTzNode);
     if (code != TSDB_CODE_SUCCESS) {
@@ -2572,13 +2572,13 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
     }
   }
 
-  /* [5] fdow — firstDayOfWeek (0-6) */
+  /* [5] fdow  -  firstDayOfWeek (0-6) */
   code = addUint8Param(&pFunc->pParameterList, (uint8_t)pFunc->firstDayOfWeek);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  /* [6] unitCh — unit character for calendar-unit detection */
+  /* [6] unitCh  -  unit character for calendar-unit detection */
   {
     SValueNode* pUnitNode = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
     uint8_t unitCh = (uint8_t)(pUnitNode != NULL ? (uint8_t)pUnitNode->unit : 0);
@@ -2944,7 +2944,7 @@ static int32_t translateGreatestleast(SFunctionNode* pFunc, char* pErrBuf, int32
     }
   }
   // ignoreNullInGreatest=1: if every param was a NULL literal the output is
-  // still NULL type (matches default behavior; FS §4.5).
+  // still NULL type (matches default behavior; FS section 4.5).
   if (ignoreNull && !resInit && nullLitCount > 0) {
     res.type = TSDB_DATA_TYPE_NULL;
     res.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
@@ -5164,7 +5164,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "cast",
     .type = FUNCTION_TYPE_CAST,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = FQ_CAP_ALL | FQ_CAP_CAST_TS_INT_PG,  // All dialects support CAST; but only PG supports CAST(timestamp→int)
+    .fqPushCap = FQ_CAP_ALL | FQ_CAP_CAST_TS_INT_PG,  // All dialects support CAST; but only PG supports CAST(timestamp->int)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -7079,7 +7079,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   },
   {
     .name = "cols",
-    .fqPushCap = 0x0000,  // FQ_CAP_NONE — TDengine internal
+    .fqPushCap = 0x0000,  // FQ_CAP_NONE - TDengine internal
     .translateFunc = invalidColsFunction,
   },
   {

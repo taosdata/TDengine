@@ -92,7 +92,7 @@ int stmtIsLiteral(TAOS_STMT2 *stmt) {
 
 
 /* Free any existing siInfo.dbname and replace with a heap copy of src.
- * src may be NULL or empty — in either case dbname is left NULL. */
+ * src may be NULL or empty  -  in either case dbname is left NULL. */
 static int32_t stmtDupSiInfoDbname(SStbInterlaceInfo* pSi, const char* src) {
   taosMemoryFreeClear(pSi->dbname);
   if (src != NULL && src[0] != '\0') {

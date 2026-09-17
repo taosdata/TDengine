@@ -339,9 +339,9 @@ static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType
 
   /* Unified validation + normalization (same gate as SET TIMEZONE):
    *   - rejects ambiguous abbreviations (CST, EST ...)
-   *   - converts fixed-offset ISO strings to POSIX UTC±h[:mm]
+   *   - converts fixed-offset ISO strings to POSIX UTC+/-h[:mm]
    *   - maps Windows names to IANA names
-   *   - rejects GMT/GMT± series (use UTC instead)
+   *   - rejects GMT/GMT+/- series (use UTC instead)
    *   - rejects empty / obviously malformed strings */
   char    normBuf[TD_TIMEZONE_LEN] = {0};
   int32_t code = taosValidateAndNormalizeTimezone(value, normBuf, sizeof(normBuf), NULL);

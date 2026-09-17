@@ -461,9 +461,9 @@ static int32_t doRebuildIpWhiteListLocked(SMnode *pMnode) {
 }
 
 // Returns the current IP whitelist version (a timestamp-based int64).
-// Returns 0 in three distinct cases — callers cannot distinguish between them:
+// Returns 0 in three distinct cases  -  callers cannot distinguish between them:
 //   1. IP whitelist is disabled (mndEnableIpWhiteList == 0 or tsEnableWhiteList is false)
-//   2. Cold-cache initialisation failed (DNS error, OOM, etc.) — mError is logged
+//   2. Cold-cache initialisation failed (DNS error, OOM, etc.)  -  mError is logged
 //   3. Cache is being rebuilt concurrently and verIp is transiently zero
 // On the hot path (cache already warm), this is a read-lock + return with no I/O.
 int64_t mndGetIpWhiteListVersion(SMnode *pMnode) {
@@ -471,7 +471,7 @@ int64_t mndGetIpWhiteListVersion(SMnode *pMnode) {
   int32_t code = 0;
 
   if (mndEnableIpWhiteList(pMnode) != 0 && tsEnableWhiteList) {
-    // Fast path: cache already warm — return without any DNS I/O.
+    // Fast path: cache already warm  -  return without any DNS I/O.
     (void)taosThreadRwlockRdlock(&userCache.rw);
     ver = userCache.verIp;
     (void)taosThreadRwlockUnlock(&userCache.rw);
@@ -3645,7 +3645,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   if (!createReq.hasAllowTokenNum) createReq.allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
 
 #ifdef TD_ENTERPRISE
-  // MAC: per FS §4.2.1.4, CREATE USER with security_level obeys:
+  // MAC: per FS section 4.2.1.4, CREATE USER with security_level obeys:
   //  - operator with PRIV_SECURITY_POLICY_ALTER  : may specify any [min,max] in [0,4]
   //  - operator without PRIV_SECURITY_POLICY_ALTER: may only specify [0,0] (equivalent to default);
   //                                                 specifying any value > 0 returns MND_NO_RIGHTS.
@@ -3785,9 +3785,9 @@ static int32_t mndBuildDnodeIpRanges(SMnode *pMnode, SIpRange **ppRanges, int32_
 
     if (num >= numOfDnodes) {
       // Dnode set grew concurrently after the sdbGetSize() snapshot. Fail closed: an incomplete
-      // whitelist must not be pushed — return error so the caller keeps the previous consistent cache.
+      // whitelist must not be pushed  -  return error so the caller keeps the previous consistent cache.
       mWarn("dnode set grew during ip range build, aborting to avoid incomplete list");
-      code = TSDB_CODE_APP_ERROR;  // DNODE_ALREADY_EXIST is semantically wrong here — dnode set grew
+      code = TSDB_CODE_APP_ERROR;  // DNODE_ALREADY_EXIST is semantically wrong here  -  dnode set grew
       goto _OVER;
     }
 
@@ -3867,7 +3867,7 @@ static int32_t buildRetrieveIpWhiteListRsp(SUpdateIpWhite *pUpdate) {
     SIpWhiteListDual *wl = (*(SCachedUserInfo **)pIter)->wlIp;
     // Skip only when there is nothing to inject: no per-user ranges AND no dnode ranges.
     // Previously this skipped users with empty whitelists entirely, which meant those users
-    // never received dnode IP ranges — breaking intra-cluster RPC for those accounts.
+    // never received dnode IP ranges  -  breaking intra-cluster RPC for those accounts.
     int32_t wlNum = (wl != NULL) ? wl->num : 0;
     if (wlNum <= 0 && numOfDnodeRanges <= 0) {
       pIter = taosHashIterate(userCache.users, pIter);
@@ -4352,7 +4352,7 @@ int8_t mndGetUserRoleFloorMinLevel(SHashObj *roles) {
   return TSDB_MIN_SECURITY_LEVEL;
 }
 
-// Check if a user holds PRIV_SECURITY_POLICY_ALTER — directly or via any assigned role.
+// Check if a user holds PRIV_SECURITY_POLICY_ALTER  -  directly or via any assigned role.
 // When MAC is mandatory, the holder must also have maxSecLevel == TSDB_MAX_SECURITY_LEVEL.
 // superUser always qualifies.
 bool mndUserHasMacLabelPriv(SMnode *pMnode, SUserObj *pUser) {
@@ -4467,7 +4467,7 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
     }
     // REVOKE system role: security_level does not auto-change; write audit warning
     if ((pAlterReq->add == 0) && isSysRole && (pMnode->macActive == MAC_MODE_MANDATORY)) {
-      mWarn("user:%s, REVOKE system role:%s — security_level [%d,%d] unchanged; manual ALTER USER may be required",
+      mWarn("user:%s, REVOKE system role:%s - security_level [%d,%d] unchanged; manual ALTER USER may be required",
             pAlterReq->principal, pAlterReq->roleName, (int32_t)pUser->minSecLevel,
             (int32_t)pUser->maxSecLevel);
     }
@@ -4631,7 +4631,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
 
 #ifdef TD_ENTERPRISE
   if (pAlterReq->hasSecurityLevel) {
-    // MAC: per FS §4.2.1.4, ALTER USER security_level obeys:
+    // MAC: per FS section 4.2.1.4, ALTER USER security_level obeys:
     //  - operator with PRIV_SECURITY_POLICY_ALTER  : allowed; no escalation check (bootstrap-dead-lock avoidance).
     //  - operator without PRIV_SECURITY_POLICY_ALTER: rejected regardless of target value (including [0,0]).
     SUserObj *pOperUser = NULL;

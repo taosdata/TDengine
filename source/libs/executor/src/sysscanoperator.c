@@ -649,7 +649,7 @@ static bool sysTableIsCondOnOneTable(SNode* pCond, char* condTable) {
 // the serialized physical plan arrives with userAlias empty (see the same
 // workaround in sysTableScanUserTables).
 // VARCHAR literals only: an uncoerced NCHAR literal is UCS4-encoded and would
-// byte-mismatch the stored UTF-8 name — better to fall back to the block-level
+// byte-mismatch the stored UTF-8 name  -  better to fall back to the block-level
 // filter than to skip matching rows.
 static bool sysTableIsOperatorCondOnColumn(SNode* pCond, const char* colName, char* condVal, int32_t valBufLen) {
   SOperatorNode* node = (SOperatorNode*)pCond;
@@ -1760,7 +1760,7 @@ static bool sysTableChildHasRefTags(const SMetaEntry* pEntry) {
 // Fill ins_tags rows for one virtual child whose tags carry refs.
 // The caller's table cursor holds the meta read lock, but ref-tag resolution
 // (sysTagsResolveRefTagVal) opens nested LOCK readers and may fire cross-vnode
-// RPCs — a nested rdlock deadlocks behind a queued writer on the meta rwlock,
+// RPCs  -  a nested rdlock deadlocks behind a queued writer on the meta rwlock,
 // and holding the lock across RPCs risks cross-vnode deadlock. So pause the
 // cursor, re-read the child entry on fresh readers with no lock held, fill from
 // that, then resume the scan. Rows concurrently dropped are skipped, mirroring
@@ -1788,13 +1788,13 @@ static int32_t sysTableUserTagsFillRefTagsRow(SOperatorInfo* pOperator, const ch
             GET_TASKID(pTaskInfo));
       skipFill = true;
     }
-    // else: genuine error (OOM, IO, ...) — propagate via code instead of
+    // else: genuine error (OOM, IO, ...)  -  propagate via code instead of
     // silently dropping the row.
   } else {
     pAPI->metaReaderFn.readerReleaseLock(&smrChildRef);
     // LOCK (not NOLOCK) for the super fetch: no meta lock is held here (cursor
     // paused, child reader released), and metaReaderGetTableEntryByUid reads the
-    // tdb B+trees without any internal locking — a NOLOCK reader would race
+    // tdb B+trees without any internal locking  -  a NOLOCK reader would race
     // with vacuum's WLock mutations. Data stays valid after releaseLock.
     pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn,
                                   pInfo->readHandle.txnId);
@@ -1889,7 +1889,7 @@ static int32_t sysTableUserTagsFillNtbRefTagsRow(SOperatorInfo* pOperator, const
       qWarn("skip ref-tags fill for concurrently dropped table, uid:0x%" PRIx64 ", %s", uid, GET_TASKID(pTaskInfo));
       skipFill = true;
     }
-    // else: genuine error (OOM, IO, ...) — propagate via code instead of silently dropping the row.
+    // else: genuine error (OOM, IO, ...)  -  propagate via code instead of silently dropping the row.
   } else {
     pAPI->metaReaderFn.readerReleaseLock(&smrNtb);
     // Re-ensure capacity with the freshly read entry (concurrent ALTER ADD/DROP TAG in the
@@ -2010,11 +2010,11 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     }
 
     // A single table whose tag count exceeds the block capacity would overflow the fill below
-    // (colDataSetVal does no bounds check on rowIndex) — grow the buffer first, same guard as
+    // (colDataSetVal does no bounds check on rowIndex)  -  grow the buffer first, same guard as
     // the full-scan loop below.
     int32_t nTagCols = isChild ? smrSuperTable.me.stbEntry.schemaTag.nCols
                                : smrChildTable.me.ntbEntry.schemaTag.nCols;
-    // a virtual child's own (extension) tags are filled after the vstb tags — count them too
+    // a virtual child's own (extension) tags are filled after the vstb tags  -  count them too
     if (smrChildTable.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
       nTagCols += smrChildTable.me.own.nOwnTags;
     }
@@ -2030,7 +2030,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
     // Release smrChildTable's meta read lock before the call: ref-tag resolution
     // inside (sysTagsResolveRefTagVal) opens nested LOCK readers and may fire
-    // cross-vnode RPCs — both must not happen while this reader holds the meta
+    // cross-vnode RPCs  -  both must not happen while this reader holds the meta
     // rwlock (nested rdlock deadlocks behind a queued writer).
     // smrChildTable.me stays valid until clearReader.
     pAPI->metaReaderFn.readerReleaseLock(&smrChildTable);
@@ -2114,7 +2114,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
   while ((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_SUPER_TABLE)) == 0) {
     // A single block fill may iterate hundreds of thousands of children, and
-    // ref-tag resolution fires blocking RPCs per child — check the kill flag
+    // ref-tag resolution fires blocking RPCs per child  -  check the kill flag
     // per table, otherwise a killed/cancelled query keeps scanning to the very
     // end (the per-block check in doSysTableScanNext never gets a chance)
     if (isTaskKilled(pTaskInfo)) {
@@ -2631,7 +2631,7 @@ static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acc
 
 // LOCK CONTRACT: callers MUST NOT hold any meta read/write lock on this
 // thread. The local-resolution readers below are META_READER_LOCK (the tdb
-// B-tree read path has no internal latching — NOLOCK point lookups would race
+// B-tree read path has no internal latching  -  NOLOCK point lookups would race
 // with vacuum/rollback WLock mutations), but each lock is dropped via
 // readerReleaseLock right after its fetch, so no lock is ever held across the
 // blocking cross-vnode RPC below (sysTagsFetchRemoteCfg -> rpcSendRecv), and
@@ -2651,7 +2651,7 @@ static int32_t sysTagsResolveRefTagVal(const SSysTableScanInfo* pInfo, const SCo
   // Step 1: Try local vnode resolution. Short-lived LOCK readers: the meta
   // rwlock is the only serialization against concurrent B-tree mutations
   // (vacuum, rollback-alter); the lock is released immediately after each
-  // fetch — me stays valid until clearReader — so it is never held across
+  // fetch  -  me stays valid until clearReader  -  so it is never held across
   // Step 2's RPC.
   SMetaReader srcTable = {0};
   pAPI->metaReaderFn.initReader(&srcTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
@@ -2705,7 +2705,7 @@ static int32_t sysTagsResolveRefTagVal(const SSysTableScanInfo* pInfo, const SCo
                                pRef->refDbName, pRef->refTableName, reqId, pTaskInfo, &cfgRsp);
   if (code != TSDB_CODE_SUCCESS) {
     tFreeSTableCfgRsp(&cfgRsp);
-    // Source table may have been dropped — treat as unresolved, not fatal
+    // Source table may have been dropped  -  treat as unresolved, not fatal
     return TSDB_CODE_SUCCESS;
   }
   if (cfgRsp.pTags == NULL) {
@@ -2731,7 +2731,7 @@ static int32_t sysTagsResolveRefTagVal(const SSysTableScanInfo* pInfo, const SCo
 }
 
 // LOCK CONTRACT: callers MUST NOT hold any meta read/write lock on this
-// thread — smrSuperTable/smrChildTable must be NOLOCK readers or readers whose
+// thread  -  smrSuperTable/smrChildTable must be NOLOCK readers or readers whose
 // lock was released via readerReleaseLock (their data stays valid). Rows with
 // ref tags route into sysTagsResolveRefTagVal, which acquires its own LOCK
 // readers and may fire cross-vnode RPCs; see its contract comment.
@@ -4067,7 +4067,7 @@ static int32_t vtbRefValidateCallback(void* param, SDataBuf* pMsg, int32_t code)
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(res));
   }
   // Release the callback's reference; if the waiter already exited (timeout /
-  // error), this may free pCtx — safe because we no longer access it.
+  // error), this may free pCtx  -  safe because we no longer access it.
   vtbRefValidateCtxDecRef(pCtx);
   return TSDB_CODE_SUCCESS;
 }
@@ -4363,7 +4363,7 @@ static int32_t vtbRefGetTableSchemaLocal(const SSysTableScanInfo* pInfo, SStorag
 
   // LOCK (not NOLOCK): callers hold no meta lock (the table-meta cursor is
   // paused / the reader released before validateSrcTableColRef runs), and the
-  // tdb B-tree read path has no internal latching — a NOLOCK reader would race
+  // tdb B-tree read path has no internal latching  -  a NOLOCK reader would race
   // with vacuum/rollback WLock mutations. The lock is dropped right after each
   // fetch; me stays valid until clearReader.
   pAPI->metaReaderFn.initReader(&srcReader, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
@@ -6673,7 +6673,7 @@ static SSDataBlock* sysTableBuildTableFixedDist(SOperatorInfo* pOperator) {
     tableId.uid = smr.me.uid;
     suid = smr.me.uid;
   } else if (smr.me.type == TSDB_CHILD_TABLE) {
-    // Single child table scan — only scan this child's blocks, not all siblings.
+    // Single child table scan  -  only scan this child's blocks, not all siblings.
     // Use the child's own uid for the table list, and suid for reader context.
     tableId.type = TSDB_NORMAL_TABLE;
     tableId.uid = smr.me.uid;
@@ -6833,7 +6833,7 @@ static SSDataBlock* sysTableBuildTableFixedDist(SOperatorInfo* pOperator) {
   code = colDataSetVal(pColInfo, 0, (char*)&totalFilesets, false);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  // col 15: total_vgroups (BIGINT) — always 1 per vnode row
+  // col 15: total_vgroups (BIGINT)  -  always 1 per vnode row
   int64_t totalVgroups = 1;
   pColInfo = taosArrayGet(p->pDataBlock, colIdx++);
   QUERY_CHECK_NULL(pColInfo, code, lino, _end, terrno);
@@ -7778,7 +7778,7 @@ void extractTbnameSlotId(SSysTableScanInfo* pInfo, const SScanPhysiNode* pScanNo
 // doDestroySysTableScanInfo: actual teardown for SSysTableScanInfo.
 // For operators that use the ref pool (MNode path, self > 0), this function
 // is the pool destructor invoked automatically when the last ref is dropped
-// via taosRemoveRef / taosReleaseRef — do NOT call it directly on those.
+// via taosRemoveRef / taosReleaseRef  -  do NOT call it directly on those.
 // For local-scan operators (self == 0), destroySysScanOperator calls it
 // directly since there is no ref pool involved.
 static void doDestroySysTableScanInfo(void* param) {
@@ -7847,7 +7847,7 @@ static void doDestroySysTableScanInfo(void* param) {
 }
 
 // destroySysScanOperator: operator destroy callback.  For operators that use
-// the ref pool (MNode path), we just remove our reference — actual cleanup
+// the ref pool (MNode path), we just remove our reference  -  actual cleanup
 // happens inside doDestroySysTableScanInfo when all refs are released.  For
 // local-scan operators (no ref pool entry), do the teardown inline.
 static void destroySysScanOperator(void* param) {
@@ -7861,7 +7861,7 @@ static void destroySysScanOperator(void* param) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(refCode));
     }
   } else {
-    // Local scan path: no ref pool — destroy directly.
+    // Local scan path: no ref pool  -  destroy directly.
     doDestroySysTableScanInfo(pInfo);
   }
 }
@@ -7870,7 +7870,7 @@ static int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SSysTableScanCbParam* pWrapper = (SSysTableScanCbParam*)param;
 
   // Acquire the SSysTableScanInfo from the ref pool.  If it returns NULL the
-  // operator has already been destroyed — discard the response safely.
+  // operator has already been destroyed  -  discard the response safely.
   SSysTableScanInfo* pInfo = (SSysTableScanInfo*)taosAcquireRef(sysTableScanRefPool, pWrapper->sysTableScanId);
   if (pInfo == NULL) {
     // Operator is gone; free the response payload and bail out.
@@ -7900,11 +7900,11 @@ static int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
   taosMemoryFree(pMsg->pEpSet);
 
   // Release our acquired ref BEFORE posting the semaphore.
-  // If we post first, the waiter can race ahead: task completes → taosRemoveRef
+  // If we post first, the waiter can race ahead: task completes  ->  taosRemoveRef
   // drops the count to 1, then doDestroyTask frees the task memory pool (which
   // owns pInfo).  Our subsequent taosReleaseRef would then drop the count to 0
   // and call doDestroySysTableScanInfo on already-freed memory.
-  // By releasing first (count 2→1, destructor not triggered), pInfo remains
+  // By releasing first (count 2 -> 1, destructor not triggered), pInfo remains
   // valid for the tsem_post call below, and doDestroySysTableScanInfo is
   // called only later, inside destroySysScanOperator, when pInfo is still live.
   int32_t refCode = taosReleaseRef(sysTableScanRefPool, pWrapper->sysTableScanId);

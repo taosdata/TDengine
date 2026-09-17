@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// walTxn.c — .txn file management for CDC txn-atomic lazy load.
+// walTxn.c  -  .txn file management for CDC txn-atomic lazy load.
 //
 // Each .txn file is a sibling of the corresponding .log file (same firstVer, different suffix).
 // It stores only txn-tagged WAL entries (DDL + TXN_BEGIN/COMMIT/ROLLBACK) in the same binary
@@ -125,7 +125,7 @@ int32_t walTxnFilesOpen(SWal *pWal) {
 
   atomic_store_64(&pWal->firstPendingTxnIndex, -1);
 
-  // Initialize txnBeginIndexMap (txnId → first walIndex; tracks IS_BEGIN state for in-flight txns).
+  // Initialize txnBeginIndexMap (txnId  ->  first walIndex; tracks IS_BEGIN state for in-flight txns).
   pWal->txnBeginIndexMap =
       taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (pWal->txnBeginIndexMap == NULL) {
@@ -269,8 +269,8 @@ void walTxnFilesRotate(SWal *pWal, int64_t newFirstVer) {
   // Post-snapshot recovery: walTxnFilesClose (called from walRestoreFromSnapshot) nulled
   // txnBeginIndexMap and txnPendingFd. Re-initialize them now so that IS_BEGIN marking
   // works correctly for all transactions written after snapshot apply.
-  // Snapshots are taken at clean commit points — no in-flight transactions cross the
-  // snapshot boundary — so an empty map is the correct starting state. New transactions
+  // Snapshots are taken at clean commit points  -  no in-flight transactions cross the
+  // snapshot boundary  -  so an empty map is the correct starting state. New transactions
   // will have their first message correctly marked with IS_BEGIN as they arrive.
   if (pWal->txnBeginIndexMap == NULL) {
     pWal->txnBeginIndexMap =
@@ -346,7 +346,7 @@ int32_t walTxnTruncateCurrent(SWal *pWal, int64_t truncVer) {
 
 // Rebuild txnBeginIndexMap by scanning all .txn files.
 // After scan: map contains only txnIds whose first entry (IS_BEGIN) was seen
-// but no COMMIT/ROLLBACK has been observed — i.e., in-flight transactions.
+// but no COMMIT/ROLLBACK has been observed  -  i.e., in-flight transactions.
 // Returns 0 on success, or a TSDB error code if file I/O fails (seek error indicates corruption).
 static int32_t walTxnRebuildBeginIndexMap(SWal *pWal) {
   if (pWal->txnBeginIndexMap == NULL) return TSDB_CODE_SUCCESS;
@@ -416,7 +416,7 @@ static int32_t walTxnRebuildBeginIndexMap(SWal *pWal) {
   return TSDB_CODE_SUCCESS;
 }
 
-// Startup recovery — called after main WAL recovery has determined committedVer.
+// Startup recovery  -  called after main WAL recovery has determined committedVer.
 // Step 1: truncate .txn if it has speculative entries (walIndex > committedVer).
 // Step 1.5: rebuild txnBeginIndexMap from existing .txn files.
 // Step 2: use txn.pending to recover any entries missing from .txn.
@@ -467,7 +467,7 @@ int32_t walTxnFilesRecover(SWal *pWal, int64_t committedVer) {
         continue;
       }
 
-      // Check if already in .txn (idempotent: crash C→D case).
+      // Check if already in .txn (idempotent: crash C -> D case).
       if (walTxnFileContainsVer(pWal->txnWriteFd, ver)) {
         (void)walSkipFetchBody(pReader);
         wDebug("vgId:%d, walTxnFilesRecover: ver:%" PRId64 " already in .txn, skip", pWal->cfg.vgId, ver);
@@ -498,7 +498,7 @@ int32_t walTxnFilesRecover(SWal *pWal, int64_t committedVer) {
   }
 
 clear_pending:
-  // Clear txn.pending regardless — we've handled whatever was pending.
+  // Clear txn.pending regardless  -  we've handled whatever was pending.
   (void)walTxnPendingWrite(pWal, 0, true);
   atomic_store_64(&pWal->firstPendingTxnIndex, -1);
   wInfo("vgId:%d, walTxnFilesRecover: done", pWal->cfg.vgId);
@@ -577,7 +577,7 @@ void walTxnFilesTrim(SWal *pWal) {
   // Condition C: keepVersion guard.
   // If keepVersion >= 0, a CDC or DDL transaction holds a keep-constraint on the WAL.
   // .txn file[i] covers versions [firstVer[i], firstVer[i+1]-1].  We must not trim
-  // any file whose range overlaps [keepVersion, ∞), i.e. where firstVer[i+1] > keepVersion.
+  // any file whose range overlaps [keepVersion, infinity), i.e. where firstVer[i+1] > keepVersion.
   // Read keepVersion once (caller holds pWal->mutex via walEndSnapshot path).
   int64_t keepVer = pWal->keepVersion;  // -1 = no constraint
 
@@ -617,7 +617,7 @@ void walTxnFilesTrim(SWal *pWal) {
     }
 
     if (txnCreateTs > cutoffTs) {
-      // Condition A not satisfied; stop — all subsequent files are newer.
+      // Condition A not satisfied; stop  -  all subsequent files are newer.
       break;
     }
 
@@ -788,7 +788,7 @@ int32_t walSnapTxnWrite(SWal *pWal, uint8_t *pData, uint32_t len) {
 // Public API: sequential read of .txn files in [beginVer, endVer], invoking cb per entry.
 // Used by txnMgrReloadFromWal for fast eager load (no INSERT entries to skip).
 // Side effect: updates pWal->txnBeginIndexMap as entries are read, so that IS_BEGIN state
-// is rebuilt simultaneously with the cache load — no separate rebuild pass needed.
+// is rebuilt simultaneously with the cache load  -  no separate rebuild pass needed.
 int32_t walTxnReadRange(SWal *pWal, int64_t beginVer, int64_t endVer, FWalTxnEntryCb cb, void *arg) {
   if (pWal == NULL || cb == NULL || beginVer > endVer) return TSDB_CODE_SUCCESS;
   if (!pWal->cfg.enableTxnFile) return TSDB_CODE_SUCCESS;
@@ -848,7 +848,7 @@ int32_t walTxnReadRange(SWal *pWal, int64_t beginVer, int64_t endVer, FWalTxnEnt
       int32_t     strippedLen = walContBodyLen(&pHead->head);
 
       // Side effect: keep txnBeginIndexMap in sync so IS_BEGIN state is rebuilt
-      // as part of the same scan — no separate walTxnRebuildBeginIndexMap pass needed.
+      // as part of the same scan  -  no separate walTxnRebuildBeginIndexMap pass needed.
       if (txnId != 0 && pWal->txnBeginIndexMap != NULL) {
         uint64_t txnExtFlags = walContTxnExtFlags(&pHead->head);
         if (txnExtFlags & WAL_TXN_EXT_IS_BEGIN) {
