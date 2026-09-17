@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// extConnector.h  –  public API for the federated query external connector
+// extConnector.h  -  public API for the federated query external connector
 //
 // Location: include/libs/extconnector/extConnector.h
 // Included by: include/libs/nodes/querynodes.h
@@ -42,20 +42,20 @@ typedef struct SExtConnectorHandle   SExtConnectorHandle;
 typedef struct SExtQueryHandle       SExtQueryHandle;
 
 // ---------------------------------------------------------------------------
-// EExtSQLDialect  [DS §6.2.6, global-interface.md §1.6]
+// EExtSQLDialect  [DS section 6.2.6, global-interface.md section 1.6]
 // Moved to tmsg.h so that nodes/plannodes.h can use it without depending on
-// extConnector.h.  tmsg.h is already included above via tcommon.h → tmsg.h.
+// extConnector.h.  tmsg.h is already included above via tcommon.h  ->  tmsg.h.
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// SExtSourceCapability  [DS §6.2.2]
+// SExtSourceCapability  [DS section 6.2.2]
 // Filled by extConnectorGetCapabilities; stored in SExtTableNode.
 // NOTE: The struct is defined in tmsg.h (included above) to avoid a circular
 // include between extConnector.h and tmsg.h.
 // (SExtSourceCapability is used by SExtSourceInfo in tmsg.h.)
 
 // ---------------------------------------------------------------------------
-// SExtConnectorError  [DS §5.3.11]
+// SExtConnectorError  [DS section 5.3.11]
 // Passed as an output parameter to exec/fetch functions.
 // The Connector fills this on failure; the Executor formats it into
 // pRequest->msgBuf so that taos_errstr() can surface the remote error.
@@ -71,14 +71,14 @@ typedef struct SExtConnectorError {
 } SExtConnectorError;
 
 // ---------------------------------------------------------------------------
-// SExtColumnDef / SExtTableMeta  [DS §6.2.6.6]
+// SExtColumnDef / SExtTableMeta  [DS section 6.2.6.6]
 // Moved to tmsg.h so that nodes/querynodes.h and nodes source files can use
-// them without including extConnector.h (avoiding a nodes → extconnector dep).
-// tmsg.h is already included above via tcommon.h → tmsg.h.
+// them without including extConnector.h (avoiding a nodes  ->  extconnector dep).
+// tmsg.h is already included above via tcommon.h  ->  tmsg.h.
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// SExtSourceCfg  [DS §6.2.6.2]
+// SExtSourceCfg  [DS section 6.2.6.2]
 // Built from SGetExtSourceRsp; passed to extConnectorOpen.
 // ---------------------------------------------------------------------------
 typedef struct SExtSourceCfg {
@@ -99,7 +99,7 @@ typedef struct SExtSourceCfg {
 } SExtSourceCfg;
 
 // ---------------------------------------------------------------------------
-// SExtConnectorModuleCfg  [DS §6.2.6.1]
+// SExtConnectorModuleCfg  [DS section 6.2.6.1]
 // Passed once to extConnectorModuleInit during taosd startup.
 // ---------------------------------------------------------------------------
 typedef struct SExtConnectorModuleCfg {
@@ -111,7 +111,7 @@ typedef struct SExtConnectorModuleCfg {
 } SExtConnectorModuleCfg;
 
 // ---------------------------------------------------------------------------
-// External Connector API  [DS §6.1.2]
+// External Connector API  [DS section 6.1.2]
 // ---------------------------------------------------------------------------
 
 // Module lifecycle (called once at taosd startup / shutdown)
@@ -134,7 +134,7 @@ int32_t extConnectorGetCapabilities(SExtConnectorHandle  *pHandle,
                                     const SExtTableNode  *pTable,
                                     SExtSourceCapability *pOut);
 
-// Namespace check (FS §3.5.7): verify that dbName/schemaName exists on the remote.
+// Namespace check (FS section 3.5.7): verify that dbName/schemaName exists on the remote.
 // dbName: database (MySQL/Influx) or schema (PG 2-seg).
 // schemaName: schema name for PG 3-seg form; NULL for others.
 // Returns TSDB_CODE_SUCCESS, TSDB_CODE_EXT_DB_NOT_EXIST, or TSDB_CODE_OPS_NOT_SUPPORT.
@@ -166,7 +166,7 @@ void extConnectorCloseQuery(SExtQueryHandle *pQHandle);
 // Called when DROP EXTERNAL SOURCE succeeds to release idle connections immediately.
 void extConnectorPoolRemove(const char *sourceName);
 
-// Dynamic config update — call after ALTER DNODE SET changes federatedQuery* params.
+// Dynamic config update  -  call after ALTER DNODE SET changes federatedQuery* params.
 // Updates the module-level config snapshot so that newly-created pools pick up
 // the latest values without requiring a taosd restart.
 void extConnectorUpdateModuleCfg(const SExtConnectorModuleCfg *cfg);

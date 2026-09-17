@@ -28,7 +28,7 @@ extern "C" {
 #include "ttypes.h"
 #include "streamMsg.h"
 // SExtTableMeta is defined in extConnector.h; only a pointer is stored here,
-// so a forward declaration is sufficient and avoids a nodes → extconnector
+// so a forward declaration is sufficient and avoids a nodes  ->  extconnector
 // header dependency.
 typedef struct SExtTableMeta SExtTableMeta;
 
@@ -116,7 +116,7 @@ typedef struct SColumnNode {
 typedef struct SColumnRefNode {
   ENodeType type;
   char      colName[TSDB_COL_NAME_LEN];
-  int8_t    refType;                                      // 0=internal, 1=external (DS §6.2.8)
+  int8_t    refType;                                      // 0=internal, 1=external (DS section 6.2.8)
   char      refDbName[TSDB_DB_NAME_LEN];
   char      refTableName[TSDB_TABLE_NAME_LEN];
   char      refColName[TSDB_COL_NAME_LEN];
@@ -459,7 +459,7 @@ typedef struct SExtTableNode {
   char                  sourceName[TSDB_EXT_SOURCE_NAME_LEN];  // external data source name
   char                  schemaName[TSDB_DB_NAME_LEN];    // PG schema name; empty for MySQL/InfluxDB
   SExtTableMeta*        pExtMeta;                    // external table raw metadata (Catalog cache ref)
-  // --- connection info (Parser fills from SParseMetaCache → SExtSourceInfo) ---
+  // --- connection info (Parser fills from SParseMetaCache  ->  SExtSourceInfo) ---
   int8_t                sourceType;                  // EExtSourceType
   char                  srcHost[TSDB_EXT_SOURCE_HOST_LEN];
   int32_t               srcPort;
@@ -1139,13 +1139,13 @@ int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond);
 int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst);
 SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr);
 
-// nodesRenderCorrelatedExistsBody — render the body SQL of a correlated EXISTS
+// nodesRenderCorrelatedExistsBody  -  render the body SQL of a correlated EXISTS
 // subquery that can be pushed down to an external data source.
 //
 // pInnerSelect : the inner SSelectStmt (FROM table must be SRealTableNode with
 //                pExtTableNode set).
 // sourceType   : EExtSourceType value (determines SQL dialect: MySQL/PG/Influx).
-// ppSQL        : OUT — heap-allocated SQL string; caller must taosMemoryFree().
+// ppSQL        : OUT  -  heap-allocated SQL string; caller must taosMemoryFree().
 //
 // Column references in the WHERE clause are rendered as "tableName"."colName"
 // so that the generated SQL is self-contained and can be embedded in a correlated

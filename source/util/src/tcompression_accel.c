@@ -340,7 +340,7 @@ void tcompressionAccelInit(void) {
   }
 }
 
-#else  // !TD_BUILD_WITH_ACCEL_COMPRESS — no-op stub so callers stay simple
+#else  // !TD_BUILD_WITH_ACCEL_COMPRESS  -  no-op stub so callers stay simple
 
 void tcompressionAccelInit(void) {}
 

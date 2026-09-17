@@ -186,8 +186,8 @@ int32_t offsetOfTimezone(char* tzStr, int64_t* offset);
 int32_t taosValidateTimezone(const char *tzStr, timezone_t *pTz);
 
 /*
- * Whether a timezone literal is a zone *name* — an IANA path
- * ("Asia/Shanghai") or a UTC/GMT-prefixed form ("UTC+8", "utc8", "GMT-5") —
+ * Whether a timezone literal is a zone *name* -- an IANA path
+ * ("Asia/Shanghai") or a UTC/GMT-prefixed form ("UTC+8", "utc8", "GMT-5") --
  * as opposed to a bare numeric offset ("+0800").  Callers use this to decide
  * whether the literal must go through taosValidateTimezone() instead of the
  * fixed-offset parser.  The UTC/GMT prefixes are matched case-insensitively;
@@ -201,15 +201,15 @@ bool taosIsNamedTimezoneLiteral(const char *tzStr);
  * If valid, stores the canonical name in normBuf:
  *   - IANA name         -> written as-is ("Asia/Shanghai")
  *   - Windows TZ name   -> mapped to its IANA equivalent ("Asia/Shanghai")
- *   - fixed-offset      -> POSIX UTC±h[:mm] string ("UTC+8", "UTC-5:30")
+ *   - fixed-offset      -> POSIX UTC+/-h[:mm] string ("UTC+8", "UTC-5:30")
  *                          sign is preserved (+ = west, - = east)
- *   - UTC±N (POSIX)     -> offset kept as-is ("UTC-8")
- *   - UTC±HH:MM / HHMM  -> simplified to POSIX short form
+ *   - UTC+/-N (POSIX)   -> offset kept as-is ("UTC-8")
+ *   - UTC+/-HH:MM / HHMM  -> simplified to POSIX short form
  *                          ("UTC+08:00" -> "UTC+8")
  *   - UTCN[:MM]         -> unsigned form, '+' restored
  *                          ("UTC0" -> "UTC+0", "UTC8:30" -> "UTC+8:30")
  *   - UTC/Z             -> "UTC"
- *   - GMT/GMT±N         -> rejected (use UTC series)
+ *   - GMT/GMT+/-N         -> rejected (use UTC series)
  * The "UTC" prefix is case-insensitive on input and always uppercase in
  * normBuf ("utc+8" -> "UTC+8").
  * normBuf must be at least TD_TIMEZONE_LEN bytes.

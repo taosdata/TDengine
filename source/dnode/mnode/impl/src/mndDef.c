@@ -32,7 +32,7 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->createUser));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->ownerId));
 
-  // flags (appended after ownerId; absent in sver < 9 — guarded by tDecodeIsEnd).
+  // flags (appended after ownerId; absent in sver < 9  -  guarded by tDecodeIsEnd).
   // extSpecs has no separate encoding here: it lives solely in pObj->pCreate
   // and is carried by the tSerializeSCMCreateStreamReqImpl call above (JSON).
   TAOS_CHECK_RETURN(tEncodeU64(pEncoder, pObj->flags));

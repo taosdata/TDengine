@@ -1285,7 +1285,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
     taosArrayClear(pVals);
 
     int32_t offset = 0;
-    // 处理超级表的tbname和tags
+    // Process the supertable tbname and tags.
     if (pInserter->isStbInserter) {
       taosArrayClear(pTagVals);
       tbData.uid = 0;
@@ -1314,7 +1314,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
                             .pData = varDataVal(data)};  // address copy, no value
       SColVal cv = COL_VAL_VALUE(0, sv);
 
-      // 获取子表vgId
+      // Get the child table vgId.
       SDBVgInfo* dbInfo = NULL;
       code = inserterGetDbVgInfo(pInserter, pInserter->dbFName, &dbInfo);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1339,7 +1339,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         terrno = code;
         goto _end;
       }
-      // 解析tag
+      // Parse tags.
       pTagNames = taosArrayInit(8, TSDB_COL_NAME_LEN + sizeof(col_id_t));
       if (!pTagNames) {
         terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -1596,7 +1596,7 @@ int32_t dataBlocksToSubmitReqArray(SDataInserterHandle* pInserter, SArray* pMsgs
   void*     iterator = NULL;
 
   for (int32_t i = 0; i < sz; i++) {
-    SSDataBlock* pDataBlock = taosArrayGetP(pBlocks, i);  // pDataBlock select查询到的结果
+    SSDataBlock* pDataBlock = taosArrayGetP(pBlocks, i);  // Result returned by the pDataBlock select query.
     if (NULL == pDataBlock) {
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
@@ -1657,7 +1657,7 @@ int32_t dataBlocksToSubmitReq(SDataInserterHandle* pInserter, void** pMsg, int32
   SSubmitReq2*    pReq = NULL;
 
   for (int32_t i = 0; i < sz; i++) {
-    SSDataBlock* pDataBlock = taosArrayGetP(pBlocks, i);  // pDataBlock select查询到的结果
+    SSDataBlock* pDataBlock = taosArrayGetP(pBlocks, i);  // Result returned by the pDataBlock select query.
     if (NULL == pDataBlock) {
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
@@ -2227,7 +2227,7 @@ int32_t streamDataBlocksToSubmitReq(SStreamRunnerTask* pTask, SDataInserterHandl
   for (int32_t i = 0; i < sz; i++) {
     tbDataInfo.isFirstBlock = (i == 0);
     tbDataInfo.isLastBlock = (i == sz - 1);
-    SSDataBlock* pDataBlock = taosArrayGetP(pBlocks, i);  // pDataBlock select查询到的结果
+    SSDataBlock* pDataBlock = taosArrayGetP(pBlocks, i);  // Result returned by the pDataBlock select query.
     ST_TASK_DLOG("[data inserter], Handle:%p, GROUP:%" PRId64
             " tbname:%s autoCreate:%d block: %d/%d rows:%" PRId64,
             pInserter, pInserterInfo->groupId, pInserterInfo->tbName,

@@ -90,7 +90,7 @@ static int32_t buildDistinctKey(SDistinctFilterInfo* pInfo, SColumnInfoData* pDi
   return offset;
 }
 
-// Fetch callback for sort handle — pulls blocks from our downstream operator
+// Fetch callback for sort handle  -  pulls blocks from our downstream operator
 static int32_t distinctSpillFetchBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
   *ppBlock = getNextBlockFromDownstream(pOperator, 0);
@@ -270,7 +270,7 @@ static int32_t writeTupleToBlock(SSDataBlock* pBlock, int32_t rowIdx, STupleHand
 // pEmitBlock so it is not lost.
 // Hand a spill-emit block upstream while retaining ownership. tsortGetSortedDataBlock allocates a
 // new block each call and consumers do not free it, so the previously returned block is released
-// here — it has been fully consumed by the time the operator is called again.
+// here  -  it has been fully consumed by the time the operator is called again.
 static void distinctSetReturnedBlock(SDistinctFilterInfo* pInfo, SSDataBlock* pBlock, SSDataBlock** ppRes) {
   if (pInfo->pReturnedBlock != NULL && pInfo->pReturnedBlock != pBlock) {
     blockDataDestroy(pInfo->pReturnedBlock);
@@ -460,7 +460,7 @@ static int32_t doDistinctFilterSpillEmit(SOperatorInfo* pOperator, SSDataBlock**
       continue;
     }
 
-    // New unique key — emit this row by copying all columns
+    // New unique key  -  emit this row by copying all columns
     size_t numCols = tsortGetColNum(pTupleHandle);
     for (size_t c = 0; c < numCols; c++) {
       SColumnInfoData* pSrcCol = NULL;
@@ -542,7 +542,7 @@ static int32_t doDistinctFilter(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   blockDataDestroy(pInfo->pReturnedBlock);
   pInfo->pReturnedBlock = NULL;
 
-  // Spill emit mode — sorted dedup output
+  // Spill emit mode  -  sorted dedup output
   if (pInfo->state == DISTINCT_STATE_SPILL_EMIT) {
     if (pInfo->hasInterval || pInfo->hasGroup) {
       code = doDistinctFilterSpillEmitPartitioned(pOperator, ppRes);
@@ -716,7 +716,7 @@ static int32_t doDistinctFilter(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         }
         taosMemoryFree(pKeep);
 
-        // Initialize sort handle — BLOCKING: pulls all remaining blocks from downstream
+        // Initialize sort handle  -  BLOCKING: pulls all remaining blocks from downstream
         code = initSpillSortHandle(pOperator);
         if (code != TSDB_CODE_SUCCESS) {
           blockDataDestroy(pCopy);

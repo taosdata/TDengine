@@ -124,7 +124,7 @@ void tsdbSttFileReaderClose(SSttFileReader **reader) {
  *
  * The file descriptor (fd), footer, block index arrays (sttBlkArray,
  * statisBlkArray, tombBlkArray), and the SSttBlockLoadInfo (held separately
- * in SLDataIter) are NOT touched — they remain valid and avoid the need to
+ * in SLDataIter) are NOT touched  -  they remain valid and avoid the need to
  * re-open the file or re-read metadata on the next access.
  */
 void tsdbSttFileReaderTrimBuffers(SSttFileReader *reader) {

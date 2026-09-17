@@ -555,8 +555,8 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
                                  pRequest->stmtBindVersion > 0);
   }
 
-  // DS §5.2.6: propagate ALTER LOCAL "timezone" to per-connection optionInfo so the
-  // timezone name flows planner → SFederatedScanPhysiNode → external connectors.
+  // DS section 5.2.6: propagate ALTER LOCAL "timezone" to per-connection optionInfo so the
+  // timezone name flows planner  ->  SFederatedScanPhysiNode  ->  external connectors.
   if (TSDB_CODE_SUCCESS == code && pQuery->pRoot != NULL &&
       nodeType(pQuery->pRoot) == QUERY_NODE_ALTER_LOCAL_STMT) {
     SAlterLocalStmt* pAlterStmt = (SAlterLocalStmt*)pQuery->pRoot;
@@ -1152,7 +1152,7 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
   if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan &&
       (tsQueryPolicy == QUERY_POLICY_VNODE || tsQueryPolicy == QUERY_POLICY_CLIENT)) {
     effectivePolicy = QUERY_POLICY_HYBRID;
-    tscDebug("req:0x%" PRIx64 " pure-federated query detected, override async policy %d → HYBRID, QID:0x%" PRIx64,
+    tscDebug("req:0x%" PRIx64 " pure-federated query detected, override async policy %d -> HYBRID, QID:0x%" PRIx64,
              pRequest->requestId, tsQueryPolicy, pRequest->requestId);
   }
 
@@ -1245,7 +1245,7 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
         TSC_ERR_JRET(taosThreadMutexUnlock(&pInst->qnodeMutex));
       }
 
-      // FH-11: Pure federated queries REQUIRE qnode — reject mnode fallback
+      // FH-11: Pure federated queries REQUIRE qnode  -  reject mnode fallback
       int64_t qnodeNum = (NULL != pQnodeList) ? taosArrayGetSize(pQnodeList) : 0;
       if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan && qnodeNum == 0) {
         TSC_ERR_JRET(syncQnodeListIfEmpty(pRequest, &pQnodeList));
@@ -1288,7 +1288,7 @@ int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray*
   if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan &&
       (tsQueryPolicy == QUERY_POLICY_VNODE || tsQueryPolicy == QUERY_POLICY_CLIENT)) {
     effectivePolicy = QUERY_POLICY_HYBRID;
-    tscDebug("req:0x%" PRIx64 " pure-federated query detected, override sync policy %d → HYBRID, QID:0x%" PRIx64,
+    tscDebug("req:0x%" PRIx64 " pure-federated query detected, override sync policy %d -> HYBRID, QID:0x%" PRIx64,
              pRequest->requestId, tsQueryPolicy, pRequest->requestId);
   }
 
@@ -1338,7 +1338,7 @@ int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray*
       TSC_ERR_JRET(getQnodeList(pRequest, &pQnodeList));
       int64_t qnodeNum = (NULL != pQnodeList) ? taosArrayGetSize(pQnodeList) : 0;
 
-      // FH-11: Pure federated queries REQUIRE qnode — reject mnode fallback
+      // FH-11: Pure federated queries REQUIRE qnode  -  reject mnode fallback
       if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan && qnodeNum == 0) {
         TSC_ERR_JRET(syncQnodeListIfEmpty(pRequest, &pQnodeList));
         qnodeNum = (NULL != pQnodeList) ? taosArrayGetSize(pQnodeList) : 0;
@@ -1521,7 +1521,7 @@ int32_t tscTxnUpsertTableMeta(STscObj* pTscObj, const char* fullName, STableMeta
   return code;
 }
 
-// Record STB's suid → fullName in pTxnSuidMap so that subsequent queries against child
+// Record STB's suid  ->  fullName in pTxnSuidMap so that subsequent queries against child
 // tables can detect the parent STB was dropped in this txn.
 int32_t tscTxnRecordDroppedStbSuid(STscObj* pTscObj, const SName* pStbName) {
   SCatalog* pCatalog = NULL;
@@ -1563,7 +1563,7 @@ int32_t tscTxnRecordDroppedStbSuid(STscObj* pTscObj, const SName* pStbName) {
 }
 
 // Decode STableMetaRsp into STableMeta and upsert into pTxnTableMeta.
-// Handles the full lifecycle: decode → fullName → upsert → log.
+// Handles the full lifecycle: decode  ->  fullName  ->  upsert  ->  log.
 int32_t tscTxnCacheMetaFromRsp(STscObj* pTscObj, STableMetaRsp* pMetaRsp, const char* opName) {
   if (pMetaRsp == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -1606,8 +1606,8 @@ int32_t tscTxnCacheCreateTbMeta(STscObj* pTscObj, STableMetaRsp* pMetaRsp) {
     pTableMeta->vgId = pMetaRsp->vgId;
     pTableMeta->tableType = TSDB_CHILD_TABLE;
 
-    // Populate suid → stbFullName reverse map for on-demand schema assembly.
-    // Multiple CTBs with the same suid overwrite with the same value — idempotent.
+    // Populate suid  ->  stbFullName reverse map for on-demand schema assembly.
+    // Multiple CTBs with the same suid overwrite with the same value  -  idempotent.
     char stbFullName[TSDB_TABLE_FNAME_LEN];
     (void)snprintf(stbFullName, sizeof(stbFullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->stbName);
     (void)taosThreadMutexLock(&pTscObj->mutex);
@@ -1957,7 +1957,7 @@ void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
 
   const char* sourceName = pRequest->extSourceName;
   if ('\0' == sourceName[0]) {
-    // No ext source context stashed — just return to user.
+    // No ext source context stashed  -  just return to user.
     returnToUser(pRequest);
     return;
   }
@@ -2016,7 +2016,7 @@ void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
   }
 
   if (NEED_CLIENT_RETURN_EXT_SOURCE_ERROR(code)) {
-    // Connection / auth / runtime errors — return details to user, no retry
+    // Connection / auth / runtime errors  -  return details to user, no retry
     tscDebug("req:0x%" PRIx64 ", ext source runtime error %s for:%s, returning to user, QID:0x%" PRIx64,
              pRequest->self, tstrerror(code), sourceName, pRequest->requestId);
     returnToUser(pRequest);
@@ -2039,7 +2039,7 @@ void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
     // Executor probed new capabilities; update cache and re-plan
     tscDebug("req:0x%" PRIx64 ", ext capability changed for:%s, updating & retrying, QID:0x%" PRIx64,
              pRequest->self, sourceName, pRequest->requestId);
-    // extErrMsg carried new capability info — update cache then retry
+    // extErrMsg carried new capability info  -  update cache then retry
     restartAsyncQuery(pRequest, code);
     return;
   }
@@ -2125,7 +2125,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
 
   tscTrace("req:0x%" PRIx64 ", scheduler exec cb, request type:%s", pRequest->self, TMSG_INFO(pRequest->type));
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
-    // For DROP STB: save suid→fullName before removeMeta clears the cache
+    // For DROP STB: save suid -> fullName before removeMeta clears the cache
     if (code == 0 && pTscObj->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
       int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
       for (int32_t i = 0; i < tbNum; ++i) {
@@ -2207,18 +2207,18 @@ static bool nodeIsShowStmt(int16_t type) {
 }
 
 // Return values for isTxnAllowedStmtType:
-//   0  TXN_STMT_REJECTED  — not allowed inside a transaction
-//   1  TXN_STMT_NON_DDL   — allowed, but does not count toward the DDL op limit
-//   2  TXN_STMT_DDL       — allowed DDL; counted against TSDB_TXN_MAX_DDL_OPS_PER_TXN
+//   0  TXN_STMT_REJECTED   -  not allowed inside a transaction
+//   1  TXN_STMT_NON_DDL    -  allowed, but does not count toward the DDL op limit
+//   2  TXN_STMT_DDL        -  allowed DDL; counted against TSDB_TXN_MAX_DDL_OPS_PER_TXN
 #define TXN_STMT_REJECTED  0
 #define TXN_STMT_NON_DDL   1
 #define TXN_STMT_DDL       2
 
 int32_t isTxnAllowedStmtType(SNode* pRoot) {
-  // switch lets the compiler emit a jump table — O(1) dispatch instead of a linear if-chain.
+  // switch lets the compiler emit a jump table  -  O(1) dispatch instead of a linear if-chain.
   // SHOW ranges (spanning ~200 values) are still handled by nodeIsShowStmt() in the default branch.
   switch ((int32_t)pRoot->type) {
-    // Table-level DDL — counted
+    // Table-level DDL  -  counted
     case QUERY_NODE_CREATE_TABLE_STMT:
     case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
     case QUERY_NODE_DROP_TABLE_STMT:
@@ -2232,7 +2232,7 @@ int32_t isTxnAllowedStmtType(SNode* pRoot) {
     case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
     case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
       return TXN_STMT_DDL;
-    // SELECT, read-only utilities, transaction control — not counted
+    // SELECT, read-only utilities, transaction control  -  not counted
     case QUERY_NODE_SELECT_STMT:
     case QUERY_NODE_USE_DATABASE_STMT:
     case QUERY_NODE_EXPLAIN_STMT:
@@ -2466,7 +2466,7 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
   }
 
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
-    // For DROP STB: save suid→fullName before removeMeta clears the cache,
+    // For DROP STB: save suid -> fullName before removeMeta clears the cache,
     // so child table queries can detect the parent was dropped.
     if (pRequest->code == 0 && pRequest->pTscObj->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
       int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);

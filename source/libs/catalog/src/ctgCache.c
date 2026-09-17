@@ -2241,7 +2241,7 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
   if (orig) {
     origType = orig->tableType;
     // SCTableMeta (child) and SVCTableMeta (virtual child) are smaller than STableMeta
-    // and do not contain sversion/tversion fields — reading them would overflow.
+    // and do not contain sversion/tversion fields  -  reading them would overflow.
     if (origType != TSDB_CHILD_TABLE && origType != TSDB_VIRTUAL_CHILD_TABLE) {
       origSver = orig->sversion;
       origTver = orig->tversion;
@@ -4207,7 +4207,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       }
       TAOS_MEMCPY(tmpOwnSchemas, tbMeta->ownSchemas, ownColsNum * sizeof(SSchema));
     }
-    // Own-column ext (decimal typeMod) — see ctgCopyTbMeta. Without it the stb-merge drops every own
+    // Own-column ext (decimal typeMod)  -  see ctgCopyTbMeta. Without it the stb-merge drops every own
     // column's typeMod, so a decimal own column read from cache is seen as DECIMAL(0,0) (0x268f).
     if (isVirtualChild && ownColsNum > 0 && tbMeta->ownSchemaExt != NULL) {
       taosMemoryFreeClear(tmpOwnSchemaExt);
@@ -4966,11 +4966,11 @@ _return:
 // Federated query: external source cache implementation
 // ============================================================
 
-// ── helpers ─────────────────────────────────────────────────
+// -- helpers -------------------------------------------------
 
 // Called when no concurrent access to pDb is possible:
-//   (a) error path on the write thread — pDb was never put into pSrc->pDbHash, invisible to readers.
-//   (b) freeFp path — triggered by ctgFreeExtSourceCacheEntry when the enclosing
+//   (a) error path on the write thread  -  pDb was never put into pSrc->pDbHash, invisible to readers.
+//   (b) freeFp path  -  triggered by ctgFreeExtSourceCacheEntry when the enclosing
 //       SExtSourceCacheEntry's hash-node ref-count drops to 0, meaning all readers
 //       have already released their taosHashAcquire ref on pSrc->pDbHash and
 //       pDb->pTableHash (inner refs are released before the outer ref, which is the
@@ -4993,7 +4993,7 @@ static void ctgFreeExtDbCache(SExtDbCache* pDb) {
 // Free the contents and the SExtSourceCacheEntry struct itself.
 // Called either from error-paths on the write thread (entry never in hash),
 // or from the hash's freeFp (ctgExtSourceHashFreeFp) when the hash node's
-// ref-count reaches 0 — at that point no other thread holds a reference.
+// ref-count reaches 0  -  at that point no other thread holds a reference.
 // No entryLock needed: either the entry was never visible (error path) or
 // all readers have already released (freeFp path).
 static void ctgFreeExtSourceCacheEntry(SExtSourceCacheEntry* pEntry) {
@@ -5015,14 +5015,14 @@ static void ctgFreeExtSourceCacheEntry(SExtSourceCacheEntry* pEntry) {
 // node's ref-count drops to 0.  pData is SExtSourceCacheEntry** (pointer to
 // the stored pointer value inside the hash node).
 // Binding SExtSourceCacheEntry lifetime to the hash node's refCount means:
-//   taosHashAcquire (refCount++) → entry cannot be freed while reference held
-//   taosHashRelease (refCount--) → frees entry when last reference drops
+//   taosHashAcquire (refCount++)  ->  entry cannot be freed while reference held
+//   taosHashRelease (refCount--)  ->  frees entry when last reference drops
 static void ctgExtSourceHashFreeFp(void* pData) {
   SExtSourceCacheEntry* pEntry = *(SExtSourceCacheEntry**)pData;
   ctgFreeExtSourceCacheEntry(pEntry);
 }
 
-// ── init / destroy ──────────────────────────────────────────
+// -- init / destroy ------------------------------------------
 
 // Build a brand-new ext-source hash (same structure as pCtg->pExtSourceHash) fully
 // populated from pSources.  freeFp is set so each SExtSourceCacheEntry is freed when
@@ -5090,14 +5090,14 @@ int32_t ctgInitExtSourceCache(SCatalog* pCtg) {
 
 void ctgDestroyExtSourceCache(SCatalog* pCtg) {
   if (NULL == pCtg->pExtSourceHash) return;
-  // taosHashCleanup → taosHashClear → FREE_HASH_NODE → freeFp for each entry.
+  // taosHashCleanup  ->  taosHashClear  ->  FREE_HASH_NODE  ->  freeFp for each entry.
   // By contract, ctgDestroyExtSourceCache is called only when no other threads
   // are accessing this catalog, so no concurrent readers exist.
   taosHashCleanup(pCtg->pExtSourceHash);
   pCtg->pExtSourceHash = NULL;
 }
 
-// ── acquire / release ───────────────────────────────────────
+// -- acquire / release ---------------------------------------
 //
 // Concurrency model (extHashLatch):
 //   ctgAcquireExtSource acquires extHashLatch READ LOCK and keeps it held until
@@ -5117,7 +5117,7 @@ void ctgDestroyExtSourceCache(SCatalog* pCtg) {
 // On hit:  *ppHash   = hash that was current at acquire time (pass to ctgReleaseExtSource)
 //           *ppHandle = raw taosHashAcquire pointer (opaque)
 //           *ppEntry  = the live SExtSourceCacheEntry*
-//           extHashLatch READ LOCK is kept held — caller MUST call ctgReleaseExtSource.
+//           extHashLatch READ LOCK is kept held  -  caller MUST call ctgReleaseExtSource.
 // On miss: *ppHash = NULL (no release needed, read lock NOT held).
 int32_t ctgAcquireExtSource(SCatalog* pCtg, const char* sourceName,
                             SHashObj** ppHash, void** ppHandle, SExtSourceCacheEntry** ppEntry) {
@@ -5154,12 +5154,12 @@ void ctgReleaseExtSource(SCatalog* pCtg, SHashObj* pHash, void* pHandle) {
   CTG_UNLOCK(CTG_READ, &pCtg->extHashLatch);
 }
 
-// ── read (write-thread only, no acquire/release needed) ─────
+// -- read (write-thread only, no acquire/release needed) -----
 //
 // IMPORTANT: This function uses taosHashGet (no refCount increment) and must only
 // be called from the serial write thread.  Calling it from any other thread is
 // unsafe because the returned pointer has no lifetime guarantee.
-// Currently unused — kept as a helper for future write-thread read paths.
+// Currently unused  -  kept as a helper for future write-thread read paths.
 int32_t ctgReadExtSourceFromCache(SCatalog* pCtg, const char* sourceName, SExtSourceCacheEntry** ppEntry) {
   *ppEntry = NULL;
   if (NULL == pCtg->pExtSourceHash) return TSDB_CODE_SUCCESS;
@@ -5174,7 +5174,7 @@ int32_t ctgReadExtSourceFromCache(SCatalog* pCtg, const char* sourceName, SExtSo
   return TSDB_CODE_SUCCESS;
 }
 
-// ── cache-write op functions (run on the serial write thread) ─
+// -- cache-write op functions (run on the serial write thread) -
 
 int32_t ctgOpUpdateExtSource(SCtgCacheOperation* operation) {
   int32_t                 code = 0;
@@ -5270,7 +5270,7 @@ int32_t ctgOpUpdateExtTableMeta(SCtgCacheOperation* operation) {
   SExtSourceCacheEntry* pSrc = *ppSrc;
 
   // Write thread is serial: no concurrent writes to pSrc->pDbHash / pDb->pTableHash.
-  // Readers use taosHashAcquire (HASH_ENTRY_LOCK, fine-grained bucket locks) — no entryLock here.
+  // Readers use taosHashAcquire (HASH_ENTRY_LOCK, fine-grained bucket locks)  -  no entryLock here.
   // entryLock is only for source/capability scalar fields.
 
   size_t dbKeyLen = strnlen(msg->dbKey, sizeof(msg->dbKey));
@@ -5321,7 +5321,7 @@ int32_t ctgOpUpdateExtTableMeta(SCtgCacheOperation* operation) {
       ctgError("ctgOpUpdateExtTableMeta: calloc SExtTableCacheEntry failed, error:%s", tstrerror(terrno));
       CTG_ERR_JRET(terrno);
     }
-    // metaLock zero-init'd by calloc; no lock needed — not yet in hash, invisible to readers.
+    // metaLock zero-init'd by calloc; no lock needed  -  not yet in hash, invisible to readers.
     pTE->pMeta     = pMeta;
     pTE->fetchedAt = taosGetTimestampMs();
     pMeta = NULL;
@@ -5364,7 +5364,7 @@ _return:
 }
 
 
-// ── enqueue helpers ─────────────────────────────────────────
+// -- enqueue helpers -----------------------------------------
 
 int32_t ctgOpReplaceExtSourceCache(SCtgCacheOperation* operation) {
   int32_t                       code     = TSDB_CODE_SUCCESS;
@@ -5381,7 +5381,7 @@ int32_t ctgOpReplaceExtSourceCache(SCtgCacheOperation* operation) {
     int32_t oldNum = pCtg->pExtSourceHash ? (int32_t)taosHashGetSize(pCtg->pExtSourceHash) : 0;
     int32_t newNum = pNewHash             ? (int32_t)taosHashGetSize(pNewHash)              : 0;
 
-    // ── Atomic pointer swap under extHashLatch WRITE LOCK ──────────────────
+    // -- Atomic pointer swap under extHashLatch WRITE LOCK ------------------
     //
     // The write lock is exclusive: it can only be acquired once ALL readers that
     // are currently between ctgAcquireExtSource (read-lock acquired) and
@@ -5392,7 +5392,7 @@ int32_t ctgOpReplaceExtSourceCache(SCtgCacheOperation* operation) {
     //   - No new reader can get pOldHash (it is no longer visible after the swap).
     //
     // Therefore taosHashCleanup(pOldHash) immediately after releasing the write lock
-    // is safe — taosHashClear's unconditional FREE_HASH_NODE calls have no concurrent
+    // is safe  -  taosHashClear's unconditional FREE_HASH_NODE calls have no concurrent
     // taosHashRelease races to worry about.
     SHashObj* pOldHash = NULL;
     CTG_LOCK(CTG_WRITE, &pCtg->extHashLatch);
@@ -5405,7 +5405,7 @@ int32_t ctgOpReplaceExtSourceCache(SCtgCacheOperation* operation) {
     for (int32_t i = 0; i < oldNum; i++) CTG_CACHE_NUM_DEC(CTG_CI_EXT_SOURCE, 1);
     for (int32_t i = 0; i < newNum; i++) CTG_CACHE_NUM_INC(CTG_CI_EXT_SOURCE, 1);
 
-    // Free old hash — safe: write lock above guaranteed no outstanding taosHashAcquire refs.
+    // Free old hash  -  safe: write lock above guaranteed no outstanding taosHashAcquire refs.
     if (pOldHash) {
       taosHashCleanup(pOldHash);
       ctgDebug("ctgOpReplaceExtSourceCache: old hash freed, ctg:%p", pCtg);

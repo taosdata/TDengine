@@ -853,7 +853,7 @@ static int32_t pdcDealScan(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
 }
 
 // Check if a condition involves any tag column (COLUMN_TYPE_TAG).
-// Used when the virtual super table has tag refs — since we cannot determine
+// Used when the virtual super table has tag refs  -  since we cannot determine
 // at the super table level which specific tag columns have refs, any tag
 // column condition must conservatively stay on VirtualScan.
 // Pure tbname conditions use FUNCTION_TYPE_TBNAME with no tag columns.
@@ -894,7 +894,7 @@ static int32_t pdcSplitTagCondForVstb(SNode** ppTagCond, SNode** ppSysTagCond, S
     return TSDB_CODE_SUCCESS;
   }
 
-  // No tag refs at all — all tag conditions can go to SystemScan
+  // No tag refs at all  -  all tag conditions can go to SystemScan
   if (!hasTagRef) {
     *ppSysTagCond = *ppTagCond;
     *ppTagCond = NULL;
@@ -3360,7 +3360,7 @@ static int32_t pdcExtractPrimKeyPushCond(SNode* pCond, SNode** ppOut, bool* pIsP
   if (NULL == pTsList) return TSDB_CODE_SUCCESS;
   *pIsPureTsCond = (pushNum == itemNum);
 
-  /* nodesMergeConds: single item → unwrap; multiple → AND wrapper.
+  /* nodesMergeConds: single item  ->  unwrap; multiple  ->  AND wrapper.
    * On failure it does not free *pSrc, so destroy pTsList explicitly. */
   code = nodesMergeConds(ppOut, &pTsList);
   if (TSDB_CODE_SUCCESS != code) {
@@ -3702,7 +3702,7 @@ static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode
           generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_VTABLE_INVALID_ORIGIN_SCAN,
                               "pdcDealVirtualTable get invalid origin scan logic node from vtable scan node"));
     }
-    // TAG_REF_SOURCE children are valid vtable children but carry no timestamp column — skip pushdown for them.
+    // TAG_REF_SOURCE children are valid vtable children but carry no timestamp column  -  skip pushdown for them.
     if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
       continue;
     }
@@ -10196,8 +10196,8 @@ static bool eliminateVirtualScanMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
-  // Don't eliminate if the child scan references a virtual table — it needs its own
-  // Virtual Table Scan → DynQueryCtrl resolution chain at runtime.
+  // Don't eliminate if the child scan references a virtual table  -  it needs its own
+  // Virtual Table Scan  ->  DynQueryCtrl resolution chain at runtime.
   SNode* pChild = nodesListGetNode(pNode->pChildren, 0);
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild)) {
     int8_t childTableType = ((SScanLogicNode*)pChild)->tableType;
@@ -10345,7 +10345,7 @@ static int32_t findDepTableScanNode(SColumnNode* pCol, SVirtualScanLogicNode *pV
   *ppNode = NULL;
   // Not found is not an error. E.g. COUNT(*) unfolds to COUNT(ts) and the virtual table's own
   // primary timestamp has no matching source-table scan. Return SUCCESS with *ppNode=NULL so the
-  // caller can skip this aggregate func — but a skipped func means PDA must be abandoned
+  // caller can skip this aggregate func  -  but a skipped func means PDA must be abandoned
   // (the caller bails via pSkipped), otherwise the rewritten plan would silently lose that
   // func's output slot.
   qDebug("findDepTableScanNode: column %s has no source-table scan (e.g. COUNT(*)->COUNT(ts)); PDA must bail",
@@ -10385,7 +10385,7 @@ static int32_t rebuildPlanForPdaOptimize(SColumnNode* pCol, SFunctionNode* pAggF
   PLAN_ERR_JRET(findDepTableScanNode(pCol, pVScan, (SNode**)&pDepScan));
   if (NULL == pDepScan) {
     // column has no matching source-table scan (e.g. virtual table's own ts from COUNT(*));
-    // signal the caller to abandon PDA — proceeding would rewrite the plan without this func.
+    // signal the caller to abandon PDA  -  proceeding would rewrite the plan without this func.
     *pSkipped = true;
     return TSDB_CODE_SUCCESS;
   }
@@ -10584,7 +10584,7 @@ static int32_t checkAllStateExprsSameOriginTable(SNodeList* pStateExprs, SVirtua
   }
   PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)pFirstExpr, pVScan, &pFirstScan));
   if (NULL == pFirstScan) {
-    // the state column has no source-table scan (e.g. vtable's own ts) — cannot prove same origin
+    // the state column has no source-table scan (e.g. vtable's own ts)  -  cannot prove same origin
     *pSameOrigin = false;
     goto _return;
   }
@@ -10604,7 +10604,7 @@ static int32_t checkAllStateExprsSameOriginTable(SNodeList* pStateExprs, SVirtua
     }
     PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)pExpr, pVScan, &pOtherScan));
     if (NULL == pOtherScan) {
-      // no matching source-table scan for this state column — treat as not-same-origin
+      // no matching source-table scan for this state column  -  treat as not-same-origin
       *pSameOrigin = false;
       goto _return;
     }
@@ -10771,7 +10771,7 @@ static int32_t rebuildPlanForVtableWindowOptimize(SColumnNode* pCol, SFunctionNo
   PLAN_ERR_JRET(findDepTableScanNode(pCol, pVScan, (SNode**)&pDepScan));
   if (NULL == pDepScan) {
     // the func's column has no source-table scan (e.g. vtable's own ts); bail out instead of
-    // dereferencing NULL — caller must skip this rewrite.
+    // dereferencing NULL  -  caller must skip this rewrite.
     planError("rebuildPlanForVtableWindowOptimize: column %s has no source-table scan", pCol->colName);
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
@@ -12125,7 +12125,7 @@ static bool aggNodeHasTag(SAggLogicNode* pAgg) {
 
 // In stream calc, the VTB_AGG pushdown reader scatters per-source-table results back to
 // virtual-table columns. When a virtual table's columns interleave references across more
-// than one physical source table (e.g. cols [a.x, b.x, a.y] — table `a` reused
+// than one physical source table (e.g. cols [a.x, b.x, a.y]  -  table `a` reused
 // non-contiguously), the pushdown reader's scatter does not handle the regrouped order and
 // silently drops/swaps results, so the stream emits nothing. The non-stream (batch) path and
 // the plain VTB_SCAN reader handle this correctly. Detect the shape on the VirtualScan's
@@ -12909,15 +12909,15 @@ static bool subplanHasExternalScan(SLogicSubplan* pSubplan) {
   return pSubplan->pNode != NULL && nodeHasExternalScan(pSubplan->pNode);
 }
 
-// ─── Federated Query Pushdown Optimizer ────────────────────────────────────
+// --- Federated Query Pushdown Optimizer ------------------------------------
 // Identifies consecutive pushdownable parent nodes (Sort, Project) of an
 // ExternalScan and moves them into SScanLogicNode.pRemoteLogicPlan, removing
 // them from the main logical tree.
 //
 // This eliminates the bug where the physical plan walker would also visit those
 // parent nodes and produce duplicate physical plan nodes.  Physical plan
-// generation converts pRemoteLogicPlan → pRemotePlan without parent-chain logic.
-// ─────────────────────────────────────────────────────────────────────────────
+// generation converts pRemoteLogicPlan  ->  pRemotePlan without parent-chain logic.
+// -----------------------------------------------------------------------------
 
 static SScanLogicNode* fqFindExternalScan(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) &&
@@ -12935,7 +12935,7 @@ static SScanLogicNode* fqFindExternalScan(SLogicNode* pNode) {
 
 static bool fqNodeIsPushdownable(ENodeType type) {
   // Phase 1: only Sort and Project are pushed down.
-  // Phase 2 can extend this (Filter, Agg, Join …).
+  // Phase 2 can extend this (Filter, Agg, Join ...).
   return type == QUERY_NODE_LOGIC_PLAN_SORT || type == QUERY_NODE_LOGIC_PLAN_PROJECT;
 }
 
@@ -13026,15 +13026,15 @@ static bool fqExprListHasColumnRef(const SNodeList* pExprList) {
   return hasRef;
 }
 
-// ─── Phase 2 sub-function stubs ────────────────────────────────────────────
+// --- Phase 2 sub-function stubs --------------------------------------------
 // Each sub-function handles one category of pushdown for federated queries.
 // Phase 1 only implements fqHarvestSort + fqHarvestProject (inline below).
 // The remaining stubs are no-ops until Phase 2 implementation.
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
 // Returns true if pExpr is an EXISTS/NOT_EXISTS with a RAW_SQL_FRAG operand.
 // NOT EXISTS may be represented as either:
-//   (a) OperatorNode(opType=OP_TYPE_NOT_EXISTS, pLeft=RAW_SQL_FRAG)  — direct
+//   (a) OperatorNode(opType=OP_TYPE_NOT_EXISTS, pLeft=RAW_SQL_FRAG)   -  direct
 //   (b) LogicConditionNode(condType=NOT, Parameters=[OperatorNode(EXISTS, RAW_SQL_FRAG)])
 static bool fqIsRawSqlExistsOp(SNode* pCond) {
   if (pCond == NULL || nodeType(pCond) != QUERY_NODE_OPERATOR) return false;
@@ -13048,7 +13048,7 @@ static bool fqIsFullyPushedCondition(SNode* pCond) {
   if (pCond == NULL) return false;
   // Case (a): direct EXISTS/NOT_EXISTS operator with RAW_SQL_FRAG
   if (fqIsRawSqlExistsOp(pCond)) return true;
-  // Case (b): NOT(EXISTS(RAW_SQL_FRAG)) — parser emits this for NOT EXISTS
+  // Case (b): NOT(EXISTS(RAW_SQL_FRAG))  -  parser emits this for NOT EXISTS
   if (nodeType(pCond) == QUERY_NODE_LOGIC_CONDITION) {
     SLogicConditionNode* pLogic = (SLogicConditionNode*)pCond;
     if (pLogic->condType == LOGIC_COND_TYPE_NOT &&
@@ -13219,18 +13219,18 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan) {
       return true;
 
     default:
-      // FUNCTION, and any other unknown node type — not pushable
+      // FUNCTION, and any other unknown node type  -  not pushable
       return false;
   }
 }
 
 // Harvest WHERE conditions that can be pushed to the remote source.
 // Classifies each condition:
-//   - EXISTS/NOT EXISTS with RAW_SQL_FRAG → always pushed (pPushedConditions)
+//   - EXISTS/NOT EXISTS with RAW_SQL_FRAG  ->  always pushed (pPushedConditions)
 //   - Non-pushable expression (FUNCTION, BIT ops, JSONB LIKE, unknown nodes)
-//                                         → kept local (node.pConditions)
+//                                          ->  kept local (node.pConditions)
 //   - Pushable expression (comparison, arithmetic, pattern, IN, CASE WHEN, etc.)
-//                                         → pushed to remote SQL (pPushedConditions)
+//                                          ->  pushed to remote SQL (pPushedConditions)
 //
 // If a condition (or sub-condition) is non-pushable, the ENTIRE condition stays
 // in node.pConditions for local execution by FederatedScan.  This is conservative
@@ -13239,7 +13239,7 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan) {
 static int32_t fqHarvestConditions(SScanLogicNode* pScan) {
   if (pScan->node.pConditions == NULL) return TSDB_CODE_SUCCESS;
 
-  // Special case: EXISTS/RAW_SQL_FRAG — always pushed.
+  // Special case: EXISTS/RAW_SQL_FRAG  -  always pushed.
   if (fqIsFullyPushedCondition(pScan->node.pConditions)) {
     pScan->pPushedConditions = pScan->node.pConditions;
     pScan->node.pConditions = NULL;
@@ -13268,11 +13268,11 @@ static int32_t fqHarvestConditions(SScanLogicNode* pScan) {
 // then not fetch those columns, making local filter evaluation impossible.
 //
 // This helper re-adds any such missing columns to:
-//   1. pScan->pScanCols       — so the remote SQL's SELECT includes them
-//   2. pRemoteLogicPlan->pTargets — so planPhysiCreater uses the right list
+//   1. pScan->pScanCols        -  so the remote SQL's SELECT includes them
+//   2. pRemoteLogicPlan->pTargets  -  so planPhysiCreater uses the right list
 //      for pLeaf->pScanCols (when pRemoteLogicPlan != NULL)
 //   3. The Project logic node's pProjections (if a Project is in the chain)
-//      — so assembleRemoteSQL emits them in the SELECT clause
+//       -  so assembleRemoteSQL emits them in the SELECT clause
 //
 // Called immediately after pScanCols is reduced in fqPushdownOptimize.
 // ---------------------------------------------------------------------------
@@ -13346,7 +13346,7 @@ static int32_t fqEnsureLocalFilterColsInScanCols(SScanLogicNode* pScan) {
     }
     if (found) continue;
 
-    // Column is only in the local filter — add it to pScanCols.
+    // Column is only in the local filter  -  add it to pScanCols.
     SNode* pClone1 = NULL;
     code = nodesCloneNode(pCondCol, &pClone1);
     if (TSDB_CODE_SUCCESS != code) goto _done;
@@ -13389,7 +13389,7 @@ _done:
 // For InfluxDB: when the query is `SELECT agg(...) FROM t PARTITION BY TBNAME`,
 // TDengine rewrites TBNAME into a partition key SFunctionNode.  The physical
 // plan's PARTITION operator resolves its partition key slot via a cast from
-// SFunctionNode → SColumnNode, reading an uninitialized (zero) slotId.  To
+// SFunctionNode  ->  SColumnNode, reading an uninitialized (zero) slotId.  To
 // make the zero-init slotId point to a meaningful column, we prepend all
 // isTag=true columns from the external metadata to pScanCols so that the
 // first slot (slot 0) is a tag column.  The PARTITION operator then groups by
@@ -13500,7 +13500,7 @@ static int32_t fqConvertPartition(SScanLogicNode* pScan, SLogicSubplan* pLogicSu
   // For InfluxDB (and future tag-aware sources): prepend isTag columns to
   // pScanCols in reverse order so that the first tag column ends up at slot 0.
   // The PARTITION operator reads its group key from slot 0 (zero-init from the
-  // SFunctionNode→SColumnNode cast in makeColumnArrayFromList / doSetSlotId).
+  // SFunctionNode -> SColumnNode cast in makeColumnArrayFromList / doSetSlotId).
   SExtTableMeta* pMeta = pExtNode->pExtMeta;
   if (pMeta == NULL || pMeta->pCols == NULL || pMeta->numOfCols <= 0) {
     return TSDB_CODE_SUCCESS;
@@ -13520,7 +13520,7 @@ static int32_t fqConvertPartition(SScanLogicNode* pScan, SLogicSubplan* pLogicSu
   // Tagless measurement (e.g. InfluxDB with no tag keys): PARTITION BY TBNAME
   // is a no-op because all rows belong to the same measurement.  Remove the
   // PARTITION node from the logic plan so the AGG operates on all rows
-  // directly (producing a single group — the correct result).
+  // directly (producing a single group  -  the correct result).
   if (!hasTags) {
     SLogicNode* pPartChild = (SLogicNode*)nodesListGetNode(pPart->node.pChildren, 0);
     if (pPartChild != NULL) {
@@ -13537,7 +13537,7 @@ static int32_t fqConvertPartition(SScanLogicNode* pScan, SLogicSubplan* pLogicSu
   }
 
   // Iterate in reverse so that nodesListPushFront preserves original tag order
-  // (tag[0] pushed last → ends up first in the list, i.e. slot 0).
+  // (tag[0] pushed last  ->  ends up first in the list, i.e. slot 0).
   for (int32_t i = pMeta->numOfCols - 1; i >= 0; i--) {
     if (!pMeta->pCols[i].isTag) continue;
     const char* tagColName = pMeta->pCols[i].colName;
@@ -13868,7 +13868,7 @@ static int32_t fqConvertGroupBy(SScanLogicNode* pScan, SLogicSubplan* pLogicSubp
 // Convert TDengine window functions (INTERVAL/SESSION/STATE) into standard SQL
 // window expressions or GROUP BY + aggregation for remote execution.
 static int32_t fqConvertWindow(SScanLogicNode* pScan) {
-  // Phase 2: transform TDengine window → standard SQL
+  // Phase 2: transform TDengine window  ->  standard SQL
   return TSDB_CODE_SUCCESS;
 }
 
@@ -13941,7 +13941,7 @@ static int32_t fqInjectTwoPassGroupCache(SLogicSubplan* pLogicSubplan, SScanLogi
 
 static int32_t fqHarvestAgg(SLogicSubplan* pLogicSubplan, SScanLogicNode* pScan) {
   // Two-pass PERCENTILE support: set scanSeq[0]=2 when the parent AGG has REPEAT_SCAN_FUNC.
-  // planPhysiCreater reads scanSeq[0]>1 → sets twoPassMode on SFederatedScanPhysiNode.
+  // planPhysiCreater reads scanSeq[0]>1  ->  sets twoPassMode on SFederatedScanPhysiNode.
   // This is done here (in optimizer) rather than in createExternalScanLogicNode to ensure
   // the parent chain is fully built and fqNodeHasRepeatScanFunc can check pAgg->pAggFuncs.
   if (fqNodeHasRepeatScanFunc(pScan->node.pParent)) {
@@ -13981,7 +13981,7 @@ static int32_t fqHarvestLimit(SScanLogicNode* pScan) {
   // FqPushdown now runs BEFORE PushDownLimit, so every node in
   // pRemoteLogicPlan still carries the original, unadjusted pLimit from the
   // parser.  Walk top-down and take the first pLimit we find (typically on the
-  // Project node for "… LIMIT n OFFSET m" queries).
+  // Project node for "... LIMIT n OFFSET m" queries).
   SNode*      pCurr   = pScan->pRemoteLogicPlan;
   SLimitNode* pSource = NULL;
 
@@ -14044,34 +14044,34 @@ static int32_t fqPushdownSubquery(SScanLogicNode* pScan) {
   return TSDB_CODE_SUCCESS;
 }
 
-// ─── fqInjectPkOrderBy ─────────────────────────────────────────────────────
+// --- fqInjectPkOrderBy -----------------------------------------------------
 // Append a SSortLogicNode (ORDER BY <pk_col> ASC) at the bottom of
 // pScan->pRemoteLogicPlan so that nodesRemotePlanToSQL emits:
 //
 //   SELECT ... FROM <table> [WHERE ...] ORDER BY <pk_col> ASC
 //
 // This guarantees external DB returns rows ordered by timestamp pk, matching
-// TDengine's implicit ordering guarantee for scan results (DS §5.2.x).
+// TDengine's implicit ordering guarantee for scan results (DS section 5.2.x).
 //
 // Called only when:
 //   (a) no Sort node is present in pRemoteLogicPlan (user/optimizer did not
 //       specify ORDER BY), and
-//   (b) the outer query is projection-only — no AGG or WINDOW above the scan
+//   (b) the outer query is projection-only  -  no AGG or WINDOW above the scan
 //       in the main logical plan (verified by the caller).
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
   SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
   if (NULL == pExtNode || NULL == pExtNode->pExtMeta ||
       pExtNode->tsPrimaryColIdx < 0 ||
       pExtNode->tsPrimaryColIdx >= pExtNode->pExtMeta->numOfCols) {
-    // No pk info available — skip silently; local Sort will handle ordering if needed.
+    // No pk info available  -  skip silently; local Sort will handle ordering if needed.
     return TSDB_CODE_SUCCESS;
   }
   const char* pkColName = pExtNode->pExtMeta->pCols[pExtNode->tsPrimaryColIdx].colName;
 
   int32_t code = TSDB_CODE_SUCCESS;
 
-  // ── SColumnNode for the pk column ──
+  // -- SColumnNode for the pk column --
   SColumnNode* pPkCol = NULL;
   code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pPkCol);
   if (TSDB_CODE_SUCCESS != code) return code;
@@ -14079,7 +14079,7 @@ static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
   pPkCol->node.resType.type  = TSDB_DATA_TYPE_TIMESTAMP;
   pPkCol->node.resType.bytes = (int32_t)sizeof(int64_t);  // TIMESTAMP is always 8 bytes
 
-  // ── SOrderByExprNode wrapping the column ──
+  // -- SOrderByExprNode wrapping the column --
   SOrderByExprNode* pOrdExpr = NULL;
   code = nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&pOrdExpr);
   if (TSDB_CODE_SUCCESS != code) {
@@ -14090,7 +14090,7 @@ static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
   pOrdExpr->order      = ORDER_ASC;
   pOrdExpr->nullOrder  = NULL_ORDER_FIRST;  // ts pk cannot be NULL; NULLS FIRST is harmless
 
-  // ── SSortLogicNode with pSortKeys = [pOrdExpr] ──
+  // -- SSortLogicNode with pSortKeys = [pOrdExpr] --
   SSortLogicNode* pSortLogic = NULL;
   code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT, (SNode**)&pSortLogic);
   if (TSDB_CODE_SUCCESS != code) {
@@ -14110,7 +14110,7 @@ static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
     return code;
   }
 
-  // ── Wire pSortLogic into pRemoteLogicPlan ──
+  // -- Wire pSortLogic into pRemoteLogicPlan --
   // If pRemoteLogicPlan is NULL: sort becomes the sole remote plan node.
   // Otherwise: append at the bottom of the existing chain (the chain's
   // bottommost node has pChildren == NULL; set it to [pSortLogic]).
@@ -14139,7 +14139,7 @@ static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
   return TSDB_CODE_SUCCESS;
 }
 
-// ─── FqInterp: build UNION ALL remote plan for INTERP on external scan ──────
+// --- FqInterp: build UNION ALL remote plan for INTERP on external scan ------
 //
 // For INTERP queries on external tables, the local TimeSlice operator needs
 // boundary data rows (PREV / NEXT) in addition to the RANGE data for
@@ -14151,15 +14151,15 @@ static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
 // isSetOpProj=true and multiple children) so that the remote source returns
 // all necessary data in a single query.
 //
-// Fill mode → branches:
-//   NULL/VALUE/VALUE_F/NULL_F/NONE → 1 branch  (MAIN only)
-//   PREV                          → 2 branches (PREV + MAIN)
-//   NEXT                          → 2 branches (MAIN + NEXT)
-//   LINEAR/NEAR                   → 3 branches (PREV + MAIN + NEXT)
+// Fill mode  ->  branches:
+//   NULL/VALUE/VALUE_F/NULL_F/NONE  ->  1 branch  (MAIN only)
+//   PREV                           ->  2 branches (PREV + MAIN)
+//   NEXT                           ->  2 branches (MAIN + NEXT)
+//   LINEAR/NEAR                    ->  3 branches (PREV + MAIN + NEXT)
 //
-// Each branch is: SSortLogicNode → SScanLogicNode (with WHERE + optional LIMIT).
+// Each branch is: SSortLogicNode  ->  SScanLogicNode (with WHERE + optional LIMIT).
 // The UNION ALL container is: SProjectLogicNode(isSetOpProj=true, ignoreGroupId=true).
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
 // Helper: find SInterpFuncLogicNode ancestor above a given scan node.
 static SInterpFuncLogicNode* fqFindInterpAboveScan(SScanLogicNode* pScan) {
@@ -14173,7 +14173,7 @@ static SInterpFuncLogicNode* fqFindInterpAboveScan(SScanLogicNode* pScan) {
   return NULL;
 }
 
-// Helper: create one branch (Sort→Scan) for the UNION ALL plan.
+// Helper: create one branch (Sort -> Scan) for the UNION ALL plan.
 // pScan: the original external scan node (used for column/table info cloning).
 // pkColName: primary key column name for ORDER BY.
 // order: ORDER_ASC or ORDER_DESC.
@@ -14184,7 +14184,7 @@ static int32_t fqInterpCreateBranch(SScanLogicNode* pScan, const char* pkColName
                                     SLogicNode** ppBranch) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  // ── Create SScanLogicNode (leaf of the branch) ──
+  // -- Create SScanLogicNode (leaf of the branch) --
   SScanLogicNode* pNewScan = NULL;
   code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, (SNode**)&pNewScan);
   if (TSDB_CODE_SUCCESS != code) return code;
@@ -14216,7 +14216,7 @@ static int32_t fqInterpCreateBranch(SScanLogicNode* pScan, const char* pkColName
     pNewScan->node.pLimit = (SNode*)pLimit;
   }
 
-  // ── Create SSortLogicNode (wraps the scan) ──
+  // -- Create SSortLogicNode (wraps the scan) --
   SSortLogicNode* pSort = NULL;
   code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT, (SNode**)&pSort);
   if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); return code; }
@@ -14324,7 +14324,7 @@ static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   if (NULL == pExtNode || NULL == pExtNode->pExtMeta ||
       pExtNode->tsPrimaryColIdx < 0 ||
       pExtNode->tsPrimaryColIdx >= pExtNode->pExtMeta->numOfCols) {
-    return TSDB_CODE_SUCCESS;  // no pk info — cannot build time conditions
+    return TSDB_CODE_SUCCESS;  // no pk info  -  cannot build time conditions
   }
   const char* pkColName = pExtNode->pExtMeta->pCols[pExtNode->tsPrimaryColIdx].colName;
 
@@ -14346,7 +14346,7 @@ static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   }
 
   if (nBranches == 1) {
-    // Single branch: Sort(ASC) → Scan(WHERE ts >= t1 AND ts <= t2)
+    // Single branch: Sort(ASC)  ->  Scan(WHERE ts >= t1 AND ts <= t2)
     SNode* pGe = NULL;
     code = fqInterpCreateTsCond(pkColName, OP_TYPE_GREATER_EQUAL, t1, &pGe);
     if (TSDB_CODE_SUCCESS != code) return code;
@@ -14382,7 +14382,7 @@ static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
     code = nodesMakeList(&pUnion->node.pChildren);
     if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
 
-    // ── PREV branch: Sort(DESC) → Scan(WHERE ts < t1, LIMIT 1) ──
+    // -- PREV branch: Sort(DESC)  ->  Scan(WHERE ts < t1, LIMIT 1) --
     if (needPrev) {
       SNode* pCond = NULL;
       code = fqInterpCreateTsCond(pkColName, OP_TYPE_LOWER_THAN, t1, &pCond);
@@ -14396,7 +14396,7 @@ static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
     }
 
-    // ── MAIN branch: Sort(ASC) → Scan(WHERE ts >= t1 AND ts <= t2) ──
+    // -- MAIN branch: Sort(ASC)  ->  Scan(WHERE ts >= t1 AND ts <= t2) --
     {
       SNode* pGe = NULL;
       code = fqInterpCreateTsCond(pkColName, OP_TYPE_GREATER_EQUAL, t1, &pGe);
@@ -14416,7 +14416,7 @@ static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
     }
 
-    // ── NEXT branch: Sort(ASC) → Scan(WHERE ts > t2, LIMIT 1) ──
+    // -- NEXT branch: Sort(ASC)  ->  Scan(WHERE ts > t2, LIMIT 1) --
     if (needNext) {
       SNode* pCond = NULL;
       code = fqInterpCreateTsCond(pkColName, OP_TYPE_GREATER_THAN, t2, &pCond);
@@ -14442,16 +14442,16 @@ static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   return TSDB_CODE_SUCCESS;
 }
 
-// ─── Phase 1 core: harvest Sort + Project, inject default pk ORDER BY ───────
+// --- Phase 1 core: harvest Sort + Project, inject default pk ORDER BY -------
 //
-// Rules for pk ORDER BY injection (DS §5.2.x — "fallback flow ordering"):
+// Rules for pk ORDER BY injection (DS section 5.2.x  -  "fallback flow ordering"):
 //   Inject when ALL of the following hold:
 //   1. No Sort node was pushed down (user did not specify ORDER BY).
 //   2. The outer query is projection-only: no AGG or WINDOW node sits above
 //      the external scan in the main logical plan.
 //   3. We are in the Phase 1 "fallback" flow (external DB is raw data source,
 //      TDengine performs all computation).  This is always true in Phase 1.
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
 static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   // Stream calc plans need a local Project/Sort left above the ExternalScan so that
@@ -14485,7 +14485,7 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
     return TSDB_CODE_SUCCESS;
   }
 
-  // ── Phase 2 stubs (no-ops until implemented) ──
+  // -- Phase 2 stubs (no-ops until implemented) --
   int32_t code = TSDB_CODE_SUCCESS;
   code = fqHarvestConditions(pScan);
   if (TSDB_CODE_SUCCESS != code) return code;
@@ -14498,8 +14498,8 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
   code = fqHarvestAgg(pLogicSubplan, pScan);
   if (TSDB_CODE_SUCCESS != code) return code;
 
-  // ── Phase 1: harvest Sort + Project chain ──
-  // Collect consecutive pushdownable single-child ancestors, bottom → top.
+  // -- Phase 1: harvest Sort + Project chain --
+  // Collect consecutive pushdownable single-child ancestors, bottom  ->  top.
   // Also track whether a Sort node appears in the chain (= user specified ORDER BY).
   SArray* pChain = taosArrayInit(4, POINTER_BYTES);
   if (NULL == pChain) return terrno;
@@ -14524,7 +14524,7 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
           _pI = ((const SOrderByExprNode*)_pI)->pExpr;
         if (_pI == NULL || nodeType(_pI) != QUERY_NODE_COLUMN ||
             ((const SColumnNode*)_pI)->colId == 0) {
-          // Non-renderable sort key — bail out of while loop entirely
+          // Non-renderable sort key  -  bail out of while loop entirely
           goto _chain_done;
         }
       }
@@ -14548,7 +14548,7 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
     pParent = pParent->pParent;
   }
 _chain_done:
-  // ── Extract chain into pRemoteLogicPlan (only when chain is non-empty) ──
+  // -- Extract chain into pRemoteLogicPlan (only when chain is non-empty) --
   if (taosArrayGetSize(pChain) > 0) {
     int32_t     n           = (int32_t)taosArrayGetSize(pChain);
     SLogicNode* pTopmost    = *(SLogicNode**)taosArrayGet(pChain, n - 1);
@@ -14559,7 +14559,7 @@ _chain_done:
     code = replaceLogicNode(pLogicSubplan, pTopmost, (SLogicNode*)pScan);
     if (TSDB_CODE_SUCCESS != code) goto _cleanup;
 
-    // ── Update pScan->pTargets to match pTopmost's output column order ──
+    // -- Update pScan->pTargets to match pTopmost's output column order --
     // The topmost pushed-down node's pTargets defines the column order the
     // parent plan expects.  eliminateProjOptimize may have already updated
     // pTopmost's pTargets to match the user's SELECT list.  After removing
@@ -14590,13 +14590,13 @@ _chain_done:
     nodesClearList(pBottommost->pChildren);
     pBottommost->pChildren = NULL;
 
-    // pTopmost is now the root of pRemoteLogicPlan — detach from main tree.
+    // pTopmost is now the root of pRemoteLogicPlan  -  detach from main tree.
     pTopmost->pParent = NULL;
 
     // Hand the pushed-down chain over to the scan node.
     pScan->pRemoteLogicPlan = (SNode*)pTopmost;
 
-    // ── Update pScan output columns to match pushed-down topmost node ──
+    // -- Update pScan output columns to match pushed-down topmost node --
     // After pushing Sort (and Project) into pRemoteLogicPlan, the outer
     // FederatedScan sits where pTopmost was.  Its pTargets must reflect what
     // pTopmost outputs (= SELECT columns in SELECT order, WITHOUT sort-key-only
@@ -14631,7 +14631,7 @@ _chain_done:
   // If chain is empty, pScan->pRemoteLogicPlan stays NULL and
   // pScan->node.pParent is unchanged (== pParent from the loop).
 
-  // ── Default pk ORDER BY injection (DS §5.2.x — fallback flow ordering) ──
+  // -- Default pk ORDER BY injection (DS section 5.2.x  -  fallback flow ordering) --
   // Inject ORDER BY <pk> ASC into the remote plan whenever no Sort was pushed
   // down.  Injecting even when a complex operator (csum, partition, agg) sits
   // above ensures the external source returns rows in ascending timestamp order
@@ -14651,14 +14651,14 @@ _chain_done:
       if (TSDB_CODE_SUCCESS != code) goto _cleanup;
     }
 
-    // ── Fix pScan output columns for the empty-chain case ──
+    // -- Fix pScan output columns for the empty-chain case --
     // When a non-pushdownable node (e.g. DYN_QUERY_CTRL for IN subquery) sits
     // between ExternalScan and the Sort, the chain is empty and the Sort stays
     // in the local plan.  We still need to:
-    //   1. Set pScan->node.pTargets = SELECT cols only (host, val) — so that
+    //   1. Set pScan->node.pTargets = SELECT cols only (host, val)  -  so that
     //      OutputDataBlockDesc marks only those as output=true.
     //   2. Set pScan->pScanCols = SELECT cols + ORDER BY-only cols (host, val, ts)
-    //      in that order — so the remote SQL SELECT produces columns in the right
+    //      in that order  -  so the remote SQL SELECT produces columns in the right
     //      position for the block, and ts can be a reserve slot for the local Sort.
     // Find the SELECT column list from the nearest ancestor Sort or Project.
     //
@@ -14717,7 +14717,7 @@ _chain_done:
             continue;
           }
           // Skip if a JOIN node was found between Scan and this ancestor;
-          // a JOIN's pTargets combine columns from all legs — using them to
+          // a JOIN's pTargets combine columns from all legs  -  using them to
           // overwrite one scan's pScanCols/pTargets causes slot-key-not-found.
           if (hasJoinBetween) {
             continue;
@@ -14792,7 +14792,7 @@ _chain_done:
     }
   }
 
-  // ── Fallback: ensure pScan->pScanCols has at least one column ──
+  // -- Fallback: ensure pScan->pScanCols has at least one column --
   // For queries like `SELECT timezone() FROM ext_t` or `SELECT client_version()
   // FROM ext_t` where the SELECT list has no remote column dependencies,
   // pScanCols is still NULL at this point.  An empty pScanCols causes
@@ -14800,9 +14800,9 @@ _chain_done:
   // the remote connector then fails with a column-count mismatch.
   // Inject the pk column (from the fqInjectPkOrderBy Sort already in
   // pRemoteLogicPlan) as a minimal anchor so the remote SQL becomes
-  //   SELECT <pk> FROM … ORDER BY <pk> [LIMIT …]
+  //   SELECT <pk> FROM ... ORDER BY <pk> [LIMIT ...]
   // and the remote connector returns exactly 1 column.
-  // The local Project (timezone()/client_version()/…) ignores the pk column
+  // The local Project (timezone()/client_version()/...) ignores the pk column
   // and computes its zero-argument function per returned row.
   bool noRemoteColDependency = !fqExprListHasColumnRef(pScan->pScanCols);
   if (TSDB_CODE_SUCCESS == code && noRemoteColDependency) {
@@ -14853,7 +14853,7 @@ _chain_done:
     }
   }
 
-  // ── Phase 2 stubs (post-chain, no-ops until implemented) ──
+  // -- Phase 2 stubs (post-chain, no-ops until implemented) --
   if (TSDB_CODE_SUCCESS == code) {
     code = fqHarvestLimit(pScan);
     if (TSDB_CODE_SUCCESS != code) goto _cleanup;

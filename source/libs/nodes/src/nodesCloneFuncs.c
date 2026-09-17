@@ -289,7 +289,7 @@ static int32_t functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) 
   COPY_SCALAR_FIELD(tz);
   COPY_SCALAR_FIELD(isDistinct);
   COPY_CHAR_ARRAY_FIELD(tzName);
-  // Don't share the tz pointer — clone will lazy-init its own handle if needed
+  // Don't share the tz pointer  -  clone will lazy-init its own handle if needed
   pDst->tz = NULL;
   pDst->tzAllocated = false;
   return TSDB_CODE_SUCCESS;
@@ -1339,7 +1339,7 @@ static int32_t extTableNodeCopy(const SExtTableNode* pSrc, SExtTableNode* pDst) 
   COPY_SCALAR_FIELD(tsPrimaryColIdx);
   COPY_CHAR_ARRAY_FIELD(remoteTableName);
   // pExtMeta: deep-copied so the planner can translate TDengine column names to
-  // remote column names (e.g. 'ts' → 'time' for InfluxDB) before serialization.
+  // remote column names (e.g. 'ts'  ->  'time' for InfluxDB) before serialization.
   if (pSrc->pExtMeta) {
     pDst->pExtMeta = (SExtTableMeta*)taosMemoryMalloc(sizeof(SExtTableMeta));
     if (!pDst->pExtMeta) return TSDB_CODE_OUT_OF_MEMORY;

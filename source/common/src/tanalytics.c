@@ -536,7 +536,7 @@ static int32_t tsosAnalyJsonBufOpen(SAnalyticBuf *pBuf, int32_t numOfCols, const
     pCol->filePtr =
         taosOpenFile(pCol->fileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
     if (pCol->filePtr == NULL) {
-      uError("%s failed to open tmp file for keep forecast history data, code：%s", pId, tstrerror(terrno));
+      uError("%s failed to open tmp file for keep forecast history data, code:%s", pId, tstrerror(terrno));
       return terrno;
     }
   }

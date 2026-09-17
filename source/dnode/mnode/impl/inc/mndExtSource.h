@@ -39,7 +39,7 @@ void    mndCancelGetNextExtSource(SMnode *pMnode, void *pIter);
 
 #ifdef TD_ENTERPRISE
 
-// SDB action callbacks — implemented in enterprise mndExtSource.c
+// SDB action callbacks  -  implemented in enterprise mndExtSource.c
 SSdbRaw *mndExtSourceActionEncode(SExtSourceObj *pSource);
 SSdbRow *mndExtSourceActionDecode(SSdbRaw *pRaw);
 int32_t  mndExtSourceActionInsert(SSdb *pSdb, SExtSourceObj *pSource);

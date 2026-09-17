@@ -1091,9 +1091,9 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
       // Auto-detect source precision from the magnitude of the int64 value.
       //
       // Thresholds (absolute value):
-      //   < 10^13 → milliseconds
-      //   < 10^16 → microseconds
-      //   otherwise → nanoseconds
+      //   < 10^13  ->  milliseconds
+      //   < 10^16  ->  microseconds
+      //   otherwise  ->  nanoseconds
       //
       // The raw (unconverted) value is stored together with the detected source
       // precision in pVal->node.resType.precision.  The actual conversion to the

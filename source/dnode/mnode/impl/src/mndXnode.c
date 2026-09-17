@@ -6594,7 +6594,7 @@ static char *mndXnodeBase64UrlEncodeOpenssl(const unsigned char *input, size_t i
     goto _err;
   }
 
-  // BIO chain:b64 → bio
+  // BIO chain:b64  ->  bio
   bio = BIO_push(b64, bio);
   if (!bio) {
     lino = __LINE__;

@@ -452,7 +452,7 @@ _exit:
 }
 
 /*
- * handleExtReaderPullReq — dispatches TDMT_STREAM_TRIGGER_PULL_EXT to the
+ * handleExtReaderPullReq  -  dispatches TDMT_STREAM_TRIGGER_PULL_EXT to the
  * ETR reader task identified by (streamId, readerTaskId) in the request body.
  *
  * Request body (after SMsgHead) is binary-encoded via tSerializeSTriggerPullRequest.
@@ -502,7 +502,7 @@ static int32_t handleExtReaderPullReq(SSnode *pSnode, SRpcMsg *pRpcMsg) {
    * pTask->info. */
   if (!STREAM_IS_REF_EXT_SOURCE(pTask->task.flags)) {
     sndError("ext: handleExtReaderPullReq got PULL_EXT for a non-ext reader task "
-             "streamId=%" PRId64 " taskId=%" PRId64 " flags=%" PRId64 " — routing error",
+             "streamId=%" PRId64 " taskId=%" PRId64 " flags=%" PRId64 " - routing error",
              streamId, readerTaskId, (int64_t)pTask->task.flags);
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
@@ -514,7 +514,7 @@ static int32_t handleExtReaderPullReq(SSnode *pSnode, SRpcMsg *pRpcMsg) {
 
   if (pInfo == NULL) {
     sndError("ext: reader task streamId=%" PRId64 " taskId=%" PRId64
-             " has NULL info — not yet initialised",
+             " has NULL info - not yet initialised",
              streamId, readerTaskId);
     TAOS_CHECK_EXIT(TSDB_CODE_STREAM_EXT_READER_NO_LOCAL_INFO);
   }
@@ -616,12 +616,12 @@ _exit:
 
 
 /*
- * handleExtFetchReq — dispatches TDMT_STREAM_FETCH_EXT to the ETR reader
+ * handleExtFetchReq  -  dispatches TDMT_STREAM_FETCH_EXT to the ETR reader
  * task identified by (streamId=req.queryId, readerTaskId=req.taskId).
  *
- * Flow: deserialize SResFetchReq → acquire ETR reader task → call
- * streamReaderExtFetchData (reuses extConnector SQL from P2) →
- * build SRetrieveTableRsp → send TDMT_STREAM_FETCH_EXT_RSP.
+ * Flow: deserialize SResFetchReq  ->  acquire ETR reader task  ->  call
+ * streamReaderExtFetchData (reuses extConnector SQL from P2) ->
+ * build SRetrieveTableRsp  ->  send TDMT_STREAM_FETCH_EXT_RSP.
  *
  * Time window: if pStRtFuncInfo is present the curWindow [skey,ekey] is used
  * to bound the external query; otherwise the full table is scanned.
@@ -656,12 +656,12 @@ static int32_t handleExtFetchReq(SSnode *pSnode, SRpcMsg *pRpcMsg) {
   /* Guard against routing errors: only an EXT (federated) reader task has its
    * info set to an SStreamExtReaderInfo. If a normal reader's task is reached
    * here (e.g. a FETCH_EXT mis-sent because a source address left isExt
-   * uninitialized), pTask->info is a different type — fail loudly instead of
+   * uninitialized), pTask->info is a different type  -  fail loudly instead of
    * type-confusing it into an SStreamExtReaderInfo and crashing. */
   if (!STREAM_IS_REF_EXT_SOURCE(pTask->task.flags)) {
     sndError("ext: handleExtFetchReq got FETCH_EXT for a non-ext reader task "
              "streamId=%" PRId64 " taskId=%" PRId64 " flags=%" PRId64
-             " — routing error, refusing to treat info as ext reader",
+             " - routing error, refusing to treat info as ext reader",
              streamId, readerTaskId, (int64_t)pTask->task.flags);
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
@@ -671,7 +671,7 @@ static int32_t handleExtFetchReq(SSnode *pSnode, SRpcMsg *pRpcMsg) {
 
   if (pInfo == NULL) {
     sndError("ext: handleExtFetchReq reader task streamId=%" PRId64
-             " taskId=%" PRId64 " has NULL info — not yet initialised",
+             " taskId=%" PRId64 " has NULL info - not yet initialised",
              streamId, readerTaskId);
     TAOS_CHECK_EXIT(TSDB_CODE_STREAM_EXT_READER_NO_LOCAL_INFO);
   }

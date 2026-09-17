@@ -520,7 +520,7 @@ void destroyTscObj(void *pObj) {
 
   tSimpleHashCleanup(pTscObj->pTxnVgSet);
   pTscObj->pTxnVgSet = NULL;
-  // §34.2 #2: clean up pTxnTableMeta if connection closes with active txn
+  // section 34.2 #2: clean up pTxnTableMeta if connection closes with active txn
   if (pTscObj->pTxnTableMeta) {
     void *pIter = taosHashIterate(pTscObj->pTxnTableMeta, NULL);
     while (pIter) {
@@ -531,7 +531,7 @@ void destroyTscObj(void *pObj) {
     taosHashCleanup(pTscObj->pTxnTableMeta);
     pTscObj->pTxnTableMeta = NULL;
   }
-  // pTxnSuidMap values are char[] copied inline by the hash — no per-entry free needed.
+  // pTxnSuidMap values are char[] copied inline by the hash  -  no per-entry free needed.
   taosHashCleanup(pTscObj->pTxnSuidMap);
   pTscObj->pTxnSuidMap = NULL;
   (void)taosThreadMutexDestroy(&pTscObj->mutex);
