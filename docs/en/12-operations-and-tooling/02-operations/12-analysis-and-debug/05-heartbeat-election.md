@@ -39,6 +39,7 @@ Most of the following parameters are global configuration parameters and must be
 | `syncHeartbeatTimeout` | 20000 | ms | 10 - 172800000 | Global | No | Threshold used by the leader to decide whether heartbeat replies from replicas have timed out. If no heartbeat reply has been received from a quorum of replicas within this period, the leader rejects new write requests (propose returns a heartbeat timeout error) |
 | `syncSnapReplMaxWaitN` | 128 | entries | 16 - 256 | Global | Yes, effective immediately | Maximum number of log entries that can be waited on during snapshot replication. If a replica falls far behind and must be restored by a snapshot, a long-running restore keeps that replica from participating in elections |
 | `snapshotRateLimit` | 0 | MB/s | 0 - 10240 | Global | Yes, effective immediately | Total snapshot sending bandwidth limit per dnode. 0 means no limit. When multiple vgroups replicate snapshots at the same time, disk I/O can be saturated, indirectly causing heartbeat timeouts. Introduced in `v3.4.2.0` |
+| `snapshotMediumOnLag` | 0 | - | 0 - 1 | Global | Yes, effective immediately | Replication mode used by snapshot synchronization when a replica already owns data but lags behind the other replicas of its vgroup. 0 means the row-by-row (normal) mode, 1 means the file-level delta (medium) mode which transfers less data and catches up faster. It does not apply to a new empty replica or to a replica whose FSM is incomplete. Introduced in `v3.4.3.0` |
 
 ### dnode Status Report Parameters
 
@@ -116,6 +117,7 @@ When a problem occurs, you can temporarily enable the following parameters to ob
 | A dnode is incorrectly marked offline, causing batch leader switches of its vgroups | `statusInterval`, `statusTimeoutMs`, `statusSRTimeoutMs` | Increase `statusTimeoutMs` (for example to 10000 - 15000) so that it is several times larger than `statusIntervalMs` |
 | Frequent assigned leader switches in dual-replica mode | `arbHeartBeatIntervalMs`, `arbSetAssignedTimeoutMs`, `arbCheckSyncIntervalMs` | Increase the heartbeat interval and timeout thresholds, keeping `arbSetAssignedTimeoutMs` at least five times `arbHeartBeatIntervalMs` |
 | A replica falls far behind and heartbeats time out during snapshot replication | `snapshotRateLimit`, `syncSnapReplMaxWaitN` | Limit the snapshot replication bandwidth so that snapshot replication does not saturate disk I/O and cause heartbeat timeouts |
+| A lagging replica takes too long to catch up and consumes too much bandwidth | `snapshotMediumOnLag` | Set it to 1 to switch to file-level delta (medium) replication so that only the files that differ are transferred |
 | After an assigned leader steps down, the peer enters the restoring state in dual-replica mode | `syncAssignedCheckAppliedGap` | Increase the threshold appropriately so that the leader waits for the peer to catch up before stepping down. Set it to 0 to disable the check |
 
 ### Tuning Procedure and Examples

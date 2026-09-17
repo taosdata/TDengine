@@ -176,6 +176,7 @@ extern int32_t tsMnodeHeartbeatIntervalMs;
 extern int32_t tsHeartbeatTimeout;
 extern int32_t tsSnapReplMaxWaitN;
 extern int32_t tsSnapshotRateLimit;
+extern bool    tsSnapshotMediumOnLag;  // use MEDIUM (file-level) snap replication when a follower owns data but lags behind
 extern int64_t tsLogBufferMemoryAllowed;  // maximum allowed log buffer size in bytes for each dnode
 extern int64_t tsSyncApplyQueueSize;
 extern int32_t tsSyncNegotiationWin;  // negotiation window size for sync module
