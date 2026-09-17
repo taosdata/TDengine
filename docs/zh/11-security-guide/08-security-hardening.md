@@ -30,7 +30,7 @@ TDengine 包含多个组件，有：
 
 各组件关系如下：
 
-![TDengine 产品生态拓扑架构](../assets/security-suggestions-01.png)
+![TDengine 产品生态拓扑架构](../assets/security-suggestions-01.webp)
 
 关于各组件的详细介绍，请参考 [概览与架构](../12-operations-and-tooling/01-overview.md)。
 

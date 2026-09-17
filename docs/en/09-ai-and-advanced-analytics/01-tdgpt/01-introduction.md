@@ -36,7 +36,7 @@ TDgpt consists of four main components:
 - Request adapter for general-purpose LLMs: Converts time-series forecasting requests into prompts for general-purpose LLMs such as Llama in a MaaS manner. (Note: This functionality is not open source.)
 - Adapter for locally deployed time-series models: Sends requests directly to models like Time-MoE and TDtsfm that are specifically designed for time-series data. Compared to general-purpose LLMs, these models do not require prompt engineering, are lighter-weight, and are easier to deploy locally with lower hardware requirements. In addition, the adapter can also connect to cloud-based time-series MaaS systems such as TimeGPT, enabling localized analysis powered by cloud-hosted models.
 
-![TDgpt architecture](../../assets/introduction-01.png)
+![TDgpt architecture](../../assets/introduction-01.webp)
 
 During query execution, the vnode in TDengine forwards any elements involving advanced time-series data analytics directly to the anode. Once the analysis is completed, the results are assembled and embedded back into the query execution process.
 

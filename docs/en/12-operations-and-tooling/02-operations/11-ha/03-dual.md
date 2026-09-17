@@ -22,7 +22,7 @@ In the event that the primary node cannot provide service, the client driver fai
 
 Replicated data is specially marked to avoid infinite loops. The architecture of an active-active deployment is described in the following figure.
 
-![Active-Active architecture](../../../assets/dual-01.png)
+![Active-Active architecture](../../../assets/dual-01.webp)
 
 Note that this diagram uses a single-node TDengine TSDB cluster as an example. In practice, each host in the diagram can represent a TDengine TSDB cluster of any size.
 

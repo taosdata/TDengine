@@ -15,7 +15,7 @@ TDengine 的各语言连接器通过 WebSocket 接口与 TDengine 进行通信�
 
 架构图如下：
 
-![TDengine Database taosAdapter Architecture](../../assets/taosadapter-01.png)
+![TDengine Database taosAdapter Architecture](../../assets/taosadapter-01.webp)
 
 ## 功能列表
 

@@ -83,7 +83,7 @@ The INTERVAL clause is used to generate windows of equal time periods, and SLIDI
 When the query object is a super table, the aggregate functions will apply to all data that meets the filtering conditions from all tables under that super table, and the results will be strictly monotonically increasing according to the window start time.
 If the query uses a PARTITION BY statement for grouping, the results will be strictly monotonically increasing according to the window start time within each PARTITION.
 
-![Time window](../../assets/distinguished-01.png)
+![Time window](../../assets/distinguished-01.webp)
 
 `INTERVAL` and `SLIDING` are usually used with aggregate and selection functions. In [window projection mode](#window-projection-mode), original columns can also be output.
 
@@ -202,7 +202,7 @@ When using time windows, note:
 
 State windows are divided according to the continuity of one or more state keys. Multiple state keys have been supported since v3.4.2.0. State keys support integers, booleans, and strings, and can also be expressions that return these types, such as `CASE WHEN`, `IF`, comparison expressions, `IN`, `BETWEEN`, `IS NULL` / `IS NOT NULL`, and logical expressions composed with `AND`, `OR`, and `NOT`. Adjacent rows compare state keys in the order they are written in SQL. If any key changes, the current window closes and a new one starts. The diagram below shows a single-key example, where the two resulting windows are [2019-04-28 14:22:07, 2019-04-28 14:22:10] and [2019-04-28 14:22:11, 2019-04-28 14:22:12].
 
-![State windows](../../assets/distinguished-02.png)
+![State windows](../../assets/distinguished-02.webp)
 
 The syntax is:
 
@@ -422,7 +422,7 @@ SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR 
 
 The session window is determined based on the timestamp primary key values of the records. As shown in the diagram below, if the continuous interval of the timestamps is set to be less than or equal to 12 seconds, the following 6 records form 2 session windows, which are: [2019-04-28 14:22:10, 2019-04-28 14:22:30] and [2019-04-28 14:23:10, 2019-04-28 14:23:30]. This is because the interval between 2019-04-28 14:22:30 and 2019-04-28 14:23:10 is 40 seconds, exceeding the continuous interval (12 seconds).
 
-![Session windows](../../assets/distinguished-03.png)
+![Session windows](../../assets/distinguished-03.webp)
 
 Results within the tol_value time interval are considered to belong to the same window; if the time between two consecutive records exceeds tol_val, the next window automatically starts.
 
@@ -456,7 +456,7 @@ Take the following SQL statement as an example, the event window segmentation is
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
 ```
 
-![Event windows](../../assets/distinguished-04.png)
+![Event windows](../../assets/distinguished-04.webp)
 
 The event window supports using the TRUE_FOR parameter to set window-level filtering conditions and open/close streak thresholds. All three sub-parameters are optional and may appear in any order, at most once each:
 
@@ -517,7 +517,7 @@ Take the following SQL statement as an example, the count window segmentation is
 select _wstart, _wend, count(*) from t count_window(4);
 ```
 
-![Count windows](../../assets/distinguished-05.png)
+![Count windows](../../assets/distinguished-05.webp)
 
 ### External Window
 

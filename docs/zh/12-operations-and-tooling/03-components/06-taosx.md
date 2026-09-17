@@ -442,6 +442,12 @@ taosx run -f "taos+ws://root:taosdata@localhost:6041/test?query=select * from te
 
 :::
 
+### 可选构建特性
+
+为减小默认二进制文件体积，默认构建的 taosX 不包含 Swagger UI 和 OpenTelemetry。默认 HTTP 服务仍在 `/api-doc/openapi.json` 提供 OpenAPI 文档。
+
+使用 `--features swagger-ui` 构建以在 `/swagger-ui/` 提供 Swagger UI。使用 `--features otel` 构建，并通过 `--otel` 或 `ENABLE_OTEL=true` 启动 taosX，以启用 OpenTelemetry 导出。
+
 ### 配置
 
 `taosX` 支持通过配置文件进行配置。在 Linux 上，默认配置文件路径是 `/etc/taos/taosx.toml`，在 Windows 上，默认配置文件路径是 `C:\\TDengine\\cfg\\taosx.toml`，包含以下配置项：
@@ -814,7 +820,7 @@ taosX Parser 插件是一个要求用 C/Rust 语言开发的 C ABI 兼容动态�
 
 完成插件开发后，编译环境需要和目标运行环境兼容，将编译好的插件动态库复制到插件目录下，taosX 启动后，系统首次使用插件时初始化加载插件。可以在 explorer 的 kafka 或者 mqtt 数据接入配置页面中，检查是否加载成功。如下图，如果加载成功，则在解析器选择列表中展示出来。
 
-![插件示例](../../assets/taosx-01.png)
+![插件示例](../../assets/taosx-01.webp)
 
 插件目录在 `taosx.toml` 配置文件中复用 plugins 配置，追加`/parsers`作为插件安装路径，默认值在 UNIX 环境下为 `/usr/local/taos/plugins/parsers`，在 Windows 下为 `C:\TDengine\plugins\parsers`。
 

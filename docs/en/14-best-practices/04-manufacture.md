@@ -11,7 +11,7 @@ Smart manufacturing combines production equipment, industrial systems, and datab
 
 The IEC 62264-1 hierarchy divides manufacturing systems into field devices, field control, process monitoring, production management, and enterprise resources.
 
-<!-- ![IEC 62264-1 five-level model](../assets/manufacture-1.png) -->
+<!-- ![IEC 62264-1 five-level model](../assets/manufacture-1.webp) -->
 
 Digital manufacturing introduces several data challenges:
 
@@ -38,13 +38,13 @@ In one tobacco-factory deployment, TDengine provides time-series services for da
 - **Wide tables:** Supertable columns and static tags support correlated, multidimensional analysis that fixed-format real-time databases cannot provide.
 - **External interfaces:** TDengine supplies data to dashboards, MES, alerts, moisture prediction, spare-parts forecasting, SPC, fault analysis, capacity analysis, energy analysis, and predictive maintenance.
 
-<!-- ![TDengine interfaces for manufacturing applications](../assets/manufacture-2.png) -->
+<!-- ![TDengine interfaces for manufacturing applications](../assets/manufacture-2.webp) -->
 
 - **SCADA integration:** SCADA systems use TDengine ODBC to store real-time and historical values, alarms, operation records, login information, and system events. Historical curves and reports respond faster and reduce pressure on the SCADA historian.
 
 TDengine also supports edge-cloud deployment:
 
-<!-- ![TDengine edge-cloud manufacturing deployment](../assets/manufacture-3.png) -->
+<!-- ![TDengine edge-cloud manufacturing deployment](../assets/manufacture-3.webp) -->
 
 Factory-side TDengine instances provide local storage, queries, and analysis while synchronizing data to a group data center. The synchronization design supports:
 
