@@ -292,7 +292,7 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
         // column: match by position (colRef is always aligned with schema columns)
         pRef = &pMeta->colRef[i];
       } else if (isTagRow && pMeta->tagRef) {
-        // tag: match by colId — tagRef is appended in SET TAG order, not schema position order
+        // tag: match by colId  -  tagRef is appended in SET TAG order, not schema position order
         pRef = findTagRefByColId(pMeta->tagRef, pMeta->numOfTagRefs, pMeta->schema[i].colId);
       }
 
@@ -853,7 +853,7 @@ static void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
     // Own (extension) tags carry colId >= TSDB_VCHILD_OWN_COL_ID_BASE and need an explicit type
     // for SHOW CREATE replay: the USING tag list declares own tags as `name TYPE`, while vstb
     // tags are referenced by name only. Reuse formatOwnSchemaType (same as the column path) so
-    // all types — including decimal (precision,scale) — stay replayable.
+    // all types  -  including decimal (precision,scale)  -  stay replayable.
     char typeDecl[64] = {0};
     if (pSchema->colId >= TSDB_VCHILD_OWN_COL_ID_BASE) {
       char ownType[64];
@@ -1009,7 +1009,7 @@ _exit:
 // Inline TAGS clause for SHOW CREATE round-trip (virtual-normal AND normal tables): emits
 // `name TYPE`, plus ` FROM db.tb.tag` for tag-refs and ` = value` for owned tags. A NULL-
 // valued owned tag renders ` = NULL` (not omitted) because the inline CREATE form requires
-// an explicit tag value — a bare `name TYPE` would be rejected on replay. Normal tables have
+// an explicit tag value  -  a bare `name TYPE` would be rejected on replay. Normal tables have
 // no tag-refs, so only the owned branch applies there.
 static int32_t appendInlineTagFields(char* buf, int32_t* len, STableCfg* pCfg, void* charsetCxt) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1240,7 +1240,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     appendColumnFields(buf2, &len, pCfg);
     // For an inherited VST with no own tags (ownTagStart == numOfTags), the grammar
     // "CREATE STABLE ... BASE ON" accepts an omitted TAGS clause (sql.y:1069).
-    // Emitting "TAGS ()" (empty list) is invalid syntax — tag_def_list requires ≥1 entry.
+    // Emitting "TAGS ()" (empty list) is invalid syntax  -  tag_def_list requires  >= 1 entry.
     int32_t numOwnTags = (pCfg->numParents > 0) ? (pCfg->numOfTags - pCfg->ownTagStart) : pCfg->numOfTags;
     if (numOwnTags > 0) {
       len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
@@ -1812,7 +1812,7 @@ static int32_t execShowCreateStream(SShowCreateStreamStmt* pStmt, SRetrieveTable
 }
 
 // ============================================================
-// DESCRIBE EXTERNAL SOURCE — LOCAL execution
+// DESCRIBE EXTERNAL SOURCE  -  LOCAL execution
 // Returns one row with all ins_ext_sources columns for the named source.
 // ============================================================
 
@@ -1962,7 +1962,7 @@ static int32_t execDescribeExtSource(SNode* pStmt, SRetrieveTableRsp** pRsp) {
   // col 4: user
   SET_STR_COL(pBlock, 4, 0, pSrc->user, TSDB_EXT_SOURCE_USER_LEN - 1);
 
-  // col 5: password — always "******"
+  // col 5: password  -  always "******"
   SET_STR_COL(pBlock, 5, 0, "******", 8);
 
   // col 6: database

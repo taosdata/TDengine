@@ -31,7 +31,7 @@
 #include "tsimplehash.h"
 #include "tuuid.h"
 
-// Forward declaration — full definition in libs/nodes/nodes.h
+// Forward declaration  -  full definition in libs/nodes/nodes.h
 typedef struct SNode SNode;
 
 #ifdef __cplusplus
@@ -149,7 +149,7 @@ enum {
   HEARTBEAT_KEY_VIEWINFO,
   HEARTBEAT_KEY_TSMA,
   HEARTBEAT_KEY_TXN_KEEPALIVE,
-  HEARTBEAT_KEY_TXN_KILLED,  // MNode → client: txn was forcibly rolled back due to inactivity timeout
+  HEARTBEAT_KEY_TXN_KILLED,  // MNode  ->  client: txn was forcibly rolled back due to inactivity timeout
   HEARTBEAT_KEY_EXTSOURCE,  // federated query: external source change notifications
 };
 
@@ -262,7 +262,7 @@ typedef enum EExtSourceType {
 // A single option value budget (value length boundary remains 4095 chars).
 #define TSDB_EXT_SOURCE_OPTION_VALUE_LEN 4096
 
-// SExtSourceCapability — push-down ability flags for an external source.
+// SExtSourceCapability  -  push-down ability flags for an external source.
 // Defined here (tmsg.h) so that SExtSourceInfo below and extConnector.h both
 // share the same declaration without a circular-include.
 typedef struct SExtSourceCapability {
@@ -276,9 +276,9 @@ typedef struct SExtSourceCapability {
   bool ext_can_pushdown_in_const_list;  // WHERE col IN (resolved constant list)
 } SExtSourceCapability;
 
-// EExtSQLDialect — SQL dialect selector for remote SQL generation.
+// EExtSQLDialect  -  SQL dialect selector for remote SQL generation.
 // Defined here (alongside EExtSourceType) so that nodes/plannodes.h can reference
-// it without including extConnector.h, breaking the nodes → extconnector dependency.
+// it without including extConnector.h, breaking the nodes  ->  extconnector dependency.
 typedef enum EExtSQLDialect {
   EXT_SQL_DIALECT_MYSQL    = 0,
   EXT_SQL_DIALECT_POSTGRES = 1,
@@ -290,15 +290,15 @@ typedef enum EExtSQLDialect {
 // extInitInfluxTagPartition / fetchDataBatchInflux column-type mappings) and
 // when the stream parser auto-derives an output TAG from a PARTITION BY tag
 // column (parTranslater.c's createStreamReqSetDefaultTag).  Keeping both sides
-// on this single constant prevents them drifting apart — InfluxDB tags have no
+// on this single constant prevents them drifting apart  -  InfluxDB tags have no
 // declared TDengine-side width, so the two call sites must agree on one.
 #define EXT_INFLUX_TAG_NCHAR_CHARS (257 * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE)
 #define EXT_INFLUX_KEY_NCHAR_CHARS ((TSDB_COL_NAME_LEN - 1) * TSDB_NCHAR_SIZE)
 #define EXT_INFLUX_KEY_NCHAR_CHARS_TOO_LONG (TSDB_COL_NAME_LEN * TSDB_NCHAR_SIZE)
 
-// SExtColumnDef / SExtTableMeta — external table metadata types.
+// SExtColumnDef / SExtTableMeta  -  external table metadata types.
 // Defined here so that nodes/querynodes.h and nodes source files can use them
-// without depending on extConnector.h, which would create a nodes → extconnector
+// without depending on extConnector.h, which would create a nodes  ->  extconnector
 // build dependency.
 typedef struct SExtColumnDef {
   char colName[TSDB_COL_NAME_LEN];        // connector-normalized column name
@@ -629,7 +629,7 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_ENCRYPT_ALGR_STMT,
   QUERY_NODE_SHOW_CREATE_STREAM_STMT,
 
-  // DDL statement nodes for federated query (external source) — 240-249 reserved
+  // DDL statement nodes for federated query (external source)  -  240-249 reserved
   QUERY_NODE_CREATE_EXT_SOURCE_STMT   = 240,
   QUERY_NODE_ALTER_EXT_SOURCE_STMT,
   QUERY_NODE_DROP_EXT_SOURCE_STMT,
@@ -948,7 +948,7 @@ int32_t tPrintFixedSchemaSubmitReq(SSubmitReq* pReq, STSchema* pSchema);
 typedef struct {
   bool     hasRef;
   col_id_t id;
-  int8_t   refType;                                   // 0=internal, 1=external (DS §6.2.7)
+  int8_t   refType;                                   // 0=internal, 1=external (DS section 6.2.7)
   char     refSourceName[TSDB_EXT_SOURCE_NAME_LEN];   // external source name (refType=1)
   char     refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // external schema captured at virtual-table creation (PG only)
   char     refDbName[TSDB_DB_NAME_LEN];
@@ -1896,7 +1896,7 @@ bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm);
 
 
 // SCRAM-SHA-256 credentials. When algo==TSDB_SCRAM_ALGO_SHA256, the client has
-// pre-derived the credentials locally and the server stores them directly — the
+// pre-derived the credentials locally and the server stores them directly  -  the
 // password hash is never sent over the wire.
 typedef struct {
   int8_t  algo;     // TSDB_SCRAM_ALGO_*
@@ -3532,7 +3532,7 @@ typedef struct {
 int32_t tSerializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
 int32_t tDeserializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
 
-// Snap send progress query (mnode → dnode, dnode → mnode RSP)
+// Snap send progress query (mnode  ->  dnode, dnode  ->  mnode RSP)
 typedef struct {
   int32_t fid;
   int32_t fileCount;
@@ -5039,8 +5039,8 @@ typedef struct SVTableScanOperatorParam {
   SOperatorParam* pTagScanOp;
   int32_t         tagDownStreamId;
   char            tbName[TSDB_TABLE_NAME_LEN];
-  SArray*         pOpParamArray;       // SArray<SOperatorParam> — internal Exchange params
-  SArray*         pForeignParamArray;  // SArray<SOperatorParam> — external FederatedScan params
+  SArray*         pOpParamArray;       // SArray<SOperatorParam>  -  internal Exchange params
+  SArray*         pForeignParamArray;  // SArray<SOperatorParam>  -  external FederatedScan params
   SArray*         pRefColGroups;       // SArray<SRefColIdGroup>
   SArray*         pResolvedTags;       // SArray<STagVal>, resolved tag values from source tables
 } SVTableScanOperatorParam;
@@ -5745,7 +5745,7 @@ typedef struct SVAlterTbReq {
   char*   seriesMeasurementName;
   int32_t seriesTagCondLen;
   char*   seriesTagCondJson;
-  // TSDB_ALTER_TABLE_REMOVE_SERIES — uses seriesAlias above
+  // TSDB_ALTER_TABLE_REMOVE_SERIES  -  uses seriesAlias above
   int64_t txnId;  // batch meta txn ID (0 = not in txn)
 } SVAlterTbReq;
 
@@ -6397,7 +6397,7 @@ typedef struct {
   int8_t     clientStage;
   txn_id_t   txnId;
   int64_t    connId;
-  SSHashObj* pVgSet;                      // Hash set of int32_t vgId → dummy, client-tracked participant VGroups
+  SSHashObj* pVgSet;                      // Hash set of int32_t vgId  ->  dummy, client-tracked participant VGroups
   char       dbFName[TSDB_DB_FNAME_LEN];  // participating DB fullName (replicated txn COMMIT/ROLLBACK)
 } SMTransReq;
 
@@ -6416,13 +6416,13 @@ typedef struct {
   txn_id_t txnId;
 } SMndTxnRegRsp;
 
-// MNode → VNode: COMMIT instruction for a single transaction
+// MNode  ->  VNode: COMMIT instruction for a single transaction
 typedef struct {
   txn_id_t  txnId;
   int64_t   term;    // current MNode Raft term (SyncTerm); used for VNode-side fencing
 } SVTxnCommitReq;
 
-// MNode → VNode: ROLLBACK instruction for a single transaction
+// MNode  ->  VNode: ROLLBACK instruction for a single transaction
 typedef struct {
   txn_id_t  txnId;
   int64_t   term;    // current MNode Raft term (SyncTerm); used for VNode-side fencing
@@ -6438,7 +6438,7 @@ int32_t tDeserializeSVTxnCommitReq(void* buf, int32_t bufLen, SVTxnCommitReq* pR
 int32_t tSerializeSVTxnRollbackReq(void* buf, int32_t bufLen, SVTxnRollbackReq* pReq);
 int32_t tDeserializeSVTxnRollbackReq(void* buf, int32_t bufLen, SVTxnRollbackReq* pReq);
 
-// VNode → DNode → MNode keepalive query (piggy-backed onto SStatusReq)
+// VNode  ->  DNode  ->  MNode keepalive query (piggy-backed onto SStatusReq)
 typedef struct {
   txn_id_t  txnId;
   int32_t   vgId;  // VNode issuing the query
@@ -7606,7 +7606,7 @@ int32_t tSerializeSRefreshExtSourceReq(void* buf, int32_t bufLen, SRefreshExtSou
 int32_t tDeserializeSRefreshExtSourceReq(void* buf, int32_t bufLen, SRefreshExtSourceReq* pReq);
 void    tFreeSRefreshExtSourceReq(SRefreshExtSourceReq* pReq);
 
-// Catalog → Mnode: query a single external source (on cache miss)
+// Catalog  ->  Mnode: query a single external source (on cache miss)
 typedef struct SGetExtSourceReq {
   char source_name[TSDB_EXT_SOURCE_NAME_LEN];
 } SGetExtSourceReq;
@@ -7615,7 +7615,7 @@ int32_t tSerializeSGetExtSourceReq(void* buf, int32_t bufLen, SGetExtSourceReq* 
 int32_t tDeserializeSGetExtSourceReq(void* buf, int32_t bufLen, SGetExtSourceReq* pReq);
 void    tFreeSGetExtSourceReq(SGetExtSourceReq* pReq);
 
-// Mnode → Catalog: external source info response (password decrypted by mnode for internal RPC)
+// Mnode  ->  Catalog: external source info response (password decrypted by mnode for internal RPC)
 typedef struct SGetExtSourceRsp {
   char    source_name[TSDB_EXT_SOURCE_NAME_LEN];
   int8_t  type;          // EExtSourceType
@@ -7662,7 +7662,7 @@ void    tFreeSExtSourceHbRsp(SExtSourceHbRsp *pRsp);
 // See SQueryTableRsp definition above; tSerializeSQueryTableRsp / tDeserializeSQueryTableRsp
 // encode/decode extErrMsg with a hasExtErrMsg flag after all existing fields.
 
-// SExtTableMetaReq — identifies an external table to be resolved by catalog.
+// SExtTableMetaReq  -  identifies an external table to be resolved by catalog.
 // Parser registers one per external table reference during collectMetaKey.
 // sourceName matches the ext source name; rawMidSegs holds 0-2 intermediate
 // path segments (db / schema) whose interpretation depends on source type;

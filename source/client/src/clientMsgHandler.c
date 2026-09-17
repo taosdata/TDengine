@@ -131,7 +131,7 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
-    // For DROP STB: save suid→fullName before removeMeta clears the cache
+    // For DROP STB: save suid -> fullName before removeMeta clears the cache
     if (code == 0 && pRequest->pTscObj->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
       int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
       for (int32_t i = 0; i < tbNum; ++i) {
@@ -1703,13 +1703,13 @@ void tscResetTxnState(STscObj* pTscObj) {
     pTscObj->pTxnTableMeta = NULL;
   }
 
-  // pTxnSuidMap values are char[] copied inline by the hash — no per-entry free needed.
+  // pTxnSuidMap values are char[] copied inline by the hash  -  no per-entry free needed.
   taosHashCleanup(pTscObj->pTxnSuidMap);
   pTscObj->pTxnSuidMap = NULL;
   (void)taosThreadMutexUnlock(&pTscObj->mutex);
 }
 
-// Terminal codes: txn no longer active on MNode — safe to discard client-side state.
+// Terminal codes: txn no longer active on MNode  -  safe to discard client-side state.
 static bool tscIsTxnTerminalCode(int32_t code) {
   return code == 0 || code == TSDB_CODE_TXN_COMMITTED || code == TSDB_CODE_TXN_ROLLEDBACK ||
          code == TSDB_CODE_TXN_NOT_EXIST || code == TSDB_CODE_TXN_NOT_IN_PROGRESS;

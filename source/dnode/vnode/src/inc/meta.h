@@ -125,7 +125,7 @@ struct SMeta {
   // batch meta txn: track pending txn entries for O(k) startup rebuild
   TTB* pTxnIdx;
 
-  // batch meta txn: lazy COMMIT/ROLLBACK — txn finalization record for O(1) finalize
+  // batch meta txn: lazy COMMIT/ROLLBACK  -  txn finalization record for O(1) finalize
   TTB* pTxnMeta;
 
   // stream
@@ -196,7 +196,7 @@ typedef struct {
 // metaTxn ==================
 // Fast-path check: returns true if there are any pending (active or finalized-but-un-vacuumed)
 // txn entries in this VNode. When false, callers can skip per-row tdbTbGet(pTxnIdx) lookups.
-// Uses a pre-maintained atomic counter — single cache-line read, no hash traversal.
+// Uses a pre-maintained atomic counter  -  single cache-line read, no hash traversal.
 static FORCE_INLINE bool metaHasPendingTxnEntries(SMeta* pMeta) {
   return atomic_load_32(&pMeta->pVnode->txnPendingCount) > 0;
 }

@@ -53,7 +53,7 @@ static int32_t  mndTxnActionInsert(SSdb *pSdb, STxnObj *pTxn);
 static int32_t  mndTxnActionDelete(SSdb *pSdb, STxnObj *pTxn);
 static int32_t  mndTxnActionUpdate(SSdb *pSdb, STxnObj *pOld, STxnObj *pNew);
 
-// SDB_TXN_LOG callbacks — compact terminal-txn log
+// SDB_TXN_LOG callbacks  -  compact terminal-txn log
 static SSdbRaw *mndTxnLogActionEncode(STxnLogObj *pLog);
 static SSdbRow *mndTxnLogActionDecode(SSdbRaw *pRaw);
 static int32_t  mndTxnLogActionInsert(SSdb *pSdb, STxnLogObj *pLog);
@@ -135,7 +135,7 @@ int32_t mndInitTxn(SMnode *pMnode) {
   int32_t code0 = sdbSetTable(pMnode->pSdb, table);
   if (code0 != 0) return code0;
 
-  // Register SDB_TXN_LOG — compact persistent log of terminal non-replicated txns
+  // Register SDB_TXN_LOG  -  compact persistent log of terminal non-replicated txns
   SSdbTable txnLogTable = {
       .sdbType = SDB_TXN_LOG,
       .keyType = SDB_KEY_INT64,
@@ -149,7 +149,7 @@ int32_t mndInitTxn(SMnode *pMnode) {
 
 /**
  * Mark a txn as ABORTED in SDB (persisted via Raft STrans).
- * Used during leader restore when conflict-map repopulation fails — the txn's shadow
+ * Used during leader restore when conflict-map repopulation fails  -  the txn's shadow
  * ops are incomplete so it must not accept new DDL; only ROLLBACK is allowed.
  * Sets stage = UTXN_STAGE_ABORTED in both memory and SDB.
  */
@@ -241,7 +241,7 @@ static bool mndClusterHealthy(SMnode *pMnode) {
     sdbRelease(pSdb, pDnode);
   }
 
-  // Check 2: every VGroup has a restored leader (VNode fully caught up → can report orphans).
+  // Check 2: every VGroup has a restored leader (VNode fully caught up  ->  can report orphans).
   pIter = NULL;
   while (1) {
     SVgObj *pVgroup = NULL;
@@ -292,7 +292,7 @@ static bool mndClusterHealthy(SMnode *pMnode) {
  *   > 10000: 200/cycle  (13/s of lightweight Raft proposals)
  *   > 1000:  50/cycle
  *   <= 1000: 15/cycle
- * Timer fires every 15s, so at maximum 200 × 4/min × 60 = 48k/hour.
+ * Timer fires every 15s, so at maximum 200 x 4/min x 60 = 48k/hour.
  */
 static void mndAdaptiveGcTerminalTxns(SMnode *pMnode, int64_t now) {
   SSdb   *pSdb = pMnode->pSdb;
@@ -302,7 +302,7 @@ static void mndAdaptiveGcTerminalTxns(SMnode *pMnode, int64_t now) {
 
   // Adaptive per-scan limit: scale with pressure so GC can keep up with creation rate.
   // Each mndGcTxnLog creates one lightweight STrans (no VNode actions, just SDB commit-log).
-  // At 200/cycle × 4 cycles/min × 60 min = 48k/hour — clears a 10k backlog in ~13 min.
+  // At 200/cycle x 4 cycles/min x 60 min = 48k/hour  -  clears a 10k backlog in ~13 min.
   int32_t gcLimit = MND_TXN_GC_PER_SCAN_MAX;
   if (total > 2000) {
     gcLimit = 200;
@@ -313,7 +313,7 @@ static void mndAdaptiveGcTerminalTxns(SMnode *pMnode, int64_t now) {
   // Determine age cutoff based on pressure and cluster health.
   int64_t ageCutoffMs;
   if (total < 500) {
-    ageCutoffMs = 7LL * 24 * 3600 * 1000;  // 7 days — low pressure, no urgency
+    ageCutoffMs = 7LL * 24 * 3600 * 1000;  // 7 days  -  low pressure, no urgency
   } else if (mndClusterHealthy(pMnode)) {
     // Cluster healthy: all DNodes online + all VGroups have restored leader.
     // VNodes guaranteed to have reported orphan txns; safe to GC aggressively.
@@ -323,13 +323,13 @@ static void mndAdaptiveGcTerminalTxns(SMnode *pMnode, int64_t now) {
       ageCutoffMs = 1LL * 24 * 3600 * 1000;  // 1 days
     }
   } else {
-    // Cluster degraded — be conservative, but prevent unbounded growth.
+    // Cluster degraded  -  be conservative, but prevent unbounded growth.
     if (total > 10000) {
-      ageCutoffMs = 1LL * 24 * 3600 * 1000;  // 1 day — emergency, prevent runaway growth
+      ageCutoffMs = 1LL * 24 * 3600 * 1000;  // 1 day  -  emergency, prevent runaway growth
     } else if (total > 5000) {
-      ageCutoffMs = 3LL * 24 * 3600 * 1000;  // 3 days — wait for cluster recovery
+      ageCutoffMs = 3LL * 24 * 3600 * 1000;  // 3 days  -  wait for cluster recovery
     } else {
-      ageCutoffMs = 7LL * 24 * 3600 * 1000;  // 7 days — wait for cluster recovery
+      ageCutoffMs = 7LL * 24 * 3600 * 1000;  // 7 days  -  wait for cluster recovery
     }
   }
 
@@ -388,9 +388,9 @@ static void mndTxnTimeoutScanImpl(SMnode *pMnode) {
     // Legacy entries (from before the SDB_TXN_LOG migration) are GC'd in mndTxnAfterRestored.
     // Adaptive GC of SDB_TXN_LOG is handled by mndAdaptiveGcTerminalTxns() at end of this scan.
 
-    // §43 Two rollback conditions (checked in priority order):
-    //   1. Absolute lifetime limit  – total age > tsTxnTimeout (regardless of activity)
-    //   2. HB inactivity timeout    – idle since last active HB > TSDB_TXN_HB_TIMEOUT
+    // section 43 Two rollback conditions (checked in priority order):
+    //   1. Absolute lifetime limit  - total age > tsTxnTimeout (regardless of activity)
+    //   2. HB inactivity timeout    - idle since last active HB > TSDB_TXN_HB_TIMEOUT
     if (pTxn->stage == UTXN_STAGE_ACTIVE || pTxn->stage == UTXN_STAGE_PREPARING || pTxn->stage == UTXN_STAGE_ABORTED) {
       int64_t     hbTimeout = (int64_t)TSDB_TXN_HB_TIMEOUT * 1000;
       int64_t     lifetime = now - pTxn->createTime;
@@ -425,11 +425,11 @@ static void mndTxnTimeoutScanImpl(SMnode *pMnode) {
   }
 
   // Evict stale entries from the orphan rollback dedup map.
-  // An entry is stale when its cooldown has expired — either the VNode stopped reporting
+  // An entry is stale when its cooldown has expired  -  either the VNode stopped reporting
   // (rollback succeeded) or 1 hour has elapsed and a retry is now allowed.
   // taosHashRemove is a lazy delete: it sets removed=1 and decrements refCount without freeing
   // the node while the iterator still holds a reference.  taosHashIterate skips removed nodes
-  // and physically frees them in taosHashReleaseNode when advancing — so in-place deletion
+  // and physically frees them in taosHashReleaseNode when advancing  -  so in-place deletion
   // during iteration is safe; no collect-then-delete needed.
   SHashObj *pOrphanTs = pMnode->txnMgmt.pOrphanRollbackTs;
   if (pOrphanTs != NULL && taosHashGetSize(pOrphanTs) > 0) {
@@ -496,11 +496,11 @@ static int32_t mndProcessTxnTimerReq(SRpcMsg *pReq) {
  * Leader switchover recovery: scan all STxnObj in SDB after Raft restore,
  * and continue pushing in-flight transactions based on their stage.
  *
- * Per skill.md §6.3:
- *   ACTIVE       → refresh lastActiveTime, await further ops or timeout
- *   COMMITTING   → re-create Trans to broadcast COMMIT to VNodes
- *   ROLLINGBACK  → re-create Trans to broadcast ROLLBACK to VNodes
- *   COMPLETED/ZOMBIE → delete from SDB immediately
+ * Per skill.md section 6.3:
+ *   ACTIVE        ->  refresh lastActiveTime, await further ops or timeout
+ *   COMMITTING    ->  re-create Trans to broadcast COMMIT to VNodes
+ *   ROLLINGBACK   ->  re-create Trans to broadcast ROLLBACK to VNodes
+ *   COMPLETED/ZOMBIE  ->  delete from SDB immediately
  */
 
 /**
@@ -557,7 +557,7 @@ static int32_t mndTxnAfterRestored(SMnode *pMnode) {
         activeCnt++;
         if (pActiveTxns && pTxn->pShadowOps == NULL) {
           taosArrayPush(pActiveTxns, &pTxn);
-          // Do NOT sdbRelease here — keep reference alive for Phase 2
+          // Do NOT sdbRelease here  -  keep reference alive for Phase 2
           numRecovered++;
           continue;  // skip sdbRelease at bottom
         }
@@ -597,7 +597,7 @@ static int32_t mndTxnAfterRestored(SMnode *pMnode) {
   }
 
   // Phase 2: Batch rebuild shadow ops for all ACTIVE txns.
-  // Single SDB_STB scan dispatches entries by txnId — O(num_stbs) total regardless of N.
+  // Single SDB_STB scan dispatches entries by txnId  -  O(num_stbs) total regardless of N.
   int32_t numActive = pActiveTxns ? (int32_t)taosArrayGetSize(pActiveTxns) : 0;
   if (numActive == 1) {
     // Fast path: single txn, use existing function directly (no hash overhead)
@@ -627,7 +627,7 @@ static int32_t mndTxnAfterRestored(SMnode *pMnode) {
     }
     sdbRelease(pSdb, pTxn);
   } else if (numActive > 1) {
-    // Batch path: build txnId→index map, single SDB_STB scan, dispatch by hash lookup
+    // Batch path: build txnId -> index map, single SDB_STB scan, dispatch by hash lookup
     SHashObj *pIdxMap =
         taosHashInit(numActive * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     if (pIdxMap == NULL) {
@@ -936,7 +936,7 @@ static int32_t tSerializeSTxnObj(void *buf, int32_t bufLen, const STxnObj *pObj)
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->term));  // encode Raft term
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pObj->stage));
 
-  // NOTE: pShadowOps is NOT serialised — it is a runtime-only field rebuilt from SStbObj.txnId.
+  // NOTE: pShadowOps is NOT serialised  -  it is a runtime-only field rebuilt from SStbObj.txnId.
 
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->completedAt));
 
@@ -1150,7 +1150,7 @@ static int32_t mndTxnActionUpdate(SSdb *pSdb, STxnObj *pOld, STxnObj *pNew) {
   pOld->completedAt = pNew->completedAt;
   taosWUnLockLatch(&pOld->lock);
   // Maintain activeTxnCnt when a txn transitions through ACTIVE stage.
-  // Normal path: ACTIVE → COMMITTING/ROLLINGBACK (decrement).
+  // Normal path: ACTIVE  ->  COMMITTING/ROLLINGBACK (decrement).
   if (oldStage == UTXN_STAGE_ACTIVE && pNew->stage != UTXN_STAGE_ACTIVE) {
     atomic_sub_fetch_32(&pSdb->pMnode->txnMgmt.activeTxnCnt, 1);
   } else if (oldStage != UTXN_STAGE_ACTIVE && pNew->stage == UTXN_STAGE_ACTIVE) {
@@ -1180,7 +1180,7 @@ static int32_t mndTxnActionUpdate(SSdb *pSdb, STxnObj *pOld, STxnObj *pNew) {
   return 0;
 }
 
-// ─── SDB_TXN_LOG: compact persistent log of terminal non-replicated user transactions ──────────
+// --- SDB_TXN_LOG: compact persistent log of terminal non-replicated user transactions ----------
 
 static SSdbRaw *mndTxnLogActionEncode(STxnLogObj *pLog) {
   int32_t code = 0, lino = 0;
@@ -1318,7 +1318,7 @@ int8_t mndTxnIsAlive(SMnode *pMnode, txn_id_t txnId) {
     case UTXN_STAGE_ACTIVE:
     case UTXN_STAGE_PREPARING:
     case UTXN_STAGE_COMMITTING:
-    case UTXN_STAGE_ROLLINGBACK:  // rollback in-flight — timeout scanner must not create a second one
+    case UTXN_STAGE_ROLLINGBACK:  // rollback in-flight  -  timeout scanner must not create a second one
       alive = 1;
       break;
     default:
@@ -1333,9 +1333,9 @@ int8_t mndTxnIsAlive(SMnode *pMnode, txn_id_t txnId) {
 // ACTIVE) txn via the keepalive query.  Acquires the txn from SDB once so all
 // stage checks use the same snapshot.
 //
-// ORPHAN_TXN_ACTION_COMMIT   – MNode committed; VNode missed the COMMIT message,
+// ORPHAN_TXN_ACTION_COMMIT   - MNode committed; VNode missed the COMMIT message,
 //                              re-deliver it so VNode can promote shadow data.
-// ORPHAN_TXN_ACTION_ROLLBACK – MNode rolled back (including ROLLINGBACK in-flight),
+// ORPHAN_TXN_ACTION_ROLLBACK - MNode rolled back (including ROLLINGBACK in-flight),
 //                              txn is a ZOMBIE, or not found (GC'd); VNode must
 //                              discard its shadow data.
 //                              ROLLINGBACK maps to ROLLBACK because: the rollback
@@ -1344,7 +1344,7 @@ int8_t mndTxnIsAlive(SMnode *pMnode, txn_id_t txnId) {
 //                              the rollback via this orphan path.  mndRollbackOrphan-
 //                              TxnOnVnode's 1-hour dedup prevents redundant STrans
 //                              for VNodes already being rolled back by the main STrans.
-// ORPHAN_TXN_ACTION_SKIP     – txn is still in-progress (ACTIVE/PREPARING/COMMITTING);
+// ORPHAN_TXN_ACTION_SKIP     - txn is still in-progress (ACTIVE/PREPARING/COMMITTING);
 //                              MNode owns the lifecycle, VNode should keep waiting.
 EOrphanTxnAction mndGetOrphanTxnAction(SMnode *pMnode, txn_id_t txnId) {
   STxnObj *pTxn = mndAcquireTxn(pMnode, txnId);
@@ -1439,7 +1439,7 @@ void mndRecordOrphanTxn(SMnode *pMnode, txn_id_t txnId, int32_t vgId) {
         .lastSeen = now,
         .reportCount = 1,
     };
-    mWarn("txn:%" PRIi64 ", vgId:%d, first seen as mystery orphan — recorded in ins_transaction_logs", txnId, vgId);
+    mWarn("txn:%" PRIi64 ", vgId:%d, first seen as mystery orphan: recorded in ins_transaction_logs", txnId, vgId);
   }
   int32_t code = taosHashPut(pMap, &key, sizeof(key), &entry, sizeof(entry));
   if (code != 0) {
@@ -1461,15 +1461,15 @@ int32_t mndRollbackOrphanTxnOnVnode(SMnode *pMnode, txn_id_t txnId, int32_t vgId
 
   // Dedup: suppress repeated STrans creation for the same {txnId,vgId} pair.
   // Without this, every DNode heartbeat cycle would create a new STrans for each
-  // reporting VNode, causing N_vnodes × K_heartbeats STrans objects until VNode
+  // reporting VNode, causing N_vnodes x K_heartbeats STrans objects until VNode
   // finishes the rollback.
   //
   // Key = SOrphanRbKey {txnId, vgId}, so each VNode still gets its own rollback
   // STrans (not txnId-only dedup which would skip 99 of 100 VNodes).
   //
-  // Cooldown = 1 hour = 2× the VNode idle reporting threshold (30 min), giving
+  // Cooldown = 1 hour = 2x the VNode idle reporting threshold (30 min), giving
   // TRN_POLICY_RETRY ample time to succeed before we allow a retry.
-  // Note: pOrphanRollbackTs is in-memory, so MNode failover naturally resets it —
+  // Note: pOrphanRollbackTs is in-memory, so MNode failover naturally resets it --
   // the new leader will re-trigger orphan rollbacks as needed.
   static const int64_t kOrphanRollbackCooldownMs = 3600LL * 1000;  // 1 hour
   SOrphanRbKey         rbKey = {.txnId = txnId, .vgId = vgId, ._pad = 0};
@@ -1544,7 +1544,7 @@ _exit:
 /**
  * Commit an orphan transaction on a specific VNode via Raft-safe STrans.
  *
- * Called when VNode reports an idle txn that MNode has already COMMITTED —
+ * Called when VNode reports an idle txn that MNode has already COMMITTED -
  * the VNode missed the original COMMIT (e.g. delivery race, node restart).
  * Re-delivering via a new STrans (TRN_POLICY_RETRY) ensures VNode promotes
  * its shadow data through the Raft-replicated write path.
@@ -1688,7 +1688,7 @@ int32_t mndTxnAddShadowOp(SMnode *pMnode, txn_id_t txnId, int8_t opType, const c
     size_t   nameLen = strnlen(stbName, TSDB_TABLE_FNAME_LEN);
     int32_t  putCode = taosHashPut(pConflictMap, stbName, nameLen, &myId, sizeof(myId));
     if (putCode != 0) {
-      // Roll back the shadow op we just pushed — the caller must fail this DDL and rollback.
+      // Roll back the shadow op we just pushed  -  the caller must fail this DDL and rollback.
       taosArrayPop(pTxn->pShadowOps);
       taosWUnLockLatch(&pTxn->lock);
       mndReleaseTxn(pMnode, pTxn);
@@ -1794,7 +1794,7 @@ int32_t mndTxnCheckStbConflict(SMnode *pMnode, const char *stbName, txn_id_t cal
 }
 
 /**
- * Apply MNode shadow ops on COMMIT — embed SDB changes + VNode actions into the commit Trans.
+ * Apply MNode shadow ops on COMMIT  -  embed SDB changes + VNode actions into the commit Trans.
  *
  * Instead of replaying via original message handlers (which create independent STrans
  * and cause TRN_CONFLICT_DB_INSIDE conflicts), we add the SDB prepare/commit logs
@@ -1807,7 +1807,7 @@ int32_t mndTxnCheckStbConflict(SMnode *pMnode, const char *stbName, txn_id_t cal
  */
 
 /**
- * Rebuild CREATE_STB shadow ops from SDB for the ACTIVE→timeout→ROLLBACK recovery path.
+ * Rebuild CREATE_STB shadow ops from SDB for the ACTIVE -> timeout -> ROLLBACK recovery path.
  *
  * pShadowOps is a runtime-only field (not persisted in STxnObj SDB encoding). After MNode
  * restart, an ACTIVE txn's pShadowOps is NULL. When timeout triggers ROLLBACK, we need to
@@ -1825,7 +1825,7 @@ int32_t mndTxnCheckStbConflict(SMnode *pMnode, const char *stbName, txn_id_t cal
  * - The only moment we could persist is COMMIT/ROLLBACK, but by then we're creating an
  *   STrans that already encodes all actions. Persisting in STxnObj would be redundant.
  * - SStbObj.txnId provides exactly the information needed for the only recovery path
- *   that requires reconstruction (ACTIVE→ROLLBACK).
+ *   that requires reconstruction (ACTIVE -> ROLLBACK).
  */
 static int32_t mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn, bool needAlterData) {
   if (pTxn->pShadowOps != NULL) return TSDB_CODE_SUCCESS;  // already populated in memory
@@ -1901,7 +1901,7 @@ static int32_t mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn, bool
       // ALTER_STB: txnAlterReqsLen > 0 (chained ALTER request data)
       if (pStb->txnAlterReqsLen > (int32_t)sizeof(int32_t) && pStb->pTxnAlterReqs != NULL) {
         if (!needAlterData) {
-          // ROLLBACK path: pReqData is never read by mndTxnUndoShadowOps — it only needs
+          // ROLLBACK path: pReqData is never read by mndTxnUndoShadowOps  -  it only needs
           // the stb name/uid to clear txn markers.  One op per STB is enough; skip the
           // blob parse and the per-entry malloc entirely.
           SMndShadowOp op = {0};
@@ -1968,7 +1968,7 @@ static int32_t mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn, bool
     sdbRelease(pSdb, pStb);
   }
 
-  // All ops collected successfully — commit to pTxn
+  // All ops collected successfully  -  commit to pTxn
   if (pTmpOps != NULL) {
     pTxn->pShadowOps = pTmpOps;
   }
@@ -1978,7 +1978,7 @@ static int32_t mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn, bool
   return TSDB_CODE_SUCCESS;
 
 _rebuild_fail:
-  // Clean up partially-built temp array — free any allocated pReqData
+  // Clean up partially-built temp array  -  free any allocated pReqData
   if (pTmpOps != NULL) {
     int32_t n = taosArrayGetSize(pTmpOps);
     for (int32_t i = 0; i < n; i++) {
@@ -2035,7 +2035,7 @@ static int32_t mndTxnApplyShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTx
                pOp->name);
         SStbObj *pStb = mndAcquireStb(pMnode, (char *)pOp->name);
         if (pStb == NULL) {
-          // STB not found — may have been dropped already; treat as success.
+          // STB not found  -  may have been dropped already; treat as success.
           mDebug("txn:%" PRIi64 ", CREATE_STB stb=%s not found in SDB, skip marker clear", pTxn->id, pOp->name);
           break;
         }
@@ -2150,7 +2150,7 @@ static int32_t mndTxnApplyShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTx
   }
 
   // Free pReqData after ALL ops applied successfully to ensure retry safety.
-  // If mndTransPrepare fails after this function returns, the caller retries COMMIT →
+  // If mndTransPrepare fails after this function returns, the caller retries COMMIT ->
   // mndTxnRebuildShadowOpsFromSdb skips rebuild if pShadowOps != NULL. We must either:
   //   (a) free + destroy pShadowOps so rebuild regenerates from SDB on retry, or
   //   (b) leave pReqData intact for retry.
@@ -2191,7 +2191,7 @@ static int32_t mndTxnApplyShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTx
  * so at ROLLBACK we append DROP STB commit logs + redo actions to pTrans.
  *
  * DROP_STB / ALTER_STB use redo-log model: not applied during txn,
- * so nothing to undo — just free and discard.
+ * so nothing to undo  -  just free and discard.
  */
 static int32_t mndTxnUndoShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn) {
   if (pTxn->pShadowOps == NULL) return TSDB_CODE_SUCCESS;
@@ -2332,19 +2332,19 @@ static int32_t mndSetCreateTxnCommitLogs(SMnode *pMnode, STrans *pTrans, STxnObj
 }
 
 // ============================================================================
-// MNode → VNode: Broadcast COMMIT/ROLLBACK to all participant VGroups
+// MNode  ->  VNode: Broadcast COMMIT/ROLLBACK to all participant VGroups
 // ============================================================================
 
 /**
  * Collect all VGroup IDs that need TXN_COMMIT/TXN_ROLLBACK messages.
  * Sources:
- *   (1) pTxn->pVgList  — child/normal table VGroups tracked by client
- *   (2) DB VGroups     — from pShadowOps CREATE_STB + pDbList (merged, single scan)
+ *   (1) pTxn->pVgList   -  child/normal table VGroups tracked by client
+ *   (2) DB VGroups      -  from pShadowOps CREATE_STB + pDbList (merged, single scan)
  * Fallback: if both sources empty, broadcast to ALL VGroups (idempotent on VNode side).
  *
  * Optimization: paths (2a) shadow ops and (2b) pDbList first collect unique DB UIDs into
  * a hash set, then perform ONE `sdbFetch(SDB_VGROUP)` scan with O(1) hash membership check
- * per vgroup. This avoids the previous O(N_dbs × total_vgroups) repeated full scans.
+ * per vgroup. This avoids the previous O(N_dbs x total_vgroups) repeated full scans.
  *
  * Returns a deduplicated SHashObj (key=vgId, value=unused byte).  Caller must taosHashCleanup.
  */
@@ -2369,13 +2369,13 @@ static SHashObj *mndCollectTxnVgroupIds(SMnode *pMnode, STxnObj *pTxn) {
   }
 
   // (2) Collect unique DB UIDs from pShadowOps (CREATE_STB) and pDbList, then do ONE VGroup scan.
-  //     Previously each DB triggered an independent full SDB_VGROUP scan — O(N_dbs * total_vgroups).
+  //     Previously each DB triggered an independent full SDB_VGROUP scan  -  O(N_dbs * total_vgroups).
   //     Now: O(N_dbs_acquire + total_vgroups) with hash lookup per vgroup.
   {
     // Use UBIGINT hash for db_uid_t (uint64_t)
     SHashObj *pDbUidSet = NULL;
 
-    // (2a) From CREATE_STB shadow ops: resolve STB name → DB uid
+    // (2a) From CREATE_STB shadow ops: resolve STB name  ->  DB uid
     if (pTxn->pShadowOps != NULL) {
       int32_t numOps = taosArrayGetSize(pTxn->pShadowOps);
       for (int32_t i = 0; i < numOps; i++) {
@@ -2472,7 +2472,7 @@ static SHashObj *mndCollectTxnVgroupIds(SMnode *pMnode, STxnObj *pTxn) {
     if (pDbUidSet != NULL) taosHashCleanup(pDbUidSet);
   }
 
-  // (3) Fallback: if no VGroups identified (e.g. after full cluster restart — pVgList only populated
+  // (3) Fallback: if no VGroups identified (e.g. after full cluster restart  -  pVgList only populated
   //     at COMMIT time by client, and pShadowOps are in-memory only), broadcast to ALL VGroups.
   //     VNodes without this txn's shadow entries will return success (idempotent).
   if (taosHashGetSize(pVgSet) == 0) {
@@ -2561,13 +2561,13 @@ static void *mndBuildVTxnRollbackReq(SMnode *pMnode, int32_t vgId, STxnObj *pTxn
  * Commit a user transaction: broadcast TDMT_VND_TXN_COMMIT to all participant VGroups.
  * Uses the existing Trans framework for reliable delivery, retry, and ACK tracking.
  *
- * Flow: ACTIVE → COMMITTING (SDB redo log) + redo actions to VNodes → delete STxnObj (commit log).
+ * Flow: ACTIVE  ->  COMMITTING (SDB redo log) + redo actions to VNodes  ->  delete STxnObj (commit log).
  */
 static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
   int32_t code = 0, lino = 0;
   STrans *pTrans = NULL;
 
-  // Rebuild shadow ops from SDB if needed (e.g. after MNode restart with ACTIVE txn → client reconnects → COMMIT)
+  // Rebuild shadow ops from SDB if needed (e.g. after MNode restart with ACTIVE txn  ->  client reconnects  ->  COMMIT)
   TAOS_CHECK_EXIT(mndTxnRebuildShadowOpsFromSdb(pMnode, pTxn, true));
 
   TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "commit-txn")), code,
@@ -2581,11 +2581,11 @@ static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
   // TXN_COMMIT) while different vgIds still run in parallel. Under the default
   // TRN_EXEC_PARALLEL, ALTER_STB and TXN_COMMIT for the same vnode are dispatched
   // concurrently and race in the vnode write queue, letting an ALTER_STB land in the WAL
-  // AFTER its own TXN_COMMIT — the STxnWalManager then drops it (committed guard) and the
-  // CDC consumer receives an incomplete txn. Grouping by vgId restores DDL→COMMIT order.
+  // AFTER its own TXN_COMMIT  -  the STxnWalManager then drops it (committed guard) and the
+  // CDC consumer receives an incomplete txn. Grouping by vgId restores DDL -> COMMIT order.
   mndTransSetGroupParallel(pTrans);
 
-  // Prepare log: update STxnObj stage → COMMITTING atomically with Raft proposal
+  // Prepare log: update STxnObj stage  ->  COMMITTING atomically with Raft proposal
   {
     STxnObj redoObj = *pTxn;
     redoObj.stage = UTXN_STAGE_COMMITTING;
@@ -2730,13 +2730,13 @@ _exit:
 /**
  * Rollback a user transaction: broadcast TDMT_VND_TXN_ROLLBACK to all participant VGroups.
  *
- * Flow: ACTIVE/PREPARING → ROLLINGBACK (SDB update) + redo actions to VNodes.
+ * Flow: ACTIVE/PREPARING  ->  ROLLINGBACK (SDB update) + redo actions to VNodes.
  */
 static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int32_t reason) {
   int32_t code = 0, lino = 0;
   STrans *pTrans = NULL;
 
-  // Rebuild shadow ops from SDB if needed (e.g. after MNode restart with ACTIVE txn → timeout rollback)
+  // Rebuild shadow ops from SDB if needed (e.g. after MNode restart with ACTIVE txn  ->  timeout rollback)
   // needAlterData=false: ROLLBACK only clears SStbObj markers (name/uid); pReqData is never read.
   TAOS_CHECK_EXIT(mndTxnRebuildShadowOpsFromSdb(pMnode, pTxn, false));
 
@@ -2746,7 +2746,7 @@ static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int3
 
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
 
-  // Prepare log: update STxnObj stage → ROLLINGBACK atomically with Raft proposal
+  // Prepare log: update STxnObj stage  ->  ROLLINGBACK atomically with Raft proposal
   {
     STxnObj redoObj = *pTxn;
     redoObj.stage = UTXN_STAGE_ROLLINGBACK;
@@ -2833,7 +2833,7 @@ static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int3
     taosHashCleanup(pVgSet);
   }
 
-  // Undo MNode-side shadow ops — CREATE_STB: append DROP to this Trans; DROP/ALTER: discard
+  // Undo MNode-side shadow ops  -  CREATE_STB: append DROP to this Trans; DROP/ALTER: discard
   TAOS_CHECK_EXIT(mndTxnUndoShadowOps(pMnode, pTrans, pTxn));
 
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
@@ -2867,7 +2867,7 @@ static int32_t mndBeginTxn(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SMTra
   mndTransSetOper(pTrans, MND_OPER_BEGIN_TXN);
   TAOS_CHECK_EXIT(mndSetCreateTxnCommitLogs(pMnode, pTrans, &obj));
 
-  // Return txnId to client via RPC response (§3.2: <-- txnId ---)
+  // Return txnId to client via RPC response (section 3.2: <-- txnId ---)
   {
     SMTransReq rspReq = {0};
     rspReq.txnId = obj.id;
@@ -2895,7 +2895,7 @@ _exit:
 }
 
 /**
- * Merge client-tracked pVgSet into pTxn->pVgList (SSHashObj, no lock — protected by caller's SRWLatch).
+ * Merge client-tracked pVgSet into pTxn->pVgList (SSHashObj, no lock  -  protected by caller's SRWLatch).
  * tSimpleHashPut is idempotent on duplicate keys, so dedup is automatic.
  */
 static int32_t mndMergeVgList(STxnObj *pTxn, SSHashObj *pNewVgSet) {
@@ -2957,12 +2957,12 @@ static int32_t mndProcessBeginTxnReq(SRpcMsg *pReq) {
     goto _exit;
   } else {
     // Right after an MNode (re-)becomes sync leader, mndRestoreFinish's txnSeq
-    // (re)init (mndTxnSeqPrepare -> triggerAllocateTxnSeq) is asynchronous — it
+    // (re)init (mndTxnSeqPrepare -> triggerAllocateTxnSeq) is asynchronous  -  it
     // fires a self-message and returns, it does not wait for the SDB_TXN_SEQ row
     // to actually become ready. A BEGIN landing in that short window sees
     // TSDB_CODE_MND_TXN_SEQ_IN_CREATING. Retry here, server-side, so no client
     // (regardless of language/driver) ever has to special-case this transient
-    // condition itself — it only surfaces if the allocator is still not ready
+    // condition itself  -  it only surfaces if the allocator is still not ready
     // after a real timeout, which would indicate a genuine problem.
     int32_t  retry = 0;
     txn_id_t genTxnId = -1;
@@ -2991,7 +2991,7 @@ static int32_t mndProcessBeginTxnReq(SRpcMsg *pReq) {
       code = TSDB_CODE_TXN_ROLLEDBACK;
       goto _exit;  // pTxn released at _exit
     }
-    // Transaction already exists and is active — idempotent success (client retry).
+    // Transaction already exists and is active  -  idempotent success (client retry).
     mInfo("txn:%" PRIi64 ", already exists (stage=%s), return success", txnReq.txnId, mndUtxnStageStr(pTxn->stage));
     mndReleaseTxn(pMnode, pTxn);
     pTxn = NULL;
@@ -3012,7 +3012,7 @@ static int32_t mndProcessBeginTxnReq(SRpcMsg *pReq) {
 _exit:
   // Undo the pre-incremented slot reservation if BEGIN did not complete successfully.
   // ACTION_IN_PROGRESS means the STrans was submitted (success path); any other code means
-  // failure or idempotent-success (txn already existed) — both require undoing the reservation.
+  // failure or idempotent-success (txn already existed)  -  both require undoing the reservation.
   if (reservedSlot && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     atomic_sub_fetch_32(&pMnode->txnMgmt.activeTxnCnt, 1);
   }
@@ -3103,7 +3103,7 @@ static int32_t mndProcessRollbackTxnReq(SRpcMsg *pReq) {
   mInfo("start to rollback txn: %" PRIi64, txnReq.txnId);
   pTxn = mndAcquireTxn(pMnode, txnReq.txnId);
   if (pTxn == NULL) {
-    // Transaction not found — treat as already rolled back (idempotent).
+    // Transaction not found  -  treat as already rolled back (idempotent).
     mInfo("txn:%" PRIi64 ", not found, treat as already rolled back", txnReq.txnId);
     terrno = 0;
     goto _exit;
@@ -3118,7 +3118,7 @@ static int32_t mndProcessRollbackTxnReq(SRpcMsg *pReq) {
   }
   if (pTxn->stage == UTXN_STAGE_ROLLINGBACK || pTxn->stage == UTXN_STAGE_ROLLEDBACK ||
       pTxn->stage == UTXN_STAGE_COMMITTED) {
-    // Already rolling back, rolled back, committed, or zombie — idempotent return success
+    // Already rolling back, rolled back, committed, or zombie  -  idempotent return success
     mInfo("txn:%" PRIi64 ", stage=%s, rollback already in progress or terminal", txnReq.txnId,
           mndUtxnStageStr(pTxn->stage));
     goto _exit;
@@ -3150,7 +3150,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
-// ── information_schema.ins_transaction_logs retriever ──────────────────────────────
+// -- information_schema.ins_transaction_logs retriever ------------------------------
 // Schema (transactionLogsSchema 7 cols): id, create_user, create_time, status, complete_time, type, rollback_reason
 static const char *mndTxnStateCommentStr(int8_t state, int8_t reason) {
   if (state == UTXN_STAGE_ROLLEDBACK) {
@@ -3225,7 +3225,7 @@ static void mndCancelRetrieveTxnLog(SMnode *pMnode, void *pIter) {
   if (pIter != NULL) sdbCancelFetchByType(pMnode->pSdb, pIter, SDB_TXN_LOG);
 }
 
-// ── information_schema.ins_transaction_orphans retriever ─────────────────────────────
+// -- information_schema.ins_transaction_orphans retriever -----------------------------
 // Schema (transactionOrphansSchema 5 cols): id, vgroup_id, first_seen, last_seen, report_count
 static int32_t mndRetrieveTxnOrphans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode   *pMnode = pReq->info.node;

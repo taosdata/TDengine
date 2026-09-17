@@ -515,7 +515,7 @@ static int64_t tsCachedPrevSetMs    = 0;
 static int8_t  tsCachedHasPrev      = 0;
 /*
  * Seqlock sequence: even = stable, odd = write in
- * progress.  CAS from even→odd grants single-writer
+ * progress.  CAS from even -> odd grants single-writer
  * access; store even+2 publishes the new snapshot.
  */
 static int64_t tsTzSeq              = 0;
@@ -560,7 +560,7 @@ static void mndRefreshTzCache(int64_t nowMs) {
     return;
   }
 
-  /* seq is now odd — we are the sole writer */
+  /* seq is now odd  -  we are the sole writer */
   int32_t code = TSDB_CODE_SUCCESS;
   int64_t offset = (int64_t)taosGetLocalTimezoneOffset(&code);
   if (code != TSDB_CODE_SUCCESS) {
@@ -573,7 +573,7 @@ static void mndRefreshTzCache(int64_t nowMs) {
   int64_t oldMs = atomic_load_64(&tsCachedTzOffsetMs);
   int64_t oldOff = atomic_load_64(&tsCachedTzOffset);
   if (oldMs != 0 && offset != oldOff) {
-    /* offset changed (DST edge) — keep old one */
+    /* offset changed (DST edge)  -  keep old one */
     atomic_store_64(&tsCachedTzOffsetPrev, oldOff);
     atomic_store_64(&tsCachedPrevSetMs, nowMs);
     atomic_store_8(&tsCachedHasPrev, 1);
@@ -610,7 +610,7 @@ static bool mndCheckTimezoneOffset(int64_t dnodeOffset) {
     return true;
 
   /*
-   * dnodeOffset doesn't match — force an immediate
+   * dnodeOffset doesn't match  -  force an immediate
    * refresh in case we are stale after a DST switch,
    * then re-check.
    */
@@ -712,7 +712,7 @@ static void mndApplyOneSnapProgress(int32_t vgId, SVnodeGid *pGid, int64_t snapT
     // Requires: a previous sample time exists, time moved forward, and transferred bytes did not
     // go backwards, before computing the rate
     if (pGid->prevSampleMs > 0 && nowMs > pGid->prevSampleMs && snapTransferredSize >= pGid->prevTransferredSize) {
-      // rate = Δbytes * 1000 / Δms (bytes/second)
+      // rate = deltabytes * 1000 / deltams (bytes/second)
       pGid->snapRate =
           (double)(snapTransferredSize - pGid->prevTransferredSize) * 1000.0 / (double)(nowMs - pGid->prevSampleMs);
     } else {
@@ -1172,7 +1172,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
           if (pVload->roleTimeMs == 0) {
             pVload->roleTimeMs = statusReq.rebootTime;
           }
-          // 记录该 vnode 最近一次被上报的时间，供后续"未上报 vnode"离线判断使用
+          // Record the vnode's latest report time for later offline checks of unreported vnodes.
           pGid->lastSeenMs = curMs;
           stateChanged = mndUpdateVnodeState(pVgroup->vgId, pGid, pVload);
           break;
@@ -1194,7 +1194,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
   // Mark vnodes on this dnode that were NOT reported as OFFLINE (e.g. closed vnodes).
   // Skip in two cases:
-  //  1) reboot — vnodes may not all be ready in the first heartbeats after restart.
+  //  1) reboot  -  vnodes may not all be ready in the first heartbeats after restart.
   //  2) the heartbeat carries no vnode load at all (numOfVloads == 0). An empty list only means
   //     the dnode failed to collect the loads (NULL pVloads on the dnode side, taosArrayInit()
   //     failure, ...); it says nothing about whether an individual vnode is alive. Interpreting
@@ -1254,7 +1254,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
               }
               mndReleaseDb(pMnode, pDb);
             } else {
-              // Not reported, but still inside the grace window — keep the current state and wait
+              // Not reported, but still inside the grace window  -  keep the current state and wait
               // for the following heartbeats to confirm.
               mDebug(
                   "vgId:%d, not reported by dnode:%d but within grace window, keep state:%s, "
@@ -2547,9 +2547,9 @@ static int32_t mndProcessAlterEncryptKeyReqImpl(SRpcMsg *pReq, SMAlterEncryptKey
         sdbRelease(pSdb, pDnode);
         goto _exit;
       }
-      // 第二跳广播：使用 DND 版本消息，确保被各 dnode 的 DNODE 模块消费执行本地密钥更新。
-      // 不能用 TDMT_MND_ALTER_ENCRYPT_KEY（那是 client->mnode 第一跳消息），否则会被远端 mnode 模块
-      // 再次当作第一跳处理，造成路由错乱 / 广播风暴，且非 leader 节点不会真正更新密钥。
+      // Second-hop broadcast: use the DND message so each DNODE module applies the local key update.
+      // Do not use TDMT_MND_ALTER_ENCRYPT_KEY, which is the client-to-mnode first-hop message; remote
+      // mnode modules would process it as a first hop again, causing misrouting and broadcast storms.
       SRpcMsg rpcMsg = {.msgType = TDMT_DND_ALTER_ENCRYPT_KEY, .pCont = pBuf, .contLen = bufLen};
       int32_t ret = tmsgSendReq(&epSet, &rpcMsg);
       if (ret != 0) {
@@ -2665,7 +2665,7 @@ static int32_t mndProcessAlterKeyExpirationReqImpl(SRpcMsg *pReq, SMAlterKeyExpi
         sdbRelease(pSdb, pDnode);
         goto _exit;
       }
-      // 第二跳广播：使用 DND 版本消息，确保被各 dnode 的 DNODE 模块消费执行本地过期时间更新。
+      // Second-hop broadcast: use the DND message so each DNODE module applies the local expiry update.
       SRpcMsg rpcMsg = {.msgType = TDMT_DND_ALTER_KEY_EXPIRATION, .pCont = pBuf, .contLen = bufLen};
       int32_t ret = tmsgSendReq(&epSet, &rpcMsg);
       if (ret != 0) {

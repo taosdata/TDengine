@@ -15254,7 +15254,7 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->firstDayOfWeek));
   } else {
-    /* field added in this branch; no old messages exist — default to epoch alignment */
+    /* field added in this branch; no old messages exist  -  default to epoch alignment */
     pReq->firstDayOfWeek = tsDefaultFirstDayOfWeek;
   }
 

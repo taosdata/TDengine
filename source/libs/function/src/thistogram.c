@@ -416,7 +416,7 @@ void tHistogramPrint(SHistogramInfo* pHisto) {
 }
 
 /**
- * Estimated number of points in the interval (−inf,b].
+ * Estimated number of points in the interval (-inf,b].
  * @param pHisto
  * @param v
  * @param res

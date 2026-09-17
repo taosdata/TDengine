@@ -533,7 +533,7 @@ static void udfdPreloadPythonLibrary(void) {
 //      directory, use that directory (covers both the system install and the
 //      PBS SDK extract).
 //   3. Query the Windows registry (PythonCore\3.XX\InstallPath) for the
-//      matching minor version — the registry always points to the real
+//      matching minor version  -  the registry always points to the real
 //      install, bypassing the WindowsApps stub that SearchPathA/python.exe
 //      sometimes picks up first.
 //   4. Give up with a warning.
@@ -544,7 +544,7 @@ static void udfdEnsurePythonHome(const char *pythonDllPath, int pyMinor) {
     return;
   }
 
-  // ── Try the directory that contains the DLL found by SearchPathA ──
+  // -- Try the directory that contains the DLL found by SearchPathA --
   if (pythonDllPath != NULL && pythonDllPath[0] != '\0') {
     tstrncpy(pythonHome, pythonDllPath, PATH_MAX);
     char *lastSlash = strrchr(pythonHome, '\\');
@@ -562,7 +562,7 @@ static void udfdEnsurePythonHome(const char *pythonDllPath, int pyMinor) {
     }
   }
 
-  // ── Fall back to the Windows registry ──
+  // -- Fall back to the Windows registry --
   if (pyMinor > 0) {
     char subKey[128];
     snprintf(subKey, sizeof(subKey),
@@ -609,7 +609,7 @@ int32_t udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
       snprintf(dllName, sizeof(dllName), "python3%d.dll", minors[i]);
       char path[PATH_MAX];
       if (SearchPathA(NULL, dllName, NULL, sizeof(path), path, NULL) > 0) {
-        // Found python3XX.dll → derive PYTHONHOME from its real location.
+        // Found python3XX.dll  ->  derive PYTHONHOME from its real location.
         udfdEnsurePythonHome(path, minors[i]);
         fnInfo("udf python: detected %s", dllName);
         found = true;
@@ -617,8 +617,8 @@ int32_t udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
       }
     }
     if (!found) {
-      fnError("udf python: no python3XX.dll (3.15–3.9) found in PATH. "
-              "Install Python 3.10–3.15 and add it to PATH.");
+      fnError("udf python: no python3XX.dll (3.15-3.9) found in PATH. "
+              "Install Python 3.10-3.15 and add it to PATH.");
       return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
     }
     snprintf(plugin->libPath, PATH_MAX, "%s", "taospyudf.dll");
@@ -1897,7 +1897,7 @@ static int32_t udfdUvInit() {
   TAOS_CHECK_RETURN(uv_loop_init(global.loop));
 
   if (tsStartUdfd) {  // udfd is started by taosd, which shall exit when taosd exit
-    // ipc=0 — see tudf.c counterpart. Control pipe is used only for
+    // ipc=0  -  see tudf.c counterpart. Control pipe is used only for
     // parent-death EOF; ipc=1 fails uv_pipe_open on Windows.
     TAOS_CHECK_RETURN(uv_pipe_init(global.loop, &global.ctrlPipe, 0));
     TAOS_CHECK_RETURN(uv_pipe_open(&global.ctrlPipe, 0));

@@ -34,10 +34,10 @@ extern "C" {
 // Design notes:
 //   DECIDING is the 2PC point of no return. Once the MNode writes the COMMIT decision
 //   to the Raft WAL and enters this stage, any subsequent failure (including a leader
-//   switchover) requires the new leader to continue pushing the COMMIT — rollback is
+//   switchover) requires the new leader to continue pushing the COMMIT  -  rollback is
 //   no longer permitted.
 //   The VNode does not need to distinguish between "commit complete" and "rollback
-//   complete" — both mean the shadow data has been processed and the transaction
+//   complete"  -  both mean the shadow data has been processed and the transaction
 //   context can be destroyed. FINISHING is used for both; the VNode records the
 //   specific operation type internally.
 
@@ -68,7 +68,7 @@ int32_t mndRollbackOrphanTxnOnVnode(SMnode* pMnode, txn_id_t txnId, int32_t vgId
 int32_t mndCommitOrphanTxnOnVnode(SMnode* pMnode, txn_id_t txnId, int32_t vgId);    // Raft-safe orphan commit
 
 // ============================================================================
-// MNode Shadow Operation Types — redo-log for STB DDL within user batch txn
+// MNode Shadow Operation Types  -  redo-log for STB DDL within user batch txn
 // ============================================================================
 //
 // DDL Isolation Semantics (redo-log model):
@@ -77,7 +77,7 @@ int32_t mndCommitOrphanTxnOnVnode(SMnode* pMnode, txn_id_t txnId, int32_t vgId);
 //   - On COMMIT: shadow ops are replayed (STB DDL applied to SDB + broadcast).
 //   - On ROLLBACK: shadow ops are simply discarded (no SDB changes to undo).
 //
-// Super table DDL goes through MNode Trans framework, not client→VNode direct path.
+// Super table DDL goes through MNode Trans framework, not client -> VNode direct path.
 // Child/normal table shadow ops are tracked at VNode side (vnodeTxn.c), not here.
 
 typedef enum {

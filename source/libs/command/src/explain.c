@@ -994,7 +994,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
 
-        // Remote SQL — generated directly from the physical plan, shown even without EXPLAIN ANALYZE.
+        // Remote SQL  -  generated directly from the physical plan, shown even without EXPLAIN ANALYZE.
         if (pFedScanNode->pRemotePlan != NULL) {
           char*   remoteSql = NULL;
           int32_t sqlCode   = nodesRemotePlanToSQL(
@@ -1011,7 +1011,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
 
-        // Runtime stats — only available after EXPLAIN ANALYZE execution.
+        // Runtime stats  -  only available after EXPLAIN ANALYZE execution.
         if (pResNode->pExecInfo && taosArrayGetSize(pResNode->pExecInfo) > 0) {
           const SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
           if (execInfo != NULL && execInfo->verboseInfo != NULL) {

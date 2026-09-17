@@ -86,7 +86,7 @@ int8_t mndGetUserRoleFloorMaxLevel(SHashObj *roles);
 // Floor mapping: SYSSEC/SYSAUDIT/SYSAUDIT_LOG=4 (must be at target level), SYSDBA/others=0.
 int8_t mndGetUserRoleFloorMinLevel(SHashObj *roles);
 
-// Check if a user holds PRIV_SECURITY_POLICY_ALTER — directly or via any assigned role.
+// Check if a user holds PRIV_SECURITY_POLICY_ALTER  -  directly or via any assigned role.
 // When MAC is mandatory, the holder must also have maxSecLevel == TSDB_MAX_SECURITY_LEVEL.
 // superUser always qualifies.
 bool mndUserHasMacLabelPriv(SMnode *pMnode, SUserObj *pUser);

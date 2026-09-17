@@ -371,7 +371,7 @@ typedef enum {
 #define MAC_MODE_MANDATORY SEC_POLICY_STATUS_ENFORCED
 
 typedef struct {
-  int32_t type;  // ESecurityPolicyType — SDB key (SDB_KEY_INT32)
+  int32_t type;  // ESecurityPolicyType  -  SDB key (SDB_KEY_INT32)
   int64_t createdTime;
   int64_t updateTime;
   int64_t activateTime;
@@ -926,8 +926,8 @@ typedef struct {
   int64_t    bufferSegmentSize;
   int32_t    snapSeq;
   int64_t    syncTotalIndex;
-  // 运行时字段（不持久化到 SDB）：记录该 vnode 最近一次在 status 心跳中被上报的时间戳(ms)。
-  // 用于在 mnode 侧判断"未上报的 vnode"是否已离线足够久，避免因偶发单次心跳缺失就误判为 OFFLINE。
+  // Runtime field (not persisted in SDB): timestamp in ms of the vnode's latest status heartbeat report.
+  // Used by mnode to determine whether a vnode missing from reports has been offline long enough.
   int64_t    lastSeenMs;
   int64_t    snapTotalSize;        // snapshot total bytes from the latest heartbeat report
   int64_t    snapTransferredSize;  // transferred bytes from the latest heartbeat report
@@ -1075,7 +1075,7 @@ typedef struct {
   SExtSchema* pExtSchemas;
   int8_t      virtualStb;
   int8_t      secureDelete;
-  int8_t      txnStatus;  // batch-meta-txn: EMetaTxnStatus — transaction status flag (shared enum for VNode/MNode)
+  int8_t      txnStatus;  // batch-meta-txn: EMetaTxnStatus  -  transaction status flag (shared enum for VNode/MNode)
   int32_t     txnAlterReqsLen;  // batch-meta-txn: length of above blob (0 means no ALTER pending)
   txn_id_t    txnId;            // batch-meta-txn: 0=normal, >0=created within this txn (invisible to others)
   void*       pTxnAlterReqs;    // batch-meta-txn: chained ALTER request data blob for crash recovery

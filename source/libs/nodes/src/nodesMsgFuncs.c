@@ -5383,7 +5383,7 @@ static int32_t msgToPhysiCountWindowNode(STlvDecoder* pDecoder, void* pObj) {
 
 enum {
   PHY_ROWSET_SOURCE_CODE_BASE_NODE = 1,
-  PHY_ROWSET_SOURCE_CODE_RESERVED_2,  // formerly pOutputs — kept as placeholder to preserve wire numbering
+  PHY_ROWSET_SOURCE_CODE_RESERVED_2,  // formerly pOutputs  -  kept as placeholder to preserve wire numbering
   PHY_ROWSET_SOURCE_CODE_NUM_BLOCKS,
   PHY_ROWSET_SOURCE_CODE_TOTAL_ROWS,
   PHY_ROWSET_SOURCE_CODE_HAS_PRIMARY_TS,

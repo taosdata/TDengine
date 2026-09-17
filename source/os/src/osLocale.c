@@ -211,7 +211,7 @@ int32_t taosGetOSFirstDayOfWeek(void) {
     bool gotValue = false;
 
     if (CFGetTypeID(prefValue) == CFDictionaryGetTypeID()) {
-      /* System-stored format: { gregorian = "N" } — value is a CFString */
+      /* System-stored format: { gregorian = "N" }  -  value is a CFString */
       CFTypeRef val = CFDictionaryGetValue((CFDictionaryRef)prefValue, CFSTR("gregorian"));
       if (val != NULL) {
         if (CFGetTypeID(val) == CFStringGetTypeID()) {

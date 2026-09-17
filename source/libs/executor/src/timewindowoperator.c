@@ -3130,7 +3130,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
         pRowSup->lastDeferredPartialNullTs = tsList[j];
         continue;
       }
-      /* not compatible → resolve pending, then cut */
+      /* not compatible  ->  resolve pending, then cut */
       bool dualSide = false;
       code = checkPendingDualSideCompatible(pInfo, pBlock, j, &dualSide);
       if (TSDB_CODE_SUCCESS != code) {
@@ -3189,7 +3189,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
         resetPendingState(pInfo);
         continue;
       }
-      /* not compatible → resolve pending, then cut */
+      /* not compatible  ->  resolve pending, then cut */
       bool dualSide = false;
       code = checkPendingDualSideCompatible(pInfo, pBlock, j, &dualSide);
       if (TSDB_CODE_SUCCESS != code) {

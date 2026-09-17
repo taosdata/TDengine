@@ -944,7 +944,7 @@ static int32_t mndProcessFlushMnodeReq(SRpcMsg *pReq) {
   // Leader is guaranteed by mndCheckMnodeState (non-leaders are auto-redirected
   // with the leader epset). No manual leader check / user-facing not-leader error.
 
-  // Per FS §4.1/§6: FLUSH MNODE requires sysinfo privilege (gated directly on the
+  // Per FS section 4.1/section 6: FLUSH MNODE requires sysinfo privilege (gated directly on the
   // sysInfo flag, not a dedicated RBAC priv object like COMPACT DATABASE's
   // PRIV_DB_COMPACT) since it force-truncates the WAL and snapshots the mnode
   // leader; an unprivileged caller must not be able to trigger this.
