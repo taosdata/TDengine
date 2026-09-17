@@ -1693,7 +1693,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         int32_t code = mndRefreshUserIpWhiteList(pMnode);
         if (code != 0) {
           // Log as error: if the whitelist refresh fails, the new dnode's intra-cluster RPC will be rejected
-          // even though CREATE DNODE returned success to the client — operators need visibility on this.
+          // even though CREATE DNODE returned success to the client  -  operators need visibility on this.
           mError("failed to refresh user ip white list since %s", tstrerror(code));
         }
       } else if (pTrans->originRpcType == TDMT_MND_CREATE_TOKEN) {
@@ -3071,7 +3071,7 @@ static int32_t mndRetrieveTxns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   char    *pBuf = &buf[0];
 
   // Use a local iterator instead of pShow->pIter to avoid cross-SDB-type
-  // contamination — mndRetrieveTrans() already occupies pShow->pIter for SDB_TRANS.
+  // contamination  -  mndRetrieveTrans() already occupies pShow->pIter for SDB_TRANS.
   // TXN entries are typically few, so full iteration without paging is acceptable.
   void *pTxnIter = NULL;
 

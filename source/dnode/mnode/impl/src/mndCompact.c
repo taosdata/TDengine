@@ -1195,8 +1195,8 @@ int32_t mndProcessDnodeCompactProgressRsp(SRpcMsg *pReq) {
 
   // batch update all vnodes for this dnode in memory (no SDB write, safe in read thread)
   // Optimized from O(m*n) to O(n+m):
-  //   step1 — build a (compactId,vgId)->rsp lookup map in O(m)
-  //   step2 — single SDB scan in O(n), O(1) lookup per matched entry
+  //   step1  -  build a (compactId,vgId)->rsp lookup map in O(m)
+  //   step2  -  single SDB scan in O(n), O(1) lookup per matched entry
   pProgressMap =
       taosHashInit(rsp.numOfVnodes * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (pProgressMap == NULL) {
@@ -1216,7 +1216,7 @@ int32_t mndProcessDnodeCompactProgressRsp(SRpcMsg *pReq) {
     if (code != 0) goto _exit;
   }
 
-  // single pass over SDB_COMPACT_DETAIL — O(n)
+  // single pass over SDB_COMPACT_DETAIL  -  O(n)
   void *pIter = NULL;
   while (1) {
     SCompactDetailObj *pDetail = NULL;

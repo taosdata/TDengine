@@ -163,7 +163,7 @@ typedef struct SScanLogicNode {
   EStreamPlaceholder placeholderType;
   // --- external scan extension (valid only when scanType == SCAN_TYPE_EXTERNAL) ---
   uint32_t    fqPushdownFlags;                     // FQ_PUSHDOWN_* bitmask; Phase 1 = 0
-  SNode*      pExtTableNode;  // cloned SExtTableNode carrying connection info for Planner → Physi transfer
+  SNode*      pExtTableNode;  // cloned SExtTableNode carrying connection info for Planner  ->  Physi transfer
   SNodeList*  pFqAggFuncs;    // Phase 2: pushdown-eligible aggregate function list
   SNodeList*  pFqGroupKeys;   // Phase 2: pushdown-eligible GROUP BY columns
   SNodeList*  pFqSortKeys;    // Phase 2: pushdown-eligible ORDER BY columns
@@ -171,7 +171,7 @@ typedef struct SScanLogicNode {
   SNodeList*  pFqJoinTables;  // Phase 2: pushdown-eligible JOIN tables
   // Logical pushdown sub-plan set by the FqPushdown optimizer rule.
   // Contains the chain of pushed-down Sort/Project logic nodes (topmost first,
-  // bottommost has pChildren=NULL — the scan itself is NOT in this chain).
+  // bottommost has pChildren=NULL  -  the scan itself is NOT in this chain).
   // Physical plan generation converts this to SFederatedScanPhysiNode.pRemotePlan.
   SNode*      pRemoteLogicPlan;
   // WHERE conditions fully pushed to the remote source (e.g. EXISTS with RAW_SQL_FRAG).
@@ -794,7 +794,7 @@ typedef STableScanPhysiNode SStreamScanPhysiNode;
 
 // ---- Federated query: column type mapping entry ----
 // Computed by Parser (extTypeNameToTDengineType()), written into physical plan,
-// then passed to Connector for raw value → TDengine column binary conversion.
+// then passed to Connector for raw value  ->  TDengine column binary conversion.
 typedef struct SExtColTypeMapping {
   char      extTypeName[64];  // original external type name (e.g. "VARCHAR(255)", "INT4")
   SDataType tdType;           // mapped TDengine type: type, precision, scale, bytes
@@ -811,25 +811,25 @@ typedef struct SExtColTypeMapping {
 // cannot access Catalog (client-side libtaos). The physical plan is the only data channel
 // from client to server.
 //
-// TWO USAGE MODES — determined by whether pRemotePlan is NULL:
+// TWO USAGE MODES  -  determined by whether pRemotePlan is NULL:
 //
-// Mode 1 — Outer wrapper node (pRemotePlan != NULL):
+// Mode 1  -  Outer wrapper node (pRemotePlan != NULL):
 //   Appears in the TDengine executor plan as the scan leaf.
 //   pRemotePlan is a mini physi-plan sub-tree encoding the full SQL to push down:
-//     [SProjectPhysiNode]? → [SSortPhysiNode]? → SFederatedScanPhysiNode(Mode 2 leaf)
+//     [SProjectPhysiNode]?  ->  [SSortPhysiNode]?  ->  SFederatedScanPhysiNode(Mode 2 leaf)
 //   nodesRemotePlanToSQL() walks pRemotePlan to generate the external SQL string.
 //   pExtTable and pScanCols are NOT used for SQL generation in this mode.
-//   Connection fields (srcHost/srcPort/…) provide the data source endpoint.
+//   Connection fields (srcHost/srcPort/...) provide the data source endpoint.
 //
-// Mode 2 — Inner leaf node (pRemotePlan == NULL):
+// Mode 2  -  Inner leaf node (pRemotePlan == NULL):
 //   Appears only INSIDE a pRemotePlan sub-tree.  Never directly in the executor plan.
-//   pExtTable + pScanCols  → FROM clause and SELECT column list.
-//   node.pConditions       → WHERE clause (simple push-downable predicates).
-//   node.pLimit            → LIMIT / OFFSET clause.
+//   pExtTable + pScanCols   ->  FROM clause and SELECT column list.
+//   node.pConditions        ->  WHERE clause (simple push-downable predicates).
+//   node.pLimit             ->  LIMIT / OFFSET clause.
 //   Connection fields are NOT used (the outer Mode 1 node holds them).
 typedef struct SFederatedScanPhysiNode {
   SPhysiNode  node;              // standard physi node header (pConditions, pLimit, pOutputDataBlockDesc, etc.)
-  SNode*      pExtTable;         // SExtTableNode* — external table AST node  [used in Mode 2]
+  SNode*      pExtTable;         // SExtTableNode*  -  external table AST node  [used in Mode 2]
   SNodeList*  pScanCols;         // scan column list                           [used in Mode 2]
   SNode*      pRemotePlan;       // mini physi-plan sub-tree for SQL gen       [non-NULL = Mode 1]
   uint32_t    pushdownFlags;     // FQ_PUSHDOWN_* combination
@@ -1092,7 +1092,7 @@ typedef struct SIntervalPhysiNode {
   int8_t           intervalUnit;
   int8_t           slidingUnit;
   int8_t           firstDayOfWeek;  /* 0-6, resolved by client before dispatch */
-  void*            timezone;        /* timezone_t handle; NULL → server default */
+  void*            timezone;        /* timezone_t handle; NULL  ->  server default */
   char             timezoneName[TD_TIMEZONE_LEN]; /* IANA name for TLV serialization */
   bool             ownsTimezone;    /* true when timezone was tzalloc'd during deser */
   bool             fastInterval;    /* FAST_INTERVAL execution path; false preserves the legacy operator */
@@ -1342,10 +1342,10 @@ const char* dataOrderStr(EDataOrderLevel order);
 // Defined in source/libs/nodes/src/nodesRemotePlanToSQL.c
 // Callers: Module F (Executor), Module B (Connector), EXPLAIN output.
 //
-// SNodesRemoteSQLCtx — optional callback context for resolving REMOTE_* nodes
+// SNodesRemoteSQLCtx  -  optional callback context for resolving REMOTE_* nodes
 //   during SQL generation.  Pass a populated struct from the Executor (which has
 //   access to the sub-job context and qFetchRemoteNode).  Pass NULL from the
-//   Connector and EXPLAIN — REMOTE_VALUE_LIST nodes will then cause the WHERE
+//   Connector and EXPLAIN  -  REMOTE_VALUE_LIST nodes will then cause the WHERE
 //   clause to be omitted (best-effort, same behaviour as before).
 // ---------------------------------------------------------------------------
 typedef int32_t (*FResolveRemoteForSQL)(void* pCtx, int32_t subQIdx, SNode* pNode);
@@ -1357,7 +1357,7 @@ typedef struct SNodesRemoteSQLCtx {
   // the body of a correlated EXISTS subquery that is pushed down to an
   // external source, where column prefixes are required for disambiguation.
   bool                includeTableName;
-  // DS §5.2.6: client timezone name (e.g. "UTC", "Asia/Shanghai").
+  // DS section 5.2.6: client timezone name (e.g. "UTC", "Asia/Shanghai").
   // When non-NULL and non-empty, timestamp epoch values in WHERE conditions
   // are formatted to calendar strings using this timezone instead of the
   // server-side global timezone.  This ensures tz-naive external columns
@@ -1366,20 +1366,20 @@ typedef struct SNodesRemoteSQLCtx {
   const char*         tzName;
 } SNodesRemoteSQLCtx;
 
-// nodesRemotePlanToSQL() — walk a Mode 1 outer SFederatedScanPhysiNode's
+// nodesRemotePlanToSQL()  -  walk a Mode 1 outer SFederatedScanPhysiNode's
 //   .pRemotePlan sub-tree and render the full SQL to send to the external source.
 //   pRemotePlan  : the mini physi-plan tree (MUST NOT be NULL).
 //   sourceType   : EExtSourceType value; the SQL dialect is selected internally.
 //   pResolveCtx  : optional; when non-NULL, REMOTE_VALUE_LIST nodes are resolved
 //                  via pResolveCtx->fp and emitted as IN (v1, v2, ...) in SQL.
-//   ppSQL        : OUT — heap-allocated result string; caller must taosMemoryFree().
+//   ppSQL        : OUT  -  heap-allocated result string; caller must taosMemoryFree().
 //
 // The tree must be rooted at one of:
-//   SProjectPhysiNode → SSortPhysiNode → SFederatedScanPhysiNode(Mode 2 leaf)
-//   SSortPhysiNode    → SFederatedScanPhysiNode(Mode 2 leaf)
+//   SProjectPhysiNode  ->  SSortPhysiNode  ->  SFederatedScanPhysiNode(Mode 2 leaf)
+//   SSortPhysiNode     ->  SFederatedScanPhysiNode(Mode 2 leaf)
 //   SFederatedScanPhysiNode(Mode 2 leaf, pRemotePlan==NULL)
 //
-// nodesExprToExtSQL() — serialize a single expression subtree to a SQL fragment.
+// nodesExprToExtSQL()  -  serialize a single expression subtree to a SQL fragment.
 //   Returns TSDB_CODE_EXT_SYNTAX_UNSUPPORTED for unsupported expression types.
 // ---------------------------------------------------------------------------
 int32_t nodesRemotePlanToSQL(const SPhysiNode* pRemotePlan, int8_t sourceType,

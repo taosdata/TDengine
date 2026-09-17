@@ -148,7 +148,7 @@ int32_t vnodeAsyncCommit(SVnode* pVnode, bool forceTrimWal);
 int32_t vnodeAsyncCommitEx(SVnode* pVnode, bool forceTrimWal);
 bool    vnodeShouldRollback(SVnode* pVnode);
 
-// vnodeTxnWalMgr.c — txn-atomic WAL cache for CDC consumers (tq + stream)
+// vnodeTxnWalMgr.c  -  txn-atomic WAL cache for CDC consumers (tq + stream)
 
 // Global config (dynamically updatable at runtime)
 extern int32_t gTxnWalTtlDays;            // default 30; 0 = disable cache entirely
@@ -156,7 +156,7 @@ extern int32_t gTxnWalEvictAfterIdleSec;  // default 3600; evict committed slot 
 extern int64_t gTxnWalMaxMemBytes;        // default 20MB; trigger eviction when totalMemBytes exceeds this
 
 // Cached copy of one WAL entry belonging to a transaction.
-// Stores (walIndex, msgType, txnId) plus the raw RPC body — identical to
+// Stores (walIndex, msgType, txnId) plus the raw RPC body  -  identical to
 // pMsg->pCont / walContBody() in the commit callback and WAL-reader paths.
 typedef struct SWalContCopy {
   int64_t  walIndex;  // WAL index (SWalCont.version)
@@ -182,9 +182,9 @@ typedef struct STxnCacheSlot {
 
 // Manager: one instance per SVnode, shared by tq and stream consumers.
 // Locking strategy:
-//   pTxnHash  — HASH_ENTRY_LOCK (per-bucket); protects slot pointer insertion/removal.
-//   slotLock  — per-slot SRWLatch; protects slot fields (pMsgs, flags, slotMemBytes).
-//   totalMemBytes / lastTxnConsumeTs / minTxnIndexNotVacuumed — atomic int64.
+//   pTxnHash   -  HASH_ENTRY_LOCK (per-bucket); protects slot pointer insertion/removal.
+//   slotLock   -  per-slot SRWLatch; protects slot fields (pMsgs, flags, slotMemBytes).
+//   totalMemBytes / lastTxnConsumeTs / minTxnIndexNotVacuumed  -  atomic int64.
 typedef struct STxnWalManager {
   SHashObj*        pTxnHash;                // txnId -> STxnCacheSlot*; HASH_ENTRY_LOCK
   SWal*            pWal;                    // back-reference for keepVersion updates
@@ -208,9 +208,9 @@ int32_t txnMgrReloadPut(STxnWalManager* pMgr, txn_id_t txnId, int64_t walIndex, 
 
 // Consumer path: called when consumer reads TXN_COMMIT.
 // Updates lastConsumeTs and returns:
-//   >0  pMsgs populated — caller delivers atomically
-//    0  rolledBack      — caller skips
-//   -1  slot not found  — caller triggers lazy load then calls again
+//   >0  pMsgs populated  -  caller delivers atomically
+//    0  rolledBack       -  caller skips
+//   -1  slot not found   -  caller triggers lazy load then calls again
 int32_t txnMgrConsumerGet(STxnWalManager *pMgr, txn_id_t txnId,
                           int64_t nowMs, SArray **ppMsgs);
 

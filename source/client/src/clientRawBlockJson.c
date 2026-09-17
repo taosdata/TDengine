@@ -171,7 +171,7 @@ end:
 // (db-stripped) parent table names. Parent names arrive as mnode full names
 // (acctId.db.table); same-db inheritance means we emit just the table name to match
 // the "tableName" convention. An unresolved parent arrives as an empty string (the
-// mnode leaves pFNames[i] empty when a suid could not be resolved) — skip it rather
+// mnode leaves pFNames[i] empty when a suid could not be resolved)  -  skip it rather
 // than emit a "" element, which would replay as `BASE ON ``` and fail to parse.
 static int32_t buildBaseOnArray(cJSON* json, int8_t numParents,
                                 char parentStbFNames[][TSDB_TABLE_FNAME_LEN]) {

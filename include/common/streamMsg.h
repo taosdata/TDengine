@@ -20,7 +20,7 @@
 #include "tmsg.h"
 
 // Forward declaration: SExtColTypeMapping is defined in plannodes.h.
-// Declared here to avoid a common → nodes layer dependency.
+// Declared here to avoid a common  ->  nodes layer dependency.
 typedef struct SExtColTypeMapping SExtColTypeMapping;
 #include "tjson.h"
 
@@ -493,10 +493,10 @@ typedef enum EStreamTaskType {
 static const char* gStreamTaskTypeStr[] = {"Reader", "Trigger", "Runner"};
 
 /* External source trigger spec, carried for each EXT reader task in
- * SCMCreateStreamReq.extSpecs (SArray<SStreamExtTriggerSpec*>) — this is the
+ * SCMCreateStreamReq.extSpecs (SArray<SStreamExtTriggerSpec*>)  -  this is the
  * sole persisted home; SStreamObj itself does not keep a separate copy.
  * Serialized as JSON via extTriggerSpecToJson/jsonToExtTriggerSpec
- * (streamJson.c). See DS §6.2.1 for the full field semantics. */
+ * (streamJson.c). See DS section 6.2.1 for the full field semantics. */
 typedef struct SStreamExtTriggerSpec {
   char        sourceName[TSDB_EXT_SOURCE_NAME_LEN];  // External source name
   int8_t      sourceType;                            // EExtSourceType (tmsg.h:225): MySQL/PostgreSQL/InfluxDB/TDengine.
@@ -1123,8 +1123,8 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_WAL_DATA_NEW,
   STRIGGER_PULL_WAL_META_DATA_NEW,
   STRIGGER_PULL_WAL_CALC_DATA_NEW,
-  /* External-source PULL subtypes — all transported via TDMT_STREAM_TRIGGER_PULL_EXT.
-   * See DS §6.1.5 and §6.2.4 for request/response semantics. */
+  /* External-source PULL subtypes  -  all transported via TDMT_STREAM_TRIGGER_PULL_EXT.
+   * See DS section 6.1.5 and section 6.2.4 for request/response semantics. */
   STRIGGER_PULL_LAST_TS_EXT,      /* returns SArray<{uid,gid,ts}>          */
   STRIGGER_PULL_META_EXT,         /* returns SSDataBlock metaBlock         */
   STRIGGER_PULL_DATA_EXT,         /* returns dataBlock + indexHash         */
@@ -1349,7 +1349,7 @@ void    tDestroySTriggerOrigTableInfoRsp(SSTriggerOrigTableInfoRsp* pReq);
 
 /* ---------------------------------------------------------------------------
  * External-source (ETR) PULL request / response structures.
- * Transported via TDMT_STREAM_TRIGGER_PULL_EXT.  See DS §6.2.4.
+ * Transported via TDMT_STREAM_TRIGGER_PULL_EXT.  See DS section 6.2.4.
  * The request is (de)serialized by the STRIGGER_PULL_*_EXT cases of
  * tSerialize/tDeserializeSTriggerPullRequest; the response by
  * tSerialize/tDeserializeSSTriggerExtPullRsp (both in streamMsg.c).

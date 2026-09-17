@@ -652,7 +652,7 @@ int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
         freq_init = TRUE;
     }
     QueryPerformanceCounter(&t);
-    // 转换为秒和纳秒
+     // Convert to seconds and nanoseconds.
     pTS->tv_sec = (time_t)(t.QuadPart / freq.QuadPart);
     pTS->tv_nsec = (long)(((t.QuadPart % freq.QuadPart) * 1000000000LL) / freq.QuadPart);
     return 0;

@@ -702,8 +702,8 @@ bool mndStbHasChildren(SMnode *pMnode, SStbObj *pParent) {
 
   // atomic store: callers must NOT hold pParent->lock when calling this function
   // (it takes the sdb table lock via sdbFetch/sdbRelease, while sdb update callbacks
-  // take pParent->lock under the table lock — holding the latch here deadlocks).
-  // The transition is one-way (-1 → 0/1) and both concurrent storers compute the
+  // take pParent->lock under the table lock  -  holding the latch here deadlocks).
+  // The transition is one-way (-1  ->  0/1) and both concurrent storers compute the
   // same value, so a plain atomic store is correct without holding the write lock.
   atomic_store_8(&pParent->hasChildren, found ? 1 : 0);
   return found;
@@ -742,7 +742,7 @@ bool mndCheckCyclicInherit(SMnode *pMnode, int64_t childSuid, int64_t *parentSui
   bool      hasCycle = false;
   SArray   *queue = taosArrayInit(16, sizeof(int64_t));
   SHashObj *visited = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-  // uid → {numParents, parentSuids[]} adjacency map, built in one O(N) scan
+  // uid  ->  {numParents, parentSuids[]} adjacency map, built in one O(N) scan
   SHashObj *pAdjMap = taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (queue == NULL || visited == NULL || pAdjMap == NULL) {
     mError("cycle-check: out of memory; conservatively reporting cycle");
@@ -750,7 +750,7 @@ bool mndCheckCyclicInherit(SMnode *pMnode, int64_t childSuid, int64_t *parentSui
     goto _exit;
   }
 
-  // Build uid → parentSuids[] map in one scan: O(N)
+  // Build uid  ->  parentSuids[] map in one scan: O(N)
   {
     SSdb    *pSdb = pMnode->pSdb;
     void    *pIter = NULL;
@@ -1148,7 +1148,7 @@ static int32_t mndSetCheckHasCtbRedoActions(SMnode *pMnode, STrans *pTrans, SDbO
 // owning a vchild that already has one of the names as an own (extension) column/tag fails
 // the action with TSDB_CODE_VND_COL_ALREADY_EXISTS. Must be appended before the DDL redo
 // actions of a SERIAL, TRN_POLICY_ROLLBACK trans so the conflict aborts the alter before any
-// vnode applies it — the same rejection inside the RETRY-policy alter-stb trans would retry
+// vnode applies it  -  the same rejection inside the RETRY-policy alter-stb trans would retry
 // forever and poison the db.
 static int32_t mndSetCheckStbAlterNameRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t suid,
                                                   SArray *pNames) {
@@ -1717,7 +1717,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   // MAC: STB default securityLevel = max(creator.maxSecLevel, db.securityLevel)
   // If the CREATE request specifies a securityLevel AND user has PRIV_SECURITY_POLICY_ALTER, honor it.
   // (check both direct priv and role inheritance: SYSSEC role carries PRIV_SECURITY_POLICY_ALTER)
-  // Per FS §4.2.1.4: specifying securityLevel > 0 without PRIV_SECURITY_POLICY_ALTER is rejected;
+  // Per FS section 4.2.1.4: specifying securityLevel > 0 without PRIV_SECURITY_POLICY_ALTER is rejected;
   //                  securityLevel == 0 is always allowed (equivalent to default).
   if (pCreate->securityLevel > 0 && !hasMacLabelPriv) {
     code = TSDB_CODE_MND_NO_RIGHTS;
@@ -2529,7 +2529,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     // Batch meta txn: create STB immediately (undo-log model) so VNodes have schema
     // for same-txn child table creation. Shadow op tracks the STB for ROLLBACK undo.
     if (createReq.txnId != 0) {
-      // Generate suid (parser does not set it; normal path uses mndBuildStbFromReq → mndGenerateUid)
+      // Generate suid (parser does not set it; normal path uses mndBuildStbFromReq  ->  mndGenerateUid)
       if (createReq.suid == 0) {
         createReq.suid = mndGenerateUid(createReq.name, TSDB_TABLE_FNAME_LEN);
       }
@@ -3223,7 +3223,7 @@ static int32_t mndSetAlterStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
     action.msgType = TDMT_VND_ALTER_STB;
     // groupId=vgId: when this ALTER_STB is appended to the batch-txn commit STrans
     // (GROUP_PARALLEL) alongside this vgId's TDMT_VND_TXN_COMMIT (also groupId=vgId),
-    // STrans serializes both in the same group — every ALTER_STB for the vnode is sent
+    // STrans serializes both in the same group  -  every ALTER_STB for the vnode is sent
     // and acked before its TXN_COMMIT, so no ALTER_STB can land in the WAL after commit
     // (see mndSetDropStbRedoActions for the matching DROP_STB rationale). The VST BASE-ON
     // paths use SERIAL, so per-vgId grouping is a no-op there.
@@ -3949,7 +3949,7 @@ static int32_t mndAlterStbAddBaseOn(SMnode *pMnode, SStbObj *pOld, SStbObj *pNew
     }
     // Check for duplicate: parent already in the current (or newly-added) list.
     // Return a dedicated code so callers can distinguish "already applied" from
-    // "genuine schema conflict on the target" — the latter must not be silently swallowed.
+    // "genuine schema conflict on the target"  -  the latter must not be silently swallowed.
     for (int8_t j = 0; j < pNew->numParents; ++j) {
       if (pNew->parentSuids[j] == pAddParents[i]->uid) {
         mInfo("stb:%s, parent '%s' already in inheritance list, returning ALREADY_INHERITED",
@@ -4025,7 +4025,7 @@ static int32_t mndAlterStbAddBaseOn(SMnode *pMnode, SStbObj *pOld, SStbObj *pNew
       }
     }
 
-    // Skip ts column (index 0) from parent — child already has its own ts
+    // Skip ts column (index 0) from parent  -  child already has its own ts
     addCols += (pAddParents[i]->numOfColumns > 1) ? (pAddParents[i]->numOfColumns - 1) : 0;
     addTags += pAddParents[i]->numOfTags;
 
@@ -4117,7 +4117,7 @@ static int32_t mndAlterStbAddBaseOn(SMnode *pMnode, SStbObj *pOld, SStbObj *pNew
         dst++;
       }
     }
-    // Copy own columns [effectiveOwnColStart, numOfColumns) — own non-ts columns
+    // Copy own columns [effectiveOwnColStart, numOfColumns)  -  own non-ts columns
     for (int32_t i = effectiveOwnColStart; i < pOld->numOfColumns; ++i) {
       pNew->pColumns[dst] = pOld->pColumns[i];
       pNew->pCmpr[dst] = pOld->pCmpr[i];
@@ -4364,7 +4364,7 @@ static int32_t mndAlterStbDropBaseOn(SMnode *pMnode, SStbObj *pOld, SStbObj *pNe
     }
   }
 
-  // Validate: ≥2 columns (TS + at least 1 more), ≥1 tag
+  // Validate:  >= 2 columns (TS + at least 1 more),  >= 1 tag
   if (newNumCols < 2 || newNumTags < 1) {
     taosMemoryFree(keepCol);
     taosMemoryFree(keepTag);
@@ -4773,7 +4773,7 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  // Batch meta txn: conflict detection — block if another txn owns this STB
+  // Batch meta txn: conflict detection  -  block if another txn owns this STB
   if (pStb->txnId != 0 && pStb->txnId != (txn_id_t)alterReq.txnId) {
     code = TSDB_CODE_TXN_RESOURCE_BUSY;
     goto _OVER;
@@ -5161,15 +5161,15 @@ static int32_t mndMarkStbTxnDrop(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, S
 
   // Broadcast the DROP to all vnodes in the DB immediately, with the real txnId, same as
   // CREATE/ALTER. vnodeProcessDropStbReq's txn path (metaDropSuperTable) handles both cases:
-  // - STB pre-existing (NORMAL/PRE_ALTER): marks PRE_DROP, deferred — hides child tables from
+  // - STB pre-existing (NORMAL/PRE_ALTER): marks PRE_DROP, deferred  -  hides child tables from
   //   SHOW TABLES/VTABLES immediately, physically cascade-deletes when TXN_COMMIT arrives
   //   (vnodeTxnPromoteShadowEntries already does this generically for any tracked PRE_DROP uid).
   // - STB created in this same txn (PRE_CREATE_DROP): metaDropSuperTable recognizes the
-  //   same-txn CREATE→DROP and physically deletes it right away — no need to wait for COMMIT.
+  //   same-txn CREATE -> DROP and physically deletes it right away  -  no need to wait for COMMIT.
   // Either way, no separate commit-time redo action is needed afterward.
   TAOS_CHECK_EXIT(mndSetDropStbRedoActions(pMnode, pTrans, pDb, &markerStb));
 
-  // Add memory shadow op (for live COMMIT path — DROP only needs name, no reqData)
+  // Add memory shadow op (for live COMMIT path  -  DROP only needs name, no reqData)
   code = mndTxnAddShadowOp(pMnode, txnId, MND_SHADOW_OP_DROP_STB, pStb->name, pStb->uid, pDb->name, NULL, 0);
   if (code != 0) goto _exit;
 
@@ -5437,7 +5437,7 @@ int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData,
   // batch-meta-txn: this ALTER's real txnId, forwarded explicitly to mndSetAlterStbRedoActions
   // below so the vnode-alter-stb wire message is tagged for WAL/CDC atomic ordered delivery.
   // Kept on alterReq/alterOriData too (only consumed downstream by the client-side JSON-meta
-  // builder in clientRawBlockJson.c, which ignores txnId — no need to clear it here).
+  // builder in clientRawBlockJson.c, which ignores txnId  -  no need to clear it here).
   txn_id_t txnId = (txn_id_t)alterReq.txnId;
 
   if (pAccumBase != NULL) {
@@ -5465,7 +5465,7 @@ int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData,
   memcpy(&stbObj, pOld, sizeof(SStbObj));
   taosRUnLockLatch(&pOld->lock);
   // Save txnStatus before clearing: used to detect whether a DROP will follow
-  // in the same COMMIT trans (PRE_CREATE_DROP or PRE_DROP → skip entire ALTER).
+  // in the same COMMIT trans (PRE_CREATE_DROP or PRE_DROP  ->  skip entire ALTER).
   EMetaTxnStatus oldTxnStatus = stbObj.txnStatus;
 
   // For PRE_CREATE_DROP or PRE_DROP: the STB will be dropped in the same COMMIT trans.
@@ -5476,7 +5476,7 @@ int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData,
   if (oldTxnStatus == META_TXN_PRE_CREATE_DROP || oldTxnStatus == META_TXN_PRE_DROP) {
     mInfo("stb:%s, skipping ALTER (txnStatus=%d, STB being dropped in same COMMIT trans:%d)", alterReq.name,
           (int)oldTxnStatus, pTrans->id);
-    goto _OVER;  // code=0, clean success — DROP shadow op handles the cleanup
+    goto _OVER;  // code=0, clean success  -  DROP shadow op handles the cleanup
   }
 
   stbObj.pColumns = NULL;
@@ -5669,12 +5669,12 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  // Batch meta txn: conflict detection — block if another txn owns this STB
+  // Batch meta txn: conflict detection  -  block if another txn owns this STB
   if (pStb->txnId != 0 && pStb->txnId != (txn_id_t)dropReq.txnId) {
     code = TSDB_CODE_TXN_RESOURCE_BUSY;
     goto _OVER;
   }
-  // RYOW: same txn already marked this STB as dropped — return not-exist
+  // RYOW: same txn already marked this STB as dropped  -  return not-exist
   if (dropReq.txnId != 0 && pStb->txnId == (txn_id_t)dropReq.txnId &&
       (pStb->txnStatus == META_TXN_PRE_DROP || pStb->txnStatus == META_TXN_PRE_CREATE_DROP)) {
     if (dropReq.igNotExists) {
@@ -5869,7 +5869,7 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
   } else {
     mInfo("stb:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName);
     // batch-meta-txn: hide PRE_CREATE/PRE_CREATE_DROP STBs from other sessions.
-    // PRE_ALTER and PRE_DROP remain visible (redo-log model — schema unchanged until COMMIT).
+    // PRE_ALTER and PRE_DROP remain visible (redo-log model  -  schema unchanged until COMMIT).
     {
       char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
       snprintf(tbFName, sizeof(tbFName), "%s.%s", infoReq.dbFName, infoReq.tbName);
@@ -5879,7 +5879,7 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
         bool isPreCreate = (pStb->txnStatus == META_TXN_PRE_CREATE || pStb->txnStatus == META_TXN_PRE_CREATE_DROP);
         bool isPreDrop = (pStb->txnStatus == META_TXN_PRE_DROP || pStb->txnStatus == META_TXN_PRE_CREATE_DROP);
         // Other sessions: PRE_CREATE tables are invisible (not yet committed).
-        // Same session:   RYOW — table was already dropped in this txn, return not found.
+        // Same session:   RYOW  -  table was already dropped in this txn, return not found.
         if ((otherSession && isPreCreate) || (!otherSession && isPreDrop)) {
           mInfo("stb:%s, txn %" PRIu64 " status=%d, requester txnId=%" PRId64 ", deny access (%s)", tbFName,
                 pStb->txnId, pStb->txnStatus, infoReq.txnId, otherSession ? "hidden PRE_CREATE" : "RYOW PRE_DROP");
@@ -6786,8 +6786,8 @@ static int32_t mndProcessGetVstLeavesReq(SRpcMsg *pReq) {
   SHashObj     *nonLeaf = NULL;
   SArray       *allDescs = NULL;
   SArray       *leavesArr = NULL;
-  SHashObj     *pChildMap = NULL;  // parentUid → SArray of child UIDs (reverse index)
-  SHashObj     *pInfoMap = NULL;   // uid → SVstLeafInfo (name lookup)
+  SHashObj     *pChildMap = NULL;  // parentUid  ->  SArray of child UIDs (reverse index)
+  SHashObj     *pInfoMap = NULL;   // uid  ->  SVstLeafInfo (name lookup)
 
   if (tDeserializeSVstLeavesReq(pReq->pCont, pReq->contLen, &req) != 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -6812,7 +6812,7 @@ static int32_t mndProcessGetVstLeavesReq(SRpcMsg *pReq) {
     void    *pIter = NULL;
     SStbObj *pStb = NULL;
     while ((pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb))) {
-      // Name map: uid → SVstLeafInfo
+      // Name map: uid  ->  SVstLeafInfo
       SVstLeafInfo info = {.suid = pStb->uid};
       mndExtractDbNameFromStbFullName(pStb->name, info.dbFName);
       mndExtractTbNameFromStbFullName(pStb->name, info.stbName, TSDB_TABLE_NAME_LEN);
@@ -6823,7 +6823,7 @@ static int32_t mndProcessGetVstLeavesReq(SRpcMsg *pReq) {
         goto _OVER;
       }
 
-      // Reverse index: parentUid → SArray of child UIDs
+      // Reverse index: parentUid  ->  SArray of child UIDs
       for (int8_t i = 0; i < pStb->numParents; ++i) {
         int64_t puid = pStb->parentSuids[i];
         SArray **ppArr = (SArray **)taosHashGet(pChildMap, &puid, sizeof(int64_t));
@@ -6841,7 +6841,7 @@ static int32_t mndProcessGetVstLeavesReq(SRpcMsg *pReq) {
           ppArr = (SArray **)taosHashGet(pChildMap, &puid, sizeof(int64_t));
         }
         if (ppArr == NULL || *ppArr == NULL || taosArrayPush(*ppArr, &pStb->uid) == NULL) {
-          // A dropped parent→child edge would yield an incomplete leaf set.
+          // A dropped parent -> child edge would yield an incomplete leaf set.
           sdbRelease(pSdb, pStb);
           code = TSDB_CODE_OUT_OF_MEMORY;
           goto _OVER;

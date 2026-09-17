@@ -139,7 +139,7 @@ typedef struct SVtbScanDynCtrlInfo {
   char             tagRefTerminalColName[TSDB_COL_NAME_LEN]; // terminal physical tag column name (resolved by planner)
   // General tag-ref filter pushdown (Layer 2): evaluate pTagFilterCond per-child after tag resolution
   SNode*           pTagRefFilterCond;       // cloned & slotId-rewritten filter condition for scalar evaluation
-  SArray*          pTagRefFilterColInfos;   // SArray<SColumnInfo> — columns needed by the filter (defines data block schema)
+  SArray*          pTagRefFilterColInfos;   // SArray<SColumnInfo>  -  columns needed by the filter (defines data block schema)
 } SVtbScanDynCtrlInfo;
 
 typedef struct SVtbWindowDynCtrlInfo {

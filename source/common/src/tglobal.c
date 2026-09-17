@@ -1045,11 +1045,11 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "firstDayOfWeek", tsDefaultFirstDayOfWeek, 0, 6, CFG_SCOPE_CLIENT,
                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
 
-  // federated query — scope BOTH (client Parser reads tsFederatedQueryEnable)
+  // federated query  -  scope BOTH (client Parser reads tsFederatedQueryEnable)
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "federatedQueryEnable", tsFederatedQueryEnable,
                                CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
 
-  // federated query — connector pool and timeout parameters (scope BOTH: client also runs ext connector)
+  // federated query  -  connector pool and timeout parameters (scope BOTH: client also runs ext connector)
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "federatedQueryConnectTimeoutMs", tsFederatedQueryConnectTimeoutMs,
                                 100, 600000, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "federatedQueryQueryTimeoutMs", tsFederatedQueryQueryTimeoutMs,
@@ -1922,7 +1922,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
     }
   }
 
-  // federated query — BOTH scope (read on both client and server)
+  // federated query  -  BOTH scope (read on both client and server)
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryEnable");
   tsFederatedQueryEnable = pItem->bval;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryConnectTimeoutMs");
@@ -2622,7 +2622,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "walMultiMountEnable");
   tsWalMultiMountEnable = pItem->bval;
 
-  // federated query — BOTH scope parameters (also read on server side)
+  // federated query  -  BOTH scope parameters (also read on server side)
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryConnectTimeoutMs");
   tsFederatedQueryConnectTimeoutMs = pItem->i32;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryQueryTimeoutMs");
@@ -3581,7 +3581,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"rpcRecvLogThreshold", &tsRpcRecvLogThreshold},
                                          {"tagFilterCache", &tsTagFilterCache},
                                          {"stableTagFilterCache", &tsStableTagFilterCache},
-                                         // federated query — server-side dynamic updates
+                                         // federated query  -  server-side dynamic updates
                                          {"federatedQueryEnable", &tsFederatedQueryEnable},
                                          {"federatedQueryConnectTimeoutMs", &tsFederatedQueryConnectTimeoutMs},
                                          {"federatedQueryQueryTimeoutMs", &tsFederatedQueryQueryTimeoutMs},
@@ -3885,7 +3885,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"compareAsStrInGreatest", &tsCompareAsStrInGreatest},
                                          {"ignoreNullInGreatest", &tsIgnoreNullInGreatest},
                                          {"showFullCreateTableColumn", &tsShowFullCreateTableColumn},
-                                         // federated query — BOTH scope items (client side dynamic update)
+                                         // federated query  -  BOTH scope items (client side dynamic update)
                                          {"federatedQueryEnable", &tsFederatedQueryEnable},
                                          {"federatedQueryConnectTimeoutMs", &tsFederatedQueryConnectTimeoutMs},
                                          {"federatedQueryQueryTimeoutMs", &tsFederatedQueryQueryTimeoutMs},

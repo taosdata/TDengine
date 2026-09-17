@@ -935,16 +935,16 @@ typedef enum {
 // The MNode uses all stages except UTXN_STAGE_BEGIN_PENDING in STxnObj.stage, persisted via Raft WAL.
 // UTXN_STAGE_BEGIN_PENDING (1) is client-side only and never persisted.
 // State transitions:
-//   IDLE           → BEGIN_PENDING  (taos_txn_begin() sends BEGIN; waiting for MNode response)
-//   BEGIN_PENDING  → ACTIVE         (BEGIN succeeded; txnId allocated by MNode)
-//   BEGIN_PENDING  → IDLE           (BEGIN failed; reset by processBeginTxnRsp)
-//   ACTIVE         → ABORTED        (any DDL failed; client-side flag; user must ROLLBACK)
-//   ACTIVE         → PREPARING      (COMMIT received; broadcasting PREPARE to VNodes)
-//   ACTIVE/ABORTED → ROLLINGBACK    (ROLLBACK received)
-//   PREPARING      → COMMITTING     (all VNode PREPARE ACKs received; COMMITTING written to WAL)
-//   PREPARING      → ROLLINGBACK    (any VNode PREPARE failed)
-//   COMMITTING     → COMMITTED      (all VNode COMMIT ACKs received)
-//   ROLLINGBACK    → ROLLEDBACK     (all VNode ROLLBACK ACKs received; normal clean rollback)
+//   IDLE            ->  BEGIN_PENDING  (taos_txn_begin() sends BEGIN; waiting for MNode response)
+//   BEGIN_PENDING   ->  ACTIVE         (BEGIN succeeded; txnId allocated by MNode)
+//   BEGIN_PENDING   ->  IDLE           (BEGIN failed; reset by processBeginTxnRsp)
+//   ACTIVE          ->  ABORTED        (any DDL failed; client-side flag; user must ROLLBACK)
+//   ACTIVE          ->  PREPARING      (COMMIT received; broadcasting PREPARE to VNodes)
+//   ACTIVE/ABORTED  ->  ROLLINGBACK    (ROLLBACK received)
+//   PREPARING       ->  COMMITTING     (all VNode PREPARE ACKs received; COMMITTING written to WAL)
+//   PREPARING       ->  ROLLINGBACK    (any VNode PREPARE failed)
+//   COMMITTING      ->  COMMITTED      (all VNode COMMIT ACKs received)
+//   ROLLINGBACK     ->  ROLLEDBACK     (all VNode ROLLBACK ACKs received; normal clean rollback)
 typedef enum {
   UTXN_STAGE_IDLE = 0,           // initial / destroyed state (object does not exist in memory)
   UTXN_STAGE_BEGIN_PENDING = 1,  // client-side only: BEGIN sent to MNode; awaiting response

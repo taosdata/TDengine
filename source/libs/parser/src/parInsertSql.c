@@ -2392,7 +2392,7 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   }
 _no_ctb_cache:
   // Check INSERT privilege on the super table.
-  // For the non-USING path this is done in getTargetTableSchema() → checkAuth(). We mirror it here.
+  // For the non-USING path this is done in getTargetTableSchema()  ->  checkAuth(). We mirror it here.
   // async second-round coverage: checkAuthFromMetaData() only runs when *pQuery != NULL (second round);
   // the first-round sync path (createInsertQuery) performs no auth, so this call is always needed.
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
@@ -4291,7 +4291,7 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
     return buildSyntaxErrMsg(&pCxt->msg, "table_name is expected", pTbName->z);
   }
 
-  // db.? situation，ensure that the only thing following the '.' mark is '?'
+  // db.? situation,ensure that the only thing following the '.' mark is '?'
   char* tbNameAfterDbName = strnchr(pTbName->z, '.', pTbName->n, true);
   if (tbNameAfterDbName != NULL) {
     if (*(tbNameAfterDbName + 1) == '?') {
@@ -4679,7 +4679,7 @@ static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCata
     code = getTableMetaFromMetaData(pMetaData->pTableMeta, &pStmt->pTableMeta);
   }
 #ifdef TD_ENTERPRISE
-  // MAC NWD+NRU: retry path — metadata was just fetched from server, check must be enforced here too.
+  // MAC NWD+NRU: retry path  -  metadata was just fetched from server, check must be enforced here too.
   // (The primary NWD check in getTargetTableSchema is guarded by !missCache and therefore does not run
   // when the first parse attempt hits a cache miss, e.g. fresh connections used by "taos -s".)
   if (pCxt->pComCxt->macMode && code == TSDB_CODE_SUCCESS && pStmt->pTableMeta != NULL) {

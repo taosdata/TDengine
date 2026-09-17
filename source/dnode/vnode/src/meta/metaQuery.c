@@ -99,7 +99,7 @@ bool metaIsTableExist(void *pVnode, tb_uid_t uid) {
     if (tdbTbGet(pVnodeObj->pMeta->pTxnIdx, &uid, sizeof(uid), &pTxnVal, &txnValLen) == 0) {
       STxnIdxVal txnVal = *(const STxnIdxVal *)pTxnVal;
       if (txnVal.txnStatus == META_TXN_PRE_CREATE) {
-        // Check if txn is committed → table exists
+        // Check if txn is committed  ->  table exists
         int8_t finalStatus = metaGetTxnMetaStatus(pVnodeObj->pMeta, txnVal.txnId);
         if (finalStatus != TXN_META_COMMITTED) {
           tdbFree(pTxnVal);
@@ -107,7 +107,7 @@ bool metaIsTableExist(void *pVnode, tb_uid_t uid) {
           return false;
         }
       }
-      // Check if txn is committed + PRE_DROP → table doesn't exist
+      // Check if txn is committed + PRE_DROP  ->  table doesn't exist
       if (txnVal.txnStatus == META_TXN_PRE_DROP) {
         int8_t finalStatus = metaGetTxnMetaStatus(pVnodeObj->pMeta, txnVal.txnId);
         if (finalStatus == TXN_META_COMMITTED) {
@@ -143,7 +143,7 @@ int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   if (pReader->me.txnId != 0) {
     int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
     if (finalStatus == TXN_META_COMMITTED) {
-      // COMMITTED: PRE_CREATE/PRE_ALTER → visible as normal; PRE_DROP → invisible (deleted)
+      // COMMITTED: PRE_CREATE/PRE_ALTER  ->  visible as normal; PRE_DROP  ->  invisible (deleted)
       if (pReader->me.txnStatus == META_TXN_PRE_DROP) {
         return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
       }
@@ -155,7 +155,7 @@ int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   // batch meta txn: PRE_CREATE entries visibility:
   //   - ROLLEDBACK txn: always invisible
   //   - other-txn reader OR non-txn reader (txnId == 0): invisible (snapshot isolation)
-  //   - same-txn reader: visible (RYOW — read your own writes)
+  //   - same-txn reader: visible (RYOW  -  read your own writes)
   if (pReader->me.txnStatus == META_TXN_PRE_CREATE) {
     int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
     if (finalStatus == TXN_META_ROLLEDBACK) {
@@ -166,7 +166,7 @@ int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
     }
   }
 
-  // batch meta txn: PRE_ALTER entries — redirect to old version for snapshot isolation
+  // batch meta txn: PRE_ALTER entries  -  redirect to old version for snapshot isolation
   // Same-txn readers see the new (altered) version directly
   if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnOrigVer > 0) {
     if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
@@ -267,7 +267,7 @@ int metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t version, t
     }
   }
 
-  // batch meta txn: PRE_ALTER entries — redirect to old version for snapshot isolation
+  // batch meta txn: PRE_ALTER entries  -  redirect to old version for snapshot isolation
   // Same-txn readers see the new (altered) version directly
   if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnOrigVer > 0) {
     if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
@@ -309,7 +309,7 @@ int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
       // batch meta txn: PRE_CREATE visibility:
       //   - ROLLEDBACK: invisible
       //   - other-txn reader OR non-txn reader (txnId==0): invisible (snapshot isolation)
-      //   - same-txn reader: visible (RYOW — read your own writes)
+      //   - same-txn reader: visible (RYOW  -  read your own writes)
       int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
       if (finalStatus == TXN_META_ROLLEDBACK) {
         return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
@@ -318,7 +318,7 @@ int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
         return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
       }
     } else if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnOrigVer > 0) {
-      // batch meta txn: PRE_ALTER entries — redirect to old version for snapshot isolation
+      // batch meta txn: PRE_ALTER entries  -  redirect to old version for snapshot isolation
       // Same-txn readers see the new (altered) version directly
       if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
         int64_t prevVer = pReader->me.txnOrigVer;
@@ -596,7 +596,7 @@ int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
     if (metaHasPendingTxnEntries(pMeta)) {
       // 1. Parent STB PRE_DROP: child tables are logically gone when the STB is
       //    dropped by the same transaction or committed-but-not-yet-vacuumed.
-      //    This check is INDEPENDENT of the entry's own txnStatus — a CTB can
+      //    This check is INDEPENDENT of the entry's own txnStatus  -  a CTB can
       //    simultaneously have its own PRE_CREATE/PRE_ALTER and a dropped parent.
       //    1-entry suid cache: all CTBs of the same STB share one tdbTbGet call.
       if (pTbCur->mr.me.type == TSDB_CHILD_TABLE || pTbCur->mr.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
@@ -647,7 +647,7 @@ int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
               ret = metaGetTableEntryByVersion(&pTbCur->mr, pTbCur->mr.me.txnOrigVer, uid);
               if (ret != 0) return ret;
               // If the old version is PRE_CREATE (same-txn CREATE then ALTER),
-              // the table never existed outside this txn — skip for other sessions.
+              // the table never existed outside this txn  -  skip for other sessions.
               if (pTbCur->mr.me.txnStatus == META_TXN_PRE_CREATE) {
                 int8_t prevEntryFinalStatus = metaGetTxnMetaStatus(pMeta, pTbCur->mr.me.txnId);
                 if (prevEntryFinalStatus != TXN_META_COMMITTED) {
@@ -697,7 +697,7 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
     if (metaHasPendingTxnEntries(pMeta)) {
       // 1. Parent STB PRE_DROP: child tables are logically gone when the STB is
       //    dropped by the same transaction or committed-but-not-yet-vacuumed.
-      //    This check is INDEPENDENT of the entry's own txnStatus — a CTB can
+      //    This check is INDEPENDENT of the entry's own txnStatus  -  a CTB can
       //    simultaneously have its own PRE_CREATE/PRE_ALTER and a dropped parent.
       //    1-entry suid cache: all CTBs of the same STB share one tdbTbGet call.
       if (pTbCur->mr.me.type == TSDB_CHILD_TABLE || pTbCur->mr.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
@@ -748,7 +748,7 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
               ret = metaGetTableEntryByVersion(&pTbCur->mr, pTbCur->mr.me.txnOrigVer, uid);
               if (ret != 0) return ret;
               // If the old version is PRE_CREATE (same-txn CREATE then ALTER),
-              // the table never existed outside this txn — skip for other sessions.
+              // the table never existed outside this txn  -  skip for other sessions.
               if (pTbCur->mr.me.txnStatus == META_TXN_PRE_CREATE) {
                 int8_t prevEntryFinalStatus = metaGetTxnMetaStatus(pMeta, pTbCur->mr.me.txnId);
                 if (prevEntryFinalStatus != TXN_META_COMMITTED) {
@@ -1031,7 +1031,7 @@ _query:
   }
 
   if (me.txnStatus != META_TXN_NORMAL) {
-    // batch meta txn: PRE_CREATE entries are invisible — return error
+    // batch meta txn: PRE_CREATE entries are invisible  -  return error
     if (me.txnStatus == META_TXN_PRE_CREATE) {
       tDecoderClear(&dc);
       code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
@@ -1264,7 +1264,7 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
   SCtbIdxKey *pCtbIdxKey;
 
   // STB PRE_DROP was checked once in metaResumeCtbCursor (under the lock).
-  // If it was dropped, all children are invisible — no need to iterate.
+  // If it was dropped, all children are invisible  -  no need to iterate.
   if (pCtbCur->stbTxnDropped) {
     return 0;
   }
@@ -2291,7 +2291,7 @@ static int32_t metaGetTableTagByUidVersion(SMeta *pMeta, int64_t suid, int64_t u
           }
           metaFetchEntryFree(&pEntry);
         } else {
-          // a non-ntb entry (e.g. a child table) missing from pCtbIdx is an index inconsistency —
+          // a non-ntb entry (e.g. a child table) missing from pCtbIdx is an index inconsistency --
           // surface the original lookup failure instead of silently treating it as tag-less.
           int32_t type = pEntry->type;
           metaFetchEntryFree(&pEntry);
@@ -2323,7 +2323,7 @@ static void *metaGetOldTagIfPreAlter(SMeta *pMeta, tb_uid_t uid, int32_t *pOutLe
   if (txnVal.txnStatus != META_TXN_PRE_ALTER || txnVal.txnOrigVer < 0) {
     return NULL;
   }
-  // If the txn is already committed the dirty pCtbIdx value is correct — no redirect.
+  // If the txn is already committed the dirty pCtbIdx value is correct  -  no redirect.
   if (metaGetTxnMetaStatus(pMeta, txnVal.txnId) == TXN_META_COMMITTED) {
     return NULL;
   }

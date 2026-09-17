@@ -1868,10 +1868,10 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
                GET_TASKID(pTaskInfo), req.execId, req.pStRtFuncInfo->curIdx, req.pStRtFuncInfo->curWindow.skey,
                req.pStRtFuncInfo->curWindow.ekey);
       } else if (pSource->fetchMsgType == TDMT_STREAM_FETCH_EXT) {
-        /* P4-E3: EXT fetch — runner requests data from an ETR (external-table
+        /* P4-E3: EXT fetch  -  runner requests data from an ETR (external-table
          * reader) task.  Only set a merged time range when the runner has an
          * external window operator (%%trows); otherwise leave curWindow as
-         * {0,0} so the ext reader does a full table scan — the calc SQL has
+         * {0,0} so the ext reader does a full table scan  -  the calc SQL has
          * no time range filter or uses _twstart/_twend which are evaluated
          * on the runner side after fetching. */
         if (req.pStRtFuncInfo->withExternalWindow &&

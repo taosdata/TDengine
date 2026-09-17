@@ -6221,9 +6221,9 @@ _return:
   CTG_RET(code);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // Federated query Phase A: CTG_TASK_GET_EXT_SOURCE task
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
 int32_t ctgInitGetExtSourceTask(SCtgJob* pJob, int32_t taskId, void* param) {
   SCtgTask task = {0};
@@ -6272,7 +6272,7 @@ int32_t ctgLaunchGetExtSourceTask(SCtgTask* pTask) {
   // The READ lock is kept held until ctgReleaseExtSource, which guarantees that
   // a concurrent ctgOpReplaceExtSourceCache (WRITE lock) cannot swap+cleanup the
   // hash while we hold a reference into it.  pHash captures the exact hash the
-  // node was acquired from — ctgReleaseExtSource passes it back to taosHashRelease
+  // node was acquired from  -  ctgReleaseExtSource passes it back to taosHashRelease
   // so taosHashReleaseNode searches the correct bucket chain.
   SHashObj*             pHash   = NULL;
   void*                 pHandle = NULL;
@@ -6302,7 +6302,7 @@ int32_t ctgLaunchGetExtSourceTask(SCtgTask* pTask) {
     pInfo->capability   = pEntry->capability;
     CTG_UNLOCK(CTG_READ, &pEntry->entryLock);
     // Release ref + READ lock.  When this is the last reference and a drop is
-    // pending, ctgExtSourceHashFreeFp frees the entry here — entryLock is already
+    // pending, ctgExtSourceHashFreeFp frees the entry here  -  entryLock is already
     // released above so no double-lock issue.
     ctgReleaseExtSource(pCtg, pHash, pHandle);
     pTask->res = pInfo;
@@ -6362,7 +6362,7 @@ int32_t ctgHandleGetExtSourceRsp(SCtgTaskReq* tReq, int32_t reqType, const SData
   tstrncpy(pInfo->options, pRsp->options, sizeof(pInfo->options));
   pInfo->meta_version = pRsp->meta_version;
   pInfo->create_time  = pRsp->create_time;
-  // capability stays zero — will be probed by Phase B or planner on demand
+  // capability stays zero  -  will be probed by Phase B or planner on demand
   pTask->res = pInfo;
 
 _return:
@@ -6389,7 +6389,7 @@ int32_t ctgDumpExtSourceRes(SCtgTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // Federated query Phase B: ctgFetchExtTableMetas
 //
 // Called synchronously from ctgMakeAsyncRes after all Phase A task results
@@ -6398,7 +6398,7 @@ int32_t ctgDumpExtSourceRes(SCtgTask* pTask) {
 // pJob->jobRes.pExtTableMetaRsp, updates the cache, and closes the handle.
 // extConnectorOpen manages connection pooling internally, so there is no need
 // for a local handle map here.
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
   int32_t  code = 0;
   SCatalog* pCtg = pJob->pCtg;
@@ -6424,9 +6424,9 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
     SExtTableMetaReq* pReq = (SExtTableMetaReq*)taosArrayGet(pReqs, i);
     SMetaRes          res  = {0};
 
-    // ── Cache lookup ─────────────────────────────────────────────────────
+    // -- Cache lookup -----------------------------------------------------
     // Pattern mirrors ctgAcquireTbMetaFromCache:
-    //   taosHashAcquire(pDbHash) + taosHashAcquire(pTableHash) + CTG_LOCK(READ, metaLock) → clone
+    //   taosHashAcquire(pDbHash) + taosHashAcquire(pTableHash) + CTG_LOCK(READ, metaLock)  ->  clone
     // All inner refs held while extHashLatch READ lock is live; safe against concurrent swap.
     char dbKey[TSDB_DB_NAME_LEN * 2 + 2] = {0};
     tstrncpy(dbKey, pReq->rawMidSegs[0], TSDB_DB_NAME_LEN);
@@ -6443,7 +6443,7 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
         pSrc = NULL;
       }
       if (pSrc) {
-        // taosHashAcquire on pDbHash — HASH_ENTRY_LOCK, no external lock needed.
+        // taosHashAcquire on pDbHash  -  HASH_ENTRY_LOCK, no external lock needed.
         size_t dbKeyLen = strlen(dbKey);
         if (dbKeyLen == 0) {
           dbKeyLen = 1;
@@ -6451,11 +6451,11 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
         void* ppDbHandle = taosHashAcquire(pSrc->pDbHash, dbKey, dbKeyLen);
         if (ppDbHandle) {
           SExtDbCache* pDb = *(SExtDbCache**)ppDbHandle;
-          // taosHashAcquire on pTableHash — fine-grained bucket lock.
+          // taosHashAcquire on pTableHash  -  fine-grained bucket lock.
           void* ppTEHandle = taosHashAcquire(pDb->pTableHash, pReq->tableName, strlen(pReq->tableName));
           if (ppTEHandle) {
             SExtTableCacheEntry* pTE = *(SExtTableCacheEntry**)ppTEHandle;
-            // Per-entry metaLock READ — minimum granularity for pMeta access.
+            // Per-entry metaLock READ  -  minimum granularity for pMeta access.
             CTG_LOCK(CTG_READ, &pTE->metaLock);
             SExtTableMeta* pMetaCopy = extConnectorCloneTableSchema(pTE->pMeta);
             CTG_UNLOCK(CTG_READ, &pTE->metaLock);
@@ -6480,7 +6480,7 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
       }
       continue;
     }
-    // ── End cache lookup ─────────────────────────────────────────────────
+    // -- End cache lookup -------------------------------------------------
 
     // Locate source info from Phase A tasks/results
     SExtSourceInfo* pSrcInfo = NULL;
@@ -6517,10 +6517,10 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
     tstrncpy(cfg.user,              pSrcInfo->user, TSDB_EXT_SOURCE_USER_LEN);
     tstrncpy(cfg.password,          pSrcInfo->password, TSDB_EXT_SOURCE_PASSWORD_LEN);
     // For connectors that require per-database connections (e.g. PostgreSQL):
-    //   4-segment path  src.db.schema.table  → rawMidSegs[0]=db, rawMidSegs[1]=schema
+    //   4-segment path  src.db.schema.table   ->  rawMidSegs[0]=db, rawMidSegs[1]=schema
     //                   Use rawMidSegs[0] as the connection database.
-    //   3-segment path  src.schema.table     → rawMidSegs[0]=schema, rawMidSegs[1]=""
-    //   2-segment path  src.table            → rawMidSegs[0]="",     rawMidSegs[1]=""
+    //   3-segment path  src.schema.table      ->  rawMidSegs[0]=schema, rawMidSegs[1]=""
+    //   2-segment path  src.table             ->  rawMidSegs[0]="",     rawMidSegs[1]=""
     //                   Both: use the source's configured database (pSrcInfo->database).
     if (pReq->rawMidSegs[1][0] != '\0') {
       // 4-segment path (src.db.schema.table): rawMidSegs[0] is the database.
@@ -6544,7 +6544,7 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
     // store a precise error so the caller sees the real cause instead of a misleading
     // authentication or connection error.
     if (cfg.default_database[0] == '\0') {
-      qDebug("Phase B: skip fetch for source='%s' table='%s' — no database (mid0='%s' srcDb='%s')",
+      qDebug("Phase B: skip fetch for source='%s' table='%s' - no database (mid0='%s' srcDb='%s')",
              pReq->sourceName, pReq->tableName, pReq->rawMidSegs[0], pSrcInfo->database);
       res.code = TSDB_CODE_EXT_DEFAULT_NS_MISSING;
       if (NULL == taosArrayPush(pJob->jobRes.pExtTableMetaRsp, &res)) { code = terrno; break; }
@@ -6572,8 +6572,8 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
     if (pReq->rawMidSegs[0][0] != '\0') {
       if (pReq->rawMidSegs[1][0] == '\0' && pSrcInfo->type == EXT_SOURCE_POSTGRESQL) {
         // A single middle segment for PG is ambiguous: it is either a column
-        // reference (src.db.table.col → rawMidSegs[0] = database) or a table
-        // path (src.schema.table → rawMidSegs[0] = schema).  A PG connection is
+        // reference (src.db.table.col  ->  rawMidSegs[0] = database) or a table
+        // path (src.schema.table  ->  rawMidSegs[0] = schema).  A PG connection is
         // bound to one database, so a column ref's db segment always equals the
         // source's configured database; use that to disambiguate.
         if (0 == strcasecmp(pReq->rawMidSegs[0], pSrcInfo->database)) {
@@ -6672,7 +6672,7 @@ SCtgAsyncFps gCtgAsyncFps[] = {
     {ctgInitGetTSMATask, ctgLaunchGetTSMATask, ctgHandleGetTSMARsp, ctgDumpTSMARes, NULL, NULL, 1},
     {ctgInitGetTbNamesTask, ctgLaunchGetTbNamesTask, ctgHandleGetTbNamesRsp, ctgDumpTbNamesRes, NULL, NULL, 1},
     {ctgInitGetVStbRefDbsTask, ctgLaunchGetVStbRefDbsTask, ctgHandleGetVStbRefDbsRsp, ctgDumpVStbRefDbsRes, NULL, NULL, 8},
-    {NULL, NULL, NULL, NULL, NULL, NULL, 0},   // CTG_TASK_GET_RSMA = 21 (stub — not dispatched via ctgInitTask)
+    {NULL, NULL, NULL, NULL, NULL, NULL, 0},   // CTG_TASK_GET_RSMA = 21 (stub  -  not dispatched via ctgInitTask)
     {ctgInitGetExtSourceTask, ctgLaunchGetExtSourceTask, ctgHandleGetExtSourceRsp, ctgDumpExtSourceRes, NULL, NULL, 1},
 };
 
