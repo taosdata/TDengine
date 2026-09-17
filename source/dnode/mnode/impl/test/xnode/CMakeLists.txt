@@ -171,6 +171,54 @@ add_test(
   COMMAND xnodeShowProtectionTest
 )
 
+# Six-star write-semantics tests - executes the shared T1a merge-semantics
+# fixture against the production scan/merge implementation in mndXnode.c.
+set(
+  XNODE_SIXSTAR_FIXTURE_LOCAL_PATH
+  "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/xnode-six-star-merge-semantics.json"
+)
+if(NOT EXISTS "${XNODE_SIXSTAR_FIXTURE_LOCAL_PATH}")
+  message(FATAL_ERROR
+          "xnodeSixStarWriteTest fixture is missing at ${XNODE_SIXSTAR_FIXTURE_LOCAL_PATH}")
+endif()
+set(
+  XNODE_SIXSTAR_FIXTURE_PATH
+  "${CMAKE_CURRENT_BINARY_DIR}/xnode-six-star-merge-semantics.json"
+)
+configure_file(
+  "${XNODE_SIXSTAR_FIXTURE_LOCAL_PATH}"
+  "${XNODE_SIXSTAR_FIXTURE_PATH}"
+  COPYONLY
+)
+
+add_executable(xnodeSixStarWriteTest "xnodeSixStarWriteTest.cpp")
+DEP_ext_gtest(xnodeSixStarWriteTest)
+target_include_directories(
+  xnodeSixStarWriteTest
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/common"
+  "${TD_SOURCE_DIR}/include/dnode/mnode"
+  "${TD_SOURCE_DIR}/include/dnode/mgmt"
+  "${TD_SOURCE_DIR}/include/dnode/xnode"
+  "${TD_SOURCE_DIR}/include/dnode/impl/inc"
+  "${TD_SOURCE_DIR}/source/dnode/mnode/impl/inc"
+)
+target_compile_definitions(
+  xnodeSixStarWriteTest
+  PRIVATE XNODE_SIXSTAR_FIXTURE_PATH="${XNODE_SIXSTAR_FIXTURE_PATH}"
+)
+target_link_libraries(
+  xnodeSixStarWriteTest
+  PUBLIC
+  mnode
+  xnode
+  mgmt_xnode
+)
+add_test(
+  NAME xnodeSixStarWriteTest
+  COMMAND xnodeSixStarWriteTest
+)
+
 if(TD_WINDOWS)
   message(STATUS "Skipping envelopeCryptoTest: Windows does not support OpenSSL")
 else()

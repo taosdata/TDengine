@@ -28,7 +28,7 @@ In the **Authentication** area, fill in the **Username** and **Password**.
 
 Click the **Connectivity Check** button to check if the data source is available.
 
-![Configure connection information](../../assets/aveva-historian-01.png)
+![Configure connection information](../../assets/aveva-historian-01.webp)
 
 ### Configure Collection Information
 
@@ -50,7 +50,7 @@ In **Task End Time**, fill in the end time of the data migration task.
 
 In **Query Time Window**, fill in a time interval, the data migration task will divide time windows according to this interval.
 
-![Migrate data](../../assets/aveva-historian-02.png)
+![Migrate data](../../assets/aveva-historian-02.webp)
 
 #### Synchronize Data from the History Table
 
@@ -72,7 +72,7 @@ In **Real-time Synchronization Interval**, fill in a time interval, the real-tim
 
 In **Disorder Time Upper Limit**, fill in a time interval, data that enters the database after this time during real-time data synchronization may be lost.
 
-![Synchronize historical data](../../assets/aveva-historian-03.png)
+![Synchronize historical data](../../assets/aveva-historian-03.webp)
 
 #### Synchronize Data from the Live Table
 
@@ -86,7 +86,7 @@ In **Tags**, fill in the list of tags to migrate, separated by commas (,).
 
 In **Real-time Synchronization Interval**, fill in a time interval, the real-time data part will poll data according to this interval.
 
-![Synchronize real-time data](../../assets/aveva-historian-04.png)
+![Synchronize real-time data](../../assets/aveva-historian-04.webp)
 
 ### Configure Data Mapping
 
@@ -102,7 +102,7 @@ In **Mapping**, select the supertable in TDengine to which you want to map, as w
 
 Click **Preview** to view the results of the mapping.
 
-![Configure mapping options](../../assets/aveva-historian-05.png)
+![Configure mapping options](../../assets/aveva-historian-05.webp)
 
 ### Configure Advanced Options
 
@@ -120,7 +120,7 @@ Set the maximum retention days for raw data in **Maximum Retention Days**.
 
 Set the storage path for raw data in **Raw Data Storage Directory**.
 
-![Configure advanced options](../../assets/aveva-historian-06.png)
+![Configure advanced options](../../assets/aveva-historian-06.webp)
 
 ### Configure Exception Handling
 

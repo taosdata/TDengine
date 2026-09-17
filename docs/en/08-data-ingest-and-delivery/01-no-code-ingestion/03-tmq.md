@@ -16,19 +16,19 @@ Create the required Topic in the source cluster, which can subscribe to the enti
 
 Open the taosExplorer interface of the source cluster, click the "Data Subscription" menu on the left, then click "Add New Topic".
 
-![Add new topic](../../assets/tmq-01.png)
+![Add new topic](../../assets/tmq-01.webp)
 
 ### Step Two: Add a New Topic
 
 Enter the topic name, select the database to subscribe to.
 
-![Configure database subscription](../../assets/tmq-02.png)
+![Configure database subscription](../../assets/tmq-02.webp)
 
 ### Step Three: Copy the Topic's DSN
 
 Click the "Create" button, return to the topic list and copy the **DSN** of the topic for later use.
 
-![Copy topic DSN](../../assets/tmq-03.png)
+![Copy topic DSN](../../assets/tmq-03.webp)
 
 ## Create Subscription Task
 
@@ -37,7 +37,7 @@ Click the "Create" button, return to the topic list and copy the **DSN** of the 
 1. Click the "Data Writing" menu on the left
 2. Click "Add Data Source"
 
-![Add data source](../../assets/tmq-04.png)
+![Add data source](../../assets/tmq-04.webp)
 
 ### Step Two: Enter Data Source Information
 
@@ -47,7 +47,7 @@ Click the "Create" button, return to the topic list and copy the **DSN** of the 
 4. Paste the DSN copied in the preparation step into the **Topic DSN** field. For example: tmq+ws://root:taosdata@localhost:6041/topic
 5. After completing the above steps, click the "Connectivity Check" button to test connectivity with the source
 
-![Configure basic settings](../../assets/tmq-05.png)
+![Configure basic settings](../../assets/tmq-05.webp)
 
 ### Step Three: Fill in Subscription Settings and Submit Task
 
@@ -61,7 +61,7 @@ Click the "Create" button, return to the topic list and copy the **DSN** of the 
 8. Compression. Enable WebSocket compression support to reduce network bandwidth usage.
 9. Click the "Submit" button to submit the task
 
-![Configure subscription options](../../assets/tmq-06.png)
+![Configure subscription options](../../assets/tmq-06.webp)
 
 ## Transform Actions
 
@@ -84,15 +84,15 @@ Each row in a CSV mapping file contains a source name and a destination name in 
 
 After submitting the task, return to the data source page to view the task status. The task will first be added to the execution queue and will start running shortly.
 
-![Monitor task execution](../../assets/tmq-07.png)
+![Monitor task execution](../../assets/tmq-07.webp)
 
 Click the "View" button to monitor the dynamic statistical information of the task.
 
-![View current metrics](../../assets/tmq-08.png)
+![View current metrics](../../assets/tmq-08.webp)
 
 You can also click the left collapse button to expand the task's activity information. If the task runs abnormally, detailed explanations can be seen here.
 
-![View task activity](../../assets/tmq-09.png)
+![View task activity](../../assets/tmq-09.webp)
 
 ## Advanced Usage
 

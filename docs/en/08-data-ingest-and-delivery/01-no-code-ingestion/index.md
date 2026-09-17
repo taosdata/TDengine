@@ -14,7 +14,7 @@ TDengine is equipped with a visual data management tool—taosExplorer. With tao
 
 The diagram below shows the system architecture of the zero-code integration platform.
 
-![Zero-code data connectors](../../assets/no-code-ingestion-01.png)
+![Zero-code data connectors](../../assets/no-code-ingestion-01.webp)
 
 ## Supported Data Sources
 
@@ -56,7 +56,7 @@ Only unstructured data sources need this step. Currently, MQTT and Kafka data so
 
 #### Sample Data
 
-![Sample data](../../assets/no-code-ingestion-02.png)
+![Sample data](../../assets/no-code-ingestion-02.webp)
 
 As shown in the image, the textarea input box contains the sample data, which can be obtained in three ways:
 
@@ -96,7 +96,7 @@ The following nested JSON data can automatically parse fields `groupid`, `data_v
 {"groupid": 170001, "data": { "voltage": "221V", "current": 12.3 }, "ts": "2023-12-18T22:12:00", "inuse": true, "location": [{"province": "beijing", "city":"chaoyang", "street": "datun"}]}
 ```
 
-![JSON parsing](../../assets/no-code-ingestion-03.png)
+![JSON parsing](../../assets/no-code-ingestion-03.webp)
 
 2. **Regex Regular Expressions**
 
@@ -106,7 +106,7 @@ You can use **named capture groups** in regular expressions to extract multiple 
 (?<ip>\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b)\s-\s-\s\[(?<ts>\d{2}/\w{3}/\d{4}:\d{2}:\d{2}:\d{2}\s\+\d{4})\]\s"(?<method>[A-Z]+)\s(?<url>[^\s"]+).*(?<status>\d{3})\s(?<length>\d+)
 ```
 
-![Regex parsing](../../assets/no-code-ingestion-04.png)
+![Regex parsing](../../assets/no-code-ingestion-04.webp)
 
 3. **UDT Custom Parsing Scripts**
 
@@ -140,7 +140,7 @@ let v3 = data["voltage"].split(",");
 
 The final parsing result is shown below:
 
-![Parsed results](../../assets/no-code-ingestion-05.png)
+![Parsed results](../../assets/no-code-ingestion-05.webp)
 
 ### Extraction or Splitting
 

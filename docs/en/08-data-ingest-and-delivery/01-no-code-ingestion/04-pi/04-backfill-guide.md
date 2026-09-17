@@ -33,7 +33,7 @@ PI backfill tasks **must** have the following parameters configured:
 | Start Time | The starting time point for backfilling data |
 | End Time | The ending time point for backfilling data |
 
-![PI backfill time range](../../../assets/backfill-guide-01.png)
+![PI backfill time range](../../../assets/backfill-guide-01.webp)
 
 :::note
 The backfill task will automatically stop after completing the data migration for the specified time range.

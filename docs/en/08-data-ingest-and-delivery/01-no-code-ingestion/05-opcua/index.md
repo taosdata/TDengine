@@ -27,7 +27,7 @@ TDengine can efficiently read data from OPC UA servers and write it to TDengine,
 
 **Agent** is optional. When taosX cannot reach the OPC UA Server directly over the network — for example the OPC UA Server lives in an isolated OT network, or taosX runs in the public cloud and cannot reach the on-premises network — deploy a taosX-Agent on a host that **can** reach the OPC UA Server, and route the data through taosX-Agent. In this setup taosX only needs connectivity to taosX-Agent, and taosX-Agent only needs connectivity to the OPC UA Server. If taosX can already reach the OPC UA Server directly, leave **Agent** empty. When needed, pick an existing agent from the dropdown, or click **+ Create New Agent** on the right to create one.
 
-![General Information](../../../assets/opcua-01.png)
+![General Information](../../../assets/opcua-01.webp)
 
 ### Configure Connection Information
 
@@ -46,7 +46,7 @@ If the security mode is `Sign` or `SignAndEncrypt`, you must select a valid **se
 - Aes128Sha256RsaOaep: Uses the AES-128 algorithm to encrypt and decrypt communication data, encrypts digital signatures using the SHA-256 algorithm, and uses the RSA algorithm with OAEP mode to encrypt and decrypt symmetric communication keys.
 - Aes256Sha256RsaPss: Uses the AES-256 algorithm to encrypt and decrypt communication data, encrypts digital signatures using the SHA-256 algorithm, and uses the RSA algorithm with PSS mode to encrypt and decrypt symmetric communication keys.
 
-![Configure connection information](../../../assets/opcua-02.png)
+![Configure connection information](../../../assets/opcua-02.webp)
 
 :::tip
 When **Security Mode** is `Sign` or `SignAndEncrypt`, both **Secure Channel Certificate** and **Certificate's Private Key** are required. To produce them, see [Generate the taosX OPC UA Client Certificate](./01-client-certificate.md).
@@ -69,7 +69,7 @@ As shown below, switch tabs to choose different authentication methods:
 1. Username and Password
 1. Certificate Access: Can be the same as the secure-channel certificate, or a different certificate.
 
-![Configure authentication settings](../../../assets/opcua-03.png)
+![Configure authentication settings](../../../assets/opcua-03.webp)
 
 After configuring the connection properties and authentication method, click the **Connectivity Check** button to check whether the data source is reachable. If you use a secure-channel certificate or an authentication certificate, the certificate must be trusted by the OPC UA server, otherwise the check will fail.
 
@@ -85,7 +85,7 @@ The first two are for point collection (Value); the third is for alarm and event
 
 #### Selecting Data Points
 
-![Select data points](../../../assets/opcua-04.png)
+![Select data points](../../../assets/opcua-04.webp)
 
 1. **Filter Data Points**
 
@@ -235,7 +235,7 @@ If the original path is `Objects.UAT.BP.AIT260002`, the stored tag value becomes
 
 You can download the CSV blank template and configure the point information according to the template, then upload the CSV configuration file to configure points; or download data points according to the configured filter conditions, and download in the format specified by the CSV template.
 
-![Upload CSV configuration file](../../../assets/opcua-05.png)
+![Upload CSV configuration file](../../../assets/opcua-05.webp)
 
 Core CSV rules:
 
@@ -264,7 +264,7 @@ Selecting this tab locks the **Collection Mode** below to `event` automatically.
 
 In the collection configuration, configure the current task's collection mode, collection interval, collection timeout, etc.
 
-![Configure collection settings](../../../assets/opcua-06.png)
+![Configure collection settings](../../../assets/opcua-06.webp)
 
 As shown in the image above:
 
@@ -293,7 +293,7 @@ When using **Selecting Data Points** in the **Data Point Set**, the collection c
 
 ### Advanced Options
 
-![Configure advanced options](../../../assets/opcua-07.png)
+![Configure advanced options](../../../assets/opcua-07.webp)
 
 As shown in the image above, configure advanced options for more detailed optimization of performance, logs, etc.
 
@@ -328,11 +328,11 @@ Click the **Submit** button to complete the creation of the OPC UA to TDengine d
 
 While the task is running, click **Edit** and then **Add Data Points** to append a new OPC UA data-point rule into the CSV configuration. Adding data points does not require restarting the task and does not cause data loss. Use this when you only need to add a few points and do not want to re-import the full point list.
 
-![Add data points](../../../assets/opcua-08.png)
+![Add data points](../../../assets/opcua-08.webp)
 
 In the pop-up form, fill in the information for the data point.
 
-![Add data points form](../../../assets/opcua-09.png)
+![Add data points form](../../../assets/opcua-09.webp)
 
 Click **Confirm** to complete the addition.
 

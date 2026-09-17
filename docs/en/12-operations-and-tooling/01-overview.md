@@ -4,7 +4,7 @@ title: TDengine Components
 
 In the TDengine installation package, in addition to the TDengine database engine taosd, several additional components are provided to facilitate user experience. taosAdapter serves as a bridge between applications and TDengine; taosKeeper is a tool for exporting TDengine monitoring metrics; taosX is a data pipeline tool; taosExplorer is a graphical management tool; taosc is the TDengine client driver. The diagram below shows the topology of the entire TDengine product ecosystem (components taosX, taosX Agent are only available in TDengine Enterprise).
 
-![TDengine ecosystem](../assets/security-suggestions-01.png)
+![TDengine ecosystem](../assets/security-suggestions-01.webp)
 
 ## taosd
 

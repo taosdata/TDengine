@@ -18,6 +18,7 @@
 #include "dmUtil.h"
 #include "monitor.h"
 #include "audit.h"
+#include "vnode.h"
 
 int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
   int32_t code = 0;
@@ -103,6 +104,7 @@ static int32_t dmOpenNodes(SDnode *pDnode) {
 
   auditSetDnodeId(dmGetDnodeId(&pDnode->data));
   monSetDnodeId(dmGetDnodeId(&pDnode->data));
+  vnodeSetDnodeId(dmGetDnodeId(&pDnode->data));
 
   dmSetStatus(pDnode, DND_STAT_RUNNING);
   return 0;

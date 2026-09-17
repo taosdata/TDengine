@@ -52,7 +52,7 @@ After downloading the TDengine JDBC Driver dist package, two configuration metho
 
   ```bash
   # JMETER_HOME = JMeter install dir, e.g. /opt/apache-jmeter-5.6.3/
-  cp taos-jdbcdriver-3.8.1-dist.jar $JMETER_HOME/lib/ext/
+  cp taos-jdbcdriver-3.9.1-dist.jar $JMETER_HOME/lib/ext/
   ```
 
 - Method 2: Specify Classpath in JMX file (not recommended, fallback only)
@@ -60,7 +60,7 @@ After downloading the TDengine JDBC Driver dist package, two configuration metho
   Configure in the TestPlan element:
 
   ```xml
-  <stringProp name="TestPlan.user_define_classpath">/absolute/path/to/taos-jdbcdriver-3.8.1-dist.jar</stringProp>
+  <stringProp name="TestPlan.user_define_classpath">/absolute/path/to/taos-jdbcdriver-3.9.1-dist.jar</stringProp>
   ```
 
 > **Note**: Method 1 is **strongly recommended** for CLI mode.
@@ -418,7 +418,7 @@ summary =   1500 in 00:00:03 =  500.0/s Avg:    2 Min:     1 Max:     6 Err:    
 
 Open `baseline_report/index.html`.
 
-![HTML Report](../../../assets/jmeter-01.png)
+![HTML Report](../../../assets/jmeter-01.webp)
 
 **Key Metrics**:
 

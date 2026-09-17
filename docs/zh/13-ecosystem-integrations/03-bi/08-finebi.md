@@ -15,7 +15,7 @@ title: 与 FineBI 集成
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../12-operations-and-tooling/03-components/03-taosadapter.md)。
 - FineBI 安装（如未安装，请下载并安装 [FineBI 下载](https://www.finebi.com/product/download)）。
 - 下载 `fine_conf_entity` 插件用于支持允许添加 JDBC 驱动，[下载地址](https://market.fanruan.com/plugin/1052a471-0239-4cd8-b832-045d53182c5d)。
-- 安装 JDBC 驱动。从 `maven.org` 下载较新的 TDengine JDBC 连接器（文档示例基于 `taos-jdbcdriver-3.4.0-dist.jar`）。
+- 安装 JDBC 驱动。从 `maven.org` 下载较新的 TDengine JDBC 连接器（文档示例基于 `taos-jdbcdriver-3.9.1-dist.jar`）。
 
 ## 配置数据源
 
@@ -34,7 +34,7 @@ title: 与 FineBI 集成
 
 ![finebi-workbook](../../assets/finebi-02.webp)
 
-**第 5 步**，在驱动配置页面中点击【上传文件】按钮，选择已下载的 `TDengine Java Connector`（比如 `taos-jdbcdriver-3.4.0-dist.jar`）进行上传，上传完成后在【驱动】的下拉列表中选择 `com.taosdata.jdbc.ws.WebSocketDriver`，并点击【保存】。
+**第 5 步**，在驱动配置页面中点击【上传文件】按钮，选择已下载的 `TDengine Java Connector`（比如 `taos-jdbcdriver-3.9.1-dist.jar`）进行上传，上传完成后在【驱动】的下拉列表中选择 `com.taosdata.jdbc.ws.WebSocketDriver`，并点击【保存】。
 
 ![finebi-workbook](../../assets/finebi-03.webp)
 

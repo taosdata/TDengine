@@ -27,14 +27,14 @@ Fill in the **Username** and **Password** in the **Authentication** area.
 
 Click the **Connectivity Check** button to check if the data source is available.
 
-![Configure connection information](../../assets/kinghist-01.png)
+![Configure connection information](../../assets/kinghist-01.webp)
 
 ### Configure Tags
 
 In the **Upload CSV Configuration File**, click **Download Data Points**, then select the required **Point Group**, **Points**, and **Tags**. This action generates a CSV configuration and downloads it locally.
 Modify the generated CSV configuration file as needed and re-upload it.
 
-![Configure tags](../../assets/kinghist-02.png)
+![Configure tags](../../assets/kinghist-02.webp)
 
 ### Configure Collection Information
 
@@ -54,7 +54,7 @@ Fill in a time interval in **Out-of-Order**. Each query window will backtrack th
 
 Fill in a time interval in **Query Interval**. There will be a waiting interval between each query window.
 
-![Migrate historical data](../../assets/kinghist-03.png)
+![Migrate historical data](../../assets/kinghist-03.webp)
 
 #### Real-Time Data Synchronization
 
@@ -62,7 +62,7 @@ If you want to perform real-time data synchronization, configure the following p
 
 Fill in a time interval in **Minimum Interval Time**, which is the minimum subscription interval time.
 
-![Synchronize real-time data](../../assets/kinghist-04.png)
+![Synchronize real-time data](../../assets/kinghist-04.webp)
 
 ### Configure Advanced Options
 

@@ -69,11 +69,11 @@ After installing and starting Ignition, go to **Connections > OPC > OPC server s
 
 The default Ignition configuration is bound to `localhost`, and the endpoint addresses include `<hostname>` and `localhost`:
 
-![Default Ignition endpoint](../../../assets/opcua-ignition-01.png)
+![Default Ignition endpoint](../../../assets/opcua-ignition-01.webp)
 
 In that state, if TDengine and Ignition live on different servers the connection will fail because Ignition only listens on the local port `62541`. Change Bind Addresses to `0.0.0.0` and add the Ignition server IP to the endpoint addresses:
 
-![Ignition rebound to 0.0.0.0](../../../assets/opcua-ignition-02.png)
+![Ignition rebound to 0.0.0.0](../../../assets/opcua-ignition-02.webp)
 
 You can verify that Ignition now listens on `0.0.0.0:62541` from `cmd`:
 
@@ -81,11 +81,11 @@ You can verify that Ignition now listens on `0.0.0.0:62541` from `cmd`:
 netstat -ano | findstr 62541
 ```
 
-![netstat verifies the listening address](../../../assets/opcua-ignition-03.png)
+![netstat verifies the listening address](../../../assets/opcua-ignition-03.webp)
 
 After the changes you can connect taosExplorer to Ignition with anonymous mode:
 
-![taosExplorer anonymous connection to Ignition](../../../assets/opcua-ignition-04.png)
+![taosExplorer anonymous connection to Ignition](../../../assets/opcua-ignition-04.webp)
 
 :::warning
 Anonymous mode performs no identity check and no transport-layer encryption. **Use it only for short-lived testing on a trusted network**; switch to certificate encryption for production.
@@ -101,7 +101,7 @@ Adjust the configuration as shown and save:
 - **Security Mode**: `SignAndEncrypt`
 - **User Source**: `default`
 
-![Ignition security configuration](../../../assets/opcua-ignition-05.png)
+![Ignition security configuration](../../../assets/opcua-ignition-05.webp)
 
 ### Generate the client certificate
 
@@ -137,7 +137,7 @@ Switch to the **Username** tab and enter a username/password that exists in the 
 
 Run **Check Connection** again to validate:
 
-![taosExplorer certificate-based connection](../../../assets/opcua-ignition-06.png)
+![taosExplorer certificate-based connection](../../../assets/opcua-ignition-06.webp)
 
 ## Troubleshooting
 

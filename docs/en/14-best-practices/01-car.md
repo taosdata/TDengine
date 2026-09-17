@@ -30,7 +30,7 @@ Connected-vehicle systems use TDengine for component health monitoring, driving-
 
 Vehicle manufacturers collect speed, direction, accelerator position, brake-pedal position, gear, motor speed, battery-pack data, and other signals through T-Box terminals. MQTT carries the data to TDengine for real-time monitoring and historical trajectory replay.
 
-<!-- ![Connected-vehicle data architecture](../assets/carnet.png) -->
+<!-- ![Connected-vehicle data architecture](../assets/carnet.webp) -->
 
 TDengine can subscribe to external queues, parse, filter, and map messages, and monitor ingestion-task status. The system uses one table per vehicle so records for each vehicle can normally be appended in time order while different vehicles remain independent.
 

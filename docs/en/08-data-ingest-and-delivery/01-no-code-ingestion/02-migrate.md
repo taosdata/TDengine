@@ -47,12 +47,12 @@ Each row in a CSV mapping file contains a source name and a destination name in 
 
 First, click on the "Data Writing" menu on the left, then click the "Add Data Source" button on the right.
 
-![Add data source](../../assets/migrate-01.png)
+![Add data source](../../assets/migrate-01.webp)
 
 Then enter the task name, such as "migrate-test", and finally select the type "TDengine Query". At this point, the form switches to a form dedicated to migrating data from "TDengine Query", containing a large number of options, each with detailed explanations, as shown in the images below.
 
-![Configure basic settings](../../assets/migrate-02.png)
-![Configure migration options](../../assets/migrate-03.png)
-![Configure real-time mode settings](../../assets/migrate-04.png)
+![Configure basic settings](../../assets/migrate-02.webp)
+![Configure migration options](../../assets/migrate-03.webp)
+![Configure real-time mode settings](../../assets/migrate-04.webp)
 
 After clicking the "Submit" button to submit the task, return to the "Data Source" task list page to monitor the status of the task.

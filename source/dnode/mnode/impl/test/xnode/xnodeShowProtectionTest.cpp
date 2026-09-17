@@ -98,26 +98,80 @@ TEST_F(XnodeShowProtectionTest, MasksSensitiveValueWithInvalidEscapeWholesale) {
   EXPECT_EQ(Take(masked, maskedLen), "taos://alice:******@example/db?password=******");
 }
 
-TEST_F(XnodeShowProtectionTest, PreservesQuerySyntaxAndMasksEverySensitiveOccurrence) {
+TEST_F(XnodeShowProtectionTest, MasksEverySensitiveOccurrenceInQuery) {
+  const std::string input = "taos://u:p:part@[::1]/db?PASSWORD=one&pass_word=two&x=a+b&token=&%70assword=three";
+  char *masked = nullptr;
+  int32_t maskedLen = 0;
+  ASSERT_EQ(mndXnodeMaskDsnForShow(input.data(), static_cast<int32_t>(input.size()), &masked, &maskedLen),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(Take(masked, maskedLen),
+            "taos://u:******@[::1]/db?PASSWORD=******&pass_word=******&x=a+b&token=******&%70assword=******");
+}
+
+TEST_F(XnodeShowProtectionTest, StartsQueryAtLastQuestionMarkOfUrlDsn) {
+  // A URL-form DSN (with "://") starts its query at the LAST '?', matching the
+  // connector DSN parser; ';' and '#' are ordinary bytes, so the text between
+  // the authority and the last '?' is subject/path and passes through verbatim.
   const std::string input = "taos://u:p:part@[::1]/db?PASSWORD=one;pass_word=two&x=a+b&token=&%70assword=three#frag?token=visible";
   char *masked = nullptr;
   int32_t maskedLen = 0;
   ASSERT_EQ(mndXnodeMaskDsnForShow(input.data(), static_cast<int32_t>(input.size()), &masked, &maskedLen),
             TSDB_CODE_SUCCESS);
   EXPECT_EQ(Take(masked, maskedLen),
-            "taos://u:******@[::1]/db?PASSWORD=******;pass_word=******&x=a+b&token=******&%70assword=******#frag?token=visible");
+            "taos://u:******@[::1]/db?PASSWORD=one;pass_word=two&x=a+b&token=&%70assword=three#frag?token=******");
 }
 
-TEST_F(XnodeShowProtectionTest, RejectsAmbiguousAuthority) {
-  const char *inputs[] = {"taos://", "taos:///db", "taos://@host/db", "taos://u:p@/db"};
-  for (const char *input : inputs) {
+TEST_F(XnodeShowProtectionTest, TreatsSemicolonHashAndExtraQuestionMarksAsData) {
+  const struct {
+    const char *input;
+    const char *expected;
+  } cases[] = {
+      // ';' inside a sensitive value is masked together with the value; no tail
+      // leaks past the mask.
+      {"kafka://broker:9092?sasl_password=p1;p2", "kafka://broker:9092?sasl_password=******"},
+      // ';' does not start a new parameter: no phantom password param exists.
+      {"taos://alice@example/db?a=1;password=x", "taos://alice@example/db?a=1;password=x"},
+      // '#' is an ordinary value byte, not a fragment boundary.
+      {"taos://u:p@h/db?token=ab#cd", "taos://u:******@h/db?token=******"},
+      {"?token=ab#cd", "?token=******"},
+      {"taos://u:p@h/db?token=ab#x&x=1", "taos://u:******@h/db?token=******&x=1"},
+      // URL form cuts the query at the last '?'; a path-like DSN cuts it at the
+      // first '?'.
+      {"taos://h/db?a=1?token=x", "taos://h/db?a=1?token=******"},
+      {"csv:/data/x.csv?token=a?b=1", "csv:/data/x.csv?token=******"},
+  };
+  for (const auto &c : cases) {
     char *masked = nullptr;
     int32_t maskedLen = 0;
-    EXPECT_EQ(mndXnodeMaskDsnForShow(input, static_cast<int32_t>(strlen(input)), &masked, &maskedLen),
-              TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED)
-        << input;
-    EXPECT_EQ(masked, nullptr);
-    EXPECT_EQ(maskedLen, 0);
+    ASSERT_EQ(mndXnodeMaskDsnForShow(c.input, static_cast<int32_t>(strlen(c.input)), &masked, &maskedLen),
+              TSDB_CODE_SUCCESS)
+        << c.input;
+    EXPECT_EQ(Take(masked, maskedLen), c.expected) << c.input;
+  }
+}
+
+TEST_F(XnodeShowProtectionTest, PassesThroughDsnsWithoutLocatablePassword) {
+  // Authority shape alone never fails closed, matching the write path: an empty
+  // authority or an empty userinfo carries no password slot and passes through
+  // verbatim, while an empty host does not exclude the slot located by the last
+  // '@'. Query scanning still applies to pass-through DSNs.
+  const struct {
+    const char *input;
+    const char *expected;
+  } cases[] = {
+      {"taos://", "taos://"},
+      {"taos:///db", "taos:///db"},
+      {"taos://@host/db", "taos://@host/db"},
+      {"taos://u:p@/db", "taos://u:******@/db"},
+      {"tmq+ws:///db?group.id=g&token=t", "tmq+ws:///db?group.id=g&token=******"},
+  };
+  for (const auto &c : cases) {
+    char *masked = nullptr;
+    int32_t maskedLen = 0;
+    ASSERT_EQ(mndXnodeMaskDsnForShow(c.input, static_cast<int32_t>(strlen(c.input)), &masked, &maskedLen),
+              TSDB_CODE_SUCCESS)
+        << c.input;
+    EXPECT_EQ(Take(masked, maskedLen), c.expected) << c.input;
   }
 }
 
@@ -145,8 +199,9 @@ TEST_F(XnodeShowProtectionTest, MasksUserinfoSplitAtLastAtSign) {
 
 TEST_F(XnodeShowProtectionTest, PreservesBarePercentOutsideDecodedKeys) {
   // Only query keys are decoded to decide sensitivity; a literal '%' anywhere
-  // else (non-sensitive values like busy_threshold=100%, userinfo passwords,
-  // fragments) is ordinary text and must pass through verbatim.
+  // else (non-sensitive values like busy_threshold=100%, userinfo passwords) is
+  // ordinary text and must pass through verbatim. A bare '%' inside a sensitive
+  // value is masked away with the value, even when it follows a literal '#'.
   const struct {
     const char *input;
     const char *expected;
@@ -155,7 +210,7 @@ TEST_F(XnodeShowProtectionTest, PreservesBarePercentOutsideDecodedKeys) {
        "tmq+ws://127.0.0.1:6041/test?auto.offset.reset=earliest&busy_threshold=100%&client.id=asdf&password=******"},
       {"taos://u:pa%ss@h/db", "taos://u:******@h/db"},
       {"taos://u:p@h/db?x=%2", "taos://u:******@h/db?x=%2"},
-      {"taos://u:p@h/db?token=abc#f%", "taos://u:******@h/db?token=******#f%"},
+      {"taos://u:p@h/db?token=abc#f%", "taos://u:******@h/db?token=******"},
   };
   for (const auto &c : cases) {
     char *masked = nullptr;
@@ -369,9 +424,11 @@ TEST_F(XnodeShowProtectionTest, ShowSchemaLeavesRoomForProtectedValues) {
   EXPECT_EQ(TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN, 2 * 1024 * 1024);
 }
 
-TEST_F(XnodeShowProtectionTest, EmptyQueryBeforeFragmentPassesThrough) {
-  // Regression: an empty query ("?#") must skip the query rewrite branch --
-  // entering it would never advance the write position and spin forever.
+TEST_F(XnodeShowProtectionTest, EmptyQueryAndHashBytesPassThrough) {
+  // Regression: an empty query ("?") must skip the query rewrite branch --
+  // entering it would never advance the write position and spin forever. '#'
+  // is an ordinary data byte, not a fragment boundary, so a sensitive value
+  // containing it is masked wholesale.
   const struct {
     const char *input;
     const char *expected;
@@ -381,7 +438,7 @@ TEST_F(XnodeShowProtectionTest, EmptyQueryBeforeFragmentPassesThrough) {
       {"taos://h/db?", "taos://h/db?"},
       {"a?#b", "a?#b"},
       {"taos://u:p@h/db?#frag", "taos://u:******@h/db?#frag"},
-      {"taos://h/db?password=x#frag", "taos://h/db?password=******#frag"},
+      {"taos://h/db?password=x#frag", "taos://h/db?password=******"},
   };
   for (const auto &c : cases) {
     char *masked = nullptr;
@@ -394,6 +451,25 @@ TEST_F(XnodeShowProtectionTest, EmptyQueryBeforeFragmentPassesThrough) {
 }
 
 #ifndef WINDOWS
+// The e2e test below mutates process-global config state and creates a temp key
+// file mid-test; an ASSERT_* failure returns early, so cleanup hangs off these
+// scope guards instead of the happy path. Declare CfgStateGuard after
+// TempKeyFileGuard so config teardown runs before the file is removed.
+struct TempKeyFileGuard {
+  char path[64] = {0};
+  ~TempKeyFileGuard() {
+    if (path[0] != 0) (void)unlink(path);
+  }
+};
+
+struct CfgStateGuard {
+  SArray *args = nullptr;
+  ~CfgStateGuard() {
+    if (args != nullptr) taosArrayDestroy(args);
+    taosCleanupCfg();
+  }
+};
+
 // End-to-end coverage for the ENCRYPTED output mode with a real RSA public key:
 // from/to values are envelope-encrypted through the same helper the retrieve
 // path uses, and the per-page batch must finish before delivery.
@@ -408,8 +484,9 @@ TEST_F(XnodeShowProtectionTest, EncryptsJobConfigDsnValuesWithRealKey) {
       "fZkhNTV3ezdoAgUBxfwjRjh94llBRjY+9mN78sdiU6hnZQUkXjmHzVPAVa4B7qmv\n"
       "CQIDAQAB\n"
       "-----END PUBLIC KEY-----\n";
-  char path[] = "/tmp/taos-xnode-show-pub-XXXXXX";
-  const int fd = mkstemp(path);
+  TempKeyFileGuard keyFile;
+  memcpy(keyFile.path, "/tmp/taos-xnode-show-pub-XXXXXX", sizeof("/tmp/taos-xnode-show-pub-XXXXXX"));
+  const int fd = mkstemp(keyFile.path);
   ASSERT_GE(fd, 0);
   ASSERT_EQ(write(fd, kPublicKeyPem, sizeof(kPublicKeyPem) - 1),
             static_cast<ssize_t>(sizeof(kPublicKeyPem) - 1));
@@ -419,16 +496,17 @@ TEST_F(XnodeShowProtectionTest, EncryptsJobConfigDsnValuesWithRealKey) {
   // layer must be initialized before loading the config framework.
   ASSERT_EQ(osDefaultInit(), TSDB_CODE_SUCCESS);
   taosCleanupCfg();
-  SArray *args = taosArrayInit(1, sizeof(SConfigPair));
-  ASSERT_NE(args, nullptr);
+  CfgStateGuard cfgGuard;
+  cfgGuard.args = taosArrayInit(1, sizeof(SConfigPair));
+  ASSERT_NE(cfgGuard.args, nullptr);
   SConfigPair dataDir = {.name = "dataDir", .value = TD_TMP_DIR_PATH};
-  ASSERT_NE(taosArrayPush(args, &dataDir), nullptr);
-  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  ASSERT_NE(taosArrayPush(cfgGuard.args, &dataDir), nullptr);
+  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, cfgGuard.args, false), TSDB_CODE_SUCCESS);
   SConfig *config = taosGetCfg();
   ASSERT_NE(config, nullptr);
   ASSERT_EQ(cfgSetItem(config, "xnodeDsnProtection", "1", CFG_STYPE_CFG_FILE, true), TSDB_CODE_SUCCESS);
-  ASSERT_EQ(cfgSetItem(config, "xnodeDsnPublicKeyFile", path, CFG_STYPE_CFG_FILE, true), TSDB_CODE_SUCCESS);
-  ASSERT_EQ(taosApplyCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnPublicKeyFile", keyFile.path, CFG_STYPE_CFG_FILE, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taosApplyCfg("", nullptr, nullptr, nullptr, cfgGuard.args, false), TSDB_CODE_SUCCESS);
   ASSERT_NE(taosGetXnodeDsnPublicKey(), nullptr);
 
   const std::string input = "{\"from\":\"taos://user:secret-pw@host/db?token=abc\",\"to\":\"taos://sink@h2/db\"}";
@@ -450,9 +528,8 @@ TEST_F(XnodeShowProtectionTest, EncryptsJobConfigDsnValuesWithRealKey) {
   EXPECT_NE(output.find("\"to\":\""), std::string::npos);
   mndXnodeCleanupShowProtection(&show);
 
-  taosArrayDestroy(args);
-  taosCleanupCfg();
-  ASSERT_EQ(unlink(path), 0);
+  ASSERT_EQ(unlink(keyFile.path), 0);
+  keyFile.path[0] = 0;  // disarm on the happy path; the guard covers early returns
 }
 #endif
 

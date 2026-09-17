@@ -55,6 +55,24 @@ TDengine 的读缓存机制专为高频实时查询场景设计，尤其适用�
 
 关于 TDengine 读缓存的更多详细内容请看 [读缓存](../05-tdengine-sql/04-data-query/09-cache-query.md)。`LAST` / `LAST_ROW` 函数语义见 [LAST](../05-tdengine-sql/04-data-query/03-function.md#last)、[LAST_ROW](../05-tdengine-sql/04-data-query/03-function.md#last_row)；LRU、延迟加载等机制见 [整体架构：last/last_row 缓存](./01-arch.md#lastlast_row-缓存)。
 
+### 读缓存引擎参数
+
+`CACHEMODEL` 不为 `none` 时，除了上述内存中的 LRU 缓存，每个 `vnode` 还会打开一个独立的 RocksDB 实例作为持久化的 last cache 引擎，用于在内存缓存未命中或重启后为 `last`/`last_row` 查询提供数据来源。该引擎的行为可以通过以下 dnode 级参数调整（均在 `taos.cfg` 中配置，详见 [配置参数作用域对照表](../12-operations-and-tooling/03-components/10-config-scope.md)）：
+
+| 参数 | 默认值 | 取值范围 | 说明 |
+| --- | --- | --- | --- |
+| `sLastCacheWriteBufferSize` | 8 (MB) | [1, 1048576] | 每个 memtable 的写缓冲区大小 |
+| `sLastCacheMaxWriteBufferNumber` | 2 | [1, 64] | 允许同时存在的 memtable 数量上限 |
+| `sLastCacheBackgroundThreads` | 2 | [1, 256] | flush/compaction 后台线程数，每个 `vnode` 独立持有一个该大小的线程池 |
+| `sLastCacheBloomFilterBits` | 10 | [0, 32] | 每个 key 的布隆过滤器位数，减少点查时无效的 SST 文件读取；0 表示关闭 |
+| `sLastCacheMaxOpenFiles` | -1 | [-1, 1048576] | 允许同时打开的文件描述符数量上限，-1 表示不限制 |
+| `sLastCacheCompressionType` | `none` | 取决于构建时链接的压缩库 | 压缩算法 |
+| `sLastCacheOptionsOverride` | 空 | RocksDB 原生配置字符串 | 覆盖以上参数，优先级最低，供高级场景使用 |
+
+以上参数（除 `CACHESIZE` 对应的 block cache 容量外）都在 RocksDB 打开数据库实例时一次性绑定到底层 `Options`，修改后需要重启 `dnode`（或至少重新打开相关 `vnode`）才能生效，因此在配置系统中标记为延迟生效（`_LAZY`）。真正可以立即生效、无需重启的，只有通过 `ALTER DATABASE ... CACHESIZE ...` 调整的 block cache 容量：`CACHESIZE` 会平均分配给内存 LRU 缓存与该 RocksDB 引擎的 block cache（各占一半），总占用内存约等于 `CACHESIZE` 而非成倍增加，并通过原地调用 RocksDB 的容量调整接口即时生效。
+
+可以通过 [`INS_LAST_CACHE_STATS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_last_cache_stats) 系统表按 `vgroup` 观测该引擎的运行时状态，包括 block cache 容量与占用、memtable 大小、flush/compaction 积压、写入限速与 SST 文件统计等，用于验证参数调整的效果或排查写入/查询延迟问题。
+
 ## 元数据缓存
 
 为了提升查询和写入操作的效率，每个 vnode 都配备了缓存机制，用于存储其曾经获取过的元数据。这一元数据缓存的大小由创建数据库时的两个参数 pages 和 pagesize 共同决定。其中，pagesize 参数的单位是 KB，用于指定每个缓存页的大小。如下 SQL 会为数据库 power 的每个 vnode 创建 128 个 page、每个 page 16KB 的元数据缓存
