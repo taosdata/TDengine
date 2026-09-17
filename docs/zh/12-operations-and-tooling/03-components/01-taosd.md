@@ -1764,6 +1764,28 @@ ALTER ALL DNODES 'snapshotRateLimit' '50';
 ALTER ALL DNODES 'snapshotRateLimit' '0';
 ```
 
+#### snapshotMediumOnLag
+
+- 说明：当某个副本（follower）节点长期停止后重新启动、自身已有数据但落后于同副本组其它节点时，控制快照同步使用的复制模式。设置为 0 时使用逐行（normal）方式同步；设置为 1 时使用文件级增量（medium）方式同步，只传输与 leader 存在差异的文件，可降低传输量、缩短同步时间。该参数只对已有提交数据（`lastApplyIndex >= 0`）的副本生效；无数据的新副本仍使用全量（raw）方式，FSM 处于 incomplete 状态的副本不受本参数影响，始终使用 medium 方式。
+- 类型：布尔
+- 默认值：0
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，立即生效。
+- 支持版本：从 `v3.4.3.0` 版本开始引入
+
+示例：
+
+```sql
+-- 打开落后副本的文件级增量快照同步
+ALTER ALL DNODES 'snapshotMediumOnLag' '1';
+
+-- 恢复为默认的逐行快照同步
+ALTER ALL DNODES 'snapshotMediumOnLag' '0';
+
+-- 查看当前取值
+SHOW DNODE VARIABLES LIKE 'snapshotMediumOnLag';
+```
+
 #### arbHeartBeatIntervalSec
 
 - 说明：用于同步模块调试 **`内部参数`**

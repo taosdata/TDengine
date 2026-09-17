@@ -39,6 +39,7 @@ TDengine 集群中存在三类与"心跳和切主"直接相关的交互：
 | `syncHeartbeatTimeout` | 20000 | ms | 10 ~ 172800000 | 全局 | 不支持 | leader 判断副本心跳响应是否超时的阈值。当超过该时间仍未收到多数派（quorum）副本的心跳响应时，leader 会拒绝新的写入请求（propose 返回心跳超时错误） |
 | `syncSnapReplMaxWaitN` | 128 | 个 | 16 ~ 256 | 全局 | 支持，立即生效 | 快照复制时允许等待的最大日志条数。副本落后过多需要走快照复制时，若长时间无法追上，会导致该副本长时间无法参与选举 |
 | `snapshotRateLimit` | 0 | MB/s | 0 ~ 10240 | 全局 | 支持，立即生效 | 单个 dnode 上快照发送的总带宽上限，0 表示不限速。多个 vgroup 同时做快照复制时可能压满磁盘 IO，间接导致心跳超时。自 `v3.4.2.0` 引入 |
+| `snapshotMediumOnLag` | 0 | - | 0 ~ 1 | 全局 | 支持，立即生效 | 副本已有数据但落后于同副本组其它节点时，快照同步使用的复制模式。0 表示逐行（normal）方式，1 表示文件级增量（medium）方式，后者传输量更小、追赶更快。对无数据的新副本与 FSM incomplete 的副本不生效。自 `v3.4.3.0` 引入 |
 
 ### dnode 状态上报参数
 
@@ -116,6 +117,7 @@ TDengine 集群中存在三类与"心跳和切主"直接相关的交互：
 | dnode 被误判为 offline，进而引发 vgroup 批量切主 | `statusInterval`、`statusTimeoutMs`、`statusSRTimeoutMs` | 放大 `statusTimeoutMs`（例如 10000 ~ 15000），保证 `statusTimeoutMs` 显著大于 `statusIntervalMs` 的数倍 |
 | 双副本下频繁发生 assigned leader 切换 | `arbHeartBeatIntervalMs`、`arbSetAssignedTimeoutMs`、`arbCheckSyncIntervalMs` | 放大心跳周期与超时阈值，保持 `arbSetAssignedTimeoutMs` 为 `arbHeartBeatIntervalMs` 的 5 倍以上 |
 | 副本落后过多，快照复制期间心跳超时 | `snapshotRateLimit`、`syncSnapReplMaxWaitN` | 限制快照复制带宽，避免快照复制压满磁盘 IO 导致心跳超时 |
+| 落后副本快照追赶耗时过长，占用带宽过多 | `snapshotMediumOnLag` | 设置为 1，改用文件级增量（medium）方式同步，只传输存在差异的文件 |
 | 双副本下 assigned leader step down 后对端进入 restoring | `syncAssignedCheckAppliedGap` | 适当放大该阈值，等待对端 apply 追上后再 step down；设置为 0 表示不检查 |
 
 ### 调整步骤与示例

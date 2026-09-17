@@ -126,6 +126,7 @@ toc_max_heading_level: 4
 | syncHeartbeatTimeout | taosd | 用于同步模块调试 |
 | syncSnapReplMaxWaitN | taosd | 用于同步模块调试 |
 | snapshotRateLimit | taosd | 控制每个 dnode 快照发送的总带宽上限（MB/s），0 表示不限速 |
+| snapshotMediumOnLag | taosd | 副本有数据但落后时是否使用文件级增量（medium）方式做快照同步，0 表示使用逐行方式 |
 | arbHeartBeatIntervalSec | taosd | 用于同步模块调试 |
 | arbCheckSyncIntervalSec | taosd | 用于同步模块调试 |
 | arbSetAssignedTimeoutSec | taosd | 用于同步模块调试 |

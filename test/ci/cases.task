@@ -1422,6 +1422,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/01-Dnode/test_offline_reason.py -N 2 -C 1
 #,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/01-Dnode/test_use_dropped_dnode.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/01-Dnode/test_snapshot_rate_limit.py
+,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/01-Dnode/test_snapshot_medium_on_lag.py -N 3 -M 1
 ## 02-Mnode
 ,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/02-Mnode/test_mnode_basic1.py -N 2
 ,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/02-Mnode/test_mnode_basic3.py -N 4
