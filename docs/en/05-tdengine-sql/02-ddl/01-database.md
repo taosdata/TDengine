@@ -98,7 +98,7 @@ Switching CacheModel values back and forth may cause inaccurate results for last
 
 #### CACHESIZE
 
-The size of memory used for caching the latest data of subtables in each vnode. Default is 1, range is [1, 65536], in MB.
+The size of memory used for caching the latest data of subtables in each vnode. Default is 1, range is [1, 65536], in MB. When `CACHEMODEL` is not `none`, this value is split evenly between the in-memory LRU cache and the block cache of the persistent last-cache engine (backed by RocksDB) on each vnode — each gets `CACHESIZE / 2` — so total memory usage stays approximately `CACHESIZE` instead of doubling.
 
 #### CACHESHARDBITS
 
@@ -407,6 +407,12 @@ The command to modify database parameters is simple, but the difficulty lies in 
 3. Determine if `CACHESIZE` is sufficient.
 
 If cacheload is very close to cachesize, then cachesize may be too small. If cacheload is significantly less than cachesize, then cachesize is sufficient. You can decide whether to modify cachesize based on this principle. The specific modification value can be determined based on the available system memory, whether to double it or increase it several times.
+
+`ALTER DATABASE ... CACHESIZE ...` takes effect immediately, without restarting the `dnode` or reopening the `vnode`: both the in-memory LRU cache capacity and the block-cache capacity of the persistent last-cache engine (RocksDB) are resized in place, each to half of the new `CACHESIZE`. You can confirm the new capacity took effect per `vgroup` immediately via the `block_cache_capacity` column of the [`INS_LAST_CACHE_STATS`](../09-system-info/01-meta.md#ins_last_cache_stats) system table (`block_cache_capacity` will be approximately half of the new `CACHESIZE`), for example:
+
+```sql
+SELECT vgroup_id, block_cache_capacity, block_cache_usage FROM INFORMATION_SCHEMA.INS_LAST_CACHE_STATS WHERE db_name = 'db_name';
+```
 
 :::note
 Other parameters are not supported for modification in version 3.0.0.0

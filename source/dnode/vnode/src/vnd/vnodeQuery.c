@@ -2035,6 +2035,19 @@ _exit:
   return code;
 }
 
+int32_t vnodeGetLastCacheStats(void *pVnode, SLastCacheStats *pStats) {
+  SVnode *pVnodeObj = pVnode;
+  if (pVnodeObj == NULL || pVnodeObj->pTsdb == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t code = tsdbGetLastCacheStats(pVnodeObj->pTsdb, pStats);
+  if (code == 0) {
+    pStats->dnodeId = vnodeGetDnodeId();
+  }
+  return code;
+}
+
 /*
  * Get raw write metrics for a vnode
  */

@@ -104,7 +104,7 @@ database_option: {
 
 #### CACHESIZE
 
-表示每个 `vnode` 中用于缓存子表最近数据的内存大小。默认为 `1`，取值范围为 `[1, 65536]`，单位为 MB。
+表示每个 `vnode` 中用于缓存子表最近数据的内存大小。默认为 `1`，取值范围为 `[1, 65536]`，单位为 MB。当 `CACHEMODEL` 不为 `none` 时，该值会在 LRU 缓存与持久化 last cache 引擎（基于 RocksDB）的 block cache 之间平均分配（各占 `CACHESIZE / 2`），总占用内存约等于 `CACHESIZE`，不会因为同时存在两级缓存而成倍增加。
 
 #### CACHESHARDBITS
 
@@ -438,6 +438,12 @@ ALTER DATABASE db_name CACHESHARDBITS value;
 - 如果 `cacheload` 非常接近 `CACHESIZE`，则 `CACHESIZE` 可能过小。
 - 如果 `cacheload` 明显小于 `CACHESIZE`，则 `CACHESIZE` 通常够用。
 - 可以根据系统可用内存情况，决定将 `CACHESIZE` 加倍或提高几倍。
+
+`ALTER DATABASE ... CACHESIZE ...` 修改后立即生效，无需重启 `dnode` 或重新打开 `vnode`：内存中的 LRU 缓存容量与持久化 last cache 引擎（RocksDB）的 block cache 容量会同时原地调整，各占新 `CACHESIZE` 的一半。可以通过 [`INS_LAST_CACHE_STATS`](../09-system-info/01-meta.md#ins_last_cache_stats) 系统表的 `block_cache_capacity` 列，按 `vgroup` 立即确认新容量是否已生效（`block_cache_capacity` 约为新 `CACHESIZE` 的一半），例如：
+
+```sql
+SELECT vgroup_id, block_cache_capacity, block_cache_usage FROM INFORMATION_SCHEMA.INS_LAST_CACHE_STATS WHERE db_name = 'db_name';
+```
 
 :::note
 其他参数暂不支持修改。

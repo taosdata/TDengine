@@ -75,6 +75,7 @@ extern "C" {
 #define TSDB_INS_TABLE_ENCRYPTIONS         "ins_encryptions"
 #define TSDB_INS_TABLE_TSMAS               "ins_tsmas"
 #define TSDB_INS_DISK_USAGE                "ins_disk_usage"
+#define TSDB_INS_TABLE_LAST_CACHE_STATS    "ins_last_cache_stats"
 #define TSDB_INS_TABLE_FILESETS            "ins_filesets"
 #define TSDB_INS_TABLE_TRANSACTION_DETAILS "ins_transaction_details"
 #define TSDB_INS_TABLE_SNAP_SEND_VNODES     "ins_snap_send_vnodes"

@@ -73,7 +73,7 @@ import ConnectorType from "../08-connectors-reference/resources/_connector_type.
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.8.3</version>
+  <version>3.9.1</version>
 </dependency>
 ```
 

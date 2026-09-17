@@ -431,6 +431,18 @@ extern int32_t tsSsBlockSize;
 extern int32_t tsSsBlockCacheSize;
 extern int32_t tsSsPageCacheSize;
 
+// last cache rocksdb engine tuning
+// block cache size is derived per-vnode from CACHESIZE (see tsdbOpenRocksCache), not a global dnode config.
+#define TSDB_LAST_CACHE_COMPRESSION_TYPE_LEN 16
+#define TSDB_LAST_CACHE_OPTIONS_OVERRIDE_LEN 1024
+extern int32_t tsLastCacheWriteBufferSize;
+extern int32_t tsLastCacheMaxWriteBufferNumber;
+extern int32_t tsLastCacheBackgroundThreads;
+extern int32_t tsLastCacheBloomFilterBits;
+extern int32_t tsLastCacheMaxOpenFiles;
+extern char    tsLastCacheCompressionType[TSDB_LAST_CACHE_COMPRESSION_TYPE_LEN];
+extern char    tsLastCacheOptionsOverride[TSDB_LAST_CACHE_OPTIONS_OVERRIDE_LEN];
+
 extern int32_t sessionPerUser; 
 extern int32_t sessionConnTime; 
 extern int32_t sessionConnIdleTime;
