@@ -1109,7 +1109,7 @@ static int32_t mndStreamValidateCreate(SMnode *pMnode, SRpcMsg *pReq, SCMCreateS
       SDbObj *pTrigDb = mndAcquireDb(pMnode, pCreate->triggerDB);
       if (pTrigDb == NULL) {
         skipTriggerDbCheck = true;
-        mDebug("stream:%s triggerDB '%s' not in sdb, treated as ext-source db — skipping privilege check",
+        mDebug("stream:%s triggerDB '%s' not in sdb, treated as ext-source db - skipping privilege check",
                pCreate->name, pCreate->triggerDB);
       } else {
         mndReleaseDb(pMnode, pTrigDb);
@@ -1152,7 +1152,7 @@ static int32_t mndStreamValidateCreate(SMnode *pMnode, SRpcMsg *pReq, SCMCreateS
         SDbObj *pCDb = mndAcquireDb(pMnode, calcDB);
         if (pCDb == NULL) {
           skipCalcDbCheck = true;
-          mDebug("stream:%s calcDB '%s' not in sdb, treated as ext-source db — skipping privilege check",
+          mDebug("stream:%s calcDB '%s' not in sdb, treated as ext-source db - skipping privilege check",
                  pCreate->name, calcDB);
         } else {
           mndReleaseDb(pMnode, pCDb);
@@ -2626,7 +2626,7 @@ static int32_t mndProcessCreateStreamFinal(SRpcMsg *pReq, SCMCreateStreamReq *pC
   code = mndStreamValidateCreate(pMnode, pReq, pCreate);
   TSDB_CHECK_CODE(code, lino, _OVER);
 
-  /* === P1 B2: federated query — fill encryptedPassword into extSpecs ===
+  /* === P1 B2: federated query  -  fill encryptedPassword into extSpecs ===
    * taosc leaves SStreamExtTriggerSpec.encryptedPassword zero on purpose
    * (DS Sec 6.1.1 "password fill responsibility split"). For each unique
    * sourceName, look up the AES-CBC ciphertext from mnode-local sdb

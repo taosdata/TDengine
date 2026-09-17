@@ -150,7 +150,7 @@ static int32_t metaCheckDropTableReq(SMeta *pMeta, int64_t version, SVDropTbReq 
 
   // Vacuum internal (version < 0): verify pNameIdx[name] still maps to the caller's uid.
   // A new CREATE may have already reclaimed the name after ROLLBACK. In that case, the
-  // old uid's entry is orphaned — we must NOT proceed or we would corrupt the new table.
+  // old uid's entry is orphaned  -  we must NOT proceed or we would corrupt the new table.
   if (version < 0 && pReq->uid != 0 && uidFromName != pReq->uid) {
     metaULock(pMeta);
     metaInfo("vgId:%d, %s: vacuum uid %" PRId64 " but pNameIdx[%s]=%" PRId64 " (name reclaimed), skip",
@@ -180,7 +180,7 @@ static int32_t metaCheckDropTableReq(SMeta *pMeta, int64_t version, SVDropTbReq 
   }
   metaULock(pMeta);
 
-  // metaGetInfo locks internally — call without holding our lock
+  // metaGetInfo locks internally  -  call without holding our lock
   code = metaGetInfo(pMeta, pReq->uid, &info, NULL);
   if (TSDB_CODE_SUCCESS != code) {
     metaError("vgId:%d, %s failed at %s:%d since table %s uid %" PRId64
@@ -343,7 +343,7 @@ int32_t metaDropSuperTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
     metaULock(pMeta);
     if (fetchCode == 0 && pExist != NULL && pExist->txnId == pReq->txnId) {
       if (pExist->txnStatus == META_TXN_PRE_ALTER) {
-        // Same-txn ALTER→DROP: undo ALTER first, then check restored state
+        // Same-txn ALTER -> DROP: undo ALTER first, then check restored state
         int64_t prevVer = pExist->txnOrigVer;
         metaFetchEntryFree(&pExist);
         if (prevVer >= 0) {
@@ -369,7 +369,7 @@ int32_t metaDropSuperTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
       }
 
       if (pExist != NULL && pExist->txnStatus == META_TXN_PRE_CREATE) {
-        // Same-txn CREATE→DROP: undo by physically deleting STB
+        // Same-txn CREATE -> DROP: undo by physically deleting STB
         metaFetchEntryFree(&pExist);
         SMetaEntry delEntry = {
             .version = verison,
@@ -400,7 +400,7 @@ int32_t metaDropSuperTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
     }
 
   _stb_mark_pre_drop:
-    // Normal txn DROP: mark as PRE_DROP (snapshot isolation — STB remains visible)
+    // Normal txn DROP: mark as PRE_DROP (snapshot isolation  -  STB remains visible)
     code = metaMarkTableTxnStatus(pMeta, pReq->suid, pReq->txnId, META_TXN_PRE_DROP, -1);
     if (code) {
       metaError("vgId:%d, %s failed to mark PRE_DROP for stb uid:%" PRId64 " name:%s txnId:%" PRIu64,
@@ -526,7 +526,7 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
   }
 
 _check_stb:
-  // check super table existence — use UID-based lookup (cheaper than name→UID→entry chain)
+  // check super table existence  -  use UID-based lookup (cheaper than name -> UID -> entry chain)
   // metaRLock guards metaFetchEntryByUid's tdb reads.
   metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pReq->ctb.suid, &pStbEntry);
@@ -632,7 +632,7 @@ static int32_t metaCreateChildTable(SMeta *pMeta, int64_t version, SVCreateTbReq
       .ctbEntry.suid = pReq->ctb.suid,
       .ctbEntry.pTags = pReq->ctb.pTag,
   };
-  // Batch meta txn: shadow-in-B+tree — write with PRE_CREATE status, invisible until COMMIT
+  // Batch meta txn: shadow-in-B+tree  -  write with PRE_CREATE status, invisible until COMMIT
   if (pReq->txnId != 0) {
     entry.txnId = pReq->txnId;
     entry.txnStatus = META_TXN_PRE_CREATE;
@@ -754,10 +754,10 @@ static int32_t metaBuildCreateNormalTableRsp(SMeta *pMeta, SMetaEntry *pEntry, S
   }
 
   // owned tags (CREATE TABLE ... TAGS on a plain normal table): append the tag schema so the
-  // client catalog does not cache a tag-less meta — same fix as the virtual-normal-table path.
+  // client catalog does not cache a tag-less meta  -  same fix as the virtual-normal-table path.
   code = metaAppendNtbTagSchemaToRsp(pEntry, *ppRsp);
   if (code) {
-    // pSchemas/pSchemaExt are already populated by metaUpdateMetaRsp above — deep-free them
+    // pSchemas/pSchemaExt are already populated by metaUpdateMetaRsp above  -  deep-free them
     // (mirrors metaBuildCreateVirtualNormalTableRsp), else the shallow free leaks both buffers.
     tFreeSTableMetaRsp(*ppRsp);
     taosMemoryFreeClear(*ppRsp);
@@ -850,7 +850,7 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
       .pExtSchemas = pReq->pExtSchemas,
   };
   TABLE_SET_COL_COMPRESSED(entry.flags);
-  // Batch meta txn: shadow-in-B+tree — write with PRE_CREATE status, invisible until COMMIT
+  // Batch meta txn: shadow-in-B+tree  -  write with PRE_CREATE status, invisible until COMMIT
   if (pReq->txnId != 0) {
     entry.txnId = pReq->txnId;
     entry.txnStatus = META_TXN_PRE_CREATE;
@@ -971,7 +971,7 @@ static int32_t metaCreateVirtualNormalTable(SMeta *pMeta, int64_t version, SVCre
                       .pExtSchemas = pReq->pExtSchemas,
                       .colRef = pReq->colRef,
                       .series = pReq->series};
-  // Batch meta txn: shadow-in-B+tree — write with PRE_CREATE status, invisible until COMMIT
+  // Batch meta txn: shadow-in-B+tree  -  write with PRE_CREATE status, invisible until COMMIT
   if (pReq->txnId != 0) {
     entry.txnId = pReq->txnId;
     entry.txnStatus = META_TXN_PRE_CREATE;
@@ -1367,7 +1367,7 @@ static int32_t metaCreateVirtualChildTable(SMeta *pMeta, int64_t version, SVCrea
                       .ctbEntry.pTags = pReq->ctb.pTag,
                       .colRef = pReq->colRef,
                       .series = pReq->series};
-  // Batch meta txn: shadow-in-B+tree — write with PRE_CREATE status, invisible until COMMIT
+  // Batch meta txn: shadow-in-B+tree  -  write with PRE_CREATE status, invisible until COMMIT
   if (pReq->txnId != 0) {
     entry.txnId = pReq->txnId;
     entry.txnStatus = META_TXN_PRE_CREATE;
@@ -1439,7 +1439,7 @@ int32_t metaCreateTable2(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STa
 /**
  * Mark an existing entry with txnId/txnStatus in-place (shadow-in-B+tree).
  * Reads the entry from pTbDb, updates txnId/txnStatus, re-encodes, and writes back.
- * Indexes are NOT modified — the entry remains visible but filtered by txnStatus.
+ * Indexes are NOT modified  -  the entry remains visible but filtered by txnStatus.
  */
 int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOrigVer) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1597,8 +1597,8 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
   // Capture info needed to undo the stats change applied by ALTER.
   // Only non-virtual STB and non-virtual NTB contribute to timeseries stats;
   // virtual types (TSDB_VIRTUAL_NORMAL_TABLE, or TSDB_SUPER_TABLE with VIRTUAL flag)
-  // never affect stats — exclude them here to avoid a redundant check at apply time.
-  // Capture before metaReaderClear — mr.me memory is decoder-managed.
+  // never affect stats  -  exclude them here to avoid a redundant check at apply time.
+  // Capture before metaReaderClear  -  mr.me memory is decoder-managed.
   int8_t  statsType = -1;  // TSDB_SUPER_TABLE / TSDB_NORMAL_TABLE; -1 = skip
   int32_t newNcols = 0;
   char    stbName[TSDB_TABLE_NAME_LEN] = {0};
@@ -1642,7 +1642,7 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
   }
 
   // Delete the new-version entry from pTbDb, read old entry, restore pUidIdx,
-  // and drop cache — all under WLock to serialize with async vacuum.
+  // and drop cache  -  all under WLock to serialize with async vacuum.
   STbDbKey newKey = {.version = newVersion, .uid = uid};
   SUidIdxVal uidVal = {.version = prevVersion};
   metaWLock(pMeta);
@@ -1687,7 +1687,7 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
         }
       }
     } else {
-      // Old entry missing from pTbDb — likely data corruption.
+      // Old entry missing from pTbDb  -  likely data corruption.
       // Must still write pUidIdx (otherwise table becomes invisible), but skmVer=0
       // will cause client schema mismatch on INSERT. Log ERROR for operator awareness.
       metaError("vgId:%d, rollback alter: cannot read prev entry ver %" PRId64 " uid %" PRId64
@@ -1704,9 +1704,9 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
     return code;
   }
 
-  // Do NOT clear txnId/txnStatus on the old entry — it retains its original state.
+  // Do NOT clear txnId/txnStatus on the old entry  -  it retains its original state.
   // For pre-existing tables: old entry already has txnId=0, txnStatus=NORMAL.
-  // For same-txn CREATE→ALTER: old entry retains PRE_CREATE, enabling chained rollback.
+  // For same-txn CREATE -> ALTER: old entry retains PRE_CREATE, enabling chained rollback.
 
   // Drop the meta cache entry so next lookup reads the restored version from pUidIdx.
   // The cache only updates to higher versions (never downgrades), so without this
@@ -1746,14 +1746,14 @@ int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
     // Check if the table was created (or altered) within the same txn.
     // PRE_CREATE: simple undo (physically delete the entry).
     // PRE_ALTER from same txn: undo ALTER first, then check if restored entry is PRE_CREATE.
-    // This handles CREATE→DROP and CREATE→ALTER→DROP chains.
+    // This handles CREATE -> DROP and CREATE -> ALTER -> DROP chains.
     SMetaEntry *pExist = NULL;
     metaRLock(pMeta);
     int32_t     fetchCode = metaFetchEntryByUid(pMeta, pReq->uid, &pExist);
     metaULock(pMeta);
     if (fetchCode == 0 && pExist != NULL && pExist->txnId == pReq->txnId) {
       if (pExist->txnStatus == META_TXN_PRE_ALTER) {
-        // Same-txn ALTER→DROP: undo ALTER first to restore previous version
+        // Same-txn ALTER -> DROP: undo ALTER first to restore previous version
         int64_t prevVer = pExist->txnOrigVer;
         metaFetchEntryFree(&pExist);
         if (prevVer >= 0) {
@@ -1771,7 +1771,7 @@ int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
               pExist->txnStatus == META_TXN_PRE_CREATE) {
             // Fall through to PRE_CREATE undo below
           } else {
-            // Restored entry is pre-existing (NORMAL) — mark as PRE_DROP
+            // Restored entry is pre-existing (NORMAL)  -  mark as PRE_DROP
             metaFetchEntryFree(&pExist);
             goto _mark_pre_drop;
           }
@@ -1782,7 +1782,7 @@ int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
       }
 
       if (pExist != NULL && pExist->txnStatus == META_TXN_PRE_CREATE) {
-        // Same-txn CREATE→DROP: undo the create by physically deleting the entry
+        // Same-txn CREATE -> DROP: undo the create by physically deleting the entry
         metaFetchEntryFree(&pExist);
         SMetaEntry delEntry = {
             .version = version,
@@ -1818,7 +1818,7 @@ int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
     }
 
   _mark_pre_drop:
-    // Normal txn DROP: mark as PRE_DROP (snapshot isolation — entry remains visible to other sessions)
+    // Normal txn DROP: mark as PRE_DROP (snapshot isolation  -  entry remains visible to other sessions)
     code = metaMarkTableTxnStatus(pMeta, pReq->uid, pReq->txnId, META_TXN_PRE_DROP, -1);
     if (code) {
       metaError("vgId:%d, %s failed to mark PRE_DROP for uid:%" PRId64 " name:%s txnId:%" PRId64, TD_VID(pMeta->pVnode),
@@ -1895,7 +1895,7 @@ static int32_t metaCheckAlterTableColumnReq(SMeta *pMeta, int64_t version, SVAlt
   int64_t uid = *(int64_t *)value;
   tdbFreeClear(value);
 
-  // check table type — metaGetInfo acquires RLock internally; call without holding our lock
+  // check table type  -  metaGetInfo acquires RLock internally; call without holding our lock
   SMetaInfo info;
   if (metaGetInfo(pMeta, uid, &info, NULL) != 0) {
     metaError("vgId:%d, %s failed at %s:%d since table %s uid %" PRId64
@@ -2246,7 +2246,7 @@ static int32_t metaRebuildVChildTagBlob(SMetaEntry *pEntry, const SSchemaWrapper
   }
 
   // Rebuild unconditionally. tTagNew yields a valid empty STag (nTag==0) for an empty array,
-  // which is the correct outcome when no remaining tag has a stored value — e.g. after dropping
+  // which is the correct outcome when no remaining tag has a stored value  -  e.g. after dropping
   // the only tag that had a literal. Short-circuiting here would leave the old blob (which may
   // still physically contain a just-dropped colId/value) as orphaned stale data.
   STag *pNewTag = NULL;
@@ -2486,7 +2486,7 @@ _exit:
 
 // Drop an own (extension) tag from a virtual child table. The tag schema is removed from the own
 // area, its reference (if any) is compacted out of the sparse colRef.pTagRef array, and the shared
-// tag blob is rebuilt with the trimmed merged schema — metaRebuildVChildTagBlob drops the stored
+// tag blob is rebuilt with the trimmed merged schema  -  metaRebuildVChildTagBlob drops the stored
 // literal value because its colId is no longer in the merged schema. Only virtual child tables
 // reach here (enforced by the parser / dispatcher).
 int32_t metaDropVChildOwnTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
@@ -2871,7 +2871,7 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
   TAOS_RETURN(code);
 }
 
-// Keep colRef.pTagRef sized to schemaTag (one slot per tag), so each tag — owned or ref — has a
+// Keep colRef.pTagRef sized to schemaTag (one slot per tag), so each tag  -  owned or ref  -  has a
 // matching entry (owned entries stay hasRef=false). New slots are zeroed except id = tag colId.
 static int32_t metaEnsureTagRefSize(SColRefWrapper *pColRef, SSchemaWrapper *pTagSchema) {
   int32_t nTags = pTagSchema->nCols;
@@ -2881,7 +2881,7 @@ static int32_t metaEnsureTagRefSize(SColRefWrapper *pColRef, SSchemaWrapper *pTa
   pColRef->pTagRef = pNew;
   for (int32_t i = pColRef->nTagRefs; i < nTags; i++) {
     SColRef *p = &pColRef->pTagRef[i];
-    memset(p, 0, sizeof(SColRef));  // zero all fields incl. ext (refType/refSourceName/refSchemaName/tagCondLen/tagCondJson) — tEncodeSColRefExt reads them when hasRef
+    memset(p, 0, sizeof(SColRef));  // zero all fields incl. ext (refType/refSourceName/refSchemaName/tagCondLen/tagCondJson)  -  tEncodeSColRefExt reads them when hasRef
     p->id = pTagSchema->pSchema[i].colId;
   }
   pColRef->nTagRefs = nTags;
@@ -2916,7 +2916,7 @@ int32_t metaAddTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STabl
   }
 
   // tag-refs are virtual-normal-table only; a ref request on a plain normal table must be
-  // rejected here, not silently degraded to an owned tag (parser already gates this — this is
+  // rejected here, not silently degraded to an owned tag (parser already gates this  -  this is
   // the vnode-side backstop, mirroring metaAlterTagRef's type gate)
   if (pEntry->type == TSDB_NORMAL_TABLE && pReq->refDbName != NULL) {
     metaError("vgId:%d, %s failed at %s:%d since tag-ref on normal table %s is not supported, version:%" PRId64,
@@ -2971,8 +2971,8 @@ int32_t metaAddTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STabl
   pNewTag->colId = pEntry->ntbEntry.ncid++;
   tstrncpy(pNewTag->name, pReq->colName, TSDB_COL_NAME_LEN);
 
-  // For virtual normal tables, keep colRef.pTagRef in sync with schemaTag and — for a tag-ref
-  // (pReq->refDbName set) — record the source reference on the new tag's slot. Normal tables have
+  // For virtual normal tables, keep colRef.pTagRef in sync with schemaTag and  -  for a tag-ref
+  // (pReq->refDbName set)  -  record the source reference on the new tag's slot. Normal tables have
   // no colRef and never carry tag-refs (the parser gates tag-refs to virtual normal tables).
   if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     code = metaEnsureTagRefSize(&pEntry->colRef, pTagSchema);
@@ -3000,7 +3000,7 @@ int32_t metaAddTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STabl
     pEntry->colRef.version++;
   }
 
-  // rebuild pTags: STag is a sparse KV — copy existing non-null values (read via tTagGet),
+  // rebuild pTags: STag is a sparse KV  -  copy existing non-null values (read via tTagGet),
   // the new tag stays absent (NULL). Rebuild with the bumped schemaTag.version for consistency.
   const STag *pOldTag = (const STag *)pEntry->ntbEntry.pTags;
   SArray     *pTagArray = taosArrayInit(pTagSchema->nCols, sizeof(STagVal));
@@ -3041,7 +3041,7 @@ int32_t metaAddTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STabl
   }
 
   // response: full meta (columns + colRef + owned-tag schema) so the client catalog does not
-  // cache a tag-less/stale meta after ALTER ADD TAG. Only build it after a successful persist —
+  // cache a tag-less/stale meta after ALTER ADD TAG. Only build it after a successful persist --
   // otherwise pRsp would describe changes that were not actually persisted.
   if (code == TSDB_CODE_SUCCESS) {
     int32_t rspCode = metaFillNtbTableMetaRsp(pEntry, pReq->tbName, pRsp);
@@ -3085,7 +3085,7 @@ int32_t metaDropTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STab
   pEntry->version = version;
   SSchemaWrapper *pTagSchema = &pEntry->ntbEntry.schemaTag;
 
-  // find the tag by name (resolve by name — robust whether colId was supplied by the catalog)
+  // find the tag by name (resolve by name  -  robust whether colId was supplied by the catalog)
   int32_t dropIdx = -1;
   for (int32_t i = 0; i < pTagSchema->nCols; i++) {
     if (strncmp(pTagSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
@@ -3112,7 +3112,7 @@ int32_t metaDropTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STab
     SSchema *pShrunk = taosMemoryRealloc(pTagSchema->pSchema, sizeof(SSchema) * pTagSchema->nCols);
     if (pShrunk != NULL) pTagSchema->pSchema = pShrunk;  // on failure keep the (over-sized) buffer
   } else {
-    // last tag dropped: the schema goes empty but version stays monotonic — a reset to 0 would
+    // last tag dropped: the schema goes empty but version stays monotonic  -  a reset to 0 would
     // make the alter response look stale to the client catalog cache (ctgWriteTbMetaToCache
     // ignores updates whose sversion/tversion/rversion do not advance) and would be lost on
     // restart anyway, breaking every later tag alter on the same connection.
@@ -3168,7 +3168,7 @@ int32_t metaDropTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STab
     taosMemoryFree(pEntry->ntbEntry.pTags);
     pEntry->ntbEntry.pTags = (uint8_t *)pNewTagVal;
   } else {
-    // last tag dropped: keep a valid (empty) STag instead of NULL — the entry's tag trailer is
+    // last tag dropped: keep a valid (empty) STag instead of NULL  -  the entry's tag trailer is
     // still written (schemaTag.version stays monotonic) and must stay encodable.
     SArray *pTagArray = taosArrayInit(1, sizeof(STagVal));
     if (pTagArray == NULL) {
@@ -3197,7 +3197,7 @@ int32_t metaDropTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STab
   }
 
   // response: full meta (columns + colRef + owned-tag schema) so the client catalog does not
-  // cache a stale meta after ALTER DROP TAG. Only build it after a successful persist —
+  // cache a stale meta after ALTER DROP TAG. Only build it after a successful persist --
   // otherwise pRsp would describe changes that were not actually persisted.
   if (code == TSDB_CODE_SUCCESS) {
     int32_t rspCode = metaFillNtbTableMetaRsp(pEntry, pReq->tbName, pRsp);
@@ -4605,7 +4605,7 @@ static int32_t metaGetChildUidsByTagCond(SMeta *pMeta, tb_uid_t suid, SNode *pTa
 
   // Step 3: Apply pTagCond to filter the candidate UIDs
   if (pTagCond == NULL) {
-    // No tag condition — all candidates qualify
+    // No tag condition  -  all candidates qualify
     taosArraySwap(pUidList, pCandidateUids);
   } else {
     // Evaluate pTagCond per child table
@@ -4643,7 +4643,7 @@ int32_t metaGetChildUidsByWhere(SMeta *pMeta, tb_uid_t suid, SNode *pWhere, SArr
   SNode  *pTagIndexCond = NULL;
 
   if (pWhere == NULL) {
-    // No WHERE condition — return all child table UIDs
+    // No WHERE condition  -  return all child table UIDs
     return metaGetChildUidsByTagCond(pMeta, suid, NULL, NULL, pUidList);
   }
 
@@ -4685,7 +4685,7 @@ int32_t metaPreScanChildTableTagUpdate(SMeta *pMeta, SVAlterTbReq *pReq, SArray 
   if (pReq->whereLen > 0) {
     // nodesMsgToNode() byte-swaps the TLV headers of its input buffer IN PLACE (tlvGetNextTlv
     // does ntohs/ntohl on pBuf despite the const contract). This prescan is the FIRST of two
-    // decodes of pReq->where within one txn apply — the authoritative metaUpdateTableChildTable
+    // decodes of pReq->where within one txn apply  -  the authoritative metaUpdateTableChildTable
     // TagValue() decodes it again. Decoding the original here would corrupt it and make the
     // second decode fail ("invalid where condition"). Decode a private copy so pReq->where stays
     // pristine for the real update. (Non-txn path has no prescan, so it never hit this.)
@@ -5536,7 +5536,7 @@ int32_t metaAlterTagRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STabl
   pEntry->colRef.version++;
 
   // set tag value to NULL (ref resolves dynamically)
-  // For virtual child tables the tag value is in ctbEntry.pTags — we leave it as-is,
+  // For virtual child tables the tag value is in ctbEntry.pTags  -  we leave it as-is,
   // query-time resolution will override with source value.
   // For virtual normal tables, drop the static value from ntbEntry.pTags so the value
   // fully follows the source (and never resurfaces as a stale literal).

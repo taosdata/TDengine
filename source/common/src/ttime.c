@@ -373,9 +373,9 @@ int32_t taosValidateTimezone(const char *tzStr, timezone_t *pTz) {
   } else if (strncasecmp(tzStr, "UTC+", 4) == 0 ||
              strncasecmp(tzStr, "UTC-", 4) == 0) {
     /*
-     * All UTC± formats use POSIX sign convention (+ = west, - = east).
-     *  - "UTC+8", "UTC-10"  → short form, only the prefix case is normalized.
-     *  - "UTC+08:00", "UTC+0530" → long form, strip "UTC" prefix
+     * All UTC offset formats use POSIX sign convention (+ = west, - = east).
+     *  - "UTC+8", "UTC-10" -> short form, only the prefix case is normalized.
+     *  - "UTC+08:00", "UTC+0530" -> long form, strip the "UTC" prefix
      *    and convert to angle-bracket format (sign preserved).
      */
     const char *off = tzStr + 4;       /* digits after 'UTC+' or 'UTC-' */
@@ -423,7 +423,7 @@ _end:
 }
 
 /*
- * Normalize a fixed-offset string to POSIX UTC±h[:mm] format.
+ * Normalize a fixed-offset string to POSIX UTC+h[:mm] format.
  * Input: sign + digits (+08:00, +0800, +08, -05:30, -0530, -05)
  * All offsets use POSIX sign convention: + = west, - = east.
  * Output: "UTC+8", "UTC-5:30", etc. (sign preserved, format simplified)
@@ -489,7 +489,7 @@ int32_t taosValidateAndNormalizeTimezone(const char *tzStr,
     goto validate;
   }
 
-  /* UTC± prefix: all formats use POSIX sign convention (+ = west, - = east) */
+  /* UTC offset prefix: all formats use POSIX sign convention (+ = west, - = east). */
   if (strncasecmp(tzStr, "UTC", 3) == 0 && (tzStr[3] == '+' || tzStr[3] == '-')) {
     const char *off = tzStr + 4;
     bool isIso = false;
@@ -500,7 +500,7 @@ int32_t taosValidateAndNormalizeTimezone(const char *tzStr,
       }
     }
     if (isIso) {
-      /* Long form: UTC+08:00, UTC+0530 -> simplify to UTC±h[:mm] */
+      /* Long form: UTC+08:00, UTC+0530 -> simplify to UTC+h[:mm]. */
       const char *src = tzStr + 3; /* "+08:00" or "-0530" etc. */
       char padded[TD_TIMEZONE_LEN];
       if (src[1] >= '0' && src[1] <= '9' && !(src[2] >= '0' && src[2] <= '9')) {
@@ -510,13 +510,13 @@ int32_t taosValidateAndNormalizeTimezone(const char *tzStr,
       }
       TZ_REJECT_IF(!normalizeOffsetToPosixUtc(src, normBuf, normBufLen));
     } else {
-      /* Short form: UTC-8, UTC+10 — keep the offset, canonicalize the case */
+      /* Short form: UTC-8, UTC+10 - keep the offset and canonicalize the case. */
       canonicalizeUtcPrefix(tzStr, normBuf, normBufLen);
     }
     goto validate;
   }
 
-  /* Bare fixed-offset: +08:00, +0800, +08, -05:30 etc. -> POSIX UTC±h[:mm] */
+  /* Bare fixed offset: +08:00, +0800, +08, -05:30, etc. -> POSIX UTC+h[:mm]. */
   if (tzStr[0] == '+' || tzStr[0] == '-') {
     /* Require 2-digit hours */
     TZ_REJECT_IF(!(tzStr[1] >= '0' && tzStr[1] <= '9')
@@ -525,7 +525,7 @@ int32_t taosValidateAndNormalizeTimezone(const char *tzStr,
     goto validate;
   }
 
-  /* IANA name (contains '/') — pass through */
+  /* IANA name (contains '/') - pass through. */
   {
     const char *p = tzStr;
     bool hasSlash = false;
@@ -539,7 +539,7 @@ int32_t taosValidateAndNormalizeTimezone(const char *tzStr,
     }
   }
 
-  /* Windows canonical name — try mapping to IANA */
+  /* Windows canonical name - try mapping to IANA. */
   {
     const char *ianaName = taosWindowsNameToIana(tzStr);
     if (ianaName != NULL) {
@@ -860,8 +860,8 @@ int32_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-// 连续 N 个月的最少天数（N = 0..12）
-// index 0 表示 0 个月
+// Minimum days in N consecutive months (N = 0..12).
+// Index 0 represents zero months.
 static const int32_t MIN_DAYS_IN_N_MONTHS[13] = {
     0,    // 0
     28,   // 1
@@ -896,7 +896,7 @@ static const int32_t MIN_DAYS_IN_N_MONTHS[13] = {
  *
  * - Year ('y' / 'Y'):
  *   Interpreted as a count of consecutive calendar years. Each year is treated
- *   as 365 days. Leap years are intentionally ignored; the ±1 day deviation is
+ *   as 365 days. Leap years are intentionally ignored; the +/-1 day deviation is
  *   acceptable for window comparison purposes.
  *
  * General notes:
@@ -970,7 +970,7 @@ int32_t convertCalendarTimeFromUnitToPrecision(
             if (time > INT64_MAX / 365) {
               return TSDB_CODE_INVALID_PARA;
             }
-            // 连续 time 年的最少天数（忽略闰年）
+            // Minimum days in consecutive time years (leap years ignored).
             totalDays = time * 365;
             break;
         }
@@ -1440,7 +1440,7 @@ int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey,
     /*
      * d/w are stored as ticks; count whole local calendar days (DST-aware) so the
      * estimate matches taosTimeAdd's 23h/25h calendar-day stepping, instead of a
-     * fixed (ekey-skey)/interval that drifts by ±1h across each DST transition.
+     * fixed (ekey-skey)/interval that drifts by +/-1h across each DST transition.
      */
     int64_t factor = (int64_t)(TSDB_TICK_PER_SECOND(precision));
     int64_t stepDays = interval / (86400LL * factor);

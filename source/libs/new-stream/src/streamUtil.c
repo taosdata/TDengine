@@ -483,8 +483,8 @@ void stmDestroySStreamInfo(void* param) {
 }
 
 /* 
- * JSON_CHECK_ADD_ITEM      — on failure, caller must free item in _end cleanup.
- * JSON_CHECK_ADD_ITEM_SAFE — on failure, frees and NULLs itemVar inside macro.
+ * JSON_CHECK_ADD_ITEM       -  on failure, caller must free item in _end cleanup.
+ * JSON_CHECK_ADD_ITEM_SAFE  -  on failure, frees and NULLs itemVar inside macro.
  */
 #define JSON_CHECK_ADD_ITEM(obj, str, item) \
   QUERY_CHECK_CONDITION(cJSON_AddItemToObjectCS(obj, str, item), code, lino, _end, TSDB_CODE_OUT_OF_MEMORY)

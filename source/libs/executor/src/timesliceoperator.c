@@ -904,7 +904,7 @@ static int32_t setDownstreamOpGetParam(SOperatorInfo* pOperator,
       continue;
     }
 
-    // Federated scan: notify is a no-op — do NOT store a pParam in pDownstreamGetParams.
+    // Federated scan: notify is a no-op  -  do NOT store a pParam in pDownstreamGetParams.
     // federatedScanGetNextExtFn resets the external-source connection whenever it receives
     // any non-NULL pParam, so storing even an empty param here would cause an infinite
     // re-scan loop: INTERP sends a notify on every downstream fetch when checkWindowBound

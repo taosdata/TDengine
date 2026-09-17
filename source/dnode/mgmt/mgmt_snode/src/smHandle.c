@@ -264,7 +264,7 @@ SArray *smGetMsgHandles() {
   /* Route EXT reader PULL requests to the runner queue; sndProcessStreamMsg
    * handles them via TDMT_STREAM_TRIGGER_PULL_EXT case. */
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_PULL_EXT, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
-  /* P4-E1: route runner→reader EXT fetch requests to the runner queue.
+  /* P4-E1: route runner -> reader EXT fetch requests to the runner queue.
    * The runner queue worker dispatches TDMT_STREAM_FETCH_EXT to
    * handleExtFetchReq, which invokes the ETR task's extConnector. */
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH_EXT, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;

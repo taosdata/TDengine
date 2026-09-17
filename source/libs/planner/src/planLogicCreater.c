@@ -656,9 +656,9 @@ static int32_t createExternalScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
               code);
   }
 
-  // Collect pseudo-column functions (e.g. TBNAME) — needed for PARTITION BY TBNAME.
+  // Collect pseudo-column functions (e.g. TBNAME)  -  needed for PARTITION BY TBNAME.
   // Without this, the federated scan's output descriptor has no TBNAME slot and the
-  // partition operator cannot resolve the group key → crash (buffer overflow) or
+  // partition operator cannot resolve the group key  ->  crash (buffer overflow) or
   // planner error (slot key not found).
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCollectFuncs(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, fmIsScanPseudoColumnFunc,
@@ -3100,9 +3100,9 @@ static int32_t classifyTagColumns(SVirtualTableNode* pVirtualTable,
  *
  * Structure after this function:
  *   pVtableScan->pChildren
- *     ├── TagRefSource nodes (moved from pTagRefSources)
- *     ├── pTagScan (if exists)
- *     └── pRealTableScan (to be added later)
+ *     +--- TagRefSource nodes (moved from pTagRefSources)
+ *     +--- pTagScan (if exists)
+ *     --- pRealTableScan (to be added later)
  */
 static int32_t buildVirtualScanTree(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
                                     SVirtualScanLogicNode* pVtableScan, SLogicNode* pRealTableScan) {
@@ -4208,7 +4208,7 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   // count(*)/count(1) reference no column and no tag, so both pScanCols and pScanPseudoCols are
   // empty. A vtable scan with no columns reads no rows. Add ts so the scan produces rows to count.
   // Tag-only queries (e.g. select abs(int_tag)) have empty pScanCols but non-empty pScanPseudoCols,
-  // so they are NOT affected — their results stay unchanged.
+  // so they are NOT affected  -  their results stay unchanged.
   bool noScanCols = (NULL == pVtableScan->pScanCols || LIST_LENGTH(pVtableScan->pScanCols) == 0);
   bool noPseudoCols = (NULL == pVtableScan->pScanPseudoCols || LIST_LENGTH(pVtableScan->pScanPseudoCols) == 0);
   if (noScanCols && noPseudoCols) {
@@ -5187,7 +5187,7 @@ static int32_t createWindowLogicNodeHandleSubquery(SLogicPlanContext* pCxt, SSel
   if (hasNamedExpr || !pSelect->isSubquery) {
     PLAN_ERR_JRET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
   } else {
-    // pProjectionList is degenerate (pruned by outer query) — use child's first target
+    // pProjectionList is degenerate (pruned by outer query)  -  use child's first target
     // as minimal projection to ensure window produces output rows
     SNode* pFirstTarget = nodesListGetNode(pCxt->pCurrRoot->pTargets, 0);
     if (pFirstTarget != NULL) {
@@ -5672,7 +5672,7 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
   pWindow->slidingUnit =
       (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
   pWindow->firstDayOfWeek = (int8_t)pCxt->pPlanCxt->firstDayOfWeek;
-  /* Non-owning alias — must not outlive the plan context. */
+  /* Non-owning alias  -  must not outlive the plan context. */
   pWindow->timezone = pCxt->pPlanCxt->timezone;
   tstrncpy(pWindow->timezoneName, pCxt->pPlanCxt->timezoneName, sizeof(pWindow->timezoneName));
   pWindow->windowAlgo = INTERVAL_ALGO_HASH;

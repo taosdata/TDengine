@@ -1886,7 +1886,7 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
         needFreePat = true;
         // convNcharToVarchar allocates rawPatLen bytes (no +1 for NUL); when the
         // UTF-8 output fills the buffer entirely there is no room for a terminator.
-        // threadGetRegComp requires a NUL-terminated string — grow by one byte.
+        // threadGetRegComp requires a NUL-terminated string  -  grow by one byte.
         char *tmp = taosMemoryRealloc(patStr, patLen + 1);
         if (tmp == NULL) {
           taosMemoryFree(patStr);
@@ -1912,7 +1912,7 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     }
   }
 
-  // Compile (or retrieve cached) regex — pattern is constant so cache hits every row
+  // Compile (or retrieve cached) regex  -  pattern is constant so cache hits every row
   regex_t *regex = NULL;
   code = threadGetRegComp(&regex, patStr);
   if (code != 0) {
@@ -1944,7 +1944,7 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   int32_t strType = GET_PARAM_TYPE(&pInput[0]);
   bool    isNchar = (strType == TSDB_DATA_TYPE_NCHAR);
 
-  // Null-termination buffer shared across rows — grown via realloc only when needed
+  // Null-termination buffer shared across rows  -  grown via realloc only when needed
   char   *strNt    = NULL;
   int32_t strNtCap = 0;
 
@@ -1972,7 +1972,7 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     }
 
     // Convert input into the NUL-terminated UTF-8 scratch buffer.
-    // For NCHAR: convert UCS-4 directly into strNt — avoids per-row malloc/free.
+    // For NCHAR: convert UCS-4 directly into strNt  -  avoids per-row malloc/free.
     // For VARCHAR: data is already UTF-8, just copy it.
     int32_t strUtf8Len;
     if (isNchar) {
@@ -1993,7 +1993,7 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
       // no match, or the requested capture group did not participate
       colDataSetNULL(pOutputData, i);
     } else if (ret != 0) {
-      // real regex execution error — capture the reason for production debugging
+      // real regex execution error  -  capture the reason for production debugging
       char msgbuf[256] = {0};
       (void)regerror(ret, regex, msgbuf, sizeof(msgbuf));
       qDebug("REGEXP_EXTRACT: regexec failed for pattern '%s', reason: %s", patStr, msgbuf);
@@ -4108,8 +4108,8 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
      * TO_ISO8601 uses ISO 8601 sign convention for fixed offsets:
      *   local_time = UTC + offset   ('+08:00' = east-8 = Beijing)
      *
-     * All fixed-offset forms — bare ('+0800') and UTC-prefixed
-     * ('UTC+8', 'UTC+0800', 'UTC+08:00') — are parsed identically.
+     * All fixed-offset forms  -  bare ('+0800') and UTC-prefixed
+     * ('UTC+8', 'UTC+0800', 'UTC+08:00')  -  are parsed identically.
      * For UTC-prefixed forms, the 'UTC' prefix is stripped so the
      * offset suffix in the output follows ISO 8601 (e.g. '+0800').
      */
@@ -4119,8 +4119,8 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     if ((strncasecmp(tzStr, "UTC+", 4) == 0 || strncasecmp(tzStr, "UTC-", 4) == 0)) {
       offStr = tzStr + 3;
       /* single-digit hour (UTC+8): strip 'UTC' prefix and pad hour to two
-       * digits: '+8' → '+08'.  No minutes suffix is added — UTC-prefixed
-       * forms without an explicit minute part output ±HH only. */
+       * digits: '+8'  ->  '+08'.  No minutes suffix is added  -  UTC-prefixed
+       * forms without an explicit minute part output +/-HH only. */
       if (offStr[1] >= '0' && offStr[1] <= '9' && offStr[2] == '\0') {
         char padded[TD_TIMEZONE_LEN];
         snprintf(padded, sizeof(padded), "%c0%c", offStr[0], offStr[1]);
@@ -4136,7 +4136,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       useFixedOffset = true;
       fixedOffset = 0;
     } else if (offStr[0] == '+' || offStr[0] == '-') {
-      /* fixed-offset format — parse offset for time adjustment,
+      /* fixed-offset format  -  parse offset for time adjustment,
        * and preserve the (possibly normalized) string for the ISO8601 suffix */
       int64_t parsedOffset = 0;
       if (offsetOfTimezone(offStr, &parsedOffset) == 0) {
@@ -4150,7 +4150,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
         }
       }
     } else {
-      /* IANA name or other format — try to validate and use DST-aware conversion */
+      /* IANA name or other format  -  try to validate and use DST-aware conversion */
       code = taosValidateTimezone(tzStr, &explicitTz);
       if (code != TSDB_CODE_SUCCESS) {
         goto _return;
@@ -4222,7 +4222,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       /* append user-provided timezone string directly to preserve original format */
       len += snprintf(buf + len, sizeof(buf) - len, "%s", tzStr);
     } else {
-      /* IANA timezone (explicit or connection) — DST-aware */
+      /* IANA timezone (explicit or connection)  -  DST-aware */
       int64_t gmtoff = 0;
 
       if (taosLocalTime((const time_t *)&quot, &tmInfo, NULL, 0, activeTz) == NULL) {
@@ -4576,7 +4576,7 @@ static time_t timeTruncTicksToSec(int64_t timeVal, int64_t timePrec) {
 
 /*
  * --- timeTruncateFunction helper: calendar unit truncation (n/y) ---
- * Returns true if truncation succeeded (timeVal updated); false → set NULL.
+ * Returns true if truncation succeeded (timeVal updated); false  ->  set NULL.
  */
 static bool truncateCalendarUnit(int64_t *pTimeVal, int64_t timeUnit, char unitCh,
                                  int64_t timePrec, timezone_t tz) {
@@ -4619,7 +4619,7 @@ static bool truncateCalendarUnit(int64_t *pTimeVal, int64_t timeUnit, char unitC
 
 /*
  * --- timeTruncateFunction helper: week truncation (1w) using firstDayOfWeek ---
- * Returns true if truncation succeeded (timeVal updated); false → set NULL.
+ * Returns true if truncation succeeded (timeVal updated); false  ->  set NULL.
  */
 static bool truncateWeekUnit(int64_t *pTimeVal, int64_t timePrec, int8_t fdow, timezone_t tz) {
   time_t    t = timeTruncTicksToSec(*pTimeVal, timePrec);
@@ -4643,7 +4643,7 @@ static bool truncateWeekUnit(int64_t *pTimeVal, int64_t timePrec, int8_t fdow, t
 
 /*
  * --- timeTruncateFunction helper: day truncation (1d) to local midnight ---
- * Returns true if truncation succeeded (timeVal updated); false → set NULL.
+ * Returns true if truncation succeeded (timeVal updated); false  ->  set NULL.
  */
 static bool truncateDayUnit(int64_t *pTimeVal, int64_t timePrec, timezone_t tz) {
   time_t    t = timeTruncTicksToSec(*pTimeVal, timePrec);
@@ -6199,8 +6199,8 @@ int32_t leastSQRScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPa
 
     // For '%f' (or '%F') in 'printf' functions, the C99 standard states:
     //   A double argument representing an infinity is converted in one of the styles [-]inf
-    //   or [-]infinity — which style is implementation-defined. A double argument representing
-    //   a NaN is converted in one of the styles [-]nan or [-]nan(n-char-sequence) — which style,
+    //   or [-]infinity  -  which style is implementation-defined. A double argument representing
+    //   a NaN is converted in one of the styles [-]nan or [-]nan(n-char-sequence)  -  which style,
     //   and the meaning of any n-char-sequence, is implementation-defined.
     //
     // To make the behavior consistent across different compilers and avoid issues like TD-37674,
@@ -7161,14 +7161,14 @@ _exit:
   return code;
 }
 
-// __timestamp_scale(expr, target_precision) — internal scalar function
+// __timestamp_scale(expr, target_precision)  -  internal scalar function
 // Scales a TIMESTAMP column from its source precision to target precision
 // using convertTimePrecision(). Parser auto-inserts this for cross-precision comparisons.
 int32_t timestampScaleFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   SColumnInfoData *pInputData  = pInput[0].columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  // Second parameter is a constant: the target precision (0=ms, 1=µs, 2=ns)
+  // Second parameter is a constant: the target precision (0=ms, 1=micros, 2=ns)
   int8_t targetPrec = 0;
   if (pInput[1].numOfRows == 1 && !colDataIsNull_s(pInput[1].columnData, 0)) {
     targetPrec = *(int8_t *)colDataGetData(pInput[1].columnData, 0);

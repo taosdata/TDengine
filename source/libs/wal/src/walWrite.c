@@ -614,7 +614,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   int32_t plainBodyLen = (txnId != 0) ? bodyLen + (int32_t)WAL_TXN_HDR_SIZE : bodyLen;
 
   // Determine txnExtFlags: IS_BEGIN is set on the first WAL entry for a given txnId on this vnode.
-  // We peek at txnBeginIndexMap WITHOUT updating it yet — update happens after successful write.
+  // We peek at txnBeginIndexMap WITHOUT updating it yet  -  update happens after successful write.
   uint64_t txnExtFlags = 0;
   if (txnId != 0 && pWal->cfg.enableTxnFile && pWal->txnBeginIndexMap != NULL) {
     if (taosHashGet(pWal->txnBeginIndexMap, &txnId, sizeof(int64_t)) == NULL) {
@@ -642,10 +642,10 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   // buffer up front so the checksum below and the write further down both operate on the exact
   // same bytes. Computing the checksum from two independently-seeded CRCs XOR'd together (as
   // this used to do) does NOT equal the CRC of the concatenation for a real CRC32 (crc32c here)
-  // — CRC combination requires shifting one operand by the other's length, not a plain XOR — so
+  //  -  CRC combination requires shifting one operand by the other's length, not a plain XOR  -  so
   // that always produced a checksum that mismatched what walValidBodyCksum() checks on replay,
   // silently corrupting every non-encrypted transactional WAL entry.
-  // Owned heap buffers are declared here — BEFORE any `goto _exit` below — so the
+  // Owned heap buffers are declared here  -  BEFORE any `goto _exit` below  -  so the
   // centralized cleanup at _exit can free them on every error path without touching
   // an uninitialized variable (jumping over an initializer leaves indeterminate value).
   char *nonEncTxnBody = NULL;
@@ -730,7 +730,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     // built above (also used for the checksum) is written with a SINGLE syscall below. This
     // used to be 3 separate taosWriteFile() calls; a crash (SIGKILL/OOM-kill/power loss)
     // between any of them left a WAL entry whose header/checksum (already written) claim a
-    // complete record while the on-disk bytes are truncated — permanently corrupting that
+    // complete record while the on-disk bytes are truncated  -  permanently corrupting that
     // entry, since restart always replays the same WAL and the vnode could never reopen again.
     // A single write call makes the append atomic from the WAL's perspective: it either lands
     // in full or not at all.

@@ -428,7 +428,7 @@ int32_t mndGenTxnId(SMnode *pMnode, txn_id_t *pTxnId) {
 
   mndReleaseTxnSeq(pMnode, pObj);
   if (nextId <= 0) {
-    // Signed int64 wraparound — currentTxnId crossed 2^63. Engineering-impossible
+    // Signed int64 wraparound  -  currentTxnId crossed 2^63. Engineering-impossible
     // at any realistic rate (range-allocated, ~10^4 ids per range) but if it ever
     // happens, returning to caller stops txn creation rather than corrupting state.
     mError("txnSeq, txn id unavailable (exhausted-or-wrap, currentId=%" PRId64 "), refusing BEGIN",

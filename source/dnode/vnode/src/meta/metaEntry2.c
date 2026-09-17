@@ -147,7 +147,7 @@ int32_t metaFetchEntryByName(SMeta *pMeta, const char *name, SMetaEntry **ppEntr
 void metaFetchEntryFree(SMetaEntry **ppEntry) { metaCloneEntryFree(ppEntry); }
 
 // ============================================================================
-// txn.idx — small B+ tree tracking pending txn entries for O(k) startup rebuild
+// txn.idx  -  small B+ tree tracking pending txn entries for O(k) startup rebuild
 // Key: uid (tb_uid_t).  Value: STxnIdxVal {txnId, txnStatus, txnOrigVer}.
 // ============================================================================
 
@@ -191,7 +191,7 @@ int32_t metaRollbackChildTableTags(SMeta *pMeta, int64_t uid, int64_t prevVersio
   SMetaReader mrNew = {0};
   SMetaEntry *pSuperEntry = NULL;
 
-  // All readers use NOLOCK — we manage lock scope manually to avoid:
+  // All readers use NOLOCK  -  we manage lock scope manually to avoid:
   // 1. META_READER_LOCK + metaWLock later = deadlock (RLock cannot upgrade to WLock)
   // 2. metaReaderReleaseLock/metaReaderClear double-release confusion
   metaReaderDoInit(&mrOld, pMeta, META_READER_NOLOCK, 0);
@@ -229,10 +229,10 @@ int32_t metaRollbackChildTableTags(SMeta *pMeta, int64_t uid, int64_t prevVersio
     goto _exit;
   }
 
-  // Phase 2: Write tag/ctb index under WLock (no RLock held — no deadlock risk)
+  // Phase 2: Write tag/ctb index under WLock (no RLock held  -  no deadlock risk)
   SMetaHandleParam param = {
-      .pEntry = &mrOld.me,     // "new" from metaTagIdxUpdate's perspective → old (restore target)
-      .pOldEntry = &mrNew.me,  // "old" from metaTagIdxUpdate's perspective → new (to be undone)
+      .pEntry = &mrOld.me,     // "new" from metaTagIdxUpdate's perspective  ->  old (restore target)
+      .pOldEntry = &mrNew.me,  // "old" from metaTagIdxUpdate's perspective  ->  new (to be undone)
       .pSuperEntry = pSuperEntry,
   };
   metaWLock(pMeta);
@@ -319,7 +319,7 @@ int32_t metaScanTxnEntries(SMeta *pMeta, SArray **ppResult) {
 }
 
 // ============================================================================
-// txn.meta — lazy COMMIT/ROLLBACK finalization records
+// txn.meta  -  lazy COMMIT/ROLLBACK finalization records
 // Key: txnId (int64_t).  Value: STxnMetaVal {status, timestamp, beginWalIndex}.
 // Written once per COMMIT/ROLLBACK (O(1)), background vacuum clears after cleanup.
 // ============================================================================
@@ -2150,7 +2150,7 @@ static int32_t metaHandleChildTableDropImpl(SMeta *pMeta, const SMetaHandleParam
       continue;
     }
 
-    // TAG_IDX delete requires parent schema — skip when parent is absent
+    // TAG_IDX delete requires parent schema  -  skip when parent is absent
     // (orphan tag index entries under a non-existent suid are unreachable and benign)
     if (op->table == META_TAG_IDX && pSuper == NULL) {
       continue;
@@ -2165,7 +2165,7 @@ static int32_t metaHandleChildTableDropImpl(SMeta *pMeta, const SMetaHandleParam
 
   --pMeta->pVnode->config.vndStats.numOfCTables;
 
-  // Parent-dependent cache/stats updates — skip when parent is absent
+  // Parent-dependent cache/stats updates  -  skip when parent is absent
   if (pSuper != NULL) {
     metaUpdateStbStats(pMeta, pSuper->uid, -1, 0, -1);
     int32_t ret = metaUidCacheClear(pMeta, pSuper->uid);
@@ -2201,7 +2201,7 @@ static int32_t metaHandleChildTableDrop(SMeta *pMeta, const SMetaEntry *pEntry, 
     return code;
   }
 
-  // fetch super entry — may be absent if parent STB was already dropped
+  // fetch super entry  -  may be absent if parent STB was already dropped
   // (e.g. during txn rollback: STB cascade-delete didn't reach this child
   // because metaGetChildUidsOfSuperTable skips PRE_CREATE entries)
   metaRLock(pMeta);
@@ -2232,7 +2232,7 @@ static int32_t metaHandleChildTableDrop(SMeta *pMeta, const SMetaEntry *pEntry, 
   }
 
   // do other stuff
-  // Use pSuper's already-fetched schema directly — avoids a redundant
+  // Use pSuper's already-fetched schema directly  -  avoids a redundant
   // metaGetStbStats round-trip through the stats cache.
   if (pSuper != NULL && !metaTbInFilterCache(pMeta, pSuper->name, 1)) {
     int32_t nCols = pSuper->stbEntry.schemaRow.nCols;
@@ -2361,7 +2361,7 @@ static int32_t metaHandleVirtualChildTableDropImpl(SMeta *pMeta, const SMetaHand
       continue;
     }
 
-    // TAG_IDX delete requires parent schema — skip when parent is absent
+    // TAG_IDX delete requires parent schema  -  skip when parent is absent
     if (op->table == META_TAG_IDX && pSuper == NULL) {
       continue;
     }
@@ -2375,7 +2375,7 @@ static int32_t metaHandleVirtualChildTableDropImpl(SMeta *pMeta, const SMetaHand
 
   --pMeta->pVnode->config.vndStats.numOfVCTables;
 
-  // Parent-dependent cache/stats updates — skip when parent is absent
+  // Parent-dependent cache/stats updates  -  skip when parent is absent
   if (pSuper != NULL) {
     metaUpdateStbStats(pMeta, pSuper->uid, -1, 0, -1);
     int32_t ret = metaUidCacheClear(pMeta, pSuper->uid);
@@ -2417,7 +2417,7 @@ static int32_t metaHandleVirtualChildTableDrop(SMeta *pMeta, const SMetaEntry *p
     return code;
   }
 
-  // fetch super entry — may be absent if parent STB was already dropped
+  // fetch super entry  -  may be absent if parent STB was already dropped
   metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pChild->ctbEntry.suid, &pSuper);
   metaULock(pMeta);
@@ -2554,7 +2554,7 @@ int32_t metaDropOrphanedEntry(SMeta *pMeta, tb_uid_t uid, const SMetaEntry *pOld
       .pSuperEntry = pSuper,
   };
 
-  // Execute index deletions under write lock — all ops EXCEPT META_NAME_IDX
+  // Execute index deletions under write lock  -  all ops EXCEPT META_NAME_IDX
   metaWLock(pMeta);
   for (int32_t i = 0; i < nOps; i++) {
     if (ops[i].table == META_TAG_IDX && pSuper == NULL) continue;
@@ -2887,7 +2887,7 @@ static int32_t metaHandleSuperTableUpdateImpl(SMeta *pMeta, SMetaHandleParam *pP
   // metaUpdateSuperTableTagSchema), but only after META_ENTRY_TABLE has upserted the
   // new schema; a first-attempt rejection thus leaves the stb half-applied, and the
   // mnode-driven retry then sees no schemaRow/schemaTag version diff and skips the
-  // in-op check — silently succeeding. Pre-checking here keeps the rejection
+  // in-op check  -  silently succeeding. Pre-checking here keeps the rejection
   // idempotent across retries. All names of the new schema are checked (not only the
   // diff, which is empty on such a retry); existing names are safe to re-check because
   // own-schema creation already forbids names colliding with stb columns/tags. The
@@ -3231,7 +3231,7 @@ static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) 
   }
 
   // loop to drop all child tables
-  // Virtual STBs own VCTBs — route to the virtual-child handler so that
+  // Virtual STBs own VCTBs  -  route to the virtual-child handler so that
   // the correct counter (numOfVCTables), B+tree ops, and cache cleanup are used.
   // Hoist both the child type and the handler out of the loop: stbIsVirtual is
   // loop-invariant, so the two conditional expressions need only be evaluated once.

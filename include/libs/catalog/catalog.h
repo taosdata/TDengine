@@ -32,9 +32,9 @@ extern "C" {
 #include "nodes.h"
 // SExtSourceCapability / EExtSourceType / TSDB_EXT_* are provided by tmsg.h above.
 
-// SExtSourceInfo — composite external source descriptor stored by the Catalog.
+// SExtSourceInfo  -  composite external source descriptor stored by the Catalog.
 // Combines connection info from the mnode (SGetExtSourceRsp) with the
-// SExtSourceInfo — composite external source descriptor stored in catalog.
+// SExtSourceInfo  -  composite external source descriptor stored in catalog.
 // Combines mnode connection info (SGetExtSourceRsp) with connector-probed
 // capability.  This is a pure in-memory structure and is NOT serialised over
 // the wire.
@@ -147,8 +147,8 @@ typedef struct SCatalogReq {
   SArray* pTSMAs;         // element is STablesReq
   SArray* pTableName;     // element is STablesReq
   SArray* pVStbRefDbs;       // element is SName
-  SArray* pExtSourceCheck;   // element is char[TSDB_TABLE_NAME_LEN] — Phase A: probe source by name
-  SArray* pExtTableMeta;     // element is SExtTableMetaReq           — Phase B: resolve ext table schema
+  SArray* pExtSourceCheck;   // element is char[TSDB_TABLE_NAME_LEN]  -  Phase A: probe source by name
+  SArray* pExtTableMeta;     // element is SExtTableMetaReq            -  Phase B: resolve ext table schema
   bool    qNodeRequired;     // valid qnode
   bool    dNodeRequired;     // valid dnode
   bool    svrVerRequired;
@@ -498,24 +498,24 @@ int32_t ctgHashValueComp(void const* lp, void const* rp);
 /**
  * Federated query: external source cache management.
  *
- * catalogRemoveExtSource — invalidate a single external source and all of its
+ * catalogRemoveExtSource  -  invalidate a single external source and all of its
  *   cached table schemas from the catalog cache (enqueues a cache-write op).
  *
- * catalogUpdateExtSourceCapability — store connector-probed pushdown flags for
+ * catalogUpdateExtSourceCapability  -  store connector-probed pushdown flags for
  *   a source so subsequent planner calls can read them without re-probing.
  *
- * catalogGetExtSrcGlobalVer — return the client's currently cached global version
+ * catalogGetExtSrcGlobalVer  -  return the client's currently cached global version
  *   of the ext-source list (0 = unknown/never synced).  Used by heartbeat to tell
  *   mnode which global version the client has.
  *
- * catalogUpdateAllExtSources — atomically replace the entire ext-source cache with
+ * catalogUpdateAllExtSources  -  atomically replace the entire ext-source cache with
  *   the pushed list from mnode and record the new global version.  Called when mnode
  *   detects a version mismatch and pushes all sources in the heartbeat response.
  *
- * catalogDisableExtSourceCapabilities — temporarily zero out the capability
+ * catalogDisableExtSourceCapabilities  -  temporarily zero out the capability
  *   bitmask so planner falls back to non-pushdown plan (Phase 1 stub).
  *
- * catalogRestoreExtSourceCapabilities — restore capability bitmask to the value
+ * catalogRestoreExtSourceCapabilities  -  restore capability bitmask to the value
  *   before disabling; called after re-planning has completed (Phase 1 stub).
  */
 int32_t catalogIsExtSource(SCatalog* pCtg, const char* sourceName, bool* pIsExtSource);

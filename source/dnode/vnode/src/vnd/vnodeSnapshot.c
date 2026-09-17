@@ -49,7 +49,7 @@ struct SVSnapReader {
   // wal txn files
   int8_t             txnWalDone;
   SWalTxnSnapReader *pWalTxnReader;
-  // txn.meta (§44 lazy COMMIT/ROLLBACK durable transfer)
+  // txn.meta (section 44 lazy COMMIT/ROLLBACK durable transfer)
   int8_t txnMetaDone;
   // meta
   int8_t           metaDone;
@@ -379,7 +379,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   }
 
   // TXN_META ==============
-  // §44: replicate txn.meta so that a follower joining via full snapshot
+  // section 44: replicate txn.meta so that a follower joining via full snapshot
   // resumes lazy vacuum of large-txn shadow entries instead of leaking PRE_*
   // status forever. Emitted AFTER WAL_TXN, BEFORE META entries.
   if (!pReader->txnMetaDone) {
@@ -646,7 +646,7 @@ static int32_t vnodeSnapWriterDealWithSnapInfo(SVSnapWriter *pWriter, SSnapshotP
           TSDB_CHECK_CODE(code, lino, _exit);
         } break;
         case SNAP_DATA_MEDIUM: {
-          // file list for MEDIUM mode — writer does not need it
+          // file list for MEDIUM mode  -  writer does not need it
         } break;
         default:
           vError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), subField->typ);
@@ -942,7 +942,7 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       TSDB_CHECK_CODE(code, lino, _exit);
     } break;
     case SNAP_DATA_TXN_META: {
-      // §44: bulk-apply finalized-txn records into local txn.meta so
+      // section 44: bulk-apply finalized-txn records into local txn.meta so
       // that follower-side vnodeTxnRebuildFromMeta Phase 2 can resume vacuum.
       // metaSnapTxnMetaWrite manages its own meta txn (begin/commit/abort).
       code = metaSnapTxnMetaWrite(pVnode->pMeta, pData, nData);

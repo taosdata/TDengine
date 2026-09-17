@@ -376,7 +376,7 @@ _end:
  * reuse across groups because:
  *   1. The reader holds a read snapshot (tsdbTakeReadSnap2) for
  *      its entire lifetime.
- *   2. STT files are immutable — new writes or compactions create new files;
+ *   2. STT files are immutable  -  new writes or compactions create new files;
  *      existing files are never modified in-place.
  *   3. The snapshot pins file versions, so cached file handles and decompressed
  *      stats remain valid as long as the snapshot is held.
@@ -488,7 +488,7 @@ static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bo
        * Best-effort cache: the save failed, most likely because the query memory
        * pool is exhausted (taosHashInit/taosHashPut returned a memory error). We
        * fall back to destroying the iterators (the old, uncached read path) and
-       * keep whatever is already cached — existing cache is never released for
+       * keep whatever is already cached  -  existing cache is never released for
        * the sake of one failed write. Count the skip for end-of-query reporting
        * and log at debug level to avoid spam when the pool stays full across many
        * fileset transitions. The caller owns pLDataIterArray; it is replaced
@@ -7846,7 +7846,7 @@ static void accumulateCachedSttIterCost(SHashObj *pCache,
 /*
  * Single source of truth for a reader's *complete* current STT block-load cost:
  * the cost already flushed into pReader->cost.sttCost (from destroyed iterators)
- * plus the cost still held by live iterators — the current fileset's array and
+ * plus the cost still held by live iterators  -  the current fileset's array and
  * every array retained in the fileset cache.  Adds into *pCost (caller-owned),
  * leaving all iterators intact, so it is safe to call repeatedly.
  */

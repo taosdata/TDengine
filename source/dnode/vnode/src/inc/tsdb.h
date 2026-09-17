@@ -780,7 +780,7 @@ typedef struct STsdbRepOpts {
 int32_t tSerializeTsdbRepOpts(void *buf, int32_t bufLen, STsdbRepOpts *pInfo);
 int32_t tDeserializeTsdbRepOpts(void *buf, int32_t bufLen, STsdbRepOpts *pInfo);
 
-// MEDIUM snapshot file info (follower → leader)
+// MEDIUM snapshot file info (follower  ->  leader)
 typedef struct SMediumSnapFileInfo {
   int32_t fid;
   int32_t ftype;
@@ -796,13 +796,13 @@ typedef struct SMediumSnapFileInfo {
   int8_t  missing;
 } SMediumSnapFileInfo;
 
-// MEDIUM snapshot file list (follower → leader)
+// MEDIUM snapshot file list (follower  ->  leader)
 typedef struct SMediumSnapFileList {
   int32_t              nFiles;
   SMediumSnapFileInfo *aFiles;
 } SMediumSnapFileList;
 
-// MEDIUM snapshot file header (leader → follower, per SNAP_DATA message)
+// MEDIUM snapshot file header (leader  ->  follower, per SNAP_DATA message)
 typedef struct SMediumSnapFileHdr {
   SMediumSnapFileInfo fileInfo;
   int32_t            opType;  // tsdb_fop_t: TSDB_FOP_CREATE / TSDB_FOP_REMOVE / TSDB_FOP_MODIFY

@@ -1182,7 +1182,7 @@ static int32_t createTableMergeScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* 
 }
 
 // ---------------------------------------------------------------------------
-// ─── Remote-plan helpers ────────────────────────────────────────────────────
+// --- Remote-plan helpers ----------------------------------------------------
 // Convert one logic node from pRemoteLogicPlan into its lightweight physi
 // counterpart and wire pChild as its single child.
 // pLeaf is passed so LIMIT can be propagated down to the leaf WHERE node.
@@ -1373,7 +1373,7 @@ static int32_t buildRemoteBranchPhysi(SLogicNode* pChainRoot,
   int32_t code = TSDB_CODE_SUCCESS;
   SLogicNode* pCurr = pChainRoot;
   while (pCurr != NULL) {
-    // Stop at SScanLogicNode — it becomes the leaf, not a logic-to-physi conversion
+    // Stop at SScanLogicNode  -  it becomes the leaf, not a logic-to-physi conversion
     if (nodeType(pCurr) == QUERY_NODE_LOGIC_PLAN_SCAN) break;
     if (NULL == taosArrayPush(pArr, &pCurr)) {
       code = terrno;
@@ -1451,7 +1451,7 @@ static int32_t buildRemotePlanFromLogicPlan(SScanLogicNode* pScanLogic,
 
   SLogicNode* pLogicRoot = (SLogicNode*)pScanLogic->pRemoteLogicPlan;
 
-  // ── UNION ALL: multi-child Project with isSetOpProj=true ──
+  // -- UNION ALL: multi-child Project with isSetOpProj=true --
   if (nodeType(pLogicRoot) == QUERY_NODE_LOGIC_PLAN_PROJECT &&
       ((SProjectLogicNode*)pLogicRoot)->isSetOpProj &&
       pLogicRoot->pChildren != NULL &&
@@ -1494,7 +1494,7 @@ static int32_t buildRemotePlanFromLogicPlan(SScanLogicNode* pScanLogic,
     return TSDB_CODE_SUCCESS;
   }
 
-  // ── Single-chain: existing behavior ──
+  // -- Single-chain: existing behavior --
   // Collect chain top-down into a temporary array.
   SArray* pArr = taosArrayInit(4, POINTER_BYTES);
   if (NULL == pArr) {
@@ -1537,7 +1537,7 @@ _done:
   taosArrayDestroy(pArr);
   return code;
 }
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
 // createFederatedScanPhysiNode: builds SFederatedScanPhysiNode from a logic
 // node whose scanType == SCAN_TYPE_EXTERNAL.
@@ -1777,7 +1777,7 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   // "expr_2" as colName, with the user-visible name stored in userAlias.
   // addDataBlockSlots keys the hash by colName ("expr_1"), so the condition's
   // column "val" (original name) is not found and setNodeSlotId would fail.
-  // We add a supplementary "userAlias → slotId" entry to the hash so
+  // We add a supplementary "userAlias  ->  slotId" entry to the hash so
   // setNodeSlotId (doSetSlotId) can resolve the condition column by colName.
   //
   // We also add a table-qualified hash key (hash of "tableAlias.userAlias",
@@ -1831,7 +1831,7 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     if (TSDB_CODE_SUCCESS != code) {
       // setNodeSlotId fails when condition columns are not in the output hash
       // (e.g. conditions already pushed to remote SQL, referencing columns not
-      // in SELECT).  Clear pConditions — the remote source handles filtering.
+      // in SELECT).  Clear pConditions  -  the remote source handles filtering.
       // Only conditions whose columns ARE in the output (setNodeSlotId succeeds)
       // will be kept for local doFilter evaluation in the executor.
       pScan->node.pConditions = NULL;
@@ -1843,24 +1843,24 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
   pSubplan->msgType     = TDMT_SCH_MERGE_QUERY;
 
-  // ★ Mark the physical plan as containing a federated scan
+  // * Mark the physical plan as containing a federated scan
   pCxt->hasFederatedScan = true;
 
-  // ── Build pRemotePlan: the mini physi-plan tree used for remote SQL gen ──
+  // -- Build pRemotePlan: the mini physi-plan tree used for remote SQL gen --
   //
   // nodesRemotePlanToSQL() walks this tree (not the outer Mode-1 node) to
   // produce the SQL sent to the external database.  Expressions are cloned
   // directly from the logic tree so they carry original column names rather
   // than TDengine slot IDs.
   //
-  // Tree layout (top → bottom):
-  //   [SProjectPhysiNode]?   ← from pRemoteLogicPlan (set by FqPushdown optimizer)
-  //     [SSortPhysiNode]?    ← from pRemoteLogicPlan
+  // Tree layout (top  ->  bottom):
+  //   [SProjectPhysiNode]?    <-  from pRemoteLogicPlan (set by FqPushdown optimizer)
+  //     [SSortPhysiNode]?     <-  from pRemoteLogicPlan
   //       SFederatedScanPhysiNode  (Mode 2 leaf, pRemotePlan == NULL)
-  //         .pExtTable    → FROM clause
-  //         .pScanCols    → SELECT * fallback
-  //         .pConditions  → WHERE clause
-  //         .node.pLimit  → LIMIT / OFFSET
+  //         .pExtTable     ->  FROM clause
+  //         .pScanCols     ->  SELECT * fallback
+  //         .pConditions   ->  WHERE clause
+  //         .node.pLimit   ->  LIMIT / OFFSET
 
   SFederatedScanPhysiNode* pLeaf = NULL;
   code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN, (SNode**)&pLeaf);
@@ -1970,7 +1970,7 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   }
 
   // VTB child scans: inject ORDER BY <ts> ASC when fqInjectPkOrderBy could not
-  // (because pExtMeta is NULL at optimizer time — metadata is fetched at runtime).
+  // (because pExtMeta is NULL at optimizer time  -  metadata is fetched at runtime).
   // The VTB sort-merge requires each source to return rows sorted by timestamp.
   if (pRemoteRoot == (SPhysiNode*)pLeaf && pScanLogicNode->virtualStableScan &&
       pLeaf->pScanCols != NULL && LIST_LENGTH(pLeaf->pScanCols) > 0) {
@@ -4971,7 +4971,7 @@ static int32_t createSortPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   }
 
   // For external-window + fill queries: the fill operator writes its output into the
-  // ExtWin output block (slots for s1, s2, …) but Sort only copies columns listed in
+  // ExtWin output block (slots for s1, s2, ...) but Sort only copies columns listed in
   // its pTargets.  Those columns are only in pTargets when they appear in the ORDER BY
   // clause; projection-only columns are missing.  Append them here so Sort passes the
   // fill values through to the parent Project operator.
@@ -5107,8 +5107,8 @@ static int32_t createPartitionPhysiNodeImpl(SPhysiPlanContext* pCxt, SNodeList* 
   // Convert pseudo-column functions (e.g. TBNAME) in partition keys to column
   // nodes.  doSetSlotId only resolves QUERY_NODE_COLUMN; a FUNCTION node passes
   // through with an uninitialised slotId, and the executor's
-  // makeColumnArrayFromList then casts it to SColumnNode* ⇒ garbage slotId/type
-  // ⇒ buffer overflow in doHashPartition.  Replacing with a COLUMN whose
+  // makeColumnArrayFromList then casts it to SColumnNode*  =>  garbage slotId/type
+  //  =>  buffer overflow in doHashPartition.  Replacing with a COLUMN whose
   // colName matches the slot added by addDataBlockSlots(pScanPseudoCols) lets
   // doSetSlotId resolve the correct slotId.
   if (TSDB_CODE_SUCCESS == code) {
@@ -5762,7 +5762,7 @@ static int32_t doCreatePhysiPlan(SPhysiPlanContext* pCxt, SQueryLogicPlan* pLogi
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    // ★ Propagate hasFederatedScan / hasScan flags to the plan output
+    // * Propagate hasFederatedScan / hasScan flags to the plan output
     pPlan->hasFederatedScan = pCxt->hasFederatedScan;
     pPlan->hasScan          = pCxt->pPlanCxt->hasScan;
     *pPhysiPlan = pPlan;

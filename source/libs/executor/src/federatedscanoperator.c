@@ -13,9 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// federatedscanoperator.c — FederatedScan executor operator
+// federatedscanoperator.c  -  FederatedScan executor operator
 //
-// Responsibilities (DS §5.2.4):
+// Responsibilities (DS section 5.2.4):
 //   - Lazy-connect to external data source on first getNext call
 //   - Generate remote SQL via nodesRemotePlanToSQL and cache for EXPLAIN/log
 //   - Execute query via extConnectorExecQuery(pHandle, pNode, ...)
@@ -966,7 +966,7 @@ static int32_t fedScanBuildVStbQueryAndMappings(
     }
   }
 
-  // Build FROM clause — source-type-specific table path
+  // Build FROM clause  -  source-type-specific table path
   const char* remoteTable = pMeta->remoteTableName[0] ? pMeta->remoteTableName : pFsParam->tableName;
   switch (srcType) {
     case EXT_SOURCE_MYSQL: {
@@ -1061,7 +1061,7 @@ static int32_t fedScanBuildVStbQueryAndMappings(
 }
 
 // ---------------------------------------------------------------------------
-// getNext — core execution
+// getNext  -  core execution
 // ---------------------------------------------------------------------------
 
 void fedScanReleaseFetchedBlock(SFederatedScanOperatorInfo* pInfo) {
@@ -1090,7 +1090,7 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
 
 _restart:  // Entry point for phase-2 re-execution in twoPassMode
   // =========================================================================
-  // Step 1: First call — connect + generate SQL + issue query
+  // Step 1: First call  -  connect + generate SQL + issue query
   // =========================================================================
   if (!pInfo->queryStarted) {
     SFederatedScanPhysiNode* pFedNode  = pInfo->pFedScanNode;
@@ -1151,7 +1151,7 @@ _restart:  // Entry point for phase-2 re-execution in twoPassMode
       SNodesRemoteSQLCtx sqlCtx = {
         .pCtx   = gTaskScalarExtra.pSubJobCtx,
         .fp     = (FResolveRemoteForSQL)gTaskScalarExtra.fp,
-        // DS §5.2.6: pass client timezone so timestamp filter values in WHERE
+        // DS section 5.2.6: pass client timezone so timestamp filter values in WHERE
         // are formatted using the client TZ instead of the server-side global TZ.
         .tzName = (pFedNode->timezone[0] != '\0') ? pFedNode->timezone : NULL,
       };
@@ -1167,7 +1167,7 @@ _restart:  // Entry point for phase-2 re-execution in twoPassMode
       }
     }
 
-    // 1.4 Issue query — pass pre-computed SQL so the Connector doesn't
+    // 1.4 Issue query  -  pass pre-computed SQL so the Connector doesn't
     // regenerate it (which would lose the REMOTE_VALUE_LIST resolution).
     SExtConnectorError extErr = {0};
     code = extConnectorExecQuery(pInfo->pConnHandle, pFedNode, remoteSql,
@@ -1260,7 +1260,7 @@ _fetchNext:
     }
 
     // Connectors emit TIMESTAMP values in their source-native precision
-    // (PG/MySQL = µs, InfluxDB = ns) and tag the block column accordingly.
+    // (PG/MySQL = micros, InfluxDB = ns) and tag the block column accordingly.
     // The virtual table that consumes this block may declare a different
     // precision, so convert each TIMESTAMP cell here.  Limited to fed
     // scans feeding a VTable scan so direct external-table queries are
@@ -1397,7 +1397,7 @@ _fetchNext:
       code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
       QUERY_CHECK_CODE(code, lino, _return);
       if (pBlock->info.rows == 0) {
-        // All rows filtered out — fetch next block
+        // All rows filtered out  -  fetch next block
         goto _fetchNext;
       }
       qDebug("FQ-Fetch: after local filter rows=%d", (int)pBlock->info.rows);
@@ -1422,7 +1422,7 @@ _return:
 }
 
 // ---------------------------------------------------------------------------
-// getNextExtFn — VTable parameterized fetch (DS §5.5.6)
+// getNextExtFn  -  VTable parameterized fetch (DS section 5.5.6)
 // ---------------------------------------------------------------------------
 
 // Build a table key from SForeignScanOperatorParam for context lookup.
@@ -1497,7 +1497,7 @@ static int32_t fedScanEvictOneCtx(SFederatedScanOperatorInfo* pInfo) {
   void* pIter = taosHashIterate(pInfo->pTableCtxMap, NULL);
   if (pIter == NULL) return TSDB_CODE_SUCCESS;
 
-  // Get key of first entry (arbitrary eviction — hash iteration order)
+  // Get key of first entry (arbitrary eviction  -  hash iteration order)
   size_t keyLen = 0;
   char*  key = taosHashGetKey(pIter, &keyLen);
 
@@ -1618,7 +1618,7 @@ static int32_t federatedScanGetNextExtFn(SOperatorInfo*  pOperator,
     return federatedScanGetNext(pOperator, ppRes);
   }
 
-  // Legacy path: single-table or non-VStb param — tear down and restart
+  // Legacy path: single-table or non-VStb param  -  tear down and restart
   if (pParam != NULL) {
     bool paramChanged = (pInfo->queryStarted);
     if (paramChanged) {
@@ -1639,7 +1639,7 @@ static int32_t federatedScanGetNextExtFn(SOperatorInfo*  pOperator,
 }
 
 // ---------------------------------------------------------------------------
-// Reset FederatedScan state for new VStb child — closes cached connections
+// Reset FederatedScan state for new VStb child  -  closes cached connections
 // ---------------------------------------------------------------------------
 
 void federatedScanResetForNewChild(SOperatorInfo* pOperator) {
@@ -1673,7 +1673,7 @@ void federatedScanResetForNewChild(SOperatorInfo* pOperator) {
 }
 
 // ---------------------------------------------------------------------------
-// close — release all resources
+// close  -  release all resources
 // ---------------------------------------------------------------------------
 
 static void federatedScanClose(void* param) {
@@ -1706,7 +1706,7 @@ static void federatedScanClose(void* param) {
 }
 
 // ---------------------------------------------------------------------------
-// getExplainFn — verbose EXPLAIN ANALYZE output
+// getExplainFn  -  verbose EXPLAIN ANALYZE output
 // ---------------------------------------------------------------------------
 
 static int32_t federatedScanGetExplainInfo(SOperatorInfo* pOperator,
@@ -1728,7 +1728,7 @@ static int32_t federatedScanGetExplainInfo(SOperatorInfo* pOperator,
 }
 
 // ---------------------------------------------------------------------------
-// createFederatedScanOperatorInfo — public factory function
+// createFederatedScanOperatorInfo  -  public factory function
 // ---------------------------------------------------------------------------
 
 int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
@@ -1750,7 +1750,7 @@ int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
 
   initOperatorCostInfo(pOperator);
 
-  // Store reference to physi node (not owned — lifetime managed by plan)
+  // Store reference to physi node (not owned  -  lifetime managed by plan)
   pInfo->pFedScanNode = pFedScanNode;
   pInfo->underVTableScan = pFedScanNode->underVTableScan;
 
@@ -1770,7 +1770,7 @@ int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
   // When pRemotePlan is non-NULL, the remote connector executes the full pushed-down plan
   // and returns exactly the topmost operator's output columns.  Use the topmost physical
   // node's pTargets (for Sort) or pProjections (for Project) to determine output columns.
-  // Do NOT use pScanCols or pOutputDataBlockDesc — they may include extra ORDER-BY columns.
+  // Do NOT use pScanCols or pOutputDataBlockDesc  -  they may include extra ORDER-BY columns.
   if (pFedScanNode->pColTypeMappings == NULL) {
     SNodeList* pOutputCols = NULL;
 
@@ -1806,7 +1806,7 @@ int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
         ++colIdx;
       }
     } else if (pFedScanNode->pScanCols != NULL) {
-      // Fallback: no pRemotePlan — use pScanCols (plain scan without pushdown)
+      // Fallback: no pRemotePlan  -  use pScanCols (plain scan without pushdown)
       int32_t numCols = LIST_LENGTH(pFedScanNode->pScanCols);
       if (numCols > 0) {
         pFedScanNode->pColTypeMappings =
@@ -1897,7 +1897,7 @@ int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
     }
   }
 
-  // FederatedScan is a leaf node — no downstream
+  // FederatedScan is a leaf node  -  no downstream
   pInfo->twoPassMode = pFedScanNode->twoPassMode;
   pInfo->twoPassPhase1Done = false;
 
@@ -1915,7 +1915,7 @@ int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
   }
 
   pOperator->fpSet = createOperatorFpSet(
-      optrDummyOpenFn,           // open: lazy — real connect happens in getNext
+      optrDummyOpenFn,           // open: lazy  -  real connect happens in getNext
       federatedScanGetNext,      // getNext
       NULL,                      // cleanupFn: none
       federatedScanClose,        // close: release connector handles

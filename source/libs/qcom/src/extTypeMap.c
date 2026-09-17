@@ -13,9 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// extTypeMap.c — external data source type name → TDengine type mapping
+// extTypeMap.c  -  external data source type name  ->  TDengine type mapping
 //
-// DS §5.3.2: type mapping rules for MySQL, PostgreSQL, and InfluxDB 3.x.
+// DS section 5.3.2: type mapping rules for MySQL, PostgreSQL, and InfluxDB 3.x.
 //
 // Design principles:
 //  - extTypeNameToTDengineType() is called by Parser and Planner only.
@@ -116,18 +116,18 @@ static void setDecimalMapping(const char *typeName, SDataType *pTd) {
 #define EXT_DEFAULT_VARCHAR_LEN 65517
 
 // ---------------------------------------------------------------------------
-// MySQL type mapping  (DS §5.3.2 — MySQL → TDengine)
+// MySQL type mapping  (DS section 5.3.2  -  MySQL  ->  TDengine)
 // ---------------------------------------------------------------------------
 
 // Returns true when the MySQL column charset requires NCHAR mapping.
 // The MySQL connector forces a utf8mb4 client connection, so the *received* bytes
 // are always valid UTF-8 regardless of this charset; but the charset indicates
 // the *intended* character set of the column:
-//   Multi-byte charsets (utf8*, ucs2, utf16*, utf32) → NCHAR (UCS-4 stored).
-//   Single-byte charsets (ascii, latin1, binary, cp*, …)  → VARCHAR (raw bytes).
+//   Multi-byte charsets (utf8*, ucs2, utf16*, utf32)  ->  NCHAR (UCS-4 stored).
+//   Single-byte charsets (ascii, latin1, binary, cp*, ...)   ->  VARCHAR (raw bytes).
 static bool mysqlCharsetNeedsNchar(const char *cs) {
   if (!cs || !cs[0]) return false;
-  if (strncasecmp(cs, "utf8", 4) == 0) return true;   // utf8, utf8mb3, utf8mb4, utf8unicode_ci…
+  if (strncasecmp(cs, "utf8", 4) == 0) return true;   // utf8, utf8mb3, utf8mb4, utf8unicode_ci...
   if (strncasecmp(cs, "ucs",  3) == 0) return true;   // ucs2, ucs4
   if (strncasecmp(cs, "utf16", 5) == 0) return true;  // utf16, utf16le
   if (strncasecmp(cs, "utf32", 5) == 0) return true;
@@ -166,7 +166,7 @@ static int32_t mysqlTypeMap(const char *typeName, const char *charset, SDataType
         case 6:  // BIGINT vs BINARY
           if (strncasecmp(typeName, "bigint", 6) == 0) {
             SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
-          } else {  // BINARY — fixed-length binary, use VARBINARY to avoid UTF-8 decode errors
+          } else {  // BINARY  -  fixed-length binary, use VARBINARY to avoid UTF-8 decode errors
             int32_t len = parseTypeLength(typeName);
             if (len == 0) len = 1;
             SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, len + VARSTR_HEADER_SIZE);
@@ -184,7 +184,7 @@ static int32_t mysqlTypeMap(const char *typeName, const char *charset, SDataType
 
     case 'C':
       switch (blen) {
-        case 4:  // CHAR — charset-aware: utf8mb4/utf8/… → NCHAR; ascii/latin1/… → BINARY (DS §5.3.2)
+        case 4:  // CHAR  -  charset-aware: utf8mb4/utf8/...  ->  NCHAR; ascii/latin1/...  ->  BINARY (DS section 5.3.2)
         {
           int32_t len = parseTypeLength(typeName);
           if (len == 0) len = 1;
@@ -220,7 +220,7 @@ static int32_t mysqlTypeMap(const char *typeName, const char *charset, SDataType
       }
       break;
 
-    case 'E':  // ENUM (blen=4) — charset-aware (DS §5.3.2)
+    case 'E':  // ENUM (blen=4)  -  charset-aware (DS section 5.3.2)
       if (mysqlCharsetNeedsNchar(charset)) {
         SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
       } else {
@@ -254,13 +254,13 @@ static int32_t mysqlTypeMap(const char *typeName, const char *charset, SDataType
       }
       break;
 
-    case 'J':  // JSON (blen=4) — no native JSON column in external tables; serialize to string
+    case 'J':  // JSON (blen=4)  -  no native JSON column in external tables; serialize to string
       SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
       return TSDB_CODE_SUCCESS;
 
     case 'L':
       switch (blen) {
-        case 8:  // LONGBLOB → BLOB; LONGTEXT → NCHAR
+        case 8:  // LONGBLOB  ->  BLOB; LONGTEXT  ->  NCHAR
           if (strncasecmp(typeName, "longblob", 8) == 0) {
             SET_TD(pTd, TSDB_DATA_TYPE_BLOB, 4 * 1024 * 1024 + VARSTR_HEADER_SIZE);
           } else {  // LONGTEXT
@@ -279,7 +279,7 @@ static int32_t mysqlTypeMap(const char *typeName, const char *charset, SDataType
         case 9:  // MEDIUMINT
           SET_TD(pTd, TSDB_DATA_TYPE_INT, 4);
           return TSDB_CODE_SUCCESS;
-        case 10:  // MEDIUMBLOB → VARBINARY; MEDIUMTEXT → NCHAR
+        case 10:  // MEDIUMBLOB  ->  VARBINARY; MEDIUMTEXT  ->  NCHAR
           if (toupper((unsigned char)typeName[6]) == 'B') {
             SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
           } else {
@@ -328,7 +328,7 @@ static int32_t mysqlTypeMap(const char *typeName, const char *charset, SDataType
 
     case 'S':
       switch (blen) {
-        case 3:  // SET — charset-aware (DS §5.3.2)
+        case 3:  // SET  -  charset-aware (DS section 5.3.2)
           if (mysqlCharsetNeedsNchar(charset)) {
             SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
           } else {
@@ -347,7 +347,7 @@ static int32_t mysqlTypeMap(const char *typeName, const char *charset, SDataType
 
     case 'T':
       switch (blen) {
-        case 4:  // TEXT vs TIME — TEXT is charset-aware (DS §5.3.2: ASCII→VARCHAR, utf8mb4→NCHAR)
+        case 4:  // TEXT vs TIME  -  TEXT is charset-aware (DS section 5.3.2: ASCII -> VARCHAR, utf8mb4 -> NCHAR)
           if (strncasecmp(typeName, "text", 4) == 0) {
             if (mysqlCharsetNeedsNchar(charset)) {
               SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, 65535 + VARSTR_HEADER_SIZE);
@@ -358,14 +358,14 @@ static int32_t mysqlTypeMap(const char *typeName, const char *charset, SDataType
             SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
           }
           return TSDB_CODE_SUCCESS;
-        case 7:  // TINYINT (may be TINYINT(1) → BOOL)
+        case 7:  // TINYINT (may be TINYINT(1)  ->  BOOL)
           if (paren && parseTypeLength(typeName) == 1) {
             SET_TD(pTd, TSDB_DATA_TYPE_BOOL, 1);
           } else {
             SET_TD(pTd, TSDB_DATA_TYPE_TINYINT, 1);
           }
           return TSDB_CODE_SUCCESS;
-        case 8:  // TINYBLOB → VARBINARY; TINYTEXT → charset-aware (DS §5.3.2)
+        case 8:  // TINYBLOB  ->  VARBINARY; TINYTEXT  ->  charset-aware (DS section 5.3.2)
           if (toupper((unsigned char)typeName[4]) == 'B') {
             SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, 255 + VARSTR_HEADER_SIZE);
           } else {  // TINYTEXT
@@ -388,7 +388,7 @@ static int32_t mysqlTypeMap(const char *typeName, const char *charset, SDataType
 
     case 'V':
       switch (blen) {
-        case 7:  // VARCHAR — charset-aware: utf8mb4/utf8/… → NCHAR; ascii/latin1/… → VARCHAR
+        case 7:  // VARCHAR  -  charset-aware: utf8mb4/utf8/...  ->  NCHAR; ascii/latin1/...  ->  VARCHAR
         {
           int32_t len = parseTypeLength(typeName);
           if (len == 0) len = EXT_DEFAULT_VARCHAR_LEN;
@@ -421,7 +421,7 @@ static int32_t mysqlTypeMap(const char *typeName, const char *charset, SDataType
 }
 
 // ---------------------------------------------------------------------------
-// PostgreSQL type mapping  (DS §5.3.2 — PostgreSQL → TDengine)
+// PostgreSQL type mapping  (DS section 5.3.2  -  PostgreSQL  ->  TDengine)
 // ---------------------------------------------------------------------------
 
 // Returns true when the PG database server encoding requires NCHAR mapping.
@@ -482,7 +482,7 @@ static int32_t pgTypeMap(const char *typeName, const char *encoding, SDataType *
 
     case 'C':
       switch (blen) {
-        case 4:  // char vs cidr — char is encoding-aware (DS §5.3.2: ASCII→BINARY, UTF-8→NCHAR)
+        case 4:  // char vs cidr  -  char is encoding-aware (DS section 5.3.2: ASCII -> BINARY, UTF-8 -> NCHAR)
           if (strncasecmp(typeName, "char", 4) == 0) {
             int32_t len = parseTypeLength(typeName);
             if (len == 0) len = 1;
@@ -495,18 +495,18 @@ static int32_t pgTypeMap(const char *typeName, const char *encoding, SDataType *
             SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 64 + VARSTR_HEADER_SIZE);
           }
           return TSDB_CODE_SUCCESS;
-        case 9:   // character — encoding-aware (DS §5.3.2: ASCII→BINARY, UTF-8→NCHAR)
+        case 9:   // character  -  encoding-aware (DS section 5.3.2: ASCII -> BINARY, UTF-8 -> NCHAR)
         case 17:  // character varying
         {
           int32_t len = parseTypeLength(typeName);
           if (len == 0) len = EXT_DEFAULT_VARCHAR_LEN;
-          if (blen == 9) {  // "character" (fixed-length CHAR) — encoding-aware
+          if (blen == 9) {  // "character" (fixed-length CHAR)  -  encoding-aware
             if (pgEncodingNeedsNchar(encoding)) {
               SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
             } else {
               SET_TD(pTd, TSDB_DATA_TYPE_BINARY, len + VARSTR_HEADER_SIZE);
             }
-          } else {  // "character varying" — encoding-aware
+          } else {  // "character varying"  -  encoding-aware
             if (pgEncodingNeedsNchar(encoding)) {
               SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
             } else {
@@ -589,10 +589,10 @@ static int32_t pgTypeMap(const char *typeName, const char *encoding, SDataType *
 
     case 'J':
       switch (blen) {
-        case 4:  // json — serialize to string; no native JSON column in external tables
+        case 4:  // json  -  serialize to string; no native JSON column in external tables
           SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
           return TSDB_CODE_SUCCESS;
-        case 5:  // jsonb — serialize to string; no native JSON column in external tables
+        case 5:  // jsonb  -  serialize to string; no native JSON column in external tables
           SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
           return TSDB_CODE_SUCCESS;
         default: break;
@@ -601,8 +601,8 @@ static int32_t pgTypeMap(const char *typeName, const char *encoding, SDataType *
 
     case 'M':
       switch (blen) {
-        case 5:  // money → DECIMAL(18,2)  DS §5.3.2
-          // PG money range ≤ 92233720368547758.07; DECIMAL64 max precision = 18.
+        case 5:  // money  ->  DECIMAL(18,2)  DS section 5.3.2
+          // PG money range  <=  92233720368547758.07; DECIMAL64 max precision = 18.
           pTd->type      = TSDB_DATA_TYPE_DECIMAL64;
           pTd->precision = 18;
           pTd->scale     = 2;
@@ -673,9 +673,9 @@ static int32_t pgTypeMap(const char *typeName, const char *encoding, SDataType *
       switch (blen) {
         case 4:  // text vs time
           if (strncasecmp(typeName, "text", 4) == 0) {
-            // PG text is variable-length Unicode → NCHAR per DS §5.3.2.
+            // PG text is variable-length Unicode  ->  NCHAR per DS section 5.3.2.
             // Functions that receive NCHAR input (to_timestamp, st_geomfromtext, etc.) handle
-            // the UCS-4 → UTF-8 conversion internally.
+            // the UCS-4  ->  UTF-8 conversion internally.
             SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
           } else {  // time
             SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
@@ -718,7 +718,7 @@ static int32_t pgTypeMap(const char *typeName, const char *encoding, SDataType *
       }
       break;
 
-    case 'V':  // varchar (blen=7) — encoding-aware
+    case 'V':  // varchar (blen=7)  -  encoding-aware
     {
       int32_t len = parseTypeLength(typeName);
       if (len == 0) len = EXT_DEFAULT_VARCHAR_LEN;
@@ -741,7 +741,7 @@ static int32_t pgTypeMap(const char *typeName, const char *encoding, SDataType *
 }
 
 // ---------------------------------------------------------------------------
-// InfluxDB 3.x (Arrow type names) → TDengine  (DS §5.3.2)
+// InfluxDB 3.x (Arrow type names)  ->  TDengine  (DS section 5.3.2)
 // ---------------------------------------------------------------------------
 static int32_t influxTypeMap(const char *typeName, SDataType *pTd) {
   // Compute base length and first char for two-level dispatch.
@@ -772,7 +772,7 @@ static int32_t influxTypeMap(const char *typeName, SDataType *pTd) {
 
     case 'D':
       switch (blen) {
-        case 6:  // Date32 / Date64 — both map to TIMESTAMP
+        case 6:  // Date32 / Date64  -  both map to TIMESTAMP
           SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
           return TSDB_CODE_SUCCESS;
         case 8:  // Duration
@@ -834,7 +834,7 @@ static int32_t influxTypeMap(const char *typeName, SDataType *pTd) {
 
     case 'T':
       switch (blen) {
-        case 6:  // Time32 / Time64 — both map to BIGINT
+        case 6:  // Time32 / Time64  -  both map to BIGINT
           SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
           return TSDB_CODE_SUCCESS;
         case 9:  // Timestamp

@@ -1875,7 +1875,7 @@ int32_t ctgMergeVctbOwnMeta(STableMeta** ppTbMeta, const SVCTableMeta* pVctbMeta
   //    under-allocates the block, and cloneTableMeta() then reads numOfOwnCols * sizeof(SSchemaExt)
   //    bytes past it (ASAN heap-buffer-overflow).
   //  - vstb has no ext but own columns do: the vstb's numOfCols slots still must be allocated and
-  //    zeroed so the own ext lands at the right offset — the ext area in that case is
+  //    zeroed so the own ext lands at the right offset  -  the ext area in that case is
   //    (numOfCols + numOfOwnCols) entries, not just the own ones (otherwise the memset below writes
   //    past the realloc'd block and corrupts the heap).
   bool ownColHasExt = (pVctbMeta->ownSchemaExt != NULL);
@@ -1971,7 +1971,7 @@ int32_t ctgMergeVctbOwnMeta(STableMeta** ppTbMeta, const SVCTableMeta* pVctbMeta
   // Own columns/tags were merged into the schema area; keep the head fields cleared so
   // the result stays compatible with cloneTableMeta()/TABLE_META_FULL_SIZE(). ownSchemaExt
   // must be cleared too: it still points into the caller's SVCTableMeta tail block, which is
-  // freed right after merge returns (catalog.c cache-miss path) — leaving it set would be a
+  // freed right after merge returns (catalog.c cache-miss path)  -  leaving it set would be a
   // dangling pointer on every merged per-child meta.
   pTbMeta->numOfOwnCols = 0;
   pTbMeta->ownSchemas = NULL;

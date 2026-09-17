@@ -569,7 +569,7 @@ int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     subtraction here nets out to "compute excluding downstream fetch".
 
     Since this block is the only writer of inputWaitElapsed for the sort-merge
-    type, the counter always equals the last-seen cumulative fetch time — no
+    type, the counter always equals the last-seen cumulative fetch time  -  no
     separate baseline needs to be stored, and the accounting stays correct
     across an operator reset (sort handle recreated and cost cleared together).
   */

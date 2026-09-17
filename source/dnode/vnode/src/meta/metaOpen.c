@@ -250,11 +250,11 @@ int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t
   code = tdbTbOpen("stream.task.db", sizeof(int64_t), -1, taskIdxKeyCmpr, pMeta->pEnv, &pMeta->pStreamDb, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  // open pTxnIdx — small B+ tree tracking pending txn entries (key=uid, value=STxnIdxVal)
+  // open pTxnIdx  -  small B+ tree tracking pending txn entries (key=uid, value=STxnIdxVal)
   code = tdbTbOpen("txn.idx", sizeof(tb_uid_t), sizeof(STxnIdxVal), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pTxnIdx, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  // open pTxnMeta — lazy COMMIT/ROLLBACK finalization records (key=txnId, value=STxnMetaVal)
+  // open pTxnMeta  -  lazy COMMIT/ROLLBACK finalization records (key=txnId, value=STxnMetaVal)
   code = tdbTbOpen("txn.meta", sizeof(int64_t), sizeof(STxnMetaVal), uidIdxKeyCmpr, pMeta->pEnv,
                    &pMeta->pTxnMeta, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
