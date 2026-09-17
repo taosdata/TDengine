@@ -238,7 +238,7 @@ add_test(
                 COMMAND txnStateTest
 
         )
-if(TD_WINDOWS)
+if(TD_WINDOWS OR TD_DARWIN)
     set_tests_properties(sessionTest PROPERTIES
         RUN_SERIAL TRUE
         TIMEOUT 900
