@@ -716,6 +716,32 @@ static const SSysDbTableSchema diskUsageSchema[] = {
     {.name = "raw_data", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
 };
 
+static const SSysDbTableSchema lastCacheStatsSchema[] = {
+    {.name = "dnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "block_cache_capacity", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "block_cache_usage", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "block_cache_pinned_usage", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "estimate_table_readers_mem", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "cur_size_active_mem_table", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "cur_size_all_mem_tables", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "num_immutable_mem_table", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "mem_table_flush_pending", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = true},
+    {.name = "num_running_flushes", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "compaction_pending", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = true},
+    {.name = "num_running_compactions", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "estimate_pending_compaction_bytes", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "is_write_stopped", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = true},
+    {.name = "actual_delayed_write_rate", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "num_files_at_level0", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "total_sst_files_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "estimate_num_keys", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "num_live_versions", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "background_errors", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
+};
+
 static const SSysDbTableSchema mountSchema[] = {
     {.name = "name", .bytes = TSDB_MOUNT_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "dnode", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
@@ -934,6 +960,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_ANODES, anodesSchema, tListLen(anodesSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_ANODES_FULL, anodesFullSchema, tListLen(anodesFullSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_DISK_USAGE, diskUsageSchema, tListLen(diskUsageSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_LAST_CACHE_STATS, lastCacheStatsSchema, tListLen(lastCacheStatsSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_FILESETS, filesetsFullSchema, tListLen(filesetsFullSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_TRANSACTION_DETAILS, userTransactionDetailSchema, tListLen(userTransactionDetailSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_SNAP_SEND_VNODES,   snapSendVnodesSchema,         tListLen(snapSendVnodesSchema),         false, PRIV_CAT_BASIC},

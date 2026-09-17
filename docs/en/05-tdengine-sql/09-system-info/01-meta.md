@@ -387,6 +387,36 @@ Provides the names of created indexes, their databases and tables, column names,
 | 6   | `column_name` | VARCHAR(192) | Indexed column name |
 | 7   | `index_type`  | VARCHAR(192) | Index type (such as SMA or tag) |
 
+## INS_LAST_CACHE_STATS
+
+Provides, per `dnode` and `vgroup`, the runtime state of the RocksDB engine backing the last cache: block cache capacity and usage, memtable sizes, flush/compaction backlog, write-stall rate, and SST file statistics. Use it to observe and diagnose the effect of parameters such as `CACHESIZE` and `sLastCacheWriteBufferSize` (see [Databases](../02-ddl/01-database.md) and the [Configuration Parameter Scope Comparison Table](../../12-operations-and-tooling/03-components/10-config-scope.md)). Users with `SYSINFO` set to 0 cannot view this table.
+
+| #   | **Column Name** | **Data Type** | **Description** |
+| --- | ----------------------------------- | --------- | --- |
+| 1   | `dnode_id`                          | INT       | `dnode` ID |
+| 2   | `vgroup_id`                         | INT       | `vgroup` ID |
+| 3   | `db_name`                           | VARCHAR(32) | Database name |
+| 4   | `block_cache_capacity`              | BIGINT    | Block cache capacity, in bytes; resized dynamically with `CACHESIZE` without restarting or reopening the `vnode` |
+| 5   | `block_cache_usage`                 | BIGINT    | Current block cache usage, in bytes |
+| 6   | `block_cache_pinned_usage`          | BIGINT    | Portion of the block cache that is pinned (not evictable), in bytes |
+| 7   | `estimate_table_readers_mem`        | BIGINT    | Estimated memory used by table readers (index blocks, filter blocks, etc.), in bytes |
+| 8   | `cur_size_active_mem_table`         | BIGINT    | Size of the current active memtable, in bytes |
+| 9   | `cur_size_all_mem_tables`           | BIGINT    | Total size of all memtables (including immutable ones), in bytes |
+| 10  | `num_immutable_mem_table`           | INT       | Number of immutable (flush-pending) memtables |
+| 11  | `mem_table_flush_pending`           | BOOL      | Whether a memtable flush is pending |
+| 12  | `num_running_flushes`               | INT       | Number of flushes currently running |
+| 13  | `compaction_pending`                | BOOL      | Whether a compaction is pending |
+| 14  | `num_running_compactions`           | INT       | Number of compactions currently running |
+| 15  | `estimate_pending_compaction_bytes` | BIGINT    | Estimated bytes of pending compaction |
+| 16  | `is_write_stopped`                  | BOOL      | Whether writes have been stopped by the RocksDB engine (an extreme case of write throttling/stalling) |
+| 17  | `actual_delayed_write_rate`         | BIGINT    | Current actual write-throttling rate, in bytes/second; `0` means not throttled |
+| 18  | `num_files_at_level0`               | INT       | Number of SST files at Level 0; a continuously growing count usually means compaction is falling behind writes |
+| 19  | `total_sst_files_size`              | BIGINT    | Total size of all SST files, in bytes |
+| 20  | `estimate_num_keys`                 | BIGINT    | Estimated number of keys |
+| 21  | `num_live_versions`                 | INT       | Number of live versions |
+| 22  | `background_errors`                 | INT       | Cumulative number of background (flush/compaction) errors; non-zero indicates an issue that needs investigation (disk, system state) |
+| 23  | `update_time`                       | TIMESTAMP | Time this row's statistics were collected |
+
 ## INS_MACHINES
 
 Provides the IDs, `dnode` counts, and versions of machines bound to licenses. The same information can also be queried using [`SHOW CLUSTER MACHINES`](./03-show.md#show-cluster-machines). Users with `SYSINFO` set to 0 cannot view this table.

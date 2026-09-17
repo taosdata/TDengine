@@ -93,6 +93,14 @@ This document compares the configuration parameters of taosd (server-side) and t
 | ssAccessString | taosd | A string which contains various options for accessing the shared storage |
 | ssPageCacheSize | taosd | Number of shared storage page cache pages |
 | ssUploadDelaySec | taosd | How long a data file remains unchanged before being uploaded to shared storage |
+| **Cache Related** | | |
+| sLastCacheWriteBufferSize | taosd | Write-buffer (memtable) size per memtable for the RocksDB engine backing the last cache, in MB |
+| sLastCacheMaxWriteBufferNumber | taosd | Maximum number of memtables (write buffers) that can coexist in the RocksDB engine backing the last cache |
+| sLastCacheBackgroundThreads | taosd | Number of background threads used for flush and compaction by the RocksDB engine backing the last cache; each vnode owns its own thread pool of this size |
+| sLastCacheBloomFilterBits | taosd | Number of bloom-filter bits per key in the RocksDB engine backing the last cache, used to reduce unnecessary SST file reads on `last`/`last_row` point lookups; 0 disables it |
+| sLastCacheMaxOpenFiles | taosd | Maximum number of open file descriptors allowed by the RocksDB engine backing the last cache; -1 means unlimited |
+| sLastCacheCompressionType | taosd | Compression algorithm used by the RocksDB engine backing the last cache |
+| sLastCacheOptionsOverride | taosd | Overrides last-cache engine parameters using a raw RocksDB options string; lower priority than the dedicated parameters above, intended for advanced use |
 | **Cluster Related** | | |
 | supportVnodes | taosd | Maximum number of vnodes supported by a dnode |
 | numOfCommitThreads | taosd | Maximum number of commit threads |

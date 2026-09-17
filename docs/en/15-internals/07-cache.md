@@ -55,6 +55,24 @@ Furthermore, TDengine's read cache mechanism can also be flexibly adjusted accor
 
 For more detailed information about TDengine's read cache, see [Read Cache](../05-tdengine-sql/04-data-query/08-cache-query.md). For `LAST` / `LAST_ROW` semantics, see [LAST](../05-tdengine-sql/04-data-query/03-function.md#last) and [LAST_ROW](../05-tdengine-sql/04-data-query/03-function.md#last_row). For LRU, lazy loading, and related mechanisms, see [Architecture: last/last_row Cache](./01-arch.md#lastlast_row-cache).
 
+### Read Cache Engine Parameters
+
+When `CACHEMODEL` is not `none`, in addition to the in-memory LRU cache described above, each `vnode` also opens a dedicated RocksDB instance as a persistent last-cache engine. It serves `last`/`last_row` queries when the in-memory cache misses or after a restart. This engine's behavior can be tuned with the following dnode-level parameters (set in `taos.cfg`; see the [Configuration Parameter Scope Comparison Table](../12-operations-and-tooling/03-components/10-config-scope.md)):
+
+| Parameter | Default | Range | Description |
+| --- | --- | --- | --- |
+| `sLastCacheWriteBufferSize` | 8 (MB) | [1, 1048576] | Write-buffer size per memtable |
+| `sLastCacheMaxWriteBufferNumber` | 2 | [1, 64] | Maximum number of memtables that can coexist |
+| `sLastCacheBackgroundThreads` | 2 | [1, 256] | Number of flush/compaction background threads; each `vnode` owns its own thread pool of this size |
+| `sLastCacheBloomFilterBits` | 10 | [0, 32] | Bloom-filter bits per key, reducing unnecessary SST file reads on point lookups; 0 disables it |
+| `sLastCacheMaxOpenFiles` | -1 | [-1, 1048576] | Maximum number of open file descriptors; -1 means unlimited |
+| `sLastCacheCompressionType` | `none` | Depends on compression libraries linked at build time | Compression algorithm |
+| `sLastCacheOptionsOverride` | empty | Raw RocksDB options string | Overrides the parameters above; lowest priority, intended for advanced use |
+
+All of these parameters, except for the block-cache capacity controlled by `CACHESIZE`, are bound once into the underlying RocksDB `Options` when the database instance is opened. Changing them requires restarting the `dnode` (or at least reopening the affected `vnode`s), so they are marked as lazily applied (`_LAZY`) in the configuration system. The only setting that takes effect immediately, without a restart, is the block-cache capacity adjusted via `ALTER DATABASE ... CACHESIZE ...`: `CACHESIZE` is split evenly between the in-memory LRU cache and this RocksDB engine's block cache (each gets half), so total memory usage stays approximately `CACHESIZE` instead of doubling, and both are resized in place through RocksDB's capacity-resize API.
+
+You can observe this engine's runtime state per `vgroup` — including block-cache capacity and usage, memtable sizes, flush/compaction backlog, write-throttling rate, and SST file statistics — through the [`INS_LAST_CACHE_STATS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_last_cache_stats) system table, to verify the effect of a parameter change or to diagnose write/query latency issues.
+
 ## Metadata Cache
 
 To enhance the efficiency of query and write operations, each vnode is equipped with a caching mechanism for storing metadata it has previously accessed. The size of this metadata cache is determined by two parameters set during database creation: pages and pagesize. The pagesize parameter is in KB and specifies the size of each cache page. The following SQL creates a metadata cache for each vnode in the database power with 128 pages, each page being 16KB

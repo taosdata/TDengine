@@ -562,6 +562,18 @@ int32_t tsSsBlockSize = -1;        // number of tsdb pages (4096). note: some re
 int32_t tsSsBlockCacheSize = 16;   // number of blocks
 int32_t tsSsPageCacheSize = 4096;  // number of pages
 int32_t tsSsUploadDelaySec = 60;
+
+// last cache rocksdb engine tuning
+// block cache size is not a separate parameter: it is derived per-vnode from
+// the database's CACHESIZE (pVnode->config.cacheLastSize), consistent with how
+// resource usage is estimated per-vnode at delivery time.
+int32_t tsLastCacheWriteBufferSize = 8;         // MB
+int32_t tsLastCacheMaxWriteBufferNumber = 2;
+int32_t tsLastCacheBackgroundThreads = 2;       // shared background thread pool
+int32_t tsLastCacheBloomFilterBits = 10;        // 0 = disabled
+int32_t tsLastCacheMaxOpenFiles = -1;           // -1 = unlimited
+char    tsLastCacheCompressionType[TSDB_LAST_CACHE_COMPRESSION_TYPE_LEN] = "none";
+char    tsLastCacheOptionsOverride[TSDB_LAST_CACHE_OPTIONS_OVERRIDE_LEN] = "";  // raw RocksDB options string, lowest priority
 int32_t tsQuerySsMigrateIntervalSec = 10;  // interval of query ssmigrate in all vgroups
 
 bool tsExperimental = true;
@@ -1268,6 +1280,14 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ssAutoMigrateIntervalSec", tsSsAutoMigrateIntervalSec, 600, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ssPageCacheSize", tsSsPageCacheSize, 4, 1024 * 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ssUploadDelaySec", tsSsUploadDelaySec, 1, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sLastCacheWriteBufferSize", tsLastCacheWriteBufferSize, 1, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sLastCacheMaxWriteBufferNumber", tsLastCacheMaxWriteBufferNumber, 1, 64, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sLastCacheBackgroundThreads", tsLastCacheBackgroundThreads, 1, 256, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sLastCacheBloomFilterBits", tsLastCacheBloomFilterBits, 0, 32, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sLastCacheMaxOpenFiles", tsLastCacheMaxOpenFiles, -1, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "sLastCacheCompressionType", tsLastCacheCompressionType, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "sLastCacheOptionsOverride", tsLastCacheOptionsOverride, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
 
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "filterScalarMode", tsFilterScalarMode, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL,CFG_PRIV_SYSTEM));
@@ -2513,6 +2533,29 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsSsUploadDelaySec = pItem->i32;
 #endif
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sLastCacheWriteBufferSize");
+  tsLastCacheWriteBufferSize = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sLastCacheMaxWriteBufferNumber");
+  tsLastCacheMaxWriteBufferNumber = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sLastCacheBackgroundThreads");
+  tsLastCacheBackgroundThreads = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sLastCacheBloomFilterBits");
+  tsLastCacheBloomFilterBits = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sLastCacheMaxOpenFiles");
+  tsLastCacheMaxOpenFiles = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sLastCacheCompressionType");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, sizeof(tsLastCacheCompressionType)));
+  tstrncpy(tsLastCacheCompressionType, pItem->str, sizeof(tsLastCacheCompressionType));
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sLastCacheOptionsOverride");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, sizeof(tsLastCacheOptionsOverride)));
+  tstrncpy(tsLastCacheOptionsOverride, pItem->str, sizeof(tsLastCacheOptionsOverride));
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "experimental");
   tsExperimental = pItem->bval;
 
@@ -3308,6 +3351,19 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     goto _exit;
   }
 
+  if (strcasecmp("sLastCacheCompressionType", name) == 0) {
+    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, sizeof(tsLastCacheCompressionType)), &lino, _exit);
+    tstrncpy(tsLastCacheCompressionType, pItem->str, sizeof(tsLastCacheCompressionType));
+    code = TSDB_CODE_SUCCESS;
+    goto _exit;
+  }
+  if (strcasecmp("sLastCacheOptionsOverride", name) == 0) {
+    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, sizeof(tsLastCacheOptionsOverride)), &lino, _exit);
+    tstrncpy(tsLastCacheOptionsOverride, pItem->str, sizeof(tsLastCacheOptionsOverride));
+    code = TSDB_CODE_SUCCESS;
+    goto _exit;
+  }
+
   if (strcasecmp(name, "dataDir") == 0) {
     code = TSDB_CODE_SUCCESS;
     goto _exit;
@@ -3492,6 +3548,11 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"ssBlockCacheSize", &tsSsBlockCacheSize},
                                          {"ssPageCacheSize", &tsSsPageCacheSize},
                                          {"ssUploadDelaySec", &tsSsUploadDelaySec},
+                                         {"sLastCacheWriteBufferSize", &tsLastCacheWriteBufferSize},
+                                         {"sLastCacheMaxWriteBufferNumber", &tsLastCacheMaxWriteBufferNumber},
+                                         {"sLastCacheBackgroundThreads", &tsLastCacheBackgroundThreads},
+                                         {"sLastCacheBloomFilterBits", &tsLastCacheBloomFilterBits},
+                                         {"sLastCacheMaxOpenFiles", &tsLastCacheMaxOpenFiles},
                                          {"mndLogRetention", &tsMndLogRetention},
                                          {"supportVnodes", &tsNumOfSupportVnodes},
                                          {"experimental", &tsExperimental},
