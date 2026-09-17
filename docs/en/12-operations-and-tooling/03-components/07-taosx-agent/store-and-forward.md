@@ -74,7 +74,7 @@ When creating or editing an OPC UA / OPC DA / MQTT data ingestion task in taosEx
 
 Turn on the **Cache Real-time Data** toggle to enable Store and Forward.
 
-![OPC UA Advanced Options - Cache Real-time Data](../../../assets/store-and-forward-01.png)
+![OPC UA Advanced Options - Cache Real-time Data](../../../assets/store-and-forward-01.webp)
 
 ## How It Works
 

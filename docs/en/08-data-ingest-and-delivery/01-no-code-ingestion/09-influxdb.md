@@ -24,7 +24,7 @@ The task saves progress information to the disk during operation, so if the task
 
 Fill in the *`connection information for the source InfluxDB database`* in the **Connection Configuration** area, as shown below:
 
-![Configure connection information](../../assets/influxdb-01.png)
+![Configure connection information](../../assets/influxdb-01.webp)
 
 ### Configure Authentication Information
 
@@ -34,7 +34,7 @@ In the **Authentication** area, there are two tabs, *`1.x version`* and *`2.x ve
   **User** Enter the user of the source InfluxDB database, who must have read permissions in that organization.  
   **Password** Enter the login password for the above user in the source InfluxDB database.
 
-   ![Configure authentication information for InfluxDB 1.x](../../assets/influxdb-02.png)
+   ![Configure authentication information for InfluxDB 1.x](../../assets/influxdb-02.webp)
 
   *`2.x version`*  
   **Version** Select the version of the source InfluxDB database from the dropdown menu.  
@@ -42,19 +42,19 @@ In the **Authentication** area, there are two tabs, *`1.x version`* and *`2.x ve
   **Token** Enter the access token for the source InfluxDB database, which must have read permissions in that organization.  
   **Add Database Retention Policy** This is a *`Yes/No`* toggle. InfluxQL requires a combination of database and retention policy (DBRP) to query data. The cloud version of InfluxDB and some 2.x versions require manually adding this mapping. Turn on this switch, and the connector can automatically add it when executing tasks.  
 
-   ![Configure authentication information for InfluxDB 2.x](../../assets/influxdb-03.png)
+   ![Configure authentication information for InfluxDB 2.x](../../assets/influxdb-03.webp)
 
 Below the **Authentication** area, there is a **Connectivity Check** button. Users can click this button to check if the information filled in above can normally access the data of the source InfluxDB database. The check results are shown below:  
 
-![Connectivity check failed](../../assets/influxdb-04.png)
+![Connectivity check failed](../../assets/influxdb-04.webp)
 
-![Connectivity check succeeded](../../assets/influxdb-05.png)
+![Connectivity check succeeded](../../assets/influxdb-05.webp)
 
 ### Configure Task Information
 
 **Bucket** is a named space in the InfluxDB database for storing data. Each task needs to specify a bucket. Users need to first click the **Get Schema** button on the right to obtain the data structure information of the current source InfluxDB database, and then select from the dropdown menu as shown below:
 
-![Configure task information](../../assets/influxdb-06.png)
+![Configure task information](../../assets/influxdb-06.webp)
 
 **Measurements** are optional. Users can select one or more Measurements to synchronize from the dropdown menu. If none are specified, all will be synchronized.
 
@@ -70,9 +70,9 @@ Below the **Authentication** area, there is a **Connectivity Check** button. Use
 
 The **Advanced Options** area is collapsed by default. Click the `>` on the right to expand it, as shown below:
 
-![Configure advanced options](../../assets/influxdb-07.png)
+![Configure advanced options](../../assets/influxdb-07.webp)
 
-![Expanded advanced options](../../assets/influxdb-08.png)
+![Expanded advanced options](../../assets/influxdb-08.webp)
 
 ### Completion of Creation
 

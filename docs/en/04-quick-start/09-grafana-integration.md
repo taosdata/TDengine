@@ -135,7 +135,7 @@ Before clicking **Run query** or **Apply**, set an absolute time range in the up
 
 Then run the query. Grafana shows how average current changes over that period.
 
-![Create a Grafana panel with TDengine](../assets/grafana-01.png)
+![Create a Grafana panel with TDengine](../assets/grafana-01.webp)
 
 If the chart is empty, confirm the time range covers your sample data and that `test.meters` contains the quick-start writes.
 

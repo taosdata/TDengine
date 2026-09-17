@@ -62,7 +62,7 @@ The **Points Set** of an OPC UA task offers three mutually exclusive modes, swit
 
 Select the **Alarms & Events** tab to enter A&E collection. In this mode you can configure three filters — Event Types, Event Source Filter, and Min Severity — and generate a configuration preview.
 
-![Alarm and Event collection configuration](../../../assets/alarm-event-01.png)
+![Alarm and Event collection configuration](../../../assets/alarm-event-01.webp)
 
 ### Select Event Types (required)
 
@@ -73,7 +73,7 @@ Click **Event Types** and taosExplorer browses the Server, building the **event 
 - The type tree is cached by default (instant UI); to force a fresh browse, click **Refresh (no cache)** in the top right.
 - **Fallback**: If the Server does not expose a complete type tree, taosExplorer falls back to a built-in catalog of standard OPC UA event types (fixed NodeIds in namespace 0 + standard field sets). Only vendor-specific custom types cannot be discovered.
 
-![Event type tree](../../../assets/alarm-event-02.png)
+![Event type tree](../../../assets/alarm-event-02.webp)
 
 :::tip
 The event type tree rarely changes, so the default cache is fine. The cache is invalidated automatically only when the Endpoint, security policy, or account changes, or when the last browse failed.
@@ -88,7 +88,7 @@ The event type tree rarely changes, so the default cache is fine. The cache is i
 - A plant may have hundreds or thousands of sources; use the search box to filter by name or NodeId.
 - **Empty = no filter, collect from all sources** (default).
 
-![Event source tree](../../../assets/alarm-event-03.png)
+![Event source tree](../../../assets/alarm-event-03.webp)
 
 :::note
 If the Server has no notifier / event-source hierarchy, the source tree is empty. You can then enter a `SourceNode` NodeId manually and press Enter, or leave it empty to collect from all sources.
@@ -116,7 +116,7 @@ Before submitting, click **Generate Preview** in the **Preview** area. taosExplo
 
 The preview is **static**: it only reads the type fields and derives the schema — it **does not create a subscription and does not write to TDengine**. It reuses the exact same rules as the runtime table creation, so **what you see in the preview is what actually gets created**.
 
-<!-- ![Configuration preview](../../../assets/alarm-event-04.png) -->
+<!-- ![Configuration preview](../../../assets/alarm-event-04.webp) -->
 
 :::tip
 As long as at least one event type is selected, the preview is always non-empty and deterministic, regardless of "whether an alarm happens to occur within the window." Always preview before submitting to confirm the table structure and filters.

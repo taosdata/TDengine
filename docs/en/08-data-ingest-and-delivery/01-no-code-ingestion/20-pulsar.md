@@ -27,7 +27,7 @@ TDengine can efficiently read data from Pulsar and write it to TDengine to achie
 
 Only one valid broker server address needs to be filled in.
 
-![Configure connection information](../../assets/pulsar-01.png)
+![Configure connection information](../../assets/pulsar-01.webp)
 
 ### Authentication Mechanism
 
@@ -39,25 +39,25 @@ If authentication is not required, leave the authentication fields blank.
 
 Select the `Basic-Auth` authentication mechanism and enter the username and password:
 
-![Configure plain authentication](../../assets/pulsar-02.png)
+![Configure plain authentication](../../assets/pulsar-02.webp)
 
 #### JWT Authentication
 
 Select the `JWT` authentication mechanism and enter the JWT token information:
 
-![Configure SCRAM authentication](../../assets/pulsar-03.png)
+![Configure SCRAM authentication](../../assets/pulsar-03.webp)
 
 #### Configure mTLS Certificate Authentication
 
 If the server has enabled mTLS encrypted authentication, you need to enable mTLS here and configure the relevant content.
 
-![Configure GSSAPI authentication](../../assets/pulsar-04.png)
+![Configure GSSAPI authentication](../../assets/pulsar-04.webp)
 
 #### Custom Authentication
 
 Select `Custom Authentication` and enter the custom authentication information provided by the server:
 
-![Configure SSL certificate](../../assets/pulsar-05.png)
+![Configure SSL certificate](../../assets/pulsar-05.webp)
 
 ### Configure Collection Information
 
@@ -80,7 +80,7 @@ In **Character Encoding**, configure the message body encoding format. When taos
 
 Click the **Connectivity Check** button to check if the data source is available.
 
-![Configure collection settings](../../assets/pulsar-06.png)
+![Configure collection settings](../../assets/pulsar-06.webp)
 
 ### Configure Payload Parsing
 
@@ -111,11 +111,11 @@ or
 
 The parsing results are shown as follows:
 
-![Payload parsing results](../../assets/no-code-ingestion-kafka-07.png)
+![Payload parsing results](../../assets/no-code-ingestion-kafka-07.webp)
 
 Click the **magnifying glass icon** to view the preview parsing results.
 
-![Preview parsing results](../../assets/no-code-ingestion-kafka-08.png)
+![Preview parsing results](../../assets/no-code-ingestion-kafka-08.webp)
 
 #### Field Splitting
 
@@ -125,11 +125,11 @@ Click **Add** to add more extraction rules.
 
 Click **Delete** to delete the current extraction rule.
 
-![Extract or split from column](../../assets/no-code-ingestion-kafka-09.png)
+![Extract or split from column](../../assets/no-code-ingestion-kafka-09.webp)
 
 Click the **magnifying glass icon** to view the preview extraction/splitting results.
 
-![Preview results](../../assets/no-code-ingestion-kafka-10.png)
+![Preview results](../../assets/no-code-ingestion-kafka-10.webp)
 
 #### Data Filtering
 
@@ -139,11 +139,11 @@ Click **Add** to add more filtering rules.
 
 Click **Delete** to delete the current filtering rule.
 
-![Data filtering conditions](../../assets/no-code-ingestion-kafka-11.png)
+![Data filtering conditions](../../assets/no-code-ingestion-kafka-11.webp)
 
 Click the **magnifying glass icon** to view the preview filtering results.
 
-![Preview filtering results](../../assets/no-code-ingestion-kafka-12.png)
+![Preview filtering results](../../assets/no-code-ingestion-kafka-12.webp)
 
 #### Table Mapping
 
@@ -151,19 +151,19 @@ In the **Target Supertable** dropdown, select a target supertable, or click the 
 
 In the **Mapping** section, fill in the name of the subtable in the target supertable, for example: `t_{id}`. Fill in the mapping rules as required, where mapping supports setting default values.
 
-![Configure table mapping](../../assets/no-code-ingestion-kafka-13.png)
+![Configure table mapping](../../assets/no-code-ingestion-kafka-13.webp)
 
 Click **Preview** to view the results of the mapping.
 
-![Preview mapping results](../../assets/no-code-ingestion-kafka-14.png)
+![Preview mapping results](../../assets/no-code-ingestion-kafka-14.webp)
 
 ### Configure Advanced Options
 
 The **Advanced Options** area is collapsed by default, click the `>` on the right to expand it, as shown below:
 
-![Configure advanced options](../../assets/no-code-ingestion-kafka-15.png)
+![Configure advanced options](../../assets/no-code-ingestion-kafka-15.webp)
 
-![Expanded advanced options](../../assets/no-code-ingestion-kafka-16.png)
+![Expanded advanced options](../../assets/no-code-ingestion-kafka-16.webp)
 
 ### Configure Exception Handling
 

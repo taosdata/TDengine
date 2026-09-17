@@ -17,7 +17,7 @@ TDengine 可以高效地从 Pulsar 读取数据并将其写入 TDengine，以实
 
 在数据写入页面中，点击 **+新增数据源** 按钮，进入新增数据源页面。
 
-![image-20260103095152670](../../assets/pulsar-01.png)
+![image-20260103095152670](../../assets/pulsar-01.webp)
 
 ### 配置基本信息
 
@@ -29,7 +29,7 @@ TDengine 可以高效地从 Pulsar 读取数据并将其写入 TDengine，以实
 
 在 **目标数据库** 下拉列表中选择一个目标数据库，也可以先点击右侧的 **+创建数据库** 按钮
 
-![image-20260103095451790](../../assets/pulsar-02.png)
+![image-20260103095451790](../../assets/pulsar-02.webp)
 
 ### 配置连接信息
 
@@ -37,7 +37,7 @@ TDengine 可以高效地从 Pulsar 读取数据并将其写入 TDengine，以实
 
 只需要填写一个有效的 broker server 地址。
 
-![image-20260103095925872](../../assets/pulsar-03.png)
+![image-20260103095925872](../../assets/pulsar-03.webp)
 
 ### 认证机制
 
@@ -49,25 +49,25 @@ TDengine 可以高效地从 Pulsar 读取数据并将其写入 TDengine，以实
 
 选择 `Basic-Auth` 认证机制，输入用户名和密码：
 
-![image-20260103114752040](../../assets/pulsar-04.png)
+![image-20260103114752040](../../assets/pulsar-04.webp)
 
 #### JWT 认证
 
 选择 `JWT` 认证机制，输入 JWT token 信息：
 
-![image-20260103114952662](../../assets/pulsar-05.png)
+![image-20260103114952662](../../assets/pulsar-05.webp)
 
 #### 配置 mTLS 证书认证
 
 如果服务端开启了 mTLS 加密认证，此处需要启用 mTLS 并配置相关内容。
 
-![image-20260103115353359](../../assets/pulsar-06.png)
+![image-20260103115353359](../../assets/pulsar-06.webp)
 
 #### Custom Authentication 认证
 
 选择 `Custom Authentication` ，输入服务器自定义的认证信息即可：
 
-![image-20260104111359714](../../assets/pulsar-07.png)
+![image-20260104111359714](../../assets/pulsar-07.webp)
 
 ### 配置采集信息
 
@@ -90,7 +90,7 @@ TDengine 可以高效地从 Pulsar 读取数据并将其写入 TDengine，以实
 
 点击 **连通性检查** 按钮，检查数据源是否可用。
 
-![image-20260103120055362](../../assets/pulsar-08.png)
+![image-20260103120055362](../../assets/pulsar-08.webp)
 
 ### 配置 Payload 解析
 
@@ -121,11 +121,11 @@ json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解�
 
 解析结果如下所示：
 
-![kafka-07.png](../../assets/no-code-ingestion-kafka-10.png)
+![kafka-07.webp](../../assets/no-code-ingestion-kafka-10.webp)
 
 点击 **放大镜图标**  可查看预览解析结果。
 
-![kafka-08.png](../../assets/no-code-ingestion-kafka-11.png)
+![kafka-08.webp](../../assets/no-code-ingestion-kafka-11.webp)
 
 #### 字段拆分
 
@@ -135,11 +135,11 @@ json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解�
 
 点击 **删除**，可以删除当前提取规则。
 
-![kafka-09.png](../../assets/no-code-ingestion-kafka-12.png)
+![kafka-09.webp](../../assets/no-code-ingestion-kafka-12.webp)
 
 点击 **放大镜图标** 可查看预览提取/拆分结果。
 
-![kafka-10.png](../../assets/no-code-ingestion-kafka-13.png)
+![kafka-10.webp](../../assets/no-code-ingestion-kafka-13.webp)
 
 #### 数据过滤
 
@@ -149,11 +149,11 @@ json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解�
 
 点击 **删除**，可以删除当前过滤规则。
 
-![kafka-11.png](../../assets/no-code-ingestion-kafka-14.png)
+![kafka-11.webp](../../assets/no-code-ingestion-kafka-14.webp)
 
 点击 **放大镜图标** 可查看预览过滤结果。
 
-![kafka-12.png](../../assets/no-code-ingestion-kafka-15.png)
+![kafka-12.webp](../../assets/no-code-ingestion-kafka-15.webp)
 
 #### 表映射
 
@@ -161,11 +161,11 @@ json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解�
 
 在 **映射** 中，填写目标超级表中的子表名称，例如：`t_{id}`。根据需求填写映射规则，其中 mapping 支持设置缺省值。
 
-![kafka-13.png](../../assets/no-code-ingestion-kafka-16.png)
+![kafka-13.webp](../../assets/no-code-ingestion-kafka-16.webp)
 
 点击 **预览**，可以查看映射的结果。
 
-![kafka-14.png](../../assets/no-code-ingestion-kafka-17.png)
+![kafka-14.webp](../../assets/no-code-ingestion-kafka-17.webp)
 
 ### 配置高级选项
 

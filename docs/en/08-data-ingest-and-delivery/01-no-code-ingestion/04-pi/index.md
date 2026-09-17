@@ -63,7 +63,7 @@ If this is your first deployment, we recommend reading [Deployment Architecture]
 
 On the Data In page, click the **+Add Data Source** button to enter the new data source page.
 
-![Add data source](../../../assets/pi-01.png)
+![Add data source](../../../assets/pi-01.webp)
 
 ### Configure Basic Information
 
@@ -78,7 +78,7 @@ In the **Type** dropdown, select **PI** (real-time task) or **PI backfill** (bac
 
 In the **Target Database** dropdown, select a target database, or click the **+Create Database** button on the right to create a new one first.
 
-![Configure basic settings](../../../assets/pi-02.png)
+![Configure basic settings](../../../assets/pi-02.webp)
 
 :::tip
 For detailed deployment architecture options, see [Deployment Architecture](./02-deployment-architecture.md).
@@ -92,7 +92,7 @@ The PI connector supports two connection modes:
 
 Without AF mode, connects directly to PI Data Archive. Fill in the **PI Server Name** (server address, typically a hostname).
 
-![Configure PI Data Archive connection](../../../assets/pi-03.png)
+![Configure PI Data Archive connection](../../../assets/pi-03.webp)
 
 #### PI Data Archive + AF Server
 
@@ -101,7 +101,7 @@ Using PI AF SDK, connects to both PI Data Archive and AF Server. In addition to 
 - **PI System (AF Server) Name**: The AF Server hostname
 - **AF Database Name**: The AF database name to connect to
 
-![Configure PI Data Archive and Asset Framework connection](../../../assets/pi-04.png)
+![Configure PI Data Archive and Asset Framework connection](../../../assets/pi-04.webp)
 
 After configuration, click the **Connectivity Check** button to verify the data source is accessible.
 
@@ -123,7 +123,7 @@ If you want to sync all points or all template elements, the default configurati
 For the syntax, available units, and notes of Dataset Filter, see [Dataset Filter Configuration](./07-dataset-filter.md).
 :::
 
-![Data Model Configuration](../../../assets/pi-05.png)
+![Data Model Configuration](../../../assets/pi-05.webp)
 
 For complete format specification of model configuration files, see [Model Configuration File Reference](./03-csv-reference.md).
 
@@ -138,11 +138,11 @@ Backfill configuration varies depending on the task type:
 
 **PI Real-time Task — Restart Compensation Time:**
 
-![PI Real-time task restart compensation time](../../../assets/realtime-guide-01.png)
+![PI Real-time task restart compensation time](../../../assets/realtime-guide-01.webp)
 
 **PI backfill Task — Backfill Time Range:**
 
-![PI backfill time range](../../../assets/backfill-guide-01.png)
+![PI backfill time range](../../../assets/backfill-guide-01.webp)
 
 :::tip
 For detailed best practices on backfill tasks, see [Historical Data Backfill Guide](./04-backfill-guide.md). For advanced features of real-time tasks, see [Real-time Data Sync Guide](./05-realtime-guide.md).
@@ -174,7 +174,7 @@ When the task type is **PI** (real-time) and uses **multi-column model**, the fo
 | Sync Delete Historical Data | When enabled, when data at a specific timestamp is deleted in PI, the corresponding column values in TDengine are set to null |
 | Sync Modify Historical Data | When enabled, when historical data is modified in PI, the corresponding data in TDengine is also updated |
 
-![Advanced Options](../../../assets/pi-06.png)
+![Advanced Options](../../../assets/pi-06.webp)
 
 ### Submit Task
 

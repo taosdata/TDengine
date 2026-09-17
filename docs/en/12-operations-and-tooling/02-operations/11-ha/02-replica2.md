@@ -15,7 +15,7 @@ In this architecture, leader election is handled by the high-availability mnode 
 1. Arbitrator: Provides arbitration services but does not store data. If a vgroup becomes unavailable due to a vnode failure, the arbitrator designates another vnode in the vgroup as the assigned leader, based on data synchronization status.
 1. Assigned Leader: A vnode that has been explicitly designated as the leader. It can continue serving client requests regardless of whether the other replica vnode is alive.
 
-![Dual-Replica Architecture](../../../assets/replica2-01.png)
+![Dual-Replica Architecture](../../../assets/replica2-01.webp)
 
 ## Cluster Configuration
 

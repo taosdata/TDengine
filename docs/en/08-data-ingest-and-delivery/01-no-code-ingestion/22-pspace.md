@@ -27,7 +27,7 @@ In the **Authentication** section, fill in **Username** and **Password**.
 
 Click **Connectivity Check** to verify whether the data source is available.
 
-![pspace-en-03.png](../../assets/pspace-01.png)
+![pspace-en-03.webp](../../assets/pspace-01.webp)
 
 ### Configure Data Points
 
@@ -48,13 +48,13 @@ In **Data Points**, configure the following items:
 
 After configuring **Root Node** and **Data Point Name**, click **View Data Point List** to view matching data points, then continue configuring the remaining mapping rules.
 
-![pspace-en-04.png](../../assets/pspace-02.png)
+![pspace-en-04.webp](../../assets/pspace-02.webp)
 
 #### Upload CSV Configuration File
 
 In **Upload CSV Configuration File**, click **Download Data Points**, select the required **Root Node** and **Data Point Name**, and a CSV configuration file will be generated and downloaded locally. Modify the generated CSV file as needed and upload it again.
 
-![pspace-en-05.png](../../assets/pspace-03.png)
+![pspace-en-05.webp](../../assets/pspace-03.webp)
 
 ### Configure Collection
 
@@ -70,7 +70,7 @@ pSpace supports three collection modes: Historical Query, Real-time Subscription
 
 Select **Historical Query** mode and configure: Start Time, End Time, and Query Window.
 
-![pspace-en-06.png](../../assets/pspace-04.png)
+![pspace-en-06.webp](../../assets/pspace-04.webp)
 
 #### Real-time Subscription
 
@@ -80,7 +80,7 @@ Select **Real-time Subscription** mode. No additional parameters are required.
 
 Select **Query Sync** mode and configure: Start Time, Query Window, Out-of-order Tolerance, and Query Interval.
 
-![pspace-en-07.png](../../assets/pspace-05.png)
+![pspace-en-07.webp](../../assets/pspace-05.webp)
 
 ### Configure Advanced Options
 

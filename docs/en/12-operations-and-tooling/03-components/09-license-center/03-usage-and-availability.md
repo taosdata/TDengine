@@ -18,11 +18,11 @@ Example entry points:
 
 - Cluster page: connected clusters
 
-![CLS cluster](../../../assets/license-center-05.png)
+![CLS cluster](../../../assets/license-center-05.webp)
 
 - Cluster Usage page: authorization-item usage
 
-![CLS cluster usage](../../../assets/license-center-06.png)
+![CLS cluster usage](../../../assets/license-center-06.webp)
 
 When CLS can reach ELS, related information can sync to ELS for provider-side audit and renewal. Mapping usage to downstream business customers usually still needs your own customer/tenant ledger and slot-naming conventions; the licensing system meters by license and slot.
 

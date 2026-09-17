@@ -24,19 +24,19 @@ During the operation, the task will save progress information to the disk, so if
 
 Fill in the *`connection information for the source OpenTSDB database`* in the **Connection Configuration** area, as shown below:
 
-![Configure connection information](../../assets/opentsdb-01.png)
+![Configure connection information](../../assets/opentsdb-01.webp)
 
 Below the **Connection Configuration** area, there is a **Connectivity Check** button. Users can click this button to check whether the information filled in above can normally access the data from the source OpenTSDB database. The check results are shown below:  
 
-![Connectivity check failed](../../assets/opentsdb-02.png)
+![Connectivity check failed](../../assets/opentsdb-02.webp)
 
-![Connectivity check succeeded](../../assets/opentsdb-03.png)
+![Connectivity check succeeded](../../assets/opentsdb-03.webp)
 
 ### Configure Task Information
 
 **Metrics** are the physical quantities in which data is stored in the OpenTSDB database. Users can specify multiple metrics to synchronize, or synchronize all data in the database if none are specified. If users specify metrics, they need to first click the **Get Metrics** button on the right to obtain all the metric information from the current source OpenTSDB database, and then select from the dropdown menu, as shown below:
 
-![Configure task information](../../assets/opentsdb-04.png)
+![Configure task information](../../assets/opentsdb-04.webp)
 
 **Start Time** refers to the start time of the data in the source OpenTSDB database, using the timezone selected in explorer, and this field is required.
 
@@ -50,9 +50,9 @@ Below the **Connection Configuration** area, there is a **Connectivity Check** b
 
 The **Advanced Options** area is collapsed by default. Click the `>` on the right to expand it, as shown in the following images:
 
-![Configure advanced options](../../assets/opentsdb-05.png)
+![Configure advanced options](../../assets/opentsdb-05.webp)
 
-![Expanded advanced options](../../assets/opentsdb-06.png)
+![Expanded advanced options](../../assets/opentsdb-06.webp)
 
 ### Completion of Creation
 
