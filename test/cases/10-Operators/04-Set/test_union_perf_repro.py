@@ -1,4 +1,6 @@
 from new_test_framework.utils import tdLog, tdSql
+from pathlib import Path
+from new_test_framework.utils import tdCom
 
 
 class TestUnionPerfRepro:
@@ -170,15 +172,53 @@ INTERVAL({interval}) FILL(NONE)
         return "\nUNION ALL\n".join(cls._branch_sqls())
 
     @classmethod
+    def _nested_union_sql(cls):
+        return "SELECT * FROM (" + cls._union_sql() + ") t_a_0"
+
+    @classmethod
     def _explain_plan(cls, sql):
         tdSql.query("explain verbose true " + sql, queryTimes=1)
         return "\n".join(" ".join(str(col) for col in row) for row in tdSql.queryResult)
+
+    def _check_non_from_subquery_pruning(self):
+        subquery = (
+            "select ts from host_linux_1m_net_metrics where 1=0 "
+            "union all select ts from host_linux_1m_net_metrics"
+        )
+        cases = [
+            (
+                "select-root",
+                f"select ts from host_linux_1m_net_metrics where ts in ({subquery})",
+                2,
+            ),
+            (
+                "set-operator-root",
+                f"select ts from host_linux_1m_net_metrics where ts in ({subquery}) "
+                "union all select ts from host_linux_1m_net_metrics",
+                3,
+            ),
+        ]
+        for case_name, sql, expected_scans in cases:
+            plan = self._explain_plan(sql)
+            if "Filter: false" in plan or "Filter: conditions=false" in plan:
+                raise Exception(f"{case_name} retained an empty non-FROM subquery scan branch")
+            if plan.count("Table Scan on") != expected_scans:
+                raise Exception(f"{case_name} did not prune its empty non-FROM subquery branch")
+
+    def do_traversal_cases(self, case_dir):
+        tdCom.compare_testcase_result(
+            str(case_dir / "t" / "union_traversal.sql"),
+            str(case_dir / "r" / "union_traversal.result"),
+            "union_traversal",
+        )
+        print("union traversal cases ......................... [ passed ]")
 
     def test_union_perf_repro(self):
         """union all empty branch pruning
 
         1. Build a field-shaped UNION ALL workload with empty time-range branches
         2. Compare branch results and explain plans to verify empty-branch pruning
+        3. Cover nested SELECT, derived tables, JOIN inputs and empty FROM traversal
 
         Catalog:
             - Query:Union
@@ -193,6 +233,7 @@ INTERVAL({interval}) FILL(NONE)
             - 2026-09-03 Codex add field-shaped UNION ALL empty-branch regression
         """
 
+        case_dir = Path(__file__).resolve().parent
         tdSql.execute(f"use {self.db_name}")
 
         branch_sqls = self._branch_sqls()
@@ -214,9 +255,25 @@ INTERVAL({interval}) FILL(NONE)
         tdLog.info(f"[union perf] active branch explain table scans={active_scan_count}")
         tdLog.info(f"[union perf] full union explain table scans={union_scan_count}")
 
-        if "Filter: false" in union_plan:
+        if "Filter: false" in union_plan or "Filter: conditions=false" in union_plan:
             raise Exception("empty UNION ALL branch was planned as Table Scan with Filter: false")
         if union_scan_count != active_scan_count:
             raise Exception(
                 f"empty UNION ALL branches were not pruned, active scans={active_scan_count}, union scans={union_scan_count}"
             )
+
+        nested_union_sql = self._nested_union_sql()
+        nested_plan = self._explain_plan(nested_union_sql)
+        nested_scan_count = nested_plan.count("Table Scan on")
+        tdLog.info(f"[union perf] nested union explain table scans={nested_scan_count}")
+        if nested_scan_count != active_scan_count:
+            raise Exception(
+                f"nested union empty branches were not pruned, active scans={active_scan_count}, "
+                f"nested scans={nested_scan_count}"
+            )
+        self._check_non_from_subquery_pruning()
+        self.do_traversal_cases(case_dir)
+        self.sqlFile = str(case_dir / "t" / "union_perf_nested.sql")
+        self.ansFile = str(case_dir / "r" / "union_perf_nested.result")
+        testCase = "union_perf_nested"
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
