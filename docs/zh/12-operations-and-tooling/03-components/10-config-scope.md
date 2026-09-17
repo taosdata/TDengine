@@ -93,6 +93,14 @@ toc_max_heading_level: 4
 | ssAccessString | taosd | 共享存储访问参数字符串 |
 | ssPageCacheSize | taosd | 共享存储 page cache 缓存页数目 |
 | ssUploadDelaySec | taosd | data 文件持续多长时间不再变动后上传至共享存储 |
+| **缓存相关** | | |
+| sLastCacheWriteBufferSize | taosd | last cache 底层 RocksDB 引擎每个 memtable 的写缓冲区大小，单位 MB |
+| sLastCacheMaxWriteBufferNumber | taosd | last cache 底层 RocksDB 引擎允许同时存在的 memtable（写缓冲区）数量上限 |
+| sLastCacheBackgroundThreads | taosd | last cache 底层 RocksDB 引擎用于 flush 与 compaction 的后台线程数，每个 vnode 独立持有一个该大小的线程池 |
+| sLastCacheBloomFilterBits | taosd | last cache 底层 RocksDB 引擎每个 key 使用的布隆过滤器位数，用于减少 `last`/`last_row` 点查时的无效 SST 文件读取，0 表示关闭 |
+| sLastCacheMaxOpenFiles | taosd | last cache 底层 RocksDB 引擎允许同时打开的文件描述符数量上限，-1 表示不限制 |
+| sLastCacheCompressionType | taosd | last cache 底层 RocksDB 引擎的压缩算法 |
+| sLastCacheOptionsOverride | taosd | 以 RocksDB 原生配置字符串形式覆盖 last cache 引擎参数，优先级低于上述专用参数，供高级场景使用 |
 | **集群相关** | | |
 | supportVnodes | taosd | dnode 支持的最大 vnode 数目 |
 | numOfCommitThreads | taosd | 落盘线程的最大数量 |

@@ -339,6 +339,10 @@ typedef struct {
   rocksdb_t                           *db;
   rocksdb_comparator_t                *my_comparator;
   rocksdb_block_based_table_options_t *tableoptions;
+  rocksdb_cache_t                     *blockcache;  // per-vnode, sized from half of pVnode->config.cacheLastSize
+                                                     // (remaining half goes to the LRU last-cache)
+  rocksdb_env_t                       *pEnv;        // per-vnode background thread pool env
+  rocksdb_filterpolicy_t              *filterpolicy;
   rocksdb_options_t                   *options;
   rocksdb_flushoptions_t              *flushoptions;
   rocksdb_writeoptions_t              *writeoptions;
@@ -1086,6 +1090,7 @@ int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 
 int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **pLastCol);
 int32_t tsdbGetFsSize(STsdb *tsdb, SDbSizeStatisInfo *pInfo);
+int32_t tsdbGetLastCacheStats(STsdb *tsdb, SLastCacheStats *pStats);
 
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {

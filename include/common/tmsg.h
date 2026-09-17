@@ -3178,6 +3178,29 @@ typedef struct {
   int8_t      estimateRawData;
 } SDbSizeStatisInfo;
 
+typedef struct SLastCacheStats {
+  int32_t dnodeId;
+  int64_t blockCacheCapacity;
+  int64_t blockCacheUsage;
+  int64_t blockCachePinnedUsage;
+  int64_t estimateTableReadersMem;
+  int64_t curSizeActiveMemTable;
+  int64_t curSizeAllMemTables;
+  int32_t numImmutableMemTable;
+  bool    memTableFlushPending;
+  int32_t numRunningFlushes;
+  bool    compactionPending;
+  int32_t numRunningCompactions;
+  int64_t estimatePendingCompactionBytes;
+  bool    isWriteStopped;
+  int64_t actualDelayedWriteRate;
+  int32_t numFilesAtLevel0;
+  int64_t totalSstFilesSize;
+  int64_t estimateNumKeys;
+  int32_t numLiveVersions;
+  int32_t backgroundErrors;
+} SLastCacheStats;
+
 typedef struct {
   int32_t vgId;
   int64_t nTimeSeries;
