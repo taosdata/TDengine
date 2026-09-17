@@ -87,6 +87,9 @@ int32_t   vnodeIsCatchUp(SVnode *pVnode);
 ESyncRole vnodeGetRole(SVnode *pVnode);
 int32_t   vnodeGetArbToken(SVnode *pVnode, char *outToken);
 int32_t   vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo);
+int32_t   vnodeGetLastCacheStats(void *pVnode, SLastCacheStats *pStats);
+void      vnodeSetDnodeId(int32_t dnodeId);
+int32_t   vnodeGetDnodeId(void);
 
 int32_t vnodeUpdateArbTerm(SVnode *pVnode, int64_t arbTerm);
 

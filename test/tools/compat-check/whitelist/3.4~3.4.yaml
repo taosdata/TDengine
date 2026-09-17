@@ -19,6 +19,7 @@ added_tables:
 - INS_TRANSACTION_LOGS
 - INS_TRANSACTION_ORPHANS
 - INS_VSTABLE_INHERITS
+- INS_LAST_CACHE_STATS
 modified_tables:
 - table: INS_DATABASES
   added_columns:

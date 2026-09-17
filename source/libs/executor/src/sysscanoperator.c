@@ -6329,6 +6329,194 @@ _end:
   return NULL;
 }
 
+static SSDataBlock* sysTableBuildLastCacheStats(SOperatorInfo* pOperator) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            lino = 0;
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
+  SSysTableScanInfo* pInfo = pOperator->info;
+  SLastCacheStats    stats = {0};
+
+  SSDataBlock* p = NULL;
+  const char*  db = NULL;
+  int32_t      vgId = 0;
+  int32_t      numOfCols = 0;
+  int32_t      numOfRows = 0;
+
+  // the retrieve is executed on the mnode, so return tables that belongs to the information schema database.
+  if (pInfo->readHandle.mnd != NULL) {
+    setOperatorCompleted(pOperator);
+    return NULL;
+  }
+
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
+  if (db == NULL) {
+    code = TSDB_CODE_INVALID_PARA;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  code = pAPI->metaFn.getLastCacheStats(pInfo->readHandle.vnode, &stats);
+  if (code == TSDB_CODE_INVALID_PARA) {
+    // this vnode has no last cache (RocksDB not compiled in, or its tsdb not opened yet) -
+    // treat as "no stats to report" rather than a fatal query error
+    setOperatorCompleted(pOperator);
+    return NULL;
+  }
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SName sn = {0};
+  char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  code = tNameFromString(&sn, db, T_NAME_ACCT | T_NAME_DB);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  code = tNameGetDbName(&sn, varDataVal(dbname));
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  varDataSetLen(dbname, strlen(varDataVal(dbname)));
+
+  p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_LAST_CACHE_STATS);
+  QUERY_CHECK_NULL(p, code, lino, _end, terrno);
+
+  code = blockDataEnsureCapacity(p, pOperator->resultInfo.capacity);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  int64_t updateTime = taosGetTimestampMs();
+
+  SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&stats.dnodeId, false);  // dnode_id
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);  // vgroup_id
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, dbname, false);  // db_name
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&stats.blockCacheCapacity, false);  // block_cache_capacity
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&stats.blockCacheUsage, false);  // block_cache_usage
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&stats.blockCachePinnedUsage,
+                        false);  // block_cache_pinned_usage
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&stats.estimateTableReadersMem,
+                        false);  // estimate_table_readers_mem
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&stats.curSizeActiveMemTable,
+                        false);  // cur_size_active_mem_table
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code =
+      colDataSetVal(pColInfoData, numOfRows, (char*)&stats.curSizeAllMemTables, false);  // cur_size_all_mem_tables
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code =
+      colDataSetVal(pColInfoData, numOfRows, (char*)&stats.numImmutableMemTable, false);  // num_immutable_mem_table
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code =
+      colDataSetVal(pColInfoData, numOfRows, (char*)&stats.memTableFlushPending, false);  // mem_table_flush_pending
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&stats.numRunningFlushes, false);  // num_running_flushes
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&stats.compactionPending, false);  // compaction_pending
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&stats.numRunningCompactions,
+                        false);  // num_running_compactions
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&stats.estimatePendingCompactionBytes,
+                        false);  // estimate_pending_compaction_bytes
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&stats.isWriteStopped, false);  // is_write_stopped
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&stats.actualDelayedWriteRate,
+                        false);  // actual_delayed_write_rate
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&stats.numFilesAtLevel0, false);  // num_files_at_level0
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&stats.totalSstFilesSize, false);  // total_sst_files_size
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&stats.estimateNumKeys, false);  // estimate_num_keys
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&stats.numLiveVersions, false);  // num_live_versions
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&stats.backgroundErrors, false);  // background_errors
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&updateTime, false);  // update_time
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  numOfRows += 1;
+
+  p->info.rows = numOfRows;
+  pInfo->pRes->info.rows = numOfRows;
+
+  code = relocateColumnData(pInfo->pRes, pInfo->matchInfo.pList, p->pDataBlock, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  blockDataDestroy(p);
+  p = NULL;
+
+  pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
+  setOperatorCompleted(pOperator);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    blockDataDestroy(p);
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
+  return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
+}
+
+static SSDataBlock* sysTableScanLastCacheStats(SOperatorInfo* pOperator) {
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
+  return sysTableBuildLastCacheStats(pOperator);
+}
+
 static SSDataBlock* sysTableScanUserSTables(SOperatorInfo* pOperator) {
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SSysTableScanInfo* pInfo = pOperator->info;
@@ -7137,6 +7325,8 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
       pBlock = sysTableScanUserSTables(pOperator);
     } else if (strncasecmp(name, TSDB_INS_DISK_USAGE, TSDB_TABLE_FNAME_LEN) == 0) {
       pBlock = sysTableScanUsage(pOperator);
+    } else if (strncasecmp(name, TSDB_INS_TABLE_LAST_CACHE_STATS, TSDB_TABLE_FNAME_LEN) == 0) {
+      pBlock = sysTableScanLastCacheStats(pOperator);
     } else if (strncasecmp(name, TSDB_INS_TABLE_FILESETS, TSDB_TABLE_FNAME_LEN) == 0) {
       pBlock = sysTableScanUserFileSets(pOperator);
     } else if (strncasecmp(name, TSDB_INS_TABLE_TABLE_FIXED_DISTRIBUTED, TSDB_TABLE_FNAME_LEN) == 0) {
