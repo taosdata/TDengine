@@ -719,6 +719,13 @@ static void replaceSetOpWithChild(SNode** ppStmt, SSetOperator* pSetOp, bool kee
   SNode* pKeep = keepLeft ? pSetOp->pLeft : pSetOp->pRight;
   SNode* pDrop = keepLeft ? pSetOp->pRight : pSetOp->pLeft;
 
+  // Outer column references must retain the set operator's output namespace.
+  if (QUERY_NODE_SELECT_STMT == nodeType(pKeep)) {
+    tstrncpy(((SSelectStmt*)pKeep)->stmtName, pSetOp->stmtName, TSDB_TABLE_NAME_LEN);
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pKeep)) {
+    tstrncpy(((SSetOperator*)pKeep)->stmtName, pSetOp->stmtName, TSDB_TABLE_NAME_LEN);
+  }
+
   pSetOp->pLeft = NULL;
   pSetOp->pRight = NULL;
   nodesDestroyNode(pDrop);
@@ -729,12 +736,44 @@ static void replaceSetOpWithChild(SNode** ppStmt, SSetOperator* pSetOp, bool kee
   *ppStmt = pKeep;
 }
 
+static int32_t pruneEmptyUnionAllBranches(SNode** ppStmt);
+
+static int32_t pruneEmptyUnionAllBranchesInList(SNodeList* pStmts) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pStmt = NULL;
+  FOREACH(pStmt, pStmts) {
+    code = pruneEmptyUnionAllBranches(&cell->pNode);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+  return code;
+}
+
 static int32_t pruneEmptyUnionAllBranches(SNode** ppStmt) {
   if (NULL == ppStmt || NULL == *ppStmt) {
     return TSDB_CODE_SUCCESS;
   }
 
   switch (nodeType(*ppStmt)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)*ppStmt;
+      int32_t code = pruneEmptyUnionAllBranches(&pSelect->pFromTable);
+      if (TSDB_CODE_SUCCESS == code && pSelect->pSubQueries) {
+        code = pruneEmptyUnionAllBranchesInList(pSelect->pSubQueries);
+      }
+      return code;
+    }
+    case QUERY_NODE_TEMP_TABLE:
+      return pruneEmptyUnionAllBranches(&((STempTableNode*)*ppStmt)->pSubquery);
+    case QUERY_NODE_JOIN_TABLE: {
+      SJoinTableNode* pJoin = (SJoinTableNode*)*ppStmt;
+      int32_t code = pruneEmptyUnionAllBranches(&pJoin->pLeft);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = pruneEmptyUnionAllBranches(&pJoin->pRight);
+      }
+      return code;
+    }
     case QUERY_NODE_EXPLAIN_STMT:
       return pruneEmptyUnionAllBranches(&((SExplainStmt*)*ppStmt)->pQuery);
     case QUERY_NODE_SET_OPERATOR:
@@ -747,6 +786,9 @@ static int32_t pruneEmptyUnionAllBranches(SNode** ppStmt) {
   int32_t       code = pruneEmptyUnionAllBranches(&pSetOp->pLeft);
   if (TSDB_CODE_SUCCESS == code) {
     code = pruneEmptyUnionAllBranches(&pSetOp->pRight);
+  }
+  if (TSDB_CODE_SUCCESS == code && pSetOp->pSubQueries) {
+    code = pruneEmptyUnionAllBranchesInList(pSetOp->pSubQueries);
   }
   if (TSDB_CODE_SUCCESS != code) {
     return code;
