@@ -39,7 +39,7 @@ PI real-time tasks continuously subscribe to data changes in the PI system and w
 - For example, if set to 1 hour and the task was interrupted for 30 minutes before restart, taosX will backfill the 30 minutes of data
 - If the interruption duration exceeds the compensation time setting, the excess data needs to be manually recovered through a PI backfill task
 
-![PI Real-time task restart compensation time](../../../assets/realtime-guide-01.png)
+![PI Real-time task restart compensation time](../../../assets/realtime-guide-01.webp)
 
 ## Data Sync Behavior
 

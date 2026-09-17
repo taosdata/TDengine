@@ -16,7 +16,7 @@ TDengine 可以高效地从 OPC DA 服务器读取数据并将其写入 TDengine
 
 在数据写入页面中，点击 **+新增数据源** 按钮，进入新增数据源页面。
 
-![add.png](../../assets/opcda-01.png)
+![add.webp](../../assets/opcda-01.webp)
 
 ### 配置基本信息
 
@@ -28,7 +28,7 @@ TDengine 可以高效地从 OPC DA 服务器读取数据并将其写入 TDengine
 
 在 **目标数据库** 下拉列表中选择一个目标数据库，也可以先点击右侧的 **+创建数据库** 按钮创建一个新的数据库。
 
-![basic.png](../../assets/opcda-02.png)
+![basic.webp](../../assets/opcda-02.webp)
 
 ### 配置连接信息
 
@@ -36,7 +36,7 @@ TDengine 可以高效地从 OPC DA 服务器读取数据并将其写入 TDengine
 
 点击 **连通性检查** 按钮，检查数据源是否可用。
 
-![endpoint.png](../../assets/opcda-03.png)
+![endpoint.webp](../../assets/opcda-03.webp)
 
 ### 配置点位集
 
@@ -132,13 +132,13 @@ CSV 文件中的每个 Row 配置一个 OPC 数据点位。Row 的规则如下�
 
 配置 **主键列**，选择 origin_ts 表示使用 OPC 点位数据的原始时间戳作 TDengine 中的主键；选择 request_ts 表示使用数据的请求时间戳作 TDengine 中的主键；选择 received_ts 表示使用数据的接收时间戳作 TDengine 中的主键。配置 **主键别名**，指定 TDengine 时间戳列的名称。
 
-![point.png](../../assets/opcda-04.png)
+![point.webp](../../assets/opcda-04.webp)
 
 ### 采集配置
 
 在采集配置中，配置当前任务的采集间隔、连接超时、采集超时等选项。
 
-![collect](../../assets/opcda-05.png)
+![collect](../../assets/opcda-05.webp)
 
 如图所示，其中：
 
@@ -164,7 +164,7 @@ CSV 文件中的每个 Row 配置一个 OPC 数据点位。Row 的规则如下�
 
 ### 高级选项
 
-![advance options](../../assets/opcua-08.png)
+![advance options](../../assets/opcua-08.webp)
 
 如上图所示，配置高级选项对性能、日志等进行更加详尽的优化。
 
@@ -201,11 +201,11 @@ CSV 文件中的每个 Row 配置一个 OPC 数据点位。Row 的规则如下�
 
 在任务运行中，点击 **编辑**，点击 **增加数据点位** 按钮，追加数据点位到 CSV 文件中。适用于只需新增少量点位、不必重导全量点表的场景。
 
-![增加数据点位](../../assets/opcua-09.png)
+![增加数据点位](../../assets/opcua-09.webp)
 
 在弹出的表单中，填写数据点位的信息。
 
-![数据点位表单](../../assets/opcua-10.png)
+![数据点位表单](../../assets/opcua-10.webp)
 
 点击 **确定** 按钮，完成数据点位的追加。
 

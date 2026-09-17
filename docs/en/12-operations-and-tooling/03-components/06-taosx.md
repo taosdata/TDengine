@@ -386,6 +386,12 @@ This section discusses how to deploy `taosX` in service mode. When running taosX
 
 :::
 
+### Optional Build Features
+
+To reduce the default binary size, source builds of `taosX` do not include Swagger UI or OpenTelemetry by default. The default HTTP service continues to provide the OpenAPI document at `/api-doc/openapi.json`.
+
+Build with `--features swagger-ui` to provide Swagger UI at `/swagger-ui/`. Build with `--features otel` and start `taosX` with `--otel` or `ENABLE_OTEL=true` to enable OpenTelemetry exporting.
+
 ### Configuration
 
 `taosX` supports configuration through a configuration file. On Linux, the default configuration file path is `/etc/taos/taosx.toml`, and on Windows, it is `C:\\TDengine\\cfg\\taosx.toml`, which includes the following configuration items:

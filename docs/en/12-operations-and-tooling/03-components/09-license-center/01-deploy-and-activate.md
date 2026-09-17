@@ -75,7 +75,7 @@ max_files = 3
 1. After the service starts, open the CLS console in a browser and log in.
 2. On the **Local Information** page, view the **Public Key Token** and related details:
 
-![Local information](../../../assets/license-center-01.png)
+![Local information](../../../assets/license-center-01.webp)
 
 ## Offline Licensing
 
@@ -91,7 +91,7 @@ On the CLS **License** page, click **Offline Import**, select `offline-license.k
 
 Open the **Quota** page to view quotas and authorization items split from the license, including license ID, quota ID, authorization item, category, type, value, and expiration time.
 
-![Quota details](../../../assets/license-center-02.png)
+![Quota details](../../../assets/license-center-02.webp)
 
 For how slot count and per-slot quotas are adjusted, see [Quotas and Slots](./02-quota-and-slots.md).
 
@@ -111,11 +111,11 @@ Configure via taosExplorer or SQL.
 
 On **System Management / License** in taosExplorer, click **Activate License**:
 
-![Activate license](../../../assets/license-center-03.png)
+![Activate license](../../../assets/license-center-03.webp)
 
 Field meanings match the SQL parameters below. After confirmation, the License page shows the CLS configuration:
 
-![CLS configuration](../../../assets/license-center-04.png)
+![CLS configuration](../../../assets/license-center-04.webp)
 
 #### SQL
 
@@ -147,8 +147,8 @@ UI configuration for newer IDMP versions is still being improved. IDMP also conn
 
 After TSDB / IDMP are configured for CLS, clusters appear on the CLS **Cluster** page:
 
-![CLS cluster](../../../assets/license-center-05.png)
+![CLS cluster](../../../assets/license-center-05.webp)
 
 The **Cluster Usage** page shows authorization-item usage:
 
-![CLS cluster usage](../../../assets/license-center-06.png)
+![CLS cluster usage](../../../assets/license-center-06.webp)

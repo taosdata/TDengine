@@ -115,7 +115,7 @@ TDgpt supports univariate forecasting and, since `v3.3.6.6`, historical covariat
 
 Only the moirai time-series foundation model is supported for covariate forecasting. If you want to perform covariate forecasting, you must set the `algo` parameter to `moirai`.
 
-![Covariate forecasting](../../../assets/forecast-01.png)
+![Covariate forecasting](../../../assets/forecast-01.webp)
 
 In the diagram above, there are two covariates and one target variable (also called the primary variable). `Target` is the forecasting objective, and `Prediction value` is the forecast result. `Past dynamic real features` represent historical covariates, while `Dynamic real features` represents future covariates.  
 

@@ -22,7 +22,7 @@ MySQL is one of the most popular relational databases. Many systems have used or
 
 Fill in the *`connection information for the source MySQL database`* in the **Connection Configuration** area, as shown below:
 
-![Configure connection information](../../assets/mysql-01.png)
+![Configure connection information](../../assets/mysql-01.webp)
 
 ### Configure Authentication Information
 
@@ -30,7 +30,7 @@ Fill in the *`connection information for the source MySQL database`* in the **Co
 
 **Password** Enter the login password for the user mentioned above in the source MySQL database.
 
-![Configure authentication information](../../assets/mysql-02.png)
+![Configure authentication information](../../assets/mysql-02.webp)
 
 ### Configure Connection Options
 
@@ -39,7 +39,7 @@ Options include utf8, utf8mb4, utf16, utf32, gbk, big5, latin1, ascii.
 
 **SSL Mode** Set whether to negotiate a secure SSL TCP/IP connection with the server or the priority of negotiation. The default value is PREFERRED. Options include DISABLED, PREFERRED, REQUIRED.
 
-![Configure character set and SSL mode](../../assets/mysql-03.png)
+![Configure character set and SSL mode](../../assets/mysql-03.webp)
 
 Then click the **Check Connectivity** button, where users can click this button to check if the information filled in above can normally fetch data from the source MySQL database.
 
@@ -69,7 +69,7 @@ Then click the **Check Connectivity** button, where users can click this button 
 
 **Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writes, each synchronization task will read data from before the delay duration.
 
-![Configure data collection](../../assets/mysql-04.png)
+![Configure data collection](../../assets/mysql-04.webp)
 
 ### Configure Data Mapping
 
@@ -85,7 +85,7 @@ In **Mapping**, select the supertable in TDengine to map to, and the columns to 
 
 Click **Preview** to view the results of the mapping.
 
-![Configure data mapping](../../assets/mysql-05.png)
+![Configure data mapping](../../assets/mysql-05.webp)
 
 ### Configure Advanced Options
 
@@ -95,7 +95,7 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 **Batch Size** The maximum number of messages or rows sent at once. The default is 10000.
 
-![Configure advanced options](../../assets/mysql-06.png)
+![Configure advanced options](../../assets/mysql-06.webp)
 
 ### Configure Exception Handling
 
