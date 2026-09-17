@@ -32,11 +32,11 @@ Energy-storage systems smooth variable renewable output and support peak shaving
 
 PV operating data often enters the dispatch platform from an external marketing system over Kafka.
 
-<!-- ![Ingesting external data into TDengine](../assets/energy-kafka.png) -->
+<!-- ![Ingesting external data into TDengine](../assets/energy-kafka.webp) -->
 
 TDengine TSDB Enterprise provides taosX for no-code ingestion from Kafka. Configuration defines extraction, parsing, filtering, and mapping before data is written into TDengine, eliminating a separate ETL application.
 
-<!-- ![External data ingestion flow](../assets/energy-data-in.png) -->
+<!-- ![External data ingestion flow](../assets/energy-data-in.webp) -->
 
 taosX supports diverse source formats, filtering options, and mappings. Compared with general-purpose open-source ETL tools, it can reduce the CPU resources required for Kafka ingestion and shorten delivery time.
 
@@ -44,7 +44,7 @@ taosX supports diverse source formats, filtering options, and mappings. Compared
 
 Provincial dispatch centers can subscribe to instantaneous PV power in TDengine, classify records by municipality, and distribute them in real time to the corresponding TDengine systems. Municipal systems then use the data for local load regulation and other operations.
 
-<!-- ![Distributed-PV data distribution](../assets/energy-distribution.png) -->
+<!-- ![Distributed-PV data distribution](../assets/energy-distribution.webp) -->
 
 ### Aggregating Instantaneous Generation by Grid Topology
 

@@ -28,7 +28,7 @@ Fill in the **OPC-DA Service Address** in the **Connection Configuration** area,
 
 Click the **Connectivity Check** button to check if the data source is available.
 
-![Configure connection information](../../assets/opcda-01.png)
+![Configure connection information](../../assets/opcda-01.webp)
 
 ### Configure Points Set
 
@@ -124,13 +124,13 @@ Configure **Supertable Name** and **Table Name** to specify the supertable and s
 
 Configure **Primary Key Column**, choosing `origin_ts` to use the original timestamp of the OPC data point as the primary key in TDengine; choosing `request_ts` to use the timestamp when the data is request as the primary key; choosing `received_ts` to use the timestamp when the data is received as the primary key. Configure **Primary Key Alias** to specify the name of the TDengine timestamp column.
 
-![Configure data sets](../../assets/opcda-02.png)
+![Configure data sets](../../assets/opcda-02.webp)
 
 ### Collection Configuration
 
 In the collection configuration, set the current task's collection interval, connection timeout, and collection timeout.
 
-![Configure collection settings](../../assets/opcda-03.png)
+![Configure collection settings](../../assets/opcda-03.webp)
 
 As shown in the image:
 
@@ -156,7 +156,7 @@ When using **Select Data Points** in the **Data Point Set**, the collection conf
 
 ### Advanced Options
 
-![Configure advanced options](../../assets/opcda-04.png)
+![Configure advanced options](../../assets/opcda-04.webp)
 
 As shown above, configure advanced options for more detailed optimization of performance, logs, etc.
 
@@ -193,11 +193,11 @@ Click the **Submit** button to complete the creation of the OPC DA to TDengine d
 
 While the task is running, click **Edit**, then **Add Data Points**, to append points to the CSV. Use this when you only need to add a few points and do not want to re-import the full point list.
 
-![Add data points](../../assets/opcua-08.png)
+![Add data points](../../assets/opcua-08.webp)
 
 In the pop-up form, fill in the data point information.
 
-![Data point form](../../assets/opcua-09.png)
+![Data point form](../../assets/opcua-09.webp)
 
 Click **Confirm** to finish appending the points.
 

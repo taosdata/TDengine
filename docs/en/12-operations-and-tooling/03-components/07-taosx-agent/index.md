@@ -96,11 +96,11 @@ After installation, taosX-Agent files are located at:
 3. Select the **Agent** tab at the top.
 4. Click the **+Create New Agent** button in the upper right corner.
 
-![Create Agent](../../../assets/taosx-agent-01.png)
+![Create Agent](../../../assets/taosx-agent-01.webp)
 
 5. Follow the wizard instructions. The system will generate an **endpoint** and **token**. Copy and save them to the `agent.toml` configuration file.
 
-![Generate endpoint and token](../../../assets/taosx-agent-02.png)
+![Generate endpoint and token](../../../assets/taosx-agent-02.webp)
 
 :::warning
 Save the endpoint and token before clicking "Next". If lost, they cannot be recovered and you must create a new agent.
@@ -153,7 +153,7 @@ sc start taosx-agent
 
 After starting, go back to the Explorer agent creation wizard page and click the **Check Agent Connection** button. A status of **Normal** indicates the Agent is online.
 
-![Verify Agent Status](../../../assets/taosx-agent-03.png)
+![Verify Agent Status](../../../assets/taosx-agent-03.webp)
 
 You can also check the logs to confirm startup:
 

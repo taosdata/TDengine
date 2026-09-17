@@ -27,13 +27,13 @@ TDengine can efficiently read data from Pulsar-Tuya and write it to TDengine to 
 
 Only one valid broker server address needs to be filled in.
 
-![Configure connection information](../../assets/pulsar-tuya-01.png)
+![Configure connection information](../../assets/pulsar-tuya-01.webp)
 
 ### Authentication Mechanism
 
 Here you need Tuya platform-specific authentication information. Fill in the Access Id and Access Key provided by the platform and select the corresponding execution environment.
 
-![Configure plain authentication](../../assets/pulsar-tuya-02.png)
+![Configure plain authentication](../../assets/pulsar-tuya-02.webp)
 
 ### Configure Collection Information
 
@@ -50,7 +50,7 @@ In **Character Encoding**, configure the message body encoding format. When taos
 
 Click the **Connectivity Check** button to check if the data source is available.
 
-![Configure collection settings](../../assets/pulsar-tuya-03.png)
+![Configure collection settings](../../assets/pulsar-tuya-03.webp)
 
 ### Configure Payload Parsing
 
@@ -81,11 +81,11 @@ or
 
 The parsing results are shown as follows:
 
-![Payload parsing results](../../assets/no-code-ingestion-kafka-07.png)
+![Payload parsing results](../../assets/no-code-ingestion-kafka-07.webp)
 
 Click the **magnifying glass icon** to view the preview parsing results.
 
-![Preview parsing results](../../assets/no-code-ingestion-kafka-08.png)
+![Preview parsing results](../../assets/no-code-ingestion-kafka-08.webp)
 
 #### Field Splitting
 
@@ -95,11 +95,11 @@ Click **Add** to add more extraction rules.
 
 Click **Delete** to delete the current extraction rule.
 
-![Extract or split from column](../../assets/no-code-ingestion-kafka-09.png)
+![Extract or split from column](../../assets/no-code-ingestion-kafka-09.webp)
 
 Click the **magnifying glass icon** to view the preview extraction/splitting results.
 
-![Preview results](../../assets/no-code-ingestion-kafka-10.png)
+![Preview results](../../assets/no-code-ingestion-kafka-10.webp)
 
 #### Data Filtering
 
@@ -109,11 +109,11 @@ Click **Add** to add more filtering rules.
 
 Click **Delete** to delete the current filtering rule.
 
-![Data filtering conditions](../../assets/no-code-ingestion-kafka-11.png)
+![Data filtering conditions](../../assets/no-code-ingestion-kafka-11.webp)
 
 Click the **magnifying glass icon** to view the preview filtering results.
 
-![Preview filtering results](../../assets/no-code-ingestion-kafka-12.png)
+![Preview filtering results](../../assets/no-code-ingestion-kafka-12.webp)
 
 #### Table Mapping
 
@@ -121,19 +121,19 @@ In the **Target Supertable** dropdown, select a target supertable, or click the 
 
 In the **Mapping** section, fill in the name of the subtable in the target supertable, for example: `t_{id}`. Fill in the mapping rules as required, where mapping supports setting default values.
 
-![Configure table mapping](../../assets/no-code-ingestion-kafka-13.png)
+![Configure table mapping](../../assets/no-code-ingestion-kafka-13.webp)
 
 Click **Preview** to view the results of the mapping.
 
-![Preview mapping results](../../assets/no-code-ingestion-kafka-14.png)
+![Preview mapping results](../../assets/no-code-ingestion-kafka-14.webp)
 
 ### Configure Advanced Options
 
 The **Advanced Options** area is collapsed by default, click the `>` on the right to expand it, as shown below:
 
-![Configure advanced options](../../assets/no-code-ingestion-kafka-15.png)
+![Configure advanced options](../../assets/no-code-ingestion-kafka-15.webp)
 
-![Expanded advanced options](../../assets/no-code-ingestion-kafka-16.png)
+![Expanded advanced options](../../assets/no-code-ingestion-kafka-16.webp)
 
 ### Configure Exception Handling
 

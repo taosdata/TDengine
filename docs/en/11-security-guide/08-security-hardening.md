@@ -30,7 +30,7 @@ In addition to TDengine deployment and applications, there are also the followin
 
 The relationship between the components is as follows:
 
-![TDengine components](../assets/security-suggestions-01.png)
+![TDengine components](../assets/security-suggestions-01.webp)
 
 For detailed component descriptions, see [Overview and Architecture](../12-operations-and-tooling/01-overview.md).
 
