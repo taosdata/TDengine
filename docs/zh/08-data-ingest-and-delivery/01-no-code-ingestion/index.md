@@ -11,7 +11,7 @@ TDengine 通过 taosExplorer 与 taosX，支持在浏览器中配置任务，以
 
 下图展示了零代码接入平台的系统架构。
 
-![零代码数据接入架构图](../../assets/no-code-ingestion-01.png)
+![零代码数据接入架构图](../../assets/no-code-ingestion-01.webp)
 
 ## 支持的数据源
 
@@ -58,7 +58,7 @@ TDengine 通过 taosExplorer 与 taosX，支持在浏览器中配置任务，以
 
 #### 示例数据
 
-![示例数据](../../assets/no-code-ingestion-02.png)
+![示例数据](../../assets/no-code-ingestion-02.webp)
 
 如图，示例数据输入框中就是示例数据，可以通过三种方式来获取示例数据：
 
@@ -104,7 +104,7 @@ JSON 解析支持 JSONObject 或者 JSONArray。如下 JSON 示例数据，可�
 $["groupid"]=groupid,$["data"]["voltage"]=voltage,$["data"]["current"]=current,$["ts"]=ts,$["inuse"]=inuse,$["location"][0]["province"]=location_0_province,$["location"][0]["city"]=location_0_city,$["location"][0]["street"]=location_0_street
 ```
 
-![JSON 解析](../../assets/no-code-ingestion-03.png)
+![JSON 解析](../../assets/no-code-ingestion-03.webp)
 
 > 注意：JSON 属性名称中不能含有`.`；如果含有，则必须使用名称 alias 将名称转义。
 
@@ -118,7 +118,7 @@ $["groupid"]=groupid,$["data"]["voltage"]=voltage,$["data"]["current"]=current,$
 (?<ip>\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b)\s-\s-\s\[(?<ts>\d{2}/\w{3}/\d{4}:\d{2}:\d{2}:\d{2}\s\+\d{4})\]\s"(?<method>[A-Z]+)\s(?<url>[^\s"]+).*(?<status>\d{3})\s(?<length>\d+)
 ```
 
-![Regex 解析](../../assets/no-code-ingestion-04.png)
+![Regex 解析](../../assets/no-code-ingestion-04.webp)
 
 3. **UDT 自定义解析脚本**
 
@@ -152,7 +152,7 @@ let v3 = data["voltage"].split(",");
 
 最终解析结果如下所示：
 
-![UDT](../../assets/no-code-ingestion-05.png)
+![UDT](../../assets/no-code-ingestion-05.webp)
 
 ### 提取或拆分
 
@@ -172,7 +172,7 @@ let v3 = data["voltage"].split(",");
 * 对字段 `voltage` 使用正则表达式 `^(?<voltage>[0-9]+)(?<voltage_unit>[a-zA-Z]+)$` 提取出电压值和电压单位，Regex 规则同解析过程中的一样，使用 **命名捕获组** 命名提取字段。
 * 对字段 `location` 使用 convert 转换，填写一个 JSON map 对象，其中 key 为字段 `current` 的值，`value` 为转换后的值。如图，`location` 字段的值 `"beijing.chaoyang.datun"` 被转换为 `"beijing.chaoyang.datunludong"`。
 
-![拆分和提取](../../assets/no-code-ingestion-06.png)
+![拆分和提取](../../assets/no-code-ingestion-06.webp)
 
 ### 过滤 {#filter}
 
@@ -329,7 +329,7 @@ between_time_range(ts, -604800, 0)
 
 在数据源的“高级选项”列表中，增加了多项健康状态监测的配置项，包括：
 
-![health options](../../assets/no-code-ingestion-07.png)
+![health options](../../assets/no-code-ingestion-07.webp)
 
 1. 健康监测时段（Health Check Duration）：可选项，表示对最近多长时间的任务状态进行统计。
 2. Busy 状态阈值（Busy State Threshold）：百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。

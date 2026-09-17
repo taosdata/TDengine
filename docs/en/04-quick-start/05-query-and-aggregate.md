@@ -206,7 +206,7 @@ Query OK, 3 row(s) in set
 
 Window queries split time-series data by time, state, event, or row count, then compute within each window. For a quick start, focus on the following window types:
 
-![Common window partitioning logic](../assets/query-and-aggregate-01.png)
+![Common window partitioning logic](../assets/query-and-aggregate-01.webp)
 
 - Time window: fixed intervals with `INTERVAL`.
 - Sliding window: add a slide step with `SLIDING`.

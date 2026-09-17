@@ -72,7 +72,7 @@ A subtable is a logical abstraction of a data collection point and is a specific
 
 In TDengine, query operations can be performed on both subtables and supertables. For queries on supertables, TDengine treats the data from all subtables as a whole, first filtering out the tables that meet the query conditions through tags, then querying the time-series data on these subtables separately, and finally merging the query results from each subtable. Essentially, by supporting queries on supertables, TDengine achieves efficient aggregation of multiple similar data collection points. To better understand the relationship between metrics, tags, supertables, and subtables, taking smart meters as an example, refer to the following diagram.
 
-![TDengine data model](../assets/basic-concepts-01.png)
+![TDengine data model](../assets/basic-concepts-01.webp)
 
 ### Virtual Tables
 

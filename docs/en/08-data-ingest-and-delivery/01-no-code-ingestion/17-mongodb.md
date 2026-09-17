@@ -22,7 +22,7 @@ MongoDB is a product that lies between relational and non-relational databases, 
 
 Fill in the *connection information for the source MongoDB database* in the **Connection Configuration** area, as shown below:
 
-![Configure connection information](../../assets/mongodb-01.png)
+![Configure connection information](../../assets/mongodb-01.webp)
 
 ### Configure Authentication Information
 
@@ -32,7 +32,7 @@ Fill in the *connection information for the source MongoDB database* in the **Co
 
 **Authentication Database** The database in MongoDB where user information is stored, default is admin.
 
-![Configure authentication information](../../assets/mongodb-02.png)
+![Configure authentication information](../../assets/mongodb-02.webp)
 
 ### Configure Connection Options
 
@@ -44,7 +44,7 @@ Fill in the *connection information for the source MongoDB database* in the **Co
 
 &emsp; 2. **Certificate File** Upload the SSL encryption certificate file.
 
-![Configure application name and SSL certificate](../../assets/mongodb-03.png)
+![Configure application name and SSL certificate](../../assets/mongodb-03.webp)
 
 Then click the **Check Connectivity** button, where users can click this button to check if the information filled in above can normally retrieve data from the source MongoDB database.
 
@@ -94,7 +94,7 @@ Different placeholders represent different time format requirements, specificall
 
 **Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writes, each synchronization task will read data from before the delay duration.
 
-![Configure data collection](../../assets/mongodb-04.png)
+![Configure data collection](../../assets/mongodb-04.webp)
 
 ### Configure Data Mapping
 
@@ -110,7 +110,7 @@ In **Filter**, fill in the filtering conditions, for example: write `Value > 0`,
 
 In **Mapping**, select the supertable in TDengine to which the data will be mapped, as well as the columns to map to the supertable, and click the **Preview** button on the right to view the mapping results after configuration.
 
-![Configure data mapping](../../assets/mongodb-05.png)
+![Configure data mapping](../../assets/mongodb-05.webp)
 
 ### Configure Advanced Options
 
@@ -120,7 +120,7 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 **Batch Size** The maximum number of messages or rows sent at once. Default is 10000.
 
-![Configure advanced options](../../assets/mongodb-06.png)
+![Configure advanced options](../../assets/mongodb-06.webp)
 
 ### Configure Exception Handling
 

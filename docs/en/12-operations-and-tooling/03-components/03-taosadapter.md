@@ -14,7 +14,7 @@ The connectors of TDengine in various languages communicate with TDengine throug
 
 The architecture diagram is as follows:
 
-![taosAdapter architecture](../../assets/taosadapter-01.png)
+![taosAdapter architecture](../../assets/taosadapter-01.webp)
 
 ## Feature List
 
