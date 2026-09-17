@@ -45,7 +45,7 @@ After login, the main Explorer interface appears.
 Open the **Explorer** (data browser) page to view databases, supertables, subtables, and basic tables in the current instance.
 
 <!-- TODO: add English Explorer screenshot
-<!-- ![TDengine TSDB Explorer data browser](../assets/visual-management-01.png) -->
+<!-- ![TDengine TSDB Explorer data browser](../assets/visual-management-01.webp) -->
 -->
 
 If you use the smart meter examples from earlier chapters, expand in order:

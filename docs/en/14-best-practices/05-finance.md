@@ -49,7 +49,7 @@ Quantitative platforms combine market analysis, algorithms, and models to identi
 
 After files and live streams are loaded into TDengine, applications can access all time-series data through HTTP and other interfaces.
 
-<!-- ![Market-data system architecture](../assets/finance-1.png) -->
+<!-- ![Market-data system architecture](../assets/finance-1.webp) -->
 
 ### Market Data Center
 

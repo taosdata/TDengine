@@ -18,7 +18,7 @@ Import data from one or more CSV files into TDengine.
 
 On the data writing page, click the **+Add Data Source** button to enter the add data source page.
 
-![Add data source](../../assets/csv-01.png)
+![Add data source](../../assets/csv-01.webp)
 
 ### Configure Basic Information
 
@@ -28,7 +28,7 @@ Select **CSV** from the **Type** dropdown list.
 
 Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right.
 
-![Configure basic settings](../../assets/csv-02.png)
+![Configure basic settings](../../assets/csv-02.webp)
 
 ### Configure CSV Options
 
@@ -42,7 +42,7 @@ Select in the **Field Enclosure** area, used to surround field content when CSV 
 
 Select in the **Comment Prefix** area, if a line in the CSV file starts with the character specified here, that line will be ignored, default is "#".
 
-![Configure CSV options](../../assets/csv-03.png)
+![Configure CSV options](../../assets/csv-03.webp)
 
 ### Configure Parsing CSV File
 
@@ -52,9 +52,9 @@ Upload a CSV file locally, for example: test-json.csv, this example csv file wil
 
 Click **Select File**, choose test-json.csv, then click **Parse** to preview the recognized columns.
 
-![Parse CSV file](../../assets/csv-04.png)
+![Parse CSV file](../../assets/csv-04.webp)
 
-![Preview parsing results](../../assets/csv-05.png)
+![Preview parsing results](../../assets/csv-05.webp)
 
 #### Field Splitting
 
@@ -62,11 +62,11 @@ In **Extract or Split from Column**, fill in the fields to extract or split from
 Click **Delete** to remove the current extraction rule.
 Click **Add** to add more extraction rules.
 
-![Extract or split from column](../../assets/csv-06.png)
+![Extract or split from column](../../assets/csv-06.webp)
 
 Click the **Magnifying Glass Icon** to preview the extraction or splitting results.
 
-![Preview extraction results](../../assets/csv-07.png)
+![Preview extraction results](../../assets/csv-07.webp)
 
 <!-- In **Filter**, fill in the filtering conditions, for example: fill in `id != 1`, then only data with id not equal to 1 will be written into TDengine.
 Click **Delete** to remove the current filtering rule.
@@ -80,11 +80,11 @@ Select a target supertable from the **Target Supertable** dropdown list, or clic
 
 In **Mapping**, fill in the subtable name of the target supertable, for example: `t_${groupid}`.
 
-![Configure table mapping](../../assets/csv-08.png)
+![Configure table mapping](../../assets/csv-08.webp)
 
 Click **Preview** to preview the mapping results.
 
-![Preview mapping results](../../assets/csv-09.png)
+![Preview mapping results](../../assets/csv-09.webp)
 
 ### Configure Advanced Options
 
@@ -102,14 +102,14 @@ import ExceptionHandling from "./resources/_03-exception-handling-strategy.mdx";
 
 Click **Submit** to create the CSV ingestion task. On the task list, you can start, stop, view, edit, delete, or copy the task.
 
-<!-- ![Manage the CSV task](../../assets/csv-10.png) -->
+<!-- ![Manage the CSV task](../../assets/csv-10.webp) -->
 
 ### View Runtime Metrics
 
 Click **View** to inspect task metrics and the processing status of every file.
 
-<!-- ![View CSV task metrics](../../assets/csv-11.png) -->
+<!-- ![View CSV task metrics](../../assets/csv-11.webp) -->
 
-<!-- ![View CSV file processing](../../assets/csv-12.png) -->
+<!-- ![View CSV file processing](../../assets/csv-12.webp) -->
 
-<!-- ![View CSV processing details](../../assets/csv-13.png) -->
+<!-- ![View CSV processing details](../../assets/csv-13.webp) -->

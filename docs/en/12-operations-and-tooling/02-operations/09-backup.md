@@ -43,7 +43,7 @@ TDengine Enterprise implements incremental backup and recovery of data by using 
 
 ### Incremental Backup Example
 
-![Incremental backup process](../../assets/backup-01.png)
+![Incremental backup process](../../assets/backup-01.webp)
 
 1. The user creates a backup plan to execute the backup task every 1 day starting from 2024-08-27 00:00:00 .
 2. The first backup task was executed at 2024-08-27 00:00:00, generating an initial backup point .

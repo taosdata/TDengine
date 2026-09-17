@@ -15,7 +15,7 @@ ANOMALY_WINDOW(col_val, "algo=iqr");
 
 As shown in the following figure, the anode returns the anomaly window `[10:51:30, 10:53:40]`.
 
-![Anomaly detection](../../../assets/anomaly-detection-01.png)
+![Anomaly detection](../../../assets/anomaly-detection-01.webp)
 
 You can then query, aggregate, or perform other operations on the data in the window.
 
