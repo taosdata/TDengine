@@ -534,7 +534,7 @@ _cleanup:
 // ---------------------------------------------------------------------------
 
 // ============================================================================
-// TDMT_VND_VTABLE_REF_RESOLVE — single-hop chain resolver for vtable references.
+// TDMT_VND_VTABLE_REF_RESOLVE  -  single-hop chain resolver for vtable references.
 //
 // Caller (driver A in stream-trigger reader info path) groups per-batch refs by
 // vgId and sends one request per vgId. Each item carries (kind, refDb, refTbl,
@@ -552,7 +552,7 @@ _cleanup:
 //   - physical table  + COL kind            -> r.terminated = true,  r.nextRef = current triple
 //   - child table     + TAG kind            -> r.terminated = true,  r.tagType/tagLen/tagData filled
 //   - normal table    + TAG kind            -> r.code = STREAM_VTB_REF_COL_NOT_EXIST
-// Per-item errors never abort the batch — they are reported in r.code.
+// Per-item errors never abort the batch  -  they are reported in r.code.
 // ============================================================================
 
 // Reads a tag's constant value from a (virtual or physical) child table entry.
@@ -672,7 +672,7 @@ static int32_t vnodeFillTagValueFromChild(SVnode *pVnode, const SMetaEntry *pChi
 
 // Lookup the SColRef on a vtable for (kind, colName), returning a pointer into
 // the vtable's pColRef/pTagRef array (or NULL when the column name is not in
-// the schema — this is a per-item soft miss, not a function error).
+// the schema  -  this is a per-item soft miss, not a function error).
 //
 // For VIRTUAL_CHILD_TABLE the parent stable's schema is needed to translate
 // colName -> cid. If the caller has already opened the parent stable entry
@@ -682,7 +682,7 @@ static int32_t vnodeFillTagValueFromChild(SVnode *pVnode, const SMetaEntry *pChi
 //
 // Returns: 0 on success (*ppFoundRef set, may be NULL).
 //          TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST when pStbEntry==NULL and
-//          the parent stable cannot be opened — the caller should surface this
+//          the parent stable cannot be opened  -  the caller should surface this
 //          via the per-item rsp.code.
 static int32_t vnodeFindVTableColRef(SVnode *pVnode, const SMetaEntry *pVtbEntry,
                                      const SMetaEntry *pStbEntry, EStreamVRefKind kind,
@@ -705,7 +705,7 @@ static int32_t vnodeFindVTableColRef(SVnode *pVnode, const SMetaEntry *pVtbEntry
     // Normal vtable: schema lives on the vtable entry itself.
     pSW = &pVtbEntry->ntbEntry.schemaRow;
   } else if (pStbEntry != NULL) {
-    // Caller pre-loaded parent stable — reuse it.
+    // Caller pre-loaded parent stable  -  reuse it.
     pSW = (kind == STREAM_VREF_KIND_TAG) ? &pStbEntry->stbEntry.schemaTag
                                          : &pStbEntry->stbEntry.schemaRow;
   } else {
@@ -748,7 +748,7 @@ static int32_t vnodeFindVTableColRef(SVnode *pVnode, const SMetaEntry *pVtbEntry
 }
 
 // Fill a SVTableRefResolveRspItem based on the resolved SColRef (or lack thereof).
-// Handles all vtable/physical-table × COL/TAG × hasRef/!hasRef combinations in
+// Handles all vtable/physical-table x COL/TAG x hasRef/!hasRef combinations in
 // one place so that both vnodeResolveTableGroup and vnodeResolveOneHop share the
 // same branching logic without duplication.
 //
@@ -940,7 +940,7 @@ static int32_t vnodeResolveOneHop(SVnode *pVnode, const SVTableRefResolveItem *q
   metaReaderReleaseLock(&mr);
 
   if (isVtable) {
-    // Lookup the SColRef via shared helper. Pass NULL for pStbEntry — for
+    // Lookup the SColRef via shared helper. Pass NULL for pStbEntry  -  for
     // single-hop the per-call parent-stable open cost is acceptable.
     SColRef *pFound = NULL;
     int32_t  rc     = vnodeFindVTableColRef(pVnode, &mr.me, NULL, q->kind, q->refColName, &pFound);
@@ -1703,7 +1703,7 @@ static int32_t streamPrepareAndFireOneVgResolve(SVnode *pVnode, const SEpSet *pE
   // scatterOrder[i] records the dedupItems position of the i-th column in the
   // flattened request (groups[0].cols[0], groups[0].cols[1], ...,
   // groups[1].cols[0], ...).  The server returns responses in this same
-  // flattened order, so scatter must use scatterOrder — not indexList — to map
+  // flattened order, so scatter must use scatterOrder  -  not indexList  -  to map
   // rsp.items[i] back to its original slot in dedupRspItems.
   h->scatterOrder = taosArrayInit(cnt, sizeof(int32_t));
   if (h->scatterOrder == NULL) { code = terrno; goto _capture; }
@@ -2370,7 +2370,7 @@ static int32_t streamBatchScatterAndPublish(SStreamVTableInfoCache *pCache, SArr
 // so the same physical column is only resolved once per RPC round, and (c) cache
 // the results for use in subsequent hops.
 //
-// Concurrency (review finding #4): remote per-vg RPCs are FAN-OUT — phase 3a
+// Concurrency (review finding #4): remote per-vg RPCs are FAN-OUT  -  phase 3a
 // fires all asyncSends in a tight loop, phase 3b drains every fired handle.
 // Total wall time is bounded by max(per-vg RTT) instead of sum(per-vg RTT).
 // The local vg (if present) is still processed synchronously in phase 3a since
@@ -2383,7 +2383,7 @@ static int32_t streamBatchScatterAndPublish(SStreamVTableInfoCache *pCache, SArr
 //
 // Returns 0 on success; non-zero on OOM, routing, or RPC failure.
 //
-// This driver is intentionally thin — each phase lives in its own helper
+// This driver is intentionally thin  -  each phase lives in its own helper
 // (streamBatchTryCacheAndDedup / streamBatchRouteToVgs / streamBatchFanoutDrain
 // / streamBatchScatterAndPublish) so the per-phase invariants are easier to
 // read and modify in isolation.

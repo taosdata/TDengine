@@ -492,7 +492,7 @@ TdDirPtr taosOpenDir(const char *dirname) {
   }
 
 #ifdef WINDOWS
-  char   szFind[MAX_PATH];  // 这是要找的
+  char   szFind[MAX_PATH];  // Search pattern.
   HANDLE hFind;
 
   TdDirPtr pDir = taosMemoryMalloc(sizeof(TdDir));
@@ -500,7 +500,7 @@ TdDirPtr taosOpenDir(const char *dirname) {
     return NULL;
   }
 
-  snprintf(szFind, sizeof(szFind), "%s%s", dirname, "\\*.*");  // 利用通配符找这个目录下的所以文件，包括目录
+  snprintf(szFind, sizeof(szFind), "%s%s", dirname, "\\*.*");  // Use a wildcard to find all files and directories.
 
   pDir->hFind = FindFirstFile(szFind, &(pDir->dirEntry.findFileData));
   if (INVALID_HANDLE_VALUE == pDir->hFind) {

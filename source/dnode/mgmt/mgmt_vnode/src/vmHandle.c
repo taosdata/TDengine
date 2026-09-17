@@ -99,7 +99,7 @@ void vmSetVnodeSyncTimeout(SVnodeMgmt *pMgmt) {
 void vmCollectTxnIdleQueries(SVnodeMgmt *pMgmt, SArray **ppQueries) {
   // Defense-in-depth: scan for orphan non-replicated txns whose MNode STrans
   // ROLLBACK was never delivered (extremely rare given TRN_POLICY_RETRY).
-  // Primary path (Client HB → MNode timeout → STrans) is robust enough that
+  // Primary path (Client HB  ->  MNode timeout  ->  STrans) is robust enough that
   // once-per-hour is more than sufficient for this fallback.
   static int64_t lastRunMs = 0;
   int64_t        now = taosGetTimestampMs();

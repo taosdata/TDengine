@@ -658,7 +658,7 @@ static int32_t adjustIntervalDataRequirement(SWindowLogicNode* pWindow, EDataOrd
     requirement = DATA_ORDER_LEVEL_IN_GROUP;
   }
   // Interval can produce ordered output (IN_GROUP or stronger) from block-ordered
-  // input.  Do NOT push the parent's output requirement into requireDataOrder —
+  // input. Do NOT push the parent's output requirement into requireDataOrder --
   // that would over-demand from children (e.g. promoting Table Scan to Table
   // Merge Scan unnecessarily).  Keep the minimum input requirement as-is.
   if (pWindow->node.requireDataOrder < DATA_ORDER_LEVEL_IN_BLOCK) {

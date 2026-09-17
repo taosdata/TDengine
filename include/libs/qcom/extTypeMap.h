@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// extTypeMap.h — external data source type mapping public interface
+// extTypeMap.h  -  external data source type mapping public interface
 //
 // Location: include/libs/qcom/extTypeMap.h
 // Callers:  Parser (semantic validation), Planner (physical plan construction)
@@ -38,14 +38,14 @@ extern "C" {
  * @param extTypeName   The raw type name string returned by the external source
  *                      (e.g. "VARCHAR(255)", "bigint", "Utf8",
  *                      "DECIMAL(18,4)").
- * @param extCharsetName  Charset or encoding for the column (DS §5.3.2):
+ * @param extCharsetName  Charset or encoding for the column (DS section 5.3.2):
  *                      - MySQL:     CHARACTER_SET_NAME from INFORMATION_SCHEMA
  *                                   (e.g. "utf8mb4", "latin1", "ascii").
  *                                   NULL or empty for non-character columns.
  *                      - PG:        Server-side database encoding from
  *                                   current_setting('server_encoding')
  *                                   (e.g. "UTF8", "SQL_ASCII").
- *                                   NULL or empty means unknown → VARCHAR.
+ *                                   NULL or empty means unknown  ->  VARCHAR.
  *                      - InfluxDB:  Always NULL or empty; Utf8 maps to NCHAR
  *                                   unconditionally regardless of this value.
  * @param pTdType       [out] Filled with the mapped TDengine type info:
@@ -55,8 +55,8 @@ extern "C" {
  *                        - precision: DECIMAL precision (0 for non-decimal)
  *                        - scale:     DECIMAL scale     (0 for non-decimal)
  *
- * @return TSDB_CODE_SUCCESS              — mapping succeeded.
- * @return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE — unknown or unsupported type.
+ * @return TSDB_CODE_SUCCESS               -  mapping succeeded.
+ * @return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE  -  unknown or unsupported type.
  */
 int32_t extTypeNameToTDengineType(EExtSourceType srcType, const char *extTypeName,
                                    const char *extCharsetName, SDataType *pTdType);

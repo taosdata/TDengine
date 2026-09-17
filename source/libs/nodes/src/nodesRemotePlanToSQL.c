@@ -13,14 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// nodesRemotePlanToSQL.c — converts a federated-query physical plan (or fallback) to remote SQL.
+// nodesRemotePlanToSQL.c  -  converts a federated-query physical plan (or fallback) to remote SQL.
 //
-// DS §5.2.6 mandates that this function lives in the `nodes` module so that
+// DS section 5.2.6 mandates that this function lives in the `nodes` module so that
 // both the Connector (Module B) and the Executor (Module F) call the exact same
 // code path.  The EXPLAIN output therefore matches the SQL actually sent to the
 // remote database.
 //
-// All internal rendering uses SDynSQL — a growable heap buffer — so the
+// All internal rendering uses SDynSQL  -  a growable heap buffer  -  so the
 // generated SQL has no fixed-length limit.
 
 #include "nodes.h"
@@ -217,14 +217,14 @@ static void fqDebugLogRenderCtx(const char* pTag, const SExtTableMeta* pExtMeta,
 }
 
 // ---------------------------------------------------------------------------
-// SDynSQL — growable SQL string buffer (no fixed size limit)
+// SDynSQL  -  growable SQL string buffer (no fixed size limit)
 // ---------------------------------------------------------------------------
 typedef struct {
   char*       buf;     // heap-allocated; NULL until first grow
   int32_t     pos;     // bytes written so far
   int32_t     cap;     // current capacity
   int32_t     err;     // first error code encountered (0 = OK)
-  // DS §5.2.6: client timezone name for timestamp→calendar conversion.
+  // DS section 5.2.6: client timezone name for timestamp -> calendar conversion.
   // Pointer into the SNodesRemoteSQLCtx.tzName string; NOT owned by SDynSQL.
   // NULL means "use server global default timezone" (legacy behaviour).
   const char* tzName;
@@ -321,7 +321,7 @@ static char* dynSQLDetach(SDynSQL* s) {
 }
 
 // ---------------------------------------------------------------------------
-// Internal rendering helpers — all write to SDynSQL*
+// Internal rendering helpers  -  all write to SDynSQL*
 // ---------------------------------------------------------------------------
 
 static void dynAppendQuotedId(SDynSQL* s, const char* name, EExtSQLDialect dialect) {
@@ -400,7 +400,7 @@ static void dynAppendTablePath(SDynSQL* s, const SExtTableNode* pExtTable, EExtS
 }
 
 // Append a SQL-escaped string literal.
-// Single quotes → double single-quotes; MySQL also escapes backslashes.
+// Single quotes -> double single-quotes; MySQL also escapes backslashes.
 static void dynAppendEscapedStringLen(SDynSQL* s, const char* str, int32_t len,
                                       EExtSQLDialect dialect) {
   dynSQLAppendChar(s, '\'');
@@ -589,7 +589,7 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
     dynSQLAppendStr(s, "NULL");
     return;
   }
-  // Raw SQL fragment — emit datum.p verbatim without quoting or escaping.
+  // Raw SQL fragment  -  emit datum.p verbatim without quoting or escaping.
   // datum.p is a TDengine varstring (uint16_t length prefix + char content).
   if (pVal->flag & VALUE_FLAG_RAW_SQL_FRAG) {
     if (pVal->datum.p) dynSQLAppendStr(s, varDataVal(pVal->datum.p));
@@ -665,13 +665,13 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
 }
 
 // ---------------------------------------------------------------------------
-// Date/time format-string translation (TDengine/Oracle tokens → remote dialect)
+// Date/time format-string translation (TDengine/Oracle tokens -> remote dialect)
 //
 // TDengine uses Oracle-style tokens (yyyy, mm, dd, HH24, HH12, MI, SS, MS, US,
 // NS, PM, AM).  Each remote dialect needs its own specifier:
 //   - MySQL DATE_FORMAT/STR_TO_DATE: %Y %m %d %H %h %i %s %f %p
 //   - DataFusion (InfluxDB v3) strftime: %Y %m %d %H %I %M %S %3f/%6f/%9f %p
-//     (note: minute=%M, second=%S — differ from MySQL's %i/%s)
+//     (note: minute=%M, second=%S - differ from MySQL's %i/%s)
 //
 // One table drives both translations.  Entries are ordered longest-token-first
 // so a single forward scan yields greedy longest-match without backtracking
@@ -1971,7 +1971,7 @@ static int32_t dynAppendExprTS(SDynSQL* s, const SNode* pExpr, const SNode* pOth
 }
 
 // ---------------------------------------------------------------------------
-// dynAppendRemoteValueList — resolve REMOTE_VALUE_LIST and emit IN (...) list
+// dynAppendRemoteValueList  -  resolve REMOTE_VALUE_LIST and emit IN (...) list
 // ---------------------------------------------------------------------------
 static int32_t dynAppendRemoteListLiteral(SDynSQL* s, const SRemoteValueListNode* pRemote,
                                           const void* pKey, size_t keyLen, void* charsetCxt,
@@ -2036,7 +2036,7 @@ static int32_t dynAppendResolvedRemoteValueList(SDynSQL* s, const SRemoteValueLi
     return TSDB_CODE_INVALID_PARA;
   }
 
-  // Empty set — "col IN ()" is invalid SQL; keep the historical FALSE
+  // Empty set - "col IN ()" is invalid SQL; keep the historical FALSE
   // fallback for callers that render the list as a full standalone fragment.
   if (!pRemote->pHashFilter || taosHashGetSize(pRemote->pHashFilter) == 0) {
     dynSQLAppendStr(s, "FALSE");
@@ -2072,7 +2072,7 @@ static int32_t dynAppendRemoteValueList(SDynSQL* s, const SRemoteValueListNode* 
                                          const SNodesRemoteSQLCtx* pCtx,
                                          int8_t tsPrecision) {
   if (!pCtx || !pCtx->fp) {
-    // No resolve context — cannot expand; caller will skip WHERE clause.
+    // No resolve context  -  cannot expand; caller will skip WHERE clause.
     qError("FQ-SQL: dynAppendRemoteValueList no resolve ctx (pCtx=%p)", pCtx);
     return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
   }
@@ -2188,7 +2188,7 @@ static int32_t dynAppendInfluxNodeInChain(SDynSQL* s, const SOperatorNode* pOp,
 }
 
 // ---------------------------------------------------------------------------
-// dynAppendNodeList — render constant value list as "(v1, v2, ...)" for IN/NOT IN
+// dynAppendNodeList  -  render constant value list as "(v1, v2, ...)" for IN/NOT IN
 // ---------------------------------------------------------------------------
 static int32_t dynAppendNodeList(SDynSQL* s, const SNodeListNode* pList, EExtSQLDialect dialect,
                                   const SExtTableMeta* pExtMeta, const SNodesRemoteSQLCtx* pCtx) {
@@ -2249,9 +2249,9 @@ static int8_t dialectToExtSourceType(EExtSQLDialect dialect) {
 // v2 two-state subquery body rendering.  Given a REMOTE_* node's render mode,
 // its stored original-SQL string, and its attached inner logic plan, append the
 // inner subquery SQL into `s` (without the surrounding parentheses / predicate
-// keyword — the caller wraps it).
-//   DIRECT_SQL    → append pOrigSql verbatim (user text; same-source, no xlate)
-//   ORIG_TYPE_2B  → render pInnerPlan via nodesRemotePlanToSQL()
+// keyword - the caller wraps it).
+//   DIRECT_SQL    -> append pOrigSql verbatim (user text; same-source, no xlate)
+//   ORIG_TYPE_2B  -> render pInnerPlan via nodesRemotePlanToSQL()
 //                   (function mapping + schema/db/remoteTableName translation)
 // Reaching toSQL means the collect phase decided this is pushable, so the
 // required source (string or plan) MUST be present; missing it is a BUG.
@@ -2393,7 +2393,7 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
       dynSQLAppendStr(s, "))");
       return TSDB_CODE_SUCCESS;
     case OP_TYPE_MATCH:
-      // TDengine MATCH → MySQL REGEXP / PostgreSQL ~ / InfluxDB(DataFusion) ~
+      // TDengine MATCH  ->  MySQL REGEXP / PostgreSQL ~ / InfluxDB(DataFusion) ~
       (void)dynSQLAppendChar(s, '(');
       (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
       if (dialect == EXT_SQL_DIALECT_MYSQL)
@@ -2408,7 +2408,7 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
       (void)dynSQLAppendChar(s, ')');
       return TSDB_CODE_SUCCESS;
     case OP_TYPE_NMATCH:
-      // TDengine NMATCH → MySQL NOT REGEXP / PostgreSQL !~ / InfluxDB(DataFusion) !~
+      // TDengine NMATCH  ->  MySQL NOT REGEXP / PostgreSQL !~ / InfluxDB(DataFusion) !~
       (void)dynSQLAppendChar(s, '(');
       (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
       if (dialect == EXT_SQL_DIALECT_MYSQL)
@@ -2570,7 +2570,7 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
       dynSQLAppendStr(s, " IS NOT UNKNOWN)");
       return TSDB_CODE_SUCCESS;
     case OP_TYPE_JSON_GET_VALUE: {
-      // DS §5.3.3.1.5: MySQL → JSON_EXTRACT(col, '$.key'); PG → col->>'key'
+      // DS §5.3.3.1.5: MySQL -> JSON_EXTRACT(col, '$.key'); PG -> col->>'key'
       if (dialect == EXT_SQL_DIALECT_MYSQL) {
         dynSQLAppendStr(s, "JSON_EXTRACT(");
         (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
@@ -2598,7 +2598,7 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
       return TSDB_CODE_SUCCESS;
     }
     case OP_TYPE_EXISTS:
-      // pLeft must be a VALUE with VALUE_FLAG_RAW_SQL_FRAG set — a pre-rendered
+      // pLeft must be a VALUE with VALUE_FLAG_RAW_SQL_FRAG set  -  a pre-rendered
       // EXISTS body SQL string produced by nodesRenderCorrelatedExistsBody.
       if (pOp->pLeft && nodeType(pOp->pLeft) == QUERY_NODE_VALUE &&
           (((const SValueNode*)pOp->pLeft)->flag & VALUE_FLAG_RAW_SQL_FRAG)) {
@@ -2681,7 +2681,7 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
 }
 
 // ---------------------------------------------------------------------------
-// tryRenderAsBetween — detect (col >= lb) AND (col <= ub) and render as BETWEEN
+// tryRenderAsBetween - detect (col >= lb) AND (col <= ub) and render as BETWEEN
 // ---------------------------------------------------------------------------
 // Returns true and writes output when the 2-element AND list matches BETWEEN pattern.
 static bool tryRenderAsBetween(SDynSQL* s, const SNodeList* pList, EExtSQLDialect dialect,
@@ -2724,7 +2724,7 @@ static bool tryRenderAsBetween(SDynSQL* s, const SNodeList* pList, EExtSQLDialec
 }
 
 // ---------------------------------------------------------------------------
-// tryRenderAsNotBetween — detect (col < lb) OR (col > ub) → col NOT BETWEEN lb AND ub
+// tryRenderAsNotBetween - detect (col < lb) OR (col > ub) -> col NOT BETWEEN lb AND ub
 // ---------------------------------------------------------------------------
 static bool tryRenderAsNotBetween(SDynSQL* s, const SNodeList* pList, EExtSQLDialect dialect,
                                    const SExtTableMeta* pExtMeta,
@@ -2770,7 +2770,7 @@ static bool tryRenderAsNotBetween(SDynSQL* s, const SNodeList* pList, EExtSQLDia
 static int32_t dynAppendLogicCondition(SDynSQL* s, const SLogicConditionNode* pLogic,
                                         EExtSQLDialect dialect, const SExtTableMeta* pExtMeta,
                                         const SNodesRemoteSQLCtx* pCtx) {
-  // NOT(EXISTS(RAW_SQL_FRAG)) — special-case to emit NOT EXISTS (...) directly.
+  // NOT(EXISTS(RAW_SQL_FRAG))  -  special-case to emit NOT EXISTS (...) directly.
   if (pLogic->condType == LOGIC_COND_TYPE_NOT &&
       pLogic->pParameterList && LIST_LENGTH(pLogic->pParameterList) == 1) {
     SNode* pInner = (SNode*)pLogic->pParameterList->pHead->pNode;
@@ -2784,7 +2784,7 @@ static int32_t dynAppendLogicCondition(SDynSQL* s, const SLogicConditionNode* pL
         dynSQLAppendChar(s, ')');
         return TSDB_CODE_SUCCESS;
       }
-      // NOT(EXISTS(REMOTE_ZERO_ROWS)) — subquery evaluated TDengine-side; emit (count = 0).
+      // NOT(EXISTS(REMOTE_ZERO_ROWS))  -  subquery evaluated TDengine-side; emit (count = 0).
       if (pOp->opType == OP_TYPE_EXISTS &&
           pOp->pLeft && nodeType(pOp->pLeft) == QUERY_NODE_REMOTE_ZERO_ROWS) {
         dynSQLAppendChar(s, '(');
@@ -2793,7 +2793,7 @@ static int32_t dynAppendLogicCondition(SDynSQL* s, const SLogicConditionNode* pL
         dynSQLAppendStr(s, " = 0)");
         return TSDB_CODE_SUCCESS;
       }
-      // NOT(REMOTE_ZERO_ROWS(...) > 0) — parser/planner may keep NOT EXISTS in
+      // NOT(REMOTE_ZERO_ROWS(...) > 0) - parser/planner may keep NOT EXISTS in
       // this normalized form.  Collapse it back so remote SQL preserves the
       // original NOT EXISTS predicate shape.
       if (pOp->pLeft && nodeType(pOp->pLeft) == QUERY_NODE_REMOTE_ZERO_ROWS &&
@@ -2864,7 +2864,7 @@ static int32_t dynAppendLogicCondition(SDynSQL* s, const SLogicConditionNode* pL
 }
 
 // ---------------------------------------------------------------------------
-// dynAppendFunctionExpr — render a SFunctionNode as remote SQL
+// dynAppendFunctionExpr - render a SFunctionNode as remote SQL
 // ---------------------------------------------------------------------------
 
 // Helper: render function-name + '(' + comma-sep args + ')'
@@ -3051,11 +3051,11 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     case FUNCTION_TYPE_LOG: {
       // DS §5.3.4.1.1: LOG() semantics differ by dialect.
       // Single-arg LOG(expr): TDengine means natural log; PG/Influx LOG() is base-10, must use LN().
-      // Two-arg LOG(expr, base): TDengine means log_base(expr); others use LOG(base, expr) — swap args.
+      // Two-arg LOG(expr, base): TDengine means log_base(expr); others use LOG(base, expr) - swap args.
       if (nParams == 1 && (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL))
         return dynRenderNamedFunc(s, "LN", pFunc, dialect, pExtMeta, pCtx);
       if (nParams >= 2) {
-        // Swap: LOG(expr, base) → LOG(base, expr)
+        // Swap: LOG(expr, base) -> LOG(base, expr)
         dynSQLAppendStr(s, "LOG(");
         int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 1), dialect, pExtMeta, pCtx);
         if (code) return code;
@@ -3121,7 +3121,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     case FUNCTION_TYPE_GREATEST:
     case FUNCTION_TYPE_LEAST: {
       // TDengine appends an internal ignoreNull flag as the LAST param (see
-      // sclfunc.c greatestLeastImpl); drop it — remote GREATEST/LEAST takes user args only.
+      // sclfunc.c greatestLeastImpl); drop it - remote GREATEST/LEAST takes user args only.
       const char* funcName = pFunc->funcType == FUNCTION_TYPE_GREATEST ? "GREATEST" : "LEAST";
       bool hasTimestampArg = false;
       for (int32_t i = 0; i < nParams - 1; ++i) {
@@ -3169,7 +3169,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       // plain TRIM(expr) for the common BOTH/no-remove-chars case.
       //   user args before trimType: [expr]  or  [remove_chars, expr]
       if (nParams < 2) {
-        // No trimType appended (defensive) — render as-is.
+        // No trimType appended (defensive) - render as-is.
         return dynRenderNamedFunc(s, "TRIM", pFunc, dialect, pExtMeta, pCtx);
       }
       int32_t nUser = nParams - 1;  // drop trailing trimType
@@ -3180,7 +3180,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       SNode* pExprArg   = nodesListGetNode(pFunc->pParameterList, nUser - 1);  // expr is last user arg
       SNode* pRemoveArg = (nUser >= 2) ? nodesListGetNode(pFunc->pParameterList, 0) : NULL;
       if (dir[0] == '\0' && pRemoveArg == NULL) {
-        // Plain BOTH-trim of whitespace → TRIM(expr).
+        // Plain BOTH-trim of whitespace -> TRIM(expr).
         dynSQLAppendStr(s, "TRIM(");
         int32_t code = dynAppendExpr(s, pExprArg, dialect, pExtMeta, pCtx);
         if (code) return code;
@@ -3206,7 +3206,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     case FUNCTION_TYPE_REPLACE:      return dynRenderNamedFunc(s, "REPLACE",      pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_REPEAT:       return dynRenderNamedFunc(s, "REPEAT",       pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_SUBSTR_IDX:
-      // DS §5.3.4.1.2: SUBSTRING_INDEX — MySQL only; PG/InfluxDB have no equivalent.
+      // DS §5.3.4.1.2: SUBSTRING_INDEX - MySQL only; PG/InfluxDB have no equivalent.
       if (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL) {
         qError("FQ-SQL: SUBSTRING_INDEX not supported by %s; deferring to local", dialectName(dialect));
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
@@ -3329,7 +3329,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     case FUNCTION_TYPE_CHAR:
       if (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL) {
         // DS §5.3.4.1.2: PG/DataFusion CHR() accepts single arg only.
-        // Multi-arg CHAR(e1, e2, ...) → CHR(e1) || CHR(e2) || ...
+        // Multi-arg CHAR(e1, e2, ...) -> CHR(e1) || CHR(e2) || ...
         if (nParams > 1) {
           bool first2 = true;
           SNode* pArg = NULL;
@@ -3347,10 +3347,10 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       }
       return dynRenderNamedFunc(s, "CHAR", pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_POSITION: {
-      /* POSITION(needle IN haystack) — TDengine stores as POSITION(needle, haystack) */
+      /* POSITION(needle IN haystack) - TDengine stores as POSITION(needle, haystack) */
       if (nParams >= 2) {
         if (dialect == EXT_SQL_DIALECT_INFLUXQL) {
-          // DS §5.3.4.1.2: DataFusion uses STRPOS(haystack, needle) — reversed args.
+          // DS §5.3.4.1.2: DataFusion uses STRPOS(haystack, needle) - reversed args.
           dynSQLAppendStr(s, "STRPOS(");
           int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 1),
                                        dialect, pExtMeta, pCtx);
@@ -3540,7 +3540,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return s->err ? s->err : TSDB_CODE_SUCCESS;
     }
     case FUNCTION_TYPE_TO_JSON: {
-      qError("FQ-SQL: TO_JSON pushdown disabled — TDengine parses input text as JSON and maps invalid payloads to JSON null, which is not equivalent to external-source direct execution");
+      qError("FQ-SQL: TO_JSON pushdown disabled - TDengine parses input text as JSON and maps invalid payloads to JSON null, which is not equivalent to external-source direct execution");
       return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
     }
 
@@ -3553,7 +3553,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       // DS §5.3.4.1.9: MySQL uses CURDATE(); PG uses CURRENT_DATE; InfluxDB uses CURRENT_DATE.
       if (dialect == EXT_SQL_DIALECT_MYSQL)
         return dynRenderNamedFunc(s, "CURDATE", pFunc, dialect, pExtMeta, pCtx);
-      // PG/InfluxDB: CURRENT_DATE (no parentheses — it's a keyword, not a function call)
+      // PG/InfluxDB: CURRENT_DATE (no parentheses - it's a keyword, not a function call)
       dynSQLAppendStr(s, "CURRENT_DATE");
       return s->err ? s->err : TSDB_CODE_SUCCESS;
     case FUNCTION_TYPE_DATE: {
@@ -3599,7 +3599,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         dynSQLAppendStr(s, ", 'YYYY-MM-DD')");
         return s->err ? s->err : TSDB_CODE_SUCCESS;
       }
-      // DS §5.3.4.1.9: InfluxDB → CAST(expr AS DATE)
+      // DS §5.3.4.1.9: InfluxDB -> CAST(expr AS DATE)
       if (dialect == EXT_SQL_DIALECT_INFLUXQL && nParams >= 1) {
         dynSQLAppendStr(s, "CAST(");
         int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
@@ -3629,7 +3629,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFuncKeepN(s, "WEEK", pFunc, nParams - 1, dialect, pExtMeta, pCtx);
     }
     case FUNCTION_TYPE_WEEKDAY: {
-      // DS §5.3.4.1.9: PG → EXTRACT(ISODOW FROM expr) - 1; InfluxDB → local.
+      // DS §5.3.4.1.9: PG -> EXTRACT(ISODOW FROM expr) - 1; InfluxDB -> local.
       if (dialect == EXT_SQL_DIALECT_INFLUXQL) {
         qError("FQ-SQL: WEEKDAY() not supported by InfluxDB; deferring to local");
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
@@ -3644,7 +3644,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFuncKeepN(s, "WEEKDAY", pFunc, nParams - 1, dialect, pExtMeta, pCtx);
     }
     case FUNCTION_TYPE_WEEKOFYEAR: {
-      // DS §5.3.4.1.9: PG/InfluxDB → EXTRACT(WEEK FROM expr)
+      // DS §5.3.4.1.9: PG/InfluxDB -> EXTRACT(WEEK FROM expr)
       if ((dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL) && nParams >= 1) {
         dynSQLAppendStr(s, "EXTRACT(WEEK FROM ");
         int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
@@ -3655,7 +3655,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFuncKeepN(s, "WEEKOFYEAR", pFunc, nParams - 1, dialect, pExtMeta, pCtx);
     }
     case FUNCTION_TYPE_DAYOFWEEK: {
-      // DS §5.3.4.1.9: PG/InfluxDB → EXTRACT(DOW FROM expr) + 1  [TDengine/MySQL: 1=Sunday]
+      // DS §5.3.4.1.9: PG/InfluxDB -> EXTRACT(DOW FROM expr) + 1  [TDengine/MySQL: 1=Sunday]
       if ((dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL) && nParams >= 1) {
         dynSQLAppendStr(s, "(EXTRACT(DOW FROM ");
         int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
@@ -3666,7 +3666,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFuncKeepN(s, "DAYOFWEEK", pFunc, nParams - 1, dialect, pExtMeta, pCtx);
     }
     case FUNCTION_TYPE_TO_CHAR: {
-      // DS §5.3.4.1.8: MySQL → DATE_FORMAT(expr, mysql_fmt); PG/Influx → TO_CHAR(expr, fmt).
+      // DS §5.3.4.1.8: MySQL -> DATE_FORMAT(expr, mysql_fmt); PG/Influx -> TO_CHAR(expr, fmt).
       // The 3rd param (timezone name) is TDengine-specific and not forwarded to remote.
       qDebug("FQ-SQL: TO_CHAR rendering dialect=%s nParams=%d", dialectName(dialect), nParams);
       if (dialect == EXT_SQL_DIALECT_MYSQL && nParams >= 2) {
@@ -3689,7 +3689,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         dynSQLAppendChar(s, ')');
         return s->err ? s->err : TSDB_CODE_SUCCESS;
       }
-      // PG/Influx: TO_CHAR(expr, fmt) — pass first 2 params only (skip timezone arg).
+      // PG/Influx: TO_CHAR(expr, fmt) - pass first 2 params only (skip timezone arg).
       // PG accepts the Oracle-style format (yyyy-mm-dd) verbatim.  InfluxDB v3
       // (DataFusion) requires chrono strftime specifiers, so translate the format.
       if (nParams >= 2) {
@@ -3715,7 +3715,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFunc(s, "TO_CHAR", pFunc, dialect, pExtMeta, pCtx);
     }
     case FUNCTION_TYPE_TO_TIMESTAMP: {
-      // DS §5.3.4.1.8: MySQL → STR_TO_DATE(expr, mysql_fmt); PG/Influx → TO_TIMESTAMP(expr, fmt).
+      // DS §5.3.4.1.8: MySQL -> STR_TO_DATE(expr, mysql_fmt); PG/Influx -> TO_TIMESTAMP(expr, fmt).
       qDebug("FQ-SQL: TO_TIMESTAMP rendering dialect=%s nParams=%d", dialectName(dialect), nParams);
       if (dialect == EXT_SQL_DIALECT_MYSQL && nParams >= 2) {
         SNode* pStrArg = nodesListGetNode(pFunc->pParameterList, 0);
@@ -3763,11 +3763,11 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     }
     case FUNCTION_TYPE_TIMETRUNCATE: {
       // DS §5.3.4.1.9: MySQL local-only (no general timestamp truncation; disabled
-      // via capability matrix).  PG / InfluxDB v3 → DATE_TRUNC('<unit>', expr).
+      // via capability matrix).  PG / InfluxDB v3 -> DATE_TRUNC('<unit>', expr).
       // TDengine param layout (translateTimeTruncate): [0]=time, [1]=interval
       // ticks, [2]=use_curr_tz, [3]=precision, [4]=tz, …  DATE_TRUNC takes a unit
       // KEYWORD, so the interval must equal exactly one supported calendar unit;
-      // map interval(ticks,precision) → unit string, else defer to local.
+      // map interval(ticks,precision) -> unit string, else defer to local.
       if (nParams < 4) {
         qError("FQ-SQL: TIMETRUNCATE missing params (nParams=%d)", nParams);
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
@@ -3820,7 +3820,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
                                   nodesListGetNode(pFunc->pParameterList, 0))->colName, "*") == 0);
       if (!isCountStar && nParams == 1 &&
           nodeType(nodesListGetNode(pFunc->pParameterList, 0)) == QUERY_NODE_COLUMN) {
-        /* The parser rewrites count(*) → count(<primary-key>) for scan optimisation.
+        /* The parser rewrites count(*) -> count(<primary-key>) for scan optimisation.
          * InfluxDB's standard timestamp primary keys are named time/_time, and
          * COUNT(time) is not a valid field aggregate there. Do not rewrite an
          * ordinary field reference: COUNT(field) must retain NULL semantics. */
@@ -3833,7 +3833,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       if (!isCountStar && nParams == 1 && pExtMeta &&
           nodeType(nodesListGetNode(pFunc->pParameterList, 0)) == QUERY_NODE_COLUMN) {
         /* Fallback: if pExtMeta is available (e.g. in EXPLAIN context), use the
-         * isPrimaryKey flag to detect count(<pk>) → COUNT(*) for any dialect. */
+         * isPrimaryKey flag to detect count(<pk>) -> COUNT(*) for any dialect. */
         const SColumnNode* pCol = (const SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
         for (int32_t ci = 0; ci < pExtMeta->numOfCols; ci++) {
           if (pExtMeta->pCols[ci].isPrimaryKey &&
@@ -3968,7 +3968,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       }
       return dynRenderNamedFunc(s, "CORR", pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_SPREAD: {
-      // DS §5.3.4.1.10: SPREAD(expr) → MAX(expr) - MIN(expr)
+      // DS §5.3.4.1.10: SPREAD(expr) -> MAX(expr) - MIN(expr)
       if (nParams < 1) {
         qError("FQ-SQL: SPREAD missing params");
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
@@ -4016,8 +4016,8 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     }
     case FUNCTION_TYPE_TIMEDIFF: {
       // DS §5.3.4.1.9: TIMEDIFF(e1, e2[, unit])
-      //   MySQL → TIMESTAMPDIFF(unit, e2, e1)  (note: reversed parameter order)
-      //   PG/Influx → EXTRACT(EPOCH FROM (e1 - e2))
+      //   MySQL -> TIMESTAMPDIFF(unit, e2, e1)  (note: reversed parameter order)
+      //   PG/Influx -> EXTRACT(EPOCH FROM (e1 - e2))
       if (nParams < 2) {
         qError("FQ-SQL: TIMEDIFF missing params (nParams=%d)", nParams);
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
@@ -4113,7 +4113,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFunc(s, "MODE", pFunc, dialect, pExtMeta, pCtx);
     }
     case FUNCTION_TYPE_PERCENTILE: {
-      // DS §5.3.4.1.11: PG → PERCENTILE_CONT(p/100.0) WITHIN GROUP (ORDER BY expr).
+      // DS §5.3.4.1.11: PG -> PERCENTILE_CONT(p/100.0) WITHIN GROUP (ORDER BY expr).
       // MySQL/InfluxDB: disabled via capability matrix.
       if (dialect == EXT_SQL_DIALECT_MYSQL || dialect == EXT_SQL_DIALECT_INFLUXQL) {
         qError("FQ-SQL: PERCENTILE() not supported by %s", dialectName(dialect));
@@ -4139,7 +4139,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
     }
     case FUNCTION_TYPE_LAG: {
-      // DS §5.3.4.1.13: LAG(expr, offset[, default]) — needs OVER (ORDER BY ts).
+      // DS §5.3.4.1.13: LAG(expr, offset[, default]) - needs OVER (ORDER BY ts).
       // The TDengine parser appends the primary-key timestamp as the LAST
       // parameter for implicit-ts functions (appendTsForImplicitTsFuncImpl), so:
       //   LAG(voltage,1)          -> [voltage, 1, ts]
@@ -4163,7 +4163,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return s->err ? s->err : TSDB_CODE_SUCCESS;
     }
     case FUNCTION_TYPE_LEAD: {
-      // DS §5.3.4.1.13: LEAD(expr, offset[, default]) — needs OVER (ORDER BY ts).
+      // DS §5.3.4.1.13: LEAD(expr, offset[, default]) - needs OVER (ORDER BY ts).
       // Parser appends the primary-key ts as the LAST param (see LAG above).
       if (nParams < 3) {
         qError("FQ-SQL: LEAD() needs expr+offset+ts; got %d params", nParams);
@@ -4237,7 +4237,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFunc(s, "ST_ContainsProperly", pFunc, dialect, pExtMeta, pCtx);
 
     case FUNCTION_TYPE_EQUALS:
-      // DS §5.3.4.1.17: MySQL/PG → ST_Equals(A, B); InfluxDB → local.
+      // DS §5.3.4.1.17: MySQL/PG -> ST_Equals(A, B); InfluxDB -> local.
       if (dialect == EXT_SQL_DIALECT_INFLUXQL) {
         qError("FQ-SQL: ST_Equals not supported by InfluxDB; deferring to local");
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
@@ -4554,7 +4554,7 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
 
       // Detect IFNULL(a, b) / NVL(a, b) pattern:
       //   CASE WHEN a IS NOT NULL THEN a ELSE b END  (1 WHEN, has pElse)
-      // DS §5.3.4.1.14: MySQL → IFNULL(a,b); PG/Influx → COALESCE(a,b).
+      // DS §5.3.4.1.14: MySQL -> IFNULL(a,b); PG/Influx -> COALESCE(a,b).
       if (!pCW->pCase && pCW->pElse && pCW->pWhenThenList &&
           LIST_LENGTH(pCW->pWhenThenList) == 1) {
         const SWhenThenNode* pWT2 = (const SWhenThenNode*)nodesListGetNode(pCW->pWhenThenList, 0);
@@ -4668,7 +4668,7 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
 }
 
 // ---------------------------------------------------------------------------
-// nodesExprToExtSQL — public API (fixed-buffer; kept for external callers)
+// nodesExprToExtSQL - public API (fixed-buffer; kept for external callers)
 // Passing buf == NULL and bufLen == 0 queries the required payload length.
 // A non-NULL buffer must include one extra byte for the trailing '\0'.
 // ---------------------------------------------------------------------------
@@ -4712,7 +4712,7 @@ int32_t nodesExprToExtSQL(const SNode* pExpr, EExtSQLDialect dialect, char* buf,
   return TSDB_CODE_SUCCESS;
 }
 
-// Forward declaration — renderNode is recursive (subquery case calls itself).
+// Forward declaration - renderNode is recursive (subquery case calls itself).
 static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
                            const SNodesRemoteSQLCtx* pCtx, SDynSQL* s);
 static int32_t renderJoin(const SJoinLogicNode* pJoin, EExtSQLDialect dialect,
@@ -5443,7 +5443,7 @@ static void renderSelectList(SDynSQL* s, const SNodeList* pCols, EExtSQLDialect 
       }
     }
     // All expressions (columns and non-columns) go through dynAppendExpr for
-    // uniform rendering.  dynAppendExpr handles the userAlias→colName resolution
+    // uniform rendering.  dynAppendExpr handles the userAlias->colName resolution
     // for subquery-referencing columns (pExtMeta==NULL) so that every context
     // (SELECT, WHERE, HAVING, ORDER BY, GROUP BY, …) uses the same logic.
     if (!renderedTimestampEpoch && !renderedCurrentScopeColumn) {
@@ -6607,7 +6607,7 @@ static int32_t renderAggGroupKeyExprs(SDynSQL* s, const SAggLogicNode* pAgg,
 }
 
 // ---------------------------------------------------------------------------
-// renderAggSelectList — render SELECT clause for an Agg node.
+// renderAggSelectList - render SELECT clause for an Agg node.
 // Emits: [group keys,] agg functions with aliases.
 // ---------------------------------------------------------------------------
 static int32_t renderAggSelectList(SDynSQL* s, const SNodesRemoteSelectOutputs* pOutputs,
@@ -6673,7 +6673,7 @@ static int32_t renderAggSelectList(SDynSQL* s, const SNodesRemoteSelectOutputs* 
 // The clause sources gathered for one parent SELECT.
 typedef struct SFqQueryGroup {
   const SAggLogicNode*           pAgg;        // GROUP BY (groupKeys) + HAVING + SELECT (aggFuncs)
-  const SPartitionLogicNode*     pPartition;  // PARTITION keys → GROUP BY [+ SELECT aggFuncs]
+  const SPartitionLogicNode*     pPartition;  // PARTITION keys -> GROUP BY [+ SELECT aggFuncs]
   const SProjectLogicNode*       pProject;    // SELECT (pProjections)
   const SIndefRowsFuncLogicNode* pIndef;      // SELECT (window funcs)
   const SSortLogicNode*          pSort;       // ORDER BY
@@ -6681,7 +6681,7 @@ typedef struct SFqQueryGroup {
   const SLogicNode*              pWhereNode;  // intermediate node (PROJECT/SORT/…) carrying its own WHERE (node.pConditions)
   const SNode*                   pLimit;      // LIMIT (from whichever node carries it)
   const SLogicNode*              pFromSource; // SCAN or JOIN at the group bottom (FROM table/join)
-  const SLogicNode*              pFromChild;  // non-FROM-source child → render as "(subquery) _sq"
+  const SLogicNode*              pFromChild;  // non-FROM-source child -> render as "(subquery) _sq"
   const SLogicNode*              pProjectSelectChild;  // child whose SELECT slot is folded into pProject
   uint32_t                       used;        // occupied FQ_SLOT_* bits
 } SFqQueryGroup;
@@ -6715,7 +6715,7 @@ static bool fqAggIsDistinctOnly(const SAggLogicNode* pAgg) {
           (pAgg->pAggFuncs == NULL || LIST_LENGTH(pAgg->pAggFuncs) == 0));
 }
 
-// Clause slots a node contributes (0 for FROM-source nodes — handled separately).
+// Clause slots a node contributes (0 for FROM-source nodes - handled separately).
 static uint32_t fqNodeClauseSlots(const SLogicNode* pNode) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_PROJECT: {
@@ -6747,7 +6747,7 @@ static uint32_t fqNodeClauseSlots(const SLogicNode* pNode) {
       uint32_t slots = FQ_SLOT_PARTITION;
       // Claim the SELECT slot only for REAL aggregates; a PARTITION whose pAggFuncs
       // are only _group_key pass-throughs contributes no SELECT-list aggregate (the
-      // keys render via GROUP BY), so it must not conflict with an AGG above —
+      // keys render via GROUP BY), so it must not conflict with an AGG above -
       // they merge into one "SELECT keys, aggs ... GROUP BY keys".
       if (fqAggFuncsHaveRealAgg(pPart->pAggFuncs)) slots |= FQ_SLOT_SELECT;
       if (pPart->node.pConditions) slots |= FQ_SLOT_WHERE;
@@ -6764,7 +6764,7 @@ static uint32_t fqNodeClauseSlots(const SLogicNode* pNode) {
 static bool fqIsFromSource(const SLogicNode* pNode) {
   ENodeType t = nodeType(pNode);
   if (t == QUERY_NODE_LOGIC_PLAN_SCAN || t == QUERY_NODE_LOGIC_PLAN_JOIN) return true;
-  // Multi-child set-op PROJECT (UNION/UNION ALL) is its own statement → FROM-source.
+  // Multi-child set-op PROJECT (UNION/UNION ALL) is its own statement -> FROM-source.
   if (t == QUERY_NODE_LOGIC_PLAN_PROJECT && pNode->pChildren != NULL &&
       LIST_LENGTH(pNode->pChildren) > 1) return true;
   return false;
@@ -8720,7 +8720,7 @@ _return:
   return code;
 }
 
-// Render a JOIN as a FROM-source (INNER/LEFT/RIGHT/FULL ... ON; SEMI/ANTI → EXISTS).
+// Render a JOIN as a FROM-source (INNER/LEFT/RIGHT/FULL ... ON; SEMI/ANTI -> EXISTS).
 // Emits a complete SELECT (it is its own statement / FROM-source).
 static int32_t renderJoin(const SJoinLogicNode* pJoin, EExtSQLDialect dialect,
                           const SNodesRemoteSQLCtx* pCtx, SDynSQL* s) {
@@ -8842,7 +8842,7 @@ static int32_t renderJoin(const SJoinLogicNode* pJoin, EExtSQLDialect dialect,
   // Standard JOIN: render ONLY the FROM clause "t1 a1 [type] JOIN t2 a2 ON cond".
   // The SELECT list, WHERE and trailing clauses belong to the enclosing query
   // group (renderNode step 2), which renders them with useJoinLegAlias so the
-  // two legs' columns are unambiguous.  This keeps Project→Join / Agg→Join in a
+  // two legs' columns are unambiguous.  This keeps Project->Join / Agg->Join in a
   // SINGLE SELECT (no subquery) per the combination model.
   SNodesRemoteSQLCtx joinCtx = pCtx ? *pCtx : (SNodesRemoteSQLCtx){0};
   joinCtx.useJoinLegAlias = true;
@@ -8892,7 +8892,7 @@ static bool renderJoinLegWhere(const SJoinLogicNode* pJoin, EExtSQLDialect diale
   return wroteAny;
 }
 
-// renderNode — combination-driven: collect a query group top-down, emit one SELECT.
+// renderNode - combination-driven: collect a query group top-down, emit one SELECT.
 static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
                           const SNodesRemoteSQLCtx* pCtx, SDynSQL* s) {
   if (!pNode) { qError("FQ-SQL: renderNode NULL"); return TSDB_CODE_INVALID_PARA; }
@@ -8901,26 +8901,26 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
   if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_JOIN) {
     const SJoinLogicNode* pJoin = (const SJoinLogicNode*)pNode;
     if (pJoin->subType == JOIN_STYPE_SEMI || pJoin->subType == JOIN_STYPE_ANTI) {
-      qDebug("FQ-SQL-RENDER: node=%s joinSubType=%d → SEMI/ANTI JOIN own statement",
+      qDebug("FQ-SQL-RENDER: node=%s joinSubType=%d -> SEMI/ANTI JOIN own statement",
              nodesNodeName(nodeType(pNode)), (int)pJoin->subType);
       int32_t code = renderJoin(pJoin, dialect, pCtx, s);
       if (code) return code;
       if (pNode->pLimit) renderLimit(s, (const SLimitNode*)pNode->pLimit);
       return s->err ? s->err : TSDB_CODE_SUCCESS;
     }
-    qDebug("FQ-SQL-RENDER: node=%s joinSubType=%d → standard JOIN uses shared collector path",
+    qDebug("FQ-SQL-RENDER: node=%s joinSubType=%d -> standard JOIN uses shared collector path",
            nodesNodeName(nodeType(pNode)), (int)pJoin->subType);
   }
   if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_PROJECT && pNode->pChildren != NULL &&
       LIST_LENGTH(pNode->pChildren) > 1) {
-    qDebug("FQ-SQL-RENDER: node=%s nChildren=%d → UNION set-op (own statement)",
+    qDebug("FQ-SQL-RENDER: node=%s nChildren=%d -> UNION set-op (own statement)",
            nodesNodeName(nodeType(pNode)), (int)LIST_LENGTH(pNode->pChildren));
     int32_t code = renderSetOpStatement((const SProjectLogicNode*)pNode, dialect, pCtx, s);
     if (code) return code;
     return s->err ? s->err : TSDB_CODE_SUCCESS;
   }
   if (fqNodeRequiresWhereWrapper(pNode)) {
-    qDebug("FQ-SQL-RENDER: node=%s has post-node WHERE → outer-WHERE wrapper statement",
+    qDebug("FQ-SQL-RENDER: node=%s has post-node WHERE -> outer-WHERE wrapper statement",
            nodesNodeName(nodeType(pNode)));
     return renderNodeWithOuterWhereWrapper(pNode, dialect, pCtx, s);
   }
@@ -8979,7 +8979,7 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
 
   // Outer-clause naming namespace: when FROM is a real single table, outer
   // SELECT/GROUP BY/HAVING/ORDER BY columns resolve against that table's remote
-  // schema (pMeta → remote column-name mapping).  But when FROM is a SUBQUERY
+  // schema (pMeta -> remote column-name mapping).  But when FROM is a SUBQUERY
   // (g.pFromChild), a JOIN, or a UNION, the outer clauses reference the current
   // statement's SELECT-list outputs.  Those output references must resolve to
   // the final emitted remote SELECT aliases (normally internal aliasName / slot
@@ -9103,8 +9103,8 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
   }
 
   // FROM: a real table/join (FROM-source) or a subquery (conflict child).
-  // A standard JOIN renders INLINE ("t1 a1 JOIN t2 a2 ON cond") so Project→Join /
-  // Agg→Join stay one SELECT; SEMI/ANTI JOIN is a complete EXISTS statement that
+  // A standard JOIN renders INLINE ("t1 a1 JOIN t2 a2 ON cond") so Project->Join /
+  // Agg->Join stay one SELECT; SEMI/ANTI JOIN is a complete EXISTS statement that
   // must be wrapped as a subquery.  (joinInlineFrom computed above.)
   dynSQLAppendStr(s, " FROM ");
   if (g.pFromChild != NULL) {
@@ -9134,7 +9134,7 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
       return code;
     }
   } else if (g.pFromSource != NULL && nodeType(g.pFromSource) == QUERY_NODE_LOGIC_PLAN_JOIN) {
-    // SEMI/ANTI JOIN: complete EXISTS SELECT → wrap as subquery.
+    // SEMI/ANTI JOIN: complete EXISTS SELECT -> wrap as subquery.
     dynSQLAppendStr(s, "(");
     code = renderJoin((const SJoinLogicNode*)g.pFromSource, dialect, pCtx, s);
     if (code) {
@@ -9169,7 +9169,7 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
     return TSDB_CODE_EXT_SQL_RENDER_ERROR;
   }
 
-  // WHERE: real scan table → scan's own WHERE; inline JOIN → legs' + JOIN's WHERE.
+  // WHERE: real scan table -> scan's own WHERE; inline JOIN -> legs' + JOIN's WHERE.
   if (g.pScanWhere != NULL && g.pFromChild == NULL &&
       nodeType(g.pFromSource) == QUERY_NODE_LOGIC_PLAN_SCAN) {
     // A remote-plan node carries its pushable WHERE in node.pConditions; the
@@ -9291,7 +9291,7 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
 
 
 // ---------------------------------------------------------------------------
-// nodesRenderInSubqueryBody — public API
+// nodesRenderInSubqueryBody - public API
 // ---------------------------------------------------------------------------
 // Renders the SELECT SQL of an uncorrelated IN (subquery) for same-source
 // MySQL/PG pushdown.  The result is stored in pRemoteValueListNode->inSubquerySql
@@ -9300,7 +9300,7 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
 //
 // pInnerSelect : the inner SSelectStmt (single projection, FROM ext table).
 // sourceType   : EExtSourceType (MySQL or PostgreSQL only; others not pushed).
-// ppSQL        : OUT — heap-allocated SQL string; caller must taosMemoryFree().
+// ppSQL        : OUT - heap-allocated SQL string; caller must taosMemoryFree().
 int32_t nodesRenderInSubqueryBody(const SSelectStmt* pInnerSelect,
                                   int8_t             sourceType,
                                   char**             ppSQL) {
@@ -9398,8 +9398,8 @@ int32_t nodesRenderInSubqueryBody(const SSelectStmt* pInnerSelect,
 //
 // pInnerSelect : the inner SSelectStmt.  Its pFromTable must be a
 //                SRealTableNode with pExtTableNode set.
-// sourceType   : EExtSourceType — determines the SQL dialect.
-// ppSQL        : OUT — heap-allocated SQL string (NULL-terminated plain C
+// sourceType   : EExtSourceType  -  determines the SQL dialect.
+// ppSQL        : OUT  -  heap-allocated SQL string (NULL-terminated plain C
 //                string); caller must taosMemoryFree() when done.
 //
 // Column references in the WHERE clause are rendered as "tableName"."colName"
@@ -9439,7 +9439,7 @@ int32_t nodesRenderCorrelatedExistsBody(const SSelectStmt* pInnerSelect,
   SDynSQL s;
   dynSQLInit(&s);
 
-  // ── SELECT clause ──────────────────────────────────────────────────────
+  // -- SELECT clause ------------------------------------------------------
   dynSQLAppendStr(&s, "SELECT ");
   bool first = true;
   if (pInnerSelect->pProjectionList) {
@@ -9463,7 +9463,7 @@ int32_t nodesRenderCorrelatedExistsBody(const SSelectStmt* pInnerSelect,
   }
   if (first) dynSQLAppendChar(&s, '1');  // default: SELECT 1
 
-  // ── FROM clause ────────────────────────────────────────────────────────
+  // -- FROM clause --------------------------------------------------------
   if (pInnerSelect->pFromTable &&
       QUERY_NODE_REAL_TABLE == nodeType(pInnerSelect->pFromTable)) {
     SRealTableNode* pReal = (SRealTableNode*)pInnerSelect->pFromTable;
@@ -9474,7 +9474,7 @@ int32_t nodesRenderCorrelatedExistsBody(const SSelectStmt* pInnerSelect,
     }
   }
 
-  // ── WHERE clause ───────────────────────────────────────────────────────
+  // -- WHERE clause -------------------------------------------------------
   if (pInnerSelect->pWhere) {
     SDynSQL condSql;
     dynSQLInit(&condSql);
@@ -9511,7 +9511,7 @@ int32_t nodesRenderCorrelatedExistsBody(const SSelectStmt* pInnerSelect,
 }
 
 // ---------------------------------------------------------------------------
-// nodesRemotePlanToSQL — public API
+// nodesRemotePlanToSQL  -  public API
 // ---------------------------------------------------------------------------
 // pRemotePlan MUST be non-NULL (the Mode 1 outer node's .pRemotePlan field).
 // The function walks the logic-plan tree rooted at pRemotePlan to collect
@@ -9540,7 +9540,7 @@ int32_t nodesRemotePlanToSQL(const SLogicNode* pRemotePlan, int8_t sourceType,
   }
 
   // Dump the FULL remotePlan tree FIRST via the planner's own serializer
-  // (nodesNodeToString) — this is the single most useful diagnostic: comparing
+  // (nodesNodeToString) - this is the single most useful diagnostic: comparing
   // this complete plan dump against the generated SQL below tells you at a glance
   // whether a wrong remote SQL is a PLAN problem (optimizer built a wrong tree /
   // fields) or a RENDER problem (right tree, wrong SQL).
@@ -9565,7 +9565,7 @@ int32_t nodesRemotePlanToSQL(const SLogicNode* pRemotePlan, int8_t sourceType,
   }
 
   // Render the whole remote logic tree top-down.  renderNode handles every node
-  // type (including a multi-child isSetOpProj PROJECT → UNION[ ALL], at any depth)
+  // type (including a multi-child isSetOpProj PROJECT -> UNION[ ALL], at any depth)
   // and wraps children in derived tables as SQL clause-ordering requires.
   SDynSQL sql;
   dynSQLInit(&sql);

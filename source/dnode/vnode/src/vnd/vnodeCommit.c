@@ -585,7 +585,7 @@ int vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo) {
   code = tjsonToObject(pJson, "state", vnodeDecodeState, (void *)&pInfo->state);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  // lastTxnConsumeTs is optional (absent in older vnode-info files → stays 0)
+  // lastTxnConsumeTs is optional (absent in older vnode-info files  ->  stays 0)
   (void)tjsonGetBigIntValue(pJson, "lastTxnConsumeTs", &pInfo->lastTxnConsumeTs);
 
 _exit:

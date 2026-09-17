@@ -1018,7 +1018,7 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
       }
       (*pDst)->ntb.userId = pSrc->ntb.userId;
     }
-    // Owned tags: deep-copy tag schema and STag values, mirroring the ctb.pTag copy above —
+    // Owned tags: deep-copy tag schema and STag values, mirroring the ctb.pTag copy above;
     // a cloned request must not silently lose its tags.
     (*pDst)->ntb.schemaTag.nCols = pSrc->ntb.schemaTag.nCols;
     (*pDst)->ntb.schemaTag.version = pSrc->ntb.schemaTag.version;

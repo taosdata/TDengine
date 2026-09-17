@@ -321,7 +321,7 @@ typedef struct SColumnOptions {
   char      compressLevel[TSDB_CL_COMPRESS_OPTION_LEN];
   bool      bPrimaryKey;
   bool      hasRef;
-  int8_t    refType;                              // 0=internal, 1=external (DS §6.2.8)
+  int8_t    refType;                              // 0=internal, 1=external (DS section 6.2.8)
   char      refSourceName[TSDB_EXT_SOURCE_NAME_LEN]; // non-empty = external source 4-part ref
   char      refDb[TSDB_DB_NAME_LEN];
   char      refTable[TSDB_TABLE_NAME_LEN];
@@ -336,7 +336,7 @@ typedef struct SColumnDefNode {
   SDataType dataType;
   SNode*    pOptions;
   bool      sma;
-  SNode*    pTagVal;  // inline tag value for `TAGS(name TYPE = value)` (NULL ⇒ tag is NULL/ref)
+  SNode*    pTagVal;  // inline tag value for `TAGS(name TYPE = value)` (NULL  =>  tag is NULL/ref)
 } SColumnDefNode;
 
 typedef struct SCreateTableStmt {
@@ -1152,7 +1152,7 @@ typedef struct SDescribeStmt {
   char        dbName[TSDB_DB_NAME_LEN];
   char        tableName[TSDB_TABLE_NAME_LEN];
   STableMeta* pMeta;
-  // External source path fields — mirrors SRealTableNode.numPathSegments / extSeg.
+  // External source path fields  -  mirrors SRealTableNode.numPathSegments / extSeg.
   // Set when the DESCRIBE target uses a multi-segment external path (src.tbl or src.db.tbl).
   int8_t      numPathSegments;                      // 0/1 = local; 2 = src.tbl; 3 = src.db.tbl; 4 = src.db.schema.tbl
   char        extSeg[2][TSDB_EXT_SOURCE_NAME_LEN];  // [0]=source name; [1]=mid segment (db or schema)
@@ -1483,7 +1483,7 @@ typedef struct SDescribeExtSourceStmt {
   char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
   // Populated by rewriteDescribeExtSource: heap-allocated SExtSourceInfo copy.
   // Freed in nodesDestroyNode (QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT case).
-  void*     pExtSrcInfo;   // SExtSourceInfo* — taosMemoryMalloc'd, not in node chunk
+  void*     pExtSrcInfo;   // SExtSourceInfo*  -  taosMemoryMalloc'd, not in node chunk
 } SDescribeExtSourceStmt;
 
 // SHOW EXTERNAL SOURCE <name> CAPABILITY

@@ -274,7 +274,7 @@ typedef struct SExchangeInfo {
 } SExchangeInfo;
 
 // ---------------------------------------------------------------------------
-// SFederatedScanOperatorInfo — state for the FederatedScan operator (Module F)
+// SFederatedScanOperatorInfo  -  state for the FederatedScan operator (Module F)
 // ---------------------------------------------------------------------------
 
 // Separators and decimal forms of all fixed-width fields in the cache key.
@@ -304,7 +304,7 @@ typedef struct SFederatedScanOperatorInfo {
   bool                      twoPassPhase1Done;  // true: PRE_SCAN pass done, now doing MAIN_SCAN pass
   int64_t                   fetchedRows;        // cumulative rows fetched
   int64_t                   fetchBlockCount;    // cumulative block count
-  int64_t                   elapsedTimeUs;      // cumulative elapsed time (µs)
+  int64_t                   elapsedTimeUs;      // cumulative elapsed time (micros)
   SSDataBlock*              pFetchedBlock;      // owned block returned by extConnectorFetchBlock
   char                      remoteSql[TSDB_SHOW_SQL_LEN];  // actual SQL sent to the remote source
   char                      extErrMsg[512];     // formatted remote error message

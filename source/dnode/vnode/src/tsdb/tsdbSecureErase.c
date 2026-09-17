@@ -18,16 +18,16 @@
  *   contain data for the target (suid, uid) in [sKey, eKey].
  *
  * TWO STRATEGIES:
- *   1. Fully-contained blocks (block range ⊆ [sKey, eKey]):
+ *   1. Fully-contained blocks (block range is contained in [sKey, eKey]):
  *      - Direct raw-bytes overwrite at block offset in the data file.
  *      - For zero mode: fill with zeros.
  *      - For random mode: fill with random bytes.
  *      - The page CRC is updated through tsdbWriteFile / tsdbFsyncFile.
  *      - Safe because delete markers guarantee TDengine will never read these rows.
  *
- *   2. Partially-overlapping blocks (block range ∩ [sKey, eKey] ≠ ∅ but not fully contained):
+ *   2. Partially-overlapping blocks (block range intersects [sKey, eKey]  !=  empty set but not fully contained):
  *      - Must preserve non-deleted rows' data.
- *      - Decompress → zero VALUE bytes for target rows → recompress → write back.
+ *      - Decompress  ->  zero VALUE bytes for target rows  ->  recompress  ->  write back.
  *      - Always use zero fill for decompressed values (random fill causes
  *        recompressed output to be larger than the original, making in-place
  *        write impossible without file reorganization).
@@ -36,7 +36,7 @@
  *
  *   P1: SIZE CONSTRAINT WITH RANDOM FILL (recompress path only)
  *       After decompressing and zeroing VALUES, the recompressed output is
- *       guaranteed to be ≤ original because zeros are highly compressible.
+ *       guaranteed to be  <=  original because zeros are highly compressible.
  *       However, if random fill were applied, random data resists compression
  *       and the output could exceed the original block size, making in-place
  *       write impossible. Therefore, the recompress path always uses zero fill
@@ -72,7 +72,7 @@
  *
  *   P6: STT MULTI-TABLE BLOCKS
  *       An STT block with uid==0 holds rows for multiple child tables. The
- *       surgical decompress→zero→recompress path handles this, but it is
+ *       surgical decompress -> zero -> recompress path handles this, but it is
  *       more expensive than a direct overwrite.
  *
  *   P7: SSD WEAR LEVELING
@@ -119,8 +119,8 @@ static void tsdbFillEraseBuf(uint8_t *buf, int32_t size, bool forceZero) {
  * falls in [sKey, eKey] AND whose uid matches (for multi-table STT blocks).
  *
  * Layout of pColData->pData:
- *   • Fixed-size types: pData[valueIdx * typeBytes .. (valueIdx+1)*typeBytes-1]
- *   • Variable-size types: pData[aOffset[valueIdx] .. aOffset[valueIdx+1]-1]
+ *   * Fixed-size types: pData[valueIdx * typeBytes .. (valueIdx+1)*typeBytes-1]
+ *   * Variable-size types: pData[aOffset[valueIdx] .. aOffset[valueIdx+1]-1]
  *     (last entry: pData[aOffset[last] .. nData-1])
  *
  * Only rows with bit==2 (HAS_VALUE) have an entry in pData; NONE/NULL rows
@@ -166,8 +166,8 @@ static void tsdbSecureEraseColDataRows(SColData *pColData, const int64_t *aTSKEY
  * is fully overwritten.
  *
  * This path is used for:
- *   – Partially-overlapping DATA-file blocks.
- *   – Multi-table STT blocks (uid==0).
+ *   - Partially-overlapping DATA-file blocks.
+ *   - Multi-table STT blocks (uid==0).
  * --------------------------------------------------------------------------*/
 static int32_t tsdbSecureEraseBlockSurgical(STsdb *pTsdb, STsdbFD *pFD,
                                              int64_t blockOffset, int32_t blockSize,
@@ -195,7 +195,7 @@ static int32_t tsdbSecureEraseBlockSurgical(STsdb *pTsdb, STsdbFD *pFD,
     tsdbSecureEraseColDataRows(&bData.aColData[iCol], bData.aTSKEY, bData.aUid, uid, sKey, eKey);
   }
 
-  /* 4. Recompress – use column compression settings from meta if available */
+  /* 4. Recompress - use column compression settings from meta if available */
   SColCompressInfo cmprInfo = {.defaultCmprAlg = pTsdb->pVnode->config.tsdbCfg.compression};
   (void)metaGetColCmpr(pTsdb->pVnode->pMeta, bData.suid != 0 ? bData.suid : bData.uid,
                        &cmprInfo.pColCmpr);
@@ -320,7 +320,7 @@ static int32_t tsdbSecureEraseDataFile(STsdb *pTsdb, const STFileSet *fset,
       (void)tsdbWriteFile(pFD, pRec->blockOffset, buf, pRec->blockSize, pEncryptData);
       taosMemoryFree(buf);
     } else {
-      /* Partial overlap: surgical decompress → zero target rows → recompress */
+      /* Partial overlap: surgical decompress  ->  zero target rows  ->  recompress */
       (void)tsdbSecureEraseBlockSurgical(pTsdb, pFD, pRec->blockOffset, pRec->blockSize,
                                          suid, uid, sKey, eKey);
     }
@@ -346,9 +346,9 @@ _closeReader:
  * in [sKey, eKey] and overwrite them.
  *
  * STT block overwrite strategy:
- *   • If sttBlk.minUid == sttBlk.maxUid == uid (single-table block) AND
- *     the time range is fully contained → direct raw-bytes overwrite.
- *   • Otherwise → surgical decompress → zero → recompress path.
+ *   * If sttBlk.minUid == sttBlk.maxUid == uid (single-table block) AND
+ *     the time range is fully contained  ->  direct raw-bytes overwrite.
+ *   * Otherwise  ->  surgical decompress  ->  zero  ->  recompress path.
  * --------------------------------------------------------------------------*/
 static int32_t tsdbSecureEraseOneSttFile(STsdb *pTsdb, const STFile *pFile,
                                           tb_uid_t suid, tb_uid_t uid,

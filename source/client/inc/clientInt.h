@@ -233,9 +233,9 @@ typedef struct STscObj {
   int8_t         txnState;
   txn_id_t       txnId;
   int32_t        txnDdlCount;    // DDL op count in current txn; checked against TSDB_TXN_MAX_DDL_OPS_PER_TXN
-  SSHashObj*     pTxnVgSet;      // Hash set of int32_t vgId → dummy, accumulated during DDL in txn
-  SHashObj*      pTxnTableMeta;  // Hash cache: "db.table" → STableMeta* for tables created in this txn
-  SHashObj*      pTxnSuidMap;    // Hash: suid (uint64_t) → stbFullName (char[TSDB_TABLE_FNAME_LEN])
+  SSHashObj*     pTxnVgSet;      // Hash set of int32_t vgId  ->  dummy, accumulated during DDL in txn
+  SHashObj*      pTxnTableMeta;  // Hash cache: "db.table"  ->  STableMeta* for tables created in this txn
+  SHashObj*      pTxnSuidMap;    // Hash: suid (uint64_t)  ->  stbFullName (char[TSDB_TABLE_FNAME_LEN])
   union {
     uint32_t flags;
     struct {

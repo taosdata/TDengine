@@ -3901,7 +3901,7 @@ static int32_t extWinAppendAggFilledRow(SOperatorInfo* pOperator, SExternalWindo
           int64_t dur = pWin->tw.ekey - pWin->tw.skey;
           TAOS_CHECK_EXIT(colDataSetVal(pColInfo, pBlock->info.rows, (const char*)&dur, false));
         } else if (funcType == FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN && pTaskInfo->pStreamRuntimeInfo != NULL) {
-          // w.mark is window metadata — always show the current window's own value.
+          // w.mark is window metadata  -  always show the current window's own value.
           SStreamRuntimeFuncInfo* pStreamInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
           SNodeList* pParamList = pCtx[j].pExpr->base.pParamList;
           if (pParamList != NULL && LIST_LENGTH(pParamList) >= 2) {

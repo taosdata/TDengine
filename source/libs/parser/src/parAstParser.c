@@ -151,7 +151,7 @@ abort_parse:
   ParseFree(pParser, (FFree)taosAutoMemoryFree);
   /* PAR_INCOMPLETE_SQL means the grammar hit EOF while expecting more tokens.
    * For CREATE EXTERNAL SOURCE this means a missing mandatory field, which
-   * semantically is a syntax error — map it to PAR_SYNTAX_ERROR so callers
+   * semantically is a syntax error  -  map it to PAR_SYNTAX_ERROR so callers
    * see a consistent error code. */
   if (cxt.errCode == TSDB_CODE_PAR_INCOMPLETE_SQL && isCreateExtSourceStatement(cxt.pQueryCxt->pSql)) {
     SMsgBuf msgBuf = {.len = cxt.pQueryCxt->msgLen, .buf = cxt.pQueryCxt->pMsg};
@@ -491,12 +491,12 @@ static int32_t isTbnameEqCondOperator(SOperatorNode* pOperator, char** ppTableNa
   return TSDB_CODE_SUCCESS;
 }
 
-/* ── Phase-1 correlated-EXISTS detection ─────────────────────────────────────
+/* -- Phase-1 correlated-EXISTS detection -------------------------------------
  * Walk an expression looking for SColumnNode whose tableAlias matches the
  * outer query's FROM table alias (while excluding the inner SELECT's own alias).
  * This is used to detect correlated EXISTS/NOT EXISTS during the metadata-key
  * collection phase so that the rejection error is raised before any external
- * source metadata fetch — ensuring all FQ sources (including InfluxDB) return
+ * source metadata fetch  -  ensuring all FQ sources (including InfluxDB) return
  * the same errno (PAR_INVALID_EXPR_SUBQ) instead of connector-level errors.
  */
 typedef struct SPhase1CorrelCxt {
@@ -671,7 +671,7 @@ static int32_t collectMetaKeyFromCreateTable(SCollectMetaKeyCxt* pCxt, SCreateTa
   }
 #endif
   // CREATE TABLE with TAGS goes down the vnode normal-table path when every tag carries an
-  // inline `= literal` value (valueless TAGS keeps the mnode super-table path) — mirror the
+  // inline `= literal` value (valueless TAGS keeps the mnode super-table path)  -  mirror the
   // rewrite gate in parTranslater.c so the table vgroup is pre-fetched for the normal-table
   // path; otherwise the async meta cache misses and translate yields PAR_INTERNAL_ERROR.
   // CREATE STABLE never takes the normal-table path, whatever the tag values are.
@@ -844,7 +844,7 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
         continue;
       }
 
-      // Check if refTableName matches a SERIES alias — skip internal table lookup if so
+      // Check if refTableName matches a SERIES alias - skip internal table lookup if so
       if (isSeriesAliasInCreateVTable(pStmt->pSeriesList, pColRef->refTableName)) {
         continue;
       }
@@ -1310,7 +1310,7 @@ static int32_t collectMetaKeyFromUseDatabase(SCollectMetaKeyCxt* pCxt, SUseDatab
   // to treating `USE name` as `USE ext_source` when no matching local DB exists.
   if (TSDB_CODE_SUCCESS == code && tsFederatedQueryEnable) {
     int32_t extCode = reserveExtSourceInCache(pStmt->dbName, pCxt->pMetaCache);
-    // Ignore TSDB_CODE_EXT_SOURCE_NOT_FOUND — it simply means no ext source with this name.
+    // Ignore TSDB_CODE_EXT_SOURCE_NOT_FOUND  -  it simply means no ext source with this name.
     if (extCode != TSDB_CODE_SUCCESS && extCode != TSDB_CODE_EXT_SOURCE_NOT_FOUND) {
       code = extCode;
     }
@@ -3093,7 +3093,7 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       break;
     case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
       // Pre-fetch the external source info so the rewrite can populate the stmt
-      // (LOCAL execution — no SELECT rewrite, no ins_ext_sources table meta needed).
+      // (LOCAL execution  -  no SELECT rewrite, no ins_ext_sources table meta needed).
       if (tsFederatedQueryEnable) {
         SDescribeExtSourceStmt* pDescStmt = (SDescribeExtSourceStmt*)pStmt;
         code = reserveExtSourceInCache(pDescStmt->sourceName, pCxt->pMetaCache);

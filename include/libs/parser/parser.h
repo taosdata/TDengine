@@ -160,7 +160,7 @@ typedef struct SParseContext {
   txn_id_t    txnId;
   SSHashObj*  pTxnVgSet;   // borrowed ref to STscObj->pTxnVgSet (read-only during parse)
   SHashObj*   pTxnTableMeta;  // borrowed ref to STscObj->pTxnTableMeta (same-txn table cache)
-  SHashObj*   pTxnSuidMap;    // borrowed ref to STscObj->pTxnSuidMap (suid → stbFullName for compact CTB assembly)
+  SHashObj*   pTxnSuidMap;    // borrowed ref to STscObj->pTxnSuidMap (suid  ->  stbFullName for compact CTB assembly)
   parseSqlFn  parseSqlFp;
   void*       parseSqlParam;
   SArray*     pSubMetaList;
@@ -310,8 +310,8 @@ typedef struct SParseMetaCache {
   bool      dnodeRequired;
   bool      forceFetchViewMeta;
   // Federated query ext source metadata (populated by collectMetaKey / putMetaDataToCache)
-  SHashObj* pExtSources;   // key is sourceName (varchar), element is SMetaRes* → SExtSourceInfo*
-  SHashObj* pExtTableMeta; // key is ext-table composite key, element is SMetaRes* → SExtTableMeta*
+  SHashObj* pExtSources;   // key is sourceName (varchar), element is SMetaRes*  ->  SExtSourceInfo*
+  SHashObj* pExtTableMeta; // key is ext-table composite key, element is SMetaRes*  ->  SExtTableMeta*
 } SParseMetaCache;
 
 int32_t collectMetaKey(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache);

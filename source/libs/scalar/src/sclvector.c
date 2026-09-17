@@ -2467,7 +2467,7 @@ int32_t vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
       char *pLeftData = colDataGetVarData(pLeft->columnData, i);
       if (leftType == TSDB_DATA_TYPE_VARCHAR) {
         // VARCHAR path: left operand is a text JSON string (e.g. from
-        // CAST(NCHAR→VARCHAR) applied to InfluxDB JSON fields).
+        // CAST(NCHAR -> VARCHAR) applied to InfluxDB JSON fields).
         // Use tjsonParse to check key existence in the JSON text.
         char *jsonText = taosMemoryCalloc(1, varDataLen(pLeftData) + 1);
         if (NULL == jsonText) {
@@ -2482,7 +2482,7 @@ int32_t vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
           tjsonDelete(pJson);
         }
       } else {
-        // Native JSON (STag binary) path — unchanged.
+        // Native JSON (STag binary) path  -  unchanged.
         STagVal value;
         SCL_ERR_JRET(getJsonValue(pLeftData, jsonKey, &isExist, &value));
       }

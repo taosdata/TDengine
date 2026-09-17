@@ -4017,7 +4017,7 @@ _err:
 }
 
 // Own (extension) column of a virtual child table at CREATE VTABLE time:
-// `name TYPE FROM db.tb.col` — same as createColumnRefNodeByNode plus the declared type.
+// `name TYPE FROM db.tb.col`  -  same as createColumnRefNodeByNode plus the declared type.
 SNode* createColumnRefNodeByNodeWithType(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, SNode* pRef) {
   SNode* pNode = createColumnRefNodeByNode(pCxt, pColName, pRef);
   if (NULL != pNode) {
@@ -4652,7 +4652,7 @@ _err:
   return NULL;
 }
 
-// ADD TAG name TYPE FROM db.tb.tag — add a tag reference to a virtual normal table.
+// ADD TAG name TYPE FROM db.tb.tag  -  add a tag reference to a virtual normal table.
 SNode* createAlterTableAddTagRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
                                  SDataType dataType, SNode* pRef) {
   SAlterTableStmt* pStmt = NULL;  // declared before the CHECK macros so the _err path is always NULL-safe
@@ -9692,7 +9692,7 @@ _err:
 
 // ===================== Federated query: External Source DDL =====================
 
-// Helper: parse TYPE string → EExtSourceType (case-insensitive)
+// Helper: parse TYPE string -> EExtSourceType (case-insensitive)
 static int8_t parseExtSourceType(const SToken* pToken) {
   // pToken is a NK_STRING, e.g. 'mysql'; strip surrounding quotes
   if (pToken == NULL || pToken->n < 2) return -1;
@@ -9876,7 +9876,7 @@ SNode* createCreateExtSourceStmtInflux(SAstCreateContext* pCxt, bool ignoreExist
   pCxt->errCode = nodesMakeNode(QUERY_NODE_EXT_OPTION, (SNode**)&pOptNode);
   CHECK_MAKE_NODE(pOptNode);
   tstrncpy(pOptNode->key, "api_token", TSDB_EXT_SOURCE_OPTION_KEY_LEN);
-  /* pApiToken is a NK_STRING — strip surrounding quotes for the value */
+  /* pApiToken is a NK_STRING - strip surrounding quotes for the value */
   if (pApiToken->n > 2 && (pApiToken->z[0] == '\'' || pApiToken->z[0] == '"')) {
     uint32_t vlen = pApiToken->n - 2;
     if (vlen >= TSDB_EXT_SOURCE_OPTION_VALUE_LEN) vlen = TSDB_EXT_SOURCE_OPTION_VALUE_LEN - 1;
@@ -10088,7 +10088,7 @@ SNode* createExtOptionNode(SAstCreateContext* pCxt, const SToken* pKey, const ST
     pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
     goto _err;
   }
-  // key is NK_STRING — strip quotes
+  // key is NK_STRING - strip quotes
   COPY_STRING_FORM_STR_TOKEN(pNode->key, pKey);
   COPY_STRING_FORM_STR_TOKEN(pNode->value, pValue);
   if (0 == strcmp(pNode->value, "''") || 0 == strcmp(pNode->value, "\"\"")) {
@@ -10111,7 +10111,7 @@ SNode* createExtOptionNodeFromId(SAstCreateContext* pCxt, const SToken* pKey, co
     pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
     goto _err;
   }
-  // key is NK_ID — copy as raw identifier (no quote stripping)
+  // key is NK_ID - copy as raw identifier (no quote stripping)
   COPY_STRING_FORM_ID_TOKEN(pNode->key, pKey);
   COPY_STRING_FORM_STR_TOKEN(pNode->value, pValue);
   if (0 == strcmp(pNode->value, "''") || 0 == strcmp(pNode->value, "\"\"")) {
@@ -10140,7 +10140,7 @@ SNode* createAlterExtClause(SAstCreateContext* pCxt, EExtAlterType alterType,
       pCxt->errCode = TSDB_CODE_EXT_IDENTIFIER_TOO_LONG;
       goto _err;
     }
-    // NK_STRING token — strip quotes/unescape; NK_INTEGER token — copy as-is.
+    // NK_STRING token - strip quotes/unescape; NK_INTEGER token - copy as-is.
     if (pVal->z[0] == '\'' || pVal->z[0] == '"') {
       (void)trimString(pVal->z, pVal->n, pNode->value, sizeof(pNode->value));
     } else {
@@ -10183,7 +10183,7 @@ SFileOptions parseFileOption(SAstCreateContext* pCxt, const SToken* pName, const
       opt.header = (int8_t)(taosStrncasecmp(buf, "true", 4) == 0 || buf[0] == '1');
     }
   } else if (pName->n == 9 && taosStrncasecmp(pName->z, "delimiter", 9) == 0) {
-    // delimiter = ',' — must be exactly one char inside quotes
+    // delimiter = ','  -  must be exactly one char inside quotes
     if (pVal->n == 3 && (pVal->z[0] == '\'' || pVal->z[0] == '"')) {
       opt.delimiter = pVal->z[1];
     } else {

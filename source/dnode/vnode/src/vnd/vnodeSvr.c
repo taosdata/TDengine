@@ -623,9 +623,9 @@ _exit:
 
 // Extract txnId from the encoded message body so that walWriteImpl can mark the WAL
 // entry with WAL_IS_TXN_MSG.  SRpcHandleInfo.txnId is NOT transmitted over the RPC
-// wire — only STransMsgHead fields (traceId, qid, seqNum, ...) are.  We must read
+// wire  -  only STransMsgHead fields (traceId, qid, seqNum, ...) are.  We must read
 // txnId from the message body before handing the message to syncPropose / WAL.
-// This runs before Raft consensus, so overhead (< 1 µs per DDL) is negligible compared
+// This runs before Raft consensus, so overhead (< 1 micros per DDL) is negligible compared
 // to the Raft round-trip (milliseconds).
 static txn_id_t vnodeExtractTxnId(SRpcMsg *pMsg) {
   void    *body    = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
@@ -1664,7 +1664,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
 
     // Batch meta txn: write to B+ tree with PRE_CREATE status (shadow-in-B+tree model).
     // The entry is physically created but invisible to non-txn queries (filtered by txnStatus).
-    // COMMIT clears txnId/txnStatus → visible. ROLLBACK deletes entry.
+    // COMMIT clears txnId/txnStatus  ->  visible. ROLLBACK deletes entry.
     if (pCreateReq->txnId != 0) {
       // Register txn entry in VNode (for tracking, table locking, etc.)
       int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, pCreateReq->txnId, ver);
@@ -2166,7 +2166,7 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   }
 
   // Batch meta txn: write ALTER to B+ tree with PRE_ALTER status (shadow-in-B+tree model).
-  // The ALTER creates a new version of the entry. On COMMIT, clear status → visible.
+  // The ALTER creates a new version of the entry. On COMMIT, clear status  ->  visible.
   // On ROLLBACK, restore old version.
   if (vAlterTbReq.txnId != 0) {
     int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, vAlterTbReq.txnId, ver);
@@ -2177,7 +2177,7 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     }
 
     // Lock and track affected tables.
-    // For MULTI_TABLE_TAG_VAL, vAlterTbReq.tbName is empty — the actual child tables
+    // For MULTI_TABLE_TAG_VAL, vAlterTbReq.tbName is empty  -  the actual child tables
     // are in vAlterTbReq.tables[]. We must lock/track/mark each child individually.
     tb_uid_t alterUid = 0;
     int64_t  alterPrevVer = -1;
@@ -2497,7 +2497,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
       }
 
       // metaDropTable2 handles txnId internally:
-      //   - Same-txn undo (CREATE→DROP or CREATE→ALTER→DROP): physically delete + cleanup txn.idx
+      //   - Same-txn undo (CREATE -> DROP or CREATE -> ALTER -> DROP): physically delete + cleanup txn.idx
       //   - Normal txn DROP: mark PRE_DROP + update txn.idx
       ret = metaDropTable2(pVnode->pMeta, ver, pDropTbReq);
       if (ret < 0) {
@@ -2506,7 +2506,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
               pDropTbReq->txnId, terrno);
       } else {
         // Track dropped UID for TMQ notification at COMMIT.
-        // vnodeTxnTrackDrop reconciles same-txn CREATE→DROP (removes from created list).
+        // vnodeTxnTrackDrop reconciles same-txn CREATE -> DROP (removes from created list).
         int32_t trackCode = vnodeTxnTrackDrop(pVnode, pDropTbReq->txnId, pDropTbReq->uid);
         if (trackCode != 0) {
           vError("vgId:%d, txn drop table %s: vnodeTxnTrackDrop failed, code:0x%x", TD_VID(pVnode), pDropTbReq->name,
@@ -3209,14 +3209,14 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
     }
 
     // batch meta txn: block INSERT only on PRE_CREATE (invisible tables)
-    // PRE_DROP tables allow INSERT — snapshot isolation: table still visible until COMMIT.
+    // PRE_DROP tables allow INSERT  -  snapshot isolation: table still visible until COMMIT.
     // If the txn commits (DROP finalized), this INSERT data is deleted with the table.
     // If the txn rolls back, the table and INSERT data are both preserved.
     if (metaHasPendingTxnEntries(pVnode->pMeta)) {
       void   *pTxnVal = NULL;
       int32_t txnValLen = 0;
       // Serialize with async vacuum thread which holds metaWLock while writing
-      // pTxnIdx / pTbDb pages — without metaRLock here, a concurrent tdb page split
+      // pTxnIdx / pTbDb pages  -  without metaRLock here, a concurrent tdb page split
       // or rebalance from vacuum could leave us reading torn pager state (s106 race).
       metaRLock(pVnode->pMeta);
       int32_t getRc = tdbTbGet(pVnode->pMeta->pTxnIdx, &pTbData->uid, sizeof(pTbData->uid), &pTxnVal, &txnValLen);
@@ -3953,14 +3953,13 @@ static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, int64_t ver, void *pRe
   vTrace("vgId:%d, get audit stable entry, uid:%" PRId64 ", suid:% " PRId64 ", version:%" PRId64 ", api:%p",
          TD_VID(pVnode), merStb.me.uid, merStb.me.ctbEntry.suid, merStb.me.version, merStb.pAPI);
 
-  // 死锁修复：merStb 是用 META_READER_LOCK 初始化的，初始化时已经持有 meta 的读锁，
-  // 该读锁要到 metaReaderClear 才释放。下面的 vnodeGetTableSchema 内部会再创建一个
-  // 带锁的 SMetaReader，并在 meta cache 未命中时由 metaGetInfo() 把读锁升级为写锁去
-  // 刷新缓存。若此处 merStb 仍持有外层读锁（同一线程），写锁请求将永远无法满足，
-  // 造成同线程自死锁（pthread_rwlock 不可重入）。
-  // 这里其实只需要超级表的 uid，拿到后立即释放 merStb 的读锁，消除锁嵌套即可。
+  // Avoid a deadlock: META_READER_LOCK initializes merStb while holding the meta read lock, which is
+  // released only by metaReaderClear. vnodeGetTableSchema creates another locked SMetaReader and, on a
+  // cache miss, metaGetInfo upgrades its read lock to refresh the cache. If merStb still holds the outer
+  // read lock in this thread, the write-lock request can never succeed because pthread_rwlock is not reentrant.
+  // Only the supertable uid is needed here, so release merStb's read lock immediately to avoid lock nesting.
   int64_t stbUid = merStb.me.uid;
-  metaReaderClear(&merStb);  // 在调用 vnodeGetTableSchema 之前先释放 meta 读锁，避免锁嵌套
+  metaReaderClear(&merStb);  // Release the meta read lock before vnodeGetTableSchema to avoid lock nesting.
   vTrace("vgId:%d, released audit stable meta reader lock before schema lookup, stbUid:%" PRId64, TD_VID(pVnode),
          stbUid);
 
@@ -4355,7 +4354,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
 
     int64_t uid = mr.me.uid;
 
-    // Check if table is in PREPARED_DROP shadow (DELETE vs PREPARED_DROP → conflict)
+    // Check if table is in PREPARED_DROP shadow (DELETE vs PREPARED_DROP  ->  conflict)
     {
       int32_t conflictCode = vnodeTxnCheckConflict(pVnode, name, TXN_CONFLICT_OP_DROP);
       if (conflictCode != TSDB_CODE_SUCCESS) {
@@ -4413,7 +4412,7 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, in
     for (int32_t iUid = 0; iUid < taosArrayGetSize(pRes->uidList); iUid++) {
       uint64_t uid = *(uint64_t *)taosArrayGet(pRes->uidList, iUid);
 
-      // Check if table is in PREPARED_DROP shadow (DELETE vs PREPARED_DROP → conflict)
+      // Check if table is in PREPARED_DROP shadow (DELETE vs PREPARED_DROP  ->  conflict)
       code = vnodeTxnCheckDeleteConflict(pVnode, uid);
       if (code) goto _err;
 

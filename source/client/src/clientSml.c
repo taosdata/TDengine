@@ -24,17 +24,17 @@
 
 #define SML_RETRY_MAX_TIMES     30
 #define SML_RETRY_BASE_MS       100u
-#define SML_RETRY_MAX_SLEEP_MS  12000u  // hard cap on base backoff; actual sleep ≤ SML_RETRY_MAX_SLEEP_MS with jitter
+#define SML_RETRY_MAX_SLEEP_MS  12000u  // hard cap on base backoff; actual sleep  <=  SML_RETRY_MAX_SLEEP_MS with jitter
 #define SML_RETRY_MAX_SHIFT     7u      // 100ms << 7 = 12800ms, then capped by SML_RETRY_MAX_SLEEP_MS
 
 // Exponential backoff with full-jitter: base doubles each attempt (capped at SML_RETRY_MAX_SLEEP_MS),
-// then perturbed ±25% so concurrent threads do not stampede in lockstep.
+// then perturbed +/-25% so concurrent threads do not stampede in lockstep.
 // Uses a per-thread seed via taosRandR() to avoid global rand() lock contention.
 // Worst-case total wait per call site (SML_RETRY_MAX_TIMES=30):
-//   retries 1–7:  100+200+400+800+1600+3200+6400 = 12700 ms
-//   retries 8–30: 23 × 12000                     = 276000 ms
-//   total ≈ 289 s (≈ 4.8 min) per call site.
-// smlModifyDBSchemas loop allows up to superTables×SML_RETRY_MAX_TIMES retries.
+//   retries 1-7:  100+200+400+800+1600+3200+6400 = 12700 ms
+//   retries 8-30: 23 x 12000                     = 276000 ms
+//   total  ~=  289 s ( ~=  4.8 min) per call site.
+// smlModifyDBSchemas loop allows up to superTables * SML_RETRY_MAX_TIMES retries.
 static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
 #ifdef _WIN32
   static __declspec(thread) uint32_t tlSeed = 0;

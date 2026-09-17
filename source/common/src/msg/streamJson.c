@@ -391,7 +391,7 @@ static int32_t jsonToCalcScanPlan(const SJson* pJson, void* pObj) {
     pJson, jkSstreamCalcScanReadFromCache, &pPlan->readFromCache));
   TAOS_CHECK_RETURN(tjsonDupStringValue(
     pJson, jkSstreamCalcScanScanPlan, (char**)&pPlan->scanPlan));
-  /* Missing keys leave the fields empty (old streams) — tjsonGetStringValue1
+  /* Missing keys leave the fields empty (old streams)  -  tjsonGetStringValue1
    * returns SUCCESS without touching the buffer, so single-source fallback holds. */
   TAOS_CHECK_RETURN(tjsonGetStringValue1(pJson, jkSstreamCalcScanSourceName, pPlan->sourceName,
                                          sizeof(pPlan->sourceName)));
@@ -600,7 +600,7 @@ static const char* jkExtSpecPartitionByTbname             = "partitionByTbname";
 static const char* jkExtSpecPartitionTagCols             = "partitionTagCols";
 static const char* jkExtSpecPartitionTagExprs             = "partitionTagExprs";
 
-/* partitionTagCols element codec: SArray<char[TSDB_COL_NAME_LEN]> — the
+/* partitionTagCols element codec: SArray<char[TSDB_COL_NAME_LEN]>  -  the
  * element IS the fixed-size name buffer itself (not a char*), unlike
  * stringToJson/jsonToString above which operate on SArray<char*>. */
 static int32_t extSpecTagColToJson(const void* pObj, SJson* pJson) {
@@ -655,7 +655,7 @@ static int32_t extTriggerSpecToJson(const void* pObj, SJson* pJson) {
     TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecTriggerPrefilter, pSpec->triggerPrefilter));
   }
   /* partitionByTag / partitionTagCols: PARTITION BY groupId derivation (see
-   * streamReaderExt.c). Must cross the wire here — unlike calcColumns
+   * streamReaderExt.c). Must cross the wire here  -  unlike calcColumns
    * (deferred to reader-task deploy time, derivable from the already-
    * transmitted scan plan), the PARTITION BY tag subset is a parse-time-only
    * fact the mnode cannot re-derive later. */
@@ -1472,7 +1472,7 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
         tjsonGetTinyIntValue(pTimeConfig, jkStreamTimeConfigFirstDayOfWeek, &pReq->timeConfig.firstDayOfWeek));
   }
 
-  /* Pt A6: decode extSpecs array (optional — absent on streams without
+  /* Pt A6: decode extSpecs array (optional  -  absent on streams without
    * EXTERNAL sources and on messages from older taosc). */
   SJson* pExtArr = tjsonGetObjectItem(pJson, jkCreateStreamReqExtSpecs);
   if (pExtArr != NULL) {

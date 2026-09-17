@@ -17,7 +17,7 @@
  * streamReaderExt.c  --  External-source stream reader (ETR) implementation.
  *
  * Handles all STRIGGER_PULL_*_EXT subtypes delivered via
- * TDMT_STREAM_TRIGGER_PULL_EXT.  See DS §6.1.5, §6.2.7, §6.4.5.
+ * TDMT_STREAM_TRIGGER_PULL_EXT.  See DS section 6.1.5, section 6.2.7, section 6.4.5.
  *
  * Layer overview:
  *   1. Lifecycle  : streamReaderExtOpen / streamReaderExtClose
@@ -58,7 +58,7 @@
 
 #include "extConnectorInt.h"
 
-/* Maximum number of uids per InfluxDB OR-group (DS §6.1.5). */
+/* Maximum number of uids per InfluxDB OR-group (DS section 6.1.5). */
 #define EXT_INFLUX_UID_BATCH_SIZE  64
 
 /* SQL buffer sizes by statement shape.  Only batched UNION ALL statements
@@ -93,7 +93,7 @@
  *
  * This replaces the unchecked `off += snprintf(buf + off, bufLen - off, ...)`
  * idiom, where snprintf's return value (the would-be length) can push off past
- * bufLen, making the next `bufLen - off` negative — which, as a size_t, becomes
+ * bufLen, making the next `bufLen - off` negative  -  which, as a size_t, becomes
  * a huge value and turns the following snprintf into an out-of-bounds write. */
 static bool extSqlCat(char *buf, int32_t bufLen, int32_t *pOff, const char *fmt, ...) {
   if (buf == NULL || bufLen <= 0 || *pOff < 0 || *pOff >= bufLen) return false;
@@ -113,7 +113,7 @@ static bool extSqlCat(char *buf, int32_t bufLen, int32_t *pOff, const char *fmt,
   return true;
 }
 
-/* metaBlock column indices (DS §6.2.4). */
+/* metaBlock column indices (DS section 6.2.4). */
 #define META_COL_GROUP_ID  0
 #define META_COL_SKEY      1
 #define META_COL_EKEY      2
@@ -187,7 +187,7 @@ void streamExtPullRspFree(SSTriggerExtPullRsp *pRsp) {
 }
 
 /* ============================================================
- * Utility: pGroupIndex cleanup callback — frees the SArray* value.
+ * Utility: pGroupIndex cleanup callback  -  frees the SArray* value.
  * ============================================================ */
 static void freeGroupIndexValue(void *pVal) {
   SArray **ppArr = (SArray **)pVal;
@@ -258,7 +258,7 @@ static int32_t epochToDatetimeStr(int64_t epoch, int32_t precision, char *buf, i
   } else if (precision == TSDB_TIME_PRECISION_MILLI) {
     epoch_us = epoch * 1000LL;
   } else {
-    /* MICRO — already in µs */
+    /* MICRO  -  already in micros */
     epoch_us = epoch;
   }
   time_t     sec     = (time_t)(epoch_us / 1000000LL);
@@ -395,7 +395,7 @@ static SArray *collectUidsFromWindow(SSHashObj *pUidWindow) {
 }
 
 /* ============================================================
- * SQL builder: MySQL/PG — uid list using "uid IN (u1, u2, ...)"
+ * SQL builder: MySQL/PG  -  uid list using "uid IN (u1, u2, ...)"
  * Writes SQL into buf[0..bufLen-1].  Returns snprintf-style length.
  * ============================================================ */
 /* Convert a tagset key string "col1=val1|col2=val2|..." into an InfluxDB
@@ -458,12 +458,12 @@ static int32_t buildInfluxTagWhereClause(const char *tagsetKey, char *buf,
 }
 
 /* ============================================================
- * extQueryExecFetchOne — Execute SQL, fetch the first result block, close.
+ * extQueryExecFetchOne  -  Execute SQL, fetch the first result block, close.
  *
  * pConn      : connector handle
  * sql        : SQL string to execute
  * pMappings  : column type mappings (may be NULL if caller does not need
- *              typed columns — in that case pDataBlock will be empty)
+ *              typed columns  -  in that case pDataBlock will be empty)
  * nMappings  : length of pMappings array (0 when pMappings is NULL)
  * ppOut      : receives the first SSDataBlock (caller must blockDataDestroy)
  *
@@ -501,14 +501,14 @@ static int32_t extQueryExecFetchOne(SExtConnectorHandle  *pConn,
 
 /* ============================================================
  * extQueryForEachBlock callback type.
- * Called once per fetched SSDataBlock (owned by callee — destroy when done).
+ * Called once per fetched SSDataBlock (owned by callee  -  destroy when done).
  * Return TSDB_CODE_SUCCESS to continue fetching; any other code stops the loop
  * and is propagated as the return value of extQueryExecForEach.
  * ============================================================ */
 typedef int32_t (*FExtBlockCallback)(SSDataBlock *pBlock, void *pCtx);
 
 /* ============================================================
- * extQueryExecForEach — Execute SQL, call cb for every result block, close.
+ * extQueryExecForEach  -  Execute SQL, call cb for every result block, close.
  *
  * Ownership: each pBlock passed to cb belongs to cb; cb must destroy it.
  * ============================================================ */
@@ -551,7 +551,7 @@ static int32_t extQueryExecForEach(SExtConnectorHandle  *pConn,
 }
 
 /* ============================================================
- * extQueryExecFetchAll — Execute SQL, loop-fetch ALL result batches,
+ * extQueryExecFetchAll  -  Execute SQL, loop-fetch ALL result batches,
  * merge into a single SSDataBlock, then close.
  *
  * Unlike extQueryExecFetchOne (one batch only), this drains the entire
@@ -588,7 +588,7 @@ static int32_t extQueryExecFetchAll(SExtConnectorHandle  *pConn,
     if (pBlk == NULL) break;  // end of results
 
     if (*ppOut == NULL) {
-      *ppOut = pBlk;  // first batch — take ownership directly
+      *ppOut = pBlk;  // first batch  -  take ownership directly
     } else {
       code = blockDataMerge(*ppOut, pBlk);
       blockDataDestroy(pBlk);
@@ -995,12 +995,12 @@ void stExtReaderClose(void *pInfo) {
  *     Each unique combination is one sub-table:
  *       uid = MurmurHash3_64(full tagset "col=val|...") | 1
  *     groupId is derived from the PARTITION BY spec, so multiple uids may
- *     share one groupId (pGroupIndex[groupId] → SArray<uid>):
- *       - no PARTITION BY        → groupId = MurmurHash3_64(measurement) | 1
+ *     share one groupId (pGroupIndex[groupId] -> SArray<uid>):
+ *       - no PARTITION BY         -> groupId = MurmurHash3_64(measurement) | 1
  *                                  (all sub-tables in one group)
- *       - PARTITION BY tbname     → groupId = uid (each sub-table its own group)
- *       - PARTITION BY <tags>     → groupId = MurmurHash3_64(partition-tag subset) | 1
- *     pTagsetIndex maps the full tagset-string → uid.  A measurement with no
+ *       - PARTITION BY tbname      -> groupId = uid (each sub-table its own group)
+ *       - PARTITION BY <tags>      -> groupId = MurmurHash3_64(partition-tag subset) | 1
+ *     pTagsetIndex maps the full tagset-string -> uid. A measurement with no
  *     tag columns falls back to a single measurement-level uid/group.
  *
  * On success all three hashes contain consistent entries.
@@ -1356,7 +1356,7 @@ typedef struct {
   SArray                   *pTagCols;
   int32_t                   nTags;
   int32_t                   nGroups;
-  /* groupId derivation (DS §6.2.7):
+  /* groupId derivation (DS section 6.2.7):
    *   0 = single group  : no PARTITION BY; groupId = measurementGroupId.
    *   1 = all tags       : PARTITION BY tbname; groupId = uid (per sub-table).
    *   2 = subset          : PARTITION BY <tags>; groupId = hash(partition-tag subset). */
@@ -1862,14 +1862,14 @@ static int32_t extInsertInfluxSingleGroup(SStreamExtReaderInfo *pInfo) {
     }
   }
 
-  ST_TASK_DLOG("ext: initInfluxTagPartition no tag combos — single group uid=%" PRIu64 " partitionSlots=%d",
+  ST_TASK_DLOG("ext: initInfluxTagPartition no tag combos - single group uid=%" PRIu64 " partitionSlots=%d",
                uid, nPart);
   return extTableListInsertEntry(pInfo, uid, uid, "", 0, pPartitionValues);
 }
 
 /* InfluxDB: query information_schema.columns for tag column names,
  * then SELECT DISTINCT <tags> to enumerate live tag combinations.
- * Each combination → one uid/group entry. */
+ * Each combination  ->  one uid/group entry. */
 static int32_t extInitInfluxTagPartition(SStreamExtReaderInfo *pInfo) {
   const SStreamTask *pTask = pInfo->pTask;
   int32_t               code = TSDB_CODE_SUCCESS;
@@ -2014,13 +2014,13 @@ int32_t streamReaderExtHandlePull(SStreamExtReaderInfo *pInfo,
    * For ext-source readers, pUidIndex is built by querying the external DB
    * (InfluxDB tag combinations, or a single synthetic uid for MySQL/PG).
    * Whenever pUidIndex is empty we re-initialize from the source before
-   * dispatching — regardless of pull type. */
+   * dispatching  -  regardless of pull type. */
   if (tSimpleHashGetSize(pInfo->pUidIndex) == 0) {
     ST_TASK_DLOG("ext: handlePull: uid hash empty (pullType=%d), initializing table list",
                  pullType);
     code = streamExtReaderInitTableList(pInfo);
     if (code != TSDB_CODE_SUCCESS) {
-      ST_TASK_ELOG("ext: initTableList failed code:%d — aborting pull", code);
+      ST_TASK_ELOG("ext: initTableList failed code:%d - aborting pull", code);
       goto _exit;
     }
   }
@@ -2078,7 +2078,7 @@ static int32_t handleLastTsPullInflux(SStreamExtReaderInfo *pInfo,
  * Handler: STRIGGER_PULL_LAST_TS_EXT (relational: MySQL/PostgreSQL)
  *
  * Relational sources are single-group (uid == groupId, one uid per external
- * table — see extInitSingleGroup), so a single global MAX(ts) trivially
+ * table  -  see extInitSingleGroup), so a single global MAX(ts) trivially
  * applies to the only uid.
  * SQL: SELECT MAX(<tsCol>) FROM <extDb>.<extTable> [WHERE prefilter]
  * ============================================================ */
@@ -2122,7 +2122,7 @@ static int32_t handleLastTsPullRelational(SStreamExtReaderInfo *pInfo,
   /* Execute query with a single-column TIMESTAMP mapping for MAX(ts).
    * All reader->trigger timestamps are normalised to nanoseconds so the
    * trigger side has a single uniform precision to convert from.
-   * The connector will scale the source value (µs for MySQL/PG, ns for InfluxDB)
+   * The connector will scale the source value (micros for MySQL/PG, ns for InfluxDB)
    * to ns when tsPrecision is set to TSDB_TIME_PRECISION_NANO. */
   SExtColTypeMapping tsMapping = {0};
   tsMapping.tdType.type   = TSDB_DATA_TYPE_TIMESTAMP;
@@ -2175,7 +2175,7 @@ static int32_t handleLastTsPullRelational(SStreamExtReaderInfo *pInfo,
  * Relational sources (MySQL/PG) are single-group, so one global MAX(ts)
  * query suffices (handleLastTsPullRelational).  InfluxDB sources enumerate
  * one uid per sub-table (tag combination), so MAX(ts) must be computed PER
- * UID using that uid's own tagset as the WHERE filter — handled by the
+ * UID using that uid's own tagset as the WHERE filter  -  handled by the
  * OR-batched handleLastTsPullInflux (mirrors handleMetaPullInflux).
  * ============================================================ */
 static int32_t handleLastTsPull(SStreamExtReaderInfo *pInfo,
@@ -2357,7 +2357,7 @@ static int32_t extAppendRelationalMetaRow(const SStreamTask *pTask, SSDataBlock 
 }
 
 /* ============================================================
- * handleMetaPullRelational — MySQL / PostgreSQL meta pull.
+ * handleMetaPullRelational  -  MySQL / PostgreSQL meta pull.
  *
  * Issues one SELECT MIN/MAX/COUNT per uid, accumulates rows into
  * pRsp->pMetaBlock, updates pUidIndex watermarks.
@@ -2431,7 +2431,7 @@ _exit:
 }
 
 /* ============================================================
- * Influx batch helpers — internal to handleMetaPullInflux.
+ * Influx batch helpers  -  internal to handleMetaPullInflux.
  * ============================================================ */
 
 /* Per-uid accumulator for one InfluxDB batch. */
@@ -2796,10 +2796,10 @@ _exit:
 }
 
 /* ============================================================
- * handleMetaPullInflux — InfluxDB meta pull (N=64 uid batch loop).
+ * handleMetaPullInflux  -  InfluxDB meta pull (N=64 uid batch loop).
  *
  * One query per batch of N uids using a UNION ALL of per-uid SELECTs
- * (DS §6.1.5); UNION ALL (rather than a top-level OR) is required because
+ * (DS section 6.1.5); UNION ALL (rather than a top-level OR) is required because
  * DataFusion (InfluxDB 3.x) cannot plan an OR whose branches carry different
  * time-column bounds, see buildInfluxBatchSql.
  * Rows returned by the connector are client-aggregated into per-uid
@@ -2932,10 +2932,10 @@ _exit:
 }
 
 /* ============================================================
- * handleLastTsPullInflux — InfluxDB LAST_TS pull (N=64 uid batch loop).
+ * handleLastTsPullInflux  -  InfluxDB LAST_TS pull (N=64 uid batch loop).
  *
  * Computes MAX(ts) PER UID (not one global value applied to every uid),
- * using each uid's own tagset as the WHERE filter — mirrors
+ * using each uid's own tagset as the WHERE filter  -  mirrors
  * handleMetaPullInflux's OR-batched fetch (buildInfluxBatchSql /
  * influxAccumBlockCb), reusing the same per-uid MIN/MAX/COUNT accumulator
  * and keeping only the MAX (ekey).
@@ -2999,7 +2999,7 @@ _exit:
  * Dispatches to handleMetaPullRelational (MySQL/PG) or
  * handleMetaPullInflux (InfluxDB) based on source type.
  *
- * Response: pRsp->pMetaBlock (DS §6.2.4).
+ * Response: pRsp->pMetaBlock (DS section 6.2.4).
  * Also updates pUidIndex maxTs for each uid seen.
  * ============================================================ */
 static int32_t handleMetaPull(SStreamExtReaderInfo *pInfo,
@@ -3125,8 +3125,8 @@ static void extSelectFetchMappings(const SExtColTypeMapping *pMappings, int32_t 
 }
 
 /* prefilterBuf must already be built by the caller:
- *   handleDataPull     → buildTriggerPrefilterClause (trigger data, PRE_FILTER)
- *   handleCalcDataPull → buildTriggerPrefilterClause (trigger-side data for calc, PRE_FILTER) */
+ *   handleDataPull      ->  buildTriggerPrefilterClause (trigger data, PRE_FILTER)
+ *   handleCalcDataPull  ->  buildTriggerPrefilterClause (trigger-side data for calc, PRE_FILTER) */
 static int32_t fetchDataForUid(SStreamExtReaderInfo *pInfo,
                                const char *colList,
                                uint64_t uid, int64_t skey, int64_t ekey,
@@ -3200,7 +3200,7 @@ static int32_t buildCalcColList(const SStreamExtTriggerSpec *pSpec,
                                 char *buf, int32_t bufLen) {
   if (pSpec->calcColumns == NULL ||
       taosArrayGetSize(pSpec->calcColumns) == 0) {
-    /* No calc columns available yet — fetch all columns so the aggregate
+    /* No calc columns available yet  -  fetch all columns so the aggregate
      * operator can find both ts and measure columns in the result block. */
     snprintf(buf, bufLen, "*");
     return 0;
@@ -3271,11 +3271,11 @@ static int32_t buildDataBlockAndIndex(SArray *pUidBlocks,
 }
 
 /* ============================================================
- * Batched InfluxDB data fetch (perf, DS §6.1.5).
+ * Batched InfluxDB data fetch (perf, DS section 6.1.5).
  *
  * Instead of one external query per uid, issue one UNION ALL query per batch
  * of up to EXT_INFLUX_UID_BATCH_SIZE uids and demultiplex the returned rows back
- * to per-uid blocks by tagset — mirroring the META batch loop.  Used only for
+ * to per-uid blocks by tagset  -  mirroring the META batch loop.  Used only for
  * InfluxDB sources that PARTITION BY tag (nTags > 0) and have an explicit column
  * list + matching type mappings, so per-uid result blocks can be built with the
  * correct schema.  All other cases keep the per-uid path (fetchDataForUid).
@@ -4352,7 +4352,7 @@ static bool extAppendFetchDataBound(char *sql, int32_t sqlLen, int32_t *pOff,
 }
 
 /* ============================================================
- * P4-E1: EXT fetch — called by the snode runner-queue worker
+ * P4-E1: EXT fetch  -  called by the snode runner-queue worker
  * when a TDMT_STREAM_FETCH_EXT message arrives from a runner
  * (calc task).  Executes a time-bounded SELECT against the
  * external source and returns a single data block.
@@ -4404,7 +4404,7 @@ int32_t streamReaderExtFetchData(SStreamExtReaderInfo *pReaderInfo,
   int32_t                   nMappings = (nCols > 0) ? pReaderInfo->spec.numCalcMappings : 0;
 
   /* streamReaderExtFetchData fetches pure calc data for aggregation;
-   * apply calc WHERE prefilter (prefilter) only — not PRE_FILTER. */
+   * apply calc WHERE prefilter (prefilter) only  -  not PRE_FILTER. */
   char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
   code = buildPrefilterClause(&pReaderInfo->spec, prefilterBuf, sizeof(prefilterBuf));
   if (code < 0) {

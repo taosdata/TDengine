@@ -2117,9 +2117,9 @@ int32_t ctgGetVSubtablesMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, i
   return ctgAddBatch(pCtg, vgroupInfo->vgId, &vConn, tReq, reqType, msg, msgLen);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // Federated query: fetch ext source info from mnode
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 int32_t ctgGetExtSourceFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* sourceName,
                                  SGetExtSourceRsp* out, SCtgTask* pTask) {
   char*   msg = NULL;

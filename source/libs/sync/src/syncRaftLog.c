@@ -344,7 +344,7 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
   }
 
   // Body on-disk layout for txn entries is [txnExtFlags:8B][txnId:8B][pCont...] (WAL_TXN_HDR_SIZE).
-  // Use the shared accessors instead of hand-rolling the prefix size — a prior version of this
+  // Use the shared accessors instead of hand-rolling the prefix size  -  a prior version of this
   // code assumed an 8-byte [txnId] prefix, which is stale since WAL_TXN_HDR_SIZE grew to 16B to
   // add txnExtFlags; that misread txnExtFlags as txnId and left 8 stray prefix bytes in the data.
   SWalCont* pHead = &pWalHandle->pHead->head;

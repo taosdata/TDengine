@@ -336,11 +336,11 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData);
 int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWriter** ppWriter);
 int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
 int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback);
-// metaSnapshot.c — txn.meta batched snapshot read/write (§44 lazy COMMIT/ROLLBACK)
+// metaSnapshot.c  -  txn.meta batched snapshot read/write (section 44 lazy COMMIT/ROLLBACK)
 //   metaSnapTxnMetaRead: emits one SNAP_DATA_TXN_META block containing all txn.meta entries.
 //                          On *ppData==NULL with code==0 there are no entries (stream done).
 //   metaSnapTxnMetaWrite: bulk-applies a SNAP_DATA_TXN_META payload via
-//                          metaTxnMetaUpsert (idempotent — safe on retry).
+//                          metaTxnMetaUpsert (idempotent  -  safe on retry).
 int32_t metaSnapTxnMetaRead(SMeta* pMeta, uint8_t** ppData);
 int32_t metaSnapTxnMetaWrite(SMeta* pMeta, uint8_t* pData, uint32_t nData);
 // STsdbSnapReader ========================================
@@ -570,12 +570,12 @@ struct SVnode {
   // Batch Metadata Transaction
   SHashObj*     pTxnHash;       // key: int64_t txnId, value: SVnodeTxnEntry
   SHashObj*     pTxnTableLock;  // key: tableName (char*), value: int64_t txnId
-  SHashObj*     pTxnMetaCache;   // key: int64_t txnId, value: int8_t (ETxnMetaStatus) — thread-safe cache
+  SHashObj*     pTxnMetaCache;   // key: int64_t txnId, value: int8_t (ETxnMetaStatus)  -  thread-safe cache
   TdThreadMutex txnMutex;       // protects pTxnHash and pTxnTableLock
   int64_t       maxSeenTerm;    // max Raft term seen (for fencing)
   SVATaskID     vacuumTask;     // async vacuum task on SCAN_TASK_ASYNC pool
   int8_t        vacuumRunning;  // atomic flag: 1 = a txn vacuum task is queued or running
-  int32_t txnPendingCount;  // atomic: total entries in pTxnHash + pTxnMetaCache; 0 → no visibility filtering needed
+  int32_t txnPendingCount;  // atomic: total entries in pTxnHash + pTxnMetaCache; 0 -> no visibility filtering needed
 
   TdThreadMutex backupSnapMutex;
   SVSnapReader *pBackupSnapReader;
@@ -645,7 +645,7 @@ enum {
   // SNAP_DATA_TQ_CHECKINFO = 13,
   SNAP_DATA_RAW = 14,
   SNAP_DATA_BSE = 15,
-  // Batch-meta-txn (§44 lazy COMMIT/ROLLBACK): replicate txn.meta so that
+  // Batch-meta-txn (section 44 lazy COMMIT/ROLLBACK): replicate txn.meta so that
   // a follower joining via full snapshot can resume vacuum of large-txn
   // shadow entries instead of leaking PRE_* status forever. Reader emits
   // these AFTER SNAP_DATA_META so that the meta entries referenced by each
@@ -699,10 +699,10 @@ int32_t vHashPut(SVHashTable* ht, void* obj);
 int32_t vHashGet(SVHashTable* ht, const void* obj, void** retObj);
 int32_t vHashDrop(SVHashTable* ht, const void* obj);
 
-// vnodeTxn.c — Batch metadata transaction (shadow-in-B+tree model)
+// vnodeTxn.c  -  Batch metadata transaction (shadow-in-B+tree model)
 // DDL within a transaction writes directly to B+ tree with txnId/txnStatus set.
 // EMetaTxnStatus (defined in tdef.h): NORMAL, PRE_CREATE, PRE_ALTER, PRE_DROP, COMMITTED, ROLLEDBACK.
-// COMMIT: promotes shadow entries (clear txnId→0, txnStatus→NORMAL; physically delete PRE_DROP).
+// COMMIT: promotes shadow entries (clear txnId -> 0, txnStatus -> NORMAL; physically delete PRE_DROP).
 // ROLLBACK: undoes shadow entries (delete PRE_CREATE; restore PRE_DROP/PRE_ALTER to NORMAL).
 
 int32_t vnodeTxnInit(SVnode* pVnode);
@@ -745,14 +745,14 @@ int32_t vnodeTxnCheckDeleteConflict(SVnode* pVnode, tb_uid_t uid);
 // Mark txn as containing a DROP STB with children; forces lazy/vacuum COMMIT path.
 int32_t vnodeTxnMarkBulkDrop(SVnode* pVnode, int64_t txnId);
 
-// metaTable2.c — mark existing entry with txnId/txnStatus/txnOrigVer in-place
+// metaTable2.c  -  mark existing entry with txnId/txnStatus/txnOrigVer in-place
 int32_t metaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOrigVer);
-// metaTable2.c — rollback ALTER: delete new version entry, restore pUidIdx to old version
+// metaTable2.c  -  rollback ALTER: delete new version entry, restore pUidIdx to old version
 int32_t metaRollbackAlterTable(SMeta* pMeta, int64_t uid, int64_t prevVersion);
-// metaEntry2.c — rollback child table tag ALTER: restore pTagIdx + pCtbIdx to old version
+// metaEntry2.c  -  rollback child table tag ALTER: restore pTagIdx + pCtbIdx to old version
 int32_t metaRollbackChildTableTags(SMeta* pMeta, int64_t uid, int64_t prevVersion, int64_t newVersion);
 
-// metaEntry2.c — scan all entries with txnId != 0 (for VNode startup rebuild)
+// metaEntry2.c  -  scan all entries with txnId != 0 (for VNode startup rebuild)
 typedef struct SMetaTxnScanEntry {
   tb_uid_t uid;
   int64_t  txnId;
@@ -761,11 +761,11 @@ typedef struct SMetaTxnScanEntry {
 } SMetaTxnScanEntry;
 int32_t metaScanTxnEntries(SMeta* pMeta, SArray** ppResult);
 
-// metaEntry2.c — txn.idx CRUD (small B+ tree for O(k) startup rebuild)
+// metaEntry2.c  -  txn.idx CRUD (small B+ tree for O(k) startup rebuild)
 int32_t metaTxnIdxUpsert(SMeta* pMeta, tb_uid_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOrigVer);
 int32_t metaTxnIdxDelete(SMeta* pMeta, tb_uid_t uid);
 
-// metaEntry2.c — txn.meta CRUD (lazy COMMIT/ROLLBACK finalization record)
+// metaEntry2.c  -  txn.meta CRUD (lazy COMMIT/ROLLBACK finalization record)
 // beginWalIndex: WAL index of first DDL in this txn. Written at txn begin (TXN_META_NONE),
 // preserved through COMMIT/ROLLBACK upsert. Used at crash recovery to restore WAL keepVersion.
 #pragma pack(push, 1)
@@ -780,13 +780,13 @@ int32_t metaTxnMetaDelete(SMeta* pMeta, int64_t txnId);
 int32_t metaTxnMetaGet(SMeta* pMeta, int64_t txnId, STxnMetaVal* pVal);
 int32_t metaScanTxnMetaEntries(SMeta* pMeta, SArray** ppResult);
 
-// metaEntry2.c — visibility helper: check if txn is finalized (O(1) hash lookup)
+// metaEntry2.c  -  visibility helper: check if txn is finalized (O(1) hash lookup)
 int8_t metaGetTxnMetaStatus(SMeta* pMeta, int64_t txnId);
 
-// vnodeTxn.c — rebuild in-memory txn state from B+ tree (called at VNode startup)
+// vnodeTxn.c  -  rebuild in-memory txn state from B+ tree (called at VNode startup)
 int32_t vnodeTxnRebuildFromMeta(SVnode* pVnode);
 
-// vnodeTxn.c — lazy vacuum: process finalized txn entries in batches
+// vnodeTxn.c  -  lazy vacuum: process finalized txn entries in batches
 int32_t vnodeTxnVacuumBatch(SVnode* pVnode, int32_t maxOps);
 
 #ifdef __cplusplus

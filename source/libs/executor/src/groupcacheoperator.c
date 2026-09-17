@@ -1489,14 +1489,14 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
   return TSDB_CODE_SUCCESS;
 }
 
-// ─── twoPassMode two-pass getNextFn ─────────────────────────────────────────
+// --- twoPassMode two-pass getNextFn -----------------------------------------
 // Used when GroupCache is injected for repeat-scan functions (e.g. PERCENTILE).
 // Phase 1 (PRE_SCAN):  fetch all blocks from downstream FedScan, serialize and
 //                       cache them in memory, return each to AGG with PRE_SCAN flag.
 // Phase 2 (MAIN_SCAN): replay cached blocks (deserialized via buildGroupCacheResultBlock)
 //                       to AGG with MAIN_SCAN flag.
 // This gives the AGG two complete passes over the data without FedScan being called twice.
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
 // Each entry in SGroupCacheOperatorInfo.pTwoPassBlocks stores a serialized block.
 typedef struct SGcTwoPassBlkBuf {
@@ -1515,7 +1515,7 @@ static int32_t groupCacheTwoPassGetNext(SOperatorInfo* pOperator, SSDataBlock** 
   }
 
   if (!pInfo->twoPassPhase1Done) {
-    // ── Phase 1 (PRE_SCAN) ──
+    // -- Phase 1 (PRE_SCAN) --
     SSDataBlock* pBlock = NULL;
     int32_t code = pOperator->pDownstream[0]->fpSet.getNextFn(pOperator->pDownstream[0], &pBlock);
     if (code) return code;
@@ -1547,12 +1547,12 @@ static int32_t groupCacheTwoPassGetNext(SOperatorInfo* pOperator, SSDataBlock** 
       return TSDB_CODE_SUCCESS;
     }
 
-    // Downstream EOF — Phase 1 complete.
+    // Downstream EOF  -  Phase 1 complete.
     pInfo->twoPassPhase1Done = true;
     pInfo->twoPassNextIdx    = 0;
   }
 
-  // ── Phase 2 (MAIN_SCAN) ──
+  // -- Phase 2 (MAIN_SCAN) --
   int32_t n = (int32_t)taosArrayGetSize(pInfo->pTwoPassBlocks);
   if (pInfo->twoPassNextIdx < n) {
     SGcTwoPassBlkBuf* pEntry = taosArrayGet(pInfo->pTwoPassBlocks, pInfo->twoPassNextIdx++);
@@ -1565,7 +1565,7 @@ static int32_t groupCacheTwoPassGetNext(SOperatorInfo* pOperator, SSDataBlock** 
     return TSDB_CODE_SUCCESS;
   }
 
-  // Both phases complete — signal EOF.
+  // Both phases complete  -  signal EOF.
   return TSDB_CODE_SUCCESS;
 }
 

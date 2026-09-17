@@ -793,7 +793,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       // handles concurrent runner slot contention.
       bool needFetch = (pRemote->flag & VALUELIST_FLAG_VAL_UNSET);
       if (ctx->isStream && !needFetch && pRemote->streamGen != ctx->streamGen) {
-        // Generation mismatch — invalidate cached hash for new trigger event
+        // Generation mismatch  -  invalidate cached hash for new trigger event
         if (pRemote->pHashFilter) {
           taosHashCleanup(pRemote->pHashFilter);
           pRemote->pHashFilter = NULL;
@@ -2577,7 +2577,7 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
 EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
   SLogicConditionNode *node = (SLogicConditionNode *)*pNode;
 
-  // NOT(EXISTS/NOT_EXISTS(RAW_SQL_FRAG)) — cannot be evaluated by scalar engine;
+  // NOT(EXISTS/NOT_EXISTS(RAW_SQL_FRAG))  -  cannot be evaluated by scalar engine;
   // it is a remote-side predicate left in the tree for nodesRemotePlanToSQL.
   if (node->condType == LOGIC_COND_TYPE_NOT &&
       node->pParameterList && node->pParameterList->length == 1) {

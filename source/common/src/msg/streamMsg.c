@@ -1393,7 +1393,7 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
     }
     case WINDOW_TYPE_STATE: {
       /*
-       * state trigger – always v2 format:
+       * state trigger - always v2 format:
        * I16(STATE_WIN_SLOT_SENTINEL_V2) + I32(slotNum)
        *   + N*I16(slotId) + ...
        */
@@ -4917,8 +4917,8 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
 
 _exit:
   /* On a partial-decode failure of an EXT pull, free the uid hashes that were
-   * already allocated — callers leave reqDecoded=false and do not destroy pReq
-   * in that case, so they would otherwise leak.  tSimpleHashCleanup + NULL is
+   * already allocated - callers leave reqDecoded=false and do not destroy pReq
+   * in that case, so they would otherwise leak. tSimpleHashCleanup + NULL is
    * idempotent, so this is safe even if a caller also destroys pReq. */
   if (code != TSDB_CODE_SUCCESS &&
       (type == STRIGGER_PULL_LAST_TS_EXT || type == STRIGGER_PULL_META_EXT ||

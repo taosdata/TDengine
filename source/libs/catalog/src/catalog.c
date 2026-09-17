@@ -481,7 +481,7 @@ int32_t ctgGetTbCfg(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, 
   int32_t code = ctgGetTbType(pCtg, pConn, pTableName, &tbType);
 
   // batch meta txn: if table type lookup fails (PRE_CREATE invisible), assume non-super-table
-  // and go directly to VNode — super tables are on MNode, never part of batch meta txn
+  // and go directly to VNode  -  super tables are on MNode, never part of batch meta txn
   if (pConn->txnId > 0 && (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
     tbType = 0;
     code = TSDB_CODE_SUCCESS;
@@ -2279,9 +2279,9 @@ int32_t catalogClearCache(void) {
   CTG_API_LEAVE_NOLOCK(code);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // Federated query: ext-source catalog public APIs
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
 static void ctgNormalizeExtFuncName(const char* pIn, char* pOut, int32_t outLen) {
   if (NULL == pOut || outLen <= 0) {
@@ -2504,7 +2504,7 @@ int32_t catalogSyncGetExtSourceInfo(SCatalog* pCtg, SRequestConnInfo* pConn, con
     CTG_API_LEAVE(TSDB_CODE_SUCCESS);
   }
 
-  // Cache miss — sync fetch from mnode.
+  // Cache miss  -  sync fetch from mnode.
   SGetExtSourceRsp rsp = {0};
   code = ctgGetExtSourceFromMnode(pCtg, pConn, sourceName, &rsp, NULL);
   if (TSDB_CODE_SUCCESS != code) {
@@ -2826,7 +2826,7 @@ void catalogDestroy(void) {
    * no new ctgProcessTimerEvent() can be scheduled; take the catalog write lock
    * once more to wait for any in-flight callback that already entered under the
    * read lock to leave the catalog cache critical section before we free the
-   * cache objects below.  (The barrier must come AFTER taosTmrCleanUp — placing
+   * cache objects below.  (The barrier must come AFTER taosTmrCleanUp  -  placing
    * it before would still let a dispatched callback re-enter and touch
    * pCluster after taosHashCleanup().)
    */

@@ -850,13 +850,13 @@ _return:
 
 // txnAssembleCtbMeta: on-demand assembly of a full STableMeta for a compact CTB stub.
 // Compact stubs (tableInfo.numOfColumns == 0) are stored by the txn CTB handler instead of
-// copying the full schema per CTB — mirroring the catalog's SCTableMeta + stbCache design.
+// copying the full schema per CTB  -  mirroring the catalog's SCTableMeta + stbCache design.
 // The caller owns the returned *pOut and must free it.
 static int32_t txnAssembleCtbMeta(const STableMeta* pCompact, SHashObj* pTxnTableMeta, SHashObj* pTxnSuidMap,
                                   SCatalog* pCatalog, STableMeta** pOut) {
   if (pTxnSuidMap == NULL) return TSDB_CODE_PAR_TABLE_NOT_EXIST;
 
-  // 1. Resolve suid → stbFullName
+  // 1. Resolve suid  ->  stbFullName
   char* stbFullName = (char*)taosHashGet(pTxnSuidMap, &pCompact->suid, sizeof(uint64_t));
   if (stbFullName == NULL) return TSDB_CODE_PAR_TABLE_NOT_EXIST;
 
@@ -957,7 +957,7 @@ int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, c
         if (*pMeta) {
           return TSDB_CODE_SUCCESS;
         }
-        // tableMetaDup OOM — do NOT fall through to catalog (would return stale pre-txn schema).
+        // tableMetaDup OOM  -  do NOT fall through to catalog (would return stale pre-txn schema).
         return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
       } else if (ppCached) {
         // NULL sentinel: table was dropped in this txn
@@ -1237,7 +1237,7 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
         if (*pMeta) {
           return TSDB_CODE_SUCCESS;
         }
-        // tableMetaDup OOM — do NOT fall through to catalog (would return stale pre-txn schema).
+        // tableMetaDup OOM  -  do NOT fall through to catalog (would return stale pre-txn schema).
         return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
       } else if (ppCached) {
         // NULL sentinel: table was dropped in this txn
@@ -4055,7 +4055,7 @@ static int32_t rewriteExprSubQuery(STranslateContext* pCxt, SOperatorNode* pOp) 
         break;
       }
 
-      // ── Same-source EXISTS SQL hint ───────────────────────────────────────
+      // -- Same-source EXISTS SQL hint ---------------------------------------
       // Always keep the TDengine-executable rewrite path (EXISTS/NOT EXISTS
       // => REMOTE_ZERO_ROWS compared with 0).  When both outer and inner FROM
       // tables are from the same external source (MySQL/PG), additionally
@@ -4225,7 +4225,7 @@ static bool hasExternalOrVirtualTableInExpr(STranslateContext* pCxt, SNode* pNod
   return cxt.found;
 }
 // Create a __timestamp_scale(expr, target_precision) function node.
-// The caller must NOT free pExpr after this call — ownership transfers to the function node.
+// The caller must NOT free pExpr after this call  -  ownership transfers to the function node.
 static int32_t createTimestampScaleNode(SNode* pExpr, int8_t targetPrec, SNode** ppOut) {
   int32_t code = TSDB_CODE_SUCCESS;
   SFunctionNode* pFunc = NULL;
@@ -4416,7 +4416,7 @@ static bool isStmtPlaceholderValue(const SNode* pNode) {
 static int32_t insertTimestampScaleForOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   if (NULL == pOp->pLeft || NULL == pOp->pRight) return TSDB_CODE_SUCCESS;
 
-  // Handle IN/NOT IN separately (DS §5.3.12.4.2)
+  // Handle IN/NOT IN separately (DS section 5.3.12.4.2)
   if (pOp->opType == OP_TYPE_IN || pOp->opType == OP_TYPE_NOT_IN) {
     return insertTimestampScaleForInOperator(pCxt, pOp);
   }
@@ -4438,7 +4438,7 @@ static int32_t insertTimestampScaleForOperator(STranslateContext* pCxt, SOperato
     return TSDB_CODE_SUCCESS;
   }
 
-  // Precisions must differ — if they match, nothing to scale.
+  // Precisions must differ - if they match, nothing to scale.
   if (pLeft->resType.precision == pRight->resType.precision) {
     return TSDB_CODE_SUCCESS;
   }
@@ -4501,7 +4501,7 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
     }
   }
 
-  // Cross-precision TIMESTAMP scaling for federated query (DS §5.3.12.4.1)
+  // Cross-precision TIMESTAMP scaling for federated query (DS section 5.3.12.4.1)
   if (TSDB_CODE_SUCCESS == code) {
     code = insertTimestampScaleForOperator(pCxt, pOp);
   }
@@ -4895,7 +4895,7 @@ static int32_t translateIndefiniteRowsFunc(STranslateContext* pCxt, SFunctionNod
                                        "Indefinite rows function '%s' mixed with other multi-row functions",
                                        pFunc->functionName);
       }
-      // K matches — allowed; multiRowsFuncKParam already recorded
+      // K matches  -  allowed; multiRowsFuncKParam already recorded
     } else if (pSelect->hasIndefiniteRowsFunc) {
       // Another TAIL function already present: check K match
       if (tailK <= 0 || pSelect->multiRowsFuncKParam <= 0 || tailK != pSelect->multiRowsFuncKParam) {
@@ -5005,7 +5005,7 @@ static int32_t translateMultiRowsFunc(STranslateContext* pCxt, SFunctionNode* pF
 
   // Reject if any 1-row aggregate is present without a co-present multi-rows func.
   // Pure agg (SUM/AVG) and selectivity agg (MAX/FIRST) both set hasAggFuncs.
-  // Another multi-rows func (TOP/BOTTOM) sets both hasAggFuncs AND hasMultiRowsFunc — allowed.
+  // Another multi-rows func (TOP/BOTTOM) sets both hasAggFuncs AND hasMultiRowsFunc  -  allowed.
   if (pSelect->hasAggFuncs && !pSelect->hasMultiRowsFunc) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "Multi-rows function '%s' cannot coexist with aggregate functions",
@@ -6516,7 +6516,7 @@ static int32_t validateDualQueryFunc(STranslateContext* pCxt, SFunctionNode* pFu
   }
 
   // Client pseudo-column funcs (_qstart, _qend, _qduration) are rewritten to
-  // constant values by rewriteClientPseudoColumnFunc — always safe without FROM.
+  // constant values by rewriteClientPseudoColumnFunc  -  always safe without FROM.
   if (fmIsClientPseudoColumnFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -6567,7 +6567,7 @@ static int32_t validateDistinctFunc(STranslateContext* pCxt, SFunctionNode* pFun
       }
     }
   }
-  // MIN/MAX DISTINCT is a no-op (MySQL compat) — clear the flag so optimizer ignores it
+  // MIN/MAX DISTINCT is a no-op (MySQL compat)  -  clear the flag so optimizer ignores it
   if (ftype == FUNCTION_TYPE_MIN || ftype == FUNCTION_TYPE_MAX) {
     pFunc->isDistinct = false;
   }
@@ -9166,7 +9166,7 @@ int32_t validateJoinConds(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
 // ---------------------------------------------------------------------------
 // checkExtSourceJoinCond
 // External-table JOINs must use the primary timestamp column in the ON
-// condition (DS §5.3.10.3.4 Rule 7).  Non-ts-pk JOINs are rejected here
+// condition (DS section 5.3.10.3.4 Rule 7).  Non-ts-pk JOINs are rejected here
 // with TSDB_CODE_PAR_NOT_SUPPORT_JOIN (0x2664).
 //
 // Applies to all external sources and JOIN types (including PG FULL OUTER JOIN).
@@ -9196,12 +9196,12 @@ static int32_t checkExtSourceJoinCond(STranslateContext* pCxt, SJoinTableNode* p
     return TSDB_CODE_SUCCESS;
   }
   // WINDOW JOIN and ASOF JOIN use implicit time-based matching via WINDOW_OFFSET
-  // or JLIMIT — they do not require an explicit ts column in ON condition.
+  // or JLIMIT  -  they do not require an explicit ts column in ON condition.
   if (IS_WINDOW_JOIN(pJoinTable->subType) || IS_ASOF_JOIN(pJoinTable->subType)) {
     return TSDB_CODE_SUCCESS;
   }
   if (extJoinOnCondHasTs(pJoinTable->pOnCond)) {
-    return TSDB_CODE_SUCCESS;  // ts-pk JOIN — valid
+    return TSDB_CODE_SUCCESS;  // ts-pk JOIN  -  valid
   }
   // Non-ts-pk JOIN on external table.
   return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
@@ -11014,7 +11014,7 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
   // The SRealTableNode created through ROLLUP already has STableMeta.
 #ifdef TD_ENTERPRISE
   // For 3/4-segment paths, always resolve as external table (skip regular meta lookup).
-  // On success pRealTable->pMeta is set → the if block below is skipped and we fall
+  // On success pRealTable->pMeta is set  ->  the if block below is skipped and we fall
   // through to the shared precision/singleTable/addNamespace handling.
   if (NULL == pRealTable->pMeta && nSeg >= 3 && tsFederatedQueryEnable) {
     parserDebug("translateRealTable route: direct external path, nSeg:%d db:%s table:%s ext0:%s ext1:%s",
@@ -11354,9 +11354,9 @@ _return:
 // query-plan time and embed it inside the TLV-serialised physical plan message
 // sent to taosd via RPC.  The same three-layer defence applies to both:
 //
-//   1. Row count  – caps the number of logical rows regardless of column width.
-//   2. Cell count – caps rows × cols to bound memory for fixed-width types.
-//   3. Byte size  – caps the serialised block size; this is the hard ceiling
+//   1. Row count  - caps the number of logical rows regardless of column width.
+//   2. Cell count - caps rows x cols to bound memory for fixed-width types.
+//   3. Byte size  - caps the serialised block size; this is the hard ceiling
 //                   because TSDB_MAX_MSG_SIZE = 10 MB.  Variable-length types
 //                   (VARCHAR/NCHAR) can make each cell far larger than 4 bytes,
 //                   so the cell count alone is insufficient.
@@ -11365,7 +11365,7 @@ _return:
 // and simplifies documentation: callers can treat the two sources identically.
 // ---------------------------------------------------------------------------
 static const int32_t kMaxInlineRows       = 10000;           // max logical rows
-static const int64_t kMaxInlineCells      = 1000000LL;       // max rows × cols
+static const int64_t kMaxInlineCells      = 1000000LL;       // max rows x cols
 static const int32_t kMaxInlineBlockBytes = 8 * 1024 * 1024; // 8 MB (leave 2 MB for plan overhead)
 
 // ---------------------------------------------------------------------------
@@ -11383,7 +11383,7 @@ static int32_t findAndSetTextTableColumn(STextTableNode* pTextTable, SColumnNode
     if (0 == strcasecmp(pCol->colName, pDef->colName)) {
       if (*pFound) {
         // duplicate colName in pColDefs would have been caught in struct validation;
-        // reaching here means the column reference matched twice somehow – treat as ambiguous
+        // reaching here means the column reference matched twice somehow - treat as ambiguous
         return TSDB_CODE_PAR_AMBIGUOUS_COLUMN;
       }
       tstrncpy(pCol->tableAlias, pTextTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
@@ -11594,7 +11594,7 @@ static int32_t buildTextTableBlockBuf(STranslateContext* pCxt, STextTableNode* p
   // (including merge-join) can treat the data as globally ordered.
   if (pTextTable->hasPrimaryTs && rowCount >= 1) {
     SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, 0);
-    // Reject NULL primary timestamps — they violate primary-key semantics.
+    // Reject NULL primary timestamps  -  they violate primary-key semantics.
     for (int32_t i = 0; i < rowCount; ++i) {
       if (colDataIsNull_f(pTsCol, i)) {
         blockDataDestroy(pBlock);
@@ -11667,7 +11667,7 @@ static int32_t buildTextTableBlockBuf(STranslateContext* pCxt, STextTableNode* p
                                    (int32_t)totalBufLen, kMaxInlineBlockBytes);
   }
 
-  // Release raw value nodes — no longer needed
+  // Release raw value nodes  -  no longer needed
   nodesDestroyList(pTextTable->pRows);
   pTextTable->pRows = NULL;
 
@@ -11936,7 +11936,7 @@ static int32_t convertAndSetField(STranslateContext* pCxt, const char* raw, SCol
   memset(&valNode, 0, sizeof(valNode));
   valNode.node.type    = QUERY_NODE_VALUE;
   valNode.node.resType = (SDataType){.type = TSDB_DATA_TYPE_VARCHAR, .bytes = (int32_t)strlen(raw)};
-  /* literal must be set — translateValueImpl (parseTimeFromValueNode, etc.) reads it */
+  /* literal must be set  -  translateValueImpl (parseTimeFromValueNode, etc.) reads it */
   valNode.literal = taosStrdup(raw);
   if (!valNode.literal) return TSDB_CODE_OUT_OF_MEMORY;
 
@@ -12098,7 +12098,7 @@ static int32_t buildFileTableBlockBuf(STranslateContext* pCxt, SFileTableNode* p
   if (pFile->hasPrimaryTs && rowCount >= 2) {
     SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, 0);
     bool sorted = true;
-    // Reject NULL primary timestamps — they violate primary-key semantics.
+    // Reject NULL primary timestamps  -  they violate primary-key semantics.
     for (int32_t i = 0; i < rowCount; ++i) {
       if (colDataIsNull_f(pTsCol, i)) {
         PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -12323,7 +12323,7 @@ static int32_t translateJoinTable(STranslateContext* pCxt, SNode** pTable, bool 
   // WINDOW JOIN fix: the WINDOW_OFFSET was translated inside translateJoinTableImpl
   // BEFORE translateTable set the correct precision.  At that time pSelect->precision
   // was still 0 (ms), so duration literals like "-2m" were converted to ms units.
-  // For cross-precision joins (e.g. MySQL µs × InfluxDB ns), the executor scales
+  // For cross-precision joins (e.g. MySQL micros x InfluxDB ns), the executor scales
   // probeTs to the FINEST precision via mJoinLaunchPrimExpr (__timestamp_scale).
   // The offsets must be in the same finest precision for correct window bounds.
   if (IS_WINDOW_JOIN(pJoinTable->subType) && pJoinTable->pWindowOffset &&
@@ -13415,7 +13415,7 @@ static int32_t wrapExprWithMaskFunc(STranslateContext* pCxt, SNode** ppExpr) {
   pFunc->node.bindExprID = pInner->bindExprID;
 
   /* The wrapped expression becomes the first parameter. nodesListMakeStrictAppend
-   * is strict: it consumes the node either way — appended on success, freed on
+   * is strict: it consumes the node either way  -  appended on success, freed on
    * failure. Clear *ppExpr unconditionally right after the call, otherwise a
    * failure leaves the enclosing tree holding a dangling pointer to the already
    * freed node, which the caller's error-path tree teardown would double-free. */
@@ -13452,16 +13452,16 @@ typedef struct SRewriteMaskCxt {
 } SRewriteMaskCxt;
 
 /* Rewriter callback: replace each hasMask column reference inline with
- * mask_full(col, '*').  This is the Oracle Data Redaction approach —
+ * mask_full(col, '*'). This is the Oracle Data Redaction approach --
  * functions applied to masked columns naturally operate on '*', e.g.
- * length(c1) → length(mask_full(c1,'*')) → length('*') → 1. */
+ * length(c1)  ->  length(mask_full(c1,'*'))  ->  length('*')  ->  1. */
 static EDealRes rewriteMaskedColWalker(SNode** ppNode, void* pContext) {
   /* A masked partition/group key has already been rewritten into
    * _group_key(<masked col>) before the mask pass runs. Masking the inner
    * column would leave mask_full BURIED inside the group key, and a super-table
    * split's merge phase would surface the raw group-key value (plaintext leak).
    * Instead, wrap the whole _group_key() so the mask is the OUTERMOST operation:
-   * _group_key(c1) → mask_full(_group_key(c1), '*'). The inner column stays raw
+   * _group_key(c1)  ->  mask_full(_group_key(c1), '*'). The inner column stays raw
    * so grouping/sort/merge keep working; only the output is masked. */
   if (QUERY_NODE_FUNCTION == nodeType(*ppNode) &&
       FUNCTION_TYPE_GROUP_KEY == ((SFunctionNode*)*ppNode)->funcType) {
@@ -13489,7 +13489,7 @@ static EDealRes rewriteMaskedColWalker(SNode** ppNode, void* pContext) {
       return DEAL_RES_ERROR;
     }
     if (NULL == pMaskFunc) {
-      /* Column type not supported for masking — leave as-is */
+      /* Column type not supported for masking  -  leave as-is */
       return DEAL_RES_CONTINUE;
     }
     nodesDestroyNode(*ppNode);
@@ -14178,7 +14178,7 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
 
   // For external window, pInterval is NULL and isInterpFill is false.
   // The fill time range is derived from the subquery windows, not a WHERE clause,
-  // so the TSWINDOW_IS_EQUAL check below is not applicable — skip it.
+  // so the TSWINDOW_IS_EQUAL check below is not applicable  -  skip it.
   if (NULL == pInterval && !isInterpFill) {
     return TSDB_CODE_SUCCESS;
   }
@@ -14941,7 +14941,7 @@ static bool isSameStateColumn(const SColumnNode* pLeft,
  *
  * NOTE: detection is purely syntactic. `nodesEqualNode` does not recognise
  * commutatively equivalent expressions (e.g. `a+b` vs `b+a`, `c=1` vs `1=c`)
- * — those will pass through as distinct keys. Rely on caller documentation
+ *  -  those will pass through as distinct keys. Rely on caller documentation
  * if stricter semantic-equivalence is needed.
  */
 static int32_t checkDuplicateStateColumns(STranslateContext* pCxt,
@@ -17486,8 +17486,8 @@ static int32_t createFixedDistSafeDiv(SNode** ppNumer, SNode** ppDivisor, const 
   if (TSDB_CODE_SUCCESS == code) {
     code = createFixedDistArithExpr(OP_TYPE_DIV, pNumer, pDivisor, "", &pElseDiv);
     if (TSDB_CODE_SUCCESS == code) {
-      *ppNumer = NULL;   // consumed — NULL out caller's pointer
-      *ppDivisor = NULL; // consumed — NULL out caller's pointer
+      *ppNumer = NULL;   // consumed  -  NULL out caller's pointer
+      *ppDivisor = NULL; // consumed  -  NULL out caller's pointer
       pNumer = NULL;
       pDivisor = NULL;
     }
@@ -18567,13 +18567,13 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->walFsyncPeriod = pStmt->pOptions->fsyncPeriod;
   pReq->walLevel = pStmt->pOptions->walLevel;
   pReq->precision = pStmt->pOptions->precision;
-  // 审计库精度处理：如果是审计库，用户未指定精度则默认纳秒；用户显式指定了非纳秒精度则报错
+  // Audit database precision: default to nanoseconds when unspecified; reject an explicit non-nanosecond precision.
   if (pStmt->pOptions->isAudit == 1) {
     if ('\0' == pStmt->pOptions->precisionStr[0]) {
-      // 用户未指定精度，默认设置为纳秒
+      // The user did not specify a precision, so default to nanoseconds.
       pReq->precision = TSDB_TIME_PRECISION_NANO;
     } else if (pReq->precision != TSDB_TIME_PRECISION_NANO) {
-      // 用户显式指定了非纳秒精度，报错
+      // The user explicitly specified a non-nanosecond precision; report an error.
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_AUDIT_MUST_NANO_PRECISION,
                                      "Audit database precision must be nanosecond");
     }
@@ -21577,7 +21577,7 @@ static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, void* pStmt, 
 
   // Only ALTER USER's password change is gated by PRIV_PASS_ALTER/PRIV_PASS_ALTER_SELF.
   // CREATE USER ... PASS sets the INITIAL password for a brand-new user, which is not
-  // a "change" of anyone's password — it's already gated by PRIV_USER_CREATE at the
+  // a "change" of anyone's password  -  it's already gated by PRIV_USER_CREATE at the
   // MNode (mndProcessCreateUserReq). Applying the ALTER-only ownership check here means
   // targetUser (the new user) almost never equals the creator's own name, so CREATE USER
   // would wrongly demand PRIV_PASS_ALTER on top of PRIV_USER_CREATE.
@@ -23247,7 +23247,7 @@ static int32_t translateDescribe(STranslateContext* pCxt, SDescribeStmt* pStmt) 
               (int)rawNSeg, (int)nSeg, pStmt->dbName, pStmt->tableName,
               pStmt->extSeg[0], pStmt->extSeg[1], tsFederatedQueryEnable ? 1 : 0);
 
-  // For external source paths, resolve via translateExternalTableImpl — the same
+  // For external source paths, resolve via translateExternalTableImpl  -  the same
   // path resolution used for SELECT statement table references.
   // 3+-seg is always external; 2-seg is external when dbName matches a registered source.
   if (tsFederatedQueryEnable && nSeg >= 2) {
@@ -24202,7 +24202,7 @@ static EDealRes doRegisterFedTriggerTsKey(SNode* pNode, void* pCtx) {
   }
   parserDebug("registerFederatedTriggerWindowTsKeys: key='%s' len=%d slotId=%d",
               key, keyLen, pCxt->tsSlotId);
-  // ignore put error — key may already exist from pSlot->name registration
+  // ignore put error  -  key may already exist from pSlot->name registration
   int32_t ret = taosHashPut(pCxt->pHash, key, keyLen, &pCxt->tsSlotId, sizeof(int16_t));
   if (ret != 0) {
     parserWarn("%s taosHashPut error ret:%d key='%s' len=%d slotId=%d", __func__, ret,
@@ -24213,7 +24213,7 @@ static EDealRes doRegisterFedTriggerTsKey(SNode* pNode, void* pCtx) {
 }
 
 // Walk pTriggerWindow collecting all TIMESTAMP-typed COLUMN nodes.
-// For each one, compute its streamGetSlotKey() and register → tsSlotId in pHash.
+// For each one, compute its streamGetSlotKey() and register  ->  tsSlotId in pHash.
 // This bridges the gap between slot hash keys (expr_N slot names) and the translated
 // column keys (tableAlias.colName hashes) used by doStreamSetSlotId().
 static int32_t registerFederatedTriggerWindowTsKeys(SNode* pTriggerWindow, SHashObj* pHash, int16_t tsSlotId) {
@@ -25329,7 +25329,7 @@ _return:
 // getScanNodeScanCols: get pScanCols from either SScanPhysiNode or SFederatedScanPhysiNode.
 // SFederatedScanPhysiNode inherits SPhysiNode directly, not SScanPhysiNode, so its pScanCols
 // is at a different struct offset (after pExtTable). Casting a federated node to SScanPhysiNode*
-// and reading pScanCols would read pExtTable instead — an incorrect pointer.
+// and reading pScanCols would read pExtTable instead  -  an incorrect pointer.
 static SNodeList* getScanNodeScanCols(SScanPhysiNode* pScanNode) {
   if (QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN == nodeType(pScanNode)) {
     SFederatedScanPhysiNode* pFed = (SFederatedScanPhysiNode*)pScanNode;
@@ -25486,7 +25486,7 @@ static int32_t matchAndRegisterFedTriggerColKey(SNode* pNode, SColumnNode* pCol,
         return code;
       }
       parserDebug("%s: col='%s' slotId=%d", __func__, pCol->colName, scanSlotId);
-      // ignore put error — key may already exist from pSlot->name registration
+      // ignore put error - key may already exist from pSlot->name registration
       int32_t ret = taosHashPut(pCxt->pHash, key, keyLen, &scanSlotId, sizeof(int16_t));
       if (ret != 0) {
         parserWarn("%s taosHashPut error ret:%d col='%s' slotId=%d", __func__, ret,
@@ -25510,7 +25510,7 @@ static EDealRes doRegisterFedTriggerPartitionColKey(SNode* pNode, void* pCtx) {
 }
 
 // For EXT-driven (federated) streams, the query planner rewrites EVERY scan-cols
-// output column of a federated scan to a synthetic colName ("expr_N", colId=0) —
+// output column of a federated scan to a synthetic colName ("expr_N", colId=0) --
 // not just computed/window expressions (this is the same phenomenon
 // findTsSlotId/registerFederatedTriggerWindowTsKeys already work around for the ts
 // column, but it turns out to apply to every plain scanned column, not only ts).
@@ -25573,7 +25573,7 @@ static int32_t registerFederatedTriggerPartitionKeys(SScanPhysiNode* pScanNode, 
         }
         parserDebug("registerFederatedTriggerPartitionKeys: col='%s' slotId=%d",
                     pPartCol->colName, scanSlotId);
-        // ignore put error — key may already exist from pSlot->name registration
+        // ignore put error - key may already exist from pSlot->name registration
         int32_t ret = taosHashPut(pHash, key, keyLen, &scanSlotId, sizeof(int16_t));
         if (ret != 0) {
           parserWarn("%s taosHashPut error ret:%d col='%s' slotId=%d", __func__, ret,
@@ -25978,8 +25978,8 @@ static int32_t createStreamReqSetDefaultTag(STranslateContext* pCxt, SCreateStre
   // fallback (extTypeMap.c EXT_DEFAULT_VARCHAR_LEN, far larger than
   // TSDB_MAX_TAGS_LEN).  When such a column is auto-derived into an output TAG
   // here (no explicit TAGS(...) clause), clamp its width to EXT_INFLUX_TAG_NCHAR_CHARS
-  // — the same width the ext reader actually fetches for tag values at runtime
-  // (streamReaderExt.c's extInitInfluxTagPartition et al.) — so the derived TAG
+  //  -  the same width the ext reader actually fetches for tag values at runtime
+  // (streamReaderExt.c's extInitInfluxTagPartition et al.)  -  so the derived TAG
   // stays within TSDB_MAX_TAGS_LEN.  Local (non-ext) trigger tables keep their
   // real declared widths unclamped.
   SStreamTriggerNode* pTriggerNode = (SStreamTriggerNode*)pStmt->pTrigger;
@@ -28059,7 +28059,7 @@ static int32_t renderExtPrefilterTimestamp(int64_t epoch, int32_t precision,
   } else if (precision == TSDB_TIME_PRECISION_MILLI) {
     epoch_us = epoch * 1000LL;
   } else {
-    epoch_us = epoch;  /* MICRO — already in µs */
+    epoch_us = epoch;  /* MICRO  -  already in micros */
   }
 
   if (sourceType == EXT_SOURCE_INFLUXDB) {
@@ -28192,7 +28192,7 @@ static int32_t renderExtWhereNode(SNode *pNode, int32_t sourceType,
 
 /* Check whether a WHERE AST contains stream-specific placeholders (_twstart,
  * _twend, %%trows, etc.).  When it does, the condition is window-relative and
- * must NOT be serialised as a static prefilter — the stream executor applies
+ * must NOT be serialised as a static prefilter  -  the stream executor applies
  * it per window instead. */
 static bool whereHasStreamPlaceholders(SNode *pNode) {
   if (pNode == NULL) return false;
@@ -28258,7 +28258,7 @@ static void freeExtSpecOnBuildError(SHashObj* pHash, void* pIter, SStreamExtTrig
  *     connCfgVersion) are filled from SExtSourceInfo (via parser meta cache,
  *     MR 245 path).
  *   - encryptedPassword / encryptedPasswordLen are intentionally left zero
- *     (taosc never reads SExtSourceInfo.password — plaintext stays mnode-
+ *     (taosc never reads SExtSourceInfo.password  -  plaintext stays mnode-
  *     local; mnode fills the AES-CBC ciphertext from sdb in P1 B2).
  *   - When the spec matches the trigger table's source, extTable + tsColumn
  *     are filled from the trigger AST (SExtTableNode / SExtTableMeta).
@@ -28351,7 +28351,7 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
     tstrncpy(pSpec->options, pSrc->options, sizeof(pSpec->options));
     freeExtSourceInfo(pSrc);
     /* partitionByTag: set when the stream has a PARTITION BY clause on this
-     * ext source — the InfluxDB reader always enumerates sub-tables, but uses
+     * ext source  -  the InfluxDB reader always enumerates sub-tables, but uses
      * this (and partitionTagCols/partitionByTbname) to derive groupId. */
     SNodeList* pPartList = pCxt->streamInfo.triggerPartitionList;
     pSpec->partitionByTag =
@@ -31273,7 +31273,7 @@ static const char* const s_extTypeSpecOpts[4][8] = {
 };
 
 /* Serialize a list of SExtOptionNode into a compact JSON object string.
- * Uses snprintf only — no cJSON dependency needed. Unknown-key validation
+ * Uses snprintf only  -  no cJSON dependency needed. Unknown-key validation
  * is done before serialization in validateExtSourceOptions(). */
 static bool isKnownExtOpt(int8_t srcType, const char* key) {
   for (int i = 0; s_extCommonOpts[i]; i++) {
@@ -31416,7 +31416,7 @@ static void serializeOptionsToJson(int8_t srcType, SNodeList* pOptions, char* bu
       pos += written;
     } else if (written >= avail) {
       pos += avail - 1;  // snprintf already wrote avail-1 chars; advance pos
-      break;             // truncated — no more room
+      break;             // truncated  -  no more room
     } else {
       break;  // error
     }
@@ -31431,7 +31431,7 @@ static int32_t validateExtSourceOptions(int8_t srcType, SNodeList* pOpts, STrans
 
   if (pOpts == NULL) return TSDB_CODE_SUCCESS;
 
-  /* ── Pass 1: per-key length checks + unknown-key rejection ── */
+  /* -- Pass 1: per-key length checks + unknown-key rejection -- */
   SNode* pNode = NULL;
   FOREACH(pNode, pOpts) {
     SExtOptionNode* opt = (SExtOptionNode*)pNode;
@@ -31454,7 +31454,7 @@ static int32_t validateExtSourceOptions(int8_t srcType, SNodeList* pOpts, STrans
     }
   }
 
-  /* ── Pass 2: semantic/conflict validation ── */
+  /* -- Pass 2: semantic/conflict validation -- */
   const char *tlsEnabled = NULL, *sslMode = NULL, *sslmode = NULL;
   bool hasTlsCert = false, hasTlsKey = false;
 
@@ -32466,7 +32466,7 @@ static void getFromTableExtSourceName(SNode* pFromTable, char outSrc[TSDB_EXT_SO
   }
 }
 
-/* ── Correlated-subquery pre-scan ─────────────────────────────────────────────
+/* -- Correlated-subquery pre-scan ---------------------------------------------
  * Walk an expression tree and look for SColumnNode references whose tableAlias
  * matches an entry in the outer namespace but NOT in the inner FROM table.
  * This lets us detect correlation BEFORE attempting to translate the inner
@@ -32689,7 +32689,7 @@ static int32_t extractDescribeResultSchema(STableMeta* pMeta, int32_t* numOfCols
   return TSDB_CODE_SUCCESS;
 }
 
-// Schema for DESCRIBE EXTERNAL SOURCE — matches the 10 columns of ins_ext_sources.
+// Schema for DESCRIBE EXTERNAL SOURCE  -  matches the 10 columns of ins_ext_sources.
 #define EXT_SOURCE_RESULT_COLS 10
 static int32_t extractDescribeExtSourceResultSchema(int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = EXT_SOURCE_RESULT_COLS;
@@ -34048,7 +34048,7 @@ static int32_t serializeFilterCond(SNode* pFilterCond, int32_t* pLen, char** ppJ
 // Validate a CREATE-time tags list for normal / virtual-normal tables. Mirrors buildAddTagReq on the
 // ALTER path: tag count cap, decimal rejection, VARCHAR/VARBINARY/NCHAR length cap, total tag length
 // cap. Also rejects duplicate tag names within the list and tag names colliding with a column name
-// (tags and columns share both the cid space and the name lookup space). Pure check — allocates
+// (tags and columns share both the cid space and the name lookup space). Pure check  -  allocates
 // nothing, returns an error code.
 static int32_t checkCreateTags(const SNodeList* pTags, const SNodeList* pCols, SMsgBuf* pMsgBuf) {
   int32_t nTags = LIST_LENGTH(pTags);
@@ -34056,7 +34056,7 @@ static int32_t checkCreateTags(const SNodeList* pTags, const SNodeList* pCols, S
     return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_TAGS_NUM);
   }
   // JSON tags cannot coexist with other tags: parseTagValue writes a JSON tag directly to pTags
-  // and sets isJson=true, which then skips tTagNew — any non-JSON tag value in the same list
+  // and sets isJson=true, which then skips tTagNew  -  any non-JSON tag value in the same list
   // would be silently lost.
   if (nTags > 1) {
     bool   hasJson = false;
@@ -34076,7 +34076,7 @@ static int32_t checkCreateTags(const SNodeList* pTags, const SNodeList* pCols, S
   FOREACH(pTagCheck, pTags) {
     SColumnDefNode* pTagDef = (SColumnDefNode*)pTagCheck;
     // only `FROM db.tb.tag` (hasRef) is a valid tag option; everything else that column_options
-    // accepts (PRIMARY KEY / ENCODE / COMPRESS / COMMENT) is meaningless on a tag — reject it
+    // accepts (PRIMARY KEY / ENCODE / COMPRESS / COMMENT) is meaningless on a tag  -  reject it
     // explicitly instead of silently dropping it
     SColumnOptions* pTagOptions = (SColumnOptions*)pTagDef->pOptions;
     if (pTagOptions != NULL &&
@@ -34280,7 +34280,7 @@ static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateV
       si++;
     }
   }
-  // Virtual normal table tags: owned tags go into ntb.schemaTag + ntb.pTags (empty STag — values
+  // Virtual normal table tags: owned tags go into ntb.schemaTag + ntb.pTags (empty STag  -  values
   // are set later via SET TAG); tag-refs go into colRef.pTagRef (value follows source table).
   // All tags register in schemaTag (uniform schema for DESC/SHOW CREATE/projection), mirroring how
   // columns all live in schemaRow and ref columns additionally in colRef.pColRef. Tags share the
@@ -34313,7 +34313,7 @@ static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateV
       ++tIdx;
     }
     // owned tags: parse inline values (`= literal`) into the STag; tag-refs carry no value
-    // here — their value follows the source table. Valueless owned tags were already rejected
+    // here  -  their value follows the source table. Valueless owned tags were already rejected
     // by checkCreateTags above.
     PAR_ERR_JRET(buildCreateTagsSTag(pCxt, pStmt->pTags, &req.ntb.schemaTag, precision, (STag**)&req.ntb.pTags));
   }
@@ -34734,7 +34734,7 @@ static int32_t buildNormalTableBatchReq(STranslateContext* pCxt, const SCreateTa
   // Normal-table owned tags: CREATE TABLE ntb (...) TAGS(name TYPE = literal, ...). Tags share
   // the column cid space, so their cids continue right after the columns (matching
   // metaAddTableTag, which bumps the same ncid counter). Only reached when every tag carries
-  // an inline `= literal` value — the rewrite gate keeps valueless TAGS on the historical
+  // an inline `= literal` value  -  the rewrite gate keeps valueless TAGS on the historical
   // super-table path and rejects a mix of valued/valueless tags.
   if (pStmt->pTags != NULL) {
     int32_t vcode = checkCreateTags(pStmt->pTags, pStmt->pCols, &pCxt->msgBuf);
@@ -36027,7 +36027,7 @@ int32_t serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap, SArray** pOut) 
 }
 
 // WITH-form replay: each clause's tableName is a numeric table uid at this
-// point — validate it and rewrite it to the real table name. Shared by the
+// point  -  validate it and rewrite it to the real table name. Shared by the
 // DROP TABLE and DROP VTABLE with-opt paths.
 static int32_t rewriteDropClauseUidToName(STranslateContext* pCxt, SDropTableClause* pClause) {
   for (int32_t i = 0; i < TSDB_TABLE_NAME_LEN; i++) {
@@ -36667,7 +36667,7 @@ static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceNa
                               pInfo->schema_name, refTable, false, &pExtMeta);
   if (pCxt->pParseCxt->async && (TSDB_CODE_SUCCESS != code || NULL == pExtMeta)) {
     // Fallback: 3-seg speculative pre-fetch uses empty db (source db not known at pre-fetch time).
-    // After disambiguation refDb is filled, but the cache key still has empty db — try that key.
+    // After disambiguation refDb is filled, but the cache key still has empty db  -  try that key.
     if (refDb[0] != '\0') {
       code = getExternalTableMeta(pCxt, pInfo, sourceName, "", NULL, refDb,
                                   pInfo->schema_name, refTable, false, &pExtMeta);
@@ -36898,7 +36898,7 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
 
     if (pStmt->refType == 1) {
       if (!expandedFromSeries) {
-        // Explicit 4-seg external reference — validate via checkExternalColRef
+        // Explicit 4-seg external reference  -  validate via checkExternalColRef
         PAR_ERR_RET(checkExternalColRef(pCxt, pStmt->refSourceName, pStmt->refDbName,
                                          pStmt->refTableName, pStmt->refColName,
                                          pStmt->colName, colType, pTableMeta->tableInfo.precision,
@@ -37186,7 +37186,7 @@ static int32_t buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt
       return terrno;
     }
   } else if (pMatchedSeries) {
-    // Series alias match — expand to external ref.
+    // Series alias match  -  expand to external ref.
     const char* actualRefCol = pStmt->refColName;
     // 2-seg parse: alias matched refDbName, so actual col is in refTableName
     if (strcasecmp(pMatchedSeries->alias, pStmt->refDbName) == 0) {
@@ -37419,7 +37419,7 @@ static int32_t checkAddTagDef(STranslateContext* pCxt, const char* pColName, SDa
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_NUM);
   }
 
-  // tag-refs occupy a schemaTag entry too — enforce the total tag length cap for both paths
+  // tag-refs occupy a schemaTag entry too  -  enforce the total tag length cap for both paths
   int32_t tagsLen = 0;
   for (int32_t i = 0; i < numOfTags; ++i) {
     tagsLen += pTagSchema[i].bytes;
@@ -37453,7 +37453,7 @@ static int32_t buildAddTagReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
   return TSDB_CODE_SUCCESS;
 }
 
-// ADD TAG name TYPE FROM db.tb.tag — add a tag reference. Reuses checkAddTagDef for the shared
+// ADD TAG name TYPE FROM db.tb.tag  -  add a tag reference. Reuses checkAddTagDef for the shared
 // validation, plus the source-tag existence/type check and ref fields (as
 // ADD_COLUMN_WITH_COLUMN_REF does).
 static int32_t buildAddTagRefReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
@@ -38575,10 +38575,10 @@ static bool isMissingExtSourceInfo(int32_t code, const SExtSourceInfo* pInfo, co
 }
 
 // Three-segment disambiguation for SColumnOptions: if refDb (first segment) is a registered
-// external source, reinterpret the ref as source.table.col (DS §6.1.3.1).
+// external source, reinterpret the ref as source.table.col (DS section 6.1.3.1).
 // After disambiguation, refSourceName = source, refDb/refDbName is left empty,
 // and refTable/refColumn keep the original external table/column names.
-// "Not found" is expected for internal refs — only propagate real errors.
+// "Not found" is expected for internal refs  -  only propagate real errors.
 static int32_t disambiguateThreeSegColOptions(STranslateContext* pCxt, SColumnOptions* pOpts) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pOpts->refType != 0 || pOpts->refSourceName[0] != '\0') {
@@ -38599,7 +38599,7 @@ static int32_t disambiguateThreeSegColOptions(STranslateContext* pCxt, SColumnOp
     tstrncpy(pOpts->refSourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
     pOpts->refDb[0] = '\0';
   } else if (isMissingExtSourceInfo(code, pInfo, pOpts->refDb)) {
-    // Not an external source — keep as internal db.table.col reference
+    // Not an external source  -  keep as internal db.table.col reference
     code = TSDB_CODE_SUCCESS;
   }
   if (code) {
@@ -38629,7 +38629,7 @@ static int32_t disambiguateThreeSegColRef(STranslateContext* pCxt, SColumnRefNod
     tstrncpy(pColRef->refSourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
     pColRef->refDbName[0] = '\0';
   } else if (isMissingExtSourceInfo(code, pInfo, pColRef->refDbName)) {
-    // Not an external source — keep as internal db.table.col reference
+    // Not an external source  -  keep as internal db.table.col reference
     code = TSDB_CODE_SUCCESS;
   }
   freeExtSourceInfo(pInfo);
@@ -38719,7 +38719,7 @@ static int32_t expandSeriesAliasInColRefs(STranslateContext* pCxt, SNodeList* pC
       continue;  // already external
     }
     // Check if refTableName matches a series alias. Like expandSeriesAliasInColOptions, we do not
-    // gate on refDbName being empty — 2-seg refs auto-fill the current USE'd db.
+    // gate on refDbName being empty  -  2-seg refs auto-fill the current USE'd db.
     SSeriesDeclNode* pSeries = findRefSeriesNode(pRef->refTableName, pSeriesList);
     if (pSeries) {
       pRef->refType = 1;
@@ -38762,7 +38762,7 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
 
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
 
-  // Expand SERIES alias refs (e.g. FROM a.field → FROM source.db.meas.field)
+  // Expand SERIES alias refs (e.g. FROM a.field  ->  FROM source.db.meas.field)
   PAR_ERR_JRET(expandSeriesAliasInColOptions(pCxt, pStmt->pCols, pStmt->pSeriesList));
   FOREACH(pNode, pStmt->pCols) {
     SColumnDefNode* pColNode = (SColumnDefNode*)pNode;

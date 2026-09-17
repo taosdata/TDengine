@@ -1201,7 +1201,7 @@ void taos_close(TAOS *taos) {
  * round-trip completes.
  *
  * The actual BEGIN message is sent via taos_query("BEGIN"), which goes through
- * the normal SQL parser → execDdlQuery → processBeginTxnRsp path — the same
+ * the normal SQL parser -> execDdlQuery -> processBeginTxnRsp path - the same
  * path used when the user issues `taos_query(conn, "BEGIN")` directly.  On
  * success processBeginTxnRsp promotes txnState to UTXN_STAGE_ACTIVE; on
  * failure it resets txnState back to UTXN_STAGE_IDLE.
@@ -1265,7 +1265,7 @@ static int tscTxnEndImpl(TAOS *taos, const char *sql) {
     bool isRollback = (strcmp(sql, "ROLLBACK") == 0);
     (void)taosThreadMutexUnlock(&pTscObj->mutex);
     if (isRollback) {
-      // Local cleanup only — do not send ROLLBACK RPC to MNode since it already
+      // Local cleanup only - do not send ROLLBACK RPC to MNode since it already
       // completed the rollback.  Just clear client-side txn state.
       tscResetTxnState(pTscObj);
       releaseTscObj(connId);
@@ -4619,7 +4619,7 @@ _return:
     taosMemoryFree(rowBindv.tbnames);
   }
 
-  // Free bind_cols (只释放结构数组本身，不释放内部指针)
+  // Free bind_cols (free the structure array only; do not free pointees).
   if (rowBindv.bind_cols != NULL) {
     for (int i = 0; i < tableIdx; i++) {
       if (rowBindv.bind_cols[i] != NULL) {
@@ -4629,7 +4629,7 @@ _return:
     taosMemoryFree(rowBindv.bind_cols);
   }
 
-  // Free tags (只释放结构数组本身，不释放内部指针)
+  // Free tags (free the structure array only; do not free pointees).
   if (rowBindv.tags != NULL) {
     for (int i = 0; i < tableIdx; i++) {
       if (rowBindv.tags[i] != NULL) {

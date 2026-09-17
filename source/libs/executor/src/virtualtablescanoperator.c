@@ -473,7 +473,7 @@ static int32_t ensureOwnedTagsResolved(SOperatorInfo* pOperator) {
   SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;
   SVirtualTableScanInfo*         pVScan = &pInfo->virtualScanInfo;
   SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
-  // Declared upfront: the early error exits below jump to _return, which frees cfgRsp —
+  // Declared upfront: the early error exits below jump to _return, which frees cfgRsp --
   // declaring it after a goto target would leave it uninitialized on those paths.
   STableCfgRsp                   cfgRsp = {0};
 
@@ -548,7 +548,7 @@ static int32_t ensureOwnedTagsResolved(SOperatorInfo* pOperator) {
   TSDB_CHECK_CODE(code, lino, _return);
 
   // hasLocalTag can be true for non-tag pseudo-columns (e.g. TBNAME) projected from a tag-less
-  // table — those are resolved by their own paths, not by this owned-tag fetch. A tag-less cfg
+  // table  -  those are resolved by their own paths, not by this owned-tag fetch. A tag-less cfg
   // therefore means there are simply no owned-tag values to resolve, NOT a meta/cfg mismatch.
   // Erroring here broke `SELECT tbname FROM <vntb>` (and partition-by-tbname) on tag-less virtual
   // normal tables. Succeed with an empty resolved set instead.
@@ -591,7 +591,7 @@ _return:
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   tFreeSTableCfgRsp(&cfgRsp);
   // fetch stays retryable (ownedTagsFetched is only set on full success), so drop any partially
-  // filled array here — the next attempt must not leak it by overwriting the pointer.
+  // filled array here  -  the next attempt must not leak it by overwriting the pointer.
   destroyOwnedResolvedTags(pVScan);
   return code;
 }
@@ -1050,7 +1050,7 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
                          virtualScanLoadRawNextDataBlockFromParam, NULL, NULL);
 
   // Find the tag scan downstream by matching resultDataBlockId (most reliable).
-  // Don't trust pParam->tagDownStreamId blindly — it may be stale when
+  // Don't trust pParam->tagDownStreamId blindly  -  it may be stale when
   // TagRefSource exchanges shift the downstream indices.
   pVirtualScanInfo->tagDownStreamId = -1;
   scanOpIndex = -1;
