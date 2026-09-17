@@ -387,6 +387,36 @@ SELECT `vgroups` FROM information_schema.ins_databases WHERE name = 'test';
 | 6   | `column_name` | VARCHAR(192) | 建索引的列名 |
 | 7   | `index_type`  | VARCHAR(192) | 索引类型（如 SMA、tag） |
 
+## INS_LAST_CACHE_STATS
+
+按 `dnode` 与 `vgroup` 提供 last cache 底层 RocksDB 引擎的运行时状态，包括 block cache 容量与占用、memtable 大小、flush/compaction 积压情况、写入限速与 SST 文件统计等，用于观测与诊断 `CACHESIZE`、`sLastCacheWriteBufferSize` 等参数（见 [Databases](../02-ddl/01-database.md)、[配置参数作用域对照表](../../12-operations-and-tooling/03-components/10-config-scope.md)）的实际效果。SYSINFO 为 0 的用户不能查看此表。
+
+| #   | **列名** | **数据类型** | **说明** |
+| --- | ----------------------------------- | --------- | --- |
+| 1   | `dnode_id`                          | INT       | `dnode` ID |
+| 2   | `vgroup_id`                         | INT       | `vgroup` ID |
+| 3   | `db_name`                           | VARCHAR(32) | 数据库名称 |
+| 4   | `block_cache_capacity`              | BIGINT    | block cache 容量，单位字节；随 `CACHESIZE` 动态调整，无需重启或重新打开 `vnode` |
+| 5   | `block_cache_usage`                 | BIGINT    | block cache 当前占用，单位字节 |
+| 6   | `block_cache_pinned_usage`          | BIGINT    | block cache 中被固定（pinned）、不可淘汰部分的占用，单位字节 |
+| 7   | `estimate_table_readers_mem`        | BIGINT    | 用于 table reader（索引块、过滤器块等）估算占用的内存，单位字节 |
+| 8   | `cur_size_active_mem_table`         | BIGINT    | 当前活跃 memtable 大小，单位字节 |
+| 9   | `cur_size_all_mem_tables`           | BIGINT    | 全部 memtable（含只读）大小之和，单位字节 |
+| 10  | `num_immutable_mem_table`           | INT       | 只读（等待 flush）memtable 数量 |
+| 11  | `mem_table_flush_pending`           | BOOL      | 是否存在等待 flush 的 memtable |
+| 12  | `num_running_flushes`               | INT       | 正在进行的 flush 数量 |
+| 13  | `compaction_pending`                | BOOL      | 是否存在等待中的 compaction |
+| 14  | `num_running_compactions`           | INT       | 正在进行的 compaction 数量 |
+| 15  | `estimate_pending_compaction_bytes` | BIGINT    | 预计待 compaction 的数据量，单位字节 |
+| 16  | `is_write_stopped`                  | BOOL      | 写入是否已被 RocksDB 引擎暂停（写限速/写阻塞的极端情况） |
+| 17  | `actual_delayed_write_rate`         | BIGINT    | 当前实际写入限速速率，单位字节/秒；`0` 表示未限速 |
+| 18  | `num_files_at_level0`               | INT       | Level 0 层 SST 文件数量，持续增长通常意味着 compaction 落后于写入 |
+| 19  | `total_sst_files_size`              | BIGINT    | 全部 SST 文件大小之和，单位字节 |
+| 20  | `estimate_num_keys`                 | BIGINT    | 估算的 key 数量 |
+| 21  | `num_live_versions`                 | INT       | 存活的版本数量 |
+| 22  | `background_errors`                 | INT       | 后台（flush/compaction）累计错误数，非 0 表示存在异常，需要排查磁盘/系统状态 |
+| 23  | `update_time`                       | TIMESTAMP | 本行统计数据的采集时间 |
+
 ## INS_MACHINES
 
 提供授权绑定的机器标识、`dnode` 数量与版本等信息。也可以使用 [`SHOW CLUSTER MACHINES`](./03-show.md#show-cluster-machines) 查询。SYSINFO 为 0 的用户不能查看此表。

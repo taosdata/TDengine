@@ -42,6 +42,7 @@ EXPECTED_INFO_TABLES = {
     "ins_grants_full",
     "ins_grants_logs",
     "ins_indexes",
+    "ins_last_cache_stats",
     "ins_machines",
     "ins_mnodes",
     "ins_mounts",
@@ -119,7 +120,7 @@ sysdb_tables = {
     "information_schema": ["ins_dnodes", "ins_mnodes", "ins_modules", "ins_qnodes", "ins_snodes", "ins_cluster", "ins_databases",
                            "ins_functions", "ins_indexes", "ins_stables", "ins_tables", "ins_tags", "ins_columns", "ins_users",
                            "ins_grants", "ins_vgroups", "ins_configs", "ins_dnode_variables", "ins_topics", "ins_subscriptions",
-                           "ins_streams", "ins_streams_tasks", "ins_vnodes", "ins_user_privileges", "ins_table_fixed_distributed",
+                           "ins_streams", "ins_streams_tasks", "ins_vnodes", "ins_user_privileges", "ins_table_fixed_distributed", "ins_last_cache_stats",
                            "undefined"], 
     "performance_schema": ["perf_connections", "perf_queries", "perf_consumers", "perf_trans", "perf_apps", "undefined"]
     }
@@ -1475,6 +1476,7 @@ class TestDdlInSysdb:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
