@@ -1826,6 +1826,7 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TAGS) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_COLS) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_DISK_USAGE) ||
+      0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_LAST_CACHE_STATS) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_FILESETS) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_VC_COLS) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING) ||

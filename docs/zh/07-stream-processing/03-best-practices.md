@@ -54,6 +54,85 @@ description: 流式计算部署、建流设计与维护建议
 
 ## 建流示例
 
+### 按条件发送通知 {#notify-where}
+
+`NOTIFY ... WHERE` 可以根据计算结果决定哪些结果行进入通知，同时保留完整的输出表结果。以下两个示例分别根据平均电流和原始数据的质量标记筛选通知，语法和过滤范围见 [流式计算的通知机制](./01-syntax.md#流式计算的通知机制)。
+
+执行前需有可用的 snode，并在 `ws://localhost:8080/notify` 启动 WebSocket 接收服务；其中 `localhost` 指运行 taosd 的主机。以下示例假设客户端和服务端时区均为 `Asia/Shanghai`（东八区），数据库精度为毫秒。先创建空表和两个流，等待流就绪后再写入示例数据。
+
+```sql
+CREATE DATABASE notify_demo VGROUPS 1 PRECISION 'ms' KEEP 3650;
+USE notify_demo;
+CREATE TABLE measurements (ts TIMESTAMP, current DOUBLE, quality INT);
+```
+
+**示例一：按计算结果过滤通知**
+
+每个 10 秒窗口关闭时计算平均电流，只有平均值大于 20 时才发送结果通知：
+
+```sql
+CREATE STREAM avg_alarm
+  INTERVAL(10s) SLIDING(10s) FROM measurements
+  NOTIFY('ws://localhost:8080/notify')
+    ON(WINDOW_CLOSE) WHERE avg_current > 20
+  INTO avg_results
+  AS SELECT _twstart AS window_start,
+            AVG(current) AS avg_current
+     FROM %%trows;
+```
+
+`avg_current` 是计算查询的输出别名。平均值不超过 20 的结果仍然写入 `avg_results`，只是不会出现在结果通知中。
+
+**示例二：根据原始列值过滤通知**
+
+假设 `quality = 0` 表示异常，要求窗口内只要有一条异常记录就通知，同时仍对窗口内全部记录计算平均电流。可以在计算结果中增加异常行数 `bad_rows`，再根据它筛选通知：
+
+```sql
+CREATE STREAM quality_alarm
+  INTERVAL(10s) SLIDING(10s) FROM measurements
+  NOTIFY('ws://localhost:8080/notify')
+    ON(WINDOW_CLOSE) WHERE bad_rows > 0
+  INTO quality_results
+  AS SELECT _twstart AS window_start,
+            AVG(current) AS avg_current,
+            SUM(CASE WHEN quality = 0 THEN 1 ELSE 0 END) AS bad_rows
+     FROM %%trows;
+```
+
+这里判断的是“窗口内至少有一条异常记录”，不等同于“最后一条记录异常”或“全部记录异常”。`bad_rows` 是显式输出的结果列，会同时保存在 `quality_results` 和匹配的通知结果中。如果计算查询未输出 `quality`，直接使用 `NOTIFY ... WHERE quality = 0` 会被拒绝。
+
+**写入数据并核对结果**
+
+查询任务状态，确认上述两个流的 `Trigger` 任务均为 `Running` 后，再写入数据：
+
+```sql
+SELECT stream_name, status FROM information_schema.ins_stream_tasks
+WHERE type = 'Trigger';
+
+INSERT INTO measurements VALUES
+    ('2025-12-09 00:00:00', 10, 0)
+    ('2025-12-09 00:00:01', 20, 1)
+    ('2025-12-09 00:00:10', 30, 1)
+    ('2025-12-09 00:00:11', 50, 1)
+    ('2025-12-09 00:00:20', 0, 1);
+```
+
+最后一行使事件时间推进到 `00:00:20`，关闭前两个 10 秒窗口；它自身属于第三个尚未关闭的窗口。前两个窗口的计算和通知情况如下：
+
+| window_start | avg_current | bad_rows | avg_alarm 结果通知 | quality_alarm 结果通知 |
+| --- | --- | --- | --- | --- |
+| 2025-12-09 00:00:00.000 | 15 | 1 | 不发送 | 发送 |
+| 2025-12-09 00:00:10.000 | 40 | 0 | 发送 | 不发送 |
+
+两个输出表均保存这两个窗口的计算结果，其中 `bad_rows` 仅由 `quality_alarm` 输出。可以查询输出表，并与 WebSocket 接收到的两个流的通知分别对照：
+
+```sql
+SELECT * FROM avg_results ORDER BY window_start;
+SELECT * FROM quality_results ORDER BY window_start;
+```
+
+第一个窗口的 `avg_current = 15`，说明 `quality = 1` 的记录仍参与了平均值计算。`NOTIFY ... WHERE` 不等同于 `PRE_FILTER` 或计算查询中的 `WHERE`：后两者会分别过滤触发数据或计算输入，而通知条件只筛选结果通知。
+
 ### 计数窗口触发
 
 - 表 tb1 每写入 1 行数据时，计算表 tb2 在同一时刻前 5 分钟内 col1 的平均值，计算结果写入表 tb3。

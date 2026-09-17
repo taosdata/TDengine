@@ -26,6 +26,7 @@
 #include "tchecksum.h"
 #include "tencrypt.h"
 #include "tutil.h"
+#include "vnode.h"
 
 #if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
 #include "taoskInt.h"
@@ -63,6 +64,7 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
     pMgmt->pData->clusterId = pCfg->clusterId;
     monSetDnodeId(pCfg->dnodeId);
     auditSetDnodeId(pCfg->dnodeId);
+    vnodeSetDnodeId(pCfg->dnodeId);
     code = dmWriteEps(pMgmt->pData);
     if (code != 0) {
       dInfo("failed to set local info, dnodeId:%d clusterId:0x%" PRIx64 " reason:%s", pCfg->dnodeId, pCfg->clusterId,

@@ -396,7 +396,9 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
     xndWarn("txnode failed to unlink, ignore if first time, socket: %s, detail:%s", xnodedPipeSocket, terrstr());
   }
 
-  TAOS_UV_LIB_ERROR_RET(uv_pipe_init(&pData->loop, &pData->ctrlPipe, 1));
+  // This pipe only detects parent shutdown through EOF. Enabling libuv IPC
+  // triggers a child-process handshake that is unsupported by xnoded on Windows.
+  TAOS_UV_LIB_ERROR_RET(uv_pipe_init(&pData->loop, &pData->ctrlPipe, 0));
 
   uv_stdio_container_t child_stdio[3];
   child_stdio[0].flags = UV_CREATE_PIPE | UV_READABLE_PIPE;

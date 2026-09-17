@@ -26,6 +26,12 @@ static void initMetaFilterAPI(SMetaDataFilterAPI* pFilter);
 static void initCacheFn(SStoreCacheReader* pCache);
 static void initSnapshotFn(SStoreSnapshotFn* pSnapshot);
 
+static int32_t tsVnodeDnodeId = 0;
+
+void vnodeSetDnodeId(int32_t dnodeId) { atomic_store_32(&tsVnodeDnodeId, dnodeId); }
+
+int32_t vnodeGetDnodeId(void) { return atomic_load_32(&tsVnodeDnodeId); }
+
 void initStorageAPI(SStorageAPI* pAPI) {
   initTsdbReaderAPI(&pAPI->tsdReader);
   initMetadataAPI(&pAPI->metaFn);
@@ -124,6 +130,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->closeCtbCursor = metaCloseCtbCursor;
   pMeta->ctbCursorNext = metaCtbCursorNext;
   pMeta->getDBSize = vnodeGetDBSize;
+  pMeta->getLastCacheStats = vnodeGetLastCacheStats;
 
   pMeta->metaGetCachedRefDbs = metaGetCachedRefDbs;
   pMeta->metaPutRefDbsToCache = metaPutRefDbsToCache;
