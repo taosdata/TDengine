@@ -98,6 +98,12 @@ typedef struct SStmt2LiteralCtx {
   uint8_t  has_result_set:1;  // literal statement generates result set or not
 } SStmt2LiteralCtx;
 
+typedef struct SStmt2ExecResult {
+  int32_t code;
+  bool    valid;
+  char    msg[TSDB_ERROR_MSG_LEN];
+} SStmt2ExecResult;
+
 typedef struct {
   bool              stbInterlaceMode;
   STMT_TYPE         type;
@@ -106,6 +112,7 @@ typedef struct {
   uint64_t          runTimes;
   SHashObj         *pTableCache;  // SHash<SStmtTableCache>
   SQuery           *pQuery;
+  bool              reparseAfterExecError;
   char             *sqlStr;
   int32_t           sqlLen;
   SArray           *nodeList;
@@ -189,16 +196,17 @@ typedef struct {
   SStmtExecInfo exec;
   SStmtBindInfo bInfo;
 
-  char          *db;
-  int64_t        reqid;
-  int32_t        errCode;
-  tsem_t         asyncExecSem;
-  bool           execSemWaited;
-  AsyncBindParam asyncBindParam;
-  bool           asyncResultAvailable;
-  SStmtStatInfo  stat;
-  SArray*        pVgDataBlocksForRetry;  // SArray<SVgDataBlocks*> saved serialized data for NEED_CLIENT_HANDLE_ERROR retry
-  SHashObj*      pRetryTagHash;  // table name -> deep-copied tag binds used only by TABLE_NOT_EXIST retry
+  char            *db;
+  int64_t          reqid;
+  int32_t          errCode;
+  SStmt2ExecResult lastExec;  // Retained after request cleanup for taos_stmt2_error().
+  tsem_t           asyncExecSem;
+  bool             execSemWaited;
+  AsyncBindParam   asyncBindParam;
+  bool             asyncResultAvailable;
+  SStmtStatInfo    stat;
+  SArray   *pVgDataBlocksForRetry;  // SArray<SVgDataBlocks*> saved serialized data for NEED_CLIENT_HANDLE_ERROR retry
+  SHashObj *pRetryTagHash;          // table name -> deep-copied tag binds used only by TABLE_NOT_EXIST retry
 
   char                      msgBuf[128];
   SStmt2LiteralCtx          ctx;
