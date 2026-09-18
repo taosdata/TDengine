@@ -13,7 +13,7 @@
 # Volume mounts (guaranteed by run_upgrade_compat.sh):
 #   /home/TDinternal/community — source repo (read-only, mounted from source/taos-community)
 #   /home/TDinternal/debug     — current build artifacts debugNoSan (read-only)
-#   /green_versions            — green version cache (read-only)
+#   /green_versions            — worker-shared green version cache (read-only)
 #   /upgrade_logs              — log output directory (writable)
 
 # ── Configuration ─────────────────────────────────────────────────────────────
@@ -81,11 +81,11 @@ echo "=== Python dependencies installed successfully ==="
 # patch the PT_GNU_STACK program header's PF_X bit directly with a small,
 # dependency-free Python script instead. Harmless: these client libraries
 # don't actually rely on trampoline code needing an executable stack. Fixed
-# once on-disk in $GREEN_PATH/$BUILD_DIR (both bind-mounted writable from the
-# host), so later runs on the same worker host skip straight past this.
+# Green-version libraries are patched before they are published to the shared
+# cache. Only the current build directory needs patching in this container.
 echo ""
-echo "=== Clearing executable-stack flag on legacy libtaos.so binaries ==="
-python3 - "$GREEN_PATH" "$BUILD_DIR" <<'PYEOF'
+echo "=== Clearing executable-stack flag on current libtaos.so binaries ==="
+python3 - "$BUILD_DIR" <<'PYEOF'
 import glob
 import os
 import struct

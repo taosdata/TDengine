@@ -33,10 +33,9 @@ function usage() {
 # Base URL of the green versions HTTP server
 GREEN_HTTP_BASE="http://192.168.1.131/data/nas/TDengine/green_versions"
 
-# Local cache directory for green versions. By default, use a job-scoped cache
-# under WORKDIR so the job can run on any compatible worker host. Override via
-# GREEN_VERSIONS_CACHE_DIR if a runner-specific persistent cache is desired.
-GREEN_LOCAL_DIR=""
+# Persistent download cache. CI sets this to a worker-local shared directory.
+# Versions are prepared before publication and mounted read-only by test jobs.
+GREEN_CACHE_DIR=""
 
 # Lock directory for concurrent download safety (co-located with the cache)
 LOCK_DIR=""
@@ -92,12 +91,8 @@ if [ -z "$LOG_DIR" ]; then
     LOG_DIR="$WORKDIR/upgrade_compat_logs"
 fi
 
-if [ -n "${GREEN_VERSIONS_CACHE_DIR:-}" ]; then
-    GREEN_LOCAL_DIR="$GREEN_VERSIONS_CACHE_DIR"
-else
-    GREEN_LOCAL_DIR="$WORKDIR/green-versions-cache"
-fi
-LOCK_DIR="${GREEN_LOCAL_DIR}/.locks"
+GREEN_CACHE_DIR="${GREEN_VERSIONS_CACHE_DIR:-$WORKDIR/green-versions-cache}"
+LOCK_DIR="${GREEN_CACHE_DIR}/.locks"
 
 DEBUGPATH_DIR="$WORKDIR/debugNoSan"
 # Mount taos-community directly (not via a TDinternal wrapper dir) — REPO_DIR
@@ -109,7 +104,7 @@ CONTAINER_DEBUG_MOUNT="$DEBUGPATH_DIR:/home/TDinternal/debug"
 CONTAINER_SCRIPT="/home/TDinternal/community/test/ci/run_upgrade_compat_container.sh"
 
 mkdir -p "$LOG_DIR"
-mkdir -p "$GREEN_LOCAL_DIR"
+mkdir -p "$GREEN_CACHE_DIR"
 mkdir -p "$LOCK_DIR"
 
 echo "======================================================"
@@ -118,23 +113,90 @@ echo "======================================================"
 echo "  WORKDIR         : $WORKDIR"
 echo "  REPO_DIR        : $REPO_DIR"
 echo "  LOG_DIR         : $LOG_DIR"
-echo "  GREEN_LOCAL_DIR : $GREEN_LOCAL_DIR"
+echo "  GREEN_CACHE_DIR : $GREEN_CACHE_DIR"
 echo "======================================================"
 
 # ── Step 1: Download green versions (with cache) ──────────────────────────────
 
+function cache_version_valid() {
+    local version_dir="$1"
+    [ -f "$version_dir/.complete" ] || return 1
+    local file_count valid_count
+    file_count=$(find "$version_dir" -maxdepth 1 -type f ! -name .complete 2>/dev/null | wc -l)
+    valid_count=$(find "$version_dir" -maxdepth 1 -type f ! -name .complete -size +10M 2>/dev/null | wc -l)
+    [ "$file_count" -ge 2 ] && [ "$valid_count" -eq "$file_count" ]
+}
+
+function clear_exec_stack_flags() {
+    local root_dir="$1"
+    python3 - "$root_dir" <<'PYEOF'
+import glob
+import os
+import struct
+import sys
+
+PT_GNU_STACK = 0x6474E551
+PF_X = 0x1
+
+
+def clear_exec_stack(path):
+    with open(path, "rb") as file:
+        data = bytearray(file.read())
+    if data[:4] != b"\x7fELF":
+        return False
+    elf_class = data[4]
+    elf_data = data[5]
+    endian = "<" if elf_data == 1 else ">"
+    if elf_class == 2:
+        program_offset, = struct.unpack_from(endian + "Q", data, 0x20)
+        entry_size, = struct.unpack_from(endian + "H", data, 0x36)
+        entry_count, = struct.unpack_from(endian + "H", data, 0x38)
+        flags_offset = 4
+    elif elf_class == 1:
+        program_offset, = struct.unpack_from(endian + "I", data, 0x1C)
+        entry_size, = struct.unpack_from(endian + "H", data, 0x2A)
+        entry_count, = struct.unpack_from(endian + "H", data, 0x2C)
+        flags_offset = 24
+    else:
+        return False
+
+    changed = False
+    for index in range(entry_count):
+        offset = program_offset + index * entry_size
+        program_type, = struct.unpack_from(endian + "I", data, offset)
+        if program_type != PT_GNU_STACK:
+            continue
+        flags, = struct.unpack_from(endian + "I", data, offset + flags_offset)
+        if flags & PF_X:
+            struct.pack_into(endian + "I", data, offset + flags_offset, flags & ~PF_X)
+            changed = True
+
+    if changed:
+        with open(path, "r+b") as file:
+            file.write(data)
+    return changed
+
+
+for library in glob.glob(os.path.join(sys.argv[1], "**", "libtaos*.so*"), recursive=True):
+    if not os.path.isfile(library):
+        continue
+    try:
+        if clear_exec_stack(library):
+            print(f"[green_versions] cleared exec-stack: {library}")
+    except (OSError, struct.error) as error:
+        print(f"[green_versions] ERROR: failed to patch {library}: {error}", file=sys.stderr)
+        sys.exit(1)
+PYEOF
+}
+
 function download_version() {
     local version="$1"
-    local target_dir="$GREEN_LOCAL_DIR/$version"
+    local target_dir="$GREEN_CACHE_DIR/$version"
     local lock_file="$LOCK_DIR/${version}.lock"
     local start_time
     start_time=$(date +%s)
 
-    # Quick check: skip if cache exists and all files are >= 10M
-    local file_count valid_count
-    file_count=$(find "$target_dir" -maxdepth 1 -type f 2>/dev/null | wc -l)
-    valid_count=$(find "$target_dir" -maxdepth 1 -type f -size +10M 2>/dev/null | wc -l)
-    if [ "$file_count" -ge 2 ] && [ "$valid_count" -eq "$file_count" ]; then
+    if cache_version_valid "$target_dir"; then
         return 0
     fi
 
@@ -143,14 +205,14 @@ function download_version() {
         flock -x 200
 
         # Re-check inside lock in case another process already finished
-        file_count=$(find "$target_dir" -maxdepth 1 -type f 2>/dev/null | wc -l)
-        valid_count=$(find "$target_dir" -maxdepth 1 -type f -size +10M 2>/dev/null | wc -l)
-        if [ "$file_count" -ge 2 ] && [ "$valid_count" -eq "$file_count" ]; then
+        if cache_version_valid "$target_dir"; then
             return 0
         fi
 
         echo "[green_versions] $version: downloading from $GREEN_HTTP_BASE/$version/ ..."
-        mkdir -p "$target_dir"
+        local staging_dir="${target_dir}.tmp.$$"
+        rm -rf "$staging_dir"
+        mkdir -p "$staging_dir"
 
         # Parse HTTP directory listing to get file names
         local file_list
@@ -162,7 +224,7 @@ function download_version() {
 
         if [ -z "$file_list" ]; then
             echo "[green_versions] ERROR: $version: failed to list files from $GREEN_HTTP_BASE/$version/"
-            rm -rf "$target_dir"
+            rm -rf "$staging_dir"
             return 1
         fi
 
@@ -171,7 +233,7 @@ function download_version() {
         local failed=0
         for fname in $file_list; do
             local url="$GREEN_HTTP_BASE/$version/$fname"
-            local dest="$target_dir/$fname"
+            local dest="$staging_dir/$fname"
             echo "[green_versions] $version: downloading $fname ..."
             if ! curl -fsSL "$url" -o "$dest"; then
                 echo "[green_versions] ERROR: $version: failed to download $fname from $url"
@@ -184,9 +246,19 @@ function download_version() {
 
         if [ $failed -ne 0 ]; then
             echo "[green_versions] $version: download failed, removing partial directory"
-            rm -rf "$target_dir"
+            rm -rf "$staging_dir"
             return 1
         fi
+
+        if ! clear_exec_stack_flags "$staging_dir"; then
+            echo "[green_versions] $version: failed to prepare downloaded libraries"
+            rm -rf "$staging_dir"
+            return 1
+        fi
+
+        touch "$staging_dir/.complete"
+        rm -rf "$target_dir"
+        mv "$staging_dir" "$target_dir"
 
         local end_time
         end_time=$(date +%s)
@@ -215,26 +287,31 @@ fi
 
 echo "Available versions on server: $(echo "$ALL_VERSIONS" | tr '\n' ' ')"
 
-# ── Prune stale local cache ───────────────────────────────────────────────────
-# Keep the local cache in sync with the server: if a version directory has been
-# removed on the server, remove it locally too so it is no longer validated.
-# Only runs after ALL_VERSIONS was successfully fetched and confirmed non-empty
-# above, to avoid wiping the cache on a transient server/listing failure.
-for local_ver_dir in "$GREEN_LOCAL_DIR"/*/; do
-    [ -d "$local_ver_dir" ] || continue
-    local_ver=$(basename "$local_ver_dir")
-    # Skip internal/bookkeeping directories (e.g. the lock dir)
-    case "$local_ver" in
-        .*) continue ;;
-    esac
-    if ! echo "$ALL_VERSIONS" | grep -qxF "$local_ver"; then
-        echo "[green_versions] pruning stale cache (removed on server): $local_ver"
-        rm -rf "$local_ver_dir"
-    fi
-done
+# Cold upgrade uses four fixed baselines. Hot upgrade uses the oldest available
+# version with the same major.minor.patch prefix as the current build.
+COLD_VERSIONS="3.3.6.0 3.3.8.0 3.4.0.0 3.4.1.0"
+VERSION_FILE="$REPO_DIR/cmake/version.cmake"
+CURRENT_VERSION=$(sed -nE \
+    's/^[[:space:]]*SET\([[:space:]]*BUILD_VER_NUMBER[[:space:]]+"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)[^"]*"\).*/\1/p' \
+    "$VERSION_FILE" | head -1)
+if [ -z "$CURRENT_VERSION" ]; then
+    echo "ERROR: Failed to parse BUILD_VER_NUMBER from $VERSION_FILE"
+    exit 1
+fi
+CURRENT_PREFIX=$(echo "$CURRENT_VERSION" | cut -d. -f1-3)
+HOT_VERSION=$(printf '%s\n' "$ALL_VERSIONS" \
+    | awk -v prefix="${CURRENT_PREFIX}." 'index($0, prefix) == 1' \
+    | sort -V | head -1)
+REQUIRED_VERSIONS=$(
+    {
+        printf '%s\n' "$COLD_VERSIONS" | tr ' ' '\n'
+        [ -z "$HOT_VERSION" ] || printf '%s\n' "$HOT_VERSION"
+    } | awk 'NF && !seen[$0]++'
+)
+echo "Required green versions: $(echo "$REQUIRED_VERSIONS" | tr '\n' ' ')"
 
 download_failed=0
-for ver in $ALL_VERSIONS; do
+for ver in $REQUIRED_VERSIONS; do
     download_version "$ver" || {
         echo "ERROR: Failed to download green version $ver"
         download_failed=1
@@ -245,7 +322,7 @@ if [ $download_failed -ne 0 ]; then
     echo "ERROR: One or more green version downloads failed, aborting."
     exit 1
 fi
-echo "=== Step 1/2: All green versions ready ==="
+echo "=== Step 1/2: Required green versions ready ==="
 
 # ── Step 2: Resolve paths ─────────────────────────────────────────────────────
 
@@ -268,7 +345,7 @@ docker run \
     --privileged=true \
     -v "${CONTAINER_REP_MOUNT}" \
     -v "${CONTAINER_DEBUG_MOUNT}" \
-    -v "${GREEN_LOCAL_DIR}:/green_versions" \
+    -v "${GREEN_CACHE_DIR}:/green_versions:ro" \
     -v "${LOG_DIR}:/upgrade_logs" \
     --rm --ulimit core=-1 \
     ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} \
