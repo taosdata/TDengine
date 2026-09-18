@@ -25,6 +25,9 @@
 #include "tarray.h"
 #include "thash.h"
 #include "totp.h"
+#if defined(LINUX) || defined(WINDOWS)
+#include "stub.h"
+#endif
 
 // clang-format on
 
@@ -514,6 +517,125 @@ TEST(clientCase, tmq_close_retries_creator_ref_removal_after_failure) {
 }
 
 TEST(clientCase, sessControl) { testSessionCtrl(); }
+
+TEST(clientMetaRefresh, refreshScopeByError) {
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_SUCCESS), CLIENT_META_REFRESH_NONE);
+
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_PAR_TABLE_NOT_EXIST), CLIENT_META_REFRESH_TABLE);
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_TDB_TABLE_NOT_EXIST), CLIENT_META_REFRESH_TABLE);
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_TDB_INVALID_TABLE_ID), CLIENT_META_REFRESH_TABLE);
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER), CLIENT_META_REFRESH_TABLE);
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_MND_INVALID_SCHEMA_VER), CLIENT_META_REFRESH_TABLE);
+
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_VND_HASH_MISMATCH), CLIENT_META_REFRESH_FULL);
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_VND_INVALID_VGROUP_ID), CLIENT_META_REFRESH_FULL);
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_SCH_DATA_SRC_EP_MISS), CLIENT_META_REFRESH_FULL);
+}
+
+#if defined(LINUX) || defined(WINDOWS)
+struct AsyncParseRetryContext {
+  SRequestObj request = {};
+  STscObj connection = {};
+  SSqlCallbackWrapper wrapper = {};
+  SParseContext parse = {};
+  SCatalogReq catalog = {};
+  SQuery query = {};
+  SNode root = {};
+  catalogCallback callback = nullptr;
+  void* callbackParam = nullptr;
+  EClientMetaRefreshScope scope = CLIENT_META_REFRESH_NONE;
+  int32_t parseCode = 0;
+  int32_t prepareCount = 0;
+  int32_t destroyCount = 0;
+  int32_t callbackCount = 0;
+  int32_t callbackCode = 0;
+};
+
+static AsyncParseRetryContext* asyncParseRetry;
+
+static int32_t prepareAsyncParseRetry(SSqlCallbackWrapper** wrapper, SRequestObj* request,
+                                      EClientMetaRefreshScope scope) {
+  auto* context = asyncParseRetry;
+  context->scope = scope;
+  ++context->prepareCount;
+  context->root.type = QUERY_NODE_INSERT_STMT;
+  context->query.pRoot = &context->root;
+  context->query.execStage = QUERY_EXEC_STAGE_PARSE;
+  context->wrapper.pRequest = request;
+  context->wrapper.pParseCtx = &context->parse;
+  context->wrapper.pCatalogReq = &context->catalog;
+  request->pQuery = &context->query;
+  request->pWrapper = &context->wrapper;
+  request->pTscObj = &context->connection;
+  *wrapper = &context->wrapper;
+  return 0;
+}
+
+static int32_t captureAsyncParseMeta(SCatalog*, SRequestConnInfo*, const SCatalogReq*, catalogCallback callback,
+                                     void* param, int64_t*) {
+  asyncParseRetry->callback = callback;
+  asyncParseRetry->callbackParam = param;
+  return 0;
+}
+
+static int32_t failAsyncContinueParse(SParseContext*, SCatalogReq*, SMetaData*, SQuery*) {
+  return asyncParseRetry->parseCode;
+}
+
+static void destroyAsyncParseWrapper(SSqlCallbackWrapper*) { ++asyncParseRetry->destroyCount; }
+static void destroyAsyncParseContext(SRequestObj* request) {
+  EXPECT_EQ(request->pWrapper, nullptr);
+  request->pQuery = nullptr;
+}
+static SRequestObj* acquireAsyncParseRequest(int64_t) { return &asyncParseRetry->request; }
+static int32_t releaseAsyncParseRequest(int64_t) { return 0; }
+static void captureAsyncParseResult(SRequestObj*, int32_t code) {
+  ++asyncParseRetry->callbackCount;
+  asyncParseRetry->callbackCode = code;
+}
+
+TEST(clientMetaRefresh, asyncInsertParseRoutingRetryIsBounded) {
+  Stub stub;
+  stub.set(prepareAndParseSqlSyntax, prepareAsyncParseRetry);
+  stub.set(catalogAsyncGetAllMeta, captureAsyncParseMeta);
+  stub.set(qContinueParseSql, failAsyncContinueParse);
+  stub.set(destorySqlCallbackWrapper, destroyAsyncParseWrapper);
+  stub.set(destroyCtxInRequest, destroyAsyncParseContext);
+  stub.set(acquireRequest, acquireAsyncParseRequest);
+  stub.set(releaseRequest, releaseAsyncParseRequest);
+  stub.set(doRequestCallback, captureAsyncParseResult);
+
+  for (int32_t code : {TSDB_CODE_VND_HASH_MISMATCH, TSDB_CODE_VND_INVALID_VGROUP_ID,
+                       TSDB_CODE_SCH_DATA_SRC_EP_MISS, TSDB_CODE_PAR_INVALID_COLUMN}) {
+    for (int32_t stmtVersion : {0, 1, 2}) {
+      for (bool catalogError : {false, true}) {
+        AsyncParseRetryContext context;
+        asyncParseRetry = &context;
+        context.request.stmtBindVersion = stmtVersion;
+        context.parseCode = code;
+        doAsyncQuery(&context.request, CLIENT_META_REFRESH_TABLE);
+        ASSERT_NE(context.callback, nullptr);
+        bool retry = stmtVersion == 0 && clientGetMetaRefreshScope(code) == CLIENT_META_REFRESH_FULL;
+        int32_t attempts = retry ? REQUEST_TOTAL_EXEC_TIMES + 1 : 1;
+        for (int32_t attempt = 0; attempt < attempts; ++attempt) {
+          ASSERT_EQ(context.callbackCount, 0);
+          context.callback(nullptr, context.callbackParam, catalogError ? code : 0);
+          if (retry && attempt + 1 < attempts) {
+            EXPECT_EQ(context.scope, CLIENT_META_REFRESH_FULL);
+            EXPECT_EQ(context.prepareCount, attempt + 2);
+          }
+        }
+        EXPECT_EQ(context.callbackCount, 1);
+        EXPECT_EQ(context.callbackCode, code);
+        EXPECT_EQ(context.prepareCount, attempts);
+        EXPECT_EQ(context.destroyCount, attempts);
+        EXPECT_EQ(context.request.pWrapper, nullptr);
+      }
+    }
+  }
+  asyncParseRetry = nullptr;
+}
+#endif
 
 TEST(clientCase, connect_Test) {
   taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");

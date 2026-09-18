@@ -2056,10 +2056,12 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
     CTG_ERR_JRET(taosHashPut(pTb, name, sizeof(SName), name, sizeof(SName)));
   }
 
-  char* dbFName = taosHashIterate(pDb, NULL);
-  while (dbFName) {
-    CTG_ERR_JRET(ctgDropDbVgroupEnqueue(pCtg, dbFName, true));
-    dbFName = taosHashIterate(pDb, dbFName);
+  if (!pReq->forceUpdateTbMetaOnly) {
+    char* dbFName = taosHashIterate(pDb, NULL);
+    while (dbFName) {
+      CTG_ERR_JRET(ctgDropDbVgroupEnqueue(pCtg, dbFName, true));
+      dbFName = taosHashIterate(pDb, dbFName);
+    }
   }
 
   taosHashCleanup(pDb);
@@ -2401,8 +2403,8 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
 
   double el = (taosGetTimestampUs() - st) / 1000.0;
   qDebug("QID:0x%" PRIx64 ", job:0x%" PRIx64
-         ", catalog job initialized, task num:%d, forceUpdate:%d, elapsed time:%.2f ms",
-         pJob->queryId, pJob->refId, taskNum, pReq->forceUpdate, el);
+         ", catalog job initialized, task num:%d, forceUpdate:%d, tableMetaOnly:%d, elapsed time:%.2f ms",
+         pJob->queryId, pJob->refId, taskNum, pReq->forceUpdate, pReq->forceUpdateTbMetaOnly, el);
   return TSDB_CODE_SUCCESS;
 
 _return:
@@ -3618,6 +3620,78 @@ _return:
   CTG_RET(code);
 }
 
+static int32_t ctgTbNameRspCodePriority(int32_t code) {
+  if (TSDB_CODE_SUCCESS == code) {
+    return 0;
+  }
+
+  if (NEED_CLIENT_RM_TBLMETA_ERROR(code)) {
+    return 1;
+  }
+
+  if (NEED_CLIENT_REFRESH_VG_ERROR(code)) {
+    return 2;
+  }
+
+  return 3;
+}
+
+static void ctgUpdateTbNameRspCode(SMetaRes* pRes, int32_t code) {
+  if (NULL != pRes->pRes) {
+    return;
+  }
+
+  if (ctgTbNameRspCodePriority(code) > ctgTbNameRspCodePriority(pRes->code)) {
+    pRes->code = code;
+  }
+}
+
+static int32_t ctgGetTbNamesRspCode(const SCtgTbNamesCtx* pCtx) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t resNum = taosArrayGetSize(pCtx->pResList);
+
+  for (int32_t i = 0; i < resNum; ++i) {
+    SMetaRes* pRes = taosArrayGet(pCtx->pResList, i);
+    if (NULL == pRes) {
+      return TSDB_CODE_CTG_INTERNAL_ERROR;
+    }
+
+    if (ctgTbNameRspCodePriority(pRes->code) > ctgTbNameRspCodePriority(code)) {
+      code = pRes->code;
+    }
+  }
+
+  return code;
+}
+
+static int32_t ctgFetchTbNameFromVgroups(SCtgTaskReq* tReq, SName* pName, int32_t flag, SArray* pVgArray) {
+  SCtgTask*         pTask = tReq->pTask;
+  SCatalog*         pCtg = pTask->pJob->pCtg;
+  SRequestConnInfo* pConn = &pTask->pJob->conn;
+  SCtgTbNamesCtx*   ctx = (SCtgTbNamesCtx*)pTask->taskCtx;
+  int32_t           vgSize = taosArrayGetSize(pVgArray);
+
+  if (vgSize <= 0) {
+    ctgTaskError("no vgroup got, dbName:%s", pName->dbname);
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  for (int32_t i = 0; i < vgSize; ++i) {
+    SVgroupInfo* vgInfo = TARRAY_GET_ELEM(pVgArray, i);
+    if (NULL == vgInfo) {
+      ctgTaskError("fail to get the %dth vgInfo, vgSize:%d", i, vgSize);
+      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    }
+
+    ctgTaskDebug("tb:%s, will fetch table name by uid, flag:%d, vgId:%d", tNameGetTableName(pName), flag,
+                 vgInfo->vgId);
+    if (i > 0) atomic_add_fetch_32(&ctx->fetchNum, 1);
+    CTG_ERR_RET(ctgGetTbMetaFromVnode(pCtg, pConn, pName, vgInfo, NULL, tReq));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* pMsg, int32_t rspCode) {
   int32_t           code = 0;
   SCtgDBCache*      dbCache = NULL;
@@ -3628,6 +3702,7 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
   SCtgTbNamesCtx*   ctx = (SCtgTbNamesCtx*)pTask->taskCtx;
   bool              taskDone = false;
   bool              lock = false;
+  int32_t           taskCode = TSDB_CODE_SUCCESS;
 
   if (NULL == pMsgCtx) {
     ctgError("fail to get task msgCtx, taskType:%d", pTask->type);
@@ -3645,6 +3720,12 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
   SName*   pName = NULL;
   CTG_ERR_JRET(ctgGetFetchName(ctx->pNames, pFetch, &pName));
 
+  // A whole-batch failure has no subresponse type. Preserve UID fanout locking
+  // and result aggregation using the type saved when the request was sent.
+  if (reqType == -1) {
+    reqType = pMsgCtx->reqType;
+  }
+
   if (reqType == TDMT_VND_TABLE_NAME) {
     taosWLockLatch(&ctx->lock);
     lock = true;
@@ -3658,30 +3739,9 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
       CTG_ERR_RET(ctgMakeVgArray(pOut->dbVgroup, pName->dbname, false));
       SArray* pVgArray = NULL;
       TSWAP(pVgArray, pOut->dbVgroup->vgArray);
-      int32_t vgSize = taosArrayGetSize(pVgArray);
-      if (0 == vgSize) {
-        taosArrayDestroy(pVgArray);
-        ctgTaskError("no vgroup got, dbName:%s", pName->dbname);
-        CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
-      }
-      for (int32_t i = 0; i < vgSize; ++i) {
-        SVgroupInfo* vgInfo = TARRAY_GET_ELEM(pVgArray, i);
-        if (NULL == vgInfo) {
-          taosArrayDestroy(pVgArray);
-          ctgTaskError("fail to get the %dth vgInfo, vgSize:%d", i, vgSize);
-          CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
-        }
-        ctgTaskDebug("tb:%s, will refresh tbmeta, not supposed to be stb, flag:%d, vgId:%d",
-                     tNameGetTableName(pName), flag, vgInfo->vgId);
-        // *vgId = vgInfo->vgId;
-        if (i > 0) atomic_add_fetch_32(&ctx->fetchNum, 1);
-        code = ctgGetTbMetaFromVnode(pCtg, pConn, pName, vgInfo, NULL, tReq);
-        if (code) {
-          taosArrayDestroy(pVgArray);
-          CTG_ERR_JRET(code);
-        }
-      }
+      code = ctgFetchTbNameFromVgroups(tReq, pName, flag, pVgArray);
       taosArrayDestroy(pVgArray);
+      CTG_ERR_JRET(code);
 
       return TSDB_CODE_SUCCESS;
     }
@@ -3823,6 +3883,7 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
   }
 
   if (0 == atomic_sub_fetch_32(&ctx->fetchNum, 1)) {
+    taskCode = ctgGetTbNamesRspCode(ctx);
     TSWAP(pTask->res, ctx->pResList);
     taskDone = true;
   }
@@ -3838,15 +3899,16 @@ _return:
       ctgTaskError("fail to get the %dth res in pResList, resNum:%d", pFetch->resIdx,
                    (int32_t)taosArrayGetSize(ctx->pResList));
     } else {
-      if (0 == atomic_sub_fetch_32(&ctx->fetchNum, 1)) {
-        TSWAP(pTask->res, ctx->pResList);
-        taskDone = true;
-      }
       if (TDMT_VND_TABLE_NAME == reqType) {
-        if (!pRes->pRes && (0 == pRes->code)) pRes->code = code;
+        ctgUpdateTbNameRspCode(pRes, code);
       } else {
         pRes->pRes = NULL;
         pRes->code = code;
+      }
+      if (0 == atomic_sub_fetch_32(&ctx->fetchNum, 1)) {
+        taskCode = ctgGetTbNamesRspCode(ctx);
+        TSWAP(pTask->res, ctx->pResList);
+        taskDone = true;
       }
       if (taskDone == true) {
         ctgTaskError("Get table %d.%s.%s meta failed with error %s", pName->acctId, pName->dbname, pName->tname,
@@ -3856,7 +3918,7 @@ _return:
   }
 
   if (pTask->res && taskDone) {
-    int32_t newCode = ctgHandleTaskEndByReq(tReq, code);
+    int32_t newCode = ctgHandleTaskEndByReq(tReq, taskCode);
     if (newCode && TSDB_CODE_SUCCESS == code) {
       code = newCode;
     }
@@ -4815,13 +4877,18 @@ int32_t ctgAsyncRefreshTbMeta(SCtgTaskReq* tReq, int32_t flag, SName* pName, int
 
   CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, dbFName, &dbCache));
   if (dbCache) {
-    SVgroupInfo vgInfo = {0};
-    CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, &pConn->mgmtEps, dbCache->vgCache.vgInfo, pName, &vgInfo));
+    if (CTG_TASK_GET_TB_NAME == pTask->type) {
+      CTG_ERR_JRET(ctgMakeVgArray(dbCache->vgCache.vgInfo, pName->dbname, false));
+      CTG_ERR_JRET(ctgFetchTbNameFromVgroups(tReq, pName, flag, dbCache->vgCache.vgInfo->vgArray));
+    } else {
+      SVgroupInfo vgInfo = {0};
+      CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, &pConn->mgmtEps, dbCache->vgCache.vgInfo, pName, &vgInfo));
 
-    ctgDebug("tb:%s, will refresh tbmeta, not supposed to be stb, flag:%d", tNameGetTableName(pName), flag);
+      ctgDebug("tb:%s, will refresh tbmeta, not supposed to be stb, flag:%d", tNameGetTableName(pName), flag);
 
-    *vgId = vgInfo.vgId;
-    CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, pName, &vgInfo, NULL, tReq));
+      *vgId = vgInfo.vgId;
+      CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, pName, &vgInfo, NULL, tReq));
+    }
   } else {
     CTG_ERR_JRET(ctgCheckDbCacheExist(pCtg, dbFName, &dbExist));
     if (!dbExist) {
@@ -5842,21 +5909,22 @@ static int32_t ctgLaunchGetTbNamesTask(SCtgTask* pTask) {
     baseResIdx += taosArrayGetSize(pReq->pTables);
   }
 
-  pCtx->fetchNum = taosArrayGetSize(pCtx->pFetchs);
-  if (pCtx->fetchNum <= 0) {
+  int32_t fetchNum = taosArrayGetSize(pCtx->pFetchs);
+  pCtx->fetchNum = fetchNum;
+  if (fetchNum <= 0) {
     TSWAP(pTask->res, pCtx->pResList);
 
     CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
     return TSDB_CODE_SUCCESS;
   }
 
-  pTask->msgCtxs = taosArrayInit_s(sizeof(SCtgMsgCtx), pCtx->fetchNum);
+  pTask->msgCtxs = taosArrayInit_s(sizeof(SCtgMsgCtx), fetchNum);
   if (NULL == pTask->msgCtxs) {
-    ctgError("taosArrayInit_s %d SCtgMsgCtx %d failed", pCtx->fetchNum, (int32_t)sizeof(SCtgMsgCtx));
+    ctgError("taosArrayInit_s %d SCtgMsgCtx %d failed", fetchNum, (int32_t)sizeof(SCtgMsgCtx));
     CTG_ERR_RET(terrno);
   }
 
-  for (int32_t i = 0; i < pCtx->fetchNum; ++i) {
+  for (int32_t i = 0; i < fetchNum; ++i) {
     SCtgFetch* pFetch = taosArrayGet(pCtx->pFetchs, i);
     if (NULL == pFetch) {
       ctgError("fail to get the %dth fetch in pCtx->pFetchs, fetchNum:%d", i, pCtx->fetchNum);

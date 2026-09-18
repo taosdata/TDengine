@@ -543,14 +543,21 @@ typedef struct SSqlCallbackWrapper {
   void*          pPlanInfo;
 } SSqlCallbackWrapper;
 
+typedef enum EClientMetaRefreshScope {
+  CLIENT_META_REFRESH_NONE = 0,
+  CLIENT_META_REFRESH_TABLE,
+  CLIENT_META_REFRESH_FULL,
+} EClientMetaRefreshScope;
+
 void    setQueryRequest(int64_t rId);
 int32_t tscCheckTxnState(SRequestObj* pRequest, SSqlCallbackWrapper* pWrapper, bool* pHandled);
 void    launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res);
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList);
 void    launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta, SSqlCallbackWrapper* pWrapper);
-int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
+EClientMetaRefreshScope clientGetMetaRefreshScope(int32_t code);
+int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest, int32_t code);
 int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList);
-void    doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
+void    doAsyncQuery(SRequestObj* pRequest, EClientMetaRefreshScope refreshScope);
 int32_t removeMeta(STscObj* pTscObj, SArray* tbList, bool isView);
 int32_t handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);
 int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog);
@@ -566,7 +573,8 @@ void    handleExtSourceError(SRequestObj* pRequest, int32_t code);
 void    restartAsyncQuery(SRequestObj* pRequest, int32_t code);
 void    destroyCtxInRequest(SRequestObj* pRequest);
 int32_t buildPreviousRequest(SRequestObj* pRequest, const char* sql, SRequestObj** pNewRequest);
-int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper** ppWrapper, SRequestObj* pRequest, bool updateMetaForce);
+int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper** ppWrapper, SRequestObj* pRequest,
+                                 EClientMetaRefreshScope refreshScope);
 void    returnToUser(SRequestObj* pRequest);
 void    stopAllQueries(SRequestObj* pRequest);
 void    doRequestCallback(SRequestObj* pRequest, int32_t code);
