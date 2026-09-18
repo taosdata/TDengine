@@ -14,6 +14,15 @@ else
 fi
 setup_internal_mirrors
 
+_COMMUNITY_DIR="$(cd "${_SCRIPT_DIR}/../../.." && pwd)"
+_RUST_EXAMPLES_DIR="${_COMMUNITY_DIR}/docs/examples/rust"
+
+cleanup_rust_targets() {
+    rm -rf "${_RUST_EXAMPLES_DIR}/nativeexample/target" \
+        "${_RUST_EXAMPLES_DIR}/restexample/target"
+}
+trap cleanup_rust_targets EXIT
+
 cargo_run_retry() {
     local max=3 attempt
     for attempt in $(seq 1 "${max}"); do
@@ -33,7 +42,7 @@ taosadapter >>/dev/null 2>&1 &
 
 sleep 5
 
-cd ../../docs/examples/rust/nativeexample
+cd "${_RUST_EXAMPLES_DIR}/nativeexample"
 
 cargo_run_retry run --example bind_tags
 cargo_run_retry run --example bind

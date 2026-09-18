@@ -3234,6 +3234,17 @@ int taos_stmt2_prepare(TAOS_STMT2 *stmt, const char *sql, unsigned long length) 
   return stmtPrepare2(stmt, sql, length);
 }
 
+static int32_t stmt2BindError(STscStmt2 *pStmt, int32_t code) {
+  // A new binding error takes precedence over the previous execution result.
+  SRequestObj *pRequest = pStmt->exec.pRequest;
+  if (pRequest != NULL && pRequest->msgBuf != NULL) {
+    pRequest->msgBuf[0] = '\0';
+  }
+  pStmt->errCode = code;
+  terrno = pStmt->errCode;
+  return terrno;
+}
+
 int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx) {
   if (stmt == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
@@ -3251,14 +3262,6 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
   // check query bind number
   bool isQuery = (STMT_TYPE_QUERY == pStmt->sql.type || (pStmt->sql.type == 0 && stmt2IsSelect(stmt)));
-  if (isQuery) {
-    if (bindv->count != 1 || bindv->bind_cols[0]->num != 1) {
-      terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
-      STMT2_ELOG_E("query only support one table and one row bind");
-      return terrno;
-    }
-  }
-
   if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 1) {
     STMT2_ELOG_E("async bind param is still working, please try again later");
     terrno = TSDB_CODE_TSC_STMT_API_ERROR;
@@ -3270,6 +3273,13 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       STMT2_ELOG_E("bind param wait asyncExecSem failed");
     }
     pStmt->execSemWaited = true;
+  }
+
+  if (isQuery) {
+    if (bindv->count != 1 || bindv->bind_cols[0]->num != 1) {
+      STMT2_ELOG_E("query only support one table and one row bind");
+      return stmt2BindError(pStmt, TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR);
+    }
   }
 
   for (int i = 0; i < bindv->count; ++i) {
@@ -3326,12 +3336,11 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
       if (bind->num <= 0 || bind->num > INT16_MAX) {
         STMT2_ELOG("bind num:%d must > 0 and < INT16_MAX", bind->num);
-        code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
         if (pCreateTbReq) {
           tdDestroySVCreateTbReq(pCreateTbReq);
           taosMemoryFreeClear(pCreateTbReq);
         }
-        return terrno;
+        return stmt2BindError(pStmt, TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR);
       }
 
       code = stmtBindBatch2(stmt, bind, col_idx, pCreateTbReq);
@@ -4330,10 +4339,22 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
   memset(&rowBindv, 0, sizeof(rowBindv));
 
   // Input validation
-  if (stmt == NULL || bindv == NULL) {
+  if (stmt == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
+  }
+
+  if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 1) {
+    terrno = TSDB_CODE_TSC_STMT_API_ERROR;
+    return terrno;
+  }
+  // Finish the previous execution before updating its request diagnostics or field cache.
+  if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
+    if (tsem_wait(&pStmt->asyncExecSem) != 0) {
+      STMT2_ELOG_E("column bind wait asyncExecSem failed");
+    }
+    pStmt->execSemWaited = true;
   }
 
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
@@ -4341,10 +4362,9 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
     return pStmt->errCode;
   }
 
-  if (bindv->num_columns < 1 || bindv->columns == NULL) {
+  if (bindv == NULL || bindv->num_columns < 1 || bindv->columns == NULL) {
     tscError("No columns in bindv");
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    return stmt2BindError(pStmt, TSDB_CODE_INVALID_PARA);
   }
 
   STMT2_DLOG_E("start to bind param from columnar data");
@@ -4640,6 +4660,9 @@ _return:
   }
 
   if (code != TSDB_CODE_SUCCESS) {
+    if (pStmt->errCode == TSDB_CODE_SUCCESS) {
+      return stmt2BindError(pStmt, code);
+    }
     terrno = code;
   } else {
     terrno = TSDB_CODE_SUCCESS;

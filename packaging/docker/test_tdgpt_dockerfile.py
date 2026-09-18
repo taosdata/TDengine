@@ -54,6 +54,13 @@ def test_lite_target_uses_the_model_free_entrypoint():
     assert "entrypoint-lite.sh" in text
 
 
+def test_lite_entrypoint_starts_api_without_starting_models():
+    text = IMAGE_DOCKERFILE.with_name("entrypoint-lite.sh").read_text(encoding="utf-8")
+
+    assert "model-start" not in text
+    assert "exec gunicorn" in text
+
+
 def test_lite_install_creates_dynamic_resource_directories_without_models():
     text = INSTALL_SCRIPT.read_text(encoding="utf-8")
     install_start = text.index("function installProduct()")

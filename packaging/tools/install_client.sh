@@ -152,7 +152,7 @@ function install_lib() {
     [ -f ${lib64_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.so         || :
     #${csudo}rm -rf ${v15_java_app_dir}              || :
 
-    ${csudo}cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
+    ${csudo}cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo}chmod 0755 ${install_main_dir}/driver/*
 
     if [ "$osType" != "Darwin" ]; then
         ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1

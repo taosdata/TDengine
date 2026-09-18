@@ -2,9 +2,9 @@
   "schema_version": 1,
   "release": "1.0.0",
   "runtimes": [
-    {"kind": "runtime", "name": "tsfm", "version": "1.0.0", "platform": "linux", "arch": "x64", "file": "tdengine-tdgpt-tsfm-runtime-1.0.0-linux-x64.tar.gz", "size": 578639183, "sha256": "f08c32f166680b944b7aa5d30af9511a09e19352110d053b058dfb31e31e67d1"},
-    {"kind": "runtime", "name": "tsfm", "version": "1.0.0", "platform": "linux", "arch": "arm64", "file": "tdengine-tdgpt-tsfm-runtime-1.0.0-linux-arm64.tar.gz", "size": 474845460, "sha256": "cfcbdad1f1eb0ebc828c36b34345136de7296128e846c35a91589d77d624e6d4"},
-    {"kind": "runtime", "name": "tsfm", "version": "1.0.0", "platform": "windows", "arch": "x64", "file": "tdengine-tdgpt-tsfm-runtime-1.0.0-windows-x64.zip", "size": 550476561, "sha256": "d490287bf8f46184205324e182f76c81730a3ed225b5b508a4325282fcd10325"}
+    {"kind": "runtime", "name": "tsfm_runtime", "version": "1.0.0", "platform": "linux", "arch": "x64", "file": "tdengine-tdgpt-tsfm-runtime-1.0.0-linux-x64.tar.gz", "size": 578639183, "sha256": "f08c32f166680b944b7aa5d30af9511a09e19352110d053b058dfb31e31e67d1"},
+    {"kind": "runtime", "name": "tsfm_runtime", "version": "1.0.0", "platform": "linux", "arch": "arm64", "file": "tdengine-tdgpt-tsfm-runtime-1.0.0-linux-arm64.tar.gz", "size": 474845460, "sha256": "cfcbdad1f1eb0ebc828c36b34345136de7296128e846c35a91589d77d624e6d4"},
+    {"kind": "runtime", "name": "tsfm_runtime", "version": "1.0.0", "platform": "windows", "arch": "x64", "file": "tdengine-tdgpt-tsfm-runtime-1.0.0-windows-x64.zip", "size": 550476561, "sha256": "d490287bf8f46184205324e182f76c81730a3ed225b5b508a4325282fcd10325"}
   ],
   "models": [
     {"kind": "model", "name": "chronos", "model_id": "amazon/chronos-bolt-base", "model_version": "chronos-bolt-base", "version": "1.0.0", "file": "tdengine-tdgpt-model-chronos-bolt-base.zip", "size": 768324240, "sha256": "1e831352cb335315bfb61d72b3c79bd9d0034b8799bc221370683f7726ace028", "required_runtime": "1.0.0", "note": "Amazon Chronos-Bolt base model"},

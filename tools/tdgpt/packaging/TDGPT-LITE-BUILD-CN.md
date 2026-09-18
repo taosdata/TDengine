@@ -115,7 +115,12 @@ bash packaging/build_linux_offline_assets.sh \
 `install.sh --python-home` 会修复迁移后的 venv 引用和
 `taosanode_service.py` 入口。
 
-### 2.4 一次构建 Linux 发布物
+### 2.4 可选：一次构建 Linux 发布物
+
+日常更新 TDGPT 代码只执行 `script/release.sh -l -e enterprise -v <版本号>`。
+Python runtime 仅在 Python 或底层库变更时构建；主 venv 仅在依赖变更时使用
+`build_linux_offline_assets.sh --lite --bundle main` 构建。安装测试复用正式依赖包。
+下面的组合入口会重建全部三个制品，只用于确实需要全套重建的场景。
 
 ```bash
 bash packaging/build_linux_offline_release.sh \

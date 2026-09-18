@@ -62,6 +62,13 @@ TARGET_LINK_LIBRARIES(
 
 ADD_EXECUTABLE(stmt2Test stmt2Test.cpp)
 DEP_ext_gtest(stmt2Test)
+IF(NOT TD_DARWIN)
+        DEP_ext_cppstub(stmt2Test)
+ENDIF()
+add_test(
+        NAME stmt2ErrorTest
+        COMMAND stmt2Test --gtest_filter=stmt2Case.bind_number_error_overrides_exec_result:stmt2Case.column_bind_error_overrides_exec_result:stmt2Case.query_refresh_error_matches_retained_result
+)
 TARGET_LINK_LIBRARIES(
         stmt2Test PRIVATE
         os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
@@ -140,6 +147,15 @@ IF(TD_LINUX)
         add_test(
                 NAME stmt2Test
                 COMMAND stmt2Test
+        )
+        add_test(
+                NAME stmt2VnodeStopTest
+                COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/stmt2VnodeStopTest.sh"
+                        $<TARGET_FILE:stmt2Test> $<TARGET_FILE:taosd>
+        )
+        set_tests_properties(stmt2VnodeStopTest PROPERTIES
+                RUN_SERIAL TRUE
+                TIMEOUT 900
         )
         add_test(
                 NAME stmtTest
@@ -238,7 +254,7 @@ add_test(
                 COMMAND txnStateTest
 
         )
-if(TD_WINDOWS)
+if(TD_WINDOWS OR TD_DARWIN)
     set_tests_properties(sessionTest PROPERTIES
         RUN_SERIAL TRUE
         TIMEOUT 900

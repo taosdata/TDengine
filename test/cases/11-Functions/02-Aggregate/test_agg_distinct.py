@@ -102,6 +102,226 @@ class TestAggDistinct:
     # COUNT(DISTINCT) — Basic
     # ===================================================================
 
+    def test_count_distinct_group_by_respects_timestamp_filter(self):
+        """COUNT(DISTINCT) with GROUP BY must preserve the timestamp predicate.
+
+        Verifies that grouped DISTINCT aggregation does not create a result group
+        for a child table whose only row falls outside the timestamp range.
+
+        Catalog:
+            - Function:Aggregate:Distinct
+
+        Since: v3.4.2.0
+
+        Labels: common, ci
+
+        Jira: None
+
+        History:
+            - 2026-09-14 Added timestamp-filter regression coverage
+        """
+        day_start_ms = 1788969600000
+        day_end_ms = 1789056000000
+        first_in_range_ms = 1789012800000
+        second_in_range_ms = 1789016400000
+        out_of_range_ms = 1789081200000
+
+        tdSql.execute("drop table if exists t_distinct_time_filter_in")
+        tdSql.execute("drop table if exists t_distinct_time_filter_in_2")
+        tdSql.execute("drop table if exists t_distinct_time_filter_out")
+        tdSql.execute("drop table if exists st_distinct_time_filter")
+        tdSql.execute(
+            "create stable st_distinct_time_filter (ts timestamp, run_id varchar(32)) "
+            "tags (os_name varchar(16), is_internal bool, step int, status int, "
+            "install_type varchar(16), deployment_name varchar(64), apex_version varchar(32))"
+        )
+        tdSql.execute(
+            "create table t_distinct_time_filter_in using st_distinct_time_filter "
+            "tags ('windows', false, 0, 1, 'apex', 'All-in-One', 'v-in-range')"
+        )
+        tdSql.execute(
+            "create table t_distinct_time_filter_out using st_distinct_time_filter "
+            "tags ('windows', false, 0, 1, 'apex', 'All-in-One', 'v-out-of-range')"
+        )
+        tdSql.execute(
+            "create table t_distinct_time_filter_in_2 using st_distinct_time_filter "
+            "tags ('windows', false, 0, 1, 'docker', 'All-in-One', 'v-in-range-2')"
+        )
+        tdSql.execute(
+            "insert into t_distinct_time_filter_in values "
+            f"({first_in_range_ms}, 'run-in')"
+        )
+        tdSql.execute(
+            "insert into t_distinct_time_filter_out values "
+            # This row is outside the intended local-day range.
+            f"({out_of_range_ms}, 'run-out')"
+        )
+        tdSql.execute(
+            "insert into t_distinct_time_filter_in_2 values "
+            f"({second_in_range_ms}, 'run-in-2')"
+        )
+        try:
+            tdSql.query(
+                "select install_type, deployment_name, apex_version, count(distinct run_id), "
+                "cast(min(ts) as bigint), cast(max(ts) as bigint) from st_distinct_time_filter "
+                f"where ts >= {day_start_ms} and ts < {day_end_ms} "
+                "group by install_type, deployment_name, apex_version order by apex_version"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 'apex')
+            tdSql.checkData(0, 1, 'All-in-One')
+            tdSql.checkData(0, 2, 'v-in-range')
+            tdSql.checkData(0, 3, 1)
+            tdSql.checkData(0, 4, first_in_range_ms)
+            tdSql.checkData(0, 5, first_in_range_ms)
+            tdSql.checkData(1, 0, 'docker')
+            tdSql.checkData(1, 1, 'All-in-One')
+            tdSql.checkData(1, 2, 'v-in-range-2')
+            tdSql.checkData(1, 3, 1)
+            tdSql.checkData(1, 4, second_in_range_ms)
+            tdSql.checkData(1, 5, second_in_range_ms)
+
+            tdSql.query(
+                "select install_type, deployment_name, apex_version, count(*), min(ts), max(ts) "
+                "from st_distinct_time_filter "
+                f"where ts >= {day_start_ms} and ts < {day_end_ms} "
+                "group by install_type, deployment_name, apex_version order by apex_version"
+            )
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 2, 'v-in-range')
+            tdSql.checkData(0, 3, 1)
+            tdSql.checkData(1, 2, 'v-in-range-2')
+            tdSql.checkData(1, 3, 1)
+            tdSql.checkData(2, 2, 'v-out-of-range')
+            tdSql.checkData(2, 3, 0)
+
+            tdSql.query(
+                "select install_type, deployment_name, apex_version, count(*), min(ts), max(ts) "
+                "from (select ts, install_type, deployment_name, apex_version, run_id "
+                f"from st_distinct_time_filter where ts >= {day_start_ms} "
+                f"and ts < {day_end_ms}) t "
+                "group by install_type, deployment_name, apex_version order by apex_version"
+            )
+            tdSql.checkRows(2)
+        finally:
+            tdSql.execute("drop table if exists t_distinct_time_filter_in")
+            tdSql.execute("drop table if exists t_distinct_time_filter_in_2")
+            tdSql.execute("drop table if exists t_distinct_time_filter_out")
+            tdSql.execute("drop table if exists st_distinct_time_filter")
+
+    def test_count_distinct_empty_group_tag_and_window_regressions(self):
+        """Keep empty tag groups stable when DISTINCT moves between query layers.
+
+        Verifies child-table tags, HAVING/ORDER BY-only DISTINCT, and window
+        DISTINCT preserve the ordinary aggregate group set when no rows match.
+
+        Since: v3.4.2.0
+
+        Labels: common, ci
+        """
+        day_start_ms = 1788969600000
+        day_end_ms = 1789056000000
+
+        tdSql.execute("drop table if exists t_distinct_reg_in")
+        tdSql.execute("drop table if exists t_distinct_reg_out")
+        tdSql.execute("drop table if exists t_distinct_reg_in2")
+        tdSql.execute("drop table if exists st_distinct_reg")
+        tdSql.execute(
+            "create stable st_distinct_reg (ts timestamp, run_id varchar(32)) "
+            "tags (apex_version varchar(32))"
+        )
+        tdSql.execute(
+            "create table t_distinct_reg_in using st_distinct_reg tags ('v-in-range')"
+        )
+        tdSql.execute(
+            "create table t_distinct_reg_out using st_distinct_reg tags ('v-out-of-range')"
+        )
+        tdSql.execute(
+            "create table t_distinct_reg_in2 using st_distinct_reg tags ('v-in-range-2')"
+        )
+        tdSql.execute(
+            "insert into t_distinct_reg_in values "
+            "(1789012800000, 'run-in')"
+        )
+        tdSql.execute(
+            "insert into t_distinct_reg_out values "
+            "(1789081200000, 'run-out')"
+        )
+        tdSql.execute(
+            "insert into t_distinct_reg_in2 values "
+            "(1789016400000, 'run-in-2')"
+        )
+
+        day_filter = (
+            f"where ts >= {day_start_ms} "
+            f"and ts < {day_end_ms}"
+        )
+        try:
+            tdSql.execute('alter local "countAlwaysReturnValue" "1"')
+
+            # No GROUP BY/PARTITION BY: each child-table tag must survive the
+            # empty-input count(distinct) row.
+            tdSql.query(
+                "select apex_version, tbname, count(distinct run_id) "
+                f"from t_distinct_reg_out {day_filter}"
+            )
+            assert tdSql.queryResult == [
+                ("v-out-of-range", "t_distinct_reg_out", 0),
+            ]
+
+            # DISTINCT only in HAVING must still determine the group set.
+            tdSql.query(
+                "select apex_version from st_distinct_reg "
+                f"{day_filter} group by apex_version "
+                "having count(distinct run_id) <= 1 order by apex_version"
+            )
+            having_groups = list(tdSql.queryResult)
+            tdSql.query(
+                "select apex_version, count(distinct run_id) from st_distinct_reg "
+                f"{day_filter} group by apex_version "
+                "having count(distinct run_id) <= 1 order by apex_version"
+            )
+            having_groups_with_counts = list(tdSql.queryResult)
+            assert having_groups == [
+                ("v-in-range",),
+                ("v-in-range-2",),
+            ]
+            assert having_groups_with_counts == [
+                ("v-in-range", 1),
+                ("v-in-range-2", 1),
+            ]
+            assert having_groups == [(row[0],) for row in having_groups_with_counts]
+
+            # DISTINCT only in ORDER BY belongs to the ordinary aggregate layer.
+            tdSql.query(
+                "select apex_version from st_distinct_reg "
+                f"{day_filter} group by apex_version "
+                "order by count(distinct run_id), apex_version"
+            )
+            assert tdSql.queryResult == [
+                ("v-in-range",),
+                ("v-in-range-2",),
+            ]
+
+            # DISTINCT in OVER() is a window expression and must not suppress
+            # empty groups produced by the lower-level ordinary count(*).
+            tdSql.query(
+                "select apex_version, count(*), count(distinct apex_version) over () "
+                "from st_distinct_reg "
+                f"{day_filter} group by apex_version order by apex_version"
+            )
+            assert tdSql.queryResult == [
+                ("v-in-range", 1, 3),
+                ("v-in-range-2", 1, 3),
+                ("v-out-of-range", 0, 3),
+            ]
+        finally:
+            tdSql.execute('alter local "countAlwaysReturnValue" "1"')
+            tdSql.execute("drop table if exists t_distinct_reg_in")
+            tdSql.execute("drop table if exists t_distinct_reg_out")
+            tdSql.execute("drop table if exists t_distinct_reg_in2")
+            tdSql.execute("drop table if exists st_distinct_reg")
+
     def test_count_distinct_int(self):
         """COUNT(DISTINCT) on INT column — basic deduplication
 

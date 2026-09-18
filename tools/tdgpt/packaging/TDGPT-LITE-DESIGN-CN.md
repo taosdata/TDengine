@@ -224,6 +224,78 @@ TDgpt Lite 安装或升级、taosanode 启动、机器或容器重启以及模�
 
 模型的安装状态保存在 `resource/state/models/<model_name>.json`，记录 `model_id`、`model_version`、资源版本、发布文件名、归档大小、SHA-256、目标路径、部署时间和备注；状态文件只在模型目录切换成功后原子写入。共享 venv 使用自身的 `.tdgpt-install-complete.json` 记录等价状态。
 
+#### 7.2.1 在线与离线发布清单发现（规划）
+
+当前版本默认使用固定的 `1.0.0`，在线 `resource check` 只在内存中读取发布清单，
+不会缓存清单。后续应保持同一个 `resource check` 和同一个页面接口，同时支持在线
+发现、网络失败回退与首次离线导入；页面不判断网络，也不传服务器本地路径。
+
+新增统一配置 `resource_release`，允许发布通道或固定版本：
+
+```python
+# taosanode.config.py
+resource_release = "stable"
+```
+
+```yaml
+environment:
+  TDGPT_RESOURCE_RELEASE: "${TDGPT_RESOURCE_RELEASE:-stable}"
+```
+
+读取优先级为：API 显式 `release`、`TDGPT_RESOURCE_RELEASE`、
+`taosanode.config.py` 的 `resource_release`、默认 `stable`。固定为 `1.0.0` 时不得
+自动切换到新版本，便于验收和回滚。
+
+发布站点使用不可变版本清单和一个稳定通道指针：
+
+```text
+tsfm/stable.json
+tsfm/1.0.0/tdengine-tdgpt-tsfm-release-1.0.0.json
+tsfm/1.0.1/tdengine-tdgpt-tsfm-release-1.0.1.json
+```
+
+`stable.json` 只记录当前稳定版本。发布时先上传全部资源包，再上传并验证不可变的
+版本清单，最后原子更新 `stable.json`。正式发布后不得覆盖同版本清单；资源内容或
+SHA-256 变化必须发布新版本。
+
+在线 `check` 按以下顺序处理：
+
+1. 解析配置的通道或固定版本；
+2. 依次尝试配置的主地址和公共备用地址；
+3. 校验成功后，将通道指针和版本清单原子保存到
+   `resource/releases/<version>/`；
+4. 两个远端地址均失败时，读取同版本的本地缓存；
+5. 将清单与本地目录、状态文件和必要文件校验结果比较后返回，不自动下载或升级。
+
+首次离线部署必须携带版本清单、当前平台 runtime 和所需模型包。导入命令应支持
+显式 `--release-manifest`，校验并保存清单后再导入多个包。以后离线升级只需携带
+新版本清单和发生变化的资源包。既无网络又无本地清单时，`check` 明确失败；仅凭
+已解压目录无法得知完整的可部署模型目录。
+
+`check` 成功响应应包含 `configured_release`、`resolved_release`、
+`manifest_source`（`remote` 或 `local_cache`）和 `repository_available`。页面始终
+正常展示资源目录；`repository_available=false` 时禁用在线下载，但已安装模型仍可
+启动、停止和删除。
+
+资源状态与服务状态必须分开。资源状态规划如下：
+
+| 状态 | 定义 | 页面含义 |
+| --- | --- | --- |
+| `installed` | 目录完整，状态文件 digest 与清单一致 | 已安装 |
+| `missing` | 清单中存在，本机目录不存在 | 未安装 |
+| `outdated` | 目录完整且已纳管，但状态文件版本或 digest 与清单不同 | 有更新，旧版本仍可运行 |
+| `unmanaged` | 目录存在，但没有有效安装状态，来源无法确认 | 未纳管，需明确替换导入 |
+| `invalid` | 已纳管资源缺少必要文件或完整性校验失败 | 资源损坏，禁止启动 |
+| `unavailable` | 清单中存在，但没有当前平台匹配的资源 | 当前平台不可用 |
+
+`downloading`、`verifying`、`importing` 和 `failed` 属于任务状态，不应覆盖资源
+状态；`running` 和 `stopped` 属于服务状态。`outdated` 是正常业务结果，不返回
+HTTP 错误，也不触发自动升级。手工保留目录但缺少状态文件应显示 `unmanaged`，
+手工删除已纳管目录中的必要文件应显示 `invalid`，两者都不能误报为 `outdated`。
+
+以上通道指针、清单缓存、`--release-manifest` 和细分状态为后续实现范围；当前版本
+仍支持通过 `--release <本地-json路径>` 手工执行离线 `check`。
+
 ### 7.3 下载与缓存
 
 下载缓存位于 `resource/cache`。资源先下载到以归档 SHA-256 命名的 `.part` 文件，支持 HTTP Range 断点续传；下载完成并通过 SHA-256 校验后，再原子改名为正式缓存文件。缓存中已有相同 SHA-256 的完整归档时不得重复下载。
@@ -252,14 +324,77 @@ TDgpt Lite 安装或升级、taosanode 启动、机器或容器重启以及模�
 
 Lite 升级不得删除 `model/dynamic`、`model/tsfm`、`model/user`、`model_venvs`、资源状态或下载缓存。
 
+### 7.6 主机安装的离线导入与页面管理
+
+主机安装模式与 Docker 使用同一资源协议，但没有离线包卷挂载。管理员将与当前
+操作系统和架构匹配的 TSFM runtime 包及模型 ZIP 放在本机任意可读的临时目录，
+再通过 `taosanodectl resource import` 导入。导入器只从该路径读取归档，资源
+实际安装到 TDgpt 数据目录；导入成功后可删除临时归档。
+
+内网发布目录为
+`https://release.tdengine.net/tdengine-tdgpt-enterprise/tsfm/1.0.0/`。离线介质
+应从该目录取得以下文件；发布清单用于核对版本和 SHA-256，不作为
+`resource import --package` 的输入。
+
+| 类型 | 文件 | 使用方式 |
+| --- | --- | --- |
+| 发布清单 | [tdengine-tdgpt-tsfm-release-1.0.0.json](https://release.tdengine.net/tdengine-tdgpt-enterprise/tsfm/1.0.0/tdengine-tdgpt-tsfm-release-1.0.0.json) | 核对离线介质版本、大小和 SHA-256 |
+| Linux x64 runtime | [tdengine-tdgpt-tsfm-runtime-1.0.0-linux-x64.tar.gz](https://release.tdengine.net/tdengine-tdgpt-enterprise/tsfm/1.0.0/tdengine-tdgpt-tsfm-runtime-1.0.0-linux-x64.tar.gz) | 仅 Linux x64 导入一次 |
+| Linux arm64 runtime | [tdengine-tdgpt-tsfm-runtime-1.0.0-linux-arm64.tar.gz](https://release.tdengine.net/tdengine-tdgpt-enterprise/tsfm/1.0.0/tdengine-tdgpt-tsfm-runtime-1.0.0-linux-arm64.tar.gz) | 仅 Linux arm64 导入一次 |
+| Windows x64 runtime | [tdengine-tdgpt-tsfm-runtime-1.0.0-windows-x64.zip](https://release.tdengine.net/tdengine-tdgpt-enterprise/tsfm/1.0.0/tdengine-tdgpt-tsfm-runtime-1.0.0-windows-x64.zip) | 仅 Windows x64 导入一次 |
+| Chronos 模型 | [tdengine-tdgpt-model-chronos-bolt-base.zip](https://release.tdengine.net/tdengine-tdgpt-enterprise/tsfm/1.0.0/tdengine-tdgpt-model-chronos-bolt-base.zip) | 按需导入 |
+| Moirai 模型 | [tdengine-tdgpt-model-moirai-moe-1-0-r-small.zip](https://release.tdengine.net/tdengine-tdgpt-enterprise/tsfm/1.0.0/tdengine-tdgpt-model-moirai-moe-1-0-r-small.zip) | 按需导入 |
+| Moment 模型 | [tdengine-tdgpt-model-moment-1-base.zip](https://release.tdengine.net/tdengine-tdgpt-enterprise/tsfm/1.0.0/tdengine-tdgpt-model-moment-1-base.zip) | 按需导入 |
+| TDTSFM 模型 | [tdengine-tdgpt-model-tdtsfm-v1-0.zip](https://release.tdengine.net/tdengine-tdgpt-enterprise/tsfm/1.0.0/tdengine-tdgpt-model-tdtsfm-v1-0.zip) | 按需导入 |
+| Time-MoE 模型 | [tdengine-tdgpt-model-timemoe-200m.zip](https://release.tdengine.net/tdengine-tdgpt-enterprise/tsfm/1.0.0/tdengine-tdgpt-model-timemoe-200m.zip) | 按需导入 |
+| TimesFM 模型 | [tdengine-tdgpt-model-timesfm-2-5-200m-pytorch.zip](https://release.tdengine.net/tdengine-tdgpt-enterprise/tsfm/1.0.0/tdengine-tdgpt-model-timesfm-2-5-200m-pytorch.zip) | 按需导入 |
+
+一次命令可导入一个 runtime 和多个模型包。相同 runtime 的重复导入会返回
+`unchanged`，无需为每个模型重复导入 runtime。Linux x64 导入 Moment、Moirai
+与 Time-MoE 的示例：
+
+```bash
+sudo /usr/bin/taosanodectl resource import \
+  --package /opt/tdgpt-offline/tdengine-tdgpt-tsfm-runtime-1.0.0-linux-x64.tar.gz \
+  --package /opt/tdgpt-offline/tdengine-tdgpt-model-moment-1-base.zip \
+  --package /opt/tdgpt-offline/tdengine-tdgpt-model-moirai-moe-1-0-r-small.zip \
+  --package /opt/tdgpt-offline/tdengine-tdgpt-model-timemoe-200m.zip
+sudo /usr/bin/taosanodectl resource verify all
+sudo /usr/bin/taosanodectl resource list --format json
+```
+
+Linux arm64 仅将上述 runtime 文件替换为
+`tdengine-tdgpt-tsfm-runtime-1.0.0-linux-arm64.tar.gz`；模型 ZIP 不区分架构。
+Windows PowerShell 同样可在一次命令中传入多个模型包：
+
+```powershell
+& C:\TDengine\taosanode\bin\taosanodectl.bat resource import `
+  --package C:\tdgpt-offline\tdengine-tdgpt-tsfm-runtime-1.0.0-windows-x64.zip `
+  --package C:\tdgpt-offline\tdengine-tdgpt-model-moment-1-base.zip `
+  --package C:\tdgpt-offline\tdengine-tdgpt-model-moirai-moe-1-0-r-small.zip
+& C:\TDengine\taosanode\bin\taosanodectl.bat resource verify all
+& C:\TDengine\taosanode\bin\taosanodectl.bat resource list --format json
+```
+
+导入完成后，IDMP 页面与 Docker 场景一样，调用模型信息、启动、停止、删除和任务
+状态接口管理本机模型。页面在展示启停按钮前应先查询对应模型信息，以同步本地
+`install_status` 和 `service_status`。离线环境不使用页面的 `download` 或
+`download-start`；当前 HTTP API 不接收离线包上传，也不接收任意本地文件路径。
+
+主机升级 Lite 时安装器保留动态资源目录，因此无需重新导入已安装资源。升级共享
+TSFM runtime 时必须先停止全部使用它的模型；升级单个模型时只停止该模型。离线包
+本身不应放在 TDgpt 安装目录或动态资源目录中，以免安装、卸载或运维清理误删它们。
+
 ## 8. Docker 部署
 
-Docker 镜像只包含 Lite 服务与主运行环境。宿主机应分别挂载动态资源目录，而不是覆盖整个 TDgpt 数据根目录：
+Docker 镜像只包含 Lite 服务与主运行环境。Docker 部署必须分别挂载以下三个动态
+资源目录，而不是覆盖整个 TDgpt 数据根目录：
 
-```text
-<host>/model        -> /var/lib/taos/taosanode/model
-<host>/model_venvs  -> /var/lib/taos/taosanode/model_venvs
-<host>/resource     -> /var/lib/taos/taosanode/resource
+```yaml
+volumes:
+  - ./tdgpt-data/model:/var/lib/taos/taosanode/model
+  - ./tdgpt-data/model_venvs:/var/lib/taos/taosanode/model_venvs
+  - ./tdgpt-data/resource:/var/lib/taos/taosanode/resource
 ```
 
 `resource` 挂载用于持久化发布缓存、任务状态和模型状态；只挂载 `model`、`model_venvs`、`resource`，不要覆盖整个 TDgpt 数据根目录。这样容器升级不会覆盖模型和模型 venv，也不会因整个数据根目录被挂载而遮蔽镜像或安装器创建的主 venv。容器启动时按第 5 节的校验规则发现可用 TSFM 资源；没有资源时只运行 Lite 主服务。
@@ -276,7 +411,53 @@ Docker 环境变量在容器创建时确定。修改 Compose 中的 URL 后，�
 `docker compose restart` 不会更新既有容器的环境变量。挂载的 `model`、
 `model_venvs` 与 `resource` 数据不受重新创建容器影响。
 
-## 8.1 资源下载地址与外网兜底
+### 8.1 Docker 离线导入与页面管理
+
+隔离网络中不使用 `resource apply`，而是由运维将与容器架构匹配的 TSFM
+runtime 包和模型包提供给容器，再执行本地导入。以上三个动态资源挂载是必需项；
+离线包可以额外作为只读卷挂载，也可以通过 `docker cp` 复制到容器；不要让浏览器
+或页面直接写入容器资源目录。
+
+```yaml
+volumes:
+  - ./tdgpt-data/model:/var/lib/taos/taosanode/model
+  - ./tdgpt-data/model_venvs:/var/lib/taos/taosanode/model_venvs
+  - ./tdgpt-data/resource:/var/lib/taos/taosanode/resource
+  - <host>/offline-pkgs:/offline-pkgs:ro
+```
+
+以 Linux x64 的 Moment 为例：
+
+```bash
+docker exec tdengine-tdgpt taosanodectl resource import \
+  --package /offline-pkgs/tdengine-tdgpt-tsfm-runtime-1.0.0-linux-x64.tar.gz \
+  --package /offline-pkgs/tdengine-tdgpt-model-moment-1-base.zip
+docker exec tdengine-tdgpt taosanodectl resource verify moment
+docker exec tdengine-tdgpt taosanodectl resource list --format json
+```
+
+离线 `resource import` 与在线 `resource apply` 使用相同的本地资源目录、
+完整性校验、状态文件和模型启动路径。因此导入成功后，后台页面仍可调用现有
+模型管理接口查询状态、启动、停止和删除模型：
+
+```text
+GET  /api/v1/foundation-models/<model_name>
+POST /api/v1/foundation-models/start
+POST /api/v1/foundation-models/stop
+POST /api/v1/foundation-models/delete
+GET  /api/v1/foundation-models/<task_id>/status
+```
+
+页面在离线导入完成后应先查询对应模型信息再展示启停操作，
+以同步 `install_status`、`service_status` 与异步任务状态。模型、TSFM runtime
+及 `resource` 目录按本节挂载持久化时，重建容器后模型仍可继续由页面启停。
+
+页面的 `download` 与 `download-start` 接口仍是在线下载流程，隔离网络下不可用。
+当前 HTTP API 不提供离线包上传或按容器路径执行导入的能力；若后续需要页面“一键
+离线导入”，应由宿主机控制面提供受控的包选择与导入任务，不能由浏览器任意传入
+容器文件路径。
+
+### 8.2 资源下载地址与外网兜底
 
 资源地址按照以下优先级确定：
 
@@ -350,7 +531,7 @@ taosanodectl model status [<model_name|all>]
 ```
 
 模型启动的默认 readiness 期限由 `taosanode.config.py` 中的
-`timeouts["model_startup"]` 控制，默认值为 180 秒。该值是模型进程创建后到端口就绪的
+`timeouts["model_startup"]` 控制，默认值为 300 秒。该值是模型进程创建后到端口就绪的
 总期限，不是单次 TCP 连接超时；单次 TCP 探测仍为 1 秒。模型进程若在期限内提前退出，
 启动立即失败并输出模型日志路径及日志尾部。`model start --timeout` 仅覆盖本次命令，
 不修改配置文件。
