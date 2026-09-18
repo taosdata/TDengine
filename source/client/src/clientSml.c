@@ -1894,7 +1894,7 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
       uInfo("SML:0x%" PRIx64
             " retry:%d/%d, ver is old retry or object is creating, sleep:%ums, code:%d, msg:%s",
             info->id, cnt, SML_RETRY_MAX_TIMES, sleepMs, code, tstrerror(code));
-      code = refreshMeta(request->pTscObj, request);
+      code = refreshMeta(request->pTscObj, request, code);
       if (code != 0) {
         uInfo("SML:0x%" PRIx64 " refresh meta error code:%d, msg:%s", info->id, code, tstrerror(code));
       }

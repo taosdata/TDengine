@@ -153,6 +153,7 @@ typedef struct SCatalogReq {
   bool    dNodeRequired;     // valid dnode
   bool    svrVerRequired;
   bool    forceUpdate;
+  bool    forceUpdateTbMetaOnly;  // preserve cached DB vgroup routing while refreshing table metadata
   bool    cloned;
   bool    forceFetchViewMeta;
 } SCatalogReq;
