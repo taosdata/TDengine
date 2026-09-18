@@ -110,6 +110,21 @@ int32_t blockDataGetPagedColumnReservedBytes(const SColumnInfoData* pColumnInfoD
 static int32_t checkAllocLen(SColumnInfoData* pColumnInfoData, char** pData, int32_t dataLen){
   SVarColAttr* pAttr = &pColumnInfoData->varmeta;
   char* buf = NULL;
+
+  // A var-length column records each row's byte offset into its payload as an int32_t
+  // (VarDataOffsetT), so one block can never hold more than INT32_MAX bytes in a single
+  // var-length column.  BLOB is the only var-length type that can reach this limit
+  // (others are capped at TSDB_MAX_FIELD_LEN).  Report it with a dedicated code so the
+  // row-appending loops can close the current block instead of wrapping the offsets
+  // negative and later computing wild pointers (SIGSEGV).
+  // Keep BLOBSTR_HEADER_SIZE of headroom rather than allowing the exact INT32_MAX: the
+  // resulting length would sit right at the boundary of the signed range that the per-row
+  // offsets are, and a value stored there ends at INT32_MAX leaving nothing to represent
+  // the length header of whatever follows it.
+  if ((uint64_t)pAttr->length + (uint64_t)dataLen + (uint64_t)BLOBSTR_HEADER_SIZE > (uint64_t)INT32_MAX) {
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+  }
+
   if (pAttr->allocLen < pAttr->length + dataLen) {
     uint32_t newSize = pAttr->allocLen;
     if (newSize <= 1) {
@@ -487,6 +502,19 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int
 
   uint32_t finalNumOfRows = numOfRow1 + numOfRow2;
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    // A var-length column stores one int32_t offset per row and one uint32_t total length,
+    // so a single block can never legitimately hold more than INT32_MAX bytes of payload.
+    // Merging is the only append path that does not go through checkAllocLen(), and the
+    // comparison below is done in uint32_t: without this guard `srcLen + dstLen` wraps and
+    // the memcpy writes at `pData + dstLen` off the end of the buffer (SIGSEGV).  Refuse
+    // before touching either the offsets or the data; callers that can split work, such as
+    // the projection merge loop, decide to emit the destination block instead of merging.
+    // Same BLOBSTR_HEADER_SIZE headroom as checkAllocLen() so a merged block can never reach
+    // a length the append path would have refused.
+    if ((uint64_t)pColumnInfoData->varmeta.length + (uint64_t)pSource->varmeta.length + (uint64_t)BLOBSTR_HEADER_SIZE > (uint64_t)INT32_MAX) {
+      return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+    }
+
     // Handle the bitmap
     if (finalNumOfRows > (*capacity)) {
       char* p = taosMemoryRealloc(pColumnInfoData->varmeta.offset, sizeof(int32_t) * (numOfRow1 + numOfRow2));
@@ -794,6 +822,75 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
   }
 
   return 0;
+}
+
+// Returns true when the block must be closed before another row is appended: it already
+// holds as much BLOB payload as a result block is allowed to (see
+// TSDB_MAX_BLOB_BYTES_PER_BLOCK), or one more maximum-sized value would push it over that
+// budget.  Only BLOB needs this: RPC cannot carry a block above TRANS_PACKET_LIMIT, and the
+// row-count limits that bound every other var-length type are useless for multi-megabyte
+// values.  Callers test it as their loop's close condition - the headroom keeps the row that
+// was just appended safe, and the following row starts a fresh block.
+bool blockDataBlobExceedLimit(const SSDataBlock* pBlock) {
+  if (pBlock == NULL || pBlock->pDataBlock == NULL) {
+    return false;
+  }
+
+  int32_t numOfCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (pCol == NULL || !IS_STR_DATA_BLOB(pCol->info.type)) {
+      continue;
+    }
+
+    // Leave room for one more (max sized) value so the appended row itself cannot overflow.
+    if ((uint64_t)pCol->varmeta.length + (uint64_t)TSDB_MAX_BLOB_LEN > (uint64_t)TSDB_MAX_BLOB_BYTES_PER_BLOCK) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// True when merging pSrc into pDest would push a BLOB column past the per-block payload
+// budget, i.e. when the merged block could no longer be sent as a single RPC message (and,
+// long before that, would be uselessly large).  blockDataMerge() cannot split a value across
+// blocks, so a caller that merges repeatedly (e.g. the projection operator accumulating
+// upstream blocks) uses this to decide where to stop and emit pDest.
+//
+// Two calling conventions are supported, so the caller does not have to be able to ask before
+// merging:
+//   - before: pSrc is the block about to be merged - the exact test.
+//   - after:  pSrc is the block that was just merged.  pDest then already contains it, so
+//             the sum over-counts by exactly one pSrc and the answer means "would one more
+//             block of this size fit?".  This stops marginally earlier, which only shifts
+//             block boundaries and is therefore safe.
+// The row-count thresholds that normally bound such loops are useless for multi-megabyte
+// values: 16 rows of a 16MB BLOB already fill the 256MB budget, and 128 rows overflow the
+// int32 range the per-row offsets live in.
+bool blockDataMergeExceedLimit(const SSDataBlock* pDest, const SSDataBlock* pSrc) {
+  if (pDest == NULL || pSrc == NULL || pDest->pDataBlock == NULL || pSrc->pDataBlock == NULL) {
+    return false;
+  }
+
+  int32_t numOfCols = (int32_t)taosArrayGetSize(pDest->pDataBlock);
+  int32_t numOfSrcCols = (int32_t)taosArrayGetSize(pSrc->pDataBlock);
+  if (numOfCols > numOfSrcCols) {
+    numOfCols = numOfSrcCols;
+  }
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pDstCol = taosArrayGet(pDest->pDataBlock, i);
+    SColumnInfoData* pSrcCol = taosArrayGet(pSrc->pDataBlock, i);
+    if (pDstCol == NULL || pSrcCol == NULL || !IS_STR_DATA_BLOB(pDstCol->info.type)) {
+      continue;
+    }
+
+    if ((uint64_t)pDstCol->varmeta.length + (uint64_t)pSrcCol->varmeta.length >
+        (uint64_t)TSDB_MAX_BLOB_BYTES_PER_BLOCK) {
+      return true;
+    }
+  }
+  return false;
 }
 
 int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc) {

@@ -1704,25 +1704,17 @@ int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf, i
     return buildSyntaxErrMsg(pMsgBuf, "invalid data or symbol", pToken->z);
   }
 
-  // Remove quotation marks
+  // Remove quotation marks. BLOB is excluded by the outer condition and its value is
+  // parsed by parseBlob() instead, so tmpTokenBuf (TSDB_MAX_BYTES_PER_ROW) is never
+  // asked to hold a BLOB payload here.
   if (TK_NK_STRING == pToken->type && type != TSDB_DATA_TYPE_VARBINARY && !IS_STR_DATA_BLOB(type)) {
-    if (!IS_STR_DATA_BLOB(type)) {
-      if (pToken->n >= TSDB_MAX_BYTES_PER_ROW) {
-        return buildSyntaxErrMsg(pMsgBuf, "too long string", pToken->z);
-      }
-
-      int32_t len = trimString(pToken->z, pToken->n, tmpTokenBuf, TSDB_MAX_BYTES_PER_ROW);
-      pToken->z = tmpTokenBuf;
-      pToken->n = len;
-    } else {
-      if (pToken->n >= TSDB_MAX_BLOB_LEN) {
-        return buildSyntaxErrMsg(pMsgBuf, "too long blob", pToken->z);
-      }
-
-      int32_t len = trimString(pToken->z, pToken->n, tmpTokenBuf, TSDB_MAX_BLOB_LEN);
-      pToken->z = tmpTokenBuf;
-      pToken->n = len;
+    if (pToken->n >= TSDB_MAX_BYTES_PER_ROW) {
+      return buildSyntaxErrMsg(pMsgBuf, "too long string", pToken->z);
     }
+
+    int32_t len = trimString(pToken->z, pToken->n, tmpTokenBuf, TSDB_MAX_BYTES_PER_ROW);
+    pToken->z = tmpTokenBuf;
+    pToken->n = len;
   }
 
   return TSDB_CODE_SUCCESS;

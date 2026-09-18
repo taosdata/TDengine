@@ -131,12 +131,11 @@ static int32_t allocBuf(SDataDeleterHandle* pDeleter, const SInputData* pInput, 
 static int32_t updateStatus(SDataDeleterHandle* pDeleter) {
   (void)taosThreadMutexLock(&pDeleter->mutex);
   int32_t blockNums = taosQueueItemSize(pDeleter->pDataBlocks);
-  int32_t status =
-      (0 == blockNums ? DS_BUF_EMPTY
-                      : (blockNums < pDeleter->pManager->cfg.maxDataBlockNumPerQuery ? DS_BUF_LOW : DS_BUF_FULL));
+  uint64_t cachedSize = atomic_load_64(&pDeleter->cachedSize);
+  int32_t status = dsCalcBufStatus(&pDeleter->pManager->cfg, blockNums, cachedSize);
   pDeleter->status = status;
   (void)taosThreadMutexUnlock(&pDeleter->mutex);
-  
+
   return status;
 }
 

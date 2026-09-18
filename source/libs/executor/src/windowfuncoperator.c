@@ -1909,6 +1909,28 @@ static int32_t winFuncCalcPeerGroup(SWindowInputStore *pStore, const SNodeList *
   return TSDB_CODE_SUCCESS;
 }
 
+// The input page of a window function must be able to hold one complete row, because
+// blockDataSplitRows() refuses to produce a sub-block smaller than a single row.  A
+// block's rowSize sums each column's DECLARED width, and a BLOB column's declared width is
+// only the 4-byte length-header placeholder, so a row carrying a large BLOB could never fit
+// the page and the query failed with an internal error.  Count BLOB columns at their real
+// maximum instead; every other var-length type is already declared at its maximum.
+static int32_t winInputRowSize(const SSDataBlock *pBlock) {
+  int32_t rowSize = pBlock->info.rowSize;
+  if (!pBlock->info.hasVarCol) {
+    return rowSize;
+  }
+
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  for (size_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData *pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (pCol != NULL && IS_STR_DATA_BLOB(pCol->info.type)) {
+      rowSize += TSDB_MAX_BLOB_LEN;
+    }
+  }
+  return rowSize;
+}
+
 static int32_t winFuncBuildInput(SOperatorInfo *pOperator) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
@@ -1930,7 +1952,7 @@ static int32_t winFuncBuildInput(SOperatorInfo *pOperator) {
     if (pInfo->pInputStore == NULL) {
       uint32_t pageSize = 0;
       int64_t  bufSize = 0;
-      code = getBufferPgSize(pBlock->info.rowSize, &pageSize, &bufSize);
+      code = getBufferPgSize(winInputRowSize(pBlock), &pageSize, &bufSize);
       QUERY_CHECK_CODE(code, lino, _end);
       code = winInputPoolCreate(pageSize, bufSize, pOperator->pTaskInfo->id.str, &pInfo->pInputPool);
       QUERY_CHECK_CODE(code, lino, _end);

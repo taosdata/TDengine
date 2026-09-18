@@ -232,6 +232,8 @@ size_t blockDataGetNumOfRows(const SSDataBlock* pBlock);
 void blockDataTransform(SSDataBlock* pDest, const SSDataBlock* pSrc);
 int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc);
 int32_t blockDataMergeNRows(SSDataBlock* pDest, const SSDataBlock* pSrc, int32_t srcIdx, int32_t numOfRows);
+bool    blockDataBlobExceedLimit(const SSDataBlock* pBlock);
+bool    blockDataMergeExceedLimit(const SSDataBlock* pDest, const SSDataBlock* pSrc);
 void    blockDataShrinkNRows(SSDataBlock* pBlock, int32_t numOfRows);
 int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex,
                            int32_t pageSize);
