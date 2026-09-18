@@ -138,6 +138,77 @@ time /usr/bin/taosanodectl resource apply moirai \
 /usr/bin/taosanodectl resource import --package <已导入模型包>
 ```
 
+### 6.1 主机安装离线导入与页面启停
+
+将离线包放入 TDgpt 安装目录之外的临时目录。离线介质文件清单见设计文档第
+7.6 节；每台机器只选择一个与自身平台和架构一致的 TSFM runtime，可在同一命令
+中同时导入多个模型 ZIP。Linux 使用 `/usr/bin/taosanodectl`；Windows 使用实际
+安装目录下的 `taosanodectl.bat`。以下 Linux x64 命令同时导入 Moment 和 Moirai：
+
+```bash
+sudo /usr/bin/taosanodectl resource import \
+  --package /opt/tdgpt-offline/tdengine-tdgpt-tsfm-runtime-1.0.0-linux-x64.tar.gz \
+  --package /opt/tdgpt-offline/tdengine-tdgpt-model-moment-1-base.zip \
+  --package /opt/tdgpt-offline/tdengine-tdgpt-model-moirai-moe-1-0-r-small.zip
+sudo /usr/bin/taosanodectl resource verify all
+sudo /usr/bin/taosanodectl resource list --format json
+```
+
+```powershell
+& C:\TDengine\taosanode\bin\taosanodectl.bat resource import `
+  --package C:\tdgpt-offline\tdengine-tdgpt-tsfm-runtime-1.0.0-windows-x64.zip `
+  --package C:\tdgpt-offline\tdengine-tdgpt-model-moment-1-base.zip `
+  --package C:\tdgpt-offline\tdengine-tdgpt-model-moirai-moe-1-0-r-small.zip
+& C:\TDengine\taosanode\bin\taosanodectl.bat resource verify all
+```
+
+页面或 HTTP 接口先查询 `GET /api/v1/foundation-models/moment`，确认
+`install_status=installed` 且 `service_status=stopped`，再调用 start、stop
+接口，并通过返回的 `task_id` 查询任务状态。执行 Lite 升级后重复查询、验证和
+启停，确认已导入资源未被覆盖。离线环境不验证 `download` 或 `download-start`。
+
+### 6.2 Docker 离线导入与页面启停
+
+先按以下方式挂载 `model`、`model_venvs`、`resource`，并额外将离线资源包以
+只读方式挂载至 `/offline-pkgs`。前三项为 Docker 动态资源持久化的必需挂载；
+不要挂载整个 `/var/lib/taos/taosanode`，也不要由页面直接写入资源目录。
+
+```yaml
+volumes:
+  - ./tdgpt-data/model:/var/lib/taos/taosanode/model
+  - ./tdgpt-data/model_venvs:/var/lib/taos/taosanode/model_venvs
+  - ./tdgpt-data/resource:/var/lib/taos/taosanode/resource
+  - <host>/offline-pkgs:/offline-pkgs:ro
+```
+
+```bash
+docker compose up -d tdengine-tdgpt
+docker exec tdengine-tdgpt taosanodectl resource import \
+  --package /offline-pkgs/tdengine-tdgpt-tsfm-runtime-1.0.0-linux-x64.tar.gz \
+  --package /offline-pkgs/tdengine-tdgpt-model-moment-1-base.zip
+docker exec tdengine-tdgpt taosanodectl resource verify moment
+docker exec tdengine-tdgpt taosanodectl resource list --format json
+```
+
+导入完成后，以页面或 HTTP 接口先查询
+`GET /api/v1/foundation-models/moment`，确认 `install_status=installed` 且
+`service_status=stopped`，再调用以下接口验证启停：
+
+```bash
+curl -sS -X POST http://127.0.0.1:6035/api/v1/foundation-models/start \
+  -H 'Content-Type: application/json' \
+  -d '{"model_name":"moment"}'
+# 使用响应中的 task_id 查询任务状态；完成后 service_status 应为 running。
+curl -sS -X POST http://127.0.0.1:6035/api/v1/foundation-models/stop \
+  -H 'Content-Type: application/json' \
+  -d '{"model_name":"moment"}'
+```
+
+重新创建容器后，再执行 `resource list`、`resource verify moment` 和上述启停
+验证，确认动态资源挂载持久化。隔离网络中不验证页面的 `download` 或
+`download-start`，它们需要访问资源发布站点；当前页面也不负责上传离线包或触发
+`resource import`。
+
 显式升级必须使用 `--replace`。升级共享 TSFM runtime 前，先停止所有使用该 runtime 的模型：
 
 ```bash
