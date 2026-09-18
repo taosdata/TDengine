@@ -74,7 +74,7 @@ class TestModelService:
         result = model_service.start("tdtsfm")
         assert result is True
         wait_for_tcp_port.assert_called_once_with(
-            "model-tdtsfm", "127.0.0.1", 6061, timeout=180
+            "model-tdtsfm", "127.0.0.1", 6061, timeout=300
         )
 
     def test_start_model_timeout_override(self, model_service, mocker):
@@ -119,7 +119,7 @@ class TestModelService:
 
         assert model_service.start("tdtsfm") is False
         messages = [str(call.args[0]) for call in log_error.call_args_list]
-        assert any("Model startup timed out after 180 seconds" in message for message in messages)
+        assert any("Model startup timed out after 300 seconds" in message for message in messages)
         assert any("model_tdtsfm.log" in message for message in messages)
 
     def test_dynamic_tdtsfm_worker_gets_dynamic_model_root(
