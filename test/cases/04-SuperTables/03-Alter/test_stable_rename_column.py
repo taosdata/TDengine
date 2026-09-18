@@ -23,8 +23,15 @@ class TestStableRenameColumn:
       - view / topic / plain stream columns bind by colId (or are weak
         references) and are deliberately NOT checked.
 
-    Normal-table rename is intentionally out of scope for this phase and is
-    not exercised here.
+    Normal-table rename lives on the vnode path and never enters the mnode, so
+    its privilege RESTRICT is reached through a synchronous mnode round trip
+    (TDMT_MND_CHECK_COL_REF_BY_PRIV) instead of an inline scan. Those cases -
+    plain and virtual normal table, RENAME COLUMN and RENAME TAG, user and role
+    grants, long table names - live in test_vtable_normal_tags.py, method
+    test_rename_tag_priv_restrict / test_rename_column_priv_restrict. The
+    normal-table assertions kept here are the ones that must agree with the
+    stable path: timestamp column and composite primary key handling, plus the
+    stream output table in its normal-table form.
     """
 
     def setup_class(cls):

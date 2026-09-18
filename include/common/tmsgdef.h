@@ -569,6 +569,9 @@
   TD_DEF_MSG_TYPE(TDMT_MND_TXN_TIMER, "txn-tmr", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_AUTH_SASL, "auth-sasl", NULL, NULL)  // SCRAM-SHA-256 handshake round
   TD_DEF_MSG_TYPE(TDMT_MND_FLUSH_MNODE, "flush-mnode", NULL, NULL)  // moved from TDMT_MND_MSG: that segment is full (see "mnode msg overload" note above)
+  // client parser -> mnode: check whether a column/tag is referenced by user/role privilege
+  // (RENAME COLUMN / RENAME TAG on normal / virtual-normal tables, which go to the vnode directly)
+  TD_DEF_MSG_TYPE(TDMT_MND_CHECK_COL_REF_BY_PRIV, "check-col-ref-by-priv", SMndCheckColRefReq, SMndCheckColRefRsp)
   TD_CLOSE_MSG_SEG(TDMT_MND_EXT_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MND_XNODE_MSG)  //10 << 8

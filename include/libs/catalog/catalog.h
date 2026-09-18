@@ -428,6 +428,18 @@ int32_t catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbF
 int32_t catalogGetVstLeaves(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, int64_t suid,
                             SVstLeavesRsp* pRsp);
 
+/**
+ * Check whether a column/tag may be renamed by the current privilege policies (RESTRICT dependency check).
+ * @param pCtg (input, got with catalogGetHandle)
+ * @param pConn (input, rpc connection info, mgmt eps must be valid)
+ * @param tbFName (input, table full name, i.e. db.table)
+ * @param colId (input, column/tag id, used for column-list grants)
+ * @param colName (input, column/tag name, used for row-level tag conditions)
+ * @return error code, TSDB_CODE_SUCCESS means no privilege references the column/tag
+ */
+int32_t catalogChkColRefByPriv(SCatalog* pCtg, SRequestConnInfo* pConn, const char* tbFName, col_id_t colId,
+                               const char* colName);
+
 int32_t catalogGetIndexMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const char* indexName, SIndexInfo* pInfo);
 
 int32_t catalogGetTableIndex(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes);

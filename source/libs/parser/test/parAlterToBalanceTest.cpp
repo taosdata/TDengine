@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "mockCatalog.h"  // mockChkColRefByPrivCode: drive the stubbed RESTRICT verdict
 #include "parTestUtil.h"
 
 using namespace std;
@@ -20,6 +21,25 @@ using namespace std;
 namespace ParserTest {
 
 class ParserInitialATest : public ParserDdlTest {};
+
+namespace {
+
+// g_chkColRefByPrivCode (mockCatalog.cpp) is process-global and the harness has no SetUp/TearDown
+// that resets it. A run() mismatch throws (see DO_WITH_THROW), which unwinds the whole test body,
+// so an inline "reset to SUCCESS" after the last assertion would be skipped and the stale RESTRICT
+// verdict would leak into every later RENAME COLUMN/TAG case in this binary. Restoring from a
+// destructor makes the reset happen on every exit path, including the throwing one.
+struct ScopedChkColRefByPrivCode {
+  explicit ScopedChkColRefByPrivCode(int32_t code) { mockChkColRefByPrivCode(code); }
+  ~ScopedChkColRefByPrivCode() { mockChkColRefByPrivCode(TSDB_CODE_SUCCESS); }
+
+  ScopedChkColRefByPrivCode(const ScopedChkColRefByPrivCode&) = delete;
+  ScopedChkColRefByPrivCode& operator=(const ScopedChkColRefByPrivCode&) = delete;
+  ScopedChkColRefByPrivCode(ScopedChkColRefByPrivCode&&) = delete;
+  ScopedChkColRefByPrivCode& operator=(ScopedChkColRefByPrivCode&&) = delete;
+};
+
+}  // namespace
 
 /*
  * ALTER ACCOUNT account_name alter_account_options
@@ -589,6 +609,7 @@ TEST_F(ParserInitialATest, alterTable) {
           expect.colModBytes = dataBytes;
           break;
         case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+        case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
           expect.colNewName = strdup(pNewColName);
           break;
         default:
@@ -705,6 +726,12 @@ TEST_F(ParserInitialATest, alterTable) {
     run("ALTER TABLE t1 RENAME COLUMN c1 cc1");
     clearAlterTbReq();
 
+    // RENAME TAG on the owned tags of a normal table goes to the vnode (t3 owns ntag1/ntag2);
+    // the super-table form is routed to the mnode instead (asserted in the super table block).
+    setAlterTableCol("t3", TSDB_ALTER_TABLE_UPDATE_TAG_NAME, "ntag1", 0, 0, "ntag1_new");
+    run("ALTER TABLE t3 RENAME TAG ntag1 ntag1_new");
+    clearAlterTbReq();
+
     int32_t val = 10;
     setAlterTableTag("st1s1", "tag1", (uint8_t*)&val, sizeof(val));
     run("ALTER TABLE st1s1 SET TAG tag1=10");
@@ -814,6 +841,31 @@ TEST_F(ParserInitialATest, alterTableSemanticCheck) {
   useDb("root", "test");
 
   run("ALTER TABLE st1s1 RENAME COLUMN c1 cc1", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  // RENAME TAG on a normal table's owned tags: the old tag must exist and the new name must not
+  // collide with an existing tag or column. RENAME COLUMN and RENAME TAG are not interchangeable.
+  run("ALTER TABLE t3 RENAME TAG nosuchtag x", TSDB_CODE_PAR_INVALID_TAG_NAME);
+  run("ALTER TABLE t3 RENAME TAG ntag1 ntag2", TSDB_CODE_PAR_DUPLICATED_COLUMN);
+  run("ALTER TABLE t3 RENAME TAG ntag1 c1", TSDB_CODE_PAR_DUPLICATED_COLUMN);
+  run("ALTER TABLE t3 RENAME COLUMN ntag1 x", TSDB_CODE_PAR_INVALID_COLUMN);
+  run("ALTER TABLE t3 RENAME TAG c1 x", TSDB_CODE_PAR_INVALID_TAG_NAME);
+  // a normal table without tags has nothing to rename
+  run("ALTER TABLE t1 RENAME TAG t x", TSDB_CODE_PAR_INVALID_TAG_NAME);
+
+  // The RESTRICT verdict comes back from the mnode over TDMT_MND_CHECK_COL_REF_BY_PRIV and must
+  // travel out of translate() unchanged for both RENAME forms — checkColRefByPriv is the only
+  // barrier between these two statements and the privilege-dependency check, so a swallowed or
+  // remapped code would silently turn "referenced by a privilege" into an accepted rename.
+  // The stub answer is process-global, hence the scoped guards.
+  {
+    ScopedChkColRefByPrivCode userPriv(TSDB_CODE_MND_COL_REF_BY_USER_PRIV);
+    run("ALTER TABLE t3 RENAME TAG ntag1 ntag1_new", TSDB_CODE_MND_COL_REF_BY_USER_PRIV);
+    run("ALTER TABLE t1 RENAME COLUMN c1 cc1", TSDB_CODE_MND_COL_REF_BY_USER_PRIV);
+  }
+  {
+    ScopedChkColRefByPrivCode rolePriv(TSDB_CODE_MND_COL_REF_BY_ROLE_PRIV);
+    run("ALTER TABLE t3 RENAME TAG ntag1 ntag1_new", TSDB_CODE_MND_COL_REF_BY_ROLE_PRIV);
+  }
+
   run("ALTER TABLE st1s1 ADD TAG tag11 BIGINT", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   run("ALTER TABLE st1s1 DROP TAG tag1", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   run("ALTER TABLE st1s1 MODIFY TAG tag2 VARCHAR(30)", TSDB_CODE_PAR_INVALID_ALTER_TABLE);

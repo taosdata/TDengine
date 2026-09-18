@@ -131,6 +131,7 @@ alter_table_clause: {
   | ADD TAG tag_name tag_type
   | SET TAG tag_name = new_tag_value
   | DROP TAG tag_name
+  | RENAME TAG old_tag_name new_tag_name
 }
 
 alter_table_options:
@@ -156,7 +157,8 @@ alter_table_option: {
 7. `ADD TAG`：添加自有标签，初值为 `NULL`，可再经 `SET TAG` 赋值。
 8. `SET TAG`：设置自有标签的值。
 9. `DROP TAG`：删除标签。
-10. 普通表不支持标签引用：`ADD TAG ... FROM ...` 和 `SET TAG ... = db_name.table_name.tag_name` 均报错；`JSON` 类型标签不能通过 `ADD TAG` 追加。
+10. `RENAME TAG`：修改自有标签的名称。仅改变标签的显示名称，标签值保持不变。新名称不能与该表已有的列名或标签名重复。自 3.4.3.0 版本开始支持。
+11. 普通表不支持标签引用：`ADD TAG ... FROM ...` 和 `SET TAG ... = db_name.table_name.tag_name` 均报错；`JSON` 类型标签不能通过 `ADD TAG` 追加。
 
 **参数说明**
 
@@ -203,6 +205,12 @@ ALTER TABLE tb_name SET TAG tag_name = new_tag_value;
 
 ```sql
 ALTER TABLE tb_name DROP TAG tag_name;
+```
+
+#### 修改标签名
+
+```sql
+ALTER TABLE tb_name RENAME TAG old_tag_name new_tag_name;
 ```
 
 #### 修改表生命周期

@@ -793,7 +793,10 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
       }
       break;
     }
-    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME: {
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+    // RENAME TAG reaches a vnode for the owned tags of a normal / virtual-normal table; the
+    // super-table form travels as an mnode alter-stb meta (processAlterStable above).
+    case TSDB_ALTER_TABLE_UPDATE_TAG_NAME: {
       ADD_TO_JSON_STRING(json, "colName", vAlterTbReq.colName);
       ADD_TO_JSON_STRING(json, "colNewName", vAlterTbReq.colNewName);
       break;
