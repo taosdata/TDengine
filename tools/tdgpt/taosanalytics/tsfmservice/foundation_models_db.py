@@ -375,6 +375,60 @@ class FoundationModelsDAO:
             finally:
                 conn.close()
 
+    def create_download_operation_if_idle(self, operation: AsyncOperation) -> bool:
+        """Create a download operation only if the resource has none in flight.
+
+        The request handlers used to read the active operation and then insert
+        theirs -- two statements on two connections, so two gunicorn worker
+        processes could both find nothing and both queue a download of the same
+        resource (the client then saw two task_ids for one resource). Here the
+        check and the insert are a single statement, which SQLite executes
+        atomically.
+
+        Args:
+            operation: Download-family operation (``download``/``download_start``)
+
+        Returns:
+            True when this caller created the row; False when the resource
+            already had a queued/running download.
+        """
+        with self._lock:
+            try:
+                conn = self._get_connection()
+                cursor = conn.cursor()
+
+                data_json = json.dumps(operation.data) if operation.data else None
+
+                cursor.execute("""
+                    INSERT INTO async_operations
+                    (task_id, operation, model_name, status, progress, created_at,
+                     started_at, completed_at, error, error_code, data, updated_at)
+                    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM async_operations
+                        WHERE model_name = ?
+                          AND operation IN ('download', 'download_start')
+                          AND status IN ('queued', 'running')
+                    )
+                """, (
+                    operation.task_id, operation.operation, operation.model_name,
+                    operation.status, operation.progress, operation.created_at,
+                    operation.started_at, operation.completed_at,
+                    operation.error, operation.error_code, data_json,
+                    operation.updated_at,
+                    operation.model_name,
+                ))
+                conn.commit()
+                created = cursor.rowcount == 1
+                if created:
+                    AppLogger.debug("Created async operation: %s", operation.task_id)
+                return created
+            except sqlite3.Error as e:
+                AppLogger.error("Failed to create async operation: %s", e)
+                return False
+            finally:
+                conn.close()
+
     def get_async_operation(self, task_id: str) -> Optional[AsyncOperation]:
         """Retrieve an async operation by task_id.
 
@@ -453,6 +507,49 @@ class FoundationModelsDAO:
                 return True
             except sqlite3.Error as e:
                 AppLogger.error("Failed to update async operation: %s", e)
+                return False
+            finally:
+                conn.close()
+
+    def mark_operation_running(self, task_id: str) -> bool:
+        """Move an operation to ``running``, keeping the time it first started.
+
+        ``started_at`` doubles as the watermark ``_find_resource_state`` compares
+        a resource task file against, so it has to mean "when this operation
+        began" and must never be pushed forward. A combined operation runs two
+        workers on one row (download, then start) and the second one used to
+        reset it -- moving the watermark past the task file the first phase had
+        written. That phase then looked like it had reported nothing: the SSE
+        stream fell back to its stand-in row and told the client a phase it had
+        already seen finish was starting over, and then reported that phase
+        finished a second time.
+
+        COALESCE keeps the write first-write-wins without a read-modify-write, so
+        two workers racing on one row cannot clobber each other's timestamp.
+
+        Args:
+            task_id: Unique task identifier
+
+        Returns:
+            True when the row was found and updated.
+        """
+        with self._lock:
+            try:
+                conn = self._get_connection()
+                cursor = conn.cursor()
+                now = time.time()
+                cursor.execute("""
+                    UPDATE async_operations
+                    SET status = 'running',
+                        started_at = COALESCE(started_at, ?),
+                        updated_at = ?
+                    WHERE task_id = ?
+                """, (now, now, task_id))
+                conn.commit()
+                AppLogger.debug("Marked async operation running: %s", task_id)
+                return cursor.rowcount == 1
+            except sqlite3.Error as e:
+                AppLogger.error("Failed to mark async operation running: %s", e)
                 return False
             finally:
                 conn.close()
@@ -585,7 +682,33 @@ class FoundationModelsDAO:
                 conn.close()
 
     def fail_stale_running_operations(self) -> int:
-        """At startup: delete queued operations (never started) and mark running ones as interrupted.
+        """Reconcile the operations a service restart left behind.
+
+        A restart drops the process-local executor queues, so nothing that was
+        only *waiting* can ever start again, and nothing that was *running* can
+        report back. One rule per (status, operation) pair:
+
+        - ``queued`` (any): deleted. It never started and the pool that held it is
+          gone, so the client re-issues the request if it still wants it. This
+          covers a download waiting for the download lock too: the
+          ``resource apply`` child is only spawned *after* the lock is taken, so
+          a queued download has no detached work behind it.
+        - ``running`` download/download_start: ``interrupted``. The archive may
+          already be on disk and the detached taosanodectl child may even finish
+          after the restart, so the row is kept and the client is told why; the
+          resource itself is reconciled by `resource check` (and the row is
+          purged by cleanup_download_operations once the model is downloaded
+          again).
+        - ``running`` delete: resumed -- put back to ``queued`` with a
+          ``restart_requeue`` flag that a worker picks up (see
+          list_requeued_deletes). Deleting is idempotent (a missing resource
+          reports not_found) and it was an explicit client request, so it is
+          carried out rather than reported as failed. The task_id is preserved so
+          the client's polling continues.
+        - ``running`` start/stop: deleted. Whatever worker process exists is not
+          tracked by this row -- it is found through the pid files (see the
+          liveness check in taosanode_service.py) -- so there is nothing to
+          resume and nothing to report.
 
         Returns:
             Number of operations affected
@@ -596,25 +719,199 @@ class FoundationModelsDAO:
                 cursor = conn.cursor()
                 now = time.time()
 
-                # Delete queued tasks — never executed, no value in keeping them
-                cursor.execute("DELETE FROM async_operations WHERE status = 'queued'")
+                # 1. Nothing that was merely waiting/completed can ever start again.
+                cursor.execute("DELETE FROM async_operations WHERE status IN ('queued', 'completed')")
                 deleted = cursor.rowcount
 
-                # Mark running tasks as interrupted — were mid-execution when service died
+                # 2. A download that was in flight is reported as stopped.
                 cursor.execute("""
                     UPDATE async_operations
-                    SET status = 'interrupted', completed_at = ?, error = 'Service restarted while task was running, retry to resume'
-                    WHERE status = 'running'
+                    SET status = 'interrupted', completed_at = ?,
+                        error = 'Service restarted while the download was running; re-issue the download to resume'
+                    WHERE status = 'running' AND operation IN ('download', 'download_start')
                 """, (now,))
                 interrupted = cursor.rowcount
 
+                # 3. A delete that was in flight is resumed. Done row by row
+                #    because the flag lives inside the JSON `data` column.
+                cursor.execute("""
+                    SELECT task_id, data FROM async_operations
+                    WHERE status = 'running' AND operation = 'delete'
+                """)
+                resumed = 0
+                for row in cursor.fetchall():
+                    try:
+                        data = json.loads(row["data"]) if row["data"] else {}
+                    except (TypeError, ValueError):
+                        data = {}
+                    if not isinstance(data, dict):
+                        data = {}
+                    data["restart_requeue"] = True
+                    data.pop("waiting_for", None)
+                    cursor.execute("""
+                        UPDATE async_operations
+                        SET status = 'queued', progress = 0, started_at = NULL,
+                            completed_at = NULL, error = NULL, error_code = NULL,
+                            data = ?, updated_at = ?
+                        WHERE task_id = ?
+                    """, (json.dumps(data), now, row["task_id"]))
+                    resumed += 1
+
+                # 4. start/stop leave nothing to resume.
+                cursor.execute("DELETE FROM async_operations WHERE operation IN ('start', 'stop')")
+                dropped = cursor.rowcount
+
+                cursor.execute("DELETE FROM async_operations WHERE operation IN ('delete') AND status = 'completed' AND completed_at < ?",
+                               (now - 86400,))
+                dropped += cursor.rowcount
+
                 conn.commit()
-                if deleted or interrupted:
-                    AppLogger.info("Startup cleanup: deleted %d queued, marked %d running as interrupted", deleted, interrupted)
-                return deleted + interrupted
+                if deleted or interrupted or resumed or dropped:
+                    AppLogger.info(
+                        "Startup cleanup: deleted %d queued/completed, dropped %d start/stop, "
+                        "interrupted %d downloads, resumed %d deletes",
+                        deleted,
+                        dropped,
+                        interrupted,
+                        resumed,
+                    )
+                return deleted + interrupted + resumed + dropped
             except sqlite3.Error as e:
                 AppLogger.error("Failed to clean stale operations: %s", e)
                 return 0
+            finally:
+                conn.close()
+
+    def list_requeued_deletes(self) -> list[AsyncOperation]:
+        """Return the delete operations a restart asked to resume.
+
+        Only rows flagged by fail_stale_running_operations are returned; the
+        caller must claim each one with claim_requeued_delete before running it,
+        so with several gunicorn workers only one of them picks it up.
+        """
+        with self._lock:
+            try:
+                conn = self._get_connection()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT * FROM async_operations
+                    WHERE operation = 'delete' AND status = 'queued'
+                      AND data LIKE '%restart_requeue%'
+                """)
+                results = []
+                for row in cursor.fetchall():
+                    try:
+                        data = json.loads(row["data"]) if row["data"] else None
+                    except (TypeError, ValueError):
+                        data = None
+                    if not isinstance(data, dict) or data.get("restart_requeue") is not True:
+                        continue
+                    results.append(AsyncOperation(
+                        task_id=row["task_id"],
+                        operation=row["operation"],
+                        model_name=row["model_name"],
+                        status=row["status"],
+                        progress=row["progress"],
+                        created_at=row["created_at"],
+                        started_at=row["started_at"],
+                        completed_at=row["completed_at"],
+                        error=row["error"],
+                        error_code=row["error_code"],
+                        data=data,
+                        updated_at=row["updated_at"],
+                    ))
+                return results
+            except sqlite3.Error as e:
+                AppLogger.error("Failed to list requeued deletes: %s", e)
+                return []
+            finally:
+                conn.close()
+
+    def claim_requeued_delete(self, operation: AsyncOperation) -> bool:
+        """Atomically take ownership of a resumable delete.
+
+        The claim is a compare-and-swap on the raw ``data`` value: only one
+        caller can match the exact serialized form it read, so a second gunicorn
+        worker (or a second call) gets False and leaves the task alone. The flag
+        is cleared in the same statement, which also makes the claim idempotent
+        across restarts.
+
+        Args:
+            operation: Row previously returned by list_requeued_deletes
+
+        Returns:
+            True when this caller owns the task and should run it.
+        """
+        with self._lock:
+            try:
+                conn = self._get_connection()
+                cursor = conn.cursor()
+
+                original = json.dumps(operation.data)
+                claimed = dict(operation.data)
+                claimed.pop("restart_requeue", None)
+                claimed["attempt"] = 0
+
+                cursor.execute("""
+                    UPDATE async_operations
+                    SET data = ?, updated_at = ?
+                    WHERE task_id = ? AND status = 'queued' AND data = ?
+                """, (json.dumps(claimed), time.time(), operation.task_id, original))
+                conn.commit()
+                return cursor.rowcount == 1
+            except sqlite3.Error as e:
+                AppLogger.error("Failed to claim requeued delete %s: %s", operation.task_id, e)
+                return False
+            finally:
+                conn.close()
+
+    def list_recently_finished_downloads(self, since: float) -> list[AsyncOperation]:
+        """Return download-family operations that finished at or after ``since``.
+
+        Used by the SSE stream so a client that subscribes after the fact (a
+        reconnected EventSource, a reloaded page) still learns how an operation
+        ended: the stream only closes out the phase streams its own connection
+        reported, so without this replay the outcome would never reach it.
+
+        Args:
+            since: Epoch seconds; operations completed before it are left out
+
+        Returns:
+            List of finished download/download_start operations, newest first
+        """
+        with self._lock:
+            try:
+                conn = self._get_connection()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT * FROM async_operations
+                    WHERE operation IN ('download', 'download_start')
+                      AND status IN ('completed', 'failed')
+                      AND completed_at >= ?
+                    ORDER BY completed_at DESC
+                """, (since,))
+                rows = cursor.fetchall()
+                results = []
+                for row in rows:
+                    data = json.loads(row["data"]) if row["data"] else None
+                    results.append(AsyncOperation(
+                        task_id=row["task_id"],
+                        operation=row["operation"],
+                        model_name=row["model_name"],
+                        status=row["status"],
+                        progress=row["progress"],
+                        created_at=row["created_at"],
+                        started_at=row["started_at"],
+                        completed_at=row["completed_at"],
+                        error=row["error"],
+                        error_code=row["error_code"],
+                        data=data,
+                        updated_at=row["updated_at"],
+                    ))
+                return results
+            except sqlite3.Error as e:
+                AppLogger.error("Failed to list recently finished downloads: %s", e)
+                return []
             finally:
                 conn.close()
 

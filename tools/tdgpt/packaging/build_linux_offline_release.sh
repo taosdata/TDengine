@@ -18,14 +18,15 @@ venv_version="1.0.1"
 
 usage() {
   cat <<'EOF'
-Usage: build_linux_offline_release.sh --version VERSION --tdmodel-requirements FILE [options]
+Usage: build_linux_offline_release.sh --version VERSION [--tdmodel-requirements FILE] [options]
 
-Builds the CPython runtime, TDgpt and TDModel venv archives, and the TDgpt
-installer. All artifacts and SHA256SUMS are written to --output-dir.
+Builds the CPython runtime, the TDgpt main venv, the TDgpt installer, and the
+TDModel venv archives (full build only). All artifacts and SHA256SUMS are
+written to --output-dir.
 
 Required:
   --version VERSION              TDgpt package version passed to release.sh.
-  --tdmodel-requirements FILE    TDModel requirements.txt.
+  --tdmodel-requirements FILE    TDModel requirements.txt. Required unless --lite.
 
 Options:
   --edition enterprise|community Installer edition. Default: enterprise
@@ -62,10 +63,16 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$version" ]] || { echo "--version is required" >&2; exit 2; }
-[[ -n "$tdmodel_requirements" ]] || { echo "--tdmodel-requirements is required" >&2; exit 2; }
+if [[ "$lite" == "1" ]]; then
+  [[ -z "$tdmodel_requirements" ]] || { echo "--tdmodel-requirements cannot be used with --lite" >&2; exit 2; }
+else
+  [[ -n "$tdmodel_requirements" ]] || { echo "--tdmodel-requirements is required without --lite" >&2; exit 2; }
+fi
 case "$edition" in enterprise|community) ;; *) echo "Unsupported edition: $edition" >&2; exit 2 ;; esac
 tdgpt_root=$(cd "$tdgpt_root" && pwd)
-tdmodel_requirements=$(cd "$(dirname "$tdmodel_requirements")" && pwd)/$(basename "$tdmodel_requirements")
+if [[ "$lite" != "1" ]]; then
+  tdmodel_requirements=$(cd "$(dirname "$tdmodel_requirements")" && pwd)/$(basename "$tdmodel_requirements")
+fi
 mkdir -p "$work_dir" "$output_dir"
 
 runtime_args=(
@@ -83,7 +90,6 @@ venv_args=(
   --tdgpt-root "$tdgpt_root" \
   --build-python-home "$runtime_home" \
   --target-python-home "$target_python_home" \
-  --tdmodel-requirements "$tdmodel_requirements" \
   --work-dir "${work_dir}/venvs" \
   --output-dir "$output_dir"
 )
@@ -94,7 +100,10 @@ if [[ -n "$pip_extra_args" ]]; then
   venv_args+=(--pip-extra-args "$pip_extra_args")
 fi
 if [[ "$lite" == "1" ]]; then
-  venv_args+=(--lite)
+  # Lite ships the runtime, the main venv, and the installer only.
+  venv_args+=(--bundle main --lite)
+else
+  venv_args+=(--tdmodel-requirements "$tdmodel_requirements")
 fi
 venv_args+=(--venv-version "$venv_version")
 "${script_dir}/build_linux_offline_assets.sh" "${venv_args[@]}"
@@ -127,10 +136,14 @@ cp -f "$installer" "$output_dir/"
 artifacts=(
   "${output_dir}/tdengine-python-runtime-${python_version}-linux-${arch}.tar.gz"
   "${output_dir}/${offline_asset_prefix}-venv-${venv_version}-linux-${arch}.tar.gz"
-  "${output_dir}/${offline_asset_prefix}-model-venv-${venv_version}-linux-${arch}.tar.gz"
-  "${output_dir}/tdengine-tdmodel-venv-${venv_version}-linux-${arch}.tar.gz"
-  "${output_dir}/$(basename "$installer")"
 )
+if [[ "$lite" != "1" ]]; then
+  artifacts+=(
+    "${output_dir}/${offline_asset_prefix}-model-venv-${venv_version}-linux-${arch}.tar.gz"
+    "${output_dir}/tdengine-tdmodel-venv-${venv_version}-linux-${arch}.tar.gz"
+  )
+fi
+artifacts+=("${output_dir}/$(basename "$installer")")
 for artifact in "${artifacts[@]}"; do
   [[ -f "$artifact" ]] || { echo "Missing artifact: $artifact" >&2; exit 1; }
 done

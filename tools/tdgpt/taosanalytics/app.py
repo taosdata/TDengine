@@ -32,8 +32,11 @@ from taosanalytics.model_file_mgt import ModelFileManager
 from taosanalytics.service_registry import loader
 from taosanalytics.tsfmservice.foundation_model import (
     delete_foundation_model,
+    delete_foundation_runtime,
     download_and_start_foundation_model,
     download_foundation_model,
+    download_foundation_runtime,
+    ensure_pending_deletes_resumed,
     get_all_operations_stream,
     get_model_info,
     get_operation_status,
@@ -68,6 +71,21 @@ def _init_app():
 # Create Flask app
 app = Flask(__name__)
 app.config["PROPAGATE_EXCEPTIONS"] = True
+
+
+@app.before_request
+def _resume_interrupted_deletes():
+    """Re-arm the deletes a service restart interrupted (once per process).
+
+    Done here rather than in a server hook so the recovery stays inside the app,
+    which is where the executor queues that run the tasks live and is the only
+    place that works for both gunicorn and waitress. Every request calls in, but
+    only the first one in each process does any work.
+    """
+    try:
+        ensure_pending_deletes_resumed()
+    except Exception as exc:  # recovery is best-effort; never break the request
+        AppLogger.error("Failed to resume interrupted model deletes: %s", exc)
 
 
 @app.route("/")
@@ -192,7 +210,6 @@ def handle_get_model_info_req(model_name):
     """Get information about a specific foundation model"""
     return get_model_info(request, model_name)
 
-
 @app.route("/api/v1/foundation-models/download", methods=["POST"])
 def handle_download_foundation_model_req():
     """Download a foundation model (async operation)"""
@@ -221,6 +238,18 @@ def handle_stop_foundation_model_req():
 def handle_delete_foundation_model_req():
     """Delete a foundation model (async operation)"""
     return delete_foundation_model(request)
+
+
+@app.route("/api/v1/foundation-models/runtime/download", methods=["POST"])
+def handle_download_foundation_runtime_req():
+    """Install or refresh the shared TSFM runtime (venv) on its own (async operation)"""
+    return download_foundation_runtime(request)
+
+
+@app.route("/api/v1/foundation-models/runtime/delete", methods=["POST"])
+def handle_delete_foundation_runtime_req():
+    """Destroy the shared TSFM runtime (venv) environment (async operation)"""
+    return delete_foundation_runtime(request)
 
 
 @app.route("/api/v1/foundation-models/<task_id>/status", methods=["GET"])
