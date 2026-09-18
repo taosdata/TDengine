@@ -519,6 +519,9 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
          tstrerror(rspCode));
 
   SCH_ERR_JRET(schProcessOnCbBegin(&pJob, &pTask, pParam->queryId, pParam->refId, pParam->subJobId, pParam->taskId));
+  // A task response proves RPC accepted work, even if it arrives before the
+  // send call returns. Record this before processing can complete the job.
+  atomic_store_8(&pJob->execDispatched, 1);
   code = schHandleResponseMsg(pJob, pTask, pParam->seriesId, pParam->execId, pMsg, rspCode);
   pMsg->pData = NULL;
 
@@ -1067,6 +1070,12 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQuery
   pMsgSendInfo = NULL;
   if (code) {
     SCH_ERR_JRET(code);
+  }
+
+  // Synchronous failures in qcom or transport have not accepted this task.
+  // The callback also marks dispatch, covering completion before this return.
+  if (pJob != NULL && pTask != NULL && pTask->plan != NULL && msgType == pTask->plan->msgType) {
+    atomic_store_8(&pJob->execDispatched, 1);
   }
 
   if (pJob) {

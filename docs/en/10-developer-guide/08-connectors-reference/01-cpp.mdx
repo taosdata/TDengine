@@ -482,7 +482,7 @@ TDengine's asynchronous APIs all use a non-blocking call mode. Applications can 
 
 In addition to directly calling `taos_query()` for queries, TDengine also offers a Prepare API that supports parameter binding, similar in style to MySQL, currently only supporting the use of a question mark `?` to represent the parameter to be bound.
 
-Starting from version 3.3.5.0, TDengine has significantly simplified the usage interface of the old parameter binding. This avoids the resource consumption of SQL syntax parsing when writing data through the parameter binding interface, and through batch binding, significantly improves writing performance in most cases. The typical operation steps are as follows:
+Starting from `v3.3.5.0`, TDengine has significantly simplified the usage interface of the old parameter binding. This avoids the resource consumption of SQL syntax parsing when writing data through the parameter binding interface, and through batch binding, significantly improves writing performance in most cases. The typical operation steps are as follows:
 
 1. Call `taos_stmt2_init()` to create a parameter binding object;
 2. Call `taos_stmt2_prepare()` to parse INSERT or SELECT statements;
@@ -491,7 +491,19 @@ Starting from version 3.3.5.0, TDengine has significantly simplified the usage i
 5. Steps 3 to 4 can be repeated to write more data rows without re-parsing SQL;
 6. After execution is complete, call `taos_stmt2_close()` to release all resources.
 
-Note: If `taos_stmt2_exec()` executes successfully and there is no need to change the SQL statement, then it is possible to reuse the parsing result of `taos_stmt2_prepare()` and directly proceed to steps 3 to 4 to bind new data. However, if there is an error in execution, it is not recommended to continue working in the current context. Instead, it is advisable to release resources and start over from the `taos_stmt2_init()` step. You can check the specific error reason through `taos_stmt2_error`.
+#### stmt2 Error Recovery
+
+`taos_stmt2_error()` returns detailed information about the latest error. In synchronous mode, `taos_stmt2_exec()` returns the execution error code directly. In asynchronous mode, the callback receives the final execution error code.
+
+Whether a stmt2 object remains usable depends on the phase in which the error occurs, not only on the error code. A final execution error returned after the request has been sent does not require another `taos_stmt2_prepare()` call:
+
+| Error path | Typical error codes | Recovery |
+| --- | --- | --- |
+| The request has been sent and the server, RPC, or network layer returns a final execution error. | `TSDB_CODE_VND_STOPPED`, `TSDB_CODE_TDB_TABLE_NOT_EXIST`, `TSDB_CODE_PAR_TABLE_NOT_EXIST`, `TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER`, `TSDB_CODE_MND_INVALID_SCHEMA_VER`, `TSDB_CODE_SCH_DATA_SRC_EP_MISS`, `TSDB_CODE_VND_HASH_MISMATCH`, `TSDB_CODE_VND_INVALID_VGROUP_ID`, and other server, RPC, network, or timeout execution errors. | Call `taos_stmt2_error()` first, correct the server state, and then bind and execute again. The failed batch is discarded, so another `taos_stmt2_prepare()` call is not required. The client first retries errors that require metadata or routing information to be refreshed. If that retry also fails, handle the final error as described in this row. |
+
+Binding APIs retain their existing validation and error-state behavior. Outside final execution errors returned after a request has been sent, uniformly treat any other nonzero return code from an STMT2 API as requiring the statement to be prepared again. First call `taos_stmt2_error()` and retain the error information. Then call `taos_stmt2_prepare()` again on the same stmt2 object with the original SQL, and resume binding and execution only after prepare succeeds. If prepare fails again, close the stmt2 object and create a new one.
+
+Read an execution error before the next execution or prepare call because that operation clears the retained execution result. In asynchronous mode, wait until the callback returns before binding the next batch, and do not bind data from inside the callback.
 
 The difference between stmt2 and stmt is:
 
