@@ -17,7 +17,7 @@ class TestConfig:
         assert len(mock_config.models) > 0
         assert mock_config.timeouts == {
             "service_startup": 180,
-            "model_startup": 180,
+            "model_startup": 300,
             "shutdown": 30,
         }
 

@@ -84,6 +84,44 @@ ARCHIVE_SUFFIXES = (
 )
 
 
+def validate_archive_member_path(name: str) -> None:
+    """Reject archive members that can escape the extraction directory."""
+    normalized = str(name).replace("\\", "/")
+    if not normalized or "\x00" in normalized:
+        raise ValueError(f"Unsafe archive member path: {name!r}")
+    if normalized.startswith("/") or re.match(r"^[A-Za-z]:", normalized):
+        raise ValueError(f"Unsafe absolute archive member path: {name!r}")
+    if ".." in normalized.split("/"):
+        raise ValueError(f"Unsafe parent traversal in archive member: {name!r}")
+
+
+def validate_zip_members(members: Iterable[zipfile.ZipInfo]) -> List[zipfile.ZipInfo]:
+    """Validate zip member paths before extraction starts."""
+    validated = list(members)
+    for member in validated:
+        validate_archive_member_path(member.filename)
+    return validated
+
+
+def safe_extract_tar(
+    archive: tarfile.TarFile,
+    destination: Path,
+    members: Optional[Iterable[tarfile.TarInfo]] = None,
+) -> None:
+    archive.extractall(destination, members=members, filter="data")
+
+
+def safe_extract_zip(
+    archive: zipfile.ZipFile,
+    destination: Path,
+    members: Optional[Iterable[zipfile.ZipInfo]] = None,
+) -> None:
+    validated = validate_zip_members(
+        archive.infolist() if members is None else members
+    )
+    archive.extractall(destination, members=validated)
+
+
 def acquire_install_mutex():
     handle = _kernel32.CreateMutexW(None, False, INSTALL_MUTEX_NAME)
     if not handle:
@@ -1257,8 +1295,8 @@ class WindowsInstaller:
             )
             try:
                 with zipfile.ZipFile(archive_for_reading, "r") as zip_obj:
-                    for item in zip_obj.namelist():
-                        normalized = self.normalize_archive_member_name(item)
+                    for item in validate_zip_members(zip_obj.infolist()):
+                        normalized = self.normalize_archive_member_name(item.filename)
                         if normalized:
                             members.add(normalized)
             finally:
@@ -1277,6 +1315,7 @@ class WindowsInstaller:
                     )
                     if result.returncode == 0:
                         for item in result.stdout.splitlines():
+                            validate_archive_member_path(item)
                             normalized = self.normalize_archive_member_name(item)
                             if normalized:
                                 members.add(normalized)
@@ -1293,7 +1332,8 @@ class WindowsInstaller:
                         f"System tar was not found. Falling back to Python tarfile for {archive_path.name}."
                     )
             with tarfile.open(archive_path, "r:*") as tar_obj:
-                for member in tar_obj.getmembers():
+                for member in tar_obj:
+                    tarfile.data_filter(member, str(self.install_dir))
                     normalized = self.normalize_archive_member_name(member.name)
                     if normalized:
                         members.add(normalized)
@@ -1488,9 +1528,10 @@ class WindowsInstaller:
                 )
                 try:
                     with zipfile.ZipFile(archive_for_reading, "r") as zip_obj:
-                        for member_name in zip_obj.namelist():
+                        selected_members = []
+                        for member in validate_zip_members(zip_obj.infolist()):
                             normalized_name = self.normalize_archive_member_name(
-                                member_name
+                                member.filename
                             )
                             if not any(
                                 normalized_name == prefix
@@ -1498,7 +1539,8 @@ class WindowsInstaller:
                                 for prefix in normalized_prefixes
                             ):
                                 continue
-                            zip_obj.extract(member_name, destination_dir)
+                            selected_members.append(member)
+                        safe_extract_zip(zip_obj, destination_dir, selected_members)
                 finally:
                     if temp_ctx is not None:
                         temp_ctx.cleanup()
@@ -1510,15 +1552,20 @@ class WindowsInstaller:
                 )
 
             with tarfile.open(archive_path, "r:*") as tar_obj:
-                for member in tar_obj.getmembers():
-                    normalized_name = self.normalize_archive_member_name(member.name)
-                    if not any(
-                        normalized_name == prefix
-                        or normalized_name.startswith(prefix + "/")
-                        for prefix in normalized_prefixes
-                    ):
-                        continue
-                    tar_obj.extract(member, destination_dir)
+
+                def selected_members():
+                    for member in tar_obj:
+                        normalized_name = self.normalize_archive_member_name(
+                            member.name
+                        )
+                        if any(
+                            normalized_name == prefix
+                            or normalized_name.startswith(prefix + "/")
+                            for prefix in normalized_prefixes
+                        ):
+                            yield member
+
+                safe_extract_tar(tar_obj, destination_dir, selected_members())
             return True
         except Exception as exc:
             self.print_error(
@@ -2772,6 +2819,17 @@ class WindowsInstaller:
     def extract_archive_to_dir(self, archive_path: Path, destination_dir: Path) -> bool:
         try:
             suffix = detect_archive_suffix(archive_path)
+            if suffix not in {
+                ".zip",
+                ".zip.zst",
+                ".tar.gz",
+                ".tgz",
+                ".tar",
+                ".tar.zst",
+                ".tzst",
+            }:
+                self.print_error(f"Unsupported archive format: {archive_path.name}")
+                return False
             destination_dir.mkdir(parents=True, exist_ok=True)
             if suffix in {".zip", ".zip.zst"}:
                 archive_for_reading, temp_ctx = self.prepare_zip_archive_for_reading(
@@ -2779,7 +2837,7 @@ class WindowsInstaller:
                 )
                 try:
                     with zipfile.ZipFile(archive_for_reading, "r") as zip_obj:
-                        zip_obj.extractall(destination_dir)
+                        safe_extract_zip(zip_obj, destination_dir)
                 finally:
                     if temp_ctx is not None:
                         temp_ctx.cleanup()
@@ -2815,10 +2873,7 @@ class WindowsInstaller:
                     )
 
                 with tarfile.open(archive_path, "r:*") as tar_obj:
-                    tar_obj.extractall(destination_dir)
-            else:
-                self.print_error(f"Unsupported archive format: {archive_path.name}")
-                return False
+                    safe_extract_tar(tar_obj, destination_dir)
         except Exception as exc:
             self.print_error(f"Failed to extract {archive_path.name}: {exc}")
             return False
