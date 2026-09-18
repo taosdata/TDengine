@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import sys
 import tarfile
@@ -16,6 +17,7 @@ import urllib.parse
 import urllib.request
 import uuid
 import zipfile
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
@@ -23,6 +25,7 @@ from typing import Any, Dict, Iterable, List, Tuple
 from resource_manifest import (
     COMPLETION_FILE,
     SHA256_PATTERN,
+    SHARED_RUNTIME_NAME,
     load_manifest,
     normalized_arch,
     normalized_platform,
@@ -33,6 +36,45 @@ from resource_manifest import (
 
 class ResourceImportError(RuntimeError):
     """Raised when a dynamic resource package cannot be imported safely."""
+
+
+class ResourceBusyError(ResourceImportError):
+    """Another resource operation holds the lifecycle lock at this moment.
+
+    Separate from its parent because this condition is *transient*: the caller
+    should retry rather than report a failure. taosanode_service maps it to a
+    dedicated exit code (EXIT_TEMPFAIL) so the REST layer can re-queue the work
+    instead of failing the operation.
+    """
+
+
+@contextmanager
+def lifecycle_lock(data_dir, filename=".tdgpt-lifecycle.lock"):
+    root = Path(data_dir) / "resource"
+    root.mkdir(parents=True, exist_ok=True)
+    with (root / filename).open("a+b") as handle:
+        handle.seek(0, os.SEEK_END)
+        if handle.tell() == 0:
+            handle.write(b"0")
+            handle.flush()
+        handle.seek(0)
+        try:
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (OSError, ImportError) as exc:
+            raise ResourceBusyError("another TDgpt resource operation is running") from exc
+        try:
+            yield
+        finally:
+            handle.seek(0)
+            if os.name == "nt":
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def sha256_file(path: Path) -> str:
@@ -50,21 +92,30 @@ def _safe_relative(name: str) -> Path:
     return value
 
 
+# Minimum interval (seconds) between two progress updates written while an
+# archive is being unpacked. A model/runtime archive can contain tens of
+# thousands of small files, and every update rewrites the task JSON file, so
+# reporting is time-throttled instead of per-file.
+_EXTRACT_PROGRESS_INTERVAL = 1.0
+
+
 class DynamicResourceManager:
     """Import official TSFM runtime and model archives without copying live trees."""
 
     def __init__(self, config: Any):
         self.model_root = Path(config.tsfm_model_dir)
+        self.model_venvs_root = Path(config.model_venvs_dir)
         self.runtime_root = Path(config.tsfm_venv)
         self.resource_root = Path(config.data_dir) / "resource"
         self.state_root = self.resource_root / "state" / "models"
         self.task_root = self.resource_root / "state" / "tasks"
-        self.lock_path = self.resource_root / ".tdgpt-resource.lock"
         self.python_runtime_dir = self._resolve_python_runtime_dir(config)
         self.cache_root = self.resource_root / "cache"
         self._fallback_base_url = "https://downloads.taosdata.com"
         self._active_base_url = ""
         self._fallback_release_source = ""
+        self._resource_lock = None
+        self._resource_lock_depth = 0
 
     def _release_url(self, release: str, base_url: str) -> str:
         if Path(release).is_file():
@@ -114,7 +165,15 @@ class DynamicResourceManager:
 
     @staticmethod
     def _resource_entries(manifest: Dict[str, Any]) -> List[Dict[str, Any]]:
-        entries = list(manifest.get("runtimes", []))
+        # Canonicalise the runtime name on read: a release published before the
+        # rename still names it after its venv directory ("tsfm"), and that legacy
+        # string must not leak into `resource check` output, task files or
+        # `resource apply` matching. Everything downstream of this boundary sees
+        # exactly one name, whichever spelling the manifest used.
+        entries = [
+            {**item, "name": SHARED_RUNTIME_NAME} if isinstance(item, dict) else item
+            for item in manifest.get("runtimes", [])
+        ]
         entries.extend(manifest.get("models", []))
         if not all(isinstance(item, dict) for item in entries):
             raise ResourceImportError("release manifest contains invalid resources")
@@ -128,7 +187,12 @@ class DynamicResourceManager:
             kind = item.get("kind", "model")
             if kind == "runtime" and (item.get("platform") != current_platform or item.get("arch") != current_arch):
                 continue
-            if target != "all" and kind == "model" and item.get("name") != target:
+            # A model-scoped request selects that model only. The runtime is a
+            # resource of its own that must already be installed (see
+            # runtime_readiness) -- pulling it in implicitly here is what this
+            # method deliberately no longer does. `all` still means "everything in
+            # the release", runtime included.
+            if target != "all" and item.get("name") != target:
                 continue
             selected.append(item)
         if target != "all" and not any(item.get("name") == target for item in selected):
@@ -247,7 +311,7 @@ class DynamicResourceManager:
     ) -> None:
         value = {
             "kind": item.get("kind", "model"),
-            "name": item.get("name", "tsfm"),
+            "name": item.get("name", SHARED_RUNTIME_NAME),
             "model_id": item.get("model_id"),
             "model_version": item.get("model_version"),
             "version": item.get("version"),
@@ -289,7 +353,7 @@ class DynamicResourceManager:
                 state = task_status
             entry = {
                 "kind": kind,
-                "name": item.get("name", "tsfm"),
+                "name": item.get("name", SHARED_RUNTIME_NAME),
                 "model_id": item.get("model_id"),
                 "model_version": item.get("model_version"),
                 "version": item.get("version"),
@@ -324,32 +388,55 @@ class DynamicResourceManager:
         except (OSError, ValueError, KeyError, json.JSONDecodeError):
             return False
 
+    def runtime_readiness(self) -> str | None:
+        """Return why the shared TSFM runtime cannot serve models, or None when ready.
+
+        Model workers execute from this venv, so a model install (and any download
+        that precedes it) requires the same conditions the model start path already
+        checks -- the validator is deliberately reused rather than restated, so
+        "ready" means exactly one thing across the tool.
+        """
+        try:
+            validate_tsfm_runtime(self.runtime_root)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            return str(exc)
+        return None
+
+    def _apply_item(self, item: Dict[str, Any], source_url: str, replace: bool) -> Dict[str, Any]:
+        """Download (when missing) and install one selected release entry."""
+        kind = item.get("kind", "model")
+        target_path = self.runtime_root if kind == "runtime" else self.model_root / str(item["name"])
+        if self._installed_matches(item):
+            if kind == "model":
+                self._record_model_state(item, target_path, str(item["sha256"]))
+            return {"status": "unchanged", "kind": kind, "name": item.get("name", SHARED_RUNTIME_NAME), "path": str(target_path)}
+        if target_path.exists() and not replace and (
+            not target_path.is_dir() or any(target_path.iterdir())
+        ):
+            raise ResourceImportError(f"resource differs from release; rerun with --replace: {item.get('name')}")
+        # Fetch then install this entry before the next one is touched, so the
+        # runtime is fully usable before the first model archive is pulled.
+        archive = self._download(item, source_url)
+        return self.import_package(str(archive), str(item["sha256"]), replace, item)
+
     def apply_release(self, release: str, base_url: str, target: str = "all", replace: bool = False) -> List[Dict[str, Any]]:
         manifest = self.load_release(release, base_url)
         source_url = manifest["_source_url"]
         items = self._select_resources(manifest, target)
+        runtime_items = [item for item in items if item.get("kind", "model") == "runtime"]
+        model_items = [item for item in items if item.get("kind", "model") != "runtime"]
         self._acquire_lock()
         try:
-            downloads = {
-                str(item["sha256"]): self._download(item, source_url)
-                for item in items if not self._installed_matches(item)
-            }
-            results = []
-            for item in items:
-                kind = item.get("kind", "model")
-                target_path = self.runtime_root if kind == "runtime" else self.model_root / str(item["name"])
-                if self._installed_matches(item):
-                    if kind == "model":
-                        self._record_model_state(item, target_path, str(item["sha256"]))
-                    results.append({"status": "unchanged", "kind": kind, "name": item.get("name", "tsfm"), "path": str(target_path)})
-                    continue
-                if target_path.exists() and not replace and (
-                    not target_path.is_dir() or any(target_path.iterdir())
-                ):
-                    raise ResourceImportError(f"resource differs from release; rerun with --replace: {item.get('name')}")
-                results.append(self.import_package(
-                    str(downloads[str(item["sha256"])]), str(item["sha256"]), replace, item
-                ))
+            results = [self._apply_item(item, source_url, replace) for item in runtime_items]
+            if model_items:
+                # The runtime is expected to be usable at this point: either it was
+                # just installed above (`all`, or an explicit runtime target) or it
+                # was required to pre-exist (model-scoped target). Refusing here
+                # keeps an unusable model off disk and saves the download.
+                blocker = self.runtime_readiness()
+                if blocker:
+                    raise ResourceImportError(f"shared TSFM runtime is not ready: {blocker}")
+                results.extend(self._apply_item(item, source_url, replace) for item in model_items)
             return results
         finally:
             self._release_lock()
@@ -366,9 +453,14 @@ class DynamicResourceManager:
         results = []
         try:
             manifest, _ = validate_tsfm_runtime(self.runtime_root)
-            results.append({"kind": "runtime", "name": "tsfm", "status": "valid", "runtime_id": manifest["runtime_id"]})
+            results.append({"kind": "runtime", "name": SHARED_RUNTIME_NAME, "status": "valid", "runtime_id": manifest["runtime_id"]})
         except (OSError, ValueError, json.JSONDecodeError) as exc:
-            results.append({"kind": "runtime", "name": "tsfm", "status": "invalid", "reason": str(exc)})
+            results.append({"kind": "runtime", "name": SHARED_RUNTIME_NAME, "status": "invalid", "reason": str(exc)})
+        # A runtime target verifies the runtime only: the model loop below would
+        # otherwise look for a *model* of that name and report a phantom
+        # "invalid" entry for something that is not a model at all.
+        if target == SHARED_RUNTIME_NAME:
+            return {"resources": results, "valid": results[0]["status"] == "valid"}
         names = [] if not self.model_root.is_dir() else sorted(path.name for path in self.model_root.iterdir() if path.is_dir())
         if target != "all":
             names = [target]
@@ -460,26 +552,32 @@ class DynamicResourceManager:
                 link.symlink_to(target)
 
     def _acquire_lock(self) -> None:
-        self.resource_root.mkdir(parents=True, exist_ok=True)
-
-        # Check for stale lock — if lock file exists but process is dead, remove it
-        if self.lock_path.exists():
-            try:
-                old_pid = int(self.lock_path.read_text().strip())
-                os.kill(old_pid, 0)  # Signal 0: check if process exists
-            except (OSError, ProcessLookupError, ValueError):
-                # Process is dead or PID is invalid, remove stale lock
-                self.lock_path.unlink(missing_ok=True)
-
-        # Create lock file (exclusive create, fails if exists)
+        if self._resource_lock is not None:
+            self._resource_lock_depth += 1
+            return
+        lock_stack = ExitStack()
         try:
-            with open(self.lock_path, "x", encoding="utf-8") as f:
-                f.write(str(os.getpid()))
-        except FileExistsError as exc:
-            raise ResourceImportError("another TDgpt resource operation is running") from exc
+            lock_stack.enter_context(
+                lifecycle_lock(self.resource_root.parent, ".tdgpt-resource-os.lock")
+            )
+            self._resource_lock = lock_stack
+            self._resource_lock_depth = 1
+        except BaseException:
+            lock_stack.close()
+            raise
 
     def _release_lock(self) -> None:
-        self.lock_path.unlink(missing_ok=True)
+        if self._resource_lock is None:
+            return
+        self._resource_lock_depth -= 1
+        if self._resource_lock_depth > 0:
+            return
+        lock = self._resource_lock
+        try:
+            lock.close()
+        finally:
+            self._resource_lock = None
+            self._resource_lock_depth = 0
 
     def _cleanup_cached_archive(self, package: Path) -> None:
         """Remove a completed download after its contents are installed."""
@@ -500,8 +598,11 @@ class DynamicResourceManager:
 
     def _classify(self, package: Path) -> Tuple[str, str]:
         entries = [_safe_relative(name).as_posix() for name in self._archive_entries(package)]
+        # `model_venvs/tsfm/` is the archive's root path (where the venv lives on
+        # disk), not the resource name: the resource itself is
+        # SHARED_RUNTIME_NAME, which is what `resource apply/delete` selects on.
         if any(name.startswith("model_venvs/tsfm/") for name in entries):
-            return "runtime", "tsfm"
+            return "runtime", SHARED_RUNTIME_NAME
         models = {name.split("/", 2)[1] for name in entries if name.startswith("model/") and name.count("/") >= 2}
         if len(models) != 1:
             raise ResourceImportError("model archive must contain exactly one model/<name>/ root")
@@ -510,7 +611,22 @@ class DynamicResourceManager:
             raise ResourceImportError("invalid model archive root")
         return "model", model_name
 
-    def _extract(self, package: Path, prefix: str, destination: Path) -> None:
+    def _extract(
+        self,
+        package: Path,
+        prefix: str,
+        destination: Path,
+        on_progress: Any = None,
+    ) -> None:
+        """Extract the ``prefix`` subtree of ``package`` into ``destination``.
+
+        Args:
+            on_progress: Optional callback invoked as ``on_progress(bytes_done,
+                bytes_total)`` while files are written. It is throttled to at
+                most one call per ``_EXTRACT_PROGRESS_INTERVAL`` seconds (plus a
+                final call with the exact totals), so reporting stays cheap for
+                archives with very many entries.
+        """
         destination.mkdir(parents=True, exist_ok=False)
         prefix = prefix.rstrip("/") + "/"
 
@@ -522,9 +638,29 @@ class DynamicResourceManager:
             if mode:
                 output.chmod(mode)
 
+        last_reported_at = 0.0
+
+        def report(done: int, total: int) -> None:
+            nonlocal last_reported_at
+            if on_progress is None:
+                return
+            now = time.monotonic()
+            if now - last_reported_at < _EXTRACT_PROGRESS_INTERVAL:
+                return
+            last_reported_at = now
+            try:
+                on_progress(done, total)
+            except Exception:
+                # Progress reporting must never fail an import.
+                pass
+
         extracted = 0
+        bytes_done = 0
         if zipfile.is_zipfile(package):
             with zipfile.ZipFile(package) as archive:
+                # Collect the members first so the uncompressed total is known
+                # up front (reading the central directory is cheap).
+                members = []
                 for entry in archive.infolist():
                     name = _safe_relative(entry.filename).as_posix()
                     if entry.is_dir() or not name.startswith(prefix):
@@ -532,24 +668,42 @@ class DynamicResourceManager:
                     relative = _safe_relative(name[len(prefix) :])
                     if not relative.parts:
                         continue
+                    members.append((entry, relative, entry.file_size))
+                bytes_total = sum(size for _, _, size in members)
+                for entry, relative, size in members:
                     with archive.open(entry) as source:
                         write_file(relative, source, (entry.external_attr >> 16) & 0o777)
                     extracted += 1
+                    bytes_done += size
+                    report(bytes_done, bytes_total)
         else:
             with tarfile.open(package) as archive:
+                members = []
                 for entry in archive.getmembers():
                     name = _safe_relative(entry.name).as_posix()
                     if not entry.isfile() or not name.startswith(prefix):
                         continue
                     relative = _safe_relative(name[len(prefix) :])
+                    if not relative.parts:
+                        continue
+                    members.append((entry, relative, entry.size))
+                bytes_total = sum(size for _, _, size in members)
+                for entry, relative, size in members:
                     source = archive.extractfile(entry)
                     if source is None:
                         continue
                     with source:
                         write_file(relative, source, entry.mode & 0o777)
                     extracted += 1
+                    bytes_done += size
+                    report(bytes_done, bytes_total)
         if extracted == 0:
             raise ResourceImportError(f"archive does not contain {prefix}")
+        if on_progress is not None:
+            try:
+                on_progress(bytes_done, bytes_total)
+            except Exception:
+                pass
 
     @staticmethod
     def _write_json(path: Path, value: Dict[str, Any]) -> None:
@@ -624,14 +778,32 @@ class DynamicResourceManager:
         package = Path(package_path).resolve()
         if not package.is_file():
             raise ResourceImportError(f"resource package not found: {package}")
-        package_size = package.stat().st_size
         archive_hash = sha256_file(package)
         if expected_sha256 and archive_hash.lower() != expected_sha256.lower():
             raise ResourceImportError("resource archive SHA-256 does not match the expected value")
         kind, name = self._classify(package)
+        return self._import_classified(package, archive_hash, kind, name, replace, metadata)
+
+    def _import_classified(
+        self,
+        package: Path,
+        archive_hash: str,
+        kind: str,
+        name: str,
+        replace: bool,
+        metadata: Dict[str, Any] | None,
+    ) -> Dict[str, Any]:
+        package_size = package.stat().st_size
+        # A model archive is useless without the runtime it will execute from, so
+        # refuse before touching the task file or staging anything. This is the
+        # offline half of the rule (apply_release checked before it downloaded).
+        if kind == "model":
+            blocker = self.runtime_readiness()
+            if blocker:
+                raise ResourceImportError(f"shared TSFM runtime is not ready: {blocker}")
         task_item = metadata or {"kind": kind, "name": name, "size": package.stat().st_size, "sha256": archive_hash}
         task_path = self._task_path(archive_hash)
-        self._update_task(task_path, task_item, "importing", package.stat().st_size, package.stat().st_size)
+        self._update_task(task_path, task_item, "importing", 0, 0)
         target = self.runtime_root if kind == "runtime" else self.model_root / name
         if target.exists() and not replace:
             if target.is_dir() and not any(target.iterdir()):
@@ -649,7 +821,14 @@ class DynamicResourceManager:
         staging = target.parent / f".{target.name}.tdgpt-stage-{uuid.uuid4().hex}"
         try:
             prefix = "model_venvs/tsfm" if kind == "runtime" else f"model/{name}"
-            self._extract(package, prefix, staging)
+            self._extract(
+                package,
+                prefix,
+                staging,
+                on_progress=lambda done, total: self._update_task(
+                    task_path, task_item, "importing", done, total
+                ),
+            )
             if kind == "runtime":
                 self._relocate_runtime(staging)
                 self._runtime_complete(staging, archive_hash)
@@ -678,9 +857,93 @@ class DynamicResourceManager:
     def import_packages(self, packages: Iterable[str], expected_sha256: str = "", replace: bool = False) -> List[Dict[str, Any]]:
         self._acquire_lock()
         try:
-            return [self.import_package(package, expected_sha256, replace) for package in packages]
+            # Validate existence, hash, and classify each package once up front so that
+            # (a) a missing file raises "not found" rather than "unsupported archive",
+            # and (b) each archive is opened only once instead of twice.
+            classified: List[Tuple[Path, str, str, str]] = []
+            for package in packages:
+                p = Path(package).resolve()
+                if not p.is_file():
+                    raise ResourceImportError(f"resource package not found: {p}")
+                archive_hash = sha256_file(p)
+                if expected_sha256 and archive_hash.lower() != expected_sha256.lower():
+                    raise ResourceImportError("resource archive SHA-256 does not match the expected value")
+                kind, name = self._classify(p)
+                classified.append((p, archive_hash, kind, name))
+
+            # Runtime packages first: a batch that carries both (the offline
+            # install flow) must not depend on the order its arguments were given
+            # in, because a model import requires a ready runtime.
+            classified.sort(key=lambda item: 0 if item[2] == "runtime" else 1)
+            return [
+                self._import_classified(p, archive_hash, kind, name, replace, None)
+                for p, archive_hash, kind, name in classified
+            ]
         finally:
             self._release_lock()
+
+    def delete_resource(self, target: str) -> Dict[str, Any]:
+        """Delete one dynamic model or the shared TSFM runtime."""
+        if not isinstance(target, str):
+            raise ResourceImportError(f"invalid resource name: {target}")
+        if target in (SHARED_RUNTIME_NAME, "runtime"):
+            path = self.runtime_root
+            kind = "runtime"
+            name = SHARED_RUNTIME_NAME
+        else:
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", target):
+                raise ResourceImportError(f"invalid resource name: {target}")
+            path = self.model_root / target
+            kind = "model"
+            name = target
+        self._acquire_lock()
+        try:
+            if path.is_symlink():
+                raise ResourceImportError(f"unsafe resource path: {path}")
+            resolved_path = path.resolve()
+            if kind == "model":
+                resolved_model_root = self.model_root.resolve()
+                if (
+                    resolved_path == resolved_model_root
+                    or resolved_path.parent != resolved_model_root
+                ):
+                    raise ResourceImportError(f"unsafe resource path: {path}")
+            if kind == "runtime":
+                expected_runtime = (self.model_venvs_root / "tsfm").resolve()
+                if resolved_path != expected_runtime:
+                    raise ResourceImportError(f"unsafe resource path: {path}")
+            if not resolved_path.exists():
+                self._clear_deleted_state_or_raise(kind, name)
+                return {"status": "not_found", "kind": kind, "name": name, "path": str(path)}
+            if not resolved_path.is_dir():
+                raise ResourceImportError(f"resource path is not a directory: {path}")
+            try:
+                shutil.rmtree(resolved_path)
+            except OSError as exc:
+                raise ResourceImportError(f"failed to delete {kind} {name}: {exc}") from exc
+            self._clear_deleted_state_or_raise(kind, name)
+            return {"status": "deleted", "kind": kind, "name": name, "path": str(path)}
+        finally:
+            self._release_lock()
+
+    def _clear_deleted_state_or_raise(self, kind, name):
+        try:
+            self._clear_deleted_state(kind, name)
+        except OSError as exc:
+            raise ResourceImportError(
+                f"failed to clear state for {kind} {name}: {exc}"
+            ) from exc
+
+    def _clear_deleted_state(self, kind, name):
+        if kind == "model":
+            (self.state_root / f"{name}.json").unlink(missing_ok=True)
+        for task_path in self.task_root.glob("*.json"):
+            try:
+                task = load_manifest(task_path)
+            except (OSError, ValueError):
+                continue
+            if task.get("kind") == kind and task.get("name") == name:
+                task_path.unlink(missing_ok=True)
 
     def list_resources(self, target: str = "all") -> Dict[str, Any]:
         result: Dict[str, Any] = {"runtime": None, "models": [], "tasks": []}

@@ -305,6 +305,21 @@ python <install_dir>/bin/taosanode_service.py model-stop all
 python <install_dir>/bin/taosanode_service.py model-status
 ```
 
+#### 动态资源删除
+
+动态模型只能从 `model/tsfm/<模型名>` 删除；共享 TSFM runtime 使用 `tsfm_runtime` 作为目标。
+删除前必须停止对应模型，删除 runtime 前必须停止所有 TSFM 模型 worker。
+
+```bash
+# 删除单个模型
+taosanodectl resource delete moirai
+
+# 删除共享 TSFM runtime
+taosanodectl resource delete tsfm_runtime
+```
+
+删除只移除本地已导入资源和模型状态文件，不删除下载缓存；再次执行 `resource apply` 时可复用完整缓存。
+
 ---
 
 ## 配置

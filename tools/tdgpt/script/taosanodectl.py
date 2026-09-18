@@ -21,6 +21,7 @@ COMMANDS = {
     ("resource", "apply"): "resource-apply",
     ("resource", "list"): "resource-list",
     ("resource", "verify"): "resource-verify",
+    ("resource", "delete"): "resource-delete",
 }
 
 
@@ -34,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--replace", action="store_true")
     parser.add_argument("--timeout", type=int)
     parser.add_argument("--config", default="")
+    parser.add_argument("--log-level", default="")
     parser.add_argument("--foreground", action="store_true")
     parser.add_argument("--full-preflight", action="store_true")
     parser.add_argument("--python-runtime-dir", default="")
@@ -60,6 +62,7 @@ def translate_args(args: argparse.Namespace) -> list[str]:
         translated.append(args.target)
     if args.config:
         translated.extend(["--config", args.config])
+    _add_optional_arg(translated, "--log-level", args.log_level)
     if args.scope == "resource" and args.action == "import":
         for package in args.package:
             translated.extend(["--package", package])
@@ -71,7 +74,12 @@ def translate_args(args: argparse.Namespace) -> list[str]:
         _add_optional_arg(translated, "--resource-base-url", args.resource_base_url)
         _add_optional_arg(translated, "--replace", args.replace)
         _add_optional_arg(translated, "--python-runtime-dir", args.python_runtime_dir)
-    if args.scope == "resource" and args.action in {"list", "check", "apply", "import"} and args.format == "json":
+    if args.scope == "resource" and args.action in {"list", "check", "apply", "import", "verify"} and args.format == "json":
+        translated.extend(["--format", "json"])
+    # `model status` is the machine-readable liveness source the RESTful service
+    # reads before deleting the shared runtime, so it must be able to answer in
+    # JSON too. The other model actions have no machine-readable output.
+    if args.scope == "model" and args.action == "status" and args.format == "json":
         translated.extend(["--format", "json"])
     if args.scope == "service" and args.action == "wait-ready":
         if args.timeout is not None:
