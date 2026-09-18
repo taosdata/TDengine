@@ -10765,16 +10765,20 @@ _return:
 //   1. Row count  - caps the number of logical rows regardless of column width.
 //   2. Cell count - caps rows x cols to bound memory for fixed-width types.
 //   3. Byte size  - caps the serialised block size; this is the hard ceiling
-//                   because TSDB_MAX_MSG_SIZE = 10 MB.  Variable-length types
-//                   (VARCHAR/NCHAR) can make each cell far larger than 4 bytes,
-//                   so the cell count alone is insufficient.
+//                   because the block must fit in a single TSDB_MAX_MSG_SIZE
+//                   RPC message.  Variable-length types (VARCHAR/NCHAR) can make
+//                   each cell far larger than 4 bytes, so the cell count alone
+//                   is insufficient.
 //
 // Using the same constants for TEXT and FILE makes the behaviour predictable
 // and simplifies documentation: callers can treat the two sources identically.
 // ---------------------------------------------------------------------------
 static const int32_t kMaxInlineRows       = 10000;           // max logical rows
 static const int64_t kMaxInlineCells      = 1000000LL;       // max rows x cols
-static const int32_t kMaxInlineBlockBytes = 8 * 1024 * 1024; // 8 MB (leave 2 MB for plan overhead)
+// Cap for the serialized inline block.  The block shares a single TSDB_MAX_MSG_SIZE RPC
+// message with the rest of the physical plan, so this cap is deliberately chosen well below
+// the message limit instead of being derived from it.
+static const int32_t kMaxInlineBlockBytes = 8 * 1024 * 1024;
 
 // ---------------------------------------------------------------------------
 // TEXT table translation
@@ -11059,18 +11063,19 @@ static int32_t buildTextTableBlockBuf(STranslateContext* pCxt, STextTableNode* p
   pTextTable->numBlocks   = 1;
 
   // The serialized block is embedded verbatim inside the physical-plan TLV message sent
-  // to taosd via RPC.  TSDB_MAX_MSG_SIZE is 10 MB; reserve 2 MB for the surrounding plan
-  // structure, leaving 8 MB for the data payload.  The cell-count limit above catches
-  // fixed-width types, but variable-length types (VARCHAR/NCHAR) can make each cell much
-  // larger, so we must also enforce a byte-level cap here, after serialization.
+  // to taosd via RPC, so it must fit in a single TSDB_MAX_MSG_SIZE message with room left
+  // for the surrounding plan structure.  The cell-count limit above catches fixed-width
+  // types, but variable-length types (VARCHAR/NCHAR) can make each cell much larger, so we
+  // must also enforce a byte-level cap here, after serialization.
   if ((int32_t)totalBufLen > kMaxInlineBlockBytes) {
     taosMemoryFree(pBuf);
     pTextTable->pBlockBuf   = NULL;
     pTextTable->blockBufLen = 0;
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TOO_MANY_COLUMNS,
                                    "TEXT: serialized data size %d bytes exceeds limit %d bytes "
-                                   "(TSDB_MAX_MSG_SIZE=10MB, 8MB reserved for data payload)",
-                                   (int32_t)totalBufLen, kMaxInlineBlockBytes);
+                                   "(the block is carried inside one TSDB_MAX_MSG_SIZE=%d byte RPC message "
+                                   "that must also hold the rest of the physical plan)",
+                                   (int32_t)totalBufLen, kMaxInlineBlockBytes, (int32_t)TSDB_MAX_MSG_SIZE);
   }
 
   // Release raw value nodes  -  no longer needed
@@ -11550,9 +11555,9 @@ static int32_t buildFileTableBlockBuf(STranslateContext* pCxt, SFileTableNode* p
     pFile->rowCount    = rowCount;
 
     // Same byte-level cap as TEXT: the block is embedded in the physical-plan TLV message
-    // (RPC limit = TSDB_MAX_MSG_SIZE = 10 MB).  The per-cell count checked above only
-    // accounts for fixed-width types; VARCHAR/NCHAR columns can make actual serialized
-    // size far larger, so we verify the real byte count after serialization.
+    // and must fit in a single TSDB_MAX_MSG_SIZE RPC message.  The per-cell count checked
+    // above only accounts for fixed-width types; VARCHAR/NCHAR columns can make actual
+    // serialized size far larger, so we verify the real byte count after serialization.
     if ((int32_t)totalBufLen > kMaxInlineBlockBytes) {
       taosMemoryFree(pBuf);
       pFile->pBlockBuf   = NULL;
@@ -11560,8 +11565,9 @@ static int32_t buildFileTableBlockBuf(STranslateContext* pCxt, SFileTableNode* p
       PAR_ERR_JRET(generateSyntaxErrMsgExt(
           &pCxt->msgBuf, TSDB_CODE_PAR_TOO_MANY_COLUMNS,
           "FILE: serialized data size %d bytes exceeds limit %d bytes "
-          "(TSDB_MAX_MSG_SIZE=10MB, 8MB reserved for data payload)",
-          (int32_t)totalBufLen, kMaxInlineBlockBytes));
+          "(the block is carried inside one TSDB_MAX_MSG_SIZE=%d byte RPC message "
+          "that must also hold the rest of the physical plan)",
+          (int32_t)totalBufLen, kMaxInlineBlockBytes, (int32_t)TSDB_MAX_MSG_SIZE));
     }
   }
 

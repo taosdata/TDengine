@@ -336,9 +336,8 @@ static int32_t allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInp
 static int32_t updateStatus(SDataDispatchHandle* pDispatcher) {
   (void)taosThreadMutexLock(&pDispatcher->mutex);
   int32_t blockNums = taosQueueItemSize(pDispatcher->pDataBlocks);
-  int32_t status =
-      (0 == blockNums ? DS_BUF_EMPTY
-                      : (blockNums < pDispatcher->pManager->cfg.maxDataBlockNumPerQuery ? DS_BUF_LOW : DS_BUF_FULL));
+  uint64_t cachedSize = atomic_load_64(&pDispatcher->cachedSize);
+  int32_t status = dsCalcBufStatus(&pDispatcher->pManager->cfg, blockNums, cachedSize);
   pDispatcher->status = status;
   (void)taosThreadMutexUnlock(&pDispatcher->mutex);
   return status;

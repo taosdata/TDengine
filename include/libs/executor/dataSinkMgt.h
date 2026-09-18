@@ -73,7 +73,43 @@ typedef struct SDataSinkMgtCfg {
   int8_t   compress;
   uint32_t maxDataBlockNum;  // todo: this should be numOfRows?
   uint32_t maxDataBlockNumPerQuery;
+  // Byte budget for the ENCODED result data a single query may buffer in its sink.  Counting
+  // queued blocks is not enough to bound the byte count when values are multi-megabyte, so the
+  // sink also reports DS_BUF_FULL once it holds this many encoded bytes.  <= 0 disables the
+  // byte test and keeps the legacy block-count-only behaviour.
+  //
+  // What is counted is the queued payload length (the buffer's `dataLen`, i.e. the COMPRESSED
+  // length when compression is on), not the heap footprint: each queued entry is allocated for
+  // the uncompressed (or LZ4-bound) size, so with compression enabled the process memory can
+  // exceed this budget by the compression factor.  That is deliberate - the same counter backs
+  // the qnode-load statistic `cacheDataSize` (dsDataSinkGetCacheSize -> qload.cacheDataSize),
+  // which is meant to report cached encoded data, and compressed bytes are what actually has
+  // to be held for the query.  Do not read this as a hard process-memory cap; the large-value
+  // case it exists for (BLOB) does not compress, so the two coincide there.
+  int64_t maxDataBytesPerQuery;
 } SDataSinkMgtCfg;
+
+// Decide the buffer status of a result sink from what it currently holds.  Both the number of
+// queued blocks and the encoded byte count are considered: the byte limit is what bounds the
+// accumulated payload for large values, while the block limit also covers many tiny blocks.
+// Whichever is reached first applies.  blockNums == 0 is EMPTY so that an idle sink never looks
+// FULL.  `cachedBytes` is the encoded payload the sink holds, not its heap footprint - see the
+// note on maxDataBytesPerQuery.
+static inline int32_t dsCalcBufStatus(const SDataSinkMgtCfg* pCfg, int32_t blockNums, uint64_t cachedBytes) {
+  if (blockNums <= 0) {
+    return DS_BUF_EMPTY;
+  }
+
+  if ((uint32_t)blockNums >= pCfg->maxDataBlockNumPerQuery) {
+    return DS_BUF_FULL;
+  }
+
+  if (pCfg->maxDataBytesPerQuery > 0 && (int64_t)cachedBytes >= pCfg->maxDataBytesPerQuery) {
+    return DS_BUF_FULL;
+  }
+
+  return DS_BUF_LOW;
+}
 
 int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI, void** ppSinkManager);
 

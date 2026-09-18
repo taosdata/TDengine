@@ -650,6 +650,24 @@ static void initReaderStatus(SReaderStatus* pStatus) {
   pStatus->loadFromFile = true;
 }
 
+// A result block stores every var-length column's values back-to-back and records each
+// row's byte offset as an `int32_t` (VarDataOffsetT).  BLOB is the only var-length type
+// that can blow past INT32_MAX bytes inside a single block (other var types are capped at
+// TSDB_MAX_FIELD_LEN, so even a full block stays around 268MB), so cap the block's row
+// count when a BLOB column is materialized.  Past the cap the column's byte count no longer
+// fits the int32_t used for it (see colDataGetFullLength, which returns int32_t) and callers
+// compute wild pointers (SIGSEGV in e.g. tlength()).
+static int32_t tsdbReaderMaxRowsPerBlock(SQueryTableDataCond* pCond, int32_t maxRows) {
+  const int32_t maxSafeRows = (int32_t)(INT32_MAX / TSDB_MAX_BLOB_LEN);
+
+  for (int32_t i = 0; i < pCond->numOfCols; ++i) {
+    if (IS_STR_DATA_BLOB(pCond->colList[i].type)) {
+      return TMIN(maxRows, maxSafeRows);
+    }
+  }
+  return maxRows;
+}
+
 static int32_t createResBlock(SQueryTableDataCond* pCond, int32_t capacity, SSDataBlock** pResBlock) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
@@ -3710,7 +3728,9 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
       break;
     }
 
-    if (pResBlock->info.rows >= pReader->resBlockInfo.capacity) {
+    // Close the block once a BLOB column's int32 byte offsets would overflow, even when
+    // capacity was set by an external (larger) block.
+    if (pResBlock->info.rows >= pReader->resBlockInfo.capacity || blockDataBlobExceedLimit(pResBlock)) {
       break;
     }
   }
@@ -4202,7 +4222,7 @@ static int32_t doLoadSttBlockSequentially(STsdbReader* pReader) {
       code = buildComposedDataBlockImpl(pReader, pScanInfo, &pReader->status.fileBlockData, pSttBlockReader);
       TSDB_CHECK_CODE(code, lino, _end);
 
-      if (pResBlock->info.rows >= pReader->resBlockInfo.capacity) {
+      if (pResBlock->info.rows >= pReader->resBlockInfo.capacity || blockDataBlobExceedLimit(pResBlock)) {
         break;
       }
     }
@@ -4343,7 +4363,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
         code = buildComposedDataBlockImpl(pReader, pScanInfo, &pReader->status.fileBlockData, pSttBlockReader);
         TSDB_CHECK_CODE(code, lino, _end);
 
-        if (pResBlock->info.rows >= pReader->resBlockInfo.capacity) {
+        if (pResBlock->info.rows >= pReader->resBlockInfo.capacity || blockDataBlobExceedLimit(pResBlock)) {
           break;
         }
 
@@ -5721,7 +5741,7 @@ int32_t buildDataBlockFromBufImpl(STableBlockScanInfo* pBlockScanInfo, int64_t e
       break;
     }
 
-    if (pBlock->info.rows >= capacity) {
+    if (pBlock->info.rows >= capacity || blockDataBlobExceedLimit(pBlock)) {
       break;
     }
   } while (1);
@@ -5910,6 +5930,8 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
   pConf = &(((SVnode*)pVnode)->config);
 
   capacity = pConf->tsdbCfg.maxRows;
+  // Keep a block's BLOB column below INT32_MAX bytes (see tsdbReaderMaxRowsPerBlock).
+  capacity = tsdbReaderMaxRowsPerBlock(pCond, capacity);
   if (pResBlock != NULL) {
     code = blockDataEnsureCapacity(pResBlock, capacity);
     TSDB_CHECK_CODE(code, lino, _end);
@@ -5936,10 +5958,10 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
       so we set a proper capacity instead of 1 for them, to avoid
       the overhead of reallocating buffers and copying data.
     */
-    int32_t capacity = 1024;
+    int32_t innerCapacity = TMIN(capacity, 1024);
     code = tsdbReaderCreate(pVnode, pCond,
                             (void**)&((STsdbReader*)pReader)->innerReader[0],
-                            capacity, pResBlock, idstr);
+                            innerCapacity, pResBlock, idstr);
     TSDB_CHECK_CODE(code, lino, _end);
     pReader->step = EXTERNAL_ROWS_PREV;
 
@@ -5952,7 +5974,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
 
     code = tsdbReaderCreate(pVnode, pCond,
                             (void**)&((STsdbReader*)pReader)->innerReader[1],
-                            capacity, pResBlock, idstr);
+                            innerCapacity, pResBlock, idstr);
     pCond->twindows = window;
     TSDB_CHECK_CODE(code, lino, _end);
   }

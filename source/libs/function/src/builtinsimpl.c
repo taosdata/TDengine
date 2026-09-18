@@ -3103,11 +3103,23 @@ EFuncDataRequired lastDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
 // TODO modify it to include primary key bytes
 int32_t getFirstLastInfoSize(int32_t resBytes, int32_t pkBytes) { return sizeof(SFirstLastRes) + resBytes + pkBytes; }
 
+// Maximum number of bytes one complete value of this type needs in memory, including its
+// length header.  A BLOB column's declared width is only the 4-byte length-header
+// placeholder (tDataTypes[BLOB].bytes) and SResultDataInfo.bytes is a uint16_t, so the real
+// upper bound cannot be carried in the schema: every buffer that has to hold a whole value
+// must ask for it explicitly here.  For all other types the declared width already is a
+// true upper bound.  blobDataTLen(v) == BLOBSTR_HEADER_SIZE + payload and the engine limit
+// is blobDataTLen(v) <= TSDB_MAX_BLOB_LEN, so TSDB_MAX_BLOB_LEN covers the largest value.
+int32_t getMaxValueBytes(int32_t type, int32_t bytes) {
+  return IS_STR_DATA_BLOB(type) ? TSDB_MAX_BLOB_LEN : bytes;
+}
+
 bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
   // TODO: change SFunctionNode to add pk info
   int32_t pkBytes = (pFunc->hasPk) ? pFunc->pkBytes : 0;
-  pEnv->calcMemSize = getFirstLastInfoSize(pNode->node.resType.bytes, pkBytes);
+  pEnv->calcMemSize =
+      getFirstLastInfoSize(getMaxValueBytes(pNode->node.resType.type, pNode->node.resType.bytes), pkBytes);
   return true;
 }
 
@@ -5799,6 +5811,17 @@ static int32_t doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, 
   if (pHandle->pBuf != NULL) {
     SFilePage* pPage = NULL;
 
+    // A page is allocated once and only rotated when the next value does not fit, so a
+    // single value larger than a page would be memcpy'd past the end of it.  The buffer's
+    // page size is derived from the largest per-value reservation of the function using
+    // this handle (see getMaxValueBytes), so this cannot happen for a correctly sized
+    // function; refuse rather than corrupt the heap if some path is ever missed.
+    if (length + sizeof(SFilePage) > (size_t)getBufPageSize(pHandle->pBuf)) {
+      qError("tuple data length %" PRIu64 " exceeds page size %d", (uint64_t)length,
+             getBufPageSize(pHandle->pBuf));
+      return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+    }
+
     if (pHandle->currentPage == -1) {
       pPage = getNewBufPage(pHandle->pBuf, &pHandle->currentPage);
       if (pPage == NULL) {
@@ -7862,7 +7885,14 @@ int32_t uniqueFunction(SqlFunctionCtx* pCtx) {
 }
 
 bool getModeFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize = sizeof(SModeInfo);
+  SColumnNode* pCol = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  // The interbuf holds SModeInfo plus the scratch buffer that hands one complete value to
+  // the tuple store (see saveModeTupleData), so it must be able to hold a whole value.
+  // Its size also decides the result-buffer page size used by that store, so sizing it by
+  // the declared width would let a large BLOB value overrun both buffers.  Note the column
+  // is guaranteed to be a column node (FUNC_PARAM_MUST_HAVE_COLUMN).
+  pEnv->calcMemSize =
+      sizeof(SModeInfo) + getMaxValueBytes(pCol->node.resType.type, pCol->node.resType.bytes);
   return true;
 }
 
@@ -7888,12 +7918,9 @@ int32_t modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   pInfo->nullTupleSaved = false;
   pInfo->nullTuplePos.pageId = -1;
 
-  pInfo->buf = taosMemoryMalloc(pInfo->colBytes);
-  if (NULL == pInfo->buf) {
-    taosHashCleanup(pInfo->pHash);
-    pInfo->pHash = NULL;
-    return terrno;
-  }
+  // The scratch buffer is the tail of the interbuf (sized for one complete value by
+  // getModeFuncEnv), so no separate allocation is needed.
+  pInfo->buf = (char*)pInfo + sizeof(SModeInfo);
   pCtx->needCleanup = true;
   return TSDB_CODE_SUCCESS;
 }
@@ -7901,7 +7928,7 @@ int32_t modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
 static void modeFunctionCleanup(SModeInfo* pInfo) {
   taosHashCleanup(pInfo->pHash);
   pInfo->pHash = NULL;
-  taosMemoryFreeClear(pInfo->buf);
+  pInfo->buf = NULL;  // scratch is part of the interbuf, nothing to free
 }
 
 void modeFunctionCleanupExt(SqlFunctionCtx* pCtx) {
