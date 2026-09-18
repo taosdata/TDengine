@@ -68,7 +68,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 
 ### 整体结构
 
-配置文件分为："tdengine"、"mqtt"、"kafka"、"influxdb"、"schema"、"concurrency"、"jobs" 几部分。
+配置文件分为："tdengine"、"mqtt"、"kafka"、"influxdb"、"schema"、"concurrency"、"jobs"、"ingress" 几部分。
 
 - tdengine：描述 TDengine 数据库的相关配置参数。
 - mqtt：描述 MQTT Broker 的相关配置参数。
@@ -77,6 +77,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 - schema：描述数据定义和生成的相关配置参数。
 - concurrency：描述作业执行的并发度。
 - jobs：列表结构，描述所有作业的具体相关参数。
+- ingress：描述通用高效写入 gRPC 服务的相关配置参数。
 - log_dir：指定日志输出目录，默认值为 `log/`。
 - log_file：指定完整的日志文件路径（优先级高于 log_dir）。
 
@@ -276,6 +277,97 @@ taosgen -h 127.0.0.1 -c config.yaml
     | B    | `0.5 *（math.random（80, 120） / 100）`                               | 噪声           | 添加 80%~120% 的随机扰动（模拟噪声）                              |
     | C    | `（（_i % 50 < 25） and（1 + 0.3 * math.sin（_i / 3）） or 0.7）`         | 动态增益调制   | 每 50 次调用切换一次增益（前 25 次高增益，后 25 次低增益）        |
     | D    | `10 *（math.floor（_i / 100） % 2）`                                  | 基线阶跃变化   | 每 100 次调用切换一次基线（0 或 10），模拟阶跃变化，表示高峰/低谷 |
+
+#### ingress 参数
+
+`ingress` 是 taosgen 提供的通用高效数据写入 gRPC 服务。启用后，taosgen
+按配置文件中固定的 TDengine 连接、超级表和 schema 启动服务，外部请求只传
+数据值，不传数据库名、超级表名、列名列表、列类型、DDL 或 SQL。
+
+启动方式与普通配置命令一致：
+
+```bash
+taosgen -c ingress.yaml
+```
+
+运行模式如下：
+
+| 配置内容 | 行为 |
+| --- | --- |
+| `ingress.enabled=true`，`jobs` 省略或为空 | 启动 gRPC 服务，长运行 |
+| `ingress.enabled=true` 且 `jobs` 非空 | 先执行 startup jobs，成功后启动 gRPC 服务 |
+| `jobs` 非空，`ingress` 缺省或为 `false` | 执行现有 jobs，完成后退出 |
+| `jobs` 为空且 `ingress` 缺省或为 `false` | 无可执行任务，启动失败并提示配置错误 |
+
+一个 ingress 实例只绑定一个 TDengine 数据库、一个超级表和一个固定 schema。
+如需写入多个数据库或多个超级表，应启动多个 taosgen ingress 实例并分别配置
+不同监听端口。
+
+:::warning
+当前第一版 ingress 未提供 TLS 或鉴权，必须仅部署在可信内网或本机，禁止将
+`listen` 暴露到不可信网络。如需对外提供服务，应在受控网络内或前置安全网关。
+:::
+
+最小配置示例：
+
+```yaml
+tdengine:
+  dsn: taos://root:taosdata@127.0.0.1:6030/power
+  props: precision 'ms'
+
+schema:
+  name: meters
+  columns:
+    - name: ts
+      type: timestamp
+      precision: ms
+    - name: current
+      type: double
+  tags:
+    - name: device_id
+      type: binary(64)
+
+ingress:
+  enabled: true
+  listen: 127.0.0.1:7600
+  default_ack_mode: enqueue_only
+  concurrency: 4
+  auto_create_table: false
+```
+
+主要配置项：
+
+- enabled（布尔）：是否启用 ingress 服务，默认值为 false。
+- listen（字符串）：gRPC 监听地址，默认值为 `127.0.0.1:7600`。
+- service_concurrency（整数）：gRPC 接收侧并发度，默认值为当前机器硬件并发数。
+- max_message_bytes（整数）：单个 gRPC 请求最大消息大小，默认值为 4194304。
+- rows_per_batch（整数）：单请求最大行数；未配置时从 `schema.generation.rows_per_batch` 推导，该字段默认值为 10000。
+- max_tables_per_request（整数）：单请求最大子表数；未配置时根据 `rows_per_batch` 与每表行数推导，普通模式使用 `schema.generation.rows_per_table`，interlace 模式使用 `schema.generation.interlace` 行数。
+- default_ack_mode（字符串）：请求未指定 `ack_mode` 时的默认回执模式，默认值为 `enqueue_only`。
+- request_timeout_ms（整数）：等待队列空位的超时时间，默认值为 30000；设置为 0 表示不等待，立即尝试入队。
+- queue_capacity（整数）：内部队列容量系数；有效队列容量为 `queue_capacity * concurrency`，默认值为 10。
+- concurrency（整数）：TDengine STMT2 写入并发度，默认值为 8。
+- dry_run（布尔）：是否只验证接收链路而不真实写入 TDengine，默认值为 false。
+- auto_create_table（布尔）：是否使用 STMT2 自动建子表写入，默认值为 false。
+- writer.failure_handling：写入失败处理策略，包含 `max_retries`、`retry_interval_ms`、`on_failure`。
+
+对外提供以下 gRPC 接口：
+
+- `Ingest`：写入一批 TableBatch 或 InterlaceBatch 数据，返回回执阶段、接收行数和队列深度。
+- `Health`：查询服务是否可用。
+- `GetStats`：查询接收行数、写入行数、失败行数、队列深度和在途请求数等统计。
+
+数据组织形式：
+
+- `TableBatch`：按子表组织，同一子表批次内 `table_name` 和 tags 只传一次，时间戳和普通列使用列式数组传输。
+- `InterlaceBatch`：请求级传输表名集合、第一时间戳列和普通列数组，数组按 `offset = table_index * rows_per_table + row_index` 展开；连续表名可使用 `TableNameRange(prefix,start,count,step)`。
+
+注意：
+
+- 当前仅支持 `accept_only` 和 `enqueue_only`；`accept_only` 不入队、不写 TDengine。
+- 是否真实写入 TDengine 由 `dry_run` 决定，不由 `ack_mode` 决定。
+- `auto_create_table=false` 时请求不得携带 tags，子表需提前创建。
+- `InterlaceBatch` 第一版仅支持 `auto_create_table=false`。
 
 ### 行动的种类
 
