@@ -66,7 +66,7 @@ _redirect_stream = None
 DEFAULT_MODEL_ORDER = ["tdtsfm", "timemoe", "moirai", "chronos", "timesfm", "moment"]
 DEFAULT_TIMEOUTS = {
     "service_startup": 180,
-    "model_startup": 180,
+    "model_startup": 300,
     "shutdown": 30,
 }
 TCP_CONNECT_TIMEOUT = 1

@@ -39,7 +39,7 @@ timeout = 1200
 # Lifecycle readiness deadlines in seconds
 timeouts = {
     'service_startup': 180,
-    'model_startup': 180,
+    'model_startup': 300,
     'shutdown': 30,
 }
 
