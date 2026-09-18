@@ -1084,7 +1084,14 @@ function install_config() {
   while true; do
     if [ ! -z "$emailAddr" ]; then
       email_file="${install_main_dir}/email"
-      bash -c "echo $emailAddr > ${email_file}"
+      printf '%s\n' "$emailAddr" > "$email_file" || {
+        echo "Failed to write email address to ${email_file}" >&2
+        exit 1
+      }
+      chmod 0600 "$email_file" || {
+        echo "Failed to set permissions for ${email_file}" >&2
+        exit 1
+      }
       break
     else
       break
@@ -1093,6 +1100,9 @@ function install_config() {
 }
 
 function install_log() {    
+    # Keep the system-wide log directory writable so non-root users can run
+    # client tools after a root installation. Use a dedicated service user
+    # and group before tightening this permission in a follow-up change.
     if [ "$osType" != "Darwin" ]; then
         mkdir -p ${logDir} && mkdir -p ${logDir}/tcmalloc && mkdir -p ${logDir}/jemalloc && chmod 777 ${logDir}
     else
@@ -1204,7 +1214,11 @@ function install_service_on_systemd() {
   fi
 
   if [ -f "${cfg_source_dir}/$1.service" ]; then
-    tmp_service_file="/tmp/${1}.service.$$"
+    tmp_service_file=$(mktemp /tmp/taos-service.XXXXXX) || {
+      echo "Failed to create temporary service file"
+      exit 1
+    }
+    trap 'rm -f "$tmp_service_file" "${tmp_service_file}.bak"' EXIT
     service_config="${service_config_dir}/$1.service"
     
     # Ensure service config directory exists
@@ -1234,6 +1248,7 @@ function install_service_on_systemd() {
     chmod 644 "${service_config}" || { echo "Failed to set permissions for ${service_config}"; exit 1; }
     
     rm -f "$tmp_service_file"
+    trap - EXIT
     ${sysctl_cmd} daemon-reload
     ${sysctl_cmd} enable $1
   fi
