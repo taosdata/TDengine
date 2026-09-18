@@ -129,6 +129,7 @@ alter_table_clause: {
   | ADD TAG tag_name tag_type
   | SET TAG tag_name = new_tag_value
   | DROP TAG tag_name
+  | RENAME TAG old_tag_name new_tag_name
 }
 
 alter_table_options:
@@ -154,7 +155,8 @@ The following modifications can be made to basic tables:
 7. `ADD TAG`: Add an owned tag with an initial value of `NULL`; assign a value later with `SET TAG`.
 8. `SET TAG`: Set the value of an owned tag.
 9. `DROP TAG`: Drop a tag.
-10. Basic tables do not support tag references: `ADD TAG ... FROM ...` and `SET TAG ... = db_name.table_name.tag_name` are both rejected; `JSON` tags cannot be added with `ADD TAG`.
+10. `RENAME TAG`: Change the name of an owned tag. Only the display name changes; the tag value is preserved. The new name must not clash with an existing column or tag of the table. Supported since v3.4.3.0.
+11. Basic tables do not support tag references: `ADD TAG ... FROM ...` and `SET TAG ... = db_name.table_name.tag_name` are both rejected; `JSON` tags cannot be added with `ADD TAG`.
 
 Parameter Description:
 
@@ -201,6 +203,12 @@ ALTER TABLE tb_name SET TAG tag_name = new_tag_value;
 
 ```sql
 ALTER TABLE tb_name DROP TAG tag_name;
+```
+
+### Rename Tag
+
+```sql
+ALTER TABLE tb_name RENAME TAG old_tag_name new_tag_name;
 ```
 
 ### Modify table lifespan

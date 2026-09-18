@@ -302,6 +302,11 @@ class ParserTestBaseImpl {
     pCxt->async = async;
     pCxt->svrVer = "3.0.0.0";
     pCxt->pCatalog = (SCatalog*)&g_dummyCatalog;  // non-NULL dummy catalog for privilege checks
+    // Non-NULL transporter so that normal/virtual-normal table RENAME COLUMN /
+    // RENAME TAG reaches the (stubbed) catalogChkColRefByPriv mnode round trip
+    // instead of failing closed with "catalog or transporter is not set". The
+    // stub simulates an mnode with no privilege rule referencing the column.
+    pCxt->pTransporter = (void*)&g_dummyCatalog;
   }
 
   void doParse(SParseContext* pCxt, SQuery** pQuery) {

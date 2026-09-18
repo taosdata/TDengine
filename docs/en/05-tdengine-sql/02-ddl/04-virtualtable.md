@@ -551,6 +551,7 @@ alter_table_clause: {
   | ADD TAG tag_name tag_type [FROM [db_name.]table_name.tag_name]
   | SET TAG tag_name = {new_tag_value | [db_name.]table_name.tag_name}
   | DROP TAG tag_name
+  | RENAME TAG old_tag_name new_tag_name
 }
 ```
 
@@ -566,6 +567,7 @@ For virtual basic tables, the following modifications are supported:
 6. `ADD TAG`: Add a tag. Without `FROM` it adds an owned tag (initial value `NULL`); with `FROM` it adds a tag-ref.
 7. `SET TAG`: Modify a tag. Setting it to a literal (including `NULL`) clears any existing tag-ref and converts the tag to an owned tag; setting it to `[db_name.]table_name.tag_name` converts an owned tag to a tag-ref or repoints an existing tag-ref to another source tag. An error is returned if the source tag does not exist, the types do not match, or the target is a data column.
 8. `DROP TAG`: Drop a tag; both owned tags and tag-refs can be dropped.
+9. `RENAME TAG`: Change a tag's name; both owned tags and tag-refs can be renamed. Only the display name changes: an owned tag keeps its value and a tag-ref keeps pointing at its source tag. The new name must not clash with an existing column or tag of the table. Supported since v3.4.3.0.
 
 ### Add Column
 
@@ -623,6 +625,12 @@ The conversion semantics of `SET TAG` are the same as for virtual subtables; see
 
 ```sql
 ALTER VTABLE vtb_name DROP TAG tag_name;
+```
+
+### Rename Tag
+
+```sql
+ALTER VTABLE vtb_name RENAME TAG old_tag_name new_tag_name;
 ```
 
 ## Modify Virtual Subtables

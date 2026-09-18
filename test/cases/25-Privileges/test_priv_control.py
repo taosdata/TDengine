@@ -4,6 +4,7 @@ import time
 import socket
 import os
 import platform
+import pytest
 
 TSDB_CODE_NO_SUCH_FILE                        = 0x02
 #define TSDB_CODE_OPS_NOT_SUPPORT               TAOS_DEF_ERROR_CODE(0, 0x0100)
@@ -4271,6 +4272,117 @@ class TestPrivControl:
         
         print("Constraint ............................ [ passed ] ")
 
+    def do_check_rename_alter_priv(self):
+        """The RESTRICT round trip is itself authorized: a non-root user needs ALTER on the table.
+
+        checkColRefByPriv sends TDMT_MND_CHECK_COL_REF_BY_PRIV to the mnode, whose handler answers
+        whether a given (table, colId) is referenced by a user policy or by a role policy. That
+        reply would let any connected user probe someone else's RBAC configuration, so the handler
+        first requires the same two privileges the rename itself needs (DB_USE + table ALTER). This
+        case is what actually exercises those two checks: the sibling privilege cases all issue the
+        rename as root, and root is a superUser for which both checks return early without
+        evaluating anything.
+
+        Both directions matter. With ALTER granted, RENAME COLUMN / RENAME TAG must still succeed —
+        a wrong privilege/object-type combination in the handler would reject a legitimate rename,
+        and only a non-root caller would ever show it. Without ALTER, the rename must be refused.
+
+        Catalog:
+            - NormalTable
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: normal_table, virtual_table, column, tag, rename, privilege, auth
+
+        Jira: None
+
+        History:
+            - 2026-09-16 Created: covers the auth gate added to mndProcessCheckColRefReq
+        """
+        db_name = "td_vntb_rename_nonroot"
+        user = "u_rename_nr"
+
+        try:
+            self.login()  # root: create the fixtures, then hand the privileges out below
+            tdSql.execute(f"DROP DATABASE IF EXISTS {db_name};")
+            tdSql.execute(f"DROP USER IF EXISTS {user};")
+            tdSql.execute(f"CREATE USER {user} PASS '{pwd}';")
+            tdSql.execute(f"CREATE DATABASE {db_name};")
+            tdSql.execute(f"USE {db_name};")
+            # a normal table with an owned tag: RENAME COLUMN and RENAME TAG both end up in the
+            # same vnode-side RESTRICT round trip (buildRenameColReq / buildRenameTagReq)
+            tdSql.execute("CREATE TABLE ntb_nr (ts TIMESTAMP, c1 INT, c2 INT) TAGS (tg INT = 4);")
+            tdSql.execute("INSERT INTO ntb_nr VALUES (1700000000000, 1, 2);")
+
+            try:
+                self.grant_privilege("USE", f"DATABASE {db_name}", user)
+            except Exception as e:
+                # GRANT is enterprise-only: the OSS parser rejects it with TSDB_CODE_OPS_NOT_SUPPORT
+                # ("GRANT statement is only supported in TDengine Enterprise edition"), and without
+                # it a non-root user cannot even reach the table, so neither direction of this gate
+                # is testable there — skip visibly. Every other failure (connect loss, syntax error,
+                # an already-existing grant, ...) is a real defect: re-raise so it cannot hide
+                # behind a skip.
+                if normalize_errno(errno_from_exception(e)) != TSDB_CODE_OPS_NOT_SUPPORT:
+                    raise
+                pytest.skip(f"GRANT not supported on this build, cannot test the rename auth gate: {e}")
+
+            # ---- denied: USE on the db, but no ALTER on the table ----
+            self.login(user, pwd)
+            tdSql.execute("reset query cache")
+            tdSql.execute(f"USE {db_name};")
+            tdSql.error("ALTER TABLE ntb_nr RENAME COLUMN c1 c1_nr;")
+            tdSql.error("ALTER TABLE ntb_nr RENAME TAG tg tg_nr;")
+            tdLog.info("  PASS: rename denied for a non-root user without ALTER on the table")
+
+            # ---- allowed: with ALTER, both rename forms go through the authorized round trip ----
+            self.login()
+            self.grant_privilege("ALTER", f"{db_name}.ntb_nr", user)
+            self.login(user, pwd)
+            tdSql.execute("reset query cache")
+            tdSql.execute(f"USE {db_name};")
+            tdSql.execute("ALTER TABLE ntb_nr RENAME COLUMN c1 c1_nr;")
+            tdSql.execute("ALTER TABLE ntb_nr RENAME TAG tg tg_nr;")
+            tdLog.info("  PASS: rename succeeds for a non-root user holding ALTER")
+
+            # Read the renamed column/tag back as root. The non-root user holds USE + ALTER only —
+            # exactly the gate under test — so a SELECT probe on this connection would be refused
+            # (0x2644), and granting it a table-level SELECT would both weaken the gate and collide
+            # with the column-level GRANT SELECT(c2) in the RESTRICT phase below (overlapping grants
+            # are rejected with TSDB_CODE_MND_PRIVILEGE_EXIST). The two renames above already ran on
+            # the non-root connection, so it is the gate that let them through; root then confirms
+            # the schema and values really changed.
+            self.login()
+            tdSql.execute(f"USE {db_name};")
+            tdSql.query("SELECT c1_nr, tg_nr FROM ntb_nr;")
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 4)
+            tdLog.info("  PASS: renamed column + tag carry the original values")
+
+            # ---- RESTRICT still applies to a non-root caller: the reply code must reach them ----
+            self.login()
+            self.grant_privilege("SELECT(c2)", f"{db_name}.ntb_nr", user)
+            self.login(user, pwd)
+            tdSql.execute("reset query cache")
+            tdSql.execute(f"USE {db_name};")
+            tdSql.error("ALTER TABLE ntb_nr RENAME COLUMN c2 c2_nr;",
+                        expectErrInfo="referenced by user privilege", fullMatched=False)
+            tdLog.info("  PASS: RESTRICT verdict reaches a non-root caller unchanged")
+
+            # ---- revoking ALTER closes the gate again ----
+            self.login()
+            self.revoke_privilege("ALTER", f"{db_name}.ntb_nr", user)
+            self.login(user, pwd)
+            tdSql.execute("reset query cache")
+            tdSql.execute(f"USE {db_name};")
+            tdSql.error("ALTER TABLE ntb_nr RENAME TAG tg_nr tg_nr2;")
+            tdLog.info("  PASS: rename denied again after ALTER is revoked")
+        finally:
+            self.login()
+            tdSql.execute(f"DROP DATABASE IF EXISTS {db_name};")
+            tdSql.execute(f"DROP USER IF EXISTS {user};")
+
     #
     # --------------------------- main ----------------------------
     #
@@ -4352,6 +4464,7 @@ class TestPrivControl:
         Since: v3.4.0.0
 
         Labels: common,ci,privilege,integration,functional,security
+
         Jira: TS-7232
 
         History:
@@ -4480,3 +4593,10 @@ class TestPrivControl:
         self.do_role_separation_best_practice()
         self.do_daily_operations_without_root()
         self.do_constraint()
+
+        # Rename auth gate: RENAME COLUMN / RENAME TAG on a normal table require ALTER on the
+        # table — the server-side gate on TDMT_MND_CHECK_COL_REF_BY_PRIV. Kept as a helper called
+        # from here rather than a standalone test case, so it runs as part of this suite.
+        print("")
+        print("[Rename Auth Gate]")
+        self.do_check_rename_alter_priv()

@@ -3502,6 +3502,22 @@ int32_t tSerializeSBackupSnodeRsp(void* buf, int32_t bufLen, SBackupSnodeRsp* pR
 int32_t tDeserializeSBackupSnodeRsp(void* buf, int32_t bufLen, SBackupSnodeRsp* pRsp);
 void    tFreeSBackupSnodeRsp(SBackupSnodeRsp* pRsp);
 
+// Check column/tag reference by privilege (for RENAME COLUMN/TAG on normal/virtual tables)
+typedef struct {
+  char     tbFName[TSDB_TABLE_FNAME_LEN];
+  col_id_t colId;
+  char     colName[TSDB_COL_NAME_LEN];
+} SMndCheckColRefReq;
+
+typedef struct {
+  int32_t code;  // TSDB_CODE_SUCCESS or error code (e.g., TSDB_CODE_MND_COL_REF_BY_USER_PRIV)
+} SMndCheckColRefRsp;
+
+int32_t tSerializeSMndCheckColRefReq(void* buf, int32_t bufLen, SMndCheckColRefReq* pReq);
+int32_t tDeserializeSMndCheckColRefReq(void* buf, int32_t bufLen, SMndCheckColRefReq* pReq);
+int32_t tSerializeSMndCheckColRefRsp(void* buf, int32_t bufLen, SMndCheckColRefRsp* pRsp);
+int32_t tDeserializeSMndCheckColRefRsp(void* buf, int32_t bufLen, SMndCheckColRefRsp* pRsp);
+
 typedef enum {
   BACKUP_VNODE_SNAP_BEGIN = 1,
   BACKUP_VNODE_SNAP_FETCH = 2,

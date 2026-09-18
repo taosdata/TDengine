@@ -191,6 +191,15 @@ void generatePerformanceSchema(MockCatalogService* mcs) {
  *          c3         |       column       |       BIGINT       |    8     |
  *          c4         |       column       |       DOUBLE       |    8     |
  *          c5         |       column       |       DOUBLE       |    8     |
+ *
+ * Normal Table (with owned tags): t3
+ *        Field        |        Type        |      DataType      |  Bytes   |
+ * ==========================================================================
+ *          ts         |       column       |     TIMESTAMP      |    8     |
+ *          c1         |       column       |        INT         |    4     |
+ *          c2         |       column       |      VARCHAR       |    20    |
+ *        ntag1        |        tag         |        INT         |    4     |
+ *        ntag2        |        tag         |      VARCHAR       |    20    |
  */
 void generateTestTables(MockCatalogService* mcs, const std::string& db) {
   mcs->createTableBuilder(db, "t1", TSDB_NORMAL_TABLE, 6)
@@ -202,6 +211,19 @@ void generateTestTables(MockCatalogService* mcs, const std::string& db) {
       .addColumn("c3", TSDB_DATA_TYPE_BIGINT)
       .addColumn("c4", TSDB_DATA_TYPE_DOUBLE)
       .addColumn("c5", TSDB_DATA_TYPE_DOUBLE)
+      .done();
+
+  // t3: a normal table that owns tags. Plain normal tables gained owned tags (ALTER ... ADD TAG),
+  // so the alter paths that treat tags of a non-super table (RENAME TAG, DROP TAG) need a fixture
+  // whose tableType is TSDB_NORMAL_TABLE *and* numOfTags > 0.
+  mcs->createTableBuilder(db, "t3", TSDB_NORMAL_TABLE, 3, 2)
+      .setPrecision(TSDB_TIME_PRECISION_MILLI)
+      .setVgid(2)
+      .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("c1", TSDB_DATA_TYPE_INT)
+      .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
+      .addTag("ntag1", TSDB_DATA_TYPE_INT)
+      .addTag("ntag2", TSDB_DATA_TYPE_BINARY, 20)
       .done();
 }
 
@@ -461,6 +483,21 @@ int32_t __catalogGetUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char
   return 0;
 }
 
+// RENAME COLUMN / RENAME TAG on a normal / virtual-normal table asks the mnode
+// whether any privilege rule references the renamed column (checkColRefByPriv).
+// The parser unit-test harness has no mnode round trip, so this stub stands in for
+// the mnode's answer. It defaults to "no rule references the column", i.e. the
+// rename is allowed; a test that needs the RESTRICT rejection to travel back up
+// through translate() overrides the answer with mockChkColRefByPrivCode().
+static int32_t g_chkColRefByPrivCode = TSDB_CODE_SUCCESS;
+
+void mockChkColRefByPrivCode(int32_t code) { g_chkColRefByPrivCode = code; }
+
+int32_t __catalogChkColRefByPriv(SCatalog* pCtg, SRequestConnInfo* pConn, const char* tbFName, col_id_t colId,
+                                 const char* colName) {
+  return g_chkColRefByPrivCode;
+}
+
 void initMetaDataEnv() {
   g_mockCatalogService.reset(new MockCatalogService());
 
@@ -479,6 +516,7 @@ void initMetaDataEnv() {
   stub.set(catalogGetDBCfg, __catalogGetDBCfg);
   stub.set(catalogChkAuth, __catalogChkAuth);
   stub.set(catalogChkAuthFromCache, __catalogChkAuthFromCache);
+  stub.set(catalogChkColRefByPriv, __catalogChkColRefByPriv);
   stub.set(catalogGetUdfInfo, __catalogGetUdfInfo);
   stub.set(catalogRefreshGetTableMeta, __catalogRefreshGetTableMeta);
   stub.set(catalogRemoveTableMeta, __catalogRemoveTableMeta);

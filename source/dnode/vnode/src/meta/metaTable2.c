@@ -882,6 +882,12 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
 // meta, so same-connection tag reads (WHERE <tag> / DROP TAG) fail with Invalid column/tag name
 // until a fresh RPC refreshes it. Also stamps tversion so every response path (create and alter
 // alike) reports the same tag schema version vnodeGetTableMeta would.
+//
+// Only pSchemas grows here: pSchemaExt and pColRefs stay sized to numOfColumns, because
+// tEncodeSTableMetaRsp walks pSchemas for numOfColumns + numOfTags entries but both of those arrays
+// for numOfColumns only. Do not index either of them past numOfColumns after calling this.
+// (metaUpdateVtbMetaRsp differs for a virtual CHILD table: there the tag region is part of the one
+// pSchemas block it allocates itself, and this function is not used on that path.)
 static int32_t metaAppendNtbTagSchemaToRsp(SMetaEntry *pEntry, STableMetaRsp *pRsp) {
   if (pEntry->ntbEntry.schemaTag.nCols > 0 && pEntry->ntbEntry.schemaTag.pSchema != NULL) {
     int32_t nCols = pRsp->numOfColumns;
@@ -1573,25 +1579,65 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
   int32_t readCode = metaGetTableEntryByVersion(&mr, newVersion, uid);
   metaULock(pMeta);
   if (readCode == 0) {
-    // Delete orphan schema entry from pSkmDb (normal tables and STBs only)
-    int32_t sver = -1;
+    // Delete the orphan row-schema entry from pSkmDb (normal tables and STBs only).
+    //
+    // pSkmDb is keyed by (uid, schemaRow.version), so this cleanup is only correct when the
+    // rolled-back ALTER actually advanced schemaRow.version — ADD/DROP/MODIFY/RENAME COLUMN.
+    // Tag-only ALTERs (RENAME TAG, SET TAG, ADD TAG, DROP TAG on a normal / virtual-normal
+    // table) bump schemaTag.version and leave schemaRow.version untouched, so the new and the
+    // restored entry share one pSkmDb key. Deleting it there removes the row schema the
+    // surviving entry still needs: tsdbUpdateSkmTb -> metaGetTbTSchemaEx then returns
+    // TSDB_CODE_NOT_FOUND, tsdbCommitTSData fails, and vnodeCommitImpl aborts the vnode with a
+    // FATAL that recurs on every restart (the WAL replay re-runs the same rollback).
+    // So compare against the restored version and only delete a key it does not own.
+    int32_t newSver = -1;
     if (mr.me.type == TSDB_NORMAL_TABLE || mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
-      sver = mr.me.ntbEntry.schemaRow.version;
+      newSver = mr.me.ntbEntry.schemaRow.version;
     } else if (mr.me.type == TSDB_SUPER_TABLE) {
-      sver = mr.me.stbEntry.schemaRow.version;
+      newSver = mr.me.stbEntry.schemaRow.version;
     }
-    if (sver >= 0) {
-      SSkmDbKey skmKey = {.uid = uid, .sver = sver};
+
+    int32_t prevSver = -1;
+    if (newSver >= 0) {
+      SMetaReader mrPrev = {0};
+      metaReaderDoInit(&mrPrev, pMeta, META_READER_NOLOCK, 0);
+      metaRLock(pMeta);
+      int32_t readPrevCode = metaGetTableEntryByVersion(&mrPrev, prevVersion, uid);
+      metaULock(pMeta);
+      if (readPrevCode == 0) {
+        if (mrPrev.me.type == TSDB_NORMAL_TABLE || mrPrev.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
+          prevSver = mrPrev.me.ntbEntry.schemaRow.version;
+        } else if (mrPrev.me.type == TSDB_SUPER_TABLE) {
+          prevSver = mrPrev.me.stbEntry.schemaRow.version;
+        }
+      } else {
+        // Cannot read the restored entry: skip the delete rather than risk removing a live
+        // schema. A leftover pSkmDb entry is harmless (it is keyed by a version nothing
+        // resolves to); a missing one aborts the vnode.
+        metaWarn("vgId:%d, rollback alter: cannot read prev entry ver %" PRId64 " uid %" PRId64
+                 " for pSkmDb cleanup, skipping delete (code:0x%x)",
+                 TD_VID(pMeta->pVnode), prevVersion, uid, readPrevCode);
+        newSver = -1;
+      }
+      metaReaderClear(&mrPrev);
+    }
+
+    if (newSver >= 0 && newSver != prevSver) {
+      SSkmDbKey skmKey = {.uid = uid, .sver = newSver};
       metaWLock(pMeta);
       int32_t   skmCode = tdbTbDelete(pMeta->pSkmDb, &skmKey, sizeof(skmKey), pMeta->txn);
       metaULock(pMeta);
       if (skmCode == 0) {
         metaInfo("vgId:%d, rollback alter: deleted orphan pSkmDb entry uid %" PRId64 " sver %d", TD_VID(pMeta->pVnode),
-                 uid, sver);
+                 uid, newSver);
       } else {
         metaWarn("vgId:%d, rollback alter: failed to delete pSkmDb entry uid %" PRId64 " sver %d, code:0x%x",
-                 TD_VID(pMeta->pVnode), uid, sver, skmCode);
+                 TD_VID(pMeta->pVnode), uid, newSver, skmCode);
       }
+    } else if (newSver >= 0) {
+      metaDebug("vgId:%d, rollback alter: keeping pSkmDb entry uid %" PRId64 " sver %d (row schema unchanged by the "
+                "rolled-back alter)",
+                TD_VID(pMeta->pVnode), uid, newSver);
     }
   }
 
@@ -2885,6 +2931,29 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
     }
   }
 
+  // Owned tags live in ntbEntry.schemaTag for a normal / virtual-normal table, and every meta
+  // response for such a table must carry that schema. ctgWriteTbMetaToCache only skips an update
+  // when sversion, tversion and rversion are all non-regressing; a column ALTER advances sversion
+  // while this response reports tversion 0, so the tag-less meta is accepted and replaces the
+  // cached one, and the connection then fails every tag access (WHERE <tag>, RENAME/DROP/SET TAG,
+  // GRANT) with "Invalid tag name" until some later RPC refreshes the cache. CREATE
+  // (metaBuildCreateNormalTableRsp) and the tag-alter paths (metaFillNtbTableMetaRsp) already
+  // append it; the column-alter paths used to omit it.
+  if (code == TSDB_CODE_SUCCESS &&
+      (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE)) {
+    // The ALTER is already persisted at this point, so a failure to append the tag schema must not
+    // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
+    // effect while the change is on disk and in the WAL. Log it and return success with an
+    // incomplete response instead — the client then simply refetches the meta on its next RPC.
+    int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
+    if (rspCode != TSDB_CODE_SUCCESS) {
+      metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
+                " name:%s version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName,
+                version);
+    }
+  }
+
   metaFetchEntryFree(&pEntry);
   TAOS_RETURN(code);
 }
@@ -3386,6 +3455,29 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
     }
   }
 
+  // Owned tags live in ntbEntry.schemaTag for a normal / virtual-normal table, and every meta
+  // response for such a table must carry that schema. ctgWriteTbMetaToCache only skips an update
+  // when sversion, tversion and rversion are all non-regressing; a column ALTER advances sversion
+  // while this response reports tversion 0, so the tag-less meta is accepted and replaces the
+  // cached one, and the connection then fails every tag access (WHERE <tag>, RENAME/DROP/SET TAG,
+  // GRANT) with "Invalid tag name" until some later RPC refreshes the cache. CREATE
+  // (metaBuildCreateNormalTableRsp) and the tag-alter paths (metaFillNtbTableMetaRsp) already
+  // append it; the column-alter paths used to omit it.
+  if (code == TSDB_CODE_SUCCESS &&
+      (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE)) {
+    // The ALTER is already persisted at this point, so a failure to append the tag schema must not
+    // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
+    // effect while the change is on disk and in the WAL. Log it and return success with an
+    // incomplete response instead — the client then simply refetches the meta on its next RPC.
+    int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
+    if (rspCode != TSDB_CODE_SUCCESS) {
+      metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
+                " name:%s version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName,
+                version);
+    }
+  }
+
   metaFetchEntryFree(&pEntry);
   TAOS_RETURN(code);
 }
@@ -3493,6 +3585,155 @@ int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
         pRsp->pSchemaExt[i].colId = p->id;
         pRsp->pSchemaExt[i].compress = p->alg;
       }
+    }
+  }
+
+  // Owned tags live in ntbEntry.schemaTag for a normal / virtual-normal table, and every meta
+  // response for such a table must carry that schema. ctgWriteTbMetaToCache only skips an update
+  // when sversion, tversion and rversion are all non-regressing; a column ALTER advances sversion
+  // while this response reports tversion 0, so the tag-less meta is accepted and replaces the
+  // cached one, and the connection then fails every tag access (WHERE <tag>, RENAME/DROP/SET TAG,
+  // GRANT) with "Invalid tag name" until some later RPC refreshes the cache. CREATE
+  // (metaBuildCreateNormalTableRsp) and the tag-alter paths (metaFillNtbTableMetaRsp) already
+  // append it; the column-alter paths used to omit it.
+  if (code == TSDB_CODE_SUCCESS &&
+      (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE)) {
+    // The ALTER is already persisted at this point, so a failure to append the tag schema must not
+    // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
+    // effect while the change is on disk and in the WAL. Log it and return success with an
+    // incomplete response instead — the client then simply refetches the meta on its next RPC.
+    int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
+    if (rspCode != TSDB_CODE_SUCCESS) {
+      metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
+                " name:%s version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName,
+                version);
+    }
+  }
+
+  metaFetchEntryFree(&pEntry);
+  TAOS_RETURN(code);
+}
+
+// Rename an owned tag of a normal / virtual-normal table (ALTER TABLE ... RENAME TAG old new).
+// Only the tag's display name changes: colId stays, so the STag values, the virtual-normal table's
+// pTagRef slots and any stream binding keep resolving. Super-table tags never reach here — they are
+// renamed on the mnode (mndAlterStbTagName); child tables inherit their super table's tags.
+int32_t metaAlterTableTagName(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == pReq->colName || strlen(pReq->colName) == 0 || NULL == pReq->colNewName ||
+      strlen(pReq->colNewName) == 0) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid tag name, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, version);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  // fetch old entry
+  SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
+  code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  metaULock(pMeta);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, pReq->tbName, version);
+    TAOS_RETURN(code);
+  }
+  if (pEntry->version >= version) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s version %" PRId64 " is not less than %" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, pEntry->version, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  // only normal and virtual normal tables own tags (the parser gates this too; this is the backstop)
+  if (pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE && pEntry->type != TSDB_NORMAL_TABLE) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+  SSchemaWrapper *pTagSchema = &pEntry->ntbEntry.schemaTag;
+
+  // locate the tag to rename
+  SSchema *pTag = NULL;
+  for (int32_t i = 0; i < pTagSchema->nCols; i++) {
+    if (strncmp(pTagSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+      pTag = &pTagSchema->pSchema[i];
+      break;
+    }
+  }
+  if (NULL == pTag) {
+    metaError("vgId:%d, %s failed at %s:%d since tag %s not found in table %s, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->colName, pReq->tbName, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_PAR_INVALID_TAG_NAME);
+  }
+  // The new-name collision scan must be independent of the old-name lookup above: folding the two
+  // into one if/else chain makes them mutually exclusive per slot, so renaming a tag to its own
+  // current name matches the old-name branch and never reaches the collision check at all. The
+  // parser rejects that case (getColSchema spans columns and tags), but this function is also the
+  // backstop for requests that never pass through it — a tmq raw-meta replay via taosAlterTable
+  // builds SVAlterTbReq straight from the decoded message.
+  for (int32_t i = 0; i < pTagSchema->nCols; i++) {
+    if (strncmp(pTagSchema->pSchema[i].name, pReq->colNewName, TSDB_COL_NAME_LEN) == 0) {
+      metaError("vgId:%d, %s failed at %s:%d since tag %s already exists in table %s, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colNewName, pReq->tbName, version);
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(TSDB_CODE_VND_COL_ALREADY_EXISTS);
+    }
+  }
+  for (int32_t i = 0; i < pEntry->ntbEntry.schemaRow.nCols; i++) {
+    if (strncmp(pEntry->ntbEntry.schemaRow.pSchema[i].name, pReq->colNewName, TSDB_COL_NAME_LEN) == 0) {
+      metaError("vgId:%d, %s failed at %s:%d since column %s already exists in table %s, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colNewName, pReq->tbName, version);
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(TSDB_CODE_VND_COL_ALREADY_EXISTS);
+    }
+  }
+
+  // rename: colId is preserved, so the STag payload needs no rebuild
+  col_id_t colId = pTag->colId;
+  pEntry->version = version;
+  tstrncpy(pTag->name, pReq->colNewName, TSDB_COL_NAME_LEN);
+  pTagSchema->version++;
+
+  // Virtual normal tables mirror each tag's name in its colRef.pTagRef slot (the planner resolves a
+  // tag-ref by that name, and tmq's json meta reads it), so keep the slot in sync with the schema.
+  if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE && pEntry->colRef.pTagRef != NULL) {
+    for (int32_t i = 0; i < pEntry->colRef.nTagRefs; i++) {
+      if (pEntry->colRef.pTagRef[i].id == colId) {
+        tstrncpy(pEntry->colRef.pTagRef[i].colName, pReq->colNewName, TSDB_COL_NAME_LEN);
+        pEntry->colRef.version++;
+        break;
+      }
+    }
+  }
+  // pTags is deliberately left untouched. A rename changes neither the set of tags nor any value,
+  // and the values are keyed by colId (or, for a JSON tag, by the inner JSON key) — none of which
+  // the rename touches. Rebuilding it would also be wrong for a JSON tag: tTagGet on a JSON STag
+  // compares by STagVal.pKey, so the {.cid = ...} probe used by the add/drop paths reads an
+  // uninitialised key pointer and crashes. STag.ver may therefore trail schemaTag.version here,
+  // exactly as it does after SET TAG on the super-table path; no reader compares the two.
+
+  // persist
+  code = metaHandleEntry2(pMeta, pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+  } else {
+    metaInfo("vgId:%d, table %s uid %" PRId64 " tag %s renamed to %s, version:%" PRId64, TD_VID(pMeta->pVnode),
+             pReq->tbName, pEntry->uid, pReq->colName, pReq->colNewName, version);
+  }
+
+  // response: full meta (columns + colRef + owned-tag schema) so the client catalog refreshes to the
+  // new tag name instead of keeping the old one cached. Built only after a successful persist, and a
+  // failure here does not fail the ALTER — the rename is already on disk, so returning an error
+  // would report a DDL as rejected while it actually took effect. The client refetches the meta on
+  // its next RPC.
+  if (code == TSDB_CODE_SUCCESS) {
+    int32_t rspCode = metaFillNtbTableMetaRsp(pEntry, pReq->tbName, pRsp);
+    if (rspCode) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+                __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName, version);
     }
   }
 
@@ -3614,6 +3855,29 @@ int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *p
         pRsp->pSchemaExt[i].colId = p->id;
         pRsp->pSchemaExt[i].compress = p->alg;
       }
+    }
+  }
+
+  // Owned tags live in ntbEntry.schemaTag for a normal / virtual-normal table, and every meta
+  // response for such a table must carry that schema. ctgWriteTbMetaToCache only skips an update
+  // when sversion, tversion and rversion are all non-regressing; a column ALTER advances sversion
+  // while this response reports tversion 0, so the tag-less meta is accepted and replaces the
+  // cached one, and the connection then fails every tag access (WHERE <tag>, RENAME/DROP/SET TAG,
+  // GRANT) with "Invalid tag name" until some later RPC refreshes the cache. CREATE
+  // (metaBuildCreateNormalTableRsp) and the tag-alter paths (metaFillNtbTableMetaRsp) already
+  // append it; the column-alter paths used to omit it.
+  if (code == TSDB_CODE_SUCCESS &&
+      (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE)) {
+    // The ALTER is already persisted at this point, so a failure to append the tag schema must not
+    // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
+    // effect while the change is on disk and in the WAL. Log it and return success with an
+    // incomplete response instead — the client then simply refetches the meta on its next RPC.
+    int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
+    if (rspCode != TSDB_CODE_SUCCESS) {
+      metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
+                " name:%s version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName,
+                version);
     }
   }
 
@@ -4203,6 +4467,7 @@ static int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, const char
   SMetaEntry *pChild = NULL;
   SMetaEntry *pSuper = NULL;
   SHashObj* pUpdatedTagVals = NULL;
+  SSchema    *pMergedTags = NULL;
   bool tagRefCleared = false;
 
   // fetch child entry
@@ -4288,7 +4553,6 @@ static int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, const char
   // followed by own tags) so own tags can be located by name and the shared tag blob is
   // rebuilt with the merged schema (keeping own tag values, whose colIds sort after all vstb
   // colIds, intact)
-  SSchema        *pMergedTags = NULL;
   SSchemaWrapper  mergedTagSchema = {0};
   SSchemaWrapper *pTagSchema = &pSuper->stbEntry.schemaTag;
   if (pChild->type == TSDB_VIRTUAL_CHILD_TABLE && pChild->own.nOwnTags > 0) {
@@ -5333,6 +5597,26 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
     }
   }
 
+  // Same rule as the column-alter sites above: a normal / virtual-normal table owns its tag schema
+  // (ntbEntry.schemaTag) and every meta response must carry it. ctgWriteTbMetaToCache accepts this
+  // response because the row schema version advanced, so omitting the tag schema here would replace
+  // the cached meta with a tag-less one and break later tag access on the same connection. The
+  // virtual-CHILD branch already receives the super table's tag schema, so the guard keeps it out.
+  if (code == TSDB_CODE_SUCCESS &&
+      (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE)) {
+    // The ALTER is already persisted at this point, so a failure to append the tag schema must not
+    // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
+    // effect while the change is on disk and in the WAL. Log it and return success with an
+    // incomplete response instead — the client then simply refetches the meta on its next RPC.
+    int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
+    if (rspCode != TSDB_CODE_SUCCESS) {
+      metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
+                " name:%s version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName,
+                version);
+    }
+  }
+
   metaFetchEntryFree(&pEntry);
   metaFetchEntryFree(&pSuper);
   TAOS_RETURN(code);
@@ -5442,6 +5726,26 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
         tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
         tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
       }
+    }
+  }
+
+  // Same rule as the column-alter sites above: a normal / virtual-normal table owns its tag schema
+  // (ntbEntry.schemaTag) and every meta response must carry it. ctgWriteTbMetaToCache accepts this
+  // response because the row schema version advanced, so omitting the tag schema here would replace
+  // the cached meta with a tag-less one and break later tag access on the same connection. The
+  // virtual-CHILD branch already receives the super table's tag schema, so the guard keeps it out.
+  if (code == TSDB_CODE_SUCCESS &&
+      (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE)) {
+    // The ALTER is already persisted at this point, so a failure to append the tag schema must not
+    // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
+    // effect while the change is on disk and in the WAL. Log it and return success with an
+    // incomplete response instead — the client then simply refetches the meta on its next RPC.
+    int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
+    if (rspCode != TSDB_CODE_SUCCESS) {
+      metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
+                " name:%s version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName,
+                version);
     }
   }
 
@@ -5702,6 +6006,26 @@ int32_t metaAddTableSeries(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
                                 pEntry->ntbEntry.ownerId, pRsp, pEntry->type);
     if (code) {
       metaError("vgId:%d, %s metaUpdateVtbMetaRsp failed: %s", TD_VID(pMeta->pVnode), __func__, tstrerror(code));
+    }
+  }
+
+  // Same rule as the column-alter sites above: a normal / virtual-normal table owns its tag schema
+  // (ntbEntry.schemaTag) and every meta response must carry it. Adding a series advances
+  // colRef.version (rversion), which is enough for ctgWriteTbMetaToCache to accept the response, so
+  // omitting the tag schema here would replace the cached meta with a tag-less one and break later
+  // tag access on the same connection.
+  if (code == TSDB_CODE_SUCCESS &&
+      (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE)) {
+    // The ALTER is already persisted at this point, so a failure to append the tag schema must not
+    // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
+    // effect while the change is on disk and in the WAL. Log it and return success with an
+    // incomplete response instead — the client then simply refetches the meta on its next RPC.
+    int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
+    if (rspCode != TSDB_CODE_SUCCESS) {
+      metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
+                " name:%s version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName,
+                version);
     }
   }
 
