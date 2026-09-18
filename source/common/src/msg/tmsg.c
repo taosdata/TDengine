@@ -9984,6 +9984,65 @@ void tFreeSBackupSnodeRsp(SBackupSnodeRsp *pRsp) {
   pRsp->files = NULL;
 }
 
+int32_t tSerializeSMndCheckColRefReq(void *buf, int32_t bufLen, SMndCheckColRefReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0, lino = 0, tlen = 0;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tbFName));
+  // colId is a col_id_t (int16_t); use the symmetric I16 codec like every other col_id_t field
+  // in this file. Encoding it as I32 would pad the wire format and let an out-of-range value be
+  // silently truncated on decode instead of rejected.
+  TAOS_CHECK_EXIT(tEncodeI16(&encoder, pReq->colId));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->colName));
+  tEndEncode(&encoder);
+_exit:
+  tlen = code ? code : encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMndCheckColRefReq(void *buf, int32_t bufLen, SMndCheckColRefReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0, lino = 0;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  // tbFName/colName are fixed-size arrays, so bound each decode against its own field and reject
+  // a message whose strings do not fit instead of writing past the end of the array.
+  TAOS_CHECK_EXIT(tDecodeCStrToFixed(&decoder, pReq->tbFName, sizeof(pReq->tbFName)));
+  TAOS_CHECK_EXIT(tDecodeI16(&decoder, &pReq->colId));
+  TAOS_CHECK_EXIT(tDecodeCStrToFixed(&decoder, pReq->colName, sizeof(pReq->colName)));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSMndCheckColRefRsp(void *buf, int32_t bufLen, SMndCheckColRefRsp *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0, lino = 0, tlen = 0;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->code));
+  tEndEncode(&encoder);
+_exit:
+  tlen = code ? code : encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMndCheckColRefRsp(void *buf, int32_t bufLen, SMndCheckColRefRsp *pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0, lino = 0;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->code));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
 int32_t tSerializeSVnodeSyncCommitReq(void *buf, int32_t bufLen, SVnodeSyncCommitReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
@@ -19655,6 +19714,9 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pReq->colModBytes));
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+    case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
+      // UPDATE_TAG_NAME reaches a vnode only for the owned tags of a normal / virtual-normal
+      // table; on a super table the rename is handled by the mnode (TDMT_MND_ALTER_STB).
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colNewName));
       break;
@@ -19987,6 +20049,7 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pReq->colModBytes));
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+    case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colNewName));
       break;

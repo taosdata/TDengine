@@ -1683,9 +1683,27 @@ static int32_t processBeginTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
 }
 
 // Reset all txn-local state on COMMIT or ROLLBACK.
-// No need to evict global catalog entries: schema version changes on COMMIT cause
-// catalogChkTbMetaVersion to detect version mismatches and re-fetch automatically.
+//
+// The per-connection pTxnTableMeta shadows the global catalog for the duration of the txn
+// (handleQueryExecRsp / processAlterStbRsp deliberately skip catalogUpdateTableMeta while txnId > 0,
+// so a concurrent connection never observes uncommitted schema). Freeing it here therefore un-shadows
+// whatever the global catalog still holds — which, for every table the txn altered, is the schema as
+// of BEGIN. Relying on catalogChkTbMetaVersion to notice is not enough: that only runs on a query
+// execution response, while a DDL statement resolves its target schema from the cache during
+// translate. The next statement after COMMIT would then be translated against the pre-txn schema.
+//
+// For some alters the resulting error code happens to sit in NEED_CLIENT_RM_TBLMETA_ERROR, so the
+// client silently evicts and retries and the staleness is invisible; for others it does not
+// (RENAME TAG yields TSDB_CODE_PAR_INVALID_TAG_NAME) and the statement fails outright. Rather than
+// widen that error-code whitelist — which would make every genuine typo pay a forced full refresh,
+// and still miss codes like PAR_DUPLICATED_COLUMN — evict exactly the tables this txn touched, at
+// the one point where the set is known precisely.
 void tscResetTxnState(STscObj* pTscObj) {
+  // Table names are collected under the mutex but evicted after releasing it: ctgRemoveTbMetaFromCache
+  // enqueues a synchronous request and blocks on the catalog worker, which must not happen while
+  // holding the connection mutex.
+  SArray* pStaleTables = NULL;
+
   (void)taosThreadMutexLock(&pTscObj->mutex);
   atomic_store_8(&pTscObj->txnState, 0);
   pTscObj->txnId = 0;
@@ -1694,8 +1712,30 @@ void tscResetTxnState(STscObj* pTscObj) {
   pTscObj->pTxnVgSet = NULL;
 
   if (pTscObj->pTxnTableMeta) {
+    // Best-effort: a failed alloc only costs a stale cache entry, exactly the behaviour before this
+    // eviction existed, so it must not block the state reset below.
+    pStaleTables = taosArrayInit(taosHashGetSize(pTscObj->pTxnTableMeta), sizeof(SName));
     void* pIter = NULL;
     while ((pIter = taosHashIterate(pTscObj->pTxnTableMeta, pIter))) {
+      if (NULL != pStaleTables) {
+        size_t keyLen = 0;
+        char*  key = taosHashGetKey(pIter, &keyLen);
+        // The key is the "acct.db.table" full name used by tscTxnUpsertTableMeta. A DROP records a
+        // NULL sentinel under the same key and removeMeta already evicted it, but re-evicting a
+        // missing entry is a no-op, so the sentinel needs no special case here.
+        char fullName[TSDB_TABLE_FNAME_LEN] = {0};
+        if (keyLen < TSDB_TABLE_FNAME_LEN) {
+          TAOS_MEMCPY(fullName, key, keyLen);
+          SName name = {0};
+          if (TSDB_CODE_SUCCESS ==
+              tNameFromString(&name, fullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) {
+            if (NULL == taosArrayPush(pStaleTables, &name)) {
+              taosArrayDestroy(pStaleTables);
+              pStaleTables = NULL;
+            }
+          }
+        }
+      }
       STableMeta** ppMeta = (STableMeta**)pIter;
       taosMemoryFreeClear(*ppMeta);
     }
@@ -1707,6 +1747,31 @@ void tscResetTxnState(STscObj* pTscObj) {
   taosHashCleanup(pTscObj->pTxnSuidMap);
   pTscObj->pTxnSuidMap = NULL;
   (void)taosThreadMutexUnlock(&pTscObj->mutex);
+
+  if (NULL != pStaleTables) {
+    SCatalog* pCatalog = NULL;
+    int32_t   code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+    if (TSDB_CODE_SUCCESS == code) {
+      int32_t tbNum = taosArrayGetSize(pStaleTables);
+      for (int32_t i = 0; i < tbNum; ++i) {
+        SName* pName = taosArrayGet(pStaleTables, i);
+        if (NULL == pName) {
+          continue;
+        }
+        // Best-effort per table: a failure leaves one stale entry that a later version check or
+        // NEED_CLIENT_HANDLE_ERROR retry still recovers from, so keep evicting the rest.
+        int32_t rmCode = catalogRemoveTableMeta(pCatalog, pName);
+        if (TSDB_CODE_SUCCESS != rmCode) {
+          tscWarn("conn:0x%" PRIx64 ", failed to evict txn-altered table meta %s.%s, code:%s", pTscObj->id,
+                  pName->dbname, pName->tname, tstrerror(rmCode));
+        }
+      }
+    } else {
+      tscWarn("conn:0x%" PRIx64 ", failed to get catalog handle to evict txn-altered table meta, code:%s", pTscObj->id,
+              tstrerror(code));
+    }
+    taosArrayDestroy(pStaleTables);
+  }
 }
 
 // Terminal codes: txn no longer active on MNode — safe to discard client-side state.

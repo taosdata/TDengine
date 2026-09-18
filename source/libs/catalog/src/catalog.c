@@ -1835,6 +1835,51 @@ int32_t catalogGetVstLeaves(SCatalog* pCtg, SRequestConnInfo* pConn, const char*
   CTG_API_LEAVE(code);
 }
 
+int32_t catalogChkColRefByPriv(SCatalog* pCtg, SRequestConnInfo* pConn, const char* tbFName, col_id_t colId,
+                               const char* colName) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == pConn || NULL == tbFName || NULL == colName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SMndCheckColRefReq req = {0};
+  tstrncpy(req.tbFName, tbFName, sizeof(req.tbFName));
+  req.colId = colId;
+  tstrncpy(req.colName, colName, sizeof(req.colName));
+
+  int32_t reqLen = tSerializeSMndCheckColRefReq(NULL, 0, &req);
+  if (reqLen < 0) {
+    CTG_API_LEAVE(reqLen);
+  }
+  char* msg = rpcMallocCont(reqLen);
+  if (NULL == msg) {
+    CTG_API_LEAVE(terrno);
+  }
+  if (tSerializeSMndCheckColRefReq(msg, reqLen, &req) < 0) {
+    rpcFreeCont(msg);
+    CTG_API_LEAVE(TSDB_CODE_INVALID_MSG);
+  }
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_CHECK_COL_REF_BY_PRIV, .pCont = msg, .contLen = reqLen};
+  SRpcMsg rpcRsp = {0};
+
+  int32_t code = rpcSendRecv(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rpcRsp.code;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    SMndCheckColRefRsp rsp = {0};
+    code = tDeserializeSMndCheckColRefRsp(rpcRsp.pCont, rpcRsp.contLen, &rsp);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = rsp.code;
+    }
+  }
+  rpcFreeCont(rpcRsp.pCont);
+
+  CTG_API_LEAVE(code);
+}
+
 int32_t catalogGetIndexMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const char* indexName, SIndexInfo* pInfo) {
   CTG_API_ENTER();
 

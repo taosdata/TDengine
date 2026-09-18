@@ -767,6 +767,17 @@ class TestVtableChildExtColTag:
         tdSql.error("alter stable vstb3 add tag ext_city int;", expectedErrno=COL_ALREADY_EXISTS)
         tdSql.error("alter stable vstb3 add tag ext_ev int;", expectedErrno=COL_ALREADY_EXISTS)
 
+        # 1b. ADD COLUMN with a compression option is a *separate* alter type
+        #     (TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION) reaching the same new-name
+        #     precheck through a different case in mndCollectAlterStbNewNames. It is the only
+        #     collector case whose SField array elements are SFieldWithOptions rather than SField,
+        #     so it is worth pinning that the name is still read from the element start (both
+        #     structs begin with char name[TSDB_COL_NAME_LEN]) and the conflict is still caught.
+        tdSql.error("alter stable vstb3 add column ext_ev bigint compress 'xz' level 'h';",
+                    expectedErrno=COL_ALREADY_EXISTS)
+        tdSql.error("alter stable vstb3 add column ext_city int compress 'xz' level 'h';",
+                    expectedErrno=COL_ALREADY_EXISTS)
+
         # 2. vstb rename column/tag into an own name must fail
         tdSql.error("alter stable vstb3 rename column v ext_ev;", expectedErrno=COL_ALREADY_EXISTS)
         tdSql.error("alter stable vstb3 rename tag loc ext_city;", expectedErrno=COL_ALREADY_EXISTS)

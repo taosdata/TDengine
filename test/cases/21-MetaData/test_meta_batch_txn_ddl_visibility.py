@@ -55,6 +55,12 @@ class TestBatchMetaTxnDdlVisibility:
         s.query(f"select {tag} from {stb} where tbname='{child}'")
         return s.queryResult[0][0]
 
+    def _own_tag_val(self, table, tag, session=None):
+        """Read an owned tag of a normal / virtual-normal table (no tbname involved)."""
+        s = session or tdSql
+        s.query(f"select {tag} from {table} limit 1")
+        return s.queryResult[0][0]
+
     def _assert_gone(self, tables, session=None):
         s = session or tdSql
         for t in tables:
@@ -598,7 +604,7 @@ class TestBatchMetaTxnDdlVisibility:
     # =========================================================================
 
     def check_f1_mixed_ops(self):
-        """Mixed: DROP child + ALTER STB + DROP normal + SET TAG: isolation, ROLLBACK, COMMIT."""
+        """Mixed: DROP child + ALTER STB + DROP normal + SET TAG + RENAME TAG (NTB): isolation, ROLLBACK, COMMIT."""
         self._reset()
         tdLog.info("======== test_f1_mixed_ops")
 
@@ -606,15 +612,20 @@ class TestBatchMetaTxnDdlVisibility:
         tdSql.execute("create table ct1 using stb tags(1)")
         tdSql.execute("create table ct2 using stb tags(2)")
         tdSql.execute("create table ntb1 (ts timestamp, c1 int)")
+        tdSql.execute("create table ntb2 (ts timestamp, c1 int)")
+        tdSql.execute("alter table ntb2 add tag tg int")
+        tdSql.execute("alter table ntb2 set tag tg=5")
         tdSql.execute("insert into ct1 values(now, 10)")
         tdSql.execute("insert into ct2 values(now, 20)")
         tdSql.execute("insert into ntb1 values(now, 30)")
+        tdSql.execute("insert into ntb2 values(now, 40)")
 
         tdSql.execute("BEGIN")
         tdSql.execute("drop table ct1")
         tdSql.execute("alter table stb add column c2 float")
         tdSql.execute("drop table ntb1")
         tdSql.execute("alter table ct2 set tag t1=222")
+        tdSql.execute("alter table ntb2 rename tag tg tg_new")
 
         # Other session sees old state
         s2 = self._other()
@@ -624,6 +635,7 @@ class TestBatchMetaTxnDdlVisibility:
         s2.query("select c1 from ntb1")
         s2.checkData(0, 0, 30)
         assert self._tag_val("stb", "ct2", "t1", s2) == 2
+        assert 'tg' in self._cols("ntb2", s2) and 'tg_new' not in self._cols("ntb2", s2)
 
         # ROLLBACK: everything reverts
         tdSql.execute("ROLLBACK")
@@ -631,6 +643,7 @@ class TestBatchMetaTxnDdlVisibility:
         s2.checkData(0, 0, 10)
         assert 'c2' not in self._cols("stb", s2)
         assert self._tag_val("stb", "ct2", "t1", s2) == 2
+        assert 'tg' in self._cols("ntb2", s2) and 'tg_new' not in self._cols("ntb2", s2)
         s2.close()
 
         # COMMIT: changes take effect
@@ -639,12 +652,15 @@ class TestBatchMetaTxnDdlVisibility:
         tdSql.execute("alter table stb add column c2 float")
         tdSql.execute("drop table ntb1")
         tdSql.execute("alter table ct2 set tag t1=222")
+        tdSql.execute("alter table ntb2 rename tag tg tg_new")
         tdSql.execute("COMMIT")
 
         tdSql.error("select * from ct1", expectErrInfo=ERR_NOT_EXIST)
         tdSql.error("select * from ntb1", expectErrInfo=ERR_NOT_EXIST)
         assert 'c2' in self._cols("stb")
         assert self._tag_val("stb", "ct2", "t1") == 222
+        assert 'tg_new' in self._cols("ntb2") and 'tg' not in self._cols("ntb2")
+        assert self._own_tag_val("ntb2", "tg_new") == 5
 
     # =========================================================================
     # Section G: ALTER TAG schema within transactions
@@ -857,6 +873,220 @@ class TestBatchMetaTxnDdlVisibility:
         tdSql.execute("ROLLBACK")
         assert 't1_new' in self._cols("stb")
         assert 't1_new' in self._cols("ct1")
+
+    def check_i4_rename_tag_normal_table(self):
+        """ALTER NTB rename owned tag: isolation + COMMIT + ROLLBACK, tag value preserved."""
+        self._reset()
+        tdLog.info("======== test_i4_rename_tag_normal_table")
+
+        tdSql.execute("create table ntb1 (ts timestamp, c1 int)")
+        tdSql.execute("insert into ntb1 values(now, 1)")
+        tdSql.execute("alter table ntb1 add tag t1 int")
+        tdSql.execute("alter table ntb1 set tag t1=7")
+
+        # --- RENAME TAG isolation + COMMIT ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb1 rename tag t1 t1_new")
+
+        s2 = self._other()
+        assert 't1_new' not in self._cols("ntb1", s2)
+        assert 't1' in self._cols("ntb1", s2)
+        assert 't1_new' in self._cols("ntb1")
+        assert 't1' not in self._cols("ntb1")
+        # the renamed tag keeps its value inside the txn; outside still reads the old name
+        assert self._own_tag_val("ntb1", "t1_new") == 7
+        assert self._own_tag_val("ntb1", "t1", s2) == 7
+
+        tdSql.execute("COMMIT")
+        assert 't1_new' in self._cols("ntb1", s2)
+        assert 't1' not in self._cols("ntb1", s2)
+        assert self._own_tag_val("ntb1", "t1_new", s2) == 7
+        s2.close()
+
+        # --- RENAME TAG rollback: old name and value restored ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb1 rename tag t1_new t1_rb")
+        assert 't1_rb' in self._cols("ntb1")
+        tdSql.execute("ROLLBACK")
+        cols = self._cols("ntb1")
+        assert 't1_new' in cols and 't1_rb' not in cols
+        assert self._own_tag_val("ntb1", "t1_new") == 7
+
+        # --- rename + SET TAG chained in one txn, then COMMIT ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb1 rename tag t1_new t1_final")
+        tdSql.execute("alter table ntb1 set tag t1_final=99")
+        tdSql.execute("COMMIT")
+        assert 't1_final' in self._cols("ntb1")
+        assert self._own_tag_val("ntb1", "t1_final") == 99
+
+        # --- rename tag of an NTB created inside the same txn ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ntb2 (ts timestamp, c1 int)")
+        tdSql.execute("alter table ntb2 add tag tg int")
+        tdSql.execute("alter table ntb2 rename tag tg tg_new")
+        cols = self._cols("ntb2")
+        assert 'tg_new' in cols and 'tg' not in cols
+        tdSql.execute("ROLLBACK")
+        self._assert_gone(["ntb2"])
+
+        # --- create + rename inside one txn, then COMMIT (the ROLLBACK twin is above) ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ntb3 (ts timestamp, c1 int) tags (tg int = 4)")
+        tdSql.execute("alter table ntb3 rename tag tg tg_kept")
+        tdSql.execute("COMMIT")
+        cols = self._cols("ntb3")
+        assert 'tg_kept' in cols and 'tg' not in cols
+        tdSql.execute("insert into ntb3 values(now, 1)")
+        assert self._own_tag_val("ntb3", "tg_kept") == 4
+
+        # --- two renames of the same tag chained in one txn ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb3 rename tag tg_kept tg_a")
+        tdSql.execute("alter table ntb3 rename tag tg_a tg_b")
+        assert 'tg_b' in self._cols("ntb3")
+        tdSql.execute("COMMIT")
+        cols = self._cols("ntb3")
+        assert 'tg_b' in cols and 'tg_a' not in cols and 'tg_kept' not in cols
+        assert self._own_tag_val("ntb3", "tg_b") == 4
+
+        # --- rename then DROP the same tag in one txn ---
+        # Note: this is NOT a twin of the check_i4/i5 rollback regressions. Those assert the
+        # rollback path (tag-only ALTERs do not advance schemaRow.version, so the pSkmDb key of
+        # the new entry collides with the restored one); here the txn COMMITs, so the commit path
+        # is not under test. This block only pins that a rename chained with a drop of the same
+        # tag leaves the table tag-less.
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb3 rename tag tg_b tg_c")
+        tdSql.execute("alter table ntb3 drop tag tg_c")
+        tdSql.execute("COMMIT")
+        cols = self._cols("ntb3")
+        assert 'tg_b' not in cols and 'tg_c' not in cols
+
+        # --- rename a JSON tag inside a txn, both outcomes ---
+        tdSql.execute("create table ntb4 (ts timestamp, c1 int) tags (jt json = '{\"a\":1}')")
+        tdSql.execute("insert into ntb4 values(now, 1)")
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb4 rename tag jt jt_rb")
+        assert 'jt_rb' in self._cols("ntb4")
+        tdSql.execute("ROLLBACK")
+        assert 'jt' in self._cols("ntb4") and 'jt_rb' not in self._cols("ntb4")
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb4 rename tag jt jt_new")
+        tdSql.execute("COMMIT")
+        assert 'jt_new' in self._cols("ntb4")
+        tdSql.query("select jt_new->'a' from ntb4")
+        assert tdSql.queryResult[0][0] == "1.000000000", "json tag document must survive a txn rename"
+
+        # --- regression: a rolled-back tag ALTER must leave the row schema intact ---
+        # metaRollbackAlterTable deletes the pSkmDb entry keyed by (uid, schemaRow.version).
+        # Tag-only ALTERs do not advance schemaRow.version, so the new and the restored entry
+        # share that key; deleting it there dropped the row schema the surviving entry still
+        # needed and the vnode then failed every commit (FATAL, recurring on each WAL replay).
+        # Writing data after the rollback is what exercises the commit path.
+        tdSql.execute("create table ntb5 (ts timestamp, c1 int)")
+        tdSql.execute("alter table ntb5 add tag t1 int")
+        tdSql.execute("alter table ntb5 set tag t1=5")
+        tdSql.execute("insert into ntb5 values(now, 1)")
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb5 rename tag t1 t1_rb")
+        tdSql.execute("ROLLBACK")
+        tdSql.execute("insert into ntb5 values(now+2s, 3)")
+        tdSql.execute("flush database txn_vis_db")
+        tdSql.query("select c1 from ntb5 order by ts")
+        assert len(tdSql.queryResult) == 2, "writes after a rolled-back tag rename must commit"
+        assert self._own_tag_val("ntb5", "t1") == 5
+
+    def check_i5_rename_tag_virtual_normal_table(self):
+        """ALTER virtual NTB rename owned tag and tag-ref: isolation + COMMIT + ROLLBACK."""
+        self._reset()
+        tdLog.info("======== test_i5_rename_tag_virtual_normal_table")
+
+        self._setup_vtable_sources()
+        tdSql.execute(
+            "create vtable vntb (ts timestamp, c1 int from txn_vis_db.src_ntb.c1) "
+            "tags (own int = 5, rt1 int from txn_vis_db.src_ct1.t1)"
+        )
+        assert self._own_tag_val("vntb", "own") == 5
+        assert self._own_tag_val("vntb", "rt1") == 1
+
+        # --- RENAME both tag forms: isolation + COMMIT ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table vntb rename tag own own_new")
+        tdSql.execute("alter table vntb rename tag rt1 rt1_new")
+
+        s2 = self._other()
+        cols2 = self._cols("vntb", s2)
+        assert 'own_new' not in cols2 and 'rt1_new' not in cols2
+        assert 'own' in cols2 and 'rt1' in cols2
+        cols1 = self._cols("vntb")
+        assert 'own_new' in cols1 and 'rt1_new' in cols1
+        assert 'own' not in cols1 and 'rt1' not in cols1
+        # values keep resolving under the new names inside the txn
+        assert self._own_tag_val("vntb", "own_new") == 5
+        assert self._own_tag_val("vntb", "rt1_new") == 1
+        # outside session still reads the old names / same values
+        assert self._own_tag_val("vntb", "own", s2) == 5
+        assert self._own_tag_val("vntb", "rt1", s2) == 1
+
+        tdSql.execute("COMMIT")
+        cols2 = self._cols("vntb", s2)
+        assert 'own_new' in cols2 and 'rt1_new' in cols2
+        assert 'own' not in cols2 and 'rt1' not in cols2
+        # the tag-ref still follows its source after COMMIT
+        assert self._own_tag_val("vntb", "rt1_new", s2) == 1
+        s2.close()
+
+        # --- ROLLBACK: names and tag-ref binding restored ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table vntb rename tag own_new own_rb")
+        tdSql.execute("alter table vntb rename tag rt1_new rt1_rb")
+        tdSql.execute("ROLLBACK")
+        cols = self._cols("vntb")
+        assert 'own_new' in cols and 'rt1_new' in cols
+        assert 'own_rb' not in cols and 'rt1_rb' not in cols
+        assert self._own_tag_val("vntb", "own_new") == 5
+        assert self._own_tag_val("vntb", "rt1_new") == 1
+
+        # --- rename tag of a virtual NTB created inside the same txn ---
+        tdSql.execute("BEGIN")
+        tdSql.execute(
+            "create vtable vntb2 (ts timestamp, c1 int from txn_vis_db.src_ntb.c1) tags (tg int = 3)"
+        )
+        tdSql.execute("alter table vntb2 rename tag tg tg_new")
+        cols = self._cols("vntb2")
+        assert 'tg_new' in cols and 'tg' not in cols
+        tdSql.execute("ROLLBACK")
+        self._assert_gone(["vntb2"])
+
+        # --- rename after a DROP+ADD reshuffled the pTagRef slots ---
+        # The colRef slot is matched by colId, so a rename must still find the right slot even
+        # when the dropped tag left a stale slot behind and the re-added tag took a new colId.
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table vntb drop tag rt1_new")
+        tdSql.execute("alter table vntb add tag rt2 int from txn_vis_db.src_ct1.t1")
+        tdSql.execute("alter table vntb rename tag rt2 rt2_new")
+        tdSql.execute("COMMIT")
+        cols = self._cols("vntb")
+        assert 'rt2_new' in cols and 'rt2' not in cols and 'rt1_new' not in cols
+        # the re-added tag-ref still resolves through to its source under the new name
+        assert self._own_tag_val("vntb", "rt2_new") == 1
+
+        # --- regression: a rolled-back tag rename must not break the vnode commit path ---
+        # See the twin assertion in check_i4: tag-only ALTERs share their pSkmDb key with the
+        # restored entry, so the rollback must not delete it. A flush alone does not reach the
+        # commit path - a write has to land first (tsdbCommitTSData), which is what fails with a
+        # FATAL when the row schema was wrongly dropped. The virtual table itself is read-only;
+        # writing its source table produces a new row that the vntb then reads.
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table vntb rename tag own_new own_rb2")
+        tdSql.execute("ROLLBACK")
+        tdSql.execute("insert into src_ntb values(now+2s, 78)")
+        tdSql.execute("flush database txn_vis_db")
+        assert self._own_tag_val("vntb", "own_new") == 5
+        assert self._own_tag_val("vntb", "rt2_new") == 1
+        tdSql.query("select c1 from vntb order by ts")
+        assert len(tdSql.queryResult) == 2, "writes after a rolled-back vntb tag rename must commit"
 
     # =========================================================================
     # Section K: Drop source table that virtual table depends on
@@ -1096,6 +1326,32 @@ class TestBatchMetaTxnDdlVisibility:
 
         tdLog.info("test_j2 PASSED: STB DDL lock blocks other sessions")
 
+    def check_j3_ddl_lock_rename_tag_normal_table(self):
+        """RENAME TAG on a normal table inside a txn locks it → other sessions' DDL blocked."""
+        self._reset()
+        tdLog.info("======== test_j3_ddl_lock_rename_tag_normal_table")
+
+        tdSql.execute("create table ntb1 (ts timestamp, c1 int)")
+        tdSql.execute("alter table ntb1 add tag t1 int")
+        tdSql.execute("alter table ntb1 add tag t2 int")
+        tdSql.execute("alter table ntb1 set tag t1=1")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb1 rename tag t1 t1_new")
+
+        s2 = self._other()
+        s2.error("alter table ntb1 rename tag t2 t2_new", expectErrInfo=ERR_RESC_BUSY)
+        s2.error("alter table ntb1 drop tag t2", expectErrInfo=ERR_RESC_BUSY)
+        s2.error("alter table ntb1 add column c2 int", expectErrInfo=ERR_RESC_BUSY)
+        assert 't1' in self._cols("ntb1", s2)
+        assert 't1_new' not in self._cols("ntb1", s2)
+
+        tdSql.execute("ROLLBACK")
+        assert 't1_new' not in self._cols("ntb1")
+        s2.execute("alter table ntb1 rename tag t2 t2_new")  # lock released
+        assert 't2_new' in self._cols("ntb1", s2)
+        s2.close()
+
     # =========================================================================
     # Section L: Bulk drop of virtual CTBs (>1000) within a transaction.
     # Covers:
@@ -1151,6 +1407,201 @@ class TestBatchMetaTxnDdlVisibility:
         )
 
     # =========================================================================
+    # Section M: post-COMMIT catalog freshness on the committing connection
+    #
+    # While a txn is open the ALTER responses are cached per-connection in
+    # pTxnTableMeta and deliberately NOT written to the shared catalog, so the
+    # global catalog still holds the schema as of BEGIN. COMMIT frees
+    # pTxnTableMeta, which un-shadows that stale entry. A DDL statement resolves
+    # its target schema from the catalog during translate (not at execution), so
+    # the first statement after COMMIT must not be translated against the
+    # pre-txn schema.
+    #
+    # These checks issue the next ALTER *immediately* after COMMIT with no
+    # intervening DESCRIBE or SELECT. That is essential: collectMetaKeyFromDescribe
+    # calls catalogRemoveTableRelatedMeta, so a single `describe` between COMMIT
+    # and the ALTER refreshes the cache and hides the very bug under test — which
+    # is exactly why the existing check_i4 does not catch it.
+    # =========================================================================
+
+    def check_m1_post_commit_rename_tag_no_refresh(self):
+        """RENAME TAG immediately after COMMIT, with no DESCRIBE/SELECT in between.
+
+        Regression: PAR_INVALID_TAG_NAME is not in NEED_CLIENT_RM_TBLMETA_ERROR, so a
+        stale post-COMMIT catalog made this fail outright with "Invalid tag name"
+        instead of being silently retried.
+        """
+        self._reset()
+        tdLog.info("======== test_m1_post_commit_rename_tag_no_refresh")
+
+        tdSql.execute("create table ntb (ts timestamp, c0 int) tags (t0 int = 5)")
+        tdSql.execute("insert into ntb values(now, 1)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb rename tag t0 t0_c")
+        tdSql.execute("COMMIT")
+
+        # No describe/select here — the next statement must see the committed name.
+        tdSql.execute("alter table ntb rename tag t0_c t0_final")
+
+        cols = self._cols("ntb")
+        assert 't0_final' in cols and 't0_c' not in cols and 't0' not in cols, cols
+        assert self._own_tag_val("ntb", "t0_final") == 5
+
+        # The stale name must not resurface as a valid target either.
+        tdSql.error("alter table ntb rename tag t0 t0_x")
+
+        tdLog.info("test_m1 PASSED: post-COMMIT RENAME TAG resolves the committed schema")
+
+    def check_m2_post_commit_rename_column_no_refresh(self):
+        """RENAME COLUMN immediately after COMMIT.
+
+        This path used to "work" only because PAR_INVALID_COLUMN happens to sit in
+        NEED_CLIENT_RM_TBLMETA_ERROR, so the client silently evicted and retried.
+        It must now succeed without relying on that retry.
+        """
+        self._reset()
+        tdLog.info("======== test_m2_post_commit_rename_column_no_refresh")
+
+        tdSql.execute("create table ntb (ts timestamp, c0 int)")
+        tdSql.execute("insert into ntb values(now, 1)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb rename column c0 c0_n")
+        tdSql.execute("COMMIT")
+
+        tdSql.execute("alter table ntb rename column c0_n c0_final")
+
+        cols = self._cols("ntb")
+        assert 'c0_final' in cols and 'c0_n' not in cols and 'c0' not in cols, cols
+
+        tdLog.info("test_m2 PASSED: post-COMMIT RENAME COLUMN resolves the committed schema")
+
+    def check_m3_post_commit_add_drop_tag_no_refresh(self):
+        """ADD/DROP TAG immediately after COMMIT.
+
+        Not covered by the error-code retry whitelist at all: a stale catalog makes
+        ADD TAG collide with the pre-txn name and report PAR_DUPLICATED_COLUMN, which
+        is not in NEED_CLIENT_RM_TBLMETA_ERROR, so there was no retry to mask it.
+        """
+        self._reset()
+        tdLog.info("======== test_m3_post_commit_add_drop_tag_no_refresh")
+
+        tdSql.execute("create table ntb (ts timestamp, c0 int) tags (t0 int = 1)")
+        tdSql.execute("insert into ntb values(now, 1)")
+
+        # DROP the tag in a txn, then immediately re-ADD the same name after COMMIT.
+        # Against a stale catalog the tag still appears to exist and ADD would collide.
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb drop tag t0")
+        tdSql.execute("COMMIT")
+
+        tdSql.execute("alter table ntb add tag t0 int")
+        assert 't0' in self._cols("ntb")
+
+        # Mirror case: ADD in a txn, then immediately DROP the new tag after COMMIT.
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb add tag t1 int")
+        tdSql.execute("COMMIT")
+
+        tdSql.execute("alter table ntb drop tag t1")
+        assert 't1' not in self._cols("ntb")
+
+        tdLog.info("test_m3 PASSED: post-COMMIT ADD/DROP TAG resolves the committed schema")
+
+    def check_m4_post_commit_rename_tag_virtual_normal(self):
+        """RENAME TAG immediately after COMMIT on virtual normal tables.
+
+        Covers both an owned tag and a tag-ref tag, since metaAlterTableTagName also
+        has to keep colRef.pTagRef in sync for the virtual case.
+        """
+        self._reset()
+        tdLog.info("======== test_m4_post_commit_rename_tag_virtual_normal")
+
+        self._setup_vtable_sources()
+
+        tdSql.execute(
+            "create vtable vntb (ts timestamp, c1 int from txn_vis_db.src_ntb.c1) "
+            "tags (own int = 5, rt1 int from txn_vis_db.src_ct1.t1)"
+        )
+
+        # owned tag: rename in a txn, then rename again right after COMMIT
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table vntb rename tag own own_c")
+        tdSql.execute("COMMIT")
+        tdSql.execute("alter table vntb rename tag own_c own_final")
+        cols = self._cols("vntb")
+        assert 'own_final' in cols and 'own_c' not in cols and 'own' not in cols, cols
+        assert self._own_tag_val("vntb", "own_final") == 5
+
+        # tag-ref tag: same sequence; the ref must still follow its source afterwards
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table vntb rename tag rt1 rt1_c")
+        tdSql.execute("COMMIT")
+        tdSql.execute("alter table vntb rename tag rt1_c rt1_final")
+        cols = self._cols("vntb")
+        assert 'rt1_final' in cols and 'rt1_c' not in cols and 'rt1' not in cols, cols
+        assert self._own_tag_val("vntb", "rt1_final") == 1
+
+        tdLog.info("test_m4 PASSED: post-COMMIT RENAME TAG on virtual normal tables")
+
+    def check_m5_post_rollback_schema_intact(self):
+        """After ROLLBACK the pre-txn schema must still be usable immediately.
+
+        ROLLBACK goes through the same tscResetTxnState eviction path. Nothing changed
+        on the vnode, so the eviction is redundant there — this pins that it is also
+        harmless, i.e. the next statement sees the original (not the rolled-back) name.
+        """
+        self._reset()
+        tdLog.info("======== test_m5_post_rollback_schema_intact")
+
+        tdSql.execute("create table ntb (ts timestamp, c0 int) tags (t0 int = 3)")
+        tdSql.execute("insert into ntb values(now, 1)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb rename tag t0 t0_rb")
+        tdSql.execute("ROLLBACK")
+
+        # The original name must still resolve, with no refresh in between.
+        tdSql.execute("alter table ntb rename tag t0 t0_after_rb")
+        cols = self._cols("ntb")
+        assert 't0_after_rb' in cols and 't0_rb' not in cols, cols
+        assert self._own_tag_val("ntb", "t0_after_rb") == 3
+
+        tdLog.info("test_m5 PASSED: post-ROLLBACK schema resolves to the pre-txn state")
+
+    def check_m6_post_commit_multi_table_no_refresh(self):
+        """Several tables altered in one txn: every one must be fresh after COMMIT.
+
+        The eviction walks the whole pTxnTableMeta key set, so this pins that it is not
+        just the last-altered table that gets refreshed.
+        """
+        self._reset()
+        tdLog.info("======== test_m6_post_commit_multi_table_no_refresh")
+
+        for i in range(3):
+            tdSql.execute(
+                f"create table ntb{i} (ts timestamp, c0 int) tags (t0 int = {i})"
+            )
+            tdSql.execute(f"insert into ntb{i} values(now, {i})")
+
+        tdSql.execute("BEGIN")
+        for i in range(3):
+            tdSql.execute(f"alter table ntb{i} rename tag t0 t0_c")
+        tdSql.execute("COMMIT")
+
+        # Rename every one again with no refresh in between.
+        for i in range(3):
+            tdSql.execute(f"alter table ntb{i} rename tag t0_c t0_final")
+
+        for i in range(3):
+            cols = self._cols(f"ntb{i}")
+            assert 't0_final' in cols and 't0_c' not in cols, (i, cols)
+            assert self._own_tag_val(f"ntb{i}", "t0_final") == i
+
+        tdLog.info("test_m6 PASSED: every table altered in the txn is fresh after COMMIT")
+
+    # =========================================================================
     # Test entry
     # =========================================================================
 
@@ -1165,12 +1616,17 @@ class TestBatchMetaTxnDdlVisibility:
         Section F: Mixed operations
         Section G: ALTER TAG schema (same-session)
         Section H: CREATE table in transactions
-        Section I: TAG ops isolation (non-virtual + virtual)
+        Section I: TAG ops isolation (non-virtual + virtual, incl. RENAME TAG on
+                   STB / normal table / virtual normal table)
         Section J: DDL lock conflict — other sessions blocked when table is modified
         Section K: Drop depended-upon table (virtual table dependency)
         Section L: Bulk drop >1000 virtual CTBs — txn visibility, rollback, commit
+        Section M: Post-COMMIT/ROLLBACK catalog freshness on the committing
+                   connection — the next DDL must resolve the committed schema
+                   with no intervening DESCRIBE/SELECT to refresh the cache
 
         Since: v3.3.6.0
+
         Labels: common,ci
         """
         # Section A
@@ -1216,10 +1672,13 @@ class TestBatchMetaTxnDdlVisibility:
         self.check_i1_tag_ops_non_virtual()
         self.check_i2_tag_ops_virtual()
         self.check_i3_rename_tag_stb()
+        self.check_i4_rename_tag_normal_table()
+        self.check_i5_rename_tag_virtual_normal_table()
 
         # Section J (DDL lock conflict)
         self.check_j1_ddl_lock_normal_table()
         self.check_j2_ddl_lock_stb()
+        self.check_j3_ddl_lock_rename_tag_normal_table()
 
         # Section K
         self.check_k1_drop_source_child_in_txn()
@@ -1230,3 +1689,11 @@ class TestBatchMetaTxnDdlVisibility:
 
         # Section L (bulk drop >1000 virtual CTBs)
         self.check_l_bulk_drop_vtables()
+
+        # Section M (post-COMMIT/ROLLBACK catalog freshness)
+        self.check_m1_post_commit_rename_tag_no_refresh()
+        self.check_m2_post_commit_rename_column_no_refresh()
+        self.check_m3_post_commit_add_drop_tag_no_refresh()
+        self.check_m4_post_commit_rename_tag_virtual_normal()
+        self.check_m5_post_rollback_schema_intact()
+        self.check_m6_post_commit_multi_table_no_refresh()
