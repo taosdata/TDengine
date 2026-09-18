@@ -4614,7 +4614,7 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
     STMT2_WLOG("async exec got NEED_CLIENT_HANDLE_ERROR (code:%s), retrying internally", tstrerror(code));
 
     // Try to retry internally; completion uses asyncQueryCb so user fp runs once with the final result.
-    int32_t retryCode = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest);
+    int32_t retryCode = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest, origExecCode);
     if (origExecCode == TSDB_CODE_TDB_TABLE_NOT_EXIST || origExecCode == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       if (stmtCanPatchTableMetaAfterRefresh(retryCode)) {
         retryCode = stmtUpdateVgDataBlocksTbMetaFromCatalog(pStmt, pStmt->exec.pRequest);
@@ -4820,7 +4820,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     if (pStmt->exec.pRequest->code && NEED_CLIENT_HANDLE_ERROR(pStmt->exec.pRequest->code)) {
       int32_t origExecCode = pStmt->exec.pRequest->code;
       STMT2_WLOG_E("exec failed errorcode:NEED_CLIENT_HANDLE_ERROR, refresh meta and retry internally");
-      code = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest);
+      code = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest, origExecCode);
       if (pStmt->pVgDataBlocksForRetry != NULL &&
           (origExecCode == TSDB_CODE_TDB_TABLE_NOT_EXIST || origExecCode == TSDB_CODE_PAR_TABLE_NOT_EXIST)) {
         if (stmtCanPatchTableMetaAfterRefresh(code)) {
