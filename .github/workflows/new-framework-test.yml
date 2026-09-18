@@ -22,10 +22,13 @@ concurrency:
     ${{ inputs.specified_pr_number }}-TDengineNewFramework
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   test-new-cases:
     if: github.event_name == 'workflow_dispatch'
-    uses: taosdata/.github/.github/workflows/new-framework-test.yml@main
+    uses: taosdata/.github/.github/workflows/new-framework-test.yml@390f5ddff13d137d842642ce09eed9f0c648ddc9 # main, pinned 2026-09-17
     with:
       tdinternal: false
       specified_source_branch: ${{ inputs.specified_source_branch }}
