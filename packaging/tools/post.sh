@@ -104,6 +104,8 @@ fi
 
 function log_print(){
   now=$(date +"%D %T")
+  # Keep logs writable by non-root client tools until package installation
+  # uses a dedicated service user and group.
   ${csudo}mkdir -p ${log_dir} && ${csudo}chmod 777 ${log_dir}
   ${csudo} touch ${install_log_path}
   echo "$now  $1" >> ${install_log_path}
@@ -593,7 +595,14 @@ function install_config() {
             #if [[ "$emailAddr" =~ $EMAIL_PATTERN ]]; then
                 # Write the email address to temp file
                 email_file="${install_main_dir}/email"
-                ${csudo}bash -c "echo $emailAddr > ${email_file}"
+                printf '%s\n' "$emailAddr" | ${csudo}tee "$email_file" >/dev/null || {
+                    echo "Failed to write email address to ${email_file}" >&2
+                    return 1
+                }
+                ${csudo}chmod 0600 "$email_file" || {
+                    echo "Failed to set permissions for ${email_file}" >&2
+                    return 1
+                }
                 break
             #else
             #    read -p "Please enter the correct email address: " emailAddr
@@ -774,7 +783,7 @@ function checkDirectory() {
 
     #install log and data dir , then ln to /usr/local/taos
     ${csudo}mkdir -p ${log_dir} && ${csudo}chmod 777 ${log_dir}
-    ${csudo}mkdir -p ${data_dir} && ${csudo}chmod 777 ${data_dir}
+    ${csudo}mkdir -p ${data_dir} && ${csudo}chmod 0755 ${data_dir}
 
     ${csudo}rm -rf ${log_link_dir}   || :
     ${csudo}rm -rf ${data_link_dir}  || :
