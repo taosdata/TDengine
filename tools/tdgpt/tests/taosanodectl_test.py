@@ -46,3 +46,14 @@ def test_resource_apply_translation():
 def test_resource_verify_translation():
     args = build_parser().parse_args(["resource", "verify", "all"])
     assert translate_args(args) == ["resource-verify", "all"]
+
+
+def test_model_status_json_translation():
+    """The RESTful service reads worker liveness from this output."""
+    args = build_parser().parse_args(["model", "status", "--format", "json"])
+    assert translate_args(args) == ["model-status", "--format", "json"]
+
+
+def test_model_status_stays_table_by_default():
+    args = build_parser().parse_args(["model", "status"])
+    assert translate_args(args) == ["model-status"]
