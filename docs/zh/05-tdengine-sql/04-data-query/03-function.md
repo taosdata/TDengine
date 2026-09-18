@@ -2382,7 +2382,7 @@ taos> select timediff('2022-01-01 08:00:01', '2022-01-01 08:00:00',1s);
 ============================================================
                                                          1 |
 
-taos> select timediff(now, now-1w, 1w);
+taos> select timediff(now, now-1w, 1d);
  timediff(now, now-1w, 1d) |
 ============================
                          7 |
