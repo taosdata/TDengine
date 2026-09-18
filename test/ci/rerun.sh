@@ -149,11 +149,11 @@ if [[ -n "$CASE_NAME" ]]; then
         # 旧结构: FAILLOG_BASE/<slug>/case.txt（兼容旧格式）
         CASE_TXT="$FAILLOG_BASE/$CASE_NAME/case.txt"
     else
-        # 新结构: FAILLOG_BASE/job-<id>/<slug>/case.txt
-        # 按 job-id 降序搜索（最新 job 优先）
-        FOUND_CASE_TXT=$(find "$FAILLOG_BASE" -maxdepth 3 -name "case.txt" \
-            -path "*/${CASE_NAME}/case.txt" 2>/dev/null \
-            | sort -t/ -k5 -rV | head -1 || true)
+        # 支持 FAILLOG_BASE/job-<id>/<slug>/case.txt 与
+        # FAILLOG_BASE/mr-<iid>/job-<id>/<slug>/case.txt，最新日志优先。
+        FOUND_CASE_TXT=$(find "$FAILLOG_BASE" -maxdepth 4 -name "case.txt" \
+            -path "*/${CASE_NAME}/case.txt" -printf '%T@ %p\n' 2>/dev/null \
+            | sort -nr | head -1 | cut -d' ' -f2- || true)
         if [[ -n "$FOUND_CASE_TXT" ]]; then
             CASE_TXT="$FOUND_CASE_TXT"
         fi
@@ -167,7 +167,7 @@ if [[ -n "$CASE_NAME" ]]; then
             ls "$FAILLOG_BASE/" | grep -v "^_" | sed 's/^/  /' || true
             echo ""
             echo "提示: 用例名格式为 n<NODE>-<path>，例如:"
-            find "$FAILLOG_BASE" -maxdepth 3 -name "case.txt" 2>/dev/null \
+            find "$FAILLOG_BASE" -maxdepth 4 -name "case.txt" 2>/dev/null \
                 | sed 's|.*/\([^/]*\)/case\.txt|  \1|' | sort -u | head -10 || true
         else
             echo "  (fail-logs 目录不存在: $FAILLOG_BASE)"
