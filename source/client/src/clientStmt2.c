@@ -17,6 +17,7 @@
 static int32_t stmtRefreshNormalTableBlock(STscStmt2* pStmt, STableDataCxt* pBlock, STableMeta* pTableMeta,
                                            const char* tbName, bool updateBindInfo);
 static bool stmtTableSchemaMatches(const STableMeta* pOldMeta, const STableMeta* pNewMeta);
+static void stmtClearExecResult2(STscStmt2* pStmt);
 
 typedef struct SStmt2RetryTags {
   bool            fixedTags;
@@ -268,6 +269,8 @@ static int32_t stmtSwitchStatus(STscStmt2* pStmt, STMT_STATUS newStatus) {
   switch (newStatus) {
     case STMT_PREPARE:
       pStmt->errCode = 0;
+      stmtClearExecResult2(pStmt);
+      pStmt->sql.reparseAfterExecError = false;
       break;
     case STMT_SETTBNAME:
       if (STMT_STATUS_EQ(INIT)) {
@@ -427,6 +430,11 @@ static int32_t stmtGetExecInfo(TAOS_STMT2* stmt, SHashObj** pVgHash, SHashObj** 
 
 static int32_t stmtParseSql(STscStmt2* pStmt) {
   pStmt->exec.pCurrBlock = NULL;
+  if (pStmt->sql.reparseAfterExecError && pStmt->sql.type == STMT_TYPE_QUERY && pStmt->sql.pQuery != NULL) {
+    qDestroyQuery(pStmt->sql.pQuery);
+    pStmt->sql.pQuery = NULL;
+    pStmt->sql.siInfo.pQuery = NULL;
+  }
 
   SStmtCallback stmtCb = {
       .pStmt = pStmt,
@@ -800,11 +808,86 @@ static void stmtFreeSingleVgDataBlock(void* p) {
   }
 }
 
+static void stmtClearExecResult2(STscStmt2* pStmt) {
+  pStmt->lastExec.code = TSDB_CODE_SUCCESS;
+  pStmt->lastExec.valid = false;
+  pStmt->lastExec.msg[0] = '\0';
+}
+
+static bool stmtHasFailedExecResult(const STscStmt2* pStmt) { return pStmt->sql.reparseAfterExecError; }
+
+static bool stmtRequestWasDispatched(const SRequestObj* pRequest) {
+  if (pRequest == NULL) {
+    return false;
+  }
+  return pRequest->execDispatched;
+}
+
+static void stmtStoreExecResult(STscStmt2* pStmt, int32_t code, const SRequestObj* pRequest) {
+  stmtClearExecResult2(pStmt);
+  pStmt->lastExec.code = code;
+  pStmt->lastExec.valid = true;
+  pStmt->sql.reparseAfterExecError = code != TSDB_CODE_SUCCESS;
+  if (code == TSDB_CODE_SUCCESS || pRequest == NULL || pRequest->code != code || pRequest->msgBuf == NULL ||
+      pRequest->msgBuf[0] == '\0') {
+    return;
+  }
+
+  tstrncpy(pStmt->lastExec.msg, pRequest->msgBuf, sizeof(pStmt->lastExec.msg));
+}
+
+static void stmtStoreExecOutcome(STscStmt2* pStmt, int32_t code, const SRequestObj* pRequest) {
+  stmtStoreExecResult(pStmt, code, pRequest);
+  if (code != TSDB_CODE_SUCCESS && !stmtRequestWasDispatched(pRequest)) {
+    pStmt->sql.reparseAfterExecError = false;
+    pStmt->errCode = code;
+  }
+}
+
+static void stmtDiscardPendingDataBlocks(STscStmt2* pStmt) {
+  if (pStmt->sql.pQuery == NULL || pStmt->sql.pQuery->pRoot == NULL ||
+      nodeType(pStmt->sql.pQuery->pRoot) != QUERY_NODE_VNODE_MODIFY_STMT) {
+    return;
+  }
+
+  SVnodeModifyOpStmt* pModif = (SVnodeModifyOpStmt*)pStmt->sql.pQuery->pRoot;
+  taosArrayDestroyEx(pModif->pDataBlocks, stmtFreeSingleVgDataBlock);
+  pModif->pDataBlocks = NULL;
+}
+
 static void stmtFreeVgDataBlocksForRetry(STscStmt2* pStmt) {
   if (pStmt->pVgDataBlocksForRetry) {
     taosArrayDestroyEx(pStmt->pVgDataBlocksForRetry, stmtFreeSingleVgDataBlock);
     pStmt->pVgDataBlocksForRetry = NULL;
   }
+}
+
+static int32_t stmtFinalizeExecBatch(STscStmt2* pStmt, int32_t execCode) {
+  while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
+    taosUsleep(1);
+  }
+
+  int32_t cleanCode = stmtCleanExecInfo(pStmt, execCode == TSDB_CODE_SUCCESS, false);
+  if (execCode != TSDB_CODE_SUCCESS) {
+    stmtDiscardPendingDataBlocks(pStmt);
+    if (pStmt->sql.stbInterlaceMode) {
+      // The retained interlace template skips parsing on the next bind, so keep
+      // the request's tableList/dbList for subsequent metadata retries.
+      stmtSoftResetRequestForRetry(pStmt);
+    }
+  }
+  stmtFreeVgDataBlocksForRetry(pStmt);
+  ++pStmt->sql.runTimes;
+
+  if (cleanCode != TSDB_CODE_SUCCESS) {
+    stmtStoreExecResult(pStmt, cleanCode, NULL);
+    pStmt->sql.reparseAfterExecError = false;
+    pStmt->errCode = cleanCode;
+    terrno = cleanCode;
+    return cleanCode;
+  }
+
+  return execCode;
 }
 
 static int32_t stmtSaveVgDataBlocksForRetry(STscStmt2* pStmt) {
@@ -1459,26 +1542,36 @@ static int32_t stmtBuildRetryStbName(STscStmt2* pStmt, SRequestObj* pRequest, SN
 // Refresh the stable once during retry, then update every stmt-owned template that is keyed by the old suid.
 static int32_t stmtRefreshRetryStbMeta(STscStmt2* pStmt, SRequestObj* pRequest, SStmtRetryStbPatch* pPatch) {
   *pPatch = (SStmtRetryStbPatch){0};
+  int32_t code = TSDB_CODE_SUCCESS;
   if (pStmt->bInfo.stbFName[0] == '\0' || pStmt->bInfo.tbSuid == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
   if (pStmt->pCatalog == NULL) {
-    STMT_ERR_RET(catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &pStmt->pCatalog));
+    code = catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &pStmt->pCatalog);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
     pStmt->sql.siInfo.pCatalog = pStmt->pCatalog;
   }
 
   SName stbName = {0};
-  STMT_ERR_RET(stmtBuildRetryStbName(pStmt, pRequest, &stbName));
+  code = stmtBuildRetryStbName(pStmt, pRequest, &stbName);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   SRequestConnInfo conn = {.pTrans = pStmt->taos->pAppInfo->pTransporter,
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self,
                            .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
-  STMT_ERR_RET(catalogRemoveTableMeta(pStmt->pCatalog, &stbName));
+  code = catalogRemoveTableMeta(pStmt->pCatalog, &stbName);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   STableMeta* pFreshMeta = NULL;
-  int32_t     code = catalogGetTableMeta(pStmt->pCatalog, &conn, &stbName, &pFreshMeta);
+  code = catalogGetTableMeta(pStmt->pCatalog, &conn, &stbName, &pFreshMeta);
   pStmt->stat.ctgGetTbMetaNum++;
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFreeClear(pFreshMeta);
@@ -1973,7 +2066,10 @@ static int32_t stmtUpdateVgDataBlocksTbMetaFromCatalog(STscStmt2* pStmt, SReques
   }
 
   SStmtRetryStbPatch stbPatch = {0};
-  STMT_ERR_RET(stmtRefreshRetryStbMeta(pStmt, pRequest, &stbPatch));
+  int32_t            code = stmtRefreshRetryStbMeta(pStmt, pRequest, &stbPatch);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   const int32_t headSz = (int32_t)sizeof(SSubmitReq2Msg);
   int32_t       nBlk = (int32_t)taosArrayGetSize(pStmt->pVgDataBlocksForRetry);
@@ -1984,8 +2080,6 @@ static int32_t stmtUpdateVgDataBlocksTbMetaFromCatalog(STscStmt2* pStmt, SReques
     taosArrayDestroy(pNewVgDataBlocks);
     return terrno;
   }
-
-  int32_t code = TSDB_CODE_SUCCESS;
 
   for (int32_t b = 0; b < nBlk; ++b) {
     SVgDataBlocks* pVg = *(SVgDataBlocks**)taosArrayGet(pStmt->pVgDataBlocksForRetry, b);
@@ -2481,6 +2575,17 @@ static int32_t stmtGetFromCache(STscStmt2* pStmt) {
   pStmt->bInfo.needParse = true;
   pStmt->bInfo.inExecCache = false;
 
+  if (NULL == pStmt->pCatalog) {
+    STMT_ERR_RET(catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &pStmt->pCatalog));
+    pStmt->sql.siInfo.pCatalog = pStmt->pCatalog;
+  }
+
+  // Failed execution discards this container but retains SQL templates. Parse
+  // must recreate it before a cached template can become an execution block.
+  if (pStmt->exec.pBlockHash == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   STableDataCxt** pCxtInExec = taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
   if (pCxtInExec) {
     pStmt->bInfo.needParse = false;
@@ -2492,11 +2597,6 @@ static int32_t stmtGetFromCache(STscStmt2* pStmt) {
       STMT2_DLOG("reuse stmt block for tb %s in execBlock", pStmt->bInfo.tbFName);
       return TSDB_CODE_SUCCESS;
     }
-  }
-
-  if (NULL == pStmt->pCatalog) {
-    STMT_ERR_RET(catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &pStmt->pCatalog));
-    pStmt->sql.siInfo.pCatalog = pStmt->pCatalog;
   }
 
   if (NULL == pStmt->sql.pTableCache || taosHashGetSize(pStmt->sql.pTableCache) <= 0) {
@@ -3308,7 +3408,7 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags, SVCreateTbReq** pCre
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_SETTAGS));
 
-  if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
+  if (pStmt->bInfo.needParse && pStmt->sql.runTimes && !stmtHasFailedExecResult(pStmt) && pStmt->sql.type > 0 &&
       STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
     pStmt->bInfo.needParse = false;
   }
@@ -4079,7 +4179,7 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_BIND));
 
-  if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
+  if (pStmt->bInfo.needParse && pStmt->sql.runTimes && !stmtHasFailedExecResult(pStmt) && pStmt->sql.type > 0 &&
       STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
     pStmt->bInfo.needParse = false;
   }
@@ -4480,8 +4580,18 @@ static int32_t createParseContext(const SRequestObj* pRequest, SParseContext** p
 static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
   STscStmt2*        pStmt = userdata;
   __taos_async_fn_t fp = pStmt->options.asyncExecFn;
+  SRequestObj*      pResult = (SRequestObj*)res;
+  if (pResult != NULL && code == TSDB_CODE_SUCCESS && pResult->code != TSDB_CODE_SUCCESS) {
+    code = pResult->code;
+  } else if (pResult != NULL && code != TSDB_CODE_SUCCESS && pResult->code != code) {
+    pResult->code = code;
+    if (pResult->msgBuf != NULL) {
+      pResult->msgBuf[0] = '\0';
+    }
+  }
   pStmt->asyncResultAvailable = true;
   pStmt->exec.pRequest->inCallback = true;
+  pStmt->exec.affectedRows = 0;
 
   // NEED_CLIENT_HANDLE_ERROR: retry internally without notifying user; retry completion uses this same cb + fp once.
   if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code) && pStmt->pVgDataBlocksForRetry != NULL) {
@@ -4499,19 +4609,20 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
     }
     stmtInvalidateStbInterlaceTableUidCache(pStmt);
     if (retryCode == TSDB_CODE_SUCCESS) {
-      (void)stmtRestoreVgDataBlocksForRetry(pStmt);
+      retryCode = stmtRestoreVgDataBlocksForRetry(pStmt);
       // Reuse the same pRequest so its tableList/dbList (set during initial parse) survive for
       // any subsequent refreshMeta calls. Building a fresh request here would leave those arrays
       // empty and break all future internal retries (refreshMeta returns TSDB_CODE_APP_ERROR
       // when both lists are empty).
-      stmtSoftResetRequestForRetry(pStmt);
-      retryCode = stmtCreateRequest(pStmt);
+      if (retryCode == TSDB_CODE_SUCCESS) {
+        stmtSoftResetRequestForRetry(pStmt);
+        retryCode = stmtCreateRequest(pStmt);
+      }
       if (retryCode == TSDB_CODE_SUCCESS) {
         SRequestObj*         pNewReq = pStmt->exec.pRequest;
         SSqlCallbackWrapper* pWrapper = taosMemoryCalloc(1, sizeof(SSqlCallbackWrapper));
         if (pWrapper == NULL) {
           retryCode = terrno;
-          resetRequest(pStmt);
         } else {
           pWrapper->pRequest = pNewReq;
           pNewReq->pWrapper = pWrapper;
@@ -4525,16 +4636,23 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
             // Retry asyncQueryCb will call fp, stmtCleanExecInfo, and tsem_post(asyncExecSem).
             return;
           }
-          // Do not taosMemoryFree(pWrapper): destroyRequest frees it via destorySqlCallbackWrapper.
-          resetRequest(pStmt);
+          destorySqlCallbackWrapper(pWrapper);
+          pNewReq->pWrapper = NULL;
         }
       }
       if (retryCode != TSDB_CODE_SUCCESS) {
         STMT2_ELOG("retry failed, code:%d, original exec error code:%d", retryCode, origExecCode);
       }
     }
-    // Retry setup failed (did not return above): expose the final retry error consistently to callback and stmt state.
+    // Retry setup failed (did not return above): expose the final retry error consistently to the callback.
     code = retryCode;
+    if (pResult->code != code) {
+      pResult->code = code;
+      if (pResult->msgBuf != NULL) {
+        pResult->msgBuf[0] = '\0';
+      }
+    }
+    stmtStoreExecOutcome(pStmt, code, pResult);
     if (fp) {
       fp(pStmt->options.userdata, res, code);
     }
@@ -4544,23 +4662,21 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
       pStmt->affectedRows += pStmt->exec.affectedRows;
     }
 
+    stmtStoreExecOutcome(pStmt, code, (SRequestObj*)res);
     if (fp) {
       fp(pStmt->options.userdata, res, code);
     }
   }
 
-  while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
-    taosUsleep(1);
-  }
-  (void)stmtCleanExecInfo(pStmt, (code ? false : true), false);
-  ++pStmt->sql.runTimes;
   if (pStmt->exec.pRequest != NULL) {
     pStmt->exec.pRequest->inCallback = false;
   }
 
-  if (code != TSDB_CODE_SUCCESS) {
+  int32_t finalCode = stmtFinalizeExecBatch(pStmt, code);
+  if (finalCode != code) {
+    STMT2_ELOG("async exec cleanup failed, code:%d", finalCode);
+  } else if (code != TSDB_CODE_SUCCESS) {
     STMT2_ELOG("async exec failed, code:%d", code);
-    pStmt->errCode = code;
   }
 
   if (tsem_post(&pStmt->asyncExecSem) != 0) {
@@ -4631,6 +4747,11 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
 
   STMT2_DLOG_E("start to exec");
 
+  pStmt->exec.affectedRows = 0;
+  if (affected_rows != NULL) {
+    *affected_rows = 0;
+  }
+
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
     return pStmt->errCode;
   }
@@ -4638,6 +4759,8 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
   if (stmtIsLiteral(pStmt)) {
     return stmtExecLiteral2(stmt, affected_rows);
   }
+
+  stmtClearExecResult2(pStmt);
 
   STMT_ERR_RET(taosThreadMutexLock(&pStmt->asyncBindParam.mutex));
   while (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 0) {
@@ -4685,15 +4808,17 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
 
   pStmt->asyncResultAvailable = false;
   SRequestObj*      pRequest = pStmt->exec.pRequest;
+  pRequest->execDispatched = false;
   __taos_async_fn_t fp = pStmt->options.asyncExecFn;
   STMT2_DLOG("EXEC INFO :req:0x%" PRIx64 ", QID:0x%" PRIx64 ", exec sql:%s,  conn:%" PRId64, pRequest->self,
              pRequest->requestId, pStmt->sql.sqlStr, pRequest->pTscObj->id);
 
   if (!fp) {
     launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
+    code = pStmt->exec.pRequest->code;
 
-    if (pStmt->exec.pRequest->code && NEED_CLIENT_HANDLE_ERROR(pStmt->exec.pRequest->code)) {
-      int32_t origExecCode = pStmt->exec.pRequest->code;
+    if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code)) {
+      int32_t origExecCode = code;
       STMT2_WLOG_E("exec failed errorcode:NEED_CLIENT_HANDLE_ERROR, refresh meta and retry internally");
       code = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest);
       if (pStmt->pVgDataBlocksForRetry != NULL &&
@@ -4708,38 +4833,52 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
       stmtInvalidateStbInterlaceTableUidCache(pStmt);
       if (code == TSDB_CODE_SUCCESS && pStmt->pVgDataBlocksForRetry != NULL) {
         // Restore saved serialized data blocks and re-execute with refreshed meta.
-        STMT_ERR_JRET(stmtRestoreVgDataBlocksForRetry(pStmt));
-        // Reuse the same pRequest so its tableList/dbList survive for any subsequent
-        // refreshMeta calls; building a fresh request would leave them empty.
-        stmtSoftResetRequestForRetry(pStmt);
-        STMT_ERR_JRET(stmtCreateRequest(pStmt));
-        launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
-        code = pStmt->exec.pRequest->code;
+        code = stmtRestoreVgDataBlocksForRetry(pStmt);
+        if (code == TSDB_CODE_SUCCESS) {
+          // Reuse the same pRequest so its tableList/dbList survive for any subsequent
+          // refreshMeta calls; building a fresh request would leave them empty.
+          stmtSoftResetRequestForRetry(pStmt);
+          code = stmtCreateRequest(pStmt);
+        }
+        if (code == TSDB_CODE_SUCCESS) {
+          launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
+          code = pStmt->exec.pRequest->code;
+        } else {
+          STMT2_ELOG("retry setup failed, code:%d, original exec error code:%d", code, origExecCode);
+        }
       } else if (code == TSDB_CODE_SUCCESS) {
         code = pStmt->exec.pRequest->code;
       } else {
-        pStmt->exec.pRequest->code = code;
         STMT2_ELOG("refresh meta and retry internally failed, code:%d, original exec error code:%d", code,
                    origExecCode);
       }
     }
 
-    STMT_ERR_JRET(pStmt->exec.pRequest->code);
-
-    pStmt->exec.affectedRows = taos_affected_rows(pStmt->exec.pRequest);
-    if (affected_rows) {
-      *affected_rows = pStmt->exec.affectedRows;
+    // Metadata refresh can replace the execution error. Queries retain this
+    // result object, so expose the same final code through both public APIs.
+    if (pStmt->exec.pRequest->code != code) {
+      pStmt->exec.pRequest->code = code;
+      if (pStmt->exec.pRequest->msgBuf != NULL) {
+        pStmt->exec.pRequest->msgBuf[0] = '\0';
+      }
     }
-    pStmt->affectedRows += pStmt->exec.affectedRows;
-
-    // wait for stmt bind thread to finish
-    while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
-      taosUsleep(1);
+    stmtStoreExecOutcome(pStmt, code, pStmt->exec.pRequest);
+    if (code == TSDB_CODE_SUCCESS) {
+      pStmt->exec.affectedRows = taos_affected_rows(pStmt->exec.pRequest);
+      if (affected_rows != NULL) {
+        *affected_rows = pStmt->exec.affectedRows;
+      }
+      pStmt->affectedRows += pStmt->exec.affectedRows;
     }
 
-    STMT_ERR_RET(stmtCleanExecInfo(pStmt, (code ? false : true), false));
+    code = stmtFinalizeExecBatch(pStmt, code);
 
-    ++pStmt->sql.runTimes;
+    if (code != TSDB_CODE_SUCCESS) {
+      terrno = code;
+      STMT2_ELOG("exec failed, error:%s", tstrerror(code));
+    }
+    pStmt->stat.execUseUs += taosGetTimestampUs() - startUs;
+    return code;
   } else {
     SSqlCallbackWrapper* pWrapper = taosMemoryCalloc(1, sizeof(SSqlCallbackWrapper));
     if (pWrapper == NULL) {
@@ -4751,6 +4890,16 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     if (TSDB_CODE_SUCCESS == code) {
       code = createParseContext(pRequest, &pWrapper->pParseCtx, pWrapper);
     }
+    if (code != TSDB_CODE_SUCCESS) {
+      stmtStoreExecOutcome(pStmt, code, pRequest);
+      int32_t finalCode = stmtFinalizeExecBatch(pStmt, code);
+      if (finalCode != code) {
+        STMT2_ELOG("async exec setup cleanup failed, code:%d", finalCode);
+      }
+      code = finalCode;
+      goto _return;
+    }
+
     pRequest->syncQuery = false;
     pRequest->body.queryFp = asyncQueryCb;
     ((SSyncQueryParam*)(pRequest)->body.interParam)->userParam = pStmt;
@@ -4851,9 +5000,13 @@ int stmtClose2(TAOS_STMT2* stmt) {
 }
 
 const char* stmt2Errstr(TAOS_STMT2* stmt) {
+  if (stmt == NULL) {
+    return (const char*)tstrerror(terrno);
+  }
+
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
-  if (stmt && stmtIsLiteral(pStmt)) {
+  if (stmtIsLiteral(pStmt)) {
     if (NULL == pStmt->exec.pRequest) {
       // NOTE: since pStmt->exec.pRequest not fully prepared yet
       //       error msg is stored in pStmt->msgBuf via `SET_ERR`
@@ -4865,24 +5018,32 @@ const char* stmt2Errstr(TAOS_STMT2* stmt) {
     return pStmt->exec.pRequest->msgBuf;
   }
 
-  if (stmt == NULL || NULL == pStmt->exec.pRequest) {
-    return (char*)tstrerror(terrno);
+  if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+    SRequestObj* pRequest = pStmt->exec.pRequest;
+    if (pRequest != NULL && pRequest->msgBuf != NULL && pRequest->msgBuf[0] != '\0') {
+      return pRequest->msgBuf;
+    }
+    return (const char*)tstrerror(pStmt->errCode);
   }
 
-  // Async exec keeps request code set by callback; otherwise prefer stmt errCode over stale terrno.
-  if (!(pStmt->sql.status >= STMT_EXECUTE && pStmt->options.asyncExecFn != NULL && pStmt->asyncResultAvailable)) {
-    if (pStmt->errCode != TSDB_CODE_SUCCESS) {
-      pStmt->exec.pRequest->code = pStmt->errCode;
-    } else if (pStmt->exec.pRequest->code == TSDB_CODE_SUCCESS && terrno != TSDB_CODE_SUCCESS) {
-      pStmt->exec.pRequest->code = terrno;
+  if (pStmt->lastExec.valid) {
+    if (pStmt->lastExec.code != TSDB_CODE_SUCCESS) {
+      if (pStmt->lastExec.msg[0] != '\0') {
+        return pStmt->lastExec.msg;
+      }
+      return (const char*)tstrerror(pStmt->lastExec.code);
     }
+    return (const char*)tstrerror(TSDB_CODE_SUCCESS);
   }
 
   SRequestObj* pRequest = pStmt->exec.pRequest;
-  if (NULL != pRequest->msgBuf && (strlen(pRequest->msgBuf) > 0 || pRequest->code == TSDB_CODE_RPC_FQDN_ERROR)) {
+  if (pRequest == NULL) {
+    return (const char*)tstrerror(terrno);
+  }
+  if (pRequest->msgBuf != NULL && (pRequest->msgBuf[0] != '\0' || pRequest->code == TSDB_CODE_RPC_FQDN_ERROR)) {
     return pRequest->msgBuf;
   }
-  return (const char*)tstrerror(pRequest->code);
+  return (const char*)tstrerror(pRequest->code == TSDB_CODE_SUCCESS ? terrno : pRequest->code);
 }
 
 // Alias kept for compatibility with object files compiled against older headers.
@@ -4909,7 +5070,7 @@ int stmtParseColFields2(TAOS_STMT2* stmt) {
 
   STMT_ERRI_JRET(stmtSwitchStatus(pStmt, STMT_FETCH_FIELDS));
 
-  if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
+  if (pStmt->bInfo.needParse && pStmt->sql.runTimes && !stmtHasFailedExecResult(pStmt) && pStmt->sql.type > 0 &&
       STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
     pStmt->bInfo.needParse = false;
   }
@@ -5077,7 +5238,7 @@ int stmtGetParamNum2(TAOS_STMT2* stmt, int* nums) {
 
   STMT_ERRI_JRET(stmtSwitchStatus(pStmt, STMT_FETCH_FIELDS));
 
-  if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
+  if (pStmt->bInfo.needParse && pStmt->sql.runTimes && !stmtHasFailedExecResult(pStmt) && pStmt->sql.type > 0 &&
       STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
     pStmt->bInfo.needParse = false;
   }

@@ -1161,6 +1161,7 @@ int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
     }
   }
 
+  atomic_store_8(&pJob->execDispatched, 1);
   SCH_ERR_JRET(qWorkerProcessLocalQuery(schMgmt.queryMgmt, pJob->seriesId, pJob->queryId, pTask->clientId, pTask->taskId,
                                         pJob->refId, pTask->execId, &qwMsg, explainRes));
 
