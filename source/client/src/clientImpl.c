@@ -3366,11 +3366,14 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
   }
 }
 
-int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
-  SCatalog* pCatalog = NULL;
-  int32_t   code = 0;
-  int32_t   dbNum = taosArrayGetSize(pRequest->dbList);
-  int32_t   tblNum = taosArrayGetSize(pRequest->tableList);
+int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest, int32_t errorCode) {
+  SCatalog*               pCatalog = NULL;
+  int32_t                 code = 0;
+  int32_t                 dbNum = taosArrayGetSize(pRequest->dbList);
+  int32_t                 tblNum = taosArrayGetSize(pRequest->tableList);
+  EClientMetaRefreshScope refreshScope = clientGetMetaRefreshScope(errorCode);
+  bool                    refreshDbVgroup = (CLIENT_META_REFRESH_TABLE != refreshScope);
+  // Keep the legacy full refresh for non-client-handled errors passed by specialized callers.
 
   if (dbNum <= 0 && tblNum <= 0) {
     return TSDB_CODE_APP_ERROR;
@@ -3386,13 +3389,15 @@ int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
                            .requestObjRefId = pRequest->self,
                            .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
 
-  for (int32_t i = 0; i < dbNum; ++i) {
-    char* dbFName = taosArrayGet(pRequest->dbList, i);
+  if (refreshDbVgroup) {
+    for (int32_t i = 0; i < dbNum; ++i) {
+      char* dbFName = taosArrayGet(pRequest->dbList, i);
 
-    // catalogRefreshDBVgInfo will handle dbFName == null.
-    code = catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      // catalogRefreshDBVgInfo will handle dbFName == null.
+      code = catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
   }
 
@@ -3402,6 +3407,11 @@ int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
     // catalogRefreshTableMeta will handle tableName == null.
     code = catalogRefreshTableMeta(pCatalog, &conn, tableName, -1);
     if (code != TSDB_CODE_SUCCESS) {
+      // A table-only refresh can discover stale vnode routing. Escalate once;
+      // CLIENT_META_REFRESH_FULL cannot enter this branch recursively.
+      if (CLIENT_META_REFRESH_TABLE == refreshScope && CLIENT_META_REFRESH_FULL == clientGetMetaRefreshScope(code)) {
+        return refreshMeta(pTscObj, pRequest, code);
+      }
       return code;
     }
   }
@@ -5265,7 +5275,7 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
 
   pRequest->source = source;
   pRequest->body.queryFp = fp;
-  doAsyncQuery(pRequest, false);
+  doAsyncQuery(pRequest, CLIENT_META_REFRESH_NONE);
 }
 
 void taosAsyncQueryImplWithReqid(TAOS_STMT2 *stmt, uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
@@ -5308,7 +5318,7 @@ void taosAsyncQueryImplWithReqid(TAOS_STMT2 *stmt, uint64_t connId, const char* 
   }
 
   pRequest->body.queryFp = fp;
-  doAsyncQuery(pRequest, false);
+  doAsyncQuery(pRequest, CLIENT_META_REFRESH_NONE);
 }
 
 TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t source) {

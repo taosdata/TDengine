@@ -7,6 +7,9 @@ AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
 ADD_EXECUTABLE(clientTest clientTests.cpp)
 DEP_ext_gtest(clientTest)
+if(TD_LINUX OR TD_WINDOWS)
+    DEP_ext_cppstub(clientTest)
+endif()
 TARGET_LINK_LIBRARIES(
         clientTest PRIVATE
         os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function totp

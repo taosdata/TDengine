@@ -1657,7 +1657,7 @@ pStmt->exec.pCurrBlock, pStmt->exec.tbBlkNum));
   launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
 
   if (pStmt->exec.pRequest->code && NEED_CLIENT_HANDLE_ERROR(pStmt->exec.pRequest->code)) {
-    code = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest);
+    code = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest, pStmt->exec.pRequest->code);
     if (code) {
       pStmt->exec.pRequest->code = code;
     } else {
@@ -1726,7 +1726,7 @@ int stmtExec(TAOS_STMT* stmt) {
   }
 
   if (pStmt->exec.pRequest->code && NEED_CLIENT_HANDLE_ERROR(pStmt->exec.pRequest->code)) {
-    code = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest);
+    code = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest, pStmt->exec.pRequest->code);
     if (code) {
       pStmt->exec.pRequest->code = code;
     } else {

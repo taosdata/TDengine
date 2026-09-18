@@ -2147,6 +2147,7 @@ int32_t cloneCatalogReq(SCatalogReq **ppTarget, SCatalogReq *pSrc) {
     pTarget->dNodeRequired = pSrc->dNodeRequired;
     pTarget->svrVerRequired = pSrc->svrVerRequired;
     pTarget->forceUpdate = pSrc->forceUpdate;
+    pTarget->forceUpdateTbMetaOnly = pSrc->forceUpdateTbMetaOnly;
     pTarget->cloned = true;
     pTarget->pExtSourceCheck = taosArrayDup(pSrc->pExtSourceCheck, NULL);
     pTarget->pExtTableMeta = taosArrayDup(pSrc->pExtTableMeta, NULL);
@@ -2174,7 +2175,7 @@ void handleSubQueryFromAnalyse(SSqlCallbackWrapper *pWrapper, SMetaData *pResult
     pNewRequest->pQuery->execStage = QUERY_EXEC_STAGE_ANALYSE;
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = prepareAndParseSqlSyntax(&pNewWrapper, pNewRequest, false);
+    code = prepareAndParseSqlSyntax(&pNewWrapper, pNewRequest, CLIENT_META_REFRESH_NONE);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = cloneCatalogReq(&pNewWrapper->pCatalogReq, pWrapper->pCatalogReq);
@@ -2322,6 +2323,10 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
       handleExtSourceError(pRequest, code);
       return;
     }
+    if (pRequest->stmtBindVersion == 0 && clientGetMetaRefreshScope(code) == CLIENT_META_REFRESH_FULL) {
+      restartAsyncQuery(pRequest, code);
+      return;
+    }
     terrno = code;
     pRequest->code = code;
     doRequestCallback(pRequest, code);
@@ -2414,7 +2419,21 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *pRequest, bool updateMetaForce) {
+EClientMetaRefreshScope clientGetMetaRefreshScope(int32_t code) {
+  if (NEED_CLIENT_REFRESH_VG_ERROR(code) || TSDB_CODE_SCH_DATA_SRC_EP_MISS == code) {
+    return CLIENT_META_REFRESH_FULL;
+  }
+
+  if (NEED_CLIENT_RM_TBLMETA_ERROR(code) || TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER == code ||
+      TSDB_CODE_MND_INVALID_SCHEMA_VER == code) {
+    return CLIENT_META_REFRESH_TABLE;
+  }
+
+  return CLIENT_META_REFRESH_NONE;
+}
+
+int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *pRequest,
+                                 EClientMetaRefreshScope refreshScope) {
   int32_t              code = TSDB_CODE_SUCCESS;
   STscObj             *pTscObj = pRequest->pTscObj;
   SSqlCallbackWrapper *pWrapper = taosMemoryCalloc(1, sizeof(SSqlCallbackWrapper));
@@ -2442,7 +2461,8 @@ int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *p
     if (pWrapper->pCatalogReq == NULL) {
       code = terrno;
     } else {
-      pWrapper->pCatalogReq->forceUpdate = updateMetaForce;
+      pWrapper->pCatalogReq->forceUpdate = (CLIENT_META_REFRESH_NONE != refreshScope);
+      pWrapper->pCatalogReq->forceUpdateTbMetaOnly = (CLIENT_META_REFRESH_TABLE == refreshScope);
       TSC_ERR_RET(qnodeRequired(pRequest, &pWrapper->pCatalogReq->qNodeRequired));
       code = qParseSqlSyntax(pWrapper->pParseCtx, &pRequest->pQuery, pWrapper->pCatalogReq);
     }
@@ -2509,15 +2529,16 @@ static void doAsyncExec(SRequestObj *pRequest, int32_t code) {
     pRequest->pQuery = NULL;
 
     if (NEED_CLIENT_HANDLE_ERROR(code) && pRequest->stmtBindVersion == 0) {
+      EClientMetaRefreshScope retryScope = clientGetMetaRefreshScope(code);
       tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%d - %s, tryCount:%d, QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
-      code = refreshMeta(pRequest->pTscObj, pRequest);
-      if (code != 0) {
-        tscWarn("req:0x%" PRIx64 ", refresh meta failed, code:%d - %s, QID:0x%" PRIx64, pRequest->self, code,
-                tstrerror(code), pRequest->requestId);
+      int32_t refreshCode = refreshMeta(pRequest->pTscObj, pRequest, code);
+      if (refreshCode != 0) {
+        tscWarn("req:0x%" PRIx64 ", refresh meta failed, code:%d - %s, QID:0x%" PRIx64, pRequest->self,
+                refreshCode, tstrerror(refreshCode), pRequest->requestId);
       }
-      pRequest->prevCode = code;
-      doAsyncQuery(pRequest, true);
+      pRequest->prevCode = (TSDB_CODE_SUCCESS == refreshCode) ? code : refreshCode;
+      doAsyncQuery(pRequest, retryScope);
       return;
     }
 
@@ -2527,7 +2548,7 @@ static void doAsyncExec(SRequestObj *pRequest, int32_t code) {
   }
 }
 
-void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
+void doAsyncQuery(SRequestObj *pRequest, EClientMetaRefreshScope refreshScope) {
   SSqlCallbackWrapper *pWrapper = NULL;
   int32_t              code = TSDB_CODE_SUCCESS;
 
@@ -2550,7 +2571,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = prepareAndParseSqlSyntax(&pWrapper, pRequest, updateMetaForce);
+    code = prepareAndParseSqlSyntax(&pWrapper, pRequest, refreshScope);
   }
 
   if (pRequest->literal_by_stmt2) {
@@ -2605,7 +2626,7 @@ void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
     (void)removeFromMostPrevReq(pRequest);
   else
     (void)releaseRequest(pUserReq->self);
-  doAsyncQuery(pUserReq, true);
+  doAsyncQuery(pUserReq, clientGetMetaRefreshScope(code));
 }
 
 typedef struct SAsyncFetchParam {
