@@ -1390,6 +1390,139 @@ TEST(td_msg_test, create_stb_req_codec_rejects_overflow_num_parents) {
   tDecoderClear(&decoder);
 }
 
+namespace {
+
+// tStartEncode() on a non-NULL buffer links an SEncoderNode onto encoder.mList, and only
+// tEncoderClear() frees it. Tying that cleanup to the encoder's lifetime keeps every early return
+// of forgeCheckColRefReq() — including any added later — from leaking a node.
+struct EncoderScope {
+  SEncoder* pEncoder;
+
+  explicit EncoderScope(SEncoder* pEncoder) : pEncoder(pEncoder) {}
+  ~EncoderScope() { tEncoderClear(pEncoder); }
+
+  // Exclusive ownership: tEncoderClear() frees the SEncoderNode and memsets the encoder, so a copy
+  // would free the same node a second time (double free). A move is just as unsafe — the moved-from
+  // guard keeps the same pEncoder and would clear it again at its own destruction.
+  EncoderScope(const EncoderScope&) = delete;
+  EncoderScope& operator=(const EncoderScope&) = delete;
+  EncoderScope(EncoderScope&&) = delete;
+  EncoderScope& operator=(EncoderScope&&) = delete;
+};
+
+// Forge an SMndCheckColRefReq buffer carrying an arbitrarily long tbFName/colName.
+// tEncodeCStr() writes whatever strlen() reports, so this lets the decoder be exercised with
+// input that no well-behaved producer would ever emit.
+//
+// The buffer is sized from the exact worst-case wire layout, so the helper can never fail on
+// capacity regardless of the caller's strings. The encode steps use EXPECT_* (ASSERT_* cannot be
+// used in a non-void function) so a codec regression surfaces here instead of silently producing a
+// malformed buffer that the decoder test would misread as "correctly rejected".
+std::vector<uint8_t> forgeCheckColRefReq(const std::string& tbFName, int16_t colId, const std::string& colName) {
+  // Worst case, item by item:
+  //  - tStartEncode() reserves a fixed sizeof(int32_t) block-length prefix (not a varint),
+  //  - each tEncodeCStr() writes a U32v length prefix of at most 5 bytes plus strlen() + 1 bytes,
+  //    the terminating '\0' included,
+  //  - tEncodeI16() writes sizeof(int16_t).
+  // tEndEncode() rewrites the block prefix in place, so it adds nothing to the total.
+  const size_t         cap = tbFName.size() + colName.size() + sizeof(int32_t) + 2 * (5 + 1) + sizeof(int16_t);
+  std::vector<uint8_t> buf(cap, 0);
+  SEncoder             encoder = {0};
+  tEncoderInit(&encoder, buf.data(), (int32_t)buf.size());
+  EncoderScope guard(&encoder);
+  // Bail out with an empty buffer on failure. The callers guard with ASSERT_FALSE(buf.empty()), so
+  // a codec regression still surfaces as a test failure instead of silently producing a malformed
+  // buffer that the decoder test would misread as "correctly rejected".
+  int32_t rc = tStartEncode(&encoder);
+  EXPECT_EQ(rc, 0);
+  if (rc != 0) return {};
+  rc = tEncodeCStr(&encoder, tbFName.c_str());
+  EXPECT_EQ(rc, 0);
+  if (rc != 0) return {};
+  rc = tEncodeI16(&encoder, colId);
+  EXPECT_EQ(rc, 0);
+  if (rc != 0) return {};
+  rc = tEncodeCStr(&encoder, colName.c_str());
+  EXPECT_EQ(rc, 0);
+  if (rc != 0) return {};
+  tEndEncode(&encoder);
+  EXPECT_GT(encoder.pos, 0);  // tEndEncode writes the length prefix, so pos covers it
+  if (encoder.pos <= 0) return {};
+  buf.resize((size_t)encoder.pos);
+  return buf;
+}
+
+int32_t decodeForgedCheckColRefReq(const std::vector<uint8_t>& buf) {
+  SMndCheckColRefReq out = {0};
+  return tDeserializeSMndCheckColRefReq(const_cast<uint8_t*>(buf.data()), (int32_t)buf.size(), &out);
+}
+
+}  // namespace
+
+TEST(td_msg_test, check_col_ref_req_codec_roundtrip) {
+  SMndCheckColRefReq req = {0};
+  tstrncpy(req.tbFName, "1.test.vst_child", sizeof(req.tbFName));
+  req.colId = 7;
+  tstrncpy(req.colName, "ref_tag", sizeof(req.colName));
+
+  int32_t size = tSerializeSMndCheckColRefReq(NULL, 0, &req);
+  ASSERT_GT(size, 0);
+
+  std::vector<uint8_t> buf(size, 0);
+  ASSERT_EQ(tSerializeSMndCheckColRefReq(buf.data(), size, &req), size);
+
+  SMndCheckColRefReq out = {0};
+  ASSERT_EQ(tDeserializeSMndCheckColRefReq(buf.data(), size, &out), 0);
+  ASSERT_STREQ(out.tbFName, req.tbFName);
+  ASSERT_EQ(out.colId, req.colId);
+  ASSERT_STREQ(out.colName, req.colName);
+}
+
+TEST(td_msg_test, check_col_ref_req_codec_accepts_longest_fitting_names) {
+  // tbFName[]/colName[] are fixed-size arrays, so the longest encodable name is capacity - 1
+  // characters plus the terminating NUL. The capacity check must keep accepting that legitimate
+  // maximum: an off-by-one there would silently break RENAME COLUMN/TAG for long names.
+  SMndCheckColRefReq req = {0};
+  std::string         maxTb(TSDB_TABLE_FNAME_LEN - 1, 't');
+  std::string         maxCol(TSDB_COL_NAME_LEN - 1, 'c');
+  tstrncpy(req.tbFName, maxTb.c_str(), sizeof(req.tbFName));
+  req.colId = 1;
+  tstrncpy(req.colName, maxCol.c_str(), sizeof(req.colName));
+
+  int32_t size = tSerializeSMndCheckColRefReq(NULL, 0, &req);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> buf(size, 0);
+  ASSERT_EQ(tSerializeSMndCheckColRefReq(buf.data(), size, &req), size);
+
+  SMndCheckColRefReq out = {0};
+  ASSERT_EQ(tDeserializeSMndCheckColRefReq(buf.data(), size, &out), 0);
+  ASSERT_EQ((int32_t)strlen(out.tbFName), TSDB_TABLE_FNAME_LEN - 1);
+  ASSERT_EQ((int32_t)strlen(out.colName), TSDB_COL_NAME_LEN - 1);
+}
+
+TEST(td_msg_test, check_col_ref_req_codec_rejects_oversized_col_name) {
+  // mndProcessCheckColRefReq builds SMndCheckColRefReq on the stack, so a message whose colName
+  // does not fit colName[] must be rejected rather than overflowing the stack frame.
+  std::vector<uint8_t> buf = forgeCheckColRefReq("1.test.tb", 1, std::string(TSDB_COL_NAME_LEN + 512, 'x'));
+  ASSERT_FALSE(buf.empty());
+  ASSERT_NE(decodeForgedCheckColRefReq(buf), 0);
+}
+
+TEST(td_msg_test, check_col_ref_req_codec_rejects_oversized_tb_fname) {
+  // Same for tbFName[], which is decoded first.
+  std::vector<uint8_t> buf = forgeCheckColRefReq(std::string(TSDB_TABLE_FNAME_LEN + 512, 't'), 1, "c");
+  ASSERT_FALSE(buf.empty());
+  ASSERT_NE(decodeForgedCheckColRefReq(buf), 0);
+}
+
+TEST(td_msg_test, check_col_ref_req_codec_rejects_col_name_exactly_at_capacity) {
+  // The terminating NUL has to fit too, so a string of exactly sizeof(colName) bytes is still one
+  // byte too long. This pins the boundary of the capacity check.
+  std::vector<uint8_t> buf = forgeCheckColRefReq("1.test.tb", 1, std::string(TSDB_COL_NAME_LEN, 'y'));
+  ASSERT_FALSE(buf.empty());
+  ASSERT_NE(decodeForgedCheckColRefReq(buf), 0);
+}
+
 void processCommandArgs(int argc, char** argv) {
   for (int i = 1; i < argc; ++i) {
     if (string(argv[i]) == "--output-config") {

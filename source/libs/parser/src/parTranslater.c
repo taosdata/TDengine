@@ -37055,13 +37055,56 @@ static int32_t buildUpdateColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
   return TSDB_CODE_SUCCESS;
 }
 
+// RESTRICT dependency detection for RENAME COLUMN / RENAME TAG on a normal / virtual-normal table.
+// Super-table renames run entirely on the mnode and check this inline (mndAlterStbColumnName /
+// mndAlterStbTagName); a normal table is altered on its vnode, so the privilege scan - which needs
+// the mnode-resident SUserObj / SRoleObj policies - has to be an explicit mnode round trip made here,
+// before the vnode request is built.
+static int32_t checkColRefByPriv(STranslateContext* pCxt, const char* pDbName, const char* pTableName,
+                                 const char* pColName, col_id_t colId) {
+  SParseContext* pParCxt = pCxt->pParseCxt;
+
+  // Both handles are required for the mnode round trip below. Every context that can reach
+  // translate() has them: pCatalog comes from catalogGetHandle() on the sync, stmt1, async-query
+  // and stmt2 paths, and without it the async metadata fetch itself already fails
+  // (getAllMetaAsync -> catalogAsyncGetAllMeta rejects a NULL handle), so a rename cannot get this
+  // far without a usable catalog. Note parseOnly is NOT a case here: analyseSemantic() returns
+  // before translate() when parseOnly is set, so no caller depends on skipping this check.
+  //
+  // Fail closed rather than silently skipping: for a normal / virtual-normal table this is the only
+  // barrier between RENAME COLUMN / RENAME TAG and the privilege-dependency check, so "cannot check"
+  // must not degrade into "allowed". The callee likewise rejects a NULL catalog
+  // (catalogChkColRefByPriv -> TSDB_CODE_CTG_INVALID_INPUT) instead of reporting success.
+  if (NULL == pParCxt->pCatalog || NULL == pParCxt->pTransporter) {
+    parserError("QID:0x%" PRIx64 ", cannot check col ref by priv for %s.%s: catalog or transporter is not set",
+                pParCxt->requestId, pDbName, pTableName);
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+
+  SName tbName = {0};
+  toName(pParCxt->acctId, pDbName, pTableName, &tbName);
+
+  char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
+  PAR_ERR_RET(tNameExtractFullName(&tbName, tbFName));
+
+  SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                           .requestId = pParCxt->requestId,
+                           .requestObjRefId = pParCxt->requestRid,
+                           .mgmtEps = pParCxt->mgmtEpSet};
+  return catalogChkColRefByPriv(pParCxt->pCatalog, &conn, tbFName, colId, pColName);
+}
+
 static int32_t buildRenameColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                  SVAlterTbReq* pReq) {
   if (TSDB_CHILD_TABLE == pTableMeta->tableType || TSDB_VIRTUAL_CHILD_TABLE == pTableMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   }
 
-  if (NULL == getColSchema(pTableMeta, pStmt->colName)) {
+  // The old name must be a real data column: a normal / virtual-normal table can now own tags, and
+  // those are renamed by RENAME TAG (buildRenameTagReq) — getColSchema spans columns *and* tags, so
+  // matching on it would let `RENAME COLUMN <tag>` through the parser only to fail in the vnode.
+  const SSchema* pCol = getNormalColSchema(pTableMeta, pStmt->colName);
+  if (NULL == pCol) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pStmt->colName);
   }
   if (NULL != getColSchema(pTableMeta, pStmt->newColName)) {
@@ -37079,11 +37122,51 @@ static int32_t buildRenameColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
     }
   }
 
+  // RESTRICT dependency detection: reject the rename when the column is referenced by a privilege.
+  // The scan lives on the mnode (that is where SUserObj / SRoleObj policies are stored), so this is
+  // a synchronous mnode round trip - mirrors mndAlterStbColumnName for the super-table path.
+  TAOS_CHECK_RETURN(checkColRefByPriv(pCxt, pStmt->dbName, pStmt->tableName, pStmt->colName, pCol->colId));
+
   pReq->colName = taosStrdup(pStmt->colName);
   pReq->colNewName = taosStrdup(pStmt->newColName);
   if (NULL == pReq->colName || NULL == pReq->colNewName) {
     return terrno;
   }
+  return TSDB_CODE_SUCCESS;
+}
+
+// RENAME TAG on the vnode path: only the owned tags of a normal / virtual-normal table live in a
+// vnode (super-table tags are renamed by the mnode, child tables inherit their super table's tags).
+// The rename keeps colId, so tag values, tag-refs and stream bindings all survive untouched — only
+// the display name changes (mirrors buildRenameColReq and mndAlterStbTagName).
+static int32_t buildRenameTagReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+                                 SVAlterTbReq* pReq) {
+  if (TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType && TSDB_NORMAL_TABLE != pTableMeta->tableType) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  }
+
+  const SSchema* pTag = getTagSchema(pTableMeta, pStmt->colName);
+  if (NULL == pTag) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, pStmt->colName);
+  }
+
+  // the new name must not collide with any existing column or tag of this table. Check this before
+  // the RESTRICT round trip: a rename that is rejected anyway must not spend an mnode RPC, and the
+  // super-table path (mndAlterStbTagName) likewise validates names before the privilege scan.
+  if (NULL != getColSchema(pTableMeta, pStmt->newColName)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
+  }
+
+  // RESTRICT dependency detection: reject the rename when the tag is referenced by a privilege -
+  // either a column-list grant (by colId) or a row-level tag condition (mirrors mndAlterStbTagName).
+  TAOS_CHECK_RETURN(checkColRefByPriv(pCxt, pStmt->dbName, pStmt->tableName, pStmt->colName, pTag->colId));
+
+  pReq->colName = taosStrdup(pStmt->colName);
+  pReq->colNewName = taosStrdup(pStmt->newColName);
+  if (NULL == pReq->colName || NULL == pReq->colNewName) {
+    return terrno;
+  }
+  pReq->colId = pTag->colId;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -37557,6 +37640,8 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
       }
       return buildDropTagReq(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
+      // owned tags of normal / virtual-normal tables are renamed here; super tables go to the mnode
+      return buildRenameTagReq(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
     // Note:

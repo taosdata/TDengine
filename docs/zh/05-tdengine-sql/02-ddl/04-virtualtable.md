@@ -551,6 +551,7 @@ alter_table_clause: {
   | ADD TAG tag_name tag_type [FROM [db_name.]table_name.tag_name]
   | SET TAG tag_name = {new_tag_value | [db_name.]table_name.tag_name}
   | DROP TAG tag_name
+  | RENAME TAG old_tag_name new_tag_name
 }
 ```
 
@@ -566,6 +567,7 @@ alter_table_clause: {
 6. `ADD TAG`：添加标签。不带 `FROM` 时添加自有标签（初值为 `NULL`）；带 `FROM` 时添加标签引用。
 7. `SET TAG`：修改标签。设置为字面量（含 `NULL`）时，如果该标签原本是标签引用，则引用被清除并转为自有标签；设置为 `[db_name.]table_name.tag_name` 时，将自有标签转为标签引用，或将已有标签引用重指向其他源标签。源标签不存在、类型不一致或目标是数据列时报错。
 8. `DROP TAG`：删除标签，自有标签与标签引用均可删除。
+9. `RENAME TAG`：修改标签名称，自有标签与标签引用均可改名。仅改变标签的显示名称：自有标签的值保持不变，标签引用仍指向原源标签。新名称不能与该表已有的列名或标签名重复。自 3.4.3.0 版本开始支持。
 
 ### 增加列
 
@@ -623,6 +625,12 @@ ALTER VTABLE vtb_name SET TAG tag_name = [db_name.]table_name.tag_name;
 
 ```sql
 ALTER VTABLE vtb_name DROP TAG tag_name;
+```
+
+### 修改标签名
+
+```sql
+ALTER VTABLE vtb_name RENAME TAG old_tag_name new_tag_name;
 ```
 
 ## 修改虚拟子表

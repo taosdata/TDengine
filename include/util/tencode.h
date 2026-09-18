@@ -123,6 +123,7 @@ static int32_t tDecodeBinary(SDecoder* pCoder, uint8_t** val, uint32_t* len);
 static int32_t tDecodeCStrAndLen(SDecoder* pCoder, char** val, uint32_t* len);
 static int32_t tDecodeCStr(SDecoder* pCoder, char** val);
 static int32_t tDecodeCStrTo(SDecoder* pCoder, char* val);
+static int32_t tDecodeCStrToFixed(SDecoder* pCoder, char* val, size_t dstSize);
 
 /* ------------------------ IMPL ------------------------ */
 static FORCE_INLINE int32_t tEncodeFixed(SEncoder* pCoder, const void* val, uint32_t size) {
@@ -475,6 +476,44 @@ static int32_t tDecodeCStrTo(SDecoder* pCoder, char* val) {
     TAOS_MEMCPY(val, pStr, len + 1);
   }
 
+  return 0;
+}
+
+// Decode a length-prefixed C string into a caller-owned fixed-size buffer, rejecting the message
+// when the string does not fit.
+//
+// tDecodeCStrTo() bounds the read against the bytes remaining in the message only, never against
+// the destination: the decoder already guarantees len < pCoder->size, so its guard is always true
+// and it unconditionally copies len + 1 decoded bytes into whatever pointer the caller passes.
+// That is only safe while the destination is at least as large as the whole message. Whenever the
+// destination is a smaller fixed-size buffer, the decoded length has to be validated against that
+// buffer's capacity instead, which is what this function does.
+//
+// Prefer this function for struct fields and stack buffers declared as fixed-size arrays, e.g.
+// SMndCheckColRefReq.tbFName / colName inside the stack-local req built in mndProcessCheckColRefReq.
+// FORCE_INLINE matches the rest of this header and keeps the helper out of -Wunused-function in TUs
+// that include tencode.h without calling it.
+static FORCE_INLINE int32_t tDecodeCStrToFixed(SDecoder* pCoder, char* val, size_t dstSize) {
+  char*    pStr = NULL;
+  uint32_t len = 0;  // decoded string length, excluding the terminating '\0'
+  TAOS_CHECK_RETURN(tDecodeCStrAndLen(pCoder, &pStr, &len));
+
+  // len + 1 bytes are copied below; comparing len (rather than len + 1) against dstSize keeps the
+  // addition from wrapping and still enforces that the terminating '\0' fits in the buffer.
+  if (len >= dstSize) {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  // A NULL / empty encoding (tEncodeCStr(NULL) / "") carries no payload after the length prefix:
+  // tDecodeCStrAndLen returns len == 0 with pStr pointing at (or, when the field is the last one
+  // in the message, one past) the decoded region. Copying len + 1 == 1 bytes from pStr would
+  // therefore read one byte that does not belong to the field. Write an empty string instead.
+  if (len == 0) {
+    val[0] = '\0';
+    return 0;
+  }
+
+  TAOS_MEMCPY(val, pStr, len + 1);
   return 0;
 }
 

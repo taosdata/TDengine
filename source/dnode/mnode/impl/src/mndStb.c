@@ -84,6 +84,7 @@ static int32_t mndProcessDropTbWithTsma(SRpcMsg *pReq);
 static int32_t mndProcessFetchTtlExpiredTbs(SRpcMsg *pReq);
 static int32_t mndProcessAuditRecordRsp(SRpcMsg *pRsp);
 static int32_t mndProcessGetVstLeavesReq(SRpcMsg *pReq);
+static int32_t mndProcessCheckColRefReq(SRpcMsg *pReq);
 
 int32_t mndInitStb(SMnode *pMnode) {
   SSdbTable table = {
@@ -126,6 +127,7 @@ int32_t mndInitStb(SMnode *pMnode) {
   // mndSetMsgHandle(pMnode, TDMT_VND_DROP_INDEX_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_AUDIT_RECORD_RSP, mndProcessAuditRecordRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_VST_LEAVES, mndProcessGetVstLeavesReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_CHECK_COL_REF_BY_PRIV, mndProcessCheckColRefReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STB, mndRetrieveStb);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STB, mndCancelGetNextStb);
@@ -7122,6 +7124,97 @@ _OVER:
   if (allDescs) taosArrayDestroy(allDescs);
   if (leavesArr) taosArrayDestroy(leavesArr);
   return code;
+}
+
+static int32_t mndProcessCheckColRefReq(SRpcMsg *pReq) {
+  SMnode            *pMnode = pReq->info.node;
+  int32_t            code = 0;
+  SMndCheckColRefReq req = {0};
+  SMndCheckColRefRsp rsp = {0};
+
+  code = tDeserializeSMndCheckColRefReq(pReq->pCont, pReq->contLen, &req);
+  if (code != 0) {
+    mError("failed to deserialize check col ref req since %s", tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  mInfo("stb:%s, start to check col ref for colId:%d colName:%s", req.tbFName, req.colId, req.colName);
+
+  // Authorize before answering. The reply distinguishes "referenced by a user policy" from
+  // "referenced by a role policy" for an arbitrary (table, colId), so without a check any connected
+  // user could probe another user's RBAC configuration through this message. Require the same two
+  // privileges the rename itself needs (DB_USE + table ALTER, as mndProcessAlterStbReq does), so
+  // only a caller who could actually issue the ALTER learns anything. The parser already ran
+  // authAlterTable client-side; this is the server-side gate on the message itself.
+  {
+    SDbObj   *pDb = NULL;
+    SUserObj *pOperUser = NULL;
+    SName     tbName = {0};
+
+    code = tNameFromString(&tbName, req.tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    if (code == 0) {
+      pDb = mndAcquireDbByStb(pMnode, req.tbFName);
+      if (pDb == NULL) {
+        code = TSDB_CODE_MND_DB_NOT_EXIST;
+      }
+    }
+    if (code == 0) {
+      code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser);
+    }
+    if (code == 0) {
+      code = mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb);
+    }
+    if (code == 0) {
+      code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_ALTER, PRIV_OBJ_TBL, pDb->name, tbName.tname);
+    }
+
+    if (pOperUser != NULL) mndReleaseUser(pMnode, pOperUser);
+    if (pDb != NULL) mndReleaseDb(pMnode, pDb);
+
+    if (code != 0) {
+      mError("stb:%s, check col ref rejected for user:%s since %s", req.tbFName, RPC_MSG_USER(pReq), tstrerror(code));
+      TAOS_RETURN(code);
+    }
+  }
+
+  code = mndCheckColRefByPriv(pMnode, req.tbFName, req.colId, req.colName);
+  rsp.code = code;
+
+  // The sizing pass returns the encoder's error code, not a length, when it fails; propagate it
+  // rather than relabelling every failure as OOM.
+  int32_t rspLen = tSerializeSMndCheckColRefRsp(NULL, 0, &rsp);
+  if (rspLen < 0) {
+    code = rspLen;
+    mError("stb:%s, failed to size check col ref rsp since %s", req.tbFName, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    code = terrno;
+    mError("stb:%s, failed to malloc check col ref rsp since %s", req.tbFName, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  // rspLen comes from the sizing pass above, so a failure here means the response was not written
+  // in full. Free it and fail rather than handing a truncated payload back to the client.
+  if (tSerializeSMndCheckColRefRsp(pRsp, rspLen, &rsp) < 0) {
+    rpcFreeCont(pRsp);
+    code = TSDB_CODE_INVALID_MSG;
+    mError("stb:%s, failed to serialize check col ref rsp since %s", req.tbFName, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = rspLen;
+
+  if (code == 0) {
+    mInfo("stb:%s, check col ref success, no privilege reference found", req.tbFName);
+  } else {
+    mInfo("stb:%s, col ref referenced by privilege, rename will be rejected since %s", req.tbFName, tstrerror(code));
+  }
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 const char *mndGetStbStr(const char *src) {
