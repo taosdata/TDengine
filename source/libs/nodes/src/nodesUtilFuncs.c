@@ -4304,10 +4304,14 @@ int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
       memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
       break;
     case TSDB_DATA_TYPE_BLOB:
-      pVal->nLen = blobDataLen(pNode->datum.p);
+      // Keep the BLOBSTR_HEADER_SIZE prefix.  Consumers read the length out of the buffer
+      // itself (colDataSetVal -> getDataLen -> blobDataTLen), so storing the bare payload
+      // here made them interpret the payload's first 4 bytes as a length and copy from a
+      // wild offset.  The VARCHAR/NCHAR case above keeps its header for the same reason.
+      pVal->nLen = blobDataTLen(pNode->datum.p);
       pVal->pz = taosMemoryCalloc(1, pVal->nLen);
       if (pVal->pz) {
-        memcpy(pVal->pz, blobDataVal(pNode->datum.p), pVal->nLen);
+        memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
       } else {
         code = terrno;
       }

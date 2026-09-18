@@ -513,7 +513,7 @@ bool fmIsPlaceHolderFuncForExternalWin(int32_t funcId) {
 
 void getLastCacheDataType(SDataType* pType, int32_t pkBytes) {
   // TODO: do it later.
-  pType->bytes = getFirstLastInfoSize(pType->bytes, pkBytes) + VARSTR_HEADER_SIZE;
+  pType->bytes = getFirstLastInfoSize(getMaxValueBytes(pType->type, pType->bytes), pkBytes) + VARSTR_HEADER_SIZE;
   pType->type = TSDB_DATA_TYPE_BINARY;
 }
 

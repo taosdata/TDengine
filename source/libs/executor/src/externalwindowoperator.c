@@ -3797,7 +3797,21 @@ int32_t extWinInitResRows(SExternalWindowOperator* pExtW, SExecTaskInfo* pTaskIn
   SExtWinResultRows* pRows = &pExtW->resultRows;
 
   pRows->resRowsSize = EXT_WIN_RES_ROWS_ALLOC_SIZE;
-  pRows->resRowSize = 4096;
+
+  // Result rows are handed out in chunks of `resRowSize` rows, so one allocation is
+  // resultRowSize * resRowSize bytes.  A fixed 4096 is fine for small rows, but when the
+  // aggregate buffer has to hold a whole value (first/last on a BLOB, whose interbuf is
+  // TSDB_MAX_BLOB_LEN) it becomes a multi-GB allocation that the query memory pool rejects
+  // outright.  Derive the chunk from a byte budget and keep 4096 as the upper bound so the
+  // small-row behaviour is unchanged.  aggSup is initialized before this runs, so
+  // resultRowSize is already known here.
+  int32_t chunkRows = 4096;
+  if (pExtW->aggSup.resultRowSize > 0) {
+    int64_t budgetRows = (int64_t)(64 * 1024 * 1024) / pExtW->aggSup.resultRowSize;
+    chunkRows = (int32_t)TMIN((int64_t)4096, TMAX((int64_t)1, budgetRows));
+  }
+  pRows->resRowSize = chunkRows;
+
   pRows->pResultRows = taosMemoryCalloc(pRows->resRowsSize, POINTER_BYTES);
   TSDB_CHECK_NULL(pRows->pResultRows, code, lino, _exit, terrno);
 
