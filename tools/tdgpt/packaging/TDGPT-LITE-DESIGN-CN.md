@@ -350,7 +350,7 @@ taosanodectl model status [<model_name|all>]
 ```
 
 模型启动的默认 readiness 期限由 `taosanode.config.py` 中的
-`timeouts["model_startup"]` 控制，默认值为 180 秒。该值是模型进程创建后到端口就绪的
+`timeouts["model_startup"]` 控制，默认值为 300 秒。该值是模型进程创建后到端口就绪的
 总期限，不是单次 TCP 连接超时；单次 TCP 探测仍为 1 秒。模型进程若在期限内提前退出，
 启动立即失败并输出模型日志路径及日志尾部。`model start --timeout` 仅覆盖本次命令，
 不修改配置文件。

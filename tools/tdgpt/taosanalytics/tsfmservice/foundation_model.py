@@ -598,7 +598,7 @@ def _resolve_model_start_timeout():
 
     Reads ``tsfm_model_start_timeout`` from configuration. The value must be
     greater than or equal to the model readiness deadline
-    (``timeouts['model_startup']``, default 180s) so that a slow-starting model
+    (``timeouts['model_startup']``, default 300s) so that a slow-starting model
     is not reported as started before it is actually ready.
 
     Returns:
