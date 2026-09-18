@@ -389,6 +389,7 @@ typedef struct SRequestObj {
   char*                effectiveUser;
   int8_t               source;
   int32_t              execPhase;       // EQueryExecPhase
+  bool                 execDispatched;  // Retained across internal stmt retries.
   int64_t              phaseStartTime;  // when current phase started, ms
   int8_t               secureDelete;
   TAOS_STMT2          *literal_by_stmt2; // reference only

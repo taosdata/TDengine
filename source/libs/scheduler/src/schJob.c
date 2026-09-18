@@ -494,6 +494,7 @@ void schDumpSubJobsExecRes(SSchJob *pParent, SExecResult *pRes) {
     }
     
     SCH_LOCK(SCH_WRITE, &pJob->resLock);
+    pRes->execDispatched |= atomic_load_8(&pJob->execDispatched) != 0;
     if (pJob->execRes.res) {
       if (pRes->res) {
         void* p = taosArrayAddAll((SArray*)pRes->res, (SArray*)pJob->execRes.res);
@@ -518,6 +519,7 @@ void schDumpSubJobsExecRes(SSchJob *pParent, SExecResult *pRes) {
 
 void schDumpJobExecRes(SSchJob *pJob, SExecResult *pRes) {
   pRes->code = atomic_load_32(&pJob->errCode);
+  pRes->execDispatched = atomic_load_8(&pJob->execDispatched) != 0;
   pRes->numOfRows = pJob->resNumOfRows;
 
   SCH_LOCK(SCH_WRITE, &pJob->resLock);

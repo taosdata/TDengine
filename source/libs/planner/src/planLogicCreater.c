@@ -235,6 +235,16 @@ static EDealRes doNameExpr(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static EDealRes detectDistinctAggregate(SNode* pNode, void* pContext) {
+  bool* hasDistinct = (bool*)pContext;
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && ((SFunctionNode*)pNode)->isDistinct &&
+      ((SFunctionNode*)pNode)->pOver == NULL) {
+    *hasDistinct = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 static int32_t generatePlanErrMsg(SLogicPlanContext* pCxt, int32_t errCode, const char* pFormat, ...) {
   if (pCxt && pCxt->pPlanCxt && pCxt->pPlanCxt->pMsg && pCxt->pPlanCxt->msgLen > 0 && pFormat) {
     va_list args;
@@ -1090,13 +1100,20 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   bool isCountByTag = false;
-  if (pSelect->hasCountFunc && NULL == pSelect->pWindow) {
-    if (pSelect->pGroupByList) {
-      isCountByTag = !keysHasCol(pSelect->pGroupByList);
-    } else if (pSelect->pPartitionByList) {
-      isCountByTag = !keysHasCol(pSelect->pPartitionByList);
-    }
-    if (pScan->tableType == TSDB_CHILD_TABLE) {
+  if (pSelect->hasCountFunc && pSelect->pWindow == NULL) {
+    bool hasDistinct = false;
+    nodesWalkExprs(pSelect->pProjectionList, detectDistinctAggregate, &hasDistinct);
+    nodesWalkExpr(pSelect->pHaving, detectDistinctAggregate, &hasDistinct);
+    nodesWalkExprs(pSelect->pOrderByList, detectDistinctAggregate, &hasDistinct);
+    if (pSelect->pGroupByList != NULL) {
+      if (!hasDistinct) {
+        isCountByTag = pScan->tableType == TSDB_CHILD_TABLE || !keysHasCol(pSelect->pGroupByList);
+      }
+    } else if (pSelect->pPartitionByList != NULL) {
+      if (!hasDistinct) {
+        isCountByTag = pScan->tableType == TSDB_CHILD_TABLE || !keysHasCol(pSelect->pPartitionByList);
+      }
+    } else if (pScan->tableType == TSDB_CHILD_TABLE) {
       isCountByTag = true;
     }
   }

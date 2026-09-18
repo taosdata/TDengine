@@ -1,5 +1,6 @@
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -40,15 +41,47 @@ def test_runtime_manifest_requires_completed_import(tmp_path, mocker):
     assert actual_python == python_exe
 
 
+def test_runtime_probe_timeout_is_reported_as_validation_failure(tmp_path, mocker):
+    runtime_dir = Path(tmp_path) / "tsfm"
+    python_exe = runtime_dir / "bin" / "python3"
+    python_exe.parent.mkdir(parents=True)
+    python_exe.touch()
+    lock_contents = b"torch==2.4.1\n"
+    (runtime_dir / "requirements.lock").write_bytes(lock_contents)
+    manifest = {
+        "schema_version": 1,
+        "kind": "tsfm-runtime",
+        "runtime_id": "tsfm-runtime-1.0.0",
+        "python_version": "3.12.12",
+        "platform": "linux",
+        "arch": "x64",
+        "requirements_sha256": hashlib.sha256(lock_contents).hexdigest(),
+    }
+    (runtime_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (runtime_dir / COMPLETION_FILE).write_text(
+        json.dumps({"kind": "tsfm-runtime-install"}), encoding="utf-8"
+    )
+    mocker.patch("resource_manifest.normalized_platform", return_value="linux")
+    mocker.patch("resource_manifest.normalized_arch", return_value="x64")
+    mocker.patch(
+        "resource_manifest.subprocess.run",
+        side_effect=subprocess.TimeoutExpired([str(python_exe)], 60),
+    )
+
+    with pytest.raises(ValueError, match="probe timed out"):
+        validate_tsfm_runtime(runtime_dir)
+
+
 def test_model_validation_accepts_original_model_files(tmp_path):
     model_dir = Path(tmp_path) / "moirai"
     model_dir.mkdir()
     (model_dir / "config.json").write_text("{}", encoding="utf-8")
+    (model_dir / "model.safetensors").write_bytes(b"weights")
     assert validate_tsfm_model(model_dir, "moirai", {})["model_name"] == "moirai"
 
 
 def test_model_validation_rejects_invalid_or_empty_directory(tmp_path):
     with pytest.raises(ValueError, match="invalid model"):
         validate_tsfm_model(Path(tmp_path), "../moirai", {})
-    with pytest.raises(ValueError, match="empty"):
+    with pytest.raises(ValueError, match="missing"):
         validate_tsfm_model(Path(tmp_path) / "empty", "moirai", {})

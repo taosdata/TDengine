@@ -42,12 +42,33 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from resource_manager import DynamicResourceManager, ResourceImportError
-from resource_manifest import validate_tsfm_model, validate_tsfm_runtime
+from resource_manager import (
+    DynamicResourceManager,
+    ResourceBusyError,
+    ResourceImportError,
+    lifecycle_lock,
+)
+from resource_manifest import SHARED_RUNTIME_NAME, validate_tsfm_model, validate_tsfm_runtime
+
+# Exit codes the REST layer switches on (see _CLI_EXIT_* in
+# taosanalytics/tsfmservice/foundation_model.py -- the two modules are separate
+# deployment units and cannot import each other).
+#
+#   0   success
+#   75  transient: another resource operation holds the lifecycle lock, or the
+#       manager lock is taken -- the operation should be retried later
+#   3   permanent refusal: unsafe target, missing package, running workers, ...
+#   1   any other failure
+EXIT_TEMPFAIL = 75
+EXIT_CONFLICT = 3
 
 # Platform detection
 IS_WINDOWS = platform.system().lower() == "windows"
 IS_LINUX = platform.system().lower() == "linux"
+
+def _resource_error_exit_code(exc: ResourceImportError) -> int:
+    """Map a resource error to the exit code the REST layer acts on."""
+    return EXIT_TEMPFAIL if isinstance(exc, ResourceBusyError) else EXIT_CONFLICT
 
 # Default paths - will be overridden by config
 # Auto-detect install dir from script location: <install_dir>/bin/taosanode_service.py
@@ -66,7 +87,7 @@ _redirect_stream = None
 DEFAULT_MODEL_ORDER = ["tdtsfm", "timemoe", "moirai", "chronos", "timesfm", "moment"]
 DEFAULT_TIMEOUTS = {
     "service_startup": 180,
-    "model_startup": 180,
+    "model_startup": 300,
     "shutdown": 30,
 }
 TCP_CONNECT_TIMEOUT = 1
@@ -165,17 +186,78 @@ def get_windows_friendly_log_encoding(log_file: str) -> str:
     return "utf-8-sig"
 
 
-def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger:
+# Log levels accepted by --log-level. An explicit table is used instead of
+# logging.getLevelName() so a typo fails fast rather than becoming a pseudo-level.
+_LOG_LEVEL_NAMES = {
+    "critical": logging.CRITICAL,
+    "error": logging.ERROR,
+    "warning": logging.WARNING,
+    "warn": logging.WARNING,
+    "info": logging.INFO,
+    "debug": logging.DEBUG,
+}
+
+# Level applied to every logger and handler this module creates. Handlers copy the
+# level when they are constructed, so it must be set before the first setup_logger().
+_log_level = logging.INFO
+
+
+def _resolve_log_level(value: str) -> int:
+    """Translate a --log-level value into a logging level."""
+    name = str(value).strip().lower()
+    if name in _LOG_LEVEL_NAMES:
+        return _LOG_LEVEL_NAMES[name]
+    try:
+        return int(name)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"invalid log level {value!r}; expected one of "
+            f"{', '.join(sorted(_LOG_LEVEL_NAMES))} or a numeric level"
+        ) from None
+
+
+def _set_log_level(level: int) -> None:
+    """Set the level used by loggers created after this call."""
+    global _log_level
+    _log_level = level
+
+
+# Library modules that publish only a module-level logger and deliberately leave
+# handler setup to whichever entry point is running. Without this they would
+# reach stderr (via logging's lastResort handler) and gunicorn's error.log, but
+# never the taosanode service log written by this module.
+_SHARED_LOG_LIBRARIES = ("resource_manifest",)
+
+
+def _share_handlers_with_library_loggers(handlers: List[logging.Handler], level: int) -> None:
+    """Attach the service handlers to library loggers that have none of their own.
+
+    The same handler instances are reused on purpose: two RotatingFileHandlers
+    pointing at one file would each rotate it independently and duplicate lines.
+    """
+    for library_name in _SHARED_LOG_LIBRARIES:
+        library_logger = logging.getLogger(library_name)
+        if library_logger.handlers:
+            continue
+        library_logger.setLevel(level)
+        for handler in handlers:
+            library_logger.addHandler(handler)
+
+
+def setup_logger(name: str, log_file: str, level: Optional[int] = None) -> logging.Logger:
     """Create and configure a logger instance
 
     Args:
         name: Logger name (used to distinguish log sources)
         log_file: Log file path
-        level: Log level
+        level: Log level; defaults to the level selected by --log-level
 
     Returns:
         Configured logger instance
     """
+    if level is None:
+        level = _log_level
+
     logger = logging.getLogger(name)
 
     # Avoid adding duplicate handlers
@@ -183,6 +265,8 @@ def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger
         return logger
 
     logger.setLevel(level)
+
+    handlers: List[logging.Handler] = []
 
     # Prefer file logging, but do not fail if the default install path is not writable.
     log_dir = os.path.dirname(log_file)
@@ -203,7 +287,7 @@ def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger
             datefmt='%Y-%m-%d %H:%M:%S'
         )
         file_handler.setFormatter(file_formatter)
-        logger.addHandler(file_handler)
+        handlers.append(file_handler)
     except OSError:
         pass
 
@@ -212,10 +296,18 @@ def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger
         console_handler.setLevel(level)
         console_formatter = logging.Formatter('%(levelname)s: %(message)s')
         console_handler.setFormatter(console_formatter)
-        logger.addHandler(console_handler)
+        handlers.append(console_handler)
 
-    if not logger.handlers:
+    if not handlers:
+        # Nothing to log to: leave library loggers untouched so their records
+        # still surface on stderr through logging's lastResort handler.
         logger.addHandler(logging.NullHandler())
+        return logger
+
+    for handler in handlers:
+        logger.addHandler(handler)
+
+    _share_handlers_with_library_loggers(handlers, level)
 
     return logger
 
@@ -390,7 +482,10 @@ class Config:
                 self.enabled_models = None
 
         except Exception as e:
-            self.logger.warning(f"Failed to load config: {e}")
+            self.logger.error(
+                f"Failed to load config {config_path}: {e}; falling back to built-in defaults",
+                exc_info=True,
+            )
             self.pid_file = PID_FILE
             self.app_log = os.path.join(self.log_dir, "taosanode.app.log")
             self.model_dir = _default_model_dir(self.install_dir, self.data_dir)
@@ -547,8 +642,9 @@ class ProcessManager:
             if os.path.exists(pid_file):
                 with open(pid_file, 'r') as f:
                     return int(f.read().strip())
-        except (ValueError, IOError):
-            pass
+        except (ValueError, IOError) as exc:
+            # A corrupt or unreadable PID file makes the service look stopped.
+            self.logger.warning(f"Unable to read PID file {pid_file}: {exc}")
         return None
 
     def write_pid(self, pid: int, service_name: str = "taosanode"):
@@ -647,7 +743,12 @@ class ProcessManager:
                 # Unix: send signal 0
                 os.kill(pid, 0)
                 return True
-        except (OSError, ProcessLookupError):
+        except (OSError, ProcessLookupError) as exc:
+            # EPERM means the PID exists but belongs to another user, so "not
+            # running" is ambiguous — say why instead of failing silently.
+            self.logger.warning(
+                f"Cannot verify PID {pid} for {service_name}: {exc}; treating as not running"
+            )
             return False
 
     def wait_for_service(self, service_name: str, timeout: int = 10) -> bool:
@@ -699,8 +800,10 @@ class ProcessManager:
                         pass
 
                 os.kill(pid, sig)
-        except (OSError, ProcessLookupError):
-            pass
+        except (OSError, ProcessLookupError) as exc:
+            # ESRCH means the process already exited (harmless); EPERM is the
+            # interesting case because it explains a stop that appears to hang.
+            self.logger.warning(f"Failed to kill PID {pid} (force={force}): {exc}")
 
 
 class TaosanodeService:
@@ -1421,8 +1524,8 @@ class TaosanodeService:
                     timeout=self.config.timeouts["shutdown"],
                     check=False,
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                self.logger.warning(f"systemctl stop taosanoded failed: {exc}")
 
         if not self.process_mgr.is_running("taosanode"):
             self.logger.info("Taosanode is not running")
@@ -1432,7 +1535,17 @@ class TaosanodeService:
         self.logger.info("Stopping taosanode service...")
         pid = self.process_mgr.read_pid("taosanode")
 
+        if not pid:
+            # is_running() reported the service as up but the PID file is
+            # unreadable, so nothing can be signalled. Record it instead of
+            # claiming a clean stop.
+            self.logger.warning(
+                "Taosanode is reported as running but has no readable PID file; "
+                "clearing stale PID state only"
+            )
+
         if pid:
+            self.logger.info(f"Sending graceful shutdown to taosanode PID {pid}")
             # Try graceful shutdown first
             self.process_mgr.kill_process(pid, force=False)
             time.sleep(2)
@@ -1470,6 +1583,7 @@ class TaosanodeService:
         self.logger.info(f"Waiting for taosanode readiness on {status_url}")
         deadline = time.time() + max(1, timeout)
         last_service_state = None
+        last_error = None
         while time.time() < deadline:
             try:
                 with urllib.request.urlopen(status_url, timeout=3) as response:
@@ -1477,8 +1591,10 @@ class TaosanodeService:
                     if response.status == 200 and "ready" in body.lower():
                         self.logger.info(f"Taosanode readiness check succeeded: {status_url}")
                         return True
-            except Exception:
-                pass
+            except Exception as exc:
+                # Keep the newest probe failure: it is the only clue when the
+                # timeout below is reached.
+                last_error = exc
 
             if not self.process_mgr.is_running("taosanode"):
                 service_state = self._query_windows_service_state()
@@ -1491,11 +1607,17 @@ class TaosanodeService:
                     time.sleep(max(0.2, interval))
                     continue
 
-                self.logger.warning("Taosanode process is not running while waiting for readiness")
+                self.logger.warning(
+                    "Taosanode process is not running while waiting for readiness"
+                    + (f"; last probe error: {last_error}" if last_error else "")
+                )
                 return False
             time.sleep(max(0.2, interval))
 
-        self.logger.warning(f"Taosanode readiness check timed out after {timeout} seconds: {status_url}")
+        self.logger.warning(
+            f"Taosanode readiness check timed out after {timeout} seconds: {status_url}"
+            + (f"; last probe error: {last_error}" if last_error else "")
+        )
         return False
 
     def _query_windows_service_state(self, service_name: str = "Taosanode") -> Optional[str]:
@@ -1666,9 +1788,13 @@ class ModelService:
         return [name for name in DEFAULT_MODEL_ORDER if name in self.config.models]
 
     def _model_directory_exists(self, model_name: str) -> bool:
-        return os.path.isdir(os.path.join(self.config.tsfm_model_dir, model_name)) or os.path.isdir(
-            os.path.join(self.config.model_dir, model_name)
-        )
+        """Report whether a dynamic model directory is present for result classification.
+
+        Deliberately checks existence, not completeness: `start()`/`_resolve_dynamic_model()`
+        already run `validate_tsfm_model` and report real validation failures as failed,
+        not skipped.
+        """
+        return os.path.isdir(os.path.join(self.config.tsfm_model_dir, model_name))
 
     def _build_model_args(self, model_name: str, model_dir: Optional[str] = None) -> List[str]:
         """构建模型启动参数"""
@@ -1677,18 +1803,32 @@ class ModelService:
             raise ValueError(f"Unknown model: {model_name}")
 
         if model_dir is None:
-            model_dir = os.path.join(self.config.model_dir, model_name)
+            # Callers that already resolved the resource pass its directory in
+            # (Models.start does). The fallback has to mean the same thing: a
+            # dynamically installed model lives in `tsfm_model_dir`, and the flat
+            # root is only where a hand-copied model would sit.
+            tsfm_dir = os.path.join(self.config.tsfm_model_dir, model_name)
+            model_dir = (
+                tsfm_dir
+                if os.path.isdir(tsfm_dir)
+                else os.path.join(self.config.model_dir, model_name)
+            )
         args: List[str] = []
 
-        # tdtsfm-server currently uses fixed host/port in script and accepts no CLI startup args.
+        # tdtsfm-server loads its own fixed weights and has no model-name or
+        # model-index flag, but it does need to be told *where* they are:
+        # Configure.get_model_directory() cannot answer that on its own, because a
+        # dynamic resource is installed under the `tsfm` subdirectory of the model
+        # root while that call may return either the root or the subdirectory
+        # (see _resolve_dynamic_model).
         if model_name == "tdtsfm":
-            return args
-
-        default_model = model_config.get("default_model")
-        if default_model:
-            args.extend(["--model-folder", model_dir, "--model-name", str(default_model)])
+            args.extend(["--model-folder", model_dir])
         else:
-            args.extend(["--model-index", "0"])
+            default_model = model_config.get("default_model")
+            if default_model:
+                args.extend(["--model-folder", model_dir, "--model-name", str(default_model)])
+            else:
+                args.extend(["--model-index", "0"])
 
         port = model_config.get("port")
         if port:
@@ -1745,6 +1885,11 @@ class ModelService:
         if dynamic_model is False:
             return False
         if dynamic_model is None:
+            if model_name in DEFAULT_MODEL_ORDER:
+                self.logger.info(
+                    f"Skipping model {model_name} - dynamic resource is not installed"
+                )
+                return True
             model_dir = os.path.join(self.config.model_dir, model_name)
             python_exe = None
         else:
@@ -1760,6 +1905,11 @@ class ModelService:
             venv_dir = self._get_model_venv()
             python_exe = self.process_mgr._get_pythonw_exe(venv_dir)
         model_config = self.config.models[model_name]
+
+        self.logger.info(
+            f"Model {model_name} resolved: dir={model_dir}, python={python_exe}, "
+            f"port={model_config.get('port')}, timeout={startup_timeout}s"
+        )
 
         # Build command
         service_dir = os.path.join(
@@ -1875,7 +2025,7 @@ class ModelService:
                 return False
 
         except Exception as e:
-            self.logger.error(f"Error starting model {model_name}: {e}")
+            self.logger.error(f"Error starting model {model_name}: {e}", exc_info=True)
             return False
 
     def _start_all(self, timeout: Optional[int] = None) -> bool:
@@ -1980,7 +2130,16 @@ class ModelService:
         self.logger.info(f"Stopping model service: {model_name}")
         pid = self.process_mgr.read_pid(service_name)
 
+        if not pid:
+            # Reported as running but nothing to signal: record it instead of
+            # claiming a clean stop.
+            self.logger.warning(
+                f"Model {model_name} is reported as running but has no readable PID file; "
+                "clearing stale PID state only"
+            )
+
         if pid:
+            self.logger.info(f"Sending graceful shutdown to model {model_name} PID {pid}")
             # Try graceful shutdown first
             self.process_mgr.kill_process(pid, force=False)
             time.sleep(3)
@@ -2078,6 +2237,7 @@ class ModelService:
         return statuses
 
 
+
 def print_status(status):
     """Print service status"""
     if isinstance(status, list):
@@ -2146,7 +2306,7 @@ Examples:
         "command",
         choices=["start", "stop", "status", "model-start", "model-stop", "model-status", "wait-ready",
                  "resource-import", "resource-check", "resource-apply",
-                 "resource-list", "resource-verify", "install-service",
+                 "resource-list", "resource-verify", "resource-delete", "install-service",
                  "uninstall-service", "start-service", "stop-service"],
         help="Command to execute"
     )
@@ -2202,11 +2362,70 @@ Examples:
         help="Base URL hosting TDgpt TSFM releases",
     )
     parser.add_argument("--format", choices=["table", "json"], default="table")
+    parser.add_argument(
+        "--log-level",
+        type=_resolve_log_level,
+        default=logging.INFO,
+        metavar="{debug,info,warning,error,critical}",
+        help="Log level for the service log and stderr (default: info)",
+    )
+
 
     args = parser.parse_args()
 
+    # Handlers copy the level when they are constructed, so install the requested
+    # level before the first logger (and therefore the first handler) exists.
+    _set_log_level(args.log_level)
+
+    # Log the request before anything else, so even a config-loading failure is
+    # traceable back to the invocation that caused it.
+    logger = get_logger()
+    logger.info(
+        "Invoked: command=%s target=%s config=%s argv=%s",
+        args.command,
+        args.target or "-",
+        args.config or "<default>",
+        " ".join(sys.argv[1:]),
+    )
+
     # Initialize
     config = Config(args.config)
+    try:
+        if args.command in {"model-start", "model-stop", "resource-import", "resource-apply", "resource-delete"}:
+            with lifecycle_lock(config.data_dir):
+                execute_command(args, config)
+        else:
+            execute_command(args, config)
+        # Report-only commands (status/model-status/resource-list) return normally
+        # instead of exiting, so record their outcome here.
+        logger.info("Command %s completed (target=%s)", args.command, args.target or "-")
+    except ResourceBusyError as exc:
+        # Transient by definition: report the retryable code before the generic
+        # resource-error handler turns it into a plain failure.
+        logger.error("Command %s aborted (busy): %s", args.command, exc)
+        sys.exit(EXIT_TEMPFAIL)
+    except ResourceImportError as exc:
+        logger.error("Command %s aborted: %s", args.command, exc)
+        sys.exit(EXIT_CONFLICT)
+    except SystemExit as exc:
+        # One standardized outcome line per command: a failing invocation used to
+        # leave nothing but an exit code in the log.
+        if exc.code in (None, 0):
+            logger.info("Command %s succeeded (target=%s)", args.command, args.target or "-")
+        else:
+            logger.error(
+                "Command %s failed with exit code %s (target=%s)",
+                args.command,
+                exc.code,
+                args.target or "-",
+            )
+        raise
+    except Exception:
+        logger.exception("Command %s crashed (target=%s)", args.command, args.target or "-")
+        raise
+
+
+def execute_command(args, config):
     process_mgr = ProcessManager(config)
     taosanode = TaosanodeService(config, process_mgr)
     models = ModelService(config, process_mgr)
@@ -2243,39 +2462,13 @@ Examples:
 
     elif args.command == "model-status":
         status = models.status()
-        print_status(status)
-
-    elif args.command == "resource-import":
-        if not args.package:
-            logger.error("resource-import requires at least one --package")
-            sys.exit(1)
-        if args.expected_sha256 and len(args.package) != 1:
-            logger.error("--expected-sha256 requires exactly one --package")
-            sys.exit(1)
-        try:
-            if args.replace:
-                manager = DynamicResourceManager(config)
-                running = {item["model"] for item in models.status() if item["running"]}
-                replacement_names = set()
-                replace_runtime = False
-                for package in args.package:
-                    kind, name = manager._classify(Path(package))
-                    replace_runtime = replace_runtime or kind == "runtime"
-                    replacement_names.add(name)
-                blocked = running if replace_runtime else running.intersection(replacement_names)
-                if blocked:
-                    scope = "all" if replace_runtime else ", ".join(sorted(blocked))
-                    raise ResourceImportError(f"resource replacement requires stopped model workers: {scope}")
-            if args.python_runtime_dir:
-                config.python_runtime_dir = args.python_runtime_dir
-            result = DynamicResourceManager(config).import_packages(
-                args.package, args.expected_sha256, args.replace
-            )
-            print(json.dumps(result, indent=2))
-            sys.exit(0)
-        except ResourceImportError as exc:
-            logger.error(f"Dynamic resource import failed: {exc}")
-            sys.exit(1)
+        # `--format json` keeps this usable as a machine-readable liveness
+        # source (the RESTful service probes it before removing the shared
+        # runtime, so it must not have to parse a table).
+        if args.format == "json":
+            print(json.dumps(status, indent=2))
+        else:
+            print_status(status)
 
     elif args.command == "resource-list":
         result = DynamicResourceManager(config).list_resources(args.target or "all")
@@ -2331,12 +2524,73 @@ Examples:
             print(json.dumps(result, indent=2))
         except ResourceImportError as exc:
             logger.error(f"Dynamic resource apply failed: {exc}")
-            sys.exit(1)
+            sys.exit(_resource_error_exit_code(exc))
 
     elif args.command == "resource-verify":
         result = DynamicResourceManager(config).verify_resources(args.target or "all")
         print(json.dumps(result, indent=2))
         sys.exit(0 if result["valid"] else 1)
+
+    elif args.command == "resource-delete":
+        target = args.target or ""
+        if not target:
+            logger.error(f"resource-delete requires a model name or {SHARED_RUNTIME_NAME}")
+            sys.exit(1)
+        running = {item["model"] for item in models.status() if item["running"]}
+        is_runtime_target = target in (SHARED_RUNTIME_NAME, "runtime")
+        if is_runtime_target and running:
+            logger.error(
+                "cannot delete shared TSFM runtime while model workers are running: "
+                + ", ".join(sorted(running))
+            )
+            sys.exit(EXIT_CONFLICT)
+        if not is_runtime_target and target in running:
+            logger.error(f"cannot delete running model worker: {target}")
+            sys.exit(EXIT_CONFLICT)
+        # No download check here: reaching this branch means we already hold the
+        # lifecycle lock, and `resource apply` holds that same lock for its whole
+        # run. So nothing can be mid-download, and any task file still marked
+        # downloading/verifying/importing is residue from a dead operation (it is
+        # cleared by the deletion below, see _clear_deleted_state).
+        try:
+            result = DynamicResourceManager(config).delete_resource(target)
+            print(json.dumps(result, indent=2))
+        except ResourceImportError as exc:
+            logger.error(f"Dynamic resource deletion failed: {exc}")
+            sys.exit(_resource_error_exit_code(exc))
+        sys.exit(0)
+
+    elif args.command == "resource-import":
+        if not args.package:
+            logger.error("resource-import requires at least one --package")
+            sys.exit(1)
+        if args.expected_sha256 and len(args.package) != 1:
+            logger.error("--expected-sha256 requires exactly one --package")
+            sys.exit(1)
+        try:
+            if args.replace:
+                manager = DynamicResourceManager(config)
+                running = {item["model"] for item in models.status() if item["running"]}
+                replacement_names = set()
+                replace_runtime = False
+                for package in args.package:
+                    kind, name = manager._classify(Path(package))
+                    replace_runtime = replace_runtime or kind == "runtime"
+                    replacement_names.add(name)
+                blocked = running if replace_runtime else running.intersection(replacement_names)
+                if blocked:
+                    scope = "all" if replace_runtime else ", ".join(sorted(blocked))
+                    raise ResourceImportError(f"resource replacement requires stopped model workers: {scope}")
+            if args.python_runtime_dir:
+                config.python_runtime_dir = args.python_runtime_dir
+            result = DynamicResourceManager(config).import_packages(
+                args.package, args.expected_sha256, args.replace
+            )
+            print(json.dumps(result, indent=2))
+            sys.exit(0)
+        except ResourceImportError as exc:
+            logger.error(f"Dynamic resource import failed: {exc}")
+            sys.exit(1)
 
     elif args.command == "wait-ready":
         success = taosanode.wait_ready(

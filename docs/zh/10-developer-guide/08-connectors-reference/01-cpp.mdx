@@ -484,12 +484,23 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 1. 调用 `taos_stmt2_init()` 创建参数绑定对象；
 2. 调用 `taos_stmt2_prepare()` 解析 INSERT 或者 SELECT 语句；
 3. 调用 `taos_stmt2_bind_param()` 可以向单个超级表绑定多个子表，每个子表可以绑定多行数据；
-4. 调用 `taos_stmt2_exec()` 执行已经准备好的批处理指令；、
+4. 调用 `taos_stmt2_exec()` 执行已经准备好的批处理指令；
 5. 可以重复第 3 ～ 4 步，为写入更多的数据行，而无需再次解析 SQL；
 6. 执行完毕，调用 `taos_stmt2_close()` 释放所有资源。
 
-- `char *taos_stmt2_error(TAOS_STMT2 *stmt)`
-  说明：如果 `taos_stmt2_exec()` 执行成功，假如不需要改变 SQL 语句的话，那么是可以复用 `taos_stmt2_prepare()` 的解析结果，直接进行第 3 ～ 4 步绑定新数据的。但如果执行出错，那么并不建议继续在当前的环境上下文下继续工作，而是建议释放资源，然后从 `taos_stmt2_init()` 步骤重新开始，可以通过 `taos_stmt2_error` 查看具体错误原因。
+#### stmt2 错误恢复
+
+`taos_stmt2_error()` 返回最近一次错误的详细信息。同步模式下，`taos_stmt2_exec()` 直接返回执行错误码；异步模式下，回调函数接收最终执行错误码。
+
+stmt2 是否可以继续使用取决于错误发生的阶段，而不只取决于错误码。请求已经发送后产生的最终执行错误无需重新调用 `taos_stmt2_prepare()`：
+
+| 错误发生路径 | 常见错误码 | 处理方式 |
+| --- | --- | --- |
+| 请求已经发送，服务端、RPC 或网络层返回最终执行错误 | `TSDB_CODE_VND_STOPPED`、`TSDB_CODE_TDB_TABLE_NOT_EXIST`、`TSDB_CODE_PAR_TABLE_NOT_EXIST`、`TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER`、`TSDB_CODE_MND_INVALID_SCHEMA_VER`、`TSDB_CODE_SCH_DATA_SRC_EP_MISS`、`TSDB_CODE_VND_HASH_MISMATCH`、`TSDB_CODE_VND_INVALID_VGROUP_ID`，以及其他服务端、RPC、网络或超时执行错误 | 先调用 `taos_stmt2_error()` 获取错误信息，然后修复服务端状态并重新绑定、执行。失败批次会被清理，无需重新调用 `taos_stmt2_prepare()`。客户端会先自动处理需要刷新元数据或路由信息的错误；自动重试仍然失败时，最终错误也按本行处理。 |
+
+绑定接口保持原有校验和错误状态行为。除上述请求发出后的最终执行错误外，应用应将其他 STMT2 API 非零返回码统一视为需要重新调用 `taos_stmt2_prepare()`。应用应先调用 `taos_stmt2_error()` 保存错误信息，然后在同一个 stmt2 对象上使用原 SQL 重新调用 `taos_stmt2_prepare()`；调用成功后才能继续绑定和执行。如果再次调用 `taos_stmt2_prepare()` 仍然失败，应关闭并重新创建 stmt2 对象。
+
+应在下一次执行或重新准备前读取执行错误信息，因为后续操作会清除上一次执行结果。异步模式必须等待回调函数返回后再绑定下一批数据，不应在回调函数中绑定。
 
 stmt2 和 stmt 的区别在于：
 
