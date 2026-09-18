@@ -286,6 +286,7 @@ typedef struct SSchJob {
   uint64_t         queryId;
   uint64_t         seriesId;
   SSchJobAttr      attr;
+  int8_t          execDispatched;
   void*            parent;
   int32_t          subJobId;
   int32_t          subJobExecIdx;

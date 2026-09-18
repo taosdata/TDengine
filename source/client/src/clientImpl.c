@@ -1399,6 +1399,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   };
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob);
+  pRequest->execDispatched |= res.execDispatched;
 
   destroyQueryExecRes(&pRequest->body.resInfo.execRes);
   (void)memcpy(&pRequest->body.resInfo.execRes, &res, sizeof(res));
@@ -2060,6 +2061,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
 
   pRequest->code = code;
   if (pResult) {
+    pRequest->execDispatched |= pResult->execDispatched;
     destroyQueryExecRes(&pRequest->body.resInfo.execRes);
     (void)memcpy(&pRequest->body.resInfo.execRes, pResult, sizeof(*pResult));
   }
@@ -2425,6 +2427,7 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
       }
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {
+      const bool trackStmtPhase = pRequest->stmtBindVersion > 0;
       code = tscTxnTrackVgIdsFromQuery(pRequest->pTscObj, pQuery);
       if (code != 0) break;
       SArray* pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
@@ -2433,11 +2436,17 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
         break;
       }
       SQueryPlan* pDag = NULL;
+      if (trackStmtPhase) {
+        CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_PLAN);
+      }
       code = getPlan(pRequest, pQuery, &pDag, pMnodeList);
       if (TSDB_CODE_SUCCESS == code) {
         pRequest->body.subplanNum = pDag->numOfSubplans;
         if (!pRequest->validateOnly) {
           SArray* pNodeList = NULL;
+          if (trackStmtPhase) {
+            CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_SCHEDULE);
+          }
           code = buildSyncExecNodeList(pRequest, &pNodeList, pMnodeList, pDag);
 
           if (TSDB_CODE_SUCCESS == code) {
@@ -2446,6 +2455,9 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
           }
 
           if (TSDB_CODE_SUCCESS == code) {
+            if (trackStmtPhase) {
+              CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_EXECUTE);
+            }
             code = scheduleQuery(pRequest, pDag, pNodeList);
           }
           taosArrayDestroy(pNodeList);

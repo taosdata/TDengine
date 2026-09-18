@@ -74,6 +74,8 @@ extern "C" int32_t schPushTaskToExecList(SSchJob *pJob, SSchTask *pTask);
 extern "C" int32_t schSetAddrsFromNodeList(SSchJob *pJob, SSchTask *pTask);
 extern "C" int32_t schNotifyTaskOnExecNode(SSchJob *pJob, SSchTask *pTask, ETaskNotifyType type);
 extern "C" int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask);
+extern "C" int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQueryNodeAddr *addr,
+                                   int32_t msgType, void *msg, uint32_t msgSize, bool persistHandle, SRpcCtx *ctx);
 extern "C" int32_t schLaunchTaskImpl(void *param);
 extern "C" void schHandleTimerEvent(void *param, void *tmrId);
 
@@ -1801,3 +1803,112 @@ int main(int argc, char **argv) {
 }
 
 #pragma GCC diagnostic pop
+
+namespace {
+int32_t failStmtJobInit(int64_t*, SSchedulerReq*) {
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
+
+void captureStmtJobInitError(SExecResult* result, void* param, int32_t code) {
+  EXPECT_EQ(result, nullptr);
+  *static_cast<int32_t*>(param) = code;
+}
+}  // namespace
+
+TEST(schedulerTest, stmt_job_init_failure_has_no_execution_result) {
+  Stub stub;
+  stub.set(schInitJob, failStmtJobInit);
+  SRequestConnInfo conn = {};
+  SSchedulerReq req = {};
+  req.pConn = &conn;
+  req.syncReq = false;
+  req.execFp = captureStmtJobInitError;
+  int32_t callbackCode = TSDB_CODE_SUCCESS;
+  req.cbParam = &callbackCode;
+  int64_t jobId = 0;
+  EXPECT_EQ(schedulerExecJob(&req, &jobId), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(callbackCode, TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(jobId, 0);
+
+  req.syncReq = true;
+  SExecResult result = {};
+  req.pExecRes = &result;
+  EXPECT_EQ(schedulerExecJob(&req, &jobId), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_FALSE(result.execDispatched);
+}
+
+namespace {
+SSchJob* dispatchTestJob = nullptr;
+SSchTask* dispatchTestTask = nullptr;
+int32_t dispatchTestSendCode = TSDB_CODE_SUCCESS;
+bool dispatchTestInlineCallback = false;
+int32_t dispatchTestSendCalls = 0;
+int32_t dispatchTestResponseCalls = 0;
+
+int32_t dispatchTestCbBegin(SSchJob** job, SSchTask** task, uint64_t, int64_t, int32_t, uint64_t) {
+  *job = dispatchTestJob;
+  *task = dispatchTestTask;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t dispatchTestResponse(SSchJob* job, SSchTask*, uint64_t, int32_t, SDataBuf*, int32_t) {
+  ++dispatchTestResponseCalls;
+  EXPECT_EQ(atomic_load_8(&job->execDispatched), 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+void dispatchTestCbEnd(SSchJob*, SSchTask*, int32_t) {}
+
+int32_t dispatchTestSend(void*, SEpSet*, int64_t*, SMsgSendInfo* info, bool, void*) {
+  ++dispatchTestSendCalls;
+  if (dispatchTestInlineCallback) {
+    SDataBuf response = {};
+    response.msgType = info->msgType + 1;
+    EXPECT_EQ(info->fp(info->param, &response, TSDB_CODE_RPC_NETWORK_UNAVAIL), TSDB_CODE_SUCCESS);
+  }
+  destroySendMsgInfo(info);
+  return dispatchTestSendCode;
+}
+}  // namespace
+
+TEST(schedulerTest, stmt_dispatch_tracks_accepted_work) {
+#ifndef LINUX
+  GTEST_SKIP() << "This scheduler dispatch test uses address stubs and runs only on Linux";
+#endif
+  Stub stub;
+  stub.set(asyncSendMsgToServerExt, dispatchTestSend);
+  stub.set(schProcessOnCbBegin, dispatchTestCbBegin);
+  stub.set(schHandleResponseMsg, dispatchTestResponse);
+  stub.set(schProcessOnCbEnd, dispatchTestCbEnd);
+
+  for (int8_t previous : {0, 1}) {
+    for (int mode = 0; mode < 3; ++mode) {
+      SCOPED_TRACE(::testing::Message() << "previous=" << static_cast<int>(previous) << ", mode=" << mode);
+      SSchJob job = {};
+      SSchTask task = {};
+      SSubplan plan = {};
+      plan.msgType = TDMT_VND_SUBMIT;
+      task.plan = &plan;
+      job.execDispatched = previous;
+      dispatchTestJob = &job;
+      dispatchTestTask = &task;
+      // Cover synchronous local failure, accepted send, and callback-before-return.
+      dispatchTestSendCode = mode == 0 ? TSDB_CODE_OUT_OF_MEMORY : TSDB_CODE_SUCCESS;
+      dispatchTestInlineCallback = mode == 2;
+      dispatchTestSendCalls = 0;
+      dispatchTestResponseCalls = 0;
+      SSchTrans trans = {};
+      SQueryNodeAddr addr = {};
+      addr.nodeId = MNODE_HANDLE - 1;
+      void* message = taosMemoryCalloc(1, 1);
+      ASSERT_NE(message, nullptr);
+      EXPECT_EQ(schAsyncSendMsg(&job, &task, &trans, &addr, plan.msgType, message, 1, false, nullptr),
+                dispatchTestSendCode);
+      EXPECT_EQ(dispatchTestSendCalls, 1);
+      EXPECT_EQ(dispatchTestResponseCalls, mode == 2 ? 1 : 0);
+      EXPECT_EQ(atomic_load_8(&job.execDispatched), mode == 0 ? previous : 1);
+    }
+  }
+  dispatchTestJob = nullptr;
+  dispatchTestTask = nullptr;
+}
