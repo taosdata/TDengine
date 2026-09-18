@@ -1112,7 +1112,8 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
     if (IS_VAR_DATA_TYPE(pColSchema->type)) {
       if (IS_STR_DATA_BLOB(pColSchema->type)) {
         isBlob = 1;
-        bytes = TSDB_MAX_BLOB_LEN;
+        // TSDB_MAX_BLOB_LEN includes BLOBSTR_HEADER_SIZE; this is the max payload.
+        bytes = TSDB_MAX_BLOB_LEN - BLOBSTR_HEADER_SIZE;
       } else {
         bytes = pColSchema->bytes - VARSTR_HEADER_SIZE;
       }
@@ -1199,7 +1200,8 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
   int8_t  hasBlob = 0;
   if (IS_VAR_DATA_TYPE(pColSchema->type)) {
     if (IS_STR_DATA_BLOB(pColSchema->type)) {
-      bytes = TSDB_MAX_BLOB_LEN;
+      // TSDB_MAX_BLOB_LEN includes BLOBSTR_HEADER_SIZE; this is the max payload.
+      bytes = TSDB_MAX_BLOB_LEN - BLOBSTR_HEADER_SIZE;
       hasBlob = 1;
     } else {
       bytes = pColSchema->bytes - VARSTR_HEADER_SIZE;

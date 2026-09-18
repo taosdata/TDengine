@@ -304,7 +304,10 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
   }
 
   if (streamInserterParam) {
-    SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500, .maxDataBlockNumPerQuery = 50, .compress = compressResult};
+    SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500,
+                           .maxDataBlockNumPerQuery = 50,
+                           .maxDataBytesPerQuery = 256 * 1024 * 1024,
+                           .compress = compressResult};
     void*           pSinkManager = NULL;
     code = dsDataSinkMgtInit(&cfg, &(*pTask)->storageAPI, &pSinkManager);
     if (code != TSDB_CODE_SUCCESS) {
@@ -879,7 +882,10 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
   }
     
   if (handle) {
-    SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500, .maxDataBlockNumPerQuery = 50, .compress = compressResult};
+    SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500,
+                           .maxDataBlockNumPerQuery = 50,
+                           .maxDataBytesPerQuery = 256 * 1024 * 1024,
+                           .compress = compressResult};
     void*           pSinkManager = NULL;
     code = dsDataSinkMgtInit(&cfg, &(*pTask)->storageAPI, &pSinkManager);
     if (code != TSDB_CODE_SUCCESS) {
@@ -996,6 +1002,13 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
     rowsThreshold = 4096;
   }
 
+  // Bound the round by bytes as well as rows.  The row threshold alone allows an unbounded
+  // amount of data to be materialized into pResultBlockList when values are large (4096 rows
+  // of a 16MB BLOB is 64GB), which is what made a select * over many large BLOBs consume
+  // tens of GB.  A round always returns at least one block, so the overshoot is one block.
+  int64_t bytesThreshold = 64 * 1024 * 1024;
+  int64_t currentBytes = 0;
+
   int32_t blockIndex = 0;
   while (pRes != NULL) {
     SSDataBlock* p = NULL;
@@ -1031,12 +1044,13 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
     blockIndex += 1;
 
     current += p->info.rows;
+    currentBytes += (int64_t)blockDataGetSize(p);
     QUERY_CHECK_CONDITION((p->info.rows > 0), code, lino, _end,
                           TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     void* tmp = taosArrayPush(pResList, &p);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
 
-    if (current >= rowsThreshold || processOneBlock) {
+    if (current >= rowsThreshold || currentBytes >= bytesThreshold || processOneBlock) {
       break;
     }
 
