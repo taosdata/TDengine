@@ -369,10 +369,24 @@ int32_t tableBuilderPut(STableBuilder *p, SBseBatch *pBatch) {
     SBlockItemInfo *pInfo = taosArrayGet(pBatch->pSeq, i);
     if (i == 0 || i == taosArrayGetSize(pBatch->pSeq) - 1) {
       tableBuildUpdateTableRange(p, pInfo);
-      memtableUpdateBlockRange(p->pMemTable, pInfo);
+      // Do NOT update the memtable range here: this item may not fit in the current
+      // block and trigger a flush below.  The flushed block's handle takes its range
+      // from pMemTable->range, so counting a not-yet-accepted item here makes that
+      // handle claim the seq while its block does not contain it, and the seq becomes
+      // unreadable.  The accept branch updates the range for the items it really takes.
     }
 
-    if (atomic_load_8(&p->hasImmuMemTable) ||
+    // A single value can be larger than one BSE block (e.g. a 16MB BLOB against the
+    // default 16MB block size).  In that case the block stays empty, so flushing it
+    // makes no progress and the loop would spin forever.  Accept the oversized value
+    // into its own block instead; blockWrapperResize() grows the buffer past blockCap.
+    // Note the size test is required: an empty block must still reject values that
+    // would overflow it together with the ones already accepted (len > 0).
+    bool oversized =
+        (pBlockWrapper->kvSize == 0 && len == 0 &&
+         blockWrapperSize(pBlockWrapper, pInfo->size) >= tableBuilderGetBlockSize(p));
+
+    if (atomic_load_8(&p->hasImmuMemTable) || oversized ||
         (blockWrapperSize(pBlockWrapper, len + pInfo->size) < tableBuilderGetBlockSize(p))) {
       i++;
       len += pInfo->size;
@@ -383,7 +397,6 @@ int32_t tableBuilderPut(STableBuilder *p, SBseBatch *pBatch) {
       TSDB_CHECK_CODE(code, lino, _error);
 
       bseTrace("start to insert  bse table builder mem %p, idx %d", p->pMemTable, i);
-      continue;
     } else {
       if (len > 0) {
         offset += blockAppendBatch(pBlockWrapper->data, pBatch->buf + offset, len);

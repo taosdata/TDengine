@@ -1809,6 +1809,17 @@ static int32_t translateSampleTail(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   SDataType* pSDataType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
   uint8_t    colType = pSDataType->type;
 
+  // sample()/tail() keep `num` values inline in the result buffer at a fixed stride taken
+  // from the column's declared width.  A BLOB column's declared width is only the 4-byte
+  // length-header placeholder, so there is no usable stride: reserving the real maximum
+  // would require num * TSDB_MAX_BLOB_LEN bytes (up to 16GB) and each stored value would
+  // still be truncated to the placeholder width.  Reject BLOB explicitly instead of
+  // returning silently wrong rows (other multi-value pickers such as min/max/top/bottom
+  // reject BLOB the same way).
+  if (IS_STR_DATA_BLOB(colType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
   // set result type
   pFunc->node.resType = (SDataType){.bytes = IS_STR_DATA_TYPE(colType) ? pSDataType->bytes : tDataTypes[colType].bytes,
                                     .type = colType,
@@ -2382,7 +2393,8 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   }
 
   if (IS_STR_DATA_BLOB(para2Type)) {
-    pFunc->node.resType.bytes = TSDB_MAX_BLOB_LEN + BLOBSTR_HEADER_SIZE;
+    // TSDB_MAX_BLOB_LEN is the maximum on-disk BLOB size including BLOBSTR_HEADER_SIZE.
+    pFunc->node.resType.bytes = TSDB_MAX_BLOB_LEN;
   } else {
     int32_t para2Bytes = pFunc->node.resType.bytes;
     if (IS_STR_DATA_TYPE(para2Type)) {
@@ -2811,11 +2823,13 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     case FUNCTION_TYPE_FIRST_PARTIAL:
     case FUNCTION_TYPE_LAST_PARTIAL:
     case FUNCTION_TYPE_FIRST_STATE:
-    case FUNCTION_TYPE_LAST_STATE:
-      bytes = getFirstLastInfoSize(getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes,
+    case FUNCTION_TYPE_LAST_STATE: {
+      SDataType* pParamDt = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
+      bytes = getFirstLastInfoSize(getMaxValueBytes(pParamDt->type, pParamDt->bytes),
                                    (pFunc->hasPk) ? pFunc->pkBytes : 0) +
               VARSTR_HEADER_SIZE;
       break;
+    }
     case FUNCTION_TYPE_FIRST_STATE_MERGE:
     case FUNCTION_TYPE_LAST_STATE_MERGE:
       bytes = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;

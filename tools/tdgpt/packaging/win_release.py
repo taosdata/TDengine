@@ -46,6 +46,7 @@ class InstallInfo:
         self.package_name = ""
         self.product_name = ""
         self.app_name = "TDengine TDgpt-OSS"
+        self.legacy_app_name = "TDengine TDgpt-OSS"
         self.product_full_name = "TDengine TDgpt-OSS - TDengine Analytics Node"
         self.model_dir = ""
         self.all_models = False
@@ -137,6 +138,7 @@ def parse_arguments():
     else:
         install_info.product_name = "tdengine-tdgpt-oss"
         install_info.app_name = "TDengine TDgpt-OSS"
+    install_info.legacy_app_name = install_info.app_name
     if args.lite:
         install_info.product_name += "-lite"
         install_info.app_name += " Lite"
@@ -919,6 +921,7 @@ def create_iss_script():
     # Replace placeholders
     iss_content = iss_content.replace('{{VERSION}}', tdgpt_version.version)
     iss_content = iss_content.replace('{{APP_NAME}}', install_info.app_name)
+    iss_content = iss_content.replace('{{LEGACY_APP_NAME}}', install_info.legacy_app_name)
     iss_content = iss_content.replace('{{PRODUCT_FULL_NAME}}', install_info.product_full_name)
     iss_content = iss_content.replace('{{PACKAGE_NAME}}', install_info.package_name)
     iss_content = iss_content.replace('{{SOURCE_DIR}}', install_dir_iss)

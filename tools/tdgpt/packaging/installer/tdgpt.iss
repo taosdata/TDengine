@@ -31,7 +31,7 @@ DisableProgramGroupPage=yes
 OutputDir={{OUTPUT_DIR}}
 OutputBaseFilename={#MyAppInstallName}
 SetupIconFile={#MyAppIco}
-UninstallDisplayIcon={#MyAppIco}
+UninstallDisplayIcon={app}\favicon.ico
 Compression=lzma
 SolidCompression=yes
 CloseApplications=no
@@ -46,6 +46,7 @@ ExtraDiskSpaceRequired=21474836480
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
+Source: "{#MyAppIco}"; DestDir: "{app}"; DestName: "favicon.ico"; Flags: ignoreversion
 Source: "{#MyAppSourceDir}\cfg\*"; DestDir: "{app}\cfg"; Flags: ignoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
 Source: "{#MyAppSourceDir}\lib\*"; DestDir: "{app}\lib"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MyAppSourceDir}\resource\*"; DestDir: "{app}\resource"; Flags: ignoreversion recursesubdirs createallsubdirs

@@ -6587,6 +6587,13 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
 
   while (1) {
     while (1) {
+      // Close the block before pulling the next tuple when a BLOB column is about to
+      // overflow its int32_t byte offsets; the tuple stays in the sort handle and is
+      // returned in the next block.
+      if (blockDataBlobExceedLimit(pResBlock)) {
+        break;
+      }
+
       pTupleHandle = NULL;
       int32_t code = tsortNextTuple(pHandle, &pTupleHandle);
       if (code != TSDB_CODE_SUCCESS) {
