@@ -724,7 +724,24 @@ typedef enum {
 #define TSDB_MAX_GEOMETRY_LEN  TSDB_MAX_FIELD_LEN  // 16384-8:65519
 #define TSDB_MAX_VARBINARY_LEN TSDB_MAX_FIELD_LEN  // 16384-8:65519
 
-#define TSDB_MAX_BLOB_LEN (4 << 20)
+// Maximum on-disk size of a single BLOB value, INCLUDING the 4-byte
+// BLOBSTR_HEADER_SIZE, so the maximum payload is (TSDB_MAX_BLOB_LEN - BLOBSTR_HEADER_SIZE).
+// Checks that compare a payload length must therefore use
+// `payload + BLOBSTR_HEADER_SIZE > TSDB_MAX_BLOB_LEN` (see tcompare.c,
+// tdataformat.c, tsdbRead2.c).  Raised from 4MB to 16MB; keep in sync with
+// TSDB_MAX_MSG_SIZE below, since one submit message may inline a whole BLOB value.
+#define TSDB_MAX_BLOB_LEN (16 << 20)
+
+// Maximum amount of BLOB payload a single result block may hold.
+// A result block is serialized into ONE RPC message and rpcMallocCont() rejects any message
+// above TRANS_PACKET_LIMIT (512MB), so a block larger than that cannot be sent at all: the
+// query fails with an out-of-memory error before the client sees a single row.  The int32_t
+// per-row offsets of a var-length column only rule out blocks above 2GB, which is far too
+// lax.  Half of TRANS_PACKET_LIMIT leaves room for the other columns, the offset array and
+// the message envelope.  Only BLOB needs this: every other var-length type is bounded by
+// TSDB_MAX_FIELD_LEN * TSDB_DEFAULT_MAXROWS_FBLOCK (~268MB) because such a block is sized in
+// rows, so for those the row-based limits are already tighter.
+#define TSDB_MAX_BLOB_BYTES_PER_BLOCK (256 * 1024 * 1024)
 
 #define TSDB_MAX_SUBROLE   32
 #define TSDB_MAX_PRIV_OBJS 512
@@ -774,7 +791,17 @@ typedef enum {
 #define TSDB_DEFAULT_STABLES_HASH_SIZE  100
 #define TSDB_DEFAULT_CTABLES_HASH_SIZE  20000
 
-#define TSDB_MAX_MSG_SIZE (1024 * 1024 * 10)
+// Upper bound of a single RPC message.  A submit request inlines the whole BLOB
+// value, so this must stay comfortably above TSDB_MAX_BLOB_LEN to leave room for
+// row headers, tags, batch padding and RPC framing.
+#define TSDB_MAX_MSG_SIZE (32 * 1024 * 1024)
+
+// Baseline message size used by tglobal.c to derive the RPC/WAL queue memory
+// defaults and the documented lower bounds of rpcQueueMemoryAllowed /
+// syncLogBufferMemoryAllowed.  Deliberately NOT tied to TSDB_MAX_MSG_SIZE: raising
+// the single-message limit must not silently raise those configuration minimums
+// (that would reject configs which are valid today).
+#define TSDB_MSG_MEMORY_BASELINE (10 * 1024 * 1024)
 
 #define TSDB_BLOB_MEMORY_LIMIT (1024 * 1024 * 1024 * 1)  // 1GB
 

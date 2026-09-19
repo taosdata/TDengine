@@ -107,6 +107,58 @@ def test_lite_installer_waits_for_existing_service_and_file_unlocks():
     assert "Installation timed out" in installer_template
 
 
+def test_installers_use_installed_icon_for_windows_apps_settings():
+    for template_name in ("tdgpt.iss", "tdgpt-lite.iss"):
+        template_path = MODULE_PATH.parent / "installer" / template_name
+        installer_template = template_path.read_text(encoding="utf-8-sig")
+
+        assert "UninstallDisplayIcon={app}\\favicon.ico" in installer_template
+        assert (
+            'Source: "{#MyAppIco}"; DestDir: "{app}"; '
+            'DestName: "favicon.ico"; Flags: ignoreversion'
+        ) in installer_template
+
+
+def test_lite_installer_removes_legacy_shortcuts_without_publishing_new_ones():
+    template_path = MODULE_PATH.parent / "installer" / "tdgpt-lite.iss"
+    installer_template = template_path.read_text(encoding="utf-8-sig")
+
+    assert "[Icons]" not in installer_template
+    assert "[InstallDelete]" in installer_template
+    assert '#define MyLegacyAppName "{{LEGACY_APP_NAME}}"' in installer_template
+    assert (
+        'Name: "{commonprograms}\\{#MyAppName}"; Type: filesandordirs'
+        in installer_template
+    )
+    assert (
+        'Name: "{commonprograms}\\{#MyLegacyAppName}"; Type: filesandordirs'
+        in installer_template
+    )
+    assert (
+        'Name: "{commondesktop}\\Start Taosanode.lnk"; Type: files'
+        in installer_template
+    )
+
+
+def test_generated_lite_installer_names_current_and_legacy_groups(tmp_path, monkeypatch):
+    monkeypatch.setattr(win_release.install_info, "release_dir", str(tmp_path))
+    monkeypatch.setattr(win_release.install_info, "install_dir", str(tmp_path / "install"))
+    monkeypatch.setattr(win_release.install_info, "source_dir", str(tmp_path / "install"))
+    monkeypatch.setattr(win_release.install_info, "package_name", "tdgpt-lite-test")
+    monkeypatch.setattr(win_release.install_info, "app_name", "TDengine TDgpt-OSS Lite")
+    monkeypatch.setattr(win_release.install_info, "legacy_app_name", "TDengine TDgpt-OSS")
+    monkeypatch.setattr(win_release.install_info, "product_full_name", "TDgpt Lite Test")
+    monkeypatch.setattr(win_release.install_info, "resource_package_url", "")
+    monkeypatch.setattr(win_release.install_info, "lite", True)
+    monkeypatch.setattr(win_release.tdgpt_version, "version", "1.0.0")
+
+    generated_iss = Path(win_release.create_iss_script()).read_text(encoding="utf-8")
+
+    assert '#define MyAppName "TDengine TDgpt-OSS Lite"' in generated_iss
+    assert '#define MyLegacyAppName "TDengine TDgpt-OSS"' in generated_iss
+    assert "{{LEGACY_APP_NAME}}" not in generated_iss
+
+
 def test_silent_installer_does_not_prompt_for_prerequisite_or_existing_install():
     template_path = MODULE_PATH.parent / "installer" / "tdgpt.iss"
     installer_template = template_path.read_text(encoding="utf-8-sig")

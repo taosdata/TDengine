@@ -341,7 +341,10 @@ static int32_t mysqlTypeMap(const char *typeName, const char *charset, SDataType
       switch (blen) {
         case 8:  // LONGBLOB  ->  BLOB; LONGTEXT  ->  NCHAR
           if (strncasecmp(typeName, "longblob", 8) == 0) {
-            SET_TD(pTd, TSDB_DATA_TYPE_BLOB, 4 * 1024 * 1024 + VARSTR_HEADER_SIZE);
+            // TSDB_MAX_BLOB_LEN already includes BLOBSTR_HEADER_SIZE, so this is the
+            // maximum BLOB column capacity; extConnectorQuery derives the payload
+            // limit as bytes - BLOBSTR_HEADER_SIZE.
+            SET_TD(pTd, TSDB_DATA_TYPE_BLOB, TSDB_MAX_BLOB_LEN);
           } else {  // LONGTEXT
             SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
           }

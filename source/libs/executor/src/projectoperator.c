@@ -1269,8 +1269,19 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
           QUERY_CHECK_CODE(code, lino, _end);
         }
 
+        // Bound the accumulation by bytes as well: the row-count threshold alone is no bound
+        // at all for large values (a 16MB BLOB fills the per-block byte budget in 16 rows and
+        // overflows the int32 range of the per-row offsets in 128).
+        //
+        // This runs AFTER the merge above, so pFinalRes already contains pRes and adding
+        // pRes's length again deliberately over-counts.  What it actually asks is "would one
+        // more block of this size still fit?", which stops the accumulation slightly earlier
+        // than strictly necessary.  That is intentional and harmless: it only moves the block
+        // boundaries, the returned rows are unaffected.  It also has to be this way, because
+        // pRes comes from getNextBlockFromDownstream() and is already consumed here - it could
+        // not be left for the next call without a pending-block mechanism.
         if (!withExternalWindow && pFinalRes->info.rows + pRes->info.rows <= pOperator->resultInfo.threshold &&
-            (pOperator->status != OP_EXEC_DONE)) {
+            (pOperator->status != OP_EXEC_DONE) && !blockDataMergeExceedLimit(pFinalRes, pRes)) {
           continue;
         }
       }

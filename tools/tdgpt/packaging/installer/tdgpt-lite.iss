@@ -3,6 +3,7 @@
 ; resource, model venv, mirror, or model-selection handling.
 
 #define MyAppName "{{APP_NAME}}"
+#define MyLegacyAppName "{{LEGACY_APP_NAME}}"
 #define MyAppPublisher "taosdata"
 #define MyAppURL "http://www.taosdata.com/"
 #define MyAppVersion "{{VERSION}}"
@@ -25,7 +26,7 @@ DisableProgramGroupPage=yes
 OutputDir={{OUTPUT_DIR}}
 OutputBaseFilename={#MyAppInstallName}
 SetupIconFile={#MyAppIco}
-UninstallDisplayIcon={#MyAppIco}
+UninstallDisplayIcon={app}\favicon.ico
 Compression=lzma
 SolidCompression=yes
 CloseApplications=no
@@ -40,6 +41,7 @@ ExtraDiskSpaceRequired=2147483648
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
+Source: "{#MyAppIco}"; DestDir: "{app}"; DestName: "favicon.ico"; Flags: ignoreversion
 Source: "{#MyAppSourceDir}\cfg\*"; DestDir: "{app}\cfg"; Flags: ignoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
 Source: "{#MyAppSourceDir}\lib\*"; DestDir: "{app}\lib"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MyAppSourceDir}\resource\*"; DestDir: "{app}\resource"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -65,11 +67,11 @@ Filename: "notepad.exe"; Parameters: """{app}\log\install.log"""; Description: "
 [UninstallRun]
 Filename: "{cmd}"; Parameters: "/C call ""{app}\uninstall.bat"""; Flags: runhidden waituntilterminated
 
-[Icons]
-Name: "{group}\Start Taosanode"; Filename: "{app}\bin\start-taosanode.bat"
-Name: "{group}\Stop Taosanode"; Filename: "{app}\bin\stop-taosanode.bat"
-Name: "{group}\Status Taosanode"; Filename: "{app}\bin\status-taosanode.bat"
-Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
+[InstallDelete]
+; TDgpt Lite replaces both earlier Lite and full TDgpt shortcut sets.
+Name: "{commonprograms}\{#MyAppName}"; Type: filesandordirs
+Name: "{commonprograms}\{#MyLegacyAppName}"; Type: filesandordirs
+Name: "{commondesktop}\Start Taosanode.lnk"; Type: files
 
 [Registry]
 Root: HKLM; Subkey: "Software\taosdata\TDgpt"; ValueType: string; ValueName: "InstallDir"; ValueData: "{app}"; Flags: uninsdeletevalue uninsdeletekeyifempty
