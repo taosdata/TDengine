@@ -810,6 +810,18 @@ class Test_IDMP_Meters:
         fixedVals = "1000, 1000, 1000"
         tsEnd = tdSql.insertFixedVal(table, tsEnd, step, count, cols, fixedVals)
 
+        # Close the filtered state windows before inserting disorder data.
+        # Keep voltage at 1000 so the other streams retain their open window.
+        tdSql.insertFixedVal(table, tsEnd, step, 1, cols, "600, 1000, 1000")
+        tdSql.checkResultsByFunc(
+            sql="select * from tdasset.`result_stream7_sub5`",
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, self.delTs7)
+            and tdSql.compareData(0, 1, 2)
+            and tdSql.compareData(0, 2, 400)
+            and tdSql.compareData(0, 3, 800),
+        )
+
         # disorder continue ts
         self.updateTs7 = ts
         count = 2
@@ -1523,6 +1535,14 @@ class Test_IDMP_Meters:
             self.verify_stream7_sub1()
             self.verify_stream7_sub2()
             self.verify_stream7_sub3()
+            result_sql = "select * from tdasset.`result_stream7_sub5` order by ts"
+            data = [
+                [1752574560000, 2, 400, 800],
+                [1752574680000, 2, 501, 1002],
+                [1752574800000, 2, 600, 1200],
+            ]
+            tdSql.checkResultsByFunc(sql=result_sql, func=lambda: tdSql.getRows() == len(data))
+            tdSql.checkDataMemLoop(result_sql, data)
 
         print("verify stream7 ................................. successfully.")
 
@@ -1561,13 +1581,14 @@ class Test_IDMP_Meters:
 
     def verify_stream7_sub3(self):
         # check
-        result_sql = f"select * from tdasset.`result_stream7_sub3` "
-        tdSql.checkResultsByFunc(sql=result_sql, func=lambda: tdSql.getRows() == 1)
+        result_sql = "select * from tdasset.`result_stream7_sub3` order by ts"
+        tdSql.checkResultsByFunc(sql=result_sql, func=lambda: tdSql.getRows() == 2)
 
         # check data
         data = [
             # ts          cnt
-            [1752574680000, 2, 501, 1002]
+            [1752574680000, 2, 501, 1002],
+            [1752574800000, 2, 600, 1200],
         ]
         tdSql.checkDataMemLoop(result_sql, data)
 
@@ -1582,14 +1603,18 @@ class Test_IDMP_Meters:
         self.verify_stream7(checkSub=False)
 
         # upate sub3
-        result_sql = f"select * from tdasset.`result_stream7_sub3` "
+        result_sql = "select * from tdasset.`result_stream7_sub3` order by ts"
         tdSql.checkResultsByFunc(
             sql=result_sql,
-            func=lambda: tdSql.getRows() == 1
+            func=lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, 1752574680000)
             and tdSql.compareData(0, 1, 2)
             and tdSql.compareData(0, 2, 502)
-            and tdSql.compareData(0, 3, 1004),
+            and tdSql.compareData(0, 3, 1004)
+            and tdSql.compareData(1, 0, 1752574800000)
+            and tdSql.compareData(1, 1, 2)
+            and tdSql.compareData(1, 2, 600)
+            and tdSql.compareData(1, 3, 1200),
         )
 
         # ***** bug11 *****
@@ -1613,11 +1638,12 @@ class Test_IDMP_Meters:
         '''
 
         # del sub5        
-        result_sql = f"select * from tdasset.`result_stream7_sub5` "
+        result_sql = "select * from tdasset.`result_stream7_sub5` order by ts"
         data = [
             # ts          cnt    
             [1752574560000, 2, 400, 800],
-            [1752574680000, 2, 502, 1004]
+            [1752574680000, 2, 502, 1004],
+            [1752574800000, 2, 600, 1200],
         ]        
         tdSql.checkResultsByFunc(
             sql  = result_sql, 
@@ -1634,14 +1660,18 @@ class Test_IDMP_Meters:
 
     def verifyC_stream7_sub3(self):
         # upate sub3
-        result_sql = f"select * from tdasset.`result_stream7_sub3` "
+        result_sql = "select * from tdasset.`result_stream7_sub3` order by ts"
         tdSql.checkResultsByFunc(
             sql=result_sql,
-            func=lambda: tdSql.getRows() == 1
+            func=lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, 1752574680000)
             and tdSql.compareData(0, 1, 2)
             and tdSql.compareData(0, 2, 502)
-            and tdSql.compareData(0, 3, 1004),
+            and tdSql.compareData(0, 3, 1004)
+            and tdSql.compareData(1, 0, 1752574800000)
+            and tdSql.compareData(1, 1, 2)
+            and tdSql.compareData(1, 2, 600)
+            and tdSql.compareData(1, 3, 1200),
         )
         print("verifyC_stream7_sub3 ............................. successfully.")
 
@@ -1666,11 +1696,12 @@ class Test_IDMP_Meters:
 
     def verifyC_stream7_sub5(self):
         # del sub5        
-        result_sql = f"select * from tdasset.`result_stream7_sub5` "
+        result_sql = "select * from tdasset.`result_stream7_sub5` order by ts"
         data = [
             # ts          cnt    
             [1752574560000, 2, 400, 800],
-            [1752574680000, 2, 502, 1004]
+            [1752574680000, 2, 502, 1004],
+            [1752574800000, 2, 600, 1200],
         ]        
         tdSql.checkResultsByFunc(
             sql  = result_sql, 
