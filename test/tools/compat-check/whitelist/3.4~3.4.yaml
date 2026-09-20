@@ -176,3 +176,6 @@ modified_tables:
   - col: update_time
     before: 10
     after: 12
+- table: INS_DNODE_VARIABLES
+  added_columns:
+  - reboot

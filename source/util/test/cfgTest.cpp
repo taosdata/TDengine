@@ -11,6 +11,7 @@
 
 #include <gtest/gtest.h>
 #include "tconfig.h"
+#include "tdef.h"
 
 #ifndef WINDOWS
 #include "osFile.h"
@@ -286,6 +287,97 @@ TEST_F(CfgTest, cfgDumpItemCategory) {
   EXPECT_EQ(pItem->bval, 0);
 
   EXPECT_EQ(cfgDumpItemCategory(pItem, NULL, 0, 0), TSDB_CODE_INVALID_CFG);
+}
+
+TEST_F(CfgTest, restartRequiredFlag) {
+  SConfig *pConfig = NULL;
+  int32_t  code = cfgInit(&pConfig);
+
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(pConfig, nullptr);
+
+  ASSERT_EQ(cfgAddInt32(pConfig, "lazyServerInt", 10, 0, 100, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,
+                        CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(cfgAddInt32(pConfig, "dynServerInt", 10, 0, 100, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL,
+                        CFG_PRIV_SYSTEM),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(cfgAddString(pConfig, "lazyClientStr", "abc", CFG_SCOPE_CLIENT, CFG_DYN_CLIENT_LAZY, CFG_CATEGORY_LOCAL,
+                         CFG_PRIV_SYSTEM),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(cfgAddBool(pConfig, "lazyBothBool", 0, CFG_SCOPE_BOTH, CFG_DYN_BOTH_LAZY, CFG_CATEGORY_GLOBAL,
+                       CFG_PRIV_SYSTEM),
+            TSDB_CODE_SUCCESS);
+
+  char buf[TSDB_CONFIG_REBOOT_LEN + 1] = {0};
+  int32_t len = 0;
+
+  // a *_LAZY dyn item defaults to not-yet-restart-required
+  SConfigItem *pLazyInt = cfgGetItem(pConfig, "lazyServerInt");
+  ASSERT_NE(pLazyInt, nullptr);
+  EXPECT_EQ(pLazyInt->restartRequired, 0);
+  EXPECT_EQ(cfgDumpItemRestart(pLazyInt, buf, sizeof(buf), &len), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(buf, "false");
+
+  // setting the exact same value should not flag a pending restart
+  ASSERT_EQ(cfgSetItem(pConfig, "lazyServerInt", "10", CFG_STYPE_ALTER_SERVER_CMD, true), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pLazyInt->restartRequired, 0);
+
+  // altering the value at runtime marks it as pending a restart before it is effective
+  ASSERT_EQ(cfgSetItem(pConfig, "lazyServerInt", "20", CFG_STYPE_ALTER_SERVER_CMD, true), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pLazyInt->i32, 20);
+  EXPECT_EQ(pLazyInt->restartRequired, 1);
+  EXPECT_EQ(cfgDumpItemRestart(pLazyInt, buf, sizeof(buf), &len), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(buf, "true");
+
+  // the flag stays set across further alters, as long as the value keeps differing
+  // from the one in effect since process start (captured as the baseline on the very
+  // first alter above)
+  ASSERT_EQ(cfgSetItem(pConfig, "lazyServerInt", "30", CFG_STYPE_ALTER_SERVER_CMD, true), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pLazyInt->restartRequired, 1);
+
+  // altering back to the value that's actually running (the baseline) clears the flag,
+  // since no restart is needed anymore
+  ASSERT_EQ(cfgSetItem(pConfig, "lazyServerInt", "10", CFG_STYPE_ALTER_SERVER_CMD, true), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pLazyInt->restartRequired, 0);
+  EXPECT_EQ(cfgDumpItemRestart(pLazyInt, buf, sizeof(buf), &len), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(buf, "false");
+
+  // diverging from the baseline again re-flags it
+  ASSERT_EQ(cfgSetItem(pConfig, "lazyServerInt", "40", CFG_STYPE_ALTER_SERVER_CMD, true), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pLazyInt->restartRequired, 1);
+
+  // a non-lazy dyn item takes effect immediately, so it never needs the pending-restart flag
+  SConfigItem *pDynInt = cfgGetItem(pConfig, "dynServerInt");
+  ASSERT_NE(pDynInt, nullptr);
+  ASSERT_EQ(cfgSetItem(pConfig, "dynServerInt", "50", CFG_STYPE_ALTER_SERVER_CMD, true), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pDynInt->i32, 50);
+  EXPECT_EQ(pDynInt->restartRequired, 0);
+
+  // loading from a config file/env is not a runtime alter, so it never sets the flag either
+  SConfigItem *pLazyBool = cfgGetItem(pConfig, "lazyBothBool");
+  ASSERT_NE(pLazyBool, nullptr);
+  ASSERT_EQ(cfgSetItem(pConfig, "lazyBothBool", "1", CFG_STYPE_CFG_FILE, true), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pLazyBool->bval, 1);
+  EXPECT_EQ(pLazyBool->restartRequired, 0);
+
+  // string-typed lazy items detect the "changed" condition via content comparison, not identity
+  SConfigItem *pLazyStr = cfgGetItem(pConfig, "lazyClientStr");
+  ASSERT_NE(pLazyStr, nullptr);
+  ASSERT_EQ(cfgSetItem(pConfig, "lazyClientStr", "abc", CFG_STYPE_ALTER_CLIENT_CMD, true), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pLazyStr->restartRequired, 0);
+  ASSERT_EQ(cfgSetItem(pConfig, "lazyClientStr", "xyz", CFG_STYPE_ALTER_CLIENT_CMD, true), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(pLazyStr->str, "xyz");
+  EXPECT_EQ(pLazyStr->restartRequired, 1);
+  EXPECT_EQ(cfgDumpItemRestart(pLazyStr, buf, sizeof(buf), &len), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(buf, "true");
+
+  // altering a string item back to its baseline value also clears the flag
+  ASSERT_EQ(cfgSetItem(pConfig, "lazyClientStr", "abc", CFG_STYPE_ALTER_CLIENT_CMD, true), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(pLazyStr->str, "abc");
+  EXPECT_EQ(pLazyStr->restartRequired, 0);
+
+  cfgCleanup(pConfig);
 }
 
 #ifndef WINDOWS

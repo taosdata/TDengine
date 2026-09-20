@@ -182,9 +182,10 @@ Additional Notes:
 
 1. Method to modify global configuration parameters via SQL: `alter all dnodes 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
 2. Method to modify local configuration parameters via SQL: `alter dnode <dnode_id> 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
-3. From 3.4.0.0, to prevent configuration file tampering, the `forceReadConfig` parameter has been removed. Except for the first startup, configuration items will not be loaded from the configuration file. If you need to modify configuration parameters, use the `ALTER` command and modify them via SQL.
-4. For dynamic modification methods of configuration parameters, please refer to [Node Management](../../05-tdengine-sql/08-cluster-management/01-node.md).
-5. Some parameters exist in both the client (taosc) and server (taosd), with different scopes and meanings in different contexts. For details, please refer to [TDengine Configuration Parameter Scope Comparison](10-config-scope.md).
+3. For a parameter marked "Modifiable via SQL, takes effect after restart", `show variables` / `show local variables` / `show dnode <dnode_id> variables` show the new value immediately after the modification, but the value is not actually in effect in the running process until that node restarts. Use the `reboot` column in the result to check this: `true` means the value was altered but a restart is still pending; `false` means no restart is needed (or the item was never altered at runtime). The flag is cleared automatically when the process restarts.
+4. From 3.4.0.0, to prevent configuration file tampering, the `forceReadConfig` parameter has been removed. Except for the first startup, configuration items will not be loaded from the configuration file. If you need to modify configuration parameters, use the `ALTER` command and modify them via SQL.
+5. For dynamic modification methods of configuration parameters, please refer to [Node Management](../../05-tdengine-sql/08-cluster-management/01-node.md).
+6. Some parameters exist in both the client (taosc) and server (taosd), with different scopes and meanings in different contexts. For details, please refer to [TDengine Configuration Parameter Scope Comparison](10-config-scope.md).
 
 ### Connection Related
 

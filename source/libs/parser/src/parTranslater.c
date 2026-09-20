@@ -31026,6 +31026,10 @@ static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pS
   (*pSchema)[4].bytes = TSDB_CONFIG_INFO_LEN;
   tstrncpy((*pSchema)[4].name, "info", sizeof((*pSchema)[4].name));
 
+  (*pSchema)[5].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[5].bytes = TSDB_CONFIG_REBOOT_LEN;
+  tstrncpy((*pSchema)[5].name, "reboot", sizeof((*pSchema)[5].name));
+
   return TSDB_CODE_SUCCESS;
 }
 
