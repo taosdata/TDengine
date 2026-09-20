@@ -846,6 +846,17 @@ static int32_t syncSnapReceiverExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshot
     code = TSDB_CODE_INVALID_DATA_FMT;
     goto _exit;
   }
+  // Security (TD-SEC-2026-042 / GHSA-xg67-9f8r-64v5, CWE-125): datHead->len is int32_t from the
+  // (possibly malicious) leader's prep data. A negative or over-bounded len would be sign/overflow
+  // converted into a huge size_t when passed to taosMemoryRealloc/memcpy below, causing heap OOB
+  // read. Bound it with unsigned arithmetic against the actual prep payload size (pMsg->dataLen).
+  if (datHead->len < 0 || pMsg->dataLen < (uint32_t)sizeof(SSyncTLV) ||
+      (uint64_t)datHead->len > (uint64_t)pMsg->dataLen - (uint64_t)sizeof(SSyncTLV)) {
+    sRError(pReceiver, "reject prep snapshot with invalid/over-bounded TLV len:%d, dataLen:%u (TD-SEC-2026-042)",
+            datHead->len, pMsg->dataLen);
+    code = TSDB_CODE_INVALID_DATA_FMT;
+    goto _exit;
+  }
   int32_t dataLen = sizeof(SSyncTLV) + datHead->len;
 
   // save exchanged snap info
@@ -1126,6 +1137,23 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
   int32_t                code = 0;
 
+  // Security (TD-SEC-2026-042 / GHSA-xg67-9f8r-64v5, CWE-125): the snapshot block length
+  // (pMsg->dataLen) is fully attacker-controlled and is carried inside the RPC body. The only
+  // trustworthy bound is the RPC layer's contLen, NOT pMsg->bytes (also taken from the wire).
+  // Reject any message whose declared dataLen exceeds the actual bytes received, otherwise the
+  // downstream FpSnapshotDoWrite / memcpy would read past the heap buffer. This entry check bounds
+  // the outer payload (pMsg->dataLen) used by syncSnapReceiverExchgSnapInfo's first alloc/copy. The
+  // inner embedded SSyncTLV.len (also attacker-controlled) is validated separately inside
+  // syncSnapReceiverExchgSnapInfo / syncSnapSenderExchgSnapInfo, NOT by this check alone.
+  int64_t snapDataAvail = (int64_t)pRpcMsg->contLen - (int64_t)offsetof(SyncSnapshotSend, data);
+  if ((int64_t)pMsg->dataLen > snapDataAvail) {
+    sRError(pReceiver,
+            "reject snapshot msg with out-of-bounds dataLen:%u, available:%" PRId64 ", seq:%d (TD-SEC-2026-042)",
+            pMsg->dataLen, snapDataAvail, pMsg->seq);
+    code = TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG;
+    TAOS_RETURN(code);
+  }
+
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(pSyncNode, &pMsg->srcId)) {
     syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "not in my config", &pRpcMsg->info.traceId);
@@ -1242,6 +1270,13 @@ static int32_t syncSnapSenderExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshotSe
   SSyncTLV *datHead = (void *)pMsg->data;
   if (datHead->typ != pMsg->payloadType) {
     sSError(pSender, "unexpected data type in data of SyncSnapshotRsp. typ: %d", datHead->typ);
+    TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
+  }
+  // Security (TD-SEC-2026-042 / GHSA-xg67-9f8r-64v5, CWE-125): datHead->len is int32_t and may be
+  // attacker-controlled. Reject a negative or overflowing len up front so it can never be turned into
+  // a giant size_t and passed to taosMemoryRealloc/memcpy below.
+  if (datHead->len < 0 || (uint64_t)datHead->len > (uint64_t)SIZE_MAX - (uint64_t)sizeof(SSyncTLV)) {
+    sSError(pSender, "unexpected snapshot TLV len:%d in SyncSnapshotRsp (TD-SEC-2026-042)", datHead->len);
     TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
   }
   int32_t dataLen = sizeof(SSyncTLV) + datHead->len;
@@ -1444,6 +1479,38 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
     sSError(pSender, "snapshot sender stopped. sender startTime:%" PRId64 ", msg startTime:%" PRId64,
             pSender->senderStartTime, pMsg->startTime);
     TAOS_RETURN(TSDB_CODE_SYN_INTERNAL_ERROR);
+  }
+
+  // Security (TD-SEC-2026-042 / GHSA-xg67-9f8r-64v5, CWE-125): a malicious follower's prep-reply
+  // embeds an SSyncTLV whose len is attacker-controlled (int32_t, signed). syncSnapSenderExchgSnapInfo
+  // reads/copies sizeof(SSyncTLV)+len bytes from pMsg->data, so validate it BEFORE that happens:
+  //   1) reject a negative len, otherwise it sign-extends into a huge size_t for taosMemoryRealloc/memcpy;
+  //   2) bound the TLV using unsigned (uint64) arithmetic against the actual received RPC body.
+  // The only trusted bound is the RPC layer's contLen, NOT pMsg->bytes (also a wire value).
+  if (pMsg->payloadType == TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
+    int64_t rspDataAvail = (int64_t)pRpcMsg->contLen - (int64_t)offsetof(SyncSnapshotRsp, data);
+    if (rspDataAvail < (int64_t)sizeof(SSyncTLV)) {
+      sSError(pSender, "reject prep snapshot rsp with truncated TLV header, available:%" PRId64 " (TD-SEC-2026-042)",
+              rspDataAvail);
+      code = TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG;
+      goto _ERROR;
+    }
+    SSyncTLV *datHead = (SSyncTLV *)pMsg->data;
+    // Guard the signed len explicitly: a negative value would bypass the size check below via
+    // underflow and later become a giant size_t in realloc/memcpy.
+    if (datHead->len < 0) {
+      sSError(pSender, "reject prep snapshot rsp with negative TLV len:%d (TD-SEC-2026-042)", datHead->len);
+      code = TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG;
+      goto _ERROR;
+    }
+    uint64_t tlvNeed = (uint64_t)sizeof(SSyncTLV) + (uint64_t)datHead->len;
+    if (tlvNeed > (uint64_t)rspDataAvail) {
+      sSError(pSender,
+              "reject prep snapshot rsp with out-of-bounds TLV len:%d, available:%" PRId64 " (TD-SEC-2026-042)",
+              datHead->len, rspDataAvail);
+      code = TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG;
+      goto _ERROR;
+    }
   }
 
   // check signature
