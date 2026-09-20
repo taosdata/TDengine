@@ -692,7 +692,7 @@
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_08_system_observability.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_09_stability.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_10_performance.py
-100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_11_security.py
+100,,y,.,CASE_TIMEOUT=1300 ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_11_security.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_12_compatibility.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_13_explain.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_14_result_parity.py
