@@ -604,14 +604,42 @@ static int32_t caseWhenNodeCopy(const SCaseWhenNode* pSrc, SCaseWhenNode* pDst) 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t copyHintValue(const SHintNode* pSrc, SHintNode* pDst) {
-  if (NULL == pSrc->value) {
-    pDst->value = NULL;
+static void destroyHintParam(void* pParam) { taosMemoryFree(((SHintParam*)pParam)->value); }
+
+static SArray* hintParamsClone(const SArray* pSrc) {
+  SArray* pDst = taosArrayInit(taosArrayGetSize(pSrc), sizeof(SHintParam));
+  if (NULL == pDst) {
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pSrc); ++i) {
+    const SHintParam* pParam = taosArrayGet(pSrc, i);
+    SHintParam        param = {.type = pParam->type};
+    if (NULL != pParam->value) {
+      param.value = taosStrdup(pParam->value);
+      if (NULL == param.value) {
+        taosArrayDestroyEx(pDst, destroyHintParam);
+        return NULL;
+      }
+    }
+    if (NULL == taosArrayPush(pDst, &param)) {
+      taosMemoryFree(param.value);
+      taosArrayDestroyEx(pDst, destroyHintParam);
+      return NULL;
+    }
+  }
+
+  return pDst;
+}
+
+static int32_t copyHintParams(const SHintNode* pSrc, SHintNode* pDst) {
+  if (NULL == pSrc->pParams) {
+    pDst->pParams = NULL;
     return TSDB_CODE_SUCCESS;
   }
-  switch (pSrc->option) {
-    default:
-      break;
+  pDst->pParams = hintParamsClone(pSrc->pParams);
+  if (NULL == pDst->pParams) {
+    return terrno;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -619,7 +647,7 @@ static int32_t copyHintValue(const SHintNode* pSrc, SHintNode* pDst) {
 static int32_t hintNodeCopy(const SHintNode* pSrc, SHintNode* pDst) {
   COPY_SCALAR_FIELD(type);
   COPY_SCALAR_FIELD(option);
-  return copyHintValue(pSrc, pDst);
+  return copyHintParams(pSrc, pDst);
 }
 
 static int32_t windowOffsetCopy(const SWindowOffsetNode* pSrc, SWindowOffsetNode* pDst) {
