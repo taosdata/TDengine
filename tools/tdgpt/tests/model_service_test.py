@@ -6,7 +6,6 @@ import os
 from types import SimpleNamespace
 
 import pytest
-
 from taosanode_service import EXIT_CONFLICT, execute_command
 
 
