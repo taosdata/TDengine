@@ -60,6 +60,9 @@ extern "C" int32_t msmBuildTriggerDeployInfo(SMnode *pMnode, SStmStatus *pInfo, 
 extern "C" void    msmStopStreamByError(int64_t streamId, SStmStatus *pStatus, int32_t errCode, int64_t currTs);
 extern "C" int32_t msmNormalHandleHbMsg(SStmGrpCtx *pCtx);
 extern "C" int32_t msmNormalHandleStatusUpdate(SStmGrpCtx *pCtx);
+extern "C" int32_t msmDeployTriggerOrigReader(SStmGrpCtx *pCtx, SStmTaskStatusMsg *pTask);
+extern "C" int32_t msmCheckDeployTrigReader(SStmGrpCtx *pCtx, SStmStatus *pStatus, SStmTaskStatusMsg *pTask,
+                                            int32_t vgId, int32_t vgNum);
 extern "C" void    msmChkHandleTriggerOperations(SStmGrpCtx *pCtx, SStmTaskStatusMsg *pTask, SStmTaskStatus *pStatus);
 extern "C" int32_t msmWatchRecordNewTask(SStmGrpCtx *pCtx, SStmTaskStatusMsg *pTask);
 extern "C" int32_t msmAssignTaskSnodeId(SMnode *pMnode, SStreamObj *pStream, bool isStatic);
@@ -663,6 +666,209 @@ class StreamMapGuard {
  private:
   SHashObj *saved_ = nullptr;
 };
+
+class MndStreamOrigReaderReplyTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    ASSERT_NE(streamMap_.get(), nullptr);
+    deployCalls_ = 0;
+    status_.lastTrigMgmtReqId = 17;
+    status_.trigReaders = taosArrayInit(1, sizeof(SStmTaskStatus));
+    status_.trigOReaders = taosArrayInit(1, POINTER_BYTES);
+    readers_ = taosArrayInit(1, sizeof(SStmTaskStatus));
+    ASSERT_NE(status_.trigReaders, nullptr);
+    ASSERT_NE(status_.trigOReaders, nullptr);
+    ASSERT_NE(readers_, nullptr);
+    SStmTaskStatus reader = {};
+    reader.id.nodeId = 5;
+    reader.id.taskId = 0x42;
+    ASSERT_NE(taosArrayPush(readers_, &reader), nullptr);
+    ASSERT_NE(taosArrayPush(status_.trigOReaders, &readers_), nullptr);
+    ASSERT_EQ(taosHashPut(streamMap_.get(), &streamId_, sizeof(streamId_), &status_, sizeof(status_)), 0);
+    stored_ = static_cast<SStmStatus *>(taosHashGet(streamMap_.get(), &streamId_, sizeof(streamId_)));
+    ASSERT_NE(stored_, nullptr);
+    ctx_.pRsp = &heartbeat_;
+    stub_.set(mstBuildDBVgroupsMap, buildDbMap);
+    stub_.set(mndGetVgroupEpsetById, readerEpset);
+  }
+
+  void TearDown() override {
+    tFreeSStreamMgmtReq(task_.pMgmtReq);
+    taosMemoryFree(task_.pMgmtReq);
+    taosArrayDestroyEx(heartbeat_.rsps.rspList, tFreeSStreamMgmtRsp);
+    taosArrayDestroy(readers_);
+    taosArrayDestroy(status_.trigReaders);
+    taosArrayDestroy(status_.trigOReaders);
+  }
+
+  static int32_t buildDbMap(SMnode *, SSHashObj **ppMap) {
+    *ppMap = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    if (*ppMap == nullptr) return terrno;
+    SDBVgHashInfo db = {};
+    db.hashMethod = 1;
+    db.vgArray = taosArrayInit(1, sizeof(SVGroupHashInfo));
+    if (db.vgArray == nullptr) return terrno;
+    SVGroupHashInfo vg = {};
+    vg.vgId = 5;
+    vg.hashEnd = UINT32_MAX;
+    if (taosArrayPush(db.vgArray, &vg) == nullptr) {
+      taosArrayDestroy(db.vgArray);
+      return terrno;
+    }
+    const int32_t code = tSimpleHashPut(*ppMap, "1.db", sizeof("1.db"), &db, sizeof(db));
+    if (code != 0) taosArrayDestroy(db.vgArray);
+    return code;
+  }
+
+  static int32_t failDbMap(SMnode *, SSHashObj **) { return TSDB_CODE_MND_DB_NOT_EXIST; }
+
+  static int32_t countDeployment(SStmGrpCtx *, SStmStatus *, SStmTaskStatusMsg *, int32_t, int32_t) {
+    ++deployCalls_;
+    return 0;
+  }
+
+  static int32_t failDeployment(SStmGrpCtx *ctx, SStmStatus *status, SStmTaskStatusMsg *task, int32_t vgId,
+                                int32_t vgNum) {
+    countDeployment(ctx, status, task, vgId, vgNum);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  static SArray *failReaderReplyAllocation(size_t size, size_t elemSize) {
+    if (elemSize == sizeof(SStreamTaskAddr)) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return nullptr;
+    }
+    SArray *array = taosArrayInit_s(elemSize, (std::max)(size, static_cast<size_t>(TARRAY_MIN_SIZE)));
+    if (array != nullptr) array->size = 0;
+    return array;
+  }
+
+  static SEpSet readerEpset(SMnode *, int32_t) {
+    SEpSet ep = {};
+    ep.numOfEps = 1;
+    ep.eps[0].port = 6030;
+    tstrncpy(ep.eps[0].fqdn, "reader.test", sizeof(ep.eps[0].fqdn));
+    return ep;
+  }
+
+  void request() {
+    taosArrayDestroyEx(heartbeat_.rsps.rspList, tFreeSStreamMgmtRsp);
+    heartbeat_.rsps.rspList = nullptr;
+    task_.streamId = streamId_;
+    task_.taskId = 1;
+    task_.type = STREAM_TRIGGER_TASK;
+    task_.pMgmtReq = static_cast<SStreamMgmtReq *>(taosMemoryCalloc(1, sizeof(SStreamMgmtReq)));
+    ASSERT_NE(task_.pMgmtReq, nullptr);
+    task_.pMgmtReq->reqId = 17;
+    task_.pMgmtReq->type = STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER;
+    task_.pMgmtReq->cont.pReqs = taosArrayInit(2, sizeof(SStreamDbTableName));
+    ASSERT_NE(task_.pMgmtReq->cont.pReqs, nullptr);
+    for (const char *table : {"physical_a", "physical_b"}) {
+      SStreamDbTableName name = {};
+      tstrncpy(name.dbFName, "1.db", sizeof(name.dbFName));
+      tstrncpy(name.tbName, table, sizeof(name.tbName));
+      ASSERT_NE(taosArrayPush(task_.pMgmtReq->cont.pReqs, &name), nullptr);
+    }
+    ASSERT_EQ(msmDeployTriggerOrigReader(&ctx_, &task_), 0);
+    ASSERT_EQ(taosArrayGetSize(heartbeat_.rsps.rspList), 1);
+  }
+
+  StreamMapGuard    streamMap_;
+  Stub              stub_;
+  int64_t           streamId_ = 0x7115431537;
+  SStmStatus        status_ = {};
+  SStmStatus       *stored_ = nullptr;
+  SArray           *readers_ = nullptr;
+  SStmTaskStatusMsg task_ = {};
+  SMStreamHbRspMsg  heartbeat_ = {};
+  SStmGrpCtx        ctx_ = {};
+  static int        deployCalls_;
+};
+
+int MndStreamOrigReaderReplyTest::deployCalls_ = 0;
+
+TEST_F(MndStreamOrigReaderReplyTest, ReplaysCompleteReplyWithoutRedeployingReaders) {
+  // The first reply may be delayed or lost; every retry must carry usable reader information.
+  for (int i = 0; i < 2; ++i) {
+    ASSERT_NO_FATAL_FAILURE(request());
+    const auto *rsp = static_cast<SStreamMgmtRsp *>(taosArrayGet(heartbeat_.rsps.rspList, 0));
+    ASSERT_EQ(rsp->code, 0);
+    EXPECT_EQ(rsp->reqId, 17);
+    ASSERT_EQ(taosArrayGetSize(rsp->cont.vgIds), 2);
+    EXPECT_EQ(*static_cast<int32_t *>(taosArrayGet(rsp->cont.vgIds, 0)), 5);
+    EXPECT_EQ(*static_cast<int32_t *>(taosArrayGet(rsp->cont.vgIds, 1)), 5);
+    ASSERT_EQ(taosArrayGetSize(rsp->cont.readerList), 1);
+    const auto *reader = static_cast<SStreamTaskAddr *>(taosArrayGet(rsp->cont.readerList, 0));
+    EXPECT_EQ(reader->nodeId, 5);
+    EXPECT_EQ(reader->taskId, 0x42);
+    EXPECT_EQ(reader->epset.eps[0].port, 6030);
+    EXPECT_EQ(msmGetTrigOReaderSize(stored_->trigOReaders), 1);
+    EXPECT_EQ(task_.pMgmtReq, nullptr);
+  }
+}
+
+TEST_F(MndStreamOrigReaderReplyTest, FailedRequestDoesNotSuppressRetry) {
+  stored_->lastTrigMgmtReqId = 0;
+  stub_.set(mstBuildDBVgroupsMap, failDbMap);
+  ASSERT_NO_FATAL_FAILURE(request());
+  const auto *rsp = static_cast<SStreamMgmtRsp *>(taosArrayGet(heartbeat_.rsps.rspList, 0));
+  EXPECT_EQ(rsp->code, TSDB_CODE_MND_DB_NOT_EXIST);
+  EXPECT_EQ(stored_->lastTrigMgmtReqId, 0);
+
+  stub_.set(mstBuildDBVgroupsMap, buildDbMap);
+  SStmTaskStatus reader = {};
+  reader.id.nodeId = 5;
+  ASSERT_NE(taosArrayPush(stored_->trigReaders, &reader), nullptr);
+  ASSERT_NO_FATAL_FAILURE(request());
+  rsp = static_cast<SStreamMgmtRsp *>(taosArrayGet(heartbeat_.rsps.rspList, 0));
+  EXPECT_EQ(rsp->code, 0);
+  EXPECT_EQ(taosArrayGetSize(rsp->cont.vgIds), 2);
+  EXPECT_EQ(stored_->lastTrigMgmtReqId, 17);
+}
+
+TEST_F(MndStreamOrigReaderReplyTest, RepeatedRequestPreservesStoppedError) {
+  stored_->stopped = 1;
+  ASSERT_NO_FATAL_FAILURE(request());
+  const auto *rsp = static_cast<SStreamMgmtRsp *>(taosArrayGet(heartbeat_.rsps.rspList, 0));
+  EXPECT_EQ(rsp->code, TSDB_CODE_MND_STREAM_STOPPED);
+}
+
+TEST_F(MndStreamOrigReaderReplyTest, PartialDeploymentFailureStopsStreamBeforeRetry) {
+  // A reader is already recorded; failure in a later deployment must use whole-stream recovery.
+  stored_->lastTrigMgmtReqId = 0;
+  stub_.set(msmCheckDeployTrigReader, failDeployment);
+  ASSERT_NO_FATAL_FAILURE(request());
+  const auto *rsp = static_cast<SStreamMgmtRsp *>(taosArrayGet(heartbeat_.rsps.rspList, 0));
+  EXPECT_EQ(rsp->code, TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(stored_->stopped, 1);
+  EXPECT_EQ(stored_->fatalError, TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(stored_->lastTrigMgmtReqId, 0);
+
+  ASSERT_NO_FATAL_FAILURE(request());
+  rsp = static_cast<SStreamMgmtRsp *>(taosArrayGet(heartbeat_.rsps.rspList, 0));
+  EXPECT_EQ(rsp->code, TSDB_CODE_MND_STREAM_STOPPED);
+  EXPECT_EQ(deployCalls_, 1);
+  EXPECT_EQ(msmGetTrigOReaderSize(stored_->trigOReaders), 1);
+  EXPECT_EQ(msmGetTrigOReader(stored_->trigOReaders, 0)->id.taskId, 0x42);
+}
+
+TEST_F(MndStreamOrigReaderReplyTest, ReplyAllocationFailureDoesNotRepeatCompletedDeployment) {
+  stored_->lastTrigMgmtReqId = 0;
+  stub_.set(msmCheckDeployTrigReader, countDeployment);
+  stub_.set(taosArrayInit, failReaderReplyAllocation);
+  ASSERT_NO_FATAL_FAILURE(request());
+  const auto *rsp = static_cast<SStreamMgmtRsp *>(taosArrayGet(heartbeat_.rsps.rspList, 0));
+  EXPECT_EQ(rsp->code, TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(stored_->lastTrigMgmtReqId, 17);
+
+  stub_.reset(taosArrayInit);
+  ASSERT_NO_FATAL_FAILURE(request());
+  rsp = static_cast<SStreamMgmtRsp *>(taosArrayGet(heartbeat_.rsps.rspList, 0));
+  EXPECT_EQ(rsp->code, 0);
+  EXPECT_EQ(taosArrayGetSize(rsp->cont.vgIds), 2);
+  EXPECT_EQ(taosArrayGetSize(rsp->cont.readerList), 1);
+  EXPECT_EQ(deployCalls_, 1);
+}
 
 class SnodeLookupStubGuard {
  public:
