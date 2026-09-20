@@ -237,11 +237,14 @@ typedef struct SVirtualScanLogicNode {
   SNodeList*    pTagRefSources;  // STagRefSourceLogicNode list for tag references
   SNodeList*    pLocalTags;      // Local tags (no reference) - use TagScan
   SNodeList*    pRefTagCols;     // Referenced tag columns - need source table scan
+  SNodeList*    pConstRefTags;   // Tag columns referencing a vntb/ntb source tag - table-level
+                                 // constants resolved by the scan operator itself
   SNode*        pTagFilterCond;  // Tag filter condition extracted from WHERE clause
 
   // Flags
   bool          hasTagRef;        // true if has tag references
   bool          hasLocalTag;      // true if has local tags
+  bool          hasConstRefTag;   // true if has const-ref tags (vntb/ntb source)
 } SVirtualScanLogicNode;
 
 // Tag reference column information
@@ -708,11 +711,26 @@ typedef struct SVirtualScanPhysiNode {
   SNodeList*     pTagRefSources;  // STagRefSourcePhysiNode list for tag references
   SNodeList*     pLocalTags;      // Local tags (no reference) - use TagScan
   SNodeList*     pRefTagCols;     // Referenced tag columns - need source table scan
+  SNodeList*     pConstRefTags;   // Tag columns referencing a vntb/ntb source tag - table-level
+                                  // constants resolved by the scan operator itself
   SNode*         pTagFilterCond;  // Tag filter condition extracted from WHERE clause
 
   // Flags
   bool           hasTagRef;        // true if has tag references
   bool           hasLocalTag;      // true if has local tags
+  bool           hasConstRefTag;   // true if has const-ref tags (vntb/ntb source); carried in the
+                                   // TLV/JSON plan contract (PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_CONST_REF_TAG).
+                                   // The pConstRefTags LIST is the executor's single decision basis
+                                   // (ensureRefTagsResolved); this flag is only a drift sentinel -- the
+                                   // executor qErrors when it disagrees with the list (see DS #5.5.3)
+  SEpSet         mgmtEpSet;        // mnode endpoints for const-ref chain resolution hops. PLAN-TIME
+                                   // SNAPSHOT, same pattern as SSystemTableScanPhysiNode.mgmtEpSet and
+                                   // execNode.epSet: NOT an authoritative live topology -- the RPC layer
+                                   // refreshes stale endpoints via response-attached epsets, a dropped
+                                   // node surfaces as a not-exist broken chain. eps is an INLINE fixed
+                                   // array (tmsg.h), so every copy/clone/decode is a complete value with
+                                   // no shared pointer; ALL-ZERO means "not set" (remote hops unavailable
+                                   // in const-ref resolution); each vscan node owns its own copy
 }SVirtualScanPhysiNode;
 
 typedef struct SLastRowScanPhysiNode {

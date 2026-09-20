@@ -2401,9 +2401,11 @@ static const char* jkVirtualTableScanLogicPlanscanAllCols = "scanAllCols";
 static const char* jkVirtualTableScanLogicPlanTagRefSources = "TagRefSources";
 static const char* jkVirtualTableScanLogicPlanLocalTags = "LocalTags";
 static const char* jkVirtualTableScanLogicPlanRefTagCols = "RefTagCols";
+static const char* jkVirtualTableScanLogicPlanConstRefTags = "ConstRefTags";
 static const char* jkVirtualTableScanLogicPlanTagFilterCond = "TagFilterCond";
 static const char* jkVirtualTableScanLogicPlanHasTagRef = "HasTagRef";
 static const char* jkVirtualTableScanLogicPlanHasLocalTag = "HasLocalTag";
+static const char* jkVirtualTableScanLogicPlanHasConstRefTag = "HasConstRefTag";
 static const char* jkTagRefSourceLogicPlanSourceTableName = "SourceTableName";
 static const char* jkTagRefSourceLogicPlanSourceSuid = "SourceSuid";
 static const char* jkTagRefSourceLogicPlanSourceId = "SourceId";
@@ -2447,6 +2449,9 @@ static int32_t logicVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
     code = nodeListToJson(pJson, jkVirtualTableScanLogicPlanRefTagCols, pNode->pRefTagCols);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkVirtualTableScanLogicPlanConstRefTags, pNode->pConstRefTags);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkVirtualTableScanLogicPlanTagFilterCond, nodeToJson, pNode->pTagFilterCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -2454,6 +2459,9 @@ static int32_t logicVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkVirtualTableScanLogicPlanHasLocalTag, pNode->hasLocalTag);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkVirtualTableScanLogicPlanHasConstRefTag, pNode->hasConstRefTag);
   }
   return code;
 }
@@ -2494,6 +2502,9 @@ static int32_t jsonToLogicVirtualTableScanNode(const SJson* pJson, void* pObj) {
     code = jsonToNodeList(pJson, jkVirtualTableScanLogicPlanRefTagCols, &pNode->pRefTagCols);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkVirtualTableScanLogicPlanConstRefTags, &pNode->pConstRefTags);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkVirtualTableScanLogicPlanTagFilterCond, &pNode->pTagFilterCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -2501,6 +2512,9 @@ static int32_t jsonToLogicVirtualTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkVirtualTableScanLogicPlanHasLocalTag, &pNode->hasLocalTag);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkVirtualTableScanLogicPlanHasConstRefTag, &pNode->hasConstRefTag);
   }
   return code;
 }
@@ -3161,9 +3175,12 @@ static const char* jkVirtualTableScanPhysiPlanIgCheckUpdate = "IgCheckUpdate";
 static const char* jkVirtualTableScanPhysiPlanTagRefSources = "TagRefSources";
 static const char* jkVirtualTableScanPhysiPlanLocalTags = "LocalTags";
 static const char* jkVirtualTableScanPhysiPlanRefTagCols = "RefTagCols";
+static const char* jkVirtualTableScanPhysiPlanConstRefTags = "ConstRefTags";
 static const char* jkVirtualTableScanPhysiPlanTagFilterCond = "TagFilterCond";
 static const char* jkVirtualTableScanPhysiPlanHasTagRef = "HasTagRef";
 static const char* jkVirtualTableScanPhysiPlanHasLocalTag = "HasLocalTag";
+static const char* jkVirtualTableScanPhysiPlanHasConstRefTag = "HasConstRefTag";
+static const char* jkVirtualTableScanPhysiPlanMgmtEpSet = "MgmtEpSet";
 static const char* jkTagRefSourcePhysiPlanSourceTableName = "SourceTableName";
 static const char* jkTagRefSourcePhysiPlanSourceSuid = "SourceSuid";
 static const char* jkTagRefSourcePhysiPlanSourceId = "SourceId";
@@ -3219,6 +3236,9 @@ static int32_t physiVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
     code = nodeListToJson(pJson, jkVirtualTableScanPhysiPlanRefTagCols, pNode->pRefTagCols);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkVirtualTableScanPhysiPlanConstRefTags, pNode->pConstRefTags);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkVirtualTableScanPhysiPlanTagFilterCond, nodeToJson, pNode->pTagFilterCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -3226,6 +3246,12 @@ static int32_t physiVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkVirtualTableScanPhysiPlanHasLocalTag, pNode->hasLocalTag);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkVirtualTableScanPhysiPlanHasConstRefTag, pNode->hasConstRefTag);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkVirtualTableScanPhysiPlanMgmtEpSet, epSetToJson, &pNode->mgmtEpSet);
   }
 
   return code;
@@ -3273,6 +3299,9 @@ static int32_t jsonToPhysiVirtualTableScanNode(const SJson* pJson, void* pObj) {
     code = jsonToNodeList(pJson, jkVirtualTableScanPhysiPlanRefTagCols, &pNode->pRefTagCols);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkVirtualTableScanPhysiPlanConstRefTags, &pNode->pConstRefTags);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkVirtualTableScanPhysiPlanTagFilterCond, &pNode->pTagFilterCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -3280,6 +3309,12 @@ static int32_t jsonToPhysiVirtualTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkVirtualTableScanPhysiPlanHasLocalTag, &pNode->hasLocalTag);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkVirtualTableScanPhysiPlanHasConstRefTag, &pNode->hasConstRefTag);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonToObject(pJson, jkVirtualTableScanPhysiPlanMgmtEpSet, jsonToEpSet, &pNode->mgmtEpSet);
   }
 
   return code;
