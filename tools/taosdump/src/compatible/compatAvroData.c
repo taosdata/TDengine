@@ -12,6 +12,7 @@
 #include "compatAvroSchema.h"
 #include "compatAvroUtil.h"
 #include "compatAvro.h"
+#include "avroSqlBuf.h"
 #include <avro.h>
 // Temporarily undef TDengine atomic overrides for jansson.h inline functions
 #pragma push_macro("__atomic_add_fetch")
@@ -520,6 +521,17 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
     if (stbChange && stbChange->schemaChanged && stbChange->colBindMap) {
         nBindCols = stbChange->matchedCols;
     }
+    // A data file without a single bindable column cannot be restored; bail out
+    // before the column count is used to size buffers or bind arrays.
+    if (nBindCols <= 0) {
+        logError("avro data: no bindable column in %s (columns=%d)", fileName,
+                 rs->numFields);
+        avroFreeRecordSchema(rs);
+        avro_schema_decref(schema);
+        taos_stmt2_close(stmt2);
+        avro_file_reader_close(reader);
+        return -1;
+    }
 
     int batchSize = ctx->dataBatch;
     if (batchSize <= 0) {
@@ -574,7 +586,7 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
                 if (!stbChange) {
                     AvroTableDes *ntbDes = avroAllocTableDes(TSDB_MAX_COLUMNS);
                     if (ntbDes && avroGetTableDes(conn, ctx->targetDb, tbName,
-                                                  ntbDes, true) >= 0) {
+                                                  ntbDes, TSDB_MAX_COLUMNS, true) >= 0) {
                         int backupCols = rs->numFields - colAdj;
                         bool colsSame = (backupCols == ntbDes->columns);
                         if (colsSame) {
@@ -624,18 +636,32 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
                                 sc->colBindMap = (int16_t *)taosMemoryCalloc(
                                         backupCols, sizeof(int16_t));
                                 if (srvBind && sc->serverColMap && sc->colBindMap) {
-                                    char colStr[4096];
+                                    // Worst case: '(' + one "`name`," per server column
+                                    // + ')' + NUL.  A fixed stack buffer is not safe here
+                                    // because both the column count and the name lengths
+                                    // come from the (untrusted) dump file / server.
+                                    size_t colStrCap = 3
+                                        + (size_t)ntbDes->columns * (AVRO_COL_NAME_LEN + 3);
+                                    char *colStr = (char *)taosMemoryCalloc(1, colStrCap);
                                     char *cp = colStr;
-                                    *cp++ = '(';
+                                    if (!colStr) {
+                                        logError("avro data: out of memory building the column "
+                                                 "list of %s", tbName);
+                                    } else {
+                                        *cp++ = '(';
+                                    }
                                     int mc = 0;
                                     for (int si = 0; si < ntbDes->columns; si++) {
                                         srvBind[si] = -1;
                                         for (int bi = 0; bi < backupCols; bi++) {
                                             if (strcasecmp(ntbDes->cols[si].field,
                                                     rs->fields[bi+colAdj].name)==0) {
-                                                if (mc > 0) *cp++ = ',';
-                                                cp += sprintf(cp, "`%s`",
-                                                              ntbDes->cols[si].field);
+                                                if (cp) {
+                                                    if (mc > 0) *cp++ = ',';
+                                                    cp += snprintf(cp,
+                                                        (size_t)(colStr + colStrCap - cp),
+                                                        "`%s`", ntbDes->cols[si].field);
+                                                }
                                                 srvBind[si] = (int16_t)mc;
                                                 sc->serverColMap[mc] = (int16_t)si;
                                                 mc++;
@@ -643,9 +669,12 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
                                             }
                                         }
                                     }
-                                    *cp++ = ')';
-                                    *cp = '\0';
-                                    sc->strCols = taosStrdup(colStr);
+                                    if (cp) {
+                                        *cp++ = ')';
+                                        *cp = '\0';
+                                    }
+                                    sc->strCols = colStr ? taosStrdup(colStr) : NULL;
+                                    taosMemoryFree(colStr);
                                     for (int bi = 0; bi < backupCols; bi++) {
                                         sc->colBindMap[bi] = -1;
                                         for (int si = 0; si < ntbDes->columns; si++) {
@@ -690,28 +719,46 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
 
             if (mallocDes && (strlen(tableDes->name) == 0
                     || strcmp(tableDes->name, tbName) != 0)) {
-                if (avroGetTableDes(conn, ctx->targetDb, tbName, mallocDes, true) < 0) {
+                if (avroGetTableDes(conn, ctx->targetDb, tbName, mallocDes,
+                                    TSDB_MAX_COLUMNS, true) < 0) {
                     goto cleanup;
                 }
             }
 
-            // Prepare STMT2 with fully-qualified table name
+            // Prepare STMT2 with fully-qualified table name.
+            //
+            // Both the column count and the name lengths come from the
+            // (untrusted) dump file, so the statement is assembled in a buffer
+            // sized from the actual parts and every append is bounds-checked: a
+            // fixed stack buffer overflows as soon as the file declares more
+            // bound columns than it can hold ("VALUES(?" plus 2 bytes per
+            // column).
             {
-                char stmtBuf[4096];
-                char *p = stmtBuf;
                 const char *partCols = "";
                 if (stbChange && stbChange->schemaChanged && stbChange->strCols) {
                     partCols = stbChange->strCols;
                 }
-                p += snprintf(p, sizeof(stmtBuf),
-                              "INSERT INTO `%s`.`%s` %s VALUES(?",
-                              ctx->targetDb, tbName, partCols);
-                for (int i = 1; i < nBindCols; i++) {
-                    p += sprintf(p, ",?");
-                }
-                sprintf(p, ")");
 
-                if (taos_stmt2_prepare(stmt2, stmtBuf, 0) != 0) {
+                size_t stmtCap = avroSqlInsertStmtSize(ctx->targetDb, tbName, partCols,
+                                                       nBindCols);
+                char *stmtBuf = (char *)taosMemoryCalloc(1, stmtCap);
+                if (!stmtBuf) {
+                    logError("avro data: out of memory building the INSERT statement for %s",
+                             tbName);
+                    goto cleanup;
+                }
+
+                if (avroSqlBuildInsertStmt(stmtBuf, stmtCap, ctx->targetDb, tbName,
+                                           partCols, nBindCols) < 0) {
+                    logError("avro data: cannot build the INSERT statement for %s "
+                             "(%d bind columns)", tbName, nBindCols);
+                    taosMemoryFree(stmtBuf);
+                    goto cleanup;
+                }
+
+                int prepRet = taos_stmt2_prepare(stmt2, stmtBuf, 0);
+                taosMemoryFree(stmtBuf);
+                if (prepRet != 0) {
                     logError("avro data: stmt2 prepare failed: %s",
                              taos_stmt2_error(stmt2));
                     goto cleanup;

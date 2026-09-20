@@ -91,8 +91,12 @@ void avroFreeFileList(char **list);
 char *avroReadFolderStbName(const char *dirPath);
 
 // Get the AVRO table description from server via DESCRIBE.
+// `maxCols` is the number of AvroColDes slots actually allocated in `tableDes`
+// (see avroAllocTableDes).  The row count of DESCRIBE is server-supplied, so
+// the fill stops with an error instead of writing past the allocation when the
+// server reports more columns/tags than the caller reserved.
 int avroGetTableDes(TAOS *taos, const char *dbName, const char *tableName,
-                    AvroTableDes *tableDes, bool colOnly);
+                    AvroTableDes *tableDes, int maxCols, bool colOnly);
 
 // Check if a directory is a normal-table folder (contains avro-ntb files
 // but no avro-tbtags files, or ends with special marker).
