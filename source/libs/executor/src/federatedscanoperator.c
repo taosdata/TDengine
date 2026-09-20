@@ -2424,7 +2424,7 @@ _restart:  // Entry point for phase-2 re-execution in twoPassMode
         .fp     = (FResolveRemoteForSQL)gTaskScalarExtra.fp,
         .pTimestampTypeHints = pFedNode->pTimestampTypeHints,
         .numTimestampTypeHints = pFedNode->numTimestampTypeHints,
-        // DS §5.2.6: pass client timezone so timestamp filter values in WHERE
+        // DS section5.2.6: pass client timezone so timestamp filter values in WHERE
         // are formatted using the client TZ instead of the server-side global TZ.
         .tzName = remoteTimezone,
         .convertTimestampOutputToEpoch =

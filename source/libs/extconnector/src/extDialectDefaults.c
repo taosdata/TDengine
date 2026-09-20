@@ -8,7 +8,7 @@
 
 #include "extDialect.h"
 
-// ── Clause defaults ─────────────────────────────────────────────────────────
+// -- Clause defaults ---------------------------------------------------------
 // REMOVED: All clause-level capability is now expressed solely via the static
 // kFqClauseCap[] bitmap matrix in extCapability.c.  The capDisabled() path
 // remains for runtime dynamic demotion (catalog error-feedback) and session
@@ -33,7 +33,7 @@ int32_t extDialectGetCommonClauseDemotions(const EExtClauseKind** ppClauses, int
   return TSDB_CODE_SUCCESS;
 }
 
-// ── Function defaults ────────────────────────────────────────────────────────
+// -- Function defaults --------------------------------------------------------
 // REMOVED: All function-level capability is now expressed solely via the static
 // funcMgtBuiltins[].fqPushCap bitmap in builtins.c.  The capDisabled() path
 // remains for runtime dynamic demotion (catalog error-feedback) and session
@@ -58,7 +58,7 @@ int32_t extDialectGetCommonFuncDemotions(const char* const** pppFuncs, int32_t* 
   return TSDB_CODE_SUCCESS;
 }
 
-// ── Operator defaults ────────────────────────────────────────────────────────
+// -- Operator defaults --------------------------------------------------------
 // REMOVED: All operator-level capability is now expressed solely via the static
 // kFqOpCap[] bitmap matrix in extCapability.c.  The capDisabled() path remains
 // for runtime dynamic demotion (catalog error-feedback) and session overlay,

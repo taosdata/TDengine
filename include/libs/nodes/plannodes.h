@@ -310,7 +310,7 @@ typedef struct SProjectLogicNode {
   bool       ignoreGroupId;
   bool       inputIgnoreGroup;
   bool       isSetOpProj;
-  bool       isUnionDedup;  // DS §5.3.8.6: true -> emit UNION (dedup), false -> UNION ALL
+  bool       isUnionDedup;  // DS section5.3.8.6: true -> emit UNION (dedup), false -> UNION ALL
 } SProjectLogicNode;
 
 typedef struct SIndefRowsFuncLogicNode {
@@ -932,7 +932,7 @@ typedef struct SProjectPhysiNode {
   bool       mergeDataBlock;
   bool       ignoreGroupId;
   bool       inputIgnoreGroup;
-  bool       isUnionDedup;  // DS §5.3.8.6: true -> emit UNION (dedup), false -> UNION ALL
+  bool       isUnionDedup;  // DS section5.3.8.6: true -> emit UNION (dedup), false -> UNION ALL
 } SProjectPhysiNode;
 
 typedef struct SIndefRowsFuncPhysiNode {
@@ -1496,7 +1496,7 @@ typedef struct SNodesRemoteSQLCtx {
   // mapping instead of pExtMeta.
   const SExtTimestampTypeHint* pTimestampTypeHints;
   int32_t             numTimestampTypeHints;
-  // DS §5.2.6: client timezone name (e.g. "UTC", "Asia/Shanghai").
+  // DS section5.2.6: client timezone name (e.g. "UTC", "Asia/Shanghai").
   // When non-NULL and non-empty, timestamp epoch values in WHERE conditions
   // are formatted to calendar strings using this timezone instead of the
   // server-side global timezone.  This ensures tz-naive external columns
