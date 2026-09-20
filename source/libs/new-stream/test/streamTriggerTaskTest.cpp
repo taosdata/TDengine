@@ -69,6 +69,7 @@ extern "C" {
 
 int32_t stmAddPeriodReport(int64_t streamId, SArray** ppReport, SStreamTriggerTask* triggerTask);
 int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg* pMsg, SStreamTask* pTask, SStreamTaskStats* pStats);
+int32_t smHandleTaskMgmtRsp(SStreamMgmtRsp* pRsp);
 void    tFreeSSTriggerRuntimeStatus(void* param);
 }
 
@@ -14530,6 +14531,120 @@ static int32_t              captureNestedHistoryCheckpoint(int64_t streamId, voi
   const auto* pBytes = static_cast<const uint8_t*>(pData);
   gNestedHistoryCheckpointBytes.assign(pBytes, pBytes + dataLen);
   return TSDB_CODE_SUCCESS;
+}
+
+class StreamTriggerMgmtReplyTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    ASSERT_TRUE(harness_.deployVirtual(NestedHistoryHarness::kScanStart, false, false));
+    ASSERT_EQ(harness_.startVirtualDiscovery(), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(harness_.respondAllVirtualTableInfo(), TSDB_CODE_SUCCESS);
+    ASSERT_TRUE(registration_.install());
+    pending_ = harness_.task()->task.pMgmtReq;
+    ASSERT_NE(pending_, nullptr);
+    ASSERT_EQ(taosArrayGetSize(pending_->cont.pReqs), 2);
+    response_.header.msgType = STREAM_MSG_ORIGTBL_READER_INFO;
+    response_.reqId = pending_->reqId;
+    response_.task = harness_.task()->task;
+  }
+
+  void TearDown() override { tFreeSStreamMgmtRsp(&response_); }
+
+  void setVgroups(int32_t count) {
+    response_.cont.vgIds = taosArrayInit(count, sizeof(int32_t));
+    ASSERT_NE(response_.cont.vgIds, nullptr);
+    for (int32_t i = 0; i < count; ++i) {
+      int32_t nodeId = NestedHistoryHarness::kOriginalNodeA;
+      if (i < 2) {
+        const auto* name = static_cast<SStreamDbTableName*>(taosArrayGet(pending_->cont.pReqs, i));
+        nodeId = strcmp(name->tbName, "physical_a") == 0 ? NestedHistoryHarness::kOriginalNodeA
+                                                         : NestedHistoryHarness::kOriginalNodeB;
+      }
+      ASSERT_NE(taosArrayPush(response_.cont.vgIds, &nodeId), nullptr);
+    }
+  }
+
+  std::vector<std::string> originalTableState() {
+    std::vector<std::string> result;
+    int32_t                  dbIter = 0;
+    void*                    db = nullptr;
+    while ((db = tSimpleHashIterate(harness_.task()->pOrigTableCols, db, &dbIter)) != nullptr) {
+      int32_t tableIter = 0;
+      void*   table = nullptr;
+      while ((table = tSimpleHashIterate(*static_cast<SSHashObj**>(db), table, &tableIter)) != nullptr) {
+        const auto* data = static_cast<const char*>(table);
+        const auto* key = static_cast<const char*>(tSimpleHashGetKey(table, nullptr));
+        result.emplace_back(data, key - data);
+      }
+    }
+    return result;
+  }
+
+  NestedHistoryHarness             harness_;
+  ScopedTriggerTaskMapRegistration registration_{harness_.task()};
+  SStreamMgmtReq*                  pending_ = nullptr;
+  SStreamMgmtRsp                   response_ = {};
+};
+
+TEST_F(StreamTriggerMgmtReplyTest, RejectsEmptyReplyBeforeConsumingRequest) {
+  EXPECT_EQ(smHandleTaskMgmtRsp(&response_), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(harness_.task()->task.pMgmtReq, pending_);
+  EXPECT_EQ(harness_.task()->waitingMgmtReqId, response_.reqId);
+}
+
+TEST_F(StreamTriggerMgmtReplyTest, RejectsShortReplyBeforeUpdatingVgroups) {
+  ASSERT_NO_FATAL_FAILURE(setVgroups(1));
+  const auto before = originalTableState();
+  EXPECT_EQ(smHandleTaskMgmtRsp(&response_), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(originalTableState(), before);
+  EXPECT_EQ(harness_.task()->task.pMgmtReq, pending_);
+}
+
+TEST_F(StreamTriggerMgmtReplyTest, RejectsOversizedReplyBeforeUpdatingVgroups) {
+  ASSERT_NO_FATAL_FAILURE(setVgroups(3));
+  const auto before = originalTableState();
+  EXPECT_EQ(smHandleTaskMgmtRsp(&response_), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(originalTableState(), before);
+  EXPECT_EQ(harness_.task()->task.pMgmtReq, pending_);
+}
+
+TEST_F(StreamTriggerMgmtReplyTest, PropagatesErrorBeforeReadingReplyBody) {
+  response_.code = TSDB_CODE_MND_STREAM_STOPPED;
+  EXPECT_EQ(smHandleTaskMgmtRsp(&response_), TSDB_CODE_MND_STREAM_STOPPED);
+  EXPECT_EQ(harness_.task()->task.pMgmtReq, pending_);
+  EXPECT_EQ(harness_.task()->task.status, STREAM_STATUS_FAILED);
+  EXPECT_EQ(harness_.task()->task.errorCode, TSDB_CODE_MND_STREAM_STOPPED);
+}
+
+TEST_F(StreamTriggerMgmtReplyTest, IgnoresStaleErrorWithoutConsumingCurrentRequest) {
+  ++response_.reqId;
+  response_.code = TSDB_CODE_MND_STREAM_STOPPED;
+  EXPECT_EQ(smHandleTaskMgmtRsp(&response_), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(harness_.task()->task.pMgmtReq, pending_);
+  EXPECT_EQ(harness_.task()->task.status, STREAM_STATUS_RUNNING);
+}
+
+TEST_F(StreamTriggerMgmtReplyTest, CompleteReplyResumesDiscoveryAndLateDuplicateIsIgnored) {
+  ASSERT_NO_FATAL_FAILURE(setVgroups(2));
+  response_.cont.readerList = taosArrayInit(2, sizeof(SStreamTaskAddr));
+  ASSERT_NE(response_.cont.readerList, nullptr);
+  SStreamTaskAddr readers[2] = {};
+  readers[0].taskId = NestedHistoryHarness::kOriginalReaderTaskA;
+  readers[0].nodeId = NestedHistoryHarness::kOriginalNodeA;
+  readers[1].taskId = NestedHistoryHarness::kOriginalReaderTaskB;
+  readers[1].nodeId = NestedHistoryHarness::kOriginalNodeB;
+  for (auto& reader : readers) {
+    ASSERT_EQ(addEpIntoEpSet(&reader.epset, "original.test", 6030), TSDB_CODE_SUCCESS);
+    ASSERT_NE(taosArrayPush(response_.cont.readerList, &reader), nullptr);
+  }
+  ASSERT_EQ(smHandleTaskMgmtRsp(&response_), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(harness_.task()->task.pMgmtReq, nullptr);
+  EXPECT_EQ(harness_.task()->waitingMgmtReqId, -1);
+  EXPECT_EQ(taosArrayGetSize(harness_.task()->readerList), 4);
+  EXPECT_EQ(smHandleTaskMgmtRsp(&response_), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(taosArrayGetSize(harness_.task()->readerList), 4);
+  ASSERT_EQ(harness_.dispatchQueuedControl(NestedHistoryHarness::kRealtimeSession), TSDB_CODE_SUCCESS);
+  EXPECT_NE(harness_.findPull(STRIGGER_PULL_OTABLE_INFO, NestedHistoryHarness::kRealtimeSession), nullptr);
 }
 
 class StreamNestedHistoryIntegrationTest : public ::testing::Test {};

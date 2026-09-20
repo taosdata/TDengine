@@ -5177,11 +5177,8 @@ int32_t msmDeployTriggerOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   }
 
   if (rsp.reqId == pStatus->lastTrigMgmtReqId) {
-    mstsDebug("duplicated trigger oreader deploy msg, will ignore it, reqId %" PRId64, rsp.reqId);
-    goto _exit;
+    mstsDebug("duplicated trigger oreader deploy msg, replay reader info, reqId %" PRId64, rsp.reqId);
   }
-
-  atomic_store_64(&pStatus->lastTrigMgmtReqId, rsp.reqId); 
 
   stopped = atomic_load_8(&pStatus->stopped);
   if (stopped) {
@@ -5209,15 +5206,23 @@ int32_t msmDeployTriggerOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   }
 
   int32_t vgNum = tSimpleHashGetSize(pVgs);
-  while (true) {
-    p = tSimpleHashIterate(pVgs, p, &iter);
-    if (NULL == p) {
-      break;
+  if (rsp.reqId != pStatus->lastTrigMgmtReqId) {
+    while (true) {
+      p = tSimpleHashIterate(pVgs, p, &iter);
+      if (NULL == p) {
+        break;
+      }
+
+      code = msmCheckDeployTrigReader(pCtx, pStatus, pTask, *(int32_t*)p, vgNum);
+      if (code) {
+        // Partially registered readers must be cleaned up before another deployment attempt.
+        msmStopStreamByError(streamId, pStatus, code, pCtx->currTs);
+        TAOS_CHECK_EXIT(code);
+      }
     }
-    
-    TAOS_CHECK_EXIT(msmCheckDeployTrigReader(pCtx, pStatus, pTask, *(int32_t*)p, vgNum));
+    atomic_store_64(&pStatus->lastTrigMgmtReqId, rsp.reqId);
   }
-  
+
   vgNum = msmGetTrigOReaderSize(pStatus->trigOReaders);
   rsp.cont.readerList = taosArrayInit(vgNum, sizeof(SStreamTaskAddr));
   TSDB_CHECK_NULL(rsp.cont.readerList, code, lino, _exit, terrno);
