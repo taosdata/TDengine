@@ -2545,6 +2545,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pTagRefSources);
       nodesDestroyList(pLogicNode->pLocalTags);
       nodesDestroyList(pLogicNode->pRefTagCols);
+      nodesDestroyList(pLogicNode->pConstRefTags);
       nodesDestroyNode(pLogicNode->pTagFilterCond);
       break;
     }
@@ -2730,6 +2731,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pTagRefSources);
       nodesDestroyList(pPhyNode->pLocalTags);
       nodesDestroyList(pPhyNode->pRefTagCols);
+      nodesDestroyList(pPhyNode->pConstRefTags);
       nodesDestroyNode(pPhyNode->pTagFilterCond);
       break;
     }

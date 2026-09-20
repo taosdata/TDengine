@@ -892,6 +892,92 @@ int32_t appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle)
 // table scan path (ensureOwnedTagsResolved).
 int32_t appendResolvedTagVal(SArray* pResolvedTags, col_id_t dstColId, const SSchema* pSchema,
                              const STag* pTagData);
+
+
+// Create the per-scan ref-resolution cache pair (vgInfo: refDbName -> SDBVgInfo*;
+// cfg: "refDbName.refTableName" -> an internal per-source cfg cache entry type
+// maintained by sysscanoperator.c). Ownership of BOTH maps and their entries sits with the Init/Clear pair
+// here: Init creates them, Clear releases them (vg entries freeVgInfo'd one by one,
+// cfg entries via the registered freeFp). Idempotent: fields already initialized
+// are left untouched; on allocation failure the failing pair stays NULL and the
+// caller runs uncached. NOTE the failure is NOT memorized: the pair stays NULL and each
+// subsequent call retries the allocation (and re-logs). Single-thread use only (HASH_NO_LOCK).
+void sysTagsRefCachesInit(SHashObj** ppVgInfoCache, SHashObj** ppCfgCache);
+
+// Destroy the cache pair from sysTagsRefCachesInit (vg entries freeVgInfo'd, cfg entries
+// released via the registered freeFp) and reset both pointers to NULL.
+void sysTagsRefCachesClear(SHashObj** ppVgInfoCache, SHashObj** ppCfgCache);
+
+// Context for resolving a tag-ref to its terminal value across vntb tag-ref chains.
+// Each hop first tries a local meta read (short-lived LOCK reader, never held across RPC);
+// if the table is not on this vnode, one synchronous TDMT_VND_TABLE_CFG RPC is issued.
+// A vntb source tag that is itself a ref (no value in its STag) continues to the next hop
+// via entry colRef.pTagRef (local) or cfgRsp.pTagRefs (remote).
+typedef struct SRefChainCtx {
+  void*           vnode;       // local vnode handle (the data vnode's readHandle.vnode).
+                               // The local fast path needs BOTH vnode and pAPI non-NULL:
+                               // resolveTagRefLocalHop falls back to a remote cfg hop when
+                               // either is NULL -- e.g. the virtual-scan operator holds no
+                               // vnode, so every hop takes the remote path there
+  SStorageAPI*    pAPI;        // storage/meta reader API
+  int32_t         accountId;
+  int64_t         txnId;       // reader txn scope (pTaskInfo->txnId; 0 outside a txn)
+  void*           clientRpc;   // pMsgCb->clientRpc; NULL -> remote hops unavailable
+  // writable on purpose: the RPC layer may refresh the endpoints through it (mnode
+  // switchover updates), callers must pass a writable SEpSet -- matches the non-const
+  // SEpSet* parameter of the underlying vg-lookup helper
+  SEpSet*         pMnodeEpSet; // mnode endpoints for vg lookup on remote hops
+  uint64_t        reqId;
+  SExecTaskInfo*  pTaskInfo;   // for msg callback and error propagation (may be NULL)
+  // optional per-scan RPC result caches: repeated refs to the same source table then
+  // cost at most one GET_DB_INFO + one TABLE_CFG RPC per scan (RPC-storm guard, same
+  // caches the ins_tags operator keeps in SSysTableScanInfo). BEST-EFFORT: on init
+  // failure, or past SYS_TAGS_REF_CFG_CACHE_MAX_NUM entries, fetches pass through
+  // uncached; negative/source-gone outcomes are cached too, so they are NOT retried
+  // within the same scan. Callers that resolve a bounded number of chains (e.g. once
+  // per scan) may leave both NULL and simply run uncached.
+  SHashObj*       pRefDbVgInfoCache;  // refDbName -> SDBVgInfo* (owned by the cache pair:
+                                      // freed entry-by-entry inside sysTagsRefCachesClear,
+                                      // not via a hash freeFp); NULL -> uncached
+  SHashObj*       pRefTableCfgCache;  // "refDbName.refTableName" -> per-source table-cfg cache
+                                      // entry (opaque here: the entry type is file-local to
+                                      // sysscanoperator.c); NULL -> uncached
+} SRefChainCtx;
+
+// Resolve refDb.refTable.refCol to its terminal tag value following vntb tag-ref chains.
+// No destination-type parameter on purpose (see the definition comment): the DDL
+// type-match gate keeps source/destination types identical and the value width always
+// comes from the per-hop source schema.
+// Out: on *pResolved=true, *ppData is a malloc'd buffer owned by the caller (free it)
+// with *pLen set to the value width. EXCEPTION: a resolved var-typed tag with an empty
+// payload ('' stored, nData == 0) yields *ppData == NULL with *pLen == 0 while
+// *pResolved stays true -- callers must not dereference *ppData without a NULL check
+// (downstream tTagValToData renders it as an empty string). A broken chain (dropped source table/db) resolves
+// to *pResolved=false with SUCCESS and *ppData NULL / *pLen 0 -- the tag reads as
+// NULL, the query must not fail. NOTE two further silent-NULL paths with the same
+// NULL/0 outputs: (a) a hop neither locally resolvable nor advanceable while remote
+// hops are unavailable (ctx.clientRpc or ctx.pMnodeEpSet NULL, see the struct fields);
+// (b) a remote cfg hop whose tag exists in the schema but carries neither a value nor
+// an active ref. "Unresolved" therefore does NOT imply the source was dropped -- it
+// covers dropped-source, remote-unavailable and value-less terminal alike.
+// RPC/internal failures on hops that WERE attempted propagate as errors (a silently-NULL
+// tag would hide the outage); on any hard error *ppData is likewise guaranteed NULL and
+// *pLen 0 (no partial allocation -- ensureRefTagsResolved relies on this). Runtime
+// cycles and chains deeper than
+// TSDB_MAX_VTABLE_REF_DEPTH return hard errors (TSDB_CODE_VTABLE_CIRCULAR_REF /
+// TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED).
+// MUTATION / THREADING CONTRACT: pCtx is deliberately NON-const -- remote hops write cache
+// entries into pCtx->pRefTableCfgCache / pCtx->pRefDbVgInfoCache (shared per-scan state, the
+// RPC-storm guard from !2045). Do not place the ctx in read-only/shared memory; callers may
+// pass NULL caches to run fully uncached.
+// THREADING SCOPE: (1) pRefDbVgInfoCache / pRefTableCfgCache are HASH_NO_LOCK (put may
+// rehash), so these two hashes -- and any ctx pointing at them -- must be driven by ONE
+// thread at a time; sharing them across concurrently-resolving scans is a race. (2) The
+// other fields are NOT thread-private: clientRpc/pTaskInfo are task-level shared objects,
+// and pMnodeEpSet is a non-const pointer the RPC layer may rewrite (mnode switchover
+// refresh) -- expect concurrent access to it when a plan/operator runs in parallel.
+int32_t resolveTagRefChain(SRefChainCtx* pCtx, const char* refDb, const char* refTable,
+                           const char* refCol, char** ppData, uint32_t* pLen, bool* pResolved);
 int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput,
                             int32_t* rowEntryInfoOffset);
 void    clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);
