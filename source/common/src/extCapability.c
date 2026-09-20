@@ -687,16 +687,16 @@ _exit:
   return code;
 }
 
-// ── FQ operator push-down capability bitmap ──────────────────────────────────
+// -- FQ operator push-down capability bitmap ----------------------------------
 // Indexed by EOperatorType.  Entries for values not in the enum are FQ_CAP_NONE.
 // OP_TYPE_ASSIGN = 200 is the highest value; size = 201.
 #define FQ_OP_CAP_TABLE_SIZE 201
 
 static const uint16_t kFqOpCap[FQ_OP_CAP_TABLE_SIZE] = {
-  // [0] — not a valid operator
+  // [0] - not a valid operator
   [0]                         = FQ_CAP_NONE,
 
-  // Arithmetic operators — all dialects
+  // Arithmetic operators - all dialects
   [OP_TYPE_ADD]               = FQ_CAP_ALL,
   [OP_TYPE_SUB]               = FQ_CAP_ALL,
   [OP_TYPE_MULTI]             = FQ_CAP_ALL,
@@ -704,11 +704,11 @@ static const uint16_t kFqOpCap[FQ_OP_CAP_TABLE_SIZE] = {
   [OP_TYPE_REM]               = FQ_CAP_ALL,
   [OP_TYPE_MINUS]             = FQ_CAP_ALL,
 
-  // Bitwise operators — MySQL and PG support natively; InfluxDB v3 does not
+  // Bitwise operators - MySQL and PG support natively; InfluxDB v3 does not
   [OP_TYPE_BIT_AND]           = FQ_CAP_MYSQL_PG,
   [OP_TYPE_BIT_OR]            = FQ_CAP_MYSQL_PG,
 
-  // Comparison operators — all dialects
+  // Comparison operators - all dialects
   [OP_TYPE_GREATER_THAN]      = FQ_CAP_ALL,
   [OP_TYPE_GREATER_EQUAL]     = FQ_CAP_ALL,
   [OP_TYPE_LOWER_THAN]        = FQ_CAP_ALL,
@@ -723,7 +723,7 @@ static const uint16_t kFqOpCap[FQ_OP_CAP_TABLE_SIZE] = {
   [OP_TYPE_MATCH]             = FQ_CAP_MYSQL_PG,
   [OP_TYPE_NMATCH]            = FQ_CAP_MYSQL_PG,
 
-  // Null/bool checks — all dialects
+  // Null/bool checks - all dialects
   [OP_TYPE_IS_NULL]           = FQ_CAP_ALL,
   [OP_TYPE_IS_NOT_NULL]       = FQ_CAP_ALL,
   [OP_TYPE_IS_TRUE]           = FQ_CAP_ALL,
@@ -741,14 +741,14 @@ static const uint16_t kFqOpCap[FQ_OP_CAP_TABLE_SIZE] = {
   [OP_TYPE_JSON_GET_VALUE]    = FQ_CAP_MYSQL_PG,
   [OP_TYPE_JSON_CONTAINS]     = FQ_CAP_MYSQL_PG,
 
-  // OP_TYPE_ASSIGN (200) — internal TDengine operator, never pushed
+  // OP_TYPE_ASSIGN (200) - internal TDengine operator, never pushed
   [OP_TYPE_ASSIGN]            = FQ_CAP_NONE,
 };
 
-// ── FQ clause push-down capability bitmap ────────────────────────────────────
+// -- FQ clause push-down capability bitmap ------------------------------------
 // Indexed by EExtClauseKind.
 static const uint16_t kFqClauseCap[EXT_CLAUSE_MAX] = {
-  // Core push-down gates — all dialects support these
+  // Core push-down gates - all dialects support these
   [EXT_CLAUSE_FILTER]         = FQ_CAP_ALL,
   [EXT_CLAUSE_PROJECTION]     = FQ_CAP_ALL,
   [EXT_CLAUSE_AGG]            = FQ_CAP_ALL,
@@ -769,11 +769,11 @@ static const uint16_t kFqClauseCap[EXT_CLAUSE_MAX] = {
   [EXT_CLAUSE_LEFT_JOIN]         = FQ_CAP_ALL,        // All dialects support LEFT OUTER JOIN
   [EXT_CLAUSE_RIGHT_JOIN]        = FQ_CAP_ALL,        // All dialects support RIGHT OUTER JOIN
   [EXT_CLAUSE_FULL_OUTER_JOIN]   = FQ_CAP_PG_INFLUX, // MySQL has no FULL OUTER JOIN; PG/InfluxDB v3 support it
-  [EXT_CLAUSE_SEMI_JOIN]         = FQ_CAP_MYSQL_PG, // DS §5.3.6.1.4: MySQL/PG via EXISTS; InfluxDB: no correlated subquery
-  [EXT_CLAUSE_ANTI_JOIN]         = FQ_CAP_MYSQL_PG, // DS §5.3.6.1.5: MySQL/PG via NOT EXISTS; InfluxDB: no correlated subquery
+  [EXT_CLAUSE_SEMI_JOIN]         = FQ_CAP_MYSQL_PG, // DS section5.3.6.1.4: MySQL/PG via EXISTS; InfluxDB: no correlated subquery
+  [EXT_CLAUSE_ANTI_JOIN]         = FQ_CAP_MYSQL_PG, // DS section5.3.6.1.5: MySQL/PG via NOT EXISTS; InfluxDB: no correlated subquery
 
   // Subquery types
-  [EXT_CLAUSE_FROM_SUBQUERY]     = FQ_CAP_ALL,    // DS §5.3.7.1.1: all dialects support nested FROM subquery push
+  [EXT_CLAUSE_FROM_SUBQUERY]     = FQ_CAP_ALL,    // DS section5.3.7.1.1: all dialects support nested FROM subquery push
   [EXT_CLAUSE_SCALAR_SUBQUERY]   = FQ_CAP_ALL,    // all dialects: resolved TDengine-side, emitted as literal
   [EXT_CLAUSE_IN_SUBQUERY]       = FQ_CAP_MYSQL_PG, // InfluxDB: no IN (subquery)
   [EXT_CLAUSE_ALL_ANY_SUBQUERY]  = FQ_CAP_MYSQL_PG, // MySQL/PG: op ALL|ANY (subquery); InfluxDB: no correlated subquery
@@ -796,7 +796,7 @@ static const uint16_t kFqClauseCap[EXT_CLAUSE_MAX] = {
   [EXT_CLAUSE_ASOF_JOIN]      = FQ_CAP_NONE,
   [EXT_CLAUSE_WINDOW_JOIN]    = FQ_CAP_NONE,
 
-  // TDengine window types — always local
+  // TDengine window types - always local
   [EXT_CLAUSE_STATE_WINDOW]   = FQ_CAP_NONE,
   [EXT_CLAUSE_SESSION_WINDOW] = FQ_CAP_NONE,
   [EXT_CLAUSE_EVENT_WINDOW]   = FQ_CAP_NONE,

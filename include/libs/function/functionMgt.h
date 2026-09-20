@@ -310,7 +310,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TIMESTAMP_SCALE = 4400,
 
   // FQ-internal functions (not user-callable; used to carry interval metadata
-  // through the logic-plan→physical-plan→remote-SQL pipeline)
+  // through the logic-plan->physical-plan->remote-SQL pipeline)
   // FUNCTION_TYPE_FQ_TIME_BUCKET is injected by fqConvertInterval into the
   // GROUP BY key of the remote SAggLogicNode.  It carries:
   //   pParameterList[0] = SColumnNode for the timestamp primary key column

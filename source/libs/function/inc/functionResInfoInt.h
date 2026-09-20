@@ -401,7 +401,7 @@ typedef struct STwaInfo {
 // prefix for var types), sized by getValueChangesFuncEnv from the input column bytes.
 typedef struct SValueChangesInfo {
   int64_t       count;       // output slot (BIGINT), must be first
-  int64_t       numOfElems;  // rows seen (incl. NULL) — distinguishes empty table from all-equal
+  int64_t       numOfElems;  // rows seen (incl. NULL) - distinguishes empty table from all-equal
   bool          hasPrev;     // a previous compared value exists
   bool          prevIsNull;  // the previous compared value is NULL (ignore_null=0 path)
   int8_t        ignoreNull;  // 1 (default): skip NULL transparently; 0: NULL participates

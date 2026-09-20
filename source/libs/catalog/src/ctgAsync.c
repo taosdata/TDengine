@@ -6300,7 +6300,7 @@ int32_t ctgCloneDbVg(SCtgTask* pTask, void** pRes) {
   CTG_RET(cloneDbVgInfo(pOut->dbVgroup, (SDBVgInfo**)pRes));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // Federated query Phase A: CTG_TASK_GET_EXT_SOURCE task
 // -----------------------------------------------------------------------------
 

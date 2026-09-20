@@ -1492,7 +1492,7 @@ typedef struct SDescribeExtSourceStmt {
 typedef struct SShowExtSourceCapabilityStmt {
   ENodeType type;           // QUERY_NODE_SHOW_EXT_SOURCE_CAPABILITY_STMT
   char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
-  void*     pExtCapability; // SExtSourceCapability* — taosMemoryMalloc'd, not in node chunk
+  void*     pExtCapability; // SExtSourceCapability* - taosMemoryMalloc'd, not in node chunk
 } SShowExtSourceCapabilityStmt;
 // Alter clause type for ALTER EXTERNAL SOURCE SET ...
 typedef enum EExtAlterType {

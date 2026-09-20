@@ -271,25 +271,25 @@ typedef enum EExtDemoteReason {
 #define EXT_REASON_IS_PRECISE(reasonCode) ((reasonCode) >= 1 && (reasonCode) <= 9)
 
 typedef enum EExtClauseKind {
-  // ── GATE ──────────────────────────────────────────────────────────────────
+  // -- GATE ------------------------------------------------------------------
   // These 6 values participate in the full 3-level pushdown fallback:
-  //   • classifiable from remote error responses (via extResolveFuncClause /
+  //   * classifiable from remote error responses (via extResolveFuncClause /
   //     extResolveOpClause escalation or explicit clause=N token in errors)
-  //   • support dynamic disable at runtime (catalog-level or session overlay)
-  //   • planner gates on each: a disabled GATE prevents pushdown of queries
+  //   * support dynamic disable at runtime (catalog-level or session overlay)
+  //   * planner gates on each: a disabled GATE prevents pushdown of queries
   //     that exercise that capability
-  //   • extCapShouldUseBaseline() checks all 6: if every GATE is disabled
+  //   * extCapShouldUseBaseline() checks all 6: if every GATE is disabled
   //     the system falls back to TDengine-local execution (baseline mode)
-  EXT_CLAUSE_FILTER = 0,      // WHERE predicates (comparisons, LIKE, MATCH, …)
-  EXT_CLAUSE_PROJECTION,      // SELECT expressions (scalar functions, casts, …)
+  EXT_CLAUSE_FILTER = 0,      // WHERE predicates (comparisons, LIKE, MATCH, ...)
+  EXT_CLAUSE_PROJECTION,      // SELECT expressions (scalar functions, casts, ...)
   EXT_CLAUSE_AGG,             // GROUP BY / aggregate functions
   EXT_CLAUSE_ORDER,           // ORDER BY
   EXT_CLAUSE_LIMIT,           // LIMIT / FETCH FIRST
   EXT_CLAUSE_JOIN,            // any join (coarse gate; covers all join subtypes)
 
-  // ── STATIC ────────────────────────────────────────────────────────────────
+  // -- STATIC ----------------------------------------------------------------
   // These values are set only via dialect defaults (extLoadDialectDefaults)
-  // or explicit manual SQL (ALTER EXTERNAL SOURCE … DISABLE CLAUSE …).
+  // or explicit manual SQL (ALTER EXTERNAL SOURCE ... DISABLE CLAUSE ...).
   // They are NOT produced by error classification and do NOT trigger the
   // pushdown fallback machinery.  They serve as fine-grained capability
   // markers for display (SHOW EXTERNAL SOURCES) and for dialect-specific
@@ -310,14 +310,14 @@ typedef enum EExtClauseKind {
   EXT_CLAUSE_ANTI_JOIN,
   EXT_CLAUSE_FROM_SUBQUERY,       // subquery in FROM (common default: disabled)
   EXT_CLAUSE_SCALAR_SUBQUERY,     // scalar subquery in SELECT (common default: disabled)
-  EXT_CLAUSE_INTERVAL_TUMBLING,   // TDengine INTERVAL(…) tumbling window
-  EXT_CLAUSE_INTERVAL_SLIDING,    // TDengine INTERVAL(…) SLIDING window
+  EXT_CLAUSE_INTERVAL_TUMBLING,   // TDengine INTERVAL(...) tumbling window
+  EXT_CLAUSE_INTERVAL_SLIDING,    // TDengine INTERVAL(...) SLIDING window
   EXT_CLAUSE_PARTITION_TBNAME,    // PARTITION BY tbname
   EXT_CLAUSE_PARTITION_COLUMN,    // PARTITION BY <column>
   // SQL feature flags - set in common/dialect defaults; no error-based demote.
   EXT_CLAUSE_FEAT_CTE,            // WITH (common table expressions; common default: disabled)
   EXT_CLAUSE_FEAT_WINDOW_FUNCTIONS, // window functions (common default: disabled)
-  EXT_CLAUSE_FEAT_LARGE_IN_LIST,  // remote handles large IN (v1,…,vN) lists (common default: disabled)
+  EXT_CLAUSE_FEAT_LARGE_IN_LIST,  // remote handles large IN (v1,...,vN) lists (common default: disabled)
   // Subquery expression types - dialect defaults only.
   // EXISTS/NOT EXISTS are tracked at the operator layer (disabledOps).
   EXT_CLAUSE_IN_SUBQUERY,         // IN/NOT IN (subquery) - InfluxDB default: disabled
@@ -348,7 +348,7 @@ typedef enum EExtClauseKind {
 //                                 no transform: inline the user's original SQL.
 //   FQ_SUBQ_RENDER_ORIG_TYPE_2B - keep the original predicate form (IN/ALL/ANY/
 //                                 EXISTS) but render the inner SELECT with dialect
-//                                 transforms (function mapping, federated-name →
+//                                 transforms (function mapping, federated-name ->
 //                                 schema/db/remoteTableName translation).
 typedef enum EFqSubqRenderMode {
   FQ_SUBQ_RENDER_DIRECT_SQL = 0,
@@ -484,7 +484,7 @@ typedef enum EExtSQLDialect {
 #define EXT_INFLUX_KEY_NCHAR_CHARS ((TSDB_COL_NAME_LEN - 1) * TSDB_NCHAR_SIZE)
 #define EXT_INFLUX_KEY_NCHAR_CHARS_TOO_LONG (TSDB_COL_NAME_LEN * TSDB_NCHAR_SIZE)
 
-// ── FQ push-down capability bitmap ──────────────────────────────────────────
+// -- FQ push-down capability bitmap ------------------------------------------
 // uint16_t bitmap encoding:
 //   bits [2:0]  - default capability per dialect (0 = not pushable)
 //   bits [5:3]  - session-level override (1 = force-disable for that dialect)
@@ -499,12 +499,12 @@ typedef enum EExtSQLDialect {
 //
 //   Low-byte layout:
 //     bits 0-2 : main capability    (MySQL=bit0, PG=bit1, Influx=bit2)
-//     bits 3-5 : sub-cap 1: CAST(timestamp → integer)
+//     bits 3-5 : sub-cap 1: CAST(timestamp -> integer)
 //     bits 6-7 : reserved for future sub-capabilities
 //
 //   High-byte layout (FQ_CAP_SESSION_SHIFT = 8):
 //     bits 8-10 : session override for main capability
-//     bits 11-13: session override for CAST(ts→int) sub-capability
+//     bits 11-13: session override for CAST(ts->int) sub-capability
 //     bits 14-15: reserved
 
 // Main capability bits (low byte, bits 0-2):
@@ -529,13 +529,13 @@ typedef enum EExtSQLDialect {
 //   default band   : bits 3-5  (FQ_CAP_CAST_TS_INT_SHIFT = 3)
 //   session band   : bits 11-13 (= FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT = 3+8)
 //
-// Only PostgreSQL supports CAST(timestamp → integer) natively.
+// Only PostgreSQL supports CAST(timestamp -> integer) natively.
 //   MySQL   : binary protocol returns MYSQL_TIME for TIMESTAMP; connector cannot safely
 //             reinterpret that as an integer epoch, so local conversion is required.
 //   InfluxDB: DataFusion does not support CAST(timestamp AS BIGINT).
 #define FQ_CAP_CAST_TS_INT_SHIFT  3
 #define FQ_CAP_CAST_TS_INT_PG     ((uint16_t)(FQ_CAP_PG << FQ_CAP_CAST_TS_INT_SHIFT))
-// Session-level overrides for the CAST(ts→int) sub-capability:
+// Session-level overrides for the CAST(ts->int) sub-capability:
 #define FQ_CAP_CAST_TS_INT_SESSION_MYSQL   ((uint16_t)(FQ_CAP_MYSQL  << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
 #define FQ_CAP_CAST_TS_INT_SESSION_PG      ((uint16_t)(FQ_CAP_PG     << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
 #define FQ_CAP_CAST_TS_INT_SESSION_INFLUX  ((uint16_t)(FQ_CAP_INFLUX << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
