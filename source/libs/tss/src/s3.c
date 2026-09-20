@@ -242,6 +242,31 @@ typedef struct {
 
 
 
+static int appendErrMsg(char* errMsg, int elen, int len, const char* fmt, ...) {
+    if (errMsg == NULL || elen <= 0 || len < 0 || len >= elen) {
+        return len;
+    }
+
+    if (elen - len == 1) {
+        errMsg[len] = '\0';
+        return len;
+    }
+
+    va_list args;
+    va_start(args, fmt);
+    int n = vsnprintf(errMsg + len, elen - len, fmt, args);
+    va_end(args);
+
+    if (n < 0) {
+        errMsg[len] = '\0';
+        return len;
+    }
+
+    return TMIN(len + n, elen - 1);
+}
+
+
+
 // responseCompleteCallback is shared by all operations, it saves the status and generates error
 // messages from S3ErrorDetails if there is an error.
 static void responseCompleteCallback(S3Status status, const S3ErrorDetails *error, void *data) {
@@ -253,28 +278,28 @@ static void responseCompleteCallback(S3Status status, const S3ErrorDetails *erro
 
     int       len = 0;
     const int elen = sizeof(cbd->errMsg);
-    
-    if (error->message && elen - len > 0) {
-        len += snprintf(cbd->errMsg + len, elen - len, "  Message: %s\n", error->message);
+
+    if (error->message) {
+        len = appendErrMsg(cbd->errMsg, elen, len, "  Message: %s\n", error->message);
     }
 
-    if (error->resource && elen - len > 0) {
-        len += snprintf(cbd->errMsg + len, elen - len, "  Resource: %s\n", error->resource);
+    if (error->resource) {
+        len = appendErrMsg(cbd->errMsg, elen, len, "  Resource: %s\n", error->resource);
     }
 
-    if (error->furtherDetails && elen - len > 0) {
-        len += snprintf(cbd->errMsg + len, elen - len, "  Further Details: %s\n", error->furtherDetails);
+    if (error->furtherDetails) {
+        len = appendErrMsg(cbd->errMsg, elen, len, "  Further Details: %s\n", error->furtherDetails);
     }
 
-    if (error->extraDetailsCount && elen - len <= 0) {
+    if (error->extraDetailsCount <= 0) {
         return;
     }
 
-    len += snprintf(&(cbd->errMsg[len]), elen - len, "%s", "  Extra Details:\n");
-    for (int i = 0; i < error->extraDetailsCount && elen > len; i++) {
+    len = appendErrMsg(cbd->errMsg, elen, len, "%s", "  Extra Details:\n");
+    for (int i = 0; i < error->extraDetailsCount; i++) {
         const char* name = error->extraDetails[i].name;
         const char* value = error->extraDetails[i].value;
-        len += snprintf(cbd->errMsg + len, elen - len, "    %s: %s\n", name, value);
+        len = appendErrMsg(cbd->errMsg, elen, len, "    %s: %s\n", name, value);
     }
 }
 
@@ -417,8 +442,20 @@ static S3Status multipartInitialCallback(const char *uploadId, void *cbd) {
 
 
 // multipartInitialCallback saves the eTag of current part to callback data
-static S3Status multipartResponseProperiesCallback(const S3ResponseProperties *properties, void *cbd) {
+static S3Status multipartResponsePropertiesCallback(const S3ResponseProperties *properties, void *cbd) {
     SUploadCallbackData* ucbd = (SUploadCallbackData*)cbd;
+
+    // libs3 leaves [eTag] NULL when the response carries no ETag header (see its
+    // ResponseHeadersHandler initialization and the "ETag"/"Etag" header
+    // handling).  An upload part is useless without it, because the eTag is what
+    // the CompleteMultipartUpload document is built from, so report the missing
+    // header as such instead of letting taosStrdup() return NULL and blaming the
+    // allocation for it.
+    if (properties->eTag == NULL || properties->eTag[0] == '\0') {
+        tssError("uploadChunks: part %u has no ETag in the response", ucbd->seq);
+        ucbd->status = S3StatusAbortedByCallback;
+        return ucbd->status;
+    }
 
     char* etag = taosStrdup(properties->eTag);
     if (etag == NULL) {
@@ -470,7 +507,7 @@ static int32_t initMultipartUpload(SSharedStorageS3* ss, const char* dstPath, SU
 static int32_t uploadChunks(SSharedStorageS3* ss, const char* dstPath, SUploadCallbackData* ucbd) {
     S3PutObjectHandler poh = {
         .responseHandler = {
-            .propertiesCallback = &multipartResponseProperiesCallback,
+            .propertiesCallback = &multipartResponsePropertiesCallback,
             .completeCallback = &responseCompleteCallback,
         },
         .putObjectDataCallback = &uploadCallback,
@@ -517,6 +554,17 @@ static int32_t uploadChunks(SSharedStorageS3* ss, const char* dstPath, SUploadCa
 
 
 static int32_t commitMultipartUpload(SSharedStorageS3* ss, const char* dstPath, SUploadCallbackData* ucbd) {
+    // Every part must have an eTag before the CompleteMultipartUpload document can
+    // be built: a NULL slot would be dereferenced by strlen() and %s below.
+    // uploadChunks() rejects a part without an ETag, so this is a safety net that
+    // turns a hypothetical NULL into a clean error instead of a crash.
+    for (uint32_t i = 0; i < ucbd->numChunks; i++) {
+        if (ucbd->etags[i] == NULL || ucbd->etags[i][0] == '\0') {
+            tssError("commitMultipartUpload failed %s: part %u has no eTag", dstPath, i);
+            TAOS_RETURN(TAOS_SYSTEM_ERROR(EIO));
+        }
+    }
+
     // calculate the size of the XML document
     size_t size = strlen("<CompleteMultipartUpload></CompleteMultipartUpload>");
     size += ucbd->numChunks * strlen("<Part><PartNumber></PartNumber><ETag></ETag></Part>");
@@ -761,6 +809,12 @@ static S3Status downloadCallback(int bufferSize, const char *buffer, void *cbd) 
     SDownloadCallbackData* dcbd = cbd;
 
     if (dcbd->buf != NULL) {
+        if (bufferSize > dcbd->size - dcbd->offset) {
+            (void)appendErrMsg(dcbd->errMsg, sizeof(dcbd->errMsg), 0, "  Message: response body exceeds the requested %" PRId64 " bytes\n", dcbd->size);
+            dcbd->status = S3StatusAbortedByCallback;
+            return dcbd->status;
+        }
+
         (void)memcpy(dcbd->buf + dcbd->offset, buffer, bufferSize);
         dcbd->offset += bufferSize;
         dcbd->status = S3StatusOK;
