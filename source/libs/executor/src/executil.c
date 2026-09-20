@@ -116,6 +116,8 @@ void execUtilTestFailStreamGroupSortHashPutAfter(int32_t successfulPuts) {
 
 static int32_t optimizeTbnameInCondImpl(void* pVnode, SArray* list, SNode* pTagCond, SStorageAPI* pStoreAPI,
                                         uint64_t suid, int64_t txnId);
+static int32_t doTbnameEqWithOr(SNode* cond, void* pVnode, SArray* list, SStorageAPI* pAPI, uint64_t suid,
+                                int64_t txnId);
 
 static int64_t getLimit(const SNode* pLimit) {
   return (NULL == pLimit || NULL == ((SLimitNode*)pLimit)->limit) ? -1 : ((SLimitNode*)pLimit)->limit->datum.i;
@@ -1682,6 +1684,11 @@ static int32_t optimizeTbnameInCond(void* pVnode, int64_t suid, SArray* list, SN
     code = optimizeTbnameInCondImpl(pVnode, list, cond, pAPI, suid, txnId);
   } else {
     code = doInWithAnd(cond, pVnode, list, pAPI, suid, txnId);
+    if (0 != code) {
+      // an OR built only from tbname equal conditions is a name-set lookup, resolve it the
+      // same way; -1 (any other parameter shape) keeps the generic tag-filter path
+      code = doTbnameEqWithOr(cond, pVnode, list, pAPI, suid, txnId);
+    }
     QUERY_CHECK_CODE(code, lino, end);
     code = pAPI->metaFn.getTableTagsByUidVersion(pVnode, suid, list, version);
   }
@@ -1690,10 +1697,13 @@ end:
   return code;
 }
 
-static int32_t getTableListInInOperator(void* pVnode, SArray* pExistedUidList, SNodeListNode* pList,
-                                        SStorageAPI* pStoreAPI, uint64_t suid, int64_t txnId) {
-  int32_t   code = 0;                                          
-  SArray*   pTbList = getTableNameList(pList);
+// Resolve a list of table names (char* array aliasing value-node memory) to the uids of child
+// tables of suid, replacing pExistedUidList with the result. When pExistedUidList comes in
+// non-empty (e.g. candidates from the tag index), the result is intersected with it.
+// code 0 with an empty list out is a valid "no name matched" outcome.
+static int32_t getTableListByNames(void* pVnode, SArray* pTbList, SArray* pExistedUidList,
+                                   SStorageAPI* pStoreAPI, uint64_t suid, int64_t txnId) {
+  int32_t   code = 0;
   int32_t   numOfTables = taosArrayGetSize(pTbList);
   SHashObj* uHash = NULL;
 
@@ -1745,8 +1755,126 @@ static int32_t getTableListInInOperator(void* pVnode, SArray* pExistedUidList, S
   taosArraySort(pExistedUidList, filterTableInfoCompare);
   taosArrayRemoveDuplicate(pExistedUidList, filterTableInfoCompare, NULL);
 end:
-  taosArrayDestroy(pTbList);
   taosHashCleanup(uHash);
+  return code;
+}
+
+static int32_t getTableListInInOperator(void* pVnode, SArray* pExistedUidList, SNodeListNode* pList,
+                                        SStorageAPI* pStoreAPI, uint64_t suid, int64_t txnId) {
+  SArray* pTbList = getTableNameList(pList);
+  if (NULL == pTbList) {
+    qDebug("%s failed to get table name list since %s", __func__, tstrerror(terrno));
+    return terrno;
+  }
+
+  int32_t code = getTableListByNames(pVnode, pTbList, pExistedUidList, pStoreAPI, suid, txnId);
+  taosArrayDestroy(pTbList);
+  return code;
+}
+
+static bool isTbnameNode(const SNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    return FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pNode)->funcType;
+  }
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    return COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType;
+  }
+  return false;
+}
+
+// value operand of a "tbname = <const>" operator: the tbname side may be either operand, and
+// the value must be a non-NULL constant var-data node; NULL means the shape does not qualify
+static SValueNode* getTbnameEqValue(SOperatorNode* pNode) {
+  SValueNode* pValue = NULL;
+  if (isTbnameNode(pNode->pLeft) && NULL != pNode->pRight && QUERY_NODE_VALUE == nodeType(pNode->pRight)) {
+    pValue = (SValueNode*)pNode->pRight;
+  } else if (isTbnameNode(pNode->pRight) && NULL != pNode->pLeft && QUERY_NODE_VALUE == nodeType(pNode->pLeft)) {
+    pValue = (SValueNode*)pNode->pLeft;
+  }
+  if (NULL == pValue || !IS_VAR_DATA_TYPE(pValue->node.resType.type) || NULL == pValue->datum.p) {
+    return NULL;
+  }
+  return pValue;
+}
+
+// tbname = 'const': resolve the name to uids via name.idx point lookups instead of fetching and
+// scalar-filtering the tags of every child table of the super table. Both operand orders are
+// accepted; only a constant var-data value qualifies, anything else falls back to the generic
+// tag-filter path (the caller treats -1 as "not applicable").
+static int32_t getTableListInEqualOperator(void* pVnode, SArray* pExistedUidList, SOperatorNode* pNode,
+                                           SStorageAPI* pStoreAPI, uint64_t suid, int64_t txnId) {
+  SValueNode* pValue = getTbnameEqValue(pNode);
+  if (NULL == pValue) {
+    return -1;
+  }
+
+  char*  name = varDataVal(pValue->datum.p);
+  SArray* pTbList = taosArrayInit(1, POINTER_BYTES);
+  if (NULL == pTbList) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    return terrno;
+  }
+  if (NULL == taosArrayPush(pTbList, &name)) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    taosArrayDestroy(pTbList);
+    return terrno;
+  }
+
+  int32_t code = getTableListByNames(pVnode, pTbList, pExistedUidList, pStoreAPI, suid, txnId);
+  taosArrayDestroy(pTbList);
+  return code;
+}
+
+// tbname = 'a' or tbname = 'b' ...: when every parameter of the OR is a tbname equal condition,
+// the whole condition is equivalent to a name-set lookup and resolves through name.idx point
+// gets (result uids are deduped by getTableListByNames, so duplicate names are fine). Any other
+// parameter shape returns -1 and keeps the generic tag-filter path.
+static int32_t doTbnameEqWithOr(SNode* cond, void* pVnode, SArray* list, SStorageAPI* pAPI, uint64_t suid,
+                                int64_t txnId) {
+  if (nodeType(cond) != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_OR) {
+    return -1;
+  }
+
+  SLogicConditionNode* pNode = (SLogicConditionNode*)cond;
+  SNodeList*           pList = (SNodeList*)pNode->pParameterList;
+
+  int32_t len = LIST_LENGTH(pList);
+  if (len <= 0) {
+    return -1;
+  }
+
+  SArray* pTbList = taosArrayInit(len, POINTER_BYTES);
+  if (NULL == pTbList) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    return terrno;
+  }
+
+  SListCell* cell = pList->pHead;
+  for (int i = 0; i < len; i++) {
+    if (cell == NULL) break;
+    SValueNode* pValue = NULL;
+    if (nodeType(cell->pNode) == QUERY_NODE_OPERATOR &&
+        OP_TYPE_EQUAL == ((SOperatorNode*)cell->pNode)->opType) {
+      pValue = getTbnameEqValue((SOperatorNode*)cell->pNode);
+    }
+    if (NULL == pValue) {
+      taosArrayDestroy(pTbList);
+      return -1;
+    }
+    char* name = varDataVal(pValue->datum.p);
+    if (NULL == taosArrayPush(pTbList, &name)) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      taosArrayDestroy(pTbList);
+      return terrno;
+    }
+    cell = cell->pNext;
+  }
+
+  int32_t code = getTableListByNames(pVnode, pTbList, list, pAPI, suid, txnId);
+  taosArrayDestroy(pTbList);
   return code;
 }
 
@@ -1754,6 +1882,9 @@ end:
 static int32_t optimizeTbnameInCondImpl(void* pVnode, SArray* pExistedUidList, SNode* pTagCond, SStorageAPI* pStoreAPI,
                                         uint64_t suid, int64_t txnId) {
   SOperatorNode* pNode = (SOperatorNode*)pTagCond;
+  if (OP_TYPE_EQUAL == pNode->opType) {
+    return getTableListInEqualOperator(pVnode, pExistedUidList, pNode, pStoreAPI, suid, txnId);
+  }
   if (pNode->opType != OP_TYPE_IN) {
     return -1;
   }
