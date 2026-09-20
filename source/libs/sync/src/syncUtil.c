@@ -85,6 +85,17 @@ bool syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2) {
   return false;
 }
 
+bool syncUtilSameIdStrict(const SRaftId* pId1, const SRaftId* pId2) {
+  // TD-SEC-2026-044: require an EXACT match of the 64-bit addr (which encodes the
+  // cluster id in the high 32 bits and the node id in the low 32 bits) plus vgId.
+  // The legacy syncUtilSameId additionally accepts a CID==0 wildcard; that bypass
+  // let an unauthenticated RequestVote carrying CID=0 (and a valid member node id)
+  // be treated as a member of this Raft group, enabling election interference.
+  // This strict variant is used only at SYNC message ingress (see syncNodeInRaftGroup)
+  // and never in the internal comparison paths that the CID==0 fallback was added for.
+  return (pId1->addr == pId2->addr) && (pId1->vgId == pId2->vgId);
+}
+
 bool syncUtilEmptyId(const SRaftId* pId) { return (pId->addr == 0 && pId->vgId == 0); }
 
 static inline int32_t syncUtilRand(int32_t max) {

@@ -4197,10 +4197,33 @@ bool syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg) {
 }
 
 bool syncNodeInRaftGroup(SSyncNode* ths, SRaftId* pRaftId) {
+  // TD-SEC-2026-044: this function is the membership authorization gate for every
+  // inbound SYNC message (RequestVote/AppendEntries/Heartbeat/Snapshot/...). It must
+  // not trust a CID==0 wildcard. When this node already knows its own cluster id
+  // (i.e. it has joined a cluster), require an EXACT (clusterId, nodeId, vgId) match
+  // via syncUtilSameIdStrict, so a forged message with CID=0 (or a mismatched cluster
+  // id) is rejected instead of being treated as a configured replica. The legacy
+  // lenient comparison is kept only while the local cluster id is still 0 (early
+  // bootstrap / not-yet-joined), to avoid regressing cluster formation.
+  bool strict = (CID(&ths->myRaftId) != 0);
   for (int32_t i = 0; i < ths->totalReplicaNum; ++i) {
-    if (syncUtilSameId(&((ths->replicasId)[i]), pRaftId)) {
+    bool match = strict ? syncUtilSameIdStrict(&((ths->replicasId)[i]), pRaftId)
+                        : syncUtilSameId(&((ths->replicasId)[i]), pRaftId);
+    if (match) {
       return true;
     }
+  }
+
+  if (strict) {
+    // A message from a non-matching cluster id was dropped at the authorization gate.
+    // NOTE: srcId is attacker-controlled and unauthenticated, so a remote peer can
+    // trigger this on every inbound packet. Keep it at DEBUG (not WARN) to avoid a
+    // remotely-abusable log-flood / disk-amplification vector (TD-SEC-2026-044 review).
+    // Enable sync DEBUG to surface possible spoofing/election-interference for forensics.
+    sNDebug(ths,
+            "drop msg from dnode:%d cid:%d, not in my raft group (my cid:%d, replicaNum:%d), possible spoofing "
+            "attempt (TD-SEC-2026-044)",
+            DID(pRaftId), CID(pRaftId), CID(&ths->myRaftId), ths->totalReplicaNum);
   }
   return false;
 }
