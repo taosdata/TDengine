@@ -249,6 +249,7 @@ Provides configuration parameters on each `dnode`, including their scope, catego
 | 4   | `scope`    | VARCHAR(8)    | Configuration scope |
 | 5   | `category` | VARCHAR(8)    | Configuration category |
 | 6   | `info`     | VARCHAR(64)   | Configuration description |
+| 7   | `reboot`   | VARCHAR(8)    | Whether this item was altered at runtime but is not yet effective: `true` means it was changed and requires a restart to take effect, `false` means no restart is needed (or it was never altered at runtime) |
 
 ## INS_ENCRYPTIONS
 

@@ -10701,6 +10701,14 @@ int32_t tSerializeSShowVariablesRsp(void *buf, int32_t bufLen, SShowVariablesRsp
     TAOS_CHECK_RETURN(tEncodeCStr(&encoder, pInfo->info));
   }
 
+  for (int32_t i = 0; i < varNum; ++i) {
+    SVariablesInfo *pInfo = taosArrayGet(pRsp->variables, i);
+    if (NULL == pInfo) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pInfo->reboot));
+  }
+
   tEndEncode(&encoder);
 
 _exit:
@@ -10739,6 +10747,16 @@ int32_t tDeserializeSShowVariablesRsp(void *buf, int32_t bufLen, SShowVariablesR
       for (int32_t i = 0; i < varNum; ++i) {
         SVariablesInfo *pInfo = taosArrayGet(pRsp->variables, i);
         TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pInfo->info));
+      }
+    }
+
+    if (!tDecodeIsEnd(&decoder)) {
+      for (int32_t i = 0; i < varNum; ++i) {
+        SVariablesInfo *pInfo = taosArrayGet(pRsp->variables, i);
+        if (NULL == pInfo) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+        TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pInfo->reboot));
       }
     }
   }

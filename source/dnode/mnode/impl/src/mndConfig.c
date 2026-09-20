@@ -1347,6 +1347,10 @@ static SArray *initVariablesFromItems(SArray *pItems, const char* likePattern, u
         tstrncpy(info.category, "unknown", sizeof(info.category));
         break;
     }
+
+    // init info reboot: marks a value altered at runtime that is not yet effective until restart
+    tstrncpy(info.reboot, pItem->restartRequired ? "true" : "false", sizeof(info.reboot));
+
     if (NULL == taosArrayPush(pInfos, &info)) {
       mError("failed to push info to array while init variables from items,since %s", tstrerror(terrno));
       taosArrayDestroy(pInfos);
