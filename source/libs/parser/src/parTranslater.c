@@ -14,6 +14,8 @@
  */
 
 #include "parTranslater.h"
+
+#include <stdarg.h>  // va_list for parCheckServerVersionGate
 #include <stdint.h>
 #include "cJSON.h"
 #include "extConnector.h"
@@ -32474,20 +32476,52 @@ static int32_t buildVChildOwnTagValue(STranslateContext* pCxt, STableMeta* pStbM
 // Owned columns/tags ship with this build. An older server silently drops the trailing
 // own-defs section while decoding SVCreateTbReq (its decoder stops at tDecodeIsEnd), so a
 // mixed-version deployment would accept the create with the owned members missing. Reject
-// loudly at translate time when the connected server is older than this client. In-server
-// translate paths never set tsServerVerInt (it stays 0) and are naturally exempt.
-static int32_t parCheckVchildOwnMembersSupported(STranslateContext* pCxt) {
+// loudly at translate time when the connected server is older than this client.
+// shared mixed-version gate: reject at translate time when the CONNECTED server is older
+// than this client build (a new-client feature executing on old executors would silently
+// misbehave instead of failing loudly). In-server translate paths never set tsServerVerInt
+// (stays 0) and are naturally exempt. Callers pass their feature-specific message.
+static int32_t parCheckServerVersionGate(STranslateContext* pCxt, const char* pMsgFmt, ...) {
+  // fail loudly on a caller bug: silently succeeding here would skip the gate entirely
+  if (pMsgFmt == NULL) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_PARA,
+                                   "version gate: missing message format");
+  }
   if (tsServerVerInt > 0) {
     int32_t clientVerInt = 0;
     if (taosVersionStrToInt(td_version, &clientVerInt) == 0 && clientVerInt > 0 &&
         tsServerVerInt < clientVerInt) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_VERSION_NOT_COMPATIBLE,
-                                     "owned columns/tags on virtual child tables require server version %s or later; "
-                                     "the connected server is older (mixed-version cluster)",
-                                     td_version);
+      // The sole output channel (msgBuf) is a fixed-size buffer, so no staging scheme
+      // (two-pass sizing + malloc) can actually prevent truncation -- format straight
+      // into it, mirroring generateSyntaxErrMsgExt (not va_list-callable from here).
+      va_list args;
+      va_start(args, pMsgFmt);
+      (void)vsnprintf(pCxt->msgBuf.buf, pCxt->msgBuf.len, pMsgFmt, args);
+      va_end(args);
+      return TSDB_CODE_VERSION_NOT_COMPATIBLE;
     }
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t parCheckVchildOwnMembersSupported(STranslateContext* pCxt) {
+  return parCheckServerVersionGate(
+      pCxt, "owned columns/tags on virtual child tables require server version %s or later; "
+            "the connected server is older (mixed-version cluster)", td_version);
+}
+
+// ntb/vntb tag-ref sources ship with this build: the planner carries their execution in new
+// physical-plan TLVs which older executors silently skip (default: break), and older vnodes
+// accept the DDL without any source-type validation -- so in a mixed-version cluster a ref
+// created through a new coordinator would project NULL / produce wrong results on old
+// executors instead of failing loudly. Reject at translate time when the connected server is
+// older than this client. In-server translate paths never set tsServerVerInt (it stays 0) and
+// are naturally exempt -- same contract as parCheckVchildOwnMembersSupported.
+static int32_t parCheckConstRefSourceSupported(STranslateContext* pCxt, const char* tagName) {
+  return parCheckServerVersionGate(
+      pCxt, "virtual table's tag:\"%s\" referencing a normal/virtual normal table tag "
+            "requires server version %s or later; the connected server is older "
+            "(mixed-version cluster)", tagName, td_version);
 }
 
 static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSubTableStmt* pStmt, STableMeta* pStbMeta,
@@ -34437,6 +34471,19 @@ static int32_t getChainTableMeta(STranslateContext* pCxt, const char* pDbName, c
   return catalogRefreshGetTableMeta(pParCxt->pCatalog, &conn, &name, pMeta, false);
 }
 
+// UNIFIED DEPTH SEMANTICS: three walkers of one tag-ref chain must stay in lock-step --
+// this DDL-time pre-check, the vnode backstop (metaCheckTagRefChainLocal, metaTable2.c)
+// and the executor resolver (resolveTagRefChain, sysscanoperator.c). Operative boundary
+// with TSDB_MAX_VTABLE_REF_DEPTH = 32: a legal chain has at most 33 REFERENCE EDGES
+// (34 tables incl. the source table), the 34th edge is rejected. This loop walks
+// depth = 1..MAX+1 starting FROM the first ref target t1 (the source table itself is
+// not an iteration; depth=k visits the k-th table past the source) and checks AFTER
+// following an edge: depth=k follows the (k+1)-th chain edge, so following the 34th
+// edge inside depth = MAX+1 rejects, while a chain reaching a terminal within 33
+// edges is legal.
+// The backstop and executor seed differently but land on the same boundary (their
+// comments spell out their own counting). Any change here must be mirrored in the
+// other two walkers -- pinned by test_vtable_tag_ref_depth_boundary.py.
 static int32_t checkRefChainDepthAndCircular(STranslateContext* pCxt, const char* pSrcDbName,
                                              const char* pSrcTableName, const char* pRefDbName,
                                              const char* pRefTableName, const char* pRefColName, bool isTagRef) {
@@ -34831,10 +34878,14 @@ static int32_t checkTagRef(STranslateContext* pCxt, const char* pSrcDbName, cons
   int32_t     code = TSDB_CODE_SUCCESS;
   PAR_ERR_JRET(getTableMeta(pCxt, pRefDbName, pRefTableName, &pRefTableMeta));
 
-  // referenced table must be child table (which has tags)
-  if (pRefTableMeta->tableType != TSDB_CHILD_TABLE && pRefTableMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
+  // referenced table must carry tags: child/virtual child (tag values on the entry), or
+  // normal/virtual normal (table-level constant tags, possibly chained via tag-ref)
+  if (pRefTableMeta->tableType != TSDB_CHILD_TABLE && pRefTableMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE &&
+      pRefTableMeta->tableType != TSDB_NORMAL_TABLE && pRefTableMeta->tableType != TSDB_VIRTUAL_NORMAL_TABLE) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-                                         "virtual table's tag:\"%s\"'s reference can only be child table", tagName));
+                                         "virtual table's tag:\"%s\"'s reference can only be a child table (or its virtual"
+                                         " variant) or a normal table (or its virtual variant)",
+                                         tagName));
   }
 
   const SSchema* pRefTag = getTagSchema(pRefTableMeta, pRefColName);
@@ -34860,7 +34911,13 @@ static int32_t checkTagRef(STranslateContext* pCxt, const char* pSrcDbName, cons
                                          tagName, pRefColName));
   }
 
-  if (pRefTableMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+  if (pRefTableMeta->tableType == TSDB_NORMAL_TABLE || pRefTableMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
+    // ntb/vntb sources are this build's new capability -- gate mixed-version deployments
+    PAR_ERR_JRET(parCheckConstRefSourceSupported(pCxt, tagName));
+  }
+
+  if (pRefTableMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE ||
+      pRefTableMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
     PAR_ERR_JRET(checkRefChainDepthAndCircular(pCxt, pSrcDbName, pSrcTableName, pRefDbName, pRefTableName, pRefColName, true));
   }
 

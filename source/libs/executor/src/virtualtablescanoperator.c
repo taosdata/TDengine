@@ -52,6 +52,14 @@ typedef struct SVirtualTableScanInfo {
   char           vtableName[TSDB_TABLE_NAME_LEN];
   SArray*        pOwnedResolvedTags;  // owned-tag values for child scans without a DynQueryCtrl parent
   bool           ownedTagsFetched;    // whether owned tags have been resolved already
+  SArray*        pConstRefResolvedTags;  // const-ref tag values (vntb/ntb source) via chain resolver
+  bool           constRefTagsFetched;    // whether const-ref tags have been resolved already
+  // per-instance RPC result caches for const-ref chain resolution (same pair as the
+  // ins_tags operator): every distinct source table costs at most one GET_DB_INFO plus
+  // one TABLE_CFG RPC per operator instead of one per tag. Single-thread (open-time)
+  // use; created lazily by ensureRefTagsResolved, freed in destroy.
+  SHashObj*      pRefDbVgInfoCache;
+  SHashObj*      pRefTableCfgCache;
 } SVirtualTableScanInfo;
 
 typedef struct SVirtualScanMergeOperatorInfo {
@@ -156,22 +164,47 @@ static const STagVal* findResolvedTagVal(const SOperatorInfo* pOperator, col_id_
         }
       }
     }
+    // 3) const-ref tags (vntb/ntb source) resolved by this operator itself via the chain
+    //    resolver -- table-level constants, independent of any DynQueryCtrl injection
+    if (pVScan->pConstRefResolvedTags != NULL) {
+      for (int32_t i = 0; i < taosArrayGetSize(pVScan->pConstRefResolvedTags); ++i) {
+        const STagVal* pTagVal = taosArrayGet(pVScan->pConstRefResolvedTags, i);
+        if (pTagVal != NULL && pTagVal->cid == colId) {
+          return pTagVal;
+        }
+      }
+    }
   }
   return NULL;
 }
 
-// Free the owned-tag value array, including any deep-copied var-data payloads.
-static void destroyOwnedResolvedTags(SVirtualTableScanInfo* pVScan) {
+// Free the resolved-tag arrays (owned + const-ref) including deep-copied var-data
+// payloads, plus the per-instance const-ref RPC caches. (Name kept broad: the
+// operator teardown path owns all three.)
+// pVal NULL-checked for consistency with findResolvedTagVal's read of the same arrays.
+static void destroyResolvedTagsAndCaches(SVirtualTableScanInfo* pVScan) {
   if (pVScan->pOwnedResolvedTags != NULL) {
     for (int32_t i = 0; i < taosArrayGetSize(pVScan->pOwnedResolvedTags); ++i) {
       STagVal* pVal = taosArrayGet(pVScan->pOwnedResolvedTags, i);
-      if (IS_VAR_DATA_TYPE(pVal->type)) {
+      if (pVal != NULL && IS_VAR_DATA_TYPE(pVal->type)) {
         taosMemoryFreeClear(pVal->pData);
       }
     }
     taosArrayDestroy(pVScan->pOwnedResolvedTags);
     pVScan->pOwnedResolvedTags = NULL;
   }
+  if (pVScan->pConstRefResolvedTags != NULL) {
+    for (int32_t i = 0; i < taosArrayGetSize(pVScan->pConstRefResolvedTags); ++i) {
+      STagVal* pVal = taosArrayGet(pVScan->pConstRefResolvedTags, i);
+      if (pVal != NULL && IS_VAR_DATA_TYPE(pVal->type)) {
+        taosMemoryFreeClear(pVal->pData);
+      }
+    }
+    taosArrayDestroy(pVScan->pConstRefResolvedTags);
+    pVScan->pConstRefResolvedTags = NULL;
+  }
+  // const-ref RPC caches (created lazily by ensureRefTagsResolved)
+  sysTagsRefCachesClear(&pVScan->pRefDbVgInfoCache, &pVScan->pRefTableCfgCache);
 }
 
 // For a virtual normal/child-table scan that runs WITHOUT a DynQueryCtrl parent (the static
@@ -209,8 +242,11 @@ static int32_t ensureOwnedTagsResolved(SOperatorInfo* pOperator) {
     qError("ensureOwnedTagsResolved: pPhyNode NULL");
     return TSDB_CODE_INVALID_PARA;
   }
-  // No owned local tags: a genuine no-op, not a degrade.
+  // No owned local tags: a genuine no-op, not a degrade. Mark fetched anyway for
+  // symmetry with ensureRefTagsResolved's no-op path -- a tag-less plan stays tag-less,
+  // repeated calls must not re-reach here.
   if (!pPhy->hasLocalTag) {
+    pVScan->ownedTagsFetched = true;
     return TSDB_CODE_SUCCESS;
   }
   SQueryNodeAddr* pExecNode = &pTaskInfo->pSubplan->execNode;
@@ -303,7 +339,156 @@ _return:
   tFreeSTableCfgRsp(&cfgRsp);
   // fetch stays retryable (ownedTagsFetched is only set on full success), so drop any partially
   // filled array here  -  the next attempt must not leak it by overwriting the pointer.
-  destroyOwnedResolvedTags(pVScan);
+  // destroyResolvedTagsAndCaches also clears const-ref state (array + RPC caches), so reset its
+  // fetched flag as well: keeps "flag true <=> array present" true under ANY call order (today
+  // owned runs before const-ref in the scan loop, so the const array is always still NULL
+  // here  -  the reset is belt-and-braces against a future reorder, not a reachable-bug fix).
+  destroyResolvedTagsAndCaches(pVScan);
+  pVScan->constRefTagsFetched = false;
+  return code;
+}
+
+// Resolve const-ref tags (tag-refs whose source is a vntb/ntb -- table-level constants) via the
+// unified chain resolver. Unlike owned tags this runs regardless of a DynQueryCtrl parent: the
+// value never comes from per-child injection. A broken chain (dropped source) leaves that tag
+// unresolved and it projects as NULL; runtime cycles / over-depth are hard errors.
+static int32_t ensureRefTagsResolved(SOperatorInfo* pOperator) {
+  int32_t                        code = TSDB_CODE_SUCCESS;
+  int32_t                        lino = 0;
+  SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;
+  SVirtualTableScanInfo*         pVScan = &pInfo->virtualScanInfo;
+  SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
+
+  if (pVScan->constRefTagsFetched) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SVirtualScanPhysiNode* pPhy = (SVirtualScanPhysiNode*)pOperator->pPhyNode;
+  if (pPhy == NULL) {
+    qError("ensureRefTagsResolved: pPhyNode NULL");
+    return TSDB_CODE_INVALID_PARA;
+  }
+  // the LIST is the single decision basis; hasConstRefTag is only a drift sentinel (kept
+  // readable so planner/clone/codec bugs surface in the log, but it never steers flow)
+  if (pPhy->pConstRefTags == NULL || LIST_LENGTH(pPhy->pConstRefTags) == 0) {
+    pVScan->constRefTagsFetched = true;  // genuine no-op
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!pPhy->hasConstRefTag) {
+    qError("ensureRefTagsResolved: hasConstRefTag unset but pConstRefTags has %d entries "
+           "(plan contract drift, resolving anyway)",
+           (int32_t)LIST_LENGTH(pPhy->pConstRefTags));
+  }
+  if (pTaskInfo == NULL || pTaskInfo->pMsgCb == NULL || pTaskInfo->pMsgCb->clientRpc == NULL) {
+    qError("ensureRefTagsResolved: contract violated (pTaskInfo/pMsgCb/clientRpc NULL)");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SRefChainCtx ctx = {0};
+  ctx.vnode = pVScan->base.readHandle.vnode;
+  ctx.pAPI = &pTaskInfo->storageAPI;  // task-level API; the scan-local readHandle.api may be unset
+  ctx.accountId = pPhy->scan.tableName.acctId;
+  ctx.txnId = pTaskInfo->txnId;
+  ctx.clientRpc = pTaskInfo->pMsgCb->clientRpc;
+  ctx.pMnodeEpSet = &pPhy->mgmtEpSet;
+  ctx.reqId = pTaskInfo->id.queryId;
+  ctx.pTaskInfo = pTaskInfo;
+  // per-instance RPC caches: without them every const-ref tag re-fetches its source
+  // chain (2 RPCs per hop per tag); with them every DISTINCT source costs at most one
+  // GET_DB_INFO + one TABLE_CFG per operator. Single-threaded here (open-time resolve).
+  sysTagsRefCachesInit(&pVScan->pRefDbVgInfoCache, &pVScan->pRefTableCfgCache);
+  ctx.pRefDbVgInfoCache = pVScan->pRefDbVgInfoCache;
+  ctx.pRefTableCfgCache = pVScan->pRefTableCfgCache;
+
+  SArray* pResolved = taosArrayInit(LIST_LENGTH(pPhy->pConstRefTags), sizeof(STagVal));
+  TSDB_CHECK_NULL(pResolved, code, lino, _return, terrno);
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pPhy->pConstRefTags) {
+    SNode* pExpr = pNode;
+    if (nodeType(pNode) == QUERY_NODE_TARGET) {
+      pExpr = ((STargetNode*)pNode)->pExpr;
+    }
+    if (pExpr == NULL || nodeType(pExpr) != QUERY_NODE_COLUMN) {
+      continue;
+    }
+    SColumnNode* pCol = (SColumnNode*)pExpr;
+    if (!pCol->hasRef) {
+      continue;
+    }
+
+    char*    data = NULL;
+    uint32_t len = 0;
+    bool     resolved = false;
+    code = resolveTagRefChain(&ctx, pCol->refDbName, pCol->refTableName, pCol->refColName,
+                              &data, &len, &resolved);
+    // CIRCULAR_REF / REF_DEPTH_EXCEEDED propagate. On error the resolver contract
+    // guarantees *ppData stays NULL (no partial allocation), so nothing to free here.
+    TSDB_CHECK_CODE(code, lino, _return);
+    if (!resolved) {
+      // broken chain (dropped source / unreachable vnode): project NULL, not fatal --
+      // but leave a trace: a silently-NULL const tag is otherwise very hard to diagnose
+      qDebug("ensureRefTagsResolved: unresolved const-ref tag %s (ref %s.%s.%s)", pCol->colName,
+             pCol->refDbName, pCol->refTableName, pCol->refColName);
+      continue;
+    }
+
+    STagVal val = {.cid = pCol->colId, .type = pCol->node.resType.type};
+    if (IS_VAR_DATA_TYPE(val.type)) {
+      val.nData = len;
+      // ownership of the resolver-allocated buffer transfers into the resolved array;
+      // it is freed exclusively by destroyResolvedTagsAndCaches / the _return cleanup below
+      val.pData = (uint8_t*)data;
+    } else {
+      // Strict width check: the resolver returns source-schema byte widths, which the
+      // DDL type-match gate keeps identical to the destination type's storage width. A
+      // mismatch (mixed-version window re-pointing a chain at a different-typed source,
+      // or an internal contract breach) must fail loudly -- memcpy'ing a wrong-width
+      // payload into i64 would silently read the missing/extra bytes as value bits.
+      // IS_INVALID_TYPE guards the tDataTypes index itself: val.type comes from the plan's
+      // resType (DDL-gated in practice), and an out-of-range value would read past the
+      // array. (The else branch already excludes var-len types; taosMemoryFree(NULL) is
+      // safe  -  taosMemFree NULL-checks.)
+      if (data == NULL || IS_INVALID_TYPE(val.type) || len != tDataTypes[val.type].bytes) {
+        taosMemoryFree(data);
+        qError("ensureRefTagsResolved: fixed-width payload for %s has %u bytes, type %d needs %u",
+               pCol->colName, len, val.type, tDataTypes[val.type].bytes);
+        TSDB_CHECK_NULL(NULL, code, lino, _return, TSDB_CODE_INVALID_PARA);
+      }
+      memcpy(&val.i64, data, len);
+      taosMemoryFree(data);
+    }
+    if (NULL == taosArrayPush(pResolved, &val)) {
+      // taosArrayPush fails without inserting, so val is NOT in the array: freeing
+      // here is safe and the _return cleanup (which walks the array only) will not
+      // touch it -- no double free. Fixed-width payloads were already freed above.
+      if (IS_VAR_DATA_TYPE(val.type)) {
+        taosMemoryFree(val.pData);
+      }
+      TSDB_CHECK_NULL(NULL, code, lino, _return, terrno);
+    }
+  }
+
+  pVScan->pConstRefResolvedTags = pResolved;
+  pVScan->constRefTagsFetched = true;  // only set on full success; transient errors stay retryable
+  qDebug("ensureRefTagsResolved: resolved %d const-ref tag(s) for %s",
+         pVScan->pConstRefResolvedTags ? (int32_t)taosArrayGetSize(pVScan->pConstRefResolvedTags) : 0,
+         pPhy->scan.tableName.tname);
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  // The RPC caches (created by sysTagsRefCachesInit above) are deliberately NOT cleared on
+  // this failure path: constRefTagsFetched stays false, the retry reuses them (Init is
+  // idempotent), and destroyResolvedTagsAndCaches at operator destroy owns the final cleanup.
+  if (pResolved != NULL) {
+    for (int32_t i = 0; i < taosArrayGetSize(pResolved); ++i) {
+      STagVal* pVal = taosArrayGet(pResolved, i);
+      if (pVal != NULL && IS_VAR_DATA_TYPE(pVal->type)) {
+        taosMemoryFreeClear(pVal->pData);
+      }
+    }
+    taosArrayDestroy(pResolved);
+  }
   return code;
 }
 
@@ -861,6 +1046,38 @@ _return:
   return code;
 }
 
+// Whether an EXCHANGE downstream's output block carries a TIMESTAMP at the merge-key slot --
+// every merge-sort source must, since the loser tree compares that column across sources.
+// The tag-scan exchange (whose first column is a tag/tbname, never ts) can never be a sort
+// source.
+//
+// EXCHANGE-only: the function casts pDownstream->info to SExchangeInfo* -- callers MUST
+// gate on operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE first (the schema at that
+// info layout is otherwise meaningless).
+//
+// The unreachable-schema fallbacks return true ("stays sortable"). That direction is
+// deliberate: createExchangeOperatorInfo builds pDummyBlock at operator-creation time and
+// fails creation outright when it cannot (exchangeoperator.c), so a live exchange always
+// carries a schema -- if these branches ever fire, the layout contract has changed and the
+// qError below surfaces it. Defaulting the other way (false = exclude from sort sources)
+// would silently drop rows from an ordinary ts exchange, which is strictly worse than the
+// loud ASan abort the old bug produced.
+static bool exchangeHasTsAtMergeSlot(const SOperatorInfo* pDownstream) {
+  if (pDownstream == NULL || pDownstream->info == NULL) {
+    qError("exchangeHasTsAtMergeSlot: exchange operator with NULL info -- layout contract changed?");
+    return true;
+  }
+
+  const SExchangeInfo* pExchangeInfo = (const SExchangeInfo*)pDownstream->info;
+  if (pExchangeInfo->pDummyBlock == NULL || taosArrayGetSize(pExchangeInfo->pDummyBlock->pDataBlock) == 0) {
+    qError("exchangeHasTsAtMergeSlot: exchange without dummy-block schema -- layout contract changed?");
+    return true;
+  }
+
+  SColumnInfoData* pCol0 = taosArrayGet(pExchangeInfo->pDummyBlock->pDataBlock, 0);
+  return pCol0 != NULL && pCol0->info.type == TSDB_DATA_TYPE_TIMESTAMP;
+}
+
 int32_t createSortHandle(SOperatorInfo* pOperator) {
   SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
@@ -894,6 +1111,25 @@ int32_t createSortHandle(SOperatorInfo* pOperator) {
     if (pDownstream->resultDataBlockId == pVirtualScanInfo->tagBlockId) {
       // tag block do not need sort
       pVirtualScanInfo->tagDownStreamId = i;
+      continue;
+    }
+
+    // tagBlockId stays -1 when every projected tag column is a const-ref (extractColMap only
+    // derives it from plain non-ref tags). The tag-scan downstream then matches nothing and
+    // would be added as a merge-sort source, but it carries no ts at the merge-key slot --
+    // the loser tree would compare its var-typed first column against data blocks' ts
+    // column, and colDataIsNull_var on the non-var ts column reads past the unioned
+    // nullbitmap (ASan heap-buffer-overflow in msortComparFn). Exclude it by schema.
+    if (pVirtualScanInfo->tagBlockId == -1 && pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE &&
+        !isRefTagSourceBlockId(pVirtualScanInfo, pDownstream->resultDataBlockId) &&
+        !exchangeHasTsAtMergeSlot(pDownstream)) {
+      // excluded from the sort sources, but pseudo columns (pScanPseudoCols, e.g. a
+      // tbname filter column planned independently of the projected targets) may still
+      // need this tag-scan downstream as their tag source -- register it first, mirroring
+      // the tagDownStreamId registration in the !isSortable branch below
+      if (pVirtualScanInfo->tagDownStreamId == -1 && pVirtualScanInfo->pScanPseudoCols != NULL) {
+        pVirtualScanInfo->tagDownStreamId = i;
+      }
       continue;
     }
 
@@ -1376,18 +1612,26 @@ static int32_t doSetLocalTagPseudoColumnData(SOperatorInfo* pOperator, const SVi
 
     if (pExpr != NULL && nodeType(pExpr) == QUERY_NODE_COLUMN) {
       SColumnNode* pColNode = (SColumnNode*)pExpr;
-      if (pColNode->colType == COLUMN_TYPE_TAG && !pColNode->hasRef) {
-        SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
-        SColumnInfoData* pSrcCol = NULL;
-        const STagVal*   pResolvedTagVal = findResolvedTagVal(pOperator, pColNode->colId);
-        TSDB_CHECK_NULL(pDstCol, code, lino, _return, terrno)
+      if (pColNode->colType == COLUMN_TYPE_TAG) {
+        const STagVal* pResolvedTagVal = findResolvedTagVal(pOperator, pColNode->colId);
+        // const-ref tags (hasRef with a resolved table-level constant) have neither a
+        // TagRefSource block nor a tag-block column -- fill from the resolved constant.
+        // Plain tag-refs (no resolved value) are NOT filled here on purpose: their output
+        // slots are covered by the second loop in doSetTagColumnData (pTargets +
+        // findRefTagOutputColumn). Changing what either loop covers must preserve that
+        // division or those slots would be left uninitialized.
+        if (!pColNode->hasRef || pResolvedTagVal != NULL) {
+          SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
+          SColumnInfoData* pSrcCol = NULL;
+          TSDB_CHECK_NULL(pDstCol, code, lino, _return, terrno)
 
-        if (pTagBlock != NULL && srcSlotId >= 0 && srcSlotId < numOfTagCols) {
-          pSrcCol = taosArrayGet(pTagBlock->pDataBlock, srcSlotId);
+          if (!pColNode->hasRef && pTagBlock != NULL && srcSlotId >= 0 && srcSlotId < numOfTagCols) {
+            pSrcCol = taosArrayGet(pTagBlock->pDataBlock, srcSlotId);
+          }
+
+          code = setTagColumnValue(pDstCol, pSrcCol, pResolvedTagVal, rows);
+          QUERY_CHECK_CODE(code, lino, _return);
         }
-
-        code = setTagColumnValue(pDstCol, pSrcCol, pResolvedTagVal, rows);
-        QUERY_CHECK_CODE(code, lino, _return);
       }
     }
 
@@ -1582,6 +1826,9 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   // Child scans without a DynQueryCtrl parent resolve owned-tag values themselves.
   VTS_ERR_JRET(ensureOwnedTagsResolved(pOperator));
+  // Const-ref tags (vntb/ntb source) are table-level constants: resolve via the chain
+  // resolver on every query (cached per operator instance), regardless of DynQueryCtrl.
+  VTS_ERR_JRET(ensureRefTagsResolved(pOperator));
 
   while (1) {
     VTS_ERR_JRET(doVirtualTableMerge(pOperator, pResBlock));
@@ -1605,7 +1852,8 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
         (pInfo->pSavedTagBlock != NULL && !tagAllNull) ||
         pVirtualScanInfo->pSavedTagRefBlocks != NULL ||
         pOperator->pOperatorGetParam != NULL ||
-        pVirtualScanInfo->pOwnedResolvedTags != NULL;
+        pVirtualScanInfo->pOwnedResolvedTags != NULL ||
+        pVirtualScanInfo->pConstRefResolvedTags != NULL;
     if (needMetadataFill) {
       VTS_ERR_JRET(doSetTagColumnData(pOperator, pVirtualScanInfo, pInfo->pSavedTagBlock, (*pResBlock),
                                       (*pResBlock)->info.rows));
@@ -1700,7 +1948,7 @@ void destroyVirtualTableScanOperatorInfo(void* param) {
     taosArrayDestroy(pInfo->pSortCtxList);
     pInfo->pSortCtxList = NULL;
   }
-  destroyOwnedResolvedTags(pInfo);
+  destroyResolvedTagsAndCaches(pInfo);
   taosMemoryFreeClear(param);
 }
 

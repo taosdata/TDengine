@@ -626,8 +626,11 @@ static int32_t sortComparInit(SMsortComparParam* pParam, SArray* pSources, int32
       SSortSource* pSource = pParam->pSources[i];
       TAOS_CHECK_RETURN(pHandle->fetchfp(pSource->param, &pSource->src.pBlock));
 
-      // set current source is done
-      if (pSource->src.pBlock == NULL) {
+      // set current source is done. An empty (0-row) block must be treated the same way:
+      // the loser-tree init compares element [0] of each source, which reads past the
+      // (1-byte placeholder) var-offset array of an empty block -- heap-buffer-overflow
+      // under ASan, garbage ordering otherwise.
+      if (pSource->src.pBlock == NULL || pSource->src.pBlock->info.rows == 0) {
         setCurrentSourceDone(pSource, pHandle);
       }
     }
@@ -722,7 +725,10 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
       pSource->fetchUs += elapsed;
       pSource->fetchNum++;
       pHandle->fetchTotalUs += elapsed;
-      if (pSource->src.pBlock == NULL) {
+      if (pSource->src.pBlock == NULL || pSource->src.pBlock->info.rows == 0) {
+        // same empty-block rule as the init loop above: a 0-row block must complete the
+        // source -- the loser tree would otherwise compare element [0] of it and read
+        // past the empty block's var-offset placeholder
         (*numOfCompleted) += 1;
         pSource->src.rowIndex = -1;
         qDebug("adjust merge tree. %d source completed", *numOfCompleted);
