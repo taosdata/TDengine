@@ -239,10 +239,18 @@ typedef enum EHintOption {
   HINT_EX_INTERVAL,
 } EHintOption;
 
+// A Hint parameter keeps the original token type and text for later consumers.
+// value is heap allocated and owned by the containing SHintNode.
+typedef struct SHintParam {
+  uint32_t type;
+  char*    value;
+} SHintParam;
+
 typedef struct SHintNode {
   ENodeType   type;
   EHintOption option;
-  void*       value;
+  // SArray<SHintParam>; owned by this node and NULL when no parameters exist.
+  SArray* pParams;
 } SHintNode;
 
 #define OPERATOR_FLAG_NEGATIVE_OP                (1 << 0)

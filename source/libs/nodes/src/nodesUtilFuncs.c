@@ -1485,14 +1485,7 @@ static void destroySmaIndex(void* pIndex) { taosMemoryFree(((STableIndexInfo*)pI
 
 void destroyFuncParam(void* pValue) { taosMemoryFree(((SFunctParam*)pValue)->pCol); }
 
-static void destroyHintValue(EHintOption option, void* value) {
-  switch (option) {
-    default:
-      break;
-  }
-
-  taosMemoryFree(value);
-}
+static void destroyHintParam(void* pParam) { taosMemoryFree(((SHintParam*)pParam)->value); }
 
 void destroySSDataBlock(void* param) {
   if (NULL == param) {
@@ -1899,7 +1892,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_HINT: {
       SHintNode* pHint = (SHintNode*)pNode;
-      destroyHintValue(pHint->option, pHint->value);
+      taosArrayDestroyEx(pHint->pParams, destroyHintParam);
       break;
     }
     case QUERY_NODE_VIEW: {
