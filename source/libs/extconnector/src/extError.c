@@ -279,7 +279,7 @@ int32_t extClassifyRemoteError(int32_t tdCode, const char* remoteSqlState, int32
     return TSDB_CODE_SUCCESS;
   }
 
-  // PostgreSQL/InfluxDB: column not in GROUP BY — the pushed-down AGG clause is invalid.
+  // PostgreSQL/InfluxDB: column not in GROUP BY - the pushed-down AGG clause is invalid.
   if (extContainsNoCase(remoteMessage, "must appear in the group by clause") ||
       extContainsNoCase(remoteMessage, "not in group by clause") ||
       extContainsNoCase(remoteMessage, "schema error: no field named")) {

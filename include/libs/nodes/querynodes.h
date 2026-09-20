@@ -207,7 +207,7 @@ typedef struct SRemoteValueListNode {
   STypeMod   filterValueTypeMod;
   int32_t    subQIdx;
   uint64_t   streamGen;  // generation when hash was last built (stream mode)
-  // DS §5.3.7.1.3: pre-rendered inner SELECT SQL for same-source IN (subquery).
+  // DS section5.3.7.1.3: pre-rendered inner SELECT SQL for same-source IN (subquery).
   // Non-NULL only for MySQL/PG same-source IN subqueries; allows nodesRemotePlanToSQL
   // to emit  col IN (SELECT ...)  without a runtime resolve context.
   // Heap-allocated; owned by this node; freed in nodesDestroyNode.
@@ -515,11 +515,11 @@ typedef struct SExtTableNode {
   char                  remoteTableName[TSDB_TABLE_NAME_LEN];  // actual table name on remote (preserves case)
   // --- subquery DIRECT_SQL eligibility (set by parser) ---
   // true  = the source name was supplied explicitly in the user's path
-  //         (e.g. "src.tbl" / "src.schema.tbl") — the raw subquery SQL carries a
+  //         (e.g. "src.tbl" / "src.schema.tbl") - the raw subquery SQL carries a
   //         TDengine source-name qualifier that the remote DB cannot resolve, so
   //         the subquery MUST be re-rendered (transform mode) to strip it.
   // false = the source name came from the active USE <source> context (the user
-  //         wrote a bare table or db.tbl) — the raw subquery SQL has no source
+  //         wrote a bare table or db.tbl) - the raw subquery SQL has no source
   //         qualifier and may be inlined verbatim (DIRECT_SQL).
   bool                  srcNameFromPath;
 } SExtTableNode;
@@ -1237,12 +1237,12 @@ int32_t nodesRenderCorrelatedExistsBody(const SSelectStmt* pInnerSelect,
                                         int8_t             sourceType,
                                         char**             ppSQL);
 
-// nodesRenderInSubqueryBody — render the body SQL of an uncorrelated IN (subquery)
+// nodesRenderInSubqueryBody - render the body SQL of an uncorrelated IN (subquery)
 // for same-source MySQL/PG pushdown.
 //
 // pInnerSelect : the inner SSelectStmt (single projection, FROM an ext table).
 // sourceType   : EExtSourceType value (MySQL or PostgreSQL).
-// ppSQL        : OUT — heap-allocated SQL string; caller must taosMemoryFree().
+// ppSQL        : OUT - heap-allocated SQL string; caller must taosMemoryFree().
 //
 // Returns TSDB_CODE_SUCCESS on success or an error code.
 int32_t nodesRenderInSubqueryBody(const SSelectStmt* pInnerSelect,

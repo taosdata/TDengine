@@ -2570,7 +2570,7 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
       dynSQLAppendStr(s, " IS NOT UNKNOWN)");
       return TSDB_CODE_SUCCESS;
     case OP_TYPE_JSON_GET_VALUE: {
-      // DS §5.3.3.1.5: MySQL -> JSON_EXTRACT(col, '$.key'); PG -> col->>'key'
+      // DS section5.3.3.1.5: MySQL -> JSON_EXTRACT(col, '$.key'); PG -> col->>'key'
       if (dialect == EXT_SQL_DIALECT_MYSQL) {
         dynSQLAppendStr(s, "JSON_EXTRACT(");
         (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
@@ -3003,7 +3003,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
   int32_t nParams = pFunc->pParameterList ? LIST_LENGTH(pFunc->pParameterList) : 0;
 
   switch (funcType) {
-    /* ── Math (all dialects) ─────────────────────────────────────────── */
+    /* -- Math (all dialects) ------------------------------------------- */
     case FUNCTION_TYPE_ABS:     return dynRenderNamedFunc(s, "ABS",     pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_CEIL:    return dynRenderNamedFunc(s, "CEIL",    pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_FLOOR:   return dynRenderNamedFunc(s, "FLOOR",   pFunc, dialect, pExtMeta, pCtx);
@@ -3049,7 +3049,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     case FUNCTION_TYPE_EXP:     return dynRenderNamedFunc(s, "EXP",     pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_LN:      return dynRenderNamedFunc(s, "LN",      pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_LOG: {
-      // DS §5.3.4.1.1: LOG() semantics differ by dialect.
+      // DS section5.3.4.1.1: LOG() semantics differ by dialect.
       // Single-arg LOG(expr): TDengine means natural log; PG/Influx LOG() is base-10, must use LN().
       // Two-arg LOG(expr, base): TDengine means log_base(expr); others use LOG(base, expr) - swap args.
       if (nParams == 1 && (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL))
@@ -3075,7 +3075,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     case FUNCTION_TYPE_ATAN:    return dynRenderNamedFunc(s, "ATAN",    pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_PI:      return dynRenderNamedFunc(s, "PI",      pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_MOD:
-      // DS §5.3.4.1.1: DataFusion has no MOD() function; use % operator.
+      // DS section5.3.4.1.1: DataFusion has no MOD() function; use % operator.
       if (dialect == EXT_SQL_DIALECT_INFLUXQL && nParams >= 2) {
         dynSQLAppendChar(s, '(');
         int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
@@ -3151,7 +3151,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         return dynRenderNamedFunc(s, "RANDOM", pFunc, dialect, pExtMeta, pCtx);
       return dynRenderNamedFunc(s, "RAND", pFunc, dialect, pExtMeta, pCtx);
 
-    /* ── String (all dialects unless noted) ─────────────────────────── */
+    /* -- String (all dialects unless noted) --------------------------- */
     case FUNCTION_TYPE_UPPER:    return dynRenderNamedFunc(s, "UPPER",  pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_LOWER:    return dynRenderNamedFunc(s, "LOWER",  pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_LENGTH:
@@ -3206,14 +3206,14 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     case FUNCTION_TYPE_REPLACE:      return dynRenderNamedFunc(s, "REPLACE",      pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_REPEAT:       return dynRenderNamedFunc(s, "REPEAT",       pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_SUBSTR_IDX:
-      // DS §5.3.4.1.2: SUBSTRING_INDEX - MySQL only; PG/InfluxDB have no equivalent.
+      // DS section5.3.4.1.2: SUBSTRING_INDEX - MySQL only; PG/InfluxDB have no equivalent.
       if (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL) {
         qError("FQ-SQL: SUBSTRING_INDEX not supported by %s; deferring to local", dialectName(dialect));
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
       }
       return dynRenderNamedFunc(s, "SUBSTRING_INDEX", pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_BASE64:
-      // DS §5.3.4.1.3: PG uses ENCODE(expr::bytea, 'base64'); InfluxDB has no encoding function.
+      // DS section5.3.4.1.3: PG uses ENCODE(expr::bytea, 'base64'); InfluxDB has no encoding function.
       {
         int32_t code = dynRejectFuncArg0NcharIfUnsupported(pFunc, dialect);
         if (TSDB_CODE_SUCCESS != code) {
@@ -3233,7 +3233,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       }
       return dynRenderNamedFunc(s, "TO_BASE64",    pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_FROM_BASE64:
-      // DS §5.3.4.1.3: PG uses DECODE(expr, 'base64'); InfluxDB has no decoding function.
+      // DS section5.3.4.1.3: PG uses DECODE(expr, 'base64'); InfluxDB has no decoding function.
       {
         int32_t code = dynRejectFuncArg0NcharIfUnsupported(pFunc, dialect);
         if (TSDB_CODE_SUCCESS != code) {
@@ -3260,7 +3260,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFunc(s, "MD5", pFunc, dialect, pExtMeta, pCtx);
     }
     case FUNCTION_TYPE_SHA1:
-      // DS §5.3.4.1.4: PG needs pgcrypto ext; DataFusion has no SHA1. Local only for both.
+      // DS section5.3.4.1.4: PG needs pgcrypto ext; DataFusion has no SHA1. Local only for both.
       {
         int32_t code = dynRejectFuncArg0NcharIfUnsupported(pFunc, dialect);
         if (TSDB_CODE_SUCCESS != code) {
@@ -3280,7 +3280,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         }
       }
       if (dialect == EXT_SQL_DIALECT_POSTGRES) {
-        // DS §5.3.4.1.4: PG needs pgcrypto; local only.
+        // DS section5.3.4.1.4: PG needs pgcrypto; local only.
         qError("FQ-SQL: SHA2 not supported by PostgreSQL; deferring to local");
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
       }
@@ -3307,7 +3307,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFunc(s, "SHA2", pFunc, dialect, pExtMeta, pCtx);
     }
     case FUNCTION_TYPE_CRC32:
-      // DS §5.3.4.1.5: PG/InfluxDB have no built-in CRC32.
+      // DS section5.3.4.1.5: PG/InfluxDB have no built-in CRC32.
       {
         int32_t code = dynRejectFuncArg0NcharIfUnsupported(pFunc, dialect);
         if (TSDB_CODE_SUCCESS != code) {
@@ -3320,7 +3320,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       }
       return dynRenderNamedFunc(s, "CRC32", pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_FIND_IN_SET:
-      // DS §5.3.4.1.2: PG/InfluxDB have no equivalent function.
+      // DS section5.3.4.1.2: PG/InfluxDB have no equivalent function.
       if (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL) {
         qError("FQ-SQL: FIND_IN_SET not supported by %s; deferring to local", dialectName(dialect));
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
@@ -3328,7 +3328,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFunc(s, "FIND_IN_SET", pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_CHAR:
       if (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL) {
-        // DS §5.3.4.1.2: PG/DataFusion CHR() accepts single arg only.
+        // DS section5.3.4.1.2: PG/DataFusion CHR() accepts single arg only.
         // Multi-arg CHAR(e1, e2, ...) -> CHR(e1) || CHR(e2) || ...
         if (nParams > 1) {
           bool first2 = true;
@@ -3350,7 +3350,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       /* POSITION(needle IN haystack) - TDengine stores as POSITION(needle, haystack) */
       if (nParams >= 2) {
         if (dialect == EXT_SQL_DIALECT_INFLUXQL) {
-          // DS §5.3.4.1.2: DataFusion uses STRPOS(haystack, needle) - reversed args.
+          // DS section5.3.4.1.2: DataFusion uses STRPOS(haystack, needle) - reversed args.
           dynSQLAppendStr(s, "STRPOS(");
           int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 1),
                                        dialect, pExtMeta, pCtx);
@@ -3376,7 +3376,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFunc(s, "POSITION", pFunc, dialect, pExtMeta, pCtx);
     }
 
-    /* ── CAST ─────────────────────────────────────────────────────────── */
+    /* -- CAST ----------------------------------------------------------- */
     case FUNCTION_TYPE_CAST: {
       const SNode* pArg0 = (nParams >= 1) ? nodesListGetNode(pFunc->pParameterList, 0) : NULL;
       bool castResultIsInt = (pFunc->node.resType.type == TSDB_DATA_TYPE_BIGINT ||
@@ -3465,7 +3465,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return TSDB_CODE_SUCCESS;
     }
     case FUNCTION_TYPE_TO_UNIXTIMESTAMP: {
-      // DS §5.2.6 / §5.3.4.1.8:
+      // DS section5.2.6 / section5.3.4.1.8:
       //   - tz-aware external timestamp types must preserve their native UTC semantics.
       //   - tz-naive external timestamp/date types must be interpreted in the TDengine
       //     client timezone before converting to epoch.
@@ -3544,13 +3544,13 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
     }
 
-    /* ── Time functions ──────────────────────────────────────────────── */
+    /* -- Time functions ------------------------------------------------ */
     case FUNCTION_TYPE_NOW:
       /* InfluxDB 3 NOW() comparison semantics differ from TDengine; compute locally. */
       if (dialect == EXT_SQL_DIALECT_INFLUXQL) return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
       return dynRenderNamedFunc(s, "NOW", pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_TODAY:
-      // DS §5.3.4.1.9: MySQL uses CURDATE(); PG uses CURRENT_DATE; InfluxDB uses CURRENT_DATE.
+      // DS section5.3.4.1.9: MySQL uses CURDATE(); PG uses CURRENT_DATE; InfluxDB uses CURRENT_DATE.
       if (dialect == EXT_SQL_DIALECT_MYSQL)
         return dynRenderNamedFunc(s, "CURDATE", pFunc, dialect, pExtMeta, pCtx);
       // PG/InfluxDB: CURRENT_DATE (no parentheses - it's a keyword, not a function call)
@@ -3599,7 +3599,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         dynSQLAppendStr(s, ", 'YYYY-MM-DD')");
         return s->err ? s->err : TSDB_CODE_SUCCESS;
       }
-      // DS §5.3.4.1.9: InfluxDB -> CAST(expr AS DATE)
+      // DS section5.3.4.1.9: InfluxDB -> CAST(expr AS DATE)
       if (dialect == EXT_SQL_DIALECT_INFLUXQL && nParams >= 1) {
         dynSQLAppendStr(s, "CAST(");
         int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
@@ -3629,7 +3629,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFuncKeepN(s, "WEEK", pFunc, nParams - 1, dialect, pExtMeta, pCtx);
     }
     case FUNCTION_TYPE_WEEKDAY: {
-      // DS §5.3.4.1.9: PG -> EXTRACT(ISODOW FROM expr) - 1; InfluxDB -> local.
+      // DS section5.3.4.1.9: PG -> EXTRACT(ISODOW FROM expr) - 1; InfluxDB -> local.
       if (dialect == EXT_SQL_DIALECT_INFLUXQL) {
         qError("FQ-SQL: WEEKDAY() not supported by InfluxDB; deferring to local");
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
@@ -3644,7 +3644,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFuncKeepN(s, "WEEKDAY", pFunc, nParams - 1, dialect, pExtMeta, pCtx);
     }
     case FUNCTION_TYPE_WEEKOFYEAR: {
-      // DS §5.3.4.1.9: PG/InfluxDB -> EXTRACT(WEEK FROM expr)
+      // DS section5.3.4.1.9: PG/InfluxDB -> EXTRACT(WEEK FROM expr)
       if ((dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL) && nParams >= 1) {
         dynSQLAppendStr(s, "EXTRACT(WEEK FROM ");
         int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
@@ -3655,7 +3655,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFuncKeepN(s, "WEEKOFYEAR", pFunc, nParams - 1, dialect, pExtMeta, pCtx);
     }
     case FUNCTION_TYPE_DAYOFWEEK: {
-      // DS §5.3.4.1.9: PG/InfluxDB -> EXTRACT(DOW FROM expr) + 1  [TDengine/MySQL: 1=Sunday]
+      // DS section5.3.4.1.9: PG/InfluxDB -> EXTRACT(DOW FROM expr) + 1  [TDengine/MySQL: 1=Sunday]
       if ((dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL) && nParams >= 1) {
         dynSQLAppendStr(s, "(EXTRACT(DOW FROM ");
         int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
@@ -3666,7 +3666,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFuncKeepN(s, "DAYOFWEEK", pFunc, nParams - 1, dialect, pExtMeta, pCtx);
     }
     case FUNCTION_TYPE_TO_CHAR: {
-      // DS §5.3.4.1.8: MySQL -> DATE_FORMAT(expr, mysql_fmt); PG/Influx -> TO_CHAR(expr, fmt).
+      // DS section5.3.4.1.8: MySQL -> DATE_FORMAT(expr, mysql_fmt); PG/Influx -> TO_CHAR(expr, fmt).
       // The 3rd param (timezone name) is TDengine-specific and not forwarded to remote.
       qDebug("FQ-SQL: TO_CHAR rendering dialect=%s nParams=%d", dialectName(dialect), nParams);
       if (dialect == EXT_SQL_DIALECT_MYSQL && nParams >= 2) {
@@ -3715,7 +3715,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFunc(s, "TO_CHAR", pFunc, dialect, pExtMeta, pCtx);
     }
     case FUNCTION_TYPE_TO_TIMESTAMP: {
-      // DS §5.3.4.1.8: MySQL -> STR_TO_DATE(expr, mysql_fmt); PG/Influx -> TO_TIMESTAMP(expr, fmt).
+      // DS section5.3.4.1.8: MySQL -> STR_TO_DATE(expr, mysql_fmt); PG/Influx -> TO_TIMESTAMP(expr, fmt).
       qDebug("FQ-SQL: TO_TIMESTAMP rendering dialect=%s nParams=%d", dialectName(dialect), nParams);
       if (dialect == EXT_SQL_DIALECT_MYSQL && nParams >= 2) {
         SNode* pStrArg = nodesListGetNode(pFunc->pParameterList, 0);
@@ -3762,10 +3762,10 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFunc(s, "TO_TIMESTAMP", pFunc, dialect, pExtMeta, pCtx);
     }
     case FUNCTION_TYPE_TIMETRUNCATE: {
-      // DS §5.3.4.1.9: MySQL local-only (no general timestamp truncation; disabled
+      // DS section5.3.4.1.9: MySQL local-only (no general timestamp truncation; disabled
       // via capability matrix).  PG / InfluxDB v3 -> DATE_TRUNC('<unit>', expr).
       // TDengine param layout (translateTimeTruncate): [0]=time, [1]=interval
-      // ticks, [2]=use_curr_tz, [3]=precision, [4]=tz, …  DATE_TRUNC takes a unit
+      // ticks, [2]=use_curr_tz, [3]=precision, [4]=tz, ...  DATE_TRUNC takes a unit
       // KEYWORD, so the interval must equal exactly one supported calendar unit;
       // map interval(ticks,precision) -> unit string, else defer to local.
       if (nParams < 4) {
@@ -3788,7 +3788,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         case TSDB_TIME_PRECISION_MILLI: ns = ticks * 1000000LL; break;
         case TSDB_TIME_PRECISION_MICRO: ns = ticks * 1000LL;    break;
         case TSDB_TIME_PRECISION_NANO:  ns = ticks;             break;
-        default:                        ns = ticks * 1000LL;    break;  // assume µs
+        default:                        ns = ticks * 1000LL;    break;  // assume us
       }
       const int64_t NS_SEC = 1000000000LL, NS_MIN = 60LL*1000000000LL,
                     NS_HOUR = 3600LL*1000000000LL, NS_DAY = 86400LL*1000000000LL,
@@ -3810,7 +3810,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return s->err ? s->err : TSDB_CODE_SUCCESS;
     }
 
-    /* ── Aggregate functions ─────────────────────────────────────────── */
+    /* -- Aggregate functions ------------------------------------------- */
     case FUNCTION_TYPE_COUNT: {
       /* COUNT(*) special case: single COLUMN param with colName="*" */
       bool isCountStar = (nParams == 0) ||
@@ -3960,7 +3960,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
     }
     case FUNCTION_TYPE_CORR:
-      // DS §5.3.4.1.1: MySQL has no built-in CORR(); disabled via capability matrix.
+      // DS section5.3.4.1.1: MySQL has no built-in CORR(); disabled via capability matrix.
       // PG and InfluxDB v3 both support CORR() natively.
       if (dialect == EXT_SQL_DIALECT_MYSQL) {
         qError("FQ-SQL: CORR() not supported by MySQL");
@@ -3968,7 +3968,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       }
       return dynRenderNamedFunc(s, "CORR", pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_SPREAD: {
-      // DS §5.3.4.1.10: SPREAD(expr) -> MAX(expr) - MIN(expr)
+      // DS section5.3.4.1.10: SPREAD(expr) -> MAX(expr) - MIN(expr)
       if (nParams < 1) {
         qError("FQ-SQL: SPREAD missing params");
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
@@ -4015,7 +4015,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return TSDB_CODE_SUCCESS;
     }
     case FUNCTION_TYPE_TIMEDIFF: {
-      // DS §5.3.4.1.9: TIMEDIFF(e1, e2[, unit])
+      // DS section5.3.4.1.9: TIMEDIFF(e1, e2[, unit])
       //   MySQL -> TIMESTAMPDIFF(unit, e2, e1)  (note: reversed parameter order)
       //   PG/Influx -> EXTRACT(EPOCH FROM (e1 - e2))
       if (nParams < 2) {
@@ -4097,7 +4097,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return TSDB_CODE_SUCCESS;
     }
     case FUNCTION_TYPE_MODE: {
-      // DS §5.3.4.1.13: PG uses ordered-set aggregate MODE() WITHIN GROUP (ORDER BY expr).
+      // DS section5.3.4.1.13: PG uses ordered-set aggregate MODE() WITHIN GROUP (ORDER BY expr).
       // MySQL/InfluxDB have no built-in MODE; disabled via capability matrix.
       if (dialect == EXT_SQL_DIALECT_MYSQL || dialect == EXT_SQL_DIALECT_INFLUXQL) {
         qError("FQ-SQL: MODE() not supported by %s", dialectName(dialect));
@@ -4113,7 +4113,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFunc(s, "MODE", pFunc, dialect, pExtMeta, pCtx);
     }
     case FUNCTION_TYPE_PERCENTILE: {
-      // DS §5.3.4.1.11: PG -> PERCENTILE_CONT(p/100.0) WITHIN GROUP (ORDER BY expr).
+      // DS section5.3.4.1.11: PG -> PERCENTILE_CONT(p/100.0) WITHIN GROUP (ORDER BY expr).
       // MySQL/InfluxDB: disabled via capability matrix.
       if (dialect == EXT_SQL_DIALECT_MYSQL || dialect == EXT_SQL_DIALECT_INFLUXQL) {
         qError("FQ-SQL: PERCENTILE() not supported by %s", dialectName(dialect));
@@ -4139,7 +4139,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
     }
     case FUNCTION_TYPE_LAG: {
-      // DS §5.3.4.1.13: LAG(expr, offset[, default]) - needs OVER (ORDER BY ts).
+      // DS section5.3.4.1.13: LAG(expr, offset[, default]) - needs OVER (ORDER BY ts).
       // The TDengine parser appends the primary-key timestamp as the LAST
       // parameter for implicit-ts functions (appendTsForImplicitTsFuncImpl), so:
       //   LAG(voltage,1)          -> [voltage, 1, ts]
@@ -4163,7 +4163,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return s->err ? s->err : TSDB_CODE_SUCCESS;
     }
     case FUNCTION_TYPE_LEAD: {
-      // DS §5.3.4.1.13: LEAD(expr, offset[, default]) - needs OVER (ORDER BY ts).
+      // DS section5.3.4.1.13: LEAD(expr, offset[, default]) - needs OVER (ORDER BY ts).
       // Parser appends the primary-key ts as the LAST param (see LAG above).
       if (nParams < 3) {
         qError("FQ-SQL: LEAD() needs expr+offset+ts; got %d params", nParams);
@@ -4183,7 +4183,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return s->err ? s->err : TSDB_CODE_SUCCESS;
     }
 
-    /* ── Geospatial functions ─────────────────────────────────────────── */
+    /* -- Geospatial functions ------------------------------------------- */
     case FUNCTION_TYPE_GEOM_FROM_TEXT:
       if (dialect == EXT_SQL_DIALECT_INFLUXQL) {
         qError("FQ-SQL: ST_GeomFromText not supported by InfluxDB");
@@ -4216,7 +4216,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       }
       return dynRenderNamedFunc(s, "ST_MakePoint",        pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_COVERS:
-      // DS §5.3.4.1.17: MySQL has no ST_Covers(); disabled via capability matrix.
+      // DS section5.3.4.1.17: MySQL has no ST_Covers(); disabled via capability matrix.
       if (dialect == EXT_SQL_DIALECT_MYSQL || dialect == EXT_SQL_DIALECT_INFLUXQL) {
         qError("FQ-SQL: ST_Covers not supported by %s", dialectName(dialect));
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
@@ -4229,7 +4229,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       }
       return dynRenderNamedFunc(s, "ST_Contains",         pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_CONTAINS_PROPERLY:
-      // DS §5.3.4.1.17: MySQL has no ST_ContainsProperly(); disabled via capability matrix.
+      // DS section5.3.4.1.17: MySQL has no ST_ContainsProperly(); disabled via capability matrix.
       if (dialect == EXT_SQL_DIALECT_MYSQL || dialect == EXT_SQL_DIALECT_INFLUXQL) {
         qError("FQ-SQL: ST_ContainsProperly not supported by %s", dialectName(dialect));
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
@@ -4237,7 +4237,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFunc(s, "ST_ContainsProperly", pFunc, dialect, pExtMeta, pCtx);
 
     case FUNCTION_TYPE_EQUALS:
-      // DS §5.3.4.1.17: MySQL/PG -> ST_Equals(A, B); InfluxDB -> local.
+      // DS section5.3.4.1.17: MySQL/PG -> ST_Equals(A, B); InfluxDB -> local.
       if (dialect == EXT_SQL_DIALECT_INFLUXQL) {
         qError("FQ-SQL: ST_Equals not supported by InfluxDB; deferring to local");
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
@@ -4256,7 +4256,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       }
       return dynRenderNamedFunc(s, "ST_Touches",   pFunc, dialect, pExtMeta, pCtx);
 
-    /* ── FQ internal: time bucket (INTERVAL pushdown) ───────────────── */
+    /* -- FQ internal: time bucket (INTERVAL pushdown) ----------------- */
     case FUNCTION_TYPE_FQ_TIME_BUCKET: {
       // pParameterList[0] = SColumnNode for the timestamp primary key column
       // pParameterList[1] = SValueNode (int64, ticks in srcPrecision) for bucket size
@@ -4290,8 +4290,8 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       char offsetBuf[32];
 
       if (dialect == EXT_SQL_DIALECT_MYSQL) {
-        // MySQL uses µs precision (TSDB_TIME_PRECISION_MICRO).
-        // Convert ticks to µs based on source precision, then generate:
+        // MySQL uses us precision (TSDB_TIME_PRECISION_MICRO).
+        // Convert ticks to us based on source precision, then generate:
         //   FLOOR((UNIX_TIMESTAMP(ts) * 1000000 - offset_us) / N_us) * N_us + offset_us
         int64_t n_us = 0;
         int64_t offset_us = 0;
@@ -4307,7 +4307,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         (void)snprintf(offsetBuf, sizeof(offsetBuf), "%" PRId64, offset_us);
         // Wrap with FROM_UNIXTIME so MySQL returns DATETIME (not DECIMAL).
         // DATETIME is bound as MYSQL_TYPE_TIMESTAMP (MYSQL_TIME struct) and
-        // converted to epoch µs by mysqlTimeToEpochUs in the connector.
+        // converted to epoch us by mysqlTimeToEpochUs in the connector.
         dynSQLAppendStr(s, "FROM_UNIXTIME((FLOOR((UNIX_TIMESTAMP(");
         code = dynAppendExpr(s, pTsArg, dialect, pExtMeta, pCtx);
         if (code) return code;
@@ -4324,7 +4324,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       }
 
       if (dialect == EXT_SQL_DIALECT_POSTGRES) {
-        // PostgreSQL uses µs precision.
+        // PostgreSQL uses us precision.
         // DATE_BIN('N_us microseconds', ts, TIMESTAMP '1970-01-01 00:00:00' + origin_offset)
         int64_t n_us = 0;
         int64_t offset_us = 0;
@@ -4554,7 +4554,7 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
 
       // Detect IFNULL(a, b) / NVL(a, b) pattern:
       //   CASE WHEN a IS NOT NULL THEN a ELSE b END  (1 WHEN, has pElse)
-      // DS §5.3.4.1.14: MySQL -> IFNULL(a,b); PG/Influx -> COALESCE(a,b).
+      // DS section5.3.4.1.14: MySQL -> IFNULL(a,b); PG/Influx -> COALESCE(a,b).
       if (!pCW->pCase && pCW->pElse && pCW->pWhenThenList &&
           LIST_LENGTH(pCW->pWhenThenList) == 1) {
         const SWhenThenNode* pWT2 = (const SWhenThenNode*)nodesListGetNode(pCW->pWhenThenList, 0);
@@ -4605,7 +4605,7 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
 
       // Detect MySQL IF(cond, then, else) pattern:
       //   CASE WHEN cond THEN then_val ELSE else_val END (1 WHEN, has pElse, no pCase)
-      // DS §5.3.4.1.14: MySQL supports IF(cond, then, else) natively.
+      // DS section5.3.4.1.14: MySQL supports IF(cond, then, else) natively.
       // TDengine parser rewrites IF()/NVL2() to CASE WHEN; we convert back for MySQL.
       // Note: placed AFTER NULLIF detection so that NULLIF patterns are not misidentified.
       if (dialect == EXT_SQL_DIALECT_MYSQL && !pCW->pCase && pCW->pElse &&
@@ -5445,7 +5445,7 @@ static void renderSelectList(SDynSQL* s, const SNodeList* pCols, EExtSQLDialect 
     // All expressions (columns and non-columns) go through dynAppendExpr for
     // uniform rendering.  dynAppendExpr handles the userAlias->colName resolution
     // for subquery-referencing columns (pExtMeta==NULL) so that every context
-    // (SELECT, WHERE, HAVING, ORDER BY, GROUP BY, …) uses the same logic.
+    // (SELECT, WHERE, HAVING, ORDER BY, GROUP BY, ...) uses the same logic.
     if (!renderedTimestampEpoch && !renderedCurrentScopeColumn) {
       int32_t exprCode = dynAppendExpr(s, pCol, dialect, pExtMeta, pSelectExprCtx);
       if (exprCode != TSDB_CODE_SUCCESS && !s->err) s->err = exprCode;
@@ -6043,7 +6043,7 @@ static void renderOrderBy(SDynSQL* s, const SNodeList* pSortKeys, const SNodeLis
     firstKey = false;
     (void)dynAppendOrderExpr(s, pOrd->pExpr, pSelectExprs, dialect, pExtMeta, pCtx);
     dynSQLAppendStr(s, (pOrd->order == ORDER_DESC) ? " DESC" : " ASC");
-    // DS §5.3.8.3: PG and InfluxDB v3 (DataFusion) both directly support NULLS FIRST/LAST.
+    // DS section5.3.8.3: PG and InfluxDB v3 (DataFusion) both directly support NULLS FIRST/LAST.
     // MySQL does not support this syntax; handled above via ISNULL() conversion.
     qDebug("FQ-DBG renderOrderBy: dialect=%d nullOrder=%d NULL_ORDER_FIRST=%d NULL_ORDER_LAST=%d",
            (int)dialect, (int)pOrd->nullOrder, (int)NULL_ORDER_FIRST, (int)NULL_ORDER_LAST);
@@ -6639,8 +6639,8 @@ static int32_t renderAggSelectList(SDynSQL* s, const SNodesRemoteSelectOutputs* 
   return TSDB_CODE_SUCCESS;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Combination-driven renderer (design tmp/fq_remoteplan_refactor_20260613.md §6.-3).
+// -----------------------------------------------------------------------------
+// Combination-driven renderer (design tmp/fq_remoteplan_refactor_20260613.md section6.-3).
 //
 // Mirrors the optimizer's collect/commit two-step model, but for SQL generation:
 //   Step 1 (collect): walk the logic tree TOP-DOWN, gathering consecutive nodes
@@ -6659,7 +6659,7 @@ static int32_t renderAggSelectList(SDynSQL* s, const SNodesRemoteSelectOutputs* 
 // render as ONE combined "GROUP BY partKeys[, groupKeys]" (partition+agg cases 2/3);
 // a PARTITION carrying its own aggFuncs claims the SELECT slot, so it conflicts
 // with an AGG above and is pushed into a subquery (case 1).
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
 // Clause-slot bitmask for query-group collection.
 #define FQ_SLOT_WHERE      (1u << 0)
@@ -6678,7 +6678,7 @@ typedef struct SFqQueryGroup {
   const SIndefRowsFuncLogicNode* pIndef;      // SELECT (window funcs)
   const SSortLogicNode*          pSort;       // ORDER BY
   const SScanLogicNode*          pScanWhere;  // WHERE source (the FROM scan, if any)
-  const SLogicNode*              pWhereNode;  // intermediate node (PROJECT/SORT/…) carrying its own WHERE (node.pConditions)
+  const SLogicNode*              pWhereNode;  // intermediate node (PROJECT/SORT/...) carrying its own WHERE (node.pConditions)
   const SNode*                   pLimit;      // LIMIT (from whichever node carries it)
   const SLogicNode*              pFromSource; // SCAN or JOIN at the group bottom (FROM table/join)
   const SLogicNode*              pFromChild;  // non-FROM-source child -> render as "(subquery) _sq"
@@ -9043,7 +9043,7 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
            nodesNodeName(nodeType((SNode*)g.pFromChild)));
   }
 
-  // ── Step 2: render one SELECT from the collected group ──
+  // -- Step 2: render one SELECT from the collected group --
   dynSQLAppendStr(s, "SELECT ");
 
   bool distinctOnlyAgg = fqAggIsDistinctOnly(g.pAgg);

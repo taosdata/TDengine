@@ -2509,9 +2509,9 @@ static const char* fqResolveRemoteOutputName(const SNode* pExprNode) {
 
   return NULL;
 }
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
-// fqLogFedScanPhysi — logs the result of createFederatedScanPhysiNode at DEBUG
+// fqLogFedScanPhysi - logs the result of createFederatedScanPhysiNode at DEBUG
 // level.  Gated by qDebugFlag so no string-building overhead when debug logging
 // is off.  Output example:
 //   FQ-PHY createFedScan: pScanCols=[time,val] pLeaf.pScanCols=[time,val] pRemoteRoot=Sort numColTypeMappings=2
@@ -2540,7 +2540,7 @@ static void fqLogFedScanPhysi(const SFederatedScanPhysiNode* pScan,
     tstrncpy(scanColsBuf, "(NULL)", sizeof(scanColsBuf));
   }
 
-  // pScanCols (inner Mode-2 leaf — what remote SQL SELECT is built from)
+  // pScanCols (inner Mode-2 leaf - what remote SQL SELECT is built from)
   char leafColsBuf[512] = {0};
   off = 0;
   if (pLeaf->pScanCols) {
@@ -3093,18 +3093,18 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   // * Mark the physical plan as containing a federated scan
   pCxt->hasFederatedScan = true;
 
-  // ── Build the remote plan as a LOGIC tree (pure clone — no physi conversion) ──
+  // -- Build the remote plan as a LOGIC tree (pure clone - no physi conversion) --
   //         .pScanCols    -> flat leaf SELECT list (must already be non-empty)
   //         .pConditions  -> WHERE clause
   //         .node.pLimit  -> LIMIT / OFFSET
 
   // pRemotePlan is a logic-node subtree: nodesRemotePlanToSQL renders it directly
-  // (it reads only column names / expressions / functions — never physi slot ids),
+  // (it reads only column names / expressions / functions - never physi slot ids),
   // and TLV ships it to the server which re-renders.  Two cases:
-  //   (a) pRemoteLogicPlan set (FqPushdown collected a chain): clone it verbatim —
+  //   (a) pRemoteLogicPlan set (FqPushdown collected a chain): clone it verbatim -
   //       it already carries its own logic SCAN leaf (cloned by fqCommitPushChain).
   //   (b) pRemoteLogicPlan NULL: build a bare logic SCAN leaf carrying the remote
-  //       FROM/SELECT/WHERE/LIMIT so the connector runs a flat "SELECT … FROM …".
+  //       FROM/SELECT/WHERE/LIMIT so the connector runs a flat "SELECT ... FROM ...".
   planDebug("FQ-PHY: pScanLogicNode=%p pRemoteLogicPlan=%p type=%d useRemoteLogicPlan=%d", pScanLogicNode,
             pScanLogicNode->pRemoteLogicPlan,
             pScanLogicNode->pRemoteLogicPlan ? (int)nodeType(pScanLogicNode->pRemoteLogicPlan) : -1,
@@ -3177,7 +3177,7 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     // with mapping[N] of a different column -> 0x6418 (e.g. "unexpected OID 701
     // for TIMESTAMP column 0").  nodesCollectColumns visits WHERE-subquery /
     // ORDER BY columns before the projection, so the raw order diverges from
-    // pTargets only when a WHERE subquery (REMOTE_*) is present — exactly the
+    // pTargets only when a WHERE subquery (REMOTE_*) is present - exactly the
     // failing case.
     PLAN_ERR_JRET(nodesCloneList(pScan->pScanCols, &pLeaf->pScanCols));
     // Optional query conditions stay local in this fallback. Saved binding filters

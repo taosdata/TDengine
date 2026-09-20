@@ -2868,7 +2868,7 @@ static int32_t mndAlterStbTagName(SMnode *pMnode, const SStbObj *pOld, SStbObj *
   }
 
   // RESTRICT dependency detection (mirrors the column path): reject rename when the tag is
-  // referenced by a privilege — either a column-list grant (by colId) or a row-level tag
+  // referenced by a privilege - either a column-list grant (by colId) or a row-level tag
   // condition (the tag name is embedded in the serialized condition). Stream references to
   // tags are handled in the parser via COL_REF_BY_STM (see note above). Views are intentionally
   // NOT checked, consistent with DROP COLUMN/TAG: a view carries no source-column dependency

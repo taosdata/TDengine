@@ -82,7 +82,7 @@ int32_t extLoadDialectDefaults(int8_t sourceType, SExtSourceCapability* pCap) {
 
   pCap->dialect = dialect;
 
-  // ── Clause defaults ─────────────────────────────────────────────────────────
+  // -- Clause defaults ---------------------------------------------------------
   SExtCapDemoteSpec spec = {.kind = EXT_DEMOTE_KIND_CLAUSE, .reasonCode = EXT_DEMOTE_REASON_DIALECT_BASELINE};
 
   const EExtClauseKind* pCommonClauses = NULL;
@@ -113,7 +113,7 @@ int32_t extLoadDialectDefaults(int8_t sourceType, SExtSourceCapability* pCap) {
     }
   }
 
-  // ── Function defaults ─────────────────────────────────────────────────────────
+  // -- Function defaults ---------------------------------------------------------
   SExtCapDemoteSpec funcSpec = {.kind = EXT_DEMOTE_KIND_FUNC, .reasonCode = EXT_DEMOTE_REASON_DIALECT_BASELINE};
 
   const char* const* ppCommonFuncs = NULL;
@@ -144,7 +144,7 @@ int32_t extLoadDialectDefaults(int8_t sourceType, SExtSourceCapability* pCap) {
     }
   }
 
-  // ── Operator defaults ─────────────────────────────────────────────────────────
+  // -- Operator defaults ---------------------------------------------------------
   SExtCapDemoteSpec opSpec = {.kind = EXT_DEMOTE_KIND_OP, .reasonCode = EXT_DEMOTE_REASON_DIALECT_BASELINE};
 
   const EOperatorType* pDialectOps = NULL;

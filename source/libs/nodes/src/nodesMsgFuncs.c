@@ -7068,7 +7068,7 @@ static int32_t msgToQueryPlan(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // Logic-plan node TLV (de)serialization - FQ remotePlan support.
 //
 // SFederatedScanPhysiNode.pRemotePlan carries a *logic* sub-tree (SCAN/PROJECT/
@@ -7082,7 +7082,7 @@ static int32_t msgToQueryPlan(STlvDecoder* pDecoder, void* pObj) {
 // (minimal field set), keeping the message small and the failure surface narrow.
 // The logic-node base codec intentionally omits planner-only fields (pHint,
 // optimize flags, stmtRoot, data-order, etc.) that the renderer never reads.
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
 enum {
   LOGIC_NODE_CODE_CONDITIONS = 1,
