@@ -249,6 +249,7 @@ SELECT `vgroups` FROM information_schema.ins_databases WHERE name = 'test';
 | 4   | `scope`    | VARCHAR(8)    | 配置作用域 |
 | 5   | `category` | VARCHAR(8)    | 配置类别 |
 | 6   | `info`     | VARCHAR(64)   | 配置说明 |
+| 7   | `reboot`   | VARCHAR(8)    | 该配置项是否已被运行期修改但尚未重启生效：`true` 表示已修改但需重启后才能生效，`false` 表示无需重启（或从未被运行期修改过） |
 
 ## INS_ENCRYPTIONS
 

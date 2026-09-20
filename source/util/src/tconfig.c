@@ -170,6 +170,7 @@ void cfgItemFreeVal(SConfigItem *pItem) {
   if (pItem->dtype == CFG_DTYPE_STRING || pItem->dtype == CFG_DTYPE_DIR || pItem->dtype == CFG_DTYPE_LOCALE ||
       pItem->dtype == CFG_DTYPE_CHARSET || pItem->dtype == CFG_DTYPE_TIMEZONE) {
     taosMemoryFreeClear(pItem->str);
+    taosMemoryFreeClear(pItem->restartBaselineStr);
   }
 
   if (pItem->array) {
@@ -233,6 +234,11 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
   if (pItem->str == NULL) return terrno;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+static bool cfgItemIsLazyDyn(SConfigItem *pItem) {
+  return pItem->dynScope == CFG_DYN_CLIENT_LAZY || pItem->dynScope == CFG_DYN_SERVER_LAZY ||
+         pItem->dynScope == CFG_DYN_BOTH_LAZY;
 }
 
 static int32_t cfgSetBool(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
@@ -570,6 +576,47 @@ int32_t cfgSetItemVal(SConfigItem *pItem, const char *name, const char *value, E
 
   if (pItem == NULL) return TSDB_CODE_CFG_NOT_FOUND;
 
+  bool checkRestart = (stype == CFG_STYPE_ALTER_SERVER_CMD || stype == CFG_STYPE_ALTER_CLIENT_CMD) &&
+                      cfgItemIsLazyDyn(pItem);
+
+  // The first runtime alter of a *_LAZY item snapshots the value that is actually in
+  // effect in the running process (i.e. whatever boot-time loading left it at) into
+  // restartBaseline*. Every later alter compares against this fixed baseline rather
+  // than the immediately-preceding value, so altering back to the baseline correctly
+  // clears restartRequired instead of leaving it stuck at 1.
+  if (checkRestart && !pItem->restartBaselineValid) {
+    switch (pItem->dtype) {
+      case CFG_DTYPE_BOOL:
+        pItem->restartBaselineBval = pItem->bval;
+        break;
+      case CFG_DTYPE_INT32:
+        pItem->restartBaselineI32 = pItem->i32;
+        break;
+      case CFG_DTYPE_INT64:
+        pItem->restartBaselineI64 = pItem->i64;
+        break;
+      case CFG_DTYPE_FLOAT:
+      case CFG_DTYPE_DOUBLE:
+        pItem->restartBaselineFval = pItem->fval;
+        break;
+      case CFG_DTYPE_STRING:
+      case CFG_DTYPE_DIR:
+      case CFG_DTYPE_LOCALE:
+      case CFG_DTYPE_CHARSET:
+      case CFG_DTYPE_TIMEZONE:
+        if (pItem->str != NULL) {
+          pItem->restartBaselineStr = taosStrdup(pItem->str);
+          if (pItem->restartBaselineStr == NULL) {
+            TAOS_RETURN(terrno);
+          }
+        }
+        break;
+      default:
+        break;
+    }
+    pItem->restartBaselineValid = 1;
+  }
+
   switch (pItem->dtype) {
     case CFG_DTYPE_BOOL: {
       code = cfgSetBool(pItem, value, stype);
@@ -612,6 +659,37 @@ int32_t cfgSetItemVal(SConfigItem *pItem, const char *name, const char *value, E
     default:
       code = TSDB_CODE_INVALID_CFG;
       break;
+  }
+
+  if (checkRestart && code == TSDB_CODE_SUCCESS) {
+    bool changed = true;
+    switch (pItem->dtype) {
+      case CFG_DTYPE_BOOL:
+        changed = (pItem->restartBaselineBval != pItem->bval);
+        break;
+      case CFG_DTYPE_INT32:
+        changed = (pItem->restartBaselineI32 != pItem->i32);
+        break;
+      case CFG_DTYPE_INT64:
+        changed = (pItem->restartBaselineI64 != pItem->i64);
+        break;
+      case CFG_DTYPE_FLOAT:
+      case CFG_DTYPE_DOUBLE:
+        changed = (pItem->restartBaselineFval != pItem->fval);
+        break;
+      case CFG_DTYPE_STRING:
+      case CFG_DTYPE_DIR:
+      case CFG_DTYPE_LOCALE:
+      case CFG_DTYPE_CHARSET:
+      case CFG_DTYPE_TIMEZONE:
+        changed = (pItem->restartBaselineStr == NULL) != (pItem->str == NULL) ||
+                  (pItem->restartBaselineStr != NULL && pItem->str != NULL &&
+                   strcmp(pItem->restartBaselineStr, pItem->str) != 0);
+        break;
+      default:
+        break;
+    }
+    pItem->restartRequired = changed ? 1 : 0;
   }
 
   TAOS_RETURN(code);
@@ -1073,6 +1151,26 @@ int32_t cfgDumpItemCategory(SConfigItem *pItem, char *buf, int32_t bufSize, int3
 
   if (len > bufSize) {
     len = bufSize;
+  }
+
+  *pLen = len;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+int32_t cfgDumpItemRestart(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen) {
+  int32_t len = 0;
+  if (pItem->restartRequired) {
+    len = snprintf(buf, bufSize, "true");
+  } else {
+    len = snprintf(buf, bufSize, "false");
+  }
+
+  if (len < 0) {
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
+  }
+
+  if (len >= bufSize) {
+    len = bufSize - 1;
   }
 
   *pLen = len;
