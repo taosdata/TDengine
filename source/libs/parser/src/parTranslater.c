@@ -37107,7 +37107,7 @@ static int32_t buildRenameColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
   }
 
   // The old name must be a real data column: a normal / virtual-normal table can now own tags, and
-  // those are renamed by RENAME TAG (buildRenameTagReq) — getColSchema spans columns *and* tags, so
+  // those are renamed by RENAME TAG (buildRenameTagReq) -- getColSchema spans columns *and* tags, so
   // matching on it would let `RENAME COLUMN <tag>` through the parser only to fail in the vnode.
   const SSchema* pCol = getNormalColSchema(pTableMeta, pStmt->colName);
   if (NULL == pCol) {
@@ -37143,7 +37143,7 @@ static int32_t buildRenameColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
 
 // RENAME TAG on the vnode path: only the owned tags of a normal / virtual-normal table live in a
 // vnode (super-table tags are renamed by the mnode, child tables inherit their super table's tags).
-// The rename keeps colId, so tag values, tag-refs and stream bindings all survive untouched — only
+// The rename keeps colId, so tag values, tag-refs and stream bindings all survive untouched -- only
 // the display name changes (mirrors buildRenameColReq and mndAlterStbTagName).
 static int32_t buildRenameTagReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                  SVAlterTbReq* pReq) {
