@@ -48,6 +48,70 @@ static void eraseJsonBoolField(std::string* pJson, const char* pField) {
 
 static void freeTestBuffer(char* pBuffer) { taosMemoryFreeClear(pBuffer); }
 
+enum {
+  kValueCodeExprBase = 1,
+  kExprCodeResType = 1,
+  kDataTypeCodeType = 1,
+  kDataTypeCodeBytes = 4,
+};
+
+static char* getTlvValue(char* pMsg, int32_t msgLen, int16_t expectedType, int32_t* pValueLen) {
+  constexpr int32_t kTlvHeaderSize = sizeof(int16_t) + sizeof(int32_t);
+  if (msgLen < kTlvHeaderSize) {
+    return NULL;
+  }
+
+  int16_t type = 0;
+  int32_t len = 0;
+  memcpy(&type, pMsg, sizeof(type));
+  memcpy(&len, pMsg + sizeof(type), sizeof(len));
+  type = ntohs(type);
+  len = ntohl(len);
+  if (type != expectedType || len < 0 || len > msgLen - kTlvHeaderSize) {
+    return NULL;
+  }
+
+  *pValueLen = len;
+  return pMsg + kTlvHeaderSize;
+}
+
+static char* getValueNodeDataTypeBytes(char* pMsg, int32_t msgLen, int32_t* pValueLen) {
+  int32_t valueNodeLen = 0;
+  char*   pValueNode = getTlvValue(pMsg, msgLen, QUERY_NODE_VALUE, &valueNodeLen);
+  if (NULL == pValueNode) {
+    return NULL;
+  }
+
+  int32_t exprLen = 0;
+  char*   pExpr = getTlvValue(pValueNode, valueNodeLen, kValueCodeExprBase, &exprLen);
+  if (NULL == pExpr) {
+    return NULL;
+  }
+
+  int32_t dataTypeLen = 0;
+  char*   pDataType = getTlvValue(pExpr, exprLen, kExprCodeResType, &dataTypeLen);
+  if (NULL == pDataType) {
+    return NULL;
+  }
+
+  constexpr int32_t kTlvHeaderSize = sizeof(int16_t) + sizeof(int32_t);
+  int32_t           offset = 0;
+  for (int16_t type = kDataTypeCodeType; type <= kDataTypeCodeBytes; ++type) {
+    int32_t fieldLen = 0;
+    char*   pField = getTlvValue(pDataType + offset, dataTypeLen - offset, type, &fieldLen);
+    if (NULL == pField) {
+      return NULL;
+    }
+    if (kDataTypeCodeBytes == type) {
+      *pValueLen = fieldLen;
+      return pField;
+    }
+    offset += kTlvHeaderSize + fieldLen;
+  }
+
+  return NULL;
+}
+
 class NodesCloneTest : public testing::Test {
  public:
   void registerCheckFunc(const std::function<void(const SNode*, const SNode*)>& func) { checkFunc_ = func; }
@@ -418,6 +482,34 @@ TEST(NodesSubplanTest, subplanFlagsMessageRoundTrip) {
   decoded.reset(pNew);
   ASSERT_TRUE(((SSubplan*)decoded.get())->delayFreeTask);
   ASSERT_TRUE(((SSubplan*)decoded.get())->inheritedMultiGroupJoin);
+}
+
+TEST(NodesMessageTest, decimalDatumLengthMustMatchResultTypeBytes) {
+  SNode* pNode = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, &pNode));
+  std::unique_ptr<SNode, void (*)(SNode*)> valueNode(pNode, nodesDestroyNode);
+  SValueNode* pValue = (SValueNode*)pNode;
+  pValue->node.resType.type = TSDB_DATA_TYPE_DECIMAL;
+  pValue->node.resType.bytes = DECIMAL128_BYTES;
+  pValue->translate = true;
+  pValue->datum.p = (char*)taosMemoryCalloc(1, DECIMAL128_BYTES);
+  ASSERT_NE(nullptr, pValue->datum.p);
+
+  char*   pMsg = NULL;
+  int32_t msgLen = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(pNode, &pMsg, &msgLen));
+  std::unique_ptr<char, void (*)(char*)> msg(pMsg, freeTestBuffer);
+
+  int32_t bytesLen = 0;
+  char*   pBytes = getValueNodeDataTypeBytes(pMsg, msgLen, &bytesLen);
+  ASSERT_NE(nullptr, pBytes);
+  ASSERT_EQ((int32_t)sizeof(int32_t), bytesLen);
+  int32_t malformedBytes = htonl(DECIMAL64_BYTES);
+  memcpy(pBytes, &malformedBytes, sizeof(malformedBytes));
+
+  SNode* pDecoded = NULL;
+  ASSERT_EQ(TSDB_CODE_FAILED, nodesMsgToNode(pMsg, msgLen, &pDecoded));
+  ASSERT_EQ(nullptr, pDecoded);
 }
 
 TEST(NodesSubplanTest, intervalOptimizationFlagsDefaultWhenAbsentFromJson) {
