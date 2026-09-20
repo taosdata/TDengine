@@ -106,6 +106,7 @@
 
 # ​​​Special gap before priority support
 ,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_rolling_upgrade.py -N 3
+,,n,.,pytest cases/05-VirtualTables/test_vtable_tag_ref_rolling_upgrade.py -N 3
 
 # 02-Databases
 
@@ -520,6 +521,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/04-Inheritance/test_vst_schema_merge.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/04-Inheritance/test_vst_concurrent.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_normal_tags.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_vntb_src.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_select_tag_matrix.py
 
 # 06-DataIngestion

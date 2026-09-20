@@ -869,9 +869,11 @@ static int32_t logicVirtualScanCopy(const SVirtualScanLogicNode * pSrc, SVirtual
   CLONE_NODE_LIST_FIELD(pTagRefSources);
   CLONE_NODE_LIST_FIELD(pLocalTags);
   CLONE_NODE_LIST_FIELD(pRefTagCols);
+  CLONE_NODE_LIST_FIELD(pConstRefTags);
   CLONE_NODE_FIELD(pTagFilterCond);
   COPY_SCALAR_FIELD(hasTagRef);
   COPY_SCALAR_FIELD(hasLocalTag);
+  COPY_SCALAR_FIELD(hasConstRefTag);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1254,9 +1256,12 @@ static int32_t physiVirtualTableScanCopy(const SVirtualScanPhysiNode* pSrc, SVir
   CLONE_NODE_LIST_FIELD(pTagRefSources);
   CLONE_NODE_LIST_FIELD(pLocalTags);
   CLONE_NODE_LIST_FIELD(pRefTagCols);
+  CLONE_NODE_LIST_FIELD(pConstRefTags);
   CLONE_NODE_FIELD(pTagFilterCond);
   COPY_SCALAR_FIELD(hasTagRef);
   COPY_SCALAR_FIELD(hasLocalTag);
+  COPY_SCALAR_FIELD(hasConstRefTag);
+  COPY_OBJECT_FIELD(mgmtEpSet, sizeof(SEpSet));
   return TSDB_CODE_SUCCESS;
 }
 

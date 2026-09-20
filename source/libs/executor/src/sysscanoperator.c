@@ -2396,9 +2396,10 @@ static int32_t vtbRefGetVgId(SDBVgInfo* dbInfo, const char* dbFName, const char*
                              SEpSet* pEpSet);
 static void    vtbRefBuildRemoteCacheKey(char* buf, int32_t size, const char* dbName, const char* tableName);
 
-// Cache entry for one fetched remote table cfg in the ins_tags ref-tag path.
-// code caches negative outcomes too (e.g. dropped source table), so repeated
-// refs to the same source never re-issue the RPC within a scan; pRspCont is
+// Cache entry for one fetched remote table cfg in the ref-tag chain path (internal to
+// this file: the exported Init/Clear pair encapsulates it, external callers only pass
+// the raw SHashObj*). code caches negative outcomes too (e.g. dropped source table), so
+// repeated refs to the same source never re-issue the RPC within a scan; pRspCont is
 // the serialized STableCfgRsp on success, allocated with rpcMallocCont.
 typedef struct SRefTableCfgCacheEntry {
   int32_t code;
@@ -2418,6 +2419,46 @@ static void sysTagsRefCfgCacheEntryFree(void* p) {
   }
 }
 
+// Create the per-scan ref-resolution cache pair. Idempotent (fields already set are left
+// untouched); on allocation failure the pair stays NULL and the caller runs uncached.
+// Single-thread use only (HASH_NO_LOCK) -- see the SRefChainCtx threading contract.
+void sysTagsRefCachesInit(SHashObj** ppVgInfoCache, SHashObj** ppCfgCache) {
+  if (*ppVgInfoCache == NULL) {
+    *ppVgInfoCache = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    if (*ppVgInfoCache == NULL) {
+      qError("failed to create ref db vgInfo cache since %s", tstrerror(terrno));
+    }
+  }
+  if (*ppCfgCache == NULL) {
+    *ppCfgCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    if (*ppCfgCache == NULL) {
+      qError("failed to create ref table cfg cache since %s", tstrerror(terrno));
+    } else {
+      taosHashSetFreeFp(*ppCfgCache, sysTagsRefCfgCacheEntryFree);
+    }
+  }
+}
+
+// Destroy the cache pair from sysTagsRefCachesInit and reset both pointers to NULL.
+void sysTagsRefCachesClear(SHashObj** ppVgInfoCache, SHashObj** ppCfgCache) {
+  if (*ppVgInfoCache != NULL) {
+    void* pIter = taosHashIterate(*ppVgInfoCache, NULL);
+    while (pIter) {
+      SDBVgInfo** ppVgInfo = (SDBVgInfo**)pIter;
+      if (*ppVgInfo) {
+        freeVgInfo(*ppVgInfo);
+      }
+      pIter = taosHashIterate(*ppVgInfoCache, pIter);
+    }
+    taosHashCleanup(*ppVgInfoCache);
+    *ppVgInfoCache = NULL;
+  }
+  if (*ppCfgCache != NULL) {
+    taosHashCleanup(*ppCfgCache);  // freeFp releases each entry's rpc cont
+    *ppCfgCache = NULL;
+  }
+}
+
 // Lazy-init the task-level ref-resolution caches on first use (best effort:
 // on allocation failure the scan falls back to uncached fetches). pInfo is
 // logically mutable operator state; the const in the callers' signatures is
@@ -2425,39 +2466,57 @@ static void sysTagsRefCfgCacheEntryFree(void* p) {
 // no extra locking beyond HASH_NO_LOCK.
 static void sysTagsEnsureRefCaches(const SSysTableScanInfo* pInfo) {
   SSysTableScanInfo* pMutable = (SSysTableScanInfo*)pInfo;
-  if (pMutable->pRefDbVgInfoCache == NULL) {
-    pMutable->pRefDbVgInfoCache = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-    if (pMutable->pRefDbVgInfoCache == NULL) {
-      qError("failed to create ref db vgInfo cache since %s", tstrerror(terrno));
-    }
-  }
-  if (pMutable->pRefTableCfgCache == NULL) {
-    pMutable->pRefTableCfgCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-    if (pMutable->pRefTableCfgCache == NULL) {
-      qError("failed to create ref table cfg cache since %s", tstrerror(terrno));
-    } else {
-      taosHashSetFreeFp(pMutable->pRefTableCfgCache, sysTagsRefCfgCacheEntryFree);
-    }
-  }
+  sysTagsRefCachesInit(&pMutable->pRefDbVgInfoCache, &pMutable->pRefTableCfgCache);
 }
 
-static int32_t sysTagsExtractFromTagData(const STag* pTag, const SSchema* pSrcSchema,
-                                          char** ppTagData, uint32_t* pTagLen, bool* pResolved) {
+// Extract one tag value (by schema cid) from an STag container into a freshly malloc'd
+// buffer. All three outputs are initialized at entry (NULL/0/false), so callers need no
+// pre-setup. *pResolved flips to true when a type-matching entry is present (a stored 0
+// or an empty var payload is still a value; a NULL-typed/ref entry resolves to nothing).
+// Ownership: on *pResolved == true, *ppTagData is a malloc'd buffer owned by the CALLER
+// (free it; nData == 0 yields a NULL pointer -- downstream tTagValToData renders '').
+// On *pResolved == false, *ppTagData is NULL and *pTagLen is 0 (no free needed).
+// *pTagLen is the source-schema byte width: for fixed-width types it equals
+// tDataTypes[type].bytes, for var types the var payload length.
+static int32_t extractTagValFromStag(const STag* pTag, const SSchema* pSrcSchema,
+                                     char** ppTagData, uint32_t* pTagLen, bool* pResolved) {
+  // outputs initialized at entry -- callers need no pre-setup, and the !exists early return
+  // below can never leak an uninitialized *pResolved to the caller
+  *ppTagData = NULL;
+  *pTagLen = 0;
+  *pResolved = false;
+
   STagVal srcVal = {.cid = pSrcSchema->colId};
   bool    exists = tTagGet(pTag, &srcVal);
   if (!exists) return TSDB_CODE_SUCCESS;
 
   if (IS_VAR_DATA_TYPE(pSrcSchema->type)) {
-    if (srcVal.pData != NULL && srcVal.nData > 0) {
-      *ppTagData = taosMemoryMalloc(srcVal.nData);
-      if (*ppTagData == NULL) {
-        return terrno;
+    // entry-typed (a NULL-typed placeholder entry for a ref/no-value tag does not match
+    // the schema type and stays unresolved). A MATCHED entry with nData == 0 is a legal
+    // empty string (SET TAG t = '') and resolves with an empty payload: the chain path
+    // must project '' exactly like the owned-value direct path, not NULL. Downstream,
+    // tTagValToData turns {pData=NULL, nData=0} into a zero-length var value.
+    if (srcVal.type != pSrcSchema->type) {
+      // type-drift entries (legacy data, rolling-upgrade residue, ALTER leftovers)
+      // resolve to NULL: leave a trace so the silent NULL is diagnosable
+      qWarn("extractTagValFromStag: entry type %d != schema type %d for cid %d, tag reads as NULL",
+            srcVal.type, pSrcSchema->type, pSrcSchema->colId);
+    } else {
+      if (srcVal.nData > 0) {
+        *ppTagData = taosMemoryMalloc(srcVal.nData);
+        if (*ppTagData == NULL) {
+          return terrno;
+        }
+        memcpy(*ppTagData, srcVal.pData, srcVal.nData);
       }
-      memcpy(*ppTagData, srcVal.pData, srcVal.nData);
       *pTagLen = srcVal.nData;
       *pResolved = true;
     }
+  } else if (srcVal.type != pSrcSchema->type) {
+    qWarn("extractTagValFromStag: entry type %d != schema type %d for cid %d, tag reads as NULL",
+          srcVal.type, pSrcSchema->type, pSrcSchema->colId);
   } else {
+    // entry type matches the schema: resolve the fixed-width value
     *ppTagData = taosMemoryMalloc(tDataTypes[pSrcSchema->type].bytes);
     if (*ppTagData == NULL) {
       return terrno;
@@ -2469,21 +2528,48 @@ static int32_t sysTagsExtractFromTagData(const STag* pTag, const SSchema* pSrcSc
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acctId,
-                                     const char* refDbName, const char* refTableName,
-                                     uint64_t reqId, SExecTaskInfo* pTaskInfo, STableCfgRsp* pCfgRsp) {
+// "the ref source table/db is genuinely gone" error-code family, unified across the
+// local by-name/by-uid hops and the remote cfg hop. Meta lookups (metaGetTableEntryByName /
+// ...ByUid) return TSDB_CODE_PAR_TABLE_NOT_EXIST; the underlying tdb layer can surface plain
+// TSDB_CODE_NOT_FOUND / TSDB_CODE_TDB_TABLE_NOT_EXIST; a dropped ref db surfaces
+// TSDB_CODE_MND_DB_NOT_EXIST from the vg-lookup RPC. All of these mean "broken chain":
+// the tag resolves to NULL and the query must NOT fail. Everything else (transport
+// errors, vnode/mnode outages, corrupt payloads) is a real fault and propagates.
+static bool tagRefSourceGoneCode(int32_t code) {
+  // deliberately narrow: meta by-name/by-uid lookups return TSDB_CODE_PAR_TABLE_NOT_EXIST
+  // (metaQuery.c sets that terrno explicitly), the dropped-db vg lookup returns
+  // TSDB_CODE_MND_DB_NOT_EXIST. The generic TSDB_CODE_NOT_FOUND is EXCLUDED on purpose --
+  // tdb-layer internals can surface it for non-"table gone" conditions (metadata
+  // inconsistency), and silently NULL-ing a tag over those would mask real faults.
+  return code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST ||
+         code == TSDB_CODE_MND_DB_NOT_EXIST;
+}
+
+// Rewrite the hop cursor (curDb/curTable/curCol) to the referenced source. The buffers are
+// zeroed first: tstrncpy keeps stale tail bytes, and the "%s.%s" visited key built from
+// them in resolveTagRefChain must stay strcmp-clean. Centralized so a future hop-advance
+// site cannot forget the memset.
+static void tagRefSetNextHop(char* curDb, char* curTable, char* curCol, const SColRef* pNext) {
+  memset(curDb, 0, TSDB_DB_NAME_LEN);
+  memset(curTable, 0, TSDB_TABLE_NAME_LEN);
+  memset(curCol, 0, TSDB_COL_NAME_LEN);
+  tstrncpy(curDb, pNext->refDbName, TSDB_DB_NAME_LEN);
+  tstrncpy(curTable, pNext->refTableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(curCol, pNext->refColName, TSDB_COL_NAME_LEN);
+}
+
+static int32_t sysTagsFetchRemoteCfg(SRefChainCtx* pCtx, const char* refDbName, const char* refTableName,
+                                     STableCfgRsp* pCfgRsp) {
   int32_t    code = TSDB_CODE_SUCCESS;
   SDBVgInfo* pDbVgInfo = NULL;
-  void*      clientRpc = pInfo->readHandle.pMsgCb->clientRpc;
-
-  sysTagsEnsureRefCaches(pInfo);
+  void*      clientRpc = pCtx->clientRpc;
 
   // cfg cache: the same source table is fetched at most once per scan, no
   // matter how many ref tags (of how many child tables) point at it
   char cacheKey[TSDB_DB_FNAME_LEN + TSDB_TABLE_NAME_LEN + 2];
   vtbRefBuildRemoteCacheKey(cacheKey, sizeof(cacheKey), refDbName, refTableName);
-  if (pInfo->pRefTableCfgCache != NULL) {
-    SRefTableCfgCacheEntry* pEntry = taosHashGet(pInfo->pRefTableCfgCache, cacheKey, strlen(cacheKey));
+  if (pCtx->pRefTableCfgCache != NULL) {
+    SRefTableCfgCacheEntry* pEntry = taosHashGet(pCtx->pRefTableCfgCache, cacheKey, strlen(cacheKey));
     if (pEntry != NULL) {
       if (pEntry->code != TSDB_CODE_SUCCESS) {
         qDebug("sysTagsFetchRemoteCfg: cached failure for %s.%s, code=%s", refDbName, refTableName,
@@ -2500,8 +2586,8 @@ static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acc
 
   // vgInfo cache: one GET_DB_INFO per ref db per scan
   bool vgInfoCached = false;
-  if (pInfo->pRefDbVgInfoCache != NULL) {
-    SDBVgInfo** ppCached = taosHashGet(pInfo->pRefDbVgInfoCache, refDbName, strlen(refDbName));
+  if (pCtx->pRefDbVgInfoCache != NULL) {
+    SDBVgInfo** ppCached = taosHashGet(pCtx->pRefDbVgInfoCache, refDbName, strlen(refDbName));
     if (ppCached != NULL) {
       pDbVgInfo = *ppCached;
       vgInfoCached = true;
@@ -2509,15 +2595,16 @@ static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acc
   }
 
   if (pDbVgInfo == NULL) {
-    code = vtbRefGetDbVgInfo(clientRpc, (SEpSet*)&pInfo->epSet, acctId, refDbName, reqId, pTaskInfo, &pDbVgInfo);
+    code = vtbRefGetDbVgInfo(clientRpc, pCtx->pMnodeEpSet, pCtx->accountId, refDbName, pCtx->reqId,
+                             pCtx->pTaskInfo, &pDbVgInfo);
     if (code != TSDB_CODE_SUCCESS || pDbVgInfo == NULL) {
       code = (code != TSDB_CODE_SUCCESS) ? code : terrno;
       qDebug("sysTagsFetchRemoteCfg: failed to get db vg info for %s, code=%s", refDbName, tstrerror(code));
       return code;
     }
-    if (pInfo->pRefDbVgInfoCache != NULL) {
+    if (pCtx->pRefDbVgInfoCache != NULL) {
       int32_t putCode =
-          taosHashPut(pInfo->pRefDbVgInfoCache, refDbName, strlen(refDbName), &pDbVgInfo, POINTER_BYTES);
+          taosHashPut(pCtx->pRefDbVgInfoCache, refDbName, strlen(refDbName), &pDbVgInfo, POINTER_BYTES);
       if (putCode == TSDB_CODE_SUCCESS) {
         vgInfoCached = true;  // ownership moved to the hash
       }
@@ -2529,7 +2616,7 @@ static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acc
   char    dbFName[TSDB_DB_FNAME_LEN] = {0};
   SEpSet  vnodeEpSet = {0};
   int32_t vgId = 0;
-  (void)snprintf(dbFName, sizeof(dbFName), "%d.%s", acctId, refDbName);
+  (void)snprintf(dbFName, sizeof(dbFName), "%d.%s", pCtx->accountId, refDbName);
 
   code = vtbRefGetVgId(pDbVgInfo, dbFName, refTableName, &vgId, &vnodeEpSet);
   if (!vgInfoCached) {
@@ -2579,8 +2666,8 @@ static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acc
   // cache the server-answered outcome (payload or server-side error such as
   // dropped table) so later refs to this source skip the RPC; transport-level
   // failures above are deliberately not cached
-  if (pInfo->pRefTableCfgCache != NULL &&
-      taosHashGetSize(pInfo->pRefTableCfgCache) < SYS_TAGS_REF_CFG_CACHE_MAX_NUM) {
+  if (pCtx->pRefTableCfgCache != NULL &&
+      taosHashGetSize(pCtx->pRefTableCfgCache) < SYS_TAGS_REF_CFG_CACHE_MAX_NUM) {
     SRefTableCfgCacheEntry entry = {.code = code, .pRspCont = NULL, .contLen = 0};
     if (code == TSDB_CODE_SUCCESS) {
       entry.pRspCont = rpcMallocCont(rpcRsp.contLen);
@@ -2591,7 +2678,7 @@ static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acc
         entry.code = terrno;
       }
     }
-    int32_t putCode = taosHashPut(pInfo->pRefTableCfgCache, cacheKey, strlen(cacheKey), &entry, sizeof(entry));
+    int32_t putCode = taosHashPut(pCtx->pRefTableCfgCache, cacheKey, strlen(cacheKey), &entry, sizeof(entry));
     if (putCode != TSDB_CODE_SUCCESS) {
       rpcFreeCont(entry.pRspCont);  // not cached, ownership stays with us
     }
@@ -2625,96 +2712,312 @@ static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acc
 // with no outer lock held the rdlock cannot nest into the queued-writer
 // self-deadlock. The ref-tag fill path pauses the cursor / releases the child
 // reader before calling here precisely to preserve this contract.
-static int32_t sysTagsResolveRefTagVal(const SSysTableScanInfo* pInfo, const SColRef* pRef,
-                                       int8_t dstTagType, char** ppTagData, uint32_t* pTagLen,
-                                       bool* pResolved, uint64_t reqId, SExecTaskInfo* pTaskInfo) {
+// One local hop of a tag-ref chain: look up curTable on the local vnode and either extract
+// curCol's terminal value or advance to the next hop (curDb/curTable/curCol rewritten to the
+// referenced source). LOCK CONTRACT: short-lived LOCK readers, the lock is dropped right after
+// each fetch; entry data (me) stays valid until clearReader, so value extraction happens after
+// readerReleaseLock but before clearReader, and no lock is ever held across an RPC.
+static int32_t resolveTagRefLocalHop(SRefChainCtx* pCtx, char* curDb, char* curTable, char* curCol,
+                                     bool* pAdvanced, char** ppData, uint32_t* pLen, bool* pResolved) {
   int32_t      code = TSDB_CODE_SUCCESS;
-  SStorageAPI* pAPI = pInfo->pAPI;
+  SStorageAPI* pAPI = pCtx->pAPI;
+  *pAdvanced = false;
 
-  *pResolved = false;
-  *ppTagData = NULL;
-  *pTagLen = 0;
+  // The virtual-scan operator itself may carry no vnode handle (its data flows through
+  // downstream exchanges) -- fall through to the remote cfg hop in that case.
+  if (pCtx->vnode == NULL || pAPI == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
 
-  // Step 1: Try local vnode resolution. Short-lived LOCK readers: the meta
-  // rwlock is the only serialization against concurrent B-tree mutations
-  // (vacuum, rollback-alter); the lock is released immediately after each
-  // fetch  -  me stays valid until clearReader  -  so it is never held across
-  // Step 2's RPC.
+  // Cross-db guard: a chain hop may target another db (cross-db chains are a first-class
+  // scenario of this feature), and meta lookups below are by BARE table name only. A
+  // same-named table in THIS vnode's db would be read here and resolve to a wrong value,
+  // never reaching the (correct) remote hop that routes by dbFName. Only a hop whose db
+  // is this vnode's own db may resolve locally; anything else goes straight to the remote
+  // hop. getBasicInfo reports the "acctId.dbName" form -- compare the bare name part
+  // (if a path ever reports a BARE db name, strchr finds no '.' and the fallback below
+  // compares the whole string, which is still the bare local db name -- same result).
+  const char* localDbFName = NULL;
+  pAPI->metaFn.getBasicInfo(pCtx->vnode, &localDbFName, NULL, NULL, NULL);
+  if (localDbFName != NULL) {
+    const char* sep = strchr(localDbFName, '.');
+    const char* localDb = (sep != NULL) ? (sep + 1) : localDbFName;
+    if (strcmp(localDb, curDb) != 0) {
+      qDebug("resolveTagRefLocalHop: %s.%s not on this vnode's db (%s), fall to remote hop",
+             curDb, curTable, localDb);
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
   SMetaReader srcTable = {0};
-  pAPI->metaReaderFn.initReader(&srcTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
-  code = pAPI->metaReaderFn.getTableEntryByName(&srcTable, pRef->refTableName);
+  pAPI->metaReaderFn.initReader(&srcTable, pCtx->vnode, META_READER_LOCK, &pAPI->metaFn, pCtx->txnId);
+  code = pAPI->metaReaderFn.getTableEntryByName(&srcTable, curTable);
   pAPI->metaReaderFn.readerReleaseLock(&srcTable);
 
-  if (code == TSDB_CODE_SUCCESS && srcTable.me.type == TSDB_CHILD_TABLE &&
-      srcTable.me.ctbEntry.pTags != NULL) {
-    SMetaReader srcSuper = {0};
-    pAPI->metaReaderFn.initReader(&srcSuper, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
-    code = pAPI->metaReaderFn.getTableEntryByUid(&srcSuper, srcTable.me.ctbEntry.suid);
-    pAPI->metaReaderFn.readerReleaseLock(&srcSuper);
+  if (tagRefSourceGoneCode(code)) {
+    // genuinely absent locally (see tagRefSourceGoneCode) -- "fall back to a remote hop"
+    pAPI->metaReaderFn.clearReader(&srcTable);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    // real internal failure (IO/lock/corruption): report instead of silently
+    // treating the hop as remote, which would mask the fault
+    pAPI->metaReaderFn.clearReader(&srcTable);
+    qError("resolveTagRefLocalHop: local read of %s failed, code:%s", curTable, tstrerror(code));
+    return code;
+  }
 
-    if (code == TSDB_CODE_SUCCESS) {
-      const SSchema* pSrcSchema = NULL;
-      for (int32_t j = 0; j < srcSuper.me.stbEntry.schemaTag.nCols; ++j) {
-        if (strcmp(srcSuper.me.stbEntry.schemaTag.pSchema[j].name, pRef->refColName) == 0) {
-          pSrcSchema = &srcSuper.me.stbEntry.schemaTag.pSchema[j];
-          break;
+  if (srcTable.me.type == TSDB_CHILD_TABLE || srcTable.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+    // the super-table read is not gated on ctbEntry.pTags: the tag-ref check below must run
+    // even when the value blob is absent (a vchild whose only matching tag is a pure ref)
+    if (srcTable.me.ctbEntry.suid != 0) {
+      SMetaReader srcSuper = {0};
+      pAPI->metaReaderFn.initReader(&srcSuper, pCtx->vnode, META_READER_LOCK, &pAPI->metaFn, pCtx->txnId);
+      code = pAPI->metaReaderFn.getTableEntryByUid(&srcSuper, srcTable.me.ctbEntry.suid);
+      pAPI->metaReaderFn.readerReleaseLock(&srcSuper);
+
+      if (tagRefSourceGoneCode(code)) {
+        // super entry concurrently dropped / rolled back between the child read and this
+        // uid read: same broken-chain semantics as the by-name lookup above -- zero the
+        // code, leave this hop unresolved and un-advanced, the remote cfg hop below
+        // decides. A concurrent DDL must not fail the query.
+        code = TSDB_CODE_SUCCESS;
+      }
+      if (code == TSDB_CODE_SUCCESS) {
+        // inherited tags: schema on the super table, values in the shared ctbEntry.pTags blob
+        const SSchema* pSrcSchema = NULL;
+        for (int32_t j = 0; j < srcSuper.me.stbEntry.schemaTag.nCols; ++j) {
+          if (strcmp(srcSuper.me.stbEntry.schemaTag.pSchema[j].name, curCol) == 0) {
+            pSrcSchema = &srcSuper.me.stbEntry.schemaTag.pSchema[j];
+            break;
+          }
+        }
+        // vchild own tags: schema on the own extension, values in the same shared blob
+        if (pSrcSchema == NULL && srcTable.me.type == TSDB_VIRTUAL_CHILD_TABLE &&
+            srcTable.me.own.pOwnTagSchemas != NULL) {
+          for (int32_t j = 0; j < srcTable.me.own.nOwnTags; ++j) {
+            if (strcmp(srcTable.me.own.pOwnTagSchemas[j].name, curCol) == 0) {
+              pSrcSchema = &srcTable.me.own.pOwnTagSchemas[j];
+              break;
+            }
+          }
+        }
+        if (pSrcSchema != NULL) {
+          // An active tag-ref wins over the stored static value: metaAlterTagRef deliberately
+          // leaves a virtual child's pre-ref literal in ctbEntry.pTags, so reading the value
+          // first would truncate the chain at a stale intermediate hop.
+          bool refAdvanced = false;
+          if (srcTable.me.type == TSDB_VIRTUAL_CHILD_TABLE && srcTable.me.colRef.pTagRef != NULL) {
+            for (int32_t k = 0; k < srcTable.me.colRef.nTagRefs; ++k) {
+              SColRef* pNext = &srcTable.me.colRef.pTagRef[k];
+              if (pNext->hasRef && pNext->id == pSrcSchema->colId) {
+                tagRefSetNextHop(curDb, curTable, curCol, pNext);
+                *pAdvanced = true;
+                refAdvanced = true;
+                break;
+              }
+            }
+          }
+          if (!refAdvanced && srcTable.me.ctbEntry.pTags != NULL) {
+            code = extractTagValFromStag((STag*)srcTable.me.ctbEntry.pTags, pSrcSchema, ppData, pLen, pResolved);
+          }
         }
       }
-      if (pSrcSchema != NULL) {
-        code = sysTagsExtractFromTagData((STag*)srcTable.me.ctbEntry.pTags, pSrcSchema,
-                                         ppTagData, pTagLen, pResolved);
+      pAPI->metaReaderFn.clearReader(&srcSuper);
+    }
+  } else if (srcTable.me.type == TSDB_NORMAL_TABLE || srcTable.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
+    // ntb/vntb: tag schema in ntbEntry.schemaTag, owned values in ntbEntry.pTags (STag).
+    // active tag-ref wins over a stale static value -- same priority order as the vchild
+    // and remote-cfg branches: if a vntb ref tag ever keeps a leftover literal in its
+    // STag (meta blob rebuild failure, old-version residue, SET TAG timing), a
+    // value-first read would truncate the chain at this hop and return the stale value.
+    SSchemaWrapper* pTagSchema = &srcTable.me.ntbEntry.schemaTag;
+    for (int32_t j = 0; j < pTagSchema->nCols; ++j) {
+      SSchema* pSchema = &pTagSchema->pSchema[j];
+      if (strcmp(pSchema->name, curCol) != 0) continue;
+      bool refAdvanced = false;
+      if (srcTable.me.type == TSDB_VIRTUAL_NORMAL_TABLE && srcTable.me.colRef.pTagRef != NULL) {
+        for (int32_t k = 0; k < srcTable.me.colRef.nTagRefs; ++k) {
+          SColRef* pNext = &srcTable.me.colRef.pTagRef[k];
+          if (pNext->hasRef && pNext->id == pSchema->colId) {
+            tagRefSetNextHop(curDb, curTable, curCol, pNext);
+            *pAdvanced = true;
+            refAdvanced = true;
+            break;
+          }
+        }
       }
-    }
-    pAPI->metaReaderFn.clearReader(&srcSuper);
-    pAPI->metaReaderFn.clearReader(&srcTable);
-    if (*pResolved) return TSDB_CODE_SUCCESS;
-    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-      return code;
-    }
-    code = TSDB_CODE_SUCCESS;
-  } else {
-    pAPI->metaReaderFn.clearReader(&srcTable);
-    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-      return code;
-    }
-    code = TSDB_CODE_SUCCESS;
-  }
-
-  // Step 2: Source table not on local vnode - try remote fetch via RPC
-  void* clientRpc = (pInfo->readHandle.pMsgCb) ? pInfo->readHandle.pMsgCb->clientRpc : NULL;
-  if (clientRpc == NULL) {
-    qDebug("sysTagsResolveRefTagVal: no clientRpc for %s.%s", pRef->refDbName, pRef->refTableName);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  STableCfgRsp cfgRsp = {0};
-  code = sysTagsFetchRemoteCfg(pInfo, pInfo->accountId,
-                               pRef->refDbName, pRef->refTableName, reqId, pTaskInfo, &cfgRsp);
-  if (code != TSDB_CODE_SUCCESS) {
-    tFreeSTableCfgRsp(&cfgRsp);
-    // Source table may have been dropped  -  treat as unresolved, not fatal
-    return TSDB_CODE_SUCCESS;
-  }
-  if (cfgRsp.pTags == NULL) {
-    tFreeSTableCfgRsp(&cfgRsp);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  STag*    pRemoteTag = (STag*)cfgRsp.pTags;
-  SSchema* pSchemas = cfgRsp.pSchemas;
-  int32_t  numOfCols = cfgRsp.numOfColumns;
-  int32_t  numOfTags = cfgRsp.numOfTags;
-
-  for (int32_t t = 0; t < numOfTags; t++) {
-    SSchema* pTagSchema = &pSchemas[numOfCols + t];
-    if (strcmp(pTagSchema->name, pRef->refColName) == 0) {
-      code = sysTagsExtractFromTagData(pRemoteTag, pTagSchema, ppTagData, pTagLen, pResolved);
+      if (!refAdvanced && srcTable.me.ntbEntry.pTags != NULL) {
+        code = extractTagValFromStag((STag*)srcTable.me.ntbEntry.pTags, pSchema, ppData, pLen, pResolved);
+      }
       break;
     }
   }
+  // other entry types (stb/sma/...): DDL validation keeps them out of tag-ref chains;
+  // resolve to nothing rather than failing the query.
 
-  tFreeSTableCfgRsp(&cfgRsp);
+  pAPI->metaReaderFn.clearReader(&srcTable);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("resolveTagRefLocalHop: %s.%s failed, code:%s", curDb, curTable, tstrerror(code));
+  }
   return code;
+}
+
+int32_t resolveTagRefChain(SRefChainCtx* pCtx, const char* refDb, const char* refTable,
+                           const char* refCol, char** ppData, uint32_t* pLen, bool* pResolved) {
+  // NOTE no destination-type parameter on purpose: the DDL type-match gate already
+  // keeps source and destination tag types identical, and the value width always comes
+  // from the per-hop source schema. Re-add a dst type (and check it) if/when a runtime
+  // cross-type guard is ever needed -- a silently ignored parameter invites misuse.
+  int32_t code = TSDB_CODE_SUCCESS;
+  *ppData = NULL;
+  *pLen = 0;
+  *pResolved = false;
+
+  char curDb[TSDB_DB_NAME_LEN];
+  char curTable[TSDB_TABLE_NAME_LEN];
+  char curCol[TSDB_COL_NAME_LEN];
+  tstrncpy(curDb, refDb, sizeof(curDb));
+  tstrncpy(curTable, refTable, sizeof(curTable));
+  tstrncpy(curCol, refCol, sizeof(curCol));
+
+  // Second line of defence: DDL-time checks reject cycles/over-depth, but a later SET TAG
+  // re-pointing can still create one at runtime. Linear scan is fine (depth <= 33).
+  //
+  // UNIFIED DEPTH SEMANTICS -- three walkers of one chain must land on the SAME
+  // boundary: this resolver, the parser pre-check (checkRefChainDepthAndCircular,
+  // parTranslater.c) and the vnode backstop (metaCheckTagRefChainLocal, metaTable2.c).
+  // Operative boundary with TSDB_MAX_VTABLE_REF_DEPTH = 32 (MAX): a legal chain has at
+  // most 33 REFERENCE EDGES (34 tables incl. the source table X), the 34th edge is
+  // rejected. Counting per site (each starts one step later than the previous):
+  //   parser:    starts FROM the first ref target t1, walks depth = 1..MAX+1; following
+  //              the 34th edge inside depth = MAX+1 rejects, a terminal reached within
+  //              33 edges is legal;
+  //   backstop:  seeds the altered table X into visited, walks hop = 0..MAX over
+  //              t1..t33 -- identical boundary;
+  //   resolver:  receives t1 as its INPUT (X's own edge is the caller's ref, NOT an
+  //              iteration), so hop = 0..MAX processes t1..t33 and follows at most 32
+  //              edges in-loop -- a 34-edge chain needs a 34th iteration and falls to
+  //              REF_DEPTH_EXCEEDED below, same boundary as the other two.
+  // visited is sized MAX+2: the loop records at most MAX+1 keys, the extra slot is
+  // belt-and-braces only. Any change to one site's counting must be mirrored in the
+  // other two -- pinned by test_vtable_tag_ref_depth_boundary.py (33 edges pass /
+  // 34th rejected).
+  char visited[TSDB_MAX_VTABLE_REF_DEPTH + 2][TSDB_TABLE_FNAME_LEN] = {0};
+  int32_t nVisited = 0;
+
+  for (int32_t hop = 0; hop <= TSDB_MAX_VTABLE_REF_DEPTH; ++hop) {
+    char key[TSDB_TABLE_FNAME_LEN] = {0};
+    (void)snprintf(key, sizeof(key), "%s.%s", curDb, curTable);
+    for (int32_t i = 0; i < nVisited; ++i) {
+      if (strcmp(visited[i], key) == 0) {
+        qError("resolveTagRefChain: circular reference at %s", key);
+        return TSDB_CODE_VTABLE_CIRCULAR_REF;
+      }
+    }
+    if (nVisited < (int32_t)(sizeof(visited) / sizeof(visited[0]))) {
+      tstrncpy(visited[nVisited++], key, sizeof(visited[0]));
+    }
+
+    // local hop first. Any local path that neither resolves nor advances (column absent
+    // from the local schema, super entry gone, unsupported entry type) falls through to
+    // the remote hop below, and every remote outcome below is a function-level return;
+    // the only paths that re-enter this loop (advanced / nextFound) have rewritten
+    // curDb/curTable via tagRefSetNextHop. A repeated visited key therefore always means
+    // a genuine circular reference, never an unresolved no-progress retry.
+    bool advanced = false;
+    code = resolveTagRefLocalHop(pCtx, curDb, curTable, curCol, &advanced, ppData, pLen, pResolved);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (*pResolved) return TSDB_CODE_SUCCESS;
+    if (advanced) continue;
+
+    // remote hop: table lives on another vnode
+    if (pCtx->clientRpc == NULL || pCtx->pMnodeEpSet == NULL) {
+      qDebug("resolveTagRefChain: no clientRpc/mnode epset for %s, unresolved", key);
+      return TSDB_CODE_SUCCESS;
+    }
+    STableCfgRsp cfgRsp = {0};
+    code = sysTagsFetchRemoteCfg(pCtx, curDb, curTable, &cfgRsp);
+    if (code != TSDB_CODE_SUCCESS) {
+      tFreeSTableCfgRsp(&cfgRsp);
+      if (tagRefSourceGoneCode(code)) {
+        // the source table/db is genuinely gone (codes verified against
+        // vnodeGetTableCfg -> metaGetTableEntryByName/ByUid -> TSDB_CODE_PAR_TABLE_NOT_EXIST,
+        // and the vg lookup's TSDB_CODE_MND_DB_NOT_EXIST): broken chain resolves to NULL,
+        // the query must not fail
+        return TSDB_CODE_SUCCESS;
+      }
+      // RPC transport / mnode-vnode outage / corrupt payload: a silently-NULL tag would
+      // hide the fault and return a wrong value -- report, mirroring the local hop above
+      qError("resolveTagRefChain: remote hop %s failed, code=%s", key, tstrerror(code));
+      return code;
+    }
+    if (cfgRsp.pTags == NULL || cfgRsp.pSchemas == NULL || cfgRsp.numOfTags <= 0) {
+      // function-level return -- the chain ends here unresolved (tag reads as NULL);
+      // no next hop iteration happens on this path, so curDb/curTable are never
+      // re-compared against the visited set
+      tFreeSTableCfgRsp(&cfgRsp);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    bool nextFound = false;
+    for (int32_t t = 0; t < cfgRsp.numOfTags; ++t) {
+      SSchema* pTagSchema = &cfgRsp.pSchemas[cfgRsp.numOfColumns + t];
+      if (strcmp(pTagSchema->name, curCol) != 0) continue;
+      // an active tag-ref wins over the stored static value -- same priority as the local
+      // hop: the cfg rsp copies a virtual child's ctbEntry.pTags verbatim, including the
+      // pre-ref literal metaAlterTagRef deliberately leaves behind, so value-first would
+      // truncate the chain at a stale intermediate hop
+      if (cfgRsp.pTagRefs != NULL) {
+        for (int32_t r = 0; r < cfgRsp.numOfTagRefs; ++r) {
+          SColRef* pNext = &cfgRsp.pTagRefs[r];
+          if (pNext->hasRef && pNext->id == pTagSchema->colId) {
+            tagRefSetNextHop(curDb, curTable, curCol, pNext);
+            nextFound = true;
+            break;
+          }
+        }
+      }
+      if (nextFound) break;
+      // no active ref: owned/literal value (a vntb ref tag carries no stored value)
+      code = extractTagValFromStag((STag*)cfgRsp.pTags, pTagSchema, ppData, pLen, pResolved);
+      break;
+    }
+    tFreeSTableCfgRsp(&cfgRsp);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (*pResolved) return TSDB_CODE_SUCCESS;
+    if (nextFound) continue;
+
+    // tag exists in schema but carries no value and no ref -- treat as broken chain
+    return TSDB_CODE_SUCCESS;
+  }
+
+  qError("resolveTagRefChain: depth exceeds %d at %s.%s", TSDB_MAX_VTABLE_REF_DEPTH, curDb, curTable);
+  return TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED;
+}
+
+static int32_t sysTagsResolveRefTagVal(const SSysTableScanInfo* pInfo, const SColRef* pRef,
+                                       char** ppTagData, uint32_t* pTagLen,
+                                       bool* pResolved, uint64_t reqId, SExecTaskInfo* pTaskInfo) {
+  void* clientRpc = (pInfo->readHandle.pMsgCb != NULL) ? pInfo->readHandle.pMsgCb->clientRpc : NULL;
+  // lazy per-scan caches shared by every chain this scan resolves; on allocation
+  // failure the pointers stay NULL and sysTagsFetchRemoteCfg runs uncached
+  sysTagsEnsureRefCaches(pInfo);
+  // epSet handed over writable on purpose (ctx.pMnodeEpSet is non-const: the RPC layer
+  // may refresh the endpoints through it); pInfo's const is the scan-semantics
+  // convention already cast away by sysTagsEnsureRefCaches above
+  SRefChainCtx ctx = {.vnode = pInfo->readHandle.vnode,
+                      .pAPI = pInfo->pAPI,
+                      .accountId = pInfo->accountId,
+                      .txnId = pInfo->readHandle.txnId,
+                      .clientRpc = clientRpc,
+                      .pMnodeEpSet = &((SSysTableScanInfo*)pInfo)->epSet,
+                      .reqId = reqId,
+                      .pTaskInfo = pTaskInfo,
+                      .pRefDbVgInfoCache = pInfo->pRefDbVgInfoCache,
+                      .pRefTableCfgCache = pInfo->pRefTableCfgCache};
+  return resolveTagRefChain(&ctx, pRef->refDbName, pRef->refTableName, pRef->refColName,
+                            ppTagData, pTagLen, pResolved);
 }
 
 // LOCK CONTRACT: callers MUST NOT hold any meta read/write lock on this
@@ -2831,7 +3134,7 @@ static int32_t sysTableUserTagsFillTags(const SSysTableScanInfo* pInfo, const SS
 
     if (pMatchedRef != NULL && pMatchedRef->hasRef) {
       bool resolved = false;
-      code = sysTagsResolveRefTagVal(pInfo, pMatchedRef, tagType, &tagData, &tagLen, &resolved, reqId, pTaskInfo);
+      code = sysTagsResolveRefTagVal(pInfo, pMatchedRef, &tagData, &tagLen, &resolved, reqId, pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
       if (resolved) {
         tagDataFromRemote = true;
@@ -2878,7 +3181,15 @@ static int32_t sysTableUserTagsFillTags(const SSysTableScanInfo* pInfo, const SS
           goto _end;
         }
         tagVarChar = taosMemoryMalloc(strlen(tagJson) + VARSTR_HEADER_SIZE);
-        QUERY_CHECK_NULL(tagVarChar, code, lino, _end, terrno);
+        if (tagVarChar == NULL) {
+          // OOM: the inline frees on the success path below are skipped via _end --
+          // release the intermediate JSON string and a remote-fetched payload here
+          code = terrno;
+          lino = __LINE__;
+          taosMemoryFree(tagJson);
+          if (tagDataFromRemote) taosMemoryFreeClear(tagData);
+          goto _end;
+        }
         memcpy(varDataVal(tagVarChar), tagJson, strlen(tagJson));
         varDataSetLen(tagVarChar, strlen(tagJson));
         taosMemoryFree(tagJson);
@@ -2886,7 +3197,13 @@ static int32_t sysTableUserTagsFillTags(const SSysTableScanInfo* pInfo, const SS
         int32_t bufSize = IS_VAR_DATA_TYPE(tagType) ? (tagLen + VARSTR_HEADER_SIZE)
                                                     : (3 + DBL_MANT_DIG - DBL_MIN_EXP + VARSTR_HEADER_SIZE);
         tagVarChar = taosMemoryCalloc(1, bufSize + 1);
-        QUERY_CHECK_NULL(tagVarChar, code, lino, _end, terrno);
+        if (tagVarChar == NULL) {
+          // OOM: a remote-fetched payload would be leaked via _end -- release it here
+          code = terrno;
+          lino = __LINE__;
+          if (tagDataFromRemote) taosMemoryFreeClear(tagData);
+          goto _end;
+        }
         int32_t len = -1;
         if (tagLen > 0)
           convertTagDataToStr(varDataVal(tagVarChar), bufSize + 1 - VARSTR_HEADER_SIZE, tagType, tagData, tagLen, &len);
@@ -2896,10 +3213,32 @@ static int32_t sysTableUserTagsFillTags(const SSysTableScanInfo* pInfo, const SS
       }
     }
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
-    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    if (pColInfoData == NULL) {
+      code = terrno;
+      lino = __LINE__;
+      // _end only logs -- free in place, mirroring the success-path cleanup below
+      // (remote-fetched payload, or the locally converted geometry/varbinary buffer)
+      if (tagDataFromRemote) {
+        taosMemoryFreeClear(tagData);
+      } else {
+        if (tagType == TSDB_DATA_TYPE_GEOMETRY || tagType == TSDB_DATA_TYPE_VARBINARY) taosMemoryFreeClear(tagData);
+      }
+      taosMemoryFree(tagVarChar);
+      goto _end;
+    }
     code = colDataSetVal(pColInfoData, numOfRows, tagVarChar,
                          (tagData == NULL) || (tagType == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(tagData)));
-    QUERY_CHECK_CODE(code, lino, _end);
+    if (code != TSDB_CODE_SUCCESS) {
+      lino = __LINE__;
+      // same in-place cleanup as above: _end must stay a pure logging label
+      if (tagDataFromRemote) {
+        taosMemoryFreeClear(tagData);
+      } else {
+        if (tagType == TSDB_DATA_TYPE_GEOMETRY || tagType == TSDB_DATA_TYPE_VARBINARY) taosMemoryFreeClear(tagData);
+      }
+      taosMemoryFree(tagVarChar);
+      goto _end;
+    }
 
     if (tagDataFromRemote) {
       taosMemoryFreeClear(tagData);
@@ -7786,22 +8125,7 @@ static void doDestroySysTableScanInfo(void* param) {
     taosHashCleanup(pInfo->pExtSchema);
     pInfo->pExtSchema = NULL;
   }
-  if (pInfo->pRefDbVgInfoCache) {
-    void* pIter = taosHashIterate(pInfo->pRefDbVgInfoCache, NULL);
-    while (pIter) {
-      SDBVgInfo** ppVgInfo = (SDBVgInfo**)pIter;
-      if (*ppVgInfo) {
-        freeVgInfo(*ppVgInfo);
-      }
-      pIter = taosHashIterate(pInfo->pRefDbVgInfoCache, pIter);
-    }
-    taosHashCleanup(pInfo->pRefDbVgInfoCache);
-    pInfo->pRefDbVgInfoCache = NULL;
-  }
-  if (pInfo->pRefTableCfgCache) {
-    taosHashCleanup(pInfo->pRefTableCfgCache);  // freeFp releases each entry's rpc cont
-    pInfo->pRefTableCfgCache = NULL;
-  }
+  sysTagsRefCachesClear(&pInfo->pRefDbVgInfoCache, &pInfo->pRefTableCfgCache);
   destroySysTableScanVtbRefReqs(pInfo);
   tableListDestroy(pInfo->pSubTableListInfo);
 

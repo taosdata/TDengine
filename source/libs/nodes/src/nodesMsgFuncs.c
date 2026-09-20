@@ -2819,6 +2819,9 @@ enum {
   PHY_VIRTUAL_TABLE_SCAN_CODE_TAG_FILTER_COND,
   PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_TAG_REF,
   PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_LOCAL_TAG,
+  PHY_VIRTUAL_TABLE_SCAN_CODE_CONST_REF_TAGS,
+  PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_CONST_REF_TAG,
+  PHY_VIRTUAL_TABLE_SCAN_CODE_MGMT_EP_SET,
 };
 
 static int32_t physiVirtualTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2875,6 +2878,15 @@ static int32_t physiVirtualTableScanNodeToMsg(const void* pObj, STlvEncoder* pEn
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_LOCAL_TAG, pNode->hasLocalTag);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_CONST_REF_TAGS, nodeListToMsg, pNode->pConstRefTags);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_CONST_REF_TAG, pNode->hasConstRefTag);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_MGMT_EP_SET, epSetToMsg, &pNode->mgmtEpSet);
+  }
 
   return code;
 }
@@ -2930,6 +2942,15 @@ static int32_t msgToPhysiVirtualTableScanNode(STlvDecoder* pDecoder, void* pObj)
         break;
       case PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_LOCAL_TAG:
         code = tlvDecodeBool(pTlv, &pNode->hasLocalTag);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_CONST_REF_TAGS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pConstRefTags);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_CONST_REF_TAG:
+        code = tlvDecodeBool(pTlv, &pNode->hasConstRefTag);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_MGMT_EP_SET:
+        code = tlvDecodeObjFromTlv(pTlv, msgToEpSet, &pNode->mgmtEpSet);
         break;
       default:
         break;

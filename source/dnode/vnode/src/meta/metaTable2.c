@@ -4215,7 +4215,6 @@ static int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, const char
       goto _exit;
     }
     pChild->version = version;
-    bool tagRefCleared = false;
     code = metaUpdateNtbTagValueImpl(pMeta, pChild, pTagSchema, pUpdatedTagVals, &tagRefCleared);
     if (code) {
       const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, name:%s version:%" PRId64;
@@ -4245,27 +4244,6 @@ static int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, const char
     goto _exit;
   }
 
-  // For virtual child tables, clear tag-ref when setting static value
-  if (pChild->type == TSDB_VIRTUAL_CHILD_TABLE &&
-      pChild->colRef.nTagRefs > 0 && pChild->colRef.pTagRef) {
-    int32_t nTags = taosArrayGetSize(tags);
-    for (int32_t t = 0; t < nTags; t++) {
-      SUpdatedTagVal *pTag = taosArrayGet(tags, t);
-      if (pTag == NULL) continue;
-      for (int32_t r = 0; r < pChild->colRef.nTagRefs; r++) {
-        if (pChild->colRef.pTagRef[r].hasRef &&
-            pChild->colRef.pTagRef[r].id == pTag->colId) {
-          pChild->colRef.pTagRef[r].hasRef = false;
-          memset(pChild->colRef.pTagRef[r].refDbName, 0, TSDB_DB_NAME_LEN);
-          memset(pChild->colRef.pTagRef[r].refTableName, 0, TSDB_TABLE_NAME_LEN);
-          memset(pChild->colRef.pTagRef[r].refColName, 0, TSDB_COL_NAME_LEN);
-          pChild->colRef.version++;
-          tagRefCleared = true;
-        }
-      }
-    }
-  }
-
   // search the tags to update; for a virtual child table use the merged tag view (vstb tags
   // followed by own tags) so own tags can be located by name and the shared tag blob is
   // rebuilt with the merged schema (keeping own tag values, whose colIds sort after all vstb
@@ -4292,9 +4270,42 @@ static int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, const char
     goto _exit;
   }
 
+  // For virtual child tables, clear tag-ref when setting static value. This must run AFTER
+  // updatedTagValueArrayToHashMap: the request arrives with colId unset and the helper has
+  // just resolved it by tag name -- matching refs on the raw request colId never hits, the
+  // ref survives, and it silently overrides the new literal at query time.
+  if (pChild->type == TSDB_VIRTUAL_CHILD_TABLE &&
+      pChild->colRef.nTagRefs > 0 && pChild->colRef.pTagRef) {
+    for (int32_t r = 0; r < pChild->colRef.nTagRefs; r++) {
+      if (pChild->colRef.pTagRef[r].hasRef) {
+        // widen to int32_t: the hash is keyed by SUpdatedTagVal.colId (int32_t) while
+        // SColRef.id is col_id_t (int16_t) -- a 2-byte lookup never matches
+        int32_t refColId = pChild->colRef.pTagRef[r].id;
+        if (taosHashGet(pUpdatedTagVals, &refColId, sizeof(refColId)) != NULL) {
+          pChild->colRef.pTagRef[r].hasRef = false;
+          // heap field must be released like the sibling clear paths do
+          // (metaUpdateNtbTagValueImpl / the drop-tag compaction): a ref carrying a tag
+          // condition would leak its json blob on every SET TAG overwrite otherwise
+          taosMemoryFreeClear(pChild->colRef.pTagRef[r].tagCondJson);
+          pChild->colRef.pTagRef[r].tagCondLen = 0;
+          memset(pChild->colRef.pTagRef[r].refDbName, 0, TSDB_DB_NAME_LEN);
+          memset(pChild->colRef.pTagRef[r].refTableName, 0, TSDB_TABLE_NAME_LEN);
+          memset(pChild->colRef.pTagRef[r].refColName, 0, TSDB_COL_NAME_LEN);
+          pChild->colRef.version++;
+          tagRefCleared = true;
+        }
+      }
+    }
+  }
+
   // change tag values
   pChild->version = version;
   code = metaUpdateTableTagValueImpl(pMeta, pChild, pTagSchema, pUpdatedTagVals);
+  if (code == TSDB_CODE_VND_SAME_TAG && tagRefCleared) {
+    // clearing a ref IS a meta change even when the literal equals the stored value
+    // (a state older builds could leave behind) -- persist it instead of reporting a no-op
+    code = metaHandleEntry2(pMeta, pChild);
+  }
   if (code) {
     const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, name:%s version:%" PRId64;
     metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), tbName, version);
@@ -5417,6 +5428,145 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
   TAOS_RETURN(code);
 }
 
+// Local-segment walk of a new tag-ref chain (backstop for the parser-side full check; a direct
+// vnode RPC bypasses the parser, and SET TAG re-pointing is the only runtime cycle-making
+// entry). Walks only tables resolvable on this vnode -- a table on another vnode (or dropped)
+// terminates the walk as SUCCESS: the full chain is validated at DDL time by the parser.
+// Rejects cycles back to any visited table and chains deeper than TSDB_MAX_VTABLE_REF_DEPTH.
+// UNIFIED DEPTH SEMANTICS: three walkers of one tag-ref chain must stay in lock-step --
+// this vnode backstop, the DDL-time pre-check (checkRefChainDepthAndCircular,
+// parTranslater.c) and the executor resolver (resolveTagRefChain, sysscanoperator.c).
+// Operative boundary with TSDB_MAX_VTABLE_REF_DEPTH = 32: a legal chain has at most 33
+// REFERENCE EDGES (34 tables incl. the starting one), the 34th edge is rejected. This
+// walker seeds the altered table into visited[] and walks hop = 0..MAX over the tables
+// AFTER it (t1..t33), which lands exactly on the 33-edge boundary; the executor
+// resolver receives t1 as its input (the source's own edge is not an iteration to it)
+// and runs hop = 0..MAX over the same tables -- identical boundary. Any change here
+// must be mirrored in the other two walkers -- pinned by test_vtable_tag_ref_depth_boundary.py.
+static int32_t metaCheckTagRefChainLocal(SMeta *pMeta, const char *pSrcTbName, const char *pRefDbName,
+                                         const char *pRefTbName, const char *pRefColName) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  (void)pRefDbName;  // local meta is per-vnode; table names are unique within it
+
+  char    visited[TSDB_MAX_VTABLE_REF_DEPTH + 2][TSDB_TABLE_NAME_LEN] = {0};
+  int32_t nVisited = 0;
+  tstrncpy(visited[nVisited++], pSrcTbName, TSDB_TABLE_NAME_LEN);  // seed: the table being altered
+
+  // zero-init: tstrncpy does not clear the tail, and the fixed-width strncmp against the
+  // zero-padded visited[] rows would otherwise compare leftover garbage bytes
+  char curTable[TSDB_TABLE_NAME_LEN] = {0};
+  char curCol[TSDB_COL_NAME_LEN] = {0};
+  tstrncpy(curTable, pRefTbName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(curCol, pRefColName, TSDB_COL_NAME_LEN);
+
+  for (int32_t hop = 0; hop <= TSDB_MAX_VTABLE_REF_DEPTH; ++hop) {
+    for (int32_t i = 0; i < nVisited; ++i) {
+      if (strncmp(visited[i], curTable, TSDB_TABLE_NAME_LEN) == 0) {
+        metaError("vgId:%d, %s failed since circular tag-ref at table %s", TD_VID(pMeta->pVnode), __func__, curTable);
+        TAOS_RETURN(TSDB_CODE_VTABLE_CIRCULAR_REF);
+      }
+    }
+    if (nVisited < (int32_t)(sizeof(visited) / sizeof(visited[0]))) {
+      tstrncpy(visited[nVisited++], curTable, TSDB_TABLE_NAME_LEN);
+    } else {
+      // capacity exhausted (theoretically unreachable: the loop bound is one below the
+      // array capacity): fail loudly instead of silently dropping the visit record,
+      // which would degrade later hops' cycle detection to the depth backstop only
+      metaError("vgId:%d, %s failed since tag-ref chain depth exceeds %d", TD_VID(pMeta->pVnode), __func__,
+                TSDB_MAX_VTABLE_REF_DEPTH);
+      TAOS_RETURN(TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED);
+    }
+
+    SMetaEntry *pEnt = NULL;
+    // each fetch individually RLock-guarded (same pattern as the other fetch sites in
+    // this file, e.g. metaGetTableMeta): metaFetchEntryByName itself takes no meta lock,
+    // and an unguarded read can race concurrent vacuum/rollback mutations
+    metaRLock(pMeta);
+    code = metaFetchEntryByName(pMeta, curTable, &pEnt);
+    metaULock(pMeta);
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_NOT_FOUND) {
+      // not local / dropped -- tdb reports plain NOT_FOUND, meta PAR_TABLE_NOT_EXIST;
+      // the parser validated the full chain at DDL time
+      TAOS_RETURN(TSDB_CODE_SUCCESS);
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      // real internal failure: a silently-passing backstop is worse than a loud error
+      TAOS_RETURN(code);
+    }
+
+    bool    advanced = false;
+    col_id_t colId = -1;
+    if (pEnt->type == TSDB_VIRTUAL_NORMAL_TABLE) {
+      for (int32_t i = 0; i < pEnt->ntbEntry.schemaTag.nCols; ++i) {
+        if (strncmp(pEnt->ntbEntry.schemaTag.pSchema[i].name, curCol, TSDB_COL_NAME_LEN) == 0) {
+          colId = pEnt->ntbEntry.schemaTag.pSchema[i].colId;
+          break;
+        }
+      }
+    } else if (pEnt->type == TSDB_VIRTUAL_CHILD_TABLE) {
+      // inherited (vstb) tags first (same resolution order as metaAlterTagRef): a shared
+      // tag referenced through a vchild hop must resolve too, or the local walk would
+      // stop early and miss cycles/deeper chains beyond this vchild
+      SMetaEntry* pSuper = NULL;
+      bool        superFetched = false;
+      if (pEnt->ctbEntry.suid != 0) {
+        int32_t fetchCode = TSDB_CODE_SUCCESS;
+        metaRLock(pMeta);
+        fetchCode = metaFetchEntryByUid(pMeta, pEnt->ctbEntry.suid, &pSuper);
+        metaULock(pMeta);
+        if (fetchCode != TSDB_CODE_SUCCESS) {
+          // fetch failed: no super schema to consult, fall through to own tags below
+          pSuper = NULL;
+        }
+      }
+      if (pSuper != NULL) {
+        superFetched = true;
+        for (int32_t i = 0; i < pSuper->stbEntry.schemaTag.nCols; ++i) {
+          if (strncmp(pSuper->stbEntry.schemaTag.pSchema[i].name, curCol, TSDB_COL_NAME_LEN) == 0) {
+            colId = pSuper->stbEntry.schemaTag.pSchema[i].colId;
+            break;
+          }
+        }
+      }
+      for (int32_t i = 0; colId < 0 && i < pEnt->own.nOwnTags; ++i) {
+        if (strncmp(pEnt->own.pOwnTagSchemas[i].name, curCol, TSDB_COL_NAME_LEN) == 0) {
+          colId = pEnt->own.pOwnTagSchemas[i].colId;
+          break;
+        }
+      }
+      // free only at the very end of pSuper's scope: a release right after the colId
+      // copy-out works today (colId is a by-value scalar) but is fragile against later
+      // maintenance adding deferred pSuper reads anywhere above this point
+      if (superFetched) {
+        metaFetchEntryFree(&pSuper);
+      }
+    }
+    if (colId >= 0 && pEnt->colRef.pTagRef != NULL) {
+      for (int32_t k = 0; k < pEnt->colRef.nTagRefs; ++k) {
+        SColRef *pNext = &pEnt->colRef.pTagRef[k];
+        if (pNext->hasRef && pNext->id == colId) {
+          // clear before copying: a shorter name would otherwise leave residual bytes
+          // from the previous hop and break the fixed-width cycle comparison above
+          memset(curTable, 0, TSDB_TABLE_NAME_LEN);
+          memset(curCol, 0, TSDB_COL_NAME_LEN);
+          tstrncpy(curTable, pNext->refTableName, TSDB_TABLE_NAME_LEN);
+          tstrncpy(curCol, pNext->refColName, TSDB_COL_NAME_LEN);
+          advanced = true;
+          break;
+        }
+      }
+    }
+    metaFetchEntryFree(&pEnt);
+    if (!advanced) {
+      TAOS_RETURN(TSDB_CODE_SUCCESS);  // terminal reached (owned/child/vchild or no ref)
+    }
+  }
+
+  metaError("vgId:%d, %s failed since tag-ref chain depth exceeds %d", TD_VID(pMeta->pVnode), __func__,
+            TSDB_MAX_VTABLE_REF_DEPTH);
+  TAOS_RETURN(TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED);
+}
+
 int32_t metaAlterTagRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -5527,6 +5677,15 @@ int32_t metaAlterTagRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STabl
     memset(pTagRef, 0, sizeof(SColRef));
     pTagRef->id = tagColId;
     pEntry->colRef.nTagRefs = newCount;
+  }
+
+  // local-segment chain check: the parser validates the full chain at DDL time; this backstop
+  // guards direct vnode RPCs against cycles / over-depth introduced by SET TAG re-pointing
+  code = metaCheckTagRefChainLocal(pMeta, pReq->tbName, pReq->refDbName, pReq->refTbName, pReq->refColName);
+  if (code) {
+    metaFetchEntryFree(&pEntry);
+    metaFetchEntryFree(&pSuper);
+    TAOS_RETURN(code);
   }
 
   // set tag-ref
