@@ -7122,6 +7122,8 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
         break;
       }
       ST_TASK_DLOG("receive original reader info, reqId: %" PRId64, reqId);
+      code = pRsp->code;
+      QUERY_CHECK_CODE(code, lino, _end);
       SSTriggerRealtimeContext *pContext = pTask->pRealtimeContext;
       SSHashObj                *pOrigTableCols = NULL;
       if (pContext != NULL && IS_PATCHING_VITRUAL_TABLE(pContext)) {
@@ -7129,6 +7131,24 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
       } else {
         pOrigTableCols = pTask->pOrigTableCols;
       }
+      int64_t nOrigTables = 0;
+      int32_t dbIter = 0;
+      void   *pDb = NULL;
+      while ((pDb = tSimpleHashIterate(pOrigTableCols, pDb, &dbIter)) != NULL) {
+        nOrigTables += tSimpleHashGetSize(*(SSHashObj **)pDb);
+      }
+      QUERY_CHECK_CONDITION(nOrigTables > 0 && taosArrayGetSize(pRsp->cont.vgIds) == nOrigTables, code, lino, _end,
+                            TSDB_CODE_INVALID_PARA);
+
+      // Acknowledge only a complete reply, before publishing the next control request.
+      taosWLockLatch(&pTask->task.mgmtReqLock);
+      SStreamMgmtReq *pReq = atomic_load_ptr(&pTask->task.pMgmtReq);
+      if (pReq && pReq->reqId == reqId && pReq == atomic_val_compare_exchange_ptr(&pTask->task.pMgmtReq, pReq, NULL)) {
+        tFreeSStreamMgmtReq(pReq);
+        taosMemoryFree(pReq);
+      }
+      taosWUnLockLatch(&pTask->task.mgmtReqLock);
+
       int32_t *pVgId = TARRAY_DATA(pRsp->cont.vgIds);
       int32_t  iter1 = 0;
       void    *px = tSimpleHashIterate(pOrigTableCols, NULL, &iter1);
