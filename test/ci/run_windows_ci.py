@@ -74,8 +74,16 @@ def tail(path, lines=200):
 
 
 def stop_processes():
-    for name in ("taosd", "taos", "taosBenchmark", "taosadapter", "taoskeeper"):
-        subprocess.run(["taskkill", "/f", "/im", f"{name}.exe"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    # Kill the server tree first, then catch UDF processes whose parent has exited.
+    for name in ("taosd", "taosudf", "taos", "taosBenchmark", "taosadapter", "taoskeeper"):
+        result = subprocess.run(
+            ["taskkill", "/f", "/t", "/im", f"{name}.exe"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, errors="replace", check=False,
+        )
+        # taskkill returns 128 when no matching process is running.
+        if result.returncode != 128:
+            print(f"[windows-ci] stop {name}.exe: exit={result.returncode}; {result.stdout.strip()}", flush=True)
 
 
 def stop_build_processes():
@@ -87,18 +95,20 @@ def remove_build_directory(debug_dir):
     if not debug_dir.exists():
         return
     print(f"[windows-ci] removing previous build directory: {debug_dir}")
-    stop_processes()
-    stop_build_processes()
-    subprocess.run(["attrib", "-R", str(debug_dir / "*"), "/S", "/D"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     last_error = None
     for attempt in range(1, 6):
+        # Repeat process cleanup in case a child was still starting on the last attempt.
+        stop_processes()
+        stop_build_processes()
+        subprocess.run(["attrib", "-R", str(debug_dir / "*"), "/S", "/D"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
         try:
             shutil.rmtree(debug_dir)
             return
         except OSError as error:
             last_error = error
             print(f"[windows-ci] build cleanup attempt {attempt}/5 failed: {error}")
-            time.sleep(2)
+            if attempt < 5:
+                time.sleep(2)
     fail(f"unable to remove previous build directory after retries: {last_error}")
 
 

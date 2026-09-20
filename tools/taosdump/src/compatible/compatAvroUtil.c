@@ -167,8 +167,8 @@ AvroStbChange *avroFindStbChange(AvroDBChange *dc, const char *stbName) {
 // ---- getTableDes: query server for DESCRIBE table ----
 
 int avroGetTableDes(TAOS *taos, const char *dbName, const char *tableName,
-                    AvroTableDes *tableDes, bool colOnly) {
-    if (!taos || !dbName || !tableName || !tableDes) return -1;
+                    AvroTableDes *tableDes, int maxCols, bool colOnly) {
+    if (!taos || !dbName || !tableName || !tableDes || maxCols <= 0) return -1;
 
     char sql[512];
     snprintf(sql, sizeof(sql), "DESCRIBE `%s`.`%s`", dbName, tableName);
@@ -193,6 +193,15 @@ int avroGetTableDes(TAOS *taos, const char *dbName, const char *tableName,
     while ((row = taos_fetch_row(res)) != NULL) {
         // field[0]: Field, field[1]: Type, field[2]: Length, field[3]: Note
         if (numFields < 4) break;
+
+        // The number of DESCRIBE rows is decided by the server; never trust it
+        // to match the capacity the caller reserved.
+        if (index >= maxCols) {
+            logError("avro: DESCRIBE `%s`.`%s` returned more than %d columns/tags",
+                     dbName, tableName, maxCols);
+            taos_free_result(res);
+            return -1;
+        }
 
         int *lengths = taos_fetch_lengths(res);
 
@@ -325,10 +334,21 @@ static char *buildPartialStr(AvroTableDes *serverDes, AvroTableDes *localDes,
         }
         if (found) {
             if (matched > 0) buf[pos++] = ',';
-            pos += snprintf(buf + pos, TSDB_MAX_ALLOWED_SQL_LEN - pos, "`%s`",
+            int n = snprintf(buf + pos, (size_t)(TSDB_MAX_ALLOWED_SQL_LEN - pos), "`%s`",
                            serverDes->cols[si].field);
+            if (n < 0 || (size_t)n >= (size_t)(TSDB_MAX_ALLOWED_SQL_LEN - pos)) {
+                // The list does not fit: report failure instead of overflowing.
+                logError("avro: column list too long for SQL buffer");
+                taosMemoryFree(buf);
+                return NULL;
+            }
+            pos += n;
             matched++;
         }
+    }
+    if ((size_t)pos + 2 > TSDB_MAX_ALLOWED_SQL_LEN) {
+        taosMemoryFree(buf);
+        return NULL;
     }
     buf[pos++] = ')';
     buf[pos]   = '\0';
@@ -367,7 +387,7 @@ int avroAddStbChanged(AvroDBChange *dc, const char *dbName,
     AvroTableDes *serverDes = avroAllocTableDes(TSDB_MAX_COLUMNS);
     if (!serverDes) return -1;
 
-    if (avroGetTableDes(taos, dbName, stbName, serverDes, false) < 0) {
+    if (avroGetTableDes(taos, dbName, stbName, serverDes, TSDB_MAX_COLUMNS, false) < 0) {
         avroFreeTableDes(serverDes, true);
         // Table might not exist on server yet — not necessarily an error
         if (ppStbChange) *ppStbChange = NULL;

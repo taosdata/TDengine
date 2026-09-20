@@ -966,43 +966,61 @@ static bool isExIntervalHint(const SToken* pToken) {
          0 == strncasecmp(pToken->z, kExIntervalHint, pToken->n);
 }
 
-bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOption opt, SToken* paramList,
-                       int32_t paramNum) {
-  void* value = NULL;
+static void destroyHintParam(void* pParam) { taosMemoryFree(((SHintParam*)pParam)->value); }
+
+static bool appendHintParam(SAstCreateContext* pCxt, SArray** ppParams, const SToken* pToken) {
+  if (NULL == *ppParams) {
+    *ppParams = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SHintParam));
+    if (NULL == *ppParams) {
+      pCxt->errCode = terrno;
+      return false;
+    }
+  }
+
+  SHintParam param = {.type = pToken->type, .value = taosStrndup(pToken->z, pToken->n)};
+  if (NULL == param.value) {
+    pCxt->errCode = terrno;
+    return false;
+  }
+  if (NULL == taosArrayPush(*ppParams, &param)) {
+    pCxt->errCode = terrno;
+    taosMemoryFree(param.value);
+    return false;
+  }
+  return true;
+}
+
+static bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOption opt, SArray** ppParams) {
   switch (opt) {
     case HINT_SKIP_TSMA:
     case HINT_BATCH_SCAN:
     case HINT_NO_BATCH_SCAN:
     case HINT_FAST_INTERVAL:
-    case HINT_EX_INTERVAL: {
-      if (paramNum > 0) {
-        return true;
-      }
+    case HINT_EX_INTERVAL:
       break;
-    }
     case HINT_SORT_FOR_GROUP:
-      if (paramNum > 0 || hasHint(*ppHintList, HINT_PARTITION_FIRST)) return true;
+      if (hasHint(*ppHintList, HINT_PARTITION_FIRST)) return true;
       break;
     case HINT_PARTITION_FIRST:
-      if (paramNum > 0 || hasHint(*ppHintList, HINT_SORT_FOR_GROUP)) return true;
+      if (hasHint(*ppHintList, HINT_SORT_FOR_GROUP)) return true;
       break;
     case HINT_PARA_TABLES_SORT:
-      if (paramNum > 0 || hasHint(*ppHintList, HINT_PARA_TABLES_SORT)) return true;
+      if (hasHint(*ppHintList, HINT_PARA_TABLES_SORT)) return true;
       break;
     case HINT_SMALLDATA_TS_SORT:
-      if (paramNum > 0 || hasHint(*ppHintList, HINT_SMALLDATA_TS_SORT)) return true;
+      if (hasHint(*ppHintList, HINT_SMALLDATA_TS_SORT)) return true;
       break;
     case HINT_SMALLDATA_SCAN_SORT:
-      if (paramNum > 0 || hasHint(*ppHintList, HINT_SMALLDATA_SCAN_SORT)) return true;
+      if (hasHint(*ppHintList, HINT_SMALLDATA_SCAN_SORT)) return true;
       break;
     case HINT_HASH_JOIN:
-      if (paramNum > 0 || hasHint(*ppHintList, HINT_HASH_JOIN)) return true;
+      if (hasHint(*ppHintList, HINT_HASH_JOIN)) return true;
       break;
     case HINT_WIN_OPTIMIZE_BATCH:
-      if (paramNum > 0 || hasHint(*ppHintList, HINT_WIN_OPTIMIZE_BATCH)) return true;
+      if (hasHint(*ppHintList, HINT_WIN_OPTIMIZE_BATCH)) return true;
       break;
     case HINT_WIN_OPTIMIZE_SINGLE:
-      if (paramNum > 0 || hasHint(*ppHintList, HINT_WIN_OPTIMIZE_SINGLE)) return true;
+      if (hasHint(*ppHintList, HINT_WIN_OPTIMIZE_SINGLE)) return true;
       break;
     default:
       return true;
@@ -1014,7 +1032,8 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
     return true;
   }
   hint->option = opt;
-  hint->value = value;
+  hint->pParams = *ppParams;
+  *ppParams = NULL;
 
   if (NULL == *ppHintList) {
     pCxt->errCode = nodesMakeList(ppHintList);
@@ -1045,8 +1064,7 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
   bool        inParamList = false;
   bool        lastComma = false;
   EHintOption opt = 0;
-  int32_t     paramNum = 0;
-  SToken      paramList[10];
+  SArray*     pParams = NULL;
   while (!quit) {
     SToken t0 = {0};
     if (hint[i] == 0) {
@@ -1055,6 +1073,13 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
     t0.n = tGetToken(&hint[i], &t0.type, NULL);
     t0.z = hint + i;
     i += t0.n;
+
+    if (inParamList && TK_NK_LP != t0.type && TK_NK_RP != t0.type && TK_NK_COMMA != t0.type &&
+        TK_NK_SPACE != t0.type) {
+      lastComma = false;
+      quit = !appendHintParam(pCxt, &pParams, &t0);
+      continue;
+    }
 
     switch (t0.type) {
       case TK_BATCH_SCAN:
@@ -1157,14 +1182,13 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
         if (0 == opt || !inParamList) {
           quit = true;
         } else {
-          quit = addHintNodeToList(pCxt, &pHintList, opt, paramList, paramNum);
+          quit = addHintNodeToList(pCxt, &pHintList, opt, &pParams);
           inParamList = false;
-          paramNum = 0;
           opt = 0;
         }
         break;
       case TK_NK_ID:
-        if (isFastIntervalHint(&t0)) {
+        if (!inParamList && isFastIntervalHint(&t0)) {
           lastComma = false;
           if (0 != opt || inParamList) {
             quit = true;
@@ -1173,7 +1197,7 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
           opt = HINT_FAST_INTERVAL;
           break;
         }
-        if (isExIntervalHint(&t0)) {
+        if (!inParamList && isExIntervalHint(&t0)) {
           lastComma = false;
           if (0 != opt || inParamList) {
             quit = true;
@@ -1186,7 +1210,7 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
         if (0 == opt || !inParamList) {
           quit = true;
         } else {
-          paramList[paramNum++] = t0;
+          quit = !appendHintParam(pCxt, &pParams, &t0);
         }
         break;
       case TK_NK_COMMA:
@@ -1205,6 +1229,7 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
   }
 
   taosMemoryFree(hint);
+  taosArrayDestroyEx(pParams, destroyHintParam);
   return pHintList;
 _err:
   return NULL;

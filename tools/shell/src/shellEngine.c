@@ -22,6 +22,10 @@
 #include "geosWrapper.h"
 #include "shellAuto.h"
 #include "shellInt.h"
+#include <errno.h>
+#ifndef WINDOWS
+#include <sys/stat.h>
+#endif
 
 SShellObj shell = {0};
 
@@ -57,10 +61,11 @@ static void    shellHorizontalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info)
 static int64_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical, const char *sql);
 static void    shellReadHistory();
 static void    shellWriteHistory();
+static TdFilePtr shellOpenHistoryFile(const char *path, int32_t tdFileOptions);
 static void    shellPrintError(TAOS_RES *tres, int64_t st);
 static bool    shellIsCommentLine(char *line);
 static void    shellSourceFile(const char *file);
-static int32_t shellGetGrantInfo(char *buf);
+static int32_t shellGetGrantInfo(char *buf, int32_t bufSize);
 
 static void  shellCleanup(void *arg);
 static void *shellCancelHandler(void *arg);
@@ -146,11 +151,9 @@ int32_t shellRunSingleCommand(char *command) {
 }
 
 void shellRecordCommandToHistory(char *command) {
-  if (strncasecmp(command, "create user ", 12) == 0 || strncasecmp(command, "alter user ", 11) == 0) {
-    if (taosStrCaseStr(command, " pass ")) {
-      // have password command forbid record to history because security
-      return;
-    }
+  if (shellStatementHoldsCredential(command)) {
+    // have password command forbid record to history because security
+    return;
   }
 
   SShellHistory *pHistory = &shell.history;
@@ -182,8 +185,6 @@ int32_t shellRunCommand(char *command, bool recordHistory) {
     }
   }
 
-  if (recordHistory) shellRecordCommandToHistory(command);
-
   char quote = 0, *cmd = command;
   for (char c = *command++; c != 0; c = *command++) {
     if (c == '\\' && (*command == '\'' || *command == '"' || *command == '`')) {
@@ -198,12 +199,20 @@ int32_t shellRunCommand(char *command, bool recordHistory) {
     } else if (c == ';' && quote == 0) {
       c = *command;
       *command = 0;
+      // the credential filter has to see one statement at a time, a credential
+      // statement hidden behind another statement must not reach the history file
+      if (recordHistory) shellRecordCommandToHistory(cmd);
       if (shellRunSingleCommand(cmd) < 0) {
         return -1;
       }
       *command = c;
       cmd = command;
     }
+  }
+
+  // the last statement has already been recorded when the line ends with a ';'
+  if (recordHistory && !shellIsEmptyCommand(cmd)) {
+    shellRecordCommandToHistory(cmd);
   }
   return shellRunSingleCommand(cmd);
 }
@@ -938,8 +947,13 @@ void shellVerticalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
     for (int32_t i = 0; i < dump_info->numFields; i++) {
       TAOS_FIELD *field = dump_info->fields + i;
 
-      int32_t padding = (int32_t)(dump_info->maxColNameLen - strlen(field->name));
-      (void)printf("%*.s%s: ", padding, " ", field->name);
+      // as in shellPrintHeader(), the column name is server supplied
+      char    name[sizeof(field->name)] = {0};
+      tstrncpy(name, field->name, sizeof(name));
+      shellStripControlChars(name);
+
+      int32_t padding = (int32_t)(dump_info->maxColNameLen - strlen(name));
+      (void)printf("%*.s%s: ", padding, " ", name);
 
       shellPrintField((const char *)row[i], field, 0, length[i], dump_info->precision, dump_info->tz);
       putchar('\r');
@@ -1061,9 +1075,15 @@ void shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields) {
   int32_t rowWidth = 0;
   for (int32_t col = 0; col < num_fields; col++) {
     TAOS_FIELD *field = fields + col;
-    int32_t     padding = (int32_t)(width[col] - strlen(field->name));
+    // the column name is copied verbatim from the server schema, so control
+    // characters must be stripped before it reaches the terminal
+    char    name[sizeof(field->name)] = {0};
+    tstrncpy(name, field->name, sizeof(name));
+    shellStripControlChars(name);
+
+    int32_t     padding = (int32_t)(width[col] - strlen(name));
     int32_t     left = padding / 2;
-    (void)printf(" %*.s%s%*.s |", left, " ", field->name, padding - left, " ");
+    (void)printf(" %*.s%s%*.s |", left, " ", name, padding - left, " ");
     rowWidth += width[col] + 3;
   }
 
@@ -1171,9 +1191,29 @@ int64_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool ver
   return num_of_rows;
 }
 
+/*
+ * The history file holds every command line typed by the operator, so it is
+ * created with owner only permissions (fopen would otherwise apply the process
+ * umask, 0644 on most systems) and a file left behind with looser permissions by
+ * an older version of the shell is tightened as well.
+ */
+static TdFilePtr shellOpenHistoryFile(const char *path, int32_t tdFileOptions) {
+  int32_t   oldUmask = taosUmaskFile(0077);
+  TdFilePtr pFile = taosOpenFile(path, tdFileOptions);
+  taosUmaskFile(oldUmask);
+
+#ifndef WINDOWS
+  if (pFile != NULL && chmod(path, S_IRUSR | S_IWUSR) != 0) {
+    uWarn("failed to change mode of history file %s to 0600, errno:%d", path, errno);
+  }
+#endif
+
+  return pFile;
+}
+
 void shellReadHistory() {
   SShellHistory *pHistory = &shell.history;
-  TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_READ | TD_FILE_STREAM);
+  TdFilePtr      pFile = shellOpenHistoryFile(pHistory->file, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) return;
 
   char   *line = taosMemoryMalloc(tsMaxSQLLength + 1);
@@ -1194,7 +1234,7 @@ void shellReadHistory() {
   taosCloseFile(&pFile);
   int64_t file_size;
   if (taosStatFile(pHistory->file, &file_size, NULL, NULL) == 0 && file_size > SHELL_MAX_COMMAND_SIZE) {
-    TdFilePtr pFile = taosOpenFile(pHistory->file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_STREAM | TD_FILE_TRUNC);
+    TdFilePtr pFile = shellOpenHistoryFile(pHistory->file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_STREAM | TD_FILE_TRUNC);
     if (pFile == NULL) return;
     int32_t endIndex = pHistory->hstart;
     if (endIndex != 0) {
@@ -1216,7 +1256,7 @@ void shellReadHistory() {
 void shellWriteHistory() {
   SShellHistory *pHistory = &shell.history;
   if (pHistory->hend == pHistory->hstart) return;
-  TdFilePtr pFile = taosOpenFile(pHistory->file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_STREAM | TD_FILE_APPEND);
+  TdFilePtr pFile = shellOpenHistoryFile(pHistory->file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_STREAM | TD_FILE_APPEND);
   if (pFile == NULL) return;
 
   for (int32_t i = pHistory->hstart; i != pHistory->hend;) {
@@ -1243,7 +1283,14 @@ void shellCleanupHistory() {
 void shellPrintError(TAOS_RES *tres, int64_t st) {
   int code = taos_errno(tres);
   int64_t et = taosGetTimestampUs();
-  (void)printf("\r\nDB error: %s [0x%08X] (%.6fs)\r\n", taos_errstr(tres), code, (et - st) / 1E6);
+
+  // the error text may originate from the server response, strip control
+  // characters so that it cannot carry terminal escape sequences
+  char errInfo[1024] = {0};
+  tstrncpy(errInfo, taos_errstr(tres), sizeof(errInfo));
+  shellStripControlChars(errInfo);
+
+  (void)printf("\r\nDB error: %s [0x%08X] (%.6fs)\r\n", errInfo, code, (et - st) / 1E6);
   taos_free_result(tres);
 
   // tip
@@ -1318,11 +1365,31 @@ void shellSourceFile(const char *file) {
   taosCloseFile(&pFile);
 }
 
-int32_t shellGetGrantInfo(char *buf) {
+/*
+ * Copy one result cell into a fixed size buffer. Both the cell length and the
+ * declared column width come from the server and are bounded only by
+ * TSDB_MAX_BINARY_LEN, so the copy length has to be clamped to the destination
+ * here; the buffer is always NUL terminated and a NULL cell yields an empty
+ * string instead of dereferencing a NULL pointer.
+ */
+static void shellCopyResultCell(char *dst, int32_t dstSize, const char *src, int32_t srcLen) {
+  dst[0] = 0;
+
+  if (src == NULL || srcLen <= 0) {
+    return;
+  }
+
+  int32_t copyLen = TMIN(srcLen, dstSize - 1);
+  memcpy(dst, src, copyLen);
+  dst[copyLen] = 0;
+}
+
+int32_t shellGetGrantInfo(char *buf, int32_t bufSize) {
   int32_t verType = TSDB_VERSION_UNKNOWN;
   char    sinfo[256] = {0};
   tstrncpy(sinfo, taos_get_server_info(shell.conn), sizeof(sinfo));
   strtok(sinfo, "\r\n");
+  shellStripControlChars(sinfo);
 
 #ifndef TD_ASTRA
   char sql[] = "show grants";
@@ -1339,29 +1406,39 @@ int32_t shellGetGrantInfo(char *buf) {
     return verType;
   }
 
+  if (tres == NULL) {
+    (void)fprintf(stderr, "\r\nGrant information is null.\r\n");
+    exit(0);
+  }
+
+  // the reply is indexed up to the third column below, so fewer columns than the
+  // ins_grants result must not be accepted
   int32_t num_fields = taos_field_count(tres);
-  if (num_fields == 0) {
+  if (num_fields < SHELL_GRANT_FIELD_CNT) {
     (void)fprintf(stderr, "\r\nInvalid grant information.\r\n");
     exit(0);
-  } else {
-    if (tres == NULL) {
-      (void)fprintf(stderr, "\r\nGrant information is null.\r\n");
-      exit(0);
-    }
+  }
 
-    TAOS_FIELD *fields = taos_fetch_fields(tres);
-    TAOS_ROW    row = taos_fetch_row(tres);
+  {
+    TAOS_ROW row = taos_fetch_row(tres);
     if (row == NULL) {
       (void)fprintf(stderr, "\r\nFailed to get grant information from server. Abort.\r\n");
       exit(0);
     }
-    char serverVersion[64] = {0};
-    char expiretime[32] = {0};
-    char expired[32] = {0};
 
-    tstrncpy(serverVersion, row[0], 64);
-    memcpy(expiretime, row[1], fields[1].bytes);
-    memcpy(expired, row[2], fields[2].bytes);
+    int32_t  cellLength[SHELL_GRANT_FIELD_CNT] = {0};
+    int32_t *lengths = taos_fetch_lengths(tres);
+    if (lengths != NULL) {
+      memcpy(cellLength, lengths, sizeof(cellLength));
+    }
+
+    char serverVersion[SHELL_GRANT_VERSION_LEN] = {0};
+    char expiretime[SHELL_GRANT_EXPIRE_LEN] = {0};
+    char expired[SHELL_GRANT_EXPIRE_LEN] = {0};
+
+    shellCopyResultCell(serverVersion, sizeof(serverVersion), row[0], cellLength[0]);
+    shellCopyResultCell(expiretime, sizeof(expiretime), row[1], cellLength[1]);
+    shellCopyResultCell(expired, sizeof(expired), row[2], cellLength[2]);
 
     trimStr(serverVersion, "trial");
 
@@ -1369,10 +1446,10 @@ int32_t shellGetGrantInfo(char *buf) {
       verType = TSDB_VERSION_OSS;
     } else if (strcmp(expiretime, "unlimited") == 0) {
       verType = TSDB_VERSION_ENTERPRISE;
-      (void)sprintf(buf, "Server is %s %s. License will never expire.\r\n", serverVersion, sinfo);
+      (void)snprintf(buf, bufSize, "Server is %s %s. License will never expire.\r\n", serverVersion, sinfo);
     } else {
       verType = TSDB_VERSION_ENTERPRISE;
-      (void)sprintf(buf, "Server is %s %s. License will expire at %s.\r\n", serverVersion, sinfo, expiretime);
+      (void)snprintf(buf, bufSize, "Server is %s %s. License will expire at %s.\r\n", serverVersion, sinfo, expiretime);
     }
 
     taos_free_result(tres);
@@ -1381,7 +1458,7 @@ int32_t shellGetGrantInfo(char *buf) {
   (void)fprintf(stdout, "\r\n");
 #else
   verType = TSDB_VERSION_ENTERPRISE;
-  (void)sprintf(buf, "Server is %s %s. License will never expire.\r\n", TD_PRODUCT_NAME, sinfo);
+  (void)snprintf(buf, bufSize, "Server is %s %s. License will never expire.\r\n", TD_PRODUCT_NAME, sinfo);
 #endif
   return verType;
 }
@@ -1609,7 +1686,7 @@ int32_t shellExecute(int argc, char *argv[]) {
   taosSetSignal(SIGINT, shellQueryInterruptHandler);
 
   char    buf[512] = {0};
-  int32_t verType = shellGetGrantInfo(buf);
+  int32_t verType = shellGetGrantInfo(buf, sizeof(buf));
 #ifndef WINDOWS
   printfIntroduction(verType);
 #else

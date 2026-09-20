@@ -4752,10 +4752,27 @@ static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
   pScanPhysiNode->scan.tableType = pScanLogicNode->tableType;
   memcpy(&pScanPhysiNode->scan.tableName, &pScanLogicNode->tableName, sizeof(SName));
   pScanPhysiNode->scanAllCols = pScanLogicNode->scanAllCols;
+  // clone the const-ref tag list right after the scalar fields and BEFORE the sibling
+  // list clones (pTagRefSources/pLocalTags) that follow -- not before the slot
+  // machinery above (createVirtualScanCols/addDataBlockSlots/setConditionsSlotId may
+  // already have failed by this point); the physi node must own its own copy.
+  // Unlike pRefTagCols, this list deliberately gets NO setMultiBlockSlotId rewrite in
+  // createVirtualTableScanPhysiNode: its only runtime consumer (ensureRefTagsResolved)
+  // reads logical identity fields only (colId, refDb/Table/ColName, resType) and never
+  // slotId/dataBlockId -- output placement flows through scan.pScanPseudoCols' TARGET
+  // slots (assigned by addDataBlockSlots above) and findResolvedTagVal's colId lookup.
+  // A rewrite would fail outright anyway: no child operator emits const-ref tags (by
+  // design no TagRefSource scan node is built for them), so the merged-children slot
+  // hash lookup would raise TSDB_CODE_PLAN_SLOT_NOT_FOUND.
+  if (pScanLogicNode->pConstRefTags) {
+    PLAN_ERR_JRET(nodesCloneList(pScanLogicNode->pConstRefTags, &pScanPhysiNode->pConstRefTags));
+  }
 
   // Clone TagRef fields from logic node to physical node
   pScanPhysiNode->hasTagRef = pScanLogicNode->hasTagRef;
   pScanPhysiNode->hasLocalTag = pScanLogicNode->hasLocalTag;
+  pScanPhysiNode->hasConstRefTag = pScanLogicNode->hasConstRefTag;
+  pScanPhysiNode->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;  // for const-ref chain remote hops
 
   if (pScanLogicNode->pTagRefSources) {
     PLAN_ERR_JRET(nodesCloneList(pScanLogicNode->pTagRefSources, &pScanPhysiNode->pTagRefSources));

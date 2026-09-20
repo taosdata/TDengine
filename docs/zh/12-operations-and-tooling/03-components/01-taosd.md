@@ -185,9 +185,10 @@ taosd -r --mode copy --node-type vnode \
 
 1. 通过 SQL 修改全局配置参数命令：`alter all dnodes ‘参数名’ ‘参数值’;`，修改后是否立即生效请参考各参数 **动态修改** 说明。
 2. 通过 SQL 修改局部配置参数命令，`alter dnode <dnode_id> ‘参数名’ ‘参数值’;`，修改后是否立即生效请参考各参数 **动态修改** 说明。
-3. 自 `v3.4.0.0` 起，为防止配置文件被篡改，取消了 `forceReadConfig` 参数；除首次启动外，不再从配置文件中加载配置项。如需修改配置参数，请使用 `ALTER` 命令通过 SQL 修改。
-4. 配置参数动态修改方法详见 [节点管理](../../05-tdengine-sql/08-cluster-management/01-node.md)。
-5. 有些参数在客户端（`taosc`）和服务器端（`taosd`）中都有，在不同地方其作用范围和意义有所不同，详见 [配置参数作用范围对比](./10-config-scope.md)。
+3. 对于标注为「支持通过 SQL 修改，重启后生效」的参数，修改后 `show variables` / `show local variables` / `show dnode <dnode_id> variables` 会立即显示新值，但该值在进程内实际生效前仍需重启对应节点；可通过结果中的 `reboot` 列判断：`true` 表示已修改但尚待重启生效，`false` 表示无需重启（或从未被运行期修改过）。该标记随进程重启自动清除。
+4. 自 `v3.4.0.0` 起，为防止配置文件被篡改，取消了 `forceReadConfig` 参数；除首次启动外，不再从配置文件中加载配置项。如需修改配置参数，请使用 `ALTER` 命令通过 SQL 修改。
+5. 配置参数动态修改方法详见 [节点管理](../../05-tdengine-sql/08-cluster-management/01-node.md)。
+6. 有些参数在客户端（`taosc`）和服务器端（`taosd`）中都有，在不同地方其作用范围和意义有所不同，详见 [配置参数作用范围对比](./10-config-scope.md)。
 
 ### 连接相关
 

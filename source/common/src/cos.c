@@ -1290,12 +1290,18 @@ void s3DeleteObjectsByPrefix(const char *prefix) {
 
 static S3Status getObjectDataCallback(int bufferSize, const char *buffer, void *callbackData) {
   TS3SizeCBD *cbd = callbackData;
-  /*
-  if (cbd->content_length != bufferSize) {
+
+  // libs3 hands every byte of the response body to this callback without
+  // truncating it at the byte count requested by s3GetObjectBlockByEp(), and
+  // that count is only a Range header which the endpoint is free to ignore (it
+  // may answer 200 with the whole object).  A body larger than the requested
+  // range must not be copied past the end of the buffer, whose size is
+  // [content_length].
+  if (cbd->buf_pos + bufferSize > (int64_t)cbd->content_length) {
     cbd->status = S3StatusAbortedByCallback;
     return S3StatusAbortedByCallback;
   }
-  */
+
   if (!cbd->buf) {
     cbd->buf = taosMemoryCalloc(1, cbd->content_length);
   }

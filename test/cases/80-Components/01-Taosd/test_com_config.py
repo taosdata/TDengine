@@ -181,6 +181,43 @@ class TestAlterConfig:
         tdSql.execute("alter dnode 1 'rpcQueueMemoryAllowed' '15242880'")
         tdSql.execute("alter dnode 1 'syncLogBufferMemoryAllowed' '115728640'")
 
+    def alter_restart_required_case(self):
+        """Add test case for the "reboot" marker column on configs that need a
+        process restart to take effect
+        """
+        # numOfRpcThreads needs a restart before an altered value is effective.
+        # Read the current value rather than assuming a default, so this case
+        # stays correct regardless of what numOfCores computed it to at startup.
+        tdSql.query("show dnode 1 variables like 'numOfRpcThreads'")
+        tdSql.checkData(0, 6, "false")
+        old_value = int(tdSql.getData(0, 2))
+        new_value = str(old_value + 1)
+
+        tdSql.execute(f"alter dnode 1 'numOfRpcThreads' '{new_value}'")
+        tdSql.query("show dnode 1 variables like 'numOfRpcThreads'")
+        tdSql.checkData(0, 2, new_value)
+        tdSql.checkData(0, 6, "true")
+
+        # altering back to the value the running dnode is actually using clears the
+        # marker again, since no restart is needed anymore
+        tdSql.execute(f"alter dnode 1 'numOfRpcThreads' '{old_value}'")
+        tdSql.query("show dnode 1 variables like 'numOfRpcThreads'")
+        tdSql.checkData(0, 2, old_value)
+        tdSql.checkData(0, 6, "false")
+
+        # diverging again re-flags it, ready for the restart below to clear it for good
+        tdSql.execute(f"alter dnode 1 'numOfRpcThreads' '{new_value}'")
+        tdSql.query("show dnode 1 variables like 'numOfRpcThreads'")
+        tdSql.checkData(0, 6, "true")
+
+        # restarting the dnode process clears the pending-restart marker
+        tdDnodes.stop(1)
+        time.sleep(3)
+        tdDnodes.start(1)
+        time.sleep(10)
+        tdSql.query("show dnode 1 variables like 'numOfRpcThreads'")
+        tdSql.checkData(0, 6, "false")
+
     def alter_timezone_case(self):
         tdSql.execute("alter local 'timezone UTC'")
         tdSql.execute("alter all dnodes 'timezone UTC'")
@@ -223,6 +260,7 @@ class TestAlterConfig:
         self.alterBypassFlag()
         # TS-5007
         self.alter_err_case()
+        self.alter_restart_required_case()
         self.alter_dnode_1_case()
 
         #TS-6363
@@ -282,13 +320,15 @@ class TestAlterConfig:
         3. Verify alter bypass flag config
         4. Verify alter audit config
         5. Verify alter config on dnode 1
-        6. Verify alter timezone config
-        7. Verify alter memPoolReservedSizeMB config
-        8. Verify dismatch config refresh
+        6. Verify the "reboot" marker column for configs pending a restart
+        7. Verify alter timezone config
+        8. Verify alter memPoolReservedSizeMB config
+        9. Verify dismatch config refresh
 
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

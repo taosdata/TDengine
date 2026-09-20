@@ -16,6 +16,7 @@
  */
 
 #include <string.h>
+#include <limits.h>
 #ifdef SNAPPY_CODEC
 #include <snappy-c.h>
 #  if defined(__APPLE__)
@@ -42,6 +43,16 @@
 #include "codec.h"
 
 #define DEFAULT_BLOCK_SIZE	(16 * 1024)
+
+/* Upper bound for the size of a single decompressed block.  An Avro data file
+ * only stores the *compressed* block length, so the decompressed size is
+ * whatever the attacker-supplied stream expands to; without a ceiling a few KiB
+ * of crafted data can make the reader allocate an unbounded amount of memory.
+ * The limit is far above anything the taosdump backup format produces (blocks
+ * are synced every few KiB) and can be overridden at build time. */
+#ifndef AVRO_MAX_DECOMPRESSED_BLOCK_SIZE
+#define AVRO_MAX_DECOMPRESSED_BLOCK_SIZE	(256 * 1024 * 1024)
+#endif
 
 /* NULL codec */
 
@@ -139,16 +150,36 @@ static int decode_snappy(avro_codec_t c, void * data, int64_t len)
         uint32_t crc;
         size_t outlen;
 
-        if (snappy_uncompressed_length((const char*)data, len-4, &outlen) != SNAPPY_OK) {
+        /* `len` comes straight from the data file's block header.  A value
+         * below 4 would make (len - 4) wrap to a huge size_t and hand snappy an
+         * effectively unbounded input window, and a NULL block buffer would be
+         * dereferenced immediately. */
+        if (!data || len < 4) {
+                avro_set_error("Invalid snappy block size %lld", (long long)len);
+                return 1;
+        }
+
+        if (snappy_uncompressed_length((const char*)data, (size_t)(len-4), &outlen) != SNAPPY_OK) {
 		avro_set_error("Uncompressed length error in snappy");
 		return 1;
         }
+
+	if (outlen > (size_t)AVRO_MAX_DECOMPRESSED_BLOCK_SIZE) {
+		avro_set_error("Snappy block too large (%lld bytes)", (long long)outlen);
+		return 1;
+	}
 
 	if (!c->block_data) {
 		c->block_data = avro_malloc(outlen);
 		c->block_size = outlen;
 	} else if ( (size_t)c->block_size < outlen) {
-		c->block_data = avro_realloc(c->block_data, c->block_size, outlen);
+		uint8_t *new_block_data = (uint8_t *)avro_realloc(c->block_data, c->block_size, outlen);
+		if (!new_block_data) {
+			/* Keep the old buffer/size so that reset can still free it. */
+			avro_set_error("Cannot allocate memory for snappy");
+			return 1;
+		}
+		c->block_data = new_block_data;
 		c->block_size = outlen;
 	}
 
@@ -158,7 +189,7 @@ static int decode_snappy(avro_codec_t c, void * data, int64_t len)
 		return 1;
 	}
 
-        if (snappy_uncompress((const char*)data, len-4, (char*)c->block_data, &outlen) != SNAPPY_OK)
+        if (snappy_uncompress((const char*)data, (size_t)(len-4), (char*)c->block_data, &outlen) != SNAPPY_OK)
         {
                 avro_set_error("Error uncompressing block with Snappy");
 		return 1;
@@ -303,6 +334,14 @@ static int decode_deflate(avro_codec_t c, void * data, int64_t len)
 	int err;
 	z_stream *s = codec_data_inflate_stream(c->codec_data);
 
+	/* `len` is the file-supplied block length: it must not be negative, must be
+	 * NULL-safe and must fit zlib's uInt avail_in (a truncation would turn a
+	 * negative length into a ~4 GiB input window). */
+	if (!data || len <= 0 || len > (int64_t)UINT_MAX) {
+		avro_set_error("Invalid deflate block size %lld", (long long)len);
+		return 1;
+	}
+
 	if (!c->block_data) {
 		c->block_data = avro_malloc(DEFAULT_BLOCK_SIZE);
 		c->block_size = DEFAULT_BLOCK_SIZE;
@@ -317,7 +356,7 @@ static int decode_deflate(avro_codec_t c, void * data, int64_t len)
 	c->used_size = 0;
 
 	s->next_in = (Bytef*)data;
-	s->avail_in = len;
+	s->avail_in = (uInt)len;
 
 	s->next_out = (Bytef*)c->block_data;
 	s->avail_out = c->block_size;
@@ -339,10 +378,30 @@ static int decode_deflate(avro_codec_t c, void * data, int64_t len)
 		// The buffer was not big enough. resize it.
 		if (err == Z_BUF_ERROR)
 		{
-			c->block_data = avro_realloc(c->block_data, c->block_size, c->block_size * 2);
+			int64_t new_block_size = c->block_size * 2;
+			uint8_t *new_block_data;
+
+			if (new_block_size > (int64_t)AVRO_MAX_DECOMPRESSED_BLOCK_SIZE) {
+				inflateEnd(s);
+				avro_set_error("Deflate block too large (> %d bytes)",
+				               (int)AVRO_MAX_DECOMPRESSED_BLOCK_SIZE);
+				return 1;
+			}
+
+			new_block_data = (uint8_t *)avro_realloc(c->block_data, c->block_size,
+			                                         new_block_size);
+			if (!new_block_data) {
+				/* Keep c->block_data/c->block_size consistent so that a later
+				 * reset/free does not operate on a NULL/garbage pointer. */
+				inflateEnd(s);
+				avro_set_error("Cannot allocate memory for deflate");
+				return 1;
+			}
+
+			c->block_data = new_block_data;
 			s->next_out = (Bytef*)c->block_data + s->total_out;
 			s->avail_out += c->block_size;
-			c->block_size = c->block_size * 2;
+			c->block_size = new_block_size;
 		}
 	} while (err == Z_BUF_ERROR);
 
@@ -472,10 +531,16 @@ static int decode_lzma(avro_codec_t codec, void * data, int64_t len)
 		return 1;
 	}
 
+	/* `len` is the file-supplied block length. */
+	if (!data || len < 0) {
+		avro_set_error("Invalid lzma block size %lld", (long long)len);
+		return 1;
+	}
+
 	do
 	{
 		ret = lzma_raw_buffer_decode(filters, NULL, data,
-			&read_pos, len, codec->block_data, &write_pos,
+			&read_pos, (size_t)len, codec->block_data, &write_pos,
 			codec->block_size);
 
 		codec->used_size = write_pos;
@@ -483,8 +548,25 @@ static int decode_lzma(avro_codec_t codec, void * data, int64_t len)
 		// If it ran out of space to decode, give it more!!
 		// It will continue where it left off because of read_pos and write_pos.
 		if (ret == LZMA_BUF_ERROR) {
-			codec->block_data = avro_realloc(codec->block_data, codec->block_size, codec->block_size * 2);
-			codec->block_size = codec->block_size * 2;
+			int64_t new_block_size = codec->block_size * 2;
+			uint8_t *new_block_data;
+
+			if (new_block_size > (int64_t)AVRO_MAX_DECOMPRESSED_BLOCK_SIZE) {
+				avro_set_error("Lzma block too large (> %d bytes)",
+				               (int)AVRO_MAX_DECOMPRESSED_BLOCK_SIZE);
+				return 1;
+			}
+
+			new_block_data = (uint8_t *)avro_realloc(codec->block_data,
+			                                         codec->block_size, new_block_size);
+			if (!new_block_data) {
+				/* Keep block_data/block_size consistent for reset/free. */
+				avro_set_error("Cannot allocate memory for lzma decoder");
+				return 1;
+			}
+
+			codec->block_data = new_block_data;
+			codec->block_size = new_block_size;
 		}
 
 	} while (ret == LZMA_BUF_ERROR);
@@ -575,6 +657,14 @@ int avro_codec_encode(avro_codec_t c, void * data, int64_t len)
 
 int avro_codec_decode(avro_codec_t c, void * data, int64_t len)
 {
+	/* The block length is read straight from the data file: reject values that
+	 * cannot describe a real block before any codec touches them. */
+	if (len < 0 || (len > 0 && !data)) {
+		avro_set_error("Invalid block size %lld for codec '%s'", (long long)len,
+		               c->name ? c->name : "unknown");
+		return 1;
+	}
+
 	switch(c->type)
 	{
 	case AVRO_CODEC_NULL:

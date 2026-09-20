@@ -1539,14 +1539,7 @@ static void destroySmaIndex(void* pIndex) { taosMemoryFree(((STableIndexInfo*)pI
 
 void destroyFuncParam(void* pValue) { taosMemoryFree(((SFunctParam*)pValue)->pCol); }
 
-static void destroyHintValue(EHintOption option, void* value) {
-  switch (option) {
-    default:
-      break;
-  }
-
-  taosMemoryFree(value);
-}
+static void destroyHintParam(void* pParam) { taosMemoryFree(((SHintParam*)pParam)->value); }
 
 void destroySSDataBlock(void* param) {
   if (NULL == param) {
@@ -2004,7 +1997,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_HINT: {
       SHintNode* pHint = (SHintNode*)pNode;
-      destroyHintValue(pHint->option, pHint->value);
+      taosArrayDestroyEx(pHint->pParams, destroyHintParam);
       break;
     }
     case QUERY_NODE_VIEW: {
@@ -2666,6 +2659,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pTagRefSources);
       nodesDestroyList(pLogicNode->pLocalTags);
       nodesDestroyList(pLogicNode->pRefTagCols);
+      nodesDestroyList(pLogicNode->pConstRefTags);
       nodesDestroyNode(pLogicNode->pTagFilterCond);
       break;
     }
@@ -2853,6 +2847,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pTagRefSources);
       nodesDestroyList(pPhyNode->pLocalTags);
       nodesDestroyList(pPhyNode->pRefTagCols);
+      nodesDestroyList(pPhyNode->pConstRefTags);
       nodesDestroyNode(pPhyNode->pTagFilterCond);
       break;
     }

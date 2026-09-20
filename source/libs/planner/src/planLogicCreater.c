@@ -3133,6 +3133,73 @@ static bool isTagUsedInAnyClause(SSelectStmt* pSelect, SColumnNode* pCol, bool* 
   return usedInFilter || usedInNonFilter;
 }
 
+// A tag-ref whose source table is a virtual normal table or a normal table resolves to a
+// table-level constant (owned literal, or another hop of tag-ref) -- no source-table scan
+// node applies. Source meta comes from the translator-collected refTables list.
+// SINGLE EVALUATION POINT: classifyTagColumns. Its verdict is cached in
+// SVirtualScanLogicNode.pConstRefTags; post-classification consumers must query
+// isClassifiedConstRefTag membership instead of re-calling this -- one rule in one
+// place, and no repeated refTables rescans on the planning path.
+static bool isConstRefSource(const SVirtualTableNode* pVirtualTable, const SColRef* pTagRef) {
+  if (pTagRef == NULL || !pTagRef->hasRef) {
+    return false;
+  }
+  SNode* pRefNode = NULL;
+  bool     matched = false;
+  FOREACH(pRefNode, pVirtualTable->refTables) {
+    // A physical source stays an SRealTableNode after translateTable; a virtual source
+    // (vntb/vchild) is recursively translated into an SVirtualTableNode -- both shapes
+    // start with STableNode and expose pMeta, so handle them uniformly.
+    ENodeType type = nodeType(pRefNode);
+    if (type != QUERY_NODE_REAL_TABLE && type != QUERY_NODE_VIRTUAL_TABLE) {
+      continue;
+    }
+    STableNode* pRefTableNode = (STableNode*)pRefNode;
+    STableMeta* pRefMeta =
+        (type == QUERY_NODE_REAL_TABLE) ? ((SRealTableNode*)pRefNode)->pMeta : ((SVirtualTableNode*)pRefNode)->pMeta;
+    if (pRefMeta == NULL) {
+      continue;
+    }
+    if (strcmp(pRefTableNode->tableName, pTagRef->refTableName) != 0) {
+      continue;
+    }
+    if (pTagRef->refDbName[0] != '\0') {
+      if (strcmp(pRefTableNode->dbName, pTagRef->refDbName) != 0) continue;
+    } else {
+      // an unqualified reference (`FROM tb.tag`) means the CURRENT database: a same-named
+      // table from another db in refTables must not match (first-hit would misclassify)
+      if (strcmp(pRefTableNode->dbName, pVirtualTable->table.dbName) != 0) continue;
+    }
+    // scan ALL same-name matches instead of returning on the first: duplicate
+    // same-db/same-table entries (or same-name entries of different node shapes) would
+    // otherwise make the classification depend on list order
+    if (pRefMeta->tableType != TSDB_VIRTUAL_NORMAL_TABLE && pRefMeta->tableType != TSDB_NORMAL_TABLE) {
+      return false;  // one physical-source match disqualifies const-ref resolution
+    }
+    matched = true;
+  }
+  // no match at all (or every match's meta unavailable) -> false: keep the existing
+  // source-scan path (safe default)
+  return matched;
+}
+
+// Whether colId was classified CONST_REF by classifyTagColumns -- membership in the
+// already-computed pVtableScan->pConstRefTags. classifyTagColumns is the single point
+// that evaluates isConstRefSource; every post-classification consumer queries this
+// membership instead of re-deriving the rule (a rule change then touches one place).
+static bool isClassifiedConstRefTag(const SVirtualScanLogicNode* pVtableScan, col_id_t colId) {
+  if (pVtableScan == NULL || pVtableScan->pConstRefTags == NULL) {
+    return false;
+  }
+  SNode* pMember = NULL;
+  FOREACH(pMember, pVtableScan->pConstRefTags) {
+    if (nodeType(pMember) == QUERY_NODE_COLUMN && ((SColumnNode*)pMember)->colId == colId) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static bool isVirtualTagRefCol(SVirtualTableNode* pVirtualTable, SNode* pNode) {
   if (pVirtualTable == NULL || pVirtualTable->pMeta == NULL || pVirtualTable->pMeta->tagRef == NULL ||
       nodeType(pNode) != QUERY_NODE_COLUMN) {
@@ -3178,7 +3245,10 @@ static int32_t keepOnlyLocalTagPseudoCols(SVirtualTableNode* pVirtualTable, SVir
     bool keepInPseudoCols = true;
 
     if (nodeType(pNode) == QUERY_NODE_COLUMN) {
-      if (isVirtualTagRefCol(pVirtualTable, pNode)) {
+      // const-ref tags (vntb/ntb source) stay -- the scan operator resolves them itself;
+      // membership in the classified pConstRefTags is the single source of truth
+      if (isVirtualTagRefCol(pVirtualTable, pNode) &&
+          !isClassifiedConstRefTag(pVtableScan, ((SColumnNode*)pNode)->colId)) {
         keepInPseudoCols = false;
       }
     }
@@ -3466,6 +3536,8 @@ static int32_t extractFilterConditionForRefs(SNode* pWhere, SNodeList* pRefCols,
 typedef struct STagClassifyResult {
   SNodeList* pLocalTags;     // Local tags (no reference) - use TagScan
   SNodeList* pRefTagCols;    // Referenced tag columns - need source table scan
+  SNodeList* pConstRefTags;  // Tag columns referencing a vntb/ntb source tag - table-level
+                             // constants resolved by the scan itself, no source scan node
   SHashObj*  pRefSourceMap;  // Reference source map (grouped by source table)
 } STagClassifyResult;
 
@@ -3476,6 +3548,7 @@ static int32_t initTagClassifyResult(STagClassifyResult* pResult) {
   memset(pResult, 0, sizeof(STagClassifyResult));
   PLAN_ERR_RET(nodesMakeList(&pResult->pLocalTags));
   PLAN_ERR_RET(nodesMakeList(&pResult->pRefTagCols));
+  PLAN_ERR_RET(nodesMakeList(&pResult->pConstRefTags));
   pResult->pRefSourceMap = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
                                          true, HASH_NO_LOCK);
   if (NULL == pResult->pRefSourceMap) {
@@ -3502,6 +3575,7 @@ static void freeTagClassifyResult(STagClassifyResult* pResult) {
   }
   nodesClearList(pResult->pLocalTags);
   nodesDestroyList(pResult->pRefTagCols);
+  nodesDestroyList(pResult->pConstRefTags);
   if (pResult->pRefSourceMap) {
     taosHashCleanup(pResult->pRefSourceMap);
   }
@@ -3534,6 +3608,19 @@ static int32_t classifyTagColumns(SVirtualTableNode* pVirtualTable,
 
     if (tagRefIndex >= 0 && pVirtualTable->pMeta->tagRef[tagRefIndex].hasRef) {
       SColRef* pTagRef = &pVirtualTable->pMeta->tagRef[tagRefIndex];
+
+      // vntb/ntb source: the tag is a table-level constant -- resolved by the scan operator
+      // itself, stays in scan pseudo cols; no TagRefSource node, no ref-source map entry
+      if (isConstRefSource(pVirtualTable, pTagRef)) {
+        SNode* pConstClone = NULL;
+        PLAN_ERR_RET(nodesCloneNode(pNode, &pConstClone));
+        // strict append takes ownership on success and destroys the node itself on
+        // failure (nodesUtilFuncs.c) -- no explicit destroy here, that would double free
+        PLAN_ERR_RET(nodesListStrictAppend(pResult->pConstRefTags, pConstClone));
+        planDebug("Classified tag %s as CONST_REF (from %s.%s.%s)", pCol->colName, pTagRef->refDbName,
+                  pTagRef->refTableName, pTagRef->refColName);
+        continue;
+      }
 
       char refKey[TSDB_TABLE_FNAME_LEN] = {0};
       buildRefTableKey(refKey, sizeof(refKey), pTagRef->refDbName, pTagRef->refTableName);
@@ -3936,6 +4023,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   // Set flags based on classification
   pVtableScan->hasTagRef = (tagResult.pRefTagCols && LIST_LENGTH(tagResult.pRefTagCols) > 0);
   pVtableScan->hasLocalTag = (tagResult.pLocalTags && LIST_LENGTH(tagResult.pLocalTags) > 0);
+  pVtableScan->hasConstRefTag = (tagResult.pConstRefTags && LIST_LENGTH(tagResult.pConstRefTags) > 0);
 
   // Clone and set pLocalTags and pRefTagCols to pVtableScan for downstream processing
   if (tagResult.pLocalTags && LIST_LENGTH(tagResult.pLocalTags) > 0) {
@@ -3944,6 +4032,10 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   if (tagResult.pRefTagCols && LIST_LENGTH(tagResult.pRefTagCols) > 0) {
     PLAN_ERR_JRET(nodesCloneList(tagResult.pRefTagCols, &pVtableScan->pRefTagCols));
     PLAN_ERR_JRET(eliminateDupVirtualTagCols(pVtableScan->pRefTagCols));
+  }
+  if (tagResult.pConstRefTags && LIST_LENGTH(tagResult.pConstRefTags) > 0) {
+    PLAN_ERR_JRET(nodesCloneList(tagResult.pConstRefTags, &pVtableScan->pConstRefTags));
+    PLAN_ERR_JRET(eliminateDupVirtualTagCols(pVtableScan->pConstRefTags));
   }
 
   PLAN_ERR_JRET(keepOnlyLocalTagPseudoCols(pVirtualTable, pVtableScan));
@@ -4335,6 +4427,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   // Set flags based on classification
   pVtableScan->hasTagRef = (tagResult.pRefTagCols && LIST_LENGTH(tagResult.pRefTagCols) > 0);
   pVtableScan->hasLocalTag = (tagResult.pLocalTags && LIST_LENGTH(tagResult.pLocalTags) > 0);
+  pVtableScan->hasConstRefTag = (tagResult.pConstRefTags && LIST_LENGTH(tagResult.pConstRefTags) > 0);
 
   // Clone and set pLocalTags and pRefTagCols to pVtableScan for downstream processing
   if (tagResult.pLocalTags && LIST_LENGTH(tagResult.pLocalTags) > 0) {
@@ -4344,11 +4437,17 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
     PLAN_ERR_JRET(nodesCloneList(tagResult.pRefTagCols, &pVtableScan->pRefTagCols));
     PLAN_ERR_JRET(eliminateDupVirtualTagCols(pVtableScan->pRefTagCols));
   }
+  if (tagResult.pConstRefTags && LIST_LENGTH(tagResult.pConstRefTags) > 0) {
+    PLAN_ERR_JRET(nodesCloneList(tagResult.pConstRefTags, &pVtableScan->pConstRefTags));
+    PLAN_ERR_JRET(eliminateDupVirtualTagCols(pVtableScan->pConstRefTags));
+  }
 
-  planDebug("[ChildTable] TagRef classification: hasTagRef=%d, hasLocalTag=%d, refTags=%d, localTags=%d",
-            pVtableScan->hasTagRef, pVtableScan->hasLocalTag,
+  planDebug("[ChildTable] TagRef classification: hasTagRef=%d, hasLocalTag=%d, hasConstRefTag=%d, "
+            "refTags=%d, localTags=%d, constRefTags=%d",
+            pVtableScan->hasTagRef, pVtableScan->hasLocalTag, pVtableScan->hasConstRefTag,
             tagResult.pRefTagCols ? LIST_LENGTH(tagResult.pRefTagCols) : 0,
-            tagResult.pLocalTags ? LIST_LENGTH(tagResult.pLocalTags) : 0);
+            tagResult.pLocalTags ? LIST_LENGTH(tagResult.pLocalTags) : 0,
+            tagResult.pConstRefTags ? LIST_LENGTH(tagResult.pConstRefTags) : 0);
 
   // The existing merge path needs a data-row anchor when local and referenced
   // tags are projected together. Keep that combination on its original path.
@@ -4376,6 +4475,13 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
       // Check if this tagRef needs a RefSource node
       if (tagRefIndex != -1 && pVirtualTable->pMeta->tagRef[tagRefIndex].hasRef) {
         SColRef* pTagRef = &pVirtualTable->pMeta->tagRef[tagRefIndex];
+
+        // const-ref tags (vntb/ntb source) are table-level constants resolved by the scan
+        // operator itself -- no source-table scan node applies. Membership in the Phase-0
+        // classified pConstRefTags is the single source of truth -- do not re-derive.
+        if (isClassifiedConstRefTag(pVtableScan, pCol->colId)) {
+          continue;
+        }
 
         // Check if tagRef needs source table scan (used in WHERE or SELECT)
         bool usedInFilter = isTagUsedInFilter(pSelect->pWhere, pCol);
@@ -4486,13 +4592,17 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
             moved = true;
           }
         }
-        if (!moved && tagRefIndex != -1 && pVirtualTable->pMeta->tagRef[tagRefIndex].hasRef) {
+        // const-ref tags (vntb/ntb source) stay in scan pseudo cols -- the scan operator
+        // resolves them as table-level constants; they must not be moved to a source scan.
+        // Membership in the classified pConstRefTags is the single source of truth.
+        bool constRefTag = isClassifiedConstRefTag(pVtableScan, pCol->colId);
+        if (!constRefTag && !moved && tagRefIndex != -1 && pVirtualTable->pMeta->tagRef[tagRefIndex].hasRef) {
           // Referenced tags are produced by TagRefSource + VirtualTableScan merge and
           // should not remain in scan pseudo cols, otherwise the executor's pseudo-column
           // refill path overwrites the merged ref-tag value with the virtual table's own
           // single-row tag block value.
           moved = true;
-        } else if (pCol->hasRef) {
+        } else if (!constRefTag && pCol->hasRef) {
           int32_t schemaIndex = findSchemaIndex(
               pVirtualTable->pMeta->schema,
               pVirtualTable->pMeta->tableInfo.numOfColumns + pVirtualTable->pMeta->tableInfo.numOfTags, pCol->colId);

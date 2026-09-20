@@ -590,7 +590,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
       return terrno = TAOS_SYSTEM_ERROR(ERRNO);
     }
 
-    i64 offset = pPager->pageSize * (pgno - 1);
+    i64 offset = (i64)pPager->pageSize * (pgno - 1);
     if (tdbOsLSeek(pPager->fd, offset, SEEK_SET) < 0) {
       tdbError("failed to lseek fd due to %s. file:%s, offset:%" PRId64, strerror(ERRNO), pPager->dbFileName, offset);
       tdbOsFree(pageBuf);
@@ -1128,7 +1128,7 @@ static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
       return TAOS_SYSTEM_ERROR(ERRNO);
     }
 
-    i64 offset = pPager->pageSize * (pgno - 1);
+    i64 offset = (i64)pPager->pageSize * (pgno - 1);
     if (tdbOsLSeek(pPager->fd, offset, SEEK_SET) < 0) {
       tdbError("failed to lseek fd due to %s. file:%s, offset:%" PRId64, strerror(ERRNO), pPager->dbFileName, offset);
       tdbOsFree(pageBuf);

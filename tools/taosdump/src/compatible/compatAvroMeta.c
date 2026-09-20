@@ -12,6 +12,7 @@
 #include "compatAvroSchema.h"
 #include "compatAvroUtil.h"
 #include "compatAvro.h"
+#include "avroSqlBuf.h"
 #include <avro.h>
 // Temporarily undef TDengine atomic overrides for jansson.h inline functions
 #pragma push_macro("__atomic_add_fetch")
@@ -172,46 +173,30 @@ static int32_t extractTagBool(avro_value_t *val, char *sql, int32_t pos) {
     return pos + sprintf(sql + pos, "%d,", bl ? 1 : 0);
 }
 
-// Append a possibly-quoted string value to SQL
-static int32_t appendTagStr(char *buf, const char *val) {
-    if (!val) return sprintf(buf, "NULL,");
-    int32_t len = (int32_t)strlen(val);
-    bool hasSingle = false, hasDouble = false;
-    for (int i = 0; i < len; i++) {
-        if (val[i] == '\'') hasSingle = true;
-        if (val[i] == '"')  hasDouble = true;
-    }
-    if (!hasSingle) return sprintf(buf, "'%s',", val);
-    if (!hasDouble) return sprintf(buf, "\"%s\",", val);
-    // Escape single quotes by doubling
-    int p = 0;
-    buf[p++] = '\'';
-    for (int i = 0; i < len; i++) {
-        buf[p++] = val[i];
-        if (val[i] == '\'') buf[p++] = '\'';
-    }
-    buf[p++] = '\'';
-    buf[p++] = ',';
-    buf[p]   = '\0';
-    return p;
+// Append a tag value as a quoted SQL literal (see avroSqlBuf.h): returns the new
+// position, or -1 when the value does not fit in `cap` bytes.
+static inline int32_t appendTagStr(char *sql, int32_t pos, int32_t cap,
+                                   const char *val, size_t len) {
+    return avroSqlAppendTagValue(sql, cap, pos, val, len);
 }
 
 static int32_t extractTagBinary(AvroFieldInfo *fi, avro_value_t *val,
-                                char *sql, int32_t pos) {
+                                char *sql, int32_t pos, int32_t cap) {
     avro_value_t branch;
     avro_value_get_current_branch(val, &branch);
     if (avro_value_get_null(&branch) == 0)
         return pos + sprintf(sql + pos, "NULL,");
     char *buf = NULL;
-    size_t sz;
+    size_t sz = 0;
     avro_value_get_string(&branch, (const char **)&buf, &sz);
     if (!buf)
         return pos + sprintf(sql + pos, "NULL,");
-    return pos + appendTagStr(sql + pos, buf);
+    // `sz` comes from the file and the buffer is not necessarily NUL-terminated.
+    return appendTagStr(sql, pos, cap, buf, strnlen(buf, sz));
 }
 
 static int32_t extractTagNChar(AvroFieldInfo *fi, avro_value_t *val,
-                               char *sql, int32_t pos) {
+                               char *sql, int32_t pos, int32_t cap) {
     avro_value_t branch;
     avro_value_get_current_branch(val, &branch);
     if (avro_value_get_null(&branch) == 0)
@@ -221,7 +206,8 @@ static int32_t extractTagNChar(AvroFieldInfo *fi, avro_value_t *val,
     avro_value_get_bytes(&branch, (const void **)&buf, &sz);
     if (!buf)
         return pos + sprintf(sql + pos, "NULL,");
-    return pos + appendTagStr(sql + pos, (char *)buf);
+    // `sz` comes from the file and the buffer is not necessarily NUL-terminated.
+    return appendTagStr(sql, pos, cap, (char *)buf, strnlen((char *)buf, sz));
 }
 
 // Unsigned types: encoded as AVRO arrays
@@ -306,9 +292,16 @@ static int32_t extractTagUnsigned(AvroFieldInfo *fi, avro_value_t *val,
     }
 }
 
-// Helper: extract a single tag value by column type and append to SQL
+// Helper: extract a single tag value by column type and append to SQL.
+// Returns the new SQL position, or -1 when the value does not fit in `cap`.
 static int32_t extractTagByType(AvroFieldInfo *fi, avro_value_t *fieldVal,
-                                char *sqlstr, int32_t sqlPos, int colType) {
+                                char *sqlstr, int32_t sqlPos, int colType,
+                                int32_t cap) {
+    // A previous value may already have failed to fit (sqlPos == -1); the
+    // numeric branches below write with sprintf(), so bail out before any
+    // append is attempted at an invalid position.
+    if (sqlPos < 0 || sqlPos >= cap) return -1;
+
     switch (colType) {
         case TSDB_DATA_TYPE_BOOL:
             return extractTagBool(fieldVal, sqlstr, sqlPos);
@@ -327,14 +320,14 @@ static int32_t extractTagByType(AvroFieldInfo *fi, avro_value_t *fieldVal,
         case TSDB_DATA_TYPE_BINARY:
         case TSDB_DATA_TYPE_DECIMAL:
         case TSDB_DATA_TYPE_DECIMAL64:
-            return extractTagBinary(fi, fieldVal, sqlstr, sqlPos);
+            return extractTagBinary(fi, fieldVal, sqlstr, sqlPos, cap);
         case TSDB_DATA_TYPE_NCHAR:
         case TSDB_DATA_TYPE_JSON:
         case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_GEOMETRY:
         case TSDB_DATA_TYPE_BLOB:
         case TSDB_DATA_TYPE_MEDIUMBLOB:
-            return extractTagNChar(fi, fieldVal, sqlstr, sqlPos);
+            return extractTagNChar(fi, fieldVal, sqlstr, sqlPos, cap);
         case TSDB_DATA_TYPE_TIMESTAMP:
             return extractTagTimestamp(fi, fieldVal, sqlstr, sqlPos);
         case TSDB_DATA_TYPE_UTINYINT:
@@ -481,7 +474,8 @@ int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
                 // Ensure we have a valid tableDes for this STB
                 if (mallocDes && (strlen(tableDes->name) == 0
                         || strcmp(tableDes->name, stbName) != 0)) {
-                    if (avroGetTableDes(ctx->conn, ctx->targetDb, stbName, mallocDes, false) < 0) {
+                    if (avroGetTableDes(ctx->conn, ctx->targetDb, stbName, mallocDes,
+                                        TSDB_MAX_COLUMNS, false) < 0) {
                         if (ctx->looseMode && stbName) taosMemoryFree(stbName);
                         if (mallocDes) avroFreeTableDes(mallocDes, true);
                         taosMemoryFree(sqlstr);
@@ -501,9 +495,20 @@ int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
                 size_t tbSz;
                 avro_value_get_string(&tbBranch, (const char **)&tbName, &tbSz);
 
-                sqlPos = snprintf(sqlstr, TSDB_MAX_ALLOWED_SQL_LEN,
+                int hdrLen = snprintf(sqlstr, TSDB_MAX_ALLOWED_SQL_LEN,
                     "CREATE TABLE IF NOT EXISTS `%s`.`%s` USING `%s`.`%s`%s TAGS(",
                     ctx->targetDb, tbName, ctx->targetDb, stbName, partTags);
+                // snprintf() returns the length that *would* have been written,
+                // so a truncated header must be rejected before anything else is
+                // appended at that position.
+                if (hdrLen < 0
+                        || hdrLen >= (int32_t)TSDB_MAX_ALLOWED_SQL_LEN - AVRO_SQL_TAIL_RESERVE) {
+                    logError("avro tbtags: table name too long for SQL buffer: `%s`.`%s`",
+                             ctx->targetDb, tbName);
+                    sqlPos = -1;
+                    break;
+                }
+                sqlPos = hdrLen;
             } else {
                 AvroFieldInfo *fi = &rs->fields[i + tagAdjExt];
                 if (fi->name[0] && strcasecmp(fi->name, "sql") == 0) continue;
@@ -521,7 +526,15 @@ int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
                 }
 
                 int colType = tableDes->cols[tableDes->columns + n].type;
-                sqlPos = extractTagByType(fi, &fieldVal, sqlstr, sqlPos, colType);
+                int32_t newPos = extractTagByType(fi, &fieldVal, sqlstr, sqlPos, colType,
+                                                  TSDB_MAX_ALLOWED_SQL_LEN);
+                if (newPos < 0) {
+                    logError("avro tbtags: tag `%s` too long for SQL buffer (%d bytes used), "
+                             "skipping table", fi->name, sqlPos);
+                    sqlPos = -1;
+                    break;
+                }
+                sqlPos = newPos;
                 n++;
             }
 
@@ -531,8 +544,10 @@ int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
             }
         }
 
-        // When tags have schema changes, emit values in server order
-        if (stbChange && stbChange->schemaChanged && stbChange->tagBindMap
+        // When tags have schema changes, emit values in server order.  A
+        // negative position means the first pass already failed, so nothing
+        // more may be appended.
+        if (sqlPos >= 0 && stbChange && stbChange->schemaChanged && stbChange->tagBindMap
                 && stbChange->serverTagMap) {
             for (int tn = 0; tn < stbChange->matchedTags; tn++) {
                 int serverTagIdx = stbChange->serverTagMap[tn];
@@ -551,15 +566,43 @@ int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
 
                 avro_value_t fieldVal;
                 if (fi && avro_value_get_by_name(&value, fi->name, &fieldVal, NULL) == 0) {
-                    sqlPos = extractTagByType(fi, &fieldVal, sqlstr, sqlPos, colType);
+                    int32_t newPos = extractTagByType(fi, &fieldVal, sqlstr, sqlPos, colType,
+                                                      TSDB_MAX_ALLOWED_SQL_LEN);
+                    if (newPos < 0) {
+                        logError("avro tbtags: tag `%s` too long for SQL buffer (%d bytes used), "
+                                 "skipping table", tagName, sqlPos);
+                        sqlPos = -1;
+                        break;
+                    }
+                    sqlPos = newPos;
                 } else {
+                    if (sqlPos > (int32_t)TSDB_MAX_ALLOWED_SQL_LEN - AVRO_SQL_TAIL_RESERVE - 8) {
+                        logError("avro tbtags: SQL buffer exhausted before tag `%s`", tagName);
+                        sqlPos = -1;
+                        break;
+                    }
                     sqlPos += sprintf(sqlstr + sqlPos, "NULL,");
                 }
             }
         }
 
+        // A negative or oversized position means a value did not fit (or the
+        // header was truncated): reject the record instead of writing outside
+        // sqlstr.
+        if (sqlPos < 2 || sqlPos > (int32_t)TSDB_MAX_ALLOWED_SQL_LEN - AVRO_SQL_TAIL_RESERVE) {
+            logError("avro tbtags: SQL statement too long or truncated (%d bytes), skipping table",
+                     sqlPos);
+            if (ctx->looseMode && stbName) {
+                taosMemoryFree(stbName);
+                stbName = NULL;
+            }
+            failed++;
+            continue;
+        }
+
         // Close TAGS(...) — replace trailing comma with )
-        sprintf(sqlstr + sqlPos - 1, ")");
+        sqlstr[sqlPos - 1] = ')';
+        sqlstr[sqlPos] = '\0';
 
         if (ctx->looseMode && stbName) {
             taosMemoryFree(stbName);
