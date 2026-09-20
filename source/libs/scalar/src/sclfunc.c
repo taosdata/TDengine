@@ -4380,7 +4380,7 @@ _return:
 int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t type = GET_PARAM_TYPE(pInput);
 
-  /* TIMESTAMP is already a unix timestamp (int64) — pass through directly */
+  /* TIMESTAMP is already a unix timestamp (int64) -- pass through directly */
   if (IS_TIMESTAMP_TYPE(type)) {
     for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
       if (colDataIsNull_s(pInput[0].columnData, i)) {

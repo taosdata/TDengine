@@ -1337,7 +1337,7 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
 
   return code;
 }
-// ── FQ push-down capability bitmap lookup ────────────────────────────────────
+// --- FQ push-down capability bitmap lookup ---
 // Returns the uint16_t bitmap from funcMgtBuiltins[funcId].fqPushCap.
 // UDFs (funcId > FUNC_UDF_ID_START) and out-of-range ids return FQ_CAP_NONE.
 uint16_t fqFuncCapBitmap(int32_t funcId) {

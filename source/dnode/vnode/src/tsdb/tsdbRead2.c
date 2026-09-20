@@ -6083,7 +6083,6 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
     code = tsdbReaderCreate(pVnode, &lastCond,
                             (void**)&((STsdbReader*)pReader)->innerReader[1],
                             innerCapacity, pResBlock, idstr);
-    pCond->twindows = window;
     TSDB_CHECK_CODE(code, lino, _end);
   }
 

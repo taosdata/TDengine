@@ -101,8 +101,8 @@ int32_t nodesDecodeCharsetName(const char* pCharsetName, void** pCharsetCxt) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // Same as the process default: leave *pCharsetCxt untouched — NULL already
-  // means tsCharset at every conversion site — and skip the conv registry.
+  // Same as the process default: leave *pCharsetCxt untouched -- NULL already
+  // means tsCharset at every conversion site -- and skip the conv registry.
   // taosConvInit is itself a process-wide cache keyed by name, so it is the
   // single source of truth; do not add a second cache layer here (a thread-
   // local memo would dangle across taosConvDestroy / taos_cleanup).

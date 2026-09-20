@@ -6524,7 +6524,7 @@ static int32_t getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8
     cJSON* width = cJSON_GetObjectItem(binDesc, "width");
     cJSON* count = cJSON_GetObjectItem(binDesc, "count");
     cJSON* infinity = cJSON_GetObjectItem(binDesc, "infinity");
-    /* infinity is optional — treat absent as false */
+    /* infinity is optional -- treat absent as false */
     bool infinityVal = (cJSON_IsBool(infinity) && infinity->valueint != 0);
 
     if (!cJSON_IsNumber(start) || !cJSON_IsNumber(count) ||
@@ -8415,7 +8415,7 @@ int32_t valueChangesFunction(SqlFunctionCtx* pCtx) {
     pInfo->inputType = pCol->info.type;
     if (IS_DECIMAL_TYPE(pCol->info.type)) {
       // FS: DECIMAL is compared as DOUBLE. getComparFunc has no decimal branch and would
-      // fall through to compareInt32Val (low-4-bytes-only, scale-ignorant) — wrong for the
+      // fall through to compareInt32Val (low-4-bytes-only, scale-ignorant) -- wrong for the
       // 8/16-byte decimal storage. Resolve the DOUBLE comparator and convert per row instead.
       pInfo->typeMod = typeGetTypeModFromColInfo(&pCol->info);
       pInfo->comparFn = getComparFunc(TSDB_DATA_TYPE_DOUBLE, OP_TYPE_EQUAL);
