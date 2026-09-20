@@ -22,6 +22,10 @@
 
 #include <string.h>
 
+#include <string>
+#include <vector>
+
+#include "avroSqlBuf.h"
 #include "bckName.h"
 
 // ---------------------------------------------------------------------------
@@ -344,4 +348,200 @@ TEST(BckNameDecodeFileStem, LiteralPercentSurvives) {
   // genuine %HH sequence).
   EXPECT_EQ(bckNameDecodeFileStem("a%2Ab.dat", out, sizeof(out)), 0);
   EXPECT_STREQ(out, "a*b");
+}
+
+// ---------------------------------------------------------------------------
+// avroSqlAppendTagValue: bounded append of dump-controlled tag values
+//
+// Regression tests for the Avro restore path that builds
+// "CREATE TABLE ... USING ... TAGS(...)" in a fixed 4 MiB buffer: the tag value
+// length comes from the (untrusted) avro-tbtags file, so the append must reject
+// what does not fit instead of writing past the buffer.
+// ---------------------------------------------------------------------------
+
+TEST(AvroSqlBuf, AppendsSmallValue) {
+  char buf[64] = {0};
+  int32_t pos = avroSqlAppendTagValue(buf, sizeof(buf), 0, "abc", 3);
+  EXPECT_EQ(pos, 6);
+  EXPECT_STREQ(buf, "'abc',");
+}
+
+TEST(AvroSqlBuf, AppendsAtGivenPosition) {
+  char buf[64] = {0};
+  memcpy(buf, "TAGS(", 5);
+  int32_t pos = avroSqlAppendTagValue(buf, sizeof(buf), 5, "x", 1);
+  EXPECT_EQ(pos, 9);
+  EXPECT_STREQ(buf, "TAGS('x',");
+}
+
+TEST(AvroSqlBuf, NullValueIsNullLiteral) {
+  char buf[64] = {0};
+  int32_t pos = avroSqlAppendTagValue(buf, sizeof(buf), 0, nullptr, 0);
+  EXPECT_EQ(pos, 5);
+  EXPECT_STREQ(buf, "NULL,");
+}
+
+TEST(AvroSqlBuf, DoublesSingleQuotes) {
+  char buf[64] = {0};
+  // Both quote kinds present -> the doubling path, worst case 2 bytes per input.
+  const char *val = "a'b\"c";
+  int32_t pos = avroSqlAppendTagValue(buf, sizeof(buf), 0, val, strlen(val));
+  EXPECT_EQ(pos, 9);
+  EXPECT_STREQ(buf, "'a''b\"c',");
+}
+
+TEST(AvroSqlBuf, UsesDoubleQuotesWhenOnlySingleQuotePresent) {
+  char buf[64] = {0};
+  const char *val = "a'b";
+  int32_t pos = avroSqlAppendTagValue(buf, sizeof(buf), 0, val, strlen(val));
+  EXPECT_EQ(pos, 6);
+  EXPECT_STREQ(buf, "\"a'b\",");
+}
+
+// The size check must use the worst case (2 * len + quotes + comma): a value
+// that fits only because the current data happens to need no escaping must
+// still be accepted, and one byte more must be rejected.
+TEST(AvroSqlBuf, ReserveIsHonoured) {
+  const int32_t cap = 128;
+  std::vector<char> buf(cap, 'Z');
+  const size_t len = 16;  // worst case = 2*16 + 4 = 36
+  std::string val(len, 'a');
+
+  // pos so that pos + 36 + AVRO_SQL_TAIL_RESERVE == cap  -> fits
+  int32_t posFits = cap - AVRO_SQL_TAIL_RESERVE - 36;
+  EXPECT_GE(avroSqlAppendTagValue(buf.data(), cap, posFits, val.data(), len), 0);
+
+  // One byte further -> must be rejected and must not write anything.
+  std::vector<char> buf2(cap, 'Z');
+  memcpy(buf2.data(), buf.data(), cap);
+  EXPECT_EQ(avroSqlAppendTagValue(buf2.data(), cap, posFits + 1, val.data(), len), -1);
+  EXPECT_EQ(memcmp(buf2.data(), buf.data(), cap), 0);
+}
+
+TEST(AvroSqlBuf, RejectsValueThatDoesNotFit) {
+  const int32_t cap = 64;
+  std::vector<char> buf(cap, 'Z');
+  std::string val(40, 'a');  // worst case 84 > cap - reserve
+  EXPECT_EQ(avroSqlAppendTagValue(buf.data(), cap, 0, val.data(), val.size()), -1);
+  // Nothing may be written when the value is rejected.
+  for (int32_t i = 0; i < cap; i++) EXPECT_EQ(buf[i], 'Z') << i;
+}
+
+// A single > 4 MiB tag value (finding: "taosdump restore appends oversized Avro
+// tag strings to 4 MB SQL buffer before checking length") must be rejected
+// without touching memory past the buffer.
+TEST(AvroSqlBuf, RejectsFiveMiBValueWithCanaryTail) {
+  const int32_t cap = 4 * 1024 * 1024;
+  std::vector<char> buf((size_t)cap + 64, 'Z');
+  std::string val(5 * 1024 * 1024, 'A');
+
+  EXPECT_EQ(avroSqlAppendTagValue(buf.data(), cap, 0, val.data(), val.size()), -1);
+  EXPECT_EQ(avroSqlAppendTagValue(buf.data(), cap, cap - 64, val.data(), val.size()), -1);
+
+  // The 64-byte canary after the capacity must be untouched.
+  for (size_t i = (size_t)cap; i < buf.size(); i++) EXPECT_EQ(buf[i], 'Z') << i;
+}
+
+// Same value but bounded to what fits: exercise the escaping path with a large
+// value to make sure the accepted path stays inside the buffer.
+TEST(AvroSqlBuf, AcceptsLargeValueAndStaysInBounds) {
+  const int32_t cap = 4 * 1024 * 1024;
+  std::vector<char> buf((size_t)cap + 64, 'Z');
+  const size_t len = 1024 * 1024;  // worst case 2 MiB + 4 <= cap - reserve
+  std::string val(len, '\'');
+  val[0] = 'a';  // force the doubling branch with both quote kinds
+  val[1] = '"';
+
+  int32_t pos = avroSqlAppendTagValue(buf.data(), cap, 0, val.data(), val.size());
+  ASSERT_GT(pos, 0);
+  EXPECT_LT((size_t)pos, (size_t)cap);
+  EXPECT_EQ(buf[pos], '\0');
+  EXPECT_EQ(buf[0], '\'');
+  EXPECT_EQ(buf[1], 'a');
+  for (size_t i = (size_t)cap; i < buf.size(); i++) EXPECT_EQ(buf[i], 'Z') << i;
+}
+
+TEST(AvroSqlBuf, InvalidArguments) {
+  char buf[64] = {0};
+  EXPECT_EQ(avroSqlAppendTagValue(nullptr, 64, 0, "a", 1), -1);
+  EXPECT_EQ(avroSqlAppendTagValue(buf, 0, 0, "a", 1), -1);
+  EXPECT_EQ(avroSqlAppendTagValue(buf, 64, -1, "a", 1), -1);
+}
+
+// ---------------------------------------------------------------------------
+// avroSqlBuildInsertStmt: "INSERT INTO ... VALUES(?,?..)" with a dump-controlled
+// column count
+//
+// Regression tests for the restore path that assembled this statement in a
+// fixed 4 KiB stack buffer: the column count comes from the (untrusted) avro
+// data file, so a file declaring a few thousand columns used to write far past
+// the buffer.
+// ---------------------------------------------------------------------------
+
+TEST(AvroSqlInsertStmt, BuildsSingleColumn) {
+  char buf[256] = {0};
+  int32_t n = avroSqlBuildInsertStmt(buf, sizeof(buf), "db", "tb", "", 1);
+  ASSERT_GT(n, 0);
+  EXPECT_STREQ(buf, "INSERT INTO `db`.`tb`  VALUES(?)");
+  EXPECT_EQ((size_t)n, strlen(buf));
+}
+
+TEST(AvroSqlInsertStmt, BuildsThreeColumnsWithPartialList) {
+  char buf[256] = {0};
+  const char *partCols = "(`c1`)";
+  int32_t n = avroSqlBuildInsertStmt(buf, sizeof(buf), "db", "tb", partCols, 3);
+  ASSERT_GT(n, 0);
+  EXPECT_STREQ(buf, "INSERT INTO `db`.`tb` (`c1`) VALUES(?,?,?)");
+  EXPECT_EQ((size_t)n, strlen(buf));
+}
+
+TEST(AvroSqlInsertStmt, SizeHelperIsSufficient) {
+  const char *db = "some_database";
+  const char *tb = "some_super_long_table_name_used_by_the_test";
+  const char *partCols = "(`tag1`,`tag2`)";
+  const int32_t nCols = 4096;
+
+  size_t cap = avroSqlInsertStmtSize(db, tb, partCols, nCols);
+  std::vector<char> buf(cap, 'Z');
+  int32_t n = avroSqlBuildInsertStmt(buf.data(), cap, db, tb, partCols, nCols);
+  ASSERT_GT(n, 0);
+  EXPECT_LT((size_t)n, cap);
+  EXPECT_EQ(buf[(size_t)n], '\0');
+  // Every placeholder must have been emitted.
+  int32_t questions = 0;
+  for (int32_t i = 0; i < n; i++) {
+    if (buf[(size_t)i] == '?') questions++;
+  }
+  EXPECT_EQ(questions, nCols);
+}
+
+// A 4 KiB buffer (the size of the old stack buffer) must be rejected rather than
+// overflowed when the file asks for more placeholders than fit.
+TEST(AvroSqlInsertStmt, RejectsMoreColumnsThanFitWithCanaryTail) {
+  const size_t cap = 4096;
+  std::vector<char> buf(cap + 64, 'Z');
+  int32_t n = avroSqlBuildInsertStmt(buf.data(), cap, "db", "tb", "", 32767);
+  EXPECT_EQ(n, -1);
+  for (size_t i = cap; i < buf.size(); i++) EXPECT_EQ(buf[i], 'Z') << i;
+}
+
+TEST(AvroSqlInsertStmt, RejectsHeaderThatDoesNotFitWithCanaryTail) {
+  const size_t cap = 64;
+  std::vector<char> buf(cap + 64, 'Z');
+  const std::string longName(400, 'a');
+  int32_t n = avroSqlBuildInsertStmt(buf.data(), cap, longName.c_str(), longName.c_str(), "",
+                                     2);
+  EXPECT_EQ(n, -1);
+  // snprintf may truncate into the buffer, but nothing may be written past cap
+  // and the result must stay NUL-terminated inside it.
+  EXPECT_EQ(buf[cap - 1], '\0');
+  for (size_t i = cap; i < buf.size(); i++) EXPECT_EQ(buf[i], 'Z') << i;
+}
+
+TEST(AvroSqlInsertStmt, RejectsInvalidArguments) {
+  char buf[256] = {0};
+  EXPECT_EQ(avroSqlBuildInsertStmt(nullptr, 256, "db", "tb", "", 1), -1);
+  EXPECT_EQ(avroSqlBuildInsertStmt(buf, 0, "db", "tb", "", 1), -1);
+  EXPECT_EQ(avroSqlBuildInsertStmt(buf, sizeof(buf), "db", "tb", "", -1), -1);
+  EXPECT_EQ(avroSqlBuildInsertStmt(buf, sizeof(buf), "db", "tb", "", 0), -1);
 }
