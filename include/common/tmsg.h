@@ -3847,6 +3847,7 @@ typedef struct {
   char scope[TSDB_CONFIG_SCOPE_LEN + 1];
   char category[TSDB_CONFIG_CATEGORY_LEN + 1];
   char info[TSDB_CONFIG_INFO_LEN + 1];
+  char reboot[TSDB_CONFIG_REBOOT_LEN + 1];
 } SVariablesInfo;
 
 typedef struct {
