@@ -151,10 +151,10 @@ int32_t tssDeleteFileByPrefix(SSharedStorage* ss, const char* prefix) {
     for (int i = 0; i < taosArrayGetSize(paths); i++) {
         char* p = *(char**)taosArrayGet(paths, i);
         code = tssDeleteFile(ss, p);
-        taosMemoryFree(p);
         if (code != TSDB_CODE_SUCCESS) {
             tssWarn("failed to delete file %s, code: %d", p, code);
         }
+        taosMemoryFree(p);
     }
 
     taosArrayDestroy(paths);
