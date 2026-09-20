@@ -16,12 +16,67 @@ void electRandomMSTest() {
   }
 }
 
+// TD-SEC-2026-044 regression test.
+// Verifies that the strict identity comparison (used at SYNC ingress authorization)
+// never trusts the CID==0 wildcard, while the legacy syncUtilSameId still does.
+// Returns the number of failed assertions so the process exit code can flag
+// regressions to CI (a security regression test that only prints is useless in CI).
+int sameIdStrictTest() {
+  SRaftId a = {0};
+  SRaftId b = {0};
+  int     failures = 0;
+
+#define CHECK(cond)                                   \
+  do {                                                \
+    if (!(cond)) {                                    \
+      ++failures;                                     \
+      printf("FAILED: %s\n", #cond);                  \
+    }                                                 \
+  } while (0)
+
+  // 1) exact match (same cluster id, node id, vgId) must succeed
+  a.addr = ((uint64_t)7 << 32) | 42;
+  a.vgId = 3;
+  b.addr = ((uint64_t)7 << 32) | 42;
+  b.vgId = 3;
+  CHECK(syncUtilSameIdStrict(&a, &b) == true);
+
+  // 2) the exploitable case: forged CID=0 but valid node id / vgId.
+  //    syncUtilSameId (legacy, with CID==0 wildcard) accepts it,
+  //    syncUtilSameIdStrict (fix) MUST reject it.
+  a.addr = ((uint64_t)7 << 32) | 42;  // genuine member, cluster id 7
+  a.vgId = 3;
+  b.addr = ((uint64_t)0 << 32) | 42;  // attacker forges CID=0
+  b.vgId = 3;
+  CHECK(syncUtilSameId(&a, &b) == true);     // legacy behavior, kept on purpose
+  CHECK(syncUtilSameIdStrict(&a, &b) == false);  // security fix: must be rejected
+
+  // 3) fully different id must be rejected by both
+  a.addr = ((uint64_t)7 << 32) | 42;
+  a.vgId = 3;
+  b.addr = ((uint64_t)9 << 32) | 43;
+  b.vgId = 3;
+  CHECK(syncUtilSameIdStrict(&a, &b) == false);
+  CHECK(syncUtilSameId(&a, &b) == false);
+
+#undef CHECK
+
+  if (failures == 0) {
+    printf("sameIdStrictTest: ALL PASSED\n");
+  } else {
+    printf("sameIdStrictTest: %d FAILURES\n", failures);
+  }
+  return failures;
+}
+
 int main() {
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
   logTest();
 
+  int failures = 0;
   electRandomMSTest();
+  failures += sameIdStrictTest();
 
-  return 0;
+  return failures == 0 ? 0 : 1;
 }
