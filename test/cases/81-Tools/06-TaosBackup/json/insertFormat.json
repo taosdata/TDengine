@@ -25,7 +25,7 @@
                     "data_source":"rand",
                     "insert_mode":"taosc",
                     "childtable_count": 20,
-                    "insert_rows":50000,
+                    "insert_rows":10000,
                     "timestamp_step":60000,
                     "start_timestamp":"2026-03-07 00:00:00.000",
                     "disorder_ratio": 40,
