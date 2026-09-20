@@ -1687,7 +1687,7 @@ static int32_t processBeginTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
 // The per-connection pTxnTableMeta shadows the global catalog for the duration of the txn
 // (handleQueryExecRsp / processAlterStbRsp deliberately skip catalogUpdateTableMeta while txnId > 0,
 // so a concurrent connection never observes uncommitted schema). Freeing it here therefore un-shadows
-// whatever the global catalog still holds — which, for every table the txn altered, is the schema as
+// whatever the global catalog still holds - which, for every table the txn altered, is the schema as
 // of BEGIN. Relying on catalogChkTbMetaVersion to notice is not enough: that only runs on a query
 // execution response, while a DDL statement resolves its target schema from the cache during
 // translate. The next statement after COMMIT would then be translated against the pre-txn schema.
@@ -1695,8 +1695,8 @@ static int32_t processBeginTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
 // For some alters the resulting error code happens to sit in NEED_CLIENT_RM_TBLMETA_ERROR, so the
 // client silently evicts and retries and the staleness is invisible; for others it does not
 // (RENAME TAG yields TSDB_CODE_PAR_INVALID_TAG_NAME) and the statement fails outright. Rather than
-// widen that error-code whitelist — which would make every genuine typo pay a forced full refresh,
-// and still miss codes like PAR_DUPLICATED_COLUMN — evict exactly the tables this txn touched, at
+// widen that error-code whitelist - which would make every genuine typo pay a forced full refresh,
+// and still miss codes like PAR_DUPLICATED_COLUMN - evict exactly the tables this txn touched, at
 // the one point where the set is known precisely.
 void tscResetTxnState(STscObj* pTscObj) {
   // Table names are collected under the mutex but evicted after releasing it: ctgRemoveTbMetaFromCache

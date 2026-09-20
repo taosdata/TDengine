@@ -1582,7 +1582,7 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
     // Delete the orphan row-schema entry from pSkmDb (normal tables and STBs only).
     //
     // pSkmDb is keyed by (uid, schemaRow.version), so this cleanup is only correct when the
-    // rolled-back ALTER actually advanced schemaRow.version — ADD/DROP/MODIFY/RENAME COLUMN.
+    // rolled-back ALTER actually advanced schemaRow.version - ADD/DROP/MODIFY/RENAME COLUMN.
     // Tag-only ALTERs (RENAME TAG, SET TAG, ADD TAG, DROP TAG on a normal / virtual-normal
     // table) bump schemaTag.version and leave schemaRow.version untouched, so the new and the
     // restored entry share one pSkmDb key. Deleting it there removes the row schema the
@@ -2944,7 +2944,7 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
     // The ALTER is already persisted at this point, so a failure to append the tag schema must not
     // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
     // effect while the change is on disk and in the WAL. Log it and return success with an
-    // incomplete response instead — the client then simply refetches the meta on its next RPC.
+    // incomplete response instead - the client then simply refetches the meta on its next RPC.
     int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
     if (rspCode != TSDB_CODE_SUCCESS) {
       metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
@@ -3468,7 +3468,7 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
     // The ALTER is already persisted at this point, so a failure to append the tag schema must not
     // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
     // effect while the change is on disk and in the WAL. Log it and return success with an
-    // incomplete response instead — the client then simply refetches the meta on its next RPC.
+    // incomplete response instead - the client then simply refetches the meta on its next RPC.
     int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
     if (rspCode != TSDB_CODE_SUCCESS) {
       metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
@@ -3601,7 +3601,7 @@ int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
     // The ALTER is already persisted at this point, so a failure to append the tag schema must not
     // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
     // effect while the change is on disk and in the WAL. Log it and return success with an
-    // incomplete response instead — the client then simply refetches the meta on its next RPC.
+    // incomplete response instead - the client then simply refetches the meta on its next RPC.
     int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
     if (rspCode != TSDB_CODE_SUCCESS) {
       metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
@@ -3617,7 +3617,7 @@ int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
 
 // Rename an owned tag of a normal / virtual-normal table (ALTER TABLE ... RENAME TAG old new).
 // Only the tag's display name changes: colId stays, so the STag values, the virtual-normal table's
-// pTagRef slots and any stream binding keep resolving. Super-table tags never reach here — they are
+// pTagRef slots and any stream binding keep resolving. Super-table tags never reach here - they are
 // renamed on the mnode (mndAlterStbTagName); child tables inherit their super table's tags.
 int32_t metaAlterTableTagName(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -3671,7 +3671,7 @@ int32_t metaAlterTableTagName(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq,
   // into one if/else chain makes them mutually exclusive per slot, so renaming a tag to its own
   // current name matches the old-name branch and never reaches the collision check at all. The
   // parser rejects that case (getColSchema spans columns and tags), but this function is also the
-  // backstop for requests that never pass through it — a tmq raw-meta replay via taosAlterTable
+  // backstop for requests that never pass through it - a tmq raw-meta replay via taosAlterTable
   // builds SVAlterTbReq straight from the decoded message.
   for (int32_t i = 0; i < pTagSchema->nCols; i++) {
     if (strncmp(pTagSchema->pSchema[i].name, pReq->colNewName, TSDB_COL_NAME_LEN) == 0) {
@@ -3708,7 +3708,7 @@ int32_t metaAlterTableTagName(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq,
     }
   }
   // pTags is deliberately left untouched. A rename changes neither the set of tags nor any value,
-  // and the values are keyed by colId (or, for a JSON tag, by the inner JSON key) — none of which
+  // and the values are keyed by colId (or, for a JSON tag, by the inner JSON key) - none of which
   // the rename touches. Rebuilding it would also be wrong for a JSON tag: tTagGet on a JSON STag
   // compares by STagVal.pKey, so the {.cid = ...} probe used by the add/drop paths reads an
   // uninitialised key pointer and crashes. STag.ver may therefore trail schemaTag.version here,
@@ -3726,7 +3726,7 @@ int32_t metaAlterTableTagName(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq,
 
   // response: full meta (columns + colRef + owned-tag schema) so the client catalog refreshes to the
   // new tag name instead of keeping the old one cached. Built only after a successful persist, and a
-  // failure here does not fail the ALTER — the rename is already on disk, so returning an error
+  // failure here does not fail the ALTER - the rename is already on disk, so returning an error
   // would report a DDL as rejected while it actually took effect. The client refetches the meta on
   // its next RPC.
   if (code == TSDB_CODE_SUCCESS) {
@@ -3871,7 +3871,7 @@ int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *p
     // The ALTER is already persisted at this point, so a failure to append the tag schema must not
     // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
     // effect while the change is on disk and in the WAL. Log it and return success with an
-    // incomplete response instead — the client then simply refetches the meta on its next RPC.
+    // incomplete response instead - the client then simply refetches the meta on its next RPC.
     int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
     if (rspCode != TSDB_CODE_SUCCESS) {
       metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
@@ -5607,7 +5607,7 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
     // The ALTER is already persisted at this point, so a failure to append the tag schema must not
     // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
     // effect while the change is on disk and in the WAL. Log it and return success with an
-    // incomplete response instead — the client then simply refetches the meta on its next RPC.
+    // incomplete response instead - the client then simply refetches the meta on its next RPC.
     int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
     if (rspCode != TSDB_CODE_SUCCESS) {
       metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
@@ -5739,7 +5739,7 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
     // The ALTER is already persisted at this point, so a failure to append the tag schema must not
     // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
     // effect while the change is on disk and in the WAL. Log it and return success with an
-    // incomplete response instead — the client then simply refetches the meta on its next RPC.
+    // incomplete response instead - the client then simply refetches the meta on its next RPC.
     int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
     if (rspCode != TSDB_CODE_SUCCESS) {
       metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
@@ -6019,7 +6019,7 @@ int32_t metaAddTableSeries(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
     // The ALTER is already persisted at this point, so a failure to append the tag schema must not
     // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
     // effect while the change is on disk and in the WAL. Log it and return success with an
-    // incomplete response instead — the client then simply refetches the meta on its next RPC.
+    // incomplete response instead - the client then simply refetches the meta on its next RPC.
     int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
     if (rspCode != TSDB_CODE_SUCCESS) {
       metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
