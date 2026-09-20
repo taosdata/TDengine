@@ -1344,16 +1344,35 @@ int writeVarNames(int type, TAOS_RES* tres) {
   int  numOfRows = 0;
   do {
     int32_t* lengths = taos_fetch_lengths(tres);
-    int32_t  bytes = lengths[0];
-    if (fields[0].type == TSDB_DATA_TYPE_INT) {
-      sprintf(name, "%d", *(int16_t*)row[0]);
-    } else {
-      memcpy(name, row[0], bytes);
+    int32_t  bytes = (lengths != NULL) ? lengths[0] : 0;
+    bool     valid = false;
+
+    // the name is read out of the server result block: a NULL cell must not be
+    // dereferenced, the cell length is not bounded by the declared column width
+    // (it is a 16 bit field of the data block) so the copy is clamped to the
+    // local buffer, and a column of an unexpected type is skipped
+    if (row[0] != NULL) {
+      if (fields[0].type == TSDB_DATA_TYPE_INT) {
+        (void)snprintf(name, sizeof(name), "%d", *(int16_t*)row[0]);
+        valid = true;
+      } else if (IS_VAR_DATA_TYPE(fields[0].type)) {
+        int32_t copyLen = TRANGE(bytes, 0, (int32_t)sizeof(name) - 1);
+        if (copyLen > 0) {
+          memcpy(name, row[0], copyLen);
+        }
+
+        name[copyLen] = 0;  // set string end
+        valid = true;
+      }
     }
 
-    name[bytes] = 0;  // set string end
-    // insert to tire
-    insertWord(tire, name);
+    if (valid) {
+      // the words of a list tire are echoed on the screen when the user presses
+      // TAB, so control characters must not enter the tire
+      shellStripControlChars(name);
+      // insert to tire
+      insertWord(tire, name);
+    }
 
     if (++numOfRows > MAX_CACHED_CNT) {
       break;
