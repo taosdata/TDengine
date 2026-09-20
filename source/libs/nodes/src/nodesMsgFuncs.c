@@ -1069,6 +1069,10 @@ static int32_t msgToDatum(STlv* pTlv, void* pObj) {
       break;
     }
     case TSDB_DATA_TYPE_DECIMAL:
+      if (pTlv->len != pNode->node.resType.bytes) {
+        code = TSDB_CODE_FAILED;
+        break;
+      }
       pNode->datum.p = taosMemoryCalloc(1, pNode->node.resType.bytes);
       if (!pNode->datum.p) {
         code = terrno;
