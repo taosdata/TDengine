@@ -1677,6 +1677,12 @@ static int32_t buildLocalVariablesResultDataBlock(SSDataBlock** pOutput) {
     goto _exit;
   }
 
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD6_LEN;
+  if (taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
+    goto _exit;
+  }
+
   *pOutput = pBlock;
 
 _exit:

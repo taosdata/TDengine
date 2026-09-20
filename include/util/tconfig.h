@@ -96,6 +96,8 @@ typedef struct SConfigItem {
   int8_t       scope;
   int8_t       dynScope;
   int8_t       category;
+  int8_t       restartRequired;  // set when the *_LAZY item's value no longer matches restartBaseline*
+  int8_t       restartBaselineValid;  // whether restartBaseline* holds the value in effect since process start
   char        *name;
   union {
     bool    bval;
@@ -103,6 +105,13 @@ typedef struct SConfigItem {
     int32_t i32;
     int64_t i64;
     char   *str;
+  };
+  union {
+    bool    restartBaselineBval;
+    float   restartBaselineFval;
+    int32_t restartBaselineI32;
+    int64_t restartBaselineI64;
+    char   *restartBaselineStr;
   };
   union {
     int64_t imin;
@@ -162,6 +171,7 @@ const char *cfgDtypeStr(ECfgDataType type);
 int32_t cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
 int32_t cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
 int32_t cfgDumpItemCategory(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
+int32_t cfgDumpItemRestart(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
 
 void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump);
 

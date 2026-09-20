@@ -50,6 +50,11 @@
 #define SHELL_FLOAT_WIDTH                      20
 #define SHELL_DOUBLE_WIDTH                     25
 
+// columns of the `show grants` result: version, expire_time, expired
+#define SHELL_GRANT_FIELD_CNT    3
+#define SHELL_GRANT_VERSION_LEN  64
+#define SHELL_GRANT_EXPIRE_LEN   32
+
 #define ERROR_CODE_DETAIL                                                                                           \
   "\r\n\r\nTo view possible causes and suggested actions for error codes, see \r\n\"Error Code Reference\" in the " \
   "TDengine online documentation.\r\n"
@@ -150,6 +155,8 @@ bool    shellRegexMatch(const char* s, const char* reg, int32_t cflags);
 int32_t getDsnEnv();
 void    shellExit();
 void trimStr(char *srcInfo, char *removeStr);
+void shellStripControlChars(char *str);
+bool shellStatementHoldsCredential(const char *command);
 
 // shellSubscribe.c
 int32_t shellSubscribe(char *command);

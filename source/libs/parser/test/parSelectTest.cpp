@@ -14,6 +14,7 @@
  */
 
 #include "mockCatalogService.h"
+#include "parAst.h"
 #include "parTestUtil.h"
 #include "mockCatalogService.h"
 #include "tglobal.h"
@@ -187,6 +188,41 @@ TEST_F(ParserSelectDdlTest, externalColumnFilterValidation) {
                "ext_filter_two_ts.fake_db.metrics.value)",
                TSDB_CODE_EXT_NO_TS_PRIMARY_KEY);
 }
+
+namespace {
+
+SNodeList* createHint(SAstCreateContext* pCxt, std::string& hint) {
+  SToken literal = {0};
+  literal.z = &hint[0];
+  literal.n = static_cast<uint32_t>(hint.size());
+  return createHintNodeList(pCxt, &literal);
+}
+
+SNodeList* createHintWithParams(SAstCreateContext* pCxt, int32_t paramCount) {
+  std::string hint = "/*+ BATCH_SCAN(";
+  for (int32_t i = 0; i < paramCount; ++i) {
+    if (0 != i) {
+      hint += ',';
+    }
+    hint += "PARAM" + std::to_string(i);
+  }
+  hint += ") */";
+
+  return createHint(pCxt, hint);
+}
+
+void checkHintParams(const SHintNode* pHint, int32_t paramCount) {
+  ASSERT_NE(pHint->pParams, nullptr);
+  ASSERT_EQ(taosArrayGetSize(pHint->pParams), paramCount);
+  for (int32_t i = 0; i < paramCount; ++i) {
+    const auto* param = static_cast<const SHintParam*>(taosArrayGet(pHint->pParams, i));
+    ASSERT_NE(param, nullptr);
+    EXPECT_EQ(param->type, TK_NK_ID);
+    EXPECT_STREQ(param->value, ("PARAM" + std::to_string(i)).c_str());
+  }
+}
+
+}  // namespace
 
 TEST_F(ParserSelectTest, basic) {
   useDb("root", "test");
@@ -783,6 +819,85 @@ TEST_F(ParserSelectTest, intervalHints) {
       "WHERE ts >= '2022-04-01 00:00:00' AND ts < '2022-04-01 01:00:00' INTERVAL(10s)");
   run("SELECT /*+ EX_INTERVAL() */ _WSTART, _WEND, _WDURATION, COUNT(*), SUM(c1), AVG(c1) FROM st1 "
       "WHERE ts >= '2022-04-01 00:00:00' AND ts < '2022-04-01 01:00:00' INTERVAL(10s)");
+}
+
+TEST_F(ParserSelectTest, hintParameterListDoesNotHaveFixedCapacity) {
+  constexpr int32_t kLargeHintParamCount = 64;
+  char          message[TSDB_ERROR_MSG_LEN] = {0};
+  SParseContext query = {0};
+  query.pMsg = message;
+  query.msgLen = sizeof(message);
+
+  SAstCreateContext context = {0};
+  initAstCreateContext(&query, &context);
+
+  SNodeList* result = createHintWithParams(&context, 0);
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(LIST_LENGTH(result), 1);
+  SNode* pNode = nodesListGetNode(result, 0);
+  ASSERT_NE(pNode, nullptr);
+  EXPECT_EQ(((SHintNode*)pNode)->option, HINT_BATCH_SCAN);
+  EXPECT_EQ(((SHintNode*)pNode)->pParams, nullptr);
+  EXPECT_EQ(context.errCode, TSDB_CODE_SUCCESS);
+  nodesDestroyList(result);
+
+  context = {0};
+  initAstCreateContext(&query, &context);
+  result = createHintWithParams(&context, kLargeHintParamCount);
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(LIST_LENGTH(result), 1);
+  pNode = nodesListGetNode(result, 0);
+  ASSERT_NE(pNode, nullptr);
+  const auto* pHint = (const SHintNode*)pNode;
+  EXPECT_EQ(pHint->option, HINT_BATCH_SCAN);
+  checkHintParams(pHint, kLargeHintParamCount);
+  EXPECT_EQ(context.errCode, TSDB_CODE_SUCCESS);
+
+  SNode* pClone = nullptr;
+  ASSERT_EQ(nodesCloneNode(pNode, &pClone), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pClone, nullptr);
+  const auto* pHintClone = (const SHintNode*)pClone;
+  checkHintParams(pHintClone, kLargeHintParamCount);
+  ASSERT_NE(pHintClone->pParams, pHint->pParams);
+  for (int32_t i = 0; i < kLargeHintParamCount; ++i) {
+    const auto* pSrcParam = static_cast<const SHintParam*>(taosArrayGet(pHint->pParams, i));
+    const auto* pDstParam = static_cast<const SHintParam*>(taosArrayGet(pHintClone->pParams, i));
+    ASSERT_NE(pSrcParam, nullptr);
+    ASSERT_NE(pDstParam, nullptr);
+    EXPECT_NE(pSrcParam->value, pDstParam->value);
+  }
+  nodesDestroyNode(pClone);
+  nodesDestroyList(result);
+}
+
+TEST_F(ParserSelectTest, hintParametersPreserveTokenData) {
+  char          message[TSDB_ERROR_MSG_LEN] = {0};
+  SParseContext query = {0};
+  query.pMsg = message;
+  query.msgLen = sizeof(message);
+
+  SAstCreateContext context = {0};
+  initAstCreateContext(&query, &context);
+
+  std::string hint = "/*+ BATCH_SCAN(PARAM,123,'value',1.5,true) */";
+  SNodeList* result = createHint(&context, hint);
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(LIST_LENGTH(result), 1);
+  const auto* pHint = (const SHintNode*)nodesListGetNode(result, 0);
+  ASSERT_NE(pHint, nullptr);
+  ASSERT_NE(pHint->pParams, nullptr);
+  ASSERT_EQ(taosArrayGetSize(pHint->pParams), 5);
+
+  const uint32_t expectedTypes[] = {TK_NK_ID, TK_NK_INTEGER, TK_NK_STRING, TK_NK_FLOAT, TK_NK_BOOL};
+  const char*    expectedValues[] = {"PARAM", "123", "'value'", "1.5", "true"};
+  for (int32_t i = 0; i < 5; ++i) {
+    const auto* param = static_cast<const SHintParam*>(taosArrayGet(pHint->pParams, i));
+    ASSERT_NE(param, nullptr);
+    EXPECT_EQ(param->type, expectedTypes[i]);
+    EXPECT_STREQ(param->value, expectedValues[i]);
+  }
+  EXPECT_EQ(context.errCode, TSDB_CODE_SUCCESS);
+  nodesDestroyList(result);
 }
 
 TEST_F(ParserSelectTest, intervalSemanticCheck) {

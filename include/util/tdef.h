@@ -368,6 +368,15 @@ typedef enum {
 
 #define TSDB_MAX_BYTES_PER_ROW         65531  // 49151:65531
 #define TSDB_MAX_BYTES_PER_ROW_VIRTUAL 524283
+// vtable tag-ref chain depth bound -- AUTHORITATIVE SEMANTICS (the three walkers
+// reference this): counts REFERENCE EDGES; with the value 32 a legal chain has at most
+// 33 edges (34 tables incl. the source), the 34th edge is rejected. All three walkers
+//  -  the parser pre-check (checkRefChainDepthAndCircular), the vnode backstop
+// (metaCheckTagRefChainLocal) and the executor resolver (resolveTagRefChain)  -  walk
+// the same hops and must land on this exact boundary; they differ only in how the
+// visited set is seeded for cycle detection (parser/backstop pre-seed the source table
+// into visited, the resolver starts from it directly) -- see their per-site counting
+// notes; pinned by test_vtable_tag_ref_depth_boundary.py.
 #define TSDB_MAX_VTABLE_REF_DEPTH      32
 #define TSDB_MAX_TAGS_LEN              16384
 #define TSDB_MAX_TAGS                  128
@@ -880,6 +889,7 @@ enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 #define TSDB_CONFIG_PATH_LEN     4096
 #define TSDB_CONFIG_INFO_LEN     64
 #define TSDB_CONFIG_CATEGORY_LEN 8
+#define TSDB_CONFIG_REBOOT_LEN   8
 
 #define QUERY_ID_SIZE      20
 #define QUERY_OBJ_ID_SIZE  18
