@@ -95,6 +95,13 @@ TARGET_LINK_LIBRARIES(
         os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
 )
 
+ADD_EXECUTABLE(printRowTest printRowTests.cpp)
+DEP_ext_gtest(printRowTest)
+TARGET_LINK_LIBRARIES(
+        printRowTest PRIVATE
+        os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
+)
+
 ADD_EXECUTABLE(sessionTest session.cpp)
 DEP_ext_gtest(sessionTest)
 TARGET_LINK_LIBRARIES(
@@ -135,6 +142,12 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 
+TARGET_INCLUDE_DIRECTORIES(
+        printRowTest
+        PUBLIC "${TD_SOURCE_DIR}/include/client/"
+        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+)
+
 IF(TD_LINUX)
         add_test(
                 NAME clientTest
@@ -168,6 +181,10 @@ IF(TD_LINUX)
         add_test(
                 NAME instanceTest
                 COMMAND instanceTest
+        )
+        add_test(
+                NAME printRowTest
+                COMMAND printRowTest
         )
 ENDIF ()
 
