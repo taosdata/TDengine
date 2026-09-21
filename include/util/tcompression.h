@@ -75,17 +75,17 @@ void tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uin
 
 void tsCompressExit();
 
-int32_t tsCompressFloatLossyImp(const char *const input, const int32_t nelements, char *const output);
+int32_t tsCompressFloatLossyImp(const char *const input, const int32_t nelements, char *const output, int32_t outputSize);
 int32_t tsDecompressFloatLossyImp(const char *const input, int32_t compressedSize, const int32_t nelements,
                                   char *const output);
-int32_t tsCompressDoubleLossyImp(const char *const input, const int32_t nelements, char *const output);
+int32_t tsCompressDoubleLossyImp(const char *const input, const int32_t nelements, char *const output, int32_t outputSize);
 int32_t tsDecompressDoubleLossyImp(const char *const input, int32_t compressedSize, const int32_t nelements,
                                    char *const output);
 
 static FORCE_INLINE int32_t tsCompressFloatLossy(const char *const input, int32_t inputSize, const int32_t nelements,
                                                  char *const output, int32_t outputSize, char algorithm,
                                                  char *const buffer, int32_t bufferSize) {
-  return tsCompressFloatLossyImp(input, nelements, output);
+  return tsCompressFloatLossyImp(input, nelements, output, outputSize);
 }
 
 static FORCE_INLINE int32_t tsDecompressFloatLossy(const char *const input, int32_t compressedSize,
@@ -97,7 +97,7 @@ static FORCE_INLINE int32_t tsDecompressFloatLossy(const char *const input, int3
 static FORCE_INLINE int32_t tsCompressDoubleLossy(const char *const input, int32_t inputSize, const int32_t nelements,
                                                   char *const output, int32_t outputSize, char algorithm,
                                                   char *const buffer, int32_t bufferSize) {
-  return tsCompressDoubleLossyImp(input, nelements, output);
+  return tsCompressDoubleLossyImp(input, nelements, output, outputSize);
 }
 
 static FORCE_INLINE int32_t tsDecompressDoubleLossy(const char *const input, int32_t compressedSize,

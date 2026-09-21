@@ -16,9 +16,9 @@ extern "C" {
 
 #include "TightDataPointStorageF.h"
 
-void decompressDataSeries_float_1D(float* data, size_t dataSeriesLength, float* hist_data, TightDataPointStorageF* tdps);
+int decompressDataSeries_float_1D(float* data, size_t dataSeriesLength, float* hist_data, TightDataPointStorageF* tdps);
 
-void getSnapshotData_float_1D(float* data, size_t dataSeriesLength, TightDataPointStorageF* tdps, int errBoundMode, int compressionType, float* hist_data, sz_params* pde_params);
+int getSnapshotData_float_1D(float* data, size_t dataSeriesLength, TightDataPointStorageF* tdps, int errBoundMode, int compressionType, float* hist_data, sz_params* pde_params);
 
 int SZ_decompress_args_float(float* newData, size_t r1, unsigned char* cmpBytes, size_t cmpSize, int compressionType, float* hist_data, sz_exedata* pde_exe, sz_params* pde_params);
 

@@ -53,12 +53,15 @@ void tdszInit(float fPrecision, double dPrecision, unsigned int maxIntervals, un
 //
 // compress interface to tdengine return value is count of output with bytes
 //
-int tdszCompress(int type, const char * input, const int nelements, const char * output)
+int tdszCompress(int type, const char * input, const int nelements, const char * output, int outputSize)
 {
 	// check valid
 	sz_params comp_params = *confparams_cpr;
+
+	if(outputSize <= 0)
+		return 0;
 	
-	size_t outSize = SZ_compress_args(type, (void*)input, (size_t)nelements, (unsigned char*)output, &comp_params);	
+	size_t outSize = SZ_compress_args(type, (void*)input, (size_t)nelements, (unsigned char*)output, (size_t)outputSize, &comp_params);	
     return (int)outSize;
 }
 
@@ -68,6 +71,8 @@ int tdszCompress(int type, const char * input, const int nelements, const char *
 int tdszDecompress(int type, const char * input, int compressedSize, const int nelements, const char * output)
 {
 	size_t outSize = SZ_decompress(type, (void*)input, compressedSize, (size_t)nelements, (unsigned char*)output);
+	if(outSize == 0) //SZ_decompress returns 0 for a rejected (malformed) block
+		return -1;
     return (int)outSize;
 }
 

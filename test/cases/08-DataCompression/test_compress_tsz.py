@@ -14,6 +14,7 @@
 from new_test_framework.utils import tdLog, tdSql
 import sys
 import random
+import struct
 import time
 import math
 
@@ -407,4 +408,256 @@ class TestCompressTszDdlAndData:
         tdSql.checkData(0, 0, rows)
 
         tdLog.info(f"tsz large-volume correctness check passed, rows per table = {rows}")
+
+
+class TszSecScanBase:
+    """Shared helpers for the Devon static scan (defect 7114784001) TSZ data path cases."""
+
+    def _use_db(self, db, extra=""):
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} precision 'us' {extra}")
+        tdSql.execute(f"use {db}")
+
+    def _wait_compact(self):
+        for _ in range(60):
+            tdSql.query("show compacts;")
+            if tdSql.getRows() == 0:
+                return
+            time.sleep(3)
+        tdSql.query("show compacts;")
+        tdLog.exit(f"compact did not finish within 180s, {tdSql.getRows()} compact(s) still running")
+
+    @staticmethod
+    def _rand_float(rnd):
+        """float in [1,2) with a random mantissa: nearly unpredictable for SZ and incompressible for zstd"""
+        return struct.unpack('<f', struct.pack('<I', 0x3F800000 | rnd.getrandbits(23)))[0]
+
+    def _insert_column(self, tbl, values, base, batch=1024):
+        ts = base
+        done = 0
+        total = len(values)
+        while done < total:
+            n = min(batch, total - done)
+            rows = []
+            for i in range(done, done + n):
+                ts += 1
+                rows.append(f"({ts},{values[i]!r})")
+            tdSql.execute(f"insert into {tbl} values " + ",".join(rows))
+            done += n
+        return ts
+
+    def _read_column(self, tbl):
+        tdSql.query(f"select c1 from {tbl} order by ts")
+        res = tdSql.queryResult
+        assert res is not None
+        return [float(r[0]) for r in res]
+
+    def _check_column(self, tag, got, expect, rel_tol, abs_tol, step=8):
+        if len(got) != len(expect):
+            tdLog.exit(f"{tag}: row count mismatch {len(got)} != {len(expect)}")
+        worst = 0.0
+        for i in range(0, len(expect), step):
+            e = float(expect[i])
+            g = float(got[i])
+            worst = max(worst, abs(g - e))
+            if not math.isclose(g, e, rel_tol=rel_tol, abs_tol=abs_tol):
+                tdLog.exit(f"{tag}: value mismatch at row {i}: got={g!r} expect={e!r}")
+        tdLog.info(f"{tag}: {len(expect)} rows ok, worst abs error over sampled rows (every {step}th) = {worst:g}")
+
+
+class TestCompressTszSecScanHuffman(TszSecScanBase):
+    """
+    Devon static scan (defect 7114784001) coverage for the TSZ/SZ codec, Huffman type coder
+    (the engine default, IfAdtFse=0).
+
+    The malformed payload rejection itself (reqLength > 32/64, cyclic or out-of-range Huffman trees,
+    garbage FSE code) is covered by the C case utils/test/c/tsz_test.c (-sec, ctest tsz_test_
+    malformed_reject). These cases cover the on-disk data paths that consume the very same decoder,
+    so a stack/heap overflow or a stray exit() in taosd makes them fail:
+
+      1. idx 70  HIGH    : SZ + zstd two stage output must stay inside the block output capacity, even
+                           for incompressible data and with more rows per block than 16449
+      2. idx 11  CRITICAL: reqLength at its legal maximum (32 for float / 64 for double) and a stream
+                           dominated by "exact" values must still decode correctly
+      3. idx 173 HIGH    : the type array (Huffman tree) rebuilt on every read must stay in bounds
+    """
+
+    updatecfgDict = {'lossyColumns': 'float-double', 'IfAdtFse': 0}
+
+    def test_tsz_sec_scan_large_incompressible_block(self):
+        """TSZ incompressible large block stays inside the output capacity
+
+        1. Create a database with MAXROWS > 16449 so the zstd frame content size field grows
+        2. Write float/double tsz columns whose mantissas are random (SZ stream not shrinkable by zstd)
+        3. Flush (compress on disk) and read back every sampled row within the SZ precision
+        4. Compact and read again so the blocks are re-decompressed and re-compressed
+        5. taosd must stay alive: a heap overflow in the compressor would abort the process
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+        """
+        tdLog.debug(f"start to execute {__file__}")
+        db = "tsz_sec_scan_incompressible"
+        self._use_db(db, "maxrows 20000")
+
+        rows = 24000  # 2 blocks of 20000/4000 rows
+        rnd = random.Random(7114784001)
+        c1 = [self._rand_float(rnd) for _ in range(rows)]
+
+        tdSql.execute(f"create table {db}.t (ts timestamp, c1 float COMPRESS 'tsz')")
+        self._insert_column(f"{db}.t", c1, 1680000000000000)
+        tdSql.execute(f"flush database {db}")
+
+        got = self._read_column(f"{db}.t")
+        self._check_column("incompressible float", got, c1, 1e-3, 1e-3)
+
+        tdSql.execute(f"compact database {db}")
+        self._wait_compact()
+        tdSql.execute(f"flush database {db}")
+        got = self._read_column(f"{db}.t")
+        self._check_column("incompressible float after compact", got, c1, 1e-3, 1e-3)
+
+    def test_tsz_sec_scan_reqlength_max_and_exact_values(self):
+        """TSZ blocks with the maximum reqLength and mostly exact values decode correctly
+
+        1. Write float/double tsz columns with a huge dynamic range so reqLength is clamped to its
+           legal maximum (32 bit mantissa for float, 64 for double)
+        2. Nearly every point is stored as an "exact" value, which is the branch that used to trust
+           the reqLength byte when indexing the 4/8 byte buffers
+        3. Values must come back within the SZ precision, before and after a compact
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+        """
+        tdLog.debug(f"start to execute {__file__}")
+        db = "tsz_sec_scan_reqlen"
+        self._use_db(db)
+
+        rows = 12000
+        c1 = []
+        for i in range(rows):
+            if i % 3 == 0:
+                c1.append(1e30 * (1.0 + i * 1e-7))
+            elif i % 3 == 1:
+                c1.append(-1e-30 * (1.0 + i * 1e-7))
+            else:
+                c1.append(math.sin(i * 0.37) * 10.0)
+
+        tdSql.execute(f"create table {db}.t (ts timestamp, c1 double COMPRESS 'tsz')")
+        self._insert_column(f"{db}.t", c1, 1700000000000000)
+        tdSql.execute(f"flush database {db}")
+
+        got = self._read_column(f"{db}.t")
+        self._check_column("max reqLength double", got, c1, 1e-5, 1e-3)
+
+        tdSql.execute(f"compact database {db}")
+        self._wait_compact()
+        got = self._read_column(f"{db}.t")
+        self._check_column("max reqLength double after compact", got, c1, 1e-5, 1e-3)
+
+    def test_tsz_sec_scan_unpredictable_points(self):
+        """TSZ Huffman type array stays in bounds for data with many unpredictable points
+
+        1. Write float tsz columns whose mantissas are random, so the type array is dominated by
+           unpredictable ("exact") points and the Huffman tree has to be rebuilt on every read
+        2. Values must come back within the SZ precision, before and after a compact
+        3. Row count and aggregate must stay consistent
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+        """
+        tdLog.debug(f"start to execute {__file__}")
+        db = "tsz_sec_scan_huffman"
+        self._use_db(db)
+
+        rows = 12000
+        rnd = random.Random(4242)
+        c1 = [self._rand_float(rnd) for _ in range(rows)]
+
+        tdSql.execute(f"create table {db}.t (ts timestamp, c1 float COMPRESS 'tsz')")
+        self._insert_column(f"{db}.t", c1, 1720000000000000)
+        tdSql.execute(f"flush database {db}")
+
+        got = self._read_column(f"{db}.t")
+        self._check_column("huffman unpredictable float", got, c1, 1e-3, 1e-3)
+
+        tdSql.query(f"select count(*), min(c1), max(c1) from {db}.t")
+        res = tdSql.queryResult
+        assert res is not None
+        if int(res[0][0]) != rows:
+            tdLog.exit(f"huffman unpredictable float: count {res[0][0]} != {rows}")
+        #the generated values are in [1,2): compare against the inserted min/max instead of the range
+        #that the generator already guarantees, so a value/column mix up is actually detected
+        if not (math.isclose(float(res[0][1]), min(c1), rel_tol=1e-3, abs_tol=1e-3)
+                and math.isclose(float(res[0][2]), max(c1), rel_tol=1e-3, abs_tol=1e-3)):
+            tdLog.exit(f"huffman unpredictable float: min/max {res[0][1]}/{res[0][2]} "
+                       f"differ from the inserted {min(c1)}/{max(c1)}")
+
+        tdSql.execute(f"compact database {db}")
+        self._wait_compact()
+        got = self._read_column(f"{db}.t")
+        self._check_column("huffman unpredictable float after compact", got, c1, 1e-3, 1e-3)
+
+
+class TestCompressTszSecScanFse(TszSecScanBase):
+    """
+    Devon static scan (defect 7114784001) coverage for the TSZ/SZ codec with the ADT-FSE type coder
+    (IfAdtFse=1).
+
+    idx 171 HIGH: the FSE decoder used to call exit(1) on a malformed FSE code, which terminated the
+    whole taosd process, and it indexed 67 entry tables with a payload supplied symbol. The C case
+    covers the malformed FSE stream rejection; this case covers the FSE decode path with real data
+    written by the engine, before and after a compact.
+    """
+
+    updatecfgDict = {'lossyColumns': 'float-double', 'IfAdtFse': 1}
+
+    def test_tsz_sec_scan_fse_points(self):
+        """TSZ FSE type coder round-trips real float/double columns
+
+        1. Write float and double tsz columns with mixed predictable and unpredictable points
+        2. Flush and read back within the SZ precision
+        3. Compact (blocks are re-decompressed with the FSE branch) and read back again
+        4. taosd must stay alive for the whole case
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+        """
+        tdLog.debug(f"start to execute {__file__}")
+        db = "tsz_sec_scan_fse"
+        self._use_db(db)
+
+        rows = 12000
+        rnd = random.Random(97531)
+        c1 = []
+        for i in range(rows):
+            if i % 2 == 0:
+                c1.append(self._rand_float(rnd))
+            else:
+                c1.append(50.0 + math.sin(i * 0.01) * 20.0)
+
+        tdSql.execute(f"create table {db}.t (ts timestamp, c1 float COMPRESS 'tsz')")
+        self._insert_column(f"{db}.t", c1, 1740000000000000)
+        tdSql.execute(f"flush database {db}")
+
+        got = self._read_column(f"{db}.t")
+        self._check_column("fse mixed float", got, c1, 1e-3, 1e-3)
+
+        tdSql.execute(f"compact database {db}")
+        self._wait_compact()
+        got = self._read_column(f"{db}.t")
+        self._check_column("fse mixed float after compact", got, c1, 1e-3, 1e-3)
+
 

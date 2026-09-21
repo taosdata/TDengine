@@ -16,7 +16,15 @@
 
 HuffmanTree* createHuffmanTree(int stateNum)
 {			
+	if(stateNum <= 0 || stateNum > MAX_HUFF_TREE_NODES) //stateNum comes from the payload on the decode path
+	{
+		printf("Error: invalid Huffman stateNum %d\n", stateNum);
+		return NULL;
+	}
+
 	HuffmanTree *huffmanTree = (HuffmanTree*)malloc(sizeof(HuffmanTree));
+	if(huffmanTree == NULL)
+		return NULL;
 	memset(huffmanTree, 0, sizeof(HuffmanTree));
 	huffmanTree->stateNum = stateNum;
 	huffmanTree->allNodes = 2*stateNum;
@@ -25,6 +33,15 @@ HuffmanTree* createHuffmanTree(int stateNum)
 	huffmanTree->qqq = (node*)malloc(huffmanTree->allNodes*2*sizeof(node));
 	huffmanTree->code = (uint64_t**)malloc(huffmanTree->stateNum*sizeof(uint64_t*));
 	huffmanTree->cout = (unsigned char *)malloc(huffmanTree->stateNum*sizeof(unsigned char));
+	if(huffmanTree->pool == NULL || huffmanTree->qqq == NULL || huffmanTree->code == NULL || huffmanTree->cout == NULL)
+	{
+		free(huffmanTree->pool);
+		free(huffmanTree->qqq);
+		free(huffmanTree->code);
+		free(huffmanTree->cout);
+		free(huffmanTree);
+		return NULL;
+	}
 	
 	memset(huffmanTree->pool, 0, huffmanTree->allNodes*2*sizeof(struct node_t));
 	memset(huffmanTree->qqq, 0, huffmanTree->allNodes*2*sizeof(node));
@@ -67,6 +84,11 @@ node new_node(HuffmanTree* huffmanTree, size_t freq, unsigned int c, node a, nod
  
 node new_node2(HuffmanTree *huffmanTree, unsigned int c, unsigned char t)
 {
+	//the pool holds allNodes*2 == 4*stateNum entries (createHuffmanTree); never write past it
+	if(huffmanTree == NULL || huffmanTree->pool == NULL)
+		return NULL;
+	if(huffmanTree->n_nodes < 0 || (unsigned int)huffmanTree->n_nodes >= huffmanTree->allNodes*2)
+		return NULL;
 	huffmanTree->pool[huffmanTree->n_nodes].c = c;
 	huffmanTree->pool[huffmanTree->n_nodes].t = t;
 	return huffmanTree->pool + huffmanTree->n_nodes++;
@@ -310,28 +332,36 @@ void encode(HuffmanTree *huffmanTree, int *s, size_t length, unsigned char *out,
 	printf("avg bit size = %f\n", ((float)totalBitSize)/length);*/
 }
  
-void decode(unsigned char *s, size_t targetLength, node t, int *out)
+int decode(unsigned char *s, size_t sSize, size_t targetLength, node t, int *out)
 {
 	size_t i = 0, byteIndex = 0, count = 0;
 	int r; 
 	node n = t;
 	
+	if(s == NULL || t == NULL || out == NULL)
+		return SZ_FORMAT_ERR;
+
 	if(n->t) //root->t==1 means that all state values are the same (constant)
 	{
 		for(count=0;count<targetLength;count++)
 			out[count] = n->c;
-		return;
+		return SZ_SUCCESS;
 	}
 	
 	for(i=0;count<targetLength;i++)
 	{
 		
 		byteIndex = i>>3; //i/8
+		if(byteIndex >= sSize) //truncated bit stream: stop instead of reading past the payload
+			return SZ_FORMAT_ERR;
 		r = i%8;
 		if(((s[byteIndex] >> (7-r)) & 0x01) == 0)
 			n = n->left;
 		else
 			n = n->right;
+
+		if (n == NULL) //a child pointer that the serialized tree never populated
+			return SZ_FORMAT_ERR;
 
 		if (n->t) {
 			//putchar(n->c); 
@@ -342,7 +372,7 @@ void decode(unsigned char *s, size_t targetLength, node t, int *out)
 	}
 //	putchar('\n');
 	if (t != n) printf("garbage input\n");
-	return;
+	return SZ_SUCCESS;
 }
 
 void pad_tree_uchar(HuffmanTree* huffmanTree, unsigned char* L, unsigned char* R, unsigned int* C, unsigned char* t, unsigned int i, node root)
@@ -489,6 +519,108 @@ unsigned int convert_HuffTree_to_bytes_anyStates(HuffmanTree* huffmanTree, int n
 	}
 }
 
+/*
+ * A serialized Huffman tree is fully controlled by the compressed payload: nodeCount, the child
+ * index arrays L/R and the symbol array C. Before unpad_tree_* walks those arrays (and appends to
+ * the fixed-size Huffman pool), make sure they describe a well formed tree: all symbols inside the
+ * quantization range, every child index < nodeCount, each node referenced at most once as a child,
+ * and all nodeCount nodes reachable from the root (index 0), which rules out cycles and dangling
+ * children. Returns 1 when the arrays can be rebuilt safely, 0 otherwise.
+ */
+static unsigned int huffChildIndex(const void *arr, size_t i, int width)
+{
+	if(width == 1)
+		return (unsigned int)((const unsigned char *)arr)[i];
+	if(width == 2)
+		return (unsigned int)((const unsigned short *)arr)[i];
+	return ((const unsigned int *)arr)[i];
+}
+
+static int isValidSerializedTree(const void *L, const void *R, const unsigned int *C, int nodeCount, int width, unsigned int maxSymbolValue)
+{
+	unsigned char *used = (unsigned char *)calloc((size_t)nodeCount, sizeof(unsigned char));
+	unsigned char *visited = (unsigned char *)calloc((size_t)nodeCount, sizeof(unsigned char));
+	unsigned int *stack = (unsigned int *)malloc((size_t)nodeCount*sizeof(unsigned int));
+	unsigned int *depth = (unsigned int *)malloc((size_t)nodeCount*sizeof(unsigned int));
+	int ok = 1;
+	size_t reachable = 0, top = 0;
+	int i, k;
+
+	if(used == NULL || visited == NULL || stack == NULL || depth == NULL)
+	{
+		free(used);
+		free(visited);
+		free(stack);
+		free(depth);
+		return 0;
+	}
+
+	for(i = 0; i < nodeCount; i++)
+	{
+		if(C[i] > maxSymbolValue)
+		{
+			ok = 0;
+			break;
+		}
+	}
+
+	for(i = 0; i < nodeCount && ok; i++)
+	{
+		for(k = 0; k < 2; k++)
+		{
+			unsigned int c = huffChildIndex(k == 0 ? L : R, (size_t)i, width);
+			if(c == 0) //0 means "no child"
+				continue;
+			if(c >= (unsigned int)nodeCount || used[c])
+			{
+				ok = 0;
+				break;
+			}
+			used[c] = 1;
+		}
+	}
+
+	if(ok)
+	{
+		stack[top++] = 0;
+		visited[0] = 1;
+		depth[0] = 0;
+		reachable = 1;
+		while(top > 0 && ok)
+		{
+			unsigned int n = stack[--top];
+			for(k = 0; k < 2; k++)
+			{
+				unsigned int c = huffChildIndex(k == 0 ? L : R, (size_t)n, width);
+				if(c == 0)
+					continue;
+				if(c >= (unsigned int)nodeCount || visited[c])
+				{
+					ok = 0;
+					break;
+				}
+				visited[c] = 1;
+				depth[c] = depth[n] + 1;
+				if(depth[c] > MAX_HUFF_TREE_DEPTH) //a degenerate chain must never reach the recursive rebuild
+				{
+					ok = 0;
+					break;
+				}
+				reachable++;
+				stack[top++] = c;
+			}
+		}
+		if(ok && reachable != (size_t)nodeCount)
+			ok = 0;
+	}
+
+	free(used);
+	free(visited);
+	free(stack);
+	free(depth);
+	return ok;
+}
+
 void unpad_tree_uchar(HuffmanTree* huffmanTree, unsigned char* L, unsigned char* R, unsigned int* C, unsigned char *t, unsigned int i, node root)
 {
 	//root->c = C[i];
@@ -558,17 +690,45 @@ void unpad_tree_uint(HuffmanTree* huffmanTree, unsigned int* L, unsigned int* R,
 	}
 }
 
-node reconstruct_HuffTree_from_bytes_anyStates(HuffmanTree *huffmanTree, unsigned char* bytes, int nodeCount)
+int reconstruct_HuffTree_from_bytes_anyStates(HuffmanTree *huffmanTree, unsigned char* bytes, size_t bytesLen, int nodeCount, unsigned int maxSymbolValue, node *rootOut, size_t *treeBytesOut)
 {
+	size_t treeByteSize;
+
+	if(huffmanTree == NULL || bytes == NULL || rootOut == NULL || treeBytesOut == NULL)
+		return SZ_FORMAT_ERR;
+
+	//nodeCount is read from the payload: bound it by the Huffman pool created for this stream and
+	//by the bytes actually available (the smallest layout needs 7 bytes per node)
+	if(nodeCount <= 0 || nodeCount > MAX_HUFF_TREE_NODES || (unsigned int)nodeCount > huffmanTree->allNodes)
+		return SZ_FORMAT_ERR;
+
+	if(nodeCount<=256)
+		treeByteSize = 1 + 7*(size_t)nodeCount;
+	else if(nodeCount<=65536)
+		treeByteSize = 1 + 9*(size_t)nodeCount;
+	else
+		treeByteSize = 1 + 13*(size_t)nodeCount;
+
+	if(treeByteSize > bytesLen)
+		return SZ_FORMAT_ERR;
+
 	if(nodeCount<=256)
 	{
 		unsigned char* L = (unsigned char*)malloc(nodeCount*sizeof(unsigned char));
-		memset(L, 0, nodeCount*sizeof(unsigned char));
 		unsigned char* R = (unsigned char*)malloc(nodeCount*sizeof(unsigned char));
-		memset(R, 0, nodeCount*sizeof(unsigned char));
 		unsigned int* C = (unsigned int*)malloc(nodeCount*sizeof(unsigned int));
-		memset(C, 0, nodeCount*sizeof(unsigned int));
 		unsigned char* t = (unsigned char*)malloc(nodeCount*sizeof(unsigned char));
+		if(L == NULL || R == NULL || C == NULL || t == NULL)
+		{
+			free(L);
+			free(R);
+			free(C);
+			free(t);
+			return SZ_FORMAT_ERR;
+		}
+		memset(L, 0, nodeCount*sizeof(unsigned char));
+		memset(R, 0, nodeCount*sizeof(unsigned char));
+		memset(C, 0, nodeCount*sizeof(unsigned int));
 		memset(t, 0, nodeCount*sizeof(unsigned char));
 		unsigned char cmpSysEndianType = bytes[0];
 		if(cmpSysEndianType!=(unsigned char)sysEndianType)
@@ -589,23 +749,49 @@ node reconstruct_HuffTree_from_bytes_anyStates(HuffmanTree *huffmanTree, unsigne
 		memcpy(R, bytes+1+nodeCount*sizeof(unsigned char), nodeCount*sizeof(unsigned char));
 		memcpy(C, bytes+1+2*nodeCount*sizeof(unsigned char), nodeCount*sizeof(unsigned int));	
 		memcpy(t, bytes+1+2*nodeCount*sizeof(unsigned char)+nodeCount*sizeof(unsigned int), nodeCount*sizeof(unsigned char));
+		if(!isValidSerializedTree((const void*)L, (const void*)R, C, nodeCount, 1, maxSymbolValue))
+		{
+			free(L);
+			free(R);
+			free(C);
+			free(t);
+			return SZ_FORMAT_ERR;
+		}
 		node root = new_node2(huffmanTree, C[0],t[0]);
+		if(root == NULL)
+		{
+			free(L);
+			free(R);
+			free(C);
+			free(t);
+			return SZ_FORMAT_ERR;
+		}
 		unpad_tree_uchar(huffmanTree,L,R,C,t,0,root);
 		free(L);
 		free(R);
 		free(C);
 		free(t);
-		return root;
+		*rootOut = root;
+		*treeBytesOut = treeByteSize;
+		return SZ_SUCCESS;
 	}
 	else if(nodeCount<=65536)
 	{
 		unsigned short* L = (unsigned short*)malloc(nodeCount*sizeof(unsigned short));
-		memset(L, 0, nodeCount*sizeof(unsigned short));
 		unsigned short* R = (unsigned short*)malloc(nodeCount*sizeof(unsigned short));
-		memset(R, 0, nodeCount*sizeof(unsigned short));
-		unsigned int* C = (unsigned int*)malloc(nodeCount*sizeof(unsigned int));	
-		memset(C, 0, nodeCount*sizeof(unsigned int));		
+		unsigned int* C = (unsigned int*)malloc(nodeCount*sizeof(unsigned int));
 		unsigned char* t = (unsigned char*)malloc(nodeCount*sizeof(unsigned char));
+		if(L == NULL || R == NULL || C == NULL || t == NULL)
+		{
+			free(L);
+			free(R);
+			free(C);
+			free(t);
+			return SZ_FORMAT_ERR;
+		}
+		memset(L, 0, nodeCount*sizeof(unsigned short));
+		memset(R, 0, nodeCount*sizeof(unsigned short));
+		memset(C, 0, nodeCount*sizeof(unsigned int));
 		memset(t, 0, nodeCount*sizeof(unsigned char));	
 				
 		unsigned char cmpSysEndianType = bytes[0];	
@@ -642,23 +828,49 @@ node reconstruct_HuffTree_from_bytes_anyStates(HuffmanTree *huffmanTree, unsigne
 
 		memcpy(t, bytes+1+2*nodeCount*sizeof(unsigned short)+nodeCount*sizeof(unsigned int), nodeCount*sizeof(unsigned char));	
 
+		if(!isValidSerializedTree((const void*)L, (const void*)R, C, nodeCount, 2, maxSymbolValue))
+		{
+			free(L);
+			free(R);
+			free(C);
+			free(t);
+			return SZ_FORMAT_ERR;
+		}
 		node root = new_node2(huffmanTree,0,0);
+		if(root == NULL)
+		{
+			free(L);
+			free(R);
+			free(C);
+			free(t);
+			return SZ_FORMAT_ERR;
+		}
 		unpad_tree_ushort(huffmanTree,L,R,C,t,0,root);
 		free(L);
 		free(R);
 		free(C);
-		free(t);		
-		return root;				
+		free(t);
+		*rootOut = root;
+		*treeBytesOut = treeByteSize;
+		return SZ_SUCCESS;
 	}
 	else //nodeCount>65536
 	{
 		unsigned int* L = (unsigned int*)malloc(nodeCount*sizeof(unsigned int));
-		memset(L, 0, nodeCount*sizeof(unsigned int));
 		unsigned int* R = (unsigned int*)malloc(nodeCount*sizeof(unsigned int));
-		memset(R, 0, nodeCount*sizeof(unsigned int));
-		unsigned int* C = (unsigned int*)malloc(nodeCount*sizeof(unsigned int));	
-		memset(C, 0, nodeCount*sizeof(unsigned int));
+		unsigned int* C = (unsigned int*)malloc(nodeCount*sizeof(unsigned int));
 		unsigned char* t = (unsigned char*)malloc(nodeCount*sizeof(unsigned char));
+		if(L == NULL || R == NULL || C == NULL || t == NULL)
+		{
+			free(L);
+			free(R);
+			free(C);
+			free(t);
+			return SZ_FORMAT_ERR;
+		}
+		memset(L, 0, nodeCount*sizeof(unsigned int));
+		memset(R, 0, nodeCount*sizeof(unsigned int));
+		memset(C, 0, nodeCount*sizeof(unsigned int));
 		memset(t, 0, nodeCount*sizeof(unsigned char));
 		unsigned char cmpSysEndianType = bytes[0];
 		if(cmpSysEndianType!=(unsigned char)sysEndianType)
@@ -682,13 +894,31 @@ node reconstruct_HuffTree_from_bytes_anyStates(HuffmanTree *huffmanTree, unsigne
 	
 		memcpy(t, bytes+1+3*nodeCount*sizeof(unsigned int), nodeCount*sizeof(unsigned char));			
 					
+		if(!isValidSerializedTree((const void*)L, (const void*)R, C, nodeCount, 4, maxSymbolValue))
+		{
+			free(L);
+			free(R);
+			free(C);
+			free(t);
+			return SZ_FORMAT_ERR;
+		}
 		node root = new_node2(huffmanTree,0,0);
+		if(root == NULL)
+		{
+			free(L);
+			free(R);
+			free(C);
+			free(t);
+			return SZ_FORMAT_ERR;
+		}
 		unpad_tree_uint(huffmanTree,L,R,C,t,0,root);
 		free(L);
 		free(R);
 		free(C);
 		free(t);
-		return root;
+		*rootOut = root;
+		*treeBytesOut = treeByteSize;
+		return SZ_SUCCESS;
 	}
 }
 
@@ -721,11 +951,19 @@ void encode_withTree(HuffmanTree* huffmanTree, int *s, size_t length, unsigned c
  * @par *out rememmber to allocate targetLength short_type data for it beforehand.
  * 
  * */
-void decode_withTree(HuffmanTree* huffmanTree, unsigned char *s, size_t targetLength, int *out)
+int decode_withTree(HuffmanTree* huffmanTree, unsigned char *s, size_t sSize, size_t targetLength, unsigned int maxSymbolValue, int *out)
 {
 	size_t encodeStartIndex;
-	size_t nodeCount = bytesToInt32_bigEndian(s);
-	node root = reconstruct_HuffTree_from_bytes_anyStates(huffmanTree,s+8, nodeCount);
+	node root = NULL;
+	size_t treeBytes = 0;
+	int nodeCount;
+
+	if(huffmanTree == NULL || s == NULL || out == NULL || sSize < 8) //4 bytes nodeCount + 4 bytes stateNum
+		return SZ_FORMAT_ERR;
+
+	nodeCount = bytesToInt32_bigEndian(s);
+	if(reconstruct_HuffTree_from_bytes_anyStates(huffmanTree, s+8, sSize-8, nodeCount, maxSymbolValue, &root, &treeBytes) != SZ_SUCCESS)
+		return SZ_FORMAT_ERR;
 
 	//sdi: Debug
 /*	build_code(root, 0, 0, 0);
@@ -738,13 +976,8 @@ void decode_withTree(HuffmanTree* huffmanTree, unsigned char *s, size_t targetLe
 			//code_1 = (code[i])[0];
 		}*/
 
-	if(nodeCount<=256)
-		encodeStartIndex = 1+3*nodeCount*sizeof(unsigned char)+nodeCount*sizeof(unsigned int);
-	else if(nodeCount<=65536)
-		encodeStartIndex = 1+2*nodeCount*sizeof(unsigned short)+nodeCount*sizeof(unsigned char)+nodeCount*sizeof(unsigned int);
-	else
-		encodeStartIndex = 1+3*nodeCount*sizeof(unsigned int)+nodeCount*sizeof(unsigned char);
-	decode(s+8+encodeStartIndex, targetLength, root, out);
+	encodeStartIndex = treeBytes;
+	return decode(s+8+encodeStartIndex, sSize-8-encodeStartIndex, targetLength, root, out);
 }
 
 void SZ_ReleaseHuffman(HuffmanTree* huffmanTree)
