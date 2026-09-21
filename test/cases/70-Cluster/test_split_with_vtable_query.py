@@ -174,6 +174,9 @@ class TestSplitWithVtableQuery:
         # stop the worker and collect what happened during the split window
         stop_evt.set()
         worker.join(timeout=30)
+        assert not worker.is_alive(), (
+            "virtual-table query did not return within 30 seconds after split"
+        )
 
         # Keep only the attempts fully contained in the split window. An
         # attempt that started before the split was issued, or finished after
