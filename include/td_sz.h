@@ -31,11 +31,13 @@ void tdszInit(float fPrecision, double dPrecision, unsigned int maxIntervals, un
 
 //
 // compress interface to tdengine return value is count of output with bytes
+// outputSize is the capacity of "output", SZ must never write past it
 //
-int tdszCompress(int type, const char * input, const int nelements, const char * output);
+int tdszCompress(int type, const char * input, const int nelements, const char * output, int outputSize);
 
 //
-// decompress interface to tdengine return value is count of output with bytes
+// decompress interface to tdengine return value is count of output with bytes,
+// a negative value means the block was rejected (malformed compressed data)
 //
 int tdszDecompress(int type, const char * input, int compressedSize, const int nelements, const char * output);
 
