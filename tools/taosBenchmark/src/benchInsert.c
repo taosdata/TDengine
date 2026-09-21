@@ -805,12 +805,20 @@ static int generateChildTblName(int len, char *buffer, SDataBase *database,
 
     if (stbInfo->useTagTableName) {
         char *firstComma = strchr(tagStart, ',');
-        if (firstComma == NULL && tagStart >= firstComma) {
+        if (firstComma == NULL) {
             errorPrint("Invalid tag data format: %s\n", tagStart);
             return -1;
         }
-        size_t nameLen = firstComma - tagStart;
-        strncpy(tableName, tagStart, nameLen);
+        // the first field of the tags csv line is the child table name, it
+        // must not exceed the size of the destination buffer
+        size_t nameLen = (size_t)(firstComma - tagStart);
+        if (nameLen == 0 || nameLen >= TSDB_TABLE_NAME_LEN) {
+            errorPrint("invalid table name length %d in tag data, "
+                    "valid range is [1, %d]\n",
+                    (int32_t)nameLen, TSDB_TABLE_NAME_LEN - 1);
+            return -1;
+        }
+        (void)memcpy(tableName, tagStart, nameLen);
         tableName[nameLen] = '\0';
         tagsForSQL = firstComma + 1;
     } else {
@@ -938,6 +946,12 @@ static void *createTable(void *sarg) {
             char tbName[TSDB_TABLE_NAME_LEN] = {0};
             len = generateChildTblName(len, pThreadInfo->buffer,
                                        database, stbInfo, i, tagData, w, ttl, tbName);
+            if (len < 0) {
+                errorPrint("generate child table name failed, tableSeq=%" PRIu64
+                           "\n", i);
+                g_fail = true;
+                goto create_table_end;
+            }
             if (stbInfo->useTagTableName) {
                 pThreadInfo->childNames[j] = strdup(tbName);
             }
@@ -1621,7 +1635,22 @@ void loadChildTableInfo(threadInfo* pThreadInfo) {
     int64_t start = toolsGetTimestampUs();
     for(int64_t i = pThreadInfo->start_table_from; i < pThreadInfo->end_table_to; i++) {
         SChildTable *childTbl = stbInfo->childTblArray[i];
-        pos += sprintf(buf + pos, ",%s.%s", db, childTbl->name);
+        int remain = bufLen - pos;
+        int written = snprintf(buf + pos, remain, ",%s.%s", db, childTbl->name);
+        if (written < 0 || written >= remain) {
+            // the remaining space is not enough, flush the buffer and retry
+            if (pos > 0) {
+                taos_load_table_info(pThreadInfo->conn, buf);
+                pos = 0;
+            }
+            written = snprintf(buf, bufLen, ",%s.%s", db, childTbl->name);
+            if (written < 0 || written >= bufLen) {
+                errorPrint("child table %s.%s is too long to be loaded, "
+                        "ignore it\n", db, childTbl->name);
+                continue;
+            }
+        }
+        pos += written;
 
         if(pos >= bufLen - 256 || i + 1 == pThreadInfo->end_table_to) {
             taos_load_table_info(pThreadInfo->conn, buf);
@@ -3476,28 +3505,58 @@ static int64_t fillChildTblNameByLimitOffset(SDataBase *database,
                  stbInfo->childTblOffset);
     }
     debugPrint("cmd: %s\n", cmd);
-    TAOS_RES *res = taos_query(conn->taos, cmd);
-    int32_t   code = taos_errno(res);
+    TAOS_RES *res   = taos_query(conn->taos, cmd);
+    int32_t   code  = taos_errno(res);
     int64_t   count = 0;
+    int64_t   ret   = -1;
+    TAOS_ROW  row   = NULL;
     if (code) {
         printErrCmdCodeStr(cmd, code, res);
-        closeBenchConn(conn);
-        return -1;
+        goto cleanup;
     }
-    TAOS_ROW row = NULL;
     while ((row = taos_fetch_row(res)) != NULL) {
+        // the server must not return more rows than the array it was asked
+        // for, otherwise the write through childTblArray[count] is out of
+        // bounds
+        if (count >= stbInfo->childTblCount) {
+            errorPrint("server returned more child table names than expected(%"
+                    PRId64 "), ignore the extra rows\n",
+                    stbInfo->childTblCount);
+            break;
+        }
         int *lengths = taos_fetch_lengths(res);
+        if (row[0] == NULL || lengths == NULL || lengths[0] <= 0
+                || lengths[0] >= TSDB_TABLE_NAME_LEN) {
+            errorPrint("server returned an invalid child table name, len=%d\n",
+                    (lengths == NULL) ? -1 : lengths[0]);
+            goto cleanup;
+        }
         char * childName = benchCalloc(1, lengths[0] + 1, true);
-        strncpy(childName, row[0], lengths[0]);
+        if (NULL == childName) {
+            errorPrint("%s", "failed to allocate memory for child table name\n");
+            goto cleanup;
+        }
+        (void)memcpy(childName, row[0], (size_t)lengths[0]);
         childName[lengths[0]] = '\0';
         stbInfo->childTblArray[count]->name = childName;
         debugPrint("stbInfo->childTblArray[%" PRId64 "]->name: %s\n",
                    count, stbInfo->childTblArray[count]->name);
         count++;
     }
+    ret = count;
+
+cleanup:
+    if (ret < 0) {
+        // the caller must never observe a partially filled childTblArray:
+        // the entries left as NULL would be dereferenced later on
+        for (int64_t i = 0; i < count; i++) {
+            tmfree(stbInfo->childTblArray[i]->name);
+            stbInfo->childTblArray[i]->name = NULL;
+        }
+    }
     taos_free_result(res);
     closeBenchConn(conn);
-    return count;
+    return ret;
 }
 
 static void preProcessArgument(SSuperTable *stbInfo) {
@@ -4641,7 +4700,13 @@ int insertTestProcess() {
                 }
 
                 // check fill child table count valid
-                if(fillChildTblName(database, stbInfo) <= 0) {
+                int64_t ntables = fillChildTblName(database, stbInfo);
+                if (ntables < 0) {
+                    errorPrint("failed to fill child table names, db:%s stb: %s\n",
+                            database->dbName, stbInfo->stbName);
+                    return -1;
+                }
+                if (0 == ntables) {
                     infoPrint(" warning fill childs table count is zero, db:%s stb: %s \n", database->dbName, stbInfo->stbName);
                 }
                 if (0 != prepareSampleData(database, stbInfo)) {
