@@ -401,8 +401,23 @@ static int generateSampleFromCsv(char *buffer, char* file, FILE* fp, int32_t len
             continue;
         }
 
+        // the csv line is external input: it must fit into one row slot,
+        // otherwise the following slots (and the end of the sample buffer)
+        // would be overwritten
+        size_t lineLen = strlen(line);
+        if (length <= 0 || lineLen >= (size_t)length) {
+            errorPrint("csv line is too long, line len=%d, max allowed=%d, "
+                    "file=%s\n", (int32_t)lineLen, length - 1,
+                    (file != NULL) ? file : "(file stream)");
+            if (needClose) {
+                fclose(fp);
+            }
+            tmfree(line);
+            return -1;
+        }
+
         int64_t offset = ((int64_t)getRows) * length;
-        memcpy(buffer + offset, line, readLen + 1);
+        memcpy(buffer + offset, line, lineLen + 1);
         getRows++;
 
         if (getRows == size) {
