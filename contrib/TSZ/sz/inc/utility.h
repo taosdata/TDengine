@@ -18,7 +18,7 @@ extern "C" {
 
 
 int is_lossless_compressed_data(unsigned char* compressedBytes, size_t cmpSize);
-size_t sz_lossless_compress(int losslessCompressor, unsigned char* data, size_t dataLength, unsigned char* compressBytes);
+size_t sz_lossless_compress(int losslessCompressor, unsigned char* data, size_t dataLength, unsigned char* compressBytes, size_t compressBytesCapacity);
 size_t sz_lossless_decompress(int losslessCompressor, unsigned char* compressBytes, size_t cmpSize, unsigned char** oriData, size_t targetOriSize);
 
 
