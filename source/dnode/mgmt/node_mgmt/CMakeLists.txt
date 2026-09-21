@@ -33,3 +33,7 @@ if(TD_ENTERPRISE)
     PRIVATE "${TD_ENTERPRISE_DIR}/source/plugins/taosk/inc"
   )
 endif()
+
+if(BUILD_TEST AND TD_LINUX)
+  add_subdirectory(test)
+endif()

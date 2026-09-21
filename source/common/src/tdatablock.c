@@ -3662,6 +3662,9 @@ int32_t blockDecodeImpl(SSDataBlock* pBlock, const char* pData, const char** pEn
       }
 
       pColInfoData->varmeta.length = oneColsLen;
+      if (oneColsLen == 0) {
+        memset(pColInfoData->varmeta.offset, -1, sizeof(int32_t) * numOfRows);
+      }
     } else {
       memcpy(pColInfoData->nullbitmap, pStart, BitmapLen(numOfRows));
       pStart += BitmapLen(numOfRows);
@@ -3904,7 +3907,8 @@ static bool blockValidateVariableValue(int8_t type, const char* pData, size_t re
 
 static bool blockValidateVariableColumn(const char* pData, size_t dataLen, size_t columnMetaOffset,
                                         size_t columnDataOffset, int32_t numOfRows, int8_t type,
-                                        uint32_t decodedColLen) {
+                                        uint32_t decodedColLen,
+                                        bool canonicalOffsets) {
   if (pData == NULL || columnDataOffset > dataLen || decodedColLen > dataLen - columnDataOffset) return false;
 
   size_t expectedOffset = 0;
@@ -3912,7 +3916,10 @@ static bool blockValidateVariableColumn(const char* pData, size_t dataLen, size_
     int32_t valueOffset = 0;
     if (!blockDecodeReadBounded(pData, dataLen, &columnMetaOffset, &valueOffset, sizeof(valueOffset))) return false;
     if (valueOffset == -1) continue;
-    if (valueOffset < 0 || (uint32_t)valueOffset >= decodedColLen || (size_t)valueOffset != expectedOffset) {
+    // Unfilled virtual-table pseudo columns use zero offsets with no payload.
+    if (!canonicalOffsets && decodedColLen == 0 && valueOffset == 0) continue;
+    if (valueOffset < 0 || (uint32_t)valueOffset >= decodedColLen ||
+        (canonicalOffsets && (size_t)valueOffset != expectedOffset)) {
       return false;
     }
 
@@ -3922,31 +3929,42 @@ static bool blockValidateVariableColumn(const char* pData, size_t dataLen, size_
         valueLen > remaining) {
       return false;
     }
-    expectedOffset += valueLen;
+    if (canonicalOffsets) expectedOffset += valueLen;
   }
 
-  return columnMetaOffset == columnDataOffset && expectedOffset == decodedColLen;
+  return columnMetaOffset == columnDataOffset && (!canonicalOffsets || expectedOffset == decodedColLen);
 }
 
-static int32_t blockValidateInternalEncoding(const SSDataBlock* pBlock, const char* pData, size_t dataLen) {
-  if (pBlock == NULL || pData == NULL || dataLen > INT32_MAX) return blockDecodeInvalidMessage();
+typedef struct {
+  size_t  encodedLen;
+  size_t  schemaOffset;
+  size_t  colLenOffset;
+  size_t  columnDataOffset;
+  int32_t numOfRows;
+  int32_t numOfCols;
+} SBlockDecodeEncodingInfo;
+
+static int32_t blockValidateEncoding(const SSDataBlock* pBlock, const char* pData, size_t dataLen, bool internal,
+                                     bool exactLength, SBlockDecodeEncodingInfo* pInfo) {
+  if (pBlock == NULL || pData == NULL || pInfo == NULL) return blockDecodeInvalidMessage();
 
   size_t  offset = 0;
   int32_t version = 0;
   int32_t encodedLen = 0;
-  int32_t numOfRows = 0;
-  int32_t numOfCols = 0;
   if (!blockDecodeReadBounded(pData, dataLen, &offset, &version, sizeof(version)) ||
-      !blockDecodeReadBounded(pData, dataLen, &offset, &encodedLen, sizeof(encodedLen)) ||
-      !blockDecodeReadBounded(pData, dataLen, &offset, &numOfRows, sizeof(numOfRows)) ||
-      !blockDecodeReadBounded(pData, dataLen, &offset, &numOfCols, sizeof(numOfCols)) ||
-      !blockDecodeSkipBounded(dataLen, &offset, sizeof(int32_t) + sizeof(uint64_t))) {
+      !blockDecodeReadBounded(pData, dataLen, &offset, &encodedLen, sizeof(encodedLen)) || encodedLen <= 0 ||
+      (size_t)encodedLen > dataLen || (exactLength && (size_t)encodedLen != dataLen)) {
     return blockDecodeInvalidMessage();
   }
   (void)version;
 
-  if (encodedLen <= 0 || (size_t)encodedLen != dataLen || numOfRows <= 0 || numOfRows > INT32_MAX - 7 ||
-      numOfCols <= 0) {
+  const size_t blockLen = (size_t)encodedLen;
+  int32_t      numOfRows = 0;
+  int32_t      numOfCols = 0;
+  if (!blockDecodeReadBounded(pData, blockLen, &offset, &numOfRows, sizeof(numOfRows)) ||
+      !blockDecodeReadBounded(pData, blockLen, &offset, &numOfCols, sizeof(numOfCols)) ||
+      !blockDecodeSkipBounded(blockLen, &offset, sizeof(int32_t) + sizeof(uint64_t)) || numOfRows <= 0 ||
+      numOfRows > INT32_MAX - 7 || numOfCols <= 0) {
     return blockDecodeInvalidMessage();
   }
 
@@ -3961,20 +3979,24 @@ static int32_t blockValidateInternalEncoding(const SSDataBlock* pBlock, const ch
   (void)decodedSchemaLen;
 
   size_t existingCols = taosArrayGetSize(pBlock->pDataBlock);
-  if (existingCols != 0 && existingCols != (size_t)numOfCols) return blockDecodeInvalidMessage();
+  if ((internal && existingCols != 0 && existingCols != (size_t)numOfCols) ||
+      (!internal && existingCols != 0 && existingCols < (size_t)numOfCols)) {
+    return blockDecodeInvalidMessage();
+  }
 
   size_t schemaOffset = offset;
-  if (!blockDecodeSkipBounded(dataLen, &offset, schemaLen)) return blockDecodeInvalidMessage();
+  if (!blockDecodeSkipBounded(blockLen, &offset, schemaLen)) return blockDecodeInvalidMessage();
   size_t colLenOffset = offset;
-  if (!blockDecodeSkipBounded(dataLen, &offset, colLenSegmentLen)) return blockDecodeInvalidMessage();
+  if (!blockDecodeSkipBounded(blockLen, &offset, colLenSegmentLen)) return blockDecodeInvalidMessage();
+  size_t columnDataOffset = offset;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     int8_t  type = TSDB_DATA_TYPE_NULL;
     int32_t bytes = 0;
     int32_t encodedColLen = 0;
-    if (!blockDecodeReadBounded(pData, dataLen, &schemaOffset, &type, sizeof(type)) ||
-        !blockDecodeReadBounded(pData, dataLen, &schemaOffset, &bytes, sizeof(bytes)) ||
-        !blockDecodeReadBounded(pData, dataLen, &colLenOffset, &encodedColLen, sizeof(encodedColLen))) {
+    if (!blockDecodeReadBounded(pData, blockLen, &schemaOffset, &type, sizeof(type)) ||
+        !blockDecodeReadBounded(pData, blockLen, &schemaOffset, &bytes, sizeof(bytes)) ||
+        !blockDecodeReadBounded(pData, blockLen, &colLenOffset, &encodedColLen, sizeof(encodedColLen))) {
       return blockDecodeInvalidMessage();
     }
 
@@ -4020,36 +4042,98 @@ static int32_t blockValidateInternalEncoding(const SSDataBlock* pBlock, const ch
     }
 
     size_t columnMetaOffset = offset;
-    if (!blockDecodeSkipBounded(dataLen, &offset, columnMetaLen)) return blockDecodeInvalidMessage();
+    if (!blockDecodeSkipBounded(blockLen, &offset, columnMetaLen)) return blockDecodeInvalidMessage();
     size_t columnDataOffset = offset;
-    if (!blockDecodeSkipBounded(dataLen, &offset, decodedColLen) ||
-        (IS_VAR_DATA_TYPE(type) && !blockValidateVariableColumn(pData, dataLen, columnMetaOffset, columnDataOffset,
-                                                                numOfRows, type, decodedColLen))) {
+    if (!blockDecodeSkipBounded(blockLen, &offset, decodedColLen) ||
+        (IS_VAR_DATA_TYPE(type) && !blockValidateVariableColumn(pData, blockLen, columnMetaOffset, columnDataOffset,
+                                                                numOfRows, type, decodedColLen, internal))) {
       return blockDecodeInvalidMessage();
     }
   }
 
-  if (!blockDecodeSkipBounded(dataLen, &offset, sizeof(bool))) return blockDecodeInvalidMessage();
-  if (offset < dataLen && !blockDecodeSkipBounded(dataLen, &offset, sizeof(uint8_t) + sizeof(uint64_t))) {
+  if (!blockDecodeSkipBounded(blockLen, &offset, sizeof(bool))) return blockDecodeInvalidMessage();
+  if (internal && offset < blockLen && !blockDecodeSkipBounded(blockLen, &offset, sizeof(uint8_t) + sizeof(uint64_t))) {
     return blockDecodeInvalidMessage();
   }
-  if (offset < dataLen) {
+  if (internal && offset < blockLen) {
     size_t slotIdsLen = 0;
     if (!blockDecodeMultiplyBounded((size_t)numOfCols, sizeof(int16_t), &slotIdsLen) ||
-        !blockDecodeSkipBounded(dataLen, &offset, slotIdsLen)) {
+        !blockDecodeSkipBounded(blockLen, &offset, slotIdsLen)) {
       return blockDecodeInvalidMessage();
     }
   }
+  if (offset != blockLen) return blockDecodeInvalidMessage();
 
-  return offset == dataLen ? TSDB_CODE_SUCCESS : blockDecodeInvalidMessage();
+  *pInfo = (SBlockDecodeEncodingInfo){.encodedLen = blockLen,
+                                      .schemaOffset = schemaOffset - schemaLen,
+                                      .colLenOffset = colLenOffset - colLenSegmentLen,
+                                      .columnDataOffset = columnDataOffset,
+                                      .numOfRows = numOfRows,
+                                      .numOfCols = numOfCols};
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool blockValidateTimestampColumn(const char* pData, const SBlockDecodeEncodingInfo* pInfo,
+                                         int32_t tsColSlotId) {
+  if (pData == NULL || pInfo == NULL || tsColSlotId < 0 || tsColSlotId >= pInfo->numOfCols) return false;
+
+  size_t  schemaOffset = pInfo->schemaOffset + (size_t)tsColSlotId * (sizeof(int8_t) + sizeof(int32_t));
+  int8_t  type = TSDB_DATA_TYPE_NULL;
+  int32_t bytes = 0;
+  if (!blockDecodeReadBounded(pData, pInfo->encodedLen, &schemaOffset, &type, sizeof(type)) ||
+      !blockDecodeReadBounded(pData, pInfo->encodedLen, &schemaOffset, &bytes, sizeof(bytes)) ||
+      type != TSDB_DATA_TYPE_TIMESTAMP || bytes != sizeof(TSKEY)) {
+    return false;
+  }
+
+  size_t columnOffset = pInfo->columnDataOffset;
+  for (int32_t i = 0; i <= tsColSlotId; ++i) {
+    size_t  currentSchemaOffset = pInfo->schemaOffset + (size_t)i * (sizeof(int8_t) + sizeof(int32_t));
+    size_t  currentColLenOffset = pInfo->colLenOffset + (size_t)i * sizeof(int32_t);
+    int8_t  type = TSDB_DATA_TYPE_NULL;
+    int32_t encodedColLen = 0;
+    if (!blockDecodeReadBounded(pData, pInfo->encodedLen, &currentSchemaOffset, &type, sizeof(type)) ||
+        !blockDecodeSkipBounded(pInfo->encodedLen, &currentSchemaOffset, sizeof(int32_t)) ||
+        !blockDecodeReadBounded(pData, pInfo->encodedLen, &currentColLenOffset, &encodedColLen,
+                                sizeof(encodedColLen))) {
+      return false;
+    }
+
+    size_t columnMetaLen =
+        IS_VAR_DATA_TYPE(type) ? (size_t)pInfo->numOfRows * sizeof(int32_t) : ((size_t)pInfo->numOfRows + 7) >> NBIT;
+    if (i == tsColSlotId) {
+      for (int32_t row = 0; row < pInfo->numOfRows; ++row) {
+        if (BMIsNull(pData + columnOffset, row)) return false;
+      }
+      return true;
+    }
+    if (!blockDecodeSkipBounded(pInfo->encodedLen, &columnOffset, columnMetaLen) ||
+        !blockDecodeSkipBounded(pInfo->encodedLen, &columnOffset, ntohl((uint32_t)encodedColLen))) {
+      return false;
+    }
+  }
+
+  return false;
 }
 
 int32_t blockDecodeInternalBounded(SSDataBlock* pBlock, const char* pData, size_t dataLen, const char** pEndPos) {
-  if (pBlock == NULL) return blockDecodeInvalidMessage();
-  int32_t code = blockValidateInternalEncoding(pBlock, pData, dataLen);
+  SBlockDecodeEncodingInfo info = {0};
+  int32_t                  code = blockValidateEncoding(pBlock, pData, dataLen, true, true, &info);
   if (code != TSDB_CODE_SUCCESS) return code;
   if (pBlock->pDataBlock != NULL && taosArrayGetSize(pBlock->pDataBlock) == 0) blockDataFreeRes(pBlock);
-  return blockDecodeInternal(pBlock, pData, pEndPos);
+  code = blockDecodeInternal(pBlock, pData, pEndPos);
+  if (code == TSDB_CODE_SUCCESS && pEndPos != NULL) *pEndPos = pData + info.encodedLen;
+  return code;
+}
+
+int32_t blockDecodeBounded(SSDataBlock* pBlock, const char* pData, size_t dataLen, const char** pEndPos) {
+  SBlockDecodeEncodingInfo info = {0};
+  int32_t                  code = blockValidateEncoding(pBlock, pData, dataLen, false, false, &info);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (pBlock->pDataBlock != NULL && taosArrayGetSize(pBlock->pDataBlock) == 0) blockDataFreeRes(pBlock);
+  code = blockDecode(pBlock, pData, pEndPos);
+  if (code == TSDB_CODE_SUCCESS && pEndPos != NULL) *pEndPos = pData + info.encodedLen;
+  return code;
 }
 
 int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos) {
@@ -4693,7 +4777,63 @@ int32_t getTsColDataOffset(SSDataBlock* pBlock, int32_t* colLen, int32_t numOfRo
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int32_t tsColSlotId, TSKEY start, TSKEY end) {
+static int32_t blockSpecialDecodeVariableColumn(SColumnInfoData* pColumn, const char* pOffsets, const char* pPayload,
+                                                int32_t payloadLen, int32_t firstRowNum, int32_t realRows) {
+  if (payloadLen == 0) {
+    memset(pColumn->varmeta.offset, -1, sizeof(int32_t) * realRows);
+    pColumn->varmeta.length = 0;
+    pColumn->reassigned = false;
+    return TSDB_CODE_SUCCESS;
+  }
+  size_t selectedLen = 0;
+  for (int32_t row = firstRowNum; row < firstRowNum + realRows; ++row) {
+    int32_t valueOffset = 0;
+    memcpy(&valueOffset, pOffsets + (size_t)row * sizeof(valueOffset), sizeof(valueOffset));
+    if (valueOffset == -1) continue;
+    if (valueOffset < 0 || (size_t)valueOffset >= (size_t)payloadLen) return blockDecodeInvalidMessage();
+
+    size_t valueLen = 0;
+    if (!blockValidateVariableValue(pColumn->info.type, pPayload + valueOffset,
+                                    (size_t)payloadLen - (size_t)valueOffset, &valueLen)) {
+      return blockDecodeInvalidMessage();
+    }
+    if (valueLen > INT32_MAX - selectedLen) return blockDecodeInvalidMessage();
+    selectedLen += valueLen;
+  }
+
+  if (selectedLen > 0 && pColumn->varmeta.allocLen < selectedLen) {
+    char* tmp = taosMemoryRealloc(pColumn->pData, selectedLen);
+    if (tmp == NULL) return terrno;
+    pColumn->pData = tmp;
+    pColumn->varmeta.allocLen = selectedLen;
+  }
+
+  int32_t destinationOffset = 0;
+  for (int32_t row = firstRowNum; row < firstRowNum + realRows; ++row) {
+    int32_t valueOffset = 0;
+    memcpy(&valueOffset, pOffsets + (size_t)row * sizeof(valueOffset), sizeof(valueOffset));
+    if (valueOffset == -1) {
+      pColumn->varmeta.offset[row - firstRowNum] = -1;
+      continue;
+    }
+
+    size_t valueLen = 0;
+    if (!blockValidateVariableValue(pColumn->info.type, pPayload + valueOffset,
+                                    (size_t)payloadLen - (size_t)valueOffset, &valueLen)) {
+      return blockDecodeInvalidMessage();
+    }
+    pColumn->varmeta.offset[row - firstRowNum] = destinationOffset;
+    memcpy(pColumn->pData + destinationOffset, pPayload + valueOffset, valueLen);
+    destinationOffset += valueLen;
+  }
+
+  pColumn->varmeta.length = destinationOffset;
+  pColumn->reassigned = false;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t blockSpecialDecodeLaterPartImpl(SSDataBlock* pBlock, const char* pData, int32_t tsColSlotId, TSKEY start,
+                                               TSKEY end, bool bounded) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   const char* pStart = pData;
@@ -4783,6 +4923,10 @@ int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int3
   }
 
   int32_t realRows = lastRowNumNext - firstRowNum;
+  if (bounded && realRows == 0) {
+    pBlock->info.rows = 0;
+    return TSDB_CODE_SUCCESS;
+  }
   int32_t leftRows = numOfRows - lastRowNumNext;
 
   code = blockDataEnsureCapacity(pBlock, realRows);
@@ -4806,6 +4950,16 @@ int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int3
     }
 
     if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+      const char* pOffsets = pStart;
+      const char* pPayload = pOffsets + (size_t)numOfRows * sizeof(int32_t);
+      if (bounded) {
+        code = blockSpecialDecodeVariableColumn(pColInfoData, pOffsets, pPayload, oneColsLen, firstRowNum, realRows);
+        if (code != TSDB_CODE_SUCCESS) return code;
+        pStart = pPayload + oneColsLen;
+        pColInfoData->hasNull = true;
+        continue;
+      }
+
       pStart += sizeof(int32_t) * firstRowNum;
       memcpy(pColInfoData->varmeta.offset, pStart, sizeof(int32_t) * realRows);
       pStart += sizeof(int32_t) * realRows;
@@ -4839,7 +4993,11 @@ int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int3
       }
       oneColsLen -= (offset + leftlen);
 
-      memcpy(pColInfoData->nullbitmap, pStart, BitmapLen(realRows));
+      if (bounded) {
+        memset(pColInfoData->nullbitmap, 0, BitmapLen(realRows));
+      } else {
+        memcpy(pColInfoData->nullbitmap, pStart, BitmapLen(realRows));
+      }
       for (int32_t j = 0; j < realRows; ++j) {
         if (BMIsNull(pStart, j + firstRowNum)) {
           colDataSetNull_f(pColInfoData->nullbitmap, j);
@@ -4882,6 +5040,24 @@ int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int3
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int32_t tsColSlotId, TSKEY start,
+                                    TSKEY end) {
+  return blockSpecialDecodeLaterPartImpl(pBlock, pData, tsColSlotId, start, end, false);
+}
+
+int32_t blockSpecialDecodeLaterPartBounded(SSDataBlock* pBlock, const char* pData, size_t dataLen, int32_t tsColSlotId,
+                                           TSKEY start, TSKEY end, const char** pEndPos) {
+  SBlockDecodeEncodingInfo info = {0};
+  int32_t                  code = blockValidateEncoding(pBlock, pData, dataLen, false, false, &info);
+  if (code != TSDB_CODE_SUCCESS || !blockValidateTimestampColumn(pData, &info, tsColSlotId)) {
+    return code == TSDB_CODE_SUCCESS ? blockDecodeInvalidMessage() : code;
+  }
+  if (pBlock->pDataBlock != NULL && taosArrayGetSize(pBlock->pDataBlock) == 0) blockDataFreeRes(pBlock);
+  code = blockSpecialDecodeLaterPartImpl(pBlock, pData, tsColSlotId, start, end, true);
+  if (code == TSDB_CODE_SUCCESS && pEndPos != NULL) *pEndPos = pData + info.encodedLen;
+  return code;
 }
 
 int32_t getStreamBlockTS(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t row, TSKEY* ts) {

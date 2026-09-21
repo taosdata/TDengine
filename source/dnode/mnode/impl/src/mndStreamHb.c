@@ -31,14 +31,20 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   int32_t      code = 0;
   int32_t      lino = 0;
   SDecoder     decoder = {0};
-  char*        msg = POINTER_SHIFT(pReq->pCont, sizeof(SStreamMsgGrpHeader));
-  int32_t      len = pReq->contLen - sizeof(SStreamMsgGrpHeader);
+  char            *msg = NULL;
+  int32_t          len = 0;
   int64_t      currTs = taosGetTimestampMs();
   SRpcMsg      rspMsg = {0};
 
   mstDebug("start to process stream hb req msg");
 
   rsp.streamGId = req.streamGId;
+
+  if (pReq->pCont == NULL || pReq->contLen < (int32_t)sizeof(SStreamMsgGrpHeader)) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  msg = POINTER_SHIFT(pReq->pCont, sizeof(SStreamMsgGrpHeader));
+  len = pReq->contLen - (int32_t)sizeof(SStreamMsgGrpHeader);
 
   if ((code = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
     TAOS_CHECK_EXIT(msmHandleGrantExpired(pMnode, code));

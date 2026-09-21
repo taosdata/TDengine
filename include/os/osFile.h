@@ -76,6 +76,12 @@ typedef struct TdFile *TdFilePtr;
 #define TD_FILE_WRITE_THROUGH 0x0200
 #define TD_FILE_CLOEXEC       0x0400
 
+// Create with TD_FILE_CREATE | TD_FILE_EXCL and TD_FILE_READ and/or TD_FILE_WRITE,
+// or open an existing file with flags == TD_FILE_READ; all other flags are rejected.
+// The target must be a regular file owned by the effective UID (POSIX) or process
+// token's user (Windows). New files use mode 0600 (POSIX) or a private DACL (Windows).
+// Only the final component is checked for links; callers are responsible for the parent path.
+TdFilePtr taosOpenPrivateFile(const char *path, int32_t flags);
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions);
 TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions);
 
