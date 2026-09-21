@@ -16,9 +16,30 @@
 #include "transcode.h"
 #include "fse.h"
 
+//shortest possible stream: version(1) + same(1) + meta(MetaDataByteLength_double) + element count(4)
+#define TDPS_MIN_HEADER_BYTES (2 + MetaDataByteLength_double + 4)
+//largest fixed part that follows the element count: max quant intervals(4) + intervals(4) +
+//median(8) + reqLength(1) + realPrecision(8) + type array / FSE sizes (2) + exactDataNum(8) +
+//exactMidBytes_size(8)
+#define TDPS_FIXED_TAIL_MAX_BYTES (4 + 4 + 8 + 1 + 8 + 8 + 8 + 8 + 8)
+
+//every length and offset of a compressed stream comes from the payload, so all reads are
+//range-checked against the buffer that was handed in
+static bool tdpsHasBytes(size_t index, size_t need, size_t total)
+{
+	return index <= total && need <= total - index;
+}
+
 void new_TightDataPointStorageD_Empty(TightDataPointStorageD **this)
 {
+	if(this == NULL)
+		return;
 	TightDataPointStorageD* tdps = (TightDataPointStorageD*)malloc(sizeof(TightDataPointStorageD));
+	if(tdps == NULL)
+	{
+		*this = NULL;
+		return;
+	}
 	memset(tdps, 0, sizeof(TightDataPointStorageD));
 	*this = tdps;
 }
@@ -27,6 +48,12 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 {
 	new_TightDataPointStorageD_Empty(this);
 	size_t i, index = 0;
+
+	if ((*this) == NULL || flatBytes == NULL || pde_exe == NULL || pde_params == NULL)
+		return SZ_FORMAT_ERR;
+	if (flatBytesLength < TDPS_MIN_HEADER_BYTES)
+		return SZ_FORMAT_ERR;
+
 	unsigned char version = flatBytes[index++]; //3
 	unsigned char sameRByte = flatBytes[index++]; //1
 
@@ -54,10 +81,14 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 
 	int isRegression = (sameRByte >> 7) & 0x01;
 
+	if (!tdpsHasBytes(index, pde_exe->SZ_SIZE_TYPE, flatBytesLength))
+		return SZ_FORMAT_ERR;
 	unsigned char dsLengthBytes[8];
 	for (i = 0; i < pde_exe->SZ_SIZE_TYPE; i++)
 		dsLengthBytes[i] = flatBytes[index++];
 	(*this)->dataSeriesLength = bytesToSize(dsLengthBytes, pde_exe->SZ_SIZE_TYPE);
+	if ((*this)->dataSeriesLength == 0)
+		return SZ_FORMAT_ERR;
 
 	if((*this)->isLossless==1)
 	{
@@ -66,6 +97,8 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 	}
 	else if(same==1)
 	{
+		if (!tdpsHasBytes(index, sizeof(double), flatBytesLength))
+			return SZ_FORMAT_ERR;
 		(*this)->allSameData = 1;
 		(*this)->exactMidBytes = &(flatBytes[index]);
 		return errorBoundMode;
@@ -75,11 +108,15 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 		
 	if(isRegression == 1)
 	{
-		(*this)->raBytes_size = flatBytesLength - 3 - 1 - MetaDataByteLength_double - pde_exe->SZ_SIZE_TYPE;
+		if (index > flatBytesLength)
+			return SZ_FORMAT_ERR;
+		(*this)->raBytes_size = flatBytesLength - index;
 		(*this)->raBytes = &(flatBytes[index]);
 		return errorBoundMode;
 	}						
 
+	if (!tdpsHasBytes(index, TDPS_FIXED_TAIL_MAX_BYTES, flatBytesLength))
+		return SZ_FORMAT_ERR;
 	unsigned char byteBuf[8];
 
 	for (i = 0; i < 4; i++)
@@ -91,12 +128,21 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 	for (i = 0; i < 4; i++)
 		byteBuf[i] = flatBytes[index++];
 	(*this)->intervals = bytesToInt32_bigEndian(byteBuf);// 4	
+	if ((*this)->intervals == 0 || (*this)->intervals > MAX_QUANTIZATION_INTERVALS)
+		return SZ_FORMAT_ERR;
 
 	for (i = 0; i < 8; i++)
 		byteBuf[i] = flatBytes[index++];
 	(*this)->medianValue = bytesToDouble(byteBuf);//8
 
 	(*this)->reqLength = flatBytes[index++]; //1
+	//the decoder indexes fixed 8-byte (double) buffers with reqLength, and the encoder clamps it
+	//to 64, so anything above that is a malformed stream
+	if ((unsigned char)(*this)->reqLength > 64)
+	{
+		printf(" error, invalid reqLength=%d in double compressed data\n", (int)(*this)->reqLength);
+		return SZ_FORMAT_ERR;
+	}
 	
 	for (i = 0; i < 8; i++)
 		byteBuf[i] = flatBytes[index++];
@@ -115,10 +161,16 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 		(*this)->transCodeBits_size = bytesToSize(byteBuf, pde_exe->SZ_SIZE_TYPE);// 4
 	}
 
+	if (!tdpsHasBytes(index, pde_exe->SZ_SIZE_TYPE, flatBytesLength))
+		return SZ_FORMAT_ERR;
 	for (i = 0; i < pde_exe->SZ_SIZE_TYPE; i++)
 		byteBuf[i] = flatBytes[index++];
 	(*this)->exactDataNum = bytesToSize(byteBuf, pde_exe->SZ_SIZE_TYPE);// ST
+	if ((*this)->exactDataNum > (*this)->dataSeriesLength) //at most one exact value per element
+		return SZ_FORMAT_ERR;
 
+	if (!tdpsHasBytes(index, pde_exe->SZ_SIZE_TYPE, flatBytesLength))
+		return SZ_FORMAT_ERR;
 	for (i = 0; i < pde_exe->SZ_SIZE_TYPE; i++)
 		byteBuf[i] = flatBytes[index++];
 	(*this)->exactMidBytes_size = bytesToSize(byteBuf, pde_exe->SZ_SIZE_TYPE);// ST
@@ -134,50 +186,50 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 	}
 	
 	if ((*this)->ifAdtFse == 0) {
+		if ((*this)->typeArray_size < 8 || !tdpsHasBytes(index, (*this)->typeArray_size, flatBytesLength))
+			return SZ_FORMAT_ERR;
 		(*this)->typeArray = &flatBytes[index];
 		//retrieve the number of states (i.e., stateNum)
 		(*this)->allNodes = bytesToInt32_bigEndian((*this)->typeArray); //the first 4 bytes store the stateNum
-		(*this)->stateNum = ((*this)->allNodes+1)/2;	
+		//the serialized tree needs at least 7 bytes per node (uchar layout) and the node count sizes
+		//the Huffman pool, so bound it before it reaches the tree builder
+		if ((*this)->allNodes <= 0 || (*this)->allNodes > MAX_HUFF_TREE_NODES ||
+			(size_t)(*this)->allNodes > ((*this)->typeArray_size - 8) / 7)
+			return SZ_FORMAT_ERR;
+		(*this)->stateNum = ((*this)->allNodes+1)/2;
 		index+=(*this)->typeArray_size;
 	} else {
+		if (!tdpsHasBytes(index, (*this)->FseCode_size, flatBytesLength))
+			return SZ_FORMAT_ERR;
 		(*this)->FseCode = &flatBytes[index]; 
 		index+=(*this)->FseCode_size;
 
+		if (!tdpsHasBytes(index, (*this)->transCodeBits_size, flatBytesLength))
+			return SZ_FORMAT_ERR;
 		(*this)->transCodeBits = &flatBytes[index]; 
 		index+=(*this)->transCodeBits_size;
 	}
 
-	// todo need check length
-	(*this)->residualMidBits_size = flatBytesLength                 // total length of flatBytes
-									- 1                             // version
-									- 1                             // sameByte
-									- MetaDataByteLength_double     // meta data
-									- pde_exe->SZ_SIZE_TYPE         // data series length
-									- 4                             // max quant intervals
-									- 4                             // intervals
-									- sizeof(double)                // median value
-									- 1                             // req length
-									- sizeof(double)                // real precision
-									- pde_exe->SZ_SIZE_TYPE         // leadNumArray_size
-									- pde_exe->SZ_SIZE_TYPE         // exactMidBytes_size
-									- (*this)->leadNumArray_size    // data length of leadNumArray
-									- (*this)->exactMidBytes_size;  // data length of exactMidBytes
-	if ((*this)->ifAdtFse == 0) {
-		(*this)->residualMidBits_size = (*this)->residualMidBits_size - (*this)->typeArray_size - pde_exe->SZ_SIZE_TYPE ;
-	} else {
-		(*this)->residualMidBits_size = (*this)->residualMidBits_size - (*this)->FseCode_size - (*this)->transCodeBits_size - pde_exe->SZ_SIZE_TYPE - pde_exe->SZ_SIZE_TYPE;
-	}
-	
-
+	if (!tdpsHasBytes(index, (*this)->leadNumArray_size, flatBytesLength))
+		return SZ_FORMAT_ERR;
 	(*this)->leadNumArray = &flatBytes[index];
 	
 	index+=(*this)->leadNumArray_size;
 	
+	if (!tdpsHasBytes(index, (*this)->exactMidBytes_size, flatBytesLength))
+		return SZ_FORMAT_ERR;
 	(*this)->exactMidBytes = &flatBytes[index];
 	
 	index+=(*this)->exactMidBytes_size;
 	
 	(*this)->residualMidBits = &flatBytes[index];
+	
+	// calc residualMidBits_size: whatever is left after the parsed sections (never underflows).
+	// It must be computed after the lead/exact arrays, otherwise the size also covers them and the
+	// decoder's residualMidBits bounds check would let a malformed block read past the payload
+	if (index > flatBytesLength)
+		return SZ_FORMAT_ERR;
+	(*this)->residualMidBits_size = flatBytesLength - index;
 	
 	
 	return errorBoundMode;

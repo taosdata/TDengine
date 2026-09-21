@@ -17,6 +17,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <math.h>
 
 #if defined(WINDOWS)
 int main(int argc, char *argv[]) { printf("welcome to use taospack tools v1.3 for windows.\n"); }
@@ -29,6 +31,10 @@ int main(int argc, char *argv[]) {
 #include "os.h"
 #include "tcompression.h"
 #include "tdataformat.h"
+// SZ internals: the security cases below also drive the Huffman tree validation directly. The
+// include dirs and the TSZ archive come with the "util" target (contrib/TSZ is a PUBLIC dependency).
+#include "Huffman.h"
+#include "defines.h"
 
 // ------- define -----------
 #define FT_CNT   8
@@ -2731,6 +2737,256 @@ extern bool     tsIfAdtFse;    // ADT-FSE algorithom or original huffman algorit
 extern char     tsCompressor[32];
 
 //
+//   ------- security: malformed compressed block rejection -------
+//
+// Devon static scan (defect 7114784001): a malformed compressed block must be rejected with an
+// error code. It must never write out of bounds, and it must never terminate the process (the
+// FSE decoder used to call exit(1) on garbage input).
+//
+static int secFailed = 0;
+
+#define SEC_CHECK(cond, name)              \
+  do {                                     \
+    if (cond) {                            \
+      printf("  [PASS] %s\n", name);       \
+    } else {                               \
+      printf("  [FAIL] %s\n", name);       \
+      secFailed++;                         \
+    }                                      \
+  } while (0)
+
+static void secPutInt32(unsigned char* p, unsigned int v) {
+  p[0] = (unsigned char)((v >> 24) & 0xFF);
+  p[1] = (unsigned char)((v >> 16) & 0xFF);
+  p[2] = (unsigned char)((v >> 8) & 0xFF);
+  p[3] = (unsigned char)(v & 0xFF);
+}
+
+// MetaDataByteLength of the SZ float/double stream (sz/inc/defines.h)
+#define SEC_META_DATA_BYTES 2
+
+// offset of the reqLength byte in a float flat stream: version(1)+same(1)+meta(2)+dataLen(st)+
+// maxQuantIntervals(4)+intervals(4)+median(4)
+static int secReqLengthOffset(const unsigned char* stream) {
+  int st = (stream[1] & 0x40) ? 8 : 4;
+  return 1 + 1 + SEC_META_DATA_BYTES + st + 4 + 4 + 4;
+}
+
+// build a minimal but syntactically valid float SZ flat header, 0 when the type array is used
+static int secBuildFloatHeader(unsigned char* s, int dsLength, unsigned int intervals, unsigned char reqLength,
+                               int ifAdtFse, unsigned int firstSize, unsigned int secondSize) {
+  int k = 0;
+  memset(s, 0, 128);
+  s[k++] = 1;                                        // 1 version (DATA_FROMAT_VER1)
+  s[k++] = (unsigned char)(ifAdtFse ? 0x02 : 0x00);  // 2 same flags: SZ_SIZE_TYPE=4, not lossless
+  s[k++] = 0;                                        // 3 meta (2 bytes, read by convertBytesToSZParams)
+  s[k++] = 0;
+  secPutInt32(s + k, (unsigned int)dsLength); k += 4;  // 4 element count
+  secPutInt32(s + k, 2 * intervals); k += 4;           // 5 max quant intervals
+  secPutInt32(s + k, intervals); k += 4;               // 6 intervals
+  secPutInt32(s + k, 0); k += 4;                       // 7 median
+  s[k++] = reqLength;                                  // 8 reqLength
+  memset(s + k, 0, 8); k += 8;                         // 9 realPrecision
+  if (!ifAdtFse) {                                     // 10 type array size / FSE sizes
+    secPutInt32(s + k, firstSize); k += 4;
+  } else {
+    secPutInt32(s + k, firstSize); k += 4;
+    secPutInt32(s + k, secondSize); k += 4;
+  }
+  secPutInt32(s + k, 0); k += 4;  // 11 exactDataNum
+  secPutInt32(s + k, 0); k += 4;  // 12 exactMidBytes size
+  return k;
+}
+
+// Serialized Huffman tree of a degenerate chain: node i points at node i+1 and the last node is the
+// only leaf, so every child is referenced exactly once and every node is reachable from the root.
+// Such a chain therefore passes every check except the tree height one. Layout for nodeCount > 256:
+// endianness(1) + L(2n) + R(2n) + C(4n) + t(n) = 1 + 9n bytes; the symbols and the leaf flags stay 0,
+// so the endianness byte is irrelevant here (a symbol array of zeros is endian independent).
+static size_t secChainTreeBytes(int n) { return 1 + (size_t)9 * (size_t)n; }
+
+static size_t secBuildChainTree(unsigned char* bytes, int n) {
+  size_t         size = secChainTreeBytes(n);
+  unsigned short l;
+  int            i;
+  memset(bytes, 0, size);
+  for (i = 0; i < n; i++) {
+    l = (unsigned short)((i < n - 1) ? (i + 1) : 0);
+    memcpy(bytes + 1 + (size_t)2 * (size_t)i, &l, sizeof(l));
+  }
+  return size;
+}
+
+int secMalformedTest() {
+  int cnt = 4096;
+  printf("\n=== security test: malformed compressed block rejection ===\n");
+
+  float* data = (float*)taosMemoryMalloc(cnt * sizeof(float));
+  float* back = (float*)taosMemoryMalloc(cnt * sizeof(float));
+  if (data == NULL || back == NULL) {
+    printf("  [FAIL] out of memory\n");
+    return 1;
+  }
+  for (int i = 0; i < cnt; i++) {
+    data[i] = 100.0f + 10.0f * (float)sin(i / 64.0) + 0.01f * (float)(i % 97);
+  }
+
+  int outSize = 1 + cnt * (int)sizeof(float);
+  char* out = (char*)taosMemoryMalloc(outSize);
+  if (out == NULL) {
+    printf("  [FAIL] out of memory\n");
+    taosMemoryFree(data);
+    taosMemoryFree(back);
+    return 1;
+  }
+
+  // baseline: a well formed block still round-trips
+  int n = tsCompressFloatLossy((char*)data, cnt * sizeof(float), cnt, out, outSize, ONE_STAGE_COMP, NULL, 0);
+  int code = (n > 0) ? tsDecompressFloatLossy(out, n, cnt, (char*)back, cnt * sizeof(float), ONE_STAGE_COMP, NULL, 0) : -1;
+  SEC_CHECK(n > 0 && code == cnt * (int)sizeof(float), "well formed block round-trips");
+  if (code > 0) {
+    double maxErr = 0;
+    for (int i = 0; i < cnt; i++) {
+      double e = fabs((double)data[i] - (double)back[i]);
+      if (e > maxErr) maxErr = e;
+    }
+    printf("        max err = %g\n", maxErr);
+    SEC_CHECK(maxErr <= 0.01, "well formed block keeps the precision");
+  }
+
+  // a failed baseline would make every malformed-injection check below pass for the wrong reason
+  if (n <= 0) {
+    printf("  [FAIL] baseline compression failed, malformed-injection checks skipped\n");
+    taosMemoryFree(out);
+    taosMemoryFree(data);
+    taosMemoryFree(back);
+    return secFailed + 1;
+  }
+
+  // 1) reqLength = 0xFF: used to write up to 27 attacker bytes past curBytes[4]
+  unsigned char* stream = (unsigned char*)out + 1;  // out[0] holds the algorithm/mode byte
+  unsigned int savedReqLength = stream[secReqLengthOffset(stream)];
+  if (savedReqLength > 32) {
+    printf("  [FAIL] unexpected reqLength %u in a fresh block\n", savedReqLength);
+    secFailed++;
+  }
+  stream[secReqLengthOffset(stream)] = 0xFF;
+  code = tsDecompressFloatLossy(out, n, cnt, (char*)back, cnt * sizeof(float), ONE_STAGE_COMP, NULL, 0);
+  SEC_CHECK(code < 0, "reqLength=0xFF is rejected");
+  stream[secReqLengthOffset(stream)] = (unsigned char)savedReqLength;
+
+  // 2) truncated payload
+  code = tsDecompressFloatLossy(out, 8, cnt, (char*)back, cnt * sizeof(float), ONE_STAGE_COMP, NULL, 0);
+  SEC_CHECK(code < 0, "truncated block is rejected");
+
+  // 3) FSE branch (ifAdtFse = 1) with a junk FseCode: used to call exit(1) inside taosd
+  {
+    unsigned char buf[256];
+    int len = secBuildFloatHeader(buf, cnt, 32, 32, 1, 2, 1);
+    buf[len++] = 0xFF;  // FseCode, 2 bytes of garbage
+    buf[len++] = 0xFF;
+    buf[len++] = 0x01;  // transCodeBits, 1 byte
+
+    unsigned char* payload = (unsigned char*)taosMemoryMalloc((size_t)len + 1);
+    payload[0] = (unsigned char)((ALGO_SZ_LOSSY << 1) | MODE_COMPRESS);
+    memcpy(payload + 1, buf, (size_t)len);
+    code = tsDecompressFloatLossy((char*)payload, len + 1, cnt, (char*)back, cnt * sizeof(float), ONE_STAGE_COMP, NULL, 0);
+    SEC_CHECK(code < 0, "garbage FSE stream is rejected without exiting");
+    taosMemoryFree(payload);
+  }
+
+  // 4) Huffman branch (ifAdtFse = 0) with a self-referencing child index: used to recurse forever
+  {
+    unsigned char buf[256];
+    int len = secBuildFloatHeader(buf, cnt, 32, 32, 0, 64, 0);
+    unsigned char* typeArray = buf + len;
+    secPutInt32(typeArray, 5);       // nodeCount
+    secPutInt32(typeArray + 4, 16);  // stateNum / 2 (informational)
+    typeArray[8] = 0;                // endianness byte (only the 4-byte symbols are swapped)
+    memset(typeArray + 9, 0, 35);    // L/R/t arrays for 5 nodes
+    typeArray[9] = 1;                // L[0] = 1
+    typeArray[14 + 1] = 1;           // R[0] = 1  -> node 1 is referenced twice
+    typeArray[9 + 1] = 1;            // L[1] = 1  -> self reference
+    len += 64;
+
+    unsigned char* payload = (unsigned char*)taosMemoryMalloc((size_t)len + 1);
+    payload[0] = (unsigned char)((ALGO_SZ_LOSSY << 1) | MODE_COMPRESS);
+    memcpy(payload + 1, buf, (size_t)len);
+    code = tsDecompressFloatLossy((char*)payload, len + 1, cnt, (char*)back, cnt * sizeof(float), ONE_STAGE_COMP, NULL, 0);
+    SEC_CHECK(code < 0, "cyclic Huffman tree is rejected");
+
+    // 4b) out of range child index, then unreachable nodes
+    memset(typeArray + 9, 0, 35);
+    typeArray[9] = 200;  // L[0] >= nodeCount
+    code = tsDecompressFloatLossy((char*)payload, len + 1, cnt, (char*)back, cnt * sizeof(float), ONE_STAGE_COMP, NULL, 0);
+    SEC_CHECK(code < 0, "out of range Huffman child index is rejected");
+
+    memset(typeArray + 9, 0, 35);
+    code = tsDecompressFloatLossy((char*)payload, len + 1, cnt, (char*)back, cnt * sizeof(float), ONE_STAGE_COMP, NULL, 0);
+    SEC_CHECK(code < 0, "unreachable Huffman nodes are rejected");
+    taosMemoryFree(payload);
+  }
+
+  // 5) capacity contract: the compressor must never write past the output size the caller declares
+  {
+    int   cap = 1 + cnt * (int)sizeof(float);
+    char* tight = (char*)taosMemoryMalloc((size_t)cap + 32);
+    memset(tight, 0x5A, (size_t)cap + 32);
+    int  r = tsCompressFloatLossy((char*)data, cnt * sizeof(float), cnt, tight, cap, ONE_STAGE_COMP, NULL, 0);
+    int  guardOk = 1;
+    for (int i = 0; i < 32; i++) {
+      if ((unsigned char)tight[cap + i] != 0x5A) guardOk = 0;
+    }
+    SEC_CHECK(r > 0 && r <= cap && guardOk, "compressor stays inside the declared capacity");
+    taosMemoryFree(tight);
+  }
+
+  // 6) Huffman tree height: unpad_tree_uchar/ushort/uint rebuild the serialized tree recursively, so a
+  //    degenerate chain of nodeCount nodes (it passes the symbol range, child index, single reference
+  //    and reachability checks) must be rejected before the rebuild can nest that many frames. The
+  //    shallow case keeps the bound from becoming over strict, the deep one keeps it from vanishing.
+  {
+    int            nShallow = 301;  // tree height 300: below MAX_HUFF_TREE_DEPTH, still accepted
+    int            nDeep = 2001;    // tree height 2000: above MAX_HUFF_TREE_DEPTH, rejected
+    unsigned char* tree = (unsigned char*)taosMemoryMalloc(secChainTreeBytes(nDeep));
+    if (tree == NULL) {
+      printf("  [FAIL] out of memory for the chain tree\n");
+      secFailed++;
+    } else {
+      HuffmanTree* ht = createHuffmanTree((nShallow + 1) / 2);
+      node         root = NULL;
+      size_t       treeBytes = 0;
+      size_t       len = secBuildChainTree(tree, nShallow);
+      int          res = (ht == NULL) ? SZ_FORMAT_ERR
+                                      : reconstruct_HuffTree_from_bytes_anyStates(ht, tree, len, nShallow, 16,
+                                                                                 &root, &treeBytes);
+      SEC_CHECK(res == SZ_SUCCESS, "a shallow Huffman chain tree is still accepted");
+      if (ht != NULL) {
+        SZ_ReleaseHuffman(ht);
+      }
+
+      ht = createHuffmanTree((nDeep + 1) / 2);
+      root = NULL;
+      treeBytes = 0;
+      len = secBuildChainTree(tree, nDeep);
+      res = (ht == NULL) ? SZ_SUCCESS
+                         : reconstruct_HuffTree_from_bytes_anyStates(ht, tree, len, nDeep, 16, &root, &treeBytes);
+      SEC_CHECK(res != SZ_SUCCESS, "a degenerate chain Huffman tree taller than MAX_HUFF_TREE_DEPTH is rejected");
+      if (ht != NULL) {
+        SZ_ReleaseHuffman(ht);
+      }
+      taosMemoryFree(tree);
+    }
+  }
+
+  taosMemoryFree(out);
+  taosMemoryFree(data);
+  taosMemoryFree(back);
+  printf("=== security test %s (%d failure(s)) ===\n", secFailed == 0 ? "PASSED" : "FAILED", secFailed);
+  return secFailed;
+}
+
+//
 //   -----------------  main ----------------------
 //
 int main(int argc, char* argv[]) {
@@ -2798,6 +3054,10 @@ int main(int argc, char* argv[]) {
       memTest();
     } else if (strcmp(argv[1], "-leak") == 0) {
       leakTest();
+    } else if (strcmp(argv[1], "-sec") == 0) {
+      int failed = secMalformedTest();
+      tsCompressExit();
+      return failed;
     }
   } else {
     unitTestFloat();

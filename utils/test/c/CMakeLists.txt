@@ -42,6 +42,9 @@ add_executable(tmq_taosx_txn tmq_taosx_txn.c)
 
 if(TD_LINUX)
     add_executable(tsz_test tsz_test.c)
+    # malformed TSZ/SZ payload rejection (Devon static scan defect 7114784001): the SZ decoder
+    # must reject garbage blocks with an error code instead of overflowing or calling exit()
+    add_test(NAME tsz_test_malformed_reject COMMAND tsz_test -sec)
 endif()
 
 target_link_libraries(
