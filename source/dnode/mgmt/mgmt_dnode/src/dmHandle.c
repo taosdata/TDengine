@@ -1950,14 +1950,22 @@ int32_t dmProcessStreamHbRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SMStreamHbRspMsg rsp = {0};
   int32_t          code = 0;
   SDecoder         decoder;
-  char*            msg = POINTER_SHIFT(pMsg->pCont, sizeof(SStreamMsgGrpHeader));
-  int32_t          len = pMsg->contLen - sizeof(SStreamMsgGrpHeader);
   int64_t          currTs = taosGetTimestampMs();
 
   if (pMsg->code) {
     return streamHbHandleRspErr(pMsg->code, currTs);
   }
 
+  if (pMsg->pCont == NULL || pMsg->contLen < (int32_t)sizeof(SStreamMsgGrpHeader)) {
+    return streamHbHandleRspErr(TSDB_CODE_INVALID_MSG, currTs);
+  }
+  SStreamMsgGrpHeader header;
+  memcpy(&header, pMsg->pCont, sizeof(header));
+  if (header.streamGid < 0 || header.streamGid >= STREAM_MAX_GROUP_NUM) {
+    return streamHbHandleRspErr(TSDB_CODE_INVALID_MSG, currTs);
+  }
+  char   *msg = POINTER_SHIFT(pMsg->pCont, sizeof(header));
+  int32_t len = pMsg->contLen - sizeof(header);
   tDecoderInit(&decoder, (uint8_t*)msg, len);
   code = tDecodeStreamHbRsp(&decoder, &rsp);
   if (code < 0) {
@@ -1970,6 +1978,10 @@ int32_t dmProcessStreamHbRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   tDecoderClear(&decoder);
 
+  if (header.streamGid != rsp.streamGId) {
+    tDeepFreeSMStreamHbRspMsg(&rsp);
+    return streamHbHandleRspErr(TSDB_CODE_INVALID_MSG, currTs);
+  }
   return streamHbProcessRspMsg(&rsp);
 }
 

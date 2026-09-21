@@ -1524,6 +1524,14 @@ bool cliMayGetAhandle(STrans* pTrans, SRpcMsg* pMsg) {
   }
   taosThreadMutexLock(&pTrans->seqMutex);
   msgType = taosHashGet(pTrans->seqTable, &seq, sizeof(seq));
+  if (pMsg->msgType == TDMT_MND_STREAM_HEARTBEAT_RSP) {
+    bool matched = msgType != NULL && *msgType + 1 == pMsg->msgType;
+    if (matched) {
+      taosHashRemove(pTrans->seqTable, &seq, sizeof(seq));
+    }
+    taosThreadMutexUnlock(&pTrans->seqMutex);
+    return matched;
+  }
   taosThreadMutexUnlock(&pTrans->seqMutex);
   if (msgType == NULL) {
     STransCtx* ctx = taosHashGet(pTrans->sidTable, &pMsg->info.qId, sizeof(pMsg->info.qId));
@@ -1579,6 +1587,10 @@ void* processSvrMsg(void* arg) {
             tsem_post(reqWithSem->sem);
           }
         } else {
+          if (pRpcMsg->msgType == TDMT_MND_STREAM_HEARTBEAT_RSP) {
+            rpcFreeCont(pRpcMsg->pCont);
+            pRpcMsg->pCont = NULL;
+          }
           tDebug("taosd %s received from taosd, ignore", TMSG_INFO(pRpcMsg->msgType));
         }
       }

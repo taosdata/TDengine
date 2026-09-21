@@ -454,13 +454,26 @@ static bool rpcNoDelayMsg(tmsg_t msgType) {
   }
   return false;
 }
+static void dmProcessClientRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
+  dmProcessRpcMsg(pDnode, pRpc, pEpSet);
+}
+
+static void dmProcessServerRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
+  if (pRpc->msgType == TDMT_MND_STREAM_HEARTBEAT_RSP) {
+    rpcFreeCont(pRpc->pCont);
+    pRpc->pCont = NULL;
+    return;
+  }
+  dmProcessRpcMsg(pDnode, pRpc, pEpSet);
+}
+
 int32_t dmInitClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
   rpcInit.label = "DNODE-CLI";
   rpcInit.numOfThreads = tsNumOfRpcThreads / 2;
-  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+  rpcInit.cfp = (RpcCfp)dmProcessClientRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = TSDB_DEFAULT_USER;
@@ -523,7 +536,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   SRpcInit rpcInit = {0};
   rpcInit.label = "DNODE-STA-CLI";
   rpcInit.numOfThreads = 1;
-  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+  rpcInit.cfp = (RpcCfp)dmProcessClientRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = TSDB_DEFAULT_USER;
@@ -582,7 +595,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   SRpcInit rpcInit = {0};
   rpcInit.label = "DNODE-SYNC-CLI";
   rpcInit.numOfThreads = tsNumOfRpcThreads / 2;
-  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+  rpcInit.cfp = (RpcCfp)dmProcessClientRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = TSDB_DEFAULT_USER;
@@ -669,7 +682,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.localPort = tsServerPort;
   rpcInit.label = "DND-S";
   rpcInit.numOfThreads = tsNumOfRpcThreads;
-  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+  rpcInit.cfp = (RpcCfp)dmProcessServerRpcMsg;
   rpcInit.sessions = tsMaxShellConns;
   rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;

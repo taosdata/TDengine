@@ -17,10 +17,12 @@
 #define ALLOW_FORBID_FUNC
 
 #include "os.h"
+#include "osInt.h"
 
 #ifdef WINDOWS
 
 #include <windows.h>
+#include <aclapi.h>
 
 typedef struct TdDirEntry {
   WIN32_FIND_DATA findFileData;
@@ -143,6 +145,64 @@ void taosRemoveDir(const char *dirname) {
 bool taosDirExist(const char *dirname) {
   if (dirname == NULL || strlen(dirname) >= TDDIRMAXLEN) return false;
   return taosCheckExistFile(dirname);
+}
+
+int32_t taosEnsurePrivateDir(const char *path) {
+  if (path == NULL || path[0] == 0 || strlen(path) >= PATH_MAX) return terrno = TSDB_CODE_INVALID_PARA;
+  char name[PATH_MAX];
+  memcpy(name, path, strlen(path) + 1);
+  size_t length = strlen(name);
+  // O_NOFOLLOW / OPEN_REPARSE_POINT must apply to the final component, even with a trailing separator.
+  while (length > 1 && (name[length - 1] == '/'
+#ifdef WINDOWS
+                        || name[length - 1] == '\\'
+#endif
+                        )) {
+#ifdef WINDOWS
+    if (length == 3 && name[1] == ':') break;
+#endif
+    name[--length] = 0;
+  }
+  int32_t code = 0;
+#ifdef WINDOWS
+  SPrivateFileSecurity security = {0};
+  code = taosInitPrivateFileSecurity(&security);
+  if (code != 0) return code;
+  HANDLE handle = INVALID_HANDLE_VALUE;
+  if (!CreateDirectoryA(name, &security.attributes) && GetLastError() != ERROR_ALREADY_EXISTS) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    goto _exit;
+  }
+  handle = CreateFileA(name, READ_CONTROL | WRITE_DAC, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
+                       FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+  if (handle == INVALID_HANDLE_VALUE) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    goto _exit;
+  }
+  code = taosCheckPrivateFileHandle(handle, true, security.user->User.Sid);
+  if (code != 0) goto _exit;
+  DWORD error = SetSecurityInfo(handle, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                                NULL, NULL, security.acl, NULL);
+  if (error != ERROR_SUCCESS) code = TAOS_SYSTEM_WINAPI_ERROR(error);
+_exit:
+  if (handle != INVALID_HANDLE_VALUE) CloseHandle(handle);
+  taosFreePrivateFileSecurity(&security);
+#else
+  if (mkdir(name, 0700) != 0 && ERRNO != EEXIST) return terrno = TAOS_SYSTEM_ERROR(ERRNO);
+  int fd = open(name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+  if (fd < 0) return terrno = TAOS_SYSTEM_ERROR(ERRNO);
+  struct stat info = {0};
+  if (fstat(fd, &info) != 0) {
+    code = TAOS_SYSTEM_ERROR(ERRNO);
+  } else if (!S_ISDIR(info.st_mode) || info.st_uid != geteuid()) {
+    code = TAOS_SYSTEM_ERROR(EACCES);
+  } else if (fchmod(fd, 0700) != 0) {
+    code = TAOS_SYSTEM_ERROR(ERRNO);
+  }
+  if (close(fd) != 0 && code == 0) code = TAOS_SYSTEM_ERROR(ERRNO);
+#endif
+  if (code != 0) terrno = code;
+  return code;
 }
 
 int32_t taosMkDir(const char *dirname) {
