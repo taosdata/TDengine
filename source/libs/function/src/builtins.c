@@ -2324,7 +2324,12 @@ static int32_t translateRepeat(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
   int32_t resLen;
   if (nodeType(nodesListGetNode(pFunc->pParameterList, 1)) == QUERY_NODE_VALUE) {
-    resLen = orgLen * TMAX((int32_t)((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i, 1);
+    int64_t repeatCount = TMAX(((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i, 1);
+    if (orgLen < 0 || repeatCount > TSDB_MAX_FIELD_LEN ||
+        (repeatCount > 0 && orgLen > TSDB_MAX_FIELD_LEN / repeatCount)) {
+      return TSDB_CODE_FUNC_INVALID_RES_LENGTH;
+    }
+    resLen = (int32_t)((int64_t)orgLen * repeatCount);
   } else {
     resLen = TSDB_MAX_BINARY_LEN;
   }
