@@ -12,7 +12,7 @@ import PlatformSupported from "../10-developer-guide/08-connectors-reference/res
 注：
 
 1. ● 表示经过官方测试验证，○ 表示非官方测试验证，E 表示仅企业版支持。
-2. 社区版仅支持主流操作系统较新版本（Ubuntu 18+ / CentOS 7+ / Debian / Fedora / FreeBSD / OpenSUSE / SUSE Linux / macOS 等）。若有其他操作系统及版本需求，请联系企业版支持。
+2. 社区版仅支持主流操作系统较新版本（Ubuntu 18+ / CentOS 7+ / CentOS Stream / Rocky(v3.4.3.0+) / AlmaLinux(v3.4.3.0+) / RedHat / Debian / Fedora / FreeBSD / OpenSUSE / SUSE Linux / macOS 等）。若有其他操作系统及版本需求，请联系企业版支持。
 
 | | **版本** | **X64 64bit** | **ARM64** |
 |---|---|---|---|
