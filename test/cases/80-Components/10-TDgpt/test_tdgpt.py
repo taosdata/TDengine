@@ -1,5 +1,5 @@
 import time
-from new_test_framework.utils import (tdLog, tdSql)
+from new_test_framework.utils import tdLog, tdSql
 
 
 class TestTDgptBasic:
@@ -33,6 +33,60 @@ class TestTDgptBasic:
 
         tdSql.error("drop anode 1")
 
+    def test_anode_url_security(self):
+        """CREATE ANODE URL security checks
+
+        Verify that the server rejects:
+        1. Non-http/https schemes (file://, ftp://)
+        2. Loopback addresses (127.0.0.1, ::1)
+        3. RFC-1918 private addresses (10.x, 172.16.x, 192.168.x) and IPv6 ULA (fc00::/7)
+        4. Link-local addresses (169.254.x.x, fe80::/10)
+        5. Bare host:port without scheme
+
+        Since: v3.3.9.0
+
+        Labels: common,ci,security,functional
+
+        Jira: TD-SEC-2026-038
+
+        History:
+            - 2026-09-20 Added for SSRF hardening
+
+        """
+
+        # disable the anodeAllowInternalUrl setting to test the security checks
+        tdSql.execute("alter all dnodes 'anodeAllowInternalUrl' '0'")
+
+        try:
+            # non-http schemes must be rejected
+            tdSql.error("create anode 'file:///etc/passwd'")
+            tdSql.error("create anode 'ftp://192.168.1.1:6090'")
+
+            # bare host:port without scheme must be rejected
+            tdSql.error("create anode '192.168.1.1:6090'")
+
+            # loopback addresses must be rejected
+            tdSql.error("create anode 'http://127.0.0.1:6090'")
+            tdSql.error("create anode 'http://127.1.2.3:6090'")
+            tdSql.error("create anode 'http://localhost:6090'")
+            tdSql.error("create anode 'http://[::1]:6090'")  # IPv6 loopback
+
+            # link-local (cloud metadata endpoint) must be rejected
+            tdSql.error("create anode 'http://169.254.169.254:6090'")
+
+            # RFC-1918 private ranges must be rejected by default
+            tdSql.error("create anode 'http://10.0.0.1:6090'")
+            tdSql.error("create anode 'http://172.16.0.1:6090'")
+            tdSql.error("create anode 'http://192.168.1.1:6090'")
+            tdSql.error("create anode 'http://[fc00::1]:6090'")  # IPv6 ULA (RFC 4193 private)
+
+            # no anode should have been created
+            tdSql.query("show anodes")
+            tdSql.checkRows(0)
+        finally:
+            # restore default configuration (anodeAllowInternalUrl=true) to avoid polluting subsequent tests
+            tdSql.execute("alter all dnodes 'anodeAllowInternalUrl' '1'")
+
     def test_analysis(self):
         """TDgpt analysis functions
 
@@ -61,11 +115,11 @@ class TestTDgptBasic:
 
         """
 
-        tdSql.execute("create anode '192.168.2.90:6090'")
+        tdSql.execute("create anode 'http://192.168.2.90:6090'")
         tdSql.query("show anodes")
 
         tdSql.checkRows(1)
-        tdLog.info("create anode: 192.168.2.90:6090 successfully")
+        tdLog.info("create anode: http://192.168.2.90:6090 successfully")
         tdSql.query("show anodes full")
 
         # there are 17 analysis models for forecasting or anomaly-detection.
@@ -455,8 +509,8 @@ class TestTDgptBasic:
         tdSql.query("show anodes")
         tdSql.checkRows(0)
         
-        tdSql.execute("create anode '192.168.2.90:6090'")
-        tdLog.info("create anode: 192.168.2.90:6090 successfully")
+        tdSql.execute("create anode 'http://192.168.2.90:6090'")
+        tdLog.info("create anode: http://192.168.2.90:6090 successfully")
         
         tdSql.query("show anodes full")
         tdSql.printResult()

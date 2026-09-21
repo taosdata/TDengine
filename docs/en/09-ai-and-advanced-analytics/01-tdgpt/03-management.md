@@ -95,7 +95,32 @@ You manage anodes through the TDengine CLI. The following actions must be perfor
 CREATE ANODE {node_url}
 ```
 
-The `node_url` parameter determines the IP address and port of the anode. This information will be registered to your TDengine cluster. Do not register a single anode to multiple TDengine clusters.
+The `node_url` parameter determines the URL of the anode service. This information will be registered to your TDengine cluster. Do not register a single anode to multiple TDengine clusters.
+
+**URL format requirements**
+
+The URL must satisfy all of the following:
+
+- The scheme must be `http://` or `https://`. Bare `host:port` strings and other schemes such as `file://` or `ftp://` are rejected.
+- By default, URLs that resolve to private or internal network addresses are **allowed**. To block them, set `anodeAllowInternalUrl false` in `taos.cfg` and restart `taosd`. Blocked ranges include loopback (`127.0.0.0/8`, `::1`), link-local (`169.254.0.0/16`, `fe80::/10`), and RFC-1918 ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`).
+
+Example:
+
+```sql
+CREATE ANODE 'http://192.168.1.50:6035'
+```
+
+**Restricting Anode URLs to public addresses**
+
+In environments where the TDengine server should not connect to internal services (for example, multi-tenant or cloud deployments), set `anodeAllowInternalUrl` to `false` in `taos.cfg` and restart `taosd`:
+
+```ini
+anodeAllowInternalUrl false
+```
+
+| Parameter | Scope | Default | Description |
+|-----------|-------|---------|-------------|
+| `anodeAllowInternalUrl` | taosd | `true` | Allow `CREATE ANODE` with URLs that resolve to private or internal network addresses. Set to `false` to block loopback, link-local, and RFC-1918 addresses. Can be changed at runtime via `ALTER ALL DNODES 'anodeAllowInternalUrl' '0'`. |
 
 #### View Anodes
 
