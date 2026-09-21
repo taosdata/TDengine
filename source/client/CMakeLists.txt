@@ -7,12 +7,78 @@ endif()
 if(TD_WINDOWS)
     configure_file(src/taosnative.rc.in "${CMAKE_CURRENT_BINARY_DIR}/taosnative.rc")
     add_library(${TAOS_NATIVE_LIB} SHARED ${CLIENT_SRC} "${CMAKE_CURRENT_BINARY_DIR}/taosnative.rc")
+    # The dispatcher reads tdNativeApiTable out of this driver with
+    # GetProcAddress.  Windows exports only symbols marked __declspec(dllexport),
+    # and a data symbol gets no benefit from the public headers, so the table needs
+    # the attribute explicitly -- see source/client/inc/taosNativeApi.h.  Only the
+    # shared driver carries it; the static variant is linked into tests that do not
+    # look the table up.
+    target_compile_definitions(${TAOS_NATIVE_LIB} PRIVATE TD_NATIVE_API_TABLE_EXPORTS)
 else()
     add_library(${TAOS_NATIVE_LIB} SHARED ${CLIENT_SRC})
 endif()
 
 if(TD_DARWIN)
     target_compile_options(${TAOS_NATIVE_LIB} PRIVATE -Wno-error=deprecated-non-prototype)
+endif()
+
+# Export convergence for libtaosnative.so: hide the engine/third-party symbols
+# that no in-tree consumer imports, which also lets --gc-sections drop the code
+# behind them.
+#
+# This is only safe because libtaosnative.so is the *single* provider of these
+# symbols: libtaos.so is a thin dispatcher and no longer embeds the engine, so
+# there is no second copy whose state could diverge.  The earlier attempt hid
+# them in both libraries, which split tsNumOfCores between the two copies and
+# made every client fail config init with TSDB_CODE_OUT_OF_RANGE.
+#
+# See taosnative.ver; regenerate it whenever the consumer set changes.
+if(TD_LINUX)
+    target_link_options(${TAOS_NATIVE_LIB} PRIVATE
+        "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/taosnative.ver"
+        # The CLI tools call these util/os helpers, but nothing inside the engine
+        # does, so the archive members defining them would never be pulled in and
+        # no consumer could resolve them.  Force those members in rather than let
+        # every tool embed its own copy of util/os (and of their state).
+        #
+        # base58/taosDes* are the same case one level down: the enterprise
+        # license archive (libgrant) is a single prebuilt machine_*.o, so pulling
+        # it in for tGetMachineId() also drags in the activation-code helpers,
+        # which reference these four -- nothing else does.
+        "LINKER:-u,taosCreateThread"
+        "LINKER:-u,taosDestroyThread"
+        "LINKER:-u,taosThreadRunning"
+        "LINKER:-u,taosSetSignal"
+        "LINKER:-u,taosIgnSignal"
+        "LINKER:-u,base58_decode"
+        "LINKER:-u,base58_encode"
+        "LINKER:-u,taosDesDecode"
+        "LINKER:-u,taosDesEncode")
+
+    # A version script is not a link dependency: without this, editing
+    # taosnative.ver does not relink the library and the change looks like it had
+    # no effect (the stale export table keeps being used).
+    set_property(TARGET ${TAOS_NATIVE_LIB} APPEND PROPERTY LINK_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/taosnative.ver")
+elseif(TD_DARWIN)
+    # Mach-O has no version script, so macOS currently gets the thin dispatcher
+    # without export convergence (the ld64 equivalent, -exported_symbols_list, is
+    # a separate generated artifact and needs a macOS validation run).  The same
+    # helpers still have to be forced in: nothing inside the engine references
+    # them, so the archive members would otherwise never be pulled in and the CLI
+    # tools could not resolve them.  ld64 -u takes the Mach-O symbol form, i.e.
+    # with the leading underscore.
+    target_link_options(${TAOS_NATIVE_LIB} PRIVATE
+        "LINKER:-u,_taosCreateThread"
+        "LINKER:-u,_taosDestroyThread"
+        "LINKER:-u,_taosThreadRunning"
+        "LINKER:-u,_taosSetSignal"
+        "LINKER:-u,_taosIgnSignal"
+        # See the Linux branch above: libgrant's machine_*.o needs these.
+        "LINKER:-u,_base58_decode"
+        "LINKER:-u,_base58_encode"
+        "LINKER:-u,_taosDesDecode"
+        "LINKER:-u,_taosDesEncode")
 endif()
 
 
@@ -34,7 +100,26 @@ target_link_libraries(
     ${TAOS_NATIVE_LIB}
     INTERFACE api
     PRIVATE util common transport monitor nodes parser command planner catalog scheduler function qcom geometry ${TAOSD_MODULE} decimal extconnector
-    PUBLIC os
+    # PRIVATE, not PUBLIC: the driver is a shared library, so it does not need to
+    # hand os's archive to its consumers.  With PUBLIC, libos.a lands on every
+    # consumer's link line (taosdump, taos, taosBenchmark, the C test tools...)
+    # and, now that the version script hides part of the engine here, the linker
+    # pulls its members into the executable instead of resolving dynamically --
+    # the executable then carries a second osDefaultInit/tsNumOfCores.  Harmless
+    # only as long as the copy stays private; tmq_sim exported it and became the
+    # provider for libtaosnative.so, which split the engine's global state and
+    # made taos_connect() return NULL.
+    PRIVATE os
+)
+
+# os's include directories still have to reach consumers (they compile against
+# os.h), but only those -- see the PRIVATE comment above.
+target_include_directories(
+    ${TAOS_NATIVE_LIB}
+    INTERFACE
+    "${TD_SOURCE_DIR}/include/os"
+    "${TD_SOURCE_DIR}/include"
+    "${TD_SOURCE_DIR}/include/util"
 )
 
 add_library(${TAOS_NATIVE_LIB_STATIC} STATIC ${CLIENT_SRC})

@@ -1,0 +1,12 @@
+# Export convergence whitelist for taosudf.
+# Keep = taos_* public API; hide third-party/engine-internal symbol leaks.
+# taosudf has no static consumers: UDF plugins dlopen it and need only libc
+# (verified), so a glob on taos_* is sufficient here.  This file is NOT produced
+# by cmake/gen_export_ver.py -- that generator covers libtaos.so/libtaosnative.so,
+# whose consumer set is large enough to require an exact symbol list.
+VER_1.0 {
+  global:
+    taos_*;
+  local:
+    *;
+};

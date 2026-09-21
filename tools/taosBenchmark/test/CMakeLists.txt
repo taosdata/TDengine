@@ -18,10 +18,17 @@ IF(TD_LINUX)
     ADD_EXECUTABLE(benchmarkTest benchmarkTest.cpp ${BENCHMARK_SRC})
     DEP_ext_gtest(benchmarkTest)
 
+    # libtaos.so owns the public API; the engine internals benchUtil.c uses
+    # directly (decimal64FromStr, ...) live only in the driver.  On Linux the
+    # driver no longer exports the public names, so naming it here cannot shadow
+    # the dispatcher; macOS resolves them through libtaos.dylib's re-export.
     TARGET_LINK_LIBRARIES(
             benchmarkTest
             PRIVATE taos toolscJson
     )
+    if(TD_LINUX)
+        TARGET_LINK_LIBRARIES(benchmarkTest PRIVATE ${TAOS_NATIVE_LIB})
+    endif()
 
     target_include_directories(
         benchmarkTest PRIVATE
