@@ -208,6 +208,7 @@ extern int64_t tsMndLogRetention;
 extern bool    tsMndSkipGrant;
 extern int32_t tsTxnTimeout;
 extern bool    tsEnableWhiteList;
+extern bool    tsAnodeAllowInternalUrl;
 extern bool    tsForceKillTrans;
 extern bool    tsForceScram;
 extern int8_t  tsSodEnforceMode;  // 0: not enforce, 1: enforce mandatory SoD
