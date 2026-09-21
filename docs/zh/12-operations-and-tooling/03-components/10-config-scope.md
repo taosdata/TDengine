@@ -125,6 +125,7 @@ toc_max_heading_level: 4
 | encryptScope | taosd | 加密范围 |
 | encryptPassAlgorithm | taosd | 加密存储用户密码功能开关 |
 | enableWhiteList | taosd | 白名单功能开关 |
+| anodeAllowInternalUrl | taosd | 允许 CREATE ANODE 使用解析到私有/内网地址（回环、链路本地、RFC-1918）的 URL。默认 true，设置为 false 可拒绝内网地址，支持通过 ALTER ALL DNODES 热更新，无需重启。 |
 | secureEraseMode | taosd | 安全删除物理覆写填充方式（0 零填充 / 1 随机填充） |
 | syncLogBufferMemoryAllowed | taosd | 一个 dnode 允许的 sync 日志缓存消息占用的内存最大值 |
 | syncApplyQueueSize | taosd | sync 日志 apply 队列的大小 |

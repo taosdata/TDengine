@@ -125,6 +125,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | encryptScope | taosd | Encryption scope |
 | encryptPassAlgorithm | taosd | Switch for saving user password as encrypted string |
 | enableWhiteList | taosd | Switch for whitelist feature |
+| anodeAllowInternalUrl | taosd | Allow CREATE ANODE with URLs that resolve to private/internal network addresses (loopback, link-local, RFC-1918). Default true. Set to false to block internal addresses. Hot-reloadable via ALTER ALL DNODES. |
 | syncLogBufferMemoryAllowed | taosd | Maximum memory allowed for sync log cache messages for a dnode |
 | syncApplyQueueSize | taosd | Size of apply queue for sync log |
 | syncNegotiationWin | taosd | Size of the negotiation window for sync, used to control the negotiation buffer during log synchronization |

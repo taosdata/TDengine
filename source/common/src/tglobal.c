@@ -238,6 +238,7 @@ int64_t tsMndLogRetention = 2000;
 bool    tsMndSkipGrant = false;
 int32_t tsTxnTimeout = TSDB_TXN_TIMEOUT_DEFAULT;
 bool    tsEnableWhiteList = false;  // ip white list cfg
+bool    tsAnodeAllowInternalUrl = true;  // allow CREATE ANODE with private/internal network URLs
 bool    tsForceKillTrans = false;
 bool    tsForceScram = false;  // when true, users with SCRAM creds may ONLY auth via SCRAM (no legacy fallback)
 int8_t  tsSodEnforceMode = 0;
@@ -1295,6 +1296,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "rpcRecvLogThreshold", tsRpcRecvLogThreshold, 1, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "minDiskFreeSize", tsMinDiskFreeSize, TFS_MIN_DISK_FREE_SIZE, TFS_MIN_DISK_FREE_SIZE_MAX, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_LOCAL,CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableWhiteList", tsEnableWhiteList, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL,CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "anodeAllowInternalUrl", tsAnodeAllowInternalUrl, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "forceKillTrans", tsForceKillTrans, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL,CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "forceScram", tsForceScram, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL,CFG_PRIV_SYSTEM));
 
@@ -2442,6 +2444,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableWhiteList");
   tsEnableWhiteList = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "anodeAllowInternalUrl");
+  tsAnodeAllowInternalUrl = pItem->bval;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "forceKillTrans");
   tsForceKillTrans = pItem->bval;
 
@@ -3459,6 +3464,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"asynclog", &tsAsyncLog},
                                          {"countAlwaysReturnValue", &tsCountAlwaysReturnValue},
                                          {"enableWhiteList", &tsEnableWhiteList},
+                                         {"anodeAllowInternalUrl", &tsAnodeAllowInternalUrl},
                                          {"forceScram", &tsForceScram},
                                          {"statusInterval", &tsStatusInterval},
                                          {"statusIntervalMs", &tsStatusIntervalMs},
